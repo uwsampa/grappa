@@ -1,0 +1,27 @@
+TARGET = shortest_paths
+CRAYpe = /opt/CRAYpe/2.0.3
+CC  = $(CRAYpe)/bin/cc
+F77 = $(CRAYpe)/bin/f77
+FLAGS = -par -O3 -pl $(TARGET).pl -DPERMUTE_VERTICES -I$(CRAYpe)/include
+LFLAGS = -pl $(TARGET).pl -lm
+TOCOMPILE = drive.o sp.o BFS.o STConnectivity.o delta_stepping.o BellmanFord.o graph.o utils.o giant.o
+
+all: $(TARGET)
+
+giant.o: giant.f giant.inc Makefile.mta
+	$(F77) $(FLAGS) -c giant.f
+
+.c.o:
+	$(CC) $(FLAGS) -c $<
+
+drive.o: drive.c Makefile.mta
+sp.o: sp.c sp.h Makefile.mta
+graph.o: graph.c graph.h Makefile.mta
+utils.o: utils.c utils.h Makefile.mta
+BFS.o: BFS.c BFS.h Makefile.mta
+STConnectivity.o: STConnectivity.c STConnectivity.h Makefile.mta
+delta_stepping.o: delta_stepping.c delta_stepping.h Makefile.mta
+BellmanFord.o: BellmanFord.c BellmanFord.h Makefile.mta
+
+$(TARGET): $(TOCOMPILE)
+	$(CC) -o $(TARGET) $(TOCOMPILE) $(LFLAGS)

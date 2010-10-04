@@ -1,0 +1,26 @@
+This code was written by Kamesh Madduri (Ga. Tech.) for the DIMACS challenge
+and for our joint ALENEX07 paper.
+
+
+make -f Makefile.linux
+or 
+make -f Makefile.mta
+
+./shortest paths for a usage message.
+
+example:
+
+./shortest_paths -st -nSrcs 10 -trials 2 -graph cray -undirected -graph_args 3 3
+
+
+This says "run st connectivity (bidirectional) with 10 different randomly-
+chosen s-t pairs.  For each pair, do 2 trials.  Use the Cray "fancy graph"
+generator.  There are 3 different classes of vertex degree, and we're to use
+graph description "3".  I think that "3 10" would generate the 234M edge
+instance.
+
+Alteratively, you can select "-ds" to run the "delta-stepping" single-source
+shortest paths (sssp) code that found sssp on a billion node RMAT graph in
+roughly 10s using 40p on boomer.
+
+

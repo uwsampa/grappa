@@ -1,0 +1,26 @@
+TARGET = shortest_paths
+CC = gcc
+F77 = g77
+
+CFLAGS = -O3
+F77FLAGS = 
+LFLAGS = $(CFLAGS) -lm
+TOCOMPILE = drive.o sp.o BFS.o graph.o STConnectivity.o BellmanFord.o utils.o giant.o delta_stepping.o 
+
+all: $(TARGET)
+
+giant.o: giant.f giant.inc Makefile
+	$(F77) $(F77FLAGS) -c giant.f
+
+.c.o:
+	$(CC) $(CFLAGS) -c $<
+
+drive.o: drive.c Makefile.linux
+sp.o: sp.c sp.h Makefile.linux
+graph.o: graph.c graph.h Makefile.linux
+utils.o: utils.c utils.h Makefile.linux
+BFS.o: BFS.c BFS.h Makefile.linux
+delta_stepping.o: delta_stepping.c delta_stepping.h Makefile.linux
+BellmanFord.o: BellmanFord.c BellmanFord.h Makefile.linux
+$(TARGET): $(TOCOMPILE)
+	$(CC) -o $(TARGET) $(TOCOMPILE) $(LFLAGS)
