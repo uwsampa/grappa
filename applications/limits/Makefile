@@ -9,11 +9,13 @@ LIBS+= -lrt
 
 HEADERS=\
 	node.h \
-	alloc.h 
+	alloc.h \
+	walk.h
 
 OBJECTS=\
 	node.o \
-	alloc.o
+	alloc.o \
+	walk.o
 
 #run_pfmon_example: self.exe
 #	./$<
