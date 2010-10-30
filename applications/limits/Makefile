@@ -18,9 +18,26 @@ OBJECTS=\
 #run_pfmon_example: self.exe
 #	./$<
 
+###
+### hacky stuff for jacob's remote development
+###
+ifeq ($(shell uname -s),Darwin)
+
+CURRENT_BRANCH=integrate-limit2
+REMOTE_HOST=thing2
+REMOTE_DEST=~/softxmt-remote
+
+remote:
+	git commit -va
+	git push $(REMOTE_HOST):$(REMOTE_DEST) $(CURRENT_BRANCH)
+	ssh $(REMOTE_HOST) "cd $(REMOTE_DEST) && git checkout -f $(CURRENT_BRANCH) && cd applications/limits && make"
+endif
+
+
+
 run_linked_list: linked_list.exe
 	#LD_LIBRARY_PATH=/sampa/home/nelson/libhugetlbfs-2.10/obj64 HUGETLB_MORECORE=yes taskset 0x00000001 ./$< 22 1 1
-	taskset 0x00005555 ./$< 24 6 8
+	taskset 0x00005555 ./$< 24 1 1
 	#taskset 0x00005555 ./$< 22 5 4
 	#taskset 0x00000005 ./$< 22 10 2
 	#taskset 0x00000001 ./$< 22 2 1
