@@ -6,6 +6,8 @@
 #include <time.h>
 #include <unistd.h>
 
+#include <omp.h>
+
 #include "node.h"
 #include "alloc.h"
 #include "walk.h"

@@ -18,8 +18,8 @@ node** allocate_page(uint64_t size, int num_threads, int num_lists_per_thread) {
   unsigned page_size = sysconf(_SC_PAGESIZE);
   
   unsigned num_chains = num_threads * num_lists_per_thread;
-  node** bases = malloc( sizeof(node*) * num_chains );
-  node** ends  = malloc( sizeof(node*) * num_chains );
+  node** bases = (node**) malloc( sizeof(node*) * num_chains );
+  node** ends  = (node**) malloc( sizeof(node*) * num_chains );
 
   uint64_t i, j, k;
 
@@ -33,9 +33,9 @@ node** allocate_page(uint64_t size, int num_threads, int num_lists_per_thread) {
     for( j = 0, chunk_size = total_chain_size < page_size ? total_chain_size : page_size ; 
 	 current_chain_size < total_chain_size ;
 	 ++j, current_chain_size += chunk_size ) {
-      node* nodes = valloc( chunk_size );
+      node* nodes = (node*) valloc( chunk_size );
       uint64_t chunk_node_count = chunk_size / sizeof(node);
-      node** locs = malloc( sizeof(node*) * chunk_node_count );
+      node** locs = (node**) malloc( sizeof(node*) * chunk_node_count );
 
       if (DEBUG) printf("%lu %lu %lu %lu\n", size, total_chain_size, chunk_size, chunk_node_count);
 
@@ -108,9 +108,9 @@ node** allocate_heap(uint64_t size, int num_threads, int num_lists) {
 
   //size = size / num_threads;
 
-  node** locs = malloc(sizeof(node*) * size); // node array
-  node* nodes = malloc(sizeof(node) * size);  // temporary node pointers
-  node** bases = malloc(sizeof(node*) * num_threads * num_lists); // initial node array
+  node** locs = (node**) malloc(sizeof(node*) * size); // node array
+  node* nodes = (node*) malloc(sizeof(node) * size);  // temporary node pointers
+  node** bases = (node**) malloc(sizeof(node*) * num_threads * num_lists); // initial node array
 
   // initialize ids
   #pragma omp parallel for num_threads(num_threads)

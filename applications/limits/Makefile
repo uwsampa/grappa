@@ -1,4 +1,5 @@
 
+CC=g++
 CFLAGS+=-O -fopenmp -g
 CFLAGS+=-I/nvtmp/perfmon2/libpfm-3.9/include -L/nvtmp/perfmon2/perf-3.9/lib
 CFLAGS+=-I/nvtmp/perfmon2/libpfm-3.9/include -L/nvtmp/perfmon2/libpfm-3.9/lib
@@ -58,16 +59,16 @@ run_alloc: alloc.exe
 	./$<
 
 alloc.exe: alloc.c $(HEADERS)
-	gcc $(CFLAGS) $< -o $@
+	$(CC) $(CFLAGS) $< -o $@
 
 objdump_linked_list: linked_list.exe
 	objdump -S ./$<
 
 %.o: %.c $(HEADERS) Makefile
-	gcc $(CFLAGS) $< -c -o $@ 
+	$(CC) $(CFLAGS) $< -c -o $@ 
 
 %.exe: %.c $(HEADERS) $(OBJECTS) Makefile
-	gcc $(CFLAGS) $< -o $@ $(OBJECTS) $(LIBS)
+	$(CC) $(CFLAGS) $< -o $@ $(OBJECTS) $(LIBS)
 
 clean: 
 	rm -f linked_list.exe
