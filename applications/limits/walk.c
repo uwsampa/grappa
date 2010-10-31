@@ -17,7 +17,7 @@ uint64_t singlewalk( node nodes[], uint64_t count ) {
 // walk the list
 uint64_t walk( node* bases[], uint64_t count, int num_refs, int start_index ) {
   uint64_t sum = 0;
-  int si = start_index;
+  const int si = 0;
 //printf("thread s\n");
   if (num_refs==1) {
   	node* i = bases[si];
