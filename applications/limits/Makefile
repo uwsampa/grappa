@@ -4,6 +4,7 @@ CFLAGS+=-O -fopenmp -g
 CFLAGS+=-I/nvtmp/perfmon2/libpfm-3.9/include -L/nvtmp/perfmon2/perf-3.9/lib
 CFLAGS+=-I/nvtmp/perfmon2/libpfm-3.9/include -L/nvtmp/perfmon2/libpfm-3.9/lib
 CFLAGS+=-I/sampa/home/nelson/libhugetlbfs-2.10 -L/sampa/home/nelson/libhugetlbfs-2.10/obj64
+CFLAGS+=-I../../exper_runner -L../../exper_runner
 #CFLAGS+=--hugetlb-text --hugetlb-ptrs
 #LIBS+= -lrt -lhugetlbfs
 LIBS+= -lrt
@@ -16,7 +17,8 @@ HEADERS=\
 OBJECTS=\
 	node.o \
 	alloc.o \
-	walk.o
+	walk.o \
+	../../ExperimentRunner.o
 
 #run_pfmon_example: self.exe
 #	./$<

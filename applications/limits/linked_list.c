@@ -5,12 +5,15 @@
 #include <assert.h>
 #include <time.h>
 #include <unistd.h>
+#include <string.h>
 
 #include <omp.h>
 
 #include "node.h"
 #include "alloc.h"
 #include "walk.h"
+
+#include "ExperimentRunner.h"
 
 #define NPROC 1
 #define BITS 23
