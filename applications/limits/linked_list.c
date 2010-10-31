@@ -20,13 +20,20 @@
 
 int main(int argc, char* argv[]) {
 
-  assert(argc == 4);
+  assert(argc >= 4);
+  uint64_t bits = atoi(argv[1]);            // 2^bits=number of nodes
+  uint64_t num_threads = atoi(argv[2]);     // number of threads
+  uint64_t size = (1 << bits);              
 
-  uint64_t bits = atoi(argv[1]);
-  uint64_t size = (1 << bits);
+  uint64_t num_lists_per_thread = atoi(argv[3]); // number of concurrent accesses per thread	
 
-  uint64_t num_lists_per_thread = atoi(argv[2]);
-  uint64_t num_threads = atoi(argv[3]);
+  // optional 4th arg "-i" indicates to use ExperimentRunner
+  bool do_monitor = false;
+  if (argc==5) {
+	if (strncmp("-i", argv[4], 2)==0) {
+		do_monitor = true;
+        }
+   }
 
   const uint64_t number_of_repetitions = 10;
 
@@ -42,6 +49,11 @@ int main(int argc, char* argv[]) {
   // initialize data structure
   node** bases = allocate_page( size, num_threads, num_lists_per_thread );
 
+
+  // experiment runner init and enable
+  ExperimentRunner er;
+  if (do_monitor) er.enable();
+
   for(n = 0; n < number_of_repetitions; n++) {
     //print( data );
 
@@ -54,7 +66,8 @@ int main(int argc, char* argv[]) {
     struct timespec start;
     struct timespec end;
       
-    // start timing
+    // start monitoring and timing    
+    er.startIfEnabled();
     clock_gettime(CLOCK_MONOTONIC, &start);
     //printf("Start time: %d seconds, %d nanoseconds\n", (int) start.tv_sec, (int) start.tv_nsec);
 
@@ -63,13 +76,15 @@ int main(int argc, char* argv[]) {
     for(thread_num = 0; thread_num < num_threads; thread_num++) {
 
       //results[thread_num] = walk( data, thread_num, num_threads, num_lists, procsize );
-      results[thread_num] = multiwalk( bases + thread_num * num_lists_per_thread,
-				       num_lists_per_thread, procsize );
+      //results[thread_num] = multiwalk( bases + thread_num * num_lists_per_thread,
+      //                                num_lists_per_thread, procsize );
+      results[thread_num] = walk( bases + thread_num * num_lists_per_thread, procsize, num_lists_per_thread, 0);
 
     }
 
     // stop timing
     clock_gettime(CLOCK_MONOTONIC, &end);
+    er.stopIfEnabled();
     //printf("End time: %d seconds, %d nanoseconds\n", (int) end.tv_sec, (int) end.tv_nsec);
     
     uint64_t runtime_ns = 0;
