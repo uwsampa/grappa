@@ -33,7 +33,7 @@ REMOTE_HOST=thing2.cs.washington.edu
 REMOTE_DEST=~/softxmt-remote
 
 remote:
-	-git commit -va
+	git commit -va
 	git push $(REMOTE_HOST):$(REMOTE_DEST) $(CURRENT_BRANCH)
 	ssh $(REMOTE_HOST) "cd $(REMOTE_DEST) && git checkout -f $(CURRENT_BRANCH) && cd applications/limits && make"
 endif
