@@ -79,12 +79,13 @@ int main(int argc, char* argv[]) {
     // do work
     #pragma omp parallel for num_threads(num_threads)
     for(thread_num = 0; thread_num < num_threads; thread_num++) {
-
+      
+      uint64_t start_tsc = rdtsc();
       //results[thread_num] = walk( data, thread_num, num_threads, num_lists, procsize );
       //results[thread_num] = multiwalk( bases + thread_num * num_lists_per_thread,
       //                                num_lists_per_thread, procsize );
       results[thread_num] = walk( bases + thread_num * num_lists_per_thread, num_lists_per_thread, procsize, 0);
-
+      times[thread_num] = rdtsc() - s;
     }
 
     // stop timing
@@ -93,6 +94,7 @@ int main(int argc, char* argv[]) {
     //printf("End time: %d seconds, %d nanoseconds\n", (int) end.tv_sec, (int) end.tv_nsec);
     
     uint64_t runtime_ns = 0;
+    uint64_t latency_ticks = 0;
     //times[thread_num] = ((uint64_t) end.tv_sec * 1000000000 + end.tv_nsec) - ((uint64_t) start.tv_sec * 1000000000 + start.tv_nsec);
     runtime_ns = ((uint64_t) end.tv_sec * 1000000000 + end.tv_nsec) - ((uint64_t) start.tv_sec * 1000000000 + start.tv_nsec);
 
@@ -100,7 +102,7 @@ int main(int argc, char* argv[]) {
     uint64_t result = 0;
     for(thread_num = 0; thread_num < num_threads; thread_num++) {
       result += results[thread_num];
-      //runtime_ns += times[thread_num];
+      latency_ticks += times[thread_num];
     }
 
     //uint64_t runtime_ns = ((uint64_t) end.tv_sec * 1000000000 + end.tv_nsec) - ((uint64_t) start.tv_sec * 1000000000 + start.tv_nsec);
@@ -119,13 +121,15 @@ int main(int argc, char* argv[]) {
     const double   proc_data_rate = (double)proc_bytes / runtime_s;
     const double   proc_request_time = (double)runtime_ns / proc_requests;
     const double   proc_request_cpu_cycles = proc_request_time / (1.0 / 2.27);
+    const double   avg_latency_ticks = (double)latency_ticks / totalsize;
 
     printf("{ bits:%lu num_threads:%lu concurrent_reads:%lu total_bytes:%lu proc_bytes:%lu total_requests:%lu proc_requests:%lu request_rate:%f proc_request_rate:%f data_rate:%f proc_data_rate:%f proc_request_time:%f proc_request_cpu_cycles:%f }\n",
 	   bits, num_threads, num_lists_per_thread, total_bytes, proc_bytes, total_requests, proc_requests, 
 	   request_rate, proc_request_rate, data_rate, proc_data_rate, proc_request_time, proc_request_cpu_cycles);
 
-    printf("(%lu/%lu): %f MB/s, %lu nanoseconds, %lu requests, %f req/s, %f req/s/proc, %f ns/req, %f B/s, %f clocks each\n", 
+    printf("(%lu/%lu): %f MB/s, %d ticks avg, %lu nanoseconds, %lu requests, %f req/s, %f req/s/proc, %f ns/req, %f B/s, %f clocks each\n", 
 	   bits, num_threads,
+           avg_latency_ticks,
 	   (double)total_bytes/runtime_s/1000/1000, 
 	   runtime_ns, totalsize, (double)totalsize/((double)runtime_ns/1000000000), 
 	   (double)totalsize/((double)runtime_ns/1000000000)/num_threads, 
