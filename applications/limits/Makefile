@@ -28,7 +28,7 @@ OBJECTS=\
 ###
 ifeq ($(shell uname -s),Darwin)
 
-CURRENT_BRANCH=integrate-limit2
+CURRENT_BRANCH=`git status | grep branch | sed 's/# On branch \(.*\)/\1/'`
 REMOTE_HOST=thing2
 REMOTE_DEST=~/softxmt-remote
 
