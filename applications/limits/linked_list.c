@@ -129,8 +129,8 @@ int main(int argc, char* argv[]) {
 
     printf("(%lu/%lu): %f MB/s, %d ticks avg, %lu nanoseconds, %lu requests, %f req/s, %f req/s/proc, %f ns/req, %f B/s, %f clocks each\n", 
 	   bits, num_threads,
-           avg_latency_ticks,
 	   (double)total_bytes/runtime_s/1000/1000, 
+           avg_latency_ticks,
 	   runtime_ns, totalsize, (double)totalsize/((double)runtime_ns/1000000000), 
 	   (double)totalsize/((double)runtime_ns/1000000000)/num_threads, 
 	   (double)runtime_ns/totalsize, 
