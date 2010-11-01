@@ -82,7 +82,7 @@ int main(int argc, char* argv[]) {
 
       //results[thread_num] = walk( data, thread_num, num_threads, num_lists, procsize );
       //results[thread_num] = multiwalk( bases + thread_num * num_lists_per_thread,
-                                      num_lists_per_thread, procsize );
+      //                                num_lists_per_thread, procsize );
       results[thread_num] = walk( bases + thread_num * num_lists_per_thread, num_lists_per_thread, procsize, 0);
 
     }
