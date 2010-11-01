@@ -18,7 +18,7 @@ OBJECTS=\
 	node.o \
 	alloc.o \
 	walk.o \
-	../../ExperimentRunner.o
+	../../exper_runner/ExperimentRunner.o
 
 #run_pfmon_example: self.exe
 #	./$<
@@ -41,11 +41,16 @@ endif
 
 
 run_linked_list: linked_list.exe
-	GOMP_CPU_AFFINITY="0-15:2" ./$< 24 8 1
-	GOMP_CPU_AFFINITY="0-15:2" ./$< 24 8 2
-	GOMP_CPU_AFFINITY="0-15:2" ./$< 24 8 3
-	GOMP_CPU_AFFINITY="0-15:2" ./$< 24 8 4
-	GOMP_CPU_AFFINITY="0-15:2" ./$< 24 8 5
+	GOMP_CPU_AFFINITY="0" ./$< 24 1 1
+	GOMP_CPU_AFFINITY="0-15:2" ./$< 24 16 10
+	GOMP_CPU_AFFINITY="1-15:2" ./$< 24 8 1
+	GOMP_CPU_AFFINITY="0" ./$< 24 1 2
+	GOMP_CPU_AFFINITY="0" ./$< 24 1 3
+#	GOMP_CPU_AFFINITY="0-15:2" ./$< 24 1 10
+#	GOMP_CPU_AFFINITY="0-15:2" ./$< 24 8 2
+#	GOMP_CPU_AFFINITY="0-15:2" ./$< 24 8 3
+#	GOMP_CPU_AFFINITY="0-15:2" ./$< 24 8 4
+#	GOMP_CPU_AFFINITY="0-15:2" ./$< 24 8 5
 
 run_alloc: alloc.exe
 	./$<
