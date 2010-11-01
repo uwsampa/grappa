@@ -18,7 +18,7 @@ OBJECTS=\
 	node.o \
 	alloc.o \
 	walk.o \
-	../../ExperimentRunner.o
+	../../exper_runner/ExperimentRunner.o
 
 #run_pfmon_example: self.exe
 #	./$<
@@ -28,8 +28,8 @@ OBJECTS=\
 ###
 ifeq ($(shell uname -s),Darwin)
 
-CURRENT_BRANCH=integrate-limit2
-REMOTE_HOST=thing2
+CURRENT_BRANCH=$(shell git status | grep branch | sed "s/\# On branch \(.*\)/\1/")
+REMOTE_HOST=thing2.cs.washington.edu
 REMOTE_DEST=~/softxmt-remote
 
 remote:
@@ -41,21 +41,16 @@ endif
 
 
 run_linked_list: linked_list.exe
-	#LD_LIBRARY_PATH=/sampa/home/nelson/libhugetlbfs-2.10/obj64 HUGETLB_MORECORE=yes taskset 0x00000001 ./$< 22 1 1
-	GOMP_CPU_AFFINITY="0-15:2" ./$< 24 8 1
-	GOMP_CPU_AFFINITY="0-15:2" ./$< 24 8 2
-	GOMP_CPU_AFFINITY="0-15:2" ./$< 24 8 3
-	GOMP_CPU_AFFINITY="0-15:2" ./$< 24 8 4
-	GOMP_CPU_AFFINITY="0-15:2" ./$< 24 8 5
-	#taskset 0x00005555 ./$< 24 1 1
-	#taskset 0x00005555 ./$< 22 5 4
-	#taskset 0x00000005 ./$< 22 10 2
-	#taskset 0x00000001 ./$< 22 2 1
-	#taskset 0x00000001 ./$< 22 3 1
-	#taskset 0x00000001 ./$< 22 4 1
-	#taskset 0x00000001 ./$< 22 5 1
-#	taskset 0x00000001 ./$< 22 12 1
-	#taskset 0x00005555 ./$< 22 5 8
+	GOMP_CPU_AFFINITY="0" ./$< 24 1 1
+	GOMP_CPU_AFFINITY="0-15:2" ./$< 24 16 10
+	GOMP_CPU_AFFINITY="1-15:2" ./$< 24 8 1
+	GOMP_CPU_AFFINITY="0" ./$< 24 1 2
+	GOMP_CPU_AFFINITY="0" ./$< 24 1 3
+#	GOMP_CPU_AFFINITY="0-15:2" ./$< 24 1 10
+#	GOMP_CPU_AFFINITY="0-15:2" ./$< 24 8 2
+#	GOMP_CPU_AFFINITY="0-15:2" ./$< 24 8 3
+#	GOMP_CPU_AFFINITY="0-15:2" ./$< 24 8 4
+#	GOMP_CPU_AFFINITY="0-15:2" ./$< 24 8 5
 
 run_alloc: alloc.exe
 	./$<

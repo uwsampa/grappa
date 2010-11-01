@@ -2,19 +2,6 @@
 #include "walk.h"
 
 // walk the list
-uint64_t singlewalk( node nodes[], uint64_t count ) {
-  node* i = &nodes[0];
-
-  while (count > 0) {
-    i = i->next;
-    count--;
-  }
-
-  return (uint64_t)i; // give the optimizer something to think about
-}
-
-
-// walk the list
 uint64_t walk( node* bases[], uint64_t count, int num_refs, int start_index ) {
   uint64_t sum = 0;
   const int si = 0;
