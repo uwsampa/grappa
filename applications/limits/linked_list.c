@@ -131,7 +131,7 @@ int main(int argc, char* argv[]) {
     const double   avg_latency_ticks = (double)latency_ticks / (total_requests / num_lists_per_thread);
     const double   avg_latency_ns = (double)runtime_ns / (proc_requests / num_lists_per_thread);
 
-    printf("{ bits:%lu num_threads:%lu concurrent_reads:%lu total_bytes:%lu proc_bytes:%lu total_requests:%lu proc_requests:%lu request_rate:%f proc_request_rate:%f data_rate:%f proc_data_rate:%f proc_request_time:%f proc_request_cpu_cycles:%f }\n",
+    printf("{'bits':%lu, 'num_threads':%lu, 'concurrent_reads':%lu, 'total_bytes':%lu, 'proc_bytes':%lu, 'total_requests':%lu, 'proc_requests':%lu, 'request_rate':%f, 'proc_request_rate':%f, 'data_rate':%f, 'proc_data_rate':%f, 'proc_request_time':%f, 'proc_request_cpu_cycles':%f}\n",
 	   bits, num_threads, num_lists_per_thread, total_bytes, proc_bytes, total_requests, proc_requests, 
 	   request_rate, proc_request_rate, data_rate, proc_data_rate, proc_request_time, proc_request_cpu_cycles);
 
