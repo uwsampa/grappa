@@ -1,16 +1,74 @@
 
-
+CC=g++
+CFLAGS+=-O2 -fopenmp -g
+#CFLAGS+=-I/nvtmp/perfmon2/libpfm-3.9/include -L/nvtmp/perfmon2/perf-3.9/lib
+#CFLAGS+=-I/nvtmp/perfmon2/libpfm-3.9/include -L/nvtmp/perfmon2/libpfm-3.9/lib
+#CFLAGS+=-I/sampa/home/nelson/libhugetlbfs-2.10 -L/sampa/home/nelson/libhugetlbfs-2.10/obj64
+CFLAGS+=-I../../exper_runner -L../../exper_runner
+#CFLAGS+=--hugetlb-text --hugetlb-ptrs
+#LIBS+= -lrt -lhugetlbfs
+LIBS+= -lrt
 
 HEADERS=\
-	node.h
+	node.h \
+	alloc.h \
+	walk.h
 
-run_linked_list: linked_list
-	./linked_list 22 1
+OBJECTS=\
+	node.o \
+	alloc.o \
+	walk.o \
+	../../exper_runner/ExperimentRunner.o
 
-objdump_linked_list:
-	objdump -S ./linked_list
+#run_pfmon_example: self.exe
+#	./$<
 
-linked_list: $(HEADERS) Makefile
-	gcc -O3 -fopenmp linked_list.c -o linked_list -lrt
+###
+### hacky stuff for jacob's remote development
+###
+ifeq ($(shell uname -s),Darwin)
 
-.PHONY: run_linked_list objdump_linked_list
+CURRENT_BRANCH=$(shell git status | grep branch | sed "s/\# On branch \(.*\)/\1/")
+REMOTE_HOST=thing2.cs.washington.edu
+REMOTE_DEST=~/softxmt-remote
+
+remote:
+	git commit -va
+	git push $(REMOTE_HOST):$(REMOTE_DEST) $(CURRENT_BRANCH)
+	ssh $(REMOTE_HOST) "cd $(REMOTE_DEST) && git checkout -f $(CURRENT_BRANCH) && cd applications/limits && make"
+endif
+
+
+
+run_linked_list: linked_list.exe
+	GOMP_CPU_AFFINITY="0" ./$< 24 1 1
+	GOMP_CPU_AFFINITY="0-15:2" ./$< 24 16 10
+	GOMP_CPU_AFFINITY="1-15:2" ./$< 24 8 1
+	GOMP_CPU_AFFINITY="0" ./$< 24 1 2
+	GOMP_CPU_AFFINITY="0" ./$< 24 1 3
+#	GOMP_CPU_AFFINITY="0-15:2" ./$< 24 1 10
+#	GOMP_CPU_AFFINITY="0-15:2" ./$< 24 8 2
+#	GOMP_CPU_AFFINITY="0-15:2" ./$< 24 8 3
+#	GOMP_CPU_AFFINITY="0-15:2" ./$< 24 8 4
+#	GOMP_CPU_AFFINITY="0-15:2" ./$< 24 8 5
+
+run_alloc: alloc.exe
+	./$<
+
+alloc.exe: alloc.c $(HEADERS)
+	$(CC) $(CFLAGS) $< -o $@
+
+objdump_linked_list: linked_list.exe
+	objdump -S ./$<
+
+%.o: %.c $(HEADERS) Makefile
+	$(CC) $(CFLAGS) $< -c -o $@ 
+
+%.exe: %.c $(HEADERS) $(OBJECTS) Makefile
+	$(CC) $(CFLAGS) $< -o $@ $(OBJECTS) $(LIBS)
+
+clean: 
+	rm -f linked_list.exe
+
+.PHONY: run_linked_list objdump_linked_list run_pfmon run_alloc
+
