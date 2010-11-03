@@ -3,7 +3,7 @@
 #include <stdlib.h>
 #include <time.h>
 
-#include "tree.h"
+#include "graph.h"
 
 static unsigned int goodseed() {
   FILE *urandom = fopen("/dev/urandom", "r");
@@ -14,29 +14,86 @@ static unsigned int goodseed() {
   return seed;
 }
 
+
+// uniform random in [0,1)
+static double drandom() {
+  return rand() * (1.0 / (RAND_MAX + 1.0));
+}
+
+// returns uniformly chosen integer in [i,j)
+static int rand_range(int i, int j) {
+  int spread = j - i;
+  int limit = RAND_MAX - RAND_MAX % spread;
+  int rnd;
+  do {
+    rnd = rand();
+  } while (rnd >= limit);
+  rnd %= spread;
+  return (rnd + i);
+}
+
+
+uint64_t *genperm(int n) {
+  assert(n <= RAND_MAX);
+  uint64_t *perm = calloc(sizeof(uint64_t), n);
+  assert(perm != NULL);
+  for (int i = 0; i < n; ++i) {
+    perm[i] = i;
+  }
+  for (int i = n - 1; i > 0; --i) {
+    int j = rand_range(0, i+1);
+    printf("p: %d %d\n", i, j);
+    uint64_t temp = perm[i];
+    perm[i] = perm[j];
+    perm[j] = temp;
+  }
+  return perm;
+}
+
+// create a tree with v = e + 1 = <size>, rooted at vertex 0. The probability of a vertex having two children is <branch>.
+graph * maketree(uint64_t size, double branch) {
+  graph *g = graph_new(size, size -1);
+  unsigned int index = 0;
+  unsigned int next_child = 1;
+  for (uint64_t i = 0; i < size; ++i) {
+    printf("%" PRIu64 "\n", i);
+    g->row_ptr[i] = index;
+    unsigned int n_children = drandom() < branch ? 2 : 1;
+    unsigned int space = size - next_child;
+    n_children = n_children > space ? space : n_children;
+    for (unsigned int j = 0; j < n_children; ++j) {
+      g->edges[index++] = next_child++;
+      g->e++;
+    }
+    g->row_ptr[i+1] = index;
+  }
+  assert(index == (size - 1));
+  assert(next_child == size);
+  return g;
+}
+
 // arg this needs to be refactored pronto
 int main(int argc, char *argv[]) {
-  assert(argc >= 6 && argc <= 7);
+  assert(argc >= 4 && argc <= 5);
   double branch = strtod(argv[1], NULL);
-  int depth = strtol(argv[2], NULL, 0);
-  int minsize = strtol(argv[3], NULL, 0);
-  int maxsize = strtol(argv[4], NULL, 0);
+  int size = strtol(argv[2], NULL, 0);
   unsigned int seed = 0;
-  if (argc == 7) seed = strtol(argv[6], NULL, 0);
+  if (argc == 5) seed = strtol(argv[4], NULL, 0);
   if (seed == 0) seed = goodseed();
   srand(seed);
-  int tree_size = -1;
-  node *tree = NULL;
-  while (tree_size < minsize || tree_size > maxsize) {
-    printf(".");
-    free_tree(tree);
-    tree = make_tree(branch, depth, &tree_size);
-  }
-  printf("%d\n", tree_size);
-  FILE *treefile = fopen(argv[5], "w");
-  assert (treefile != NULL);
-  write_tree(treefile, tree);
-  fclose(treefile);
-  free(tree);
+  graph *g = maketree(size, branch);
+  
+  FILE *file = fopen(argv[3], "w");
+  assert (file != NULL);
+  printf("foo\n");
+  uint64_t *perm = genperm(size);
+  printf("bar\n");
+  // print root
+
+  fprintf(file, "%" PRIu64 "\n", perm[0]);
+  graph_write(file, g, perm);
+  fclose(file);
+  graph_free(g);
+  free(perm);
   return 0;
 }
