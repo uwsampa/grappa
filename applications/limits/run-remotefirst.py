@@ -28,7 +28,6 @@ for num_threads in range(1, max_threads+1):
     print num_threads, ":", cpu_list
     os.putenv("GOMP_CPU_AFFINITY", cpu_list)
     for concurrent_reads in range(1,max_concurrent_reads+1):
-        #these_results = loop_runexp.run_experiment(pfmon_args, cmd % (taskset, num_threads, concurrent_reads), True)
         these_results = loop_runexp.run_experiment(pfmon_args, cmd % (num_threads, concurrent_reads), True)
         results.extend(these_results)
 
