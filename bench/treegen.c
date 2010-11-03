@@ -42,7 +42,6 @@ uint64_t *genperm(int n) {
   }
   for (int i = n - 1; i > 0; --i) {
     int j = rand_range(0, i+1);
-    printf("p: %d %d\n", i, j);
     uint64_t temp = perm[i];
     perm[i] = perm[j];
     perm[j] = temp;
@@ -51,12 +50,11 @@ uint64_t *genperm(int n) {
 }
 
 // create a tree with v = e + 1 = <size>, rooted at vertex 0. The probability of a vertex having two children is <branch>.
-graph * maketree(uint64_t size, double branch) {
+graph *maketree(uint64_t size, double branch) {
   graph *g = graph_new(size, size -1);
   unsigned int index = 0;
   unsigned int next_child = 1;
   for (uint64_t i = 0; i < size; ++i) {
-    printf("%" PRIu64 "\n", i);
     g->row_ptr[i] = index;
     unsigned int n_children = drandom() < branch ? 2 : 1;
     unsigned int space = size - next_child;
@@ -85,12 +83,13 @@ int main(int argc, char *argv[]) {
   
   FILE *file = fopen(argv[3], "w");
   assert (file != NULL);
-  printf("foo\n");
   uint64_t *perm = genperm(size);
-  printf("bar\n");
   // print root
-
   fprintf(file, "%" PRIu64 "\n", perm[0]);
+
+  /*  for (unsigned int i = 0; i < size; ++i) {
+    fprintf(file, "%u -> %" PRIu64 "\n", i, perm[i]);
+    }*/
   graph_write(file, g, perm);
   fclose(file);
   graph_free(g);
