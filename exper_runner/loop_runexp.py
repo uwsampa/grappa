@@ -97,7 +97,10 @@ def dictlist_to_csv(dl):
 	for d in dl:
 		str += "\n"	
 		for c in columns:
-			str += "%s, " % d[c]
+			try:
+				str += "%s, " % d[c]
+			except KeyError:
+				str += "0, "
 
 	return str
 			
