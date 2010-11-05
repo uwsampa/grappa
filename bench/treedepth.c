@@ -5,6 +5,7 @@
 #include <time.h>
 #include <sys/timeb.h>
 #include "graph.h"
+#include "greenery/thread.h"
 
 static uint64_t get_ns()
 {
@@ -41,9 +42,91 @@ uint64_t basic_depth(graph *tree, uint64_t root,
   return depth;
 }
 
-int main(int argc, char *argv[]) {
-  assert(argc == 2);
+struct depth_info {
+  graph *tree;
+  uint64_t *to_examine;
+  uint64_t *next;
+  unsigned int to_examine_size; 
+  unsigned int next_size;
+  unsigned int depth;
+  unsigned int i;
+  thread_barrier barrier;
+  thread *leader;
+};
 
+void thread_f(thread *me, void *arg) {
+  struct depth_info *di = arg;
+  uint64_t *addr;
+  uint64_t local;
+  //  printf("%d %p %d %d\n", di->depth, me, di->i, di->to_examine_size);
+  while (di->to_examine_size > 0) {
+
+    while (di->i < di->to_examine_size) {
+      uint64_t vertex = di->to_examine[di->i++];
+      //      printf("%p %"PRIu64 "\n", me, vertex);
+      addr = &di->tree->row_ptr[vertex];
+      prefetch_and_switch(me, addr);
+      uint64_t index = *addr++;
+      local = *addr;
+      for (; index < local; ++index) {
+        addr = &di->tree->edges[index];
+        prefetch_and_switch(me, addr);
+        di->next[di->next_size++] = *addr;
+      }
+      //      printf("%d %p %d %d\n", di->depth, me, di->i, di->to_examine_size);
+      thread_yield(me);
+    }
+
+    thread_block(me, &di->barrier);
+    if (me == di->leader) {
+      uint64_t *temp = di->to_examine;
+      di->to_examine = di->next;
+      di->next = temp;
+      di->to_examine_size = di->next_size;
+      di->depth++;
+      di->next_size = 0;
+      di->i = 0;
+    }
+    thread_block(me, &di->barrier);
+  }
+
+  thread_exit(me, NULL);
+}
+
+uint64_t threaded_depth(graph *tree, uint64_t root,
+                        thread *master, scheduler *sched, int nthreads,
+                        uint64_t *to_examine, uint64_t *next) {
+  struct depth_info di;
+  di.tree = tree;
+  di.to_examine = to_examine;
+  di.next = next;
+  di.to_examine_size = 1;
+  di.i = 0;
+  di.next_size = 0;
+  di.to_examine[0] = root;
+  di.depth = 0;
+  thread *threads[nthreads];
+
+  for (int i = 0; i < nthreads; ++i) {
+    threads[i] = thread_spawn(master, sched, thread_f, &di);
+  }
+  di.leader = threads[0];
+  di.barrier.sched = sched;
+  di.barrier.size = nthreads;
+  di.barrier.blocked = 0;
+  di.barrier.threads = NULL;
+
+  run_all(sched);
+  for (int i = 0; i < nthreads; ++i) {
+    destroy_thread(threads[i]);
+  }
+  return di.depth;
+}
+
+int main(int argc, char *argv[]) {
+  assert(argc == 3);
+  int nruns = 4;
+  int nthreads = strtol(argv[2], NULL, 0);
   FILE *treefile = fopen(argv[1], "r");
   assert (treefile != NULL);
 
@@ -57,8 +140,9 @@ int main(int argc, char *argv[]) {
   for (unsigned int i = 0; i < tree->v; ++i) {
     to_examine[i] = next[i] = i;
   }
-
-  for (int i = 0; i < 10; ++i) {
+  printf("BASIC:\n");
+  double avg = 0;
+  for (int i = 0; i < nruns; ++i) {
     uint64_t before = get_ns();
     uint64_t answer = basic_depth(tree, root, to_examine, next);
     uint64_t after = get_ns();
@@ -66,10 +150,32 @@ int main(int argc, char *argv[]) {
     uint64_t elapsed = after - before;
     double rate = elapsed;
     rate /= tree->v;
-
+    avg += rate;
     printf("depth is %" PRIu64 "\n", answer);
     printf("%" PRIu64 " ns -> %f ns/vertex \n", elapsed, rate);
   }
+  avg /= nruns;
+  printf("BASELINE: %f\n", avg);
+  printf("THREADED:\n");
+  thread *master = thread_init();
+  scheduler *sched = create_scheduler(master);
+  avg = 0;
+  for (int i = 0; i < nruns; ++i) {
+    uint64_t before = get_ns();
+    uint64_t answer = threaded_depth(tree, root,
+                                     master, sched, nthreads,
+                                     to_examine, next);
+    uint64_t after = get_ns();
+
+    uint64_t elapsed = after - before;
+    double rate = elapsed;
+    rate /= tree->v;
+    avg += rate;
+    printf("depth is %" PRIu64 "\n", answer);
+    printf("%" PRIu64 " ns -> %f ns/vertex \n", elapsed, rate);
+  }
+  avg /= nruns;
+  printf("AVERAGE: %f\n", avg);
   free(to_examine);
   free(next);
 

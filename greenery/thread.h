@@ -50,4 +50,17 @@ thread *thread_wait(scheduler *sched, void **result);
 
 // Helper function--runs all threads until nothing left
 void run_all(scheduler *sched);
+
+typedef struct thread_barrier {
+  scheduler *sched;
+  int size; // n needed to pass
+  int blocked; // n blocked
+  thread *threads; // the threads
+} thread_barrier;
+
+// block on barrier until barrier->size threads there.
+void thread_block(thread *me, thread_barrier *barrier);
+
+void prefetch_and_switch(thread *me, void *addr);
+
 #endif

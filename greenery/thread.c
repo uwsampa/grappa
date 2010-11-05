@@ -4,7 +4,7 @@
 #include <stdlib.h>
 #include <stdio.h>
 
-#define STACK_SIZE 128
+#define STACK_SIZE 256
 
 static void scheduler_enqueue(scheduler *sched, thread *thr) {
   if (sched->ready == NULL) {
@@ -74,7 +74,6 @@ thread *thread_spawn(thread *me, scheduler *sched,
   coro_invoke(me->coro, thr->coro, (void *)arg);
   thr->sched = sched;
   thr->next = NULL;
-
   scheduler_enqueue(sched, thr);
   return thr;
 }
@@ -121,6 +120,23 @@ thread *thread_wait(scheduler *sched, void **result) {
   }
 }
 
+void thread_block(thread *me, thread_barrier *barrier) {
+  me->next = barrier->threads;
+  barrier->threads = me;
+  if (++barrier->blocked == barrier->size) {
+    barrier->blocked = 0;
+    while (barrier->threads != NULL) {
+      scheduler_enqueue(barrier->sched, barrier->threads);
+      barrier->threads = barrier->threads->next;
+    }
+  } else {
+    // assumption: programmer isn't stupid, won't leave us with nothing to run.
+    // if he does, we're deadlocked anyway.
+  }
+  thread *next = scheduler_dequeue(barrier->sched);
+  coro_invoke(me->coro, next->coro, NULL);
+}
+
 void run_all(scheduler *sched) {
   while (thread_wait(sched, NULL) != NULL) { } // nothing
 }
@@ -135,4 +151,9 @@ void destroy_scheduler(scheduler *sched) {
   while ((thr = scheduler_dequeue(sched))) {
     destroy_thread(thr);
   }
+}
+
+void prefetch_and_switch(thread *me, void *addr) {
+  __builtin_prefetch(addr);
+  thread_yield(me);
 }
