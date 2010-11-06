@@ -1,0 +1,82 @@
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+% MANIFEST
+% 
+% List of files for the current release of HPC Scalable Graph Analysis Benchmark.
+%                           
+% REVISION
+% 22-Feb-09   1.0 Release   MIT Lincoln Laboratory.
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+
+GENERAL
+
+The files listed below constitute the Executable Specification for the 
+serial version of the HPC Scalable Graph Analysis Benchmark.  These are:
+
+DOCUMENTATION
+
+GraphAnalysisBenchmark_v1.0.pdf  % benchmark's written specification; note 
+                        % that v1.0 corresponds to this Executable Spec.'s
+                        % 1.0 release.
+MANIFEST.txt            % This file; a list of the files in this release.
+README.txt              % Quick start on how to use this SSCA.
+RELEASE_NOTES.txt       % List of open issues in the current release.
+Brandes-bc.pdf          % paper: "A Faster Algorithm for Betweenness 						
+                        % Centrality" by Ulrik Brandes.
+SOURCE
+
+betwCentrality.m        % Kernel #4 - graph vertex importance analysis.
+computeGraph.m          % Kernel #1 - graph construction.
+declareGlobals.m        % Declares globals for program control.
+dispElapsedTime.m       % Shows process time of each Kernel.
+findSubgraphs.m         % Kernel #3 - graph extraction.
+genScalData.m           % Scalable data generator.
+getUserParameters.m     % User configurable parameters.
+placeFigure.m           % utility.
+RUN_graphAnalysis.m     % Main program.
+searchWeights.m         % Kernel #2 - search over large sets.
+torus_test.m            % Stand-alone torus testing utility.
+verifBetwCentrality.m   % 1st level verification of betwCentrality().
+verifComputeGraph.m     % 1st level verification of computeGraph().
+verifFindSubgraphs.m    % 1st level verification of findSubGraphs().
+verifGenScalData.m      % 1st level verification of genScalData().
+verifSearchWeights.m    % 1st level verification of searchWeights().
+
+All files with the '.m' extension are scripts that were developed under 
+Matlab Version 7.4.0.287 (R2007a), and tested under 7.5.0 (R2007b), on a 
+Pentium® 4 3.60GHz 3.59GHz, with 1.00GB of RAM, and 2.5GB of virtual RAM, 
+running on MS Windows XP Professional Version 2002 Service Pack 2, and 
+under Linux prime-vmware 2.6.18-1.2798.fc6 #1 SMP Oct 16 14:37:32 EDT 2006 
+i686 i686 i686 GNU/Linux. It was also tested under Octave 2.9.13.
+
+
+
+
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+% Copyright © 2009, Massachusetts Institute of Technology
+% All rights reserved.
+% 
+% Redistribution and use in source and binary forms, with or without
+% modification, are permitted provided that the following conditions are  
+% met:
+%    * Redistributions of source code must retain the above copyright
+%      notice, this list of conditions and the following disclaimer.
+%    * Redistributions in binary form must reproduce the above copyright
+%      notice, this list of conditions and the following disclaimer in the
+%      documentation and/or other materials provided with the distribution.
+%    * Neither the name of the Massachusetts Institute of Technology nor  
+%      the names of its contributors may be used to endorse or promote 
+%      products derived from this software without specific prior written 
+%      permission.
+%
+% THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS "AS 
+% IS" AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO,
+% THE IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR 
+% PURPOSE ARE DISCLAIMED. IN NO EVENT SHALL THE COPYRIGHT OWNER OR 
+% CONTRIBUTORS BE LIABLE FOR ANY DIRECT, INDIRECT, INCIDENTAL, SPECIAL, 
+% EXEMPLARY, OR CONSEQUENTIAL DAMAGES (INCLUDING, BUT NOT LIMITED TO, 
+% PROCUREMENT OF SUBSTITUTE GOODS OR SERVICES; LOSS OF USE, DATA, OR 
+% PROFITS; OR BUSINESS INTERRUPTION) HOWEVER CAUSED AND ON ANY THEORY OF 
+% LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT (INCLUDING 
+% NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE OF THIS   
+% SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
