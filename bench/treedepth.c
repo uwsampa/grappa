@@ -56,25 +56,26 @@ struct depth_info {
 
 void thread_f(thread *me, void *arg) {
   struct depth_info *di = arg;
+  uint64_t *row_ptr = di->tree->row_ptr;
+  uint64_t *edges = di->tree->edges;
   uint64_t *addr;
-  uint64_t local;
+  uint64_t *start;
   //  printf("%d %p %d %d\n", di->depth, me, di->i, di->to_examine_size);
   while (di->to_examine_size > 0) {
 
     while (di->i < di->to_examine_size) {
       uint64_t vertex = di->to_examine[di->i++];
       //      printf("%p %"PRIu64 "\n", me, vertex);
-      addr = &di->tree->row_ptr[vertex];
+      addr = &row_ptr[vertex];
       prefetch_and_switch(me, addr);
-      uint64_t index = *addr++;
-      local = *addr;
-      for (; index < local; ++index) {
-        addr = &di->tree->edges[index];
-        prefetch_and_switch(me, addr);
-        di->next[di->next_size++] = *addr;
+      start = &edges[*addr++];
+      addr = &edges[*addr];
+      while (start < addr) {
+        prefetch_and_switch(me, start);
+        di->next[di->next_size++] = *start++;
       }
       //      printf("%d %p %d %d\n", di->depth, me, di->i, di->to_examine_size);
-      thread_yield(me);
+      //      thread_yield(me);
     }
 
     thread_block(me, &di->barrier);
