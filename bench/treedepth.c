@@ -28,9 +28,10 @@ uint64_t basic_depth(graph *tree, uint64_t root,
     unsigned int next_size = 0;
     for (unsigned int i = 0; i < to_examine_size; ++i) {
       uint64_t vertex = to_examine[i];
-      for (unsigned int index = tree->row_ptr[vertex];
-           index < tree->row_ptr[vertex+1]; ++index) {
-        next[next_size++] = tree->edges[index];
+      uint64_t *addr = &tree->edges[tree->row_ptr[vertex]];
+      uint64_t *limit = &tree->edges[tree->row_ptr[vertex+1]];
+      while (addr < limit) {
+        next[next_size++] = *addr++;
       }
     }
 
