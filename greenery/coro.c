@@ -25,13 +25,6 @@ coro *coro_init() {
   return me;
 }
 
-void *coro_invoke(coro *me, coro *to, void *val) {
-  //  printf ("%p %p %p\n", me, to, val);
-  val = swapstacks(&(me->stack), &(to->stack), val);
-  //  printf ("%p %p %p\n", me, to, val);
-  return val;
-}
-
 void destroy_coro(coro *c) {
   free(c->base);
   free(c);

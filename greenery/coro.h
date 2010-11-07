@@ -26,7 +26,10 @@ coro *coro_spawn(coro *me, coro_func f, size_t ssize);
 
 /* pass control to <to> (giving it <val>, either as an argument for a
  * new coro or the return value of its last invoke.) */
-void *coro_invoke(coro *me, coro *to, void *val);
+inline void *coro_invoke(coro *me, coro *to, void *val) {
+  val = swapstacks(&(me->stack), &(to->stack), val);
+  return val;
+}
 
 void destroy_coro(coro *c);
 

@@ -6,28 +6,6 @@
 
 #define STACK_SIZE 256
 
-static void scheduler_enqueue(scheduler *sched, thread *thr) {
-  if (sched->ready == NULL) {
-    sched->ready = thr;
-    sched->tail = thr;
-  } else {
-    sched->tail->next = thr;
-    sched->tail = thr;
-  }
-}
-
-static thread *scheduler_dequeue(scheduler *sched) {
-  thread *result;
-  if (sched->ready == NULL) {
-    result = NULL;
-  } else {
-    result = sched->ready;
-    sched->ready = result->next;
-    result->next = NULL;
-  }
-  return result;
-}
-
 thread *thread_init() {
   coro *me = coro_init();
   thread *master = malloc(sizeof(thread));
@@ -78,19 +56,6 @@ thread *thread_spawn(thread *me, scheduler *sched,
   return thr;
 }
 
-void thread_yield(thread *me) {
-  scheduler *sched = me->sched;
-  // can't yield on a system thread
-  assert(sched != NULL);
-
-  scheduler_enqueue(sched, me);
-  
-  // I just enqueued myself so I can guarantee SOMEONE is on the ready queue.
-  // Might just be me again.
-  thread *next = scheduler_dequeue(sched);
-  coro_invoke(me->coro, next->coro, NULL);
-}
-
 void thread_exit(thread *me, void *retval) {
   thread *master = me->sched->master;
 
@@ -120,23 +85,6 @@ thread *thread_wait(scheduler *sched, void **result) {
   }
 }
 
-void thread_block(thread *me, thread_barrier *barrier) {
-  me->next = barrier->threads;
-  barrier->threads = me;
-  if (++barrier->blocked == barrier->size) {
-    barrier->blocked = 0;
-    while (barrier->threads != NULL) {
-      scheduler_enqueue(barrier->sched, barrier->threads);
-      barrier->threads = barrier->threads->next;
-    }
-  } else {
-    // assumption: programmer isn't stupid, won't leave us with nothing to run.
-    // if he does, we're deadlocked anyway.
-  }
-  thread *next = scheduler_dequeue(barrier->sched);
-  coro_invoke(me->coro, next->coro, NULL);
-}
-
 void run_all(scheduler *sched) {
   while (thread_wait(sched, NULL) != NULL) { } // nothing
 }
@@ -151,9 +99,4 @@ void destroy_scheduler(scheduler *sched) {
   while ((thr = scheduler_dequeue(sched))) {
     destroy_thread(thr);
   }
-}
-
-void prefetch_and_switch(thread *me, void *addr) {
-  __builtin_prefetch(addr);
-  thread_yield(me);
 }

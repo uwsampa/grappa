@@ -1,4 +1,6 @@
 #ifndef THREAD_H
+#include <assert.h>
+
 #include "coro.h"
 
 struct scheduler;
@@ -17,6 +19,29 @@ typedef struct scheduler {
   thread *master; // the "real" thread
 } scheduler;
 
+
+inline void scheduler_enqueue(scheduler *sched, thread *thr) {
+  if (sched->ready == NULL) {
+    sched->ready = thr;
+    sched->tail = thr;
+  } else {
+    sched->tail->next = thr;
+    sched->tail = thr;
+  }
+}
+
+inline thread *scheduler_dequeue(scheduler *sched) {
+  thread *result;
+  if (sched->ready == NULL) {
+    result = NULL;
+  } else {
+    result = sched->ready;
+    sched->ready = result->next;
+    result->next = NULL;
+  }
+  return result;
+}
+
 typedef void (*thread_func)(thread *, void *arg);
 
 // Turns the current (system) thread into a green thread.
@@ -31,7 +56,18 @@ thread *thread_spawn(thread *me, scheduler *sched,
 
 // Yield the CPU to the next thread on your scheduler.  Doesn't ever touch
 // the master thread.
-void thread_yield(thread *me);
+inline void thread_yield(thread *me) {
+  scheduler *sched = me->sched;
+  // can't yield on a system thread
+  assert(sched != NULL);
+
+  scheduler_enqueue(sched, me);
+
+  // I just enqueued myself so I can guarantee SOMEONE is on the ready queue.
+  // Might just be me again.
+  thread *next = scheduler_dequeue(sched);
+  coro_invoke(me->coro, next->coro, NULL);
+}
 
 // Die and return to the master thread.
 void thread_exit(thread *me, void *retval);
@@ -58,9 +94,28 @@ typedef struct thread_barrier {
   thread *threads; // the threads
 } thread_barrier;
 
-// block on barrier until barrier->size threads there.
-void thread_block(thread *me, thread_barrier *barrier);
+inline void prefetch_and_switch(thread *me, void *addr) {
+  __builtin_prefetch(addr);
+  thread_yield(me);
+}
 
-void prefetch_and_switch(thread *me, void *addr);
+
+// block on barrier until barrier->size threads there.
+inline void thread_block(thread *me, thread_barrier *barrier) {
+  me->next = barrier->threads;
+  barrier->threads = me;
+  if (++barrier->blocked == barrier->size) {
+    barrier->blocked = 0;
+    while (barrier->threads != NULL) {
+      scheduler_enqueue(barrier->sched, barrier->threads);
+      barrier->threads = barrier->threads->next;
+    }
+  } else {
+    // assumption: programmer isn't stupid, won't leave us with nothing to run.
+    // if he does, we're deadlocked anyway.
+  }
+  thread *next = scheduler_dequeue(barrier->sched);
+  coro_invoke(me->coro, next->coro, NULL);
+}
 
 #endif
