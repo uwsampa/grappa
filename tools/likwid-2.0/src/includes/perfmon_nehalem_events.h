@@ -1,6 +1,6 @@
 /* DONT TOUCH: GENERATED FILE! */
 
-#define NUM_ARCH_EVENTS_NEHALEM 481
+#define NUM_ARCH_EVENTS_NEHALEM 483
 
 static PerfmonEvent  nehalem_arch_events[NUM_ARCH_EVENTS_NEHALEM] = {
  {"INSTR_RETIRED_ANY",
@@ -939,6 +939,12 @@ static PerfmonEvent  nehalem_arch_events[NUM_ARCH_EVENTS_NEHALEM] = {
 , {"UNC_GQ_CYCLES_NOT_EMPTY_PEER_PROBE_TRACKER",
   "UPMC", 
    0x01,0x04}
+, {"UNC_GQ_OCCUPANCY_READ_TRACKER",
+  "UPMC", 
+   0x02,0x01}
+, {"UNC_GQ_OCCUPANCY_RT_L3_MISS",
+  "UPMC", 
+   0x02,0x02}
 , {"UNC_GQ_ALLOC_READ_TRACKER",
   "UPMC", 
    0x03,0x01}
