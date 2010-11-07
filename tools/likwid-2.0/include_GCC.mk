@@ -18,7 +18,7 @@ DEFINES  = -D_GNU_SOURCE
 DEFINES  += -DMAX_NUM_THREADS=128
 DEFINES  += -DPAGE_ALIGNMENT=4096
 #enable this option to build likwid-bench with marker API for likwid-perfCtr
-#DEFINES  += -DPERFMON
+DEFINES  += -DPERFMON
 
 INCLUDES =
 LIBS     =  -lm
