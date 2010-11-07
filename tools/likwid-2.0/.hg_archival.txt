@@ -1,0 +1,5 @@
+repo: 8b7520a80c8eec7dfcc269ffae150d8e0c0251bc
+node: 088f75ca828d14fabb6a4c84e66a76d811400767
+branch: v2
+latesttag: 2.0beta
+latesttagdistance: 14
