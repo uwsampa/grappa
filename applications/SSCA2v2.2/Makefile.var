@@ -1,0 +1,26 @@
+TARGET = SSCA2
+
+# Set the C compiler and flags appropriately
+# Compiler          64-bit compilation  OpenMP support  Suggested Opt. flags
+############################################################################
+# Generic gcc         -m64                -fopenmp        -O3
+# IBM     xlc_r       -q64                -xopenmp        -O3 -qhot
+# Intel   icc                             -qsmp=omp       -O3 -ipo
+# Sun     cc          -xarch=v9           -openmp         -fast
+############################################################################
+# To run problem instances of SCALE > 27, compile in 64-bit mode and add 
+# the flag -DLARGE_GRAPH to CFLAGS
+# To run problem instances of SCALE > 31, compile in 64-bit mode and add
+# the flag -DMASSIVE_GRAPH to CFLAGS
+# OpenMP is supported with gcc version >= 4.2
+# To verify Kernel 4 implementation, compile with -DVERIFYK4 flag. This 
+# will generate a 2D torus as the input instance instead of the scale-free graph.
+CC = gcc
+CFLAGS = -O3
+
+AR = ar
+ARFLAGS = cr
+RANLIB = ranlib
+
+LIB = -Lsprng2.0/lib -lm -lsprng
+INC = -Isprng2.0/include

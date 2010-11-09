@@ -1,0 +1,66 @@
+/*
+ * SSCA2v2.2: DARPA HPCS SSCA#2 C/OpenMP reference implementation
+ * Copyright (C) 2007  David A. Bader, Kamesh Madduri
+ *
+ * Last Modified: August 6, 2007
+ *
+ * This program is free software; you can redistribute it and/or
+ * modify it under the terms of the GNU General Public License
+ * as published by the Free Software Foundation; either version 2
+ * of the License, or (at your option) any later version.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU General Public License for more details.
+ *
+ * You should have received a copy of the GNU General Public License
+ * along with this program; if not, write to the Free Software
+ * Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307,
+ * USA.
+ *
+ * Authors:
+ *                      David A. Bader   <http://www.cc.gatech.edu/~bader>
+ *                      College of Computing
+ *                      Georgia Institute of Technology
+ *                      Atlanta, GA 30332
+ *
+ *                      Kamesh Madduri   <http://www.cc.gatech.edu/~kamesh>
+ *                      College of Computing
+ *                      Georgia Institute of Technology
+ *                      Atlanta, GA 30332
+ *
+ */
+
+About the benchmark:
+====================
+
+The intent of this benchmark is to develop a compact application that has 
+multiple analysis techniques (multiple kernels) accessing a single data 
+structure representing a weighted, directed graph. In addition to a kernel to 
+construct the graph from the input tuple list, there will be three additional 
+computational kernels to operate on the graph. Each of the kernels will require
+irregular access to the graph's data structure, and it is possible that no 
+single data layout will be optimal for all four computational kernels. 
+
+The benchmark specification document (HPCS-SSCA2_Graph-Theory_v2.2) is included 
+in this directory. This code is a reference shared-memory parallel
+implementation in C/OpenMP.
+
+Buiding:
+========
+
+1. Review the compiler path and flags in Makefile.var. 
+
+2. Executing "make" will first build the included SPRNG parallel pseudo-random
+number generator, and then the SSCA#2 graph analysis benchmark.
+
+Running:
+========
+
+./SSCA2 <no. of threads> <s> (parallel version, build with OpenMP support)
+./SSCA2 <s>                  (sequential version)
+where "s" is the problem SCALE (a positive integer). A SCALE value of k 
+generates a directed graph of n=2^k vertices and m=8*n edges.
+
+******************************************************************************
