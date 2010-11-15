@@ -1,0 +1,6 @@
+Breakpoint 1,\s*main.*at.*simple.c:7
+This is the tool's response
+This is the tool's response
+This is the tool's response
+Unknown command 'foo'
+Program exited normally.

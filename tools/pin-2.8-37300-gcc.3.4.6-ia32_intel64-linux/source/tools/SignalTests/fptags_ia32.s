@@ -1,0 +1,18 @@
+	.text
+.globl DoMath
+DoMath:
+    /*
+     * Push "0.0" on the stack, then "1.0".
+     */
+    finit
+    fldz
+    fld1
+
+    /*
+     * This raises a SEGV.
+     */
+    mov     $0, %ecx
+    mov     (%ecx), %ecx
+
+    /* does not return */
+	ret

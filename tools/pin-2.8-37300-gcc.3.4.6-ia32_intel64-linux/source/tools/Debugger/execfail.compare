@@ -1,0 +1,3 @@
+Breakpoint 1,\s*main.*at\s*exec.cpp:(7|9)
+Breakpoint 2,\s*main.*at\s*exec.cpp:16
+Program exited normally.$

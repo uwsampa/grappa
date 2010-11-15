@@ -1,0 +1,3 @@
+Breakpoint 1,\s*main.*at\s*fork.cpp:(9|11)
+Breakpoint 2,\s*main.*at\s*fork.cpp:13
+Program exited normally.$

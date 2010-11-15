@@ -1,0 +1,3 @@
+Breakpoint [1|2],\s*[Parent|Child].*at.*thread-unix.cpp:[23|29]
+Breakpoint [1|2],\s*[Parent|Child].*at.*thread-unix.cpp:[23|29]
+Program exited normally.

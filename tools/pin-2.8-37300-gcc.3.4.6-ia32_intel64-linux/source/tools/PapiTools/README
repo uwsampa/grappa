@@ -1,0 +1,20 @@
+The Pintools in this directory make several assumptions:
+  1. Your machine is booted into a kernel with the perfctr 
+       patch.  Note that no standard Linux distribution has 
+       a perfctr kernel, so you need to manually patch and 
+       compile a new kernel.
+  2. You have the PAPI installed, and libpapi.a is in your
+       library path. 
+  3. Your specific processor supports the PAPI counters that
+       each Pintool accesses. The available counters vary
+       by processor, so if you get a failure when adding a 
+       counter, your processor probably doesn't support it.
+
+These Pintools are provided for demonstrative purposes only.
+They were tested on CentOS 4.5 machines (32-bit and 64-bit) 
+with a 2.6.9-55.0.2.EL.perfctr26smp kernel and PAPI 3.5.0. 
+
+Any questions regarding the installation of PAPI or a 
+perfctr kernel should NOT go to the Pinheads mailing list,
+but should be addressed to the PAPI mailing list hosted at
+the University of Tennessee.

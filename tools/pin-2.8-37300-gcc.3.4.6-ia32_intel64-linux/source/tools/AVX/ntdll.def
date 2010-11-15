@@ -1,0 +1,4 @@
+LIBRARY ntdll.DLL
+EXPORTS
+  NtContinue
+  

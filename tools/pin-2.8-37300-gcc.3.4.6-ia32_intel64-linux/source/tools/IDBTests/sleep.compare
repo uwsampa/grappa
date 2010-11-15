@@ -1,0 +1,2 @@
+Breakpoint 1,\s*BeforeSleep.*at.*sleep.cpp:14
+Program exited normally.

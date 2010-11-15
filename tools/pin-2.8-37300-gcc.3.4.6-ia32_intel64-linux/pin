@@ -1,0 +1,45 @@
+#! /bin/bash
+
+# get the directory of this script
+origin=$0
+# If it does not begin with /, then it is relative to the current working directory
+if [ "${origin:0:1}" != "/" ]; then
+    origin=$PWD/$origin
+fi
+origin=`dirname "$origin"`
+
+# Libraries are found relative to origin
+lib_base="$origin"
+cpp_libs="$lib_base/ia32/runtime:$lib_base/intel64/runtime:$lib_base/ia64/runtime"
+glibc_libs="$lib_base/ia32/runtime/glibc:$lib_base/intel64/runtime/glibc:$lib_base/ia64/runtime/glibc"
+# vm/tool need cpp and glibc libs
+export PIN_VM_LD_LIBRARY_PATH=$cpp_libs:$glibc_libs:$LD_LIBRARY_PATH
+
+# If variables we are going to modify are set, save the value. They will be restored 
+# after the injector starts
+export PIN_LD_RESTORE_REQUIRED=t
+if [ -n "${LD_LIBRARY_PATH+x}" ]
+then
+    export PIN_APP_LD_LIBRARY_PATH=$LD_LIBRARY_PATH
+fi
+if [ -n "${LD_ASSUME_KERNEL+x}" ]
+then
+    export PIN_APP_LD_ASSUME_KERNEL=$LD_ASSUME_KERNEL
+fi
+if [ -n "${LD_BIND_NOW+x}" ]
+then
+    export PIN_APP_LD_BIND_NOW=$LD_BIND_NOW
+fi
+
+unset LD_ASSUME_KERNEL
+# injector just needs cpp libs, it cannot use glibc lib
+export LD_LIBRARY_PATH=$cpp_libs:$LD_LIBRARY_PATH
+
+machine=`uname -m`
+
+if [ $machine == "ia64" ]
+then
+    exec "$origin"/ia64/bin/pinbin "${@}"
+else
+    exec "$origin"/ia32/bin/pinbin -p64 "$origin"/intel64/bin/pinbin "${@}"
+fi

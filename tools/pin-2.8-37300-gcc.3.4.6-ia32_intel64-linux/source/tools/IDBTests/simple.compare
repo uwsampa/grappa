@@ -1,0 +1,2 @@
+Breakpoint 1,\s*main.*at.*simple.c:7
+Program exited normally.
