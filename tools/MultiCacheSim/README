@@ -1,0 +1,226 @@
+/************************************************
+/MultiCacheSim -- A Multiprocessor coherent cache simulator.
+/Brandon Lucia 2009, 2010
+/University of Washington
+
+/MultiCacheSim is free software; you can redistribute it and/or modify it 
+/under the terms
+/of the GNU General Public License as published by the Free Software Foundation;
+/either version 2, or (at your option) any later version.
+/
+/MultiCacheSim is distributed in the  hope that  it will  be  useful, 
+/but  WITHOUT ANY
+/WARRANTY; without even the implied warranty of MERCHANTABILITY or FITNESS FOR A
+/PARTICULAR PURPOSE.  See the GNU General Public License for more details.
+/
+/You should  have received a copy of  the GNU General  Public License along with
+/MultiCacheSim; see the file COPYING.  If not, write to 
+/Free Software Foundation, 59
+/Temple Place - Suite 330, Boston, MA 02111-1307, USA.
+/
+/
+/MultiCacheSim uses code that is part of SESC.  The following is the disclaimer
+/distributed with this code (it also appears in each file from SESC).
+/
+/SESC is free software; you can redistribute it and/or modify it under the terms
+/of the GNU General Public License as published by the Free Software Foundation;
+/either version 2, or (at your option) any later version.
+/
+/SESC is    distributed in the  hope that  it will  be  useful, but  WITHOUT ANY
+/WARRANTY; without even the implied warranty of MERCHANTABILITY or FITNESS FOR A
+/PARTICULAR PURPOSE.  See the GNU General Public License for more details.
+/
+/You should  have received a copy of  the GNU General  Public License along with
+/SESC; see the file COPYING.  If not, write to the  Free Software Foundation, 59
+/Temple Place - Suite 330, Boston, MA 02111-1307, USA.
+/
+/************************************************
+MultiCacheSim is a simulation infrastructure for experimenting with coherent caches.
+It is designed to be used directly in your code, or to be built as a pintool.
+This simulator is packaged with MSI and MESI coherence code.  The developer's guide
+below describes the process of adding other protocols to the simulator.
+
+/*Building and Testing the use of MultiCacheSim directly with CacheTestDriver*/
+This code is all plain ol' C++ and has no external library dependences, except on
+the standard library which is relied on for the <vector> class.  it should be
+as simple as typing "make" to build the included test driver (implemented
+in CacheTestDriver.cpp).  After you build everything, run the
+test program.  The output should look like this (ignore these numbers, you're
+just checking that it runs):
+
+-----Cache 0-----
+ReadHits:1
+ReadMisses:200135
+ReadMissesServicedRemotely:3
+WriteHits:1
+CoherenceMisses:0
+WriteMisses:199863
+-----Cache 1-----
+ReadHits:1
+ReadMisses:200026
+ReadMissesServicedRemotely:2
+WriteHits:1
+CoherenceMisses:0
+WriteMisses:199972
+-----Cache 2-----
+ReadHits:0
+ReadMisses:199728
+ReadMissesServicedRemotely:6
+WriteHits:2
+CoherenceMisses:0
+WriteMisses:200270
+-----Cache 3-----
+ReadHits:1
+ReadMisses:200060
+ReadMissesServicedRemotely:3
+WriteHits:0
+CoherenceMisses:0
+WriteMisses:199939
+
+Looking at CacheTestDriver.cpp will give you a nice insight into how to use CacheTestDriver.  
+
+/*What do the output counters mean??*/
+The output counters represent interesting events, concerning a cache coherence
+protocol.
+
+A Read Hit event occurs when a processor has a line in any valid state, and it
+performs a read operation.
+
+A Read Miss occurs when a processor has a line in invalid state, or doesn't
+have the line cached, and it performs a read.
+
+A Read Miss Serviced Remotely (A.K.A. Read Coherence Miss) occurs when a
+processor accesses a line and another processor has the data in any non-shared,
+non-invalid state.  In this case the other processor furnishes the missing
+processor with data.
+
+A Write Hit occurs whenever a processor executes a write to a line that it has
+cached in a state that permits writes.
+
+A Write Coherence Miss occurs when a processor has a line in shared state, and
+writes to it.  In this situation, the processor must invalidate other caches'
+copies, upgrade, then perform the write.
+
+/*Building MultiCacheSim for use with Pin*/
+MultiCacheSim can be configured to run as a pin tool (http://pintool.org).
+This is mostly automated, but there's a couple things you need to do for things
+to work correctly.  First, you need to define PIN_HOME in your environment.
+Second, when you build MultiCacheSim, you need to set BLDTYPE=pin in the
+environment.  If you have recently built for use with the CacheTestDriver
+program, you'll need to make clean; before making with BLDTYPE=pin, or there
+will be some wonky error messages.   Building with BLDTYPE=pin, you will
+produce MultiCacheSim_PinDriver.so.  This is your pintool shared object file.
+run it like "pin -mt -t MultiCacheSim_PinDriver.so -csize 32768 -bsize 64
+-assoc 2 -num_caches 16 -proto MSI -- <app>".  The options are: csize=cache size in bytes.
+bsize=block size in bytes. assoc=associativity (number of ways per set).
+num_caches=the number of caches to simulate. proto=your protocol (defaults to MSI)
+
+/*Single-Processor simulation*/
+MultiCacheSim is designed as a multiprocessor cache simulator, but if you only
+add 1 cache to your multicachesim object, you will have a uniprocessor cache
+simulator.  Everything else still applies; just provide "0" as the thread id of
+your main thread (or whatever value you want), and you should be good to go.
+
+/////////////////////////////////
+//MultiCacheSim Development Guide
+/////////////////////////////////
+This section will give an overview of the code of this project, and will describe what
+is required to add a different cache coherence protocol.  
+
+/*Interface: CacheInterface*/
+The project's top level interface is the CacheInterface (defined in CacheInterface.h).  This is
+an abstract class that describes client exposed methods relevant to the use of the simulator.
+These methods are ReadLine, WriteLine, and DumpCacheStats.  Note that they are pure virtual.
+
+/*Class: MultiCacheSim*/
+The base implementation of the CacheInterface interface is the MultiCacheSim class.  This is
+declared and defined in MultiCacheSim.h/cpp.  This class serves as a fancy container for
+SMPCache objects.  The SMPCache inheritance hierarchy will be described below.  
+MultiCacheSim contains a vector that has one entry for each cache in your multiprocessor system.  
+To add a cache to your MultiCacheSim object, use the createNewCache() function.
+There is a function tidToCPUId in this class.  This function takes a program thread id and
+maps the thread to one of the "processors" (caches) in the MultiCacheSim.  Using this
+function to get the CPUId and findCacheByCPUId, you can actually get a pointer to the cache
+you're interested in (if you need one -- normally, you can just use the high level interface).
+
+/*Class: SMPCache*/
+Further down inside is the SMPCache class hierarchy.  SMPCache is at the top of
+the hierarchy, and it is abstract.  The objects that are stored in
+MultiCacheSim's vector of caches must be of this type (specifically, subclasses
+of this type).  As a user of this simulator, you can use this abstract base
+class to implement caches with arbitrary coherence policy support.  The way
+this works is that your specific implementation must define the readLine,
+writeLine, and fillLine functions. (Note: this readLine and writeLine are
+different from the functions of the same name in CacheInterface.h and they have
+little to do with one another).  What goes on in these functions is described
+below, but first, I will discuss where the actual cache objects come from, and
+the state that is associated with each block in your cache.
+
+SMPCache has a field called cache which is a pointer to a SESC CacheGeneric
+object.  The object it points to does the actual work of the cache (computes tags,
+determines sets, evictions, etc).  The CacheGeneric object is a template class
+and is used with a StateGeneric<> type argument.  StateGeneric<> is the type of
+the data that is associated with each line in your cache.   CacheGeneric
+implements all the functionality that is needed in most cases, so that probably
+won't need to be changed.  To implement new coherence state, you'll need to subclass
+StateGeneric<>.  MSI_SMPCacheState.h is an example of how to do this, and in the
+interest of brevity, I'll refer you there for more info.
+
+The readLine and writeLine functions in your implementation of the SMPCache class do
+two things.  First, they have to access the cache.  If there is a hit, they don't
+have to do much more than just update the appropriate event counters, and return.  On
+a miss, what needs to happen largely depends on the coherence protocol.  
+
+Here is what might happen in readLine, using MSI as an example.
+In readline, you can use CacheGeneric::findLine(address) to find the cache line
+for the address you're looking for.  If the tags match it is a hit.  If not, it
+is a miss, and you have some work to do.  findLine returns the state associated
+with the line that the address maps to.  If the pointer is null, or if the
+state indicates that the line is invalid, the access was a miss.  In MSI, on
+a read miss, the missing cache needs to ask the other caches if they have the
+data that it was looking for.  In the default implementation of MSI, this is
+done by traversing the list of other caches (SMPCache->getCacheVector() gets
+you the std::vector containing the other caches).  This simulates sending
+coherence messages between the caches.  Based on whether the other caches have
+the data, and in what state they had it, the data is cached in the missing
+cache, and all involved caches' states for that line are updated.  The behavior
+of writeLine is similarly implementation specific.  In MSI on a writeMiss,
+writeLine involves checking other caches for the data, and if they have it
+cached, marking their copies invalid, and marking the writer's copy Modified.
+The fillLine function is called in readLine and writeLine.  You have to
+implement it in your subclass of SMPCache because depending on your protocol,
+you may want to make the initial state of a line different (for instance, do we
+make it Shared or Modified by default?).
+
+So in summary:
+To implement a new coherence protocol -- the "Whatever" protocol:
+1)Subclass SMPCache.  This generally means creating two new files:
+Whatever_SMPCache.h and Whatever_SMPCache.cpp.  Examples are in
+MSI_SMPCache.h/cpp --Implement readLine, writeLine, and fillLine.  Use
+MSI_SMPCache as a guide.  
+
+2)Subclass SESC's StateGeneric<> type.  An example is
+in MSI_SMPCacheState.h.  --Enumerate your states, and add instantiate your
+subclass of SMPCache with this type as its type argument.  Use
+MSI_SMPCache/MSI_SMPCache as a guide.
+
+3)Add code to make Whatever a valid protocol option:
+  a)#include Whatever_SMPCache.h in MultiCacheSim.h
+  b)Add PROTO_WHATEVER to the CoherenceProtocol enum in MultiCacheSim.h
+  c)In MultiCacheSim::createNewCache add a branch to the conditional that 
+    recognizes your coherence protocol enum value, and creates a new 
+    Whatever_SMPCache if the protocol is PROTO_WHATEVER.
+
+4)In MultiCacheSim_PinDriver.cpp add code to process the KnobProto string
+  argument -- you'll need to have a case that looks for "Whatever", and
+  if the Knob has that value, constructs a MultiCacheSim with PROTO_WHATEVER
+  as its CoherenceProtocol argument
+
+
+/*Locking*/
+There is one big sledgehammer of a lock protecting all the caches, so if it is
+used in realtime (e.g., in a pintool) execution serializes on the caches lock.
+Think "Locking the bus" =).  If you decide to change the
+vector of caches (adding or removing them) you need to hold the lock that
+protects the vector (or the whole thing can go up in smoke).  This lock is 
+declared in MultiCacheSim.h
