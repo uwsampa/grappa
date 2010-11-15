@@ -41,5 +41,6 @@ if [ $machine == "ia64" ]
 then
     exec "$origin"/ia64/bin/pinbin "${@}"
 else
-    exec "$origin"/ia32/bin/pinbin -p64 "$origin"/intel64/bin/pinbin "${@}"
+    #exec "$origin"/ia32/bin/pinbin -p64 "$origin"/intel64/bin/pinbin "${@}"
+    exec "$origin"/intel64/bin/pinbin "${@}"
 fi
