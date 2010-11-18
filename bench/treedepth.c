@@ -61,12 +61,10 @@ void thread_f(thread *me, void *arg) {
   uint64_t *edges = di->tree->edges;
   uint64_t *addr;
   uint64_t *start;
-  //  printf("%d %p %d %d\n", di->depth, me, di->i, di->to_examine_size);
   while (di->to_examine_size > 0) {
 
     while (di->i < di->to_examine_size) {
       uint64_t vertex = di->to_examine[di->i++];
-      //      printf("%p %"PRIu64 "\n", me, vertex);
       addr = &row_ptr[vertex];
       prefetch_and_switch(me, addr);
       start = &edges[*addr++];
@@ -75,8 +73,6 @@ void thread_f(thread *me, void *arg) {
         prefetch_and_switch(me, start);
         di->next[di->next_size++] = *start++;
       }
-      //      printf("%d %p %d %d\n", di->depth, me, di->i, di->to_examine_size);
-      //      thread_yield(me);
     }
 
     thread_block(me, &di->barrier);
@@ -178,6 +174,9 @@ int main(int argc, char *argv[]) {
   }
   avg /= nruns;
   printf("AVERAGE: %f\n", avg);
+  destroy_scheduler(sched);
+  destroy_thread(master);
+  graph_free(tree);
   free(to_examine);
   free(next);
 
