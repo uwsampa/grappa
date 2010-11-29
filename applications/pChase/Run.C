@@ -73,8 +73,8 @@ Run::run()
 	int alloc_node_id = this->exp->chain_domain[this->thread_id()][i];
 	nodemask_t alloc_mask;
 	nodemask_zero(&alloc_mask);
-	nodemask_set(&alloc_mask, alloc_node_id);
-	numa_set_membind(&alloc_mask);
+	nodemask_set_compat(&alloc_mask, alloc_node_id);
+	numa_set_membind_compat(&alloc_mask);
 
 	chain_memory[i] = new Chain[ this->exp->links_per_chain ];
     }
