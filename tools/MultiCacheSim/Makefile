@@ -1,3 +1,8 @@
+BLDTYPE=pin
+PIN_HOME=../pin
+PIN_KIT=../pin
+
+
 PROG = CacheTestDriver
 PINTOOL = MultiCacheSim_PinDriver.so
 
@@ -5,7 +10,7 @@ SRCS = MSI_SMPCache.cpp MESI_SMPCache.cpp SMPCache.cpp MultiCacheSim.cpp CacheCo
 
 ifeq ($(BLDTYPE),pin)
 include $(PIN_HOME)/source/tools/makefile.gnu.config
-CXXFLAGS += -DPIN
+CXXFLAGS += -DPIN -Wno-deprecated
 SRCS += MultiCacheSim_PinDriver.cpp
 TARG = $(PINTOOL)
 else
