@@ -17,7 +17,7 @@ thread *thread_init() {
 }
 
 scheduler *create_scheduler(thread *master) {
-  scheduler *sched = malloc(sizeof(sched));
+  scheduler *sched = malloc(sizeof(scheduler));
   assert(sched != NULL);
   sched->ready = NULL;
   sched->tail = NULL;
@@ -99,4 +99,5 @@ void destroy_scheduler(scheduler *sched) {
   while ((thr = scheduler_dequeue(sched))) {
     destroy_thread(thr);
   }
+  free(sched);
 }
