@@ -53,8 +53,8 @@ void loop(thread * me, void *arg) {
     for (int64_t j = 0; j < la->upra; j++) {
      int64_t index = (rand >> 32) & ((1<<(la->ls))-1);
       /*      prefetch_and_switch(me, &local[index]);*/
-      /* rand = RAND(rand + (local[index]+=1));*/
-      local[j & ((1<<(la->ls))-1)]+=1;
+      rand = RAND(rand + (local[index]+=1));
+      /* local[j & ((1<<(la->ls))-1)]+=1; */
       /* fprintf(stderr, "(%ld %ld %ld) ", j, index, rand); */
     }
   }
