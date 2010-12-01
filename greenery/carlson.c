@@ -99,7 +99,7 @@ int main(int argc, char *argv[]) {
   
   fprintf(stderr,
 	  "ncores: %ld; threads per core: %ld; updates per remote: %ld;"
-	  " local bytes: %ld (%ld); remote bytes: %ld (%ld)total refs: %ld\n",
+	  " local bytes: %ld (%ld); remote bytes: %ld (%ld) total refs: %ld ",
 	  ncores, threads_per_core,  local_updates_per_remote_access,
 	  thread_footprint*sizeof(int64_t), tflog, remote_size*sizeof(int64_t), rslog, ncores*threads_per_core*ITERS*(local_updates_per_remote_access+1));
 
@@ -125,7 +125,7 @@ int main(int argc, char *argv[]) {
   gettimeofday(&tv2,0);
   double elapsed_sec = ((tv2.tv_sec-tv1.tv_sec)*1000000.0 + (tv2.tv_usec-tv1.tv_usec))/1000000.0;
 fprintf(stderr, "ref/s: %g ", (ncores*threads_per_core*ITERS*(local_updates_per_remote_access+1))/elapsed_sec);
-fprintf(stderr, "latency: %g sec", ((elapsed_sec)/(ncores*threads_per_core*ITERS*(local_updates_per_remote_access+1))));
+fprintf(stderr, "latency: %g sec\n", ((elapsed_sec)/(ncores*threads_per_core*ITERS*(local_updates_per_remote_access+1))));
     exit(0);
     }
 #else
@@ -140,7 +140,7 @@ fprintf(stderr, "latency: %g sec", ((elapsed_sec)/(ncores*threads_per_core*ITERS
   double elapsed_sec = ((tv2.tv_sec-tv1.tv_sec)*1000000.0 + (tv2.tv_usec-tv1.tv_usec))/1000000.0;
 
 fprintf(stderr, "ref/s: %g ", (ncores*threads_per_core*ITERS*(local_updates_per_remote_access+1))/elapsed_sec);
-fprintf(stderr, "latency: %g sec", ((elapsed_sec)/(ncores*threads_per_core*ITERS*(local_updates_per_remote_access+1))));
+fprintf(stderr, "latency: %g sec\n", ((elapsed_sec)/(ncores*threads_per_core*ITERS*(local_updates_per_remote_access+1))));
 #endif 
 
   destroy_scheduler(sched);
