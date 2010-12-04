@@ -32,9 +32,9 @@ int main(int argc, char* argv[]) {
   assert(argc >= 4);
   uint64_t bits = atoi(argv[1]);            // 2^bits=number of nodes
   uint64_t num_threads = atoi(argv[2]);     // number of threads
-  uint64_t size = (1 << bits);              
-
   uint64_t num_lists_per_thread = atoi(argv[3]); // number of concurrent accesses per thread	
+  //uint64_t size = (1 << bits) * num_threads * num_lists_per_thread;              
+  uint64_t size = (1 << bits);              
 
   // optional 4th arg "-i" indicates to use ExperimentRunner
   bool do_monitor = false;

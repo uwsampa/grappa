@@ -12,10 +12,17 @@
 
 node** allocate_page(uint64_t size, int num_threads, int num_lists_per_thread) {
 
-  printf("Initializing footprint of size %lu * %lu = %lu bytes....\n", size, sizeof(node), size * sizeof(node));
   size = size / (num_threads * num_lists_per_thread);
+  printf("Chain size is %lu * %lu = %lu\n", 
+	 size, sizeof(node), size *sizeof(node));
+  printf("Initializing footprint of size %d * %d * %lu * %lu = %lu * %lu = %lu bytes....\n", 
+	 num_threads, num_lists_per_thread, size, sizeof(node), 
+	 num_threads * num_lists_per_thread, size * sizeof(node), 
+	 num_threads * num_lists_per_thread * size * sizeof(node));
 
-  unsigned page_size = sysconf(_SC_PAGESIZE);
+  unsigned page_size = 2 * 1024 * 1024;
+  //unsigned page_size = sysconf(_SC_PAGESIZE);
+  printf("page size is %u.\n", page_size);
   
   unsigned num_chains = num_threads * num_lists_per_thread;
   node** bases = (node**) malloc( sizeof(node*) * num_chains );

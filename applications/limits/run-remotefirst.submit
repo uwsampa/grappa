@@ -1,0 +1,22 @@
+############
+#
+# Example submit file for vanilla job
+#
+############
+
+Universe       = vanilla
+Executable     = run-remotefirst.py
+initialdir = /sampa/home/nelson/softxmt/applications/limits/
+
+notify_user = nelson@cs.washington.edu
+
+input   = /dev/null
+log = run-remotefirst.log
+output  = run-remotefirst.out                
+error   = run-remotefirst.error       
+
+getenv = True
+
+requirements = machine == "n01.sampa"
+                                                  
+Queue

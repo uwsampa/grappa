@@ -1,0 +1,22 @@
+############
+#
+# Example submit file for vanilla job
+#
+############
+
+Universe       = vanilla
+Executable     = run-localfirst.py
+initialdir = /sampa/home/nelson/softxmt/applications/limits/
+
+notify_user = nelson@cs.washington.edu
+
+input   = /dev/null
+log = run-localfirst.log
+output  = run-localfirst.out                
+error   = run-localfirst.error       
+
+getenv = True
+
+requirements = machine == "n01.sampa"
+                                                  
+Queue
