@@ -1,0 +1,47 @@
+\documentclass{beamer}
+\usetheme{Dresden}
+\usepackage{enumerate,listings}
+
+\setbeamertemplate{navigation symbols}{}
+\begin{document}
+\begin{frame}
+\frametitle{libgreenery}
+Goal: expose more memory references through independent contexts.
+\begin{enumerate}
+  \item Overhead between threads' references can't outweigh gain from prefetch
+  \item Context switch must be as fast as possible ($<10$ns)
+  \item Many threads must fit in same cache (tiny stacks)
+  \item Dramatic limits on what you can run inside these
+  \end{enumerate}
+\begin{block}{API}
+  Minimal as possible:
+  \begin{enumerate}
+  \item \texttt{thread\_spawn}, \texttt{thread\_yield}
+  \item \texttt{thread\_block} (mostly avoid explicit synchronization)
+  \item \texttt{prefetch\_and\_switch} (the key)
+  \end{enumerate}
+\end{block}
+\end{frame}
+\begin{frame}[fragile]
+  \frametitle{Example usage}
+Unlike hardware threads, we \emph{want} these to cooperate tightly.
+\begin{lstlisting}
+// shared
+int examine_size, i = 0;
+vertex examine[], next[];
+// many threads run this:
+while (i < examine_size) {
+  vertex v = examine[i];
+  vertex edges[] = prefetch_and_switch(edge_lists[v]);
+  for (j = 0; j < edges.size; ++j) {
+     vertex target = prefetch_and_switch(edges[j]);
+     next.push_back(target);
+  }
+}
+thread_block(barrier)
+// swap queues, repeat
+\end{lstlisting}
+Rely mostly on lack of preemption for synchronization, work on shared
+data, and prefetch/switch on any reference with poor locality.
+\end{frame}
+\end{document}
