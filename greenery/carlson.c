@@ -49,12 +49,12 @@ void loopx(thread * me, void *arg) {
   uint64_t rand = RAND(((uint64_t)me));
   /* start of this coroutine's space: */
   //int64_t * local = &la->loc[(1<<(la->ls))*la->id];
-  uint64_t * local = &la->loc[la->s * la->id];
+  uint64_t * local = (uint64_t*) &la->loc[la->s * la->id];
 
   for (uint64_t i = 0; i < ITERS; i++) {
     uint64_t index = (rand >> 32) & ((1<<(la->rs))-1);
     if (la->issue_remote_reference)
-      prefetch_and_switch(me, &la->rem[index]);
+      prefetch_and_switch(me, &la->rem[index], 0);
     
     //if (la->use_remote_reference)
 	rand = RAND(rand + la->rem[index]);
@@ -62,12 +62,12 @@ void loopx(thread * me, void *arg) {
 	//rand = RAND(rand);
 
     /*     fprintf(stderr, "\n(%ld %ld %ld) ", i, index, rand); */
-    for (uint64_t j = 0; j < la->upra; j++) {
+	for (uint64_t j = 0; j < (uint64_t)la->upra; j++) {
       //int64_t index = (rand >> 32) & ((1<<(la->ls))-1);
       uint64_t index = (rand >> 32) % (la->s);
 
       //      if (0) //la->use_local_prefetch_and_switch)
-      //	prefetch_and_switch(me, &local[index]);
+      //	prefetch_and_switch(me, &local[index], 1);
      
      if (la->local_random_access)
        rand = RAND(rand + (local[index]+=1));
@@ -93,7 +93,7 @@ void loop(thread * me, void *arg) {
     int64_t index = (rand >> 32) & ((1<<(la->rs))-1);
  
     if (la->issue_remote_reference) 
-      prefetch_and_switch(me, &la->rem[index]);
+      prefetch_and_switch(me, &la->rem[index], 0);
 
     if (la->use_remote_reference)
       rand = RAND(rand + la->rem[index]);
@@ -107,7 +107,7 @@ void loop(thread * me, void *arg) {
 	//int64_t index = (rand >> 32) & ((1<<(la->ls + 1))-1);
 	//if (index > la->s) index -= la->s;
 	
-	/*      prefetch_and_switch(me, &local[index]);*/
+	/*      prefetch_and_switch(me, &local[index], 1);*/
 	// random
 	rand = RAND(rand + (local[index]+=1));
 	
@@ -128,27 +128,27 @@ void loop(thread * me, void *arg) {
 }
 
 
-void loopz(thread * me, void *arg) {
-  loop_arg * la = (loop_arg *) arg;
-  int64_t rand = RAND(((int64_t)me));
-  /* start of this coroutine's space: */
-  int64_t * local = &la->loc[(1<<(la->ls))*la->id];
+/* void loopz(thread * me, void *arg) { */
+/*   loop_arg * la = (loop_arg *) arg; */
+/*   int64_t rand = RAND(((int64_t)me)); */
+/*   /\* start of this coroutine's space: *\/ */
+/*   int64_t * local = &la->loc[(1<<(la->ls))*la->id]; */
 
-  for (int64_t i = 0; i < ITERS; i++) {
-    int64_t index = (rand >> 32) & ((1<<(la->rs))-1);
-    prefetch_and_switch(me, &la->rem[index]);
-    rand = RAND(rand + la->rem[index]);
-    /*     fprintf(stderr, "\n(%ld %ld %ld) ", i, index, rand); */
-    for (int64_t j = 0; j < la->upra; j++) {
-      int64_t index = (rand >> 32) & ((1<<(la->ls))-1);
-      /*      prefetch_and_switch(me, &local[index]);*/
-      rand = RAND(rand + (local[index]+=1));
-      /* local[j & ((1<<(la->ls))-1)]+=1; */
-      /* fprintf(stderr, "(%ld %ld %ld) ", j, index, rand); */
-    }
-  }
-  loop_result =rand; /* use result to avoid dead code elimination */
-}
+/*   for (int64_t i = 0; i < ITERS; i++) { */
+/*     int64_t index = (rand >> 32) & ((1<<(la->rs))-1); */
+/*     prefetch_and_switch(me, &la->rem[index], 0); */
+/*     rand = RAND(rand + la->rem[index]); */
+/*     /\*     fprintf(stderr, "\n(%ld %ld %ld) ", i, index, rand); *\/ */
+/*     for (int64_t j = 0; j < la->upra; j++) { */
+/*       int64_t index = (rand >> 32) & ((1<<(la->ls))-1); */
+/*       /\*      prefetch_and_switch(me, &local[index], 1);*\/ */
+/*       rand = RAND(rand + (local[index]+=1)); */
+/*       /\* local[j & ((1<<(la->ls))-1)]+=1; *\/ */
+/*       /\* fprintf(stderr, "(%ld %ld %ld) ", j, index, rand); *\/ */
+/*     } */
+/*   } */
+/*   loop_result =rand; /\* use result to avoid dead code elimination *\/ */
+/* } */
 
 
 
@@ -156,7 +156,7 @@ int main(int argc, char *argv[]) {
   assert(argc == 9);
 
   int64_t ncores = atoi(argv[1]);
-  assert(ncores == 1);
+  //assert(ncores == 1);
   int64_t threads_per_core = atoi(argv[2]);
   int64_t local_updates_per_remote_access = atoi(argv[3]);
   int64_t tflog = atoi(argv[4]);
@@ -167,27 +167,16 @@ int main(int argc, char *argv[]) {
   int64_t urr = atoi(argv[8]);
 
   //int64_t lflog = tflog; // / threads_per_core;
-  int64_t total_thread_footprint = 1 << tflog;
+  int64_t total_thread_footprint = (1 << tflog) * threads_per_core * ncores;
 
-  //int64_t thread_footprint = 1<<lflog;
-  int64_t thread_footprint = total_thread_footprint / threads_per_core / ncores;
+  int64_t thread_footprint = 1<<tflog;
+  //int64_t thread_footprint = total_thread_footprint / threads_per_core / ncores;
 
-  /* while measuring on just one processor:  */
-
-  cpu_set_t set;
-  CPU_ZERO(&set);
-  CPU_SET(0, &set);
-  sched_setaffinity(0, sizeof(cpu_set_t), &set);
-
-  nodemask_t alloc_mask;
-  nodemask_zero(&alloc_mask);
-  nodemask_set_compat(&alloc_mask, 0x1);
-  numa_set_membind_compat(&alloc_mask);
 
   /* we should change to allocate on processor local to particular core */
-  int64_t * local = malloc(thread_footprint*threads_per_core*sizeof(int64_t));
+  int64_t * local = malloc(thread_footprint*ncores*threads_per_core*sizeof(int64_t));
   /* probably not necessary to zero out memory, but it doesn't cost much */
-  bzero(local, thread_footprint*threads_per_core*sizeof(int64_t));
+  bzero(local, thread_footprint*ncores*threads_per_core*sizeof(int64_t));
 
   int64_t * remote, remote_size = ((int64_t)1) <<27; /* < #phys 64bit words */
   while (!(remote = malloc(remote_size*sizeof(int64_t)))) remote_size >>= 1;
@@ -207,11 +196,33 @@ int main(int argc, char *argv[]) {
 	  uselocalpns, lra, irr, urr
 	  );
 
-  /*  for (int64_t c = 0; c < ncores; c++) { */
+  struct timeval * begins = malloc( ncores * sizeof(struct timeval) );
+  struct timeval * ends = malloc( ncores * sizeof(struct timeval) );
+  struct timeval otv1,otv2;
+  gettimeofday(&otv1,0);
+  #pragma omp parallel for
+  for (int64_t c = 0; c < ncores; c++) {
     loop_arg * la = (loop_arg *) malloc(sizeof(loop_arg)*threads_per_core);
 
-    thread *master = thread_init();
-    scheduler *sched = create_scheduler(master);
+    /* cpu_set_t set; */
+    /* CPU_ZERO(&set); */
+    /* CPU_SET(c*2 , &set); */
+    /* sched_setaffinity(0, sizeof(cpu_set_t), &set); */
+    
+    /* nodemask_t alloc_mask; */
+    /* nodemask_zero(&alloc_mask); */
+    /* nodemask_set_compat(&alloc_mask, 0x0); */
+    /* numa_set_membind_compat(&alloc_mask); */
+
+  
+    thread *master;
+    scheduler *sched;
+    thread *thread;
+    #pragma omp critical (crit_init)
+    {
+      master = thread_init();
+      sched = create_scheduler(master);
+    }
 
     int64_t tpclog = 0;
     switch (threads_per_core) {
@@ -229,7 +240,7 @@ int main(int argc, char *argv[]) {
     default: tpclog = 11; break;
     }
 
-    for (int64_t i = 0; i < threads_per_core; ++i) {
+      for (int64_t i = 0; i < threads_per_core; ++i) {
       la[i].id = i;
       la[i].upra = local_updates_per_remote_access;
       la[i].s = thread_footprint;
@@ -241,7 +252,7 @@ int main(int argc, char *argv[]) {
       la[i].local_random_access = lra;
       la[i].issue_remote_reference = irr ? -1 : 0;
       la[i].use_remote_reference = urr ? -1 : 0;
-
+      
 #ifdef TEST
   struct timeval tv1,tv2;
   gettimeofday(&tv1,0);
@@ -251,24 +262,45 @@ int main(int argc, char *argv[]) {
 fprintf(stderr, "ref/s: %g ", (ncores*threads_per_core*ITERS*(local_updates_per_remote_access+1))/elapsed_sec);
 fprintf(stderr, "latency: %g sec\n", ((elapsed_sec)/(ncores*threads_per_core*ITERS*(local_updates_per_remote_access+1))));
     exit(0);
-    }
+      }
 #else
-      thread_spawn(master, sched, loop, (void *) &la[i]);
-    }
-    /*   } */
+      #pragma omp critical (crit_create)
+      thread = thread_spawn(master, sched, loop, (void *) &la[i]);
+  }
+
+
 
   struct timeval tv1,tv2;
   gettimeofday(&tv1,0);
   run_all(sched);
   gettimeofday(&tv2,0);
-  double elapsed_sec = ((tv2.tv_sec-tv1.tv_sec)*1000000.0 + (tv2.tv_usec-tv1.tv_usec))/1000000.0;
+  begins[c] = tv1;
+  ends[c] = tv2;
+  //double elapsed_sec = ((tv2.tv_sec-tv1.tv_sec)*1000000.0 + (tv2.tv_usec-tv1.tv_usec))/1000000.0;
 
-fprintf(stderr, "ref/s: %g ", (ncores*threads_per_core*ITERS*(local_updates_per_remote_access+1))/elapsed_sec);
-fprintf(stderr, "latency: %g sec\n", ((elapsed_sec)/(ncores*threads_per_core*ITERS*(local_updates_per_remote_access+1))));
+  //fprintf(stderr, "ref/s: %g ", (ncores*threads_per_core*ITERS*(local_updates_per_remote_access+1))/elapsed_sec);
+  //fprintf(stderr, "latency: %g sec\n", ((elapsed_sec)/(ncores*threads_per_core*ITERS*(local_updates_per_remote_access+1))));
 #endif 
 
   destroy_scheduler(sched);
   destroy_thread(master);
+}
+  gettimeofday(&otv2,0);
+
+
+otv1 = begins[0];
+otv2 = ends[0];
+for(int c = 1; c < ncores; c++) {
+  if ( timercmp(&otv1, &begins[c], >) )
+    otv1 = begins[c];
+  if ( timercmp(&otv2, &ends[c], <) )
+    otv2 = ends[c];
+ }
+
+double elapsed_sec = ((otv2.tv_sec-otv1.tv_sec)*1000000.0 + (otv2.tv_usec-otv1.tv_usec))/1000000.0;
+
+fprintf(stderr, "ref/s: %g ", (ncores*threads_per_core*ITERS*(local_updates_per_remote_access+1))/elapsed_sec);
+fprintf(stderr, "latency: %g sec\n", ((elapsed_sec)/(ncores*threads_per_core*ITERS*(local_updates_per_remote_access+1))));
 
   return 0;
 }
