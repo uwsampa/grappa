@@ -39,47 +39,53 @@ typedef struct { /* loop arguments; one struct per core */
   uint64_t use_remote_reference; /* use result of prefetch and switch for remote reference */
 } loop_arg;
 
+#define ISSUE_REMOTE_REFERENCE 1
+#define USE_REMOTE_REFERENCE 1
+#define USE_LOCAL_PREFETCH_AND_SWITCH 0
+#define LOCAL_RANDOM_ACCESS 1
+#define LOCAL_ACCESS 0
+
 #define RAND(s) (6364136223846793005 * s + 1442695040888963407)
 #define ITERS 1000000
 static int64_t loop_result;
 /* repeatedly reference randomly a "remote" word and
 ** then update a number of "local" words */
-void loopx(thread * me, void *arg) {
-  loop_arg * la = (loop_arg *) arg;
-  uint64_t rand = RAND(((uint64_t)me));
-  /* start of this coroutine's space: */
-  //int64_t * local = &la->loc[(1<<(la->ls))*la->id];
-  uint64_t * local = (uint64_t*) &la->loc[la->s * la->id];
+/* void loopx(thread * me, void *arg) { */
+/*   loop_arg * la = (loop_arg *) arg; */
+/*   uint64_t rand = RAND(((uint64_t)me)); */
+/*   /\* start of this coroutine's space: *\/ */
+/*   //int64_t * local = &la->loc[(1<<(la->ls))*la->id]; */
+/*   uint64_t * local = (uint64_t*) &la->loc[la->s * la->id]; */
 
-  for (uint64_t i = 0; i < ITERS; i++) {
-    uint64_t index = (rand >> 32) & ((1<<(la->rs))-1);
-    if (la->issue_remote_reference)
-      prefetch_and_switch(me, &la->rem[index], 0);
+/*   for (uint64_t i = 0; i < ITERS; i++) { */
+/*     uint64_t index = (rand >> 32) & ((1<<(la->rs))-1); */
+/*     if (la->issue_remote_reference) */
+/*       prefetch_and_switch(me, &la->rem[index], 0); */
     
-    //if (la->use_remote_reference)
-	rand = RAND(rand + la->rem[index]);
-	//else
-	//rand = RAND(rand);
+/*     //if (la->use_remote_reference) */
+/* 	rand = RAND(rand + la->rem[index]); */
+/* 	//else */
+/* 	//rand = RAND(rand); */
 
-    /*     fprintf(stderr, "\n(%ld %ld %ld) ", i, index, rand); */
-	for (uint64_t j = 0; j < (uint64_t)la->upra; j++) {
-      //int64_t index = (rand >> 32) & ((1<<(la->ls))-1);
-      uint64_t index = (rand >> 32) % (la->s);
+/*     /\*     fprintf(stderr, "\n(%ld %ld %ld) ", i, index, rand); *\/ */
+/* 	for (uint64_t j = 0; j < (uint64_t)la->upra; j++) { */
+/*       //int64_t index = (rand >> 32) & ((1<<(la->ls))-1); */
+/*       uint64_t index = (rand >> 32) % (la->s); */
 
-      //      if (0) //la->use_local_prefetch_and_switch)
-      //	prefetch_and_switch(me, &local[index], 1);
+/*       //      if (0) //la->use_local_prefetch_and_switch) */
+/*       //	prefetch_and_switch(me, &local[index], 1); */
      
-     if (la->local_random_access)
-       rand = RAND(rand + (local[index]+=1));
-     else
-       local[j % (la->s)]+=1;
-       //local[j & ((1<<(la->ls))-1)]+=1;
+/*      if (la->local_random_access) */
+/*        rand = RAND(rand + (local[index]+=1)); */
+/*      else */
+/*        local[j % (la->s)]+=1; */
+/*        //local[j & ((1<<(la->ls))-1)]+=1; */
 
-      /* fprintf(stderr, "(%ld %ld %ld) ", j, index, rand); */
-    }
-  }
-  loop_result =rand; /* use result to avoid dead code elimination */
-}
+/*       /\* fprintf(stderr, "(%ld %ld %ld) ", j, index, rand); *\/ */
+/*     } */
+/*   } */
+/*   loop_result =rand; /\* use result to avoid dead code elimination *\/ */
+/* } */
 
 void loop(thread * me, void *arg) {
   loop_arg * la = (loop_arg *) arg;
@@ -89,19 +95,22 @@ void loop(thread * me, void *arg) {
   int64_t * local = &la->loc[la->s * la->id];
 
   for (int64_t i = 0; i < ITERS; i++) {
-    //int64_t index = (rand >> 32) & ((1<<(la->rs))-1);
-    int64_t index = (rand >> 32) & ((1<<(la->rs))-1);
+    int64_t index = 0;
+
+    if (ISSUE_REMOTE_REFERENCE || USE_REMOTE_REFERENCE)
+      index = (rand >> 32) & ((1<<(la->rs))-1);
  
-    if (la->issue_remote_reference) 
+    if (ISSUE_REMOTE_REFERENCE) 
       prefetch_and_switch(me, &la->rem[index], 0);
 
-    if (la->use_remote_reference)
-      rand = RAND(rand + la->rem[index]);
+    if (USE_REMOTE_REFERENCE)
+      rand = la->rem[index];
     else
-      rand = RAND(rand);
+      rand+=rand;
 
     /*     fprintf(stderr, "\n(%ld %ld %ld) ", i, index, rand); */
-    if (la->local_random_access) {
+    if (LOCAL_ACCESS) {
+    if (LOCAL_RANDOM_ACCESS) {
       for (int64_t j = 0; j < la->upra; j++) {
 	int64_t index = (rand >> 32) & ((1<<(la->ls))-1);
 	//int64_t index = (rand >> 32) & ((1<<(la->ls + 1))-1);
@@ -109,7 +118,8 @@ void loop(thread * me, void *arg) {
 	
 	/*      prefetch_and_switch(me, &local[index], 1);*/
 	// random
-	rand = RAND(rand + (local[index]+=1));
+	rand = local[index];
+	local[index]+=1;
 	
 	/* local[j & ((1<<(la->ls))-1)]+=1; */
 	/* fprintf(stderr, "(%ld %ld %ld) ", j, index, rand); */
@@ -122,6 +132,7 @@ void loop(thread * me, void *arg) {
 	local[index]+=1;
 	index++;
       }
+    }
     }
   }
   loop_result =rand; /* use result to avoid dead code elimination */
@@ -176,11 +187,21 @@ int main(int argc, char *argv[]) {
   /* we should change to allocate on processor local to particular core */
   int64_t * local = malloc(thread_footprint*ncores*threads_per_core*sizeof(int64_t));
   /* probably not necessary to zero out memory, but it doesn't cost much */
-  bzero(local, thread_footprint*ncores*threads_per_core*sizeof(int64_t));
+  //bzero(local, thread_footprint*ncores*threads_per_core*sizeof(int64_t));
+  int64_t rand = RAND((int64_t)local);
+  for (int64_t i=0; i < thread_footprint*ncores*threads_per_core; i++) {
+    local[i] = rand;
+    rand = RAND(rand);
+  }
 
   int64_t * remote, remote_size = ((int64_t)1) <<27; /* < #phys 64bit words */
   while (!(remote = malloc(remote_size*sizeof(int64_t)))) remote_size >>= 1;
-  bzero(remote, remote_size*sizeof(int64_t));
+  //bzero(remote, remote_size*sizeof(int64_t));
+  rand = RAND((int64_t)remote);
+  for (int64_t i=0; i < remote_size; i++) {
+    remote[i] = rand;
+    rand = RAND(rand);
+  }
 
   int64_t rslog = 0;
   while((remote_size >>= 1) >= 1) rslog ++;
