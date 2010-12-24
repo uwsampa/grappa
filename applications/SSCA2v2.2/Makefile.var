@@ -16,7 +16,7 @@ TARGET = SSCA2
 # To verify Kernel 4 implementation, compile with -DVERIFYK4 flag. This 
 # will generate a 2D torus as the input instance instead of the scale-free graph.
 CC = gcc
-CFLAGS = -O3
+CFLAGS = -O3 -fopenmp
 
 AR = ar
 ARFLAGS = cr
