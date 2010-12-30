@@ -1,4 +1,6 @@
 #ifndef THREAD_H
+#define THREAD_H
+
 #include <assert.h>
 
 #include "coro.h"
