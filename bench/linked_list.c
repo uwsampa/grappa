@@ -40,6 +40,7 @@
 	node** bases;
 	uint64_t num_lists_per_thread;
 	uint64_t procsize;
+    int use_green_threads;
   };
 
 void thread_runnable(thread* me, void* arg) {
@@ -55,7 +56,11 @@ void thread_runnable(thread* me, void* arg) {
       //results[thread_num] = walk( data, thread_num, num_threads, num_lists, procsize );
       //results[thread_num] = multiwalk( bases + thread_num * num_lists_per_thread,
       //                                num_lists_per_thread, procsize );
-      info->results[thread_num] = walk( me, info->bases + thread_num * num_lists_per_thread, procsize, num_lists_per_thread, 0);
+      if (info->use_green_threads) {
+	info->results[thread_num] = walk_prefetch( me, info->bases + thread_num * num_lists_per_thread, procsize, num_lists_per_thread, 0);
+      } else {
+	info->results[thread_num] = walk_raw( me, info->bases + thread_num * num_lists_per_thread, procsize, num_lists_per_thread, 0);
+      }
       uint64_t end_tsc;
       rdtscll(end_tsc);
       info->times[thread_num] = end_tsc - start_tsc;
@@ -82,12 +87,15 @@ int main(int argc, char* argv[]) {
   /*       } */
   /*  } */
 
+  int use_green_threads = 0;
+
   static struct option long_options[] = {
     {"bits",             required_argument, NULL, 'b'},
     {"threads_per_core", required_argument, NULL, 't'},
     {"cores",            required_argument, NULL, 'c'},
     {"lists_per_thread", required_argument, NULL, 'l'},
     {"monitor",          no_argument,       NULL, 'm'},
+    {"green_threads",    no_argument,       NULL, 'g'},
     {"help",             no_argument,       NULL, 'h'},
     {NULL,               no_argument,       NULL, 0}
   };
@@ -111,6 +119,9 @@ int main(int argc, char* argv[]) {
       break;
     case 'm':
       do_monitor = 1;
+      break;
+    case 'g':
+      use_green_threads = 1;
       break;
     case 'h':
     case '?':
@@ -195,6 +206,7 @@ int main(int argc, char* argv[]) {
           walk_infos[thread_num][gt].bases = bases;
           walk_infos[thread_num][gt].num_lists_per_thread = num_lists_per_thread;
           walk_infos[thread_num][gt].procsize = procsize;
+          walk_infos[thread_num][gt].use_green_threads = use_green_threads;
           threads[thread_num][gt] = thread_spawn(masters[thread_num], schedulers[thread_num], thread_runnable, &walk_infos[thread_num][gt]);
         }
       }
