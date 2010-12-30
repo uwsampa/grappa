@@ -1,6 +1,6 @@
 GENFLAGS= -O2 -Wall -Wextra -g -fopenmp
 CFLAGS= $(GENFLAGS) -std=c99
-LDFLAGS= $(GENFLAGS)  -lnuma
+LDFLAGS= $(GENFLAGS)  -lnuma -lhugetlbfs
 ASFLAGS= $(GENFLAGS)
 
 .PHONY: clean all
