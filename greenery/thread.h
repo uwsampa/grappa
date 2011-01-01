@@ -1,4 +1,6 @@
 #ifndef THREAD_H
+#define THREAD_H
+
 #include <assert.h>
 
 #include "coro.h"
@@ -94,8 +96,8 @@ typedef struct thread_barrier {
   thread *threads; // the threads
 } thread_barrier;
 
-inline void prefetch_and_switch(thread *me, void *addr) {
-  __builtin_prefetch(addr);
+inline void prefetch_and_switch(thread *me, void *addr, int ro_or_rw) {
+  __builtin_prefetch(addr, ro_or_rw, 0);
   thread_yield(me);
 }
 

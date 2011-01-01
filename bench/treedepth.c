@@ -66,11 +66,11 @@ void thread_f(thread *me, void *arg) {
     while (di->i < di->to_examine_size) {
       uint64_t vertex = di->to_examine[di->i++];
       addr = &row_ptr[vertex];
-      prefetch_and_switch(me, addr);
+      prefetch_and_switch(me, addr, 0);
       start = &edges[*addr++];
       addr = &edges[*addr];
       while (start < addr) {
-        prefetch_and_switch(me, start);
+        prefetch_and_switch(me, start, 0);
         di->next[di->next_size++] = *start++;
       }
     }

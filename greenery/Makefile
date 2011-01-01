@@ -1,15 +1,16 @@
-GENFLAGS= -O2 -Wall -Wextra -g
+GENFLAGS= -O2 -Wall -Wextra -g -fopenmp
 CFLAGS= $(GENFLAGS) -std=c99
-LDFLAGS= $(GENFLAGS)
+LDFLAGS= $(GENFLAGS)  -lnuma -lhugetlbfs
 ASFLAGS= $(GENFLAGS)
 
 .PHONY: clean all
 
 COMPONENTS= stack coro thread
 PROGRAMS=corotest threadtest carlson
-LIBS=libgreenery.a -lnuma
+LIBS=libgreenery.a
 
-all: $(PROGRAMS) $(LIBS)
+all: $(PROGRAMS) $(LIBS) $(DIS)
+	objdump -S carlson > carlson.dis
 
 libgreenery.a: $(patsubst %,libgreenery.a(%.o),$(COMPONENTS))
 
