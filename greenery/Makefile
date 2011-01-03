@@ -20,5 +20,7 @@ threadtest: $(LIBS) threadtest.c
 
 carlson: $(LIBS) carlson.c
 
+matmul: $(LIBS) matmul.c
+
 clean:
 	rm -rf $(PROGRAMS) $(LIBS)
