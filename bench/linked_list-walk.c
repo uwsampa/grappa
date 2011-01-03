@@ -75,9 +75,15 @@ uint64_t walk_prefetch( thread* me, node* bases[], uint64_t count, int num_refs,
 	node* i4 = bases[si+4];
  
 	while (count > 0) {
+		count--;
+		prefetch(&(i0->next));
+		prefetch(&(i1->next));
+		prefetch(&(i2->next));
+		prefetch(&(i3->next));
+		prefetch(&(i4->next));
+		thread_yield(me);
 		i0 = i0->next; i1 = i1->next; i2 = i2->next; i3 = i3->next;
                 i4 = i4->next;
-		count--;
 	}
 	sum += (uint64_t)i0 +  (uint64_t)i1 +  (uint64_t)i2 +  (uint64_t)i3
                         + (uint64_t)i4;
@@ -91,9 +97,16 @@ uint64_t walk_prefetch( thread* me, node* bases[], uint64_t count, int num_refs,
 	node* i5 = bases[si+5];
  
 	while (count > 0) {
+		count--;
+		prefetch(&(i0->next));
+		prefetch(&(i1->next));
+		prefetch(&(i2->next));
+		prefetch(&(i3->next));
+		prefetch(&(i4->next));
+		prefetch(&(i5->next));
+		thread_yield(me);
 		i0 = i0->next; i1 = i1->next; i2 = i2->next; i3 = i3->next;
                 i4 = i4->next; i5 = i5->next; 
-		count--;
 	}
 	sum += (uint64_t)i0 +  (uint64_t)i1 +  (uint64_t)i2 +  (uint64_t)i3
                         + (uint64_t)i4 + (uint64_t)i5;
@@ -108,9 +121,18 @@ uint64_t walk_prefetch( thread* me, node* bases[], uint64_t count, int num_refs,
 	node* i6 = bases[si+6];
  
 	while (count > 0) {
+		count--;
+		prefetch(&(i0->next));
+		prefetch(&(i1->next));
+		prefetch(&(i2->next));
+		prefetch(&(i3->next));
+		prefetch(&(i4->next));
+		prefetch(&(i5->next));
+		prefetch(&(i6->next));
+		thread_yield(me);
+
 		i0 = i0->next; i1 = i1->next; i2 = i2->next; i3 = i3->next;
                 i4 = i4->next; i5 = i5->next; i6 = i6->next; 
-		count--;
 	}
 	sum += (uint64_t)i0 +  (uint64_t)i1 +  (uint64_t)i2 +  (uint64_t)i3
                         + (uint64_t)i4 + (uint64_t)i5 + (uint64_t)i6;
@@ -126,9 +148,18 @@ uint64_t walk_prefetch( thread* me, node* bases[], uint64_t count, int num_refs,
 	node* i7 = bases[si+7];
  
 	while (count > 0) {
+		count--;
+		prefetch(&(i0->next));
+		prefetch(&(i1->next));
+		prefetch(&(i2->next));
+		prefetch(&(i3->next));
+		prefetch(&(i4->next));
+		prefetch(&(i5->next));
+		prefetch(&(i6->next));
+		prefetch(&(i7->next));
+		thread_yield(me);
 		i0 = i0->next; i1 = i1->next; i2 = i2->next; i3 = i3->next;
                 i4 = i4->next; i5 = i5->next; i6 = i6->next; i7 = i7->next;
-		count--;
 	}
 	sum += (uint64_t)i0 +  (uint64_t)i1 +  (uint64_t)i2 +  (uint64_t)i3
                         + (uint64_t)i4 + (uint64_t)i5 + (uint64_t)i6 + (uint64_t)i7;
@@ -145,10 +176,20 @@ uint64_t walk_prefetch( thread* me, node* bases[], uint64_t count, int num_refs,
 	node* i8 = bases[si+8];
  
 	while (count > 0) {
+		count--;
+		prefetch(&(i0->next));
+		prefetch(&(i1->next));
+		prefetch(&(i2->next));
+		prefetch(&(i3->next));
+		prefetch(&(i4->next));
+		prefetch(&(i5->next));
+		prefetch(&(i6->next));
+		prefetch(&(i7->next));
+		prefetch(&(i8->next));
+		thread_yield(me);
 		i0 = i0->next; i1 = i1->next; i2 = i2->next; i3 = i3->next;
                 i4 = i4->next; i5 = i5->next; i6 = i6->next; i7 = i7->next;
 		i8 = i8->next;
-		count--;
 	}
 	sum += (uint64_t)i0 +  (uint64_t)i1 +  (uint64_t)i2 +  (uint64_t)i3
                         + (uint64_t)i4 + (uint64_t)i5 + (uint64_t)i6 + (uint64_t)i7
@@ -167,10 +208,21 @@ uint64_t walk_prefetch( thread* me, node* bases[], uint64_t count, int num_refs,
 	node* i9 = bases[si+9];
  
 	while (count > 0) {
+		count--;
+		prefetch(&(i0->next));
+		prefetch(&(i1->next));
+		prefetch(&(i2->next));
+		prefetch(&(i3->next));
+		prefetch(&(i4->next));
+		prefetch(&(i5->next));
+		prefetch(&(i6->next));
+		prefetch(&(i7->next));
+		prefetch(&(i8->next));
+		prefetch(&(i9->next));
+		thread_yield(me);
 		i0 = i0->next; i1 = i1->next; i2 = i2->next; i3 = i3->next;
                 i4 = i4->next; i5 = i5->next; i6 = i6->next; i7 = i7->next;
 		i8 = i8->next; i9 = i9->next;
-		count--;
 	}
 	sum += (uint64_t)i0 +  (uint64_t)i1 +  (uint64_t)i2 +  (uint64_t)i3
                         + (uint64_t)i4 + (uint64_t)i5 + (uint64_t)i6 + (uint64_t)i7
@@ -190,10 +242,22 @@ uint64_t walk_prefetch( thread* me, node* bases[], uint64_t count, int num_refs,
 	node* i10 = bases[si+10];
  
 	while (count > 0) {
+		count--;
+		prefetch(&(i0->next));
+		prefetch(&(i1->next));
+		prefetch(&(i2->next));
+		prefetch(&(i3->next));
+		prefetch(&(i4->next));
+		prefetch(&(i5->next));
+		prefetch(&(i6->next));
+		prefetch(&(i7->next));
+		prefetch(&(i8->next));
+		prefetch(&(i9->next));
+		prefetch(&(i10->next));
+		thread_yield(me);
 		i0 = i0->next; i1 = i1->next; i2 = i2->next; i3 = i3->next;
                 i4 = i4->next; i5 = i5->next; i6 = i6->next; i7 = i7->next;
 		i8 = i8->next; i9 = i9->next; i10 = i10->next;
-		count--;
 	}
 	sum += (uint64_t)i0 +  (uint64_t)i1 +  (uint64_t)i2 +  (uint64_t)i3
                         + (uint64_t)i4 + (uint64_t)i5 + (uint64_t)i6 + (uint64_t)i7
@@ -214,10 +278,23 @@ uint64_t walk_prefetch( thread* me, node* bases[], uint64_t count, int num_refs,
 	node* i11 = bases[si+11];
  
 	while (count > 0) {
+		count--;
+		prefetch(&(i0->next));
+		prefetch(&(i1->next));
+		prefetch(&(i2->next));
+		prefetch(&(i3->next));
+		prefetch(&(i4->next));
+		prefetch(&(i5->next));
+		prefetch(&(i6->next));
+		prefetch(&(i7->next));
+		prefetch(&(i8->next));
+		prefetch(&(i9->next));
+		prefetch(&(i10->next));
+		prefetch(&(i11->next));
+		thread_yield(me);
 		i0 = i0->next; i1 = i1->next; i2 = i2->next; i3 = i3->next;
                 i4 = i4->next; i5 = i5->next; i6 = i6->next; i7 = i7->next;
 		i8 = i8->next; i9 = i9->next; i10 = i10->next; i11 = i11->next;
-		count--;
 	}
 	sum += (uint64_t)i0 +  (uint64_t)i1 +  (uint64_t)i2 +  (uint64_t)i3
                         + (uint64_t)i4 + (uint64_t)i5 + (uint64_t)i6 + (uint64_t)i7
