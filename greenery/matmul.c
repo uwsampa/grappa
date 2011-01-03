@@ -16,7 +16,6 @@ typedef struct {
 typedef struct {
   int64_t id;
   int64_t m;
-  int64_t m0;
   double * y;
   double * x;
   CSR A;
@@ -60,14 +59,13 @@ void matmul_green(thread *me, void *arg) {
   loop_arg *la = (loop_arg *) arg;
   int i;
   int m = la->m;
-  int m0 = la->m0;
   double *y = la->y;
   double *x = la->x;
   CSR A = la->A;
 
   // Basic SpMV implementation, 
   // y <- y + A*x, where A is in CSR. 
-  for ( i = m0; i < m0+m; ++i) { 
+  for ( i = 0; i < m; ++i) { 
     int k;
     double y0 = y[i];
     for ( k = A.rowstart[i]; k < A.rowstart[i+1]; ++k) {
@@ -150,19 +148,18 @@ int main(int argc, char ** argv) {
 	int m0 = FIRST_ROW_IN_BLOCK(M,t,threads_per_core);
 	la[t].id = t;
         la[t].x = x;
-	la[t].y = y;
+	la[t].y = &y[m0];
 	la[t].A.rowstart = &A.rowstart[M0+m0];
 	la[t].A.col = &A.col[(M0+m0)*NZ];
 	la[t].A.val = &A.val[(M0+m0)*NZ];
 	la[t].m = m;
-	la[t].m0 = m0;
-        thread = thread_spawn(master, sched, matmul_green, (void*) &la[t]);
+	thread = thread_spawn(master, sched, matmul_green, (void*) &la[t]);
       }
       for (t = 0; t < threads_per_core; ++t) {
-	fprintf(stderr, "t %d: id %ld, x %p, y %p, rs %ld, col %ld, val %ld, m %ld m0 %ld\n", t, la[t].id, (void*)la[t].x, (void*)la[t].y,
+	fprintf(stderr, "t %d: id %ld, x %p, y %p, rs %ld, col %ld, val %ld, m %ld\n", t, la[t].id, (void*)la[t].x, (void*)la[t].y,
 		la[t].A.rowstart - A.rowstart, la[t].A.col - A.col,
 		la[t].A.val -A.val,
-		la[t].m, la[t].m0);
+		la[t].m);
       }
       fprintf(stderr, "running sched core %d\n", c);
       run_all(sched);
