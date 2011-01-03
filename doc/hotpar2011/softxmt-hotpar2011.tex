@@ -15,17 +15,86 @@ Multithreading is good
 
 \section{Introduction}
 
-\section{Graph problems}
+sparse graph problems important
+
+perform badly on commodity processors, since most accesses are misses
+
+context-swtiching for latency tolerance has been successful with MTA, but single thread performance sucks
+
+we want latency tolerance on commodity processors for best of both worlds
+
+could just wait for wider multicores, but if context switching works, we can get enough concurrency on fewer cores and shut off the rest.
+
+\section{Programming model for graph problems}
+
+many many threads
+
+prefetch and switch on 
+
+full/empty bits 
+
+\subsection{Opportunities}
+
+little FP use ==> don't worry about FP registers
+
+would like enough concurrency to keep pipeline filled, but commodity CPUs don't have enough external bandwidth. So, get enough to saturate bandwidth.
 
 
-\section{Multithreading on commodity processors}
+
+\section{Approach}
+
+Describe general approach.
+
+\subsection{Low-latency context switch}
+
+switch only stack pointer and program counter; depend on compiler to save/restore anything else. in general case, hopefully this will be fast.
 
 \subsection{Memory concurrency}
+
+Commodity procs don't provide enough. use software? FPGA?
+
 \subsection{Synchronization}
 
-\section{Results}
+use existing atomic instructions? Use FPGA listening snoops on QPI?
 
-\section{Future work}
+\section{Current Implementation and Results}
+
+current: just context switch on single node
+
+
+linked lists:
+
+there is some room for memory concurrency
+
+thread contexts don't take up too much space in cache
+
+sparse matmul:
+
+speedup?
+
+
+
+
+
+
+\section{Related work}
+
+
+hardware:
+
+XMT/MTA
+
+cyclops
+
+niagra
+
+software:
+
+qthreads
+
+cilk? tbb?
+
+
 
 \section{Conclusion}
 
