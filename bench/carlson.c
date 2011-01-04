@@ -1,5 +1,5 @@
 #define _GNU_SOURCE
-#include "thread.h"
+#include "greenery/thread.h"
 #include "stdint.h"
 #include <assert.h>
 #include <stdio.h>

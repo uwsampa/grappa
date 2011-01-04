@@ -4,7 +4,7 @@
 #include <string.h>
 #include <omp.h>
 #include <sys/time.h>
-#include "thread.h"
+#include "greenery/thread.h"
 long int random(void);
 
 typedef struct {
