@@ -10,12 +10,51 @@
 
 \maketitle
 \begin{abstract}
-Multithreading is good
+
+  Large irregular applications such as sparse graph problems often
+  perform badly on commodity clusters. These application often make
+  many nonsequential accesses to global data structures with low
+  degrees of locality, which interact badly with commodity processors'
+  memory systems, which are optimized for local, sequential memory
+  accesses.
+
+  Custom hardware optimized for these irregular applications has been
+  built: it exhibits excellent performance and energy efficiency for
+  these applications, but performs badly on standard sequential
+  workloads.
+
+  We believe we can have the best of both worlds. We argue that modern
+  commodity processors have many of the features necessary to give
+  good performance on irregular problems, and that a latency-tolerant
+  runtime designed to exploit these features can enable speedup for
+  irregular applications. For the areas where commodity hardware is
+  lacking, we suggest an approach for adding a small amount of
+  additional hardware to make up the difference.
+
+  In this paper, we describe the key features of such a model and
+  runtime system. We show results from simple benchmarks run on a
+  preliminary implementation of a latency-tolerant runtime that show
+  this approach has promise.
+
 \end{abstract}
 
 \section{Introduction}
 
 sparse graph problems important
+
+Important 
+Social networks
+Facebook: 500M active users, 130 friends each on average. for
+computing friend suggestions, 40-node cluster, 72GB/node, run every 2
+days.
+
+
+
+
+
+
+Most commodity processors sold today have multiple cores, and their 
+
 
 perform badly on commodity processors, since most accesses are misses
 
@@ -34,6 +73,10 @@ prefetch and switch on
 full/empty bits 
 
 \subsection{Opportunities}
+
+characteristics:
+
+
 
 little FP use ==> don't worry about FP registers
 
@@ -56,6 +99,10 @@ Commodity procs don't provide enough. use software? FPGA?
 \subsection{Synchronization}
 
 use existing atomic instructions? Use FPGA listening snoops on QPI?
+
+
+parition remote memory on each node; have one thread access each
+partition, making sync easier
 
 \section{Current Implementation and Results}
 
