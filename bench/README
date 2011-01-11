@@ -1,0 +1,35 @@
+Most experiments require libgreenery.a, the library for green threads.  Before building experiments in this directory, go to greenery/ and run:
+% make libgreenery.a
+
+listwalk/ 
+    linked list walking experiment
+
+carlson/ 
+    make measurements of prefetch_and_switch
+
+matmult.c
+    Sparse matrix multiply. Gives timing for run with pthreads and green threads.
+
+    Build:
+	1) make sure greenery is built
+        2) % make matmult
+    Usage:
+	% ./matmult N [NZ] [cores] [iters] [thread/core]
+
+	N 	- width/height of matrix
+	NZ	- number of non-zero elements per row
+	cores	- number of cores to use
+	iters	- number of iterations of experiment
+	thread/core - threads per core
+
+treedepth.c
+    Breadth-first search on binary tree, comparing single-thread with green threads.
+
+    Build:
+	1) make sure greenery is built
+	2) % make treegen treedepth
+    Usage:
+	1) generate a tree.  Run "./treegen -h" for usage info.
+	  ex:  % ./treegen 0.1 10000 "mytreefile"
+	2) run experiment on the tree.  Run "./treedepth -h" for usage info.
+	  ex:  % ./treedepth "mytreefile" 6
