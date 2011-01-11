@@ -122,7 +122,11 @@ uint64_t threaded_depth(graph *tree, uint64_t root,
 }
 
 int main(int argc, char *argv[]) {
-  assert(argc == 3);
+  if (argc != 3) {
+	printf("usage: %s file nthreads\nfile     - name of input tree file\nnthreads - number of green threads\n", argv[0]);
+	exit(1);
+  }
+
   int nruns = 4;
   int nthreads = strtol(argv[2], NULL, 0);
   FILE *treefile = fopen(argv[1], "r");

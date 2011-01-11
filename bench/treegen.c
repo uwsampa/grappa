@@ -72,7 +72,11 @@ graph *maketree(uint64_t size, double branch) {
 
 // arg this needs to be refactored pronto
 int main(int argc, char *argv[]) {
-  assert(argc >= 4 && argc <= 5);
+  if (!(argc >= 4 && argc <= 5)) {
+	printf("usage: %s branch size file [seed]\nbranch - [0,1] probability of a node having two children instead of one\nsize   - number of nodes in the tree\nfile   - output filename\nseed   - seed for random (optional)\n", argv[0]);
+	exit(1);
+  }
+
   double branch = strtod(argv[1], NULL);
   int size = strtol(argv[2], NULL, 0);
   unsigned int seed = 0;
