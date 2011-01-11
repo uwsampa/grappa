@@ -12,29 +12,26 @@
 \begin{abstract}
 
   Large irregular applications such as sparse graph problems often
-  perform badly on commodity clusters. These application often make
-  many nonsequential accesses to global data structures with low
-  degrees of locality, which interact badly with commodity processors'
-  memory systems, which are optimized for local, sequential memory
-  accesses.
-
-  Custom hardware optimized for these irregular applications has been
-  built: it exhibits excellent performance and energy efficiency for
-  these applications, but performs badly on standard sequential
-  workloads.
-
-  We believe we can have the best of both worlds. We argue that modern
-  commodity processors have many of the features necessary to give
-  good performance on irregular problems, and that a latency-tolerant
-  runtime designed to exploit these features can enable speedup for
-  irregular applications. For the areas where commodity hardware is
-  lacking, we suggest an approach for adding a small amount of
-  additional hardware to make up the difference.
-
-  In this paper, we describe the key features of such a model and
-  runtime system. We show results from simple benchmarks run on a
-  preliminary implementation of a latency-tolerant runtime that show
-  this approach has promise.
+  perform badly on commodity clusters. These application make many
+  non-sequential accesses to global data structures with low degrees of
+  locality, interacting badly with commodity processors' memory
+  systems, which are optimized for local, sequential memory
+  accesses. Special-purpose hardware optimized for these irregular
+  applications has been built; the Cray XMT is one such machine. It
+  uses multithreading to tolerate the latency of low-locality memory
+  accesses, and while it exhibits excellent performance and energy
+  efficiency for irregular applications, it performs badly on standard
+  sequential applications. We believe we can have the best of both
+  worlds: we argue that modern commodity processors have many of the
+  features necessary to give good performance on irregular problems,
+  and that a latency-tolerant runtime designed to exploit these
+  features can enable speedup for irregular applications on commodity
+  processors. In this paper, we describe the key features of such a
+  runtime system, and what a cluster built using our runtime might
+  look like. Using a preliminary single-node implementation of our
+  runtime, we obtained speedups on simple list chasing and sparse
+  matrix multiply benchmarks. Our results show promise for a
+  multi-node implementation.
 
 \end{abstract}
 
@@ -48,7 +45,7 @@ Facebook: 500M active users, 130 friends each on average. for
 computing friend suggestions, 40-node cluster, 72GB/node, run every 2
 days.
 
-
+- difficult to partition
 
 
 
