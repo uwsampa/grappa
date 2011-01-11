@@ -1,0 +1,21 @@
+listwalk/ 
+    linked list walking experiment
+
+carlson/ 
+    make measurements of prefetch_and_switch
+
+matmult.c
+    Sparse matrix multiply. Gives timing for run with pthreads and green threads.
+
+    Build:
+	- make sure greenery is built
+        - % make matmult
+    Usage:
+	% ./matmult N [NZ] [cores] [iters] [thread/core]
+
+	N 	- width/height of matrix
+	NZ	- number of non-zero elements per row
+	cores	- number of cores to use
+	iters	- number of iterations of experiment
+	thread/core - threads per core
+
