@@ -20,11 +20,15 @@ node** allocate_page(uint64_t size, int num_threads, int num_lists_per_thread) {
 	 num_threads * num_lists_per_thread, size * sizeof(node), 
 	 num_threads * num_lists_per_thread * size * sizeof(node));
 
+/** Page size choices **/
   //unsigned page_size = 2 * 1024 * 1024;        // for huge pages (2 MiB)
-  unsigned page_size = 1024*1024*1024;           // for huge pages (1 GiB)
-  //unsigned page_size = sysconf(_SC_PAGESIZE);  // for regular pages
+  //unsigned page_size = 1024*1024*1024;           // for huge pages (1 GiB)
+  unsigned page_size = sysconf(_SC_PAGESIZE);  // for regular pages
+/**********************/
+
   printf("page size is %u.\n", page_size);
   
+
   unsigned num_chains = num_threads * num_lists_per_thread;
   node** bases = (node**) malloc( sizeof(node*) * num_chains );
   node** ends  = (node**) malloc( sizeof(node*) * num_chains );

@@ -16,8 +16,11 @@
 
 #include "thread.h"
 
-// GREEN THREADS ACROSS MULTIPLE HW THREADS
-// usage ./linked_list.exe <bits> <#st per ht> <#ht> <conc>
+/* 
+ * Multiple threads walking linked lists concurrently.
+ * Nodes are 64bytes, one cacheline. List nodes are also shuffled to make locality unlikely.
+ * Run with option --help for usage.
+ */
 
 //#include "ExperimentRunner.h"
 
