@@ -1,3 +1,8 @@
+%% move stuff to defs file
+\newcommand{\todo}[1]{{\bfseries [[#1]]}}
+%% To disable, just uncomment this line
+%% \renewcommand{\todo}[1]{\relax}
+
 \documentclass{acm_proc_article-sp}
 \begin{document}
 
@@ -23,21 +28,19 @@
   efficiency for irregular applications, it performs badly on standard
   sequential applications. We believe we can have the best of both
   worlds: we argue that modern commodity processors have many of the
-  features necessary to give good performance on irregular problems,
+  features necessary \todo{Brandon: we will have to be able to list these as features in the paper or use a different phrase; my feeling is that these are aspects of the system which are not optimized for this but are sufficient to suggest potential for enough memory concurrency} to give good performance on irregular problems,
   and that a latency-tolerant runtime designed to exploit these
   features can enable speedup for irregular applications on commodity
   processors. In this paper, we describe the key features of such a
   runtime system, and what a cluster built using our runtime might
   look like. Using a preliminary single-node implementation of our
-  runtime, we obtained speedups on simple list chasing and sparse
-  matrix multiply benchmarks. Our results show promise for a
-  multi-node implementation.
+  runtime, we obtained speedups on simple list chasing benchmarks. Our results show promise for a multi-node implementation.
 
 \end{abstract}
 
 \section{Introduction}
 
-sparse graph problems important
+sparse graph problems important (our specific area is sparse graphs with low diameter, like social networks) 
 
 Important 
 Social networks
