@@ -50,14 +50,13 @@ make it difficult to take advantage of the locality assumptions built
 into the memory hierarchy of modern processors, so that even simple
 traversals are dominated by memory latency.
 
-And these graphs can be large---too large for a single node. In
-January 2011, Facebook had 500 million active users with an average of
+And these graphs can be large---too large for a single node \todo{may want to avoid saying 'node' since graph 'node' is also used in this paragraph}. In January 2011, Facebook had 500 million active users with an average of
 130 friends each \cite{Facebook:2011p91}. A natural approach would be
 to try to partition the graph across the nodes in a cluster. But with
 low diameter graphs, a traversal starting at any node is likely to
 quickly leave its partition and travel over the network, incurring
 high latency costs. And power law graphs have a small number of nodes
-that generate significantly more work that other nodes, leading to
+that generate significantly more work than other nodes, leading to
 computational imbalance.
 
 % Facebook's friend suggestion
