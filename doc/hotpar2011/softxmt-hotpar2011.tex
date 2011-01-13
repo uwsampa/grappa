@@ -1,4 +1,5 @@
 \documentclass{acm_proc_article-sp}
+\usepackage{url}
 \begin{document}
 
 \title{Latency-tolerant runtimes for large graph computations}
@@ -37,13 +38,35 @@
 
 \section{Introduction}
 
+
+Many problems in bioinformatics and social networks 
+
+
+
+
+
+
+
 sparse graph problems important
+
+Many 
+
+
+Social networks are an 
 
 Important 
 Social networks
-Facebook: 500M active users, 130 friends each on average. for
-computing friend suggestions, 40-node cluster, 72GB/node, run every 2
-days.
+
+Social networks are 
+
+And social networkIn January 2011, Facebook had 500 million active users with an
+average of 130 friends each \cite{Facebook:2011p91}. Facebook's
+friend suggestion algorithm in 2010 ran on a 40-node cluster with 72GB
+memory per node. Even with that capacity, new suggestions could only
+be computed every two days \cite{Backstrom:2010p90}.
+
+We
+
 
 - difficult to partition
 
@@ -59,7 +82,11 @@ context-swtiching for latency tolerance has been successful with MTA, but single
 
 we want latency tolerance on commodity processors for best of both worlds
 
-could just wait for wider multicores, but if context switching works, we can get enough concurrency on fewer cores and shut off the rest.
+could just wait for wider multicores, but if context switching works,
+we can get enough concurrency on fewer cores and shut off the rest.
+
+
+replicate or partition
 
 \section{Programming model for graph problems}
 
@@ -141,5 +168,21 @@ cilk? tbb?
 
 
 \section{Conclusion}
+
+Large irregular problems found in areas such as social networking and
+bioinformatics tend to have poor performance on commodity clusters due
+to freqent low-locality memory accesses. We present a programming
+model and runtime system that uses lightweight context switching to
+tolerate long-latency accesses and increase performance on these
+applications. Our preliminary evaluation shows that the overhead of
+context switching is not prohibitive for thread counts needed for a
+large-scale implementation, but memory concurrency is limited by
+hardware structures in commodity processors. We describe how we plan
+to address the challenges of large-scale memory concurrency and
+lightweight synchronization.
+
+
+\bibliographystyle{acm}
+\bibliography{softxmt-hotpar2011}
 
 \end{document}
