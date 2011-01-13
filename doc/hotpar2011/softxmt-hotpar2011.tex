@@ -27,7 +27,7 @@
   uses multithreading to tolerate the latency of low-locality memory
   accesses, and while it exhibits excellent performance and energy
   efficiency for irregular applications, it performs badly on standard
-  sequential applications. We believe we can have the best of both
+  sequential applications \todo{Brandon: should this be more specific or worded differently? Its true sequential perform badly since switching between many threads, but also does XMT also perform  poorly (relative to alternatives) on highly parallel but regular apps with lots of temporal and spatial locality?}. We believe we can have the best of both
   worlds: we argue that modern commodity processors have many of the
   features necessary \todo{Brandon: we will have to be able to list these as features in the paper or use a different phrase; my feeling is that these are aspects of the system which are not optimized for this but are sufficient to suggest potential for enough memory concurrency} to give good performance on irregular problems,
   and that a latency-tolerant runtime designed to exploit these
