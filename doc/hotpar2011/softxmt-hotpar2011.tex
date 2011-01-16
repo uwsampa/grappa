@@ -91,6 +91,57 @@ document describes our approach.
 
 \section{Programming model}
 
+While the ideal programming model is one that facilitates easy
+expression in the problem domain as well as efficient execution on the
+available hardware, our programming model today is motivated by only
+efficient execution: it exists as a rudimentary library for concept
+demonstration, not as a language suitable for development.  The
+programming model we use today is therefore only partially formed. It
+exists as an augmentation of existing threaded programming models such
+as pthreads or openmp that are readily available on most computer
+systems.
+
+Though not strictly necessary, for ease of exposition we imagine a
+one-to-one binding between threads and cores.  Our model manifests
+within any thread independently of the others as a ``fray'' [[for lack
+of better term ]].  Within the thread, a fray instance is the
+instantiation of a set of coroutines and a scheduler.  Instantiation
+is at user-level and the operating system sees the entire fray as as a
+single user-level thread.
+
+[[ describe calls that perform thread & scheduler instantiation; and schedule activation ]]
+
+Each coroutine executes non-preemptively, utilizing the core to which
+its ``parent'' thread has been assigned by the operating system until it
+reaches a yield point.  Typically, the coroutine yields after
+initiating a prefetch operation on data that the programmer or
+compiler anticipates would probably not complete before the data is
+referenced by a subsequent load operation.  In this way, the core
+continues to execute instructions for other coroutines when otherwise
+it would likely stall.  The programming model thus tolerates latency.
+
+[[ describe calls to prefetch-and-yield ]]
+
+When a thread frays, for the sake of expediency, a fixed portion of
+its stack is divided amongst the coroutines.  Given a finite stack,
+each coroutine is constrained to execute a call tree of depth known to
+be finite at compilation time: recursion is not yet permitted.
+
+[[ discussion of coroutines & synchronization ]] Were a coroutine to
+block on a synchronization variable shared with other threads, the
+entire fray would suspend execution.  This can lead to deadlock when,
+for example, one coroutine waits to consume from another thread that
+is waiting to consume what only another coroutine in this first fray
+can produce.  Instead, coroutines must yield on failed synchronization
+events, spinning rather than blocking, where were they bonafide
+thereads, blocking might be more efficient.
+
+[[ say something about ``synchronization'' within a fray ]]
+
+Coroutines completing their work yield without adding themselves to
+the scheduling queue.  The last coroutine to exit in this way returns
+as the main thread, as in the common  fork-join model of parallelism.
+
 many many threads
 
 prefetch and switch on 
