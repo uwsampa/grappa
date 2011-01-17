@@ -69,7 +69,7 @@ Multithreading is a technique that has been used successfully to
 implement efficient computations for these graphs. The Cray XMT is an
 example of such a solution: it tries to solve the memory latency
 problem through concurrency rather than caching. Each XMT processor
-supports 128 hardware contexts and $~$1000 outstanding memory
+supports 128 hardware contexts and $\sim$1000 outstanding memory
 operations and is able to switch contexts every cycle. But this
 approach has a limitation: each context is significantly slower than a
 modern commodity processor, yielding bad single-threaded
@@ -103,13 +103,13 @@ systems.
 
 Though not strictly necessary, for ease of exposition we imagine a
 one-to-one binding between threads and cores.  Our model manifests
-within any thread independently of the others as a ``fray'' [[for lack
-of better term ]].  Within the thread, a fray instance is the
+within any thread independently of the others as a ``fray'' \todo{for lack
+of better term }.  Within the thread, a fray instance is the
 instantiation of a set of coroutines and a scheduler.  Instantiation
 is at user-level and the operating system sees the entire fray as as a
 single user-level thread.
 
-[[ describe calls that perform thread & scheduler instantiation; and schedule activation ]]
+\todo{ describe calls that perform thread \& scheduler instantiation; and schedule activation }
 
 Each coroutine executes non-preemptively, utilizing the core to which
 its ``parent'' thread has been assigned by the operating system until it
@@ -120,14 +120,14 @@ referenced by a subsequent load operation.  In this way, the core
 continues to execute instructions for other coroutines when otherwise
 it would likely stall.  The programming model thus tolerates latency.
 
-[[ describe calls to prefetch-and-yield ]]
+\todo{ describe calls to prefetch-and-yield }
 
 When a thread frays, for the sake of expediency, a fixed portion of
 its stack is divided amongst the coroutines.  Given a finite stack,
 each coroutine is constrained to execute a call tree of depth known to
 be finite at compilation time: recursion is not yet permitted.
 
-[[ discussion of coroutines & synchronization ]] Were a coroutine to
+\todo{ discussion of coroutines \& synchronization } Were a coroutine to
 block on a synchronization variable shared with other threads, the
 entire fray would suspend execution.  This can lead to deadlock when,
 for example, one coroutine waits to consume from another thread that
@@ -136,7 +136,7 @@ can produce.  Instead, coroutines must yield on failed synchronization
 events, spinning rather than blocking, where were they bonafide
 thereads, blocking might be more efficient.
 
-[[ say something about ``synchronization'' within a fray ]]
+\todo{ say something about ``synchronization'' within a fray }
 
 Coroutines completing their work yield without adding themselves to
 the scheduling queue.  The last coroutine to exit in this way returns
