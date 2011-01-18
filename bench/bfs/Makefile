@@ -1,4 +1,4 @@
-CFLAGS = -O2 -std=gnu99 -Wall -Wextra -I../.. -fopenmp -msse4.1 -I..
+CFLAGS = -O2 -std=gnu99 -Wall -Wextra -I../.. -fopenmp -msse4.1 -I.. -g
 LDFLAGS= -L../../greenery -L..
 LDLIBS= -lgreenery -lrt -fopenmp -lnuma -lhugetlbfs -lgraph
 BENCHES= bfs
