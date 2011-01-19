@@ -33,7 +33,7 @@ struct kernel_arg {
   int ncores;
 };
 
-#define CHUNK_SIZE 1024
+#define CHUNK_SIZE 32
 
 void print_queue(thread *head) {
   while (1) {
@@ -59,11 +59,11 @@ void bfs_kernel(thread *me, void *arg) {
       ka->done = ka->in + chunk_size;
     }
     thread_block(me, &ka->barrier);
-    //    printf("ours: %d %d\n", ka->in, ka->done);
+    //    printf("%p ours: %d %d\n", ka, ka->in, ka->done);
     while (ka->in < ka->done) {
       uint64_t vertex = ka->from[ka->in++];
-      //      printf("looking at: %" PRIu64 "\n", vertex);
       if (vertex == ka->g->v) continue;
+      //      printf("%p looking at: %" PRIu64 "\n", ka, vertex);
       uint64_t *addr = &ka->g->row_ptr[vertex];
       prefetch_and_switch(me, addr, 0);
       uint64_t *start = &ka->g->edges[*addr++];
@@ -73,13 +73,15 @@ void bfs_kernel(thread *me, void *arg) {
         uint64_t next = *start++;
         uint64_t *pa = &ka->parent[next];
         prefetch_and_switch(me, pa, 1);
-        if (*pa == ka->g->v) {
-          *pa = vertex;
+        while (*pa == ka->g->v) {
+          if (!__sync_bool_compare_and_swap(pa, ka->g->v, vertex)) {
+            continue;
+          }
           if (ka->out >= ka->limit) {
             ka->out = __sync_fetch_and_add(ka->next_chunk, CHUNK_SIZE);
             ka->limit = ka->out + CHUNK_SIZE;
           }
-          //          printf("Exploring %" PRIu64 "\n", next);
+          //          printf("%p Exploring %" PRIu64 "\n", ka, next);
           ka->to[ka->out++] = next;
 
         }
@@ -91,7 +93,9 @@ void bfs_kernel(thread *me, void *arg) {
       while (ka->out < ka->limit) {
         ka->to[ka->out++] = ka->g->v;
       }
-      //#pragma omp single
+      //      printf("%p agreed %d\n", ka, *ka->next_chunk);
+      #pragma omp barrier
+      #pragma omp single
       {
         *ka->level_size = *ka->next_chunk;
         *ka->next_chunk = 0;
@@ -99,6 +103,7 @@ void bfs_kernel(thread *me, void *arg) {
         while(*ka->level_size % ka->ncores > 0) {
           ka->to[(*ka->level_size)++] = ka->g->v;
         }
+        //        printf("%p next iteration: %d\n", ka,  *ka->level_size);
       }
       uint64_t *temp = ka->to;
       ka->to = ka->from;
@@ -116,7 +121,7 @@ void bfs(graph *g, uint64_t root,
     to_examine[level_size] = g->v;
   }
   int next_chunk = 0;
-  //#pragma omp parallel for num_threads(ncores)
+  #pragma omp parallel for num_threads(ncores)
   for (int c = 0; c < ncores; ++c) {
     thread *master = thread_init();
     scheduler *sched = create_scheduler(master);
@@ -154,7 +159,7 @@ void bfs(graph *g, uint64_t root,
 void check(graph *g, uint64_t parent[], uint64_t root) {
   for (unsigned int i = 0; i < g->v; ++i) {
     uint64_t p = parent[i];
-    //printf("%d %" PRIu64"\n", i, p);
+    //    printf("%d %" PRIu64"\n", i, p);
   }
   for (unsigned int i = 0; i < g->v; ++i) {
     uint64_t p = parent[i];
@@ -194,8 +199,10 @@ int main(int argc, char *argv[]) {
 
   graph *g = graph_read(gfile);
   fclose(gfile);
-  uint64_t *to_examine = calloc(sizeof(uint64_t), g->v);
-  uint64_t *next = calloc(sizeof(uint64_t), g->v);
+  unsigned int qsize = ncores*CHUNK_SIZE;
+  qsize = qsize < g->v? g->v : qsize;
+  uint64_t *to_examine = calloc(sizeof(uint64_t), qsize);
+  uint64_t *next = calloc(sizeof(uint64_t), qsize);
   uint64_t *parent = calloc(sizeof(uint64_t), g->v);
   double avg = 0;
   for (int i = 0; i < nruns; ++i) {
