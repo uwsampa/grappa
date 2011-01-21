@@ -33,7 +33,20 @@ struct kernel_arg {
   int ncores;
 };
 
-#define CHUNK_SIZE 1024
+#define CHUNK_SIZE 32
+
+void print_queue(thread *head) {
+  while (1) {
+    printf("%p", head);
+    if (head != NULL) {
+      head = head->next;
+      printf(" -> ");
+    } else {
+      break;
+    }
+  }
+  printf("\n");
+}
 
 void bfs_kernel(thread *me, void *arg) {
   struct kernel_arg *ka = arg;
@@ -46,9 +59,11 @@ void bfs_kernel(thread *me, void *arg) {
       ka->done = ka->in + chunk_size;
     }
     thread_block(me, &ka->barrier);
+    //    printf("%p ours: %d %d\n", ka, ka->in, ka->done);
     while (ka->in < ka->done) {
       uint64_t vertex = ka->from[ka->in++];
       if (vertex == ka->g->v) continue;
+      //      printf("%p looking at: %" PRIu64 "\n", ka, vertex);
       uint64_t *addr = &ka->g->row_ptr[vertex];
       prefetch_and_switch(me, addr, 0);
       uint64_t *start = &ka->g->edges[*addr++];
@@ -56,27 +71,39 @@ void bfs_kernel(thread *me, void *arg) {
       while (start < addr) {
         prefetch_and_switch(me, start, 0);
         uint64_t next = *start++;
-        if (__sync_bool_compare_and_swap(&ka->parent[next], ka->g->v, vertex)) {
-          if (ka->out < ka->limit) {
-            ka->to[ka->out++] = next;
-          } else {
-            ka->out = __sync_add_and_fetch(ka->next_chunk, CHUNK_SIZE);
+        uint64_t *pa = &ka->parent[next];
+        prefetch_and_switch(me, pa, 1);
+        while (*pa == ka->g->v) {
+          if (!__sync_bool_compare_and_swap(pa, ka->g->v, vertex)) {
+            continue;
+          }
+          if (ka->out >= ka->limit) {
+            ka->out = __sync_fetch_and_add(ka->next_chunk, CHUNK_SIZE);
             ka->limit = ka->out + CHUNK_SIZE;
           }
+          //          printf("%p Exploring %" PRIu64 "\n", ka, next);
+          ka->to[ka->out++] = next;
+
         }
       }
     }
     thread_block(me, &ka->barrier);
     if (me == ka->leader) {
+      //      printf("cleaning %d %d\n", ka->out, ka->limit);
       while (ka->out < ka->limit) {
         ka->to[ka->out++] = ka->g->v;
       }
-#pragma omp single
+      //      printf("%p agreed %d\n", ka, *ka->next_chunk);
+      #pragma omp barrier
+      #pragma omp single
       {
         *ka->level_size = *ka->next_chunk;
+        *ka->next_chunk = 0;
+        ka->out = ka->limit = 0;
         while(*ka->level_size % ka->ncores > 0) {
           ka->to[(*ka->level_size)++] = ka->g->v;
         }
+        //        printf("%p next iteration: %d\n", ka,  *ka->level_size);
       }
       uint64_t *temp = ka->to;
       ka->to = ka->from;
@@ -94,7 +121,7 @@ void bfs(graph *g, uint64_t root,
     to_examine[level_size] = g->v;
   }
   int next_chunk = 0;
-#pragma omp parallel for num_threads(ncores)
+  #pragma omp parallel for num_threads(ncores)
   for (int c = 0; c < ncores; ++c) {
     thread *master = thread_init();
     scheduler *sched = create_scheduler(master);
@@ -128,14 +155,21 @@ void bfs(graph *g, uint64_t root,
 
 
 // should probably check shortest paths too?
+// this will also break if g is disconnected
 void check(graph *g, uint64_t parent[], uint64_t root) {
   for (unsigned int i = 0; i < g->v; ++i) {
     uint64_t p = parent[i];
+    //    printf("%d %" PRIu64"\n", i, p);
+  }
+  for (unsigned int i = 0; i < g->v; ++i) {
+    uint64_t p = parent[i];
+    //    printf("%d %" PRIu64"\n", i, p);
     if (i == root) {
-      assert(p == g->v);
+      assert(p == root);
       continue;
     }
     assert(p < g->v);
+    assert (i != p);
     int found = 0;
     for (uint64_t *e = &g->edges[g->row_ptr[p]],
                   *f = &g->edges[g->row_ptr[p+1]]; e < f; ++e) {
@@ -149,9 +183,9 @@ void check(graph *g, uint64_t parent[], uint64_t root) {
 }
 
 int main(int argc, char *argv[]) {
-  if (argc != 4) {
-	printf("usage: %s file nthreads ncores\nfile     - input graph file\nnthreads \
-- number of green threads\n", argv[0]);
+  if (argc != 5) {
+	printf("usage: %s file nthreads ncores root\nfile     - input graph file\nnthreads \
+- number of green threads\nroot     - index of root node\n", argv[0]);
 	exit(1);
   }
 
@@ -161,19 +195,21 @@ int main(int argc, char *argv[]) {
   FILE *gfile = fopen(argv[1], "r");
   assert (gfile != NULL);
 
-  uint64_t root;
-  assert(1 == fscanf(gfile, "%" PRIu64 "\n", &root));
+  uint64_t root = strtoll(argv[4], NULL, 0);
 
   graph *g = graph_read(gfile);
   fclose(gfile);
-  uint64_t *to_examine = calloc(sizeof(uint64_t), g->v);
-  uint64_t *next = calloc(sizeof(uint64_t), g->v);
+  unsigned int qsize = ncores*CHUNK_SIZE;
+  qsize = qsize < g->v? g->v : qsize;
+  uint64_t *to_examine = calloc(sizeof(uint64_t), qsize);
+  uint64_t *next = calloc(sizeof(uint64_t), qsize);
   uint64_t *parent = calloc(sizeof(uint64_t), g->v);
   double avg = 0;
   for (int i = 0; i < nruns; ++i) {
     for (unsigned int i = 0; i < g->v; ++i) {
       to_examine[i] = next[i] = parent[i] = g->v;
     }
+    parent[root] = root;
     uint64_t before = get_ns();
     bfs(g, root, ncores, nthreads,
         to_examine, next, parent);
@@ -181,10 +217,10 @@ int main(int argc, char *argv[]) {
 
     uint64_t elapsed = after - before;
     double rate = elapsed;
-    rate /= g->v;
+    rate /= g->e;
     avg += rate;
     check(g, parent, root);
-    printf("%" PRIu64 " ns -> %f ns/vertex \n", elapsed, rate);
+    printf("%" PRIu64 " ns -> %f ns/edge \n", elapsed, rate);
   }
   avg /= nruns;
   printf("AVERAGE: %f\n", avg);

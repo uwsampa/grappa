@@ -1,15 +1,13 @@
 CFLAGS = -O2 -std=gnu99 -Wall -Wextra -I../ -fopenmp -msse4.1
 LDFLAGS= -L../greenery
-LDLIBS= -lgreenery -lrt -fopenmp -lnuma -lhugetlbfs
-APPS= treegen
+LDLIBS= -lgreenery -lrt -fopenmp -lnuma
+APPS= treegen erdos
 TESTS=
 MYLIBS= libgraph.a
-BENCHES= treesum treedepth linked_list matmul carlson
-
+BENCHES= treesum treedepth matmul
 RESULTS=$(APPS) $(TESTS) $(BENCHES) $(MYLIBS)
 # TODO: make this makefile make sense 
-SRCS= graph.c treegen.c treesum.c treedepth.c matmul.c carlson.c linked_list.c \
-linked_list-alloc.c linked_list-walk.c linked_list-node.c
+SRCS= graph.c treegen.c treesum.c treedepth.c matmul.c erdos.c
 
 .PHONY: all clean
 
@@ -19,9 +17,7 @@ treedepth: treedepth.o $(MYLIBS)
 treegen: treegen.o $(MYLIBS)
 treesum: treesum.o $(MYLIBS)
 matmul: matmul.o $(MYLIBS)
-carlson: carlson.o $(MYLIBS)
-
-linked_list: linked_list.o linked_list-node.o linked_list-alloc.o linked_list-walk.o $(MYLIBS) 
+erdos: erdos.o $(MYLIBS)
 
 libgraph.a: libgraph.a(graph.o)
 

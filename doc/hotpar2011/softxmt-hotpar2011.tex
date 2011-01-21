@@ -7,7 +7,7 @@
 \usepackage{url}
 \begin{document}
 
-\title{A latency-tolerant runtime for large graph computations}
+\title{Can We Crunch the Social Graph on the Cheap?}
 
 \numberofauthors{7}
 \author{
@@ -69,7 +69,7 @@ Multithreading is a technique that has been used successfully to
 implement efficient computations for these graphs. The Cray XMT is an
 example of such a solution: it tries to solve the memory latency
 problem through concurrency rather than caching. Each XMT processor
-supports 128 hardware contexts and $~$1000 outstanding memory
+supports 128 hardware contexts and $\sim$1000 outstanding memory
 operations and is able to switch contexts every cycle. But this
 approach has a limitation: each context is significantly slower than a
 modern commodity processor, yielding bad single-threaded
@@ -83,53 +83,247 @@ good performance on both these low-locality graph codes as well as on
 common scientific codes. Our approach is inspired by the XMT, but
 implemented in software on commodity microprocessors. The core of our
 approach is a lightweight coroutine library designed to overlap
-long-latency memory prefetches with other contexts' computation. This
-document describes our approach.
+long-latency memory prefetches with other contexts' computation. 
+
+\todo{something like: project still in early stages. this document lays out
+  problems we think a system like this needs to solve, and describes
+  some implementation strategies we want to explore. we have a basic
+  initial implementation with some experiments that suggest there is
+  promise here.}
 
 \todo{do we want to mention hardware at this point? If so, we should
   perhaps call it a hybrid approach.}
 
 \section{Programming model}
 
-many many threads
+While the ideal programming model is one that facilitates easy
+expression in the problem domain as well as efficient execution on the
+available hardware, our programming model today is motivated by only
+efficient execution: it exists as a rudimentary library for concept
+demonstration, not as a language suitable for development.  The
+programming model we use today is therefore only partially formed. It
+exists as an augmentation of existing threaded programming models such
+as pthreads or openmp that are readily available on most computer
+systems.
 
-prefetch and switch on 
+Though not strictly necessary, for ease of exposition we imagine a
+one-to-one binding between threads and cores.  Our model manifests
+within any thread independently of the others as a ``fray'' \todo{for lack
+of better term }.  Within the thread, a fray instance is the
+instantiation of a set of coroutines and a scheduler.  Instantiation
+is at user-level and the operating system sees the entire fray as as a
+single user-level thread.
 
-full/empty bits 
+\todo{ describe calls that perform thread \& scheduler instantiation; and schedule activation }
 
-\subsection{Opportunities}
+Each coroutine executes non-preemptively, utilizing the core to which
+its ``parent'' thread has been assigned by the operating system until it
+reaches a yield point.  Typically, the coroutine yields after
+initiating a prefetch operation on data that the programmer or
+compiler anticipates would probably not complete before the data is
+referenced by a subsequent load operation.  In this way, the core
+continues to execute instructions for other coroutines when otherwise
+it would likely stall.  The programming model thus tolerates latency.
 
-characteristics:
+\todo{ describe calls to prefetch-and-yield }
 
+When a thread frays, for the sake of expediency, a fixed portion of
+its stack is divided amongst the coroutines.  Given a finite stack,
+each coroutine is constrained to execute a call tree of depth known to
+be finite at compilation time: recursion is not yet permitted.
 
+\todo{ discussion of coroutines \& synchronization } Were a coroutine to
+block on a synchronization variable shared with other threads, the
+entire fray would suspend execution.  This can lead to deadlock when,
+for example, one coroutine waits to consume from another thread that
+is waiting to consume what only another coroutine in this first fray
+can produce.  Instead, coroutines must yield on failed synchronization
+events, spinning rather than blocking, where were they bona fide
+threads, blocking might be more efficient.
 
-little FP use ==> don't worry about FP registers
+\todo{ say something about ``synchronization'' within a fray }
 
-would like enough concurrency to keep pipeline filled, but commodity CPUs don't have enough external bandwidth. So, get enough to saturate bandwidth.
-
+Coroutines completing their work yield without adding themselves to
+the scheduling queue.  The last coroutine to exit in this way returns
+as the main thread, as in the common  fork-join model of parallelism.
 
 
 \section{Approach}
 
-Describe general approach, explaining 
+Our goal is to enable high throughput on graphs with two challenging
+properties. First, the graphs' combination of sparseness and low
+degree means there is little locality to be exploited. Second, the
+graphs are larger than a single node's memory and do not partition
+well \todo{explain?}. We must spread the graph across multiple nodes
+and send memory operations over a network. If memory requests are
+uniformly distributed over the working set, a given node will make as
+many accesses to a distant node's memory as it does to the local node.
+
+We would like to run as fast as current hardware will let us. Pin
+bandwidth is the tightest resource: Intel's QuickPath Interconnect
+(QPI) allows approximately 100 million requests per second
+\todo{cite}, and recent interconnect products allow similar request
+rates, with a round-trip latency of approximately 3$\mu$s
+\todo{cite}. Little's law tells us then that we must support on the
+order of 300 concurrent memory operations, and thus coroutines, to
+cover this latency.
+
+These requirements drive the design of our system. There are three key
+components.
 
 \subsection{Low-latency context switch}
 
-switch only stack pointer and program counter; depend on compiler to save/restore anything else. in general case, hopefully this will be fast.
+There are three main concerns in designing the coroutine
+mechanism. First, contexts must be small, so many coroutines can be
+active without monopolizing the cache. Second, context switches must
+be fast, so that overhead does not swamp actual work. Third, when a
+coroutine yields, we must choose a good coroutine to run next.
 
-\subsection{Memory concurrency}
+We minimize context size by treating context switches as function
+calls, as in \cite{charm}. This allows us to save and restore the
+minimum number of registers allowed by the ABI, and depend on the
+compiler to save and restore any other registers in use. We minimize
+context switch time both by keeping contexts small and by doing all
+switching and scheduling in user space, as in \todo{cite other green
+  threads packages}.
 
-Commodity procs don't provide enough. use software? FPGA?
+The choice of which coroutine to run next presents us with a
+tradeoff. The simplest scheduler chooses coroutines to execute in
+round-robin fashion. But this may lead to performance problems: a
+coroutine might be scheduled before the event which caused it to yield
+has completed, stalling the pipeline and keeping other coroutines from
+progressing. A coroutine might also be scheduled long after the event
+which caused it to yield has completed; while this wouldn't block
+other coroutines from proceeding, it would add unnecessary latency to
+the yielding coroutine. A more intelligent scheduler might allow
+coroutines to execute only when they were ready, but this could
+increase the overhead of context switching. Our initial implementation
+takes the simple approach, but more investigation is warranted.
+
+\subsection{Accessing Global Memory}
+
+% Our goal is to support many concurrent accesses to a global address
+% space spread across nodes in a cluster. We can draw on hardware
+% support developed for the Partitioned Global Address Space family of
+% languages to accomplish this.
+
+% We draw on libraries and network support 
+% goal. Languages in the Partitioned Global Address Space family such as
+% X10 and Chapel have similar goals, 
+
+
+% It is also useful to access this low-locality data without disturbing
+% the thread contexts and local storage in the cache. Current x86
+% processors support non-temporal loads and stores. These memory
+% operations are quite relevant for our problem: they are designed to
+% move data without polluting the cache. Using these instructions works
+% better than mapping the low-locality data as uncached, since that
+% restricts the processors' ability to reorder operations.
+
+
+
+Following the lead of the PGAS family of languages, we will use
+the RDMA functionality provided by modern Infiniband networks to
+access our global memory. \todo{rethink?}
+
+These networks allow us to read and write memory directly from remote
+nodes, but they do so through a low-level interface designed to be
+hidden behind a library. Loads and stores to global memory must be
+replaced with calls to a library. This library causes the network
+interface to fetch the remote data and place it in a temporary
+buffer. When the requesting coroutine is scheduled again, data is
+returned from the buffer and execution proceeds.
+
+
+In order to minimize memory access overhead, the memory operation
+library calls do not interact with the network interface
+directly. Instead, they queue their operations to another thread, the
+{\em memory manager thread}, running on another core in the CPU. This thread
+translates the global address into a network destination and issues
+the network operation, checks for completion, and manages the returned
+data buffers.
+
+But we have to be careful---directing memory requests from multiple
+compute threads to a single memory manager thread may reduce memory
+concurrency. And we've increased the overhead of a single memory
+operation---what in the single node case was a simple read, is now
+multiple queuing operations between threads, and multiple reads and
+writes over QPI to the network interface. Adding more memory manager
+threads may enable more memory concurrency, but the overhead is still high.
+
+Instead, we propose hardware acceleration with a {\em memory manager
+  FPGA}, a coprocessor FPGA inserted into a Xeon socket so it can
+participate in the node's coherence domain. This coprocessor does no
+computation---it would only manage the global memory requests of the
+main CPU, performing the function of the memory manager thread
+described earlier.
+
+By participating in the coherence domain, the memory manager FPGA can
+act as a proxy for the rest of global memory. It advertises the
+address space of the rest of the system, and translates local loads
+and stores to addresses on remote nodes into the network operations
+required.
+
+Unfortunately, current processors do not provide sufficient hardware
+resources for us to reach our concurrency target using this
+approach. Each core in Intel's X5650 Xeon supports only 10 outstanding
+misses from its private L2; the entire chip is limited to 32 L2 misses
+to local memory and 12 L2 misses for memory reached over the QPI
+bus. A simple translation of a local load to a network access would
+tie up one of these slots for the entire multi-microsecond latency of
+the request. We must bypass these structures to allow the amount of
+concurrency we need; the CPU needs to direct the memory manager FPGA
+to do work on its behalf without tying up its own resources.
+
+To accomplish this, we encode commands in the high-order bits of
+remote memory addresses. The memory manager FPGA advertises each
+remote address twice. The first address is used for blocking reads and
+writes---any access incurs the full latency of the remote
+access. \todo{verify writes block?} The second address is used for
+prefetches and asynchronous writes. These addresses differ by one
+high-order bit, easily set with a mask in a macro. A read from the
+prefetch address starts the network transaction, but immediately
+returns a dummy value. When the value arrives, it is stored in a
+temporary buffer; when the requesting coroutine is scheduled again, it
+executes the blocking read, and the memory manager immediately returns
+the value from the buffer. \todo{this isn't fully baked---do we want
+  to include this sort of detail?}
 
 \subsection{Synchronization}
 
-use existing atomic instructions? Use FPGA listening snoops on QPI?
+In systems with hundreds of threads per node, lightweight
+synchronization is important. While we have not implemented any
+synchronization primitives yet, full-empty bits are a natural choice
+given our programming model. Two questions then arise: at what
+granularity should full-empty bits work, and what component should do
+the synchronization?
 
+We expect most data accesses to be to 64-bit words. It is possible to
+support full-empty bit synchronization on arbitrary words by
+allocating additional storage for the full-empty bits, and translating
+each atomic full-empty operation into a sequence of memory operations
+that modify the data and full-empty bit atomically. 
 
-parition remote memory on each node; have one thread access each
-partition, making sync easier
+One potential optimization is to limit full-empty synchronization to
+pointers to aligned 64-bit words. This leaves the bottom three bits
+free to store the full-empty bits. These bits would be masked out when
+the pointer was returned to the user.
 
-\subsection{Extending to a multi-node system}
+These techniques can be implemented in software; \cite{qthreads} is
+one example. Alternatively, atomic operations could be delegated to a
+memory manager FPGA as described in the previous section. The address
+command encoding would be extended to support the various full-empty
+operations.
+
+It might seem natural to use the FPGA as a memory controller as
+well, storing all full-empty-bit-capable memory in DRAMs attached to
+the FPGA. While this is conceptually simple, it does make the
+programming model and the design more complicated. Another possibility
+would be to store only the full-empty bits in memories attached to the
+FPGA, and leave data in memory attached to the CPU. We believe that
+starting simple is best: both data and full-empty bits should be
+stored in the CPU's memory. \todo{discuss QPI bandwidth differences}
+
 
 
 \section{Current Implementation and Results}
@@ -137,24 +331,6 @@ partition, making sync easier
 \todo{Begin eval insert}
 \input{evaluation}
 \todo{End eval insert}
-
-current: just context switch on single node
-
-
-linked lists:
-
-there is some room for memory concurrency
-
-thread contexts don't take up too much space in cache
-
-sparse matmul:
-
-speedup?
-
-
-
-
-
 
 \section{Related work}
 
