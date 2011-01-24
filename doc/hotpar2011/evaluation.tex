@@ -5,13 +5,6 @@ To study memory concurrency in commodity systems and begin building a runtime, w
  
 \todo{might also include simple bar graph with max 1 socket, max 2 sockets, to membind=0}
 
-\begin{figure}[h]
-	\begin{center}
-		\includegraphics[width=0.5\textwidth]{figures/multi-listwalk-totalconc-edited.pdf}
-	\end{center}
-	\caption{Throughput of listwalk versus total number of concurrent references offered by the cores. Data points for running 1 core are shown as circles, and data points for running 6 cores are shown as diamonds. Notice that the throughput for a single core levels out at 10 concurrent references. For 4 to 6 cores, the throughput levels off at around 36 references, which seems to be the most memory concurrency a socket can handle.}
-	\label{fig:listwalk-totalconc}
-\end{figure}
 
 \todo{choose best phrase to use for outstanding/concurrent miss/refs/reads and use consistently unless there is a place one makes most sense}
 	 Figure~\ref{fig:listwalk-totalconc} shows the total number of outstanding misses the system can handle before performance plateaus. We found that for a single core, bandwidth plateaus once there are 10 concurrent misses; this is because the L1 cache line-buffer, which keeps track of outstanding misses of the core, is size 10. If concurrency is limited, there is less latency tolerance and performance is limited. 
