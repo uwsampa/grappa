@@ -24,107 +24,120 @@ Pacific Northwest National Lab\\
 \maketitle
 \begin{abstract}
 
+ Techniques from graph analytics have found important applications in
+  areas such as social networks and bioinformatics. These irregular
+  problems present a challenge for parallel machines: obtaining
+  performance is not straightforward. Multithreading works well for
+  such problems, but large-scale implementations of the technique like
+  the Cray XMT are expensive, non-commodity machines.
 
-Graph analytics are very important. 
-
-Irregular applications present a challenge for parallel machines:
-obtaining performance is not straightforward. 
-
-Multithreading is a technique that has been successfully used to
-extract performance from these problems.
-
-
-
-Our goal is to build a system with XMT-like properties, implemented in
-software with commodity procesors
-
-In this paper, we describe a runtime for latency tolerance. Our
-analysis shows the feasibility of our approach. We end with our plans
-for adding synchronization support and scaling up to multiple nodes.
-
-
-
-
-
-
-  Large irregular applications such as sparse, low diameter graph problems often
-  perform badly on commodity clusters. These application make many
-  non-sequential accesses to global data structures with low degrees of
-  locality, interacting badly with commodity processors' memory
-  systems, which are optimized for local, sequential memory
-  accesses. Special-purpose hardware optimized for these irregular
-  applications has been built; the Cray XMT is one such machine. It
-  uses multithreading to tolerate the latency of low-locality memory
-  accesses, and while it exhibits excellent performance and energy
-  efficiency for irregular applications, it performs badly on standard
-  sequential applications \todo{Brandon: should this be more specific or worded differently? Its true sequential perform badly since switching between many threads, but also does XMT also perform  poorly (relative to alternatives) on highly parallel but regular apps with lots of temporal and spatial locality?}. We believe we can have the best of both
-  worlds: we argue that modern commodity processors have many of the
-  features necessary \todo{Brandon: we will have to be able to list these as features in the paper or use a different phrase; my feeling is that these are aspects of the system which are not optimized for this but are sufficient to suggest potential for enough memory concurrency} to give good performance on irregular problems,
-  and that a latency-tolerant runtime designed to exploit these
-  features can enable speedup for irregular applications on commodity
-  processors. In this paper, we describe the key features of such a
-  runtime system, and what a cluster built using our runtime might
-  look like. Using a preliminary single-node implementation of our
-  runtime, we obtained speedups on simple list chasing benchmarks. Our results show promise for a multi-node implementation.
-
+  Our goal is to build a system with XMT-like properties, implemented
+  with commodity processors. This paper presents a runtime for latency
+  tolerance, along with our plans for scaling up to multiple
+  nodes. Our analysis shows the feasibility of our approach.
 \end{abstract}
 
 \section{Introduction}
 
 
-Graphs have proven to be a useful abstraction for solving real-world
-problems in social and biological network analysis. But many graphs in
-social and biological network analysis are sparse, with low diameter
-and a degree distribution that follows a power law. These properties
-make it difficult to take advantage of the locality assumptions built
-into the memory hierarchy of modern processors, so that even simple
-traversals are dominated by memory latency.
+Techniques from graph analytics have found important applications in
+areas such as social networks and bioinformatics. \todo{more!}
 
-And these graphs can be large---too large for a single node. In January 2011, Facebook had 500 million active users with an average of
-130 friends each \cite{Facebook:2011p91}. A natural approach would be
-to try to partition the graph across the nodes in a cluster. But with
-low diameter graphs, a traversal starting at any vertex is likely to
-quickly leave its partition and travel over the network, incurring
-high latency costs. And power law graphs have a small number of vertices
-that generate significantly more work than other vertices, leading to
-computational imbalance.
 
+% In January 2011, Facebook had 500 million active users with an average
+% of 130 friends each \cite{Facebook:2011p91}.
 % Facebook's friend suggestion
 % algorithm in 2010 ran on a 40-node cluster with 72GB memory per
 % node. Even with that capacity, new suggestions could only be computed
 % every two days \cite{Backstrom:2010p90}.
 
+The most interesting computational challenge comes from large,
+low-diameter, power law graphs: this combination makes extracting
+performance difficult. Their size keeps them from fitting in a single
+commodity machine's memory. Their low diameter means that they are
+difficult to lay out with locality. Their power law distribution means
+that a few vertices generate much more work than the rest, leading to
+computational imbalance and even less locality. Together, these
+properties lead to a difficult conclusion: each edge traversal is
+likely to be a very expensive cache miss.
 
 Multithreading is a technique that has been used successfully to
 implement efficient computations for these graphs. The Cray XMT is an
-example of such a solution: it tries to solve the memory latency
-problem through concurrency rather than caching. Each XMT processor
-supports 128 hardware contexts and $\sim$1000 outstanding memory
-operations and is able to switch contexts every cycle. But this
-approach has a limitation: each context is significantly slower than a
-modern commodity processor, yielding bad single-threaded
-performance. While the XMT is fast at sparse, low-degree graph
-problems, it is slow at other scientific codes that can take advantage
-of commodity processors' memory hierarchies. Thus, few XMTs have been
-built.
+example of such an approach: it solves the memory latency problem
+through concurrency rather than caching. Each XMT processor supports
+128 hardware contexts and 1024 outstanding memory operations, and is
+able to switch contexts every cycle. This ability comes at a cost: the
+XMT is an expensive, non-commodity machine.
 
-We want the best of both worlds---we want to build a system that has
-good performance on both these low-locality graph codes as well as on
-common scientific codes. Our approach is inspired by the XMT, but
-implemented in software on commodity microprocessors. The core of our
-approach is a lightweight coroutine library designed to overlap
-long-latency memory prefetches with other contexts' computation. 
+We want the best of both worlds. Our goal is to build a system that
+has good performance on these low-locality graph codes but is
+implemented with commodity processors. The core of our approach is a
+lightweight coroutine library designed to overlap long-latency memory
+prefetches with other contexts' computation.
 
-\todo{something like: project still in early stages. this document lays out
-  problems we think a system like this needs to solve, and describes
-  some implementation strategies we want to explore. we have a basic
-  initial implementation with some experiments that suggest there is
-  promise here.}
+In this paper, we describe our single-node runtime for latency
+tolerance, along with our plans for scaling to multiple nodes.  We
+evaluate the performance of our runtime using a set of list traversal
+benchmarks designed to model certain worst-case behaviors of these
+large graph problems. 
 
-\todo{do we want to mention hardware at this point? If so, we should
-  perhaps call it a hybrid approach.}
+The rest of the paper is organized as follows. We present related work
+in section~\ref{sec:related}. We describe the programming model we are
+implementing in section~\ref{sec:model}, and describe our approach for
+implementing this model in section~\ref{sec:approach}. We evaluate our
+latency-tolerant runtime in section~\ref{sec:evaluation} and conclude
+in section~\ref{sec:conclusion}.
+
+\section{Related work}
+\label{sec:related}
+
+
+\todo{actually write this}
+
+
+
+Multithreading for latency tolerance has been explored in a number of directions.
+
+Hardware approaches: The Tera MTA and Cray XMT, the MIT Alewife
+project, ??? use hardware context switches to tolerate memory latency
+for large systems. More recently, Simultaneous Multi-Threading,
+Niagara, Cyclops, and even GPUs switch between multiple contexts to
+tolerate memory latency, for memory that is hundreds of cycles of
+away, rather than the thousands we must tolerate.
+
+
+software:
+
+Mowry's SCM
+
+Cullers' TAM
+
+qthreads
+
+cilk? tbb?
+
+why not wait for more cores?
+
+
 
 \section{Programming model}
+\label{sec:model}
+
+\todo{Change to discuss API:
+
+context switches:
+  yield()
+  discuss coroutines
+
+mem:
+  alloc()
+  read(p) 
+  write(p, d)
+  prefetch(p)
+
+sync:
+ {read, write} {EE, EF, FE, FF}
+}
 
 While the ideal programming model is one that facilitates easy
 expression in the problem domain as well as efficient execution on the
@@ -179,6 +192,7 @@ as the main thread, as in the common  fork-join model of parallelism.
 
 
 \section{Approach}
+\label{sec:approach}
 
 Our goal is to enable high throughput on graphs having two challenging
 properties. First, the graphs' combination of sparseness and low
@@ -359,6 +373,7 @@ stored in the CPU's memory. \todo{discuss QPI bandwidth differences}
 % 2TB global memory => 68GB of distributed FE bits.  This seems reasonable, given that a 2TB system might have 64 nodes, so ~1GB per memory manager if one manager per node.
 
 \section{Evaluation}
+\label{sec:evaluation}
 
 To evaluate the feasibility of our proposal, we ran pointer chasing
 benchmarks on a single-node implementation of our runtime. These
@@ -619,43 +634,11 @@ in a remote memory.
 %\input{evaluation}
 %\todo{End eval insert}
 
-\section{Related work}
-
-
-hardware:
-
-XMT/MTA
-
-cyclops
-
-niagra
-
-software:
-
-qthreads
-
-cilk? tbb?
-
-why not wait for more cores?
-- perhaps memory subsystems on a chip are not keeping up with the bandwidth of so many cores.
-
-hyperthreading?
-
-
 
 \section{Conclusion}
+\label{sec:conclusion}
 
-Large irregular problems found in areas such as social networking and
-bioinformatics tend to have poor performance on commodity clusters due
-to frequent low-locality memory accesses. We present a programming
-model and runtime system that uses lightweight context switching to
-tolerate long-latency accesses and increase performance on these
-applications. Our preliminary evaluation shows that the overhead of
-context switching is not prohibitive for thread counts needed for a
-large-scale implementation, but memory concurrency is limited by
-hardware structures in commodity processors. We describe how we plan
-to address the challenges of large-scale memory concurrency and
-lightweight synchronization.
+
 
 
 \bibliographystyle{acm}
