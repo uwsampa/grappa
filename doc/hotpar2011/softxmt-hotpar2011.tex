@@ -50,13 +50,13 @@ make it difficult to take advantage of the locality assumptions built
 into the memory hierarchy of modern processors, so that even simple
 traversals are dominated by memory latency.
 
-And these graphs can be large---too large for a single node \todo{may want to avoid saying 'node' since graph 'node' is also used in this paragraph}. In January 2011, Facebook had 500 million active users with an average of
+And these graphs can be large---too large for a single node. In January 2011, Facebook had 500 million active users with an average of
 130 friends each \cite{Facebook:2011p91}. A natural approach would be
 to try to partition the graph across the nodes in a cluster. But with
-low diameter graphs, a traversal starting at any node is likely to
+low diameter graphs, a traversal starting at any vertex is likely to
 quickly leave its partition and travel over the network, incurring
-high latency costs. And power law graphs have a small number of nodes
-that generate significantly more work than other nodes, leading to
+high latency costs. And power law graphs have a small number of vertices
+that generate significantly more work than other vertices, leading to
 computational imbalance.
 
 % Facebook's friend suggestion
@@ -116,7 +116,7 @@ single user-level thread.
 
 \todo{ describe calls that perform thread \& scheduler instantiation; and schedule activation }
 
-Each coroutine executes non-preemptively, utilizing the core to which
+Each coroutine executes non-preemptively \todo{seems like non-premptively isn't ``how" it executes, rather how it is scheduled, maybe say ``cooperatively"?}, utilizing the core to which
 its ``parent'' thread has been assigned by the operating system until it
 reaches a yield point.  Typically, the coroutine yields after
 initiating a prefetch operation on data that the programmer or
@@ -150,14 +150,14 @@ as the main thread, as in the common  fork-join model of parallelism.
 
 \section{Approach}
 
-Our goal is to enable high throughput on graphs with two challenging
+Our goal is to enable high throughput on graphs having two challenging
 properties. First, the graphs' combination of sparseness and low
 degree means there is little locality to be exploited. Second, the
 graphs are larger than a single node's memory and do not partition
-well \todo{explain?}. We must spread the graph across multiple nodes
+well because of low diameter \todo{enough explanation now?}. We must spread the graph across multiple nodes
 and send memory operations over a network. If memory requests are
 uniformly distributed over the working set, a given node will make as
-many accesses to a distant node's memory as it does to the local node.
+many accesses to remote nodes' memory as there are remote requests to the local node's memory coming in.
 
 We would like to run as fast as current hardware will let us. Pin
 bandwidth is the tightest resource: Intel's QuickPath Interconnect
@@ -165,19 +165,20 @@ bandwidth is the tightest resource: Intel's QuickPath Interconnect
 \todo{cite}, and recent interconnect products allow similar request
 rates, with a round-trip latency of approximately 3$\mu$s
 \todo{cite}. Little's law tells us then that we must support on the
-order of 300 concurrent memory operations, and thus coroutines, to
+order of 300 concurrent memory operations--and thus, up to this many coroutines--to
 cover this latency.
 
 These requirements drive the design of our system. There are three key
-components.
+components. First, the system needs lightweight context switches (coroutines) to be able to support many contexts--thereby increasing memory concurrency available--with minimal impact on performance. Second, a memory management subsystem must support many concurrent accesses to a global address space. Third, the system must provide synchronization at a fine-granularity \todo{this last one sounds incomplete because no reason given}.
 
-\subsection{Low-latency context switch}
+\subsection{Lightweight context switch}
+\todo{can we include in the title something that means lightweight and good scheduling?}
 
 There are three main concerns in designing the coroutine
 mechanism. First, contexts must be small, so many coroutines can be
 active without monopolizing the cache. Second, context switches must
 be fast, so that overhead does not swamp actual work. Third, when a
-coroutine yields, we must choose a good coroutine to run next.
+coroutine yields, we must choose a suitable coroutine to run next.
 
 We minimize context size by treating context switches as function
 calls, as in \cite{charm}. This allows us to save and restore the
@@ -190,7 +191,7 @@ switching and scheduling in user space, as in \todo{cite other green
 The choice of which coroutine to run next presents us with a
 tradeoff. The simplest scheduler chooses coroutines to execute in
 round-robin fashion. But this may lead to performance problems: a
-coroutine might be scheduled before the event which caused it to yield
+coroutine might be scheduled before the event which caused it to yield (e.g., a long latency memory access)
 has completed, stalling the pipeline and keeping other coroutines from
 progressing. A coroutine might also be scheduled long after the event
 which caused it to yield has completed; while this wouldn't block
@@ -234,7 +235,7 @@ interface to fetch the remote data and place it in a temporary
 buffer. When the requesting coroutine is scheduled again, data is
 returned from the buffer and execution proceeds.
 
-
+\subsubsection{Software management}
 In order to minimize memory access overhead, the memory operation
 library calls do not interact with the network interface
 directly. Instead, they queue their operations to another thread, the
@@ -245,13 +246,15 @@ data buffers.
 
 But we have to be careful---directing memory requests from multiple
 compute threads to a single memory manager thread may reduce memory
-concurrency. And we've increased the overhead of a single memory
-operation---what in the single node case was a simple read, is now
-multiple queuing operations between threads, and multiple reads and
+concurrency. And we have increased the overhead of a single memory
+operation: what in the single node case was a simple read, is now
+multiple queuing operations between threads and multiple reads and
 writes over QPI to the network interface. Adding more memory manager
-threads may enable more memory concurrency, but the overhead is still high.
+threads may enable more memory concurrency, but the overhead is still high \todo{why? because lots of code to run? so accel by impl in hardware. Maybe this is answered by the "what in...is now" already}
 
-Instead, we propose hardware acceleration with a {\em memory manager
+\subsubsection{Hardware management}
+\todo{might want to call it accelerator throughout after saying FPGA once}
+Considering this overhead, we propose hardware acceleration with a {\em memory manager
   FPGA}, a coprocessor FPGA inserted into a Xeon socket so it can
 participate in the node's coherence domain. This coprocessor does no
 computation---it would only manage the global memory requests of the
@@ -271,13 +274,12 @@ misses from its private L2; the entire chip is limited to 32 L2 misses
 to local memory and 12 L2 misses for memory reached over the QPI
 bus. A simple translation of a local load to a network access would
 tie up one of these slots for the entire multi-microsecond latency of
-the request. We must bypass these structures to allow the amount of
-concurrency we need; the CPU needs to direct the memory manager FPGA
+the request. To allow the amount of concurrency we need, we must bypass these structures; the CPU needs to direct the memory manager FPGA
 to do work on its behalf without tying up its own resources.
 
 To accomplish this, we encode commands in the high-order bits of
 remote memory addresses. The memory manager FPGA advertises each
-remote address twice. The first address is used for blocking reads and
+remote address twice \todo{this sounded like an active thing the FPGA is doing each time you make remote request, first time I read it. Consider just sticking to cmd as upper order address bits than saying advertise each address twice}. The first address is used for blocking reads and
 writes---any access incurs the full latency of the remote
 access. \todo{verify writes block?} The second address is used for
 prefetches and asynchronous writes. These addresses differ by one
@@ -286,7 +288,7 @@ prefetch address starts the network transaction, but immediately
 returns a dummy value. When the value arrives, it is stored in a
 temporary buffer; when the requesting coroutine is scheduled again, it
 executes the blocking read, and the memory manager immediately returns
-the value from the buffer. \todo{this isn't fully baked---do we want
+the value from the buffer \todo{is this necessarily restricted to the memory manager returning value from buffer rather than buffer in local memory?  maybe it is, since if buffer was in local mem, would have to also write a full bit or make two reads: valid bit and data}. \todo{this isn't fully baked---do we want
   to include this sort of detail?}
 
 \subsection{Synchronization}
@@ -294,7 +296,7 @@ the value from the buffer. \todo{this isn't fully baked---do we want
 In systems with hundreds of threads per node, lightweight
 synchronization is important. While we have not implemented any
 synchronization primitives yet, full-empty bits are a natural choice
-given our programming model. Two questions then arise: at what
+given our programming model \todo{say why natural choice unless programming model section makes this point already}. Two questions then arise: at what
 granularity should full-empty bits work, and what component should do
 the synchronization?
 
@@ -324,13 +326,12 @@ FPGA, and leave data in memory attached to the CPU. We believe that
 starting simple is best: both data and full-empty bits should be
 stored in the CPU's memory. \todo{discuss QPI bandwidth differences}
 
-
+% 2TB global memory => 68GB of distributed FE bits.  This seems reasonable, given that a 2TB system might have 64 nodes, so ~1GB per memory manager if one manager per node.
 
 \section{Current Implementation and Results}
-
-\todo{Begin eval insert}
 \input{evaluation}
-\todo{End eval insert}
+
+
 
 \section{Related work}
 
@@ -350,6 +351,7 @@ qthreads
 cilk? tbb?
 
 why not wait for more cores?
+- perhaps memory subsystems on a chip are not keeping up with the bandwidth of so many cores.
 
 hyperthreading?
 
