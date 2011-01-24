@@ -192,7 +192,7 @@ many accesses to remote nodes' memory as there are remote requests to the local 
 We would like to run as fast as current hardware will let us. Pin
 bandwidth is the tightest resource: Intel's QuickPath Interconnect
 (QPI) allows approximately 100 million requests per second
-\todo{cite}, and recent interconnect products allow similar request
+\cite{quickpath:website} \todo{specifically 25.6GB/s two way, which we expect 6.4GB/s for one way for outgoing request}, and recent interconnect products allow similar request
 rates, with a round-trip latency of approximately 3$\mu$s
 \todo{cite}. Little's law tells us then that we must support on the
 order of 300 concurrent memory operations--and thus, up to this many coroutines--to
@@ -441,7 +441,7 @@ doing the traversal. We ran 10 traversals, measuring average rate in each, and r
 Figure~\ref{fig:listwalk-totalconc} shows the result. Each point represents
 the maximum rate pointers are traversed for a given number of
 concurrent offered references. We see a maximum rate of 277 million
-references per second; this is achieved when the number of offered
+references per second, which agrees with the measurements found by \cite{Mandal:2010} with a similar machine. This rate is achieved when the number of offered
 references is 42 \todo{yes, max is achieved here but essentially levels out earlier like 36; do we want a percentage metric for defining a plateau}. Note that a single core cannot support this level of
 memory concurrency; the maximum reference rate for a single core is
 107M. We believe this limit is due to the core's {\em line fill
