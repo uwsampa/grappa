@@ -5,17 +5,47 @@
 
 \documentclass{acm_proc_article-sp}
 \usepackage{url}
+\usepackage{fancyvrb}
+\usepackage{alltt}
 \begin{document}
 
 \title{Can We Crunch the Social Graph on the Cheap?}
 
 \numberofauthors{7}
 \author{
-(authors)
+Jacob Nelson, Brandon Myers, Andrew Hunter, Dan Grossman, Luis Ceze\\
+University of Washington\\
+\email{\{nelson, bdmyers, ahh, djg, luisceze\}@cs.washington.edu}\\ \\
+Simon Kahan \\ 
+Pacific Northwest National Lab\\
+\email{\{skahan\}@cs.washington.edu}
 }
 
 \maketitle
 \begin{abstract}
+
+
+Graph analytics are very important. 
+
+Irregular applications present a challenge for parallel machines:
+obtaining performance is not straightforward. 
+
+Multithreading is a technique that has been successfully used to
+extract performance from these problems.
+
+
+
+Our goal is to build a system with XMT-like properties, implemented in
+software with commodity procesors
+
+In this paper, we describe a runtime for latency tolerance. Our
+analysis shows the feasibility of our approach. We end with our plans
+for adding synchronization support and scaling up to multiple nodes.
+
+
+
+
+
 
   Large irregular applications such as sparse, low diameter graph problems often
   perform badly on commodity clusters. These application make many
@@ -331,7 +361,265 @@ stored in the CPU's memory. \todo{discuss QPI bandwidth differences}
 \section{Current Implementation and Results}
 \input{evaluation}
 
+\section{Evaluation}
 
+To evaluate the feasibility of our proposal, we ran pointer chasing
+benchmarks on a single-node implementation of our runtime. These
+pointer chasing experiments are intended to model a particular
+``wost-case'' behavior of irregular applications, where each memory
+reference causes a cache miss.
+
+We ran these experiments on a Dell PowerEdge R410 with two Xeon X5650
+processors and 24GB of RAM, with hyperthreading disabled. These
+processors use a NUMA memory architecture, where each processor has
+its own integrated memory controller and DIMMs; references to other
+processors are carried over Intel's cache-coherent QuickPath
+Interconnect (QPI).
+
+Our evaulation consists of three parts. First, we describe the
+performance of the test machine's memory system to use as a
+baseline. Then, we demonstrate that the same performance is achievable
+using our runtime system: we measure pointer chasing performance and
+the effects of cache pressure due to the number of contexts
+required. Finally, we simulate the effects of fetching memory over a
+network by adding delays to our runtime.
+
+\subsection{Memory system performance}
+
+We first characterize the performance of our test machine's memory
+system. We measured three parameters: the maximum random reference
+rate that can be issued by the cores in one processor, the maximum random
+reference rate that can be serviced by one processor's memory controller,
+and the maximum random reference rate that can be carried over the QPI
+link and serviced by another processor's memory controller.
+
+To find the maximum random reference rate that one processor's cores
+can issue, we ran pointer chasing code following the model of
+Figure~\ref{fig:pointernocoro}. Each core issues $n$ list traversals
+in a loop; we call $n * \textit{number of cores}$ the number of
+{\em concurrent offered references}, since the memory system may not
+be able to satisfy them all in parallel. Since our goal is to find a
+baseline for evaluating our coroutine library, we depend on the
+processor's ILP for memory concurrency, rather than our coroutine
+library.
+
+The lists were sized to exceed the last level cache and were laid out
+randomly with pointers spaced at a cache line granularity, maximizing
+the probability of each reference being a miss. We allocated the lists
+on 1GB huge pages to minimize TLB refill overhead. The lists were
+allocated in the memory attached to the processor containing the cores
+doing the traversal. We ran 10 traversals and recorded the maximum
+rate.
+
+
+\begin{figure}[h]
+	\begin{center}
+		\includegraphics[width=0.5\textwidth]{figures/multi-listwalk-totalconc-edited.pdf}
+	\end{center}
+	\caption{Throughput of listwalk versus total number of
+          concurrent references offered by the cores. Data points for
+          running 1 core are shown as circles, and data points for
+          running 6 cores are shown as diamonds. 
+%Notice that the throughput for a single core levels out at 10
+%concurrent references. For 4 to 6 cores, the throughput levels off at
+%around 36 references, which seems to be the most memory concurrency a
+%processor can handle.
+        }
+	\label{fig:listwalk-totalconc}
+\end{figure}
+
+Figure~\ref{fig:listwalk-totalconc} shows the result. Each point represents
+the maximum rate pointers are traversed for a given number of
+concurrent offered references. We see a maximum rate of 277 million
+references per second; this is achieved when the number of offered
+references is 42. Note that a single core cannot support this level of
+memory concurrency; the maximum reference rate for a single core is
+107M. We believe this limit is due to the core's {\em line fill
+  buffer} \todo{cite nehalem perf docs}, which limits the core to 10
+concurrent L2 misses.
+
+The memory controller in the processor has more bandwidth than its
+cores can saturate. To measure the memory controller's maximum random
+reference rate, we extended the previous experiment so that cores in
+both processors were traversing lists allocated in the first processor's
+memory. With this configuration, we observed a maximum rate of 360
+million references per second. We believe this difference is due to
+the configuration of the processor's {\em Global Queue} \todo{cite nehalem
+  docs}, which limits the number of concurrently-executing read misses
+from a processor's cores to its local last-level cache and memory to 32.
+
+
+\begin{figure}[h]
+  \begin{center}
+    \includegraphics[width=0.5\textwidth]{figures/qpi_bw-edited.pdf}
+  \end{center}
+  \caption{Pointer chasing in a remote processor's memory.}
+  \label{fig:listwalk-qpi}
+\end{figure}
+
+Finally, we measured the rate at which the cores can make requests
+over the QPI link. For this experiment, we allocated the lists in the
+second processor, and ran the traversals on the first
+processor. Figure~\ref{listwalk-qpi} shows the result. We found that use
+of the QPI link limits us to 175 million references per second.
+
+\begin{figure}
+\begin{alltt}
+  while (count-- > 0) \{
+    list1 = list1->next;
+    list2 = list2->next;
+    \ldots
+    list\(n\) = list\(n\)->next;
+  \}
+\end{alltt}
+\caption{Pseudocode for pointer chasing without coroutines.}
+\label{fig:pointernocoro}
+\end{figure}
+
+
+\subsection{Runtime performance}
+
+To characterize the performance of our runtime, we investigated three
+effects: the maximum reference rate using coroutines
+to obtain memory concurrency, the effects of cache pressure from the
+coroutines' context storage, and the maximum reference rate obtainable
+using a simulated network delay.
+
+\begin{figure}
+\begin{alltt}
+  while (count-- > 0) \{
+     prefetch(&(list1->next));
+     prefetch(&(list2->next));
+     \ldots
+     prefetch(&(list\(n\)->next));
+     switch();
+     list1 = read(&(list1->next));
+     list2 = read(&(list2->next));
+     \ldots
+     list\(n\) = read(&(list\(n\)->next));
+ \}
+\end{alltt}
+\caption{Pseudocode for pointer chasing using coroutines.}
+\label{fig:pointercoro}
+\end{figure}
+
+To find the maximum reference rate obtainable using our coroutine
+library, we modified our pointer chasing benchmark as shown in
+figure~\ref{fig:pointercoro}. Now there are two sources of offered
+concurrent references: the ILP exploited by the processor, and the
+memory concurrency enabled by prefetching and switching to a new
+coroutine. As with our first experiment, we allocated the lists in the
+same processor as the cores doing the traversal. 
+
+\begin{figure}[h]
+  \begin{center}
+    \includegraphics[width=0.5\textwidth]{figures/multi-green-edited.pdf}
+  \end{center}
+  \caption{Pointer chasing with coroutines, with one reference per
+    coroutine.}
+  \label{fig:multi-green}
+\end{figure}
+
+Figure~\ref{fig:multi-green} shows the result. For this
+experiment, we limited memory concurrency to one concurrent miss per
+coroutine, so the only source of memory concurrency is the use of
+coroutines. We are able to obtain a rate of 275 million references per
+second with 48 concurrent misses, or 8 coroutines per core. These
+results are very close to the ILP-only experiment.
+
+We observe a gradual decrease in reference rate once the number of
+concurrent references per core exceeds 10; we believe this is due to
+later prefetches squashing earlier ones in the line fill buffer. We
+also observe many samples below the maximum rate even with enough
+memory concurrency; this is harder to explain, but we suspect it is
+due to resource contention in the cores' pipelines once the memory
+system is full of requests.
+
+\begin{figure}
+\begin{alltt}
+  while (count-- > 0) \{
+    prefetch(&(list1->next));
+    switch();
+    list1 = read(&(list1->next));
+    for( i in 1 to num_local_updates ) \{
+      local->data++;
+      local = local->next;
+   \}
+  \}
+\end{alltt}
+\caption{Pseudocode for pointer chasing with local updates.}
+\label{pointerupdate}
+\end{figure}
+
+The stacks for the coroutines are stored in the data cache, where they
+will compete for space with an application's data. To characterize the
+effects of this cache pressure, we modified our list chasing benchmark
+to include random updates to a per-coroutine local data structure that
+is small enough to fit in cache. Figure~\ref{pointerupdate} shows the
+general idea.
+
+
+\begin{figure}[h]
+  \begin{center}
+    \includegraphics[width=0.5\textwidth]{figures/cache-pressure-edited.pdf}
+  \end{center}
+  \caption{Cache pressure with coroutines.}
+  \label{fig:cache-pressure}
+\end{figure}
+
+We ran this code on six cores with all data allocated in the same
+processor's memory. We varied the size of the local working set from 2KB
+to 4MB, and ran both 0 and 32 local updates for each pointer
+traversal. We measured the overall reference rate, including both the 
+
+Figure~\ref{fig:cache-pressure} shows the result. On the left of the
+figure, we see the list-traversal-only case, where we allocate
+per-coroutine space, but make no references to it. As we would expect,
+the reference rates grow with the number of coroutines just as in
+Figure~\ref{fig:multi-green}. On the right of the figure, we see the
+case with 32 updates for each list traversal. While performance
+decreases for large working set sizes and large number of coroutines,
+we see speedup for up to 128KB working set size with 8 coroutines per
+core.
+
+Finally, to simulate the performance of pointer chasing in a
+multi-node system, we modified the scheduler of our coroutine library
+to include a delay before a coroutine can be rescheduled, imitating
+the network transit delay even though we are referencing local
+memory. Recently published measurements of Infiniband latencies
+\todo{cite} suggest we might expect 1.1 $\mu$s source-to-destination
+latencies between two computers connected back-to-back; we assume a
+switch transit delay of 400 ns in each direction and thus estimate a 3
+$\mu$s round-trip delay. In this experiment, once a coroutine has
+yielded, we use the core's timestamp counter to ensure it does not get
+rescheduled for 3 $\mu$s.
+
+\begin{figure}[h]
+  \begin{center}
+    \includegraphics[width=0.5\textwidth]{figures/multi-green-delay7800-edited.pdf}
+  \end{center}
+  \caption{Pointer chasing with simulated network delay.}
+  \label{fig:network-delay}
+\end{figure}
+
+We ran these experiments with two sources of memory concurrency: each
+core ran up to 250 coroutines, and each coroutine made between 1 and 4
+concurrent references. The results are shown in
+Figure~\ref{fig:network-delay}. We are still able to reach a
+near-maximum rate of 273 million references per second, but at least 3
+concurrent references per coroutine are required. Since a single
+reference per coroutine achieves 236 million references per
+second. Any network interface would be connected through a QPI link,
+which we measured to have a bandwidth limit of 175 million references
+per second, our runtime appears to have the capacity to chase pointers
+in a remote memory.
+
+\todo{may want to rerun with memory on remote core to incorporate QPI limit?}
+
+
+%\todo{Begin eval insert}
+%\input{evaluation}
+%\todo{End eval insert}
 
 \section{Related work}
 
