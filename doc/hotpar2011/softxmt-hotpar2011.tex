@@ -61,8 +61,8 @@ The most interesting computational challenge comes from large,
 low-diameter, power law graphs: this combination makes extracting
 performance difficult. Their size keeps them from fitting in a single
 commodity machine's memory. Their low diameter means that they are
-difficult to lay out with locality: every node needs to be near every
-other node. Their power law distribution means that a few vertices
+difficult to lay out with locality: every vertex needs to be near every
+other vertex. Their power law distribution means that a few vertices
 generate much more work than the rest, leading to computational
 imbalance and even less locality. Together, these properties lead to a
 difficult conclusion: each edge traversal is likely to be a very
@@ -73,8 +73,8 @@ implement efficient computations for these graphs. The Cray XMT is an
 example of such an approach: it solves the memory latency problem
 through concurrency rather than caching. Each XMT processor supports
 128 hardware contexts and 1024 outstanding memory operations, and is
-able to switch contexts every cycle. This ability comes at a cost: the
-XMT is an expensive, non-commodity machine.
+able to switch contexts every cycle \todo{cite XMT description}. This ability comes at a cost: the
+XMT is an expensive, non-commodity machine. \todo{don't we want to also say XMT has poor performance on x kind of apps?}
 
 
 \begin{figure*}[htbp]
@@ -130,7 +130,7 @@ global space: its value is in providing high bandwidth random access
 to any word in a shared data structure by any processor.
 
 Whereas in the PGAS model coherency of global copies is implictly
-maintained across the system, we forego caching of globally shared
+maintained across the system \todo{cite pgas?}, we forego caching of globally shared
 data.  A node can exploit temporal locality of data stored in
 the global space only by first copying it into the node's local space.
 In this way, a node can access data at random across the system while
@@ -166,7 +166,7 @@ abundant to increase the throughput of global synchronization.
 
 Thus, the programming model provides the programmer with options: express
 locality within the private space, and it will be exploited to reduce
-latency and bandwidth; express concurrency, and it will be used toward
+latency and bandwidth \todo{exploited by what? by the exisiting locality hardware like cache hierarchy?}; express concurrency, and it will be used toward
 tolerating latency and reducing the cost of bandwidth.
 
 \begin {comment}
@@ -287,7 +287,7 @@ minimum number of registers allowed by the ABI, and depend on the
 compiler to save and restore any other registers in use. We minimize
 context switch time both by keeping contexts small and by doing all
 switching and scheduling in user space, as in \todo{cite other green
-  threads packages}.
+  threads packages, like qthreads}.
 
 There are a number of possibilites for coroutine scheduling.
 Ideally, a thread would be rescheduled when its request had
@@ -330,14 +330,14 @@ blocking reads and writes for the complete operation. Since we expect
 these global references to have low locality, we use the
 ``non-temporal'' form of prefetch, which tries to bring the data near
 the core without disturbing the state of the cache
-hierarchy. \todo{cite intel docs}
+hierarchy \cite{intel:swdev}.
 
 \subsubsection{Multi-node ideas}
 
 We believe we will need hundreds of outstanding memory references per processor to
 cover the latency of remote references in a multi-node
-system. Unfortunately, commodity processors have much smaller limits
-on memory concurrency: section \todo{cite evaluation} finds a limit of
+system\todo{ can we make a stronger statement? we know it will be 300$+$ according to our calculations}. Unfortunately, commodity processors have much smaller limits
+on memory concurrency: section~\ref{subsubsec:evalsinglebase} finds a limit of
 36 concurrent loads. We will have to manage memory concurrency on our
 own to avoid this limit. We describe approaches in both software and
 hardware.
@@ -451,6 +451,7 @@ We first characterize the performance of our test machine's memory
 system. Then we use these results to evaluate the performance of our runtime within a single node.
 
 \subsubsection{Base memory system performance}
+\label{subsubsec:evalsinglebase}
 \todo{title might be improved}
 
 We measured two parameters: the maximum random reference
