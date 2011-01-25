@@ -56,15 +56,17 @@ areas such as social networks and bioinformatics. \todo{more!}
 % node. Even with that capacity, new suggestions could only be computed
 % every two days \cite{Backstrom:2010p90}.
 
+
 The most interesting computational challenge comes from large,
 low-diameter, power law graphs: this combination makes extracting
 performance difficult. Their size keeps them from fitting in a single
 commodity machine's memory. Their low diameter means that they are
-difficult to lay out with locality. Their power law distribution means
-that a few vertices generate much more work than the rest, leading to
-computational imbalance and even less locality. Together, these
-properties lead to a difficult conclusion: each edge traversal is
-likely to be a very expensive cache miss.
+difficult to lay out with locality: every node needs to be near every
+other node. Their power law distribution means that a few vertices
+generate much more work than the rest, leading to computational
+imbalance and even less locality. Together, these properties lead to a
+difficult conclusion: each edge traversal is likely to be a very
+expensive cache miss.
 
 Multithreading is a technique that has been used successfully to
 implement efficient computations for these graphs. The Cray XMT is an
@@ -91,14 +93,15 @@ We want the best of both worlds. Our goal is to build a system that
 has good performance on these low-locality graph codes but is
 implemented with cheap commodity processors.
 
-Figure~\ref{fig:system-overview} is a schematic of such a
-system. It is composed of multiple nodes built with commodity
+Figure~\ref{fig:system-overview} shows the structure of our
+proposal. It is composed of multiple nodes built with commodity
 processors, communicating over an Infiniband network. We add two
-components: a runtime system, responsible for executing the user's threads,
-and a global memory manager, responsible for facilitating memory
-operations to the non-coherent global memory shared across the nodes.
-This memory manager is the only component that might require hardware,
-but we are exploring a mix of hardware and software implementations.
+components: a runtime system, responsible for executing the user's
+threads, and a global memory manager, responsible for facilitating
+memory requests to the non-coherent global memory shared across the
+nodes.  This memory manager is the only component that might require
+hardware, but we are exploring a mix of hardware and software
+implementations.
 
 This paper explores the feasibility of our multi-node goal using a
 single-node implementation of our lightweight threading runtime. We
@@ -171,6 +174,8 @@ spaces.  Locality may be exploited directly by the programmer in the
 node private address spaces, just as in a conventional cache-coherent
 multiprocessor node.  In contrast, locality cannot be exploited in 
 the global space.
+
+\todo{explain why global address space is good}
 
 Whereas in the PGAS model coherency of global copies is implictly
 maintained across the system, we forego caching of globally shared
@@ -282,184 +287,191 @@ as the main thread, as in the common  fork-join model of parallelism.
 
 \end{comment}
 
-\section{Approach}
+\section{Implementation}
 \label{sec:approach}
 
-Our goal is to enable high throughput on graphs having two challenging
-properties. First, the graphs' combination of sparseness and low
-degree means there is little locality to be exploited. Second, the
-graphs are larger than a single node's memory and do not partition
-well because of low diameter \todo{enough explanation now?}. We must spread the graph across multiple nodes
-and send memory operations over a network. If memory requests are
-uniformly distributed over the working set, a given node will make as
-many accesses to remote nodes' memory as there are remote requests to the local node's memory coming in.
 
-We would like to run as fast as current hardware will let us. Pin
-bandwidth is the tightest resource: Intel's QuickPath Interconnect
-(QPI) allows approximately 100 million requests per second
-\cite{quickpath:website} \todo{specifically 25.6GB/s two way, which we expect 6.4GB/s for one way for outgoing request}, and recent interconnect products allow similar request
-rates, with a round-trip latency of approximately 3$\mu$s
-\todo{cite}. Little's law tells us then that we must support on the
-order of 300 concurrent memory operations--and thus, up to this many coroutines--to
-cover this latency.
+The goal of our implementation is to use multithreading to tolerate
+the latency of random accesses to memory in a global address space
+spread across multiple nodes. This goal has three key challenges:
 
-These requirements drive the design of our system. There are three key
-components. First, the system needs lightweight context switches (coroutines) to be able to support many contexts--thereby increasing memory concurrency available--with minimal impact on performance. Second, a memory management subsystem must support many concurrent accesses to a global address space. Third, the system must provide synchronization at a fine-granularity \todo{this last one sounds incomplete because no reason given}.
+\begin{itemize}
+\item {\bf Lightweight multithreading}
 
-\subsection{Lightweight context switch}
-\todo{can we include in the title something that means lightweight and good scheduling?}
+  We expect to need hundreds of
+  threads to tolerated a cluster's network latency, so our threading
+  implementation must have low overhead.
+  
+\item {\bf Concurrency in global memory references}
+
+  A thread making a long-latency global memory reference must be able
+  to yield and allow other threads to make progress.
+
+\item {\bf Low overhead synchronization}
+
+  In a system with high degrees of concurrency, lightweight
+  synchronization primitives are important.
+\end{itemize}
+
+We discuss our approach to solving each of these challenges in
+turn. For each one, we discuss both our current single-node
+implementation and ideas for a multi-node implementation.
+
+\subsection{Lightweight multithreading}
+
+Our approach to supporting many lightweight threads uses a cooperative,
+user-level multitasking system built using coroutines.
 
 There are three main concerns in designing the coroutine
-mechanism. First, contexts must be small, so many coroutines can be
-active without monopolizing the cache. Second, context switches must
-be fast, so that overhead does not swamp actual work. Third, when a
-coroutine yields, we must choose a suitable coroutine to run next.
+mechanism. First, the working set of each coroutine must be small, so
+many coroutines can be active without monopolizing the cache. Second,
+context switches must be fast, so that overhead does not swamp actual
+work. Third, when a coroutine yields, we must choose a suitable
+coroutine to run next.
 
 We minimize context size by treating context switches as function
-calls, as in \cite{charm}. This allows us to save and restore the
+calls, as in~\cite{charm}. This allows us to save and restore the
 minimum number of registers allowed by the ABI, and depend on the
 compiler to save and restore any other registers in use. We minimize
 context switch time both by keeping contexts small and by doing all
 switching and scheduling in user space, as in \todo{cite other green
   threads packages}.
 
-The choice of which coroutine to run next presents us with a
-tradeoff. The simplest scheduler chooses coroutines to execute in
-round-robin fashion. But this may lead to performance problems: a
-coroutine might be scheduled before the event which caused it to yield (e.g., a long latency memory access)
-has completed, stalling the pipeline and keeping other coroutines from
-progressing. A coroutine might also be scheduled long after the event
-which caused it to yield has completed; while this wouldn't block
-other coroutines from proceeding, it would add unnecessary latency to
-the yielding coroutine. A more intelligent scheduler might allow
-coroutines to execute only when they were ready, but this could
-increase the overhead of context switching. Our initial implementation
-takes the simple approach, but more investigation is warranted.
+There are a number of possibilites for coroutine scheduling.
+Ideally, a thread would be rescheduled when its request had
+completed, but this may complicate the scheduling decision and slow
+down context switches. A simple round-robin scheduler may be sufficient.
 
-\subsection{Accessing Global Memory}
+\subsubsection{Single-node implementation}
+We implemented coroutines as described, with a round-robin
+scheduler. If a prefetched data value is no longer in the cache when
+the coroutine is rescheduled and the value is used, the coroutine pays
+the full cost of the fetch.
 
-% Our goal is to support many concurrent accesses to a global address
-% space spread across nodes in a cluster. We can draw on hardware
-% support developed for the Partitioned Global Address Space family of
-% languages to accomplish this.
+\subsubsection{Multi-node ideas}
+We will explore how the memory manager and coroutine scheduler may
+interact, so that threads waiting on long-latency memory operations or
+synchronization operations will be scheduled soon after their
+operations have completed. 
 
-% We draw on libraries and network support 
-% goal. Languages in the Partitioned Global Address Space family such as
-% X10 and Chapel have similar goals, 
+\subsection{Concurrency in global memory references}
+
+To enable concurrency in memory references, we break each read or
+write into two operations: the {\em issue} operation and the {\em
+  complete} operation. The read issue operation starts data moving
+towards the processor and returns immediately, like a prefetch; the
+read complete operation blocks until data is available. The write
+issue operation takes data along with an address, and starts an
+asynchronous write; the write complete operation blocks until the
+write is committed.
+
+A read operation in user code consists of three steps: a {\em read
+  issue}, which causes the data to start moving; a {\em yield}, which
+causes another thread to start executing, overlapping the read
+latency; and, once the reading thread has been rescheduled, a {\em
+  read complete} blocks until the data is available. A write operation
+follow the same pattern.
+
+\subsubsection{Single-node implementation}
+We use prefetch instructions for the issue operation, and regular
+blocking reads and writes for the complete operation. Since we expect
+these global references to have low locality, we use the
+``non-temporal'' form of prefetch, which tries to bring the data near
+the core without disturbing the state of the cache
+hierarchy. \todo{cite intel docs}
+
+\subsubsection{Multi-node ideas}
+
+We believe we will need hundreds of outstanding memory references per processor to
+cover the latency of remote references in a multi-node
+system. Unfortunately, commodity processors have much smaller limits
+on memory concurrency: section \todo{cite evaluation} finds a limit of
+36 concurrent loads. We will have to manage memory concurrency on our
+own to avoid this limit. We describe approaches in both software and
+hardware.
+
+One approach is for user code to delegate global references to a
+special {\em global memory manager thread}, running on another core in
+the chip. This thread translates the global address into a network
+destination, makes the request through the network card to the remote
+node, checks for completion, and delivers the returned data to the
+requesting thread. On the remote node, the remote memory manager
+thread would perform the memory operation and return the data to the
+requesting node.
+
+This approach has the benefit of enabling our entire system to be
+build using commodity parts, but its potential for performance is not
+clear. We have increased the overhead of a single memory operation:
+what in the single node case was a simple read, is now multiple
+queuing operations between threads and multiple reads and writes over
+the processor's link to the network interface.
+
+Another approach moves the global memory management to a hardware
+device. We can add a coprocessor FPGA in a processor socket, listening
+to coherence messages on the bus. Note that this accelerator is only a
+memory proxy, not a compute coprocessor. When it detects a reference
+to memory stored on a remote node, the accelerator would issue the
+request through the network controller and track its progress,
+delivering the data to the requesting thread when it was ready.
+
+All global shared memory would be mapped into a segment of the local
+address space on each node. The accelerator would do the
+address-to-node translation. In addition, to support the issue and
+complete operations for concurrency support, commands would be encoded
+in the upper bits of the address: then each remote word would have multiple
+addresses on the local node. Reading from the {\em issue} address would
+immediately return a dummy value, but the accelerator would issue the
+request over the network. Reading from the {\em complete} address
+would block until the data was available.\todo{adjust with carl's suggestions}
+
+With either approach, the question of request aggregation will be
+important. Each memory request we make is small: 8 bytes is a likely
+size. But most networks are optimized for bulk transfers of a few
+thousand bytes. To improve network utilization, we will explore the
+aggregation of multiple memory operations to different addresses on
+the same remote node. 
 
 
-% It is also useful to access this low-locality data without disturbing
-% the thread contexts and local storage in the cache. Current x86
-% processors support non-temporal loads and stores. These memory
-% operations are quite relevant for our problem: they are designed to
-% move data without polluting the cache. Using these instructions works
-% better than mapping the low-locality data as uncached, since that
-% restricts the processors' ability to reorder operations.
+\subsection{Low-overhead synchronization}
 
+Just as with reads and writes, we enable concurrency around
+synchronization operations by splitting them into {\em issue} and {\em
+  complete} phases.
 
-
-Following the lead of the PGAS family of languages, we will use
-the RDMA functionality provided by modern Infiniband networks to
-access our global memory. \todo{rethink?}
-
-These networks allow us to read and write memory directly from remote
-nodes, but they do so through a low-level interface designed to be
-hidden behind a library. Loads and stores to global memory must be
-replaced with calls to a library. This library causes the network
-interface to fetch the remote data and place it in a temporary
-buffer. When the requesting coroutine is scheduled again, data is
-returned from the buffer and execution proceeds.
-
-\subsubsection{Software management}
-In order to minimize memory access overhead, the memory operation
-library calls do not interact with the network interface
-directly. Instead, they queue their operations to another thread, the
-{\em memory manager thread}, running on another core in the CPU. This thread
-translates the global address into a network destination and issues
-the network operation, checks for completion, and manages the returned
-data buffers.
-
-But we have to be careful---directing memory requests from multiple
-compute threads to a single memory manager thread may reduce memory
-concurrency. And we have increased the overhead of a single memory
-operation: what in the single node case was a simple read, is now
-multiple queuing operations between threads and multiple reads and
-writes over QPI to the network interface. Adding more memory manager
-threads may enable more memory concurrency, but the overhead is still high \todo{why? because lots of code to run? so accel by impl in hardware. Maybe this is answered by the "what in...is now" already}
-
-\subsubsection{Hardware management}
-\todo{might want to call it accelerator throughout after saying FPGA once}
-Considering this overhead, we propose hardware acceleration with a {\em memory manager
-  FPGA}, a coprocessor FPGA inserted into a Xeon socket so it can
-participate in the node's coherence domain. This coprocessor does no
-computation---it would only manage the global memory requests of the
-main CPU, performing the function of the memory manager thread
-described earlier.
-
-By participating in the coherence domain, the memory manager FPGA can
-act as a proxy for the rest of global memory. It advertises the
-address space of the rest of the system, and translates local loads
-and stores to addresses on remote nodes into the network operations
-required.
-
-Unfortunately, current processors do not provide sufficient hardware
-resources for us to reach our concurrency target using this
-approach. Each core in Intel's X5650 Xeon supports only 10 outstanding
-misses from its private L2; the entire chip is limited to 32 L2 misses
-to local memory and 12 L2 misses for memory reached over the QPI
-bus. A simple translation of a local load to a network access would
-tie up one of these slots for the entire multi-microsecond latency of
-the request. To allow the amount of concurrency we need, we must bypass these structures; the CPU needs to direct the memory manager FPGA
-to do work on its behalf without tying up its own resources.
-
-To accomplish this, we encode commands in the high-order bits of
-remote memory addresses. The memory manager FPGA advertises each
-remote address twice \todo{this sounded like an active thing the FPGA is doing each time you make remote request, first time I read it. Consider just sticking to cmd as upper order address bits than saying advertise each address twice}. The first address is used for blocking reads and
-writes---any access incurs the full latency of the remote
-access. \todo{verify writes block?} The second address is used for
-prefetches and asynchronous writes. These addresses differ by one
-high-order bit, easily set with a mask in a macro. A read from the
-prefetch address starts the network transaction, but immediately
-returns a dummy value. When the value arrives, it is stored in a
-temporary buffer; when the requesting coroutine is scheduled again, it
-executes the blocking read, and the memory manager immediately returns
-the value from the buffer \todo{is this necessarily restricted to the memory manager returning value from buffer rather than buffer in local memory?  maybe it is, since if buffer was in local mem, would have to also write a full bit or make two reads: valid bit and data}. \todo{this isn't fully baked---do we want
-  to include this sort of detail?}
-
-\subsection{Synchronization}
-
-In systems with hundreds of threads per node, lightweight
-synchronization is important. While we have not implemented any
-synchronization primitives yet, full-empty bits are a natural choice
-given our programming model \todo{say why natural choice unless programming model section makes this point already}. Two questions then arise: at what
-granularity should full-empty bits work, and what component should do
-the synchronization?
-
-We expect most data accesses to be to 64-bit words. It is possible to
-support full-empty bit synchronization on arbitrary words by
-allocating additional storage for the full-empty bits, and translating
-each atomic full-empty operation into a sequence of memory operations
-that modify the data and full-empty bit atomically. 
+Implementing full-empty bit support efficiently on a platform not
+designed for them is a challenge. It is possible to support full-empty
+bit synchronization on arbitrary words by allocating additional
+storage for the full-empty bits, and translating each atomic
+full-empty operation into a sequence of memory operations that modify
+the data and full-empty bit atomically, but this may have high
+overhead. \todo{cite qthreads somehow}
 
 One potential optimization is to limit full-empty synchronization to
-pointers to aligned 64-bit words. This leaves the bottom three bits
-free to store the full-empty bits. These bits would be masked out when
-the pointer was returned to the user.
+pointers to aligned data types, and reuse wasted space in the
+low-order bits of the pointer for full-empty bit storage. These bits
+would be masked out when the pointer was returned to the user.  This
+allows us to synchronize any data type through one level of
+indirection.
 
-These techniques can be implemented in software; \cite{qthreads} is
-one example. Alternatively, atomic operations could be delegated to a
-memory manager FPGA as described in the previous section. The address
-command encoding would be extended to support the various full-empty
-operations.
+\subsubsection{Single-node system}
+Just as with reads and writes, we prefetch and yield before performing
+a synchronization operation. We support only the synchronization
+operations supported by our development platform; we have not
+implemented full-empty bits.
 
-It might seem natural to use the FPGA as a memory controller as
-well, storing all full-empty-bit-capable memory in DRAMs attached to
-the FPGA. While this is conceptually simple, it does make the
-programming model and the design more complicated. Another possibility
-would be to store only the full-empty bits in memories attached to the
-FPGA, and leave data in memory attached to the CPU. We believe that
-starting simple is best: both data and full-empty bits should be
-stored in the CPU's memory. \todo{discuss QPI bandwidth differences}
+\subsubsection{Multi-node ideas}
+
+Synchronization operations can also be delegated to a memory manager
+thread or accelerator. This may simplify the implementation of
+synchronization operations: if only a single core (or single
+accelerator) is accessing the data being synchronized, the use of
+memory fences may be reduced or eliminated.
+
+Note that we are not advocating using an FPGA as a memory controller
+with attached DRAM and additional storage for full-empty bits. We
+believe this unnecessarily complicates the design for such a
+component. Our goal is to minimize the amount of hardware design our
+proposal requires.
 
 % 2TB global memory => 68GB of distributed FE bits.  This seems reasonable, given that a 2TB system might have 64 nodes, so ~1GB per memory manager if one manager per node.
 
