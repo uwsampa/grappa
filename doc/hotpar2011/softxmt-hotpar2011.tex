@@ -534,7 +534,7 @@ library.
 %\caption{Pseudocode for pointer chasing with local updates.}
 \label{fig:pointerupdate}
 \end{minipage}
-\caption{Pseudocode for: (a) pointer chasing without coroutines, (b) pointer chasing using coroutines, (c) pointer chasing with local updates.}
+\caption{Pseudocode for: (a) pointer chasing without coroutines, (b) pointer chasing using coroutines, (c) pointer chasing with local updates. Coroutine code, as in (b), might also include ILP like what (a) depends on for memory concurrency, e.g., by doing multiple prefetches to independent lists, switch, then multiple reads.}
 \label{fig:code}
 \end{figure*}
 
@@ -590,7 +590,7 @@ coroutines' context storage.
 
 To find the maximum reference rate obtainable using our coroutine
 library, we modified our pointer chasing benchmark as shown in
-figure~\ref{fig:code}b. Now there are two sources of offered
+Figure~\ref{fig:code}b. Recall that the baseline code in Figure~\ref{fig:code}a relied solely on ILP to achieve memory concurrency, which may not be abundant in real applications. Using coroutines, there are two sources of offered
 concurrent references: the ILP exploited by the processor, and the
 memory concurrency enabled by prefetching and switching to a new
 coroutine. As with our first experiment, we allocated the lists in the
@@ -680,7 +680,7 @@ the network transit delay even though we are referencing local
 memory. Recently published measurements of Infiniband latencies
 \todo{cite} suggest we might expect 1.1 $\mu$s source-to-destination
 latencies between two computers connected back-to-back; we assume a
-switch transit delay of 400 ns \todo{how many hops} in each direction and thus estimate a 3
+switch transit delay of 400 ns \todo{how many hops? 1or3?} in each direction and thus estimate a 3
 $\mu$s round-trip delay. In this experiment, once a coroutine has
 yielded, we use the core's timestamp counter to ensure it does not get
 rescheduled for 3 $\mu$s.
@@ -700,7 +700,11 @@ Figure~\ref{fig:network-delay}. We are still able to reach a
 near-maximum rate of 273 million references per second, but at least 2
 concurrent references per coroutine are required. Running with a single
 reference per coroutine achieves 236 million references per
-second. Any network interface would be connected through a QPI link,
+second. Note that the throughput keeps increasing up to around 850 total concurrent references offered, far more than the 36 we know the chip to support. This is because we have modeled the network latency by forcing coroutines to wait the extra time before using the data, so the physical miss buffers on our machine are not tied up any longer than usual.
+
+We also observe that to achieve a throughput equal to the expected max outgoing network bandwidth (100 million references per second), \todo{reference earlier section calculation?} when there is only one reference per context available, we require 320 coroutines. This is close to the minimum of 300 concurrent references needed to tolerate $3 \mu s$ latency.
+
+Any network interface would be connected through a QPI link,
 which we measured to have a bandwidth limit of 175 million references
 per second, so our runtime appears to have the capacity to chase pointers
 in a remote memory. 
