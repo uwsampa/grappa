@@ -1,7 +1,7 @@
 %% move stuff to defs file
 \newcommand{\todo}[1]{{\bfseries [[#1]]}}
 %% To disable, just uncomment this line
- \renewcommand{\todo}[1]{\relax}
+%% \renewcommand{\todo}[1]{\relax}
 
 %\documentclass{acm_proc_article-sp}
 \documentclass[10pt,nocopyrightspace,preprint]{sigplanconf}
@@ -550,7 +550,7 @@ doing the traversal. We ran 10 traversals, measuring average rate in each, and r
 
 \begin{figure}[h]
 	\begin{center}
-		\includegraphics[width=0.5\textwidth]{figures/multi-listwalk-totalconc-edited.pdf}
+		\includegraphics[width=0.47\textwidth]{figures/multi-listwalk-totalconc-edited.pdf}
 	\end{center}
 	\caption{Throughput of listwalk versus total number of
           concurrent references offered by the cores. Data points for
@@ -599,7 +599,7 @@ same processor as the cores doing the traversal.
 
 \begin{figure}[h]
   \begin{center}
-    \includegraphics[width=0.5\textwidth]{figures/multi-green-edited.pdf}
+    \includegraphics[width=0.47\textwidth]{figures/multi-green-edited.pdf}
   \end{center}
   \caption{Pointer chasing with coroutines, with one reference per
     coroutine. Number of coroutines per core is $\textit{total concurrent references} / \textit{number of cores}$.}
@@ -711,7 +711,6 @@ which we measured to have a bandwidth limit of 175 million references
 per second, so our runtime appears to have the capacity to chase pointers
 in a remote memory. 
 
-\todo{do we want to include that the memory system imposes max limit so really more throughput is still achievable if there are enough ILP memory concurrency?}
 \todo{also have results that remote cores over QPI plus delay 3us can make it up to the 175M, with sufficient number of coroutines}
 
 
