@@ -13,12 +13,16 @@
 
 \numberofauthors{7}
 \author{
-Jacob Nelson, Brandon Myers, Andrew Hunter, Dan Grossman, Luis Ceze\\
+Jacob Nelson, Brandon Myers, Andrew Hunter, Dan Grossman, Mark Oskin,
+Carl Ebeling, Luis Ceze\\
 University of Washington\\
-\email{\{nelson, bdmyers, ahh, djg, luisceze\}@cs.washington.edu}\\ \\
+\email{\{nelson, bdmyers, ahh, djg, oskin, ebelin, luisceze\}@cs.washington.edu}\\ \\
 Simon Kahan \\ 
 Pacific Northwest National Lab\\
 \email{\{skahan\}@cs.washington.edu}
+Preston Briggs\\ 
+Cray Inc.\\
+\email{\{preston.briggs\}@gmail.com}
 }
 
 \maketitle
@@ -69,24 +73,47 @@ through concurrency rather than caching. Each XMT processor supports
 able to switch contexts every cycle. This ability comes at a cost: the
 XMT is an expensive, non-commodity machine.
 
+
+\begin{figure*}[htbp]
+  \begin{center}
+    \includegraphics[width=0.9\textwidth]{figures/system-overview.pdf}
+	\end{center}
+	\caption{Overview of our proposed system design. The base
+          system is a cluster of commodity nodes and interconnect. We
+          add a latency-tolerant runtime and a global memory manager
+          to obtain efficient access to the global address space. Only
+          the shaded components may require hardware design.}
+	\label{fig:system-overview}
+\end{figure*}
+
 We want the best of both worlds. Our goal is to build a system that
 has good performance on these low-locality graph codes but is
-implemented with commodity processors. The core of our approach is a
-lightweight coroutine library designed to overlap long-latency memory
-prefetches with other contexts' computation.
+implemented with cheap commodity processors.
 
-In this paper, we describe our single-node runtime for latency
-tolerance, along with our plans for scaling to multiple nodes.  We
-evaluate the performance of our runtime using a set of list traversal
-benchmarks designed to model certain worst-case behaviors of these
-large graph problems. 
+Figure~\ref{fig:system-overview} is a schematic of such a
+system. It is composed of multiple nodes built with commodity
+processors, communicating over an Infiniband network. We add two
+components: a runtime system, responsible for executing the user's threads,
+and a global memory manager, responsible for facilitating memory
+operations to the non-coherent global memory shared across the nodes.
+This memory manager is the only component that might require hardware,
+but we are exploring a mix of hardware and software implementations.
 
-The rest of the paper is organized as follows. We present related work
-in section~\ref{sec:related}. We describe the programming model we are
-implementing in section~\ref{sec:model}, and describe our approach for
-implementing this model in section~\ref{sec:approach}. We evaluate our
-latency-tolerant runtime in section~\ref{sec:evaluation} and conclude
-in section~\ref{sec:conclusion}.
+This paper explores the feasibility of our multi-node goal using a
+single-node implementation of our lightweight threading runtime. We
+use prefetch instructions together with lightweight threads to
+tolerate the latency of DRAM access on the local node node. We use
+pointer chasing benchmarks to verify our runtime's overhead is
+acceptable. We also model the effects of pointer chasing on a remote
+node.
+
+The rest of the paper is organized as follows. We describe our
+proposal from a programmer's viewpoint in section~\ref{sec:model}. We
+describe the implementation of our latency-tolerant runtime and plans
+for extending to multiple nodes in section~\ref{sec:approach}. We
+evaluate our runtime in section~\ref{sec:evaluation}.  We present
+related work in section~\ref{sec:related} and conclude in
+section~\ref{sec:conclusion}.
 
 \section{Related work}
 \label{sec:related}
