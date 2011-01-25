@@ -424,6 +424,7 @@ with attached DRAM and additional storage for full-empty bits. We
 believe this unnecessarily complicates the design for such a
 component. Our goal is to minimize the amount of hardware design our
 proposal requires.
+\todo{but are we eliminating the possibility of FE-only storage on the FPGA?}
 
 % 2TB global memory => 68GB of distributed FE bits.  This seems reasonable, given that a 2TB system might have 64 nodes, so ~1GB per memory manager if one manager per node.
 
@@ -439,7 +440,7 @@ chips and 24GB of RAM, with hyperthreading disabled. These
 chips use a NUMA memory architecture, where each chip has
 its own integrated memory controller and DIMMs; references to other
 chips' memory are carried over Intel's cache-coherent QuickPath
-Interconnect (QPI).
+Interconnect (QPI) \cite{quickpath:website}.
 
 Our evaulation consists of two parts. First, we demonstrate that the runtime system can achieve the same performance as when there is explicit memory concurrency available: we measure pointer chasing performance and
 the effects of cache pressure due to the number of contexts required. Second, we look at the runtime within the multi-node picture and simulate the effects of fetching memory over a network to show that the runtime can reach the level of concurrency required to hide the latency. In each part we begin by studying relevant aspects of our test machine's memory system so we can interpret our runtime results.
