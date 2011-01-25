@@ -142,9 +142,8 @@ Our shared-memory programming model partitions the overall address
 space into a global shared address space and per node private address
 spaces.  Locality may be exploited directly by the programmer in the
 node private address spaces, just as in a conventional cache-coherent
-multiprocessor node.  In contrast, the global space is explicitly
-uncached.  There, every processor can access any word of memory
-directly via its unique global address.
+multiprocessor node.  In contrast, locality cannot be exploited in 
+the global space.
 
 Whereas in the PGAS model coherency of global copies is implictly
 maintained across the system, we forego caching of globally shared
