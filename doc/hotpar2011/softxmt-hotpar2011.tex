@@ -99,9 +99,12 @@ slow silicon.)  The XMT can be seen as simultaneous multithreading
 essentially the same, but the XMT allows hundreds of contexts (modern
 Intel SMT implementations are generally limited to two.) The Alewife
 system \cite{agarwal-alewife} also switches contexts (in hardware) to
-hide latency on remote-node accesses.
+hide latency on remote-node accesses.  Cyclops \cite{almasi-cyclops}
+allows hundreds of independently executing contexts to share FPUs,
+caches, and paths to memory, but does not context switch or share
+basic execution hardware.  
 
-Modern programmable GPUs can also be interpreted in using an XMT-like
+Modern programmable GPUs, such as nVidia's CUDA programming model, can also be interpreted in using an XMT-like
 model under the hood;
 % Do I need to include a citation here?
 while they generate large numbers of available execution contexts via
@@ -115,15 +118,22 @@ remote references, SCM assumes a high hit rate and traps to an
 interrupt routine which performed a context switch upon a cache miss.  The 2000-era processors had
 short enough latencies that using more than two contexts generally
 produced slowdown.
- b. TAM
- c. qthreads
-Of course, our system is proceeded by the hardware
-\emph{software controlled multithreading}, 
 
-\todo{actually write this}
+Partitioned global address space models, such as that used in Unified Parallel C,
+% definitely need a citation here
+ share our approach of exposing all data (even remote data)
+ transparently to any threads and have largely solved the problems of
+ how to efficiently translate those remote reads into message
+ passing.  However, their programming models emphasize locality more
+ than our work does; while a program can examine any vertex in a UPC
+ program at any time, it probably shouldn't (whereas our kernels rely on our
+ latency hiding technique to make common remote references fast.
 
-
-
+The value of the information in extremely large and sparse graphs is
+rapidly growing.  The GraphCT toolkit \cite{ediger-graphct} used an XMT to perform
+sophisticated analysis on data from Twitter, identifying important
+actors and their networks of influence, and it can scale to the full
+size of graphs such as Facebook's friend network.
 \section{Programming model}
 \label{sec:model}
 
