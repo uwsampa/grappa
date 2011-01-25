@@ -7,6 +7,7 @@
 \usepackage{url}
 \usepackage{fancyvrb}
 \usepackage{alltt}
+\usepackage{comment}
 \begin{document}
 
 \title{Can We Crunch the Social Graph on the Cheap?}
@@ -123,6 +124,55 @@ why not wait for more cores?
 \section{Programming model}
 \label{sec:model}
 
+Our programming model partitions the address space into a shared
+global shared address space and per node private address spaces.
+Locality may be exploited directly by the programmer in the node
+private address spaces, just as in a conventional cache-coherent
+multiprocessor node.  In contrast, the global space is explicitly
+uncached.  There, every processor can access any word of memory
+directly via its unique global address.  
+
+Whereas in the PGAS model coherency of global copies is implictly
+maintained across the system, we forego caching of globally shared
+data.  A node can exploit locality within a chunk of data stored in
+the global space only by first copying it into the node's local space.
+In this way, a node can access data at random across the system while
+incurring no hardware coherence overhead: consistency is enforced by
+our mechanisms for explicit global synchronization.
+
+The model promises efficiency subject to the presence of sufficient
+concurrency.  Exactly how that concurrency is expressed by the
+programmer is language dependent.  Our programming model serves to
+augment threaded programming languages so that they become latency
+tolerant on large address spaces.  Software multithreading is used to
+provide latency tolerance: a computation that is about to execute a
+long latency operation such as a remote memory reference initiates the
+operation and then yields to the scheduler, which quickly resumes
+execution of another computation.  Concurrency is also used -- via
+aggregation of requests to a common node destination -- to make more
+efficient use of network bandwidth and in some cases reduce bandwidth
+demands.
+
+Synchronization on locations in the node private address space is the
+same as on conventional systems.  Synchronization on global addresses
+works differently: we provide atomic operations such as {\tt
+  int\_fetch\_add} as well as operations using full-bits, as on the
+Cray XMT.  As is true for other long latency operations,
+synchronization latency is tolerated by yielding to the scheduler.
+Even non-blocking global atomics yield: atomic operations executed as
+x86 instructions sabbotage concurrency by forcing all outstanding
+memory references to complete before new ones can be issued.  By
+yielding, the core can switch to another computation while the
+synchronization is accomplished outside of the pipeline.  In addition,
+the implementation can exploit aggregation when concurrency is
+abundant to increase the throughput of global synchronization.
+
+Thus, the programming model provides the programmer with options: express
+locality within the private space, and it will be exploited to reduce
+latency and bandwidth; express concurrency, and it will be used toward
+tolerating latency and reducing the cost of bandwidth.
+
+\begin {comment}
 \todo{Change to discuss API:
 
 context switches:
@@ -190,6 +240,7 @@ Coroutines completing their work yield without adding themselves to
 the scheduling queue.  The last coroutine to exit in this way returns
 as the main thread, as in the common  fork-join model of parallelism.
 
+\end{comment}
 
 \section{Approach}
 \label{sec:approach}
