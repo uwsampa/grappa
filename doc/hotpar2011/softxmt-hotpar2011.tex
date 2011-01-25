@@ -1,30 +1,39 @@
 %% move stuff to defs file
 \newcommand{\todo}[1]{{\bfseries [[#1]]}}
 %% To disable, just uncomment this line
- %%\renewcommand{\todo}[1]{\relax}
+ \renewcommand{\todo}[1]{\relax}
 
-\documentclass{acm_proc_article-sp}
+%\documentclass{acm_proc_article-sp}
+\documentclass[10pt,nocopyrightspace,preprint]{sigplanconf}
 \usepackage{url}
 \usepackage{fancyvrb}
 \usepackage{alltt}
+\usepackage{graphicx}
 \usepackage{comment}
 \begin{document}
 
 \title{Can We Crunch the Social Graph on the Cheap?}
 
-\numberofauthors{7}
-\author{
-Jacob Nelson, Brandon Myers, Andrew Hunter, Dan Grossman, Mark Oskin,
-Carl Ebeling, Luis Ceze\\
-University of Washington\\
-\email{\{nelson, bdmyers, ahh, djg, oskin, ebelin, luisceze\}@cs.washington.edu}\\ \\
-Simon Kahan \\ 
-Pacific Northwest National Lab\\
-\email{skahan@cs.washington.edu}\\ \\
-Preston Briggs\\ 
-Cray Inc.\\
-\email{preston.briggs@gmail.com}\\
-}
+%\numberofauthors{7}
+%\author{
+%Jacob Nelson, Brandon Myers, Andrew Hunter, Dan Grossman, Mark Oskin,
+%Carl Ebeling, Luis Ceze\\
+%University of Washington\\
+%\email{\{nelson, bdmyers, ahh, djg, oskin, ebelin, luisceze\}@cs.washington.edu}\\ \\
+%Simon Kahan \\ 
+%Pacific Northwest National Lab\\
+%\email{skahan@cs.washington.edu}\\ \\
+%Preston Briggs\\ 
+%Cray Inc.\\
+%\email{preston.briggs@gmail.com}\\
+%}
+
+%todo format the UW names horizontally
+\authorinfo{Jacob Nelson, Brandon Myers, Andrew Hunter, Dan Grossman, Mark Oskin,
+Carl Ebeling, Luis Ceze}{University of Washington}{\{nelson, bdmyers, ahh, djg, oskin, ebelin, luisceze\}@cs.washington.edu}
+\authorinfo{Simon Kahan}{Pacific Northwest National Lab}{skahan@cs.washington.edu}
+\authorinfo{Preston Briggs}{Cray Inc.}{preston.briggs@gmail.com}
+
 
 \maketitle
 \begin{abstract}
