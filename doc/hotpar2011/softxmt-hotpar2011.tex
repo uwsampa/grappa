@@ -7,6 +7,7 @@
 \usepackage{url}
 \usepackage{fancyvrb}
 \usepackage{alltt}
+\usepackage{comment}
 \begin{document}
 
 \title{Can We Crunch the Social Graph on the Cheap?}
@@ -90,39 +91,101 @@ in section~\ref{sec:conclusion}.
 
 \section{Related work}
 \label{sec:related}
+The concept of using independent parallel contexts to tolerate latency
+is not novel.  The inspiration for our project is of course the Cray
+XMT \cite{feo-xmt}, which implemented a hardware version of our
+programming model (in what would today be considered exceptionally
+slow silicon.)  The XMT can be seen as simultaneous multithreading
+\cite{tullsen-smt} writ large; the technique and motivation is
+essentially the same, but the XMT allows hundreds of contexts (modern
+Intel SMT implementations are generally limited to two.) The Alewife
+system \cite{agarwal-alewife} also switches contexts (in hardware) to
+hide latency on remote-node accesses.  Cyclops \cite{almasi-cyclops}
+allows hundreds of independently executing contexts to share FPUs,
+caches, and paths to memory, but does not context switch or share
+basic execution hardware.  
 
+Modern programmable GPUs, such as nVidia's CUDA programming model, can also be interpreted in using an XMT-like
+model under the hood;
+% Do I need to include a citation here?
+while they generate large numbers of available execution contexts via
+a (semi-)explicit SIMD model, those SIMD instructions keep functional
+units satisfied by overlapping execution with the loads required for
+other contexts.
 
-\todo{actually write this}
+Similar techniques have also been used in software.  Mowry proposed a system \cite{mowry-scm} of \emph{software-controlled
+  multithreading}.  As opposed to our system of explicitly marked
+remote references, SCM assumes a high hit rate and traps to an
+interrupt routine which performed a context switch upon a cache miss.  The 2000-era processors had
+short enough latencies that using more than two contexts generally
+produced slowdown.
 
+Partitioned global address space models, such as that used in Unified Parallel C,
+% definitely need a citation here
+ share our approach of exposing all data (even remote data)
+ transparently to any threads and have largely solved the problems of
+ how to efficiently translate those remote reads into message
+ passing.  However, their programming models emphasize locality more
+ than our work does; while a program can examine any vertex in a UPC
+ program at any time, it probably shouldn't (whereas our kernels rely on our
+ latency hiding technique to make common remote references fast.
 
-
-Multithreading for latency tolerance has been explored in a number of directions.
-
-Hardware approaches: The Tera MTA and Cray XMT, the MIT Alewife
-project, ??? use hardware context switches to tolerate memory latency
-for large systems. More recently, Simultaneous Multi-Threading,
-Niagara, Cyclops, and even GPUs switch between multiple contexts to
-tolerate memory latency, for memory that is hundreds of cycles of
-away, rather than the thousands we must tolerate.
-
-
-software:
-
-Mowry's SCM
-
-Cullers' TAM
-
-qthreads
-
-cilk? tbb?
-
-why not wait for more cores?
-
-
-
+The value of the information in extremely large and sparse graphs is
+rapidly growing.  The GraphCT toolkit \cite{ediger-graphct} used an XMT to perform
+sophisticated analysis on data from Twitter, identifying important
+actors and their networks of influence, and it can scale to the full
+size of graphs such as Facebook's friend network.
 \section{Programming model}
 \label{sec:model}
 
+Our shared-memory programming model partitions the overall address
+space into a global shared address space and per node private address
+spaces.  Locality may be exploited directly by the programmer in the
+node private address spaces, just as in a conventional cache-coherent
+multiprocessor node.  In contrast, locality cannot be exploited in 
+the global space.
+
+Whereas in the PGAS model coherency of global copies is implictly
+maintained across the system, we forego caching of globally shared
+data.  A node can exploit temporal locality of data stored in
+the global space only by first copying it into the node's local space.
+In this way, a node can access data at random across the system while
+incurring no hardware coherence overhead: consistency is enforced by
+our mechanisms for explicit global synchronization.
+
+The model promises efficiency subject to the presence of sufficient
+concurrency.  Exactly how that concurrency is expressed by the
+programmer is language dependent.  Our programming model serves to
+augment threaded programming languages so that they become latency
+tolerant on large address spaces.  Software multithreading is used to
+provide latency tolerance: a computation that is about to execute a
+long latency operation such as a remote memory reference initiates the
+operation and then yields to the scheduler, which quickly resumes
+execution of another computation.  Concurrency is also used -- via
+aggregation of requests to a common node destination -- to make more
+efficient use of network bandwidth and in some cases reduce bandwidth
+demands.
+
+Synchronization on locations in the node private address space is the
+same as on conventional systems.  Synchronization on global addresses
+works differently: we provide atomic operations such as {\tt
+  int\_fetch\_add} as well as operations using full-bits, as on the
+Cray XMT.  As is true for other long latency operations,
+synchronization latency is tolerated by yielding to the scheduler.
+Even non-blocking global atomics yield: atomic operations executed as
+x86 instructions sabbotage concurrency by forcing all outstanding
+memory references to complete before new ones can be issued.  By
+yielding, the core can switch to another computation while the
+synchronization is accomplished outside of the pipeline.  In addition,
+the implementation can exploit aggregation when concurrency is
+abundant to increase the throughput of global synchronization.
+
+Thus, the programming model provides the programmer with options: express
+locality within the private space, and it will be exploited to reduce
+latency and bandwidth; express concurrency, and it will be used toward
+tolerating latency and reducing the cost of bandwidth.
+
+\begin {comment}
 \todo{Change to discuss API:
 
 context switches:
@@ -190,6 +253,7 @@ Coroutines completing their work yield without adding themselves to
 the scheduling queue.  The last coroutine to exit in this way returns
 as the main thread, as in the common  fork-join model of parallelism.
 
+\end{comment}
 
 \section{Approach}
 \label{sec:approach}
