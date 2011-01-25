@@ -32,7 +32,7 @@
 \authorinfo{Jacob Nelson, Brandon Myers, Andrew Hunter, Dan Grossman, Mark Oskin,
 Carl Ebeling, Luis Ceze}{University of Washington}{\{nelson, bdmyers, ahh, djg, oskin, ebelin, luisceze\}@cs.washington.edu}
 \authorinfo{Simon Kahan}{Pacific Northwest National Lab}{skahan@cs.washington.edu}
-\authorinfo{Preston Briggs}{Cray Inc.}{preston.briggs@gmail.com}
+\authorinfo{Preston Briggs}{}{preston.briggs@gmail.com}
 
 
 \maketitle
@@ -46,7 +46,7 @@ Carl Ebeling, Luis Ceze}{University of Washington}{\{nelson, bdmyers, ahh, djg, 
   is the Cray XMT, an expensive, non-commodity machine.
 
   Our goal is to build a system with XMT-like properties, implemented
-  with commodity processors. This paper presents a runtime for latency
+  with commodity components. This paper presents a runtime for latency
   tolerance, along with our plans for scaling up to multiple
   nodes. Our analysis shows the feasibility of our approach.
 \end{abstract}
@@ -68,14 +68,14 @@ areas such as social networks and bioinformatics. \todo{more!}
 
 The most interesting computational challenge comes from large,
 low-diameter, power law graphs: this combination makes extracting
-performance difficult. Their size keeps them from fitting in a single
+performance difficult. They do not fit in a single
 commodity machine's memory. Their low diameter means that they are
 difficult to lay out with locality: every vertex needs to be near every
 other vertex. Their power law distribution means that a few vertices
-generate much more work than the rest, leading to computational
-imbalance and even less locality. Together, these properties lead to a
-difficult conclusion: each edge traversal is likely to be a very
-expensive cache miss.
+generate much more work than the rest, leading to load
+imbalances. Together, these properties lead to a
+difficult conclusion: each edge traversal is likely to induce a very
+expensive cache miss or remote access.
 
 Multithreading is a technique that has been used successfully to
 implement efficient computations for these graphs. The Cray XMT is an
