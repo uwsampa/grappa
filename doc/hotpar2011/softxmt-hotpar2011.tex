@@ -33,8 +33,8 @@ Cray Inc.\\
   areas such as social networks and bioinformatics. These irregular
   problems present a challenge for parallel machines: obtaining
   performance is not straightforward. Multithreading works well for
-  such problems, but large-scale implementations of the technique like
-  the Cray XMT are expensive, non-commodity machines.
+  such problems, but the only large-scale implementation of the technique
+  is the Cray XMT, an expensive, non-commodity machine.
 
   Our goal is to build a system with XMT-like properties, implemented
   with commodity processors. This paper presents a runtime for latency
@@ -99,9 +99,8 @@ processors, communicating over an Infiniband network. We add two
 components: a runtime system, responsible for executing the user's
 threads, and a global memory manager, responsible for facilitating
 memory requests to the non-coherent global memory shared across the
-nodes.  This memory manager is the only component that might require
-hardware, but we are exploring a mix of hardware and software
-implementations.
+nodes.  We are exploring a mix of hardware and software
+implementations of the memory manager.
 
 This paper explores the feasibility of our multi-node goal using a
 single-node implementation of our lightweight threading runtime. We
@@ -119,52 +118,6 @@ evaluate our runtime in section~\ref{sec:evaluation}.  We present
 related work in section~\ref{sec:related} and conclude in
 section~\ref{sec:conclusion}.
 
-\section{Related work}
-\label{sec:related}
-The concept of using independent parallel contexts to tolerate latency
-is not novel.  The inspiration for our project is of course the Cray
-XMT \cite{feo-xmt}, which implemented a hardware version of our
-programming model (in what would today be considered exceptionally
-slow silicon.)  The XMT can be seen as simultaneous multithreading
-\cite{tullsen-smt} writ large; the technique and motivation is
-essentially the same, but the XMT allows hundreds of contexts (modern
-Intel SMT implementations are generally limited to two.) The Alewife
-system \cite{agarwal-alewife} also switches contexts (in hardware) to
-hide latency on remote-node accesses.  Cyclops \cite{almasi-cyclops}
-allows hundreds of independently executing contexts to share FPUs,
-caches, and paths to memory, but does not context switch or share
-basic execution hardware.  
-
-Modern programmable GPUs, such as nVidia's CUDA programming model, can also be interpreted in using an XMT-like
-model under the hood;
-% Do I need to include a citation here?
-while they generate large numbers of available execution contexts via
-a (semi-)explicit SIMD model, those SIMD instructions keep functional
-units satisfied by overlapping execution with the loads required for
-other contexts.
-
-Similar techniques have also been used in software.  Mowry proposed a system \cite{mowry-scm} of \emph{software-controlled
-  multithreading}.  As opposed to our system of explicitly marked
-remote references, SCM assumes a high hit rate and traps to an
-interrupt routine which performed a context switch upon a cache miss.  The 2000-era processors had
-short enough latencies that using more than two contexts generally
-produced slowdown.
-
-Partitioned global address space models, such as that used in Unified Parallel C,
-% definitely need a citation here
- share our approach of exposing all data (even remote data)
- transparently to any threads and have largely solved the problems of
- how to efficiently translate those remote reads into message
- passing.  However, their programming models emphasize locality more
- than our work does; while a program can examine any vertex in a UPC
- program at any time, it probably shouldn't (whereas our kernels rely on our
- latency hiding technique to make common remote references fast.
-
-The value of the information in extremely large and sparse graphs is
-rapidly growing.  The GraphCT toolkit \cite{ediger-graphct} used an XMT to perform
-sophisticated analysis on data from Twitter, identifying important
-actors and their networks of influence, and it can scale to the full
-size of graphs such as Facebook's friend network.
 \section{Programming model}
 \label{sec:model}
 
@@ -172,10 +125,9 @@ Our shared-memory programming model partitions the overall address
 space into a global shared address space and per node private address
 spaces.  Locality may be exploited directly by the programmer in the
 node private address spaces, just as in a conventional cache-coherent
-multiprocessor node.  In contrast, locality cannot be exploited in 
-the global space.
-
-\todo{explain why global address space is good}
+multiprocessor node.  In contrast, locality cannot be exploited in the
+global space: its value is in providing high bandwidth random access
+to any word in a shared data structure by any processor.
 
 Whereas in the PGAS model coherency of global copies is implictly
 maintained across the system, we forego caching of globally shared
@@ -324,7 +276,7 @@ user-level multitasking system built using coroutines.
 
 There are three main concerns in designing the coroutine
 mechanism. First, the working set of each coroutine must be small, so
-many coroutines can be active without monopolizing the cache. Second,
+many coroutines can be active without trashing the cache. Second,
 context switches must be fast, so that overhead does not swamp actual
 work. Third, when a coroutine yields, we must choose a suitable
 coroutine to run next.
@@ -757,10 +709,55 @@ in a remote memory.
 %\input{evaluation}
 %\todo{End eval insert}
 
+\section{Related work}
+\label{sec:related}
+The concept of using independent parallel contexts to tolerate latency
+is not novel.  The inspiration for our project is of course the Cray
+XMT \cite{feo-xmt}, which implemented a hardware version of our
+programming model (in what would today be considered exceptionally
+slow silicon.)  The XMT can be seen as simultaneous multithreading
+\cite{tullsen-smt} writ large; the technique and motivation is
+essentially the same, but the XMT allows hundreds of contexts (modern
+Intel SMT implementations are generally limited to two.) The Alewife
+system \cite{agarwal-alewife} also switches contexts (in hardware) to
+hide latency on remote-node accesses.  Cyclops \cite{almasi-cyclops}
+allows hundreds of independently executing contexts to share FPUs,
+caches, and paths to memory, but does not context switch or share
+basic execution hardware.  
+
+Modern programmable GPUs, such as nVidia's CUDA programming model, can also be interpreted in using an XMT-like
+model under the hood;
+% Do I need to include a citation here?
+while they generate large numbers of available execution contexts via
+a (semi-)explicit SIMD model, those SIMD instructions keep functional
+units satisfied by overlapping execution with the loads required for
+other contexts.
+
+Similar techniques have also been used in software.  Mowry proposed a system \cite{mowry-scm} of \emph{software-controlled
+  multithreading}.  As opposed to our system of explicitly marked
+remote references, SCM assumes a high hit rate and traps to an
+interrupt routine which performed a context switch upon a cache miss.  The 2000-era processors had
+short enough latencies that using more than two contexts generally
+produced slowdown.
+
+Partitioned global address space models, such as that used in Unified Parallel C,
+% definitely need a citation here
+ share our approach of exposing all data (even remote data)
+ transparently to any threads and have largely solved the problems of
+ how to efficiently translate those remote reads into message
+ passing.  However, their programming models emphasize locality more
+ than our work does; while a program can examine any vertex in a UPC
+ program at any time, it probably shouldn't (whereas our kernels rely on our
+ latency hiding technique to make common remote references fast.
+
+The value of the information in extremely large and sparse graphs is
+rapidly growing.  The GraphCT toolkit \cite{ediger-graphct} used an XMT to perform
+sophisticated analysis on data from Twitter, identifying important
+actors and their networks of influence, and it can scale to the full
+size of graphs such as Facebook's friend network.
 
 \section{Conclusion}
 \label{sec:conclusion}
-
 
 
 \bibliographystyle{acm}
