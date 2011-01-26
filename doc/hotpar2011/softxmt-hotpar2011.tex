@@ -250,8 +250,6 @@ as the main thread, as in the common  fork-join model of parallelism.
 
 \section{Implementation}
 \label{sec:approach}
-
-
 The goal of our implementation is to use multithreading to tolerate
 the latency of random accesses to memory in a global address space
 spread across multiple nodes. This goal has three key challenges:
@@ -259,18 +257,17 @@ spread across multiple nodes. This goal has three key challenges:
 \item {\bf Lightweight multithreading}
   
   We expect to need hundreds of
-  threads to tolerated a cluster's network latency, so our threading
-  implementation must have low overhead.
+  threads to tolerate network latency, so our threading
+  implementation must have low memory and context switching overheads.
 
 \item {\bf Concurrency in global memory references}
 
-  A thread making a long-latency global memory reference must be able
-  to yield and allow other threads to make progress.
+  We will need to keep track of the hundreds of outstanding memory fetch operations required to utilize bandwidth well.
 
 \item {\bf Low overhead synchronization}
 
-  In a system with high degrees of concurrency, lightweight
-  synchronization primitives are important.
+  We must support global synchronization that can proceed without stalling the processing cores.
+
 \end{itemize}
 We discuss our approach to solving each of these challenges in
 turn. For each one, we discuss both our current single-node
