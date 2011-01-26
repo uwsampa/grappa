@@ -37,14 +37,13 @@ Carl Ebeling, Luis Ceze}{University of Washington}{\{nelson, bdmyers, ahh, djg, 
 
 \maketitle
 \begin{abstract}
-
   Large, sparse, irregular graphs map poorly to the memory systems of
   commodity hardware. The scale of emerging real world datasets
-  demands new techniques; especially in the parallel case,
-  straightforward algorithms will run inefficiently due to many
-  high-latency accesses.  Pervasive parallelism can tolerate that
-  latency, but the only large-scale implementation of the technique is
-  the Cray XMT, an expensive, non-commodity machine.
+  presents a challenge for straightforward algorithms which will run
+  inefficiently due to many high-latency accesses.  Pervasive
+  parallelism can tolerate that latency, but the only large-scale
+  implementation of the technique is the Cray XMT, an expensive,
+  non-commodity machine.
 
   If we can adapt the XMT's programming model to commodity hardware,
   we can dramatically improve performance without resorting to
