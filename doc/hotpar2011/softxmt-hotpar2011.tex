@@ -1,7 +1,7 @@
 %% move stuff to defs file
 \newcommand{\todo}[1]{{\bfseries [[#1]]}}
 %% To disable, just uncomment this line
-%% \renewcommand{\todo}[1]{\relax}
+ \renewcommand{\todo}[1]{\relax}
 
 \newcommand{\mrps}[0]{Mref/s}
 
@@ -607,10 +607,10 @@ results are very close to the ILP-only experiment, but more concurrent requests 
 
 We observe a gradual decrease in reference rate once the number of
 concurrent references per core exceeds 10; we believe this is due to
-later prefetches squashing earlier ones in the line fill buffers. We
-also observe some points that do not follow the trend and look like noise, but these results are actually repeatable. This effect is harder to explain, but we suspect it is
+later prefetches squashing earlier ones in the line fill buffers. In the real runtime we expect this effect will not exist, since prefetch will not be implemented with built-in non-temporal prefetch instructions. We
+also observe many points that do not follow the trend are below the max, but these results are repeatable. This effect is harder to explain, but we suspect it is
 due to resource contention in the cores' pipelines once the memory
-system is full of requests.
+system is full of requests. 
 
 %Such points are repeatably lower, and looks like the std dev of such points (the diamond ones than are low) is also higher than other "normal" points: around 35M versus 13M or less, which seems to suggest a weird effect at those numbers}
 
@@ -627,44 +627,39 @@ general idea.
   \begin{center}
     \includegraphics[width=0.42\textwidth]{figures/cache-pressure-edited.pdf}
   \end{center}
-  \caption{Cache pressure with coroutines.}
+  \caption{Cache pressure with coroutines, on six cores.}
   \label{fig:cache-pressure}
 \end{figure}
 
-We ran this code on six cores with all data allocated in the same
-processor's memory. We varied the size of the local working set from 2KB
+We varied the size of the local working set from 2KB
 to 4MB, and ran both 0 and 32 local updates for each pointer
 traversal. We measured the overall reference rate, including both the local updates and remote references.
 
-Figure~\ref{fig:cache-pressure} shows the result. On the left of the
-figure, we see the list-traversal-only case, where we allocate
-per-coroutine space but make no references to it. As we would expect,
-the reference rates grow with the number of coroutines just as in
-Figure~\ref{fig:multi-green}. On the right of the figure, we see the
-case with 32 updates for each list traversal. While performance
-decreases for large working set sizes and large number of coroutines,
+Figure~\ref{fig:cache-pressure} shows the result. As we would expect,
+when there are no references to the local structures, the reference rates grow with the number of coroutines just as in
+Figure~\ref{fig:multi-green}. For 32 local updates per traversal, while performance
+decreases for large working set sizes and large numbers of coroutines,
 we see speedup as number coroutines increases for up to 128KB working set size with 8 coroutines per
 core. \todo{preempt questions about drop at 16 which is much less than the about 50 needed per core by saying that the drop is likely the same drop effect seen earlier, which is likely to be prefetch squashing since it happens at number of line fill buffers}
 
-\subsection{Multi-node}
+\subsection{Performance with multiple nodes}
 
-To evaluate the potential for our runtime to perform in the multi-node case, we simulated a network delay and saw whether the runtime could tolerate the larger latency. First we measure the QPI bandwidth between the two chips of the test machine, since the chip would talk to the network interface over a QPI link.
+To evaluate the potential for our runtime to perform in the multi-node case, we simulated a network delay and saw whether the runtime could tolerate the larger latency. Since the network interface is accessed over QPI, estimated QPI bandwidth by measuring the QPI communication between the two chips of our test machine.
 
 % take this figure out if we need the space
+% maybe even take out whole QPI thing and just relate the 100M?
 % the main point is room for remote references to local memory
-\begin{figure}[h]
-  \begin{center}
-    \includegraphics[width=0.42\textwidth]{figures/qpi_bw-edited.pdf}
-  \end{center}
-  \caption{Pointer chasing in a remote processor's memory.}
-  \label{fig:listwalk-qpi}
-\end{figure}
+%\begin{figure}[h]
+ % \begin{center}
+  %  \includegraphics[width=0.42\textwidth]{figures/qpi_bw-edited.pdf}
+ % \end{center}
+ % \caption{Pointer chasing in a remote processor's memory.}
+ % \label{fig:listwalk-qpi}
+%\end{figure}
 %%%%%%%%%%
 
-We measured the rate at which the cores can make requests
-over the QPI link. For this experiment, we allocated the lists in the
-second chip's memory and ran the traversals on the first chip's cores. Figure~\ref{fig:listwalk-qpi} shows the result. We found that use of the QPI link limits us to 175 \mrps.
-
+For this experiment, we allocated the lists in the
+second chip's memory and ran the traversals on the first chip's cores. We found that use of the QPI link limits us to 175 \mrps.
 
 To simulate the performance of pointer chasing in a
 multi-node system, we modified the scheduler of our coroutine library
