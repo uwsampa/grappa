@@ -492,7 +492,7 @@ The lists were laid out randomly with pointers spaced at a cache line granularit
 the probability of each reference being a miss. We allocated the lists
 on 1GB huge pages to minimize TLB refill overhead.
 
-\begin{figure}[h]
+\begin{figure}[t]
   \vspace{-.1in}
 	\begin{center}
 		\includegraphics[width=0.47\textwidth]{figures/multi-listwalk-totalconc-edited.pdf}
@@ -539,7 +539,7 @@ memory concurrency enabled by prefetching and switching to a new
 coroutine. As with our first experiment, we allocated the lists in the
 same processor as the cores doing the traversal. 
 
-\begin{figure}[h]
+\begin{figure}[t]
   \begin{center}
     \includegraphics[width=0.47\textwidth]{figures/multi-green-edited.pdf}
   \end{center}
