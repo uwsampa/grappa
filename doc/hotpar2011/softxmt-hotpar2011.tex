@@ -159,54 +159,50 @@ section~\ref{sec:conclusion}.
 \section{Programming model}
 \label{sec:model}
 
-
-Our shared-memory programming model partitions the overall address
+Our goal is to preserve the XMT programming model: large shared global
+address space, explicit concurrency with a large number of threads,
+and full-empty-bits synchronization.  We partition the overall address
 space into a global shared address space and per node private address
-spaces.  Locality may be exploited directly by the programmer in the
+spaces. Locality may be exploited directly by the programmer in the
 node private address spaces, just as in a conventional cache-coherent
-multiprocessor node.  In contrast, locality cannot be exploited in the
+multiprocessor node. In contrast, locality cannot be exploited in the
 global space: its value is in providing high bandwidth random access
 to any word in a shared data structure by any processor.
 
 % Whereas in the PGAS model coherency of global copies is implictly
-% maintained across the system \todo{cite pgas?}, we forego caching of globally shared
-% data.  A node can exploit temporal locality of data stored in
-% the global space only by first copying it into the node's local space.
-% In this way, a node can access data at random across the system while
+% maintained across the system, % \todo{cite pgas?}
+% we completely forego
+% caching of globally shared data.  
+
+% A node can exploit temporal locality of data stored in the global
+% space only by first copying it into the node's local space.  In this
+% way, a node can access data at random across the system while
 % incurring no hardware coherence overhead: consistency is enforced by
 % our mechanisms for explicit global synchronization.
 
 The model promises efficiency subject to the presence of sufficient
 concurrency.  Exactly how that concurrency is expressed by the
-programmer is language dependent.  Our programming model serves to
-augment threaded programming languages so that they become latency
-tolerant on large address spaces.  Software multithreading is used to
-provide latency tolerance: a computation that is about to execute a
-long latency operation such as a remote memory reference initiates the
-operation and then yields to the scheduler, which quickly resumes
-execution of another computation.  Concurrency is also used -- via
-aggregation of requests to a common node destination -- to make more
-efficient use of network bandwidth and in some cases reduce bandwidth
-demands.
+programmer is language dependent. The goal of our system is to support
+that concurrency and consequently provide latency tolerant on a large
+address space. We do so via software multithreading: computation that
+is about to execute a long latency operation (e.g. a remote memory
+reference) initiates the operation and then yields to the scheduler,
+which quickly resumes execution of another computation.  Concurrency
+is also used---via aggregation of requests to a common node
+destination---to make more efficient use of network bandwidth and in
+some cases reduce bandwidth demands.
 
 Synchronization on locations in the node private address space is the
 same as on conventional systems.  Synchronization on global addresses
 works differently: we provide atomic operations such as {\tt
-  int\_fetch\_add} as well as operations using full-bits, as on the
-Cray XMT.  As is true for other long latency operations,
+  int\_fetch\_add} as well as operations using full-empty-bits, as on
+the Cray XMT.  As is true for other long latency operations,
 synchronization latency is tolerated by yielding to the scheduler.
-Even non-blocking global atomics yield: atomic operations executed as
-x86 instructions sabbotage concurrency by forcing all outstanding
-memory references to complete before new ones can be issued.  By
-yielding, the core can switch to another computation while the
-synchronization is accomplished outside of the pipeline.  In addition,
-the implementation can exploit aggregation when concurrency is
-abundant to increase the throughput of global synchronization.
-
-Thus, the programming model provides the programmer with options: express
-locality within the private space, and it will be exploited to reduce
-latency and bandwidth \todo{exploited by what? by the exisiting locality hardware like cache hierarchy?}; express concurrency, and it will be used toward
-tolerating latency and reducing the cost of bandwidth.
+Even non-blocking global atomics yield so the core can switch to
+another computation while the synchronization is accomplished outside
+of the pipeline.  In addition, the implementation can exploit
+aggregation when concurrency is abundant to increase the throughput of
+global synchronization.
 
 \section{Implementation}
 \label{sec:approach}
