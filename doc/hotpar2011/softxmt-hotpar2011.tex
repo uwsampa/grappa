@@ -102,8 +102,8 @@ difficult to lay out with locality: every vertex needs to be near every
 other vertex. Their power law distribution means that a few vertices
 generate much more work than the rest, leading to load
 imbalances. Together, these properties lead to a
-difficult conclusion: each edge traversal is likely to induce a very
-expensive cache miss or remote access.
+difficult conclusion: each edge traversal is likely to lead to a very
+expensive inter-node communication.
 
 Multithreading is a technique that has been used successfully to
 implement efficient computations for these graphs. The Cray XMT is an
@@ -111,7 +111,8 @@ example of such an approach: it solves the memory latency problem
 through concurrency rather than caching. Each XMT processor supports
 128 hardware contexts and 1024 outstanding memory operations, and is
 able to switch contexts every cycle \cite{tera, feo-xmt}. This ability
-comes at a cost: the XMT is an expensive, non-commodity machine.
+comes at a cost: the XMT is an expensive, non-commodity
+machine.
 
 \begin{figure*}[htbp]
   \begin{center}
@@ -127,9 +128,14 @@ comes at a cost: the XMT is an expensive, non-commodity machine.
 	\label{fig:system-overview}
 \end{figure*}
 
-We want the best of both worlds. Our goal is to build a system that
-has good performance on these low-locality graph codes but is
-implemented with cheap commodity processors.
+
+We believe we can build a system based mostly on commodity parts that
+can attain XMT-like performance with a familiar, also XMT-like,
+programming model, but at a fraction of the cost. Therefore, our goal
+is to build a system that has good performance on low-locality graph
+codes but is implemented with cheap commodity processors and simple
+additional support in an FPGA. This approach also has the added
+benefit of not sacrificing general-purpose performance.
 
 Figure~\ref{fig:system-overview} shows the structure of our
 proposal. It is composed of multiple nodes built with commodity
@@ -137,24 +143,26 @@ processors, communicating over an Infiniband network. We add two
 components: a runtime system, responsible for executing the user's
 threads, and a global memory manager, responsible for facilitating
 memory requests to the non-coherent global memory shared across the
-nodes.  We are exploring a mix of hardware and software
+nodes.  We are exploring a mix of hardware (FPGA) and software
 implementations of the memory manager.
-
-This paper explores the feasibility of our multi-node goal using a
-single-node implementation of our lightweight threading runtime. We
-use prefetch instructions together with lightweight threads to
-tolerate the latency of DRAM access on the local node node. We use
-pointer chasing benchmarks to verify our runtime's overhead is
-acceptable. We also model the effects of pointer chasing on a remote
-node.
-
-The rest of the paper is organized as follows. We describe our
-proposal from a programmer's viewpoint in section~\ref{sec:model}. We
-describe the implementation of our latency-tolerant runtime and plans
-for extending to multiple nodes in section~\ref{sec:approach}. We
-evaluate our runtime in section~\ref{sec:evaluation}.  We present
-related work in section~\ref{sec:related} and conclude in
+ 
+This paper describes the vision of our system and explores the
+feasibility of our ideas using a single-node implementation of a
+lightweight threading runtime. We use prefetch instructions together
+with lightweight threads to tolerate the latency of DRAM access on the
+local node node. We use adversarial pointer chasing benchmarks to
+verify our runtime's overhead is acceptable. We also model the effects
+of pointer chasing on a remote node by artificially increasing
+latenciess to the order of several micro-seconds.
+ 
+The rest of the paper is organized as follows. We quickly describe our
+programming model in section~\ref{sec:model}. We describe the
+implementation of our latency-tolerant runtime and plans for extending
+to multiple nodes in section~\ref{sec:approach}. We evaluate our
+runtime in section~\ref{sec:evaluation}.  We present related work in
+section~\ref{sec:related} and conclude in
 section~\ref{sec:conclusion}.
+
 
 \section{Programming model}
 \label{sec:model}
