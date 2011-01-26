@@ -29,7 +29,7 @@
 %}
 
 %todo format the UW names horizontally
-\authorinfo{Jacob Nelson, Brandon Myers, Andrew Hunter, Dan Grossman, Mark Oskin,
+\authorinfo{Jacob Nelson, Brandon Myers, A.H. Hunter, Dan Grossman, Mark Oskin,
 Carl Ebeling, Luis Ceze}{University of Washington}{\{nelson, bdmyers, ahh, djg, oskin, ebelin, luisceze\}@cs.washington.edu}
 \authorinfo{Simon Kahan}{Pacific Northwest National Lab}{skahan@cs.washington.edu}
 \authorinfo{Preston Briggs}{}{preston.briggs@gmail.com}
@@ -37,18 +37,20 @@ Carl Ebeling, Luis Ceze}{University of Washington}{\{nelson, bdmyers, ahh, djg, 
 
 \maketitle
 \begin{abstract}
+  Large, sparse, irregular graphs map poorly to the memory systems of
+  commodity hardware. The scale of emerging real world datasets
+  presents a challenge for straightforward algorithms which will run
+  inefficiently due to many high-latency accesses.  Pervasive
+  parallelism can tolerate that latency, but the only large-scale
+  implementation of the technique is the Cray XMT, an expensive,
+  non-commodity machine.
 
- Techniques from graph analytics have found important applications in
-  areas such as social networks and bioinformatics. These irregular
-  problems present a challenge for parallel machines: obtaining
-  performance is not straightforward. Multithreading works well for
-  such problems, but the only large-scale implementation of the technique
-  is the Cray XMT, an expensive, non-commodity machine.
-
-  Our goal is to build a system with XMT-like properties, implemented
-  with commodity components. This paper presents a runtime for latency
-  tolerance, along with our plans for scaling up to multiple
-  nodes. Our analysis shows the feasibility of our approach.
+  If we can adapt the XMT's programming model to commodity hardware,
+  we can dramatically improve performance without resorting to
+  expensive custom systems. This paper presents a runtime for latency
+  tolerance through the use of parallel lightweight contexts, along
+  with our plans for scaling up to multiple nodes. Our analysis shows
+  the feasibility of our approach.
 \end{abstract}
 
 \section{Introduction}
