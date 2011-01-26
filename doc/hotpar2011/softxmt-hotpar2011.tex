@@ -38,77 +38,39 @@
 %}
 
 %todo format the UW names horizontally
+<<<<<<< HEAD
 \authorinfo{Jacob Nelson, Brandon Myers, A.H. Hunter, Preston Briggs,
   Dan Grossman, Mark Oskin, Carl Ebeling, Simon Kahan, Luis
   Ceze}{University of Washington}{\{nelson, bdmyers, ahh, preston,
   djg, oskin, ebeling, skahan, luisceze\}@cs.washington.edu}
+=======
+\authorinfo{Jacob Nelson, Brandon Myers, Andrew Hunter, Dan Grossman, Mark Oskin,
+Carl Ebeling, Luis Ceze}{University of Washington}{\{nelson, bdmyers, ahh, djg, oskin, ebelin, luisceze\}@cs.washington.edu}
+\authorinfo{Simon Kahan}{Pacific Northwest National Lab}{skahan@cs.washington.edu}
+\authorinfo{Preston Briggs}{}{preston.briggs@gmail.com}
+
+>>>>>>> 9cf245e7dccb3c394e267e6d1e43d5e7a7686cbf
 
 \maketitle
 
 \begin{abstract}
-% Techniques from graph analytics have found important applications in
-% areas such as social networks and bioinformatics. These irregular
-% problems present a challenge for parallel machines: obtaining
-% performance is not straightforward. Multithreading works well for
-% such problems, but the only large-scale implementation of the technique
-% is the Cray XMT, an expensive, non-commodity machine.
 
-% Our goal is to build a system with XMT-like properties, implemented
-% with commodity components. This paper presents a runtime for latency
-% tolerance, along with our plans for scaling up to multiple
-% nodes. Our analysis shows the feasibility of our approach.
+ Techniques from graph analytics have found important applications in
+  areas such as social networks and bioinformatics. These irregular
+  problems present a challenge for parallel machines: obtaining
+  performance is not straightforward. Multithreading works well for
+  such problems, but the only large-scale implementation of the technique
+  is the Cray XMT, an expensive, non-commodity machine.
 
-  Crunching large graphs is the basis of many emerging applications,
-  such as social network analysis and bioinformatics. Graph analytics
-  algorithms exhibit little locality and therefore present significant
-  performance challenges. Hardware multithreading systems (e.g, Cray
-  XMT) showed that with enough concurrency, we can tolerate long
-  latencies. Unfortunately, this solution is not available with
-  commodity parts.
-
-  Our goal is to develop a latency-tolerant system built out of
-  commodity parts and mostly in software. The proposed system includes
-  a runtime that supports a large number of lightweight contexts,
-  full-empty synchronization and a memory manager that provides a
-  high-latency but high-bandwidth global shared memory. This paper
-  lays out the vision for our system, and justifies its feasibility
-  with a performance analysis of the runtime for latency tolerance.
-
-% Our analysis shows the feasibility of our
-%   approach.
-
-% To that end we developed a new runtime system that supports
-%   a large number of lightweight contexts, together with full-empty
-%   synchronization primitives and a large global address space.
-
-% To that end, we propose a
-%   new runtime system that is able to sustain a large number of active
-%   threads 
-
-%  XMT-like properties, implemented
-%   with commodity components. This paper presents a runtime for latency
-%   tolerance, along with our plans for scaling up to multiple
-%   nodes. Our analysis shows the feasibility of our approach.
-
-
-%   Large, sparse, irregular graphs map poorly to the memory systems of
-%   commodity hardware. The scale of emerging real world datasets
-%   presents a challenge for straightforward algorithms which will run
-%   inefficiently due to many high-latency accesses. Pervasive
-%   parallelism can tolerate that latency, but the only large-scale
-%   implementation of the technique is the Cray XMT, an expensive,
-%   non-commodity machine.
-
-%   If we can adapt the XMT's programming model to commodity hardware,
-%   we can dramatically improve performance without resorting to
-%   expensive custom systems. This paper presents a runtime for latency
-%   tolerance through the use of parallel lightweight contexts, along
-%   with our plans for scaling up to multiple nodes. Our analysis shows
-%   the feasibility of our approach.
+  Our goal is to build a system with XMT-like properties, implemented
+  with commodity components. This paper presents a runtime for latency
+  tolerance, along with our plans for scaling up to multiple
+  nodes. Our analysis shows the feasibility of our approach.
 \end{abstract}
 
 \section{Introduction}
 
+<<<<<<< HEAD
 Many important emerging applications such as social network analysis,
 bioinformatics and analysing vast sensor data from actual networks
 (e.g, water, electrical grid) are based on crunching very large
@@ -122,9 +84,11 @@ gets quickly out of hand. For example, in January 2011, Facebook had
   cost would have a large impact in how we deal and react to the fast
   growth of the data-set and would make the results even more
   valuable.
+=======
+>>>>>>> 9cf245e7dccb3c394e267e6d1e43d5e7a7686cbf
 
-% Techniques from graph analytics have found important applications in
-% areas such as social networks and bioinformatics. \todo{more!}
+Techniques from graph analytics have found important applications in
+areas such as social networks and bioinformatics. \todo{more}
 
 
 % In January 2011, Facebook had 500 million active users with an average
@@ -135,31 +99,25 @@ gets quickly out of hand. For example, in January 2011, Facebook had
 % every two days \cite{Backstrom:2010p90}.
 
 
-In this context, the most interesting computational challenge comes
-from large, low-diameter, power law graphs: this combination makes
-extracting performance difficult. They do not fit in a single
+The most interesting computational challenge comes from large,
+low-diameter, power law graphs: this combination makes extracting
+performance difficult. They do not fit in a single
 commodity machine's memory. Their low diameter means that they are
-difficult to lay out with locality: every vertex needs to be near
-every other vertex. Their power law distribution means that a few
-vertices generate much more work than the rest, leading to load
-imbalances. Together, these properties lead to a difficult
-conclusion: each edge traversal is likely to lead to expensive
-inter-node communication. %cache miss or remote access.
+difficult to lay out with locality: every vertex needs to be near every
+other vertex. Their power law distribution means that a few vertices
+generate much more work than the rest, leading to load
+imbalances. Together, these properties lead to a
+difficult conclusion: each edge traversal is likely to induce a very
+expensive cache miss or remote access.
 
 Multithreading is a technique that has been used successfully to
 implement efficient computations for these graphs. The Cray XMT is an
-example of such an approach: it solves the memory latency problem (or
-communication problem) through concurrency rather than caching. Each
-XMT processor supports 128 hardware contexts and 1024 outstanding
-memory operations, and is able to switch contexts every cycle.
-% \todo{cite XMT description}.  %% LUIS: there is enough information here.
-This ability comes at a cost: the XMT is an expensive, non-commodity
-machine. Moreover, arguably a lot of XMT's advantages for these type
-of applications come at the cost of performance in general-purpose
-applications.
+example of such an approach: it solves the memory latency problem
+through concurrency rather than caching. Each XMT processor supports
+128 hardware contexts and 1024 outstanding memory operations, and is
+able to switch contexts every cycle \todo{cite XMT description}. This ability comes at a cost: the
+XMT is an expensive, non-commodity machine. \todo{don't we want to also say XMT has poor performance on x kind of apps?}
 
-% \todo{don't we want to also say XMT has poor performance on x
-%   kind of apps?}
 
 \begin{figure*}[htbp]
   \begin{center}
@@ -175,14 +133,9 @@ applications.
 	\label{fig:system-overview}
 \end{figure*}
 
-%We want the best of both worlds. 
-We believe we can build a system mostly based on commodity parts that
-can attain XMT-like performance with a familiar, also XMT-like,
-programming model, but at a fraction of the cost. Therefore, our goal
-is to build a system that has good performance on low-locality graph
-codes but is implemented with cheap commodity processors and simple
-additional support in an FPGA. This approach also has the added
-benefit of not sacrificing general-purpose performance.
+We want the best of both worlds. Our goal is to build a system that
+has good performance on these low-locality graph codes but is
+implemented with cheap commodity processors.
 
 Figure~\ref{fig:system-overview} shows the structure of our
 proposal. It is composed of multiple nodes built with commodity
@@ -190,67 +143,62 @@ processors, communicating over an Infiniband network. We add two
 components: a runtime system, responsible for executing the user's
 threads, and a global memory manager, responsible for facilitating
 memory requests to the non-coherent global memory shared across the
-nodes.  We are exploring a mix of hardware (FPGA) and software
+nodes.  We are exploring a mix of hardware and software
 implementations of the memory manager.
 
-This paper describes the vision of our system and explores the
-feasibility of our ideas using a single-node implementation of a
-lightweight threading runtime. We use prefetch instructions together
-with lightweight threads to tolerate the latency of DRAM access on the
-local node node. We use adversarial pointer chasing benchmarks to
-verify our runtime's overhead is acceptable. We also model the effects
-of pointer chasing on a remote node by artificially increasing
-latencys to the order of several micro-seconds.
+This paper explores the feasibility of our multi-node goal using a
+single-node implementation of our lightweight threading runtime. We
+use prefetch instructions together with lightweight threads to
+tolerate the latency of DRAM access on the local node node. We use
+pointer chasing benchmarks to verify our runtime's overhead is
+acceptable. We also model the effects of pointer chasing on a remote
+node.
 
-The rest of the paper is organized as follows. We quickly describe our
-programming model in section~\ref{sec:model}. We describe the
-implementation of our latency-tolerant runtime and plans for extending
-to multiple nodes in section~\ref{sec:approach}. We evaluate our
-runtime in section~\ref{sec:evaluation}.  We present related work in
-section~\ref{sec:related} and conclude in
+The rest of the paper is organized as follows. We describe our
+proposal from a programmer's viewpoint in section~\ref{sec:model}. We
+describe the implementation of our latency-tolerant runtime and plans
+for extending to multiple nodes in section~\ref{sec:approach}. We
+evaluate our runtime in section~\ref{sec:evaluation}.  We present
+related work in section~\ref{sec:related} and conclude in
 section~\ref{sec:conclusion}.
 
 \section{Programming model}
 \label{sec:model}
 
-Our goal is to preserve the XMT programming model: large shared global
-address space, explicit concurrency with a large number of threads,
-and full-empty-bits synchronization.  We partition the overall address
+Our shared-memory programming model partitions the overall address
 space into a global shared address space and per node private address
-spaces. Locality may be exploited directly by the programmer in the
+spaces.  Locality may be exploited directly by the programmer in the
 node private address spaces, just as in a conventional cache-coherent
-multiprocessor node. In contrast, locality cannot be exploited in the
+multiprocessor node.  In contrast, locality cannot be exploited in the
 global space: its value is in providing high bandwidth random access
 to any word in a shared data structure by any processor.
 
-% Whereas in the PGAS model coherency of global copies is implictly
-% maintained across the system, % \todo{cite pgas?}
-% we completely forego
-% caching of globally shared data.  
-
-A node can exploit temporal locality of data stored in the global
-space only by first copying it into the node's local space.  In this
-way, a node can access data at random across the system while
+Whereas in the PGAS model coherency of global copies is implictly
+maintained across the system \todo{cite pgas?}, we forego caching of globally shared
+data.  A node can exploit temporal locality of data stored in
+the global space only by first copying it into the node's local space.
+In this way, a node can access data at random across the system while
 incurring no hardware coherence overhead: consistency is enforced by
 our mechanisms for explicit global synchronization.
 
 The model promises efficiency subject to the presence of sufficient
 concurrency.  Exactly how that concurrency is expressed by the
-programmer is language dependent. The goal of our system is to support
-that concurrency and consequently provide latency tolerant on a large
-address space. We do so via software multithreading: computation that
-is about to execute a long latency operation (e.g. a remote memory
-reference) initiates the operation and then yields to the scheduler,
-which quickly resumes execution of another computation.  Concurrency
-is also used -- via aggregation of requests to a common node
-destination -- to make more efficient use of network bandwidth and in
-some cases reduce bandwidth demands.
+programmer is language dependent.  Our programming model serves to
+augment threaded programming languages so that they become latency
+tolerant on large address spaces.  Software multithreading is used to
+provide latency tolerance: a computation that is about to execute a
+long latency operation such as a remote memory reference initiates the
+operation and then yields to the scheduler, which quickly resumes
+execution of another computation.  Concurrency is also used -- via
+aggregation of requests to a common node destination -- to make more
+efficient use of network bandwidth and in some cases reduce bandwidth
+demands.
 
 Synchronization on locations in the node private address space is the
 same as on conventional systems.  Synchronization on global addresses
 works differently: we provide atomic operations such as {\tt
-  int\_fetch\_add} as well as operations using full-empty-bits, as on
-the Cray XMT.  As is true for other long latency operations,
+  int\_fetch\_add} as well as operations using full-bits, as on the
+Cray XMT.  As is true for other long latency operations,
 synchronization latency is tolerated by yielding to the scheduler.
 Even non-blocking global atomics yield: atomic operations executed as
 x86 instructions sabbotage concurrency by forcing all outstanding
@@ -260,12 +208,10 @@ synchronization is accomplished outside of the pipeline.  In addition,
 the implementation can exploit aggregation when concurrency is
 abundant to increase the throughput of global synchronization.
 
-%% I dont think we need the paragraph below.
-
-% Thus, the programming model provides the programmer with options: express
-% locality within the private space, and it will be exploited to reduce
-% latency and bandwidth \todo{exploited by what? by the exisiting locality hardware like cache hierarchy?}; express concurrency, and it will be used toward
-% tolerating latency and reducing the cost of bandwidth.
+Thus, the programming model provides the programmer with options: express
+locality within the private space, and it will be exploited to reduce
+latency and bandwidth \todo{exploited by what? by the exisiting locality hardware like cache hierarchy?}; express concurrency, and it will be used toward
+tolerating latency and reducing the cost of bandwidth.
 
 \begin {comment}
 \todo{Change to discuss API:
@@ -339,24 +285,24 @@ as the main thread, as in the common  fork-join model of parallelism.
 
 \section{Implementation}
 \label{sec:approach}
-The goal of our implementation is to use multithreading to tolerate
+Our goal is to use multithreading to tolerate
 the latency of random accesses to memory in a global address space
-spread across multiple nodes. This goal has three key challenges:
+spread across multiple nodes.  Our implementation must provide three features:
 \begin{itemize}
 \item {\bf Lightweight multithreading}
   
   We expect to need hundreds of
-  threads to tolerate network latency, so our threading
-  implementation must have low memory and context switching overheads.
+  threads to tolerated a cluster's network latency, so our threading
+  implementation must have low overhead.
 
 \item {\bf Concurrency in global memory references}
 
-  We will need to keep track of the hundreds of outstanding memory fetch operations required to utilize bandwidth well.
+  A thread making a long-latency global memory reference must be able
+  to yield and allow other threads to make progress.
 
 \item {\bf Low overhead synchronization}
 
-  We must support global synchronization that can proceed without stalling the processing cores.
-
+  We must support global synchronization between threads that allows unrelated threads to proceed unblocked.
 \end{itemize}
 We discuss our approach to solving each of these challenges in
 turn. For each one, we discuss both our current single-node
@@ -365,39 +311,25 @@ implementation and ideas for a multi-node implementation.
 \subsection{Lightweight multithreading}
 
 Our approach to supporting many lightweight threads uses a cooperative,
-user-level multitasking system built using coroutines.
-
-There are three main concerns in designing the coroutine
-mechanism. First, the working set of each coroutine must be small, so
-many coroutines can be active without trashing the cache. Second,
-context switches must be fast, so that overhead does not swamp actual
-work. Third, when a coroutine yields, we must choose a suitable
-coroutine to run next.
+user-level multitasking system built using coroutines. Much work has been done on similar user-level systems \cite{ult,capriccio}, but we have stringent requirements on size and performance, since we have large numbers of contexts rapidly issuing prefetches and passing control.  Hence coroutines must be small, so
+many coroutines can be active without trashing the cache, and
+context switches must be fast (a small fraction of memory latency) so that we can overlap memory requests and achieve concurrency.
 
 We minimize context size by treating context switches as function
 calls, as in~\cite{charm}. This allows us to save and restore the
 minimum number of registers allowed by the ABI, and depend on the
 compiler to save and restore any other registers in use. We minimize
-context switch time both by keeping contexts small and by doing all
-switching and scheduling in user space, as in \todo{cite other green
-  threads packages, like qthreads}.
-
-There are a number of possibilites for coroutine scheduling.
-Ideally, a thread would be rescheduled when its request had
-completed, but this may complicate the scheduling decision and slow
-down context switches. A simple round-robin scheduler may be sufficient.
+context switch time by doing all switching and scheduling in user space (kernel traps are at least an order of magnitude slower.)
 
 \subsubsection{Single-node implementation}
 We implemented coroutines as described, with a round-robin
-scheduler. If a prefetched data value is no longer in the cache when
-the coroutine is rescheduled and the value is used, the coroutine pays
-the full cost of the fetch.
+scheduler. Coroutines do local work, issue a remote prefetch, and switch to the next in turn.  When the coroutine is reactivated, it assumes the requested data is available and issues a read.  This is a disadvantage of the simple implementation; if the data is not yet received and in cache, the core (and all its coroutines) can stall.
 
 \subsubsection{Multi-node ideas}
 We will explore how the memory manager and coroutine scheduler may
 interact, so that threads waiting on long-latency memory operations or
 synchronization operations will be scheduled soon after their
-operations have completed. 
+operations have completed (and not before).
 
 \subsection{Concurrency in global memory references}
 
@@ -727,7 +659,9 @@ core. \todo{preempt questions about drop at 16 which is much less than the about
 
 \subsection{Performance with multiple nodes}
 
-To evaluate the potential for our runtime to perform in the multi-node case, we simulated a network delay and saw whether the runtime could tolerate the larger latency. Since the network interface is accessed over QPI, estimated QPI bandwidth by measuring the QPI communication between the two chips of our test machine.
+To evaluate the potential for our runtime to perform in the multi-node case, we simulated a network delay and saw whether the runtime could tolerate the larger latency. 
+
+Since the network interface is accessed over QPI, we estimated QPI bandwidth by measuring the QPI communication between the two chips of our test machine. To do this, we allocated the lists in the second chip's memory and ran the traversals on the first chip's cores. We found that use of the QPI link limits us to 175 \mrps.
 
 % take this figure out if we need the space
 % maybe even take out whole QPI thing and just relate the 100M?
@@ -741,9 +675,6 @@ To evaluate the potential for our runtime to perform in the multi-node case, we 
 %\end{figure}
 %%%%%%%%%%
 
-For this experiment, we allocated the lists in the
-second chip's memory and ran the traversals on the first chip's cores. We found that use of the QPI link limits us to 175 \mrps.
-
 To simulate the performance of pointer chasing in a
 multi-node system, we modified the scheduler of our coroutine library
 to include a delay before a coroutine can be rescheduled, imitating
@@ -752,26 +683,23 @@ memory. Recently published measurements of Infiniband latencies
 \todo{cite} suggest we might expect 1.1 $\mu$s source-to-destination
 latencies between two computers connected back-to-back; we assume a
 switch transit delay of 400 ns \todo{how many hops? 1or3?} in each direction and thus estimate a 3
-$\mu$s round-trip delay. In this experiment, once a coroutine has
-yielded, we use the core's timestamp counter to ensure it does not get
-rescheduled for 3 $\mu$s.
+$\mu$s round-trip delay.
 
 %simulated delay plot
 \begin{figure}[h]
   \begin{center}
     \includegraphics[width=0.47\textwidth]{figures/multi-green-delay7800-edited.pdf}
   \end{center}
-  \caption{Pointer chasing with simulated network delay.}
+  \vspace{3pt}
+  \caption{Pointer chasing with simulated network delay. Each core ran up to 167 coroutines, and each coroutine made 1 to 4 concurrent references.}
   \label{fig:network-delay}
 \end{figure}
 
-We ran these experiments with two sources of memory concurrency: each
-core ran up to 167 coroutines, and each coroutine made between 1 and 4
-concurrent references. The results are shown in
+The results of the experiment are shown in
 Figure~\ref{fig:network-delay}. We are still able to reach a
-near-maximum rate of 273 \mrps, but at least 2
+near-maximum rate of 273 \mrps\footnote{The throughput keeps increasing up to around 850 total concurrent references offered, far more than the 36 we know the chip to support. This is because we have modeled the network latency by forcing coroutines to wait the extra time before using the data, so the physical miss buffers on our machine are not tied up any longer than usual.}, but at least 2
 concurrent references per coroutine are required. Running with a single
-reference per coroutine achieves 236 \mrps. Note that the throughput keeps increasing up to around 850 total concurrent references offered, far more than the 36 we know the chip to support. This is because we have modeled the network latency by forcing coroutines to wait the extra time before using the data, so the physical miss buffers on our machine are not tied up any longer than usual.
+reference per coroutine achieves 236 \mrps. 
 
 We also observe that to achieve a throughput equal to the expected max outgoing network bandwidth (100 \mrps), \todo{reference earlier section calculation?} when there is only one reference per context available, we require 320 coroutines. This is close to the minimum of 300 concurrent references needed to tolerate $3 \mu s$ latency.
 
@@ -816,6 +744,14 @@ libraries.
 \section{Conclusion}
 \label{sec:conclusion}
 
+We presented our plans on building a system for large graph
+computation using commodity parts. We leverage decades-old ideas on
+using a large ammount of concurrency to tolerate latencies; but do so
+mostly in software. We developed a runtime system for latency
+tolerance and our results showed that it is able to manage enough
+concurrency to tolerate latencies long enough to amortize the cost of
+expensive accesses to our large global memory system (high-latency,
+but high-bandwidth).
 
 \bibliographystyle{acm}
 \bibliography{softxmt-hotpar2011}
