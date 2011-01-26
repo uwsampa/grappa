@@ -246,7 +246,8 @@ minimum number of registers allowed by the ABI, and depend on the
 compiler to save and restore any other registers in use. We minimize
 context switch time by doing all switching and scheduling in user space (kernel traps are at least an order of magnitude slower.)
 
-\paragraph{Single-node implementation.}  We implemented coroutines
+%\paragraph{Single-node implementation.}  
+In our single-node implementation, we implemented coroutines
 as described, with a round-robin scheduler. Coroutines do local work,
 issue a remote prefetch, and switch to the next in turn.  When the
 coroutine is reactivated, it assumes the requested data is available
@@ -254,11 +255,11 @@ and issues a read.  This is a disadvantage of the simple
 implementation; if the data is not yet received and in cache, the core
 (and all its coroutines) can stall.
 
-\paragraph{Multi-node ideas.}
-We will explore how the memory manager and coroutine scheduler may
+%\paragraph{Multi-node ideas.}
+As we develop our multi-node implementation, we will explore how the memory manager and coroutine scheduler may
 interact, so that threads waiting on long-latency memory operations or
 synchronization operations will be scheduled soon after their
-operations have completed (and not before).
+operations have completed.
 
 \subsection{Concurrency in global memory references}
 
@@ -278,15 +279,15 @@ latency; and, once the reading thread has been rescheduled, a {\em
   read complete} blocks until the data is available. A write operation
 follow the same pattern.
 
-\paragraph{Single-node implementation.}
-We use prefetch instructions for the issue operation, and regular
+%\paragraph{Single-node implementation.}
+In our single-node implementation, we use prefetch instructions for the issue operation, and regular
 blocking reads and writes for the complete operation.  Since we expect
 these global references to have low locality, we use the
 ``non-temporal'' form of prefetch to avoid disturbing the state of the
 cache hierarchy \cite{intel:swdev}.
 
-\paragraph{Multi-node ideas.}
-We believe we will need hundreds of outstanding memory references per
+%\paragraph{Multi-node ideas.}
+As we develop our multi-node implementation, we believe we will need hundreds of outstanding memory references per
 processor to cover the latency of remote references in a multi-node
 system. Unfortunately, commodity processors have much smaller limits
 on memory concurrency: section~\ref{subsubsec:evalsinglebase} finds a
@@ -360,14 +361,14 @@ would be masked out when the pointer was returned to the user.  This
 allows us to synchronize any data type through one level of
 indirection.
 
-\paragraph{Single-node system.}
-Just as with reads and writes, we prefetch and yield before performing
+%\paragraph{Single-node system.}
+In our single-node implementation, we prefetch and yield before performing
 a synchronization operation. We support only the synchronization
 operations supported by our development platform; we have not
 implemented full-empty bits yet.
 
-\paragraph{Multi-node ideas.}
-Synchronization operations can also be delegated to a memory manager
+%\paragraph{Multi-node ideas.}
+In a multi-node implementation, synchronization operations can be delegated to a memory manager
 thread or accelerator. Sychronization on remote data would be
 performed by the remote memory manager. This may simplify the
 implementation: if only a single core (or single accelerator) is
