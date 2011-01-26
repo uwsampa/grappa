@@ -390,13 +390,18 @@ its own integrated memory controller and DIMMs; references to other
 chips' memory are carried over Intel's cache-coherent QuickPath
 Interconnect (QPI) \cite{quickpath:website}.
 
-Our evaulation consists of two parts. First, we demonstrate that the runtime system can achieve the same performance as when there is explicit memory concurrency available. Second, we look at the runtime within the multi-node picture and show that it can tolerate large latencies. In each part we begin by studying relevant aspects of our test machine's memory system so we can interpret our runtime results.
+Our evaulation consists of two parts. First, we demonstrate that the
+runtime system can achieve the same performance as when there is
+explicit memory concurrency available. Second, we look at the runtime
+within the multi-node picture and show that it can tolerate large
+latencies. In each part we begin by studying relevant aspects of our
+test machine's memory system so we can interpret our runtime results.
 
 
 \subsection{Single-node}
 
-We first characterize the performance of our test machine's memory
-system. Then we use these results to evaluate the performance of our runtime within a single node.
+% We first characterize the performance of our test machine's memory
+% system. Then we use these results to evaluate the performance of our runtime within a single node.
 
 \subsubsection{Base memory system performance}
 \label{subsubsec:evalsinglebase}
@@ -649,8 +654,9 @@ use variants of this idea.
 %latencies across a multi-node system using mostly software.
 
 There has also been much work on user level threading; the First-Class
-User Level Threading project \cite{ult} is one example. Our goal is
-slightly different; we want many contexts to tolerate memory latency.
+User Level Threading project \cite{ult} is one example. We have a
+different goal; we want many lightweight contexts to tolerate memory
+latency.
 
 Our goal of presenting a global view of distributed memory to the
 programmer is shared by the PGAS community, and is used in languages
