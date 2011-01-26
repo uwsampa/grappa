@@ -3,6 +3,8 @@
 %% To disable, just uncomment this line
 %% \renewcommand{\todo}[1]{\relax}
 
+\newcommand{\mrps}[0]{Mref/s}
+
 %\documentclass{acm_proc_article-sp}
 \documentclass[10pt,nocopyrightspace,preprint]{sigplanconf}
 \usepackage{url}
@@ -566,8 +568,7 @@ doing the traversal. We ran 10 traversals, measuring average rate in each, and r
 
 Figure~\ref{fig:listwalk-totalconc} shows the result. Each point represents
 the maximum rate pointers are traversed for a given number of
-concurrent offered references. We see a maximum rate of 277 million
-references per second, which agrees with the measurements found by \cite{Mandal:2010} with a similar machine. This rate is achieved when the number of offered references is 36. Note that a single core cannot support this level of
+concurrent offered references. We see a maximum rate of 277 million references per second (\mrps), which agrees with the measurements found by \cite{Mandal:2010} with a similar machine. This rate is achieved when the number of offered references is 36. Note that a single core cannot support this level of
 memory concurrency; the maximum reference rate for a single core is
 107M. We believe this limit is due to the core's limited number of {\em line fill
   buffers} \cite{nehalem:arch}, which limits the core to 10
@@ -578,7 +579,7 @@ cores can saturate. To measure the memory controller's maximum random
 reference rate, we extended the previous experiment so that cores in
 both processors were traversing lists allocated in the first processor's
 memory. With this configuration, we observed a maximum rate of 360
-million references per second. We believe this difference is due to
+\mrps. We believe this difference is due to
 the configuration of the processor's {\em Global Queue} \cite{nehalem:perf}, which limits the number of concurrently-executing read misses from a chips cores to its local last-level cache and memory to 32.
 
 
@@ -609,8 +610,7 @@ same processor as the cores doing the traversal.
 Figure~\ref{fig:multi-green} shows the result. For this
 experiment, we limited memory concurrency to one concurrent miss per
 coroutine, so the only source of memory concurrency is the use of
-coroutines. We are able to obtain a rate of 275 million references per
-second with 48 concurrent misses, or 8 coroutines per core. These
+coroutines. We are able to obtain a rate of 275 \mrps with 48 concurrent misses, or 8 coroutines per core. These
 results are very close to the ILP-only experiment, but more concurrent requests are required--about 48 versus 36. When the number of references per coroutine is larger than 1, fewer coroutines are required to reach full performance.
 
 We observe a gradual decrease in reference rate once the number of
@@ -671,7 +671,7 @@ To evaluate the potential for our runtime to perform in the multi-node case, we 
 
 We measured the rate at which the cores can make requests
 over the QPI link. For this experiment, we allocated the lists in the
-second chip's memory and ran the traversals on the first chip's cores. Figure~\ref{fig:listwalk-qpi} shows the result. We found that use of the QPI link limits us to 175 million references per second.
+second chip's memory and ran the traversals on the first chip's cores. Figure~\ref{fig:listwalk-qpi} shows the result. We found that use of the QPI link limits us to 175 \mrps.
 
 
 To simulate the performance of pointer chasing in a
@@ -699,16 +699,14 @@ We ran these experiments with two sources of memory concurrency: each
 core ran up to 167 coroutines, and each coroutine made between 1 and 4
 concurrent references. The results are shown in
 Figure~\ref{fig:network-delay}. We are still able to reach a
-near-maximum rate of 273 million references per second, but at least 2
+near-maximum rate of 273 \mrps, but at least 2
 concurrent references per coroutine are required. Running with a single
-reference per coroutine achieves 236 million references per
-second. Note that the throughput keeps increasing up to around 850 total concurrent references offered, far more than the 36 we know the chip to support. This is because we have modeled the network latency by forcing coroutines to wait the extra time before using the data, so the physical miss buffers on our machine are not tied up any longer than usual.
+reference per coroutine achieves 236 \mrps. Note that the throughput keeps increasing up to around 850 total concurrent references offered, far more than the 36 we know the chip to support. This is because we have modeled the network latency by forcing coroutines to wait the extra time before using the data, so the physical miss buffers on our machine are not tied up any longer than usual.
 
-We also observe that to achieve a throughput equal to the expected max outgoing network bandwidth (100 million references per second), \todo{reference earlier section calculation?} when there is only one reference per context available, we require 320 coroutines. This is close to the minimum of 300 concurrent references needed to tolerate $3 \mu s$ latency.
+We also observe that to achieve a throughput equal to the expected max outgoing network bandwidth (100 \mrps), \todo{reference earlier section calculation?} when there is only one reference per context available, we require 320 coroutines. This is close to the minimum of 300 concurrent references needed to tolerate $3 \mu s$ latency.
 
 Any network interface would be connected through a QPI link,
-which we measured to have a bandwidth limit of 175 million references
-per second, so our runtime appears to have the capacity to chase pointers
+which we measured to have a bandwidth limit of 175 \mrps, so our runtime appears to have the capacity to chase pointers
 in a remote memory. 
 
 \todo{also have results that remote cores over QPI plus delay 3us can make it up to the 175M, with sufficient number of coroutines}
