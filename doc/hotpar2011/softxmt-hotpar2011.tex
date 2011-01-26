@@ -614,11 +614,11 @@ near-maximum rate of 273 \mrps\footnote{The throughput keeps increasing up to ar
 concurrent references per coroutine are required. Running with a single
 reference per coroutine achieves 236 \mrps. 
 
-We also observe that to achieve a throughput equal to the expected max outgoing network bandwidth (100 \mrps), \todo{reference earlier section calculation?} when there is only one reference per context available, we require 320 coroutines. This is close to the minimum of 300 concurrent references needed to tolerate $3 \mu s$ latency.
+These results suggest that the runtime should be able to tolerate large latency well enough to exceed the max issue rates of both modern network interfaces (about 100 \mrps) \cite{mellanox:press} and the QPI link that connects the chip to the network interface.
 
-Any network interface would be connected through a QPI link,
-which we measured to have a bandwidth limit of 175 \mrps, so our runtime appears to have the capacity to chase pointers
-in a remote memory. 
+%Any network interface would be connected through a QPI link,
+%which we measured to have a bandwidth limit of 175 \mrps, so our runtime appears to have the capacity to chase pointers
+%in a remote memory. 
 
 \todo{also have results that remote cores over QPI plus delay 3us can make it up to the 175M, with sufficient number of coroutines}
 
