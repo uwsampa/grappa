@@ -3,7 +3,7 @@ bibtex=bibtex
 
 softxmt-hotpar2011.pdf:
 
-%.pdf: %.tex %.bib Makefile evaluation.tex
+%.pdf: %.tex %.bib Makefile evaluation.tex sigplanconf.cls
 	$(latex) $<
 	$(bibtex) $(subst .tex,, $<)
 	$(latex) $<

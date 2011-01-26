@@ -1,7 +1,7 @@
 %% move stuff to defs file
 \newcommand{\todo}[1]{{\bfseries [[#1]]}}
 %% To disable, just uncomment this line
- \renewcommand{\todo}[1]{\relax}
+% \renewcommand{\todo}[1]{\relax}
 
 \newcommand{\mrps}[0]{Mref/s}
 
@@ -12,10 +12,23 @@
 \usepackage{alltt}
 \usepackage{graphicx}
 \usepackage{comment}
-\usepackage[labelfont=bf,font=small,belowskip=-7pt,aboveskip=-10pt]{caption}
+\usepackage[labelfont=bf,font=small,belowskip=-3pt,aboveskip=-5pt]{caption}
+\usepackage[compact]{titlesec}
+\usepackage{mdwlist}
+
 \begin{document}
 
-\title{Can We Crunch the Social Graph on the Cheap?}
+%\titlespacing{\section}{0pt}{*0}{*0}
+%\titlespacing{\subsection}{0pt}{*0}{*0}
+%\titlespacing{\subsubsection}{0pt}{*0}{*0}
+
+%\textheight 9in
+%\textwidth 6.5in
+%\columnsep 1pc
+\renewcommand{\baselinestretch}{0.85}
+
+%\title{Can We Crunch the Social Graph on the Cheap?}
+\title{Crunching Large Graphs with Commodity Processors}
 
 %\numberofauthors{7}
 %\author{
@@ -32,34 +45,47 @@
 %}
 
 %todo format the UW names horizontally
-\authorinfo{Jacob Nelson, Brandon Myers, Andrew Hunter, Dan Grossman, Mark Oskin,
-Carl Ebeling, Luis Ceze}{University of Washington}{\{nelson, bdmyers, ahh, djg, oskin, ebeling, luisceze\}@cs.washington.edu}
-\authorinfo{Simon Kahan}{Pacific Northwest National Lab}{skahan@cs.washington.edu}
-\authorinfo{Preston Briggs}{}{preston.briggs@gmail.com}
-
+\authorinfo{Jacob Nelson, Brandon Myers, A.H. Hunter, Preston Briggs,
+  Dan Grossman, Mark Oskin, Carl Ebeling, Simon Kahan, Luis
+  Ceze}{University of Washington}{\{nelson, bdmyers, ahh, preston,
+  djg, oskin, ebeling, skahan, luisceze\}@cs.washington.edu}
 
 \maketitle
+
 \begin{abstract}
-
- Techniques from graph analytics have found important applications in
-  areas such as social networks and bioinformatics. These irregular
-  problems present a challenge for parallel machines: obtaining
-  performance is not straightforward. Multithreading works well for
-  such problems, but the only large-scale implementation of the technique
-  is the Cray XMT, an expensive, non-commodity machine.
-
-  Our goal is to build a system with XMT-like properties, implemented
-  with commodity components. This paper presents a runtime for latency
-  tolerance, along with our plans for scaling up to multiple
-  nodes. Our analysis shows the feasibility of our approach.
+   Crunching large graphs is the basis of many emerging applications,
+   such as social network analysis and bioinformatics. Graph analytics
+   algorithms exhibit little locality and therefore present significant
+   performance challenges. Hardware multithreading systems (e.g, Cray
+   XMT) showed that with enough concurrency, we can tolerate long
+   latencies. Unfortunately, this solution is not available with
+   commodity parts.
+ 
+   Our goal is to develop a latency-tolerant system built out of
+   commodity parts and mostly in software. The proposed system includes
+   a runtime that supports a large number of lightweight contexts,
+   full-empty synchronization and a memory manager that provides a
+   high-latency but high-bandwidth global shared memory. This paper
+   lays out the vision for our system, and justifies its feasibility
+   with a performance analysis of the runtime for latency tolerance.
+ 
 \end{abstract}
 
 \section{Introduction}
 
-
-Techniques from graph analytics have found important applications in
-areas such as social networks and bioinformatics. \todo{more}
-
+Many important emerging applications such as social network analysis,
+bioinformatics and analysing vast sensor data from actual networks
+(e.g, water, electrical grid) are based on crunching very large
+graphs. Unfortunately, the computational cost of these applications
+gets quickly out of hand. For example, in January 2011, Facebook had
+500 million active users with an average of 130 friends each
+\cite{Facebook:2011p91}. Its friend suggestion algorithm in 2010 ran on
+  a 40-node cluster with 72GB memory per node, and still, new
+  suggestions could only be computed every two days
+  \cite{Backstrom:2010p90}. Speeding up these applications at a low
+  cost would have a large impact in how we deal and react to the fast
+  growth of the data-set and would make the results even more
+  valuable.
 
 % In January 2011, Facebook had 500 million active users with an average
 % of 130 friends each \cite{Facebook:2011p91}.
@@ -91,7 +117,9 @@ XMT is an expensive, non-commodity machine. \todo{don't we want to also say XMT 
 
 \begin{figure*}[htbp]
   \begin{center}
-    \includegraphics[width=0.9\textwidth]{figures/system-overview.pdf}
+    \vspace{-0.25in}
+    \includegraphics[width=0.7\textwidth]{figures/system-overview.pdf}
+    \vspace{-0.1in}
 	\end{center}
 	\caption{Overview of our proposed system design. The base
           system is a cluster of commodity nodes and interconnect. We
@@ -253,11 +281,9 @@ as the main thread, as in the common  fork-join model of parallelism.
 
 \section{Implementation}
 \label{sec:approach}
-
-
-The goal of our implementation is to use multithreading to tolerate
+Our goal is to use multithreading to tolerate
 the latency of random accesses to memory in a global address space
-spread across multiple nodes. This goal has three key challenges:
+spread across multiple nodes.  Our implementation must provide three features:
 \begin{itemize}
 \item {\bf Lightweight multithreading}
   
@@ -272,8 +298,7 @@ spread across multiple nodes. This goal has three key challenges:
 
 \item {\bf Low overhead synchronization}
 
-  In a system with high degrees of concurrency, lightweight
-  synchronization primitives are important.
+  We must support global synchronization between threads that allows unrelated threads to proceed unblocked.
 \end{itemize}
 We discuss our approach to solving each of these challenges in
 turn. For each one, we discuss both our current single-node
@@ -282,39 +307,25 @@ implementation and ideas for a multi-node implementation.
 \subsection{Lightweight multithreading}
 
 Our approach to supporting many lightweight threads uses a cooperative,
-user-level multitasking system built using coroutines.
-
-There are three main concerns in designing the coroutine
-mechanism. First, the working set of each coroutine must be small, so
-many coroutines can be active without trashing the cache. Second,
-context switches must be fast, so that overhead does not swamp actual
-work. Third, when a coroutine yields, we must choose a suitable
-coroutine to run next.
+user-level multitasking system built using coroutines. Much work has been done on similar user-level systems \cite{ult,capriccio}, but we have stringent requirements on size and performance, since we have large numbers of contexts rapidly issuing prefetches and passing control.  Hence coroutines must be small, so
+many coroutines can be active without trashing the cache, and
+context switches must be fast (a small fraction of memory latency) so that we can overlap memory requests and achieve concurrency.
 
 We minimize context size by treating context switches as function
 calls, as in~\cite{charm}. This allows us to save and restore the
 minimum number of registers allowed by the ABI, and depend on the
 compiler to save and restore any other registers in use. We minimize
-context switch time both by keeping contexts small and by doing all
-switching and scheduling in user space, as in \todo{cite other green
-  threads packages, like qthreads}.
-
-There are a number of possibilites for coroutine scheduling.
-Ideally, a thread would be rescheduled when its request had
-completed, but this may complicate the scheduling decision and slow
-down context switches. A simple round-robin scheduler may be sufficient.
+context switch time by doing all switching and scheduling in user space (kernel traps are at least an order of magnitude slower.)
 
 \subsubsection{Single-node implementation}
 We implemented coroutines as described, with a round-robin
-scheduler. If a prefetched data value is no longer in the cache when
-the coroutine is rescheduled and the value is used, the coroutine pays
-the full cost of the fetch.
+scheduler. Coroutines do local work, issue a remote prefetch, and switch to the next in turn.  When the coroutine is reactivated, it assumes the requested data is available and issues a read.  This is a disadvantage of the simple implementation; if the data is not yet received and in cache, the core (and all its coroutines) can stall.
 
 \subsubsection{Multi-node ideas}
 We will explore how the memory manager and coroutine scheduler may
 interact, so that threads waiting on long-latency memory operations or
 synchronization operations will be scheduled soon after their
-operations have completed. 
+operations have completed (and not before).
 
 \subsection{Concurrency in global memory references}
 
@@ -478,8 +489,9 @@ cores' exploitation of ILP for memory concurrency, rather than our coroutine
 library.
 
 \begin{figure*}[ht]
+\vspace{-0.2in}
 %list walk ILP
-\begin{minipage}[b]{0.3\linewidth}
+\begin{minipage}[b]{0.3\linewidth}{\small
 \centering
 \begin{alltt}{\small
   while (count-- > 0) \{
@@ -492,7 +504,7 @@ library.
 \end{alltt}
 %\caption{Pseudocode for pointer chasing without coroutines.}
 \label{fig:pointernocoro}
-\end{minipage}
+}\end{minipage}
 %listwalk green threads
 \begin{minipage}[b]{0.35\linewidth}
 \centering
@@ -545,6 +557,7 @@ the probability of each reference being a miss. We allocated the lists
 on 1GB huge pages to minimize TLB refill overhead.
 
 \begin{figure}[h]
+  \vspace{-.1in}
 	\begin{center}
 		\includegraphics[width=0.47\textwidth]{figures/multi-listwalk-totalconc-edited.pdf}
 	\end{center}
@@ -695,56 +708,36 @@ in a remote memory.
 \todo{also have results that remote cores over QPI plus delay 3us can make it up to the 175M, with sufficient number of coroutines}
 
 
-%\todo{Begin eval insert}
-%\input{evaluation}
-%\todo{End eval insert}
-
 \section{Related work}
 \label{sec:related}
-The concept of using independent parallel contexts to tolerate latency
-is not novel.  The inspiration for our project is of course the Cray
-XMT \cite{feo-xmt}, which implemented a hardware version of our
-programming model (in what would today be considered exceptionally
-slow silicon.)  The XMT can be seen as simultaneous multithreading
-\cite{tullsen-smt} writ large; the technique and motivation is
-essentially the same, but the XMT allows hundreds of contexts (modern
-Intel SMT implementations are generally limited to two.) The Alewife
-system \cite{agarwal-alewife} also switches contexts (in hardware) to
-hide latency on remote-node accesses.  Cyclops \cite{almasi-cyclops}
-allows hundreds of independently executing contexts to share FPUs,
-caches, and paths to memory, but does not context switch or share
-basic execution hardware.  
 
-Modern programmable GPUs, such as nVidia's CUDA programming model, can also be interpreted in using an XMT-like
-model under the hood;
-% Do I need to include a citation here?
-while they generate large numbers of available execution contexts via
-a (semi-)explicit SIMD model, those SIMD instructions keep functional
-units satisfied by overlapping execution with the loads required for
-other contexts.
 
-Similar techniques have also been used in software.  Mowry proposed a system \cite{mowry-scm} of \emph{software-controlled
-  multithreading}.  As opposed to our system of explicitly marked
-remote references, SCM assumes a high hit rate and traps to an
-interrupt routine which performed a context switch upon a cache miss.  The 2000-era processors had
-short enough latencies that using more than two contexts generally
-produced slowdown.
+Much work exists on using multithreading to tolerate latency. Hardware
+implementations include the Tera MTA~\cite{tera} and Cray
+XMT~\cite{feo-xmt}, Simultaneous Multithreading \cite{tullsen-smt},
+MIT Alewife \cite{agarwal-alewife}, Cyclops \cite{almasi-cyclops}, and
+even GPUs \cite{gpus}. Software-only approaches exist as well; the
+Software Controlled Multithreading project \cite{mowry-scm}, QThreads
+\cite{qthreads}, MAESTRO \cite{maestro}, and Charm \cite{charm} all
+use variants of this idea.
+%In contrast to all of these, our goal is to tolerate
+%latencies across a multi-node system using mostly software.
 
-Partitioned global address space models, such as that used in Unified Parallel C,
-% definitely need a citation here
- share our approach of exposing all data (even remote data)
- transparently to any threads and have largely solved the problems of
- how to efficiently translate those remote reads into message
- passing.  However, their programming models emphasize locality more
- than our work does; while a program can examine any vertex in a UPC
- program at any time, it probably shouldn't (whereas our kernels rely on our
- latency hiding technique to make common remote references fast.
+There has been much work on user level threading; the First-Class User
+Level Threading project \cite{ult} is one example. Our goal is
+slightly different; we want many contexts to tolerate memory latency.
 
-The value of the information in extremely large and sparse graphs is
-rapidly growing.  The GraphCT toolkit \cite{ediger-graphct} used an XMT to perform
-sophisticated analysis on data from Twitter, identifying important
-actors and their networks of influence, and it can scale to the full
-size of graphs such as Facebook's friend network.
+Our goal of presenting a global view of distributed memory to the
+programmer is shared by the PGAS community, and is used in languages
+like Chapel \cite{chapel}, X10 \cite{X10}, and UPC \cite{upc}. They
+obtain performance by minimizing references to remote nodes, whereas we
+optimize for this case.
+
+The idea of processing large graphs on distributed machines has been
+exploredby projects such as Pregel \cite{pregel}, the Parallel Boost
+Graph Library \cite{parallelbgl}, and CGMLib \cite{cgmlib}. Our goal
+is to develop infrastructure to aid implementation of similar
+libraries.
 
 \section{Conclusion}
 \label{sec:conclusion}
