@@ -249,8 +249,8 @@ achieve concurrency.
 %Simon:  not really true -- we could save fewer if we knew which of the
 %callee save registers weren't going to be clobbered.
 We treat context switches as function calls, as in~\cite{charm}. This allows us 
-to depend on the compiler to save and restore caller-save registers while we explicitly save and restore all the callee-save registers:  the size of a coroutine context is hardly more than the stack space needed to save these registers.  We minimize
-context switch time by doing all switching and scheduling in user space (kernel traps are at least an order of magnitude slower.)
+to depend on the compiler to save and restore caller-save registers while we explicitly save and restore all the callee-save registers.  We minimize
+context switch time by doing all switching and scheduling in user space.
 
 %\paragraph{Single-node implementation.}  
 In our single-node implementation, we implemented coroutines
