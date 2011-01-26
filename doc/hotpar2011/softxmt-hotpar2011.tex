@@ -63,7 +63,7 @@
    Our goal is to develop a latency-tolerant system built out of
    commodity parts and mostly in software. The proposed system includes
    a runtime that supports a large number of lightweight contexts,
-   full-empty synchronization and a memory manager that provides a
+   full-bit synchronization and a memory manager that provides a
    high-latency but high-bandwidth global shared memory. This paper
    lays out the vision for our system, and justifies its feasibility
    with a performance analysis of the runtime for latency tolerance.
@@ -252,11 +252,10 @@ to depend on the compiler to save and restore caller-save registers while we exp
 context switch time by doing all switching and scheduling in user space (kernel traps are at least an order of magnitude slower.)
 
 \paragraph{Single-node implementation.}  We implemented coroutines
-as described, with a round-robin scheduler. Coroutines do local work,
-issue a remote prefetch, and switch to the next in turn.  When the
+with a round-robin scheduler. Coroutines do local work,
+issue a remote prefetch, and yield. When a
 coroutine is reactivated, it assumes the requested data is available
-and issues a read.  This is a disadvantage of the simple
-implementation; if the data is not yet received and in cache, the core
+and issues a read.  If the data is not yet received and in cache, the core
 (and all its coroutines) can stall.
 
 \paragraph{Multi-node ideas.}
@@ -319,7 +318,7 @@ Another approach moves the global memory management to a hardware
 device. We can add a coprocessor FPGA in a processor socket, listening
 to coherence messages on the bus, similar to \cite{mogill}. Note that
 this accelerator is only a memory proxy, not a compute
-coprocessor. The accelerator wold map all global shared memory into a
+coprocessor. The accelerator would map all global shared memory into a
 segment of each node's local address space; when it detects a
 reference to memory on a remote node, it would do the address-to-node
 translation and issue the request through the network controller,
@@ -352,16 +351,16 @@ Just as with reads and writes, we enable concurrency around
 synchronization operations by splitting them into {\em issue} and {\em
   complete} phases.
 
-Implementing full-empty bit support efficiently on a platform not
+Implementing full-bit support efficiently on a platform not
 designed for them is a challenge. Previous work \cite{qthreads} has
-enabled support full-empty bit synchronization on arbitrary words by
-allocating additional storage for the full-empty bits and implementing
-atomic full-empty operations as library routines.
+enabled support for full-bit synchronization on arbitrary words by
+allocating additional storage for the full-bits and implementing
+atomic full-bit operations as library routines.
 
-One potential optimization is to limit full-empty synchronization to
+One potential optimization is to limit full-bit synchronization to
 pointers to aligned data types, and reuse wasted space in the
-low-order bits of the pointer for full-empty bit storage. These bits
-would be masked out when the pointer was returned to the user.  This
+low-order bits of the pointer for full-bit storage. These bits
+would be masked out when the pointer is returned to the user.  This
 allows us to synchronize any data type through one level of
 indirection.
 
@@ -369,7 +368,7 @@ indirection.
 Just as with reads and writes, we prefetch and yield before performing
 a synchronization operation. We support only the synchronization
 operations supported by our development platform; we have not
-implemented full-empty bits yet.
+implemented full-bits yet.
 
 \paragraph{Multi-node ideas.}
 Synchronization operations can also be delegated to a memory manager
