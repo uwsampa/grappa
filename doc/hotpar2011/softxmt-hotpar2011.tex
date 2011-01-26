@@ -44,7 +44,6 @@
 %\email{preston.briggs@gmail.com}\\
 %}
 
-%todo format the UW names horizontally
 \authorinfo{Jacob Nelson, Brandon Myers, A.H. Hunter, Preston Briggs,
   Dan Grossman, Mark Oskin, Carl Ebeling, Simon Kahan, Luis
   Ceze}{University of Washington}{\{nelson, bdmyers, ahh, preston,
@@ -111,9 +110,8 @@ implement efficient computations for these graphs. The Cray XMT is an
 example of such an approach: it solves the memory latency problem
 through concurrency rather than caching. Each XMT processor supports
 128 hardware contexts and 1024 outstanding memory operations, and is
-able to switch contexts every cycle \todo{cite XMT description}. This ability comes at a cost: the
-XMT is an expensive, non-commodity machine. \todo{don't we want to also say XMT has poor performance on x kind of apps?}
-
+able to switch contexts every cycle \cite{tera, feo-xmt}. This ability
+comes at a cost: the XMT is an expensive, non-commodity machine.
 
 \begin{figure*}[htbp]
   \begin{center}
@@ -209,97 +207,23 @@ locality within the private space, and it will be exploited to reduce
 latency and bandwidth \todo{exploited by what? by the exisiting locality hardware like cache hierarchy?}; express concurrency, and it will be used toward
 tolerating latency and reducing the cost of bandwidth.
 
-\begin {comment}
-\todo{Change to discuss API:
-
-context switches:
-  yield()
-  discuss coroutines
-
-mem:
-  alloc()
-  read(p) 
-  write(p, d)
-  prefetch(p)
-
-sync:
- {read, write} {EE, EF, FE, FF}
-}
-
-While the ideal programming model is one that facilitates easy
-expression in the problem domain as well as efficient execution on the
-available hardware, our programming model today is motivated by only
-efficient execution: it exists as a rudimentary library for concept
-demonstration, not as a language suitable for development.  The
-programming model we use today is therefore only partially formed. It
-exists as an augmentation of existing threaded programming models such
-as pthreads or openmp that are readily available on most computer
-systems.
-
-Though not strictly necessary, for ease of exposition we imagine a
-one-to-one binding between threads and cores.  Our model manifests
-within any thread independently of the others as a ``fray'' \todo{for lack
-of better term }.  Within the thread, a fray instance is the
-instantiation of a set of coroutines and a scheduler.  Instantiation
-is at user-level and the operating system sees the entire fray as as a
-single user-level thread.
-
-\todo{ describe calls that perform thread \& scheduler instantiation; and schedule activation }
-
-Each coroutine executes non-preemptively \todo{seems like non-premptively isn't ``how" it executes, rather how it is scheduled, maybe say ``cooperatively"?}, utilizing the core to which
-its ``parent'' thread has been assigned by the operating system until it
-reaches a yield point.  Typically, the coroutine yields after
-initiating a prefetch operation on data that the programmer or
-compiler anticipates would probably not complete before the data is
-referenced by a subsequent load operation.  In this way, the core
-continues to execute instructions for other coroutines when otherwise
-it would likely stall.  The programming model thus tolerates latency.
-
-\todo{ describe calls to prefetch-and-yield }
-
-When a thread frays, for the sake of expediency, a fixed portion of
-its stack is divided amongst the coroutines.  Given a finite stack,
-each coroutine is constrained to execute a call tree of depth known to
-be finite at compilation time: recursion is not yet permitted.
-
-\todo{ discussion of coroutines \& synchronization } Were a coroutine to
-block on a synchronization variable shared with other threads, the
-entire fray would suspend execution.  This can lead to deadlock when,
-for example, one coroutine waits to consume from another thread that
-is waiting to consume what only another coroutine in this first fray
-can produce.  Instead, coroutines must yield on failed synchronization
-events, spinning rather than blocking, where were they bona fide
-threads, blocking might be more efficient.
-
-\todo{ say something about ``synchronization'' within a fray }
-
-Coroutines completing their work yield without adding themselves to
-the scheduling queue.  The last coroutine to exit in this way returns
-as the main thread, as in the common  fork-join model of parallelism.
-
-\end{comment}
-
 \section{Implementation}
 \label{sec:approach}
 Our goal is to use multithreading to tolerate
 the latency of random accesses to memory in a global address space
 spread across multiple nodes.  Our implementation must provide three features:
-\begin{itemize}
-\item {\bf Lightweight multithreading}
-  
-  We expect to need hundreds of
+\begin{description}
+\item[Lightweight multithreading:] We expect to need hundreds of
   threads to tolerated a cluster's network latency, so our threading
   implementation must have low overhead.
 
-\item {\bf Concurrency in global memory references}
+\item[Concurrency in global memory references:] A thread making a
+  long-latency global memory reference must be able to yield and allow
+  other threads to make progress.
 
-  A thread making a long-latency global memory reference must be able
-  to yield and allow other threads to make progress.
-
-\item {\bf Low overhead synchronization}
-
+\item[Low overhead synchronization:] 
   We must support global synchronization between threads that allows unrelated threads to proceed unblocked.
-\end{itemize}
+\end{description}
 We discuss our approach to solving each of these challenges in
 turn. For each one, we discuss both our current single-node
 implementation and ideas for a multi-node implementation.
@@ -347,21 +271,20 @@ follow the same pattern.
 
 \subsubsection{Single-node implementation}
 We use prefetch instructions for the issue operation, and regular
-blocking reads and writes for the complete operation. Since we expect
+blocking reads and writes for the complete operation.  Since we expect
 these global references to have low locality, we use the
-``non-temporal'' form of prefetch, which tries to bring the data near
-the core without disturbing the state of the cache
-hierarchy \cite{intel:swdev}.
+``non-temporal'' form of prefetch to avoid disturbing the state of the
+cache hierarchy \cite{intel:swdev}.
 
 \subsubsection{Multi-node ideas}
 
-We believe we will need hundreds of outstanding memory references per processor to
-cover the latency of remote references in a multi-node
-system\todo{ can we make a stronger statement? we know it will be 300$+$ according to our calculations}. Unfortunately, commodity processors have much smaller limits
-on memory concurrency: section~\ref{subsubsec:evalsinglebase} finds a limit of
-36 concurrent loads. We will have to manage memory concurrency on our
-own to avoid this limit. We describe approaches in both software and
-hardware.
+We believe we will need hundreds of outstanding memory references per
+processor to cover the latency of remote references in a multi-node
+system. Unfortunately, commodity processors have much smaller limits
+on memory concurrency: section~\ref{subsubsec:evalsinglebase} finds a
+limit of 36 concurrent loads. We will have to manage memory
+concurrency on our own to avoid this limit. We describe approaches in
+both software and hardware.
 
 One approach is for user code to delegate global references to a
 special {\em global memory manager thread}, running on another core in
@@ -372,30 +295,35 @@ requesting thread. On the remote node, the remote memory manager
 thread would perform the memory operation and return the data to the
 requesting node.
 
-This approach has the benefit of enabling our entire system to be
-build using commodity parts, but its potential for performance is not
-clear. We have increased the overhead of a single memory operation:
-what in the single node case was a simple read, is now multiple
-queuing operations between threads and multiple reads and writes over
-the processor's link to the network interface.
+%This approach has the benefit of enabling our entire system to be
+%build using commodity parts, but its potential for performance is not
+%clear. We have increased the overhead of a single memory operation:
+%what in the single node case was a simple read, is now multiple
+%queuing operations between threads and multiple reads and writes over
+%the processor's link to the network interface.
 
 Another approach moves the global memory management to a hardware
 device. We can add a coprocessor FPGA in a processor socket, listening
-to coherence messages on the bus. Note that this accelerator is only a
-memory proxy, not a compute coprocessor. When it detects a reference
-to memory stored on a remote node, the accelerator would issue the
-request through the network controller and track its progress,
-delivering the data to the requesting thread when it was ready.
+to coherence messages on the bus, similar to \cite{mogill}. Note that
+this accelerator is only a memory proxy, not a compute
+coprocessor. The accelerator wold map all global shared memory into a
+segment of each node's local address space; when it detects a
+reference to memory on a remote node, it would do the address-to-node
+translation and issue the request through the network controller,
+delivering the data to the requesting thread when ready. We would
+encode commands in the upper bits of the address; a read from a
+location's {\em issue} address start the remote request and return
+immediately, and a read from a location's {\em complete} address would
+block until the data was available.
 
-All global shared memory would be mapped into a segment of the local
-address space on each node. The accelerator would do the
-address-to-node translation. In addition, to support the issue and
-complete operations for concurrency support, commands would be encoded
-in the upper bits of the address: then each remote word would have multiple
-addresses on the local node. Reading from the {\em issue} address would
-immediately return a dummy value, but the accelerator would issue the
-request over the network. Reading from the {\em complete} address
-would block until the data was available.\todo{adjust with carl's suggestions}
+
+%To support the issue and complete operations for concurrency support,
+%commands would be encoded in the upper bits of the address: then each
+%remote word would have multiple addresses on the local node. Reading
+%from the {\em issue} address would immediately return a value
+%indicating that the accelerator is issuing the request over the
+%network. Reading from the {\em complete} address would block until the
+%data was available.
 
 With either approach, the question of request aggregation will be
 important. Each memory request we make is small: 8 bytes is a likely
@@ -412,12 +340,10 @@ synchronization operations by splitting them into {\em issue} and {\em
   complete} phases.
 
 Implementing full-empty bit support efficiently on a platform not
-designed for them is a challenge. It is possible to support full-empty
-bit synchronization on arbitrary words by allocating additional
-storage for the full-empty bits, and translating each atomic
-full-empty operation into a sequence of memory operations that modify
-the data and full-empty bit atomically, but this may have high
-overhead. \todo{cite qthreads somehow}
+designed for them is a challenge. Previous work \cite{qthreads} has
+enabled support full-empty bit synchronization on arbitrary words by
+allocating additional storage for the full-empty bits and implementing
+atomic full-empty operations as library routines.
 
 One potential optimization is to limit full-empty synchronization to
 pointers to aligned data types, and reuse wasted space in the
@@ -435,17 +361,11 @@ implemented full-empty bits.
 \subsubsection{Multi-node ideas}
 
 Synchronization operations can also be delegated to a memory manager
-thread or accelerator. This may simplify the implementation of
-synchronization operations: if only a single core (or single
-accelerator) is accessing the data being synchronized, the use of
-memory fences may be reduced or eliminated.
-
-Note that we are not advocating using an FPGA as a memory controller
-with attached DRAM and additional storage for full-empty bits. We
-believe this unnecessarily complicates the design for such a
-component. Our goal is to minimize the amount of hardware design our
-proposal requires.
-\todo{but are we eliminating the possibility of FE-only storage on the FPGA?}
+thread or accelerator. Sychronization on remote data would be
+performed by the remote memory manager. This may simplify the
+implementation: if only a single core (or single accelerator) is
+accessing the data being synchronized, the use of memory fences may be
+reduced or eliminated.
 
 % 2TB global memory => 68GB of distributed FE bits.  This seems reasonable, given that a 2TB system might have 64 nodes, so ~1GB per memory manager if one manager per node.
 
@@ -493,7 +413,7 @@ library.
 %list walk ILP
 \begin{minipage}[b]{0.3\linewidth}{\small
 \centering
-\begin{alltt}{\small
+\begin{alltt}{\scriptsize
   while (count-- > 0) \{
     list1 = list1->next;
     list2 = list2->next;
@@ -506,9 +426,9 @@ library.
 \label{fig:pointernocoro}
 }\end{minipage}
 %listwalk green threads
-\begin{minipage}[b]{0.35\linewidth}
+\begin{minipage}[b]{0.35\linewidth}{\small
 \centering
-\begin{alltt}{\small
+\begin{alltt}{\scriptsize
   while (count-- > 0) \{
      prefetch(&(list1->next));
      switch();
@@ -529,11 +449,11 @@ library.
    %  list\(n\) = read(&(list\(n\)->next));
 %\caption{Pseudocode for pointer chasing using coroutines.}
 \label{fig:pointercoro}
-\end{minipage}
+}\end{minipage}
 %cache pressure
-\begin{minipage}[b]{0.32\linewidth}
+\begin{minipage}[b]{0.32\linewidth}{\small
 \centering
-\begin{alltt}{\small
+\begin{alltt}{\scriptsize
   while (count-- > 0) \{
     prefetch(&(list1->next));
     switch();
@@ -546,8 +466,8 @@ library.
 \end{alltt}
 %\caption{Pseudocode for pointer chasing with local updates.}
 \label{fig:pointerupdate}
-\end{minipage}
-\vspace{10pt}
+}\end{minipage}
+%\vspace{5pt}
 \caption{Pseudocode for: (a) pointer chasing without coroutines, (b) pointer chasing using coroutines, (c) pointer chasing with local updates. Coroutine code, as in (b), might also include ILP like what (a) depends on for memory concurrency, e.g., by doing multiple prefetches to independent lists, switch, then multiple reads.}
 \label{fig:code}
 \end{figure*}
@@ -673,15 +593,13 @@ Since the network interface is accessed over QPI, we estimated QPI bandwidth by 
 %\end{figure}
 %%%%%%%%%%
 
-To simulate the performance of pointer chasing in a
-multi-node system, we modified the scheduler of our coroutine library
-to include a delay before a coroutine can be rescheduled, imitating
-the network transit delay even though we are referencing local
-memory. Recently published measurements of Infiniband latencies
-\todo{cite} suggest we might expect 1.1 $\mu$s source-to-destination
-latencies between two computers connected back-to-back; we assume a
-switch transit delay of 400 ns \todo{how many hops? 1or3?} in each direction and thus estimate a 3
-$\mu$s round-trip delay.
+To simulate the performance of pointer chasing in a multi-node system,
+we modified the scheduler of our coroutine library to include a delay
+before a coroutine can be rescheduled, imitating the network transit
+delay even though we are referencing local memory. We assume 1.1
+$\mu$s interface and 400 ns switch latencies in each direction
+\cite{infiniband, mellanox:site}, and thus estimate a 3 $\mu$s round-trip
+delay.
 
 %simulated delay plot
 \begin{figure}[h]
@@ -723,8 +641,8 @@ use variants of this idea.
 %In contrast to all of these, our goal is to tolerate
 %latencies across a multi-node system using mostly software.
 
-There has been much work on user level threading; the First-Class User
-Level Threading project \cite{ult} is one example. Our goal is
+There has also been much work on user level threading; the First-Class
+User Level Threading project \cite{ult} is one example. Our goal is
 slightly different; we want many contexts to tolerate memory latency.
 
 Our goal of presenting a global view of distributed memory to the

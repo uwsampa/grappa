@@ -352,9 +352,9 @@
 %\setlength{\columnsep}{2pc}
 \setlength{\columnsep}{0.75pc}
 
-%\setlength{\textheight}{54.5pc}
+\setlength{\textheight}{54.5pc}
 %\setlength{\textheight}{9in}
-\setlength{\textheight}{9.25in}
+%\setlength{\textheight}{9.5in}
 
 % Running foot:
 
