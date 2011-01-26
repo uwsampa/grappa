@@ -38,39 +38,34 @@
 %}
 
 %todo format the UW names horizontally
-<<<<<<< HEAD
 \authorinfo{Jacob Nelson, Brandon Myers, A.H. Hunter, Preston Briggs,
   Dan Grossman, Mark Oskin, Carl Ebeling, Simon Kahan, Luis
   Ceze}{University of Washington}{\{nelson, bdmyers, ahh, preston,
   djg, oskin, ebeling, skahan, luisceze\}@cs.washington.edu}
-=======
-\authorinfo{Jacob Nelson, Brandon Myers, Andrew Hunter, Dan Grossman, Mark Oskin,
-Carl Ebeling, Luis Ceze}{University of Washington}{\{nelson, bdmyers, ahh, djg, oskin, ebelin, luisceze\}@cs.washington.edu}
-\authorinfo{Simon Kahan}{Pacific Northwest National Lab}{skahan@cs.washington.edu}
-\authorinfo{Preston Briggs}{}{preston.briggs@gmail.com}
-
->>>>>>> 9cf245e7dccb3c394e267e6d1e43d5e7a7686cbf
 
 \maketitle
 
 \begin{abstract}
-
- Techniques from graph analytics have found important applications in
-  areas such as social networks and bioinformatics. These irregular
-  problems present a challenge for parallel machines: obtaining
-  performance is not straightforward. Multithreading works well for
-  such problems, but the only large-scale implementation of the technique
-  is the Cray XMT, an expensive, non-commodity machine.
-
-  Our goal is to build a system with XMT-like properties, implemented
-  with commodity components. This paper presents a runtime for latency
-  tolerance, along with our plans for scaling up to multiple
-  nodes. Our analysis shows the feasibility of our approach.
+   Crunching large graphs is the basis of many emerging applications,
+   such as social network analysis and bioinformatics. Graph analytics
+   algorithms exhibit little locality and therefore present significant
+   performance challenges. Hardware multithreading systems (e.g, Cray
+   XMT) showed that with enough concurrency, we can tolerate long
+   latencies. Unfortunately, this solution is not available with
+   commodity parts.
+ 
+   Our goal is to develop a latency-tolerant system built out of
+   commodity parts and mostly in software. The proposed system includes
+   a runtime that supports a large number of lightweight contexts,
+   full-empty synchronization and a memory manager that provides a
+   high-latency but high-bandwidth global shared memory. This paper
+   lays out the vision for our system, and justifies its feasibility
+   with a performance analysis of the runtime for latency tolerance.
+ 
 \end{abstract}
 
 \section{Introduction}
 
-<<<<<<< HEAD
 Many important emerging applications such as social network analysis,
 bioinformatics and analysing vast sensor data from actual networks
 (e.g, water, electrical grid) are based on crunching very large
@@ -84,12 +79,6 @@ gets quickly out of hand. For example, in January 2011, Facebook had
   cost would have a large impact in how we deal and react to the fast
   growth of the data-set and would make the results even more
   valuable.
-=======
->>>>>>> 9cf245e7dccb3c394e267e6d1e43d5e7a7686cbf
-
-Techniques from graph analytics have found important applications in
-areas such as social networks and bioinformatics. \todo{more}
-
 
 % In January 2011, Facebook had 500 million active users with an average
 % of 130 friends each \cite{Facebook:2011p91}.
