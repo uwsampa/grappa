@@ -244,10 +244,14 @@ trashing the cache; and context switches must be fast (a small
 fraction of memory latency) so that we can overlap memory requests and
 achieve concurrency.
 
-We minimize context size by treating context switches as function
-calls, as in~\cite{charm}. This allows us to save and restore the
-minimum number of registers allowed by the ABI, and depend on the
-compiler to save and restore any other registers in use. We minimize
+%We minimize context size by treating context switches as function
+%calls, as in~\cite{charm}. This allows us 
+%to save and restore the
+%minimum number of registers allowed by the ABI, and 
+%Simon:  not really true -- we could save fewer if we knew which of the
+%callee save registers weren't going to be clobbered.
+We treat context switches as function calls, as in~\cite{charm}. This allows us 
+to depend on the compiler to save and restore caller-save registers while we explicitly save and restore all the callee-save registers:  the size of a coroutine context is hardly more than the stack space needed to save these registers.  We minimize
 context switch time by doing all switching and scheduling in user space (kernel traps are at least an order of magnitude slower.)
 
 \paragraph{Single-node implementation.}  We implemented coroutines
