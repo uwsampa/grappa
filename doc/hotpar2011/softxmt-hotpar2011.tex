@@ -1,7 +1,7 @@
 %% move stuff to defs file
 \newcommand{\todo}[1]{{\bfseries [[#1]]}}
 %% To disable, just uncomment this line
-% \renewcommand{\todo}[1]{\relax}
+ \renewcommand{\todo}[1]{\relax}
 
 \newcommand{\mrps}[0]{Mref/s}
 
@@ -159,6 +159,7 @@ section~\ref{sec:conclusion}.
 \section{Programming model}
 \label{sec:model}
 
+
 Our shared-memory programming model partitions the overall address
 space into a global shared address space and per node private address
 spaces.  Locality may be exploited directly by the programmer in the
@@ -167,13 +168,13 @@ multiprocessor node.  In contrast, locality cannot be exploited in the
 global space: its value is in providing high bandwidth random access
 to any word in a shared data structure by any processor.
 
-Whereas in the PGAS model coherency of global copies is implictly
-maintained across the system \todo{cite pgas?}, we forego caching of globally shared
-data.  A node can exploit temporal locality of data stored in
-the global space only by first copying it into the node's local space.
-In this way, a node can access data at random across the system while
-incurring no hardware coherence overhead: consistency is enforced by
-our mechanisms for explicit global synchronization.
+% Whereas in the PGAS model coherency of global copies is implictly
+% maintained across the system \todo{cite pgas?}, we forego caching of globally shared
+% data.  A node can exploit temporal locality of data stored in
+% the global space only by first copying it into the node's local space.
+% In this way, a node can access data at random across the system while
+% incurring no hardware coherence overhead: consistency is enforced by
+% our mechanisms for explicit global synchronization.
 
 The model promises efficiency subject to the presence of sufficient
 concurrency.  Exactly how that concurrency is expressed by the
