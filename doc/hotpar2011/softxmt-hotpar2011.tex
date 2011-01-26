@@ -224,7 +224,8 @@ spread across multiple nodes.  Our implementation must provide three features:
   other threads to make progress.
 
 \item[Low overhead synchronization:] 
-  We must support global synchronization between threads that allows unrelated threads to proceed unblocked.
+%  We must support global synchronization between threads that allows unrelated threads to proceed unblocked.
+  A thread that is synchronizing must yield its core to allow others to make progress.
 \end{description}
 We discuss our approach to solving each of these challenges in
 turn. For each one, we discuss both our current single-node
