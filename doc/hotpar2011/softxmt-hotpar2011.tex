@@ -1,7 +1,7 @@
 %% move stuff to defs file
 \newcommand{\todo}[1]{{\bfseries [[#1]]}}
 %% To disable, just uncomment this line
- \renewcommand{\todo}[1]{\relax}
+% \renewcommand{\todo}[1]{\relax}
 
 \newcommand{\mrps}[0]{Mref/s}
 
@@ -796,6 +796,10 @@ Software Controlled Multithreading project \cite{mowry-scm}, QThreads
 use variants of this idea.
 %In contrast to all of these, our goal is to tolerate
 %latencies across a multi-node system using mostly software.
+
+There has been much work on user level threading; the First-Class User
+Level Threading project \cite{ult} is one example. Our goal is
+slightly different; we want many contexts to tolerate memory latency.
 
 Our goal of presenting a global view of distributed memory to the
 programmer is shared by the PGAS community, and is used in languages

@@ -323,14 +323,24 @@
   \setlength{\evensidemargin}{.75in}
   \setlength{\oddsidemargin}{.75in}
 \else
-  \setlength{\evensidemargin}{.75in}
-  \setlength{\oddsidemargin}{.75in}
+%  \setlength{\evensidemargin}{.75in}
+%  \setlength{\oddsidemargin}{.75in}
+
+%  \setlength{\evensidemargin}{1in}
+%  \setlength{\oddsidemargin}{1in}
+
+  \setlength{\evensidemargin}{.875in}
+  \setlength{\oddsidemargin}{.875in}
+
 \fi
 
 % Text area:
 
 \newdimen{\standardtextwidth}
-\setlength{\standardtextwidth}{42pc}
+%\setlength{\standardtextwidth}{42pc}
+%\setlength{\standardtextwidth}{6.5in}
+%\setlength{\standardtextwidth}{6.7in}
+\setlength{\standardtextwidth}{6.75in}
 
 \if \@onecolumn
   \setlength{\textwidth}{40.5pc}
@@ -339,8 +349,12 @@
 \fi
 
 \setlength{\topskip}{8pt}
-\setlength{\columnsep}{2pc}
-\setlength{\textheight}{54.5pc}
+%\setlength{\columnsep}{2pc}
+\setlength{\columnsep}{0.75pc}
+
+%\setlength{\textheight}{54.5pc}
+%\setlength{\textheight}{9in}
+\setlength{\textheight}{9.25in}
 
 % Running foot:
 
@@ -406,12 +420,20 @@
 \renewcommand{\dbltopfraction}{\topfraction}
 \renewcommand{\dblfloatpagefraction}{\floatpagefraction}
 
-\setlength{\floatsep}{18pt plus 4pt minus 2pt}
-\setlength{\textfloatsep}{18pt plus 4pt minus 3pt}
-\setlength{\intextsep}{10pt plus 4pt minus 3pt}
+%\setlength{\floatsep}{18pt plus 4pt minus 2pt}
+%\setlength{\textfloatsep}{18pt plus 4pt minus 3pt}
+%\setlength{\intextsep}{10pt plus 4pt minus 3pt}
 
-\setlength{\dblfloatsep}{18pt plus 4pt minus 2pt}
-\setlength{\dbltextfloatsep}{20pt plus 4pt minus 3pt}
+%\setlength{\dblfloatsep}{-18pt plus 4pt minus 2pt}
+%\setlength{\dbltextfloatsep}{20pt plus 4pt minus 3pt}
+
+\setlength{\floatsep}{0pt plus 4pt minus 2pt}
+\setlength{\textfloatsep}{0pt plus 4pt minus 3pt}
+\setlength{\intextsep}{5pt plus 4pt minus 3pt}
+
+\setlength{\dblfloatsep}{5pt plus 4pt minus 2pt}
+\setlength{\dbltextfloatsep}{10pt plus 4pt minus 3pt}
+
 
 % Miscellaneous:
 
@@ -436,8 +458,8 @@
 
 \renewcommand{\normalsize}{%
   \@setfontsize{\normalsize}{9pt}{10pt}%
-  \setlength{\abovedisplayskip}{5pt plus 1pt minus .5pt}%
-  \setlength{\belowdisplayskip}{\abovedisplayskip}%
+ \setlength{\abovedisplayskip}{5pt plus 1pt minus .5pt}%
+ \setlength{\belowdisplayskip}{\abovedisplayskip}%
   \setlength{\abovedisplayshortskip}{3pt plus 1pt minus 2pt}%
   \setlength{\belowdisplayshortskip}{\abovedisplayshortskip}}
 
@@ -999,11 +1021,12 @@
    \rightskip = 0pt plus 0.25 \linewidth
    \parfillskip = 0pt
    \spaceskip = .7em
-   \noindent \LARGE \bfseries \@titletext \par}
+   \vspace{-0.25in}
+ \noindent \LARGE \bfseries \@titletext \par}
   \vskip 6pt
   \noindent \Large \@subtitletext \par
   \vskip 12pt
-  \ifcase \@authorcount
+ \ifcase \@authorcount
     \@latex@error{No authors were specified for this paper}{}\or
     \@titleauthors{i}{}{}\or
     \@titleauthors{i}{ii}{}\or
@@ -1027,7 +1050,8 @@
     \@latex@error{Cannot handle more than 12 authors}{}%
   \fi
   \vspace{1.75pc}
-  \end{center}}
+ \vspace{-0.4in}
+\end{center}}
 
 \def \@settitlebanner {%
   \if \@andp{\@preprint}{\@notp{\@emptydefp{\@titlebanner}}}%
