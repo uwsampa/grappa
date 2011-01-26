@@ -174,7 +174,7 @@ multiprocessor node. In contrast, locality cannot be exploited in the
 global space: its value is in providing high bandwidth random access
 to any word in a shared data structure by any processor.
 
-% Whereas in the PGAS model coherency of global copies is implictly
+% Whereas in the PGAS model coherency of global copies is implicitly
 % maintained across the system, % \todo{cite pgas?}
 % we completely forego
 % caching of globally shared data.  
@@ -373,7 +373,7 @@ implemented full-bits yet.
 
 %\paragraph{Multi-node ideas.}
 In a multi-node implementation, synchronization operations can be delegated to a memory manager
-thread or accelerator. Sychronization on remote data would be
+thread or accelerator. Synchronization on remote data would be
 performed by the remote memory manager. This may simplify the
 implementation: if only a single core (or single accelerator) is
 accessing the data being synchronized, the use of memory fences may be
@@ -397,7 +397,7 @@ its own integrated memory controller and DIMMs; references to other
 chips' memory are carried over Intel's cache-coherent QuickPath
 Interconnect (QPI) \cite{quickpath:website}.
 
-Our evaulation consists of two parts. First, we demonstrate that the
+Our evaluation consists of two parts. First, we demonstrate that the
 runtime system can achieve the same performance as when 
 explicit memory concurrency is available. Second, we look at the runtime
 within the multi-node picture and show that it can tolerate large
