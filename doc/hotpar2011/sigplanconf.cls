@@ -323,24 +323,24 @@
   \setlength{\evensidemargin}{.75in}
   \setlength{\oddsidemargin}{.75in}
 \else
-%  \setlength{\evensidemargin}{.75in}
-%  \setlength{\oddsidemargin}{.75in}
+  \setlength{\evensidemargin}{.75in}
+  \setlength{\oddsidemargin}{.75in}
 
 %  \setlength{\evensidemargin}{1in}
 %  \setlength{\oddsidemargin}{1in}
 
-  \setlength{\evensidemargin}{.875in}
-  \setlength{\oddsidemargin}{.875in}
+%  \setlength{\evensidemargin}{.875in}
+%  \setlength{\oddsidemargin}{.875in}
 
 \fi
 
 % Text area:
 
 \newdimen{\standardtextwidth}
-%\setlength{\standardtextwidth}{42pc}
+\setlength{\standardtextwidth}{42pc}
 %\setlength{\standardtextwidth}{6.5in}
 %\setlength{\standardtextwidth}{6.7in}
-\setlength{\standardtextwidth}{6.75in}
+%\setlength{\standardtextwidth}{6.75in}
 
 \if \@onecolumn
   \setlength{\textwidth}{40.5pc}
@@ -427,8 +427,8 @@
 %\setlength{\dblfloatsep}{-18pt plus 4pt minus 2pt}
 %\setlength{\dbltextfloatsep}{20pt plus 4pt minus 3pt}
 
-\setlength{\floatsep}{0pt plus 4pt minus 2pt}
-\setlength{\textfloatsep}{0pt plus 4pt minus 3pt}
+\setlength{\floatsep}{9pt plus 4pt minus 2pt}
+\setlength{\textfloatsep}{9pt plus 4pt minus 3pt}
 \setlength{\intextsep}{5pt plus 4pt minus 3pt}
 
 \setlength{\dblfloatsep}{5pt plus 4pt minus 2pt}

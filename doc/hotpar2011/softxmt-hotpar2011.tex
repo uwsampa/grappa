@@ -12,13 +12,20 @@
 \usepackage{alltt}
 \usepackage{graphicx}
 \usepackage{comment}
-\usepackage[labelfont=bf,font=small,belowskip=-7pt,aboveskip=-10pt]{caption}
+\usepackage[labelfont=bf,font=small,belowskip=-3pt,aboveskip=-5pt]{caption}
+\usepackage[compact]{titlesec}
+\usepackage{mdwlist}
+
 \begin{document}
+
+%\titlespacing{\section}{0pt}{*0}{*0}
+%\titlespacing{\subsection}{0pt}{*0}{*0}
+%\titlespacing{\subsubsection}{0pt}{*0}{*0}
 
 %\textheight 9in
 %\textwidth 6.5in
 %\columnsep 1pc
-\renewcommand{\baselinestretch}{0.9}
+\renewcommand{\baselinestretch}{0.85}
 
 %\title{Can We Crunch the Social Graph on the Cheap?}
 \title{Crunching Large Graphs with Commodity Processors}
@@ -112,7 +119,7 @@ XMT is an expensive, non-commodity machine. \todo{don't we want to also say XMT 
   \begin{center}
     \vspace{-0.25in}
     \includegraphics[width=0.7\textwidth]{figures/system-overview.pdf}
-    \vspace{-0.2in}
+    \vspace{-0.1in}
 	\end{center}
 	\caption{Overview of our proposed system design. The base
           system is a cluster of commodity nodes and interconnect. We
@@ -482,8 +489,9 @@ cores' exploitation of ILP for memory concurrency, rather than our coroutine
 library.
 
 \begin{figure*}[ht]
+\vspace{-0.2in}
 %list walk ILP
-\begin{minipage}[b]{0.3\linewidth}
+\begin{minipage}[b]{0.3\linewidth}{\small
 \centering
 \begin{alltt}{\small
   while (count-- > 0) \{
@@ -496,7 +504,7 @@ library.
 \end{alltt}
 %\caption{Pseudocode for pointer chasing without coroutines.}
 \label{fig:pointernocoro}
-\end{minipage}
+}\end{minipage}
 %listwalk green threads
 \begin{minipage}[b]{0.35\linewidth}
 \centering
@@ -549,6 +557,7 @@ the probability of each reference being a miss. We allocated the lists
 on 1GB huge pages to minimize TLB refill overhead.
 
 \begin{figure}[h]
+  \vspace{-.1in}
 	\begin{center}
 		\includegraphics[width=0.47\textwidth]{figures/multi-listwalk-totalconc-edited.pdf}
 	\end{center}
