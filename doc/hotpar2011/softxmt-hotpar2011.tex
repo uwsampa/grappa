@@ -578,6 +578,7 @@ general idea.
   \begin{center}
     \includegraphics[width=0.42\textwidth]{figures/cache-pressure-edited.pdf}
   \end{center}
+  \vspace{-0.3in}
   \caption{Cache pressure with coroutines, on six cores.}
   \label{fig:cache-pressure}
 \end{figure}
@@ -590,7 +591,7 @@ Figure~\ref{fig:cache-pressure} shows the result. As we would expect,
 when there are no references to the local structures, the reference rates grow with the number of coroutines just as in
 Figure~\ref{fig:multi-green}. For 32 local updates per traversal, while performance
 decreases for large working set sizes and large numbers of coroutines,
-we see speedup as number coroutines increases for up to 128KB working set size with 8 coroutines per
+we see speedup as the number of coroutines increases up to 128KB working set size with 8 coroutines per
 core. \todo{preempt questions about drop at 16 which is much less than the about 50 needed per core by saying that the drop is likely the same drop effect seen earlier, which is likely to be prefetch squashing since it happens at number of line fill buffers}
 
 \subsection{Performance with multiple nodes}
@@ -632,10 +633,13 @@ delay.
 The results of the experiment are shown in
 Figure~\ref{fig:network-delay}. We are still able to reach a
 near-maximum rate of 273 \mrps\footnote{The throughput keeps increasing up to around 850 total concurrent references offered, far more than the 36 we know the chip to support. This is because we have modeled the network latency by forcing coroutines to wait the extra time before using the data, so the physical miss buffers on our machine are not tied up any longer than usual.}, but at least 2
-concurrent references per coroutine are required. Running with a single
+concurrent references per coroutine are required. Running with one
 reference per coroutine achieves 236 \mrps. 
 
-These results suggest that the runtime should be able to tolerate large latency well enough to exceed the max issue rates of both modern network interfaces (about 100 \mrps) \cite{mellanox:press} and the QPI link that connects the chip to the network interface.
+These results suggest that the runtime should be able to tolerate
+large latency well enough to exceed the max issue rates of both modern
+network interfaces (about 100 \mrps) \cite{mellanox:press} and the QPI
+link used to reach the network interface.
 
 %Any network interface would be connected through a QPI link,
 %which we measured to have a bandwidth limit of 175 \mrps, so our runtime appears to have the capacity to chase pointers
@@ -659,8 +663,8 @@ use variants of this idea.
 %In contrast to all of these, our goal is to tolerate
 %latencies across a multi-node system using mostly software.
 
-There has also been much work on user level threading; the First-Class
-User Level Threading project \cite{ult} is one example. We have a
+There has also been much work on user level threading, including the First-Class
+User Level Threading project \cite{ult} and Capriccio \cite{capriccio}. We have a
 different goal; we want many lightweight contexts to tolerate memory
 latency.
 
@@ -671,7 +675,7 @@ obtain performance by minimizing references to remote nodes, whereas we
 optimize for this case.
 
 The idea of processing large graphs on distributed machines has been
-exploredby projects such as Pregel \cite{pregel}, the Parallel Boost
+explored by projects such as Pregel \cite{pregel}, the Parallel Boost
 Graph Library \cite{parallelbgl}, and CGMLib \cite{cgmlib}. Our goal
 is to develop infrastructure to aid implementation of similar
 libraries.
@@ -679,9 +683,9 @@ libraries.
 \section{Conclusion}
 \label{sec:conclusion}
 
-We presented our plans on building a system for large graph
+We presented our plans for building a system for large graph
 computation using commodity parts. We leverage decades-old ideas on
-using a large ammount of concurrency to tolerate latencies; but do so
+using a large amount of concurrency to tolerate latencies; but we do so
 mostly in software. We developed a runtime system for latency
 tolerance and our results showed that it is able to manage enough
 concurrency to tolerate latencies long enough to amortize the cost of
