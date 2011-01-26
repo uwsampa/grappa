@@ -17,7 +17,8 @@
 %\columnsep 1pc
 \renewcommand{\baselinestretch}{0.9}
 
-\title{Can We Crunch the Social Graph on the Cheap?}
+%\title{Can We Crunch the Social Graph on the Cheap?}
+\title{Crunching Large Graphs with Commodity Processors}
 
 %\numberofauthors{7}
 %\author{
@@ -78,7 +79,7 @@ bioinformatics and analysing vast sensor data from actual networks
 graphs. Unfortunately, the computational cost of these applications
 gets quickly out of hand. For example, in January 2011, Facebook had
 500 million active users with an average of 130 friends each
-\cite{Facebook:2011p91. Its friend suggestion algorithm in 2010 ran on
+\cite{Facebook:2011p91}. Its friend suggestion algorithm in 2010 ran on
   a 40-node cluster with 72GB memory per node, and still, new
   suggestions could only be computed every two days
   \cite{Backstrom:2010p90}. Speeding up these applications at a low
@@ -126,7 +127,9 @@ applications.
 
 \begin{figure*}[htbp]
   \begin{center}
-    \includegraphics[width=0.9\textwidth]{figures/system-overview.pdf}
+    \vspace{-0.25in}
+    \includegraphics[width=0.7\textwidth]{figures/system-overview.pdf}
+    \vspace{-0.2in}
 	\end{center}
 	\caption{Overview of our proposed system design. The base
           system is a cluster of commodity nodes and interconnect. We
