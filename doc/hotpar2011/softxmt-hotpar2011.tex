@@ -12,6 +12,11 @@
 \usepackage{comment}
 \begin{document}
 
+%\textheight 9in
+%\textwidth 6.5in
+%\columnsep 1pc
+\renewcommand{\baselinestretch}{0.9}
+
 \title{Can We Crunch the Social Graph on the Cheap?}
 
 %\numberofauthors{7}
@@ -29,13 +34,13 @@
 %}
 
 %todo format the UW names horizontally
-\authorinfo{Jacob Nelson, Brandon Myers, A.H. Hunter, Dan Grossman, Mark Oskin,
-Carl Ebeling, Luis Ceze}{University of Washington}{\{nelson, bdmyers, ahh, djg, oskin, ebelin, luisceze\}@cs.washington.edu}
-\authorinfo{Simon Kahan}{Pacific Northwest National Lab}{skahan@cs.washington.edu}
-\authorinfo{Preston Briggs}{}{preston.briggs@gmail.com}
-
+\authorinfo{Jacob Nelson, Brandon Myers, A.H. Hunter, Preston Briggs,
+  Dan Grossman, Mark Oskin, Carl Ebeling, Simon Kahan, Luis
+  Ceze}{University of Washington}{\{nelson, bdmyers, ahh, preston,
+  djg, oskin, ebeling, skahan, luisceze\}@cs.washington.edu}
 
 \maketitle
+
 \begin{abstract}
   Large, sparse, irregular graphs map poorly to the memory systems of
   commodity hardware. The scale of emerging real world datasets
