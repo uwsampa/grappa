@@ -253,11 +253,9 @@ as the main thread, as in the common  fork-join model of parallelism.
 
 \section{Implementation}
 \label{sec:approach}
-
-
-The goal of our implementation is to use multithreading to tolerate
+Our goal is to use multithreading to tolerate
 the latency of random accesses to memory in a global address space
-spread across multiple nodes. This goal has three key challenges:
+spread across multiple nodes.  Our implementation must provide three features:
 \begin{itemize}
 \item {\bf Lightweight multithreading}
   
@@ -272,8 +270,7 @@ spread across multiple nodes. This goal has three key challenges:
 
 \item {\bf Low overhead synchronization}
 
-  In a system with high degrees of concurrency, lightweight
-  synchronization primitives are important.
+  We must support global synchronization between threads that allows unrelated threads to proceed unblocked.
 \end{itemize}
 We discuss our approach to solving each of these challenges in
 turn. For each one, we discuss both our current single-node
@@ -282,39 +279,25 @@ implementation and ideas for a multi-node implementation.
 \subsection{Lightweight multithreading}
 
 Our approach to supporting many lightweight threads uses a cooperative,
-user-level multitasking system built using coroutines.
-
-There are three main concerns in designing the coroutine
-mechanism. First, the working set of each coroutine must be small, so
-many coroutines can be active without trashing the cache. Second,
-context switches must be fast, so that overhead does not swamp actual
-work. Third, when a coroutine yields, we must choose a suitable
-coroutine to run next.
+user-level multitasking system built using coroutines. Much work has been done on similar user-level systems \cite{ult,capriccio}, but we have stringent requirements on size and performance, since we have large numbers of contexts rapidly issuing prefetches and passing control.  Hence coroutines must be small, so
+many coroutines can be active without trashing the cache, and
+context switches must be fast (a small fraction of memory latency) so that we can overlap memory requests and achieve concurrency.
 
 We minimize context size by treating context switches as function
 calls, as in~\cite{charm}. This allows us to save and restore the
 minimum number of registers allowed by the ABI, and depend on the
 compiler to save and restore any other registers in use. We minimize
-context switch time both by keeping contexts small and by doing all
-switching and scheduling in user space, as in \todo{cite other green
-  threads packages, like qthreads}.
-
-There are a number of possibilites for coroutine scheduling.
-Ideally, a thread would be rescheduled when its request had
-completed, but this may complicate the scheduling decision and slow
-down context switches. A simple round-robin scheduler may be sufficient.
+context switch time by doing all switching and scheduling in user space (kernel traps are at least an order of magnitude slower.)
 
 \subsubsection{Single-node implementation}
 We implemented coroutines as described, with a round-robin
-scheduler. If a prefetched data value is no longer in the cache when
-the coroutine is rescheduled and the value is used, the coroutine pays
-the full cost of the fetch.
+scheduler. Coroutines do local work, issue a remote prefetch, and switch to the next in turn.  When the coroutine is reactivated, it assumes the requested data is available and issues a read.  This is a disadvantage of the simple implementation; if the data is not yet received and in cache, the core (and all its coroutines) can stall.
 
 \subsubsection{Multi-node ideas}
 We will explore how the memory manager and coroutine scheduler may
 interact, so that threads waiting on long-latency memory operations or
 synchronization operations will be scheduled soon after their
-operations have completed. 
+operations have completed (and not before).
 
 \subsection{Concurrency in global memory references}
 
