@@ -55,20 +55,53 @@
 % tolerance, along with our plans for scaling up to multiple
 % nodes. Our analysis shows the feasibility of our approach.
 
-  Large, sparse, irregular graphs map poorly to the memory systems of
-  commodity hardware. The scale of emerging real world datasets
-  presents a challenge for straightforward algorithms which will run
-  inefficiently due to many high-latency accesses.  Pervasive
-  parallelism can tolerate that latency, but the only large-scale
-  implementation of the technique is the Cray XMT, an expensive,
-  non-commodity machine.
+  Crunching large graphs is the basis of many emerging applications,
+  such as social network analysis and bioinformatics. Graph analytics
+  algorithms exhibit little locality and therefore present significant
+  performance challenges. Hardware multithreading systems (e.g, Cray
+  XMT) showed that with enough concurrency, we can tolerate long
+  latencies. Unfortunately, this solution is not available with
+  commodity parts.
 
-  If we can adapt the XMT's programming model to commodity hardware,
-  we can dramatically improve performance without resorting to
-  expensive custom systems. This paper presents a runtime for latency
-  tolerance through the use of parallel lightweight contexts, along
-  with our plans for scaling up to multiple nodes. Our analysis shows
-  the feasibility of our approach.
+  Our goal is to develop a latency-tolerant system built out of
+  commodity parts and mostly in software. The proposed system includes
+  a runtime that supports a large number of lightweight contexts,
+  full-empty synchronization and a memory manager that provides a
+  high-latency but high-bandwidth global shared memory. This paper
+  lays out the vision for our system, and justifies its feasibility
+  with a performance analysis of the runtime for latency tolerance.
+
+% Our analysis shows the feasibility of our
+%   approach.
+
+% To that end we developed a new runtime system that supports
+%   a large number of lightweight contexts, together with full-empty
+%   synchronization primitives and a large global address space.
+
+% To that end, we propose a
+%   new runtime system that is able to sustain a large number of active
+%   threads 
+
+%  XMT-like properties, implemented
+%   with commodity components. This paper presents a runtime for latency
+%   tolerance, along with our plans for scaling up to multiple
+%   nodes. Our analysis shows the feasibility of our approach.
+
+
+%   Large, sparse, irregular graphs map poorly to the memory systems of
+%   commodity hardware. The scale of emerging real world datasets
+%   presents a challenge for straightforward algorithms which will run
+%   inefficiently due to many high-latency accesses. Pervasive
+%   parallelism can tolerate that latency, but the only large-scale
+%   implementation of the technique is the Cray XMT, an expensive,
+%   non-commodity machine.
+
+%   If we can adapt the XMT's programming model to commodity hardware,
+%   we can dramatically improve performance without resorting to
+%   expensive custom systems. This paper presents a runtime for latency
+%   tolerance through the use of parallel lightweight contexts, along
+%   with our plans for scaling up to multiple nodes. Our analysis shows
+%   the feasibility of our approach.
 \end{abstract}
 
 \section{Introduction}
