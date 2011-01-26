@@ -843,6 +843,14 @@ size of graphs such as Facebook's friend network.
 \section{Conclusion}
 \label{sec:conclusion}
 
+We presented our plans on building a system for large graph
+computation using commodity parts. We leverage decades-old ideas on
+using a large ammount of concurrency to tolerate latencies; but do so
+mostly in software. We developed a runtime system for latency
+tolerance and our results showed that it is able to manage enough
+concurrency to tolerate latencies long enough to amortize the cost of
+expensive accesses to our large global memory system (high-latency,
+but high-bandwidth).
 
 \bibliographystyle{acm}
 \bibliography{softxmt-hotpar2011}
