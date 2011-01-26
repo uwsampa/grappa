@@ -42,6 +42,18 @@
 \maketitle
 
 \begin{abstract}
+% Techniques from graph analytics have found important applications in
+% areas such as social networks and bioinformatics. These irregular
+% problems present a challenge for parallel machines: obtaining
+% performance is not straightforward. Multithreading works well for
+% such problems, but the only large-scale implementation of the technique
+% is the Cray XMT, an expensive, non-commodity machine.
+
+% Our goal is to build a system with XMT-like properties, implemented
+% with commodity components. This paper presents a runtime for latency
+% tolerance, along with our plans for scaling up to multiple
+% nodes. Our analysis shows the feasibility of our approach.
+
   Large, sparse, irregular graphs map poorly to the memory systems of
   commodity hardware. The scale of emerging real world datasets
   presents a challenge for straightforward algorithms which will run
@@ -60,9 +72,22 @@
 
 \section{Introduction}
 
+Many important emerging applications such as social network analysis,
+bioinformatics and analysing vast sensor data from actual networks
+(e.g, water, electrical grid) are based on crunching very large
+graphs. Unfortunately, the computational cost of these applications
+gets quickly out of hand. For example, in January 2011, Facebook had
+500 million active users with an average of 130 friends each
+\cite{Facebook:2011p91. Its friend suggestion algorithm in 2010 ran on
+  a 40-node cluster with 72GB memory per node, and still, new
+  suggestions could only be computed every two days
+  \cite{Backstrom:2010p90}. Speeding up these applications at a low
+  cost would have a large impact in how we deal and react to the fast
+  growth of the data-set and would make the results even more
+  valuable.
 
-Techniques from graph analytics have found important applications in
-areas such as social networks and bioinformatics. \todo{more!}
+% Techniques from graph analytics have found important applications in
+% areas such as social networks and bioinformatics. \todo{more!}
 
 
 % In January 2011, Facebook had 500 million active users with an average
@@ -73,25 +98,31 @@ areas such as social networks and bioinformatics. \todo{more!}
 % every two days \cite{Backstrom:2010p90}.
 
 
-The most interesting computational challenge comes from large,
-low-diameter, power law graphs: this combination makes extracting
-performance difficult. They do not fit in a single
+In this context, the most interesting computational challenge comes
+from large, low-diameter, power law graphs: this combination makes
+extracting performance difficult. They do not fit in a single
 commodity machine's memory. Their low diameter means that they are
-difficult to lay out with locality: every vertex needs to be near every
-other vertex. Their power law distribution means that a few vertices
-generate much more work than the rest, leading to load
-imbalances. Together, these properties lead to a
-difficult conclusion: each edge traversal is likely to induce a very
-expensive cache miss or remote access.
+difficult to lay out with locality: every vertex needs to be near
+every other vertex. Their power law distribution means that a few
+vertices generate much more work than the rest, leading to load
+imbalances. Together, these properties lead to a difficult
+conclusion: each edge traversal is likely to lead to expensive
+inter-node communication. %cache miss or remote access.
 
 Multithreading is a technique that has been used successfully to
 implement efficient computations for these graphs. The Cray XMT is an
-example of such an approach: it solves the memory latency problem
-through concurrency rather than caching. Each XMT processor supports
-128 hardware contexts and 1024 outstanding memory operations, and is
-able to switch contexts every cycle \todo{cite XMT description}. This ability comes at a cost: the
-XMT is an expensive, non-commodity machine. \todo{don't we want to also say XMT has poor performance on x kind of apps?}
+example of such an approach: it solves the memory latency problem (or
+communication problem) through concurrency rather than caching. Each
+XMT processor supports 128 hardware contexts and 1024 outstanding
+memory operations, and is able to switch contexts every cycle.
+% \todo{cite XMT description}.  %% LUIS: there is enough information here.
+This ability comes at a cost: the XMT is an expensive, non-commodity
+machine. Moreover, arguably a lot of XMT's advantages for these type
+of applications come at the cost of performance in general-purpose
+applications.
 
+% \todo{don't we want to also say XMT has poor performance on x
+%   kind of apps?}
 
 \begin{figure*}[htbp]
   \begin{center}
@@ -105,9 +136,14 @@ XMT is an expensive, non-commodity machine. \todo{don't we want to also say XMT 
 	\label{fig:system-overview}
 \end{figure*}
 
-We want the best of both worlds. Our goal is to build a system that
-has good performance on these low-locality graph codes but is
-implemented with cheap commodity processors.
+%We want the best of both worlds. 
+We believe we can build a system mostly based on commodity parts that
+can attain XMT-like performance with a familiar, also XMT-like,
+programming model, but at a fraction of the cost. Therefore, our goal
+is to build a system that has good performance on low-locality graph
+codes but is implemented with cheap commodity processors and simple
+additional support in an FPGA. This approach also has the added
+benefit of not sacrificing general-purpose performance.
 
 Figure~\ref{fig:system-overview} shows the structure of our
 proposal. It is composed of multiple nodes built with commodity
@@ -115,62 +151,67 @@ processors, communicating over an Infiniband network. We add two
 components: a runtime system, responsible for executing the user's
 threads, and a global memory manager, responsible for facilitating
 memory requests to the non-coherent global memory shared across the
-nodes.  We are exploring a mix of hardware and software
+nodes.  We are exploring a mix of hardware (FPGA) and software
 implementations of the memory manager.
 
-This paper explores the feasibility of our multi-node goal using a
-single-node implementation of our lightweight threading runtime. We
-use prefetch instructions together with lightweight threads to
-tolerate the latency of DRAM access on the local node node. We use
-pointer chasing benchmarks to verify our runtime's overhead is
-acceptable. We also model the effects of pointer chasing on a remote
-node.
+This paper describes the vision of our system and explores the
+feasibility of our ideas using a single-node implementation of a
+lightweight threading runtime. We use prefetch instructions together
+with lightweight threads to tolerate the latency of DRAM access on the
+local node node. We use adversarial pointer chasing benchmarks to
+verify our runtime's overhead is acceptable. We also model the effects
+of pointer chasing on a remote node by artificially increasing
+latencys to the order of several micro-seconds.
 
-The rest of the paper is organized as follows. We describe our
-proposal from a programmer's viewpoint in section~\ref{sec:model}. We
-describe the implementation of our latency-tolerant runtime and plans
-for extending to multiple nodes in section~\ref{sec:approach}. We
-evaluate our runtime in section~\ref{sec:evaluation}.  We present
-related work in section~\ref{sec:related} and conclude in
+The rest of the paper is organized as follows. We quickly describe our
+programming model in section~\ref{sec:model}. We describe the
+implementation of our latency-tolerant runtime and plans for extending
+to multiple nodes in section~\ref{sec:approach}. We evaluate our
+runtime in section~\ref{sec:evaluation}.  We present related work in
+section~\ref{sec:related} and conclude in
 section~\ref{sec:conclusion}.
 
 \section{Programming model}
 \label{sec:model}
 
-Our shared-memory programming model partitions the overall address
+Our goal is to preserve the XMT programming model: large shared global
+address space, explicit concurrency with a large number of threads,
+and full-empty-bits synchronization.  We partition the overall address
 space into a global shared address space and per node private address
-spaces.  Locality may be exploited directly by the programmer in the
+spaces. Locality may be exploited directly by the programmer in the
 node private address spaces, just as in a conventional cache-coherent
-multiprocessor node.  In contrast, locality cannot be exploited in the
+multiprocessor node. In contrast, locality cannot be exploited in the
 global space: its value is in providing high bandwidth random access
 to any word in a shared data structure by any processor.
 
-Whereas in the PGAS model coherency of global copies is implictly
-maintained across the system \todo{cite pgas?}, we forego caching of globally shared
-data.  A node can exploit temporal locality of data stored in
-the global space only by first copying it into the node's local space.
-In this way, a node can access data at random across the system while
+% Whereas in the PGAS model coherency of global copies is implictly
+% maintained across the system, % \todo{cite pgas?}
+% we completely forego
+% caching of globally shared data.  
+
+A node can exploit temporal locality of data stored in the global
+space only by first copying it into the node's local space.  In this
+way, a node can access data at random across the system while
 incurring no hardware coherence overhead: consistency is enforced by
 our mechanisms for explicit global synchronization.
 
 The model promises efficiency subject to the presence of sufficient
 concurrency.  Exactly how that concurrency is expressed by the
-programmer is language dependent.  Our programming model serves to
-augment threaded programming languages so that they become latency
-tolerant on large address spaces.  Software multithreading is used to
-provide latency tolerance: a computation that is about to execute a
-long latency operation such as a remote memory reference initiates the
-operation and then yields to the scheduler, which quickly resumes
-execution of another computation.  Concurrency is also used -- via
-aggregation of requests to a common node destination -- to make more
-efficient use of network bandwidth and in some cases reduce bandwidth
-demands.
+programmer is language dependent. The goal of our system is to support
+that concurrency and consequently provide latency tolerant on a large
+address space. We do so via software multithreading: computation that
+is about to execute a long latency operation (e.g. a remote memory
+reference) initiates the operation and then yields to the scheduler,
+which quickly resumes execution of another computation.  Concurrency
+is also used -- via aggregation of requests to a common node
+destination -- to make more efficient use of network bandwidth and in
+some cases reduce bandwidth demands.
 
 Synchronization on locations in the node private address space is the
 same as on conventional systems.  Synchronization on global addresses
 works differently: we provide atomic operations such as {\tt
-  int\_fetch\_add} as well as operations using full-bits, as on the
-Cray XMT.  As is true for other long latency operations,
+  int\_fetch\_add} as well as operations using full-empty-bits, as on
+the Cray XMT.  As is true for other long latency operations,
 synchronization latency is tolerated by yielding to the scheduler.
 Even non-blocking global atomics yield: atomic operations executed as
 x86 instructions sabbotage concurrency by forcing all outstanding
@@ -180,10 +221,12 @@ synchronization is accomplished outside of the pipeline.  In addition,
 the implementation can exploit aggregation when concurrency is
 abundant to increase the throughput of global synchronization.
 
-Thus, the programming model provides the programmer with options: express
-locality within the private space, and it will be exploited to reduce
-latency and bandwidth \todo{exploited by what? by the exisiting locality hardware like cache hierarchy?}; express concurrency, and it will be used toward
-tolerating latency and reducing the cost of bandwidth.
+%% I dont think we need the paragraph below.
+
+% Thus, the programming model provides the programmer with options: express
+% locality within the private space, and it will be exploited to reduce
+% latency and bandwidth \todo{exploited by what? by the exisiting locality hardware like cache hierarchy?}; express concurrency, and it will be used toward
+% tolerating latency and reducing the cost of bandwidth.
 
 \begin {comment}
 \todo{Change to discuss API:
