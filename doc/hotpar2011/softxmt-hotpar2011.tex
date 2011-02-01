@@ -1,49 +1,87 @@
 %% move stuff to defs file
 \newcommand{\todo}[1]{{\bfseries [[#1]]}}
 %% To disable, just uncomment this line
- %%\renewcommand{\todo}[1]{\relax}
+ \renewcommand{\todo}[1]{\relax}
 
-\documentclass{acm_proc_article-sp}
+\newcommand{\mrps}[0]{Mref/s}
+
+%\documentclass{acm_proc_article-sp}
+\documentclass[10pt,nocopyrightspace,preprint]{sigplanconf}
 \usepackage{url}
 \usepackage{fancyvrb}
 \usepackage{alltt}
+\usepackage{graphicx}
 \usepackage{comment}
+\usepackage[labelfont=bf,font=small,belowskip=-3pt,aboveskip=-5pt]{caption}
+\usepackage[compact]{titlesec}
+\usepackage{mdwlist}
+
 \begin{document}
 
-\title{Can We Crunch the Social Graph on the Cheap?}
+%\titlespacing{\section}{0pt}{*0}{*0}
+%\titlespacing{\subsection}{0pt}{*0}{*0}
+%\titlespacing{\subsubsection}{0pt}{*0}{*0}
 
-\numberofauthors{7}
-\author{
-Jacob Nelson, Brandon Myers, Andrew Hunter, Dan Grossman, Luis Ceze\\
-University of Washington\\
-\email{\{nelson, bdmyers, ahh, djg, luisceze\}@cs.washington.edu}\\ \\
-Simon Kahan \\ 
-Pacific Northwest National Lab\\
-\email{\{skahan\}@cs.washington.edu}
-}
+%\textheight 9in
+%\textwidth 6.5in
+%\columnsep 1pc
+\renewcommand{\baselinestretch}{0.8}
+
+%\title{Can We Crunch the Social Graph on the Cheap?}
+\title{Crunching Large Graphs with Commodity Processors}
+
+%\numberofauthors{7}
+%\author{
+%Jacob Nelson, Brandon Myers, Andrew Hunter, Dan Grossman, Mark Oskin,
+%Carl Ebeling, Luis Ceze\\
+%University of Washington\\
+%\email{\{nelson, bdmyers, ahh, djg, oskin, ebeling, luisceze\}@cs.washington.edu}\\ \\
+%Simon Kahan \\ 
+%Pacific Northwest National Lab\\
+%\email{skahan@cs.washington.edu}\\ \\
+%Preston Briggs\\ 
+%Cray Inc.\\
+%\email{preston.briggs@gmail.com}\\
+%}
+
+\authorinfo{Jacob Nelson$^{\dagger}$, Brandon Myers$^{\dagger}$, A.H. Hunter$^{\dagger}$, Preston Briggs$^{\dagger}$,
+  Dan Grossman$^{\dagger}$, Mark Oskin$^{\dagger}$, Carl Ebeling$^{\dagger}$, Simon Kahan$^{{\dagger \ddagger}}$, Luis
+  Ceze$^{\dagger}$}{\textdagger University of Washington, \textdaggerdbl Pacific Northwest National Laboratory}{\{nelson, bdmyers, ahh, preston,
+  djg, oskin, ebeling, skahan, luisceze\}@cs.washington.edu}
 
 \maketitle
+
 \begin{abstract}
-
- Techniques from graph analytics have found important applications in
-  areas such as social networks and bioinformatics. These irregular
-  problems present a challenge for parallel machines: obtaining
-  performance is not straightforward. Multithreading works well for
-  such problems, but large-scale implementations of the technique like
-  the Cray XMT are expensive, non-commodity machines.
-
-  Our goal is to build a system with XMT-like properties, implemented
-  with commodity processors. This paper presents a runtime for latency
-  tolerance, along with our plans for scaling up to multiple
-  nodes. Our analysis shows the feasibility of our approach.
+   Crunching large graphs is the basis of many emerging applications,
+   such as social network analysis and bioinformatics. Graph analytics
+   algorithms exhibit little locality and therefore present significant
+   performance challenges. Hardware multithreading systems (e.g, Cray
+   XMT) show that with enough concurrency, we can tolerate long
+   latencies. Unfortunately, this solution is not available with
+   commodity parts.
+ 
+   Our goal is to develop a latency-tolerant system built out of
+   commodity parts and mostly in software. The proposed system includes
+   a runtime that supports a large number of lightweight contexts,
+   full-bit synchronization and a memory manager that provides a
+   high-latency but high-bandwidth global shared memory. This paper
+   lays out the vision for our system, and justifies its feasibility
+   with a performance analysis of the runtime for latency tolerance.
+ 
 \end{abstract}
 
 \section{Introduction}
 
-
-Techniques from graph analytics have found important applications in
-areas such as social networks and bioinformatics. \todo{more!}
-
+Many important emerging applications such as social network analysis,
+bioinformatics, and sensor networks rely on crunching very large
+graphs. Unfortunately, the computational cost of these applications
+gets quickly out of hand. For example, in January 2011, Facebook had
+500 million active users with an average of 130 friends each
+\cite{Facebook:2011p91}. Its friend suggestion algorithm in 2010 ran on
+  a 40-node cluster with 72GB memory per node, and, still, new
+  suggestions could only be computed every two days
+  \cite{Backstrom:2010p90}. Speeding up these applications at a low
+  cost would have a large impact in how we deal with large data-sets and make them even more valuable.
 
 % In January 2011, Facebook had 500 million active users with an average
 % of 130 friends each \cite{Facebook:2011p91}.
@@ -52,458 +90,416 @@ areas such as social networks and bioinformatics. \todo{more!}
 % node. Even with that capacity, new suggestions could only be computed
 % every two days \cite{Backstrom:2010p90}.
 
+
 The most interesting computational challenge comes from large,
 low-diameter, power law graphs: this combination makes extracting
-performance difficult. Their size keeps them from fitting in a single
+performance difficult. They do not fit in a single
 commodity machine's memory. Their low diameter means that they are
-difficult to lay out with locality. Their power law distribution means
-that a few vertices generate much more work than the rest, leading to
-computational imbalance and even less locality. Together, these
-properties lead to a difficult conclusion: each edge traversal is
-likely to be a very expensive cache miss.
+difficult to lay out with locality: every vertex needs to be near every
+other vertex. Their power law distribution means that a few vertices
+generate much more work than the rest, leading to load
+imbalances. Together, these properties lead to a
+difficult conclusion: each edge traversal is likely to lead to a very
+expensive inter-node communication.
 
 Multithreading is a technique that has been used successfully to
 implement efficient computations for these graphs. The Cray XMT is an
 example of such an approach: it solves the memory latency problem
 through concurrency rather than caching. Each XMT processor supports
 128 hardware contexts and 1024 outstanding memory operations, and is
-able to switch contexts every cycle. This ability comes at a cost: the
-XMT is an expensive, non-commodity machine.
+able to switch contexts every cycle \cite{tera, feo-xmt}. This ability
+comes at a cost: the XMT is an expensive, non-commodity
+machine.
 
-We want the best of both worlds. Our goal is to build a system that
-has good performance on these low-locality graph codes but is
-implemented with commodity processors. The core of our approach is a
-lightweight coroutine library designed to overlap long-latency memory
-prefetches with other contexts' computation.
+\begin{figure*}[htbp]
+  \begin{center}
+    \vspace{-0.25in}
+    \includegraphics[width=0.7\textwidth]{figures/system-overview.pdf}
+    \vspace{-0.1in}
+	\end{center}
+	\caption{Overview of our proposed system design. The base
+          system is a cluster of commodity nodes and interconnect. We
+          add a latency-tolerant runtime and a global memory manager
+          to obtain efficient access to the global address space. Only
+          the shaded components may require hardware design.}
+	\label{fig:system-overview}
+\end{figure*}
 
-In this paper, we describe our single-node runtime for latency
-tolerance, along with our plans for scaling to multiple nodes.  We
-evaluate the performance of our runtime using a set of list traversal
-benchmarks designed to model certain worst-case behaviors of these
-large graph problems. 
 
-The rest of the paper is organized as follows. We present related work
-in section~\ref{sec:related}. We describe the programming model we are
-implementing in section~\ref{sec:model}, and describe our approach for
-implementing this model in section~\ref{sec:approach}. We evaluate our
-latency-tolerant runtime in section~\ref{sec:evaluation} and conclude
-in section~\ref{sec:conclusion}.
+We believe we can build a system based mostly on commodity parts that
+can attain XMT-like performance with a familiar, XMT-like,
+programming model, but at a fraction of the cost. Therefore, our goal
+is to build a system that has good performance on low-locality graph
+codes but is implemented with cheap commodity processors and simple
+additional support in an FPGA. This approach also has the added
+benefit of not sacrificing general-purpose performance.
 
-\section{Related work}
-\label{sec:related}
-The concept of using independent parallel contexts to tolerate latency
-is not novel.  The inspiration for our project is of course the Cray
-XMT \cite{feo-xmt}, which implemented a hardware version of our
-programming model (in what would today be considered exceptionally
-slow silicon.)  The XMT can be seen as simultaneous multithreading
-\cite{tullsen-smt} writ large; the technique and motivation is
-essentially the same, but the XMT allows hundreds of contexts (modern
-Intel SMT implementations are generally limited to two.) The Alewife
-system \cite{agarwal-alewife} also switches contexts (in hardware) to
-hide latency on remote-node accesses.  Cyclops \cite{almasi-cyclops}
-allows hundreds of independently executing contexts to share FPUs,
-caches, and paths to memory, but does not context switch or share
-basic execution hardware.  
+Figure~\ref{fig:system-overview} shows the structure of our
+proposal. It is composed of multiple nodes built with commodity
+processors, communicating over an Infiniband network. We add two
+components: a runtime system, responsible for executing the user's
+threads, and a global memory manager, responsible for facilitating
+memory requests to the non-coherent global memory shared across the
+nodes.  We are exploring a mix of hardware (FPGA) and software
+implementations of the memory manager.
+ 
+This paper describes the vision of our system and explores the
+feasibility of our ideas using a single-node implementation of a
+lightweight threading runtime. We use prefetch instructions together
+with lightweight threads to tolerate the latency of DRAM access on the
+local node. We use worst-case pointer chasing benchmarks to
+verify our runtime's overhead is acceptable. We also model the effects
+of pointer chasing on a remote node by artificially increasing
+latencies to several micro-seconds.
+ 
+The rest of the paper is organized as follows. We briefly describe our
+programming model in section~\ref{sec:model}. We describe the
+implementation of our latency-tolerant runtime and plans for extending
+to multiple nodes in section~\ref{sec:approach}. We evaluate our
+runtime in section~\ref{sec:evaluation}.  We present related work in
+section~\ref{sec:related} and conclude in
+section~\ref{sec:conclusion}.
 
-Modern programmable GPUs, such as nVidia's CUDA programming model, can also be interpreted in using an XMT-like
-model under the hood;
-% Do I need to include a citation here?
-while they generate large numbers of available execution contexts via
-a (semi-)explicit SIMD model, those SIMD instructions keep functional
-units satisfied by overlapping execution with the loads required for
-other contexts.
 
-Similar techniques have also been used in software.  Mowry proposed a system \cite{mowry-scm} of \emph{software-controlled
-  multithreading}.  As opposed to our system of explicitly marked
-remote references, SCM assumes a high hit rate and traps to an
-interrupt routine which performed a context switch upon a cache miss.  The 2000-era processors had
-short enough latencies that using more than two contexts generally
-produced slowdown.
-
-Partitioned global address space models, such as that used in Unified Parallel C,
-% definitely need a citation here
- share our approach of exposing all data (even remote data)
- transparently to any threads and have largely solved the problems of
- how to efficiently translate those remote reads into message
- passing.  However, their programming models emphasize locality more
- than our work does; while a program can examine any vertex in a UPC
- program at any time, it probably shouldn't (whereas our kernels rely on our
- latency hiding technique to make common remote references fast.
-
-The value of the information in extremely large and sparse graphs is
-rapidly growing.  The GraphCT toolkit \cite{ediger-graphct} used an XMT to perform
-sophisticated analysis on data from Twitter, identifying important
-actors and their networks of influence, and it can scale to the full
-size of graphs such as Facebook's friend network.
 \section{Programming model}
 \label{sec:model}
 
-Our shared-memory programming model partitions the overall address
+Our goal is to preserve the XMT programming model: large shared global
+address space, explicit concurrency with a large number of threads,
+and full-bit synchronization.  We partition the overall address
 space into a global shared address space and per node private address
-spaces.  Locality may be exploited directly by the programmer in the
+spaces. Locality may be exploited directly by the programmer in the
 node private address spaces, just as in a conventional cache-coherent
-multiprocessor node.  In contrast, locality cannot be exploited in 
-the global space.
+multiprocessor node. In contrast, locality cannot be exploited in the
+global space: its value is in providing high bandwidth random access
+to any word in a shared data structure by any processor.
 
-Whereas in the PGAS model coherency of global copies is implictly
-maintained across the system, we forego caching of globally shared
-data.  A node can exploit temporal locality of data stored in
-the global space only by first copying it into the node's local space.
-In this way, a node can access data at random across the system while
-incurring no hardware coherence overhead: consistency is enforced by
-our mechanisms for explicit global synchronization.
+% Whereas in the PGAS model coherency of global copies is implicitly
+% maintained across the system, % \todo{cite pgas?}
+% we completely forego
+% caching of globally shared data.  
+
+% A node can exploit temporal locality of data stored in the global
+% space only by first copying it into the node's local space.  In this
+% way, a node can access data at random across the system while
+% incurring no hardware coherence overhead: consistency is enforced by
+% our mechanisms for explicit global synchronization.
 
 The model promises efficiency subject to the presence of sufficient
 concurrency.  Exactly how that concurrency is expressed by the
-programmer is language dependent.  Our programming model serves to
-augment threaded programming languages so that they become latency
-tolerant on large address spaces.  Software multithreading is used to
-provide latency tolerance: a computation that is about to execute a
-long latency operation such as a remote memory reference initiates the
-operation and then yields to the scheduler, which quickly resumes
-execution of another computation.  Concurrency is also used -- via
-aggregation of requests to a common node destination -- to make more
-efficient use of network bandwidth and in some cases reduce bandwidth
-demands.
+programmer is language dependent. The goal of our system is to support
+that concurrency and consequently provide latency tolerance on a large
+address space. We do so via software multithreading: computation that
+is about to execute a long latency operation (e.g. a remote memory
+reference) initiates the operation and then yields to the scheduler,
+which quickly resumes execution of another computation.  Concurrency
+is also used---via aggregation of requests to a common node
+destination---to make more efficient use of network bandwidth and in
+some cases reduce bandwidth demands.
 
 Synchronization on locations in the node private address space is the
 same as on conventional systems.  Synchronization on global addresses
 works differently: we provide atomic operations such as {\tt
-  int\_fetch\_add} as well as operations using full-bits, as on the
-Cray XMT.  As is true for other long latency operations,
+  int\_fetch\_add} as well as operations using full-bits, as on
+the Cray XMT.  As is true for other long latency operations,
 synchronization latency is tolerated by yielding to the scheduler.
-Even non-blocking global atomics yield: atomic operations executed as
-x86 instructions sabbotage concurrency by forcing all outstanding
-memory references to complete before new ones can be issued.  By
-yielding, the core can switch to another computation while the
-synchronization is accomplished outside of the pipeline.  In addition,
-the implementation can exploit aggregation when concurrency is
-abundant to increase the throughput of global synchronization.
+Even non-blocking global atomics yield so the core can switch to
+another computation while the synchronization is accomplished outside
+of the pipeline.  In addition, the implementation can exploit
+aggregation when concurrency is abundant to increase the throughput of
+global synchronization.
 
-Thus, the programming model provides the programmer with options: express
-locality within the private space, and it will be exploited to reduce
-latency and bandwidth; express concurrency, and it will be used toward
-tolerating latency and reducing the cost of bandwidth.
-
-\begin {comment}
-\todo{Change to discuss API:
-
-context switches:
-  yield()
-  discuss coroutines
-
-mem:
-  alloc()
-  read(p) 
-  write(p, d)
-  prefetch(p)
-
-sync:
- {read, write} {EE, EF, FE, FF}
-}
-
-While the ideal programming model is one that facilitates easy
-expression in the problem domain as well as efficient execution on the
-available hardware, our programming model today is motivated by only
-efficient execution: it exists as a rudimentary library for concept
-demonstration, not as a language suitable for development.  The
-programming model we use today is therefore only partially formed. It
-exists as an augmentation of existing threaded programming models such
-as pthreads or openmp that are readily available on most computer
-systems.
-
-Though not strictly necessary, for ease of exposition we imagine a
-one-to-one binding between threads and cores.  Our model manifests
-within any thread independently of the others as a ``fray'' \todo{for lack
-of better term }.  Within the thread, a fray instance is the
-instantiation of a set of coroutines and a scheduler.  Instantiation
-is at user-level and the operating system sees the entire fray as as a
-single user-level thread.
-
-\todo{ describe calls that perform thread \& scheduler instantiation; and schedule activation }
-
-Each coroutine executes non-preemptively \todo{seems like non-premptively isn't ``how" it executes, rather how it is scheduled, maybe say ``cooperatively"?}, utilizing the core to which
-its ``parent'' thread has been assigned by the operating system until it
-reaches a yield point.  Typically, the coroutine yields after
-initiating a prefetch operation on data that the programmer or
-compiler anticipates would probably not complete before the data is
-referenced by a subsequent load operation.  In this way, the core
-continues to execute instructions for other coroutines when otherwise
-it would likely stall.  The programming model thus tolerates latency.
-
-\todo{ describe calls to prefetch-and-yield }
-
-When a thread frays, for the sake of expediency, a fixed portion of
-its stack is divided amongst the coroutines.  Given a finite stack,
-each coroutine is constrained to execute a call tree of depth known to
-be finite at compilation time: recursion is not yet permitted.
-
-\todo{ discussion of coroutines \& synchronization } Were a coroutine to
-block on a synchronization variable shared with other threads, the
-entire fray would suspend execution.  This can lead to deadlock when,
-for example, one coroutine waits to consume from another thread that
-is waiting to consume what only another coroutine in this first fray
-can produce.  Instead, coroutines must yield on failed synchronization
-events, spinning rather than blocking, where were they bona fide
-threads, blocking might be more efficient.
-
-\todo{ say something about ``synchronization'' within a fray }
-
-Coroutines completing their work yield without adding themselves to
-the scheduling queue.  The last coroutine to exit in this way returns
-as the main thread, as in the common  fork-join model of parallelism.
-
-\end{comment}
-
-\section{Approach}
+\section{Implementation}
 \label{sec:approach}
+Our goal is to use multithreading to tolerate
+the latency of random accesses to memory in a global address space
+spread across multiple nodes.  Our implementation must provide three features:
+\begin{description}
+\item[Lightweight multithreading:] We expect to need hundreds of
+  threads to tolerate a cluster's network latency, so our threading
+  implementation must have low overhead.
 
-Our goal is to enable high throughput on graphs having two challenging
-properties. First, the graphs' combination of sparseness and low
-degree means there is little locality to be exploited. Second, the
-graphs are larger than a single node's memory and do not partition
-well because of low diameter \todo{enough explanation now?}. We must spread the graph across multiple nodes
-and send memory operations over a network. If memory requests are
-uniformly distributed over the working set, a given node will make as
-many accesses to remote nodes' memory as there are remote requests to the local node's memory coming in.
+\item[Concurrency in global memory references:] A thread making a
+  long-latency global memory reference must be able to yield and allow
+  other threads to make progress.
 
-We would like to run as fast as current hardware will let us. Pin
-bandwidth is the tightest resource: Intel's QuickPath Interconnect
-(QPI) allows approximately 100 million requests per second
-\cite{quickpath:website} \todo{specifically 25.6GB/s two way, which we expect 6.4GB/s for one way for outgoing request}, and recent interconnect products allow similar request
-rates, with a round-trip latency of approximately 3$\mu$s
-\todo{cite}. Little's law tells us then that we must support on the
-order of 300 concurrent memory operations--and thus, up to this many coroutines--to
-cover this latency.
+\item[Low overhead synchronization:] 
+%  We must support global synchronization between threads that allows unrelated threads to proceed unblocked.
+  A thread that is synchronizing must yield its core to allow others to make progress.
+\end{description}
+We discuss our approach to solving each of these challenges in
+turn. For each one, we discuss both our current single-node
+implementation and ideas for a multi-node implementation.
 
-These requirements drive the design of our system. There are three key
-components. First, the system needs lightweight context switches (coroutines) to be able to support many contexts--thereby increasing memory concurrency available--with minimal impact on performance. Second, a memory management subsystem must support many concurrent accesses to a global address space. Third, the system must provide synchronization at a fine-granularity \todo{this last one sounds incomplete because no reason given}.
+\subsection{Lightweight multithreading}
 
-\subsection{Lightweight context switch}
-\todo{can we include in the title something that means lightweight and good scheduling?}
+Our approach to supporting many lightweight threads uses a
+cooperative, user-level multitasking system built using
+coroutines. Much work has been done on similar user-level systems
+\cite{ult,capriccio}, but we have more stringent requirements:
+coroutines must use little space so that many can be active without
+trashing the cache; and context switches must be fast (a small
+fraction of memory latency) so that we can overlap memory requests and
+achieve concurrency.
 
-There are three main concerns in designing the coroutine
-mechanism. First, contexts must be small, so many coroutines can be
-active without monopolizing the cache. Second, context switches must
-be fast, so that overhead does not swamp actual work. Third, when a
-coroutine yields, we must choose a suitable coroutine to run next.
+%We minimize context size by treating context switches as function
+%calls, as in~\cite{charm}. This allows us 
+%to save and restore the
+%minimum number of registers allowed by the ABI, and 
+%Simon:  not really true -- we could save fewer if we knew which of the
+%callee save registers weren't going to be clobbered.
+We treat context switches as function calls, as in~\cite{charm}. This allows us 
+to depend on the compiler to save and restore caller-save registers while we explicitly save and restore all the callee-save registers.  We minimize
+context switch time by doing all switching and scheduling in user space.
 
-We minimize context size by treating context switches as function
-calls, as in \cite{charm}. This allows us to save and restore the
-minimum number of registers allowed by the ABI, and depend on the
-compiler to save and restore any other registers in use. We minimize
-context switch time both by keeping contexts small and by doing all
-switching and scheduling in user space, as in \todo{cite other green
-  threads packages}.
+%\paragraph{Single-node implementation.}  
+In our single-node implementation, we implemented coroutines
+as described, with a round-robin scheduler. Coroutines do local work,
+issue a remote prefetch, and switch to the next in turn.  When the
+coroutine is reactivated, it assumes the requested data is available
+and issues a read.  If the data is not yet received and in cache, the core
+(and all its coroutines) can stall.
 
-The choice of which coroutine to run next presents us with a
-tradeoff. The simplest scheduler chooses coroutines to execute in
-round-robin fashion. But this may lead to performance problems: a
-coroutine might be scheduled before the event which caused it to yield (e.g., a long latency memory access)
-has completed, stalling the pipeline and keeping other coroutines from
-progressing. A coroutine might also be scheduled long after the event
-which caused it to yield has completed; while this wouldn't block
-other coroutines from proceeding, it would add unnecessary latency to
-the yielding coroutine. A more intelligent scheduler might allow
-coroutines to execute only when they were ready, but this could
-increase the overhead of context switching. Our initial implementation
-takes the simple approach, but more investigation is warranted.
+%\paragraph{Multi-node ideas.}
+As we develop our multi-node implementation, we will explore how the memory manager and coroutine scheduler may
+interact, so that threads waiting on long-latency memory operations or
+synchronization operations will be scheduled soon after their
+operations have completed.
 
-\subsection{Accessing Global Memory}
+\subsection{Concurrency in global memory references}
 
-% Our goal is to support many concurrent accesses to a global address
-% space spread across nodes in a cluster. We can draw on hardware
-% support developed for the Partitioned Global Address Space family of
-% languages to accomplish this.
+To enable concurrency in memory references, we break each read or
+write into two operations: the {\em issue} operation and the {\em
+  complete} operation. The read issue operation starts data moving
+towards the processor and returns immediately, like a prefetch; the
+read complete operation blocks until data is available. The write
+issue operation takes data along with an address, and starts an
+asynchronous write; the write complete operation blocks until the
+write is committed.
 
-% We draw on libraries and network support 
-% goal. Languages in the Partitioned Global Address Space family such as
-% X10 and Chapel have similar goals, 
+A read operation in user code consists of three steps: a {\em read
+  issue}, which causes the data to start moving; a {\em yield}, which
+causes another thread to start executing, overlapping the read
+latency; and, once the reading thread has been rescheduled, a {\em
+  read complete} blocks until the data is available. A write operation
+follow the same pattern.
+
+%\paragraph{Single-node implementation.}
+In our single-node implementation, we use prefetch instructions for the issue operation, and regular
+blocking reads and writes for the complete operation.  Since we expect
+these global references to have low locality, we use the
+``non-temporal'' form of prefetch to avoid disturbing the state of the
+cache hierarchy \cite{intel:swdev}.
+
+%\paragraph{Multi-node ideas.}
+As we develop our multi-node implementation, we believe we will need hundreds of outstanding memory references per
+processor to cover the latency of remote references in a multi-node
+system. Unfortunately, commodity processors have much smaller limits
+on memory concurrency: section~\ref{subsubsec:evalsinglebase} finds a
+limit of 36 concurrent loads. We will have to manage memory
+concurrency on our own to avoid this limit. We describe approaches in
+both software and hardware.
+
+One approach is for user code to delegate global references to a
+special {\em global memory manager thread}, running on another core in
+the chip. This thread translates the global address into a network
+destination, makes the request through the network card to the remote
+node, checks for completion, and delivers the returned data to the
+requesting thread. On the remote node, the remote memory manager
+thread would perform the memory operation and return the data to the
+requesting node.
+
+%This approach has the benefit of enabling our entire system to be
+%build using commodity parts, but its potential for performance is not
+%clear. We have increased the overhead of a single memory operation:
+%what in the single node case was a simple read, is now multiple
+%queuing operations between threads and multiple reads and writes over
+%the processor's link to the network interface.
+
+Another approach moves the global memory management to a hardware
+device. We can add a coprocessor FPGA in a processor socket, listening
+to coherence messages on the bus, similar to \cite{mogill}. Note that
+this accelerator is only a memory proxy, not a compute
+coprocessor. The accelerator would map all global shared memory into a
+segment of each node's local address space; when it detects a
+reference to memory on a remote node, it would do the address-to-node
+translation and issue the request through the network controller,
+delivering the data to the requesting thread when ready. We would
+encode commands in the upper bits of the address; a read from a
+location's {\em issue} address start the remote request and return
+immediately, and a read from a location's {\em complete} address would
+block until the data was available.
 
 
-% It is also useful to access this low-locality data without disturbing
-% the thread contexts and local storage in the cache. Current x86
-% processors support non-temporal loads and stores. These memory
-% operations are quite relevant for our problem: they are designed to
-% move data without polluting the cache. Using these instructions works
-% better than mapping the low-locality data as uncached, since that
-% restricts the processors' ability to reorder operations.
+%To support the issue and complete operations for concurrency support,
+%commands would be encoded in the upper bits of the address: then each
+%remote word would have multiple addresses on the local node. Reading
+%from the {\em issue} address would immediately return a value
+%indicating that the accelerator is issuing the request over the
+%network. Reading from the {\em complete} address would block until the
+%data was available.
+
+With either approach, the question of request aggregation will be
+important. Each memory request we make is small: 8 bytes is a likely
+size. But most networks are optimized for bulk transfers of a few
+thousand bytes. To improve network utilization, we will explore the
+aggregation of multiple memory operations to different addresses on
+the same remote node. 
 
 
+\subsection{Low-overhead synchronization}
 
-Following the lead of the PGAS family of languages, we will use
-the RDMA functionality provided by modern Infiniband networks to
-access our global memory. \todo{rethink?}
+Just as with reads and writes, we enable concurrency around
+synchronization operations by splitting them into {\em issue} and {\em
+  complete} phases.
 
-These networks allow us to read and write memory directly from remote
-nodes, but they do so through a low-level interface designed to be
-hidden behind a library. Loads and stores to global memory must be
-replaced with calls to a library. This library causes the network
-interface to fetch the remote data and place it in a temporary
-buffer. When the requesting coroutine is scheduled again, data is
-returned from the buffer and execution proceeds.
+Implementing full-bit support efficiently on a platform not
+designed for them is a challenge. Previous work \cite{qthreads} has
+enabled support for full-bit synchronization on arbitrary words by
+allocating additional storage for the full-bits and implementing
+atomic full-bit operations as library routines.
 
-\subsubsection{Software management}
-In order to minimize memory access overhead, the memory operation
-library calls do not interact with the network interface
-directly. Instead, they queue their operations to another thread, the
-{\em memory manager thread}, running on another core in the CPU. This thread
-translates the global address into a network destination and issues
-the network operation, checks for completion, and manages the returned
-data buffers.
+One potential optimization is to limit full-bit synchronization to
+pointers to aligned data types, and reuse wasted space in the
+low-order bits of the pointer for full-bit storage. These bits
+would be masked out when the pointer is returned to the user.  This
+allows us to synchronize any data type through one level of
+indirection.
 
-But we have to be careful---directing memory requests from multiple
-compute threads to a single memory manager thread may reduce memory
-concurrency. And we have increased the overhead of a single memory
-operation: what in the single node case was a simple read, is now
-multiple queuing operations between threads and multiple reads and
-writes over QPI to the network interface. Adding more memory manager
-threads may enable more memory concurrency, but the overhead is still high \todo{why? because lots of code to run? so accel by impl in hardware. Maybe this is answered by the "what in...is now" already}
+%\paragraph{Single-node system.}
+In our single-node implementation, we prefetch and yield before performing
+a synchronization operation. We support only the synchronization
+operations supported by our development platform; we have not
+implemented full-bits yet.
 
-\subsubsection{Hardware management}
-\todo{might want to call it accelerator throughout after saying FPGA once}
-Considering this overhead, we propose hardware acceleration with a {\em memory manager
-  FPGA}, a coprocessor FPGA inserted into a Xeon socket so it can
-participate in the node's coherence domain. This coprocessor does no
-computation---it would only manage the global memory requests of the
-main CPU, performing the function of the memory manager thread
-described earlier.
-
-By participating in the coherence domain, the memory manager FPGA can
-act as a proxy for the rest of global memory. It advertises the
-address space of the rest of the system, and translates local loads
-and stores to addresses on remote nodes into the network operations
-required.
-
-Unfortunately, current processors do not provide sufficient hardware
-resources for us to reach our concurrency target using this
-approach. Each core in Intel's X5650 Xeon supports only 10 outstanding
-misses from its private L2; the entire chip is limited to 32 L2 misses
-to local memory and 12 L2 misses for memory reached over the QPI
-bus. A simple translation of a local load to a network access would
-tie up one of these slots for the entire multi-microsecond latency of
-the request. To allow the amount of concurrency we need, we must bypass these structures; the CPU needs to direct the memory manager FPGA
-to do work on its behalf without tying up its own resources.
-
-To accomplish this, we encode commands in the high-order bits of
-remote memory addresses. The memory manager FPGA advertises each
-remote address twice \todo{this sounded like an active thing the FPGA is doing each time you make remote request, first time I read it. Consider just sticking to cmd as upper order address bits than saying advertise each address twice}. The first address is used for blocking reads and
-writes---any access incurs the full latency of the remote
-access. \todo{verify writes block?} The second address is used for
-prefetches and asynchronous writes. These addresses differ by one
-high-order bit, easily set with a mask in a macro. A read from the
-prefetch address starts the network transaction, but immediately
-returns a dummy value. When the value arrives, it is stored in a
-temporary buffer; when the requesting coroutine is scheduled again, it
-executes the blocking read, and the memory manager immediately returns
-the value from the buffer \todo{is this necessarily restricted to the memory manager returning value from buffer rather than buffer in local memory?  maybe it is, since if buffer was in local mem, would have to also write a full bit or make two reads: valid bit and data}. \todo{this isn't fully baked---do we want
-  to include this sort of detail?}
-
-\subsection{Synchronization}
-
-In systems with hundreds of threads per node, lightweight
-synchronization is important. While we have not implemented any
-synchronization primitives yet, full-empty bits are a natural choice
-given our programming model \todo{say why natural choice unless programming model section makes this point already}. Two questions then arise: at what
-granularity should full-empty bits work, and what component should do
-the synchronization?
-
-We expect most data accesses to be to 64-bit words. It is possible to
-support full-empty bit synchronization on arbitrary words by
-allocating additional storage for the full-empty bits, and translating
-each atomic full-empty operation into a sequence of memory operations
-that modify the data and full-empty bit atomically. 
-
-One potential optimization is to limit full-empty synchronization to
-pointers to aligned 64-bit words. This leaves the bottom three bits
-free to store the full-empty bits. These bits would be masked out when
-the pointer was returned to the user.
-
-These techniques can be implemented in software; \cite{qthreads} is
-one example. Alternatively, atomic operations could be delegated to a
-memory manager FPGA as described in the previous section. The address
-command encoding would be extended to support the various full-empty
-operations.
-
-It might seem natural to use the FPGA as a memory controller as
-well, storing all full-empty-bit-capable memory in DRAMs attached to
-the FPGA. While this is conceptually simple, it does make the
-programming model and the design more complicated. Another possibility
-would be to store only the full-empty bits in memories attached to the
-FPGA, and leave data in memory attached to the CPU. We believe that
-starting simple is best: both data and full-empty bits should be
-stored in the CPU's memory. \todo{discuss QPI bandwidth differences}
+%\paragraph{Multi-node ideas.}
+In a multi-node implementation, synchronization operations can be delegated to a memory manager
+thread or accelerator. Synchronization on remote data would be
+performed by the remote memory manager. This may simplify the
+implementation: if only a single core (or single accelerator) is
+accessing the data being synchronized, the use of memory fences may be
+reduced or eliminated.
 
 % 2TB global memory => 68GB of distributed FE bits.  This seems reasonable, given that a 2TB system might have 64 nodes, so ~1GB per memory manager if one manager per node.
 
 \section{Evaluation}
 \label{sec:evaluation}
 
-To evaluate the feasibility of our proposal, we ran pointer chasing
-benchmarks on a single-node implementation of our runtime. These
-pointer chasing experiments are intended to model a particular
-``wost-case'' behavior of irregular applications, where each memory
-reference causes a cache miss.
+Our goal is to evaluate the feasibility of our proposed runtime. We
+want to determine two things: whether coroutines can generate memory
+concurrency while incurring minimal performance overhead, and whether the system can support the level of concurrency required to tolerate the latency that will be present in a multi-node system.
 
-We ran these experiments on a Dell PowerEdge R410 with two Xeon X5650
-processors and 24GB of RAM, with hyperthreading disabled. These
-processors use a NUMA memory architecture, where each processor has
+We focus the evaluation on one component of the runtime: lightweight context switching. We ran pointer-chasing benchmarks on a single-node implementation of our runtime. These pointer chasing experiments are intended to model a particular ``worst-case'' behavior of irregular applications, where each memory reference causes a cache miss.
+
+We ran these experiments on a Dell PowerEdge R410 with two Xeon X5650 (Nehalem microarchitecture)
+chips and 24GB of RAM, with hyperthreading disabled. These
+chips use a NUMA memory architecture, where each chip has
 its own integrated memory controller and DIMMs; references to other
-processors are carried over Intel's cache-coherent QuickPath
-Interconnect (QPI).
+chips' memory are carried over Intel's cache-coherent QuickPath
+Interconnect (QPI) \cite{quickpath:website}.
 
-Our evaulation consists of three parts. First, we describe the
-performance of the test machine's memory system to use as a
-baseline. Then, we demonstrate that the same performance is achievable
-using our runtime system: we measure pointer chasing performance and
-the effects of cache pressure due to the number of contexts
-required. Finally, we simulate the effects of fetching memory over a
-network by adding delays to our runtime.
+Our evaluation consists of two parts. First, we demonstrate that the
+runtime system can achieve the same performance as when 
+explicit memory concurrency is available. Second, we look at the runtime
+within the multi-node picture and show that it can tolerate large
+latencies. In each part we begin by studying relevant aspects of our
+test machine's memory system so we can interpret our runtime results.
 
-\subsection{Memory system performance}
 
-We first characterize the performance of our test machine's memory
-system. We measured three parameters: the maximum random reference
-rate that can be issued by the cores in one processor, the maximum random
-reference rate that can be serviced by one processor's memory controller,
-and the maximum random reference rate that can be carried over the QPI
-link and serviced by another processor's memory controller.
+\subsection{Single-node performance}
 
-To find the maximum random reference rate that one processor's cores
+% We first characterize the performance of our test machine's memory
+% system. Then we use these results to evaluate the performance of our runtime within a single node.
+
+\subsubsection{Base memory system performance}
+\label{subsubsec:evalsinglebase}
+
+We measured two parameters: the maximum random reference
+rate that can be issued by the cores in one chip and the maximum random
+reference rate that can be serviced by one chip's memory controller. 
+
+To find the maximum random reference rate that one chip's cores
 can issue, we ran pointer chasing code following the model of
-Figure~\ref{fig:pointernocoro}. Each core issues $n$ list traversals
+Figure~\ref{fig:code}a. Each core issues $n$ list traversals
 in a loop; we call $n * \textit{number of cores}$ the number of
 {\em concurrent offered references}, since the memory system may not
 be able to satisfy them all in parallel. Since our goal is to find a
 baseline for evaluating our coroutine library, we depend on the
-processor's ILP for memory concurrency, rather than our coroutine
+cores' exploitation of ILP for memory concurrency, rather than our coroutine
 library.
 
-\begin{figure}
-\begin{alltt}
+\begin{figure*}[ht]
+\vspace{-0.2in}
+%list walk ILP
+\begin{minipage}[b]{0.3\linewidth}{\small
+\centering
+\begin{alltt}{\scriptsize
   while (count-- > 0) \{
     list1 = list1->next;
     list2 = list2->next;
     \ldots
     list\(n\) = list\(n\)->next;
   \}
+  }\centering{\bf (a)}
 \end{alltt}
-\caption{Pseudocode for pointer chasing without coroutines.}
+%\caption{Pseudocode for pointer chasing without coroutines.}
 \label{fig:pointernocoro}
-\end{figure}
+}\end{minipage}
+%listwalk green threads
+\begin{minipage}[b]{0.35\linewidth}{\small
+\centering
+\begin{alltt}{\scriptsize
+  while (count-- > 0) \{
+     prefetch(&(list1->next));
+     switch();
+     list1 = read(&(list1->next));
+ \}
+ }\centering{\bf (b)}
+\end{alltt}
+  %%n lists
+  % while (count-- > 0) \{
+  % prefetch(&(list1->next));
+  %   prefetch(&(list2->next));
+   %  \ldots
+   %  prefetch(&(list\(n\)->next));
+   %  switch();
+   %  list1 = read(&(list1->next));
+   %  list2 = read(&(list2->next));
+   %  \ldots
+   %  list\(n\) = read(&(list\(n\)->next));
+%\caption{Pseudocode for pointer chasing using coroutines.}
+\label{fig:pointercoro}
+}\end{minipage}
+%cache pressure
+\begin{minipage}[b]{0.32\linewidth}{\small
+\centering
+\begin{alltt}{\scriptsize
+  while (count-- > 0) \{
+    prefetch(&(list1->next));
+    switch();
+    list1 = read(&(list1->next));
+    for( i in 1 to num_local_updates ) \{
+      local->data++;
+      local = local->next;
+   \} \}
+   }\centering{\bf (c)}
+\end{alltt}
+%\caption{Pseudocode for pointer chasing with local updates.}
+\label{fig:pointerupdate}
+}\end{minipage}
+%\vspace{5pt}
+\caption{Pseudocode for: (a) pointer chasing without coroutines, (b) pointer chasing using coroutines, (c) pointer chasing with local updates. Coroutine code, as in (b), might also include ILP like what (a) depends on for memory concurrency, e.g., by doing multiple prefetches to independent lists, switch, then multiple reads.}
+\label{fig:code}
+\end{figure*}
 
-
-The lists were sized to exceed the last level cache and were laid out
-randomly with pointers spaced at a cache line granularity, maximizing
+The lists were laid out randomly with pointers spaced at a cache line granularity, maximizing
 the probability of each reference being a miss. We allocated the lists
-on 1GB huge pages to minimize TLB refill overhead. The lists were
-allocated in the memory attached to the processor containing the cores
-doing the traversal. We ran 10 traversals, measuring average rate in each, and recorded the maximum rate.
+on 1GB huge pages to minimize TLB refill overhead.
 
-
-\begin{figure}[h]
+\begin{figure}[t]
+  \vspace{-.1in}
 	\begin{center}
-		\includegraphics[width=0.5\textwidth]{figures/multi-listwalk-totalconc-edited.pdf}
+		\includegraphics[width=0.47\textwidth]{figures/multi-listwalk-totalconc-edited.pdf}
 	\end{center}
 	\caption{Throughput of listwalk versus total number of
           concurrent references offered by the cores. Data points for
@@ -519,191 +515,184 @@ doing the traversal. We ran 10 traversals, measuring average rate in each, and r
 
 Figure~\ref{fig:listwalk-totalconc} shows the result. Each point represents
 the maximum rate pointers are traversed for a given number of
-concurrent offered references. We see a maximum rate of 277 million
-references per second, which agrees with the measurements found by \cite{Mandal:2010} with a similar machine. This rate is achieved when the number of offered
-references is 42 \todo{yes, max is achieved here but essentially levels out earlier like 36; do we want a percentage metric for defining a plateau}. Note that a single core cannot support this level of
+concurrent offered references. We see a maximum rate of 277 million references per second (\mrps), which agrees with the measurements found by \cite{Mandal:2010}. This rate is achieved when the number of offered references is 36. Note that a single core cannot support this level of
 memory concurrency; the maximum reference rate for a single core is
-107M. We believe this limit is due to the core's {\em line fill
-  buffer} \todo{cite nehalem perf docs}, which limits the core to 10
-concurrent L2 misses.
+107M. We believe this limit is due to the core having only enough {\em line fill
+  buffers} \cite{nehalem:arch} to store 10 concurrent private cache misses.
 
-The memory controller in the processor has more bandwidth than its
+The memory controller in the chip has more bandwidth than its
 cores can saturate. To measure the memory controller's maximum random
 reference rate, we extended the previous experiment so that cores in
 both processors were traversing lists allocated in the first processor's
 memory. With this configuration, we observed a maximum rate of 360
-million references per second. We believe this difference is due to
-the configuration of the processor's {\em Global Queue} \todo{cite nehalem
-  docs}, which limits the number of concurrently-executing read misses
-from a processor's cores to its local last-level cache and memory to 32.
+\mrps. We believe this difference is due to the chip having only 32 buffers in its {\em Global Queue} \cite{nehalem:perf} for tracking concurrently-executing read misses from all the cores' private caches.
 
-% take this figure out if we need the space
-% the main point is room for remote references to local memory
-\begin{figure}[h]
-  \begin{center}
-    \includegraphics[width=0.5\textwidth]{figures/qpi_bw-edited.pdf}
-  \end{center}
-  \caption{Pointer chasing in a remote processor's memory.}
-  \label{fig:listwalk-qpi}
-\end{figure}
 
-Finally, we measured the rate at which the cores can make requests
-over the QPI link. For this experiment, we allocated the lists in the
-second processor, and ran the traversals on the first
-processor. Figure~\ref{fig:listwalk-qpi} shows the result. We found that use
-of the QPI link limits us to 175 million references per second.
+\subsubsection{Coroutine performance}
 
-\subsection{Runtime performance}
-
-To characterize the performance of our runtime, we investigated three
+To evaluate the performance of our runtime, we investigated two
 effects: the maximum reference rate using coroutines
-to obtain memory concurrency, the effects of cache pressure from the
-coroutines' context storage, and the maximum reference rate obtainable
-using a simulated network delay.
-
-\begin{figure}
-\begin{alltt}
-  while (count-- > 0) \{
-     prefetch(&(list1->next));
-     prefetch(&(list2->next));
-     \ldots
-     prefetch(&(list\(n\)->next));
-     switch();
-     list1 = read(&(list1->next));
-     list2 = read(&(list2->next));
-     \ldots
-     list\(n\) = read(&(list\(n\)->next));
- \}
-\end{alltt}
-\caption{Pseudocode for pointer chasing using coroutines.}
-\label{fig:pointercoro}
-\end{figure}
+to obtain memory concurrency and the effects of cache pressure from the
+coroutines' context storage. 
 
 To find the maximum reference rate obtainable using our coroutine
 library, we modified our pointer chasing benchmark as shown in
-figure~\ref{fig:pointercoro}. Now there are two sources of offered
+Figure~\ref{fig:code}b. Recall that the baseline code in Figure~\ref{fig:code}a relied solely on ILP to achieve memory concurrency, which may not be abundant in real applications. Using coroutines, there are two sources of offered
 concurrent references: the ILP exploited by the processor, and the
 memory concurrency enabled by prefetching and switching to a new
 coroutine. As with our first experiment, we allocated the lists in the
 same processor as the cores doing the traversal. 
 
-\begin{figure}[h]
+\begin{figure}[t]
   \begin{center}
-    \includegraphics[width=0.5\textwidth]{figures/multi-green-edited.pdf}
+    \includegraphics[width=0.47\textwidth]{figures/multi-green-edited.pdf}
   \end{center}
   \caption{Pointer chasing with coroutines, with one reference per
-    coroutine.}
+    coroutine. Number of coroutines per core is $\textit{total concurrent references} / \textit{number of cores}$.}
   \label{fig:multi-green}
 \end{figure}
 
 Figure~\ref{fig:multi-green} shows the result. For this
 experiment, we limited memory concurrency to one concurrent miss per
 coroutine, so the only source of memory concurrency is the use of
-coroutines. We are able to obtain a rate of 275 million references per
-second with 48 concurrent misses, or 8 coroutines per core. These
-results are very close to the ILP-only experiment.
+coroutines. We are able to obtain a rate of 275 \mrps\ with 48 concurrent misses, or 8 coroutines per core. These
+results are very close to the ILP-only experiment, but more concurrent requests are required--about 48 versus 36. When the number of references per coroutine is larger than 1, fewer coroutines are required to reach full performance.
 
 We observe a gradual decrease in reference rate once the number of
 concurrent references per core exceeds 10; we believe this is due to
-later prefetches squashing earlier ones in the line fill buffer. We
-also observe some repeatable outliers below the maximum rate even with enough
-memory concurrency; this is harder to explain, but we suspect it is
+later prefetches squashing earlier ones in the line fill buffers. In the real runtime we expect this effect will not exist, since prefetch will not be implemented with built-in non-temporal prefetch instructions. We
+also observe many points that do not follow the trend are below the max, but these results are repeatable. This effect is harder to explain, but we suspect it is
 due to resource contention in the cores' pipelines once the memory
-system is full of requests.
+system is full of requests. 
 
-\begin{figure}
-\begin{alltt}
-  while (count-- > 0) \{
-    prefetch(&(list1->next));
-    switch();
-    list1 = read(&(list1->next));
-    for( i in 1 to num_local_updates ) \{
-      local->data++;
-      local = local->next;
-   \}
-  \}
-\end{alltt}
-\caption{Pseudocode for pointer chasing with local updates.}
-\label{pointerupdate}
-\end{figure}
+%Such points are repeatably lower, and looks like the std dev of such points (the diamond ones than are low) is also higher than other "normal" points: around 35M versus 13M or less, which seems to suggest a weird effect at those numbers}
+
 
 The stacks for the coroutines are stored in the data cache, where they
 will compete for space with an application's data. To characterize the
 effects of this cache pressure, we modified our list chasing benchmark
 to include random updates to a per-coroutine local data structure that
-is small enough to fit in cache. Figure~\ref{pointerupdate} shows the
+is small enough to fit in cache. Figure~\ref{fig:code}c shows the
 general idea.
 
-
+% cache pressure figure
 \begin{figure}[h]
   \begin{center}
-    \includegraphics[width=0.5\textwidth]{figures/cache-pressure-edited.pdf}
+    \includegraphics[width=0.42\textwidth]{figures/cache-pressure-edited.pdf}
   \end{center}
-  \caption{Cache pressure with coroutines.}
+  \vspace{-0.3in}
+  \caption{Cache pressure with coroutines, on six cores.}
   \label{fig:cache-pressure}
 \end{figure}
 
-We ran this code on six cores with all data allocated in the same
-processor's memory. We varied the size of the local working set from 2KB
+We varied the size of the local working set from 2KB
 to 4MB, and ran both 0 and 32 local updates for each pointer
 traversal. We measured the overall reference rate, including both the local updates and remote references.
 
-Figure~\ref{fig:cache-pressure} shows the result. On the left of the
-figure, we see the list-traversal-only case, where we allocate
-per-coroutine space but make no references to it. As we would expect,
-the reference rates grow with the number of coroutines just as in
-Figure~\ref{fig:multi-green}. On the right of the figure, we see the
-case with 32 updates for each list traversal. While performance
-decreases for large working set sizes and large number of coroutines,
-we see speedup as number coroutines increases for up to 128KB working set size with 8 coroutines per
-core.
+Figure~\ref{fig:cache-pressure} shows the result. As we would expect,
+when there are no references to the local structures, the reference rates grow with the number of coroutines just as in
+Figure~\ref{fig:multi-green}. For 32 local updates per traversal, while performance
+decreases for large working set sizes and large numbers of coroutines,
+we see speedup as the number of coroutines increases up to 128KB working set size with 8 coroutines per
+core. \todo{preempt questions about drop at 16 which is much less than the about 50 needed per core by saying that the drop is likely the same drop effect seen earlier, which is likely to be prefetch squashing since it happens at number of line fill buffers}
 
-Finally, to simulate the performance of pointer chasing in a
-multi-node system, we modified the scheduler of our coroutine library
-to include a delay before a coroutine can be rescheduled, imitating
-the network transit delay even though we are referencing local
-memory. Recently published measurements of Infiniband latencies
-\todo{cite} suggest we might expect 1.1 $\mu$s source-to-destination
-latencies between two computers connected back-to-back; we assume a
-switch transit delay of 400 ns in each direction and thus estimate a 3
-$\mu$s round-trip delay. In this experiment, once a coroutine has
-yielded, we use the core's timestamp counter to ensure it does not get
-rescheduled for 3 $\mu$s.
+\subsection{Performance with multiple nodes}
 
+To evaluate the potential for our runtime to perform in the multi-node case, we simulated a network delay and saw whether the runtime could tolerate the larger latency. 
+
+Since the network interface is accessed over QPI, we estimated QPI bandwidth by measuring the QPI communication between the two chips of our test machine. To do this, we allocated the lists in the second chip's memory and ran the traversals on the first chip's cores. We found that use of the QPI link limits us to 175 \mrps.
+
+% take this figure out if we need the space
+% maybe even take out whole QPI thing and just relate the 100M?
+% the main point is room for remote references to local memory
+%\begin{figure}[h]
+ % \begin{center}
+  %  \includegraphics[width=0.42\textwidth]{figures/qpi_bw-edited.pdf}
+ % \end{center}
+ % \caption{Pointer chasing in a remote processor's memory.}
+ % \label{fig:listwalk-qpi}
+%\end{figure}
+%%%%%%%%%%
+
+To simulate the performance of pointer chasing in a multi-node system,
+we modified the scheduler of our coroutine library to include a delay
+before a coroutine can be rescheduled, imitating the network transit
+delay even though we are referencing local memory. We assume 1.1
+$\mu$s interface and 400 ns switch latencies in each direction
+\cite{infiniband, mellanox:site}, and thus estimate a 3 $\mu$s round-trip
+delay.
+
+%simulated delay plot
 \begin{figure}[h]
   \begin{center}
-    \includegraphics[width=0.5\textwidth]{figures/multi-green-delay7800-edited.pdf}
+    \includegraphics[width=0.47\textwidth]{figures/multi-green-delay7800-edited.pdf}
   \end{center}
-  \caption{Pointer chasing with simulated network delay.}
+  \vspace{-0.3in}
+  \caption{Pointer chasing with simulated network delay. Each core ran up to 167 coroutines, and each coroutine made 1 to 4 concurrent references.}
   \label{fig:network-delay}
 \end{figure}
 
-We ran these experiments with two sources of memory concurrency: each
-core ran up to 167 coroutines, and each coroutine made between 1 and 4
-concurrent references. The results are shown in
+The results of the experiment are shown in
 Figure~\ref{fig:network-delay}. We are still able to reach a
-near-maximum rate of 273 million references per second, but at least 3
-concurrent references per coroutine are required. Running with a single
-reference per coroutine achieves 236 million references per
-second. Any network interface would be connected through a QPI link,
-which we measured to have a bandwidth limit of 175 million references
-per second, so our runtime appears to have the capacity to chase pointers
-in a remote memory. 
+near-maximum rate of 273 \mrps\footnote{The throughput keeps increasing up to around 850 total concurrent references offered, far more than the 36 we know the chip to support. This is because we have modeled the network latency by forcing coroutines to wait the extra time before using the data, so the physical miss buffers on our machine are not tied up any longer than usual.}, but at least 2
+concurrent references per coroutine are required. Running with one
+reference per coroutine achieves 236 \mrps. 
 
-\todo{do we want to include that the memory system imposes max limit so really more throughput is still achievable if there are enough ILP memory concurrency?}
-\todo{may want to rerun with memory on remote core to incorporate QPI limit?}
+These results suggest that the runtime should be able to tolerate
+large latency well enough to exceed the max issue rates of both modern
+network interfaces (about 100 \mrps) \cite{mellanox:press} and the QPI
+link used to reach the network interface.
+
+%Any network interface would be connected through a QPI link,
+%which we measured to have a bandwidth limit of 175 \mrps, so our runtime appears to have the capacity to chase pointers
+%in a remote memory. 
+
+\todo{also have results that remote cores over QPI plus delay 3us can make it up to the 175M, with sufficient number of coroutines}
 
 
-%\todo{Begin eval insert}
-%\input{evaluation}
-%\todo{End eval insert}
+\section{Related work}
+\label{sec:related}
 
+
+Much work exists on using multithreading to tolerate latency. Hardware
+implementations include the Tera MTA~\cite{tera} and Cray
+XMT~\cite{feo-xmt}, Simultaneous Multithreading \cite{tullsen-smt},
+MIT Alewife \cite{agarwal-alewife}, Cyclops \cite{almasi-cyclops}, and
+even GPUs \cite{gpus}. Software-only approaches exist as well; the
+Software Controlled Multithreading project \cite{mowry-scm}, QThreads
+\cite{qthreads}, MAESTRO \cite{maestro}, and Charm \cite{charm} all
+use variants of this idea.
+%In contrast to all of these, our goal is to tolerate
+%latencies across a multi-node system using mostly software.
+
+There has also been much work on user level threading, including the First-Class
+User Level Threading project \cite{ult} and Capriccio \cite{capriccio}. We have a
+different goal; we want many lightweight contexts to tolerate memory
+latency.
+
+Our goal of presenting a global view of distributed memory to the
+programmer is shared by the PGAS community, and is used in languages
+like Chapel \cite{chapel}, X10 \cite{X10}, and UPC \cite{upc}. They
+obtain performance by minimizing references to remote nodes, whereas we
+design for remote references.
+
+The idea of processing large graphs on distributed machines has been
+explored by projects such as Pregel \cite{pregel}, the Parallel Boost
+Graph Library \cite{parallelbgl}, and CGMLib \cite{cgmlib}. Our goal
+is to develop infrastructure to aid implementation of similar
+libraries.
 
 \section{Conclusion}
 \label{sec:conclusion}
 
-
-
+We presented our plans for building a system for large graph
+computation using commodity parts. We leverage decades-old ideas on
+using a large amount of concurrency to tolerate latencies; but we do so
+mostly in software. We developed a runtime system for latency
+tolerance and our results showed that it is able to manage enough
+concurrency to tolerate long latencies to amortize the cost of
+expensive accesses to our large global memory system (high-latency,
+but high-bandwidth).
 
 \bibliographystyle{acm}
 \bibliography{softxmt-hotpar2011}
