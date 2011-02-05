@@ -18,6 +18,204 @@ static uint64_t get_ns()
   return ns;
 }
 
+void blah(int i) {
+  int x = 0;
+  void *blah;
+  if (i == 0) {
+    blah = &&foo;
+  } else {
+    blah = &&bar;
+  }
+  goto *blah;
+foo:
+  x++;
+bar:
+  x++;
+  printf("%d\n", x);
+}
+
+#define CHUNK_SIZE 32
+
+void bfs_bare(graph *g, uint64_t *from, uint64_t *to,
+             uint64_t *parent, int *level_size, int *next_chunk,
+             int c, int ncores, int nthreads) {
+  int out = 0;
+  int limit = 0;
+  int in, done;
+  uint64_t vertex, next;
+  uint64_t *addr, *end, *pa, *start;
+  while (*level_size > 0) {
+    blah(*level_size);
+    int chunk_size = (*level_size) / ncores;
+    in = chunk_size*c;
+    done = in + chunk_size;
+    while(in < done) {
+      vertex = from[in++];
+      if (vertex == g->v) continue;
+      addr = &g->row_ptr[vertex];
+      start = &g->edges[*addr++];
+      end = &g->edges[*addr];
+      while (start < end) {
+        next = *start++;
+        pa = &parent[next];
+        while (*pa == g->v) {
+          if (!__sync_bool_compare_and_swap(pa, g->v, vertex)) {
+            continue;
+          }
+          if (out >= limit) {
+            out = __sync_fetch_and_add(next_chunk, CHUNK_SIZE);
+            limit = out + CHUNK_SIZE;
+          }
+          to[out++] = next;
+        }
+      }
+    }
+    while (out < limit) {
+      to[out++] = g->v;
+    }
+    #pragma omp barrier
+    #pragma omp single
+    {
+      *level_size = *next_chunk;
+      *next_chunk = 0;
+      out = limit = 0;
+      while(*level_size % ncores > 0) {
+        to[(*level_size)++] = g->v;
+      }
+    }
+    addr = to;
+    to = from;
+    from = addr;
+  }
+}
+
+
+void bfs_thr(graph *g, uint64_t *from, uint64_t *to,
+             uint64_t *parent, int *level_size, int *next_chunk,
+             int c, int ncores, int nthreads) {
+  int out = 0;
+  int limit = 0;
+  int in, done;
+  int i;
+  int active;
+  void *threads[nthreads];
+  uint64_t *addrs[nthreads];
+  uint64_t *ends[nthreads];
+  uint64_t *parents[nthreads];
+  uint64_t nexts[nthreads];
+  uint64_t vertices[nthreads];
+  uint64_t vertex, next;
+  uint64_t *addr, *end, *pa, *start;
+  while (*level_size > 0) {
+    int chunk_size = (*level_size) / ncores;
+    in = chunk_size*c;
+    done = in + chunk_size;
+    for (i = 0; i < nthreads; ++i) {
+      threads[i] = &&loop_start;
+    }
+    i = 0;
+    active = nthreads;
+    goto *threads[i];
+ loop_start:
+    while(in < done) {
+      vertex = from[in++];
+      if (vertex == g->v) continue;
+      addr = &g->row_ptr[vertex];
+      __builtin_prefetch(addr, 0, 0);
+      vertices[i] = vertex;
+      addrs[i] = addr;
+      threads[i] = &&loop_rowptr;
+      i = (i+1) % nthreads;
+      goto *threads[i];
+   loop_rowptr:
+      vertex = vertices[i];
+      addr = addrs[i];
+      start = &g->edges[*addr++];
+      end = &g->edges[*addr];
+      while (start < end) {
+        __builtin_prefetch(start, 0, 0);
+        vertices[i] = vertex;
+        addrs[i] = start;
+        ends[i] = end;
+        threads[i] = &&loop_edge;
+        i = (i+1) % nthreads;
+        goto *threads[i];
+     loop_edge:
+        next = *addrs[i]++;
+        pa = &parent[next];
+        __builtin_prefetch(pa, 1, 0);
+        parents[i] = pa;
+        nexts[i] = next;
+        threads[i] = &&loop_parent;
+        i = (i+1) % nthreads;
+        goto *threads[i];
+     loop_parent:
+        pa = parents[i];
+        vertex = vertices[i];
+        while (*pa == g->v) {
+          if (!__sync_bool_compare_and_swap(pa, g->v, vertex)) {
+            continue;
+          }
+          if (out >= limit) {
+            out = __sync_fetch_and_add(next_chunk, CHUNK_SIZE);
+            limit = out + CHUNK_SIZE;
+          }
+          to[out++] = nexts[i];
+        }
+        start = addrs[i];
+        end = ends[i];
+      }
+    }
+    threads[i] = &&loop_over;
+    active--;
+ loop_over:
+    if (active > 0) {
+      i = (i+1) % nthreads;
+      goto *threads[i];
+    }
+    // barrier here--shouldn't hit until all threads done.
+    while (out < limit) {
+      to[out++] = g->v;
+    }
+    #pragma omp barrier
+    #pragma omp single
+    {
+      *level_size = *next_chunk;
+      *next_chunk = 0;
+      out = limit = 0;
+      while(*level_size % ncores > 0) {
+        to[(*level_size)++] = g->v;
+      }
+    }
+    addr = to;
+    to = from;
+    from = addr;
+  }
+}
+
+
+void bfs(graph *g, uint64_t root,
+         int ncores, int nthreads,
+         uint64_t *to_examine, uint64_t *next, uint64_t *parent) {
+  to_examine[0] = root;
+  int level_size = 1;
+  for(; level_size < ncores; ++level_size) {
+    to_examine[level_size] = g->v;
+  }
+  int next_chunk = 0;
+  #pragma omp parallel for num_threads(ncores)
+  for (int c = 0; c < ncores; ++c) {
+    if (nthreads > 0) {
+      bfs_thr(g, to_examine, next, parent, &level_size, &next_chunk,
+              c, ncores, nthreads);
+    } else {
+      bfs_bare(g, to_examine, next, parent, &level_size, &next_chunk,
+               c, ncores, nthreads);
+    }
+  }
+}
+
+
 // pointers are shared between cores (except leader)
 // Nonpointers are shared between green threads.
 struct kernel_arg {
@@ -33,7 +231,6 @@ struct kernel_arg {
   int ncores;
 };
 
-#define CHUNK_SIZE 32
 
 void print_queue(thread *head) {
   while (1) {
@@ -59,7 +256,7 @@ void bfs_kernel(thread *me, void *arg) {
       ka->done = ka->in + chunk_size;
     }
     thread_block(me, &ka->barrier);
-    //    printf("%p ours: %d %d\n", ka, ka->in, ka->done);
+    //   printf("%p ours: %d %d\n", ka, ka->in, ka->done);
     while (ka->in < ka->done) {
       uint64_t vertex = ka->from[ka->in++];
       if (vertex == ka->g->v) continue;
@@ -112,7 +309,7 @@ void bfs_kernel(thread *me, void *arg) {
   }
 }
 
-void bfs(graph *g, uint64_t root,
+void bfs_greenery(graph *g, uint64_t root,
          int ncores, int nthreads,
          uint64_t *to_examine, uint64_t *next, uint64_t *parent) {
   to_examine[0] = root;
@@ -204,7 +401,10 @@ int main(int argc, char *argv[]) {
   uint64_t *to_examine = calloc(sizeof(uint64_t), qsize);
   uint64_t *next = calloc(sizeof(uint64_t), qsize);
   uint64_t *parent = calloc(sizeof(uint64_t), g->v);
-  double avg = 0;
+  double avg;
+  for (ncores = 1; ncores < 7; ++ncores) {
+    for (nthreads = 0; nthreads < 128;) {
+      avg = 0;
   for (int i = 0; i < nruns; ++i) {
     for (unsigned int i = 0; i < g->v; ++i) {
       to_examine[i] = next[i] = parent[i] = g->v;
@@ -223,8 +423,13 @@ int main(int argc, char *argv[]) {
     printf("%" PRIu64 " ns -> %f ns/edge \n", elapsed, rate);
   }
   avg /= nruns;
-  printf("AVERAGE: %f\n", avg);
-
+  printf("AVERAGE %d %d: %f\n", ncores, nthreads, avg);
+  if (nthreads == 0) {
+    nthreads = 1;
+  } else {
+    nthreads *=2;
+  }
+    }}
   graph_free(g);
   free(to_examine);
   free(next);
