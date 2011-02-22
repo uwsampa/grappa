@@ -28,7 +28,7 @@ remotecores = numanodes[4]
 cpus = localcores+remotecores
 cpus = [0,2,4,8,10,12,1,3,5,7,9,11]
 
-cmd_template = "hugectl numactl --%s=%s ./gups -f %d -u %d -c %d"
+cmd_template = "numactl --%s=%s ./gups -f %d -u %d -c %d"
 
 results = []
 

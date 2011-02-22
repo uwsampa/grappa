@@ -8,6 +8,7 @@
 #include <omp.h>
 
 #include <sched.h>
+#include <hugetlbfs.h>
 
 #include <sw_queue_astream.h>
 
@@ -30,7 +31,9 @@ int main(int argc, char** argv) {
 
     processArgs(argc, argv, &fieldsize, &num_ups, &num_threads, &isRandom, &isAtomic, &isDelegated);
    //printf("%lu fieldsize\n",fieldsize*sizeof(uint64_t)); 
-    uint64_t* field = (uint64_t*)malloc(fieldsize*sizeof(uint64_t));
+    //uint64_t* field = (uint64_t*)malloc(fieldsize*sizeof(uint64_t));
+    int64_t min_field_alloc = (1 << 30) * (1 + fieldsize*sizeof(uint64_t) / (1 << 30));
+    uint64_t* field = get_huge_pages(min_field_alloc, GHP_DEFAULT);
     if (field==0) {
         printf("malloc failed\n");
         exit(1);
@@ -55,10 +58,10 @@ int main(int argc, char** argv) {
     clock_gettime(CLOCK_MONOTONIC, &start);
     
     if (isDelegated) {
-      uint64_t nt = num_threads;
-# pragma omp parallel for num_threads(nt+1) 
-      for(int core = 0; core <= nt; ++core) {
-	if (core == nt) {
+      uint64_t num_cores = num_threads;
+# pragma omp parallel for num_threads(num_cores+1) 
+      for(int core = 0; core <= num_cores; ++core) {
+	if (core == num_cores) {
 
 	  // consumer
 #pragma omp task 
@@ -72,20 +75,22 @@ int main(int argc, char** argv) {
 	    }
 	    sched_setaffinity(0, sizeof(cpu_set_t), &set);
 	    
-	    uint64_t max = nt * num_ups;
-	    
+	    uint64_t max = num_cores * num_ups;
+	    uint64_t counts[12] = {0};
 	    while( max ) {
-	      for(int j = 0; j < nt; j++) {
-		if (sq_canConsume(to[j])) {
+	      for(int j = 0; j < num_cores; j++) {
+		if (counts[j] < num_ups) {
 		  uint64_t pointer = sq_consume(to[j]);
 		  (*((uint64_t*) pointer))++;
 		  max--;
+		  counts[j]++;
 		} 
 	      }
 	    }
+	    printf("consumer done\n");
 	  }
 	} else {
-
+	  
 	  // producer
 #pragma omp task 
 	  {
@@ -102,6 +107,7 @@ int main(int argc, char** argv) {
 	      sq_produce(to[core], (uint64_t) &field[indices[i]]);
 	    }
 	    sq_flushQueue(to[core]);
+	    printf("producer %d done\n",core);
 	  }
 	}
       }
@@ -136,14 +142,16 @@ int main(int argc, char** argv) {
     float mb_rate = gups*BILLION*mbperitem;
 printf("%ld fieldsize, %f Gupdates, %ld ns, %f ns/up, %f gups, %f MB/s\n", fieldsize, gupdates, runtime_ns, ns_per_up, gups, mb_rate);
 
-    printf("{'fieldsize':%ld, 'updates':%ld, 'gups':%f, 'runtime_ns':%ld, 'atomic':%d, 'random':%d, 'num_threads':%d, 'f_ele_size':%lu}\n", fieldsize, num_ups, gups, runtime_ns, isAtomic, isRandom, num_threads, sizeof(uint64_t));
+ printf("{'fieldsize':%ld, 'updates':%ld, 'gups':%f, 'runtime_ns':%ld, 'atomic':%d, 'random':%d, 'num_threads':%d, 'f_ele_size':%lu, 'delegated':%d}\n", fieldsize, num_ups, gups, runtime_ns, isAtomic, isRandom, num_threads, sizeof(uint64_t), isDelegated);
 
     return 0;
 }
 
 uint64_t* getIndices(uint64_t fieldsize, uint64_t num, int isRandom, int num_threads) {
 
-    uint64_t* indices = (uint64_t*)malloc(num*sizeof(uint64_t));
+  //uint64_t* indices = (uint64_t*)malloc(num*sizeof(uint64_t));
+  int64_t min_indices_alloc = (1 << 30) * (1 + num*sizeof(uint64_t) / (1 << 30));
+  uint64_t* indices = get_huge_pages(min_indices_alloc, GHP_DEFAULT);
 
     if (isRandom) { 
         unsigned int seedp;
