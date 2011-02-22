@@ -42,7 +42,6 @@ int main(int argc, char** argv) {
     struct timespec end;
 
     clock_gettime(CLOCK_MONOTONIC, &start);
-    
     if (isAtomic) {
         #pragma omp parallel num_threads(num_threads)
         {
@@ -92,6 +91,7 @@ uint64_t* getIndices(uint64_t fieldsize, uint64_t num, int isRandom, int num_thr
             #pragma omp for
             for (uint64_t i=0; i<num; i++) {
                 indices[i] = rand_r(&seedp) / (RAND_MAX/fieldsize + 1);
+                //printf("%lu indices[%lu]\n",indices[i],i);
             }
         }
     } else {
