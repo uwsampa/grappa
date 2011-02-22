@@ -26,6 +26,7 @@ numanodes = {0:[ 0, 4,8,12,16,20],
 localcores = numanodes[2]
 remotecores = numanodes[4]
 cpus = localcores+remotecores
+cpus = [0,2,4,8,10,12,1,3,5,7,9,11]
 
 
 cmd_template = "hugectl --heap ./gups -f %d -u %d -c %d"
@@ -47,14 +48,11 @@ for num_threads in range(1, 12+1):
         for num_ups in [24]*3:
             for alloc in ['membind']:#['interleave','membind']:
                 for nrandom in [True, False]:
-                    for atomic in [True, False]:
-                        cmd = cmd_template
-                        if atomic: cmd = cmd_template+' -a'
-                        if not nrandom: cmd = cmd+' -n'
+                    if not nrandom: cmd+=' -n'
 
-                        #this_cmd = cmd%(alloc,numa,fieldsize,num_ups,num_threads)
-                        this_cmd = cmd%(fieldsize,num_ups,num_threads)
-                        alloc = 'free'
+                    for atomic in [True, False, 'delegate']:
+                        if atomic is True: cmd+=' -a'
+                        if atomic is 'delegate': cmd+=' -d'
 
                         these_results = loop_runexp_nowait.run_experiment('', this_cmd, True)
                         results.extend(these_results)
