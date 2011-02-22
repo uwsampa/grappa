@@ -1,5 +1,5 @@
 CC=gcc
-CFLAGS+=-fopenmp -g -std=gnu99 
+CFLAGS+=-fopenmp -g -std=gnu99 -O1
 
 
 gups: gups.c Makefile
