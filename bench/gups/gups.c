@@ -56,9 +56,6 @@ int main(int argc, char** argv) {
     struct timespec end;
 
     clock_gettime(CLOCK_MONOTONIC, &start);
-<<<<<<< HEAD
-    if (isAtomic) {
-=======
     
     if (isDelegated) {
       uint64_t num_cores = num_threads;
@@ -115,7 +112,6 @@ int main(int argc, char** argv) {
 	}
       }
     } else if (isAtomic) {
->>>>>>> 8e4922b9c348a08297364823d625e5f3d38180ba
         #pragma omp parallel num_threads(num_threads)
         {
          #pragma omp for
