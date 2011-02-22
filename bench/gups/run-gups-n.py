@@ -13,23 +13,16 @@ results_file = sys.argv[1]+"/"+sys.argv[1]+".csv"
 
 os.mkdir(save_dir)
 
-numanodes = {0:[ 0, 4,8,12,16,20],
-             1:[24,28,32,36,40,44],
-             2:[ 3, 7,11,15,19,23],
-             3:[27,31,35,39,43,47],
-             4:[ 2, 6,10,14,18,22],
-             5:[26,30,34,38,42,46],
-             6:[ 1, 5, 9,13,17,21],
-             7:[25,29,33,37,41,45]}
+numanodes = {0:[ 0, 2, 4, 6, 8, 10],
+             1:[ 1, 3, 5, 7, 9, 11]}
 
-#TODO generalize
-localcores = numanodes[2]
-remotecores = numanodes[4]
+localcores = numanodes[0]
+remotecores = numanodes[1]
 cpus = localcores+remotecores
 
 
-cmd_template = "hugectl --heap ./gups -f %d -u %d -c %d"
-#cmd_template = "hugectl --heap numactl --%s=%s ./gups -f %d -u %d -c %d"
+cmd_template = "hugectl --heap numactl --%s=%s ./gupsn -f %d -u %d -c %d"
+#cmd_template = "hugectl --heap ./gupsn -f %d -u %d -c %d"
 
 results = []
 
@@ -41,21 +34,23 @@ for num_threads in range(1, 12+1):
     #numa = ''
     #if num_threads <= 6: numa = '0'
     #else: numa = '0,1'
-    numa = '2'
+    numa = '0,1'
 
-    for fieldsize in [12,13,14,15,16,18,19,21,23,25,26]:
+    for fieldsize in [28,29,30]:#range(0,27+1):#[12,13,14,15,16,18,19,21,23,25,26]:
         for num_ups in [24]*3:
-            for alloc in ['membind']:#['interleave','membind']:
+            for alloc in ['interleave']:#['interleave','membind']:
                 for nrandom in [True, False]:
+
                     for atomic in [True, False]:
                         cmd = cmd_template
                         if atomic: cmd = cmd_template+' -a'
                         if not nrandom: cmd = cmd+' -n'
 
-                        #this_cmd = cmd%(alloc,numa,fieldsize,num_ups,num_threads)
-                        this_cmd = cmd%(fieldsize,num_ups,num_threads)
-                        alloc = 'free'
+                        #alloc = 'free'
 
+                        this_cmd = cmd%(alloc,numa,fieldsize,num_ups,num_threads)
+                        #this_cmd = cmd%(fieldsize,num_ups,num_threads)
+                        
                         these_results = loop_runexp_nowait.run_experiment('', this_cmd, True)
                         results.extend(these_results)
                         if save_dir is not None:
