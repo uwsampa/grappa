@@ -84,7 +84,7 @@ void multi_producer(thread* me, void * void_args) {
   case 8:
     for(uint64_t i = initial_index; i < initial_index + max; ++i) {
       uint64_t addr = (uint64_t) &field[indices[i]];
-      int queue = addr & (num_cores - 1);
+      int queue = (addr >> 3) & (num_cores - 1);
       sq_produce(qs[queue], addr, me);
     }
     break;
