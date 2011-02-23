@@ -10,7 +10,8 @@
 #include <sched.h>
 #include <hugetlbfs.h>
 
-#include <sw_queue_astream.h>
+#include <sw_queue_greenery.h>
+#include <thread.h>
 
 #define MILLION 1000000
 #define BILLION 1000000000
@@ -18,6 +19,22 @@
 uint64_t* getIndices(uint64_t fieldsize, uint64_t num, int isRandom, int num_threads);
 uint64_t get_timediff_ns(struct timespec* start, struct timespec* end);
 void processArgs(int argc, char** argv, uint64_t* fieldsize, uint64_t* num_ups, int* num_threads, int* isRandom, int* isAtomic, int* isDelegated);
+
+typedef struct consumer_args {
+  SW_Queue q;
+  uint64_t max;
+} consumer_args;
+
+void consumer(thread* me, void * void_args) {
+  consumer_args* args = (consumer_args*) void_args;
+  uint64_t max = args->max;
+  SW_Queue q = args->q;
+
+  while( max-- ) {
+    uint64_t val = sq_consume(q, me);
+    (*((uint64_t*) val))++;
+  }
+}
 
 
 
@@ -31,9 +48,9 @@ int main(int argc, char** argv) {
 
     processArgs(argc, argv, &fieldsize, &num_ups, &num_threads, &isRandom, &isAtomic, &isDelegated);
    //printf("%lu fieldsize\n",fieldsize*sizeof(uint64_t)); 
-    //uint64_t* field = (uint64_t*)malloc(fieldsize*sizeof(uint64_t));
-    int64_t min_field_alloc = (1 << 30) * (1 + fieldsize*sizeof(uint64_t) / (1 << 30));
-    uint64_t* field = get_huge_pages(min_field_alloc, GHP_DEFAULT);
+    uint64_t* field = (uint64_t*)malloc(fieldsize*sizeof(uint64_t));
+    //int64_t min_field_alloc = (1 << 30) * (1 + fieldsize*sizeof(uint64_t) / (1 << 30));
+    //uint64_t* field = get_huge_pages(min_field_alloc, GHP_DEFAULT);
     if (field==0) {
         printf("malloc failed\n");
         exit(1);
@@ -75,19 +92,19 @@ int main(int argc, char** argv) {
 	    }
 	    sched_setaffinity(0, sizeof(cpu_set_t), &set);
 	    
-	    uint64_t max = num_cores * num_ups;
-	    uint64_t counts[12] = {0};
-	    while( max ) {
-	      for(int j = 0; j < num_cores; j++) {
-		if (counts[j] < num_ups) {
-		  uint64_t pointer = sq_consume(to[j]);
-		  (*((uint64_t*) pointer))++;
-		  max--;
-		  counts[j]++;
-		} 
-	      }
+	    uint64_t max = num_ups / num_cores;
+	    thread * master = thread_init();
+	    scheduler * sched = create_scheduler(master);
+	    thread * threads[12] = { NULL };
+	    struct consumer_args args[12];
+	    for (int i = 0; i < num_cores; ++i) {
+	      args[i].max = max;
+	      args[i].q = to[i];
+	      threads[i] = thread_spawn(master, sched, consumer, &args[i]);
 	    }
-	    printf("consumer done\n");
+	    run_all(sched);
+	    //destroy_scheduler(sched);
+	    //destroy_thread(master);
 	  }
 	} else {
 	  
@@ -103,11 +120,10 @@ int main(int argc, char** argv) {
 	    }
 	    sched_setaffinity(0, sizeof(cpu_set_t), &set);
 
-	    for(uint64_t i = 0; i < num_ups; ++i) {
+	    for(uint64_t i = 0; i < (num_ups / num_cores); ++i) {
 	      sq_produce(to[core], (uint64_t) &field[indices[i]]);
 	    }
 	    sq_flushQueue(to[core]);
-	    printf("producer %d done\n",core);
 	  }
 	}
       }
@@ -149,9 +165,9 @@ printf("%ld fieldsize, %f Gupdates, %ld ns, %f ns/up, %f gups, %f MB/s\n", field
 
 uint64_t* getIndices(uint64_t fieldsize, uint64_t num, int isRandom, int num_threads) {
 
-  //uint64_t* indices = (uint64_t*)malloc(num*sizeof(uint64_t));
-  int64_t min_indices_alloc = (1 << 30) * (1 + num*sizeof(uint64_t) / (1 << 30));
-  uint64_t* indices = get_huge_pages(min_indices_alloc, GHP_DEFAULT);
+  uint64_t* indices = (uint64_t*)malloc(num*sizeof(uint64_t));
+  //int64_t min_indices_alloc = (1 << 30) * (1 + num*sizeof(uint64_t) / (1 << 30));
+  //uint64_t* indices = get_huge_pages(min_indices_alloc, GHP_DEFAULT);
 
     if (isRandom) { 
         unsigned int seedp;
