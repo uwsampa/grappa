@@ -23,15 +23,17 @@ void processArgs(int argc, char** argv, uint64_t* fieldsize, uint64_t* num_ups, 
 
 int main(int argc, char** argv) {
     uint64_t fieldsize = 1<<30;
-    uint64_t num_ups = 1<<24;
+    uint64_t num_ups_percore = 1<<24;
     int isRandom = 1;
     int num_threads = 1;
     int isAtomic = 0;
     int isDelegated = 0;
 
-    processArgs(argc, argv, &fieldsize, &num_ups, &num_threads, &isRandom, &isAtomic, &isDelegated);
+    processArgs(argc, argv, &fieldsize, &num_ups_percore, &num_threads, &isRandom, &isAtomic, &isDelegated);
+    uint64_t num_ups = num_ups_percore*num_threads;
+
    //printf("%lu fieldsize\n",fieldsize*sizeof(uint64_t)); 
-    //uint64_t* field = (uint64_t*)malloc(fieldsize*sizeof(uint64_t));
+//    uint64_t* field = (uint64_t*)malloc(fieldsize*sizeof(uint64_t));
     int64_t min_field_alloc = (1 << 30) * (1 + fieldsize*sizeof(uint64_t) / (1 << 30));
     uint64_t* field = get_huge_pages(min_field_alloc, GHP_DEFAULT);
     if (field==0) {
@@ -75,16 +77,16 @@ int main(int argc, char** argv) {
 	    }
 	    sched_setaffinity(0, sizeof(cpu_set_t), &set);
 	    
-	    uint64_t max = num_cores * num_ups;
+	    uint64_t max = num_ups;
 	    uint64_t counts[12] = {0};
 	    while( max ) {
 	      for(int j = 0; j < num_cores; j++) {
-		if (counts[j] < num_ups) {
-		  uint64_t pointer = sq_consume(to[j]);
-		  (*((uint64_t*) pointer))++;
-		  max--;
-		  counts[j]++;
-		} 
+		    if (counts[j] < num_ups_percore) {
+		        uint64_t pointer = sq_consume(to[j]);
+		        (*((uint64_t*) pointer))++;
+		        max--;
+		        counts[j]++;
+		    } 
 	      }
 	    }
 	    printf("consumer done\n");
@@ -103,8 +105,10 @@ int main(int argc, char** argv) {
 	    }
 	    sched_setaffinity(0, sizeof(cpu_set_t), &set);
 
-	    for(uint64_t i = 0; i < num_ups; ++i) {
-	      sq_produce(to[core], (uint64_t) &field[indices[i]]);
+	    //for(uint64_t i = 0; i < num_ups_percore; ++i) {
+        uint64_t endcond = (core+1)*num_ups_percore;
+	    for(uint64_t i=core*num_ups_percore; i<endcond; ++i) { // partitioning indices manually  
+          sq_produce(to[core], (uint64_t) &field[indices[i]]);
 	    }
 	    sq_flushQueue(to[core]);
 	    printf("producer %d done\n",core);
@@ -115,7 +119,7 @@ int main(int argc, char** argv) {
         #pragma omp parallel num_threads(num_threads)
         {
          #pragma omp for
-         for (uint64_t i=0; i<num_ups; i++) {
+         for (uint64_t i=0; i<num_ups; i++) {             // omp will give num_ups_percore to each thread
              __sync_fetch_and_add(&field[indices[i]], 1);
          }
         }
@@ -123,7 +127,7 @@ int main(int argc, char** argv) {
          #pragma omp parallel num_threads(num_threads)
         {
          #pragma omp for
-         for (uint64_t i=0; i<num_ups; i++) {
+         for (uint64_t i=0; i<num_ups; i++) {            // omp will give num_ups_percore to each thread
              field[indices[i]]++;
          }
         }
