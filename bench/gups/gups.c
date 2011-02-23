@@ -18,15 +18,19 @@
 
 uint64_t* getIndices(uint64_t fieldsize, uint64_t num, int isRandom, int num_threads);
 uint64_t get_timediff_ns(struct timespec* start, struct timespec* end);
-void processArgs(int argc, char** argv, uint64_t* fieldsize, uint64_t* num_ups, int* num_threads, int* isRandom, int* isAtomic, int* isDelegated);
+void processArgs(int argc, char** argv, uint64_t* fieldsize, uint64_t* num_ups, int* num_threads, int* isRandom, int* isAtomic, int* isDelegated, int* isPartitioned);
 
-typedef struct consumer_args {
+typedef struct thread_args {
   SW_Queue q;
+  SW_Queue* qs;
   uint64_t max;
-} consumer_args;
+  uint64_t* field;
+  uint64_t* indices;
+  uint64_t num_cores;
+} thread_args;
 
 void consumer(thread* me, void * void_args) {
-  consumer_args* args = (consumer_args*) void_args;
+  thread_args* args = (thread_args*) void_args;
   uint64_t max = args->max;
   SW_Queue q = args->q;
 
@@ -34,6 +38,67 @@ void consumer(thread* me, void * void_args) {
     uint64_t val = sq_consume(q, me);
     (*((uint64_t*) val))++;
   }
+}
+
+void producer(thread* me, void * void_args) {
+  thread_args* args = (thread_args*) void_args;
+  uint64_t max = args->max;
+  SW_Queue q = args->q;
+  uint64_t* field = args->field;
+  uint64_t* indices = args->indices;
+
+  for(uint64_t i = 0; i < max; ++i) {
+    sq_produce(q, (uint64_t) &field[indices[i]], me);
+  }
+  sq_flushQueue(q);
+
+}
+
+void multi_consumer(thread* me, void * void_args) {
+  thread_args* args = (thread_args*) void_args;
+  uint64_t max = args->max;
+  SW_Queue q = args->q;
+
+  while( true ) {
+    uint64_t val = sq_consume(q, me);
+    if (1 == val) return;
+    (*((uint64_t*) val))++;
+  }
+}
+
+void multi_producer(thread* me, void * void_args) {
+  thread_args* args = (thread_args*) void_args;
+  uint64_t max = args->max;
+  SW_Queue* qs = args->qs;
+  uint64_t* field = args->field;
+  uint64_t* indices = args->indices;
+  uint64_t num_cores = args->num_cores;
+
+  switch (num_cores) {
+  case 1:
+  case 2:
+  case 4:
+  case 8:
+    for(uint64_t i = 0; i < max; ++i) {
+      uint64_t addr = (uint64_t) &field[indices[i]];
+      int queue = addr & (num_cores - 1);
+      sq_produce(qs[queue], addr, me);
+    }
+    break;
+  default:
+    for(uint64_t i = 0; i < max; ++i) {
+      uint64_t addr = (uint64_t) &field[indices[i]];
+      int queue = addr % num_cores;
+      sq_produce(qs[queue], addr, me);
+    }
+    break;
+  }
+
+  for(int i = 0; i < num_cores; ++i) {
+    sq_produce(qs[i], 1, me); // kill
+    sq_flushQueue(qs[i]);
+  }
+
 }
 
 
@@ -45,8 +110,9 @@ int main(int argc, char** argv) {
     int num_threads = 1;
     int isAtomic = 0;
     int isDelegated = 0;
+    int isPartitioned = 0;
 
-    processArgs(argc, argv, &fieldsize, &num_ups, &num_threads, &isRandom, &isAtomic, &isDelegated);
+    processArgs(argc, argv, &fieldsize, &num_ups, &num_threads, &isRandom, &isAtomic, &isDelegated, &isPartitioned);
    //printf("%lu fieldsize\n",fieldsize*sizeof(uint64_t)); 
     uint64_t* field = (uint64_t*)malloc(fieldsize*sizeof(uint64_t));
     //int64_t min_field_alloc = (1 << 30) * (1 + fieldsize*sizeof(uint64_t) / (1 << 30));
@@ -62,9 +128,9 @@ int main(int argc, char** argv) {
     printf("done ind\n");
 
 
-    SW_Queue to[12];
+    SW_Queue to[144];
     
-    for(int i = 0; i < 12; ++i) {
+    for(int i = 0; i < 144; ++i) {
       to[i] = sq_createQueue();
     }
 
@@ -73,8 +139,44 @@ int main(int argc, char** argv) {
     struct timespec end;
 
     clock_gettime(CLOCK_MONOTONIC, &start);
-    
-    if (isDelegated) {
+    if (isPartitioned) {
+      uint64_t num_cores = num_threads;
+#pragma omp parallel for num_threads(num_cores)
+      for(int core = 0; core < num_cores; ++core) {
+	cpu_set_t set;
+	CPU_ZERO(&set);
+	if (core < 6) {
+	  CPU_SET(core*2,&set);
+	} else {
+	  CPU_SET((core-6)*2+1,&set);
+	}
+	sched_setaffinity(0, sizeof(cpu_set_t), &set);
+	
+	thread * master = thread_init();
+	scheduler * sched = create_scheduler(master);
+	
+	// add consumers
+	struct thread_args thread_args[12];
+	for(int i = 0; i < num_cores; ++i) {
+	  thread_args[i].max = num_ups/num_cores;
+	  thread_args[i].q = to[ core*num_cores + i ];
+	  thread_spawn(master, sched, multi_consumer, &thread_args[i]);
+	}
+	
+	// add producer
+	struct thread_args producer_args;
+	producer_args.max = num_ups/num_cores;
+	producer_args.qs = &to[ core*num_cores ];
+	producer_args.field = field;
+	producer_args.indices = indices;
+	producer_args.num_cores = num_cores;
+	thread_spawn(master, sched, multi_producer, &producer_args);
+
+	run_all(sched);
+	//destroy_scheduler(sched);
+	//destroy_thread(master);
+      }
+    } else if (isDelegated) {
       uint64_t num_cores = num_threads;
 # pragma omp parallel for num_threads(num_cores+1) 
       for(int core = 0; core <= num_cores; ++core) {
@@ -96,7 +198,7 @@ int main(int argc, char** argv) {
 	    thread * master = thread_init();
 	    scheduler * sched = create_scheduler(master);
 	    thread * threads[12] = { NULL };
-	    struct consumer_args args[12];
+	    struct thread_args args[12];
 	    for (int i = 0; i < num_cores; ++i) {
 	      args[i].max = max;
 	      args[i].q = to[i];
@@ -120,10 +222,19 @@ int main(int argc, char** argv) {
 	    }
 	    sched_setaffinity(0, sizeof(cpu_set_t), &set);
 
-	    for(uint64_t i = 0; i < (num_ups / num_cores); ++i) {
-	      sq_produce(to[core], (uint64_t) &field[indices[i]]);
-	    }
-	    sq_flushQueue(to[core]);
+	    uint64_t max = num_ups / num_cores;
+	    thread * master = thread_init();
+	    scheduler * sched = create_scheduler(master);
+	    thread * thread = NULL;
+	    struct thread_args args;
+	    args.max = max;
+	    args.q = to[core];
+	    args.field = field;
+	    args.indices = indices;
+	    thread = thread_spawn(master, sched, producer, &args);
+	    run_all(sched);
+	    //destroy_scheduler(sched);
+	    //destroy_thread(master);
 	  }
 	}
       }
@@ -200,7 +311,7 @@ uint64_t get_timediff_ns(struct timespec* start, struct timespec* end) {
 
 
 
-void processArgs(int argc, char** argv, uint64_t* fieldsize, uint64_t* num_ups, int* num_threads, int* isRandom, int* isAtomic, int* isDelegated) {
+void processArgs(int argc, char** argv, uint64_t* fieldsize, uint64_t* num_ups, int* num_threads, int* isRandom, int* isAtomic, int* isDelegated, int* isPartitioned) {
 
 
   static struct option long_options[] = {
@@ -210,11 +321,12 @@ void processArgs(int argc, char** argv, uint64_t* fieldsize, uint64_t* num_ups, 
     {"no-random",        no_argument,       NULL, 'n'},
     {"atomic",           no_argument,       NULL, 'a'},
     {"delegate",         no_argument,       NULL, 'd'},
+    {"partition",        no_argument,       NULL, 'p'},
     {"help",             no_argument,       NULL, 'h'},
     {NULL,               no_argument,       NULL, 0}
   };
   int c, option_index = 1;
-  while ((c = getopt_long(argc, argv, "f:u:c:nadh?",
+  while ((c = getopt_long(argc, argv, "f:u:c:nadph?",
                           long_options, &option_index)) >= 0) {
     switch (c) {
     case 0:   // flag set
@@ -236,6 +348,9 @@ void processArgs(int argc, char** argv, uint64_t* fieldsize, uint64_t* num_ups, 
         break;
     case 'd':
       *isDelegated = 1;
+      break;
+    case 'p':
+      *isPartitioned = 1;
       break;
     case 'h':
     case '?':

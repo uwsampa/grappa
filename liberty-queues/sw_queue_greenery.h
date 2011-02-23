@@ -163,7 +163,7 @@ Inline void sq_flushQueue(SW_Queue q)
  * Pausing while spinning improves performance on NetBurst and improves energy
  * efficiency.
  */
-Inline void sq_waitConsumer(SW_Queue q, sq_callback cb, sq_cbData cbd)
+Inline void sq_waitConsumer(SW_Queue q, sq_callback cb, sq_cbData cbd, thread* me)
 {
 #ifndef NO_CON
   uint32_t threshold = (QMARGIN - 1) * QSIZE / QMARGIN;
@@ -173,8 +173,7 @@ Inline void sq_waitConsumer(SW_Queue q, sq_callback cb, sq_cbData cbd)
     cb(cbd);
 
     while(sq_modSub(sq_pInx(q), *q->ptr_c_glb_inx, QMASK) > threshold) {
-      usleep(10);
-      
+      thread_yield(me);
     }
   } else {
 
@@ -188,7 +187,7 @@ Inline void sq_waitConsumer(SW_Queue q, sq_callback cb, sq_cbData cbd)
  * Produce a value to a queue.
  */
 Inline void sq_produce(SW_Queue q, uint64_t value,
-                       sq_callback cb, sq_cbData cbd)
+                       sq_callback cb, sq_cbData cbd, thread* me)
 {
 #ifdef INSTRUMENT
   q->total_produces++;
@@ -203,17 +202,17 @@ Inline void sq_produce(SW_Queue q, uint64_t value,
   q->p_data = (pDataRaw + (1ULL << 32)) & HIGH_QMASK;
 
   if(!(q->p_data & HIGH_CHUNKMASK)) {
-    sq_waitConsumer(q, cb, cbd);
+    sq_waitConsumer(q, cb, cbd, me);
   }
 }
 
-#define sq_produce(Q,V) sq_produce(Q, V, (sq_callback) sq_flushQueue, Q)
+#define sq_produce(Q,V,T) sq_produce(Q, V, (sq_callback) sq_flushQueue, Q, T)
 
 /*
  * Produce two values to a queue. Do not intermingle with sq_produce.
  */
 Inline void sq_produce2(SW_Queue q, uint64_t a, uint64_t b,
-                        sq_callback cb, sq_cbData cbd)
+                        sq_callback cb, sq_cbData cbd, thread* me)
 {
 #ifdef INSTRUMENT
   q->total_produces += 2;
@@ -231,11 +230,11 @@ Inline void sq_produce2(SW_Queue q, uint64_t a, uint64_t b,
   q->p_data = (pDataRaw + (2ULL << 32)) & HIGH_QMASK;
 
   if(!(q->p_data & HIGH_CHUNKMASK)) {
-    sq_waitConsumer(q, cb, cbd);
+    sq_waitConsumer(q, cb, cbd, me);
   }
 }
 
-#define sq_produce2(Q,A,B) sq_produce2(Q, A, B, (sq_callback) sq_flushQueue, Q)
+#define sq_produce2(Q,A,B,T) sq_produce2(Q, A, B, (sq_callback) sq_flushQueue, Q, T)
 
 /* Functions for Consumer */
 
