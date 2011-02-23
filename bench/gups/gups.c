@@ -91,7 +91,7 @@ void multi_producer(thread* me, void * void_args) {
   default:
     for(uint64_t i = initial_index; i < initial_index + max; ++i) {
       uint64_t addr = (uint64_t) &field[indices[i]];
-      int queue = addr % num_cores;
+      int queue = (addr >> 3) % num_cores;
       sq_produce(qs[queue], addr, me);
     }
     break;
@@ -164,7 +164,7 @@ int main(int argc, char** argv) {
 	struct thread_args thread_args[12];
 	for(int i = 0; i < num_cores; ++i) {
 	  thread_args[i].max = num_ups/num_cores;
-	  thread_args[i].q = to[ core*num_cores + i ];
+	  thread_args[i].q = to[ i*num_cores + core ];
 	  thread_spawn(master, sched, multi_consumer, &thread_args[i]);
 	}
 	
@@ -268,7 +268,7 @@ int main(int argc, char** argv) {
     clock_gettime(CLOCK_MONOTONIC, &end);
 
     uint64_t runtime_ns = get_timediff_ns(&start, &end);
-
+    printf("%llu\n", field[indices[0]]);
     float gups = ((float)num_ups)/(runtime_ns);
     float mbperitem = sizeof(uint64_t)/((float)MILLION);
     float gupdates = num_ups/((float)BILLION);
