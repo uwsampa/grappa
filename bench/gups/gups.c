@@ -8,7 +8,7 @@
 #include <omp.h>
 
 #include <sched.h>
-#include <hugetlbfs.h>
+//#include <hugetlbfs.h>
 
 #include <sw_queue_greenery.h>
 #include <thread.h>
