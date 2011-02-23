@@ -27,6 +27,7 @@ typedef struct thread_args {
   uint64_t* field;
   uint64_t* indices;
   uint64_t num_cores;
+  uint64_t initial_index;
 } thread_args;
 
 void consumer(thread* me, void * void_args) {
@@ -46,8 +47,9 @@ void producer(thread* me, void * void_args) {
   SW_Queue q = args->q;
   uint64_t* field = args->field;
   uint64_t* indices = args->indices;
+  uint64_t initial_index = args->initial_index;
 
-  for(uint64_t i = 0; i < max; ++i) {
+  for(uint64_t i = initial_index; i < initial_index + max; ++i) {
     sq_produce(q, (uint64_t) &field[indices[i]], me);
   }
   sq_flushQueue(q);
@@ -73,20 +75,21 @@ void multi_producer(thread* me, void * void_args) {
   uint64_t* field = args->field;
   uint64_t* indices = args->indices;
   uint64_t num_cores = args->num_cores;
+  uint64_t initial_index = args->initial_index;
 
   switch (num_cores) {
   case 1:
   case 2:
   case 4:
   case 8:
-    for(uint64_t i = 0; i < max; ++i) {
+    for(uint64_t i = initial_index; i < initial_index + max; ++i) {
       uint64_t addr = (uint64_t) &field[indices[i]];
       int queue = addr & (num_cores - 1);
       sq_produce(qs[queue], addr, me);
     }
     break;
   default:
-    for(uint64_t i = 0; i < max; ++i) {
+    for(uint64_t i = initial_index; i < initial_index + max; ++i) {
       uint64_t addr = (uint64_t) &field[indices[i]];
       int queue = addr % num_cores;
       sq_produce(qs[queue], addr, me);
@@ -105,14 +108,16 @@ void multi_producer(thread* me, void * void_args) {
 
 int main(int argc, char** argv) {
     uint64_t fieldsize = 1<<30;
-    uint64_t num_ups = 1<<24;
+    uint64_t num_ups_percore = 1<<24;
     int isRandom = 1;
     int num_threads = 1;
     int isAtomic = 0;
     int isDelegated = 0;
     int isPartitioned = 0;
 
-    processArgs(argc, argv, &fieldsize, &num_ups, &num_threads, &isRandom, &isAtomic, &isDelegated, &isPartitioned);
+      processArgs(argc, argv, &fieldsize, &num_ups_percore, &num_threads, &isRandom, &isAtomic, &isDelegated, &isPartitioned);
+    uint64_t num_ups = num_ups_percore*num_threads;
+
    //printf("%lu fieldsize\n",fieldsize*sizeof(uint64_t)); 
     uint64_t* field = (uint64_t*)malloc(fieldsize*sizeof(uint64_t));
     //int64_t min_field_alloc = (1 << 30) * (1 + fieldsize*sizeof(uint64_t) / (1 << 30));
@@ -165,11 +170,12 @@ int main(int argc, char** argv) {
 	
 	// add producer
 	struct thread_args producer_args;
-	producer_args.max = num_ups/num_cores;
+	producer_args.max = num_ups / num_cores;
 	producer_args.qs = &to[ core*num_cores ];
 	producer_args.field = field;
 	producer_args.indices = indices;
 	producer_args.num_cores = num_cores;
+	producer_args.initial_index = core * num_ups / num_cores;
 	thread_spawn(master, sched, multi_producer, &producer_args);
 
 	run_all(sched);
@@ -222,19 +228,20 @@ int main(int argc, char** argv) {
 	    }
 	    sched_setaffinity(0, sizeof(cpu_set_t), &set);
 
-	    uint64_t max = num_ups / num_cores;
 	    thread * master = thread_init();
 	    scheduler * sched = create_scheduler(master);
 	    thread * thread = NULL;
 	    struct thread_args args;
-	    args.max = max;
+	    args.max = num_ups / num_cores;
 	    args.q = to[core];
 	    args.field = field;
 	    args.indices = indices;
+	    args.initial_index = core * num_ups / num_cores;
 	    thread = thread_spawn(master, sched, producer, &args);
 	    run_all(sched);
 	    //destroy_scheduler(sched);
 	    //destroy_thread(master);
+
 	  }
 	}
       }
@@ -242,7 +249,7 @@ int main(int argc, char** argv) {
         #pragma omp parallel num_threads(num_threads)
         {
          #pragma omp for
-         for (uint64_t i=0; i<num_ups; i++) {
+         for (uint64_t i=0; i<num_ups; i++) {             // omp will give num_ups_percore to each thread
              __sync_fetch_and_add(&field[indices[i]], 1);
          }
         }
@@ -250,7 +257,7 @@ int main(int argc, char** argv) {
          #pragma omp parallel num_threads(num_threads)
         {
          #pragma omp for
-         for (uint64_t i=0; i<num_ups; i++) {
+         for (uint64_t i=0; i<num_ups; i++) {            // omp will give num_ups_percore to each thread
              field[indices[i]]++;
          }
         }
