@@ -40,6 +40,7 @@ graph *graph_read(FILE *f) {
   graph *g = graph_new(v, e);
   unsigned int next = 0;
   for (unsigned int i = 0; i < v; ++i) {
+    if (i % 10000 == 0) printf("Reading vertex %d...\n", i);
     g->row_ptr[i] = next;
     uint64_t degree;
     assert(1 == fscanf(f, "%" PRIu64 "", &degree));
@@ -51,6 +52,7 @@ graph *graph_read(FILE *f) {
   g->row_ptr[v] = next;
   assert(next == e);
   assert(e == g->e);
+  printf("Done.\n");
   return g;
 }
 
@@ -70,4 +72,14 @@ void graph_write(FILE *f, graph *g, uint64_t *perm) {
     fprintf(f, "\n");
   }
   free(inv);
+}
+
+int graph_edgecount(graph *g, uint64_t u, uint64_t v) {
+  int num = 0;
+  uint64_t from = g->row_ptr[u];
+  uint64_t to = g->row_ptr[u+1];
+  for (; from < to; ++from) {
+    if (g->edges[from] == v) num++;
+  }
+  return num;
 }
