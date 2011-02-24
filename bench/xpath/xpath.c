@@ -231,11 +231,12 @@ int main(int argc, char *argv[]) {
   }
   printf("\n");
   double avg;
-  avg = 0;
+
   int count;
   //int actual = xpath_brute(g, colors, path, pathlen);
   //printf("count: %d\n", actual);
-  for (ncores = 1; ncores <=12; ++ncores) {
+  for (ncores = 1; ncores <=2; ++ncores) {
+    avg = 0;
   for (int i = 0; i < nruns; ++i) {
     count = 0;
     uint64_t before = get_ns();
