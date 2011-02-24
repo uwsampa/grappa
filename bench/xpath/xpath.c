@@ -68,14 +68,16 @@ int xpath_bare(graph *g, int *colors, int *path, int len,
     while (d >= 0) {
       if (d == len - 1) {
         // yes!
-        /*        #pragma omp critical
+        /*
+        #pragma omp critical
         {
           printf("path:");
           for (int i = 0; i < len; ++i) {
             printf(" %" PRIu64 "", candidate[i]);
           }
           printf("\n");
-        }*/
+        }
+        */
         count++;
         d--;
         continue;
@@ -88,7 +90,7 @@ int xpath_bare(graph *g, int *colors, int *path, int len,
       uint64_t next = *examine[d]++;
       temp = 1;
       // c
-      for (i = 0; i < d && temp; ++i) {
+      for (i = 0; i <= d && temp; ++i) {
         if (candidate[i] == next) temp = 0;
       }
       if (temp && colors[next] == path[d+1]) {
@@ -205,6 +207,7 @@ int main(int argc, char *argv[]) {
   unsigned int seed = 0;
   if (argc == 7) seed = strtol(argv[6], NULL, 0);
   if (seed == 0) seed = goodseed();
+  printf("seed: %d\n", seed);
   srand(seed);
   FILE *gfile = fopen(argv[1], "r");
   assert (gfile != NULL);
@@ -230,15 +233,17 @@ int main(int argc, char *argv[]) {
   double avg;
   avg = 0;
   int count;
-  //  int actual = xpath_brute(g, colors, path, pathlen);
+  //int actual = xpath_brute(g, colors, path, pathlen);
+  //printf("count: %d\n", actual);
+  for (ncores = 1; ncores <=12; ++ncores) {
   for (int i = 0; i < nruns; ++i) {
     count = 0;
     uint64_t before = get_ns();
     // "edges" is a rough count of work - edges "traversed" in the search...
     int edges = xpath(g, colors, path, pathlen, &count, ncores, nthreads);
+    printf("Matching paths: %d\n", count);
     //assert(count == actual);
     uint64_t after = get_ns();
-    printf("Matching paths: %d\n", count);
     uint64_t elapsed = after - before;
     double rate = elapsed;
     rate /= edges;
@@ -247,6 +252,7 @@ int main(int argc, char *argv[]) {
   }
   avg /= nruns;
   printf("AVERAGE %d %d: %f\n", ncores, nthreads, avg);
+  }
   graph_free(g);
   free(colors);
   free(path);
