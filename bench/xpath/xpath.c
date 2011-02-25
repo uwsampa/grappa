@@ -39,6 +39,88 @@ static int rand_range(int i, int j) {
   return (rnd + i);
 }
 
+struct xpath_args {
+  graph *g;
+  int *colors;
+  int *path;
+  int len;
+  int t;
+  int threads;
+  int *loc_c;
+  int *edges;
+};
+
+void xpath_greenery(thread *me, void *arg) {
+  struct xpath_args *args = arg;
+  graph *g = args->g;
+  int *colors = args->colors;
+  int *path = args->path;
+  int len = args->len;
+  int edges = 0;
+  int count = 0;
+  // explicit DFS stack.
+  uint64_t candidate[len];
+  // on the i-th stack level, how far we are in to the edge list of that vertex.
+  // we could lookup limit again each time, but that's likely slow - should
+  // maybe benchmark this?
+  uint64_t *examine[len];
+  uint64_t *limit[len];
+  uint64_t chunk_size = (g->v+args->threads - 1) / args->threads;
+  uint64_t root = args->t*chunk_size;
+  uint64_t stop = root + chunk_size;
+  stop = stop > g->v ? g->v : stop;
+  int d, i, temp;
+  for (; root < stop; ++root) {
+    if (colors[root] != path[0]) continue;
+    d = 0;
+    // invariant: only store to candidate[k] if
+    // * candidate[0..k] (inclusive) is a valid path (distinct v)
+    // * matches colors
+    candidate[0] = root;
+    examine[0] = &g->edges[g->row_ptr[root]];
+    limit[0] = &g->edges[g->row_ptr[root+1]];
+    while (d >= 0) {
+      if (d == len - 1) {
+        // yes!
+        /*
+        #pragma omp critical
+        {
+          printf("path:");
+          for (int i = 0; i < len; ++i) {
+            printf(" %" PRIu64 "", candidate[i]);
+          }
+          printf("\n");
+        }
+        */
+        count++;
+        d--;
+        continue;
+      }
+      if (examine[d] == limit[d]) {
+        // end of the line, nowhere to go
+        d--;
+        continue;
+      }
+      uint64_t next = *examine[d]++;
+      temp = 1;
+      // c
+      for (i = 0; i <= d && temp; ++i) {
+        if (candidate[i] == next) temp = 0;
+      }
+      if (temp && colors[next] == path[d+1]) {
+        edges++;
+        d++;
+        candidate[d] = next;
+        examine[d] = &g->edges[g->row_ptr[next]];
+        limit[d] = &g->edges[g->row_ptr[next+1]];
+      }
+    }
+  }
+  *args->loc_c += count;
+  *args->edges += edges;
+  
+  thread_exit(me, NULL);
+}
 
 int xpath_bare(graph *g, int *colors, int *path, int len,
                int *global_count, int c, int ncores, int nthreads) {
@@ -106,8 +188,6 @@ int xpath_bare(graph *g, int *colors, int *path, int len,
   return edges;
 }
 
-
-
 int xpath(graph *g, int *colors, int *path, int len,
           int *count, int ncores, int nthreads) {
   int edges = 0;
@@ -115,7 +195,36 @@ int xpath(graph *g, int *colors, int *path, int len,
   #pragma omp parallel for num_threads(ncores)
   for (int c = 0; c < ncores; ++c) {
     uint64_t before = get_ns();
-    int loc_e = xpath_bare(g, colors, path, len, count, c, ncores, nthreads);
+    int loc_e = 0;
+    if (nthreads == 0) {
+      loc_e = xpath_bare(g, colors, path, len, count, c, ncores, nthreads);
+    } else {
+      thread *master = thread_init();
+      scheduler *sched = create_scheduler(master);
+      thread *threads[nthreads];
+      struct xpath_args args[nthreads];
+      int loc_c = 0;
+      for (int i = 0; i < nthreads; ++i) {
+        args[i].g = g;
+        args[i].colors = colors;
+        args[i].path = path;
+        args[i].len = len;
+        args[i].t = i+c*nthreads;
+        args[i].threads = nthreads*ncores;
+        args[i].loc_c = &loc_c;
+        args[i].edges = &loc_e;
+        threads[i] = thread_spawn(master, sched, xpath_greenery, (void *)&args[i]);
+      }
+      
+      run_all(sched);
+      
+      __sync_fetch_and_add(count, loc_c);
+      for (int i = 0; i < nthreads; ++i) {
+        destroy_thread(threads[i]);
+      }
+      destroy_scheduler(sched);
+      destroy_thread(master);
+    }
     uint64_t after = get_ns();
     #pragma omp critical
     {
@@ -203,7 +312,7 @@ int main(int argc, char *argv[]) {
 
   int nruns = 4;
   int nthreads = strtol(argv[2], NULL, 0);
-  int ncores = strtol(argv[3], NULL, 0);
+  int ancores = strtol(argv[3], NULL, 0);
   int ncolors = strtol(argv[4], NULL, 0);
   int pathlen = strtol(argv[5], NULL, 0);
   unsigned int seed = 0;
@@ -237,7 +346,8 @@ int main(int argc, char *argv[]) {
   int count;
   //int actual = xpath_brute(g, colors, path, pathlen);
   //printf("count: %d\n", actual);
-  for (ncores = 1; ncores <=6; ++ncores) {
+  int ncores;
+  for (ncores = ancores; ncores <=ancores; ++ncores) {
     avg = 0;
   for (int i = 0; i < nruns; ++i) {
     count = 0;
