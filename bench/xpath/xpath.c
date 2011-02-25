@@ -114,9 +114,12 @@ int xpath(graph *g, int *colors, int *path, int len,
 
   #pragma omp parallel for num_threads(ncores)
   for (int c = 0; c < ncores; ++c) {
+    uint64_t before = get_ns();
     int loc_e = xpath_bare(g, colors, path, len, count, c, ncores, nthreads);
+    uint64_t after = get_ns();
     #pragma omp critical
     {
+      printf("Elapsed in %d: %" PRIu64 "\n", c, after - before); 
       edges += loc_e;
     }
   }
@@ -235,14 +238,14 @@ int main(int argc, char *argv[]) {
   int count;
   //int actual = xpath_brute(g, colors, path, pathlen);
   //printf("count: %d\n", actual);
-  for (ncores = 1; ncores <=2; ++ncores) {
+  for (ncores = 1; ncores <=6; ++ncores) {
     avg = 0;
   for (int i = 0; i < nruns; ++i) {
     count = 0;
     uint64_t before = get_ns();
     // "edges" is a rough count of work - edges "traversed" in the search...
     int edges = xpath(g, colors, path, pathlen, &count, ncores, nthreads);
-    printf("Matching paths: %d\n", count);
+    printf("Matching paths (explored %d): %d\n", edges, count);
     //assert(count == actual);
     uint64_t after = get_ns();
     uint64_t elapsed = after - before;
