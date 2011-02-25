@@ -65,6 +65,8 @@ void xpath_greenery(thread *me, void *arg) {
   // maybe benchmark this?
   uint64_t *examine[len];
   uint64_t *limit[len];
+  uint64_t *temp_vertex;
+  int *temp_color;
   uint64_t chunk_size = (g->v+args->threads - 1) / args->threads;
   uint64_t root = args->t*chunk_size;
   uint64_t stop = root + chunk_size;
@@ -77,8 +79,10 @@ void xpath_greenery(thread *me, void *arg) {
     // * candidate[0..k] (inclusive) is a valid path (distinct v)
     // * matches colors
     candidate[0] = root;
-    examine[0] = &g->edges[g->row_ptr[root]];
-    limit[0] = &g->edges[g->row_ptr[root+1]];
+    temp_vertex = &g->row_ptr[root];
+    prefetch_and_switch(me, temp_vertex, 0);
+    examine[0] = &g->edges[*temp_vertex++];
+    limit[0] = &g->edges[*temp_vertex];
     while (d >= 0) {
       if (d == len - 1) {
         // yes!
@@ -101,24 +105,32 @@ void xpath_greenery(thread *me, void *arg) {
         d--;
         continue;
       }
-      uint64_t next = *examine[d]++;
+      temp_vertex = examine[d]++;
+      prefetch_and_switch(me, temp_vertex, 0);
+      uint64_t next = *temp_vertex;
       temp = 1;
       // c
       for (i = 0; i <= d && temp; ++i) {
         if (candidate[i] == next) temp = 0;
       }
-      if (temp && colors[next] == path[d+1]) {
-        edges++;
-        d++;
-        candidate[d] = next;
-        examine[d] = &g->edges[g->row_ptr[next]];
-        limit[d] = &g->edges[g->row_ptr[next+1]];
+      if (temp) {
+        temp_color = &colors[next];
+        prefetch_and_switch(me, temp_color, 0);
+        if (*temp_color == path[d+1]) {
+          edges++;
+          d++;
+          candidate[d] = next;
+          temp_vertex = &g->row_ptr[next];
+          prefetch_and_switch(me, temp_vertex, 0);
+          examine[d] = &g->edges[*temp_vertex++];
+          limit[d] = &g->edges[*temp_vertex];
+        }
       }
     }
   }
   *args->loc_c += count;
   *args->edges += edges;
-  
+
   thread_exit(me, NULL);
 }
 
@@ -311,7 +323,7 @@ int main(int argc, char *argv[]) {
   }
 
   int nruns = 4;
-  int nthreads = strtol(argv[2], NULL, 0);
+  int anthreads = strtol(argv[2], NULL, 0);
   int ancores = strtol(argv[3], NULL, 0);
   int ncolors = strtol(argv[4], NULL, 0);
   int pathlen = strtol(argv[5], NULL, 0);
@@ -346,25 +358,32 @@ int main(int argc, char *argv[]) {
   int count;
   //int actual = xpath_brute(g, colors, path, pathlen);
   //printf("count: %d\n", actual);
-  int ncores;
-  for (ncores = ancores; ncores <=ancores; ++ncores) {
-    avg = 0;
-  for (int i = 0; i < nruns; ++i) {
-    count = 0;
-    uint64_t before = get_ns();
-    // "edges" is a rough count of work - edges "traversed" in the search...
-    int edges = xpath(g, colors, path, pathlen, &count, ncores, nthreads);
-    printf("Matching paths (explored %d): %d\n", edges, count);
-    //assert(count == actual);
-    uint64_t after = get_ns();
-    uint64_t elapsed = after - before;
-    double rate = elapsed;
-    rate /= edges;
-    avg += rate;
-    printf("%" PRIu64 " ns -> %f ns/edge \n", elapsed, rate);
-  }
-  avg /= nruns;
-  printf("AVERAGE %d %d: %f\n", ncores, nthreads, avg);
+  int ncores, nthreads;
+  for (ncores = 1; ncores <=6; ++ncores) {
+    for (nthreads = 0; nthreads < 256;) {
+      avg = 0;
+      for (int i = 0; i < nruns; ++i) {
+        count = 0;
+        uint64_t before = get_ns();
+        // "edges" is a rough count of work - edges "traversed" in the search...
+        int edges = xpath(g, colors, path, pathlen, &count, ncores, nthreads);
+        printf("Matching paths (explored %d): %d\n", edges, count);
+        //assert(count == actual);
+        uint64_t after = get_ns();
+        uint64_t elapsed = after - before;
+        double rate = elapsed;
+        rate /= edges;
+        avg += rate;
+        printf("%" PRIu64 " ns -> %f ns/edge \n", elapsed, rate);
+      }
+      avg /= nruns;
+      printf("AVERAGE %d %d: %f\n", ncores, nthreads, avg);
+      if (nthreads == 0) {
+        nthreads = 1;
+      } else {
+        nthreads *= 2;
+      }
+    }
   }
   graph_free(g);
   free(colors);
