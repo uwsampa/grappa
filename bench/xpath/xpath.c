@@ -51,7 +51,7 @@ int xpath_bare(graph *g, int *colors, int *path, int len,
   // maybe benchmark this?
   uint64_t *examine[len];
   uint64_t *limit[len];
-  uint64_t chunk_size = g->v / ncores;
+  uint64_t chunk_size = (g->v+ncores - 1) / ncores;
   uint64_t root = c*chunk_size;
   uint64_t stop = root + chunk_size;
   stop = stop > g->v ? g->v : stop;
@@ -119,7 +119,6 @@ int xpath(graph *g, int *colors, int *path, int len,
     uint64_t after = get_ns();
     #pragma omp critical
     {
-      printf("Elapsed in %d: %" PRIu64 "\n", c, after - before); 
       edges += loc_e;
     }
   }
