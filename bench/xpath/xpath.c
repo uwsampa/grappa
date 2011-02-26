@@ -200,16 +200,151 @@ int xpath_bare(graph *g, int *colors, int *path, int len,
   return edges;
 }
 
+#define NEXT(VAR) ((VAR+1) % active)
+
+int xpath_lightweight(graph *g, int *colors, int *path, int len,
+                      int *global_count, int c, int nthreads, int ncores) {
+  int edges = 0;
+  int count = 0;
+  // explicit DFS stack.
+  uint64_t candidates[nthreads][len];
+  // on the i-th stack level, how far we are in to the edge list of that vertex.
+  // we could lookup limit again each time, but that's likely slow - should
+  // maybe benchmark this?
+  uint64_t *examines[nthreads][len];
+  uint64_t *limits[nthreads][len];
+  uint64_t chunk_size = (g->v+ncores*nthreads - 1) / (ncores*nthreads);
+  uint64_t roots[nthreads];
+  uint64_t stops[nthreads];
+  int depths[nthreads];
+  int *cptrs[nthreads];
+  void *pcs[nthreads];
+  // array indices and the like
+  int i, temp;
+  // active thread
+  int t;
+  int active = nthreads;
+  for (t = 0; t < nthreads; ++t) {
+    pcs[t] = &&loop_start;
+    roots[t] = c*nthreads+t;
+    roots[t] *= chunk_size;
+    stops[t] = roots[t]+chunk_size;
+    stops[t] = stops[t] > g->v ? g->v : stops[t];
+    /*
+    #pragma omp critical
+    {
+      printf("%d/%d: [%" PRIu64 ", %" PRIu64 ")\n", c, t, roots[t], stops[t]);
+    }*/
+  }
+  t = 0;
+  goto *pcs[t];
+  loop_start:
+  for (; roots[t] < stops[t]; ++roots[t]) {
+    if (colors[roots[t]] != path[0]) continue;
+    depths[t] = 0;
+    // invariant: only store to candidate[k] if
+    // * candidate[0..k] (inclusive) is a valid path (distinct v)
+    // * matches colors
+    candidates[t][0] = roots[t];
+    limits[t][0] = &g->row_ptr[roots[t]];
+    __builtin_prefetch(limits[t][0], 0, 0);
+    pcs[t] = &&loop_root;
+    t = NEXT(t);
+    goto *pcs[t];
+    loop_root:
+    examines[t][0] = &g->edges[*limits[t][0]++];
+    limits[t][0] = &g->edges[*limits[t][0]];
+    while (depths[t] >= 0) {
+      if (depths[t] == len - 1) {
+        // yes!
+        /*
+        #pragma omp critical
+        {
+          printf("path:");
+          for (int i = 0; i < len; ++i) {
+            printf(" %" PRIu64 "", candidate[i]);
+          }
+          printf("\n");
+        }
+        */
+        count++;
+        depths[t]--;
+        continue;
+      }
+      if (examines[t][depths[t]] == limits[t][depths[t]]) {
+        // end of the line, nowhere to go
+        depths[t]--;
+        continue;
+      }
+      __builtin_prefetch(examines[t][depths[t]], 0, 0);
+      pcs[t] = &&loop_next;
+      t = NEXT(t);
+      goto *pcs[t];
+      loop_next:
+      // cache <next> here for the context switch - breaks invariant,
+      // but simplest option
+      candidates[t][depths[t]+1] = *examines[t][depths[t]]++;
+      temp = 1;
+      // c
+      for (i = 0; i <= depths[t] && temp; ++i) {
+        if (candidates[t][i] == candidates[t][depths[t]+1]) temp = 0;
+      }
+      if (temp) {
+        cptrs[t] = &colors[candidates[t][depths[t]+1]];
+        __builtin_prefetch(cptrs[t], 0, 0);
+        pcs[t] = &&loop_color;
+        t = NEXT(t);
+        goto *pcs[t];
+        loop_color:
+        if (*cptrs[t] == path[depths[t]+1]) {
+          edges++;
+          depths[t]++;
+          limits[t][depths[t]] = &g->row_ptr[candidates[t][depths[t]]];
+          __builtin_prefetch(limits[t][depths[t]], 0, 0);
+          pcs[t] = &&loop_dive;
+          t = NEXT(t);
+          goto *pcs[t];
+          loop_dive:
+          examines[t][depths[t]] = &g->edges[*limits[t][depths[t]]++];
+          limits[t][depths[t]] = &g->edges[*limits[t][depths[t]]];
+        }
+      }
+    }
+  }
+  if (active > 1) {
+    // nuke this thread by overwriting with the last one in the array.
+    //
+    active--;
+    roots[t] = roots[active];
+    stops[t] = stops[active];
+    depths[t] = depths[active];
+    cptrs[t] = cptrs[active];
+    pcs[t] = pcs[active];
+    for (int i = 0; i < len; ++i) {
+      candidates[t][i] = candidates[active][i];
+      examines[t][i] = examines[active][i];
+      limits[t][i] = limits[active][i];
+    }
+    t = NEXT(t);
+    goto *pcs[t];
+  }
+  __sync_fetch_and_add(global_count, count);
+  return edges;
+}
+
 int xpath(graph *g, int *colors, int *path, int len,
           int *count, int ncores, int nthreads) {
   int edges = 0;
-
+  
   #pragma omp parallel for num_threads(ncores)
   for (int c = 0; c < ncores; ++c) {
     uint64_t before = get_ns();
     int loc_e = 0;
     if (nthreads == 0) {
       loc_e = xpath_bare(g, colors, path, len, count, c, ncores, nthreads);
+    } else if (nthreads < 0) {
+      loc_e = xpath_lightweight(g, colors, path, len,
+                                count, c, -nthreads, ncores);
     } else {
       thread *master = thread_init();
       scheduler *sched = create_scheduler(master);
@@ -356,11 +491,11 @@ int main(int argc, char *argv[]) {
   double avg;
 
   int count;
-  //int actual = xpath_brute(g, colors, path, pathlen);
-  //printf("count: %d\n", actual);
+  //  int actual = xpath_brute(g, colors, path, pathlen);
+  //  printf("count: %d\n", actual);
   int ncores, nthreads;
   for (ncores = 1; ncores <=6; ++ncores) {
-    for (nthreads = 0; nthreads < 256;) {
+    for (nthreads = -128; nthreads < 256;) {
       avg = 0;
       for (int i = 0; i < nruns; ++i) {
         count = 0;
@@ -380,6 +515,10 @@ int main(int argc, char *argv[]) {
       printf("AVERAGE %d %d: %f\n", ncores, nthreads, avg);
       if (nthreads == 0) {
         nthreads = 1;
+      } else if (nthreads == -1) {
+        nthreads = 0;
+      } else if (nthreads < 0) {
+        nthreads /= 2;
       } else {
         nthreads *= 2;
       }
