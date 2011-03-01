@@ -8,7 +8,7 @@
 #include <omp.h>
 
 #include <sched.h>
-#include <hugetlbfs.h>
+//#include <hugetlbfs.h>
 
 #include <sw_queue_greenery.h>
 #include <thread.h>
@@ -276,7 +276,7 @@ int main(int argc, char** argv) {
     float mb_rate = gups*BILLION*mbperitem;
 printf("%ld fieldsize, %f Gupdates, %ld ns, %f ns/up, %f gups, %f MB/s\n", fieldsize, gupdates, runtime_ns, ns_per_up, gups, mb_rate);
 
- printf("{'fieldsize':%ld, 'updates':%ld, 'gups':%f, 'runtime_ns':%ld, 'atomic':%d, 'random':%d, 'num_threads':%d, 'f_ele_size':%lu, 'delegated':%d}\n", fieldsize, num_ups, gups, runtime_ns, isAtomic, isRandom, num_threads, sizeof(uint64_t), isDelegated);
+ printf("{'fieldsize':%ld, 'updates':%ld, 'gups':%f, 'runtime_ns':%ld, 'atomic':%d, 'random':%d, 'num_threads':%d, 'f_ele_size':%lu, 'delegated':%d, 'partition':%d}\n", fieldsize, num_ups, gups, runtime_ns, isAtomic, isRandom, num_threads, sizeof(uint64_t), isDelegated, isPartitioned);
 
     return 0;
 }

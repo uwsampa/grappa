@@ -38,4 +38,8 @@ graph *graph_read(FILE *f);
 // in the output.
 void graph_write(FILE *f, graph *g, uint64_t *perm);
 
+// utility functions
+
+// number of edges u -> v.  O(degree(u)).
+int graph_edgecount(graph *g, uint64_t u, uint64_t v);
 #endif
