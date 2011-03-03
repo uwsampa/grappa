@@ -189,6 +189,10 @@ Inline void sq_waitConsumer(SW_Queue q, sq_callback cb, sq_cbData cbd, thread* m
 Inline void sq_produce(SW_Queue q, uint64_t value,
                        sq_callback cb, sq_cbData cbd, thread* me)
 {
+  if(!(q->p_data & HIGH_CHUNKMASK)) {
+    sq_waitConsumer(q, cb, cbd, me);
+  }
+
 #ifdef INSTRUMENT
   q->total_produces++;
 #endif
@@ -200,10 +204,6 @@ Inline void sq_produce(SW_Queue q, uint64_t value,
 
   sq_write(ptr, value);
   q->p_data = (pDataRaw + (1ULL << 32)) & HIGH_QMASK;
-
-  if(!(q->p_data & HIGH_CHUNKMASK)) {
-    sq_waitConsumer(q, cb, cbd, me);
-  }
 }
 
 #define sq_produce(Q,V,T) sq_produce(Q, V, (sq_callback) sq_flushQueue, Q, T)
@@ -214,6 +214,10 @@ Inline void sq_produce(SW_Queue q, uint64_t value,
 Inline void sq_produce2(SW_Queue q, uint64_t a, uint64_t b,
                         sq_callback cb, sq_cbData cbd, thread* me)
 {
+  if(!(q->p_data & HIGH_CHUNKMASK)) {
+    sq_waitConsumer(q, cb, cbd, me);
+  }
+
 #ifdef INSTRUMENT
   q->total_produces += 2;
 #endif
@@ -228,10 +232,6 @@ Inline void sq_produce2(SW_Queue q, uint64_t a, uint64_t b,
   sq_write(ptr + 1, b);
 
   q->p_data = (pDataRaw + (2ULL << 32)) & HIGH_QMASK;
-
-  if(!(q->p_data & HIGH_CHUNKMASK)) {
-    sq_waitConsumer(q, cb, cbd, me);
-  }
 }
 
 #define sq_produce2(Q,A,B,T) sq_produce2(Q, A, B, (sq_callback) sq_flushQueue, Q, T)
