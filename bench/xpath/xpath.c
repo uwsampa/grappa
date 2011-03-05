@@ -48,6 +48,8 @@ struct xpath_args {
   int threads;
   int *loc_c;
   int *edges;
+  uint64_t *root;
+  uint64_t stop;
   //uint64_t duration;
 };
 
@@ -69,19 +71,19 @@ void xpath_greenery(thread *me, void *arg) {
   uint64_t *temp_vertex;
   int *temp_color;
   //  uint64_t before = get_ns();
-  uint64_t chunk_size = (g->v+args->threads - 1) / args->threads;
-  uint64_t root = args->t*chunk_size;
-  uint64_t stop = root + chunk_size;
-  stop = stop > g->v ? g->v : stop;
+  uint64_t *root = args->root;
+  uint64_t stop = args->stop;
+  uint64_t next;
   int d, i, j, temp;
-  for (; root < stop; ++root) {
-    if (colors[root] != path[0]) continue;
+  while (*root < stop) {
+    next = (*root)++;
+    if (colors[next] != path[0]) continue;
     d = 0;
     // invariant: only store to candidate[k] if
     // * candidate[0..k] (inclusive) is a valid path (distinct v)
     // * matches colors
-    candidate[0] = root;
-    temp_vertex = &g->row_ptr[root];
+    candidate[0] = next;
+    temp_vertex = &g->row_ptr[next];
     prefetch_and_switch(me, temp_vertex, 0);
     examine[0] = &g->edges[*temp_vertex++];
     limit[0] = &g->edges[*temp_vertex];
@@ -229,9 +231,8 @@ int xpath_lightweight(graph *g, int *colors, int *path, int len,
   // maybe benchmark this?
   uint64_t *examines[nthreads][len];
   uint64_t *limits[nthreads][len];
-  uint64_t chunk_size = (g->v+ncores*nthreads - 1) / (ncores*nthreads);
-  uint64_t roots[nthreads];
-  uint64_t stops[nthreads];
+  uint64_t chunk_size = (g->v+ncores - 1) / (ncores);
+  uint64_t root, stop;
   //  uint64_t duration[nthreads];
   //  uint64_t before = get_ns();
   int depths[nthreads];
@@ -239,33 +240,28 @@ int xpath_lightweight(graph *g, int *colors, int *path, int len,
   void *pcs[nthreads];
   // array indices and the like
   int i, j, temp;
-  
+  uint64_t next;
+  root = c*chunk_size;
+  stop = root + chunk_size;
+  stop = stop > g->v ? g->v : stop;
   // active thread
   int t;
   int active = nthreads;
   for (t = 0; t < nthreads; ++t) {
     pcs[t] = &&loop_start;
-    roots[t] = c*nthreads+t;
-    roots[t] *= chunk_size;
-    stops[t] = roots[t]+chunk_size;
-    stops[t] = stops[t] > g->v ? g->v : stops[t];
-    /*
-    #pragma omp critical
-    {
-      printf("%d/%d: [%" PRIu64 ", %" PRIu64 ")\n", c, t, roots[t], stops[t]);
-    }*/
   }
   t = 0;
   goto *pcs[t];
   loop_start:
-  for (; roots[t] < stops[t]; ++roots[t]) {
-    if (colors[roots[t]] != path[0]) continue;
+  while (root < stop) {
+    next = root++;
+    if (colors[next] != path[0]) continue;
     depths[t] = 0;
     // invariant: only store to candidate[k] if
     // * candidate[0..k] (inclusive) is a valid path (distinct v)
     // * matches colors
-    candidates[t][0] = roots[t];
-    limits[t][0] = &g->row_ptr[roots[t]];
+    candidates[t][0] = next;
+    limits[t][0] = &g->row_ptr[next];
     __builtin_prefetch(limits[t][0], 0, 0);
     pcs[t] = &&loop_root;
     t = NEXT(t);
@@ -336,8 +332,6 @@ int xpath_lightweight(graph *g, int *colors, int *path, int len,
     // nuke this thread by overwriting with the last one in the array.
     //
     active--;
-    roots[t] = roots[active];
-    stops[t] = stops[active];
     depths[t] = depths[active];
     cptrs[t] = cptrs[active];
     pcs[t] = pcs[active];
@@ -364,7 +358,7 @@ int xpath_lightweight(graph *g, int *colors, int *path, int len,
 int xpath(graph *g, int *colors, int *path, int len,
           int *count, int ncores, int nthreads) {
   int edges = 0;
-  
+  uint64_t slow = 0, fast = -1;
   #pragma omp parallel for num_threads(ncores)
   for (int c = 0; c < ncores; ++c) {
     uint64_t before = get_ns();
@@ -380,6 +374,10 @@ int xpath(graph *g, int *colors, int *path, int len,
       thread *threads[nthreads];
       struct xpath_args args[nthreads];
       int loc_c = 0;
+      uint64_t chunk_size = (g->v + ncores -1) / ncores;
+      uint64_t root = c*chunk_size;
+      uint64_t stop = root + chunk_size;
+      stop = stop > g->v ? g->v : stop;
       for (int i = 0; i < nthreads; ++i) {
         args[i].g = g;
         args[i].colors = colors;
@@ -389,11 +387,13 @@ int xpath(graph *g, int *colors, int *path, int len,
         args[i].threads = nthreads*ncores;
         args[i].loc_c = &loc_c;
         args[i].edges = &loc_e;
+        args[i].root = &root;
+        args[i].stop = stop;
         threads[i] = thread_spawn(master, sched, xpath_greenery, (void *)&args[i]);
       }
       
       run_all(sched);
-      
+
       __sync_fetch_and_add(count, loc_c);
       /*
       #pragma omp critical
@@ -412,13 +412,18 @@ int xpath(graph *g, int *colors, int *path, int len,
     uint64_t after = get_ns();
     #pragma omp critical
     {
-      printf("core %d time: %" PRIu64 "\n", c, after - before);
+      uint64_t duration = after - before;
+      printf("core %d time: %" PRIu64 "\n", c, duration);
+      if (slow < duration) slow = duration;
+      if (fast > duration) fast = duration;
       edges += loc_e;
     }
   }
+  double imbalance = (double)slow;
+  imbalance /= fast;
+  printf("imbalance %d %d: %f\n", ncores, nthreads, imbalance);
   return edges;
 }
-
 
 // does a brute force search for paths - very slow O(V^len), hard to get wrong.
 int xpath_brute(graph *g, int *colors, int *path, int len) {
@@ -532,7 +537,7 @@ int main(int argc, char *argv[]) {
   //  int actual = xpath_brute(g, colors, path, pathlen);
   //  printf("count: %d\n", actual);
   int ncores, nthreads;
-  for (ncores = 1; ncores <=6; ++ncores) {
+  for (ncores = 2; ncores <=12; ncores += 2) {
     for (nthreads = -32; nthreads < 64;) {
       avg = 0;
       for (int i = 0; i < nruns; ++i) {
