@@ -495,7 +495,7 @@ int main(int argc, char *argv[]) {
 	exit(1);
   }
 
-  int nruns = 1;
+  int nruns = 4;
   int anthreads = strtol(argv[2], NULL, 0);
   int ancores = strtol(argv[3], NULL, 0);
   int ncolors = strtol(argv[4], NULL, 0);
