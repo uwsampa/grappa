@@ -48,6 +48,7 @@ struct xpath_args {
   int threads;
   int *loc_c;
   int *edges;
+  //uint64_t duration;
 };
 
 void xpath_greenery(thread *me, void *arg) {
@@ -67,11 +68,12 @@ void xpath_greenery(thread *me, void *arg) {
   uint64_t *limit[len];
   uint64_t *temp_vertex;
   int *temp_color;
+  //  uint64_t before = get_ns();
   uint64_t chunk_size = (g->v+args->threads - 1) / args->threads;
   uint64_t root = args->t*chunk_size;
   uint64_t stop = root + chunk_size;
   stop = stop > g->v ? g->v : stop;
-  int d, i, temp;
+  int d, i, j, temp;
   for (; root < stop; ++root) {
     if (colors[root] != path[0]) continue;
     d = 0;
@@ -85,18 +87,28 @@ void xpath_greenery(thread *me, void *arg) {
     limit[0] = &g->edges[*temp_vertex];
     while (d >= 0) {
       if (d == len - 1) {
-        // yes!
-        /*
-        #pragma omp critical
-        {
-          printf("path:");
-          for (int i = 0; i < len; ++i) {
-            printf(" %" PRIu64 "", candidate[i]);
+        
+        temp = 1;
+        for (i = 0; i <= d && temp; ++i) {
+          for (j = 0; j < i && temp; ++j) {
+            if (candidate[i] == candidate[j]) temp = 0;
           }
-          printf("\n");
         }
-        */
-        count++;
+
+        if (temp) {
+          // yes!
+          count++;
+          /*
+            #pragma omp critical
+            {
+            printf("path:");
+            for (int i = 0; i < len; ++i) {
+            printf(" %" PRIu64 "", candidate[i]);
+            }
+            printf("\n");
+            }
+          */
+        }
         d--;
         continue;
       }
@@ -108,29 +120,22 @@ void xpath_greenery(thread *me, void *arg) {
       temp_vertex = examine[d]++;
       prefetch_and_switch(me, temp_vertex, 0);
       uint64_t next = *temp_vertex;
-      temp = 1;
-      // c
-      for (i = 0; i <= d && temp; ++i) {
-        if (candidate[i] == next) temp = 0;
-      }
-      if (temp) {
-        temp_color = &colors[next];
-        prefetch_and_switch(me, temp_color, 0);
-        if (*temp_color == path[d+1]) {
-          edges++;
-          d++;
-          candidate[d] = next;
-          temp_vertex = &g->row_ptr[next];
-          prefetch_and_switch(me, temp_vertex, 0);
-          examine[d] = &g->edges[*temp_vertex++];
-          limit[d] = &g->edges[*temp_vertex];
-        }
+      temp_color = &colors[next];
+      prefetch_and_switch(me, temp_color, 0);
+      if (*temp_color == path[d+1]) {
+        edges++;
+        d++;
+        candidate[d] = next;
+        temp_vertex = &g->row_ptr[next];
+        prefetch_and_switch(me, temp_vertex, 0);
+        examine[d] = &g->edges[*temp_vertex++];
+        limit[d] = &g->edges[*temp_vertex];
       }
     }
   }
   *args->loc_c += count;
   *args->edges += edges;
-
+  //  args->duration = get_ns() - before;
   thread_exit(me, NULL);
 }
 
@@ -148,8 +153,9 @@ int xpath_bare(graph *g, int *colors, int *path, int len,
   uint64_t chunk_size = (g->v+ncores - 1) / ncores;
   uint64_t root = c*chunk_size;
   uint64_t stop = root + chunk_size;
+  //  uint64_t before = get_ns();
   stop = stop > g->v ? g->v : stop;
-  int d, i, temp;
+  int d, i, j, temp;
   for (; root < stop; ++root) {
     if (colors[root] != path[0]) continue;
     d = 0;
@@ -161,18 +167,26 @@ int xpath_bare(graph *g, int *colors, int *path, int len,
     limit[0] = &g->edges[g->row_ptr[root+1]];
     while (d >= 0) {
       if (d == len - 1) {
-        // yes!
-        /*
-        #pragma omp critical
-        {
-          printf("path:");
-          for (int i = 0; i < len; ++i) {
-            printf(" %" PRIu64 "", candidate[i]);
+        temp = 1;
+        for (i = 0; i <=d && temp; ++i) {
+          for (j = 0; j < i && temp; ++j) {
+            if (candidate[i] == candidate[j]) temp = 0;
           }
-          printf("\n");
         }
-        */
-        count++;
+        if (temp) {
+          // yes!
+          count++;
+          /* 
+             #pragma omp critical
+             {
+             printf("path:");
+             for (int i = 0; i < len; ++i) {
+             printf(" %" PRIu64 "", candidate[i]);
+             }
+             printf("\n");
+             }
+          */
+        }
         d--;
         continue;
       }
@@ -182,12 +196,7 @@ int xpath_bare(graph *g, int *colors, int *path, int len,
         continue;
       }
       uint64_t next = *examine[d]++;
-      temp = 1;
-      // c
-      for (i = 0; i <= d && temp; ++i) {
-        if (candidate[i] == next) temp = 0;
-      }
-      if (temp && colors[next] == path[d+1]) {
+      if (colors[next] == path[d+1]) {
         edges++;
         d++;
         candidate[d] = next;
@@ -196,6 +205,13 @@ int xpath_bare(graph *g, int *colors, int *path, int len,
       }
     }
   }
+  /*
+  uint64_t after = get_ns();
+  #pragma omp critical
+  {
+    printf("thread %d/- time: %" PRIu64 "\n", c ,after - before);
+  }
+  */
   __sync_fetch_and_add(global_count, count);
   return edges;
 }
@@ -216,11 +232,14 @@ int xpath_lightweight(graph *g, int *colors, int *path, int len,
   uint64_t chunk_size = (g->v+ncores*nthreads - 1) / (ncores*nthreads);
   uint64_t roots[nthreads];
   uint64_t stops[nthreads];
+  //  uint64_t duration[nthreads];
+  //  uint64_t before = get_ns();
   int depths[nthreads];
   int *cptrs[nthreads];
   void *pcs[nthreads];
   // array indices and the like
-  int i, temp;
+  int i, j, temp;
+  
   // active thread
   int t;
   int active = nthreads;
@@ -256,18 +275,26 @@ int xpath_lightweight(graph *g, int *colors, int *path, int len,
     limits[t][0] = &g->edges[*limits[t][0]];
     while (depths[t] >= 0) {
       if (depths[t] == len - 1) {
-        // yes!
-        /*
-        #pragma omp critical
-        {
-          printf("path:");
-          for (int i = 0; i < len; ++i) {
-            printf(" %" PRIu64 "", candidate[i]);
+        temp = 1;
+        for (i = 0; i <=depths[t] && temp; ++i) {
+          for (j = 0; j < i && temp; ++j) {
+            if (candidates[t][i] == candidates[t][j]) temp = 0;
           }
-          printf("\n");
         }
-        */
-        count++;
+        if (temp) {
+          // yes!
+          count++;
+          /* 
+             #pragma omp critical
+             {
+             printf("path:");
+             for (int i = 0; i < len; ++i) {
+             printf(" %" PRIu64 "", candidate[i]);
+             }
+             printf("\n");
+             }
+          */
+        }
         depths[t]--;
         continue;
       }
@@ -284,33 +311,27 @@ int xpath_lightweight(graph *g, int *colors, int *path, int len,
       // cache <next> here for the context switch - breaks invariant,
       // but simplest option
       candidates[t][depths[t]+1] = *examines[t][depths[t]]++;
-      temp = 1;
-      // c
-      for (i = 0; i <= depths[t] && temp; ++i) {
-        if (candidates[t][i] == candidates[t][depths[t]+1]) temp = 0;
-      }
-      if (temp) {
-        cptrs[t] = &colors[candidates[t][depths[t]+1]];
-        __builtin_prefetch(cptrs[t], 0, 0);
-        pcs[t] = &&loop_color;
+      cptrs[t] = &colors[candidates[t][depths[t]+1]];
+      __builtin_prefetch(cptrs[t], 0, 0);
+      pcs[t] = &&loop_color;
+      t = NEXT(t);
+      goto *pcs[t];
+      loop_color:
+      if (*cptrs[t] == path[depths[t]+1]) {
+        edges++;
+        depths[t]++;
+        limits[t][depths[t]] = &g->row_ptr[candidates[t][depths[t]]];
+        __builtin_prefetch(limits[t][depths[t]], 0, 0);
+        pcs[t] = &&loop_dive;
         t = NEXT(t);
         goto *pcs[t];
-        loop_color:
-        if (*cptrs[t] == path[depths[t]+1]) {
-          edges++;
-          depths[t]++;
-          limits[t][depths[t]] = &g->row_ptr[candidates[t][depths[t]]];
-          __builtin_prefetch(limits[t][depths[t]], 0, 0);
-          pcs[t] = &&loop_dive;
-          t = NEXT(t);
-          goto *pcs[t];
-          loop_dive:
-          examines[t][depths[t]] = &g->edges[*limits[t][depths[t]]++];
-          limits[t][depths[t]] = &g->edges[*limits[t][depths[t]]];
-        }
+        loop_dive:
+        examines[t][depths[t]] = &g->edges[*limits[t][depths[t]]++];
+        limits[t][depths[t]] = &g->edges[*limits[t][depths[t]]];
       }
     }
   }
+  //duration[active-1] = get_ns() - before;
   if (active > 1) {
     // nuke this thread by overwriting with the last one in the array.
     //
@@ -328,6 +349,14 @@ int xpath_lightweight(graph *g, int *colors, int *path, int len,
     t = NEXT(t);
     goto *pcs[t];
   }
+  /*
+  #pragma omp critical
+  {
+    for (int i = 0; i < nthreads; ++i) {
+      printf("thread %d/%d time: %" PRIu64 "\n", c, i, duration[i]);
+    }
+  }
+  */
   __sync_fetch_and_add(global_count, count);
   return edges;
 }
@@ -366,6 +395,14 @@ int xpath(graph *g, int *colors, int *path, int len,
       run_all(sched);
       
       __sync_fetch_and_add(count, loc_c);
+      /*
+      #pragma omp critical
+      {
+        for (int i = 0; i < nthreads; ++i) {
+          printf("thread %d/%d time: %" PRIu64 "\n", c, i, args[i].duration);
+        }
+      }
+      */
       for (int i = 0; i < nthreads; ++i) {
         destroy_thread(threads[i]);
       }
@@ -375,6 +412,7 @@ int xpath(graph *g, int *colors, int *path, int len,
     uint64_t after = get_ns();
     #pragma omp critical
     {
+      printf("core %d time: %" PRIu64 "\n", c, after - before);
       edges += loc_e;
     }
   }
@@ -457,7 +495,7 @@ int main(int argc, char *argv[]) {
 	exit(1);
   }
 
-  int nruns = 4;
+  int nruns = 1;
   int anthreads = strtol(argv[2], NULL, 0);
   int ancores = strtol(argv[3], NULL, 0);
   int ncolors = strtol(argv[4], NULL, 0);
@@ -495,7 +533,7 @@ int main(int argc, char *argv[]) {
   //  printf("count: %d\n", actual);
   int ncores, nthreads;
   for (ncores = 1; ncores <=6; ++ncores) {
-    for (nthreads = -128; nthreads < 256;) {
+    for (nthreads = -32; nthreads < 64;) {
       avg = 0;
       for (int i = 0; i < nruns; ++i) {
         count = 0;
