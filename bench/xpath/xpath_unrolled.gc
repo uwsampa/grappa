@@ -1,0 +1,76 @@
+replicate candidate
+replicate examine
+replicate limit
+replicate d
+replicate next
+replicate vpointer
+replicate cptr
+
+uint64_t candidate[len];
+uint64_t *examine[len];
+uint64_t *limit[len];
+int d;
+uint64_t next;
+uint64_t *vpointer;
+int *cptr;
+
+START
+while (root < stop) {
+  next = root++;
+  if (colors[next] != path[0]) continue;
+  d = 0;
+  // invariant: only store to candidate[k] if
+  // * candidate[0..k] (inclusive) is a valid path (distinct v)
+  // * matches colors
+  
+  candidate[0] = next;
+  vpointer = &g->row_ptr[next];
+  prefetch_and_switch(vpointer);
+  examine[0] = &g->edges[*vpointer++];
+  limit[0] = &g->edges[*vpointer];
+  while (d >= 0) {
+    if (d == len - 1) {
+      temp = 1;
+      for (i = 0; i <=d && temp; ++i) {
+        for (j = 0; j < i && temp; ++j) {
+          if (candidate[i] == candidate[j]) temp = 0;
+        }
+      }
+      if (temp) {
+        // yes!
+        count++;
+        /* 
+           #pragma omp critical
+           {
+           printf("path:");
+           for (int i = 0; i < len; ++i) {
+           printf(" %" PRIu64 "", candidate[i]);
+           }
+           printf("\n");
+           }
+        */
+      }
+      d--;
+      continue;
+    }
+    if (examine[d] == limit[d]) {
+      // end of the line, nowhere to go
+      d--;
+      continue;
+    }
+    vpointer = examine[d]++;
+    prefetch_and_switch(vpointer);
+    next = *vpointer;
+    cptr = &colors[next];
+    prefetch_and_switch(cptr);
+    if (*cptr == path[d+1]) {
+      edges++;
+      d++;
+      candidate[d] = next;
+      vpointer = &g->row_ptr[next];
+      prefetch_and_switch(vpointer);
+      examine[d] = &g->edges[*vpointer++];
+      limit[d] = &g->edges[*vpointer];
+    }
+  }
+}

@@ -141,6 +141,30 @@ void xpath_greenery(thread *me, void *arg) {
   thread_exit(me, NULL);
 }
 
+int xpath_unrolled4(graph *g, int *colors, int *path, int len,
+               int *global_count, int c, int ncores, int nthreads) {
+  int edges = 0;
+  int count = 0;
+  uint64_t chunk_size = (g->v+ncores - 1) / ncores;
+  uint64_t root = c*chunk_size;
+  uint64_t stop = root + chunk_size;
+  //  uint64_t before = get_ns();
+  stop = stop > g->v ? g->v : stop;
+  int i, j, temp;
+
+  #include "xpath_unrolled4.c"
+
+  /*
+  uint64_t after = get_ns();
+  #pragma omp critical
+  {
+    printf("thread %d/- time: %" PRIu64 "\n", c ,after - before);
+  }
+  */
+  __sync_fetch_and_add(global_count, count);
+  return edges;
+}
+
 int xpath_bare(graph *g, int *colors, int *path, int len,
                int *global_count, int c, int ncores, int nthreads) {
   int edges = 0;
