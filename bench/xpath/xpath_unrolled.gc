@@ -5,7 +5,7 @@ replicate d
 replicate next
 replicate vpointer
 replicate cptr
-
+DECLARATIONS
 uint64_t candidate[len];
 uint64_t *examine[len];
 uint64_t *limit[len];
