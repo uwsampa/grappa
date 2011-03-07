@@ -151,11 +151,6 @@ int xpath_unrolled1(graph *g, int *colors, int *path, int len,
   //  uint64_t before = get_ns();
   stop = stop > g->v ? g->v : stop;
   int i, j, temp;
-  #pragma omp critical
-  {
-    printf("%d: [%" PRIu64 ",%" PRIu64")\n", c, root, stop);
-    printf("%d\n", *global_count);
-  }
   #include "xpath_unrolled1.cunroll"
   
   /*
@@ -165,10 +160,6 @@ int xpath_unrolled1(graph *g, int *colors, int *path, int len,
     printf("thread %d/- time: %" PRIu64 "\n", c ,after - before);
   }
   */
-  #pragma omp critical
-  {
-    printf("%d after: %d\n", c, count);
-  }
   __sync_fetch_and_add(global_count, count);
   return edges;
 }
@@ -184,11 +175,6 @@ int xpath_unrolled2(graph *g, int *colors, int *path, int len,
   //  uint64_t before = get_ns();
   stop = stop > g->v ? g->v : stop;
   int i, j, temp;
-  #pragma omp critical
-  {
-    printf("%d: [%" PRIu64 ",%" PRIu64")\n", c, root, stop);
-    printf("%d\n", *global_count);
-  }
   #include "xpath_unrolled2.cunroll"
   
   /*
@@ -198,10 +184,6 @@ int xpath_unrolled2(graph *g, int *colors, int *path, int len,
     printf("thread %d/- time: %" PRIu64 "\n", c ,after - before);
   }
   */
-  #pragma omp critical
-  {
-    printf("%d after: %d\n", c, count);
-  }
   __sync_fetch_and_add(global_count, count);
   return edges;
 }
@@ -217,11 +199,6 @@ int xpath_unrolled4(graph *g, int *colors, int *path, int len,
   //  uint64_t before = get_ns();
   stop = stop > g->v ? g->v : stop;
   int i, j, temp;
-  #pragma omp critical
-  {
-    printf("%d: [%" PRIu64 ",%" PRIu64")\n", c, root, stop);
-    printf("%d\n", *global_count);
-  }
   #include "xpath_unrolled4.cunroll"
   
   /*
@@ -231,10 +208,6 @@ int xpath_unrolled4(graph *g, int *colors, int *path, int len,
     printf("thread %d/- time: %" PRIu64 "\n", c ,after - before);
   }
   */
-  #pragma omp critical
-  {
-    printf("%d after: %d\n", c, count);
-  }
   __sync_fetch_and_add(global_count, count);
   return edges;
 }
@@ -250,11 +223,6 @@ int xpath_unrolled8(graph *g, int *colors, int *path, int len,
   //  uint64_t before = get_ns();
   stop = stop > g->v ? g->v : stop;
   int i, j, temp;
-  #pragma omp critical
-  {
-    printf("%d: [%" PRIu64 ",%" PRIu64")\n", c, root, stop);
-    printf("%d\n", *global_count);
-  }
   #include "xpath_unrolled8.cunroll"
   
   /*
@@ -264,10 +232,6 @@ int xpath_unrolled8(graph *g, int *colors, int *path, int len,
     printf("thread %d/- time: %" PRIu64 "\n", c ,after - before);
   }
   */
-  #pragma omp critical
-  {
-    printf("%d after: %d\n", c, count);
-  }
   __sync_fetch_and_add(global_count, count);
   return edges;
 }
@@ -283,11 +247,6 @@ int xpath_unrolled16(graph *g, int *colors, int *path, int len,
   //  uint64_t before = get_ns();
   stop = stop > g->v ? g->v : stop;
   int i, j, temp;
-  #pragma omp critical
-  {
-    printf("%d: [%" PRIu64 ",%" PRIu64")\n", c, root, stop);
-    printf("%d\n", *global_count);
-  }
   #include "xpath_unrolled16.cunroll"
   
   /*
@@ -297,10 +256,6 @@ int xpath_unrolled16(graph *g, int *colors, int *path, int len,
     printf("thread %d/- time: %" PRIu64 "\n", c ,after - before);
   }
   */
-  #pragma omp critical
-  {
-    printf("%d after: %d\n", c, count);
-  }
   __sync_fetch_and_add(global_count, count);
   return edges;
 }
@@ -549,6 +504,9 @@ int xpath(graph *g, int *colors, int *path, int len,
           loc_e = xpath_unrolled16(g, colors, path, len,
                                   count, c, ncores, nthreads);
           break;
+        default:
+          printf("Unsupported unroll %d\n", nthreads);
+          exit(1);
       }
     } else if (nthreads == 0) {
       loc_e = xpath_bare(g, colors, path, len, count, c, ncores, nthreads);    
@@ -608,7 +566,7 @@ int xpath(graph *g, int *colors, int *path, int len,
   }
   double imbalance = (double)slow;
   imbalance /= fast;
-  printf("imbalance %d %d: %f\n", ncores, nthreads, imbalance);
+  printf("imbalance %d %d %d: %f\n", ncores, nthreads, unrolled, imbalance);
   return edges;
 }
 
@@ -725,15 +683,16 @@ int main(int argc, char *argv[]) {
   //  printf("count: %d\n", actual);
   int ncores, nthreads;
   for (ncores = 2; ncores <=12; ncores += 2) {
-    for (nthreads = -32; nthreads < 64;) {
-      int bother = nthreads > 0 ? 1: 2;
+    for (nthreads = -32; nthreads < 32;) {
+      int bother = nthreads > 0 ? 2: 1;
       for (int unroll = 0; unroll < bother; ++unroll) {
       avg = 0;
       for (int i = 0; i < nruns; ++i) {
         count = 0;
         uint64_t before = get_ns();
         // "edges" is a rough count of work - edges "traversed" in the search...
-        int edges = xpath(g, colors, path, pathlen, &count, ncores, nthreads);
+        int edges = xpath(g, colors, path, pathlen, &count,
+                          ncores, nthreads, unroll);
         printf("Matching paths (explored %d): %d\n", edges, count);
         //assert(count == actual);
         uint64_t after = get_ns();
