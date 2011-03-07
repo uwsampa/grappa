@@ -1,0 +1,5 @@
+#define MERGE_(a,b) a##b
+#define LABEL_(a) MERGE_(label`_, a)
+#define GENLABEL LABEL_(__LINE__)
+#define SWITCH { pcs` = &&GENLABEL; goto *pcs~ ; GENLABEL:;}
+#define prefetch_and_switch(x) { __builtin_prefetch(x, 0, 0); SWITCH }

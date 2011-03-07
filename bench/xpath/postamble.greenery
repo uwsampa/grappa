@@ -1,0 +1,7 @@
+if (--active > 0) {
+  pcs` = &&label`_DONE;
+  label`_DONE:
+  goto *pcs~;
+} else {
+  goto label_END;
+}
