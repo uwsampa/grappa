@@ -1,8 +1,17 @@
 #!/bin/sh
+# ghetto hack - should be fixed. place absolute path of this directory in LOCATION
+LOCATION=~/softxmt/jumpthreads
 INPUT=$1
 OUTPUT=$2
 REPS=$3
 TEMPLATE=$(tempfile)
+
+if [ $LOCATION = REPLACE ]
+then
+echo "set location"
+exit 1
+fi
+
 echo "" > $OUTPUT
 for i in $(seq 1 $REPS)
 do
@@ -11,9 +20,9 @@ done
 
 echo "int active = "$REPS";" >> $OUTPUT
 
-cat preamble.greenery > $TEMPLATE
+cat $LOCATION/preamble.greenery > $TEMPLATE
 sed -e 's/replicate \(.*\)/#define \1 \1`/' -e 's/START/START\nlabel`_BEGIN:/'  $INPUT >> $TEMPLATE
-cat postamble.greenery >> $TEMPLATE
+cat $LOCATION/postamble.greenery >> $TEMPLATE
 
 DECLTEMP=$(tempfile)
 CODETEMP=$(tempfile)

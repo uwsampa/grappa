@@ -2,7 +2,7 @@ CFLAGS = -O2 -std=gnu99 -Wall -Wextra -I../.. -fopenmp -msse4.1 -I.. -g
 LDFLAGS= -L../../greenery -L..
 LDLIBS= -lgreenery -lrt -fopenmp -lnuma -lhugetlbfs -lgraph
 BENCHES= xpath
-
+GREENERY= ../../jumpthreads/greenery_compiler.sh
 RESULTS= $(BENCHES)
 
 SRCS=  xpath.c
@@ -12,16 +12,16 @@ SRCS=  xpath.c
 all: $(RESULTS)
 
 xpath_unrolled1.cunroll: xpath_unrolled.gc
-	./greenery_compiler.sh xpath_unrolled.gc xpath_unrolled1.cunroll 1
+	$(GREENERY) xpath_unrolled.gc xpath_unrolled1.cunroll 1
 
 xpath_unrolled2.cunroll: xpath_unrolled.gc
-	./greenery_compiler.sh xpath_unrolled.gc xpath_unrolled2.cunroll 2
+	$(GREENERY) xpath_unrolled.gc xpath_unrolled2.cunroll 2
 xpath_unrolled4.cunroll: xpath_unrolled.gc
-	./greenery_compiler.sh xpath_unrolled.gc xpath_unrolled4.cunroll 4
+	$(GREENERY) xpath_unrolled.gc xpath_unrolled4.cunroll 4
 xpath_unrolled8.cunroll: xpath_unrolled.gc
-	./greenery_compiler.sh xpath_unrolled.gc xpath_unrolled8.cunroll 8
+	$(GREENERY) xpath_unrolled.gc xpath_unrolled8.cunroll 8
 xpath_unrolled16.cunroll: xpath_unrolled.gc
-	./greenery_compiler.sh xpath_unrolled.gc xpath_unrolled16.cunroll 16
+	$(GREENERY) xpath_unrolled.gc xpath_unrolled16.cunroll 16
 
 xpath.o: xpath.c xpath_unrolled1.cunroll xpath_unrolled2.cunroll xpath_unrolled4.cunroll xpath_unrolled8.cunroll xpath_unrolled16.cunroll
 
