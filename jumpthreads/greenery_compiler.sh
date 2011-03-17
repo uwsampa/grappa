@@ -1,6 +1,6 @@
 #!/bin/sh
 # ghetto hack - should be fixed. place absolute path of this directory in LOCATION
-LOCATION=REPLACE
+LOCATION=`pwd`
 INPUT=$1
 OUTPUT=$2
 REPS=$3
