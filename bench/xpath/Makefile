@@ -2,7 +2,7 @@ CFLAGS = -O2 -std=gnu99 -Wall -Wextra -I../.. -fopenmp -msse4.1 -I.. -g
 LDFLAGS= -L../../greenery -L..
 LDLIBS= -lgreenery -lrt -fopenmp -lnuma -lhugetlbfs -lgraph
 BENCHES= xpath
-GREENERY= ../../jumpthreads/greenery_compiler.sh
+GREENERY= ../../jumpthreads/jumpthreads
 RESULTS= $(BENCHES)
 
 SRCS=  xpath.c

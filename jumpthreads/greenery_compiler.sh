@@ -20,7 +20,7 @@ done
 
 echo "int active = "$REPS";" >> $OUTPUT
 
-cat $LOCATION/preamble.greenery > $TEMPLATE
+cat $LOCATION/preamble.greenery | sed -e 's/SUBST_NTHREADS/'$REPS'/' > $TEMPLATE
 sed -e 's/replicate \(.*\)/#define \1 \1`/' -e 's/START/START\nlabel`_BEGIN:/'  $INPUT >> $TEMPLATE
 cat $LOCATION/postamble.greenery >> $TEMPLATE
 
