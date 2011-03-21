@@ -278,6 +278,8 @@ printf("%ld fieldsize, %f Gupdates, %ld ns, %f ns/up, %f gups, %f MB/s\n", field
 
  printf("{'fieldsize':%ld, 'updates':%ld, 'gups':%f, 'runtime_ns':%ld, 'atomic':%d, 'random':%d, 'num_threads':%d, 'f_ele_size':%lu, 'delegated':%d, 'partition':%d}\n", fieldsize, num_ups, gups, runtime_ns, isAtomic, isRandom, num_threads, sizeof(uint64_t), isDelegated, isPartitioned);
 
+    printf("reqe\n"); //end experiment
+
     return 0;
 }
 
