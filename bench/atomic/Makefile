@@ -18,7 +18,7 @@ CFLAGS+= -I../../liberty-queues
 #CFLAGS+=-I../../exper_runner -L../../exper_runner
 CFLAGS+= -I../../greenery -L../../greenery
 
-CPPFLAGS+= -I../../greenery -L../../greenery
+CPPFLAGS+= -I../../greenery -L../../greenery -I../../liberty-queues
 CPPFLAGS+=-I../../../fastflow_install/include
 
 #CFLAGS+=--hugetlb-text --hugetlb-ptrs
