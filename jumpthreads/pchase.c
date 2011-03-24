@@ -116,8 +116,7 @@ uint64_t chase_test(int ncores, long long chases) {
     ncores = -ncores;
   }
   threads *= ncores;
-  uint64_t len = ncores*chases;
-  assert (len % threads == 0);
+  uint64_t len = threads*chases;
   assert(sizeof(node) == sizeof(node *));
   node *arr = calloc(sizeof(node), len);
   node **starts = calloc(sizeof (node*), threads);
@@ -144,8 +143,11 @@ int main(int argc, char *argv[]) {
   int ncores = strtol(argv[1], NULL, 0);
   long long chases = strtoll(argv[2], NULL, 0);
   uint64_t elapsed = chase_test(ncores, chases);
-  double avg = elapsed;
-  avg /= chases;
-  avg /= NTHR;
-  printf("%f ns/chase (%d threads)\n", avg, ncores > 0? NTHR : 0);
+  double avg = chases;
+  avg *= 1000;
+  avg *= abs(ncores);
+  avg *= ncores > 0 ? NTHR : 1;
+  printf("%f\n", avg);
+  avg /= elapsed;
+  printf("%fM chases/s (%d threads)\n", avg, ncores > 0? NTHR : 0);
 }
