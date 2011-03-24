@@ -1,7 +1,7 @@
 NTHR=8
-CFLAGS = -O2 -std=gnu99 -Wall -Wextra -g -D N_YIELD_THREADS=$(NTHR)
-LDLIBS= -lrt
-all: jumpthreads yield_bench
+CFLAGS = -O2 -std=gnu99 -Wall -Wextra -g -D NTHR=$(NTHR) -fopenmp
+LDLIBS= -lrt -fopenmp
+all: jumpthreads yield_bench pchase
 
 jumpthreads: greenery_compiler.sh
 	cp greenery_compiler.sh jumpthreads
@@ -9,8 +9,10 @@ jumpthreads: greenery_compiler.sh
 
 yield_bench.o: yield_bench.c yield_unrolled.cunroll
 
-yield_unrolled.cunroll: yield_unrolled.gc jumpthreads
-	./jumpthreads yield_unrolled.gc yield_unrolled.cunroll $(NTHR)
+%.cunroll : %.gc jumpthreads
+	./jumpthreads $< $@ $(NTHR)
+
+pchase.o: pchase.c pchase_unrolled.cunroll
 
 .PHONY: clean
 
