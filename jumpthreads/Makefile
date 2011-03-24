@@ -17,4 +17,4 @@ pchase.o: pchase.c pchase_unrolled.cunroll
 .PHONY: clean
 
 clean:
-	rm -f jumpthreads yield_bench.o yield_bench yield_unrolled.cunroll
+	rm -f jumpthreads yield_bench.o yield_bench yield_unrolled.cunroll pchase pchase.o pchase_unrolled.cunroll
