@@ -107,16 +107,15 @@ void threaded_chase(node **starts) {
 }
 
 
-uint64_t chase_test(int ncores, long long chases) {
-  int threads = NTHR;
+uint64_t chase_test(int ncores, long long chases, int threads) {
   int threaded = 1;
   if (ncores < 0) {
     threaded = 0;
-    threads = 1;
     ncores = -ncores;
   }
-  threads *= ncores;
-  uint64_t len = threads*chases;
+    uint64_t len = chases;
+  // len *= threads;
+  assert(len % threads == 0);
   assert(sizeof(node) == sizeof(node *));
   node *arr = calloc(sizeof(node), len);
   node **starts = calloc(sizeof (node*), threads);
@@ -131,23 +130,40 @@ uint64_t chase_test(int ncores, long long chases) {
     }
   }
   uint64_t after = get_ns();
+  free(arr);
+  free(starts);
   return (after - before);
 }
 
 int main(int argc, char *argv[]) {
   if (argc != 3) {
-    printf("Usage: %s <cores> <chases per core>\n", argv[0]);
+    printf("Usage: %s <cores> <chases>\n", argv[0]);
     exit(1);
   }
+  // hopefully chases is multiple of 110880 (lcm of 1..12 + 32)
+  // so any number of cores + threads we're likely to choose will work
+  // 554400000 is about 4 gigabytes
+  long long basechases = strtoll(argv[2], NULL, 0);
+  for (int ncores = -6; ncores <=6; ++ncores) {
+    long long chases = basechases;
+    int threads;
+    if (ncores < 0) {
+      threads = -ncores;
+    } else {
+      threads = NTHR*ncores;
+    }
 
-  int ncores = strtol(argv[1], NULL, 0);
-  long long chases = strtoll(argv[2], NULL, 0);
-  uint64_t elapsed = chase_test(ncores, chases);
-  double avg = chases;
-  avg *= 1000;
-  avg *= abs(ncores);
-  avg *= ncores > 0 ? NTHR : 1;
-  printf("%f\n", avg);
-  avg /= elapsed;
-  printf("%fM chases/s (%d threads)\n", avg, ncores > 0? NTHR : 0);
+    chases += (threads-(chases %threads))% threads;
+
+    //  int ncores = strtol(argv[1], NULL, 0);
+    uint64_t elapsed = chase_test(ncores, chases, threads);
+    double avg = chases;
+    avg *= 1000;
+    avg *= abs(ncores);
+    avg *= ncores > 0 ? NTHR : 1;
+    printf("%f\n", avg);
+    avg /= elapsed;
+    printf("%fM chases/s (%d threads, %d cores)\n", avg, NTHR, ncores);
+    if (ncores == -1) ncores++;
+  }
 }
