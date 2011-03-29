@@ -1,0 +1,13 @@
+replicate start
+replicate n
+DECLARATIONS
+node *start;
+node *n;
+START
+start = starts[jthr_tid()];
+while (1) {
+  prefetch_and_switch(&start->next);
+  n = start->next;
+  if (n == NULL) break;
+  start = n;
+}

@@ -23,7 +23,6 @@ def run_experiment(pfmargs, cmd, system_wide):
         except pexpect.EOF:		
             #print cmd_proc.before # print the rest of the output that was before EOF
             break;
-
         results = dict( eval( cmd_proc.match.group(1) ) )
     
         all_results.append(results)
