@@ -48,6 +48,7 @@ uint64_t *genperm(uint64_t n) {
 
 typedef struct node {
   struct node *next;
+  char padding[56];
 } node;
 
 void pointerify(node *arr, uint64_t len, int threads, node **starts) {
@@ -89,7 +90,7 @@ void pointerify(node *arr, uint64_t len, int threads, node **starts) {
     printf("%d: %p\n", i, starts[i]);
   }
   printf("%d %d\n", started, seen);
-  */
+*/
   assert(started == threads);
   assert(seen == len);
 }
@@ -107,7 +108,8 @@ void threaded_chase(node **starts) {
 }
 
 
-uint64_t chase_test(int ncores, long long chases, int threads) {
+uint64_t chase_test(int ncores, long long chases, int threads,
+                    node *arr) {
   int threaded = 1;
   if (ncores < 0) {
     threaded = 0;
@@ -116,35 +118,49 @@ uint64_t chase_test(int ncores, long long chases, int threads) {
     uint64_t len = chases;
   // len *= threads;
   assert(len % threads == 0);
-  assert(sizeof(node) == sizeof(node *));
-  node *arr = calloc(sizeof(node), len);
-  node **starts = calloc(sizeof (node*), threads);
+  //  assert(sizeof(node) == sizeof(node *));
+  assert(sizeof(node) == 64);
+  node *starts[threads];
   pointerify(arr, len, threads, starts);
   uint64_t before = get_ns();
   #pragma omp parallel for num_threads(ncores)
   for (int c = 0; c < ncores; ++c) {
+    uint64_t loc_b, loc_a;
     if (threaded) {
+      assert (threads == NTHR*ncores);
+      loc_b = get_ns();
       threaded_chase(starts + c*NTHR);
+      loc_a = get_ns();
     } else {
+      loc_b = get_ns();
       chase(starts[c]);
+      loc_a = get_ns();
+     
+    }
+    #pragma omp critical
+    {
+      printf("balance: %d,%d,%d: %lu\n", (-1+2*threaded)*ncores, NTHR,
+             c, loc_a - loc_b);
     }
   }
   uint64_t after = get_ns();
-  free(arr);
-  free(starts);
+  //  free(arr);
+  //  free(starts);
   return (after - before);
 }
 
 int main(int argc, char *argv[]) {
-  if (argc != 3) {
-    printf("Usage: %s <cores> <chases>\n", argv[0]);
+  if (argc != 4) {
+    printf("Usage: %s <cores> <chases> <ignored>\n", argv[0]);
     exit(1);
   }
   // hopefully chases is multiple of 110880 (lcm of 1..12 + 32)
   // so any number of cores + threads we're likely to choose will work
   // 554400000 is about 4 gigabytes
   long long basechases = strtoll(argv[2], NULL, 0);
-  for (int ncores = -6; ncores <=6; ++ncores) {
+  node *arr = calloc(sizeof(node), basechases + NTHR*6);
+  //for (int ncores = 6; ncores >= -6; --ncores) {
+  int ncores = strtol(argv[1], NULL, 0);
     long long chases = basechases;
     int threads;
     if (ncores < 0) {
@@ -156,14 +172,17 @@ int main(int argc, char *argv[]) {
     chases += (threads-(chases %threads))% threads;
 
     //  int ncores = strtol(argv[1], NULL, 0);
-    uint64_t elapsed = chase_test(ncores, chases, threads);
-    double avg = chases;
-    avg *= 1000;
-    avg *= abs(ncores);
-    avg *= ncores > 0 ? NTHR : 1;
-    printf("%f\n", avg);
-    avg /= elapsed;
-    printf("%fM chases/s (%d threads, %d cores)\n", avg, NTHR, ncores);
-    if (ncores == -1) ncores++;
-  }
+    for (int i = 0; i < 3; ++i) {
+      uint64_t elapsed = 0;
+      elapsed += chase_test(ncores, chases, threads, arr);
+      double avg = chases;
+      avg *= 1000;
+      // avg *= abs(ncores);
+      // avg *= ncores > 0 ? NTHR : 1;
+      printf("%f\n", avg);
+      avg /= elapsed;
+      printf("%fM chases/s (%d threads, %d cores)\n", avg, NTHR, ncores);
+    }
+    // if (ncores == 1) ncores--;
+    //}
 }

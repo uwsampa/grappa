@@ -8,7 +8,7 @@
 #include <omp.h>
 
 #include <sched.h>
-//#include <hugetlbfs.h>
+#include <hugetlbfs.h>
 
 #include <sw_queue_greenery.h>
 #include <thread.h>
@@ -119,9 +119,10 @@ int main(int argc, char** argv) {
     uint64_t num_ups = num_ups_percore*num_threads;
 
    //printf("%lu fieldsize\n",fieldsize*sizeof(uint64_t)); 
-    uint64_t* field = (uint64_t*)malloc(fieldsize*sizeof(uint64_t));
+    //uint64_t* field = (uint64_t*)malloc(fieldsize*sizeof(uint64_t));
     //int64_t min_field_alloc = (1 << 30) * (1 + fieldsize*sizeof(uint64_t) / (1 << 30));
     //uint64_t* field = get_huge_pages(min_field_alloc, GHP_DEFAULT);
+    uint64_t* field = (uint64_t*)get_hugepage_region(fieldsize*sizeof(uint64_t), GHR_STRICT );
     if (field==0) {
         printf("malloc failed\n");
         exit(1);
@@ -285,9 +286,10 @@ printf("%ld fieldsize, %f Gupdates, %ld ns, %f ns/up, %f gups, %f MB/s\n", field
 
 uint64_t* getIndices(uint64_t fieldsize, uint64_t num, int isRandom, int num_threads) {
 
-  uint64_t* indices = (uint64_t*)malloc(num*sizeof(uint64_t));
+  //uint64_t* indices = (uint64_t*)malloc(num*sizeof(uint64_t));
   //int64_t min_indices_alloc = (1 << 30) * (1 + num*sizeof(uint64_t) / (1 << 30));
   //uint64_t* indices = get_huge_pages(min_indices_alloc, GHP_DEFAULT);
+  uint64_t* indices = (uint64_t*)get_hugepage_region(num*sizeof(uint64_t), GHR_STRICT );
 
     if (isRandom) { 
         unsigned int seedp;
