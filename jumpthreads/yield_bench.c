@@ -36,6 +36,6 @@ int main(int argc, char *argv[]) {
   uint64_t elapsed = yield_test(nyields);
   double avg = elapsed;
   avg /= nyields;
-  avg /= N_YIELD_THREADS; // nthreads
-  printf("%f ns/yield (%d threads)\n", avg, N_YIELD_THREADS);
+  avg /= NTHR; // nthreads
+  printf("%f ns/yield (%d threads)\n", avg, NTHR);
 }
