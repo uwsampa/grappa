@@ -20,6 +20,7 @@ static uint64_t get_ns()
 uint64_t yield_test(long long nyields) {
   uint64_t before = get_ns();
   uint64_t after;
+  int from = 0;
   #include "yield_unrolled.cunroll"
 
   after = get_ns();
@@ -36,6 +37,5 @@ int main(int argc, char *argv[]) {
   uint64_t elapsed = yield_test(nyields);
   double avg = elapsed;
   avg /= nyields;
-  avg /= NTHR; // nthreads
   printf("%f ns/yield (%d threads)\n", avg, NTHR);
 }
