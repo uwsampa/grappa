@@ -34,7 +34,7 @@ OBJECTS=
 HOSTNAME=$(shell hostname -A | sed -e 's/ //g')
 
 run_inc: inc2.exe
-	 ./$< --racy_single --racy_with_unrelated_racy --racy_with_unrelated_atomic  --unrelated_with_unrelated_atomic  --racy_with_unrelated_delegate --num_cores 2
+	GOMP_CPU_AFFINITY="0-11:2" numactl --membind=0 -- ./$< --racy_single --racy_with_unrelated_racy --racy_with_unrelated_atomic --atomic_with_unrelated_atomic --atomic_with_unrelated_racy  --unrelated_with_unrelated_atomic  --racy_with_unrelated_delegate --num_cores 2
 #	 ./$< -d -c 2
 #	 ./$< -a -j -o -n -p -d -c 1
 #	 ./$< -a -d -j -m -c 1
@@ -43,12 +43,16 @@ run_inc: inc2.exe
 #	GOMP_CPU_AFFINITY="0-11:2,1-11:2" ./$< -a -d
 #	CONDOR_REQUIREMENTS='machine == "$(HOSTNAME)"' condor_run ./$<
 
-run_LibertyQueue: LibertyQueue2.exe
+run_LibertyQueue: LibertyQueue3.exe
 	./$<
 #	hugectl --heap -- ./$<
 
 run_MCRingBuffer: MCRingBuffer.exe
 	./$<
+
+LibertyQueue3.exe: LibertyQueue3.c ../../liberty-queues/sw_queue_greenery.h Makefile
+	$(CC) $(CFLAGS) $< liberty-queues/sw_queue.c -o $@ $(LIBS) 
+	objdump -S $@ | tee $@.dis
 
 LibertyQueue2.exe: LibertyQueue2.cpp liberty-queues/sw_queue_astream.h Makefile
 	$(CXX) $(CPPFLAGS) $< liberty-queues/sw_queue.c -o $@ $(LIBS) 
