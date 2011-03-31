@@ -1,0 +1,19 @@
+replicate index
+replicate guess
+replicate input
+replicate err
+DECLARATIONS
+double guess, input, err;
+long int index;
+START
+while ((index = i++) < n) {
+  guess = 0.1;
+  input = (index+1)*10;
+  err = guess*guess-input;
+  while (fabs(err) > accuracy) {
+    guess = guess - err/(2*guess);
+    err = guess*guess-input;
+    jthr_yield();
+  }
+  inputs[index % 4] = guess;
+}

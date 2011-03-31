@@ -35,6 +35,8 @@ typedef struct consumer_args {
   SW_Queue q;
   uint64_t max;
   uint64_t counter;
+  uint64_t* global;
+  uint64_t* local;
 } consumer_args;
 
 void consumer(thread* me, void * void_args) {
@@ -42,13 +44,68 @@ void consumer(thread* me, void * void_args) {
   uint64_t max = args->max;
   SW_Queue q = args->q;
 
-  while( max-- ) {
-    uint64_t val = sq_consume(q, me);
-    (*((uint64_t*) val))++;
+  if (1) {
+    while( max-- ) {
+      uint64_t val = sq_consume(q, me);
+      (*((uint64_t*) val))++;
+    }
+  } else if (0) {
+    while( max-- ) {
+      uint64_t val = sq_consume(q, me);
+      (*((uint64_t*) val))++;
+      thread_yield(me);
+    }
+  } else if (0) {
+    while( max-=4 ) {
+      uint64_t val = sq_consume(q, me);
+      (*((uint64_t*) val))++;
+      val = sq_consume(q, me);
+      (*((uint64_t*) val))++;
+      val = sq_consume(q, me);
+      (*((uint64_t*) val))++;
+      val = sq_consume(q, me);
+      (*((uint64_t*) val))++;
+      thread_yield(me);
+    }
+  } else {
+    while( max-=8 ) {
+      uint64_t val = sq_consume(q, me);
+      (*((uint64_t*) val))++;
+      val = sq_consume(q, me);
+      (*((uint64_t*) val))++;
+      val = sq_consume(q, me);
+      (*((uint64_t*) val))++;
+      val = sq_consume(q, me);
+      (*((uint64_t*) val))++;
+      val = sq_consume(q, me);
+      (*((uint64_t*) val))++;
+      val = sq_consume(q, me);
+      (*((uint64_t*) val))++;
+      val = sq_consume(q, me);
+      (*((uint64_t*) val))++;
+      val = sq_consume(q, me);
+      (*((uint64_t*) val))++;
+      thread_yield(me);
+    }
   }
 }
 
 void producer(thread* me, void * void_args) {
+  consumer_args* args = (consumer_args*) void_args;
+  uint64_t max = args->max;
+  uint64_t counter = args->counter;
+  uint64_t * global = args->global;
+  uint64_t * local = args->local;
+  SW_Queue q = args->q;
+
+  while (max--) {
+    global[max & 0x1]++;
+    sq_produce(q, (uint64_t) &local[max & 0x1], me);
+  }
+  sq_flushQueue(q);
+}
+
+void producer_with_local(thread* me, void * void_args) {
   consumer_args* args = (consumer_args*) void_args;
   uint64_t max = args->max;
   uint64_t counter = args->counter;
@@ -91,15 +148,16 @@ int main(int argc, char* argv[]) {
     racy_store_fence = dflt,
     unrelated_full_fence = dflt,
     racy_full_fence = dflt,
-    racy_atomic = dflt,
-    unrelated_atomic = dflt,
+    racy_with_unrelated_atomic = dflt,
+    unrelated_with_unrelated_atomic = dflt,
     atomic = dflt,
     atomic_unrelated = dflt,
     atomic_unrelated_load = dflt,
     unrelated = dflt,
     cas = dflt,
-    delegate = dflt,
-    racy_with_delegate = dflt;
+    racy_with_unrelated_delegate = dflt,
+    racy_with_delegate = dflt,
+    racy_with_unrelated_racy = dflt;
 
   /* uint64_t racy_runtime_ns, atomic_runtime_ns, cas_runtime_ns, racy_result, atomic_result, cas_result, racy_sum, atomic_sum, cas_sum; */
   /* double racy_runtime_per_iter, racy_runtime_per_inc, atomic_runtime_per_iter, atomic_runtime_per_inc, cas_runtime_per_iter, cas_runtime_per_inc; */
@@ -114,15 +172,16 @@ int main(int argc, char* argv[]) {
     {"racy_store_fence",             no_argument,       NULL, 'x'},
     {"unrelated_store_fence",             no_argument,       NULL, 'y'},
     {"racy_full_fence",             no_argument,       NULL, 'e'},
-    {"racy_atomic",             no_argument,       NULL, 'f'},
-    {"unrelated_atomic",             no_argument,       NULL, 'g'},
+    {"racy_with_unrelated_atomic",             no_argument,       NULL, 'f'},
+    {"unrelated_with_unrelated_atomic",             no_argument,       NULL, 'g'},
     {"atomic",             no_argument,       NULL, 'j'},
     {"atomic_unrelated",             no_argument,       NULL, 'n'},
     {"atomic_unrelated_load",             no_argument,       NULL, 'p'},
     {"unrelated",             no_argument,       NULL, 'o'},
     {"cas",             no_argument,       NULL, 'k'},
-    {"delegate",             no_argument,       NULL, 'd'},
+    {"racy_with_unrelated_delegate",             no_argument,       NULL, 'd'},
     {"racy_with_delegate",             no_argument,       NULL, 'm'},
+    {"racy_with_unrelated_racy",             no_argument,       NULL, 'q'},
 
     {"verbose",             no_argument,       NULL, 'v'},
     {"help",             no_argument,       NULL, 'h'},
@@ -143,15 +202,16 @@ int main(int argc, char* argv[]) {
     case 'x': racy_store_fence = 1; break;
     case 'y': unrelated_full_fence = 1; break;
     case 'e': racy_full_fence = 1; break;
-    case 'f': racy_atomic = 1; break;
-    case 'g': unrelated_atomic = 1; break;
+    case 'f': racy_with_unrelated_atomic = 1; break;
+    case 'g': unrelated_with_unrelated_atomic = 1; break;
     case 'j': atomic = 1; break;
     case 'k': cas = 1; break;
-    case 'd': delegate = 1; break;
+    case 'd': racy_with_unrelated_delegate = 1; break;
     case 'm': racy_with_delegate = 1; break;
     case 'n': atomic_unrelated = 1; break;
     case 'o': unrelated = 1; break;
     case 'p': atomic_unrelated_load = 1; break;
+    case 'q': racy_with_unrelated_racy = 1; break;
 
     case 'h':
     case '?':
@@ -224,10 +284,14 @@ int main(int argc, char* argv[]) {
       uint64_t data = 0;
       uint64_t max = iters;
       while( max-- ) {
-	global[max & 0xff]++;
+	// RACY
+	global[max & 0x1]++;
+	//global[0]++;
+	//(*counter_p)++;
       }
-      sum += global[0];
+      sum += data; //global[0];
     }
+    counter += global[0];
     clock_gettime(CLOCK_MONOTONIC, &end);
     
     uint64_t runtime_ns = ((uint64_t) end.tv_sec * 1000000000 + end.tv_nsec) - ((uint64_t) start.tv_sec * 1000000000 + start.tv_nsec);
@@ -397,12 +461,13 @@ int main(int argc, char* argv[]) {
   }
 
 
-  // racy with atomic
-  if (racy_atomic) {
+  // racy with unrelated atomic
+  if (racy_with_unrelated_atomic) {
     uint64_t counter = 0;
     uint64_t* counter_p = &counter;
     struct timespec start, end;
     uint64_t sum = 0;
+      uint64_t global[0x10000] = {0};
 
     clock_gettime(CLOCK_MONOTONIC, &start);
 #pragma omp parallel for num_threads(num_cores) reduction(+ : sum)
@@ -415,32 +480,68 @@ int main(int argc, char* argv[]) {
       uint64_t index = 0;
 
       uint64_t data = 0;
-      uint64_t max = num_cores * iters;
-      while ( data < iters ) {
-	(*counter_p)++;
-	data++;
-	__sync_fetch_and_add( &local[index & 0xffff] , 1 );
-	index += 8;
-	//__sync_fetch_and_add( &local , 1 );
-	//local+=1;
-      	//sum += val;
+      uint64_t max = iters;
+      while ( max-- ) {
+	//(*counter_p)++;
+	// RUA
+	global[max & 0x1]++;
+	__sync_fetch_and_add( &local[max & 0x1] , 1 );
+	//__sync_fetch_and_add( &data , 1 );
+	
       }
-      sum += data;
+      sum += local[0];
     }
+    counter += global[0];
     clock_gettime(CLOCK_MONOTONIC, &end);
     
     uint64_t runtime_ns = ((uint64_t) end.tv_sec * 1000000000 + end.tv_nsec) - ((uint64_t) start.tv_sec * 1000000000 + start.tv_nsec);
 
-    result(human_readable, num_cores, iters, "racy with atomic", runtime_ns, counter, sum);
+    result(human_readable, num_cores, iters, "racy with unrelated atomic", runtime_ns, counter, sum);
+  }
+
+  // racy with unrelated racy
+  if (racy_with_unrelated_racy) {
+    uint64_t counter = 0;
+    uint64_t* counter_p = &counter;
+    struct timespec start, end;
+    uint64_t sum = 0;
+    uint64_t global[0x10000] = {0};
+
+    clock_gettime(CLOCK_MONOTONIC, &start);
+#pragma omp parallel for num_threads(num_cores) reduction(+ : sum)
+    for( int i = 0; i < num_cores; ++i ) {
+      
+      setaffinity(i);
+
+      uint64_t local[0x10000] = {0};
+      uint64_t data = 0;
+
+      uint64_t max = iters;
+      while ( max-- ) {
+	// RUR
+	//(*counter_p)++;
+	global[max & 0x1]++;
+	local[max & 0x1]++;
+	//data++;
+      }
+      sum += local[0];
+    }
+    counter += global[0];
+    clock_gettime(CLOCK_MONOTONIC, &end);
+    
+    uint64_t runtime_ns = ((uint64_t) end.tv_sec * 1000000000 + end.tv_nsec) - ((uint64_t) start.tv_sec * 1000000000 + start.tv_nsec);
+
+    result(human_readable, num_cores, iters, "racy with unrelated racy", runtime_ns, counter, sum);
   }
 
 
-  // unrelated with atomic
-  if (unrelated_atomic) {
+  // unrelated with unrelated atomic
+  if (unrelated_with_unrelated_atomic) {
     uint64_t counter = 0;
     uint64_t* counter_p = &counter;
     struct timespec start, end;
     uint64_t sum = 0;
+    uint64_t global[0x10000] = {0};
 
     clock_gettime(CLOCK_MONOTONIC, &start);
 #pragma omp parallel for num_threads(num_cores) reduction(+ : sum)
@@ -449,26 +550,26 @@ int main(int argc, char* argv[]) {
       setaffinity(i);
 
       uint64_t local[0x10000] = {0};
+      uint64_t local2[0x10000] = {0};
       //uint64_t local;
       uint64_t index = 0;
 
       uint64_t data = 0;
-      uint64_t max = num_cores * iters;
-      while ( data < iters ) {
-      	data++; // = (*counter_p)++;
-	__sync_fetch_and_add( &local[index & 0xffff] , 1 );
-	index += 8;
-	//__sync_fetch_and_add( &local , 1 );
-	//local+=1;
-      	//sum += val;
+      uint64_t max = iters;
+      while ( max-- ) {
+	// UUA
+      	//data++; 
+	local2[max & 0x1]++;
+	__sync_fetch_and_add( &local[max & 0x1] , 1 );
+	//__sync_fetch_and_add( &index , 1 );
       }
-      sum += data;
+      sum += local2[0] + local[0];
     }
     clock_gettime(CLOCK_MONOTONIC, &end);
     
     uint64_t runtime_ns = ((uint64_t) end.tv_sec * 1000000000 + end.tv_nsec) - ((uint64_t) start.tv_sec * 1000000000 + start.tv_nsec);
 
-    result(human_readable, num_cores, iters, "unrelated with atomic", runtime_ns, counter, sum);
+    result(human_readable, num_cores, iters, "unrelated with unrelated atomic", runtime_ns, counter, sum);
   }
 
   // atomic only
@@ -595,7 +696,7 @@ int main(int argc, char* argv[]) {
 
 
   // delegate
-  if (delegate) {
+  if (racy_with_unrelated_delegate) {
     uint64_t counter = 1;
     uint64_t* counter_p = &counter;
     struct timespec start, end;
@@ -612,9 +713,12 @@ int main(int argc, char* argv[]) {
 
     SW_Queue asdf = sq_createQueue();
 
+    uint64_t global[0x10000] = {0};
+
+
     clock_gettime(CLOCK_MONOTONIC, &start);
     
-# pragma omp parallel for num_threads(num_cores+1) 
+# pragma omp parallel for num_threads(num_cores+1)  reduction(+ : sum)
     for(int i = 0; i <= num_cores; ++i) {
       if (i == num_cores) {
 	
@@ -674,23 +778,27 @@ int main(int argc, char* argv[]) {
 	    args.max = iters;
 	    args.q = to[i];
 	    args.counter = (uint64_t) &counter;
+	    args.global = global;
+	    uint64_t local[0x10000] = {0};
+	    args.local = local;
 	    thread_spawn(master, sched, producer, &args);
 	    run_all(sched);
 	    printf("Producer %d done.\n",i);
 	    destroy_scheduler(sched);
 	    destroy_thread(master);
+	    sum += local[0];
 	  }
 	}
 	
 
       }
     }
-   
+    counter += global[0];
     clock_gettime(CLOCK_MONOTONIC, &end);
     
     uint64_t runtime_ns = ((uint64_t) end.tv_sec * 1000000000 + end.tv_nsec) - ((uint64_t) start.tv_sec * 1000000000 + start.tv_nsec);
 
-    result(human_readable, num_cores, iters, "delegate", runtime_ns, counter, sum);
+    result(human_readable, num_cores, iters, "racy with unrelated delegate", runtime_ns, counter, sum);
 
   }
 

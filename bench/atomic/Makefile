@@ -18,7 +18,7 @@ CFLAGS+= -I../../liberty-queues
 #CFLAGS+=-I../../exper_runner -L../../exper_runner
 CFLAGS+= -I../../greenery -L../../greenery
 
-CPPFLAGS+= -I../../greenery -L../../greenery -I../../liberty-queues
+CPPFLAGS+= -I../../greenery -L../../greenery
 CPPFLAGS+=-I../../../fastflow_install/include
 
 #CFLAGS+=--hugetlb-text --hugetlb-ptrs
@@ -34,7 +34,8 @@ OBJECTS=
 HOSTNAME=$(shell hostname -A | sed -e 's/ //g')
 
 run_inc: inc2.exe
-	 ./$< -d -c 2
+	 ./$< --racy_single --racy_with_unrelated_racy --racy_with_unrelated_atomic  --unrelated_with_unrelated_atomic  --racy_with_unrelated_delegate --num_cores 2
+#	 ./$< -d -c 2
 #	 ./$< -a -j -o -n -p -d -c 1
 #	 ./$< -a -d -j -m -c 1
 #	 ./$< -a -j -o -n -p -c 1

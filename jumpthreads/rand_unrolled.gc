@@ -1,0 +1,78 @@
+replicate state
+replicate word
+replicate i
+replicate fptr
+replicate rptr
+replicate end
+replicate check_buf
+replicate val
+replicate result
+replicate check_state
+replicate check_answer
+replicate padding
+DECLARATIONS
+int32_t state[31];
+int32_t word;
+int i;
+int32_t val;
+int32_t result;
+//int32_t check_answer;
+int32_t *fptr;
+int32_t *rptr;
+int32_t *end;
+//struct random_data check_buf;
+//char check_state[128];
+
+START
+state[0] = jthr_tid()+1;
+word = jthr_tid()+1;
+for (i = 1; i < 31; ++i) {
+  long int hi = word / 127773;
+  long int lo = word % 127773;
+  word = 16807 * lo - 2836 * hi;
+  if (word < 0)
+    word += 2147483647;
+  state[i] = word;
+}
+fptr = &state[3];
+rptr = &state[0];
+end = &state[31]; // one off the end
+
+for (i = 0; i < 310; ++i) {
+  val = *fptr += *rptr;
+  result = (val >> 1) & 0x7fffffff;
+  ++fptr;
+  if (fptr >= end) {
+    fptr = state;
+    ++rptr;
+  } else {
+    ++rptr;
+    if (rptr >= end) {
+      rptr = state;
+    }
+  }
+}
+//memset(&check_buf, 0, sizeof(check_buf));
+//initstate_r(jthr_tid()+1, &check_state[0], 128, &check_buf);
+while (made++ < n) {
+  val = *fptr += *rptr;
+  result = (val >> 1) & 0x7fffffff;
+  //  assert(0 == random_r(&check_buf, &check_answer));
+  //  printf("%d: %d %d\n", jthr_tid(), check_answer, result);
+  //  assert(check_answer == result);
+  jthr_yield();
+  ++fptr;
+
+  if (fptr >= end) {
+    fptr = state;
+    ++rptr;
+  } else {
+    ++rptr;
+    if (rptr >= end) {
+      rptr = state;
+    }
+  }
+
+}
+sum += state[30];
+//printf("%d\n",state[30]);

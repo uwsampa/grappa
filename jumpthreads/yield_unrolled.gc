@@ -1,8 +1,6 @@
-replicate from
-replicate to
 DECLARATIONS
-long long from;
 START
-for (from = 0; from < nyields; ++from) {
+while (from < nyields) {
+  from++;
   jthr_yield();
 }
