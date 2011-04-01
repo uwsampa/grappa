@@ -20,3 +20,15 @@ newton.o: newton.c newton_unrolled.cunroll
 
 clean:
 	rm -f jumpthreads yield_bench.o yield_bench yield_unrolled.cunroll pchase pchase.o pchase_unrolled.cunroll rand.o rand rand_unrolled.cunroll newton
+
+illustration.pdf: illustration.eps
+	epstopdf $<
+
+illustration.eps: illustration.ps
+	ps2eps $<
+
+illustration.ps: illustration.dvi
+	dvips $< -o
+
+illustration.dvi: illustration.tex
+	latex $<

@@ -18,6 +18,8 @@
 #include <sw_queue_greenery.h>
 #include <thread.h>
 
+#define RAND(s) (6364136223846793005 * s + 1442695040888963407)
+
 void setaffinity(int i) {
   cpu_set_t set;
   CPU_ZERO(&set);
@@ -37,6 +39,8 @@ typedef struct consumer_args {
   uint64_t counter;
   uint64_t* global;
   uint64_t* local;
+  uint64_t mask;
+  int i;
 } consumer_args;
 
 void consumer(thread* me, void * void_args) {
@@ -44,7 +48,7 @@ void consumer(thread* me, void * void_args) {
   uint64_t max = args->max;
   SW_Queue q = args->q;
 
-  if (1) {
+  if (0) {
     while( max-- ) {
       uint64_t val = sq_consume(q, me);
       (*((uint64_t*) val))++;
@@ -96,11 +100,13 @@ void producer(thread* me, void * void_args) {
   uint64_t counter = args->counter;
   uint64_t * global = args->global;
   uint64_t * local = args->local;
+  uint64_t mask = args->mask;
+  int i = args->i;
   SW_Queue q = args->q;
 
   while (max--) {
-    global[max & 0x1]++;
-    sq_produce(q, (uint64_t) &local[max & 0x1], me);
+    global[ RAND(i*max) & mask]++;
+    sq_produce(q, (uint64_t) &local[ RAND(i*max) & mask], me);
   }
   sq_flushQueue(q);
 }
@@ -149,6 +155,8 @@ int main(int argc, char* argv[]) {
     unrelated_full_fence = dflt,
     racy_full_fence = dflt,
     racy_with_unrelated_atomic = dflt,
+    atomic_with_unrelated_atomic = dflt,
+    atomic_with_unrelated_racy = dflt,
     unrelated_with_unrelated_atomic = dflt,
     atomic = dflt,
     atomic_unrelated = dflt,
@@ -159,6 +167,8 @@ int main(int argc, char* argv[]) {
     racy_with_delegate = dflt,
     racy_with_unrelated_racy = dflt;
 
+  uint64_t mask = 0xff;
+
   /* uint64_t racy_runtime_ns, atomic_runtime_ns, cas_runtime_ns, racy_result, atomic_result, cas_result, racy_sum, atomic_sum, cas_sum; */
   /* double racy_runtime_per_iter, racy_runtime_per_inc, atomic_runtime_per_iter, atomic_runtime_per_inc, cas_runtime_per_iter, cas_runtime_per_inc; */
 
@@ -166,6 +176,7 @@ int main(int argc, char* argv[]) {
   static struct option long_options[] = {
     {"num_cores",              required_argument, NULL, 'c'},
     {"iters_log",      required_argument, NULL, 'i'},
+    {"mask",             required_argument,       NULL, 'm'},
 
     {"racy_single",             no_argument,       NULL, 'a'},
     {"racy_double",             no_argument,       NULL, 'b'},
@@ -173,6 +184,8 @@ int main(int argc, char* argv[]) {
     {"unrelated_store_fence",             no_argument,       NULL, 'y'},
     {"racy_full_fence",             no_argument,       NULL, 'e'},
     {"racy_with_unrelated_atomic",             no_argument,       NULL, 'f'},
+    {"atomic_with_unrelated_atomic",             no_argument,       NULL, 'r'},
+    {"atomic_with_unrelated_racy",             no_argument,       NULL, 's'},
     {"unrelated_with_unrelated_atomic",             no_argument,       NULL, 'g'},
     {"atomic",             no_argument,       NULL, 'j'},
     {"atomic_unrelated",             no_argument,       NULL, 'n'},
@@ -180,8 +193,8 @@ int main(int argc, char* argv[]) {
     {"unrelated",             no_argument,       NULL, 'o'},
     {"cas",             no_argument,       NULL, 'k'},
     {"racy_with_unrelated_delegate",             no_argument,       NULL, 'd'},
-    {"racy_with_delegate",             no_argument,       NULL, 'm'},
     {"racy_with_unrelated_racy",             no_argument,       NULL, 'q'},
+    {"racy_with_delegate",             no_argument,       NULL, 't'},
 
     {"verbose",             no_argument,       NULL, 'v'},
     {"help",             no_argument,       NULL, 'h'},
@@ -207,11 +220,13 @@ int main(int argc, char* argv[]) {
     case 'j': atomic = 1; break;
     case 'k': cas = 1; break;
     case 'd': racy_with_unrelated_delegate = 1; break;
-    case 'm': racy_with_delegate = 1; break;
     case 'n': atomic_unrelated = 1; break;
     case 'o': unrelated = 1; break;
     case 'p': atomic_unrelated_load = 1; break;
     case 'q': racy_with_unrelated_racy = 1; break;
+    case 'r': atomic_with_unrelated_atomic = 1; break;
+    case 's': atomic_with_unrelated_racy = 1; break;
+    case 't': racy_with_delegate = 1; break;
 
     case 'h':
     case '?':
@@ -249,7 +264,7 @@ int main(int argc, char* argv[]) {
 	//__sync_fetch_and_add( &data, 1 );
 	//data++;
 	//argh
-	local[max & 0xff]++;
+	local[ RAND(i*max) & mask]++;
 	//sum += val;
       }
       sum += local[0];
@@ -268,7 +283,9 @@ int main(int argc, char* argv[]) {
     uint64_t counter = 0;
     uint64_t* counter_p = &counter;
     struct timespec start, end;
+    char pad1[64];
     uint64_t global[0x10000] = {0};
+    char pad2[64];
     uint64_t sum = 0;
 
     clock_gettime(CLOCK_MONOTONIC, &start);
@@ -277,7 +294,9 @@ int main(int argc, char* argv[]) {
       
       setaffinity(i);
     
+      char pad3[64];
       uint64_t local[0x10000] = {0};
+      char pad4[64];
       //uint64_t local;
       uint64_t index = 0;
 
@@ -285,7 +304,7 @@ int main(int argc, char* argv[]) {
       uint64_t max = iters;
       while( max-- ) {
 	// RACY
-	global[max & 0x1]++;
+	global[ RAND(i*max) & mask]++;
 	//global[0]++;
 	//(*counter_p)++;
       }
@@ -323,8 +342,8 @@ int main(int argc, char* argv[]) {
       while ( data < iters ) {
       	(*counter_p)++;
 	data++;
-	local[index & 0xffff]++;
-	//__sync_fetch_and_add( &local[index & 0xffff] , 1 );
+	local[index & mask]++;
+	//__sync_fetch_and_add( &local[index & mask] , 1 );
 	index += 8;
 	//__sync_fetch_and_add( &local , 1 );
 	//local+=1;
@@ -362,9 +381,9 @@ int main(int argc, char* argv[]) {
       while ( data < iters ) {
 	(*counter_p)++;
 	data++;
-	local[index & 0xffff]++;
+	local[index & mask]++;
 	__builtin_ia32_sfence();
-	//__sync_fetch_and_add( &local[index & 0xffff] , 1 );
+	//__sync_fetch_and_add( &local[index & mask] , 1 );
 	index += 8;
 	//__sync_fetch_and_add( &local , 1 );
 	//local+=1;
@@ -399,13 +418,13 @@ int main(int argc, char* argv[]) {
       uint64_t data = 0;
       uint64_t max = num_cores * iters;
       while ( data < iters ) {
-	//local[index & 0xffff]++;
+	//local[index & mask]++;
 	//index += 8;
 	data++;
       	//data = (*counter_p)++;
-	local[index & 0xffff]++;
+	local[index & mask]++;
 	__builtin_ia32_sfence();
-	//__sync_fetch_and_add( &local[index & 0xffff] , 1 );
+	//__sync_fetch_and_add( &local[index & mask] , 1 );
 	index += 8;
 	//__sync_fetch_and_add( &local , 1 );
 	//local+=1;
@@ -443,9 +462,9 @@ int main(int argc, char* argv[]) {
       while ( data < iters ) {
       	(*counter_p)++;
 	data++;
-	local[index & 0xffff]++;
+	local[index & mask]++;
 	__builtin_ia32_mfence();
-	//__sync_fetch_and_add( &local[index & 0xffff] , 1 );
+	//__sync_fetch_and_add( &local[index & mask] , 1 );
 	index += 8;
 	//__sync_fetch_and_add( &local , 1 );
 	//local+=1;
@@ -467,15 +486,18 @@ int main(int argc, char* argv[]) {
     uint64_t* counter_p = &counter;
     struct timespec start, end;
     uint64_t sum = 0;
+    char pad1[64];
       uint64_t global[0x10000] = {0};
-
+    char pad2[64];
     clock_gettime(CLOCK_MONOTONIC, &start);
 #pragma omp parallel for num_threads(num_cores) reduction(+ : sum)
     for( int i = 0; i < num_cores; ++i ) {
       
       setaffinity(i);
 
+    char pad3[64];
       uint64_t local[0x10000] = {0};
+    char pad4[64];
       //uint64_t local;
       uint64_t index = 0;
 
@@ -484,8 +506,8 @@ int main(int argc, char* argv[]) {
       while ( max-- ) {
 	//(*counter_p)++;
 	// RUA
-	global[max & 0x1]++;
-	__sync_fetch_and_add( &local[max & 0x1] , 1 );
+	global[ RAND(i*max) & mask]++;
+	__sync_fetch_and_add( &local[ RAND(i*max) & mask] , 1 );
 	//__sync_fetch_and_add( &data , 1 );
 	
       }
@@ -499,13 +521,57 @@ int main(int argc, char* argv[]) {
     result(human_readable, num_cores, iters, "racy with unrelated atomic", runtime_ns, counter, sum);
   }
 
-  // racy with unrelated racy
-  if (racy_with_unrelated_racy) {
+  // atomic with unrelated atomic
+  if (atomic_with_unrelated_atomic) {
     uint64_t counter = 0;
     uint64_t* counter_p = &counter;
     struct timespec start, end;
     uint64_t sum = 0;
+    char pad1[64];
+      uint64_t global[0x10000] = {0};
+    char pad2[64];
+    clock_gettime(CLOCK_MONOTONIC, &start);
+#pragma omp parallel for num_threads(num_cores) reduction(+ : sum)
+    for( int i = 0; i < num_cores; ++i ) {
+      
+      setaffinity(i);
+
+    char pad3[64];
+      uint64_t local[0x10000] = {0};
+    char pad4[64];
+
+      //uint64_t local;
+      uint64_t index = 0;
+
+      uint64_t data = 0;
+      uint64_t max = iters;
+      while ( max-- ) {
+	//(*counter_p)++;
+	// AUA
+	__sync_fetch_and_add( &global[ RAND(i*max) & mask] , 1 );
+	__sync_fetch_and_add( &local[ RAND(i*max) & mask] , 1 );
+	//__sync_fetch_and_add( &data , 1 );
+	
+      }
+      sum += local[0];
+    }
+    counter += global[0];
+    clock_gettime(CLOCK_MONOTONIC, &end);
+    
+    uint64_t runtime_ns = ((uint64_t) end.tv_sec * 1000000000 + end.tv_nsec) - ((uint64_t) start.tv_sec * 1000000000 + start.tv_nsec);
+
+    result(human_readable, num_cores, iters, "atomic with unrelated atomic", runtime_ns, counter, sum);
+  }
+
+  // atomic with unrelated atomic
+  if (atomic_with_unrelated_atomic) {
+    uint64_t counter = 0;
+    uint64_t* counter_p = &counter;
+    struct timespec start, end;
+    uint64_t sum = 0;
+    char pad1[64];
     uint64_t global[0x10000] = {0};
+    char pad2[64];
 
     clock_gettime(CLOCK_MONOTONIC, &start);
 #pragma omp parallel for num_threads(num_cores) reduction(+ : sum)
@@ -513,15 +579,59 @@ int main(int argc, char* argv[]) {
       
       setaffinity(i);
 
+      char pad3[64];
       uint64_t local[0x10000] = {0};
+      char pad4[64];
+      //uint64_t local;
+      uint64_t index = 0;
+
+      uint64_t data = 0;
+      uint64_t max = iters;
+      while ( max-- ) {
+	//(*counter_p)++;
+	// AUR
+	__sync_fetch_and_add( &global[ RAND(i*max) & mask] , 1 );
+	local[ RAND(i*max) & mask]++;
+	//__sync_fetch_and_add( &data , 1 );
+	
+      }
+      sum += local[0];
+    }
+    counter += global[0];
+    clock_gettime(CLOCK_MONOTONIC, &end);
+    
+    uint64_t runtime_ns = ((uint64_t) end.tv_sec * 1000000000 + end.tv_nsec) - ((uint64_t) start.tv_sec * 1000000000 + start.tv_nsec);
+
+    result(human_readable, num_cores, iters, "atomic with unrelated racy", runtime_ns, counter, sum);
+  }
+
+  // racy with unrelated racy
+  if (racy_with_unrelated_racy) {
+    uint64_t counter = 0;
+    uint64_t* counter_p = &counter;
+    struct timespec start, end;
+    uint64_t sum = 0;
+    char pad1[64];
+    uint64_t global[0x10000] = {0};
+    char pad2[64];
+
+    clock_gettime(CLOCK_MONOTONIC, &start);
+#pragma omp parallel for num_threads(num_cores) reduction(+ : sum)
+    for( int i = 0; i < num_cores; ++i ) {
+      
+      setaffinity(i);
+
+      char pad3[64];
+      uint64_t local[0x10000] = {0};
+      char pad4[64];
       uint64_t data = 0;
 
       uint64_t max = iters;
       while ( max-- ) {
 	// RUR
 	//(*counter_p)++;
-	global[max & 0x1]++;
-	local[max & 0x1]++;
+	global[ RAND(i*max) & mask]++;
+	local[ RAND(i*max) & mask]++;
 	//data++;
       }
       sum += local[0];
@@ -541,7 +651,9 @@ int main(int argc, char* argv[]) {
     uint64_t* counter_p = &counter;
     struct timespec start, end;
     uint64_t sum = 0;
+    char pad1[64];
     uint64_t global[0x10000] = {0};
+    char pad2[64];
 
     clock_gettime(CLOCK_MONOTONIC, &start);
 #pragma omp parallel for num_threads(num_cores) reduction(+ : sum)
@@ -549,8 +661,11 @@ int main(int argc, char* argv[]) {
       
       setaffinity(i);
 
+      char pad3[64];
       uint64_t local[0x10000] = {0};
+      char pad4[64];
       uint64_t local2[0x10000] = {0};
+      char pad5[64];
       //uint64_t local;
       uint64_t index = 0;
 
@@ -559,8 +674,8 @@ int main(int argc, char* argv[]) {
       while ( max-- ) {
 	// UUA
       	//data++; 
-	local2[max & 0x1]++;
-	__sync_fetch_and_add( &local[max & 0x1] , 1 );
+	local2[ RAND(i*max) & mask]++;
+	__sync_fetch_and_add( &local[ RAND(i*max) & mask] , 1 );
 	//__sync_fetch_and_add( &index , 1 );
       }
       sum += local2[0] + local[0];
@@ -633,7 +748,9 @@ int main(int argc, char* argv[]) {
     uint64_t counter = 0;
     uint64_t* counter_p = &counter;
     struct timespec start, end;
+    char pad1[64];
     uint64_t global[0x10000] = {0};
+    char pad2[64];
     uint64_t sum = 0;
 
     clock_gettime(CLOCK_MONOTONIC, &start);
@@ -644,7 +761,7 @@ int main(int argc, char* argv[]) {
       uint64_t data = 0;
       uint64_t max = iters;
       while ( max-- ) {
-	int val = global[max & 0xff];
+	int val = global[ RAND(i*max) & mask];
 	__sync_fetch_and_add( &data, val );
 	//sum += val;
       }
@@ -712,9 +829,9 @@ int main(int argc, char* argv[]) {
     int done = 0;
 
     SW_Queue asdf = sq_createQueue();
-
+    char pad1[64];
     uint64_t global[0x10000] = {0};
-
+    char pad2[64];
 
     clock_gettime(CLOCK_MONOTONIC, &start);
     
@@ -752,7 +869,7 @@ int main(int argc, char* argv[]) {
 	    threads[i] = thread_spawn(master, sched, consumer, &args[i]);
 	  }
 	  run_all(sched);
-	  printf("Thread %d done consuming.\n", i);
+	  //printf("Thread %d done consuming.\n", i);
 	  destroy_scheduler(sched);
 	  destroy_thread(master);
 	}
@@ -770,7 +887,7 @@ int main(int argc, char* argv[]) {
 	    sq_flushQueue(to[i]);
 	    //sum += data;
 	    //std::cout << "Thread " << i << " done producing." << std::endl;
-	    printf("Thread %d done producing.\n", i);
+	    //printf("Thread %d done producing.\n", i);
 	  } else {
 	    thread * master = thread_init();
 	    scheduler * sched = create_scheduler(master);
@@ -779,11 +896,15 @@ int main(int argc, char* argv[]) {
 	    args.q = to[i];
 	    args.counter = (uint64_t) &counter;
 	    args.global = global;
+	    args.i = i;
+	    char pad3[64];
 	    uint64_t local[0x10000] = {0};
+	    char pad4[64];
 	    args.local = local;
+	    args.mask = mask;
 	    thread_spawn(master, sched, producer, &args);
 	    run_all(sched);
-	    printf("Producer %d done.\n",i);
+	    //printf("Producer %d done.\n",i);
 	    destroy_scheduler(sched);
 	    destroy_thread(master);
 	    sum += local[0];
