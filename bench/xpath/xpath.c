@@ -725,7 +725,7 @@ int xpath_lightweight(graph *g, int *colors, int *path, int len,
 int xpath(graph *g, int *colors, int *path, int len,
           int *count, int ncores, int nthreads, int unrolled) {
   int edges = 0;
-  uint64_t slow = 0, fast = -1;
+  uint64_t timings[ncores];
   #pragma omp parallel for num_threads(ncores)
   for (int c = 0; c < ncores; ++c) {
     uint64_t before = get_ns();
@@ -856,14 +856,14 @@ int xpath(graph *g, int *colors, int *path, int len,
       destroy_thread(master);
     }
     uint64_t after = get_ns();
-    #pragma omp critical
-    {
-      uint64_t duration = after - before;
-      printf("core %d time: %" PRIu64 "\n", c, duration);
-      if (slow < duration) slow = duration;
-      if (fast > duration) fast = duration;
-      edges += loc_e;
-    }
+    timings[c] = after - before;
+    __sync_fetch_and_add(&edges, loc_e);
+  }
+  uint64_t slow = 0, fast = -1;
+  for (int i = 0; i < ncores; ++i) {
+    printf("timing %d %d %d %d: %lu\n", ncores, nthreads, unrolled, i, timings[i]);
+    if (slow < timings[i]) slow = timings[i];
+    if (fast > timings[i]) fast = timings[i];
   }
   double imbalance = (double)slow;
   imbalance /= fast;
@@ -977,17 +977,13 @@ int main(int argc, char *argv[]) {
     printf(" %d", path[i]);
   }
   printf("\n");
-  double avg;
-
   int count;
   //  int actual = xpath_brute(g, colors, path, pathlen);
   //  printf("count: %d\n", actual);
   int ncores, nthreads;
   for (ncores = 2; ncores <=12; ncores += 2) {
-    for (nthreads = -16; nthreads <= 16;) {
-      int bother = nthreads > 0 ? 2: 1;
-      for (int unroll = 0; unroll < bother; ++unroll) {
-      avg = 0;
+    for (nthreads = 0; nthreads <= 16; nthreads++) {
+      int unroll = nthreads > 0 ? 1: 0;
       for (int i = 0; i < nruns; ++i) {
         count = 0;
         uint64_t before = get_ns();
@@ -1000,13 +996,9 @@ int main(int argc, char *argv[]) {
         uint64_t elapsed = after - before;
         double rate = elapsed;
         rate /= edges;
-        avg += rate;
-        printf("%" PRIu64 " ns -> %f ns/edge \n", elapsed, rate);
+        printf("%d,%d,%lu ns -> %f ns/edge \n",
+               ncores, nthreads, elapsed, rate);
       }
-      avg /= nruns;
-      printf("AVERAGE %d %d %d: %f\n", ncores, nthreads, unroll, avg);
-      }
-      nthreads++;
     }
   }
   graph_free(g);
