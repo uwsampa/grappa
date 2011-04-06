@@ -26,33 +26,41 @@ numanodes = {0:[ 0, 4,8,12,16,20],
 localcores = numanodes[2]
 remotecores = numanodes[4]
 cpus = localcores+remotecores
-cpus = [0,2,4,8,10,12,1,3,5,7,9,11]
+#cpus = [0,2,4,8,10,12,1,3,5,7,9,11]
 
 
-cmd_template = "hugectl --heap ./gups -f %d -u %d -c %d"
+cmd_template = "likwid-pin -c %s numactl --%s=%s ./gupsmc -f %d -u %d -c %d"
+#cmd_template = "hugectl --heap ./gups -f %d -u %d -c %d"
 #cmd_template = "hugectl --heap numactl --%s=%s ./gups -f %d -u %d -c %d"
 
 results = []
 
-for num_threads in range(1, 12+1):
+for num_threads in [6]:#range(1, 6+1):
     cpu_list = " ".join( [str(i) for i in cpus[0:num_threads]] )
     print num_threads,":",cpu_list
-    os.putenv("GOMP_CPU_AFFINITY", cpu_list)
-    
+    #os.putenv("GOMP_CPU_AFFINITY", cpu_list)
+    cmask = ",".join( [str(i) for i in cpus[0:num_threads]] )
     #numa = ''
     #if num_threads <= 6: numa = '0'
     #else: numa = '0,1'
     numa = '2'
 
-    for fieldsize in [12,13,14,15,16,18,19,21,23,25,26]:
-        for num_ups in [24]*3:
+    for fieldsize in range(0,27+1):
+        for num_ups in [24]:
             for alloc in ['membind']:#['interleave','membind']:
-                for nrandom in [True, False]:
-                    if not nrandom: cmd+=' -n'
-
-                    for atomic in [True, False, 'delegate']:
+                #for nrandom in [True]:#[True, False]:
+                nrandom = True
+                if not nrandom: cmd+=' -n'
+                for huge in [True,False]:
+                    
+                    for atomic in ['partition']:#['delegate']:#[True, False, 'delegate']:
+                        cmd = cmd_template
+                        if huge: cmd+=' -H'
                         if atomic is True: cmd+=' -a'
                         if atomic is 'delegate': cmd+=' -d'
+                        if atomic is 'partition': cmd+=' -p'
+
+                        this_cmd = cmd%(cmask,alloc,numa,fieldsize,num_ups,num_threads)
 
                         these_results = loop_runexp_nowait.run_experiment('', this_cmd, True)
                         results.extend(these_results)

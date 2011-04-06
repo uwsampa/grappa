@@ -1,4 +1,4 @@
-#include <features.h>
+
 #include <stdlib.h>
 #include <stdint.h>
 #include <stdio.h>
@@ -12,6 +12,8 @@
 
 #include <sw_queue_greenery.h>
 #include <thread.h>
+
+#include <likwid.h>
 
 #define MILLION 1000000
 #define BILLION 1000000000
@@ -28,6 +30,8 @@ typedef struct thread_args {
   uint64_t* indices;
   uint64_t num_cores;
   uint64_t initial_index;
+  uint64_t* myvals;
+  uint64_t count;
 } thread_args;
 
 void consumer(thread* me, void * void_args) {
@@ -37,8 +41,13 @@ void consumer(thread* me, void * void_args) {
 
   while( max-- ) {
     uint64_t val = sq_consume(q, me);
+  //  args->myvals[max-1] = val;
+    if (val>6000000){ // XXX avoiding segfaults
+    //printf("%lu: val=%lu\n", max,val);
     (*((uint64_t*) val))++;
   }
+  }
+
 }
 
 void producer(thread* me, void * void_args) {
@@ -50,6 +59,7 @@ void producer(thread* me, void * void_args) {
   uint64_t initial_index = args->initial_index;
 
   for(uint64_t i = initial_index; i < initial_index + max; ++i) {
+    //__builtin_prefetch(&field[indices[i]], 0, 1);         
     sq_produce(q, (uint64_t) &field[indices[i]], me);
   }
   sq_flushQueue(q);
@@ -58,18 +68,24 @@ void producer(thread* me, void * void_args) {
 
 void multi_consumer(thread* me, void * void_args) {
   thread_args* args = (thread_args*) void_args;
-  uint64_t max = args->max;
+  args->count = 0;
+ // uint64_t max = args->max;
   SW_Queue q = args->q;
 
   while( true ) {
     uint64_t val = sq_consume(q, me);
     if (1 == val) return;
-    (*((uint64_t*) val))++;
+    if (val>1000) {  // XXX AVOIDING SEGFAULTS
+        (*((uint64_t*) val))++;
+    }
+    args->count++;
+//    args->max = val;
   }
 }
 
 void multi_producer(thread* me, void * void_args) {
   thread_args* args = (thread_args*) void_args;
+  args->count = 0;
   uint64_t max = args->max;
   SW_Queue* qs = args->qs;
   uint64_t* field = args->field;
@@ -77,27 +93,17 @@ void multi_producer(thread* me, void * void_args) {
   uint64_t num_cores = args->num_cores;
   uint64_t initial_index = args->initial_index;
 
-  switch (num_cores) {
-  case 1:
-  case 2:
-  case 4:
-  case 8:
-    for(uint64_t i = initial_index; i < initial_index + max; ++i) {
-      uint64_t addr = (uint64_t) &field[indices[i]];
-      int queue = (addr >> 3) & (num_cores - 1);
-      sq_produce(qs[queue], addr, me);
-    }
-    break;
-  default:
-    for(uint64_t i = initial_index; i < initial_index + max; ++i) {
-      uint64_t addr = (uint64_t) &field[indices[i]];
-      int queue = (addr >> 3) % num_cores;
-      sq_produce(qs[queue], addr, me);
-    }
-    break;
+  for (uint64_t i = initial_index; i<initial_index + max; ++i) {
+          uint64_t addr = (uint64_t) &field[indices[i]];
+          uint64_t queue = addr % num_cores; // partition
+          sq_produce(qs[queue], addr, me);
+          if(queue==num_cores-1)args->count++;
   }
 
   for(int i = 0; i < num_cores; ++i) {
+    sq_produce(qs[i], 1, me); // kill
+    sq_produce(qs[i], 1, me); // kill
+    sq_produce(qs[i], 1, me); // kill
     sq_produce(qs[i], 1, me); // kill
     sq_flushQueue(qs[i]);
   }
@@ -119,10 +125,12 @@ int main(int argc, char** argv) {
     uint64_t num_ups = num_ups_percore*num_threads;
 
    //printf("%lu fieldsize\n",fieldsize*sizeof(uint64_t)); 
-    //uint64_t* field = (uint64_t*)malloc(fieldsize*sizeof(uint64_t));
+//    uint64_t* field = (uint64_t*)malloc(fieldsize*sizeof(uint64_t));
     //int64_t min_field_alloc = (1 << 30) * (1 + fieldsize*sizeof(uint64_t) / (1 << 30));
     //uint64_t* field = get_huge_pages(min_field_alloc, GHP_DEFAULT);
-    uint64_t* field = (uint64_t*)get_hugepage_region(fieldsize*sizeof(uint64_t), GHR_STRICT );
+  
+    uint64_t* field = (uint64_t)get_hugepage_region(fieldsize*sizeof(uint64_t), GHR_STRICT );
+  
     if (field==0) {
         printf("malloc failed\n");
         exit(1);
@@ -141,58 +149,117 @@ int main(int argc, char** argv) {
     }
 
 
+    // likwid instrumentation
+    //////////////////
+    int regionId;
+    int coreId = 0;
+    int threadId = 0;
+
+    #pragma omp parallel
+    {
+        #pragma omp master
+        {
+         likwid_markerInit(num_threads, 1);
+         regionId = likwid_markerRegisterRegion("0");
+        }
+    }
+   regionId = likwid_markerGetRegionId("0");
+   ///////////// 
+
     struct timespec start;
     struct timespec end;
 
     clock_gettime(CLOCK_MONOTONIC, &start);
     if (isPartitioned) {
-      uint64_t num_cores = num_threads;
-#pragma omp parallel for num_threads(num_cores)
+      // TODO: make these args
+      uint64_t num_producers = 4;//num_threads; // up to 6 (todo:up to 12 if add odd cores)
+      uint64_t num_consumers = 2;
+      printf("num prod:%lu\n", num_producers);
+      uint64_t num_cores = num_producers+num_consumers;
+   //     int done = 0;
+#pragma omp parallel for num_threads(num_cores) private(coreId,threadId)
       for(int core = 0; core < num_cores; ++core) {
-	cpu_set_t set;
-	CPU_ZERO(&set);
-	if (core < 6) {
-	  CPU_SET(core*2,&set);
-	} else {
-	  CPU_SET((core-6)*2+1,&set);
-	}
-	sched_setaffinity(0, sizeof(cpu_set_t), &set);
 	
 	thread * master = thread_init();
 	scheduler * sched = create_scheduler(master);
-	
-	// add consumers
-	struct thread_args thread_args[12];
-	for(int i = 0; i < num_cores; ++i) {
-	  thread_args[i].max = num_ups/num_cores;
-	  thread_args[i].q = to[ i*num_cores + core ];
-	  thread_spawn(master, sched, multi_consumer, &thread_args[i]);
-	}
-	
-	// add producer
-	struct thread_args producer_args;
-	producer_args.max = num_ups / num_cores;
-	producer_args.qs = &to[ core*num_cores ];
-	producer_args.field = field;
-	producer_args.indices = indices;
-	producer_args.num_cores = num_cores;
-	producer_args.initial_index = core * num_ups / num_cores;
-	thread_spawn(master, sched, multi_producer, &producer_args);
+    
+    cpu_set_t set;
+	CPU_ZERO(&set);
+	if (core < num_producers) {  // producer cores
+	  CPU_SET(core*2,&set);
+  //    sched_setaffinity(0, sizeof(cpu_set_t), &set);
+      struct thread_args producer_args;
+      producer_args.max = num_ups / num_producers; // number this producer will produce
+      producer_args.qs = &to[ core*num_consumers ]; // start index of queues
+      producer_args.field = field;
+      producer_args.indices = indices;
+      producer_args.num_cores = num_consumers; // number of queues to publish to
+      producer_args.initial_index = core * num_ups / num_producers; // initial index of indices to work on
+      thread* t = thread_spawn(master, sched, multi_producer, &producer_args);
+      //printf("start producer on HT:%lu\n", core*2);
+      /***likwid***/
+      threadId = omp_get_thread_num();
+      coreId = likwid_threadGetProcessorId();
+      likwid_markerStartRegion(threadId,coreId);
+      /************/
+      run_all(sched); // only one coro...
+      likwid_markerStopRegion(threadId,coreId,regionId);
 
-	run_all(sched);
-	//destroy_scheduler(sched);
-	//destroy_thread(master);
+      //multi_producer(NULL, &producer_args);
+      printf("producer %lu yield_count=\t%lu\n", core*2, t->yield_count);
+    //  while(!done)
+        //printf("finish producer on HT:%lu with count=%lu\n", core*2, producer_args.count);
+    //} else if (core==num_hts){
+      //      CPU_SET(core*2,&set);
+        //    sched_setaffinity(0,sizeof(cpu_set_t),&set);
+     //   while(!done)
+       //     printf("countert %lu last:%lu\n", thread_args[0].count,thread_args[0].max);
+    }else { // consumer cores (ht)
+	    CPU_SET(2*(core-num_cores)+12,&set);
+//        sched_setaffinity(0, sizeof(cpu_set_t), &set);
+
+	    struct thread_args thread_args[12];
+        thread* threads[12];
+        // add consumers
+	    for(int i = 0; i < num_producers; ++i) {      // one coro consumer per core q
+//	        thread_args[i].max = num_ups/num_cores;
+	        thread_args[i].q = to[ i*num_consumers + (core-num_producers) ];
+	        threads[i] = thread_spawn(master, sched, multi_consumer, &thread_args[i]);
+	    }
+        //printf("running consumers on HT:%lu\n", core*2);
+      
+       /***likwid***/
+      threadId = omp_get_thread_num();
+      coreId = likwid_threadGetProcessorId();
+      likwid_markerStartRegion(threadId,coreId);
+      /************/
+      run_all(sched); // only one coro...
+      likwid_markerStopRegion(threadId,coreId,regionId);
+
+        unsigned int yield_total=0;
+        for (int i=0;i<num_producers;++i) {
+            yield_total+=threads[i]->yield_count;
+        }
+        printf("consumer core %lu totly=\t%lu\n", 2*(core-num_cores)+12,yield_total);
+        //printf("finish consumers on HT:%lu\n", core*2);
+        //for (int i=0; i<num_cores; ++i) printf("consumer HT:%lu,%d count=%lu\n",core*2,i,thread_args[i].count);
+        //done = 1;
+    }
       }
-    } else if (isDelegated) {
+      /***likwid***/
+      likwid_markerClose();
+      /************/
+
+    } else if (isDelegated) {  
       uint64_t num_cores = num_threads;
 # pragma omp parallel for num_threads(num_cores+1) 
-      for(int core = 0; core <= num_cores; ++core) {
+      for(int core = 0; core <= num_cores; ++core) { // uses one extra core as delegate
 	if (core == num_cores) {
 
 	  // consumer
 #pragma omp task 
 	  {
-	    cpu_set_t set;
+/*	    cpu_set_t set;
 	    CPU_ZERO(&set);
 	    if (core < 6) {
 	      CPU_SET(core*2,&set);
@@ -200,18 +267,24 @@ int main(int argc, char** argv) {
 	      CPU_SET(12,&set);
 	    }
 	    sched_setaffinity(0, sizeof(cpu_set_t), &set);
-	    
+*/	    
 	    uint64_t max = num_ups / num_cores;
 	    thread * master = thread_init();
 	    scheduler * sched = create_scheduler(master);
-	    thread * threads[12] = { NULL };
+	    //thread * threads[12] = { NULL };
+        //uint64_t vals[12][max];
 	    struct thread_args args[12];
 	    for (int i = 0; i < num_cores; ++i) {
-	      args[i].max = max;
+	      //printf("being  called \n");
+          args[i].max = max;
 	      args[i].q = to[i];
-	      threads[i] = thread_spawn(master, sched, consumer, &args[i]);
+          //args[i].myvals = vals[i];
+	      /*threads[i] =*/ thread_spawn(master, sched, consumer, &args[i]);
 	    }
 	    run_all(sched);
+        /*for (int i=max-1; i>=0; i--) {
+         //   printf("%lu: val=%lu\n",max,vals[0][i]);
+        }*/
 	    //destroy_scheduler(sched);
 	    //destroy_thread(master);
 	  }
@@ -220,7 +293,7 @@ int main(int argc, char** argv) {
 	  // producer
 #pragma omp task 
 	  {
-	    cpu_set_t set;
+/*	    cpu_set_t set;
 	    CPU_ZERO(&set);
 	    if (core < 6) {
 	      CPU_SET(core*2,&set);
@@ -228,7 +301,7 @@ int main(int argc, char** argv) {
 	      CPU_SET((core-6)*2+1,&set);
 	    }
 	    sched_setaffinity(0, sizeof(cpu_set_t), &set);
-
+*/
 	    thread * master = thread_init();
 	    scheduler * sched = create_scheduler(master);
 	    thread * thread = NULL;
@@ -247,21 +320,36 @@ int main(int argc, char** argv) {
 	}
       }
     } else if (isAtomic) {
-        #pragma omp parallel num_threads(num_threads)
+        #pragma omp parallel num_threads(num_threads) private(threadId,coreId)
         {
+        /***likwid***/
+        //threadId = omp_get_thread_num();
+        //coreId = likwid_threadGetProcessorId();
+        //likwid_markerStartRegion(threadId,coreId);
+        /************/
+         
          #pragma omp for
          for (uint64_t i=0; i<num_ups; i++) {             // omp will give num_ups_percore to each thread
              __sync_fetch_and_add(&field[indices[i]], 1);
          }
+       //  likwid_markerStopRegion(threadId,coreId,regionId);
         }
+       // likwid_markerClose();
     } else {
-         #pragma omp parallel num_threads(num_threads)
+         #pragma omp parallel num_threads(num_threads) private(threadId,coreId)
         {
+         /***likwid***/
+    //    threadId = omp_get_thread_num();
+   //     coreId = likwid_threadGetProcessorId();
+   //     likwid_markerStartRegion(threadId,coreId);
+        /************/
          #pragma omp for
          for (uint64_t i=0; i<num_ups; i++) {            // omp will give num_ups_percore to each thread
              field[indices[i]]++;
          }
+     //    likwid_markerStopRegion(threadId,coreId,regionId);
         }
+       // likwid_markerClose();
     }
         
     
@@ -269,7 +357,7 @@ int main(int argc, char** argv) {
     clock_gettime(CLOCK_MONOTONIC, &end);
 
     uint64_t runtime_ns = get_timediff_ns(&start, &end);
-    printf("%llu\n", field[indices[0]]);
+    printf("%lu\n", field[indices[rand()%num_ups]]);
     float gups = ((float)num_ups)/(runtime_ns);
     float mbperitem = sizeof(uint64_t)/((float)MILLION);
     float gupdates = num_ups/((float)BILLION);
@@ -287,7 +375,7 @@ uint64_t* getIndices(uint64_t fieldsize, uint64_t num, int isRandom, int num_thr
   //uint64_t* indices = (uint64_t*)malloc(num*sizeof(uint64_t));
   //int64_t min_indices_alloc = (1 << 30) * (1 + num*sizeof(uint64_t) / (1 << 30));
   //uint64_t* indices = get_huge_pages(min_indices_alloc, GHP_DEFAULT);
-  uint64_t* indices = (uint64_t*)get_hugepage_region(num*sizeof(uint64_t), GHR_STRICT );
+  uint64_t* indices = (uint64_t*)get_hugepage_region (num*sizeof(uint64_t), GHR_STRICT);
 
     if (isRandom) { 
         unsigned int seedp;
