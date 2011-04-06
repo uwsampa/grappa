@@ -1,5 +1,6 @@
 NTHR=8
-CFLAGS = -O2 -std=gnu99 -Wall -Wextra -g -D NTHR=$(NTHR) -fopenmp -lm
+HYP=HYPER
+CFLAGS = -O2 -std=gnu99 -Wall -Wextra -g -D NTHR=$(NTHR) -D$(HYP) -fopenmp -lm
 LDLIBS= -lrt -fopenmp
 all: jumpthreads yield_bench pchase rand newton
 

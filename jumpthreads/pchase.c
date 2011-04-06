@@ -1,7 +1,10 @@
+#define _GNU_SOURCE
 #include <assert.h>
+#include <sched.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <sys/time.h>
+#include <sys/types.h>
 #include <time.h>
 #include <sys/timeb.h>
 #include <inttypes.h>
@@ -110,6 +113,7 @@ void threaded_chase(node **starts) {
 
 uint64_t chase_test(int ncores, long long chases, int threads,
                     node *arr) {
+  int realcores = ncores;
   int threaded = 1;
   if (ncores < 0) {
     threaded = 0;
@@ -123,11 +127,42 @@ uint64_t chase_test(int ncores, long long chases, int threads,
   node *starts[threads];
   pointerify(arr, len, threads, starts);
   uint64_t before = get_ns();
-  #pragma omp parallel for num_threads(ncores)
-  for (int c = 0; c < ncores; ++c) {
+  uint64_t times[ncores];
+#define DEADTHR 1
+  #pragma omp parallel for num_threads(ncores+DEADTHR)
+  for (int d = 0; d < ncores+DEADTHR; ++d) {
+    int c = d-DEADTHR;
+    if (d < DEADTHR) {
+      cpu_set_t cset;
+      CPU_ZERO(&cset);
+      for (int i = 1; i <24; i+=2) {
+        CPU_SET(i, &cset);
+      }
+      sched_setaffinity(0, sizeof(cpu_set_t), &cset);
+    } else {
+    cpu_set_t cset;
+    CPU_ZERO(&cset);
+    int mycore;
+    // very specific to n01, socket 0
+    #ifdef HYPER
+    mycore = c + (c%2)*11;
+    #else
+      #ifdef NOHYPER
+      mycore = 2*c; 
+      #else
+      #error define HYPER or NOHYPER.
+      #endif
+    #endif
+    #pragma omp critical
+    {
+      printf("%d %d: core %d\n", c, omp_get_thread_num(), mycore);
+      }
+    CPU_SET(mycore, &cset);
+
+    sched_setaffinity(0, sizeof(cpu_set_t), &cset);
     uint64_t loc_b, loc_a;
     if (threaded) {
-      assert (threads == NTHR*ncores);
+      assert (threads == NTHR * ncores);
       loc_b = get_ns();
       threaded_chase(starts + c*NTHR);
       loc_a = get_ns();
@@ -137,19 +172,39 @@ uint64_t chase_test(int ncores, long long chases, int threads,
       loc_a = get_ns();
      
     }
-    #pragma omp critical
-    {
-      printf("balance: %d,%d,%d: %lu\n", (-1+2*threaded)*ncores, NTHR,
-             c, loc_a - loc_b);
+    uint64_t loctime;
+    loctime = loc_a - loc_b;
+    times[c] = loctime;
     }
   }
   uint64_t after = get_ns();
+  uint64_t mint = -1, maxt = 0;
+  for (int i = 0; i < ncores; ++i) {
+    printf("time %d,%d,%d: %lu\n", realcores, NTHR, i, times[i]);
+    if (mint > times[i]) mint = times[i];
+    if (maxt < times[i]) maxt = times[i];
+  }
+  double balance = maxt;
+  balance /= mint;
+  printf("total: %lu\n", after - before);
+  printf("balance: %f\n", balance);
   //  free(arr);
   //  free(starts);
   return (after - before);
 }
 
+
+static unsigned int goodseed() {
+  FILE *urandom = fopen("/dev/urandom", "r");
+  unsigned int seed;
+  assert(1 == fread(&seed, sizeof(unsigned int), 1, urandom));
+  fclose(urandom);
+
+  return seed;
+}
+
 int main(int argc, char *argv[]) {
+  srand(1);
   if (argc != 4) {
     printf("Usage: %s <cores> <chases> <ignored>\n", argv[0]);
     exit(1);
@@ -158,9 +213,20 @@ int main(int argc, char *argv[]) {
   // so any number of cores + threads we're likely to choose will work
   // 554400000 is about 4 gigabytes
   long long basechases = strtoll(argv[2], NULL, 0);
-  node *arr = calloc(sizeof(node), basechases + NTHR*6);
+  #define MTHR 16384
+  #if MTHR < NTHR
+  #error too many threads
+  #endif
+  printf("arr: %llu\n",basechases+MTHR*12);
+  node *arr = calloc(sizeof(node), basechases + MTHR*12);
+  assert(arr != NULL);
   //for (int ncores = 6; ncores >= -6; --ncores) {
   int ncores = strtol(argv[1], NULL, 0);
+  assert (-6 <= ncores);
+  assert (ncores <= 6);
+  #ifdef HYPER
+  ncores *= 2;
+  #endif
     long long chases = basechases;
     int threads;
     if (ncores < 0) {
@@ -168,7 +234,7 @@ int main(int argc, char *argv[]) {
     } else {
       threads = NTHR*ncores;
     }
-
+    assert(threads <= MTHR*12);
     chases += (threads-(chases %threads))% threads;
 
     //  int ncores = strtol(argv[1], NULL, 0);
@@ -185,4 +251,5 @@ int main(int argc, char *argv[]) {
     }
     // if (ncores == 1) ncores--;
     //}
+    free(arr);
 }
