@@ -51,39 +51,46 @@ uint64_t *genperm(uint64_t n) {
 
 typedef struct node {
   struct node *next;
-  char padding[56];
+  uint64_t id;
+  char padding[48];
 } node;
 
 void pointerify(node *arr, uint64_t len, int threads, node **starts) {
   assert(len <= RAND_MAX);
+  #pragma omp parallel for
   for (uint64_t i = 0; i < len; ++i) {
-    arr[i].next = &arr[i];
+    arr[i].id = i;
   }
-  // similar to Fisher-Yates but subtly different; produces one (random) cycle
-  // of pointers. pf: exercise for the reader.
-  for (uint64_t i = len - 2; i >= 0; --i) {
-    uint64_t j = rand_range(i+1,len);
-    node *temp = arr[i].next;
-    arr[i].next = arr[j].next;
-    arr[j].next = temp;
-    if (i == 0) break;
+  for (uint64_t i = len-1; i > 0; --i) {
+    uint64_t j = rand_range(0,i+1);
+    uint64_t temp = arr[i].id;
+    arr[i].id = arr[j].id;
+    arr[j].id = temp;
   }
-  // alas we have to chase the entire thing once to break it into sections
+  node **locs = calloc(sizeof(node *), len);
+  #pragma omp parallel for
+  for (uint64_t i = 0; i < len; ++i) {
+    locs[arr[i].id] = &arr[i];
+  }
   uint64_t stride = len / threads;
-  uint64_t seen = 0;
   int started = 0;
-  node *curr = &arr[rand_range(0,len)];
-  starts[started++] = curr;
-  while (seen < len) {
-    node *n = curr->next;
-    if (++seen % stride == 0) {
-      if (seen < len) {
-        starts[started++] = n;
+  #pragma omp parallel for
+  for (uint64_t i = 0; i < len; ++i) {
+    node *curr = locs[i];
+    if (i % stride == 0) {
+      starts[i/stride] = curr;
+      #pragma omp critical
+      {
+        started++;
       }
-      curr->next = NULL;
     }
-    curr = n;
+    if ((i+1) % stride == 0) {
+      curr->next = NULL;
+    } else {
+      curr->next = locs[i+1];
+    }
   }
+
   /*
   for (uint64_t i = 0; i < len; ++i) {
     printf("%p -> %p\n", &arr[i], arr[i].next);
@@ -95,7 +102,7 @@ void pointerify(node *arr, uint64_t len, int threads, node **starts) {
   printf("%d %d\n", started, seen);
 */
   assert(started == threads);
-  assert(seen == len);
+  free(locs);
 }
 
 void chase(node *start) {
@@ -113,6 +120,7 @@ void threaded_chase(node **starts) {
 
 uint64_t chase_test(int ncores, long long chases, int threads,
                     node *arr) {
+  uint64_t setupb = get_ns();
   int realcores = ncores;
   int threaded = 1;
   if (ncores < 0) {
@@ -126,6 +134,8 @@ uint64_t chase_test(int ncores, long long chases, int threads,
   assert(sizeof(node) == 64);
   node *starts[threads];
   pointerify(arr, len, threads, starts);
+  uint64_t setupa = get_ns();
+  printf("setup: %lu\n", setupa - setupb);
   uint64_t before = get_ns();
   uint64_t times[ncores];
 #define DEADTHR 1
@@ -220,36 +230,31 @@ int main(int argc, char *argv[]) {
   printf("arr: %llu\n",basechases+MTHR*12);
   node *arr = calloc(sizeof(node), basechases + MTHR*12);
   assert(arr != NULL);
-  //for (int ncores = 6; ncores >= -6; --ncores) {
   int ncores = strtol(argv[1], NULL, 0);
   assert (-6 <= ncores);
   assert (ncores <= 6);
   #ifdef HYPER
   ncores *= 2;
   #endif
-    long long chases = basechases;
-    int threads;
-    if (ncores < 0) {
-      threads = -ncores;
-    } else {
-      threads = NTHR*ncores;
-    }
-    assert(threads <= MTHR*12);
-    chases += (threads-(chases %threads))% threads;
-
-    //  int ncores = strtol(argv[1], NULL, 0);
-    for (int i = 0; i < 3; ++i) {
-      uint64_t elapsed = 0;
-      elapsed += chase_test(ncores, chases, threads, arr);
-      double avg = chases;
-      avg *= 1000;
-      // avg *= abs(ncores);
-      // avg *= ncores > 0 ? NTHR : 1;
-      printf("%f\n", avg);
-      avg /= elapsed;
-      printf("%fM chases/s (%d threads, %d cores)\n", avg, NTHR, ncores);
-    }
-    // if (ncores == 1) ncores--;
-    //}
-    free(arr);
+  long long chases = basechases;
+  int threads;
+  if (ncores < 0) {
+    threads = -ncores;
+  } else {
+    threads = NTHR*ncores;
+  }
+  assert(threads <= MTHR*12);
+  chases += (threads-(chases %threads))% threads;
+  for (int i = 0; i < 3; ++i) {
+    uint64_t elapsed = 0;
+    elapsed += chase_test(ncores, chases, threads, arr);
+    double avg = chases;
+    avg *= 1000;
+    // avg *= abs(ncores);
+    // avg *= ncores > 0 ? NTHR : 1;
+    printf("%f\n", avg);
+    avg /= elapsed;
+    printf("%fM chases/s (%d threads, %d cores)\n", avg, NTHR, ncores);
+  }
+  free(arr);
 }
