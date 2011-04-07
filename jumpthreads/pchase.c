@@ -147,7 +147,6 @@ void pointerify(node *arr, uint64_t len, int threads, node **starts) {
   
   uint64_t placea = get_ns();
   printf("place: %f\n", ((double)placea - placeb)/n);
-  exit(1);
 }
 
 void chase(node *start) {
