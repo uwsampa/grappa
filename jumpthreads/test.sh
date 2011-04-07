@@ -2,15 +2,26 @@
 
 CHASES=$1
 OUTPUT=$2
+HYPER=$3
+CORES="-6 -5 -4 -3 -2 -1 1 2 3 4 5 6"
+if [ $HYPER = NOHYPER ]
+then
+PIN="0-11:2"
+elif [ $HYPER = HYPER ]
+then
+PIN="0,12,2,14,4,16,6,18,8,20,10,22"
+else
+ echo "bad value for HYPER: " $HYPER
+ exit 1
+fi
 
 echo > $OUTPUT
-for i in $(seq 1 1)
+for i in $(seq 1 32) 64 128 256 512 1024 2048 4096 8192
 do
-  make clean && make NTHR=$i
-#  for c in -6 -5 -4 -3 -2 -1 1 2 3 4 5 6
-  for c in -12 -10 -8 -6 -4 -2 2 4 6 8 10 12
+  make clean && make NTHR=$i HYP=$HYPER pchase 
+  for c in $CORES
   do
-#  GOMP_CPU_AFFINITY=0-11:2 hugectl --heap -- numactl --membind=0 -- ./pchase $c $CHASES $i >> $OUTPUT
-  GOMP_CPU_AFFINITY=0,12,2,14,4,16,6,18,8,20,10,22 hugectl --heap -- numactl --membind=0 -- ./pchase $c $CHASES $i >> $OUTPUT
+  echo $i $c
+  nice -n -20 hugectl --heap -- numactl --membind=0 -- ./pchase $c $CHASES $i >> $OUTPUT
   done
 done

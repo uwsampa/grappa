@@ -1,16 +1,10 @@
 #!/bin/sh
 # ghetto hack - should be fixed. place absolute path of this directory in LOCATION
-LOCATION=REPLACE
+LOCATION=$(dirname $0)
 INPUT=$1
 OUTPUT=$2
 REPS=$3
 TEMPLATE=$(tempfile)
-
-if [ $LOCATION = REPLACE ]
-then
-echo "set location"
-exit 1
-fi
 
 echo "" > $OUTPUT
 for i in $(seq 1 $REPS)
