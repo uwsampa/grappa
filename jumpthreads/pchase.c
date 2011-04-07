@@ -7,6 +7,7 @@
 #include <sys/types.h>
 #include <time.h>
 #include <sys/timeb.h>
+#include <string.h>
 #include <inttypes.h>
 
 static uint64_t get_ns()
@@ -21,32 +22,16 @@ static uint64_t get_ns()
 }
 
 // returns uniformly chosen integer in [i,j)
-static uint64_t rand_range(uint64_t i, uint64_t j) {
-  uint64_t spread = j - i;
-  uint64_t limit = RAND_MAX - RAND_MAX % spread;
-  uint64_t rnd;
+static int32_t rand_range(int32_t i, int32_t j, struct random_data *gen) {
+  int32_t spread = j - i;
+  int32_t limit = RAND_MAX - RAND_MAX % spread;
+  int32_t rnd;
   do {
-    rnd = rand();
+    assert(0 == random_r(gen, &rnd));
+    //rnd = random();
   } while (rnd >= limit);
   rnd %= spread;
   return (rnd + i);
-}
-
-
-uint64_t *genperm(uint64_t n) {
-  assert(n <= RAND_MAX);
-  uint64_t *perm = calloc(sizeof(uint64_t), n);
-  assert(perm != NULL);
-  for (uint64_t i = 0; i < n; ++i) {
-    perm[i] = i;
-  }
-  for (uint64_t i = n - 1; i > 0; --i) {
-    uint64_t j = rand_range(0, i+1);
-    uint64_t temp = perm[i];
-    perm[i] = perm[j];
-    perm[j] = temp;
-  }
-  return perm;
 }
 
 typedef struct node {
@@ -56,27 +41,66 @@ typedef struct node {
 } node;
 
 void pointerify(node *arr, uint64_t len, int threads, node **starts) {
-  assert(len <= RAND_MAX);
-  #pragma omp parallel for
-  for (uint64_t i = 0; i < len; ++i) {
-    arr[i].id = i;
+   uint64_t shuffb = get_ns();
+   assert(len <= RAND_MAX);
+  assert(len <= 2147483648);
+  int32_t n = len;
+  int32_t *perm = calloc(sizeof(int32_t), n);
+  for (int32_t i = 0; i < n; ++i) {
+    perm[i] = i;
   }
-  for (uint64_t i = len-1; i > 0; --i) {
-    uint64_t j = rand_range(0,i+1);
-    uint64_t temp = arr[i].id;
-    arr[i].id = arr[j].id;
-    arr[j].id = temp;
+
+  uint64_t permb = get_ns();
+  #define PERMTHR 6
+#pragma omp parallel for num_threads(PERMTHR)
+  for (int c = 0; c < PERMTHR; ++c) {
+    assert (n % PERMTHR == 0);
+    int chunksize = n/PERMTHR;
+    int32_t *locperm = perm + chunksize*c;
+    struct random_data gen;
+    memset(&gen, 0, sizeof(gen));
+    char state[128];
+    // should probably pick a good seed
+    initstate_r(c, state, 128, &gen);
+    for (int i = 0; i < chunksize; ++i) {
+      int32_t j = rand_range(0,i+1,&gen);
+      int32_t temp = locperm[i];
+      locperm[i] = locperm[j];
+      locperm[j] = temp;
+    }
+    #pragma omp critical
+    {
+      printf("c: %d\n", c);
+    }
+    #pragma omp barrier
+    assert (chunksize % PERMTHR == 0);
+    int shufflesize = chunksize/PERMTHR;
+    for (int i = 0; i < shufflesize; ++i) {
+      int32_t ruffle[PERMTHR];
+      for (int j = 0; j < PERMTHR; ++j) {
+        ruffle[j] = perm[j*chunksize+c*shufflesize+i];
+      }
+      for (int k = 0; k < PERMTHR; ++k) {
+        int32_t w = rand_range(0,k+1,&gen);
+        int32_t temp = ruffle[k];
+        ruffle[k] = ruffle[w];
+        ruffle[w] = temp;
+      }
+      for (int j = 0; j < PERMTHR; ++j) {
+        perm[j*chunksize+c*shufflesize+i] = ruffle[j];
+      }
+    }
   }
-  node **locs = calloc(sizeof(node *), len);
-  #pragma omp parallel for
-  for (uint64_t i = 0; i < len; ++i) {
-    locs[arr[i].id] = &arr[i];
-  }
-  uint64_t stride = len / threads;
+
+  uint64_t perma = get_ns();
+  printf("perm: %f ns/point\n", ((double)perma - permb)/len);
+
+  int32_t stride = n / threads;
   int started = 0;
+  uint64_t placeb = get_ns();
   #pragma omp parallel for
-  for (uint64_t i = 0; i < len; ++i) {
-    node *curr = locs[i];
+  for (int32_t i = 0; i < n; ++i) {
+    node *curr = &arr[perm[i]];
     if (i % stride == 0) {
       starts[i/stride] = curr;
       #pragma omp critical
@@ -87,9 +111,11 @@ void pointerify(node *arr, uint64_t len, int threads, node **starts) {
     if ((i+1) % stride == 0) {
       curr->next = NULL;
     } else {
-      curr->next = locs[i+1];
+      curr->next = &arr[perm[i+1]];
     }
   }
+  uint64_t placea = get_ns();
+  printf("place: %f ns/point\n", ((double)placea - placeb)/len);
 
   /*
   for (uint64_t i = 0; i < len; ++i) {
@@ -102,7 +128,10 @@ void pointerify(node *arr, uint64_t len, int threads, node **starts) {
   printf("%d %d\n", started, seen);
 */
   assert(started == threads);
-  free(locs);
+  free(perm);
+  uint64_t shuffa = get_ns();
+  printf("shuff: %f ns/point\n", ((double)shuffa - shuffb)/len);
+  exit(0);
 }
 
 void chase(node *start) {
