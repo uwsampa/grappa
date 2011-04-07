@@ -21,6 +21,15 @@ static uint64_t get_ns()
   return ns;
 }
 
+static unsigned int goodseed() {
+  FILE *urandom = fopen("/dev/urandom", "r");
+  unsigned int seed;
+  assert(1 == fread(&seed, sizeof(unsigned int), 1, urandom));
+  fclose(urandom);
+
+  return seed;
+}
+
 // returns uniformly chosen integer in [i,j)
 static int32_t rand_range(int32_t i, int32_t j, struct random_data *gen) {
   int32_t spread = j - i;
@@ -40,52 +49,71 @@ typedef struct node {
   char padding[48];
 } node;
 
+typedef struct sync {
+  int32_t val;
+  char padding[56];
+} sync;
+
 void pointerify(node *arr, uint64_t len, int threads, node **starts) {
   assert(len <= RAND_MAX);
   assert(len <= 2147483648);
+  uint64_t permb = get_ns();
   int32_t n = len;
   int32_t *perm = calloc(sizeof(int32_t), n);
-  for (int32_t i = 0; i < n; ++i) {
+  assert(perm != NULL);
+  /*  for (int32_t i = 0; i < n; ++i) {
     perm[i] = i;
   }
+  */
+  
+  #define CHUNKS 128
+  sync locperms[CHUNKS];
+  sync locends[CHUNKS];
+  assert (n % CHUNKS == 0);
+  int chunksize = n/CHUNKS;
+  for (int i = 0; i < CHUNKS; ++i) {
+    locperms[i].val = chunksize*i;
+    locends[i].val = chunksize*(i+1);
+  }
 
-  #define PERMTHR 6
-#pragma omp parallel for num_threads(PERMTHR)
-  for (int c = 0; c < PERMTHR; ++c) {
-    assert (n % PERMTHR == 0);
-    int chunksize = n/PERMTHR;
-    int32_t *locperm = perm + chunksize*c;
-    struct random_data gen;
-    memset(&gen, 0, sizeof(gen));
+  #pragma omp parallel
+  {
+    struct random_data rdata;
+    memset(&rdata, 0, sizeof(rdata));
+
     char state[128];
-    // should probably pick a good seed
-    initstate_r(c, state, 128, &gen);
-    for (int i = 0; i < chunksize; ++i) {
-      int32_t j = rand_range(0,i+1,&gen);
-      int32_t temp = locperm[i];
-      locperm[i] = locperm[j];
-      locperm[j] = temp;
+    // better seeds would be a great plan
+    int seed = goodseed();
+    #pragma omp critical
+    {
+      printf("seeding thread %d with %d\n", omp_get_thread_num(), seed);
     }
-    #pragma omp barrier
-    assert (chunksize % PERMTHR == 0);
-    int shufflesize = chunksize/PERMTHR;
-    for (int i = 0; i < shufflesize; ++i) {
-      int32_t ruffle[PERMTHR];
-      for (int j = 0; j < PERMTHR; ++j) {
-        ruffle[j] = perm[j*chunksize+c*shufflesize+i];
-      }
-      for (int k = 0; k < PERMTHR; ++k) {
-        int32_t w = rand_range(0,k+1,&gen);
-        int32_t temp = ruffle[k];
-        ruffle[k] = ruffle[w];
-        ruffle[w] = temp;
-      }
-      for (int j = 0; j < PERMTHR; ++j) {
-        perm[j*chunksize+c*shufflesize+i] = ruffle[j];
+    initstate_r(seed, state, 128, &rdata);
+    #pragma omp for
+    for (int i = 0; i < n; ++i) {
+      int choice;
+      int p,e;
+      do {
+        choice = rand_range(0, CHUNKS, &rdata);
+        p = __sync_fetch_and_add(&(locperms[choice].val), 1);
+        e = locends[choice].val;
+      } while(p >= e);
+      perm[p] = i;
+    }
+    #pragma omp for
+    for (int c = 0; c < CHUNKS; ++c) {
+      int32_t *local = perm+chunksize*c;
+      for (int i = chunksize - 1; i > 0; --i) {
+        int j = rand_range(0,i+1, &rdata);
+        int32_t temp = local[i];
+        local[i] = local[j];
+        local[j] = temp;
       }
     }
   }
-
+  uint64_t perma = get_ns();
+  printf("perm: %f\n", ((double)perma - permb)/n);
+  uint64_t placeb = get_ns();
   int32_t stride = n / threads;
   int started = 0;
   #pragma omp parallel for
@@ -116,6 +144,10 @@ void pointerify(node *arr, uint64_t len, int threads, node **starts) {
 */
   assert(started == threads);
   free(perm);
+  
+  uint64_t placea = get_ns();
+  printf("place: %f\n", ((double)placea - placeb)/n);
+  exit(1);
 }
 
 void chase(node *start) {
@@ -217,15 +249,6 @@ uint64_t chase_test(int ncores, long long chases, int threads,
   return (after - before);
 }
 
-
-static unsigned int goodseed() {
-  FILE *urandom = fopen("/dev/urandom", "r");
-  unsigned int seed;
-  assert(1 == fread(&seed, sizeof(unsigned int), 1, urandom));
-  fclose(urandom);
-
-  return seed;
-}
 
 int main(int argc, char *argv[]) {
   srand(1);
