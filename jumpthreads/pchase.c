@@ -41,8 +41,7 @@ typedef struct node {
 } node;
 
 void pointerify(node *arr, uint64_t len, int threads, node **starts) {
-   uint64_t shuffb = get_ns();
-   assert(len <= RAND_MAX);
+  assert(len <= RAND_MAX);
   assert(len <= 2147483648);
   int32_t n = len;
   int32_t *perm = calloc(sizeof(int32_t), n);
@@ -50,7 +49,6 @@ void pointerify(node *arr, uint64_t len, int threads, node **starts) {
     perm[i] = i;
   }
 
-  uint64_t permb = get_ns();
   #define PERMTHR 6
 #pragma omp parallel for num_threads(PERMTHR)
   for (int c = 0; c < PERMTHR; ++c) {
@@ -67,10 +65,6 @@ void pointerify(node *arr, uint64_t len, int threads, node **starts) {
       int32_t temp = locperm[i];
       locperm[i] = locperm[j];
       locperm[j] = temp;
-    }
-    #pragma omp critical
-    {
-      printf("c: %d\n", c);
     }
     #pragma omp barrier
     assert (chunksize % PERMTHR == 0);
@@ -92,12 +86,8 @@ void pointerify(node *arr, uint64_t len, int threads, node **starts) {
     }
   }
 
-  uint64_t perma = get_ns();
-  printf("perm: %f ns/point\n", ((double)perma - permb)/len);
-
   int32_t stride = n / threads;
   int started = 0;
-  uint64_t placeb = get_ns();
   #pragma omp parallel for
   for (int32_t i = 0; i < n; ++i) {
     node *curr = &arr[perm[i]];
@@ -114,9 +104,6 @@ void pointerify(node *arr, uint64_t len, int threads, node **starts) {
       curr->next = &arr[perm[i+1]];
     }
   }
-  uint64_t placea = get_ns();
-  printf("place: %f ns/point\n", ((double)placea - placeb)/len);
-
   /*
   for (uint64_t i = 0; i < len; ++i) {
     printf("%p -> %p\n", &arr[i], arr[i].next);
@@ -129,16 +116,17 @@ void pointerify(node *arr, uint64_t len, int threads, node **starts) {
 */
   assert(started == threads);
   free(perm);
-  uint64_t shuffa = get_ns();
-  printf("shuff: %f ns/point\n", ((double)shuffa - shuffb)/len);
-  exit(0);
 }
 
 void chase(node *start) {
   node *n;
+  int c = 0;
   while((n = start->next) != 0) {
+    start->next = NULL;
     start = n;
- } 
+    c++;
+  }
+  printf("%p: %d\n", start, c);
 }
 
 void threaded_chase(node **starts) {
@@ -149,7 +137,6 @@ void threaded_chase(node **starts) {
 
 uint64_t chase_test(int ncores, long long chases, int threads,
                     node *arr) {
-  uint64_t setupb = get_ns();
   int realcores = ncores;
   int threaded = 1;
   if (ncores < 0) {
@@ -163,12 +150,10 @@ uint64_t chase_test(int ncores, long long chases, int threads,
   assert(sizeof(node) == 64);
   node *starts[threads];
   pointerify(arr, len, threads, starts);
-  uint64_t setupa = get_ns();
-  printf("setup: %lu\n", setupa - setupb);
   uint64_t before = get_ns();
   uint64_t times[ncores];
 #define DEADTHR 1
-  #pragma omp parallel for num_threads(ncores+DEADTHR)
+#pragma omp parallel for num_threads(ncores+DEADTHR)
   for (int d = 0; d < ncores+DEADTHR; ++d) {
     int c = d-DEADTHR;
     if (d < DEADTHR) {
