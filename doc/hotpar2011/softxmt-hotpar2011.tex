@@ -1,7 +1,9 @@
 %% move stuff to defs file
+
+%command inserts todo/comment
 \newcommand{\todo}[1]{{\bfseries [[#1]]}}
 %% To disable, just uncomment this line
- \renewcommand{\todo}[1]{\relax}
+% \renewcommand{\todo}[1]{\relax}
 
 \newcommand{\mrps}[0]{Mref/s}
 
@@ -97,7 +99,7 @@ commodity machine's memory. Their low diameter means that they are
 difficult to lay out with locality: every vertex needs to be near every
 other vertex. Their power law distribution means that a few vertices
 generate much more work than the rest, leading to load
-imbalances. Together, these properties lead to a
+imbalances. Together, these properties \todo{including power law distr?} lead to a
 difficult conclusion: each edge traversal is likely to lead to a very
 expensive inter-node communication.
 
@@ -192,7 +194,7 @@ address space. We do so via software multithreading: computation that
 is about to execute a long latency operation (e.g. a remote memory
 reference) initiates the operation and then yields to the scheduler,
 which quickly resumes execution of another computation.  Concurrency
-is also used---via aggregation of requests to a common node
+is also used\todo{vague}---via aggregation of requests to a common node
 destination---to make more efficient use of network bandwidth and in
 some cases reduce bandwidth demands.
 
@@ -224,7 +226,7 @@ spread across multiple nodes.  Our implementation must provide three features:
 
 \item[Low overhead synchronization:] 
 %  We must support global synchronization between threads that allows unrelated threads to proceed unblocked.
-  A thread that is synchronizing must yield its core to allow others to make progress.
+  A thread that is synchronizing must yield its core to allow others to make progress. \todo{repetitive with the previous item}
 \end{description}
 We discuss our approach to solving each of these challenges in
 turn. For each one, we discuss both our current single-node
@@ -247,6 +249,7 @@ achieve concurrency.
 %minimum number of registers allowed by the ABI, and 
 %Simon:  not really true -- we could save fewer if we knew which of the
 %callee save registers weren't going to be clobbered.
+\todo{decide whether to change these 2 paragraphs to be inclusive of other lightweight implementations, like jump table}
 We treat context switches as function calls, as in~\cite{charm}. This allows us 
 to depend on the compiler to save and restore caller-save registers while we explicitly save and restore all the callee-save registers.  We minimize
 context switch time by doing all switching and scheduling in user space.
@@ -281,7 +284,7 @@ A read operation in user code consists of three steps: a {\em read
 causes another thread to start executing, overlapping the read
 latency; and, once the reading thread has been rescheduled, a {\em
   read complete} blocks until the data is available. A write operation
-follow the same pattern.
+follows the same pattern.
 
 %\paragraph{Single-node implementation.}
 In our single-node implementation, we use prefetch instructions for the issue operation, and regular
@@ -560,7 +563,7 @@ results are very close to the ILP-only experiment, but more concurrent requests 
 We observe a gradual decrease in reference rate once the number of
 concurrent references per core exceeds 10; we believe this is due to
 later prefetches squashing earlier ones in the line fill buffers. In the real runtime we expect this effect will not exist, since prefetch will not be implemented with built-in non-temporal prefetch instructions. We
-also observe many points that do not follow the trend are below the max, but these results are repeatable. This effect is harder to explain, but we suspect it is
+also observe many points that do not follow the trend are below the max, and these results are repeatable. This effect is harder to explain, but we suspect it is
 due to resource contention in the cores' pipelines once the memory
 system is full of requests. 
 
@@ -689,7 +692,7 @@ computation using commodity parts. We leverage decades-old ideas on
 using a large amount of concurrency to tolerate latencies; but we do so
 mostly in software. We developed a runtime system for latency
 tolerance and our results showed that it is able to manage enough
-concurrency to tolerate long latencies to amortize the cost of
+concurrency to tolerate long latencies to hide the cost of
 expensive accesses to our large global memory system (high-latency,
 but high-bandwidth).
 
