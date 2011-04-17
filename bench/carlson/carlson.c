@@ -185,7 +185,11 @@ node_t** allocate_heap(uint64_t size, int num_threads, int num_lists) {
 #endif
   }
 
-  // initialize pointers
+    for(int i = 0; i < size; ++i) {
+    assert(locs[i] != NULL);
+  }
+
+// initialize pointers
   // chop id-space into num_lists sections and build a circular list for each
   //int64_t base = 0;
   //#pragma omp parallel for num_threads(num_threads)
@@ -200,10 +204,10 @@ node_t** allocate_heap(uint64_t size, int num_threads, int num_lists) {
     int64_t thread_size = size / num_lists;
     int64_t base = id / thread_size;
     uint64_t nextid = id + 1;
-    uint64_t wrapped_nextid = (nextid % thread_size) + (base * thread_size);
+    uint64_t wrapped_nextid = (nextid % thread_size) + (base * thread_size) % size;
     //printf("%d: %d %d %d\n", id, base, nextid, wrapped_nextid);
     current->next = locs[ wrapped_nextid ];
-    current->index = locs[ wrapped_nextid ]->id;
+    if (current->next) current->index = current->next->id;
   }
 
   // grab initial pointers for each list
@@ -389,13 +393,13 @@ int main(int argc, char *argv[]) {
   int64_t remote_size = ((int64_t)1) <<rflog; /* < #phys 64bit words */
 
   int64_t nproc_for_log = ncores;
-  int64_t nproclog = 0;
-  while((nproc_for_log >>= 1) >= 1) nproclog ++;
+//  int64_t nproclog = 0;
+  //  while((nproc_for_log >>= 1) >= 1) nproclog ++;
 
 
   int64_t tpc_for_log = threads_per_core;
-  int64_t tpclog = 0;
-  while((tpc_for_log >>= 1) >= 1) tpclog ++;
+  //int64_t tpclog = 0;
+  //while((tpc_for_log >>= 1) >= 1) tpclog ++;
 
   while((remote_size >>= 1) >= 1) rslog ++;
   remote_size = ((int64_t) 1) << rslog;
@@ -466,10 +470,11 @@ int main(int argc, char *argv[]) {
 
     //uint64_t per_thread_rslog = rslog - tpclog - nproclog;
     //uint64_t per_thread_rslog = rslog - tpclog; // - nproclog;
-    uint64_t per_thread_rslog = rslog - tpclog; // - tpclog - nproclog;
+    //uint64_t per_thread_rslog = rslog - tpclog; // - tpclog - nproclog;
     //printf("rslog %lu tpclog %lu nproclog %lu per_thread_rslog: %lu ", rslog, tpclog, nproclog, per_thread_rslog);
 
-    uint64_t per_thread_remote_size = ((int64_t) 1) << per_thread_rslog;
+    //uint64_t per_thread_remote_size = ((int64_t) 1) << per_thread_rslog;
+    uint64_t per_thread_remote_size = remote_size / threads_per_core;
     //printf("rslog: %ld per_thread_rslog: %ld per_thread_remote_size: %ld\n", rslog, per_thread_rslog, per_thread_remote_size);
 
     //struct timeval tv1;
@@ -504,8 +509,8 @@ int main(int argc, char *argv[]) {
 	la[i].id = i;
 	la[i].upra = local_updates_per_remote_access;
 	la[i].s = thread_footprint;
-	la[i].ls = tflog; // - tpclog;
-	la[i].rs = per_thread_rslog; //rslog;
+	la[i].ls = 0; //tflog; // - tpclog;
+	la[i].rs = 0; //per_thread_rslog; //rslog;
 	la[i].loc = local;
 	//la[i].rem = remote;
 	la[i].rem = remotes[ i * c ];
