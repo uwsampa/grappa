@@ -265,7 +265,7 @@ void loop(thread * me, void *arg) {
   while( la->iters-- ) {
   
     if (ISSUE_REMOTE_REFERENCE) {
-      __builtin_prefetch(&(remote_node->next));
+      __builtin_prefetch(&(remote_node->next), 0, 0);
     }
     
     thread_yield(me);
@@ -374,9 +374,6 @@ int main(int argc, char *argv[]) {
   int64_t thread_footprint = 1<<tflog;
   //int64_t thread_footprint = total_thread_footprint / threads_per_core / ncores;
 
-  int64_t ITERS = ((int64_t)1 << 24);
-  //int64_t ITERS = ((int64_t)1 << 24) / (ncores * threads_per_core);
-
   /* /\* we should change to allocate on processor local to particular core *\/ */
   /* node_t * local = malloc(thread_footprint*ncores*threads_per_core*sizeof(node_t)); */
   /* /\* probably not necessary to zero out memory, but it doesn't cost much *\/ */
@@ -389,8 +386,12 @@ int main(int argc, char *argv[]) {
   /* //bzero(remote, remote_size*sizeof(int64_t)); */
   /* initialize( remote, remote_size ); */
 
-  int64_t rslog = 0;
-  int64_t remote_size = ((int64_t)1) <<rflog; /* < #phys 64bit words */
+  int64_t rslog = rflog;
+  int64_t remote_size = ((int64_t)1) << rslog; /* < #phys 64bit words */
+
+  //int64_t ITERS = ((int64_t)1 << 24);
+  //int64_t ITERS = ((int64_t)1 << 24) / (ncores * threads_per_core);
+  uint64_t ITERS = remote_size / (ncores * threads_per_core);
 
   int64_t nproc_for_log = ncores;
 //  int64_t nproclog = 0;
@@ -401,8 +402,8 @@ int main(int argc, char *argv[]) {
   //int64_t tpclog = 0;
   //while((tpc_for_log >>= 1) >= 1) tpclog ++;
 
-  while((remote_size >>= 1) >= 1) rslog ++;
-  remote_size = ((int64_t) 1) << rslog;
+  //while((remote_size >>= 1) >= 1) rslog ++;
+  //remote_size = ((int64_t) 1) << rslog;
   
   //node_t ** remotes = allocate_page( remote_size, ncores, threads_per_core );
   node_t ** remotes = allocate_heap( remote_size, ncores, threads_per_core );
