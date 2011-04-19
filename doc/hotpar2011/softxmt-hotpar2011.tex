@@ -468,9 +468,9 @@ library.
 \centering
 \begin{alltt}{\scriptsize
   while (count-- > 0) \{
-     prefetch(&(list1->next));
-     switch();
-     list1 = read(&(list1->next));
+     readIssue(&(list->next));
+     yield();
+     list = readCompete(&(list->next));
  \}
  }\centering{\bf (b)}
 \end{alltt}
@@ -493,12 +493,12 @@ library.
 \centering
 \begin{alltt}{\scriptsize
   while (count-- > 0) \{
-    prefetch(&(list1->next));
-    switch();
-    list1 = read(&(list1->next));
+    readIssue(&(remoteList->next));
+    yield();
+    remoteList = readComplete(&(remoteList->next));
     for( i in 1 to num_local_updates ) \{
-      local->data++;
-      local = local->next;
+      localList->data++;
+      localList = localList->next;
    \} \}
    }\centering{\bf (c)}
 \end{alltt}
@@ -616,7 +616,7 @@ core. \todo{preempt questions about drop at 16 which is much less than the about
 
 \subsection{Performance with multiple nodes}
 
-To evaluate the potential for our runtime to perform in the multi-node case, we simulated a network delay and saw whether the runtime could tolerate the larger latency. 
+To evaluate the potential for the lightweight contexts to perform in the multi-node case, we simulated a network delay and saw whether the runtime could tolerate the larger latency. 
 
 Since the network interface is accessed over QPI, we estimated QPI bandwidth by measuring the QPI communication between the two chips of our test machine. To do this, we allocated the lists in the second chip's memory and ran the traversals on the first chip's cores. We found that use of the QPI link limits us to 175 \mrps.
 
@@ -632,11 +632,10 @@ Since the network interface is accessed over QPI, we estimated QPI bandwidth by 
 %\end{figure}
 %%%%%%%%%%
 
-To simulate the performance of pointer chasing in a multi-node system,
-we modified the scheduler of our coroutine library to include a delay
+To simulate the performance of pointer chasing in a multi-node system
+we access the other chip's memory and also have the scheduler of our coroutine library include a delay
 before a coroutine can be rescheduled, imitating the network transit
-delay even though we are referencing local memory. We assume 1.1
-$\mu$s interface and 400 ns switch latencies in each direction
+delay even though we are referencing local memory. We assume 1.1 $\mu$s interface and 400 ns switch latencies in each direction
 \cite{infiniband, mellanox:site}, and thus estimate a 3 $\mu$s round-trip
 delay.
 
