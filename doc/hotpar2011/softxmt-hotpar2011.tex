@@ -10,6 +10,7 @@
 \documentclass[10pt,nocopyrightspace,preprint]{sigplanconf}
 \usepackage{url}
 \usepackage{fancyvrb}
+\usepackage{fancyhdr}
 \usepackage{alltt}
 \usepackage{graphicx}
 \usepackage{comment}
@@ -59,6 +60,7 @@
 % Comment it out when you first submit the paper for review.
 \thispagestyle{empty}
 \pagestyle{empty}
+
 
 \begin{abstract}
    Crunching large graphs is the basis of many emerging applications,
@@ -535,10 +537,8 @@ on 1GB huge pages to minimize TLB refill overhead.
 	\begin{center}
 		\includegraphics[width=0.47\textwidth]{figures/multi-listwalk-totalconc-edited.pdf}
 	\end{center}
-	\caption{Throughput of listwalk versus total number of
-          concurrent references offered by the cores. Data points for
-          running 1 core are shown as circles, and data points for
-          running 6 cores are shown as diamonds. 
+	\caption{Pointer chasing throughput versus total number of
+          concurrent references offered by the cores. Total concurrent references offered is \emph{number of lists per core * number of cores}.
 %Notice that the throughput for a single core levels out at 10
 %concurrent references. For 4 to 6 cores, the throughput levels off at
 %around 36 references, which seems to be the most memory concurrency a
@@ -593,8 +593,7 @@ results are very close to the ILP-only experiment, but more concurrent requests 
 
 We observe a gradual decrease in reference rate once the number of
 concurrent references per core exceeds 10; we believe this is due to
-later prefetches squashing earlier ones in the line fill buffers. In the real runtime we expect this effect will not exist, since prefetch will not be implemented with built-in non-temporal prefetch instructions.\todo{pull that sentence and replace with something about no-prefetch results}. We
-also observe many points that do not follow the trend are below the max, and these results are repeatable. This effect is harder to explain, but we suspect it is
+later prefetches squashing earlier ones in the line fill buffers. In the multi-node runtime, \texttt{readIssue} will not be implemented with a prefetch instruction. The single-node coroutine library does depend on prefetches: other experiments show that without them, the overhead of context switches limits concurrency when there are more than two coroutines per core. Lastly, we observe repeatable data points that are off the trend and fall below the max. This effect is harder to explain, but we suspect it may be
 due to resource contention in the cores' pipelines once the memory
 system is full of requests. 
 
