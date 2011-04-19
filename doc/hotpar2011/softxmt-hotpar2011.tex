@@ -140,14 +140,14 @@ codes but is implemented with cheap commodity processors and simple
 additional support in an FPGA. This approach also has the added
 benefit of not sacrificing general-purpose performance.
 
-Figure~\ref{fig:system-overview} shows the structure of our
-proposal. It is composed of multiple nodes built with commodity
-processors, communicating over an Infiniband network. We add two
-components: a runtime system, responsible for executing the user's
-threads, and a global memory manager, responsible for facilitating
-memory requests to the non-coherent global memory shared across the
-nodes.  We are exploring a mix of hardware (FPGA) and software
-implementations of the memory manager.
+Figure~\ref{fig:system-overview} shows an overview of our proposal. It
+is composed of multiple nodes built with commodity processors,
+communicating over an Infiniband network. We add two components: a
+runtime system, responsible for executing and managing user threads,
+and a global memory manager, responsible for facilitating memory
+requests to the global memory space shared across the nodes.
+We are exploring a mix of hardware (FPGA) and software implementations
+of the memory manager.
  
 This paper describes the vision of our system and explores the
 feasibility of our ideas using a single-node implementation of a
@@ -156,7 +156,7 @@ with lightweight threads to tolerate the latency of DRAM access on the
 local node. We use worst-case pointer chasing benchmarks to
 verify our runtime's overhead is acceptable. We also model the effects
 of pointer chasing on a remote node by artificially increasing
-latencies to several micro-seconds.
+latencies to several microseconds.
  
 The rest of the paper is organized as follows. We briefly describe our
 programming model in section~\ref{sec:model}. We describe the
@@ -198,22 +198,27 @@ that concurrency and consequently provide latency tolerance on a large
 address space. We do so via software multithreading: computation that
 is about to execute a long latency operation (e.g. a remote memory
 reference) initiates the operation and then yields to the scheduler,
-which quickly resumes execution of another computation.  Concurrency
-is also used\todo{vague}---via aggregation of requests to a common node
-destination---to make more efficient use of network bandwidth and in
-some cases reduce bandwidth demands.
+which quickly resumes execution of another computation. Concurrency is
+also used to make more efficient use of network bandwidth: it
+enables aggregation of short memory requests into coarser requests,
+which leads to large network messages and consequently better
+bandwidth utilization.
 
-Synchronization on locations in the node private address space is the
-same as on conventional systems.  Synchronization on global addresses
-works differently: we provide atomic operations such as {\tt
-  int\_fetch\_add} as well as operations using full-bits, as on
+% \todo{vague}---via aggregation of requests to a common node
+% destination--- and in
+% some cases reduce bandwidth demands.
+
+Synchronization on locations in the private address space of a node
+works the the same way as on conventional systems.  Synchronization on
+global addresses works differently: we provide atomic operations such
+as {\tt int\_fetch\_add} as well as operations using full-bits, as on
 the Cray XMT.  As is true for other long latency operations,
 synchronization latency is tolerated by yielding to the scheduler.
 Even non-blocking global atomics yield so the core can switch to
 another computation while the synchronization is accomplished outside
-of the pipeline.  In addition, the implementation can exploit
-aggregation when concurrency is abundant to increase the throughput of
-global synchronization.
+of the pipeline.  In addition, the system can also exploit aggregation
+when concurrency is abundant to increase the throughput of global
+synchronization.
 
 \section{Implementation}
 \label{sec:approach}
@@ -231,7 +236,9 @@ spread across multiple nodes.  Our implementation must provide three features:
 
 \item[Low overhead synchronization:] 
 %  We must support global synchronization between threads that allows unrelated threads to proceed unblocked.
-  A thread that is synchronizing must yield its core to allow others to make progress. \todo{repetitive with the previous item}
+  Similarly to a regular memory access, long-latency synchronization
+  should also cause a thread to yield its core  and allow others to make
+  progress. %\todo{repetitive with the previous item}
 \end{description}
 We discuss our approach to solving each of these challenges in
 turn. For each one, we discuss both our current single-node
@@ -254,10 +261,14 @@ achieve concurrency.
 %minimum number of registers allowed by the ABI, and 
 %Simon:  not really true -- we could save fewer if we knew which of the
 %callee save registers weren't going to be clobbered.
-\todo{decide whether to change these 2 paragraphs to be inclusive of other lightweight implementations, like jump table}
-We treat context switches as function calls, as in~\cite{charm}. This allows us 
-to depend on the compiler to save and restore caller-save registers while we explicitly save and restore all the callee-save registers.  We minimize
-context switch time by doing all switching and scheduling in user space.
+\todo{decide whether to change these 2 paragraphs to be inclusive of
+  other lightweight implementations, like jump table. I support the
+  idea of making it more inclusive but I can't think of what to
+  actually change.}  We treat context switches as function calls, as
+in~\cite{charm}. This allows us to depend on the compiler to save and
+restore caller-save registers while we explicitly save and restore all
+the callee-save registers.  We minimize context switch time by doing
+all switching and scheduling in user space.
 
 %\paragraph{Single-node implementation.}  
 In our single-node implementation, we implemented coroutines
