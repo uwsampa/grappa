@@ -533,9 +533,9 @@ on 1GB huge pages to minimize TLB refill overhead.
 
 Figure~\ref{fig:listwalk-totalconc} shows the result. Each point represents
 the maximum rate pointers are traversed for a given number of
-concurrent offered references. We see a maximum rate of 277 million references per second (\mrps), which agrees with the measurements found by \cite{Mandal:2010}. This rate is achieved when the number of offered references is 36. Note that a single core cannot support this level of
+concurrent offered references. We see a maximum rate of 277 million references per second (\mrps), which agrees with the measurements in \cite{Mandal:2010}. This rate is achieved when the number of offered references is 36. Note that a single core cannot support this level of
 memory concurrency; the maximum reference rate for a single core is
-107M. We believe this limit is due to the core having only enough {\em line fill
+107 \mrps. We believe this limit is due to the core having only enough {\em line fill
   buffers} \cite{nehalem:arch} to store 10 concurrent private cache misses.
 
 The memory controller in the chip has more bandwidth than its
@@ -596,23 +596,21 @@ general idea.
 % cache pressure figure
 \begin{figure}[h]
   \begin{center}
-    \includegraphics[width=0.42\textwidth]{figures/cache-pressure-edited.pdf}
+    \includegraphics[width=0.45\textwidth]{figures/cachepressurenewview-edited.pdf}
   \end{center}
-  \vspace{-0.3in}
-  \caption{Cache pressure with coroutines, on six cores.}
+  \vspace{0.0in}
+  \caption{Cache pressure with coroutines, on six cores. The vertical axis is remote reference rate. (a) with 8 coroutines per core. (b) with 48 coroutines per core, about the number required for the network rate in simulated delay experiments. }
   \label{fig:cache-pressure}
 \end{figure}
 
-We varied the size of the local working set from 2KB
-to 4MB, and ran both 0 and 32 local updates for each pointer
-traversal. We measured the overall reference rate, including both the local updates and remote references.
+We varied the size of the per-thread local working set from 2KB
+to 4MB, and ran 0 to 32 local updates for each pointer
+traversal. We measured the remote reference rate (i.e. accesses to \texttt{remoteList} from Figure~\ref{fig:code}c).
 
-Figure~\ref{fig:cache-pressure} shows the result. As we would expect,
-when there are no references to the local structures, the reference rates grow with the number of coroutines just as in
-Figure~\ref{fig:multi-green}. For 32 local updates per traversal, while performance
-decreases for large working set sizes and large numbers of coroutines,
-we see speedup as the number of coroutines increases up to 128KB working set size with 8 coroutines per
-core. \todo{preempt questions about drop at 16 which is much less than the about 50 needed per core by saying that the drop is likely the same drop effect seen earlier, which is likely to be prefetch squashing since it happens at number of line fill buffers}
+Figure~\ref{fig:cache-pressure}a shows the result for 8 coroutines per core. 
+With 1 to 4 updates per remote reference for smaller working sets, the runtime achieves near maximum throughput. As working set size increases, cache misses in the local space become a bottleneck. When there are several updates to large local spaces, the data of other coroutines is likely to be kicked out and performance suffers.
+
+%As we would expect, when there are no references to the local structures, the reference rates grow with the number of coroutines, just as in Figure~\ref{fig:multi-green}. For 32 local updates per traversal, while performance decreases for large working set sizes and large numbers of coroutines, we see speedup as the number of coroutines increases up to 128KB working set size with 8 coroutines per core.
 
 \subsection{Performance with multiple nodes}
 
@@ -633,38 +631,38 @@ Since the network interface is accessed over QPI, we estimated QPI bandwidth by 
 %%%%%%%%%%
 
 To simulate the performance of pointer chasing in a multi-node system
-we access the other chip's memory and also have the scheduler of our coroutine library include a delay
+we referenced the second chip's memory and also had coroutine scheduler include a delay
 before a coroutine can be rescheduled, imitating the network transit
-delay even though we are referencing local memory. We assume 1.1 $\mu$s interface and 400 ns switch latencies in each direction
+delay even though we are accessing local memory. We assume 1.1 $\mu$s interface and 400 ns switch latencies in each direction
 \cite{infiniband, mellanox:site}, and thus estimate a 3 $\mu$s round-trip
 delay.
 
 %simulated delay plot
+%TODO: replace with the thru QPI version
 \begin{figure}[h]
   \begin{center}
-    \includegraphics[width=0.47\textwidth]{figures/multi-green-delay7800-edited.pdf}
+    \includegraphics[width=0.47\textwidth]{figures/delay7800-remote-edited.pdf}
   \end{center}
   \vspace{-0.3in}
-  \caption{Pointer chasing with simulated network delay. Each core ran up to 167 coroutines, and each coroutine made 1 to 4 concurrent references.}
+  \caption{Pointer chasing across QPI link and with simulated network delay. Used six cores and varied the number of coroutines per core.}
   \label{fig:network-delay}
 \end{figure}
 
 The results of the experiment are shown in
-Figure~\ref{fig:network-delay}. We are still able to reach a
-near-maximum rate of 273 \mrps\footnote{The throughput keeps increasing up to around 850 total concurrent references offered, far more than the 36 we know the chip to support. This is because we have modeled the network latency by forcing coroutines to wait the extra time before using the data, so the physical miss buffers on our machine are not tied up any longer than usual.}, but at least 2
-concurrent references per coroutine are required. Running with one
-reference per coroutine achieves 236 \mrps. 
+Figure~\ref{fig:network-delay}. The runtime can still reach a
+maximum rate of 173 \mrps\footnote{The throughput keeps increasing up to around 564 total concurrent references offered (at which point QPI is saturated), far more than the 36 we know the chip to support. This is because we have modeled the network latency by forcing coroutines to wait the extra time before using the data, so the physical miss buffers on our machine are not tied up any longer than usual.}, saturating the QPI link. It reaches the estimated network rate of 100 \mrps with about 53 coroutines per core. 
 
 These results suggest that the runtime should be able to tolerate
 large latency well enough to exceed the max issue rates of both modern
 network interfaces (about 100 \mrps) \cite{mellanox:press} and the QPI
 link used to reach the network interface.
+\todo{integrate this paragraph with previous ones instead}
+
+Figure~\ref{fig:cache-pressure}b shows the results of the cache pressure experiment for 48 coroutines per core, about the number of contexts needed to reach the network rate in the delay experiment. We observe that when performing up to 8 local updates per remote reference, smaller working sets still allow the desired throughput. When performing 1 to 2 updates, we can have working sets of up to 32KB per coroutine while maintaining throughput.
 
 %Any network interface would be connected through a QPI link,
 %which we measured to have a bandwidth limit of 175 \mrps, so our runtime appears to have the capacity to chase pointers
 %in a remote memory. 
-
-\todo{also have results that remote cores over QPI plus delay 3us can make it up to the 175M, with sufficient number of coroutines}
 
 
 \section{Related work}
@@ -684,7 +682,7 @@ use variants of this idea.
 
 There has also been much work on user level threading, including the First-Class
 User Level Threading project \cite{ult} and Capriccio \cite{capriccio}. We have a
-different goal; we want many lightweight contexts to tolerate memory
+different goal \todo{we didnt say what their goal is}; we want many lightweight contexts to tolerate memory
 latency.
 
 Our goal of presenting a global view of distributed memory to the
