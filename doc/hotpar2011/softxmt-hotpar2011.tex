@@ -81,13 +81,22 @@
 Many important emerging applications such as social network analysis,
 bioinformatics, and sensor networks rely on crunching very large
 graphs. Unfortunately, the computational cost of these applications
-gets quickly out of hand. For example, in January 2011, Facebook had
-500 million active users with an average of 130 friends each
-\cite{Facebook:2011p91}. Its friend suggestion algorithm in 2010 ran on
-  a 40-node cluster with 72GB memory per node, and, still, new
-  suggestions could only be computed every two days
-  \cite{Backstrom:2010p90}. Speeding up these applications at a low
-  cost would have a large impact in how we deal with large data-sets and make them even more valuable.
+gets quickly out of hand. A Yahoo snapshot of the World Wide Web graph
+from 2002 has more than 1.4 billion vertices and 6.6 billion edges
+\cite{pegasus, hadi}; the social network Facebook has over 500 million
+active users with 130 friends each on average
+\cite{Facebook:2011p91}. Applications that process these large
+datasets are slow and power-hungry. Speeding up such applications at a
+low cost would have a large impact in how we deal with large data-sets
+and make them even more valuable.
+
+%For example, in January 2011, Facebook had
+%500 million active users with an average of 130 friends each
+%\cite{Facebook:2011p91}. Its friend suggestion algorithm in 2010 ran on
+%  a 40-node cluster with 72GB memory per node, and, still, new
+%  suggestions could only be computed every two days
+%  \cite{Backstrom:2010p90}. Speeding up these applications at a low
+%  cost would have a large impact in how we deal with large data-sets and make them even more valuable.
 
 % In January 2011, Facebook had 500 million active users with an average
 % of 130 friends each \cite{Facebook:2011p91}.
@@ -99,14 +108,18 @@ gets quickly out of hand. For example, in January 2011, Facebook had
 
 The most interesting computational challenge comes from large,
 low-diameter, power law graphs: this combination makes extracting
-performance difficult. They do not fit in a single
-commodity machine's memory. Their low diameter means that they are
-difficult to lay out with locality: every vertex needs to be near every
-other vertex. Their power law distribution means that a few vertices
-generate much more work than the rest, leading to load
-imbalances. Together, these properties \todo{including power law distr?} lead to a
-difficult conclusion: each edge traversal is likely to lead to a very
-expensive inter-node communication.
+performance difficult. The Web graph mentioned eariler requires 120GB
+of storage \cite{pegasus}, difficult to fit in a single commodity machine's
+memory. It has an average diameter of 15.6 \cite{hadi}: this low diameter makes it
+difficult to lay out with locality, or to partition across a
+cluster. Graphs with power law distributions are also difficult to
+partition in a balanced way \cite{lang, leskovec}; their few
+high-degree vertices also generate much more work than the rest,
+leading to load imbalances. 
+
+%Together, these properties \todo{including power law distr?} lead to a
+%difficult conclusion: each edge traversal is likely to lead to a very
+%expensive inter-node communication.
 
 Multithreading is a technique that has been used successfully to
 implement efficient computations for these graphs. The Cray XMT is an
@@ -237,7 +250,7 @@ spread across multiple nodes.  Our implementation must provide three features:
 \item[Low overhead synchronization:] 
 %  We must support global synchronization between threads that allows unrelated threads to proceed unblocked.
   Similarly to a regular memory access, long-latency synchronization
-  should also cause a thread to yield its core  and allow others to make
+  should also cause a thread to yield and allow others to make
   progress. %\todo{repetitive with the previous item}
 \end{description}
 We discuss our approach to solving each of these challenges in
