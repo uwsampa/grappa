@@ -86,15 +86,19 @@
 Many important emerging applications such as social network analysis,
 bioinformatics, and sensor networks rely on crunching very large
 graphs. Unfortunately, the computational cost of these applications
-gets quickly out of hand. A Yahoo snapshot of the World Wide Web graph
-from 2002 has more than 1.4 billion vertices and 6.6 billion edges
-\cite{pegasus, hadi}; the social network Facebook has over 500 million
-active users with 130 friends each on average
-\cite{Facebook:2011p91}. Applications that process these large
-datasets are slow and power-hungry. Speeding up such applications at a
-low cost would have a large impact in how we deal with large data-sets
-and make them even more valuable.
+gets quickly out of hand. Tools to analyze social networks and query
+semantic graphs with billions of entities exist
+today~\cite{joslyn:hpsf, ediger:msda, brocheler:cosi, pegasus,
+  pregel}, but graphs of interest to defense applications are expected
+have trillions of entities~\cite{hartley:mssg, kolda:imkd}. Speeding
+up these applications at a low cost would have a large impact in how
+we deal with large data-sets and make them even more valuable.
 
+
+
+%2002 snapshot of the web has 1.4 billion vertices and 6.6 billion
+%edges \cite{pegasus}. Facebook has over 500M active users who interact
+%with 900M groups, events, and communities; the average user has 30 friends \cite{Facebook:2011p91}. 
 %For example, in January 2011, Facebook had
 %500 million active users with an average of 130 friends each
 %\cite{Facebook:2011p91}. Its friend suggestion algorithm in 2010 ran on
@@ -102,6 +106,18 @@ and make them even more valuable.
 %  suggestions could only be computed every two days
 %  \cite{Backstrom:2010p90}. Speeding up these applications at a low
 %  cost would have a large impact in how we deal with large data-sets and make them even more valuable.
+
+
+
+% A Yahoo snapshot of the World Wide Web graph
+% from 2002 has more than 1.4 billion vertices and 6.6 billion edges
+% \cite{pegasus, hadi}; the social network Facebook has over 500 million
+% active users with 130 friends each on average
+% \cite{Facebook:2011p91}. Applications that process these large
+% datasets are slow and power-hungry. Speeding up such applications at a
+% low cost would have a large impact in how we deal with large data-sets
+% and make them even more valuable.
+
 
 % In January 2011, Facebook had 500 million active users with an average
 % of 130 friends each \cite{Facebook:2011p91}.
@@ -111,29 +127,65 @@ and make them even more valuable.
 % every two days \cite{Backstrom:2010p90}.
 
 
+%  The most interesting computational challenge comes from large,
+%  low-diameter, power law graphs: this combination makes extracting
+% performance difficult. They do not fit in a single
+% commodity machine's memory. Their low diameter means that they are
+% difficult to lay out with locality: every vertex needs to be near every
+% other vertex. Their power law distribution means that a few vertices
+% generate much more work than the rest, leading to load
+% imbalances. Together, these properties \todo{including power law distr?} lead to a
+% difficult conclusion: each edge traversal is likely to lead to a very
+% expensive inter-node communication.
+
+
 The most interesting computational challenge comes from large,
 low-diameter, power law graphs: this combination makes extracting
-performance difficult. The Web graph mentioned eariler requires 120GB
-of storage \cite{pegasus}, difficult to fit in a single commodity machine's
-memory. It has an average diameter of 15.6 \cite{hadi}: this low diameter makes it
-difficult to lay out with locality, or to partition across a
-cluster. Graphs with power law distributions are also difficult to
-partition in a balanced way \cite{lang, leskovec}; their few
-high-degree vertices also generate much more work than the rest,
-leading to load imbalances. 
+performance difficult. They do not fit in a single commodity machine's
+memory. They are difficult lay out with locality, or to partition in a
+balanced way~\cite{lang, leskovec}. Expensive inter-node communication
+is a limiting factor in scalability~\cite{yoo:parallelbfs}.
+
+
+% Their low diameter means that they are
+% difficult to lay out with locality: every vertex needs to be near every
+% other vertex. Their power law distribution means that a few vertices
+% generate much more work than the rest, leading to load
+% imbalances. 
+% Together, these properties \todo{including power law distr?} lead to a
+% difficult conclusion: each edge traversal is likely to lead to a very
+% expensive inter-node communication.
+
+% They are difficult to partition effi
+
+% Common techniques to 
+% Often 
+
+
+
+% The most interesting computational challenge comes from large,
+% low-diameter, power law graphs: this combination makes extracting
+% performance difficult. The Web graph mentioned eariler requires 120GB
+% of storage \cite{pegasus}, difficult to fit in a single commodity machine's
+% memory. It has an average diameter of 15.6 \cite{hadi}: this low diameter makes it
+% difficult to lay out with locality, or to partition across a
+% cluster. Graphs with power law distributions are also difficult to
+% partition in a balanced way \cite{lang, leskovec}; their few
+% high-degree vertices also generate much more work than the rest,
+% leading to load imbalances. 
 
 %Together, these properties \todo{including power law distr?} lead to a
 %difficult conclusion: each edge traversal is likely to lead to a very
 %expensive inter-node communication.
 
 Multithreading is a technique that has been used successfully to
-implement efficient computations for these graphs. The Cray XMT is an
-example of such an approach: it solves the memory latency problem
-through concurrency rather than caching. Each XMT processor supports
-128 hardware contexts and 1024 outstanding memory operations, and is
-able to switch contexts every cycle \cite{tera, feo-xmt}. This ability
-comes at a cost: the XMT is an expensive, non-commodity
-machine.
+implement efficient computations for these
+graphs~\cite{bader:bfsmta}. The Cray XMT is an example of such an
+approach: it solves the memory latency problem through concurrency
+rather than caching. Each XMT processor supports 128 hardware contexts
+and 1024 outstanding memory operations, and is able to switch contexts
+every cycle~\cite{tera, feo-xmt}. This ability comes at a cost: the
+XMT is an expensive, non-commodity machine.
 
 \begin{figure*}[htbp]
   \begin{center}
@@ -155,7 +207,7 @@ can attain XMT-like performance with a familiar, XMT-like,
 programming model, but at a fraction of the cost. Therefore, our goal
 is to build a system that has good performance on low-locality graph
 codes but is implemented with cheap commodity processors and simple
-additional support in an FPGA. This approach also has the added
+additional support in an FPGA. This approach has the added
 benefit of not sacrificing general-purpose performance.
 
 Figure~\ref{fig:system-overview} shows an overview of our proposal. It
