@@ -3,7 +3,7 @@
 %command inserts todo/comment
 \newcommand{\todo}[1]{{\bfseries [[#1]]}}
 %% To disable, just uncomment this line
-% \renewcommand{\todo}[1]{\relax}
+ \renewcommand{\todo}[1]{\relax}
 
 
 %\documentclass{acm_proc_article-sp}
@@ -596,6 +596,7 @@ on 1GB huge pages to minimize TLB refill overhead.
 	\begin{center}
 		\includegraphics[width=0.47\textwidth]{figures/multi-listwalk-totalconc-edited.pdf}
 	\end{center}
+	\vspace{-9pt}
 	\caption{Pointer chasing throughput versus total number of
           concurrent references offered by the cores. Total concurrent references offered is \emph{number of lists per core * number of cores}.
 %Notice that the throughput for a single core levels out at 10
@@ -639,6 +640,7 @@ same processor as the cores doing the traversal.
   \begin{center}
     \includegraphics[width=0.47\textwidth]{figures/multi-green-edited.pdf}
   \end{center}
+  \vspace{-9pt}
   \caption{Pointer chasing with coroutines, with one reference per
     coroutine. Number of coroutines per core is $\textit{total concurrent references} / \textit{number of cores}$.}
   \label{fig:multi-green}
@@ -667,12 +669,13 @@ is small enough to fit in cache. Figure~\ref{fig:code}c shows the
 general idea.
 
 % cache pressure figure
-\begin{figure}[h]
+\begin{figure}[t]
   \begin{center}
-    \includegraphics[width=0.49\textwidth]{figures/cachepressurenewview-edited.pdf}
+    \includegraphics[width=0.48\textwidth]{figures/cachepressurenewview-edited.pdf}
   \end{center}
-  \vspace{0.0in}
+  \vspace{-10pt} %space with fig
   \caption{Cache pressure with coroutines, on six cores. The vertical axis is remote reference rate. (a) with 8 coroutines per core. (b) with 48 coroutines per core, about the number required for the network rate in simulated delay experiments. }
+  \vspace{-1.5pt} % space with text
   \label{fig:cache-pressure}
 \end{figure}
 
@@ -712,7 +715,7 @@ delay. In analyzing the results, we assume a network issue rate of \mrps{100}, b
 
 %simulated delay plot
 %TODO: replace with the thru QPI version
-\begin{figure}[h]
+\begin{figure}[t]
   \begin{center}
     \includegraphics[width=0.47\textwidth]{figures/delay7800-remote-edited.pdf}
   \end{center}
