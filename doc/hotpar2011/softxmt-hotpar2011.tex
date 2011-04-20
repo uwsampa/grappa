@@ -682,7 +682,7 @@ With 1 to 4 updates per remote reference for smaller working sets, the runtime a
 
 To evaluate the potential for the lightweight contexts to perform in the multi-node case, we simulated a network delay and saw whether the runtime could tolerate the larger latency. 
 
-Since the network interface is accessed over QPI, we estimated QPI bandwidth by measuring the QPI communication between the two chips of our test machine. To do this, we allocated the lists in the second chip's memory and ran the traversals on the first chip's cores. We found that use of the QPI link limits us to \mrps{175}.
+Since the network interface is accessed over QPI, we estimated QPI bandwidth by measuring the QPI communication between the two chips of our test machine. To do this, we allocated the lists in the second chip's memory and ran the traversals on the first chip's cores. We found that use of the QPI link limits throughput to \mrps{175}.
 
 % take this figure out if we need the space
 % maybe even take out whole QPI thing and just relate the 100M?
