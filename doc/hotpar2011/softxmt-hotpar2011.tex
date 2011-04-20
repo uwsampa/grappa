@@ -94,7 +94,7 @@ gets quickly out of hand. Tools to analyze social networks and query
 semantic graphs with billions of entities exist
 today~\cite{joslyn:hpsf, ediger:msda, brocheler:cosi, pegasus,
   pregel}, but graphs of interest to defense applications are expected
-have trillions of entities~\cite{hartley:mssg, kolda:imkd}. Speeding
+to have trillions of entities~\cite{hartley:mssg, kolda:imkd}. Speeding
 up these applications at a low cost would have a large impact in how
 we deal with large data-sets and make them even more valuable.
 
@@ -231,7 +231,7 @@ lightweight threading runtime. We use prefetch instructions together
 with lightweight threads to tolerate the latency of DRAM access on the
 local node. We use worst-case pointer chasing benchmarks to
 verify our runtime's overhead is acceptable. We also model the effects
-of pointer chasing on a remote node by artificially increasing
+of pointer chasing with a remote node by artificially increasing
 latencies to several microseconds.
  
 The rest of the paper is organized as follows. We briefly describe our
