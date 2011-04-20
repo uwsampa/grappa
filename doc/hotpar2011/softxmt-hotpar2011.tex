@@ -356,10 +356,18 @@ and issues a read.  If the data is not yet received and in cache, the core
 (and all its coroutines) can stall.
 
 %\paragraph{Multi-node ideas.}
-As we develop our multi-node implementation, we will explore how the memory manager and coroutine scheduler may
-interact, so that threads waiting on long-latency memory operations or
-synchronization operations will be scheduled soon after their
-operations have completed.
+%As we develop our multi-node implementation, we will explore how the memory manager and coroutine scheduler may
+%interact, so that threads waiting on long-latency memory operations or
+%synchronization operations will be scheduled soon after their
+%operations have completed.
+As we develop our multi-node implementation, we will improve our
+scheduler to activate threads after their long-latency operations
+have completed.
+
+% will explore how the memory manager and coroutine scheduler may
+%interact, so that threads waiting on long-latency memory operations or
+%synchronization operations will be scheduled soon after their
+%operations have completed.
 
 \subsection{Concurrency in global memory references}
 
@@ -381,10 +389,11 @@ follows the same pattern.
 
 %\paragraph{Single-node implementation.}
 In our single-node implementation, we use prefetch instructions for the issue operation, and regular
-blocking reads and writes for the complete operation.  Since we expect
-these global references to have low locality, we use the
-``non-temporal'' form of prefetch to avoid disturbing the state of the
-cache hierarchy \cite{intel:swdev}.
+blocking reads and writes for the complete operation.
+%  Since we expect
+%these global references to have low locality, we use the
+%``non-temporal'' form of prefetch to avoid disturbing the state of the
+%cache hierarchy \cite{intel:swdev}.
 
 %\paragraph{Multi-node ideas.}
 As we develop our multi-node implementation, we believe we will need hundreds of outstanding memory references per
@@ -435,11 +444,11 @@ block until the data was available.
 %data was available.
 
 With either approach, the question of request aggregation will be
-important. Each memory request we make is small: 8 bytes is a likely
-size. But most networks are optimized for bulk transfers of a few
+important. Each memory request we make is small---perhaps 8
+bytes---but most networks are optimized for bulk transfers of a few
 thousand bytes. To improve network utilization, we will explore the
 aggregation of multiple memory operations to different addresses on
-the same remote node. 
+the same remote node.
 
 
 \subsection{Low-overhead synchronization}
@@ -547,7 +556,7 @@ library.
   while (count-- > 0) \{
      readIssue(&(list->next));
      yield();
-     list = readCompete(&(list->next));
+     list = readComplete(&(list->next));
  \}
  }\centering{\bf (b)}
 \end{alltt}
@@ -644,15 +653,18 @@ same processor as the cores doing the traversal.
   \label{fig:multi-green}
 \end{figure}
 
-Figure~\ref{fig:multi-green} shows the result. For this
-experiment, we limited memory concurrency to one concurrent miss per
-coroutine, so the only source of memory concurrency is the use of
-coroutines. We are able to obtain a rate of \mrps{275} with 48 concurrent misses, or 8 coroutines per core. These
-results are very close to the ILP-only experiment, but more concurrent requests are required--about 48 versus 36. When the number of references per coroutine is larger than 1, fewer coroutines are required to reach full performance.
+Figure~\ref{fig:multi-green} shows the result. For this experiment,
+the only source of memory concurrency is the use of coroutines. We are
+able to obtain a rate of \mrps{275} with 48 concurrent misses, or 8
+coroutines per core. More concurrent requests are required to saturate
+memory bandwidth than in the ILP-only experiment.
 
 We observe a gradual decrease in reference rate once the number of
 concurrent references per core exceeds 10; we believe this is due to
-later prefetches squashing earlier ones in the line fill buffers. In the multi-node runtime, \texttt{readIssue} will not be implemented with a prefetch instruction. The single-node coroutine library does depend on prefetches: other experiments show that without them, the overhead of context switches limits concurrency when there are more than two coroutines per core. Lastly, we observe repeatable data points that are off the trend and fall below the max. This effect is harder to explain, but we suspect it may be
+later prefetches squashing earlier ones in the line fill buffers. In
+the multi-node runtime, \texttt{readIssue} will not be implemented
+with a prefetch instruction. The single-node coroutine library does
+depend on prefetches: further experiments show that without them, the overhead of context switches limits concurrency when there are more than two coroutines per core. Lastly, we observe repeatable data points that are off the trend and fall below the max. This effect is harder to explain, but we suspect it may be
 due to resource contention in the cores' pipelines once the memory
 system is full of requests. 
 
@@ -680,16 +692,27 @@ We varied the size of the per-coroutine local working set from 2KB
 to 4MB, and ran 0 to 32 local updates for each pointer
 traversal. We measured the remote reference rate (i.e. accesses to \texttt{remoteList} from Figure~\ref{fig:code}c).
 
-Figure~\ref{fig:cache-pressure}a shows the result for 8 coroutines per core. 
-With 1 to 4 updates per remote reference for smaller working sets, the runtime achieves near maximum throughput. As working set size increases, cache misses in the local space become a bottleneck. When there are several updates and large working sets, the data of other coroutines is likely to be evicted from cache and performance suffers.
+Figure~\ref{fig:cache-pressure}a shows the result for 8 coroutines per
+core.  With 1 to 4 updates per remote reference for smaller working
+sets, the runtime achieves near maximum throughput. As working set
+size increases, cache misses in the local space become a
+bottleneck. When there are several updates to large working sets, the
+data of other coroutines is likely to be evicted from cache and
+performance suffers.
 
 %As we would expect, when there are no references to the local structures, the reference rates grow with the number of coroutines, just as in Figure~\ref{fig:multi-green}. For 32 local updates per traversal, while performance decreases for large working set sizes and large numbers of coroutines, we see speedup as the number of coroutines increases up to 128KB working set size with 8 coroutines per core.
 
 \subsection{Performance with multiple nodes}
 
-To evaluate the potential for the lightweight contexts to perform in the multi-node case, we simulated a network delay and saw whether the runtime could tolerate the larger latency. 
+To evaluate the potential for the lightweight contexts to perform in
+the multi-node case, we simulated a network delay to see whether the
+runtime could tolerate the larger latency.
 
-Since the network interface is accessed over QPI, we estimated QPI bandwidth by measuring the QPI communication between the two chips of our test machine. To do this, we allocated the lists in the second chip's memory and ran the traversals on the first chip's cores. We found that use of the QPI link limits us to \mrps{175}.
+Any network communication must travel over the QPI link in our test
+system. We estimated the bandwidth of this link by allocating lists in
+the first chip's memory and traversing those lists on the second
+chip's cores. We found that use of the QPI link limits us to
+\mrps{175}.
 
 % take this figure out if we need the space
 % maybe even take out whole QPI thing and just relate the 100M?
@@ -749,7 +772,7 @@ use variants of this idea.
 
 There has also been much work on user level threading, including the First-Class
 User Level Threading project \cite{ult} and Capriccio \cite{capriccio}. We have a
-different goal \todo{we didnt say what their goal is}; we want many lightweight contexts to tolerate memory
+different goal; we want many lightweight contexts to tolerate memory
 latency.
 
 Our goal of presenting a global view of distributed memory to the
