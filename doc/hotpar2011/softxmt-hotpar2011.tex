@@ -592,7 +592,7 @@ library.
 \label{fig:pointerupdate}
 }\end{minipage}
 \vspace{5pt}
-\caption{Pseudocode for: (a) pointer chasing without coroutines, (b) pointer chasing using coroutines, (c) pointer chasing with local updates. Coroutine code, as in (b), might also include ILP like what (a) depends on for memory concurrency, e.g., by doing multiple prefetches to independent lists, switch, then multiple reads.}
+\caption{Pseudocode for: (a) pointer chasing without coroutines, (b) pointer chasing using coroutines, (c) pointer chasing with local updates.}
 \label{fig:code}
 \end{figure*}
 
@@ -686,22 +686,28 @@ general idea.
     \includegraphics[width=0.48\textwidth]{figures/cachepressurenewview-edited.pdf}
   \end{center}
   \vspace{-10pt} %space with fig
-  \caption{Cache pressure with coroutines, on six cores. The vertical axis is remote reference rate. (a) with 8 coroutines per core. (b) with 48 coroutines per core, about the number required for the network rate in simulated delay experiments. }
+  \caption{Cache pressure with coroutines, on six cores. The vertical
+    axis is remote reference rate, with (a) 8 coroutines per core, and
+    (b) 48 coroutines per core, about the number required for the
+    network rate in the simulated delay experiments. }
   \vspace{-1.5pt} % space with text
   \label{fig:cache-pressure}
 \end{figure}
 
-We varied the size of the per-coroutine local working set from 2KB
+We varied the size of the per-coroutine local working set from 2KiB
 to 4MB, and ran 0 to 32 local updates for each pointer
 traversal. We measured the remote reference rate (i.e. accesses to \texttt{remoteList} from Figure~\ref{fig:code}c).
 
 Figure~\ref{fig:cache-pressure}a shows the result for 8 coroutines per
 core.  With 1 to 4 updates per remote reference for smaller working
-sets, the runtime achieves near maximum throughput. As working set
-size increases, cache misses in the local space become a
-bottleneck. When there are several updates to large working sets, the
-data of other coroutines is likely to be evicted from cache and
-performance suffers.
+sets, the runtime achieves near maximum throughput. 
+%As working set
+%size increases, cache misses in the local space become a
+%bottleneck. 
+%When there are several updates to large working sets, 
+As the number of updates and the working set size increase, the data
+of other coroutines is likely to be evicted from cache and performance
+suffers.
 
 %As we would expect, when there are no references to the local structures, the reference rates grow with the number of coroutines, just as in Figure~\ref{fig:multi-green}. For 32 local updates per traversal, while performance decreases for large working set sizes and large numbers of coroutines, we see speedup as the number of coroutines increases up to 128KB working set size with 8 coroutines per core.
 
@@ -743,7 +749,7 @@ delay. In analyzing the results, we assume a network issue rate of \mrps{100}, b
     \includegraphics[width=0.47\textwidth]{figures/delay7800-remote-edited.pdf}
   \end{center}
   \vspace{-0.3in}
-  \caption{Pointer chasing across QPI link and with simulated network delay of $3\mu s$, six cores. Using six cores, 53 coroutines per core are required to reach the assumed network rate of \mrps{100}.}
+  \caption{Pointer chasing across QPI link with simulated network delay of $3\mu s$, six cores. Using six cores, 53 coroutines per core are required to reach the assumed network rate of \mrps{100}.}
   \label{fig:network-delay}
 \end{figure}
 
@@ -751,7 +757,7 @@ The results of the experiment with six cores are shown in
 Figure~\ref{fig:network-delay}. The runtime can still reach a
 maximum rate of \mrps{173}\footnote{The throughput keeps increasing up to around 564 total concurrent references offered (at which point QPI is saturated), far more than the 36 we know the chip to support. This is because we have modeled the network latency by forcing coroutines to wait the extra time before using the data, so the physical miss buffers on our machine are not tied up any longer than usual.}, saturating the QPI link.  Little's law predicts that 300 concurrent references are required to achieve the estimated network rate of \mrps{100} when there is $3\mu s$ latency. The results agree: \mrps{100} is reached with about 53 coroutines per core. Although there will be other overheads in a full runtime, this experiment suggests there is potential to tolerate multi-node system latencies.
 
-Figure~\ref{fig:cache-pressure}b shows the results of the cache pressure experiment for supporting 48 coroutines per core, about the number of contexts needed to tolerate latency in the network experiment. We observe that when performing up to 8 local updates per remote reference, smaller working sets still allow the desired throughput. When performing 1 to 2 updates, the runtime can maintain throughput for working sets of up to 32KB.
+Figure~\ref{fig:cache-pressure}b shows the results of the cache pressure experiment for supporting 48 coroutines per core, about the number of contexts needed to tolerate latency in the network experiment. We observe that when performing up to 8 local updates per remote reference, smaller working sets still allow the desired throughput. When performing 1 to 2 updates, the runtime can maintain throughput for working sets of up to 32KiB.
 
 %Any network interface would be connected through a QPI link,
 %which we measured to have a bandwidth limit of 175 \mrps, so our runtime appears to have the capacity to chase pointers
@@ -802,8 +808,8 @@ concurrency to tolerate long latencies to hide the cost of
 expensive accesses to our large global memory system (high-latency,
 but high-bandwidth).
 
-\bibliographystyle{acm}
-{\small
+%\bibliographystyle{acm}
+\bibliographystyle{plain}
+\renewcommand{\bibfont}{\footnotesize}  
 \bibliography{softxmt-hotpar2011}
-}
 \end{document}
