@@ -90,11 +90,11 @@
 Many important emerging applications such as social network analysis,
 bioinformatics, and sensor networks rely on crunching very large
 graphs. Unfortunately, the computational cost of these applications
-gets quickly out of hand. Tools to analyze social networks and query
-semantic graphs with billions of entities exist
+gets quickly out of hand. While tools to analyze social networks and
+query semantic graphs with billions of entities exist
 today~\cite{joslyn:hpsf, ediger:msda, brocheler:cosi, pegasus,
-  pregel}, but graphs of interest to defense applications are expected
-to have trillions of entities~\cite{hartley:mssg, kolda:imkd}. Speeding
+  pregel}, graphs of interest to defense applications are expected to
+have trillions of entities~\cite{hartley:mssg, kolda:imkd}. Speeding
 up these applications at a low cost would have a large impact in how
 we deal with large data-sets and make them even more valuable.
 
@@ -149,8 +149,8 @@ performance difficult. They do not fit in a single commodity machine's
 memory. They are difficult lay out with locality, since every vertex
 needs to be near every other vertex. They are difficult to partition
 in a balanced way~\cite{lang, leskovec}, leading to hotspots and load
-imbalance. High-latency inter-node communication is a limiting factor
-in scalability~\cite{yoo:parallelbfs}.
+imbalance. Consequently, high-latency inter-node communication becomes
+an important limiting factor in scalability~\cite{yoo:parallelbfs}.
 
 
 % Their low diameter means that they are
