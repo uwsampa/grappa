@@ -31,7 +31,6 @@
 %\textheight 9in
 %\textwidth 6.5in
 %\columnsep 1pc
-\renewcommand{\baselinestretch}{0.8}
 %\renewcommand{\baselinestretch}{0}
 
 %\title{Can We Crunch the Social Graph on the Cheap?}
@@ -53,7 +52,7 @@
 
 \authorinfo{Jacob Nelson$^{\dagger}$,
   Brandon Myers$^{\dagger}$,
-  A.H. Hunter$^{\dagger}$,
+  A. H. Hunter$^{\dagger}$,
   Preston Briggs$^{\dagger}$
   Luis Ceze$^{\dagger}$,
   Carl Ebeling$^{\dagger}$,\\
@@ -78,8 +77,8 @@
    Crunching large graphs is the basis of many emerging applications,
    such as social network analysis and bioinformatics. Graph analytics
    algorithms exhibit little locality and therefore present significant
-   performance challenges. Hardware multithreading systems (e.g, Cray
-   XMT) show that with enough concurrency, we can tolerate long
+   performance challenges. Hardware multithreading systems (e.g., Cray
+   {\small XMT}) show that with enough concurrency, we can tolerate long
    latencies. Unfortunately, this solution is not available with
    commodity parts.
  
@@ -88,10 +87,12 @@
    a runtime that supports a large number of lightweight contexts,
    full-bit synchronization and a memory manager that provides a
    high-latency but high-bandwidth global shared memory. This paper
-   lays out the vision for our system, and justifies its feasibility
+   lays out the vision for our system and justifies its feasibility
    with a performance analysis of the runtime for latency tolerance.
  
 \end{abstract}
+
+\renewcommand{\baselinestretch}{0.8}
 
 \section{Introduction}
 
@@ -99,12 +100,13 @@ Many important emerging applications such as social network analysis,
 bioinformatics, and sensor networks rely on crunching very large
 graphs. Unfortunately, the computational cost of these applications
 gets quickly out of hand. While tools to analyze social networks and
-query semantic graphs with billions of entities exist
+query semantic graphs with billions of vertices and edges exist
 today~\cite{joslyn:hpsf, ediger:msda, brocheler:cosi, pegasus,
   pregel}, graphs of interest to defense applications are expected to
 have trillions of entities~\cite{hartley:mssg, kolda:imkd}. Speeding
 up these applications at a low cost would have a large impact in how
-we deal with large data-sets and make them even more valuable.
+we analyze large data-sets and make them even more valuable.
+
 
 
 
@@ -194,12 +196,12 @@ an important limiting factor in scalability~\cite{yoo:parallelbfs}.
 
 Multithreading is a technique that has been used successfully to
 implement efficient computations for these
-graphs~\cite{bader:bfsmta}. The Cray XMT is an example of such an
+graphs~\cite{bader:bfsmta}. The Cray {\small XMT} is an example of such an
 approach: it solves the memory latency problem through concurrency
-rather than caching. Each XMT processor supports 128 hardware contexts
+rather than caching. Each {\small XMT} processor supports 128 hardware contexts
 and 1024 outstanding memory operations, and is able to switch contexts
 every cycle~\cite{tera, feo-xmt}. This ability comes at a cost: the
-XMT is an expensive, non-commodity machine.
+{\small XMT} is an expensive, non-commodity machine.
 
 \begin{figure*}[htbp]
   \begin{center}
@@ -217,7 +219,7 @@ XMT is an expensive, non-commodity machine.
 
 
 We believe we can build a system based mostly on commodity parts that
-can attain XMT-like performance with a familiar, XMT-like,
+can attain {\small XMT}-like performance with a familiar, {\small XMT}-like,
 programming model, but at a fraction of the cost. Therefore, our goal
 is to build a system that has good performance on low-locality graph
 codes but is implemented with cheap commodity processors and simple
@@ -254,7 +256,7 @@ section~\ref{sec:conclusion}.
 \section{Programming model}
 \label{sec:model}
 
-Our goal is to preserve the XMT programming model: large shared global
+Our goal is to preserve the {\small XMT} programming model: large shared global
 address space, explicit concurrency with a large number of threads,
 and full-bit synchronization.  We partition the overall address
 space into a global shared address space and per node private address
@@ -280,7 +282,7 @@ concurrency.  Exactly how that concurrency is expressed by the
 programmer is language dependent. The goal of our system is to support
 that concurrency and consequently provide latency tolerance on a large
 address space. We do so via software multithreading: computation that
-is about to execute a long latency operation (e.g. a remote memory
+is about to execute a long latency operation (e.g., a remote memory
 reference) initiates the operation and then yields to the scheduler,
 which quickly resumes execution of another computation. Concurrency is
 also used to make more efficient use of network bandwidth: it
@@ -296,7 +298,7 @@ Synchronization on locations in the private address space of a node
 works the the same way as on conventional systems.  Synchronization on
 global addresses works differently: we provide atomic operations such
 as {\tt int\_fetch\_add} as well as operations using full-bits, as on
-the Cray XMT.  As is true for other long latency operations,
+the Cray {\small XMT}.  As is true for other long latency operations,
 synchronization latency is tolerated by yielding to the scheduler.
 Even non-blocking global atomics yield so the core can switch to
 another computation while the synchronization is accomplished outside
@@ -310,15 +312,15 @@ Our goal is to use multithreading to tolerate
 the latency of random accesses to memory in a global address space
 spread across multiple nodes.  Our implementation must provide three features:
 \begin{description}
-\item[Lightweight multithreading:] We expect to need hundreds of
+\item[Lightweight multithreading] We expect to need hundreds of
   threads to tolerate a cluster's network latency, so our threading
   implementation must have low overhead.
 
-\item[Concurrency in global memory references:] A thread making a
+\item[Concurrency in global memory references] A thread making a
   long-latency global memory reference must be able to yield and allow
   other threads to make progress.
 
-\item[Low overhead synchronization:] 
+\item[Low overhead synchronization] 
 %  We must support global synchronization between threads that allows unrelated threads to proceed unblocked.
   Similarly to a regular memory access, long-latency synchronization
   should also cause a thread to yield and allow others to make
@@ -481,8 +483,8 @@ indirection.
 %\paragraph{Single-node system.}
 In our single-node implementation, we prefetch and yield before performing
 a synchronization operation. We support only the synchronization
-operations supported by our development platform; we have not
-implemented full-bits yet.
+operations supported by our development platform; we have not yet
+implemented full-bits.
 
 %\paragraph{Multi-node ideas.}
 In a multi-node implementation, synchronization operations can be delegated to a memory manager
@@ -514,7 +516,7 @@ Our evaluation consists of two parts. First, we demonstrate that the
 runtime system can achieve the same performance as when 
 explicit memory concurrency is available. Second, we look at the runtime
 within the multi-node picture and show that it can tolerate large
-latencies. In each part we begin by studying relevant aspects of our
+latencies. In each part, we begin by studying relevant aspects of our
 test machine's memory system so we can interpret our runtime results.
 
 
@@ -534,7 +536,7 @@ To find the maximum random reference rate that one chip's cores
 can issue, we ran pointer chasing code following the model of
 Figure~\ref{fig:code}a. Each core issues $n$ list traversals
 in a loop; we call $n * \textit{number of cores}$ the number of
-{\em concurrent offered references}, since the memory system may not
+{\em concurrent offered references} since the memory system may not
 be able to satisfy them all in parallel. Since our goal is to find a
 baseline for evaluating our coroutine library, we depend on the
 cores' exploitation of ILP for memory concurrency, rather than our coroutine
@@ -606,7 +608,7 @@ library.
 
 The lists were laid out randomly with pointers spaced at a cache line granularity, maximizing
 the probability of each reference being a miss. We allocated the lists
-on 1GB huge pages to minimize TLB refill overhead.
+on 1~GB huge pages to minimize TLB refill overhead.
 
 \begin{figure}[t]
   \vspace{-.1in}
@@ -702,12 +704,12 @@ general idea.
   \label{fig:cache-pressure}
 \end{figure}
 
-We varied the size of the per-coroutine local working set from 2KiB
-to 4MiB, and ran 0 to 32 local updates for each pointer
-traversal. We measured the remote reference rate (i.e. accesses to \texttt{remoteList} from Figure~\ref{fig:code}c).
+We varied the size of the per-coroutine local working set from 2~KB
+to 4~MB, and ran 0 to 32 local updates for each pointer
+traversal. We measured the remote reference rate (i.e., accesses to \texttt{remoteList} from Figure~\ref{fig:code}c).
 
-Figure~\ref{fig:cache-pressure}a shows the result for 8 coroutines per
-core.  With 1 to 4 updates per remote reference for smaller working
+Figure~\ref{fig:cache-pressure}a shows the result for 8~coroutines per
+core.  With 1~to 4~updates per remote reference for smaller working
 sets, the runtime achieves near maximum throughput. 
 %As working set
 %size increases, cache misses in the local space become a
@@ -763,9 +765,15 @@ delay. In analyzing the results, we assume a network issue rate of \mrps{100}, b
 
 The results of the experiment with six cores are shown in
 Figure~\ref{fig:network-delay}. The runtime can still reach a
-maximum rate of \mrps{173}\footnote{The throughput keeps increasing up to around 564 total concurrent references offered (at which point QPI is saturated), far more than the 36 we know the chip to support. This is because we have modeled the network latency by forcing coroutines to wait the extra time before using the data, so the physical miss buffers on our machine are not tied up any longer than usual.}, saturating the QPI link.  Little's law predicts that 300 concurrent references are required to achieve the estimated network rate of \mrps{100} when there is $3\mu s$ latency. The results agree: \mrps{100} is reached with about 53 coroutines per core. Although there will be other overheads in a full runtime, this experiment suggests there is potential to tolerate multi-node system latencies.
+maximum rate of \mrps{173},\footnote{The throughput keeps increasing
+  up to around 564 total concurrent references offered (at which point
+  QPI is saturated), far more than the 36 we know the chip to
+  support. This is because we have modeled the network latency by
+  forcing coroutines to wait the extra time before using the data, so
+  the physical miss buffers on our machine are not tied up any longer
+  than usual.} saturating the QPI link.  Little's Law predicts that 300 concurrent references are required to achieve the estimated network rate of \mrps{100} when there is $3\mu s$ latency. The results agree: \mrps{100} is reached with about 53 coroutines per core. Although there will be other overheads in a full runtime, this experiment suggests there is potential to tolerate multi-node system latencies.
 
-Figure~\ref{fig:cache-pressure}b shows the results of the cache pressure experiment for supporting 48 coroutines per core, about the number of contexts needed to tolerate latency in the network experiment. We observe that when performing up to 8 local updates per remote reference, smaller working sets still allow the desired throughput. When performing 1 to 2 updates, the runtime can maintain throughput for working sets of up to 32KiB.
+Figure~\ref{fig:cache-pressure}b shows the results of the cache pressure experiment for supporting 48 coroutines per core, about the number of contexts needed to tolerate latency in the network experiment. We observe that when performing up to 8 local updates per remote reference, smaller working sets still allow the desired throughput. When performing 1 to 2 updates, the runtime can maintain throughput for working sets of up to 32~KB.
 
 %Any network interface would be connected through a QPI link,
 %which we measured to have a bandwidth limit of 175 \mrps, so our runtime appears to have the capacity to chase pointers
@@ -778,7 +786,7 @@ Figure~\ref{fig:cache-pressure}b shows the results of the cache pressure experim
 
 Much work exists on using multithreading to tolerate latency. Hardware
 implementations include the Tera MTA~\cite{tera} and Cray
-XMT~\cite{feo-xmt}, Simultaneous Multithreading \cite{tullsen-smt},
+{\small XMT}~\cite{feo-xmt}, Simultaneous Multithreading \cite{tullsen-smt},
 MIT Alewife \cite{agarwal-alewife}, Cyclops \cite{almasi-cyclops}, and
 even GPUs \cite{gpus}. Software-only approaches exist as well; the
 Software Controlled Multithreading project \cite{mowry-scm}, QThreads
@@ -815,7 +823,7 @@ tolerance and our results showed that it is able to manage enough
 concurrency to tolerate long latencies to hide the cost of
 expensive accesses to our large global memory system (high-latency,
 but high-bandwidth).
-
+\newpage
 %\bibliographystyle{acm}
 \bibliographystyle{plain}
 \renewcommand{\bibfont}{\footnotesize}  
