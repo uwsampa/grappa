@@ -146,7 +146,7 @@ we deal with large data-sets and make them even more valuable.
 The most interesting computational challenge comes from large,
 low-diameter, power law graphs: this combination makes extracting
 performance difficult. They do not fit in a single commodity machine's
-memory. They are difficult lay out with locality, since every vertex
+memory. They are difficult to lay out with locality, since every vertex
 needs to be near every other vertex. They are difficult to partition
 in a balanced way~\cite{lang, leskovec}, leading to hotspots and load
 imbalance. Consequently, high-latency inter-node communication becomes
@@ -626,7 +626,7 @@ memory concurrency; the maximum reference rate for a single core is
 The memory controller in the chip has more bandwidth than its
 cores can saturate. To measure the memory controller's maximum random
 reference rate, we extended the previous experiment so that cores in
-both processors were traversing lists allocated in the first processor's
+both processors traversed lists allocated in the first processor's
 memory. With this configuration, we observed a maximum rate of \mrps{360}. We believe this difference is due to the chip having only 32 buffers in its {\em Global Queue} \cite{nehalem:perf} for tracking concurrently-executing read misses from all the cores' private caches.
 
 
@@ -695,7 +695,7 @@ general idea.
 \end{figure}
 
 We varied the size of the per-coroutine local working set from 2KiB
-to 4MB, and ran 0 to 32 local updates for each pointer
+to 4MiB, and ran 0 to 32 local updates for each pointer
 traversal. We measured the remote reference rate (i.e. accesses to \texttt{remoteList} from Figure~\ref{fig:code}c).
 
 Figure~\ref{fig:cache-pressure}a shows the result for 8 coroutines per
