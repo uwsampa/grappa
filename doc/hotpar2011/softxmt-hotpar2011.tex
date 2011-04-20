@@ -523,7 +523,7 @@ library.
 %\caption{Pseudocode for pointer chasing with local updates.}
 \label{fig:pointerupdate}
 }\end{minipage}
-%\vspace{5pt}
+\vspace{5pt}
 \caption{Pseudocode for: (a) pointer chasing without coroutines, (b) pointer chasing using coroutines, (c) pointer chasing with local updates. Coroutine code, as in (b), might also include ILP like what (a) depends on for memory concurrency, e.g., by doing multiple prefetches to independent lists, switch, then multiple reads.}
 \label{fig:code}
 \end{figure*}
@@ -610,7 +610,7 @@ general idea.
 % cache pressure figure
 \begin{figure}[h]
   \begin{center}
-    \includegraphics[width=0.45\textwidth]{figures/cachepressurenewview-edited.pdf}
+    \includegraphics[width=0.49\textwidth]{figures/cachepressurenewview-edited.pdf}
   \end{center}
   \vspace{0.0in}
   \caption{Cache pressure with coroutines, on six cores. The vertical axis is remote reference rate. (a) with 8 coroutines per core. (b) with 48 coroutines per core, about the number required for the network rate in simulated delay experiments. }
