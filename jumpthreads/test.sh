@@ -16,12 +16,15 @@ else
 fi
 
 echo > $OUTPUT
-for i in $(seq 1 32) 64 128 256 512 1024 2048 4096 8192
+for p in 0 1
 do
-  make clean && make NTHR=$i HYP=$HYPER pchase 
+for i in $(seq 1 32)
+do
+  make clean && make NTHR=$i HYP=$HYPER PF=$p pchase 
   for c in $CORES
   do
   echo $i $c
-  nice -n -20 hugectl --heap -- numactl --membind=0 -- ./pchase $c $CHASES $i >> $OUTPUT
+  nice -n -20 hugectl --heap -- numactl --membind=0 -- ./pchase $c $CHASES $i$HYPER >> $OUTPUT
   done
+done
 done

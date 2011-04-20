@@ -1,6 +1,7 @@
 NTHR=8
 HYP=NOHYPER
-CFLAGS = -O2 -std=gnu99 -Wall -Wextra -g -D NTHR=$(NTHR) -D$(HYP) -fopenmp -lm
+PF=1
+CFLAGS = -O2 -std=gnu99 -Wall -Wextra -g -D NTHR=$(NTHR) -D$(HYP) -DPREFETCH=$(PF) -fopenmp -lm
 LDLIBS= -lrt -fopenmp
 all: jumpthreads yield_bench pchase rand newton mathchase
 
