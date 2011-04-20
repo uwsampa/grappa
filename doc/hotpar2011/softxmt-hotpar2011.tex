@@ -7,7 +7,7 @@
 
 
 %\documentclass{acm_proc_article-sp}
-\documentclass[10pt,nocopyrightspace,preprint]{sigplanconf}
+\documentclass[10pt,nocopyrightspace]{sigplanconf}
 \usepackage{url}
 \usepackage{fancyvrb}
 \usepackage{fancyhdr}
@@ -32,6 +32,7 @@
 %\textwidth 6.5in
 %\columnsep 1pc
 \renewcommand{\baselinestretch}{0.8}
+%\renewcommand{\baselinestretch}{0}
 
 %\title{Can We Crunch the Social Graph on the Cheap?}
 \title{Crunching Large Graphs with Commodity Processors}
@@ -53,6 +54,9 @@
 \authorinfo{Jacob Nelson$^{\dagger}$, Brandon Myers$^{\dagger}$, A.H. Hunter$^{\dagger}$, Luis
   Ceze$^{\dagger}$,
   Dan Grossman$^{\dagger}$, Mark Oskin$^{\dagger}$, Carl Ebeling$^{\dagger}$, Simon Kahan$^{{\dagger \ddagger}}$, Preston Briggs$^{\dagger}$}{\textdagger University of Washington, \textdaggerdbl Pacific Northwest National Laboratory}{\{nelson, bdmyers, ahh, luisceze, djg, oskin, ebeling, skahan, preston\}@cs.washington.edu}
+
+%\lfoot{USENIX HotPar 2011, Berkeley}
+
 
 \maketitle
 
@@ -142,9 +146,11 @@ we deal with large data-sets and make them even more valuable.
 The most interesting computational challenge comes from large,
 low-diameter, power law graphs: this combination makes extracting
 performance difficult. They do not fit in a single commodity machine's
-memory. They are difficult lay out with locality, or to partition in a
-balanced way~\cite{lang, leskovec}. Expensive inter-node communication
-is a limiting factor in scalability~\cite{yoo:parallelbfs}.
+memory. They are difficult lay out with locality, since every vertex
+needs to be near every other vertex. They are difficult to partition
+in a balanced way~\cite{lang, leskovec}, leading to hotspots and load
+imbalance. High-latency inter-node communication is a limiting factor
+in scalability~\cite{yoo:parallelbfs}.
 
 
 % Their low diameter means that they are
@@ -331,10 +337,11 @@ achieve concurrency.
 %minimum number of registers allowed by the ABI, and 
 %Simon:  not really true -- we could save fewer if we knew which of the
 %callee save registers weren't going to be clobbered.
-\todo{decide whether to change these 2 paragraphs to be inclusive of
-  other lightweight implementations, like jump table. I support the
-  idea of making it more inclusive but I can't think of what to
-  actually change.}  We treat context switches as function calls, as
+%\todo{decide whether to change these 2 paragraphs to be inclusive of
+%  other lightweight implementations, like jump table. I support the
+%  idea of making it more inclusive but I can't think of what to
+%  actually change.}  
+We treat context switches as function calls, as
 in~\cite{charm}. This allows us to depend on the compiler to save and
 restore caller-save registers while we explicitly save and restore all
 the callee-save registers.  We minimize context switch time by doing
@@ -770,6 +777,7 @@ expensive accesses to our large global memory system (high-latency,
 but high-bandwidth).
 
 \bibliographystyle{acm}
+{\small
 \bibliography{softxmt-hotpar2011}
-
+}
 \end{document}
