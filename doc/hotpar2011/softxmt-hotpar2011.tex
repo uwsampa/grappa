@@ -103,7 +103,7 @@ gets quickly out of hand. While tools to analyze social networks and
 query semantic graphs with billions of vertices and edges exist
 today~\cite{joslyn:hpsf, ediger:msda, brocheler:cosi, pegasus,
   pregel}, graphs of interest to defense applications are expected to
-have trillions of entities~\cite{hartley:mssg, kolda:imkd}. Speeding
+have trillions of vertices and edges~\cite{hartley:mssg, kolda:imkd}. Speeding
 up these applications at a low cost would have a significant impact in how
 we analyze large data-sets and make them even more valuable.
 
@@ -649,7 +649,7 @@ memory concurrency; the maximum reference rate for a single core is
 The memory controller in the chip has more bandwidth than its
 cores can saturate. To measure the memory controller's maximum random
 reference rate, we extended the previous experiment so that cores in
-both processors traversed lists allocated in the first processor's
+both chips traversed lists allocated in the first chip's
 memory. With this configuration, we observed a maximum rate of \mrps{360}. We believe this difference is due to the chip having only 32 buffers in its {\em Global Queue} \cite{nehalem:perf} for tracking concurrently-executing read misses from all the cores' private caches.
 
 
@@ -666,7 +666,7 @@ Figure~\ref{fig:code}b. Recall that the baseline code in Figure~\ref{fig:code}a 
 concurrent references: the ILP exploited by the processor, and the
 memory concurrency enabled by prefetching and switching to a new
 coroutine. As with our first experiment, we allocated the lists in the
-same processor as the cores doing the traversal. 
+same chip as the cores doing the traversal. 
 
 \begin{figure}[t]
   \begin{center}
@@ -727,8 +727,8 @@ to 4~MB, and ran 0 to 32 local updates for each remote pointer
 traversal. We measured the remote reference rate (i.e., accesses to \texttt{remoteList} from Figure~\ref{fig:code}c).
 
 Figure~\ref{fig:cache-pressure}a shows the result for 8~coroutines per
-core.  With 1~to 4~updates per remote reference for smaller working
-sets, the runtime achieves near maximum throughput. 
+core.  With 1, 2, and 4~updates per remote reference for smaller working
+sets, the runtime is able to achieve near maximum throughput. 
 %As working set
 %size increases, cache misses in the local space become a
 %bottleneck. 
@@ -764,7 +764,8 @@ chip's cores. We found that use of the QPI link limits throughput to
 %%%%%%%%%%
 
 To simulate the performance of pointer chasing in a multi-node system
-we referenced the first chip's memory from the second chip's cores and also had our coroutine scheduler include a delay
+we referenced the first chip's memory from the second chip's cores and
+modified our coroutine scheduler to include a delay
 before a coroutine can be reactivated, imitating the network transit
 delay. We assume 1.1 $\mu$s interface and 400 ns switch latencies in each direction
 \cite{infiniband, mellanox:site}, and thus estimate a 3 $\mu$s round-trip
