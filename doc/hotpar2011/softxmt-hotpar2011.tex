@@ -22,6 +22,11 @@
 % Mref/s
 \newcommand{\mrps}[1]{\unit[#1]{Mref/s}}
 
+%for footer
+\fancyfoot{}
+\fancyfoot[LE,LO]{\emph{USENIX HotPar 2011, Berkeley}}
+\renewcommand{\headrulewidth}{0pt}
+
 \begin{document}
 
 %\titlespacing{\section}{0pt}{*0}{*0}
@@ -62,14 +67,16 @@
 }{\textdagger University of Washington, \textdaggerdbl Pacific Northwest National Laboratory}{
   \{nelson, bdmyers, ahh, preston, luisceze, ebeling, djg, skahan, oskin\}@cs.washington.edu}
 
-%\lfoot{USENIX HotPar 2011, Berkeley}
+
 
 
 \maketitle
 
 % Use the following at camera-ready time to suppress page numbers.
 % Comment it out when you first submit the paper for review.
-\thispagestyle{empty}
+%\thispagestyle{empty}
+
+\thispagestyle{fancy} % for first page header
 \pagestyle{empty}
 
 
