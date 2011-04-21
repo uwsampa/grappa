@@ -53,12 +53,12 @@
 \authorinfo{Jacob Nelson$^{\dagger}$,
   Brandon Myers$^{\dagger}$,
   A. H. Hunter$^{\dagger}$,
-  Preston Briggs$^{\dagger}$
+  Preston Briggs$^{\dagger}$,
   Luis Ceze$^{\dagger}$,
   Carl Ebeling$^{\dagger}$,\\
   Dan Grossman$^{\dagger}$,
   Simon Kahan$^{{\dagger \ddagger}}$,
-  Mark Oskin$^{\dagger}$,
+  Mark Oskin$^{\dagger}$
 }{\textdagger University of Washington, \textdaggerdbl Pacific Northwest National Laboratory}{
   \{nelson, bdmyers, ahh, preston, luisceze, ebeling, djg, skahan, oskin\}@cs.washington.edu}
 
@@ -104,9 +104,8 @@ query semantic graphs with billions of vertices and edges exist
 today~\cite{joslyn:hpsf, ediger:msda, brocheler:cosi, pegasus,
   pregel}, graphs of interest to defense applications are expected to
 have trillions of entities~\cite{hartley:mssg, kolda:imkd}. Speeding
-up these applications at a low cost would have a large impact in how
+up these applications at a low cost would have a significant impact in how
 we analyze large data-sets and make them even more valuable.
-
 
 
 
@@ -202,7 +201,7 @@ rather than caching. Each {\small XMT} processor supports 128 hardware contexts
 and 1024 outstanding memory operations, and is able to switch contexts
 every cycle~\cite{tera, feo-xmt}. This ability comes at a cost: the
 {\small XMT} is an expensive, non-commodity machine with low
-single-threaded performance.
+single-thread performance.
 
 \begin{figure*}[htbp]
   \begin{center}
@@ -694,7 +693,7 @@ with a prefetch instruction.
 %depend on prefetches: further experiments show that without them, the
 %overhead of context switches limits concurrency when there are more
 %than two coroutines per core. 
-Lastly, we observe repeatable data points that are off the trend and fall below the max. This effect is harder to explain, but we suspect it may be
+We also observe repeatable data points that are off the trend and fall below the max. This effect is harder to explain, but we suspect it may be
 due to resource contention in the cores' pipelines once the memory
 system is full of requests. 
 
@@ -724,7 +723,7 @@ general idea.
 \end{figure}
 
 We varied the size of the per-coroutine local working set from 64~B
-to 4~MB, and ran 0 to 32 local updates for each pointer
+to 4~MB, and ran 0 to 32 local updates for each remote pointer
 traversal. We measured the remote reference rate (i.e., accesses to \texttt{remoteList} from Figure~\ref{fig:code}c).
 
 Figure~\ref{fig:cache-pressure}a shows the result for 8~coroutines per
@@ -735,8 +734,8 @@ sets, the runtime achieves near maximum throughput.
 %bottleneck. 
 %When there are several updates to large working sets, 
 As the number of updates and the working set size increase, the data
-of other coroutines is likely to be evicted from cache and performance
-suffers.
+of other coroutines is likely to be evicted from cache, leading to
+decreased performance.
 
 %As we would expect, when there are no references to the local structures, the reference rates grow with the number of coroutines, just as in Figure~\ref{fig:multi-green}. For 32 local updates per traversal, while performance decreases for large working set sizes and large numbers of coroutines, we see speedup as the number of coroutines increases up to 128KB working set size with 8 coroutines per core.
 
@@ -766,7 +765,7 @@ chip's cores. We found that use of the QPI link limits throughput to
 
 To simulate the performance of pointer chasing in a multi-node system
 we referenced the first chip's memory from the second chip's cores and also had our coroutine scheduler include a delay
-before a coroutine can be rescheduled, imitating the network transit
+before a coroutine can be reactivated, imitating the network transit
 delay. We assume 1.1 $\mu$s interface and 400 ns switch latencies in each direction
 \cite{infiniband, mellanox:site}, and thus estimate a 3 $\mu$s round-trip
 delay. In analyzing the results, we assume a network issue rate of \mrps{100}, based on modern network interfaces \cite{mellanox:press}.
@@ -792,7 +791,13 @@ maximum rate of \mrps{173},\footnote{The throughput keeps increasing
   the physical miss buffers on our machine are not tied up any longer
   than usual.} saturating the QPI link.  Little's Law predicts that 300 concurrent references are required to achieve the estimated network rate of \mrps{100} when there is $3\mu s$ latency. The results agree: \mrps{100} is reached with about 53 coroutines per core. Although there will be other overheads in a full runtime, this experiment suggests there is potential to tolerate multi-node system latencies.
 
-Figure~\ref{fig:cache-pressure}b shows the results of the cache pressure experiment for supporting 48 coroutines per core, about the number of contexts needed to tolerate latency in the network experiment. We observe that when performing up to 8 local updates per remote reference, smaller working sets still allow the desired throughput. When performing 1 to 2 updates, the runtime can maintain throughput for working sets of up to 32~KB.
+Figure~\ref{fig:cache-pressure}b shows the results of the cache
+pressure experiment for supporting 48 coroutines per core, about the
+number of contexts needed to tolerate latency in the network
+experiment. We observe that when performing up to 16~local updates per
+remote reference, smaller working sets still allow the desired
+throughput. When performing 1~to 2~updates, the runtime can maintain
+throughput for working sets of up to 32~KB.
 
 %Any network interface would be connected through a QPI link,
 %which we measured to have a bandwidth limit of 175 \mrps, so our runtime appears to have the capacity to chase pointers
@@ -804,7 +809,7 @@ Figure~\ref{fig:cache-pressure}b shows the results of the cache pressure experim
 
 
 Much work exists on using multithreading to tolerate latency. Hardware
-implementations include the Tera MTA~\cite{tera} and Cray
+implementations include the Tera {\small MTA}~\cite{tera} and Cray
 {\small XMT}~\cite{feo-xmt}, Simultaneous Multithreading \cite{tullsen-smt},
 MIT Alewife \cite{agarwal-alewife}, Cyclops \cite{almasi-cyclops}, and
 even GPUs \cite{gpus}. Software-only approaches exist as well; the
@@ -838,7 +843,7 @@ We presented our plans for building a system for large graph
 computation using commodity parts. We leverage decades-old ideas on
 using a large amount of concurrency to tolerate latencies, but we do
 so mostly in software. We developed a runtime system for latency
-tolerance; our results showed that it supports enough concurrency
+tolerance, and our results showed that it supports enough concurrency
 to tolerate the long latencies of our large high-bandwidth global
 memory system.
 
