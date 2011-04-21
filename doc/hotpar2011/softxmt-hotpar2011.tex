@@ -345,10 +345,10 @@ implementation and ideas for a multi-node implementation.
 To enable concurrency in memory references, we break each read or
 write into two operations: the {\em issue} operation and the {\em
   complete} operation. The read issue operation starts data moving
-towards the processor and returns immediately, like a prefetch; the
+towards the processor and returns immediately, like a prefetch. The
 read complete operation blocks until data is available. The write
 issue operation takes data along with an address, and starts an
-asynchronous write; the write complete operation blocks until the
+asynchronous write. The write complete operation blocks until the
 write is committed.
 
 A latency-tolerant read operation in threaded user code then consists of three steps: a {\em read
@@ -710,6 +710,7 @@ general idea.
 % cache pressure figure
 \begin{figure}[t]
   \begin{center}
+  \vspace{-10pt}
 %    \includegraphics[width=0.48\textwidth]{figures/cachepressurenewview-edited.pdf}
     \includegraphics[width=0.50\textwidth]{figures/cachepressurenewview-edited.pdf}
   \end{center}
