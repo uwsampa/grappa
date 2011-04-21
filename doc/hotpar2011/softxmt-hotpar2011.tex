@@ -201,7 +201,8 @@ approach: it solves the memory latency problem through concurrency
 rather than caching. Each {\small XMT} processor supports 128 hardware contexts
 and 1024 outstanding memory operations, and is able to switch contexts
 every cycle~\cite{tera, feo-xmt}. This ability comes at a cost: the
-{\small XMT} is an expensive, non-commodity machine.
+{\small XMT} is an expensive, non-commodity machine with low
+single-threaded performance.
 
 \begin{figure*}[htbp]
   \begin{center}
@@ -219,12 +220,13 @@ every cycle~\cite{tera, feo-xmt}. This ability comes at a cost: the
 
 
 We believe we can build a system based mostly on commodity parts that
-can attain {\small XMT}-like performance with a familiar, {\small XMT}-like,
-programming model, but at a fraction of the cost. Therefore, our goal
-is to build a system that has good performance on low-locality graph
-codes but is implemented with cheap commodity processors and simple
-additional support in an FPGA. This approach has the added
-benefit of not sacrificing general-purpose performance.
+can attain {\small XMT}-like performance with a familiar, {\small
+  XMT}-like, programming model, but at a fraction of the
+cost. Therefore, our goal is to build a system that has good
+performance on low-locality graph codes but is implemented using cheap
+commodity processors with the possible additional support of an FPGA. This
+approach has the added benefit of not sacrificing general-purpose
+performance.
 
 Figure~\ref{fig:system-overview} shows an overview of our proposal. It
 is composed of multiple nodes built with commodity processors,
@@ -284,10 +286,11 @@ that concurrency and consequently provide latency tolerance on a large
 address space. We do so via software multithreading: computation that
 is about to execute a long latency operation (e.g., a remote memory
 reference) initiates the operation and then yields to the scheduler,
-which quickly resumes execution of another computation. Concurrency is
-also used to make more efficient use of network bandwidth: it
+which quickly resumes execution of another computation. Concurrency 
+beyond that required for latency tolerance
+can also be used to make more efficient use of network bandwidth: it
 enables aggregation of short memory requests into coarser requests,
-which leads to large network messages and consequently better
+leading to large network messages and consequently better
 bandwidth utilization.
 
 % \todo{vague}---via aggregation of requests to a common node
@@ -295,7 +298,7 @@ bandwidth utilization.
 % some cases reduce bandwidth demands.
 
 Synchronization on locations in the private address space of a node
-works the the same way as on conventional systems.  Synchronization on
+works the same way as on conventional systems.  Synchronization on
 global addresses works differently: we provide atomic operations such
 as {\tt int\_fetch\_add} as well as operations using full-bits, as on
 the Cray {\small XMT}.  As is true for other long latency operations,
@@ -312,23 +315,115 @@ Our goal is to use multithreading to tolerate
 the latency of random accesses to memory in a global address space
 spread across multiple nodes.  Our implementation must provide three features:
 \begin{description}
-\item[Lightweight multithreading] We expect to need hundreds of
+\item[Concurrency in global memory references\quad] We must support many
+  outstanding references to our long-latency global memory to fully
+  utilize its bandwidth.
+%A thread making a
+%  long-latency global memory reference must be able to yield and allow
+%  other threads to make progress.
+
+\item[Lightweight multithreading\quad] We expect to need hundreds of
   threads to tolerate a cluster's network latency, so our threading
   implementation must have low overhead.
 
-\item[Concurrency in global memory references] A thread making a
-  long-latency global memory reference must be able to yield and allow
-  other threads to make progress.
-
-\item[Low overhead synchronization] 
-%  We must support global synchronization between threads that allows unrelated threads to proceed unblocked.
-  Similarly to a regular memory access, long-latency synchronization
-  should also cause a thread to yield and allow others to make
-  progress. %\todo{repetitive with the previous item}
+\item[Low-overhead synchronization\quad] 
+%  We must support global synchronization between threads that allows
+%  unrelated threads to proceed unblocked.
+Long-latency synchronization operations should not block the processor's
+pipeline, so that other threads can proceed.
+  
+%Similarly to a regular memory access, long-latency synchronization
+%  should also cause a thread to yield and allow others to make
+%  progress. %\todo{repetitive with the previous item}
 \end{description}
 We discuss our approach to solving each of these challenges in
 turn. For each one, we discuss both our current single-node
 implementation and ideas for a multi-node implementation.
+
+
+\subsection{Concurrency in global memory references}
+
+To enable concurrency in memory references, we break each read or
+write into two operations: the {\em issue} operation and the {\em
+  complete} operation. The read issue operation starts data moving
+towards the processor and returns immediately, like a prefetch; the
+read complete operation blocks until data is available. The write
+issue operation takes data along with an address, and starts an
+asynchronous write; the write complete operation blocks until the
+write is committed.
+
+A latency-tolerant read operation in threaded user code then consists of three steps: a {\em read
+  issue}, which causes the data to start moving; a {\em yield}, which
+causes another thread to start executing, overlapping the read
+latency; and, once the reading thread has been rescheduled, a {\em
+  read complete} blocks until the data is available. A write operation
+follows the same pattern, blocking until the data has been committed.
+
+%\paragraph{Single-node implementation.}
+In our single-node implementation, we use prefetch instructions for
+the issue operation, and regular blocking reads and writes for the
+complete operation. 
+Writes use the prefetch instruction to gain
+cache line ownership before modification.
+%  Since we expect
+%these global references to have low locality, we use the
+%``non-temporal'' form of prefetch to avoid disturbing the state of the
+%cache hierarchy \cite{intel:swdev}.
+
+%\paragraph{Multi-node ideas.}
+As we develop our multi-node implementation, we believe we will need hundreds of outstanding memory references per
+processor to cover the latency of remote references in a multi-node
+system. Unfortunately, commodity processors have much smaller limits
+on memory concurrency: section~\ref{subsubsec:evalsinglebase} finds a
+limit of 36 concurrent loads. We will have to manage memory
+concurrency on our own to bypass this limit. We describe approaches in
+both software and hardware.
+
+One approach is for user code to delegate global references to a
+special {\em global memory manager thread}, running on another core in
+the chip. This thread translates the global address into a network
+destination, makes the request through the network card to the remote
+node, checks for completion, and delivers the returned data to the
+requesting thread. On the remote node, the remote memory manager
+thread performs the memory operation and return the data to the
+requesting node.
+
+%This approach has the benefit of enabling our entire system to be
+%build using commodity parts, but its potential for performance is not
+%clear. We have increased the overhead of a single memory operation:
+%what in the single node case was a simple read, is now multiple
+%queuing operations between threads and multiple reads and writes over
+%the processor's link to the network interface.
+
+Another approach moves the global memory management to a hardware
+device. We can add a coprocessor FPGA in a processor socket, listening
+to coherence messages on the bus, similar to \cite{mogill}. Note that
+this accelerator is only a memory proxy, not a compute
+coprocessor. The accelerator maps all global shared memory into a
+segment of each node's local address space; when it detects a
+reference to memory on a remote node, it does the address-to-node
+translation and issues the request through the network controller,
+delivering the data to the requesting thread when ready. We 
+encode commands in the upper bits of the address; a read from a
+location's {\em issue} address starts the remote request and returns
+immediately, and a read from a location's {\em complete} address 
+blocks until the data is available.
+
+
+%To support the issue and complete operations for concurrency support,
+%commands would be encoded in the upper bits of the address: then each
+%remote word would have multiple addresses on the local node. Reading
+%from the {\em issue} address would immediately return a value
+%indicating that the accelerator is issuing the request over the
+%network. Reading from the {\em complete} address would block until the
+%data was available.
+
+With either approach, the question of request aggregation will be
+important. Each memory request we make is small---perhaps 8
+bytes---but most networks are optimized for bulk transfers of a few
+thousand bytes. To improve network utilization, we will explore the
+aggregation of multiple memory operations to different addresses on
+the same remote node.
 
 \subsection{Lightweight multithreading}
 
@@ -359,19 +454,20 @@ all switching and scheduling in user space.
 
 %\paragraph{Single-node implementation.}  
 In our single-node implementation, we implemented coroutines
-as described, with a round-robin scheduler. Coroutines do local work,
-issue a remote prefetch, and switch to the next in turn.  When the
-coroutine is reactivated, it assumes the requested data is available
-and issues a read.  If the data is not yet received and in cache, the core
-(and all its coroutines) can stall.
+as described, with a round-robin scheduler. 
+%Coroutines do local work,
+%issue a remote prefetch, and switch to the next in turn.  When the
+%coroutine is reactivated, it assumes the requested data is available
+%and issues a read.  If the data is not yet received and in cache, the core
+%(and all its coroutines) can stall.
 
 %\paragraph{Multi-node ideas.}
 %As we develop our multi-node implementation, we will explore how the memory manager and coroutine scheduler may
 %interact, so that threads waiting on long-latency memory operations or
 %synchronization operations will be scheduled soon after their
 %operations have completed.
-As we develop our multi-node implementation, we will improve our
-scheduler to activate threads after their long-latency operations
+As we develop our multi-node implementation, we will modify our
+scheduler to reactivate threads only after their long-latency operations
 have completed.
 
 % will explore how the memory manager and coroutine scheduler may
@@ -379,93 +475,11 @@ have completed.
 %synchronization operations will be scheduled soon after their
 %operations have completed.
 
-\subsection{Concurrency in global memory references}
-
-To enable concurrency in memory references, we break each read or
-write into two operations: the {\em issue} operation and the {\em
-  complete} operation. The read issue operation starts data moving
-towards the processor and returns immediately, like a prefetch; the
-read complete operation blocks until data is available. The write
-issue operation takes data along with an address, and starts an
-asynchronous write; the write complete operation blocks until the
-write is committed.
-
-A read operation in user code consists of three steps: a {\em read
-  issue}, which causes the data to start moving; a {\em yield}, which
-causes another thread to start executing, overlapping the read
-latency; and, once the reading thread has been rescheduled, a {\em
-  read complete} blocks until the data is available. A write operation
-follows the same pattern.
-
-%\paragraph{Single-node implementation.}
-In our single-node implementation, we use prefetch instructions for the issue operation, and regular
-blocking reads and writes for the complete operation.
-%  Since we expect
-%these global references to have low locality, we use the
-%``non-temporal'' form of prefetch to avoid disturbing the state of the
-%cache hierarchy \cite{intel:swdev}.
-
-%\paragraph{Multi-node ideas.}
-As we develop our multi-node implementation, we believe we will need hundreds of outstanding memory references per
-processor to cover the latency of remote references in a multi-node
-system. Unfortunately, commodity processors have much smaller limits
-on memory concurrency: section~\ref{subsubsec:evalsinglebase} finds a
-limit of 36 concurrent loads. We will have to manage memory
-concurrency on our own to avoid this limit. We describe approaches in
-both software and hardware.
-
-One approach is for user code to delegate global references to a
-special {\em global memory manager thread}, running on another core in
-the chip. This thread translates the global address into a network
-destination, makes the request through the network card to the remote
-node, checks for completion, and delivers the returned data to the
-requesting thread. On the remote node, the remote memory manager
-thread would perform the memory operation and return the data to the
-requesting node.
-
-%This approach has the benefit of enabling our entire system to be
-%build using commodity parts, but its potential for performance is not
-%clear. We have increased the overhead of a single memory operation:
-%what in the single node case was a simple read, is now multiple
-%queuing operations between threads and multiple reads and writes over
-%the processor's link to the network interface.
-
-Another approach moves the global memory management to a hardware
-device. We can add a coprocessor FPGA in a processor socket, listening
-to coherence messages on the bus, similar to \cite{mogill}. Note that
-this accelerator is only a memory proxy, not a compute
-coprocessor. The accelerator would map all global shared memory into a
-segment of each node's local address space; when it detects a
-reference to memory on a remote node, it would do the address-to-node
-translation and issue the request through the network controller,
-delivering the data to the requesting thread when ready. We would
-encode commands in the upper bits of the address; a read from a
-location's {\em issue} address start the remote request and return
-immediately, and a read from a location's {\em complete} address would
-block until the data was available.
-
-
-%To support the issue and complete operations for concurrency support,
-%commands would be encoded in the upper bits of the address: then each
-%remote word would have multiple addresses on the local node. Reading
-%from the {\em issue} address would immediately return a value
-%indicating that the accelerator is issuing the request over the
-%network. Reading from the {\em complete} address would block until the
-%data was available.
-
-With either approach, the question of request aggregation will be
-important. Each memory request we make is small---perhaps 8
-bytes---but most networks are optimized for bulk transfers of a few
-thousand bytes. To improve network utilization, we will explore the
-aggregation of multiple memory operations to different addresses on
-the same remote node.
-
-
 \subsection{Low-overhead synchronization}
 
 Just as with reads and writes, we enable concurrency around
 synchronization operations by splitting them into {\em issue} and {\em
-  complete} phases.
+  complete} operations.
 
 Implementing full-bit support efficiently on a platform not
 designed for them is a challenge. Previous work \cite{qthreads} has
@@ -503,7 +517,7 @@ Our goal is to evaluate the feasibility of our proposed runtime. We
 want to determine two things: whether coroutines can generate memory
 concurrency while incurring minimal performance overhead, and whether the system can support the level of concurrency required to tolerate the latency that will be present in a multi-node system.
 
-We focus the evaluation on one component of the runtime: lightweight context switching. We ran pointer-chasing benchmarks on a single-node implementation of our runtime. These pointer chasing experiments are intended to model a particular ``worst-case'' behavior of irregular applications, where each memory reference causes a cache miss.
+We focused the evaluation on one component of the runtime: lightweight context switching. We ran pointer-chasing benchmarks on a single-node implementation of our runtime. These pointer chasing experiments are intended to model a particular ``worst-case'' behavior of irregular applications, where each memory reference causes a cache miss.
 
 We ran these experiments on a Dell PowerEdge R410 with two Xeon X5650 (Nehalem microarchitecture)
 chips and 24GB of RAM, with hyperthreading disabled. These
@@ -608,7 +622,7 @@ library.
 
 The lists were laid out randomly with pointers spaced at a cache line granularity, maximizing
 the probability of each reference being a miss. We allocated the lists
-on 1~GB huge pages to minimize TLB refill overhead.
+on 1~GB huge pages to minimize overhead due to TLB refills.
 
 \begin{figure}[t]
   \vspace{-.1in}
@@ -675,8 +689,12 @@ We observe a gradual decrease in reference rate once the number of
 concurrent references per core exceeds 10; we believe this is due to
 later prefetches squashing earlier ones in the line fill buffers. In
 the multi-node runtime, \texttt{readIssue} will not be implemented
-with a prefetch instruction. The single-node coroutine library does
-depend on prefetches: further experiments show that without them, the overhead of context switches limits concurrency when there are more than two coroutines per core. Lastly, we observe repeatable data points that are off the trend and fall below the max. This effect is harder to explain, but we suspect it may be
+with a prefetch instruction. 
+%The single-node coroutine library does
+%depend on prefetches: further experiments show that without them, the
+%overhead of context switches limits concurrency when there are more
+%than two coroutines per core. 
+Lastly, we observe repeatable data points that are off the trend and fall below the max. This effect is harder to explain, but we suspect it may be
 due to resource contention in the cores' pipelines once the memory
 system is full of requests. 
 
@@ -704,7 +722,7 @@ general idea.
   \label{fig:cache-pressure}
 \end{figure}
 
-We varied the size of the per-coroutine local working set from 2~KB
+We varied the size of the per-coroutine local working set from 64~B
 to 4~MB, and ran 0 to 32 local updates for each pointer
 traversal. We measured the remote reference rate (i.e., accesses to \texttt{remoteList} from Figure~\ref{fig:code}c).
 
@@ -746,7 +764,7 @@ chip's cores. We found that use of the QPI link limits throughput to
 %%%%%%%%%%
 
 To simulate the performance of pointer chasing in a multi-node system
-we referenced the second chip's memory and also had our coroutine scheduler include a delay
+we referenced the first chip's memory from the second chip's cores and also had our coroutine scheduler include a delay
 before a coroutine can be rescheduled, imitating the network transit
 delay. We assume 1.1 $\mu$s interface and 400 ns switch latencies in each direction
 \cite{infiniband, mellanox:site}, and thus estimate a 3 $\mu$s round-trip
@@ -817,13 +835,12 @@ libraries.
 
 We presented our plans for building a system for large graph
 computation using commodity parts. We leverage decades-old ideas on
-using a large amount of concurrency to tolerate latencies; but we do so
-mostly in software. We developed a runtime system for latency
-tolerance and our results showed that it is able to manage enough
-concurrency to tolerate long latencies to hide the cost of
-expensive accesses to our large global memory system (high-latency,
-but high-bandwidth).
-\newpage
+using a large amount of concurrency to tolerate latencies, but we do
+so mostly in software. We developed a runtime system for latency
+tolerance; our results showed that it supports enough concurrency
+to tolerate the long latencies of our large high-bandwidth global
+memory system.
+
 %\bibliographystyle{acm}
 \bibliographystyle{plain}
 \renewcommand{\bibfont}{\footnotesize}  
