@@ -1,0 +1,82 @@
+SkipGeneric: PLL_ADV
+SkipGeneric: MMCM_ADV
+SkipGeneric: BUFGCTRL
+SkipGeneric: hcache_hrgc
+SkipGeneric: hcache_hrgd
+SkipGeneric: hcache_bram
+SkipGeneric: ISERDES
+SkipGeneric: ISERDES_NODELAY
+SkipGeneric: OSERDES
+SkipGeneric: SRL16
+SkipGeneric: SRL16E
+SkipGeneric: SYSMON
+SkipGeneric: DCM_SP
+SkipGeneric: csrp_ram1kx18
+SkipGeneric: csrp_ram2kx8
+SkipGeneric: csrp_ram16x4
+SkipGeneric: csrp_ram16x8
+SkipGeneric: csrp_ram16x10
+SkipGeneric: csrp_ram16x12
+SkipGeneric: glbl
+
+# These models have a notifier (yikes) that causes X's to be induced
+SkipGeneric: RAM32M
+SkipGeneric: RAM64M
+
+SkipGeneric: pll_ram
+SkipGeneric: pll_ext_fb
+SkipGeneric: pll_int_fb
+SkipGeneric: ssync_pll
+
+SkipGeneric: ddr2
+
+SkipGeneric: assert_always
+SkipGeneric: assert_implication
+SkipGeneric: assert_odd_parity
+SkipGeneric: assert_time
+SkipGeneric: assert_change
+SkipGeneric: assert_increment
+SkipGeneric: assert_one_cold
+SkipGeneric: assert_transition
+SkipGeneric: convey_assert.sv
+SkipGeneric: assert_decrement
+SkipGeneric: assert_init
+SkipGeneric: assert_one_hot
+SkipGeneric: assert_unchange
+SkipGeneric: assert_delta
+SkipGeneric: assert_never
+SkipGeneric: assert_parity
+SkipGeneric: assert_win_change
+SkipGeneric: assert_even_parity
+SkipGeneric: assert_no_overflow
+SkipGeneric: assert_proposition
+SkipGeneric: assert_window
+SkipGeneric: assert_frame
+SkipGeneric: assert_no_transition
+SkipGeneric: assert_quiescent_state
+SkipGeneric: assert_win_unchange
+SkipGeneric: assert_handshake
+SkipGeneric: assert_no_underflow
+SkipGeneric: assert_range
+SkipGeneric: assert_zero_one_hot
+
+ZeroGeneric: DSP48E
+
+SkipElement: testbench.EndOfSimulation
+SkipElement: testbench.CheckEosAsserts
+ZeroElement: testbench.enabled
+ZeroElement: testbench.available
+ZeroElement: testbench.begin_init
+ZeroElement: testbench.reset_complete
+
+ZeroElement: testbench.enabled
+
+ZeroElement: testbench.mc0_cae0_driver.strong_order_mode
+ZeroElement: testbench.mc1_cae0_driver.strong_order_mode
+ZeroElement: testbench.mc2_cae0_driver.strong_order_mode
+ZeroElement: testbench.mc3_cae0_driver.strong_order_mode
+ZeroElement: testbench.mc4_cae0_driver.strong_order_mode
+ZeroElement: testbench.mc5_cae0_driver.strong_order_mode
+ZeroElement: testbench.mc6_cae0_driver.strong_order_mode
+ZeroElement: testbench.mc7_cae0_driver.strong_order_mode
+
