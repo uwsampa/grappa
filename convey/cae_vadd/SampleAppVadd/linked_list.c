@@ -18,6 +18,9 @@
 
 #include <convey/usr/cny_comp.h>
 
+extern long cny_walk();
+
+
 /* 
  * Multiple threads walking linked lists concurrently.
  * Nodes are 64bytes, one cacheline. List nodes are also shuffled to make locality unlikely.
@@ -168,7 +171,7 @@ int main(int argc, char* argv[]) {
   int n;
 
   // initialize data structure
-  node** bases = allocate_heap( size, total_num_threads, num_lists_per_thread );
+  node** bases = allocate_convey_heap( size, total_num_threads, num_lists_per_thread );
 
 
 
@@ -190,20 +193,20 @@ int main(int argc, char* argv[]) {
     	//printf("Start time: %d seconds, %d nanoseconds\n", (int) start.tv_sec, (int) start.tv_nsec);
 
     	// do work
-    	for(thread_num = 0; thread_num < num_threads; thread_num++) {
-
+    	//for(thread_num = 0; thread_num < num_threads; thread_num++) {
+        thread_num = 0;
       	    uint64_t start_tsc;
       	    rdtscll(start_tsc);
       
       // blocking call to do the walk
       uint64_t* result;
-      results[thread_num] = l_copcall_fmt(sig, walk, "AAAA", bases+thread_num*num_lists_per_thread, num_lists_per_thread, procsize, result);	
+      results[thread_num] = l_copcall_fmt(sig, cny_walk, "AAAA", bases, num_lists_per_thread, size, result);	
 	    //results[thread_num] = walk( bases + thread_num * num_lists_per_thread, procsize, num_lists_per_thread, 0);
       	
 	    uint64_t end_tsc;
       	    rdtscll(end_tsc);
       	    times[thread_num] = end_tsc - start_tsc;
-    	}
+            //}
 
     	// stop timing
     	clock_gettime(CLOCK_MONOTONIC, &end);

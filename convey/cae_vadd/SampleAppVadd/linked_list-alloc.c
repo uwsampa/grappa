@@ -117,7 +117,7 @@ node** allocate_page(uint64_t size, int num_threads, int num_lists_per_thread) {
 
 
 // initialize linked lists.
-node** allocate_heap(uint64_t size, int num_threads, int num_lists) {
+node** allocate_convey_heap(uint64_t size, int num_threads, int num_lists) {
   int64_t i = 0;
 
   printf("Initializing footprint of size %lu * %lu = %lu bytes....\n", size, sizeof(node), size * sizeof(node));
@@ -125,8 +125,8 @@ node** allocate_heap(uint64_t size, int num_threads, int num_lists) {
   //size = size / num_threads;
 
   node** locs = (node**) malloc(sizeof(node*) * size); // node array
-  node* nodes = (node*) malloc(sizeof(node) * size);  // temporary node pointers
-  node** bases = (node**) malloc(sizeof(node*) * num_threads * num_lists); // initial node array
+  node* nodes = (node*) (*cny$get_malloc_fptr) (sizeof(node) * size);  // temporary node pointers
+  node** bases = (node**) (*cny$get_malloc_fptr) (sizeof(node*) * num_threads * num_lists); // initial node array
 
   // initialize ids
   #pragma omp parallel for num_threads(num_threads)
