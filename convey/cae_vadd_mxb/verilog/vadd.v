@@ -132,7 +132,7 @@ module vadd (
               nxt_state = LD_BASES;
               c_base_count = 'd0;
               c_req_vadr = base_address;
-              c_rsp_count = edge_count;
+              c_rsp_count = edge_count + 1'b1;
               c_ld_count = edge_count;
             end
           end
