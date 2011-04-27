@@ -1,3 +1,8 @@
+
+
+#include <convey/usr/cny_comp.h>
+
+
 #include "linked_list-node.h"
 #include "linked_list-alloc.h"
 
@@ -8,112 +13,110 @@
 #include <time.h>
 #include <unistd.h>
 
-#include <convey/usr/cny_comp.h>
-
 #define DEBUG 0
 
-node** allocate_page(uint64_t size, int num_threads, int num_lists_per_thread) {
+/* node** allocate_page(uint64_t size, int num_threads, int num_lists_per_thread) { */
 
-// comment out to make problem bigger proportional to threads
-  size = size / (num_threads * num_lists_per_thread);
+/* // comment out to make problem bigger proportional to threads */
+/*   size = size / (num_threads * num_lists_per_thread); */
   
-  printf("Chain size is %lu * %lu = %lu\n", 
-	 size, sizeof(node), size *sizeof(node));
-  printf("Initializing footprint of size %d * %d * %lu * %lu = %d * %lu = %lu bytes....\n", 
-	 num_threads, num_lists_per_thread, size, sizeof(node), 
-	 num_threads * num_lists_per_thread, size * sizeof(node), 
-	 num_threads * num_lists_per_thread * size * sizeof(node));
+/*   printf("Chain size is %lu * %lu = %lu\n",  */
+/* 	 size, sizeof(node), size *sizeof(node)); */
+/*   printf("Initializing footprint of size %d * %d * %lu * %lu = %d * %lu = %lu bytes....\n",  */
+/* 	 num_threads, num_lists_per_thread, size, sizeof(node),  */
+/* 	 num_threads * num_lists_per_thread, size * sizeof(node),  */
+/* 	 num_threads * num_lists_per_thread * size * sizeof(node)); */
 
-/** Page size choices **/
-  //unsigned page_size = 2 * 1024 * 1024;        // for huge pages (2 MiB)
-  unsigned page_size = 1024*1024*4;           // for huge pages (1 GiB)
-// unsigned page_size = sysconf(_SC_PAGESIZE);  // for regular pages
-/**********************/
+/* /\** Page size choices **\/ */
+/*   //unsigned page_size = 2 * 1024 * 1024;        // for huge pages (2 MiB) */
+/*   unsigned page_size = 1024*1024*4;           // for huge pages (1 GiB) */
+/* // unsigned page_size = sysconf(_SC_PAGESIZE);  // for regular pages */
+/* /\**********************\/ */
 
-  printf("page size is %u.\n", page_size);
+/*   printf("page size is %u.\n", page_size); */
   
-
-  unsigned num_chains = num_threads * num_lists_per_thread;
-  node** bases = (node**) (node**) (*cny$get_malloc_fptr) ( sizeof(node*) * num_chains );
-  node** ends  = (node**) malloc( sizeof(node*) * num_chains );
-
-  uint64_t i, j, k;
-
-  // for each chain
-  for( i = 0; i < num_chains; ++i ) {
+/*   unsigned num_chains = num_threads * num_lists_per_thread; */
+/*   node** bases = (node**) (node**) (*(cny$cp_malloc_fptr)) ( sizeof(node*) * num_chains ); */
+/*   node** ends  = (node**) malloc( sizeof(node*) * num_chains ); */
 
 
-    uint64_t total_chain_size = sizeof(node) * size;
-    uint64_t chunk_size;
-    uint64_t current_chain_size = 0;
-    for( j = 0, chunk_size = total_chain_size < page_size ? total_chain_size : page_size ; 
-	 current_chain_size < total_chain_size ;
-	 ++j, current_chain_size += chunk_size ) {
-      node* nodes = (node*) (*cny$get_malloc_fptr)( chunk_size );
-      uint64_t chunk_node_count = chunk_size / sizeof(node);
-      node** locs = (node**) malloc( sizeof(node*) * chunk_node_count );
+/*   uint64_t i, j, k; */
 
-      if (DEBUG) printf("%lu %lu %lu %lu\n", size, total_chain_size, chunk_size, chunk_node_count);
+/*   // for each chain */
+/*   for( i = 0; i < num_chains; ++i ) { */
 
-      // initialize ids
-      for( k = 0 ; k < chunk_node_count ; ++k ) {
-	nodes[k].next = (node*) k;
-      }
 
-      if (DEBUG) print_nodes( nodes, chunk_node_count );
+/*     uint64_t total_chain_size = sizeof(node) * size; */
+/*     uint64_t chunk_size; */
+/*     uint64_t current_chain_size = 0; */
+/*     for( j = 0, chunk_size = total_chain_size < page_size ? total_chain_size : page_size ;  */
+/* 	 current_chain_size < total_chain_size ; */
+/* 	 ++j, current_chain_size += chunk_size ) { */
+/*       node* nodes = (node*) (*(cny$cp_malloc_fptr))( chunk_size ); */
+/*       uint64_t chunk_node_count = chunk_size / sizeof(node); */
+/*       node** locs = (node**) malloc( sizeof(node*) * chunk_node_count ); */
 
-      // randomly permute nodes (fisher-yates (or knuth) shuffle)
-      for(k = chunk_node_count-1; k > 0; --k) {
-	uint64_t x = random() % k;
-	if (DEBUG) printf("swapping %lu with %lu\n", k, x);
-	if (DEBUG) print_node(&nodes[k]);
-	if (DEBUG) print_node(&nodes[x]);
-	node temp = nodes[k];
-	nodes[k] = nodes[x];
-	nodes[x] = temp;
-      }
+/*       if (DEBUG) printf("%lu %lu %lu %lu\n", size, total_chain_size, chunk_size, chunk_node_count); */
 
-      if (DEBUG) print_nodes( nodes, chunk_node_count );
+/*       // initialize ids */
+/*       for( k = 0 ; k < chunk_node_count ; ++k ) { */
+/* 	nodes[k].next = (node*) k; */
+/*       } */
 
-      // extract locs
-      for( k = 0 ; k < chunk_node_count ; ++k ) {
-	locs[ (uint64_t) nodes[k].next ] = &nodes[k];
-      }
+/*       if (DEBUG) print_nodes( nodes, chunk_node_count ); */
 
-      // initialize pointers
-      for( k = 0 ; k < chunk_node_count ; ++k ) {
-	uint64_t id = k;
-	uint64_t nextid = id + 1;
-	//uint64_t wrapped_nextid = nextid % chunk_node_count;
+/*       // randomly permute nodes (fisher-yates (or knuth) shuffle) */
+/*       for(k = chunk_node_count-1; k > 0; --k) { */
+/* 	uint64_t x = random() % k; */
+/* 	if (DEBUG) printf("swapping %lu with %lu\n", k, x); */
+/* 	if (DEBUG) print_node(&nodes[k]); */
+/* 	if (DEBUG) print_node(&nodes[x]); */
+/* 	node temp = nodes[k]; */
+/* 	nodes[k] = nodes[x]; */
+/* 	nodes[x] = temp; */
+/*       } */
 
-	node* current = locs[id];
-	if ( nextid == chunk_node_count ) {
-	  current->next = NULL;
-	} else {
-	  current->next = locs[ nextid ];
-	}
+/*       if (DEBUG) print_nodes( nodes, chunk_node_count ); */
 
-	//current->next = locs[ wrapped_nextid ];
-	//current->next = nextid == chunk_node_count ? bases[i] : locs[ wrapped_nextid ]; 
-      }    
+/*       // extract locs */
+/*       for( k = 0 ; k < chunk_node_count ; ++k ) { */
+/* 	locs[ (uint64_t) nodes[k].next ] = &nodes[k]; */
+/*       } */
 
-      if (DEBUG) print_nodes( nodes, chunk_node_count );  
+/*       // initialize pointers */
+/*       for( k = 0 ; k < chunk_node_count ; ++k ) { */
+/* 	uint64_t id = k; */
+/* 	uint64_t nextid = id + 1; */
+/* 	//uint64_t wrapped_nextid = nextid % chunk_node_count; */
+
+/* 	node* current = locs[id]; */
+/* 	if ( nextid == chunk_node_count ) { */
+/* 	  current->next = NULL; */
+/* 	} else { */
+/* 	  current->next = locs[ nextid ]; */
+/* 	} */
+
+/* 	//current->next = locs[ wrapped_nextid ]; */
+/* 	//current->next = nextid == chunk_node_count ? bases[i] : locs[ wrapped_nextid ];  */
+/*       }     */
+
+/*       if (DEBUG) print_nodes( nodes, chunk_node_count );   */
       
-      if (j == 0) {
-	bases[i] = locs[0];
-	ends[i] = locs[chunk_node_count-1];
-      } else {
-	ends[i]->next = locs[0];
-	ends[i] = locs[chunk_node_count-1];
-      }
+/*       if (j == 0) { */
+/* 	bases[i] = locs[0]; */
+/* 	ends[i] = locs[chunk_node_count-1]; */
+/*       } else { */
+/* 	ends[i]->next = locs[0]; */
+/* 	ends[i] = locs[chunk_node_count-1]; */
+/*       } */
 
-      free(locs);
-    }
+/*       free(locs); */
+/*     } */
 
-  }
-  free(ends);
-  return bases;
-}
+/*   } */
+/*   free(ends); */
+/*   return bases; */
+/* } */
 
 
 // initialize linked lists.
@@ -125,8 +128,8 @@ node** allocate_convey_heap(uint64_t size, int num_threads, int num_lists) {
   //size = size / num_threads;
 
   node** locs = (node**) malloc(sizeof(node*) * size); // node array
-  node* nodes = (node*) (*cny$get_malloc_fptr) (sizeof(node) * size);  // temporary node pointers
-  node** bases = (node**) (*cny$get_malloc_fptr) (sizeof(node*) * num_threads * num_lists); // initial node array
+  node* nodes = (node*) (*cny$cp_malloc_fptr) (sizeof(node) * size);  // temporary node pointers
+  node** bases = (node**) (*cny$cp_malloc_fptr) (sizeof(node*) * num_threads * num_lists); // initial node array
 
   // initialize ids
   #pragma omp parallel for num_threads(num_threads)
@@ -191,20 +194,20 @@ node** allocate_convey_heap(uint64_t size, int num_threads, int num_lists) {
 
 
 
-int alloc_test() {
-  uint64_t size = 16; //1 << 10;
-  uint64_t threads = 2;
-  uint64_t chains = 2;
-  node** bases = allocate_page(size,threads,chains);
-  if (DEBUG) {
-    printf("final answer:\n");
-    int i, j;
-    for(i = 0; i < threads; i++) {
-      for(j = 0; j < chains; j++) {
-	printf("%d,%d: ", i, j);
-	print_walk(bases[i*chains+j],size);
-      }
-    }
-  }
-  return 0;
-}
+/* int alloc_test() { */
+/*   uint64_t size = 16; //1 << 10; */
+/*   uint64_t threads = 2; */
+/*   uint64_t chains = 2; */
+/*   node** bases = allocate_page(size,threads,chains); */
+/*   if (DEBUG) { */
+/*     printf("final answer:\n"); */
+/*     int i, j; */
+/*     for(i = 0; i < threads; i++) { */
+/*       for(j = 0; j < chains; j++) { */
+/* 	printf("%d,%d: ", i, j); */
+/* 	print_walk(bases[i*chains+j],size); */
+/*       } */
+/*     } */
+/*   } */
+/*   return 0; */
+/* } */

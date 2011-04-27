@@ -12,14 +12,15 @@
 
 #include "linked_list-node.h"
 #include "linked_list-alloc.h"
-#include "linked_list-walk.h"
+//#include "linked_list-walk.h"
 
-#include "thread.h"
+//#include "thread.h"
 
 #include <convey/usr/cny_comp.h>
 
 extern long cny_walk();
 
+//void usage(char*);
 
 /* 
  * Multiple threads walking linked lists concurrently.
@@ -48,7 +49,7 @@ int main(int argc, char* argv[]) {
   uint64_t num_threads = 1; //atoi(argv[3]);// hw threads
   uint64_t size = (1 << bits);              
 
-  uint64_t num_lists_per_thread = 16; //atoi(argv[4]); // number of concurrent accesses per thread	
+  uint64_t num_lists_per_thread = 1; //atoi(argv[4]); // number of concurrent accesses per thread	
 
   // optional 4th arg "-i" indicates to use ExperimentRunner
   int do_monitor = 0;
@@ -118,18 +119,18 @@ int main(int argc, char* argv[]) {
 
 // convey
  if (argc == 1)
-    size = 100;		// default size
+   size = (1<<13);		// default size
   else if (argc == 2) {
     size = atoi(argv[1]);
     if (size > 0) {
       printf("Running UserApp.exe with size = %lld\n", size);
     } else {
-      usage (argv[0]);
+      //usage (argv[0]);
       return 0;
     }
   }
   else {
-    usage (argv[0]);
+    //usage (argv[0]);
     return 0;
   }
 
@@ -139,7 +140,7 @@ int main(int argc, char* argv[]) {
   cny_image_t        sig2;
   cny_image_t        sig;
   if (cny$get_signature_fptr)
-    (*cny$get_signature_fptr) ("listwalk", &sig, &sig2);
+    (*cny$get_signature_fptr) ("pdk", &sig, &sig2);
   else 
     fprintf(stderr,"where is my get_sig ptr\n");
  
@@ -172,7 +173,7 @@ int main(int argc, char* argv[]) {
 
   // initialize data structure
   node** bases = allocate_convey_heap( size, total_num_threads, num_lists_per_thread );
-
+  printf("bases 1: %p\n", bases);
 
 
   // run number_of_repetitions # of experiments
@@ -193,27 +194,29 @@ int main(int argc, char* argv[]) {
     	//printf("Start time: %d seconds, %d nanoseconds\n", (int) start.tv_sec, (int) start.tv_nsec);
 
     	// do work
-    	//for(thread_num = 0; thread_num < num_threads; thread_num++) {
-        thread_num = 0;
+    	for(thread_num = 0; thread_num < num_threads; thread_num++) {
+	  //thread_num = 0;
       	    uint64_t start_tsc;
       	    rdtscll(start_tsc);
       
       // blocking call to do the walk
       uint64_t* result;
+      printf("bases 2: %p\n", bases);
+      printf("bases 2[0]: %p\n", bases[0]);
       results[thread_num] = l_copcall_fmt(sig, cny_walk, "AAAA", bases, num_lists_per_thread, size, result);	
 	    //results[thread_num] = walk( bases + thread_num * num_lists_per_thread, procsize, num_lists_per_thread, 0);
       	
 	    uint64_t end_tsc;
       	    rdtscll(end_tsc);
       	    times[thread_num] = end_tsc - start_tsc;
-            //}
-
+	}
+  
     	// stop timing
     	clock_gettime(CLOCK_MONOTONIC, &end);
     	//er.stopIfEnabled();
     	//printf("End time: %d seconds, %d nanoseconds\n", (int) end.tv_sec, (int) end.tv_nsec);
-    }
-
+	//}
+  
 
     uint64_t runtime_ns = 0;
     uint64_t latency_ticks = 0;
