@@ -1,57 +1,73 @@
 #include "CaeSim.h"
 #include "CaeIsa.h"
 #include <stdio.h>
+#include <stdlib.h>
 
+#include "../app/linked_list-node.h"
+// number of AEG registers
 #define MAX_AEG_INDEX 128
+
+// AEG signature
 #define PERS_SIGN_CAE          0x4001000101000LL
 
-#define AEG_MA1 0
-#define AEG_MA2 1
-#define AEG_MA3 2
-#define AEG_CNT 3
-#define AEG_SAE_BASE 30 
-#define AEG_STL 40
+#define AEG_BASES 0
+#define AEG_NUM_LISTS 1
+#define AEG_COUNT 2
+#define AEG_RESULT 3
 
-#define NUM_MCS 8
-#define NUM_PIPES 16
 #define MEM_REQ_SIZE 8
 
 #define AEUIE 0
+
 void
 CCaeIsa::InitPers()
 {
     SetAegCnt(MAX_AEG_INDEX);
-    WriteAeg(0, 0, 0);
     SetPersSign(PERS_SIGN_CAE);
-    // clear the sum registers
-    for (int aeId = 0; aeId < 4; aeId += 1) {
-	WriteAeg(aeId, AEG_SAE_BASE+aeId, 0);
-    }
 }
 
 void
 CCaeIsa::CaepInst(int aeId, int opcode, int immed, uint32 inst, uint64 scalar) // F7,0,20-3F
 {
     switch (opcode) {
-	// CAEP00 - M[a1] + M[a2] -> M[a3]
+	// CAEP00 - walk lists starting at 'bases', total responses 'count', 'numlists'
 	case 0x20: {
-	    uint64 length, a1, a2, a3;
-	    uint64 val1, val2, val3, sum = 0;
+        node** list_nodes;
+        uint64 num_lists, count;
+        uint64* result;
 
-	    length = ReadAeg(aeId, AEG_CNT);
-	    a1 = ReadAeg(aeId, AEG_MA1);
-	    a2 = ReadAeg(aeId, AEG_MA2);
-	    a3 = ReadAeg(aeId, AEG_MA3);
-	    for (uint64 i = 0; i < length; i += 1) {
-		// Send request to the right MC (virtual address bits 8:6 for binary interleave)
-		AeMemLoad(aeId, (int)((a1+i*8 >> 6) & 7), a1+i*8, MEM_REQ_SIZE, false, val1);
-		AeMemLoad(aeId, (int)((a2+i*8 >> 6) & 7), a2+i*8, MEM_REQ_SIZE, false, val2);
-		val3 = val1 + val2;
-		sum += val3;
-		AeMemStore(aeId, (int)((a3+i*8 >> 6) & 7), a3+i*8, MEM_REQ_SIZE, false, val3);
+// TODO figure out these register namings!
+	list_nodes = (node**) ReadAeg(aeId, AEG_BASES);
+	num_lists = ReadAeg(aeId, AEG_NUM_LISTS);
+	    count = ReadAeg(aeId, AEG_COUNT);
+	    result = (uint64*) ReadAeg(aeId, AEG_RESULT);
+        
+	    node** mybases = (node**)malloc(sizeof(node*)*num_lists);
+            for (unsigned int i=0; i< num_lists; ++i) {
+              int mc = (((uint64)(&list_nodes[i])) >> 6) & 7;
+	      uint64 base_int = 0;
+	      AeMemLoad(aeId, mc, (uint64) &list_nodes[i], MEM_REQ_SIZE, false, base_int);
+	      mybases[i] = (node*) base_int;
 	    }
-	    WriteAeg(aeId, AEG_SAE_BASE+aeId, sum);
-	    break;
+
+        while(count > 0) {
+            for (uint64 listnum = 0; listnum < num_lists; listnum++) {
+	      
+
+	      int mc = (((uint64)mybases[listnum]) >> 6) & 7;
+                node* next;
+                //AeMemLoad(aeId, mc, (uint64)mybases[listnum], MEM_REQ_SIZE, false, (uint64)next);
+		uint64 addr_int = (uint64) mybases[listnum];
+		uint64 next_int = 0;
+		AeMemLoad(aeId, mc, addr_int, MEM_REQ_SIZE, false, next_int);
+		next = (node*) next_int;
+                mybases[listnum] = next;
+                --count;
+                if (count == 0) break;
+            }
+        }
+	
+	  break;
 	}
 
 	default:{
