@@ -119,7 +119,7 @@ int main(int argc, char* argv[]) {
 
 // convey
  if (argc == 1)
-   size = (1<<13);		// default size
+   size = (1<<4);		// default size
   else if (argc == 2) {
     size = atoi(argv[1]);
     if (size > 0) {

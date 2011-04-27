@@ -4,7 +4,8 @@ LIBRARIES += -y ../verilog
 LIBRARIES += -v ../verilog/macro.v
 
 # To compile additional verilog modules for simulation:
-# CNY_PDK_TB_USER_VLOG += tb_user.v
+CNY_PDK_TB_USER_VLOG += tb_user.v
+CNY_PDK_ADDON_TOP_MODULES += tb_user
 
 # to disable wave dumps
 # VERILOG_SIM_OPTIONS += +DUMPOFF
@@ -16,5 +17,6 @@ LIBRARIES += -v ../verilog/macro.v
 ####################################################################
 # Include Convey Makefile Template
 ####################################################################
-include $(CNY_PDK)/$(CNY_PDK_REV)/lib/MakefileInclude.cnypdk
+#include $(CNY_PDK)/$(CNY_PDK_REV)/lib/MakefileInclude.cnypdk
+include ../Makefile.include
 
