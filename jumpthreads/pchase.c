@@ -171,6 +171,7 @@ void chase(node *start) {
 void threaded_chase(node **starts) {
   for (int i = 0; i < REPS; ++i) {
   #include "pchase_unrolled.cunroll"
+    0;
   }
   return;
 }

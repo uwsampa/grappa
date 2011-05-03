@@ -1,0 +1,27 @@
+replicate a
+replicate n
+DECLARATIONS
+double a;
+int n;
+START
+a = orig_a;
+for (n = neach; n > 0; --n) {
+  if (a > 0) {
+      a -= b;
+      a -= b;
+      a -= b;
+      a -= b;
+      a -= b;
+
+      a -= b;
+      a -= b;
+      a -= b;
+      a -= b;
+      a -= b;
+
+    jthr_yield();
+  } else {
+    a = orig_a;
+  }
+}
+sum += a;

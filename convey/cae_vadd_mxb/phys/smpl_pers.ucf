@@ -1,0 +1,89 @@
+#
+# vadd0 block assignments
+#
+INST "ae_top/core/cae_pers/add_pair0" AREA_GROUP = "AG_add_pair0" ;
+INST "ae_top/core/cae_pers/add_pair0/*" AREA_GROUP = "AG_add_pair0" ;
+AREA_GROUP "AG_add_pair0" RANGE = SLICE_X104Y239:SLICE_X197Y180 ;
+#AREA_GROUP "AG_add_pair0" RANGE = RAMB36_X3Y47:RAMB36_X4Y36 , RAMB36_X5Y39:RAMB36_X5Y38 ;
+AREA_GROUP "AG_add_pair0" RANGE = RAMB36_X3Y47:RAMB36_X3Y38 , RAMB36_X4Y47:RAMB36_X4Y38 , RAMB36_X5Y46:RAMB36_X5Y38 ;
+AREA_GROUP "AG_add_pair0" GROUP = OPEN ;
+AREA_GROUP "AG_add_pair0" PLACE = OPEN ;
+
+#
+# vadd1 block assignments
+#
+INST "ae_top/core/cae_pers/add_pair1" AREA_GROUP = "AG_add_pair1" ;
+INST "ae_top/core/cae_pers/add_pair1/*" AREA_GROUP = "AG_add_pair1" ;
+AREA_GROUP "AG_add_pair1" RANGE = SLICE_X104Y179:SLICE_X197Y120 ;
+#AREA_GROUP "AG_add_pair1" RANGE = RAMB36_X3Y35:RAMB36_X4Y24 , RAMB36_X5Y31:RAMB36_X5Y30 ;
+AREA_GROUP "AG_add_pair1" RANGE = RAMB36_X3Y37:RAMB36_X3Y25 , RAMB36_X4Y37:RAMB36_X4Y24 , RAMB36_X5Y31:RAMB36_X5Y30 ;
+AREA_GROUP "AG_add_pair1" GROUP = OPEN ;
+AREA_GROUP "AG_add_pair1" PLACE = OPEN ;
+
+#
+# vadd2 block assignments
+#
+INST "ae_top/core/cae_pers/add_pair2" AREA_GROUP = "AG_add_pair2" ;
+INST "ae_top/core/cae_pers/add_pair2/*" AREA_GROUP = "AG_add_pair2" ;
+AREA_GROUP "AG_add_pair2" RANGE = SLICE_X104Y119:SLICE_X197Y60 ;
+#AREA_GROUP "AG_add_pair2" RANGE = RAMB36_X3Y23:RAMB36_X4Y12 , RAMB36_X5Y16:RAMB36_X5Y15 ;
+AREA_GROUP "AG_add_pair2" RANGE = RAMB36_X3Y22:RAMB36_X3Y10 , RAMB36_X4Y23:RAMB36_X4Y10 , RAMB36_X5Y16:RAMB36_X5Y15 ;
+AREA_GROUP "AG_add_pair2" GROUP = OPEN ;
+AREA_GROUP "AG_add_pair2" PLACE = OPEN ;
+
+#
+# add_pair3 block assignments
+#
+INST "ae_top/core/cae_pers/add_pair3" AREA_GROUP = "AG_add_pair3" ;
+INST "ae_top/core/cae_pers/add_pair3/*" AREA_GROUP = "AG_add_pair3" ;
+AREA_GROUP "AG_add_pair3" RANGE = SLICE_X104Y59:SLICE_X197Y0 ;
+#AREA_GROUP "AG_add_pair3" RANGE = RAMB36_X3Y11:RAMB36_X4Y0 , RAMB36_X5Y8:RAMB36_X5Y7 ;
+AREA_GROUP "AG_add_pair3" RANGE = RAMB36_X3Y9:RAMB36_X3Y0 , RAMB36_X4Y9:RAMB36_X4Y0 , RAMB36_X5Y8:RAMB36_X5Y0 ;
+AREA_GROUP "AG_add_pair3" GROUP = OPEN ;
+AREA_GROUP "AG_add_pair3" PLACE = OPEN ;
+
+#
+# add_pair4 block assignments
+#
+INST "ae_top/core/cae_pers/add_pair4" AREA_GROUP = "AG_add_pair4" ;
+INST "ae_top/core/cae_pers/add_pair4/*" AREA_GROUP = "AG_add_pair4" ;
+AREA_GROUP "AG_add_pair4" RANGE = SLICE_X10Y239:SLICE_X103Y180 ;
+#AREA_GROUP "AG_add_pair4" RANGE = RAMB36_X1Y47:RAMB36_X2Y36 , RAMB36_X0Y39:RAMB36_X0Y38 ;
+AREA_GROUP "AG_add_pair4" RANGE = RAMB36_X1Y47:RAMB36_X1Y38 , RAMB36_X2Y47:RAMB36_X2Y37 , RAMB36_X0Y45:RAMB36_X0Y38 ;
+AREA_GROUP "AG_add_pair4" GROUP = OPEN ;
+AREA_GROUP "AG_add_pair4" PLACE = OPEN ;
+
+#
+# add_pair5 block assignments
+#
+INST "ae_top/core/cae_pers/add_pair5" AREA_GROUP = "AG_add_pair5" ;
+INST "ae_top/core/cae_pers/add_pair5/*" AREA_GROUP = "AG_add_pair5" ;
+AREA_GROUP "AG_add_pair5" RANGE = SLICE_X10Y179:SLICE_X103Y120 ;
+#AREA_GROUP "AG_add_pair5" RANGE = RAMB36_X1Y35:RAMB36_X2Y24 , RAMB36_X0Y31:RAMB36_X0Y30 ;
+AREA_GROUP "AG_add_pair5" RANGE = RAMB36_X1Y37:RAMB36_X1Y24 , RAMB36_X2Y36:RAMB36_X2Y24 , RAMB36_X0Y31:RAMB36_X0Y30 ;
+AREA_GROUP "AG_add_pair5" GROUP = OPEN ;
+AREA_GROUP "AG_add_pair5" PLACE = OPEN ;
+
+#
+# add_pair6 block assignments
+#
+INST "ae_top/core/cae_pers/add_pair6" AREA_GROUP = "AG_add_pair6" ;
+INST "ae_top/core/cae_pers/add_pair6/*" AREA_GROUP = "AG_add_pair6" ;
+AREA_GROUP "AG_add_pair6" RANGE = SLICE_X10Y119:SLICE_X103Y60 ;
+#AREA_GROUP "AG_add_pair6" RANGE = RAMB36_X1Y23:RAMB36_X2Y12 , RAMB36_X0Y16:RAMB36_X0Y15 ;
+AREA_GROUP "AG_add_pair6" RANGE = RAMB36_X1Y23:RAMB36_X1Y10 , RAMB36_X2Y23:RAMB36_X2Y11 , RAMB36_X0Y16:RAMB36_X0Y15 ;
+AREA_GROUP "AG_add_pair6" GROUP = OPEN ;
+AREA_GROUP "AG_add_pair6" PLACE = OPEN ;
+
+#
+# add_pair7 block assignments
+#
+INST "ae_top/core/cae_pers/add_pair7" AREA_GROUP = "AG_add_pair7" ;
+INST "ae_top/core/cae_pers/add_pair7/*" AREA_GROUP = "AG_add_pair7" ;
+AREA_GROUP "AG_add_pair7" RANGE = SLICE_X10Y59:SLICE_X103Y0 ;
+#AREA_GROUP "AG_add_pair7" RANGE = RAMB36_X1Y11:RAMB36_X2Y0 , RAMB36_X0Y8:RAMB36_X0Y7 ;
+AREA_GROUP "AG_add_pair7" RANGE = RAMB36_X1Y9:RAMB36_X1Y0 , RAMB36_X2Y10:RAMB36_X2Y0 , RAMB36_X0Y8:RAMB36_X0Y1 ;
+AREA_GROUP "AG_add_pair7" GROUP = OPEN ;
+AREA_GROUP "AG_add_pair7" PLACE = OPEN ;
+
+

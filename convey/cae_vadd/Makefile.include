@@ -1,0 +1,12 @@
+#
+# Copyright 2010 Convey Computer Corp. 
+#
+
+# DEFAULT LOCATION FOR DEVELOPMENT
+export CNY_PDK = /opt/convey/pdk
+export CNY_PDK_REV = 2011_01_04
+export CNY_PDK_PLATFORM = hc-1
+
+# DO NOT REMOVE ITEMS BELOW THIS LINE
+include $(CNY_PDK)/$(CNY_PDK_REV)/$(CNY_PDK_PLATFORM)/lib/MakefileInclude.cnypdk
+

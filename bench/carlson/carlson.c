@@ -30,13 +30,196 @@
 
 //typedef int64_t node_t;
 typedef struct node_t {
+  uint64_t id;
   int64_t index;
   struct node_t * next;
   int64_t value;
-  char padding[40];
+  char padding[32];
 } node_t  __attribute__ ((aligned (64)));
 
 
+#define DEBUG 0
+
+node_t** allocate_page(uint64_t size, int num_threads, int num_lists_per_thread) {
+
+  size = size / (num_threads * num_lists_per_thread);
+  printf("Chain size is %lu * %lu = %lu\n", 
+	 size, sizeof(node_t), size *sizeof(node_t));
+  printf("Initializing footprint of size %d * %d * %lu * %lu = %d * %lu = %lu bytes....\n", 
+	 num_threads, num_lists_per_thread, size, sizeof(node_t), 
+	 num_threads * num_lists_per_thread, size * sizeof(node_t), 
+	 num_threads * num_lists_per_thread * size * sizeof(node_t));
+
+/** Page size choices **/
+  unsigned page_size = 2 * 1024 * 1024;        // for huge pages (2 MiB)
+  //unsigned page_size = 1024*1024*1024;           // for huge pages (1 GiB)
+  //unsigned page_size = sysconf(_SC_PAGESIZE);  // for regular pages
+/**********************/
+
+  printf("page size is %u.\n", page_size);
+  
+
+  unsigned num_chains = num_threads * num_lists_per_thread;
+  node_t** bases = (node_t**) malloc( sizeof(node_t*) * num_chains );
+  node_t** ends  = (node_t**) malloc( sizeof(node_t*) * num_chains );
+
+  uint64_t i, j, k;
+
+  // for each chain
+  for( i = 0; i < num_chains; ++i ) {
+
+
+    uint64_t total_chain_size = sizeof(node_t) * size;
+    uint64_t chunk_size;
+    uint64_t current_chain_size = 0;
+    for( j = 0, chunk_size = total_chain_size < page_size ? total_chain_size : page_size ; 
+	 current_chain_size < total_chain_size ;
+	 ++j, current_chain_size += chunk_size ) {
+      node_t* nodes = (node_t*) valloc( chunk_size );
+      uint64_t chunk_node_count = chunk_size / sizeof(node_t);
+      node_t** locs = (node_t**) malloc( sizeof(node_t*) * chunk_node_count );
+
+      if (DEBUG) printf("%lu %lu %lu %lu\n", size, total_chain_size, chunk_size, chunk_node_count);
+
+      // initialize ids
+      for( k = 0 ; k < chunk_node_count ; ++k ) {
+	nodes[k].next = (node_t*) k;
+      }
+
+      //if (DEBUG) print_nodes( nodes, chunk_node_count );
+
+      // randomly permute nodes (fisher-yates (or knuth) shuffle)
+      for(k = chunk_node_count-1; k > 0; --k) {
+	uint64_t x = random() % k;
+	if (DEBUG) printf("swapping %lu with %lu\n", k, x);
+	//if (DEBUG) print_node(&nodes[k]);
+	//if (DEBUG) print_node(&nodes[x]);
+	node_t temp = nodes[k];
+	nodes[k] = nodes[x];
+	nodes[x] = temp;
+      }
+
+      //if (DEBUG) print_nodes( nodes, chunk_node_count );
+
+      // extract locs
+      for( k = 0 ; k < chunk_node_count ; ++k ) {
+	locs[ (uint64_t) nodes[k].next ] = &nodes[k];
+      }
+
+      // initialize pointers
+      for( k = 0 ; k < chunk_node_count ; ++k ) {
+	uint64_t id = k;
+	uint64_t nextid = id + 1;
+	//uint64_t wrapped_nextid = nextid % chunk_node_count;
+
+	node_t* current = locs[id];
+	if ( nextid == chunk_node_count ) {
+	  current->next = NULL;
+	} else {
+	  current->next = locs[ nextid ];
+	}
+
+	//current->next = locs[ wrapped_nextid ];
+	//current->next = nextid == chunk_node_count ? bases[i] : locs[ wrapped_nextid ]; 
+      }    
+
+      //if (DEBUG) print_nodes( nodes, chunk_node_count );  
+      
+      if (j == 0) {
+	bases[i] = locs[0];
+	ends[i] = locs[chunk_node_count-1];
+      } else {
+	ends[i]->next = locs[0];
+	ends[i] = locs[chunk_node_count-1];
+      }
+
+      free(locs);
+    }
+
+  }
+  free(ends);
+  return bases;
+}
+
+
+// initialize linked lists.
+node_t** allocate_heap(uint64_t size, int num_threads, int num_lists) {
+  uint64_t i = 0;
+
+  //printf("Initializing footprint of size %lu * %lu = %lu bytes....\n", size, sizeof(node_t), size * sizeof(node_t));
+
+  //size = size / num_threads;
+
+  node_t** locs = (node_t**) malloc(sizeof(node_t*) * size); // node array
+  node_t* nodes = (node_t*) malloc(sizeof(node_t) * size);  // temporary node pointers
+  //  node_t* nodes = (node_t*) get_huge_pages(sizeof(node_t) * size, GHP_DEFAULT);  // temporary node pointers
+  node_t** bases = (node_t**) malloc(sizeof(node_t*) * num_threads * num_lists); // initial node array
+
+  // initialize ids
+  //#pragma omp parallel for num_threads(num_threads)
+  for(i = 0; i < size; ++i) {
+    //#ifdef HAVE_ID
+    nodes[i].id = i;
+    nodes[i].index = i;
+    //#endif
+    nodes[i].next = (node_t*)i;
+  }
+
+  // randomly permute nodes (fisher-yates (or knuth) shuffle)
+  for(i = size-1; i > 0; --i) {
+    uint64_t j = random() % i;
+    node_t temp = nodes[i];
+    nodes[i] = nodes[j];
+    nodes[j] = temp;
+  }
+
+  // extract locs
+  //#pragma omp parallel for num_threads(num_threads)
+  for(i = 0; i < size; ++i) {
+#ifdef HAVE_ID
+    //printf("%u %u\n",  nodes[i].id, &nodes[i] - &nodes[0] );
+    //assert( nodes[i].id == &nodes[i] - &nodes[0] );
+    locs[ nodes[i].id ] = &nodes[i];
+#else
+    locs[ (uint64_t) nodes[i].next ] = &nodes[i];
+#endif
+  }
+
+    for(int i = 0; i < size; ++i) {
+    assert(locs[i] != NULL);
+  }
+
+// initialize pointers
+  // chop id-space into num_lists sections and build a circular list for each
+  //int64_t base = 0;
+  //#pragma omp parallel for num_threads(num_threads)
+  for(i = 0; i < size; ++i) {
+#ifdef HAVE_ID
+    uint64_t id = nodes[i].id;
+#else
+    //assert( nodes[i].id == &nodes[i] - &nodes[0] );
+    uint64_t id = i; //&nodes[i] - &nodes[0];
+    node_t* current = locs[i];
+#endif
+    int64_t thread_size = size / num_lists;
+    int64_t base = id / thread_size;
+    uint64_t nextid = id + 1;
+    uint64_t wrapped_nextid = (nextid % thread_size) + (base * thread_size) % size;
+    //printf("%d: %d %d %d\n", id, base, nextid, wrapped_nextid);
+    current->next = locs[ wrapped_nextid ];
+    if (current->next) current->index = current->next->id;
+  }
+
+  // grab initial pointers for each list
+  for(i = 0; i < (uint64_t) num_threads * num_lists; ++i) {
+    bases[i] = locs[i * size / (num_threads * num_lists)];
+  }
+
+  //print(nodes, size);
+  
+  free(locs);
+  return bases;
+}
 
 typedef struct { /* loop arguments; one struct per core */
   uint64_t id; /* id 0... of thread relative to others assigned same core */
@@ -53,7 +236,8 @@ typedef struct { /* loop arguments; one struct per core */
   int64_t iters;
 } loop_arg;
 
-#define PAGE_SIZE (1<<21)
+//#define PAGE_SIZE (1<<21)
+//#define PAGE_SIZE (1<<12)
 
 #define ISSUE_REMOTE_REFERENCE 1
 #define USE_REMOTE_REFERENCE 1
@@ -68,256 +252,40 @@ typedef struct { /* loop arguments; one struct per core */
 
 
 static int64_t loop_result;
+
 /* repeatedly reference randomly a "remote" word and
 ** then update a number of "local" words */
-/* void loopx(thread * me, void *arg) { */
-/*   loop_arg * la = (loop_arg *) arg; */
-/*   uint64_t rand = RAND(((uint64_t)me)); */
-/*   /\* start of this coroutine's space: *\/ */
-/*   //int64_t * local = &la->loc[(1<<(la->ls))*la->id]; */
-/*   uint64_t * local = (uint64_t*) &la->loc[la->s * la->id]; */
-
-/*   for (uint64_t i = 0; i < ITERS; i++) { */
-/*     uint64_t index = (rand >> 32) & ((1<<(la->rs))-1); */
-/*     if (la->issue_remote_reference) */
-/*       prefetch_and_switch(me, &la->rem[index], 0); */
-    
-/*     //if (la->use_remote_reference) */
-/* 	rand = RAND(rand + la->rem[index]); */
-/* 	//else */
-/* 	//rand = RAND(rand); */
-
-/*     /\*     fprintf(stderr, "\n(%ld %ld %ld) ", i, index, rand); *\/ */
-/* 	for (uint64_t j = 0; j < (uint64_t)la->upra; j++) { */
-/*       //int64_t index = (rand >> 32) & ((1<<(la->ls))-1); */
-/*       uint64_t index = (rand >> 32) % (la->s); */
-
-/*       //      if (0) //la->use_local_prefetch_and_switch) */
-/*       //	prefetch_and_switch(me, &local[index], 1); */
-     
-/*      if (la->local_random_access) */
-/*        rand = RAND(rand + (local[index]+=1)); */
-/*      else */
-/*        local[j % (la->s)]+=1; */
-/*        //local[j & ((1<<(la->ls))-1)]+=1; */
-
-/*       /\* fprintf(stderr, "(%ld %ld %ld) ", j, index, rand); *\/ */
-/*     } */
-/*   } */
-/*   loop_result =rand; /\* use result to avoid dead code elimination *\/ */
-/* } */
-
-
-void loop2(thread * me, void *arg) {
-   loop_arg * la = (loop_arg *) arg;
-   int64_t rand = RAND(((int64_t)me));
-   /* start of this coroutine's space: */
-   //int64_t * local = &la->loc[(1<<(la->ls))*la->id];
-   node_t * local = &la->loc[la->s * la->id];
- 
-   for (int64_t i = 0; i < la->iters; i++) {
-     int64_t index = 0;
- 
-     if (ISSUE_REMOTE_REFERENCE || USE_REMOTE_REFERENCE) {
-       if ((i & ((PAGE_SIZE/sizeof(node_t))-1)) == 0)
-	 index = (rand >> 32) & ((1<<(la->rs))-1);
-       else 
-	 index = (rand >> 32) & ((PAGE_SIZE/sizeof(node_t))-1);
-     }
-
-     if (ISSUE_REMOTE_REFERENCE) 
-       prefetch_and_switch(me, &la->rem[index].index, 0);
- 
-    if (USE_REMOTE_REFERENCE)
-      rand = RAND(rand + la->rem[index].index);
-    else
-      rand = RAND(rand);
- 
-     /*     fprintf(stderr, "\n(%ld %ld %ld) ", i, index, rand); */
-     if (LOCAL_ACCESS) {
-     if (LOCAL_RANDOM_ACCESS) {
-       for (int64_t j = 0; j < la->upra; j++) {
-	int64_t index = (rand >> 32) & ((1<<(la->ls))-1);
- 	//int64_t index = (rand >> 32) & ((1<<(la->ls + 1))-1);
- 	//if (index > la->s) index -= la->s;
- 	
- 	/*      prefetch_and_switch(me, &local[index], 1);*/
- 	// random
-	rand = local[index].index;
-	local[index].value+=1;
- 	
- 	/* local[j & ((1<<(la->ls))-1)]+=1; */
- 	/* fprintf(stderr, "(%ld %ld %ld) ", j, index, rand); */
-      }
-    } else {
-      int64_t index = (rand >> 32) & ((1<<(la->ls))-1);
-      //int64_t index = (rand >> 32) & ((1<<(la->ls + 1))-1);
-      for (int64_t j = 0; j < la->upra; j++) {
-	if (index > la->s) index -= la->s;
-	local[index].value+=1;
-	index++;
-      }
-    }
-    }
-  }
-  loop_result =rand; /* use result to avoid dead code elimination */
-}
-
 
 void loop(thread * me, void *arg) {
   loop_arg * la = (loop_arg *) arg;
-  int64_t rand = RAND(((int64_t)me));
-  /* start of this coroutine's space: */
-  //int64_t * local = &la->loc[(1<<(la->ls))*la->id];
-  node_t * local = &la->loc[la->s * la->id];
 
+  node_t * remote_node = la->rem;
+  node_t * local_node = la->loc;
 
-  //node_t node;
-  int64_t index = 0;
-  //int64_t* 
-
-  /* int64_t count = la->iters; */
-  /* node_t * i = &la->rem[0]; */
-  /* while (count > 0) { */
-  /*   count--; */
-  /*   __builtin_prefetch( &(i->next) ); */
-  /*   thread_yield(me); */
-  /*   //node = la->rem[index]; */
-  /*   //index = node.index; */
-  /*   //index = la->rem[index].index; */
-  /*   i = i->next; */
-  /* } */
-  /* index = i->index; */
-  /* loop_result = index; */
-  /* return; */
-
-  /* while (count > 0) { */
-  /*   count--; */
-  /*   __builtin_prefetch( &la->rem[index] ); */
-  /*   thread_yield(me); */
-  /*   //node = la->rem[index]; */
-  /*   //index = node.index; */
-  /*   index = la->rem[index].index; */
-  /* } */
-
-  /* loop_result = index; */
-  /* return; */
-
-
-  //int64_t index = 0;
-  for (int64_t i = 0; i < la->iters; i++) {
-
-    //if (ISSUE_REMOTE_REFERENCE || USE_REMOTE_REFERENCE)
-      //index = rand  & ((1<<(la->rs))-1);
- 
-    if (ISSUE_REMOTE_REFERENCE) 
-      prefetch_and_switch(me, &la->rem[index].index, 0);
-
+  while( la->iters-- ) {
+  
+    if (ISSUE_REMOTE_REFERENCE) {
+      __builtin_prefetch(&(remote_node->next), 0, 0);
+    }
+    
+    thread_yield(me);
+    
     if (USE_REMOTE_REFERENCE) {
-      //rand = la->rem[index].index;
-      index = la->rem[index].index;
-      la->rem[index].value++;
+      remote_node = remote_node->next;
     }
-    /* } else { */
-    /*   rand = RAND(rand); */
-    /* } */
-
-    /*     fprintf(stderr, "\n(%ld %ld %ld) ", i, index, rand); */
+    
     if (LOCAL_ACCESS) {
-    if (LOCAL_RANDOM_ACCESS) {
-      for (int64_t j = 0; j < la->upra; j++) {
-	//int64_t index = rand & ((1<<(la->ls))-1);
-	int64_t index = (rand >> 32) & ((1<<(la->ls + 1))-1);
-	//if (index > la->s) index -= la->s;
-	
-	/*      prefetch_and_switch(me, &local[index], 1);*/
-	// random
-	//index = local[index].index;
-	rand = RAND(rand + local[index].index);
-	local[index].value+=1;
-	
-	/* local[j & ((1<<(la->ls))-1)]+=1; */
-	/* fprintf(stderr, "(%ld %ld %ld) ", j, index, rand); */
-      }
-    } else {
-      int64_t index = (rand >> 32) & ((1<<(la->ls))-1);
-      //int64_t index = (rand >> 32) & ((1<<(la->ls + 1))-1);
-      for (int64_t j = 0; j < la->upra; j++) {
-	if (index > la->s) index -= la->s;
-	local[index].value+=1;
-	index++;
+      if (LOCAL_RANDOM_ACCESS) {
+	int64_t local_iters = la->upra;
+	while ( local_iters-- ) {
+	  local_node->value++;
+	  local_node = local_node->next;
+	}
       }
     }
-    }
   }
-  loop_result =rand; /* use result to avoid dead code elimination */
-}
-
-
-/* void loopz(thread * me, void *arg) { */
-/*   loop_arg * la = (loop_arg *) arg; */
-/*   int64_t rand = RAND(((int64_t)me)); */
-/*   /\* start of this coroutine's space: *\/ */
-/*   int64_t * local = &la->loc[(1<<(la->ls))*la->id]; */
-
-/*   for (int64_t i = 0; i < la->iters; i++) { */
-/*     int64_t index = (rand >> 32) & ((1<<(la->rs))-1); */
-/*     prefetch_and_switch(me, &la->rem[index], 0); */
-/*     rand = RAND(rand + la->rem[index]); */
-/*     /\*     fprintf(stderr, "\n(%ld %ld %ld) ", i, index, rand); *\/ */
-/*     for (int64_t j = 0; j < la->upra; j++) { */
-/*       int64_t index = (rand >> 32) & ((1<<(la->ls))-1); */
-/*       /\*      prefetch_and_switch(me, &local[index], 1);*\/ */
-/*       rand = RAND(rand + (local[index]+=1)); */
-/*       /\* local[j & ((1<<(la->ls))-1)]+=1; *\/ */
-/*       /\* fprintf(stderr, "(%ld %ld %ld) ", j, index, rand); *\/ */
-/*     } */
-/*   } */
-/*   loop_result =rand; /\* use result to avoid dead code elimination *\/ */
-/* } */
-
-void initialize(node_t* remote, uint64_t remote_size, uint64_t seed) {
-
-  uint64_t rand = RAND(seed);
-
-  // initialize pointers
-  for (uint64_t i=0; i < remote_size; i++) {
-    remote[i].index = i;
-  }
-
-  // iterate over pages (assumes remote_size*sizeof() is power of 2)
-  for(int64_t j = 0, remaining_chunk_size = remote_size, page_chunk=PAGE_SIZE/sizeof(node_t);
-      remaining_chunk_size > 0; 
-      j += page_chunk, remaining_chunk_size -= page_chunk) {
-    int64_t chunk_size = page_chunk; 
-    if (remaining_chunk_size < chunk_size) {
-      chunk_size = remaining_chunk_size;
-    }
-    for (uint64_t k=chunk_size - 1; k > 0; --k) {
-      rand = RAND(rand);
-      uint64_t x = rand % k;
-      if (x != 0) {
-	node_t temp = remote[j+k];
-	remote[j+k] = remote[j+x];
-	remote[j+x] = temp;
-      }
-    }
-
-  }
-
-  int64_t * locs = malloc( remote_size * sizeof(int64_t) );
-  for (uint64_t i=0; i < remote_size; ++i) {
-    locs[ remote[i].index ] = i;
-  }
-
-  for (uint64_t i=1; i < remote_size; ++i) {
-    remote[ locs[ i-1 ] ].index = locs[i];
-    remote[ locs[ i-1 ] ].next = &remote[ locs[i] ];
-  }
-  remote[ locs[ remote_size-1 ] ].index = locs[0];
-  remote[ locs[ remote_size-1 ] ].next = &remote[ locs[0] ];
-
-  free(locs);
+  
+  loop_result = remote_node->value + local_node->value; /* use result to avoid dead code elimination */
 }
 
 
@@ -406,8 +374,6 @@ int main(int argc, char *argv[]) {
   int64_t thread_footprint = 1<<tflog;
   //int64_t thread_footprint = total_thread_footprint / threads_per_core / ncores;
 
-  int64_t ITERS = ((int64_t)1 << 24);
-
   /* /\* we should change to allocate on processor local to particular core *\/ */
   /* node_t * local = malloc(thread_footprint*ncores*threads_per_core*sizeof(node_t)); */
   /* /\* probably not necessary to zero out memory, but it doesn't cost much *\/ */
@@ -420,21 +386,28 @@ int main(int argc, char *argv[]) {
   /* //bzero(remote, remote_size*sizeof(int64_t)); */
   /* initialize( remote, remote_size ); */
 
-  int64_t rslog = 0;
-  int64_t remote_size = ((int64_t)1) <<rflog; /* < #phys 64bit words */
+  int64_t rslog = rflog;
+  int64_t remote_size = ((int64_t)1) << rslog; /* < #phys 64bit words */
+
+  //int64_t ITERS = ((int64_t)1 << 24);
+  //int64_t ITERS = ((int64_t)1 << 24) / (ncores * threads_per_core);
+  uint64_t ITERS = remote_size / (ncores * threads_per_core);
 
   int64_t nproc_for_log = ncores;
-  int64_t nproclog = 0;
-  while((nproc_for_log >>= 1) >= 1) nproclog ++;
+//  int64_t nproclog = 0;
+  //  while((nproc_for_log >>= 1) >= 1) nproclog ++;
 
 
   int64_t tpc_for_log = threads_per_core;
-  int64_t tpclog = 0;
-  while((tpc_for_log >>= 1) >= 1) tpclog ++;
+  //int64_t tpclog = 0;
+  //while((tpc_for_log >>= 1) >= 1) tpclog ++;
 
-  while((remote_size >>= 1) >= 1) rslog ++;
-  remote_size = ((int64_t) 1) << rslog;
+  //while((remote_size >>= 1) >= 1) rslog ++;
+  //remote_size = ((int64_t) 1) << rslog;
   
+  //node_t ** remotes = allocate_page( remote_size, ncores, threads_per_core );
+  node_t ** remotes = allocate_heap( remote_size, ncores, threads_per_core );
+
   fprintf(stderr,
 	  "ncores: %ld; threads per core: %ld; updates per remote: %ld;"
 	  " total bytes: %ld local bytes: %ld (%ld); remote bytes: %ld (%ld) total refs: %ld "
@@ -455,6 +428,8 @@ int main(int argc, char *argv[]) {
 
 #pragma omp parallel for num_threads(ncores)
   for (int64_t c = 0; c < ncores; c++) {
+
+
     loop_arg * la = (loop_arg *) malloc(sizeof(loop_arg)*threads_per_core);
 
     /* cpu_set_t set; */
@@ -493,38 +468,53 @@ int main(int argc, char *argv[]) {
     /* case 1024: tpclog = 10; break; */
     /* default: assert(0);  break; */
     /* } */
-    uint64_t per_thread_rslog = rslog - tpclog - nproclog;
-    uint64_t per_thread_remote_size = ((int64_t) 1) << per_thread_rslog;
+
+    //uint64_t per_thread_rslog = rslog - tpclog - nproclog;
+    //uint64_t per_thread_rslog = rslog - tpclog; // - nproclog;
+    //uint64_t per_thread_rslog = rslog - tpclog; // - tpclog - nproclog;
+    //printf("rslog %lu tpclog %lu nproclog %lu per_thread_rslog: %lu ", rslog, tpclog, nproclog, per_thread_rslog);
+
+    //uint64_t per_thread_remote_size = ((int64_t) 1) << per_thread_rslog;
+    uint64_t per_thread_remote_size = remote_size / threads_per_core;
     //printf("rslog: %ld per_thread_rslog: %ld per_thread_remote_size: %ld\n", rslog, per_thread_rslog, per_thread_remote_size);
-      for (int64_t i = 0; i < threads_per_core; ++i) {
-    struct timeval tv1;
+
+    //struct timeval tv1;
 
     /* we should change to allocate on processor local to particular core */
     //node_t * local = malloc(thread_footprint*threads_per_core*sizeof(node_t));
-    int64_t min_local_alloc = PAGE_SIZE * (1 + thread_footprint*threads_per_core*sizeof(node_t) / PAGE_SIZE );
-    node_t * local = get_huge_pages(min_local_alloc, GHP_DEFAULT);
+    //int64_t min_local_alloc = PAGE_SIZE * (1 + thread_footprint*threads_per_core*sizeof(node_t) / PAGE_SIZE );
+    //node_t * local = get_huge_pages(min_local_alloc, GHP_DEFAULT);
     //node_t * local = malloc(min_local_alloc);
+
     /* probably not necessary to zero out memory, but it doesn't cost much */
-    //bzero(local, thread_footprint*ncores*threads_per_core*sizeof(int64_t));
-    //gettimeofday(&tv1, 0)
+    //bzero(local, thread_footprint*threads_per_core*sizeof(int64_t));
+
+    //gettimeofday(&tv1, 0);
     //initialize( local, thread_footprint*threads_per_core, tv1.tv_usec );
 
-  node_t * remote;
+    //node_t * remote;
   //while (!(remote = malloc(per_thread_remote_size*sizeof(node_t)))) per_thread_remote_size >>= 1;
   //while (!(remote = get_huge_pages(per_thread_remote_size*sizeof(node_t), GHP_DEFAULT))) per_thread_remote_size >>= 1;
-  assert ((remote = get_huge_pages(per_thread_remote_size*sizeof(node_t), GHP_DEFAULT)));
-  //assert ((remote = malloc(per_thread_remote_size*sizeof(node_t))));
-  //bzero(remote, per_thread_remote_size*sizeof(int64_t));
-  gettimeofday(&tv1, 0);
-  initialize( remote, per_thread_remote_size, tv1.tv_usec );
+  //assert ((remote = get_huge_pages(per_thread_remote_size*sizeof(node_t), GHP_DEFAULT)));
+  /* assert ((remote = malloc(per_thread_remote_size*sizeof(node_t)))); */
+  /* bzero(remote, per_thread_remote_size*sizeof(node_t)); */
+  /* gettimeofday(&tv1, 0); */
+  /* initialize( remote, per_thread_remote_size, tv1.tv_usec ); */
+
+      for (int64_t i = 0; i < threads_per_core; ++i) {
     
+	//node_t * local = malloc(thread_footprint*sizeof(node_t));
+	node_t ** locals = allocate_heap( thread_footprint, 1, 1 );
+	node_t * local = locals[0];
+
 	la[i].id = i;
 	la[i].upra = local_updates_per_remote_access;
 	la[i].s = thread_footprint;
-	la[i].ls = tflog - tpclog;
-	la[i].rs = per_thread_rslog; //rslog;
+	la[i].ls = 0; //tflog; // - tpclog;
+	la[i].rs = 0; //per_thread_rslog; //rslog;
 	la[i].loc = local;
-	la[i].rem = remote;
+	//la[i].rem = remote;
+	la[i].rem = remotes[ i * c ];
 	la[i].use_local_prefetch_and_switch = uselocalpns;
 	la[i].local_random_access = lra;
 	la[i].issue_remote_reference = irr ? -1 : 0;
@@ -588,9 +578,10 @@ for(int c = 1; c < ncores; c++) {
  }
 
 double elapsed_sec = ((otv2.tv_sec-otv1.tv_sec)*1000000.0 + (otv2.tv_usec-otv1.tv_usec))/1000000.0;
+  fprintf(stderr, "elapsed: %g ", elapsed_sec);
 
-fprintf(stderr, "ref/s: %g ", (ncores*threads_per_core*ITERS*(local_updates_per_remote_access+1))/elapsed_sec);
-fprintf(stderr, "latency: %g sec\n", ((elapsed_sec)/(ncores*threads_per_core*ITERS*(local_updates_per_remote_access+1))));
+fprintf(stderr, "Mref/s: %f ", (ncores*threads_per_core*ITERS*(local_updates_per_remote_access+1))/elapsed_sec / 1000000);
+fprintf(stderr, "latency: %f sec\n", ((elapsed_sec)/(ncores*threads_per_core*ITERS*(local_updates_per_remote_access+1))));
 
   return 0;
 }
