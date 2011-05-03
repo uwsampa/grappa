@@ -52,19 +52,90 @@ static int32_t rand_range(int32_t i, int32_t j, struct random_data *gen) {
   return (rnd + i);
 }
 
+#define RSIZE 1024
+
+void genset(int32_t *state, int32_t **fptr, int32_t **rptr, int32_t *end,
+            int *randoms) {
+  int32_t val;
+  for (int i = 0; i < RSIZE; ++i) {
+    val = **fptr += **rptr;
+    randoms[i] = (val >> 1) & 0x7fffffff;
+    //    assert(result == random());
+    ++*fptr;
+    if (*fptr >= end) {
+      *fptr = state;
+      ++*rptr;
+    } else {
+      ++*rptr;
+      if (*rptr >= end) {
+        *rptr = state;
+      }
+    }
+  }
+}
+
 double walk(graph *g, double *vals, int pathlen, int seed, int *left) {
   double res = 0;
-  char state[128];
-  struct random_data rdata;
-  memset(&rdata, 0, sizeof(rdata));
-  initstate_r(seed, state, 128, &rdata);
+  int32_t state[31];
+  state[0] = seed == 0 ? 1 : seed;
+  int32_t word = state[0];
+  for (int i = 1; i < 31; ++i) {
+    long int hi = word / 127773;
+    long int lo = word % 127773;
+    word = 16807 * lo - 2836 * hi;
+    if (word < 0)
+      word += 2147483647;
+    state[i] = word;
+  }
+  int32_t *fptr = &state[3];
+  int32_t *rptr = &state[0];
+  int32_t *end = &state[31]; // one off the end
+  int32_t val;
+  for (int i = 0; i < 310; ++i) {
+    val = *fptr += *rptr;
+    ++fptr;
+    if (fptr >= end) {
+      fptr = state;
+      ++rptr;
+    } else {
+      ++rptr;
+      if (rptr >= end) {
+        rptr = state;
+      }
+    }
+  }
 
+  int randoms[RSIZE];
+
+  int rleft = 0;
   int chunk;
+  int32_t limit, spread, rnd;
   while ((chunk = __sync_fetch_and_sub(left, 100)) > 0) {
     while (chunk-- > 0) {
-      uint64_t vertex = rand_range(0, g->v, &rdata);
+      uint64_t vertex;
+      spread = g->v;
+      limit = RAND_MAX - RAND_MAX % spread;
+      do {
+        if (rleft == 0) {
+          genset(state, &fptr, &rptr, end, randoms);
+          rleft = RSIZE;
+        }
+        rnd = randoms[--rleft];
+      } while (rnd >= limit);
+      vertex = rnd % spread;
       for (int i = 0; i < pathlen; ++i) {
-        int j = rand_range(g->row_ptr[vertex], g->row_ptr[vertex+1], &rdata);
+        spread = g->row_ptr[vertex+1] - g->row_ptr[vertex];
+        int j = g->row_ptr[vertex];
+        limit = RAND_MAX - RAND_MAX % spread;
+        do {
+          if (rleft == 0) {
+            genset(state, &fptr, &rptr, end, randoms);
+            rleft = RSIZE;
+          }
+          rnd = randoms[--rleft];
+        } while (rnd >= limit);
+        j += rnd % spread;
+        //printf("%d: %lu %d\n", i, vertex, j);
         vertex = g->edges[j];
       }
       res += vals[vertex];
@@ -94,13 +165,13 @@ double rwalk(graph *g, double *vals, int pathlen, int ncores, int samples) {
   uint64_t slow = 0, fast = -1;
   for (int i = 0; i < ncores; ++i) {
     result += results[i];
-    printf("timing %d: %lu\n", i, timings[i]);
+    printf("timing %d %d: %lu\n", ncores, i, timings[i]);
     if (slow < timings[i]) slow = timings[i];
     if (fast > timings[i]) fast = timings[i];
   }
   double imbalance = slow;
   imbalance /= fast;
-  printf("imbalance: %f\n", imbalance);
+  printf("imbalance: %d %f\n", ncores, imbalance);
   return result;
 }
 
@@ -122,7 +193,7 @@ int main(int argc, char *argv[]) {
   int pathlen = strtol(argv[4], NULL, 0);
   int samples = strtol(argv[5], NULL, 0);
   unsigned int seed = 0;
-  if (argc == 6) seed = strtol(argv[6], NULL, 0);
+  if (argc == 7) seed = strtol(argv[6], NULL, 0);
   if (seed == 0) seed = goodseed();
   printf("seed: %d\n", seed);
   srand(seed);
@@ -133,7 +204,7 @@ int main(int argc, char *argv[]) {
   double *vals = genvals(g);
   fclose(gfile);
 
-  for (int c = cf; c < ct; ++c) {
+  for (int c = cf; c <= ct; ++c) {
     for (int i = 0; i < nruns; ++i) {
       uint64_t before = get_ns();
       double res = rwalk(g, vals, pathlen, c, samples);
@@ -142,7 +213,7 @@ int main(int argc, char *argv[]) {
       double rate = elapsed;
       rate /= samples*pathlen;
       printf("answer: %f\n", res);
-      printf("%lu ns -> %f ns/edge \n", elapsed, rate);
+      printf("%d: %lu ns -> %f ns/edge \n", c, elapsed, rate);
     }
   }
 
