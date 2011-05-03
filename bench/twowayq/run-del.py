@@ -21,7 +21,7 @@ remotecores = numanodes[1]
 cpus = localcores+remotecores
 
 
-cmd_template = "numactl --membind=%s ./twowaydel %d %d %d" # PER-NUM  CORES   BUFSIZE
+cmd_template = "numactl --membind=%s ./twowaydel -n %d -c %d -b %d -o %d" # PER-NUM  CORES   BUFSIZE   MAX_OUSTANDING
 
 #cmd_template = "hugectl --heap numactl --%s=%s ./gupsn -f %d -u %d -c %d"
 #cmd_template = "hugectl --heap ./gupsn -f %d -u %d -c %d"
@@ -42,24 +42,29 @@ for num_threads in range(2,6+1):
     
     qsize = 1<<15
 
-    for per_num in [10000000]:
-        for bufsize in range(1,16+1):
-            unmake_proc = pexpect.spawn("make clean");
-            print unmake_proc.read()
-            unmake_proc.close()
-            make_proc = pexpect.spawn("make -e CMDL_FLAGS='-DCHUNK_SIZE=%d -DQSIZE=%d'"%(bufsize,qsize));
-            print make_proc.read()
-            make_proc.close()
+    for per_num in [20]:
+        for bufsize in [1,4,8,16]:#range(1,16+1):
+            for limit_outs in [0,1]:
+                unmake_proc = pexpect.spawn("make clean");
+                print unmake_proc.read()
+                unmake_proc.close()
+                make_proc = pexpect.spawn("make -e CMDL_FLAGS='-DCHUNK_SIZE=%d -DQSIZE=%d -DSTREAM=1 -DLIMIT_OUTSTANDING=%d'"%(bufsize,qsize,limit_outs));
+                print make_proc.read()
+                make_proc.close()
+                
+                mo_vals = [10] # don't care, unused if limit_outs=0
+                if limit_outs==1: mo_vals = [5, 8, 10, 16, 20, 30, 100]
+                for max_outstanding in mo_vals:
 
-            for trial in [1,2,3]:
-                this_cmd = cmd_template%(numa,per_num,num_threads,bufsize)
-                     
-                these_results = loop_runexp_nowait.run_experiment('', this_cmd, True)
-                results.extend(these_results)
-                if save_dir is not None:
-                    f = open('%s/TWOWAYDEL_n%d_c%d_b%d_%d'%(save_dir,per_num,num_threads,bufsize,trial),'w')
-                    f.write( loop_runexp_nowait.dictlist_to_csv(these_results) )
-                    f.close()
+                    for trial in [1,2,3]:
+                        this_cmd = cmd_template%(numa,per_num,num_threads,bufsize,max_outstanding)
+                             
+                        these_results = loop_runexp_nowait.run_experiment('', this_cmd, True)
+                        results.extend(these_results)
+                        if save_dir is not None:
+                            f = open('%s/TWOWAYDEL_n%d_c%d_b%d_o%d-%d_%d'%(save_dir,per_num,num_threads,bufsize,limit_outs,max_outstanding,trial),'w')
+                            f.write( loop_runexp_nowait.dictlist_to_csv(these_results) )
+                            f.close()
 
 # write all results to one csv
 f = open(results_file, 'w')

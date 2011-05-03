@@ -4,7 +4,7 @@ CFLAGS+= -std=gnu99 -g -fopenmp
 # DQSIZE default 1<<18
 CFLAGS+= -I../../liberty-queues -DCACHELINE_SIZE=64 
 
-CMDL_FLAGS= -DCHUNK_SIZE="(1<<4)" -DQSIZE="(1<<15)" -DSTREAM="1"
+CMDL_FLAGS= -DCHUNK_SIZE="(1<<4)" -DQSIZE="(1<<15)" -DSTREAM="1" -DLIMIT_OUTSTANDING="0"
 
 all: twowayq twowaydel onewayq
 
