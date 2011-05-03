@@ -1,0 +1,62 @@
+                    Convey Sample PDK Personality (Vector Add)
+
+                                 Release Notes
+
+
+Version: convey-cae_pers_vadd-1.0.0-cae_pers_vadd_09_09_29_01.
+Date:    Sept 30, 2009
+
+Copyright (C) 2009. Convey Computer Corporation. All Rights Reserved.
+
+
+# # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # #
+
+
+Contents
+------------------------------------------------------------------------------
+
+Overview ........................................................... 1
+
+Bug Reporting ...................................................... 2
+
+Known problems, Limitations ........................................ 3
+
+
+# # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # #
+
+
+1. Overview
+------------------------------------------------------------------------------
+
+This package contains the files required to support the Convey Sample Custom
+personality. These release notes identify issues associated with this
+release.
+
+
+# # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # #
+
+
+2. Bug Reporting
+------------------------------------------------------------------------------
+
+Please use email for questions, and the issue tracker web interface to
+report bugs and request enhancements to Convey products.
+
+Email:          support@conveycomputer.com
+
+Internet: http://rt.conveysupport.com
+
+Our toll-free phone # is 1-866-338-1768 -- pick "Customer Support"
+when prompted, and please leave a brief message and a call back # if
+you reach the automated voice mail system
+
+
+# # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # #
+
+
+3. Known Problems, Limitations
+------------------------------------------------------------------------------
+
+As of this release, the following issues have been identified that
+may affect the behavior of the system in a user visible manor:
+

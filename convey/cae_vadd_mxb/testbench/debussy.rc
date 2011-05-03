@@ -1,0 +1,114 @@
+Magic 271485
+Revision 2008.10
+
+; Window Layout <x> <y> <width> <height> <signalwidth> <valuewidth>
+viewPort 680 51 960 685 278 65
+
+; File list:
+; openDirFile [-d delimiter] [-s time_offset] [-rf auto_bus_rule_file] path_name file_name
+openDirFile -d / "" "./verilog.fsdb"
+
+; file time scale:
+; fileTimeScale ### s|ms|us|ns|ps
+
+; signal spacing:
+signalSpacing 3
+
+; windowTimeUnit is used for zoom, cursor & marker
+; waveform viewport range
+zoom 0.000000 9427097.478991
+cursor 6865500.000000
+marker 6871500.000000
+
+; user define markers
+; userMarker time_pos marker_name
+; visible top row signal index
+top 4
+; marker line index
+markerPos 34
+
+; rename signal list
+; addRenameSig new_name org_name
+activeDirFile "" "./verilog.fsdb"
+
+addRenameSig "/testbench/cae_fpga0/ae_top/io/iasinst/Ias_lock" "/testbench/cae_fpga0/ae_top/io/iasinst/lock"
+
+; event list
+; addEvent event_name event_expression
+; curEvent event_name
+
+
+
+COMPLEX_EVENT_BEGIN
+
+
+COMPLEX_EVENT_END
+
+
+
+; toolbar current search type
+; curSTATUS search_type
+curSTATUS ByChange
+
+
+addGroup "CLK AND RESET1"
+activeDirFile "" "./verilog.fsdb"
+addSignal -h 15 /testbench/clk_ref_p
+addSignal -h 15 -holdScope clk_ref_n
+addSignal -h 15 -holdScope reset_f
+addGroup "PLL"
+addGroup "CSR"
+addSignal -h 15 -UNSIGNED -HEX /testbench/cae_fpga0/ae_top/io/i_ias_lock[2:0]
+addSignal -h 15 /testbench/cae_fpga0/ae_top/core/csr_top/csr_iasif_enabled
+addSignal -h 15 -UNSIGNED -HEX -holdScope o_csr_ias_ae_offset0[5:0]
+addSignal -h 15 -UNSIGNED -HEX -holdScope o_csr_ias_ae_offset1[5:0]
+addSignal -h 15 -UNSIGNED -HEX -holdScope o_csr_ias_ae_offset2[5:0]
+addSignal -h 15 -holdScope csr_31_31_intlv_dis
+addGroup "INTF LOCKS"
+addSignal -h 15 -UNSIGNED -HEX /testbench/cae_fpga0/ae_top/io/i_ias_lock[2:0]
+addGroup "IAS->AE"
+addSignal -h 15 -UNSIGNED -HEX /testbench/ias_cae0_monitor/instruction[31:0]
+addSignal -h 15 -UNSIGNED -HEX -holdScope instruction_parity[1:0]
+addGroup "AE0->IAS"
+addSignal -h 15 -UNSIGNED -HEX /testbench/cae0_ias_monitor/data[31:0]
+addSignal -h 15 -UNSIGNED -HEX -holdScope data_parity[1:0]
+addSignal -h 15 -holdScope clk
+addSignal -h 15 -holdScope stb
+addSignal -h 15 -UNSIGNED -HEX -holdScope dq[15:0]
+addSignal -h 15 -holdScope par
+addSignal -h 15 -holdScope qc
+addSignal -h 15 -holdScope ndq
+addGroup "G7"
+addSignal -h 15 -UNSIGNED -HEX /testbench/cae0_ias_monitor/data[31:0]
+addGroup "G8"
+addSignal -h 15 /testbench/csr_rsvd
+addSignal -h 15 -UNSIGNED -HEX -holdScope available[3:0]
+addSignal -h 15 -UNSIGNED -HEX -holdScope enabled[3:0]
+addSignal -h 15 -holdScope reset_complete
+addSignal -h 15 -holdScope begin_init
+addGroup "G9"
+
+; getSignalForm Scope Hierarchy Status
+; active file of getSignalForm
+activeDirFile "" "./verilog.fsdb"
+
+GETSIGNALFORM_SCOPE_HIERARCHY_BEGIN
+getSignalForm close
+
+"/testbench"
+"/testbench/cae_fpga0"
+"/testbench/cae_fpga0/ae_top"
+"/testbench/cae_fpga0/ae_top/core"
+"/testbench/ias_cae0_monitor"
+
+SCOPE_LIST_BEGIN
+"/testbench"
+"/testbench/ias_cae0_monitor"
+"/testbench/cae_fpga0"
+"/testbench/cae_fpga0/ae_top"
+"/testbench/cae_fpga0/ae_top/core"
+SCOPE_LIST_END
+
+GETSIGNALFORM_SCOPE_HIERARCHY_END
+
+
