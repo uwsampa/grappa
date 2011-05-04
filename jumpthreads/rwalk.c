@@ -18,6 +18,7 @@ static uint64_t get_ns()
   return ns;
 }
 
+int *counts;
 
 static unsigned int goodseed() {
   FILE *urandom = fopen("/dev/urandom", "r");
@@ -150,7 +151,8 @@ double walk(graph *g, double *vals, int pathlen, int seed, int *left) {
         j += (*rand++) % spread;
         vertex = g->edges[j];
       }
-      res += vals[vertex];
+      //res += vals[vertex];
+      __sync_fetch_and_add(&counts[vertex], 1);
     }
   }
 #else
@@ -219,21 +221,27 @@ int main(int argc, char *argv[]) {
   graph *g = graph_read(gfile);
   double *vals = genvals(g);
   fclose(gfile);
-
+  counts = calloc(g->v, sizeof(int));
   for (int c = cf; c <= ct; ++c) {
     for (int i = 0; i < nruns; ++i) {
+      memset(counts, 0, sizeof(int)*g->v);
       uint64_t before = get_ns();
       double res = rwalk(g, vals, pathlen, c, samples);
       uint64_t after = get_ns();
       uint64_t elapsed = after - before;
       double rate = elapsed;
       rate /= samples*pathlen;
-      printf("answer: %f\n", res);
+      int tot = 0;
+      for (int j = 0; j < g->v; ++j) {
+        tot += counts[j];
+      }
+      printf("answer: %f %d\n", res, tot);
       printf("%d: %lu ns -> %f ns/edge \n", c, elapsed, rate);
     }
   }
 
   graph_free(g);
   free(vals);
+  free(counts);
   return 0;
 }
