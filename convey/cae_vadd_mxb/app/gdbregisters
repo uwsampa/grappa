@@ -1,0 +1,8 @@
+REG	MA1_ae	0x0f	0		u64
+REG	MA2_ae	0x0f	1		u64
+REG	MA3_ae	0x0f	2		u64
+REG	CNT_ae	0x0f	3		u64
+REG	MS_ae	0x0f	4		u64
+REG_R	SFB_ae	0x0f	10	25	u64
+REG_R	SAE_ae	0x0f	30	33	u64
+REG	STL_ae	0x0f	40		u64

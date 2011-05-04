@@ -1,0 +1,32 @@
+#!/bin/sh
+
+export CNY_RUNTIME_STARTUP_DEBUG=0
+export CNY_CALL_STATS=1
+
+#export CNY_PDK_CLIENT_MODE=win|debug
+#export CNY_PDK_CLIENT_MODE=debug
+
+
+if [ "$1" = "-gdb" ] ; then
+
+echo "./UserApp.exe"
+
+shift
+/opt/convey/bin/gdb --args ./UserApp.exe $@
+
+elif [ "$1" = "-vsim" ] ; then
+
+shift
+export CNY_CAE_EMULATOR=./run_simulation
+./UserApp.exe $@
+
+else
+
+if [ ! -e $CNY_CAE_EMULATOR ] ; then 
+  echo "ERROR:  can't find $CNY_CAE_EMULATOR" 
+  exit 1
+fi
+
+./UserApp.exe $@
+
+fi

@@ -1,0 +1,1 @@
+make -C ../sim verilog_sim CMDLINE_SIM_OPTIONS=+caehwsim_socket_port=$1

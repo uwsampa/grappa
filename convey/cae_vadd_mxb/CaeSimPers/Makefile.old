@@ -1,0 +1,38 @@
+#
+# copyright 2009 Convey Computer Corp.
+#
+
+CC=g++
+
+CNY_PDK ?= /opt/convey/pdk
+
+# NOTE: could become "current" if link is present
+CNY_PDK_REV ?= $(shell basename `ls -1d ${CNY_PDK}/20* | sort -rn | head -1`)
+
+CNY_CAESIM_PATH ?= $(CNY_PDK)/$(CNY_PDK_REV)/CaeSim
+CFLAGS=-g -Wall -fpic -I $(CNY_CAESIM_PATH) -pthread
+LDFLAGS = -m32
+
+SOURCES= CaeIsaVadd.cpp
+
+OBJECTS=$(SOURCES:.cpp=.o)
+
+EXECUTABLE=CaeSimPers
+USER_CODE=UserCode.a
+
+LIB_DIR=lib32
+LIBRARY=$(CNY_CAESIM_PATH)/$(LIB_DIR)/CaeSim.a
+
+all: $(EXECUTABLE) $(USER_CODE)
+
+$(EXECUTABLE): $(LIBRARY) $(SOURCES)
+	$(CC) $(LDFLAGS) $(CFLAGS) $^ -o $@
+
+$(USER_CODE): $(OBJECTS)
+	@ar rv $@ $? >/dev/null
+
+%.o: %.cpp
+	$(CC) $(LDFLAGS) $(CFLAGS) -c $< -o $@
+
+clean:
+	rm -f *.o *.d Output/*.h $(EXECUTABLE) $(USER_CODE)
