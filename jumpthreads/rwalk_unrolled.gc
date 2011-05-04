@@ -1,0 +1,33 @@
+replicate vertex
+replicate i
+replicate j
+replicate spread
+replicate ptr
+DECLARATIONS
+uint64_t vertex;
+uint64_t *ptr;
+int i, j, spread;
+START
+while (1) {
+  while (chunk-- > 0) {
+    vertex = *rand++ % g->v;
+    for (i = 0; i < pathlen; ++i) {
+      ptr = &g->row_ptr[vertex];
+      prefetch_and_switch(ptr);
+      j = *ptr++;
+      spread = *ptr - j;
+      j += (*rand++) % spread;
+      ptr = &g->edges[j];
+      prefetch_and_switch(ptr);
+      vertex = *ptr;
+    }
+  }
+  chunk = __sync_fetch_and_sub(left, csize);
+  chunk = chunk < csize? chunk : csize;
+  if (chunk > 0) {
+    genrands(chunk*(pathlen+1), buf, RAND_MAX, rdata);
+    rand = buf;
+  } else {
+    return res;
+  }
+}

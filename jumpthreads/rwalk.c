@@ -39,6 +39,71 @@ double *genvals(graph *g) {
   return vals;
 }
 
+void startrands(int seed, int32_t *data) {
+  int32_t *state = data;
+  seed = seed == 0? 1: seed;
+  state[0] = seed;
+  int32_t word = seed;
+  for (int i = 1; i < 31; ++i) {
+    long int hi = word / 127773;
+    long int lo = word % 127773;
+    word = 16807 * lo - 2836 * hi;
+    if (word < 0)
+      word += 2147483647;
+    state[i] = word;
+  }
+  int32_t *fptr = &state[3];
+  int32_t *rptr = &state[0];
+  int32_t *end = &state[31]; // one off the end
+  int32_t val, result;
+  for (int i = 0; i < 310; ++i) {
+    val = *fptr += *rptr;
+    result = (val >> 1) & 0x7fffffff;
+    ++fptr;
+    if (fptr >= end) {
+      fptr = state;
+      ++rptr;
+    } else {
+      ++rptr;
+      if (rptr >= end) {
+        rptr = state;
+      }
+    }
+  }
+  data[31] = fptr - state;
+  data[32] = rptr - state;
+}
+
+void genrands(int n, int *buf, int max, int32_t *data) {
+  int32_t *state = data;
+  int32_t *fptr = &state[data[31]];
+  int32_t *rptr = &state[data[32]];
+  int32_t *end = &state[31];
+  int32_t val, result;
+  for (long int i = 0; i < n;) {
+    val = *fptr += *rptr;
+    result = (val >> 1) & 0x7fffffff;
+    //    assert(result == random());
+    // this or <=?
+    if (result < max) {
+      *buf++ = result % 4;
+      i++;
+    }
+    ++fptr;
+    if (fptr >= end) {
+      fptr = state;
+      ++rptr;
+    } else {
+      ++rptr;
+      if (rptr >= end) {
+        rptr = state;
+      }
+    }
+  }
+  data[31] = fptr - state;
+  data[32] = rptr - state;
+}
+
 // returns uniformly chosen integer in [i,j)
 static int32_t rand_range(int32_t i, int32_t j, struct random_data *gen) {
   int32_t spread = j - i;
@@ -52,95 +117,46 @@ static int32_t rand_range(int32_t i, int32_t j, struct random_data *gen) {
   return (rnd + i);
 }
 
-#define RSIZE 1024
-
-void genset(int32_t *state, int32_t **fptr, int32_t **rptr, int32_t *end,
-            int *randoms) {
-  int32_t val;
-  for (int i = 0; i < RSIZE; ++i) {
-    val = **fptr += **rptr;
-    randoms[i] = (val >> 1) & 0x7fffffff;
-    //    assert(result == random());
-    ++*fptr;
-    if (*fptr >= end) {
-      *fptr = state;
-      ++*rptr;
-    } else {
-      ++*rptr;
-      if (*rptr >= end) {
-        *rptr = state;
-      }
-    }
-  }
-}
+#define RSIZE 8000
 
 double walk(graph *g, double *vals, int pathlen, int seed, int *left) {
   double res = 0;
-  int32_t state[31];
-  state[0] = seed == 0 ? 1 : seed;
-  int32_t word = state[0];
-  for (int i = 1; i < 31; ++i) {
-    long int hi = word / 127773;
-    long int lo = word % 127773;
-    word = 16807 * lo - 2836 * hi;
-    if (word < 0)
-      word += 2147483647;
-    state[i] = word;
-  }
-  int32_t *fptr = &state[3];
-  int32_t *rptr = &state[0];
-  int32_t *end = &state[31]; // one off the end
-  int32_t val;
-  for (int i = 0; i < 310; ++i) {
-    val = *fptr += *rptr;
-    ++fptr;
-    if (fptr >= end) {
-      fptr = state;
-      ++rptr;
-    } else {
-      ++rptr;
-      if (rptr >= end) {
-        rptr = state;
-      }
-    }
-  }
-
-  int randoms[RSIZE];
-
-  int rleft = 0;
+  int *buf = calloc(RSIZE, sizeof(int));
+  assert (buf != NULL);
   int chunk;
-  int32_t limit, spread, rnd;
-  while ((chunk = __sync_fetch_and_sub(left, 100)) > 0) {
+  int csize = RSIZE / (pathlen+1);
+  assert (RSIZE > pathlen);
+  int spread;
+  int *rand;
+  int32_t *rdata = calloc(33, sizeof(int32_t));
+  startrands(seed, rdata);
+#if (NTHR == 0)
+  while ((chunk = __sync_fetch_and_sub(left, csize)) > 0) {
+    chunk = chunk < csize? chunk : csize;
+    //uint64_t bg = get_ns();
+    genrands(chunk*(pathlen+1), buf, RAND_MAX, rdata);
+    /*uint64_t ag = get_ns();
+    double each = ag - bg;
+    each /= chunk*(pathlen+1);
+    printf("%f\n",each);*/
+    rand = buf;
     while (chunk-- > 0) {
-      uint64_t vertex;
       spread = g->v;
-      limit = RAND_MAX - RAND_MAX % spread;
-      do {
-        if (rleft == 0) {
-          genset(state, &fptr, &rptr, end, randoms);
-          rleft = RSIZE;
-        }
-        rnd = randoms[--rleft];
-      } while (rnd >= limit);
-      vertex = rnd % spread;
+      uint64_t vertex = *rand++ % spread;
+      
       for (int i = 0; i < pathlen; ++i) {
-        spread = g->row_ptr[vertex+1] - g->row_ptr[vertex];
         int j = g->row_ptr[vertex];
-        limit = RAND_MAX - RAND_MAX % spread;
-        do {
-          if (rleft == 0) {
-            genset(state, &fptr, &rptr, end, randoms);
-            rleft = RSIZE;
-          }
-          rnd = randoms[--rleft];
-        } while (rnd >= limit);
-        j += rnd % spread;
-        //printf("%d: %lu %d\n", i, vertex, j);
+        spread = g->row_ptr[vertex+1] - g->row_ptr[vertex];
+        j += (*rand++) % spread;
         vertex = g->edges[j];
       }
       res += vals[vertex];
     }
   }
+#else
+  chunk = 0;
+  #include "rwalk_unrolled.cunroll"
+#endif
   return res;
 }
 
