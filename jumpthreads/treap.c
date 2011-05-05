@@ -317,27 +317,42 @@ node intersect_fast(node x, node y, node *slab) {
     x = y;
     y = tmp;
   }
-  node less, more;
-  /*  printf("intersecting:\n");
-  print_treap(x);
-  printf("^^^\n");
-  print_treap(y);*/
-  node dup = split_fast(&less, &more, y, x->key, slab);
-  /*
-  printf("breaking on: %d\n", x->key);
-  print_treap(less);
-  printf("---\n");
-  print_treap(more);
-  */
-  node left = intersect_fast(x->left, less, slab);
-  node right = intersect_fast(x->right, more, slab);
-  /*
-  printf("new halves:\n");
-  print_treap(left);
-  printf("XXX\n");
-  print_treap(right);
-  */ 
-  if (dup == NULL) {
+  node lessr, morer;
+  
+  //  node dup = split_fast(&less, &more, y, x->key, slab);
+  node r = y;
+  node *less = &lessr, *more = &morer;
+  node gen;
+  int dup;
+  while (r != NULL && !(x->key == r->key)) {
+    gen = ALLOC_NODE(gen, r->prio, r->key);
+    if (r->key < x->key) {
+      *less = gen;
+      gen->left = r->left;
+      less = &(gen->right);
+      r = r->right;
+    } else {
+      *more = gen;
+      gen->right = r->right;
+      more = &(gen->left);
+      r = r->left;
+    }
+  }
+
+  if (r == NULL) {
+    *less = NULL;
+    *more = NULL;
+    dup = 0;
+  } else {
+    *less = r->left;
+    *more = r->right;
+    dup = 1;
+  }
+
+  node left = intersect_fast(x->left, lessr, slab);
+  node right = intersect_fast(x->right, morer, slab);
+
+  if (dup == 0) {
     return joinhere(left, right);
   } else {
     //    printf("intersect: %d\n", dup->key);
