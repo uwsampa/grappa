@@ -177,6 +177,7 @@ node create_random(int size, int range) {
   int half = size/2;
   node left = create_random(half, range);
   node right = create_random(size - half, range);
+  if (size > 1000000) printf("Unioning to %d\n", size);
   node result = unionhere(left, right);
   return result;
 }
@@ -353,7 +354,27 @@ node intersect_fast(node x, node y, node *slab) {
   node right = intersect_fast(x->right, morer, slab);
 
   if (dup == 0) {
-    return joinhere(left, right);
+    if (left == NULL) return right;
+    if (right == NULL) return left;
+    node root; // = left->prio > right->prio ? left : right;
+    node *target = &root;
+    while (left != NULL && right != NULL) {
+      if (left->prio > right->prio) {
+        *target = left;
+        target = &(left->right);
+        left = left->right;
+      } else {
+        *target = right;
+        target = &(right->left);
+        right = right->left;
+      }
+    }
+    if (left == NULL) {
+      *target = right;
+    } else {
+      *target = left;
+    }
+    return root;
   } else {
     //    printf("intersect: %d\n", dup->key);
     node root = ALLOC_NODE(root, x->prio, x->key);
@@ -393,13 +414,18 @@ int main(int argc, char *argv[]) {
     printf("---\n");
     print_treap(y);
   */
+  printf("Testing...");
   verify_treap(x);
-  verify_treap(y);/*
+  verify_treap(y);
+  printf("done.\n");
+  /*
   dump_elements(x);
   printf("---\n");
   dump_elements(y);*/
   printf("%d %d\n", depth_treap(x), depth_treap(y));
-  printf("%d %d\n", size_treap(x), size_treap(y));
+  int sizex = size_treap(x),
+      sizey = size_treap(y);
+  printf("%d %d\n", sizex, sizey);
   // no multicore support yet
   assert(cf == 1);
   assert(ct == 1);
@@ -420,7 +446,7 @@ int main(int argc, char *argv[]) {
       */
       assert ((char *)bump - (char *)slab < LOTS);
       double rate = elapsed;
-      rate /= size;
+      rate /= sizex+sizey;
       test_intersect(x, y, result);
       printf("%d: %lu ns -> %f ns/element \n", c, elapsed, rate);
     }
