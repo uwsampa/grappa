@@ -6,7 +6,7 @@ DEFINES=-D NTHR=$(NTHR) -D$(HYP) -DUNROLL=$(UNR) -DPREFETCH=$(PF)
 CFLAGS = -O2 -std=gnu99 -Wall -Wextra -g $(DEFINES) -fopenmp -lm
 LDFLAGS = -L../bench
 LDLIBS= -lrt -fopenmp -lgraph
-all: jumpthreads yield_bench pchase rand newton mathchase rwalk
+all: jumpthreads yield_bench pchase rand newton mathchase rwalk treap
 
 
 jumpthreads: greenery_compiler.sh
@@ -26,7 +26,7 @@ rwalk.o: rwalk.c rwalk_unrolled.cunroll
 .PHONY: clean
 
 clean:
-	rm -f jumpthreads yield_bench.o yield_bench yield_unrolled.cunroll pchase pchase.o pchase_unrolled.cunroll rand.o rand rand_unrolled.cunroll newton illustration.pdf illustration.eps illustration.ps illustration.dvi illustration.aux mathchase mathchase_unrolled.cunroll rwalk.o mathchase.o rwalk_unrolled.cunroll
+	rm -f jumpthreads yield_bench.o yield_bench yield_unrolled.cunroll pchase pchase.o pchase_unrolled.cunroll rand.o rand rand_unrolled.cunroll newton illustration.pdf illustration.eps illustration.ps illustration.dvi illustration.aux mathchase mathchase_unrolled.cunroll rwalk.o mathchase.o rwalk_unrolled.cunroll treap.o
 
 illustration.pdf: illustration.eps
 	epstopdf $<
