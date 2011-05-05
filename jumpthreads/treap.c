@@ -247,6 +247,20 @@ int depth_treap(node x) {
   return (max+1);
 }
 
+int size_treap(node x) {
+  if (x == NULL) return 0;
+  int left = size_treap(x->left);
+  int right = size_treap(x->right);
+  return (left+right+1);
+}
+
+void dump_elements(node x) {
+  if (x == NULL) return;
+  dump_elements(x->left);
+  printf("%d\n", x->key);
+  dump_elements(x->right);
+}
+
 void verify_treapwalk(node x, unsigned int p, int min, int max) {
   if (x == NULL) return;
   assert (x->prio <= p &&
@@ -271,19 +285,21 @@ node copy(node x) {
 #define ALLOC_NODE(_name, _prio, _key) \
   (_name = (*slab)++, _name->prio = _prio, _name->key = _key, _name)
 
-node split_fast(node *less, node *more, node r, int on) {
+node split_fast(node *less, node *more, node r, int on, node *slab) {
   if (r == NULL) {
     *less = NULL;
     *more = NULL;
     return NULL;
   }
   node root = ALLOC_NODE(root, r->prio, r->key);
-  if (r->key < key) {
+  if (r->key < on) {
     *less = root;
-    return split_fast(&(root->right), more, r->right, on);
-  } else if (r->key > key) {
+    root->left = r->left;
+    return split_fast(&(root->right), more, r->right, on, slab);
+  } else if (r->key > on) {
     *more = root;
-    return split_fast(less, &(root->left), r->left, key);
+    root->right = r->right;
+    return split_fast(less, &(root->left), r->left, on, slab);
   } else {
     *less = r->left;
     *more = r->right;
@@ -301,20 +317,34 @@ node intersect_fast(node x, node y, node *slab) {
     x = y;
     y = tmp;
   }
-
   node less, more;
+  /*  printf("intersecting:\n");
+  print_treap(x);
+  printf("^^^\n");
+  print_treap(y);*/
   node dup = split_fast(&less, &more, y, x->key, slab);
-  
+  /*
+  printf("breaking on: %d\n", x->key);
+  print_treap(less);
+  printf("---\n");
+  print_treap(more);
+  */
   node left = intersect_fast(x->left, less, slab);
   node right = intersect_fast(x->right, more, slab);
-  
+  /*
+  printf("new halves:\n");
+  print_treap(left);
+  printf("XXX\n");
+  print_treap(right);
+  */ 
   if (dup == NULL) {
     return joinhere(left, right);
   } else {
+    //    printf("intersect: %d\n", dup->key);
     node root = ALLOC_NODE(root, x->prio, x->key);
     root->left = left;
     root->right = right;
-    return right;
+    return root;
   }
 }
 
@@ -349,8 +379,12 @@ int main(int argc, char *argv[]) {
     print_treap(y);
   */
   verify_treap(x);
-  verify_treap(y);
+  verify_treap(y);/*
+  dump_elements(x);
+  printf("---\n");
+  dump_elements(y);*/
   printf("%d %d\n", depth_treap(x), depth_treap(y));
+  printf("%d %d\n", size_treap(x), size_treap(y));
   // no multicore support yet
   assert(cf == 1);
   assert(ct == 1);
@@ -363,11 +397,17 @@ int main(int argc, char *argv[]) {
       node result = intersect_fast(x, y, &bump);
       uint64_t after = get_ns();
       uint64_t elapsed = after - before;
+      printf("result size: %d\n", size_treap(result));
+      verify_treap(result);
+      /*      printf("---res---\n");
+      dump_elements(result);
+      printf("---\n");
+      */
       assert ((char *)bump - (char *)slab < LOTS);
       double rate = elapsed;
       rate /= size;
       test_intersect(x, y, result);
-      printf("%d: %lu ns -> %f ns/edge \n", c, elapsed, rate);
+      printf("%d: %lu ns -> %f ns/element \n", c, elapsed, rate);
     }
     free(slab);
   }
