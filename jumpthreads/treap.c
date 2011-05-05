@@ -383,6 +383,54 @@ node intersect_fast(node x, node y, node *slab) {
     return root;
   }
 }
+typedef struct thunk {
+  node left, right;
+  struct thunk *parent; // &1 == goes in RIGHT child of parent
+  // the root, if any, that goes above left and right
+  node insert; // &1 == no child ready
+  char rightchild;
+  char ready;
+} thunk;
+
+typedef struct work_chunk {
+  node x, y;
+  thunk *dump;
+  int right;
+  unsigned int padding;
+} work_chunk;
+
+#define PUSH_WORK(_x, _y, _dump, _right) \
+  (qend->x = _x, \
+   qend->y = _y, \
+   qend->dump = _dump, \
+   qend->right = _right, \
+     qend++)
+
+#define IS_WORK() (qend > workq)
+
+#define GET_WORK(_x, _y, _dump, _right) ( \
+     qend--, \
+     _x = qend->x, \
+     _y = qend->y, \
+     _dump = qend->dump, \
+     _right = qend->right \
+)
+
+#define BUMP_NODE(_name, _prio, _key) \
+  (_name = (slab)++, _name->prio = _prio, _name->key = _key, _name)
+
+#define BUMP_CONT() (conts++)
+
+node intersect_faster(node xin, node yin, node slab, thunk *conts,
+                      work_chunk *workq) {
+  work_chunk *qend = workq;
+  thunk dummy;
+  node tmp;
+  PUSH_WORK(xin, yin, &dummy, 0);
+  int working = 0;
+  #include "treap_unrolled.cunroll"
+  return dummy.left;
+}
 
 
 int main(int argc, char *argv[]) {
@@ -432,6 +480,8 @@ int main(int argc, char *argv[]) {
 #define LOTS (1 << 30)
   for (int c = cf; c <= ct; ++c) {
     node slab = calloc(LOTS, sizeof(char));
+    work_chunk *workq = calloc(LOTS, sizeof(char));
+    thunk *conts = calloc(LOTS, sizeof(char));
     for (int i = 0; i < nruns; ++i) {
       node bump = slab;
       uint64_t before = get_ns();
@@ -448,9 +498,21 @@ int main(int argc, char *argv[]) {
       double rate = elapsed;
       rate /= sizex+sizey;
       test_intersect(x, y, result);
-      printf("%d: %lu ns -> %f ns/element \n", c, elapsed, rate);
+      printf("BASELINE: %lu ns -> %f ns/element\n", elapsed, rate);
+
+      before = get_ns();
+      result = intersect_faster(x, y, slab, conts, workq);
+      after = get_ns();
+      elapsed = after - before;
+      verify_treap(result);
+      rate = elapsed;
+      rate /= sizex+sizey;
+      test_intersect(x, y, result);
+      printf("THREADED %d: %lu ns -> %f ns/element\n", NTHR, elapsed, rate);
     }
     free(slab);
+    free(conts);
+    free(workq);
   }
 
   delete_node(x);

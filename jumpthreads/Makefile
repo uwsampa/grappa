@@ -23,10 +23,11 @@ mathchase.o: mathchase.c mathchase_unrolled.cunroll
 rand.o: rand.c rand_unrolled.cunroll
 newton.o: newton.c newton_unrolled.cunroll
 rwalk.o: rwalk.c rwalk_unrolled.cunroll
+treap.o: treap.c treap_unrolled.cunroll
 .PHONY: clean
 
 clean:
-	rm -f jumpthreads yield_bench.o yield_bench yield_unrolled.cunroll pchase pchase.o pchase_unrolled.cunroll rand.o rand rand_unrolled.cunroll newton illustration.pdf illustration.eps illustration.ps illustration.dvi illustration.aux mathchase mathchase_unrolled.cunroll rwalk.o mathchase.o rwalk_unrolled.cunroll treap.o
+	rm -f jumpthreads yield_bench.o yield_bench yield_unrolled.cunroll pchase pchase.o pchase_unrolled.cunroll rand.o rand rand_unrolled.cunroll newton illustration.pdf illustration.eps illustration.ps illustration.dvi illustration.aux mathchase mathchase_unrolled.cunroll rwalk.o mathchase.o rwalk_unrolled.cunroll treap.o treap_unrolled.cunroll
 
 illustration.pdf: illustration.eps
 	epstopdf $<
