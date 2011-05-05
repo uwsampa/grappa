@@ -1,0 +1,122 @@
+replicate x
+replicate y
+replicate dump
+replicate result
+replicate is_right
+replicate lessr
+replicate morer
+replicate less
+replicate more
+replicate r
+replicate gen
+replicate cont
+DECLARATIONS
+node x, y, result, lessr, morer, r, gen;
+thunk *dump, *cont;
+int is_right;
+node *less, *more;
+START
+
+while (IS_WORK() || working > 0) {
+  if (!IS_WORK()) {
+    jthr_yield();
+    continue;
+  }
+  working++;
+  GET_WORK(x,y,dump, is_right);
+  if (x != NULL && y != NULL) {
+    prefetch_and_switch(x);
+    prefetch_and_switch(y);
+    if (x->prio < y->prio) {
+      tmp = x;
+      x = y;
+      y = tmp;
+    }
+    less = &lessr;
+    more = &morer;
+    r = y;
+    while (r != NULL && !(x->key == r->key)) {
+      gen = BUMP_NODE(gen, r->prio, r->key);
+      if (r->key < x->key) {
+        *less = gen;
+        gen->left = r->left;
+        less = &(gen->right);
+        r = r->right;
+      } else {
+        *more = gen;
+        gen->right = r->right;
+        more = &(gen->left);
+        r = r->left;
+      }
+      prefetch_and_switch(r);
+    }
+
+    cont = BUMP_CONT(); // how do I get this? am I violating aliasing?
+    if (r == NULL) {
+      *less = NULL;
+      *more = NULL;
+      cont->insert = NULL;
+    } else {
+      *less = r->left;
+      *more = r->right;
+      cont->insert = BUMP_NODE(cont->insert, x->prio, x->key);
+    }
+    cont->rightchild = is_right;
+    cont->ready = 0;
+    cont->parent = dump;
+
+    PUSH_WORK(x->left, lessr, cont, 0);
+    PUSH_WORK(x->right, morer, cont, 1);
+  } else {
+    // TOTALLY BROKEN
+    if (is_right) {
+      dump->right = NULL;
+    } else {
+      dump->left = NULL;
+    }
+    while (++dump->ready == 2) {
+      // we have work to progagate upwards
+      // dump is a ready thunk
+      if (dump->insert != NULL) {
+        dump->insert->left = dump->left;
+        dump->insert->right = dump->right;
+        result = dump->insert;
+      } else {
+        // join the halves
+        // reusing variables to shrink replication.
+        // names will be unreadable.
+        // Deal with it.
+        lessr = dump->left;
+        morer = dump->right;
+        less = &result;
+        while (lessr != NULL && morer != NULL) {
+          if (lessr->prio > morer->prio) {
+            *less = lessr;
+            less = &(lessr->right);
+            lessr = lessr->right;
+            prefetch_and_switch(lessr);
+          } else {
+            *less = morer;
+            less = &(morer->left);
+            morer = morer->left;
+            prefetch_and_switch(morer);
+          }
+        }
+        if (lessr == NULL) {
+          *less = morer;
+        } else {
+          *less = lessr;
+        }
+      }
+      is_right = dump->rightchild;
+      dump = dump->parent;
+      prefetch_and_switch(dump);
+      if (is_right) {
+        dump->right = result;
+      } else {
+        dump->left = result;
+      }
+    }
+  }
+  working--;
+}
