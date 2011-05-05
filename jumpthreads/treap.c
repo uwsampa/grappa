@@ -268,10 +268,54 @@ node copy(node x) {
   return root;
 }
 
-node intersect_fast(node x, node y) {
-  node xp = copy(x);
-  node yp = copy(y);
-  return unionhere(xp,yp);
+#define ALLOC_NODE(_name, _prio, _key) \
+  (_name = (*slab)++, _name->prio = _prio, _name->key = _key, _name)
+
+node split_fast(node *less, node *more, node r, int on) {
+  if (r == NULL) {
+    *less = NULL;
+    *more = NULL;
+    return NULL;
+  }
+  node root = ALLOC_NODE(root, r->prio, r->key);
+  if (r->key < key) {
+    *less = root;
+    return split_fast(&(root->right), more, r->right, on);
+  } else if (r->key > key) {
+    *more = root;
+    return split_fast(less, &(root->left), r->left, key);
+  } else {
+    *less = r->left;
+    *more = r->right;
+    return root;
+  }
+}
+
+node intersect_fast(node x, node y, node *slab) {
+  if (x == NULL) return NULL;
+  if (y == NULL) return NULL;
+
+  node tmp;
+  if (x->prio < y->prio) {
+    tmp = x;
+    x = y;
+    y = tmp;
+  }
+
+  node less, more;
+  node dup = split_fast(&less, &more, y, x->key, slab);
+  
+  node left = intersect_fast(x->left, less, slab);
+  node right = intersect_fast(x->right, more, slab);
+  
+  if (dup == NULL) {
+    return joinhere(left, right);
+  } else {
+    node root = ALLOC_NODE(root, x->prio, x->key);
+    root->left = left;
+    root->right = right;
+    return right;
+  }
 }
 
 
@@ -312,19 +356,20 @@ int main(int argc, char *argv[]) {
   assert(ct == 1);
 #define LOTS (1 << 30)
   for (int c = cf; c <= ct; ++c) {
-    //    node slab = calloc(LOTS, sizeof(char));
+    node slab = calloc(LOTS, sizeof(char));
     for (int i = 0; i < nruns; ++i) {
+      node bump = slab;
       uint64_t before = get_ns();
-      node result = intersect_fast(x, y);
+      node result = intersect_fast(x, y, &bump);
       uint64_t after = get_ns();
       uint64_t elapsed = after - before;
+      assert ((char *)bump - (char *)slab < LOTS);
       double rate = elapsed;
       rate /= size;
-      test_union(x, y, result);
-      delete_node(result);
+      test_intersect(x, y, result);
       printf("%d: %lu ns -> %f ns/edge \n", c, elapsed, rate);
     }
-    //free(slab);
+    free(slab);
   }
 
   delete_node(x);
