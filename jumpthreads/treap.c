@@ -388,9 +388,14 @@ typedef struct thunk {
   struct thunk *parent; // &1 == goes in RIGHT child of parent
   // the root, if any, that goes above left and right
   node insert; // &1 == no child ready
-  char rightchild;
-  char ready;
 } thunk;
+
+#define ISREADY(th) (!(((uintptr_t)th->insert) & 1))
+#define NOTREADY(th) { th->insert = (node)(((uintptr_t)th->insert) | 1); }
+#define READY(th)  { th->insert = (node)(((uintptr_t)th->insert) & ~1); }
+#define ISRIGHT(th) (((uintptr_t)th->parent) & 1)
+#define RIGHT(th)  { th->parent = (node)(((uintptr_t)th->parent) | 1); }
+#define LEFT(th)  { th->parent = (node)(((uintptr_t)th->parent) & ~1); }
 
 typedef struct work_chunk {
   node x, y;
@@ -425,6 +430,8 @@ node intersect_faster(node xin, node yin, node slab, thunk *conts,
                       work_chunk *workq) {
   work_chunk *qend = workq;
   thunk dummy;
+  thunk *t= &dummy;
+  NOTREADY(t);
   node tmp;
   PUSH_WORK(xin, yin, &dummy, 0);
   int working = 0;
@@ -462,22 +469,24 @@ int main(int argc, char *argv[]) {
     printf("---\n");
     print_treap(y);
   */
+  /*
   printf("Testing...");
   verify_treap(x);
   verify_treap(y);
   printf("done.\n");
+  */
   /*
   dump_elements(x);
   printf("---\n");
   dump_elements(y);*/
-  printf("%d %d\n", depth_treap(x), depth_treap(y));
+  /*  printf("%d %d\n", depth_treap(x), depth_treap(y)); */
   int sizex = size_treap(x),
       sizey = size_treap(y);
   printf("%d %d\n", sizex, sizey);
   // no multicore support yet
   assert(cf == 1);
   assert(ct == 1);
-#define LOTS (1 << 30)
+#define LOTS (1LL << 30)
   for (int c = cf; c <= ct; ++c) {
     node slab = calloc(LOTS, sizeof(char));
     work_chunk *workq = calloc(LOTS, sizeof(char));
@@ -488,7 +497,7 @@ int main(int argc, char *argv[]) {
       node result = intersect_fast(x, y, &bump);
       uint64_t after = get_ns();
       uint64_t elapsed = after - before;
-      printf("result size: %d\n", size_treap(result));
+      //q      printf("result size: %d\n", size_treap(result));
       verify_treap(result);
       /*      printf("---res---\n");
       dump_elements(result);
@@ -497,7 +506,7 @@ int main(int argc, char *argv[]) {
       assert ((char *)bump - (char *)slab < LOTS);
       double rate = elapsed;
       rate /= sizex+sizey;
-      test_intersect(x, y, result);
+      //      test_intersect(x, y, result);
       printf("BASELINE: %lu ns -> %f ns/element\n", elapsed, rate);
 
       before = get_ns();
