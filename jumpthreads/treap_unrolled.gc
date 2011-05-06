@@ -1,19 +1,13 @@
 replicate x
 replicate y
 replicate dump
-replicate result
-replicate is_right
 replicate lessr
 replicate morer
 replicate less
 replicate more
-replicate r
-replicate gen
-replicate cont
 DECLARATIONS
-node x, y, result, lessr, morer, r, gen;
-thunk *dump, *cont;
-int is_right;
+node x, y, lessr, morer;
+thunk *dump;
 node *less, *more;
 START
 
@@ -23,7 +17,7 @@ while (IS_WORK() || working > 0) {
     continue;
   }
   working++;
-  GET_WORK(x,y,dump, is_right);
+  GET_WORK(x,y,dump);
   if (x != NULL && y != NULL) {
     __builtin_prefetch(x, 0, 0);
     prefetch_and_switch(y);
@@ -34,44 +28,49 @@ while (IS_WORK() || working > 0) {
     }
     less = &lessr;
     more = &morer;
-    r = y;
-    while (r != NULL && !(x->key == r->key)) {
-      gen = BUMP_NODE(gen, r->prio, r->key);
-      if (r->key < x->key) {
+    while (y != NULL && !(x->key == y->key)) {
+      gen = BUMP_NODE(gen, y->prio, y->key);
+      if (y->key < x->key) {
         *less = gen;
-        gen->left = r->left;
+        gen->left = y->left;
         less = &(gen->right);
-        r = r->right;
+        y = y->right;
       } else {
         *more = gen;
-        gen->right = r->right;
+        gen->right = y->right;
         more = &(gen->left);
-        r = r->left;
+        y = y->left;
       }
-      prefetch_and_switch(r);
+      prefetch_and_switch(y);
     }
 
     cont = BUMP_CONT(); // how do I get this? am I violating aliasing?
-    if (r == NULL) {
+    if (y == NULL) {
       *less = NULL;
       *more = NULL;
       cont->insert = NULL;
     } else {
-      *less = r->left;
-      *more = r->right;
+      *less = y->left;
+      *more = y->right;
       cont->insert = BUMP_NODE(cont->insert, x->prio, x->key);
     }
     NOTREADY(cont);
+
+    is_right = WORKISRIGHT(dump);
+    WORKLEFT(dump);
 
     cont->parent = dump;
     if (is_right) {
       RIGHT(cont);
     }
 
-    PUSH_WORK(x->left, lessr, cont, 0);
-    PUSH_WORK(x->right, morer, cont, 1);
+    PUSH_WORK(x->left, lessr, cont);
+    WORKRIGHT(cont);
+    PUSH_WORK(x->right, morer, cont);
   } else {
     // TOTALLY BROKEN
+    is_right = WORKISRIGHT(dump);
+    WORKLEFT(dump);
     if (is_right) {
       dump->right = NULL;
     } else {
@@ -83,7 +82,7 @@ while (IS_WORK() || working > 0) {
       if (dump->insert != NULL) {
         dump->insert->left = dump->left;
         dump->insert->right = dump->right;
-        result = dump->insert;
+        x = dump->insert;
       } else {
         // join the halves
         // reusing variables to shrink replication.
@@ -93,7 +92,7 @@ while (IS_WORK() || working > 0) {
         prefetch_and_switch(morer);
         lessr = dump->left;
         morer = dump->right;
-        less = &result;
+        less = &x;
         while (lessr != NULL && morer != NULL) {
           if (lessr->prio > morer->prio) {
             *less = lessr;
@@ -113,14 +112,15 @@ while (IS_WORK() || working > 0) {
           *less = lessr;
         }
       }
+
+      prefetch_and_switch(dump->parent);
       is_right = ISRIGHT(dump);
       LEFT(dump);
       dump = dump->parent;
-      prefetch_and_switch(dump);
       if (is_right) {
-        dump->right = result;
+        dump->right = x;
       } else {
-        dump->left = result;
+        dump->left = x;
       }
     }
     READY(dump);

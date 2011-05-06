@@ -394,32 +394,33 @@ typedef struct thunk {
 #define NOTREADY(th) { th->insert = (node)(((uintptr_t)th->insert) | 1); }
 #define READY(th)  { th->insert = (node)(((uintptr_t)th->insert) & ~1); }
 #define ISRIGHT(th) (((uintptr_t)th->parent) & 1)
-#define RIGHT(th)  { th->parent = (node)(((uintptr_t)th->parent) | 1); }
-#define LEFT(th)  { th->parent = (node)(((uintptr_t)th->parent) & ~1); }
+#define RIGHT(th)  { th->parent = (thunk*)(((uintptr_t)th->parent) | 1); }
+#define LEFT(th)  { th->parent = (thunk*)(((uintptr_t)th->parent) & ~1); }
 
 typedef struct work_chunk {
   node x, y;
   thunk *dump;
-  int right;
-  unsigned int padding;
 } work_chunk;
 
-#define PUSH_WORK(_x, _y, _dump, _right) \
+#define WORKISRIGHT(th) (((uintptr_t)th) & 1)
+#define WORKRIGHT(th) { th = (thunk *)((uintptr_t)th |1); }
+#define WORKLEFT(th) { th = (thunk *)((uintptr_t)th & ~1); }
+
+
+#define PUSH_WORK(_x, _y, _dump) \
   (qend->x = _x, \
    qend->y = _y, \
    qend->dump = _dump, \
-   qend->right = _right, \
      qend++)
 
 #define IS_WORK() (qend > workq)
 
-#define GET_WORK(_x, _y, _dump, _right) ( \
-     qend--, \
-     _x = qend->x, \
-     _y = qend->y, \
-     _dump = qend->dump, \
-     _right = qend->right \
-)
+#define GET_WORK(_x, _y, _dump) { \
+qend--; \
+_x = qend->x; \
+_y = qend->y; \
+_dump = qend->dump; \
+}
 
 #define BUMP_NODE(_name, _prio, _key) \
   (_name = (slab)++, _name->prio = _prio, _name->key = _key, _name)
@@ -432,8 +433,10 @@ node intersect_faster(node xin, node yin, node slab, thunk *conts,
   thunk dummy;
   thunk *t= &dummy;
   NOTREADY(t);
-  node tmp;
-  PUSH_WORK(xin, yin, &dummy, 0);
+  node tmp, gen;
+  int is_right;
+  thunk *cont;
+  PUSH_WORK(xin, yin, &dummy);
   int working = 0;
   #include "treap_unrolled.cunroll"
   return dummy.left;
@@ -464,11 +467,11 @@ int main(int argc, char *argv[]) {
 
   node x = create_random(size, range);
   node y = create_random(size, range);
-  /*
+  #ifdef DUMP
     print_treap(x);
     printf("---\n");
     print_treap(y);
-  */
+  #endif
   /*
   printf("Testing...");
   verify_treap(x);
@@ -513,10 +516,15 @@ int main(int argc, char *argv[]) {
       result = intersect_faster(x, y, slab, conts, workq);
       after = get_ns();
       elapsed = after - before;
+      #ifdef DUMP
+      printf("^^^\n");
+      print_treap(result);
+      #endif
       verify_treap(result);
       rate = elapsed;
       rate /= sizex+sizey;
       test_intersect(x, y, result);
+
       printf("THREADED %d: %lu ns -> %f ns/element\n", NTHR, elapsed, rate);
     }
     free(slab);
