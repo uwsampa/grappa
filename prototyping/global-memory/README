@@ -1,1 +1,12 @@
-user threads
+coros.py: 
+    user-level threading without stacks (i.e. cannot yield inside a function call of a coroutine)
+
+coros_stack.py
+    user-level threading WITH stacks (see example for how to yield inside function call of a coroutine)
+
+GlobalMemory.py
+    -interface for threads to the global memory
+    -delegate class
+
+CoreQueue.py
+    for implementations of inter-core queues
