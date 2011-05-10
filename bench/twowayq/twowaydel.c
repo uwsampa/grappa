@@ -1,12 +1,11 @@
 #include <stdlib.h>
 #include <stdio.h>
 #include <stdint.h>
-#include <sw_queue_astream.h>
 #include <omp.h>
 #include <time.h>
 #include <getopt.h>
 
-#include "MCRingBuffer.hpp"
+#include "CoreBuffer.hpp"
 
 
 // C++ suppress UINT64_MAX in stdint.h; don't seem to have a library installed that emulates it 
@@ -50,7 +49,7 @@ printf("LL CC %d\n", LIMIT_OUTSTANDING);
     processArgs(argc, argv, &num, &num_cores, &bufsize, &max_outstanding);
     if (bufsize > CHUNK_SIZE) {
         printf("bufsize > CHUNK_SIZE=%d will not help\n", CHUNK_SIZE);
-        exit(1);
+//        exit(1);
     }
     if (bufsize < 1) {
         printf("bufsize must be at least 1\n");
@@ -64,29 +63,13 @@ printf("LL CC %d\n", LIMIT_OUTSTANDING);
 
     uint64_t totalnum = num*num_qs;
 
+    CoreBuffer* to[num_qs];
+    CoreBuffer* from[num_qs];
     
- 
-#if MCRB
-    typedef MCRingBuffer<uint64_t, 8, 32, 64> MCRingBufferD;  //datatype,buf_log_size,batch_size,cacheline size
-
-    MCRingBufferD* to[num_qs];
-    MCRingBufferD* from[num_qs];
-
     for (int i=0; i<num_qs; i++) {
-        to[i] = new MCRingBufferD();
-        from[i] = new MCRingBufferD();
+        to[i] = CoreBuffer::createQueue();
+        from[i] = CoreBuffer::createQueue();
     }
-    
-#else
-    
-    SW_Queue to[num_qs];
-    SW_Queue from[num_qs];
-
-    for (int i=0; i<num_qs; i++) {
-        to[i] = sq_createQueue();
-        from[i] = sq_createQueue();
-    }
-#endif
 
 
     struct timespec start;
@@ -124,12 +107,7 @@ printf("LL CC %d\n", LIMIT_OUTSTANDING);
                     if (outstanding < max_outstanding) {
                 #endif
      
-                
-                #if MCRB
-                    while(!to[ind]->produce(timestamp_ns)); // should count towards latency?
-                #else
-                    sq_produce(to[ind], timestamp_ns /*pro+k+1*/);
-                #endif 
+                    to[ind]->produce(timestamp_ns); 
 
      
                 #if LIMIT_OUTSTANDING
@@ -141,11 +119,7 @@ printf("LL CC %d\n", LIMIT_OUTSTANDING);
                         //printf("w produced %lu %lu\n", pro+k, timestamp_ns);
                     }
 
-                #if MCRB
                     to[ind]->flush();
-                #else
-                    sq_flushQueue(to[ind]);
-                #endif
 
                     pro+=k;
                    // outstanding+=k;  // sent k, so k more requests are now outstanding
@@ -158,23 +132,16 @@ printf("LL CC %d\n", LIMIT_OUTSTANDING);
                // }
                uint64_t before = con;
                
-           #if MCRB
-               uint64_t val_consumed;
-               while (from[ind]->consume(&val_consumed))
-           #else
-               while (sq_canConsume(from[ind]))     //ANOTHER WAY keep a count of how many pending and don't go over but still need total consumed
-           #endif
-           {
+               while (from[ind]->canConsume()) {
+                 //ANOTHER WAY keep a count of how many pending and don't go over but still need total consumed
 
                 #if LIMIT_OUTSTANDING
                     if (outstanding == 0) break; // seems this should never be true here
                 #endif
 
-                #if MCRB
-                    // consume was above
-                #else
-                   uint64_t val_consumed = sq_consume(from[ind]);
-                #endif
+                   uint64_t val_consumed;
+                   from[ind]->consume(&val_consumed);
+                   
                    result[ind]+= val_consumed;
                    
                    struct timespec currenttime;
@@ -194,13 +161,9 @@ printf("LL CC %d\n", LIMIT_OUTSTANDING);
 //               if (con==before) {sq_produce(to[ind], pro++);sq_flushQueue(to[ind]);/*printf("produced: %lu, consumed:%lu\n", pro,con);*/}
                
             }
-          #if MCRB
-            while(!to[ind]->produce(0));
+            to[ind]->produce(0);
             to[ind]->flush();
-          #else
-            sq_produce(to[ind], 0);
-            sq_flushQueue(to[ind]);
-          #endif
+            
             printf("finish %d",ind);
         } else if (OUTER) {
             uint64_t jcounts[12] = {0,0,0,0,0,0,0,0,0,0,0,0};
@@ -210,38 +173,23 @@ printf("LL CC %d\n", LIMIT_OUTSTANDING);
             while (!done) {
                 done = 1;
                 for (int ind=0;ind<num_qs;ind++) {
-#if MCRB
-                    if (jcounts[ind]<num || to[ind]->can_consume()) 
-#else
-                    if (jcounts[ind]<num || sq_canConsume(to[ind]))   // 2nd clause keeps the last worker from left behind
-#endif
-                    {
+
+                    if (jcounts[ind]<num || to[ind]->canConsume()) {// 2nd clause keeps the last worker from left behind
+                   
                         done = 0; // if any counts not done then done=false
                         uint64_t count = 0;
-#if MCRB
-                        uint64_t val_consumed;
-                        while(to[ind]->can_consume() && count<bufsize) // TODO MCRB can be more efficient with less checks
-#else
-                        while(sq_canConsume(to[ind]) && count<bufsize)
-#endif
-                        {
+                        
+                        while(to[ind]->canConsume() && count<bufsize) { // TODO MCRB can be more efficient with less checks, CoreBuffer reduces flexibility for optimization
                             count++;
 
-#if MCRB
-                            while(!to[ind]->consume(&val_consumed)); //not really need while?
+                            uint64_t val_consumed;
+                            to[ind]->consume(&val_consumed);
                             //printf("consumed %lu %lu\n", jcounts[0]+(count-1), val_consumed);
-                            while(!from[ind]->produce(val_consumed));
-#else
-                            uint64_t val_consumed = sq_consume(to[ind]);
-                            sq_produce(from[ind], val_consumed);
-#endif
+                            from[ind]->produce(val_consumed);
                             //printf("produced %lu %lu\n", jcounts[0]+(count-1), val_consumed);
                         }
-#if MCRB
                         from[ind]->flush();
-#else
-                        sq_flushQueue(from[ind]);
-#endif
+                        
                         jcounts[ind]+=count;
                         total+=count;
 //                        printf("jcounts[%d]=%lu of %lu; total=%lu of %lu\n",ind,jcounts[ind], num, total, totalnum);

@@ -93,6 +93,16 @@ public:
     }
     return true;
   }
+
+  inline bool can_consume() {
+      if (nextRead==localWrite) {
+          if (nextRead==write) {
+              return false;
+          }
+      }
+      return true;
+  }
+ 
     
 };
 

@@ -13,6 +13,9 @@
     #define QUSE_LIBQ 1
 #endif
 
+#ifndef QUSE_SIMPLE
+    #define QUSE_SIMPLE 0
+#endif
 
 class CoreBuffer {
     public:
@@ -26,7 +29,7 @@ class CoreBuffer {
         virtual void produce(uint64_t element) = 0;
         virtual void consume(uint64_t *element) = 0;
         
-        
+        virtual bool canConsume() = 0;  
         
         virtual void flush() = 0;
 };
@@ -64,13 +67,50 @@ class CoreBufferMC: public CoreBuffer {
         inline void flush() {
             q->flush();
         }
+
+        inline bool canConsume() {
+            return q->can_consume();
+        }
 };
 
 #endif
 
 /******************************************/
 
+#if QUSE_SIMPLE
+class CoreBufferSimple: public CoreBuffer {
+    private:
+        uint64_t data;
+        bool full;
+    public:
+        CoreBufferSimple()
+            : CoreBuffer(0)
+            , data(0)
+            , full(false) {}
 
+        inline void produce(uint64_t element) {
+            while (full);
+            data = element;
+            __sync_synchronize(); // make sure data is visible first      
+            full = true; 
+        }
+
+        inline void consume(uint64_t* element) {
+            while(!full);
+            *element = data;  
+            __sync_synchronize(); // make sure get the data before say empty
+            full = false;
+        }
+        
+        inline void flush() {
+        }
+
+        inline bool canConsume() {
+            return full;
+        }
+};
+#endif
+                 
 
 
 /*****************************************/
@@ -100,22 +140,31 @@ class CoreBufferLQ: public CoreBuffer {
         inline void flush() {
             sq_flushQueue(q);
         }
+
+        inline bool canConsume() {
+            return sq_canConsume(q);
+        }
 };
 #endif
 /***************************************/
 
 
- CoreBuffer* CoreBuffer::createQueue() {
-            assert(QUSE_MCRB ^ QUSE_LIBQ);
- 
-            #if QUSE_MCRB
-            return (CoreBuffer*) new CoreBufferMC();
-            #endif
+// queue factory
+CoreBuffer* CoreBuffer::createQueue() {
+    assert(QUSE_MCRB + QUSE_LIBQ + QUSE_SIMPLE == 1) ;
+  
+    #if QUSE_MCRB
+    return (CoreBuffer*) new CoreBufferMC();
+    #endif
 
-            #if QUSE_LIBQ
-            return (CoreBuffer*) new CoreBufferLQ();
-            #endif
-        }
+    #if QUSE_LIBQ
+    return (CoreBuffer*) new CoreBufferLQ();
+    #endif
+
+    #if QUSE_SIMPLE
+    return (CoreBuffer*) new CoreBufferSimple();
+    #endif
+}
 
 
 
