@@ -1,3 +1,4 @@
+label`_EXIT:
 if (--active > 0) {
   pcs` = &&label`_DONE;
   label`_DONE:

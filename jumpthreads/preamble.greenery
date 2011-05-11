@@ -6,3 +6,4 @@
 #define jthr_nthreads() SUBST_NTHREADS
 #define jthr_yield() { SWITCH }
 #define prefetch_and_switch(x) { __builtin_prefetch(x, 0, 0); jthr_yield(); }
+#define jthr_exit() { goto label`_EXIT; }

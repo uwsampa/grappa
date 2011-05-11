@@ -21,6 +21,10 @@ while (1) {
       prefetch_and_switch(ptr);
       vertex = *ptr;
     }
+    prefetch_and_switch(&counts[vertex]);
+    __sync_fetch_and_add(&counts[vertex], 1);
+    //prefetch_and_switch(&vals[vertex]);
+    //res += vals[vertex];
   }
   chunk = __sync_fetch_and_sub(left, csize);
   chunk = chunk < csize? chunk : csize;
@@ -28,6 +32,6 @@ while (1) {
     genrands(chunk*(pathlen+1), buf, RAND_MAX, rdata);
     rand = buf;
   } else {
-    return res;
+    jthr_exit();
   }
 }
