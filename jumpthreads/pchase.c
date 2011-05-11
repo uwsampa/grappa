@@ -10,6 +10,8 @@
 #include <string.h>
 #include <inttypes.h>
 
+#define REPS 3
+
 static uint64_t get_ns()
 {
   struct timespec ts;
@@ -54,18 +56,15 @@ typedef struct sync {
   char padding[56];
 } sync;
 
-void pointerify(node *arr, uint64_t len, int threads, node **starts) {
+void pointerify(node *arr, uint64_t len, int threads,
+                node **starts, int cores) {
   assert(len <= RAND_MAX);
   assert(len <= 2147483648);
   uint64_t permb = get_ns();
   int32_t n = len;
   int32_t *perm = calloc(sizeof(int32_t), n);
   assert(perm != NULL);
-  /*  for (int32_t i = 0; i < n; ++i) {
-    perm[i] = i;
-  }
-  */
-  
+
   #define CHUNKS 128
   sync locperms[CHUNKS];
   sync locends[CHUNKS];
@@ -75,21 +74,28 @@ void pointerify(node *arr, uint64_t len, int threads, node **starts) {
     locperms[i].val = chunksize*i;
     locends[i].val = chunksize*(i+1);
   }
-
-  #pragma omp parallel
+  int started = 0;
+  uint64_t placeb;
+  //  #pragma omp parallel num_threads(1)
   {
+    cpu_set_t cset;
+    CPU_ZERO(&cset);
+    int mycore = omp_get_thread_num();
+    //    mycore = mycore + (mycore%2)*11;
+    CPU_SET(mycore, &cset);
+    sched_setaffinity(0, sizeof(cpu_set_t), &cset);
+
     struct random_data rdata;
     memset(&rdata, 0, sizeof(rdata));
 
     char state[128];
-    // better seeds would be a great plan
     int seed = goodseed();
-    #pragma omp critical
+    //    #pragma omp critical
     {
       printf("seeding thread %d with %d\n", omp_get_thread_num(), seed);
     }
     initstate_r(seed, state, 128, &rdata);
-    #pragma omp for
+    //    #pragma omp for
     for (int i = 0; i < n; ++i) {
       int choice;
       int p,e;
@@ -100,7 +106,7 @@ void pointerify(node *arr, uint64_t len, int threads, node **starts) {
       } while(p >= e);
       perm[p] = i;
     }
-    #pragma omp for
+    //    #pragma omp for
     for (int c = 0; c < CHUNKS; ++c) {
       int32_t *local = perm+chunksize*c;
       for (int i = chunksize - 1; i > 0; --i) {
@@ -110,26 +116,28 @@ void pointerify(node *arr, uint64_t len, int threads, node **starts) {
         local[j] = temp;
       }
     }
-  }
-  uint64_t perma = get_ns();
-  printf("perm: %f\n", ((double)perma - permb)/n);
-  uint64_t placeb = get_ns();
-  int32_t stride = n / threads;
-  int started = 0;
-  #pragma omp parallel for
-  for (int32_t i = 0; i < n; ++i) {
-    node *curr = &arr[perm[i]];
-    if (i % stride == 0) {
-      starts[i/stride] = curr;
-      #pragma omp critical
-      {
-        started++;
-      }
+    //    #pragma omp single
+    {
+      uint64_t perma = get_ns();
+      printf("perm: %f\n", ((double)perma - permb)/n);
+      placeb = get_ns();
     }
-    if ((i+1) % stride == 0) {
-      curr->next = NULL;
-    } else {
-      curr->next = &arr[perm[i+1]];
+    int32_t stride = n / threads;
+    //    #pragma omp for
+    for (int32_t i = 0; i < n; ++i) {
+      node *curr = &arr[perm[i]];
+      if (i % stride == 0) {
+        starts[i/stride] = curr;
+        #pragma omp critical
+        {
+          started++;
+        }
+      }
+      if ((i+1) % stride == 0) {
+        curr->next = NULL;
+      } else {
+        curr->next = &arr[perm[i+1]];
+      }
     }
   }
   /*
@@ -141,7 +149,7 @@ void pointerify(node *arr, uint64_t len, int threads, node **starts) {
     printf("%d: %p\n", i, starts[i]);
   }
   printf("%d %d\n", started, seen);
-*/
+  */
   assert(started == threads);
   free(perm);
   
@@ -150,24 +158,27 @@ void pointerify(node *arr, uint64_t len, int threads, node **starts) {
 }
 
 void chase(node *start) {
+  node *realstart = start;
+  for (int i = 0; i < REPS; ++i) {
   node *n;
-  int c = 0;
+  start = realstart;
   while((n = start->next) != 0) {
-    start->next = NULL;
     start = n;
-    c++;
   }
-  printf("%p: %d\n", start, c);
+  }
 }
 
 void threaded_chase(node **starts) {
+  for (int i = 0; i < REPS; ++i) {
   #include "pchase_unrolled.cunroll"
+    0;
+  }
   return;
 }
 
 
 uint64_t chase_test(int ncores, long long chases, int threads,
-                    node *arr) {
+                    node *arr, double *bal) {
   int realcores = ncores;
   int threaded = 1;
   if (ncores < 0) {
@@ -180,11 +191,25 @@ uint64_t chase_test(int ncores, long long chases, int threads,
   //  assert(sizeof(node) == sizeof(node *));
   assert(sizeof(node) == 64);
   node *starts[threads];
-  pointerify(arr, len, threads, starts);
-  uint64_t before = get_ns();
+  pointerify(arr, len, threads, starts, ncores);
   uint64_t times[ncores];
+  int use_core[24];
+  for (int i = 0; i < 24; ++i) use_core[i] = 0;
+  for (int c = 0; c < ncores; ++c) {
+    int mycore;
+    #ifdef HYPER
+      mycore = c + (c%2)*11;
+    #else
+    #ifdef NOHYPER
+      mycore = 2*c;
+    #else
+    #error define HYPER or NOHYPER.
+    #endif
+    #endif
+    use_core[mycore] = 1;
+  }
 #define DEADTHR 1
-#pragma omp parallel for num_threads(ncores+DEADTHR)
+  #pragma omp parallel for num_threads(ncores+DEADTHR)
   for (int d = 0; d < ncores+DEADTHR; ++d) {
     int c = d-DEADTHR;
     if (d < DEADTHR) {
@@ -211,10 +236,14 @@ uint64_t chase_test(int ncores, long long chases, int threads,
     #pragma omp critical
     {
       printf("%d %d: core %d\n", c, omp_get_thread_num(), mycore);
-      }
+    }
     CPU_SET(mycore, &cset);
 
     sched_setaffinity(0, sizeof(cpu_set_t), &cset);
+    }
+    //    if (c >= 0) chase(starts[c]);
+    #pragma omp barrier
+    if (c >= 0) {
     uint64_t loc_b, loc_a;
     if (threaded) {
       assert (threads == NTHR * ncores);
@@ -225,14 +254,12 @@ uint64_t chase_test(int ncores, long long chases, int threads,
       loc_b = get_ns();
       chase(starts[c]);
       loc_a = get_ns();
-     
     }
     uint64_t loctime;
     loctime = loc_a - loc_b;
     times[c] = loctime;
     }
   }
-  uint64_t after = get_ns();
   uint64_t mint = -1, maxt = 0;
   for (int i = 0; i < ncores; ++i) {
     printf("time %d,%d,%d: %lu\n", realcores, NTHR, i, times[i]);
@@ -241,11 +268,12 @@ uint64_t chase_test(int ncores, long long chases, int threads,
   }
   double balance = maxt;
   balance /= mint;
-  printf("total: %lu\n", after - before);
+  printf("total: %lu\n", maxt);
   printf("balance: %f\n", balance);
+  *bal = balance;
   //  free(arr);
   //  free(starts);
-  return (after - before);
+  return (maxt);
 }
 
 
@@ -282,15 +310,28 @@ int main(int argc, char *argv[]) {
   assert(threads <= MTHR*12);
   chases += (threads-(chases %threads))% threads;
   for (int i = 0; i < 3; ++i) {
+    double bal;
     uint64_t elapsed = 0;
-    elapsed += chase_test(ncores, chases, threads, arr);
+    elapsed += chase_test(ncores, chases, threads, arr, &bal);
     double avg = chases;
-    avg *= 1000;
+    avg *= 1000*REPS;
     // avg *= abs(ncores);
     // avg *= ncores > 0 ? NTHR : 1;
     printf("%f\n", avg);
     avg /= elapsed;
-    printf("%fM chases/s (%d threads, %d cores)\n", avg, NTHR, ncores);
+    char *ht;
+    #ifdef HYPER
+    ht = "h";
+    #else
+    #ifdef NOHYPER
+    ht = "nh";
+    #else
+    #error Define HYPER or NOHYPER
+    #endif
+    #endif
+    char *pf = PREFETCH ? "p" : "np";
+    printf("%fM chases/s (%d threads, %d cores) %f ,%s,%s\n",
+           avg, NTHR, ncores,bal,ht,pf);
   }
   free(arr);
 }

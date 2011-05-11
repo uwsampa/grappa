@@ -8,6 +8,7 @@
 #include <time.h>
 #include <sys/timeb.h>
 #include <inttypes.h>
+#include "unroll.h"
 
 static uint64_t get_ns()
 {
@@ -23,8 +24,18 @@ static uint64_t get_ns()
 double chase(double a, double b, int niter) {
   double orig_a = a;
   for (; niter > 0; --niter) {
-    if (a > 1) {
-      a /= b;
+    if (a > 0) {
+      a -= b;
+      a -= b;
+      a -= b;
+      a -= b;
+      a -= b;
+
+      a -= b;
+      a -= b;
+      a -= b;
+      a -= b;
+      a -= b;
     } else {
       a = orig_a;
     }
@@ -32,6 +43,13 @@ double chase(double a, double b, int niter) {
   return a;
 }
 
+double threaded_chase(double orig_a, double b, int niter) {
+  assert (niter % NTHR == 0);
+  int neach = niter / NTHR;
+  double sum = 0;
+  #include "mathchase_unrolled.cunroll"
+  return sum;
+}
 
 int main(int argc, char *argv[]) {
   if (argc != 3) {
@@ -39,17 +57,24 @@ int main(int argc, char *argv[]) {
     exit(1);
   }
   int niter = strtol(argv[1], NULL, 0);
-  double start = pow(2,100);
+  double start = pow(2,10) + 0.01;
   double divisor = strtod(argv[2], NULL);
   if (niter == 31337) {
     start = 3;
   }
   uint64_t before = get_ns();
-  double res = chase(start, divisor, niter);
+  double res;
+  if (niter < 0) {
+    niter = -niter;
+    res = chase(start, divisor, niter);
+  } else {
+    res = threaded_chase(start, divisor, niter);
+  }
   uint64_t after = get_ns();
   uint64_t elapsed = after - before;
   double latency = elapsed;
   latency /= niter;
+  latency /= 10;//UNROLL;
   printf("ignore: %f\n", res);
-  printf("latency: %f ns\n", latency);
+  printf("latency: %f ns %d %d %s\n", latency, UNROLL, NTHR, argv[1]);
 }

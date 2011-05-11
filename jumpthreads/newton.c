@@ -29,11 +29,11 @@ uint64_t generate(long int n, double *inputs, double accuracy) {
     double input = (i+1)*10; //inputs[i];
     double err = guess*guess-input;
     while (fabs(err) > accuracy) {
-      iterations++;
+      //      iterations++;
       guess = guess - err/(2*guess);
       err = guess*guess-input;
     }
-    printf("sqrt(%f) = %f (%d iters)\n", input, guess, iterations);
+    //    printf("sqrt(%f) = %f (%d iters)\n", input, guess, iterations);
     inputs[i % 4] = guess;
   }
 #else

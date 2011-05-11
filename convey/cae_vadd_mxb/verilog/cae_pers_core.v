@@ -490,7 +490,7 @@ input  [63:0]	r_xb_alarm
 			   unimplemented_inst};
    assign cae_ret_data_vld = r_ret_data_vld && !cae_stall;
    assign cae_ret_data = r_ret_data;
-   assign cae_idle = (r_state == IDLE) && ~r_caep00;
+   assign cae_idle = (r_state == IDLE) && ~r_caep00 && ~c_caep00;
 // && ~vadd_idle;
 
 // leda B_3208 off Unequal length LHS and RHS in assignment LHS

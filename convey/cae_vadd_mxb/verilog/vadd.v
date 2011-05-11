@@ -122,6 +122,9 @@ module vadd (
       c_ld_count = r_ld_count;
       c_rsp_count = r_rsp_count;
       c_req_vadr = r_req_vadr;
+       if (r_req_ld) begin
+	  c_req_vadr = r_req_vadr + 'h8;
+       end
       case (r_state)
         IDLE: 
           begin
@@ -129,7 +132,7 @@ module vadd (
               nxt_state = LD_BASES;
               c_base_count = 'd0;
               c_req_vadr = base_address;
-              c_rsp_count = edge_count;
+              c_rsp_count = edge_count + 1'b1;
               c_ld_count = edge_count;
             end
           end
@@ -138,9 +141,8 @@ module vadd (
             if (!r_mc_rd_rq_stall) begin
               c_req_ld = 1'b1;
               c_base_count = r_base_count + 1'b1;
-              c_ld_count = r_ld_count - 1'b1;
+              //c_ld_count = r_ld_count - 1'b1;
               c_req_wrd_rdctl = c_base_count;
-              c_req_vadr = r_req_vadr + 'h8;
               if (r_base_count == (num_threads - 1)) begin
                 nxt_state = RUN;
               end

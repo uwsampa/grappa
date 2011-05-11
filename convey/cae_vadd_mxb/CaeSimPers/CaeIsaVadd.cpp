@@ -41,7 +41,8 @@ CCaeIsa::CaepInst(int aeId, int opcode, int immed, uint32 inst, uint64 scalar) /
 	num_lists = ReadAeg(aeId, AEG_NUM_LISTS);
 	    count = ReadAeg(aeId, AEG_COUNT);
 	    result = (uint64*) ReadAeg(aeId, AEG_RESULT);
-        
+	    uint64 result_val = 0;
+
 	    node** mybases = (node**)malloc(sizeof(node*)*num_lists);
             for (unsigned int i=0; i< num_lists; ++i) {
               int mc = (((uint64)(&list_nodes[i])) >> 6) & 7;
@@ -59,13 +60,17 @@ CCaeIsa::CaepInst(int aeId, int opcode, int immed, uint32 inst, uint64 scalar) /
                 //AeMemLoad(aeId, mc, (uint64)mybases[listnum], MEM_REQ_SIZE, false, (uint64)next);
 		uint64 addr_int = (uint64) mybases[listnum];
 		uint64 next_int = 0;
+		printf("loading from %lp\n", addr_int);
 		AeMemLoad(aeId, mc, addr_int, MEM_REQ_SIZE, false, next_int);
 		next = (node*) next_int;
                 mybases[listnum] = next;
+		result_val += addr_int;
                 --count;
                 if (count == 0) break;
             }
         }
+	printf("result_val is %lp\n", result_val);
+	WriteAeg(aeId, 30+aeId, result_val);
 	
 	  break;
 	}
