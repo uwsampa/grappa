@@ -25,8 +25,9 @@ OBJECTS=\
 
 
 run_linked_list: linked_list-mpi.exe
+#	./condor_mpirun.sh 8 ./linked_list-mpi.exe
 	mpdboot --totalnum=-1 --ncpus=48
-	mpiexec -n 4 ./linked_list-mpi.exe
+	mpiexec -n 2 ./linked_list-mpi.exe | sort -k2 -n
 	mpdallexit
 
 run_alloc: alloc.exe

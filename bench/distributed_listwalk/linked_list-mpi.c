@@ -12,6 +12,12 @@
 //typedef uint64_t int_t;
 typedef int int_t;
 
+struct msg_t {
+  int_t dest;
+  int_t val;
+};
+
+
 typedef struct vertex_t {
   int_t id;
   int_t source;
@@ -52,9 +58,9 @@ int main( int argc, char* argv[] ) {
   //srand ( time(NULL) + myrank * numprocs );
   srand ( myrank * numprocs );
 
-  const int_t local_vertex_count = (1 << 1);
+  const int_t local_vertex_count = (1 << 3);
   const int_t total_vertex_count = local_vertex_count * numprocs;
-  const int_t num_lists = 1; //numprocs;
+  const int_t num_lists = numprocs;
 
   //if (DEBUG) printf("Hello from vertex %d of %d.\n", myrank+1, numprocs);
   local_vertices = (vertex_t*) malloc( sizeof(vertex_t) * local_vertex_count );
@@ -86,10 +92,24 @@ int main( int argc, char* argv[] ) {
     MPI_Barrier( MPI_COMM_WORLD );
   }
 
+  if (1 || DEBUG) {
+    for (int i = 0; i < numprocs; ++i) {
+      if (i == myrank) {
+	for (int j = 0; j < local_vertex_count; ++j) {
+	  if (1 || DEBUG) printf("id 0%3d: proc %3d. %3d: id %3d next %3d %3d //// %3d: %3d\n", local_vertices[j].id, i, j + myrank * local_vertex_count, local_vertices[j].id, local_vertices[j].next, j + myrank * local_vertex_count, j + myrank * local_vertex_count, 0);
+	}
+      }
+      //sleep(1);
+      MPI_Barrier( MPI_COMM_WORLD );
+    }
+  }
+  MPI_Barrier( MPI_COMM_WORLD );
+
   int* locs = malloc( sizeof(int) * local_vertex_count );
   if (1) {
     int* transfer_counts = malloc( sizeof(int) * numprocs );
     int* destinations = malloc( sizeof(int) * local_vertex_count );
+    int* values = malloc( sizeof(int) * local_vertex_count );
 
     // each processor shuffles its vertices
     for (int i = numprocs-1; i >= 0; i--) {
@@ -192,119 +212,86 @@ int main( int argc, char* argv[] ) {
       }
     }
 
-    /* // extract locs */
-    /* // each processor shuffles its vertices */
-    /* if (1) { */
-    /*   struct msg_t { */
-    /* 	int dest; */
-    /* 	int val; */
-    /*   } msg; */
-    /*   for (int i = numprocs-1; i >= 0; i--) { */
-    /* 	if (i == myrank) { */
-
-    /* 	  // clear transfer counts */
-    /* 	  for (int j = 0; j < numprocs; ++j) { */
-    /* 	    transfer_counts[j] = 0; */
-    /* 	  } */
-
-    /* 	  // compute transfer counts */
-    /* 	  for ( int j = 0; j < local_vertex_count; ++j ) { */
-    /* 	    int dest = local_vertices[j % local_vertex_count].id; */
-    /* 	    int dest_node = dest / local_vertex_count; */
-    /* 	    transfer_counts[ dest_node ]++; */
-    /* 	  } */
-
-    /* 	  // send transfer counts */
-    /* 	  for (int j = 0; j < numprocs; ++j) { */
-    /* 	    if (j != myrank) { */
-    /* 	      if (DEBUG) printf("c: node %d will receive %d\n", j, transfer_counts[j]); */
-    /* 	      MPI_Send( &transfer_counts[j], 1, MPI_INT, j, shuffle_tag, MPI_COMM_WORLD ); */
-    /* 	    } */
-    /* 	  } */
-
-    /* 	  for (int j = myrank * local_vertex_count + local_vertex_count-1; j >= myrank * local_vertex_count; --j) { */
-    /* 	    msg.dest = local_vertices[j % local_vertex_count].id; */
-    /* 	    int dest_node = msg.dest / local_vertex_count; */
-    /* 	    msg.val = j; */
-    /* 	    MPI_Send( &msg, sizeof(struct msg_t), MPI_CHAR, dest_node, shuffle_tag, MPI_COMM_WORLD ); */
-    /* 	  } */
-	
-    /* 	} else { */
-
-    /* 	  int transfer_count = 0; */
-    /* 	  MPI_Status status; */
-    /* 	  MPI_Recv( &transfer_count, 1, MPI_INT, MPI_ANY_SOURCE, MPI_ANY_TAG, MPI_COMM_WORLD, &status ); */
-	  
-    /* 	  while( transfer_count-- ) { */
-    /* 	    MPI_Status status; */
-    /* 	    MPI_Recv( &msg, sizeof(struct msg_t), MPI_CHAR, MPI_ANY_SOURCE, MPI_ANY_TAG, MPI_COMM_WORLD, &status ); */
-    /* 	    locs[msg.dest % local_vertex_count] = msg.val; */
-    /* 	  } */
-    /* 	} */
-    /* 	MPI_Barrier( MPI_COMM_WORLD ); */
-    /*   } */
-    /* } */
-
-      struct msg_t {
-    	int dest;
-    	int val;
-      };
-
-      // extract locs
-    #pragma omp sections
-    {
-      #pragma omp section
-      for (int j = myrank * local_vertex_count + local_vertex_count-1; j >= myrank * local_vertex_count; --j) {
-	struct msg_t msg;
-	msg.dest = local_vertices[j % local_vertex_count].id;
-	int dest_node = msg.dest / local_vertex_count;
-	msg.val = j;
-	MPI_Send( &msg, sizeof(struct msg_t), MPI_CHAR, dest_node, shuffle_tag, MPI_COMM_WORLD );
+  if (1 || DEBUG) {
+    for (int i = 0; i < numprocs; ++i) {
+      if (i == myrank) {
+	for (int j = 0; j < local_vertex_count; ++j) {
+	  if (1 || DEBUG) printf("id 1%3d: proc %3d. %3d: id %3d next %3d %3d //// %3d: %3d\n", local_vertices[j].id, i, j + myrank * local_vertex_count, local_vertices[j].id, local_vertices[j].next, j + myrank * local_vertex_count, j + myrank * local_vertex_count, 0);
+	}
       }
-      #pragma omp section
-      for ( int j = 0; j < local_vertex_count; ++j ) {
-	struct msg_t msg;
-	MPI_Status status;
-	MPI_Recv( &msg, sizeof(struct msg_t), MPI_CHAR, MPI_ANY_SOURCE, MPI_ANY_TAG, MPI_COMM_WORLD, &status );
-	locs[msg.dest % local_vertex_count] = msg.val;
-      }
+      //sleep(1);
+      MPI_Barrier( MPI_COMM_WORLD );
+    }
+  }
+  MPI_Barrier( MPI_COMM_WORLD );
+
+    // extract locs
+    for (int j = myrank * local_vertex_count + local_vertex_count-1; j >= myrank * local_vertex_count; --j) {
+      struct msg_t send_msg;
+      send_msg.dest = local_vertices[j % local_vertex_count].id;
+      int dest_node = send_msg.dest / local_vertex_count;
+      send_msg.val = j;
+      MPI_Request send_req;
+      MPI_Isend( &send_msg, sizeof(struct msg_t), MPI_CHAR, dest_node, shuffle_tag, MPI_COMM_WORLD, &send_req );
+
+      struct msg_t recv_msg;
+      MPI_Status recv_status;
+      MPI_Recv( &recv_msg, sizeof(struct msg_t), MPI_CHAR, MPI_ANY_SOURCE, MPI_ANY_TAG, MPI_COMM_WORLD, &recv_status );
+      locs[recv_msg.dest % local_vertex_count] = recv_msg.val;
+
+      MPI_Status send_status;
+      MPI_Wait(&send_req, &send_status);
     }
 
     MPI_Barrier( MPI_COMM_WORLD );
 
-      // initialize pointers
-#pragma omp parallel sections 
-    {
-      #pragma omp section
-      {
-      for (int j = myrank * local_vertex_count + local_vertex_count-1; j >= myrank * local_vertex_count; --j) {
-	struct msg_t msg;
+    //
+    // initialize pointers
+    //
+    for (int j = myrank * local_vertex_count + local_vertex_count-1; j >= myrank * local_vertex_count; --j) {
+      struct msg_t send_msg;
 	
-	int id = j;
-	int current = locs[j % local_vertex_count];
-	int thread_size = total_vertex_count / num_lists;
-	int base = id / thread_size;
-	int nextid = id + 1;
-	int wrapped_nextid = ((nextid % thread_size) + (base * thread_size)) % total_vertex_count;
-	msg.dest = wrapped_nextid;
-	msg.val = current;
-	int dest_node = msg.dest / local_vertex_count;
-	if (DEBUG) printf("vertex %d sending %d to vertex  %d\n", id, msg.val, msg.dest);
-	MPI_Send( &msg, sizeof(struct msg_t), MPI_CHAR, dest_node, shuffle_tag, MPI_COMM_WORLD );
-      }
-    }
-      #pragma omp section
-      for ( int j = 0; j < local_vertex_count; ++j ) {
-	struct msg_t msg;
-	MPI_Status status;
-	MPI_Recv( &msg, sizeof(struct msg_t), MPI_CHAR, MPI_ANY_SOURCE, MPI_ANY_TAG, MPI_COMM_WORLD, &status );
-	if (DEBUG) printf("vertex %d received %d at id %d\n", msg.dest, msg.val, j);
-	int wrapped_nextid_loc = locs[msg.dest % local_vertex_count];
-	destinations[j] = msg.val;
-	local_vertices[j].next = wrapped_nextid_loc;
-      }
+      int id = j;
+      int current = locs[j % local_vertex_count];
+      int thread_size = total_vertex_count / num_lists;
+      int base = id / thread_size;
+      int nextid = id + 1;
+      int wrapped_nextid = ((nextid % thread_size) + (base * thread_size)) % total_vertex_count;
+      send_msg.dest = wrapped_nextid;
+      send_msg.val = current;
+      int dest_node = send_msg.dest / local_vertex_count;
+      if (DEBUG) printf("vertex %d sending %d to vertex  %d\n", id, send_msg.val, send_msg.dest);
+      MPI_Request send_req;
+      MPI_Isend( &send_msg, sizeof(struct msg_t), MPI_CHAR, dest_node, shuffle_tag, MPI_COMM_WORLD, &send_req );
+
+      struct msg_t recv_msg;
+      MPI_Status recv_status;
+      MPI_Recv( &recv_msg, sizeof(struct msg_t), MPI_CHAR, MPI_ANY_SOURCE, MPI_ANY_TAG, MPI_COMM_WORLD, &recv_status );
+      if (DEBUG) printf("vertex %d received %d at id %d\n", recv_msg.dest, recv_msg.val, j);
+      int wrapped_nextid_loc = locs[recv_msg.dest % local_vertex_count];
+      destinations[recv_msg.dest % local_vertex_count] = recv_msg.val;
+      //local_vertices[recv_msg.dest % local_vertex_count].next = wrapped_nextid_loc;
+      values[recv_msg.dest % local_vertex_count] = wrapped_nextid_loc;
+
+      MPI_Status send_status;
+      MPI_Wait(&send_req, &send_status);
     }
 
+
+  if (1 || DEBUG) {
+    for (int i = 0; i < numprocs; ++i) {
+      if (i == myrank) {
+	for (int j = 0; j < local_vertex_count; ++j) {
+	  if (1 || DEBUG) printf("id 7%3d: proc %3d. %3d: id %3d next %3d %3d //// %3d: %3d\n", local_vertices[j].id, i, j + myrank * local_vertex_count, local_vertices[j].id, local_vertices[j].next, j + myrank * local_vertex_count, j + myrank * local_vertex_count, 0);
+	}
+      }
+      //sleep(1);
+      MPI_Barrier( MPI_COMM_WORLD );
+    }
+  }
+  MPI_Barrier( MPI_COMM_WORLD );
+
+    // necessary?
     MPI_Barrier( MPI_COMM_WORLD );
     if (DEBUG) {
       sleep(1);
@@ -313,33 +300,13 @@ int main( int argc, char* argv[] ) {
       }
       MPI_Barrier( MPI_COMM_WORLD );
     }
-    /* #pragma omp parallel sections */
-    /* { */
-    /*   #pragma omp section */
-    /*   for (int j = myrank * local_vertex_count + local_vertex_count-1; j >= myrank * local_vertex_count; --j) { */
-    /* 	struct msg_t msg; */
-    /* 	msg.dest = destinations[j % local_vertex_count]; */
-    /* 	msg.val = local_vertices[j % local_vertex_count].next; */
-    /* 	int dest_node = msg.dest / local_vertex_count; */
-    /* 	if (DEBUG) printf("vertex %d sending %d to vertex  %d\n", j, msg.val, msg.dest); */
-    /* 	MPI_Send( &msg, sizeof(struct msg_t), MPI_CHAR, dest_node, shuffle_tag, MPI_COMM_WORLD ); */
-    /*   } */
-    /*   #pragma omp section */
-    /*   for ( int j = 0; j < local_vertex_count; ++j ) { */
-    /* 	struct msg_t msg; */
-    /* 	MPI_Status status; */
-    /* 	MPI_Recv( &msg, sizeof(struct msg_t), MPI_CHAR, MPI_ANY_SOURCE, MPI_ANY_TAG, MPI_COMM_WORLD, &status ); */
-    /* 	if (DEBUG) printf("vertex %d received %d at id %d\n", msg.dest, msg.val, j); */
-    /* 	local_vertices[msg.dest % local_vertex_count].next = msg.val; */
-    /*   } */
-    /* } */
-
 
     // move next pointer to node and store it
     for (int j = myrank * local_vertex_count + local_vertex_count-1; j >= myrank * local_vertex_count; --j) {
       struct msg_t send_msg;
       send_msg.dest = destinations[j % local_vertex_count];
-      send_msg.val = local_vertices[j % local_vertex_count].next;
+      //send_msg.val = local_vertices[j % local_vertex_count].next;
+      send_msg.val = values[j % local_vertex_count];
       int dest_node = send_msg.dest / local_vertex_count;
       if (DEBUG) printf("vertex %d sending %d to vertex  %d\n", j, send_msg.val, send_msg.dest);
 
@@ -371,13 +338,14 @@ int main( int argc, char* argv[] ) {
 
     free(transfer_counts);
     free(destinations);
+    free(values);
   }
 
   if (1 || DEBUG) {
     for (int i = 0; i < numprocs; ++i) {
       if (i == myrank) {
 	for (int j = 0; j < local_vertex_count; ++j) {
-	  if (1 || DEBUG) printf("proc %d. %d: id %d next %d //// %d: %d\n", i, j + myrank * local_vertex_count, local_vertices[j].id, local_vertices[j].next, j + myrank * local_vertex_count, locs[j]);
+	  if (1 || DEBUG) printf("id 9%3d: proc %3d. %3d: id %3d next %3d %3d //// %3d: %3d\n", local_vertices[j].id, i, j + myrank * local_vertex_count, local_vertices[j].id, local_vertices[j].next, j + myrank * local_vertex_count, j + myrank * local_vertex_count, locs[j]);
 	}
       }
       //sleep(1);
