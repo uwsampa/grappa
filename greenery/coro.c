@@ -5,7 +5,7 @@
 #include <string.h>
 
 coro *coro_spawn(coro *me, coro_func f, size_t ssize) {
-  coro *c = malloc(sizeof(coro));
+  coro *c = (coro*)malloc(sizeof(coro));
   assert(c != NULL);
   c->base = malloc(ssize);
   assert(c->base != NULL);
@@ -16,7 +16,7 @@ coro *coro_spawn(coro *me, coro_func f, size_t ssize) {
 }
 
 coro *coro_init() {
-  coro *me = malloc(sizeof(coro));
+  coro *me = (coro*)malloc(sizeof(coro));
   // We don't need to free this (it's just the main stack segment)
   // so ignore it.
   me->base = NULL;

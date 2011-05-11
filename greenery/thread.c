@@ -8,16 +8,16 @@
 
 thread *thread_init() {
   coro *me = coro_init();
-  thread *master = malloc(sizeof(thread));
+  thread *master = (thread*)malloc(sizeof(thread));
   assert(master != NULL);
-  master->coro = me;
+  master->co = me;
   master->sched = NULL;
   master->next = NULL;
   return master;
 }
 
 scheduler *create_scheduler(thread *master) {
-  scheduler *sched = malloc(sizeof(scheduler));
+  scheduler *sched = (scheduler*)malloc(sizeof(scheduler));
   assert(sched != NULL);
   sched->ready = NULL;
   sched->tail = NULL;
@@ -42,14 +42,14 @@ static void tramp(struct coro *me, void *arg) {
 
 thread *thread_spawn(thread *me, scheduler *sched,
                      thread_func f, void *arg) {
-  thread *thr = malloc(sizeof(thread));
-  thr->coro = coro_spawn(me->coro, tramp, STACK_SIZE);
+  thread *thr = (thread*)malloc(sizeof(thread));
+  thr->co = coro_spawn(me->co, tramp, STACK_SIZE);
   // Pass control to the trampoline a few times quickly to set up
   // the call of <f>.  Could also create a struct with all this data?
-  coro_invoke(me->coro, thr->coro, (void *)me->coro);
-  coro_invoke(me->coro, thr->coro, thr);
-  coro_invoke(me->coro, thr->coro, (void *)f);
-  coro_invoke(me->coro, thr->coro, (void *)arg);
+  coro_invoke(me->co, thr->co, (void *)me->co);
+  coro_invoke(me->co, thr->co, thr);
+  coro_invoke(me->co, thr->co, (void *)f);
+  coro_invoke(me->co, thr->co, (void *)arg);
   thr->sched = sched;
   thr->next = NULL;
   scheduler_enqueue(sched, thr);
@@ -61,7 +61,7 @@ void thread_exit(thread *me, void *retval) {
 
   // Reuse the queue field for a return value.
   me->next = (thread *)retval;
-  coro_invoke(me->coro, master->coro, (void *)me);
+  coro_invoke(me->co, master->co, (void *)me);
   // never returns
   exit(EXIT_FAILURE);
 }
@@ -72,8 +72,8 @@ thread *thread_wait(scheduler *sched, void **result) {
   if (next == NULL) {
     return NULL;
   } else {
-    thread *died = (thread *)coro_invoke(sched->master->coro,
-                                         next->coro, NULL);
+    thread *died = (thread *)coro_invoke(sched->master->co,
+                                         next->co, NULL);
     // At the moment, we only return from a thread in the case of death.
     // That might change as we support synchronization/related features.
     
@@ -90,7 +90,7 @@ void run_all(scheduler *sched) {
 }
 
 void destroy_thread(thread *thr) {
-  destroy_coro(thr->coro);
+  destroy_coro(thr->co);
   free (thr);
 }
 
