@@ -54,7 +54,7 @@ class Network:
         (index, someDone) = MPI.Request.Testany(map(lambda x: x[0], self.RCrecvreqs))
         if someDone:
             (r, N, h) = RCrecvreqs[index]
-            reqtuple = tuple(N)
+            reqtuple = (tuple(N), h)
 
             # start new recv request to replace finished one
             Nnew = numpy.array([0,0,0], 'l')
