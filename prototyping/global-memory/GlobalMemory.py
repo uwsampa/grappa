@@ -67,23 +67,38 @@ class GlobalMemory:
 
 
 class Delegate:
+    LocalBits = 3
     InitMemory = {0:1, 1:2, 2:4, 3:8, 4:16, 5:32, 6:64, 7:128}
-    NetMemory = {0:0, 1:101, 2:202, 3:303, 4:404, 5:505, 6:606, 7:707}
 
 
-    def __resolveMemory(self, addr):
+    def __isLocal(self, addr):
         # TODO mapping
-        if addr>>63==1: # network
-            return (True, addr&0xffffffff)
-        else:
-            return (False, addr&0xffffffff)
+        return self.__getHost(addr) == self.hostid
 
-    def __init__(self, outqs, inqs):
+    def __getHost(self, addr):
+        return (addr>>48)&0xffff
+
+    def __init__(self, outqs, inqs, hostid, otherHosts):
         self.oqs = outqs
         self.iqs = inqs
 
         self.memory = dict(Delegate.InitMemory)
         self.net = dict(Delegate.NetMemory)
+
+        self.otherHosts = otherHosts
+        self.hostid = hostid
+        self.totalHosts = len(otherHosts)+1
+
+    @classmethod
+    def genID(cls, cid, rid):
+        # XXX assumes rid < 32 bits
+        return ((cid<<32)&0xffffffff00000000) | (rid&0xffffffff)
+    
+    @classmethod
+    def getCoreAndID(cls, mrid): # get rid
+       core = (mrid>>32)&0xffffffff
+       rid = mrid&0xffffffff
+       return (core, rid)
 
     def delegation(self):
         active_qs = []
@@ -101,7 +116,9 @@ class Delegate:
             # currently simple: not optimizing for memory concurrency
             # network
             # consume from a queue in bulk to use buffering performance benefit
+            
 
+            '''handle local requests'''
             for client_id in range(0, len(self.iqs)):
                 if not active_qs[client_id]: continue
 
@@ -110,38 +127,80 @@ class Delegate:
                 (addr, cmd, rid) = iq.consume()
                 #print "del got:",(addr,cmd,rid)
 
-                (isNet, gaddr) = self.__resolveMemory(addr)
+                isLocal = self.__isLocal(addr)
 
                 if cmd==READ:
                     d = None
-                    if isNet: #TODO go over net
-                        d = self.net[gaddr]
-                    else:
+                    if isLocal:
+                        gaddr = addr&((1<<LocalBits)-1)
                         d = self.memory[gaddr]
+                        
+                        # return to client
+                        oq.produce((rid, d))
+                    else:
+                        mrid = Delegate.genID(client_id, rid)
+                        req = (addr,cmd,mrid)
+                        self.network.LCsendRead(self.__getHost(addr), req)
                     
-                    oq.produce((rid, d))
                     #print "del sent:", (rid,d)
                     
                 elif cmd==FETCH_INC:
                     d = None
-                    if isNet:
-                        #TODO go over net
-                        d = self.net[gaddr]
-                        self.net[gaddr]+=1
-                    else:
-                        # no sync required
+                    if isLocal:
+                        gaddr = addr&((1<<LocalBits)-1)
                         d = self.memory[gaddr]
                         self.memory[gaddr]+=1
 
-                    oq.produce((rid, d))
+                        # return to client
+                        oq.produce((rid, d))
+                    else:
+                        mrid = Delegate.genID(client_id, rid)
+                        req = (addr,cmd,mrid)
+                        self.network.LCsendRead(self.__getHost(addr), req)
+
                 elif cmd==KILLQ:
                     killQ(client_id)
                 else:
-                    raise Exception("%d cmd unrecognized")
+                    raise Exception("%d cmd from local unrecognized"%(cmd))
 
-            
+            '''satisfy remote-originated requests'''
+            r_msg = self.network.RCgetReq()
+            if r_msg is not None:
+                (r_req,r_host) = r_msg
+                (addr, cmd, rid) = r_req
+
+                assert self.__isLocal(addr)  # SIM:make sure it belongs here
+
+                if cmd==READ:
+                    gaddr = addr&((1<<LocalBits)-1)
+                    d = self.memory[gaddr]
+                    r_resp = (rid, d)
+                    self.network.RCsendResponse(r_host, r_resp)
+                elif cmd==FETCH_INC:
+                    gaddr = addr&((1<<LocalBits)-1)
+                    d = self.memory[gaddr]
+                    self.memory[gaddr]+=1
+                    r_resp = (rid, d)
+                    self.network.RCsendResponse(r_host, r_resp)
+                else:
+                    raise Exception("%d cmd from host %d unrecognized"%(cmd))
+
+            '''receive satisfied remote requests'''
+            while True:
+                r_msg = self.network.LCgetDone()
+                if r_msg is not None:
+                    (mrid, data) = r_msg
+                    (core, rid) = Delegate.getCoreAndID(mrid)
+
+                    # return to client
+                    if active_qs[core]:
+                        oqs[core].produce((rid, data))
+                    else:
+                        # drop on floor if queue is closed
+                        pass
+                else:
+                    # no more received for now
+                    break
 
 
-
-
-        
+         
