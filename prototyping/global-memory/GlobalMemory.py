@@ -33,6 +33,9 @@ class GlobalMemory:
 
         self.oq.produce(request)
 
+        print "%d issued request"%(tid)
+
+
     # must be called from coro with "yield readComplete(...)"
     def readComplete(self, addr, tid, retval):
         expect_id = self.addrid_to_rid.pop((addr,tid))
@@ -70,24 +73,23 @@ class Delegate:
     LocalBits = 3
     InitMemory = {0:1, 1:2, 2:4, 3:8, 4:16, 5:32, 6:64, 7:128}
 
+    def __getHost(self, addr):
+        return (addr>>48)&0xffff
+
 
     def __isLocal(self, addr):
         # TODO mapping
         return self.__getHost(addr) == self.hostid
 
-    def __getHost(self, addr):
-        return (addr>>48)&0xffff
-
-    def __init__(self, outqs, inqs, hostid, otherHosts):
+    
+    def __init__(self, outqs, inqs, hostid, network):
         self.oqs = outqs
         self.iqs = inqs
 
         self.memory = dict(Delegate.InitMemory)
-        self.net = dict(Delegate.NetMemory)
+        self.network = network
 
-        self.otherHosts = otherHosts
         self.hostid = hostid
-        self.totalHosts = len(otherHosts)+1
 
     @classmethod
     def genID(cls, cid, rid):
@@ -111,10 +113,9 @@ class Delegate:
             active_qs[i] = False
             active_count[0]-=1
 
-        while active_count[0] > 0:
+        while True:   ##active_count[0] > 0:   need to stay alive to sat requests
             #TODO's
             # currently simple: not optimizing for memory concurrency
-            # network
             # consume from a queue in bulk to use buffering performance benefit
             
 
@@ -124,6 +125,9 @@ class Delegate:
 
                 iq,oq = self.iqs[client_id], self.oqs[client_id]
 
+                if not iq.canConsume():
+                    continue
+
                 (addr, cmd, rid) = iq.consume()
                 #print "del got:",(addr,cmd,rid)
 
@@ -132,7 +136,7 @@ class Delegate:
                 if cmd==READ:
                     d = None
                     if isLocal:
-                        gaddr = addr&((1<<LocalBits)-1)
+                        gaddr = addr&((1<<Delegate.LocalBits)-1)
                         d = self.memory[gaddr]
                         
                         # return to client
@@ -147,7 +151,7 @@ class Delegate:
                 elif cmd==FETCH_INC:
                     d = None
                     if isLocal:
-                        gaddr = addr&((1<<LocalBits)-1)
+                        gaddr = addr&((1<<Delegate.LocalBits)-1)
                         d = self.memory[gaddr]
                         self.memory[gaddr]+=1
 
@@ -168,16 +172,18 @@ class Delegate:
             if r_msg is not None:
                 (r_req,r_host) = r_msg
                 (addr, cmd, rid) = r_req
+                print "unpack remote request addr:%x,cmd:%d,rid:%d"%(addr, cmd, rid)
 
                 assert self.__isLocal(addr)  # SIM:make sure it belongs here
 
                 if cmd==READ:
-                    gaddr = addr&((1<<LocalBits)-1)
+                    gaddr = addr&((1<<Delegate.LocalBits)-1)
                     d = self.memory[gaddr]
                     r_resp = (rid, d)
+                    print "pack response",r_resp
                     self.network.RCsendResponse(r_host, r_resp)
                 elif cmd==FETCH_INC:
-                    gaddr = addr&((1<<LocalBits)-1)
+                    gaddr = addr&((1<<Delegate.LocalBits)-1)
                     d = self.memory[gaddr]
                     self.memory[gaddr]+=1
                     r_resp = (rid, d)
@@ -186,7 +192,7 @@ class Delegate:
                     raise Exception("%d cmd from host %d unrecognized"%(cmd))
 
             '''receive satisfied remote requests'''
-            while True:
+            while True: 
                 r_msg = self.network.LCgetDone()
                 if r_msg is not None:
                     (mrid, data) = r_msg
@@ -194,7 +200,7 @@ class Delegate:
 
                     # return to client
                     if active_qs[core]:
-                        oqs[core].produce((rid, data))
+                        self.oqs[core].produce((rid, data))
                     else:
                         # drop on floor if queue is closed
                         pass
