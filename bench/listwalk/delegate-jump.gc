@@ -1,0 +1,29 @@
+replicate send_queue
+DECLARATIONS
+MCRingBuffer* send_queue;
+START
+send_queue = &send_queues[jthr_tid()];
+
+while ( count > 0 ) {
+  if (DEBUG) printf( "trying to receive at count %ld\n", count );
+  uint64_t queue_val = 0;
+  int dequeued = MCRingBuffer_consume( send_queue, &queue_val );
+  if (!dequeued) {
+    jthr_yield();
+    continue;
+  }
+  if (DEBUG) printf( "receiving %p count %ld\n", (void*) queue_val, count );
+  
+  count--;
+  jthr_memdesc* memdesc = (jthr_memdesc*) queue_val;
+  assert( memdesc != (jthr_memdesc*) -1 );
+  uint64_t* addr = memdesc->address;
+  if (DEBUG) printf( "got address %p count %ld\n", memdesc->address, count );
+  __builtin_prefetch( addr, 0, 0 );
+  jthr_yield();
+  uint64_t data = *addr;
+  if (DEBUG) printf( "got data %p for address %p count %ld\n", (void*) data, memdesc->address, count );
+  memdesc->data = data;
+  memdesc->address = (uint64_t*) -1; // signal
+  if (DEBUG) printf( "returning data %p for address %p count %ld\n", (void*) memdesc->data, memdesc->address, count );
+ }

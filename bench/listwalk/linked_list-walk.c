@@ -85,6 +85,13 @@ if (num_refs==1) {
   return sum;
 }
 
+uint64_t walk_jump( node* bases[], uint64_t count, int num_refs, int start_index, jthr_memdesc* memdescs, MCRingBuffer* send_queue, MCRingBuffer* receive_queue ) {
+  assert(num_refs == NUM_JUMP_THREADS);
+  uint64_t sum = 0;
+#include "linked_list-jumpthreads.cunroll"
+  return sum;
+}
+
 uint64_t walk( node* bases[], uint64_t count, int num_refs, int start_index ) {
   uint64_t sum = 0;
   const int si = 0;

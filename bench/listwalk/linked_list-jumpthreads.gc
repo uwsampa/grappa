@@ -1,0 +1,59 @@
+replicate i
+replicate this_count
+replicate this_memdesc
+DECLARATIONS
+node *i;
+uint64_t this_count;
+jthr_memdesc* this_memdesc;
+START
+i = bases[jthr_tid()];
+this_memdesc = &memdescs[jthr_tid()];
+this_count = count;
+
+this_memdesc->address = (uint64_t*) 0x12345;
+this_memdesc->data = 0x67890;
+
+#ifndef DEBUG
+#define DEBUG 0
+#endif
+
+while (this_count > 0) {
+  if (DEBUG) printf( "thread %d at count %ld\n", jthr_tid(), this_count );
+  this_memdesc->address = (uint64_t*) (&i->next);
+  if (DEBUG) printf( "thread %d sending %p count %ld\n", jthr_tid(), this_memdesc->address, this_count );
+  int enqueued = MCRingBuffer_produce( send_queue, (uint64_t) this_memdesc );
+  jthr_yield();
+
+  if (!enqueued) {
+    if (DEBUG) printf( "thread %d failed sending %p count %ld\n", jthr_tid(), this_memdesc->address, this_count );
+    continue;
+  }
+  if (DEBUG) printf( "thread %d sent %p count %ld\n", jthr_tid(), this_memdesc->address, this_count );
+  this_count--;
+      assert( this_memdesc != (jthr_memdesc*) -1 );
+  int yield_count = 0;
+  while ( this_memdesc->address != (uint64_t*) -1 ) {
+    if (yield_count != 16) {
+      if (DEBUG) printf( "thread %d yielding for the %d time waiting for %p at count %ld\n", jthr_tid(), yield_count, this_memdesc->address, this_count );
+      assert( this_memdesc != (jthr_memdesc*) -1 );
+      jthr_yield();
+      assert( this_memdesc != (jthr_memdesc*) -1 );
+    } else {
+      if (DEBUG) printf( "thread %d flushing at count %ld\n", jthr_tid(), this_count );
+      assert( this_memdesc != (jthr_memdesc*) -1 );
+      MCRingBuffer_flush( send_queue );
+      assert( this_memdesc != (jthr_memdesc*) -1 );
+    }
+    assert( this_memdesc != (jthr_memdesc*) -1 );
+    yield_count++;
+  }
+  if (DEBUG) printf( "thread %d continuing at count %ld\n", jthr_tid(), this_count );
+  
+  if (DEBUG) printf( "thread %d got data %p from address %p at count %ld\n", jthr_tid(), this_memdesc->data, (void*)this_memdesc->address, this_count );  
+  i = (node*) (this_memdesc->data);
+}
+
+MCRingBuffer_flush( send_queue );
+
+sum += (uint64_t) i; // do some work to make the optimizer happy
+

@@ -13,8 +13,11 @@
 #include "linked_list-node.h"
 #include "linked_list-alloc.h"
 #include "linked_list-walk.h"
+#include "linked_list-delegate.h"
 
 #include "thread.h"
+
+#include "MCRingBuffer.h"
 
 /* 
  * Multiple threads walking linked lists concurrently.
@@ -81,6 +84,7 @@ int main(int argc, char* argv[]) {
    }*/
   
   int use_green_threads = 0;
+  int use_jump_threads = 0;
 
   static struct option long_options[] = {
     {"bits",             required_argument, NULL, 'b'},
@@ -89,11 +93,12 @@ int main(int argc, char* argv[]) {
     {"lists_per_thread", required_argument, NULL, 'l'},
     {"monitor",          no_argument,       NULL, 'm'},
     {"green_threads",    no_argument,       NULL, 'g'},
+    {"jump_threads",     no_argument,       NULL, 'j'},
     {"help",             no_argument,       NULL, 'h'},
     {NULL,               no_argument,       NULL, 0}
   };
   int c, option_index = 1;
-  while ((c = getopt_long(argc, argv, "b:t:c:s:l:m:gh?",
+  while ((c = getopt_long(argc, argv, "b:t:c:s:l:m:gjh?",
                           long_options, &option_index)) >= 0) {
     switch (c) {
     case 0:   // flag set
@@ -117,6 +122,9 @@ int main(int argc, char* argv[]) {
     case 'g':
       use_green_threads = 1;
       break;
+    case 'j':
+      use_jump_threads = 1;
+      break;
     case 'h':
     case '?':
     default:
@@ -132,11 +140,11 @@ int main(int argc, char* argv[]) {
     }
   }
 
-  // must turn on green threads to allow more than one thread per core
-  if (!use_green_threads && (green_per_ht>1)) {
-	printf("Must use option -g to turn on green threads to specify # threads with -t\n");
-	exit(1);
-  }
+  /* // must turn on green threads to allow more than one thread per core */
+  /* if (!use_green_threads && (green_per_ht>1)) { */
+  /* 	printf("Must use option -g to turn on green threads to specify # threads with -t\n"); */
+  /* 	exit(1); */
+  /* } */
 	
   const uint64_t number_of_repetitions = 10;
 
@@ -239,8 +247,53 @@ int main(int argc, char* argv[]) {
 	  	}
     	        }
     	}
-    } else { // NOT use_green_threads
-	// start monitoring and timing    
+    } else if (use_jump_threads) { // NOT use_green_threads
+      // start monitoring and timing    
+      //er.startIfEnabled();
+      clock_gettime(CLOCK_MONOTONIC, &start);
+      //printf("Start time: %d seconds, %d nanoseconds\n", (int) start.tv_sec, (int) start.tv_nsec);
+      
+      // do work
+      jthr_memdesc* memdescs = malloc( sizeof(jthr_memdesc) * num_threads * num_lists_per_thread );
+      MCRingBuffer* send_queues = malloc( sizeof(MCRingBuffer) * num_threads );
+      MCRingBuffer* receive_queues = malloc( sizeof(MCRingBuffer) * num_threads );
+#pragma omp parallel for 
+      for(int i = 0; i < num_threads; i++) {
+	MCRingBuffer_init( &send_queues[i] );
+	MCRingBuffer_init( &receive_queues[i] );
+      }
+
+
+#pragma omp parallel for num_threads(num_threads+1)
+      for(thread_num = 0; thread_num <= num_threads; thread_num++) {
+	if (thread_num < num_threads) {
+	  uint64_t start_tsc;
+	  rdtscll(start_tsc);
+	  
+	  results[thread_num] = walk_jump( bases + thread_num * num_lists_per_thread, 
+					   procsize, num_lists_per_thread, 0, 
+					   memdescs + thread_num * num_lists_per_thread,
+					   send_queues + thread_num,
+					   receive_queues + thread_num );
+      	
+	  uint64_t end_tsc;
+	  rdtscll(end_tsc);
+	  times[thread_num] = end_tsc - start_tsc;
+	} else {
+
+	  delegate_jump( memdescs, send_queues, receive_queues, 
+			 size, procsize, num_lists_per_thread, num_threads );
+
+    	}
+      }
+      // stop timing
+      clock_gettime(CLOCK_MONOTONIC, &end);
+      //er.stopIfEnabled();
+      //printf("End time: %d seconds, %d nanoseconds\n", (int) end.tv_sec, (int) end.tv_nsec);
+
+
+    } else { // NOT use_green_threads and not use_jump_threads
+      // start monitoring and timing    
 	//er.startIfEnabled();
     	clock_gettime(CLOCK_MONOTONIC, &start);
     	//printf("Start time: %d seconds, %d nanoseconds\n", (int) start.tv_sec, (int) start.tv_nsec);
@@ -301,12 +354,12 @@ int main(int argc, char* argv[]) {
 	   bits, green_per_ht, use_green_threads, num_threads, num_lists_per_thread, total_bytes, proc_bytes, total_requests, proc_requests, 
 	   request_rate, proc_request_rate, data_rate, proc_data_rate, proc_request_time, proc_request_cpu_cycles);
 
-    printf("(%lu/%lu): %f MB/s, %g ticks avg, %g ns avg, %lu nanoseconds, %lu requests, %f req/s, %f req/s/proc, %f ns/req, %f B/s, %f clocks each\n", 
+    printf("(%lu/%lu): %f MB/s, %g ticks avg, %g ns avg, %lu nanoseconds, %lu requests, %f Mreq/s, %f Mreq/s/proc, %f ns/req, %f B/s, %f clocks each\n", 
 	   bits, num_threads,
 	   (double)total_bytes/runtime_s/1000/1000, 
            avg_latency_ticks, avg_latency_ns,
-	   runtime_ns, totalsize, (double)totalsize/((double)runtime_ns/1000000000), 
-	   (double)totalsize/((double)runtime_ns/1000000000)/num_threads, 
+	   runtime_ns, totalsize, (double)totalsize/((double)runtime_ns/1000000000)/1000000, 
+	   (double)totalsize/((double)runtime_ns/1000000000)/num_threads/1000000, 
 	   (double)runtime_ns/totalsize, 
 	   (double)totalsize*sizeof(node)/((double)runtime_ns/1000000000),
 	   ((double)runtime_ns/(totalsize/num_threads)) / (.00000000044052863436 * 1000000000) 
