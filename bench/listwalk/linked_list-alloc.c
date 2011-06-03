@@ -155,7 +155,7 @@ node** allocate_heap(uint64_t size, int num_threads, int num_lists) {
 
   // initialize pointers
   // chop id-space into num_lists sections and build a circular list for each
-  int64_t base = 0;
+  //int64_t base = 0;
   #pragma omp parallel for num_threads(num_threads)
   for(i = 0; i < size; ++i) {
 #ifdef HAVE_ID
@@ -168,7 +168,7 @@ node** allocate_heap(uint64_t size, int num_threads, int num_lists) {
     int64_t thread_size = size / num_lists;
     int64_t base = id / thread_size;
     uint64_t nextid = id + 1;
-    uint64_t wrapped_nextid = (nextid % thread_size) + (base * thread_size);
+    uint64_t wrapped_nextid = (nextid % thread_size) + (base * thread_size) % size;
     //printf("%d: %d %d %d\n", id, base, nextid, wrapped_nextid);
     current->next = locs[ wrapped_nextid ];
   }
