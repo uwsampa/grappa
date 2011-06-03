@@ -1,10 +1,16 @@
 #include <stdlib.h>
 #include <stdio.h>
 #include <stdint.h>
-#include <sw_queue_astream.h>
 #include <omp.h>
 #include <time.h>
 #include <getopt.h>
+
+#include "CoreBuffer.hpp"
+
+
+// C++ suppress UINT64_MAX in stdint.h; don't seem to have a library installed that emulates it 
+#define UINT64_MAX 0xffffffffffffffff
+
 
 #define BILLION 1000000000
 
@@ -43,7 +49,7 @@ printf("LL CC %d\n", LIMIT_OUTSTANDING);
     processArgs(argc, argv, &num, &num_cores, &bufsize, &max_outstanding);
     if (bufsize > CHUNK_SIZE) {
         printf("bufsize > CHUNK_SIZE=%d will not help\n", CHUNK_SIZE);
-        exit(1);
+//        exit(1);
     }
     if (bufsize < 1) {
         printf("bufsize must be at least 1\n");
@@ -56,14 +62,15 @@ printf("LL CC %d\n", LIMIT_OUTSTANDING);
     uint64_t num_qs = num_cores-1;
 
     uint64_t totalnum = num*num_qs;
-    
-    SW_Queue to[num_qs];
-    SW_Queue from[num_qs];
 
+    CoreBuffer* to[num_qs];
+    CoreBuffer* from[num_qs];
+    
     for (int i=0; i<num_qs; i++) {
-        to[i] = sq_createQueue();
-        from[i] = sq_createQueue();
+        to[i] = CoreBuffer::createQueue();
+        from[i] = CoreBuffer::createQueue();
     }
+
 
     struct timespec start;
     struct timespec end;
@@ -99,43 +106,54 @@ printf("LL CC %d\n", LIMIT_OUTSTANDING);
                 #if LIMIT_OUTSTANDING
                     if (outstanding < max_outstanding) {
                 #endif
-                       sq_produce(to[ind], timestamp_ns /*pro+k+1*/);
+     
+                    to[ind]->produce(timestamp_ns); 
+
+     
                 #if LIMIT_OUTSTANDING
                         outstanding++;
                     } else {
                         break;
                     }
                 #endif
+                        //printf("w produced %lu %lu\n", pro+k, timestamp_ns);
                     }
-                    sq_flushQueue(to[ind]);
+
+                    to[ind]->flush();
+
                     pro+=k;
                    // outstanding+=k;  // sent k, so k more requests are now outstanding
                    // printf("produced j=%lu\n",pro);
-                }
-
+                } 
                 
                 //while(sq_canConsume(from[ind])) { 
                 //    uint64_t resp = sq_consume(from[ind]);
 //                    printf("resp%lu\n",resp);
                // }
                uint64_t before = con;
-               while (sq_canConsume(from[ind])) {    //ANOTHER WAY keep a count of how many pending and don't go over but still need total consumed
+               
+               while (from[ind]->canConsume()) {
+                 //ANOTHER WAY keep a count of how many pending and don't go over but still need total consumed
 
                 #if LIMIT_OUTSTANDING
                     if (outstanding == 0) break; // seems this should never be true here
                 #endif
 
-                   uint64_t r = sq_consume(from[ind]); 
-                   result[ind]+= r;
+                   uint64_t val_consumed;
+                   from[ind]->consume(&val_consumed);
+                   
+                   result[ind]+= val_consumed;
                    
                    struct timespec currenttime;
                    clock_gettime(CLOCK_MONOTONIC, &currenttime);
                    uint64_t currenttime_ns = get_time_ns(&currenttime);
-                   uint64_t diff_ns = currenttime_ns - r;
+                   uint64_t diff_ns = currenttime_ns - val_consumed;
                    total_time[ind] += diff_ns;
                    max_time[ind] = IMAX(diff_ns, max_time[ind]);
                    min_time[ind] = IMIN(diff_ns, min_time[ind]);
                    
+                   //printf("w consumed %lu %lu\n", con, val_consumed);
+
                    con++;
                    outstanding--; // received back a response so 1 fewer requests outstanding
                //printf("outs: %lu\n", outstanding);
@@ -143,26 +161,35 @@ printf("LL CC %d\n", LIMIT_OUTSTANDING);
 //               if (con==before) {sq_produce(to[ind], pro++);sq_flushQueue(to[ind]);/*printf("produced: %lu, consumed:%lu\n", pro,con);*/}
                
             }
-            sq_produce(to[ind], 0);
-            sq_flushQueue(to[ind]);
+            to[ind]->produce(0);
+            to[ind]->flush();
+            
             printf("finish %d",ind);
         } else if (OUTER) {
-            uint64_t jcounts[12] = {0};
+            uint64_t jcounts[12] = {0,0,0,0,0,0,0,0,0,0,0,0};
             uint64_t total = 0;
             uint64_t done = 0;
-            uint64_t dones[12] = {0};
+            uint64_t dones[12] =   {0,0,0,0,0,0,0,0,0,0,0,0};
             while (!done) {
                 done = 1;
                 for (int ind=0;ind<num_qs;ind++) {
-                    if (jcounts[ind]<num || sq_canConsume(to[ind])) {  // 2nd clause keeps the last worker from left behind
+
+                    if (jcounts[ind]<num || to[ind]->canConsume()) {// 2nd clause keeps the last worker from left behind
+                   
                         done = 0; // if any counts not done then done=false
                         uint64_t count = 0;
-                        while(sq_canConsume(to[ind]) && count<bufsize) {
-                            uint64_t req = sq_consume(to[ind]);
+                        
+                        while(to[ind]->canConsume() && count<bufsize) { // TODO MCRB can be more efficient with less checks, CoreBuffer reduces flexibility for optimization
                             count++;
-                            sq_produce(from[ind], /*++*/req);
+
+                            uint64_t val_consumed;
+                            to[ind]->consume(&val_consumed);
+                            //printf("consumed %lu %lu\n", jcounts[0]+(count-1), val_consumed);
+                            from[ind]->produce(val_consumed);
+                            //printf("produced %lu %lu\n", jcounts[0]+(count-1), val_consumed);
                         }
-                        sq_flushQueue(from[ind]);
+                        from[ind]->flush();
+                        
                         jcounts[ind]+=count;
                         total+=count;
 //                        printf("jcounts[%d]=%lu of %lu; total=%lu of %lu\n",ind,jcounts[ind], num, total, totalnum);
@@ -170,38 +197,11 @@ printf("LL CC %d\n", LIMIT_OUTSTANDING);
                 }
             }
             printf("consumer ran away!\n");
-        } else { // inner choose queues
-             uint64_t jcounts[12] = {0};
-            uint64_t total = 0;
-            while (total < totalnum) {
-                uint64_t bufsizes[12] = {0};
-                for (int ind=0;ind<num_qs;ind++) {
-                    if (jcounts[ind]<num) {
- //                       printf("bufsizes[%d]=%lu\n", ind, bufsizes[ind]);
-                        if (bufsizes[ind]<bufsize) {
-                            if (sq_canConsume(to[ind])) {
-                                uint64_t req = sq_consume(to[ind]);
-                                sq_produce(from[ind], ++req);
-                                bufsizes[ind]++;
-                            } else { 
-                                sq_flushQueue(from[ind]); 
-                                jcounts[ind]+=bufsizes[ind];
-                                total+=bufsizes[ind];
-                                bufsizes[ind]=0;
-                            }
-                        } else {
-                            bufsizes[ind]=0;
-                            sq_flushQueue(from[ind]);
-                            jcounts[ind]+=bufsize;
-                            total+=bufsize;
-                        }
-   //                     printf("jcounts[%d]=%lu of %lu; total=%lu of %lu\n",ind,jcounts[ind], num, total, totalnum);
-                    }
-                }
-            }
         }
     }
-    }   
+    }
+    
+    
    
     clock_gettime(CLOCK_MONOTONIC, &end);
     uint64_t runtime_ns = get_timediff_ns(&start, &end);
@@ -223,7 +223,7 @@ printf("LL CC %d\n", LIMIT_OUTSTANDING);
 
     for (int i=0; i<12; i++) printf("%lu", result[i]);
 
-    printf("{'rate':%f, 'bufsize':%lu, 'num_workers':%lu, 'runtime_ns':%lu, 'total_refs':%lu, 'refs_per_q':%lu, 'num_del':%d, 'avg_latency_ns':%f, 'max_latency_ns':%lu, 'min_latency_ns':%lu}\n", totalnum/((float)runtime_ns)*BILLION, bufsize, num_cores, runtime_ns, totalnum, num, num_del, avg_latency, max_max_time, min_min_time);
+    printf("{'rate':%f, 'bufsize':%lu, 'num_workers':%lu, 'runtime_ns':%lu, 'total_refs':%lu, 'refs_per_q':%lu, 'num_del':%d, 'avg_latency_ns':%f, 'max_latency_ns':%lu, 'min_latency_ns':%lu, 'max_outstanding':%lu, 'limit_out':%d}\n", totalnum/((float)runtime_ns)*BILLION, bufsize, num_cores, runtime_ns, totalnum, num, num_del, avg_latency, max_max_time, min_min_time, max_outstanding, LIMIT_OUTSTANDING);
 
 /*struct timespec thing;
 struct timespec bling;

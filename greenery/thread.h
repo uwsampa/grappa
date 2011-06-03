@@ -1,3 +1,7 @@
+#ifdef __cplusplus
+extern "C" {
+#endif
+
 #ifndef THREAD_H
 #define THREAD_H
 
@@ -8,7 +12,7 @@
 struct scheduler;
 
 typedef struct thread {
-  coro *coro;
+  coro *co;
   // Scheduler responsible for this thread. NULL means this is a system
   // thread.
   struct scheduler *sched;
@@ -68,7 +72,7 @@ inline void thread_yield(thread *me) {
   // I just enqueued myself so I can guarantee SOMEONE is on the ready queue.
   // Might just be me again.
   thread *next = scheduler_dequeue(sched);
-  coro_invoke(me->coro, next->coro, NULL);
+  coro_invoke(me->co, next->co, NULL);
 }
 
 // Die and return to the master thread.
@@ -117,7 +121,11 @@ inline void thread_block(thread *me, thread_barrier *barrier) {
     // if he does, we're deadlocked anyway.
   }
   thread *next = scheduler_dequeue(barrier->sched);
-  coro_invoke(me->coro, next->coro, NULL);
+  coro_invoke(me->co, next->co, NULL);
 }
 
+#endif
+
+#ifdef __cplusplus
+}
 #endif

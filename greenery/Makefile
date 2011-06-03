@@ -1,5 +1,10 @@
+CC=gcc
+
+
 GENFLAGS= -O2 -Wall -Wextra -g
-CFLAGS= $(GENFLAGS) -std=c99
+
+
+CFLAGS= $(GENFLAGS) -std=gnu99
 LDFLAGS= $(GENFLAGS)
 ASFLAGS= $(GENFLAGS)
 
