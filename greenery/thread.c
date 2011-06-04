@@ -13,6 +13,7 @@ thread *thread_init() {
   master->co = me;
   master->sched = NULL;
   master->next = NULL;
+  master->id = 0; // master always id 0
   return master;
 }
 
@@ -22,6 +23,7 @@ scheduler *create_scheduler(thread *master) {
   sched->ready = NULL;
   sched->tail = NULL;
   sched->master = master;
+  sched->nextId = 1; //non-master id starts at 1
   return sched;
 }
 
@@ -52,6 +54,7 @@ thread *thread_spawn(thread *me, scheduler *sched,
   coro_invoke(me->co, thr->co, (void *)arg);
   thr->sched = sched;
   thr->next = NULL;
+  scheduler_assignTid(sched, thr);
   scheduler_enqueue(sched, thr);
   return thr;
 }

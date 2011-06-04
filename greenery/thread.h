@@ -6,10 +6,13 @@ extern "C" {
 #define THREAD_H
 
 #include <assert.h>
+#include <stdint.h>
 
 #include "coro.h"
 
 struct scheduler;
+
+typedef uint32_t threadid_t; 
 
 typedef struct thread {
   coro *co;
@@ -17,14 +20,15 @@ typedef struct thread {
   // thread.
   struct scheduler *sched;
   struct thread *next; // for queues--if we're not in one, should be NULL
+  threadid_t id; 
 } thread;
 
 typedef struct scheduler {
   thread *ready; // ready queue
   thread *tail; // tail of queue -- undefined if ready == NULL
   thread *master; // the "real" thread
+  threadid_t nextId;
 } scheduler;
-
 
 inline void scheduler_enqueue(scheduler *sched, thread *thr) {
   if (sched->ready == NULL) {
@@ -46,6 +50,10 @@ inline thread *scheduler_dequeue(scheduler *sched) {
     result->next = NULL;
   }
   return result;
+}
+
+void scheduler_assignTid(scheduler *sched, thread* thr) {
+    thr->id = sched->nextId++;
 }
 
 typedef void (*thread_func)(thread *, void *arg);
