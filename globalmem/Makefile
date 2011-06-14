@@ -1,16 +1,18 @@
 
 CXX=mpic++
 
-CXXFLAGS+= -O2 -g -fopenmp -std=gnu++0x -Wno-write-strings
+CXXFLAGS+= -O2 -g -fopenmp -std=gnu++0x -Wno-write-strings --save-temps
 #CXXFLAGS+= -O2 -g
 
 #LIBS+= -lrt
 
 HEADERS=\
-	MPIReceiveWorker.hpp \
+	MPIWorker.hpp \
+	MPIGlobalArray.hpp \
 
 
 TARGETS=\
+	MPIGlobalArray_test.exe \
 	mpitest.exe \
 	ga.exe
 
@@ -19,7 +21,7 @@ CXXFLAGS+= -I/opt/ga/include -L/opt/ga/lib
 LIBS= -lga++ -lga -framework Accelerate
 
 run: $(TARGETS)
-	mpiexec -np 1 ./$<
+	mpiexec -np 4 ./$<
 
 %.dis: %.exe
 	objdump -S ./$< > $@

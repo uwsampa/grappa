@@ -5,7 +5,8 @@
 
 class MemoryDescriptor {
 public:
-  enum Type { Read = 0, Write, AtomicIncrement };
+  enum Type { Read = 0, Write, AtomicIncrement, Quit };
+  enum Tag { RMA_Response = 1 << 12, RMA_Request }; // For MPI messages
   typedef uint64_t Data;
   typedef uint64_t Address;
 
