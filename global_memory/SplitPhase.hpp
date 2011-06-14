@@ -75,8 +75,8 @@ int debugi=0;
         MemoryDescriptor* m;
         while (from->tryConsume(&dat)) {
             m = (MemoryDescriptor*) dat;
-            if (!m->isFull()) { printf("memory desc %lx gets isFull()=%c\n", m, m->isFull()); }
-            //assert(m->isFull()); // TODO decide what condition indicates write completion
+            //if (!m->isFull()) { printf("memory desc %lx gets isFull()=%c\n", m, m->isFull()); }
+            assert(m->isFull()); // TODO decide what condition indicates write completion
         }
         
         // check for my data

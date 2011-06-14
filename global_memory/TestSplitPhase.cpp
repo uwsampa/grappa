@@ -61,11 +61,6 @@ void stub_thr_target (thread* me, void* args) {
     thread_exit(me, NULL);
 }
 
-void nothing_target(thread* me, void* args) {
-    printf("Nothing: hi!\n");
-    thread_exit(me, NULL);
-}
-
 int main() {
     CoreQueue<uint64_t>* toDel = CoreQueue<uint64_t>::createQueue();
     CoreQueue<uint64_t>* fromDel = CoreQueue<uint64_t>::createQueue();
@@ -80,11 +75,6 @@ int main() {
 
     thread* rt = thread_spawn(master, s, run_thr_target, &r_arg);
 
-//////
-thread* harmless = thread_spawn(master, s, nothing_target, &r_arg);
-
-
-
     stub_thr_args st_arg;
     st_arg.toMe = toDel;
     st_arg.fromMe = fromDel;
@@ -94,7 +84,7 @@ thread* harmless = thread_spawn(master, s, nothing_target, &r_arg);
 
     run_all(s);
  
-    printf("intresult:%lu\n", st_arg.intresult);
-    printf("result:%lu\n", r_arg.result);   
+    printf("intresult:%lx\n", st_arg.intresult);
+    printf("result:%lx\n", r_arg.result);   
 }
 
