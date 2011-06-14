@@ -1,85 +1,106 @@
-#ifndef __GLOBALMEMORY_HPP__
-#define __GLOBALMEMORY_HPP__
+#ifndef __SPLITPHASE_HPP__
+#define __SPLITPHASE_HPP__
 
 #include <stdint.h>
+#include <tr1/unordered_map>
+#include <assert.h>
 
-#include "CoreBuffer.hpp"
+#include "GmTypes.hpp"
+#include "CoreQueue.hpp"
+#include "thread.h"
+#include "MemoryDescriptor.hpp"
 
-typedef struct mailbox {
-    bool flag;
-    uint64_t data;
-} Descriptor;
+typedef threadid_t mem_tag_t;
 
-class GlobalMemory {
+class SplitPhase {
     private:
-        CoreBuffer* to;
-        CoreBuffer* from;
+        CoreQueue<uint64_t>* to;
+        CoreQueue<uint64_t>* from;
+ 
+        // TODO for now one static descriptor per coro
+        typedef std::tr1::unordered_map<const threadid_t, MemoryDescriptor*, std::tr1::hash<uint64_t>, std::equal_to<uint64_t> > DMap_t;
+        DMap_t* descriptors;
 
-// TODO hashmap impl
-// TODO thread id?
-        HashMap<int,Descriptor*> mailboxes;
-
-        Descriptor* getDescriptor();
-        void releaseDescriptor(Descriptor*);
+        MemoryDescriptor* getDescriptor(threadid_t tid);
+        void releaseDescriptor(MemoryDescriptor*);
     public:
-        GlobalMemory(CoreBuffer* req_q, CoreBuffer* resp_q) 
+        SplitPhase(CoreQueue<uint64_t>* req_q, CoreQueue<uint64_t>* resp_q) 
             : to  (req_q)
             , from (resp_q) 
-            , mailboxes (new HashMap<uint64_t,Descriptor*>()) {}
+            , descriptors (new DMap_t()) {}
             
 
-        void readIssue(uint64_t gaddr, int local_tid);
+        mem_tag_t issue(oper_enum operation, uint64_t* addr, uint64_t data, thread* me);
 
-        uint64_t readComplete(uint64_t gaddr);
-
-
+        uint64_t complete( mem_tag_t , thread* me);
 };
 
-void GlobalMemory::readIssue(uint64_t gaddr, int local_tid) {
-   Descriptor* mailbox = getDescriptor();
-
-   mailboxes.put(local_tid, mailbox); 
+mem_tag_t SplitPhase::issue(oper_enum operation, uint64_t* addr, uint64_t data, thread* me) {
+   // create a tag to identify this request
+   // TODO: right now just the threadid, since one outstanding request allowed
+   mem_tag_t ticket = (mem_tag_t) me->id;
+  
+   MemoryDescriptor* desc = getDescriptor(me->id);
+   /*not sure where to do this*/desc->setEmpty();
+   desc->setOperation(operation);
+   desc->setAddress(addr);
+   desc->setData(data); // TODO for writes is full start set or does full mean done, etc..?
+  
    
-   // TODO make queues configurable to larger values
+   // TODO configure queues to larger values
    // XXX for now just send a mailbox address
-   //uint64_t request = (gaddr<<32) | local_tid; 
-   uint64_t request = (uint64_t) mailbox;
+   uint64_t request = (uint64_t) desc;
 
-   
-   to->produce(request);
+   // send request to delegate
+   while (!to->tryProduce(request)) {
+       thread_yield(me);
+   }
+
+   // TODO for now flush always
+   // (how can optimize without causing deadlock? One way might be scheduler can do flush if all
+   // coroutines are waiting)
+   to->flush();
+
+   return ticket;
 }
 
-uint64_t GlobalMemory::readComplete(uint64_t gaddr, thread* me) {
-    
-    Descriptor* m = mailboxes.remove(me->id);
-    while (true) { 
-        if (m->flag) {   // XXX synchro/volatile?
-            uint64_t resp = m->data;
-            return resp;
-        } else {
-            thread_yield(me);
+uint64_t SplitPhase::complete(mem_tag_t ticket, thread* me) {
+    threadid_t tid = (threadid_t) ticket; 
+    MemoryDescriptor* mydesc = (*descriptors)[tid];
+int debugi=0;
+    while(true) {
+        printf("%d iters of waiting\n", debugi++);
+        // dequeue as much as possible
+        uint64_t dat;
+        MemoryDescriptor* m;
+        while (from->tryConsume(&dat)) {
+            m = (MemoryDescriptor*) dat;
+            if (!m->isFull()) { printf("memory desc %lx gets isFull()=%c\n", m, m->isFull()); }
+            //assert(m->isFull()); // TODO decide what condition indicates write completion
         }
+        
+        // check for my data
+        if (mydesc->isFull()) { // TODO decide what condition indicates write completion
+            uint64_t resp = m->getData();
+            releaseDescriptor(m);
+            return resp;
+        }
+        thread_yield(me);
     }
-    
-    /*while(true) {
-        while (from->canConsume()) {
-            uint64_t response = from->consume();
-            uint64_t resp_addr = (response>>32) & 0x00000000ffffffff;
-            int resp_tid = response & 0x00000000ffffffff;
-//...*/
 }
 
-Descriptor* GlobalMemory::getDescriptor() {
-    // TODO have pool of descriptors to avoid malloc
-    // allocate them in efficient way (all together?/batched?/different cachelines?)
-
-    return (Descriptor*) malloc (sizeof(Descriptor));
+MemoryDescriptor* SplitPhase::getDescriptor(threadid_t thread_id) {
+    MemoryDescriptor* d = (*descriptors)[thread_id];
+    if (!d) {
+        d = new MemoryDescriptor();
+        d->setThreadId(thread_id);
+        (*descriptors)[thread_id] = d;
+    }
+    return d;
 }
- 
-void GlobalMemory::releaseDescriptor(Descriptor* desc) {
-    // TODO just put back in pool
 
-    free(desc);
+void SplitPhase::releaseDescriptor( MemoryDescriptor* descriptor) {
+    // noop
 }
 
 
