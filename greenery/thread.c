@@ -4,7 +4,7 @@
 #include <stdlib.h>
 #include <stdio.h>
 
-#define STACK_SIZE 256
+#define STACK_SIZE 4096
 
 thread *thread_init() {
   coro *me = coro_init();
@@ -90,6 +90,10 @@ thread *thread_wait(scheduler *sched, void **result) {
 
 void run_all(scheduler *sched) {
   while (thread_wait(sched, NULL) != NULL) { } // nothing
+}
+
+void scheduler_assignTid(scheduler *sched, thread* thr) {
+    thr->id = sched->nextId++;
 }
 
 void destroy_thread(thread *thr) {
