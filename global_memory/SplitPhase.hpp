@@ -69,7 +69,7 @@ uint64_t SplitPhase::complete(mem_tag_t ticket, thread* me) {
     MemoryDescriptor* mydesc = (*descriptors)[tid];
 int debugi=0;
     while(true) {
-        printf("%d iters of waiting\n", debugi++);
+        //printf("%d iters of waiting\n", debugi++);
         // dequeue as much as possible
         uint64_t dat;
         MemoryDescriptor* m;
@@ -81,8 +81,8 @@ int debugi=0;
         
         // check for my data
         if (mydesc->isFull()) { // TODO decide what condition indicates write completion
-            uint64_t resp = m->getData();
-            releaseDescriptor(m);
+            uint64_t resp = mydesc->getData();
+            releaseDescriptor(mydesc);
             return resp;
         }
         thread_yield(me);
