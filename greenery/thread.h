@@ -52,9 +52,7 @@ inline thread *scheduler_dequeue(scheduler *sched) {
   return result;
 }
 
-void scheduler_assignTid(scheduler *sched, thread* thr) {
-    thr->id = sched->nextId++;
-}
+void scheduler_assignTid(scheduler *sched, thread* thr);
 
 typedef void (*thread_func)(thread *, void *arg);
 

@@ -3,12 +3,14 @@
 
 #include <assert.h>
 #include <stdint.h>
+#include <stdlib.h>
 
 // use queue indicators
 #ifndef QUSE_MCRB
     #define QUSE_MCRB 1
 #endif
 
+template <class T>
 class CoreQueue {
     public:
 
@@ -19,21 +21,26 @@ class CoreQueue {
         static CoreQueue* createQueue();
 
         // blocking
-        virtual bool tryProduce(uint64_t element) = 0;
-        virtual bool tryConsume(uint64_t *element) = 0;
+        virtual bool tryProduce(const T& element) = 0;
+        virtual bool tryConsume(T* element) = 0;
         
         virtual void flush() = 0;
 };
-CoreQueue::CoreQueue(int dum) { }
-CoreQueue::~CoreQueue() { }
+
+template <class T>
+CoreQueue<T>::CoreQueue(int dum) { }
+
+template <class T>
+CoreQueue<T>::~CoreQueue() { }
 
 /*******************************************/
 /* MCRingBuffer */
 #if QUSE_MCRB
 #include "MCRingBuffer.h"
 
-
-class CoreQueueMC: public CoreQueue {
+//TODO: template the MCRingBuffer if possible
+template <class T>
+class CoreQueueMC: public CoreQueue<T> {
 
 
     private:
@@ -41,7 +48,7 @@ class CoreQueueMC: public CoreQueue {
 
     public:
         CoreQueueMC() 
-            : CoreQueue(0)
+            : CoreQueue<uint64_t>(0)
             , q((MCRingBuffer*)malloc(sizeof(MCRingBuffer))) {
             
             MCRingBuffer_init(q); 
@@ -53,12 +60,12 @@ class CoreQueueMC: public CoreQueue {
         
 
 
-        inline bool tryProduce(uint64_t element) {
-            return (bool) MCRingBuffer_produce(q, element);
+        inline bool tryProduce(const T& element) {
+            return (bool) MCRingBuffer_produce(q, (uint64_t)element); //???
         }
 
-        inline bool tryConsume(uint64_t *element) {
-            return (bool) MCRingBuffer_consume(q, element);
+        inline bool tryConsume(T* element) {
+            return (bool) MCRingBuffer_consume(q, (uint64_t*)element);
         }
 
         inline void flush() {
@@ -72,11 +79,13 @@ class CoreQueueMC: public CoreQueue {
 /******************************************/
 
 // queue factory
-CoreQueue* CoreQueue::createQueue() {
-    assert(QUSE_MCRB + QUSE_LIBQ + QUSE_SIMPLE == 1) ;
-  
+template <class T>
+CoreQueue<T>* CoreQueue<T>::createQueue() {
+    //assert(QUSE_MCRB + QUSE_LIBQ + QUSE_SIMPLE == 1) ;
+    assert (QUSE_MCRB == 1);
+
     #if QUSE_MCRB
-    return (CoreQueue*) new CoreQueueMC();
+    return (CoreQueue<uint64_t>*) new CoreQueueMC<uint64_t>();  // TODO cleanup template
     #endif
 
 }

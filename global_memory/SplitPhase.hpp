@@ -1,6 +1,6 @@
 #ifndef __SPLITPHASE_HPP__
 #define __SPLITPHASE_HPP__
-
+#include <unistd.h>
 #include <stdint.h>
 #include <tr1/unordered_map>
 #include <assert.h>
@@ -69,20 +69,21 @@ uint64_t SplitPhase::complete(mem_tag_t ticket, thread* me) {
     MemoryDescriptor* mydesc = (*descriptors)[tid];
 int debugi=0;
     while(true) {
-        printf("%d iters of waiting\n", debugi++);
+        //printf("%d iters of waiting\n", debugi++);
         // dequeue as much as possible
         uint64_t dat;
         MemoryDescriptor* m;
-        while (from->tryConsume(&dat)) {
+      /*  while (from->tryConsume(&dat)) {
             m = (MemoryDescriptor*) dat;
-            if (!m->isFull()) { printf("memory desc %lx gets isFull()=%c\n", m, m->isFull()); }
+            //sleep(1);
+            if (!m->isFull()) { printf("assertFAIL: descriptor(%lx)(data=%lu) gets isFull()=%d\n", (uint64_t)m, m->getData(), m->isFull()); exit(1); }
             //assert(m->isFull()); // TODO decide what condition indicates write completion
-        }
+        }*/
         
         // check for my data
         if (mydesc->isFull()) { // TODO decide what condition indicates write completion
-            uint64_t resp = m->getData();
-            releaseDescriptor(m);
+            uint64_t resp = mydesc->getData();
+            releaseDescriptor(mydesc);
             return resp;
         }
         thread_yield(me);
