@@ -39,12 +39,35 @@ int main( int argc, char* argv[] ) {
           
           std::cout << "Initializing array" << std::endl;
           for( int i = 0; i < total_size; ++i ) {
-            arr.blockingPut( i, i );
+            //arr.blockingPut( i, i );
+            MemoryDescriptor md;
+            md.type = MemoryDescriptor::Write;
+            md.index = i;
+            md.data = i;
+            //arr.blockingOp( &md );
+
+            std::cout << "issuing store to " << i << std::endl;
+            MPIGlobalArray::MPI_Requests* requests = arr.issueOp( &md );
+
+            std::cout << "completing store to " << i << std::endl;
+            arr.completeOp( &md, requests );
+
           }
-          
+
+          std::cout << "Initialization complete" << std::endl;          
+
+          for( int i = 0; i < total_size / total_num_nodes; ++i ) {
+            std::cout << i << ": " << (arr.array.get())[i] << std::endl;
+          }
+
           std::cout << "Checking array" << std::endl;
           for( int i = 0; i < total_size; ++i ) {
-            uint64_t data = arr.blockingGet( i );
+            MemoryDescriptor md;
+            md.type = MemoryDescriptor::Read;
+            md.index = i;
+            arr.blockingOp( &md );
+            uint64_t data = md.data;
+            //uint64_t data = arr.blockingGet( i );
             if ( i != data ) {
               std::cout << "Error at " << i << ": expected " << i << ", got " << data << std::endl;
             } else {

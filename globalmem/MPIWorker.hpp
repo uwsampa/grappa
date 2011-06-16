@@ -56,7 +56,7 @@ private:
     if (0 != receive_flag) { // we've received something
     if (MPI_WORKER_DEBUG) std::cout << "Receive worker receiving...." << std::endl;
       send_descriptor = receive_descriptor; // make a copy of what we received
-      send_descriptor.source_node = receive_status.MPI_SOURCE;      // grab source and put in descriptor
+      send_descriptor.node = receive_status.MPI_SOURCE;      // grab source and put in descriptor
       issueReceive();                       // re-arm receive
       uint64_t addr = (send_descriptor.address & 0xffffffffffffLL) + ((uint64_t) base);
       __builtin_prefetch( (void*) addr, 0, 0 ); 
@@ -81,7 +81,7 @@ private:
       switch (send_descriptor.type) {
       case MemoryDescriptor::Write:
         *( (uint64_t*) addr ) = send_descriptor.data;
-        if (MPI_WORKER_DEBUG) std::cout << "Receive worker stored data " << (void*) send_descriptor.data << "...." << std::endl;
+        if (MPI_WORKER_DEBUG) std::cout << "Receive worker stored data " << send_descriptor.data << "...." << std::endl;
         break;
       case MemoryDescriptor::Read:
         send_descriptor.data = *( (uint64_t*) addr );
@@ -98,7 +98,7 @@ private:
       result = MPI_Isend( &send_descriptor,
                           sizeof(MemoryDescriptor),
                           MPI_BYTE,
-                          send_descriptor.source_node,
+                          send_descriptor.node,
                           MemoryDescriptor::RMA_Response,
                           MPI_COMM_WORLD,
                           &send_request );

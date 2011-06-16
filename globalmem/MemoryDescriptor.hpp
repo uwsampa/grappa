@@ -2,6 +2,7 @@
 #ifndef __MEMORYDESCRIPTOR_HPP__
 #define __MEMORYDESCRIPTOR_HPP__
 
+#include <iostream>
 
 class MemoryDescriptor {
 public:
@@ -14,7 +15,8 @@ public:
   Type type;
   Data data;
   Address address;
-  Address source_node;
+  Address index;
+  Address node;
 
   char padding1[64];
   bool full;
@@ -25,22 +27,23 @@ public:
     : type(type)
     , data(data)
     , address(address)
-    , source_node(0)
+    , index(0)
+    , node(0)
     , full(false)
   { }
 
-  void setType( Type type ) { this->type = type; }
-  void setData( Data data ) { this->data = data; }
-  void setAddress( Address address ) { this->address = address; }
-  void setFull( bool full ) { this->full = full; }
-  void setSourceNode( Address node ) { this->source_node = node; }
-  
-
-  Type getType() { return this->type; }
-  Data getData() { return this->data; }
-  Address getAddress() { return this->address; }
-  bool getFull() { return this->full; }
-  Address getSourceNode() { return this->source_node; }
 };
+
+std::ostream& operator<<( std::ostream& o, const MemoryDescriptor& md ) {
+  o << "[MD" 
+    << " type:" << md.type
+    << " data:" << md.data
+    << " address:" << md.address
+    << " index:" << md.index
+    << " node:" << md.node
+    << " full:" << md.full
+    << "]";
+  return o;
+}
 
 #endif
