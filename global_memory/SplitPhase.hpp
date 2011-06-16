@@ -1,6 +1,6 @@
 #ifndef __SPLITPHASE_HPP__
 #define __SPLITPHASE_HPP__
-
+#include <unistd.h>
 #include <stdint.h>
 #include <tr1/unordered_map>
 #include <assert.h>
@@ -73,11 +73,12 @@ int debugi=0;
         // dequeue as much as possible
         uint64_t dat;
         MemoryDescriptor* m;
-        while (from->tryConsume(&dat)) {
+      /*  while (from->tryConsume(&dat)) {
             m = (MemoryDescriptor*) dat;
-            //if (!m->isFull()) { printf("memory desc %lx gets isFull()=%c\n", m, m->isFull()); }
-            assert(m->isFull()); // TODO decide what condition indicates write completion
-        }
+            //sleep(1);
+            if (!m->isFull()) { printf("assertFAIL: descriptor(%lx)(data=%lu) gets isFull()=%d\n", (uint64_t)m, m->getData(), m->isFull()); exit(1); }
+            //assert(m->isFull()); // TODO decide what condition indicates write completion
+        }*/
         
         // check for my data
         if (mydesc->isFull()) { // TODO decide what condition indicates write completion
