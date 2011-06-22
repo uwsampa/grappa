@@ -46,6 +46,7 @@ uint64_t walk_split_phase (thread* me, SplitPhase* sp, node* bases[], uint64_t c
 	} else {// TODO don't support more lists per thread currently
 		assert(false);
 	}
+
 }
 
 

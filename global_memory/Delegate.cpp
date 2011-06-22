@@ -68,7 +68,7 @@ void handle_responses(thread* me, void* args) {
 
     Delegate* del = cargs->del;
 
-    while (true) {
+    while (del->doContinue()) {
 //        printf("Delegate: iteration of handle_responses\n");
         MemoryDescriptor* r_resp = NULL;
         r_resp = gm->getRemoteResponse();
@@ -97,7 +97,7 @@ void handle_remote_requests(thread* me, void* args) {
 
     Delegate* del = cargs->del;
 
-    while (true) {
+    while (del->doContinue()) {
 //        printf("Delegate: iteration of handle_remote_requests\n");
         request_node_t r_msg;
         bool r_msg_valid = gm->getRemoteRequest(&r_msg); //TODO grab as much as possible (testsome?)
@@ -140,7 +140,7 @@ void handle_local_requests(thread* me, void* args) {
     GlobalMemory* gm = cargs->gm;
     Delegate* del = cargs->del;
 
-    while (true) {
+    while (del->doContinue()) {
 //        printf("Delegate: iteration of handle_local_requests\n");
         uint64_t data;
         while (iq->tryConsume(&data)) {
@@ -173,6 +173,10 @@ void handle_local_requests(thread* me, void* args) {
                     }
                     break;
                 }
+                case QUIT: {
+                	del->terminate();
+                	break;
+                }
                 default:
                     assert(false);// for now only reads
             }
@@ -183,9 +187,17 @@ void handle_local_requests(thread* me, void* args) {
     }
 }
 
-            
+void Delegate::terminate() {
+	DEBUGP(this, "terminating\n");
+	running = false;
+}
+
+bool Delegate::doContinue() {
+	return running;
+}
 
 void Delegate::run() {
+	running = true;
 
     thread* master = thread_init();
     scheduler* scheduler = create_scheduler(master);

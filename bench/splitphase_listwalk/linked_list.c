@@ -18,11 +18,10 @@
 
 #include "thread.h"
 
+#include "GmTypes.hpp"
 #include "CoreQueue.hpp"
 #include "Delegate.hpp"
 #include "SplitPhase.hpp"
-#include <queue>
-
 
 /* 
  * Multiple threads walking linked lists concurrently.
@@ -202,7 +201,7 @@ int main(int argc, char* argv[]) {
       }
   }
 
-  int num_plus_dels = num_threads+2;
+  int num_dels = 2;
   int thr_per_sock = num_threads/2;
 
    CoreQueue<uint64_t>* req0q = CoreQueue<uint64_t>::createQueue();
@@ -218,22 +217,22 @@ int main(int argc, char* argv[]) {
   CoreQueue<uint64_t>* sock1_qs_fromDel[thr_per_sock];
   CoreQueue<uint64_t>* sock1_qs_toDel[thr_per_sock];
 
-  Delegate* delegates[2] = { new Delegate(sock0_qs_fromDel, sock0_qs_toDel, thr_per_sock, &glob_mem0),
-		  	  	  	  	  new Delegate(sock1_qs_fromDel, sock1_qs_toDel, thr_per_sock, &glob_mem1)};
-
   SplitPhase* sp[num_threads];
   for (int th=0; th<num_threads; th++) {
-      sock0_qs_fromDel[th] = CoreQueue<uint64_t>::createQueue();
-      sock0_qs_toDel[th] =  CoreQueue<uint64_t>::createQueue();
-      sock1_qs_fromDel[th] = CoreQueue<uint64_t>::createQueue();
-      sock1_qs_toDel[th] = CoreQueue<uint64_t>::createQueue();
-
 	  if (th < thr_per_sock) {
+		  sock0_qs_fromDel[th] = CoreQueue<uint64_t>::createQueue();
+		  sock0_qs_toDel[th] =  CoreQueue<uint64_t>::createQueue();
 		  sp[th] = new SplitPhase(sock0_qs_toDel[th], sock0_qs_fromDel[th]);
 	  } else {
-		  sp[th] = new SplitPhase(sock1_qs_toDel[th], sock1_qs_fromDel[th]);
+		  int ind = th - thr_per_sock;
+		  sock1_qs_fromDel[ind] = CoreQueue<uint64_t>::createQueue();
+		  sock1_qs_toDel[ind] = CoreQueue<uint64_t>::createQueue();
+		  sp[th] = new SplitPhase(sock1_qs_toDel[ind], sock1_qs_fromDel[ind]);
 	  }
   }
+
+  Delegate* delegates[2] = { new Delegate(sock0_qs_fromDel, sock0_qs_toDel, thr_per_sock, &glob_mem0),
+		  	  	  	  	  new Delegate(sock1_qs_fromDel, sock1_qs_toDel, thr_per_sock, &glob_mem1)};
 
   // run number_of_repetitions # of experiments
   for(n = 0; n < number_of_repetitions; n++) {
@@ -283,22 +282,40 @@ int main(int argc, char* argv[]) {
 
     	// do the work
 
-    	#pragma omp parallel for num_threads(num_plus_dels)
-    	for (thread_num=0; thread_num < num_plus_dels; thread_num++) {
-    		cpu_set_t set;
-    		CPU_ZERO(&set);
+    	#pragma omp parallel for num_threads(num_dels+1)
+    	for (int task=0; task<num_dels+1; task++) {
+    		if (task==0) {
+				#pragma omp parallel for num_threads(num_threads)
+				for (thread_num=0; thread_num < num_threads; thread_num++) {
+					cpu_set_t set;
+					CPU_ZERO(&set);
 
-    		if (thread_num < num_threads) {
-    			if (thread_num < thr_per_sock) CPU_SET(thread_num*2,&set);
-    			else CPU_SET((thread_num-thr_per_sock)*2+1,&set);
+					if (thread_num < thr_per_sock) CPU_SET(thread_num*2,&set);
+					else CPU_SET((thread_num-thr_per_sock)*2+1,&set);
 
-    			run_all(schedulers[thread_num]);
+					run_all(schedulers[thread_num]);
+				} //barrier
+
+				//QUIT signals
+				#pragma omp parallel for num_threads(num_threads)
+				for (thread_num=0; thread_num < num_threads; thread_num++) {
+					cpu_set_t set;
+					CPU_ZERO(&set);
+
+					if (thread_num < thr_per_sock) CPU_SET(thread_num*2,&set);
+					else CPU_SET((thread_num-thr_per_sock)*2+1,&set);
+
+					sp[thread_num]->issue(QUIT, 0, 0, masters[thread_num]);
+				}
+
     		} else { //delegate
     			// assuming 6th core on sock0 and sock1
+    			cpu_set_t set;
+    			CPU_ZERO(&set);
     			if (thread_num==num_threads) CPU_SET(10,&set);
     			else CPU_SET(11,&set);
 
-    			delegates[thread_num-num_threads]->run();
+    			delegates[task-1]->run();
     		}
     	}
 
