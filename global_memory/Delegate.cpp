@@ -113,11 +113,11 @@ void handle_remote_requests(thread* me, void* args) {
             switch(operation) {
                 case READ: {
                    uint64_t resultdata = *addr;  // do local memory access
-                   MemoryDescriptor resp = *r_req; // copy
-                   resp.fillData(resultdata);
+                   MemoryDescriptor* resp = r_req;  //TODO: only works for shmem
+                   resp->fillData(resultdata);
 
-                   gm->sendResponse(r_fromid, &resp);
-                   DEBUGP(del, "sent response to %u; data=%lx\n", r_fromid, resp.getData());
+                   gm->sendResponse(r_fromid, resp);
+                   DEBUGP(del, "sent response to %u; data=%lx\n", r_fromid, resp->getData());
                    break;
                 }
                 default:
@@ -144,8 +144,8 @@ void handle_local_requests(thread* me, void* args) {
 //        printf("Delegate: iteration of handle_local_requests\n");
         uint64_t data;
         while (iq->tryConsume(&data)) {
-            DEBUGP(del, "got local request\n");
             MemoryDescriptor* md = (MemoryDescriptor*) data;
+            DEBUGP(del, "got local request descriptor(%lx)\n", (uint64_t)md);
             bool isLocal = gm->isLocal(md);
 
             switch (md->getOperation()) {
