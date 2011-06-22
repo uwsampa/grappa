@@ -1,0 +1,78 @@
+
+#include <assert.h>
+
+#include "SplitPhase.hpp"
+#include "GmTypes.hpp"
+#include "CoreQueue.hpp"
+#include "thread.h"
+#include "MemoryDescriptor.hpp"
+
+
+mem_tag_t SplitPhase::issue(oper_enum operation, uint64_t* addr, uint64_t data, thread* me) {
+   // create a tag to identify this request
+   // TODO: right now just the threadid, since one outstanding request allowed
+   mem_tag_t ticket = (mem_tag_t) me->id;
+
+   MemoryDescriptor* desc = getDescriptor(me->id);
+   /*not sure where to do this*/desc->setEmpty();
+   desc->setOperation(operation);
+   desc->setAddress(addr);
+   desc->setData(data); // TODO for writes is full start set or does full mean done, etc..?
+
+
+   // TODO configure queues to larger values
+   // XXX for now just send a mailbox address
+   uint64_t request = (uint64_t) desc;
+
+   // send request to delegate
+   while (!to->tryProduce(request)) {
+       thread_yield(me);
+   }
+
+   // TODO for now flush always
+   // (how can optimize without causing deadlock? One way might be scheduler can do flush if all
+   // coroutines are waiting)
+   to->flush();
+
+   return ticket;
+}
+
+uint64_t SplitPhase::complete(mem_tag_t ticket, thread* me) {
+    threadid_t tid = (threadid_t) ticket;
+    MemoryDescriptor* mydesc = (*descriptors)[tid];
+int debugi=0;
+    while(true) {
+        //printf("%d iters of waiting\n", debugi++);
+        // dequeue as much as possible
+        uint64_t dat;
+        MemoryDescriptor* m;
+      /*  while (from->tryConsume(&dat)) {
+            m = (MemoryDescriptor*) dat;
+            //sleep(1);
+            if (!m->isFull()) { printf("assertFAIL: descriptor(%lx)(data=%lu) gets isFull()=%d\n", (uint64_t)m, m->getData(), m->isFull()); exit(1); }
+            //assert(m->isFull()); // TODO decide what condition indicates write completion
+        }*/
+
+        // check for my data
+        if (mydesc->isFull()) { // TODO decide what condition indicates write completion
+            uint64_t resp = mydesc->getData();
+            releaseDescriptor(mydesc);
+            return resp;
+        }
+        thread_yield(me);
+    }
+}
+
+MemoryDescriptor* SplitPhase::getDescriptor(threadid_t thread_id) {
+    MemoryDescriptor* d = (*descriptors)[thread_id];
+    if (!d) {
+        d = new MemoryDescriptor();
+        d->setThreadId(thread_id);
+        (*descriptors)[thread_id] = d;
+    }
+    return d;
+}
+
+void SplitPhase::releaseDescriptor( MemoryDescriptor* descriptor) {
+    // noop
+}

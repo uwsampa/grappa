@@ -44,8 +44,10 @@ class GlobalMemory {
 
     public:
         // for STUB
-        std::queue<MemoryDescriptor*> locreq;
-        std::queue<MemoryDescriptor*> remreq;
+        std::queue<MemoryDescriptor*>* locreq;
+        std::queue<MemoryDescriptor*>* remreq;
+        std::queue<MemoryDescriptor*>* locresp;
+        std::queue<MemoryDescriptor*>* remresp;
 
 
         MemoryDescriptor* getRemoteResponse();
@@ -57,10 +59,12 @@ class GlobalMemory {
         uint64_t* getLocalAddress(MemoryDescriptor* md);
         bool isLocal(MemoryDescriptor* md);
 
-        GlobalMemory(nodeid_t nid) 
+        GlobalMemory(nodeid_t nid, std::queue<MemoryDescriptor*>* myreq, std::queue<MemoryDescriptor*>* myresp, std::queue<MemoryDescriptor*>* theirreq, std::queue<MemoryDescriptor*>* theirresp)
             : nodeid(nid)
-            , locreq()
-            , remreq() {}
+            , locreq(myreq)
+        	, remreq(theirreq)
+            , locresp(myresp)
+        	, remresp(theirresp) {}
 };
 
 
