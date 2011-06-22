@@ -1,0 +1,25 @@
+CC=g++
+CFLAGS= -g -fopenmp
+CFLAGS+= -I../../greenery -L../../greenery -I../../queues -L../../queues -I../../global_memory -L../../global_memory
+LIBS= -lrt -lgreenery -lcorequeue -lsplitphase
+
+HEADERS=\
+	linked_list-node.h \
+	linked_list-alloc.h \
+	linked_list-walk.h 
+
+OBJECTS=\
+	linked_list-node.o \
+	linked_list-alloc.o \
+	linked_list-walk.o
+
+all: linked_list.exe
+
+%.o: %.c $(HEADERS) Makefile
+	$(CC) $(CFLAGS) $< -c -o $@
+
+linked_list.exe: linked_list.c $(HEADERS) $(OBJECTS) Makefile
+	$(CC) $(CFLAGS) $< -o $@ $(OBJECTS) $(LIBS) ../../queues/MCRingBuffer.c #XXX temp, because undef refs?
+
+clean:
+	rm -f linked_list.exe ./*.o
