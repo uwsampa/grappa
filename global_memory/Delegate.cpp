@@ -29,7 +29,7 @@ void debug_print(void* obj, const char* formatstr, ...) {
 	va_end(al);
 }
 
-void debug_noop(void* o, char* c, ...) { return; }
+void debug_noop(void* o, const char* c, ...) { return; }
 /**********************************************/
 
 
