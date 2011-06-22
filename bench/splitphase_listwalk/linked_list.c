@@ -203,13 +203,13 @@ int main(int argc, char* argv[]) {
   int num_plus_dels = num_threads+2;
   int thr_per_sock = num_threads/2;
 
-  std::queue<MemoryDescriptor*> req0q;
-  std::queue<MemoryDescriptor*> resp0q;
-  std::queue<MemoryDescriptor*> req1q;
-  std::queue<MemoryDescriptor*> resp1q;
+   CoreQueue<uint64_t>* req0q = CoreQueue<uint64_t>::createQueue();
+   CoreQueue<uint64_t>* resp0q = CoreQueue<uint64_t>::createQueue();
+   CoreQueue<uint64_t>* req1q = CoreQueue<uint64_t>::createQueue();
+   CoreQueue<uint64_t>* resp1q = CoreQueue<uint64_t>::createQueue();
 
-  GlobalMemory glob_mem0(0, &req0q, &resp0q, &req1q, &resp1q);
-  GlobalMemory glob_mem1(1, &req1q, &resp1q, &req0q, &resp0q);
+  GlobalMemory glob_mem0(0, req0q, resp0q, req1q, resp1q);
+  GlobalMemory glob_mem1(1, req1q, resp1q, req0q, resp0q);
 
   CoreQueue<uint64_t>* sock0_qs_fromDel[thr_per_sock];
   CoreQueue<uint64_t>* sock0_qs_toDel[thr_per_sock];

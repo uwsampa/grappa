@@ -7,12 +7,11 @@
 
 /* GlobalMemory impl for two delegates in same coherence domain to communicate*/
 
-
 MemoryDescriptor* GlobalMemory::getRemoteResponse() {
-   if (locresp->size() > 0) {
-       MemoryDescriptor* md = locresp->front();
-       locresp->pop();
-       return md;
+	uint64_t data;
+	bool valid = locresp->tryConsume(&data);
+	if (valid) {
+       return (MemoryDescriptor*) data;
    } else {
        return NULL;
    }
@@ -20,14 +19,16 @@ MemoryDescriptor* GlobalMemory::getRemoteResponse() {
        
 void GlobalMemory::sendResponse(nodeid_t to, MemoryDescriptor* resp) {
 	assert(to!=nodeid);
-	remresp->push(resp);
+	while(!remresp->tryProduce((uint64_t)resp));
+	remresp->flush(); // inefficient
 }
 
 bool GlobalMemory::getRemoteRequest(request_node_t* rh) {
-    if (remresp->size() > 0) {
-        rh->request = remresp->front();
+    uint64_t data;
+    bool valid = remreq->tryConsume(&data);
+	if (valid) {
+        rh->request = (MemoryDescriptor*) data;
         rh->node_id = 1-nodeid; // single remote node {0,1}
-        remresp->pop();
         return true;
     } else {
         return false;
@@ -35,7 +36,8 @@ bool GlobalMemory::getRemoteRequest(request_node_t* rh) {
 }
 
 void GlobalMemory::sendRequest(MemoryDescriptor* md) {
-    locreq->push(md);
+	while(!locreq->tryProduce((uint64_t)md));
+	locreq->flush();// inefficient
 }
 
 uint64_t* GlobalMemory::getLocalAddress(MemoryDescriptor* md) {
