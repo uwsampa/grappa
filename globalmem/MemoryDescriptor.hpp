@@ -7,7 +7,7 @@
 class MemoryDescriptor {
 public:
   enum Type { Read = 0, Write, AtomicIncrement, Quit };
-  enum Tag { RMA_Response = 1 << 12, RMA_Request }; // For MPI messages
+  enum Tag { RMA_Request, RMA_Response };
   typedef uint64_t Data;
   typedef uint64_t Address;
 
@@ -17,6 +17,8 @@ public:
   Address address;
   Address index;
   Address node;
+  Address data_structure_id;
+  Address in_flight_tag;
 
   char padding1[64];
   bool full;
@@ -29,6 +31,8 @@ public:
     , address(address)
     , index(0)
     , node(0)
+    , data_structure_id(0)
+    , in_flight_tag(0)
     , full(false)
   { }
 

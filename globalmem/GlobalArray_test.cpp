@@ -5,10 +5,11 @@
 
 #include <mpi.h>
 
-#define DEBUG 0
+#define DEBUG 1
 
-#include <MPIGlobalArray.hpp>
 #include <MPIWorker.hpp>
+#include <MPICommunicator.hpp>
+#include <GlobalArray.hpp>
 
 
 int main( int argc, char* argv[] ) {
@@ -35,8 +36,11 @@ int main( int argc, char* argv[] ) {
 
   {
     const int total_size = 128;
-    
-    MPIGlobalArray arr( total_size, my_rank, total_num_nodes, request_communicator, response_communicator );
+
+    MPICommunicator< MemoryDescriptor > communicator( my_rank, total_num_nodes, request_communicator, response_communicator );
+    typedef GlobalArray< MemoryDescriptor, MPICommunicator< MemoryDescriptor > > MPIGlobalArray;
+
+    MPIGlobalArray arr( total_size, my_rank, total_num_nodes, &communicator );
 
     MPIWorker<> worker( request_communicator, response_communicator );
     int array_id = worker.register_array( arr.getBase() );
@@ -62,7 +66,7 @@ int main( int argc, char* argv[] ) {
             //arr.blockingOp( &md );
 
             std::cout << "issuing store to " << i << std::endl;
-            MPIGlobalArray::MPI_Requests* requests = arr.issueOp( &md );
+            MPIGlobalArray::InFlightRequest requests = arr.issueOp( &md );
 
             std::cout << "completing store to " << i << std::endl;
             arr.completeOp( &md, requests );

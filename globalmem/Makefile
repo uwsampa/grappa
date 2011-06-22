@@ -9,11 +9,13 @@ CXXFLAGS+= -O2 -g -fopenmp -std=gnu++0x -Wno-write-strings --save-temps
 HEADERS=\
 	MPIWorker.hpp \
 	MPIGlobalArray.hpp \
+	GlobalArray.hpp \
 
 
 TARGETS=\
+	GlobalArray_test.exe \
 	MPIGlobalArray_test.exe \
-	mpitest.exe \
+	MPIWorker_test.exe \
 	ga.exe
 
 
