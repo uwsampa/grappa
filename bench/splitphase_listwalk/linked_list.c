@@ -281,6 +281,7 @@ int main(int argc, char* argv[]) {
     	//printf("Start time: %d seconds, %d nanoseconds\n", (int) start.tv_sec, (int) start.tv_nsec);
 
     	// do the work
+		omp_set_nested(1);
 
     	#pragma omp parallel for num_threads(num_dels+1)
     	for (int task=0; task<num_dels+1; task++) {
