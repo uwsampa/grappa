@@ -10,11 +10,19 @@
 
 
 /*****DEBUG*************************************/
-#define IS_DEBUG 0
+#define IS_DEBUG 1
+#define IS_INFO 0 
+
 #if IS_DEBUG
 	#define DEBUGP debug_print
 #else
 	#define DEBUGP debug_noop
+#endif
+
+#if IS_INFO
+    #define INFOP debug_print
+#else
+    #define INFOP debug_noop
 #endif
 
 void debug_print(void* obj, const char* formatstr, ...) {
