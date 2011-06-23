@@ -58,6 +58,7 @@ typedef struct hlr_thread_args {
     CoreQueue<uint64_t>* oq;
     GlobalMemory* gm;
     Delegate* del;
+    int queue_num;
 } hlr_thread_args;
 
 
@@ -140,12 +141,15 @@ void handle_local_requests(thread* me, void* args) {
     CoreQueue<uint64_t>* oq = cargs->oq;
     GlobalMemory* gm = cargs->gm;
     Delegate* del = cargs->del;
+    int queue_num = cargs->queue_num;
 
     while (del->doContinue()) {
 //        printf("Delegate: iteration of handle_local_requests\n");
         uint64_t data;
         while (iq->tryConsume(&data)) {
             MemoryDescriptor* md = (MemoryDescriptor*) data;
+            md->setCoreId(queue_num); // keep track of where it came from
+
             DEBUGP(del, "got local request descriptor(%lx)\n", (uint64_t)md);
             bool isLocal = gm->isLocal(md);
 
@@ -209,6 +213,7 @@ void Delegate::run() {
        hlrargs[client_id].oq = outQs[client_id];
        hlrargs[client_id].gm = global_mem;
        hlrargs[client_id].del = this;
+       hlrargs[client_id].queue_num = client_id;
        thread_spawn(master, scheduler, handle_local_requests, &hlrargs[client_id]);
    }
 
