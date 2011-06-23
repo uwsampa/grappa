@@ -10,7 +10,7 @@
 
 
 /*****DEBUG*************************************/
-#define IS_DEBUG 1
+#define IS_DEBUG 0
 #if IS_DEBUG
 	#define DEBUGP debug_print
 #else

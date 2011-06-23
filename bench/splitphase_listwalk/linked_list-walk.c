@@ -38,10 +38,10 @@ uint64_t walk_split_phase (thread* me, SplitPhase* sp, node* bases[], uint64_t c
 		node* i0 = bases[0];
 		while (count-- > 0) {
 			mem_tag_t tag = sp->issue(READ, (uint64_t*) &(i0->next), 0, me);
-            printf("core%u-thread%u: issued addr=%lx at count=%lu\n", omp_get_thread_num(), me->id, (uint64_t) &(i0->next), count+1);
+//            printf("core%u-thread%u: issued addr=%lx at count=%lu\n", omp_get_thread_num(), me->id, (uint64_t) &(i0->next), count+1);
 			YIELD(me,TICKS);
 			i0 = (node*) sp->complete(tag, me);
-            printf("core%u-thread%u: completed addr=%lx at count=%lu\n", omp_get_thread_num(), me->id, (uint64_t) &(i0->next), count+1);
+  //          printf("core%u-thread%u: completed addr=%lx at count=%lu\n", omp_get_thread_num(), me->id, (uint64_t) &(i0->next), count+1);
 		}
 	} else {// TODO don't support more lists per thread currently
 		assert(false);

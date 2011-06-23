@@ -71,7 +71,7 @@ void thread_runnable(thread* me, void* arg) {
       rdtscll(end_tsc);
       info->times[thread_num] = end_tsc - start_tsc;
 
-      printf("core%u-thread%u: FINISHED\n", omp_get_thread_num(), me->id);
+      //printf("core%u-thread%u: FINISHED\n", omp_get_thread_num(), me->id);
 
      thread_exit(me, NULL);
 }
