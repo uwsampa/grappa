@@ -37,7 +37,8 @@ Delegate::Delegate(CoreQueue<uint64_t>** qs_out, CoreQueue<uint64_t>** qs_in, ui
     : inQs(qs_in)
     , outQs(qs_out)
     , numLocal(numLoc)
-    , global_mem(gm) {}
+    , global_mem(gm)
+	, activeCount(numLoc) {}
     
 
 
@@ -174,7 +175,7 @@ void handle_local_requests(thread* me, void* args) {
                     break;
                 }
                 case QUIT: {
-                	del->terminate();
+                	del->decrementActive();
                 	break;
                 }
                 default:
@@ -187,17 +188,16 @@ void handle_local_requests(thread* me, void* args) {
     }
 }
 
-void Delegate::terminate() {
-	DEBUGP(this, "terminating\n");
-	running = false;
+void Delegate::decrementActive() {
+	activeCount--;
+	DEBUGP(this, "decrement active to %d\n", activeCount);
 }
 
 bool Delegate::doContinue() {
-	return running;
+	return activeCount>0;
 }
 
 void Delegate::run() {
-	running = true;
 
     thread* master = thread_init();
     scheduler* scheduler = create_scheduler(master);
