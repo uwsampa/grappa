@@ -23,6 +23,8 @@
 #include "Delegate.hpp"
 #include "SplitPhase.hpp"
 
+#include "BufferedPrinter.hpp"
+
 /* 
  * Multiple threads walking linked lists concurrently.
  * Nodes are 64bytes, one cacheline. List nodes are also shuffled to make locality unlikely.
@@ -362,6 +364,9 @@ int main(int argc, char* argv[]) {
     }
 
 
+    bpflush();
+  
+  
     uint64_t runtime_ns = 0;
     uint64_t latency_ticks = 0;
     //times[thread_num] = ((uint64_t) end.tv_sec * 1000000000 + end.tv_nsec) - ((uint64_t) start.tv_sec * 1000000000 + start.tv_nsec);

@@ -7,6 +7,7 @@
 #include "MemoryDescriptor.hpp"
 #include "GmTypes.hpp"
 
+#include "BufferedPrinter.hpp"
 
 
 /*****DEBUG*************************************/
@@ -33,7 +34,8 @@ void debug_print(void* obj, const char* formatstr, ...) {
 
 	va_list al;
 	va_start(al, formatstr);
-	vprintf(debugstr, al);
+	//vprintf(debugstr, al);
+	vbprintf(debugstr, al);
 	va_end(al);
 }
 
