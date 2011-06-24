@@ -35,5 +35,10 @@ libsplitphase.a: $(LIB_OBJ_FILES) GlobalMemoryQ.o
 	rm -f $@
 	ar cq $@ $(LIB_OBJ_FILES) GlobalMemoryQ.o
 
+libbprintf.a: BufferedPrinter.o
+	rm -f $@
+	ar cq $@ BufferedPrinter.o
+
+
 clean:
-	rm -f TestSplitPhase.exe TestDelegate.exe libsplitphase.a ./*.o
+	rm -f TestSplitPhase.exe TestDelegate.exe libsplitphase.a libbprintf.a ./*.o
