@@ -13,13 +13,16 @@ OBJECTS=\
 	linked_list-alloc.o \
 	linked_list-walk.o
 
-all: linked_list.exe
+default: linked_list.exe
 
 %.o: %.c $(HEADERS) Makefile
 	$(CC) $(CFLAGS) $< -c -o $@
 
 linked_list.exe: linked_list.c $(HEADERS) $(OBJECTS) Makefile
 	$(CC) $(CFLAGS) $< -o $@ $(OBJECTS) $(LIBS) ../../queues/MCRingBuffer.c #XXX temp, because undef refs?
+
+all:
+	./allmake.sh
 
 clean:
 	rm -f linked_list.exe ./*.o
