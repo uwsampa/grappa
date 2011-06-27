@@ -18,7 +18,7 @@ TARGETS=\
 
 
 CXXFLAGS+= -I/opt/ga/include -L/opt/ga/lib
-LIBS= -lga++ -lga -framework Accelerate
+LIBS= -lga++ -lga 
 
 run: $(TARGETS)
 	mpiexec -np 4 ./$<
