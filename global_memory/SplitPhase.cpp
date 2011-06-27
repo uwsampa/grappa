@@ -1,5 +1,7 @@
 
 #include <assert.h>
+#include <omp.h>
+#include <stdio.h>
 
 #include "SplitPhase.hpp"
 #include "GmTypes.hpp"
@@ -29,6 +31,8 @@ mem_tag_t SplitPhase::issue(oper_enum operation, uint64_t* addr, uint64_t data, 
        thread_yield(me);
    }
 
+   //printf("core%u-thread%u: issued descriptor(%lx) addr=%lx, full=%d\n", omp_get_thread_num(), me->id, (uint64_t) desc, (uint64_t)desc->getAddress(), desc->isFull());
+
    // TODO for now flush always
    // (how can optimize without causing deadlock? One way might be scheduler can do flush if all
    // coroutines are waiting)
@@ -57,8 +61,12 @@ int debugi=0;
         if (mydesc->isFull()) { // TODO decide what condition indicates write completion
             uint64_t resp = mydesc->getData();
             releaseDescriptor(mydesc);
+
+            
+            //printf("core%u-thread%u: completed descriptor(%lx) addr=%lx, data=%lx, full=%d\n", omp_get_thread_num(), me->id, (uint64_t) mydesc, (uint64_t)mydesc->getAddress(), resp, mydesc->isFull());
             return resp;
         }
+        //printf("core%u-thread%u: no luck yet descriptor(%lx) addr=%lx\n", omp_get_thread_num(), me->id, (uint64_t) mydesc, (uint64_t)mydesc->getAddress());
         thread_yield(me);
     }
 }

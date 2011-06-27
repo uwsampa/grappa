@@ -299,6 +299,8 @@ int main(int argc, char* argv[]) {
 					run_all(schedulers[thread_num]);
 				} //barrier
 
+                printf("barrier hit, now will send QUIT sigs\n");
+
 				//QUIT signals
 				#pragma omp parallel for num_threads(num_threads)
 				for (thread_num=0; thread_num < num_threads; thread_num++) {

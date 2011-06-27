@@ -11,7 +11,7 @@
 
 
 /*****DEBUG*************************************/
-#define IS_DEBUG 1
+#define IS_DEBUG 0
 #define IS_INFO 0 
 
 #if IS_DEBUG
@@ -34,8 +34,8 @@ void debug_print(void* obj, const char* formatstr, ...) {
 
 	va_list al;
 	va_start(al, formatstr);
-	//vprintf(debugstr, al);
-	vbprintf(debugstr, al);
+	vprintf(debugstr, al);
+//	vbprintf(debugstr, al);
 	va_end(al);
 }
 
@@ -81,11 +81,11 @@ void handle_responses(thread* me, void* args) {
     Delegate* del = cargs->del;
 
     while (del->doContinue()) {
-//        printf("Delegate: iteration of handle_responses\n");
+        //printf("Delegate: iteration of handle_responses %d\n",del->activeCount);
         MemoryDescriptor* r_resp = NULL;
         r_resp = gm->getRemoteResponse();
         if (r_resp) {
-            DEBUGP(del, "got RemoteResponse descriptor(%lx)\n", (uint64_t)r_resp);
+            //DEBUGP(del, "got RemoteResponse descriptor(%lx)\n", (uint64_t)r_resp);
 
             // glob_mem does this commented stuff
             /*uint64_t data = r_resp.data;
@@ -96,7 +96,9 @@ void handle_responses(thread* me, void* args) {
             CoreQueue<uint64_t>* oq = oqs[r_resp->getCoreId()];
             /*while(!oq->tryProduce((uint64_t)r_resp)) {} // TODO this could block progress other nonfull queues          
             oq->flush(); // TODO for now always flush, optimize later*/
-            DEBUGP(del, "produced descriptor(%lx)(data=%lx,full=%d) to core %u\n", (uint64_t)r_resp, r_resp->getData(), r_resp->full, r_resp->getCoreId());
+
+            //XXX this print stement can be after descriptor is recycled 
+//            DEBUGP(del, "produced descriptor(%lx)(data=%lx,full=%d,addr=%lx) to core %u\n", (uint64_t)r_resp, r_resp->getData(), r_resp->full, r_resp->getAddress(), r_resp->getCoreId());
         }
         thread_yield(me);
     }
@@ -110,7 +112,7 @@ void handle_remote_requests(thread* me, void* args) {
     Delegate* del = cargs->del;
 
     while (del->doContinue()) {
-//        printf("Delegate: iteration of handle_remote_requests\n");
+        //printf("Delegate: iteration of handle_remote_requests %d\n",del->activeCount);
         request_node_t r_msg;
         bool r_msg_valid = gm->getRemoteRequest(&r_msg); //TODO grab as much as possible (testsome?)
         if (r_msg_valid) {
@@ -120,7 +122,7 @@ void handle_remote_requests(thread* me, void* args) {
             oper_enum operation = r_req->getOperation();
             uint64_t data = r_req->getData();
 
-            DEBUGP(del, "got RemoteRequest from %u; addr=%lx,op=%d,data=%lu,descriptor(%lx)\n", r_fromid, (uint64_t)addr,operation,data,(uint64_t)r_req);
+            //DEBUGP(del, "got RemoteRequest from %u; addr=%lx,op=%d,data=%lu,descriptor(%lx)\n", r_fromid, (uint64_t)addr,operation,data,(uint64_t)r_req);
 
             switch(operation) {
                 case READ: {
@@ -128,8 +130,12 @@ void handle_remote_requests(thread* me, void* args) {
                    MemoryDescriptor* resp = r_req;  //TODO: only works for shmem
                    resp->fillData(resultdata);
 
-                   gm->sendResponse(r_fromid, resp);
-                   DEBUGP(del, "sent response to %u; data=%lx\n", r_fromid, resp->getData());
+//unneeded while fill result in shmem domain already
+                  // while (!gm->sendResponse(r_fromid, resp)) {
+                  //     thread_yield(me);
+                  // }
+                   
+                   DEBUGP(del, "sent response descriptor(%lx) to %u; addr=%lx; data=%lx; full=%d\n", (uint64_t)resp, r_fromid, addr, resp->getData(), resp->isFull());
                    break;
                 }
                 default:
@@ -154,7 +160,7 @@ void handle_local_requests(thread* me, void* args) {
     int queue_num = cargs->queue_num;
 
     while (del->doContinue()) {
-//        printf("Delegate: iteration of handle_local_requests\n");
+        DEBUGP(del, "iteration of handle_local_requests %d\n", del->activeCount);
         uint64_t data;
         while (iq->tryConsume(&data)) {
             MemoryDescriptor* md = (MemoryDescriptor*) data;
@@ -167,7 +173,7 @@ void handle_local_requests(thread* me, void* args) {
                 case READ: {
                     if (isLocal) {
                         uint64_t* addr = gm->getLocalAddress(md);
-                        DEBUGP(del, "got read to local; addr=%lx\n", (uint64_t)addr);
+            //            DEBUGP(del, "got read to local; addr=%lx\n", (uint64_t)addr);
                         // TODO pref/yield?
                         // and perhaps want a blocking produce for coros
                         uint64_t result = *addr;
@@ -177,14 +183,18 @@ void handle_local_requests(thread* me, void* args) {
                             thread_yield(me);
                         }
                         oq->flush(); // TODO for now always flush, optimize later*/
-                        DEBUGP(del, "produced to core %u; data=%lx\n", md->getCoreId(), md->getData());
+                        DEBUGP(del, "produced descriptor(%lx) to core %u; data=%lx\n", (uint64_t)md, md->getCoreId(), md->getData());
                     } else {
                     	DEBUGP(del, "got read to remote; addr=%lx\n", (uint64_t)md->getAddress());
                         /* if to save bandwidth want request_t to be 
                         only just big enough to support the max number 
                         of outstanding requests */
-                        gm->sendRequest(md);
-                        DEBUGP(del, "sent request for addr=%lx to remote\n", (uint64_t)md->getAddress());
+                        
+                        while (!gm->sendRequest(md)) {
+                            thread_yield(me);
+                        }
+                        
+                        //DEBUGP(del, "sent request for addr=%lx to remote\n", (uint64_t)md->getAddress());
                     }
                     break;
                 }
@@ -204,7 +214,7 @@ void handle_local_requests(thread* me, void* args) {
 
 void Delegate::decrementActive() {
 	activeCount--;
-	DEBUGP(this, "decrement active to %d\n", activeCount);
+	//DEBUGP(this, "decrement active to %d\n", activeCount);
 }
 
 bool Delegate::doContinue() {
@@ -255,7 +265,7 @@ void Delegate::run() {
        thread_spawn(master, scheduler, handle_responses, &hsrargs[client_id]);
    }*/
 
-   DEBUGP(this, "starting its tasks\n");
+   //DEBUGP(this, "starting its tasks\n");
 
     // start
     run_all(scheduler);

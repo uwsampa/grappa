@@ -51,9 +51,9 @@ class GlobalMemory {
 
 
         MemoryDescriptor* getRemoteResponse();
-        void sendResponse(nodeid_t to, MemoryDescriptor* resp);
+        bool sendResponse(nodeid_t to, MemoryDescriptor* resp);
         bool getRemoteRequest(request_node_t* rh);
-        void sendRequest(MemoryDescriptor* md);
+        bool sendRequest(MemoryDescriptor* md);
 
 
         uint64_t* getLocalAddress(MemoryDescriptor* md);

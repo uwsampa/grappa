@@ -7,8 +7,7 @@ cd $Q_DIR
 make clean libcorequeue.a
 
 cd $G_DIR
-make clean libsplitphase.a libbprintf.a
-
+make clean libbprintf.a libsplitphase.a 
 cd $THIS_DIR
 make clean
 make

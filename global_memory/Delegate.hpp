@@ -11,9 +11,9 @@ class Delegate {
         CoreQueue<uint64_t>** outQs;
         uint32_t numLocal;
         GlobalMemory* global_mem;
-        int activeCount;
 
     public:
+        int activeCount;
         Delegate(CoreQueue<uint64_t>* qs_out[], CoreQueue<uint64_t>* qs_in[], uint32_t numLocal, GlobalMemory* gm);
         void run();
         

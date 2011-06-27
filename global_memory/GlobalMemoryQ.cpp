@@ -17,10 +17,14 @@ MemoryDescriptor* GlobalMemory::getRemoteResponse() {
    }
 }
        
-void GlobalMemory::sendResponse(nodeid_t to, MemoryDescriptor* resp) {
+bool GlobalMemory::sendResponse(nodeid_t to, MemoryDescriptor* resp) {
 	assert(to!=nodeid);
-	while(!remresp->tryProduce((uint64_t)resp));
-	remresp->flush(); // inefficient
+	if (remresp->tryProduce((uint64_t)resp)) {
+    	remresp->flush(); // inefficient
+        return true;
+    } else {
+        return false;
+    }
 }
 
 bool GlobalMemory::getRemoteRequest(request_node_t* rh) {
@@ -35,9 +39,13 @@ bool GlobalMemory::getRemoteRequest(request_node_t* rh) {
     }
 }
 
-void GlobalMemory::sendRequest(MemoryDescriptor* md) {
-	while(!locreq->tryProduce((uint64_t)md));
-	locreq->flush();// inefficient
+bool GlobalMemory::sendRequest(MemoryDescriptor* md) {
+	if (locreq->tryProduce((uint64_t)md)) {
+        locreq->flush();// inefficient
+        return true;
+    } else {
+        return false;
+    }
 }
 
 uint64_t* GlobalMemory::getLocalAddress(MemoryDescriptor* md) {
