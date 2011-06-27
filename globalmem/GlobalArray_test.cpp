@@ -7,8 +7,9 @@
 
 #define DEBUG 0
 
-#include <MPIGlobalArray.hpp>
 #include <MPIWorker.hpp>
+#include <MPICommunicator.hpp>
+#include <GlobalArray.hpp>
 
 
 int main( int argc, char* argv[] ) {
@@ -35,15 +36,40 @@ int main( int argc, char* argv[] ) {
 
   {
     const int total_size = 128;
-    
-    MPIGlobalArray arr( total_size, my_rank, total_num_nodes, request_communicator, response_communicator );
+
+    MPICommunicator< MemoryDescriptor > communicator( my_rank, total_num_nodes, request_communicator, response_communicator );
+    typedef GlobalArray< uint64_t, MemoryDescriptor, MPICommunicator< MemoryDescriptor > > MPIGlobalArray;
+
+    MPIGlobalArray arr( total_size, my_rank, total_num_nodes, &communicator );
 
     MPIWorker<> worker( request_communicator, response_communicator );
     int array_id = worker.register_array( arr.getBase() );
+    arr.setArrayId( array_id );
     assert( array_id == 0 );
 
     int result = MPI_Barrier( MPI_COMM_WORLD );
     assert( result == 0 );
+
+
+    {
+      arr.setArrayId( 4 );
+      MPIGlobalArray::Cell * p = arr.getGlobalAddressForIndex(3);
+      std::cout << "index 3 is " << p << std::endl;
+      
+      MPIGlobalArray::Cell * q = (MPIGlobalArray::Cell*) 0x2ffffffffffffLL;
+
+      std::cout << "pointer " << q << " has array id " << arr.getArrayIdFromGlobalAddress( q ) << std::endl;
+      assert( 2 == arr.getArrayIdFromGlobalAddress( q ) );
+
+      std::cout << "pointer " << q << " has local offset " << arr.getLocalOffsetFromGlobalAddress( q ) << std::endl;
+      assert( 0xffffffffffffLL == arr.getArrayIdFromGlobalAddress( q ) );
+
+
+
+      arr.setArrayId( array_id );
+    }
+
+
 
     if (my_rank == 0) {
       
@@ -62,7 +88,7 @@ int main( int argc, char* argv[] ) {
             //arr.blockingOp( &md );
 
             std::cout << "issuing store to " << i << std::endl;
-            MPIGlobalArray::MPI_Requests* requests = arr.issueOp( &md );
+            MPIGlobalArray::InFlightRequest requests = arr.issueOp( &md );
 
             std::cout << "completing store to " << i << std::endl;
             arr.completeOp( &md, requests );

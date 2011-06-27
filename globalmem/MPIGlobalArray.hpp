@@ -27,6 +27,10 @@ private:
   Index total_size;
   int my_rank;
   int total_num_nodes;
+
+  MPI_Comm request_communicator;
+  MPI_Comm response_communicator;
+
   Index local_size;
   Index local_offset;
 
@@ -48,8 +52,8 @@ public:
                                     sizeof(MemoryDescriptor),
                                     MPI_BYTE,
                                     request_descriptor->node,
-                                    MemoryDescriptor::RMA_Request,
-                                    MPI_COMM_WORLD,
+                                    0,
+                                    request_communicator,
                                     &request_request );
     if (MPI_GLOBAL_ARRAY_ASSERTS) assert( request_result == 0 );
 
@@ -58,8 +62,8 @@ public:
                             sizeof( MemoryDescriptor ),
                             MPI_BYTE,                   // TODO: MPI type instead of byte buffer?
                             MPI_ANY_SOURCE,
-                            MemoryDescriptor::RMA_Response,
-                            MPI_COMM_WORLD,    // TODO: maybe change to RMA-specific communicator later?
+                            0,
+                            response_communicator,
                             &response_request );
     if (MPI_GLOBAL_ARRAY_ASSERTS) assert( request_result == 0 );
 
@@ -86,8 +90,8 @@ public:
                                     sizeof(MemoryDescriptor),
                                     MPI_BYTE,
                                     request_descriptor->node,
-                                    MemoryDescriptor::RMA_Request,
-                                    MPI_COMM_WORLD,
+                                    0,
+                                    request_communicator,
                                     &request_request );
     if (MPI_GLOBAL_ARRAY_ASSERTS) assert( request_result == 0 );
 
@@ -96,8 +100,8 @@ public:
                             sizeof( MemoryDescriptor ),
                             MPI_BYTE,                   // TODO: MPI type instead of byte buffer?
                             MPI_ANY_SOURCE,
-                            MemoryDescriptor::RMA_Response,
-                            MPI_COMM_WORLD,    // TODO: maybe change to RMA-specific communicator later?
+                            0,
+                            response_communicator,
                             &response_request );
     if (MPI_GLOBAL_ARRAY_ASSERTS) assert( request_result == 0 );
 
@@ -140,9 +144,13 @@ public:
 
   MPIGlobalArray ( Index total_size,
                    int my_rank,
-                   int total_num_nodes )
+                   int total_num_nodes,
+                   MPI_Comm request_communicator,
+                   MPI_Comm response_communicator )
     : total_size(total_size)
     , my_rank(my_rank)
+    , request_communicator(request_communicator)
+    , response_communicator(response_communicator)
     , total_num_nodes(total_num_nodes)
     , local_size( total_size / total_num_nodes )
     , local_offset( my_rank * local_size )
