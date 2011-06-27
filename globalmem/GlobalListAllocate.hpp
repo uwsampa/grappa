@@ -2,88 +2,106 @@
 #ifndef __GLOBALLISTALLOCATE_HPP__
 #define __GLOBALLISTALLOCATE_HPP__
 
-#include "GlobalListAllocate.hpp"
+#include <vector>
 
+#include "MemoryDescriptor.hpp"
+#include "ListNode.hpp"
 
-// initialize linked lists.
+#ifndef DEBUG
+#define DEBUG 0
+#endif
+
+// initialize linked lists. (serial)
 //node_t** allocate_heap(uint64_t size, int num_threads, int num_lists) {
-template < typename GlobalArray > 
-allocate_heap(uint64_t size, int num_threads, int num_lists, GlobalArray* array, GlobalArray* base) {
-  uint64_t i = 0;
+template < typename ListNodeGlobalArray, typename BasesGlobalArray > 
+void globalListAllocate(uint64_t size, int num_threads, int num_lists_per_thread, ListNodeGlobalArray* array, BasesGlobalArray* bases) {
+  std::cout << "Initializing footprint of size " << size << " * " << sizeof(ListNode) << " = " << size * sizeof(ListNode) << " bytes...." << std::endl;
 
-  //printf("Initializing footprint of size %lu * %lu = %lu bytes....\n", size, sizeof(node_t), size * sizeof(node_t));
+  MemoryDescriptor md;
+  std::vector< typename ListNodeGlobalArray::Cell * > locs( size );
 
-  //size = size / num_threads;
+  for( uint64_t i = 0; i < size; ++i ) {
 
-  node_t** locs = (node_t**) malloc(sizeof(node_t*) * size); // node array
-  node_t* nodes = (node_t*) malloc(sizeof(node_t) * size);  // temporary node pointers
-  //  node_t* nodes = (node_t*) get_huge_pages(sizeof(node_t) * size, GHP_DEFAULT);  // temporary node pointers
-  node_t** bases = (node_t**) malloc(sizeof(node_t*) * num_threads * num_lists); // initial node array
+    // set node ID
+    md.type = MemoryDescriptor::Write;
+    md.address = reinterpret_cast<uint64_t>( array->getGlobalAddressForIndex( i ) );
+    md.data = i;
+    array->blockingOp( &md );
 
-  // initialize ids
-  //#pragma omp parallel for num_threads(num_threads)
-  for(i = 0; i < size; ++i) {
-    //#ifdef HAVE_ID
-    nodes[i].id = i;
-    nodes[i].index = i;
-    //#endif
-    nodes[i].next = (node_t*)i;
+    // // now set node next pointer (to id, for now)
+    // md.address += offsetof(ListNode, next);
+    // array->blockingOp( &md );
   }
 
-  // randomly permute nodes (fisher-yates (or knuth) shuffle)
-  for(i = size-1; i > 0; --i) {
+  for( uint64_t i = size-1; i != 0; --i) {
     uint64_t j = random() % i;
-    node_t temp = nodes[i];
-    nodes[i] = nodes[j];
-    nodes[j] = temp;
+    
+    // node_t temp = nodes[i];
+    md.type = MemoryDescriptor::Read;
+    md.address = reinterpret_cast<uint64_t>( array->getGlobalAddressForIndex( i ) );
+    array->blockingOp( &md );
+    uint64_t temp_id = md.data;
+
+
+    // nodes[i] = nodes[j];
+    md.type = MemoryDescriptor::Read;
+    md.address = reinterpret_cast<uint64_t>( array->getGlobalAddressForIndex( j ) );
+    array->blockingOp( &md );
+    md.type = MemoryDescriptor::Write;
+    md.address = reinterpret_cast<uint64_t>( array->getGlobalAddressForIndex( i ) );
+    array->blockingOp( &md );
+
+//     nodes[j] = temp;
+    md.type = MemoryDescriptor::Write;
+    md.address = reinterpret_cast<uint64_t>( array->getGlobalAddressForIndex( j ) );
+    md.data = temp_id;
+    array->blockingOp( &md );
   }
 
-  // extract locs
-  //#pragma omp parallel for num_threads(num_threads)
-  for(i = 0; i < size; ++i) {
-#ifdef HAVE_ID
-    //printf("%u %u\n",  nodes[i].id, &nodes[i] - &nodes[0] );
-    //assert( nodes[i].id == &nodes[i] - &nodes[0] );
-    locs[ nodes[i].id ] = &nodes[i];
-#else
-    locs[ (uint64_t) nodes[i].next ] = &nodes[i];
-#endif
+
+  for( uint64_t i = 0; i < size; ++i ) {
+    md.type = MemoryDescriptor::Read;
+    md.address = reinterpret_cast<uint64_t>( array->getGlobalAddressForIndex( i ) );
+    array->blockingOp( &md );
+    uint64_t ith_id = md.data;
+    locs[ ith_id ] = reinterpret_cast<typename ListNodeGlobalArray::Cell *>(md.address);
   }
 
-    for(int i = 0; i < size; ++i) {
-    assert(locs[i] != NULL);
-  }
-
-// initialize pointers
-  // chop id-space into num_lists sections and build a circular list for each
-  //int64_t base = 0;
-  //#pragma omp parallel for num_threads(num_threads)
-  for(i = 0; i < size; ++i) {
-#ifdef HAVE_ID
-    uint64_t id = nodes[i].id;
-#else
-    //assert( nodes[i].id == &nodes[i] - &nodes[0] );
-    uint64_t id = i; //&nodes[i] - &nodes[0];
-    node_t* current = locs[i];
-#endif
-    int64_t thread_size = size / num_lists;
+  for( uint64_t i = 0; i < size; ++i) {
+    md.type = MemoryDescriptor::Read;
+    md.address = reinterpret_cast<uint64_t>( array->getGlobalAddressForIndex( i ) );
+    array->blockingOp( &md );
+    uint64_t id = i;
+    //typename ListNodeGlobalArray::Cell * current = locs[i];
+    int64_t thread_size = size / num_lists_per_thread;
     int64_t base = id / thread_size;
     uint64_t nextid = id + 1;
     uint64_t wrapped_nextid = (nextid % thread_size) + (base * thread_size) % size;
-    //printf("%d: %d %d %d\n", id, base, nextid, wrapped_nextid);
-    current->next = locs[ wrapped_nextid ];
-    if (current->next) current->index = current->next->id;
+
+    md.type = MemoryDescriptor::Write;
+    md.address = reinterpret_cast<uint64_t>( locs[ i ] ) + offsetof( ListNode, next );
+    md.data = reinterpret_cast<uint64_t>( locs[ wrapped_nextid ] );
+    array->blockingOp( &md );
   }
 
-  // grab initial pointers for each list
-  for(i = 0; i < (uint64_t) num_threads * num_lists; ++i) {
-    bases[i] = locs[i * size / (num_threads * num_lists)];
+   // grab initial pointers for each list
+  for( uint64_t i = 0; i < static_cast<uint64_t>(num_threads * num_lists_per_thread); ++i) {
+    md.type = MemoryDescriptor::Write;
+    md.data = reinterpret_cast<uint64_t>( locs[i * size / (num_threads * num_lists_per_thread)] );
+    md.address = reinterpret_cast<uint64_t>( bases->getGlobalAddressForIndex( i ) );
+    bases->blockingOp( &md );
   }
 
-  //print(nodes, size);
+  if (DEBUG) {
+    for( uint64_t i = 0; i < size; ++i) {
+      std::cout << i << ": " << locs[i] << std::endl;
+    }
+  }
+
+//   //print(nodes, size);
   
-  free(locs);
-  return bases;
+//   free(locs);
+//   return bases;
 }
 
 #endif
