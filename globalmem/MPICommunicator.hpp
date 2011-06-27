@@ -42,13 +42,13 @@ public:
   MPICommunicator( int my_rank, int total_num_nodes,
                    MPI_Comm request_communicator, MPI_Comm response_communicator ) 
     : my_rank( my_rank )
+    , total_num_nodes( total_num_nodes )
     , request_communicator(request_communicator)
     , response_communicator(response_communicator)
-    , total_num_nodes( total_num_nodes )
-    , max_outstanding_requests_log( 5 )
-    , max_outstanding_requests( 1 << max_outstanding_requests_log )
     , request_vector( max_outstanding_requests )
     , request_pointers( )
+    , max_outstanding_requests_log( 5 )
+    , max_outstanding_requests( 1 << max_outstanding_requests_log )
   {
     // fill bag of requests
     for (int i = 0; i < max_outstanding_requests; ++i) {
@@ -64,11 +64,11 @@ public:
   void blocking( MemoryDescriptor* request_descriptor, MemoryDescriptor* response_descriptor ) {
     assert( ! request_pointers.empty() );
 
-    if (DEBUG) std::cout << "grabbing next request pair" << std::endl;
-    if (DEBUG) std::cout << "value is " << request_pointers.top() << std::endl;
+    if (DEBUG) std::cout << "Communicator grabbing next request pair" << std::endl;
+    if (DEBUG) std::cout << "Communicator value is " << request_pointers.top() << std::endl;
     Request* request = request_pointers.top();
 
-    if (DEBUG) std::cout << "popping off stack" << std::endl;
+    if (DEBUG) std::cout << "Communicator popping off stack" << std::endl;
     request_pointers.pop();
 
     MPI_Request& request_request = request->second.first;
@@ -109,20 +109,20 @@ public:
   InFlightRequest issue( MemoryDescriptor* request_descriptor, MemoryDescriptor* response_descriptor ) {
     assert( ! request_pointers.empty() );
 
-    if (DEBUG) std::cout << "grabbing next request pair" << std::endl;
-    if (DEBUG) std::cout << "value is " << request_pointers.top() << std::endl;
+    if (DEBUG) std::cout << "Communicator grabbing next request pair" << std::endl;
+    if (DEBUG) std::cout << "Communicator value is " << request_pointers.top() << std::endl;
     Request* request = request_pointers.top();
 
-    if (DEBUG) std::cout << "popping off stack" << std::endl;
+    if (DEBUG) std::cout << "Communicator popping off stack with " << request_pointers.size() << " pointers available " << std::endl;
     request_pointers.pop();
 
-    MPI_Request& request_request = request->second.first;
-    MPI_Request& response_request = request->second.second;
+    MPI_Request& request_request = request->second.first = MPI_REQUEST_NULL;
+    MPI_Request& response_request = request->second.second = MPI_REQUEST_NULL;
 
     int request_tag = request->first;
     int response_tag = request->first;
 
-    if (DEBUG) std::cout << "sending request" << std::endl;
+    if (DEBUG) std::cout << "Communicator sending request" << std::endl;
     int request_result = MPI_Isend( request_descriptor,
                                     sizeof(MemoryDescriptor),
                                     MPI_BYTE,
@@ -132,15 +132,15 @@ public:
                                     &request_request );
     if (MPI_GLOBAL_ARRAY_ASSERTS) assert( request_result == MPI_SUCCESS );
 
-    if (DEBUG) std::cout << "posting response" << std::endl;
-    int result = MPI_Irecv( response_descriptor, 
-                            sizeof( MemoryDescriptor ),
-                            MPI_BYTE,                   // TODO: MPI type instead of byte buffer?
-                            MPI_ANY_SOURCE,
-                            response_tag,
-                            response_communicator,
-                            &response_request );
-    if (MPI_GLOBAL_ARRAY_ASSERTS) assert( request_result == MPI_SUCCESS );
+    if (DEBUG) std::cout << "Communicator posting response" << std::endl;
+    int response_result = MPI_Irecv( response_descriptor, 
+				     sizeof( MemoryDescriptor ),
+				     MPI_BYTE,                   // TODO: MPI type instead of byte buffer?
+				     MPI_ANY_SOURCE,
+				     response_tag,
+				     response_communicator,
+				     &response_request );
+    if (MPI_GLOBAL_ARRAY_ASSERTS) assert( response_result == MPI_SUCCESS );
 
     return request;
   }
@@ -163,6 +163,7 @@ public:
   }
 
   void complete( InFlightRequest request ) {
+    if (! test(request) ) {
     MPI_Request& request_request = request->second.first;
     MPI_Request& response_request = request->second.second;
 
@@ -173,7 +174,7 @@ public:
     MPI_Status response_status;
     int response_result = MPI_Wait( &response_request, &response_status );
     if (MPI_GLOBAL_ARRAY_ASSERTS) assert( response_result == MPI_SUCCESS );
-
+    }
     request_pointers.push( request );
   }
 

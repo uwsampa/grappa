@@ -7,10 +7,10 @@
 
 #define DEBUG 1
 
-#include <MPIWorker.hpp>
-#include <MPICommunicator.hpp>
-#include <GlobalArray.hpp>
-#include <GlobalListAllocate.hpp>
+#include "MPIWorker.hpp"
+#include "MPICommunicator.hpp"
+#include "GlobalArray.hpp"
+#include "GlobalListAllocate.hpp"
 
 
 int main( int argc, char* argv[] ) {

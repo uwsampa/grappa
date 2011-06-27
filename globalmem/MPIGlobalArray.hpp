@@ -10,7 +10,7 @@
 #include <stack>
 #include <utility>
 
-#include <MemoryDescriptor.hpp>
+#include "MemoryDescriptor.hpp"
 
 #ifndef DEBUG
 #define DEBUG 0
@@ -58,14 +58,14 @@ public:
     if (MPI_GLOBAL_ARRAY_ASSERTS) assert( request_result == 0 );
 
     MPI_Request response_request;
-    int result = MPI_Irecv( response_descriptor, 
-                            sizeof( MemoryDescriptor ),
-                            MPI_BYTE,                   // TODO: MPI type instead of byte buffer?
-                            MPI_ANY_SOURCE,
-                            0,
-                            response_communicator,
-                            &response_request );
-    if (MPI_GLOBAL_ARRAY_ASSERTS) assert( request_result == 0 );
+    int response_result = MPI_Irecv( response_descriptor, 
+				     sizeof( MemoryDescriptor ),
+				     MPI_BYTE,                   // TODO: MPI type instead of byte buffer?
+				     MPI_ANY_SOURCE,
+				     0,
+				     response_communicator,
+				     &response_request );
+    if (MPI_GLOBAL_ARRAY_ASSERTS) assert( response_result == 0 );
 
     MPI_Status request_status;
     MPI_Wait( &request_request, &request_status );
@@ -96,14 +96,14 @@ public:
     if (MPI_GLOBAL_ARRAY_ASSERTS) assert( request_result == 0 );
 
     std::cout << "posting response" << std::endl;
-    int result = MPI_Irecv( response_descriptor, 
-                            sizeof( MemoryDescriptor ),
-                            MPI_BYTE,                   // TODO: MPI type instead of byte buffer?
-                            MPI_ANY_SOURCE,
-                            0,
-                            response_communicator,
-                            &response_request );
-    if (MPI_GLOBAL_ARRAY_ASSERTS) assert( request_result == 0 );
+    int response_result = MPI_Irecv( response_descriptor, 
+				     sizeof( MemoryDescriptor ),
+				     MPI_BYTE,                   // TODO: MPI type instead of byte buffer?
+				     MPI_ANY_SOURCE,
+				     0,
+				     response_communicator,
+				     &response_request );
+    if (MPI_GLOBAL_ARRAY_ASSERTS) assert( response_result == 0 );
 
     return request;
   }
@@ -149,9 +149,9 @@ public:
                    MPI_Comm response_communicator )
     : total_size(total_size)
     , my_rank(my_rank)
+    , total_num_nodes(total_num_nodes)
     , request_communicator(request_communicator)
     , response_communicator(response_communicator)
-    , total_num_nodes(total_num_nodes)
     , local_size( total_size / total_num_nodes )
     , local_offset( my_rank * local_size )
     , array( new Data [ local_size ] )
@@ -269,6 +269,7 @@ public:
     } else {
       complete_communication( requests );
     }
+    return descriptor->data;
   }
 
   /*

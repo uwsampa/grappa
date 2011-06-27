@@ -9,7 +9,7 @@
 #include <stack>
 #include <utility>
 
-#include <MemoryDescriptor.hpp>
+#include "MemoryDescriptor.hpp"
 
 #ifndef DEBUG
 #define DEBUG 0
@@ -71,8 +71,25 @@ public:
     return id >> 48; // zero-extend
   }
 
-  uint64_t getLocalOffsetFromGlobalAddress( Cell* ga ) {
+  uint64_t getGlobalOffsetFromGlobalAddress( Cell* ga ) {
     my_intptr_t global_offset = (reinterpret_cast< my_uintptr_t >( ga ) << 16) >> 16;
+    return global_offset;
+  }
+
+  uint64_t getLocalOffsetFromGlobalAddress( Cell* ga ) {
+    uint64_t global_offset = getGlobalOffsetFromGlobalAddress(ga);
+    uint64_t local_offset = global_offset % local_size;
+    return local_offset;
+  }
+
+  uint64_t getNodeFromGlobalOffset( uint64_t global_offset ) {
+    uint64_t node_id = global_offset / local_size;
+    return node_id;
+  }
+
+  uint64_t getNodeFromGlobalAddress( Cell* ga ) {
+    uint64_t global_offset = getGlobalOffsetFromGlobalAddress(ga);
+    return getNodeFromGlobalOffset(global_offset);
   }
 
   Index getIndexForAddress( const Cell * p ) { return -1; }
@@ -196,6 +213,7 @@ public:
     } else {
       communicator->complete( requests );
     }
+    return descriptor->data;
   }
 
   void blockingQuit() {

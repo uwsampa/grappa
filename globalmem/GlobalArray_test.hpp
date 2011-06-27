@@ -7,8 +7,8 @@
 
 #define DEBUG 0
 
-#include <MPIGlobalArray.hpp>
-#include <MPIWorker.hpp>
+#include "MPIGlobalArray.hpp"
+#include "MPIWorker.hpp"
 
 
 int main( int argc, char* argv[] ) {

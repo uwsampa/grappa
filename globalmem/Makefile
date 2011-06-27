@@ -1,7 +1,7 @@
 
 CXX=mpic++
 
-CXXFLAGS+= -O2 -g -fopenmp -std=gnu++0x -Wno-write-strings --save-temps
+CXXFLAGS+= -O0 -g -fopenmp -std=gnu++0x -Wno-write-strings --save-temps
 #CXXFLAGS+= -O2 -g
 
 #LIBS+= -lrt
@@ -16,11 +16,11 @@ TARGETS=\
 	GlobalArray_test.exe \
 	MPIGlobalArray_test.exe \
 	MPIWorker_test.exe \
-	ga.exe
+#	ga.exe
 
 
-CXXFLAGS+= -I/opt/ga/include -L/opt/ga/lib
-LIBS= -lga++ -lga 
+#CXXFLAGS+= -I/opt/ga/include -L/opt/ga/lib
+#LIBS= -lga++ -lga 
 
 run: $(TARGETS)
 	mpiexec -np 4 ./$<
