@@ -20,7 +20,7 @@ void run_thr_target(thread* me, void* args) {
     SplitPhase* sp = cargs->mem;
 
     // global request to "local memory"
-    uint64_t mylocal1 = 0xBEEF;
+    uint64_t mylocal1 = (0xBEEF<<4) | me->id;
  
     uint64_t* addr = &mylocal1;
     mem_tag_t tag = sp->issue(READ, addr, 0, me);
@@ -88,7 +88,7 @@ int main() {
     Delegate* del = new Delegate(fromDelQs, toDelQs, 1, gm);
     
     
-
+    int num_st = 2;
 
     #pragma omp parallel for num_threads(num_threads)
     for (int c=0; c<2; c++) {
@@ -97,12 +97,17 @@ int main() {
             
             thread* master = thread_init();
             scheduler* s = create_scheduler(master);
-            run_thr_args r_arg;
-            r_arg.mem = sp;
-            r_arg.result = 0;
-            r_arg.result2 = 0;
 
-            thread* th = thread_spawn(master, s, run_thr_target, &r_arg);
+            run_thr_args r_args[num_st];
+            thread* threads[num_st];
+
+            for (int t=0; t<num_st; t++) {
+                r_args[t].mem = sp;
+                r_args[t].result = 0;
+                r_args[t].result2 = 0;
+
+                threads[t] = thread_spawn(master, s, run_thr_target, &r_args[t]);
+            }
 
             run_all(s);
 
