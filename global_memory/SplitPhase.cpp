@@ -21,6 +21,12 @@ mem_tag_t SplitPhase::issue(oper_enum operation, uint64_t* addr, uint64_t data, 
    desc->setAddress(addr);
    desc->setData(data); // TODO for writes is full start set or does full mean done, etc..?
 
+    // if local non synchro/quit then handle directly
+   if (operation==READ && gm->isLocal(desc)) {
+       desc->fillData(*addr);
+       return ticket;
+   }
+
 
    // TODO configure queues to larger values
    // XXX for now just send a mailbox address
