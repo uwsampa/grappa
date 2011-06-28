@@ -23,8 +23,5 @@ class Delegate {
 
 };
 
-   
-    
-
 
 #endif

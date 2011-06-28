@@ -41,6 +41,8 @@ bool GlobalMemory::getRemoteRequest(request_node_t* rh) {
 
 bool GlobalMemory::sendRequest(MemoryDescriptor* md) {
 	if (locreq->tryProduce((uint64_t)md)) {
+    
+    // comment: see flushSendReq()
         locreq->flush();// inefficient
         return true;
     } else {
@@ -62,9 +64,12 @@ nodeid_t GlobalMemory::getNodeForDescriptor(MemoryDescriptor* md) {
     
     /* lookup addr */
     if (rand()%2==0) { // TODO real lookup
-        return 1-nodeid; // assume single remote node {0,1}
-    } else {
         return nodeid;
+    } else {
+        return 1-nodeid; // assume single remote node {0,1}
     }
 }
-  
+
+void GlobalMemory::flushSendReq() {
+//      locreq->flush();
+}

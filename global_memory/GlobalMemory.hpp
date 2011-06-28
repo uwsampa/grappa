@@ -15,7 +15,7 @@ typedef struct request_node_t {
     nodeid_t  node_id;
 } request_node_t;
 
-/*
+/* old structures
 typedef uint16_t mid_t;
 
 
@@ -48,6 +48,7 @@ class GlobalMemory {
         CoreQueue<uint64_t>* remreq;
         CoreQueue<uint64_t>* locresp;
         CoreQueue<uint64_t>* remresp;
+        void flushSendReq();
 
 
         MemoryDescriptor* getRemoteResponse();

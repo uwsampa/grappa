@@ -3,7 +3,7 @@ QS_DIR=../queues
 CC=g++
 CFLAGS=-g -fopenmp
 CFLAGS+= -I../greenery -L../greenery -I$(QS_DIR) -L$(QS_DIR) 
-LIBS+= -lgreenery -lcorequeue #-lrt
+LIBS+= -lgreenery -lcorequeue -lrt
 
 #TODO abstract this
 SOURCES=\

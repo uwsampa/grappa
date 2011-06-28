@@ -42,6 +42,13 @@ void debug_print(void* obj, const char* formatstr, ...) {
 void debug_noop(void* o, const char* c, ...) { return; }
 /**********************************************/
 
+#define rdtscll(val) do { \
+  unsigned int __a,__d; \
+  asm volatile("rdtsc" : "=a" (__a), "=d" (__d)); \
+  (val) = ((unsigned long)__a) | (((unsigned long)__d)<<32); \
+  } while(0)
+
+
 
 Delegate::Delegate(CoreQueue<uint64_t>** qs_out, CoreQueue<uint64_t>** qs_in, uint32_t numLoc, GlobalMemory* gm) 
     : inQs(qs_in)
@@ -51,7 +58,7 @@ Delegate::Delegate(CoreQueue<uint64_t>** qs_out, CoreQueue<uint64_t>** qs_in, ui
 	, activeCount(numLoc) {}
     
 
-
+// arguments for coroutine runnables
 typedef struct hrr_thread_args {
     GlobalMemory* gm;
     Delegate* del;
@@ -72,6 +79,8 @@ typedef struct hlr_thread_args {
 } hlr_thread_args;
 
 
+// runnable to handle the responses for local requests to remote memory
+// TODO: may not be needed if return path excludes delegate
 void handle_responses(thread* me, void* args) {
     hsr_thread_args* cargs = (hsr_thread_args*) args;
 
@@ -98,13 +107,14 @@ void handle_responses(thread* me, void* args) {
             oq->flush(); // TODO for now always flush, optimize later*/
 
             //XXX this print stement can be after descriptor is recycled 
-//            DEBUGP(del, "produced descriptor(%lx)(data=%lx,full=%d,addr=%lx) to core %u\n", (uint64_t)r_resp, r_resp->getData(), r_resp->full, r_resp->getAddress(), r_resp->getCoreId());
+            //DEBUGP(del, "produced descriptor(%lx)(data=%lx,full=%d,addr=%lx) to core %u\n", (uint64_t)r_resp, r_resp->getData(), r_resp->full, r_resp->getAddress(), r_resp->getCoreId());
         }
         thread_yield(me);
     }
 }
 
 
+// runnable to process remote nodes' requests to our local memory
 void handle_remote_requests(thread* me, void* args) {
     hrr_thread_args* cargs = (hrr_thread_args*) args;
     GlobalMemory* gm = cargs->gm;
@@ -112,10 +122,13 @@ void handle_remote_requests(thread* me, void* args) {
     Delegate* del = cargs->del;
 
     while (del->doContinue()) {
-        //printf("Delegate: iteration of handle_remote_requests %d\n",del->activeCount);
+        //DEBUGP(del, "iteration of handle_remote_requests %d\n",del->activeCount);
+        
+        // check if there is a remote request to process
         request_node_t r_msg;
-        bool r_msg_valid = gm->getRemoteRequest(&r_msg); //TODO grab as much as possible (testsome?)
+        bool r_msg_valid = gm->getRemoteRequest(&r_msg); //TODO grab as much as possible (e.g. mpi testsome?)
         if (r_msg_valid) {
+            // unpack message
             nodeid_t r_fromid = r_msg.node_id;
             MemoryDescriptor* r_req = r_msg.request;
             uint64_t* addr = r_req->getAddress();
@@ -124,13 +137,14 @@ void handle_remote_requests(thread* me, void* args) {
 
             //DEBUGP(del, "got RemoteRequest from %u; addr=%lx,op=%d,data=%lu,descriptor(%lx)\n", r_fromid, (uint64_t)addr,operation,data,(uint64_t)r_req);
 
+            // perform the requested operation
             switch(operation) {
                 case READ: {
-                   uint64_t resultdata = *addr;  // do local memory access
-                   MemoryDescriptor* resp = r_req;  //TODO: only works for shmem
+                   uint64_t resultdata = *addr;     // do the local memory access
+                   MemoryDescriptor* resp = r_req;  //TODO: reference copy as done here only works for shmem
                    resp->fillData(resultdata);
 
-//unneeded while fill result in shmem domain already
+                  /* unneeded while fill result in shmem domain already*/
                   // while (!gm->sendResponse(r_fromid, resp)) {
                   //     thread_yield(me);
                   // }
@@ -149,7 +163,7 @@ void handle_remote_requests(thread* me, void* args) {
 }
 
 
-
+// runnable for processing global memory requests from local cores
 void handle_local_requests(thread* me, void* args) {
     hlr_thread_args* cargs = (hlr_thread_args*) args;
 
@@ -159,10 +173,21 @@ void handle_local_requests(thread* me, void* args) {
     Delegate* del = cargs->del;
     int queue_num = cargs->queue_num;
 
+   /* ime flush
+    const unsigned long num_ticks_flush = 5400;
+    unsigned long nextFlush;
+    rdtscll(nextFlush);
+    nextFlush += num_ticks_flush;
+*/
+
     while (del->doContinue()) {
         DEBUGP(del, "iteration of handle_local_requests %d\n", del->activeCount);
+
+        // check for a request
         uint64_t data;
+        bool none_deq = true;
         while (iq->tryConsume(&data)) {
+            none_deq=false;
             MemoryDescriptor* md = (MemoryDescriptor*) data;
             md->setCoreId(queue_num); // keep track of where it came from
 
@@ -173,20 +198,22 @@ void handle_local_requests(thread* me, void* args) {
                 case READ: {
                     if (isLocal) {
                         uint64_t* addr = gm->getLocalAddress(md);
-            //            DEBUGP(del, "got read to local; addr=%lx\n", (uint64_t)addr);
+                        // DEBUGP(del, "got read to local; addr=%lx\n", (uint64_t)addr);
                         // TODO pref/yield?
                         // and perhaps want a blocking produce for coros
                         uint64_t result = *addr;
                         md->fillData(result);
 
-                        /*while(!oq->tryProduce((uint64_t)md)) {
+                        /* for now no return queue used    
+                        while(!oq->tryProduce((uint64_t)md)) {
                             thread_yield(me);
                         }
                         oq->flush(); // TODO for now always flush, optimize later*/
+                       
                         DEBUGP(del, "produced descriptor(%lx) to core %u; data=%lx\n", (uint64_t)md, md->getCoreId(), md->getData());
                     } else {
                     	DEBUGP(del, "got read to remote; addr=%lx\n", (uint64_t)md->getAddress());
-                        /* if to save bandwidth want request_t to be 
+                        /* if to save bandwidth want request num bytes to be 
                         only just big enough to support the max number 
                         of outstanding requests */
                         
@@ -206,9 +233,21 @@ void handle_local_requests(thread* me, void* args) {
                     assert(false);// for now only reads
             }
         }
+     /* timed flush   
+     if (none_deq) {
+            unsigned long current;
+            rdtscll(current);
+            if (current > nextFlush) {
+                gm->flushSendReq();
+                nextFlush = current + num_ticks_flush;
+            }
+        }
+         */   
+
         thread_yield(me); 
 //TODO with this scheme can still starve others
 // alternative is to iterate across queues and only work on a request if (!local || can produce). Just requires a single buffer space for each queue to hold the peeked value.
+// Perhaps currently aggregatable values can be processed first
     }
 }
 
@@ -218,7 +257,7 @@ void Delegate::decrementActive() {
 }
 
 bool Delegate::doContinue() {
-	return activeCount>0;
+	return activeCount > 0;
 }
 
 void Delegate::run() {
