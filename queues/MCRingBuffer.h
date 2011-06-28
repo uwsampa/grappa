@@ -57,48 +57,12 @@ void MCRingBuffer_init(MCRingBuffer * mcrb);
 //void MCRingBuffer_flush(MCRingBuffer * mcrb);
 //int MCRingBuffer_consume(MCRingBuffer * mcrb, uint64_t* element);
 
-inline int MCRingBuffer_next(int x) {
-  return (x + 1) & (MCRINGBUFFER_MAX - 1);
-}
+int MCRingBuffer_next(int x);
 
-inline int MCRingBuffer_produce(MCRingBuffer * mcrb, uint64_t element) {
-  int afterNextWrite = MCRingBuffer_next(mcrb->nextWrite);
-  if (afterNextWrite == mcrb->localRead) {
-    if (afterNextWrite == mcrb->read) {
-      return 0;
-    }
-    mcrb->localRead = mcrb->read;
-  }
-  mcrb->buffer[mcrb->nextWrite] = element;
-  mcrb->nextWrite = afterNextWrite;
-  mcrb->wBatch++;
-  if (mcrb->wBatch >= MCRINGBUFFER_BATCH_SIZE) {
-    mcrb->write = mcrb->nextWrite;
-    mcrb->wBatch = 0;
-  }
-  return 1;
-}
+int MCRingBuffer_produce(MCRingBuffer * mcrb, uint64_t element);
 
-inline void MCRingBuffer_flush(MCRingBuffer * mcrb) {
-  mcrb->write = mcrb->nextWrite;
-  mcrb->wBatch = 0;
-}
+void MCRingBuffer_flush(MCRingBuffer * mcrb);
 
-inline int MCRingBuffer_consume(MCRingBuffer * mcrb, uint64_t* element) {
-  if (mcrb->nextRead == mcrb->localWrite) {
-    if (mcrb->nextRead == mcrb->write) {
-      return 0;
-    }
-    mcrb->localWrite = mcrb->write;
-  }
-  *element = mcrb->buffer[mcrb->nextRead];
-  mcrb->nextRead = MCRingBuffer_next(mcrb->nextRead);
-  mcrb->rBatch++;
-  if (mcrb->rBatch >= MCRINGBUFFER_BATCH_SIZE) {
-    mcrb->read = mcrb->nextRead;
-    mcrb->rBatch = 0;
-  }
-  return 1;
-}
+int MCRingBuffer_consume(MCRingBuffer * mcrb, uint64_t* element);
 
 #endif
