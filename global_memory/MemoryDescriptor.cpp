@@ -46,7 +46,10 @@ void MemoryDescriptor::fillData (uint64_t data) {
     /*atomic {*/
         _data = data;
         asm volatile("" ::: "memory");
-        full = true;
+         // mem barrier
+        __sync_synchronize ();
+       full = true;
+        
     /*}*/
 }
 

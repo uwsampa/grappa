@@ -2,7 +2,7 @@
 #define __GLOBALMEMORY_HPP__
 
 // for STUB
-#include <queue>
+#include "CoreQueue.hpp"
 
 #include "GmTypes.hpp"
 #include "MemoryDescriptor.hpp"
@@ -44,23 +44,27 @@ class GlobalMemory {
 
     public:
         // for STUB
-        std::queue<MemoryDescriptor*> locreq;
-        std::queue<MemoryDescriptor*> remreq;
+        CoreQueue<uint64_t>* locreq;
+        CoreQueue<uint64_t>* remreq;
+        CoreQueue<uint64_t>* locresp;
+        CoreQueue<uint64_t>* remresp;
 
 
         MemoryDescriptor* getRemoteResponse();
-        void sendResponse(nodeid_t to, MemoryDescriptor* resp);
+        bool sendResponse(nodeid_t to, MemoryDescriptor* resp);
         bool getRemoteRequest(request_node_t* rh);
-        void sendRequest(MemoryDescriptor* md);
+        bool sendRequest(MemoryDescriptor* md);
 
 
         uint64_t* getLocalAddress(MemoryDescriptor* md);
         bool isLocal(MemoryDescriptor* md);
 
-        GlobalMemory(nodeid_t nid) 
+        GlobalMemory(nodeid_t nid, CoreQueue<uint64_t>* myreq, CoreQueue<uint64_t>* myresp, CoreQueue<uint64_t>* theirreq, CoreQueue<uint64_t>* theirresp)
             : nodeid(nid)
-            , locreq()
-            , remreq() {}
+            , locreq(myreq)
+        	, remreq(theirreq)
+            , locresp(myresp)
+        	, remresp(theirresp) {}
 };
 
 
