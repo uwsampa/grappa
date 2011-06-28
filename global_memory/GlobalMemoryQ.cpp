@@ -55,15 +55,14 @@ uint64_t* GlobalMemory::getLocalAddress(MemoryDescriptor* md) {
 }
 
 bool GlobalMemory::isLocal(MemoryDescriptor* md) {
-    return nodeid==getNodeForDescriptor(md);
+    return (range_low <= md->getAddress()) && (md->getAddress() < range_high);
 }
  
  
 nodeid_t GlobalMemory::getNodeForDescriptor(MemoryDescriptor* md) {
-    uint64_t addr = (uint64_t)md->getAddress();
     
     /* lookup addr */
-    if (rand()%2==0) { // TODO real lookup
+    if (isLocal(md)) { 
         return nodeid;
     } else {
         return 1-nodeid; // assume single remote node {0,1}

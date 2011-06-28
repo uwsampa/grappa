@@ -7,6 +7,7 @@
 #include <assert.h>
 #include <time.h>
 #include <unistd.h>
+#include <numa.h>
 
 #define DEBUG 0
 
@@ -185,6 +186,81 @@ node** allocate_heap(uint64_t size, int num_threads, int num_lists) {
 }
 
 
+
+node* nodes (int index, uint64_t size, node* node0_nodes, node* node1_nodes) {
+    if (index < size/2) {
+        return node0_nodes;
+    } else {
+        return node1_nodes - size/2;
+    }
+}
+
+// initialize linked lists
+node** allocate_2numa_heap(uint64_t size, int num_threads, int num_lists, 
+                            node** node0_low, node** node0_high,
+                            node** node1_low, node** node1_high) {
+    int64_t i = 0;
+
+    printf("Initializing footprint of size %lu * %lu = %lu bytes....\n", size, sizeof(node), size * sizeof(node));
+
+    node** locs = (node**) malloc (sizeof(node*)*size); // node array
+
+    //node* nodes = (node*) malloc(sizeof(node) * size);  // temporary node pointers
+    node* node0_nodes = (node*) numa_alloc_onnode( sizeof(node) * size / 2, 0);
+    node* node1_nodes = (node*) numa_alloc_onnode( sizeof(node) * size / 2, 1);
+
+    *node0_low = node0_nodes;
+    *node1_low = node1_nodes;
+    *node0_high = node0_nodes + size / 2;
+    *node1_high = node1_nodes + size / 2;
+
+    node** bases = (node**) malloc(sizeof(node*) * num_threads * num_lists); // initial node array
+
+    // initialize ids
+    #pragma omp parallel for num_threads(num_threads)
+    for(i = 0; i < size; ++i) {
+      nodes(i,size,node0_nodes,node1_nodes)[i].next = (node*)i;
+    }
+
+    // randomly permute nodes (fisher-yates (or knuth) shuffle)
+    for(i = size-1; i > 0; --i) {
+      uint64_t j = random() % i;
+      node temp = nodes(i,size,node0_nodes,node1_nodes)[i];
+      nodes(i,size,node0_nodes,node1_nodes)[i] = nodes(j,size,node0_nodes,node1_nodes)[j];
+      nodes(j,size,node0_nodes,node1_nodes)[j] = temp;
+    }
+
+    // extract locs
+    #pragma omp parallel for num_threads(num_threads)
+    for(i = 0; i < size; ++i) {
+      locs[ (uint64_t) nodes(i,size,node0_nodes,node1_nodes)[i].next ] = &(nodes(i,size,node0_nodes,node1_nodes)[i]);
+    }
+
+    // initialize pointers
+    // chop id-space into num_lists sections and build a circular list for each
+    //int64_t base = 0;
+    #pragma omp parallel for num_threads(num_threads)
+    for(i = 0; i < size; ++i) {
+      uint64_t id = i;
+      node* current = locs[i];
+      int64_t thread_size = size / num_lists;
+      int64_t base = id / thread_size;
+      uint64_t nextid = id + 1;
+      uint64_t wrapped_nextid = (nextid % thread_size) + (base * thread_size) % size;
+      //printf("%d: %d %d %d\n", id, base, nextid, wrapped_nextid);
+      current->next = locs[ wrapped_nextid ];
+    }
+
+   // grab initial pointers for each list
+   for(i = 0; i < num_threads * num_lists; ++i) {
+       bases[i] = locs[i * size / (num_threads * num_lists)];
+   }
+   
+   //print(nodes, size);
+   
+   free(locs);
+   return bases;
+} 
 
 
 int alloc_test() {

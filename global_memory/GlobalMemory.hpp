@@ -42,6 +42,9 @@ class GlobalMemory {
         nodeid_t nodeid;
         nodeid_t getNodeForDescriptor(MemoryDescriptor*);
 
+        void* range_low;
+        void* range_high;
+
     public:
         // for STUB
         CoreQueue<uint64_t>* locreq;
@@ -60,8 +63,10 @@ class GlobalMemory {
         uint64_t* getLocalAddress(MemoryDescriptor* md);
         bool isLocal(MemoryDescriptor* md);
 
-        GlobalMemory(nodeid_t nid, CoreQueue<uint64_t>* myreq, CoreQueue<uint64_t>* myresp, CoreQueue<uint64_t>* theirreq, CoreQueue<uint64_t>* theirresp)
+        GlobalMemory(nodeid_t nid, CoreQueue<uint64_t>* myreq, CoreQueue<uint64_t>* myresp, CoreQueue<uint64_t>* theirreq, CoreQueue<uint64_t>* theirresp, void* range_low, void* range_high)
             : nodeid(nid)
+            , range_low(range_low)
+            , range_high(range_high)
             , locreq(myreq)
         	, remreq(theirreq)
             , locresp(myresp)
