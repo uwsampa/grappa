@@ -43,10 +43,12 @@ uint64_t walk_split_phase (thread* me, SplitPhase* sp, node* bases[], uint64_t c
 			i0 = (node*) sp->complete(tag, me);
 //            printf("core%u-thread%u: completed addr=%lx at count=%lu\n", omp_get_thread_num(), me->id, (uint64_t) &(i0->next), count+1);
 		}
+
 	} else {// TODO don't support more lists per thread currently
 		assert(false);
 	}
 
+    sp->unregister(me);
 }
 
 

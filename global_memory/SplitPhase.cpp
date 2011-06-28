@@ -33,24 +33,32 @@ mem_tag_t SplitPhase::issue(oper_enum operation, uint64_t* addr, uint64_t data, 
 
    //printf("core%u-thread%u: issued descriptor(%lx) addr=%lx, full=%d\n", omp_get_thread_num(), me->id, (uint64_t) desc, (uint64_t)desc->getAddress(), desc->isFull());
 
-   // TODO for now flush always
-   // (how can optimize without causing deadlock? One way might be scheduler can do flush if all
-   // coroutines are waiting)
-   to->flush();
+   // using num_waiting_unflushed to optimize flushes
+   if (operation==QUIT) to->flush();
 
    return ticket;
 }
 
+void SplitPhase::_flushIfNeed() {
+    if (num_waiting_unflushed>=num_clients) {
+        to->flush();
+        num_waiting_unflushed = 0;
+    }
+}
+
+
 uint64_t SplitPhase::complete(mem_tag_t ticket, thread* me) {
     threadid_t tid = (threadid_t) ticket;
     MemoryDescriptor* mydesc = (*descriptors)[tid];
-int debugi=0;
+
+    num_waiting_unflushed++;
+    _flushIfNeed();
+    
     while(true) {
-        //printf("%d iters of waiting\n", debugi++);
         // dequeue as much as possible
-        uint64_t dat;
+      /*  uint64_t dat;
         MemoryDescriptor* m;
-      /*  while (from->tryConsume(&dat)) {
+        while (from->tryConsume(&dat)) {
             m = (MemoryDescriptor*) dat;
             //sleep(1);
             if (!m->isFull()) { printf("assertFAIL: descriptor(%lx)(data=%lu) gets isFull()=%d\n", (uint64_t)m, m->getData(), m->isFull()); exit(1); }
@@ -83,4 +91,9 @@ MemoryDescriptor* SplitPhase::getDescriptor(threadid_t thread_id) {
 
 void SplitPhase::releaseDescriptor( MemoryDescriptor* descriptor) {
     // noop
+}
+
+void SplitPhase::unregister(thread* me) {
+    num_clients--;
+    _flushIfNeed();
 }
