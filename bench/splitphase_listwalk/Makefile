@@ -24,5 +24,8 @@ linked_list.exe: linked_list.c $(HEADERS) $(OBJECTS) Makefile
 all:
 	./allmake.sh
 
+run:
+	./linked_list.exe -b 14 -t 8 -c 6 -g
+
 clean:
 	rm -f linked_list.exe ./*.o
