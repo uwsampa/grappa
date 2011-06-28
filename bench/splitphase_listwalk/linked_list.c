@@ -213,8 +213,8 @@ int main(int argc, char* argv[]) {
    CoreQueue<uint64_t>* req1q = CoreQueue<uint64_t>::createQueue();
    CoreQueue<uint64_t>* resp1q = CoreQueue<uint64_t>::createQueue();
 
-  GlobalMemory glob_mem0(0, req0q, resp0q, req1q, resp1q);
-  GlobalMemory glob_mem1(1, req1q, resp1q, req0q, resp0q);
+  GlobalMemory glob_mem0(0, req0q, resp0q, req1q, resp1q, node0_low, node0_high);
+  GlobalMemory glob_mem1(1, req1q, resp1q, req0q, resp0q, node1_low, node1_high);
 
   CoreQueue<uint64_t>* sock0_qs_fromDel[thr_per_sock];
   CoreQueue<uint64_t>* sock0_qs_toDel[thr_per_sock];
