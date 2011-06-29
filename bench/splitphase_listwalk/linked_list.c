@@ -176,10 +176,12 @@ int main(int argc, char* argv[]) {
 
 
   // initialize data structure
-  // TODO two allocations pinned to different sockets; but list nodes from both
-  //      mixed together
-  node** bases = allocate_page( size, total_num_threads, num_lists_per_thread );
-
+  node * node0_low;
+  node * node0_high;
+  node * node1_low;
+  node * node1_high;
+  node** bases = allocate_2numa_heap( size, total_num_threads, num_lists_per_thread,
+                                    &node0_low, &node0_high, &node1_low, &node1_high);
 
   // experiment runner init and enable
   //ExperimentRunner er;
@@ -224,12 +226,12 @@ int main(int argc, char* argv[]) {
 	  if (th < thr_per_sock) {
 		  sock0_qs_fromDel[th] = CoreQueue<uint64_t>::createQueue();
 		  sock0_qs_toDel[th] =  CoreQueue<uint64_t>::createQueue();
-		  sp[th] = new SplitPhase(sock0_qs_toDel[th], sock0_qs_fromDel[th]);
+		  sp[th] = new SplitPhase(sock0_qs_toDel[th], sock0_qs_fromDel[th], &glob_mem0);
 	  } else {
 		  int ind = th - thr_per_sock;
 		  sock1_qs_fromDel[ind] = CoreQueue<uint64_t>::createQueue();
 		  sock1_qs_toDel[ind] = CoreQueue<uint64_t>::createQueue();
-		  sp[th] = new SplitPhase(sock1_qs_toDel[ind], sock1_qs_fromDel[ind]);
+		  sp[th] = new SplitPhase(sock1_qs_toDel[ind], sock1_qs_fromDel[ind], &glob_mem1);
 	  }
   }
 

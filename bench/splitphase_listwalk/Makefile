@@ -1,7 +1,7 @@
 CC=g++
 CFLAGS= -g -fopenmp
 CFLAGS+= -I../../greenery -L../../greenery -I../../queues -L../../queues -I../../global_memory -L../../global_memory
-LIBS= -lrt -lgreenery -lcorequeue -lsplitphase -lbprintf
+LIBS= -lrt -lgreenery -lcorequeue -lsplitphase -lbprintf -lnuma
 
 HEADERS=\
 	linked_list-node.h \
