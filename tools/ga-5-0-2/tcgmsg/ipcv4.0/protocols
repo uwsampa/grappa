@@ -1,0 +1,75 @@
+
+  sender writes to own buffer
+
+  reader reads from senders buffer
+
+
+  Current nospin
+  --------------
+
+     sender                            receiver
+
+     semwait(read)                     semwait(pending)
+     fill header                       await(from->node == me)
+     fill buffer                       semwait(from->written)
+     sempost(written)                  read header
+     sempost(to->pending)              read buffer
+                                       post(from->read)
+     
+     while (additional)                while (additional)
+       semwait(read)                     semwait(from->written)
+       fill buffer                       read buffer
+       sempost(written)                  sempost(from->read)
+
+
+   Current spin
+   ------------
+
+
+     sender                            receiver
+
+     await(buffer_full == FALSE)
+     fill header                       await(from->node == me)
+     fill buffer                       await(from->buffer_full == TRUE)
+     from->buffer_full = FALSE         read header
+                                       read buffer
+                                       from->buffer_full = FALSE
+     
+     while (additional)                while (additional)
+       await(buffer_full == FALSE)       await(from->buffer_full == TRUE)
+       fill buffer                       read buffer
+       from->buffer_full = FALSE         from->buffer_full = FALSE
+
+
+
+   New protocol for KSR
+   --------------------
+
+     writable = address of the 128 byte header
+     readable = address of the buffer
+
+     writable initialized to unlocked
+     readable initialized to locked
+
+     sender                            receiver
+
+     lock(writable)                    lock(from->readable)
+     fill header                       await(from->node == me)
+     fill buffer                       read header           
+     unlock(readable)                  read buffer           
+				       unlock(from->writable)
+
+     while (additional)                while (additional)
+       lock(writable)                    lock(readable)
+       fill buffer                       read(buffer)
+       unlock(readable)                  unlock(writable)
+
+
+
+     
+
+  
+  
+
+
+     

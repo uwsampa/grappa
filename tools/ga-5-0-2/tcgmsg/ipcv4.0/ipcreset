@@ -1,0 +1,6 @@
+
+
+
+# $Header: /tmp/hpctools/ga/tcgmsg/ipcv4.0/ipcreset,v 1.1.1.1 1994-03-29 06:44:47 d3g681 Exp $
+ipcrm `ipcs | awk '{if (($1 == "m") || ($1 == "s")) print sprintf("-%s %s",$1,$2) }'`
+ipcs

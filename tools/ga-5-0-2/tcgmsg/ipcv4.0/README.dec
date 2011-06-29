@@ -1,0 +1,17 @@
+There are two FORTRAN compilers for the DecStation.  The default is to
+compile to the newer one (from DEC).  If you have the MIPS compiler
+(which would show up as missing externals f77argc and f77argv) then
+
+
+       a) in the tcgmsg directory do
+
+          make realclean
+          make machdep MACHINE=ULTRIX
+
+       b) edit the ipcv4.0/Makefile to remove the -DDECFORT
+          flag from the defines
+
+       c) in the tcgmsg level directory 
+
+          make everything
+

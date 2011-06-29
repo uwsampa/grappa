@@ -1,0 +1,23 @@
+#!/bin/csh
+
+set i = 0
+
+while ($i < 1000)
+  echo starting run $i
+  parallel test << EOF
+1
+0
+2
+10000
+3
+4
+1
+10
+5
+10
+6
+0
+EOF
+  echo finished run $i
+  @ i ++
+end

@@ -1,0 +1,125 @@
+#!/bin/csh
+#
+# usage:
+#
+#       makep executable nproc machine1 [machine2 ...]
+#
+#       or
+#
+#       makep executable nproc name_of_file_containing_machine_list
+#
+# e.g. 
+#       makep /nfs/home/qmd 3 sun1 sun2 ibm dec next cray > qmd.p
+#       makep /nfs/home/qmd 3 machlist > qmd.p
+#
+# makep queries each of the machines in the list and assembles
+# a list of those alive, ordered by load.  A TCGMSG procgrp file
+# is then written to standard output for up to nproc processes.
+#
+# If at least nproc accessible machines are found makep returns status 0, 
+# otherwise non-zero.
+#
+# It is assumed that
+#   1) a temporary file in /tmp may be used
+#   2) the current user name name has rlogin rights to all machines
+#   3) that /tmp should be the work directory for all machines
+#   4) that the executable path is the same on all machines
+
+#
+# Adapted from a script by Michael B. Coolidge, coolidge@gauss.usafa.af.mil
+#
+
+#
+# deconvolute the argument list and make the list of machines
+#
+
+if ($#argv == 1 && "$1" == "-help") goto usage
+
+if ($#argv < 3) then
+  echo $#argv
+  echo Too few arguments
+  goto usage
+endif
+
+set executable = "$1"
+set nproc      = "$2"
+
+set tmp1 = /tmp/makep1.$$
+set tmp2 = /tmp/makep2.$$
+
+/bin/rm -f $tmp2 $tmp1
+touch $tmp2
+
+shift argv
+shift argv
+if ($#argv == 1 && -e "$1") then
+  set machines = (`cat "$1"`)
+else
+  set machines = ($argv[*])
+endif
+
+# figure out who is awake and get their load
+
+foreach node ($machines[*])
+IF IBM IBMNOEXT
+  /etc/ping -c 3 $node >& /dev/null
+ELSE
+  /usr/etc/ping $node >& /dev/null
+ENDIF
+  if ($status == 0) then
+    rsh $node uptime >& $tmp1
+    if ($status == 0) then
+      set info = (`cat $tmp1`)
+      /bin/rm -f $tmp1
+
+# average: from ucb version of uptime
+# processes: from IBM AIX version (also counts current process)
+
+      while ("$info[1]" != "average:" && "$info[1]" != "processes:")
+        shift info
+      end
+      set load = $info[2]
+
+      if ("$info[1]" == "processes:") @ load --
+      echo $load $node >> $tmp2
+    else
+      echo '#' cannot rsh to $node
+    endif
+    /bin/rm -f $tmp1
+  else
+    echo '#' $node is down
+  endif
+end
+
+# sort the list of machines by load and write the procgrp
+
+set machines = (`sed 's/,//g' $tmp2 | sort -n`)
+@ nmach = $#machines / 2
+/bin/rm -f $tmp2
+
+if ($?USER == 0) setenv USER `whoami`
+
+while ($nproc != 0 && $nmach != 0)
+  @ nproc --
+  @ nmach --
+  echo \# $machines[2] load = $machines[1]
+  echo $USER $machines[2] 1 $executable /tmp
+  if ($nmach != 0) then
+    shift machines
+    shift machines  
+  endif
+end
+
+exit $nproc
+
+usage:
+
+echo usage:
+echo
+echo '      makep executable nproc machine1 [machine2 ...]'
+echo
+echo '      or'
+echo
+echo '      makep executable nproc name_of_file_containing_machine_list'
+echo 
+exit 1
