@@ -32,10 +32,17 @@ LIBS+=  -lrt -lgreenery
 
 HEADERS=MCRingBuffer.h
 
-OBJECTS=MCRingBuffer.o
+OBJECTS=MCRingBuffer.o \
+	CoreQueue.o
 
 
 HOSTNAME=$(shell hostname -A | sed -e 's/ //g')
+
+libcorequeue.a: $(OBJECTS)
+	ar cq $@ $(OBJECTS)
+
+#CoreQueue.o: CoreQueue.cpp CoreQueue.hpp MCRingBuffer.h
+#	g++ $(CPPFLAGS) $(LIBS) $< -c -o $@ 
 
 run_MCRingBuffer: MCRingBuffer_test.exe MCRingBuffer.o 
 	./$<
@@ -91,8 +98,8 @@ objdump_inc: inc.exe
 %.o: %.c $(HEADERS) Makefile
 	$(CC) $(CFLAGS) $< -c -o $@ 
 
-%.o: %.cxx $(HEADERS) Makefile
-	$(CXX) $(CFLAGS) $< -c -o $@ 
+%.o: %.cpp $(HEADERS) Makefile
+	$(CXX) $(CPPFLAGS) $< -c -o $@ 
 
 #%.exe: %.c Makefile
 
@@ -105,7 +112,7 @@ objdump_inc: inc.exe
 #	objdump -S $@ | tee $@.dis
 
 clean: 
-	rm -f inc.exe $(OBJECTS)
+	rm -f inc.exe $(OBJECTS) libcorequeue.a
 
 .PHONY: run_inc objdump_inc
 

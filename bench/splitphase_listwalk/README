@@ -1,0 +1,50 @@
+This benchmark runs multiple hardware threads, each walking multiple lists concurrently.  The constant number_of_repetitions in linked_list.c is set to 10 runs of the benchmark.
+
+build:
+-ensure that greenery has been built
+-% make
+
+usage:
+% linked_list.exe
+
+options:
+-b ARG    Size of the problem: 2^ARG total linked-list nodes.  Each node is 64 bytes. (default: 24)
+-c ARG    Number of cores or hardware threads (default: 1)
+-t ARG    Number of contexts per hardware thread (defualt: 1).  Must be 1 if green threads is off.
+-l ARG    Number of lists per context (number of concurrent misses offered per thread) (default: 1).
+-g        Turn on use of green threads.
+
+
+
+
+Running sweep of experiments:
+
+The python script 'run-experiments.py' will run the experiment multiple times in the parameter space.
+When finished, it will produce a single output file 'listtraversal-localfirst.csv' with the results.
+
+% python run-experiments.py
+
+ To write the results of each experiment to a file (to save work in case of unexpected crash) use the optional -d option to specify a directory name in which to write the files. To see the list of options run:
+
+% python run-experiments.py --help
+
+To change the range of other parameters in the script:
+number of cores (hardware threads): change max_threads
+number of concurrent reads: change max_concurrent_reads
+number of green threads (contexts per core): change green_list
+
+Note that the script builds a cpu_list to specify which hardware threads are to be used by a run of the benchmark. Currently the script assumes there are two sockets, with interleaving mask numbers, as in some Intel architectures like 6core/socket, 2-socket Nehalem. If your architecture is different you may need change how cpu_list is built.
+
+i.e. cpu number:   0              1    2    3    4    5    6    7    8    9    10   11 
+physical resource: socket0/core0  s1c0 s0c1 s1c1 s0c2 s1c2 s0c3 s1c3 s0c4 s1c4 s0c5 s1c5
+
+(cpu numbers 12-23 also exist for the 2nd hardware threads per core, for when Hyper-threading is turned on, but we ran experiments with HT for the system turned off and did not use these cpu numbers.)
+
+
+Memory allocations:
+Local first/ remote first
+The script pins all memory allocations to socket 0 memory (the 'numactl --membind=0' command). The script will either use cores from socket 0 (local) first or socket 1 (first), as specified by the option --remotefirst.  So according to the cpu list example above, by default (local first) if an experiment was run with six cores, then cpu numbers would be 0,2,4,6,8,10 (all socket 0).  Running an experiment with seven or more cores would start including cores from socket 1.  Remote-first is the opposite.  
+
+Huge pages:
+To enable use of huge pages use the -u option (or --hugepages).
+You must uncomment the appropriate "Page size choices" line in linked_list-alloc.c and re-build linked_list.exe.
