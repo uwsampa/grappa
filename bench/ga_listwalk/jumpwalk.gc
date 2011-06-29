@@ -1,0 +1,48 @@
+replicate thread_id
+replicate list_id
+replicate index
+replicate this_count
+replicate handle
+replicate next_index
+DECLARATIONS
+int64_t thread_id = 0;
+int64_t list_id = 0;
+int64_t index = 0;
+int64_t next_index = 0;
+uint64_t this_count = 0;
+ga_nbhdl_t handle;
+START
+
+// get count
+this_count = count;
+
+// get initial index
+thread_id = jthr_tid();
+list_id = thread_id + rank * num_threads_per_node;
+//std::cout << "node " << rank << " thread " << thread_id << " has list " << list_id << std::endl;
+bases.get( &list_id, &list_id, &index, NULL );
+if (DEBUG) std::cout << "node " << rank << " thread " << thread_id << " list " << list_id << " initial index " << index << std::endl;
+
+
+while (this_count > 0) {
+  next_index = ((index << 6) >> 3) + 1;
+  if (DEBUG) std::cout << "node " << rank << " thread " << thread_id << " fetching from " << index << " / " << next_index << std::endl;
+  if ( (local_begin <= index) && (index < local_end) ) {
+    if (DEBUG) std::cout << "node " << rank << " thread " << thread_id << " local adjustment is " << (local_begin << 3) << " <= " << next_index - (local_begin << 3) << " < " << (local_end << 3) << std::endl;
+    next_index -= (local_begin << 3);
+    __builtin_prefetch( &local_array[next_index], 0, 0 );
+    jthr_yield();
+    index = local_array[next_index];
+  } else {
+    vertices.nbGet( &next_index, &next_index, &index, NULL, &handle );
+    jthr_yield();
+    GA::nbWait( &handle );
+  }
+  this_count--;
+}
+jthr_exit();
+
+
+sum += index; // do some work to make the optimizer happy
+
+
