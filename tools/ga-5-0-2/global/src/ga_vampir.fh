@@ -1,0 +1,17 @@
+/* $Id: ga_vampir.fh,v 1.4 2004-08-17 07:50:03 manoj Exp $ */
+#define GA_CHOLESKY           32199
+#define GA_DIAG_STD           32196
+#define GA_DIAG               32195
+#define GA_DIAG_REUSE         32194
+#define GA_DIAG_SEQ           32193
+#define GA_DIAG_STD_SEQ       32192
+#define GA_LU_SOLVE           32191
+#define GA_LU_SOLVE_ALT       32190
+#define GA_LU_SOLVE_SEQ       32189
+#define GA_LLT_I              32187
+#define GA_LLT_S              32186
+#define GA_LLT_SOLVE          32185
+#define GA_SOLVE              32184
+#define GA_SPD_INVERT         32183
+#define GA_SYMUL              32182
+#define GA_ZEROUL             32181

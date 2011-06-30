@@ -65,11 +65,12 @@ int main( int argc, char* argv[] ) {
       assert( 0xffffffffffffLL == arr.getGlobalOffsetFromGlobalAddress( q ) );
 
       q = (MPIGlobalArray::Cell*) 0x2000000000022LL;
-      std::cout << "pointer " << q << " has local offset " << arr.getLocalOffsetFromGlobalAddress( q ) << std::endl;
-      assert( 2 == arr.getLocalOffsetFromGlobalAddress( q ) );
-      std::cout << "pointer " << q << " has node " << arr.getNodeFromGlobalAddress( q ) << std::endl;
-      assert( 1 == arr.getNodeFromGlobalAddress( q ) );
-      
+      if (total_num_nodes > 1) {
+	std::cout << "pointer " << q << " has local offset " << arr.getLocalOffsetFromGlobalAddress( q ) << std::endl;
+	assert( 2 == arr.getLocalOffsetFromGlobalAddress( q ) );
+	std::cout << "pointer " << q << " has node " << arr.getNodeFromGlobalAddress( q ) << std::endl;
+	assert( 1 == arr.getNodeFromGlobalAddress( q ) );
+      }
       
 
       arr.setArrayId( array_id );

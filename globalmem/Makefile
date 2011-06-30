@@ -10,9 +10,11 @@ HEADERS=\
 	MPIWorker.hpp \
 	MPIGlobalArray.hpp \
 	GlobalArray.hpp \
+	GlobalListAllocate.hpp \
 
 
 TARGETS=\
+	GlobalListAllocate_test.exe \
 	GlobalArray_test.exe \
 	MPIGlobalArray_test.exe \
 	MPIWorker_test.exe \
@@ -23,7 +25,7 @@ TARGETS=\
 #LIBS= -lga++ -lga 
 
 run: $(TARGETS)
-	mpiexec -np 4 ./$<
+	mpiexec -np 1 ./$<
 
 %.dis: %.exe
 	objdump -S ./$< > $@

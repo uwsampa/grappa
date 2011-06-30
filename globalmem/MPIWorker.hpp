@@ -91,7 +91,7 @@ private:
     if (1 == send_flag) {
       if (MPI_WORKER_DEBUG) std::cout << "Receive worker sending...." << std::endl;
       uint64_t addr = (send_descriptor.address & 0xffffffffffffLL) + ((uint64_t) bases[ send_descriptor.data_structure_id ] );
-      if (MPI_WORKER_DEBUG) std::cout << "Receive worker accessing address " << (void*) addr << "...." << std::endl;
+      if (MPI_WORKER_DEBUG) std::cout << "Receive worker accessing address " << reinterpret_cast<void*>(addr) << "...." << std::endl;
 
       switch (send_descriptor.type) {
       case MemoryDescriptor::Write:

@@ -35,6 +35,7 @@ private:
   uint64_t array_id;
   Index local_size;
   Index local_offset;
+  Index local_uint64_offset;
   Communicator * communicator;
 
 public:
@@ -87,6 +88,10 @@ public:
     return node_id;
   }
 
+  uint64_t getNodeFromGlobalAddress( uint64_t ga ) {
+    return getNodeFromGlobalAddress( reinterpret_cast< Cell * >( ga ) );
+  }
+
   uint64_t getNodeFromGlobalAddress( Cell* ga ) {
     uint64_t global_offset = getGlobalOffsetFromGlobalAddress(ga);
     return getNodeFromGlobalOffset(global_offset);
@@ -126,6 +131,16 @@ public:
     return (local_offset <= index) && (index < local_offset + local_size);
   }
 
+  bool isLocalGlobalAddress( const uint64_t p ) {
+    return isLocalGlobalAddress( reinterpret_cast< Cell * >( p ) );
+  }
+
+  bool isLocalGlobalAddress( const Cell * p ) {
+    my_intptr_t int64_offset = ((reinterpret_cast<my_intptr_t>(p) << 16) >> 16) >> 3;
+    my_uintptr_t uint64_offset = static_cast<my_uintptr_t>(int64_offset);
+    return (local_uint64_offset <= uint64_offset) && (uint64_offset < local_uint64_offset + (local_size * sizeof(Data) >> 3) );
+  }
+
 
   // local ops
   Data* getBase() { return array.get(); }
@@ -142,6 +157,7 @@ public:
     , total_num_nodes(total_num_nodes)
     , local_size( total_size / total_num_nodes )
     , local_offset( my_rank * local_size )
+    , local_uint64_offset( my_rank * local_size * sizeof(Data) / sizeof(uint64_t) )
     , communicator( communicator )
     , array( new Data [ local_size ] )
   { 
@@ -154,38 +170,53 @@ public:
     }
   }
 
+  ~GlobalArray() {
+    if (DEBUG) {
+      for(unsigned i = 0; i < local_size; ++i) {
+	std::cout << "array_id " << array_id 
+		  << " index " << local_offset + i 
+		  << " address " << getGlobalAddressForIndex(local_offset + i) 
+		  << ": " << array.get()[i] 
+		  << std::endl;
+      }
+    }
+  }
+
   void blockingOp( MemoryDescriptor* descriptor ) {
-    uint64_t index = descriptor->index;
-    if (DEBUG) std::cout << "Blocking op: " << descriptor << std::endl;
-    if ( isLocalIndex( index ) ) {
-      Data* a = array.get();
+    //uint64_t index = descriptor->index;
+    int64_t uint64_offset = descriptor->address << 16 >> 16 >> 3;
+    uint64_t* array_as_uint64_ptr = reinterpret_cast< uint64_t* >( array.get() );
+    if (DEBUG) std::cout << "Global arrray blocking op: " << *descriptor << std::endl;
+    if ( isLocalGlobalAddress( descriptor->address ) ) {
       switch (descriptor->type) {
       case MemoryDescriptor::Read: 
-        descriptor->data = a[ index - local_offset ];
+	//descriptor->data = a[ index - local_offset ];
+        descriptor->data = *( array_as_uint64_ptr + (uint64_offset - local_uint64_offset) );
         break;
       case MemoryDescriptor::Write:
-        a[ index - local_offset ] = descriptor->data;
+        //a[ index - local_offset ] = descriptor->data;
+	*( array_as_uint64_ptr + (uint64_offset - local_uint64_offset) ) = descriptor->data;
         break;
       default:
         assert(false);
       }
     } else {
-      descriptor->address = index % local_size * sizeof(Data);
-      descriptor->node = index / local_size;
+      descriptor->node = getNodeFromGlobalAddress( descriptor->address );
 
       communicator->blocking( descriptor, descriptor );
     }
   }
 
   InFlightRequest issueOp( MemoryDescriptor* descriptor ) {
-    uint64_t index = descriptor->index;
-    if ( isLocalIndex( index ) ) {
-      Data* a = array.get();
-      __builtin_prefetch( &a[ index - local_offset ], 0, 0 );
+    //uint64_t index = descriptor->index;
+    int64_t uint64_offset = descriptor->address << 16 >> 16 >> 3;
+    uint64_t* array_as_uint64_ptr = reinterpret_cast< uint64_t* >( array.get() );
+    if ( isLocalGlobalAddress( descriptor->address ) ) {
+      //__builtin_prefetch( &a[ index - local_offset ], 0, 0 );
+      __builtin_prefetch( array_as_uint64_ptr + uint64_offset - local_uint64_offset, 0, 0 );
       return NULL;
     } else {
-      descriptor->address = index % local_size * sizeof(Data);
-      descriptor->node = index / local_size;
+      descriptor->node = getNodeFromGlobalAddress( descriptor->address );
       std::cout << "Issuing communication for " << descriptor << std::endl;
       InFlightRequest request = communicator->issue( descriptor, descriptor );
       return request;
@@ -197,15 +228,18 @@ public:
   }
 
   Data completeOp( MemoryDescriptor* descriptor, InFlightRequest requests ) {
-    uint64_t index = descriptor->index;
+    //uint64_t index = descriptor->index;
+    int64_t uint64_offset = descriptor->address << 16 >> 16 >> 3;
+    uint64_t* array_as_uint64_ptr = reinterpret_cast< uint64_t* >( array.get() );
     if ( requests == NULL ) {
-      Data* a = array.get();
       switch (descriptor->type) {
       case MemoryDescriptor::Read: 
-        descriptor->data = a[ index - local_offset ];
+        //descriptor->data = a[ index - local_offset ];
+        descriptor->data = *( array_as_uint64_ptr + (uint64_offset - local_uint64_offset) );
         break;
       case MemoryDescriptor::Write:
-        a[ index - local_offset ] = descriptor->data;
+        //a[ index - local_offset ] = descriptor->data;
+	*( array_as_uint64_ptr + (uint64_offset - local_uint64_offset) ) = descriptor->data;
         break;
       default:
         assert(false);

@@ -1,0 +1,592 @@
+#
+# $Header: /tmp/hpctools/ga/tcgmsg/ipcv4.0/Makefile.proto,v 1.16 2000-05-10 17:59:06 edo Exp $
+#
+# for events and debugging with events add  -DEVENTLOG to the DEFINES definition
+# for the given machine
+# 
+    TOPDIR = TOP_LEVEL_DIRECTORY
+    LIBDIR = $(TOPDIR)/ipcv4.0
+     SHELL = /bin/sh
+IF SP1 SP1GA
+#IBM SP-1 with MPL message passing library
+# SP1GA forces special sync operation
+##... AIX 3.2 with -qEXTNAME ... recommended choice.
+## You MUST Compile ALL FORTRAN with -qEXTNAME to use this option.
+## see also comments for IBM RS/6000
+##
+#.... this is for EUIH ...........
+#       FC = mpl_xlf
+#       CC = mpl_cc
+#     EUIH = /usr/lpp/euih/eui
+# INCLUDES = -I/usr/lpp/euih/eui
+#     LIBS = -bnso -bI:/lib/syscalls.exp -bI:/usr/lpp/euih/eui/eui.exp -e main
+#.................................
+        FC = mpxlf
+    FFLAGS = -g -qEXTNAME
+        CC = mpcc
+IF SP1GA
+   DEFINES = -DSP1 -DAIX -DEXTNAME  -DTIMINGS -DINTR_SAFE
+ELSE
+   DEFINES = -DSP1 -DAIX -DEXTNAME  -DTIMINGS
+ENDIF
+    CFLAGS = -g $(DEFINES) $(INCLUDES)
+ LINTFLAGS = -u -a -wkD $(DEFINES)
+     EXTRA = strdup.o strtok.o
+
+   LIBOBJ = sp1.o evon.o evlog.o checkbyte.o mtime.o \
+            memalign.o random.o drand48.o mitob.o mdtob.o \
+            mdtoi.o mitod.o llog.o $(EXTRA)
+ENDIF SP1 SP1GA
+IF IPSC DELTA PARAGON
+# Intel iPSC-i860, Touchstone Delta and Paragon
+.SUFFIXES:	
+.SUFFIXES: .o .f .c .s
+
+.f.o:
+	$(FC) -c $(FFLAGS) $*.f
+.c.o:
+	$(CC) $(CFLAGS) -c $*.c
+
+    CC     = icc
+    FC     = if77
+    AR     = ar860
+  INCLUDES = 
+IF DELTA
+   DEFINES = -DIPSC -DDELTA 
+   INSTALL = rcp "$@" delta1: &
+   CFLAGS = -i860 -g -Knoieee -node $(DEFINES)
+   FFLAGS = -i860 -O2 -Knoieee -node
+ELSEIF PARAGON
+   DEFINES = -DIPSC -DPARAGON 
+   INSTALL = echo "$@" is built
+   CFLAGS = -nx -g -Knoieee -nx $(DEFINES)
+   FFLAGS = -nx -O2 -Knoieee -nx
+ELSE
+   DEFINES = -DIPSC 
+   INSTALL = echo "$@" is built
+   CFLAGS = -i860 -g -Knoieee -nx $(DEFINES)
+   FFLAGS = -i860 -O2 -Knoieee -nx
+ENDIF
+   LIBOBJ = ipsc.o globalop.o evon.o evlog.o checkbyte.o \
+            memalign.o random.o drand48.o mitob.o mdtob.o \
+            mdtoi.o mitod.o llog.o
+
+ENDIF IPSC DELTA PARAGON
+IF IPSC DELTA PARAGON SP1 SP1GA
+
+all:	libtcgmsg.a test.x testf.x hello.x hello.p test.p testf.p
+
+IF SP1 DELTA PARAGON SP1GA
+# no front end code
+
+everything:     all  parse toplot
+ELSE
+# IPSC ... parallel must be built on the front end machine!
+
+everything:     all parallel parse toplot
+
+parallel:       para.ipsc.o
+	cc -g -o parallel para.ipsc.o -host
+	echo Don't forget to copy parallel into bin directory
+
+para.ipsc.o:    para.ipsc.c
+	cc -c -g para.ipsc.c
+ENDIF SP1 DELTA PARAGON SP1GA
+
+clean:
+	/bin/rm -f *.o core libtcgmsg.a test.x testf.x hello.x
+	/bin/rm -f parse toplot TAGS parallel a.out
+
+realclean:	clean
+	/bin/rm -f Makefile *~ *.p *.log msgtypesf.h 
+
+
+parse:	parse.o
+	cc -O -o $@ parse.o
+parse.o:	parse.c
+	cc -O -c parse.c
+
+toplot:	toplot.o
+	cc -g -o $@ toplot.o -lplot
+toplot.o:	toplot.c
+	cc -O -c toplot.c
+
+libtcgmsg.a:	$(LIBOBJ)
+	/bin/rm -f $@
+	$(AR) cr $@ $(LIBOBJ)
+
+test.x:	test.o libtcgmsg.a
+	$(CC) -o test.x $(CFLAGS) test.o libtcgmsg.a
+	$(INSTALL)
+
+testf.x:	testf.o libtcgmsg.a
+	$(FC) -o testf.x $(FFLAGS) testf.o libtcgmsg.a
+	$(INSTALL)
+
+hello.x:	hello.o libtcgmsg.a
+	$(CC) $(CFLAGS) -o $@ hello.o libtcgmsg.a
+	$(INSTALL)
+
+testf.o:	msgtypesf.h
+
+msgtypesf.h:	msgtf.h
+	cp msgtf.h msgtypesf.h
+
+hello.p:
+	echo '0 $$ hello.x .' > hello.p
+test.p:
+	echo '0 $$ test.x .' > test.p
+testf.p:
+	echo '0 $$ testf.x .' > testf.p
+
+# ENDIF IPSC DELTA PARAGON SP1 SP1GA
+#
+ELSE
+IF CONVEX-SPP
+# Convex SPP 
+        FC = fc
+    FFLAGS = -O1 -ppu -or none
+        CC = cc
+   DEFINES = -DHPUX -DCONVEX -DEXTNAME -DSYSV -DSHMEM -DSPPLOCKS -DTIMINGS
+    CFLAGS = -O1 -or none $(DEFINES)
+ LINTFLAGS = $(DEFINES) -bhu
+      LIBS = 
+ENDIF CONVEX-SPP
+IF CONVEX
+# Convex C series
+        FC = fc
+    FFLAGS =  -O1
+        CC = cc
+   DEFINES = -DCONVEX -DTIMINGS -DSHMEM -DGOTXDR -DEVENTLOG -DNOSPIN
+    CFLAGS = -O1 -or none $(DEFINES)
+ LINTFLAGS = $(DEFINES) -bhu
+      LIBS =
+     EXTRA = strdup.o strtok.o sprintf.o
+ENDIF CONVEX
+IF ARDENT
+        FC = fc
+    FFLAGS = -O2 -43
+        CC = cc
+   DEFINES = -DARDENT -DSYSV -DSHMEM -DTIMINGS -DGOTXDR -DEVENTLOG -DNOSPIN
+    CFLAGS = -O2 -43 $(DEFINES)
+ LINTFLAGS = $(DEFINES) -u
+      LIBS =
+     EXTRA = strdup.o strtok.o semsys.o shmsys.o
+ENDIF ARDENT
+IF ALLIANT ALLIANTMPP
+#ALLIANT ... 1) On FX2800/FX800 leave as is.
+##       ... 2) On FX/8 don't use memcpy.s and change -uniproc to -nc
+IF ALLIANTMPP
+##       ... 3) Need the ALPHA version ANL HIPPI daemon installed in
+##              /usr/local/{bin,include,lib} or somewhere in standard paths.
+##              This source is available from either Alliant or by
+##              anonymous ftp from ftp.tcg.anl.gov
+ENDIF ALLIANTMPP
+        FC = fortran
+    FFLAGS = -Ogv -AS -OM -uniproc
+        CC = cc
+     EXTRA = memcpy.o strdup.o strtok.o
+IF ALLIANT
+   DEFINES = -DALLIANT -DSHMEM -DTIMINGS -DGOTXDR -DEVENTLOG
+      LIBS = -lalliant
+    CFLAGS = -O -g -uniproc $(DEFINES)
+ LINTFLAGS = $(DEFINES) -bhzu
+ELSE
+   DEFINES = -DALLIANT -DSHMEM -DTIMINGS -DGOTXDR -DEVENTLOG -DSWTCH
+      LIBS = -lalliant -lsw
+    CFLAGS = -O -g -uniproc $(DEFINES) -I/usr/local/include
+ LINTFLAGS = $(DEFINES) -bhzu -I/usr/local/include
+ENDIF ALLIANT
+ENDIF ALLIANT ALLIANTMPP
+IF SEQUENT
+#SEQUENT SYMMETRY and BALANCE (DYNIX)
+        FC = fortran
+    FFLAGS = -O -Z064000
+        CC = cc
+   DEFINES = -DSEQUENT -DSYSV -DSHMEM -DTIMINGS -DGOTXDR
+    CFLAGS = -O -Z064000 $(DEFINES)
+ LINTFLAGS = $(DEFINES) -bhzu
+      LIBS = -lpps
+     EXTRA = strdup.o strtok.o
+ENDIF SEQUENT
+IF ENCORE
+#ENCORE ... note that testf.f compiles incorrectly with -O
+        FC = f77
+    FFLAGS = -O -q loops
+        CC = gcc
+   DEFINES = -DENCORE -DSYSV -DSHMEM -DTIMINGS
+    CFLAGS = -g $(DEFINES)
+ LINTFLAGS = $(DEFINES) -bhzu
+      LIBS = -lpp
+     EXTRA = strdup.o strtok.o
+ENDIF ENCORE
+IF IBM
+#IBM RISC 6000 ... AIX  with -qEXTNAME ... recommended choice.
+## You MUST Compile ALL FORTRAN with -qEXTNAME to use this option.
+##
+## This is the first of two possible configurations for AIX.
+## -qEXTNAME appends an underscore to all FORTRAN global symbols
+## so that there are NO clashes with any system or C or TCGMSG routines.
+## However, certain useful libraries (e.g. the BLAS!) do not export
+## the appropriate symbols.
+## 
+        FC = xlf
+    FFLAGS = -O -qEXTNAME
+        CC = cc
+   DEFINES = -DAIX -DEXTNAME -DSYSV -DSHMEM -DTIMINGS -DGOTXDR -DNOSPIN
+    CFLAGS = -O $(DEFINES)
+ LINTFLAGS = -u -a -wkD $(DEFINES)
+      LIBS = -lc
+     EXTRA = strdup.o strtok.o
+ENDIF IBM
+IF IBMNOEXT
+#IBM RISC 6000 ... AIX 3.1
+## You MUST append an underscore to ALL FORTRAN calls to system routines
+## if you use this option.
+## e.g. call getenv('data',env) -> call getenv_('data',env).
+##
+## This is the second of two possible configurations for AIX
+## By default all FORTRAN global symbols are lowercase and CLASH with
+## corresponding C and system routines.  TCGMSG has been set up to avoid
+## generating any clashes BUT it needs access to the C system interface.
+## Thus ALL FORTRAN system calls must explicitly be changed by appending
+## an underscore.  For some reason there is an unavoidable clash in
+## the event logging which must therefore be disabled.
+## 
+        FC = xlf
+    FFLAGS = -O
+        CC = cc
+   DEFINES = -DAIX -DSYSV -DSHMEM -DTIMINGS -DGOTXDR -DNOSPIN
+    CFLAGS = -O $(DEFINES)
+ LINTFLAGS = -u -a -wkD $(DEFINES)
+      LIBS = -lc
+     EXTRA = strdup.o strtok.o
+ENDIF IBMNOEXT
+IF DEC
+#Decstation ... ULTRIX V4.?
+#           (xdrstuff dumps core under some old versions of ULTRIX
+#            ... if this happens try remaking without -DGOTXDR)
+#           (if __Argc/v are undefined try rebuilding without -DDECFORT)
+        FC = f77
+    FFLAGS = -O2
+        CC = cc
+   DEFINES = -DULTRIX -DDECFORT -DSYSV -DSHMEM -DTIMINGS -DGOTXDR -DNOSPIN
+    CFLAGS = -O $(DEFINES)
+ LINTFLAGS = $(DEFINES) -u
+      LIBS =
+     EXTRA = strdup.o strtok.o
+ENDIF DEC
+IF DECOSF
+# Alpha AXP OSF/1.3
+# Actually, it seems that almost the ULTRIX parameters in $DEFINES above
+# work fine, except for the -DGOTXDR where some work has to be done to
+# xdr-data from all machines to the 64bit architecture of the alphas.
+# Then, this implementation of TCGMSG can be used only within a homogeneous
+# cluster of alpha-AXP machines running OSF/1.3.
+# Under OSF/1.3 the libplot.a is not yet available so -DPLOT has been 
+# removed from the $(DEFINES) variable and from the programs to compile
+# at the end of this file.
+        FC = f77
+    FFLAGS = -O -integer_size 64
+        CC = cc
+   DEFINES = -DDECOSF -DDECFORT -DSYSV -DSHMEM -DTIMINGS -DNOSPIN
+    CFLAGS = -O $(DEFINES)
+ LINTFLAGS = $(DEFINES) -u
+      LIBS =
+     EXTRA = strdup.o strtok.o
+ENDIF DECOSF
+IF LINUX64
+       FC = fort
+   FFLAGS = -i8
+       CC = ccc
+   DEFINES = -DLINUX -DLINUX64 -DSYSV -DSHMEM -DTIMINGS -DNOSPIN -DEXT_INT
+    CFLAGS = -O $(DEFINES)
+     EXTRA = strdup.o strtok.o
+ LINTFLAGS = $(DEFINES) -u
+ENDIF LINUX64
+IF LINUX
+# PC80x86 Linux pl10.
+# f77 usage of argc&argv inside f2c is (xargc & xargv).
+# -DPLOT option removed for linux. See DECOSF comment....
+        FC = f77
+    FFLAGS = -O
+        CC = cc
+   DEFINES = -DLINUX -DSYSV -DSHMEM -DTIMINGS -DGOTXDR -DNOSPIN
+    CFLAGS = -O $(DEFINES)
+ LINTFLAGS = $(DEFINES) -u
+      LIBS = -lc
+     EXTRA = strdup.o strtok.o
+ENDIF LINUX
+IF PGLINUX
+# PC80x86 Linux pl10. 
+# f77 usage of argc&argv inside f2c is (xargc & xargv).
+# -DPLOT option removed for linux. See DECOSF comment....
+        FC = pgf77
+    FFLAGS = -O
+        CC = gcc
+   DEFINES = -DLINUX -DPGLINUX -DSYSV -DSHMEM -DTIMINGS -DGOTXDR -DNOSPIN
+    CFLAGS = -O $(DEFINES)
+ LINTFLAGS = $(DEFINES) -u
+      LIBS = -lc
+     EXTRA = strdup.o strtok.o
+ENDIF PGLINUX
+IF SGI
+#SGI IRIX ...  note that need -lmalloc ... default break in Stress
+        FC = f77
+    FFLAGS = -O2
+        CC = cc
+   DEFINES = -DSGI -DSYSV -DSHMEM -DTIMINGS -DGOTXDR -DNOSPIN
+    CFLAGS = -O -I/usr/include/bsd -I/usr/include/sun $(DEFINES)
+ LINTFLAGS = -I/usr/include/bsd -I/usr/include/sun $(DEFINES) -u
+      LIBS = -lmalloc -lbsd -lrpcsvc -lsun
+     EXTRA = strdup.o strtok.o
+ENDIF SGI
+IF SGITFP
+        FC = f77
+    FFLAGS = -O2 -d8 -i8
+        CC = cc
+   DEFINES = -DSGI -DSYSV -DSHMEM -DTIMINGS -DPARTIALSPIN -DSGIUS
+#   DEFINES = -DSGI -DSYSV -DSHMEM -DTIMINGS  -DNOSPIN
+    CFLAGS = -O  $(DEFINES)
+ LINTFLAGS = -I/usr/include/bsd -I/usr/include/sun $(DEFINES) -u
+#      LIBS = -lmalloc 
+     EXTRA = strdup.o
+ENDIF SGI
+IF KSR
+#KSROS
+        FC = f77
+    FFLAGS = -para -O2 -r8
+        CC = cc
+   DEFINES = -DKSR -DSYSV -DSHMEM -DTIMINGS -DGOTXDR 
+# -DKSR_NATIVE to use KSR provided port ... this is broken!
+    CFLAGS = -para -g $(DEFINES)
+ LINTFLAGS = $(DEFINES) -u
+      LIBS = -lrpc
+     EXTRA = ksr.o
+ENDIF KSR
+IF NEXT NEXTNOEXT
+# Absoft provides the same dilemma as on RS/6000.
+# Can either 1) Have C and FORTRAN names in same space
+#            2) Define -DEXTNAME for C and use -N9 for FORTRAN
+#               to get C and FORTRAN names different
+        FC = f77
+        CC = cc
+IF NEXT
+   DEFINES = -DNEXT -DEXTNAME -DTIMINGS -DGOTXDR -DNOSPIN
+    FFLAGS = -g -f -N9
+ELSE
+   DEFINES = -DNEXT -DTIMINGS -DGOTXDR -DNOSPIN
+    FFLAGS = -g -f
+ENDIF NEXT
+    CFLAGS = -g $(DEFINES) -Bstatic
+ LINTFLAGS = $(DEFINES) -bhz
+      LIBS = 
+     EXTRA = strdup.o
+ENDIF NEXT NEXTNOEXT
+IF HPUX HPUXNOEXT
+#HPUX ... Hewlett Packard Risc Box
+#     ... +ppu appends underscores to FORTRAN globals (recommended)
+        FC = f77
+        CC = cc
+IF HPUX
+    FFLAGS = -O +ppu
+   DEFINES = -DHPUX -DEXTNAME -DSYSV -DSHMEM -DTIMINGS -DGOTXDR -DNOSPIN
+ELSE
+    FFLAGS = -O
+   DEFINES = -DHPUX -DSYSV -DSHMEM -DTIMINGS -DGOTXDR -DNOSPIN
+ENDIF HPUX
+    CFLAGS = -O $(DEFINES)
+ LINTFLAGS = $(DEFINES) -bhu
+      LIBS = 
+     EXTRA = hpuxargs.o
+ENDIF HPUX
+IF APOLLO
+#APOLLO GN10000 ... Apollo PRISM Domain/OS
+        FC = f77
+    FFLAGS =  -O
+        CC = cc
+   DEFINES = -DAPOLLO -DCONVEX -DTIMINGS -DSHMEM -DNOSPIN
+    CFLAGS = -O $(DEFINES) -A nansi -A sys,bsd4.3 -A run,bsd4.3
+ LINTFLAGS = $(DEFINES) -bh
+      LIBS =
+     EXTRA =
+ENDIF
+IF SUN SOLARIS
+        FC = f77
+IF SOLARIS
+        CC = cc 
+   DEFINES = -DSUN -DSYSV -DSHMEM -DTIMINGS -DGOTXDR -DNOSPIN \
+             -DSOLARIS -DSUNF77_2
+    CFLAGS = -O  $(DEFINES)
+    FFLAGS = -O 
+ LINTFLAGS = $(DEFINES)
+      LIBS = /usr/ucblib/libucb.a -lsocket -lrpcsvc -lnsl
+ELSE
+        CC = cc
+IF SUNF77_2
+   DEFINES = -DSUN -DSYSV -DSHMEM -DTIMINGS -DGOTXDR -DNOSPIN -DSUNF77_2
+ELSE
+   DEFINES = -DSUN -DSYSV -DSHMEM -DTIMINGS -DGOTXDR -DNOSPIN
+ENDIF
+ LINTFLAGS = $(DEFINES) -bhzu
+      LIBS = 
+    CFLAGS = -O $(DEFINES)
+    FFLAGS = -O3
+ENDIF SOLARIS
+     EXTRA = 
+ENDIF SUN SOLARIS
+IF CRAY
+        FC = cf77
+        CC = cc
+   DEFINES = -DCRAY -DTIMINGS -DGOTXDR 
+    CFLAGS = $(DEFINES)
+ LINTFLAGS = $(DEFINES) -u
+#This for older versions of UNICOS
+#     LIBS = -lbsd -lnet -lrpc
+      LIBS = 
+     EXTRA = 
+ENDIF CRAY
+########################################
+# Should not need to modify below here
+########################################
+
+# for RCS
+COFLAGS = -l
+
+LIBOBJ =  brdcst.o    nodeid.o    setdbg.o                          \
+          checkbyte.o llog.o      nxtval.o    shmem.o     synch.o   \
+          cluster.o   memalign.o  signals.o                         \
+          usleep.o    srmover.o   pbegin.o    snd.o       waitall.o \
+          drand48.o   mtime.o     pbeginf.o   sockets.o             \
+          error.o     nnodes.o    sema.o      stats.o               \
+          xdrstuff.o  waitcom.o   random.o    niceftn.o \
+	  mdtob.o     mitob.o     mitod.o   \
+	  mdtoi.o     globalop.o  evlog.o   \
+          evon.o      pfilecopy.o $(EXTRA)
+
+ INCLUDES = cluster.h  sema.h     signals.h  sndrcvP.h  srftoc.h    \
+            ../farg.h     shmem.h    sndrcv.h   sockets.h  xdrstuff.h  \
+            msgtypesc.h           evlog.h    defglobals.h
+
+.SUFFIXES:	
+.SUFFIXES: .o .f .c .s
+
+.f.o:
+	$(FC) -c $(FFLAGS) $*.f
+
+
+IF ARDENT CRAY SGI NEXT NEXTNOEXT HPUX HPUXNOEXT KSR DECOSF LINUX
+all:	parallel hello.x test.x testf.x parse hello.p test.p testf.p
+ELSE
+all:	parallel hello.x test.x testf.x parse hello.p test.p testf.p toplot
+ENDIF
+
+IF KSR
+# need optimization for this but everything else breaks with it
+ksr.o:	ksr.c ksr.h sndrcv.h sndrcvP.h srftoc.h
+	$(CC) -O -c $(DEFINES) ksr.c
+ENDIF KSR
+
+libtcgmsg.a:	$(LIBOBJ)
+	/bin/rm -f libtcgmsg.a
+	ar rc libtcgmsg.a $(LIBOBJ)
+IF CRAY ARDENT SGI HPUX HPUX HPUXNOEXT KSR SGITFP SOLARIS
+ELSE
+	ranlib libtcgmsg.a
+ENDIF
+
+hello.x:	hello.o libtcgmsg.a
+	$(CC) $(CFLAGS) -o $@ hello.o libtcgmsg.a $(LIBS)	
+
+parallel:	parallel.o libtcgmsg.a
+	$(CC) $(CFLAGS) -o $@ parallel.o libtcgmsg.a $(LIBS)
+
+test.x:	test.o checkbyte.o libtcgmsg.a parallel
+	$(CC) $(CFLAGS) -o $@ test.o libtcgmsg.a $(LIBS)
+
+testf.x:	testf.o libtcgmsg.a
+	$(FC) $(FFLAGS) -o $@ testf.o libtcgmsg.a $(LIBS)
+
+parse:	parse.o strdup.o
+	$(CC) -O -o $@ parse.o strdup.o
+parse.o:	parse.c
+	$(CC) -O -c parse.c
+
+IF ARDENT CRAY SGI NEXT NEXTNOEXT HPUX HPUXNOEXT KSR
+ELSE
+toplot:	toplot.o strdup.o
+	$(CC) -g -o $@ toplot.o strdup.o -lplot
+toplot.o:	toplot.c
+	$(CC) -O -c toplot.c
+ENDIF
+
+testpf.x:	testpf.o libtcgmsg.a
+	$(FC) $(FFLAGS) -o $@ testpf.o libtcgmsg.a $(LIBS)
+
+$(LIBOBJ) parallel.o test.o testf.o:	$(INCLUDES)
+
+testf.o:	msgtypesf.h
+globalop.o:	msgtypesc.h
+
+msgtypesf.h:	msgtf.h
+	cp msgtf.h msgtypesf.h
+
+IF APOLLO
+# Bug in C compiler for dgop with optimization
+globalop.o:	globalop.c
+	$(CC) -c -g $(DEFINES) -A nansi -A sys,bsd4.3 -A run,bsd4.3 globalop.c
+ENDIF APOLLO
+
+lint:	
+	lint $(LINTFLAGS) \
+	brdcst.c    error.c    mtime.c    pbegin.c signals.c synch.c \
+	checkbyte.c nnodes.c   pbeginf.c  snd.c    test.c \
+	cluster.c   llog.c     nodeid.c   sema.c   sockets.c waitall.c \
+	usleep.c    memalign.c nxtval.c   setdbg.c stats.c \
+	drand48.c   srmover.c  parallel.c shmem.c  strdup.c  strtok.c \
+	mdtob.c     mitob.c    mitod.c    mdtoi.c  random.c   \
+	xdrstuff.c  evon.c     evlog.c    globalop.c niceftn.c
+
+clean:
+	/bin/rm -f parallel hello.x test.x testf.x *.o *.a core a.out
+	/bin/rm -f events events.??? log.??? parse toplot TAGS *.log
+
+realclean:	clean
+	/bin/rm -f Makefile *~ *.p *.log msgtf.h msgtypesf.h #*#
+
+hello.p test.p testf.p:
+IF CRAY NEXT NEXTNOEXT
+	echo "$$LOGNAME `hostname` 1 `pwd`/hello.x /tmp" > hello.p
+	echo "$$LOGNAME `hostname` 1 `pwd`/hello.x /tmp" >> hello.p
+	echo "$$LOGNAME `hostname` 1 `pwd`/hello.x /tmp" >> hello.p
+	echo "$$LOGNAME `hostname` 1 `pwd`/hello.x /tmp" >> hello.p
+	echo "$$LOGNAME `hostname` 1 `pwd`/test.x /tmp" > test.p
+	echo "$$LOGNAME `hostname` 1 `pwd`/test.x /tmp" >> test.p
+	echo "$$LOGNAME `hostname` 1 `pwd`/test.x /tmp" >> test.p
+	echo "$$LOGNAME `hostname` 1 `pwd`/test.x /tmp" >> test.p
+	echo "$$LOGNAME `hostname` 1 `pwd`/testf.x /tmp" > testf.p
+	echo "$$LOGNAME `hostname` 1 `pwd`/testf.x /tmp" >> testf.p
+	echo "$$LOGNAME `hostname` 1 `pwd`/testf.x /tmp" >> testf.p
+	echo "$$LOGNAME `hostname` 1 `pwd`/testf.x /tmp" >> testf.p
+ELSE
+	echo "`whoami` `hostname` 4 `pwd`/hello.x /tmp" > hello.p
+	echo "`whoami` `hostname` 4 `pwd`/test.x /tmp" > test.p
+	echo "`whoami` `hostname` 4 `pwd`/testf.x /tmp" > testf.p
+ENDIF
+
+
+IF ARDENT
+# This for ARDENT - bsd everything but need SYSV shmem and semaphores
+semsys.o shmsys.o:	/lib/libc.a
+	ar x /lib/libc.a semsys.o shmsys.o
+ENDIF ARDENT
+
+IF CONVEX
+# In their infinite wisdom the version of sprintf differs between
+# the C and FORTRAN environments on the CONVEX and it's not possible
+# to just link against -lc due to other confilicts. Need to drag out
+# the one that we need by hand. Ugh.
+sprintf.o:      /usr/lib/libc.a
+	ar x /usr/lib/libc.a sprintf.o
+ENDIF CONVEX
+ENDIF IPSC DELTA SP1

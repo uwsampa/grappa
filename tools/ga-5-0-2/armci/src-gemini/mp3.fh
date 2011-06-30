@@ -1,0 +1,26 @@
+#ifdef MPI
+#   include "mpif.h"
+#   define MP_TIMER() mpi_wtime()
+#   define MP_FINALIZE() mpi_finalize(ierr)
+#else
+#   include "tcgmsg.fh"
+#   define MP_TIMER() tcgtime()
+#   define MP_FINALIZE() pend()
+#endif
+#ifndef MP_DEFINES_ONLY
+#   ifdef MPI
+      integer ierr
+#       ifdef DCMF
+      integer required, provided
+      required=MPI_THREAD_MULTIPLE
+      call mpi_init_thread(required, provided, ierr)
+      if (provided.ne.MPI_THREAD_MULTIPLE) then
+        call ga_error('provided.ne.MPI_THREAD_MULTIPLE',provided)
+      endif
+#       else
+      call mpi_init(ierr)
+#       endif
+#   else
+      call pbeginf
+#   endif
+#endif

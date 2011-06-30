@@ -1,0 +1,2 @@
+This directory contains a subset of LAPACK and BLAS subroutines that are 
+needed to run GA test programs.

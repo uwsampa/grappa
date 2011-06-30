@@ -1,0 +1,50 @@
+#!/bin/csh
+
+if ($#argv < 1) then
+  echo usage: sendshar mail_address_list
+endif
+
+set stub = tcgmsg.4.04.shar
+
+# Build up first message
+
+set msgfile = /tmp/msg.$$
+set tmpfile = /tmp/tmp.$$
+
+/bin/rm -f $msgfile
+
+cat > $msgfile << EOF
+  Remove the mail header and trailing mail junk from each of the
+  following files, concatenate them and run the resulting 
+  file thru sh.
+
+  Robert.
+
+  Output of wc and sum on each file:
+
+EOF
+foreach file (../$stub.??)
+  echo $file `sum $file` >> $msgfile
+  wc $file >> $msgfile
+end
+
+# actually send the stuff
+
+foreach to ($argv[*])
+
+  mail -s 'TCGMSG split shar file following' $to < $msgfile
+
+  foreach file (../$stub.??)
+    echo sending $file to $to
+
+    echo '-- CUT HERE -- ' > $tmpfile
+    cat $file >> $tmpfile
+    echo '-- CUT HERE -- ' >> $tmpfile
+    mail -s $file $to < $tmpfile
+  end
+
+end
+
+/bin/rm -f $msgfile
+/bin/rm -f $tmpfile
+
