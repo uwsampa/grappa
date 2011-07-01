@@ -1,7 +1,7 @@
 CC=g++
-CFLAGS= -g -fopenmp
-CFLAGS+= -I../../greenery -L../../greenery -I../../queues -L../../queues -I../../global_memory -L../../global_memory
-LIBS= -lrt -lgreenery -lcorequeue -lsplitphase -lbprintf -lnuma
+CFLAGS= -O3 -g -fopenmp
+CFLAGS+= -I../../greenery -L../../greenery -I../../queues -L../../queues -I../../global_memory -L../../global_memory -I../../numautil
+LIBS= -lrt -lgreenery -lcorequeue -lsplitphase -lbprintf -lnuma 
 
 HEADERS=\
 	linked_list-node.h \
@@ -11,7 +11,8 @@ HEADERS=\
 OBJECTS=\
 	linked_list-node.o \
 	linked_list-alloc.o \
-	linked_list-walk.o
+	linked_list-walk.o \
+    ../../numautil/numautil.o
 
 default: linked_list.exe
 

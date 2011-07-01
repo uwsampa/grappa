@@ -23,7 +23,7 @@
 #include "Delegate.hpp"
 #include "SplitPhase.hpp"
 
-#include "BufferedPrinter.hpp"
+#include "numautil.h"
 
 /* 
  * Multiple threads walking linked lists concurrently.
@@ -32,6 +32,14 @@
  */
 
 //#include "ExperimentRunner.h"
+
+void __sched__noop__(pid_t, unsigned int, cpu_set_t*) {}
+#define PIN_THREADS 1
+#if PIN_THREADS
+    #define SCHED_SET sched_setaffinity
+#else
+    #define SCHED_SET __sched__noop__
+#endif
 
 #define rdtscll(val) do { \
   unsigned int __a,__d; \
@@ -73,7 +81,7 @@ void thread_runnable(thread* me, void* arg) {
       rdtscll(end_tsc);
       info->times[thread_num] = end_tsc - start_tsc;
 
-      printf("core%u-thread%u: FINISHED\n", omp_get_thread_num(), me->id);
+//      printf("core%u-thread%u: FINISHED\n", omp_get_thread_num(), me->id);
 
      thread_exit(me, NULL);
 }
@@ -88,6 +96,9 @@ int main(int argc, char* argv[]) {
   uint64_t size = (1 << bits);              
 
   uint64_t num_lists_per_thread = 1; //atoi(argv[4]); // number of concurrent accesses per thread	
+
+  int numa_node0 = 0;
+  int numa_node1 = 1;
 
   // optional 4th arg "-i" indicates to use ExperimentRunner
   int do_monitor = 0;
@@ -174,14 +185,20 @@ int main(int argc, char* argv[]) {
 
   int n;
 
-
   // initialize data structure
   node * node0_low;
   node * node0_high;
   node * node1_low;
   node * node1_high;
   node** bases = allocate_2numa_heap( size, total_num_threads, num_lists_per_thread,
-                                    &node0_low, &node0_high, &node1_low, &node1_high);
+                                    &node0_low, &node0_high, &node1_low, &node1_high, 
+                                    numa_node0, numa_node1);
+
+  // list of cpus for each numa domain
+  int max_cpu0, max_cpu1;
+  unsigned int* cpus0 = numautil_cpusForNode(numa_node0, &max_cpu0);
+  unsigned int* cpus1 = numautil_cpusForNode(numa_node1, &max_cpu1);
+
 
   // experiment runner init and enable
   //ExperimentRunner er;
@@ -207,6 +224,8 @@ int main(int argc, char* argv[]) {
 
   int num_dels = 2;
   int thr_per_sock = num_threads/2;
+
+  assert((max_cpu0 > thr_per_sock) && (max_cpu1 > thr_per_sock));
 
    CoreQueue<uint64_t>* req0q = CoreQueue<uint64_t>::createQueue();
    CoreQueue<uint64_t>* resp0q = CoreQueue<uint64_t>::createQueue();
@@ -235,16 +254,17 @@ int main(int argc, char* argv[]) {
 	  }
   }
 
-  Delegate* delegates[2] = { new Delegate(sock0_qs_fromDel, sock0_qs_toDel, thr_per_sock, &glob_mem0),
-		  	  	  	  	  new Delegate(sock1_qs_fromDel, sock1_qs_toDel, thr_per_sock, &glob_mem1)};
-
-  // run number_of_repetitions # of experiments
+    // run number_of_repetitions # of experiments
   for(n = 0; n < number_of_repetitions; n++) {
+      
+      Delegate* delegates[2] = { new Delegate(sock0_qs_fromDel, sock0_qs_toDel, thr_per_sock, &glob_mem0),
+	            	  	  	  	  	  new Delegate(sock1_qs_fromDel, sock1_qs_toDel, thr_per_sock, &glob_mem1)};
+
     //print( data );
 
     uint64_t thread_num;
     const uint64_t procsize = size / (total_num_threads * num_lists_per_thread);
-    uint64_t* results = (uint64_t*) malloc( sizeof(uint64_t) * total_num_threads * num_lists_per_thread); 
+    uint64_t* results = (uint64_t*) malloc( sizeof(uint64_t) * total_num_threads); /*  *num_lists_per_thread); */
 
     uint64_t* times = (uint64_t*) malloc( sizeof(uint64_t) * total_num_threads );
 
@@ -261,8 +281,10 @@ int main(int argc, char* argv[]) {
     	for(thread_num = 0; thread_num < num_threads; thread_num++) {
             cpu_set_t set;
             CPU_ZERO(&set);
-    		if (thread_num < thr_per_sock) CPU_SET(thread_num*2,&set);
-    		else CPU_SET((thread_num-thr_per_sock)*2+1,&set);
+    		if (thread_num < thr_per_sock) CPU_SET(cpus0[thread_num], &set); //CPU_SET(thread_num*2,&set);
+    		else CPU_SET(cpus1[thread_num-thr_per_sock], &set);//CPU_SET((thread_num-thr_per_sock)*2+1,&set);
+
+	        SCHED_SET(0, sizeof(cpu_set_t), &set);
 
 	      	#pragma omp critical (crit_create)
 	     	 {
@@ -295,8 +317,10 @@ int main(int argc, char* argv[]) {
 					cpu_set_t set;
 					CPU_ZERO(&set);
 
-					if (thread_num < thr_per_sock) CPU_SET(thread_num*2,&set);
-					else CPU_SET((thread_num-thr_per_sock)*2+1,&set);
+					if (thread_num < thr_per_sock) CPU_SET(cpus0[thread_num], &set);//CPU_SET(thread_num*2,&set);
+					else CPU_SET(cpus1[thread_num-thr_per_sock], &set);//CPU_SET((thread_num-thr_per_sock)*2+1,&set);
+
+	                SCHED_SET(0, sizeof(cpu_set_t), &set);
 
 					run_all(schedulers[thread_num]);
 				} //barrier
@@ -309,18 +333,22 @@ int main(int argc, char* argv[]) {
 					cpu_set_t set;
 					CPU_ZERO(&set);
 
-					if (thread_num < thr_per_sock) CPU_SET(thread_num*2,&set);
-					else CPU_SET((thread_num-thr_per_sock)*2+1,&set);
+					if (thread_num < thr_per_sock) CPU_SET(cpus0[thread_num], &set);//CPU_SET(thread_num*2,&set);
+					else CPU_SET(cpus1[thread_num-thr_per_sock], &set);//CPU_SET((thread_num-thr_per_sock)*2+1,&set);
+
+	                SCHED_SET(0, sizeof(cpu_set_t), &set);
 
 					sp[thread_num]->issue(QUIT, 0, 0, masters[thread_num]);
 				}
 
     		} else { //delegate
-    			// assuming 6th core on sock0 and sock1
+    			// assuming last core on sock0 and sock1
     			cpu_set_t set;
     			CPU_ZERO(&set);
-    			if (thread_num==num_threads) CPU_SET(10,&set);
-    			else CPU_SET(11,&set);
+    			if (task==1) CPU_SET(cpus0[max_cpu0-1],&set);//CPU_SET(10,&set);
+    			else CPU_SET(cpus1[max_cpu1-1],&set);//CPU_SET(11,&set);
+
+                SCHED_SET(0, sizeof(cpu_set_t), &set);
 
     			delegates[task-1]->run();
     		}
@@ -367,9 +395,6 @@ int main(int argc, char* argv[]) {
     	//printf("End time: %d seconds, %d nanoseconds\n", (int) end.tv_sec, (int) end.tv_nsec);
     }
 
-
-    bpflush();
-  
   
     uint64_t runtime_ns = 0;
     uint64_t latency_ticks = 0;
@@ -378,14 +403,16 @@ int main(int argc, char* argv[]) {
 
     // unimportant calculation to ensure calls don't get optimized away
     uint64_t result = 0;
-    for(thread_num = 0; thread_num < num_threads; thread_num++) {
+    for(thread_num = 0; thread_num < total_num_threads; thread_num++) {
       result += results[thread_num];
       latency_ticks += times[thread_num];
+      printf("thread %lu: %lu ticks / %lu procsize = %f ticks per request\n", thread_num, times[thread_num], procsize, (double) times[thread_num]/procsize);
     }
 
     //uint64_t runtime_ns = ((uint64_t) end.tv_sec * 1000000000 + end.tv_nsec) - ((uint64_t) start.tv_sec * 1000000000 + start.tv_nsec);
 
 
+    const double ticks_per_ns = 2.67;
     const uint64_t totalsize = size; //procsize * num_threads * num_lists_per_thread;
     if (num_threads == 1) assert(totalsize == size);
     double runtime_s = (double)runtime_ns / 1000000000.0;
@@ -399,12 +426,13 @@ int main(int argc, char* argv[]) {
     const double   proc_data_rate = (double)proc_bytes / runtime_s;
     const double   proc_request_time = (double)runtime_ns / proc_requests;
     const double   proc_request_cpu_cycles = proc_request_time / (1.0 / 2.27);
-    const double   avg_latency_ticks = (double)latency_ticks / (total_requests / num_lists_per_thread);
-    const double   avg_latency_ns = (double)runtime_ns / (proc_requests / num_lists_per_thread);
+    const double   avg_latency_ticks = (double)latency_ticks / (total_requests / num_lists_per_thread);// total_num_threads*num req per thread = total requests
+    const double   avg_latency_ns = (double)avg_latency_ticks / ticks_per_ns;
+    //what does this mean?-->const double   avg_latency_ns = (double)runtime_ns / (proc_requests / num_lists_per_thread);
 
-    printf("{'bits':%lu, 'st_per_ht':%lu, 'use_green_threads':%d, 'num_threads':%lu, 'concurrent_reads':%lu, 'total_bytes':%lu, 'proc_bytes':%lu, 'total_requests':%lu, 'proc_requests':%lu, 'request_rate':%f, 'proc_request_rate':%f, 'data_rate':%f, 'proc_data_rate':%f, 'proc_request_time':%f, 'proc_request_cpu_cycles':%f}\n",
+    printf("{'bits':%lu, 'st_per_ht':%lu, 'use_green_threads':%d, 'num_threads':%lu, 'concurrent_reads':%lu, 'total_bytes':%lu, 'proc_bytes':%lu, 'total_requests':%lu, 'proc_requests':%lu, 'request_rate':%f, 'proc_request_rate':%f, 'data_rate':%f, 'proc_data_rate':%f, 'proc_request_time':%f, 'proc_request_cpu_cycles':%f, 'avg_latency_ticks':%f }\n",
 	   bits, green_per_ht, use_green_threads, num_threads, num_lists_per_thread, total_bytes, proc_bytes, total_requests, proc_requests, 
-	   request_rate, proc_request_rate, data_rate, proc_data_rate, proc_request_time, proc_request_cpu_cycles);
+	   request_rate, proc_request_rate, data_rate, proc_data_rate, proc_request_time, proc_request_cpu_cycles, avg_latency_ticks);
 
     printf("(%lu/%lu): %f MB/s, %g ticks avg, %g ns avg, %lu nanoseconds, %lu requests, %f Mreq/s, %f Mreq/s/proc, %f ns/req, %f B/s, %f clocks each\n", 
 	   bits, num_threads,
@@ -416,6 +444,9 @@ int main(int argc, char* argv[]) {
 	   (double)totalsize*sizeof(node)/((double)runtime_ns/1000000000),
 	   ((double)runtime_ns/(totalsize/num_threads)) / (.00000000044052863436 * 1000000000) 
 	   );
+
+    free(results);
+    free(times);
   }
   //print( data );
 

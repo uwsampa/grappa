@@ -198,7 +198,8 @@ node* nodes (int index, uint64_t size, node* node0_nodes, node* node1_nodes) {
 // initialize linked lists
 node** allocate_2numa_heap(uint64_t size, int num_threads, int num_lists, 
                             node** node0_low, node** node0_high,
-                            node** node1_low, node** node1_high) {
+                            node** node1_low, node** node1_high,
+                            int numa_node0, int numa_node1) {
     int64_t i = 0;
 
     printf("Initializing footprint of size %lu * %lu = %lu bytes....\n", size, sizeof(node), size * sizeof(node));
@@ -206,8 +207,19 @@ node** allocate_2numa_heap(uint64_t size, int num_threads, int num_lists,
     node** locs = (node**) malloc (sizeof(node*)*size); // node array
 
     //node* nodes = (node*) malloc(sizeof(node) * size);  // temporary node pointers
-    node* node0_nodes = (node*) numa_alloc_onnode( sizeof(node) * size / 2, 0);
-    node* node1_nodes = (node*) numa_alloc_onnode( sizeof(node) * size / 2, 1);
+    if (numa_available() == -1) {
+        printf("ERROR: numa support not available\n");
+        exit(1);
+    }
+
+    numa_set_strict(1);
+    node* node0_nodes = (node*) numa_alloc_onnode( sizeof(node) * size / 2, numa_node0);
+    node* node1_nodes = (node*) numa_alloc_onnode( sizeof(node) * size / 2, numa_node1);
+
+    if (node0_nodes==NULL || node1_nodes==NULL) {
+        printf("node allocation failed (%lx, %lx)\n", (unsigned long)node0_nodes, (unsigned long)node1_nodes);
+        exit(1);
+    }
 
     *node0_low = node0_nodes;
     *node1_low = node1_nodes;
