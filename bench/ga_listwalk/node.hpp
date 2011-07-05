@@ -3,7 +3,8 @@
 #define __NODE_HPP__
 
 
-#include <cstdint>
+//#include <cstdint>
+#include <stdint.h>
 
 
 //#define HAVE_ID

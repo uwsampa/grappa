@@ -5,7 +5,8 @@
 #include <iostream>
 
 #include <cstdlib>
-#include <cstdint>
+//#include <cstdint>
+#include <stdint.h>
 #include <cassert>
 
 #include "ga_alloc.hpp"
@@ -70,19 +71,40 @@ void allocate_ga( int rank, int num_nodes,
   MPI_Barrier( MPI_COMM_WORLD );
 
   // randomly permute nodes (fisher-yates (or knuth) shuffle)
-  if (rank == 0) {
-    for(int64_t i = size-1; i != 0; --i) {
+  const bool use_correct_sequential_shuffle = false;
+  if (use_correct_sequential_shuffle) { 
+    if (rank == 0) {
+      for(int64_t i = size-1; i != 0; --i) {
+	uint64_t j = random() % i;
+	
+	int64_t temp1id = ga_get_struct( vertices, i, offsetof(node, id) );
+	int64_t temp1next = ga_get_struct( vertices, i, offsetof(node, next) );
+	
+	int64_t temp2id = ga_get_struct( vertices, j, offsetof(node, id) );
+	int64_t temp2next = ga_get_struct( vertices, j, offsetof(node, next) );
+	
+	ga_put_struct( vertices, i, offsetof(node, id), temp2id );
+	ga_put_struct( vertices, i, offsetof(node, next), temp2next );
+	
+	ga_put_struct( vertices, j, offsetof(node, id), temp1id );
+	ga_put_struct( vertices, j, offsetof(node, next), temp1next );
+      }
+    }
+  } else {
+    //for(int64_t i = *local_begin; i < *local_end; ++i) {
+    for(int64_t i = *local_end - 1; i != *local_begin; --i) {
+      //    for(int64_t i = size-1; i != 0; --i) {
       uint64_t j = random() % i;
-
+      
       int64_t temp1id = ga_get_struct( vertices, i, offsetof(node, id) );
       int64_t temp1next = ga_get_struct( vertices, i, offsetof(node, next) );
-
+      
       int64_t temp2id = ga_get_struct( vertices, j, offsetof(node, id) );
       int64_t temp2next = ga_get_struct( vertices, j, offsetof(node, next) );
       
       ga_put_struct( vertices, i, offsetof(node, id), temp2id );
       ga_put_struct( vertices, i, offsetof(node, next), temp2next );
-
+      
       ga_put_struct( vertices, j, offsetof(node, id), temp1id );
       ga_put_struct( vertices, j, offsetof(node, next), temp1next );
     }

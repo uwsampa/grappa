@@ -108,7 +108,9 @@ int main( int argc, char* argv[] ) {
 
       timespec start_time, end_time;
       clock_gettime(CLOCK_MONOTONIC, &start_time);
+      MPI_Barrier( MPI_COMM_WORLD );
       #include "jumpwalk.cunroll"
+      MPI_Barrier( MPI_COMM_WORLD );
       clock_gettime(CLOCK_MONOTONIC, &end_time);
 
       double runtime = (end_time.tv_sec + 1.0e-9 * end_time.tv_nsec) - (start_time.tv_sec + 1.0e-9 * start_time.tv_nsec);
@@ -119,6 +121,7 @@ int main( int argc, char* argv[] ) {
 
       double rate = count * num_lists_per_thread * num_threads_per_node * num_nodes / min_runtime;
 
+      std::cout << "node " << rank << " runtime is " << runtime << std::endl;
       std::cout << "node " << rank << " sum is " << sum << std::endl;
       if (DEBUG) if (0 == rank) std::cout << "runtime is in " << min_runtime << ", " << max_runtime << std::endl;
       if (0 == rank) std::cout << "rate is " << rate / 1000000.0 << " Mref/s" << std::endl;

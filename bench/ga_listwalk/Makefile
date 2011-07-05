@@ -1,23 +1,33 @@
 
 CXX=mpic++
 
-CXXFLAGS+= -std=c++0x  -Wno-write-strings -O0 -g
+CXXFLAGS+= -Wno-write-strings -O2 -g
 
-CXXFLAGS+= -I../../tools/ga/include -L../../tools/ga/lib
+CXXFLAGS+= -I../../tools/ga-ib/include -L../../tools/ga-ib/lib
 
-LIBS+= -lga++ -lga -lgfortran
+LIBS+= -lga++ -lga -lgfortran -libverbs -lrt -llapack
 
-NUM_JUMP_THREADS?=9
-SIZE_LOG?=22
+NUM_JUMP_THREADS?=64
+SIZE_LOG?=19
 DEBUG?=0
+
+HOSTNAME=$(shell hostname)
+PWD=$(shell pwd)
 
 #TARGET=ga_alloc_test.exe
 TARGET=jumpwalk_test.exe
 
 OTHERS= ga_alloc.cpp jumpwalk_test.cpp
 
-run: $(TARGET)
-	hugectl --heap -- mpiexec -np 6 ./$(TARGET)
+run: run_$(HOSTNAME)
+
+run_catamount: $(TARGET)
+	salloc  --cpu_bind=verbose,none --mem_bind=verbose,none -n 8 -N 2-2 --ntasks-per-socket=2 mpirun --mca btl ^openib --mca btl_tcp_if_include eth0 $(PWD)/jumpwalk_test.exe
+
+run_n01: $(TARGET)
+	mpiexec -np 6 hugectl --heap -- numactl --membind=0 -- taskset 0x555 ./$(TARGET)
+
+#	hugectl --heap -- mpiexec -np 6 ./$(TARGET)
 #	hugectl --heap -- numactl --membind=0 -- taskset 0x555 mpiexec -np 6 ./$(TARGET)
 #	mpiexec -np 1 ./$(TARGET)
 

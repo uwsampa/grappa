@@ -34,6 +34,7 @@ while (this_count > 0) {
     jthr_yield();
     index = local_array[next_index];
   } else {
+    jthr_yield();
     vertices.nbGet( &next_index, &next_index, &index, NULL, &handle );
     jthr_yield();
     GA::nbWait( &handle );
