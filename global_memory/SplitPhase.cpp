@@ -14,7 +14,11 @@
 
 #define PREFETCH_LOCAL 1
 
-mem_tag_t SplitPhase::issue(oper_enum operation, uint64_t* addr, uint64_t data, thread* me) {
+bool SplitPhase::_isLocal(int64_t index) {
+    return (local_begin <= index) && (index < local_end);
+}
+
+mem_tag_t SplitPhase::issue(oper_enum operation, int64_t index, int64_t data, thread* me) {
    // create a tag to identify this request
    // TODO: right now just the threadid, since one outstanding request allowed
    mem_tag_t ticket = (mem_tag_t) me->id;
@@ -22,14 +26,14 @@ mem_tag_t SplitPhase::issue(oper_enum operation, uint64_t* addr, uint64_t data, 
    MemoryDescriptor* desc = getDescriptor(me->id);
    /*not sure where to do this*/desc->setEmpty();
    desc->setOperation(operation);
-   desc->setAddress(addr);
+   desc->setAddress(index);
    desc->setData(data); // TODO for writes is full start set or does full mean done, etc..?
 
     // if local non synchro/quit then handle directly
     // TODO prefetch?
-   if (operation==READ && gm->isLocal(desc)) {
+   if (operation==READ && _isLocal(index)) {
        #if PREFETCH_LOCAL
-        prefetch(addr);
+        prefetch(&local_array[index]);
        #endif
        return ticket;
    }
@@ -60,7 +64,7 @@ void SplitPhase::_flushIfNeed() {
 }
 
 
-uint64_t SplitPhase::complete(mem_tag_t ticket, thread* me) {
+int64_t SplitPhase::complete(mem_tag_t ticket, thread* me) {
     threadid_t tid = (threadid_t) ticket;
     MemoryDescriptor* mydesc = (*descriptors)[tid];
      
@@ -68,13 +72,14 @@ uint64_t SplitPhase::complete(mem_tag_t ticket, thread* me) {
     num_waiting_unflushed++;
     _flushIfNeed();
 
-    if (mydesc->getOperation()==READ && gm->isLocal(mydesc)) {
-        return *(mydesc->getAddress());
+    int64_t index = my_desc->getAddress();
+    if (mydesc->getOperation()==READ && _isLocal(index)) {
+        return local_array[index];
     } else {
         while(true) {
             //printf("%d iters of waiting\n", debugi++);
             // dequeue as much as possible
-            uint64_t dat;
+            int64_t dat;
             MemoryDescriptor* m;
           /*  while (from->tryConsume(&dat)) {
                 m = (MemoryDescriptor*) dat;
@@ -85,7 +90,7 @@ uint64_t SplitPhase::complete(mem_tag_t ticket, thread* me) {
 
             // check for my data
             if (mydesc->isFull()) { // TODO decide what condition indicates write completion
-                uint64_t resp = mydesc->getData();
+                int64_t resp = mydesc->getData();
                 releaseDescriptor(mydesc);
 
                 
