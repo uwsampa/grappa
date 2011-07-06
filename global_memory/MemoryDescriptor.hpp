@@ -10,20 +10,20 @@
 
 class MemoryDescriptor {
     private:
-        uint64_t* address;
+        int64_t address; //index into a GA
         uint64_t _data;
         oper_enum operation;
         threadid_t thread_id;
         coreid_t core_id;
         #if MD_USE_CACHE_ALIGN
-char pad1[MD_CACHE_LINE_SIZE_BYTES];
-       // char pad1[MD_CACHE_LINE_SIZE_BYTES-(sizeof(uint64_t*)+sizeof(uint64_t)+sizeof(oper_enum)+sizeof(threadid_t)+sizeof(coreid_t))];
+//char pad1[MD_CACHE_LINE_SIZE_BYTES];
+        char pad1[MD_CACHE_LINE_SIZE_BYTES-(sizeof(uint64_t*)+sizeof(uint64_t)+sizeof(oper_enum)+sizeof(threadid_t)+sizeof(coreid_t))];
         #endif
 
          volatile bool full;
         #if MD_USE_CACHE_ALIGN
-       char pad2[MD_CACHE_LINE_SIZE_BYTES];
-       // char pad2[MD_CACHE_LINE_SIZE_BYTES-sizeof(bool)];
+       //char pad2[MD_CACHE_LINE_SIZE_BYTES];
+       char pad2[MD_CACHE_LINE_SIZE_BYTES-sizeof(bool)];
         #endif
     
     public:
@@ -33,12 +33,14 @@ char pad1[MD_CACHE_LINE_SIZE_BYTES];
         void fillData( uint64_t data );
         bool checkData( uint64_t* data);
         void setEmpty();
+        void setFull();
         void setData( uint64_t data);
         bool isFull(); //XXX temp
         uint64_t getData();
+        uint64_t* getDataFieldAddress();
 
-        void setAddress( uint64_t* addr);
-        uint64_t* getAddress();
+        void setAddress( int64_t addr);
+        int64_t getAddress();
 
         void setOperation (oper_enum op);
         oper_enum getOperation();

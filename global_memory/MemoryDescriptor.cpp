@@ -23,11 +23,11 @@ oper_enum MemoryDescriptor::getOperation() {
     return operation;
 }
 
-void MemoryDescriptor::setAddress(uint64_t* addr) {
+void MemoryDescriptor::setAddress(int64_t addr) {
     address = addr;
 }
 
-uint64_t* MemoryDescriptor::getAddress() {
+int64_t MemoryDescriptor::getAddress() {
     return address;
 }
 
@@ -80,4 +80,10 @@ coreid_t MemoryDescriptor::getCoreId() {
     return core_id;
 }
 
+void MemoryDescriptor::setFull() {
+    full = true;
+}
 
+uint64_t* MemoryDescriptor::getDataFieldAddress() {
+    return &_data;
+}

@@ -18,7 +18,7 @@ bool SplitPhase::_isLocal(int64_t index) {
     return (local_begin <= index) && (index < local_end);
 }
 
-mem_tag_t SplitPhase::issue(oper_enum operation, int64_t index, int64_t data, thread* me) {
+mem_tag_t SplitPhase::issue(oper_enum operation, int64_t index, uint64_t data, thread* me) {
    // create a tag to identify this request
    // TODO: right now just the threadid, since one outstanding request allowed
    mem_tag_t ticket = (mem_tag_t) me->id;
@@ -32,8 +32,9 @@ mem_tag_t SplitPhase::issue(oper_enum operation, int64_t index, int64_t data, th
     // if local non synchro/quit then handle directly
     // TODO prefetch?
    if (operation==READ && _isLocal(index)) {
+       int64_t local_index = index - (local_begin<<3);
        #if PREFETCH_LOCAL
-        prefetch(&local_array[index]);
+        prefetch(&local_array[local_index]);
        #endif
        return ticket;
    }
@@ -72,9 +73,10 @@ int64_t SplitPhase::complete(mem_tag_t ticket, thread* me) {
     num_waiting_unflushed++;
     _flushIfNeed();
 
-    int64_t index = my_desc->getAddress();
+    int64_t index = mydesc->getAddress();
     if (mydesc->getOperation()==READ && _isLocal(index)) {
-        return local_array[index];
+        int64_t local_index = index - (local_begin<<3);
+        return local_array[local_index];
     } else {
         while(true) {
             //printf("%d iters of waiting\n", debugi++);

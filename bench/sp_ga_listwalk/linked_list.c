@@ -38,7 +38,7 @@
 //#include "ExperimentRunner.h"
 
 void __sched__noop__(pid_t, unsigned int, cpu_set_t*) {}
-#define PIN_THREADS 1
+#define PIN_THREADS 0
 #if PIN_THREADS
     #define SCHED_SET sched_setaffinity
 #else
@@ -64,7 +64,6 @@ void __sched__noop__(pid_t, unsigned int, cpu_set_t*) {}
 
 void thread_runnable(thread* me, void* arg) {
       struct walk_info* info = (struct walk_info*) arg;
-      int64_t list_id = info->list_id;
       uint64_t num_lists_per_thread = info->num_lists_per_thread;
       uint64_t listsize = info->listsize;
 
@@ -97,7 +96,6 @@ int main(int argc, char* argv[]) {
   uint64_t num_lists_per_thread = 1; //atoi(argv[4]); // number of concurrent accesses per thread	
 
   int numa_node0 = 0;
-  int numa_node1 = 1;
 
   // optional 4th arg "-i" indicates to use ExperimentRunner
   int do_monitor = 0;
@@ -183,12 +181,12 @@ int main(int argc, char* argv[]) {
   //if (do_monitor) er.enable();
 
   // create masters and schedulers for green threads
-  thread* masters[num_threads];
-  scheduler* schedulers[num_threads];
+  thread* masters[num_cores_per_node];
+  scheduler* schedulers[num_cores_per_node];
 
   if (use_green_threads) {
-      #pragma omp parallel for num_threads(num_threads)
-      for (int i = 0; i<num_threads; i++) {
+      #pragma omp parallel for num_threads(num_cores_per_node)
+      for (uint64_t i = 0; i<num_cores_per_node; i++) {
         #pragma omp critical (crit_init)
         {
   	  // create master thread and scheduler 
@@ -202,7 +200,7 @@ int main(int argc, char* argv[]) {
 
   
 
-  assert(max_cpu0 > num_cores_per_node);
+  assert((unsigned int)max_cpu0 > num_cores_per_node);
 
 
   // GlobalArray initialization
@@ -216,7 +214,7 @@ int main(int argc, char* argv[]) {
 
 
   int64_t vertices_size_in_words = size * sizeof(node) / sizeof(int64_t);
-  int64_t bases_size_in_words = num_nodes * num_threads_p
+  int64_t bases_size_in_words = num_nodes * num_cores_per_node * num_threads_per_core; // TODO num list per thread too
 
   // initialize random number generator
   srandom(time(NULL));
@@ -257,11 +255,11 @@ int main(int argc, char* argv[]) {
 
 
   // split phase and delegate
-  CoreQueue<uint64_t>* sock0_qs_fromDel[num_threads_per_node];
-  CoreQueue<uint64_t>* sock0_qs_toDel[num_threads_per_node];
+  CoreQueue<uint64_t>* sock0_qs_fromDel[num_cores_per_node];
+  CoreQueue<uint64_t>* sock0_qs_toDel[num_cores_per_node];
 
-  SplitPhase* sp[num_threads_per_node];
-  for (int th=0; th<num_threads_per_node; th++) {
+  SplitPhase* sp[num_cores_per_node];
+  for (uint64_t th=0; th<num_cores_per_node; th++) {
       sock0_qs_fromDel[th] = CoreQueue<uint64_t>::createQueue();
       sock0_qs_toDel[th] =  CoreQueue<uint64_t>::createQueue();
       sp[th] = new SplitPhase(sock0_qs_toDel[th], sock0_qs_fromDel[th], num_threads_per_core, 
@@ -271,14 +269,14 @@ int main(int argc, char* argv[]) {
   MPI_Barrier( MPI_COMM_WORLD );
 
     // run number_of_repetitions # of experiments
-  for(n = 0; n < number_of_repetitions; n++) {
+  for(uint64_t n = 0; n < number_of_repetitions; n++) {
       
       Delegate delegate(sock0_qs_fromDel, sock0_qs_toDel, num_cores_per_node, &vertices);
 	            	  	  
     const uint64_t listsize_per_thread = size / (total_num_threads * num_lists_per_thread);
 
-    struct timespec start;
-    struct timespec end;
+    struct timespec start_time;
+    struct timespec end_time;
      
     if (use_green_threads) {
     	// arrays for threads and infos
@@ -286,8 +284,8 @@ int main(int argc, char* argv[]) {
     	struct  walk_info walk_infos[num_threads_per_core][num_threads_per_core];
     
   	  // for each hw thread, create <num_threads_per_core> green threads
-    	#pragma omp parallel for num_threads(num_threads) 
-    	for(int core_num = 0; core_num < num_threads; core_num++) {
+    	#pragma omp parallel for num_threads(num_cores_per_node) 
+    	for(uint64_t core_num = 0; core_num < num_cores_per_node; core_num++) {
             cpu_set_t set;
             CPU_ZERO(&set);
     		CPU_SET(cpus0[core_num], &set);
@@ -295,7 +293,7 @@ int main(int argc, char* argv[]) {
 
 	      	#pragma omp critical (crit_create)
 	     	 {
-	       	 for (int gt = 0; gt<num_threads_per_core; gt++) {
+	       	 for (uint64_t gt = 0; gt<num_threads_per_core; gt++) {
                int64_t list_id = (rank * num_cores_per_node * num_threads_per_core) + (core_num*num_threads_per_core + gt);
 	       	   walk_infos[core_num][gt].list_id = list_id;
                int64_t base;
@@ -309,7 +307,7 @@ int main(int argc, char* argv[]) {
 	     	}
     	}
 
-    	clock_gettime(CLOCK_MONOTONIC, &start);
+    	clock_gettime(CLOCK_MONOTONIC, &start_time);
         MPI_Barrier( MPI_COMM_WORLD );
 
     	// start monitoring and timing    
@@ -318,12 +316,13 @@ int main(int argc, char* argv[]) {
 
     	// do the work
 		omp_set_nested(1);
+        int num_tasks = 2;
 
-    	#pragma omp parallel for num_threads(num_dels+1)
-    	for (int task=0; task<num_dels+1; task++) {
+    	#pragma omp parallel for num_threads(num_tasks)
+    	for (int task=0; task<num_tasks; task++) {
     		if (task==0) {
-				#pragma omp parallel for num_threads(num_threads)
-				for (core_num=0; core_num < num_threads; core_num++) {
+				#pragma omp parallel for num_threads(num_cores_per_node)
+				for (uint64_t core_num=0; core_num < num_cores_per_node; core_num++) {
 					cpu_set_t set;
 					CPU_ZERO(&set);
 					CPU_SET(cpus0[core_num], &set);
@@ -335,8 +334,8 @@ int main(int argc, char* argv[]) {
                 printf("barrier hit, now will send QUIT sigs\n");
 
 				//QUIT signals
-				#pragma omp parallel for num_threads(num_threads)
-				for (thread_num=0; thread_num < num_threads; thread_num++) {
+				#pragma omp parallel for num_threads(num_cores_per_node)
+				for (uint64_t thread_num=0; thread_num < num_cores_per_node; thread_num++) {
 					cpu_set_t set;
 					CPU_ZERO(&set);
                     CPU_SET(cpus0[thread_num], &set);
@@ -358,13 +357,13 @@ int main(int argc, char* argv[]) {
 
     	// stop timing
         MPI_Barrier( MPI_COMM_WORLD );
-    	clock_gettime(CLOCK_MONOTONIC, &end);
+    	clock_gettime(CLOCK_MONOTONIC, &end_time);
     	//er.stopIfEnabled();
    
         // unimportant calculation to ensure calls don't get optimized away
         uint64_t result = 0;
-        for(int core_num = 0; core_num < num_cores_per_node; core_num++) {
-            for (int gt=0; gt<num_threads_per_core; gt++) {
+        for(uint64_t core_num = 0; core_num < num_cores_per_node; core_num++) {
+            for (uint64_t gt=0; gt<num_threads_per_core; gt++) {
                result += walk_infos[core_num][gt].result;
             }
         } 
@@ -372,11 +371,11 @@ int main(int argc, char* argv[]) {
    
     
    	    // cleanup threads (not sure if each respective master has to do it, so being safe by letting each master call destroy on its green threads)
-    	#pragma omp parallel for num_threads(num_threads)
-    	for (int core_num = 0; core_num < num_cores_per_node; core_num++) {
+    	#pragma omp parallel for num_threads(num_cores_per_node)
+    	for (uint64_t core_num = 0; core_num < num_cores_per_node; core_num++) {
 	    	#pragma omp critical (crit_destroy)
         	{
-	  	        for (int gt=0; gt<num_threads_per_core; gt++) {
+	  	        for (uint64_t gt=0; gt<num_threads_per_core; gt++) {
 			        destroy_thread(threads[core_num][gt]);
 	  	        }
     	    }
@@ -392,10 +391,9 @@ int main(int argc, char* argv[]) {
     double max_runtime = 0.0;
     MPI_Reduce( &runtime, &max_runtime, 1, MPI_DOUBLE, MPI_MAX, 0, MPI_COMM_WORLD );
 
-    double rate = count * num_lists_per_thread * num_threads_per_node * num_nodes / min_runtime;
+    double rate = listsize_per_thread * num_lists_per_thread * num_threads_per_core * num_cores_per_node * num_nodes / min_runtime;
 
     std::cout << "node " << rank << " runtime is " << runtime << std::endl;
-    std::cout << "node " << rank << " sum is " << sum << std::endl;
 
     if (0 == rank) std::cout << "rate is " << rate / 1000000.0 << " Mref/s" << std::endl;    
   

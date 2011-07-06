@@ -37,12 +37,12 @@ class SplitPhase {
         SplitPhase(CoreQueue<uint64_t>* req_q, CoreQueue<uint64_t>* resp_q, int num_clients, int64_t* local_array, int64_t local_begin, int64_t local_end) 
             : to  (req_q)
             , from (resp_q) 
-            , descriptors (new DMap_t()) 
             , num_clients(num_clients)
+            , num_waiting_unflushed(0) 
             , local_array(local_array)
             , local_begin(local_begin)
             , local_end(local_end)
-            , num_waiting_unflushed(0) 
+            , descriptors (new DMap_t()) 
             {}
             
         ~SplitPhase() {

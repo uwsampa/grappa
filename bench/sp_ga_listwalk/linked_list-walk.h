@@ -6,7 +6,7 @@
 #include "thread.h"
 #include "SplitPhase.hpp"
 
-int walk_split_phase(thread* me, SplitPhase* sp, int64_t base, uint64_t listsize, uint64_t num_lists);
+int64_t walk_split_phase(thread* me, SplitPhase* sp, int64_t base, int64_t listsize, uint64_t num_lists);
 
 
 #endif
