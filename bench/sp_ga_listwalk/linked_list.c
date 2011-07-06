@@ -10,12 +10,10 @@
 #include <getopt.h>
 
 #include <omp.h>
-#include "mpi.h"
 
 #include <sched.h>
 
-#include "linked_list-node.h"
-#include "linked_list-alloc.h"
+#include "node.hpp"
 #include "linked_list-walk.h"
 
 #include "thread.h"
@@ -26,6 +24,10 @@
 #include "SplitPhase.hpp"
 
 #include "numautil.h"
+
+#include "mpi.h"
+#include "ga++.h"
+#include "ga_alloc.hpp"
 
 /* 
  * Multiple threads walking linked lists concurrently.
@@ -51,37 +53,32 @@ void __sched__noop__(pid_t, unsigned int, cpu_set_t*) {}
 
   // local data for each software thread
   struct walk_info {
-	uint64_t num;
-	uint64_t* results;
-	uint64_t* times; 
-	node** bases;
+	int64_t list_id;
+	int64_t result;
+	uint64_t time; 
+	int64_t  base;
 	uint64_t num_lists_per_thread;
 	uint64_t listsize;
 	SplitPhase* sp;
   };
 
 void thread_runnable(thread* me, void* arg) {
-      // no synchronization on shared data because interleaving is controlled by yield
-      // and threads do not run parallel
       struct walk_info* info = (struct walk_info*) arg;
-      uint64_t thread_num = info->num;
+      int64_t list_id = info->list_id;
       uint64_t num_lists_per_thread = info->num_lists_per_thread;
-      uint64_t procsize = info->procsize;
+      uint64_t listsize = info->listsize;
 
       uint64_t start_tsc;
       rdtscll(start_tsc);
-      //results[thread_num] = walk( data, thread_num, num_threads, num_lists, procsize );
-      //results[thread_num] = multiwalk( bases + thread_num * num_lists_per_thread,
-      //                                num_lists_per_thread, procsize );
-//      info->results[thread_num] = walk_prefetch_switch( me, info->bases + thread_num * num_lists_per_thread, procsize, num_lists_per_thread, 0);
-      info->results[thread_num] = walk_split_phase( me,
-    		  	  	  	  	  	  	  	  	  	  	info->sp,
-    		  	  	  	  	  	  	  	  	  	  	info->bases + thread_num * num_lists_per_thread,
-    		  	  	  	  	  	  	  	  	  	  	procsize,
-    		  	  	  	  	  	  	  	  	  	  	num_lists_per_thread);
+      
+      info->result = walk_split_phase( me,
+                                    info->sp,
+                                    info->base,
+                                    listsize,
+                                    num_lists_per_thread);
       uint64_t end_tsc;
       rdtscll(end_tsc);
-      info->times[thread_num] = end_tsc - start_tsc;
+      info->time = end_tsc - start_tsc;
 
 //      printf("core%u-thread%u: FINISHED\n", omp_get_thread_num(), me->id);
 
@@ -116,7 +113,7 @@ int main(int argc, char* argv[]) {
   static struct option long_options[] = {
     {"bits",             required_argument, NULL, 'b'},
     {"threads_per_core", required_argument, NULL, 't'},
-    {"cores",            required_argument, NULL, 'c'},
+    {"cores_per_node",            required_argument, NULL, 'c'},
     {"lists_per_thread", required_argument, NULL, 'l'},
     {"monitor",          no_argument,       NULL, 'm'},
     {"green_threads",    no_argument,       NULL, 'g'},
@@ -271,6 +268,8 @@ int main(int argc, char* argv[]) {
                                 local_array, local_begin, local_end);
   }
 
+  MPI_Barrier( MPI_COMM_WORLD );
+
     // run number_of_repetitions # of experiments
   for(n = 0; n < number_of_repetitions; n++) {
       
@@ -297,11 +296,12 @@ int main(int argc, char* argv[]) {
 	      	#pragma omp critical (crit_create)
 	     	 {
 	       	 for (int gt = 0; gt<num_threads_per_core; gt++) {
-	       	   walk_infos[core_num][gt].num = core_num*num_threads_per_core + gt;
-	       	   walk_infos[core_num][gt].results = results;
-	       	   walk_infos[core_num][gt].times   = times;
-	       	   walk_infos[core_num][gt].bases = bases;
-	       	   walk_infos[core_num][gt].num_lists_per_thread = num_lists_per_thread;
+               int64_t list_id = (rank * num_cores_per_node * num_threads_per_core) + (core_num*num_threads_per_core + gt);
+	       	   walk_infos[core_num][gt].list_id = list_id;
+               int64_t base;
+               bases.get(&list_id, &list_id, &base, NULL);
+	       	   walk_infos[core_num][gt].base = base;
+               walk_infos[core_num][gt].num_lists_per_thread = num_lists_per_thread;
 	       	   walk_infos[core_num][gt].listsize = listsize_per_thread;
 	       	   walk_infos[core_num][gt].sp = sp[core_num];
 	       	   threads[core_num][gt] = thread_spawn(masters[core_num], schedulers[core_num], thread_runnable, &walk_infos[core_num][gt]);
@@ -309,9 +309,11 @@ int main(int argc, char* argv[]) {
 	     	}
     	}
 
+    	clock_gettime(CLOCK_MONOTONIC, &start);
+        MPI_Barrier( MPI_COMM_WORLD );
+
     	// start monitoring and timing    
     	//er.startIfEnabled();
-    	clock_gettime(CLOCK_MONOTONIC, &start);
     	//printf("Start time: %d seconds, %d nanoseconds\n", (int) start.tv_sec, (int) start.tv_nsec);
 
     	// do the work
@@ -337,123 +339,68 @@ int main(int argc, char* argv[]) {
 				for (thread_num=0; thread_num < num_threads; thread_num++) {
 					cpu_set_t set;
 					CPU_ZERO(&set);
-
-					if (thread_num < thr_per_sock) CPU_SET(cpus0[thread_num], &set);//CPU_SET(thread_num*2,&set);
-					else CPU_SET(cpus1[thread_num-thr_per_sock], &set);//CPU_SET((thread_num-thr_per_sock)*2+1,&set);
-
+                    CPU_SET(cpus0[thread_num], &set);
 	                SCHED_SET(0, sizeof(cpu_set_t), &set);
 
 					sp[thread_num]->issue(QUIT, 0, 0, masters[thread_num]);
 				}
 
     		} else { //delegate
-    			// assuming last core on sock0 and sock1
+    			// assuming last core on socket
     			cpu_set_t set;
     			CPU_ZERO(&set);
-    			if (task==1) CPU_SET(cpus0[max_cpu0-1],&set);//CPU_SET(10,&set);
-    			else CPU_SET(cpus1[max_cpu1-1],&set);//CPU_SET(11,&set);
+    			CPU_SET(cpus0[max_cpu0-1],&set);//CPU_SET(10,&set);
+    			SCHED_SET(0, sizeof(cpu_set_t), &set);
 
-                SCHED_SET(0, sizeof(cpu_set_t), &set);
-
-    			delegates[task-1]->run();
+    			delegate.run();
     		}
     	}
 
     	// stop timing
+        MPI_Barrier( MPI_COMM_WORLD );
     	clock_gettime(CLOCK_MONOTONIC, &end);
     	//er.stopIfEnabled();
-    	//printf("End time: %d seconds, %d nanoseconds\n", (int) end.tv_sec, (int) end.tv_nsec);
+   
+        // unimportant calculation to ensure calls don't get optimized away
+        uint64_t result = 0;
+        for(int core_num = 0; core_num < num_cores_per_node; core_num++) {
+            for (int gt=0; gt<num_threads_per_core; gt++) {
+               result += walk_infos[core_num][gt].result;
+            }
+        } 
+        printf("result: %lu\n", result);
+   
     
-   	 // cleanup threads (not sure if each respective master has to do it, so being safe by letting each master call destroy on its green threads)
+   	    // cleanup threads (not sure if each respective master has to do it, so being safe by letting each master call destroy on its green threads)
     	#pragma omp parallel for num_threads(num_threads)
-    	for (thread_num = 0; thread_num < num_threads; thread_num++) {
-		#pragma omp critical (crit_destroy)
+    	for (int core_num = 0; core_num < num_cores_per_node; core_num++) {
+	    	#pragma omp critical (crit_destroy)
         	{
-	  	for (int gt=0; gt<num_threads_per_core; gt++) {
-			destroy_thread(threads[thread_num][gt]);
-	  	}
-    	        }
+	  	        for (int gt=0; gt<num_threads_per_core; gt++) {
+			        destroy_thread(threads[core_num][gt]);
+	  	        }
+    	    }
     	}
     } else { // NOT use_green_threads and not use_jump_threads
-      // start monitoring and timing    
-	//er.startIfEnabled();
-    	clock_gettime(CLOCK_MONOTONIC, &start);
-    	//printf("Start time: %d seconds, %d nanoseconds\n", (int) start.tv_sec, (int) start.tv_nsec);
-
-    	// do work
-    	#pragma omp parallel for num_threads(num_threads)
-    	for(thread_num = 0; thread_num < num_threads; thread_num++) {
-
-      	    uint64_t start_tsc;
-      	    rdtscll(start_tsc);
-      	
-	    results[thread_num] = walk( bases + thread_num * num_lists_per_thread, procsize, num_lists_per_thread, 0);
-      	
-	    uint64_t end_tsc;
-      	    rdtscll(end_tsc);
-      	    times[thread_num] = end_tsc - start_tsc;
-    	}
-
-    	// stop timing
-    	clock_gettime(CLOCK_MONOTONIC, &end);
-    	//er.stopIfEnabled();
-    	//printf("End time: %d seconds, %d nanoseconds\n", (int) end.tv_sec, (int) end.tv_nsec);
+        assert(false); //unimplemented
     }
 
+
+    double runtime = (end_time.tv_sec + 1.0e-9 * end_time.tv_nsec) - (start_time.tv_sec + 1.0e-9 * start_time.tv_nsec);
+    double min_runtime = 0.0;
+    MPI_Reduce( &runtime, &min_runtime, 1, MPI_DOUBLE, MPI_MIN, 0, MPI_COMM_WORLD );
+    double max_runtime = 0.0;
+    MPI_Reduce( &runtime, &max_runtime, 1, MPI_DOUBLE, MPI_MAX, 0, MPI_COMM_WORLD );
+
+    double rate = count * num_lists_per_thread * num_threads_per_node * num_nodes / min_runtime;
+
+    std::cout << "node " << rank << " runtime is " << runtime << std::endl;
+    std::cout << "node " << rank << " sum is " << sum << std::endl;
+
+    if (0 == rank) std::cout << "rate is " << rate / 1000000.0 << " Mref/s" << std::endl;    
   
-    uint64_t runtime_ns = 0;
-    uint64_t latency_ticks = 0;
-    //times[thread_num] = ((uint64_t) end.tv_sec * 1000000000 + end.tv_nsec) - ((uint64_t) start.tv_sec * 1000000000 + start.tv_nsec);
-    runtime_ns = ((uint64_t) end.tv_sec * 1000000000 + end.tv_nsec) - ((uint64_t) start.tv_sec * 1000000000 + start.tv_nsec);
-
-    // unimportant calculation to ensure calls don't get optimized away
-    uint64_t result = 0;
-    for(thread_num = 0; thread_num < total_num_threads; thread_num++) {
-      result += results[thread_num];
-      latency_ticks += times[thread_num];
-      printf("thread %lu: %lu ticks / %lu procsize = %f ticks per request\n", thread_num, times[thread_num], procsize, (double) times[thread_num]/procsize);
-    }
-
-    //uint64_t runtime_ns = ((uint64_t) end.tv_sec * 1000000000 + end.tv_nsec) - ((uint64_t) start.tv_sec * 1000000000 + start.tv_nsec);
-
-
-    const double ticks_per_ns = 2.67;
-    const uint64_t totalsize = size; //procsize * num_threads * num_lists_per_thread;
-    if (num_threads == 1) assert(totalsize == size);
-    double runtime_s = (double)runtime_ns / 1000000000.0;
-    const uint64_t total_bytes = totalsize * sizeof(node);
-    const uint64_t proc_bytes = procsize * sizeof(node);
-    const uint64_t total_requests = totalsize;
-    const uint64_t proc_requests = procsize;
-    const double   request_rate = (double)total_requests / runtime_s;
-    const double   proc_request_rate = (double)proc_requests / runtime_s;
-    const double   data_rate = (double)total_bytes / runtime_s;
-    const double   proc_data_rate = (double)proc_bytes / runtime_s;
-    const double   proc_request_time = (double)runtime_ns / proc_requests;
-    const double   proc_request_cpu_cycles = proc_request_time / (1.0 / 2.27);
-    const double   avg_latency_ticks = (double)latency_ticks / (total_requests / num_lists_per_thread);// total_num_threads*num req per thread = total requests
-    const double   avg_latency_ns = (double)avg_latency_ticks / ticks_per_ns;
-    //what does this mean?-->const double   avg_latency_ns = (double)runtime_ns / (proc_requests / num_lists_per_thread);
-
-    printf("{'bits':%lu, 'st_per_ht':%lu, 'use_green_threads':%d, 'num_threads':%lu, 'concurrent_reads':%lu, 'total_bytes':%lu, 'proc_bytes':%lu, 'total_requests':%lu, 'proc_requests':%lu, 'request_rate':%f, 'proc_request_rate':%f, 'data_rate':%f, 'proc_data_rate':%f, 'proc_request_time':%f, 'proc_request_cpu_cycles':%f, 'avg_latency_ticks':%f }\n",
-	   bits, num_threads_per_core, use_green_threads, num_threads, num_lists_per_thread, total_bytes, proc_bytes, total_requests, proc_requests, 
-	   request_rate, proc_request_rate, data_rate, proc_data_rate, proc_request_time, proc_request_cpu_cycles, avg_latency_ticks);
-
-    printf("(%lu/%lu): %f MB/s, %g ticks avg, %g ns avg, %lu nanoseconds, %lu requests, %f Mreq/s, %f Mreq/s/proc, %f ns/req, %f B/s, %f clocks each\n", 
-	   bits, num_threads,
-	   (double)total_bytes/runtime_s/1000/1000, 
-           avg_latency_ticks, avg_latency_ns,
-	   runtime_ns, totalsize, (double)totalsize/((double)runtime_ns/1000000000)/1000000, 
-	   (double)totalsize/((double)runtime_ns/1000000000)/num_threads/1000000, 
-	   (double)runtime_ns/totalsize, 
-	   (double)totalsize*sizeof(node)/((double)runtime_ns/1000000000),
-	   ((double)runtime_ns/(totalsize/num_threads)) / (.00000000044052863436 * 1000000000) 
-	   );
-
-    free(results);
-    free(times);
   }
-  //print( data );
 
+  GA::Terminate();
   return 0;
 }
