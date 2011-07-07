@@ -1,3 +1,4 @@
+#include <stdio.h>
 #include <assert.h>
 #include "thread.h"
 #include "linked_list-walk.h"
@@ -19,6 +20,7 @@ int64_t walk_split_phase(thread* me, SplitPhase* sp, int64_t base, int64_t lists
 
         sum += index;
     } else {
+        printf("%lu lists unsupported\n");
         assert(false);
     }
     

@@ -64,12 +64,13 @@ void __sched__noop__(pid_t, unsigned int, cpu_set_t*) {}
 
 void thread_runnable(thread* me, void* arg) {
       struct walk_info* info = (struct walk_info*) arg;
-      uint64_t num_lists_per_thread = info->num_lists_per_thread;
       uint64_t listsize = info->listsize;
-
+      uint64_t num_lists_per_thread = 1;// XXX info->num_lists_per_thread;
+      
       uint64_t start_tsc;
       rdtscll(start_tsc);
       
+//printf("nlpt = %lu, listsize=%lu\n", num_lists_per_thread, listsize);
       info->result = walk_split_phase( me,
                                     info->sp,
                                     info->base,
@@ -250,7 +251,6 @@ int main(int argc, char* argv[]) {
 		 &vertices, &bases,
 		 &local_begin, &local_end, &local_array );
 
-
     vertices.printDistribution();
 
 
@@ -263,7 +263,7 @@ int main(int argc, char* argv[]) {
       sock0_qs_fromDel[th] = CoreQueue<uint64_t>::createQueue();
       sock0_qs_toDel[th] =  CoreQueue<uint64_t>::createQueue();
       sp[th] = new SplitPhase(sock0_qs_toDel[th], sock0_qs_fromDel[th], num_threads_per_core, 
-                                local_array, local_begin, local_end);
+                                local_array, local_begin<<3, local_end<<3);
   }
 
   MPI_Barrier( MPI_COMM_WORLD );
@@ -306,6 +306,7 @@ int main(int argc, char* argv[]) {
 	         }
 	     	}
     	}
+
 
     	clock_gettime(CLOCK_MONOTONIC, &start_time);
         MPI_Barrier( MPI_COMM_WORLD );
@@ -369,7 +370,7 @@ int main(int argc, char* argv[]) {
         } 
         printf("result: %lu\n", result);
    
-    
+   /* 
    	    // cleanup threads (not sure if each respective master has to do it, so being safe by letting each master call destroy on its green threads)
     	#pragma omp parallel for num_threads(num_cores_per_node)
     	for (uint64_t core_num = 0; core_num < num_cores_per_node; core_num++) {
@@ -380,6 +381,8 @@ int main(int argc, char* argv[]) {
 	  	        }
     	    }
     	}
+*/
+
     } else { // NOT use_green_threads and not use_jump_threads
         assert(false); //unimplemented
     }
@@ -396,7 +399,8 @@ int main(int argc, char* argv[]) {
     std::cout << "node " << rank << " runtime is " << runtime << std::endl;
 
     if (0 == rank) std::cout << "rate is " << rate / 1000000.0 << " Mref/s" << std::endl;    
-  
+
+    MPI_Barrier( MPI_COMM_WORLD ); 
   }
 
   GA::Terminate();

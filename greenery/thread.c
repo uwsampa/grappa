@@ -4,7 +4,7 @@
 #include <stdlib.h>
 #include <stdio.h>
 
-#define STACK_SIZE 4096
+#define STACK_SIZE 1<<13
 
 thread *thread_init() {
   coro *me = coro_init();

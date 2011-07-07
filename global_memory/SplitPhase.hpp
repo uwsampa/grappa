@@ -10,6 +10,9 @@
 #include "MemoryDescriptor.hpp"
 #include "GlobalMemory.hpp"
 
+#include "ga++.h"
+
+
 typedef threadid_t mem_tag_t;
 
 class SplitPhase {
@@ -43,7 +46,7 @@ class SplitPhase {
             , local_begin(local_begin)
             , local_end(local_end)
             , descriptors (new DMap_t()) 
-            {}
+            {printf("proc%d local_begin:%ld, local_end:%ld\n", GA::nodeid(), local_begin, local_end);}
             
         ~SplitPhase() {
         	delete descriptors;

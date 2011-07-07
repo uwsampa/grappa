@@ -2,6 +2,7 @@
 #include <stdarg.h>
 #include <string.h>
 
+
 #include "Delegate.hpp"
 #include "thread.h"
 #include "MemoryDescriptor.hpp"
@@ -33,7 +34,7 @@ void debug_print(void* obj, const char* formatstr, ...) {
 
 	va_list al;
 	va_start(al, formatstr);
-	vprintf(debugstr, al);
+    if (0==GA::nodeid())  vprintf(debugstr, al);
 //	vbprintf(debugstr, al);
 	va_end(al);
 }
@@ -78,21 +79,33 @@ void handle_responses(thread* me, void* args) {
     hsr_thread_args* cargs = (hsr_thread_args*) args;
 
     Delegate* del = cargs->del;
-    hlist_t handles = del->handles;
+    hlist_t* handles = &(del->handles);
 
     while (del->doContinue()) {
-        //printf("Delegate: iteration of handle_responses %d\n",del->activeCount);
+        DEBUGP(del, "iteration of handle_responses %d\n",del->activeCount);
 
-        hlist_t::iterator iter;
-        for (iter = handles.begin(); iter!=handles.end(); iter++) {
+/* if test then wait -- use iterator, otherwise just pop thru
+        DEBUGP(del, "starting iteration thru handles, size=%d\n", handles->size());
+        DEBUGP(del, "begin equals end %d\n", handles->begin()==handles->end());
+        for (hlist_t::iterator iter = handles->begin(); iter!=handles->end(); iter++) {
             request_handle_t rh = *iter;
-            if (1 /* TODO armci.test first */) {
+            if (1) {
+                DEBUGP(del, "perform wait on handle(%lx)\n", rh.handle);
                 GA::nbWait( &(rh.handle) );
+                DEBUGP(del, "done with wait on handle(%lx)\n", rh.handle);
                 rh.md->setFull(); // TODO (only for Read)
-                handles.pop_front();
+                handles->pop_front();
             }
         }
-        
+        */
+
+        while(!handles->empty() > 0) {
+            request_handle_t rh = handles->front();
+            handles->pop_front();
+            GA::nbWait( &(rh.handle) );
+            rh.md->setFull();
+        }
+
             //DEBUGP(del, "got RemoteResponse descriptor(%lx)\n", (uint64_t)r_resp);
 
             // glob_mem does this commented stuff
@@ -120,7 +133,7 @@ void handle_local_requests(thread* me, void* args) {
     CoreQueue<uint64_t>* oq = cargs->oq;
     Delegate* del = cargs->del;
     GA::GlobalArray* vertices = del->vertices;
-    hlist_t handles = del->handles;
+    hlist_t* handles = &(del->handles);
     int queue_num = cargs->queue_num;
 
 
@@ -148,7 +161,9 @@ void handle_local_requests(thread* me, void* args) {
                     request_handle_t rh;
                     rh.md = md;
                     vertices->nbGet( &index, &index, md->getDataFieldAddress(), NULL, &(rh.handle));
-                    handles.push_back(rh);
+                    DEBUGP(del, "performed get on index=%lx\n", (uint64_t)index);
+                    handles->push_back(rh);
+                    DEBUGP(del, "push index=%lx request to get handles.size=%d\n", (uint64_t)index, handles->size());
                     
                     //DEBUGP(del, "sent request for addr=%lx to remote\n", (uint64_t)md->getAddress());
                      break;
@@ -179,6 +194,8 @@ bool Delegate::doContinue() {
 }
 
 void Delegate::run() {
+
+    DEBUGP(this, "Delegate starting\n");
 
     thread* master = thread_init();
     scheduler* scheduler = create_scheduler(master);

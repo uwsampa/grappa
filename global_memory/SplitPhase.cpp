@@ -9,13 +9,17 @@
 #include "thread.h"
 #include "MemoryDescriptor.hpp"
 
+#include "ga++.h"
+
 #define LOCALITY 0
 #define prefetch(addr) __builtin_prefetch((addr),0,LOCALITY)
 
 #define PREFETCH_LOCAL 1
 
 bool SplitPhase::_isLocal(int64_t index) {
-    return (local_begin <= index) && (index < local_end);
+    bool r = (local_begin <= index) && (index < local_end); 
+    //printf("index=%ld; nodes=%d; this is local %d\n", index, GA::nodeid(), r);
+    return r;
 }
 
 mem_tag_t SplitPhase::issue(oper_enum operation, int64_t index, uint64_t data, thread* me) {
@@ -32,7 +36,8 @@ mem_tag_t SplitPhase::issue(oper_enum operation, int64_t index, uint64_t data, t
     // if local non synchro/quit then handle directly
     // TODO prefetch?
    if (operation==READ && _isLocal(index)) {
-       int64_t local_index = index - (local_begin<<3);
+       //printf("proc%d-core%u-thread%u: issue LOCAL descriptor(%lx) addr=%ld/x%lx, full=%d\n", GA::nodeid(), omp_get_thread_num(), me->id, (uint64_t) desc, (uint64_t)desc->getAddress(), (uint64_t)desc->getAddress(), desc->isFull());
+       int64_t local_index = index - local_begin;
        #if PREFETCH_LOCAL
         prefetch(&local_array[local_index]);
        #endif
@@ -49,7 +54,7 @@ mem_tag_t SplitPhase::issue(oper_enum operation, int64_t index, uint64_t data, t
        thread_yield(me);
    }
 
-   //printf("core%u-thread%u: issued descriptor(%lx) addr=%lx, full=%d\n", omp_get_thread_num(), me->id, (uint64_t) desc, (uint64_t)desc->getAddress(), desc->isFull());
+   //printf("proc%d-core%u-thread%u: issue REMOTE descriptor(%lx) addr=%ld/x%lx, full=%d\n", GA::nodeid(), omp_get_thread_num(), me->id, (uint64_t) desc, (uint64_t)desc->getAddress(), (uint64_t)desc->getAddress(), desc->isFull());
 
    // using num_waiting_unflushed to optimize flushes
    if (operation==QUIT) to->flush();
@@ -75,7 +80,7 @@ int64_t SplitPhase::complete(mem_tag_t ticket, thread* me) {
 
     int64_t index = mydesc->getAddress();
     if (mydesc->getOperation()==READ && _isLocal(index)) {
-        int64_t local_index = index - (local_begin<<3);
+        int64_t local_index = index - local_begin;
         return local_array[local_index];
     } else {
         while(true) {
