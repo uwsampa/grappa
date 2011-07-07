@@ -36,6 +36,7 @@ mem_tag_t SplitPhase::issue(oper_enum operation, int64_t index, uint64_t data, t
     // if local non synchro/quit then handle directly
     // TODO prefetch?
    if (operation==READ && _isLocal(index)) {
+       local_req_count++;
        //printf("proc%d-core%u-thread%u: issue LOCAL descriptor(%lx) addr=%ld/x%lx, full=%d\n", GA::nodeid(), omp_get_thread_num(), me->id, (uint64_t) desc, (uint64_t)desc->getAddress(), (uint64_t)desc->getAddress(), desc->isFull());
        int64_t local_index = index - local_begin;
        #if PREFETCH_LOCAL
@@ -43,6 +44,8 @@ mem_tag_t SplitPhase::issue(oper_enum operation, int64_t index, uint64_t data, t
        #endif
        return ticket;
    }
+
+   remote_req_count++;
 
 
    // TODO configure queues to larger values

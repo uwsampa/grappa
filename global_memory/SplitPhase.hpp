@@ -37,6 +37,9 @@ class SplitPhase {
         void releaseDescriptor(MemoryDescriptor*);
 
     public:
+        uint64_t local_req_count;
+        uint64_t remote_req_count;
+
         SplitPhase(CoreQueue<uint64_t>* req_q, CoreQueue<uint64_t>* resp_q, int num_clients, int64_t* local_array, int64_t local_begin, int64_t local_end) 
             : to  (req_q)
             , from (resp_q) 
@@ -45,7 +48,8 @@ class SplitPhase {
             , local_array(local_array)
             , local_begin(local_begin)
             , local_end(local_end)
-            , descriptors (new DMap_t()) 
+            , descriptors (new DMap_t())
+            , local_req_count(0),remote_req_count(0) 
             {printf("proc%d local_begin:%ld, local_end:%ld\n", GA::nodeid(), local_begin, local_end);}
             
         ~SplitPhase() {

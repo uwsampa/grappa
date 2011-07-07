@@ -200,9 +200,9 @@ int main(int argc, char* argv[]) {
   }
 
   
-
-  assert((unsigned int)max_cpu0 > num_cores_per_node);
-
+#if PIN_THREADS
+  assert((unsigned int)max_cpu0 > num_cores_per_node); 
+#endif
 
   // GlobalArray initialization
   GA::Initialize(argc, argv);
@@ -369,7 +369,7 @@ int main(int argc, char* argv[]) {
             }
         } 
         printf("result: %lu\n", result);
-   
+    
    /* 
    	    // cleanup threads (not sure if each respective master has to do it, so being safe by letting each master call destroy on its green threads)
     	#pragma omp parallel for num_threads(num_cores_per_node)
@@ -388,6 +388,23 @@ int main(int argc, char* argv[]) {
     }
 
 
+    // local and remote request counts
+    uint64_t loc_count=0;
+    uint64_t rem_count=0;
+    for (uint64_t core_num=0; core_num < num_cores_per_node; core_num++) {
+        loc_count+=sp[core_num]->local_req_count;
+        rem_count+=sp[core_num]->remote_req_count;
+    }
+
+    uint64_t glob_loc_count = 0;
+    uint64_t glob_rem_count = 0;
+    MPI_Reduce( &loc_count, &glob_loc_count, 1, MPI_INT, MPI_SUM, 0, MPI_COMM_WORLD );
+    MPI_Reduce( &rem_count, &glob_rem_count, 1, MPI_INT, MPI_SUM, 0, MPI_COMM_WORLD );
+    uint64_t glob_tot_count = glob_loc_count + glob_rem_count;
+
+    if (0 == rank) std::cout << "local reqs:" << glob_loc_count << "/"<< (double)glob_loc_count/glob_tot_count << " remote reqs:" << glob_rem_count << "/" << (double)glob_rem_count/glob_tot_count  << std::endl;
+
+    // runtime
     double runtime = (end_time.tv_sec + 1.0e-9 * end_time.tv_nsec) - (start_time.tv_sec + 1.0e-9 * start_time.tv_nsec);
     double min_runtime = 0.0;
     MPI_Reduce( &runtime, &min_runtime, 1, MPI_DOUBLE, MPI_MIN, 0, MPI_COMM_WORLD );
