@@ -5,8 +5,10 @@ CFLAGS=-O3 -g -fopenmp
 CFLAGS+= -I../greenery -L../greenery -I$(QS_DIR) -L$(QS_DIR) 
 LIBS+= -lgreenery -lcorequeue -lrt 
 
+HOSTNAME=$(shell hostname)
+
 # for GA
-CFLAGS+= -I../tools/ga-5-0-2/ga-n01/include -L../tools/ga-5-0-2/ga-n01/lib
+CFLAGS+= -I../tools/ga-5-0-2/ga-$(HOSTNAME)/include -L../tools/ga-5-0-2/ga-$(HOSTNAME)/lib
 LIBS+= -lga++ -lga -lgfortran -libverbs
 
 #TODO abstract this
