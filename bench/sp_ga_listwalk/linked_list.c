@@ -58,13 +58,13 @@ void __sched__noop__(pid_t, unsigned int, cpu_set_t*) {}
 	uint64_t time; 
 	int64_t  base;
 	uint64_t num_lists_per_thread;
-	uint64_t listsize;
+	uint64_t count;
 	SplitPhase* sp;
   };
 
 void thread_runnable(thread* me, void* arg) {
       struct walk_info* info = (struct walk_info*) arg;
-      uint64_t listsize = info->listsize;
+      uint64_t count = info->count;
       uint64_t num_lists_per_thread = 1;// XXX info->num_lists_per_thread;
       
       uint64_t start_tsc;
@@ -74,7 +74,7 @@ void thread_runnable(thread* me, void* arg) {
       info->result = walk_split_phase( me,
                                     info->sp,
                                     info->base,
-                                    listsize,
+                                    count,
                                     num_lists_per_thread);
       uint64_t end_tsc;
       rdtscll(end_tsc);
@@ -92,7 +92,8 @@ int main(int argc, char* argv[]) {
   uint64_t bits = 24; //atoi(argv[1]);            // 2^bits=number of nodes
   uint64_t num_threads_per_core = 1; //atoi(argv[2]);     // sw threads/ hw thread
   uint64_t num_cores_per_node = 1; //atoi(argv[3]);// hw threads
-  uint64_t size = (1 << bits);              
+  uint64_t size = (1 << bits);
+  uint64_t num_traversals = 1; // number of traversals thru the circular lists         
 
   uint64_t num_lists_per_thread = 1; //atoi(argv[4]); // number of concurrent accesses per thread	
 
@@ -114,6 +115,7 @@ int main(int argc, char* argv[]) {
     {"threads_per_core", required_argument, NULL, 't'},
     {"cores_per_node",            required_argument, NULL, 'c'},
     {"lists_per_thread", required_argument, NULL, 'l'},
+    {"num_traversals_log",  required_argument, NULL, 'a'},
     {"monitor",          no_argument,       NULL, 'm'},
     {"green_threads",    no_argument,       NULL, 'g'},
     {"jump_threads",     no_argument,       NULL, 'j'},
@@ -121,7 +123,7 @@ int main(int argc, char* argv[]) {
     {NULL,               no_argument,       NULL, 0}
   };
   int c, option_index = 1;
-  while ((c = getopt_long(argc, argv, "b:t:c:s:l:m:gjh?",
+  while ((c = getopt_long(argc, argv, "b:t:c:s:l:a:m:gjh?",
                           long_options, &option_index)) >= 0) {
     switch (c) {
     case 0:   // flag set
@@ -138,6 +140,9 @@ int main(int argc, char* argv[]) {
       break;
     case 'l':
       num_lists_per_thread = atoi(optarg);
+      break;
+    case 'a':
+      num_traversals = (1<<atoi(optarg));
       break;
     case 'm':
       do_monitor = 1;
@@ -274,6 +279,7 @@ int main(int argc, char* argv[]) {
       Delegate delegate(sock0_qs_fromDel, sock0_qs_toDel, num_cores_per_node, &vertices);
 	            	  	  
     const uint64_t listsize_per_thread = size / (total_num_threads * num_lists_per_thread);
+    const uint64_t count = listsize_per_thread * num_traversals;
 
     struct timespec start_time;
     struct timespec end_time;
@@ -300,7 +306,7 @@ int main(int argc, char* argv[]) {
                bases.get(&list_id, &list_id, &base, NULL);
 	       	   walk_infos[core_num][gt].base = base;
                walk_infos[core_num][gt].num_lists_per_thread = num_lists_per_thread;
-	       	   walk_infos[core_num][gt].listsize = listsize_per_thread;
+	       	   walk_infos[core_num][gt].count = count;
 	       	   walk_infos[core_num][gt].sp = sp[core_num];
 	       	   threads[core_num][gt] = thread_spawn(masters[core_num], schedulers[core_num], thread_runnable, &walk_infos[core_num][gt]);
 	         }
@@ -332,7 +338,8 @@ int main(int argc, char* argv[]) {
 					run_all(schedulers[core_num]);
 				} //barrier
 
-                printf("barrier hit, now will send QUIT sigs\n");
+                // no MPI barrier needed since delegate is not servicing remote requests and can just be shut down when local stuff done
+                printf("proc%d barrier hit, now will send QUIT sigs\n", rank);
 
 				//QUIT signals
 				#pragma omp parallel for num_threads(num_cores_per_node)
@@ -411,7 +418,7 @@ int main(int argc, char* argv[]) {
     double max_runtime = 0.0;
     MPI_Reduce( &runtime, &max_runtime, 1, MPI_DOUBLE, MPI_MAX, 0, MPI_COMM_WORLD );
 
-    double rate = listsize_per_thread * num_lists_per_thread * num_threads_per_core * num_cores_per_node * num_nodes / min_runtime;
+    double rate = count * num_lists_per_thread * num_threads_per_core * num_cores_per_node * num_nodes / min_runtime;
 
     std::cout << "node " << rank << " runtime is " << runtime << std::endl;
 
