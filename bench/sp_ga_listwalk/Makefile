@@ -25,10 +25,10 @@ default: linked_list.exe
 run: run_$(HOSTNAME)
 
 run_n01: linked_list.exe
-	mpiexec -np 6 hugectl -- ./linked_list.exe -b 10 -c 1 -t 4 -l 1 -g
+	mpiexec -np 6 hugectl --heap  -- ./linked_list.exe -b 10 -c 1 -t 4 -l 1 -g
 
 run_n02: linked_list.exe
-	mpiexec -np 6 hugectl -- ./linked_list.exe -b 10 -c 1 -t 4 -l 1 -g
+	mpiexec -np 6 hugectl ---heap -- ./linked_list.exe -b 10 -c 1 -t 4 -l 1 -g
 
 %.o: %.c $(HEADERS) Makefile
 	$(CC) $(CFLAGS) $< -c -o $@
@@ -39,8 +39,6 @@ linked_list.exe: linked_list.c $(HEADERS) $(OBJECTS) Makefile
 all:
 	./allmake.sh
 
-run:
-	hugectl --heap ./linked_list.exe -b 23 -t 16 -c 6 -g -l 1
 
 debug: debug_$(HOSTNAME)
 
