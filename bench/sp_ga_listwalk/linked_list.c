@@ -425,6 +425,9 @@ int main(int argc, char* argv[]) {
     if (0 == rank) std::cout << "rate is " << rate / 1000000.0 << " Mref/s" << std::endl;    
 
     MPI_Barrier( MPI_COMM_WORLD ); 
+
+    if (0 == rank) printf("{'bits':%lu, 'num_nodes':%d, 'num_threads_per_core':%lu, 'use_green_threads':%d, 'num_cores_per_node':%lu, 'concurrent_reads':%lu, 'request_rate':%f, 'num_traversals':%lu, 'runtime':%f}\n", bits, num_nodes, num_threads_per_core, use_green_threads, num_cores_per_node, num_lists_per_thread, rate, num_traversals, runtime);
+
   }
 
   GA::Terminate();
