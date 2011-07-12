@@ -33,10 +33,12 @@ class SplitPhase {
         typedef std::tr1::unordered_map<const threadid_t, MemoryDescriptor*, std::tr1::hash<uint64_t>, std::equal_to<uint64_t> > DMap_t;
         DMap_t* descriptors;
 
-        MemoryDescriptor* getDescriptor(threadid_t tid);
         void releaseDescriptor(MemoryDescriptor*);
 
     public:
+
+
+        MemoryDescriptor* getDescriptor(threadid_t tid);
         uint64_t local_req_count;
         uint64_t remote_req_count;
 

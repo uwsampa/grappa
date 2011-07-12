@@ -27,6 +27,9 @@ class MemoryDescriptor {
         #endif
     
     public:
+       uint64_t full_poll_count; 
+
+
        MemoryDescriptor();
         ~MemoryDescriptor();
 

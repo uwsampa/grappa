@@ -98,6 +98,8 @@ int64_t SplitPhase::complete(mem_tag_t ticket, thread* me) {
                 //assert(m->isFull()); // TODO decide what condition indicates write completion
             }*/
 
+            mydesc->full_poll_count++;
+
             // check for my data
             if (mydesc->isFull()) { // TODO decide what condition indicates write completion
                 int64_t resp = mydesc->getData();

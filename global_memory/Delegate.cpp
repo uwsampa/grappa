@@ -102,7 +102,7 @@ void handle_responses(thread* me, void* args) {
         while(!handles->empty() > 0) {
             request_handle_t rh = handles->front();
             handles->pop_front();
-            GA::nbWait( &(rh.handle) );
+            GA::nbWait( &(rh.handle) );  // seem unneeded for shmem globarrays
             rh.md->setFull();
         }
 

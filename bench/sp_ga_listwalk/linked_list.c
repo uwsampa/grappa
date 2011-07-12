@@ -283,6 +283,8 @@ int main(int argc, char* argv[]) {
 
     struct timespec start_time;
     struct timespec end_time;
+    
+    uint64_t total_poll_counts;
      
     if (use_green_threads) {
     	// arrays for threads and infos
@@ -343,13 +345,13 @@ int main(int argc, char* argv[]) {
 
 				//QUIT signals
 				#pragma omp parallel for num_threads(num_cores_per_node)
-				for (uint64_t thread_num=0; thread_num < num_cores_per_node; thread_num++) {
+				for (uint64_t core_num=0; core_num < num_cores_per_node; core_num++) {
 					cpu_set_t set;
 					CPU_ZERO(&set);
-                    CPU_SET(cpus0[thread_num], &set);
+                    CPU_SET(cpus0[core_num], &set);
 	                SCHED_SET(0, sizeof(cpu_set_t), &set);
 
-					sp[thread_num]->issue(QUIT, 0, 0, masters[thread_num]);
+					sp[core_num]->issue(QUIT, 0, 0, masters[core_num]);
 				}
 
     		} else { //delegate
@@ -370,9 +372,13 @@ int main(int argc, char* argv[]) {
    
         // unimportant calculation to ensure calls don't get optimized away
         uint64_t result = 0;
+        total_poll_counts = 0;
         for(uint64_t core_num = 0; core_num < num_cores_per_node; core_num++) {
             for (uint64_t gt=0; gt<num_threads_per_core; gt++) {
                result += walk_infos[core_num][gt].result;
+
+                //printf("proc%d-core%lu-thread%lu avgpoll:%f\n", rank, core_num, gt, (double)sp[core_num]->getDescriptor(threads[core_num][gt]->id)->full_poll_count/((double)sp[core_num]->remote_req_count/num_threads_per_core));
+                total_poll_counts += sp[core_num]->getDescriptor(threads[core_num][gt]->id)->full_poll_count;
             }
         } 
         printf("result: %lu\n", result);
@@ -403,11 +409,15 @@ int main(int argc, char* argv[]) {
         rem_count+=sp[core_num]->remote_req_count;
     }
 
+    printf("proc%d, avg poll count per remote request %f\n", rank, (double)total_poll_counts/rem_count);
+
     uint64_t glob_loc_count = 0;
     uint64_t glob_rem_count = 0;
     MPI_Reduce( &loc_count, &glob_loc_count, 1, MPI_INT, MPI_SUM, 0, MPI_COMM_WORLD );
     MPI_Reduce( &rem_count, &glob_rem_count, 1, MPI_INT, MPI_SUM, 0, MPI_COMM_WORLD );
     uint64_t glob_tot_count = glob_loc_count + glob_rem_count;
+
+    
 
     if (0 == rank) std::cout << "local reqs:" << glob_loc_count << "/"<< (double)glob_loc_count/glob_tot_count << " remote reqs:" << glob_rem_count << "/" << (double)glob_rem_count/glob_tot_count  << std::endl;
 
