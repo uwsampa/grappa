@@ -20,7 +20,7 @@ int64_t walk_split_phase(thread* me, SplitPhase* sp, int64_t base, int64_t lists
 
         sum += index;
     } else {
-        printf("%lu lists unsupported\n");
+        printf("%lu lists unsupported\n", num_lists);
         assert(false);
     }
     
