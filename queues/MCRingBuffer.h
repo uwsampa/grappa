@@ -65,4 +65,8 @@ void MCRingBuffer_flush(MCRingBuffer * mcrb);
 
 int MCRingBuffer_consume(MCRingBuffer * mcrb, uint64_t* element);
 
+int MCRingBuffer_eleSize(MCRingBuffer * mcrb);
+
+int MCRingBuffer_readableSize(MCRingBuffer * mcrb);
+
 #endif

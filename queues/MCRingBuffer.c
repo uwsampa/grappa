@@ -1,4 +1,4 @@
-
+#include <stdio.h>
 #include "MCRingBuffer.h"
 
 void MCRingBuffer_init(MCRingBuffer * mcrb) {
@@ -61,9 +61,21 @@ void MCRingBuffer_init(MCRingBuffer * mcrb) {
 }
 
 
+int MCRingBuffer_eleSize(MCRingBuffer* mcrb) {
+    int write = mcrb->write;
+    int writeSide = mcrb->nextWrite - write;
+    writeSide = (mcrb->nextWrite < write) ? writeSide+8 : writeSide;
 
+    return writeSide;
+}
 
-
+// must consume first before there is a size
+int MCRingBuffer_readableSize(MCRingBuffer* mcrb) {
+    int write = mcrb->write;  // mcrb->localWrite avoids reading 'write' but will not give full view of size until consume past this rBatch window
+    return (write < mcrb->nextRead) ? 
+                write - mcrb->nextRead + 8 : 
+                write - mcrb->nextRead;
+}
 
 
 
