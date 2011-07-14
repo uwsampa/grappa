@@ -1,0 +1,809 @@
+
+TCGMSG Send/receive subroutines ... version 4.04 (January 1994)
+---------------------------------------------------------------
+
+Robert J. Harrison
+
+Mail Stop K1-90                             tel: 509-375-2037
+Battelle Pacific Northwest Laboratory       fax: 509-375-6631
+P.O. Box 999, Richland WA 99352          E-mail: rj_harrison@pnl.gov
+
+The programming model and interface is directly modelled after the
+PARMACS of the ANL ACRF (see "Portable Programs for Parallel
+Processors", J. Boyle, R. Butler, T. Disz, B. Glickfeld, E. Lusk, R.
+Overbeek, J. Patterson, R. Stevens. Holt, Rinehart and Winston, Inc.,
+1987, ISBN 0-03-014404-3).  Attention is drawn to the P4 parallel
+programming system (contact Ewing Lusk, lusk@mcs.anl.gov) which
+is the successor to PARMACS.
+
+In the UNIX environment communication is over TCP sockets, unless
+indentical processes are running on a machine with support for shared
+memory, which is then used. Thus applications can be built to run over
+an entire network of machines with local communication running at
+memory bandwidth (plus synchronization overhead) and remote
+communication running at Ethernet speed (close to the maximum of 10
+Mbits/s can be seen on quiet networks).  On true message-passing
+machines TCGMSG is just a thin layer over the system interface.
+
+A configuration file specifies the placement of processes over the
+network. The message passing program is then invoked with the command
+'parallel' which reads the configuration file and invokes the required
+processes using fork() or rsh. This has the benefits of the placement
+of processes being identical no matter from where on the network the
+command is given, and the 'spare' process running the command parallel
+is used to provide load balancing service in a straightfoward fashion.
+
+Hooks are in the lower level routines for conversion of data between
+machines with different byte ordering/numerical representation. This
+is currently only implemented for FORTRAN integer and double precision
+(C long and double) data types and C character data.
+
+Examples
+--------
+
+Associated with this source is a directory ('examples'!) of sample
+programs, including dynamic load balancing.  See the README file in
+that directory for more details.  It is interesting that in only one
+of the examples was it necessary to resort to explict message passing,
+and only then for efficiency.  The functionality of DGOP and BRDCST
+sufficed for the other examples, which display respectable speedup.
+
+The Model
+---------
+
+Strong typing is enforced.  The type associated with a message when
+sent must match the type specified on the corresponding receive.
+No wildcard types are permitted.
+
+Processes are connected with ordered, synchronous channels.  On
+machines that explicitly support it (currently the iPSC and DELTA)
+explicitly asynchronous communication is supported.  Otherwise it
+should be thought that:
+
+  a) sends block until the message is explicitly received
+
+  b) messages from a particular process can only be received
+     in the order sent.
+
+As far as buffering provided by the transport layer permits, messages
+are actually sent without any synchronization between the sender and
+receiver.  However, since the amount of buffering varies greatly from
+one mechanism to another you cannot explicitly use this fact.  On the
+iPSC and also on the Alliant MPP over HIPPI (and perhaps on the KSR
+over shared memory ... I have yet to check this) you can also receive
+messages from a given process in any order (provided that they do not
+exhaust the system buffering).  But if you want portability don't
+exploit this feature.
+
+This fuzzy specification permits significant reduction of latency
+without requiring essentially unbounded buffers.
+
+Programming
+-----------
+
+Both the C and FORTRAN interfaces are now consistent and fully
+portable.  Just compile and link following the library usage in the 
+example makefiles. 
+
+The following restrictions are important.
+
+NB: Use of FORTRAN character variables in argument lists except where
+    indicated below is NOT supported as some implementations pass them
+    using two arguments, or as a pointer to a structure.
+
+NB: All user detected errors requiring termination MUST result
+    in a call to PARERR (see testf.f for an example). From 'C'
+    call Error(char *message, long info).
+
+NB: The value of message types must be in the range 1-32767.
+    Set bits higher than this are used (amoungst other things) to
+    indicate that data translation is requested (see point 3 below).
+
+NB: On the KSR see the README.KSR file.
+
+1) On entry the first things all processes must do is 
+
+   FORTRAN:    CALL PBEGINF or CALL PBGINF
+
+   C:          #include "sndrcv.h"
+
+	       int main() 
+               {
+                 PBEGIN_(argc, argv);
+
+   This connects all the processes together and initializes the
+   environment.
+
+2) Immediately before exit all processes must call pend as follows.
+
+   FORTRAN:    CALL PEND
+
+   C:          PEND_();
+
+   This tidies up any shared resources and notifies the load balancing
+   server that it has completed. PEND does return but only to allow you
+   to exit normally.  It is important that the FORTRAN runtime
+   environment be allowed to tidy up after itself.  Calling PBEGIN or
+   PEND more than once per process is bound to produce some bizarre sort
+   of screw up.
+
+3) Data translation when communicating between machines with different
+   data representations or byte ordering is enabled by OR-ing your
+   message type with the appropriate choice of:
+
+   MSGDBL - for double precision floating point data
+   MSGINT - for FORTRAN integer (C long) data
+   MSGCHR - for byte packed character data (C char) ... note above
+            comments on use of character variables in FORTRAN
+
+   These are defined in the include files:
+
+   msgtypesf.h - for FORTRAN
+   msgtypesc.h - for C
+
+   Obviously all the data in the message must be of the same type.
+   It should be simple to add extra types if required.
+
+   e.g. to send a double precision array X with translation if necessary
+   simply code the matching calls
+
+   CALL SND(TYPE+MSGDBL, X, LENX, NODE, SYNC)
+   --------
+   CALL RCV(TYPE+MSGDBL, X, LENX, LEN, NODESEL, NODEFROM, SYNC)
+
+   where the positive integer TYPE must be <= 32767.
+
+4) Between the calls to PBEGINF and PEND any of the following may be
+   used.
+
+   a)  INTEGER FUNCTION NNODES()
+
+       long NNODES_()
+
+       Returns no. of processes
+
+   b)  INTEGER FUNCTION NODEID()
+
+       long NODEID_()
+
+       Returns logical node no. of the current process 
+       (0,1,...,NNODES()-1)
+
+   c)  SUBROUTINE LLOG()
+
+       void LLOG_()
+
+       Opens separate logfiles in the current directory for each
+       process. The files are named log.<NODEID()>.
+
+   d)  SUBROUTINE STATS()
+
+       void STATS_()
+
+       Print out summary of communication statistics for calling
+       process.
+
+   e)  INTEGER FUNCTION MTIME()
+
+       long MTIME_()
+
+       Return wall time from an arbitrary origin in centi-seconds
+
+   f)  DOUBLE PRECISION FUNCITON TCGTIME()
+
+       double TCGTIME_()
+
+       Return wall time from an arbitrary origin in seconds as accurately
+       as possible
+
+   g)  SUBROUTINE SND(TYPE, BUF, LENBUF, NODE, SYNC)
+       INTEGER TYPE       [input]
+       BYTE BUF(LENBUF)   [input]
+       INTEGER LENBUF     [input]
+       INTEGER NODE       [input]
+       INTEGER SYNC       [input]
+
+       void SND_(long *type, char *buf, long *lenbuf, long *node, 
+                 long *sync)
+
+       Send a message of type TYPE to node NODE. LENBUF is the length
+       of the message in bytes. BUF may be any type other than a
+       FORTRAN CHARACTER variable or constant.  SYNC indicates
+       synchronous (1) or asynchronous (0) communication.  If
+       aynchronous communication is requested the buffer may not be
+       modified until WAITCOM is called. This avoids having to waste
+       valuable local memory taking a copy of the message.  If a bit
+       is set in the TYPE matching MSGDBL, MSGINT or MSGCHR then XDR
+       is used if communication is over sockets.
+       !
+       ! Requests for asynchronous communication on UNIX machines
+       ! where it is not supported are quietly ignored.
+       !
+
+   h)  SUBROUTINE RCV(TYPE, BUF, LENBUF, LENMES, NODESEL, NODEFROM, SYNC)
+       INTEGER TYPE       [input]
+       BYTE BUF(LENBUF)   [output]
+       INTEGER LENBUF     [input]
+       INTEGER LENMES     [output]
+       INTEGER NODESEL    [input]
+       INTEGER NODEFROM   [output]
+       INTEGER SYNC       [input]
+
+       void RCV_(long *type, char *buf, long *lenbuf, long *lenmes,
+                 long *nodesel, long *nodefrom, long *sync)
+
+       Receive a message of type TYPE from node NODESEL. LENBUF is the
+       length of the receiving buffer in bytes. LENMES returns the length
+       of the message received. An error results if the buffer is not
+       large enough. NODEFROM returns the node from which the message was
+       received. If the NODESEL is specified as -1 then the next node to
+       send to this process is chosen. The selection of the 'next' process
+       is guaranteed to be fair.  The length of the buffer is checked
+       and the type of the message must agree with that being received
+       (there is only one channel between processes so messages are
+       received in the order sent). BUF may be of any type other than
+       CHARACTER. SYNC indicates synchronous (1) or asynchronous (0) 
+       communication.
+       If a bit is set in the TYPE matching MSGDBL, MSGINT or MSGCHR then
+       XDR is used if communication is over sockets.
+       !
+       ! Requests for asynchronous communication on UNIX machines
+       ! where it is not supported are quietly ignored.
+       !
+
+   i)  INTEGER FUNCTION PROBE(TYPE, NODE)
+       INTEGER TYPE       [input]
+       INTEGER NODE       [input]
+
+       long PROBE_(long *type, long *node)
+
+       Return 1/0 for TRUE/FALSE if a message of the given type is
+       available from the given node.  If node is specified as -1 then
+       a message of the given type from any node will match (note that
+       a wildcard probe is much more expensive than probing a
+       specific node).
+
+   j)  SUBROUTINE BRDCST(TYPE, BUF, LENBUF, IFROM)
+       INTEGER TYPE       [input]
+       BYTE BUF(LENBUF)   [input/output]
+       INTEGER LENBUF     [input]
+       INTEGER IFROM      [input]
+
+       void BRDCST_(long *type, char *buf, long *lenbuf, long *ifrom)
+
+       Broadcast from process IFROM to all other processes a message
+       of type TYPE and length LENBUF. All processes call this routine
+       which uses an optimized algorithm to distribute the data in
+       O(log p) time.
+       If a bit is set in the TYPE matching MSGDBL, MSGINT or MSGCHR then
+       XDR is used if communication is over sockets. Note that LENBUF
+       presently must have the correct value on the originating and
+       receiving nodes. This call may be modified to include an extra
+       parameter with the function of LENMES in the RCV() syntax.
+
+   k)  SUBROUTINE SYNCH(TYPE)
+       INTEGER TYPE       [input]
+
+       void SYNCH_(long *type)
+
+       Synchronize all processes by exchanging messages of the given
+       type in time O(log p).
+
+   l)  SUBROUTINE SETDBG(ONOFF)
+       INTEGER ONOFF      [input]
+
+       void SETDBG_(long *onoff)
+
+       Switch debugging output on (ONOFF=1) or off (ONOFF=0). This output
+       is useful to trace messages being passed and also to help debug
+       the message passing software.
+
+   m)  INTEGER FUNCTION NXTVAL(MPROC)
+       INTEGER MPROC      [input]
+
+       long NXTVAL_(long *mproc)
+
+       This call simulates a simple shared counter by communicating with
+       a dedicated server process.  It returns the next counter associated
+       with a single active loop (0,1,2,...).  MPROC is the number of
+       processes actively requesting values.  After the end of the loop
+       each process calls NXTVAL(-MPROC) which implements a barrier.
+       It is used as follows:
+
+       FORTRAN
+       -------------------------
+       next = nxtval(mproc)
+       do 10 i = 0,big
+         if (i .eq. next) then
+           ... do work for iteration i
+           next = nxtval(mproc)
+ 	 endif
+   10  continue
+c
+c      call with negative mproc to indicate end of loop ... processes
+c      block here until mproc processes have registered completion
+c
+       junk = nxtval(-mproc)
+       -------------------------
+
+       C
+       -------------------------
+       while ( (i = NXTVAL_(&mproc)) < big ) {
+         ... do work for iteration i
+       }
+       mproc = -mproc;
+       (void) NXTVAL_(&mproc);
+       -------------------------
+
+       On most UNIX machines the cost is approx. 0.05s per call.  On the
+       DELTA and IPSC the cost is less than 0.0003s assuming no contention.
+       Clearly the value from NXTVAL can be used to indicate that some
+       locally determined no. of iterations should be done as the overhead of
+       NXTVAL may be relatively large.  Have a look inside examples/scf.f at
+       the function NXTASK() for a simple way of doing this while preserving
+       the simple semantics of NXTVAL().
+
+       Have a look at the NXTASK() routine in the SCF example for how
+       to use NXTVAL() with varying granularity
+
+   n)  SUBROUTINE PARERR(CODE)
+       INTEGER CODE       [input]
+
+       void ERROR_(char *message, long code)
+
+       Call to request error termination .. it tries to zap all the other
+       processes and generally tidy up. The value of code is printed out
+       in the error message. 
+       C should call ERROR_(char *message, long status).
+
+   o)  SUBROUTINE WAITCOM(NODE)
+       INTEGER NODE       [input]
+
+       void WAITCOM_(long *node)
+
+       Wait for all asynchronous communication with node NODE to be
+       completed.  NODE=-1 implies all nodes.
+       !! Currently this is only applicable to the iPSC and DELTA
+       !! where the actual value of NODE is ignored and -1 assumed.
+
+   p)  SUBROUTINE DGOP(TYPE, X, N, OP)
+       INTEGER TYPE             [input]
+       DOUBLE PRECISION X(N)    [input/output]
+       CHARACTER*(*) OP         [input]
+
+       void DGOP_(long *type, double *x, long *n, char *op)
+       
+       Double Global OPeration.
+       X(1:N) is a vector present on each process. DGOP 'sums'
+       elements of X accross all nodes using the commutative operator
+       OP. The result is broadcast to all nodes. Supported operations
+       include '+', '*', 'max', 'min', 'absmax', 'absmin'.
+       The use of lowerecase is presently necessary.
+       The routine is derived from one by Martyn Guest which in
+       turn is modelled after the Intel iPSC GXXXX routines.
+       XDR data translation is internally enabled.
+ 
+   q)  SUBROUTINE IGOP(TYPE, X, N, OP)
+       INTEGER TYPE             [input]
+       INTEGER X(N)             [input/output]
+       CHARACTER*(*) OP         [input]
+
+       void IGOP_(long *type, long *x, long *n, char *op)
+       
+       Integer Global OPeration.
+       The integer version of DGOP described above, also include the
+       bitwise OR operation.
+
+   r)  INTEGER FUNCTION MITOB(N)
+       INTEGER N                [input]
+
+       long MITOB_(long *n) ... better to use sizeof
+
+       Returns the no. of bytes that N integers (C longs) occupy.
+
+   s)  INTEGER FUNCTION MDTOB(N)
+       INTEGER N                [input]
+
+       long MDTOB_(long *n) ... better to use sizeof
+
+       Returns the no. of bytes that N DOUBLE PRECISIONs (C doubles)
+       occupy.
+
+   t)  INTEGER FUNCTION MITOD(N)
+       INTEGER N                [input]
+
+       long MITOD_(long *n) ... better to use sizeof
+
+       Returns the minimum no. of DOUBLRE PRECSIONs that can hold
+       N INTEGERs.
+
+   u)  INTEGER FUNCTION MDTOI(N)
+       INTEGER N                [input]
+
+       long MDTOI_(long *n) ... better to use sizeof
+
+       Returns the minimum no. of INTEGERs that can hold
+       N DOUBLE PRECISIONs.
+
+   v)  SUBROUTINE PFCOPY(TYPE, NODE0, FILENAME)
+       INTEGER TYPE             [input]
+       INTEGER NODE0            [input]
+       CHARACTER*(*) FILENAME   [input]
+
+       (void) PFILECOPY_(long *type, long *node0, char *filename)
+
+       Process NODE0 has access to the unopened file with name in
+       FILENAME the contents of which are to be copied to files
+       known to all other processes using messages of type TYPE.
+       All processes call PFCOPY() simultaneously, as for BRDCST().
+       Since processes may be working in the same directory it
+       is advisable to have each process use a unique file name.
+       The file is closed at the end of the operation.
+
+       If the data in the file is all of the same type (integer,
+       double etc.) AND there is no additional record structure
+       (such as that imposed by FORTRAN) TYPE should be set to reflect
+       this so that data translation can occur between different
+       machines (the blocking is set to accomodate this).
+       Otherwise if binary transfer is not meaningful U'll have
+       to write your own application specific routine.
+
+    w) INTEGER FUNCTION NICEFTN(INCR)
+       INTEGER INCR    [input]
+
+       Portable rapper around nice for FORTRAN users.  See
+       the local nice() system call man page for info.
+       On the IPSC/DELTA this is a null operation and returns 0.
+	
+
+   In addition to the above functions there is a mechanism for
+creating a more detailed history of 'events' including timing
+information.  PBEGIN(), if compiled with -DEVENTLOG opens the
+file 'events.<nodeid>' and PEND() dumps out event information and
+closes the file. Imbetween, event logging is disabled by
+default and must be enabled by the application.  The 'C'
+interface is fully described at the top of file 'evlog.c' and
+is also clarified by the FORTRAN interface in evon.c.  The
+horrors of portably sending FORTRAN character strings to 'C'
+made me simplify the FORTRAN interface.  Have a look in the 
+examples codes for usage.
+
+    x) SUBROUTINE EVON()
+       SUBROUTINE EVOFF()
+
+       Enable/disable event logging.  Each process logs events to the
+       ASCII file 'events.<nodeid>' (with much buffering so for modest
+       applications it is only dumped out at the end). This includes
+       events such as process creation/termination, message passing etc.
+       Event logging may be enabled just around critical sections of code.
+       Applications may generate additional information with the following
+       (FORTRAN) calls.
+
+    y) SUBROUTINE EVBGIN(INFO)
+       SUBROUTINE EVEND(INFO)
+       SUBROUTINE EVENT(INFO)
+       CHARACTER*(*) INFO
+
+       EVBGIN marks the beginning of an extended event (state?) by logging
+       the message in INFO to the event file (along with a timestamp).
+       EVEND marks the termination of a state similarly. These calls need
+       not be paired for correct functioning, but are in the logical
+       interpretation of the event file.
+       EVENT logs the message INFO to the file with a timestamp.
+
+Analysis of event files
+-----------------------
+
+   A quick glance at an event file will reveal its simple record
+structure.  A very crude graphical analysis of this is provided by the
+program parse, which interfaces to the UNIX plot utilities through the
+program toplot.  Parse and toplot should be made in the normal make
+procedure (for the iPSC these need to be compiled and run on the
+cubemanager or some more friendly environment).  Crays's UNICOS does
+not have the UNIX plot library so you will have to run toplot on a
+real UNIX box.  SGI with marvellous (but proprietary) graphics does
+not have the plot library either.  Under IBM's AIX the plot library is
+there but the filters to display the output are not (except on an IBM
+PC printer!). Hah!  On the Titan the plot man page is there but
+nothing else! Double hah!
+
+   With no arguments parse reads thru all the event files (event.???)
+in the current directory and generates on standard output an ascii
+sequence of plot commands that can be turned into a UNIX plot file by
+the command toplot.  Parse will also accept two arguments which
+specify the range of processes for which event files should be
+analysed.
+
+   The UNIX plot file can be viewed by the many standard UNIX plot
+filters (the GNU plot2ps package is also useful).
+
+   e.g.  on a Tektronix (e.g. the X xterm Tektronix emulation)
+
+       clear; parse 16 31 | toplot | tek
+
+   On the left of the traces is the process number, on the right is
+the percentage of the job duration NOT spent in communication ...
+hopefully this is useful time.  The job duration is computed as the
+greatest lifetime in the examined eventfiles, and thus the time
+percentage also gives an indication of load balance.  A trace consists
+of transitions between two levels (lower and upper).  On the lower
+level the process is executing user code.  A transition to the upper
+level occurs when SND/RCV/WAITCOM are entered. The process then stays
+on the upper level until the communication routine is exited whereupon
+the trace drops to the lower level.  A page of output looks nice with
+about 4-16 traces on it.  There is clearly lots of scope for improving
+this.
+
+   The event logging is heavily buffered, but even so, for processes
+that are generating a lot of small events (lots of short messages),
+significant overhead may be incurred (especially on the iPSC).  To
+avoid this in production code simply recompile without -DEVENTLOG
+(edit the Makefile, then 'make clean', 'make').
+
+
+Executing programs in the UNIX environment
+------------------------------------------
+
+a) The command 'parallel' is used to execute a program. It needs to
+   read a configuration file (the procgroup file in the parlance of the
+   PARMACS) to determine which process to run where. Currently it tries
+   the following in order to determine the file name:
+
+  1) the first argument on the command line with .p appended
+  2) as 1) but also prepending $HOME/pdir/
+  3) the translation of the environmental variable PROCGRP
+  4) the file PROCGRP in the current directory
+
+b) The command line arguments of parallel are currently propagated to
+   all processes and rsh usually exports the environment variables also.
+   Note that extra arguments are appended and that the PROCGRP file if
+   specified is still there, so any arguments that you use must be flagged
+   rather than just positional.  Avoid the flag -master as this is used
+   by TCGMSG when starting remote processes.
+
+c) If you want a process to interactively read input then it must be
+   process number 0 and must be on the same machine as parallel. This 
+   is because remote processes are invoked with 'rsh -n' to avoid
+   bugs due to race conditions in the shell.
+
+d) The PROCGRP file is read to EOF. The character '#' (hash or pound
+   sign) is used to indicate a comment which continues to the next new
+   line character. For each 'cluster' of processes the following
+   whitespace separated fields should be present in order.
+
+      <userid>  <hostname>  <nslave>  <executable>  <workdir>
+
+  userid     The username on the machine that will be executing the
+             process. 
+
+  hostname   The hostname of the machine to execute this process.
+             If it is the same machine on which parallel was invoked
+             the name must match the value returned by the command 
+             hostname. If a remote machine it must allow remote execution
+             from this machine (see man pages for rlogin, rsh).
+
+  nslave     The total number of copies of this process to be executing
+             on the specified machine. Only 'clusters' of identical processes
+             specified in this fashion can use shared memory to communicate.
+             If no shared memory is supported on machine <hostname> then
+             only the value one (1) is valid (e.g. on the Cray).
+
+  executable Full path name on the host <hostname> of the image to execute.
+             If <hostname> is the local machine then a local path will
+             suffice.
+
+  workdir    Full path name on the host <hostname> of the directory to
+             work in. Processes execute a chdir() to this directory before
+             returning from pbegin(). If specified as a '.' then remote
+             processes will use the login directory on that machine and local
+             processes (relative to where parallel was invoked) will use
+             the current directory of parallel.
+
+  e.g.
+
+  harrison boys      3  /home/harrison/c/ipc/testf.x  /tmp      # my sun 4
+  harrison dirac     3  /home/harrison/c/ipc/testf.x  /tmp      # ron's sun4
+  harrison eyring    8  /usr5/harrison/c/ipc/testf.x  /scratch  # alliant fx/8
+
+ The above PROCGRP file would put processes 0-2 on boys (executing
+testf.x in /tmp), 3-5 on dirac (executing testf.x in /tmp) and 6-13 on
+eyring (executing testf.x in /scratch). Processes on each machine use
+shared memory to communicate with each other, sockets otherwise.
+
+e) Note that the number of processes and where they are executed is the
+   same no matter where the command parallel is invoked, as long as the
+   PROCGRP file is the same.
+
+f) If programs are correctly set up they will function as expected when
+   invoked with parallel no matter how processes are specified in the
+   PROCGRP.
+   N.B. Point c) above is an exception to this.
+
+g) The makep command can be used to build a procgroup file on a simple
+   network ... try 'tcgmsg/makep -help' for usage and have a look at the
+   top of tcgmsg/makep for more detail.
+
+
+Executing processes on the IPSC
+-------------------------------
+
+I have not encountered a single program that once running in the UNIX
+environment has failed to run correctly first time on the iPSC-i860
+(other than the usual C/FORTRAN porting issues).  The converse is not
+likely to be true due to availability of asynchronous comms on the
+iPSC (not in the UNIX stuff yet).  if you have problems I would be
+interested to hear of them.
+
+The command parallel is somewhat more functional than under
+UNIX.  The format of the PROCGRP file is different (of
+necessity). The format of each line of the PROCGRP is (again white
+space separated fields with '#' indicating comment to EOL).
+
+     <lo>  <hi>  <image>  <workdir>
+
+     lo-hi = range of nodes to be loaded with this image
+             two special cases are recognized ...
+             $ = highest numbered node
+             $-1 (no spaces!) = highest but one node
+
+     image = path to executable
+             one special case is recognized ... 
+             if image is the string nextvalueservice (no spaces!) then
+             the nxtval server is loaded from the appropriate place.
+             This must always be on the highest node.
+
+     workdir = directory that the process cd's into before commencing
+
+     e.g.
+
+        0 0    master.x     /cfs/rjh
+        1 $-1  slave.x      /cfs/rjh
+        $ $    last_slave.x /cfs/rjh
+
+The parallel command takes the following format
+
+     parallel [-w] [-t cubetype] [-C cubename] [procgrp]
+
+By default parallel assumes that U have already gotten a cube and
+will not release it when it finishes (so you can hog resources).
+
+     -t cubetype = get a cube of the specified type and release it 
+                   when finished. If such a cube is not available parallel
+                   aborts with an error
+
+     -w = if getting a cube wait for the cube to become available if
+          it is not now (prints a message every minute)
+
+     -C cubename = attach to or get the named cube
+
+     procgrp = append .p to get the path name for the procgrp file
+               in this directory or in $HOME/pdir. If this is not
+               specified it looks for either the translation of the
+               environment variable PROCGRP or the file PROCGRP in the
+               current directory
+
+    e.g. 
+ 
+        parallel bigjob
+
+           run the processes described in bigjob.p on the cube
+           defaultname which is already allocated with getcube.
+
+        parallel -t 32 -C N2CI selci
+
+           get a 32 node cube with name N2CI and process description
+           file selci.p
+
+The following should be noted (for both the IPSC and DELTA):
+
+  1) Various trivial functions (e.g. STATS_) are not implemented
+     and just return benignly.  LLOG_() has the nasty habit of core
+     dumping when 32 or more cpus call it (IPSC only) ... I think this
+     is not my bug but the fileserver on the cubemanager running out
+     of file descriptors.  [Have not checked this bug out for a while
+     so it may be OK now?]
+
+  2) The WAITCOM(NODE) call always acts as if NODE=-1 which has the
+     effect of waiting for all outstanding I/O requests to complete.
+     If this is a major problem for someone I might fix it.
+
+  3) NXTVAL is implemnted using an hrecv() interrupt handler running
+     on the highest numbered node.  Thus use of the IPSC routine
+     masktrap() can interfere with the functioning of NXTVAL().
+
+  4) The synchronous communication (SYNCH=1) is asynchronous for
+     short messages (100 bytes on the IPSC, system load dependent for
+     the DELTA).
+
+
+Running on the Touchstone Delta
+-------------------------------
+
+  The command parallel does not exist as it is not possible to write
+code for the service node.  Programs should be compiled and linked
+as usual and subsequently executed with the mexec command. Also,
+the immediately preceeding list of points apply to both the
+IPSC and the Delta.
+
+
+Miscellaneous and Bugs
+----------------------
+
+If a program crashes on machines with the system V shared memory and
+semaphores some of these resources may not be deallocated.  If these
+are not tidied up the system can run out. The shell script ipcreset
+(by Jim Patterson?) removes ALL such resources currently allocated by
+a user. Removing the resources for a running process will cause it to
+crash the next time it tries to access it. Try man on ipcs, ipcrm for
+more details. On a Sequent ipcs, ipcrm are found in '/usr/att/bin', and
+on the Encore in '/etc'.
+
+Many machines have the number of sockets etc. either statically
+configured in the kernel, or capped by some number. While debugging a
+program that keeps crashing sockets may be left open. Most systems
+tidy these unused sockets up every few minutes (?). However when the
+system runs out of these resources it will wreak havoc with all
+networking and windowing operations and possibly crash the system
+(e.g. Ardent Titan, 2.2).
+
+The script zapit (bsd and sysv versions, courtesy of JP again)  kills
+all processes whose command contains a given string.  This is useful
+if a crash or deadlock occurs which leaves junk processes lying around
+(rsh is prone to run away on some machines).
+
+To run large number of processes you may have to patch the kernel to
+increase the limits on numbers of semaphores and open file
+descriptors, or the amount of shared memory.  For shells that support
+it STOP/CONT signals (as generated by ^Z and bg/fg in the csh) should
+work OK.  Interrupts (SIGINT) are trapped and should cause everything
+to tidy up and die (with a few error messages). To kill a program the
+best way is just to use ^C on the parallel program or to send it an
+interrupt with kill -2 (usually).
+
+Porting to new UNIX machines
+----------------------------
+    
+     1) Make the makefiles etc. for the known machine closest to 
+        yours, or failing that the SUN (probably the most reliable).
+
+        make machdep MACHINE=SUN
+
+     2) Now go into the ipcv4.0 directory and run lint on everything
+        to see what it complains about (probably a lot)
+
+        cd ipcv4.0
+        make lint
+
+     3) If it looks as if shared memory and semaphores are not
+        available, disable the compilation flags -DSHMEM -DSYSV.
+        If XDR seems to be missing remove -DGOTXDR.  The stuff in
+        the eventlogging is sometimes especially problematic so you
+        can also remove that (-DEVENTLOG). Run lint again and now
+        fix everything (other than a few pointer alignment problems)
+        that it complains about.  Put any changes in appropriate ifdef
+        blocks.
+
+     4) If your machine has proprietary shared memory/semaphores
+        and sockets aren't fast enough for you, then you must 
+        provide the interfaces described in sema.c and shmem.c.
+        Then recompile with -DSHMEM and the new machine flag.
+
+     5) To get FORTRAN working you must
+
+        1) Determine global symbol that FORTRAN uses to store
+           the command line arguments.  Take an existing FORTRAN
+           executable (a.out) and
+
+           nm -g a.out | grep -i arg
+
+           Some of the listed symbols will probably be the desired
+           argc and argv ... modify farg.h accordingly.
+
+        2) Determine how FORTRAN passes character variables, either
+           by reading manuals or by experiment.
+
+           If it passes the pointer to the string as the argument
+           and appends the argument list with the VALUE of the length
+           then don't do anything.  Otherwise modify the source in
+           evon.c, globalop.c and pfilecopy.c to reflect the correct
+           mechanism.

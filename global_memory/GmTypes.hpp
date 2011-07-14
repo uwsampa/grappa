@@ -5,7 +5,6 @@
 
 typedef uint16_t coreid_t;
 
-enum oper_enum { READ, WRITE, FETCH_AND_ADD };
-
+enum oper_enum { READ, WRITE, FETCH_AND_ADD, QUIT };
 
 #endif

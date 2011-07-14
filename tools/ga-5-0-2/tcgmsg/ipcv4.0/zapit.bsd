@@ -1,0 +1,20 @@
+#!/bin/sh
+
+# $Header: /tmp/hpctools/ga/tcgmsg/ipcv4.0/zapit.bsd,v 1.1.1.1 1994-03-29 06:44:52 d3g681 Exp $
+
+#
+# kill -9 all processes which contain the first argument ... bsd version
+#
+
+if test "$1" = ""
+then
+    echo "Usage:  zapit stringpattern"
+    exit 1
+fi
+for i in `ps -gx | grep $1| grep -v zapit | awk '{printf("%d\t",$1)}'`
+do
+if test "$i" != $$
+then 
+  kill -9 $i
+fi
+done

@@ -1,0 +1,41 @@
+Building TCGMSG on the KSR1
+---------------------------
+
+To compile TCGMSG for the KSR1 just do the following:
+
+        1) cd tcgmsg
+        2) make all MACHINE=KSR
+
+Integer Parameters to TCGMSG library routines
+---------------------------------------------
+
+The TCGMSG library routines that take integer arguments passed by
+reference all expect 8 byte integers.  This means that C programs
+should always pass longs and Fortran programs should always pass
+INTEGER*8s.  Unpredictable behavior can result if 4 byte integers are
+passed to the TCGMSG routines.  The internal type indicator MSGINT also
+refers to INTEGER*8 or long data, but users should be aware that the 
+external representation (i.e. XDR format) is 4 byte, thus large values
+can lose precision.
+
+Problems with Shared Memory
+---------------------------
+
+If you get an error message that looks like this:
+
+  0: CreateSharedRegion: failed to create shared region -1 (0xffffffffffffffff).
+system error message: Invalid argument
+
+when running a TCGMSG program, this means that you could not allocate
+enough shared memory for the buffer space that TCGMSG uses to pass
+messages.  TCGMSG allocates the buffer space using the System V shared
+memory routines.  Older versions of the KSR OS limit the amount of
+shared memory that can be allocated this way to 4 Mbytes.  This limit
+has been increased to 512 Mbytes in the newest version of the OS.
+
+If you have this problem, you can still use TCGMSG.  You'll need to
+change one file that controls how much buffer space is allocated by
+TCGMSG and recompile the entire library.  The file that needs to be
+changed is "ipcv4.0/ksr.h".  Find the #define for KSR_NUM_SLOTS.
+Change the value specified from 256 to 8.  Now, recompile the library,
+and your TCGMSG programs.

@@ -7,7 +7,7 @@
 
 #include <mpi.h>
 
-#include <MPIWorker.hpp>
+#include "MPIWorker.hpp"
 
 
 int main( int argc, char* argv[] ) {

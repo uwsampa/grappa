@@ -6,7 +6,7 @@
 
 #include <mpi.h>
 
-#include <MemoryDescriptor.hpp>
+#include "MemoryDescriptor.hpp"
 
 #ifndef DEBUG
 #define DEBUG 0
@@ -91,11 +91,12 @@ private:
     if (1 == send_flag) {
       if (MPI_WORKER_DEBUG) std::cout << "Receive worker sending...." << std::endl;
       uint64_t addr = (send_descriptor.address & 0xffffffffffffLL) + ((uint64_t) bases[ send_descriptor.data_structure_id ] );
-      if (MPI_WORKER_DEBUG) std::cout << "Receive worker accessing address " << (void*) addr << "...." << std::endl;
+      if (MPI_WORKER_DEBUG) std::cout << "Receive worker accessing address " << reinterpret_cast<void*>(addr) << "...." << std::endl;
 
       switch (send_descriptor.type) {
       case MemoryDescriptor::Write:
         *( (ArrayElementType*) addr ) = send_descriptor.data;
+	send_descriptor.full = true;
         if (MPI_WORKER_DEBUG) std::cout << "Receive worker stored data " << send_descriptor.data << "...." << std::endl;
         break;
       case MemoryDescriptor::Read:
@@ -140,9 +141,9 @@ public:
     , send_status()
     , send_request(MPI_REQUEST_NULL)
     , bases()
+    , active(true)
     , request_communicator(request_communicator)
     , response_communicator(response_communicator)
-    , active(true)
   { 
     if (MPI_WORKER_DEBUG) std::cout << "Receive worker initializing...." << std::endl;
     issueReceive();

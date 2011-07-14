@@ -7,8 +7,8 @@
 
 #define DEBUG 0
 
-#include <MPIGlobalArray.hpp>
-#include <MPIWorker.hpp>
+#include "MPIGlobalArray.hpp"
+#include "MPIWorker.hpp"
 
 
 int main( int argc, char* argv[] ) {
@@ -83,12 +83,12 @@ int main( int argc, char* argv[] ) {
             arr.blockingOp( &md );
             uint64_t data = md.data;
             //uint64_t data = arr.blockingGet( i );
-            if ( i != data ) {
+            if ( static_cast<unsigned>(i) != data ) {
               std::cout << "Error at " << i << ": expected " << i << ", got " << data << std::endl;
             } else {
               std::cout << "Success at " << i << ": expected " << i << ", got " << data << std::endl;
             }
-            assert( i == data );
+            assert( static_cast<unsigned>(i) == data );
           }
 
           std::cout << "All results check out." << std::endl;

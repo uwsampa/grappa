@@ -5,11 +5,11 @@
 
 #include <mpi.h>
 
-#define DEBUG 0
+#define DEBUG 1
 
-#include <MPIWorker.hpp>
-#include <MPICommunicator.hpp>
-#include <GlobalArray.hpp>
+#include "MPIWorker.hpp"
+#include "MPICommunicator.hpp"
+#include "GlobalArray.hpp"
 
 
 int main( int argc, char* argv[] ) {
@@ -61,10 +61,17 @@ int main( int argc, char* argv[] ) {
       std::cout << "pointer " << q << " has array id " << arr.getArrayIdFromGlobalAddress( q ) << std::endl;
       assert( 2 == arr.getArrayIdFromGlobalAddress( q ) );
 
-      std::cout << "pointer " << q << " has local offset " << arr.getLocalOffsetFromGlobalAddress( q ) << std::endl;
-      assert( 0xffffffffffffLL == arr.getArrayIdFromGlobalAddress( q ) );
+      std::cout << "pointer " << q << " has global offset " << arr.getGlobalOffsetFromGlobalAddress( q ) << std::endl;
+      assert( 0xffffffffffffLL == arr.getGlobalOffsetFromGlobalAddress( q ) );
 
-
+      q = (MPIGlobalArray::Cell*) 0x2000000000022LL;
+      if (total_num_nodes > 1) {
+	std::cout << "pointer " << q << " has local offset " << arr.getLocalOffsetFromGlobalAddress( q ) << std::endl;
+	assert( 2 == arr.getLocalOffsetFromGlobalAddress( q ) );
+	std::cout << "pointer " << q << " has node " << arr.getNodeFromGlobalAddress( q ) << std::endl;
+	assert( 1 == arr.getNodeFromGlobalAddress( q ) );
+      }
+      
 
       arr.setArrayId( array_id );
     }
@@ -109,12 +116,12 @@ int main( int argc, char* argv[] ) {
             arr.blockingOp( &md );
             uint64_t data = md.data;
             //uint64_t data = arr.blockingGet( i );
-            if ( i != data ) {
+            if ( static_cast<unsigned>(i) != data ) {
               std::cout << "Error at " << i << ": expected " << i << ", got " << data << std::endl;
             } else {
               std::cout << "Success at " << i << ": expected " << i << ", got " << data << std::endl;
             }
-            assert( i == data );
+            assert( static_cast<unsigned>(i) == data );
           }
 
           std::cout << "All results check out." << std::endl;
