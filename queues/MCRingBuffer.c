@@ -61,7 +61,7 @@ void MCRingBuffer_init(MCRingBuffer * mcrb) {
 }
 
 
-int MCRingBuffer_eleSize(MCRingBuffer* mcrb) {
+int MCRingBuffer_unflushedSize(MCRingBuffer* mcrb) {
     int write = mcrb->write;
     int writeSide = mcrb->nextWrite - write;
     writeSide = (mcrb->nextWrite < write) ? writeSide+8 : writeSide;

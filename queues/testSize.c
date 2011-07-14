@@ -10,8 +10,8 @@
 
 void printSize(MCRingBuffer* m, int rs, int es) {
     int a_rs = MCRingBuffer_readableSize(m);
-    int a_es = MCRingBuffer_eleSize(m);
-    printf("readable: %d ---- unconsumed: %d\n", a_rs, a_es); 
+    int a_es = MCRingBuffer_unflushedSize(m);
+    printf("readable: %d | unflushed: %d\n", a_rs, a_es); 
     assert(a_rs==rs);
     assert(a_es==es);
 }
