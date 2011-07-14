@@ -34,29 +34,37 @@ class CoreQueueMC: public CoreQueue<T> {
 
 
     private:
-        MCRingBuffer* q;
+        MCRingBuffer q;
 
     public:
         CoreQueueMC() 
             : CoreQueue<uint64_t>(0)
-            , q((MCRingBuffer*)malloc(sizeof(MCRingBuffer))) {
+            , q() {
             
-            MCRingBuffer_init(q); 
+            MCRingBuffer_init(&q); 
          }
 
         
 
 
         /*inline*/ bool tryProduce(const T& element) {
-            return (bool) MCRingBuffer_produce(q, (uint64_t)element); //???
+            return (bool) MCRingBuffer_produce(&q, (uint64_t)element); //???
         }
 
         /*inline*/ bool tryConsume(T* element) {
-            return (bool) MCRingBuffer_consume(q, (uint64_t*)element);
+            return (bool) MCRingBuffer_consume(&q, (uint64_t*)element);
         }
 
         /*inline*/ void flush() {
-            MCRingBuffer_flush(q);
+            MCRingBuffer_flush(&q);
+        }
+
+        int sizeConsumer() {
+            return MCRingBuffer_readableSize(&q);
+        }
+
+        int sizeProducer() {
+            return MCRingBuffer_unflushedSize(&q);
         }
 
 };

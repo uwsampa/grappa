@@ -20,6 +20,12 @@ class CoreQueue {
         virtual bool tryConsume(T* element) = 0;
         
         virtual void flush() = 0;
+
+        // sizeConsumer() + sizeProducer() should add to actual number
+        // of elements in the queue. e.g. if one side can always see all
+        // elements then have the other method return 0.
+        virtual int sizeConsumer();
+        virtual int sizeProducer();
 };
 
 
