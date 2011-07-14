@@ -24,8 +24,8 @@ class CoreQueue {
         // sizeConsumer() + sizeProducer() should add to actual number
         // of elements in the queue. e.g. if one side can always see all
         // elements then have the other method return 0.
-        virtual int sizeConsumer();
-        virtual int sizeProducer();
+        virtual int sizeConsumer() = 0;
+        virtual int sizeProducer() = 0;
 };
 
 
