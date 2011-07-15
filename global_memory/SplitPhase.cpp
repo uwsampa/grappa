@@ -57,7 +57,7 @@ mem_tag_t SplitPhase::issue(oper_enum operation, int64_t index, uint64_t data, t
        thread_yield(me);
    }
 
-   //printf("proc%d-core%u-thread%u: issue REMOTE descriptor(%lx) addr=%ld/x%lx, full=%d\n", GA::nodeid(), omp_get_thread_num(), me->id, (uint64_t) desc, (uint64_t)desc->getAddress(), (uint64_t)desc->getAddress(), desc->isFull());
+//   printf("proc%d-core%u-thread%u: issue REMOTE descriptor(%lx) addr=%ld/x%lx, full=%d; produceSize=%d\n", GA::nodeid(), omp_get_thread_num(), me->id, (uint64_t) desc, (uint64_t)desc->getAddress(), (uint64_t)desc->getAddress(), desc->isFull(), to->sizeProducer());
 
    // using num_waiting_unflushed to optimize flushes
    if (operation==QUIT) to->flush();
@@ -68,6 +68,7 @@ mem_tag_t SplitPhase::issue(oper_enum operation, int64_t index, uint64_t data, t
 void SplitPhase::_flushIfNeed() {
     if (num_waiting_unflushed>=num_clients) {
         to->flush();
+  //      printf("proc%d-core%u: forced flush\n", GA::nodeid(), omp_get_thread_num());
         num_waiting_unflushed = 0;
     }
 }
@@ -78,14 +79,14 @@ int64_t SplitPhase::complete(mem_tag_t ticket, thread* me) {
     MemoryDescriptor* mydesc = descriptors[tid];
      
      
-    num_waiting_unflushed++;
-    _flushIfNeed();
-
     int64_t index = mydesc->getAddress();
     if (mydesc->getOperation()==READ && _isLocal(index)) {
         int64_t local_index = index - local_begin;
         return local_array[local_index];
     } else {
+        num_waiting_unflushed++;
+        _flushIfNeed();
+
         while(true) {
             //printf("%d iters of waiting\n", debugi++);
             // dequeue as much as possible
