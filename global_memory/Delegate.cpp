@@ -14,6 +14,8 @@
 #define IS_DEBUG 0
 #define IS_INFO 0 
 
+#define DEBUGO debug_noop
+
 #if IS_DEBUG
 	#define DEBUGP debug_print
 #else
@@ -146,7 +148,7 @@ void handle_local_requests(thread* me, void* args) {
             MemoryDescriptor* md = (MemoryDescriptor*) data;
             md->setCoreId(queue_num); // keep track of where it came from
 
-            DEBUGP(del, "got local request descriptor(%lx)\n", (uint64_t)md);
+            DEBUGO(del, "got local request descriptor(%lx); consume side queue now %d\n", (uint64_t)md, iq->sizeConsumer());
 
             switch (md->getOperation()) {
                 case READ: {
