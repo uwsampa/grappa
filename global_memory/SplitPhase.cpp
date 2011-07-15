@@ -16,6 +16,8 @@
 
 #define PREFETCH_LOCAL 1
 
+#define BLOCK_UNTIL_FLUSH 1
+
 bool SplitPhase::_isLocal(int64_t index) {
     bool r = (local_begin <= index) && (index < local_end); 
     //printf("index=%ld; nodes=%d; this is local %d\n", index, GA::nodeid(), r);
@@ -65,11 +67,17 @@ mem_tag_t SplitPhase::issue(oper_enum operation, int64_t index, uint64_t data, t
    return ticket;
 }
 
-void SplitPhase::_flushIfNeed() {
+bool SplitPhase::_flushIfNeed(thread* me) {
     if (num_waiting_unflushed>=num_clients) {
         to->flush();
   //      printf("proc%d-core%u: forced flush\n", GA::nodeid(), omp_get_thread_num());
         num_waiting_unflushed = 0;
+        #if BLOCK_UNTIL_FLUSH
+            threads_wake(me);
+        #endif
+        return true;
+    } else {
+        return false;
     }
 }
 
@@ -85,14 +93,14 @@ int64_t SplitPhase::complete(mem_tag_t ticket, thread* me) {
         return local_array[local_index];
     } else {
         num_waiting_unflushed++;
-        _flushIfNeed();
+        bool isFlushedOrWoken = _flushIfNeed(me);
 
         while(true) {
             //printf("%d iters of waiting\n", debugi++);
             // dequeue as much as possible
-            int64_t dat;
+           /* int64_t dat;
             MemoryDescriptor* m;
-          /*  while (from->tryConsume(&dat)) {
+            while (from->tryConsume(&dat)) {
                 m = (MemoryDescriptor*) dat;
                 //sleep(1);
                 if (!m->isFull()) { printf("assertFAIL: descriptor(%lx)(data=%lu) gets isFull()=%d\n", (uint64_t)m, m->getData(), m->isFull()); exit(1); }
@@ -111,7 +119,17 @@ int64_t SplitPhase::complete(mem_tag_t ticket, thread* me) {
                 return resp;
             }
             //printf("core%u-thread%u: no luck yet descriptor(%lx) addr=%lx\n", omp_get_thread_num(), me->id, (uint64_t) mydesc, (uint64_t)mydesc->getAddress());
+        
+            #if BLOCK_UNTIL_FLUSH
+            if (isFlushedOrWoken) {
+                thread_yield(me);
+            } else {
+                thread_yield_wait(me);
+                isFlushedOrWoken = true;
+            }
+            #else
             thread_yield(me);
+            #endif
         }
     }
 }
@@ -132,5 +150,5 @@ void SplitPhase::releaseDescriptor( MemoryDescriptor* descriptor) {
 
 void SplitPhase::unregister(thread* me) {
     num_clients--;
-    _flushIfNeed();
+    _flushIfNeed(me);
 }

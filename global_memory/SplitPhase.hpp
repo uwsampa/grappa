@@ -26,7 +26,7 @@ class SplitPhase {
         int64_t local_begin;
         int64_t local_end;
 
-        void _flushIfNeed();
+        bool _flushIfNeed(thread* me);
         bool _isLocal(int64_t index);
  
         // TODO for now one static descriptor per coro

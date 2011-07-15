@@ -26,6 +26,8 @@ typedef struct thread {
 typedef struct scheduler {
   thread *ready; // ready queue
   thread *tail; // tail of queue -- undefined if ready == NULL
+  thread *wait;
+  thread *wait_tail;
   thread *master; // the "real" thread
   threadid_t nextId;
 } scheduler;
@@ -50,6 +52,16 @@ inline thread *scheduler_dequeue(scheduler *sched) {
     result->next = NULL;
   }
   return result;
+}
+
+inline void scheduler_wait_enqueue(scheduler *sched, thread *thr) {
+  if (sched->wait == NULL) {
+    sched->wait = thr;
+    sched->wait_tail = thr;
+  } else {
+    sched->wait_tail->next = thr;
+    sched->wait_tail = thr;
+  }
 }
 
 void scheduler_assignTid(scheduler *sched, thread* thr);
@@ -80,6 +92,45 @@ inline void thread_yield(thread *me) {
   thread *next = scheduler_dequeue(sched);
   coro_invoke(me->co, next->co, NULL);
 }
+
+inline void thread_yield_wait(thread* me) {
+    scheduler *sched = me->sched;
+
+    // can't yield on a system thread
+    assert(sched != NULL);
+
+    // there must be at least one thread on the ready queue
+    // (otherwise there would be deadlock)
+    assert(sched->ready != NULL);
+
+    scheduler_wait_enqueue(sched, me);
+
+    thread *next = scheduler_dequeue(sched);
+    coro_invoke(me->co, next->co, NULL);
+}
+
+// assumes right now there is a single resource for threads in this scheduler to wait on
+inline void threads_wake(thread* me) {
+    scheduler *sched = me->sched;
+
+    // take all threads on wait queue and put in run queue
+    thread* waitHead = sched->wait;
+    thread* waitTail = sched->wait_tail;
+    sched->wait = NULL;
+    sched->wait_tail = NULL;
+
+    if (sched->ready == NULL) {
+        sched->ready = waitHead;
+    } else {
+        sched->tail->next = waitHead;
+    }
+
+    sched->tail = waitTail;
+}
+
+    
+
+
 
 // Die and return to the master thread.
 void thread_exit(thread *me, void *retval);
