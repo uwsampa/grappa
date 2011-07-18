@@ -146,7 +146,11 @@ void handle_local_requests(thread* me, void* args) {
         uint64_t data;
         while (iq->tryConsume(&data)) {
             MemoryDescriptor* md = (MemoryDescriptor*) data;
-            md->setCoreId(queue_num); // keep track of where it came from
+
+
+        //(unneeded unless return queue)
+        //md->setCoreId(queue_num); // keep track of where it came from
+
 
             DEBUGO(del, "got local request descriptor(%lx); consume side queue now %d\n", (uint64_t)md, iq->sizeConsumer());
 
