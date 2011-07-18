@@ -45,9 +45,9 @@ void MemoryDescriptor::fillData (uint64_t data) {
     
     /*atomic {*/
         _data = data;
-        asm volatile("" ::: "memory");
-         // mem barrier
-        __sync_synchronize ();
+        asm volatile("" ::: "memory"); // ensure compiler does not reorder
+         // mem barrier not needed because TSO
+        //__sync_synchronize ();
        full = true;
         
     /*}*/

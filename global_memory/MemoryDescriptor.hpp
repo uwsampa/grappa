@@ -4,7 +4,7 @@
 #include "GmTypes.hpp"
 #include "thread.h"
 
-#define MD_USE_CACHE_ALIGN 0
+#define MD_USE_CACHE_ALIGN 1
 #define MD_CACHE_LINE_SIZE_BYTES 64
 
 
