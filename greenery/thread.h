@@ -119,13 +119,15 @@ inline void threads_wake(thread* me) {
     sched->wait = NULL;
     sched->wait_tail = NULL;
 
-    if (sched->ready == NULL) {
+    if (sched->ready == NULL) {  
         sched->ready = waitHead;
     } else {
         sched->tail->next = waitHead;
     }
 
-    sched->tail = waitTail;
+    if (waitHead!=NULL) {   // only update ready tail if there were elements from wait queue
+        sched->tail = waitTail;
+    }
 }
 
     
