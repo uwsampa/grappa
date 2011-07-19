@@ -113,19 +113,19 @@ inline void thread_yield_wait(thread* me) {
 inline void threads_wake(thread* me) {
     scheduler *sched = me->sched;
 
-    // take all threads on wait queue and put in run queue
+    // take all threads on wait queue (if there are any) and put in run queue
     thread* waitHead = sched->wait;
-    thread* waitTail = sched->wait_tail;
-    sched->wait = NULL;
-    sched->wait_tail = NULL;
+    if (waitHead!=NULL) {
+        thread* waitTail = sched->wait_tail;
+        sched->wait = NULL;
+        sched->wait_tail = NULL;
 
-    if (sched->ready == NULL) {  
-        sched->ready = waitHead;
-    } else {
-        sched->tail->next = waitHead;
-    }
+        if (sched->ready == NULL) {  
+            sched->ready = waitHead;
+        } else {
+            sched->tail->next = waitHead;
+        }
 
-    if (waitHead!=NULL) {   // only update ready tail if there were elements from wait queue
         sched->tail = waitTail;
     }
 }
