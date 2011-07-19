@@ -84,7 +84,7 @@ bool SplitPhase::_flushIfNeed(thread* me) {
 
 int64_t SplitPhase::complete(mem_tag_t ticket, thread* me) {
     threadid_t tid = (threadid_t) ticket;
-    MemoryDescriptor* mydesc = descriptors[tid];
+    MemoryDescriptor* mydesc = descriptors + tid;
      
      
     int64_t index = mydesc->getAddress();
@@ -135,13 +135,7 @@ int64_t SplitPhase::complete(mem_tag_t ticket, thread* me) {
 }
 
 MemoryDescriptor* SplitPhase::getDescriptor(threadid_t thread_id) {
-    MemoryDescriptor* d = descriptors[thread_id];
-    if (!d) {
-        d = new MemoryDescriptor();
-        d->setThreadId(thread_id);
-        descriptors[thread_id] = d;
-    }
-    return d;
+    return descriptors + thread_id; //assumes threadid assigned contiguously starting at 0
 }
 
 void SplitPhase::releaseDescriptor( MemoryDescriptor* descriptor) {

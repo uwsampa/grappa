@@ -29,9 +29,7 @@ class SplitPhase {
         bool _flushIfNeed(thread* me);
         bool _isLocal(int64_t index);
  
-        // TODO for now one static descriptor per coro
-        typedef std::tr1::unordered_map<const threadid_t, MemoryDescriptor*, std::tr1::hash<uint64_t>, std::equal_to<uint64_t> > DMap_t;
-        DMap_t descriptors;
+        MemoryDescriptor* descriptors;
 
         void releaseDescriptor(MemoryDescriptor*);
 
@@ -50,11 +48,15 @@ class SplitPhase {
             , local_array(local_array)
             , local_begin(local_begin)
             , local_end(local_end)
-            , descriptors ()
+            , descriptors (new MemoryDescriptor[num_clients+1])            
             , local_req_count(0),remote_req_count(0) 
-            {printf("proc%d local_begin:%ld, local_end:%ld\n", GA::nodeid(), local_begin, local_end);}
+            {
+                printf("proc%d local_begin:%ld, local_end:%ld\n", GA::nodeid(), local_begin, local_end);
+            
+            }
             
         ~SplitPhase() {
+            free(descriptors);
         }
 
         mem_tag_t issue(oper_enum operation, int64_t index, uint64_t data, thread* me);
