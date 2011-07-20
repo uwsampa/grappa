@@ -25,27 +25,31 @@ bool SplitPhase::_isLocal(int64_t index) {
 }
 
 mem_tag_t SplitPhase::issue(oper_enum operation, int64_t index, uint64_t data, thread* me) {
-   // create a tag to identify this request
-   // TODO: right now just the threadid, since one outstanding request allowed
-   mem_tag_t ticket = (mem_tag_t) me->id;
+
+ // if local non synchro/quit then handle directly
+   if (operation==READ && _isLocal(index)) {
+       local_req_count++;
+       //printf("proc%d-core%u-thread%u: issue LOCAL descriptor(%lx) addr=%ld/x%lx, full=%d\n", GA::nodeid(), omp_get_thread_num(), me->id, (uint64_t) desc, (uint64_t)desc->getAddress(), (uint64_t)desc->getAddress(), desc->isFull());
+        
+       #if PREFETCH_LOCAL
+        int64_t local_index = index - local_begin;
+        prefetch(&local_array[local_index]);
+       #endif
+
+       mem_tag_t ticket;
+       ticket.addr = (void*)local_index;
+       ticket.handleLocally = true;
+
+       return ticket;
+   }
+
 
    MemoryDescriptor* desc = getDescriptor(me->id);
    /*not sure where to do this*/desc->setEmpty();
    desc->setOperation(operation);
    desc->setAddress(index);
    desc->setData(data); // TODO for writes is full start set or does full mean done, etc..?
-
-    // if local non synchro/quit then handle directly
-    // TODO prefetch?
-   if (operation==READ && _isLocal(index)) {
-       local_req_count++;
-       //printf("proc%d-core%u-thread%u: issue LOCAL descriptor(%lx) addr=%ld/x%lx, full=%d\n", GA::nodeid(), omp_get_thread_num(), me->id, (uint64_t) desc, (uint64_t)desc->getAddress(), (uint64_t)desc->getAddress(), desc->isFull());
-       int64_t local_index = index - local_begin;
-       #if PREFETCH_LOCAL
-        prefetch(&local_array[local_index]);
-       #endif
-       return ticket;
-   }
+   
 
    remote_req_count++;
 
@@ -64,6 +68,9 @@ mem_tag_t SplitPhase::issue(oper_enum operation, int64_t index, uint64_t data, t
    // using num_waiting_unflushed to optimize flushes
    if (operation==QUIT) to->flush();
 
+   mem_tag_t ticket;
+   ticket.addr = (void*)desc;
+   ticket.handleLocally = false;
    return ticket;
 }
 
@@ -83,29 +90,15 @@ bool SplitPhase::_flushIfNeed(thread* me) {
 
 
 int64_t SplitPhase::complete(mem_tag_t ticket, thread* me) {
-    threadid_t tid = (threadid_t) ticket;
-    MemoryDescriptor* mydesc = descriptors + tid;
-     
-     
-    int64_t index = mydesc->getAddress();
-    if (mydesc->getOperation()==READ && _isLocal(index)) {
-        int64_t local_index = index - local_begin;
+    if (ticket.handleLocally) { 
+        int64_t local_index = (int64_t)ticket.addr;
         return local_array[local_index];
     } else {
         num_waiting_unflushed++;
         bool isFlushedOrWoken = _flushIfNeed(me);
 
         while(true) {
-            //printf("%d iters of waiting\n", debugi++);
-            // dequeue as much as possible
-           /* int64_t dat;
-            MemoryDescriptor* m;
-            while (from->tryConsume(&dat)) {
-                m = (MemoryDescriptor*) dat;
-                //sleep(1);
-                if (!m->isFull()) { printf("assertFAIL: descriptor(%lx)(data=%lu) gets isFull()=%d\n", (uint64_t)m, m->getData(), m->isFull()); exit(1); }
-                //assert(m->isFull()); // TODO decide what condition indicates write completion
-            }*/
+            MemoryDescriptor* mydesc = (MemoryDescriptor*) ticket.addr;
 
             mydesc->full_poll_count++;
 

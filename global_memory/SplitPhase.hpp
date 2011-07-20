@@ -13,7 +13,10 @@
 #include "ga++.h"
 
 
-typedef threadid_t mem_tag_t;
+typedef struct mem_tag_t {
+    void* addr;
+    bool handleLocally;
+} mem_tag_t;
 
 class SplitPhase {
     private:
