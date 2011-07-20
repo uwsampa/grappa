@@ -11,6 +11,8 @@
 
 #include "ga++.h"
 
+#include "timing.h"
+
 #define LOCALITY 0
 #define prefetch(addr) __builtin_prefetch((addr),0,LOCALITY)
 
@@ -59,6 +61,7 @@ mem_tag_t SplitPhase::issue(oper_enum operation, int64_t index, uint64_t data, t
        thread_yield(me);
    }
 
+   timing_markTime(timer);
 //   printf("proc%d-core%u-thread%u: issue REMOTE descriptor(%lx) addr=%ld/x%lx, full=%d; produceSize=%d\n", GA::nodeid(), omp_get_thread_num(), me->id, (uint64_t) desc, (uint64_t)desc->getAddress(), (uint64_t)desc->getAddress(), desc->isFull(), to->sizeProducer());
 
    // using num_waiting_unflushed to optimize flushes

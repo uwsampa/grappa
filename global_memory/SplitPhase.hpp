@@ -12,6 +12,7 @@
 
 #include "ga++.h"
 
+#include "timing.h"
 
 typedef threadid_t mem_tag_t;
 
@@ -35,6 +36,7 @@ class SplitPhase {
 
     public:
 
+        Timer* timer;
 
         MemoryDescriptor* getDescriptor(threadid_t tid);
         uint64_t local_req_count;
@@ -49,6 +51,7 @@ class SplitPhase {
             , local_begin(local_begin)
             , local_end(local_end)
             , descriptors (new MemoryDescriptor[num_clients+1])            
+            , timer(timing_createTimer(33, 1600))
             , local_req_count(0),remote_req_count(0) 
             {
                 printf("proc%d local_begin:%ld, local_end:%ld\n", GA::nodeid(), local_begin, local_end);

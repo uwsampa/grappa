@@ -23,7 +23,7 @@ HEADERS=\
 	MemoryDescriptor.hpp \
 	Delegate.hpp
 
-LIB_OBJ_FILES= $(SOURCES:%.cpp=%.o)
+LIB_OBJ_FILES= $(SOURCES:%.cpp=%.o) timing.o
 
 all: TestSplitPhase.exe TestDelegate.exe
 
@@ -33,6 +33,9 @@ TestSplitPhase.exe: TestSplitPhase.cpp $(HEADERS)
 
 TestDelegate.exe: TestDelegate.cpp $(HEADERS) GlobalMemoryStub.cpp
 	$(CC) $(CFLAGS) $< -o $@ $(LIBS) $(SOURCES) GlobalMemoryStub.cpp
+
+timing.o: timing.c timing.h
+	$(CC) $(CFLAGS) $< -c -o $@
 
 %.o: %.cpp
 	$(CC) $(CFLAGS) $< -c -o $@ $(LIBS) 
