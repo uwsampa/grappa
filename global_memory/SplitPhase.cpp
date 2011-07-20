@@ -16,7 +16,7 @@
 
 #define PREFETCH_LOCAL 1
 
-#define BLOCK_UNTIL_FLUSH 1
+#define BLOCK_UNTIL_FLUSH 0
 
 bool SplitPhase::_isLocal(int64_t index) {
     bool r = (local_begin <= index) && (index < local_end); 
