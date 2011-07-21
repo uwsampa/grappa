@@ -290,8 +290,8 @@ int main(int argc, char* argv[]) {
      
     if (use_green_threads) {
     	// arrays for threads and infos
-    	thread* threads[num_threads_per_core][num_threads_per_core];
-    	struct  walk_info walk_infos[num_threads_per_core][num_threads_per_core];
+    	thread* threads[num_cores_per_node][num_threads_per_core];
+    	struct  walk_info walk_infos[num_cores_per_node][num_threads_per_core];
     
   	  // for each hw thread, create <num_threads_per_core> green threads
     	#pragma omp parallel for num_threads(num_cores_per_node) 
