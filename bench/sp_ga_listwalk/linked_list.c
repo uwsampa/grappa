@@ -29,7 +29,6 @@
 #include "ga++.h"
 #include "ga_alloc.hpp"
 
-#include "timing.h"
 
 /* 
  * Multiple threads walking linked lists concurrently.
@@ -340,8 +339,6 @@ int main(int argc, char* argv[]) {
 	                SCHED_SET(0, sizeof(cpu_set_t), &set);
 
 					run_all(schedulers[core_num]);
-                    printf("enqueue avg=%f\n", timing_avgIntervalNs(sp[core_num]->timer));
-                    timing_printHistogram(sp[core_num]->timer);
 				} //barrier
 
                 // no MPI barrier needed since delegate is not servicing remote requests and can just be shut down when local stuff done
@@ -445,5 +442,11 @@ int main(int argc, char* argv[]) {
   }
 
   GA::Terminate();
+
+  
+  for (uint64_t th=0; th<num_cores_per_node; th++) {
+      delete sp[th];
+  }
+
   return 0;
 }
