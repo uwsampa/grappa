@@ -35,19 +35,15 @@ typedef struct scheduler {
 inline void scheduler_enqueue(scheduler *sched, thread *thr) {
   if (sched->ready == NULL) {
     sched->ready = thr;
-    sched->tail = thr;
   } else {
     sched->tail->next = thr;
-    sched->tail = thr;
   }
+  sched->tail = thr;
 }
 
 inline thread *scheduler_dequeue(scheduler *sched) {
-  thread *result;
-  if (sched->ready == NULL) {
-    result = NULL;
-  } else {
-    result = sched->ready;
+  thread *result = sched->ready;
+  if (result != NULL) {
     sched->ready = result->next;
     result->next = NULL;
   }

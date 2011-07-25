@@ -4,31 +4,77 @@
 #include <stdint.h>
 #include <stdlib.h>
     
+#define QUSE_MCRB 1
+
+#if QUSE_MCRB
+#include "MCRingBuffer.h"
+#endif
 
 template <class T>
 class CoreQueue {
+    private:
+        #if QUSE_MCRB
+        MCRingBuffer q;
+        #endif
+
     public:
 
-        CoreQueue(int dum);
+        CoreQueue();
+        
         ~CoreQueue();
 
         // factory
         static CoreQueue<T>* createQueue();
         
-        // blocking
-        virtual bool tryProduce(const T& element) = 0;
-        virtual bool tryConsume(T* element) = 0;
-        
-        virtual void flush() = 0;
+        bool tryProduce(const T& element);
 
-        // sizeConsumer() + sizeProducer() should add to actual number
-        // of elements in the queue. e.g. if one side can always see all
-        // elements then have the other method return 0.
-        virtual int sizeConsumer() = 0;
-        virtual int sizeProducer() = 0;
+        bool tryConsume(T* element);
+
+        void flush();
+
+        int sizeConsumer();
+
+        int sizeProducer();
 };
 
+#if QUSE_MCRB
+
+template <class T>
+CoreQueue<T>::CoreQueue() 
+    : q() { // TODO MCRB is currently not templated 
+    
+    MCRingBuffer_init(&q); 
+}
+    
+template <class T>
+CoreQueue<T>::~CoreQueue() { }
+
+template <class T>
+inline bool CoreQueue<T>::tryProduce(const T& element) {
+    return (bool) MCRingBuffer_produce(&q, element); 
+}
+
+template <class T>
+inline bool CoreQueue<T>::tryConsume(T* element) {
+    return (bool) MCRingBuffer_consume(&q, element);
+}
+
+template <class T>
+inline void CoreQueue<T>::flush() {
+    MCRingBuffer_flush(&q);
+}
+
+template <class T>
+int CoreQueue<T>::sizeConsumer() {
+    return MCRingBuffer_readableSize(&q);
+}
+
+template <class T>
+int CoreQueue<T>::sizeProducer() {
+    return MCRingBuffer_unflushedSize(&q);
+}
+
+#endif // QUSE_MCRB
 
 
-
-#endif
+#endif // header
