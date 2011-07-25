@@ -33,26 +33,84 @@ class MemoryDescriptor {
        MemoryDescriptor();
         ~MemoryDescriptor();
 
-        void fillData( uint64_t data );
-        bool checkData( uint64_t* data);
-        void setEmpty();
-        void setFull();
-        void setData( uint64_t data);
-        bool isFull(); //XXX temp
-        uint64_t getData();
-        uint64_t* getDataFieldAddress();
-
-        void setAddress( int64_t addr);
-        int64_t getAddress();
-
-        void setOperation (oper_enum op);
-        oper_enum getOperation();
-
-        void setThreadId( threadid_t );
         threadid_t getThreadId();
        
-        void setCoreId( coreid_t ); 
-        coreid_t getCoreId();
+        void setThreadId( threadid_t tid) {
+            thread_id = tid;
+        }
+
+        void setOperation (oper_enum op) {
+            operation = op;
+        }
+
+        oper_enum getOperation() {
+            return operation;
+        }
+
+        void setAddress(int64_t addr) {
+            address = addr;
+        }
+
+        int64_t getAddress() {
+            return address;
+        }
+
+        bool isFull() {
+            return full;
+        }
+
+        void setEmpty() {
+            full = false;
+        }
+
+        void fillData (uint64_t data) {
+            // TODO 128-bit write or something like that?
+            // For now make assumption that the thing filling is a coroutine in same thread
+            
+            /*atomic {*/
+                _data = data;
+                asm volatile("" ::: "memory");
+                 // mem barrier
+        //        __sync_synchronize ();  unneeded for TSO with compiler barrier
+               full = true;
+                
+            /*}*/
+        }
+
+        bool checkData( uint64_t* data) {
+            // TODO make sure
+            if (full) {
+                full = false;
+                *data = _data;
+                return true;
+            } else {
+                return false;
+            }
+        }
+
+        void setData( uint64_t data ) {
+            _data = data;
+        }
+
+        uint64_t getData () {
+            return _data;
+        }
+           
+        void setCoreId(coreid_t cid) {
+            core_id = cid;
+        }
+         
+        coreid_t getCoreId() {
+            return core_id;
+        }
+
+        void setFull() {
+            full = true;
+        }
+
+        uint64_t* getDataFieldAddress() {
+            return &_data;
+        }
 };
 
 #endif
