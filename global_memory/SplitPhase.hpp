@@ -12,12 +12,14 @@
 
 #include "ga++.h"
 
+#include "timing.hpp"
+
 #define SP_LOCALITY 0
 #define prefetch(addr) __builtin_prefetch((addr),0,SP_LOCALITY)
-
 #define SP_PREFETCH_LOCAL 1
-
 #define SP_BLOCK_UNTIL_FLUSH 0
+#define SP_TIME_ENQUEUES 0
+
 
 typedef struct mem_tag_t {
     void* addr;
@@ -44,6 +46,7 @@ class SplitPhase {
 
     public:
 
+        Timer* timer;
 
         MemoryDescriptor* getDescriptor(threadid_t tid);
         uint64_t local_req_count;
@@ -58,14 +61,16 @@ class SplitPhase {
             , local_begin(local_begin)
             , local_end(local_end)
             , descriptors (new MemoryDescriptor[num_clients+1])            
+            , timer(Timer::createTimer("sp_enq", 33, 1600))
             , local_req_count(0),remote_req_count(0) 
             {
                 printf("proc%d local_begin:%ld, local_end:%ld\n", GA::nodeid(), local_begin, local_end);
-            
+                timer->setBinPrint(SP_TIME_ENQUEUES); 
             }
             
         ~SplitPhase() {
-            free(descriptors);
+            delete timer;
+            //delete descriptors;
         }
 
         mem_tag_t issue(oper_enum operation, int64_t index, uint64_t data, thread* me);
@@ -114,6 +119,10 @@ inline mem_tag_t SplitPhase::issue(oper_enum operation, int64_t index, uint64_t 
    while (!to->tryProduce(request)) {
        thread_yield(me);
    }
+
+   #if SP_TIME_ENQUEUES
+   timer->markTime();
+   #endif
 
 //   printf("proc%d-core%u-thread%u: issue REMOTE descriptor(%lx) addr=%ld/x%lx, full=%d; produceSize=%d\n", GA::nodeid(), omp_get_thread_num(), me->id, (uint64_t) desc, (uint64_t)desc->getAddress(), (uint64_t)desc->getAddress(), desc->isFull(), to->sizeProducer());
 

@@ -29,6 +29,7 @@
 #include "ga++.h"
 #include "ga_alloc.hpp"
 
+
 /* 
  * Multiple threads walking linked lists concurrently.
  * Nodes are 64bytes, one cacheline. List nodes are also shuffled to make locality unlikely.
@@ -441,5 +442,11 @@ int main(int argc, char* argv[]) {
   }
 
   GA::Terminate();
+
+  
+  for (uint64_t th=0; th<num_cores_per_node; th++) {
+      delete sp[th];
+  }
+
   return 0;
 }

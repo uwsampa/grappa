@@ -23,7 +23,7 @@ HEADERS=\
 	MemoryDescriptor.hpp \
 	Delegate.hpp
 
-LIB_OBJ_FILES= $(SOURCES:%.cpp=%.o)
+LIB_OBJ_FILES= $(SOURCES:%.cpp=%.o) timing.o
 
 all: TestSplitPhase.exe TestDelegate.exe
 
