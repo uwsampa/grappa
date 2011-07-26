@@ -24,7 +24,7 @@ Timer::Timer(std::string name, uint64_t num_bins, uint64_t bin_max, bool binning
     , bins((uint64_t*)malloc(sizeof(uint64_t)*num_bins))
     , bin_width(bin_max/(num_bins-1))
     , doBin(binning)
-    , doBinPrint(binning)
+    , doPrint(binning)
     , name(name)
     {
 
@@ -32,8 +32,10 @@ Timer::Timer(std::string name, uint64_t num_bins, uint64_t bin_max, bool binning
 }
 
 Timer::~Timer() {
-    if (doBin) {
-        if (doBinPrint) printHistogram();
+    if (doPrint) {
+        if (doBin) {
+            printHistogram();
+        }
         printf("%s: avg interval (ns): %f\n", name.c_str(), avgIntervalNs());
     }
 
@@ -48,12 +50,13 @@ Timer* Timer::createTimer(std::string name, uint64_t num_bins, uint64_t bin_max)
     return new Timer(name, num_bins, bin_max, true);
 }
 
-void Timer::markTime() {
+
+void Timer::markTime(bool accumWithLast) {
     unsigned int current;
     rdtscll(current);
    
-    // first call only initializes last_time 
-    if (last_time != 0) {
+    // first call only initializes last_time; also don't accum if false 
+    if (accumWithLast && last_time != 0) {
         uint64_t diff = current - last_time;
         max_sample = (diff > max_sample) ? diff : max_sample;
         number_of_samples++;
@@ -86,6 +89,6 @@ void Timer::printHistogram() {
    
 }
 
-void Timer::setBinPrint(bool on) {
-    doBinPrint = on;
+void Timer::setPrint(bool on) {
+    doPrint = on;
 }

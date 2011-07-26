@@ -19,7 +19,7 @@
 #define SP_PREFETCH_LOCAL 1
 #define SP_BLOCK_UNTIL_FLUSH 0
 #define SP_TIME_ENQUEUES 0
-
+#define SP_TIME_REQ_LATENCY 0
 
 typedef struct mem_tag_t {
     void* addr;
@@ -32,6 +32,7 @@ class SplitPhase {
         CoreQueue<uint64_t>* from;
 
         int num_clients;
+        int num_active_clients;
         int num_waiting_unflushed;
         int64_t* local_array;
         int64_t local_begin;
@@ -56,6 +57,7 @@ class SplitPhase {
             : to  (req_q)
             , from (resp_q) 
             , num_clients(num_clients)
+            , num_active_clients(num_clients)
             , num_waiting_unflushed(0) 
             , local_array(local_array)
             , local_begin(local_begin)
@@ -65,12 +67,19 @@ class SplitPhase {
             , local_req_count(0),remote_req_count(0) 
             {
                 printf("proc%d local_begin:%ld, local_end:%ld\n", GA::nodeid(), local_begin, local_end);
-                timer->setBinPrint(SP_TIME_ENQUEUES); 
+                timer->setPrint(SP_TIME_ENQUEUES); 
             }
             
         ~SplitPhase() {
+
+            double sum_time=0;
+            for (int i=1; i<num_clients+1; i++) {
+                sum_time += descriptors[i].latency_timer.avgIntervalNs();
+            }
+            delete[] descriptors;
+            printf("threads avg wait: %f\n", sum_time/num_clients);
+
             delete timer;
-            //delete descriptors;
         }
 
         mem_tag_t issue(oper_enum operation, int64_t index, uint64_t data, thread* me);
@@ -121,7 +130,7 @@ inline mem_tag_t SplitPhase::issue(oper_enum operation, int64_t index, uint64_t 
    }
 
    #if SP_TIME_ENQUEUES
-   timer->markTime();
+   timer->markTime(true);
    #endif
 
 //   printf("proc%d-core%u-thread%u: issue REMOTE descriptor(%lx) addr=%ld/x%lx, full=%d; produceSize=%d\n", GA::nodeid(), omp_get_thread_num(), me->id, (uint64_t) desc, (uint64_t)desc->getAddress(), (uint64_t)desc->getAddress(), desc->isFull(), to->sizeProducer());
@@ -149,13 +158,23 @@ inline int64_t SplitPhase::complete(mem_tag_t ticket, thread* me) {
         _flushIfNeed(me);
         #endif
 
+        MemoryDescriptor* mydesc = (MemoryDescriptor*) ticket.addr;
+
+        #if SP_TIME_REQ_LATENCY
+        mydesc->latency_timer.markTime(false);
+        #endif
+
         while(true) {
-            MemoryDescriptor* mydesc = (MemoryDescriptor*) ticket.addr;
 
             mydesc->full_poll_count++;
 
             // check for my data
             if (mydesc->isFull()) { // TODO decide what condition indicates write completion
+                
+                #if SP_TIME_REQ_LATENCY
+                mydesc->latency_timer.markTime(true);
+                #endif
+                
                 int64_t resp = mydesc->getData();
                 releaseDescriptor(mydesc);
 
@@ -187,7 +206,7 @@ inline bool SplitPhase::_isLocal(int64_t index) {
 
 
 inline bool SplitPhase::_flushIfNeed(thread* me) {
-    if (num_waiting_unflushed>=num_clients) {
+    if (num_waiting_unflushed>=num_active_clients) {
         to->flush();
   //      printf("proc%d-core%u: forced flush\n", GA::nodeid(), omp_get_thread_num());
         num_waiting_unflushed = 0;

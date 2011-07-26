@@ -265,6 +265,7 @@ int main(int argc, char* argv[]) {
   CoreQueue<uint64_t>* sock0_qs_toDel[num_cores_per_node];
 
   SplitPhase* sp[num_cores_per_node];
+  #pragma omp parallel for num_threads(num_cores_per_node)
   for (uint64_t th=0; th<num_cores_per_node; th++) {
       sock0_qs_fromDel[th] = CoreQueue<uint64_t>::createQueue();
       sock0_qs_toDel[th] =  CoreQueue<uint64_t>::createQueue();
@@ -441,12 +442,15 @@ int main(int argc, char* argv[]) {
 
   }
 
-  GA::Terminate();
 
-  
   for (uint64_t th=0; th<num_cores_per_node; th++) {
       delete sp[th];
   }
+
+  GA::Terminate();
+
+  
+  
 
   return 0;
 }

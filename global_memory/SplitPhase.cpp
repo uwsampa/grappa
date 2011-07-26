@@ -14,6 +14,6 @@
 
 
 void SplitPhase::unregister(thread* me) {
-    num_clients--;
+    num_active_clients--;
     _flushIfNeed(me);
 }

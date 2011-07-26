@@ -19,7 +19,7 @@ class Timer {
         uint64_t* bins;
         uint64_t max_sample;
         bool doBin;
-        bool doBinPrint;
+        bool doPrint;
         std::string name;
 
         void printHistogram();
@@ -30,10 +30,10 @@ class Timer {
 
        static Timer* createSimpleTimer(std::string name);
         static Timer* createTimer(std::string name, uint64_t num_bins, uint64_t bin_max);
-        void markTime();
+        void markTime(bool accumWithLast);
         double avgIntervalNs();
 
-        void setBinPrint(bool on);
+        void setPrint(bool on);
 };
 
 #endif

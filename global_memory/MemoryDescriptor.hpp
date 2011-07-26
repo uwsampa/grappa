@@ -3,6 +3,7 @@
 
 #include "GmTypes.hpp"
 #include "thread.h"
+#include "timing.hpp"
 
 #define MD_USE_CACHE_ALIGN 1
 #define MD_CACHE_LINE_SIZE_BYTES 64
@@ -27,7 +28,8 @@ class MemoryDescriptor {
         #endif
     
     public:
-       uint64_t full_poll_count; 
+       uint64_t full_poll_count;
+       Timer latency_timer;
 
 
        MemoryDescriptor();
