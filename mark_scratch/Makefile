@@ -31,7 +31,7 @@ brandes_1p_coarse: fastlist.o brandes_1p_coarse.o brandes_common.o
 brandes_1p_coarse_and_fine: fastlist.o brandes_1p_coarse_and_fine.o brandes_common.o
 	$(LD) $(LFLAGS) -o $@ $^ $(LIBS)
 
-gasme: gasme.o global_memory.o
+gasme: gasme.o global_memory.o global_array.o
 	$(LD) $(LFLAGS) $(MPI_LIBS) $(GASNET_LIBS) -o $@ $^ $(LIBS)
 
 clean:

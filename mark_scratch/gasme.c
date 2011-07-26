@@ -2,27 +2,80 @@
 #include <gasnet.h>
 #include "base.h"
 #include "global_memory.h"
+#include "global_array.h"
 
-void test_handler(
-    gasnet_token_t  token,
-    gasnet_handlerarg_t arg0) {
-    printf("test_handler on %d: sizeof(t)=%ld %ld\n",
-        gasnet_mynode(),
-        sizeof(gasnet_handlerarg_t),
-        (long int)arg0);
-}
-
+// This crys out for linker sets
 gasnet_handlerentry_t   handlers[] =
     {
-        { 128, (void *)test_handler },
         { GM_REQUEST_HANDLER, (void *)gm_request_handler },
-        { GM_RESPONSE_HANDLER, (void *)gm_response_handler }
+        { GM_RESPONSE_HANDLER, (void *)gm_response_handler },
+        { GA_HANDLER, (void *)ga_handler }
     };
 
 gasnet_seginfo_t    *shared_memory_blocks;
 
 #define SHARED_PROCESS_MEMORY_SIZE  (ONE_MEGA * 256)
 #define SHARED_PROCESS_MEMORY_OFFSET (ONE_MEGA * 256)
+
+void ga_test() {
+    struct global_array *ga;
+    struct global_address addr;
+    
+    int i;
+    
+    ga = ga_allocate(sizeof(uint64), 10);
+    
+    if (gasnet_mynode() == 0) {
+        for (i = 0; i < 10; i++) {
+            ga_index(ga, i, &addr);
+        
+            printf("%d : node: %d address: %lld\n",
+                i, addr.node, addr.offset);
+            }
+        }
+        
+    if (gasnet_mynode() == 1) {
+        uint64  temp;
+        
+        for (i = 0; i < 10; i++) {
+            ga_index(ga, i, &addr);
+            temp = i;
+            gm_copy_to(&temp, &addr, sizeof(uint64));            
+            }
+        }
+    gasnet_barrier_notify(0, GASNET_BARRIERFLAG_ANONYMOUS);
+    gasnet_barrier_wait(0, GASNET_BARRIERFLAG_ANONYMOUS);
+
+    if (gasnet_mynode() == 0) {
+        uint64  temp;
+        
+        for (i = 0; i < 10; i++) {
+            ga_index(ga, i, &addr);
+            temp = i;
+            gm_copy_from(&addr, &temp, sizeof(uint64));
+            printf("result: %d = %lld\n", i, temp);
+            if (i != temp) {
+                printf("Global array read/write test -- FAILED\n");
+                exit(1);
+                }
+            }
+        }
+    gasnet_barrier_notify(0, GASNET_BARRIERFLAG_ANONYMOUS);
+    gasnet_barrier_wait(0, GASNET_BARRIERFLAG_ANONYMOUS);
+    printf("Global array read/write test -- SUCCESS\n");
+    }
+
+// Test remote allocations (ga_test will test local allocations).
+void gm_test() {
+    struct global_address addr;
+    
+    gasnet_barrier_notify(0, GASNET_BARRIERFLAG_ANONYMOUS);
+    gasnet_barrier_wait(0, GASNET_BARRIERFLAG_ANONYMOUS);
+    gm_allocate(&addr, 1 - gasnet_mynode(), sizeof(uint64));
+    printf("%d allocation: %d at %lld\n", gasnet_mynode(), addr.node, addr.offset);
+    gasnet_barrier_notify(0, GASNET_BARRIERFLAG_ANONYMOUS);
+    gasnet_barrier_wait(0, GASNET_BARRIERFLAG_ANONYMOUS);
+}
 
 int main(int argc, char **argv) {
     int initialized = 0;
@@ -63,16 +116,9 @@ int main(int argc, char **argv) {
                 (unsigned long long) shared_memory_blocks[i].size);
             }
         }
-        
-    printf("Rocken\n");
-    {
     
+    gm_test();
+    ga_test(); 
     
-    
-    for(i = 0; i < gasnet_nodes(); i++)
-        gasnet_AMRequestShort1(1 - gasnet_mynode(), 128, gasnet_mynode());
-    }
-    
-    gasnet_AMPoll();    
     gasnet_exit(0);
 }

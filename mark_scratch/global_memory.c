@@ -59,7 +59,7 @@ void gm_response_handler(gasnet_token_t token,
     response_received = true;
     }
 
-int gm_allocate(struct global_address *a, int preferred_node, uint64 size) {
+void gm_allocate(struct global_address *a, int preferred_node, uint64 size) {
     if (preferred_node == ANY_NODE) {
         preferred_node = next_random_node;
         next_random_node = next_random_node + 1;
@@ -79,24 +79,21 @@ int gm_allocate(struct global_address *a, int preferred_node, uint64 size) {
                 }
         }
     if (response_value == 0)
-        return -1;  // FAIL
+       panic("Out of memory");
     
     a->node = preferred_node;
     a->offset = response_value;
-    return 0;
     }
 
-int gm_copy_from(struct global_address *ga, void *local_address, uint64 size) {
+void gm_copy_from(struct global_address *ga, void *local_address, uint64 size) {
     gasnet_get_bulk(local_address, ga->node,
         (void *) ((uint8*)shared_memory_blocks[ga->node].addr + ga->offset),
         (size_t) size);
-    return 0;
 }
 
-int gm_copy_to(void *local_address, struct global_address *ga, uint64 size) {
+void gm_copy_to(void *local_address, struct global_address *ga, uint64 size) {
     gasnet_put_bulk(ga->node,
         (void *) ((uint8*)shared_memory_blocks[ga->node].addr + ga->offset),
         local_address, size);
-    return 0;
 }
 

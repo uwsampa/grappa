@@ -1,3 +1,5 @@
+#pragma once
+
 #include <mpi.h>
 #include <gasnet.h>
 #include "base.h"
@@ -19,17 +21,27 @@ struct global_address {
     uint64 offset;
     };
 
-extern void *my_shared_memory_block;
 
+static inline int gm_node_of_address(struct global_address *ga) {
+    return ga->node;
+    }
+    
 #define ANY_NODE    -1
-int gm_allocate(struct global_address *ga, int preferred_node, uint64 size);
-int gm_copy_from(struct global_address *ga, void *local_addr, uint64 size);
-int gm_copy_to(void *local_addr, struct global_address *ga, uint64 size);
+void gm_allocate(struct global_address *ga, int preferred_node, uint64 size);
+void gm_copy_from(struct global_address *ga, void *local_addr, uint64 size);
+void gm_copy_to(void *local_addr, struct global_address *ga, uint64 size);
+
+void *my_shared_memory_block;
+
 static inline void *gm_local_gm_address_to_local_ptr(struct global_address *ga) {
     assert(ga->node == gasnet_mynode());
     return (void *)((uint8 *)my_shared_memory_block + ga->offset);
-}
-
+    }
+static inline bool gm_is_address_local(struct global_address *ga) {
+    if (ga->node == gasnet_mynode())
+        return true;
+    return false;
+    }
 
 void gm_init();
 
