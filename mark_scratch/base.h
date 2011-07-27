@@ -14,17 +14,25 @@ typedef unsigned int bool;
 #define true 1
 #define false 0
 
+#ifdef DEBUG
 #define panic(ss)  { \
     char *s = (char *)0; \
-     printf("panic: %s in %s - %s(%d)\n", \
-    s, __FILE__, __FUNCTION__, __LINE__); \
+    printf("panic: %s in %s - %s(%d)\n", \
+        ss, __FILE__, __FUNCTION__, __LINE__); \
     *s = 'D';   \
 }
+#else
+#define panic(ss)  { \
+    printf("panic: %s in %s - %s(%d)\n", \
+        ss, __FILE__, __FUNCTION__, __LINE__); \
+    exit(1);\
+}
+#endif
 
 #ifdef DEBUG
 #define assert(x) if (!(x)) { printf("panic: failed assert: %s at %s - %s(%d)\n", \
     #x, __FILE__, __FUNCTION__, __LINE__); \
-    { char *s = (char *)0; *s = 'D'; } \
+    panic("Failed assert"); \
     }
 #else
 #define assert(x)

@@ -290,7 +290,7 @@ schedule_uctx:
                     break;
                 ++gi;
                 }
-            assert(gi != number_of_uctx);
+            assert(gi != number_of_uctxs);
             switch (td->uctx[td->uctx_number].restart_point) {
                 uctx_restart(1);
                 uctx_restart(11);
@@ -383,7 +383,7 @@ uctx_set_2:
             uctx_yield(2);
             td->w = td->uctx[td->uctx_number].w;
             
-            assert(td->sd[td->w].predecessor_lists != NULL);
+            assert(td->sd[td->w].predecessor_list != NULL);
             
             prefetch(td->sd[td->w].predecessor_list);
             td->uctx[td->uctx_number].w = td->w;
@@ -426,7 +426,7 @@ uctx_set_3:
             uctx_yield(31);
             td->w = td->uctx[td->uctx_number].w;
             
-            assert(predecessor_list[td->sd[td->w]] != NULL);
+            assert(td->sd[td->w].predecessor_list != NULL);
             //list_clear(td->sd[td->w].predecessor_list);
             list_destroy(td->sd[td->w].predecessor_list);
             td->sd[td->w].predecessor_list = NULL;

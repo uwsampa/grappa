@@ -3,13 +3,16 @@
 #include "base.h"
 #include "global_memory.h"
 #include "global_array.h"
+#include "msg_aggregator.h"
 
 // This crys out for linker sets
 gasnet_handlerentry_t   handlers[] =
     {
         { GM_REQUEST_HANDLER, (void *)gm_request_handler },
         { GM_RESPONSE_HANDLER, (void *)gm_response_handler },
-        { GA_HANDLER, (void *)ga_handler }
+        { GA_HANDLER, (void *)ga_handler },
+        { MSG_AGGREGATOR_DISPATCH, (void *)msg_aggregator_dispatch_handler },
+        { MSG_AGGREGATOR_REPLY, (void *)msg_aggregator_reply_handler }
     };
 
 gasnet_seginfo_t    *shared_memory_blocks;
@@ -17,6 +20,12 @@ gasnet_seginfo_t    *shared_memory_blocks;
 #define SHARED_PROCESS_MEMORY_SIZE  (ONE_MEGA * 256)
 #define SHARED_PROCESS_MEMORY_OFFSET (ONE_MEGA * 256)
 
+int messages = 0;
+
+void function_dispatch(int func_id, void *buffer, uint64 size) {
+    ++messages;
+    }
+    
 void ga_test() {
     struct global_array *ga;
     struct global_address addr;
@@ -75,8 +84,29 @@ void gm_test() {
     printf("%d allocation: %d at %lld\n", gasnet_mynode(), addr.node, addr.offset);
     gasnet_barrier_notify(0, GASNET_BARRIERFLAG_ANONYMOUS);
     gasnet_barrier_wait(0, GASNET_BARRIERFLAG_ANONYMOUS);
-}
+    }
 
+void msg_test() {
+    int i;
+    struct global_address ga;
+    
+    ga.node = 1 - gasnet_mynode();
+    ga.offset = 0;
+    for (i = 0; i < 10; i++) {
+        msg_send(&i, &ga, sizeof(int), 1);
+        msg_send(&i, &ga, sizeof(int), 1);
+        msg_flush_all();
+        }
+    }
+
+void msg_test_complete() {
+    if (messages != 20) {
+        printf("Message Aggregator test -- FAILED\n");
+        exit(1);
+        }
+    printf("Message Aggregaor test -- SUCCESS\n");
+    }
+    
 int main(int argc, char **argv) {
     int initialized = 0;
     int i;
@@ -116,9 +146,13 @@ int main(int argc, char **argv) {
                 (unsigned long long) shared_memory_blocks[i].size);
             }
         }
+    gm_init();
+    msg_aggregator_init();
     
+    msg_test();
     gm_test();
-    ga_test(); 
+    ga_test();
+    msg_test_complete();
     
     gasnet_exit(0);
 }

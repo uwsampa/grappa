@@ -85,15 +85,20 @@ void gm_allocate(struct global_address *a, int preferred_node, uint64 size) {
     a->offset = response_value;
     }
 
+// Warning: pointer may not be valid on this machine.
+void *gm_address_to_ptr(struct global_address *ga) {
+    return (void *) ((uint8*)shared_memory_blocks[ga->node].addr + ga->offset);
+    }
+    
 void gm_copy_from(struct global_address *ga, void *local_address, uint64 size) {
     gasnet_get_bulk(local_address, ga->node,
-        (void *) ((uint8*)shared_memory_blocks[ga->node].addr + ga->offset),
+        gm_address_to_ptr(ga),
         (size_t) size);
 }
 
 void gm_copy_to(void *local_address, struct global_address *ga, uint64 size) {
     gasnet_put_bulk(ga->node,
-        (void *) ((uint8*)shared_memory_blocks[ga->node].addr + ga->offset),
+        gm_address_to_ptr(ga),
         local_address, size);
 }
 
