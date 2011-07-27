@@ -14,7 +14,8 @@ char* sprintit(int x) {
 }*/
 
 MemoryDescriptor::MemoryDescriptor()
-    : latency_timer(sprintit(omp_get_thread_num()), 2, 0, false) {
+   // : latency_timer(sprintit(omp_get_thread_num()), 2, 0, false) {
+    : latency_timer("thr_latency", 2, 0, false) {
     address = 0x0;
     _data = 0;
     operation = READ;
