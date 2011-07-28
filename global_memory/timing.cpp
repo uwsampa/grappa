@@ -52,7 +52,7 @@ Timer* Timer::createTimer(std::string name, uint64_t num_bins, uint64_t bin_max)
 
 
 void Timer::markTime(bool accumWithLast) {
-    unsigned int current;
+    uint64_t current;
     rdtscll(current);
    
     // first call only initializes last_time; also don't accum if false 
@@ -63,7 +63,9 @@ void Timer::markTime(bool accumWithLast) {
         difference_sum += diff;
 
         if (doBin) {
+            printf("current:%lu, last:%lu\n", current, last_time);
             if (diff >= bin_max) {
+                printf("BAD\n");
                 bins[num_bins-1]++; 
              } else {
                 uint64_t index = diff / bin_width;
