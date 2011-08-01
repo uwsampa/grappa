@@ -37,6 +37,10 @@ static inline void *gm_local_gm_address_to_local_ptr(struct global_address *ga) 
     assert(ga->node == gasnet_mynode());
     return (void *)((uint8 *)my_shared_memory_block + ga->offset);
     }
+
+// Warning: pointer may not be valid on the machine that calls this!
+void *gm_address_to_ptr(struct global_address *ga);
+
 static inline bool gm_is_address_local(struct global_address *ga) {
     if (ga->node == gasnet_mynode())
         return true;

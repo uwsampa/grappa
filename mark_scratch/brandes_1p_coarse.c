@@ -282,7 +282,7 @@ task_start:
             //prefetch(&td->sd[td->w]);
             //yield(4);
             
-            assert(td->sd[td->w].predecessor_lists != NULL);
+            assert(td->sd[td->w].predecessor_list != NULL);
             list_iterator_init(td->sd[td->w].predecessor_list);
             while ((td->vp = (int64 *)list_next(td->sd[td->w].predecessor_list)) != NULL) {
                 td->v = *td->vp;
@@ -302,7 +302,7 @@ task_start:
             td->sd[td->change_set[td->j]].shortest_path_count = 0.0;
             td->sd[td->change_set[td->j]].dependency_value = 0.0;
             td->sd[td->change_set[td->j]].shortest_path_length = -1;
-            assert(predecessor_list[td->sd[td->change_set[td->j]] != NULL);
+            assert(td->sd[td->change_set[td->j]].predecessor_list != NULL);
             //list_clear(td->sd[td->change_set[td->j]].predecessor_list);
             list_destroy(td->sd[td->change_set[td->j]].predecessor_list);
             td->sd[td->change_set[td->j]].predecessor_list = NULL;

@@ -21,7 +21,7 @@ struct global_array *ga_allocate(
 // Returns a global address for an element
 inline static void ga_index(struct global_array *ga,
     uint64 index, struct global_address *gm) {
-    assert(index < gm->size);
+    assert(index < ga->size);
     gm->node = index / ga->elements_per_node;
     gm->offset = ga->component_addresses[gm->node].offset +
         (index % ga->elements_per_node) * ga->element_size;
