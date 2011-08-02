@@ -1,11 +1,11 @@
 EXECS=brandes_serial brandes_1p brandes_1p_coarse brandes_1p_coarse_and_fine gasme \
-	atomic_test
+	atomic_test bwtest
 
 all: $(EXECS)
 
 CFLAGS_COMMON=-Wall -I/usr/local/gasnet/include -I/usr/local/gasnet/include/mpi-conduit -DGASNET_PAR
-#CFLAGS=-O3 $(CFLAGS_COMMON)
-CFLAGS=-g -DDEBUG $(CFLAGS_COMMON)
+CFLAGS=-O3 $(CFLAGS_COMMON)
+#CFLAGS=-g -DDEBUG $(CFLAGS_COMMON)
 LIBS=
 LD=gcc
 CC=gcc
@@ -33,6 +33,9 @@ brandes_1p_coarse_and_fine: fastlist.o brandes_1p_coarse_and_fine.o brandes_comm
 	$(LD) $(LFLAGS) -o $@ $^ $(LIBS)
 
 gasme: gasme.o global_memory.o global_array.o msg_aggregator.o
+	$(LD) $(LFLAGS) $(MPI_LIBS) $(GASNET_LIBS) -o $@ $^ $(LIBS)
+
+bwtest: bwtest.o global_memory.o global_array.o msg_aggregator.o
 	$(LD) $(LFLAGS) $(MPI_LIBS) $(GASNET_LIBS) -o $@ $^ $(LIBS)
 
 clean:
