@@ -102,7 +102,7 @@ void handle_responses(thread* me, void* args) {
             MemoryDescriptor* md = gm->getDescriptorFromId(id);
             md->fillData(data);*/
 
-            CoreQueue<uint64_t>* oq = oqs[r_resp->getCoreId()];
+          //  CoreQueue<uint64_t>* oq = oqs[r_resp->getCoreId()];
             /*while(!oq->tryProduce((uint64_t)r_resp)) {} // TODO this could block progress other nonfull queues          
             oq->flush(); // TODO for now always flush, optimize later*/
 
@@ -189,7 +189,7 @@ void handle_local_requests(thread* me, void* args) {
         while (iq->tryConsume(&data)) {
             none_deq=false;
             MemoryDescriptor* md = (MemoryDescriptor*) data;
-            md->setCoreId(queue_num); // keep track of where it came from
+           // md->setCoreId(queue_num); // keep track of where it came from
 
             DEBUGP(del, "got local request descriptor(%lx)\n", (uint64_t)md);
             bool isLocal = gm->isLocal(md);
@@ -210,7 +210,7 @@ void handle_local_requests(thread* me, void* args) {
                         }
                         oq->flush(); // TODO for now always flush, optimize later*/
                        
-                        DEBUGP(del, "produced descriptor(%lx) to core %u; data=%lx\n", (uint64_t)md, md->getCoreId(), md->getData());
+//                        DEBUGP(del, "produced descriptor(%lx) to core %u; data=%lx\n", (uint64_t)md, md->getCoreId(), md->getData());
                     } else {
                     	DEBUGP(del, "got read to remote; addr=%lx\n", (uint64_t)md->getAddress());
                         /* if to save bandwidth want request num bytes to be 
@@ -293,7 +293,7 @@ void Delegate::run() {
    hsrarg.oqs = outQs;
    hsrarg.gm = global_mem;
    hsrarg.del = this;
-   thread_spawn(master, scheduler, handle_responses, &hsrarg);
+//   thread_spawn(master, scheduler, handle_responses, &hsrarg);
   /* hlr_threads_args hsrargs[numLocal];
    for (uint32_t client_id=0; client_id<numLocal; client_id++) {
        CoreQueue<uint64_t>* iq = inQs[client_id];
