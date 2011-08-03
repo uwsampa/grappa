@@ -36,25 +36,28 @@ void ib_nodes_finalize( int mpi_rank, int mpi_size, char mpi_node_name[],
 void ib_global_finalize( int mpi_rank, int mpi_size, char mpi_node_name[], 
 			 struct global_ib_context * context );
 
-void ib_post_send( struct global_ib_context * global_context,
-		   struct node_ib_context * node_context,
-		   void * pointer, size_t size, uint64_t id );
+inline void ib_post_send( struct global_ib_context * global_context,
+			  struct node_ib_context * node_context,
+			  void * pointer, size_t size, uint64_t id );
 
-void ib_post_receive( struct global_ib_context * global_context,
-		      struct node_ib_context * node_context,
-		      void * pointer, size_t size, uint64_t id );
+inline void ib_post_receive( struct global_ib_context * global_context,
+			     struct node_ib_context * node_context,
+			     void * pointer, size_t size, uint64_t id );
 
-void ib_post_read( struct global_ib_context * global_context,
-		   struct node_ib_context * node_context,
-		   void * pointer, void * remote_pointer, size_t size, uint64_t id );
+inline void ib_post_read( struct global_ib_context * global_context,
+			  struct node_ib_context * node_context,
+			  void * pointer, void * remote_pointer, size_t size, 
+			  uint64_t id );
 
-void ib_post_read( struct global_ib_context * global_context,
-		   struct node_ib_context * node_context,
-		   void * pointer, void * remote_pointer, size_t size, uint64_t id );
+inline void ib_post_write( struct global_ib_context * global_context,
+			   struct node_ib_context * node_context,
+			   void * pointer, void * remote_pointer, size_t size, 
+			   uint64_t id );
 
-void ib_post_fetch_and_add( struct global_ib_context * global_context,
-			    struct node_ib_context * node_context,
-			    void * pointer, void * remote_pointer, size_t size, uintptr_t add, uint64_t id );
+inline void ib_post_fetch_and_add( struct global_ib_context * global_context,
+				   struct node_ib_context * node_context,
+				   void * pointer, void * remote_pointer, size_t size, 
+				   uintptr_t add, uint64_t id );
 
 void ib_complete( int mpi_rank, int mpi_size, char mpi_node_name[], 
 		  struct global_ib_context * global_context,

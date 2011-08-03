@@ -4,6 +4,7 @@
 #include <stdlib.h>
 #include <string.h>
 #include <unistd.h>
+#include <time.h>
 
 #include <mpi.h>
 
@@ -13,6 +14,7 @@
 
 #include "mpi_utils.h"
 #include "ib_utils.h"
+#include "options.h"
 
 
 int main( int argc, char * argv[] ) {
@@ -24,7 +26,7 @@ int main( int argc, char * argv[] ) {
   char mpi_node_name[MPI_MAX_PROCESSOR_NAME];
   softxmt_mpi_init( &argc, &argv, &mpi_rank, &mpi_size, mpi_node_name );
 
-  //  ASSERT_NZ( mpi_size == 2 && "this benchmark currently requires exactly two MPI processes" );
+  struct options opt = parse_options( &argc, &argv );
   
   LOG_INFO( "%s/%d: %s starting on node %d of %d.\n", mpi_node_name, mpi_rank, argv[0], mpi_rank+1, mpi_size );
 
@@ -43,44 +45,169 @@ int main( int argc, char * argv[] ) {
 
   ib_nodes_init( mpi_rank, mpi_size, mpi_node_name, 
 		 1,
-		 10, 10, 
-		 10, 10, 
+		 opt.outstanding, opt.outstanding, 
+		 opt.rdma_outstanding, opt.rdma_outstanding, 
 		 1,
 		 &global_context,
 		 &node_contexts[0] );
 
-  uint64_t * send_buffer_base = (uint64_t *) (my_block); // + sizeof( uint64_t ) * mpi_size );
-  uint64_t * recv_buffer_base = (uint64_t *) (my_block + sizeof( uint64_t ) * mpi_size);
-  uint64_t * rdma_buffer_base = (uint64_t *) (my_block + sizeof( uint64_t ) * mpi_size * 2);
-  uint64_t * atomic_buffer_base = (uint64_t *) (my_block + sizeof( uint64_t ) * mpi_size * 3);
-  uint64_t * fetch_buffer_base = (uint64_t *) (my_block + sizeof( uint64_t ) * mpi_size * 4);
-
   LOG_INFO( "%s/%d: initialized.\n", mpi_node_name, mpi_rank );
-  
-  int i;
-  for( i = 0; i < mpi_size; ++i ) {
-    //ib_post_receive( &global_context, &node_contexts[ i ], recv_buffer_base + i, sizeof(uint64_t), 123 + i );
+
+  if (1) {
+    
+    struct timespec start;
+    struct timespec end;
+    int i;
+    int j;
+
+
+    ASSERT_NZ( 2 == mpi_size && "this test requires 2 MPI processes" );
+    int sender = 0;
+    int receiver = 1;
+    int is_sender  = sender == mpi_rank;
+    int is_receiver = receiver == mpi_rank;
+    
+    int outstanding = 0;
+    int sent = 0;
+    int completed = 0;
+
+    if ( is_receiver ) {
+      for( i = 0; i < opt.outstanding; ++i ) {
+	ib_post_receive( &global_context, &node_contexts[ sender ], 
+			 my_block, opt.payload_size, 
+			 1307 );
+      }
+      outstanding = opt.outstanding;
+      LOG_INFO( "%s/%d: posted initial receives.\n", mpi_node_name, mpi_rank );
+    }
+
+
+    MPI_Barrier( MPI_COMM_WORLD );
+    clock_gettime(CLOCK_MONOTONIC, &start);
+    
+    struct ibv_wc work_completions[ opt.batch_size ];
+    int num_completion_entries = 0;
+
+    if (is_sender) {
+      while (completed < opt.count) {
+	// post sends
+	while (outstanding < opt.outstanding && sent < opt.count) {
+	  for( i = 0; i < opt.batch_size && sent < opt.count; ++i ) {
+	    if (DEBUG)
+	      LOG_INFO( "%s/%d: posting send.\n", mpi_node_name, mpi_rank );
+	    ib_post_send( &global_context, &node_contexts[ receiver ],
+			  my_block, opt.payload_size, 
+			  5397 );
+	    sent += 1;
+	    outstanding += 1;
+	  }
+	}
+	
+	// complete sends
+	num_completion_entries = ibv_poll_cq( node_contexts[ receiver ].completion_queue, 
+					      opt.batch_size, work_completions );
+	for( i = 0; i < num_completion_entries; ++i ) {
+	  ++completed;
+	  --outstanding;
+	  if (DEBUG)
+	    printf("%s: %d: found status %s (%d) for wr_id %d sent %d completed %d outstanding %d\n",
+		   mpi_node_name, i,
+		   ibv_wc_status_str(work_completions[i].status),
+		   work_completions[i].status, (int) work_completions[i].wr_id,
+		   sent, completed, outstanding);
+	  if ( work_completions[i].status != IBV_WC_SUCCESS ) {
+	    fprintf(stderr, "Failed status %s (%d) for wr_id %d\n",
+		    ibv_wc_status_str(work_completions[i].status),
+		    work_completions[i].status, (int) work_completions[i].wr_id);
+	    assert( 0 && "bad work completion status" );
+	  }
+	}
+      }
+    } else {
+      while (completed < opt.count) {
+	// complete receives
+	num_completion_entries = ibv_poll_cq( node_contexts[ sender ].completion_queue, 
+					      opt.batch_size, work_completions );
+	for( i = 0; i < num_completion_entries; ++i ) {
+	  ++completed;
+	  --outstanding;
+	  if (DEBUG) 
+	    printf("%s: %d: found status %s (%d) for wr_id %d sent %d completed %d outstanding %d\n",
+		   mpi_node_name, i,
+		   ibv_wc_status_str(work_completions[i].status),
+		   work_completions[i].status, (int) work_completions[i].wr_id,
+		   sent, completed, outstanding);
+	  if ( work_completions[i].status != IBV_WC_SUCCESS ) {
+	    fprintf(stderr, "Failed status %s (%d) for wr_id %d\n",
+		    ibv_wc_status_str(work_completions[i].status),
+		    work_completions[i].status, (int) work_completions[i].wr_id);
+	    assert( 0 && "bad work completion status" );
+	  }
+	}
+
+	for( i = 0; i < opt.outstanding - outstanding; ++i ) {
+	  ib_post_receive( &global_context, &node_contexts[ sender ], 
+			   my_block, opt.payload_size, 
+			   1307 );
+	  ++outstanding;
+	}
+      }
+    }
+
+    clock_gettime(CLOCK_MONOTONIC, &end);
+    MPI_Barrier( MPI_COMM_WORLD );
+
+    uint64_t start_ns = ((uint64_t) start.tv_sec * 1000000000 + start.tv_nsec);
+    uint64_t end_ns = ((uint64_t) end.tv_sec * 1000000000 + end.tv_nsec);
+
+    if (is_sender) {
+      ASSERT_NZ( sent == opt.count );
+      double time_ns = end_ns - start_ns;
+      double time = time_ns / 1.0e9;
+      double rate = (double) opt.count / time;
+      double bw = rate * opt.payload_size;
+      LOG_INFO( "%s/%d: sent %d messages of size %d bytes in %f seconds: %f Mmsg/s, %f MB/s.\n", 
+		mpi_node_name, mpi_rank,
+		opt.count, opt.payload_size, time, rate / 1.0e6, bw / 1.0e6);
+      LOG_INFO( "data, batch size, outstanding, message count, payload size, time, Mmsg/s, MB/s\n");
+      LOG_INFO( "data, %d, %d, %d, %d, %f, %f, %f\n", 
+		opt.batch_size, opt.outstanding, opt.count, opt.payload_size, time, rate / 1.0e6, bw / 1.0e6);
+    }
+
   }
+
+  if (0) {
+    uint64_t * send_buffer_base = (uint64_t *) (my_block); // + sizeof( uint64_t ) * mpi_size );
+    uint64_t * recv_buffer_base = (uint64_t *) (my_block + sizeof( uint64_t ) * mpi_size);
+    uint64_t * rdma_buffer_base = (uint64_t *) (my_block + sizeof( uint64_t ) * mpi_size * 2);
+    uint64_t * atomic_buffer_base = (uint64_t *) (my_block + sizeof( uint64_t ) * mpi_size * 3);
+    uint64_t * fetch_buffer_base = (uint64_t *) (my_block + sizeof( uint64_t ) * mpi_size * 4);
+
   
-  LOG_INFO( "%s/%d: receives posted.\n", mpi_node_name, mpi_rank );
+    int i;
+    for( i = 0; i < mpi_size; ++i ) {
+      //ib_post_receive( &global_context, &node_contexts[ i ], recv_buffer_base + i, sizeof(uint64_t), 123 + i );
+    }
+  
+    LOG_INFO( "%s/%d: receives posted.\n", mpi_node_name, mpi_rank );
 
-  MPI_Barrier( MPI_COMM_WORLD );
+    MPI_Barrier( MPI_COMM_WORLD );
 
-  *send_buffer_base = mpi_rank + 1000;
+    *send_buffer_base = mpi_rank + 1000;
 
-  /* *(fetch_buffer_base + mpi_rank) = 0; */
-  /* *(atomic_buffer_base + mpi_rank) = mpi_rank + 2000; */
-  *(fetch_buffer_base + 0) = 0;
-  *(fetch_buffer_base + 1) = 0;
-  *(atomic_buffer_base + 0) = 0;
-  *(atomic_buffer_base + 1) = 0;
+    /* *(fetch_buffer_base + mpi_rank) = 0; */
+    /* *(atomic_buffer_base + mpi_rank) = mpi_rank + 2000; */
+    *(fetch_buffer_base + 0) = 0;
+    *(fetch_buffer_base + 1) = 0;
+    *(atomic_buffer_base + 0) = 0;
+    *(atomic_buffer_base + 1) = 0;
 
-  for( i = 0; i < mpi_size; ++i ) {
+    for( i = 0; i < mpi_size; ++i ) {
       if (0) ib_post_send( &global_context, &node_contexts[ i ], send_buffer_base, sizeof(uint64_t), 456 + i);
       if (1) ib_post_read( &global_context, &node_contexts[ i ], rdma_buffer_base + i, 
 			   node_contexts[i].remote_address,  // send buffer address
 			   //send_buffer_base,
-			    sizeof(uint64_t), 789 + i );
+			   sizeof(uint64_t), 789 + i );
       if (1) ib_post_write( &global_context, &node_contexts[ i ], send_buffer_base,
       			    //node_contexts[i].remote_address,
       			    recv_buffer_base + mpi_rank,
@@ -89,18 +216,19 @@ int main( int argc, char * argv[] ) {
 				    //node_contexts[i].remote_address,
 				    atomic_buffer_base + i, 
 				    sizeof(uint64_t), 1, 901 + i );
-  }
+    }
 
 
-  LOG_INFO( "%s/%d: sends posted.\n", mpi_node_name, mpi_rank );
+    LOG_INFO( "%s/%d: sends posted.\n", mpi_node_name, mpi_rank );
 
-  for( i = 0; i < mpi_size; ++i ) {
-    ib_complete( mpi_rank, mpi_size, mpi_node_name, 
-		 &global_context, &node_contexts[ i ], 3 );
-  }
+    for( i = 0; i < mpi_size; ++i ) {
+      ib_complete( mpi_rank, mpi_size, mpi_node_name, 
+		   &global_context, &node_contexts[ i ], 3 );
+    }
 
-  for( i = 0; i < mpi_size; ++i ) {
-    LOG_INFO( "%s/%d: got %lu from %d (rdma %lu, atomic %lu %lu).\n", mpi_node_name, mpi_rank, *(recv_buffer_base + i), i, *(rdma_buffer_base + i), *(fetch_buffer_base + i), *(atomic_buffer_base + i) );
+    for( i = 0; i < mpi_size; ++i ) {
+      LOG_INFO( "%s/%d: got %lu from %d (rdma %lu, atomic %lu %lu).\n", mpi_node_name, mpi_rank, *(recv_buffer_base + i), i, *(rdma_buffer_base + i), *(fetch_buffer_base + i), *(atomic_buffer_base + i) );
+    }
   }
 
 

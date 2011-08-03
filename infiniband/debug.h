@@ -5,6 +5,11 @@
 #include <stdlib.h>
 #include <stdio.h>
 
+
+#ifndef DEBUG
+#define DEBUG 0
+#endif
+
 #define LOG_INFO printf
 #define LOG_WARN printf
 #define LOG_ERROR printf

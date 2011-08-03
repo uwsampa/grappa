@@ -219,9 +219,9 @@ void ib_global_finalize( int mpi_rank, int mpi_size, char mpi_node_name[],
   ASSERT_Z( ibv_close_device( context->device ) );
 }
 
-void ib_post_send( struct global_ib_context * global_context,
-		   struct node_ib_context * node_context,
-		   void * pointer, size_t size, uint64_t id ) {
+inline void ib_post_send( struct global_ib_context * global_context,
+			  struct node_ib_context * node_context,
+			  void * pointer, size_t size, uint64_t id ) {
   struct ibv_sge list = {
     .addr = (uintptr_t) pointer,
     .length = size,
@@ -243,9 +243,9 @@ void ib_post_send( struct global_ib_context * global_context,
   ASSERT_Z( bad_work_request );
 }
 
-void ib_post_receive( struct global_ib_context * global_context,
-		      struct node_ib_context * node_context,
-		      void * pointer, size_t size, uint64_t id ) {
+inline void ib_post_receive( struct global_ib_context * global_context,
+			     struct node_ib_context * node_context,
+			     void * pointer, size_t size, uint64_t id ) {
   struct ibv_sge list = {
     .addr = (uintptr_t) pointer,
     .length = size,
@@ -265,9 +265,9 @@ void ib_post_receive( struct global_ib_context * global_context,
   ASSERT_Z( bad_work_request );
 }
 
-void ib_post_bare_receive( struct global_ib_context * global_context,
-			   struct node_ib_context * node_context,
-			   uint64_t id ) {
+inline void ib_post_bare_receive( struct global_ib_context * global_context,
+				  struct node_ib_context * node_context,
+				  uint64_t id ) {
   struct ibv_recv_wr work_request = {
     .wr_id = id,
     .next = NULL,
@@ -315,9 +315,10 @@ void ib_complete( int mpi_rank, int mpi_size, char mpi_node_name[],
   }
 }
 
-void ib_post_write( struct global_ib_context * global_context,
-		    struct node_ib_context * node_context,
-		    void * pointer, void * remote_pointer, size_t size, uint64_t id ) {
+inline void ib_post_write( struct global_ib_context * global_context,
+			   struct node_ib_context * node_context,
+			   void * pointer, void * remote_pointer, size_t size, 
+			   uint64_t id ) {
   struct ibv_sge list = {
     .addr = (uintptr_t) pointer,
     .length = size,
@@ -341,9 +342,10 @@ void ib_post_write( struct global_ib_context * global_context,
   ASSERT_Z( bad_work_request );
 }
 
-void ib_post_read( struct global_ib_context * global_context,
-		   struct node_ib_context * node_context,
-		   void * pointer, void * remote_pointer, size_t size, uint64_t id ) {
+inline void ib_post_read( struct global_ib_context * global_context,
+			  struct node_ib_context * node_context,
+			  void * pointer, void * remote_pointer, size_t size, 
+			  uint64_t id ) {
   struct ibv_sge list = {
     .addr = (uintptr_t) pointer,
     .length = size,
@@ -367,9 +369,10 @@ void ib_post_read( struct global_ib_context * global_context,
   ASSERT_Z( bad_work_request );
 }
 
-void ib_post_fetch_and_add( struct global_ib_context * global_context,
-			    struct node_ib_context * node_context,
-			    void * pointer, void * remote_pointer, size_t size, uintptr_t add, uint64_t id ) {
+inline void ib_post_fetch_and_add( struct global_ib_context * global_context,
+				   struct node_ib_context * node_context,
+				   void * pointer, void * remote_pointer, size_t size, 
+				   uintptr_t add, uint64_t id ) {
   struct ibv_sge list = {
     .addr = (uintptr_t) pointer,
     .length = size,
