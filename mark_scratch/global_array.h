@@ -27,6 +27,12 @@ inline static void ga_index(struct global_array *ga,
         (index % ga->elements_per_node) * ga->element_size;
 }
 
+inline static void ga_local_range(struct global_array *ga,
+    uint64 *start, uint64 *end) {
+    *start = ga->elements_per_node * gasnet_mynode();
+    *end = *start + ga->elements_per_node - 1;
+    }
+    
 #define GA_HANDLER 131
 void ga_handler(gasnet_token_t token,
     gasnet_handlerarg_t a0,

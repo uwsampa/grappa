@@ -92,15 +92,15 @@ void msg_test() {
     
     ga.node = 1 - gasnet_mynode();
     ga.offset = 0;
-    for (i = 0; i < 10; i++) {
-        msg_send(&i, &ga, sizeof(int), 1);
-        msg_send(&i, &ga, sizeof(int), 1);
+    for (i = 0; i < 100; i++) {
+        msg_send(&i, &ga, sizeof(int), 100);
+        msg_send(&i, &ga, sizeof(int), 100);
         msg_flush_all();
         }
     }
 
 void msg_test_complete() {
-    if (messages != 20) {
+    if (messages != 200) {
         printf("Message Aggregator test -- FAILED\n");
         exit(1);
         }
