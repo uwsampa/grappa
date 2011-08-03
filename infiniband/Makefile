@@ -2,8 +2,8 @@
 
 LD	:= cc
 #CFLAGS  := -Wall -Werror -g 
-CFLAGS  := -Wall -g -O2
-LDFLAGS := ${LDFLAGS} -lrdmacm -lrt -lhugetlbfs
+CFLAGS  := -Wall -g -O1 -fopenmp
+LDFLAGS := ${LDFLAGS} -lrdmacm -lrt -lhugetlbfs -lgomp
 
 APPS    := small_messages #info4
 
@@ -13,7 +13,7 @@ SALLOC_ARGS := -n 2 -N 2-2 --ntasks-per-socket=1 --exclusive
 MPI_RUNTIME_ARGS :=
 
 all: ${APPS}
-	mpirun -mca btl ^openib --bind-to-core -np 2 $(PWD)/$^
+	mpirun -mca btl ^openib -np 2 $(PWD)/$^
 #	salloc $(SALLOC_ARGS) mpirun $(MPI_RUNTIME_ARGS) $(PWD)/$^
 
 info4: info4.o find_ib_interfaces.o

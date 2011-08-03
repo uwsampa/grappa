@@ -7,6 +7,7 @@
 #include <time.h>
 
 #include <mpi.h>
+#include <hugetlbfs.h>
 
 #include "debug.h"
 
@@ -16,6 +17,8 @@
 #include "ib_utils.h"
 #include "options.h"
 
+#include <infiniband/verbs.h>
+#include <infiniband/arch.h>
 
 int main( int argc, char * argv[] ) {
 
@@ -46,14 +49,130 @@ int main( int argc, char * argv[] ) {
   ib_nodes_init( mpi_rank, mpi_size, mpi_node_name, 
 		 1,
 		 opt.outstanding, opt.outstanding, 
-		 opt.rdma_outstanding, opt.rdma_outstanding, 
+		 opt.outstanding, opt.rdma_outstanding, 
 		 1,
 		 &global_context,
 		 &node_contexts[0] );
 
   LOG_INFO( "%s/%d: initialized.\n", mpi_node_name, mpi_rank );
 
-  if (1) {
+
+  if (opt.rdma_read || opt.rdma_write) {
+    struct timespec start;
+    struct timespec end;
+    int64_t i;
+    int j;
+
+
+    ASSERT_NZ( 2 == mpi_size && "this test requires 2 MPI processes" );
+    int sender = 0;
+    int receiver = 1;
+    int is_sender  = sender == mpi_rank;
+    int is_receiver = receiver == mpi_rank;
+  
+    int outstanding = 0;
+    int sent = 0;
+    int completed = 0;
+
+    size_t my_alloc_word_count = my_alloc_size / sizeof(uint64_t);
+    uint64_t * my_words = (uint64_t *) my_block;
+
+    size_t my_send_word_count = my_alloc_word_count / 4;
+    LOG_INFO( "%s/%d: alloc word count %lu send word count %lu.\n", mpi_node_name, mpi_rank, my_alloc_word_count, my_send_word_count );
+
+    uint64_t * my_send_words = my_words;
+    uint64_t * my_recv_words = my_words + my_send_word_count;
+    uint64_t send_sum = 0;
+    uint64_t recv_sum = 0;
+
+    opt.payload_size = sizeof( uint64_t );
+    opt.count = my_send_word_count;
+
+    //struct ibv_sge sges[ my_send_word_count ];
+    //struct ibv_send_wr wrs[ my_send_word_count ];
+    struct ibv_sge * sges = malloc( my_send_word_count * sizeof( struct ibv_sge ) );
+    assert( NULL != sges && "couldn't allocate sges" );
+    LOG_INFO( "%s/%d: need %lu bytes.\n", mpi_node_name, mpi_rank, my_send_word_count * sizeof( struct ibv_send_wr ) );
+    struct ibv_send_wr * wrs = malloc( my_send_word_count * sizeof( struct ibv_send_wr ) );
+    assert( NULL != wrs && "couldn't allocate wrs" );
+
+    for( i = 0; i < my_send_word_count; ++i ) {
+      send_sum += my_send_words[i] = i;
+      my_recv_words[i] = 0;
+    }
+
+    if (is_sender) {
+      #pragma omp parallel for 
+      for( i = 0; i < my_send_word_count; ++i ) {
+    	sges[i].addr = opt.rdma_write ? (uintptr_t) &my_send_words[i] : (uintptr_t) &my_recv_words[i];
+    	sges[i].length = sizeof( uint64_t );
+    	sges[i].lkey = global_context.memory_region->lkey;
+    	wrs[i].wr_id = 1;
+    	wrs[i].next = (((i + 1) % opt.batch_size) == 0) || ((i + 1) == my_send_word_count) ? NULL : &wrs[i+1];
+    	wrs[i].sg_list = &sges[i];
+    	wrs[i].num_sge = 1;
+    	wrs[i].opcode = opt.rdma_write ? IBV_WR_RDMA_WRITE : IBV_WR_RDMA_READ;
+    	wrs[i].send_flags = 0; //IBV_SEND_SIGNALED;
+    	wrs[i].imm_data = 1; //hton( i );
+    	wrs[i].wr.rdma.remote_addr = opt.rdma_write ? (uintptr_t) &my_recv_words[i] : (uintptr_t) &my_send_words[i];
+    	wrs[i].wr.rdma.rkey = node_contexts[ receiver ].remote_key;
+      }
+    }
+
+    LOG_INFO( "%s/%d: ready.\n", mpi_node_name, mpi_rank );
+
+    MPI_Barrier( MPI_COMM_WORLD );
+    clock_gettime(CLOCK_MONOTONIC, &start);
+
+    if (is_sender) {
+      #pragma omp parallel for num_threads(1)
+      for( i = 0; i < my_send_word_count; i += opt.batch_size ) {
+	struct ibv_send_wr  * bad_work_request = NULL;
+	int result = ibv_post_send( node_contexts[ receiver ].queue_pair, &wrs[i], &bad_work_request );
+	ASSERT_Z( result && "send failed");
+	ASSERT_Z( bad_work_request );
+      }
+    }
+
+    clock_gettime(CLOCK_MONOTONIC, &end);
+    MPI_Barrier( MPI_COMM_WORLD );
+
+    sent = opt.count;
+    completed = opt.count;
+
+    for( i = 0; i < my_send_word_count; ++i ) {
+      recv_sum += my_recv_words[i];
+    }
+
+    LOG_INFO( "%s/%d: send_sum %lu recv_sum %lu done.\n", mpi_node_name, mpi_rank, send_sum, recv_sum );
+
+    //free( sges );
+    //free( wrs );
+
+    uint64_t start_ns = ((uint64_t) start.tv_sec * 1000000000 + start.tv_nsec);
+    uint64_t end_ns = ((uint64_t) end.tv_sec * 1000000000 + end.tv_nsec);
+
+    if (is_sender) {
+      //ASSERT_NZ( send_sum == recv_sum );
+      //ASSERT_NZ( sent == opt.count );
+      //ASSERT_NZ( completed == opt.count );
+      double time_ns = end_ns - start_ns;
+      double time = time_ns / 1.0e9;
+      double rate = (double) completed / time;
+      double bw = rate * opt.payload_size;
+      LOG_INFO( "%s/%d: sent %d messages of size %d bytes in %f seconds: %f Mmsg/s, %f MB/s.\n", 
+		mpi_node_name, mpi_rank,
+		opt.count, opt.payload_size, time, rate / 1.0e6, bw / 1.0e6);
+      LOG_INFO( "data, batch size, outstanding, message count, payload size, time, Mmsg/s, MB/s\n");
+      LOG_INFO( "data, %d, %d, %d, %d, %f, %f, %f\n", 
+		opt.batch_size, opt.outstanding, opt.count, opt.payload_size, time, rate / 1.0e6, bw / 1.0e6);
+    }
+  }
+
+
+
+
+  if (0) {
     
     struct timespec start;
     struct timespec end;
