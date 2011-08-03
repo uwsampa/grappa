@@ -11,6 +11,8 @@
 #include <sys/socket.h>
 #include <arpa/inet.h>
 
+#include <hugetlbfs.h>
+
 #include <mpi.h>
 
 #include <infiniband/verbs.h>
@@ -34,7 +36,7 @@ struct context {
   struct ibv_cq * completion_queue;
   struct ibv_qp * queue_pair;
   void * buffer;
-  int size;
+  size_t size;
   int receive_depth;
   int pending;
   struct ibv_port_attr port_attributes;
@@ -46,6 +48,10 @@ void ib_init( int mpi_rank, int mpi_size, const char * node_name, void * block )
 
   int num_devices = 0;
   struct ibv_device ** devices = ibv_get_device_list( &num_devices );
+  assert( 0 != num_devices && "no ib devices found" );
+  assert( NULL != devices && "ib device list empty" );
+
+  printf( "%s: found %d ib devices\n", node_name, num_devices );
 
   uint64_t my_first_guid = 0;
   int i;
@@ -68,18 +74,31 @@ void ib_init( int mpi_rank, int mpi_size, const char * node_name, void * block )
     LOG_INFO( "%s knows about node %d's guid %.16lx\n", node_name, i, guids[i] );
   }
 
-  
 
 
   struct context ctx;
 
-  const int buffer_size = 1 << 18;
+
+  long int hugepagesize = 0;
+  uint64_t hugecount = gethugepagesizes( &hugepagesize, 1 );
+  assert( 1 == hugecount && "too many/few huge page sizes" );
+  assert( (1 << 30) == hugepagesize && "wrong default page size" );
+
+  
+
+  //const int buffer_size = 1 << 16;
+  size_t buffer_size = (1LL << 30) * 6;
+
   ctx.size = buffer_size;
 
   ctx.receive_depth = 500;
 
-  const int page_size = 4096;
-  ctx.buffer = memalign( page_size, buffer_size );
+  //const int page_size = 4096;
+  //ctx.buffer = memalign( page_size, buffer_size );
+  ctx.buffer = get_huge_pages( buffer_size, GHP_DEFAULT );
+  
+
+  
   assert( NULL != ctx.buffer && "work buffer allocation failed" );
 
   memset( ctx.buffer, 0, buffer_size );
@@ -137,7 +156,7 @@ void ib_init( int mpi_rank, int mpi_size, const char * node_name, void * block )
   {
     struct ibv_sge list = {
       .addr = (uintptr_t) ctx.buffer,
-      .length = ctx.size,
+      .length = (1 << 29), //ctx.size,
       .lkey = ctx.memory_region->lkey
     };
     struct ibv_recv_wr wr = {
@@ -281,7 +300,7 @@ void ib_init( int mpi_rank, int mpi_size, const char * node_name, void * block )
   if (!is_server) {
     struct ibv_sge list = {
       .addr = (uintptr_t) ctx.buffer,
-      .length = ctx.size,
+      .length = (1 << 29), //ctx.size,
       .lkey = ctx.memory_region->lkey
     };
     struct ibv_send_wr work_request = {
@@ -310,7 +329,7 @@ void ib_init( int mpi_rank, int mpi_size, const char * node_name, void * block )
 
   int receive_count = 0;
   int send_count = 0;
-  int iterations = 1000000;
+  int iterations = 100;
 
   while ( receive_count < iterations && send_count < iterations ) {
     
@@ -343,7 +362,7 @@ void ib_init( int mpi_rank, int mpi_size, const char * node_name, void * block )
 	if (--num_outstanding_receives <= 1) {
 	  struct ibv_sge list = {
 	    .addr = (uintptr_t) ctx.buffer,
-	    .length = ctx.size,
+	    .length = (1 << 29), //ctx.size,
 	    .lkey = ctx.memory_region->lkey
 	  };
 	  struct ibv_recv_wr wr = {
@@ -371,7 +390,7 @@ void ib_init( int mpi_rank, int mpi_size, const char * node_name, void * block )
       if ( send_count < iterations && !ctx.pending ) {
 	struct ibv_sge list = {
 	  .addr = (uintptr_t) ctx.buffer,
-	  .length = ctx.size,
+	  .length = (1 << 29), //ctx.size,
 	  .lkey = ctx.memory_region->lkey
 	};
 	struct ibv_send_wr work_request = {
@@ -400,7 +419,8 @@ void ib_init( int mpi_rank, int mpi_size, const char * node_name, void * block )
   {
     float usec = (end.tv_sec - start.tv_sec) * 1000000 +
       (end.tv_usec - start.tv_usec);
-    long long bytes = (long long) ctx.size * iterations * 2;
+    //long long bytes = (long long) ctx.size * iterations * 2;
+    long long bytes = (long long) (1 << 29) * iterations * 2;
     
     printf("%lld bytes in %.2f seconds = %.2f Mbit/sec\n",
 	   bytes, usec / 1000000., bytes * 8. / usec);
@@ -433,7 +453,8 @@ void ib_init( int mpi_rank, int mpi_size, const char * node_name, void * block )
   result = ibv_close_device( ctx.context );
   assert( 0 == result && "couldn't close device" );
 
-  free( ctx.buffer );
+  //free( ctx.buffer );
+  free_huge_pages( ctx.buffer );
 
   ibv_free_device_list(devices);
   free(lids);
