@@ -66,7 +66,7 @@ void ib_nodes_init( int mpi_rank, int mpi_size, char mpi_node_name[],
 	.max_recv_sge = scatter_gather_element_count,
       },
       .qp_type = IBV_QPT_RC, // use "reliable connections"
-      .sq_sig_all = 0,
+      .sq_sig_all = 0, // only issue send completions if requested
     };
     ASSERT_NZ( node_contexts[i].queue_pair = ibv_create_qp( global_context->protection_domain, &init_attributes ) );
   }
