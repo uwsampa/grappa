@@ -1,3 +1,4 @@
+/* jumpthreads preamble begin */
 #define MERGE_(a,b) a##b
 #define LABEL_(a) MERGE_(label`_, a)
 #define GENLABEL LABEL_(__LINE__)
@@ -7,3 +8,11 @@
 #define jthr_yield() { SWITCH }
 #define prefetch_and_switch(x) { __builtin_prefetch(x, 0, 0); jthr_yield(); }
 #define jthr_exit() { goto label`_EXIT; }
+
+//#define jthr_prefetch(x) { __builtin_prefetch(x, 0, 0); }
+//#define jthr_read(x) (*(x))
+
+//#define jthr_prefetch(x) { __builtin_prefetch(x, 0, 0); }
+//#define jthr_read(x) (this_memdesc.
+
+/* jumpthreads preamble end */

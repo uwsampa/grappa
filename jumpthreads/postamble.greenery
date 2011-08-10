@@ -1,3 +1,4 @@
+/* jumpthreads postamble begin */
 label`_EXIT:
 if (--active > 0) {
   pcs` = &&label`_DONE;
@@ -6,3 +7,4 @@ if (--active > 0) {
 } else {
   goto label_END;
 }
+/* jumpthreads postamble end */

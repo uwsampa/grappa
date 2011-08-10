@@ -220,7 +220,7 @@ void Delegate::run() {
    // create threads that receive satisfied remote requests
    hsr_thread_args hsrarg;
    hsrarg.del = this;
-   thread_spawn(master, scheduler, handle_responses, &hsrarg);
+//   thread_spawn(master, scheduler, handle_responses, &hsrarg);
   /* hlr_threads_args hsrargs[numLocal];
    for (uint32_t client_id=0; client_id<numLocal; client_id++) {
        CoreQueue<uint64_t>* iq = inQs[client_id];
