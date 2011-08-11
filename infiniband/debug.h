@@ -17,7 +17,7 @@
 #define ASSERT_Z(x) \
   do { \
     if ( (x)) { \
-      LOG_ERROR("error: " #x " failed (returned non-zero).\n"); \
+      LOG_ERROR(__FILE__ ":%d: error: " #x " failed (returned non-zero).\n", __LINE__); \
       exit(EXIT_FAILURE); \
     } \
   } while (0)
@@ -25,7 +25,7 @@
 #define ASSERT_NZ(x) \
   do { \
     if (!(x)) { \
-      LOG_ERROR("error: " #x " failed (returned zero/null).\n"); \
+      LOG_ERROR(__FILE__ ":%d: error: " #x " failed (returned zero/null).\n", __LINE__); \
       exit(EXIT_FAILURE); \
     } \
   } while (0)

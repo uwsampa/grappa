@@ -134,7 +134,8 @@ void activate_queue_pair( struct ibv_qp * queue_pair, struct ibv_qp_attr * attri
 
 
 int main( int argc, char * argv[] ) {
-
+  int i;
+  
   ASSERT_NZ( sizeof( size_t ) == 8 && "is this not a 64-bit machine?" );
   
   softxmt_mpi_init( &argc, &argv, &mpi_rank, &mpi_size, mpi_node_name );
@@ -236,10 +237,120 @@ int main( int argc, char * argv[] ) {
   activate_queue_pair( queue_pair, &attributes );
 
 
+  int pairs		= mpi_size / 2;
+  int is_sender		= mpi_rank < pairs;
+  int sender		= is_sender ? mpi_rank : mpi_rank - pairs;
+  int is_receiver	= mpi_rank >= pairs;
+  int receiver		= is_receiver ? mpi_rank : mpi_rank + pairs;
+
+
+  uint64_t * send_word = (uint64_t *) memory_region->addr;
+  uint64_t * recv_word = (uint64_t *) memory_region->addr + 8;
+
+  {
+    *send_word = 12345;
+    
+    struct ibv_sge send_sge = {
+      .addr = (uintptr_t) recv_word,
+      .length = 8,
+      .lkey = memory_region->lkey,
+    };
+    struct ibv_send_wr send_wr = {
+      .wr_id = 1,
+      .next = NULL,
+      .sg_list = &send_sge,
+      .num_sge = 1,
+      .opcode = IBV_WR_RDMA_READ,
+      .send_flags = 0,
+      .imm_data = 0,
+      .wr.rdma.remote_addr = (uintptr_t) send_word,
+      .wr.rdma.rkey = remote_rkey,
+    };
+    struct ibv_send_wr * bad_send_wr = NULL;
+    ASSERT_Z( ibv_post_send( queue_pair, &send_wr, &bad_send_wr ) );
+    ASSERT_Z( bad_send_wr );
+    
+    ASSERT_NZ( *recv_word == 12345 );
+  }
+
+
+  {
+    *send_word = 23456;
+    
+    struct ibv_sge send_sge = {
+      .addr = (uintptr_t) send_word,
+      .length = 8,
+      .lkey = memory_region->lkey,
+    };
+    struct ibv_send_wr send_wr = {
+      .wr_id = 1,
+      .next = NULL,
+      .sg_list = &send_sge,
+      .num_sge = 1,
+      .opcode = IBV_WR_RDMA_WRITE,
+      .send_flags = IBV_SEND_INLINE,
+      .imm_data = 0,
+      .wr.rdma.remote_addr = (uintptr_t) recv_word,
+      .wr.rdma.rkey = remote_rkey,
+    };
+    struct ibv_send_wr * bad_send_wr = NULL;
+    ASSERT_Z( ibv_post_send( queue_pair, &send_wr, &bad_send_wr ) );
+    ASSERT_Z( bad_send_wr );
+    
+    ASSERT_NZ( *recv_word == 23456 );
+  }
+
+  {
+    *send_word = 98765;
+
+    struct ibv_sge recv_sge = {
+      .addr = (uintptr_t) recv_word,
+      .length = 8,
+      .lkey = memory_region->lkey,
+    };
+    struct ibv_recv_wr recv_wr = {
+      .wr_id = 2,
+      .next = NULL,
+      .sg_list = &recv_sge,
+      .num_sge = 1,
+    };
+    struct ibv_recv_wr  * bad_recv_wr = NULL;
+    ASSERT_Z( ibv_post_recv( queue_pair, &recv_wr, &bad_recv_wr ) );
+    ASSERT_Z( bad_recv_wr );
+
+    struct ibv_sge send_sge = {
+      .addr = (uintptr_t) send_word,
+      .length = 8,
+      .lkey = memory_region->lkey,
+    };
+    struct ibv_send_wr send_wr = {
+      .wr_id = 1,
+      .next = NULL,
+      .sg_list = &send_sge,
+      .num_sge = 1,
+      .opcode = IBV_WR_SEND,
+      .send_flags = IBV_SEND_INLINE,
+      .imm_data = 0,
+    };
+    struct ibv_send_wr * bad_send_wr = NULL;
+    ASSERT_Z( ibv_post_send( queue_pair, &send_wr, &bad_send_wr ) );
+    ASSERT_Z( bad_send_wr );
+
+    int received = 0;
+    while ( received < 1 ) {
+      struct ibv_wc work_completions[1];
+      int num_completion_entries = ibv_poll_cq( completion_queue, 
+						1, 
+						&work_completions[0] );
+      for( i = 0; i < num_completion_entries; ++i ) {
+	ASSERT_NZ( work_completions[i].status == IBV_WC_SUCCESS );
+	++received;
+      }
+    }
+
+    ASSERT_NZ( *recv_word == 98765 );
+  }
   
-
-
-
   free_queue_pair( queue_pair );
 
   free_completion_queue( completion_queue );
