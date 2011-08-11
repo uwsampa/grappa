@@ -1,0 +1,9 @@
+/* jumpthreads postamble begin */
+label`_EXIT:
+if (--active > 0) {
+  //don't re-enqueue
+  goto *(jthr_dequeue(&_jsched));
+} else {
+  goto label_END;
+}
+/* jumpthreads postamble end */
