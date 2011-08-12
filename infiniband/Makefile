@@ -1,9 +1,9 @@
 .PHONY: clean
 
 LD	:= cc
-#CFLAGS  := -Wall -Werror -g
-CFLAGS  := -Wall -g
-LDFLAGS := ${LDFLAGS} -lrdmacm -lrt -lhugetlbfs
+#CFLAGS  := -Wall -Werror -g 
+CFLAGS  := -Wall -g -O1 -fopenmp
+LDFLAGS := ${LDFLAGS} -lrdmacm -lrt -lhugetlbfs -lgomp
 
 APPS    := small_messages #info4
 
@@ -22,7 +22,7 @@ info4: info4.o find_ib_interfaces.o
 small_messages: CC=mpicc
 small_messages: LD=mpicc
 #small_messages: small_messages.o find_ib_interfaces.o rdma.o alloc.o
-small_messages: small_messages.o alloc.o mpi_utils.o ib_utils.o
+small_messages: small_messages.o alloc.o mpi_utils.o ib_utils.o options.o
 	${LD} -o $@ $^ ${LDFLAGS}
 
 clean:
