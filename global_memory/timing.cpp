@@ -78,11 +78,11 @@ void Timer::markTime(bool accumWithLast) {
 }
 
 double Timer::avgIntervalNs() {
-    return ((double)difference_sum / number_of_samples)/NS_PER_TICK;
+    return ((double)difference_sum / number_of_samples)/TICKS_PER_NS;
 }
 
 void Timer::printHistogram() {
-    uint64_t bin_width_ns = bin_width/NS_PER_TICK;
+    uint64_t bin_width_ns = bin_width/TICKS_PER_NS;
     printf("%s histogram: (ns)\n", name.c_str());
     for (uint64_t i = 0; i < num_bins-1; i++) {
         printf("[%lu,%lu):%lu\n", i*bin_width_ns, (i+1)*bin_width_ns, bins[i]);

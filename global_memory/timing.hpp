@@ -6,7 +6,7 @@
 #include <string>
 
 
-#define NS_PER_TICK 2.66f
+#define TICKS_PER_NS 2.66f
 
 class Timer {
     private:
