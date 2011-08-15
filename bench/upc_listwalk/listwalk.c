@@ -1,12 +1,14 @@
 #include <upc_relaxed.h>
 #include <stdio.h>
 #include <stdint.h>
+#include <time.h>
 #include "vertex.h"
 
-#define NUM_VERTICES_PER_LIST (1<<10)
+#define NUM_VERTICES_PER_LIST (1<<18)
 #define NUM_LISTS_PER_THREAD 2
 #define SHUFFLE_LISTS 1
 #define SEQUENTIAL_SHUFFLE 1
+
 
 shared vertex vertices[NUM_VERTICES_PER_LIST * THREADS * NUM_LISTS_PER_THREAD];
 
@@ -140,6 +142,10 @@ int main(int argc, char** argv) {
     if (MYTHREAD==0) printf("starting the traversals\n");
     upc_barrier;
 
+
+    struct timespec startTime, endTime;
+    clock_gettime(CLOCK_MONOTONIC, &startTime);
+
     // do the work
     uint64_t result;
     uint64_t count = num_vertices_per_list;
@@ -165,6 +171,17 @@ int main(int argc, char** argv) {
         result = myvertex1->id + myvertex2->id;
     }
 
-    printf("thread%d -- result:%lu, global_refs:%lu (%f)\n", MYTHREAD, result, global_count, (double)global_count/(num_vertices_per_list*NUM_LISTS_PER_THREAD));
+    clock_gettime(CLOCK_MONOTONIC, &endTime);
+
+    upc_barrier;
+
+    const uint64_t num_vertices_per_thread = num_vertices_per_list*NUM_LISTS_PER_THREAD;
+    const uint64_t runtime_ns = ((uint64_t) endTime.tv_sec * 1000000000 + endTime.tv_nsec) - ((uint64_t) startTime.tv_sec * 1000000000 + startTime.tv_nsec);
+
+    printf("thread%d -- result:%lu, global_refs:%lu (%f)\n", MYTHREAD, result, global_count, (double)global_count/(num_vertices_per_thread));
+
+    upc_barrier;
+
+    printf("thread%d -- {'rate':%f Mref/s, 'runtime_ns':%lu, 'num_vertices_per_thread':%lu}\n", MYTHREAD, ((double)num_vertices_per_thread/runtime_ns) * 1000, runtime_ns, num_vertices_per_thread);
 }
         
