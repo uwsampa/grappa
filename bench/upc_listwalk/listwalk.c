@@ -5,14 +5,14 @@
 #include <time.h>
 #include "vertex.h"
 
-#define NUM_VERTICES_PER_LIST (1<<18)
+#define NUM_VERTICES_PER_LIST (1<<10)
 #define NUM_LISTS_PER_THREAD 4
 #define SHUFFLE_LISTS 1
 #define SEQUENTIAL_SHUFFLE 1
 #define COUNT_GLOBALS 0
 
 #if COUNT_GLOBALS
-    #define GLOBAL_COUNT_UPDATE(A) {global_count = (upc_threadof((A))!=MYTHREAD) ? global_count+1 : global_count}
+    #define GLOBAL_COUNT_UPDATE(A) {global_count = (upc_threadof((A))!=MYTHREAD) ? global_count+1 : global_count;}
 #else
     #define GLOBAL_COUNT_UPDATE(A) 0?0:0
 #endif

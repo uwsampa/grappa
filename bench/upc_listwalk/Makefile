@@ -1,3 +1,8 @@
+#UPC_BIN_PATH=../../tools/berkeley_upc-2.12.2/build-ia64-redhat/bin
+UPC_BIN_PATH=../../tools/berkeley_upc-2.12.2/build-ia64-redhat/opt/bin
+UPC_C=$(UPC_BIN_PATH)/upcc
+UPC_RUN=$(UPC_BIN_PATH)/upcrun
+
 UDP_NUM_THREADS=4
 SHM_NUM_THREADS=4
 IBV_NUM_THREADS=2
@@ -10,23 +15,26 @@ CFLAGS= -g
 all: listwalk.default listwalk.udp
 
 listwalk.default: listwalk.c
-	upcc $(CFLAGS) -o $@ $< 
+	$(UPC_C) $(CFLAGS) -o $@ $< 
 
 listwalk.ibv: listwalk.c
-	upcc $(CFLAGS) --network ibv -T $(IBV_NUM_THREADS) -o $@ $<
+	$(UPC_C) $(CFLAGS) --network ibv -T $(IBV_NUM_THREADS) -o $@ $<
 
 opt.listwalk.ibv: listwalk.c
-	upcc $(CFLAGS) -opt --network ibv -T $(IBV_NUM_THREADS) -o $@ $<
+	$(UPC_C) $(CFLAGS) -opt --network ibv -T $(IBV_NUM_THREADS) -o $@ $<
 
 trans: listwalk.c
-	upcc $(CFLAGS) -opt -trans --network ibv -T $(IBV_NUM_THREADS) -o opt.listwalk.trans.c $<
-	upcc $(CFLAGS) -trans --network ibv -T $(IBV_NUM_THREADS) -o listwalk.trans.c $<
+	$(UPC_C) $(CFLAGS) -opt -trans --network ibv -T $(IBV_NUM_THREADS) -o opt.listwalk.trans.c $<
+	$(UPC_C) $(CFLAGS) -trans --network ibv -T $(IBV_NUM_THREADS) -o listwalk.trans.c $<
 
 view-trans: trans
 	vim -O opt.listwalk.trans.c listwalk.trans.c listwalk.c	
 
 listwalk.udp: listwalk.c
-	upcc $(CFLAGS) --network udp -T $(UDP_NUM_THREADS) -o $@ $<
+	$(UPC_C) $(CFLAGS) --network udp -T $(UDP_NUM_THREADS) -o $@ $<
+
+opt.listwalk.udp: listwalk.c
+	$(UPC_C) $(CFLAGS) -opt --network udp -T $(UDP_NUM_THREADS) -o $@ $<
 
 run: run.$(HOSTNAME)
 
@@ -37,15 +45,18 @@ run.n01: listwalk.default
 	./listwalk.default 
 
 run.udp: listwalk.udp
-	UPC_POLITE_SYNC=0 upcrun -localhost ./listwalk.udp 
+	UPC_POLITE_SYNC=0 $(UPC_RUN) -localhost ./listwalk.udp 
+
+run.opt.udp: opt.listwalk.udp
+	UPC_POLITE_SYNC=0 $(UPC_RUN) -localhost ./opt.listwalk.udp
 
 run.ibv: listwalk.ibv
 	export UPC_NODES="n02.sampa n04.sampa"
-	upcrun -N 2 -c $(IBV_TH_PER_NODE) ./listwalk.ibv
+	$(UPC_RUN) -N 2 -c $(IBV_TH_PER_NODE) ./listwalk.ibv
 
 run.opt.ibv: opt.listwalk.ibv
 	export UPC_NODES="n02.sampa n04.sampa"
-	upcrun -N 2 -c $(IBV_TH_PER_NODE) ./opt.listwalk.ibv
+	$(UPC_RUN) -N 2 -c $(IBV_TH_PER_NODE) ./opt.listwalk.ibv
 
 debug.default: listwalk.default
 	GASNET_BACKTRACE=1 GASNET_PSHM_NODES=2 gdb --args ./listwalk.default 
