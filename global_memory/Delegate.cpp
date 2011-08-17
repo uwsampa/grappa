@@ -134,7 +134,6 @@ void handle_local_requests(thread* me, void* args) {
     CoreQueue<uint64_t>* iq = cargs->iq;
     CoreQueue<uint64_t>* oq = cargs->oq;
     Delegate* del = cargs->del;
-    GA::GlobalArray* vertices = del->vertices;
     hlist_t* handles = &(del->handles);
     int queue_num = cargs->queue_num;
 
@@ -156,7 +155,9 @@ void handle_local_requests(thread* me, void* args) {
 
             switch (md->getOperation()) {
                 case READ: {
-                    int64_t index = md->getAddress();
+                    global_address gaddr = md->getAddress();
+                    gasnet_node_t remnode = gm_node_of_address(&gaddr);
+                    void* srcptr = gm_address_to_ptr(&gaddr);
 
                     DEBUGP(del, "got read to remote; addr=%lx\n", (uint64_t)md->getAddress());
                     /* if to save bandwidth want request num bytes to be 

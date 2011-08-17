@@ -4,6 +4,7 @@
 #include "GmTypes.hpp"
 #include "thread.h"
 #include "timing.hpp"
+#include "global_memory.h"
 
 #define MD_USE_CACHE_ALIGN 1
 #define MD_CACHE_LINE_SIZE_BYTES 64
@@ -11,7 +12,7 @@
 
 class MemoryDescriptor {
     private:
-        int64_t address; //index into a GA
+        global_address address; 
         uint64_t _data;
         oper_enum operation;
         threadid_t thread_id;
@@ -49,11 +50,11 @@ class MemoryDescriptor {
             return operation;
         }
 
-        void setAddress(int64_t addr) {
+        void setAddress(global_address addr) {
             address = addr;
         }
 
-        int64_t getAddress() {
+        global_address getAddress() {
             return address;
         }
 

@@ -82,7 +82,7 @@ class SplitPhase {
             delete timer;
         }
 
-        mem_tag_t issue(oper_enum operation, int64_t index, uint64_t data, thread* me);
+        mem_tag_t issue(oper_enum operation, global_address gaddr, uint64_t data, thread* me);
 
         int64_t complete( mem_tag_t , thread* me);
 
@@ -90,20 +90,21 @@ class SplitPhase {
 };
 
 
-inline mem_tag_t SplitPhase::issue(oper_enum operation, int64_t index, uint64_t data, thread* me) {
+inline mem_tag_t SplitPhase::issue(oper_enum operation, global_address gaddr, uint64_t data, thread* me) {
 
  // if local non synchro/quit then handle directly
-   if (operation==READ && _isLocal(index)) {
+   if (operation==READ && _isLocal(gaddr)) {
        local_req_count++;
        //printf("proc%d-core%u-thread%u: issue LOCAL descriptor(%lx) addr=%ld/x%lx, full=%d\n", GA::nodeid(), omp_get_thread_num(), me->id, (uint64_t) desc, (uint64_t)desc->getAddress(), (uint64_t)desc->getAddress(), desc->isFull());
         
+       void* local_address = gm_local_gm_address_to_local_ptr(gaddr);
+
        #if SP_PREFETCH_LOCAL
-        int64_t local_index = index - local_begin;
-        prefetch(&local_array[local_index]);
+        prefetch(local_address);
        #endif
 
        mem_tag_t ticket;
-       ticket.addr = (void*)local_index;
+       ticket.addr = local_address;
        ticket.handleLocally = true;
 
        return ticket;
@@ -113,7 +114,7 @@ inline mem_tag_t SplitPhase::issue(oper_enum operation, int64_t index, uint64_t 
    MemoryDescriptor* desc = getDescriptor(me->id);
    /*not sure where to do this*/desc->setEmpty();
    desc->setOperation(operation);
-   desc->setAddress(index);
+   desc->setAddress(gaddr);
    desc->setData(data); // TODO for writes is full start set or does full mean done, etc..?
    
 
@@ -145,10 +146,9 @@ inline mem_tag_t SplitPhase::issue(oper_enum operation, int64_t index, uint64_t 
 }
 
 
-inline int64_t SplitPhase::complete(mem_tag_t ticket, thread* me) {
+inline uint64_t SplitPhase::complete(mem_tag_t ticket, thread* me) {
     if (ticket.handleLocally) { 
-        int64_t local_index = (int64_t)ticket.addr;
-        return local_array[local_index];
+        return *((uint64_t*)ticket.addr);
     } else {
         num_waiting_unflushed++;
         
@@ -198,10 +198,8 @@ inline int64_t SplitPhase::complete(mem_tag_t ticket, thread* me) {
     }
 }
 
-inline bool SplitPhase::_isLocal(int64_t index) {
-    bool r = (local_begin <= index) && (index < local_end); 
-    //printf("index=%ld; nodes=%d; this is local %d\n", index, GA::nodeid(), r);
-    return r;
+inline bool SplitPhase::_isLocal(global_address gaddr) {
+    return gm_is_address_local(&gaddr);
 }
 
 
