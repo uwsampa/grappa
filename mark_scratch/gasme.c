@@ -101,7 +101,7 @@ void msg_test() {
 
 void msg_test_complete() {
     if (messages != 200) {
-        printf("Message Aggregator test -- FAILED\n");
+        printf("Message Aggregator test -- FAILED  Expected 200 got %d\n", messages);
         exit(1);
         }
     printf("Message Aggregaor test -- SUCCESS\n");
