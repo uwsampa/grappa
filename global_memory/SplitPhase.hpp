@@ -14,6 +14,11 @@
 
 #include "timing.hpp"
 
+//gasnet and global array
+#include <gasnet.h>
+#include "global_memory.h"
+#include "global_array.h"
+
 #define SP_LOCALITY 0
 #define prefetch(addr) __builtin_prefetch((addr),0,SP_LOCALITY)
 #define SP_PREFETCH_LOCAL 1
@@ -23,7 +28,8 @@
 
 typedef struct mem_tag_t {
     void* addr;
-    bool handleLocally;
+    gasnet_handle_t nbhandle;
+    bool handle_locally;
 } mem_tag_t;
 
 class SplitPhase {
@@ -34,9 +40,6 @@ class SplitPhase {
         int num_clients;
         int num_active_clients;
         int num_waiting_unflushed;
-        int64_t* local_array;
-        int64_t local_begin;
-        int64_t local_end;
 
         bool _flushIfNeed(thread* me);
         bool _isLocal(int64_t index);
@@ -53,15 +56,12 @@ class SplitPhase {
         uint64_t local_req_count;
         uint64_t remote_req_count;
 
-        SplitPhase(CoreQueue<uint64_t>* req_q, CoreQueue<uint64_t>* resp_q, int num_clients, int64_t* local_array, int64_t local_begin, int64_t local_end) 
+        SplitPhase(CoreQueue<uint64_t>* req_q, CoreQueue<uint64_t>* resp_q, int num_clients) 
             : to  (req_q)
             , from (resp_q) 
             , num_clients(num_clients)
             , num_active_clients(num_clients)
             , num_waiting_unflushed(0) 
-            , local_array(local_array)
-            , local_begin(local_begin)
-            , local_end(local_end)
             , descriptors (new MemoryDescriptor[num_clients+1])            
             , timer(Timer::createTimer("sp_enq", 33, 1600))
             , local_req_count(0),remote_req_count(0) 
@@ -97,7 +97,7 @@ inline mem_tag_t SplitPhase::issue(oper_enum operation, global_address gaddr, ui
        local_req_count++;
        //printf("proc%d-core%u-thread%u: issue LOCAL descriptor(%lx) addr=%ld/x%lx, full=%d\n", GA::nodeid(), omp_get_thread_num(), me->id, (uint64_t) desc, (uint64_t)desc->getAddress(), (uint64_t)desc->getAddress(), desc->isFull());
         
-       void* local_address = gm_local_gm_address_to_local_ptr(gaddr);
+       void* local_address = gm_local_gm_address_to_local_ptr(&gaddr);
 
        #if SP_PREFETCH_LOCAL
         prefetch(local_address);
@@ -112,23 +112,16 @@ inline mem_tag_t SplitPhase::issue(oper_enum operation, global_address gaddr, ui
 
 
    MemoryDescriptor* desc = getDescriptor(me->id);
-   /*not sure where to do this*/desc->setEmpty();
-   desc->setOperation(operation);
-   desc->setAddress(gaddr);
+   
    desc->setData(data); // TODO for writes is full start set or does full mean done, etc..?
    
 
    remote_req_count++;
 
-
-   // TODO configure queues to larger values
-   // XXX for now just send a mailbox address
-   uint64_t request = (uint64_t) desc;
-
-   // send request to delegate
-   while (!to->tryProduce(request)) {
-       thread_yield(me);
-   }
+   int remote_node = gm_node_of_address(&gaddr);
+   void* remote_ptr = gm_address_to_ptr(&gaddr);
+   
+   gasnet_handle_t hndl = gasnet_get_nb(md->getDataFieldAddress(), remote_node, remote_ptr, 8);
 
    #if SP_TIME_ENQUEUES
    timer->markTime(true);
@@ -141,6 +134,7 @@ inline mem_tag_t SplitPhase::issue(oper_enum operation, global_address gaddr, ui
 
    mem_tag_t ticket;
    ticket.addr = (void*)desc;
+   ticket.nbhandle = hndl;
    ticket.handleLocally = false;
    return ticket;
 }
@@ -169,13 +163,14 @@ inline uint64_t SplitPhase::complete(mem_tag_t ticket, thread* me) {
             mydesc->full_poll_count++;
 
             // check for my data
-            if (mydesc->isFull()) { // TODO decide what condition indicates write completion
+            
+            if (GASNET_OK == gasnet_try_syncnb(ticket.nbhandle)) {
                 
                 #if SP_TIME_REQ_LATENCY
                 mydesc->latency_timer.markTime(true);
                 #endif
                 
-                int64_t resp = mydesc->getData();
+                uint64_t resp = mydesc->getData();
                 releaseDescriptor(mydesc);
 
                 
