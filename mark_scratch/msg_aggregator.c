@@ -21,7 +21,6 @@ struct msg_queue {
     int msgs;
     int head;
     volatile int tail;
-    int dispatched_tail;
     uint64 oldest_message;
     uint64 bytes_in_block[BUFFERS_PER_NODE];
     bool replies[BUFFERS_PER_NODE];
@@ -46,15 +45,15 @@ struct push_requests {
     struct push_request pr[PUSH_REQUESTS_PER_BLOCK];
     };
     
-struct push_requests *pr_freelist = NULL;
-struct push_requests *prs = NULL;
+struct push_requests *pr_free_list = NULL;
+struct push_requests *pr_to_send_list = NULL;
 
 static struct push_requests *_pr_allocate() {
     struct push_requests *pr;
     
-    if (pr_freelist) {
-        pr = pr_freelist;
-        pr_freelist = pr_freelist->next;
+    if (pr_free_list) {
+        pr = pr_free_list;
+        pr_free_list = pr_free_list->next;
         goto exit_function;
         }
     pr = malloc(sizeof(*pr));
@@ -62,21 +61,22 @@ static struct push_requests *_pr_allocate() {
     exit_function:
     
     pr->count = 0;
+    pr->next = NULL;
     return pr;
     }
 
 void   _pr_free(struct push_requests *pr) {
-    pr->next = pr_freelist;
-    pr_freelist = pr;
+    pr->next = pr_free_list;
+    pr_free_list = pr;
     }
 
 static void _process_push_requests() {
     struct push_requests *pr;
     int c;
     
-    while (prs) {
-        pr = prs;
-        prs = prs->next;
+    while (pr_to_send_list) {
+        pr = pr_to_send_list;
+        pr_to_send_list = pr_to_send_list->next;
         c = 0;
         while (c < pr->count) {
             msg_send(pr->pr[c].from_address, &pr->pr[c].to_address, pr->pr[c].size,
@@ -88,22 +88,23 @@ static void _process_push_requests() {
 }
 
 static void _attach_push_requests(struct push_requests *pr) {
-    pr->next = prs;
-    prs = pr;
+    pr->next = pr_to_send_list;
+    pr_to_send_list = pr;
     }
 
 void msg_send_delayed(void *from_address,
                             struct global_address *to_address,
                             uint64 size,
                             int function_dispatch_id) {                        
-    if (!prs || prs->count == PUSH_REQUESTS_PER_BLOCK)
+    if (!pr_to_send_list || pr_to_send_list->count == PUSH_REQUESTS_PER_BLOCK)
         _attach_push_requests(_pr_allocate());
     
-    prs->pr[prs->count].from_address = from_address;
-    prs->pr[prs->count].to_address = *to_address;
-    prs->pr[prs->count].size = size;
-    prs->pr[prs->count].function_dispatch_id = function_dispatch_id;
-    ++prs->count;
+    pr_to_send_list->pr[pr_to_send_list->count].from_address = from_address;
+    pr_to_send_list->pr[pr_to_send_list->count].to_address = *to_address;
+    pr_to_send_list->pr[pr_to_send_list->count].size = size;
+    pr_to_send_list->pr[pr_to_send_list->count].function_dispatch_id =
+        function_dispatch_id;
+    ++pr_to_send_list->count;
     }
     
 void msg_aggregator_init() {
@@ -119,9 +120,10 @@ void msg_aggregator_init() {
         }
             
     for (i = 0; i < gasnet_nodes(); i++) {
-        outbound_msg_queues[i].head = outbound_msg_queues[i].tail = 
-            outbound_msg_queues[i].dispatched_tail = 0;
+        outbound_msg_queues[i].head = outbound_msg_queues[i].tail = 0;
         outbound_msg_queues[i].offset = 0;
+        outbound_msg_queues[i].msgs = 0;
+        outbound_msg_queues[i].oldest_message = 0;
         }        
     }
     
@@ -139,7 +141,8 @@ void msg_aggregator_dispatch_handler(gasnet_token_t token,
             struct msg_pull_request *request = (struct msg_pull_request *)buffer;
             struct global_address *from_address = &m->to_address;    //yes, swapped
             void *local_ptr = gm_local_gm_address_to_local_ptr(from_address);
-            msg_send_delayed(local_ptr, &request->to_address, request->size, PUT_FUNCTION);
+            msg_send_delayed(local_ptr, &request->to_address, request->size,
+                PUT_FUNCTION);
             }
         else if (m->function_dispatch_id == PUT_FUNCTION) {
             memcpy(gm_local_gm_address_to_local_ptr(&m->to_address), buffer, m->size);
@@ -161,7 +164,7 @@ void msg_aggregator_reply_handler(gasnet_token_t token,
     outbound_msg_queues[from_node].replies[block] = true;
     // advance tail as far as we can
     while (outbound_msg_queues[from_node].tail !=
-            outbound_msg_queues[from_node].dispatched_tail) {
+            outbound_msg_queues[from_node].head) {
         if (outbound_msg_queues[from_node].replies[
              outbound_msg_queues[from_node].tail])
             outbound_msg_queues[from_node].tail =
@@ -175,8 +178,9 @@ static void _dispatch_block(int node, int block) {
     void   *block_ptr, *dest_ptr;
     struct global_address   ga;
     
+    assert(block <= BUFFERS_PER_NODE);
+    assert(node <= gasnet_nodes());    
     assert(outbound_msg_queues[node].bytes_in_block[block] != 0);
-    assert(block != outbound_msg_queues[node].head);
     assert(outbound_msg_queues[node].bytes_in_block[block] <= MSG_BUFFER_SIZE);
 
     ga_index(outbound_msg_packed_structs[block],
@@ -192,32 +196,14 @@ static void _dispatch_block(int node, int block) {
 
     dest_ptr = gm_address_to_ptr(&ga);
     
-    assert(block == outbound_msg_queues[node].dispatched_tail); 
-
     outbound_msg_queues[node].replies[block] = false;
-    outbound_msg_queues[node].dispatched_tail =
-            (outbound_msg_queues[node].dispatched_tail + 1) % BUFFERS_PER_NODE;
 
     gasnet_AMRequestLongAsync2(node, MSG_AGGREGATOR_DISPATCH,
         block_ptr, outbound_msg_queues[node].bytes_in_block[block],
         dest_ptr, gasnet_mynode(), block);
     }
     
-static void _advance_head_pointer(int node) {
-    outbound_msg_queues[node].bytes_in_block[outbound_msg_queues[node].head] =
-        outbound_msg_queues[node].offset;
-        
-    outbound_msg_queues[node].head =
-            (outbound_msg_queues[node].head + 1) % BUFFERS_PER_NODE;
-    outbound_msg_queues[node].offset = 0;
-    outbound_msg_queues[node].msgs = 0;
-    }
-
 static void _potentially_dispatch_messages(int node, bool force_head) {
-    while (outbound_msg_queues[node].head != outbound_msg_queues[node].dispatched_tail) {
-        _dispatch_block(node, outbound_msg_queues[node].dispatched_tail);
-        }
-    // Now look at head and decide whether it should be advanced
     if (outbound_msg_queues[node].msgs != 0 &&
         ((outbound_msg_queues[node].head + 1) % BUFFERS_PER_NODE) !=
             outbound_msg_queues[node].tail) {
@@ -226,8 +212,17 @@ static void _potentially_dispatch_messages(int node, bool force_head) {
             outbound_msg_queues[node].msgs >= AUTO_PUSH_SIZE_MSGS ||
             (rdtsc() - outbound_msg_queues[node].oldest_message)
                 >= AUTO_PUSH_MAX_DELAY) {
-            _advance_head_pointer(node);
-            _dispatch_block(node, outbound_msg_queues[node].dispatched_tail);
+            if (outbound_msg_queues[node].offset == 0) {
+                printf("offset = 0 but msgs=%d\n", outbound_msg_queues[node].msgs);
+                }
+            outbound_msg_queues[node].bytes_in_block[outbound_msg_queues[node].head] =
+                outbound_msg_queues[node].offset;
+            _dispatch_block(node, outbound_msg_queues[node].head);
+
+            outbound_msg_queues[node].head =
+                (outbound_msg_queues[node].head + 1) % BUFFERS_PER_NODE;
+            outbound_msg_queues[node].offset = 0;
+            outbound_msg_queues[node].msgs = 0;
             }
         }
     }

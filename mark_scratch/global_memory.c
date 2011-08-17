@@ -91,13 +91,13 @@ void *gm_address_to_ptr(struct global_address *ga) {
     }
     
 void gm_copy_from(struct global_address *ga, void *local_address, uint64 size) {
-    gasnet_get_bulk(local_address, ga->node,
+    gasnet_get_nbi_bulk(local_address, ga->node,
         gm_address_to_ptr(ga),
         (size_t) size);
 }
 
 void gm_copy_to(void *local_address, struct global_address *ga, uint64 size) {
-    gasnet_put_bulk(ga->node,
+    gasnet_put_nbi_bulk(ga->node,
         gm_address_to_ptr(ga),
         local_address, size);
 }

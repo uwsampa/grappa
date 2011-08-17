@@ -3,15 +3,20 @@ EXECS=brandes_serial brandes_1p brandes_1p_coarse brandes_1p_coarse_and_fine gas
 
 all: $(EXECS)
 
-CFLAGS_COMMON=-Wall -I/usr/local/gasnet/include -I/usr/local/gasnet/include/mpi-conduit -DGASNET_PAR
+GASNET=/sampa/home/oskin/gasnet
+MPI_INCLUDE=/usr/include/mpich2
+#CFLAGS_COMMON=-Wall -I/usr/local/gasnet/include -I/usr/local/gasnet/include/mpi-conduit -DGASNET_PAR
+CFLAGS_COMMON=-Wall -I$(GASNET)/include -I$(GASNET)/include/ibv-conduit -DGASNET_PAR -I$(MPI_INCLUDE) -DGASNET_CONDUIT_IBV
 CFLAGS=-O3 $(CFLAGS_COMMON)
 #CFLAGS=-g -DDEBUG $(CFLAGS_COMMON)
 LIBS=
-LD=gcc
-CC=gcc
+LD=mpicc
+CC=mpicc
 LFLAGS=
-GASNET_LIBS=-L/usr/local/gasnet/lib -lammpi -lgasnet-mpi-par
-MPI_LIBS=-lmpi
+#GASNET_LIBS=-L/usr/local/gasnet/lib -lammpi -lgasnet-mpi-par
+GASNET_LIBS=-L$(GASNET)/lib -lgasnet-ibv-par -libverbs
+#MPI_LIBS=-lmpi
+MPI_LIBS=
 
 HEADERS=brandes_common.h fastlist.h base.h msg_aggregator.h global_memory.h global_array.h
 
@@ -33,10 +38,10 @@ brandes_1p_coarse_and_fine: fastlist.o brandes_1p_coarse_and_fine.o brandes_comm
 	$(LD) $(LFLAGS) -o $@ $^ $(LIBS)
 
 gasme: gasme.o global_memory.o global_array.o msg_aggregator.o
-	$(LD) $(LFLAGS) $(MPI_LIBS) $(GASNET_LIBS) -o $@ $^ $(LIBS)
+	$(LD) $(LFLAGS) -o $@ $^ $(LIBS) $(MPI_LIBS) $(GASNET_LIBS)
 
 bwtest: bwtest.o global_memory.o global_array.o msg_aggregator.o
-	$(LD) $(LFLAGS) $(MPI_LIBS) $(GASNET_LIBS) -o $@ $^ $(LIBS)
+	$(LD) $(LFLAGS) -o $@ $^ $(LIBS) $(MPI_LIBS) $(GASNET_LIBS)
 
 clean:
 	rm -f *.o $(EXECS)

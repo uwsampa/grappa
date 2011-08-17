@@ -79,10 +79,10 @@ static void perf_test(int argc, char **argv) {
     struct global_array *ga;
     uint64 index, index2, index3;
     struct global_address *blocks, addr;
-    volatile uint8 *bptr;
+    uint8 *  bptr;
     uint64 start, end;
     struct msg_pull_request *pr;
-    
+    uint64 spin_time = 0;
     srand(gasnet_mynode());
     
     //// Process arguments
@@ -135,7 +135,6 @@ static void perf_test(int argc, char **argv) {
     printf("Initializing memory\n");
     fflush(stdout);
 
-
     // Allocate request blocks
     blocks = malloc(sizeof(struct global_address) * outstanding_requests);
     for (index = 0; index < outstanding_requests; index++) {
@@ -144,6 +143,7 @@ static void perf_test(int argc, char **argv) {
         for (index2 = 0; index2 < element_size; index2++)
             bptr[index2] = 1;
         }
+
     // Allocate global array    
     ga = ga_allocate(element_size, array_size);
     
@@ -163,39 +163,47 @@ static void perf_test(int argc, char **argv) {
     while (index < requests) {
         // ensure the block is free
         bptr = gm_local_gm_address_to_local_ptr(&blocks[index2]);
-        while (*bptr == 0) {
+/*        while (bptr[element_size-1] == 0) {
             gasnet_AMPoll();
             address_expose();
-            }
-        *bptr = 0;
+            ++spin_time;
+            }*/
+        bptr[element_size-1] = 0;
         // copy a random block from a remote node
-        index3 = rand() % array_size;
+        index3 = (rand() % (array_size / 2));
+        if (gasnet_mynode() == 0)
+            index3 += array_size / 2;
         ga_index(ga, index3, &addr);
         gm_copy_from(&addr, bptr, element_size);
         index2 = (index2 + 1) % outstanding_requests;
         ++index;
         }
-    index = 2;
+    printf("Cleanup\n");
+/*
+    index2 = 0;
     while (index2 < outstanding_requests) {
         // ensure the block is free
         bptr = gm_local_gm_address_to_local_ptr(&blocks[index2]);
-        while (*bptr == 0 && index2 < requests) {
+        while (*bptr == 0) {
             gasnet_AMPoll();
             address_expose();
+            ++spin_time;
             }
         ++index2;
         }
+*/
     end_time = rdtsc();
-    printf("Time on node %d: %lldMcycles or %lld cycles/request\n",
+    printf("Time on node %d: %lldMcycles or %lld cycles/request st=%lld\n",
         gasnet_mynode(),
         (end_time - start_time) / ONE_MILLION,
-        (end_time - start_time) / requests);
+        (end_time - start_time) / requests, spin_time);
         
     fflush(stdout);
     gasnet_barrier_notify(0, GASNET_BARRIERFLAG_ANONYMOUS);
     gasnet_barrier_wait(0, GASNET_BARRIERFLAG_ANONYMOUS);
 
     pr = malloc(sizeof(struct msg_pull_request) * outstanding_requests);
+
     for (index = 0; index < outstanding_requests; index++) {
         bptr = gm_local_gm_address_to_local_ptr(&blocks[index]);
         for (index2 = 0; index2 < element_size; index2++)
@@ -215,7 +223,9 @@ static void perf_test(int argc, char **argv) {
 
         *bptr = 0;
         // copy a random block from a remote node
-        index3 = rand() % array_size;
+        index3 = (rand() % (array_size / 2));
+        if (gasnet_mynode() == 1)
+            index3 += array_size / 2;
         ga_index(ga, index3, &addr);
         
         pr[index2].to_address = blocks[index2];
@@ -226,7 +236,9 @@ static void perf_test(int argc, char **argv) {
         index2 = (index2 + 1) % outstanding_requests;
         ++index;
         }
-    index = 2;
+    printf("Second Cleanup\n");
+
+    index2 = 0;
     while (index2 < outstanding_requests) {
         // ensure the block is free
         bptr = gm_local_gm_address_to_local_ptr(&blocks[index2]);
@@ -234,13 +246,14 @@ static void perf_test(int argc, char **argv) {
             idle_loop();
         ++index2;
         }
+
     end_time = rdtsc();
     printf("Time on node %d: %lldMcycles or %lld cycles/request\n",
         gasnet_mynode(),
         (end_time - start_time) / ONE_MILLION,
         (end_time - start_time) / requests);
     fflush(stdout);
-
+/*
     // tell everyone we are finished
     for(i = 0; i < gasnet_nodes(); i++) {
         addr.node = i;
@@ -248,6 +261,7 @@ static void perf_test(int argc, char **argv) {
         }
     while (finished < gasnet_nodes())
         idle_loop();
+*/
     printf("Finished\n");
     gasnet_barrier_notify(0, GASNET_BARRIERFLAG_ANONYMOUS);
     gasnet_barrier_wait(0, GASNET_BARRIERFLAG_ANONYMOUS);
