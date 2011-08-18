@@ -1,0 +1,58 @@
+#include <gasnet.h>
+#include <assert.h>
+#include "collective.h"
+
+// Active messages implementation of reductions.
+// Only one reduction can happen at a time.
+
+// GCC atomic builtin
+#define atomic_fetch_and_add(PTR, VALUE) __sync_fetch_and_add((PTR), (VALUE))
+
+
+#define _MAX_PROC_NODES 16
+// only the home_node uses it's version of these two local arrays
+volatile uint64_t values[_MAX_PROC_NODES]; 
+volatile int doneCount;
+
+
+void serialReduceRequestHandler(gasnet_token_t token, gasnet_handlerarg_t a0) {
+    uint64_t reduceVal = (uint64_t) a0;
+
+    // find who it's from to know where to put it
+    gasnet_node_t fromNode;
+    assert(GASNET_OK == gasnet_AMGetMsgSource(token, &fromNode));
+
+    values[fromNode] = reduceVal;
+    atomic_fetch_and_add(&doneCount, 1); 
+}
+
+
+
+uint64_t serialReduce(uint64_t (*commutative_func)(uint64_t, uint64_t), uint64_t home_node, uint64_t myValue ) {
+    if (gasnet_mynode()==home_node) {
+        const uint64_t num_nodes = gasnet_nodes();
+        doneCount = 0;
+        values[home_node] = myValue;
+        GASNET_BLOCKUNTIL (doneCount == num_nodes-1);
+
+        // perform the reduction
+        uint64_t sofar = values[0];
+        for (int i=1; i<num_nodes; i++) {
+           sofar = (*commutative_func)(sofar, values[i]);
+        }
+
+        return sofar;
+    } else {
+        gasnet_AMRequestShort1(home_node, COLLETIVE_REDUCTION_HANDLER, myValue);
+
+        /* nothing left to do; reduction goes on home */
+        return 0;
+    }
+
+}
+
+
+uint64_t collective_max(uint64_t a, uint64_t b) { return (a>b) ? a : b; }
+uint64_t collective_min(uint64_t a, uint64_t b) { return (a<b) ? a : b; }
+uint64_t collective_add(uint64_t a, uint64_t b) { return a+b; }
+uint64_t collective_mult(uint64_t a, uint64_t b) { return a*b; }
