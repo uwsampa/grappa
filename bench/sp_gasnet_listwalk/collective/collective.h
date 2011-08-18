@@ -15,7 +15,7 @@ uint64_t collective_mult(uint64_t a, uint64_t b);
 
 
 // Reduction is done serially. Only the home_node will return the correct result; other returns undefined. Reductions with same home_node cannot be done concurrently.
-uint64_t serialReduceLong(uint64_t (*commutative_func)(uint64_t, uint64_t), uint64_t home_node, uint64_t myValue );
+uint64_t serialReduce(uint64_t (*commutative_func)(uint64_t, uint64_t), uint64_t home_node, uint64_t myValue );
 
 
 // don't want these impl specific things in header
