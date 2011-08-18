@@ -1,4 +1,11 @@
-#pragma once
+
+#ifdef __cplusplus
+extern "C" {
+#endif
+
+
+#ifndef _GLOBAL_MEMORY_H_
+#define _GLOBAL_MEMORY_H_
 
 #include <mpi.h>
 #include <gasnet.h>
@@ -16,10 +23,10 @@
     
  */
 
-struct global_address {
+typedef struct global_address {
     int node;
-    uint64 offset;
-    };
+    uint64_t offset;
+} global_address;
 
 
 static inline int gm_node_of_address(struct global_address *ga) {
@@ -27,21 +34,17 @@ static inline int gm_node_of_address(struct global_address *ga) {
     }
     
 #define ANY_NODE    -1
-void gm_allocate(struct global_address *ga, int preferred_node, uint64 size);
-void gm_copy_from(struct global_address *ga, void *local_addr, uint64 size);
-void gm_copy_to(void *local_addr, struct global_address *ga, uint64 size);
+void gm_allocate(struct global_address *ga, int preferred_node, uint64_t size);
+void gm_copy_from(struct global_address *ga, void *local_addr, uint64_t size);
+void gm_copy_to(void *local_addr, struct global_address *ga, uint64_t size);
 
-void *my_shared_memory_block;
 
-static inline void *gm_local_gm_address_to_local_ptr(struct global_address *ga) {
-    assert(ga->node == gasnet_mynode());
-    return (void *)((uint8 *)my_shared_memory_block + ga->offset);
-    }
+/*static inline*/ void *gm_local_gm_address_to_local_ptr(struct global_address *ga);
 
 // Warning: pointer may not be valid on the machine that calls this!
 void *gm_address_to_ptr(struct global_address *ga);
 
-static inline bool gm_is_address_local(struct global_address *ga) {
+static inline int gm_is_address_local(struct global_address *ga) {
     if (ga->node == gasnet_mynode())
         return true;
     return false;
@@ -56,3 +59,12 @@ void gm_request_handler(gasnet_token_t token,
     gasnet_handlerarg_t a0, gasnet_handlerarg_t a1);
 void gm_response_handler(gasnet_token_t token,
     gasnet_handlerarg_t a0, gasnet_handlerarg_t a1);
+
+
+#endif // _GLOBAL_MEMORY_H_
+
+
+
+#ifdef __cplusplus
+}
+#endif

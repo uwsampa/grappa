@@ -1,13 +1,13 @@
 #include "global_array.h"
 
-static uint64 volatile results;
+static uint64_t volatile results;
 static struct global_array *current = NULL;
 
 void ga_handler(gasnet_token_t token,
     gasnet_handlerarg_t a0,
     gasnet_handlerarg_t a1,
     gasnet_handlerarg_t a2) {
-    uint64  a;
+    uint64_t  a;
     
     a = a1;
     a = a << 32;
@@ -21,16 +21,16 @@ void ga_handler(gasnet_token_t token,
         
 struct global_array *ga_allocate(
     int element_size,
-    uint64  size) {
+    uint64_t  size) {
     struct global_array *ga;
     int i;
     
-    ga = malloc(sizeof(*ga));
+    ga = (global_array*) malloc(sizeof(*ga));
     ga->element_size = element_size;
     ga->size = size;
     ga->elements_per_node = size / gasnet_nodes();
     ga->allocated_size = ga->elements_per_node * gasnet_nodes();
-    ga->component_addresses = malloc(sizeof(struct global_address) * gasnet_nodes());
+    ga->component_addresses = (global_address*)malloc(sizeof(struct global_address) * gasnet_nodes());
 
     current = ga;
     results = 0;

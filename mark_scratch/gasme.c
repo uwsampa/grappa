@@ -22,7 +22,7 @@ gasnet_seginfo_t    *shared_memory_blocks;
 
 int messages = 0;
 
-void function_dispatch(int func_id, void *buffer, uint64 size) {
+void function_dispatch(int func_id, void *buffer, uint64_t size) {
     ++messages;
     }
     
@@ -32,7 +32,7 @@ void ga_test() {
     
     int i;
     
-    ga = ga_allocate(sizeof(uint64), 10);
+    ga = ga_allocate(sizeof(uint64_t), 10);
     
     if (gasnet_mynode() == 0) {
         for (i = 0; i < 10; i++) {
@@ -44,24 +44,24 @@ void ga_test() {
         }
         
     if (gasnet_mynode() == 1) {
-        uint64  temp;
+        uint64_t  temp;
         
         for (i = 0; i < 10; i++) {
             ga_index(ga, i, &addr);
             temp = i;
-            gm_copy_to(&temp, &addr, sizeof(uint64));            
+            gm_copy_to(&temp, &addr, sizeof(uint64_t));            
             }
         }
     gasnet_barrier_notify(0, GASNET_BARRIERFLAG_ANONYMOUS);
     gasnet_barrier_wait(0, GASNET_BARRIERFLAG_ANONYMOUS);
 
     if (gasnet_mynode() == 0) {
-        uint64  temp;
+        uint64_t  temp;
         
         for (i = 0; i < 10; i++) {
             ga_index(ga, i, &addr);
             temp = i;
-            gm_copy_from(&addr, &temp, sizeof(uint64));
+            gm_copy_from(&addr, &temp, sizeof(uint64_t));
             printf("result: %d = %lld\n", i, temp);
             if (i != temp) {
                 printf("Global array read/write test -- FAILED\n");
@@ -80,7 +80,7 @@ void gm_test() {
     
     gasnet_barrier_notify(0, GASNET_BARRIERFLAG_ANONYMOUS);
     gasnet_barrier_wait(0, GASNET_BARRIERFLAG_ANONYMOUS);
-    gm_allocate(&addr, 1 - gasnet_mynode(), sizeof(uint64));
+    gm_allocate(&addr, 1 - gasnet_mynode(), sizeof(uint64_t));
     printf("%d allocation: %d at %lld\n", gasnet_mynode(), addr.node, addr.offset);
     gasnet_barrier_notify(0, GASNET_BARRIERFLAG_ANONYMOUS);
     gasnet_barrier_wait(0, GASNET_BARRIERFLAG_ANONYMOUS);

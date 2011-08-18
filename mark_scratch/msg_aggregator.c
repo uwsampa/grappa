@@ -11,19 +11,19 @@
 #define AUTO_PUSH_MAX_DELAY     (50000)
 
 struct msg {
-    uint64 size;
+    uint64_t size;
     struct global_address   to_address;
     int function_dispatch_id;
     };
 
 struct msg_queue {
-    uint64 offset;
+    uint64_t offset;
     int msgs;
     int head;
     volatile int tail;
-    uint64 oldest_message;
-    uint64 bytes_in_block[BUFFERS_PER_NODE];
-    bool replies[BUFFERS_PER_NODE];
+    uint64_t oldest_message;
+    uint64_t bytes_in_block[BUFFERS_PER_NODE];
+    int replies[BUFFERS_PER_NODE]; //bool
     };
 
 struct msg_queue    *outbound_msg_queues;
@@ -33,7 +33,7 @@ struct global_array *inbound_msg_packed_structs[BUFFERS_PER_NODE];
 struct push_request {
     void *from_address;
     struct global_address to_address;
-    uint64 size;
+    uint64_t size;
     int function_dispatch_id;
     };
 
@@ -56,7 +56,7 @@ static struct push_requests *_pr_allocate() {
         pr_free_list = pr_free_list->next;
         goto exit_function;
         }
-    pr = malloc(sizeof(*pr));
+    pr = (struct push_requests*) malloc(sizeof(*pr));
 
     exit_function:
     
@@ -94,7 +94,7 @@ static void _attach_push_requests(struct push_requests *pr) {
 
 void msg_send_delayed(void *from_address,
                             struct global_address *to_address,
-                            uint64 size,
+                            uint64_t size,
                             int function_dispatch_id) {                        
     if (!pr_to_send_list || pr_to_send_list->count == PUSH_REQUESTS_PER_BLOCK)
         _attach_push_requests(_pr_allocate());
@@ -110,7 +110,7 @@ void msg_send_delayed(void *from_address,
 void msg_aggregator_init() {
     int i;
     
-    outbound_msg_queues = malloc(sizeof(struct msg_queue) * gasnet_nodes());
+    outbound_msg_queues = (struct msg_queue*) malloc(sizeof(struct msg_queue) * gasnet_nodes());
 
     for (i = 0; i < BUFFERS_PER_NODE; i++) {
         outbound_msg_packed_structs[i] = ga_allocate(1, MSG_BUFFER_SIZE * gasnet_nodes()
@@ -128,7 +128,7 @@ void msg_aggregator_init() {
     }
     
 void msg_aggregator_dispatch_handler(gasnet_token_t token,
-    uint8 *buffer, size_t size,
+    uint8_t *buffer, size_t size,
     gasnet_handlerarg_t from_node,
     gasnet_handlerarg_t block) {
     size_t index = 0;
@@ -203,7 +203,7 @@ static void _dispatch_block(int node, int block) {
         dest_ptr, gasnet_mynode(), block);
     }
     
-static void _potentially_dispatch_messages(int node, bool force_head) {
+static void _potentially_dispatch_messages(int node, int force_head) {
     if (outbound_msg_queues[node].msgs != 0 &&
         ((outbound_msg_queues[node].head + 1) % BUFFERS_PER_NODE) !=
             outbound_msg_queues[node].tail) {
@@ -229,11 +229,11 @@ static void _potentially_dispatch_messages(int node, bool force_head) {
     
 void msg_send(  void *from_address,
                 struct global_address *to_address,
-                uint64 size,
+                uint64_t size,
                 int function_dispatch_id) {
     struct msg *msg;
     struct global_address ga;
-    uint8 *bptr;
+    uint8_t *bptr;
 
     assert((sizeof(struct msg) + size) < MSG_BUFFER_SIZE);
     
@@ -249,7 +249,7 @@ void msg_send(  void *from_address,
                 outbound_msg_queues[to_address->node].offset,
              &ga);
              
-    bptr = (uint8 *) gm_local_gm_address_to_local_ptr(&ga);
+    bptr = (uint8_t *) gm_local_gm_address_to_local_ptr(&ga);
     msg = (struct msg *) bptr;
     bptr += sizeof(struct msg);
     msg->size = size;
