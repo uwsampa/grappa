@@ -43,12 +43,11 @@ uint64_t serialReduce(uint64_t (*commutative_func)(uint64_t, uint64_t), uint64_t
 
         return sofar;
     } else {
-        gasnet_AMRequestShort1(home_node, COLLETIVE_REDUCTION_HANDLER, myValue);
+        gasnet_AMRequestShort1(home_node, COLLECTIVE_REDUCTION_HANDLER, myValue);
 
         /* nothing left to do; reduction goes on home */
         return 0;
     }
-
 }
 
 

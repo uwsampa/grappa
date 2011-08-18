@@ -1,50 +1,60 @@
-CC=mpic++
-CFLAGS= -Wno-write-strings -O3 -g -fopenmp
-CFLAGS+= -I../../greenery -L../../greenery -I../../queues -L../../queues -I../../global_memory -L../../global_memory -I../../numautil
-LIBS= -lrt -lgreenery -lcorequeue -lsplitphase -lbprintf -lnuma 
+GASNET=/sampa/share/gasnet-rhel6
+GL_ARRAY=../../mark_scratch
 
-HOSTNAME=$(shell hostname)
+CC=mpicxx
+LD=mpicxx
+
+CFLAGS_COMMON= -Wno-write-strings -O3 -g -fopenmp
+CFLAGS= $(CFLAGS_COMMON) 
+CFLAGS+= -I../../greenery  -I../../queues  -I../../global_memory  -I../../numautil
+CFLAGS+= -I./collective
+CFLAGS+= -I$(GASNET)/include -I$(GASNET)/include/ibv-conduit -DGASNET_PAR -DGASNET_CONDUIT_IBV
+CFLAGS+= -I$(GL_ARRAY) 
+
+LD_FLAGS= $(CFLAGS_COMMON) 
+LIB_PATHS= -L../../greenery -L../../queues -L../../global_memory -L$(GL_ARRAY)
+LIBS= -lrt -lgreenery -lcorequeue -lsplitphase 
+
 PWD=$(shell pwd)
 
-# for GA
-CFLAGS+= -I../../tools/ga-5-0-2/ga-$(HOSTNAME)/include -L../../tools/ga-5-0-2/ga-$(HOSTNAME)/lib -I../ga_listwalk
-LIBS+= -lga++ -lga -lgfortran #-libverbs # -llapack
-
+GASNET_LIB_PATHS= -L$(GASNET)/lib
+GASNET_LIBS= -lgasnet-ibv-par -libverbs
 
 HEADERS=\
 	node.hpp \
-	linked_list-walk.h 
+	linked_list-walk.h \
+	collective/collective.h
 
 OBJECTS=\
 	linked_list-walk.o \
-	../../numautil/numautil.o \
-	../ga_listwalk/ga_alloc.o
+	linked_list-alloc.o \
+	collective/collective.o
+
+#../../numautil/numautil.o \
+
+GL_OBJECTS=\
+	$(GL_ARRAY)/global_memory.o \
+	$(GL_ARRAY)/global_array.o \
+	$(GL_ARRAY)/msg_aggregator.o
 
 default: linked_list.exe
 
-run: run_$(HOSTNAME)
-
-run_n01: linked_list.exe
-	mpiexec -np 6 hugectl --heap  -- ./linked_list.exe -b 10 -c 1 -t 4 -l 1 -g
-
-run_n02: linked_list.exe
-	mpiexec -np 6 hugectl ---heap -- ./linked_list.exe -b 10 -c 1 -t 4 -l 1 -g
+run: linked_list.exe
+	mpirun -np 2 -H "n02,n04" hugectl --heap -- ./linked_list.exe -b 10 -c 1 -t 4 -l 1 -g
 
 %.o: %.c $(HEADERS) Makefile
 	$(CC) $(CFLAGS) $< -c -o $@
 
-linked_list.exe: linked_list.c $(HEADERS) $(OBJECTS) Makefile
-	$(CC) $(CFLAGS) $< -o $@ $(OBJECTS) $(LIBS) ../../queues/MCRingBuffer.c #XXX temp, because undef refs?
+linked_list.exe: linked_list.o $(OBJECTS) $(GL_OBJECTS)
+	$(LD) $(LD_FLAGS) -o $@ $^ $(LIB_PATHS) $(GASNET_LIB_PATHS) $(LIBS) $(GASNET_LIBS) 
 
 all:
 	./allmake.sh
 
 
-debug: debug_$(HOSTNAME)
-
-#need x session
-debug_n01: linked_list.exe 
-	mpiexec -np 2 xterm -hold -e gdb --args ./linked_list.exe -b 12 -l 1 -c 2 -g -t 2    
+debug: linked_list.exe 
+	export GASNET_BACKTRACE=1
+	mpirun -np 2 -H "n02" xterm -hold -e gdb --args ./linked_list.exe -b 10 -l 1 -c 1 -g -t 2
 
 clean:
 	rm -f linked_list.exe ./*.o

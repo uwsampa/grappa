@@ -10,12 +10,11 @@
 #include "MemoryDescriptor.hpp"
 #include "GlobalMemory.hpp"
 
-#include "ga++.h"
-
 #include "timing.hpp"
 
 //gasnet and global array
 #include <gasnet.h>
+
 #include "global_memory.h"
 #include "global_array.h"
 
@@ -29,20 +28,18 @@
 typedef struct mem_tag_t {
     void* addr;
     gasnet_handle_t nbhandle;
-    bool handle_locally;
+    bool handleLocally;
 } mem_tag_t;
 
 class SplitPhase {
     private:
-        CoreQueue<uint64_t>* to;
-        CoreQueue<uint64_t>* from;
 
         int num_clients;
         int num_active_clients;
         int num_waiting_unflushed;
 
         bool _flushIfNeed(thread* me);
-        bool _isLocal(int64_t index);
+        bool _isLocal(global_address gaddr);
  
         MemoryDescriptor* descriptors;
 
@@ -57,16 +54,13 @@ class SplitPhase {
         uint64_t remote_req_count;
 
         SplitPhase(CoreQueue<uint64_t>* req_q, CoreQueue<uint64_t>* resp_q, int num_clients) 
-            : to  (req_q)
-            , from (resp_q) 
-            , num_clients(num_clients)
+            : num_clients(num_clients)
             , num_active_clients(num_clients)
             , num_waiting_unflushed(0) 
             , descriptors (new MemoryDescriptor[num_clients+1])            
             , timer(Timer::createTimer("sp_enq", 33, 1600))
             , local_req_count(0),remote_req_count(0) 
             {
-                printf("proc%d local_begin:%ld, local_end:%ld\n", GA::nodeid(), local_begin, local_end);
                 timer->setPrint(SP_TIME_ENQUEUES); 
             }
             
@@ -84,7 +78,7 @@ class SplitPhase {
 
         mem_tag_t issue(oper_enum operation, global_address gaddr, uint64_t data, thread* me);
 
-        int64_t complete( mem_tag_t , thread* me);
+        uint64_t complete( mem_tag_t , thread* me);
 
         void unregister(thread* me);
 };
@@ -121,7 +115,7 @@ inline mem_tag_t SplitPhase::issue(oper_enum operation, global_address gaddr, ui
    int remote_node = gm_node_of_address(&gaddr);
    void* remote_ptr = gm_address_to_ptr(&gaddr);
    
-   gasnet_handle_t hndl = gasnet_get_nb(md->getDataFieldAddress(), remote_node, remote_ptr, 8);
+   gasnet_handle_t hndl = gasnet_get_nb(desc->getDataFieldAddress(), remote_node, remote_ptr, 8);
 
    #if SP_TIME_ENQUEUES
    timer->markTime(true);
@@ -130,7 +124,7 @@ inline mem_tag_t SplitPhase::issue(oper_enum operation, global_address gaddr, ui
 //   printf("proc%d-core%u-thread%u: issue REMOTE descriptor(%lx) addr=%ld/x%lx, full=%d; produceSize=%d\n", GA::nodeid(), omp_get_thread_num(), me->id, (uint64_t) desc, (uint64_t)desc->getAddress(), (uint64_t)desc->getAddress(), desc->isFull(), to->sizeProducer());
 
    // using num_waiting_unflushed to optimize flushes
-   if (operation==QUIT) to->flush();
+//   if (operation==QUIT) to->flush();
 
    mem_tag_t ticket;
    ticket.addr = (void*)desc;
@@ -200,7 +194,7 @@ inline bool SplitPhase::_isLocal(global_address gaddr) {
 
 inline bool SplitPhase::_flushIfNeed(thread* me) {
     if (num_waiting_unflushed>=num_active_clients) {
-        to->flush();
+   //     to->flush();
   //      printf("proc%d-core%u: forced flush\n", GA::nodeid(), omp_get_thread_num());
         num_waiting_unflushed = 0;
         #if SP_BLOCK_UNTIL_FLUSH

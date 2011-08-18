@@ -1,27 +1,26 @@
 QS_DIR=../queues
 
-CC=g++
+CC=mpicxx
 CFLAGS=-O3 -g -fopenmp
 CFLAGS+= -I../greenery -L../greenery -I$(QS_DIR) -L$(QS_DIR) 
 LIBS+= -lgreenery -lcorequeue -lrt 
 
 HOSTNAME=$(shell hostname)
 
-# for GA
-CFLAGS+= -I../tools/ga-5-0-2/ga-$(HOSTNAME)/include -L../tools/ga-5-0-2/ga-$(HOSTNAME)/lib
-LIBS+= -lga++ -lga -lgfortran -libverbs
+GASNET=/sampa/share/gasnet-rhel6
+GL_ARRAY=../mark_scratch
+CFLAGS+= -I$(GASNET)/include -I$(GASNET)/include/ibv-conduit -DGASNET_PAR -DGASNET_CONDUIT_IBV
+CFLAGS+= -I$(GL_ARRAY)
 
 #TODO abstract this
 SOURCES=\
 	MemoryDescriptor.cpp \
-	SplitPhase.cpp \
-	Delegate.cpp
+	SplitPhase.cpp 
 
 HEADERS=\
 	SplitPhase.hpp \
 	GmTypes.hpp \
-	MemoryDescriptor.hpp \
-	Delegate.hpp
+	MemoryDescriptor.hpp 
 
 LIB_OBJ_FILES= $(SOURCES:%.cpp=%.o) timing.o
 
@@ -29,7 +28,6 @@ all: TestSplitPhase.exe TestDelegate.exe
 
 TestSplitPhase.exe: TestSplitPhase.cpp $(HEADERS)
 	$(CC) $(CFLAGS) $< -o $@ $(LIBS) MemoryDescriptor.cpp SplitPhase.cpp
-
 
 TestDelegate.exe: TestDelegate.cpp $(HEADERS) GlobalMemoryStub.cpp
 	$(CC) $(CFLAGS) $< -o $@ $(LIBS) $(SOURCES) GlobalMemoryStub.cpp

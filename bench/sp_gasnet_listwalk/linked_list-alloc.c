@@ -1,10 +1,10 @@
 #include "linked_list-alloc.h"
+#include "linked_list-def.h"
+#include "node.hpp"
 #include <gasnet.h>
 
 #define SHUFFLE_LISTS 1
 
-#define WAIT_BARRIER gasnet_barrier_notify(0, GASNET_BARRIERFLAG_ANONYMOUS);gasnet_barrier_wait(0, GASNET_BARRIERFLAG_ANONYMOUS)
-//#define WAIT_BARRIER MPI_Barrier( MPI_COMM_WORLD );
 
 uint64_t get_long(global_array* ga, uint64_t index) {
     global_address gaddr;
@@ -64,7 +64,7 @@ void put_vertex(global_array* ga, uint64_t index, node data) {
 }
 
 
-void allocate_lists(global_array* vertices, uint64_t startIndex, uint64_t endIndex, int myrank, uint64_t* thisHead ) {
+void allocate_lists(global_array* vertices, uint64_t num_vertices, uint64_t startIndex, uint64_t endIndex, int myrank, uint64_t* thisHead ) {
 
     // initialize vertices
     for (uint64_t i=startIndex; i!=endIndex; i++) {
@@ -122,7 +122,7 @@ void allocate_lists(global_array* vertices, uint64_t startIndex, uint64_t endInd
             put_vertex(vertices, i, vi);
         }
 
-        *thisHead = get_long(locs, startIndex);
+        *thisHead = get_long(locs, startIndex);  // TODO support multiple lists per thread
 
         WAIT_BARRIER;
 

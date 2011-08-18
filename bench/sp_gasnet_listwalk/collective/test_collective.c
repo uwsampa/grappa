@@ -13,7 +13,7 @@ gasnet_handlerentry_t   handlers[] =
         { GM_REQUEST_HANDLER, (void *)gm_request_handler },
         { GM_RESPONSE_HANDLER, (void *)gm_response_handler },
         { GA_HANDLER, (void *)ga_handler },
-        { COLLETIVE_REDUCTION_HANDLER, (void *) serialReduceRequestHandler }
+        { COLLECTIVE_REDUCTION_HANDLER, (void *) serialReduceRequestHandler }
     };
 
 gasnet_seginfo_t    *shared_memory_blocks;
@@ -21,7 +21,7 @@ gasnet_seginfo_t    *shared_memory_blocks;
 #define SHARED_PROCESS_MEMORY_SIZE  (ONE_MEGA * 256)
 #define SHARED_PROCESS_MEMORY_OFFSET (ONE_MEGA * 256)
 
-void function_dispatch(int func_id, void *buffer, uint64 size) {
+void function_dispatch(int func_id, void *buffer, uint64_t size) {
     }
     
 void init(int *argc, char ***argv) {

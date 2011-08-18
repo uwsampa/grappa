@@ -16,24 +16,31 @@
 #include "node.hpp"
 #include "linked_list-walk.h"
 #include "linked_list-alloc.h"
+#include "linked_list-def.h"
 
 #include "thread.h"
 
 #include "GmTypes.hpp"
-#include "CoreQueue.hpp"
-#include "Delegate.hpp"
+//#include "CoreQueue.hpp"
+//#include "Delegate.hpp"
 #include "SplitPhase.hpp"
 
-#include "numautil.h"
+//#include "numautil.h"
 
 #include "mpi.h"
 
 
 // global array
 #include "global_array.h"
+#define SHARED_PROCESS_MEMORY_SIZE  (ONE_MEGA * 256)
+#define SHARED_PROCESS_MEMORY_OFFSET (ONE_MEGA * 256)
+
+#include "global_memory.h"  // Needed just for declare handlers
+#include "msg_aggregator.h" // ""
+
 #include <gasnet.h>
 
-
+#include "collective.h"
 
 /* 
  * Multiple threads walking linked lists concurrently.
@@ -58,12 +65,29 @@ void __sched__noop__(pid_t, unsigned int, cpu_set_t*) {}
   (val) = ((unsigned long)__a) | (((unsigned long)__d)<<32); \
   } while(0)
 
+
+// This crys out for linker sets
+gasnet_handlerentry_t   handlers[] =
+    {
+        { GM_REQUEST_HANDLER, (void (*)()) gm_request_handler },
+        { GM_RESPONSE_HANDLER, (void (*)()) gm_response_handler },
+        { GA_HANDLER, (void (*)())(void*)ga_handler },
+        { MSG_AGGREGATOR_DISPATCH, (void (*)())(void*)msg_aggregator_dispatch_handler },
+        { MSG_AGGREGATOR_REPLY, (void (*)()) msg_aggregator_reply_handler },
+        { COLLECTIVE_REDUCTION_HANDLER, (void (*)()) serialReduceRequestHandler }
+    };
+
+void function_dispatch(int func_id, void *buffer, uint64_t size) {
+    }
+ 
+
   // local data for each software thread
   struct walk_info {
 	int64_t list_id;
 	int64_t result;
 	uint64_t time; 
-	int64_t  base;
+	global_array* vertices;
+    uint64_t head; // start index of my list
 	uint64_t num_lists_per_thread;
 	uint64_t count;
 	SplitPhase* sp;
@@ -80,7 +104,8 @@ void thread_runnable(thread* me, void* arg) {
 //printf("nlpt = %lu, listsize=%lu\n", num_lists_per_thread, listsize);
       info->result = walk_split_phase( me,
                                     info->sp,
-                                    info->base,
+                                    info->vertices,
+                                    info->head,
                                     count,
                                     num_lists_per_thread);
       uint64_t end_tsc;
@@ -123,9 +148,9 @@ void init(int *argc, char ***argv) {
 
 
 
-int main(int argc, char* argv[]) {
+int main(int argc, char** argv) {
     /* GA step 1 */
-    init(&argv, &argc);
+    init(&argc, &argv);
 
 
   //assert(argc >= 5);
@@ -219,7 +244,8 @@ int main(int argc, char* argv[]) {
 
 
   int max_cpu0;
-  unsigned int* cpus0 = numautil_cpusForNode(numa_node0, &max_cpu0);
+  unsigned int cpus0[12]; //XXX unused
+  //unsigned int* cpus0 = numautil_cpusForNode(numa_node0, &max_cpu0);
 
 
   // experiment runner init and enable
@@ -256,6 +282,7 @@ int main(int argc, char* argv[]) {
 
   uint64_t total_num_threads = num_nodes * num_cores_per_node * num_threads_per_core;
 
+  uint64_t num_vertices = size;
 
   int64_t vertices_size_in_words = size * sizeof(node) / sizeof(int64_t);
   int64_t bases_size = num_nodes * num_cores_per_node * num_threads_per_core; // TODO num list per thread too
@@ -265,14 +292,13 @@ int main(int argc, char* argv[]) {
 
   if (0 == rank) std::cout << "Start." << std::endl;
     
-  global_array* vertices = ga_allocate(sizeof(node), size);
-  global_array* bases = ga_allocate(sizeof(node*), bases_size);
+  global_array* vertices = ga_allocate(sizeof(node), num_vertices);
   global_array* times = ga_allocate(sizeof(double), num_nodes);
 
     uint64_t local_start, local_end;
     uint64_t myhead;
    ga_local_range(vertices, &local_start, &local_end); 
-   allocate_lists(vertices, local_start, local_end, rank, &myhead);
+   allocate_lists(vertices, num_vertices, local_start, local_end, rank, &myhead);
  
    printf("process %d owns vertices[%lu:%lu)\n", rank, local_start, local_end);
 
@@ -281,8 +307,6 @@ int main(int argc, char* argv[]) {
   SplitPhase* sp[num_cores_per_node];
   #pragma omp parallel for num_threads(num_cores_per_node)
   for (uint64_t th=0; th<num_cores_per_node; th++) {
-      sock0_qs_fromDel[th] = CoreQueue<uint64_t>::createQueue();
-      sock0_qs_toDel[th] =  CoreQueue<uint64_t>::createQueue();
       sp[th] = new SplitPhase(0, 0, num_threads_per_core);
   }
 
@@ -291,8 +315,6 @@ int main(int argc, char* argv[]) {
     // run number_of_repetitions # of experiments
   for(uint64_t n = 0; n < number_of_repetitions; n++) {
       
-      Delegate delegate(sock0_qs_fromDel, sock0_qs_toDel, num_cores_per_node, &vertices);
-	            	  	  
     const uint64_t listsize_per_thread = size / (total_num_threads * num_lists_per_thread);
     const uint64_t count = listsize_per_thread * num_traversals;
 
@@ -319,9 +341,8 @@ int main(int argc, char* argv[]) {
 	       	 for (uint64_t gt = 0; gt<num_threads_per_core; gt++) {
                int64_t list_id = (rank * num_cores_per_node * num_threads_per_core) + (core_num*num_threads_per_core + gt);
 	       	   walk_infos[core_num][gt].list_id = list_id;
-               int64_t base;
-               bases.get(&list_id, &list_id, &base, NULL);
-	       	   walk_infos[core_num][gt].base = base;
+               walk_infos[core_num][gt].vertices = vertices;
+	       	   walk_infos[core_num][gt].head = myhead; 
                walk_infos[core_num][gt].num_lists_per_thread = num_lists_per_thread;
 	       	   walk_infos[core_num][gt].count = count;
 	       	   walk_infos[core_num][gt].sp = sp[core_num];
@@ -366,7 +387,8 @@ int main(int argc, char* argv[]) {
                     CPU_SET(cpus0[core_num], &set);
 	                SCHED_SET(0, sizeof(cpu_set_t), &set);
 
-					sp[core_num]->issue(QUIT, 0, 0, masters[core_num]);
+                    global_address dummy;
+					sp[core_num]->issue(QUIT, dummy, 0, masters[core_num]);
 				}
 
     		} else { //delegate
@@ -376,7 +398,7 @@ int main(int argc, char* argv[]) {
     			CPU_SET(cpus0[max_cpu0-1],&set);//CPU_SET(10,&set);
     			SCHED_SET(0, sizeof(cpu_set_t), &set);
 
-    			delegate.run();
+                // NO DELEGATE			delegate.run();
     		}
     	}
 
@@ -427,10 +449,11 @@ int main(int argc, char* argv[]) {
 
     printf("proc%d, avg poll count per remote request %f\n", rank, (double)total_poll_counts/rem_count);
 
-    uint64_t glob_loc_count = 0;
-    uint64_t glob_rem_count = 0;
-    MPI_Reduce( &loc_count, &glob_loc_count, 1, MPI_INT, MPI_SUM, 0, MPI_COMM_WORLD );
-    MPI_Reduce( &rem_count, &glob_rem_count, 1, MPI_INT, MPI_SUM, 0, MPI_COMM_WORLD );
+    WAIT_BARRIER; 
+    uint64_t glob_loc_count = serialReduce(COLL_ADD, 0, loc_count);
+    WAIT_BARRIER;
+    uint64_t glob_rem_count = serialReduce(COLL_ADD, 0, rem_count); 
+    
     uint64_t glob_tot_count = glob_loc_count + glob_rem_count;
 
     
@@ -439,18 +462,18 @@ int main(int argc, char* argv[]) {
 
     // runtime
     double runtime = (end_time.tv_sec + 1.0e-9 * end_time.tv_nsec) - (start_time.tv_sec + 1.0e-9 * start_time.tv_nsec);
-    double min_runtime = 0.0;
-    MPI_Reduce( &runtime, &min_runtime, 1, MPI_DOUBLE, MPI_MIN, 0, MPI_COMM_WORLD );
-    double max_runtime = 0.0;
-    MPI_Reduce( &runtime, &max_runtime, 1, MPI_DOUBLE, MPI_MAX, 0, MPI_COMM_WORLD );
+    WAIT_BARRIER;
+    double min_runtime = serialReduce(COLL_MIN, 0, runtime);
+    WAIT_BARRIER;
+    double max_runtime = serialReduce(COLL_MAX, 0, runtime);
 
-    double rate = count * num_lists_per_thread * num_threads_per_core * num_cores_per_node * num_nodes / min_runtime;
+    double rate = (double)count * num_lists_per_thread * num_threads_per_core * num_cores_per_node * num_nodes / min_runtime;
 
     std::cout << "node " << rank << " runtime is " << runtime << std::endl;
 
     if (0 == rank) std::cout << "rate is " << rate / 1000000.0 << " Mref/s" << std::endl;    
 
-    MPI_Barrier( MPI_COMM_WORLD ); 
+    WAIT_BARRIER; 
 
     if (0 == rank) printf("{'bits':%lu, 'num_nodes':%d, 'num_threads_per_core':%lu, 'use_green_threads':%d, 'num_cores_per_node':%lu, 'concurrent_reads':%lu, 'request_rate':%f, 'num_traversals':%lu, 'runtime':%f}\n", bits, num_nodes, num_threads_per_core, use_green_threads, num_cores_per_node, num_lists_per_thread, rate, num_traversals, runtime);
 
@@ -461,10 +484,8 @@ int main(int argc, char* argv[]) {
       delete sp[th];
   }
 
-  GA::Terminate();
-
   
-  
+   gasnet_exit(0);
 
   return 0;
 }

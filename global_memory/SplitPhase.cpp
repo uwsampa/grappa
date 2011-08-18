@@ -9,8 +9,6 @@
 #include "thread.h"
 #include "MemoryDescriptor.hpp"
 
-#include "ga++.h"
-
 
 
 void SplitPhase::unregister(thread* me) {

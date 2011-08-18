@@ -11,7 +11,7 @@
 
 typedef struct node {
   uint64_t id;
-  struct node* next;
+  uint64_t next;
   char padding[48];
 } node;
 
