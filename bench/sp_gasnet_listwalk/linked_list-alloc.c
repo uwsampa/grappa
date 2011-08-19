@@ -64,7 +64,7 @@ void put_vertex(global_array* ga, uint64_t index, node data) {
 }
 
 
-void allocate_lists(global_array* vertices, uint64_t num_vertices, uint64_t startIndex, uint64_t endIndex, int myrank, uint64_t* thisHead ) {
+void allocate_lists(global_array* vertices, uint64_t num_vertices, uint64_t startIndex, uint64_t endIndex, int myrank, uint64_t* localHeads, uint64_t num_lists_per_node, uint64_t num_vertices_per_list ) {
 
     // initialize vertices
     for (uint64_t i=startIndex; i!=endIndex; i++) {
@@ -122,7 +122,9 @@ void allocate_lists(global_array* vertices, uint64_t num_vertices, uint64_t star
             put_vertex(vertices, i, vi);
         }
 
-        *thisHead = get_long(locs, startIndex);  // TODO support multiple lists per thread
+        for (uint64_t i=0; i<num_lists_per_node; i++) {
+            localHeads[i] = get_long(locs, startIndex+i*num_vertices_per_list);
+        }
 
         WAIT_BARRIER;
 
@@ -130,7 +132,9 @@ void allocate_lists(global_array* vertices, uint64_t num_vertices, uint64_t star
          * ga_free(locs); */
 
     #else  // (not SHUFFLE_LISTS)
-        *thisHead = startIndex;
+        for (uint64_t i=0; i<num_lists_per_node; i++) {
+            localHeads[i] = startIndex+i*num_vertices_per_list;
+        }
 
     #endif // SHUFFLE_LISTS
 }

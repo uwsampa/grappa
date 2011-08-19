@@ -1,3 +1,9 @@
+
+#ifdef __cplusplus
+extern "C" {
+#endif
+
+
 #ifndef _COLLECTIVE_H_
 #define _COLLECTIVE_H_
 
@@ -25,3 +31,9 @@ void serialReduceRequestHandler(gasnet_token_t token, gasnet_handlerarg_t a0);
 
 
 #endif // _COLLECTIVE_H_
+
+
+
+#ifdef __cplusplus
+}
+#endif

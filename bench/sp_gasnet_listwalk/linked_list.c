@@ -83,7 +83,7 @@ void function_dispatch(int func_id, void *buffer, uint64_t size) {
 
   // local data for each software thread
   struct walk_info {
-	int64_t list_id;
+	uint64_t list_id;
 	int64_t result;
 	uint64_t time; 
 	global_array* vertices;
@@ -154,10 +154,10 @@ int main(int argc, char** argv) {
 
 
   //assert(argc >= 5);
-  uint64_t bits = 24; //atoi(argv[1]);            // 2^bits=number of nodes
+  uint64_t bits = 24; //atoi(argv[1]);            // 2^bits=number of vertices per node
   uint64_t num_threads_per_core = 1; //atoi(argv[2]);     // sw threads/ hw thread
   uint64_t num_cores_per_node = 1; //atoi(argv[3]);// hw threads
-  uint64_t size = (1 << bits);
+  uint64_t size_per_node = (1 << bits);
   uint64_t num_traversals = 1; // number of traversals thru the circular lists         
 
   uint64_t num_lists_per_thread = 1; //atoi(argv[4]); // number of concurrent accesses per thread	
@@ -195,7 +195,7 @@ int main(int argc, char** argv) {
       break;
     case 'b':
       bits = atoi(optarg);
-      size = (1<<bits);
+      size_per_node = (1<<bits);
       break;
     case 't':
       num_threads_per_core = atoi(optarg);
@@ -280,25 +280,24 @@ int main(int argc, char** argv) {
   int num_nodes = gasnet_nodes();  
 
 
-  uint64_t total_num_threads = num_nodes * num_cores_per_node * num_threads_per_core;
+  const uint64_t total_num_threads = num_nodes * num_cores_per_node * num_threads_per_core;
 
-  uint64_t num_vertices = size;
-
-  int64_t vertices_size_in_words = size * sizeof(node) / sizeof(int64_t);
-  int64_t bases_size = num_nodes * num_cores_per_node * num_threads_per_core; // TODO num list per thread too
+  const uint64_t total_num_vertices = size_per_node * num_nodes;
+  const uint64_t num_lists_per_node = num_cores_per_node * num_threads_per_core; //TODO multiple lists per thread
+  const uint64_t num_vertices_per_list = size_per_node / num_lists_per_node;
 
   // initialize random number generator
   srandom(time(NULL));
 
   if (0 == rank) std::cout << "Start." << std::endl;
     
-  global_array* vertices = ga_allocate(sizeof(node), num_vertices);
+  global_array* vertices = ga_allocate(sizeof(node), total_num_vertices);
   global_array* times = ga_allocate(sizeof(double), num_nodes);
 
     uint64_t local_start, local_end;
-    uint64_t myhead;
+    uint64_t myheads[num_lists_per_node];
    ga_local_range(vertices, &local_start, &local_end); 
-   allocate_lists(vertices, num_vertices, local_start, local_end, rank, &myhead);
+   allocate_lists(vertices, total_num_vertices, local_start, local_end, rank, myheads, num_lists_per_node, num_vertices_per_list);
  
    printf("process %d owns vertices[%lu:%lu)\n", rank, local_start, local_end);
 
@@ -315,8 +314,7 @@ int main(int argc, char** argv) {
     // run number_of_repetitions # of experiments
   for(uint64_t n = 0; n < number_of_repetitions; n++) {
       
-    const uint64_t listsize_per_thread = size / (total_num_threads * num_lists_per_thread);
-    const uint64_t count = listsize_per_thread * num_traversals;
+    const uint64_t count = num_vertices_per_list * num_traversals;
 
     struct timespec start_time;
     struct timespec end_time;
@@ -339,10 +337,11 @@ int main(int argc, char** argv) {
 	      	#pragma omp critical (crit_create)
 	     	 {
 	       	 for (uint64_t gt = 0; gt<num_threads_per_core; gt++) {
-               int64_t list_id = (rank * num_cores_per_node * num_threads_per_core) + (core_num*num_threads_per_core + gt);
+               uint64_t local_list_id = core_num*num_threads_per_core + gt;
+               uint64_t list_id = (rank * num_cores_per_node * num_threads_per_core) + (core_num*num_threads_per_core + gt);
 	       	   walk_infos[core_num][gt].list_id = list_id;
                walk_infos[core_num][gt].vertices = vertices;
-	       	   walk_infos[core_num][gt].head = myhead; 
+	       	   walk_infos[core_num][gt].head = myheads[local_list_id];
                walk_infos[core_num][gt].num_lists_per_thread = num_lists_per_thread;
 	       	   walk_infos[core_num][gt].count = count;
 	       	   walk_infos[core_num][gt].sp = sp[core_num];
@@ -352,8 +351,8 @@ int main(int argc, char** argv) {
     	}
 
 
-    	clock_gettime(CLOCK_MONOTONIC, &start_time);
         WAIT_BARRIER;
+    	clock_gettime(CLOCK_MONOTONIC, &start_time);
 
     	// start monitoring and timing    
     	//er.startIfEnabled();
@@ -449,31 +448,38 @@ int main(int argc, char** argv) {
 
     printf("proc%d, avg poll count per remote request %f\n", rank, (double)total_poll_counts/rem_count);
 
+    uint64_t glob_loc_count, glob_rem_count, glob_tot_count;
+///* XXX all of a sudden this is stalling?
     WAIT_BARRIER; 
-    uint64_t glob_loc_count = serialReduce(COLL_ADD, 0, loc_count);
+    glob_loc_count = serialReduce(COLL_ADD, 0, loc_count);
     WAIT_BARRIER;
-    uint64_t glob_rem_count = serialReduce(COLL_ADD, 0, rem_count); 
+    glob_rem_count = serialReduce(COLL_ADD, 0, rem_count); 
     
-    uint64_t glob_tot_count = glob_loc_count + glob_rem_count;
-
+    glob_tot_count = glob_loc_count + glob_rem_count;
+//*/
     
 
     if (0 == rank) std::cout << "local reqs:" << glob_loc_count << "/"<< (double)glob_loc_count/glob_tot_count << " remote reqs:" << glob_rem_count << "/" << (double)glob_rem_count/glob_tot_count  << std::endl;
 
     // runtime
     double runtime = (end_time.tv_sec + 1.0e-9 * end_time.tv_nsec) - (start_time.tv_sec + 1.0e-9 * start_time.tv_nsec);
-    WAIT_BARRIER;
+    
+    //TODO: make double collective; for now just use node0's vote of the time
+    /*WAIT_BARRIER;
     double min_runtime = serialReduce(COLL_MIN, 0, runtime);
     WAIT_BARRIER;
     double max_runtime = serialReduce(COLL_MAX, 0, runtime);
 
     double rate = (double)count * num_lists_per_thread * num_threads_per_core * num_cores_per_node * num_nodes / min_runtime;
+*/
+    uint64_t num_visited = count * num_lists_per_thread * num_threads_per_core * num_cores_per_node * num_nodes;
+    double rate = (double)num_visited / runtime; // TODO see above TODO
+    
 
     std::cout << "node " << rank << " runtime is " << runtime << std::endl;
 
-    if (0 == rank) std::cout << "rate is " << rate / 1000000.0 << " Mref/s" << std::endl;    
+    if (0 == rank) std::cout << "rate is " << rate / 1000000.0 << " Mref/s, visited total " << num_visited << " vertices ("<< count*num_lists_per_thread*num_threads_per_core << " per core)" << std::endl;    
 
-    WAIT_BARRIER; 
 
     if (0 == rank) printf("{'bits':%lu, 'num_nodes':%d, 'num_threads_per_core':%lu, 'use_green_threads':%d, 'num_cores_per_node':%lu, 'concurrent_reads':%lu, 'request_rate':%f, 'num_traversals':%lu, 'runtime':%f}\n", bits, num_nodes, num_threads_per_core, use_green_threads, num_cores_per_node, num_lists_per_thread, rate, num_traversals, runtime);
 
