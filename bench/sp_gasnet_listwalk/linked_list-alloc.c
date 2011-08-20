@@ -1,10 +1,11 @@
+#include <stdio.h>
 #include "linked_list-alloc.h"
 #include "linked_list-def.h"
 #include "node.hpp"
 #include <gasnet.h>
 
 #define SHUFFLE_LISTS 1
-
+#define GLOBAL_SHUFFLE 1
 
 uint64_t get_long(global_array* ga, uint64_t index) {
     global_address gaddr;
@@ -84,14 +85,25 @@ void allocate_lists(global_array* vertices, uint64_t num_vertices, uint64_t star
         }
     }
 
+
     #if SHUFFLE_LISTS
         WAIT_BARRIER;
 
-        // sequential shuffle
-        if (0 == myrank) {
-            for (uint64_t i=num_vertices-1; i!=0; i--) {
-                uint64_t j = random() % i;
-                
+        #if GLOBAL_SHUFFLE
+            if (0==myrank) {
+                uint64_t shuf_start = 0;
+                uint64_t shuf_end = num_vertices-1;
+        
+        #else
+        {
+            // to get all vertices shuffled within a node, allocation assume contiguous chunks (i.e. blocksize = num_vertices/num_nodes)
+            uint64_t shuf_start = startIndex;
+            uint64_t shuf_end = endIndex;
+        #endif
+
+            for (uint64_t i=shuf_end; i!=shuf_start; i--) {
+                uint64_t j = (random() % (i-shuf_start)) + shuf_start;
+                        
                 node temp1 = get_vertex(vertices, i);
                 node temp2 = get_vertex(vertices, j);
 
@@ -99,13 +111,12 @@ void allocate_lists(global_array* vertices, uint64_t num_vertices, uint64_t star
                 put_vertex(vertices, j, temp1);
             }
         }
-
         WAIT_BARRIER;
 
         // get the locations of the ids
         global_array* locs = ga_allocate(sizeof(uint64_t), num_vertices);
 
-        for (uint64_t i=startIndex; i!=endIndex; i++) {
+        for (uint64_t i=startIndex; i<=endIndex; i++) {
             node v = get_vertex(vertices, i);
             put_long(locs, v.id, i);
         }
@@ -114,7 +125,7 @@ void allocate_lists(global_array* vertices, uint64_t num_vertices, uint64_t star
 
         
         // chain together (TODO cycles)
-        for (uint64_t i=startIndex; i!=endIndex; i++) {
+        for (uint64_t i=startIndex; i<=endIndex; i++) {
             node vi = get_vertex(vertices, i);
             uint64_t locindex = (vi.id+1)%num_vertices;
             uint64_t l = get_long(locs, locindex);

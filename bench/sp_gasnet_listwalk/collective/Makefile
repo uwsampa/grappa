@@ -21,7 +21,7 @@ test_collective: test_collective.o collective.o $(GL_OBJ)
 	$(LD) -o $@ $^ $(MPI_INCLUDE) $(LIBS) $(GASNET_LIBS)
 
 run: test_collective
-	mpirun -ppn 1 -H "n02,n04" ./test_collective
+	mpirun -ppn 1 -H "n01,n04" ./test_collective
 
 clean:
 	rm -f ./*.o test_collective

@@ -299,7 +299,7 @@ int main(int argc, char** argv) {
    ga_local_range(vertices, &local_start, &local_end); 
    allocate_lists(vertices, total_num_vertices, local_start, local_end, rank, myheads, num_lists_per_node, num_vertices_per_list);
  
-   printf("process %d owns vertices[%lu:%lu)\n", rank, local_start, local_end);
+   printf("process %d owns vertices[%lu:%lu]\n", rank, local_start, local_end);
 
   // split phase and delegate
 

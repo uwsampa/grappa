@@ -40,7 +40,7 @@ GL_OBJECTS=\
 default: linked_list.exe
 
 run: linked_list.exe
-	mpirun -np 2 -H "n01,n04" taskset 0x555 hugectl --heap -- ./linked_list.exe -b 10 -c 1 -t 4 -l 1 -g
+	mpirun -np 2 -H "n01,n04" hugectl --heap -- ./linked_list.exe -b 10 -c 1 -t 4 -l 1 -g
 
 %.o: %.c $(HEADERS) Makefile
 	$(CC) $(CFLAGS) $< -c -o $@
@@ -54,7 +54,7 @@ all:
 
 debug: linked_list.exe 
 	export GASNET_BACKTRACE=1
-	mpirun -np 2 -H "n02" xterm -hold -e gdb --args ./linked_list.exe -b 10 -l 1 -c 1 -g -t 2
+	mpirun -np 2 -H "n01" xterm -hold -e gdb --args ./linked_list.exe -b 10 -l 1 -c 1 -g -t 2
 
 clean:
 	rm -f linked_list.exe ./*.o
