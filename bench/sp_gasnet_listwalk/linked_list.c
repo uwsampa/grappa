@@ -51,7 +51,7 @@
 //#include "ExperimentRunner.h"
 
 void __sched__noop__(pid_t, unsigned int, cpu_set_t*) {}
-#define PIN_THREADS 0
+#define PIN_THREADS 1
 #if PIN_THREADS
     #define SCHED_SET sched_setaffinity
 #else
@@ -243,8 +243,8 @@ int main(int argc, char** argv) {
   if (number_of_repetitions > 1) assert(false); // XXX not reinitializing right to do more than one experiment
 
 
-  int max_cpu0;
-  unsigned int cpus0[12]; //XXX unused
+  int max_cpu0 = 6;
+  unsigned int cpus0[6] = {0,2,4,6,8,10}; 
   //unsigned int* cpus0 = numautil_cpusForNode(numa_node0, &max_cpu0);
 
 
@@ -272,7 +272,7 @@ int main(int argc, char** argv) {
 
   
 #if PIN_THREADS
-  assert((unsigned int)max_cpu0 > num_cores_per_node); 
+  assert((unsigned int)max_cpu0 >= num_cores_per_node); 
 #endif
 
 
@@ -362,9 +362,9 @@ int main(int argc, char** argv) {
 		omp_set_nested(1);
         int num_tasks = 2;
 
-    	#pragma omp parallel for num_threads(num_tasks)
+  /*  	#pragma omp parallel for num_threads(num_tasks)
     	for (int task=0; task<num_tasks; task++) {
-    		if (task==0) {
+    		if (task==0) {*/
 				#pragma omp parallel for num_threads(num_cores_per_node)
 				for (uint64_t core_num=0; core_num < num_cores_per_node; core_num++) {
 					cpu_set_t set;
@@ -389,7 +389,7 @@ int main(int argc, char** argv) {
                     global_address dummy;
 					sp[core_num]->issue(QUIT, dummy, 0, masters[core_num]);
 				}
-
+/*
     		} else { //delegate
     			// assuming last core on socket
     			cpu_set_t set;
@@ -399,7 +399,7 @@ int main(int argc, char** argv) {
 
                 // NO DELEGATE			delegate.run();
     		}
-    	}
+    	}*/
 
         WAIT_BARRIER;
     	
