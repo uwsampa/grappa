@@ -5,7 +5,7 @@ UPC_RUN=$(UPC_BIN_PATH)/upcrun
 
 UDP_NUM_THREADS=4
 SHM_NUM_THREADS=4
-IBV_NUM_THREADS=2
+IBV_NUM_THREADS=12
 IBV_TH_PER_NODE=$(shell echo $(IBV_NUM_THREADS)/2 | bc)
 
 HOSTNAME=$(shell hostname)
@@ -51,12 +51,12 @@ run.opt.udp: opt.listwalk.udp
 	UPC_POLITE_SYNC=0 $(UPC_RUN) -localhost ./opt.listwalk.udp
 
 run.ibv: listwalk.ibv
-	export UPC_NODES="n02.sampa n04.sampa"
-	$(UPC_RUN) -N 2 -c $(IBV_TH_PER_NODE) ./listwalk.ibv
+	export UPC_NODES="n01.sampa n04.sampa"
+	$(UPC_RUN) -N 2 -c $(IBV_TH_PER_NODE) hugectl --heap ./listwalk.ibv
 
 run.opt.ibv: opt.listwalk.ibv
-	export UPC_NODES="n02.sampa n04.sampa"
-	$(UPC_RUN) -N 2 -c $(IBV_TH_PER_NODE) ./opt.listwalk.ibv
+	export UPC_NODES="n01.sampa n04.sampa"
+	$(UPC_RUN) -N 2 -c $(IBV_TH_PER_NODE) hugectl --heap ./opt.listwalk.ibv
 
 debug.default: listwalk.default
 	GASNET_BACKTRACE=1 GASNET_PSHM_NODES=2 gdb --args ./listwalk.default 
