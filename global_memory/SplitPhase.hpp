@@ -76,15 +76,15 @@ class SplitPhase {
             delete timer;
         }
 
-        mem_tag_t issue(oper_enum operation, global_address gaddr, uint64_t data, thread* me);
+        mem_tag_t issue(oper_enum operation, global_address gaddr, uint64_t data, thread* me, gasnet_threadinfo_t thr_info);
 
-        uint64_t complete( mem_tag_t , thread* me);
+        uint64_t complete( mem_tag_t , thread* me, gasnet_threadinfo_t thr_info);
 
         void unregister(thread* me);
 };
 
 
-inline mem_tag_t SplitPhase::issue(oper_enum operation, global_address gaddr, uint64_t data, thread* me) {
+inline mem_tag_t SplitPhase::issue(oper_enum operation, global_address gaddr, uint64_t data, thread* me, gasnet_threadinfo_t thr_info) {
 
  // if local non synchro/quit then handle directly
    if (operation==READ && _isLocal(gaddr)) {
@@ -103,6 +103,8 @@ inline mem_tag_t SplitPhase::issue(oper_enum operation, global_address gaddr, ui
 
        return ticket;
    }
+    
+    GASNET_POST_THREADINFO(thr_info);
 
 
    MemoryDescriptor* desc = getDescriptor(me->id);
@@ -134,10 +136,12 @@ inline mem_tag_t SplitPhase::issue(oper_enum operation, global_address gaddr, ui
 }
 
 
-inline uint64_t SplitPhase::complete(mem_tag_t ticket, thread* me) {
+inline uint64_t SplitPhase::complete(mem_tag_t ticket, thread* me, gasnet_threadinfo_t thr_info) {
     if (ticket.handleLocally) { 
         return *((uint64_t*)ticket.addr);
     } else {
+        GASNET_POST_THREADINFO(thr_info);
+        
         num_waiting_unflushed++;
         
         #if SP_BLOCK_UNTIL_FLUSH

@@ -398,7 +398,7 @@ int main(int argc, char** argv) {
 	                SCHED_SET(0, sizeof(cpu_set_t), &set);
 
                     global_address dummy;
-					sp[core_num]->issue(QUIT, dummy, 0, masters[core_num]);
+					sp[core_num]->issue(QUIT, dummy, 0, masters[core_num], GASNET_GET_THREADINFO());
 				}
 /*
     		} else { //delegate
