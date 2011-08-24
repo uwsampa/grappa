@@ -58,6 +58,7 @@ void __sched__noop__(pid_t, unsigned int, cpu_set_t*) {}
     #define SCHED_SET __sched__noop__
 #endif
 
+#define SAME_NODE 1
 
 #define rdtscll(val) do { \
   unsigned int __a,__d; \
@@ -239,12 +240,25 @@ int main(int argc, char** argv) {
   /* 	exit(1); */
   /* } */
 	
+  int rank = gasnet_mynode();
+  int num_nodes = gasnet_nodes();  
+
   const uint64_t number_of_repetitions = 1;
   if (number_of_repetitions > 1) assert(false); // XXX not reinitializing right to do more than one experiment
 
 
   int max_cpu0 = 6;
-  unsigned int cpus0[6] = {0,2,4,6,8,10}; 
+  unsigned int cpus0[6];
+  char hostname[256];
+  gethostname(hostname, 255);
+
+  if (SAME_NODE) {
+      if (rank==0) {
+        cpus0 = {0,2,4,6,8,10};
+      } else {
+        cpus0 = {1,3,5,7,9,11};
+      }
+  }
   //unsigned int* cpus0 = numautil_cpusForNode(numa_node0, &max_cpu0);
 
 
@@ -275,9 +289,6 @@ int main(int argc, char** argv) {
   assert((unsigned int)max_cpu0 >= num_cores_per_node); 
 #endif
 
-
-  int rank = gasnet_mynode();
-  int num_nodes = gasnet_nodes();  
 
 
   const uint64_t total_num_threads = num_nodes * num_cores_per_node * num_threads_per_core;

@@ -47,6 +47,8 @@ void init(int *argc, char ***argv) {
         gasnet_exit(1);
     }
     gm_init();
+
+    printf("using GASNET_SEGMENT_FAST=%d; maxGlobalSegmentSize=%lu\n", GASNET_SEGMENT_FAST, gasnet_getMaxGlobalSegmentSize());
 }
     
 int main(int argc, char **argv) {
