@@ -58,8 +58,6 @@ void __sched__noop__(pid_t, unsigned int, cpu_set_t*) {}
     #define SCHED_SET __sched__noop__
 #endif
 
-#define SAME_NODE 1
-
 #define rdtscll(val) do { \
   unsigned int __a,__d; \
   asm volatile("rdtsc" : "=a" (__a), "=d" (__d)); \
@@ -111,7 +109,6 @@ void thread_runnable(thread* me, void* arg) {
                                     num_lists_per_thread);
       uint64_t end_tsc;
       rdtscll(end_tsc);
-      info->time = end_tsc - start_tsc;
 
 //      printf("core%u-thread%u: FINISHED\n", omp_get_thread_num(), me->id);
 
@@ -176,6 +173,8 @@ int main(int argc, char** argv) {
   int use_green_threads = 0;
   int use_jump_threads = 0;
 
+  int num_machines = 0;
+
   static struct option long_options[] = {
     {"bits",             required_argument, NULL, 'b'},
     {"threads_per_core", required_argument, NULL, 't'},
@@ -185,11 +184,12 @@ int main(int argc, char** argv) {
     {"monitor",          no_argument,       NULL, 'm'},
     {"green_threads",    no_argument,       NULL, 'g'},
     {"jump_threads",     no_argument,       NULL, 'j'},
+    {"num_machines",     required_argument, NULL, 'n'},
     {"help",             no_argument,       NULL, 'h'},
     {NULL,               no_argument,       NULL, 0}
   };
   int c, option_index = 1;
-  while ((c = getopt_long(argc, argv, "b:t:c:s:l:a:m:gjh?",
+  while ((c = getopt_long(argc, argv, "b:t:c:s:l:a:m:n:gjh?",
                           long_options, &option_index)) >= 0) {
     switch (c) {
     case 0:   // flag set
@@ -212,6 +212,9 @@ int main(int argc, char** argv) {
       break;
     case 'm':
       do_monitor = 1;
+      break;
+    case 'n':
+      num_machines = atoi(optarg);
       break;
     case 'g':
       use_green_threads = 1;
@@ -247,18 +250,27 @@ int main(int argc, char** argv) {
   if (number_of_repetitions > 1) assert(false); // XXX not reinitializing right to do more than one experiment
 
 
-  int max_cpu0 = 6;
-  unsigned int cpus0[6];
-  char hostname[256];
-  gethostname(hostname, 255);
-
-  if (SAME_NODE) {
-      if (rank==0) {
-        cpus0 = {0,2,4,6,8,10};
-      } else {
-        cpus0 = {1,3,5,7,9,11};
+  int max_cpu0 = 12;
+  unsigned int cpus0[12];
+  
+  assert(num_machines == 1 || num_machines==2);
+  if (num_machines == 1) {
+      assert (num_nodes * num_cores_per_node <= 12);
+      unsigned int cpu_pool[12] = {0,2,4,6,8,10,1,3,5,6,9,11};
+      for (int i=0; i<num_cores_per_node; i++) {
+        cpus0[i] = cpu_pool[rank*num_cores_per_node+i];
       }
-  }
+  } else if (num_machines == 2) {
+    assert ((num_nodes/2) * num_cores_per_node <= 12); //assumes even number of total processes
+    unsigned int cpu_pool[12] = {0,2,4,6,8,10,1,3,5,6,9,11};
+    int mach_rank;
+    if (rank%2==0) mach_rank = rank;
+    else mach_rank = rank-1;
+    for (int i=0; i<num_cores_per_node; i++) {
+        cpus0[i] = cpu_pool[(mach_rank/2)*num_cores_per_node+i];
+    }
+ }
+
   //unsigned int* cpus0 = numautil_cpusForNode(numa_node0, &max_cpu0);
 
 
@@ -308,7 +320,7 @@ int main(int argc, char** argv) {
     uint64_t local_start, local_end;
     uint64_t myheads[num_lists_per_node];
    ga_local_range(vertices, &local_start, &local_end); 
-   allocate_lists(vertices, total_num_vertices, local_start, local_end, rank, myheads, num_lists_per_node, num_vertices_per_list);
+   allocate_lists(vertices, total_num_vertices, local_start, local_end, rank, myheads, num_lists_per_node, num_vertices_per_list, num_nodes);
  
    printf("process %d owns vertices[%lu:%lu]\n", rank, local_start, local_end);
 

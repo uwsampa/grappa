@@ -4,8 +4,13 @@
 #include "node.hpp"
 #include <gasnet.h>
 
+// all mixed: GLOBAL_SHUFFLE 1
+// all local requests: GLOBAL_SHUFFLE 0, SWAP_HEADS 0
+// all remote requests: GLOBAL_SHUFFLE 0, SWAP_HEADS 1
+
 #define SHUFFLE_LISTS 1
-#define GLOBAL_SHUFFLE 1
+#define GLOBAL_SHUFFLE 0
+#define SWAP_HEADS 1
 
 uint64_t get_long(global_array* ga, uint64_t index) {
     global_address gaddr;
@@ -65,10 +70,10 @@ void put_vertex(global_array* ga, uint64_t index, node data) {
 }
 
 
-void allocate_lists(global_array* vertices, uint64_t num_vertices, uint64_t startIndex, uint64_t endIndex, int myrank, uint64_t* localHeads, uint64_t num_lists_per_node, uint64_t num_vertices_per_list ) {
+void allocate_lists(global_array* vertices, uint64_t num_vertices, uint64_t startIndex, uint64_t endIndex, int myrank, uint64_t* localHeads, uint64_t num_lists_per_node, uint64_t num_vertices_per_list, uint64_t num_nodes) {
 
-    // initialize vertices
-    for (uint64_t i=startIndex; i!=endIndex; i++) {
+       // initialize vertices
+    for (uint64_t i=startIndex; i<=endIndex; i++) {
         global_address a;
         ga_index(vertices, i, &a);  
         node* np = (node*) gm_local_gm_address_to_local_ptr(&a);
@@ -88,6 +93,10 @@ void allocate_lists(global_array* vertices, uint64_t num_vertices, uint64_t star
 
     #if SHUFFLE_LISTS
         WAIT_BARRIER;
+       
+        // repeatable results 
+        const unsigned int RANDOM_SEED = 11;
+        srandom(RANDOM_SEED);
 
         #if GLOBAL_SHUFFLE
             if (0==myrank) {
@@ -124,7 +133,7 @@ void allocate_lists(global_array* vertices, uint64_t num_vertices, uint64_t star
         WAIT_BARRIER;
 
         
-        // chain together (TODO cycles)
+        // chain together; cycle created later
         for (uint64_t i=startIndex; i<=endIndex; i++) {
             node vi = get_vertex(vertices, i);
             uint64_t locindex = (vi.id+1)%num_vertices;
@@ -133,9 +142,26 @@ void allocate_lists(global_array* vertices, uint64_t num_vertices, uint64_t star
             put_vertex(vertices, i, vi);
         }
 
+        uint64_t headsStartIndex = startIndex;
+
+        #if SWAP_HEADS
+        global_array* startIndices = ga_allocate(sizeof(uint64_t), num_nodes);
+        WAIT_BARRIER;
+        put_long(startIndices, myrank, startIndex);
+        WAIT_BARRIER;
+        headsStartIndex = get_long(startIndices, (myrank+1)%num_nodes);
+        #endif
+
         for (uint64_t i=0; i<num_lists_per_node; i++) {
-            localHeads[i] = get_long(locs, startIndex+i*num_vertices_per_list);
+            localHeads[i] = get_long(locs, headsStartIndex+i*num_vertices_per_list);
+
+            // create cycle
+            uint64_t lastVertexInList = get_long(locs, (headsStartIndex+(i+1)*num_vertices_per_list)-1);
+            node vl = get_vertex(vertices, lastVertexInList);
+            vl.next = localHeads[i];
+            put_vertex(vertices, lastVertexInList, vl);
         }
+        
 
         WAIT_BARRIER;
 
