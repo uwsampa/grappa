@@ -1,8 +1,8 @@
 .PHONY: clean
 
 LD	:= cc
-#CFLAGS  := -Wall -Werror -g 
-CFLAGS  := -Wall -g -O1 -fopenmp
+#CFLAGS  := -Wall -Werror -g
+CFLAGS  := -Wall -g -O1 -fopenmp -Wno-unused-variable
 LDFLAGS := ${LDFLAGS} -lrt -lhugetlbfs -lgomp -libverbs
 
 #APPS    := small_messages mpi_throughput #info4
@@ -14,7 +14,10 @@ SALLOC_ARGS := -n 2 -N 2-2 --ntasks-per-socket=1 --exclusive
 MPI_RUNTIME_ARGS :=
 
 all: ${APPS}
-	mpirun -H n02,n04 -np 2 $(PWD)/$^
+	-ssh n02 killall -w $^
+	-ssh n04 killall -w $^
+	mpirun -k 5 -q 5 -H n02,n04 -np 2 $(PWD)/$^ --messages --count=1000000 --batch_size=8 --outstanding=1024 --payload_size_log=0
+
 #	mpirun -mca btl ^openib -np 2 $(PWD)/$^ --rdma_write --payload_size_log 10  --count 10000 --cores 1
 #	mpirun -mca btl ^openib -np 2 $(PWD)/$^ --messages --payload_size_log 3  --count 10000000 --outstanding 10000  --cores 1
 #	mpirun --host n04 --host n02 -np 2 --loadbalance $(PWD)/$^ --messages --payload_size_log 4  --count 100000 --outstanding 10000  --cores 1
@@ -31,13 +34,18 @@ small_messages: small_messages.o alloc.o mpi_utils.o ib_utils.o options.o
 
 ibv_contexts: CC=mpicc
 ibv_contexts: LD=mpicc
-ibv_contexts: ibv_contexts.o alloc.o mpi_utils.o options.o #ib_utils.o 
+ibv_contexts: ibv_contexts.o alloc.o mpi_utils.o options.o send_batch.o
 	${LD} -o $@ $^ ${LDFLAGS}
 
 mpi_throughput: CC=mpicc
 mpi_throughput: LD=mpicc 
 mpi_throughput: mpi_throughput.o mpi_utils.o options.o alloc.o
 	${LD} -o $@ $^ ${LDFLAGS}
+
+psmtest: LDFLAGS+= -lpsm_infinipath -luuid
+psmtest: psmtest.o
+	${LD} -o $@ $^ ${LDFLAGS}
+
 
 clean:
 	rm -f *.o ${APPS}
