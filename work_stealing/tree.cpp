@@ -29,6 +29,61 @@
 #define WORKSTEAL_REQUEST_HANDLER 188
 #define WORKSTEAL_REPLY_HANDLER 187
 
+#define WAIT_BARRIER gasnet_barrier_notify(0, GASNET_BARRIERFLAG_ANONYMOUS); \
+                     gasnet_barrier_wait(0, GASNET_BERRIERFLAG_ANONYMOUS)
+
+/*********************
+ * gasnet process code
+ **********************/
+
+// This crys out for linker sets
+gasnet_handlerentry_t   handlers[] =
+    {
+        { GM_REQUEST_HANDLER, (void *)gm_request_handler },
+        { GM_RESPONSE_HANDLER, (void *)gm_response_handler },
+        { GA_HANDLER, (void *)ga_handler },
+        { WORKSTEAL_REQUEST_HANDLER, (void *) workStealRequestHandler },
+        { WORKSTEAL_REPLY_HANDLER, (void *) workStealReplyHandler },
+        { COLLECTIVE_REDUCTION_HANDLER, (void *) serialReduceRequestHandler }
+    };
+
+gasnet_seginfo_t* shared_memory_blocks;
+
+#define SHARED_PROCESS_MEMORY_SIZE  (ONE_MEGA * 256)
+#define SHARED_PROCESS_MEMORY_OFFSET (ONE_MEGA * 256)
+
+void function_dispatch(int func_id, void *buffer, uint64_t size) {
+    }
+    
+void init(int *argc, char ***argv) {
+    int initialized = 0;
+    
+    MPI_Initialized(&initialized);
+    if (!initialized)
+        if (MPI_Init(argc, argv) != MPI_SUCCESS) {
+        printf("Failed to initialize MPI\n");
+        exit(1);
+    }
+        
+    if (gasnet_init(argc, argv) != GASNET_OK) {
+        printf("Failed to initialize gasnet\n");
+        exit(1);
+    }
+    
+    if (gasnet_attach(handlers,
+        sizeof(handlers) / sizeof(gasnet_handlerentry_t),
+        SHARED_PROCESS_MEMORY_SIZE,
+        SHARED_PROCESS_MEMORY_OFFSET) != GASNET_OK) {
+        printf("Failed to allocate sufficient shared memory with gasnet\n");
+        gasnet_exit(1);
+    }
+    gm_init();
+
+    printf("using GASNET_SEGMENT_FAST=%d; maxGlobalSegmentSize=%lu\n", GASNET_SEGMENT_FAST, gasnet_getMaxGlobalSegmentSize());
+}
+/*************************/
+
+
 typedef uint64_t TreeNode_ptr; //(global_array index)
 
 #define MAX_NUM_CORES 12
@@ -38,8 +93,9 @@ bool steal_full[MAX_NUM_CORES];
 
 #define TREENODE_NULL UINT64_MAX
 
-#define ExploreTree(root) { \
+#define ExploreTree(root, ibtree) { \
     TreeNode_ptr rr = (root); \
+    global_array* ibt = (ibtree); \
     if (rr!=TREENODE_NULL) { \
         TreeNode rn; \
         mem_tag_t tag = get_double_long_nb(ibt, rr, &rn); \
@@ -70,7 +126,7 @@ void spawnET(TreeNode_ptr t, CicularWSDeque<TreeNode_ptr>* my_wsq) {
     my_wsq->pushBottom(t);
 }
 
-void run(CircularWSDeque<TreeNode_ptr>* wsqs, int core_index, int num_threads) {
+void run(CircularWSDeque<TreeNode_ptr>* wsqs, int core_index, int num_threads, global_array* ibt) {
     task threads[num_threads];
     worker_data datas[num_threads];
     
@@ -84,7 +140,7 @@ void run(CircularWSDeque<TreeNode_ptr>* wsqs, int core_index, int num_threads) {
             {
 
             // get work "arguments"
-            CircularWSDeque<TreeNode_ptr>* qs = &wsqs;
+            CircularWSDeque<TreeNode_ptr>* qs = wsqs;
             int myIndex = coreIndex;
             TreeNode_ptr* ele = &w;
     
@@ -142,7 +198,7 @@ void run(CircularWSDeque<TreeNode_ptr>* wsqs, int core_index, int num_threads) {
             /** end get work **/
 
             if (gotWork) {
-                ExploreTree(w);
+                ExploreTree(w, ibt);
             } else {
                 yield();
                 continue; // TODO figure our termination
@@ -158,7 +214,6 @@ typedef struct TreeNode {
 } TreeNode;
 
 class IBT {
-
 
     int size, part;
     global_array* ibt;
@@ -176,13 +231,20 @@ class IBT {
             
             BuildIBT(0, size);
         }
+
         ~IBT() {delete ibt;}
         void Print() {
             PrintTree(ibt, 0);
         }
+
         void Explore() {
             ExploreTree(0); //root = index 0
         }
+
+        global_array* getTreeArray() {
+            return ibt;
+        }
+
     private:
         /* Maps 0.. size-1 into itself, for the purpose of eliminating locality. */
         /* return i if a tree respecting spatial locality is desired. */
@@ -248,48 +310,61 @@ class IBT {
         */
 };
 
-void usage() {
-    fprintf(stderr, "\nusage:\n\ttree <size > 0> <imbalance > 0> \ncreates binary tree with <size> > 0 nodes each internal node having one subtree with 1/<imbalance> of the descendents.\nFor example\n\ttree 100 2\ncreates a balanced binary tree with 100 nodes.\n\ttree 100 3\ncreates a tree in which each subtree has about either half or twice the nodes of its sibling, ensuring moderate imbalance.\n");
-    exit(0);
-}
 
-main(int argc, char * argv[]) {
-    int size, imbalance;
-    if (argc != 3) usage();
-    if ((size = atoi(&argv[1][0])) < 1) usage();
-    if ((imbalance = atoi(&argv[2][0])) < 1) usage();
+void process_cl_args(int* argc, char** argv[], int* size, int* imbalance, uint64_t* num_cores, uint64_t* num_threads_per_core);
+
+int main(int argc, char* argv[]) {
+    init(&argc, &argv);
+
+    int size = 128;
+    int imbalance = 2;
+    uint64_t num_cores = 1;
+    uint64_t num_threads_per_core = 1;
+    process_cl_args(&argc, &argv, &size, &imbalance, &num_cores, &num_threads_per_core);
+
 
     for (int core=0; core<num_cores; core++) {
         gasnet_hsl_init(&steal_locks[core]);
     }
 
     WAIT_BARRIER;
-    IBT * t = new IBT(size, imbalance);
-    /*   t -> Print(); */
-    WAIT_BARRIER;
+
+    IBT* t = new IBT(size, imbalance);
+    global_array* ibt = t->getTreeArray();
+    // t->Print();
 
     int rank = gasnet_mynode();
     int num_nodes = gasnet_nodes();
 
     CircularWSDeque<TreeNode_ptr> local_wsqs [num_cores];
 
-    // put root of tree in queue of first core of first rank
-    if (0 == rank) local_wsqs[0].pushBottom(root);
+    // put root of tree in first work queue of the node that owns the root
+    TreeNode_ptr root = 0;
+    if (isLocal(ibt, root)) {
+        local_wsqs[0].pushBottom(root);
+    }
 
     WAIT_BARRIER;
 
     printf("starting traversal\n");
+
+    /* timer start */
+
     #pragma omp parallel for num_threads(num_cores)
     for (int core=0; core<num_cores; core++) {
-        run(&wsqs, core, num_threads_per_core);
+        run(&local_wsqs, core, num_threads_per_core, ibt);
     }
 
-
+    /* timer end */
 
 
     for (int core=0; core<num_cores; core++) {
         gasnet_hsl_destroy(&steal_locks[core]);
     }
+
+
+    gasnet_exit(0);
+    return 0;
 }
 
 #define STEAL_ABORT_RETRIES 1
@@ -329,7 +404,54 @@ void workStealReplyHandler(gasnet_token_t token, gasnet_handlerarg_t a0) {
 }
 
 
+void usage() {
+    fprintf(stderr, "creates binary tree with <size> > 0 nodes each internal node having one subtree with 1/<imbalance> of the descendents.\nFor example\n\ttree -n 100 -i 2\ncreates a balanced binary tree with 100 nodes.\n\ttree -n 100 -i 3\ncreates a tree in which each subtree has about either half or twice the nodes of its sibling, ensuring moderate imbalance.\n");
+}
 
+void process_cl_args(int* argc, char** argv[], int* size, int* imbalance, uint64_t* num_cores, uint64_t* num_threads_per_core) {
+    
+    static struct option long_options[] = {
+        {"size", required_argument, NULL, 'n'},
+        {"imbalance", required_argument, NULL, 'i'},
+        {"num_cores", required_argument, NULL, 'c'},
+        {"num_threads_per_core", required_argument, NULL, 't'},
+        {"help", no_argument, NULL, 'h'},
+        {NULL, no_argument, NULL, 0}
+    };
+    int c, option_index=1;
+    while ((c = getopt_long(*argc, *argv, "n:i:c:t:h?",
+                    long_options, &option_index)) >= 0) {
+        switch (c) {
+            case 0:   // flag set
+                break;
+            case 'n':
+                size = atoi(optarg);
+                break;
+            case 'i':
+                imbalance = atoi(optarg);
+                break;
+            case 'c':
+                num_cores = atoi(optarg);
+                break;
+            case 't':
+                num_threads_per_core = atoi(optarg);
+                break;
+            case 'h':
+            case '?':
+            default:
+                usage();
+                printf("Available options:\n");
+                for (struct option* optp = &long_options[0]; optp->name != NULL; ++optp) {
+                    if (optp->has_arg == no_argument) {
+                        printf("  -%c, --%s\n", optp->val, optp->name);
+                    } else {
+                        printf("  -%c, --%s <ARG>\n", optp->val, optp->name);
+                    }
+                }
+                exit(1);
+        }
+    }
+}
 
 
 //bool getWork(CircularWSDeque<TreeNode_ptr>* qs, int myIndex, TreeNode_ptr* ele) {
