@@ -273,7 +273,7 @@ void run(int core_index, int num_threads, global_array* ibt, int myNode, int num
                 current_data->gotWork = true;  /* return */
             } else { // try to steal
                 int i=qnum;
-                while(i==qnum) i=random()%(num_cores_per_node*num_nodes); //XXX num threads
+                while(i==qnum) i=random()%(num_cores_per_node*num_nodes); 
 
                 int victim_node = i / num_cores_per_node;
                 if (victim_node==myNode) {             // TODO hierarchical heuristic to try stealing local first
