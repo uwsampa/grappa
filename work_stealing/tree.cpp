@@ -265,7 +265,7 @@ void run(int core_index, int num_threads, global_array* ibt, int myNode, int num
                 int victim_node = i / num_cores_per_node;
                 if (victim_node==myNode) {             // TODO hierarchical heuristic to try stealing local first
                     // steal from a local queue
-                    if (CWSD_OK == local_wsqs[i].steal(&current_data->w)) {
+                    if (CWSD_OK == local_wsqs[i % num_cores_per_node].steal(&current_data->w)) {
                         current_data->gotWork = true; /* return */
                     } else {
                         current_data->gotWork = false; /* return */
