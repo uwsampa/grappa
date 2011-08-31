@@ -172,6 +172,7 @@ void ib_nodes_init( int mpi_rank, int mpi_size, char mpi_node_name[],
 			     IBV_QP_ACCESS_FLAGS ) );
 
     attributes.qp_state = IBV_QPS_RTR;
+
     ASSERT_Z( ibv_modify_qp( node_contexts[i].queue_pair, &attributes, 
 			     IBV_QP_STATE | 
 			     IBV_QP_AV |
@@ -183,6 +184,166 @@ void ib_nodes_init( int mpi_rank, int mpi_size, char mpi_node_name[],
 
     attributes.qp_state = IBV_QPS_RTS;
     ASSERT_Z( ibv_modify_qp( node_contexts[i].queue_pair, &attributes, 
+			     IBV_QP_STATE | 
+			     IBV_QP_TIMEOUT |
+			     IBV_QP_RETRY_CNT | 
+			     IBV_QP_RNR_RETRY | 
+			     IBV_QP_SQ_PSN | 
+			     IBV_QP_MAX_QP_RD_ATOMIC ) );
+  }
+
+  free( lids );
+  free( my_qp_nums );
+  free( all_qp_nums );
+
+  MPI_Barrier( MPI_COMM_WORLD );
+}
+
+void ib_node_init( int mpi_rank, int mpi_size, char mpi_node_name[], 
+		   int physical_port,
+		   int send_message_depth, int receive_message_depth, 
+		   int send_rdma_depth, int receive_rdma_depth, 
+		   int scatter_gather_element_count,
+		   struct global_ib_context * global_context,
+		   struct node_ib_context * node_contexts ) {
+  MPI_Barrier( MPI_COMM_WORLD );
+
+  int i;
+
+    // create per-node completion queue
+    ASSERT_NZ( node_context->completion_queue = ibv_create_cq( global_context->device, 
+								  receive_message_depth+1, 
+								  NULL,  // no user context
+								  NULL,  // no completion channel 
+								  0 ) ); // no completion channel vector
+
+    // create send/receive queue
+    struct ibv_qp_init_attr init_attributes = {
+      .send_cq = node_context->completion_queue,
+      .recv_cq = node_context->completion_queue,
+      .cap = {
+	.max_send_wr = send_message_depth,
+	.max_recv_wr = receive_message_depth,
+	.max_send_sge = scatter_gather_element_count,
+	.max_recv_sge = scatter_gather_element_count,
+      },
+      .qp_type = IBV_QPT_RC, // use "reliable connections"
+      .sq_sig_all = 0, // only issue send completions if requested
+    };
+    ASSERT_NZ( node_context->queue_pair = ibv_create_qp( global_context->protection_domain, &init_attributes ) );
+
+
+  //
+  // exchange queue pair info through MPI
+  //
+  
+  // get my LID 
+  struct ibv_port_attr port_attributes;
+  ASSERT_Z( ibv_query_port( global_context->device, physical_port, &port_attributes ) );
+  
+  // collect LIDs of all nodes so we can open connections
+  uint16_t * lids = malloc( sizeof(uint16_t) );
+  ASSERT_Z( MPI_Allgather(  &port_attributes.lid, 1, MPI_SHORT,
+			    lids, 1, MPI_SHORT,
+			    MPI_COMM_WORLD ) );
+
+  // collect QP numbers from all nodes so we can open connections
+  uint32_t * my_qp_nums = malloc( sizeof(uint32_t) );
+  *my_qp_nums = node_context->queue_pair->qp_num;
+
+  uint32_t * all_qp_nums = malloc( mpi_size * mpi_size * sizeof(uint32_t) );
+  ASSERT_Z( MPI_Allgather(  my_qp_nums, mpi_size, MPI_UNSIGNED,
+			    all_qp_nums, mpi_size, MPI_UNSIGNED,
+			    MPI_COMM_WORLD ) );
+
+  // collect remote keys
+  uint32_t * rkeys = malloc( mpi_size * sizeof(uint32_t) );
+  ASSERT_Z( MPI_Allgather(  &global_context->memory_region->rkey, 1, MPI_UNSIGNED,
+			    rkeys, 1, MPI_UNSIGNED,
+			    MPI_COMM_WORLD ) );
+  
+  // collect remote addresses
+  uintptr_t * raddrs = malloc( mpi_size * sizeof(uint64_t) );
+  ASSERT_Z( MPI_Allgather(  &global_context->memory_region->addr, 1, MPI_UNSIGNED_LONG,
+			    raddrs, 1, MPI_UNSIGNED_LONG,
+			    MPI_COMM_WORLD ) );
+  
+  if (0) {
+    for( i = 0; i < mpi_size; ++i ) {
+      LOG_INFO( "%s/%d knows about node %d's lid %.4x rkey %x raddr %lx\n", 
+		mpi_node_name, mpi_rank, i, lids[i], rkeys[i], raddrs[i] );
+      int j;
+      for( j = 0; j < mpi_size; ++j ) {
+	LOG_INFO( "%s/%d knows about node %d's node %d qp_num %.4x\n", 
+		  mpi_node_name, mpi_rank, i, j, all_qp_nums[i * mpi_size + j] );
+      }
+    }
+  }
+  
+  for( i = 0; i < mpi_size; ++i ) {
+
+    node_context->remote_address = (void *) raddrs[i];
+    node_context->remote_key = rkeys[i];
+
+    // setting up a queue pair requires a number of state transitions. 
+    // a queue pair starts in RESET, and must move through INIT, RTR (ready-to-receive), and RTS (ready-to-send)
+    // receive work requests must be posted to the queue before we move to RTR and RTS, or else messages may be dropped.
+
+    // move send/receive queue to INIT
+    enum ibv_mtu mtu = IBV_MTU_1024;
+    struct ibv_qp_attr attributes = {
+      .qp_state = IBV_QPS_INIT,
+      .qp_access_flags = (IBV_ACCESS_LOCAL_WRITE | 
+			  IBV_ACCESS_REMOTE_WRITE | 
+			  IBV_ACCESS_REMOTE_READ  |
+			  IBV_ACCESS_REMOTE_ATOMIC),
+      .pkey_index = 0,  // todo: ???
+
+      // some network properties
+      .port_num = physical_port,
+      .path_mtu = mtu,
+
+      // outstanding RDMA request limits (still subject to message limits)
+      .max_rd_atomic = send_rdma_depth,
+      .max_dest_rd_atomic = receive_rdma_depth,
+
+      // timers and timeouts
+      .min_rnr_timer = 12, // RNR NAK timer
+      .timeout = 14, 
+      .rnr_retry = 7,
+      .retry_cnt = 7,
+
+      .sq_psn = 123, // local packet sequence number
+      .rq_psn = 123, // remote packet sequence number
+
+      .dest_qp_num = all_qp_nums[ i * mpi_size + mpi_rank ],
+      .ah_attr = {
+	.is_global = 0,
+	.dlid = lids[ i ],
+	.sl = 0, // "default" service level 
+	.src_path_bits = 0,
+	.port_num = physical_port,
+      }
+    };
+    ASSERT_Z( ibv_modify_qp( node_context->queue_pair, &attributes,
+			     IBV_QP_STATE | 
+			     IBV_QP_PKEY_INDEX | 
+			     IBV_QP_PORT | 
+			     IBV_QP_ACCESS_FLAGS ) );
+
+    attributes.qp_state = IBV_QPS_RTR;
+
+    ASSERT_Z( ibv_modify_qp( node_context->queue_pair, &attributes, 
+			     IBV_QP_STATE | 
+			     IBV_QP_AV |
+			     IBV_QP_PATH_MTU | 
+			     IBV_QP_DEST_QPN | 
+			     IBV_QP_RQ_PSN | 
+			     IBV_QP_MAX_DEST_RD_ATOMIC | 
+			     IBV_QP_MIN_RNR_TIMER ) );
+
+    attributes.qp_state = IBV_QPS_RTS;
+    ASSERT_Z( ibv_modify_qp( node_context->queue_pair, &attributes, 
 			     IBV_QP_STATE | 
 			     IBV_QP_TIMEOUT |
 			     IBV_QP_RETRY_CNT | 

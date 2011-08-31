@@ -16,16 +16,18 @@
 
 #define ASSERT_Z(x) \
   do { \
-    if ( (x)) { \
-      LOG_ERROR(__FILE__ ":%d: error: " #x " failed (returned non-zero).\n", __LINE__); \
+    int val = 0;				\
+    if ((val = (x))) {							\
+      LOG_ERROR(__FILE__ ":%d: error: " #x " failed (returned %d).\n", __LINE__, val); \
       exit(EXIT_FAILURE); \
     } \
   } while (0)
 
 #define ASSERT_NZ(x) \
   do { \
-    if (!(x)) { \
-      LOG_ERROR(__FILE__ ":%d: error: " #x " failed (returned zero/null).\n", __LINE__); \
+    void * val = NULL;				\
+    if (!(val = (x))) {							\
+      LOG_ERROR(__FILE__ ":%d: error: " #x " failed (returned %p).\n", __LINE__, val); \
       exit(EXIT_FAILURE); \
     } \
   } while (0)

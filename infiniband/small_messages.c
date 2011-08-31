@@ -38,7 +38,7 @@ int main( int argc, char * argv[] ) {
   size_t my_alloc_size = 0;
   void * my_block = alloc_my_block( mpi_rank, mpi_size, total_alloc_size, &my_alloc_size );
 
-  LOG_INFO( "%s/%d: allocated %lu of %lu bytes.\n", mpi_node_name, mpi_rank, my_alloc_size, total_alloc_size );
+  LOG_INFO( "%s/%d: allocated %lu of %lu bytes at %0.16x.\n", mpi_node_name, mpi_rank, my_alloc_size, total_alloc_size, my_block );
 
   struct global_ib_context global_context;
   struct node_ib_context node_contexts[ mpi_size ];
@@ -107,7 +107,8 @@ int main( int argc, char * argv[] ) {
     	wrs[i].sg_list = &sges[i];
     	wrs[i].num_sge = 1;
     	wrs[i].opcode = opt.rdma_write ? IBV_WR_RDMA_WRITE : IBV_WR_RDMA_READ;
-    	wrs[i].send_flags = i + 1 == my_send_buffer_count ? IBV_SEND_SIGNALED | IBV_SEND_FENCE : 0;
+    	wrs[i].send_flags = ( //(opt.rdma_write ? IBV_SEND_INLINE : 0) | 
+			      (i + 1 == my_send_buffer_count ? IBV_SEND_SIGNALED | IBV_SEND_FENCE : 0) );
     	wrs[i].imm_data = 1; //hton( i );
     	wrs[i].wr.rdma.remote_addr = opt.rdma_write ? (uintptr_t) &my_recv_buffers[i] : (uintptr_t) &my_send_buffers[i];
     	wrs[i].wr.rdma.rkey = node_contexts[ receiver ].remote_key;
@@ -127,6 +128,7 @@ int main( int argc, char * argv[] ) {
 	struct ibv_send_wr  * bad_work_request = NULL;
 	int result = ibv_post_send( node_contexts[ receiver ].queue_pair, &wrs[i], &bad_work_request );
 	ASSERT_Z( result && "send failed");
+	if (result) LOG_ERROR( "%s/%d: send error %d %p %p.\n", mpi_node_name, mpi_rank, result, &wrs[i], &bad_work_request );
 	ASSERT_Z( bad_work_request );
       }
 
@@ -141,7 +143,7 @@ int main( int argc, char * argv[] ) {
 	    ++completed;
 	    //--outstanding;
 	    if (DEBUG)
-	      printf("%s: %d: found status %s (%d) for wr_id %d sent %d completed %d outstanding %d\n",
+	      printf("%s: %ld: found status %s (%d) for wr_id %d sent %d completed %d outstanding %d\n",
 		     mpi_node_name, i,
 		     ibv_wc_status_str(work_completions[i].status),
 		     work_completions[i].status, (int) work_completions[i].wr_id,
@@ -205,7 +207,7 @@ int main( int argc, char * argv[] ) {
 		"fetch_and_add, "
 		"time, Mmsg/s, MB/s\n");
       LOG_INFO( "data, "
-		"%d, %d, %u, %u, %u, %d, %d, %d, %d, %d, %d, %d, %d, "
+		"%d, %d, %u, %u, %u, %d, %d, %d, %d, %d, %d, %d, "
 		"%f, %f, %f\n", 
 		opt.cores,
 		opt.threads_per_core,
@@ -223,6 +225,230 @@ int main( int argc, char * argv[] ) {
     }
   }
 
+
+  // send/receive
+  if (opt.messages) {
+    struct timespec start;
+    struct timespec end;
+    int64_t i;
+    int j;
+
+
+    ASSERT_NZ( 2 == mpi_size && "this test requires 2 MPI processes" );
+    int sender = 0;
+    int receiver = 1;
+    int is_sender  = sender == mpi_rank;
+    int is_receiver = receiver == mpi_rank;
+  
+    int outstanding = 0;
+    int sent = 0;
+    int completed = 0;
+
+    //while( opt.count * opt.payload_size > my_alloc_size / 2 ) opt.count /= 2;
+    size_t max_count = (my_alloc_size / 2) / opt.payload_size;
+    if (opt.count > max_count) opt.count = max_count;
+    size_t my_send_buffer_count = opt.count;
+
+    char * my_send_buffers = my_block;
+    char * my_recv_buffers = my_block + opt.count * opt.payload_size;
+    uint64_t send_sum = 0;
+    uint64_t recv_sum = 0;
+
+    struct ibv_sge * send_sges = malloc( my_send_buffer_count * sizeof( struct ibv_sge ) );
+    assert( NULL != send_sges && "couldn't allocate sges" );
+    struct ibv_sge * recv_sges = malloc( my_send_buffer_count * sizeof( struct ibv_sge ) );
+    assert( NULL != recv_sges && "couldn't allocate sges" );
+
+    LOG_INFO( "%s/%d: need %lu bytes for %lu wrs.\n", mpi_node_name, mpi_rank, my_send_buffer_count * sizeof( struct ibv_send_wr ), my_send_buffer_count );
+
+    struct ibv_send_wr * send_wrs = malloc( my_send_buffer_count * sizeof( struct ibv_send_wr ) );
+    assert( NULL != send_wrs && "couldn't allocate send_wrs" );
+
+    struct ibv_recv_wr * recv_wrs = malloc( my_send_buffer_count * sizeof( struct ibv_recv_wr ) );
+    assert( NULL != recv_wrs && "couldn't allocate recv_wrs" );
+
+    for( i = 0; i < my_send_buffer_count; ++i ) {
+      send_sum += my_send_buffers[i] = i;
+      my_recv_buffers[i] = 0;
+    }
+
+    if (is_sender || is_receiver) {
+      #pragma omp parallel for 
+      for( i = 0; i < my_send_buffer_count; ++i ) {
+    	send_sges[i].addr = (uintptr_t) &my_send_buffers[i];
+    	send_sges[i].length = opt.payload_size;
+    	send_sges[i].lkey = global_context.memory_region->lkey;
+
+    	recv_sges[i].addr = (uintptr_t) &my_recv_buffers[i];
+    	recv_sges[i].length = opt.payload_size;
+    	recv_sges[i].lkey = global_context.memory_region->lkey;
+
+    	send_wrs[i].wr_id = i;
+    	send_wrs[i].next = (((i + 1) % opt.batch_size) == 0) || ((i + 1) == my_send_buffer_count) ? NULL : &send_wrs[i+1];
+    	send_wrs[i].sg_list = &send_sges[i];
+    	send_wrs[i].num_sge = 1;
+    	send_wrs[i].opcode = IBV_WR_SEND;
+    	send_wrs[i].send_flags = ( IBV_SEND_INLINE | 
+				   ( i + 1 == my_send_buffer_count ? IBV_SEND_SIGNALED | IBV_SEND_FENCE : 0 ) );
+    	send_wrs[i].imm_data = 1; //hton( i );
+
+    	recv_wrs[i].wr_id = i;
+    	recv_wrs[i].next = (((i + 1) % opt.batch_size) == 0) || ((i + 1) == my_send_buffer_count) ? NULL : &recv_wrs[i+1];
+    	recv_wrs[i].sg_list = &recv_sges[i];
+    	recv_wrs[i].num_sge = 1;
+      }
+
+    }
+
+    LOG_INFO( "%s/%d: ready.\n", mpi_node_name, mpi_rank );
+
+
+    if (is_receiver) {
+      
+      #pragma omp parallel for num_threads(1)
+      for( i = 0; i < my_send_buffer_count; i += opt.batch_size ) {
+	struct ibv_recv_wr  * bad_work_request = NULL;
+	if (DEBUG) LOG_INFO( "%s/%d: posting recv_wr %ld.\n", mpi_node_name, mpi_rank, i );      
+	int result = ibv_post_recv( node_contexts[ sender ].queue_pair, &recv_wrs[i], &bad_work_request );
+
+	ASSERT_Z( result && "post recv failed");
+	ASSERT_Z( bad_work_request );
+      }
+
+      LOG_INFO( "%s/%d: recvs posted. waiting for completion.\n", mpi_node_name, mpi_rank );      
+    }
+
+    MPI_Barrier( MPI_COMM_WORLD );
+    clock_gettime(CLOCK_MONOTONIC, &start);
+
+    if (is_sender) {
+      
+      #pragma omp parallel for num_threads(1)
+      for( i = 0; i < my_send_buffer_count; i += opt.batch_size ) {
+	struct ibv_send_wr  * bad_work_request = NULL;
+	int result = ibv_post_send( node_contexts[ receiver ].queue_pair, &send_wrs[i], &bad_work_request );
+	ASSERT_Z( result && "send failed");
+	ASSERT_Z( bad_work_request );
+      }
+
+      LOG_INFO( "%s/%d: everything sent. waiting for completion.\n", mpi_node_name, mpi_rank );      
+
+      if (1) {
+	while ( completed < 1 ) {
+	  struct ibv_wc work_completions[ opt.batch_size ];
+	  int num_completion_entries = ibv_poll_cq( node_contexts[ receiver ].completion_queue, 
+						    opt.batch_size, work_completions );
+	  for( i = 0; i < num_completion_entries; ++i ) {
+	    ++completed;
+	    //--outstanding;
+	    if (DEBUG)
+	      printf("%s: %ld: found status %s (%d) for wr_id %d sent %d completed %d outstanding %d\n",
+		     mpi_node_name, i,
+		     ibv_wc_status_str(work_completions[i].status),
+		     work_completions[i].status, (int) work_completions[i].wr_id,
+		     sent, completed, outstanding);
+	    if ( work_completions[i].status != IBV_WC_SUCCESS ) {
+	      fprintf(stderr, "Failed status %s (%d) for wr_id %d\n",
+		      ibv_wc_status_str(work_completions[i].status),
+		      work_completions[i].status, (int) work_completions[i].wr_id);
+	      assert( 0 && "bad work completion status" );
+	    }
+	  }
+	}
+      }
+    
+    } else {
+
+      if (1) {
+	while ( completed <  my_send_buffer_count ) {
+	  struct ibv_wc work_completions[ opt.batch_size ];
+	  int num_completion_entries = ibv_poll_cq( node_contexts[ sender ].completion_queue, 
+						    opt.batch_size, work_completions );
+	  for( i = 0; i < num_completion_entries; ++i ) {
+	    ++completed;
+	    //--outstanding;
+	    if (DEBUG)
+	      printf("%s: %ld: found status %s (%d) for wr_id %d sent %d completed %d outstanding %d\n",
+		     mpi_node_name, i,
+		     ibv_wc_status_str(work_completions[i].status),
+		     work_completions[i].status, (int) work_completions[i].wr_id,
+		     sent, completed, outstanding);
+	    if ( work_completions[i].status != IBV_WC_SUCCESS ) {
+	      fprintf(stderr, "Failed status %s (%d) for wr_id %d\n",
+		      ibv_wc_status_str(work_completions[i].status),
+		      work_completions[i].status, (int) work_completions[i].wr_id);
+	      assert( 0 && "bad work completion status" );
+	    }
+	  }
+	}
+      }      
+    }
+
+    clock_gettime(CLOCK_MONOTONIC, &end);
+    MPI_Barrier( MPI_COMM_WORLD );
+
+    sent = opt.count;
+    completed = opt.count;
+
+    for( i = 0; i < my_send_buffer_count; ++i ) {
+      recv_sum += my_recv_buffers[i];
+    }
+
+    LOG_INFO( "%s/%d: send_sum %lu recv_sum %lu done.\n", mpi_node_name, mpi_rank, send_sum, recv_sum );
+
+    free( send_sges );
+    free( recv_sges );
+    free( send_wrs );
+    free( recv_wrs );
+
+    uint64_t start_ns = ((uint64_t) start.tv_sec * 1000000000 + start.tv_nsec);
+    uint64_t end_ns = ((uint64_t) end.tv_sec * 1000000000 + end.tv_nsec);
+
+    if (is_receiver) ASSERT_NZ( send_sum == recv_sum );
+      
+
+    if (is_sender) {
+      //ASSERT_NZ( sent == opt.count );
+      //ASSERT_NZ( completed == opt.count );
+      double time_ns = end_ns - start_ns;
+      double time = time_ns / 1.0e9;
+      double rate = (double) completed / time;
+      double bw = (double) completed * opt.payload_size / time;
+      LOG_INFO( "%s/%d: sent %d messages of size %u bytes in %f seconds: %f Mmsg/s, %f MB/s.\n", 
+		mpi_node_name, mpi_rank,
+		opt.count, opt.payload_size, time, rate / 1.0e6, bw / 1.0e6);
+      LOG_INFO( "data, "
+		"cores, "
+		"threads_per_core, "
+		"payload_size_log, "
+		"payload_size, "
+		"count, "
+		"outstanding, "
+		"rdma_outstanding, "
+		"batch_size, "
+		"messages, "
+		"rdma_read, "
+		"rdma_write, "
+		"fetch_and_add, "
+		"time, Mmsg/s, MB/s\n");
+      LOG_INFO( "data, "
+		"%d, %d, %u, %u, %u, %d, %d, %d, %d, %d, %d, %d, "
+		"%f, %f, %f\n", 
+		opt.cores,
+		opt.threads_per_core,
+		opt.payload_size_log,
+		opt.payload_size,
+		opt.count,
+		opt.outstanding,
+		opt.rdma_outstanding,
+		opt.batch_size,
+		opt.messages,
+		opt.rdma_read,
+		opt.rdma_write,
+		opt.fetch_and_add,
+		time, rate / 1.0e6, bw / 1.0e6);
+    }
+  }
 
 
 
