@@ -45,12 +45,12 @@ struct my_task_data {
 #define __cat2(x,y) x##y
 #define __cat(x,y) __cat2(x,y)
 
-#define _yield(task_struct_ptr) \
-    (task_struct_ptr)->restart_point = &&__cat(restart_point, __LINE__);  \
+#define _yield(task_struct_ptr, name) \
+    (task_struct_ptr)->restart_point = &&__cat(restart_point, __cat(name, __LINE__));  \
     goto *(current_scheduler->scheduler_start);    \
-    __cat(restart_point, __LINE__):
+    __cat(restart_point, __cat(name, __LINE__)):
 
-#define yield() _yield(current_task)
+#define yield() _yield(current_task, __cat(__COUNTER__, L))
 
 #define end_task() \
     current_task->state = ts_finished; \
