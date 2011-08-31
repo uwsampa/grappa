@@ -241,9 +241,10 @@ void spawnET(TreeNode_ptr t, CircularWSDeque<TreeNode_ptr>* my_wsq) {
     my_wsq->pushBottom(t);
 }
 
-void run(int core_index, int num_threads, global_array* ibt, int myNode, int num_nodes) {
+void run(int core_index, int num_threads, global_array* ibt, int myNode, int num_cores_per_node, int num_nodes) {
     task threads[num_threads];
     worker_data datas[num_threads];
+    int qnum = num_cores_per_node*myNode + core_index;
     
     task_scheduler(threads, datas, num_threads, worker_data) {
         current_data->index = current_scheduler->current_task;
@@ -258,10 +259,10 @@ void run(int core_index, int num_threads, global_array* ibt, int myNode, int num
             if (CWSD_OK == local_wsqs[core_index].popBottom(&current_data->w)) {
                 current_data->gotWork = true;  /* return */
             } else { // try to steal
-                int i=core_index;
-                while(i==core_index) i=random()%num_threads; //XXX num threads
+                int i=qnum;
+                while(i==qnum) i=random()%(num_cores_per_node*num_nodes); //XXX num threads
 
-                int victim_node = i / num_nodes;
+                int victim_node = i / num_cores_per_node;
                 if (victim_node==myNode) {             // TODO hierarchical heuristic to try stealing local first
                     // steal from a local queue
                     if (CWSD_OK == local_wsqs[i].steal(&current_data->w)) {
@@ -274,11 +275,12 @@ void run(int core_index, int num_threads, global_array* ibt, int myNode, int num
                     steal_full[core_index][current_data->index] = false;
                     gasnet_hsl_unlock(lock);
                     
-                    printf("p%d: sending steal request to p%d\n", myNode, victim_node);
-                    gasnet_AMRequestShort3 (victim_node, WORKSTEAL_REQUEST_HANDLER, i % num_nodes, core_index, current_data->index);
+                    printf("p%d: sending steal request to p%d queue%d\n", myNode, victim_node, i % num_cores_per_node);
+                    gasnet_AMRequestShort3 (victim_node, WORKSTEAL_REQUEST_HANDLER, i % num_cores_per_node, core_index, current_data->index);
                     yield();
                     while (true) {
                         gasnet_hsl_lock(lock);
+                        //printf("checking %d %d = %d\n", core_index, current_data->index, steal_full[core_index][current_data->index]);
                         if (steal_full[core_index][current_data->index]) {
                             current_data->w = steal_boxes[core_index][current_data->index];
                             gasnet_hsl_unlock(lock);
@@ -371,7 +373,7 @@ int main(int argc, char* argv[]) {
 
     #pragma omp parallel for num_threads(num_cores)
     for (int core=0; core<num_cores; core++) {
-        run(core, num_threads_per_core, ibt, rank, num_nodes);
+        run(core, num_threads_per_core, ibt, rank, num_cores, num_nodes);
     }
 
     WAIT_BARRIER;
@@ -400,9 +402,14 @@ void workStealRequestHandler(gasnet_token_t token, gasnet_handlerarg_t a0, gasne
     uint32_t threadid = (uint32_t) a2;
 
 
-    printf("remote core %d requests to steal from wsq%d\n", coreid, local_index);
+    printf("p%d: remote core %d requests(%lu) to steal from wsq%d\n", gasnet_mynode(), coreid, token, local_index);
 
     TreeNode_ptr t;
+
+    /**/
+    gasnet_node_t fromNode;
+    gasnet_AMGetMsgSource(token, &fromNode);
+    /**/
     
     //TODO if ABORT (instead of EMPTY), it may be worth retrying a bounded number of times
     int trynum = 0;
@@ -411,12 +418,18 @@ void workStealRequestHandler(gasnet_token_t token, gasnet_handlerarg_t a0, gasne
         cwsd_status stat = local_wsqs[local_index].steal(&t);
         switch(stat) {
             case CWSD_ABORT:
+                printf(" p%d: (%lu,%d)ABORT\n", gasnet_mynode(), fromNode, token);
                 trynum++;
                 break;
             case CWSD_EMPTY:
+                printf(" p%d: (%lu,%d)EMPTY\n", gasnet_mynode(), fromNode, token);
                 t = TREENODE_NULL;
-            default:
                 done = true;
+                break;
+            case CWSD_OK:
+                done = true;
+                printf(" p%d: (%lu,%d)OK node=%lu\n", gasnet_mynode(), fromNode, token, t);
+                break;
         }
     }
 
@@ -428,12 +441,18 @@ void workStealReplyHandler(gasnet_token_t token, gasnet_handlerarg_t a0, gasnet_
     uint32_t coreid = (uint32_t) a1;
     uint32_t threadid = (uint32_t) a2;
     
-    if (TREENODE_NULL == t) printf("reply to core%d with TreeNode_ptr=TREENULL\n", coreid);
-    else printf("reply to core%d with TreeNode_ptr=%lu\n", coreid, t);
+    /**/
+    gasnet_node_t fromNode;
+    gasnet_AMGetMsgSource(token, &fromNode);
+    /**/
+    
+    if (TREENODE_NULL == t) printf("p%d: recv reply(%lu, %d) to core%d with TreeNode_ptr=TREENULL\n", gasnet_mynode(), token, fromNode, coreid);
+    else printf("p%d: recv reply(%lu, %d) to core%d with TreeNode_ptr=%lu\n", gasnet_mynode(), token, fromNode, coreid, t);
    
     gasnet_hsl_lock(&steal_locks[coreid]);
     steal_boxes[coreid][threadid] = t;
     steal_full[coreid][threadid] = true;
+    //printf("set %d %d to true\n", coreid, threadid);
     gasnet_hsl_unlock(&steal_locks[coreid]);
 }
 
