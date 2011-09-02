@@ -1,8 +1,9 @@
 .PHONY: clean
 
-LD	:= cc
+#CC      := mpicc
+LD	:= $(CC)
 #CFLAGS  := -Wall -Werror -g
-CFLAGS  := -Wall -g -O1 -fopenmp -Wno-unused-variable
+CFLAGS  := -Wall -g -O2 -fopenmp -Wno-unused-variable
 LDFLAGS := ${LDFLAGS} -lrt -lhugetlbfs -lgomp -libverbs
 
 #APPS    := small_messages mpi_throughput #info4
@@ -46,6 +47,23 @@ psmtest: LDFLAGS+= -lpsm_infinipath -luuid
 psmtest: psmtest.o
 	${LD} -o $@ $^ ${LDFLAGS}
 
+GASNET=/home/nels707/gasnet_openmpi
+GASNET_COMMON_CFLAGS=-I$(GASNET)/include
+GASNET_COMMON_LDFLAGS=-L$(GASNET)/lib
+
+gasnet_mr_ib: CC=mpicc
+gasnet_mr_ib: LD=mpicc
+gasnet_mr_ib: CFLAGS+=$(GASNET_COMMON_CFLAGS) -I$(GASNET)/include/ibv-conduit -DGASNET_PAR -DGASNET_CONDUIT_IBV
+gasnet_mr_ib: LDFLAGS+=$(GASNET_COMMON_LDFLAGS) -lgasnet-ibv-par
+gasnet_mr_ib: gasnet_mr.o options.o
+	${LD} -o $@ $^ ${LDFLAGS}
+
+gasnet_mr_mpi: CC=mpicc
+gasnet_mr_mpi: LD=mpicc
+gasnet_mr_mpi: CFLAGS+=$(GASNET_COMMON_CFLAGS) -I$(GASNET)/include/mpi-conduit -DGASNET_PAR -DGASNET_CONDUIT_MPI
+gasnet_mr_mpi: LDFLAGS+=$(GASNET_COMMON_LDFLAGS) -lgasnet-mpi-par -lammpi
+gasnet_mr_mpi: gasnet_mr.o options.o
+	${LD} -o $@ $^ ${LDFLAGS}
 
 clean:
 	rm -f *.o ${APPS}
