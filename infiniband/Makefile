@@ -2,7 +2,7 @@
 
 LD	:= cc
 #CFLAGS  := -Wall -Werror -g
-CFLAGS  := -Wall -g -O1 -fopenmp -Wno-unused-variable
+CFLAGS  := -Wall -g -O3 -fopenmp -Wno-unused-variable
 LDFLAGS := ${LDFLAGS} -lrt -lhugetlbfs -lgomp -libverbs
 
 #APPS    := small_messages mpi_throughput #info4
@@ -42,8 +42,12 @@ mpi_throughput: LD=mpicc
 mpi_throughput: mpi_throughput.o mpi_utils.o options.o alloc.o
 	${LD} -o $@ $^ ${LDFLAGS}
 
-psmtest: LDFLAGS+= -lpsm_infinipath -luuid
-psmtest: psmtest.o
+PSM_INSTALL=/sampa/home/nelson/softxmt/tools/infinipath-psm-1.14
+#psmtest: CC=mpicc
+#psmtest: LD=mpicc
+psmtest: LDFLAGS+= -L$(PSM_INSTALL)/usr/lib64 -lpsm_infinipath -luuid
+psmtest: CFLAGS+= -I$(PSM_INSTALL)/usr/include -lpsm_infinipath -luuid
+psmtest: psmtest.o options.o
 	${LD} -o $@ $^ ${LDFLAGS}
 
 
