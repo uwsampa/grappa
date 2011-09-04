@@ -1,4 +1,11 @@
 
+#define _GNU_SOURCE
+#include <sched.h>
+#include <stdlib.h>
+#include <unistd.h>
+#include <stdio.h>
+#include <assert.h>
+
 #include <mpi.h>
 #include <gasnet.h>
 #include <stdint.h>
@@ -10,6 +17,51 @@
 //#include "global_memory.h"
 //#include "global_array.h"
 //#include "msg_aggregator.h"
+
+
+
+//#define __USE_GNU
+//#define _GNU_SOURCE
+//#include <sched.h>
+//#include <sys/time.h>
+//#include <sys/resource.h>
+
+static void _set_limits() {
+  //struct rlimit r;
+  cpu_set_t   *mask;
+  size_t      size;
+  int         ncpus = 16;
+  int         i;
+
+  //getrlimit(RLIMIT_NPROC, &r);
+  //ncpus = r.rlim_cur;
+
+  //mask = __CPU_ALLOC(ncpus);
+  mask = CPU_ALLOC(ncpus);
+  //size = __CPU_ALLOC_SIZE(ncpus);
+  size = CPU_ALLOC_SIZE(ncpus);
+
+  sched_getaffinity(0, size, mask);
+  printf("CPU_COUNT() of set:    %d\n", CPU_COUNT_S(size, mask));
+
+  //__CPU_ZERO_S(size, mask);
+  CPU_ZERO_S(size, mask);
+  //CPU_ZERO(mask);
+
+  printf("CPU_COUNT() of set:    %d\n", CPU_COUNT_S(size, mask));
+
+  for (i = 0; i < ncpus; i++) {
+    //__CPU_SET_S(i, size, mask);
+    CPU_SET_S(i, size, mask);
+    //CPU_SET(i, mask);
+  }
+  printf("CPU_COUNT() of set:    %d\n", CPU_COUNT_S(size, mask));
+
+  //printf("currnet ncpus %d mask %x size %d\n", ncpus, *mask, size);
+  sched_setaffinity(0, size, mask);
+  //__CPU_FREE(mask);
+  CPU_FREE(mask);
+}
 
 gasnet_seginfo_t    *shared_memory_blocks;
 
@@ -66,6 +118,8 @@ int main(int argc, char **argv) {
         }
 
     struct options opt = parse_options( &argc, &argv );
+
+	int max = opt.count / (gasnet_nodes() / 2);
 
     if (0) {
     uintptr_t s = gasnet_getMaxLocalSegmentSize();
@@ -125,9 +179,12 @@ int main(int argc, char **argv) {
 
     payload_t * dest = (payload_t *) shared_memory_blocks[dest_node].addr;
     payload = 1;
+    _set_limits();
+
+
 
 #pragma omp parallel for num_threads( opt.threads )
-    for( i = 0; i < opt.count / (gasnet_nodes() / 2); ++i ) 
+    for( i = 0; i < max; ++i ) 
       {
 	if (opt.messages) {
 	  gasnet_AMRequestShort1(dest_node, MY_AM, payload );
@@ -164,6 +221,9 @@ int main(int argc, char **argv) {
       gasnet_barrier_wait(0, GASNET_BARRIERFLAG_ANONYMOUS);
       
       ; // do nothing
+      /* for( i = 0; i < max; ++i ) { */
+      /* 	gasnet_AMPoll(); */
+      /* } */
       
       gasnet_barrier_notify(0, GASNET_BARRIERFLAG_ANONYMOUS);
       gasnet_barrier_wait(0, GASNET_BARRIERFLAG_ANONYMOUS);
