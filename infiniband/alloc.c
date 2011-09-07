@@ -7,12 +7,13 @@
 #include <stdlib.h>
 #include <string.h>
 #include <sys/mman.h>
-#include <hugetlbfs.h>
+//#include <hugetlbfs.h>
 
 void * alloc_my_block( int node, int node_count, size_t total_size_bytes, size_t * my_size_bytes ) {
   *my_size_bytes = total_size_bytes / node_count;
 
-  void * block = get_huge_pages( *my_size_bytes, GHP_DEFAULT );
+//  void * block = get_huge_pages( *my_size_bytes, GHP_DEFAULT );
+  void * block = malloc( *my_size_bytes );
   ASSERT_NZ( block );
   memset( block, 0, *my_size_bytes );
   return block;
@@ -41,7 +42,8 @@ void * alloc_my_block_mmap( int node, int node_count, size_t total_size_bytes, s
 }
 
 void free_my_block( void * block ) {
-  free_huge_pages( block );
+//  free_huge_pages( block );
+	malloc( block );
 }
 
 int free_my_block_malloc( int node, int node_count, size_t total_size_bytes, void * block ) {
