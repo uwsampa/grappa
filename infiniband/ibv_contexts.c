@@ -7,7 +7,7 @@
 #include <time.h>
 
 #include <mpi.h>
-#include <hugetlbfs.h>
+//#include <hugetlbfs.h>
 
 #include "debug.h"
 
@@ -175,7 +175,8 @@ int main( int argc, char * argv[] ) {
   struct ibv_pd * protection_domain2 = get_protection_domain( context2 );
 
   //void * foo = malloc( 1024 );
-  void * foo = get_hugepage_region( opt.payload_size * 2, GHR_DEFAULT );
+//  void * foo = get_hugepage_region( opt.payload_size * 2, GHR_DEFAULT );
+  void * foo = malloc( opt.payload_size * 2 );
   struct ibv_mr * memory_region = get_memory_region( protection_domain, foo, opt.payload_size * 2 );
   struct ibv_mr * memory_region2 = get_memory_region( protection_domain2, foo, opt.payload_size * 2 );
 
@@ -270,8 +271,8 @@ int main( int argc, char * argv[] ) {
 			    MPI_COMM_WORLD ) );
   int remote_sequence_number = sequence_numbers[ 1 - mpi_rank ];
 
-  int my_rdma_depth = 16;
-  int remote_rdma_depth = 16;
+  int my_rdma_depth = 1;
+  int remote_rdma_depth = 1;
 
   enum ibv_mtu mtu = IBV_MTU_4096;
   struct ibv_qp_attr attributes = {

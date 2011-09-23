@@ -5,8 +5,9 @@
 #include <getopt.h>
 
 struct options {
+  int sockets;
   int cores;
-  int threads_per_core;
+  int threads;
   unsigned int payload_size_log;
   unsigned int payload_size;
   unsigned int count;
@@ -20,6 +21,7 @@ struct options {
   int contexts;
   int protection_domains;
   int queue_pairs;
+  int same_destination;
 };
 
 struct options parse_options( int * argc, char ** argv[] );

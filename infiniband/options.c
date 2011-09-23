@@ -6,8 +6,9 @@
 #include "options.h"
 
 static struct option long_options[] = {
+  {"sockets",          required_argument, NULL, 'k'},
   {"cores",            required_argument, NULL, 'c'},
-  {"threads_per_core", required_argument, NULL, 't'},
+  {"threads", required_argument, NULL, 't'},
   {"payload_size_log", required_argument, NULL, 'l'},
   {"payload_size",     required_argument, NULL, 's'},
   {"count",            required_argument, NULL, 'n'},
@@ -22,6 +23,7 @@ static struct option long_options[] = {
   {"contexts",         required_argument, NULL, 'x'},
   {"protection_domains", required_argument, NULL, 'd'},
   {"queue_pairs",      required_argument, NULL, 'q'},
+  {"same_destination",   no_argument, NULL, '0'},
 
   {"help",             no_argument,       NULL, 'h'},
   {NULL,               no_argument,       NULL, 0}
@@ -30,7 +32,8 @@ static struct option long_options[] = {
 struct options parse_options( int * argc, char ** argv[] ) {
   struct options opt = {
     .cores		= 1,
-    .threads_per_core	= 1,
+    .sockets		= 1,
+    .threads	= 1,
     .payload_size_log	= 0,
     .payload_size	= 1,
     .count		= 1 << 10,
@@ -44,18 +47,22 @@ struct options parse_options( int * argc, char ** argv[] ) {
     .contexts           = 1,
     .protection_domains = 1,
     .queue_pairs        = 1,
+    .same_destination   = 0,
   };
   int c, option_index = 1;
-  while ((c = getopt_long(*argc, *argv, "c:t:l:s:n:o:p:b:x:d:q:mrwfh?",
+  while ((c = getopt_long(*argc, *argv, "k:c:t:l:s:n:o:p:b:x:d:q:0mrwfh?",
                           long_options, &option_index)) >= 0) {
     switch (c) {
     case 0:   // flag set
+      break;
+    case 'k':
+      opt.sockets = atoi(optarg);
       break;
     case 'c':
       opt.cores = atoi(optarg);
       break;
     case 't':
-      opt.threads_per_core = atoi(optarg);
+      opt.threads = atoi(optarg);
       break;
     case 'l':
       opt.payload_size_log = atoi(optarg);
@@ -96,6 +103,9 @@ struct options parse_options( int * argc, char ** argv[] ) {
       break;
     case 'q':
       opt.queue_pairs = atoi(optarg);
+      break;
+    case '0':
+      opt.same_destination = 1;
       break;
     case 'h':
     case '?':

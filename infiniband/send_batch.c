@@ -7,7 +7,7 @@
 #include <time.h>
 
 #include <mpi.h>
-#include <hugetlbfs.h>
+//#include <hugetlbfs.h>
 
 #include "debug.h"
 
