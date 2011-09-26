@@ -1,5 +1,5 @@
 GASNET?=/sampa/share/gasnet-rhel6
-GL_ARRAY=../../mark_scratch
+GL_ARRAY=../../global_array_gasnet
 
 CC=mpicxx
 LD=mpicxx
