@@ -25,8 +25,8 @@ void allocate_heap(uint64_t size, int num_threads, int num_lists, node*** bases_
 
   //node* nodes = (node*) malloc(sizeof(node) * size);  // temporary node pointers
   if( NULL == *nodes_p ) {
-    //*nodes_p = (node*) malloc(sizeof(node) * size);
-    *nodes_p = (node*) get_hugepage_region( sizeof(node) * size, GHR_DEFAULT );
+    *nodes_p = (node*) malloc(sizeof(node) * size);
+    //*nodes_p = (node*) get_hugepage_region( sizeof(node) * size, GHR_DEFAULT );
   }
   node* nodes = *nodes_p;
   //void* nodes_start = (void*) 0x0000111122220000UL;
