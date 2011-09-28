@@ -4,8 +4,9 @@ NUM_JUMP_THREADS?=16
 
 run: listwalk
 #	GASNET_SSH_SERVERS='n01,n04' ./listwalk 20:2 -L 18 -n 3 -t 128
-	GASNET_SSH_SERVERS='n01,n04' ./listwalk 20:2 -L 18 -n 1 -t 128
-#	GASNET_SSH_SERVERS='n01,n04' ./listwalk 4:2 -L 4 -n 1 -t 1
+	GASNET_SSH_SERVERS='n01,n04' ./listwalk 20:2 -L 21 -n 8 -t 384
+#	GASNET_SSH_SERVERS='n01,n04' ./listwalk 2:2 -L 12 -n 4 -t 384
+#	GASNET_SSH_SERVERS='n01,n04' ./listwalk 2:2 -L 4 -n 1 -t 1
 #	mpirun -H n01,n04 -np 2 -nonmpi ./$< -c 1 -L 24
 
 #all: $(EXECS)
@@ -23,8 +24,9 @@ CFLAGS_COMMON= -fopenmp -I$(GASNET)/include -I$(GASNET)/include/ibv-conduit -DGA
 #CFLAGS_COMMON= -fopenmp -I$(GASNET)/include -I$(GASNET)/include/udp-conduit -DGASNET_PAR -I$(MPI_INCLUDE) -DGASNET_CONDUIT_UDP
 
 CFLAGS_COMMON+= -I../../greenery -L../../greenery
-CFLAGS_COMMON+= -I../../queues -L../../queues
 
+CFLAGS_COMMON+= -I../../queues -L../../queues
+CFLAGS_COMMON+= -DMCRINGBUFFER_CACHE_LINE_SIZE=64 -DMCRINGBUFFER_BATCH_SIZE=64 -DMCRINGBUFFER_SIZE_LOG=20
 PSM_INSTALL=/sampa/home/nelson/softxmt/tools/infinipath-psm-1.14
 CFLAGS_COMMON+= -I$(PSM_INSTALL) -L$(PSM_INSTALL)/usr/lib64
 
@@ -47,7 +49,7 @@ MPI_LIBS=
 
 CFLAGS+= -I../../jumpthreads -L../../jumpthreads -DNUM_JUMP_THREADS=$(NUM_JUMP_THREADS)
 
-HEADERS=alloc.h node.h options.h stack.h
+HEADERS=alloc.h node.h options.h stack.h MCRingBuffer.h
 
 %.o: %.c $(HEADERS)
 	$(CC) -c $(CFLAGS) $< -o $@
@@ -61,7 +63,7 @@ PSM_INSTALL=/sampa/home/nelson/softxmt/tools/infinipath-psm-1.14
 
 
 listwalk.o: CFLAGS+= -I/sampa/home/nelson/softxmt/tools/GASNet-1.16.2/other/ssh-spawner
-listwalk: options.o alloc.o listwalk.o psm_utils.o stack.o
+listwalk: options.o alloc.o listwalk.o psm_utils.o stack.o MCRingBuffer.o
 	$(LD) $(LFLAGS) -o $@ $^ $(LIBS) $(MPI_LIBS) $(GASNET_LIBS)
 	objdump -S $@ > $@.dis
 
