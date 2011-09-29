@@ -6,7 +6,7 @@ run: listwalk
 #	GASNET_SSH_SERVERS='n01,n04' ./listwalk 20:2 -L 18 -n 3 -t 128
 	GASNET_SSH_SERVERS='n01,n04' ./listwalk 20:2 -L 21 -n 32 -t 384 -c 10 -b 20
 #	GASNET_SSH_SERVERS='n01,n04' ./listwalk 2:2 -L 21 -n 32 -t 384
-#	GASNET_SSH_SERVERS='n01,n04' ./listwalk 2:2 -L 12 -n 4 -t 384
+#	GASNET_SSH_SERVERS='n01,n04' ./listwalk 2:2 -L 12 -n 4 -t 1
 #	GASNET_SSH_SERVERS='n01,n04' ./listwalk 2:2 -L 4 -n 1 -t 1
 #	mpirun -H n01,n04 -np 2 -nonmpi ./$< -c 1 -L 24
 

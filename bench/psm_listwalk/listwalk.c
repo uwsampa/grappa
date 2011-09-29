@@ -30,6 +30,15 @@
 
 #include <MCRingBuffer.h>
 
+
+
+#define rdtscll(val) do { \
+  unsigned int __a,__d; \
+  asm volatile("rdtsc" : "=a" (__a), "=d" (__d)); \
+  (val) = ((unsigned long)__a) | (((unsigned long)__d)<<32); \
+  } while(0)
+
+
 static gasnet_node_t mynode = -1;
 static gasnet_node_t num_nodes = 0;
 
@@ -315,6 +324,7 @@ void quit() {
 struct mailbox {
   uint64_t data;
   uint64_t addr;
+  uint64_t ts;
   int full;
 };
 
@@ -324,10 +334,12 @@ inline void issue( struct node ** pointer, struct mailbox * mb ) {
   } else {
     mb->data = -1;
     mb->addr = (uint64_t) pointer;
+    rdtscll(mb->ts);
     request_agg_bulk( pointer, &mb->data );
   }
 }
 
+uint64_t total_latency_ticks;
 inline struct node * complete( thread * me, struct node ** pointer, struct mailbox * mb ) {
   if( islocal( pointer ) ) {
     return *pointer;
@@ -335,6 +347,9 @@ inline struct node * complete( thread * me, struct node ** pointer, struct mailb
     while( -1 == mb->data ) {
       thread_yield( me );
     }
+    uint64_t ts2;
+    rdtscll(ts2);
+    total_latency_ticks += ts2 - mb->ts;
     return (struct node *) mb->data;
   }
 }
@@ -629,14 +644,17 @@ int main( int argc, char * argv[] ) {
 
   struct timespec start_time;
   struct timespec end_time;
+  uint64_t start_ts, end_ts;
 
   gasneti_bootstrapBarrier_ssh();
   printf("Node %d starting.\n", mynode); fflush(stdout);
   clock_gettime(CLOCK_MONOTONIC, &start_time);
+  rdtscll(start_ts);
   //#pragma omp parallel for num_threads( opt->cores )
   for( core_num = 0; core_num < opt->cores; ++core_num ) {
     run_all( schedulers[ core_num ] );
   }
+  rdtscll(end_ts);
   clock_gettime(CLOCK_MONOTONIC, &end_time);
   printf("Node %d done.\n", mynode); fflush(stdout);
   gasneti_bootstrapBarrier_ssh();
@@ -655,10 +673,17 @@ int main( int argc, char * argv[] ) {
   double rate = (double) opt->list_size * opt->count * (num_nodes / 2) / runtime;
   double bandwidth = (double) opt->list_size * opt->count * sizeof(node) * (num_nodes / 2) / runtime;
 
-  //  if( 0 == gasnet_mynode() ) {
-    printf("header, id, batch_size, list_size, count, processes, threads, runtime, message rate (M/s), bandwidth (MB/s), sum\n");
-    printf("data, %d, %d, %d, %d, %d, %d, %f, %f, %f, %d\n", opt->id, opt->batch_size, opt->list_size, opt->count, processes, opt->threads, runtime, rate / 1000000, bandwidth / (1024 * 1024), sum);
-    //  }
+  ASSERT_NZ( end_ts > start_ts );
+  uint64_t runtime_ticks = end_ts - start_ts;
+  double tick_rate = (double) runtime_ticks / runtime;
+  double total_latency = (double) total_latency_ticks / tick_rate;
+  double avg_latency = total_latency / (opt->list_size * opt->count);
+  
+
+  if( mynode < num_nodes / 2 ) {
+    printf("header, id, batch_size, list_size, count, processes, threads, runtime, message rate (M/s), bandwidth (MB/s), sum, runtime_ticks, total_latency_ticks, tick_rate, avg_latency\n");
+    printf("data, %d, %d, %d, %d, %d, %d, %f, %f, %f, %d, %lu, %lu, %f, %.9f\n", opt->id, opt->batch_size, opt->list_size, opt->count, processes, opt->threads, runtime, rate / 1000000, bandwidth / (1024 * 1024), sum, runtime_ticks, total_latency_ticks, tick_rate, avg_latency);
+  }
 
   psm_finalize();
   gasneti_bootstrapFini_ssh();
