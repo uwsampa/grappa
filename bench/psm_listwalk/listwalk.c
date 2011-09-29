@@ -681,8 +681,8 @@ int main( int argc, char * argv[] ) {
   
 
   if( mynode < num_nodes / 2 ) {
-    printf("header, id, batch_size, list_size, count, processes, threads, runtime, message rate (M/s), bandwidth (MB/s), sum, runtime_ticks, total_latency_ticks, tick_rate, avg_latency\n");
-    printf("data, %d, %d, %d, %d, %d, %d, %f, %f, %f, %d, %lu, %lu, %f, %.9f\n", opt->id, opt->batch_size, opt->list_size, opt->count, processes, opt->threads, runtime, rate / 1000000, bandwidth / (1024 * 1024), sum, runtime_ticks, total_latency_ticks, tick_rate, avg_latency);
+    printf("header, id, batch_size, list_size, count, processes, threads, runtime, message rate (M/s), bandwidth (MB/s), sum, runtime_ticks, total_latency_ticks, tick_rate, avg_latency (us)\n");
+    printf("data, %d, %d, %d, %d, %d, %d, %f, %f, %f, %d, %lu, %lu, %f, %.9f\n", opt->id, opt->batch_size, opt->list_size, opt->count, processes, opt->threads, runtime, rate / 1000000, bandwidth / (1024 * 1024), sum, runtime_ticks, total_latency_ticks, tick_rate, avg_latency * 1000000);
   }
 
   psm_finalize();
