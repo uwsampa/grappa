@@ -556,6 +556,8 @@ int main( int argc, char * argv[] ) {
   struct options opt_actual = parse_options( &argc, &argv );
   struct options * opt = &opt_actual;
 
+  aggregation_size = opt->batch_size;
+
   printf("Node %d allocating heap.\n", mynode); fflush(stdout);
   node * nodes = NULL;
   node ** bases = NULL;
@@ -568,7 +570,9 @@ int main( int argc, char * argv[] ) {
   printf("Node %d base address is %p, extent is %p.\n", mynode, nodes, nodes + sizeof(node) * opt->list_size); fflush(stdout);
 
   int i, core_num;
-
+  
+  int processes = opt->cores;
+  opt->cores = 1;
   ASSERT_NZ( opt->cores == 1 );
   //ASSERT_NZ( opt->threads == 1 );
   for( i = 0; i < opt->list_size; ++i ) {
@@ -652,8 +656,8 @@ int main( int argc, char * argv[] ) {
   double bandwidth = (double) opt->list_size * opt->count * sizeof(node) * (num_nodes / 2) / runtime;
 
   //  if( 0 == gasnet_mynode() ) {
-    printf("header, list_size, count, processes, threads, runtime, message rate (M/s), bandwidth (MB/s), sum\n");
-    printf("data, %d, %d, %d, %d, %f, %f, %f, %d\n", opt->list_size, opt->count, 1, opt->threads, runtime, rate / 1000000, bandwidth / (1024 * 1024), sum);
+    printf("header, id, batch_size, list_size, count, processes, threads, runtime, message rate (M/s), bandwidth (MB/s), sum\n");
+    printf("data, %d, %d, %d, %d, %d, %d, %f, %f, %f, %d\n", opt->id, opt->batch_size, opt->list_size, opt->count, processes, opt->threads, runtime, rate / 1000000, bandwidth / (1024 * 1024), sum);
     //  }
 
   psm_finalize();

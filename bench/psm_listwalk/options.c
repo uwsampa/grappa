@@ -29,6 +29,8 @@ static struct option long_options[] = {
   {"queue_pairs",      required_argument, NULL, 'q'},
   {"same_destination",   no_argument, NULL, '0'},
 
+  {"id",         required_argument, NULL, 'I'},
+
   {"help",             no_argument,       NULL, 'h'},
   {NULL,               no_argument,       NULL, 0}
 };
@@ -55,9 +57,10 @@ struct options parse_options( int * argc, char ** argv[] ) {
     .list_size_log	= 0,
     .list_size	= 1,
     .jumpthreads = 1,
+    .id = 1,
   };
   int c, option_index = 1;
-  while ((c = getopt_long(*argc, *argv, "k:c:t:l:s:n:o:p:b:x:d:q:L:S:0mrwfJh?",
+  while ((c = getopt_long(*argc, *argv, "k:c:t:l:s:n:o:p:b:x:d:q:L:S:I:0mrwfJh?",
                           long_options, &option_index)) >= 0) {
     switch (c) {
     case 0:   // flag set
@@ -125,6 +128,9 @@ struct options parse_options( int * argc, char ** argv[] ) {
     case 'S':
       opt.list_size = atoi(optarg);
       //if (opt.count == 0) opt.count = opt.list_size;
+      break;
+    case 'I':
+      opt.id = atoi(optarg);
       break;
     case 'h':
     case '?':

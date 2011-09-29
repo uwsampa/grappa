@@ -25,6 +25,7 @@ struct options {
   unsigned int list_size_log;
   unsigned int list_size;
   int jumpthreads;
+  int id;
 };
 
 struct options parse_options( int * argc, char ** argv[] );
