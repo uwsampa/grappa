@@ -28,6 +28,8 @@
 
 #include "thread.h"
 
+#include "metrics.h"
+
 #include <MCRingBuffer.h>
 
 
@@ -59,8 +61,9 @@ typedef struct stack_element {
 stack_t s;
 MCRingBuffer q;
 
+int everything_is_local = 0;
 inline int islocal( void * addr ) {
-  return 0;
+  return everything_is_local;
 }
 
 inline int mycounterpart() {
@@ -75,6 +78,19 @@ inline int addr2node( void * addr ) {
   //return 1 - mynode;
   return mycounterpart();
 }
+
+struct mailbox {
+  uint64_t data;
+  uint64_t addr;
+  uint64_t issue_ts;
+  uint64_t send_ts;
+  uint64_t recv_ts;
+  uint64_t complete_ts;
+  int full;
+};
+
+
+
 
 int network_done = 0;
 int local_done = 0;
@@ -153,12 +169,9 @@ int am_node_request_agg_bulk(psm_am_token_t token, psm_epaddr_t epaddr,
     sel.d1 = uintargs[off+0];
     sel.d2 = uintargs[off+1];
     if (DEBUG) { printf("Node %d got request for %p for %p\n", mynode, sel.d1, sel.d2); }
-    //if( stack_full( &s ) ) { printf("Node %d pushing ont a full stack\n", mynode); fflush(stdout); exit(2); }
-    //stack_push( &s, sel );
     ASSERT_NZ( MCRingBuffer_produce( &q, sel.d1 ) );
     ASSERT_NZ( MCRingBuffer_produce( &q, sel.d2 ) );
-    ASSERT_NZ( sel.d1 != 8 );
-    //printf("Node %d produced values %p for %p\n", mynode, sel.d1, sel.d2);
+    if (DEBUG) { printf("Node %d produced values %p for %p\n", mynode, sel.d1, sel.d2); }
     ++request_received;
   }
   return 0;
@@ -170,11 +183,15 @@ int am_node_reply_agg_bulk(psm_am_token_t token, psm_epaddr_t epaddr,
 			   void *src, uint32_t len) {
   uint64_t * uintargs = (uint64_t *) src;
   int off;
+  uint64_t recv_ts;
+  rdtscll( recv_ts );
   for( off = 0; off * sizeof(uint64_t) < len; off += 2 ) {
-    uint64_t * dest_addr = (uint64_t *) uintargs[0+off];
+    //uint64_t * dest_addr = (uint64_t *) uintargs[0+off];
+    struct mailbox * mb = (struct mailbox *) uintargs[0+off];
     uint64_t data = uintargs[1+off];
-    if (DEBUG) { printf("Node %d got response of %p for %p\n", mynode, data, dest_addr); }
-    *dest_addr = data;
+    if (DEBUG) { printf("Node %d got response of %p for mailbox %p\n", mynode, data, mb); }
+    mb->data = data;
+    mb->recv_ts = recv_ts;
     ++reply_received;
   }
 }
@@ -236,6 +253,7 @@ int aggregation_size = 20;
 int request_off = 0;
 int request_sent = 0;
 psm_amarg_t request_args[ 128 ];
+struct mailbox * mailboxes[ 128 ];
 inline void request_agg( void * addr, void * dest_addr ) {
   exit(1);
   request_args[0+request_off].u64 = (uint64_t) addr;
@@ -246,27 +264,32 @@ inline void request_agg( void * addr, void * dest_addr ) {
   if (request_off == aggregation_size * 2) {
     PSM_CHECK( psm_am_request_short( dest2epaddr( addr2node( addr ) ), AM_NODE_REQUEST_AGG_HANDLER, 
 				     request_args, aggregation_size * 2, NULL, 0,
-				     //PSM_AM_FLAG_ASYNC | PSM_AM_FLAG_NOREPLY,
 				     PSM_AM_FLAG_NOREPLY,
 				     NULL, NULL ) );
     request_off = 0;
   }
 }
 
-inline void request_agg_bulk( void * addr, void * dest_addr ) {
+uint64_t send_count = 0;
+inline void request_agg_bulk( void * addr, void * dest_addr, struct mailbox * mb ) {
   if (addr != 0) {
     request_args[0+request_off].u64 = (uint64_t) addr;
     request_args[1+request_off].u64 = (uint64_t) dest_addr;
+    mailboxes[request_off / 2] = mb;
     request_off += 2;
-    ASSERT_NZ( addr != 8 );
     ++request_sent;
     if (DEBUG) { printf("Node %d sending request for %p for %p\n", mynode, addr, dest_addr); }
   }
   if( addr == 0 || request_off == aggregation_size * 2 ) {
+    int i;
+    uint64_t current_ts;
+    ++send_count;
+    rdtscll( current_ts );
+    for( i = 0; i < request_off / 2; ++i ) {
+      mailboxes[i]->send_ts = current_ts;
+    }
     PSM_CHECK( psm_am_request_short( dest2epaddr( addr2node( addr ) ), AM_NODE_REQUEST_AGG_BULK_HANDLER, 
-				     //request_args, aggregation_size * 2, NULL, 0,
 				     NULL, 0, request_args, request_off * sizeof(uint64_t),
-				     //PSM_AM_FLAG_ASYNC | PSM_AM_FLAG_NOREPLY,
 				     PSM_AM_FLAG_NOREPLY,
 				     NULL, NULL ) );
     request_off = 0;
@@ -303,9 +326,7 @@ inline void reply_agg_bulk( uint64_t dest_addr, uint64_t data ) {
   }
   if( dest_addr == 0 || reply_off == aggregation_size * 2 ) {
     PSM_CHECK( psm_am_request_short( dest2epaddr( addr2node( (void*) dest_addr ) ), AM_NODE_REPLY_AGG_BULK_HANDLER, 
-				     //reply_args, aggregation_size * 2, NULL, 0,
 				     NULL, 0, reply_args, reply_off * sizeof(uint64_t),
-				     //PSM_AM_FLAG_ASYNC | PSM_AM_FLAG_NOREPLY,
 				     PSM_AM_FLAG_NOREPLY,
 				     NULL, NULL ) );
     reply_off = 0;
@@ -321,37 +342,46 @@ void quit() {
 }
 
 
-struct mailbox {
-  uint64_t data;
-  uint64_t addr;
-  uint64_t ts;
-  int full;
-};
+uint64_t total_latency_ticks = 0;
+uint64_t aggregation_latency_ticks = 0;
+uint64_t network_latency_ticks = 0;
+uint64_t wakeup_latency_ticks = 0;
+inline void collect_mailbox_timestamps( struct mailbox * mb ) {
+  total_latency_ticks += mb->complete_ts - mb->issue_ts;
+  aggregation_latency_ticks += mb->send_ts - mb->issue_ts;
+  network_latency_ticks += mb->recv_ts - mb->send_ts;
+  wakeup_latency_ticks += mb->complete_ts - mb->recv_ts;
+}
 
+uint64_t issue_count = 0;
 inline void issue( struct node ** pointer, struct mailbox * mb ) {
+  //  ++issue_count;
+  rdtscll( mb->issue_ts );
   if( islocal( pointer ) ) {
     __builtin_prefetch( pointer, 0, 0 );
+    rdtscll( mb->send_ts );
   } else {
     mb->data = -1;
     mb->addr = (uint64_t) pointer;
-    rdtscll(mb->ts);
-    request_agg_bulk( pointer, &mb->data );
+    request_agg_bulk( pointer, &mb->data, mb );
   }
 }
 
-uint64_t total_latency_ticks;
 inline struct node * complete( thread * me, struct node ** pointer, struct mailbox * mb ) {
+  struct node * node;
   if( islocal( pointer ) ) {
-    return *pointer;
+    //return *pointer;
+    node = *pointer;
+    rdtscll( mb->recv_ts );
   } else {
     while( -1 == mb->data ) {
       thread_yield( me );
     }
-    uint64_t ts2;
-    rdtscll(ts2);
-    total_latency_ticks += ts2 - mb->ts;
-    return (struct node *) mb->data;
+    node = (struct node *) mb->data;
   }
+  rdtscll( mb->complete_ts );
+  collect_mailbox_timestamps(mb);
+  return node;
 }
 
 uint64_t walk_prefetch_switch( thread * me, node * current, uint64_t count ) {
@@ -395,105 +425,31 @@ struct network_args {
 };
 
 int request_processed;
+int64_t polling_ticks = 0;
+uint64_t poll_count = 0;
+
+int64_t service_ticks = 0;
+uint64_t service_count = 0;
 void network_runnable( thread * me, void * argsv ) {
   struct network_args * args = argsv;
   psm_ep_t ep = get_ep();
   if (DEBUG) { printf("Node %d network thread starting\n", mynode); fflush(stdout); }
-  //while( network_done == 0 || local_done == 0 || !stack_empty( &s ) ) {
+  int64_t ts;
+  rdtscll(ts);
+  polling_ticks -= ts;
+
   while( network_done == 0 || local_done == 0 ) {
-    //printf("node %d network_done = %d local_done = %d\n", mynode, network_done, local_done );
-    int prev = s.index;
+
     psm_poll(ep);
-    int post = s.index;
-    if ( post < prev) { printf("Node %d prev %d post %d\n", mynode, prev, post); fflush(stdout); }
-
-    if (0) {
-      if( !stack_empty( &s ) ) {
-	stack_element_t sel = stack_get( &s );
-	uint64_t * addr = (uint64_t *) sel.d1;
-	stack_pop( &s );
-	++request_processed;
-
-	__builtin_prefetch( addr, 0, 0 );
-	
-	thread_yield( me );
-	
-	reply_agg( sel.d2, *addr );
-      } else {
-	thread_yield( me );
-      }
-    }
-
-    if (0) {
-      if( !stack_empty( &s ) ) {
-	int x;
-	int max_concurrent = 5;
-	int current_concurrent = 0;
-	uint64_t * addrs[max_concurrent];
-	uint64_t dests[max_concurrent];
-
-	for( x = 0; x < max_concurrent && !stack_empty( &s ); ++x ) {
-	  stack_element_t sel = stack_get( &s );
-	  stack_pop( &s );
-	  addrs[ x ] = (uint64_t *) sel.d1;
-	  __builtin_prefetch( addrs[x], 0, 0 );
-	  dests[ x ] = sel.d2;
-	  ++current_concurrent;
-	  ++request_processed;
-	}
-
-	thread_yield(me);
-
-	for( x = 0; x < current_concurrent; ++x ) {
-	  reply_agg_bulk( dests[x], *addrs[x] );
-	}
-      } else {
-	thread_yield(me);
-      }
-    }
-
-    if (0) {
-      if( !stack_empty( &s ) ) {
-	while( !stack_empty( &s ) ) {
-	  stack_element_t sel = stack_get( &s );
-	  uint64_t * addr = (uint64_t *) sel.d1;
-
-	  stack_pop( &s );
-	  ++request_processed;
-	  __builtin_prefetch( addr, 0, 0 );
-	  
-	  thread_yield( me );
-	  
-	  reply_agg_bulk( sel.d2, *addr );
-	}
-      } else {
-	thread_yield( me );
-      }
-    }
-
-    if (0) {
-      uint64_t w1 = 0;
-      uint64_t w2 = 0;
-      while( MCRingBuffer_consume( &q, &w1 ) ) {
-	//printf("Node %d consumed value %p\n", mynode, w1);
-	ASSERT_NZ( MCRingBuffer_consume( &q, &w2 ) );
-	//printf("Node %d consumed value %p\n", mynode, w2);
-	uint64_t * addr = (uint64_t *) w1;
-	++request_processed;
-	__builtin_prefetch( addr, 0, 0 );
-	
-	thread_yield( me );
-	
-	reply_agg_bulk( w2, *addr );
-      } 
-      thread_yield( me );
-    }
+    ++poll_count;
 
     if (1) {
       uint64_t w1 = 0;
       uint64_t w2 = 0;
       while( MCRingBuffer_consume( &q, &w1 ) ) {
-	
+	uint64_t start_ts;
+	rdtscll(start_ts);
+
 	volatile int x = 0;
 	int max_concurrent = 10;
 	int current_concurrent = 0;
@@ -501,8 +457,7 @@ void network_runnable( thread * me, void * argsv ) {
 	uint64_t dests[max_concurrent];
 	
 	do {
-	  ASSERT_NZ( w1 != 8 );
-	  ASSERT_NZ( MCRingBuffer_consume( &q, &w2 ) );
+	  MCRingBuffer_consume( &q, &w2 );
 
 	  addrs[ x ] = (uint64_t *) w1;
 	  __builtin_prefetch( addrs[x], 0, 0 );
@@ -512,22 +467,35 @@ void network_runnable( thread * me, void * argsv ) {
 	  ++x;
 	} while( x < max_concurrent && MCRingBuffer_consume( &q, &w1 ) );
 
-	thread_yield(me);
+	rdtscll(ts);
+	polling_ticks += ts;
+	thread_yield( me );
+	rdtscll(ts);
+	polling_ticks -= ts;
 
 	for( x = 0; x < current_concurrent; ++x ) {
 	  volatile uint64_t thisdest = dests[x];
-	  volatile uint64_t thisaddr = addrs[x];
+	  volatile uint64_t thisaddr = (uint64_t) addrs[x];
 	  volatile uint64_t newdata = *(addrs[x]);
-	  if (newdata < 100) { printf("Node %d got data %p for address %p\n", mynode, newdata, thisaddr); fflush(stdout); }
 	  reply_agg_bulk( thisdest, newdata );
 	}
+	uint64_t end_ts;
+	rdtscll(end_ts);
+	service_ticks += end_ts - start_ts;
+	++service_count;
       }
-      thread_yield(me);
+      rdtscll(ts);
+      polling_ticks += ts;
+      thread_yield( me );
+      rdtscll(ts);
+      polling_ticks -= ts;
     }
 
     
     
   }
+  rdtscll(ts);
+  polling_ticks += ts;
   if (DEBUG) { printf("Node %d network thread done\n", mynode); fflush(stdout); }
 }
 
@@ -536,7 +504,7 @@ void network_runnable( thread * me, void * argsv ) {
 void flusher_runnable( thread * me, void * argsv ) {
   while( network_done == 0 || local_done == 0 ) {
     MCRingBuffer_flush( &q );
-    if (request_off != 0) request_agg_bulk( 0, 0 );
+    if (request_off != 0) request_agg_bulk( 0, 0, NULL);
     if (reply_off != 0) reply_agg_bulk( 0, 0 );
     thread_yield( me );
   }
@@ -561,10 +529,6 @@ int main( int argc, char * argv[] ) {
   setup_ams( get_ep() );
   printf("Node %d PSM is set up.\n", mynode); fflush(stdout);
 
-  /* struct psm_am_max_sizes sizes; */
-  /* PSM_CHECK(  psm_am_get_max_sizes( get_ep(), &sizes ) ); */
-  /* printf("Node %d has PSM nargs=%u, request_short=%u, reply_short=%u\n", mynode, sizes.nargs, sizes.request_short, sizes.reply_short); fflush(stdout); */
-
   //ASSERT_Z( gasnet_attach( NULL, 0, 0, 0 ) );
   //printf("hello from node %d of %d\n", gasnet_mynode(), gasnet_nodes() );
 
@@ -572,6 +536,7 @@ int main( int argc, char * argv[] ) {
   struct options * opt = &opt_actual;
 
   aggregation_size = opt->batch_size;
+  everything_is_local = opt->force_local;
 
   printf("Node %d allocating heap.\n", mynode); fflush(stdout);
   node * nodes = NULL;
@@ -581,7 +546,7 @@ int main( int argc, char * argv[] ) {
   assert( nodes == nodes_start );
 
   allocate_heap(opt->list_size, opt->cores, opt->threads, &bases, &nodes);
-  //bases = allocate_heap(opt->list_size, opt->cores, opt->threads, &nodes);
+
   printf("Node %d base address is %p, extent is %p.\n", mynode, nodes, nodes + sizeof(node) * opt->list_size); fflush(stdout);
 
   int i, core_num;
@@ -592,7 +557,7 @@ int main( int argc, char * argv[] ) {
   //ASSERT_NZ( opt->threads == 1 );
   for( i = 0; i < opt->list_size; ++i ) {
     if( nodes[i].next == NULL ) printf("Node %d found NULL next at element %d\n", mynode, i );
-    ASSERT_NZ( nodes[i].next );
+    ASSERT_NZP( nodes[i].next );
   }
 
   //  sleep(10);
@@ -623,21 +588,31 @@ int main( int argc, char * argv[] ) {
       args[ core_num ][ thread_num ].count = opt->list_size * opt->count / (opt->cores * opt->threads);
       args[ core_num ][ thread_num ].result = 0;
       if (1) {
+	// set up senders
 	if (mynode < num_nodes / 2) {
 	  threads[ core_num ][ thread_num ] = thread_spawn( masters[ core_num ], schedulers[ core_num ], 
 							    thread_runnable, &args[ core_num ][ thread_num ] );
 	  ++local_active;
 	  network_done = 1;
-	} else { local_done = 1; }
+	} else { 
+	  local_done = 1; 
+	}
       }
-      if (0) {
-	threads[ core_num ][ thread_num ] = thread_spawn( masters[ core_num ], schedulers[ core_num ], 
-							  thread_runnable, &args[ core_num ][ thread_num ] );
-	++local_active;
+
+      // set up network service threads
+      if (mynode < num_nodes / 2) {
+	if ( !(thread_num & 0x0) ) thread_spawn( masters[ core_num ], schedulers[ core_num ], network_runnable, &netargs );
+	/* thread_spawn( masters[ core_num ], schedulers[ core_num ], network_runnable, &netargs ); */
+      } else {
+	/* if ( !(thread_num & 0xffffff) ) thread_spawn( masters[ core_num ], schedulers[ core_num ], network_runnable, &netargs ); */
+	/* thread_spawn( masters[ core_num ], schedulers[ core_num ], network_runnable, &netargs ); */
+	if( thread_num < 16 ) { // limit ourselves to 16 service threads on receiver
+	  thread_spawn( masters[ core_num ], schedulers[ core_num ], network_runnable, &netargs );
+	}
       }
-      if ( !(thread_num & 0xf) ) thread_spawn( masters[ core_num ], schedulers[ core_num ], network_runnable, &netargs );
       //thread_spawn( masters[ core_num ], schedulers[ core_num ], network_runnable, &netargs );
     }
+    // set up periodic flusher
     thread_spawn( masters[ core_num ], schedulers[ core_num ], flusher_runnable, NULL );
   }
 
@@ -677,12 +652,56 @@ int main( int argc, char * argv[] ) {
   uint64_t runtime_ticks = end_ts - start_ts;
   double tick_rate = (double) runtime_ticks / runtime;
   double total_latency = (double) total_latency_ticks / tick_rate;
-  double avg_latency = total_latency / (opt->list_size * opt->count);
+  double aggregation_latency = (double) aggregation_latency_ticks / tick_rate;
+  double network_latency = (double) network_latency_ticks / tick_rate;
+  double wakeup_latency = (double) wakeup_latency_ticks / tick_rate;
+  double polling_latency = (double) polling_ticks / tick_rate;
+  double service_latency = (double) service_ticks / tick_rate;
+
+  issue_count = (opt->list_size * opt->count);
+  double avg_latency = total_latency / issue_count; //(opt->list_size * opt->count);
+  double avg_aggregation_latency = aggregation_latency / issue_count; //(opt->list_size * opt->count);
+  double avg_network_latency = network_latency / issue_count; //(opt->list_size * opt->count);
+  double avg_wakeup_latency = wakeup_latency / issue_count; //(opt->list_size * opt->count);
+  double avg_polling_latency = polling_latency / poll_count; //(opt->list_size * opt->count);
+  double avg_service_latency = service_latency / service_count; //(opt->list_size * opt->count);
   
 
-  if( mynode < num_nodes / 2 ) {
-    printf("header, id, batch_size, list_size, count, processes, threads, runtime, message rate (M/s), bandwidth (MB/s), sum, runtime_ticks, total_latency_ticks, tick_rate, avg_latency (us)\n");
-    printf("data, %d, %d, %d, %d, %d, %d, %f, %f, %f, %d, %lu, %lu, %f, %.9f\n", opt->id, opt->batch_size, opt->list_size, opt->count, processes, opt->threads, runtime, rate / 1000000, bandwidth / (1024 * 1024), sum, runtime_ticks, total_latency_ticks, tick_rate, avg_latency * 1000000);
+  if( 1 || mynode < num_nodes / 2 ) {
+    /* printf("header, id, batch_size, list_size, count, processes, threads, runtime, message rate (M/s), bandwidth (MB/s), sum, runtime_ticks, total_latency_ticks, tick_rate, issue_count, send_count, avg_latency (us), aggregation_latency (us), network_latency (us), wakeup_latency (us), poll_count, polling_latency (us), service_count, service_latency (us)\n"); */
+    /* printf("data, %d, %d, %d, %d, %d, %d, %f, %f, %f, %lu, %lu, %lu, %f, %lu, %lu, %.9f, %.9f, %.9f, %.9f, %lu, %.9f, %lu, %.9f\n", opt->id, opt->batch_size, opt->list_size, opt->count, processes, opt->threads, runtime, rate / 1000000, bandwidth / (1024 * 1024), sum, runtime_ticks, total_latency_ticks, tick_rate, issue_count, send_count, avg_latency * 1000000, avg_aggregation_latency * 1000000, avg_network_latency * 1000000, avg_wakeup_latency * 1000000, poll_count, avg_polling_latency * 1000000, service_count, avg_service_latency * 1000000); */
+
+#define METRICS( METRIC )						\
+    METRIC( "Node",			"%d",   mynode );		\
+    METRIC( "ID",			"%d",   opt->id );		\
+    METRIC( "batch_size", 		"%d",   opt->batch_size );	\
+    METRIC( "processes", 		"%d",   processes );		\
+    METRIC( "threads",			"%d",   opt->threads );		\
+    METRIC( "list_size", 		"%d",   opt->list_size );	\
+    METRIC( "count", 			"%d",   opt->count );		\
+    METRIC( "force_local", 		"%d",   opt->force_local );	\
+    METRIC( "is_sender", 		"%d",   mynode < num_nodes / 2 ); \
+    METRIC( "runtime",			"%f",   runtime );		\
+    METRIC( "message rate (M/s)", 	"%f",   rate / 1000000 );	\
+    METRIC( "bandwidth (MB/s)", 	"%f",   bandwidth / (1024 * 1024) ); \
+    METRIC( "sum", 			"%lu",  sum );			\
+    METRIC( "runtime_ticks", 		"%lu",  runtime_ticks );	\
+    METRIC( "total_latency_ticks", 	"%lu",  total_latency_ticks );	\
+    METRIC( "tick_rate", 		"%f",   tick_rate );		\
+    METRIC( "issue_count", 		"%lu",  issue_count );		\
+    METRIC( "send_count", 		"%lu",  send_count );		\
+    METRIC( "Average Latency (us)",	"%.9f", avg_latency * 1000000 ); \
+    METRIC( "aggregation_latency (us)", "%.9f", avg_aggregation_latency * 1000000 ); \
+    METRIC( "network_latency (us)", 	"%.9f", avg_network_latency * 1000000 ); \
+    METRIC( "wakeup_latency (us)", 	"%.9f", avg_wakeup_latency * 1000000 ); \
+    METRIC( "Poll count",		"%lu",  poll_count );		\
+    METRIC( "polling_latency (us)", 	"%.9f", avg_polling_latency * 1000000 ); \
+    METRIC( "service_count", 		"%lu",  service_count );	\
+    METRIC( "service_latency (us)",     "%.9f", avg_service_latency * 100000 );
+    
+    PRINT_CSV_METRICS( METRICS );
+    PRINT_HUMAN_METRICS( METRICS );
+    
   }
 
   psm_finalize();
@@ -691,3 +710,4 @@ int main( int argc, char * argv[] ) {
   //gasnet_exit(0);
   return 0;
 }
+
