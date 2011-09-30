@@ -1,3 +1,8 @@
+#define _GNU_SOURCE
+#define __USE_GNU
+#include <sched.h>
+#include <sys/time.h>
+#include <sys/resource.h>
 
 #include <stdio.h>
 #include <stdlib.h>
@@ -451,7 +456,7 @@ void network_runnable( thread * me, void * argsv ) {
 	rdtscll(start_ts);
 
 	volatile int x = 0;
-	int max_concurrent = 10;
+	int max_concurrent = 5;
 	int current_concurrent = 0;
 	uint64_t * addrs[max_concurrent];
 	uint64_t dests[max_concurrent];
@@ -524,6 +529,12 @@ int main( int argc, char * argv[] ) {
 
   mynode = gasneti_mynode;
   num_nodes = gasneti_nodes;
+
+  cpu_set_t   mask;
+  CPU_ZERO(&mask);
+  int mycore = mynode % (num_nodes / 2);
+  CPU_SET(mycore, &mask);
+  sched_setaffinity(0, sizeof(mask), &mask);
   
   psm_setup( gasneti_mynode, gasneti_nodes);
   setup_ams( get_ep() );
@@ -601,12 +612,12 @@ int main( int argc, char * argv[] ) {
 
       // set up network service threads
       if (mynode < num_nodes / 2) {
-	if ( !(thread_num & 0x0) ) thread_spawn( masters[ core_num ], schedulers[ core_num ], network_runnable, &netargs );
+	if ( !(thread_num & 0x7) ) thread_spawn( masters[ core_num ], schedulers[ core_num ], network_runnable, &netargs );
 	/* thread_spawn( masters[ core_num ], schedulers[ core_num ], network_runnable, &netargs ); */
       } else {
 	/* if ( !(thread_num & 0xffffff) ) thread_spawn( masters[ core_num ], schedulers[ core_num ], network_runnable, &netargs ); */
 	/* thread_spawn( masters[ core_num ], schedulers[ core_num ], network_runnable, &netargs ); */
-	if( thread_num < 16 ) { // limit ourselves to 16 service threads on receiver
+	if( thread_num < 7 ) { // limit ourselves to a few service threads on receiver to minimize latency
 	  thread_spawn( masters[ core_num ], schedulers[ core_num ], network_runnable, &netargs );
 	}
       }
