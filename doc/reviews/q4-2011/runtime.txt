@@ -1,0 +1,56 @@
+
+fire and forget
+chapel_task_begin
+ - begins have arbitrary lifetime
+
+cobegin/coforall
+ - lifetime nests
+ - sugar? or optimization?
+ - share stack?
+
+there's also 
+
+
+sync: not lowest level
+
+
+task teams:
+  useful at language level (barrier)
+
+
+task private variables:
+  for "here"
+  for reductions (copy on write, accumulate back)
+  probably not accessed so often; more carried around
+
+may vs. must:
+ can there be dependences between tasks
+ does bounded buffer producer consumer
+ we may need to do this for work stealing?
+
+where do yields go?
+ domain map? easy, but does it give compiler enough info?
+   - additional locality hints to allow optmization?
+ additional type info, so compiler can optimize and emit the right code
+ all loads and store are macros
+
+hierarchial locales:
+
+
+hashing:
+ hopefully no
+ otherwise, in software
+
+task-layer hooks:
+ switch on communication events
+
+we are both tasking layer and communication layer---are there opportunities for information sharing?
+ (for instance, if the switch hooks weren't enough, a put call could cause the tasking layer to do something)
+
+memory
+ - multi-node memory consistency models
+ --- we want to support task parallelism with a shared memory abstraction
+ - load balancing allocator?
+
+
+qthreads/maestro?
