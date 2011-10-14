@@ -53,17 +53,21 @@ void __sched__noop__(pid_t, unsigned int, cpu_set_t*) {}
 #endif
 
 #define LOCAL_STEAL_RETRIES 1
-#define REMOTE_STEAL_MAX_VICTIMS 4
+#define REMOTE_STEAL_MAX_VICTIMS 6
 #define REMOTE_STEAL_ABORT_RETRIES 1
 #define MAX_STEALS_IN_FLIGHT 1
 
 #define TERM_COUNT_WORK 2
 #define TERM_COUNT_LOCAL_STEAL 2
 #define TERM_COUNT_REMOTE_STEAL 6
-#define TERM_COUNT_FACTOR 20
+#define TERM_COUNT_FACTOR 30
 
 #define WORKSTEAL_REQUEST_HANDLER 188
 #define WORKSTEAL_REPLY_HANDLER 187
+
+
+#define STEAL_GLOBAL_NULL_SATISFIES 0
+
 
 #define WAIT_BARRIER gasnet_barrier_notify(0, GASNET_BARRIERFLAG_ANONYMOUS); \
                      gasnet_barrier_wait(0, GASNET_BARRIERFLAG_ANONYMOUS)
@@ -84,7 +88,8 @@ gasnet_handlerentry_t   handlers[] =
         { GA_HANDLER, (void (*) ()) ga_handler },
         { WORKSTEAL_REQUEST_HANDLER, (void (*) ()) workStealRequestHandler },
         { WORKSTEAL_REPLY_HANDLER, (void (*) ()) workStealReplyHandler },
-        { COLLECTIVE_REDUCTION_HANDLER, (void (*)()) serialReduceRequestHandler }
+        { COLLECTIVE_REDUCTION_HANDLER, (void (*)()) serialReduceRequestHandler },
+        { COLLECTIVE_RING_REDUCTION_HANDLER, (void (*)()) ringReduceRequestHandler }
     };
 
 gasnet_seginfo_t* shared_memory_blocks;
@@ -134,6 +139,7 @@ void spawnET(TreeNode_ptr t, uint64_t qid) {
 }
 
 #define TREENODE_NULL UINT64_MAX
+#define TREENODE_FAIL UINT64_MAX - 1
 
 std::queue<TreeNode_ptr> node_global_queue;
 gasnet_hsl_t ngq_lock = GASNET_HSL_INITIALIZER; 
@@ -153,7 +159,7 @@ class IBT {
     
     public:
         int actualsize;
-        IBT(int s, int f) : size(s), part(f) {
+        IBT(int s, int f, int rank) : size(s), part(f) {
             if (part <= 0) part = 2;
             if (size >= LARGEPRIME)
                 fprintf(stderr, "class IBT: size too big.\n"), exit(0);
@@ -162,7 +168,10 @@ class IBT {
             ibt = ga_allocate(sizeof(TreeNode), size);
             
             actualsize = 0;
-            BuildIBT(0, size);
+            
+            if (rank == 0) {
+                BuildIBT(0, size);
+            }
         }
 
         ~IBT() {delete ibt;}
@@ -261,9 +270,15 @@ void ExploreTree(global_array* ibt, TreeNode_ptr root, uint64_t explorer_id, thr
 uint64_t num_cores = 1;
 volatile int stealsInFlightCounts[MAX_NUM_CORES];
 
+// global steal counts
+volatile uint64_t numSuccessfulGlobalSteals[MAX_NUM_CORES];
+volatile uint64_t numFailedGlobalSteals[MAX_NUM_CORES];
+volatile uint64_t numNULLGlobalSteals[MAX_NUM_CORES];
+
 typedef struct counts_t {
     uint64_t workCount;
     uint64_t termCount;
+    uint64_t noWork;
 } counts_t;
 
 void swap(int* arr, int i, int j) {
@@ -319,7 +334,7 @@ void thread_runnable(thread* me, void* arg) {
     thread_exit(me, NULL);
 }
 
-void run(thread* me, int core_index, global_array* ibt, int myNode, int num_cores_per_node, int num_nodes, counts_t* counts, const uint64_t terminationCount) { 
+void run(thread* me, int core_index, global_array* ibt, int myNode, const int num_cores_per_node, const int num_nodes, counts_t* counts, const uint64_t terminationCount) { 
     // 'counts' shared by threads on a core
 
     while (counts->termCount < terminationCount) {
@@ -360,6 +375,8 @@ void run(thread* me, int core_index, global_array* ibt, int myNode, int num_core
                         break;
                     }
                 }
+
+                if (num_nodes == 1) { thread_yield(me); continue; }
 
                 if (!gotWork) {
                     gasnet_AMPoll();
@@ -428,16 +445,19 @@ int main(int argc, char* argv[]) {
     uint64_t num_threads_per_core = 1;
     process_cl_args(&argc, &argv, &size, &imbalance, &num_cores, &num_threads_per_core);
 
+    int rank = gasnet_mynode();
+    int num_nodes = gasnet_nodes();
 
     WAIT_BARRIER;
 
-    IBT* t = new IBT(size, imbalance);
+    srandom(time(NULL));
+    IBT* t = new IBT(size, imbalance, rank);
+    
+    WAIT_BARRIER;
+    
     printf("actualsize:%d\n", t->actualsize);
     global_array* ibt = t->getTreeArray();
     // t->Print();
-
-    int rank = gasnet_mynode();
-    int num_nodes = gasnet_nodes();
 
 
     // put root of tree in first work queue of the node that owns the root
@@ -470,7 +490,11 @@ int main(int argc, char* argv[]) {
 
         counts[i].termCount = 0;
         counts[i].workCount = 0;
+        counts[i].noWork = 0;
         stealsInFlightCounts[i] = 0;
+        numSuccessfulGlobalSteals[i] = 0;
+        numFailedGlobalSteals[i] = 0;
+        numNULLGlobalSteals[i] = 0;
         for (uint64_t th=0; th<num_threads_per_core; th++) {
             wis[i][th].core_index = i;
             wis[i][th].ibt = ibt;
@@ -508,12 +532,27 @@ int main(int argc, char* argv[]) {
 
     const double runtime = timer->avgIntervalNs();
 
+    // combine core counts into node-level counts
     uint64_t my_work_count = 0;
+    uint64_t my_nowork_count = 0;
+    uint64_t my_failed_global_steal_count = 0;
+    uint64_t my_successful_global_steal_count = 0;
+    uint64_t my_NULL_global_steal_count = 0;
     for (uint64_t core=0; core<num_cores; core++) {
         my_work_count += counts[core].workCount;
+        my_nowork_count += counts[core].noWork;
+        my_failed_global_steal_count += numFailedGlobalSteals[core];
+        my_successful_global_steal_count += numSuccessfulGlobalSteals[core];
+        my_NULL_global_steal_count += numNULLGlobalSteals[core];
     }
+
+    printf("node%d work=%lu, nowork=%lu\n", rank, my_work_count, my_nowork_count);
+
+    printf("node%d failed global steals:%lu; null global steals:%lu, successful global steals:%lu; (%f)\n", rank, my_failed_global_steal_count, my_NULL_global_steal_count, my_successful_global_steal_count, (double)my_successful_global_steal_count/(my_successful_global_steal_count + my_failed_global_steal_count + my_NULL_global_steal_count));
+
     WAIT_BARRIER;
-    uint64_t global_work_count = serialReduce(COLL_ADD, 0, my_work_count);
+    //uint64_t global_work_count = serialReduce(COLL_ADD, 0, my_work_count);
+    uint64_t global_work_count = ringReduce(COLL_ADD, 0, my_work_count);
     WAIT_BARRIER;
 
     if (0 ==rank) 
@@ -548,6 +587,7 @@ void workStealRequestHandler(gasnet_token_t token, gasnet_handlerarg_t a0) {
     }
 
     bool gotWork = false;
+    bool gotNullWork = false;
     TreeNode_ptr work;
 
     // steal in random order
@@ -567,18 +607,39 @@ void workStealRequestHandler(gasnet_token_t token, gasnet_handlerarg_t a0) {
                     break;
                 case CWSD_OK:
                     done = true;
-                    gotWork = true;
+
+                    #if STEAL_GLOBAL_NULL_SATISFIES
+                        gotWork = true;
+                    #else
+                        if (work != TREENODE_NULL) {
+                            gotWork = true;
+                        } else {
+                            gotNullWork = true;
+                        }
+                    #endif
+                    
+                    
                     DEBUGN(" p%d: (%lu,%d)OK node=%lu\n", gasnet_mynode(), fromNode, token, t);
                     break;
                 default:
                     done = true;
-                    break;
             }
         }
     }
 
-    if (!gotWork) { 
-        work = TREENODE_NULL; // communicate that the steal failed
+    #if STEAL_GLOBAL_NULL_SATISFIES
+    if (!gotWork) {
+    #else
+    if (!gotWork && !gotNullWork) {
+    #endif 
+        work = TREENODE_FAIL; // communicate that the steal failed
+        DEBUGN("steal request from(%d) gets NODE=FAIL\n", fromNode, work);
+    #if STEAL_GLOBAL_NULL_SATISFIES
+    } else if (work==TREENODE_NULL) {
+    #else
+    } else if (!gotWork) {
+        work = TREENODE_NULL;
+    #endif
         DEBUGN("steal request from(%d) gets NODE=NULL\n", fromNode, work);
     } else {
         DEBUGN("steal request from(%d) gets NODE=%lu\n", fromNode, work);
@@ -597,9 +658,17 @@ void workStealReplyHandler(gasnet_token_t token, gasnet_handlerarg_t a0, gasnet_
     //else printf("p%d: recv reply(%lu, %d) to core%d with TreeNode_ptr=%lu\n", gasnet_mynode(), token, fromNode, coreid, t);
   
     __sync_fetch_and_sub(&stealsInFlightCounts[coreid], 1);
-    
-    if (t!=TREENODE_NULL) {
-        pushNodeGlobalQueue(a0);
+
+    switch (t) {
+        case TREENODE_NULL:
+            __sync_fetch_and_add(&numNULLGlobalSteals[coreid], 1);
+            break;
+        case TREENODE_FAIL:
+            __sync_fetch_and_add(&numFailedGlobalSteals[coreid], 1);
+            break;
+        default:
+            pushNodeGlobalQueue(a0);
+            __sync_fetch_and_add(&numSuccessfulGlobalSteals[coreid], 1);
     }
 }
 
