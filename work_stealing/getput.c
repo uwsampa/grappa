@@ -23,14 +23,17 @@ void get_remote(global_array* ga, uint64_t index, uint64_t offset, size_t size, 
 
 void put_remote(global_array* ga, uint64_t index, void* data, uint64_t offset, size_t size) {
     global_address gaddr;
+    //printf("node%d puts at index=%lu\n", gasnet_mynode(), index);
     ga_index(ga, index, &gaddr);
     gaddr.offset += offset;
     if (gm_is_address_local(&gaddr)) {
         void* v = (uint64_t*) gm_local_gm_address_to_local_ptr(&gaddr);
         memcpy(v, data, size);
+ //       printf("%p: data=%lu %lu, size=%lu\n", v, ((uint64_t*)data)[0], ((uint64_t*)data)[1], size);
     } else {
         void* destptr = gm_address_to_ptr(&gaddr);
         int nodeid = gm_node_of_address(&gaddr);
+        //printf("node%d puts <%d, %p, %lu, %lu>\n", gasnet_mynode(), nodeid, destptr, data, size);
         gasnet_put (nodeid, destptr, data, size);
     }
 }
@@ -47,7 +50,7 @@ mem_tag_t get_doublelong_nb(global_array* ga, uint64_t index, void* dest) {
     if (gm_is_address_local(&gaddr)) {
         //printf("p%d: local for index %d\n", gasnet_mynode(), index);
         srcptr = gm_local_gm_address_to_local_ptr(&gaddr);
-        prefetchDL(srcptr);
+       prefetchDL(srcptr);
         mem_tag_t tag;
         tag.dest = dest;
         tag.src = srcptr;
