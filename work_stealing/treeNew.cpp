@@ -30,8 +30,10 @@
 
 #if IS_DEBUG
 	#define DEBUGN(formatstr, ...) debug_print(formatstr, __VA_ARGS__)
+    #define DEBUG0(formatstr) debug_print(formatstr)
 #else
 	#define DEBUGN(formatstr, ...) 0?0:0
+	#define DEBUG0(formatstr, ...) 0?0:0
 #endif
 
 
@@ -60,7 +62,7 @@ void __sched__noop__(pid_t, unsigned int, cpu_set_t*) {}
 #define TERM_COUNT_WORK 2
 #define TERM_COUNT_LOCAL_STEAL 2
 #define TERM_COUNT_REMOTE_STEAL 6
-#define TERM_COUNT_FACTOR 30
+#define TERM_COUNT_FACTOR 5
 
 #define WORKSTEAL_REQUEST_HANDLER 188
 #define WORKSTEAL_REPLY_HANDLER 187
@@ -72,6 +74,9 @@ void __sched__noop__(pid_t, unsigned int, cpu_set_t*) {}
 #define WAIT_BARRIER gasnet_barrier_notify(0, GASNET_BARRIERFLAG_ANONYMOUS); \
                      gasnet_barrier_wait(0, GASNET_BARRIERFLAG_ANONYMOUS)
 
+
+#define EXPLORE_PREF_SWITCH 0
+#define IBT_PERMUTE 1
 
 void workStealRequestHandler(gasnet_token_t token, gasnet_handlerarg_t a0);
 void workStealReplyHandler(gasnet_token_t token, gasnet_handlerarg_t a0, gasnet_handlerarg_t a1);
@@ -130,7 +135,7 @@ void init(int *argc, char ***argv) {
 
 typedef uint64_t TreeNode_ptr; //(global_array index)
 
-#define MAX_NUM_CORES 6
+#define MAX_NUM_CORES 12
 
 CircularWSDeque<TreeNode_ptr> local_wsqs [MAX_NUM_CORES];
 
@@ -194,9 +199,12 @@ class IBT {
         /* Maps 0.. size-1 into itself, for the purpose of eliminating locality. */
         /* return i if a tree respecting spatial locality is desired. */
         int Permute(int i) {
+          #if IBT_PERMUTE
             long long int j = i;
             return (j*LARGEPRIME) % size; 
-            /*return i;*/
+          #else
+            return i;
+          #endif
         }
         void BuildIBT(int root, int size) {
             int t1_size = (size-1)/part;
@@ -218,12 +226,14 @@ class IBT {
                 TreeNode pd;
                 pd.left = t1;
                 pd.right = t2;
+             //   DEBUGN("putting %d:[L:%lu,R:%lu]\n", r, pd.left, pd.right);
                 put_remote(ibt, r, &pd, 0, sizeof(TreeNode));
             } else {
                 //r -> left = t2, r -> right = t1;
                 TreeNode pd;
                 pd.left = t2;
                 pd.right = t1;
+             //   DEBUGN("putting %d:[L:%lu,R:%lu]\n", r, pd.left, pd.right);
                 put_remote(ibt, r, &pd, 0, sizeof(TreeNode));
             }
         }
@@ -243,6 +253,7 @@ class IBT {
 void ExploreTree(global_array* ibt, TreeNode_ptr root, uint64_t explorer_id, thread* me) {
     if (root!=TREENODE_NULL) {
         TreeNode rn;
+        
         mem_tag_t tag = get_doublelong_nb(ibt, root, &rn);
         thread_yield(me);
         if (tag.dest) {
@@ -253,12 +264,12 @@ void ExploreTree(global_array* ibt, TreeNode_ptr root, uint64_t explorer_id, thr
                 thread_yield(me);
             }
         }
+        
         DEBUGN("tree %lu produced ", root);
-        if (rn.left==TREENODE_NULL) DEBUGN("left:NULL, ");
+        if (rn.left==TREENODE_NULL) DEBUG0("left:NULL, ");
         else DEBUGN("left:%lu, ", rn.left);
-        if (rn.right==TREENODE_NULL) DEBUGN("right:NULL\n");
+        if (rn.right==TREENODE_NULL) DEBUG0("right:NULL\n");
         else DEBUGN("right:%lu\n", rn.right);
-           
         spawnET(rn.left, explorer_id );
         spawnET(rn.right, explorer_id );
     }
@@ -279,6 +290,7 @@ typedef struct counts_t {
     uint64_t workCount;
     uint64_t termCount;
     uint64_t noWork;
+    uint64_t localSteals;
 } counts_t;
 
 void swap(int* arr, int i, int j) {
@@ -334,11 +346,28 @@ void thread_runnable(thread* me, void* arg) {
     thread_exit(me, NULL);
 }
 
+const int _indices_[] = {0,1,2,3,4,5,6,7,8,9,10,11};
+
 void run(thread* me, int core_index, global_array* ibt, int myNode, const int num_cores_per_node, const int num_nodes, counts_t* counts, const uint64_t terminationCount) { 
     // 'counts' shared by threads on a core
 
+/** STATIC PERM **/
+    int perm[num_cores_per_node];
+    memcpy(perm,_indices_,sizeof(int)*num_cores_per_node);
+
+    // exlcude self for local stealing
+    swap(perm, core_index, 0);
+
+    for (int i=1; i<num_cores_per_node; i++) {
+       swap(perm, i, random()%(num_cores_per_node-i)+i);
+    }
+/****************/
+
+
     while (counts->termCount < terminationCount) {
-        gasnet_AMPoll();
+        if (num_nodes > 1) {
+            gasnet_AMPoll();
+        }
 
         bool gotWork = false;
         TreeNode_ptr work;
@@ -351,33 +380,31 @@ void run(thread* me, int core_index, global_array* ibt, int myNode, const int nu
             gotWork = true;
         } else {
             DEBUGN("p%d c%d(t%d) -- otherswq\n", myNode, core_index, me->id);
-            while (!gotWork && counts->termCount < terminationCount) {
-                DEBUGN("p%d c%d(t%d) -- (others) visited:%lu\ttermC:%lu\n", myNode, core_index, me->id, counts->workCount, counts->termCount);
-                // steal locally
-                int perm[num_cores_per_node];
-                for (int i=0; i<num_cores_per_node; i++) {
-                    perm[i] = i;
-                }
-
-                // exlcude self for local stealing
-                swap(perm, core_index, 0);
+            DEBUGN("p%d c%d(t%d) -- (others) visited:%lu\ttermC:%lu\n", myNode, core_index, me->id, counts->workCount, counts->termCount);
+            // steal locally
+      //      int perm[num_cores_per_node];
+    //        memcpy(perm,_indices_,sizeof(int)*num_cores_per_node);
             
-                // try to steal locally in the random order
-                // TODO: should a remote steal be started first if none in progress?
-                for (int i=1; i<num_cores_per_node; i++) {
-                    swap(perm, i, random()%(num_cores_per_node-i)+i);
+            // exlcude self for local stealing
+  //          swap(perm, core_index, 0);
 
-                    int victim_queue = perm[i];
-                    
-                    counts->termCount+=TERM_COUNT_LOCAL_STEAL;
-                    if (CWSD_OK == local_wsqs[victim_queue].steal(&work)) {
-                        gotWork = true;
-                        break;
-                    }
+            // try to steal locally in the random order
+            // TODO: should a remote steal be started first if none in progress?
+            for (int i=1; i<num_cores_per_node; i++) {
+//                swap(perm, i, random()%(num_cores_per_node-i)+i);   // SLOW
+
+                int victim_queue = perm[i];
+
+                counts->termCount+=TERM_COUNT_LOCAL_STEAL;
+                if (CWSD_OK == local_wsqs[victim_queue].steal(&work)) {
+                    counts->localSteals++;
+                    gotWork = true;
+                    DEBUGN("p%d c%d(t%d) -- local steal from c%d\n", myNode, core_index, me->id, victim_queue);
+                    break;
                 }
+            }
 
-                if (num_nodes == 1) { thread_yield(me); continue; }
-
+            if (num_nodes > 1) {
                 if (!gotWork) {
                     gasnet_AMPoll();
 
@@ -395,7 +422,7 @@ void run(thread* me, int core_index, global_array* ibt, int myNode, const int nu
                         int victim_node = random()%num_nodes;
                         while (victim_node==myNode) victim_node = random()%num_nodes; // XXX: use permutation style instead
 
-                        DEBUGN("p%d: sending steal request to p%d queue%d\n", myNode, victim_node, i % num_cores_per_node);
+                        DEBUGN("p%d: sending steal request to p%d\n", myNode, victim_node);
                         counts->termCount+=TERM_COUNT_REMOTE_STEAL;
                         DEBUGN("p%d c%d(t%d) -- fires remote steal to node%d\n", myNode, core_index, me->id, victim_node);
                         gasnet_AMRequestShort1 (victim_node, WORKSTEAL_REQUEST_HANDLER, core_index);
@@ -403,7 +430,6 @@ void run(thread* me, int core_index, global_array* ibt, int myNode, const int nu
                         // un-add since no steal started
                         __sync_fetch_and_sub (&stealsInFlightCounts[core_index], 1);
                     }
-                    thread_yield(me);
                 }
             }
         }
@@ -419,6 +445,9 @@ void run(thread* me, int core_index, global_array* ibt, int myNode, const int nu
 
             counts->termCount+=TERM_COUNT_WORK;
             ExploreTree(ibt, work, core_index, me);
+        } else {
+            counts->noWork++;
+            thread_yield(me);
         }
     }
 }
@@ -491,6 +520,7 @@ int main(int argc, char* argv[]) {
         counts[i].termCount = 0;
         counts[i].workCount = 0;
         counts[i].noWork = 0;
+        counts[i].localSteals = 0;
         stealsInFlightCounts[i] = 0;
         numSuccessfulGlobalSteals[i] = 0;
         numFailedGlobalSteals[i] = 0;
@@ -509,6 +539,7 @@ int main(int argc, char* argv[]) {
 
 
     Timer* timer = Timer::createSimpleTimer("total_time");
+    Timer* core_timers[MAX_NUM_CORES]; for (int i=0; i<num_cores; i++) core_timers[i]=Timer::createSimpleTimer("tt");
     printf("starting traversal\n");
     WAIT_BARRIER;
     timer->markTime(false);
@@ -517,16 +548,19 @@ int main(int argc, char* argv[]) {
 
     #pragma omp parallel for num_threads(num_cores)
     for (int core=0; core<num_cores; core++) {
+
         //TODO: this is 1 machine only pinning
         cpu_set_t set;
         CPU_ZERO(&set);
         CPU_SET(coreslist[rank*num_cores+core], &set);
         SCHED_SET(0, sizeof(cpu_set_t), &set);
-        
+
+        core_timers[core]->markTime(false);
         run_all(schedulers[core]);
+        core_timers[core]->markTime(true);
         printf("p%d c%d quit [visited=%lu, termCount=%lu]\n", rank, core, counts[core].workCount, counts[core].termCount);
     }
-
+    
     WAIT_BARRIER;
     timer->markTime(true);
 
@@ -535,18 +569,24 @@ int main(int argc, char* argv[]) {
     // combine core counts into node-level counts
     uint64_t my_work_count = 0;
     uint64_t my_nowork_count = 0;
+    uint64_t my_local_steals_count = 0;
     uint64_t my_failed_global_steal_count = 0;
     uint64_t my_successful_global_steal_count = 0;
     uint64_t my_NULL_global_steal_count = 0;
     for (uint64_t core=0; core<num_cores; core++) {
         my_work_count += counts[core].workCount;
         my_nowork_count += counts[core].noWork;
+        my_local_steals_count += counts[core].localSteals;
         my_failed_global_steal_count += numFailedGlobalSteals[core];
         my_successful_global_steal_count += numSuccessfulGlobalSteals[core];
         my_NULL_global_steal_count += numNULLGlobalSteals[core];
     }
 
-    printf("node%d work=%lu, nowork=%lu\n", rank, my_work_count, my_nowork_count);
+    if (num_nodes==1) {
+        printf("per core\n");
+        for (int i=0; i<num_cores; i++) printf("\t[%d]: w:%lu, nw:%lu, ls:%lu, rate:%f Mref/s\n", i, counts[i].workCount, counts[i].noWork, counts[i].localSteals, (((double)my_work_count)/core_timers[i]->avgIntervalNs())*1000);
+    }
+    printf("node%d work=%lu, nowork=%lu(%f), localSteals=%lu\n", rank, my_work_count, my_nowork_count, (double)my_nowork_count/(my_work_count+my_nowork_count), my_local_steals_count);
 
     printf("node%d failed global steals:%lu; null global steals:%lu, successful global steals:%lu; (%f)\n", rank, my_failed_global_steal_count, my_NULL_global_steal_count, my_successful_global_steal_count, (double)my_successful_global_steal_count/(my_successful_global_steal_count + my_failed_global_steal_count + my_NULL_global_steal_count));
 
@@ -619,7 +659,7 @@ void workStealRequestHandler(gasnet_token_t token, gasnet_handlerarg_t a0) {
                     #endif
                     
                     
-                    DEBUGN(" p%d: (%lu,%d)OK node=%lu\n", gasnet_mynode(), fromNode, token, t);
+                    DEBUGN(" p%d: (%lu,%d)OK node=%lu\n", gasnet_mynode(), fromNode, token, work);
                     break;
                 default:
                     done = true;
