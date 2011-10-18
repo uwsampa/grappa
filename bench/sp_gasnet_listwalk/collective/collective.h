@@ -30,6 +30,13 @@ uint64_t serialReduce(uint64_t (*commutative_func)(uint64_t, uint64_t), uint64_t
 void serialReduceRequestHandler(gasnet_token_t token, gasnet_handlerarg_t a0);
 
 
+// serially in ring
+uint64_t ringReduce(uint64_t (*commutative_func)(uint64_t, uint64_t), uint64_t home_node, uint64_t myValue );
+#define COLLECTIVE_RING_REDUCTION_HANDLER 212
+void ringReduceRequestHandler(gasnet_token_t token, gasnet_handlerarg_t a0);
+
+
+
 #endif // _COLLECTIVE_H_
 
 
