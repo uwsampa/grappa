@@ -56,14 +56,6 @@ typedef struct stack_element {
   uint64_t d2;
 } stack_element_t;
 
-#define STACK_DATA_T stack_element_t
-#include "stack.h"
-
-//#include "jumpthreads.h"
-//#include "MCRingBuffer.h"
-//#include "walk.h"
-
-stack_t s;
 MCRingBuffer q;
 
 int everything_is_local = 0;
@@ -90,8 +82,16 @@ struct mailbox {
   uint64_t issue_ts;
   uint64_t send_ts;
   uint64_t recv_ts;
+  uint64_t network_ts;
+  uint64_t recvd_ts;
   uint64_t complete_ts;
   int full;
+  uint64_t issue_count;
+  uint64_t send_count;
+  uint64_t reply_count;
+  uint64_t * payload;
+  uint64_t * local_payload;
+  uint64_t payload_size;
 };
 
 
@@ -101,67 +101,7 @@ int network_done = 0;
 int local_done = 0;
 int local_active = 0;
 int request_received = 0;
-int reply_received = 0;
-
-int AM_NODE_REQUEST_HANDLER = -1;
-int am_node_request(psm_am_token_t token, psm_epaddr_t epaddr,
-	  psm_amarg_t *args, int nargs, 
-	  void *src, uint32_t len) {
-  exit(1);
-  stack_element_t sel;
-  sel.d1 = args[0].u64;
-  sel.d2 = args[1].u64;
-  if (DEBUG) { printf("Node %d got request for %p for %p\n", mynode, sel.d1, sel.d2); }
-  stack_push( &s, sel );
-  ++request_received;
-  return 0;
-}
-
-int AM_NODE_REPLY_HANDLER = -1;
-int am_node_reply(psm_am_token_t token, psm_epaddr_t epaddr,
-	  psm_amarg_t *args, int nargs, 
-	  void *src, uint32_t len) {
-  exit(1);
-  uint64_t * dest_addr = (uint64_t *) args[0].u64;
-  uint64_t data = args[1].u64;
-  if (DEBUG) { printf("Node %d got response of %p for %p\n", mynode, data, dest_addr); }
-  *dest_addr = data;
-  ++reply_received;
-  return 0;
-}
-
-int AM_NODE_REQUEST_AGG_HANDLER = -1;
-int am_node_request_agg(psm_am_token_t token, psm_epaddr_t epaddr,
-			psm_amarg_t *args, int nargs, 
-			void *src, uint32_t len) {
-  exit(1);
-  stack_element_t sel;
-  int off;
-  for( off = 0; off < nargs; off += 2 ) {
-    sel.d1 = args[off+0].u64;
-    sel.d2 = args[off+1].u64;
-    if (DEBUG) { printf("Node %d got request for %p for %p\n", mynode, sel.d1, sel.d2); }
-    stack_push( &s, sel );
-    ++request_received;
-  }
-  return 0;
-}
-
-int AM_NODE_REPLY_AGG_HANDLER = -1;
-int am_node_reply_agg(psm_am_token_t token, psm_epaddr_t epaddr,
-		      psm_amarg_t *args, int nargs, 
-		      void *src, uint32_t len) {
-  exit(1);
-  int off;
-  for( off = 0; off < nargs; off += 2 ) {
-    uint64_t * dest_addr = (uint64_t *) args[0+off].u64;
-    uint64_t data = args[1+off].u64;
-    if (DEBUG) { printf("Node %d got response of %p for %p\n", mynode, data, dest_addr); }
-    *dest_addr = data;
-    ++reply_received;
-  }
-}
-
+int reply_count = 0;
 
 int AM_NODE_REQUEST_AGG_BULK_HANDLER = -1;
 int am_node_request_agg_bulk(psm_am_token_t token, psm_epaddr_t epaddr,
@@ -197,9 +137,53 @@ int am_node_reply_agg_bulk(psm_am_token_t token, psm_epaddr_t epaddr,
     if (DEBUG) { printf("Node %d got response of %p for mailbox %p\n", mynode, data, mb); }
     mb->data = data;
     mb->recv_ts = recv_ts;
-    ++reply_received;
+    ++reply_count;
   }
 }
+
+
+uint64_t prev_addr = 0;
+uint64_t prev_data = 0;
+
+int AM_NODE_REPLY_AGG_BULK_BLOCK_HANDLER = -1;
+int am_node_reply_agg_bulk_block(psm_am_token_t token, psm_epaddr_t epaddr,
+				 psm_amarg_t *args, int nargs, 
+				 void *src, uint32_t len) {
+  exit(99);
+  uint64_t * uintargs = (uint64_t *) src;
+  int off;
+  uint64_t recv_ts;
+  rdtscll( recv_ts );
+    uint64_t message_payload_len = 0;
+  for( off = 0; off * sizeof(uint64_t) < len; off += 3 + message_payload_len ) {
+    //uint64_t * dest_addr = (uint64_t *) uintargs[0+off];
+    struct mailbox * mb = (struct mailbox *) uintargs[0+off];
+    uint64_t data = uintargs[1+off];
+    message_payload_len = uintargs[2+off];
+    uint64_t * message_payload = &uintargs[3+off];
+    if (1 || DEBUG) { printf("Node %d got reply for mailbox %p data %p len %p new offset %lu\n", mynode, mb, data, message_payload_len, off); }  
+    mb->reply_count++;
+    if (0) {
+      if( mb->issue_count < mb->reply_count ) {
+	printf("Node %d got duplicate mailbox address of %p with data %p (old data %p) at offset %d after %lu replies (mailbox issue count %lu send count %lu reply count %lu) prev_addr %p prev_data %p\n", mynode, mb, uintargs[1+off], mb->data, off, reply_count, mb->issue_count, mb->send_count, mb->reply_count, prev_addr, prev_data);
+	assert(0);
+      }
+      assert(data != -1);
+    }
+    if (DEBUG) { printf("Node %d got response of %p for mailbox %p\n", mynode, data, mb); }
+    mb->data = data;
+    mb->recv_ts = recv_ts;
+    uint64_t * tsarg = (uint64_t *) args;
+    mb->network_ts = tsarg[0];
+    ++reply_count;
+    prev_addr = uintargs[0+off];
+    prev_data = uintargs[1+off];
+    memcpy( mb->local_payload, message_payload, message_payload_len * sizeof(uint64_t) );
+  }
+  assert( off * sizeof(uint64_t) == len );
+}
+
+
 
 int AM_QUIT_HANDLER = -1;
 int am_quit(psm_am_token_t token, psm_epaddr_t epaddr,
@@ -211,47 +195,19 @@ int am_quit(psm_am_token_t token, psm_epaddr_t epaddr,
 }
 
 void setup_ams( psm_ep_t ep ) {
-  psm_am_handler_fn_t handlers[] = { &am_node_request, &am_node_reply, 
-				     &am_node_request_agg, &am_node_reply_agg, 
-				     &am_node_request_agg_bulk, &am_node_reply_agg_bulk, 
+  psm_am_handler_fn_t handlers[] = { &am_node_request_agg_bulk, &am_node_reply_agg_bulk, 
+				     &am_node_reply_agg_bulk_block, 
 				     &am_quit };
   int handler_indices[ sizeof(handlers) ];
   PSM_CHECK( psm_am_register_handlers( ep, handlers, sizeof(handlers), handler_indices ) );
-  printf("AM_NODE_REQUEST_HANDLER = %d\n", (AM_NODE_REQUEST_HANDLER = handler_indices[0]) );
-  printf("AM_NODE_REPLY_HANDLER = %d\n", (AM_NODE_REPLY_HANDLER = handler_indices[1]) );
-  printf("AM_NODE_REQUEST_AGG_HANDLER = %d\n", (AM_NODE_REQUEST_AGG_HANDLER = handler_indices[2]) );
-  printf("AM_NODE_REPLY_AGG_HANDLER = %d\n", (AM_NODE_REPLY_AGG_HANDLER = handler_indices[3]) );
-  printf("AM_NODE_REQUEST_AGG_BULK_HANDLER = %d\n", (AM_NODE_REQUEST_AGG_BULK_HANDLER = handler_indices[4]) );
-  printf("AM_NODE_REPLY_AGG_BULK_HANDLER = %d\n", (AM_NODE_REPLY_AGG_BULK_HANDLER = handler_indices[5]) );
-  printf("AM_QUIT_HANDLER = %d\n", (AM_QUIT_HANDLER = handler_indices[6]) );
+  printf("AM_NODE_REQUEST_AGG_BULK_HANDLER = %d\n", (AM_NODE_REQUEST_AGG_BULK_HANDLER = handler_indices[0]) );
+  printf("AM_NODE_REPLY_AGG_BULK_HANDLER = %d\n", (AM_NODE_REPLY_AGG_BULK_HANDLER = handler_indices[1]) );
+  printf("AM_NODE_REPLY_AGG_BULK_BLOCK_HANDLER = %d\n", (AM_NODE_REPLY_AGG_BULK_BLOCK_HANDLER = handler_indices[2]) );
+  printf("AM_QUIT_HANDLER = %d\n", (AM_QUIT_HANDLER = handler_indices[3]) );
   PSM_CHECK( psm_am_activate(ep) );
 }
 
 
-
-void request( void * addr, void * dest_addr ) {
-  exit(1);
-  psm_amarg_t args[2];
-  args[0].u64 = (uint64_t) addr;
-  args[1].u64 = (uint64_t) dest_addr;
-  if (DEBUG) { printf("Node %d sending request for %p for %p\n", mynode, addr, dest_addr); }
-  PSM_CHECK( psm_am_request_short( dest2epaddr( addr2node( addr ) ), AM_NODE_REQUEST_HANDLER, 
-				   args, 2, NULL, 0,
-				   PSM_AM_FLAG_ASYNC | PSM_AM_FLAG_NOREPLY,
-				   NULL, NULL ) );
-}
-
-void reply( uint64_t dest_addr, uint64_t data ) {
-  exit(1);
-  psm_amarg_t args[2];
-  args[0].u64 = dest_addr;
-  args[1].u64 = data;
-  if (DEBUG) { printf("Node %d sending reply for %p for %p\n", mynode, dest_addr, data); }
-  PSM_CHECK( psm_am_request_short( dest2epaddr( addr2node( (void*) dest_addr ) ), AM_NODE_REPLY_HANDLER, 
-				   args, 2, NULL, 0,
-				   PSM_AM_FLAG_ASYNC | PSM_AM_FLAG_NOREPLY,
-				   NULL, NULL ) );
-}
 
 int aggregation_size = 20;
 
@@ -259,23 +215,8 @@ int request_off = 0;
 int request_sent = 0;
 psm_amarg_t request_args[ 128 ];
 struct mailbox * mailboxes[ 128 ];
-inline void request_agg( void * addr, void * dest_addr ) {
-  exit(1);
-  request_args[0+request_off].u64 = (uint64_t) addr;
-  request_args[1+request_off].u64 = (uint64_t) dest_addr;
-  request_off += 2;
-  ++request_sent;
-  if (DEBUG) { printf("Node %d sending request for %p for %p\n", mynode, addr, dest_addr); }
-  if (request_off == aggregation_size * 2) {
-    PSM_CHECK( psm_am_request_short( dest2epaddr( addr2node( addr ) ), AM_NODE_REQUEST_AGG_HANDLER, 
-				     request_args, aggregation_size * 2, NULL, 0,
-				     PSM_AM_FLAG_NOREPLY,
-				     NULL, NULL ) );
-    request_off = 0;
-  }
-}
-
 uint64_t send_count = 0;
+
 inline void request_agg_bulk( void * addr, void * dest_addr, struct mailbox * mb ) {
   if (addr != 0) {
     request_args[0+request_off].u64 = (uint64_t) addr;
@@ -285,7 +226,7 @@ inline void request_agg_bulk( void * addr, void * dest_addr, struct mailbox * mb
     ++request_sent;
     if (DEBUG) { printf("Node %d sending request for %p for %p\n", mynode, addr, dest_addr); }
   }
-  if( addr == 0 || request_off == aggregation_size * 2 ) {
+  if( (addr == 0 && request_off > 0) || request_off == aggregation_size * 2 ) {
     int i;
     uint64_t current_ts;
     ++send_count;
@@ -304,22 +245,6 @@ inline void request_agg_bulk( void * addr, void * dest_addr, struct mailbox * mb
 int reply_off = 0;
 int reply_sent = 0;
 psm_amarg_t reply_args[ 128 ];
-inline void reply_agg( uint64_t dest_addr, uint64_t data ) {
-  exit(1);
-  reply_args[0+reply_off].u64 = dest_addr;
-  reply_args[1+reply_off].u64 = data;
-  reply_off += 2;
-  ++reply_sent;
-  if (DEBUG) { printf("Node %d sending reply for %p for %p\n", mynode, dest_addr, data); }
-  if( reply_off == aggregation_size * 2 ) {
-    PSM_CHECK( psm_am_request_short( dest2epaddr( addr2node( (void*) dest_addr ) ), AM_NODE_REPLY_AGG_HANDLER, 
-				     reply_args, aggregation_size * 2, NULL, 0,
-				     //PSM_AM_FLAG_ASYNC | PSM_AM_FLAG_NOREPLY,
-				     PSM_AM_FLAG_NOREPLY,
-				     NULL, NULL ) );
-    reply_off = 0;
-  }
-}
 
 inline void reply_agg_bulk( uint64_t dest_addr, uint64_t data ) {
   if (dest_addr != 0) {
@@ -329,7 +254,7 @@ inline void reply_agg_bulk( uint64_t dest_addr, uint64_t data ) {
     ++reply_sent;
     if (DEBUG) { printf("Node %d sending reply for %p for %p\n", mynode, dest_addr, data); }
   }
-  if( dest_addr == 0 || reply_off == aggregation_size * 2 ) {
+  if( (dest_addr == 0 && reply_off > 0) || reply_off == aggregation_size * 2 ) {
     PSM_CHECK( psm_am_request_short( dest2epaddr( addr2node( (void*) dest_addr ) ), AM_NODE_REPLY_AGG_BULK_HANDLER, 
 				     NULL, 0, reply_args, reply_off * sizeof(uint64_t),
 				     PSM_AM_FLAG_NOREPLY,
@@ -337,6 +262,34 @@ inline void reply_agg_bulk( uint64_t dest_addr, uint64_t data ) {
     reply_off = 0;
   }
 }
+
+
+
+uint64_t block_payload_len = 0;
+uint64_t * block_payload = 0;
+uint64_t batch_size = 0;
+inline void reply_agg_bulk_block( uint64_t dest_addr, uint64_t data, uint64_t ts ) {
+  exit(98);
+  if (dest_addr != 0) {
+    reply_args[0+reply_off].u64 = dest_addr;
+    reply_args[1+reply_off].u64 = data;
+    reply_args[2+reply_off].u64 = block_payload_len;
+    memcpy( &reply_args[3+reply_off].u64, block_payload, block_payload_len * sizeof(uint64_t) );
+    reply_off += 3 + block_payload_len;
+    ++reply_sent;
+    ++batch_size;
+    if (1 || DEBUG) { printf("Node %d sending reply for %p for %p new offset %lu\n", mynode, dest_addr, data, reply_off); }  
+  }
+  if( (dest_addr == 0 && reply_off > 0)  || batch_size == aggregation_size ) {
+    PSM_CHECK( psm_am_request_short( dest2epaddr( addr2node( (void*) dest_addr ) ), AM_NODE_REPLY_AGG_BULK_BLOCK_HANDLER, 
+				     NULL, 0, reply_args, reply_off * sizeof(uint64_t),
+				     PSM_AM_FLAG_NOREPLY,
+				     NULL, NULL ) );
+    reply_off = 0;
+    batch_size = 0;
+  }
+}
+
 
 void quit() {
   if (DEBUG) { printf("Node %d sending quit request\n", mynode); }
@@ -426,7 +379,6 @@ void thread_runnable( thread * me, void * argsv ) {
 
 
 struct network_args {
-  stack_t * s;
 };
 
 int request_processed;
@@ -582,8 +534,6 @@ int main( int argc, char * argv[] ) {
   struct thread_args args[ opt->cores ][ opt->threads ];
 
   struct network_args netargs;
-  stack_init( &s, 1024 );
-  netargs.s = &s;
   MCRingBuffer_init( &q );
   gasneti_bootstrapBarrier_ssh();
 

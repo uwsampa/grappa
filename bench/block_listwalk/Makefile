@@ -65,7 +65,7 @@ PSM_INSTALL=/sampa/home/nelson/softxmt/tools/infinipath-psm-1.14
 
 
 listwalk.o: CFLAGS+= -I/sampa/home/nelson/softxmt/tools/GASNet-1.16.2/other/ssh-spawner
-listwalk: options.o alloc.o listwalk.o psm_utils.o stack.o MCRingBuffer.o
+listwalk: options.o alloc.o listwalk.o psm_utils.o MCRingBuffer.o
 	$(LD) $(LFLAGS) -o $@ $^ $(LIBS) $(MPI_LIBS) $(GASNET_LIBS)
 	objdump -S $@ > $@.dis
 
