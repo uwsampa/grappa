@@ -27,7 +27,8 @@ struct options {
   int jumpthreads;
   int id;
   int force_local;
-  char * type;
+  int pause_for_debugger;
+  char type[128];
 };
 
 struct options parse_options( int * argc, char ** argv[] );

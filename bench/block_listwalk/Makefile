@@ -5,7 +5,12 @@ NUM_JUMP_THREADS?=16
 run: listwalk
 #	GASNET_SSH_SERVERS='n01,n04' ./listwalk 20:2 -L 18 -n 3 -t 128
 #	GASNET_SSH_SERVERS='n01,n04' ./listwalk 20:2 -L 21 -n 16 -t 256 -c 10 -b 35
-	GASNET_SSH_SERVERS='n01,n04' ./listwalk 2:2 -L 21 -n 1 -t 32 -b 20
+
+#	GASNET_SSH_SERVERS='n01,n04' ./listwalk 20:2 -L 21 -n 1 -t 256 -b 20 -c 10
+#	GASNET_SSH_SERVERS='n01,n04' ./listwalk 2:2 -L 21 -n 1 -t 256 -b 20 -c 1 --type inline --payload_size_log 3
+	GASNET_SSH_SERVERS='n01,n04' ./listwalk 20:2 -L 21 -n 1 -t 256 -b 10 -c 10 --type block --payload_size_log 10
+#	GASNET_SSH_SERVERS='n01,n04' ./listwalk 2:2 -L 18 -n 1 -t 1 -b 1 -c 1 --type block --payload_size_log 0
+
 #	GASNET_SSH_SERVERS='n01,n04' ./listwalk 2:2 -L 21 -n 1 -t 8
 #	GASNET_SSH_SERVERS='n01,n04' ./listwalk 2:2 -L 12 -n 4 -t 1
 ##	GASNET_SSH_SERVERS='n01,n04' ./listwalk 2:2 -L 21 -n 1 -t 1

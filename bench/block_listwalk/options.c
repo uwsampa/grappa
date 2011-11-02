@@ -1,6 +1,7 @@
 
 #include <stdio.h>
 #include <stdlib.h>
+#include <string.h>
 #include <getopt.h>
 
 #include "options.h"
@@ -34,6 +35,7 @@ static struct option long_options[] = {
   {"id",         required_argument, NULL, 'I'},
 
   {"type",         required_argument, NULL, 'T'},
+  {"pause_for_debugger",         no_argument, NULL, 'P'},
 
   {"help",             no_argument,       NULL, 'h'},
   {NULL,               no_argument,       NULL, 0}
@@ -63,10 +65,11 @@ struct options parse_options( int * argc, char ** argv[] ) {
     .jumpthreads = 1,
     .force_local = 0,
     .id = 1,
-    .type = NULL,
+    .pause_for_debugger = 0,
   };
+  strcpy( opt.type, "default" );
   int c, option_index = 1;
-  while ((c = getopt_long(*argc, *argv, "k:c:t:l:s:n:o:p:b:x:d:q:L:S:I:T:F0mrwfJh?",
+  while ((c = getopt_long(*argc, *argv, "k:c:t:l:s:n:o:p:b:x:d:q:L:S:I:T:PF0mrwfJh?",
                           long_options, &option_index)) >= 0) {
     switch (c) {
     case 0:   // flag set
@@ -142,7 +145,10 @@ struct options parse_options( int * argc, char ** argv[] ) {
       opt.id = atoi(optarg);
       break;
     case 'T':
-      opt.type = optarg;
+      strncpy( opt.type, optarg, sizeof(opt.type) );
+      break;
+    case 'P':
+      opt.pause_for_debugger = 1;
       break;
     case 'h':
     case '?':

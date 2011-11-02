@@ -126,6 +126,7 @@ int AM_NODE_REPLY_AGG_BULK_HANDLER = -1;
 int am_node_reply_agg_bulk(psm_am_token_t token, psm_epaddr_t epaddr,
 			   psm_amarg_t *args, int nargs, 
 			   void *src, uint32_t len) {
+  exit(192);
   uint64_t * uintargs = (uint64_t *) src;
   int off;
   uint64_t recv_ts;
@@ -149,7 +150,6 @@ int AM_NODE_REPLY_AGG_BULK_BLOCK_HANDLER = -1;
 int am_node_reply_agg_bulk_block(psm_am_token_t token, psm_epaddr_t epaddr,
 				 psm_amarg_t *args, int nargs, 
 				 void *src, uint32_t len) {
-  exit(99);
   uint64_t * uintargs = (uint64_t *) src;
   int off;
   uint64_t recv_ts;
@@ -161,7 +161,7 @@ int am_node_reply_agg_bulk_block(psm_am_token_t token, psm_epaddr_t epaddr,
     uint64_t data = uintargs[1+off];
     message_payload_len = uintargs[2+off];
     uint64_t * message_payload = &uintargs[3+off];
-    if (1 || DEBUG) { printf("Node %d got reply for mailbox %p data %p len %p new offset %lu\n", mynode, mb, data, message_payload_len, off); }  
+    if (DEBUG) { printf("Node %d got reply for mailbox %p data %p len %p new offset %lu\n", mynode, mb, data, message_payload_len, off); }  
     mb->reply_count++;
     if (0) {
       if( mb->issue_count < mb->reply_count ) {
@@ -195,7 +195,8 @@ int am_quit(psm_am_token_t token, psm_epaddr_t epaddr,
 }
 
 void setup_ams( psm_ep_t ep ) {
-  psm_am_handler_fn_t handlers[] = { &am_node_request_agg_bulk, &am_node_reply_agg_bulk, 
+  psm_am_handler_fn_t handlers[] = { &am_node_request_agg_bulk, 
+				     &am_node_reply_agg_bulk, 
 				     &am_node_reply_agg_bulk_block, 
 				     &am_quit };
   int handler_indices[ sizeof(handlers) ];
@@ -247,6 +248,7 @@ int reply_sent = 0;
 psm_amarg_t reply_args[ 128 ];
 
 inline void reply_agg_bulk( uint64_t dest_addr, uint64_t data ) {
+  exit(191);
   if (dest_addr != 0) {
     reply_args[0+reply_off].u64 = dest_addr;
     reply_args[1+reply_off].u64 = data;
@@ -268,8 +270,7 @@ inline void reply_agg_bulk( uint64_t dest_addr, uint64_t data ) {
 uint64_t block_payload_len = 0;
 uint64_t * block_payload = 0;
 uint64_t batch_size = 0;
-inline void reply_agg_bulk_block( uint64_t dest_addr, uint64_t data, uint64_t ts ) {
-  exit(98);
+inline void reply_agg_bulk_block( uint64_t dest_addr, uint64_t data ) {
   if (dest_addr != 0) {
     reply_args[0+reply_off].u64 = dest_addr;
     reply_args[1+reply_off].u64 = data;
@@ -278,7 +279,7 @@ inline void reply_agg_bulk_block( uint64_t dest_addr, uint64_t data, uint64_t ts
     reply_off += 3 + block_payload_len;
     ++reply_sent;
     ++batch_size;
-    if (1 || DEBUG) { printf("Node %d sending reply for %p for %p new offset %lu\n", mynode, dest_addr, data, reply_off); }  
+    if (DEBUG) { printf("Node %d sending reply for %p for %p new offset %lu\n", mynode, dest_addr, data, reply_off); }  
   }
   if( (dest_addr == 0 && reply_off > 0)  || batch_size == aggregation_size ) {
     PSM_CHECK( psm_am_request_short( dest2epaddr( addr2node( (void*) dest_addr ) ), AM_NODE_REPLY_AGG_BULK_BLOCK_HANDLER, 
@@ -313,7 +314,7 @@ inline void collect_mailbox_timestamps( struct mailbox * mb ) {
 
 uint64_t issue_count = 0;
 inline void issue( struct node ** pointer, struct mailbox * mb ) {
-  //  ++issue_count;
+  ++issue_count;
   rdtscll( mb->issue_ts );
   if( islocal( pointer ) ) {
     __builtin_prefetch( pointer, 0, 0 );
@@ -476,6 +477,7 @@ void thread_runnable( thread * me, void * argsv ) {
 
 
 struct network_args {
+  char * type;
 };
 
 int request_processed;
@@ -487,6 +489,8 @@ uint64_t service_count = 0;
 void network_runnable( thread * me, void * argsv ) {
   struct network_args * args = argsv;
   psm_ep_t ep = get_ep();
+  int block = (0 == strcmp( args->type, "block" ));
+  if (1 || DEBUG) { printf("Node %d network runnable type %s (block == %d)\n", mynode, args->type, block); fflush(stdout); }
   if (DEBUG) { printf("Node %d network thread starting\n", mynode); fflush(stdout); }
   int64_t ts;
   rdtscll(ts);
@@ -531,7 +535,11 @@ void network_runnable( thread * me, void * argsv ) {
 	  volatile uint64_t thisdest = dests[x];
 	  volatile uint64_t thisaddr = (uint64_t) addrs[x];
 	  volatile uint64_t newdata = *(addrs[x]);
-	  reply_agg_bulk( thisdest, newdata );
+	  if( block ) {
+	    reply_agg_bulk_block( thisdest, newdata );
+	  } else {
+	    reply_agg_bulk( thisdest, newdata );
+	  }
 	}
 	uint64_t end_ts;
 	rdtscll(end_ts);
@@ -556,10 +564,20 @@ void network_runnable( thread * me, void * argsv ) {
 
 
 void flusher_runnable( thread * me, void * argsv ) {
+  struct network_args * args = argsv;
+  int block = (0 == strcmp( args->type, "block" ));
   while( network_done == 0 || local_done == 0 ) {
     MCRingBuffer_flush( &q );
-    if (request_off != 0) request_agg_bulk( 0, 0, NULL);
-    if (reply_off != 0) reply_agg_bulk( 0, 0 );
+    if (request_off != 0) {
+      request_agg_bulk( 0, 0, NULL);
+    }
+    if (reply_off != 0) {
+      if( block ) {
+	reply_agg_bulk_block( 0, 0 );
+      } else {
+	reply_agg_bulk( 0, 0 );
+      }
+    }
     thread_yield( me );
   }
 }
@@ -595,17 +613,34 @@ int main( int argc, char * argv[] ) {
   struct options opt_actual = parse_options( &argc, &argv );
   struct options * opt = &opt_actual;
 
+
+  if( opt->pause_for_debugger ) {
+    printf("Node %d pausing so you can attach a debugger...\n", gasnet_mynode() ); fflush( stdout );
+    volatile int ready_to_continue = 0;
+    while ( !ready_to_continue ) {
+      sleep(1);
+    }
+  }
+
+
   aggregation_size = opt->batch_size;
   everything_is_local = opt->force_local;
 
   printf("Node %d allocating heap.\n", mynode); fflush(stdout);
   node * nodes = NULL;
   node ** bases = NULL;
-  void* nodes_start = (void*) 0x0000111122220000UL;
+  void* nodes_start = (void*) 0x0000222200000000UL;
   nodes = mmap( nodes_start, sizeof(node) * opt->list_size, PROT_READ | PROT_WRITE, MAP_FIXED | MAP_PRIVATE | MAP_ANONYMOUS, 0, 0 );
   assert( nodes == nodes_start );
 
   allocate_heap(opt->list_size, opt->cores, opt->threads, &bases, &nodes);
+
+
+  uint64_t* payload_start = (void*) 0x0000111100000000UL;
+  size_t payload_map_size = opt->payload_size == 0 ? 8 : opt->payload_size * sizeof(uint64_t);
+  uint64_t* payload = mmap( payload_start, payload_map_size, PROT_READ | PROT_WRITE, MAP_FIXED | MAP_PRIVATE | MAP_ANONYMOUS, 0, 0 );
+  assert( payload == payload_start );
+
 
   printf("Node %d base address is %p, extent is %p.\n", mynode, nodes, nodes + sizeof(node) * opt->list_size); fflush(stdout);
 
@@ -631,6 +666,8 @@ int main( int argc, char * argv[] ) {
   struct thread_args args[ opt->cores ][ opt->threads ];
 
   struct network_args netargs;
+  netargs.type = opt->type;
+
   MCRingBuffer_init( &q );
   gasneti_bootstrapBarrier_ssh();
 
@@ -648,7 +685,7 @@ int main( int argc, char * argv[] ) {
       args[ core_num ][ thread_num ].type = opt->type;
       args[ core_num ][ thread_num ].payload = NULL;
       args[ core_num ][ thread_num ].payload_size = 0;
-      
+
       if (1) {
 	// set up senders
 	if (mynode < num_nodes / 2) {
@@ -675,7 +712,7 @@ int main( int argc, char * argv[] ) {
       //thread_spawn( masters[ core_num ], schedulers[ core_num ], network_runnable, &netargs );
     }
     // set up periodic flusher
-    thread_spawn( masters[ core_num ], schedulers[ core_num ], flusher_runnable, NULL );
+    thread_spawn( masters[ core_num ], schedulers[ core_num ], flusher_runnable, &netargs );
   }
 
 
@@ -707,8 +744,9 @@ int main( int argc, char * argv[] ) {
   }
 
   double runtime = (end_time.tv_sec + 1.0e-9 * end_time.tv_nsec) - (start_time.tv_sec + 1.0e-9 * start_time.tv_nsec);
-  double rate = (double) opt->list_size * opt->count * (num_nodes / 2) / runtime;
-  double bandwidth = (double) opt->list_size * opt->count * sizeof(node) * (num_nodes / 2) / runtime;
+  double edge_rate = (double) opt->list_size * opt->count * (num_nodes / 2) / runtime;
+  double request_rate = (0 == strcmp( opt->type, "default" ) ) ? edge_rate : edge_rate * (opt->payload_size + 1);
+  double bandwidth = (double) request_rate * sizeof(uint64_t) / runtime;
 
   ASSERT_NZ( end_ts > start_ts );
   uint64_t runtime_ticks = end_ts - start_ts;
@@ -720,7 +758,7 @@ int main( int argc, char * argv[] ) {
   double polling_latency = (double) polling_ticks / tick_rate;
   double service_latency = (double) service_ticks / tick_rate;
 
-  issue_count = (opt->list_size * opt->count);
+  //issue_count = (opt->list_size * opt->count);
   double avg_latency = total_latency / issue_count; //(opt->list_size * opt->count);
   double avg_aggregation_latency = aggregation_latency / issue_count; //(opt->list_size * opt->count);
   double avg_network_latency = network_latency / issue_count; //(opt->list_size * opt->count);
@@ -730,8 +768,6 @@ int main( int argc, char * argv[] ) {
   
 
   if( 1 || mynode < num_nodes / 2 ) {
-    /* printf("header, id, batch_size, list_size, count, processes, threads, runtime, message rate (M/s), bandwidth (MB/s), sum, runtime_ticks, total_latency_ticks, tick_rate, issue_count, send_count, avg_latency (us), aggregation_latency (us), network_latency (us), wakeup_latency (us), poll_count, polling_latency (us), service_count, service_latency (us)\n"); */
-    /* printf("data, %d, %d, %d, %d, %d, %d, %f, %f, %f, %lu, %lu, %lu, %f, %lu, %lu, %.9f, %.9f, %.9f, %.9f, %lu, %.9f, %lu, %.9f\n", opt->id, opt->batch_size, opt->list_size, opt->count, processes, opt->threads, runtime, rate / 1000000, bandwidth / (1024 * 1024), sum, runtime_ticks, total_latency_ticks, tick_rate, issue_count, send_count, avg_latency * 1000000, avg_aggregation_latency * 1000000, avg_network_latency * 1000000, avg_wakeup_latency * 1000000, poll_count, avg_polling_latency * 1000000, service_count, avg_service_latency * 1000000); */
 
 #define METRICS( METRIC )						\
     METRIC( "Node",			"%d",   mynode );		\
@@ -739,12 +775,15 @@ int main( int argc, char * argv[] ) {
     METRIC( "batch_size", 		"%d",   opt->batch_size );	\
     METRIC( "processes", 		"%d",   processes );		\
     METRIC( "threads",			"%d",   opt->threads );		\
+    METRIC( "type",			"%s",   opt->type );		\
     METRIC( "list_size", 		"%d",   opt->list_size );	\
+    METRIC( "payload_size", 		"%d",   opt->payload_size );	\
     METRIC( "count", 			"%d",   opt->count );		\
     METRIC( "force_local", 		"%d",   opt->force_local );	\
     METRIC( "is_sender", 		"%d",   mynode < num_nodes / 2 ); \
     METRIC( "runtime",			"%f",   runtime );		\
-    METRIC( "message rate (M/s)", 	"%f",   rate / 1000000 );	\
+    METRIC( "edge rate (M/s)",          "%f",   edge_rate / 1000000 );	\
+    METRIC( "request rate (M/s)",       "%f",   request_rate / 1000000 ); \
     METRIC( "bandwidth (MB/s)", 	"%f",   bandwidth / (1024 * 1024) ); \
     METRIC( "sum", 			"%lu",  sum );			\
     METRIC( "runtime_ticks", 		"%lu",  runtime_ticks );	\
