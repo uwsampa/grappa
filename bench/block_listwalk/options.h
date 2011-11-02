@@ -27,6 +27,7 @@ struct options {
   int jumpthreads;
   int id;
   int force_local;
+  char * type;
 };
 
 struct options parse_options( int * argc, char ** argv[] );

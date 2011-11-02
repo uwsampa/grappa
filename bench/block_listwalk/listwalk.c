@@ -357,16 +357,113 @@ uint64_t walk_prefetch_switch( thread * me, node * current, uint64_t count ) {
   return (uint64_t) current;
 }
 
+uint64_t walk_prefetch_switch_sum_inline( thread * me, node * current, uint64_t count, uint64_t * payload, uint64_t payload_size ) {
+  struct mailbox mb;
+  mb.data = -1;
+  mb.addr = -1;
+  mb.full = 0;
+  mb.issue_count = 0;
+  mb.send_count = 0;
+  mb.reply_count = 0;
+  uint64_t sum = 0;
+
+  while( count > 0 ) {
+    --count;
+    issue( &current->next, &mb );
+    thread_yield( me );
+    current = complete( me, &current->next, &mb );
+
+    uint64_t i;
+    for( i = 0; i < payload_size; ++i ) {
+      issue( (node **) &payload[i], &mb );
+      thread_yield( me );
+      sum += (uint64_t) complete( me, (node **) &payload[i], &mb );
+    }
+    
+  }
+  return (uint64_t) current + sum;
+}
+
+
+uint64_t walk_prefetch_switch_sum_prefetch( thread * me, node * current, uint64_t count, uint64_t * payload, uint64_t payload_size ) {
+  struct mailbox mb[payload_size + 1];
+  int i;
+  for( i = 0; i < payload_size + 1; ++i ) {
+    mb[i].data = -1;
+    mb[i].addr = -1;
+    mb[i].full = 0;
+    mb[i].issue_count = 0;
+    mb[i].send_count = 0;
+    mb[i].reply_count = 0;
+  }
+  uint64_t sum = 0;
+
+  while( count > 0 ) {
+    --count;
+    issue( &current->next, &mb[0] );
+    for( i = 0; i < payload_size; ++i ) {
+      issue( (node **) &payload[i], &mb[i+1] );
+    }
+    thread_yield( me );
+    current = complete( me, &current->next, &mb[0] );
+    for( i = 0; i < payload_size; ++i ) {
+      sum += (uint64_t) complete( me, (node **) &payload[i], &mb[i+1] );
+    }
+
+  }
+  return (uint64_t) current + sum;
+}
+
+
+uint64_t walk_prefetch_switch_sum_block( thread * me, node * current, uint64_t count, uint64_t * payload, uint64_t payload_size ) {
+  struct mailbox mb;
+  int i;
+  mb.data = -1;
+  mb.addr = -1;
+  mb.full = 0;
+  mb.issue_count = 0;
+  mb.send_count = 0;
+  mb.reply_count = 0;
+  mb.local_payload = payload; 
+  uint64_t sum = 0;
+
+  while( count > 0 ) {
+    --count;
+    issue( &current->next, &mb );
+    thread_yield( me );
+    current = complete( me, &current->next, &mb );
+    for( i = 0; i < payload_size; ++i ) {
+      sum += mb.local_payload[i];
+    }
+
+  }
+
+  return (uint64_t) current + sum;
+}
+
+
+
 struct thread_args {
   node * base;
   uint64_t count;
   uint64_t result;
+  char * type;
+  uint64_t * payload;
+  uint64_t payload_size;
 };
 
 void thread_runnable( thread * me, void * argsv ) {
   struct thread_args * args = argsv;
   if (DEBUG) { printf("Node %d thread starting\n", mynode); fflush(stdout); }
-  args->result = walk_prefetch_switch( me, args->base, args->count );
+  if( args->type && 0 == strcmp( args->type, "block" ) ) {
+    args->result = walk_prefetch_switch_sum_block( me, args->base, args->count, args->payload, args->payload_size );    
+  } else if( args->type && 0 == strcmp( args->type, "prefetch" ) ) {
+    args->result = walk_prefetch_switch_sum_prefetch( me, args->base, args->count, args->payload, args->payload_size );    
+  } else if( args->type && 0 == strcmp( args->type, "inline" ) ) {
+    args->result = walk_prefetch_switch_sum_inline( me, args->base, args->count, args->payload, args->payload_size );    
+  } else {
+    args->result = walk_prefetch_switch( me, args->base, args->count );
+  }
   --local_active;
   if( local_active == 0 ) {
     local_done = 1;
@@ -548,6 +645,10 @@ int main( int argc, char * argv[] ) {
       args[ core_num ][ thread_num ].base = bases[ core_num * opt->threads + thread_num ];
       args[ core_num ][ thread_num ].count = opt->list_size * opt->count / (opt->cores * opt->threads);
       args[ core_num ][ thread_num ].result = 0;
+      args[ core_num ][ thread_num ].type = opt->type;
+      args[ core_num ][ thread_num ].payload = NULL;
+      args[ core_num ][ thread_num ].payload_size = 0;
+      
       if (1) {
 	// set up senders
 	if (mynode < num_nodes / 2) {

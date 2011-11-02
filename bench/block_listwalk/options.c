@@ -33,6 +33,8 @@ static struct option long_options[] = {
 
   {"id",         required_argument, NULL, 'I'},
 
+  {"type",         required_argument, NULL, 'T'},
+
   {"help",             no_argument,       NULL, 'h'},
   {NULL,               no_argument,       NULL, 0}
 };
@@ -61,9 +63,10 @@ struct options parse_options( int * argc, char ** argv[] ) {
     .jumpthreads = 1,
     .force_local = 0,
     .id = 1,
+    .type = NULL,
   };
   int c, option_index = 1;
-  while ((c = getopt_long(*argc, *argv, "k:c:t:l:s:n:o:p:b:x:d:q:L:S:I:F0mrwfJh?",
+  while ((c = getopt_long(*argc, *argv, "k:c:t:l:s:n:o:p:b:x:d:q:L:S:I:T:F0mrwfJh?",
                           long_options, &option_index)) >= 0) {
     switch (c) {
     case 0:   // flag set
@@ -137,6 +140,9 @@ struct options parse_options( int * argc, char ** argv[] ) {
       break;
     case 'I':
       opt.id = atoi(optarg);
+      break;
+    case 'T':
+      opt.type = optarg;
       break;
     case 'h':
     case '?':
