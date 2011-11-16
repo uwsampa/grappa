@@ -3,6 +3,7 @@
 #define __PSM_UTILS_H__
 
 #include <psm.h>
+#include <stdint.h>
 
 #define PSM_CHECK(stmt)							\
   do {									\
@@ -18,5 +19,7 @@ psm_epaddr_t dest2epaddr( int dest );
 psm_ep_t get_ep();
 void psm_setup( int gasneti_mynode, int gasneti_nodes );
 void psm_teardown();
+
+void psm_get_bytes_inout( uint64_t * tx_bytes, uint64_t * rx_bytes );
 
 #endif

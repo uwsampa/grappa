@@ -8,7 +8,11 @@ run: listwalk
 
 #	GASNET_SSH_SERVERS='n01,n04' ./listwalk 20:2 -L 21 -n 1 -t 256 -b 20 -c 10
 #	GASNET_SSH_SERVERS='n01,n04' ./listwalk 2:2 -L 21 -n 1 -t 256 -b 20 -c 1 --type inline --payload_size_log 3
-	GASNET_SSH_SERVERS='n01,n04' ./listwalk 20:2 -L 21 -n 1 -t 256 -b 10 -c 10 --type block --payload_size_log 10
+
+	GASNET_SSH_SERVERS='n01,n04' ./listwalk 2:2 -L 15 -n 1 -t 256 -b 50 -c 1 --type block --payload_size_log 7
+#	GASNET_SSH_SERVERS='n01,n04' ./listwalk 20:2 -L 21 -n 1 -t 256 -b 50 -c 10 --type block --payload_size_log 7
+#	GASNET_SSH_SERVERS='n01,n04' ./listwalk 20:2 -L 21 -n 1 -t 256 -b 10 -c 10 --type inline --payload_size_log 5
+
 #	GASNET_SSH_SERVERS='n01,n04' ./listwalk 2:2 -L 18 -n 1 -t 1 -b 1 -c 1 --type block --payload_size_log 0
 
 #	GASNET_SSH_SERVERS='n01,n04' ./listwalk 2:2 -L 21 -n 1 -t 8
@@ -56,7 +60,7 @@ MPI_LIBS=
 
 CFLAGS+= -I../../jumpthreads -L../../jumpthreads -DNUM_JUMP_THREADS=$(NUM_JUMP_THREADS)
 
-HEADERS=alloc.h node.h options.h stack.h MCRingBuffer.h
+HEADERS=alloc.h node.h options.h stack.h MCRingBuffer.h option_macros.h metrics.h
 
 %.o: %.c $(HEADERS)
 	$(CC) -c $(CFLAGS) $< -o $@
@@ -70,7 +74,8 @@ PSM_INSTALL=/sampa/home/nelson/softxmt/tools/infinipath-psm-1.14
 
 
 listwalk.o: CFLAGS+= -I/sampa/home/nelson/softxmt/tools/GASNet-1.16.2/other/ssh-spawner
-listwalk: options.o alloc.o listwalk.o psm_utils.o MCRingBuffer.o
+#listwalk: options.o alloc.o listwalk.o psm_utils.o MCRingBuffer.o option_macros.o
+listwalk: alloc.o listwalk.o psm_utils.o MCRingBuffer.o option_macros.o
 	$(LD) $(LFLAGS) -o $@ $^ $(LIBS) $(MPI_LIBS) $(GASNET_LIBS)
 	objdump -S $@ > $@.dis
 

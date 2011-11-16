@@ -29,13 +29,30 @@
 #include "alloc.h"
 #include "debug.h"
 
-#include "options.h"
+//#include "options.h"
+#include "option_macros.h"
 
 #include "thread.h"
 
 #include "metrics.h"
 
 #include <MCRingBuffer.h>
+
+
+
+#define MTU 2048
+//#define MTU 4096
+#define MTU_WORDS (MTU/8)
+
+
+void set_list_size_from_log( struct options * opt ) {
+  opt->list_size = 1L << opt->list_size_log;
+}
+
+void set_payload_size_from_log( struct options * opt ) {
+  opt->payload_size = 1L << opt->payload_size_log;
+}
+
 
 
 
@@ -126,7 +143,6 @@ int AM_NODE_REPLY_AGG_BULK_HANDLER = -1;
 int am_node_reply_agg_bulk(psm_am_token_t token, psm_epaddr_t epaddr,
 			   psm_amarg_t *args, int nargs, 
 			   void *src, uint32_t len) {
-  exit(192);
   uint64_t * uintargs = (uint64_t *) src;
   int off;
   uint64_t recv_ts;
@@ -141,7 +157,6 @@ int am_node_reply_agg_bulk(psm_am_token_t token, psm_epaddr_t epaddr,
     ++reply_count;
   }
 }
-
 
 uint64_t prev_addr = 0;
 uint64_t prev_data = 0;
@@ -161,24 +176,35 @@ int am_node_reply_agg_bulk_block(psm_am_token_t token, psm_epaddr_t epaddr,
     uint64_t data = uintargs[1+off];
     message_payload_len = uintargs[2+off];
     uint64_t * message_payload = &uintargs[3+off];
-    if (DEBUG) { printf("Node %d got reply for mailbox %p data %p len %p new offset %lu\n", mynode, mb, data, message_payload_len, off); }  
-    mb->reply_count++;
-    if (0) {
-      if( mb->issue_count < mb->reply_count ) {
-	printf("Node %d got duplicate mailbox address of %p with data %p (old data %p) at offset %d after %lu replies (mailbox issue count %lu send count %lu reply count %lu) prev_addr %p prev_data %p\n", mynode, mb, uintargs[1+off], mb->data, off, reply_count, mb->issue_count, mb->send_count, mb->reply_count, prev_addr, prev_data);
-	assert(0);
+
+    if( DEBUG ) { printf("Node %d got reply for mailbox %p data %p len %p new offset %lu\n", mynode, mb, data, message_payload_len, off); fflush(stdout); }
+
+    if( mb != -1 ) {
+
+      if (DEBUG) { 
+	printf("Node %d got reply for mailbox %p data %p len %p new offset %lu\n", mynode, mb, data, message_payload_len, off); fflush(stdout);
+      }  
+
+      mb->reply_count++;
+
+      if (0) {
+	if( mb->issue_count < mb->reply_count ) {
+	  printf("Node %d got duplicate mailbox address of %p with data %p (old data %p) at offset %d after %lu replies (mailbox issue count %lu send count %lu reply count %lu) prev_addr %p prev_data %p\n", mynode, mb, uintargs[1+off], mb->data, off, reply_count, mb->issue_count, mb->send_count, mb->reply_count, prev_addr, prev_data);
+	  assert(0);
+	}
+	assert(data != -1);
       }
-      assert(data != -1);
+
+      if (DEBUG) { printf("Node %d got response of %p for mailbox %p\n", mynode, data, mb); }
+      mb->data = data;
+      mb->recv_ts = recv_ts;
+      uint64_t * tsarg = (uint64_t *) args;
+      mb->network_ts = tsarg[0];
+      ++reply_count;
+      prev_addr = uintargs[0+off];
+      prev_data = uintargs[1+off];
+      memcpy( mb->local_payload, message_payload, message_payload_len * sizeof(uint64_t) );
     }
-    if (DEBUG) { printf("Node %d got response of %p for mailbox %p\n", mynode, data, mb); }
-    mb->data = data;
-    mb->recv_ts = recv_ts;
-    uint64_t * tsarg = (uint64_t *) args;
-    mb->network_ts = tsarg[0];
-    ++reply_count;
-    prev_addr = uintargs[0+off];
-    prev_data = uintargs[1+off];
-    memcpy( mb->local_payload, message_payload, message_payload_len * sizeof(uint64_t) );
   }
   assert( off * sizeof(uint64_t) == len );
 }
@@ -208,14 +234,15 @@ void setup_ams( psm_ep_t ep ) {
   PSM_CHECK( psm_am_activate(ep) );
 }
 
+#define REQUEST_LEN (1 << 24)
 
 
 int aggregation_size = 20;
 
 int request_off = 0;
 int request_sent = 0;
-psm_amarg_t request_args[ 128 ];
-struct mailbox * mailboxes[ 128 ];
+psm_amarg_t request_args[ REQUEST_LEN ];
+struct mailbox * mailboxes[ REQUEST_LEN ];
 uint64_t send_count = 0;
 
 inline void request_agg_bulk( void * addr, void * dest_addr, struct mailbox * mb ) {
@@ -245,10 +272,9 @@ inline void request_agg_bulk( void * addr, void * dest_addr, struct mailbox * mb
 
 int reply_off = 0;
 int reply_sent = 0;
-psm_amarg_t reply_args[ 128 ];
+psm_amarg_t reply_args[ REQUEST_LEN ];
 
 inline void reply_agg_bulk( uint64_t dest_addr, uint64_t data ) {
-  exit(191);
   if (dest_addr != 0) {
     reply_args[0+reply_off].u64 = dest_addr;
     reply_args[1+reply_off].u64 = data;
@@ -265,30 +291,55 @@ inline void reply_agg_bulk( uint64_t dest_addr, uint64_t data ) {
   }
 }
 
-
+#define BULK_BLOCK_DEBUG 0
 
 uint64_t block_payload_len = 0;
 uint64_t * block_payload = 0;
-uint64_t batch_size = 0;
-inline void reply_agg_bulk_block( uint64_t dest_addr, uint64_t data ) {
+uint64_t current_batch_size = 0;
+inline void reply_agg_bulk_block( uint64_t dest_addr, uint64_t data, int64_t payload_len, int depth ) {
+  int64_t available = MTU_WORDS - reply_off;
   if (dest_addr != 0) {
+
+    if (BULK_BLOCK_DEBUG || DEBUG) { printf("Node %d ready to send for %p for %p with %ld payload words and %ld available depth %d off %lu\n", mynode, dest_addr, data, payload_len, available, depth, reply_off); }  
+
+    if( available <= 3 ) {
+      if (BULK_BLOCK_DEBUG || DEBUG) { printf("Node %d flushing for %p for %p with %ld payload words and %ld available depth %d off %lu\n", mynode, dest_addr, data, payload_len, available, depth, reply_off); }  
+      reply_agg_bulk_block( 0, 0, 0, depth + 1 );
+      available = MTU_WORDS - reply_off;
+    }
+
+    while( payload_len + 3 > available ) {
+      if (BULK_BLOCK_DEBUG || DEBUG) { printf("Node %d sending partial reply for %p for %p with %ld payload words and %ld available depth %d off %lu\n", mynode, dest_addr, data, payload_len, available, depth, reply_off); }  
+      reply_agg_bulk_block( -1, data, available - 3, depth + 1 );
+      payload_len -= available - 3;
+      available = MTU_WORDS - reply_off;
+      if (BULK_BLOCK_DEBUG || DEBUG) { printf("Node %d new request is for %p for %p with %ld payload words and %ld available depth %d off %lu\n", mynode, dest_addr, data, payload_len, available, depth, reply_off); }  
+    }
+    if (BULK_BLOCK_DEBUG || DEBUG) { printf("Node %d sending final reply for %p for %p with %ld payload words and %ld available depth %d off %lu\n", mynode, dest_addr, data, payload_len, available, depth, reply_off); }  
+
+    /* if( (reply_off + 3 + block_payload_len >= REQUEST_LEN) ||  */
+    /* 	((reply_off + 3 + block_payload_len) * 8 >= MTU) ) { */
+    /*   reply_agg_bulk_block( 0, 0 ); */
+    /* } */
+
     reply_args[0+reply_off].u64 = dest_addr;
     reply_args[1+reply_off].u64 = data;
-    reply_args[2+reply_off].u64 = block_payload_len;
-    memcpy( &reply_args[3+reply_off].u64, block_payload, block_payload_len * sizeof(uint64_t) );
-    reply_off += 3 + block_payload_len;
+    reply_args[2+reply_off].u64 = payload_len;
+    memcpy( &reply_args[3+reply_off].u64, block_payload, payload_len * sizeof(uint64_t) );
+    reply_off += 3 + payload_len;
     ++reply_sent;
-    ++batch_size;
+    ++current_batch_size;
     if (DEBUG) { printf("Node %d sending reply for %p for %p new offset %lu\n", mynode, dest_addr, data, reply_off); }  
-  }
-  if( (dest_addr == 0 && reply_off > 0)  || batch_size == aggregation_size ) {
+  } 
+  if( (dest_addr == 0 && reply_off > 0)  || current_batch_size == aggregation_size || reply_off == MTU_WORDS ) {
     PSM_CHECK( psm_am_request_short( dest2epaddr( addr2node( (void*) dest_addr ) ), AM_NODE_REPLY_AGG_BULK_BLOCK_HANDLER, 
 				     NULL, 0, reply_args, reply_off * sizeof(uint64_t),
 				     PSM_AM_FLAG_NOREPLY,
 				     NULL, NULL ) );
     reply_off = 0;
-    batch_size = 0;
+    current_batch_size = 0;
   }
+  if (BULK_BLOCK_DEBUG || DEBUG) { printf("Node %d done sending for %p for %p with %ld payload words and %ld available depth %d off %lu\n", mynode, dest_addr, data, payload_len, available, depth, reply_off); }  
 }
 
 
@@ -490,7 +541,7 @@ void network_runnable( thread * me, void * argsv ) {
   struct network_args * args = argsv;
   psm_ep_t ep = get_ep();
   int block = (0 == strcmp( args->type, "block" ));
-  if (1 || DEBUG) { printf("Node %d network runnable type %s (block == %d)\n", mynode, args->type, block); fflush(stdout); }
+  if (DEBUG) { printf("Node %d network runnable type %s (block == %d)\n", mynode, args->type, block); fflush(stdout); }
   if (DEBUG) { printf("Node %d network thread starting\n", mynode); fflush(stdout); }
   int64_t ts;
   rdtscll(ts);
@@ -536,7 +587,7 @@ void network_runnable( thread * me, void * argsv ) {
 	  volatile uint64_t thisaddr = (uint64_t) addrs[x];
 	  volatile uint64_t newdata = *(addrs[x]);
 	  if( block ) {
-	    reply_agg_bulk_block( thisdest, newdata );
+	    reply_agg_bulk_block( thisdest, newdata, block_payload_len, 0 );
 	  } else {
 	    reply_agg_bulk( thisdest, newdata );
 	  }
@@ -573,7 +624,7 @@ void flusher_runnable( thread * me, void * argsv ) {
     }
     if (reply_off != 0) {
       if( block ) {
-	reply_agg_bulk_block( 0, 0 );
+	reply_agg_bulk_block( 0, 0, 0, 0 );
       } else {
 	reply_agg_bulk( 0, 0 );
       }
@@ -607,11 +658,18 @@ int main( int argc, char * argv[] ) {
   setup_ams( get_ep() );
   printf("Node %d PSM is set up.\n", mynode); fflush(stdout);
 
+  uint64_t psm_tx_bytes_start = 0;
+  uint64_t psm_rx_bytes_start = 0;
+  uint64_t psm_tx_bytes_end = 0;
+  uint64_t psm_rx_bytes_end = 0;
+
   //ASSERT_Z( gasnet_attach( NULL, 0, 0, 0 ) );
   //printf("hello from node %d of %d\n", gasnet_mynode(), gasnet_nodes() );
 
   struct options opt_actual = parse_options( &argc, &argv );
   struct options * opt = &opt_actual;
+
+  print_options( opt );
 
 
   if( opt->pause_for_debugger ) {
@@ -640,7 +698,17 @@ int main( int argc, char * argv[] ) {
   size_t payload_map_size = opt->payload_size == 0 ? 8 : opt->payload_size * sizeof(uint64_t);
   uint64_t* payload = mmap( payload_start, payload_map_size, PROT_READ | PROT_WRITE, MAP_FIXED | MAP_PRIVATE | MAP_ANONYMOUS, 0, 0 );
   assert( payload == payload_start );
+  block_payload = payload;
+  block_payload_len = opt->payload_size;
 
+  if( (strcmp(opt->type,"block") == 0) && ((3 + block_payload_len) * 8 >= MTU) ) {
+    printf("ERROR: payload too large for max packet size" ); fflush(stdout);
+    //exit(1);
+  }
+  if( (strcmp(opt->type,"block") == 0) && (opt->batch_size * (3 + block_payload_len) * 8 > MTU) ) {
+    printf("WARNING: payload size is too large to reach max aggregation with block scheme\n");
+  }
+  
 
   printf("Node %d base address is %p, extent is %p.\n", mynode, nodes, nodes + sizeof(node) * opt->list_size); fflush(stdout);
 
@@ -683,8 +751,8 @@ int main( int argc, char * argv[] ) {
       args[ core_num ][ thread_num ].count = opt->list_size * opt->count / (opt->cores * opt->threads);
       args[ core_num ][ thread_num ].result = 0;
       args[ core_num ][ thread_num ].type = opt->type;
-      args[ core_num ][ thread_num ].payload = NULL;
-      args[ core_num ][ thread_num ].payload_size = 0;
+      args[ core_num ][ thread_num ].payload = payload;
+      args[ core_num ][ thread_num ].payload_size = opt->payload_size;
 
       if (1) {
 	// set up senders
@@ -722,6 +790,7 @@ int main( int argc, char * argv[] ) {
 
   gasneti_bootstrapBarrier_ssh();
   printf("Node %d starting.\n", mynode); fflush(stdout);
+  psm_get_bytes_inout( &psm_tx_bytes_start, &psm_rx_bytes_start );
   clock_gettime(CLOCK_MONOTONIC, &start_time);
   rdtscll(start_ts);
   //#pragma omp parallel for num_threads( opt->cores )
@@ -730,6 +799,7 @@ int main( int argc, char * argv[] ) {
   }
   rdtscll(end_ts);
   clock_gettime(CLOCK_MONOTONIC, &end_time);
+  psm_get_bytes_inout( &psm_tx_bytes_end, &psm_rx_bytes_end );
   printf("Node %d done.\n", mynode); fflush(stdout);
   gasneti_bootstrapBarrier_ssh();
 
@@ -743,10 +813,16 @@ int main( int argc, char * argv[] ) {
     }
   }
 
+
   double runtime = (end_time.tv_sec + 1.0e-9 * end_time.tv_nsec) - (start_time.tv_sec + 1.0e-9 * start_time.tv_nsec);
   double edge_rate = (double) opt->list_size * opt->count * (num_nodes / 2) / runtime;
   double request_rate = (0 == strcmp( opt->type, "default" ) ) ? edge_rate : edge_rate * (opt->payload_size + 1);
   double bandwidth = (double) request_rate * sizeof(uint64_t) / runtime;
+
+  double tx_bytes = (double) psm_tx_bytes_end - psm_tx_bytes_start;
+  double rx_bytes = (double) psm_rx_bytes_end - psm_rx_bytes_start;
+  double tx_bandwidth = tx_bytes / runtime;
+  double rx_bandwidth = rx_bytes / runtime;
 
   ASSERT_NZ( end_ts > start_ts );
   uint64_t runtime_ticks = end_ts - start_ts;
@@ -767,7 +843,10 @@ int main( int argc, char * argv[] ) {
   double avg_service_latency = service_latency / service_count; //(opt->list_size * opt->count);
   
 
+  //  gasneti_bootstrapBarrier_ssh();
+
   if( 1 || mynode < num_nodes / 2 ) {
+    //if( mynode < num_nodes / 2 ) {
 
 #define METRICS( METRIC )						\
     METRIC( "Node",			"%d",   mynode );		\
@@ -785,6 +864,10 @@ int main( int argc, char * argv[] ) {
     METRIC( "edge rate (M/s)",          "%f",   edge_rate / 1000000 );	\
     METRIC( "request rate (M/s)",       "%f",   request_rate / 1000000 ); \
     METRIC( "bandwidth (MB/s)", 	"%f",   bandwidth / (1024 * 1024) ); \
+    METRIC( "TX bytes (MB)",   	"%f",   tx_bytes / (1024 * 1024) ); \
+    METRIC( "RX bytes (MB)", 	"%f",   rx_bytes / (1024 * 1024) ); \
+    METRIC( "TX bandwidth (MB/s)", 	"%f",   tx_bandwidth / (1024 * 1024) ); \
+    METRIC( "RX bandwidth (MB/s)", 	"%f",   rx_bandwidth / (1024 * 1024) ); \
     METRIC( "sum", 			"%lu",  sum );			\
     METRIC( "runtime_ticks", 		"%lu",  runtime_ticks );	\
     METRIC( "total_latency_ticks", 	"%lu",  total_latency_ticks );	\
@@ -800,10 +883,14 @@ int main( int argc, char * argv[] ) {
     METRIC( "service_count", 		"%lu",  service_count );	\
     METRIC( "service_latency (us)",     "%.9f", avg_service_latency * 100000 );
     
-    PRINT_CSV_METRICS( METRICS );
-    PRINT_HUMAN_METRICS( METRICS );
+#define OPTION_ACCESSOR( n ) opt->n
+    PRINT_CSV_OPTIONS_AND_METRICS( OPTIONS, METRICS );
+    //gasneti_bootstrapBarrier_ssh();
+    PRINT_HUMAN_OPTIONS_AND_METRICS( OPTIONS, METRICS );
     
   }
+
+  //gasneti_bootstrapBarrier_ssh();
 
   psm_finalize();
   gasneti_bootstrapFini_ssh();

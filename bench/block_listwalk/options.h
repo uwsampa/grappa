@@ -4,6 +4,7 @@
 
 #include <getopt.h>
 
+
 struct options {
   int sockets;
   int cores;

@@ -25,11 +25,22 @@
  */
 
 
+#define NULL_METRICS( M )
 
 #define PRINT_HUMAN_METRIC( n, f, d ) printf("%50s: " f "\n", (n), (d))
 #define PRINT_HUMAN_METRICS( M )		\
   do {						\
-    printf("{\n");				\
+    printf("metrics = {\n");			\
+    M( PRINT_HUMAN_METRIC );			\
+    printf("}\n");				\
+  } while(0)
+
+#define PRINT_HUMAN_INTBOOL_OPTION( n, c, d, f ) PRINT_HUMAN_METRIC( "option_" #n, "%d", OPTION_ACCESSOR( n ) );
+#define PRINT_HUMAN_STR_OPTION( n, c, d, f ) PRINT_HUMAN_METRIC( "option_" #n, "%s", OPTION_ACCESSOR( n ) );
+#define PRINT_HUMAN_OPTIONS_AND_METRICS( O, M )	\
+  do {						\
+    printf("metrics = {\n");			\
+    O( PRINT_HUMAN_INTBOOL_OPTION, PRINT_HUMAN_INTBOOL_OPTION, PRINT_HUMAN_STR_OPTION );	\
     M( PRINT_HUMAN_METRIC );			\
     printf("}\n");				\
   } while(0)
@@ -48,3 +59,23 @@
     M( PRINT_CSV_METRIC_DATA );			\
     printf("\n");				\
   } while (0)
+
+
+
+#define PRINT_CSV_INTBOOL_OPTION_HEADER( n, c, d, f ) PRINT_CSV_METRIC_HEADER( "option_" #n, "%d", OPTION_ACCESSOR( n ) );
+#define PRINT_CSV_STR_OPTION_HEADER( n, c, d, f ) PRINT_CSV_METRIC_HEADER( "option_" #n, "%s", OPTION_ACCESSOR( n ) );
+#define PRINT_CSV_INTBOOL_OPTION_DATA( n, c, d, f ) PRINT_CSV_METRIC_DATA( "option_" #n, "%d", OPTION_ACCESSOR( n ) );
+#define PRINT_CSV_STR_OPTION_DATA( n, c, d, f ) PRINT_CSV_METRIC_DATA( "option_" #n, "%s", OPTION_ACCESSOR( n ) );
+
+#define PRINT_CSV_OPTIONS_AND_METRICS( O, M )		\
+  do {						\
+    printf("header");				\
+    O( PRINT_CSV_INTBOOL_OPTION_HEADER, PRINT_CSV_INTBOOL_OPTION_HEADER, PRINT_CSV_STR_OPTION_HEADER );	\
+    M( PRINT_CSV_METRIC_HEADER );		\
+    printf("\n");				\
+    printf("data");				\
+    O( PRINT_CSV_INTBOOL_OPTION_DATA, PRINT_CSV_INTBOOL_OPTION_DATA, PRINT_CSV_STR_OPTION_DATA );	\
+    M( PRINT_CSV_METRIC_DATA );			\
+    printf("\n");				\
+  } while (0)
+

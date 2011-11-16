@@ -167,5 +167,6 @@ struct options parse_options( int * argc, char ** argv[] ) {
       }
     }
   }
+
   return opt;
 }

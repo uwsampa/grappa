@@ -1,6 +1,8 @@
 
-#include <stdint.h>
+#include <stdio.h>
 #include <stdlib.h>
+#include <stdint.h>
+#include <assert.h>
 
 #include <psm.h>
 #include <psm_mq.h>
@@ -57,10 +59,19 @@ void psm_setup( int gasneti_mynode, int gasneti_nodes ) {
   /* epopts.unit = gasneti_mynode % half; */
   /* epopts.network_pkey = 12345; */
   epopts.port = 2;
-  PSM_CHECK( psm_ep_open( job_uuid,
-			  &epopts,
-			  &ep,
-			  &epids[ gasneti_mynode ] ) );
+  /* PSM_CHECK( psm_ep_open( job_uuid, */
+  /* 			  &epopts, */
+  /* 			  &ep, */
+  /* 			  &epids[ gasneti_mynode ] ) ); */
+  int open_count = 5;
+  psm_error_t open_err = 0;
+  do {
+    open_err = psm_ep_open( job_uuid,
+			    &epopts,
+			    &ep,
+			    &epids[ gasneti_mynode ] );
+  } while ( open_err != 0 && 0 < open_count-- );
+  PSM_CHECK( open_err );
   gasneti_bootstrapExchange_ssh( &epids[ gasneti_mynode ], sizeof( psm_epid_t ), epids );
 
   //if( 0 == gasneti_mynode ) {
@@ -97,4 +108,34 @@ void psm_teardown() {
   PSM_CHECK( psm_finalize() );
   free(epids);
   free(epaddrs);
+}
+
+static uint64_t psm_fixup_value( uint64_t value, char modifier ) {
+  switch( modifier ) {
+  case 'K': value *= 1000; break;
+  case 'M': value *= 1000000; break;
+  case 'B':
+  case 'G': value *= 1000000000; break;
+  default: break;
+  }
+ return value * 4;
+}
+
+void psm_get_bytes_inout( uint64_t * tx_bytes, uint64_t * rx_bytes ) {
+  FILE *fp;  
+  
+  fp = popen("/usr/bin/ipathstats -1 -i 0:2 | grep Words", "r");
+  if (fp == NULL) {
+    printf("Failed to run ipathstats\n" );
+    exit;
+  }
+  
+  uint64_t value = 0;
+  char modifier[2];
+  assert( 2 == fscanf( fp, " TxWords %lu%[KMBG]\n", &value, &modifier ) );
+  *tx_bytes = psm_fixup_value( value, modifier );
+  assert( 2 == fscanf( fp, " RxWords %lu%[KMBG]\n", &value, &modifier ) );
+  *rx_bytes = psm_fixup_value( value, modifier );
+
+  pclose(fp);
 }
