@@ -31,7 +31,8 @@ TH_CFLAGS= -I$(THREAD_DIR)
 TH_LDFLAGS= -L$(THREAD_DIR) -lgreenery
 
 OBJECTS=\
-	getput.o	
+	getput.o \
+	StealQueue.o
 
 GL_OBJECTS=\
 	$(GL_ARRAY)/global_memory.o \
@@ -40,6 +41,9 @@ GL_OBJECTS=\
 	$(COLLECTIVE_DIR)/collective.o	
 
 getput.o: getput.c
+	$(CC) $(CFLAGS) $< -c -o $@
+
+StealQueue.o: StealQueue.c
 	$(CC) $(CFLAGS) $< -c -o $@
 
 %.o: %.cpp $(HEADERS) Makefile
@@ -52,6 +56,9 @@ pp: tree.cpp
 	cpp -I$(GL_ARRAY) -I../global_memory $< 
 
 treeNew: treeNew.o $(OBJECTS) $(GL_OBJECTS)
+	$(LD) $(LD_FLAGS) -o $@ $^ $(LIB_PATHS) $(GASNET_LIB_PATHS) $(LIBS) $(GASNET_LIBS) $(TH_LDFLAGS)
+
+testLocal: testLocal.o $(OBJECTS) $(GL_OBJECTS)
 	$(LD) $(LD_FLAGS) -o $@ $^ $(LIB_PATHS) $(GASNET_LIB_PATHS) $(LIBS) $(GASNET_LIBS) $(TH_LDFLAGS)
 
 workTest: workTest.o 
