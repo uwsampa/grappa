@@ -25,24 +25,24 @@ RNG_DEF = -DUTS_ALFG
 endif
 #-----------------------------------------#
 
+THREAD_LIB=../../greenery
+
 CC=gcc
 CXX=g++
 CFLAGS_COMMON= -Wno-write-strings -O3 -g -fopenmp
-CFLAGS= $(CFLAGS_COMMON) -std=gnu99 -I./rng -lm
-
-LD=gcc
-LD_FLAGS= $(CFLAGS_COMMON)
-
+CFLAGS= $(CFLAGS_COMMON) -std=gnu99 -I./rng -I$(THREAD_LIB)
+LIB=-lm -L$(THREAD_LIB) -lgreenery
 
 HEADERS=\
-	uts.h 
+	uts.h \
+	StealQueue.h
 
 
 T1=-t 1 -a 3 -d 10 -b 4 -r 19 
 T1L=-t 1 -a 3 -d 13 -b 4 -r 29
 
-TreeGen: TreeGen.c $(RNG_SRC) uts.c
-	$(CC) $(CFLAGS) $(RNG_DEF) -o $@ $+
+TreeGen: TreeGen.c uts.c StealQueue.c $(RNG_SRC)
+	$(CC) $(CFLAGS) $(RNG_DEF) -o $@ $+ $(LIB)
 
 testLocal: testLocal.cpp StealQueue.c
 	$(CXX) $(CFLAGS) -o $@ $+

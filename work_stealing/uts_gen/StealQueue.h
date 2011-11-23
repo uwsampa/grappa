@@ -1,40 +1,34 @@
+#ifndef STEAL_QUEUE_H
+#define STEAL_QUEUE_H
 
+#ifdef __cplusplus
+extern "C" {
+#endif
+
+#include "uts.h"
 
 #define SHARED_INDEF /*nothing*/
 
-#define GASNET_LOCKS 1
+#define GASNET_LOCKS 0
+#define OPENMP_LOCKS 1
 
-#if GASNET_LOCKS
+/** OpenMP defs **/
+#if OPENMP_LOCKS
+#include <omp.h>
+#define LOCK_T           omp_lock_t
+#define SET_LOCK(zlk)    omp_set_lock(zlk)
+#define UNSET_LOCK(zlk)  omp_unset_lock(zlk)
+#define INIT_LOCK(zlk)   zlk=omp_global_lock_alloc()
+#define INIT_SINGLE_LOCK(zlk) zlk=omp_global_lock_alloc()
+omp_lock_t * omp_global_lock_alloc();
+
+#elif GASNET_LOCKS
     #include <gasnet.h>
     #define INIT_LOCK gasnet_hsl_init
     #define SET_LOCK gasnet_hsl_lock
     #define UNSET_LOCK gasnet_hsl_unlock
     #define LOCK_T gasnet_hsl_t
 #endif
-
-struct node_t {
-  int type;          // distribution governing number of children
-  int height;        // depth of this node in the tree
-  int numChildren;   // number of children, -1 => not yet determined
-};
-
-typedef struct node_t Node;
-
-/* Tree type
- *   Trees are generated using a Galton-Watson process, in 
- *   which the branching factor of each node is a random 
- *   variable.
- *   
- *   The random variable can follow a binomial distribution
- *   or a geometric distribution.  Hybrid tree are
- *   generated with geometric distributions near the
- *   root and binomial distributions towards the leaves.
- */
-enum   uts_trees_e    { BIN = 0, GEO, HYBRID, BALANCED };
-enum   uts_geoshape_e { LINEAR = 0, EXPDEC, CYCLIC, FIXED };
-
-typedef enum uts_trees_e    tree_t;
-typedef enum uts_geoshape_e geoshape_t;
 
 
 //unused
@@ -75,10 +69,19 @@ int ss_topPosn(StealStack *s);
 int ss_localDepth(StealStack *s);
 void ss_release(StealStack *s, int k);
 int ss_acquire(StealStack *s, int k);
-int ss_steal_locally(int thief_id, int k, StealStack* stealStacks, int numQueues);
+int ss_steal_locally(StealStack* thief_id, int victim, int chunkSize);
 int ss_remote_steal(StealStack *s, int thiefCore, int victimNode, int k);
-int ss_setState(StealStack *s, int state);
+void ss_setState(StealStack *s, int state);
 
 #define MAX_NUM_THREADS 12
 #define MAXSTACKDEPTH 500000
+StealStack stealStacks[MAX_NUM_THREADS];
 extern StealStack stealStacks[MAX_NUM_THREADS];
+
+
+#ifdef __cplusplus
+}
+#endif
+
+
+#endif

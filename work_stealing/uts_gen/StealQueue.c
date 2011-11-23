@@ -1,4 +1,7 @@
 #include "StealQueue.h"
+#include <stdlib.h>
+#include <stdio.h>
+#include <string.h>
 
 //XXX
 #define debug 0
@@ -7,8 +10,19 @@
 
 // XXX fill in
 #define GET_THREAD_NUM -1
-int max(int x, int y) { return x>y?x:y; }
+int maxint(int x, int y) { return (x>y)?x:y; }
 
+
+#if OPENMP_LOCKS
+/** Lock init **/
+// OpenMP helper function to match UPC lock allocation semantics
+omp_lock_t * omp_global_lock_alloc() {
+  omp_lock_t *lock = (omp_lock_t *) malloc(sizeof(omp_lock_t) + 128);
+  omp_init_lock(lock);
+  return lock;
+}
+/**/
+#endif
 
 /* restore stack to empty state */
 void ss_mkEmpty(StealStack *s) {
@@ -68,8 +82,8 @@ void ss_push(StealStack *s, Node *c) {
   memcpy(&(s->stack[s->top]), c, sizeof(Node));
   s->top++;
   s->nNodes++;
-  s->maxStackDepth = max(s->top, s->maxStackDepth);
-  s->maxTreeDepth = max(s->maxTreeDepth, c->height);
+  s->maxStackDepth = maxint(s->top, s->maxStackDepth);
+  s->maxTreeDepth = maxint(s->maxTreeDepth, c->height);
 }
 
 
@@ -140,48 +154,45 @@ int ss_acquire(StealStack *s, int k) {
   return (avail >= k);
 }
 
-void ss_setState(StealQueue* s, int state) {}
+void ss_setState(StealStack* s, int state) { return; }
 
-int ss_steal_locally(StealStack* thief, int victim, int chunkSize) {
+int ss_steal_locally(StealStack* thief, int victim, int k) {
 
     /* TODO unify the ss_error checks for starting all stealing.
      * We may want to allow stealing onto non-empty stack, too. */
 
-   //TODO for (permutation of cores ==> victim) {
-   for (int victim = 0; victim<numQueues; victim++) {
-        if (victim==thief_id) continue;
+    SET_LOCK(stealStacks[victim].stackLock);
 
-       SET_LOCK(stealStacks[victim].stackLock);
-  
-       int victimLocal = stealStacks[victim].local;
-       int victimShared = stealStacks[victim].sharedStart;
-       int victimWorkAvail = stealStacks[victim].workAvail;
-  
-       if (victimLocal - victimShared != victimWorkAvail)
-           ss_error("handle steal request: stealStack invariant violated");
+    int victimLocal = stealStacks[victim].local;
+    int victimShared = stealStacks[victim].sharedStart;
+    int victimWorkAvail = stealStacks[victim].workAvail;
 
-       int ok = victimWorkAvail >= k;
-       if (ok) {
-           /* reserve a chunk */
-           stealStacks[victim].sharedStart =  victimShared + k;
-           stealStacks[victim].workAvail = victimWorkAvail - k;
-       }
-       UNSET_LOCK(stealStacks[victim].stackLock);
-  
-	
-       /* if k elts reserved, move them to local portion of our stack */
-       if (ok) {
-           SHARED_INDEF Node * victimStackBase = stealStacks[victim].stack_g;
-           SHARED_INDEF Node * victimSharedStart = victimStackBase + victimShared;
+    if (victimLocal - victimShared != victimWorkAvail)
+        ss_error("handle steal request: stealStack invariant violated");
 
-           memcpy(&thief->stack[thief->top], victimSharedStart, k*sizeof(Node));
+    int ok = victimWorkAvail >= k;
+    if (ok) {
+        /* reserve a chunk */
+        stealStacks[victim].sharedStart =  victimShared + k;
+        stealStacks[victim].workAvail = victimWorkAvail - k;
+    }
+    UNSET_LOCK(stealStacks[victim].stackLock);
 
-           thief->nSteal++;
-           thief->top += k;
-           return 1;
-       }
-   }
-   return 0;
+
+    /* if k elts reserved, move them to local portion of our stack */
+    if (ok) {
+        SHARED_INDEF Node * victimStackBase = stealStacks[victim].stack_g;
+        SHARED_INDEF Node * victimSharedStart = victimStackBase + victimShared;
+
+        memcpy(&thief->stack[thief->top], victimSharedStart, k*sizeof(Node));
+
+        thief->nSteal++;
+        thief->top += k;
+        
+        return 1;
+
+    }
+    return 0;
 }
 
 //TODO: should global steal go into a node-level queue or into the core's queue? 
@@ -200,30 +211,30 @@ int ss_steal_locally(StealStack* thief, int victim, int chunkSize) {
  * onto local portion of current thread's stealStack.
  * return false if k vals are not avail in victim thread
  */
-int ss_remote_steal(StealStack *s, int thiefCore, int victimNode, int k) {
-  
-  if (s->sharedStart != s->top)
-    ss_error("ss_steal: thief attempts to steal onto non-empty stack");
-
-  if (s->top + k >= s->stackSize)
-    ss_error("ss_steal: steal will overflow thief's stack");
-  
-  /* lock victim stack and try to reserve k elts */
-  if (debug & 32)
-    printf("Thread %d wants    SS %d\n", GET_THREAD_NUM, victimNode);
- 
- 
-  /** send the am request **/
-  gasnet_AMRequestShort1(victimNode, REMOTE_REQUEST_HANDLER, thiefCore);
-
-}
+//int ss_remote_steal(StealStack *s, int thiefCore, int victimNode, int k) {
+//  
+//  if (s->sharedStart != s->top)
+//    ss_error("ss_steal: thief attempts to steal onto non-empty stack");
+//
+//  if (s->top + k >= s->stackSize)
+//    ss_error("ss_steal: steal will overflow thief's stack");
+//  
+//  /* lock victim stack and try to reserve k elts */
+//  if (debug & 32)
+//    printf("Thread %d wants    SS %d\n", GET_THREAD_NUM, victimNode);
+// 
+// 
+//  /** send the am request **/
+//  gasnet_AMRequestShort1(victimNode, REMOTE_REQUEST_HANDLER, thiefCore);
+//
+//}
 
 
 // assumes only one remote steal for this thief's stack is handled at one time; 
 // also that other queue ops are suspended until this is done
 //      -this is not acceptable, since we'd like the queue to be worked on asynchronous to a remote steal
 //      -could compromise by not allowing release/acquire to be called until the remote steal is done
-void remote_steal_reply_handler(gasnet_token_t token, void* buf, size_t nbytes, gasnet_handlerarg_t a0, gasnet_handlerarg_t a1) {
+//void remote_steal_reply_handler(gasnet_token_t token, void* buf, size_t nbytes, gasnet_handlerarg_t a0, gasnet_handlerarg_t a1) {
 //    int thiefcore = (int) a0;
 //    int status = (int) a1;
 //
@@ -233,9 +244,9 @@ void remote_steal_reply_handler(gasnet_token_t token, void* buf, size_t nbytes, 
 //        thiefStack->nRemSteals++; 
 //        thiefStack->top += k;
 //    }
-}
+//}
 
-void remote_steal_handler(gasnet_token_t token, gasnet_handlerarg_t a0) {
+//void remote_steal_handler(gasnet_token_t token, gasnet_handlerarg_t a0) {
 //    int thiefcore = (int) a0;
 //
 //    for (permutation of vic cores ==> victim) {
@@ -271,4 +282,4 @@ void remote_steal_handler(gasnet_token_t token, gasnet_handlerarg_t a0) {
 //
 //    gasnet_AMReplyMedium2(token, REMOTE_STEAL_REPLY_HANDLER, 0, 0, REMOTE_STEAL_STATUS_FAIL, thiefcore);
 //    return;
-} 
+//} 

@@ -2,22 +2,24 @@
 #include <stdlib.h>
 #include "uts.h"
 #include "StealQueue.h"
+#include "thread.h"
 
 #include <omp.h>
 #include <sched.h>
 
-/** OpenMP defs **/
-#define LOCK_T           omp_lock_t
-#define SET_LOCK(zlk)    omp_set_lock(zlk)
-#define UNSET_LOCK(zlk)  omp_unset_lock(zlk)
-#define INIT_LOCK(zlk)   zlk=omp_global_lock_alloc()
-#define INIT_SINGLE_LOCK(zlk) zlk=omp_global_lock_alloc()
-// OpenMP helper function to match UPC lock allocation semantics
-omp_lock_t * omp_global_lock_alloc() {
-  omp_lock_t *lock = (omp_lock_t *) malloc(sizeof(omp_lock_t) + 128);
-  omp_init_lock(lock);
-  return lock;
-}
+
+
+#define PARALLEL 1
+#define prefetch(x) __builtin_prefetch((x), 0, 1)
+
+/***********************************************************
+ *  Parallel execution parameters                          *
+ ***********************************************************/
+
+int doSteal   = PARALLEL; // 1 => use work stealing
+int chunkSize = 8;       // number of nodes to move to/from shared area
+int cbint     = 1;        // Cancellable barrier polling interval
+
 
 // termination detection
 int cb_cancel;
@@ -33,7 +35,7 @@ int    impl_parseParam(char *param, char *value) { return 1; } //always find no 
 void   impl_helpMessage() { return; }
 void   impl_abort(int err) { exit(err); }
 
-void __sched__noop__(pid_t, unsigned int, cpu_set_t*) {}
+void __sched__noop__(pid_t pid, unsigned int x, cpu_set_t* y) {}
 #define PIN_THREADS 1
 #if PIN_THREADS
     #define SCHED_SET sched_setaffinity
@@ -64,85 +66,21 @@ int generateTree(Node* root, Node* nodes, int cid);
 typedef struct worker_info {
     int num_cores_per_node;
     int core_id;
+    int num_cores;
     int* work_done;
 } worker_info;
 
 
-//XXX
-// tree T1
-int numNodes = 4130071;
-
-int main(int argc, char *argv[]) {
-    
-    //use uts to parse params
-    uts_parseParams(argc, argv);
-    uts_printParams();
-
-    Node* nodes = (Node*) malloc(sizeof(Node)*numNodes);
-    Node root = nodes[0];
-    uts_initRoot(&root, type);
-    root.height = 0;
-    root.numChildren = -1;
-    
-    generateTree(&root, nodes, 1);
-
-    
-    for (int i=0; i<num_cores; i++) {
-        ss_init(&stealStacks[i], MAXSTACKDEPTH);
-    }
-
-    // push the root
-    ss_push(&stealStacks[0], &root);
-    
-     
-    // green threads init
-    thread* masters[num_cores];
-    scheduler* schedulers[num_cores];
-    worker_info wis[num_cores][num_threads_per_core];
-    int core_work_done[num_cores];
-
-    #pragma omp parallel for num_threads(num_cores)
-    for (uint64_t i = 0; i<num_cores; i++) {
-        thread* master = thread_init();
-        scheduler* sched = create_scheduler(master);
-        masters[i] = master;
-        schedulers[i] = sched;
-        core_work_done[i] = 0;
-
-        for (int th=0; th<num_threads_per_core; th++) {
-            wis[i][th].num_cores_per_node = num_cores;
-            wis[i][th].core_id = i;
-            wis[i][th].work_done = &core_work_done[i];
-            thread_spawn(masters[i], schedulers[i], thread_runnable, &wis[i][th]);
-        }
-    }
-
-
-
-    
-    #pragma omp parallel for num_threads(num_cores)
-    for (int core=0; core<num_cores; core++) {
-
-        cpu_set_t set;
-        CPU_ZERO(&set);
-        CPU_SET(coreslist[core], &set);
-        SCHED_SET(0, sizeof(cpu_set_t), &set);
-
-        run_all(schedulers[core]);
-    }
-
-
-}
 
 /* search other threads for work to steal */
-int findwork(int k, int num_queues) {
+int findwork(int k, int my_id, int num_queues) {
   int i,v;
   for (i = 1; i < num_queues; i++) { // TODO permutation order
-    v = (num_queues + i) % num_queues;
+    v = (my_id + i) % num_queues;
 //#ifdef _SHMEM
 //    GET(stealStack[v]->workAvail, stealStack[v]->workAvail, v);
 //#endif
-    if (stealStack[v]->workAvail >= k)
+    if (stealStacks[v].workAvail >= k)
       return v;
   }
   return -1;
@@ -199,32 +137,25 @@ void releaseNodes(StealStack *ss){
   if (doSteal) {
     if (ss_localDepth(ss) > 2 * chunkSize) {
       // Attribute this time to runtime overhead
-      ss_setState(ss, SS_OVH);
+/*      ss_setState(ss, SS_OVH);                    */
       ss_release(ss, chunkSize);
       // This has significant overhead on clusters!
       if (ss->nNodes % cbint == 0) {
-        ss_setState(ss, SS_CBOVH);
+/*        ss_setState(ss, SS_CBOVH);                */
         cbarrier_cancel();
       }
 
-      ss_setState(ss, SS_WORK);
+/*      ss_setState(ss, SS_WORK);                   */
     }
   }
 }
 
-void thread_runnable(thread* me, void* arg) {
-    struct worker_info* info = (struct worker_info*) arg;
 
-    workLoop(&stealStacks[info->core_id], me, info->work_done);
+void workLoop(StealStack* ss, thread* me, int* work_done, int core_id, int num_cores) {
 
-    thread_exit(me, NULL);
-}
-
-void workLoop(StealQueue* ss, thread* me, int* work_done) {
-
-    while (done == 0) {
+    while (!(*work_done)) {
         while (ss_localDepth(ss) > 0) {
-            ss_setState(ss, SS_WORK);
+/*            ss_setState(ss, SS_WORK);        */
 
             /* get node at stack top */
             Node* work = ss_top(ss);
@@ -260,14 +191,14 @@ void workLoop(StealQueue* ss, thread* me, int* work_done) {
           int goodSteal = 0;
           int victimId;
           
-          ss_setState(ss, SS_SEARCH);
-          victimId = findwork(chunkSize);
+/*          ss_setState(ss, SS_SEARCH);             */
+          victimId = findwork(chunkSize, core_id, num_cores);
           while (victimId != -1 && !goodSteal) {
               // some work detected, try to steal it
               goodSteal = ss_steal_locally(ss, victimId, chunkSize);
               // keep trying because work disappeared
               if (!goodSteal)
-                  victimId = findwork(chunkSize);
+                  victimId = findwork(chunkSize, core_id, num_cores);
           }
           if (goodSteal) {
               threads_wake(me); // TODO optimize wake based on amount stolen
@@ -282,13 +213,21 @@ void workLoop(StealQueue* ss, thread* me, int* work_done) {
             }
         }
 
-        if (*work_done) {
-            return;
-        }
     }
         
 }
 
+void thread_runnable(thread* me, void* arg) {
+    struct worker_info* info = (struct worker_info*) arg;
+
+    workLoop(&stealStacks[info->core_id], me, info->work_done, info->core_id, info->num_cores);
+
+    thread_exit(me, NULL);
+}
+
+//XXX
+// tree T1
+int numNodes = 4130071;
 
 
 static const int LARGEPRIME = 961748941;
@@ -327,3 +266,73 @@ int generateTree(Node* root, Node* nodes, int cid) {
     return cid;
 }
 
+
+int main(int argc, char *argv[]) {
+    
+    //use uts to parse params
+    uts_parseParams(argc, argv);
+    uts_printParams();
+    cb_init();
+
+    Node* nodes = (Node*) malloc(sizeof(Node)*numNodes);
+    Node root = nodes[0];
+    uts_initRoot(&root, type);
+    root.height = 0;
+    root.numChildren = -1;
+    
+    generateTree(&root, nodes, 1);
+
+   
+   //TODO arg in impl_paramParse
+   int num_cores = 2;
+   int num_threads_per_core = 2;
+    
+    for (int i=0; i<num_cores; i++) {
+        ss_init(&stealStacks[i], MAXSTACKDEPTH);
+    }
+
+    // push the root
+    ss_push(&stealStacks[0], &root);
+    
+     
+    // green threads init
+    thread* masters[num_cores];
+    scheduler* schedulers[num_cores];
+    worker_info wis[num_cores][num_threads_per_core];
+    int core_work_done[num_cores];
+
+    #pragma omp parallel for num_threads(num_cores)
+    for (uint64_t i = 0; i<num_cores; i++) {
+        thread* master = thread_init();
+        scheduler* sched = create_scheduler(master);
+        masters[i] = master;
+        schedulers[i] = sched;
+        core_work_done[i] = 0;
+
+        for (int th=0; th<num_threads_per_core; th++) {
+            wis[i][th].num_cores_per_node = num_cores;
+            wis[i][th].core_id = i;
+            wis[i][th].num_cores = num_cores;
+            wis[i][th].work_done = &core_work_done[i];
+            thread_spawn(masters[i], schedulers[i], thread_runnable, &wis[i][th]);
+        }
+    }
+
+
+    int coreslist[] = {0,2,4,6,8,10,1,3,5,7,9,11};
+    
+    #pragma omp parallel for num_threads(num_cores)
+    for (int core=0; core<num_cores; core++) {
+
+  /*XXX not in sched.h???
+        cpu_set_t set;
+        CPU_ZERO(&set);
+        CPU_SET(coreslist[core], &set);
+        SCHED_SET(0, sizeof(cpu_set_t), &set);
+*/
+
+        run_all(schedulers[core]);
+    }
+
+
+}
