@@ -89,20 +89,24 @@ inline void thread_yield(thread *me) {
   coro_invoke(me->co, next->co, NULL);
 }
 
-inline void thread_yield_wait(thread* me) {
+inline int thread_yield_wait(thread* me) {
     scheduler *sched = me->sched;
 
     // can't yield on a system thread
     assert(sched != NULL);
 
-    // there must be at least one thread on the ready queue
-    // (otherwise there would be deadlock)
-    assert(sched->ready != NULL);
+    // if this was the last thread then return so the
+    // user code can handle (e.g. okay to go to pthread barrier)
+    if (sched->ready == NULL) {
+        return 0;
+    }
 
     scheduler_wait_enqueue(sched, me);
 
     thread *next = scheduler_dequeue(sched);
     coro_invoke(me->co, next->co, NULL);
+    
+    return 1;
 }
 
 // assumes right now there is a single resource for threads in this scheduler to wait on
