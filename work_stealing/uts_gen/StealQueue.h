@@ -51,8 +51,8 @@ struct stealStack_t
   double time[SS_NSTATES], timeLast;         /* perf measurements */
   int entries[SS_NSTATES], curState; 
   LOCK_T * stackLock; /* lock for manipulation of shared portion */
-  Node * stack;       /* addr of actual stack of nodes in local addr space */
-  SHARED_INDEF Node * stack_g; /* addr of same stack in global addr space */
+  Node ** stack;       /* addr of actual stack of nodes in local addr space */
+  SHARED_INDEF Node ** stack_g; /* addr of same stack in global addr space */
 
 };
 typedef struct stealStack_t StealStack;

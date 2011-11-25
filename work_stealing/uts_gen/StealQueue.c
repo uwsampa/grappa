@@ -42,12 +42,12 @@ void ss_error(char *str) {
 
 /* initialize the stack */
 void ss_init(StealStack *s, int nelts) {
-  int nbytes = nelts * sizeof(Node);
+  int nbytes = nelts * sizeof(Node*);
 
   // allocate stack in shared addr space with affinity to calling thread
   // and record local addr for efficient access in sequel
-  s->stack_g = (SHARED_INDEF Node *) malloc (nbytes);
-  s->stack = (Node *) s->stack_g;
+  s->stack_g = (SHARED_INDEF Node **) malloc (nbytes);
+  s->stack = (Node **) s->stack_g;
   
   if (s->stack == NULL) {
     printf("Request for %d bytes for stealStack on thread %d failed\n",
@@ -78,8 +78,8 @@ void ss_init(StealStack *s, int nelts) {
 void ss_push(StealStack *s, Node *c) {
   if (s->top >= s->stackSize)
     ss_error("ss_push: overflow");
-  
-  memcpy(&(s->stack[s->top]), c, sizeof(Node));
+ 
+  s->stack[s->top] = c; 
   s->top++;
   s->nNodes++;
   s->maxStackDepth = maxint(s->top, s->maxStackDepth);
@@ -88,12 +88,12 @@ void ss_push(StealStack *s, Node *c) {
 
 
 
-/* local top:  get local addr of node at top */ 
+/* local top: get top element */ 
 Node * ss_top(StealStack *s) {
   Node *r;
   if (s->top <= s->local)
     ss_error("ss_top: empty local stack");
-  r = &(s->stack[(s->top) - 1]);
+  r = s->stack[(s->top) - 1];
   
   return r;
 }
@@ -101,7 +101,7 @@ Node * ss_top(StealStack *s) {
 
 /* local pop */
 void ss_pop(StealStack *s) {
-  Node *r;
+  Node **r;
   if (s->top <= s->local)
     ss_error("ss_pop: empty local stack");
   s->top--;
@@ -181,10 +181,10 @@ int ss_steal_locally(StealStack* thief, int victim, int k) {
 
     /* if k elts reserved, move them to local portion of our stack */
     if (ok) {
-        SHARED_INDEF Node * victimStackBase = stealStacks[victim].stack_g;
-        SHARED_INDEF Node * victimSharedStart = victimStackBase + victimShared;
+        SHARED_INDEF Node ** victimStackBase = stealStacks[victim].stack_g;
+        SHARED_INDEF Node ** victimSharedStart = victimStackBase + victimShared;
 
-        memcpy(&thief->stack[thief->top], victimSharedStart, k*sizeof(Node));
+        memcpy(&thief->stack[thief->top], victimSharedStart, k*sizeof(Node*));
 
         thief->nSteal++;
         thief->top += k;

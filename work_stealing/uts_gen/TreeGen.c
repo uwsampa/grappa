@@ -17,7 +17,7 @@
  ***********************************************************/
 
 int doSteal   = PARALLEL; // 1 => use work stealing
-int chunkSize = 8;       // number of nodes to move to/from shared area
+int chunkSize = 10;       // number of nodes to move to/from shared area
 int cbint     = 1;        // Cancellable barrier polling interval
 
 
@@ -68,6 +68,7 @@ typedef struct worker_info {
     int core_id;
     int num_cores;
     int* work_done;
+    long nVisited;
 } worker_info;
 
 
@@ -98,6 +99,8 @@ void cb_init() {
 
 int cbarrier_wait(int num_threads) {
     int l_count, l_done, l_cancel;
+   
+    //printf("enter barrier core %d\n", omp_get_thread_num());
     
     SET_LOCK(cb_lock);
     cb_count++;
@@ -124,12 +127,17 @@ int cbarrier_wait(int num_threads) {
     l_done = cb_done;
     UNSET_LOCK(cb_lock);
 
+    //printf("exit barrier done=%d core %d\n", l_done, omp_get_thread_num());
+
     return l_done;
 }
 
 void cbarrier_cancel() {
     SET_LOCK(cb_lock);
     cb_cancel = 1;
+    if (cb_count>0) {
+        //printf("%d cancel barrier while %d others waiting\n", omp_get_thread_num(), cb_count);
+    }
     UNSET_LOCK(cb_lock);
 }
 
@@ -151,15 +159,17 @@ void releaseNodes(StealStack *ss){
 }
 
 
-void workLoop(StealStack* ss, thread* me, int* work_done, int core_id, int num_cores) {
+void workLoop(StealStack* ss, thread* me, int* work_done, int core_id, int num_cores, long* nVisited) {
 
     while (!(*work_done)) {
+            //printf("core %d check work when local=%d\n", core_id, ss->top-ss->local);
         while (ss_localDepth(ss) > 0) {
 /*            ss_setState(ss, SS_WORK);        */
-
             /* get node at stack top */
             Node* work = ss_top(ss);
             ss_pop(ss);
+            *nVisited = *nVisited+1;
+            //printf("core %d work(#%lu, id=%d, nc=%d, height=%d)\n", core_id, *nVisited, work->id, work->numChildren, work->height);
 
             /* DISTR TODO
              * This is where the need to load
@@ -170,6 +180,7 @@ void workLoop(StealStack* ss, thread* me, int* work_done, int core_id, int num_c
 
             for (int i=0; i<work->numChildren; i++) {
                 // TODO also need to pull in work->children array but hopefully for single-node the spatial locality is enough
+                //printf("core %d pushes child(id=%d,height=%d,parent=%d)\n", core_id, work->children[i]->id, work->children[i]->height, work->id);
                 ss_push(ss, work->children[i]);
             }
 
@@ -201,6 +212,7 @@ void workLoop(StealStack* ss, thread* me, int* work_done, int core_id, int num_c
                   victimId = findwork(chunkSize, core_id, num_cores);
           }
           if (goodSteal) {
+              //printf("%d steals %d items\n", omp_get_thread_num(), chunkSize);
               threads_wake(me); // TODO optimize wake based on amount stolen
               continue;
           }
@@ -220,7 +232,8 @@ void workLoop(StealStack* ss, thread* me, int* work_done, int core_id, int num_c
 void thread_runnable(thread* me, void* arg) {
     struct worker_info* info = (struct worker_info*) arg;
 
-    workLoop(&stealStacks[info->core_id], me, info->work_done, info->core_id, info->num_cores);
+    printf("thread starts from core %d/%d\n", info->core_id, info->num_cores);
+    workLoop(&stealStacks[info->core_id], me, info->work_done, info->core_id, info->num_cores, &(info->nVisited));
 
     thread_exit(me, NULL);
 }
@@ -246,12 +259,17 @@ int generateTree(Node* root, Node* nodes, int cid) {
     
     root->children = (Node**)malloc(sizeof(Node*)*nc);
     root->numChildren = nc;
+    root->id = cid;
+//    for (int i=0; i<root->height; i++) {
+//        printf("-");
+//    }
+    //printf("node %d with numc=%d\n", cid, nc);
   //  printf("have %d children\n", nc);
     //printf("%d\n",nc);
    
-    int current_cid = cid; 
+    int current_cid = cid+1;
     for (int i=0; i<nc; i++) {
-        int index = Permute(current_cid++);
+        int index = Permute(current_cid);
 //        printf("--index=%d\n", index);
         root->children[i] = &nodes[index];
         root->children[i]->height = root->height+1;
@@ -263,7 +281,7 @@ int generateTree(Node* root, Node* nodes, int cid) {
 
         current_cid = generateTree(root->children[i], nodes, current_cid);    
     }
-    return cid;
+    return current_cid;
 }
 
 
@@ -275,24 +293,24 @@ int main(int argc, char *argv[]) {
     cb_init();
 
     Node* nodes = (Node*) malloc(sizeof(Node)*numNodes);
-    Node root = nodes[0];
-    uts_initRoot(&root, type);
-    root.height = 0;
-    root.numChildren = -1;
-    
-    generateTree(&root, nodes, 1);
-
+    Node* root = &nodes[0];
+    uts_initRoot(root, type);
+    root->height = 0;
+    root->numChildren = -1;
+   
+    uint64_t num_genNodes = generateTree(root, nodes, 0);
+    printf("num nodes gen: %lu\n", num_genNodes);
    
    //TODO arg in impl_paramParse
-   int num_cores = 2;
-   int num_threads_per_core = 2;
+   int num_cores = 6;
+   int num_threads_per_core = 4;
     
     for (int i=0; i<num_cores; i++) {
         ss_init(&stealStacks[i], MAXSTACKDEPTH);
     }
 
     // push the root
-    ss_push(&stealStacks[0], &root);
+    ss_push(&stealStacks[0], root);
     
      
     // green threads init
@@ -314,6 +332,7 @@ int main(int argc, char *argv[]) {
             wis[i][th].core_id = i;
             wis[i][th].num_cores = num_cores;
             wis[i][th].work_done = &core_work_done[i];
+            wis[i][th].nVisited = 0L;
             thread_spawn(masters[i], schedulers[i], thread_runnable, &wis[i][th]);
         }
     }
@@ -330,9 +349,28 @@ int main(int argc, char *argv[]) {
         CPU_SET(coreslist[core], &set);
         SCHED_SET(0, sizeof(cpu_set_t), &set);
 */
-
+        printf("core %d/%d starts\n", core, num_cores);
         run_all(schedulers[core]);
     }
 
+   
+    uint64_t total_cores_vs[num_cores]; 
+    uint64_t total_visited=0L;
+    #pragma omp parallel for num_threads(num_cores)
+    for (uint64_t i = 0; i<num_cores; i++) {
+        uint64_t total_core_visited = 0;
+    
+        for (int th=0; th<num_threads_per_core; th++) {
+            total_core_visited+=wis[i][th].nVisited;
+        }
+        total_cores_vs[i] = total_core_visited;
+        printf("core %d: visited %lu, steal %d\n", i, total_core_visited, stealStacks[i].nSteal);
+    }
+
+    
+    for (uint64_t i = 0; i<num_cores; i++) {
+        total_visited+=total_cores_vs[i];
+    }
+    printf("total visited %lu / %lu\n", total_visited, num_genNodes);
 
 }
