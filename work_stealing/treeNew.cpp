@@ -319,6 +319,71 @@ bool popNodeGlobalQueue(TreeNode_ptr* buf) {
 }
 
 
+void cb_init() {
+    INIT_SINGLE_LOCK(cb_lock);
+
+    SET_LOCK(cb_lock);
+    cb_count = 0;
+    cb_cancel = 0;
+    cb_done = 0;
+    UNSET_LOCK(cb_lock);
+}
+
+int cbarrier_wait(int num_threads) {
+    int l_count, l_done, l_cancel;
+    
+    SET_LOCK(cb_lock);
+    cb_count++;
+    if (cb_count == num_threads) {
+        cb_done = 1;
+    }
+
+    l_count = cb_count;
+    l_done = cb_done;
+    UNSET_LOCK(cb_lock);
+    
+
+    do {
+        SET_LOCK(cb_lock);
+        l_count = cb_count;
+        l_cancel = cb_cancel;
+        l_done = cb_done;
+        UNSET_LOCK(cb_lock);
+    } while (!l_cancel && !l_done);
+
+    SET_LOCK(cb_lock);
+    cb_count--;
+    cb_cancel = 0;
+    l_done = cb_done;
+    UNSET_LOCK(cb_lock);
+
+    return l_done;
+}
+
+void barrier_cancel() {
+    SET_LOCK(cb_lock);
+    cb_cancel = 1;
+    UNSET_LOCK(cb_lock);
+}
+
+void releaseNodes(StealStack *ss){
+  if (doSteal) {
+    if (ss_localDepth(ss) > 2 * chunkSize) {
+      // Attribute this time to runtime overhead
+      ss_setState(ss, SS_OVH);
+      ss_release(ss, chunkSize);
+      // This has significant overhead on clusters!
+      if (ss->nNodes % cbint == 0) {
+        ss_setState(ss, SS_CBOVH);
+        cbarrier_cancel();
+      }
+
+      ss_setState(ss, SS_WORK);
+    }
+  }
+}
+
+
 typedef struct worker_info {
     int core_index;
     global_array* ibt;
