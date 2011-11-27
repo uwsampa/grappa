@@ -1,3 +1,4 @@
+#include <sched.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include "uts.h"
@@ -5,7 +6,7 @@
 #include "thread.h"
 
 #include <omp.h>
-#include <sched.h>
+
 
 
 
@@ -240,7 +241,9 @@ void thread_runnable(thread* me, void* arg) {
 
 //XXX
 // tree T1
-int numNodes = 4130071;
+//int numNodes = 4130071;
+// tree T1L
+int numNodes = 102181082;
 
 
 static const int LARGEPRIME = 961748941;
@@ -339,20 +342,23 @@ int main(int argc, char *argv[]) {
 
 
     int coreslist[] = {0,2,4,6,8,10,1,3,5,7,9,11};
+   
+    double startTime, endTime;
+    startTime = uts_wctime();
     
     #pragma omp parallel for num_threads(num_cores)
     for (int core=0; core<num_cores; core++) {
-
-  /*XXX not in sched.h???
+/*
         cpu_set_t set;
         CPU_ZERO(&set);
         CPU_SET(coreslist[core], &set);
         SCHED_SET(0, sizeof(cpu_set_t), &set);
-*/
+ */       
         printf("core %d/%d starts\n", core, num_cores);
         run_all(schedulers[core]);
     }
 
+    endTime = uts_wctime();
    
     uint64_t total_cores_vs[num_cores]; 
     uint64_t total_visited=0L;
@@ -373,4 +379,7 @@ int main(int argc, char *argv[]) {
     }
     printf("total visited %lu / %lu\n", total_visited, num_genNodes);
 
+    double runtime = endTime - startTime;
+    double rate = total_visited / runtime;
+    printf("{'runtime':%f, 'rate':%f}\n", runtime, rate);
 }
