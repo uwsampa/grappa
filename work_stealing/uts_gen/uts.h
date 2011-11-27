@@ -34,6 +34,7 @@ struct node_t{
   int type;          // distribution governing number of children
   int height;        // depth of this node in the tree
   int numChildren;   // number of children, -1 => not yet determined
+  int id;
   
   struct node_t** children;
   
