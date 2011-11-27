@@ -65,7 +65,13 @@ workTest: workTest.o
 	$(LD) $(CFLAGS) $^ -o $@
 
 run: treeNew	
-	mpirun -np 2 -H "n01" hugectl --heap -- ./treeNew -n 1000 -i 2 -c 2 -t 2
+	mpirun -np 2 -H "n04" hugectl --heap -- ./treeNew -n 1000 -i 2 -c 2 -t 2
 
+run_testLocal: testLocal
+	mpirun -np 2 -H "n04" hugectl --heap -- ./testLocal
+
+debug_testLocal: testLocal
+	mpirun -np 2 -H "n04" xterm -e gdb --args ./testLocal
+	
 clean:
-	rm -f ./*.o ./workTest ./tree ./treeNew
+	rm -f ./*.o ./workTest ./tree ./treeNew ./testLocal
