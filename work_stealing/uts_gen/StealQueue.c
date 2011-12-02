@@ -10,7 +10,6 @@
 
 // XXX fill in
 #define GET_THREAD_NUM -1
-int maxint(int x, int y) { return (x>y)?x:y; }
 
 
 #if OPENMP_LOCKS
@@ -23,6 +22,8 @@ omp_lock_t * omp_global_lock_alloc() {
 }
 /**/
 #endif
+
+int maxint(int x, int y) { return (x>y)?x:y; }
 
 /* restore stack to empty state */
 void ss_mkEmpty(StealStack *s) {
@@ -191,6 +192,8 @@ int ss_steal_locally(StealStack* thief, int victim, int k) {
         
         return 1;
 
+    } else {
+        thief->nFail++;
     }
     return 0;
 }

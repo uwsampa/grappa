@@ -34,6 +34,7 @@ omp_lock_t * omp_global_lock_alloc();
 //unused
 #define SS_NSTATES 1   
 
+int maxint(int x, int y); 
 
 /* stack of nodes */
 struct stealStack_t
