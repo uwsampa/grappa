@@ -29,7 +29,7 @@ THREAD_LIB=../../greenery
 
 CC=gcc
 CXX=g++
-CFLAGS_COMMON= -Wno-write-strings -O1 -g -fopenmp
+CFLAGS_COMMON= -Wno-write-strings -O3 -g -fopenmp
 CFLAGS= $(CFLAGS_COMMON) -std=gnu99 -I./rng -I$(THREAD_LIB)
 LIB=-lm -L$(THREAD_LIB) -lgreenery
 
@@ -42,6 +42,9 @@ HEADERS=\
 #treesize 4130071
 T1=-t 1 -a 3 -d 10 -b 4 -r 19
 
+#treesize 4112897
+T3=-t 0 -b 2000 -q 0.124875 -m 8 -r 42
+
 #treesize 102181082
 T1L=-t 1 -a 3 -d 13 -b 4 -r 29
 
@@ -52,7 +55,7 @@ testLocal: testLocal.cpp StealQueue.c
 	$(CXX) $(CFLAGS) -o $@ $+
 
 run: TreeGen
-	taskset 0x555 ./TreeGen $(T1L)
+	taskset 0x555 ./TreeGen $(T1)
 
 clean:
 	rm -f ./*.o ./TreeGen
