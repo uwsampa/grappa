@@ -21,6 +21,7 @@ typedef struct thread {
   struct scheduler *sched;
   struct thread *next; // for queues--if we're not in one, should be NULL
   threadid_t id; 
+  unsigned long wake_time;
 } thread;
 
 typedef struct scheduler {
@@ -109,8 +110,24 @@ inline int thread_yield_wait(thread* me) {
     return 1;
 }
 
+inline void threads_wakeN(thread* me, int n) {
+    scheduler *sched = me->sched;
+    thread* waitHead = sched->wait;
+    if (n>0 && waitHead!=NULL) {
+        sched->tail->next = waitHead;
+        thread* ptr = waitHead;
+        int i = 1;
+        while (i < n && ptr->next!=NULL) {
+            ptr = ptr->next;
+            i++;
+        }   
+        sched->wait = ptr->next;
+        sched->tail = ptr;
+    }
+}
+
 // assumes right now there is a single resource for threads in this scheduler to wait on
-inline void threads_wake(thread* me) {
+inline void threads_wakeAll(thread* me) {
     scheduler *sched = me->sched;
 
     // take all threads on wait queue (if there are any) and put in run queue
@@ -182,6 +199,57 @@ inline void thread_block(thread *me, thread_barrier *barrier) {
   thread *next = scheduler_dequeue(barrier->sched);
   coro_invoke(me->co, next->co, NULL);
 }
+
+
+
+
+#define rdtscll(val) do { \
+    unsigned int __a,__d; \
+    asm volatile("rdtsc" : "=a" (__a), "=d" (__d)); \
+    (val) = ((unsigned long)__a) | (((unsigned long)__d)<<32); \
+  } while(0)
+
+#define FIFO_WAIT 1
+// Yield the CPU and don't wake until AT LEAST 'ticks' from now
+inline void thread_yield_alarm(thread *me, unsigned long ticks) {
+  scheduler *sched = me->sched;
+  // can't yield on a system thread
+  assert(sched != NULL);
+
+  unsigned long current;
+  rdtscll(current);
+  me->wake_time = current + ticks;
+
+  scheduler_enqueue(sched, me);
+
+  // spin through queue until a thread has passed its wake_time
+  // spin because there is no other work to do (although this h/w thread could go to sleep but we don't care about that)
+  #if FIFO_WAIT
+  int waked = 0;
+  thread* next = scheduler_dequeue(sched);
+  while (!waked) {
+      rdtscll(current);
+      if (current >= next->wake_time) {
+        waked = 1;
+      }
+  }
+  #else
+  thread *next = NULL;  
+  while (next == NULL) {  // basic impl of min sleep time that is unfair in ordering
+    thread *potential = scheduler_dequeue(sched);
+    
+    rdtscll(current);
+    if (current >= potential->wake_time) {
+        next = potential;
+    } else {
+        scheduler_enqueue(sched, potential);
+    }
+  }
+  #endif
+
+  coro_invoke(me->co, next->co, NULL); 
+}
+
 
 #endif
 
