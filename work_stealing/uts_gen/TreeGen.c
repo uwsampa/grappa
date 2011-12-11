@@ -318,10 +318,14 @@ void thread_runnable(thread* me, void* arg) {
 
 //XXX
 // tree T1
-//int numNodes = 4130071;
+int numNodes = 4130071;
 // tree T1L
-int numNodes = 102181082;
+//int numNodes = 102181082;
 
+uint64_t childrenTotals[] = {0,0,0,0,0,0};
+void incrChildren(Node* vertex, Node* base, uint64_t numChildren) {
+    childrenTotals[(vertex-base)/688346] += numChildren;  //4130071/6 = 688345.167
+}
 
 static const int LARGEPRIME = 961748941;
 int Permute(int i) {
@@ -339,6 +343,7 @@ int generateTree(Node* root, Node* nodes, int cid) {
     
     root->children = (Node**)malloc(sizeof(Node*)*nc);
     root->numChildren = nc;
+    incrChildren(root, nodes, nc);
     root->id = cid;
 //    for (int i=0; i<root->height; i++) {
 //        printf("-");
@@ -380,7 +385,9 @@ int main(int argc, char *argv[]) {
    
     uint64_t num_genNodes = generateTree(root, nodes, 0);
     printf("num nodes gen: %lu\n", num_genNodes);
-   
+    printf("6 processes: #children: [");
+    for (int i=0; i<6; i++) printf("%lu ", childrenTotals[i]);
+    printf("\n");
     
     for (int i=0; i<num_cores; i++) {
         ss_init(&stealStacks[i], MAXSTACKDEPTH);
