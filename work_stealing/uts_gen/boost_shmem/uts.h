@@ -37,7 +37,8 @@ struct node_t{
   int id;
   
   struct node_t** children;
-  
+  //offset_ptr<offset_ptr<struct node_t>> children;
+
   /* for RNG state associated with this node */
   //struct state_t state;
 

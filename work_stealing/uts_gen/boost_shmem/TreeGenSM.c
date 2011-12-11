@@ -11,6 +11,8 @@
 #include "shmalloc.h"
 #include "balloc.h"
 
+#include <boost/interprocess/offset_ptr.hpp>
+
 #define PARALLEL 1
 #define prefetch(x) __builtin_prefetch((x), 0, 1)
 #define PREFETCH_WORK 1
@@ -157,6 +159,13 @@ void cleanup (int param) {
     exit(1);
 }
 
+#if TREE_IN_SHM
+    #define NODE_PTR offset_prt<Node>
+#else
+    #define NODE_PTR Node*
+#endif 
+
+template class boost::interprocess::offset_ptr<Node>;
 int main(int argc, char *argv[]) {
     
     //use uts to parse params
@@ -167,12 +176,16 @@ int main(int argc, char *argv[]) {
      
     shfree(node_alloc_key); // delete in case it exists
     const size_t nodesAllocSize = sizeof(Node)*numNodes;
-    const size_t childAllocSize = sizeof(Node*)*numNodes;
+    const size_t childAllocSize = sizeof(NODE_PTR)*numNodes;
     const size_t totalAllocSize = nodesAllocSize + childAllocSize;
     void* shm_allocation = shmalloc(totalAllocSize, node_alloc_key);
-    printf("allocation: [%p,%p)", shm_allocation, ((char*)shm_allocation)+totalAllocSize);
+    printf("allocation: [%p,%p)\n", shm_allocation, ((char*)shm_allocation)+totalAllocSize);
     ballocator_t* ba = newBumpAllocator(shm_allocation, totalAllocSize);
     Node* nodes = (Node*) balloc(ba, nodesAllocSize);
+    printf("Node* nodes = %p\n", nodes);
+    boost::interprocess::offset_ptr<Node> op_nodes = nodes ;
+    printf("offset_ptr<Node> nodes = (%p, %ld)\n", op_nodes.get(), op_nodes.get_offset());
+
 
     Node* root = &nodes[0];
     uts_initRoot(root, type, &states[0]);
