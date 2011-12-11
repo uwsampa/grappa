@@ -25,6 +25,10 @@ struct global_array *ga_allocate(
     int element_size,
     uint64_t size);
 
+inline static int ga_node(struct global_array *ga, uint64_t index);
+    return index / ga->elements_per_node;
+}
+
 // Returns a global address for an element
 inline static void ga_index(struct global_array *ga,
     uint64_t index, struct global_address *gm) {
