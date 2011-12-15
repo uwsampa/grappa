@@ -8,11 +8,15 @@
 
 #include <stdio.h>
 
-#include "timer.h"
+#include "defs.h"
 
 int main(int argc, char* argv[]) {
 	
 	double start = timer();
+	
+	graphSDG ingraph(4);
+	
+	graph g(3, 4);
 	
 	double end = timer();
 	

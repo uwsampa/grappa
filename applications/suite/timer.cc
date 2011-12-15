@@ -1,5 +1,5 @@
 
-#include "timer.h"
+#include "defs.h"
 
 double timer(void) {
 #if defined(__MTA__)
