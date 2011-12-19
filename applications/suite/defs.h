@@ -33,32 +33,35 @@
 #define MTASTREAMS()
 #endif
 
-/*### Prototypes ###*/
+#define _DEBUG
 
-/* timer.c */
-double timer();
+#ifdef _DEBUG
+#define deprint(fmt, ...) fprintf(stderr, fmt, __VA_ARGS__)
+#define deprintn(fmt) fprintf(stderr, fmt)
+#else
+#define deprint(fmt, ...) do {} while (0)
+#define deprintn(fmt) do {} while (0)
+#endif
 
-void *xmalloc (size_t);
-void *xcalloc (size_t, size_t);
-void *xrealloc (void *, size_t);
-void *xmmap (void *, size_t, int, int, int, off_t);
+
+/*### Typedefs ###*/
+typedef int32_t vert_id;
+typedef int32_t edge_id;
+typedef int32_t weight_t;
 
 /*### Structures ###*/
 
 /* graph structure with explicit start and end vertices for each edge */
-struct graphSDG {
+typedef struct {
 	int numEdges;
 	int * startVertex;	/* sorted, primary key   */
 	int * endVertex;	/* sorted, secondary key */
 	int * intWeight;	/* integer weight        */ 
 	size_t map_size;
-	
-	graphSDG(int NE);
-	~graphSDG();
-};
+} edgelist;
 
 /* primary graph structure for the kernels */
-struct graph { 
+typedef struct { 
 	int numEdges;
 	int numVertices;
 	int * startVertex;    /* start vertex of edge, sorted, primary key      */
