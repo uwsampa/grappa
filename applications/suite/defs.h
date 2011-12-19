@@ -1,10 +1,5 @@
-//
-//  defs.h
-//  AppSuite
-//
-//  Created by Brandon Holt on 12/13/11.
-//  Copyright 2011 University of Washington. All rights reserved.
-//
+// Originally from GraphCT, version 0.6.0
+// License: GeorgiaTech
 
 #ifndef suite_defs_h
 #define suite_defs_h
@@ -72,9 +67,43 @@ struct graph {
 	int * edgeStart;      /* index into startVertex and endVertex list      */
 	int * marks;		/* array for marking/coloring of vertices	  */
 	size_t map_size;
-	
-	graph(int NV, int NE);
-	~graph();
-};
+} graph;
+
+
+/*### Global Variables ###*/
+
+extern double A;
+extern double B;
+extern double C;
+extern double D;
+extern int SCALE;
+extern int numVertices;
+extern int numEdges;
+extern int maxWeight;
+extern int K4approx;
+extern int subGraphPathLength;
+
+/*### Prototypes ###*/
+
+/* timer.c */
+double timer(void);
+
+/* xmalloc.c */
+void *xmalloc (size_t);
+void *xcalloc (size_t, size_t);
+void *xrealloc (void *, size_t);
+void *xmmap (void *, size_t, int, int, int, off_t);
+
+/* graph-manip.c */
+void alloc_graph (graph * G, int NV, int NE);
+void free_graph(graph * G);
+void alloc_edgelist (edgelist * G, int NE);
+void free_edgelist (edgelist * G);
+
+/* globals.c */
+void setupParams(int scale, int edgefactor);
+
+/* genScalData.c */
+void genScalData(edgelist* SDGdataPtr, double a, double b, double c, double d);
 
 #endif
