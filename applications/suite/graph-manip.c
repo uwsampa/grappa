@@ -11,17 +11,17 @@
 
 void free_graph(graph * g) {
 	if(g != NULL)
-		munmap (g->startVertex, g->map_size);
+		munmap(g->startVertex, g->map_size);
 }
 
-void alloc_graph (graph * g, int NV, int NE) {
+void alloc_graph(graph * g, int NV, int NE) {
 	if (!g) return;
 	
 	g->numEdges    = NE;
 	g->numVertices = NV;
-	g->map_size = (3 * NE + 2 * NV + 2) * sizeof (int);
+	g->map_size = (3 * NE + 2 * NV + 2) * sizeof(int);
 	
-	g->startVertex = (int *)xmmap (NULL, g->map_size, PROT_READ | PROT_WRITE,
+	g->startVertex = (int *)xmmap(NULL, g->map_size, PROT_READ | PROT_WRITE,
 								   MAP_PRIVATE | MAP_ANON, 0,0);
 	g->endVertex   = &g->startVertex[NE];
 	g->edgeStart   = &g->endVertex[NE];
@@ -29,19 +29,19 @@ void alloc_graph (graph * g, int NV, int NE) {
 	g->marks       = &g->intWeight[NE];
 }
 
-void alloc_edgelist (edgelist * g, int NE) {
+void alloc_edgelist(edgelist * g, int NE) {
 	if (!g) return;
 	
 	g->numEdges    = NE;
-	g->map_size = (3 * NE) * sizeof (int);
-	g->startVertex = (int *)xmmap (NULL, g->map_size, PROT_READ | PROT_WRITE,
+	g->map_size = (3 * NE) * sizeof(int);
+	g->startVertex = (int *)xmmap(NULL, g->map_size, PROT_READ | PROT_WRITE,
 								   MAP_PRIVATE | MAP_ANON, 0,0);
 	g->endVertex   = &g->startVertex[NE];
 	g->intWeight   = &g->endVertex[NE];
 }
 
-void free_edgelist (edgelist * g) {
+void free_edgelist(edgelist * g) {
 	if (g)
-		munmap (g->startVertex, g->map_size);
+		munmap(g->startVertex, g->map_size);
 }
 

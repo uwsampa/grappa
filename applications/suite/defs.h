@@ -92,16 +92,16 @@ extern int subGraphPathLength;
 double timer(void);
 
 /* xmalloc.c */
-void *xmalloc (size_t);
-void *xcalloc (size_t, size_t);
-void *xrealloc (void *, size_t);
-void *xmmap (void *, size_t, int, int, int, off_t);
+void *xmalloc(size_t);
+void *xcalloc(size_t, size_t);
+void *xrealloc(void *, size_t);
+void *xmmap(void *, size_t, int, int, int, off_t);
 
 /* graph-manip.c */
-void alloc_graph (graph * G, int NV, int NE);
+void alloc_graph(graph * G, int NV, int NE);
 void free_graph(graph * G);
-void alloc_edgelist (edgelist * G, int NE);
-void free_edgelist (edgelist * G);
+void alloc_edgelist(edgelist * G, int NE);
+void free_edgelist(edgelist * G);
 
 /* globals.c */
 void setupParams(int scale, int edgefactor);

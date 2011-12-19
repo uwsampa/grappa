@@ -23,10 +23,10 @@ static inline int64_t int64_fetch_add(int64_t *p, int64_t v) {
 static void prand(int64_t n, double * v) {
     int64_t i;
     extern int64_t xmtcompat_rand_initialized;
-    extern void xmtcompat_initialize_rand (void);
-    if (!xmtcompat_rand_initialized) xmtcompat_initialize_rand ();
+    extern void xmtcompat_initialize_rand(void);
+    if (!xmtcompat_rand_initialized) xmtcompat_initialize_rand();
     for (i = 0; i < n; ++i) {
-		v[i] = drand48 ();
+		v[i] = drand48();
 	}
 }
 
