@@ -103,6 +103,9 @@ void free_graph(graph * G);
 void alloc_edgelist(edgelist * G, int NE);
 void free_edgelist(edgelist * G);
 
+void print_edgelist(edgelist * G, FILE * f);
+void print_edgelist_dot(edgelist * G, FILE * f);
+
 /* globals.c */
 void setupParams(int scale, int edgefactor);
 
