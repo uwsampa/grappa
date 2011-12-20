@@ -63,7 +63,8 @@ void genScalData(edgelist* SDGdataPtr, double a, double b, double c, double d) {
 			
 			writeef(permV + k, y);
 			writeef(permV + m, x);
-		}   }
+		}
+	}
 	
 	/*-------------------------------------------------------------------------*/
 	/* STEP 1: Create the edges using the RMAT algorithm and permute labels.   */
@@ -90,7 +91,8 @@ void genScalData(edgelist* SDGdataPtr, double a, double b, double c, double d) {
 			RMAT(i, rn, &sv, &ev);
 			sV[i + j] = permV[sv];
 			eV[i + j] = permV[ev];
-		}   }
+		}
+	}	
 	
 	/*-------------------------------------------------------------------------*/
 	/* STEP 2: Assign weights                                                  */
@@ -217,7 +219,8 @@ int Remove(int NV, int NE, int *sV, int *eV) {
 		while (next[i] == -2) {
 			int k = int_fetch_add(&NE, -1) - 1;
 			sV[i] = sV[k]; eV[i] = eV[k]; next[i] = next[k];
-		}   }
+		}
+	}
 	
 	free(head); free(next);
 	
