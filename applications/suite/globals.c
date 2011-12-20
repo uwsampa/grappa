@@ -5,11 +5,11 @@
 
 double A, B, C, D;
 int SCALE;
-vert_id numVertices;
-edge_id numEdges;
-weight_t maxWeight;
+graphint numVertices;
+graphint numEdges;
+graphint maxWeight;
 int K4approx;
-int subGraphPathLength;
+graphint subGraphPathLength;
 
 void setupParams(int scale, int edgefactor) {
 	/* SCALE */                             /* Binary scaling heuristic  */

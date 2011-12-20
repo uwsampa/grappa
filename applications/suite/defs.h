@@ -49,26 +49,29 @@ typedef int32_t vert_id;
 typedef int32_t edge_id;
 typedef int32_t weight_t;
 
+typedef int32_t graphint;
+typedef int32_t color_t;
+
 /*### Structures ###*/
 
 /* graph structure with explicit start and end vertices for each edge */
 typedef struct {
-	int numEdges;
-	int * startVertex;	/* sorted, primary key   */
-	int * endVertex;	/* sorted, secondary key */
-	int * intWeight;	/* integer weight        */ 
+	graphint numEdges;
+	graphint * startVertex;	/* sorted, primary key   */
+	graphint * endVertex;	/* sorted, secondary key */
+	graphint * intWeight;	/* integer weight        */ 
 	size_t map_size;
 } edgelist;
 
 /* primary graph structure for the kernels */
 typedef struct { 
-	int numEdges;
-	int numVertices;
-	int * startVertex;    /* start vertex of edge, sorted, primary key      */
-	int * endVertex;      /* end   vertex of edge, sorted, secondary key    */
-	int * intWeight;      /* integer weight                                 */
-	int * edgeStart;      /* index into startVertex and endVertex list      */
-	int * marks;		/* array for marking/coloring of vertices	  */
+	graphint numEdges;
+	graphint numVertices;
+	graphint * startVertex;    /* start vertex of edge, sorted, primary key      */
+	graphint * endVertex;      /* end   vertex of edge, sorted, secondary key    */
+	graphint * intWeight;      /* integer weight                                 */
+	graphint * edgeStart;      /* index into startVertex and endVertex list      */
+	color_t * marks;		/* array for marking/coloring of vertices	  */
 	size_t map_size;
 } graph;
 
@@ -80,11 +83,11 @@ extern double B;
 extern double C;
 extern double D;
 extern int SCALE;
-extern int numVertices;
-extern int numEdges;
-extern int maxWeight;
+extern graphint numVertices;
+extern graphint numEdges;
+extern graphint maxWeight;
 extern int K4approx;
-extern int subGraphPathLength;
+extern graphint subGraphPathLength;
 
 /*### Prototypes ###*/
 
@@ -98,9 +101,9 @@ void *xrealloc(void *, size_t);
 void *xmmap(void *, size_t, int, int, int, off_t);
 
 /* graph-manip.c */
-void alloc_graph(graph * G, int NV, int NE);
+void alloc_graph(graph * G, graphint NV, graphint NE);
 void free_graph(graph * G);
-void alloc_edgelist(edgelist * G, int NE);
+void alloc_edgelist(edgelist * G, graphint NE);
 void free_edgelist(edgelist * G);
 
 void print_edgelist(edgelist * G, FILE * f);
@@ -110,6 +113,9 @@ void print_edgelist_dot(edgelist * G, FILE * f);
 void setupParams(int scale, int edgefactor);
 
 /* genScalData.c */
-void genScalData(edgelist* SDGdataPtr, double a, double b, double c, double d);
+void genScalData(edgelist* ing, double a, double b, double c, double d);
+
+/* computeGraph.c */
+void computeGraph(graph* g, edgelist* ing);
 
 #endif
