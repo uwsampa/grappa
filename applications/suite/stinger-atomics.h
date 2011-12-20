@@ -34,7 +34,7 @@
 #define LIKELY(x) x
 #endif
 
-static inline int64_t stinger_int_fetch_add (int64_t*, int64_t);
+static inline int stinger_int_fetch_add (int*, int);
 static inline int64_t stinger_int64_fetch_add (int64_t*, int64_t);
 static inline uint64_t stinger_uint64_fetch_add (uint64_t*, uint64_t);
 static inline size_t stinger_size_fetch_add (size_t*, size_t);
@@ -112,8 +112,8 @@ stinger_int64_cas (int64_t *x, int64_t origx, int64_t newx)
 /* }}} */
 #elif defined(__GNUC__)||defined(__INTEL_COMPILER)
 /* {{{ GCC / ICC defs */
-int64_t
-stinger_int_fetch_add (int64_t *x, int64_t i) { return __sync_fetch_and_add (x, i); }
+int
+stinger_int_fetch_add (int *x, int i) { return __sync_fetch_and_add (x, i); }
 int64_t
 stinger_int64_fetch_add (int64_t *x, int64_t i) { return __sync_fetch_and_add (x, i); }
 uint64_t
