@@ -17,11 +17,21 @@ static void parseOptions(int argc, char ** argv);
 
 static FILE* dotfile;
 
-int main(int argc, char* argv[]) {
+int main(int argc, char* argv[]) {	
 	parseOptions(argc, argv);
 	setupParams(SCALE, 8);
 	
+	double time;
+	
 	printf("[[ Graph Application Suite ]]\n"); 	
+	
+	printf("\nScalable Data Generator - genScalData() beginning execution...\n");
+	fflush (stdout);
+	time = timer();
+	genScalData(&SDGdata, 0.55, 0.1, 0.1, 0.25);
+	/* gen1DTorus(SDGdata); */
+	
+	time  = timer() - time;
 	
 	printf("generating random edgelist data\n");
 	edgelist ing;
@@ -29,6 +39,18 @@ int main(int argc, char* argv[]) {
 	
 	if (dotfile)
 		print_edgelist_dot(&ing, dotfile);
+
+	printf("Time taken for Scalable Data Generation is %9.6lf sec.\n", time);
+
+	/* From the input edges, construct the graph 'G'.  */
+	printf("\nKernel 1 - computeGraph() beginning execution...\n"); fflush(stdout);
+	time = timer();
+	
+	graph g;
+	computeGraph(&g, &ing);
+
+	time = timer() - time;
+	printf("Time taken for computeGraph (Kernel 1) is %9.6lf sec.\n", time);
 	
 	free_edgelist(&ing);
 	
@@ -37,8 +59,9 @@ int main(int argc, char* argv[]) {
 
 static void printHelp(const char * exe) {
 	printf("Usage: %s [options]\nOptions:\n", exe);
-	printf("  --help,h    Prints this help message displaying command-line options\n");
+	printf("  --help,h   Prints this help message displaying command-line options\n");
 	printf("  --scale,s  Scale of the graph: 2^SCALE vertices.\n");
+	printf("  --dot,d    Filename for output of graph in dot form.\n");
 	exit(0);
 }
 
@@ -55,7 +78,7 @@ static void parseOptions(int argc, char ** argv) {
 	int c = 0;
 	while (c != -1) {
 		int option_index = 0;
-		c = getopt_long(argc, argv, "hs", long_opts, &option_index);
+		c = getopt_long(argc, argv, "hsd", long_opts, &option_index);
 		switch (c) {
 			case 'h':
 				printHelp(argv[0]);
