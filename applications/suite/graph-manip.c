@@ -45,3 +45,21 @@ void free_edgelist(edgelist * g) {
 		munmap(g->startVertex, g->map_size);
 }
 
+void print_edgelist(edgelist * g, FILE * f) {
+	fprintf(f, "edgelist: %d\n", g->numEdges);
+	
+	for (int i=0; i<g->numEdges; i++) {
+		fprintf(f, "\t(%6d, %6d) : %d\n",
+				g->startVertex[i], g->endVertex[i], g->intWeight[i]);
+	}
+}
+
+void print_edgelist_dot(edgelist* g, FILE* f) {
+	fprintf(f, "digraph {\n");
+	for (int i=0; i<g->numEdges; i++) {
+		fprintf(f, "\t%6d -> %6d [weight=%d];\n",
+				g->startVertex[i], g->endVertex[i], g->intWeight[i]);
+	}
+	fprintf(f, "}\n");
+}
+

@@ -15,6 +15,7 @@
 static void printHelp(const char * exe);
 static void parseOptions(int argc, char ** argv);
 
+static FILE* dotfile;
 
 int main(int argc, char* argv[]) {
 	parseOptions(argc, argv);
@@ -26,6 +27,8 @@ int main(int argc, char* argv[]) {
 	edgelist ing;
 	genScalData(&ing, A, B, C, D);
 	
+	if (dotfile)
+		print_edgelist_dot(&ing, dotfile);
 	
 	free_edgelist(&ing);
 	
