@@ -35,27 +35,33 @@ int main(int argc, char* argv[]) {
 static void printHelp(const char * exe) {
 	printf("Usage: %s [options]\nOptions:\n", exe);
 	printf("  --help,h    Prints this help message displaying command-line options\n");
-	printf("  --scale,s  Number of time steps to simulate\n");
+	printf("  --scale,s  Scale of the graph: 2^SCALE vertices.\n");
 	exit(0);
 }
 
 static void parseOptions(int argc, char ** argv) {
 	struct option long_opts[] = {
 		{"help", no_argument, 0, 'h'},
-		{"scale", no_argument, (int*)&SCALE, true},
-		{"toggle-on", no_argument, 0, 't'},
+		{"scale", required_argument, 0, 's'},
+		{"dot", required_argument, 0, 'd'}
 	};
+	
+	SCALE = 1; //default value
+	dotfile = NULL;
 	
 	int c = 0;
 	while (c != -1) {
 		int option_index = 0;
-		c = getopt_long(argc, argv, "ht", long_opts, &option_index);
+		c = getopt_long(argc, argv, "hs", long_opts, &option_index);
 		switch (c) {
 			case 'h':
 				printHelp(argv[0]);
 				exit(0);
-			case 't':
-				//toggle_on
+			case 's':
+				SCALE = atoi(optarg);
+				break;
+			case 'd':
+				dotfile = fopen(optarg,"w");
 				break;
 		}
 	}
