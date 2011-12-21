@@ -29,7 +29,21 @@ void alloc_graph(graph * g, graphint NV, graphint NE) {
 	g->marks       = &g->intWeight[NE];
 }
 
-void alloc_edgelist(edgelist * g, graphint NE) {
+void print_graph_dot(graph * g, char* fbase) {
+	char fname[512];
+	sprintf(fname, "%s%s", fbase, ".graph.dot");
+	FILE* f = fopen(fname,"w");
+
+	fprintf(f, "graph {\n");
+	for (graphint j = 0; j < g->numVertices; j++) {
+		for (graphint k = g->edgeStart[j]; k < g->edgeStart[j+1]; k++) {
+			fprintf(f, "%6d -- %6d [weight=%d]\n", j, g->endVertex[k], g->intWeight[k]);
+		}
+	}
+	fprintf(f, "}\n");
+}
+
+void alloc_edgelist(graphedges * g, graphint NE) {
 	if (!g) return;
 	
 	g->numEdges    = NE;
@@ -40,12 +54,12 @@ void alloc_edgelist(edgelist * g, graphint NE) {
 	g->intWeight   = &g->endVertex[NE];
 }
 
-void free_edgelist(edgelist * g) {
+void free_edgelist(graphedges * g) {
 	if (g)
 		munmap(g->startVertex, g->map_size);
 }
 
-void print_edgelist(edgelist * g, FILE * f) {
+void print_edgelist(graphedges * g, FILE * f) {
 	fprintf(f, "edgelist: %d\n", g->numEdges);
 	
 	for (int i=0; i<g->numEdges; i++) {
@@ -54,12 +68,17 @@ void print_edgelist(edgelist * g, FILE * f) {
 	}
 }
 
-void print_edgelist_dot(edgelist* g, FILE* f) {
+void print_edgelist_dot(graphedges* g, char* fbase) {
+	char fname[512];
+	sprintf(fname, "%s%s", fbase, ".edgelist.dot");
+	FILE* f = fopen(fname,"w");
+	
 	fprintf(f, "digraph {\n");
 	for (int i=0; i<g->numEdges; i++) {
 		fprintf(f, "\t%6d -> %6d [weight=%d];\n",
 				g->startVertex[i], g->endVertex[i], g->intWeight[i]);
 	}
 	fprintf(f, "}\n");
+	fclose(f);
 }
 

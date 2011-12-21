@@ -15,7 +15,7 @@
 static int Remove(int NV, int NE, int *sV, int *eV);
 static void RMAT(int i, double *rn, int *start, int *end);
 
-void genScalData(edgelist* SDGdataPtr, double a, double b, double c, double d) {
+void genScalData(graphedges* SDGdataPtr, double a, double b, double c, double d) {
 	int i, j, n, skip, NE, NV;
 	int *sV, *eV, *weight, *permV;
 	void *mem;

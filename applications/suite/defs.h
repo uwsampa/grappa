@@ -61,7 +61,7 @@ typedef struct {
 	graphint * endVertex;	/* sorted, secondary key */
 	graphint * intWeight;	/* integer weight        */ 
 	size_t map_size;
-} edgelist;
+} graphedges;
 
 /* primary graph structure for the kernels */
 typedef struct { 
@@ -97,25 +97,27 @@ double timer(void);
 /* xmalloc.c */
 void *xmalloc(size_t);
 void *xcalloc(size_t, size_t);
-void *xrealloc(void *, size_t);
-void *xmmap(void *, size_t, int, int, int, off_t);
+void *xrealloc(void*, size_t);
+void *xmmap(void*, size_t, int, int, int, off_t);
 
 /* graph-manip.c */
-void alloc_graph(graph * G, graphint NV, graphint NE);
-void free_graph(graph * G);
-void alloc_edgelist(edgelist * G, graphint NE);
-void free_edgelist(edgelist * G);
+void alloc_graph(graph* g, graphint NV, graphint NE);
+void free_graph(graph* g);
+void alloc_edgelist(graphedges* g, graphint NE);
+void free_edgelist(graphedges* g);
 
-void print_edgelist(edgelist * G, FILE * f);
-void print_edgelist_dot(edgelist * G, FILE * f);
+void print_edgelist(graphedges* g, FILE* f);
+void print_edgelist_dot(graphedges* g, char* fbase);
+void print_graph_dot(graph* g, char* fbase);
 
 /* globals.c */
 void setupParams(int scale, int edgefactor);
 
 /* genScalData.c */
-void genScalData(edgelist* ing, double a, double b, double c, double d);
+void genScalData(graphedges* ing, double a, double b, double c, double d);
 
 /* computeGraph.c */
-void computeGraph(graph* g, edgelist* ing);
+graph* computeGraph(graphedges* ge);
+graph* makeUndirected(graph *G);
 
 #endif
