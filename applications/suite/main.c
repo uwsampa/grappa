@@ -15,7 +15,7 @@
 static void printHelp(const char * exe);
 static void parseOptions(int argc, char ** argv);
 
-static FILE* dotfile;
+static char* graphfile;
 
 int main(int argc, char* argv[]) {	
 	parseOptions(argc, argv);
@@ -25,34 +25,36 @@ int main(int argc, char* argv[]) {
 	
 	printf("[[ Graph Application Suite ]]\n"); 	
 	
-	printf("\nScalable Data Generator - genScalData() beginning execution...\n");
+	printf("\nScalable Data Generator - genScalData() randomly generating edgelist...\n");
 	fflush (stdout);
 	time = timer();
-	genScalData(&SDGdata, 0.55, 0.1, 0.1, 0.25);
-	/* gen1DTorus(SDGdata); */
 	
-	time  = timer() - time;
+	graphedges* ge = xmalloc(sizeof(graphedges));
+	genScalData(ge, A, B, C, D);
 	
-	printf("generating random edgelist data\n");
-	edgelist ing;
-	genScalData(&ing, A, B, C, D);
-	
-	if (dotfile)
-		print_edgelist_dot(&ing, dotfile);
-
+	time = timer() - time;
 	printf("Time taken for Scalable Data Generation is %9.6lf sec.\n", time);
+	if (graphfile) print_edgelist_dot(ge, graphfile);
 
 	/* From the input edges, construct the graph 'G'.  */
 	printf("\nKernel 1 - computeGraph() beginning execution...\n"); fflush(stdout);
 	time = timer();
 	
-	graph g;
-	computeGraph(&g, &ing);
-
-	time = timer() - time;
-	printf("Time taken for computeGraph (Kernel 1) is %9.6lf sec.\n", time);
+	// directed graph
+	graph* dirg = computeGraph(ge);
+	free_edgelist(ge);
 	
-	free_edgelist(&ing);
+	// undirected graph
+	graph* g = makeUndirected(dirg);
+	
+	time = timer() - time;
+	printf("Time taken for computeGraph (Kernel 1) is %9.6lf sec.\n", time);	
+	if (graphfile) print_graph_dot(g, graphfile);
+	
+	// Kernel 2: Connected Components
+	
+	free_graph(dirg);
+	free_graph(g);
 	
 	return 0;
 }
@@ -73,7 +75,7 @@ static void parseOptions(int argc, char ** argv) {
 	};
 	
 	SCALE = 1; //default value
-	dotfile = NULL;
+	graphfile = NULL;
 	
 	int c = 0;
 	while (c != -1) {
@@ -87,7 +89,7 @@ static void parseOptions(int argc, char ** argv) {
 				SCALE = atoi(optarg);
 				break;
 			case 'd':
-				dotfile = fopen(optarg,"w");
+				graphfile = optarg;
 				break;
 		}
 	}
