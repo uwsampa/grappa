@@ -29,6 +29,54 @@
 #define member_size(type, member) sizeof(((type *)0)->member)
 
 
+void workStealRequestHandler(gasnet_token_t token, gasnet_handlerarg_t a0);
+void workStealReplyHandler(gasnet_token_t token, void* buf, size_t num_bytes, gasnet_handlerarg_t a0);
+
+gasnet_handlerentry_t   handlers[] =
+    {
+        { GM_REQUEST_HANDLER, (void (*) ()) gm_request_handler },
+        { GM_RESPONSE_HANDLER, (void (*) ()) gm_response_handler },
+        { GA_HANDLER, (void (*) ()) ga_handler },
+        { WORKSTEAL_REQUEST_HANDLER, (void (*) ()) workStealRequestHandler },
+        { WORKSTEAL_REPLY_HANDLER, (void (*) ()) workStealReplyHandler },
+    };
+
+gasnet_seginfo_t* shared_memory_blocks;
+
+#define SHARED_PROCESS_MEMORY_SIZE  (ONE_MEGA * 256)
+#define SHARED_PROCESS_MEMORY_OFFSET (ONE_MEGA * 256)
+
+void function_dispatch(int func_id, void *buffer, uint64_t size) {
+    }
+    
+void init(int *argc, char ***argv) {
+    int initialized = 0;
+    
+    MPI_Initialized(&initialized);
+    if (!initialized)
+        if (MPI_Init(argc, argv) != MPI_SUCCESS) {
+        printf("Failed to initialize MPI\n");
+        exit(1);
+    }
+        
+    if (gasnet_init(argc, argv) != GASNET_OK) {
+        printf("Failed to initialize gasnet\n");
+        exit(1);
+    }
+    
+    if (gasnet_attach(handlers,
+        sizeof(handlers) / sizeof(gasnet_handlerentry_t),
+        SHARED_PROCESS_MEMORY_SIZE,
+        SHARED_PROCESS_MEMORY_OFFSET) != GASNET_OK) {
+        printf("Failed to allocate sufficient shared memory with gasnet\n");
+        gasnet_exit(1);
+    }
+    gm_init();
+
+    printf("using GASNET_SEGMENT_FAST=%d; maxGlobalSegmentSize=%lu\n", GASNET_SEGMENT_FAST, gasnet_getMaxGlobalSegmentSize());
+}
+/*************************/
+
 /***********************************************************
  *  Parallel execution parameters                          *
  ***********************************************************/
@@ -438,13 +486,14 @@ int main(int argc, char *argv[]) {
        
     }
     
-    for (int i=0; i<num_cores; i++) {
-        ss_init(&stealstacks[i], maxstackdepth);
-    }
+    ss_init(&myStealstack, maxstackdepth);
 
     // push the root
-    ss_push(&stealstacks[0], root);
-    
+    if (rank == 0) {
+        ss_push(&myStealstack, root);
+    }
+   
+    num_cores = 1; // TODO make 1 always
      
     // green threads init
     thread* masters[num_cores];
@@ -480,7 +529,7 @@ int main(int argc, char *argv[]) {
     
     #pragma omp parallel for num_threads(num_cores)
     for (int core=0; core<num_cores; core++) {
-/*
+/* TODO Set based on the rank
         cpu_set_t set;
         CPU_ZERO(&set);
         CPU_SET(coreslist[core], &set);
@@ -494,17 +543,17 @@ int main(int argc, char *argv[]) {
     endTime = uts_wctime();
   
     if (verbose > 2) {
-        for (int i=0; i<num_cores; i++) {
+       // for (int i=0; i<num_cores; i++) {
             printf("** Thread %d\n", i);
-            printf("  # nodes explored    = %d\n", stealStacks[i].nNodes);
-            printf("  # chunks released   = %d\n", stealStacks[i].nRelease);
-            printf("  # chunks reacquired = %d\n", stealStacks[i].nAcquire);
-            printf("  # chunks stolen     = %d\n", stealStacks[i].nSteal);
-            printf("  # failed steals     = %d\n", stealStacks[i].nFail);
-            printf("  max stack depth     = %d\n", stealStacks[i].maxStackDepth);
+            printf("  # nodes explored    = %d\n", myStealStack.nNodes);
+            printf("  # chunks released   = %d\n", myStealStack.nRelease);
+            printf("  # chunks reacquired = %d\n", myStealStack.nAcquire);
+            printf("  # chunks stolen     = %d\n", myStealStack.nSteal);
+            printf("  # failed steals     = %d\n", myStealStack.nFail);
+            printf("  max stack depth     = %d\n", myStealStack.maxStackDepth);
             printf("  wakeups             = %d, false wakeups = %d (%.2f%%)",
-                    stealStacks[i].wakeups, stealStacks[i].falseWakeups,
-                    (stealStacks[i].wakeups == 0) ? 0.00 : ((((double)stealStacks[i].falseWakeups)/stealStacks[i].wakeups)*100.0));
+                    myStealStack.wakeups, myStealStack.falseWakeups,
+                    (myStealStack.wakeups == 0) ? 0.00 : ((((double)myStealStack.falseWakeups)/myStealStack.wakeups)*100.0));
             printf("\n");
         }
     }
@@ -516,14 +565,14 @@ int main(int argc, char *argv[]) {
     uint64_t t_nFail = 0;
     uint64_t m_maxStackDepth = 0;
 
-    for (int i=0; i<num_cores; i++) {
-        t_nNodes += stealStacks[i].nNodes;
-        t_nRelease += stealStacks[i].nRelease;
-        t_nAcquire += stealStacks[i].nAcquire;
-        t_nSteal += stealStacks[i].nSteal;
-        t_nFail += stealStacks[i].nFail;
-        m_maxStackDepth = maxint(m_maxStackDepth, stealStacks[i].maxStackDepth);
-    }
+  //  for (int i=0; i<num_cores; i++) {
+        t_nNodes += myStealStack.nNodes;
+        t_nRelease += myStealStack.nRelease;
+        t_nAcquire += myStealStack.nAcquire;
+        t_nSteal += myStealStack.nSteal;
+        t_nFail += myStealStacks.nFail;
+        m_maxStackDepth = maxint(m_maxStackDepth, myStealStack.maxStackDepth);
+  //  }
 
     printf("total visited %lu / %lu\n", t_nNodes, num_genNodes);
 
