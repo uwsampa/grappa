@@ -56,11 +56,13 @@ void put_remote_address(global_address gaddr, void* data, uint64_t offset, size_
 #define prefetchDL(src) __builtin_prefetch((src), 0, PRE_LOCALITY); \
                         __builtin_prefetch(((uint8_t*)(src))+8, 0, PRE_LOCALITY)
 
+#define PREFETCH_LOCALS 0
 mem_tag_t get_doublelong_nb(global_array* ga, uint64_t index, void* dest) {
     global_address gaddr;
     ga_index(ga, index, &gaddr);
     void* srcptr;
     int nodeid;
+#if PREFETCH_LOCALS
     if (gm_is_address_local(&gaddr)) {
         //printf("p%d: local for index %d\n", gasnet_mynode(), index);
         srcptr = gm_local_gm_address_to_local_ptr(&gaddr);
@@ -69,7 +71,9 @@ mem_tag_t get_doublelong_nb(global_array* ga, uint64_t index, void* dest) {
         tag.dest = dest;
         tag.src = srcptr;
         return tag;
-    } else {
+    } else
+#endif
+    {
         //printf("p%d: remote for index %d\n", gasnet_mynode(), index);
         srcptr = gm_address_to_ptr(&gaddr);
         nodeid = gm_node_of_address(&gaddr);
@@ -80,6 +84,49 @@ mem_tag_t get_doublelong_nb(global_array* ga, uint64_t index, void* dest) {
     }
 }
 
+#define CACHELINE_SIZE 64
+mem_tag_t get_remote_nb(global_array* ga, uint64_t index, size_t num_bytes, void* dest) {
+    global_address gaddr;
+    ga_index(ga, index, &gaddr);
+    void* srcptr;
+    int nodeid;
+#if PREFETCH_LOCALS
+    if (gm_is_address_local(&gaddr)) {
+        //printf("p%d: local for index %d\n", gasnet_mynode(), index);
+        srcptr = gm_local_gm_address_to_local_ptr(&gaddr);
+        char* prefAddr = (char*) srcptr;
+        for (int i=0; i<num_bytes; i+=CACHELINE_SIZE) {
+            prefetch(prefAddr+i);
+        }
+        mem_tag_t tag;
+        tag.dest = dest;
+        tag.src = srcptr;
+        return tag;
+    } else
+#endif
+    {
+        //printf("p%d: remote for index %d\n", gasnet_mynode(), index);
+        srcptr = gm_address_to_ptr(&gaddr);
+        nodeid = gm_node_of_address(&gaddr);
+        mem_tag_t tag;
+        tag.dest = NULL;
+        tag.src = gasnet_get_nb (dest, nodeid, srcptr, num_bytes);
+        return tag;
+    }
+}
+
+void complete_nb(thread* me, mem_tag_t tag) {
+#if PREFETCH_LOCALS
+    if (tag.dest!=NULL) {
+       ...
+    } else
+#endif
+    {
+       while (gasnet_try_syncnb(tag.src) != GASNET_OK) {
+           thread_yield(me);
+       } 
+    }
+}
 
 /*
 gasnet_handle_t put_long_nb(global_array* ga, uint64_t index, uint64_t data) {

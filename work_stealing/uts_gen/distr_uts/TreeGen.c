@@ -11,9 +11,8 @@
 
 
 #define PARALLEL 1
-#define prefetch(x) __builtin_prefetch((x), 0, 1)
 #define PREFETCH_WORK 1
-#define PREFETCH_CHILDREN 0
+#define PREFETCH_CHILDREN 1
 
 
 #define YIELD_ALARM 0
@@ -184,11 +183,13 @@ typedef struct worker_info {
     long nVisited;
     global_array* nodes_array;
     global_array* children_arrays;
+    int my_id;
 } worker_info;
 
 
 
 /* search other threads for work to steal */
+/* CURRENTLY UNUSED */
 int findwork(int k, int my_id, int num_queues) {
   int i,v;
   for (i = 1; i < num_queues; i++) { // TODO permutation order
@@ -280,7 +281,7 @@ void releaseNodes(StealStack *ss){
 }
 
 
-void workLoop(StealStack* ss, thread* me, int* work_done, int core_id, int num_cores, long* nVisited, global_array* nodes_array, global_array* children_arrays) {
+void workLoop(StealStack* ss, thread* me, int* work_done, int core_id, int num_cores, long* nVisited, global_array* nodes_array, global_array* children_arrays, int my_id) {
 
     while (!(*work_done)) {
             //printf("core %d check work when local=%d\n", core_id, ss->top-ss->local);
@@ -292,31 +293,23 @@ void workLoop(StealStack* ss, thread* me, int* work_done, int core_id, int num_c
             *nVisited = *nVisited+1;
             //printf("core %d work(#%lu, id=%d, nc=%d, height=%d)\n", core_id, *nVisited, work->id, work->numChildren, work->height);
 
-            /* DISTR TODO
-             * This is where the need to load
-             * 'work' node to get numChildren and ptrs
-             */
-
-
-            // want to prefetch important fields children,numChildren (first 16B)
             Node workLocal;
-            get_doublelong_nb(nodes_array, work, &workLocal);
 
-            
-            ////TODO this section
+          //TODO the get nb causes action that will wake up yielded thread  
             #if PREFETCH_WORK
-            prefetch(work); // hopefully this pulls in a single cacheline containing numChildren and children
+            // pull in numChildren and children
+            get_doublelong_nb(nodes_array, work, &workLocal);
             YIELD(me); // TODO try cacheline align the nodes (2 per line probably)
             #endif
 
+            Node_ptr childrenLocal[workLocal.numChildren];
+            
             #if PREFETCH_CHILDREN
-            prefetch(work->children);
+            get_remote_nb(children_arrays, workLocal.children, work.numChildren*sizeof(Node_ptr), childrenLocal);
             YIELD(me);
             #endif
             ///TODO
 
-            Node_ptr childrenLocal[workLocal.numChildren];
-            get_remote(children_arrays, workLocal.children, 0, work.numChildren, childrenLocal);
 
             for (int i=0; i<workLocal.numChildren; i++) {
                 //printf("core %d pushes child(id=%d,height=%d,parent=%d)\n", core_id, work->children[i]->id, work->children[i]->height, work->id);
@@ -344,14 +337,11 @@ void workLoop(StealStack* ss, thread* me, int* work_done, int core_id, int num_c
           int victimId;
           
 /*          ss_setState(ss, SS_SEARCH);             */
-          victimId = findwork(chunkSize, core_id, num_cores);
-          while (victimId != -1 && !goodSteal) {
-              // some work detected, try to steal it
-              goodSteal = ss_steal_locally(ss, victimId, chunkSize);
-              // keep trying because work disappeared
-              if (!goodSteal)
-                  victimId = findwork(chunkSize, core_id, num_cores);
+          for (i = 1; i < num_queues && !goodSteal; i++) { // TODO permutation order
+            victimId = (my_id + i) % num_queues;
+            goodSteal = ss_steal_locally(ss, victimId, chunkSize);
           }
+
           if (goodSteal) {
               //printf("%d steals %d items\n", omp_get_thread_num(), chunkSize);
               threads_wakeAll(me); // TODO optimize wake based on amount stolen
@@ -374,7 +364,7 @@ void thread_runnable(thread* me, void* arg) {
     struct worker_info* info = (struct worker_info*) arg;
 
     //printf("thread starts from core %d/%d\n", info->core_id, info->num_cores);
-    workLoop(&stealStacks[info->core_id], me, info->work_done, info->core_id, info->num_cores, &(info->nVisited), info->nodes_array, info->children_arrays);
+    workLoop(&stealStacks[info->core_id], me, info->work_done, info->core_id, info->num_cores, &(info->nVisited), info->nodes_array, info->children_arrays, info->my_id);
 
     thread_exit(me, NULL);
 }
@@ -517,6 +507,7 @@ int main(int argc, char *argv[]) {
             wis[i][th].nVisited = 0L;
             wis[i][th].nodes_array = nodes;
             wis[i][th].children_arrays = children_array_pool;
+            wis[i][th].my_id = rank;
             thread_spawn(masters[i], schedulers[i], thread_runnable, &wis[i][th]);
         }
     }
