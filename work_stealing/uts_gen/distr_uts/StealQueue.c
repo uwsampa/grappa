@@ -28,10 +28,12 @@ int maxint(int x, int y) { return (x>y)?x:y; }
 /* restore stack to empty state */
 /* This version assumed to be called on a working copy to be written*/
 void ss_mkEmpty(StealStack *s) {
+  SET_LOCK(s->stackLock);
   s->sharedStart = 0;
   s->local  = 0;
   s->top    = 0;
   s->workAvail = 0;
+  UNSET_LOCK(s->stackLock);
 }
 
 /* fatal error */
@@ -41,47 +43,36 @@ void ss_error(char *str) {
 }
 
 /* initialize the stack */
-void ss_init(global_address/*<StealStack>*/ s, int nelts, int numNodes, int myNode) {
-  StealStack sTemp;
-
-  //int nbytes = nelts * sizeof(Node*);
+void ss_init(StealStack* s, int nelts, int numNodes, int myNode) {
+  int nbytes = nelts * sizeof(Node_ptr);
 
   // allocate stack in shared addr space with affinity to calling thread
   // and record local addr for efficient access in sequel
-  global_array* stackGA = ga_allocate(sizeof(Node_ptr), numNodes*nelts);
-  ga_index(ga, myNode*nelts, &sTemp.stack_g);
-  assert(gm_is_address_local(&sTemp.stack_g));
-  sTemp.stack = (Node_ptr*) gm_local_gm_address_to_local_ptr(&sTemp.stack_g);   // assumes local pointer is contiguous
+  s->stack_g = (Node_ptr*) malloc (nbytes);
+  s->stack = (Node_ptr*) s->stack_g;
   
-  if (sTemp.stack == NULL) {
+  if (s->stack == NULL) {
     printf("Request for %d bytes for stealStack on thread %d failed\n",
            nbytes, GET_THREAD_NUM);
     ss_error("ss_init: unable to allocate space for stealstack");
   }
 
-  global_array* stackLockGA = ga_allocate(sizeof(LOCK_T), numNodes);
-  ga_index(ga, myNode, &sTemp.stackLock_g);
-  assert(gm_is_address_local(&sTemp.stackLock_g));
-  sTemp.stackLock = (LOCK_T*) gm_local_gm_address_to_local_ptr(&sTemp.stackLock_g);
-  INIT_LOCK(sTemp.stackLock);
+  s->stackLock = (LOCK_T*)malloc(sizeof(LOCK_T));
+  INIT_LOCK(s->stackLock);
   
-  sTemp.stackSize = nelts;
-  sTemp.nNodes = 0;
-  sTemp.maxStackDepth = 0;
-  sTemp.maxTreeDepth = 0;
-  sTemp.nLeaves = 0;
-  sTemp.nAcquire = 0;
-  sTemp.nRelease = 0;
-  sTemp.nSteal = 0;
-  sTemp.nFail = 0;
-  sTemp.wakeups = 0;
-  sTemp.falseWakeups = 0;
-  sTemp.nNodes_last = 0;
-  ss_mkEmpty(&sTemp);
-
-  SET_LOCK(sTemp.stackLock);
-  put_remote_address(s, &sTemp, 0, sizeof(StealStack));
-  UNSET_LOCK(sTemp.stackLock);
+  s->stackSize = nelts;
+  s->nNodes = 0;
+  s->maxStackDepth = 0;
+  s->maxTreeDepth = 0;
+  s->nLeaves = 0;
+  s->nAcquire = 0;
+  s->nRelease = 0;
+  s->nSteal = 0;
+  s->nFail = 0;
+  s->wakeups = 0;
+  s->falseWakeups = 0;
+  s->nNodes_last = 0;
+  ss_mkEmpty(s);
 }
 
 
@@ -173,46 +164,79 @@ int ss_acquire(StealStack *s, int k) {
 
 void ss_setState(StealStack* s, int state) { return; }
 
+int local_steal_amount;
+LOCK_T lsa_lock = LOCK_INITIALIZER;
 int ss_steal_locally(StealStack* thief, int victim, int k) {
+    assert(thief == &myStealStack);//TODO just remove the parameter
 
-    /* TODO unify the ss_error checks for starting all stealing.
-     * We may want to allow stealing onto non-empty stack, too. */
+    SET_LOCK(&lsa_lock);
+    local_steal_amount = -1;
+    UNSET_LOCK(&lsa_lock);
 
-    SET_LOCK(stealStacks[victim].stackLock);
+    gasnet_AMRequestShort1 (victim, WORKSTEAL_REQUEST_HANDLER, k);
 
-    int victimLocal = stealStacks[victim].local;
-    int victimShared = stealStacks[victim].sharedStart;
-    int victimWorkAvail = stealStacks[victim].workAvail;
+    // steal is blocking
+    GASNET_BLOCKUNTIL(local_steal_amount != -1); // TODO expression: how do you lock protect
 
+    return local_steal_amount;
+}
+
+void workStealRequestHandler(gasnet_token_t token, gasnet_handlerarg_t a0) {
+
+    int k = (int) a0;
+
+    StealStack* victimStack = &myStealStack;
+   
+   // TODO HSL! 
+    SET_LOCK(victimStack->stackLock);
+    
+    int victimLocal = victimStack->local;
+    int victimShared = victimStack->sharedStart;
+    int victimWorkAvail = victimStack->workAvail;
+    
     if (victimLocal - victimShared != victimWorkAvail)
         ss_error("handle steal request: stealStack invariant violated");
-
+    
     int ok = victimWorkAvail >= k;
     if (ok) {
         /* reserve a chunk */
-        stealStacks[victim].sharedStart =  victimShared + k;
-        stealStacks[victim].workAvail = victimWorkAvail - k;
+        victimStack->sharedStart =  victimShared + k;
+        victimStack->workAvail = victimWorkAvail - k;
     }
-    UNSET_LOCK(stealStacks[victim].stackLock);
-
-
+    UNSET_LOCK(victimStack->stackLock);
+    
     /* if k elts reserved, move them to local portion of our stack */
     if (ok) {
-        SHARED_INDEF Node ** victimStackBase = stealStacks[victim].stack_g;
-        SHARED_INDEF Node ** victimSharedStart = victimStackBase + victimShared;
-
-        memcpy(&thief->stack[thief->top], victimSharedStart, k*sizeof(Node*));
-
-        thief->nSteal++;
-        thief->top += k;
-        
-        return 1;
-
+        Node_ptr* victimStackBase = victimStack->stack;
+        Node_ptr* victimSharedStart = victimStackBase + victimShared;
+    
+        gasnet_AMReplyMedium1(token, WORKSTEAL_REPLY_HANDLER, victimSharedStart, k*sizeof(Node_ptr), 1);
     } else {
-        thief->nFail++;
+        gasnet_AMReplyMedium1(token, WORKSTEAL_REPLY_HANDLER, 0, 0, 0);
     }
-    return 0;
+
 }
+
+void workStealReplyHandler(gasnet_token_t token, void* buf, size_t num_bytes, gasnet_handlerarg_t a0) {
+    Node_ptr* stolen_work = (Node_ptr*) buf;
+    int success = (int) a0;
+
+    if (success) {
+        myStealStack->nSteal++;
+        myStealStack->top += k;
+        SET_LOCK(&lsa_lock);
+        memcpy(myStealStack->stack[myStealStack->top], stolen_work, num_bytes);
+        local_steal_amount = k;
+        UNSET_LOCK(&lsa_lock);
+    } else {
+        myStealStack->nFail++;
+        SET_LOCK(&lsa_lock);
+        local_steal_amount = 0;
+        UNSET_LOCK(&lsa_lock);
+    }
+    
+}
+
 
 //TODO: should global steal go into a node-level queue or into the core's queue? 
 //core's queue:

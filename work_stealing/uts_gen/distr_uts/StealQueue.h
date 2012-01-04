@@ -9,8 +9,8 @@ extern "C" {
 
 #define SHARED_INDEF /*nothing*/
 
-#define GASNET_LOCKS 0
-#define OPENMP_LOCKS 1
+#define GASNET_LOCKS 1
+#define OPENMP_LOCKS 0
 
 /** OpenMP defs **/
 #if OPENMP_LOCKS
@@ -49,40 +49,47 @@ struct stealStack_t
   int nLeaves;
   int nAcquire, nRelease, nSteal, nFail;  /* steal stats */
   int wakeups, falseWakeups, nNodes_last;
-  double time[SS_NSTATES], timeLast;         /* perf measurements */
-  int entries[SS_NSTATES], curState;
-  LOCK_T* stackLock;
-  global_address stackLock_g; /* lock for manipulation of shared portion */
-  Node_ptr* stack;       /* addr of actual stack of nodes in local addr space */
-  global_address stack_g; /* addr of same stack in global addr space */
+  double time[SS_NSTATES], timeLast;
+  /* perf measurements */ 
+  int entries[SS_NSTATES], curState; 
+  LOCK_T* stackLock; 
+  LOCK_T* stackLock_g;
+  /* lock for manipulation of shared portion */ 
+  Node_ptr* stack;       /* addr of actual
+                               stack of nodes
+                               in local addr
+                               space */
+  Node_ptr* stack_g; /* addr of same
+                             stack in global
+                             addr space */
 
-};
+}; 
 typedef struct stealStack_t StealStack;
 
 
 
-void ss_mkEmpty(StealStack *s);
-void ss_error(char *str);
-void ss_init(StealStack *s, int nelts);
-void ss_push(StealStack *s, Node *c);
-Node * ss_top(StealStack *s);
-void ss_pop(StealStack *s);
+void ss_mkEmpty(StealStack *s); 
+void ss_error(char *str); 
+void ss_init(StealStack *s, int nelts); 
+void ss_push(StealStack *s, Node *c); 
+Node * ss_top(StealStack *s); 
+void ss_pop(StealStack *s); 
 int ss_topPosn(StealStack *s);
-int ss_localDepth(StealStack *s);
-void ss_release(StealStack *s, int k);
-int ss_acquire(StealStack *s, int k);
-int ss_steal_locally(StealStack* thief_id, int victim, int chunkSize);
-int ss_remote_steal(StealStack *s, int thiefCore, int victimNode, int k);
+int ss_localDepth(StealStack *s); 
+void ss_release(StealStack *s, int k); 
+int ss_acquire(StealStack *s, int k); 
+int ss_steal_locally(StealStack* thief_id, int victim, int chunkSize); 
+int ss_remote_steal(StealStack *s, int thiefCore, int victimNode, int k); 
 void ss_setState(StealStack *s, int state);
 
-#define MAX_NUM_THREADS 12
-#define MAXSTACKDEPTH 500000
-StealStack stealStacks[MAX_NUM_THREADS];
-extern StealStack stealStacks[MAX_NUM_THREADS];
+#define MAX_NUM_THREADS 12 
+#define MAXSTACKDEPTH 500000 
+StealStack myStealStack; 
+extern StealStack myStealStack;
 
 
-#ifdef __cplusplus
-}
+#ifdef __cplusplus 
+} 
 #endif
 
 
