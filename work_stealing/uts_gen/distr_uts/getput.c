@@ -1,4 +1,5 @@
 #include "getput.h"
+#include "thread.h"
 #include <gasnet.h>
 
 bool isLocal(global_array* ga, uint64_t index) {

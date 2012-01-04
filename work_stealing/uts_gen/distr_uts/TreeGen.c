@@ -157,7 +157,7 @@ void __sched__noop__(pid_t pid, unsigned int x, cpu_set_t* y) {}
   
 #define IBT_PERMUTE 1
 
-int generateTree(Node* root, Node* nodes, int cid);
+int generateTree(Node_ptr root, global_array* nodes, int cid, global_array* child_array, ballocator_t* bals[], struct state_t* states);
 
 //enum   uts_trees_e    { BIN = 0, GEO, HYBRID, BALANCED };
 //enum   uts_geoshape_e { LINEAR = 0, EXPDEC, CYCLIC, FIXED };
@@ -298,22 +298,24 @@ void workLoop(StealStack* ss, thread* me, int* work_done, int core_id, int num_c
           //TODO the get nb causes action that will wake up yielded thread  
             #if PREFETCH_WORK
             // pull in numChildren and children
-            get_doublelong_nb(nodes_array, work, &workLocal);
+            mem_tag_t tag = get_doublelong_nb(nodes_array, work, &workLocal);
             YIELD(me); // TODO try cacheline align the nodes (2 per line probably)
+            complete_nb(me, tag);
             #endif
 
             Node_ptr childrenLocal[workLocal.numChildren];
             
             #if PREFETCH_CHILDREN
-            get_remote_nb(children_arrays, workLocal.children, work.numChildren*sizeof(Node_ptr), childrenLocal);
+            tag = get_remote_nb(children_arrays, workLocal.children, work.numChildren*sizeof(Node_ptr), childrenLocal);
             YIELD(me);
+            complete_nb(me, tag);
             #endif
             ///TODO
 
 
             for (int i=0; i<workLocal.numChildren; i++) {
                 //printf("core %d pushes child(id=%d,height=%d,parent=%d)\n", core_id, work->children[i]->id, work->children[i]->height, work->id);
-                ss_push(ss, workLocal.children[i]);
+                ss_push(ss, childrenLocal[i]);
             }
 
             // notify other coroutines in my scheduler
@@ -397,13 +399,18 @@ int Permute(int i) {
     #define Node_ptr_ptr Node**
 #endif
 
-int generateTree(Node_ptr root, global_array* nodes, int cid, global_array* child_array, ballocator_t* bals[]) {
-    int nc = uts_numChildren(root);
-    int childType = uts_childType(root);
+int generateTree(Node_ptr root, global_array* nodes, int cid, global_array* child_array, ballocator_t* bals[], struct state_t* states) {
+
+    Node rootLocal;
+    get_remote(nodes, root, 0, sizeof(Node), &rootLocal);
+
+    // pure functions
+    int nc = uts_numChildren(&rootLocal, &states[cid]);
+    int childType = uts_childType(&rootLocal);
    
     Node rootTemp;
-    rootTemp.type = root->type;  //copy (not needed if dont overwrite)
-    rootTemp.height = root->height; // copy (not needed if dont overwrite)
+    rootTemp.type = rootLocal.type;  //copy (not needed if dont overwrite)
+    rootTemp.height = rootLocal.height; // copy (not needed if dont overwrite)
     rootTemp.children = (Node_ptr_ptr) bals[ga_node(nodes, root)]->balloc(nc);
     rootTemp.numChildren = nc;
     rootTemp.id = cid;
@@ -428,10 +435,10 @@ int generateTree(Node_ptr root, global_array* nodes, int cid, global_array* chil
         childTemp.type = childType;
         put_remote(nodes, index, &childTemp, 0, sizeof(Node)); // comment out this initialization write, to be faster
         for (int j=0; j<computeGranularity; j++) {
-            rng_spawn(root->state.state, root->children[i]->state.state, i);
+            rng_spawn(states[rootTemp.id].state, states[current_cid].state, i);
             }
 
-        current_cid = generateTree(index, nodes, current_cid, child_array, bals);    
+        current_cid = generateTree(index, nodes, current_cid, child_array, bals, states);    
     }
     return current_cid;
 }
@@ -463,15 +470,15 @@ int main(int argc, char *argv[]) {
         for (int p=0; p<num_procs; p++) {
             bals[p] = newBumpAllocator(children_array_pool, p*(children_array_pool->elements_per_node), children_array_size); //using children_array_size for size will make it look like original size 
         }
+   
+        struct state_t* states = (struct state_t*)malloc(sizeof(struct state_t)*numNodes);
     
-        uts_initRoot(root, type);
-    
-        const uint64_t r_height = 0;
-        const uint64_t r_numChildren = -1;
-        put_remote(nodes, root, &r_height, offsetof(Node, height), member_size(Node,height));
-        put_remote(nodes, root, &r_numChildren, offsetof(Node, numChildren), member_size(Node, numChildren));
+        Node rootTemplate;  
+        uts_initRoot(&rootTemplate, type, &states[0]);
+        put_remote(nodes, root, &rootTemplate, 0, sizeof(Node));
       
-        uint64_t num_genNodes = generateTree(root, nodes, 0, bals);
+        uint64_t num_genNodes = generateTree(root, nodes, 0, bals, states);
+        free(states);
         printf("num nodes gen: %lu\n", num_genNodes);
        
     }

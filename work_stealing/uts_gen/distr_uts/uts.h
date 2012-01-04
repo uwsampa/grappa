@@ -40,7 +40,7 @@ struct node_t{
   
   
   /* for RNG state associated with this node */
-  struct state_t state;
+  //struct state_t state;
 
 };
 typedef struct node_t Node;
@@ -100,10 +100,10 @@ double uts_wctime();
 double rng_toProb(int n);
 
 /* Common tree routines */
-void   uts_initRoot(Node * root, int type);
-int    uts_numChildren(Node *parent);
-int    uts_numChildren_bin(Node * parent);
-int    uts_numChildren_geo(Node * parent);
+void   uts_initRoot(Node* root, int type, struct state_t* rng_state);
+int    uts_numChildren(Node *parent, struct state_t* rng_state);
+int    uts_numChildren_bin(Node * parent, struct state_t* rng_state);
+int    uts_numChildren_geo(Node * parent, struct state_t* rng_state);
 int    uts_childType(Node *parent);
 
 /* Implementation Specific Functions */

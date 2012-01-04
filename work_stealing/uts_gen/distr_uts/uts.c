@@ -148,29 +148,28 @@ double rng_toProb(int n) {
 }
 
 
-void uts_initRoot(Node_ptr root, int type) {
-  Node rootTemplate;
-  rootTemplate.type = type;
-  rootTemplate.height = 0;
-  rootTemplate.numChildren = -1;
-  put_remote(nodes, root, &rootTemplate, 0, sizeof(Node));
-  rng_init(root->state.state, rootId);
+void uts_initRoot(Node* root, int type, struct state_t rng_state) {
+  root->type = type;
+  root->height = 0;
+  root->numChildren = -1;
+ 
+  rng_init(rng_state->state, rootId);
 
   if (debug & 1)
     printf("root node of type %d at %p\n",type, root);
 }
 
 
-int uts_numChildren_bin(Node * parent) {
+int uts_numChildren_bin(Node * parent, struct state_t* state) {
   // distribution is identical everywhere below root
-  int    v = rng_rand(parent->state.state);	
+  int    v = rng_rand(state->state);	
   double d = rng_toProb(v);
 
   return (d < nonLeafProb) ? nonLeafBF : 0;
 }
 
 
-int uts_numChildren_geo(Node * parent) {
+int uts_numChildren_geo(Node * parent, struct state_t* state) {
   double b_i = b_0;
   int depth = parent->height;
   int numChildren, h;
@@ -213,7 +212,7 @@ int uts_numChildren_geo(Node * parent) {
   p = 1.0 / (1.0 + b_i);
 
   // get uniform random number on [0,1)
-  h = rng_rand(parent->state.state);
+  h = rng_rand(state->state);
   u = rng_toProb(h);
 
   // max number of children at this cumulative probability
@@ -223,31 +222,27 @@ int uts_numChildren_geo(Node * parent) {
   return numChildren;
 }
 
-
-int uts_numChildren(Node_ptr parent) {
+int uts_numChildren(Node *parent, struct state_t* state) {
   int numChildren = 0;
-
-  uint64_t parent_height = -1;
-  get_remote(nodes, parent, offsetof(Node,height), member_size(Node,height), &parent_height) {
 
   /* Determine the number of children */
   switch (type) {
     case BIN:
-      if (parent_height == 0)
+      if (parent->height == 0)
         numChildren = (int) floor(b_0);
       else 
-        numChildren = uts_numChildren_bin(parent);
+        numChildren = uts_numChildren_bin(parent, state);
       break;
   
     case GEO:
-      numChildren = uts_numChildren_geo(parent);
+      numChildren = uts_numChildren_geo(parent, state);
       break;
     
     case HYBRID:
-      if (parent_height < shiftDepth * gen_mx)
-        numChildren = uts_numChildren_geo(parent);
+      if (parent->height < shiftDepth * gen_mx)
+        numChildren = uts_numChildren_geo(parent, state);
       else
-        numChildren = uts_numChildren_bin(parent);
+        numChildren = uts_numChildren_bin(parent, state);
       break;
     case BALANCED:
       if (parent->height < gen_mx)
