@@ -556,9 +556,12 @@ int main(int argc, char *argv[]) {
 
     double runtime = endTime - startTime;
     double rate = total_nodes / runtime;
-    
+   
+
+//TODO: the steal statistics are currently for one node (rank 0)
+
     if (0 == rank) {
-    printf("{'runtime':%f, 'rate':%f, 'num_cores':%d, 'num_threads_per_core':%d, 'chunk_size':%d, 'cbint':%d, 'nNodes':%lu, 'nRelease':%lu, 'nAcquire':%lu, 'nSteal':%lu, 'nFail':%lu, 'maxStackDepth':%lu}\n", runtime, rate, num_cores, num_threads_per_core, chunkSize, cbint, t_nNodes, t_nRelease, t_nAcquire, t_nSteal, t_nFail, m_maxStackDepth);
+    printf("{'runtime':%f, 'rate':%f, 'num_cores':%d, 'num_threads_per_core':%d, 'chunk_size':%d, 'cbint':%d, 'nNodes':%lu, 'nRelease':%lu, 'nAcquire':%lu, 'nSteal':%lu, 'nFail':%lu, 'maxStackDepth':%lu}\n", runtime, rate, num_cores, num_threads_per_core, chunkSize, cbint, total_nodes, t_nRelease, t_nAcquire, t_nSteal, t_nFail, m_maxStackDepth);
     }
 
 }

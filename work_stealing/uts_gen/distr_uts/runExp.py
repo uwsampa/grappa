@@ -24,55 +24,58 @@ output_backups = output_name
 output_csv = output_name+".csv"
 
 
-num_simTasks = 64
+cmd = 'mpirun -np %d -host "%s" ./TreeGen %s -n %d -T %d -c %d -i %d'
 
-num_cores = 10
+hosts = ['localhost']
+hoststring = ",".join(hosts)
 
-
-cmd = 'mpirun -np %d -host %s ./TreeGen %s -n %d -T %d -c %d -i %d'
+num_cores = 1
 
 import re
 brackets = re.compile('({.*})')
 
 threshold = 0
 
+trees = ['T1':'-t 1 -a 3 -d 10 -b 4 -r 19',
+         'T3':'-t 0 -b 2000 -q 0.124875 -m 8 -r 42']
+
 all_results = []
-for policy in [6]: #[0,1,4]:
-    for num_nodes in [2,4,6,8,16,32]:
-        for task_size in [32, 48, 64, 96, 128, 256, 512, 1024]:
-            for window_size in [3*task_size,6*task_size,8*task_size]:
-                this_cmd = cmd % (input_path, num_nodes, policy, num_simTasks, num_cores, task_size, window_size, threshold)
-                print '>',this_cmd
-                cmd_proc = pexpect.spawn(this_cmd)
-                cmd_proc.timeout = 100000
-                res = None
-                try:
-                    if verbose==1:
-                       rr = cmd_proc.readline()
-                       while rr!='':
-                           print rr
-                           m = brackets.match(rr)
-                           if m:
-                               res = dict(eval(m.group(1)))
-                               break
-                           rr = cmd_proc.readline()
-                    else:
-                        cmd_proc.expect('({.*})')
-                        res = dict(eval(cmd_proc.match.group(1)))
-                        res['window_size'] = window_size
-                        res['threshold'] = threshold
-                except Exception as e:
-                    print '->failed because',e.message()
-                    cmd_proc.close()
-                    continue    
-                     
+for treename in ['T1', 'T3']:
+    for num_processes in [2,3,4,5,6]:
+        for num_threads_per_core in [1,2,4,8,16]:
+            for chunksize in [1,5,10,20]: 
+                for cbarrier_interval in [1,2,16]:
                 
-                all_results.append(res)
-        
-                #write to disk in case of later failure
-                bkfile = open(output_backups+'/bk_%d_%d_%d_%d_%d.csv'%(num_nodes, policy, num_simTasks, num_cores, task_size), 'w')
-                bkfile.write(lr.dictlist_to_csv([res]))
-                bkfile.close()
+                    this_cmd = cmd % (num_processes, hoststring, trees[treename], num_cores, num_threads_per_core, chunksize, cbarrier_interval)
+                    print '>',this_cmd
+                    cmd_proc = pexpect.spawn(this_cmd)
+                    cmd_proc.timeout = 100000
+                    res = None
+                    try:
+                        if verbose==1:
+                           rr = cmd_proc.readline()
+                           while rr!='':
+                               print rr
+                               m = brackets.match(rr)
+                               if m:
+                                   res = dict(eval(m.group(1)))
+                                   break
+                               rr = cmd_proc.readline()
+                        else:
+                            cmd_proc.expect('({.*})')
+                            res = dict(eval(cmd_proc.match.group(1)))
+                    except Exception as e:
+                        print '->failed because',e.message()
+                        cmd_proc.close()
+                        continue    
+                         
+                    
+                    all_results.append(res)
+            
+                    #write to disk in case of later failure
+                    bkfile = open(output_backups+'/bk_%d_%s_%d_%d_%d.csv'%(num_processes,treename, num_threads_per_core, chunksize, cbarrier_interval), 'w')
+                    bkfile.write(lr.dictlist_to_csv([res]))
+                    bkfile.close()
 
 
 output_str = lr.dictlist_to_csv(all_results)
