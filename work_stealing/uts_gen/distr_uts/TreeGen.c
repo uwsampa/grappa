@@ -1,14 +1,20 @@
 #include <sched.h>
 #include <stdio.h>
 #include <stdlib.h>
+#include <stdint.h>
 #include "uts.h"
 #include "StealQueue.h"
 #include "thread.h"
-
+#include "global_array.h"
+#include "balloc.h"
 #include <omp.h>
+#include <math.h>
 
+#include "getput.h"
+#include "gasnet_cbarrier.h"
+#include "collective.h"
 
-
+#define WAIT_BARRIER gasnet_barrier_notify(11, 0); gasnet_barrier_wait(11, 0)
 
 #define PARALLEL 1
 #define PREFETCH_WORK 1
@@ -28,9 +34,6 @@
 #define member_size(type, member) sizeof(((type *)0)->member)
 
 
-void workStealRequestHandler(gasnet_token_t token, gasnet_handlerarg_t a0);
-void workStealReplyHandler(gasnet_token_t token, void* buf, size_t num_bytes, gasnet_handlerarg_t a0);
-
 gasnet_handlerentry_t   handlers[] =
     {
         { GM_REQUEST_HANDLER, (void (*) ()) gm_request_handler },
@@ -38,6 +41,10 @@ gasnet_handlerentry_t   handlers[] =
         { GA_HANDLER, (void (*) ()) ga_handler },
         { WORKSTEAL_REQUEST_HANDLER, (void (*) ()) workStealRequestHandler },
         { WORKSTEAL_REPLY_HANDLER, (void (*) ()) workStealReplyHandler },
+        { ENTER_CBARRIER_REQUEST_HANDLER, (void (*) ()) enter_cbarrier_request_handler },
+        { EXIT_CBARRIER_REQUEST_HANDLER, (void (*) ()) exit_cbarrier_request_handler },
+        { CANCEL_CBARRIER_REQUEST_HANDLER, (void (*) ()) cancel_cbarrier_request_handler },
+        { COLLECTIVE_RING_REDUCTION_HANDLER, (void (*)()) ringReduceRequestHandler }
     };
 
 gasnet_seginfo_t* shared_memory_blocks;
@@ -80,20 +87,12 @@ void init(int *argc, char ***argv) {
  *  Parallel execution parameters                          *
  ***********************************************************/
 
-int doSteal   = PARALLEL; // 1 => use work stealing
+int doSteal   = 1;//PARALLEL; // 1 => use work stealing
 int chunkSize = 10;       // number of nodes to move to/from shared area
 int cbint     = 1;        // Cancellable barrier polling interval
 
-int num_cores = 4;
-int num_threads_per_core = 8;
-
-
-// termination detection
-int cb_cancel;
-int cb_count;
-int cb_done;
-LOCK_T * cb_lock;
-
+int num_cores = 1;
+int num_threads_per_core = 2;
 
 /* Implementation Specific Functions */
 char * impl_getName() { return "TreeGen"; }
@@ -155,7 +154,7 @@ void __sched__noop__(pid_t pid, unsigned int x, cpu_set_t* y) {}
     #define SCHED_SET __sched__noop__
 #endif
   
-#define IBT_PERMUTE 1
+#define IBT_PERMUTE 0
 
 int generateTree(Node_ptr root, global_array* nodes, int cid, global_array* child_array, ballocator_t* bals[], struct state_t* states);
 
@@ -178,7 +177,7 @@ int generateTree(Node_ptr root, global_array* nodes, int cid, global_array* chil
 typedef struct worker_info {
     int num_cores_per_node;
     int core_id;
-    int num_cores;
+    int num_local_nodes;
     int* work_done;
     long nVisited;
     global_array* nodes_array;
@@ -190,78 +189,20 @@ typedef struct worker_info {
 
 /* search other threads for work to steal */
 /* CURRENTLY UNUSED */
-int findwork(int k, int my_id, int num_queues) {
-  int i,v;
-  for (i = 1; i < num_queues; i++) { // TODO permutation order
-    v = (my_id + i) % num_queues;
-//#ifdef _SHMEM
-//    GET(stealStack[v]->workAvail, stealStack[v]->workAvail, v);
-//#endif
-    if (stealStacks[v].workAvail >= k)
-      return v;
-  }
-  return -1;
-}
+//int findwork(int k, int my_id, int num_queues) {
+//  int i,v;
+//  for (i = 1; i < num_queues; i++) { // TODO permutation order
+//    v = (my_id + i) % num_queues;
+////#ifdef _SHMEM
+////    GET(stealStack[v]->workAvail, stealStack[v]->workAvail, v);
+////#endif
+//    if (stealStacks[v].workAvail >= k)
+//      return v;
+//  }
+//  return -1;
+//}
 
-void cb_init() {
-    INIT_SINGLE_LOCK(cb_lock);
 
-    SET_LOCK(cb_lock);
-    cb_count = 0;
-    cb_cancel = 0;
-    cb_done = 0;
-    UNSET_LOCK(cb_lock);
-}
-
-int cbarrier_wait(int num_threads, int my_thread) {
-    int l_count, l_done, l_cancel;
-    int pe = my_thread;
-   
-    //printf("enter barrier core %d\n", omp_get_thread_num());
-    
-    SET_LOCK(cb_lock);
-    cb_count++;
-    if (cb_count == num_threads) {
-        cb_done = 1;
-    }
-
-    l_count = cb_count;
-    l_done = cb_done;
-    if (stealStacks[pe].nNodes_last == stealStacks[pe].nNodes) {
-        ++stealStacks[pe].falseWakeups;
-    }
-    stealStacks[pe].nNodes_last = stealStacks[pe].nNodes;
-    UNSET_LOCK(cb_lock);
-    
-
-    do {
-        SET_LOCK(cb_lock);
-        l_count = cb_count;
-        l_cancel = cb_cancel;
-        l_done = cb_done;
-        UNSET_LOCK(cb_lock);
-    } while (!l_cancel && !l_done);
-
-    SET_LOCK(cb_lock);
-    cb_count--;
-    cb_cancel = 0;
-    l_done = cb_done;
-    ++stealStacks[pe].wakeups;
-    UNSET_LOCK(cb_lock);
-
-    //printf("exit barrier done=%d core %d\n", l_done, omp_get_thread_num());
-
-    return l_done;
-}
-
-void cbarrier_cancel() {
-    SET_LOCK(cb_lock);
-    cb_cancel = 1;
-    if (cb_count>0) {
-        //printf("%d cancel barrier while %d others waiting\n", omp_get_thread_num(), cb_count);
-    }
-    UNSET_LOCK(cb_lock);
-}
 
 void releaseNodes(StealStack *ss){
   if (doSteal) {
@@ -281,40 +222,43 @@ void releaseNodes(StealStack *ss){
 }
 
 
-void workLoop(StealStack* ss, thread* me, int* work_done, int core_id, int num_cores, long* nVisited, global_array* nodes_array, global_array* children_arrays, int my_id) {
-
+void workLoop(StealStack* ss, thread* me, int* work_done, int core_id, int num_local_nodes, long* nVisited, global_array* nodes_array, global_array* children_arrays, int my_id) {
     while (!(*work_done)) {
             //printf("core %d check work when local=%d\n", core_id, ss->top-ss->local);
         while (ss_localDepth(ss) > 0) {
 /*            ss_setState(ss, SS_WORK);        */
             /* get node at stack top */
             Node_ptr work = ss_top(ss);
+            //printf("(r%d,th%d) work popped %lu\n", work);
             ss_pop(ss);
             *nVisited = *nVisited+1;
             //printf("core %d work(#%lu, id=%d, nc=%d, height=%d)\n", core_id, *nVisited, work->id, work->numChildren, work->height);
 
             Node workLocal;
-
           //TODO the get nb causes action that will wake up yielded thread  
             #if PREFETCH_WORK
             // pull in numChildren and children
-            mem_tag_t tag = get_doublelong_nb(nodes_array, work, &workLocal);
+            mem_tag_t tag = get_remote_nb(nodes_array, work, sizeof(int)+sizeof(Node_ptr_ptr), &workLocal);
+            //printf("(r%d,th%d) yield work\n", my_id, me->id);
             YIELD(me); // TODO try cacheline align the nodes (2 per line probably)
             complete_nb(me, tag);
             #endif
 
+            //printf("(r%d,th%d) work popped (has %d children)\n", my_id, me->id, workLocal.numChildren);
+
             Node_ptr childrenLocal[workLocal.numChildren];
             
             #if PREFETCH_CHILDREN
-            tag = get_remote_nb(children_arrays, workLocal.children, work.numChildren*sizeof(Node_ptr), childrenLocal);
+            tag = get_remote_nb(children_arrays, workLocal.children, workLocal.numChildren*sizeof(Node_ptr), &childrenLocal);
+            //printf("(r%d,th%d) yield children\n", my_id, me->id);
             YIELD(me);
             complete_nb(me, tag);
             #endif
             ///TODO
 
-
             for (int i=0; i<workLocal.numChildren; i++) {
                 //printf("core %d pushes child(id=%d,height=%d,parent=%d)\n", core_id, work->children[i]->id, work->children[i]->height, work->id);
+                //printf("(r%d,th%d) child pushed %lu\n", my_id, me->id, childrenLocal[i]);
                 ss_push(ss, childrenLocal[i]);
             }
 
@@ -339,8 +283,8 @@ void workLoop(StealStack* ss, thread* me, int* work_done, int core_id, int num_c
           int victimId;
           
 /*          ss_setState(ss, SS_SEARCH);             */
-          for (i = 1; i < num_queues && !goodSteal; i++) { // TODO permutation order
-            victimId = (my_id + i) % num_queues;
+          for (int i = 1; i < num_local_nodes && !goodSteal; i++) { // TODO permutation order
+            victimId = (my_id + i) % num_local_nodes;
             goodSteal = ss_steal_locally(ss, victimId, chunkSize);
           }
 
@@ -352,8 +296,9 @@ void workLoop(StealStack* ss, thread* me, int* work_done, int core_id, int num_c
         }
 
         // no work so suggest barrier
+        //printf("(r%d,th%d) yield_wait (%p)\n", my_id, me->id, me);
         if (!thread_yield_wait(me)) {
-            if (cbarrier_wait(num_cores, core_id)) {
+            if (cbarrier_wait()) {
                 *work_done = 1;
             }
         }
@@ -366,7 +311,7 @@ void thread_runnable(thread* me, void* arg) {
     struct worker_info* info = (struct worker_info*) arg;
 
     //printf("thread starts from core %d/%d\n", info->core_id, info->num_cores);
-    workLoop(&stealStacks[info->core_id], me, info->work_done, info->core_id, info->num_cores, &(info->nVisited), info->nodes_array, info->children_arrays, info->my_id);
+    workLoop(&myStealStack, me, info->work_done, info->core_id, info->num_local_nodes, &(info->nVisited), info->nodes_array, info->children_arrays, info->my_id);
 
     thread_exit(me, NULL);
 }
@@ -374,15 +319,15 @@ void thread_runnable(thread* me, void* arg) {
 //XXX
 // tree T1
 int numNodes = 4130071;
-const int children_amounts[] = {688629, 684065, 687025, 689225, 687816, 693310} // 6 procs
+const int children_amounts[] = {688629, 684065, 687025, 689225, 687816, 693310}; // 6 procs
 const int children_array_size = 693310;
 const int num_procs = 6;
 // tree T1L
 //int numNodes = 102181082;
 
 
-static const int LARGEPRIME = 961748941df
-int Permute(int i) {
+static const int LARGEPRIME = 961748941;
+uint64_t Permute(int i) {
   #if IBT_PERMUTE
     long long int j = i;
     return (j*LARGEPRIME) % numNodes; 
@@ -391,16 +336,9 @@ int Permute(int i) {
   #endif
 }
 
-#if GASNET_ON
-    #define Node_ptr uint64_t
-    #define Node_ptr_ptr uint64_t
-#else
-    #define Node_ptr Node*
-    #define Node_ptr_ptr Node**
-#endif
 
 int generateTree(Node_ptr root, global_array* nodes, int cid, global_array* child_array, ballocator_t* bals[], struct state_t* states) {
-
+//printf("generate cid=%d\n", cid);
     Node rootLocal;
     get_remote(nodes, root, 0, sizeof(Node), &rootLocal);
 
@@ -411,7 +349,7 @@ int generateTree(Node_ptr root, global_array* nodes, int cid, global_array* chil
     Node rootTemp;
     rootTemp.type = rootLocal.type;  //copy (not needed if dont overwrite)
     rootTemp.height = rootLocal.height; // copy (not needed if dont overwrite)
-    rootTemp.children = (Node_ptr_ptr) bals[ga_node(nodes, root)]->balloc(nc);
+    rootTemp.children = (Node_ptr_ptr) balloc(bals[ga_node(nodes, root)], nc);
     rootTemp.numChildren = nc;
     rootTemp.id = cid;
     put_remote(nodes, root, &rootTemp, 0, sizeof(Node));
@@ -425,12 +363,12 @@ int generateTree(Node_ptr root, global_array* nodes, int cid, global_array* chil
     int current_cid = cid+1;
    // Node_ptr childrenAddrs[nc];   // assumption that an array lie on a single machine
     for (int i=0; i<nc; i++) {
-        int index = Permute(current_cid);
+        uint64_t index = Permute(current_cid);
 //        printf("--index=%d\n", index);
-        childrenAddrs[i] = index;
-        put_remote(child_array, rootTemp.children, &index, i, sizeof(int)); // TODO could write all 'nc' entries in children array at once if change the cid assignment to not be depth first (which builds up childrenAddrs arrays)
+//        childrenAddrs[i] = index;
+        put_remote(child_array, rootTemp.children, &index, i*sizeof(Node_ptr), sizeof(Node_ptr)); // TODO could write all 'nc' entries in children array at once if change the cid assignment to not be depth first (which builds up childrenAddrs arrays)
         Node childTemp;
-        childTemp.height = root->height+1;  
+        childTemp.height = rootTemp.height+1;  
         childTemp.numChildren = -1;
         childTemp.type = childType;
         put_remote(nodes, index, &childTemp, 0, sizeof(Node)); // comment out this initialization write, to be faster
@@ -451,24 +389,28 @@ int main(int argc, char *argv[]) {
     //use uts to parse params
     uts_parseParams(argc, argv);
     uts_printParams();
-    cb_init();
+    
     
     int rank = gasnet_mynode();
     int num_nodes = gasnet_nodes();
 
+    cbarrier_init(num_nodes, rank);
+    
     WAIT_BARRIER;
 
     
-    global_array* nodes = ga_allocate(sizeof(Node), numNodes);
-    global_array* children_array_pool = ga_allocate(sizeof(Node_ptr), children_array_size*num_procs);
+    global_array* nodes = ga_allocate(sizeof(Node), numNodes+num_nodes);
+    global_array* children_array_pool = ga_allocate(sizeof(Node_ptr), numNodes+num_nodes); //children_array_size*num_procs);
    
     
     Node_ptr root = 0;
     ballocator_t* bals[num_procs]; // for generating tree single threaded
-
+ 
+    uint64_t num_genNodes;
+  
     if (0 == rank) {
         for (int p=0; p<num_procs; p++) {
-            bals[p] = newBumpAllocator(children_array_pool, p*(children_array_pool->elements_per_node), children_array_size); //using children_array_size for size will make it look like original size 
+            bals[p] = newBumpAllocator(children_array_pool, p*(children_array_pool->elements_per_node), children_array_pool->elements_per_node); 
         }
    
         struct state_t* states = (struct state_t*)malloc(sizeof(struct state_t)*numNodes);
@@ -477,18 +419,20 @@ int main(int argc, char *argv[]) {
         uts_initRoot(&rootTemplate, type, &states[0]);
         put_remote(nodes, root, &rootTemplate, 0, sizeof(Node));
       
-        uint64_t num_genNodes = generateTree(root, nodes, 0, bals, states);
+        num_genNodes = generateTree(root, nodes, 0, children_array_pool, bals, states);
         free(states);
         printf("num nodes gen: %lu\n", num_genNodes);
        
     }
     
-    ss_init(&myStealstack, maxstackdepth);
+    ss_init(&myStealStack, MAXSTACKDEPTH);
 
     // push the root
     if (rank == 0) {
-        ss_push(&myStealstack, root);
+        ss_push(&myStealStack, root);
     }
+
+    WAIT_BARRIER;
    
     num_cores = 1; // TODO make 1 always
      
@@ -509,18 +453,20 @@ int main(int argc, char *argv[]) {
         for (int th=0; th<num_threads_per_core; th++) {
             wis[i][th].num_cores_per_node = num_cores;
             wis[i][th].core_id = i;
-            wis[i][th].num_cores = num_cores;
+            wis[i][th].num_local_nodes = num_nodes;
             wis[i][th].work_done = &core_work_done[i];
             wis[i][th].nVisited = 0L;
             wis[i][th].nodes_array = nodes;
             wis[i][th].children_arrays = children_array_pool;
             wis[i][th].my_id = rank;
-            thread_spawn(masters[i], schedulers[i], thread_runnable, &wis[i][th]);
+            thread_spawn(master, sched, thread_runnable, &wis[i][th]);
         }
     }
 
 
     int coreslist[] = {0,2,4,6,8,10,1,3,5,7,9,11};
+  
+    WAIT_BARRIER;
    
     double startTime, endTime;
     startTime = uts_wctime();
@@ -541,7 +487,7 @@ int main(int argc, char *argv[]) {
     endTime = uts_wctime();
   
     if (verbose > 2) {
-       // for (int i=0; i<num_cores; i++) {
+        for (int i=0; i<num_cores; i++) {
             printf("** Thread %d\n", i);
             printf("  # nodes explored    = %d\n", myStealStack.nNodes);
             printf("  # chunks released   = %d\n", myStealStack.nRelease);
@@ -568,11 +514,16 @@ int main(int argc, char *argv[]) {
         t_nRelease += myStealStack.nRelease;
         t_nAcquire += myStealStack.nAcquire;
         t_nSteal += myStealStack.nSteal;
-        t_nFail += myStealStacks.nFail;
+        t_nFail += myStealStack.nFail;
         m_maxStackDepth = maxint(m_maxStackDepth, myStealStack.maxStackDepth);
   //  }
 
-    printf("total visited %lu / %lu\n", t_nNodes, num_genNodes);
+   printf("rank(%d) total nodes %lu\n", rank, t_nNodes);
+   uint64_t total_nodes = ringReduce(COLL_ADD, 0, t_nNodes);
+
+    if (0 == rank) {
+        printf("total visited %lu / %lu\n", total_nodes, num_genNodes);
+    }
 
     if (verbose > 1) {
         if (doSteal) {
@@ -604,6 +555,12 @@ int main(int argc, char *argv[]) {
 //    printf("total visited %lu / %lu\n", total_visited, num_genNodes);
 
     double runtime = endTime - startTime;
-    double rate = t_nNodes / runtime;
+    double rate = total_nodes / runtime;
+    
+    if (0 == rank) {
     printf("{'runtime':%f, 'rate':%f, 'num_cores':%d, 'num_threads_per_core':%d, 'chunk_size':%d, 'cbint':%d, 'nNodes':%lu, 'nRelease':%lu, 'nAcquire':%lu, 'nSteal':%lu, 'nFail':%lu, 'maxStackDepth':%lu}\n", runtime, rate, num_cores, num_threads_per_core, chunkSize, cbint, t_nNodes, t_nRelease, t_nAcquire, t_nSteal, t_nFail, m_maxStackDepth);
+    }
+
 }
+
+

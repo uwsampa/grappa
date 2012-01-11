@@ -2,6 +2,7 @@
 #include <stdlib.h>
 #include <stdio.h>
 #include <string.h>
+#include <assert.h>
 
 //XXX
 #define debug 0
@@ -23,6 +24,10 @@ omp_lock_t * omp_global_lock_alloc() {
 /**/
 #endif
 
+
+StealStack myStealStack; 
+
+
 int maxint(int x, int y) { return (x>y)?x:y; }
 
 /* restore stack to empty state */
@@ -43,7 +48,7 @@ void ss_error(char *str) {
 }
 
 /* initialize the stack */
-void ss_init(StealStack* s, int nelts, int numNodes, int myNode) {
+void ss_init(StealStack* s, int nelts) {
   int nbytes = nelts * sizeof(Node_ptr);
 
   // allocate stack in shared addr space with affinity to calling thread
@@ -80,21 +85,23 @@ void ss_init(StealStack* s, int nelts, int numNodes, int myNode) {
 /* This is always a local operation so pass to it a pointer-to-local
  * instead of pointer-to-shared */
 void ss_push(StealStack *s, Node_ptr c) {
-  if (s->top >= s->stackSize)
-    ss_error("ss_push: overflow");
- 
+  if (s->top >= s->stackSize) {
+      char buf[2048];
+      sprintf(buf, "ss_push: overflow (top:%d stackSize:%d)\n", s->top, s->stackSize);
+      ss_error(buf);
+  }
   s->stack[s->top] = c; 
   s->top++;
   s->nNodes++;
   s->maxStackDepth = maxint(s->top, s->maxStackDepth);
-  s->maxTreeDepth = maxint(s->maxTreeDepth, c->height);
+  //s->maxTreeDepth = maxint(s->maxTreeDepth, c->height); //XXX dont want to deref c here (expensive for just a bookkeeping operation
 }
 
 
 /* local top: get top element */ 
 /* local-only operation */
-Node * ss_top(StealStack *s) {
-  Node *r;
+Node_ptr ss_top(StealStack *s) {
+  Node_ptr r;
   if (s->top <= s->local)
     ss_error("ss_top: empty local stack");
   r = s->stack[(s->top) - 1];
@@ -106,7 +113,7 @@ Node * ss_top(StealStack *s) {
 /* local pop */
 /* local-only operation */
 void ss_pop(StealStack *s) {
-  Node **r;
+  Node_ptr* r;
   if (s->top <= s->local)
     ss_error("ss_pop: empty local stack");
   s->top--;
@@ -166,6 +173,16 @@ void ss_setState(StealStack* s, int state) { return; }
 
 int local_steal_amount;
 LOCK_T lsa_lock = LOCK_INITIALIZER;
+//hack functions to protect GASNET_BLOCKUNTIL cond expression in a lock
+int SET_COND(LOCK_T* lock) {
+    SET_LOCK(lock);
+    return 1;
+}
+int UNSET_COND(LOCK_T* lock) {
+    UNSET_LOCK(lock);
+    return 0;
+}
+
 int ss_steal_locally(StealStack* thief, int victim, int k) {
     assert(thief == &myStealStack);//TODO just remove the parameter
 
@@ -176,7 +193,16 @@ int ss_steal_locally(StealStack* thief, int victim, int k) {
     gasnet_AMRequestShort1 (victim, WORKSTEAL_REQUEST_HANDLER, k);
 
     // steal is blocking
-    GASNET_BLOCKUNTIL(local_steal_amount != -1); // TODO expression: how do you lock protect
+    GASNET_BLOCKUNTIL((SET_COND(&lsa_lock) && 
+                      local_steal_amount != -1) 
+                      ||UNSET_COND(&lsa_lock)); 
+    
+    if (local_steal_amount > 0) {
+        myStealStack.nSteal++;
+        myStealStack.top += local_steal_amount;
+    }
+    UNSET_LOCK(&lsa_lock);
+    
 
     return local_steal_amount;
 }
@@ -187,7 +213,6 @@ void workStealRequestHandler(gasnet_token_t token, gasnet_handlerarg_t a0) {
 
     StealStack* victimStack = &myStealStack;
    
-   // TODO HSL! 
     SET_LOCK(victimStack->stackLock);
     
     int victimLocal = victimStack->local;
@@ -210,7 +235,7 @@ void workStealRequestHandler(gasnet_token_t token, gasnet_handlerarg_t a0) {
         Node_ptr* victimStackBase = victimStack->stack;
         Node_ptr* victimSharedStart = victimStackBase + victimShared;
     
-        gasnet_AMReplyMedium1(token, WORKSTEAL_REPLY_HANDLER, victimSharedStart, k*sizeof(Node_ptr), 1);
+        gasnet_AMReplyMedium1(token, WORKSTEAL_REPLY_HANDLER, victimSharedStart, k*sizeof(Node_ptr), k);
     } else {
         gasnet_AMReplyMedium1(token, WORKSTEAL_REPLY_HANDLER, 0, 0, 0);
     }
@@ -219,17 +244,15 @@ void workStealRequestHandler(gasnet_token_t token, gasnet_handlerarg_t a0) {
 
 void workStealReplyHandler(gasnet_token_t token, void* buf, size_t num_bytes, gasnet_handlerarg_t a0) {
     Node_ptr* stolen_work = (Node_ptr*) buf;
-    int success = (int) a0;
+    int k = (int) a0;
 
-    if (success) {
-        myStealStack->nSteal++;
-        myStealStack->top += k;
+    if (k > 0) {
         SET_LOCK(&lsa_lock);
-        memcpy(myStealStack->stack[myStealStack->top], stolen_work, num_bytes);
+        memcpy(&myStealStack.stack[myStealStack.top], stolen_work, num_bytes);
         local_steal_amount = k;
         UNSET_LOCK(&lsa_lock);
     } else {
-        myStealStack->nFail++;
+        myStealStack.nFail++;
         SET_LOCK(&lsa_lock);
         local_steal_amount = 0;
         UNSET_LOCK(&lsa_lock);

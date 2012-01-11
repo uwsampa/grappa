@@ -30,8 +30,18 @@ extern "C" {
 
 #define MAXNUMCHILDREN    100  // cap on children (BIN root is exempt)
 
+#define SHM_ON 1
+#if SHM_ON
+    #include <stdint.h>
+    #define Node_ptr uint64_t
+    #define Node_ptr_ptr uint64_t
+#else
+    #define Node_ptr Node*
+    #define Node_ptr_ptr Node**
+#endif
+
 struct node_t{
-  struct node_t** children;
+  Node_ptr_ptr children;
   
   int numChildren;   // number of children, -1 => not yet determined
   int type;          // distribution governing number of children

@@ -148,7 +148,7 @@ double rng_toProb(int n) {
 }
 
 
-void uts_initRoot(Node* root, int type, struct state_t rng_state) {
+void uts_initRoot(Node* root, int type, struct state_t* rng_state) {
   root->type = type;
   root->height = 0;
   root->numChildren = -1;

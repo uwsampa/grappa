@@ -6,7 +6,9 @@ extern "C" {
 #endif
 
 #include <stddef.h>
+#include <stdint.h>
 #include <assert.h>
+#include "global_array.h"
 
 typedef struct ballocator {
     uint64_t next;

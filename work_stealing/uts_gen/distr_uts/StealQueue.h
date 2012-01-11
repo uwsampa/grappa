@@ -1,9 +1,10 @@
-#ifndef STEAL_QUEUE_H
-#define STEAL_QUEUE_H
 
 #ifdef __cplusplus
 extern "C" {
 #endif
+
+#ifndef STEAL_QUEUE_H
+#define STEAL_QUEUE_H
 
 #include "uts.h"
 
@@ -28,7 +29,14 @@ omp_lock_t * omp_global_lock_alloc();
     #define SET_LOCK gasnet_hsl_lock
     #define UNSET_LOCK gasnet_hsl_unlock
     #define LOCK_T gasnet_hsl_t
+    #define LOCK_INITIALIZER GASNET_HSL_INITIALIZER
 #endif
+
+
+#define WORKSTEAL_REQUEST_HANDLER 244
+#define WORKSTEAL_REPLY_HANDLER 245
+void workStealRequestHandler(gasnet_token_t token, gasnet_handlerarg_t a0);
+void workStealReplyHandler(gasnet_token_t token, void* buf, size_t num_bytes, gasnet_handlerarg_t a0);
 
 
 //unused
@@ -71,8 +79,8 @@ typedef struct stealStack_t StealStack;
 void ss_mkEmpty(StealStack *s); 
 void ss_error(char *str); 
 void ss_init(StealStack *s, int nelts); 
-void ss_push(StealStack *s, Node *c); 
-Node * ss_top(StealStack *s); 
+void ss_push(StealStack *s, Node_ptr c); 
+Node_ptr ss_top(StealStack *s); 
 void ss_pop(StealStack *s); 
 int ss_topPosn(StealStack *s);
 int ss_localDepth(StealStack *s); 
@@ -84,13 +92,14 @@ void ss_setState(StealStack *s, int state);
 
 #define MAX_NUM_THREADS 12 
 #define MAXSTACKDEPTH 500000 
-StealStack myStealStack; 
 extern StealStack myStealStack;
+
+
+
+
+#endif
 
 
 #ifdef __cplusplus 
 } 
-#endif
-
-
 #endif
