@@ -120,4 +120,7 @@ void genScalData(graphedges* ing, double a, double b, double c, double d);
 graph* computeGraph(graphedges* ge);
 graph* makeUndirected(graph *G);
 
+/* connectedComponents.c */
+graphint connectedComponents(graph *g);
+
 #endif
