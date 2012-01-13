@@ -48,10 +48,21 @@ int main(int argc, char* argv[]) {
 	graph* g = makeUndirected(dirg);
 	
 	time = timer() - time;
-	printf("Time taken for computeGraph (Kernel 1) is %9.6lf sec.\n", time);	
+	printf("Time taken for computeGraph (Kernel 1) is %9.6lf sec.\n", time);
 	if (graphfile) print_graph_dot(g, graphfile);
 	
 	// Kernel 2: Connected Components
+	printf("\nKernel 2 - connectedComponents() beginning execution...\n"); fflush(stdout);
+	time = timer();
+	
+	graphint connected = connectedComponents(g);
+	
+	time = timer() - time;
+	printf("Number of connected components: %d\n", connected);
+	printf("Time taken for connectedComponents (Kernel 2) is %9.6lf sec.\n", time);
+	
+	// Path isomorphism
+	
 	
 	free_graph(dirg);
 	free_graph(g);
