@@ -89,6 +89,8 @@ static void sort_edges(graph *g) {
 		graphint nel = edge[i+1] - start;
 		qsort(eV+start, nel, sizeof(graphint), intcmp);
 	}
+	
+	// TODO: need to keep "weights" and other edge information consistent with moving edges...
 }
 
 /*
