@@ -43,7 +43,6 @@
 #define deprintn(fmt) do {} while (0)
 #endif
 
-
 /*### Typedefs ###*/
 typedef int32_t vert_id;
 typedef int32_t edge_id;
@@ -74,7 +73,6 @@ typedef struct {
 	color_t * marks;		/* array for marking/coloring of vertices	  */
 	size_t map_size;
 } graph;
-
 
 /*### Global Variables ###*/
 
@@ -127,6 +125,9 @@ graphint connectedComponents(graph *g);
 graphint pathIsomorphism(graph *g, color_t *pattern, graphint **matches);
 void randomizeColors(graph *g, color_t minc, color_t maxc);
 void print_match(graph *dirg, color_t *pattern, graphint startVertex);
+
+/* triangles.c */
+graphint triangles(graph *g);
 
 /* util.c */
 void printArray(char * title, graphint * array, graphint size);
