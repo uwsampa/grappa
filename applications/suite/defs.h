@@ -123,4 +123,12 @@ graph* makeUndirected(graph *G);
 /* connectedComponents.c */
 graphint connectedComponents(graph *g);
 
+/* pathIsomorphism.c */
+graphint pathIsomorphism(graph *g, color_t *pattern, graphint **matches);
+void randomizeColors(graph *g, color_t minc, color_t maxc);
+void print_match(graph *dirg, color_t *pattern, graphint startVertex);
+
+/* util.c */
+void printArray(char * title, graphint * array, graphint size);
+
 #endif
