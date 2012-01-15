@@ -85,6 +85,16 @@ int main(int argc, char* argv[]) {
 //	printArray("Start vertices of matches: ", matches, num_matches);
 	printf("Time taken for pathIsomorphism is %9.6lf sec.\n", time);
 	
+	// Kernel: Triangles
+	printf("\nKernel - Triangles beginning execution...\n");
+	time = timer();
+	
+	graphint num_triangles = triangles(g);
+	
+	time = timer() - time;
+	printf("Number of triangles: %d\n", num_triangles);
+	printf("Time taken for triangles is %9.6lf sec.\n", time);
+	
 	free_graph(dirg);
 	free_graph(g);
 	
