@@ -9,6 +9,7 @@
 #include <unistd.h>
 #include <getopt.h>
 #include <stdbool.h>
+#include <assert.h>
 
 #include "defs.h"
 
@@ -52,7 +53,7 @@ int main(int argc, char* argv[]) {
 	if (graphfile) print_graph_dot(g, graphfile);
 	
 	// Kernel 2: Connected Components
-	printf("\nKernel 2 - connectedComponents() beginning execution...\n"); fflush(stdout);
+	printf("\nKernel - Connected Components beginning execution...\n"); fflush(stdout);
 	time = timer();
 	
 	graphint connected = connectedComponents(g);
@@ -61,8 +62,28 @@ int main(int argc, char* argv[]) {
 	printf("Number of connected components: %d\n", connected);
 	printf("Time taken for connectedComponents (Kernel 2) is %9.6lf sec.\n", time);
 	
-	// Path isomorphism
+	// Kernel: Path Isomorphism
+	randomizeColors(dirg, 0, 10);
 	
+	color_t *pattern = (color_t*)malloc(4*sizeof(graphint));
+	pattern[0] = 2; pattern[1] = 5; pattern[2] = 9; pattern[3] = -1;
+
+	color_t *c = pattern;
+	printf("\nKernel - Path Isomorphism beginning execution...\nfinding path: %d", *c);
+	c++; while (*c != -1) { printf(" -> %d", *c); c++; }
+	
+	time = timer();
+	
+	graphint *matches;
+	graphint num_matches = pathIsomorphism(dirg, pattern, &matches);
+	
+//	print_match(dirg, pattern, matches[0]);
+	
+	time = timer() - time;
+	
+	printf("Number of matches: %d\n", num_matches);
+//	printArray("Start vertices of matches: ", matches, num_matches);
+	printf("Time taken for pathIsomorphism is %9.6lf sec.\n", time);
 	
 	free_graph(dirg);
 	free_graph(g);
