@@ -79,6 +79,18 @@ static int intcmp(const void *pa, const void *pb) {
 	return (int)(a - b);
 }
 
+static void sort_edges(graph *g) {
+	const graphint NV = g->numVertices;
+	const graphint * restrict edge = g->edgeStart; /* Edge domain */
+	graphint * restrict eV = g->endVertex; /* Edge domain */
+	
+	for (graphint i=0; i<NV; i++) {
+		graphint start = edge[i];
+		graphint nel = edge[i+1] - start;
+		qsort(eV+start, nel, sizeof(graphint), intcmp);
+	}
+}
+
 /*
  Form transpose.
  Sort transpose.
@@ -202,6 +214,8 @@ graph* makeUndirected(graph *g) {
 	for (graphint i = 0; i < NV; ++i) undirG->marks[i] = 0;
 	
 	munmap(xoff, (NV+1 + 2*NE) * sizeof(graphint));
+	
+	sort_edges(undirG);
 	
 	return undirG;
 }
