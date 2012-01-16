@@ -29,7 +29,7 @@ graphint pathIsomorphism(graph* g, color_t* pattern, graphint** matches) {
 		}
 	}
 	p++;
-	while (pattern[p] != -1) {
+	while (pattern[p] != END) {
 		color_t nextMark = pattern[p];
 		graphint nextV, currV;
 		graphint nextnp = 0;
@@ -70,7 +70,7 @@ void print_match(graph *dirg, color_t *pattern, graphint startVertex) {
 	color_t *c = pattern;
 	printf("match %d: %d(%d)", 0, v, *c);
 	c++;
-	while (*c != -1) {
+	while (*c != END) {
 		graphint nextV = -1;
 		for (graphint i=dirg->edgeStart[v]; i<dirg->edgeStart[v+1]; i++) {
 			if (dirg->marks[dirg->endVertex[i]] == *c) {

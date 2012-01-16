@@ -288,10 +288,6 @@ graph* makeUndirected(graph *g) {
 		assert(kout == newoff[i+1]);
 	}
 	
-	for (int i = 0; i < 100; i++) {
-		deprint("%3d | %3d\n", undirG->startVertex[i], undirG->endVertex[i]);
-	}
-	
 	assert(sum == newoff[NV]);
 	
 	MTA("mta assert nodep")
