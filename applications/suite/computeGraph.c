@@ -79,19 +79,100 @@ static int intcmp(const void *pa, const void *pb) {
 	return (int)(a - b);
 }
 
+static void inline swap(graphint *a, graphint *b) {
+	graphint tmp = *a;
+	*a = *b;
+	*b = tmp;
+}
+
+typedef struct SWAPTARGET {
+	void* target; //graph
+	void* sort_base; //&endVertex[0]
+	void (*swapfunc)(struct SWAPTARGET* target, void* a, void* b);
+} swap_target;
+
+static void siftDown(graphint numbers[], graphint root, graphint bottom, swap_target* swapt) {
+	int maxChild = root * 2 + 1;
+	
+	// Find the biggest child
+	if(maxChild < bottom) {
+		graphint otherChild = maxChild + 1;
+		// Reversed for stability
+		maxChild = (numbers[otherChild] > numbers[maxChild])?otherChild:maxChild;
+	} else {
+		// Don't overflow
+		if(maxChild > bottom) return;
+	}
+	
+	// If we have the correct ordering, we are done.
+	if(numbers[root] >= numbers[maxChild]) return;
+	
+	// Swap
+	swapt->swapfunc(swapt, &numbers[root], &numbers[maxChild]);
+	
+	// Tail queue recursion. Will be compiled as a loop with correct compiler switches.
+	siftDown(numbers, maxChild, bottom, swapt);
+}
+
+static void heapSort(graphint *numbers, graphint array_size, swap_target* swapt) {
+	int i;
+	
+	for (i = (array_size / 2); i >= 0; i--) {
+		siftDown(numbers, i, array_size - 1, swapt);
+	}
+	
+	for (i = array_size-1; i >= 1; i--) {
+		// Swap
+		swapt->swapfunc(swapt, &numbers[0], &numbers[i]);
+		
+		siftDown(numbers, 0, i-1, swapt);
+	}
+}
+
+static void swap_edges(swap_target* t, void* a, void* b) {
+	graph* g = (graph*)t->target;
+	
+	graphint offa = (graphint)(((graphint*)a) - ((graphint*)t->sort_base));
+	graphint offb = (graphint)(((graphint*)b) - ((graphint*)t->sort_base));
+	
+	swap(&g->endVertex[offa], &g->endVertex[offb]);	
+	swap(&g->startVertex[offa], &g->startVertex[offb]);
+	swap(&g->intWeight[offa], &g->intWeight[offb]);
+}
+
 static void sort_edges(graph *g) {
 	const graphint NV = g->numVertices;
 	const graphint * restrict edge = g->edgeStart; /* Edge domain */
 	graphint * restrict eV = g->endVertex; /* Edge domain */
 	
+	swap_target swapt;
+	swapt.target = g;
+	swapt.sort_base = eV;
+	swapt.swapfunc = swap_edges;
+	
 	for (graphint i=0; i<NV; i++) {
 		graphint start = edge[i];
-		graphint nel = edge[i+1] - start;
-		qsort(eV+start, nel, sizeof(graphint), intcmp);
+		graphint degree = edge[i+1] - start;
+//		qsort(eV+start, nel, sizeof(graphint), intcmp);
+		heapSort(&eV[start], degree, &swapt);
 	}
-	
 	// TODO: need to keep "weights" and other edge information consistent with moving edges...
 }
+
+//
+//graph* makeDedup(graph *g) {
+//	const graphint	NV = g->numVertices,
+//					NE = g->numEdges;
+//	
+//	graph * dg = xmalloc(sizeof(graph));
+//	dg->numVertices = NV;
+//	
+//	graphint * restrict degree = xmalloc(NV*sizeof(graphint));
+//	
+//	for (graphint i=0; i<NV; i++) {
+//		
+//	}
+//}
 
 /*
  Form transpose.
@@ -207,6 +288,10 @@ graph* makeUndirected(graph *g) {
 		assert(kout == newoff[i+1]);
 	}
 	
+	for (int i = 0; i < 100; i++) {
+		deprint("%3d | %3d\n", undirG->startVertex[i], undirG->endVertex[i]);
+	}
+	
 	assert(sum == newoff[NV]);
 	
 	MTA("mta assert nodep")
@@ -221,5 +306,7 @@ graph* makeUndirected(graph *g) {
 	
 	return undirG;
 }
+
+
 
 

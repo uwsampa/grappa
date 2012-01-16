@@ -7,22 +7,18 @@
 
 #include "defs.h"
 
-#define _DEBUG
-
 graphint triangles(graph *g) {	
 	const graphint NV = g->numVertices;
 	const graphint * restrict edge = g->edgeStart; /* Edge domain */
-	const graphint * restrict sV = g->startVertex;
+//	const graphint * restrict sV = g->startVertex;
 	const graphint * restrict eV = g->endVertex; /* Edge domain */
 	graphint num_triangles = 0;
 	
-	for (int i = 0; i < 100; i++) {
-		deprint("%3d | %3d\n", sV[i], eV[i]);
-	}
+//	for (int i = 0; i < 100; i++) {
+//		deprint("%3d | %3d\n", sV[i], eV[i]);
+//	}
 	
-	for (graphint i = 0; i < NV; i++) {
-		// if (sV[i] == eV[i]) continue; // skip self-edges (not part of a valid triangle...)
-		
+	for (graphint i = 0; i < NV; i++) {		
 		graphint A = i; //= sV[i]; // edge[2*i + 0];
 		
 		const graphint *Aedge = eV + edge[A]; // oldedge + 2*subject[2*A + 0];
