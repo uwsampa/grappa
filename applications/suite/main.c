@@ -63,14 +63,16 @@ int main(int argc, char* argv[]) {
 	printf("Time taken for connectedComponents (Kernel 2) is %9.6lf sec.\n", time);
 	
 	// Kernel: Path Isomorphism
+	
+	// assign random colors to vertices in the range: [0,10)
 	randomizeColors(dirg, 0, 10);
 	
-	color_t *pattern = (color_t*)malloc(4*sizeof(graphint));
-	pattern[0] = 2; pattern[1] = 5; pattern[2] = 9; pattern[3] = -1;
+	// path to find (sequence of specifically colored vertices)
+	color_t pattern[] = {2, 5, 9, END};
 
 	color_t *c = pattern;
 	printf("\nKernel - Path Isomorphism beginning execution...\nfinding path: %d", *c);
-	c++; while (*c != -1) { printf(" -> %d", *c); c++; }
+	c++; while (*c != END) { printf(" -> %d", *c); c++; }
 	
 	time = timer();
 	
