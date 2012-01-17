@@ -2,10 +2,11 @@
 // License: GeorgiaTech
 
 #ifdef __MTA__
-#include <mta_rng.h>
-#include <machine/mtaops.h>
+#	include <mta_rng.h>
+#	include <machine/mtaops.h>
+#	define CHAR_BIT 8
 #else
-#include "compat/xmt-ops.h"
+#	include "compat/xmt-ops.h"
 #endif
 
 #include <stdlib.h>
@@ -13,7 +14,7 @@
 
 #include "defs.h"
 
-static int Remove(graphint NV, graphint NE, graphint *sV, graphint *eV);
+static graphint Remove(graphint NV, graphint NE, graphint *sV, graphint *eV);
 static void RMAT(graphint i, double *rn, graphint *start, graphint *end);
 
 void genScalData(graphedges* SDGdataPtr, double a, double b, double c, double d) {
@@ -114,7 +115,7 @@ void genScalData(graphedges* SDGdataPtr, double a, double b, double c, double d)
 	/* STEP 3: Remove self- and duplicate edges                                */
 	/*-------------------------------------------------------------------------*/
 	NE = Remove(NV, NE, sV, eV);
-	printf("\nNumber of edges created - %9d\n", NE);
+	printf("\nNumber of edges created - %9lld\n", NE);
 	
 	/* 
 	 int* degree = (int *) xcalloc(NV , sizeof(int));
@@ -180,10 +181,10 @@ void RMAT(graphint i, double *rn, graphint *start, graphint *end) {
 /* Remove self- and duplicate edges. We use a hash function and linked
  list to store non-duplicate edges.
  */
-int Remove(graphint NV, graphint NE, graphint *sV, graphint *eV) {
-	int i, NGE = 0;
-	int *head = (graphint *) xmalloc(NV * sizeof(graphint));
-	int *next = (graphint *) xmalloc(NE * sizeof(graphint));
+graphint Remove(graphint NV, graphint NE, graphint *sV, graphint *eV) {
+	graphint i, NGE = 0;
+	graphint *head = (graphint *) xmalloc(NV * sizeof(graphint));
+	graphint *next = (graphint *) xmalloc(NE * sizeof(graphint));
 	
 	/* Initialize linked lists */
 	for (i = 0; i < NV; i++) head[i] = -1;

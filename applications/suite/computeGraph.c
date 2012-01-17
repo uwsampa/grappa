@@ -6,6 +6,7 @@
 #include <string.h>
 #include <assert.h>
 
+#include <sys/types.h>
 #include <sys/mman.h>
 
 #include "defs.h"
@@ -23,7 +24,7 @@ static void SortStart(graphint NV, graphint NE, graphint * sv1, graphint * ev1, 
 	/* Histogram key values */
 	MTA("mta assert no alias *start *sv1")
 	//	for (i = 0; i < NE; i++) start[sv1[i]] ++;
-	for (i = 0; i < NE; i++) stinger_int_fetch_add(&start[sv1[i]], 1);
+	for (i = 0; i < NE; i++) stinger_int64_fetch_add(&start[sv1[i]], 1);
 	
 	/* Compute start index of each bucket */
 	for (i = 1; i < NV; i++) start[i] += start[i-1];
@@ -34,7 +35,7 @@ static void SortStart(graphint NV, graphint NE, graphint * sv1, graphint * ev1, 
 	MTA("mta assert no dependence")
 	for (i = 0; i < NE; i++) {
 		//		int64_t index = start[sv1[i]] ++;
-		graphint index = stinger_int_fetch_add(&start[sv1[i]], 1);
+		graphint index = stinger_int64_fetch_add(&start[sv1[i]], 1);
 		sv2[index] = sv1[i];
 		ev2[index] = ev1[i];
 		w2[index] = w1[i];
@@ -92,7 +93,7 @@ typedef struct SWAPTARGET {
 } swap_target;
 
 static void siftDown(graphint numbers[], graphint root, graphint bottom, swap_target* swapt) {
-	int maxChild = root * 2 + 1;
+	graphint maxChild = root * 2 + 1;
 	
 	// Find the biggest child
 	if(maxChild < bottom) {
@@ -115,7 +116,7 @@ static void siftDown(graphint numbers[], graphint root, graphint bottom, swap_ta
 }
 
 static void heapSort(graphint *numbers, graphint array_size, swap_target* swapt) {
-	int i;
+	graphint i;
 	
 	for (i = (array_size / 2); i >= 0; i--) {
 		siftDown(numbers, i, array_size - 1, swapt);
@@ -201,7 +202,7 @@ graph* makeUndirected(graph *g) {
 	
 	MTA("mta assert nodep")
 	for (graphint k = 0; k < NE; ++k)
-		stinger_int_fetch_add(&xoff[1+g->endVertex[k]], 1);
+		stinger_int64_fetch_add(&xoff[1+g->endVertex[k]], 1);
 	
 	sum = 0;
 	for (graphint k = 1; k <= NV; ++k) {
@@ -213,7 +214,7 @@ graph* makeUndirected(graph *g) {
 	MTA("mta assert nodep")
 	for (graphint k = 0; k < NE; ++k) {
 		const graphint i = g->endVertex[k];
-		const graphint loc = stinger_int_fetch_add(&xoff[i+1], 1);
+		const graphint loc = stinger_int64_fetch_add(&xoff[i+1], 1);
 		xadj[2*loc] = g->startVertex[k];
 		xadj[1+2*loc] = g->intWeight[k];
 	}
@@ -296,7 +297,7 @@ graph* makeUndirected(graph *g) {
 	MTA("mta assert nodep")
 	for (graphint i = 0; i < NV; ++i) undirG->marks[i] = 0;
 	
-	munmap(xoff, (NV+1 + 2*NE) * sizeof(graphint));
+	munmap((caddr_t)xoff, (NV+1 + 2*NE) * sizeof(graphint));
 	
 	sort_edges(undirG);
 	

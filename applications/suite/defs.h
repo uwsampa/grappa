@@ -43,13 +43,11 @@
 #define deprintn(fmt) do {} while (0)
 #endif
 
-/*### Typedefs ###*/
-typedef int32_t vert_id;
-typedef int32_t edge_id;
-typedef int32_t weight_t;
+#define DFMT "lld"
 
-typedef int32_t graphint;
-typedef int32_t color_t;
+/*### Typedefs ###*/
+typedef int64_t graphint;
+typedef int64_t color_t;
 
 /*### Structures ###*/
 
