@@ -8,26 +8,27 @@
 #include "compat/xmt-ops.h"
 #endif
 
+#include <stdlib.h>
 #include <sys/mman.h>
 
 #include "defs.h"
 
-static int Remove(int NV, int NE, int *sV, int *eV);
-static void RMAT(int i, double *rn, int *start, int *end);
+static int Remove(graphint NV, graphint NE, graphint *sV, graphint *eV);
+static void RMAT(graphint i, double *rn, graphint *start, graphint *end);
 
 void genScalData(graphedges* SDGdataPtr, double a, double b, double c, double d) {
-	int i, j, n, skip, NE, NV;
-	int *sV, *eV, *weight, *permV;
+	graphint i, j, n, skip, NE, NV;
+	graphint *sV, *eV, *weight, *permV;
 	void *mem;
 	size_t memsz;
 	double *rn;
 	
-	memsz = (2 * numVertices) * sizeof(double) + numVertices * sizeof(int);
+	memsz = (2 * numVertices) * sizeof(double) + numVertices * sizeof(graphint);
 	mem = xmmap(NULL, memsz, PROT_READ | PROT_WRITE, MAP_PRIVATE | MAP_ANON,
 				 0, 0);
 	
 	rn = (double *) mem;
-	permV = (int *) &rn[2 * numVertices];
+	permV = (graphint *) &rn[2 * numVertices];
 	
 	A = a;
 	B = b;
@@ -51,7 +52,7 @@ void genScalData(graphedges* SDGdataPtr, double a, double b, double c, double d)
 		
 		MTA("mta assert parallel")
 		for (i = 0; i < NV; i++) {
-			int k, m, t, x, y;
+			graphint k, m, t, x, y;
 			k = rn[2 * i]     * NV;
 			m = rn[2 * i + 1] * NV;
 			
@@ -77,7 +78,7 @@ void genScalData(graphedges* SDGdataPtr, double a, double b, double c, double d)
 	
 	/* Create skip edges at a time to save space */
 	/* Log of the number of edges that can be computed with 2 * NV rn */
-	skip = (int)(CHAR_BIT * sizeof(int) - MTA_BIT_LEFT_ZEROS((2 * NV) / (5 * SCALE)));
+	skip = (graphint)(CHAR_BIT * sizeof(graphint) - MTA_BIT_LEFT_ZEROS((2 * NV) / (5 * SCALE)));
 	skip = 1 << skip;
 	
 	for (j = 0; j < NE; j += skip) {
@@ -87,7 +88,7 @@ void genScalData(graphedges* SDGdataPtr, double a, double b, double c, double d)
 		
 		MTA("mta assert no dependence")
 		for (i = 0; i < skip; i++) {
-			int sv, ev;
+			graphint sv, ev;
 			RMAT(i, rn, &sv, &ev);
 			sV[i + j] = permV[sv];
 			eV[i + j] = permV[ev];
@@ -142,10 +143,10 @@ void genScalData(graphedges* SDGdataPtr, double a, double b, double c, double d)
  Create an edge between node i and j.
  */
 MTA("mta inline")
-void RMAT(int i, double *rn, int *start, int *end) {
+void RMAT(graphint i, double *rn, graphint *start, graphint *end) {
 	double a, b, c, d, norm;
 	
-	int bit = 1 << (SCALE - 1);         /* size of original quandrant     */
+	graphint bit = 1 << (SCALE - 1);         /* size of original quandrant     */
 	
 	a = A;                              /* RMAT parameters */
 	b = B; c = C; d = D;                /* initial Q2, Q3, Q4 probability */
@@ -179,10 +180,10 @@ void RMAT(int i, double *rn, int *start, int *end) {
 /* Remove self- and duplicate edges. We use a hash function and linked
  list to store non-duplicate edges.
  */
-int Remove(int NV, int NE, int *sV, int *eV) {
+int Remove(graphint NV, graphint NE, graphint *sV, graphint *eV) {
 	int i, NGE = 0;
-	int *head = (int *) xmalloc(NV * sizeof(int));
-	int *next = (int *) xmalloc(NE * sizeof(int));
+	int *head = (graphint *) xmalloc(NV * sizeof(graphint));
+	int *next = (graphint *) xmalloc(NE * sizeof(graphint));
 	
 	/* Initialize linked lists */
 	for (i = 0; i < NV; i++) head[i] = -1;
@@ -190,10 +191,10 @@ int Remove(int NV, int NE, int *sV, int *eV) {
 	
 	MTA("mta assert no dependence")
 	for (i = 0; i < NE; i++) {
-		int k, *ptr;
-		int sv  = sV[i];
-		int ev  = eV[i];
-		int key = sv ^ ev;               /* hash function */
+		graphint k, *ptr;
+		graphint sv  = sV[i];
+		graphint ev  = eV[i];
+		graphint key = sv ^ ev;               /* hash function */
 		if (key == 0) continue;          /* self-edge */
 		
 		ptr = head + key;
@@ -217,7 +218,7 @@ int Remove(int NV, int NE, int *sV, int *eV) {
 	MTA("mta assert no dependence")
 	for (i = 0; i < NGE; i++) {
 		while (next[i] == -2) {
-			int k = int_fetch_add(&NE, -1) - 1;
+			graphint k = int_fetch_add(&NE, -1) - 1;
 			sV[i] = sV[k]; eV[i] = eV[k]; next[i] = next[k];
 		}
 	}

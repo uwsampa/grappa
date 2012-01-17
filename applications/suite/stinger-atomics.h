@@ -146,7 +146,7 @@ stinger_int64_cas (int64_t *x, int64_t origx, int64_t newx)
 #elif !defined(_OPENMP)
 #warning "Assuming no parallel / concurrent operations necessary."
 /* {{{ Not concurrent */
-int64_t stinger_int_fetch_add (int64_t* v, int64_t x) { int64_t out = *v; *v += x; return out; }
+int64_t stinger_int_fetch_add (int* v, int x) { int out = *v; *v += x; return out; }
 int64_t stinger_int64_fetch_add (int64_t* v, int64_t x) { int64_t out = *v; *v += x; return out; }
 uint64_t stinger_uint64_fetch_add (uint64_t* v, uint64_t x) { uint64_t out = *v; *v += x; return out; }
 size_t stinger_size_fetch_add (size_t* v, size_t x) { size_t out = *v; *v += x; return out; }
