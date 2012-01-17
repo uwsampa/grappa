@@ -38,7 +38,7 @@ int main(int argc, char* argv[]) {
 	if (graphfile) print_edgelist_dot(ge, graphfile);
 
 	/* From the input edges, construct the graph 'G'.  */
-	printf("\nKernel 1 - computeGraph() beginning execution...\n"); fflush(stdout);
+	printf("\nKernel - Compute Graph beginning execution...\n"); fflush(stdout);
 	time = timer();
 	
 	// directed graph
@@ -72,7 +72,7 @@ int main(int argc, char* argv[]) {
 
 	color_t *c = pattern;
 	printf("\nKernel - Path Isomorphism beginning execution...\nfinding path: %d", *c);
-	c++; while (*c != END) { printf(" -> %d", *c); c++; }
+	c++; while (*c != END) { printf(" -> %d", *c); c++; } printf("\n");
 	
 	time = timer();
 	
