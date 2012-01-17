@@ -60,7 +60,7 @@ int main(int argc, char* argv[]) {
 	graphint connected = connectedComponents(g);
 	
 	time = timer() - time;
-	printf("Number of connected components: %d\n", connected);
+	printf("Number of connected components: %"DFMT"\n", connected);
 	printf("Time taken for connectedComponents (Kernel 2) is %9.6lf sec.\n", time);
 	
 	// Kernel: Path Isomorphism
@@ -72,8 +72,8 @@ int main(int argc, char* argv[]) {
 	color_t pattern[] = {2, 5, 9, END};
 
 	color_t *c = pattern;
-	printf("\nKernel - Path Isomorphism beginning execution...\nfinding path: %d", *c);
-	c++; while (*c != END) { printf(" -> %d", *c); c++; } printf("\n");
+	printf("\nKernel - Path Isomorphism beginning execution...\nfinding path: %"DFMT"", *c);
+	c++; while (*c != END) { printf(" -> %"DFMT"", *c); c++; } printf("\n");
 	
 	time = timer();
 	
@@ -84,7 +84,7 @@ int main(int argc, char* argv[]) {
 	
 	time = timer() - time;
 	
-	printf("Number of matches: %d\n", num_matches);
+	printf("Number of matches: %"DFMT"\n", num_matches);
 //	printArray("Start vertices of matches: ", matches, num_matches);
 	printf("Time taken for pathIsomorphism is %9.6lf sec.\n", time);
 	
@@ -95,7 +95,7 @@ int main(int argc, char* argv[]) {
 	graphint num_triangles = triangles(g);
 	
 	time = timer() - time;
-	printf("Number of triangles: %d\n", num_triangles);
+	printf("Number of triangles: %"DFMT"\n", num_triangles);
 	printf("Time taken for triangles is %9.6lf sec.\n", time);
 	
 	free_graph(dirg);

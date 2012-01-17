@@ -68,7 +68,7 @@ void randomizeColors(graph *g, color_t minc, color_t maxc) {
 void print_match(graph *dirg, color_t *pattern, graphint startVertex) {
 	graphint v = startVertex;
 	color_t *c = pattern;
-	printf("match %d: %d(%d)", 0, v, *c);
+	printf("match %d: %"DFMT"(%"DFMT")", 0, v, *c);
 	c++;
 	while (*c != END) {
 		graphint nextV = -1;
@@ -79,7 +79,7 @@ void print_match(graph *dirg, color_t *pattern, graphint startVertex) {
 			}
 		}
 		assert(nextV != -1);
-		printf(" -> %d(%d)", nextV, *c);
+		printf(" -> %"DFMT"(%"DFMT")", nextV, *c);
 		v = nextV;
 		c++;
 	}

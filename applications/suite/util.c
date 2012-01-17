@@ -11,7 +11,7 @@
 
 void printArray(char * title, graphint * array, graphint size) {
 	printf("%s[", title);
-	if (size > 0) printf("%d", array[0]);
-	for (int i = 1; i < size; i++) printf(", %d", array[i]);
+	if (size > 0) printf("%"DFMT, array[0]);
+	for (int i = 1; i < size; i++) printf(", %"DFMT, array[i]);
 	printf("]\n");
 }

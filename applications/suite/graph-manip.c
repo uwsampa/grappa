@@ -5,13 +5,14 @@
 #include <stdlib.h>
 #include <string.h>
 
+#include <sys/types.h>
 #include <sys/mman.h>
 
 #include "defs.h"
 
 void free_graph(graph * g) {
 	if(g != NULL)
-		munmap(g->startVertex, g->map_size);
+		munmap((caddr_t)g->startVertex, g->map_size);
 }
 
 void alloc_graph(graph * g, graphint NV, graphint NE) {
@@ -37,7 +38,7 @@ void print_graph_dot(graph * g, char* fbase) {
 	fprintf(f, "graph {\n");
 	for (graphint j = 0; j < g->numVertices; j++) {
 		for (graphint k = g->edgeStart[j]; k < g->edgeStart[j+1]; k++) {
-			fprintf(f, "%6d -- %6d [weight=%d]\n", j, g->endVertex[k], g->intWeight[k]);
+			fprintf(f, "%6"DFMT" -- %6"DFMT" [weight=%"DFMT"]\n", j, g->endVertex[k], g->intWeight[k]);
 		}
 	}
 	fprintf(f, "}\n");
@@ -56,14 +57,14 @@ void alloc_edgelist(graphedges * g, graphint NE) {
 
 void free_edgelist(graphedges * g) {
 	if (g)
-		munmap(g->startVertex, g->map_size);
+		munmap((caddr_t)g->startVertex, g->map_size);
 }
 
 void print_edgelist(graphedges * g, FILE * f) {
-	fprintf(f, "edgelist: %d\n", g->numEdges);
+	fprintf(f, "edgelist: %"DFMT"\n", g->numEdges);
 	
 	for (int i=0; i<g->numEdges; i++) {
-		fprintf(f, "\t(%6d, %6d) : %d\n",
+		fprintf(f, "\t(%6"DFMT", %6"DFMT") : %"DFMT"\n",
 				g->startVertex[i], g->endVertex[i], g->intWeight[i]);
 	}
 }
@@ -75,7 +76,7 @@ void print_edgelist_dot(graphedges* g, char* fbase) {
 	
 	fprintf(f, "digraph {\n");
 	for (int i=0; i<g->numEdges; i++) {
-		fprintf(f, "\t%6d -> %6d [weight=%d];\n",
+		fprintf(f, "\t%6"DFMT" -> %6"DFMT" [weight=%"DFMT"];\n",
 				g->startVertex[i], g->endVertex[i], g->intWeight[i]);
 	}
 	fprintf(f, "}\n");

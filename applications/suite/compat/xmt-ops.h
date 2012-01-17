@@ -8,8 +8,8 @@
 #define readfe(ptr) (*(ptr))
 #define writeef(ptr, val) (*(ptr) = (val))
 
-static inline int int_fetch_add(int *p, int v) {
-	int tmp = *p;
+static inline int64_t int_fetch_add(int64_t *p, int64_t v) {
+	int64_t tmp = *p;
 	*p += v;
 	return tmp;
 }
