@@ -7,9 +7,10 @@
 //
 #include <stdio.h>
 #include <unistd.h>
-#include <getopt.h>
+// #include <getopt.h>
 #include <stdbool.h>
 #include <assert.h>
+#include <string.h>
 
 #include "defs.h"
 
@@ -112,30 +113,40 @@ static void printHelp(const char * exe) {
 }
 
 static void parseOptions(int argc, char ** argv) {
-	struct option long_opts[] = {
-		{"help", no_argument, 0, 'h'},
-		{"scale", required_argument, 0, 's'},
-		{"dot", required_argument, 0, 'd'}
-	};
-	
-	SCALE = 1; //default value
-	graphfile = NULL;
-	
-	int c = 0;
-	while (c != -1) {
-		int option_index = 0;
-		c = getopt_long(argc, argv, "hsd", long_opts, &option_index);
-		switch (c) {
-			case 'h':
-				printHelp(argv[0]);
-				exit(0);
-			case 's':
-				SCALE = atoi(optarg);
-				break;
-			case 'd':
-				graphfile = optarg;
-				break;
-		}
+	if (argc != 2) {
+		fprintf(stderr, "Usage: %s <SCALE>\n", argv[0]);
+		exit(-1);
+	} else {
+		SCALE = atoi(argv[1]);
 	}
 }
+
+// static void parseOptions(int argc, char ** argv) {
+// 	struct option long_opts[] = {
+// 		{"help", no_argument, 0, 'h'},
+// 		{"scale", required_argument, 0, 's'},
+// 		{"dot", required_argument, 0, 'd'}
+// 	};
+// 	
+// 	SCALE = 1; //default value
+// 	graphfile = NULL;
+// 	
+// 	int c = 0;
+// 	while (c != -1) {
+// 		int option_index = 0;
+// 		
+// 		c = getopt_long(argc, argv, "hsd", long_opts, &option_index);
+// 		switch (c) {
+// 			case 'h':
+// 				printHelp(argv[0]);
+// 				exit(0);
+// 			case 's':
+// 				SCALE = atoi(optarg);
+// 				break;
+// 			case 'd':
+// 				graphfile = optarg;
+// 				break;
+// 		}
+// 	}
+// }
 
