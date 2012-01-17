@@ -15,8 +15,8 @@ graphint pathIsomorphism(graph* g, color_t* pattern, graphint** matches) {
 	const graphint * restrict eV = g->endVertex; /* Edge domain */
 	color_t * restrict marks = g->marks; /* Vertex domain */
 		
-	graphint *partials = (graphint*)malloc(NV*sizeof(graphint));
-	graphint *matchstart = (graphint*)malloc(NV*sizeof(graphint));
+	graphint *partials = (graphint*)xmalloc(NV*sizeof(graphint));
+	graphint *matchstart = (graphint*)xmalloc(NV*sizeof(graphint));
 	graphint np = 0;
 	graphint p = 0;
 	
@@ -51,7 +51,7 @@ graphint pathIsomorphism(graph* g, color_t* pattern, graphint** matches) {
 		p++;
 	}
 	
-	*matches = (graphint*)malloc(np*sizeof(graphint));
+	*matches = (graphint*)xmalloc(np*sizeof(graphint));
 	memcpy(*matches, matchstart, np*sizeof(graphint));
 	free(partials);
 	free(matchstart);
