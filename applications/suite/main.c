@@ -98,6 +98,17 @@ int main(int argc, char* argv[]) {
 	printf("Number of triangles: %"DFMT"\n", num_triangles);
 	printf("Time taken for triangles is %9.6lf sec.\n", time);
 	
+	printf("\nKernel - Betweenness Centrality beginning execution...\n");
+	time = timer();
+	
+	double *bc = xmalloc(numVertices*sizeof(double));
+	double avgbc = centrality(g, bc, numVertices);
+	
+	time = timer() - time;
+	printf("Betweenness Centrality: (avg) = %lf\n", avgbc);
+	printArrayDouble("(first few) = ", bc, 5);
+	printf("Time taken for betweenness centrality is %9.6lf sec.\n", time);
+	
 	free_graph(dirg);
 	free_graph(g);
 	
