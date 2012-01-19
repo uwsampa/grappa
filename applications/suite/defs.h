@@ -133,5 +133,6 @@ double centrality(graph *g, double *bc, graphint vs);
 
 /* util.c */
 void printArray(char * title, graphint * array, graphint size);
+void printArrayDouble(char * title, double * array, graphint size);
 
 #endif
