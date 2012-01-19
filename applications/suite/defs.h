@@ -128,6 +128,9 @@ void print_match(graph *dirg, color_t *pattern, graphint startVertex);
 /* triangles.c */
 graphint triangles(graph *g);
 
+/* centrality.c */
+double centrality(graph *g, double *bc, graphint vs);
+
 /* util.c */
 void printArray(char * title, graphint * array, graphint size);
 
