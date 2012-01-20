@@ -144,7 +144,7 @@ double centrality(graph *g, double *bc, graphint Vs) {
 			/* For each v in the sublist AND for each w on v's list */
 			MTA("mta assert parallel")
 			MTA("mta block dynamic schedule")
-			MTA("mta assert no alias *sigma *Q *BC *delta *child *start *QHead")
+			MTA("mta assert no alias *sigma *Q *bc *delta *child *start *QHead")
 			for (j = Qstart; j < Qend; j++) {
 				graphint v = Q[j]; 
 				graphint myStart = start[v];

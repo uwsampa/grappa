@@ -5,6 +5,7 @@
 #include <string.h>
 #include <assert.h>
 #include "defs.h"
+#include <stdbool.h>
 
 /* @param g: (directed) graph to search in
    @param vertices: pattern of vertex colors to search for (in order)
@@ -57,6 +58,46 @@ graphint pathIsomorphism(graph* g, color_t* pattern, graphint** matches) {
 	free(matchstart);
 	
 	return np;
+}
+
+static bool checkEdgesRecursive(const graph* g, graphint v, const color_t* c) {
+	const graphint * restrict edge = g->edgeStart; /* Edge domain */
+	const graphint * restrict eV = g->endVertex; /* Edge domain */
+	const color_t * restrict marks = g->marks; /* Vertex domain */
+	
+	if (*c == END) return true;
+	
+	for (graphint i=edge[v]; i<edge[v+1]; i++) {
+		if (marks[i] == *c) {
+			if (checkEdgesRecursive(g, eV[i], c+1)) return true;
+		}
+	}
+	return false;
+}
+
+graphint pathIsomorphismPar(graph* g, color_t* pattern, graphint** matches) {
+	const graphint NV = g->numVertices;
+	color_t * restrict marks = g->marks; /* Vertex domain */
+	
+	graphint nm = 0; // Number of Matches
+	
+	graphint* m = (graphint*)xmalloc(NV*sizeof(graphint));
+	
+	for (graphint i=0; i<NV; i++) {
+		graphint v = i;
+		
+		if (marks[i] == *pattern) {
+			if (checkEdgesRecursive(g, v, pattern+1)) {
+				m[nm++] = i;
+			}
+		}
+	}
+	
+	*matches = (graphint*)xmalloc(nm*sizeof(graphint));
+	memcpy(*matches, m, nm*sizeof(graphint));
+	free(m);
+	
+	return nm;
 }
 
 void randomizeColors(graph *g, color_t minc, color_t maxc) {

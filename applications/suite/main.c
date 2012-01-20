@@ -78,9 +78,9 @@ int main(int argc, char* argv[]) {
 	time = timer();
 	
 	graphint *matches;
-	graphint num_matches = pathIsomorphism(dirg, pattern, &matches);
+	graphint num_matches = pathIsomorphismPar(dirg, pattern, &matches);
 	
-//	print_match(dirg, pattern, matches[0]);
+	print_match(dirg, pattern, matches[0]);
 	
 	time = timer() - time;
 	
