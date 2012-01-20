@@ -81,14 +81,15 @@ graphint pathIsomorphismPar(graph* g, color_t* pattern, graphint** matches) {
 	
 	graphint nm = 0; // Number of Matches
 	
-	graphint* m = (graphint*)xmalloc(NV*sizeof(graphint));
+	graphint * restrict m = (graphint*)xmalloc(NV*sizeof(graphint));
 	
+	MTA("mta assert parallel")
 	for (graphint i=0; i<NV; i++) {
 		graphint v = i;
 		
 		if (marks[i] == *pattern) {
 			if (checkEdgesRecursive(g, v, pattern+1)) {
-				m[nm++] = i;
+				m[int_fetch_add(&nm, 1)] = i;
 			}
 		}
 	}
