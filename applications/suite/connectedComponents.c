@@ -12,8 +12,6 @@
 #endif
 #include "defs.h"
 
-#define OMP(s) 
-
 graphint connectedComponents(graph *g) {
 	graphint count = 0;
 	graphint nchanged;
