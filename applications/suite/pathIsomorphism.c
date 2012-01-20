@@ -92,13 +92,38 @@ graphint pathIsomorphismPar(graph* g, color_t* pattern, graphint** matches) {
 	const int npattern = np;
 	
 	graphint nm = 0; // Number of Matches
+
+	graphint * restrict m = (graphint*)xmalloc(NV*sizeof(graphint));
+	
+	MTA("mta assert parallel")
+	for (graphint i=0; i<NV; i++) {		
+		if (marks[i] == *pattern) {
+			if (checkEdgesRecursive(g, v, pattern+1)) {
+				m[int_fetch_add(&nm, 1)] = i;
+			}
+		}
+	}
+	
+	*matches = (graphint*)xmalloc(nm*sizeof(graphint));
+	memcpy(*matches, m, nm*sizeof(graphint));
+	free(m);
+	
+	return nm;
+}
+
+graphint pathIsomorphismSpaghetti(graph* g, color_t* pattern, graphint** matches) {
+	const graphint NV = g->numVertices;
+	const graphint * restrict edge = g->edgeStart; /* Edge domain */
+	color_t * restrict marks = g->marks; /* Vertex domain */
+	
+	int np = 0;
+	while (pattern[np+1] != END) np++;
+	const int npattern = np;
+	
+	graphint nm = 0; // Number of Matches
 	
 	graphint* m = (graphint*)xmalloc(NV*sizeof(graphint));
-//	graphint* currV = (graphint*)xmalloc(npattern*sizeof(graphint));
 
-//	graphint currV[npattern];
-	
-//	MTA("mta assert parallel")
 	MTA("mta may reorder m")
 	for (graphint i=0; i<NV; i++) {
 		graphint* currV = (graphint*)xmalloc(npattern*sizeof(graphint));
@@ -132,6 +157,7 @@ graphint pathIsomorphismPar(graph* g, color_t* pattern, graphint** matches) {
 	free(m);
 	
 	return nm;
+	
 }
 
 void randomizeColors(graph *g, color_t minc, color_t maxc) {
