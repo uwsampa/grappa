@@ -17,27 +17,9 @@
 #include <time.h>
 #endif
 
-#if defined(_OPENMP)
-#define OMP(x) _Pragma(x)
-#else
-#define OMP(x)
-#endif
+#include "stinger-atomics.h"
 
 /*### Macros ###*/
-
-/* Set up MTA() macro that optionally issues mta pragmas if built on the XMT */
-#if defined(__MTA__)
-#define int64_fetch_add int_fetch_add
-#define MTA(x) _Pragma(x)
-#if defined(MTA_STREAMS)
-#define MTASTREAMS() MTA(MTA_STREAMS)
-#else
-#define MTASTREAMS() MTA("mta use 100 streams")
-#endif
-#else
-#define MTA(x)
-#define MTASTREAMS()
-#endif
 
 #define _DEBUG
 
