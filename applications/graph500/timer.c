@@ -35,40 +35,40 @@ void
 tic (void)
 {
 #if defined(__MTA__)
-  MTA("mta fence")
-  tic_ts = mta_get_clock (0);
+	MTA("mta fence")
+	tic_ts = mta_get_clock (0);
 #elif defined(HAVE_MACH_ABSOLUTE_TIME)
-  tic_ts = mach_absolute_time();  
+	tic_ts = mach_absolute_time();  
 #else
-  clock_gettime (TICTOC_CLOCK, &tic_ts);
+	clock_gettime (TICTOC_CLOCK, &tic_ts);
 #endif
 }
 
 double
 toc (void)
 {
-  double out;
+	double out;
 #if defined(__MTA__)
-  long ts;
-  MTA("mta fence")
-  ts = mta_get_clock (tic_ts);
-  out = ((double)ts) * mta_clock_period ();
-  /*fprintf (stderr, "%ld %g %g %g\n", ts, out, mta_clock_period(), mta_clock_freq());*/
+	long ts;
+	MTA("mta fence")
+	ts = mta_get_clock (tic_ts);
+	out = ((double)ts) * mta_clock_period ();
+	/*fprintf (stderr, "%ld %g %g %g\n", ts, out, mta_clock_period(), mta_clock_freq());*/
 #elif defined(HAVE_MACH_ABSOLUTE_TIME)
-  uint64_t ts, nanosec;
-  static mach_timebase_info_data_t info = {0,0};
-  if (info.denom == 0) {
-    mach_timebase_info(&info);
-  }
-  ts = mach_absolute_time();
-  nanosec = (ts - tic_ts) * (info.numer / info.denom);
-  out = 1.0e-9 * nanosec;
+	uint64_t ts, nanosec;
+	static mach_timebase_info_data_t info = {0,0};
+	if (info.denom == 0) {
+		mach_timebase_info(&info);
+	}
+	ts = mach_absolute_time();
+	nanosec = (ts - tic_ts) * (info.numer / info.denom);
+	out = 1.0e-9 * nanosec;
 #else
-  struct timespec ts;
-  clock_gettime (TICTOC_CLOCK, &ts);
-  out = (ts.tv_nsec - (double)tic_ts.tv_nsec) * 1.0e-9;
-  out += (ts.tv_sec - (double)tic_ts.tv_sec);
+	struct timespec ts;
+	clock_gettime (TICTOC_CLOCK, &ts);
+	out = (ts.tv_nsec - (double)tic_ts.tv_nsec) * 1.0e-9;
+	out += (ts.tv_sec - (double)tic_ts.tv_sec);
 #endif
-
-  return out;
+	
+	return out;
 }
