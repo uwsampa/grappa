@@ -17,6 +17,12 @@
 #include <time.h>
 #endif
 
+#if defined(_OPENMP)
+#define OMP(x) _Pragma(x)
+#else
+#define OMP(x)
+#endif
+
 /*### Macros ###*/
 
 /* Set up MTA() macro that optionally issues mta pragmas if built on the XMT */
@@ -123,6 +129,7 @@ graphint connectedComponents(graph *g);
 #define END -1
 graphint pathIsomorphism(graph *g, color_t *pattern, graphint **matches);
 graphint pathIsomorphismPar(graph* g, color_t* pattern, graphint** matches);
+graphint pathIsomorphismSpaghetti(graph* g, color_t* pattern, graphint** matches);
 
 void randomizeColors(graph *g, color_t minc, color_t maxc);
 void print_match(graph *dirg, color_t *pattern, graphint startVertex);
