@@ -16,25 +16,25 @@ void *prng_state = &prng_state_store;
 /* Spread the two 64-bit numbers into five nonzero values in the correct
  * range. */
 static void make_mrg_seed(uint64_t userseed, uint_fast32_t* seed) {
-  seed[0] = (userseed & 0x3FFFFFFF) + 1;
-  seed[1] = ((userseed >> 30) & 0x3FFFFFFF) + 1;
-  seed[2] = (userseed & 0x3FFFFFFF) + 1;
-  seed[3] = ((userseed >> 30) & 0x3FFFFFFF) + 1;
-  seed[4] = ((userseed >> 60) << 4) + (userseed >> 60) + 1;
+	seed[0] = (userseed & 0x3FFFFFFF) + 1;
+	seed[1] = ((userseed >> 30) & 0x3FFFFFFF) + 1;
+	seed[2] = (userseed & 0x3FFFFFFF) + 1;
+	seed[3] = ((userseed >> 30) & 0x3FFFFFFF) + 1;
+	seed[4] = ((userseed >> 60) << 4) + (userseed >> 60) + 1;
 }
 
 void
 init_random (void)
 {
-  long seed = -1;
-  if (getenv ("SEED")) {
-    errno = 0;
-    seed = strtol (getenv ("SEED"), NULL, 10);
-    if (errno) seed = -1;
-  }
-
-  if (seed < 0) seed = 0xDECAFBAD;
-  userseed = seed;
-  make_mrg_seed (seed, prng_seed);
-  mrg_seed(&prng_state_store, prng_seed);
+	long seed = -1;
+	if (getenv ("SEED")) {
+		errno = 0;
+		seed = strtol (getenv ("SEED"), NULL, 10);
+		if (errno) seed = -1;
+	}
+	
+	if (seed < 0) seed = 0xDECAFBAD;
+	userseed = seed;
+	make_mrg_seed (seed, prng_seed);
+	mrg_seed(&prng_state_store, prng_seed);
 }
