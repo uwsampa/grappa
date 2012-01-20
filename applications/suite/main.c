@@ -78,7 +78,7 @@ int main(int argc, char* argv[]) {
 	time = timer();
 	
 	graphint *matches;
-	graphint num_matches = pathIsomorphismPar(dirg, pattern, &matches);
+	graphint num_matches = pathIsomorphism(dirg, pattern, &matches);
 	
 	print_match(dirg, pattern, matches[0]);
 	
@@ -87,6 +87,20 @@ int main(int argc, char* argv[]) {
 	printf("Number of matches: %"DFMT"\n", num_matches);
 //	printArray("Start vertices of matches: ", matches, num_matches);
 	printf("Time taken for pathIsomorphism is %9.6lf sec.\n", time);
+	
+	printf("\nKernel - Path Isomorphism beginning execution...\n");
+	time = timer();
+	
+	graphint *matches2;
+	graphint num_matches2 = pathIsomorphism(dirg, pattern, &matches2);
+	
+	print_match(dirg, pattern, matches2[0]);
+	
+	time = timer() - time;
+	
+	printf("Number of matches: %"DFMT"\n", num_matches2);
+	//	printArray("Start vertices of matches: ", matches, num_matches);
+	printf("Time taken for pathIsomorphismPar is %9.6lf sec.\n", time);
 	
 	// Kernel: Triangles
 	printf("\nKernel - Triangles beginning execution...\n");
