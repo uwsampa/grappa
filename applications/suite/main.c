@@ -68,6 +68,12 @@ int main(int argc, char* argv[]) {
 	// assign random colors to vertices in the range: [0,10)
 	randomizeColors(dirg, 0, 10);
 	
+	FILE* go = fopen("graph.out", "w");
+	for (graphint i=0; i<dirg->numVertices; i++) {
+		fprintf(go, "%lld\n", dirg->edgeStart[i]);
+	}
+	fclose(go);
+	
 	// path to find (sequence of specifically colored vertices)
 	color_t pattern[] = {2, 5, 9, END};
 
@@ -95,7 +101,8 @@ int main(int argc, char* argv[]) {
 	graphint *matches2;
 	graphint num_matches2 = pathIsomorphism(dirg, pattern, &matches2);
 	
-	print_match(dirg, pattern, matches2[0]);
+//	print_match(dirg, pattern, matches2[0]);
+	printArray("Matches: ", matches2, num_matches2);
 	
 	time = timer() - time;
 	

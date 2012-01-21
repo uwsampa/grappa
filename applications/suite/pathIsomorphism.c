@@ -82,15 +82,15 @@ static bool checkEdgesRecursive(const graph* g, graphint v, const color_t* c) {
 	return false;
 }
 
-graphint pathIsomorphismPar(graph* g, color_t* pattern, graphint** matches) {
+graphint pathIsomorphismPar(const graph* g, color_t* pattern, graphint** matches) {
 	const graphint NV = g->numVertices;
-	color_t * restrict marks = g->marks; /* Vertex domain */
+	const color_t * restrict marks = g->marks; /* Vertex domain */
 	
 	graphint nm = 0; // Number of Matches
 
 	graphint * restrict m = (graphint*)xmalloc(NV*sizeof(graphint));
 	
-	MTA("mta assert parallel") OMP("omp parallel for")
+	// MTA("mta assert parallel") OMP("omp parallel for")
 	for (graphint i=0; i<NV; i++) {
 		if (marks[i] == *pattern) {
 			if (checkEdgesRecursive(g, i, pattern+1)) {
@@ -155,6 +155,7 @@ graphint pathIsomorphismSpaghetti(graph* g, color_t* pattern, graphint** matches
 }
 
 void randomizeColors(graph *g, color_t minc, color_t maxc) {
+	srand(12345);
 	for (graphint i=0; i<g->numVertices; i++) {
 		g->marks[i] = (rand() % (maxc-minc)) + minc;
 	}
