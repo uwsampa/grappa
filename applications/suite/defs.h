@@ -17,21 +17,9 @@
 #include <time.h>
 #endif
 
-/*### Macros ###*/
+#include "stinger-atomics.h"
 
-/* Set up MTA() macro that optionally issues mta pragmas if built on the XMT */
-#if defined(__MTA__)
-#define int64_fetch_add int_fetch_add
-#define MTA(x) _Pragma(x)
-#if defined(MTA_STREAMS)
-#define MTASTREAMS() MTA(MTA_STREAMS)
-#else
-#define MTASTREAMS() MTA("mta use 100 streams")
-#endif
-#else
-#define MTA(x)
-#define MTASTREAMS()
-#endif
+/*### Macros ###*/
 
 #define _DEBUG
 
@@ -122,6 +110,9 @@ graphint connectedComponents(graph *g);
 /* pathIsomorphism.c */
 #define END -1
 graphint pathIsomorphism(graph *g, color_t *pattern, graphint **matches);
+graphint pathIsomorphismPar(const graph* g, color_t* pattern, graphint** matches);
+graphint pathIsomorphismSpaghetti(graph* g, color_t* pattern, graphint** matches);
+
 void randomizeColors(graph *g, color_t minc, color_t maxc);
 void print_match(graph *dirg, color_t *pattern, graphint startVertex);
 

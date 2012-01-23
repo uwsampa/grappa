@@ -4,7 +4,15 @@
 #include <stdio.h>
 #include <string.h>
 #include <assert.h>
+#include <stdbool.h>
+#ifdef __MTA__
+#	include <machine/mtaops.h>
+#	include <machine/runtime.h>
+#else
+#	include "compat/xmt-ops.h"
+#endif
 #include "defs.h"
+#include "stinger-atomics.h"
 
 /* @param g: (directed) graph to search in
    @param vertices: pattern of vertex colors to search for (in order)
@@ -59,7 +67,95 @@ graphint pathIsomorphism(graph* g, color_t* pattern, graphint** matches) {
 	return np;
 }
 
+static bool checkEdgesRecursive(const graph* g, graphint v, const color_t* c) {
+	const graphint * restrict edge = g->edgeStart; /* Edge domain */
+	const graphint * restrict eV = g->endVertex; /* Edge domain */
+	const color_t * restrict marks = g->marks; /* Vertex domain */
+	
+	if (*c == END) return true;
+	
+	for (graphint i=edge[v]; i<edge[v+1]; i++) {
+		if (marks[i] == *c) {
+			if (checkEdgesRecursive(g, eV[i], c+1)) return true;
+		}
+	}
+	return false;
+}
+
+graphint pathIsomorphismPar(const graph* g, color_t* pattern, graphint** matches) {
+	const graphint NV = g->numVertices;
+	const color_t * restrict marks = g->marks; /* Vertex domain */
+	
+	graphint nm = 0; // Number of Matches
+
+	graphint * restrict m = (graphint*)xmalloc(NV*sizeof(graphint));
+	
+	// MTA("mta assert parallel") OMP("omp parallel for")
+	for (graphint i=0; i<NV; i++) {
+		if (marks[i] == *pattern) {
+			if (checkEdgesRecursive(g, i, pattern+1)) {
+				m[int_fetch_add(&nm, 1)] = i;
+			}
+		}
+	}
+	
+	*matches = (graphint*)xmalloc(nm*sizeof(graphint));
+	memcpy(*matches, m, nm*sizeof(graphint));
+	free(m);
+	
+	return nm;
+}
+
+graphint pathIsomorphismSpaghetti(graph* g, color_t* pattern, graphint** matches) {
+	const graphint NV = g->numVertices;
+	const graphint * restrict edge = g->edgeStart; /* Edge domain */
+	color_t * restrict marks = g->marks; /* Vertex domain */
+	
+	int np = 0;
+	while (pattern[np+1] != END) np++;
+	const int npattern = np;
+	
+	graphint nm = 0; // Number of Matches
+	
+	graphint* m = (graphint*)xmalloc(NV*sizeof(graphint));
+
+	MTA("mta may reorder m")
+	for (graphint i=0; i<NV; i++) {
+		graphint* currV = (graphint*)xmalloc(npattern*sizeof(graphint));
+		
+		if (marks[i] == *pattern) {
+			currV[0] = i;
+			
+			bool found = false;
+			int d = 1; // depth into pattern
+			DEPTH: while (d) {
+				for (graphint j=edge[currV[d-1]]; j<edge[currV[d-1]+1]; j++) {
+					if (marks[j] == pattern[d]) {
+						currV[d] = j;
+						d++;
+						if (d == npattern) { found = true; d = 0; }
+						goto DEPTH;
+					}
+				}
+				d--;
+			}
+			
+			if (found) {
+				m[int_fetch_add(&nm,1)] = i;
+			}
+		}
+		free(currV);
+	}
+	
+	*matches = (graphint*)xmalloc(nm*sizeof(graphint));
+	memcpy(*matches, m, nm*sizeof(graphint));
+	free(m);
+	
+	return nm;
+}
+
 void randomizeColors(graph *g, color_t minc, color_t maxc) {
+	srand(12345);
 	for (graphint i=0; i<g->numVertices; i++) {
 		g->marks[i] = (rand() % (maxc-minc)) + minc;
 	}
