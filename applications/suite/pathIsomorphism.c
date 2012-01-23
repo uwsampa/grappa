@@ -154,10 +154,23 @@ graphint pathIsomorphismSpaghetti(graph* g, color_t* pattern, graphint** matches
 	return nm;
 }
 
-void randomizeColors(graph *g, color_t minc, color_t maxc) {
-	srand(12345);
+/*	In order to get reproducible results for pathIsomorphism, mark for 
+	each vertex should be based on something that will be consistent 
+	with the structure of the graph rather than the ordering or implicit 
+	numbering of vertices.
+	Arbitrarily choosing: sum(outgoing weights) % (maxc-minc) + minc 
+ */
+void markColors(graph *g, color_t minc, color_t maxc) {
+	const graphint * restrict edge = g->edgeStart;
+	const graphint * restrict w = g->intWeight;
+	const graphint * restrict eV = g->endVertex;
+
 	for (graphint i=0; i<g->numVertices; i++) {
-		g->marks[i] = (rand() % (maxc-minc)) + minc;
+		int total = 0;
+		for (graphint j = edge[i]; j < edge[i+1]; j++) {
+			total += w[eV[i]];
+		}
+		g->marks[i] = (total % (maxc-minc)) + minc;
 	}
 }
 

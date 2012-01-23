@@ -66,13 +66,13 @@ int main(int argc, char* argv[]) {
 	// Kernel: Path Isomorphism
 	
 	// assign random colors to vertices in the range: [0,10)
-	randomizeColors(dirg, 0, 10);
+	markColors(dirg, 0, 10);
 	
-	FILE* go = fopen("graph.out", "w");
-	for (graphint i=0; i<dirg->numVertices; i++) {
-		fprintf(go, "%lld\n", dirg->edgeStart[i]);
-	}
-	fclose(go);
+//	FILE* go = fopen("graph.out", "w");
+//	for (graphint i=0; i<dirg->numVertices; i++) {
+//		fprintf(go, "%lld\n", dirg->edgeStart[i]);
+//	}
+//	fclose(go);
 	
 	// path to find (sequence of specifically colored vertices)
 	color_t pattern[] = {2, 5, 9, END};

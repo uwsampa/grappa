@@ -113,7 +113,7 @@ graphint pathIsomorphism(graph *g, color_t *pattern, graphint **matches);
 graphint pathIsomorphismPar(const graph* g, color_t* pattern, graphint** matches);
 graphint pathIsomorphismSpaghetti(graph* g, color_t* pattern, graphint** matches);
 
-void randomizeColors(graph *g, color_t minc, color_t maxc);
+void markColors(graph *g, color_t minc, color_t maxc);
 void print_match(graph *dirg, color_t *pattern, graphint startVertex);
 
 /* triangles.c */
