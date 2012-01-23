@@ -68,6 +68,12 @@ int main(int argc, char* argv[]) {
 	// assign random colors to vertices in the range: [0,10)
 	randomizeColors(dirg, 0, 10);
 	
+	FILE* go = fopen("graph.out", "w");
+	for (graphint i=0; i<dirg->numVertices; i++) {
+		fprintf(go, "%lld\n", dirg->edgeStart[i]);
+	}
+	fclose(go);
+	
 	// path to find (sequence of specifically colored vertices)
 	color_t pattern[] = {2, 5, 9, END};
 
@@ -81,12 +87,28 @@ int main(int argc, char* argv[]) {
 	graphint num_matches = pathIsomorphism(dirg, pattern, &matches);
 	
 //	print_match(dirg, pattern, matches[0]);
+	printArray("Matches: ", matches, num_matches);
 	
 	time = timer() - time;
 	
 	printf("Number of matches: %"DFMT"\n", num_matches);
 //	printArray("Start vertices of matches: ", matches, num_matches);
 	printf("Time taken for pathIsomorphism is %9.6lf sec.\n", time);
+	
+	printf("\nKernel - Path Isomorphism beginning execution...\n");
+	time = timer();
+	
+	graphint *matches2;
+	graphint num_matches2 = pathIsomorphism(dirg, pattern, &matches2);
+	
+//	print_match(dirg, pattern, matches2[0]);
+	printArray("Matches: ", matches2, num_matches2);
+	
+	time = timer() - time;
+	
+	printf("Number of matches: %"DFMT"\n", num_matches2);
+	//	printArray("Start vertices of matches: ", matches, num_matches);
+	printf("Time taken for pathIsomorphismPar is %9.6lf sec.\n", time);
 	
 	// Kernel: Triangles
 	printf("\nKernel - Triangles beginning execution...\n");
