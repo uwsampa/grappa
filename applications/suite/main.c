@@ -27,8 +27,8 @@ int main(int argc, char* argv[]) {
 	
 	printf("[[ Graph Application Suite ]]\n"); 	
 	
-	printf("\nScalable Data Generator - genScalData() randomly generating edgelist...\n");
-	fflush (stdout);
+	printf("\nScalable Data Generator - genScalData() randomly generating edgelist...\n"); fflush (stdout);
+//	MTA("mta trace \"begin genScalData\"")
 	time = timer();
 	
 	graphedges* ge = xmalloc(sizeof(graphedges));
@@ -38,8 +38,13 @@ int main(int argc, char* argv[]) {
 	printf("Time taken for Scalable Data Generation is %9.6lf sec.\n", time);
 	if (graphfile) print_edgelist_dot(ge, graphfile);
 
+	//###############################################
+	// Kernel: Compute Graph
+	
 	/* From the input edges, construct the graph 'G'.  */
 	printf("\nKernel - Compute Graph beginning execution...\n"); fflush(stdout);
+//	MTA("mta trace \"begin computeGraph\"")
+
 	time = timer();
 	
 	// directed graph
@@ -53,8 +58,10 @@ int main(int argc, char* argv[]) {
 	printf("Time taken for computeGraph (Kernel 1) is %9.6lf sec.\n", time);
 	if (graphfile) print_graph_dot(g, graphfile);
 	
-	// Kernel 2: Connected Components
+	//###############################################
+	// Kernel: Connected Components
 	printf("\nKernel - Connected Components beginning execution...\n"); fflush(stdout);
+	MTA("mta trace \"begin connectedComponents\"")
 	time = timer();
 	
 	graphint connected = connectedComponents(g);
@@ -63,55 +70,37 @@ int main(int argc, char* argv[]) {
 	printf("Number of connected components: %"DFMT"\n", connected);
 	printf("Time taken for connectedComponents (Kernel 2) is %9.6lf sec.\n", time);
 	
+	
+	//###############################################
 	// Kernel: Path Isomorphism
 	
 	// assign random colors to vertices in the range: [0,10)
+//	MTA("mta trace \"begin markColors\"")
 	markColors(dirg, 0, 10);
-	
-//	FILE* go = fopen("graph.out", "w");
-//	for (graphint i=0; i<dirg->numVertices; i++) {
-//		fprintf(go, "%lld\n", dirg->edgeStart[i]);
-//	}
-//	fclose(go);
 	
 	// path to find (sequence of specifically colored vertices)
 	color_t pattern[] = {2, 5, 9, END};
 
 	color_t *c = pattern;
 	printf("\nKernel - Path Isomorphism beginning execution...\nfinding path: %"DFMT"", *c);
-	c++; while (*c != END) { printf(" -> %"DFMT"", *c); c++; } printf("\n");
-	
-	time = timer();
-	
-	graphint *matches;
-	graphint num_matches = pathIsomorphism(dirg, pattern, &matches);
-	
-//	print_match(dirg, pattern, matches[0]);
-	printArray("Matches: ", matches, num_matches);
-	
-	time = timer() - time;
-	
-	printf("Number of matches: %"DFMT"\n", num_matches);
-//	printArray("Start vertices of matches: ", matches, num_matches);
-	printf("Time taken for pathIsomorphism is %9.6lf sec.\n", time);
-	
-	printf("\nKernel - Path Isomorphism beginning execution...\n");
+	c++; while (*c != END) { printf(" -> %"DFMT"", *c); c++; } printf("\n"); fflush(stdout);
+//	MTA("mta trace \"begin pathIsomorphism\"")
 	time = timer();
 	
 	graphint *matches2;
-	graphint num_matches2 = pathIsomorphism(dirg, pattern, &matches2);
+	graphint num_matches2 = pathIsomorphismPar(dirg, pattern, &matches2);
 	
-//	print_match(dirg, pattern, matches2[0]);
 	printArray("Matches: ", matches2, num_matches2);
 	
 	time = timer() - time;
 	
 	printf("Number of matches: %"DFMT"\n", num_matches2);
-	//	printArray("Start vertices of matches: ", matches, num_matches);
 	printf("Time taken for pathIsomorphismPar is %9.6lf sec.\n", time);
 	
+	//###############################################
 	// Kernel: Triangles
-	printf("\nKernel - Triangles beginning execution...\n");
+	printf("\nKernel - Triangles beginning execution...\n"); fflush(stdout);
+//	MTA("mta trace \"begin triangles\"")
 	time = timer();
 	
 	graphint num_triangles = triangles(g);
@@ -120,7 +109,11 @@ int main(int argc, char* argv[]) {
 	printf("Number of triangles: %"DFMT"\n", num_triangles);
 	printf("Time taken for triangles is %9.6lf sec.\n", time);
 	
-	printf("\nKernel - Betweenness Centrality beginning execution...\n");
+	
+	//###############################################
+	// Kernel: Betweenness Centrality
+	printf("\nKernel - Betweenness Centrality beginning execution...\n"); fflush(stdout);
+//	MTA("mta trace \"begin centrality\"")
 	time = timer();
 	
 	double *bc = xmalloc(numVertices*sizeof(double));
@@ -131,6 +124,8 @@ int main(int argc, char* argv[]) {
 	printArrayDouble("(first few) = ", bc, 5);
 	printf("Time taken for betweenness centrality is %9.6lf sec.\n", time);
 	
+	//###################
+	// Kernels complete!
 	free_graph(dirg);
 	free_graph(g);
 	
