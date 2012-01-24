@@ -268,17 +268,19 @@ graph* makeUndirected(graph *g) {
 		}
 		
 		for (graphint k = g->edgeStart[i]; k != adjend; ++k) {
-			const graphint j = g->endVertex[k];
+			const graphint oldEnd = g->endVertex[k];
 			graphint * ploc = NULL;
 			
+			// loop over new edges (these are presumably the ones we just set above)
 			MTA("mta assert nodep")
 			for (graphint kk = newoff[i]; kk < newoff[i]+deg; ++kk) {
-				if (j == undirG->endVertex[kk]) ploc = &undirG->endVertex[kk];
+				if (oldEnd == undirG->endVertex[kk])
+					ploc = &undirG->endVertex[kk];
 			}
 			
 			if (!ploc) {
 				undirG->startVertex[kout] = i;
-				undirG->endVertex[kout] = j;
+				undirG->endVertex[kout] = oldEnd;
 				undirG->intWeight[kout] = g->intWeight[k];
 				++kout;
 			} else {
