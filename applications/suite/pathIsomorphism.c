@@ -90,7 +90,7 @@ graphint pathIsomorphismPar(const graph* g, color_t* pattern, graphint** matches
 
 	graphint * restrict m = (graphint*)xmalloc(NV*sizeof(graphint));
 	
-	// MTA("mta assert parallel") OMP("omp parallel for")
+	MTA("mta assert parallel") OMP("omp parallel for")
 	for (graphint i=0; i<NV; i++) {
 		if (marks[i] == *pattern) {
 			if (checkEdgesRecursive(g, i, pattern+1)) {
@@ -161,16 +161,17 @@ graphint pathIsomorphismSpaghetti(graph* g, color_t* pattern, graphint** matches
 	Arbitrarily choosing: sum(outgoing weights) % (maxc-minc) + minc 
  */
 void markColors(graph *g, color_t minc, color_t maxc) {
+	const graphint NV = g->numVertices;
 	const graphint * restrict edge = g->edgeStart;
 	const graphint * restrict w = g->intWeight;
-	const graphint * restrict eV = g->endVertex;
+	graphint * restrict marks = g->marks;
 
-	for (graphint i=0; i<g->numVertices; i++) {
+	for (graphint i=0; i<NV; i++) {
 		int total = 0;
 		for (graphint j = edge[i]; j < edge[i+1]; j++) {
-			total += w[eV[i]];
+			total += w[j];
 		}
-		g->marks[i] = (total % (maxc-minc)) + minc;
+		marks[i] = (total % (maxc-minc)) + minc;
 	}
 }
 
