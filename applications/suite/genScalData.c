@@ -190,7 +190,7 @@ graphint Remove(graphint NV, graphint NE, graphint *sV, graphint *eV) {
 	for (i = 0; i < NV; i++) head[i] = -1;
 	for (i = 0; i < NE; i++) next[i] = -2;
 	
-	MTA("mta assert no dependence")
+//	MTA("mta assert no dependence")
 	for (i = 0; i < NE; i++) {
 		graphint k, *ptr;
 		graphint sv  = sV[i];
@@ -216,7 +216,7 @@ graphint Remove(graphint NV, graphint NE, graphint *sV, graphint *eV) {
 	}
 	
 	/* Move good edges to front of sV and eV arrays */
-	MTA("mta assert no dependence")
+//	MTA("mta assert no dependence")
 	for (i = 0; i < NGE; i++) {
 		while (next[i] == -2) {
 			graphint k = int_fetch_add(&NE, -1) - 1;
