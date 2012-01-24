@@ -9,7 +9,7 @@
 #include <stdio.h>
 #include "defs.h"
 
-void printArray(char * title, graphint * array, graphint size) {
+void printArray(const char * const title, const graphint * const array, graphint size) {
 	printf("%s[", title);
 	if (size > 0) printf("%"DFMT, array[0]);
 	for (int i = 1; i < size; i++) printf(", %"DFMT, array[i]);

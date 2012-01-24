@@ -35,7 +35,7 @@
 
 /*### Typedefs ###*/
 typedef int64_t graphint;
-typedef int64_t color_t;
+typedef graphint color_t;
 
 /*### Structures ###*/
 
@@ -123,7 +123,7 @@ graphint triangles(graph *g);
 double centrality(graph *g, double *bc, graphint vs);
 
 /* util.c */
-void printArray(char * title, graphint * array, graphint size);
+void printArray(const char * const title, const graphint * const array, graphint size);
 void printArrayDouble(char * title, double * array, graphint size);
 
 #endif
