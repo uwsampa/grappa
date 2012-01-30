@@ -4,7 +4,7 @@
 #include <stdlib.h>
 #include <stdio.h>
 
-#define STACK_SIZE 1<<13
+#define STACK_SIZE 1<<22
 
 thread *thread_init() {
   coro *me = coro_init();
@@ -22,6 +22,8 @@ scheduler *create_scheduler(thread *master) {
   assert(sched != NULL);
   sched->ready = NULL;
   sched->tail = NULL;
+  sched->wait = NULL;
+  sched->wait_tail = NULL;
   sched->master = master;
   sched->nextId = 1; //non-master id starts at 1
   return sched;
