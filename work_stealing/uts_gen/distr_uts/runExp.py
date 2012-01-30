@@ -36,8 +36,8 @@ brackets = re.compile('({.*})')
 
 threshold = 0
 
-trees = ['T1':'-t 1 -a 3 -d 10 -b 4 -r 19',
-         'T3':'-t 0 -b 2000 -q 0.124875 -m 8 -r 42']
+trees = {'T1':'-t 1 -a 3 -d 10 -b 4 -r 19',
+         'T3':'-t 0 -b 2000 -q 0.124875 -m 8 -r 42'}
 
 all_results = []
 for treename in ['T1', 'T3']:
@@ -69,7 +69,7 @@ for treename in ['T1', 'T3']:
                         cmd_proc.close()
                         continue    
                          
-                    
+                    res['tree'] = treename                    
                     all_results.append(res)
             
                     #write to disk in case of later failure

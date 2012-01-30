@@ -351,12 +351,12 @@ void uts_printParams() {
   }
 }
 
-void uts_parseParams(int argc, char *argv[]){
+void uts_parseParams(int argc, char *argv[], int printHelp){
   int i = 1; 
   int err = -1;
   while (i < argc && err == -1) {
     if (argv[i][0] == '-' && argv[i][1] == 'h') {
-        uts_helpMessage();
+        if (printHelp) uts_helpMessage();
         impl_abort(0);
 
     } else if (argv[i][0] != '-' || strlen(argv[i]) != 2 || argc <= i+1) {

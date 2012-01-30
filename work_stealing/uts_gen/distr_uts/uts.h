@@ -99,7 +99,7 @@ typedef unsigned long long counter_t;
 #define min(a,b) (((a) < (b)) ? (a) : (b))
 
 void   uts_error(char *str);
-void   uts_parseParams(int argc, char **argv);
+void   uts_parseParams(int argc, char **argv, int printHelp);
 int    uts_paramsToStr(char *strBuf, int ind);
 void   uts_printParams();
 void   uts_helpMessage();

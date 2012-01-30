@@ -14,7 +14,7 @@
 /*volatile*/ uint64_t values[_MAX_PROC_NODES]; 
 /*volatile*/ int doneCount;
 
-gasnet_hsl_t lock = GASNET_HSL_INITIALIZER;
+gasnet_hsl_t collective_lock = GASNET_HSL_INITIALIZER;
 
 volatile uint64_t ringValue;
 volatile int doneRing;
@@ -27,12 +27,12 @@ void serialReduceRequestHandler(gasnet_token_t token, gasnet_handlerarg_t a0) {
     assert(GASNET_OK == gasnet_AMGetMsgSource(token, &fromNode));
 
     int val;
-    gasnet_hsl_lock(&lock);
+    gasnet_hsl_lock(&collective_lock);
     values[fromNode] = reduceVal;
     //asm volatile ("" ::: "memory");
     //uint64_t val = atomic_fetch_and_add(&doneCount, 1);
     val = doneCount++;
-    gasnet_hsl_unlock(&lock);
+    gasnet_hsl_unlock(&collective_lock);
 
     printf("received from %d cause done count %d\n", fromNode, val+1);
 }
@@ -50,21 +50,21 @@ uint64_t serialReduce(uint64_t (*commutative_func)(uint64_t, uint64_t), uint64_t
         int can_break = 0;
         while (!can_break) {
             gasnet_AMPoll();
-            gasnet_hsl_lock(&lock);
+            gasnet_hsl_lock(&collective_lock);
             if (doneCount==num_nodes-1) {
                 can_break = 1;
             }
-            gasnet_hsl_unlock(&lock);
+            gasnet_hsl_unlock(&collective_lock);
         }
 
 
         // perform the reduction
         uint64_t sofar = values[0];
-        gasnet_hsl_lock(&lock);
+        gasnet_hsl_lock(&collective_lock);
         for (int i=1; i<num_nodes; i++) {
            sofar = (*commutative_func)(sofar, values[i]);
         }
-        gasnet_hsl_unlock(&lock);
+        gasnet_hsl_unlock(&collective_lock);
 
         return sofar;
     } else {

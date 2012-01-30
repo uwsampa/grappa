@@ -67,6 +67,7 @@ void ss_init(StealStack* s, int nelts) {
   
   s->stackSize = nelts;
   s->nNodes = 0;
+  s->nVisited = 0;
   s->maxStackDepth = 0;
   s->maxTreeDepth = 0;
   s->nLeaves = 0;
@@ -117,6 +118,7 @@ void ss_pop(StealStack *s) {
   if (s->top <= s->local)
     ss_error("ss_pop: empty local stack");
   s->top--;
+  s->nVisited++;
   r = &(s->stack[s->top]);
 }
 
@@ -182,6 +184,21 @@ int UNSET_COND(LOCK_T* lock) {
     UNSET_LOCK(lock);
     return 0;
 }
+
+void pushWorkRequestHandler(gasnet_token_t token, void* buf, size_t num_bytes, gasnet_handlerarg_t a0) {
+    Node_ptr* received_work = (Node_ptr*) buf;
+    int amount_pushed = (int) a0;
+    
+    SET_LOCK(&lsa_lock);
+    memcpy(&myStealStack.stack[myStealStack.top], received_work, num_bytes);
+    myStealStack.top += amount_pushed;
+    UNSET_LOCK(&lsa_lock);
+}
+
+void ss_pushRemote(int destnode, Node_ptr* work, int k) {
+    gasnet_AMRequestMedium1 (destnode, PUSHWORK_REQUEST_HANDLER, work, sizeof(Node_ptr)*k, k);
+}
+
 
 int ss_steal_locally(StealStack* thief, int victim, int k) {
     assert(thief == &myStealStack);//TODO just remove the parameter

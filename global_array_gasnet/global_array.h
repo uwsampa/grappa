@@ -25,7 +25,7 @@ struct global_array *ga_allocate(
     int element_size,
     uint64_t size);
 
-inline static int ga_node(struct global_array *ga, uint64_t index);
+inline static int ga_node(struct global_array *ga, uint64_t index) {
     return index / ga->elements_per_node;
 }
 

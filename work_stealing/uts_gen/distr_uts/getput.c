@@ -1,5 +1,4 @@
 #include "getput.h"
-#include "thread.h"
 #include <gasnet.h>
 
 bool isLocal(global_array* ga, uint64_t index) {
@@ -39,6 +38,23 @@ void put_remote(global_array* ga, uint64_t index, void* data, uint64_t offset, s
     }
 }
 
+void put_remote_nbi(global_array* ga, uint64_t index, void* data, uint64_t offset, size_t size) {
+    global_address gaddr;
+    //printf("node%d puts at index=%lu\n", gasnet_mynode(), index);
+    ga_index(ga, index, &gaddr);
+    gaddr.offset += offset;
+    if (gm_is_address_local(&gaddr)) {
+        void* v = (uint64_t*) gm_local_gm_address_to_local_ptr(&gaddr);
+        memcpy(v, data, size);
+ //       printf("%p: data=%lu %lu, size=%lu\n", v, ((uint64_t*)data)[0], ((uint64_t*)data)[1], size);
+    } else {
+        void* destptr = gm_address_to_ptr(&gaddr);
+        int nodeid = gm_node_of_address(&gaddr);
+        //printf("node%d puts <%d, %p, %lu, %lu>\n", gasnet_mynode(), nodeid, destptr, data, size);
+        gasnet_put_nbi (nodeid, destptr, data, size);
+    }
+}
+
 void put_remote_address(global_address gaddr, void* data, uint64_t offset, size_t size) {
     gaddr.offset += offset;
     if (gm_is_address_local(&gaddr)) {
@@ -51,6 +67,24 @@ void put_remote_address(global_address gaddr, void* data, uint64_t offset, size_
         //printf("node%d puts <%d, %p, %lu, %lu>\n", gasnet_mynode(), nodeid, destptr, data, size);
         gasnet_put (nodeid, destptr, data, size);
     }
+}
+
+void put_remote_address_nbi(global_address gaddr, void* data, uint64_t offset, size_t size) {
+    gaddr.offset += offset;
+    if (gm_is_address_local(&gaddr)) {
+        void* v = (uint64_t*) gm_local_gm_address_to_local_ptr(&gaddr);
+        memcpy(v, data, size);
+ //       printf("%p: data=%lu %lu, size=%lu\n", v, ((uint64_t*)data)[0], ((uint64_t*)data)[1], size);
+    } else {
+        void* destptr = gm_address_to_ptr(&gaddr);
+        int nodeid = gm_node_of_address(&gaddr);
+        //printf("node%d puts <%d, %p, %lu, %lu>\n", gasnet_mynode(), nodeid, destptr, data, size);
+        gasnet_put_nbi (nodeid, destptr, data, size);
+    }
+}
+
+void sync_nbi() {
+    gasnet_wait_syncnbi_all();
 }
 
 #define PRE_LOCALITY 1
@@ -123,7 +157,7 @@ void complete_nb(thread* me, mem_tag_t tag) {
     } else
 #endif
     {
-       while (gasnet_try_syncnb(tag.src) != GASNET_OK) {
+       while (gasnet_try_syncnb((gasnet_handle_t)tag.src) != GASNET_OK) {
            thread_yield(me);
        } 
     }

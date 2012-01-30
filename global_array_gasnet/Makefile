@@ -4,10 +4,17 @@ EXECS=brandes_serial brandes_1p brandes_1p_coarse brandes_1p_coarse_and_fine gas
 all: $(EXECS)
 
 #defualt gasnet library choice
-MA_CONDUIT_LIB?=ibv
-MA_CONDUIT_DEF?=IBV
-MA_THREADING_GASNET_DEF?=PAR
-MA_THREADING_GASNET_LIB?=par
+MA_CONDUIT_LIB?=mpi
+MA_CONDUIT_DEF?=MPI
+MA_THREADING_GASNET_DEF?=SEQ
+MA_THREADING_GASNET_LIB?=seq
+
+ifeq ($(MA_CONDUIT_LIB), mpi)
+GASLOADS=-lammpi
+else
+GASLOADS=-libverbs
+endif
+
 
 GASNET?=/sampa/share/gasnet-rhel6
 #MPI_INCLUDE=/usr/include/mpich2
@@ -18,7 +25,7 @@ LIBS=
 LD=mpicc
 CC=mpicc
 LFLAGS=$(CFLAGS_COMMON)
-GASNET_LIBS=-L$(GASNET)/lib -lgasnet-$(MA_CONDUIT_LIB)-$(MA_THREADING_GASNET_LIB) -libverbs $(MA_ADD_GASNET_LIBS)
+GASNET_LIBS=-L$(GASNET)/lib -lgasnet-$(MA_CONDUIT_LIB)-$(MA_THREADING_GASNET_LIB) $(GASLOADS) $(MA_ADD_GASNET_LIBS)
 #MPI_LIBS=-lmpi
 MPI_LIBS=
 

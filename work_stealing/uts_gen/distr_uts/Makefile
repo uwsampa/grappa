@@ -10,6 +10,12 @@ MA_CONDUIT_DEF?=IBV
 MA_THREADING_GASNET_DEF?=SEQ
 MA_THREADING_GASNET_LIB?=seq
 
+ifeq ($(MA_CONDUIT_LIB), mpi)
+GASLOADS=-lammpi
+else
+GASLOADS=-libverbs
+endif
+
 # ------------------------------------- #
 # Set Random Number Generator sources:
 # ------------------------------------- #
@@ -50,7 +56,7 @@ LIB=-lm
 LD_FLAGS= $(CFLAGS_COMMON)
 
 GASNET_LIB_PATHS= -L$(GASNET)/lib
-GASNET_LIBS= -lgasnet-$(MA_CONDUIT_LIB)-$(MA_THREADING_GASNET_LIB) -libverbs $(MA_ADD_GASNET_LIBS)
+GASNET_LIBS= -lgasnet-$(MA_CONDUIT_LIB)-$(MA_THREADING_GASNET_LIB) $(GASLOADS) $(MA_ADD_GASNET_LIBS)
 
 OBJECTS=\
 	balloc.o \
@@ -77,7 +83,7 @@ gasnet_cbarrier_test: gasnet_cbarrier_test.c gasnet_cbarrier.c
 	$(CXX) $(CFLAGS) -o $@ $+ $(GASNET_LIB_PATHS) $(LIB) $(GASNET_LIBS)
 
 run: TreeGen
-	mpirun -np 6 -host "localhost" ./$< $(T3)
+	mpirun -np 6 -host "localhost" ./$< $(T1)
 
 debug: TreeGen
 	export GASNET_BACKTRACE=1

@@ -35,8 +35,11 @@ omp_lock_t * omp_global_lock_alloc();
 
 #define WORKSTEAL_REQUEST_HANDLER 244
 #define WORKSTEAL_REPLY_HANDLER 245
+#define PUSHWORK_REQUEST_HANDLER 246
 void workStealRequestHandler(gasnet_token_t token, gasnet_handlerarg_t a0);
 void workStealReplyHandler(gasnet_token_t token, void* buf, size_t num_bytes, gasnet_handlerarg_t a0);
+void pushWorkRequestHandler(gasnet_token_t token, void* buf, size_t num_bytes, gasnet_handlerarg_t a0);
+void ss_pushRemote(int destnode, Node_ptr* work, int k);
 
 
 //unused
@@ -53,7 +56,7 @@ struct stealStack_t
   int local;         /* index of start of local portion */
   int top;           /* index of stack top */
   int maxStackDepth;                      /* stack stats */ 
-  int nNodes, maxTreeDepth;               /* tree stats  */
+  int nNodes, maxTreeDepth, nVisited;        /* tree stats: (num pushed, max depth, num popped)  */
   int nLeaves;
   int nAcquire, nRelease, nSteal, nFail;  /* steal stats */
   int wakeups, falseWakeups, nNodes_last;

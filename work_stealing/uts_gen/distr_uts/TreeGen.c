@@ -10,6 +10,9 @@
 #include <omp.h>
 #include <math.h>
 
+#include <list>
+#include <iterator>
+
 #include "getput.h"
 #include "gasnet_cbarrier.h"
 #include "collective.h"
@@ -19,7 +22,9 @@
 #define PARALLEL 1
 #define PREFETCH_WORK 1
 #define PREFETCH_CHILDREN 1
-
+#define DISTRIBUTE_INITIAL 1
+#define GEN_TREE_NBI 1
+#define CHECK_SERIALIZE 0
 
 #define YIELD_ALARM 0
 #if YIELD_ALARM
@@ -41,6 +46,7 @@ gasnet_handlerentry_t   handlers[] =
         { GA_HANDLER, (void (*) ()) ga_handler },
         { WORKSTEAL_REQUEST_HANDLER, (void (*) ()) workStealRequestHandler },
         { WORKSTEAL_REPLY_HANDLER, (void (*) ()) workStealReplyHandler },
+        { PUSHWORK_REQUEST_HANDLER, (void (*) ()) pushWorkRequestHandler },
         { ENTER_CBARRIER_REQUEST_HANDLER, (void (*) ()) enter_cbarrier_request_handler },
         { EXIT_CBARRIER_REQUEST_HANDLER, (void (*) ()) exit_cbarrier_request_handler },
         { CANCEL_CBARRIER_REQUEST_HANDLER, (void (*) ()) cancel_cbarrier_request_handler },
@@ -93,6 +99,12 @@ int cbint     = 1;        // Cancellable barrier polling interval
 
 int num_cores = 1;
 int num_threads_per_core = 2;
+int num_places = 1;
+int num_procs = 1;
+int generateFile = 1;
+char* genFilename = "default";
+const char* gf_tree_suffix = "tree";
+const char* gf_child_suffix = "child";
 
 /* Implementation Specific Functions */
 char * impl_getName() { return "TreeGen"; }
@@ -102,11 +114,16 @@ int    impl_paramsToStr(char *strBuf, int ind) {
     //(parallel only)
     ind += sprintf(strBuf+ind, "Parallel search using %d cores\n", num_cores);
     ind += sprintf(strBuf+ind, "    %d threads per core\n", num_threads_per_core);
+    ind += sprintf(strBuf+ind, "%d places\n", num_places);
     if (doSteal) {
         ind += sprintf(strBuf+ind, "    Load balance by work stealing, chunk size = %d nodes\n", chunkSize);
         ind += sprintf(strBuf+ind, "  CBarrier Interval: %d\n", cbint);
     } else {
+      #if DISTRIBUTE_INITIAL
+      ind += sprintf(strBuf+ind, "   Initial distribution only.\n");
+      #else
       ind += sprintf(strBuf+ind, "   No load balancing.\n");
+      #endif
     }
 
     return ind;
@@ -118,6 +135,11 @@ void   impl_helpMessage() {
     printf("    -T  int   number of threads per core\n");
     printf("    -c  int   chunksize for work stealing\n");
     printf("    -i  int   set cancellable barrier polling interval\n");
+    printf("    -P  int   number of places\n");
+    printf("    -p  int   number of process\n");
+    printf("    -G  int   0:read, 1:gen-and-write\n");
+    printf("    -F  str   generated tree file name\n");
+
 }
 
 int impl_parseParam(char *param, char *value) { 
@@ -135,6 +157,18 @@ int impl_parseParam(char *param, char *value) {
             break;
         case 'i':
             cbint = atoi(value);
+            break;
+        case 'P':
+            num_places = atoi(value);
+            break;
+        case 'p':
+            num_procs = atoi(value);
+            break;
+        case 'F':
+            genFilename = value;
+            break;
+        case 'G':
+            generateFile = atoi(value);
             break;
         default:
             err = 1;
@@ -156,7 +190,7 @@ void __sched__noop__(pid_t pid, unsigned int x, cpu_set_t* y) {}
   
 #define IBT_PERMUTE 0
 
-int generateTree(Node_ptr root, global_array* nodes, int cid, global_array* child_array, ballocator_t* bals[], struct state_t* states);
+int generateTree(Node_ptr root, global_array* nodes, int cid, global_array* child_array, ballocator_t* bals[], struct state_t* states, std::list<Node_ptr> initialNodes);
 
 //enum   uts_trees_e    { BIN = 0, GEO, HYBRID, BALANCED };
 //enum   uts_geoshape_e { LINEAR = 0, EXPDEC, CYCLIC, FIXED };
@@ -179,10 +213,11 @@ typedef struct worker_info {
     int core_id;
     int num_local_nodes;
     int* work_done;
-    long nVisited;
     global_array* nodes_array;
     global_array* children_arrays;
     int my_id;
+    int rank;
+    int* neighbors;
 } worker_info;
 
 
@@ -222,7 +257,7 @@ void releaseNodes(StealStack *ss){
 }
 
 
-void workLoop(StealStack* ss, thread* me, int* work_done, int core_id, int num_local_nodes, long* nVisited, global_array* nodes_array, global_array* children_arrays, int my_id) {
+void workLoop(StealStack* ss, thread* me, int* work_done, int core_id, int num_local_nodes, global_array* nodes_array, global_array* children_arrays, int my_id, int rank, int* neighbors) {
     while (!(*work_done)) {
             //printf("core %d check work when local=%d\n", core_id, ss->top-ss->local);
         while (ss_localDepth(ss) > 0) {
@@ -231,7 +266,6 @@ void workLoop(StealStack* ss, thread* me, int* work_done, int core_id, int num_l
             Node_ptr work = ss_top(ss);
             //printf("(r%d,th%d) work popped %lu\n", work);
             ss_pop(ss);
-            *nVisited = *nVisited+1;
             //printf("core %d work(#%lu, id=%d, nc=%d, height=%d)\n", core_id, *nVisited, work->id, work->numChildren, work->height);
 
             Node workLocal;
@@ -256,10 +290,15 @@ void workLoop(StealStack* ss, thread* me, int* work_done, int core_id, int num_l
             #endif
             ///TODO
 
+            get_remote(nodes_array, work, offsetof(Node, id), sizeof(workLocal.id), &workLocal.id);
+           // printf("r%d got %d(ptr=%lu) (count=%d) pushed\n", rank, workLocal.id, work, ss->nVisited);
+
             for (int i=0; i<workLocal.numChildren; i++) {
                 //printf("core %d pushes child(id=%d,height=%d,parent=%d)\n", core_id, work->children[i]->id, work->children[i]->height, work->id);
                 //printf("(r%d,th%d) child pushed %lu\n", my_id, me->id, childrenLocal[i]);
                 ss_push(ss, childrenLocal[i]);
+             //   printf("%d-->(ptr=%lu)\n", rank, childrenLocal[i]);
+                //printf("rank%d: %d nodes visited; just pushed %lu\n", rank, myStealStack.nNodes, childrenLocal[i]);
             }
 
             // notify other coroutines in my scheduler
@@ -269,6 +308,7 @@ void workLoop(StealStack* ss, thread* me, int* work_done, int core_id, int num_l
             
             // possibly make work visible and notfiy idle workers 
             releaseNodes(ss);
+
         }
        
         // try to put some work back to local 
@@ -285,7 +325,7 @@ void workLoop(StealStack* ss, thread* me, int* work_done, int core_id, int num_l
 /*          ss_setState(ss, SS_SEARCH);             */
           for (int i = 1; i < num_local_nodes && !goodSteal; i++) { // TODO permutation order
             victimId = (my_id + i) % num_local_nodes;
-            goodSteal = ss_steal_locally(ss, victimId, chunkSize);
+            goodSteal = ss_steal_locally(ss, neighbors[victimId], chunkSize);
           }
 
           if (goodSteal) {
@@ -293,6 +333,8 @@ void workLoop(StealStack* ss, thread* me, int* work_done, int core_id, int num_l
               threads_wakeAll(me); // TODO optimize wake based on amount stolen
               continue;
           }
+
+          /**TODO remote load balance**/
         }
 
         // no work so suggest barrier
@@ -302,7 +344,6 @@ void workLoop(StealStack* ss, thread* me, int* work_done, int core_id, int num_l
                 *work_done = 1;
             }
         }
-
     }
         
 }
@@ -311,7 +352,7 @@ void thread_runnable(thread* me, void* arg) {
     struct worker_info* info = (struct worker_info*) arg;
 
     //printf("thread starts from core %d/%d\n", info->core_id, info->num_cores);
-    workLoop(&myStealStack, me, info->work_done, info->core_id, info->num_local_nodes, &(info->nVisited), info->nodes_array, info->children_arrays, info->my_id);
+    workLoop(&myStealStack, me, info->work_done, info->core_id, info->num_local_nodes, info->nodes_array, info->children_arrays, info->my_id, info->rank, info->neighbors);
 
     thread_exit(me, NULL);
 }
@@ -319,9 +360,9 @@ void thread_runnable(thread* me, void* arg) {
 //XXX
 // tree T1
 int numNodes = 4130071;
+//int numNodes = 102181082;
 const int children_amounts[] = {688629, 684065, 687025, 689225, 687816, 693310}; // 6 procs
 const int children_array_size = 693310;
-const int num_procs = 6;
 // tree T1L
 //int numNodes = 102181082;
 
@@ -336,8 +377,7 @@ uint64_t Permute(int i) {
   #endif
 }
 
-
-int generateTree(Node_ptr root, global_array* nodes, int cid, global_array* child_array, ballocator_t* bals[], struct state_t* states) {
+int generateTree(Node_ptr root, global_array* nodes, int cid, global_array* child_array, ballocator_t* bals[], struct state_t* states, std::list<Node_ptr>* initialNodes) {
 //printf("generate cid=%d\n", cid);
     Node rootLocal;
     get_remote(nodes, root, 0, sizeof(Node), &rootLocal);
@@ -351,8 +391,16 @@ int generateTree(Node_ptr root, global_array* nodes, int cid, global_array* chil
     rootTemp.height = rootLocal.height; // copy (not needed if dont overwrite)
     rootTemp.children = (Node_ptr_ptr) balloc(bals[ga_node(nodes, root)], nc);
     rootTemp.numChildren = nc;
+    if (cid ==0) {printf("root has %d children\n", nc);}
     rootTemp.id = cid;
+  
+    #if GEN_TREE_NBI
+    put_remote_nbi(nodes, root, &rootTemp.numChildren, offsetof(Node, numChildren), sizeof(rootTemp.numChildren));
+    put_remote_nbi(nodes, root, &rootTemp.id, offsetof(Node, id), sizeof(rootTemp.id));
+    put_remote_nbi(nodes, root, &rootTemp.children, offsetof(Node, children), sizeof(rootTemp.children));
+    #else
     put_remote(nodes, root, &rootTemp, 0, sizeof(Node));
+    #endif
 //    for (int i=0; i<root->height; i++) {
 //        printf("-");
 //    }
@@ -366,73 +414,262 @@ int generateTree(Node_ptr root, global_array* nodes, int cid, global_array* chil
         uint64_t index = Permute(current_cid);
 //        printf("--index=%d\n", index);
 //        childrenAddrs[i] = index;
-        put_remote(child_array, rootTemp.children, &index, i*sizeof(Node_ptr), sizeof(Node_ptr)); // TODO could write all 'nc' entries in children array at once if change the cid assignment to not be depth first (which builds up childrenAddrs arrays)
+    #if GEN_TREE_NBI
+        put_remote_nbi(child_array, rootTemp.children, &index, i*sizeof(Node_ptr), sizeof(Node_ptr));
+    #else 
+        // TODO could write all 'nc' entries in children array at once if change the cid assignment to not be depth first (which builds up childrenAddrs arrays)
+        put_remote(child_array, rootTemp.children, &index, i*sizeof(Node_ptr), sizeof(Node_ptr));
+    #endif
+       
         Node childTemp;
         childTemp.height = rootTemp.height+1;  
-        childTemp.numChildren = -1;
         childTemp.type = childType;
+        #if GEN_TREE_NBI
+        put_remote_nbi(nodes, index, &childTemp.height, offsetof(Node, height), sizeof(childTemp.height));
+        put_remote_nbi(nodes, index, &childTemp.type, offsetof(Node, type), sizeof(childTemp.type));
+        #else
         put_remote(nodes, index, &childTemp, 0, sizeof(Node)); // comment out this initialization write, to be faster
+        #endif
+        
         for (int j=0; j<computeGranularity; j++) {
             rng_spawn(states[rootTemp.id].state, states[current_cid].state, i);
-            }
+        }
 
-        current_cid = generateTree(index, nodes, current_cid, child_array, bals, states);    
+        #if DISTRIBUTE_INITIAL
+        if (cid == 0) {
+            initialNodes->push_back(index);
+        }
+        #endif
+       
+        current_cid = generateTree(index, nodes, current_cid, child_array, bals, states, NULL);    
     }
+   
     return current_cid;
 }
 
+#include <unistd.h>
 
 typedef uint64_t Node_ptr;
 int main(int argc, char *argv[]) {
     init(&argc, &argv);
     
-    //use uts to parse params
-    uts_parseParams(argc, argv);
-    uts_printParams();
-    
-    
     int rank = gasnet_mynode();
     int num_nodes = gasnet_nodes();
+    
+    //use uts to parse params
+    uts_parseParams(argc, argv, rank==0);
+    uts_printParams();
+
+    char hostname[1024];
+    gethostname(hostname, 1024);
+    printf("rank%d is on %s\n", rank, hostname);
+
+    /** Only for 1 or 2 machines in round-robin placement **/
+    int num_machines = 1; //num_places
+    int machine_id = rank%num_machines;
+    int neighbors[12];
+    if ( num_machines == 1) {
+        neighbors = {0,1,2,3,4,5,6,7,8,9,10,11};
+    } else if ( num_machines == 2) {
+         if (machine_id) neighbors= {1,3,5,7,9,11}; else neighbors = {0,2,4,6,8,10};
+    }
+    int num_local_nodes = num_nodes/num_machines;
+    int local_id = rank/num_machines;
+    /** **/
+
 
     cbarrier_init(num_nodes, rank);
     
     WAIT_BARRIER;
 
     
-    global_array* nodes = ga_allocate(sizeof(Node), numNodes+num_nodes);
-    global_array* children_array_pool = ga_allocate(sizeof(Node_ptr), numNodes+num_nodes); //children_array_size*num_procs);
+    global_array* nodes = ga_allocate(sizeof(Node), numNodes*num_procs); //XXX for enough space
+    global_array* children_array_pool = ga_allocate(sizeof(Node_ptr), numNodes*num_procs); //children_array_size*num_procs);
    
+   
+    if (0 == rank) { printf("v_per_node = %lu\ncha_per_node = %lu\n", nodes->elements_per_node, children_array_pool->elements_per_node);}
     
     Node_ptr root = 0;
     ballocator_t* bals[num_procs]; // for generating tree single threaded
  
     uint64_t num_genNodes;
+    std::list<Node_ptr>* initialNodes;
+    #if DISTRIBUTE_INITIAL
+    initialNodes = new std::list<Node_ptr>();
+    #endif
   
-    if (0 == rank) {
-        for (int p=0; p<num_procs; p++) {
-            bals[p] = newBumpAllocator(children_array_pool, p*(children_array_pool->elements_per_node), children_array_pool->elements_per_node); 
-        }
-   
-        struct state_t* states = (struct state_t*)malloc(sizeof(struct state_t)*numNodes);
-    
-        Node rootTemplate;  
-        uts_initRoot(&rootTemplate, type, &states[0]);
-        put_remote(nodes, root, &rootTemplate, 0, sizeof(Node));
-      
-        num_genNodes = generateTree(root, nodes, 0, children_array_pool, bals, states);
-        free(states);
-        printf("num nodes gen: %lu\n", num_genNodes);
+    if (generateFile || CHECK_SERIALIZE) {
+        if (0 == rank) {
+            for (int p=0; p<num_procs; p++) {
+                bals[p] = newBumpAllocator(children_array_pool, p*(children_array_pool->elements_per_node), children_array_pool->elements_per_node); 
+            }
        
+            struct state_t* states = (struct state_t*)malloc(sizeof(struct state_t)*numNodes);
+        
+            Node rootTemplate;  
+            uts_initRoot(&rootTemplate, type, &states[0]);
+            put_remote(nodes, root, &rootTemplate, 0, sizeof(Node));
+          
+            num_genNodes = generateTree(root, nodes, 0, children_array_pool, bals, states, initialNodes);
+        
+            #if GEN_TREE_NBI
+            gasnet_wait_syncnbi_puts(); 
+            #endif
+            
+            free(states);
+           
+        }
     }
-    
-    ss_init(&myStealStack, MAXSTACKDEPTH);
 
+    WAIT_BARRIER;
+
+    if (generateFile) { 
+        // write the nodes file
+        char fname[256];
+        sprintf(fname, "%s.%s.%d", genFilename, gf_tree_suffix, rank);
+        FILE* rankfile = fopen(fname, "w");
+        global_address gaddr;
+        ga_index(nodes, nodes->elements_per_node*rank, &gaddr);
+        assert (gm_is_address_local(&gaddr));
+        void* v = gm_local_gm_address_to_local_ptr(&gaddr);
+        fwrite(v, sizeof(Node), nodes->elements_per_node, rankfile);
+        fclose(rankfile);
+
+        // write the child array file
+        sprintf(fname, "%s.%s.%d", genFilename, gf_child_suffix, rank);
+        rankfile = fopen(fname, "w");
+        ga_index(children_array_pool, children_array_pool->elements_per_node*rank, &gaddr);
+        assert (gm_is_address_local(&gaddr));
+        v = gm_local_gm_address_to_local_ptr(&gaddr);
+        fwrite(v, sizeof(Node_ptr), children_array_pool->elements_per_node, rankfile);
+        fclose(rankfile);
+
+        // write meta data file
+        if ( 0 == rank ) {
+            sprintf(fname, "%s.meta", genFilename);
+            FILE* metafile = fopen(fname, "w");
+            fwrite(&num_genNodes, sizeof(uint64_t), 1, metafile);
+
+            #if DISTRIBUTE_INITIAL
+            for (std::list<Node_ptr>::iterator it = initialNodes->begin(); it!=initialNodes->end(); ++it) {
+                Node_ptr data = *it;
+                fwrite(&data, sizeof(Node_ptr), 1, metafile);
+            }
+            Node_ptr end = 0; // assumes root is 0 and not pushed
+            fwrite(&end, sizeof(Node_ptr), 1, metafile);
+            #endif
+
+            fclose(metafile);
+        }
+    } else { // read file
+        //read nodes file
+        char fname[256];
+        sprintf(fname, "%s.%s.%d", genFilename, gf_tree_suffix, rank);
+        FILE* rankfile = fopen(fname, "r");
+        global_address gaddr;
+        ga_index(nodes, nodes->elements_per_node*rank, &gaddr);
+        assert (gm_is_address_local(&gaddr));
+        void* v = gm_local_gm_address_to_local_ptr(&gaddr);
+        
+        #if CHECK_SERIALIZE
+        void* vv = malloc(sizeof(Node)*nodes->elements_per_node);
+        fread(vv, sizeof(Node), nodes->elements_per_node, rankfile);
+        #else
+        fread(v, sizeof(Node), nodes->elements_per_node, rankfile);
+        #endif
+        
+        fclose(rankfile);
+       
+        #if CHECK_SERIALIZE
+        printf("%d checking\n", rank);
+        Node* genvn = (Node*)v;
+        Node* readvn = (Node*)vv;
+        for (int i=0; i<nodes->elements_per_node; i++) {
+            if (readvn[i].children != genvn[i].children
+            ||readvn[i].numChildren != genvn[i].numChildren
+            ||readvn[i].type != genvn[i].type
+            ||readvn[i].height != genvn[i].height
+            ||readvn[i].id != genvn[i].id) {
+                printf("rank%d: index %d inconsistent\n", rank, i);
+            }
+        }
+        #endif
+        
+        // read the child array file
+        sprintf(fname, "%s.%s.%d", genFilename, gf_child_suffix, rank);
+        rankfile = fopen(fname, "r");
+        ga_index(children_array_pool, children_array_pool->elements_per_node*rank, &gaddr);
+        assert (gm_is_address_local(&gaddr));
+        v = gm_local_gm_address_to_local_ptr(&gaddr);
+        
+        #if CHECK_SERIALIZE
+        vv = malloc(sizeof(Node_ptr)*children_array_pool->elements_per_node);
+        fread(vv, sizeof(Node_ptr), children_array_pool->elements_per_node, rankfile);
+        #else
+        fread(v, sizeof(Node_ptr), children_array_pool->elements_per_node, rankfile);
+        #endif
+        
+        fclose(rankfile);
+
+        #if CHECK_SERIALIZE
+        Node_ptr* gencn = (Node_ptr*)v;
+        Node_ptr* readcn = (Node_ptr*)vv;
+        for (int i=0; i<children_array_pool->elements_per_node; i++) {
+            if (readcn[i] != gencn[i]) {
+                printf("rank%d: index %d inconsistent\n", rank, i);
+            }
+        }
+        #endif
+
+
+        // read meta data
+        if ( 0 == rank ) {
+            sprintf(fname, "%s.meta", genFilename);
+            FILE* metafile = fopen(fname, "r");
+            fread(&num_genNodes, sizeof(uint64_t), 1, metafile);
+            
+            #if DISTRIBUTE_INITIAL
+            Node_ptr data;
+            fread(&data, sizeof(Node_ptr), 1, metafile);
+            while (data != 0) {
+                initialNodes->push_back(data);
+                fread(&data, sizeof(Node_ptr), 1, metafile);
+            }
+            #endif
+            
+            fclose(metafile);
+        }
+    }
+
+    if (0 == rank) printf("num nodes gen: %lu\n", num_genNodes);
+
+    ss_init(&myStealStack, MAXSTACKDEPTH);
+    WAIT_BARRIER;
+
+    #if DISTRIBUTE_INITIAL
+    if (rank == 0) {
+        printf("initial size %d\n", initialNodes->size());
+        int current_node = 0;
+        while (!initialNodes->empty()) {
+            Node_ptr c = initialNodes->front();
+            initialNodes->pop_front();
+            if (current_node == 0) {
+                ss_push(&myStealStack, c);
+            } else {
+                ss_pushRemote(current_node, &c, 1);
+            }
+            current_node = (current_node+1)%num_nodes;
+        }
+    }
+    #else
     // push the root
     if (rank == 0) {
         ss_push(&myStealStack, root);
     }
+    #endif
 
     WAIT_BARRIER;
+    printf("rank(%d) starting size %d\n", rank, ss_localDepth(&myStealStack));
    
     num_cores = 1; // TODO make 1 always
      
@@ -453,12 +690,13 @@ int main(int argc, char *argv[]) {
         for (int th=0; th<num_threads_per_core; th++) {
             wis[i][th].num_cores_per_node = num_cores;
             wis[i][th].core_id = i;
-            wis[i][th].num_local_nodes = num_nodes;
+            wis[i][th].num_local_nodes = num_local_nodes;
             wis[i][th].work_done = &core_work_done[i];
-            wis[i][th].nVisited = 0L;
             wis[i][th].nodes_array = nodes;
             wis[i][th].children_arrays = children_array_pool;
-            wis[i][th].my_id = rank;
+            wis[i][th].my_id = local_id;
+            wis[i][th].rank = rank;
+            wis[i][th].neighbors = neighbors;
             thread_spawn(master, sched, thread_runnable, &wis[i][th]);
         }
     }
@@ -485,7 +723,7 @@ int main(int argc, char *argv[]) {
     }
 
     endTime = uts_wctime();
-  
+ WAIT_BARRIER; 
     if (verbose > 2) {
         for (int i=0; i<num_cores; i++) {
             printf("** Thread %d\n", i);
@@ -510,7 +748,7 @@ int main(int argc, char *argv[]) {
     uint64_t m_maxStackDepth = 0;
 
   //  for (int i=0; i<num_cores; i++) {
-        t_nNodes += myStealStack.nNodes;
+        t_nNodes += myStealStack.nVisited;
         t_nRelease += myStealStack.nRelease;
         t_nAcquire += myStealStack.nAcquire;
         t_nSteal += myStealStack.nSteal;
@@ -561,7 +799,7 @@ int main(int argc, char *argv[]) {
 //TODO: the steal statistics are currently for one node (rank 0)
 
     if (0 == rank) {
-    printf("{'runtime':%f, 'rate':%f, 'num_cores':%d, 'num_threads_per_core':%d, 'chunk_size':%d, 'cbint':%d, 'nNodes':%lu, 'nRelease':%lu, 'nAcquire':%lu, 'nSteal':%lu, 'nFail':%lu, 'maxStackDepth':%lu}\n", runtime, rate, num_cores, num_threads_per_core, chunkSize, cbint, total_nodes, t_nRelease, t_nAcquire, t_nSteal, t_nFail, m_maxStackDepth);
+    printf("{'runtime':%f, 'rate':%f, 'num_cores':%d, 'num_threads_per_core':%d, 'chunk_size':%d, 'cbint':%d, 'nVisited':%lu, 'nRelease':%lu, 'nAcquire':%lu, 'nSteal':%lu, 'nFail':%lu, 'maxStackDepth':%lu, 'num_processes':%d, 'num_places':%d}\n", runtime, rate, num_cores, num_threads_per_core, chunkSize, cbint, total_nodes, t_nRelease, t_nAcquire, t_nSteal, t_nFail, m_maxStackDepth, num_nodes, num_places);
     }
 
 }
