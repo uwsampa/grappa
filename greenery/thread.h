@@ -81,13 +81,13 @@ inline void thread_yield(thread *me) {
   scheduler *sched = me->sched;
   // can't yield on a system thread
   assert(sched != NULL);
-
-  scheduler_enqueue(sched, me);
-
-  // I just enqueued myself so I can guarantee SOMEONE is on the ready queue.
-  // Might just be me again.
-  thread *next = scheduler_dequeue(sched);
-  coro_invoke(me->co, next->co, NULL);
+  if (sched->ready == NULL) {
+      return;
+  } else {
+    scheduler_enqueue(sched, me);
+    thread *next = scheduler_dequeue(sched);
+    coro_invoke(me->co, next->co, NULL);
+  }
 }
 
 inline int thread_yield_wait(thread* me) {
