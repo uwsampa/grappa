@@ -2,7 +2,7 @@
 CC=gcc
 
 CFLAGS+=-O3 -g -std=gnu99 -fopenmp -msse3 -fPIC -D_GNU_SOURCE
-CPPFLAGS+=-O3 -fPIC  -g -fopenmp -msse3
+CPPFLAGS+=-O3 -fPIC -g -fopenmp -msse3
 
 #CPPFLAGS+=-DCACHELINE_SIZE=64 -DCHUNK_SIZE="(1<<4)" -DQSIZE="(1<<15)"
 #CPPFLAGS+=-DCACHELINE_SIZE=64 -DCHUNK_SIZE="(1<<6)" -DQSIZE="(1<<16)"
@@ -47,6 +47,11 @@ libcorequeue.a: $(OBJECTS)
 run_MCRingBuffer: MCRingBuffer_test.exe MCRingBuffer.o 
 	./$<
 
+testSize.exe: testSize.c MCRingBuffer.c 
+	gcc -std=gnu99 -DMCRINGBUFFER_BATCH_SIZE=4 -DMCRINGBUFFER_MAX=8 testSize.c MCRingBuffer.c -o testSize.exe
+
+run_testSize: testSize.exe
+	./testSize.exe
 
 run_inc: inc2.exe
 	GOMP_CPU_AFFINITY="0-11:2" numactl --membind=0 -- ./$< --racy_single --racy_with_unrelated_racy --racy_with_unrelated_atomic --atomic_with_unrelated_atomic --atomic_with_unrelated_racy  --unrelated_with_unrelated_atomic  --racy_with_unrelated_delegate --num_cores 2

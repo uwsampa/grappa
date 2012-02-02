@@ -1,11 +1,13 @@
 // Work stealing queue, based on a dynamically resizable circular array
-// From D Chase, Y Lev. Dynamic Circular Workstealing deque.
+// Based on Java source for sequentially consistent machine, from D Chase, Y Lev. Dynamic Circular Workstealing deque.
 
 #ifndef _CIRCULARWSDEQUE_HPP_
 #define _CIRCULARWSDEQUE_HPP_
 
 #include <stdint.h>
 #include "CircularArray.hpp"
+
+#define compiler_membar asm volatile("" ::: "memory")
 
 enum cwsd_status { CWSD_OK, CWSD_EMPTY, CWSD_ABORT };
 
@@ -63,6 +65,7 @@ void CircularWSDeque<T>::pushBottom(const T& obj) {
         activeArray = a;
     }
     a->put(b, obj);
+    //compiler_membar;  //TSO should be fine
     bottom = b + 1;
 }
 
@@ -78,6 +81,8 @@ cwsd_status CircularWSDeque<T>::steal(T* element) {
 
     // another stealer took a[t] before CAS succeeded
     if (!casTop(t, t+1)) return CWSD_ABORT;
+    
+    //compiler_membar;
      
     *element = result;
     return CWSD_OK;
@@ -106,6 +111,8 @@ cwsd_status CircularWSDeque<T>::popBottom(T* element) {
     cwsd_status s = CWSD_OK;
     if (!casTop(t, t+1)) 
         return CWSD_EMPTY;
+
+    //compiler_membar; 
 
     bottom = t + 1;
     return s;
