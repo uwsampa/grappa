@@ -18,12 +18,13 @@ void* swapstacks(void **olds, void **news, void *ret);
 // depend on compiler to save and restore callee-saved registers
 inline void* swapstacks_inline(void **olds, void **news, void *ret) {
   asm volatile ( ""
-                 : "+a" (ret), "+D" (olds), "+S" (news) // add some dependences for ordering
-                 : "D" (olds), "S" (news), "d" (ret)    // add some dependences for ordering
+                 :// "+a" (ret), "+D" (olds), "+S" (news) // add some dependences for ordering
+              : //"D" (olds), "S" (news), "d" (ret)    // add some dependences for ordering
                  : "cc", "flags", 
 #ifdef SOFTXMT_SAVE_REGISTERS_LITE
                    "rbp", // doesn't work if we need a frame pointer
-                   "rbx", "r12", "r13", "r14", "r15", "fpcr",
+                   "rbx", "r12", "r13", "r14", "r15", 
+                   "fpcr",
 #endif
                    "memory"
                  );
