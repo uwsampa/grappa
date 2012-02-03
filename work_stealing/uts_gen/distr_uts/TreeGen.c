@@ -355,19 +355,11 @@ int generateTree(Node_ptr root, global_array* nodes, int cid, global_array* chil
     #else
     put_remote(nodes, root, &rootTemp, 0, sizeof(Node));
     #endif
-//    for (int i=0; i<root->height; i++) {
-//        printf("-");
-//    }
-    //printf("node %d with numc=%d\n", cid, nc);
-  //  printf("have %d children\n", nc);
-    //printf("%d\n",nc);
    
     int current_cid = cid+1;
    // Node_ptr childrenAddrs[nc];   // assumption that an array lie on a single machine
     for (int i=0; i<nc; i++) {
         uint64_t index = Permute(current_cid);
-//        printf("--index=%d\n", index);
-//        childrenAddrs[i] = index;
     #if GEN_TREE_NBI
         put_remote_nbi(child_array, rootTemp.children, &index, i*sizeof(Node_ptr), sizeof(Node_ptr));
     #else 
