@@ -44,7 +44,7 @@ RNG_DEF = -DUTS_ALFG
 endif
 #-----------------------------------------#
 
-CFLAGS_COMMON= -Wno-write-strings -O0 -g -fopenmp
+CFLAGS_COMMON= -Wno-write-strings -g -fopenmp -fomit-frame-pointer
 CFLAGS= $(CFLAGS_COMMON)
 CFLAGS+= -I$(GASNET)/include -I$(GASNET)/include/$(MA_CONDUIT_LIB)-conduit -DGASNET_$(MA_THREADING_GASNET_DEF) -DGASNET_CONDUIT_$(MA_CONDUIT_DEF)
 CFLAGS+= -I$(GL_ARRAY)
