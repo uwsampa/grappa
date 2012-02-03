@@ -112,7 +112,7 @@ public:
   }
 
   void activate();
-  void finish( int retval = 0);
+  void finish( int retval = 0 );
 
   /// Get id of this node
   inline Node mynode() const { 
