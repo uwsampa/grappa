@@ -63,7 +63,7 @@ BOOST_AUTO_TEST_CASE( test1 ) {
   first_call_args first_args = { 1, 2.3 };
 
   // try with automagic arg size discovery
-  call_on( 0, &first_call, &first_args );
+  SoftXMT_call_on( 0, &first_call, &first_args );
 
   a.flush( 0 );
   BOOST_CHECK_EQUAL( 1, first_int );
@@ -71,10 +71,10 @@ BOOST_AUTO_TEST_CASE( test1 ) {
   // make sure things get sent only after flushing
   second_call_args second_args = { "Foo" };
   // try with manual arg size discovery
-  call_on( 0, &second_call, &second_args, sizeof(second_args) );
+  SoftXMT_call_on( 0, &second_call, &second_args, sizeof(second_args) );
 
   // try with null payload 
-  call_on( 0, &second_call, &second_args, sizeof(second_args), NULL, 0 );
+  SoftXMT_call_on( 0, &second_call, &second_args, sizeof(second_args), NULL, 0 );
 
   // nothing has been sent yet
   BOOST_CHECK_EQUAL( 0, second_int );
@@ -84,7 +84,7 @@ BOOST_AUTO_TEST_CASE( test1 ) {
   BOOST_CHECK_EQUAL( 2, second_int );
 
   // try with non-null payload 
-  call_on( 0, &second_call, &second_args, sizeof(second_args), &second_args, sizeof(second_args) );
+  SoftXMT_call_on( 0, &second_call, &second_args, sizeof(second_args), &second_args, sizeof(second_args) );
   a.flush( 0 );
   BOOST_CHECK_EQUAL( 3, second_int );
 
@@ -92,8 +92,8 @@ BOOST_AUTO_TEST_CASE( test1 ) {
   int j = 0;
   for( int i = 0; i < 4024; i += sizeof(second_args) + sizeof( AggregatorGenericCallHeader ) ) {
     //BOOST_CHECK_EQUAL( 3, second_int );
-    //call_on( 0, &second_call, &second_args );
-    call_on( 0, &second_call, &second_args, sizeof(second_args), NULL, 0 );
+    //SoftXMT_call_on( 0, &second_call, &second_args );
+    SoftXMT_call_on( 0, &second_call, &second_args, sizeof(second_args), NULL, 0 );
     ++j;
   }
   BOOST_CHECK_EQUAL( 3 + j - 1, second_int );
@@ -101,8 +101,8 @@ BOOST_AUTO_TEST_CASE( test1 ) {
   BOOST_CHECK_EQUAL( 3 + j, second_int );
 
   // make sure the timer works
-  call_on( 0, &first_call, &first_args);
-  //call_on( 0, &first_call, &first_args, NULL, 0 );
+  SoftXMT_call_on( 0, &first_call, &first_args);
+  //SoftXMT_call_on( 0, &first_call, &first_args, NULL, 0 );
   BOOST_CHECK_EQUAL( 1, first_int );
   int64_t ts = a.get_timestamp();
   for( int i = 0; i < FLAGS_aggregator_autoflush_ticks + 1; ++i ) {

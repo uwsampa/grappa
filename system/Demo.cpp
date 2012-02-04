@@ -51,7 +51,7 @@ int main( int argc, char * argv[] ) {
     // send a message to everyone
     for( i = 0; i < SoftXMT_nodes(); ++i ) {
       done_am_args args = { Barrier };
-      call_on( i, &done_am, &args );
+      SoftXMT_call_on( i, &done_am, &args );
       SoftXMT_flush( i );
     }
 
@@ -62,7 +62,7 @@ int main( int argc, char * argv[] ) {
     for( i = 0; i < SoftXMT_nodes(); ++i ) {
       done_am_args args = { Hello };
       char message[10] = "Hello!";
-      call_on( i, &done_am, &args, sizeof(args), &message, sizeof(message) );
+      SoftXMT_call_on( i, &done_am, &args, sizeof(args), &message, sizeof(message) );
       SoftXMT_flush( i );
     }
 
@@ -72,7 +72,7 @@ int main( int argc, char * argv[] ) {
     // tell everyone to exit
     for( i = 0; i < SoftXMT_nodes(); ++i ) {
       done_am_args args = { Finish };
-      call_on( i, &done_am, &args );
+      SoftXMT_call_on( i, &done_am, &args );
       SoftXMT_flush( i );
     }
 
