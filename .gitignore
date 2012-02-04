@@ -6,3 +6,6 @@
 *.d
 *.test
 *.exe
+*.dis
+.nfs*
+*.btr
