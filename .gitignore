@@ -3,3 +3,6 @@
 *.cunroll
 *.o
 *.a
+*.d
+*.test
+*.exe
