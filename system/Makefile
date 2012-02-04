@@ -4,12 +4,16 @@
 # This provides automatic header dependence discovery, 
 # as well as an easiery way to run tests
 #
-# Simple principles:
+# Filenames:
+#  - C++ header files are named <name>.hpp;
+#    C header files are named <name>.h
+#  - Each .cpp file without a main() can include tests and be used to
+#    make a .test. These are ususally named <name>_tests.cpp
 #  - Executables are named <name>.exe.
 #  - Test executables are named <name>.test. 
 #  - Tests are run using MPI.
-#  - Each .cpp file without a main() can include tests and be used to
-#    make a .test
+#
+# Other notes: 
 #  - $LD is actually a C++ compiler, probably mpic++. Individual files
 #    are compiled with $CXX; linking is done with $LD.
 #  - default directories and flags should be set in a common
@@ -26,6 +30,7 @@
 #    To build and run an executable, say "make TARGET=<name>.test run". 
 #
 
+# include common variable definitions
 include ../include.mk
 
 #
@@ -51,7 +56,7 @@ $(TARGET):
 Demo.exe: SoftXMT.o Communicator.o Aggregator.o
 Delegate.test: Communicator.o Aggregator.o
 Addressing.test: Communicator.o Aggregator.o
-Aggregator.test: Communicator.o
+Aggregator_tests.test: Communicator.o Aggregator.o
 Communicator.test:
 MutableHeap.test:
 
@@ -70,7 +75,7 @@ test: $(TARGET)
 	OMPI_MCA_btl_sm_use_knem=0 \
 	LD_LIBRARY_PATH="$(LD_LIBRARY_PATH)" \
 	GASNET_BACKTRACE=1 \
-	mpirun -x LD_LIBRARY_PATH -H $(HOST) -np 2 -- ./$< --log_level=test_suite --run_test=$(TARGET:%.test=%_tests)
+	mpirun -x LD_LIBRARY_PATH -H $(HOST) -np 2 -- ./$< --log_level=test_suite --run_test=$(TARGET:.test=)
 
 # build a specific test and update autodependence info
 # include Boost test automagic main() generation
