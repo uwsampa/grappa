@@ -185,9 +185,9 @@ public:
 extern Aggregator * global_aggregator;
 
 template< typename ArgsStruct >
-inline void call_on( Node destination, void (* fn_p)(ArgsStruct *, size_t, void *, size_t), 
-                     const ArgsStruct * args, const size_t args_size = sizeof( ArgsStruct ),
-                     const void * payload = NULL, const size_t payload_size = 0)
+inline void SoftXMT_call_on( Node destination, void (* fn_p)(ArgsStruct *, size_t, void *, size_t), 
+                             const ArgsStruct * args, const size_t args_size = sizeof( ArgsStruct ),
+                             const void * payload = NULL, const size_t payload_size = 0)
 {
   assert( global_aggregator != NULL );
   global_aggregator->aggregate( destination, 

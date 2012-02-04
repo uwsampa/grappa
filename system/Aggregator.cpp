@@ -43,7 +43,7 @@ void Aggregator_deaggregate_am( gasnet_token_t token, void * buf, size_t size ) 
     if( header->destination == gasnet_mynode() ) { // for us?
       fp( args, header->args_size, payload, header->payload_size ); // execute
     } else { // not for us, so forward towards destination
-      call_on( header->destination, fp, args, header->args_size, payload, header->payload_size );
+      SoftXMT_call_on( header->destination, fp, args, header->args_size, payload, header->payload_size );
     }
     i += sizeof( AggregatorGenericCallHeader ) + header->args_size + header->payload_size;
   }
