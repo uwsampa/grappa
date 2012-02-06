@@ -61,7 +61,7 @@ LDFLAGS+= -L$(GASNET)/lib
 
 HUGETLBFS=/usr
 CFLAGS+= -I$(HUGETLBFS)/include
-LDFLAGS+= -L$(HUGETLBFS)/lib
+LDFLAGS+= -L$(HUGETLBFS)/lib64
 
 GFLAGS=/sampa/share/gflags
 CFLAGS+= -I$(GFLAGS)/include
@@ -70,7 +70,7 @@ LD_LIBRARY_PATH:=$(LD_LIBRARY_PATH):$(GFLAGS)/lib
 
 BOOST=/usr
 CFLAGS+= -I$(BOOST)/include
-LDFLAGS+= -L$(BOOST)/lib
+LDFLAGS+= -L$(BOOST)/lib64
 LD_LIBRARY_PATH:=$(LD_LIBRARY_PATH):$(BOOST)/lib
 
 
