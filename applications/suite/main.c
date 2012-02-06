@@ -27,7 +27,7 @@ int main(int argc, char* argv[]) {
 	
 	printf("[[ Graph Application Suite ]]\n"); 	
 	
-	printf("\nScalable Data Generator - genScalData() randomly generating edgelist...\n"); fflush (stdout);
+	printf("\nScalable Data Generator - genScalData() randomly generating edgelist...\n"); fflush(stdout);
 //	MTA("mta trace \"begin genScalData\"")
 	time = timer();
 	
@@ -50,6 +50,8 @@ int main(int argc, char* argv[]) {
 	// directed graph
 	graph* dirg = computeGraph(ge);
 	free_edgelist(ge);
+	
+	printf("Directed graph has %lld edges.\n", dirg->numEdges); fflush(stdout);
 	
 	// undirected graph
 	graph* g = makeUndirected(dirg);
@@ -87,14 +89,11 @@ int main(int argc, char* argv[]) {
 //	MTA("mta trace \"begin pathIsomorphism\"")
 	time = timer();
 	
-	graphint *matches2;
-	graphint num_matches2 = pathIsomorphismPar(dirg, pattern, &matches2);
-	
-	printArray("Matches: ", matches2, num_matches2);
+	graphint num_matches = pathIsomorphismPar(dirg, pattern);
 	
 	time = timer() - time;
 	
-	printf("Number of matches: %"DFMT"\n", num_matches2);
+	printf("Number of matches: %"DFMT"\n", num_matches);
 	printf("Time taken for pathIsomorphismPar is %9.6lf sec.\n", time);
 	
 	//###############################################
@@ -121,7 +120,6 @@ int main(int argc, char* argv[]) {
 	
 	time = timer() - time;
 	printf("Betweenness Centrality: (avg) = %lf\n", avgbc);
-	printArrayDouble("(first few) = ", bc, 5);
 	printf("Time taken for betweenness centrality is %9.6lf sec.\n", time);
 	
 	//###################
