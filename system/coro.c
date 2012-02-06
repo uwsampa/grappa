@@ -7,6 +7,7 @@
 coro *coro_spawn(coro *me, coro_func f, size_t ssize) {
   coro *c = (coro*)malloc(sizeof(coro));
   assert(c != NULL);
+  c->running = 0;
   c->base = malloc(ssize);
   assert(c->base != NULL);
   c->stack = c->base + ssize;
@@ -17,6 +18,7 @@ coro *coro_spawn(coro *me, coro_func f, size_t ssize) {
 
 coro *coro_init() {
   coro *me = (coro*)malloc(sizeof(coro));
+  me->running = 0;
   // We don't need to free this (it's just the main stack segment)
   // so ignore it.
   me->base = NULL;
