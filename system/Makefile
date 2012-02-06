@@ -48,10 +48,12 @@ $(TARGET):
 #
 # object file dependences
 #
+Demo.exe: SoftXMT.o Communicator.o Aggregator.o
 Delegate.test: Communicator.o Aggregator.o
 Addressing.test: Communicator.o Aggregator.o
 Aggregator.test: Communicator.o
 Communicator.test:
+MutableHeap.test:
 
 #
 # run a binary
@@ -85,7 +87,7 @@ test: $(TARGET)
 #
 # What libraries do we need?
 #
-LIBRARIES:= -lgflags -lgasnet-ibv-seq -libverbs -lrt -lboost_unit_test_framework -lgreenery
+LIBRARIES:= -lgflags -lgasnet-ibv-seq -libverbs -lrt -lboost_unit_test_framework
 
 #
 # set compiler flags

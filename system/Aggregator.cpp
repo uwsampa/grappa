@@ -98,10 +98,10 @@ BOOST_AUTO_TEST_CASE( test1 ) {
   s.init( &(boost::unit_test::framework::master_test_suite().argc),
           &(boost::unit_test::framework::master_test_suite().argv) );
 
-  Aggregator a( global_communicator );
+  Aggregator a( &s );
 
   s.activate();
-  if( global_communicator->mynode() == 0 ) {
+  if( s.mynode() == 0 ) {
 
   // make sure we can send something
   first_call_args first_args = { 1, 2.3 };
