@@ -73,9 +73,9 @@ static bool checkEdgesRecursive(const graph* g, graphint v, const color_t* c) {
 	const color_t * restrict marks = g->marks; /* Vertex domain */
 	
 	if (*c == END) return true;
-	
+
 	for (graphint i=edge[v]; i<edge[v+1]; i++) {
-		if (marks[i] == *c) {
+		if (marks[eV[i]] == *c) {
 			if (checkEdgesRecursive(g, eV[i], c+1)) return true;
 		}
 	}
