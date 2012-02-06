@@ -6,6 +6,12 @@
 
 #define STACK_SIZE 1<<22
 
+thread * current_thread;
+
+thread * get_current_thread() {
+  return current_thread;
+}
+
 thread *thread_init() {
   coro *me = coro_init();
   thread *master = (thread*)malloc(sizeof(thread));
@@ -14,6 +20,7 @@ thread *thread_init() {
   master->sched = NULL;
   master->next = NULL;
   master->id = 0; // master always id 0
+  current_thread = master;
   return master;
 }
 
@@ -50,10 +57,12 @@ thread *thread_spawn(thread *me, scheduler *sched,
   thr->co = coro_spawn(me->co, tramp, STACK_SIZE);
   // Pass control to the trampoline a few times quickly to set up
   // the call of <f>.  Could also create a struct with all this data?
+  current_thread = thr;
   coro_invoke(me->co, thr->co, (void *)me->co);
   coro_invoke(me->co, thr->co, thr);
   coro_invoke(me->co, thr->co, (void *)f);
   coro_invoke(me->co, thr->co, (void *)arg);
+  current_thread = me;
   thr->sched = sched;
   thr->next = NULL;
   scheduler_assignTid(sched, thr);
@@ -66,6 +75,7 @@ void thread_exit(thread *me, void *retval) {
 
   // Reuse the queue field for a return value.
   me->next = (thread *)retval;
+  current_thread = master;
   coro_invoke(me->co, master->co, (void *)me);
   // never returns
   exit(EXIT_FAILURE);
@@ -77,6 +87,7 @@ thread *thread_wait(scheduler *sched, void **result) {
   if (next == NULL) {
     return NULL;
   } else {
+    current_thread = next;
     thread *died = (thread *)coro_invoke(sched->master->co,
                                          next->co, NULL);
     // At the moment, we only return from a thread in the case of death.

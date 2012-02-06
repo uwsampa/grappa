@@ -24,6 +24,10 @@ typedef struct thread {
   unsigned long wake_time;
 } thread;
 
+extern thread * current_thread;
+
+thread * get_current_thread();
+
 typedef struct scheduler {
   thread *ready; // ready queue
   thread *tail; // tail of queue -- undefined if ready == NULL
@@ -86,6 +90,7 @@ inline void thread_yield(thread *me) {
   } else {
     scheduler_enqueue(sched, me);
     thread *next = scheduler_dequeue(sched);
+    current_thread = next;
     coro_invoke(me->co, next->co, NULL);
   }
 }
@@ -197,6 +202,7 @@ inline void thread_block(thread *me, thread_barrier *barrier) {
     // if he does, we're deadlocked anyway.
   }
   thread *next = scheduler_dequeue(barrier->sched);
+  current_thread = next;
   coro_invoke(me->co, next->co, NULL);
 }
 
@@ -246,7 +252,7 @@ inline void thread_yield_alarm(thread *me, unsigned long ticks) {
     }
   }
   #endif
-
+  current_thread = next;
   coro_invoke(me->co, next->co, NULL); 
 }
 
