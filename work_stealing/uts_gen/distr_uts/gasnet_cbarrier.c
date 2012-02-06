@@ -1,26 +1,20 @@
 #include "gasnet_cbarrier.h"
 #include "StealQueue.h"
-
-int SET_COND(LOCK_T* lock) {
-    SET_LOCK(lock);
-    return 1;
-}
-int UNSET_COND(LOCK_T* lock) {
-    UNSET_LOCK(lock);
-    return 0;
-}
+#include <queue>
 
 
 const int HOME_NODE = 0;
-gasnet_hsl_t cb_lock = GASNET_HSL_INTIALIZER;
+gasnet_hsl_t cb_lock = GASNET_HSL_INITIALIZER;
 int num_barrier_clients;
 int num_waiting_clients;
 int my_node;
 std::queue<int>* waiters;
+int cb_reply;
+int cb_done;
 
 void enter_cbarrier_request_handler(gasnet_token_t token) {
     gasnet_node_t source;
-    gasnetAMGetMsgSource(token, &source);
+    gasnet_AMGetMsgSource(token, &source);
     num_waiting_clients++;
     if (num_waiting_clients == num_barrier_clients) {
         while (!waiters->empty()) {
@@ -30,6 +24,8 @@ void enter_cbarrier_request_handler(gasnet_token_t token) {
         }
         num_waiting_clients = 0;
         gasnet_AMReplyShort1(token, EXIT_CBARRIER_REQUEST_HANDLER, 1);
+    } else {
+        waiters->push(source);
     }
 }
 
