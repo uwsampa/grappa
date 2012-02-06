@@ -182,7 +182,7 @@ typedef struct thread_barrier {
 } thread_barrier;
 
 inline void prefetch_and_switch(thread *me, void *addr, int ro_or_rw) {
-  __builtin_prefetch(addr, ro_or_rw, 0);
+  __builtin_prefetch(addr, 0, 0);
   thread_yield(me);
 }
 
