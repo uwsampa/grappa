@@ -37,9 +37,10 @@ $(IOLIB) $(COMPATLIB):
 	$(CC) $(CFLAGS) -c $<
 
 clean:
-	rm -f *.o graphb
+	rm -f *.o graphb{,.pl,.ap2} profile.out trace.out
 	-if test -n "$(IOLIB_DIR)" ; then make -C $(IOLIB_DIR) clean; fi
 
 distclean:
 	rm -f *.o graphb
 	-if test -n "$(IOLIB_DIR)" ; then make -C $(IOLIB_DIR) clean; fi
+
