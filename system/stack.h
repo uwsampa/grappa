@@ -16,7 +16,7 @@ void* swapstacks(void **olds, void **news, void *ret);
 #define SOFTXMT_SAVE_REGISTERS_LITE
 
 // depend on compiler to save and restore callee-saved registers
-inline void* swapstacks_inline(void **olds, void **news, void *ret) {
+static inline void* swapstacks_inline(void **olds, void **news, void *ret) {
   asm volatile ( ""
                  : "+a" (ret), "+D" (olds), "+S" (news) // add some dependences for ordering
                  : "D" (olds), "S" (news), "d" (ret)    // add some dependences for ordering
