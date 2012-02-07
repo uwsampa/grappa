@@ -17,6 +17,8 @@
 #include "gasnet_cbarrier.h"
 #include "collective.h"
 
+#include "buffered.hpp"
+
 #define WAIT_BARRIER gasnet_barrier_notify(11, 0); gasnet_barrier_wait(11, 0)
 
 #define PARALLEL 1
@@ -25,6 +27,8 @@
 #define DISTRIBUTE_INITIAL 1
 #define GEN_TREE_NBI 1
 #define CHECK_SERIALIZE 0
+
+#define NO_INTEG 0
 
 #define YIELD_ALARM 0
 #if YIELD_ALARM
@@ -226,6 +230,11 @@ void releaseNodes(StealStack *ss){
   }
 }
 
+// Part of a Node
+struct Node_piece_t {
+    int numChildren;
+    Node_ptr_ptr children;
+};
 
 void workLoop(StealStack* ss, thread* me, int* work_done, int core_id, int num_local_nodes, global_array* nodes_array, global_array* children_arrays, int my_id, int rank, int* neighbors) {
     while (!(*work_done)) {
@@ -235,33 +244,66 @@ void workLoop(StealStack* ss, thread* me, int* work_done, int core_id, int num_l
             Node_ptr work = ss_top(ss);
             ss_pop(ss);
 
-            Node workLocal;
             // TODO the get nb causes action that will wake up yielded thread  
             #if PREFETCH_WORK
-            // pull in numChildren and children
-            mem_tag_t tag = get_remote_nb(nodes_array, work, sizeof(int)+sizeof(Node_ptr_ptr), &workLocal);
-            YIELD(me); // TODO try cacheline align the nodes (2 per line probably)
-            complete_nb(me, tag);
+            
+                #if NO_INTEG
+                Node workLocal;
+                // pull in numChildren and children
+                mem_tag_t tag = get_remote_nb(nodes_array, work, sizeof(int)+sizeof(Node_ptr_ptr), &workLocal);
+                YIELD(me); // TODO try cacheline align the nodes (2 per line probably)
+                complete_nb(me, tag);
+                #else
+
+                global_address workAddress;
+                ga_index(nodes_array, work, &workAddress);
+                Node_piece_t* workLocal = get_local_copy_of_remote<Node_piece_t>(workAddress, 1); 
+                /*IncoherentRO<Node_piece_t> workLocal(workAddress, 1);*/
+                /*workLocal.start_acquire();*/
+                /*workLocal.block_until_acquired();*/
+                #endif
+
             #endif
 
-            Node_ptr childrenLocal[workLocal.numChildren];
             
             #if PREFETCH_CHILDREN
-            tag = get_remote_nb(children_arrays, workLocal.children, workLocal.numChildren*sizeof(Node_ptr), &childrenLocal);
-            YIELD(me);
-            complete_nb(me, tag);
+                #if NO_INTEG
+                Node_ptr childrenLocal[workLocal.numChildren];
+                tag = get_remote_nb(children_arrays, workLocal.children, workLocal.numChildren*sizeof(Node_ptr), &childrenLocal);
+                YIELD(me);
+                complete_nb(me, tag);
+
+                #else
+
+                global_address childAddress;
+                ga_index(children_arrays, workLocal.children, &childAddress);
+                Node_ptr* childrenLocal = get_local_copy_of_remote<Node_ptr>(childAddress, workLocal.numChildren);
+
+                /*IncoherentRO<Node_ptr> childrenLocal(workLocal.children, workLocal.numChildren);*/
+                /*childrenLocal.start_acquire();*/
+                /*childrenLocal.block_until_acquired();*/
+                #endif
+
             #endif
 
-            get_remote(nodes_array, work, offsetof(Node, id), sizeof(workLocal.id), &workLocal.id);
 
             for (int i=0; i<workLocal.numChildren; i++) {
                 ss_push(ss, childrenLocal[i]);
             }
 
+            #if NO_INTEG
             // notify other coroutines in my scheduler
             // TODO: may choose to optimize this based on amount in queue
             threads_wakeAll(me);
             //threads_wakeN(me, work->numChildren-1); //based on releasing maybe less
+            #else
+            release_local_copy(workLocal);
+            release_local_copy(childrenLocal);
+            /*workLocal.start_release();*/
+            /*childrenLocal.start_release();*/
+            /*workLocal.block_until_released();*/
+            /*childrenLocal.block_until_released();*/
+            #endif
             
             // possibly make work visible and notfiy idle workers 
             releaseNodes(ss);
