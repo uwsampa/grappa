@@ -19,8 +19,6 @@
 
 #include "buffered.hpp"
 
-#define WAIT_BARRIER gasnet_barrier_notify(11, 0); gasnet_barrier_wait(11, 0)
-
 #define PARALLEL 1
 #define PREFETCH_WORK 1
 #define PREFETCH_CHILDREN 1
@@ -75,32 +73,6 @@ gasnet_seginfo_t* shared_memory_blocks;
 void function_dispatch(int func_id, void *buffer, uint64_t size) {
     }
     
-void init(int *argc, char ***argv) {
-    int initialized = 0;
-    
-    MPI_Initialized(&initialized);
-    if (!initialized)
-        if (MPI_Init(argc, argv) != MPI_SUCCESS) {
-        printf("Failed to initialize MPI\n");
-        exit(1);
-    }
-        
-    if (gasnet_init(argc, argv) != GASNET_OK) {
-        printf("Failed to initialize gasnet\n");
-        exit(1);
-    }
-    
-    if (gasnet_attach(handlers,
-        sizeof(handlers) / sizeof(gasnet_handlerentry_t),
-        SHARED_PROCESS_MEMORY_SIZE,
-        SHARED_PROCESS_MEMORY_OFFSET) != GASNET_OK) {
-        printf("Failed to allocate sufficient shared memory with gasnet\n");
-        gasnet_exit(1);
-    }
-    gm_init();
-
-    printf("using GASNET_SEGMENT_FAST=%d; maxGlobalSegmentSize=%lu\n", GASNET_SEGMENT_FAST, gasnet_getMaxGlobalSegmentSize());
-}
 /*********************************/
 
 /***********************************************************
@@ -437,12 +409,32 @@ int generateTree(Node_ptr root, global_array* nodes, int cid, global_array* chil
 
 #include <unistd.h>
 
+struct user_main_args {
+    int argc;
+    char** argv;
+};
+
 typedef uint64_t Node_ptr;
 int main(int argc, char *argv[]) {
-    init(&argc, &argv);
+    SoftXMT_init(&argc, &argv);
+
+    SoftXMT_activate();
+
+    user_main_args um_args = { argc, argv };  
+    SoftXMT_run_user_main( &user_main, &um_args );
+
+    SoftXMT_finish( 0 );
+}
+   
+void user_main( thread* me, void* args) {
+    int argc = args->argc;
+    char** argv = args->argv;
     
-    int rank = gasnet_mynode();
-    int num_nodes = gasnet_nodes();
+    // FIXME: remove once global memory is impl in SoftXMT
+    gm_init();
+     
+    int rank = SoftXMT_mynode();
+    int num_nodes = SoftXMT_nodes();
     
     //use uts to parse params
     uts_parseParams(argc, argv, rank==0);
@@ -468,8 +460,7 @@ int main(int argc, char *argv[]) {
 
     cbarrier_init(num_nodes, rank);
     
-    WAIT_BARRIER;
-
+    SoftXMT_barrier();
     
     global_array* nodes = ga_allocate(sizeof(Node), numNodes*num_procs); //XXX for enough space
     global_array* children_array_pool = ga_allocate(sizeof(Node_ptr), numNodes*num_procs); //children_array_size*num_procs);
@@ -509,7 +500,7 @@ int main(int argc, char *argv[]) {
         }
     }
 
-    WAIT_BARRIER;
+    SoftXMT_barrier();
 
     if (generateFile) { 
         // write the nodes file
@@ -632,7 +623,7 @@ int main(int argc, char *argv[]) {
     if (0 == rank) printf("num nodes gen: %lu\n", num_genNodes);
 
     ss_init(&myStealStack, MAXSTACKDEPTH);
-    WAIT_BARRIER;
+    SoftXMT_barrier();
 
     #if DISTRIBUTE_INITIAL
     if (rank == 0) {
@@ -656,62 +647,52 @@ int main(int argc, char *argv[]) {
     }
     #endif
 
-    WAIT_BARRIER;
+    SoftXMT_barrier();
     printf("rank(%d) starting size %d\n", rank, ss_localDepth(&myStealStack));
    
     num_cores = 1; // TODO make 1 always
      
     // green threads init
-    thread* masters[num_cores];
-    scheduler* schedulers[num_cores];
-    worker_info wis[num_cores][num_threads_per_core];
-    int core_work_done[num_cores];
+    worker_info wis[num_threads_per_core];
+    int core_work_done;
 
-    #pragma omp parallel for num_threads(num_cores)
-    for (uint64_t i = 0; i<num_cores; i++) {
-        thread* master = thread_init();
-        scheduler* sched = create_scheduler(master);
-        masters[i] = master;
-        schedulers[i] = sched;
-        core_work_done[i] = 0;
-
-        for (int th=0; th<num_threads_per_core; th++) {
-            wis[i][th].num_cores_per_node = num_cores;
-            wis[i][th].core_id = i;
-            wis[i][th].num_local_nodes = num_local_nodes;
-            wis[i][th].work_done = &core_work_done[i];
-            wis[i][th].nodes_array = nodes;
-            wis[i][th].children_arrays = children_array_pool;
-            wis[i][th].my_id = local_id;
-            wis[i][th].rank = rank;
-            wis[i][th].neighbors = neighbors;
-            thread_spawn(master, sched, thread_runnable, &wis[i][th]);
-        }
+    for (int th=0; th<num_threads_per_core; th++) {
+        wis[i][th].num_cores_per_node = num_cores;
+        wis[i][th].core_id = i;
+        wis[i][th].num_local_nodes = num_local_nodes;
+        wis[i][th].work_done = &core_work_done[i];
+        wis[i][th].nodes_array = nodes;
+        wis[i][th].children_arrays = children_array_pool;
+        wis[i][th].my_id = local_id;
+        wis[i][th].rank = rank;
+        wis[i][th].neighbors = neighbors;
+        SoftXMT_spawn(thread_runnable, &wis[th]);
     }
 
 
     int coreslist[] = {0,2,4,6,8,10,1,3,5,7,9,11};
   
-    WAIT_BARRIER;
+    SoftXMT_barrier();
    
     double startTime, endTime;
     startTime = uts_wctime();
     
-    #pragma omp parallel for num_threads(num_cores)
-    for (int core=0; core<num_cores; core++) {
 /* TODO Set based on the rank
-        cpu_set_t set;
-        CPU_ZERO(&set);
-        CPU_SET(coreslist[core], &set);
-        SCHED_SET(0, sizeof(cpu_set_t), &set);
- */       
-        printf("core %d/%d starts\n", core, num_cores);
-        run_all(schedulers[core]);
+    cpu_set_t set;
+    CPU_ZERO(&set);
+    CPU_SET(coreslist[core], &set);
+    SCHED_SET(0, sizeof(cpu_set_t), &set);
+*/       
+    printf("core %d/%d starts\n", core, num_cores);
+    
 
-    }
+    /***
+     *  TODO join on all the worker coroutines
+     *  ***/
+
 
     endTime = uts_wctime();
- WAIT_BARRIER; 
+ SoftXMT_barrier(); 
     if (verbose > 2) {
         for (int i=0; i<num_cores; i++) {
             printf("** Thread %d\n", i);
