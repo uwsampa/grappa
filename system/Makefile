@@ -84,15 +84,10 @@ test: $(TARGET)
 
 # build a specific test and update autodependence info
 # include Boost test automagic main() generation
-%.test: LDFLAGS+= -lboost_unit_test_framework -DBOOST_TEST_DYN_LINK -DBOOST_TEST_MODULE=$@
-%.test: %.cpp
+%_tests.o: CXXFLAGS+= -DBOOST_TEST_DYN_LINK -DBOOST_TEST_MODULE=$@
+%_tests.test: -lboost_unit_test_framework 
+%_tests.test: %_tests.o
 	$(LD) $(CFLAGS) $(CXXFLAGS) $(LDFLAGS) $^ $(LIBRARIES) -o $@
-	$(CXX) -MM $(CFLAGS) $(CXXFLAGS) $(LDFLAGS) $< > $*.d
-	@mv -f $*.d $*.d.tmp
-	@sed -e 's|.*:|$*.o:|' < $*.d.tmp > $*.d
-	@sed -e 's/.*://' -e 's/\\$$//' < $*.d.tmp | fmt -1 | \
-	  sed -e 's/^ *//' -e 's/$$/:/' >> $*.d
-	@rm -f $*.d.tmp
 
 #
 # What libraries do we need?
@@ -105,7 +100,6 @@ LIBRARIES:= -lgflags -lgasnet-ibv-seq -libverbs -lrt -lboost_unit_test_framework
 CFLAGS+= --param max-inline-insns-single=35000 --param inline-unit-growth=10000 --param large-function-growth=200000 -Winline
 CFLAGS+= -DGASNET_SEQ -DGASNET_CONDUIT_IBV
 CFLAGS+= -D_GNU_SOURCE
-CFLAGS+= -DBOOST_TEST_DYN_LINK
 
 # not sure if this is a good idea
 CFLAGS+= -Wno-inline
@@ -114,7 +108,7 @@ CFLAGS+= -Wno-inline
 #
 # set debug flags
 #
-ifndef DEBUG
+ifdef DEBUG
 CFLAGS+= -O1 -g -DDEBUG
 else
 CFLAGS+= -O3
@@ -150,9 +144,9 @@ TESTS:=$(wildcard *.test)
 
 # build an object
 # includes autodependence stuff
-%.o: %.cpp
-	$(CXX) -c $(CFLAGS) $< -o $*.o
-	$(CXX) -MM $(CFLAGS) $< > $*.d
+%.o: %.cpp Makefile
+	$(CXX) -c $(CFLAGS) $(CXXFLAGS) $< -o $*.o
+	$(CXX) -MM $(CFLAGS) $(CXXFLAGS) $< > $*.d
 	@mv -f $*.d $*.d.tmp
 	@sed -e 's|.*:|$*.o:|' < $*.d.tmp > $*.d
 	@sed -e 's/.*://' -e 's/\\$$//' < $*.d.tmp | fmt -1 | \
@@ -162,7 +156,7 @@ TESTS:=$(wildcard *.test)
 #
 # Temporary special handling for thread library
 #
-thread.o: thread.c
+thread.o: thread.c Makefile
 	$(CC) -c $(CFLAGS) $< -o $*.o
 	$(CC) -MM $(CFLAGS) $< > $*.d
 	@mv -f $*.d $*.d.tmp
@@ -171,7 +165,7 @@ thread.o: thread.c
 	  sed -e 's/^ *//' -e 's/$$/:/' >> $*.d
 	@rm -f $*.d.tmp
 
-coro.o: coro.c
+coro.o: coro.c Makefile
 	$(CC) -c $(CFLAGS) $< -o $*.o
 	$(CC) -MM $(CFLAGS) $< > $*.d
 	@mv -f $*.d $*.d.tmp
@@ -180,7 +174,7 @@ coro.o: coro.c
 	  sed -e 's/^ *//' -e 's/$$/:/' >> $*.d
 	@rm -f $*.d.tmp
 
-stack.o: stack.S
+stack.o: stack.S Makefile
 	$(CC) -c $(CFLAGS) $< -o $*.o
 
 
