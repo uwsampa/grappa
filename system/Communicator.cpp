@@ -42,6 +42,7 @@ void Communicator::activate() {
 /// tear down communication layer.
 void Communicator::finish(int retval) {
   communication_is_allowed_ = false;
+  // TODO: for now, don't call gasnet exit. should we in future?
   //gasnet_exit( retval );
 }
 
