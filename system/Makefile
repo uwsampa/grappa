@@ -62,6 +62,7 @@ MutableHeap.test:
 
 
 Delegate_tests.test: Delegate.o SoftXMT.o Communicator.o Aggregator.o thread.o coro.o stack.o 
+Addressing_tests.test: SoftXMT.o Communicator.o Aggregator.o thread.o coro.o stack.o 
 Allocator_tests.test: Allocator.o
 
 #thread.o: coro.o
