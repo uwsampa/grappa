@@ -54,11 +54,16 @@ $(TARGET):
 # object file dependences
 #
 Demo.exe: SoftXMT.o Communicator.o Aggregator.o
-Delegate.test: Communicator.o Aggregator.o
-Addressing.test: Communicator.o Aggregator.o
+
+Communicator_tests.test:
+
 Aggregator_tests.test: Communicator.o Aggregator.o
-Communicator.test:
 MutableHeap.test:
+
+
+Delegate_tests.test: Delegate.o SoftXMT.o Communicator.o Aggregator.o thread.o coro.o stack.o 
+
+#thread.o: coro.o
 
 #
 # run a binary
@@ -104,6 +109,7 @@ CFLAGS+= -DBOOST_TEST_DYN_LINK
 
 # not sure if this is a good idea
 CFLAGS+= -Wno-inline
+#CFLAGS+= -Wall -Wextra
 
 #
 # set debug flags
@@ -145,14 +151,42 @@ TESTS:=$(wildcard *.test)
 # build an object
 # includes autodependence stuff
 %.o: %.cpp
-	$(CXX) -c $(CFLAGS) $*.cpp -o $*.o
-	$(CXX) -MM $(CFLAGS) $*.cpp > $*.d
+	$(CXX) -c $(CFLAGS) $< -o $*.o
+	$(CXX) -MM $(CFLAGS) $< > $*.d
 	@mv -f $*.d $*.d.tmp
 	@sed -e 's|.*:|$*.o:|' < $*.d.tmp > $*.d
 	@sed -e 's/.*://' -e 's/\\$$//' < $*.d.tmp | fmt -1 | \
 	  sed -e 's/^ *//' -e 's/$$/:/' >> $*.d
 	@rm -f $*.d.tmp
 
+#
+# Temporary special handling for thread library
+#
+thread.o: thread.c
+	$(CC) -c $(CFLAGS) $< -o $*.o
+	$(CC) -MM $(CFLAGS) $< > $*.d
+	@mv -f $*.d $*.d.tmp
+	@sed -e 's|.*:|$*.o:|' < $*.d.tmp > $*.d
+	@sed -e 's/.*://' -e 's/\\$$//' < $*.d.tmp | fmt -1 | \
+	  sed -e 's/^ *//' -e 's/$$/:/' >> $*.d
+	@rm -f $*.d.tmp
+
+coro.o: coro.c
+	$(CC) -c $(CFLAGS) $< -o $*.o
+	$(CC) -MM $(CFLAGS) $< > $*.d
+	@mv -f $*.d $*.d.tmp
+	@sed -e 's|.*:|$*.o:|' < $*.d.tmp > $*.d
+	@sed -e 's/.*://' -e 's/\\$$//' < $*.d.tmp | fmt -1 | \
+	  sed -e 's/^ *//' -e 's/$$/:/' >> $*.d
+	@rm -f $*.d.tmp
+
+stack.o: stack.S
+	$(CC) -c $(CFLAGS) $< -o $*.o
+
+
 clean:
 	rm -f *.exe *.o *.d *.test
 #	rm -f $(TARGET) $(OBJECTS) $(OBJECTS:.o=.d) $(OBJECTS:.o=.test) $(TEST_TARGET)
+
+
+.PHONY: run test clean
