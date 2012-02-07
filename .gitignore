@@ -9,3 +9,5 @@
 *.dis
 .nfs*
 *.btr
+._*
+.DS_Store
