@@ -95,24 +95,65 @@ inline void thread_yield(thread *me) {
   }
 }
 
-inline int thread_yield_wait(thread* me) {
-    scheduler *sched = me->sched;
-
-    // can't yield on a system thread
-    assert(sched != NULL);
-
-    // if this was the last thread then return so the
-    // user code can handle (e.g. okay to go to pthread barrier)
-    if (sched->ready == NULL) {
-        return 0;
-    }
-
-    scheduler_wait_enqueue(sched, me);
-
+/// Suspend the current thread. Thread is not placed on any queue.
+static inline void thread_suspend(thread *me) {
+  scheduler *sched = me->sched;
+  // can't yield on a system thread
+  assert(sched != NULL);
+  if (sched->ready == NULL) {
+      return;
+  } else {
+    assert( me->co->running == 1 );
     thread *next = scheduler_dequeue(sched);
+    current_thread = next;
     coro_invoke(me->co, next->co, NULL);
-    
-    return 1;
+  }
+}
+
+/// Wake a suspended thread by putting it on the run queue.
+/// For now, waking a running thread is a fatal error.
+/// For now, waking a queued thread is also a fatal error. 
+inline void thread_wake(thread *next) {
+  scheduler *sched = next->sched;
+  // can't yield on a system thread
+  assert(sched != NULL);
+  assert( next->next == NULL && next->co->running == 0 );
+  scheduler_enqueue(sched, next);
+}
+
+/// Yield the current thread and wake a suspended thread.
+/// For now, waking a running thread is a fatal error.
+/// For now, waking a queued thread is also a fatal error. 
+inline void thread_yield_wake(thread *me, thread *next) {
+  scheduler *sched = me->sched;
+  // can't yield on a system thread
+  assert(sched != NULL);
+  if (sched->ready == NULL) {
+      return;
+  } else {
+    scheduler_enqueue(sched, me);
+    current_thread = next;
+    // the thread to wake should not be on a queue and should not be running
+    assert( next->next == NULL && next->co->running == 0 );
+    coro_invoke(me->co, next->co, NULL);
+  }
+}
+
+/// Suspend current thread and wake a suspended thread.
+/// For now, waking a running thread is a fatal error.
+/// For now, waking a queued thread is also a fatal error. 
+inline void thread_suspend_wake(thread *me, thread *next) {
+  scheduler *sched = me->sched;
+  // can't yield on a system thread
+  assert(sched != NULL);
+  if (sched->ready == NULL) {
+      return;
+  } else {
+     current_thread = next;
+    // the thread to wake should not be on a queue and should not be running
+    assert( next->next == NULL && next->co->running == 0 );
+    coro_invoke(me->co, next->co, NULL);
+  }
 }
 
 inline void threads_wakeN(thread* me, int n) {
