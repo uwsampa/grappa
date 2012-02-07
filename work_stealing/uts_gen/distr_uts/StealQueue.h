@@ -30,6 +30,8 @@ omp_lock_t * omp_global_lock_alloc();
     #define UNSET_LOCK gasnet_hsl_unlock
     #define LOCK_T gasnet_hsl_t
     #define LOCK_INITIALIZER GASNET_HSL_INITIALIZER
+    int SET_COND(LOCK_T*);
+    int UNSET_COND(LOCK_T*);
 #endif
 
 
