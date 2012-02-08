@@ -19,7 +19,7 @@ void child_run( thread* me, void* args) {
 
     BOOST_CHECK_EQUAL( 101, cargs->value );
     //printf("%u is yielding\n", me->id);
-//    thread_yield( me );
+    thread_yield( me );
     BOOST_CHECK_EQUAL( 101, cargs->value );
     printf("%u is done\n", me->id);
     thread_exit( me, NULL );
