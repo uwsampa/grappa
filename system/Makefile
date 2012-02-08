@@ -96,6 +96,7 @@ test: $(TARGET)
 %_tests.test: -lboost_unit_test_framework 
 %_tests.test: %_tests.o
 	$(LD) $(CFLAGS) $(CXXFLAGS) $(LDFLAGS) $^ $(LIBRARIES) -o $@
+	objdump -S $@ > $@.dis
 
 #
 # What libraries do we need?
