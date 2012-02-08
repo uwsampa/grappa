@@ -1,0 +1,18 @@
+*~
+*#
+*.cunroll
+*.o
+*.a
+<<<<<<< HEAD
+*/.gitignore
+
+=======
+*.d
+*.test
+*.exe
+*.dis
+.nfs*
+*.btr
+._*
+.DS_Store
+>>>>>>> master

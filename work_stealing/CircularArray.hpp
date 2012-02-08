@@ -1,5 +1,5 @@
 // Resizable circular array.
-// From D Chase, Y Lev. Dynamic Circular Workstealing deque.
+// Based on Java source from D Chase, Y Lev. Dynamic Circular Workstealing deque.
 
 #ifndef _CIRCULARARRAY_HPP_
 #define _CIRCULARARRAY_HPP_

@@ -3,5 +3,13 @@
 *.cunroll
 *.o
 *.a
+*.d
+*.test
+*.exe
+*.dis
+.nfs*
+*.btr
+._*
+.DS_Store
 */.gitignore
 

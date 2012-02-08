@@ -50,7 +50,7 @@ int main(int argc, char* argv[]) {
 	// directed graph
 	graph* dirg = computeGraph(ge);
 	free_edgelist(ge);
-		
+
 	// undirected graph
 	graph* g = makeUndirected(dirg);
 	

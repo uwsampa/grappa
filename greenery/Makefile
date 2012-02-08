@@ -1,7 +1,8 @@
 CC=gcc
 
 
-GENFLAGS= -O2 -Wall -Wextra -g
+#GENFLAGS= -O1 -Wall -Wextra -g
+GENFLAGS= -O3 -Wall -Wextra
 
 
 CFLAGS= $(GENFLAGS) -std=gnu99

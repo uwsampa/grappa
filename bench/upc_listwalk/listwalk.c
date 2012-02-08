@@ -1,14 +1,26 @@
 #include <upc_relaxed.h>
+#include <upc_collective.h>
 #include <stdio.h>
 #include <stdint.h>
+#include <time.h>
 #include "vertex.h"
 
-#define NUM_VERTICES_PER_LIST (1<<10)
-#define NUM_LISTS_PER_THREAD 2
+#define NUM_VERTICES_PER_LIST (1<<15)
+#define NUM_LISTS_PER_THREAD 4
 #define SHUFFLE_LISTS 1
 #define SEQUENTIAL_SHUFFLE 1
+#define COUNT_GLOBALS 0
+
+#if COUNT_GLOBALS
+    #define GLOBAL_COUNT_UPDATE(A) {global_count = (upc_threadof((A))!=MYTHREAD) ? global_count+1 : global_count;}
+#else
+    #define GLOBAL_COUNT_UPDATE(A) 0?0:0
+#endif
 
 shared vertex vertices[NUM_VERTICES_PER_LIST * THREADS * NUM_LISTS_PER_THREAD];
+shared uint64_t runtimes[THREADS];
+shared uint64_t min_runtime[1];
+shared uint64_t max_runtime[1];
 
 void printVertices(const char* title) {
     if (MYTHREAD==0) {
@@ -133,12 +145,20 @@ int main(int argc, char** argv) {
 
     upc_barrier;
   */  
+    if (MYTHREAD==0) printf("NUM_LISTS_PER_THREAD=%d\n", NUM_LISTS_PER_THREAD);
+    printf("thread%d started\n", MYTHREAD);
+
+
     shared vertex* myhead[NUM_LISTS_PER_THREAD];
     allocate_lists(vertices, myhead, num_vertices, num_vertices_per_list, NUM_LISTS_PER_THREAD); 
 
     upc_barrier;
     if (MYTHREAD==0) printf("starting the traversals\n");
     upc_barrier;
+
+
+    struct timespec startTime, myEndTime, endTime;
+    clock_gettime(CLOCK_MONOTONIC, &startTime);
 
     // do the work
     uint64_t result;
@@ -147,24 +167,71 @@ int main(int argc, char** argv) {
     if (NUM_LISTS_PER_THREAD==1) {
         shared vertex* myvertex = myhead[0];
         while(--count > 0) {
-            global_count = (upc_threadof(myvertex)!=MYTHREAD) ? global_count+1 : global_count;
+            GLOBAL_COUNT_UPDATE(myvertex);
             myvertex = myvertex->next;
             //printf("thread %d: id:%lu\n", MYTHREAD, myvertex->id);
         }
         result = myvertex->id;
     } else if (NUM_LISTS_PER_THREAD==2) {
-        shared vertex* myvertex1 = myhead[0];
-        shared vertex* myvertex2 = myhead[1];
+        shared vertex* myvertex0 = myhead[0];
+        shared vertex* myvertex1 = myhead[1];
         while(--count > 0) {
-            global_count = (upc_threadof(myvertex1)!=MYTHREAD) ? global_count+1 : global_count;
-            global_count = (upc_threadof(myvertex2)!=MYTHREAD) ? global_count+1 : global_count;
+            GLOBAL_COUNT_UPDATE(myvertex0);
+            GLOBAL_COUNT_UPDATE(myvertex1);
+            myvertex0 = myvertex0->next;
             myvertex1 = myvertex1->next;
-            myvertex2 = myvertex2->next;
             //printf("thread %d: id:%lu\n", MYTHREAD, myvertex->id);
         }
-        result = myvertex1->id + myvertex2->id;
+        result = myvertex0->id + myvertex1->id;
+    } else if (NUM_LISTS_PER_THREAD==4) {
+        shared vertex* myvertex0 = myhead[0];
+        shared vertex* myvertex1 = myhead[1];
+        shared vertex* myvertex2 = myhead[2];
+        shared vertex* myvertex3 = myhead[3];
+        while(--count > 0) {
+            GLOBAL_COUNT_UPDATE(myvertex0);
+            GLOBAL_COUNT_UPDATE(myvertex1);
+            GLOBAL_COUNT_UPDATE(myvertex2);
+            GLOBAL_COUNT_UPDATE(myvertex3);
+            myvertex0 = myvertex0->next;
+            myvertex1 = myvertex1->next;
+            myvertex2 = myvertex2->next;
+            myvertex3 = myvertex3->next;
+            //printf("thread %d: id:%lu\n", MYTHREAD, myvertex->id);
+        }
+        result = myvertex0->id + myvertex1->id + myvertex2->id + myvertex3->id;
     }
 
-    printf("thread%d -- result:%lu, global_refs:%lu (%f)\n", MYTHREAD, result, global_count, (double)global_count/(num_vertices_per_list*NUM_LISTS_PER_THREAD));
+    clock_gettime(CLOCK_MONOTONIC, &myEndTime);
+
+    upc_barrier;
+
+    clock_gettime(CLOCK_MONOTONIC, &endTime);
+
+    const uint64_t num_vertices_per_thread = num_vertices_per_list*NUM_LISTS_PER_THREAD;
+
+    // runtime of just this thread
+    const uint64_t my_runtime_ns = ((uint64_t) myEndTime.tv_sec * 1000000000 + myEndTime.tv_nsec) - ((uint64_t) startTime.tv_sec * 1000000000 + startTime.tv_nsec);
+    
+    // what this thread thinks is total runtime
+    runtimes[MYTHREAD] = ((uint64_t) endTime.tv_sec * 1000000000 + endTime.tv_nsec) - ((uint64_t) startTime.tv_sec * 1000000000 + startTime.tv_nsec);
+
+    // upper and lower bound on total runtime
+    upc_all_reduceL(min_runtime, runtimes, UPC_MIN, THREADS, 1, NULL, UPC_IN_ALLSYNC | UPC_OUT_ALLSYNC);
+    upc_all_reduceL(max_runtime, runtimes, UPC_MAX, THREADS, 1, NULL, UPC_IN_ALLSYNC | UPC_OUT_ALLSYNC);
+
+    upc_barrier;
+
+    printf("thread%d -- result:%lu, global_refs:%lu (%f)\n", MYTHREAD, result, global_count, (double)global_count/(num_vertices_per_thread));
+
+    upc_barrier;
+
+    printf("thread%d -- {'myrate':%f Mref/s, 'runtime_ns':%lu, 'num_vertices_per_thread':%lu}\n", MYTHREAD, ((double)num_vertices_per_thread/my_runtime_ns) * 1000, my_runtime_ns, num_vertices_per_thread);
+    
+    upc_barrier;
+
+    if (MYTHREAD==0) printf("{'upper_rate':%f Mref/s, 'lower_rate':%f Mref/s, 'lower_runtime':%lu, 'upper_runtime':%lu}\n", ((double)num_vertices/min_runtime[0])*1000, ((double)num_vertices/max_runtime[0])*1000, min_runtime[0], max_runtime[0]);
+
+    return 0;
 }
         
