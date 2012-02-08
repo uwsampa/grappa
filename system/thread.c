@@ -56,6 +56,7 @@ static void tramp(struct coro *me, void *arg) {
 
 thread *thread_spawn(thread *me, scheduler *sched,
                      thread_func f, void *arg) {
+  assert( current_thread == me );
   thread *thr = (thread*)malloc(sizeof(thread));
   thr->co = coro_spawn(me->co, tramp, STACK_SIZE);
   // Pass control to the trampoline a few times quickly to set up
