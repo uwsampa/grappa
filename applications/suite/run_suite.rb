@@ -2,13 +2,12 @@
 EXP_HOME = ENV["EXP_HOME"]
 
 require "#{EXP_HOME}/util.rb"
+loadConfigs()
 
 # parse: string -> hash
 # Extracts data from program output and returns a hash of values for the new row
 parse = Proc.new do |cmdout|
-  s = ""
-  cmdout.each_line {|l| s += l }
-  
+  # puts cmdout
   pattern = /computeGraph[\w\s\(\)]+(\d+\.\d+) \s sec\.$
             .*connected \s components\: \s (\d+)$.*
             connectedComponents[\w\s\(\)]+(\d+\.\d+) \s sec\.$
@@ -21,26 +20,27 @@ parse = Proc.new do |cmdout|
             .*Betweenness \s Centrality[A-Za-z\s:()=]+(\d+\.\d+)
             .*(\d+\.\d+) \s sec./mx
   data = {}
-  s.match(pattern) {|m|
-    data[:compute_graph_time] = m[0]
-    data[:connected_components] = m[1]
-    data[:connected_components_time] = m[2]
-    data[:path_matches] = m[3]
-    data[:path_isomorphism_time] = m[4]
-    data[:triangles] = m[5]
-    data[:triangles_time] = m[6]
-    data[:centrality] = m[7]
-    data[:centrality_time] = m[8]
-  }
-  puts data
-  return data
+  m = cmdout.match(pattern)
+  if m then
+    data[:compute_graph_time] = m[1].to_f
+    data[:connected_components] = m[2].to_i
+    data[:connected_components_time] = m[3].to_f
+    data[:path_matches] = m[4].to_i
+    data[:path_isomorphism_time] = m[5].to_f
+    data[:triangles] = m[6].to_i
+    data[:triangles_time] = m[7].to_f
+    data[:centrality] = m[8].to_f
+    data[:centrality_time] = m[9].to_f
+  end
+  # p data
+  data
 end
 
 $testing = true
 
-['graphb'].each { |exe|
+['./graphb'].each { |exe|
 [1, 2, 4, 8].each { |max_procs|
 [4, 5, 6, 7].each { |scale|
-  data = runExperiment("mtarun -m #{max_procs} #{exe} #{scale}", parse, :suite, false)
-  puts "inserted: #{data}"
+  data = runExperiment("#{exe} #{scale}", parse, :suite)
+  p data
 }}}
