@@ -50,9 +50,7 @@ int main(int argc, char* argv[]) {
 	// directed graph
 	graph* dirg = computeGraph(ge);
 	free_edgelist(ge);
-	
-	printf("Directed graph has %lld edges.\n", dirg->numEdges); fflush(stdout);
-	
+		
 	// undirected graph
 	graph* g = makeUndirected(dirg);
 	
