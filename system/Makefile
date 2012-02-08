@@ -45,7 +45,7 @@ include ../include.mk
 HOST:=localhost
 
 # name of main executable to build and/or run
-TARGET:= Addressing.test
+TARGET:= scratch.exe
 
 # default rule: just build
 $(TARGET): 
@@ -53,7 +53,9 @@ $(TARGET):
 #
 # object file dependences
 #
-Demo.exe: SoftXMT.o Communicator.o Aggregator.o
+scratch.exe: Delegate.o SoftXMT.o Communicator.o Aggregator.o thread.o coro.o stack.o
+
+Demo.exe: SoftXMT.o Communicator.o Aggregator.o thread.o coro.o stack.o
 
 Communicator_tests.test:
 
