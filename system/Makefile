@@ -68,6 +68,12 @@ Allocator_tests.test: Allocator.o
 #thread.o: coro.o
 
 #
+# Build SoftXMT static library
+#
+LIBRARY_CONTENTS= SoftXMT.o Communicator.o Aggregator.o thread.o coro.o stack.o 
+libSoftXMT.a: $(patsubst %,libSoftXMT.a(%),$(LIBRARY_CONTENTS))
+
+#
 # run a binary
 #
 run: $(TARGET)
