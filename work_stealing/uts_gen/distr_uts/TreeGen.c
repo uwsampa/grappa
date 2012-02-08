@@ -17,6 +17,7 @@
 #include "gasnet_cbarrier.h"
 #include "collective.h"
 
+#include "SoftXMT.hpp"
 #include "buffered.hpp"
 
 #define PARALLEL 1
@@ -414,6 +415,8 @@ struct user_main_args {
     char** argv;
 };
 
+void user_main( thread* me, void* args );
+
 typedef uint64_t Node_ptr;
 int main(int argc, char *argv[]) {
     SoftXMT_init(&argc, &argv);
@@ -660,7 +663,7 @@ void user_main( thread* me, void* args) {
     for (int th=0; th<num_threads_per_core; th++) {
         wis[th].num_cores_per_node = num_cores;
         wis[th].num_local_nodes = num_local_nodes;
-        wis[th].work_done = &core_work_done[i];
+        wis[th].work_done = &core_work_done;
         wis[th].nodes_array = nodes;
         wis[th].children_arrays = children_array_pool;
         wis[th].my_id = local_id;
@@ -683,12 +686,11 @@ void user_main( thread* me, void* args) {
     CPU_SET(coreslist[core], &set);
     SCHED_SET(0, sizeof(cpu_set_t), &set);
 */       
-    printf("core %d/%d starts\n", core, num_cores);
     
 
     // join on worker threads
     for (int th=0; th<num_threads_per_core; th++) {
-        SoftXMT_thread_join(worker_threads[th]);
+        SoftXMT_join(worker_threads[th]);
     }
 
 

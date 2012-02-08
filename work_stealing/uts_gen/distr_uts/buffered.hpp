@@ -1,8 +1,7 @@
 #include "global_memory.h"
 #include "Delegate.hpp"
-#include "buffered.hpp"
 
-<template class T>
+template <class T>
 T* get_local_copy_of_remote(global_address addr, size_t num_ele) {
     T* buf = (T*) malloc (num_ele * sizeof(T)); // XXX malloc'ing every acquire
 
@@ -12,7 +11,7 @@ T* get_local_copy_of_remote(global_address addr, size_t num_ele) {
         int64_t data;
         data = SoftXMT_delegate_read_word( addr ); //FIXME: will yield num_xfers times
                                                    // eventually want yield separate altogether
-        memcpy(((char*)dest)+(i*xfer_size), &data, xfer_size);
+        memcpy(((char*)buf)+(i*xfer_size), &data, xfer_size);
          
         addr.offset += xfer_size; //FIXME: assumes all same node (use global_address ADT incr)
     }
@@ -20,7 +19,7 @@ T* get_local_copy_of_remote(global_address addr, size_t num_ele) {
     return buf;
 }
 
-<template class T>
+template <class T>
 void release_local_copy(T* buf) {
     free(buf);
 }

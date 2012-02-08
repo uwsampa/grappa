@@ -1,5 +1,6 @@
 GASNET?=/sampa/share/gasnet-rhel6
 GL_ARRAY=../../../global_array_gasnet
+SOFTXMT_SYS=../../../system
 
 CXX=mpicxx
 LD= mpicxx
@@ -47,10 +48,8 @@ endif
 CFLAGS_COMMON= -Wno-write-strings -g -fopenmp -fomit-frame-pointer
 CFLAGS= $(CFLAGS_COMMON)
 CFLAGS+= -I$(GASNET)/include -I$(GASNET)/include/$(MA_CONDUIT_LIB)-conduit -DGASNET_$(MA_THREADING_GASNET_DEF) -DGASNET_CONDUIT_$(MA_CONDUIT_DEF)
-CFLAGS+= -I$(GL_ARRAY)
+CFLAGS+= -I$(GL_ARRAY) -I$(SOFTXMT_SYS)
 CFLAGS+= -I.. -I../../../bench/sp_gasnet_listwalk/collective
-TH_CFLAGS=-I../../../greenery 
-TH_LIB=-L../../../greenery -lgreenery
 LIB=-lm 
 
 LD_FLAGS= $(CFLAGS_COMMON)
@@ -70,14 +69,24 @@ GL_OBJECTS=\
 	$(GL_ARRAY)/global_array.o 
 #	$(GL_ARRAY)/msg_aggregator.o
 
+SOFTXMT_OBJECTS=\
+	$(SOFTXMT_SYS)/SoftXMT.o \
+	$(SOFTXMT_SYS)/Delegate.o \
+	$(SOFTXMT_SYS)/Communicator.o \
+	$(SOFTXMT_SYS)/Aggregator.o \
+	$(SOFTXMT_SYS)/thread.o \
+	$(SOFTXMT_SYS)/stack.o \
+	$(SOFTXMT_SYS)/coro.o 
+
+
 COLL_OBJECTS=\
 	../../../bench/sp_gasnet_listwalk/collective/collective.o
 
 %.o: %.c
-	$(CXX) $(CFLAGS) $(TH_CFLAGS) $(RNG_DEF) $(RNG_INCL) $< -c -o $@
+	$(CXX) $(CFLAGS) $(RNG_DEF) $(RNG_INCL) $< -c -o $@
 
 TreeGen: TreeGen.o $(OBJECTS) 
-	$(CXX) $(CFLAGS) $(TH_CFLAGS) -o $@ $^ $(GL_OBJECTS) $(COLL_OBJECTS) $(RNG_SRC) $(GASNET_LIB_PATHS) $(TH_LIB) $(LIB) $(GASNET_LIBS) 
+	$(CXX) $(CFLAGS) -o $@ $^ $(GL_OBJECTS) $(SOFTXMT_OBJECTS) $(COLL_OBJECTS) $(RNG_SRC) $(GASNET_LIB_PATHS)  $(LIB) $(GASNET_LIBS) 
 
 gasnet_cbarrier_test: gasnet_cbarrier_test.c gasnet_cbarrier.c
 	$(CXX) $(CFLAGS) -o $@ $+ $(GASNET_LIB_PATHS) $(LIB) $(GASNET_LIBS)
