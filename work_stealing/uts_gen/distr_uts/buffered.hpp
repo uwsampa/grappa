@@ -1,3 +1,4 @@
+#include "global_memory.h"
 #include "Delegate.hpp"
 #include "buffered.hpp"
 
