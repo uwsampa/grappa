@@ -3,6 +3,10 @@
 *.cunroll
 *.o
 *.a
+<<<<<<< HEAD
+*/.gitignore
+
+=======
 *.d
 *.test
 *.exe
@@ -11,5 +15,4 @@
 *.btr
 ._*
 .DS_Store
-*/.gitignore
-
+>>>>>>> master
