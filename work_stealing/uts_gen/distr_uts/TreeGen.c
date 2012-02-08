@@ -655,18 +655,18 @@ void user_main( thread* me, void* args) {
     // green threads init
     worker_info wis[num_threads_per_core];
     int core_work_done;
+    thread* worker_threads[num_threads_per_core];
 
     for (int th=0; th<num_threads_per_core; th++) {
-        wis[i][th].num_cores_per_node = num_cores;
-        wis[i][th].core_id = i;
-        wis[i][th].num_local_nodes = num_local_nodes;
-        wis[i][th].work_done = &core_work_done[i];
-        wis[i][th].nodes_array = nodes;
-        wis[i][th].children_arrays = children_array_pool;
-        wis[i][th].my_id = local_id;
-        wis[i][th].rank = rank;
-        wis[i][th].neighbors = neighbors;
-        SoftXMT_spawn(thread_runnable, &wis[th]);
+        wis[th].num_cores_per_node = num_cores;
+        wis[th].num_local_nodes = num_local_nodes;
+        wis[th].work_done = &core_work_done[i];
+        wis[th].nodes_array = nodes;
+        wis[th].children_arrays = children_array_pool;
+        wis[th].my_id = local_id;
+        wis[th].rank = rank;
+        wis[th].neighbors = neighbors;
+        worker_threads[th] = SoftXMT_spawn(thread_runnable, &wis[th]);
     }
 
 
@@ -686,9 +686,11 @@ void user_main( thread* me, void* args) {
     printf("core %d/%d starts\n", core, num_cores);
     
 
-    /***
-     *  TODO join on all the worker coroutines
-     *  ***/
+    // join on worker threads
+    for (int th=0; th<num_threads_per_core; th++) {
+        SoftXMT_thread_join(worker_threads[th]);
+    }
+
 
 
     endTime = uts_wctime();
