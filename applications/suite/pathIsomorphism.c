@@ -73,36 +73,30 @@ static bool checkEdgesRecursive(const graph* g, graphint v, const color_t* c) {
 	const color_t * restrict marks = g->marks; /* Vertex domain */
 	
 	if (*c == END) return true;
-	
+
 	for (graphint i=edge[v]; i<edge[v+1]; i++) {
-		if (marks[i] == *c) {
+		if (marks[eV[i]] == *c) {
 			if (checkEdgesRecursive(g, eV[i], c+1)) return true;
 		}
 	}
 	return false;
 }
 
-graphint pathIsomorphismPar(const graph* g, color_t* pattern, graphint** matches) {
+graphint pathIsomorphismPar(const graph* g, color_t* pattern) {
 	const graphint NV = g->numVertices;
 	const color_t * restrict marks = g->marks; /* Vertex domain */
 	
 	graphint nm = 0; // Number of Matches
 
-	graphint * restrict m = (graphint*)xmalloc(NV*sizeof(graphint));
-	
 	MTA("mta assert parallel") OMP("omp parallel for")
 	for (graphint i=0; i<NV; i++) {
 		if (marks[i] == *pattern) {
 			if (checkEdgesRecursive(g, i, pattern+1)) {
-				m[int_fetch_add(&nm, 1)] = i;
+				nm++;
 			}
 		}
 	}
-	
-	*matches = (graphint*)xmalloc(nm*sizeof(graphint));
-	memcpy(*matches, m, nm*sizeof(graphint));
-	free(m);
-	
+
 	return nm;
 }
 
