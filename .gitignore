@@ -17,4 +17,4 @@
 *.swp
 *.swo
 .mpirunrc.*
-
+*.pyc
