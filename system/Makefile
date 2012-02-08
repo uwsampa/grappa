@@ -65,7 +65,9 @@ Delegate_tests.test: Delegate.o SoftXMT.o Communicator.o Aggregator.o thread.o c
 Addressing_tests.test: SoftXMT.o Communicator.o Aggregator.o thread.o coro.o stack.o 
 Allocator_tests.test: Allocator.o
 
-#thread.o: coro.o
+
+
+Cache_tests.test: Cache.o SoftXMT.o Communicator.o Aggregator.o thread.o coro.o stack.o 
 
 #
 # Build SoftXMT static library
