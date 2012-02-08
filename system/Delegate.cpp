@@ -165,3 +165,4 @@ int64_t SoftXMT_delegate_fetch_and_add_word( GlobalAddress<int64_t> address, int
   
   return md.data;
 }
+
