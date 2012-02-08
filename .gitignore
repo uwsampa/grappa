@@ -12,4 +12,5 @@
 ._*
 .DS_Store
 */.gitignore
+*.db
 
