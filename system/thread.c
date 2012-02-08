@@ -20,6 +20,9 @@ thread *thread_init() {
   master->sched = NULL;
   master->next = NULL;
   master->id = 0; // master always id 0
+  master->done = 0;
+  master->join_head = NULL;
+  master->join_tail = NULL;
   current_thread = master;
   return master;
 }
@@ -65,9 +68,40 @@ thread *thread_spawn(thread *me, scheduler *sched,
   current_thread = me;
   thr->sched = sched;
   thr->next = NULL;
+  thr->join_head = NULL;
+  thr->join_tail = NULL;
+  thr->done = 0;
   scheduler_assignTid(sched, thr);
   scheduler_enqueue(sched, thr);
   return thr;
+}
+
+void join_list_enqueue(thread* wait_on, thread* waiter) {
+   if (wait_on->join_head == NULL) {
+       wait_on->join_head = waiter;
+   } else {
+       wait_on->join_tail->next = waiter;
+   }
+   wait_on->join_tail = waiter;
+   waiter->next = NULL;
+}
+
+thread* join_list_dequeue(thread* wait_on) {
+    thread* result = wait_on->join_head;
+    if (result != NULL) {
+        wait_on->join_head = result->next;
+        result->next = NULL;
+    } else {
+        wait_on->join_tail = NULL;
+    }
+    return result;
+}
+
+void thread_join(thread* me, thread* wait_on) {
+    if (!wait_on->done) {
+        join_list_enqueue(wait_on, me);
+        thread_suspend(me);
+    }
 }
 
 void thread_exit(thread *me, void *retval) {
@@ -75,6 +109,16 @@ void thread_exit(thread *me, void *retval) {
 
   // Reuse the queue field for a return value.
   me->next = (thread *)retval;
+
+  // process join
+  me->done = 1;
+  thread* waiter = join_list_dequeue(me);
+  while (waiter!=NULL) {
+    thread_wake(waiter);
+    waiter = join_list_dequeue(me);
+  }
+  
+  // call master thread
   current_thread = master;
   coro_invoke(me->co, master->co, (void *)me);
   // never returns
@@ -83,7 +127,6 @@ void thread_exit(thread *me, void *retval) {
 
 thread *thread_wait(scheduler *sched, void **result) {
   thread *next = scheduler_dequeue(sched);
-  
   if (next == NULL) {
     return NULL;
   } else {
@@ -92,7 +135,7 @@ thread *thread_wait(scheduler *sched, void **result) {
                                          next->co, NULL);
     // At the moment, we only return from a thread in the case of death.
     // That might change as we support synchronization/related features.
-    
+   
     if (result != NULL) {
       void *retval = (void *)died->next;
       *result = retval;
@@ -100,6 +143,9 @@ thread *thread_wait(scheduler *sched, void **result) {
     return died;
   }
 }
+
+
+
 
 void run_all(scheduler *sched) {
   while (thread_wait(sched, NULL) != NULL) { } // nothing
