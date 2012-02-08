@@ -110,7 +110,7 @@ graphint connectedComponents(graph *g);
 /* pathIsomorphism.c */
 #define END -1
 graphint pathIsomorphism(graph *g, color_t *pattern, graphint **matches);
-graphint pathIsomorphismPar(const graph* g, color_t* pattern, graphint** matches);
+graphint pathIsomorphismPar(const graph* g, color_t* pattern);
 graphint pathIsomorphismSpaghetti(graph* g, color_t* pattern, graphint** matches);
 
 void markColors(graph *g, color_t minc, color_t maxc);

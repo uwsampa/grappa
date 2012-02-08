@@ -117,6 +117,8 @@ void genScalData(graphedges* SDGdataPtr, double a, double b, double c, double d)
 	NE = Remove(NV, NE, sV, eV);
 	printf("\nNumber of edges created - %9lld\n", NE);
 	
+	SDGdataPtr->numEdges = NE; // added by bholt--why wasn't this here? NE not used...
+	
 	/* 
 	 int* degree = (int *) xcalloc(NV , sizeof(int));
 	 int* degree_hist = (int *) xcalloc(NV, sizeof(int));
