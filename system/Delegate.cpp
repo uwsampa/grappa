@@ -6,7 +6,6 @@
 #include <gflags/gflags.h>
 #include <glog/logging.h>
 
-
 struct memory_descriptor {
   thread * t;
   GlobalAddress<int64_t> address;
