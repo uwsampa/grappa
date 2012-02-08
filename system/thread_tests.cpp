@@ -11,7 +11,6 @@ struct child_args {
     int value;
 };
 struct parent_args {
-    thread* master;
     scheduler* sched;
 };
 
@@ -32,8 +31,8 @@ void parent_run( thread* me, void* args) {
     child_args cargs1 = { 101 };
     child_args cargs2 = { 101 };
     
-    thread* child1 = thread_spawn( pargs->master, pargs->sched, &child_run, &cargs1);
-    thread* child2 = thread_spawn( pargs->master, pargs->sched, &child_run, &cargs2);
+    thread* child1 = thread_spawn( me, pargs->sched, &child_run, &cargs1);
+    thread* child2 = thread_spawn( me, pargs->sched, &child_run, &cargs2);
 
     //printf("%u is join 1\n", me->id);
     thread_join( me, child1 );
@@ -55,7 +54,7 @@ BOOST_AUTO_TEST_CASE( test_join ) {
     thread* master = thread_init();
     scheduler* sched = create_scheduler( master );
     
-    parent_args pargs = { master, sched };
+    parent_args pargs = { sched };
     thread* parent = thread_spawn( master, sched, &parent_run, &pargs);    
     run_all ( sched );
 
