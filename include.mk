@@ -8,9 +8,9 @@
 COMMON=../common
 CFLAGS+= -I$(COMMON)
 
-GREENERY=../greenery
-CFLAGS+= -I$(GREENERY)
-LDFLAGS+= -L$(GREENERY)
+#GREENERY=../greenery
+#CFLAGS+= -I$(GREENERY)
+#LDFLAGS+= -L$(GREENERY)
 
 #
 # different for specific machines
