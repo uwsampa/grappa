@@ -138,6 +138,12 @@ void SoftXMT_suspend_wake( thread * t )
   thread_suspend_wake( current_thread, t );
 }
 
+/// Join on thread t
+void SoftXMT_join( thread * t )
+{
+  thread_join( current_thread, t );
+}
+
 ///
 /// Job exit routines
 ///
