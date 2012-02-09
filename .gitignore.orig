@@ -1,0 +1,17 @@
+*~
+*#
+*.cunroll
+*.o
+*.a
+*.d
+*.test
+*.exe
+*.dis
+.nfs*
+*.btr
+<<<<<<< HEAD
+*.gch
+=======
+._*
+.DS_Store
+>>>>>>> d9d6929794c19b7809738435ecff80ebe0890338
