@@ -66,6 +66,8 @@ Addressing_tests.test: SoftXMT.o Communicator.o Aggregator.o thread.o coro.o sta
 Allocator_tests.test: Allocator.o
 
 
+thread_tests.test: thread.o stack.o coro.o
+
 
 Cache_tests.test: Cache.o SoftXMT.o Communicator.o Aggregator.o thread.o coro.o stack.o 
 
@@ -86,11 +88,15 @@ run: $(TARGET)
 #
 # run tests for a component
 #
-test: $(TARGET)
+mpi_test: $(TARGET)
 	OMPI_MCA_btl_sm_use_knem=0 \
 	LD_LIBRARY_PATH="$(LD_LIBRARY_PATH)" \
 	GASNET_BACKTRACE=1 \
 	mpirun -x LD_LIBRARY_PATH -H $(HOST) -np 2 -- ./$< --log_level=test_suite --run_test=$(TARGET:.test=)
+
+test: $(TARGET)
+	LD_LIBRARY_PATH="$(LD_LIBRARY_PATH)" \
+	./$< --log_level=test_suite --run_test=$(TARGET:.test=)
 
 # build a specific test and update autodependence info
 # include Boost test automagic main() generation
