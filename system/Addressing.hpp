@@ -18,36 +18,44 @@ static const intptr_t node_mask = (1L << node_bits) - 1;
 static const intptr_t pointer_mask = (1L << pointer_bits) - 1;
 
 template< typename T >
-class GlobalPointer {
+class GlobalAddress {
 private:
-  intptr_t storage;
+  intptr_t storage_;
+  //DISALLOW_COPY_AND_ASSIGN( GlobalAddress );
 
 public:
 
-  GlobalPointer( T * p )
-    : storage( ( 1L << tag_shift_val ) |
-               ( (SoftXMT_mynode() & node_mask) << node_shift_val ) |
-               ( reinterpret_cast<intptr_t>( p ) ) )
+  GlobalAddress( ) : storage_( 0 ) { }
+
+  GlobalAddress( T * p, Node n = SoftXMT_mynode() )
+    : storage_( ( 1L << tag_shift_val ) |
+                ( ( n & node_mask) << node_shift_val ) |
+                ( reinterpret_cast<intptr_t>( p ) ) )
   {
     assert( SoftXMT_mynode() <= node_mask ); 
     assert( reinterpret_cast<intptr_t>( p ) >> node_shift_val == 0 );
   }
 
   inline Node node() const {
-    return (storage >> node_shift_val) & node_mask;
+    return (storage_ >> node_shift_val) & node_mask;
   }
     
 
   inline T * pointer() const { 
-    intptr_t signextended = (storage << pointer_shift_val) >> pointer_shift_val;
+    intptr_t signextended = (storage_ << pointer_shift_val) >> pointer_shift_val;
     return reinterpret_cast< T * >( signextended ); 
   }
 
 };
 
 template< typename T >
-GlobalPointer< T > localToGlobal( T * t ) {
-  return GlobalPointer< T >( t );
+GlobalAddress< T > localToGlobal( T * t ) {
+  return GlobalAddress< T >( t );
+}
+
+template< typename T >
+GlobalAddress< T > make_global( T * t, Node n = SoftXMT_mynode() ) {
+  return GlobalAddress< T >( t, n );
 }
 
 
