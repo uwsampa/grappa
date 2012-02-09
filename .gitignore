@@ -9,6 +9,6 @@
 *.dis
 .nfs*
 *.btr
-*.gch*.btr
+*.gch
 ._*
 .DS_Store
