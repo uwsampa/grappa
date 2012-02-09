@@ -6,6 +6,12 @@
 #include "Addressing.hpp"
 #include "common.hpp"
 
+#define DEBUG_CACHE 0
+
+#include "IncoherentAcquirer.hpp"
+#include "IncoherentReleaser.hpp"
+
+
 template< typename T >
 class CacheAllocator {
 public:
@@ -26,59 +32,13 @@ public:
   operator T*() const { 
     return storage_;
   }
+  T * pointer() { 
+    return storage_;
+  }
+  const T * const_pointer() const { 
+    return storage_;
+  }
 };
-
-template< typename T >
-class IncoherentAcquirer {
-private:
-  bool acquire_started_;
-  bool acquired_;
-  GlobalAddress< T > request_address_;
-  size_t count_;
-  void * storage_;
-public:
-  IncoherentAcquirer( GlobalAddress< T > request_address, size_t count, void * storage )
-    : request_address_( request_address )
-    , count_( count )
-    , storage_( storage )
-  { }
-    
-  void start_acquire();
-  void block_until_acquired();
-  bool acquired() const { return acquired_; }
-
-  struct ReplyArgs {
-    GlobalAddress< IncoherentAcquirer > reply_address;
-  };
-
-  struct RequestArgs {
-    GlobalAddress< T > request_address;
-    size_t count;
-    GlobalAddress< IncoherentAcquirer< T > > reply_address;
-  };
-
-
-};
-
-
-// class IncoherentReleaser {
-// private:
-//   bool release_started_;
-//   bool released_;
-//   void * request_address_;
-//   size_t size_;
-//   void * storage_;
-
-// public:
-//   IncoherentReleaser( void * request_address, size_t size, void * storage )
-//     : request_address_( request_address )
-//     , size_( size )
-//     , storage_( storage )
-//   { }
-//   void start_release();
-//   void block_until_released();
-//   bool released() const { return released_; }
-// };
 
 template< typename T >
 class NullReleaser {
@@ -103,7 +63,7 @@ template< typename T,
           template< typename T > class Allocator, 
           template< typename T > class Acquirer, 
           template< typename T > class Releaser >
-class Cache {
+class CacheRO {
 protected:
   GlobalAddress< T > address_;
   size_t count_;
@@ -112,23 +72,21 @@ protected:
   Releaser< T > releaser_;
 
 public:
-  Cache( GlobalAddress< T > address, size_t count = 1, T * buffer = NULL )
+  explicit CacheRO( GlobalAddress< T > address, size_t count, T * buffer = NULL )
     : address_( address )
     , count_( count )
     , storage_( buffer, count )
-    , acquirer_( address, count, (void *)storage_ )
-    , releaser_( address, count, (void *)storage_ )
-  { 
-    for( int i = 0; i < count; ++i ) {
-      storage_[i] = 0;
-    }
-  }
+    , acquirer_( address, count, storage_ )
+    , releaser_( address, count, storage_ )
+  { }
 
   void start_acquire( ) { 
+    if (DEBUG_CACHE) std::cout << "start_acquire" << std::endl;
     acquirer_.start_acquire( ); //ga, count, &data );
   }
   void block_until_acquired() {
-    acquirer_.block_until_acquired( );
+    if (DEBUG_CACHE) std::cout << "block_until_acquired" << std::endl;
+    acquirer_.block_until_acquired(); // TODO: why broke?
   }
   void start_release() { 
     releaser_.start_release( );
@@ -136,50 +94,70 @@ public:
   void block_until_released() {
     releaser_.block_until_released( );
   }
+  operator const T*() { 
+    block_until_acquired();
+    return storage_.const_pointer(); 
+  } 
+  operator const void*() { 
+    block_until_acquired();
+    return storage_.const_pointer();
+  } 
 };
 
 template< typename T, 
           template< typename T > class Allocator, 
           template< typename T > class Acquirer, 
           template< typename T > class Releaser >
-class CacheRO : public Cache< T, Allocator, Acquirer, Releaser > {
-private:
-  typedef Cache< T, Allocator, Acquirer, Releaser > Parent;
+class CacheRW {
+protected:
+  GlobalAddress< T > address_;
+  size_t count_;
+  Allocator< T > storage_;
+  Acquirer< T > acquirer_;
+  Releaser< T > releaser_;
+
 public:
-  CacheRO( GlobalAddress< T > address, size_t count = 1, T * buffer = NULL )
-    : Parent( address, count, buffer )
+  explicit CacheRW( GlobalAddress< T > address, size_t count, T * buffer = NULL )
+    : address_( address )
+    , count_( count )
+    , storage_( buffer, count )
+    , acquirer_( address, count, storage_ )
+    , releaser_( address, count, storage_ )
   { }
-  inline operator T*() const { 
-    return this->storage_; 
+
+  ~CacheRW() {
+    block_until_released();
+  }
+
+  void start_acquire( ) { 
+    if (DEBUG_CACHE) std::cout << "start_acquire" << std::endl;
+    acquirer_.start_acquire( ); //ga, count, &data );
+  }
+  void block_until_acquired() {
+    if (DEBUG_CACHE) std::cout << "block_until_acquired" << std::endl;
+    acquirer_.block_until_acquired(); // TODO: why broke?
+  }
+  void start_release() { 
+    releaser_.start_release( );
+  }
+  void block_until_released() {
+    releaser_.block_until_released( );
+  }
+  operator T*() { 
+    block_until_acquired();
+    return storage_.pointer(); 
   } 
-  inline operator void*() const { 
-    return this->storage_;
+  operator void*() { 
+    block_until_acquired();
+    return storage_.pointer();
   } 
 };
 
-// template< typename T, 
-//           template< typename T > class Allocator, 
-//           template< typename T > class Acquirer, 
-//           template< typename T > class Releaser >
-// class CacheRW : public Cache< T, Allocator, Acquirer, Releaser > {
-// private:
-//   typedef Cache< T, Allocator, Acquirer, Releaser > Parent;
-// public:
-//   CacheRW( GlobalAddress< T > address, size_t count = 1, T * buffer = NULL )
-//     : Parent( address, count, buffer )
-//   { }
-//   inline operator T*() { 
-//     return this->storage_; 
-//   } 
-//   inline operator void*() { 
-//     return this->storage_;
-//   } 
-// };
 
 template< typename T >
 struct Incoherent {
   typedef CacheRO< T, CacheAllocator, IncoherentAcquirer, NullReleaser > RO;
-  //  typedef CacheRW< T, CacheAllocator, IncoherentAcquirer, IncoherentReleaser > RW;
+   typedef CacheRW< T, CacheAllocator, IncoherentAcquirer, IncoherentReleaser > RW;
 };
 
 
