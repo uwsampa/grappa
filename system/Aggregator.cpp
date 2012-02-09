@@ -29,25 +29,39 @@ Aggregator::Aggregator( Communicator * communicator )
   global_aggregator = this;
 }
 
-
-void Aggregator_deaggregate_am( gasnet_token_t token, void * buf, size_t size ) {
-  for( int i = 0; i < size; ) {
-    AggregatorGenericCallHeader * header = static_cast< AggregatorGenericCallHeader * >( buf );
-    AggregatorAMHandler fp = reinterpret_cast< AggregatorAMHandler >( header->function_pointer );
-    void * args = reinterpret_cast< void * >( reinterpret_cast< uintptr_t >( buf ) + 
-                                              sizeof( AggregatorGenericCallHeader ) );
-    void * payload = reinterpret_cast< void * >( reinterpret_cast< uintptr_t >( buf ) + 
-                                                 sizeof( AggregatorGenericCallHeader ) +
-                                                 header->args_size );
-
-    if( header->destination == gasnet_mynode() ) { // for us?
-      fp( args, header->args_size, payload, header->payload_size ); // execute
-    } else { // not for us, so forward towards destination
-      SoftXMT_call_on( header->destination, fp, args, header->args_size, payload, header->payload_size );
+void Aggregator::deaggregate( ) {
+  while( !received_AM_queue_.empty() ) {
+    // TODO: too much copying
+    ReceivedAM amp = received_AM_queue_.front();
+    received_AM_queue_.pop();
+      if( DEBUG_AGGREGATOR ) std::cout << "deaggregating message of size " << amp.size_ << std::endl;
+    for( int i = 0; i < amp.size_; ) {
+      AggregatorGenericCallHeader * header = reinterpret_cast< AggregatorGenericCallHeader * >( amp.buf_ );
+      AggregatorAMHandler fp = reinterpret_cast< AggregatorAMHandler >( header->function_pointer );
+      void * args = reinterpret_cast< void * >( reinterpret_cast< uintptr_t >( amp.buf_ ) + 
+                                                sizeof( AggregatorGenericCallHeader ) );
+      void * payload = reinterpret_cast< void * >( reinterpret_cast< uintptr_t >( amp.buf_ ) + 
+                                                   sizeof( AggregatorGenericCallHeader ) +
+                                                   header->args_size );
+      
+      if( header->destination == gasnet_mynode() ) { // for us?
+        if( DEBUG_AGGREGATOR ) std::cout << "calling " << *header << std::endl;
+        fp( args, header->args_size, payload, header->payload_size ); // execute
+      } else { // not for us, so forward towards destination
+        if( DEBUG_AGGREGATOR ) std::cout << "forwarding " << *header << std::endl;
+        SoftXMT_call_on( header->destination, fp, args, header->args_size, payload, header->payload_size );
+      }
+      i += sizeof( AggregatorGenericCallHeader ) + header->args_size + header->payload_size;
     }
-    i += sizeof( AggregatorGenericCallHeader ) + header->args_size + header->payload_size;
   }
 }
-
-
+  
+void Aggregator_deaggregate_am( gasnet_token_t token, void * buf, size_t size ) {
+  if( DEBUG_AGGREGATOR ) std::cout << "received message with size " << size << std::endl;
+  // TODO: too much copying
+  Aggregator::ReceivedAM am( size, buf );
+  global_aggregator->received_AM_queue_.push( am );
+}
+  
+  
 
