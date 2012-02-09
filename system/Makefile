@@ -67,6 +67,7 @@ Allocator_tests.test: Allocator.o
 
 
 thread_tests.test: thread.o stack.o coro.o
+thread2_tests.test: SoftXMT.o Communicator.o Aggregator.o thread.o coro.o stack.o 
 
 
 Cache_tests.test: Cache.o SoftXMT.o Communicator.o Aggregator.o thread.o coro.o stack.o 
@@ -89,6 +90,7 @@ run: $(TARGET)
 # run tests for a component
 #
 mpi_test: $(TARGET)
+	-killall $<
 	OMPI_MCA_btl_sm_use_knem=0 \
 	LD_LIBRARY_PATH="$(LD_LIBRARY_PATH)" \
 	GASNET_BACKTRACE=1 \
@@ -196,7 +198,7 @@ stack.o: stack.S Makefile
 
 
 clean:
-	rm -f *.exe *.o *.d *.test
+	rm -f *.exe *.o *.d *.test *.btr
 #	rm -f $(TARGET) $(OBJECTS) $(OBJECTS:.o=.d) $(OBJECTS:.o=.test) $(TEST_TARGET)
 
 
