@@ -65,6 +65,8 @@ Delegate_tests.test: Delegate.o SoftXMT.o Communicator.o Aggregator.o thread.o c
 
 thread_tests.test: thread.o stack.o coro.o
 
+Rate_measure.exe: SoftXMT.o Delegate.o Communicator.o Aggregator.o thread.o coro.o stack.o
+
 #thread.o: coro.o
 
 #
