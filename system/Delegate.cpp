@@ -101,13 +101,11 @@ void memory_read_request_am( memory_read_request_args * args, size_t size, void 
   memory_read_reply_args reply_args;
   reply_args.descriptor = args->source_descriptor;
   reply_args.data = data;
- // std::cout << "node1 got request with descr" << reply_args.descriptor << std::endl;
   SoftXMT_call_on( args->source_node, &memory_read_reply_am, &reply_args );
 }
 
 int64_t SoftXMT_delegate_read_word( int64_t * address ) {
   memory_descriptor md;
- // std::cout << current_thread->id << " descr address is " << &md << std::endl;
   md.address = address;
   md.data = 0;
   md.done = false;
