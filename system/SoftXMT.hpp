@@ -2,6 +2,8 @@
 #ifndef __SOFTXMT_HPP__
 #define __SOFTXMT_HPP__
 
+#include <gflags/gflags.h>
+
 #include "Communicator.hpp"
 #include "Aggregator.hpp"
 

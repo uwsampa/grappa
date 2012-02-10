@@ -30,8 +30,12 @@ void SoftXMT_init( int * argc_p, char ** argv_p[] )
   // also initializes system_wide global_aggregator pointer
   my_global_aggregator = new Aggregator( my_global_communicator );
 
+  // parse command line flags
+  google::ParseCommandLineFlags(argc_p, argv_p, true);
+
   SoftXMT_done_flag = false;
 
+  // start threading layer
   master_thread = thread_init();
   sched = create_scheduler( master_thread );
   thread_spawn( master_thread, sched, &poller, NULL );
