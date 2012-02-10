@@ -204,10 +204,10 @@ void releaseNodes(StealStack *ss){
 }
 
 // Part of a TreeNode
-struct Node_piece_t {
+typedef struct Node_piece_t {
     int numChildren;
     Node_ptr_ptr children;
-};
+} Node_piece_t;
 
 void workLoop(StealStack* ss, thread* me, int* work_done, int core_id, int num_local_nodes, global_array* nodes_array, global_array* children_arrays, int my_id, int rank, int* neighbors) {
     while (!(*work_done)) {
@@ -249,8 +249,8 @@ void workLoop(StealStack* ss, thread* me, int* work_done, int core_id, int num_l
                 #else
 
                 global_address childAddress;
-                ga_index(children_arrays, workLocal.children, &childAddress);
-                Node_ptr* childrenLocal = get_local_copy_of_remote<Node_ptr>(childAddress, workLocal.numChildren);
+                ga_index(children_arrays, workLocal->children, &childAddress);
+                Node_ptr* childrenLocal = get_local_copy_of_remote<Node_ptr>(childAddress, workLocal->numChildren);
 
                 /*IncoherentRO<Node_ptr> childrenLocal(workLocal.children, workLocal.numChildren);*/
                 /*childrenLocal.start_acquire();*/
@@ -260,7 +260,7 @@ void workLoop(StealStack* ss, thread* me, int* work_done, int core_id, int num_l
             #endif
 
 
-            for (int i=0; i<workLocal.numChildren; i++) {
+            for (int i=0; i<workLocal->numChildren; i++) {
                 ss_push(ss, childrenLocal[i]);
             }
 
