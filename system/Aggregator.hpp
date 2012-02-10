@@ -141,6 +141,7 @@ public:
 
   /// send aggregated messages for node
   inline void flush( Node node ) {
+    if (DEBUG_AGGREGATOR) std::cout << "flushing node " << node << std::endl;
     communicator_->poll();
     Node target = route_map_[ node ];
     communicator_->send( target, 
@@ -176,6 +177,8 @@ public:
     deaggregate();
   }
 
+  inline const size_t max_size() const { return buffer_size_; }
+
   inline void aggregate( Node destination, AggregatorAMHandler fn_p, 
                          const void * args, const size_t args_size,
                          const void * payload, const size_t payload_size ) {
@@ -185,8 +188,8 @@ public:
     // make sure arg struct and payload aren't too big.
     // in the future, this would lead us down a separate code path for large messages.
     // for now, fail.
-    assert( args_size + payload_size < buffer_size_ ); // TODO: this is not specific enough
     size_t total_call_size = payload_size + args_size + sizeof( AggregatorGenericCallHeader );
+    assert( total_call_size < buffer_size_ ); // TODO: this is not specific enough
   
     // does call fit in aggregation buffer?
     if( !( buffers_[ target ].fits( total_call_size ) ) ) {
@@ -206,6 +209,7 @@ public:
     uint64_t ts = get_timestamp();
     least_recently_sent_.update_or_insert( target, ts );
     previous_timestamp_ = ts;
+    if (DEBUG_AGGREGATOR) std::cout << "aggregated " << header << std::endl;
   }
 
 };
