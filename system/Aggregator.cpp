@@ -34,24 +34,32 @@ void Aggregator::deaggregate( ) {
     // TODO: too much copying
     ReceivedAM amp = received_AM_queue_.front();
     received_AM_queue_.pop();
-      if( DEBUG_AGGREGATOR ) std::cout << "deaggregating message of size " << amp.size_ << std::endl;
+    if( DEBUG_AGGREGATOR ) std::cout << "deaggregating message of size " << amp.size_ << std::endl;
+    uintptr_t msg_base = reinterpret_cast< uintptr_t >( amp.buf_ );
     for( int i = 0; i < amp.size_; ) {
-      AggregatorGenericCallHeader * header = reinterpret_cast< AggregatorGenericCallHeader * >( amp.buf_ );
+      AggregatorGenericCallHeader * header = reinterpret_cast< AggregatorGenericCallHeader * >( msg_base );
       AggregatorAMHandler fp = reinterpret_cast< AggregatorAMHandler >( header->function_pointer );
-      void * args = reinterpret_cast< void * >( reinterpret_cast< uintptr_t >( amp.buf_ ) + 
+      void * args = reinterpret_cast< void * >( msg_base + 
                                                 sizeof( AggregatorGenericCallHeader ) );
-      void * payload = reinterpret_cast< void * >( reinterpret_cast< uintptr_t >( amp.buf_ ) + 
+      void * payload = reinterpret_cast< void * >( msg_base +
                                                    sizeof( AggregatorGenericCallHeader ) +
                                                    header->args_size );
       
       if( header->destination == gasnet_mynode() ) { // for us?
-        if( DEBUG_AGGREGATOR ) std::cout << "calling " << *header << std::endl;
+        if( DEBUG_AGGREGATOR ) std::cout << "calling " << *header 
+                                         << " with args " << args
+                                         << " and payload " << payload
+                                         << std::endl;
         fp( args, header->args_size, payload, header->payload_size ); // execute
       } else { // not for us, so forward towards destination
-        if( DEBUG_AGGREGATOR ) std::cout << "forwarding " << *header << std::endl;
+        if( DEBUG_AGGREGATOR ) std::cout << "forwarding " << *header
+                                         << " with args " << args
+                                         << " and payload " << payload
+                                         << std::endl;
         SoftXMT_call_on( header->destination, fp, args, header->args_size, payload, header->payload_size );
       }
       i += sizeof( AggregatorGenericCallHeader ) + header->args_size + header->payload_size;
+      msg_base += sizeof( AggregatorGenericCallHeader ) + header->args_size + header->payload_size;
     }
   }
 }
