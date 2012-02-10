@@ -133,8 +133,12 @@ CFLAGS+= -Wno-inline
 ifdef DEBUG
 CFLAGS+= -O1 -g -DDEBUG
 else
+ifdef PROFILE
+CFLAGS+= -O3 -pg
+else
 CFLAGS+= -O3
-endif
+endif #PROFILE
+endif #DEBUG
 
 
 #
