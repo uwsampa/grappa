@@ -72,6 +72,9 @@ thread2_tests.test: SoftXMT.o Communicator.o Aggregator.o thread.o coro.o stack.
 
 Cache_tests.test: Cache.o SoftXMT.o Communicator.o Aggregator.o thread.o coro.o stack.o 
 
+Rate_measure.exe: SoftXMT.o Delegate.o Communicator.o Aggregator.o thread.o coro.o stack.o
+
+#thread.o: coro.o
 #
 # Build SoftXMT static library
 #
