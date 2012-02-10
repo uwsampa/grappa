@@ -3,6 +3,7 @@
 #define __SOFTXMT_HPP__
 
 #include <gflags/gflags.h>
+#include <glog/logging.h>
 
 #include "Communicator.hpp"
 #include "Aggregator.hpp"

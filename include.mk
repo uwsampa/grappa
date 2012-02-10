@@ -68,6 +68,14 @@ CFLAGS+= -I$(GFLAGS)/include
 LDFLAGS+= -L$(GFLAGS)/lib
 LD_LIBRARY_PATH:=$(LD_LIBRARY_PATH):$(GFLAGS)/lib
 
+GLOG=/sampa/share/glog
+CFLAGS+= -I$(GLOG)/include
+LDFLAGS+= -L$(GLOG)/lib
+LD_LIBRARY_PATH:=$(LD_LIBRARY_PATH):$(GLOG)/lib
+
+EZLOGGER=/sampa/share/ezlogger
+CFLAGS+= -I$(EZLOGGER)/include
+
 BOOST=/usr
 CFLAGS+= -I$(BOOST)/include
 LDFLAGS+= -L$(BOOST)/lib64
