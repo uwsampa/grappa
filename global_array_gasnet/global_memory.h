@@ -7,7 +7,6 @@ extern "C" {
 #ifndef _GLOBAL_MEMORY_H_
 #define _GLOBAL_MEMORY_H_
 
-#include <mpi.h>
 #include <gasnet.h>
 #include "base.h"
 
