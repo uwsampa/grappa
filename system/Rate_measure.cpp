@@ -8,7 +8,7 @@
 #define BILLION 1000000000
 #define MILLION 1000000
 
-const uint64_t data_size = 1<<10;
+const uint64_t data_size = 1<<20;
 int64_t some_data[data_size];
 
 struct user_main_args {
@@ -28,7 +28,7 @@ void sending_task( thread* me, void* args ) {
 
     std::cout << current_thread->id << " starts sending" << std::endl;
     for (uint64_t i=0; i<num; i++) {
-        std::cout << current_thread->id << " :: " << i << std::endl;
+        //std::cout << current_thread->id << " :: " << i << std::endl;
         *(base + i) = SoftXMT_delegate_read_word( base + i );
     }
     std::cout << current_thread->id << " finished sending" << std::endl;
@@ -76,7 +76,7 @@ void user_main( thread * me, void * args ) {
 
 
     uint64_t runtime_ns = end - start;
-    double rateM = ((double)data_size) / (runtime_ns/BILLION);
+    double rateM = ((double)data_size) / (((double)runtime_ns)/BILLION);
     std::cout << "num threads " << num_threads << ", runtime " << runtime_ns << ", rate " << rateM/MILLION << " Mread" << std::endl;
 
     SoftXMT_signal_done();
