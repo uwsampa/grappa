@@ -23,15 +23,20 @@ static void poller( thread * me, void * args ) {
 /// user calls SoftXMT_activate().
 void SoftXMT_init( int * argc_p, char ** argv_p[] )
 {
+
+  // parse command line flags
+  google::ParseCommandLineFlags(argc_p, argv_p, true);
+
+  // activate logging
+  google::InitGoogleLogging( *argv_p[0] );
+  google::InstallFailureSignalHandler( );
+
   // also initializes system_wide global_communicator pointer
   my_global_communicator = new Communicator();
   my_global_communicator->init( argc_p, argv_p );
 
   // also initializes system_wide global_aggregator pointer
   my_global_aggregator = new Aggregator( my_global_communicator );
-
-  // parse command line flags
-  google::ParseCommandLineFlags(argc_p, argv_p, true);
 
   SoftXMT_done_flag = false;
 
