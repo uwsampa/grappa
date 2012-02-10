@@ -7,13 +7,13 @@
 
 // define this only when we're using the minimal save context switcher
 // if you switch this off, you must update the swapstacks_inline settings in stack.h
-#define SAVE_REGISTERS LITE_SAVE_REGISTERS
-#define RESTORE_REGISTERS LITE_RESTORE_REGISTERS
+//#define SAVE_REGISTERS LITE_SAVE_REGISTERS
+//#define RESTORE_REGISTERS LITE_RESTORE_REGISTERS
 
 // heavyweight context swtiching
 // if you switch this off, you probably want to update the swapstacks_inline settings in stack.h
-// #define SAVE_REGISTERS PUSHPOP_SAVE_REGISTERS
-// #define RESTORE_REGISTERS PUSHPOP_RESTORE_REGISTERS
+ #define SAVE_REGISTERS PUSHPOP_SAVE_REGISTERS
+ #define RESTORE_REGISTERS PUSHPOP_RESTORE_REGISTERS
 
 // save and restore callee-saved registers, including FP
 #define PUSHPOP_SAVE_REGISTERS \
