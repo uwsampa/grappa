@@ -41,10 +41,10 @@ CFLAGS+= -I$(COMMON)
 # LDFLAGS+= -L$(GFLAGS)/lib
 # LD_LIBRARY_PATH:=$(LD_LIBRARY_PATH):$(GFLAGS)/lib
 
-#GLOG=/home/jnelson/glog-install
-#CFLAGS+= -I$(GLOG)/include
-#LDFLAGS+= -L$(GLOG)/lib
-#LD_LIBRARY_PATH:=$(LD_LIBRARY_PATH):$(GLOG)/lib
+# GLOG=/home/jnelson/glog-install
+# CFLAGS+= -I$(GLOG)/include
+# LDFLAGS+= -L$(GLOG)/lib
+# LD_LIBRARY_PATH:=$(LD_LIBRARY_PATH):$(GLOG)/lib
 
 # BOOST=/home/jnelson/boost-install
 # CFLAGS+= -I$(BOOST)/include
