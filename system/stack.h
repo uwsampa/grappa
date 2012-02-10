@@ -13,7 +13,7 @@ void* swapstacks(void **olds, void **news, void *ret);
 // for now, put this here
 // define this only when we're using the minimal save context switcher
 // if you switch this off, you must update the save/restore settings in stack.S
-#define SOFTXMT_SAVE_REGISTERS_LITE
+//#define SOFTXMT_SAVE_REGISTERS_LITE
 
 // depend on compiler to save and restore callee-saved registers
 static inline void* swapstacks_inline(void **olds, void **news, void *ret) {
