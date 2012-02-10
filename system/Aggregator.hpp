@@ -11,6 +11,9 @@
 #include <iostream>
 #include <cassert>
 
+#include <gflags/gflags.h>
+#include <glog/logging.h>
+
 #include <gasnet.h>
 
 #include "common.hpp"
@@ -19,8 +22,6 @@
 #include "Communicator.hpp"
 
 #include "MutableHeap.hpp"
-
-#define DEBUG_AGGREGATOR 0
 
 /// Type of aggregated active message handler
 typedef void (* AggregatorAMHandler)( void *, size_t, void *, size_t );
@@ -142,7 +143,7 @@ public:
 
   /// send aggregated messages for node
   inline void flush( Node node ) {
-    if (DEBUG_AGGREGATOR) std::cout << "flushing node " << node << std::endl;
+    VLOG(2) << "flushing node " << node;
     Node target = route_map_[ node ];
     communicator_->send( target, 
                          aggregator_deaggregate_am_handle_,
@@ -163,12 +164,17 @@ public:
 
   /// poll communicator. send any aggregated messages that have been sitting for too long
   inline void poll() {
+    VLOG(4) << "polling";
     communicator_->poll();
     uint64_t ts = get_timestamp();
-    uint64_t flush_time = ts - autoflush_ticks_;
     if( !least_recently_sent_.empty() ) {                                    // if messages are waiting, and
-      if( ( flush_time < least_recently_sent_.top_priority() ) ||  // we've wrapped around or
-	  ( least_recently_sent_.top_priority() < flush_time ) ) { // we've waited long enough,
+      if( ( ( ts < least_recently_sent_.top_priority() ) &&  // we've wrapped around 
+            ( -least_recently_sent_.top_priority() + autoflush_ticks_ < ts ) ) ||
+	  ( least_recently_sent_.top_priority() + autoflush_ticks_ < ts ) ) { // we've waited long enough,
+        VLOG(2) << "timeout:" << least_recently_sent_.top_key() 
+                << " inserted at " << least_recently_sent_.top_priority()
+                << " autoflush_ticks_ " << autoflush_ticks_ 
+                << " (current ts " << ts << ")";
 	flush( least_recently_sent_.top_key() );                   // send.
       }
     }
@@ -209,7 +215,7 @@ public:
     uint64_t ts = get_timestamp();
     least_recently_sent_.update_or_insert( target, ts );
     previous_timestamp_ = ts;
-    if (DEBUG_AGGREGATOR) std::cout << "aggregated " << header << std::endl;
+    VLOG(2) << "aggregated " << header;
   }
 
 };
