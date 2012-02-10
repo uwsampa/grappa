@@ -64,6 +64,7 @@ public:
   }
 
   inline void insert( const void * data, size_t size ) {
+    assert ( fits( size ) );
     memcpy( &buffer_[ current_position_ ], data, size );
     current_position_ += size;
   }
@@ -142,7 +143,6 @@ public:
   /// send aggregated messages for node
   inline void flush( Node node ) {
     if (DEBUG_AGGREGATOR) std::cout << "flushing node " << node << std::endl;
-    communicator_->poll();
     Node target = route_map_[ node ];
     communicator_->send( target, 
                          aggregator_deaggregate_am_handle_,
@@ -150,7 +150,6 @@ public:
                          buffers_[ target ].current_position_ );
     buffers_[ target ].flush();
     least_recently_sent_.remove_key( target );
-    deaggregate();
   }
 
   /// get timestamp. we avoid calling rdtsc for performance
@@ -195,6 +194,7 @@ public:
     if( !( buffers_[ target ].fits( total_call_size ) ) ) {
       // doesn't fit, so flush before inserting
       flush( target );
+      assert ( buffers_[ target ].fits( total_call_size ));
     }
   
     // now call must fit, so just insert it
