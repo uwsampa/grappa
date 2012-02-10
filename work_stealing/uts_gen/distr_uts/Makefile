@@ -1,21 +1,8 @@
-GASNET?=/sampa/share/gasnet-rhel6
+# include common variable definitions
+include ../../../include.mk
+
 GL_ARRAY=../../../global_array_gasnet
 SOFTXMT_SYS=../../../system
-
-CXX=mpicxx
-LD= mpicxx
-
-#defualt gasnet library choice
-MA_CONDUIT_LIB?=ibv
-MA_CONDUIT_DEF?=IBV
-MA_THREADING_GASNET_DEF?=SEQ
-MA_THREADING_GASNET_LIB?=seq
-
-ifeq ($(MA_CONDUIT_LIB), mpi)
-GASLOADS=-lammpi
-else
-GASLOADS=-libverbs
-endif
 
 # ------------------------------------- #
 # Set Random Number Generator sources:
@@ -45,17 +32,16 @@ RNG_DEF = -DUTS_ALFG
 endif
 #-----------------------------------------#
 
-CFLAGS_COMMON= -Wno-write-strings -g -fopenmp -fomit-frame-pointer
-CFLAGS= $(CFLAGS_COMMON)
-CFLAGS+= -I$(GASNET)/include -I$(GASNET)/include/$(MA_CONDUIT_LIB)-conduit -DGASNET_$(MA_THREADING_GASNET_DEF) -DGASNET_CONDUIT_$(MA_CONDUIT_DEF)
+CFLAGS_COMMON= -fopenmp -fomit-frame-pointer
+CFLAGS+= $(CFLAGS_COMMON)
 CFLAGS+= -I$(GL_ARRAY) -I$(SOFTXMT_SYS)
 CFLAGS+= -I.. -I../../../bench/sp_gasnet_listwalk/collective
+CFLAGS+= -DGASNET_SEQ -DGASNET_CONDUIT_IBV
 LIB=-lm 
 
 LD_FLAGS= $(CFLAGS_COMMON)
 
-GASNET_LIB_PATHS= -L$(GASNET)/lib
-GASNET_LIBS= -lgasnet-$(MA_CONDUIT_LIB)-$(MA_THREADING_GASNET_LIB) $(GASLOADS) $(MA_ADD_GASNET_LIBS)
+LIBRARIES:= -lgflags -lglog -lgasnet-ibv-seq -libverbs -lrt -lboost_unit_test_framework
 
 OBJECTS=\
 	balloc.o \
@@ -85,16 +71,16 @@ COLL_OBJECTS=\
 %.o: %.c
 	$(CXX) $(CFLAGS) $(RNG_DEF) $(RNG_INCL) $< -c -o $@
 
-TreeGen: TreeGen.o $(OBJECTS) 
-	$(CXX) $(CFLAGS) -o $@ $^ $(GL_OBJECTS) $(SOFTXMT_OBJECTS) $(COLL_OBJECTS) $(RNG_SRC) $(GASNET_LIB_PATHS)  $(LIB) $(GASNET_LIBS) 
+TreeGen.exe: TreeGen.o $(OBJECTS) 
+	$(CXX) $(CFLAGS) -o $@ $^ $(GL_OBJECTS) $(SOFTXMT_OBJECTS) $(COLL_OBJECTS) $(RNG_SRC) $(LIBRARIES)  $(LIB) $(GASNET_LIBS) 
 
 gasnet_cbarrier_test: gasnet_cbarrier_test.c gasnet_cbarrier.c
 	$(CXX) $(CFLAGS) -o $@ $+ $(GASNET_LIB_PATHS) $(LIB) $(GASNET_LIBS)
 
-run: TreeGen
+run: TreeGen.exe
 	mpirun -np 6 -host "localhost" ./$< $(T1)
 
-debug: TreeGen
+debug: TreeGen.exe
 	export GASNET_BACKTRACE=1
 	mpirun -np 2 -host "localhost" xterm -hold -e gdb --args ./$< $(T1)
 
@@ -102,4 +88,4 @@ test_gcb: gasnet_cbarrier_test
 	mpirun -np 3 -host "localhost" ./$< 
 
 clean:
-	rm -f ./TreeGen ./*.o ./gasnet_cbarrier
+	rm -f ./*.exe ./*.o
