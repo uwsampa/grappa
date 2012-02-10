@@ -36,8 +36,8 @@ extern "C" {
     #define Node_ptr uint64_t
     #define Node_ptr_ptr uint64_t
 #else
-    #define Node_ptr Node*
-    #define Node_ptr_ptr Node**
+    #define Node_ptr TreeNode*
+    #define Node_ptr_ptr TreeNode**
 #endif
 
 struct node_t{
@@ -53,7 +53,7 @@ struct node_t{
   //struct state_t state;
 
 };
-typedef struct node_t Node;
+typedef struct node_t TreeNode;
 
 /* Tree type
  *   Trees are generated using a Galton-Watson process, in 
@@ -110,11 +110,11 @@ double uts_wctime();
 double rng_toProb(int n);
 
 /* Common tree routines */
-void   uts_initRoot(Node* root, int type, struct state_t* rng_state);
-int    uts_numChildren(Node *parent, struct state_t* rng_state);
-int    uts_numChildren_bin(Node * parent, struct state_t* rng_state);
-int    uts_numChildren_geo(Node * parent, struct state_t* rng_state);
-int    uts_childType(Node *parent);
+void   uts_initRoot(TreeNode* root, int type, struct state_t* rng_state);
+int    uts_numChildren(TreeNode *parent, struct state_t* rng_state);
+int    uts_numChildren_bin(TreeNode * parent, struct state_t* rng_state);
+int    uts_numChildren_geo(TreeNode * parent, struct state_t* rng_state);
+int    uts_childType(TreeNode *parent);
 
 /* Implementation Specific Functions */
 char * impl_getName();

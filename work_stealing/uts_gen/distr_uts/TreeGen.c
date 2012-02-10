@@ -203,7 +203,7 @@ void releaseNodes(StealStack *ss){
   }
 }
 
-// Part of a Node
+// Part of a TreeNode
 struct Node_piece_t {
     int numChildren;
     Node_ptr_ptr children;
@@ -221,7 +221,7 @@ void workLoop(StealStack* ss, thread* me, int* work_done, int core_id, int num_l
             #if PREFETCH_WORK
             
                 #if NO_INTEG
-                Node workLocal;
+                TreeNode workLocal;
                 // pull in numChildren and children
                 mem_tag_t tag = get_remote_nb(nodes_array, work, sizeof(int)+sizeof(Node_ptr_ptr), &workLocal);
                 YIELD(me); // TODO try cacheline align the nodes (2 per line probably)
@@ -348,14 +348,14 @@ uint64_t Permute(int i) {
 
 int generateTree(Node_ptr root, global_array* nodes, int cid, global_array* child_array, ballocator_t* bals[], struct state_t* states, std::list<Node_ptr>* initialNodes) {
 //printf("generate cid=%d\n", cid);
-    Node rootLocal;
-    get_remote(nodes, root, 0, sizeof(Node), &rootLocal);
+    TreeNode rootLocal;
+    get_remote(nodes, root, 0, sizeof(TreeNode), &rootLocal);
 
     // pure functions
     int nc = uts_numChildren(&rootLocal, &states[cid]);
     int childType = uts_childType(&rootLocal);
    
-    Node rootTemp;
+    TreeNode rootTemp;
     rootTemp.type = rootLocal.type;  //copy (not needed if dont overwrite)
     rootTemp.height = rootLocal.height; // copy (not needed if dont overwrite)
     rootTemp.children = (Node_ptr_ptr) balloc(bals[ga_node(nodes, root)], nc);
@@ -364,11 +364,11 @@ int generateTree(Node_ptr root, global_array* nodes, int cid, global_array* chil
     rootTemp.id = cid;
   
     #if GEN_TREE_NBI
-    put_remote_nbi(nodes, root, &rootTemp.numChildren, offsetof(Node, numChildren), sizeof(rootTemp.numChildren));
-    put_remote_nbi(nodes, root, &rootTemp.id, offsetof(Node, id), sizeof(rootTemp.id));
-    put_remote_nbi(nodes, root, &rootTemp.children, offsetof(Node, children), sizeof(rootTemp.children));
+    put_remote_nbi(nodes, root, &rootTemp.numChildren, offsetof(TreeNode, numChildren), sizeof(rootTemp.numChildren));
+    put_remote_nbi(nodes, root, &rootTemp.id, offsetof(TreeNode, id), sizeof(rootTemp.id));
+    put_remote_nbi(nodes, root, &rootTemp.children, offsetof(TreeNode, children), sizeof(rootTemp.children));
     #else
-    put_remote(nodes, root, &rootTemp, 0, sizeof(Node));
+    put_remote(nodes, root, &rootTemp, 0, sizeof(TreeNode));
     #endif
    
     int current_cid = cid+1;
@@ -382,14 +382,14 @@ int generateTree(Node_ptr root, global_array* nodes, int cid, global_array* chil
         put_remote(child_array, rootTemp.children, &index, i*sizeof(Node_ptr), sizeof(Node_ptr));
     #endif
        
-        Node childTemp;
+        TreeNode childTemp;
         childTemp.height = rootTemp.height+1;  
         childTemp.type = childType;
         #if GEN_TREE_NBI
-        put_remote_nbi(nodes, index, &childTemp.height, offsetof(Node, height), sizeof(childTemp.height));
-        put_remote_nbi(nodes, index, &childTemp.type, offsetof(Node, type), sizeof(childTemp.type));
+        put_remote_nbi(nodes, index, &childTemp.height, offsetof(TreeNode, height), sizeof(childTemp.height));
+        put_remote_nbi(nodes, index, &childTemp.type, offsetof(TreeNode, type), sizeof(childTemp.type));
         #else
-        put_remote(nodes, index, &childTemp, 0, sizeof(Node)); // comment out this initialization write, to be faster
+        put_remote(nodes, index, &childTemp, 0, sizeof(TreeNode)); // comment out this initialization write, to be faster
         #endif
         
         for (int j=0; j<computeGranularity; j++) {
@@ -430,8 +430,9 @@ int main(int argc, char *argv[]) {
 }
    
 void user_main( thread* me, void* args) {
-    int argc = args->argc;
-    char** argv = args->argv;
+    user_main_args* umargs = (user_main_args*) args;
+    int argc = umargs->argc;
+    char** argv = umargs->argv;
     
     // FIXME: remove once global memory is impl in SoftXMT
     gm_init();
@@ -465,7 +466,7 @@ void user_main( thread* me, void* args) {
     
     SoftXMT_barrier();
     
-    global_array* nodes = ga_allocate(sizeof(Node), numNodes*num_procs); //XXX for enough space
+    global_array* nodes = ga_allocate(sizeof(TreeNode), numNodes*num_procs); //XXX for enough space
     global_array* children_array_pool = ga_allocate(sizeof(Node_ptr), numNodes*num_procs); //children_array_size*num_procs);
    
    
@@ -488,9 +489,9 @@ void user_main( thread* me, void* args) {
        
             struct state_t* states = (struct state_t*)malloc(sizeof(struct state_t)*numNodes);
         
-            Node rootTemplate;  
+            TreeNode rootTemplate;  
             uts_initRoot(&rootTemplate, type, &states[0]);
-            put_remote(nodes, root, &rootTemplate, 0, sizeof(Node));
+            put_remote(nodes, root, &rootTemplate, 0, sizeof(TreeNode));
           
             num_genNodes = generateTree(root, nodes, 0, children_array_pool, bals, states, initialNodes);
         
@@ -514,7 +515,7 @@ void user_main( thread* me, void* args) {
         ga_index(nodes, nodes->elements_per_node*rank, &gaddr);
         assert (gm_is_address_local(&gaddr));
         void* v = gm_local_gm_address_to_local_ptr(&gaddr);
-        fwrite(v, sizeof(Node), nodes->elements_per_node, rankfile);
+        fwrite(v, sizeof(TreeNode), nodes->elements_per_node, rankfile);
         fclose(rankfile);
 
         // write the child array file
@@ -554,18 +555,18 @@ void user_main( thread* me, void* args) {
         void* v = gm_local_gm_address_to_local_ptr(&gaddr);
         
         #if CHECK_SERIALIZE
-        void* vv = malloc(sizeof(Node)*nodes->elements_per_node);
-        fread(vv, sizeof(Node), nodes->elements_per_node, rankfile);
+        void* vv = malloc(sizeof(TreeNode)*nodes->elements_per_node);
+        fread(vv, sizeof(TreeNode), nodes->elements_per_node, rankfile);
         #else
-        fread(v, sizeof(Node), nodes->elements_per_node, rankfile);
+        fread(v, sizeof(TreeNode), nodes->elements_per_node, rankfile);
         #endif
         
         fclose(rankfile);
        
         #if CHECK_SERIALIZE
         printf("%d checking\n", rank);
-        Node* genvn = (Node*)v;
-        Node* readvn = (Node*)vv;
+        TreeNode* genvn = (TreeNode*)v;
+        TreeNode* readvn = (TreeNode*)vv;
         for (int i=0; i<nodes->elements_per_node; i++) {
             if (readvn[i].children != genvn[i].children
             ||readvn[i].numChildren != genvn[i].numChildren

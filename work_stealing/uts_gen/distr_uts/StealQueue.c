@@ -353,10 +353,10 @@ void workStealReplyHandler(gasnet_token_t token, void* buf, size_t num_bytes, ga
 //
 //        /* if k elts reserved, move them to local portion of our stack */
 //        if (ok) {
-//            SHARED_INDEF Node * victimStackBase = stealStack[victim]->stack_g;
-//            SHARED_INDEF Node * victimSharedStart = victimStackBase + victimShared;
+//            SHARED_INDEF TreeNode * victimStackBase = stealStack[victim]->stack_g;
+//            SHARED_INDEF TreeNode * victimSharedStart = victimStackBase + victimShared;
 //
-//            gasnet_AMReplyMedium2(token, REMOTE_STEAL_REPLY_HANDLER, victimStackBase, k*sizeof(Node), REMOTE_STEAL_STATUS_OK, thiefcore);
+//            gasnet_AMReplyMedium2(token, REMOTE_STEAL_REPLY_HANDLER, victimStackBase, k*sizeof(TreeNode), REMOTE_STEAL_STATUS_OK, thiefcore);
 //            return;
 //        } else {
 //            continue;
