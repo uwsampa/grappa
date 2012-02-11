@@ -8,9 +8,9 @@
 COMMON=../common
 CFLAGS+= -I$(COMMON)
 
-GREENERY=../greenery
-CFLAGS+= -I$(GREENERY)
-LDFLAGS+= -L$(GREENERY)
+#GREENERY=../greenery
+#CFLAGS+= -I$(GREENERY)
+#LDFLAGS+= -L$(GREENERY)
 
 #
 # different for specific machines
@@ -41,6 +41,11 @@ LDFLAGS+= -L$(GREENERY)
 # LDFLAGS+= -L$(GFLAGS)/lib
 # LD_LIBRARY_PATH:=$(LD_LIBRARY_PATH):$(GFLAGS)/lib
 
+# GLOG=/home/jnelson/glog-install
+# CFLAGS+= -I$(GLOG)/include
+# LDFLAGS+= -L$(GLOG)/lib
+# LD_LIBRARY_PATH:=$(LD_LIBRARY_PATH):$(GLOG)/lib
+
 # BOOST=/home/jnelson/boost-install
 # CFLAGS+= -I$(BOOST)/include
 # LDFLAGS+= -L$(BOOST)/lib
@@ -67,6 +72,14 @@ GFLAGS=/sampa/share/gflags
 CFLAGS+= -I$(GFLAGS)/include
 LDFLAGS+= -L$(GFLAGS)/lib
 LD_LIBRARY_PATH:=$(LD_LIBRARY_PATH):$(GFLAGS)/lib
+
+GLOG=/sampa/share/glog
+CFLAGS+= -I$(GLOG)/include
+LDFLAGS+= -L$(GLOG)/lib
+LD_LIBRARY_PATH:=$(LD_LIBRARY_PATH):$(GLOG)/lib
+
+EZLOGGER=/sampa/share/ezlogger
+CFLAGS+= -I$(EZLOGGER)/include
 
 BOOST=/usr
 CFLAGS+= -I$(BOOST)/include
