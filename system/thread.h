@@ -22,6 +22,9 @@ typedef struct thread {
   struct thread *next; // for queues--if we're not in one, should be NULL
   threadid_t id; 
   unsigned long wake_time;
+  struct thread* join_head;
+  struct thread* join_tail;
+  int done;
 } thread;
 
 extern thread * current_thread;
@@ -248,6 +251,7 @@ inline void thread_block(thread *me, thread_barrier *barrier) {
 }
 
 
+void thread_join(thread* me, thread* wait_on);
 
 
 #define rdtscll(val) do { \

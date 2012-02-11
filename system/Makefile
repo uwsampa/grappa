@@ -64,13 +64,30 @@ MutableHeap.test:
 
 
 Delegate_tests.test: Delegate.o SoftXMT.o Communicator.o Aggregator.o thread.o coro.o stack.o 
+Addressing_tests.test: SoftXMT.o Communicator.o Aggregator.o thread.o coro.o stack.o 
+Allocator_tests.test: Allocator.o
+
+
+thread_tests.test: thread.o stack.o coro.o
+thread2_tests.test: SoftXMT.o Communicator.o Aggregator.o thread.o coro.o stack.o 
+
+
+Cache_tests.test: Cache.o SoftXMT.o Communicator.o Aggregator.o thread.o coro.o stack.o 
+
+Rate_measure.exe: SoftXMT.o Delegate.o Communicator.o Aggregator.o thread.o coro.o stack.o
 
 #thread.o: coro.o
+#
+# Build SoftXMT static library
+#
+LIBRARY_CONTENTS= SoftXMT.o Communicator.o Aggregator.o thread.o coro.o stack.o 
+libSoftXMT.a: $(patsubst %,libSoftXMT.a(%),$(LIBRARY_CONTENTS))
 
 #
 # run a binary
 #
 run: $(TARGET)
+	GLOG_logtostderr=1 \
 	OMPI_MCA_btl_sm_use_knem=0 \
 	LD_LIBRARY_PATH="$(LD_LIBRARY_PATH)" \
 	mpirun -x LD_LIBRARY_PATH -H $(HOST) -np 2 -- ./$< $(ARGS)
@@ -78,23 +95,31 @@ run: $(TARGET)
 #
 # run tests for a component
 #
-test: $(TARGET)
+mpi_test: $(TARGET)
+	-killall $<
+	GLOG_logtostderr=1 \
 	OMPI_MCA_btl_sm_use_knem=0 \
 	LD_LIBRARY_PATH="$(LD_LIBRARY_PATH)" \
 	GASNET_BACKTRACE=1 \
-	mpirun -x LD_LIBRARY_PATH -H $(HOST) -np 2 -- ./$< --log_level=test_suite --run_test=$(TARGET:.test=)
+	mpirun -x LD_LIBRARY_PATH -H $(HOST) -np 2 -- ./$< --log_level=test_suite --run_test=$(TARGET:.test=) $(ARGS)
+
+test: $(TARGET)
+	GLOG_logtostderr=1 \
+	LD_LIBRARY_PATH="$(LD_LIBRARY_PATH)" \
+	./$< --log_level=test_suite --run_test=$(TARGET:.test=) $(ARGS)
 
 # build a specific test and update autodependence info
 # include Boost test automagic main() generation
 %_tests.o: CXXFLAGS+= -DBOOST_TEST_DYN_LINK -DBOOST_TEST_MODULE=$@
 %_tests.test: -lboost_unit_test_framework 
 %_tests.test: %_tests.o
-	$(LD) $(CFLAGS) $(CXXFLAGS) $(LDFLAGS) $^ $(LIBRARIES) -o $@
+	$(LD) $(CFLAGS) $(CXXFLAGS) $(LDFLAGS) $(LIBRARIES) $^ -o $@
+	objdump -S $@ > $@.dis
 
 #
 # What libraries do we need?
 #
-LIBRARIES:= -lgflags -lgasnet-ibv-seq -libverbs -lrt -lboost_unit_test_framework
+LIBRARIES:= -lgflags -lglog -lgasnet-ibv-seq -libverbs -lrt -lboost_unit_test_framework
 
 #
 # set compiler flags
@@ -113,8 +138,12 @@ CFLAGS+= -Wno-inline
 ifdef DEBUG
 CFLAGS+= -O1 -g -DDEBUG
 else
+ifdef PROFILE
+CFLAGS+= -O3 -pg
+else
 CFLAGS+= -O3
-endif
+endif #PROFILE
+endif #DEBUG
 
 
 #
@@ -181,7 +210,7 @@ stack.o: stack.S Makefile
 
 
 clean:
-	rm -f *.exe *.o *.d *.test
+	rm -f *.exe *.o *.d *.test *.btr
 #	rm -f $(TARGET) $(OBJECTS) $(OBJECTS:.o=.d) $(OBJECTS:.o=.test) $(TEST_TARGET)
 
 
