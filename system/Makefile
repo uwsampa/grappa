@@ -50,6 +50,8 @@ TARGET:= scratch.exe
 # default rule: just build
 $(TARGET): 
 
+lib: libSoftXMT.a
+
 #
 # object file dependences
 #
