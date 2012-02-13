@@ -173,17 +173,15 @@ int impl_parseParam(char *param, char *value) {
 int generateTree(Node_ptr root, global_array* nodes, int cid, global_array* child_array, ballocator_t* bals[], struct state_t* states, std::list<Node_ptr> initialNodes);
 
 typedef struct worker_info {
-    int num_cores_per_node;
-    int core_id;
+    int num_workers;
     int num_local_nodes;
     int* work_done;
+    int* okToSteal;
     global_array* nodes_array;
     global_array* children_arrays;
-    int my_id;
-    int rank;
+    int my_local_id;
     int* neighbors;
 } worker_info;
-
 
 
 void releaseNodes(StealStack *ss){
@@ -209,119 +207,132 @@ typedef struct Node_piece_t {
     Node_ptr_ptr children;
 } Node_piece_t;
 
-void workLoop(StealStack* ss, thread* me, int* work_done, int core_id, int num_local_nodes, global_array* nodes_array, global_array* children_arrays, int my_id, int rank, int* neighbors) {
+void worker_thread(StealStack* ss, thread* me, int* work_done, int* okToSteal, int num_workers, int num_local_nodes, global_array* nodes_array, global_array* children_arrays, int my_local_id, int* neighbors) {
+    thread_idle(me, num_workers);
     while (!(*work_done)) {
-        while (ss_localDepth(ss) > 0) {
-/*            ss_setState(ss, SS_WORK);        */
-            /* get node at stack top */
-            Node_ptr work = ss_top(ss);
-            ss_pop(ss);
-
-            // TODO the get nb causes action that will wake up yielded thread  
-            #if PREFETCH_WORK
-            
-                #if NO_INTEG
-                TreeNode workLocal;
-                // pull in numChildren and children
-                mem_tag_t tag = get_remote_nb(nodes_array, work, sizeof(int)+sizeof(Node_ptr_ptr), &workLocal);
-                YIELD(me); // TODO try cacheline align the nodes (2 per line probably)
-                complete_nb(me, tag);
-                #else
-
-                global_address workAddress;
-                ga_index(nodes_array, work, &workAddress);
-                Node_piece_t* workLocal = get_local_copy_of_remote<Node_piece_t>(workAddress, 1); 
-                /*IncoherentRO<Node_piece_t> workLocal(workAddress, 1);*/
-                /*workLocal.start_acquire();*/
-                /*workLocal.block_until_acquired();*/
-                #endif
-
-            #endif
-
-            
-            #if PREFETCH_CHILDREN
-                #if NO_INTEG
-                Node_ptr childrenLocal[workLocal.numChildren];
-                tag = get_remote_nb(children_arrays, workLocal.children, workLocal.numChildren*sizeof(Node_ptr), &childrenLocal);
-                YIELD(me);
-                complete_nb(me, tag);
-
-                #else
-
-                global_address childAddress;
-                ga_index(children_arrays, workLocal->children, &childAddress);
-                Node_ptr* childrenLocal = get_local_copy_of_remote<Node_ptr>(childAddress, workLocal->numChildren);
-
-                /*IncoherentRO<Node_ptr> childrenLocal(workLocal.children, workLocal.numChildren);*/
-                /*childrenLocal.start_acquire();*/
-                /*childrenLocal.block_until_acquired();*/
-                #endif
-
-            #endif
-
-
-            for (int i=0; i<workLocal->numChildren; i++) {
-                ss_push(ss, childrenLocal[i]);
-            }
-
-            #if NO_INTEG
-            // notify other coroutines in my scheduler
-            // TODO: may choose to optimize this based on amount in queue
-            threads_wakeAll(me);
-            //threads_wakeN(me, work->numChildren-1); //based on releasing maybe less
-            #else
-            release_local_copy(workLocal);
-            release_local_copy(childrenLocal);
-            /*workLocal.start_release();*/
-            /*childrenLocal.start_release();*/
-            /*workLocal.block_until_released();*/
-            /*childrenLocal.block_until_released();*/
-            #endif
-            
-            // possibly make work visible and notfiy idle workers 
-            releaseNodes(ss);
-        }
+       while (ss_localDepth(ss) > 0) {
+           Node_ptr work = ss_top(ss); //TODO generalize
+           ss_pop(ss);
+           visitTask(work, ss, nodes_array, children_arrays);  // TODO generalize
+       }
        
-        // try to put some work back to local 
-        if (ss_acquire(ss, chunkSize))
-            //threads_wakeN(me, chunkSize-1);
-            continue;
+       if (doSteal) {
+           // try to put some work back to local 
+           if (ss_acquire(ss, chunkSize))
+               continue;
 
-        // try to steal
-        // TODO include alternate version that controls steals with scheduler
-        if (doSteal) {
-          int goodSteal = 0;
-          int victimId;
-          
-/*          ss_setState(ss, SS_SEARCH);             */
-          for (int i = 1; i < num_local_nodes && !goodSteal; i++) { // TODO permutation order
-            victimId = (my_id + i) % num_local_nodes;
-            goodSteal = ss_steal_locally(ss, neighbors[victimId], chunkSize);
-          }
+           if (*okToSteal) {
 
-          if (goodSteal) {
-              //printf("%d steals %d items\n", omp_get_thread_num(), chunkSize);
-              threads_wakeAll(me); // TODO optimize wake based on amount stolen
-              continue;
-          }
+               // try to steal
+               if (doSteal) {
+                   int goodSteal = 0;
+                   int victimId;
 
-          /**TODO remote load balance**/
-        }
+                   /*          ss_setState(ss, SS_SEARCH);             */
+                   for (int i = 1; i < num_local_nodes && !goodSteal; i++) { // TODO permutation order
+                       victimId = (my_local_id + i) % num_local_nodes;
+                       goodSteal = ss_steal_locally(ss, neighbors[victimId], chunkSize);
+                   }
 
-        // no work so suggest barrier
-        if (!thread_yield_wait(me)) {
+                   if (goodSteal) {
+                       continue;
+                   } else {
+                       thread_idleReady(0); // prevent idle unassigned threads from being scheduled
+                       *okToSteal = 0;      // prevent running unassigned threads from trying to steal again
+                   }
+
+                   /**TODO remote load balance**/
+               }
+
+           }
+       }
+
+       if (!thread_idle(me, num_workers)) {
+            // no work so suggest barrier
             if (cbarrier_wait()) {
                 *work_done = 1;
             }
+            thread_idleReady(1);   // work is available so allow unassigned threads to be scheduled
+            *okToSteal = 1;        // work is available so allow steal attempts
         }
     }
-        
+}
+/** include a isTaskAssigned thread member to assert on at various points? **/
+           
+
+
+void visitTask(Node_ptr work, StealStack* ss, global_array* nodes_array, global_array* children_arrays) {
+    #if PREFETCH_WORK
+    #if NO_INTEG
+    TreeNode workLocal;
+    // pull in numChildren and children
+    mem_tag_t tag = get_remote_nb(nodes_array, work, sizeof(int)+sizeof(Node_ptr_ptr), &workLocal);
+    YIELD(me); // TODO try cacheline align the nodes (2 per line probably)
+    complete_nb(me, tag);
+    #else
+
+    global_address workAddress;
+    ga_index(nodes_array, work, &workAddress);
+    Node_piece_t* workLocal = get_local_copy_of_remote<Node_piece_t>(workAddress, 1); 
+    /*IncoherentRO<Node_piece_t> workLocal(workAddress, 1);*/
+    /*workLocal.start_acquire();*/
+    /*workLocal.block_until_acquired();*/
+    #endif
+    #endif
+
+
+    #if PREFETCH_CHILDREN
+    #if NO_INTEG
+    Node_ptr childrenLocal[workLocal.numChildren];
+    tag = get_remote_nb(children_arrays, workLocal.children, workLocal.numChildren*sizeof(Node_ptr), &childrenLocal);
+    YIELD(me);
+    complete_nb(me, tag);
+
+    #else
+
+    global_address childAddress;
+    ga_index(children_arrays, workLocal->children, &childAddress);
+    Node_ptr* childrenLocal = get_local_copy_of_remote<Node_ptr>(childAddress, workLocal->numChildren);
+
+    /*IncoherentRO<Node_ptr> childrenLocal(workLocal.children, workLocal.numChildren);*/
+    /*childrenLocal.start_acquire();*/
+    /*childrenLocal.block_until_acquired();*/
+    #endif
+    #endif
+
+    for (int i=0; i<workLocal->numChildren; i++) {
+        ss_push(ss, childrenLocal[i]);
+    }
+
+    //TODO: notifcations below should be encapsulated, not part of task code
+
+    // allow idle threads to be scheduled now that there
+    // may be work
+    thread_idlesReady(1);
+   
+   
+    #if NO_INTEG
+    // notify other coroutines in my scheduler
+    
+    
+    #else
+    release_local_copy(workLocal);
+    release_local_copy(childrenLocal);
+    /*workLocal.start_release();*/
+    /*childrenLocal.start_release();*/
+    /*workLocal.block_until_released();*/
+    /*childrenLocal.block_until_released();*/
+    #endif
+    
+    // possibly make work visible and notfiy idle workers 
+    releaseNodes(ss);
 }
 
 void thread_runnable(thread* me, void* arg) {
     struct worker_info* info = (struct worker_info*) arg;
 
-    workLoop(&myStealStack, me, info->work_done, info->core_id, info->num_local_nodes, info->nodes_array, info->children_arrays, info->my_id, info->rank, info->neighbors);
+    // TODO: nodes_array, children_arrays args should not be told directly to worker
+    worker_thread(&myStealStack, me, info->work_done, info->okToSteal, info->num_workers, info->num_local_nodes, info->nodes_array, info->children_arrays, info->my_local_id, info->neighbors);
 
     thread_exit(me, NULL);
 }
@@ -659,16 +670,17 @@ void user_main( thread* me, void* args) {
     // green threads init
     worker_info wis[num_threads_per_core];
     int core_work_done;
+    int core_okToSteal;
     thread* worker_threads[num_threads_per_core];
 
     for (int th=0; th<num_threads_per_core; th++) {
-        wis[th].num_cores_per_node = num_cores;
         wis[th].num_local_nodes = num_local_nodes;
+        wis[th].num_workers = num_threads_per_core;
         wis[th].work_done = &core_work_done;
+        wis[th].okToSteal = &core_okToSteal;
         wis[th].nodes_array = nodes;
         wis[th].children_arrays = children_array_pool;
-        wis[th].my_id = local_id;
-        wis[th].rank = rank;
+        wis[th].my_local_id = local_id;
         wis[th].neighbors = neighbors;
         worker_threads[th] = SoftXMT_spawn(thread_runnable, &wis[th]);
     }
