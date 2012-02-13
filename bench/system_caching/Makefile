@@ -59,6 +59,8 @@ INCLUDES+= -I$(SOFTXMT_HOME)/system
 #
 cache_bench.exe: cache_bench.o $(SOFTXMT_HOME)/system/libSoftXMT.a
 
+local_caching.exe: local_caching.o $(SOFTXMT_HOME)/system/libSoftXMT.a
+
 #
 # run a binary
 #

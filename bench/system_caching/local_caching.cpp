@@ -19,25 +19,51 @@ static void am_process_chunk(process_chunk_args* a, size_t asz, void* p, size_t 
   chunk.start_acquire();
   SoftXMT_yield();
   chunk.block_until_acquired();
-    
+  
   double total = 0.0;
   for (int i=0; i<a->num_elems; i++) {
     total += chunk[i];
   }
-//  total += chunk[0];
+  
+  printf("<%d> chunk total = %g\n", mynode, total);
+}
+
+static void th_process_chunk(thread * me, void * args) {
+  process_chunk_args * a = (process_chunk_args*)args;
+  
+  Node mynode = SoftXMT_mynode();
+  printf("<%d> processing\n", mynode);
+  
+  Incoherent<double>::RO chunk(a->addr, a->num_elems);
+  chunk.start_acquire();
+  SoftXMT_yield();
+  chunk.block_until_acquired();
+  
+  printf("<%d> acquired\n", mynode);
+  
+  double total = 0.0;
+  for (int i=0; i<a->num_elems; i++) {
+    total += chunk[i];
+  }
   
   printf("<%d> chunk total = %g\n", mynode, total);
 }
 
 static void user_main(thread * me, void * args) {
   printf("user main\n");
-//  GlobalAddress<double> gdata(data);
-  size_t num_elems = N / SoftXMT_nodes();
   
-  for (Node n=0; n<SoftXMT_nodes(); n++) {
-    process_chunk_args a = { GlobalAddress<double>(data+num_elems*n), num_elems };
-    SoftXMT_call_on(n, &am_process_chunk, &a);
-    SoftXMT_flush(n);
+  size_t num_chunks = 16;
+  size_t num_elems = N / num_chunks;
+  
+  process_chunk_args * alist = (process_chunk_args*)malloc(num_chunks*sizeof(process_chunk_args));
+  
+  for (int i=0; i<num_chunks; i++) {
+    alist[i].addr = GlobalAddress<double>(data + i*num_elems);
+    alist[i].num_elems = num_elems;
+//    SoftXMT_call_on(0, &am_process_chunk, &a);
+//    SoftXMT_flush(0);
+//    SoftXMT_spawn(&th_process_chunk, &alist[i]);
+    th_process_chunk(current_thread, &alist[i]);
   }
   
   SoftXMT_signal_done();
