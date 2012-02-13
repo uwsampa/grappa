@@ -32,12 +32,14 @@ extern thread * current_thread;
 thread * get_current_thread();
 
 typedef struct scheduler {
-  thread *ready; // ready queue
-  thread *tail; // tail of queue -- undefined if ready == NULL
-  thread *wait;
-  thread *wait_tail;
-  thread *master; // the "real" thread
+  thread * ready; // ready queue
+  thread * tail; // tail of queue -- undefined if ready == NULL
+  thread * idle_head;
+  thread * idle_tail;
+  thread * master; // the "real" thread
   threadid_t nextId;
+  uint64_t num_idle;
+  int idleReady;
 } scheduler;
 
 inline void scheduler_enqueue(scheduler *sched, thread *thr) {
@@ -58,15 +60,6 @@ inline thread *scheduler_dequeue(scheduler *sched) {
   return result;
 }
 
-inline void scheduler_wait_enqueue(scheduler *sched, thread *thr) {
-  if (sched->wait == NULL) {
-    sched->wait = thr;
-    sched->wait_tail = thr;
-  } else {
-    sched->wait_tail->next = thr;
-    sched->wait_tail = thr;
-  }
-}
 
 void scheduler_assignTid(scheduler *sched, thread* thr);
 
@@ -82,37 +75,45 @@ scheduler *create_scheduler(thread *master);
 thread *thread_spawn(thread *me, scheduler *sched,
                      thread_func f, void *arg);
 
+
 // Yield the CPU to the next thread on your scheduler.  Doesn't ever touch
 // the master thread.
-inline int thread_yield(thread *me) {
-  scheduler *sched = me->sched;
-  // can't yield on a system thread
-  assert(sched != NULL);
-  if (sched->ready == NULL) {
-      return 1;
-  } else {
-    scheduler_enqueue(sched, me);
-    thread *next = scheduler_dequeue(sched);
+inline void thread_yield(thread *me) {
+    scheduler *sched = me->sched;
+    // can't yield on a system thread
+    assert(sched != NULL);
+    thread *next;
+    if (sched->idleReady && sched->idle_head!=NULL) { //first to prevent starvation by system threads, but might be better to have separate queue for system threads
+        next = unassigned_dequeue(sched);
+    } else if (sched->ready == NULL) { 
+        return;
+    } else {
+        scheduler_enqueue(sched, me);
+        next = scheduler_dequeue(me->sched);
+    }
     current_thread = next;
     coro_invoke(me->co, next->co, NULL);
-    return 0;
-  }
 }
 
 /// Suspend the current thread. Thread is not placed on any queue.
-static inline int thread_suspend(thread *me) {
-  scheduler *sched = me->sched;
-  // can't yield on a system thread
-  assert(sched != NULL);
-  if (sched->ready == NULL) {
-    return 1;
-  } else {
+static inline void thread_suspend(thread *me) {
+    scheduler *sched = me->sched;
+    // can't yield on a system thread
+    assert(sched != NULL);
+    thread *next;
+    if (sched->idleReady && sched->idle_head!=NULL) {
+        next = unassigned_dequeue(sched);
+    } else if (sched->ready == NULL) {
+        // technically should never be allowed to happen
+        assert(false); 
+        return;
+    } else {
+        next = scheduler_dequeue(me->sched);
+    }
+
     assert( me->co->running == 1 );
-    thread *next = scheduler_dequeue(sched);
     current_thread = next;
     coro_invoke(me->co, next->co, NULL);
-    return 0;
-  }
 }
 
 /// Wake a suspended thread by putting it on the run queue.
@@ -161,43 +162,34 @@ inline void thread_suspend_wake(thread *me, thread *next) {
   }
 }
 
-inline void threads_wakeN(thread* me, int n) {
-    scheduler *sched = me->sched;
-    thread* waitHead = sched->wait;
-    if (n>0 && waitHead!=NULL) {
-        sched->tail->next = waitHead;
-        thread* ptr = waitHead;
-        int i = 1;
-        while (i < n && ptr->next!=NULL) {
-            ptr = ptr->next;
-            i++;
-        }   
-        sched->wait = ptr->next;
-        sched->tail = ptr;
-    }
-}
-
-// assumes right now there is a single resource for threads in this scheduler to wait on
-inline void threads_wakeAll(thread* me) {
+/// Make all threads in the unassigned pool eligible/ineligible for running.
+inline void thread_idlesReady(thread* me, int ready) {
     scheduler *sched = me->sched;
 
-    // take all threads on wait queue (if there are any) and put in run queue
-    thread* waitHead = sched->wait;
-    if (waitHead!=NULL) {
-        thread* waitTail = sched->wait_tail;
-        sched->wait = NULL;
-        sched->wait_tail = NULL;
-
-        if (sched->ready == NULL) {  
-            sched->ready = waitHead;
-        } else {
-            sched->tail->next = waitHead;
-        }
-
-        sched->tail = waitTail;
-    }
+    // take all threads on idle queue (if there are any) and put in pool of unassigned threads
+    sched->idleReady = ready;
 }
 
+inline void unassigned_enqueue(scheduler* sched, thread* thr) {
+   if (sched->idle_head == NULL) {
+       sched->idle_head = thr;
+   } else {
+       sched->idle_tail->next = thr;
+   }
+   sched->idle_tail = thr;
+   thr->next = NULL;
+}
+
+inline thread* unassigned_dequeue(scheduler* sched) {
+    thread* result = sched->idle_head;
+    if (result != NULL) {
+        sched->idle_head = result->next;
+        result->next = NULL;
+    } else {
+        sched->idle_tail = NULL;
+    }
+    return result;
+}
     
 
 
