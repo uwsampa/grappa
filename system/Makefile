@@ -82,7 +82,7 @@ Rate_measure.exe: SoftXMT.o Delegate.o Communicator.o Aggregator.o thread.o coro
 #
 # Build SoftXMT static library
 #
-LIBRARY_CONTENTS= SoftXMT.o Communicator.o Aggregator.o thread.o coro.o stack.o 
+LIBRARY_CONTENTS= SoftXMT.o Communicator.o Aggregator.o Allocator.o Cache.o MutableHeap.o Rate_measure.o thread.o coro.o stack.o 
 libSoftXMT.a: $(patsubst %,libSoftXMT.a(%),$(LIBRARY_CONTENTS))
 
 #
@@ -212,7 +212,7 @@ stack.o: stack.S Makefile
 
 
 clean:
-	rm -f *.exe *.o *.d *.test *.btr
+	rm -f *.exe *.o *.d *.test *.btr libSoftXMT.a
 #	rm -f $(TARGET) $(OBJECTS) $(OBJECTS:.o=.d) $(OBJECTS:.o=.test) $(TEST_TARGET)
 
 
