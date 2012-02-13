@@ -78,6 +78,7 @@ scheduler *create_scheduler(thread *master);
 thread *thread_spawn(thread *me, scheduler *sched,
                      thread_func f, void *arg);
 
+<<<<<<< HEAD
 inline void unassigned_enqueue(scheduler* sched, thread* thr) {
    if (sched->idle_head == NULL) {
        sched->idle_head = thr;
@@ -98,6 +99,8 @@ inline thread* unassigned_dequeue(scheduler* sched) {
     }
     return result;
 }
+=======
+>>>>>>> changes to threading to include a queue of threads unassigned to user tasks and a flag to allow/disallow scheduling these threads.
 
 // Yield the CPU to the next thread on your scheduler.  Doesn't ever touch
 // the master thread.
@@ -107,7 +110,10 @@ inline void thread_yield(thread *me) {
     assert(sched != NULL);
     thread *next;
     if (sched->idleReady && sched->idle_head!=NULL) { //first to prevent starvation by system threads, but might be better to have separate queue for system threads
+<<<<<<< HEAD
         scheduler_enqueue(sched, me);
+=======
+>>>>>>> changes to threading to include a queue of threads unassigned to user tasks and a flag to allow/disallow scheduling these threads.
         next = unassigned_dequeue(sched);
     } else if (sched->ready == NULL) { 
         return;
@@ -189,11 +195,37 @@ inline void thread_suspend_wake(thread *me, thread *next) {
 /// Make all threads in the unassigned pool eligible/ineligible for running.
 inline void thread_idlesReady(thread* me, int ready) {
     scheduler *sched = me->sched;
+<<<<<<< HEAD
+
+    // take all threads on idle queue (if there are any) and put in pool of unassigned threads
+    sched->idleReady = ready;
+=======
 
     // take all threads on idle queue (if there are any) and put in pool of unassigned threads
     sched->idleReady = ready;
 }
 
+inline void unassigned_enqueue(scheduler* sched, thread* thr) {
+   if (sched->idle_head == NULL) {
+       sched->idle_head = thr;
+   } else {
+       sched->idle_tail->next = thr;
+   }
+   sched->idle_tail = thr;
+   thr->next = NULL;
+}
+
+inline thread* unassigned_dequeue(scheduler* sched) {
+    thread* result = sched->idle_head;
+    if (result != NULL) {
+        sched->idle_head = result->next;
+        result->next = NULL;
+    } else {
+        sched->idle_tail = NULL;
+    }
+    return result;
+>>>>>>> changes to threading to include a queue of threads unassigned to user tasks and a flag to allow/disallow scheduling these threads.
+}
     
 /// Make the current thread idle.
 /// Like suspend except the thread is not blocking
