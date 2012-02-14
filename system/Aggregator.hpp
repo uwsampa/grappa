@@ -143,7 +143,7 @@ public:
 
   /// send aggregated messages for node
   inline void flush( Node node ) {
-    VLOG(2) << "flushing node " << node;
+    DVLOG(5) << "flushing node " << node;
     Node target = route_map_[ node ];
     communicator_->send( target, 
                          aggregator_deaggregate_am_handle_,
@@ -171,7 +171,7 @@ public:
       if( ( ( ts < least_recently_sent_.top_priority() ) &&  // we've wrapped around 
             ( -least_recently_sent_.top_priority() + autoflush_ticks_ < ts ) ) ||
 	  ( least_recently_sent_.top_priority() + autoflush_ticks_ < ts ) ) { // we've waited long enough,
-        VLOG(2) << "timeout:" << least_recently_sent_.top_key() 
+        DVLOG(5) << "timeout:" << least_recently_sent_.top_key() 
                 << " inserted at " << least_recently_sent_.top_priority()
                 << " autoflush_ticks_ " << autoflush_ticks_ 
                 << " (current ts " << ts << ")";
@@ -215,7 +215,7 @@ public:
     uint64_t ts = get_timestamp();
     least_recently_sent_.update_or_insert( target, ts );
     previous_timestamp_ = ts;
-    VLOG(2) << "aggregated " << header;
+    DVLOG(5) << "aggregated " << header;
   }
 
 };
