@@ -137,9 +137,9 @@ ifdef DEBUG
 CFLAGS+= -O1 -g -DDEBUG
 else
 ifdef PROFILE
-CFLAGS+= -O3 -pg
+CFLAGS+= -O3 -DNDEBUG -pg
 else
-CFLAGS+= -O3
+CFLAGS+= -O3 -DNDEBUG
 endif #PROFILE
 endif #DEBUG
 

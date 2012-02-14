@@ -22,6 +22,7 @@ class GlobalAddress {
 private:
   intptr_t storage_;
   //DISALLOW_COPY_AND_ASSIGN( GlobalAddress );
+  template< typename U >friend std::ostream& operator<<( std::ostream& o, const GlobalAddress< U >& ga );
 
 public:
 
@@ -58,7 +59,13 @@ GlobalAddress< T > make_global( T * t, Node n = SoftXMT_mynode() ) {
   return GlobalAddress< T >( t, n );
 }
 
-
+template< typename T >
+std::ostream& operator<<( std::ostream& o, const GlobalAddress< T >& ga ) {
+  return o << "<GA " << (void*)ga.storage_ 
+           << ": node " << ga.node() 
+           << " pointer " << ga.pointer() 
+           << ">";
+}
 
 //template< typename T >
 #endif
