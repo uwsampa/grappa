@@ -23,6 +23,14 @@ static void poller( thread * me, void * args ) {
 /// user calls SoftXMT_activate().
 void SoftXMT_init( int * argc_p, char ** argv_p[] )
 {
+
+  // parse command line flags
+  google::ParseCommandLineFlags(argc_p, argv_p, true);
+
+  // activate logging
+  google::InitGoogleLogging( *argv_p[0] );
+  google::InstallFailureSignalHandler( );
+
   // also initializes system_wide global_communicator pointer
   my_global_communicator = new Communicator();
   my_global_communicator->init( argc_p, argv_p );
@@ -32,6 +40,7 @@ void SoftXMT_init( int * argc_p, char ** argv_p[] )
 
   SoftXMT_done_flag = false;
 
+  // start threading layer
   master_thread = thread_init();
   sched = create_scheduler( master_thread );
   thread_spawn( master_thread, sched, &poller, NULL );
@@ -136,6 +145,12 @@ void SoftXMT_yield_wake( thread * t )
 void SoftXMT_suspend_wake( thread * t )
 {
   thread_suspend_wake( current_thread, t );
+}
+
+/// Join on thread t
+void SoftXMT_join( thread * t )
+{
+  thread_join( current_thread, t );
 }
 
 ///

@@ -2,6 +2,9 @@
 #ifndef __SOFTXMT_HPP__
 #define __SOFTXMT_HPP__
 
+#include <gflags/gflags.h>
+#include <glog/logging.h>
+
 #include "Communicator.hpp"
 #include "Aggregator.hpp"
 
@@ -43,6 +46,9 @@ void SoftXMT_yield_wake( thread * t );
 
 /// Wake a thread t by suspending current thread and running t next.
 void SoftXMT_suspend_wake( thread * t );
+
+/// Join on thread t
+void SoftXMT_join( thread * t );
 
 /// TODO: remove this
 void SoftXMT_signal_done();

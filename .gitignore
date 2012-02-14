@@ -9,6 +9,7 @@
 *.dis
 .nfs*
 *.btr
+*.gch
 ._*
 .DS_Store
 */.gitignore

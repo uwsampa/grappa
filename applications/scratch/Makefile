@@ -30,8 +30,10 @@
 #    To build and run an executable, say "make TARGET=<name>.test run". 
 #
 
+SOFTXMT_HOME:=../..
+
 # include common variable definitions
-include ../include.mk
+include $(SOFTXMT_HOME)/include.mk
 
 #
 # Define DEBUG to build debug versions of binaries/tests
@@ -50,40 +52,12 @@ TARGET:= scratch.exe
 # default rule: just build
 $(TARGET): 
 
-lib: libSoftXMT.a
+INCLUDES+= -I$(SOFTXMT_HOME)/system
 
 #
 # object file dependences
 #
-scratch.exe: Delegate.o SoftXMT.o Communicator.o Aggregator.o thread.o coro.o stack.o
-
-Demo.exe: SoftXMT.o Communicator.o Aggregator.o thread.o coro.o stack.o
-
-Communicator_tests.test:
-
-Aggregator_tests.test: Communicator.o Aggregator.o
-MutableHeap.test:
-
-
-Delegate_tests.test: Delegate.o SoftXMT.o Communicator.o Aggregator.o thread.o coro.o stack.o 
-Addressing_tests.test: SoftXMT.o Communicator.o Aggregator.o thread.o coro.o stack.o 
-Allocator_tests.test: Allocator.o
-
-
-thread_tests.test: thread.o stack.o coro.o
-thread2_tests.test: SoftXMT.o Communicator.o Aggregator.o thread.o coro.o stack.o 
-
-
-Cache_tests.test: Cache.o SoftXMT.o Communicator.o Aggregator.o thread.o coro.o stack.o 
-
-Rate_measure.exe: SoftXMT.o Delegate.o Communicator.o Aggregator.o thread.o coro.o stack.o
-
-#thread.o: coro.o
-#
-# Build SoftXMT static library
-#
-LIBRARY_CONTENTS= SoftXMT.o Communicator.o Aggregator.o thread.o coro.o stack.o 
-libSoftXMT.a: $(patsubst %,libSoftXMT.a(%),$(LIBRARY_CONTENTS))
+scratch.exe: scratch.o $(SOFTXMT_HOME)/system/libSoftXMT.a
 
 #
 # run a binary
@@ -134,6 +108,8 @@ CFLAGS+= -D_GNU_SOURCE
 CFLAGS+= -Wno-inline
 #CFLAGS+= -Wall -Wextra
 
+CFLAGS+= $(INCLUDES)
+
 #
 # set debug flags
 #
@@ -157,7 +133,7 @@ LD_LIBRARY_PATH:=$(LD_LIBRARY_PATH):$(GFLAGS)/lib
 # add an additional rule if you need to include multiple components
 %.exe: %.o 
 	$(LD) $(LDFLAGS) $^ $(LIBRARIES) -o $@
-	objdump -S $@ > $@.dis
+	# objdump -S $@ > $@.dis
 
 # build documentation
 doc:: 

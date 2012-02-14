@@ -6,10 +6,13 @@
 
 #include <vector>
 #include <algorithm>
-//#include <queue>
+#include <queue>
 
 #include <iostream>
 #include <cassert>
+
+#include <gflags/gflags.h>
+#include <glog/logging.h>
 
 #include <gasnet.h>
 
@@ -34,6 +37,15 @@ struct AggregatorGenericCallHeader {
   uint16_t payload_size;
 };
 
+static std::ostream& operator<<( std::ostream& o, const AggregatorGenericCallHeader& h ) {
+  return o << "[f="           << (void*) h.function_pointer 
+           << ",d=" << h.destination
+           << ",a=" << h.args_size
+           << ",p=" << h.payload_size
+           << "(t=" << sizeof(h) + h.args_size + h.payload_size << ")"
+           << "]";
+}
+
 /// Active message aggregation per-destination storage class.
 template< const int max_size_ >
 class AggregatorBuffer {
@@ -53,6 +65,7 @@ public:
   }
 
   inline void insert( const void * data, size_t size ) {
+    assert ( fits( size ) );
     memcpy( &buffer_[ current_position_ ], data, size );
     current_position_ += size;
   }
@@ -96,6 +109,21 @@ private:
   /// routing table for hierarchical aggregation
   std::vector< Node > route_map_;
 
+  /// storage for deaggregation
+  struct ReceivedAM {
+    size_t size_;
+    char buf_[buffer_size_];
+    ReceivedAM( size_t size, void * buf ) 
+      : size_( size )
+      , buf_()
+    { 
+      assert( size < buffer_size_ );
+      memcpy( buf_, buf, size );
+    }
+  };
+  std::queue< ReceivedAM > received_AM_queue_;
+  void deaggregate( );
+  friend void Aggregator_deaggregate_am( gasnet_token_t token, void * buf, size_t size );
 
 public:
 
@@ -115,12 +143,12 @@ public:
 
   /// send aggregated messages for node
   inline void flush( Node node ) {
-    communicator_->poll();
+    VLOG(2) << "flushing node " << node;
     Node target = route_map_[ node ];
     communicator_->send( target, 
                          aggregator_deaggregate_am_handle_,
-                         buffers_[ node ].buffer_,
-                         buffers_[ node ].current_position_ );
+                         buffers_[ target ].buffer_,
+                         buffers_[ target ].current_position_ );
     buffers_[ target ].flush();
     least_recently_sent_.remove_key( target );
   }
@@ -136,17 +164,25 @@ public:
 
   /// poll communicator. send any aggregated messages that have been sitting for too long
   inline void poll() {
+    VLOG(4) << "polling";
     communicator_->poll();
     uint64_t ts = get_timestamp();
-    uint64_t flush_time = ts - autoflush_ticks_;
     if( !least_recently_sent_.empty() ) {                                    // if messages are waiting, and
-      if( ( flush_time < least_recently_sent_.top_priority() ) ||  // we've wrapped around or
-	  ( least_recently_sent_.top_priority() < flush_time ) ) { // we've waited long enough,
+      if( ( ( ts < least_recently_sent_.top_priority() ) &&  // we've wrapped around 
+            ( -least_recently_sent_.top_priority() + autoflush_ticks_ < ts ) ) ||
+	  ( least_recently_sent_.top_priority() + autoflush_ticks_ < ts ) ) { // we've waited long enough,
+        VLOG(2) << "timeout:" << least_recently_sent_.top_key() 
+                << " inserted at " << least_recently_sent_.top_priority()
+                << " autoflush_ticks_ " << autoflush_ticks_ 
+                << " (current ts " << ts << ")";
 	flush( least_recently_sent_.top_key() );                   // send.
       }
     }
     previous_timestamp_ = ts;
+    deaggregate();
   }
+
+  inline const size_t max_size() const { return buffer_size_; }
 
   inline void aggregate( Node destination, AggregatorAMHandler fn_p, 
                          const void * args, const size_t args_size,
@@ -157,13 +193,14 @@ public:
     // make sure arg struct and payload aren't too big.
     // in the future, this would lead us down a separate code path for large messages.
     // for now, fail.
-    assert( args_size + payload_size < buffer_size_ ); // TODO: this is not specific enough
     size_t total_call_size = payload_size + args_size + sizeof( AggregatorGenericCallHeader );
+    assert( total_call_size < buffer_size_ ); // TODO: this is not specific enough
   
     // does call fit in aggregation buffer?
     if( !( buffers_[ target ].fits( total_call_size ) ) ) {
       // doesn't fit, so flush before inserting
       flush( target );
+      assert ( buffers_[ target ].fits( total_call_size ));
     }
   
     // now call must fit, so just insert it
@@ -174,10 +211,11 @@ public:
     buffers_[ target ].insert( &header, sizeof( header ) );
     buffers_[ target ].insert( args, args_size );
     buffers_[ target ].insert( payload, payload_size );
-  
+    
     uint64_t ts = get_timestamp();
     least_recently_sent_.update_or_insert( target, ts );
     previous_timestamp_ = ts;
+    VLOG(2) << "aggregated " << header;
   }
 
 };
