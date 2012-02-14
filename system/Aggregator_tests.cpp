@@ -1,6 +1,4 @@
 
-#include <gflags/gflags.h>
-
 #include "Aggregator.hpp"
 
 // reuse flag from Aggregator.cpp
@@ -36,7 +34,8 @@ void first_call(first_call_args * args, size_t args_size, void * payload, size_t
 
 struct second_call_args 
 {
-  char arg1[ 10 ];
+  char arg1[ 100 ];
+  int64_t i;
 };
 
 int second_int = 0;
@@ -44,12 +43,19 @@ int second_int = 0;
 void second_call(second_call_args * args, size_t args_size, void * payload, size_t payload_size) 
 {
   //BOOST_MESSAGE( "second_call: arg1=" << args->arg1 );
-  second_int++;
+  second_int += args->i;
+  BOOST_MESSAGE( "received i " << args-> i << " second_int " << second_int );
   BOOST_CHECK( payload_size == 0 || payload_size == args_size );
 }
 
 
 BOOST_AUTO_TEST_CASE( test1 ) {
+  google::ParseCommandLineFlags( &(boost::unit_test::framework::master_test_suite().argc),
+                                 &(boost::unit_test::framework::master_test_suite().argv), 
+                                 true );
+  google::InitGoogleLogging(boost::unit_test::framework::master_test_suite().argv[0]);
+  google::InstallFailureSignalHandler( );
+
   Communicator s;
   s.init( &(boost::unit_test::framework::master_test_suite().argc),
           &(boost::unit_test::framework::master_test_suite().argv) );
@@ -66,10 +72,11 @@ BOOST_AUTO_TEST_CASE( test1 ) {
   SoftXMT_call_on( 0, &first_call, &first_args );
 
   a.flush( 0 );
+  a.poll( );
   BOOST_CHECK_EQUAL( 1, first_int );
 
   // make sure things get sent only after flushing
-  second_call_args second_args = { "Foo" };
+  second_call_args second_args = { "Foo", 1 };
   // try with manual arg size discovery
   SoftXMT_call_on( 0, &second_call, &second_args, sizeof(second_args) );
 
@@ -81,24 +88,39 @@ BOOST_AUTO_TEST_CASE( test1 ) {
 
   // send
   a.flush( 0 );
+  a.poll( );
   BOOST_CHECK_EQUAL( 2, second_int );
 
   // try with non-null payload 
   SoftXMT_call_on( 0, &second_call, &second_args, sizeof(second_args), &second_args, sizeof(second_args) );
   a.flush( 0 );
+  a.poll( );
   BOOST_CHECK_EQUAL( 3, second_int );
 
   // make sure we flush when full
   int j = 0;
-  for( int i = 0; i < 4024; i += sizeof(second_args) + sizeof( AggregatorGenericCallHeader ) ) {
+  size_t second_message_size = sizeof(second_args) + sizeof( AggregatorGenericCallHeader );
+  for( int i = 0; i < global_aggregator->max_size(); i += second_message_size) {
     //BOOST_CHECK_EQUAL( 3, second_int );
     //SoftXMT_call_on( 0, &second_call, &second_args );
+    second_args.i = i;
     SoftXMT_call_on( 0, &second_call, &second_args, sizeof(second_args), NULL, 0 );
-    ++j;
+    BOOST_CHECK_EQUAL( 3, second_int ); 
+    a.poll( );
+    BOOST_CHECK_EQUAL( 3, second_int ); 
+    j += i;
+    BOOST_MESSAGE( "sent " << second_args.i << " with sum " << j << " second_int " << second_int );
   }
-  BOOST_CHECK_EQUAL( 3 + j - 1, second_int );
+  BOOST_CHECK_EQUAL( 3, second_int ); 
+  a.poll( );
+  BOOST_CHECK_EQUAL( 3, second_int ); 
+  second_args.i = 1;
+  SoftXMT_call_on( 0, &second_call, &second_args, sizeof(second_args), NULL, 0 );
+  a.poll( );
+  BOOST_CHECK_EQUAL( j + 3, second_int );
   a.flush( 0 );
-  BOOST_CHECK_EQUAL( 3 + j, second_int );
+  a.poll( );
+  BOOST_CHECK_EQUAL( j + 3 + 1, second_int );
 
   // make sure the timer works
   SoftXMT_call_on( 0, &first_call, &first_args);
