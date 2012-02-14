@@ -6,7 +6,7 @@
 #include "Addressing.hpp"
 #include "common.hpp"
 
-#define DEBUG_CACHE 0
+#include <glog/logging.h>
 
 #include "IncoherentAcquirer.hpp"
 #include "IncoherentReleaser.hpp"
@@ -81,12 +81,10 @@ public:
   { }
 
   void start_acquire( ) { 
-    if (DEBUG_CACHE) std::cout << "start_acquire" << std::endl;
-    acquirer_.start_acquire( ); //ga, count, &data );
+    acquirer_.start_acquire( );
   }
   void block_until_acquired() {
-    if (DEBUG_CACHE) std::cout << "block_until_acquired" << std::endl;
-    acquirer_.block_until_acquired(); // TODO: why broke?
+    acquirer_.block_until_acquired();
   }
   void start_release() { 
     releaser_.start_release( );
@@ -96,10 +94,12 @@ public:
   }
   operator const T*() { 
     block_until_acquired();
+    DVLOG(5) << "Const dereference of " << address_ << " * " << count_;
     return storage_.const_pointer(); 
   } 
   operator const void*() { 
     block_until_acquired();
+    DVLOG(5) << "Const void * dereference of " << address_ << " * " << count_;
     return storage_.const_pointer();
   } 
 };
@@ -130,12 +130,10 @@ public:
   }
 
   void start_acquire( ) { 
-    if (DEBUG_CACHE) std::cout << "start_acquire" << std::endl;
-    acquirer_.start_acquire( ); //ga, count, &data );
+    acquirer_.start_acquire( );
   }
   void block_until_acquired() {
-    if (DEBUG_CACHE) std::cout << "block_until_acquired" << std::endl;
-    acquirer_.block_until_acquired(); // TODO: why broke?
+    acquirer_.block_until_acquired();
   }
   void start_release() { 
     releaser_.start_release( );
@@ -145,10 +143,12 @@ public:
   }
   operator T*() { 
     block_until_acquired();
+    DVLOG(5) << "RW dereference of " << address_ << " * " << count_;
     return storage_.pointer(); 
   } 
   operator void*() { 
     block_until_acquired();
+    DVLOG(5) << "RW dereference of " << address_ << " * " << count_;
     return storage_.pointer();
   } 
 };
