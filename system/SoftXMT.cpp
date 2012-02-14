@@ -80,6 +80,14 @@ void SoftXMT_barrier() {
   my_global_communicator->barrier();
 }
 
+/// Enter global barrier that is poller safe
+void SoftXMT_barrier_commsafe() {
+    my_global_communicator->barrier_notify();
+    while (!my_global_communicator->barrier_try()) {
+        SoftXMT_yield();
+    }
+}
+
 /// Poll SoftXMT aggregation and communication layers.
 void SoftXMT_poll()
 {
