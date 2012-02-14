@@ -9,24 +9,12 @@ class IncoherentAcquirer;
 template< typename T >
 static void incoherent_acquire_reply_am( typename IncoherentAcquirer< T >::ReplyArgs * args, 
                                          size_t size, 
-                                         void * payload, size_t payload_size ) {
-  if (DEBUG_CACHE) std::cout << "thread " << current_thread << " received acquire reply" << std::endl;
-  args->reply_address.pointer()->acquire_reply( payload, payload_size );
-}
+                                         void * payload, size_t payload_size );
 
 template< typename T >
 static void incoherent_acquire_request_am( typename IncoherentAcquirer< T >::RequestArgs * args, 
-                                    size_t size, 
-                                    void * payload, size_t payload_size ) {
-  if (DEBUG_CACHE) std::cout << "thread " << current_thread << " received acquire request" << std::endl;
-  typename IncoherentAcquirer<T>::ReplyArgs reply_args;
-  reply_args.reply_address = args->reply_address;
-  SoftXMT_call_on( args->reply_address.node(), incoherent_acquire_reply_am<T>,
-                   &reply_args, sizeof( reply_args),  
-                   args->request_address.pointer(), args->count * sizeof( T ) );
-  SoftXMT_flush( args->reply_address.node() );
-  if (DEBUG_CACHE) std::cout << "thread " << current_thread << " sent acquire reply" << std::endl;
-}
+                                           size_t size, 
+                                           void * payload, size_t payload_size );
 
 template< typename T >
 class IncoherentAcquirer {
@@ -51,7 +39,9 @@ public:
     
   void start_acquire() { 
     if( !acquire_started_ ) {
-      if (DEBUG_CACHE) std::cout << "thread " << current_thread << " issuing acquire" << std::endl;
+      DVLOG(5) << "thread " << current_thread 
+              << " issuing acquire for " << request_address_ 
+              << " * " << count_ ;
       acquire_started_ = true;
       //IncoherentAcquirer<T>::RequestArgs args;
       RequestArgs args;
@@ -65,9 +55,13 @@ public:
   void block_until_acquired() {
     if( !acquired_ ) {
       start_acquire();
-      if (DEBUG_CACHE) std::cout << "thread " << current_thread << " ready to block" << std::endl;
+      DVLOG(5) << "thread " << current_thread 
+              << " ready to block on " << request_address_ 
+              << " * " << count_ ;
       while( !acquired_ ) {
-        if (DEBUG_CACHE) std::cout << "thread " << current_thread << " blocking" << std::endl;
+      DVLOG(5) << "thread " << current_thread 
+              << " blocking on " << request_address_ 
+              << " * " << count_ ;
         thread_ = current_thread;
         SoftXMT_suspend();
       }
@@ -95,6 +89,46 @@ public:
 
 
 };
+
+template< typename T >
+std::ostream& operator<<( std::ostream& o, const typename IncoherentAcquirer<T>::ReplyArgs& a ) {
+  return o << "(reply_addr:" << a.reply_address << ")";
+}
+
+template< typename T >
+std::ostream& operator<<( std::ostream& o, const typename IncoherentAcquirer<T>::RequestArgs& a ) {
+  return o << "request_addr:" << a.reply_address << " * " << a.count << " reply_addr:" << a.reply_address;
+}
+
+
+template< typename T >
+static void incoherent_acquire_reply_am( typename IncoherentAcquirer< T >::ReplyArgs * args, 
+                                         size_t size, 
+                                         void * payload, size_t payload_size ) {
+  DVLOG(5) << "thread " << current_thread 
+           << " received acquire reply to " << args->reply_address
+           << " payload size " << payload_size;
+  args->reply_address.pointer()->acquire_reply( payload, payload_size );
+}
+
+template< typename T >
+static void incoherent_acquire_request_am( typename IncoherentAcquirer< T >::RequestArgs * args, 
+                                    size_t size, 
+                                    void * payload, size_t payload_size ) {
+  DVLOG(5) << "thread " << current_thread 
+           << " received acquire request to " << args->request_address
+           << " count " << args->count
+           << " reply to " << args->reply_address;
+  typename IncoherentAcquirer<T>::ReplyArgs reply_args;
+  reply_args.reply_address = args->reply_address;
+  SoftXMT_call_on( args->reply_address.node(), incoherent_acquire_reply_am<T>,
+                   &reply_args, sizeof( reply_args),  
+                   args->request_address.pointer(), args->count * sizeof( T ) );
+  SoftXMT_flush( args->reply_address.node() );
+  DVLOG(5) << "thread " << current_thread 
+           << " sent acquire reply to " << args->reply_address
+           << " payload size " << args->count * sizeof( T );
+}
 
 
 #endif
