@@ -2,9 +2,12 @@
 EXP_HOME = ENV["EXP_HOME"]
 require "optparse"
 require "sequel"
+require "pp"
 require "#{EXP_HOME}/util.rb"
 
+
 loadConfigs()
+options = commonOptions()
 $exp_table = :cache
 
 # parse: string -> hash or [hash,...]
@@ -22,7 +25,7 @@ def parse(cmdout, params)
     m = line.match(pattern)
     if m then
       d[:num_chunks] = m[1].to_i
-      d[:cache_size] = m[2].to_i
+      d[:total_read_time_ns] = m[2].to_i
     end
     results << d
   end
@@ -34,14 +37,14 @@ $testing = true
 
 ['./local_caching.exe'].each { |exe|
 [1].each { |num_procs|
-  params = {:max_procs=>max_procs, :scale=>scale}
-  if run_already?(params) then
-    puts "#{params} -- skipping..."
+  params = {:num_procs=>num_procs}
+  if !options[:force] and run_already?(params) then
+    puts "#{params.inspect} -- skipping..."
   else
     # puts "#{pp params}"
-    data = runExperiment("mpirun -np #{num_procs} #{exe} #{scale}", $exp_table) do |cmdout|
+    data = runExperiment("mpirun -np #{num_procs} #{exe}", $exp_table) do |cmdout|
       parse(cmdout, params)
     end
-    puts "#{data}"
+    puts "#{data.inspect}"
   end
 }}
