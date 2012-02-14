@@ -6,27 +6,16 @@
 template< typename T >
 class IncoherentReleaser;
 
+
 template< typename T >
 static void incoherent_release_reply_am( typename IncoherentReleaser< T >::ReplyArgs * args, 
                                          size_t size, 
-                                         void * payload, size_t payload_size ) {
-  if (DEBUG_CACHE) std::cout << "thread " << current_thread << " received acquire reply" << std::endl;
-  args->reply_address.pointer()->release_reply( );
-}
+                                         void * payload, size_t payload_size );
 
 template< typename T >
 static void incoherent_release_request_am( typename IncoherentReleaser< T >::RequestArgs * args, 
-                                    size_t size, 
-                                    void * payload, size_t payload_size ) {
-  if (DEBUG_CACHE) std::cout << "thread " << current_thread << " received acquire request" << std::endl;
-  memcpy( args->request_address.pointer(), payload, payload_size );
-  typename IncoherentReleaser<T>::ReplyArgs reply_args;
-  reply_args.reply_address = args->reply_address;
-  SoftXMT_call_on( args->reply_address.node(), incoherent_release_reply_am<T>,
-                   &reply_args, sizeof( reply_args ), 
-                   NULL, 0 );
-  if (DEBUG_CACHE) std::cout << "thread " << current_thread << " sent acquire reply" << std::endl;
-}
+                                           size_t size, 
+                                           void * payload, size_t payload_size );
 
 template< typename T >
 class IncoherentReleaser {
@@ -51,7 +40,9 @@ public:
     
   void start_release() { 
     if( !release_started_ ) {
-      if (DEBUG_CACHE) std::cout << "thread " << current_thread << " issuing release" << std::endl;
+            DVLOG(5) << "thread " << current_thread 
+              << " issuing release for " << request_address_ 
+              << " * " << count_ ;
       release_started_ = true;
       RequestArgs args;
       args.request_address = request_address_;
@@ -66,9 +57,13 @@ public:
   void block_until_released() {
     if( !released_ ) {
       start_release();
-      if (DEBUG_CACHE) std::cout << "thread " << current_thread << " ready to block" << std::endl;
+      DVLOG(5) << "thread " << current_thread 
+              << " ready to block on " << request_address_ 
+              << " * " << count_ ;
       while( !released_ ) {
-        if (DEBUG_CACHE) std::cout << "thread " << current_thread << " blocking" << std::endl;
+        DVLOG(5) << "thread " << current_thread 
+                << " blocking on " << request_address_ 
+                << " * " << count_ ;
         thread_ = current_thread;
         SoftXMT_suspend();
       }
@@ -86,14 +81,37 @@ public:
   struct ReplyArgs {
     GlobalAddress< IncoherentReleaser > reply_address;
   };
-
+  
   struct RequestArgs {
     GlobalAddress< T > request_address;
     GlobalAddress< IncoherentReleaser > reply_address;
   };
-
-
 };
 
+
+template< typename T >
+static void incoherent_release_reply_am( typename IncoherentReleaser< T >::ReplyArgs * args, 
+                                         size_t size, 
+                                         void * payload, size_t payload_size ) {
+  DVLOG(5) << "thread " << current_thread << " received release reply " << args->reply_address;
+  args->reply_address.pointer()->release_reply( );
+}
+
+template< typename T >
+static void incoherent_release_request_am( typename IncoherentReleaser< T >::RequestArgs * args, 
+                                    size_t size, 
+                                    void * payload, size_t payload_size ) {
+  DVLOG(5) << "thread " << current_thread 
+           << " received release request to " << args->request_address 
+           << " reply to " << args->reply_address;
+  memcpy( args->request_address.pointer(), payload, payload_size );
+  typename IncoherentReleaser<T>::ReplyArgs reply_args;
+  reply_args.reply_address = args->reply_address;
+  SoftXMT_call_on( args->reply_address.node(), incoherent_release_reply_am<T>,
+                   &reply_args, sizeof( reply_args ), 
+                   NULL, 0 );
+  DVLOG(5) << "thread " << current_thread 
+           << " sent release reply to " << args->reply_address;
+}
 
 #endif
