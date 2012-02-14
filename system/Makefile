@@ -45,7 +45,7 @@ include ../include.mk
 HOST:=localhost
 
 # name of main executable to build and/or run
-TARGET:= scratch.exe
+TARGET:=
 
 # default rule: just build
 $(TARGET): 
