@@ -1,12 +1,15 @@
 #!/usr/bin/env ruby
 EXP_HOME = ENV["EXP_HOME"]
-
+require "optparse"
+require "sequel"
 require "#{EXP_HOME}/util.rb"
+
 loadConfigs()
+$exp_table = :suite
 
 # parse: string -> hash
 # Extracts data from program output and returns a hash of values for the new row
-parse = Proc.new do |cmdout|
+def parse(cmdout)
   # puts cmdout
   pattern = /computeGraph[\w\s\(\)]+(\d+\.\d+) \s sec\.$
             .*connected \s components\: \s (\d+)$.*
@@ -41,6 +44,14 @@ $testing = true
 ['./graphb'].each { |exe|
 [1, 2, 4, 8].each { |max_procs|
 [4, 5, 6, 7].each { |scale|
-  data = runExperiment("#{exe} #{scale}", parse, :suite)
-  p data
+  params = {:max_procs=>max_procs, :scale=>scale}
+  if run_already?(params) then
+    puts "#{params} -- skipping..."
+  else
+    # puts "#{pp params}"
+    data = runExperiment("mtarun -m #{max_procs} #{exe} #{scale}", $exp_table) do |cmdout|
+      params.merge(parse(cmdout))
+    end
+    puts "#{data}"
+  end
 }}}
