@@ -233,7 +233,28 @@ public:
 //  std::ostream& operator<<( std::ostream& o ) {
 //      return o<< toString();
 //  }
+  void dump () {
+    //assert( heap.size() == index.size() );
+    std::cout << "heap {" << std::endl;
+    for( HeapIndex i = 0; i < heap.size(); ++i ){
+      std::cout << "  index " << i;
+      std::cout << ": priority " << heap[i].priority;
+	  std::cout << " key " << heap[i].key;
+      std::cout << std::endl;
+    }
+    std::cout << "}" << std::endl;
+    std::cout << "index {" << std::endl;
+    for( typename std::tr1::unordered_map< Key, HeapIndex >::iterator i = index_map.begin(); i != index_map.end(); ++i ) {
+      std::cout << "  key " << i->first;
+	  std::cout << ": index " << i->second;
+      std::cout << " priority " << heap[ i->second ].priority;
+      std::cout << " key " << heap[ i->second ].key;
+	  std::cout << std::endl;
+    }
+    std::cout << "}" << std::endl;
+  }
 };
   
+
 
 #endif
