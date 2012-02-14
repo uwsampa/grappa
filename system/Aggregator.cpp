@@ -31,11 +31,11 @@ Aggregator::Aggregator( Communicator * communicator )
 
 void Aggregator::deaggregate( ) {
   while( !received_AM_queue_.empty() ) {
-    VLOG(2) << "deaggregating";
+    DVLOG(5) << "deaggregating";
     // TODO: too much copying
     ReceivedAM amp = received_AM_queue_.front();
     received_AM_queue_.pop();
-    VLOG(2) << "deaggregating message of size " << amp.size_;
+    DVLOG(5) << "deaggregating message of size " << amp.size_;
     uintptr_t msg_base = reinterpret_cast< uintptr_t >( amp.buf_ );
     for( int i = 0; i < amp.size_; ) {
       AggregatorGenericCallHeader * header = reinterpret_cast< AggregatorGenericCallHeader * >( msg_base );
@@ -47,12 +47,12 @@ void Aggregator::deaggregate( ) {
                                                    header->args_size );
       
       if( header->destination == gasnet_mynode() ) { // for us?
-        VLOG(2) << "calling " << *header 
+        DVLOG(5) << "calling " << *header 
                 << " with args " << args
                 << " and payload " << payload;
         fp( args, header->args_size, payload, header->payload_size ); // execute
       } else { // not for us, so forward towards destination
-        VLOG(2) << "forwarding " << *header
+        DVLOG(5) << "forwarding " << *header
                 << " with args " << args
                 << " and payload " << payload;
         SoftXMT_call_on( header->destination, fp, args, header->args_size, payload, header->payload_size );
@@ -64,7 +64,7 @@ void Aggregator::deaggregate( ) {
 }
   
 void Aggregator_deaggregate_am( gasnet_token_t token, void * buf, size_t size ) {
-  VLOG(2) << "received message with size " << size;
+  DVLOG(5) << "received message with size " << size;
   // TODO: too much copying
   Aggregator::ReceivedAM am( size, buf );
   global_aggregator->received_AM_queue_.push( am );
