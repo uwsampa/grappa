@@ -4,6 +4,8 @@
 
 #include <cassert>
 #include <iostream>
+#include <sstream>
+#include <string>
 #include <limits>
 
 #include <vector>
@@ -203,25 +205,56 @@ public:
     return is_heap( heap.begin(), heap.end() );
   }
 
-  void dump() {
+  const std::string toString () {
+    //assert( heap.size() == index.size() );
+    std::stringstream s;
+    s << "heap {" << std::endl;
+    for( HeapIndex i = 0; i < heap.size(); ++i ){
+      s << "  index " << i;
+      s << ": priority " << heap[i].priority;
+	  s << " key " << heap[i].key;
+      s << std::endl;
+    }
+    s << "}" << std::endl;
+    s << "index {" << std::endl;
+    for( typename std::tr1::unordered_map< Key, HeapIndex >::iterator i = index_map.begin(); i != index_map.end(); ++i ) {
+      s << "  key " << i->first;
+	  s << ": index " << i->second;
+      s << " priority " << heap[ i->second ].priority;
+      s << " key " << heap[ i->second ].key;
+	  s << std::endl;
+    }
+    s << "}" << std::endl;
+    
+    return s.str();
+  }
+
+    //BROKEN
+//  std::ostream& operator<<( std::ostream& o ) {
+//      return o<< toString();
+//  }
+  void dump () {
     //assert( heap.size() == index.size() );
     std::cout << "heap {" << std::endl;
     for( HeapIndex i = 0; i < heap.size(); ++i ){
-      std::cout << "  index " << i 
-		<< ": priority " << heap[i].priority
-		<< " key " << heap[i].key
-		<< std::endl;
+      std::cout << "  index " << i;
+      std::cout << ": priority " << heap[i].priority;
+	  std::cout << " key " << heap[i].key;
+      std::cout << std::endl;
     }
     std::cout << "}" << std::endl;
     std::cout << "index {" << std::endl;
     for( typename std::tr1::unordered_map< Key, HeapIndex >::iterator i = index_map.begin(); i != index_map.end(); ++i ) {
-      std::cout << "  key " << i->first
-		<< ": index " << i->second
-		<< " priority " << heap[ i->second ].priority
-		<< " key " << heap[ i->second ].key
-		<< std::endl;
+      std::cout << "  key " << i->first;
+	  std::cout << ": index " << i->second;
+      std::cout << " priority " << heap[ i->second ].priority;
+      std::cout << " key " << heap[ i->second ].key;
+	  std::cout << std::endl;
     }
     std::cout << "}" << std::endl;
   }
 };
+  
+
+
 #endif

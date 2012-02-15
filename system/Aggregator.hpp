@@ -164,7 +164,6 @@ public:
 
   /// poll communicator. send any aggregated messages that have been sitting for too long
   inline void poll() {
-    VLOG(4) << "polling";
     communicator_->poll();
     uint64_t ts = get_timestamp();
     if( !least_recently_sent_.empty() ) {                                    // if messages are waiting, and
