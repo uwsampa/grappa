@@ -47,7 +47,7 @@ include $(SOFTXMT_HOME)/include.mk
 HOST:=localhost
 
 # name of main executable to build and/or run
-TARGET:= cache_bench.exe
+TARGET:= cache_experiment.exe
 
 # default rule: just build
 $(TARGET): 
@@ -59,7 +59,7 @@ INCLUDES+= -I$(SOFTXMT_HOME)/system
 #
 cache_bench.exe: cache_bench.o $(SOFTXMT_HOME)/system/libSoftXMT.a
 
-local_caching.exe: local_caching.o $(SOFTXMT_HOME)/system/libSoftXMT.a
+cache_experiment.exe: cache_experiment.o $(SOFTXMT_HOME)/system/libSoftXMT.a
 
 #
 # run a binary

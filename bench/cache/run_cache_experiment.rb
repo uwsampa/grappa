@@ -14,7 +14,7 @@ $exp_table = :cache
 # Extracts data from program output and returns a hash of values for the new row
 def parse(cmdout, params)
   # puts cmdout
-  pattern = /.*] num_chunks: (\d+), total_read_time_ns: (\d+)/
+  pattern = /.*\] num_chunks: (\d+), total_read_time_ns: (\d+)/
   data = { :num_nodes => 1, :cache_size => (2**8)*8 }
   data = params.clone().merge(data)
   
@@ -26,8 +26,9 @@ def parse(cmdout, params)
     if m then
       d[:num_chunks] = m[1].to_i
       d[:total_read_time_ns] = m[2].to_i
+      
+      results << d
     end
-    results << d
   end
   
   return results
@@ -42,10 +43,10 @@ $testing = true
     puts "#{params.inspect} -- skipping..."
   else
     # puts "#{pp params}"
-    flags = "GLOG_logtostderr=1 OMPI_MCA_BTL_SM_USE_KNEM=0 "
-    data = runExperiment("#{flags} mpirun -np #{num_procs} #{exe}", $exp_table) do |cmdout|
+    ENV["GLOG_logtostderr"] = 1.to_s
+    ENV["OMPI_MCA_btl_sm_use_knem"] = 0.to_s
+    data = runExperiment("mpirun -l -H localhost -np #{num_procs} -- #{exe}", $exp_table) do |cmdout|
       parse(cmdout, params)
     end
-    puts "#{data.inspect}"
   end
 }}
