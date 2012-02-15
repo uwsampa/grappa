@@ -273,12 +273,14 @@ void visitTask(Node_ptr work, thread* me, StealStack* ss, global_array* nodes_ar
     complete_nb(me, tag);
     #else
 
-    global_address workAddress;
-    ga_index(nodes_array, work, &workAddress);
-    Node_piece_t* workLocal = get_local_copy_of_remote<Node_piece_t>(workAddress, 1); 
-    /*IncoherentRO<Node_piece_t> workLocal(workAddress, 1);*/
-    /*workLocal.start_acquire();*/
-    /*workLocal.block_until_acquired();*/
+//    global_address workAddress;
+//    ga_index(nodes_array, work, &workAddress);
+//    Node_piece_t* workLocal = get_local_copy_of_remote<Node_piece_t>(workAddress, 1); 
+    Node_piece_t workLocal;
+    GlobalAddress< Node_piece_t > workAddress_gl = /* get global address for work */;
+    IncoherentAcquirer workLocalAq(workAddress_gl, 1, &workLocal);
+    workLocalAq.start_acquire();
+    workLocalAq.block_until_acquired();
     #endif
     #endif
 
@@ -292,13 +294,15 @@ void visitTask(Node_ptr work, thread* me, StealStack* ss, global_array* nodes_ar
 
     #else
 
-    global_address childAddress;
-    ga_index(children_arrays, workLocal->children, &childAddress);
-    Node_ptr* childrenLocal = get_local_copy_of_remote<Node_ptr>(childAddress, workLocal->numChildren);
+//    global_address childAddress;
+//    ga_index(children_arrays, workLocal->children, &childAddress);
+//    Node_ptr* childrenLocal = get_local_copy_of_remote<Node_ptr>(childAddress, workLocal->numChildren);
 
-    /*IncoherentRO<Node_ptr> childrenLocal(workLocal.children, workLocal.numChildren);*/
-    /*childrenLocal.start_acquire();*/
-    /*childrenLocal.block_until_acquired();*/
+    Node_ptr childrenLocal[workLocal.numChildren];
+    GlobalAddress< Node_ptr > childAddress_gl = /* get global address for work */;
+    IncoherentAcquirer childrenLocalAq(childAddress_gl, workLocal.numChildren, childrenLocal);
+    childrenLocalAq.start_acquire();
+    childrenLocalAq.block_until_acquired();
     #endif
     #endif
 
@@ -306,11 +310,8 @@ void visitTask(Node_ptr work, thread* me, StealStack* ss, global_array* nodes_ar
         ss_push(ss, childrenLocal[i]);
     }
 
-    //TODO: notifcations below should be encapsulated, not part of task code
 
-    // allow idle threads to be scheduled now that there
-    // may be work
-    thread_idlesReady(me, 1);
+
    
    
     #if NO_INTEG
@@ -318,16 +319,29 @@ void visitTask(Node_ptr work, thread* me, StealStack* ss, global_array* nodes_ar
     
     
     #else
-    release_local_copy(workLocal);
-    release_local_copy(childrenLocal);
-    /*workLocal.start_release();*/
-    /*childrenLocal.start_release();*/
-    /*workLocal.block_until_released();*/
-    /*childrenLocal.block_until_released();*/
+    IncoherentReleaser childrenLocalRl( childAddress_gl, workLocal.numChildren, childrenLocal );
+    childrenLocalRl.start_release();
+
+    IncoherentReleaser workLocalRl( workAddress_gl, 1, &workLocal );
+    workLocalRl.start_release();
+
+
     #endif
+    
+    //TODO: notifcations below should be encapsulated, not part of task code
+    
+    // allow idle threads to be scheduled now that there
+    // may be work
+    thread_idlesReady(me, 1);
     
     // possibly make work visible and notfiy idle workers 
     releaseNodes(ss);
+
+    #if NO_INTEG
+    #else
+    childrenLocalRl.block_until_released();
+    workLocalRl.block_until_released();
+    #endif
 }
 
 void thread_runnable(thread* me, void* arg) {
