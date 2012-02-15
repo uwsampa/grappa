@@ -39,9 +39,9 @@ CFLAGS+= -I.. -I../../../bench/sp_gasnet_listwalk/collective
 CFLAGS+= -DGASNET_SEQ -DGASNET_CONDUIT_IBV
 LIB=-lm 
 
-LD_FLAGS= $(CFLAGS_COMMON)
+LD_FLAGS= $(CFLAGS_COMMON) -L$(SOFTXMT_SYS)
 
-LIBRARIES:= -lgflags -lglog -lgasnet-ibv-seq -libverbs -lrt -lboost_unit_test_framework
+LIBRARIES:= -lgflags -lglog -lgasnet-ibv-seq -libverbs -lrt -lboost_unit_test_framework -lSoftXMT
 
 OBJECTS=\
 	balloc.o \
@@ -55,16 +55,6 @@ GL_OBJECTS=\
 	$(GL_ARRAY)/global_array.o 
 #	$(GL_ARRAY)/msg_aggregator.o
 
-SOFTXMT_OBJECTS=\
-	$(SOFTXMT_SYS)/SoftXMT.o \
-	$(SOFTXMT_SYS)/Delegate.o \
-	$(SOFTXMT_SYS)/Communicator.o \
-	$(SOFTXMT_SYS)/Aggregator.o \
-	$(SOFTXMT_SYS)/thread.o \
-	$(SOFTXMT_SYS)/stack.o \
-	$(SOFTXMT_SYS)/coro.o 
-
-
 COLL_OBJECTS=\
 	../../../bench/sp_gasnet_listwalk/collective/collective.o
 
@@ -72,7 +62,7 @@ COLL_OBJECTS=\
 	$(CXX) $(CFLAGS) $(RNG_DEF) $(RNG_INCL) $< -c -o $@
 
 TreeGen.exe: TreeGen.o $(OBJECTS) 
-	$(CXX) $(CFLAGS) -o $@ $^ $(GL_OBJECTS) $(SOFTXMT_OBJECTS) $(COLL_OBJECTS) $(RNG_SRC) $(LIBRARIES)  $(LIB) $(GASNET_LIBS) 
+	$(CXX) $(CFLAGS) -o $@ $^ $(GL_OBJECTS) $(COLL_OBJECTS) $(RNG_SRC) $(LIBRARIES)  $(LIB) $(GASNET_LIBS) 
 
 gasnet_cbarrier_test: gasnet_cbarrier_test.c gasnet_cbarrier.c
 	$(CXX) $(CFLAGS) -o $@ $+ $(GASNET_LIB_PATHS) $(LIB) $(GASNET_LIBS)
