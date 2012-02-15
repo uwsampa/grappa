@@ -68,6 +68,7 @@ BOOST_AUTO_TEST_CASE( MyHeap2 )
   MutableHeap<int,int> mh;
   mh.insert( 2345, 4 );
   mh.insert( 1234, 1 );
+  mh.dump();
   BOOST_CHECK( mh.check() );
 }
 
@@ -76,6 +77,7 @@ BOOST_AUTO_TEST_CASE( MyHeap3 )
   MutableHeap<int,int> mh;
   mh.insert( 2345, 1 );
   mh.insert( 1234, 4 );
+  mh.dump();
   BOOST_CHECK( mh.check() );
 }
 
@@ -84,8 +86,11 @@ BOOST_AUTO_TEST_CASE( MyHeap4 )
   MutableHeap<int,int> mh;
   mh.insert( 2345, 4 );
   mh.insert( 1234, 1 );
+  mh.dump();
   BOOST_CHECK( mh.check() );
+  BOOST_MESSAGE( "Removing top" );
   mh.remove();
+  mh.dump();
   BOOST_CHECK( mh.check() );
 }
 
@@ -97,6 +102,7 @@ BOOST_AUTO_TEST_CASE( MyHeap123 )
   mh.insert( 3, 3 );
   BOOST_CHECK( mh.check() );
   mh.dump();
+  BOOST_MESSAGE( "Removing top" );
   mh.remove();
   BOOST_CHECK( mh.check() );
 }
@@ -109,6 +115,7 @@ BOOST_AUTO_TEST_CASE( MyHeap132 )
   mh.insert( 2, 2 );
   BOOST_CHECK( mh.check() );
   mh.dump();
+  BOOST_MESSAGE( "Removing top" );
   mh.remove();
   BOOST_CHECK( mh.check() );
 }
@@ -121,6 +128,7 @@ BOOST_AUTO_TEST_CASE( MyHeap231 )
   mh.insert( 1, 1 );
   BOOST_CHECK( mh.check() );
   mh.dump();
+  BOOST_MESSAGE( "Removing top" );
   mh.remove();
   BOOST_CHECK( mh.check() );
 }
@@ -133,6 +141,7 @@ BOOST_AUTO_TEST_CASE( MyHeap213 )
   mh.insert( 3, 3 );
   BOOST_CHECK( mh.check() );
   mh.dump();
+  BOOST_MESSAGE( "Removing top" );
   mh.remove();
   BOOST_CHECK( mh.check() );
 }
@@ -145,6 +154,7 @@ BOOST_AUTO_TEST_CASE( MyHeap321 )
   mh.insert( 1, 1 );
   BOOST_CHECK( mh.check() );
   mh.dump();
+  BOOST_MESSAGE( "Removing top" );
   mh.remove();
   BOOST_CHECK( mh.check() );
 }
@@ -158,6 +168,7 @@ BOOST_AUTO_TEST_CASE( MyHeap312 )
   mh.insert( 2, 2 );
   BOOST_CHECK( mh.check() );
   mh.dump();
+  BOOST_MESSAGE( "Removing top" );
   mh.remove();
   BOOST_CHECK( mh.check() );
 }
@@ -178,8 +189,10 @@ BOOST_AUTO_TEST_CASE( MyHeapX )
   BOOST_CHECK( mh.check() );
   BOOST_CHECK_EQUAL( mh.top(), 7 );
 
+  BOOST_MESSAGE( "Removing top key" );
   mh.remove();
   mh.dump();
+
   BOOST_CHECK( mh.check() );
   BOOST_CHECK_EQUAL( mh.top(), 4 );
 }
@@ -197,6 +210,7 @@ BOOST_AUTO_TEST_CASE( MyHeapRemAddRem )
   BOOST_CHECK( mh.check() );
   BOOST_CHECK_EQUAL( mh.top(), 7 );
 
+  BOOST_MESSAGE( "Removing top" );
   mh.remove();
   mh.dump();
   BOOST_CHECK( mh.check() );
@@ -207,6 +221,7 @@ BOOST_AUTO_TEST_CASE( MyHeapRemAddRem )
   BOOST_CHECK( mh.check() );
   BOOST_CHECK_EQUAL( mh.top(), 5 );
 
+  BOOST_MESSAGE( "Removing top" );
   mh.remove();
   mh.dump();
   BOOST_CHECK( mh.check() );
@@ -227,11 +242,13 @@ BOOST_AUTO_TEST_CASE( MyHeapUpdate )
   BOOST_CHECK( mh.check() );
   BOOST_CHECK_EQUAL( mh.top(), 7 );
 
+  BOOST_MESSAGE("Increasing 4567 to 8");
   mh.increase( 4567, 8 );
   mh.dump();
   BOOST_CHECK( mh.check() );
   BOOST_CHECK_EQUAL( mh.top(), 8 );
 
+  BOOST_MESSAGE("Updating 3456 to 4");
   mh.update( 3456, 4 );
   mh.dump();
   BOOST_CHECK( mh.check() );
@@ -250,6 +267,7 @@ BOOST_AUTO_TEST_CASE( MyHeapIdent )
   BOOST_CHECK_EQUAL( mh.top(), 5 );
   BOOST_CHECK_EQUAL( mh.top_key(), 4567 );
 
+  BOOST_MESSAGE("Updating 1234 to 4");
   mh.update( 1234, 4 );
   mh.dump();
   BOOST_CHECK( mh.check() );
@@ -272,6 +290,7 @@ BOOST_AUTO_TEST_CASE( MyHeapRemoveTop )
     int top_key = mh.top_key();
     BOOST_CHECK_EQUAL( top_key, 5678 );
     
+    BOOST_MESSAGE("Removing " << top_key);
     mh.remove_key( top_key );
     mh.dump();
     BOOST_CHECK( mh.check() );
