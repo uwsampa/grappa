@@ -12,7 +12,7 @@ DEFINE_int64(nelems, 1<<8, "total number of elements (size == 8 bytes) to local"
 DEFINE_int64(nchunks, 1, "number of chunks to break into");
 
 static const size_t memsize = 1 << 20;
-static int64_t N;
+static int64_t N = 0;
 
 typedef int64_t data_t;
 
@@ -119,13 +119,15 @@ int main(int argc, char * argv[]) {
   SoftXMT_activate();
   
   N = FLAGS_nelems;
-  
-  char mem[memsize];
-  Allocator a(&mem, memsize);
+//  size_t memsize = (N*sizeof(data_t)*2); // x2 just to be on the safe side
+//  char * mem = new char[memsize];
+//  Allocator a(&mem[0], memsize);
   
   Node mynode = SoftXMT_mynode();
   if (mynode == 0) {
-    data = (data_t*)a.malloc(N * sizeof(data_t));
+//    data = (data_t*)a.malloc(N * sizeof(data_t));
+    data = (data_t*)malloc(N*sizeof(data_t));
+    
     for (int i=0; i<N; i++) { data[i] = 1; }
   }
   
