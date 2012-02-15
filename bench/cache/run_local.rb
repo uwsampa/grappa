@@ -14,7 +14,7 @@ $exp_table = :cache
 # Extracts data from program output and returns a hash of values for the new row
 def parse(cmdout, params)
   # puts cmdout
-  pattern = /num_chunks: (\d+), total_read_time_ns: (\d+)/
+  pattern = /.*] num_chunks: (\d+), total_read_time_ns: (\d+)/
   data = { :num_nodes => 1, :cache_size => (2**8)*8 }
   data = params.clone().merge(data)
   
@@ -36,13 +36,14 @@ end
 $testing = true
 
 ['./local_caching.exe'].each { |exe|
-[1].each { |num_procs|
+[2].each { |num_procs|
   params = {:num_procs=>num_procs}
   if !options[:force] and run_already?(params) then
     puts "#{params.inspect} -- skipping..."
   else
     # puts "#{pp params}"
-    data = runExperiment("mpirun -np #{num_procs} #{exe}", $exp_table) do |cmdout|
+    flags = "GLOG_logtostderr=1 OMPI_MCA_BTL_SM_USE_KNEM=0 "
+    data = runExperiment("#{flags} mpirun -np #{num_procs} #{exe}", $exp_table) do |cmdout|
       parse(cmdout, params)
     end
     puts "#{data.inspect}"
