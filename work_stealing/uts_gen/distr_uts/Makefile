@@ -32,14 +32,14 @@ RNG_DEF = -DUTS_ALFG
 endif
 #-----------------------------------------#
 
-CFLAGS_COMMON= -fopenmp -fomit-frame-pointer
+CFLAGS_COMMON= -fopenmp -fomit-frame-pointer -O1
 CFLAGS+= $(CFLAGS_COMMON)
 CFLAGS+= -I$(GL_ARRAY) -I$(SOFTXMT_SYS)
 CFLAGS+= -I.. -I../../../bench/sp_gasnet_listwalk/collective
 CFLAGS+= -DGASNET_SEQ -DGASNET_CONDUIT_IBV
 LIB=-lm 
 
-LD_FLAGS= $(CFLAGS_COMMON) -L$(SOFTXMT_SYS)
+LDFLAGS+= $(CFLAGS_COMMON) -L$(SOFTXMT_SYS)
 
 LIBRARIES:= -lgflags -lglog -lgasnet-ibv-seq -libverbs -lrt -lboost_unit_test_framework -lSoftXMT
 
@@ -62,7 +62,7 @@ COLL_OBJECTS=\
 	$(CXX) $(CFLAGS) $(RNG_DEF) $(RNG_INCL) $< -c -o $@
 
 TreeGen.exe: TreeGen.o $(OBJECTS) 
-	$(CXX) $(CFLAGS) -o $@ $^ $(GL_OBJECTS) $(COLL_OBJECTS) $(RNG_SRC) $(LIBRARIES)  $(LIB) $(GASNET_LIBS) 
+	$(LD) $(LDFLAGS) -o $@ $^ $(GL_OBJECTS) $(COLL_OBJECTS) $(RNG_SRC) $(LIBRARIES)  $(LIB) $(GASNET_LIBS) 
 
 gasnet_cbarrier_test: gasnet_cbarrier_test.c gasnet_cbarrier.c
 	$(CXX) $(CFLAGS) -o $@ $+ $(GASNET_LIB_PATHS) $(LIB) $(GASNET_LIBS)
