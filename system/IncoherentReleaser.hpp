@@ -2,6 +2,8 @@
 #ifndef __INCOHERENT_RELEASER_HPP__
 #define __INCOHERENT_RELEASER_HPP__
 
+#include "SoftXMT.hpp"
+
 // forward declare for active message templates
 template< typename T >
 class IncoherentReleaser;
@@ -66,6 +68,9 @@ public:
                 << " * " << count_ ;
         thread_ = current_thread;
         SoftXMT_suspend();
+        DVLOG(5) << "thread " << current_thread 
+                 << " woke up for " << request_address_ 
+                 << " * " << count_ ;
       }
     }
   }
