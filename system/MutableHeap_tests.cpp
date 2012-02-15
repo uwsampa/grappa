@@ -185,6 +185,35 @@ BOOST_AUTO_TEST_CASE( MyHeapX )
 }
 
 
+BOOST_AUTO_TEST_CASE( MyHeapRemAddRem )
+{
+  MutableHeap<int,int> mh;
+  mh.insert( 2345, 5 );
+  mh.insert( 1234, 1 );
+  mh.insert( 3456, 7 );
+  mh.insert( 4567, 2 );
+  mh.insert( 5678, 3 );
+  mh.dump();
+  BOOST_CHECK( mh.check() );
+  BOOST_CHECK_EQUAL( mh.top(), 7 );
+
+  mh.remove();
+  mh.dump();
+  BOOST_CHECK( mh.check() );
+  BOOST_CHECK_EQUAL( mh.top(), 5 );
+
+  mh.insert( 4444, 4 );
+  mh.dump();
+  BOOST_CHECK( mh.check() );
+  BOOST_CHECK_EQUAL( mh.top(), 5 );
+
+  mh.remove();
+  mh.dump();
+  BOOST_CHECK( mh.check() );
+  BOOST_CHECK_EQUAL( mh.top(), 4 );
+}
+
+
 
 BOOST_AUTO_TEST_CASE( MyHeapUpdate )
 {
@@ -226,6 +255,29 @@ BOOST_AUTO_TEST_CASE( MyHeapIdent )
   BOOST_CHECK( mh.check() );
   BOOST_CHECK_EQUAL( mh.top(), 5 );
 
+}
+
+BOOST_AUTO_TEST_CASE( MyHeapRemoveTop )
+{
+    MutableHeap<int,int> mh;
+    mh.insert( 4567, 4 );
+    mh.insert( 1234, 1 );
+    mh.insert( 2345, 2 );
+    mh.insert( 5678, 5 );
+    mh.dump();
+    BOOST_CHECK( mh.check() );
+    BOOST_CHECK_EQUAL( mh.top(), 5 );
+    BOOST_CHECK_EQUAL( mh.top_priority(), 5 );
+
+    int top_key = mh.top_key();
+    BOOST_CHECK_EQUAL( top_key, 5678 );
+    
+    mh.remove_key( top_key );
+    mh.dump();
+    BOOST_CHECK( mh.check() );
+    BOOST_CHECK_EQUAL( mh.top(), 4 );
+    BOOST_CHECK_EQUAL( mh.top_priority(), 4 );
+    BOOST_CHECK_EQUAL( mh.top_key(), 4567 );
 }
 
 BOOST_AUTO_TEST_SUITE_END();

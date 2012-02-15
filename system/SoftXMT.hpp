@@ -24,6 +24,8 @@ void SoftXMT_flush( Node n );
 
 void SoftXMT_barrier();
 
+void SoftXMT_barrier_commsafe();
+
 /// Spawn and run user main function. TODO: get return values working
 /// TODO: remove thread * arg
 int SoftXMT_run_user_main( void (* fn_p)(thread *, void *), void * args );
