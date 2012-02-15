@@ -114,6 +114,7 @@ int SoftXMT_run_user_main( void (* fn_p)(thread *, void *), void * args )
     assert( current_thread == master_thread ); // this should only be run at the toplevel
     thread * main = thread_spawn( current_thread, sched,
                                   fn_p, args );
+    DVLOG(5) << "Spawned main thread " << main;
   }
   run_all( sched );
 }
@@ -122,20 +123,29 @@ int SoftXMT_run_user_main( void (* fn_p)(thread *, void *), void * args )
 /// TODO: remove thread * arg
 thread * SoftXMT_spawn( void (* fn_p)(thread *, void *), void * args )
 {
-  return thread_spawn( current_thread, sched, fn_p, args );
+  thread * th = thread_spawn( current_thread, sched, fn_p, args );
+  DVLOG(5) << "Spawned thread " << th;
+  return th;
 }
 
 /// Yield to scheduler, placing current thread on run queue.
 void SoftXMT_yield( )
 {
-  thread_yield( current_thread );
+  thread * th1 = current_thread;
+  int retval = thread_yield( current_thread );
+  thread * th2 = current_thread;
+  DVLOG(5) << "Thread " << th1 << " yield to thread " << th2 << (retval ? " failed." : " succeeded.");
 }
 
 /// Yield to scheduler, suspending current thread.
 void SoftXMT_suspend( )
 {
   DVLOG(5) << "suspending thread " << current_thread;
-  thread_suspend( current_thread );
+  thread * th1 = current_thread;
+  int retval = thread_suspend( current_thread );
+  //thread * th2 = current_thread;
+  //DVLOG(5) << "Thread " << th1 << " suspend to thread " << th2 << (retval ? " failed." : " succeeded.");}
+  CHECK_EQ(retval, 0) << "Thread " << th1 << " suspension failed. Have the server threads exited?";
 }
 
 /// Wake a thread by putting it on the run queue, leaving the current thread running.
@@ -202,7 +212,7 @@ void SoftXMT_finish( int retval )
   
   my_global_communicator->finish( retval );
   
-  // probably never get here (depending on communication layer
+  // probably never get here (depending on communication layer)
 
   destroy_scheduler( sched );
   destroy_thread( master_thread );
