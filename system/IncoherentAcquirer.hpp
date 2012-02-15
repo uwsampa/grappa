@@ -2,6 +2,8 @@
 #ifndef __INCOHERENT_ACQUIRER_HPP__
 #define __INCOHERENT_ACQUIRER_HPP__
 
+#include "SoftXMT.hpp"
+
 // forward declare for active message templates
 template< typename T >
 class IncoherentAcquirer;
@@ -43,7 +45,6 @@ public:
               << " issuing acquire for " << request_address_ 
               << " * " << count_ ;
       acquire_started_ = true;
-      //IncoherentAcquirer<T>::RequestArgs args;
       RequestArgs args;
       args.request_address = request_address_;
       args.count = count_;
@@ -64,11 +65,17 @@ public:
               << " * " << count_ ;
         thread_ = current_thread;
         SoftXMT_suspend();
+        DVLOG(5) << "thread " << current_thread 
+                 << " woke up for " << request_address_ 
+                 << " * " << count_ ;
       }
     }
   }
 
   void acquire_reply( void * payload, size_t payload_size ) { 
+  DVLOG(5) << "thread " << current_thread 
+           << " copying reply payload of " << payload_size
+           << " and waking thread " << thread_;
     memcpy( storage_, payload, payload_size );
     SoftXMT_wake( thread_ );
     acquired_ = true;
@@ -89,17 +96,6 @@ public:
 
 
 };
-
-template< typename T >
-std::ostream& operator<<( std::ostream& o, const typename IncoherentAcquirer<T>::ReplyArgs& a ) {
-  return o << "(reply_addr:" << a.reply_address << ")";
-}
-
-template< typename T >
-std::ostream& operator<<( std::ostream& o, const typename IncoherentAcquirer<T>::RequestArgs& a ) {
-  return o << "request_addr:" << a.reply_address << " * " << a.count << " reply_addr:" << a.reply_address;
-}
-
 
 template< typename T >
 static void incoherent_acquire_reply_am( typename IncoherentAcquirer< T >::ReplyArgs * args, 
@@ -124,11 +120,11 @@ static void incoherent_acquire_request_am( typename IncoherentAcquirer< T >::Req
   SoftXMT_call_on( args->reply_address.node(), incoherent_acquire_reply_am<T>,
                    &reply_args, sizeof( reply_args),  
                    args->request_address.pointer(), args->count * sizeof( T ) );
-  SoftXMT_flush( args->reply_address.node() );
   DVLOG(5) << "thread " << current_thread 
            << " sent acquire reply to " << args->reply_address
            << " payload size " << args->count * sizeof( T );
 }
+  SoftXMT_flush( args->reply_address.node() );
 
 
 #endif
