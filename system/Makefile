@@ -216,6 +216,7 @@ OBJECTS:=$(wildcard *.o)
 TESTS:=$(wildcard *.test)
 -include $(TESTS:.test=.d)
 
+
 # build an object
 # includes autodependence stuff
 %.o: %.cpp Makefile
