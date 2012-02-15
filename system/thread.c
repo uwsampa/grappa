@@ -108,21 +108,6 @@ void thread_join(thread* me, thread* wait_on) {
 }
 
 
-/// Make the current thread idle.
-/// Like suspend except the thread is not blocking
-/// on a particular resource, just waiting to be woken.
-int thread_idle(thread* me, uint64_t total_idle) {
-    scheduler* sched = me->sched;
-    sched->num_idle++;
-    if (sched->num_idle == total_idle) {
-        return 0;
-    } else {
-        unassigned_enqueue(sched, me);
-        thread_suspend(me);
-        sched->num_idle--;
-        return 1;
-    }
-}
 
 void thread_exit(thread *me, void *retval) {
   thread *master = me->sched->master;
