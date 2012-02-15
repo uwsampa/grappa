@@ -82,9 +82,9 @@ static void user_main(thread * me, void * args) {
     SoftXMT_suspend();
     DVLOG(5) << "woke up; got " << replies << " of " << SoftXMT_nodes() << " replies.";
   }
-    LOG(INFO) << "all replies received; finishing";
+  LOG(INFO) << "all replies received; finishing";
 
-    SoftXMT_signal_done(); // kills all servers. don't call until ready to quit
+  SoftXMT_signal_done(); // kills all servers. don't call until ready to quit
 }
 
 int main(int argc, char * argv[]) {
