@@ -75,6 +75,26 @@ scheduler *create_scheduler(thread *master);
 thread *thread_spawn(thread *me, scheduler *sched,
                      thread_func f, void *arg);
 
+inline void unassigned_enqueue(scheduler* sched, thread* thr) {
+   if (sched->idle_head == NULL) {
+       sched->idle_head = thr;
+   } else {
+       sched->idle_tail->next = thr;
+   }
+   sched->idle_tail = thr;
+   thr->next = NULL;
+}
+
+inline thread* unassigned_dequeue(scheduler* sched) {
+    thread* result = sched->idle_head;
+    if (result != NULL) {
+        sched->idle_head = result->next;
+        result->next = NULL;
+    } else {
+        sched->idle_tail = NULL;
+    }
+    return result;
+}
 
 // Yield the CPU to the next thread on your scheduler.  Doesn't ever touch
 // the master thread.
@@ -170,27 +190,22 @@ inline void thread_idlesReady(thread* me, int ready) {
     sched->idleReady = ready;
 }
 
-inline void unassigned_enqueue(scheduler* sched, thread* thr) {
-   if (sched->idle_head == NULL) {
-       sched->idle_head = thr;
-   } else {
-       sched->idle_tail->next = thr;
-   }
-   sched->idle_tail = thr;
-   thr->next = NULL;
-}
-
-inline thread* unassigned_dequeue(scheduler* sched) {
-    thread* result = sched->idle_head;
-    if (result != NULL) {
-        sched->idle_head = result->next;
-        result->next = NULL;
-    } else {
-        sched->idle_tail = NULL;
-    }
-    return result;
-}
     
+/// Make the current thread idle.
+/// Like suspend except the thread is not blocking
+/// on a particular resource, just waiting to be woken.
+inline int thread_idle(thread* me, uint64_t total_idle) {
+    scheduler* sched = me->sched;
+    sched->num_idle++;
+    if (sched->num_idle == total_idle) {
+        return 0;
+    } else {
+        unassigned_enqueue(sched, me);
+        thread_suspend(me);
+        sched->num_idle--;
+        return 1;
+    }
+}
 
 
 
