@@ -92,7 +92,7 @@ run: $(TARGET)
 	GLOG_logtostderr=1 \
 	OMPI_MCA_btl_sm_use_knem=0 \
 	LD_LIBRARY_PATH="$(LD_LIBRARY_PATH)" \
-	mpirun -x LD_LIBRARY_PATH -H $(HOST) -np 2 -- ./$< $(ARGS)
+	$(MPIRUN) -x LD_LIBRARY_PATH -H $(HOST) -np 2 -- ./$< $(ARGS)
 
 #
 # run tests for a component
@@ -103,7 +103,7 @@ mpi_test: $(TARGET)
 	OMPI_MCA_btl_sm_use_knem=0 \
 	LD_LIBRARY_PATH="$(LD_LIBRARY_PATH)" \
 	GASNET_BACKTRACE=1 \
-	mpirun -x LD_LIBRARY_PATH -H $(HOST) -np 2 -- ./$< --log_level=test_suite --run_test=$(TARGET:.test=) $(ARGS)
+	$(MPIRUN) -x LD_LIBRARY_PATH -H $(HOST) -np 2 -- ./$< --log_level=test_suite --run_test=$(TARGET:.test=) $(ARGS)
 
 test: $(TARGET)
 	GLOG_logtostderr=1 \
