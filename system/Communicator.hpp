@@ -133,6 +133,17 @@ public:
     GASNET_CHECK( gasnet_barrier_wait( 0, GASNET_BARRIERFLAG_ANONYMOUS ) );
   }
 
+  /// Global (anonymous) two-phase barrier notify
+  inline void barrier_notify() {
+    assert( communication_is_allowed_ );
+    gasnet_barrier_notify( 0, GASNET_BARRIERFLAG_ANONYMOUS );
+  }
+  
+  /// Global (anonymous) two-phase barrier try
+  inline bool barrier_try() {
+    return GASNET_OK == gasnet_barrier_try( 0, GASNET_BARRIERFLAG_ANONYMOUS );
+  }
+
   /// Send no-argment active message with payload
   inline void send( Node node, int handler, void * buf, size_t size ) { 
     assert( communication_is_allowed_ );

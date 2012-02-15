@@ -84,32 +84,34 @@ thread *thread_spawn(thread *me, scheduler *sched,
 
 // Yield the CPU to the next thread on your scheduler.  Doesn't ever touch
 // the master thread.
-inline void thread_yield(thread *me) {
+inline int thread_yield(thread *me) {
   scheduler *sched = me->sched;
   // can't yield on a system thread
   assert(sched != NULL);
   if (sched->ready == NULL) {
-      return;
+      return 1;
   } else {
     scheduler_enqueue(sched, me);
     thread *next = scheduler_dequeue(sched);
     current_thread = next;
     coro_invoke(me->co, next->co, NULL);
+    return 0;
   }
 }
 
 /// Suspend the current thread. Thread is not placed on any queue.
-static inline void thread_suspend(thread *me) {
+static inline int thread_suspend(thread *me) {
   scheduler *sched = me->sched;
   // can't yield on a system thread
   assert(sched != NULL);
   if (sched->ready == NULL) {
-      return;
+    return 1;
   } else {
     assert( me->co->running == 1 );
     thread *next = scheduler_dequeue(sched);
     current_thread = next;
     coro_invoke(me->co, next->co, NULL);
+    return 0;
   }
 }
 

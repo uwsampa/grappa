@@ -86,6 +86,8 @@ CFLAGS+= -I$(BOOST)/include
 LDFLAGS+= -L$(BOOST)/lib64
 LD_LIBRARY_PATH:=$(LD_LIBRARY_PATH):$(BOOST)/lib
 
+MPIRUN=mpirun -l
+
 
 
 
