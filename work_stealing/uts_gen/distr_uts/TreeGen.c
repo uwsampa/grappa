@@ -207,13 +207,15 @@ typedef struct Node_piece_t {
     Node_ptr_ptr children;
 } Node_piece_t;
 
+void visitTask(Node_ptr work, thread* me, StealStack* ss, global_array* nodes_array, global_array* children_arrays);
+    
 void worker_thread(StealStack* ss, thread* me, int* work_done, int* okToSteal, int num_workers, int num_local_nodes, global_array* nodes_array, global_array* children_arrays, int my_local_id, int* neighbors) {
     thread_idle(me, num_workers);
     while (!(*work_done)) {
        while (ss_localDepth(ss) > 0) {
            Node_ptr work = ss_top(ss); //TODO generalize
            ss_pop(ss);
-           visitTask(work, ss, nodes_array, children_arrays);  // TODO generalize
+           visitTask(work, me, ss, nodes_array, children_arrays);  // TODO generalize
        }
        
        if (doSteal) {
@@ -237,7 +239,7 @@ void worker_thread(StealStack* ss, thread* me, int* work_done, int* okToSteal, i
                    if (goodSteal) {
                        continue;
                    } else {
-                       thread_idleReady(0); // prevent idle unassigned threads from being scheduled
+                       thread_idlesReady(me, 0); // prevent idle unassigned threads from being scheduled
                        *okToSteal = 0;      // prevent running unassigned threads from trying to steal again
                    }
 
@@ -252,7 +254,7 @@ void worker_thread(StealStack* ss, thread* me, int* work_done, int* okToSteal, i
             if (cbarrier_wait()) {
                 *work_done = 1;
             }
-            thread_idleReady(1);   // work is available so allow unassigned threads to be scheduled
+            thread_idlesReady(me, 1);   // work is available so allow unassigned threads to be scheduled
             *okToSteal = 1;        // work is available so allow steal attempts
         }
     }
@@ -261,7 +263,7 @@ void worker_thread(StealStack* ss, thread* me, int* work_done, int* okToSteal, i
            
 
 
-void visitTask(Node_ptr work, StealStack* ss, global_array* nodes_array, global_array* children_arrays) {
+void visitTask(Node_ptr work, thread* me, StealStack* ss, global_array* nodes_array, global_array* children_arrays) {
     #if PREFETCH_WORK
     #if NO_INTEG
     TreeNode workLocal;
@@ -308,7 +310,7 @@ void visitTask(Node_ptr work, StealStack* ss, global_array* nodes_array, global_
 
     // allow idle threads to be scheduled now that there
     // may be work
-    thread_idlesReady(1);
+    thread_idlesReady(me, 1);
    
    
     #if NO_INTEG
