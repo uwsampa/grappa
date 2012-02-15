@@ -24,7 +24,6 @@ def parse(cmdout, params)
     d = data.clone()
     m = line.match(pattern)
     if m then
-      d[:num_chunks] = m[1].to_i
       d[:total_read_time_ns] = m[2].to_i
       
       results << d
@@ -36,17 +35,20 @@ end
 
 $testing = true
 
-['./local_caching.exe'].each { |exe|
+['./cache_experiment.exe'].each { |exe|
 [2].each { |num_procs|
-  params = {:num_procs=>num_procs}
+[1<<8].each { |nelems|
+[1, 1<<2, 1<<4, 1<<6, 1<<8].each { |nchunks|
+  params = { :num_procs=>num_procs, :cache_size=>nelems*8, :num_chunks=>nchunks}
   if !options[:force] and run_already?(params) then
     puts "#{params.inspect} -- skipping..."
   else
     # puts "#{pp params}"
     ENV["GLOG_logtostderr"] = 1.to_s
     ENV["OMPI_MCA_btl_sm_use_knem"] = 0.to_s
-    data = runExperiment("mpirun -l -H localhost -np #{num_procs} -- #{exe}", $exp_table) do |cmdout|
+    data = runExperiment("mpirun -l -H localhost -np #{num_procs} -- \
+      #{exe} --nelems=#{nelems} --nchunks=#{nchunks}", $exp_table) do |cmdout|
       parse(cmdout, params)
     end
   end
-}}
+}}}}

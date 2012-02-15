@@ -7,8 +7,12 @@
 #define BILLION 1000000000
 #define MILLION 1000000
 
+/// command line options for cache experiment
+DEFINE_int64(nelems, 1<<8, "total number of elements (size == 8 bytes) to local");
+DEFINE_int64(nchunks, 1, "number of chunks to break into");
+
 static const size_t memsize = 1 << 20;
-static const int64_t N = 1<<8;
+static int64_t N;
 
 typedef int64_t data_t;
 
@@ -65,7 +69,7 @@ static void am_spawn_process_chunk(process_chunk_args* a, size_t asz, void* p, s
   SoftXMT_template_spawn( &process_chunk, aa );
 }
 
-static void cache_experiment(size_t num_chunks) {
+static void cache_experiment(int64_t num_chunks) {
   main_thread = get_current_thread();
   replies = 0;
   total_result = 0;
@@ -101,10 +105,10 @@ static void cache_experiment(size_t num_chunks) {
 
 static void user_main(thread * me, void * args) {
   
-  int64_t num_chunks[] = { 1, 1<<4, 1<<6, N };
-  for (int i=0; i<4; i++) {
-    cache_experiment(num_chunks[i]);
-  }
+//  int64_t num_chunks[] = { 1, 1<<4, 1<<6, N };
+//  for (int i=0; i<4; i++) {
+    cache_experiment(FLAGS_nchunks);
+//  }
   
   LOG(INFO) << "done with experiments...";
   SoftXMT_signal_done();
@@ -113,6 +117,8 @@ static void user_main(thread * me, void * args) {
 int main(int argc, char * argv[]) {
 	SoftXMT_init(&argc, &argv);
   SoftXMT_activate();
+  
+  N = FLAGS_nelems;
   
   char mem[memsize];
   Allocator a(&mem, memsize);
