@@ -22,13 +22,13 @@ BOOST_AUTO_TEST_CASE( test1 ) {
 
   int foo;
   int bar;
-  GlobalPointer< int > foop( &foo );
-  GlobalPointer< int > barp( &bar );
+  GlobalAddress< int > foop( &foo );
+  GlobalAddress< int > barp( &bar );
   BOOST_CHECK_EQUAL( &foo, foop.pointer() );
   BOOST_CHECK_EQUAL( &bar, barp.pointer() );
   BOOST_CHECK_EQUAL( 8, sizeof( barp ) );
 
-  GlobalPointer< int > gp2 = localToGlobal( &foo );
+  GlobalAddress< int > gp2 = localToGlobal( &foo );
   BOOST_CHECK_EQUAL( gp2.pointer(), &foo );
 
   
