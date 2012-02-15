@@ -9,10 +9,19 @@
 
 /// command line options for cache experiment
 DEFINE_int64(nelems, 1<<8, "total number of elements (size == 8 bytes) to local");
-DEFINE_int64(nchunks, 1, "number of chunks to break into");
+//DEFINE_int64(nchunks, 1, "number of chunks to break into");
+DEFINE_int64(cache_elems, 1<<5, "number of data elements in each cache block (sizeof(data_t) == 8)");
+
+DEFINE_bool(incoherent_ro, false, "run experiment with Incoherent::RO cache (no write-back phase)");
+DEFINE_bool(incoherent_rw, false, "run experiment with Incoherent::RW cache (load, increment, write-back");
 
 static const size_t memsize = 1 << 20;
 static int64_t N = 0;
+
+typedef enum {
+  INCOHERENT_RO,
+  INCOHERENT_RW
+} experiment_t;
 
 typedef int64_t data_t;
 
@@ -21,15 +30,20 @@ static data_t total_result = 0;
 static int64_t replies = 0;
 
 static uint64_t total_acquire_time = 0;
+static uint64_t total_release_time = 0;
 
 static thread * main_thread = NULL;
 
 struct chunk_result_args {
   data_t result;
+  int64_t acquire_time;
+  int64_t release_time;
 };
 typedef void (am_chunk_result_t)(chunk_result_args*, size_t, void*, size_t);
 static void am_chunk_result(chunk_result_args* a, size_t asz, void* p, size_t psz) {
   total_result += a->result;
+  total_acquire_time += a->acquire_time;
+  total_release_time += a->release_time;
   ++replies;
   SoftXMT_wake(main_thread); // let main_thread check if we're done
 }
@@ -39,14 +53,14 @@ struct process_chunk_args {
   size_t num_elems;
   Node caller_node;
 };
-static void process_chunk(thread * me, process_chunk_args* a) {
+static void process_chunk_ro(thread * me, process_chunk_args* a) {
   Incoherent<data_t>::RO chunk(a->addr, a->num_elems);
 
   uint64_t start, end;
   rdtscll(start);
   chunk.block_until_acquired();
   rdtscll(end);
-  total_acquire_time += end-start;
+  int64_t acquire_time = end-start;
   DVLOG(5) << "acquire_time_ns: " << end-start << std::endl;
   
   data_t total = 0.0;
@@ -56,26 +70,59 @@ static void process_chunk(thread * me, process_chunk_args* a) {
 
   DVLOG(5) << "chunk total = " << total;
   
-  chunk_result_args ra = { total };
+  chunk_result_args ra = { total, acquire_time, 0 };
   SoftXMT_call_on(a->caller_node, &am_chunk_result, &ra);
   SoftXMT_flush(a->caller_node);
   delete a;
 }
 
-static void am_spawn_process_chunk(process_chunk_args* a, size_t asz, void* p, size_t psz) {
+static void am_spawn_process_chunk_ro(process_chunk_args* a, size_t asz, void* p, size_t psz) {
   // we can't call blocking functions from inside an active message, so spawn a thread
   process_chunk_args * aa = new process_chunk_args;
   *aa = *a;
-  SoftXMT_template_spawn( &process_chunk, aa );
+  SoftXMT_template_spawn( &process_chunk_ro, aa );
 }
 
-static void cache_experiment(int64_t num_chunks) {
+static void process_chunk_rw(thread * me, process_chunk_args* a) {
+  Incoherent<data_t>::RW chunk(a->addr, a->num_elems);
+  
+  uint64_t start, end;
+  rdtscll(start);
+  chunk.block_until_acquired();
+  rdtscll(end);
+  int64_t acquire_time = end-start;
+  DVLOG(5) << "acquire_time_ns: " << end-start << std::endl;
+  
+  data_t total = 0.0;
+  for (int i=0; i<a->num_elems; i++) {
+    chunk[i]++;
+  }
+  
+  rdtscll(start);
+  chunk.block_until_released();
+  rdtscll(end);
+  int64_t release_time = end-start;
+  
+  chunk_result_args ra = { total, acquire_time, release_time };
+  SoftXMT_call_on(a->caller_node, &am_chunk_result, &ra);
+  SoftXMT_flush(a->caller_node);
+  delete a;
+}
+
+static void am_spawn_process_chunk_rw(process_chunk_args* a, size_t asz, void* p, size_t psz) {
+  // we can't call blocking functions from inside an active message, so spawn a thread
+  process_chunk_args * aa = new process_chunk_args;
+  *aa = *a;
+  SoftXMT_template_spawn( &process_chunk_ro, aa );
+}
+
+static void cache_experiment(experiment_t exp, int64_t cache_elems) {
   main_thread = get_current_thread();
   replies = 0;
   total_result = 0;
 //  total_acquire_time = 0; // remote... doesn't work
   
-  size_t num_elems = N / num_chunks;
+  size_t num_chunks = N / cache_elems;
   
   process_chunk_args * alist = new process_chunk_args[num_chunks];
   
@@ -83,11 +130,15 @@ static void cache_experiment(int64_t num_chunks) {
   rdtscll(start);
   
   for (int i=0; i<num_chunks; i++) {
-    alist[i].addr = GlobalAddress<data_t>(data + i*num_elems);
-    alist[i].num_elems = num_elems;
+    alist[i].addr = GlobalAddress<data_t>(data + i*cache_elems);
+    alist[i].num_elems = cache_elems;
     alist[i].caller_node = 0;
     
-    SoftXMT_call_on(1, &am_spawn_process_chunk, &alist[i]);
+    if (exp == INCOHERENT_RO) {
+      SoftXMT_call_on(1, &am_spawn_process_chunk_ro, &alist[i]);
+    } else if (exp == INCOHERENT_RW) {
+      SoftXMT_call_on(1, &am_spawn_process_chunk_rw, &alist[i]);      
+    }
   }
   
   while (replies < num_chunks) {
@@ -98,17 +149,24 @@ static void cache_experiment(int64_t num_chunks) {
   DVLOG(5) << "all replies received";
   DVLOG(5) << "total_result = " << total_result;
   
-  LOG(INFO) << "num_chunks: " << num_chunks << ", total_read_time_ns: " << end-start;
-//            << ", avg_acquire_time_ns: " << (double)total_acquire_time / num_chunks;
+  std::string exp_name = (exp == INCOHERENT_RO) ? "incoherent_ro" : "incoherent_rw";
+  
+  LOG(INFO) << exp_name
+            << ", num_chunks: " << num_chunks << ", total_read_time_ns: " << end-start
+            << ", avg_acquire_time_ns: " << (double)total_acquire_time / num_chunks
+            << ", avg_release_time_ns: " << (double)total_release_time / num_chunks;
   
 }
 
 static void user_main(thread * me, void * args) {
   
-//  int64_t num_chunks[] = { 1, 1<<4, 1<<6, N };
-//  for (int i=0; i<4; i++) {
-    cache_experiment(FLAGS_nchunks);
-//  }
+  if (FLAGS_incoherent_ro) {
+    cache_experiment(INCOHERENT_RO, FLAGS_cache_elems);
+  }
+  
+  if (FLAGS_incoherent_rw) {
+    cache_experiment(INCOHERENT_RW, FLAGS_cache_elems);
+  }
   
   LOG(INFO) << "done with experiments...";
   SoftXMT_signal_done();
