@@ -124,7 +124,6 @@ static void incoherent_acquire_request_am( typename IncoherentAcquirer< T >::Req
            << " sent acquire reply to " << args->reply_address
            << " payload size " << args->count * sizeof( T );
 }
-  SoftXMT_flush( args->reply_address.node() );
 
 
 #endif
