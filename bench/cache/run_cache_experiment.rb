@@ -35,10 +35,17 @@ end
 
 $testing = true
 
+## small (2 kB)
+# Nelems = [1<<(11-3)]
+# Nchunks = [1, 1<<2, 1<<4, 1<<6, 1<<8]
+## larger (1 MB)
+Nelems = [1<<(20-3)]
+Nchunks = [1, 1<<2, 1<<4, 1<<6, 1<<8]
+
 ['./cache_experiment.exe'].each { |exe|
 [2].each { |num_procs|
-[1<<8].each { |nelems|
-[1, 1<<2, 1<<4, 1<<6, 1<<8].each { |nchunks|
+Nelems.each { |nelems|
+Nchunks.each { |nchunks|
   params = { :num_procs=>num_procs, :cache_size=>nelems*8, :num_chunks=>nchunks}
   if !options[:force] and run_already?(params) then
     puts "#{params.inspect} -- skipping..."
