@@ -34,6 +34,17 @@ int SoftXMT_run_user_main( void (* fn_p)(thread *, void *), void * args );
 /// TODO: remove thread * arg
 thread * SoftXMT_spawn( void (* fn_p)(thread *, void *), void * args );
 
+template< typename T >
+thread * SoftXMT_template_spawn( void (* fn_p)(thread *, T *), T * args )
+{
+  typedef void (* fn_t)(thread *, void *);
+
+  thread * th = SoftXMT_spawn( (fn_t)fn_p, (void *)args );
+  DVLOG(5) << "Spawned thread " << th;
+  return th;
+}
+
+
 /// Yield to scheduler, placing current thread on run queue.
 void SoftXMT_yield( );
 
