@@ -80,6 +80,14 @@ void SoftXMT_barrier() {
   my_global_communicator->barrier();
 }
 
+/// Enter global barrier that is poller safe
+void SoftXMT_barrier_commsafe() {
+    my_global_communicator->barrier_notify();
+    while (!my_global_communicator->barrier_try()) {
+        SoftXMT_yield();
+    }
+}
+
 /// Poll SoftXMT aggregation and communication layers.
 void SoftXMT_poll()
 {
@@ -126,12 +134,14 @@ void SoftXMT_yield( )
 /// Yield to scheduler, suspending current thread.
 void SoftXMT_suspend( )
 {
+  DVLOG(5) << "suspending thread " << current_thread;
   thread_suspend( current_thread );
 }
 
 /// Wake a thread by putting it on the run queue, leaving the current thread running.
 void SoftXMT_wake( thread * t )
 {
+  DVLOG(5) << "waking thread " << t;
   thread_wake( t );
 }
 
@@ -144,12 +154,14 @@ void SoftXMT_yield_wake( thread * t )
 /// Wake a thread t by suspending current thread and running t next.
 void SoftXMT_suspend_wake( thread * t )
 {
+  DVLOG(5) << "suspending thread " << current_thread << " and waking thread " << t;
   thread_suspend_wake( current_thread, t );
 }
 
 /// Join on thread t
 void SoftXMT_join( thread * t )
 {
+  DVLOG(5) << "thread " << current_thread << " joining on thread " << t;
   thread_join( current_thread, t );
 }
 
