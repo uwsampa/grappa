@@ -60,7 +60,7 @@ CXX=g++
 LD=mpiCC
 
 # some library paths
-GASNET=/sampa/share/gasnet-rhel6
+GASNET=/sampa/share/gasnet18-rhel6
 CFLAGS+= -I$(GASNET)/include -I$(GASNET)/include/ibv-conduit
 LDFLAGS+= -L$(GASNET)/lib
 
