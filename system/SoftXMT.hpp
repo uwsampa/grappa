@@ -6,8 +6,6 @@
 #include <glog/logging.h>
 
 #include "Communicator.hpp"
-#include "Aggregator.hpp"
-
 #include "thread.h"
 
 void SoftXMT_init( int * argc_p, char ** argv_p[] );
@@ -65,5 +63,8 @@ void SoftXMT_join( thread * t );
 
 /// TODO: remove this
 void SoftXMT_signal_done();
+
+#include "Aggregator.hpp"
+#include "Addressing.hpp"
 
 #endif
