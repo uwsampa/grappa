@@ -2,7 +2,6 @@
 #include <boost/test/unit_test.hpp>
 
 #include "SoftXMT.hpp"
-#include "Delegate.hpp"
 
 
 BOOST_AUTO_TEST_SUITE( Delegate_tests );
@@ -10,33 +9,34 @@ BOOST_AUTO_TEST_SUITE( Delegate_tests );
 
 int64_t some_data = 1234;
 
-
 void user_main( thread * me, void * args ) 
 {
   BOOST_MESSAGE( "Spawning user main thread " << (void *) current_thread <<
                  " " << me <<
                  " on node " << SoftXMT_mynode() );
+
+  BOOST_CHECK_EQUAL( 2, SoftXMT_nodes() );
   // try read
   some_data = 1111;
-  int64_t remote_data = SoftXMT_delegate_read_word( &some_data );
+  int64_t remote_data = SoftXMT_delegate_read_word( make_global(&some_data,1) );
   BOOST_CHECK_EQUAL( 1234, remote_data );
   BOOST_CHECK_EQUAL( 1111, some_data );
   
   // write
-  SoftXMT_delegate_write_word( &some_data, 2345 );
+  SoftXMT_delegate_write_word( make_global(&some_data,1), 2345 );
   BOOST_CHECK_EQUAL( 1111, some_data );
   
   // verify write
-  remote_data = SoftXMT_delegate_read_word( &some_data );
+  remote_data = SoftXMT_delegate_read_word( make_global(&some_data,1) );
   BOOST_CHECK_EQUAL( 2345, remote_data );
 
   // fetch and add
-  remote_data = SoftXMT_delegate_fetch_and_add_word( &some_data, 1 );
+  remote_data = SoftXMT_delegate_fetch_and_add_word( make_global(&some_data,1), 1 );
   BOOST_CHECK_EQUAL( 1111, some_data );
   BOOST_CHECK_EQUAL( 2345, remote_data );
   
   // verify write
-  remote_data = SoftXMT_delegate_read_word( &some_data );
+  remote_data = SoftXMT_delegate_read_word( make_global(&some_data,1) );
   BOOST_CHECK_EQUAL( 2346, remote_data );
 
   SoftXMT_signal_done();
