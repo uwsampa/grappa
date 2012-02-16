@@ -2,7 +2,7 @@
 #include <boost/test/unit_test.hpp>
 
 #include "SoftXMT.hpp"
-
+#include "Delegate.hpp"
 
 BOOST_AUTO_TEST_SUITE( Delegate_tests );
 
