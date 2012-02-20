@@ -233,9 +233,9 @@ static void cache_experiment_all_all(int64_t cache_elems, int64_t num_threads) {
   
   LOG(INFO) 
     << "incoherent_all"
-    << ", total_read_time_ns: " << end-start
-    << ", avg_acquire_time_ns: " << (double)total_acquire_time / num_threads
-    << ", avg_release_time_ns: " << (double)total_release_time / num_threads
+    << ", total_read_ticks: " << end-start
+    << ", avg_acquire_ticks: " << (double)total_acquire_time / num_threads
+    << ", avg_release_ticks: " << (double)total_release_time / num_threads
     << ", acquire_bw_bptk: " << (N*sizeof(data_t)*num_threads)/(double)total_acquire_time
     << ", num_threads: " << num_threads;
 }

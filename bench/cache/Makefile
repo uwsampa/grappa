@@ -44,7 +44,7 @@ include $(SOFTXMT_HOME)/include.mk
 #
 # name of host on which to run tests
 #
-HOST:=localhost
+HOST:=n01
 
 # name of main executable to build and/or run
 TARGET:= cache_experiment.exe
