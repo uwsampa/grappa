@@ -42,7 +42,7 @@ include ../include.mk
 #
 # name of host on which to run tests
 #
-HOST:=localhost
+HOST:=n01,n04
 
 # name of main executable to build and/or run
 TARGET:=
