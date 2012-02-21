@@ -17,16 +17,20 @@ params = {
 }
 
 parser = lambda {|cmdout|
-  pattern = /.* total_read_ticks: (?<total_read_ticks>#{REG_NUM}), avg_acquire_ticks: (?<avg_acquire_ticks>#{REG_NUM}), avg_release_ticks: (?<avg_release_ticks>#{REG_NUM})/
+  # pattern = /.* total_read_ticks: (?<total_read_ticks>#{REG_NUM}), avg_acquire_ticks: (?<avg_acquire_ticks>#{REG_NUM}), avg_release_ticks: (?<avg_release_ticks>#{REG_NUM})/
+  pattern = /{.*}/
   
   results = []
-    
+  
   cmdout.each_line do |line|
-    m = line.match(pattern)
-    if m then
-      results << m.dictionize
+    if m = pattern.match(line) then
+      results << eval(m[0])
     else
-      puts line
+      begin
+        puts line[/\w+:\w+/] + line[/\].*/]
+      rescue NoMethodError
+        puts line
+      end
     end
   end
   
