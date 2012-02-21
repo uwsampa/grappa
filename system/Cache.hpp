@@ -60,9 +60,9 @@ public:
 };
 
 template< typename T, 
-          template< typename T > class Allocator, 
-          template< typename T > class Acquirer, 
-          template< typename T > class Releaser >
+          template< typename TT > class Allocator, 
+          template< typename TT > class Acquirer, 
+          template< typename TT > class Releaser >
 class CacheRO {
 protected:
   GlobalAddress< T > address_;
@@ -105,9 +105,9 @@ public:
 };
 
 template< typename T, 
-          template< typename T > class Allocator, 
-          template< typename T > class Acquirer, 
-          template< typename T > class Releaser >
+          template< typename TT > class Allocator, 
+          template< typename TT > class Acquirer, 
+          template< typename TT > class Releaser >
 class CacheRW {
 protected:
   GlobalAddress< T > address_;
