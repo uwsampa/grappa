@@ -158,8 +158,7 @@ static void cache_experiment(experiment_t exp, int64_t cache_elems) {
   LOG(INFO) << exp_name
             << ", num_chunks: " << num_chunks << ", total_read_time_ns: " << end-start
             << ", avg_acquire_time_ns: " << (double)total_acquire_time / num_chunks
-            << ", avg_release_time_ns: " << (double)total_release_time / num_chunks;
-  
+            << ", avg_release_time_ns: " << (double)total_release_time / num_chunks;  
 }
 
 // all-to-all experiment
@@ -232,12 +231,13 @@ static void cache_experiment_all_all(int64_t cache_elems, int64_t num_threads) {
   DVLOG(5) << "all replies received";
   DVLOG(5) << "total_result = " << total_result;
   
-  LOG(INFO) << "incoherent_all"
-  << ", total_read_time_ns: " << end-start
-  << ", avg_acquire_time_ns: " << (double)total_acquire_time / num_threads
-  << ", avg_release_time_ns: " << (double)total_release_time / num_threads
-  << ", num_threads: " << num_threads;
-  
+  LOG(INFO)
+    << "{ experiment: 'incoherent_all'"
+    << ", total_read_ticks: " << end-start
+    << ", avg_acquire_ticks: " << (double)total_acquire_time / num_threads
+    << ", avg_release_ticks: " << (double)total_release_time / num_threads
+    << ", acquire_bw_bptk: " << (N*sizeof(data_t)*num_threads)/(double)total_acquire_time
+    << " }";
 }
 
 static void user_main(thread * me, void * args) {
