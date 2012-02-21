@@ -39,7 +39,7 @@ private:
       if( first[ parent ].priority < first[ child ].priority ) {
 	return false;
       }
-      if( 0 == child & 1 ) {
+      if( 0 == (child & 1) ) {
 	++parent;
       }
     }
