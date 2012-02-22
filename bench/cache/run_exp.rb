@@ -9,7 +9,7 @@ cmd = "mpirun -l -H n01,n04 -np %{num_procs} -- \
       %{exe} --%{experiment} --nelems=%{nelems} --cache_elems=%{cache_elems} --num_threads=%{num_threads} --logtostderr"
 params = {
   exe:          './cache_experiment.exe',
-  experiment:   'incoherent_all',
+  experiment:   'incoherent_all_remote',
   num_threads:  [8, 32, 64],
   num_procs:    [2],
   num_nodes:    [2],

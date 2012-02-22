@@ -13,7 +13,7 @@ DEFINE_int64(num_threads, 8, "number of threads (per core/node for now)");
 
 DEFINE_bool(incoherent_ro, false, "run experiment with Incoherent::RO cache (no write-back phase)");
 DEFINE_bool(incoherent_rw, false, "run experiment with Incoherent::RW cache (load, increment, write-back");
-DEFINE_bool(incoherent_all, false, "run experiment where each thread caches the entire data set in chunks");
+DEFINE_bool(incoherent_all_remote, false, "run experiment where each thread caches the entire data set in chunks");
 
 static const size_t memsize = 1 << 20;
 static int64_t N = 0;
@@ -85,7 +85,7 @@ struct spawn_all_args {
 static void am_spawn_process_all(spawn_all_args* a, size_t asz, void* p, size_t psz) {
   // we can't call blocking functions from inside an active message, so spawn a thread
   process_all_args * alist = new process_all_args[a->num_threads];
-    
+  LOG(INFO) << "spawning all...";
   for (int i=0; i<a->num_threads; i++) {
     alist[i].addr = GlobalAddress<data_t>(data+i*a->num_elems, a->caller);
     alist[i].num_elems = a->num_elems;
@@ -128,7 +128,7 @@ static void cache_experiment_all(int64_t cache_elems, int64_t num_threads) {
   LOG(INFO) << "total_result = " << total_result;
   
   LOG(INFO)
-    << "{ experiment: 'incoherent_all'"
+    << "{ experiment: 'incoherent_all_remote'"
     << ", total_read_s: " << all_time
     << ", all_bw_wps: " << (N*2)/(double)(all_time)
     << " }";
@@ -136,7 +136,8 @@ static void cache_experiment_all(int64_t cache_elems, int64_t num_threads) {
 
 static void user_main(thread * me, void * args) {
   
-  if (FLAGS_incoherent_all) {
+  if (FLAGS_incoherent_all_remote) {
+    LOG(INFO) << "all remote";
     cache_experiment_all(FLAGS_cache_elems, FLAGS_num_threads);
   }
   
@@ -147,7 +148,7 @@ static void user_main(thread * me, void * args) {
 int main(int argc, char * argv[]) {
 	SoftXMT_init(&argc, &argv);
   SoftXMT_activate();
-  
+  LOG(INFO) << "main";
   N = FLAGS_nelems;
 //  size_t memsize = (N*sizeof(data_t)*2); // x2 just to be on the safe side
 //  char * mem = new char[memsize];
