@@ -13,8 +13,8 @@ params = {
   num_threads:  [8, 32, 64],
   num_procs:    [2],
   num_nodes:    [2],
-  nelems:       [1<<8, 1<<10, 1<<12],
-  cache_elems:  [1, 1<<2, 1<<3, 1<<4, 1<<5, 1<<6, 1<<7, 1<<8]
+  nelems:       [1<<14, 1<<16, 1<<18, 1<<20, 1<<22, 1<<24],
+  cache_elems:  [1, 1<<2, 1<<4, 1<<6, 1<<7, 1<<8]
 }
 
 parser = lambda {|cmdout|

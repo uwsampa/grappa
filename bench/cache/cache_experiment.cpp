@@ -91,6 +91,11 @@ static void cache_experiment_all(int64_t cache_elems, int64_t num_threads) {
   
   int64_t num_elems = N / num_threads;
   
+  if (num_elems/cache_elems == 0) {
+    std::cerr << "too small!" << std::endl;
+    exit(1);
+  }
+
   process_all_args * alist = new process_all_args[num_threads];
   
   double start, end;
@@ -113,7 +118,9 @@ static void cache_experiment_all(int64_t cache_elems, int64_t num_threads) {
   double all_time = end-start;
   DVLOG(5) << "all replies received";
   DVLOG(5) << "total_result = " << total_result;
-  assert(total_result - (double)N < 1.0e-8);
+  assert(total_result - (double)N < 1.0e-10);
+  
+  LOG(INFO) << "total_result = " << total_result;
   
   LOG(INFO)
     << "{ experiment: 'incoherent_all'"
