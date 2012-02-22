@@ -10,10 +10,10 @@ cmd = "mpirun -l -H n01,n04 -np %{num_procs} -- \
 params = {
   exe:          './cache_experiment.exe',
   experiment:   'incoherent_all',
-  num_threads:  [8, 16, 32],
+  num_threads:  [8, 32, 64],
   num_procs:    [2],
   num_nodes:    [2],
-  nelems:       [1<<(11-3)],
+  nelems:       [1<<8, 1<<10, 1<<12],
   cache_elems:  [1, 1<<2, 1<<3, 1<<4, 1<<5, 1<<6, 1<<7, 1<<8]
 }
 
@@ -25,11 +25,11 @@ parser = lambda {|cmdout|
   
   cmdout.each_line do |line|
     if m = pattern.match(line) then
-      results << eval(m[0])
+      results << eval(m[0]) rescue puts "eval error!\n#{line}"
     else
       begin
         puts line[/\w+:\w+/] + line[/\].*/]
-      rescue NoMethodError
+      rescue NoMethodError, TypeError
         puts line
       end
     end

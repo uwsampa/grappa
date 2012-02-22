@@ -3,9 +3,7 @@
 #include "Addressing.hpp"
 #include "Cache.hpp"
 #include "common.hpp"
-
-#define BILLION 1000000000
-#define MILLION 1000000
+#include "timer.h"
 
 /// command line options for cache experiment
 DEFINE_int64(nelems, 1<<8, "total number of elements (size == 8 bytes) to local");
@@ -31,14 +29,14 @@ static data_t* data;
 static data_t total_result = 0;
 static int64_t replies = 0;
 
-static uint64_t total_acquire_time = 0;
+static double total_acquire_time = 0;
 static uint64_t total_release_time = 0;
 
 static thread * main_thread = NULL;
 
 struct chunk_result_args {
   data_t result;
-  int64_t acquire_time;
+  double acquire_time;
   int64_t release_time;
 };
 typedef void (am_chunk_result_t)(chunk_result_args*, size_t, void*, size_t);
@@ -63,7 +61,7 @@ static void process_chunk_ro(thread * me, process_chunk_args* a) {
   chunk.block_until_acquired();
   rdtscll(end);
   int64_t acquire_time = end-start;
-  DVLOG(5) << "acquire_time_ns: " << end-start << std::endl;
+  DVLOG(5) << "acquire_time_ticks: " << end-start << std::endl;
   
   data_t total = 0.0;
   for (int i=0; i<a->num_elems; i++) {
@@ -93,7 +91,7 @@ static void process_chunk_rw(thread * me, process_chunk_args* a) {
   chunk.block_until_acquired();
   rdtscll(end);
   int64_t acquire_time = end-start;
-  DVLOG(5) << "acquire_time_ns: " << end-start << std::endl;
+  DVLOG(5) << "acquire_time_ticks: " << end-start << std::endl;
   
   data_t total = 0.0;
   for (int i=0; i<a->num_elems; i++) {
@@ -156,9 +154,9 @@ static void cache_experiment(experiment_t exp, int64_t cache_elems) {
   std::string exp_name = (exp == INCOHERENT_RO) ? "incoherent_ro" : "incoherent_rw";
   
   LOG(INFO) << exp_name
-            << ", num_chunks: " << num_chunks << ", total_read_time_ns: " << end-start
-            << ", avg_acquire_time_ns: " << (double)total_acquire_time / num_chunks
-            << ", avg_release_time_ns: " << (double)total_release_time / num_chunks;  
+            << ", num_chunks: " << num_chunks << ", total_read_ticks: " << end-start
+            << ", avg_acquire_ticks: " << (double)total_acquire_time / num_chunks
+            << ", avg_release_ticks: " << (double)total_release_time / num_chunks;  
 }
 
 // all-to-all experiment
@@ -170,25 +168,30 @@ struct process_all_args {
 };
 static void process_chunk_all(thread * me, process_all_args* a) {
   int64_t num_chunks = a->num_elems / a->cache_elems;
-  int64_t acquire_time = 0;
+  double acquire_time = 0;
   data_t total = 0;
 
+  double start, end;
+  start = timer();
+  
+  data_t * buff = new data_t[a->cache_elems];
+  assert(buff != NULL);
+  
   for (int i=0; i<num_chunks; i++) {
-    Incoherent<data_t>::RO chunk(a->addr, a->num_elems);
-    
-    uint64_t start, end;
-    rdtscll(start);
+    Incoherent<data_t>::RO chunk(a->addr, a->cache_elems, buff);
     chunk.block_until_acquired();
-    rdtscll(end);
-    
-    acquire_time += end-start;
     
     for (int i=0; i<a->cache_elems; i++) {
       total += chunk[i];
     }
+    
+    chunk.block_until_released();
   }
+  end = timer();
+  acquire_time += end-start;
+  
   DVLOG(5) << "total: " << total;
-  DVLOG(5) << "acquire_time_ns: " << acquire_time;
+  DVLOG(5) << "acquire_sec: " << acquire_time;
 
   chunk_result_args ra = { total, acquire_time, 0 };
   SoftXMT_call_on(a->caller_node, &am_chunk_result, &ra);
@@ -196,28 +199,29 @@ static void process_chunk_all(thread * me, process_all_args* a) {
   delete a;
 }
 
-static void am_spawn_process_all(process_chunk_args* a, size_t asz, void* p, size_t psz) {
+static void am_spawn_process_all(process_all_args* a, size_t asz, void* p, size_t psz) {
   // we can't call blocking functions from inside an active message, so spawn a thread
-  process_chunk_args * aa = new process_chunk_args;
+  process_all_args * aa = new process_all_args;
   *aa = *a;
-  SoftXMT_template_spawn( &process_chunk_rw, aa );
+  SoftXMT_template_spawn( &process_chunk_all, aa );
 }
 
-static void cache_experiment_all_all(int64_t cache_elems, int64_t num_threads) {
+static void cache_experiment_all(int64_t cache_elems, int64_t num_threads) {
   main_thread = get_current_thread();
   replies = 0;
   total_result = 0;
   total_acquire_time = 0;
   total_release_time = 0;
   
-  process_chunk_args * alist = new process_chunk_args[num_threads];
+  process_all_args * alist = new process_all_args[num_threads];
   
-  uint64_t start, end;
-  rdtscll(start);
+  double start, end;
+  start = timer();
   
   for (int i=0; i<num_threads; i++) {
     alist[i].addr = GlobalAddress<data_t>(data);
-    alist[i].num_elems = cache_elems;
+    alist[i].num_elems = N;
+    alist[i].cache_elems = cache_elems;
     alist[i].caller_node = 0;
     
     SoftXMT_call_on(1, &am_spawn_process_all, &alist[i]);      
@@ -227,16 +231,17 @@ static void cache_experiment_all_all(int64_t cache_elems, int64_t num_threads) {
     DVLOG(5) << "waiting for replies (" << replies << "/" << num_threads << " so far)";
     SoftXMT_suspend();
   }
-  rdtscll(end);
+  end = timer();
   DVLOG(5) << "all replies received";
   DVLOG(5) << "total_result = " << total_result;
   
   LOG(INFO)
     << "{ experiment: 'incoherent_all'"
-    << ", total_read_ticks: " << end-start
-    << ", avg_acquire_ticks: " << (double)total_acquire_time / num_threads
-    << ", avg_release_ticks: " << (double)total_release_time / num_threads
-    << ", acquire_bw_bptk: " << (N*sizeof(data_t)*num_threads)/(double)total_acquire_time
+    << ", total_read_s: " << end-start
+    << ", avg_acquire_s: " << (double)total_acquire_time / num_threads
+    << ", avg_release_s: " << (double)total_release_time / num_threads
+    << ", acquire_bw_wps: " << (N*num_threads)/(double)total_acquire_time
+    << ", all_bw_wps: " << (N*num_threads)/(double)(end-start)
     << " }";
 }
 
@@ -251,7 +256,7 @@ static void user_main(thread * me, void * args) {
   }
   
   if (FLAGS_incoherent_all) {
-    cache_experiment_all_all(FLAGS_cache_elems, FLAGS_num_threads);
+    cache_experiment_all(FLAGS_cache_elems, FLAGS_num_threads);
   }
   
   LOG(INFO) << "done with experiments...";

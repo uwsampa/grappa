@@ -1,0 +1,11 @@
+GLOG_logtostderr=1 \
+	OMPI_MCA_btl_sm_use_knem=0 \
+	LD_LIBRARY_PATH="/sampa/home/bholt/opt/lib:/sampa/home/bholt/opt/lib:/sampa/home/bholt/opt/lib:/usr/mpi/qlogic/lib64::/sampa/share/gflags/lib:/sampa/share/gflags/lib:/sampa/share/glog/lib:/usr/lib:/sampa/share/gflags/lib:/sampa/share/glog/lib:/usr/lib:/sampa/share/gflags/lib:/sampa/share/glog/lib:/usr/lib:/sampa/share/gflags/lib" \
+	mpirun -l -x LD_LIBRARY_PATH -H localhost -np 2 -- ./cache_experiment.exe --nelems=512 --nchunks=1 --v=5
+localhost:0. I0215 01:47:18.290067 31976 Aggregator.hpp:217] aggregated [f=0x413bd3,d=1,a=24,p=0(t=40)]
+localhost:0. I0215 01:47:18.290310 31976 cache_experiment.cpp:94] waiting for replies (0/1 so far)
+localhost:0. I0215 01:47:18.292194 31976 IncoherentAcquirer.hpp:114] thread 0x71b620 received acquire request to <GA 0x8000000000726860: node 0 pointer 0x726860> count 512 reply to <GA 0x80017ffff4920dc0: node 1 pointer 0x7ffff4920dc0>
+localhost:0. cache_experiment.exe: ../../system/Aggregator.hpp:196: void Aggregator::aggregate(Node, void (*)(void*, size_t, void*, size_t), const void*, size_t, const void*, size_t): Assertion `total_call_size < buffer_size_' failed.
+localhost:0. *** Caught a fatal signal: SIGABRT(6) on node 0/2
+localhost:0. NOTICE: Before reporting bugs, run with GASNET_BACKTRACE=1 in the environment to generate a backtrace. 
+localhost:0. sh: line 42: 31976 Aborted                 (core dumped) "$F_PROG" --nelems=512 --nchunks=1 --v=5
