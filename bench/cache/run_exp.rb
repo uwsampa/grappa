@@ -3,7 +3,7 @@ require "experiments"
 trap("SIGINT") { puts ""; exit! } # exit (somewhat more) gracefully
 
 db = ENV["HOME"]+"/exp/softxmt.db"
-table = :cache
+table = :cache_mp
 
 cmd = "mpirun -l -H n01,n04 -np %{num_procs} -- \
       %{exe} --%{experiment} --nelems=%{nelems} --cache_elems=%{cache_elems} --num_threads=%{num_threads} --logtostderr"
