@@ -76,11 +76,24 @@ static void process_chunk_all(thread * me, process_all_args* a) {
   delete a;
 }
 
-static void am_spawn_process_all(process_all_args* a, size_t asz, void* p, size_t psz) {
+struct spawn_all_args {
+  int64_t num_threads;
+  int64_t num_elems;
+  int64_t cache_elems;
+  Node caller;
+};
+static void am_spawn_process_all(spawn_all_args* a, size_t asz, void* p, size_t psz) {
   // we can't call blocking functions from inside an active message, so spawn a thread
-  process_all_args * aa = new process_all_args;
-  *aa = *a;
-  SoftXMT_template_spawn( &process_chunk_all, aa );
+  process_all_args * alist = new process_all_args[a->num_threads];
+    
+  for (int i=0; i<a->num_threads; i++) {
+    alist[i].addr = GlobalAddress<data_t>(data+i*a->num_elems, a->caller);
+    alist[i].num_elems = a->num_elems;
+    alist[i].cache_elems = a->cache_elems;
+    alist[i].caller_node = a->caller;
+    
+    SoftXMT_template_spawn( &process_chunk_all, &alist[i] );
+  }
 }
 
 static void cache_experiment_all(int64_t cache_elems, int64_t num_threads) {
@@ -95,20 +108,12 @@ static void cache_experiment_all(int64_t cache_elems, int64_t num_threads) {
     std::cerr << "too small!" << std::endl;
     exit(1);
   }
-
-  process_all_args * alist = new process_all_args[num_threads];
   
   double start, end;
   start = timer();
   
-  for (int i=0; i<num_threads; i++) {
-    alist[i].addr = GlobalAddress<data_t>(data+i*num_elems);
-    alist[i].num_elems = num_elems;
-    alist[i].cache_elems = cache_elems;
-    alist[i].caller_node = 0;
-    
-    SoftXMT_call_on(1, &am_spawn_process_all, &alist[i]);      
-  }
+  spawn_all_args a = { num_threads, num_elems, cache_elems, SoftXMT_mynode() };
+  SoftXMT_call_on(1, &am_spawn_process_all, &a);
   
   while (replies < num_threads) {
     DVLOG(5) << "waiting for replies (" << replies << "/" << num_threads << " so far)";
