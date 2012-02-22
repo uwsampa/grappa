@@ -5,7 +5,6 @@
 #include "uts.h"
 #include "StealQueue.h"
 #include "thread.h"
-#include "global_array.h"
 #include "balloc.h"
 #include <omp.h>
 #include <math.h>
@@ -13,7 +12,6 @@
 #include <list>
 #include <iterator>
 
-#include "getput.h"
 #include "gasnet_cbarrier.h"
 #include "collective.h"
 
