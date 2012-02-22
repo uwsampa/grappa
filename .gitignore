@@ -12,3 +12,6 @@
 *.gch
 ._*
 .DS_Store
+*/.gitignore
+*.db
+
