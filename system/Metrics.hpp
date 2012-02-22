@@ -1,17 +1,22 @@
 
+#ifndef __METRICS_HPP__
+#define __METRICS_HPP__
+
+#include <iomanip>
+
 /*
  * macros to make metrics collection easier
  *
  * In your source file, include this file and define something like this:
  * #define METRICS( METRIC ) \
- *    METRIC( "Metric name", "%d", some_int_variable ); \
- *    METRIC( "Other metric name", "%f", some_double_variable ); \
- *    METRIC( "Third metric name", "%s", a_string_variable );
+ *    METRIC( "Metric name", some_variable ) \
+ *    METRIC( "Other metric name", other_variable ) \
+ *    METRIC( "Third metric name", thrid_variable )
  *
  * Then make "calls" to generate human-readable metric output like this:
- *   PRINT_HUMAN_METRICS( METRICS );
+ *   std::cout << STREAMIFY_HUMAN_METRICS( METRICS ) << std::endl;
  * and in CSV like this:
- *   PRINT_CSV_METRICS( METRICS );
+ *   std::cout << STREAMIFY_CSV_METRICS( METRICS ) << std::endl;
  *
  * Run all your experiments and collect their stdout in a log
  * file. Then you can extract the CSV output into its own file with a
@@ -26,25 +31,25 @@
 
 
 
-#define PRINT_HUMAN_METRIC( n, f, d ) printf("%50s: " f "\n", (n), (d))
-#define PRINT_HUMAN_METRICS( M )		\
-  do {						\
-    printf("{\n");				\
-    M( PRINT_HUMAN_METRIC );			\
-    printf("}\n");				\
-  } while(0)
+#define STREAMIFY_HUMAN_METRIC( n, d )    \
+  << std::setw(50) << std::setfill(' ')  \
+  << (n)                                 \
+  << std::setw(0) << std::setfill('0')   \
+  << ": "                                \
+  << (d)                                 \
+  << "\n"
+#define STREAMIFY_HUMAN_METRICS( M )             \
+  "Metrics in human-readable form:\n"            \
+  "{\n" M( STREAMIFY_HUMAN_METRIC ) << "}"
 
 
+#define STREAMIFY_CSV_METRIC_HEADER( n, d )     \
+  << ", " << (n) 
+#define STREAMIFY_CSV_METRIC_DATA( n, d )       \
+  << ", " << (d) 
+#define STREAMIFY_CSV_METRICS( M )                       \
+  "Metrics in CSV:\n"                                    \
+  << "header" M( STREAMIFY_CSV_METRIC_HEADER ) << "\n"   \
+  << "data" M( STREAMIFY_CSV_METRIC_DATA )
 
-
-#define PRINT_CSV_METRIC_HEADER( n, f, d ) printf(", %s", (n))
-#define PRINT_CSV_METRIC_DATA( n, f, d ) printf(", " f, (d))
-#define PRINT_CSV_METRICS( M )			\
-  do {						\
-    printf("header");				\
-    M( PRINT_CSV_METRIC_HEADER );		\
-    printf("\n");				\
-    printf("data");				\
-    M( PRINT_CSV_METRIC_DATA );			\
-    printf("\n");				\
-  } while (0)
+#endif
