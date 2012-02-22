@@ -68,11 +68,12 @@ static void process_chunk_all(thread * me, process_all_args* a) {
     chunk.block_until_released();
   }
   
+  total_result += total;
   DVLOG(5) << "total: " << total;
 
-  chunk_result_args ra = { total };
-  SoftXMT_call_on(a->caller_node, &am_chunk_result, &ra);
-  SoftXMT_flush(a->caller_node);
+//  chunk_result_args ra = { total };
+//  SoftXMT_call_on(a->caller_node, &am_chunk_result, &ra);
+//  SoftXMT_flush(a->caller_node);
 }
 
 struct spawn_all_args {
@@ -82,18 +83,43 @@ struct spawn_all_args {
   int64_t cache_elems;
   Node caller;
 };
-static void am_spawn_process_all(spawn_all_args* a, size_t asz, void* p, size_t psz) {
+static void th_spawn_all(thread * me, spawn_all_args* a) {
   // we can't call blocking functions from inside an active message, so spawn a thread
   process_all_args * alist = new process_all_args[a->num_threads];
-
+  thread ** ths = new thread*[a->num_threads];
+  
+  DVLOG(5) << "spawning " << a->num_threads << " threads";
+  
+  total_result = 0; // zero out 'total_result' on this node
+  
+  double start, end;
+  start = timer();
+  
   for (int i=0; i<a->num_threads; i++) {
-    alist[i].addr = GlobalAddress<data_t>(a->data+i*a->num_elems, 0);
+    alist[i].addr = GlobalAddress<data_t>(a->data+i*a->num_elems, a->caller);
     alist[i].num_elems = a->num_elems;
     alist[i].cache_elems = a->cache_elems;
-    alist[i].caller_node = 0;
+    alist[i].caller_node = a->caller;
     
-    SoftXMT_template_spawn( &process_chunk_all, &alist[i] );
+    ths[i] = SoftXMT_template_spawn( &process_chunk_all, &alist[i] );
   }
+  
+  for (int i=0; i<a->num_threads; i++) {
+    SoftXMT_join(ths[i]);
+  }
+  
+  end = timer();
+  LOG(INFO) << "remote time: " << end-start;
+  
+  chunk_result_args ra = { total_result };
+  SoftXMT_call_on(a->caller, &am_chunk_result, &ra);
+  SoftXMT_flush(a->caller);
+}
+
+static void am_spawn_all(spawn_all_args* a, size_t asz, void* p, size_t psz) {
+  spawn_all_args * aa = new spawn_all_args;
+  *aa = *a;
+  SoftXMT_template_spawn(&th_spawn_all, aa);
 }
 
 static void cache_experiment_all(int64_t cache_elems, int64_t num_threads) {
@@ -113,9 +139,9 @@ static void cache_experiment_all(int64_t cache_elems, int64_t num_threads) {
   start = timer();
   
   spawn_all_args a = { data, num_threads, num_elems, cache_elems, 0 };
-  SoftXMT_call_on(1, &am_spawn_process_all, &a);
+  SoftXMT_call_on(1, &am_spawn_all, &a);
   
-  while (replies < num_threads) {
+  while (replies < 1) {
     DVLOG(5) << "waiting for replies (" << replies << "/" << num_threads << " so far)";
     SoftXMT_suspend();
   }
