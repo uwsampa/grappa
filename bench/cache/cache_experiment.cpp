@@ -56,7 +56,7 @@ static void process_chunk_all(thread * me, process_all_args* a) {
   
   data_t * buff = new data_t[a->cache_elems];
   assert(buff != NULL);
-  
+
   for (int i=0; i<num_chunks; i++) {
     Incoherent<data_t>::RO chunk(a->addr, a->cache_elems, buff);
     chunk.block_until_acquired();
@@ -73,10 +73,10 @@ static void process_chunk_all(thread * me, process_all_args* a) {
   chunk_result_args ra = { total };
   SoftXMT_call_on(a->caller_node, &am_chunk_result, &ra);
   SoftXMT_flush(a->caller_node);
-  delete a;
 }
 
 struct spawn_all_args {
+  data_t* data;
   int64_t num_threads;
   int64_t num_elems;
   int64_t cache_elems;
@@ -85,12 +85,12 @@ struct spawn_all_args {
 static void am_spawn_process_all(spawn_all_args* a, size_t asz, void* p, size_t psz) {
   // we can't call blocking functions from inside an active message, so spawn a thread
   process_all_args * alist = new process_all_args[a->num_threads];
-  LOG(INFO) << "spawning all...";
+
   for (int i=0; i<a->num_threads; i++) {
-    alist[i].addr = GlobalAddress<data_t>(data+i*a->num_elems, a->caller);
+    alist[i].addr = GlobalAddress<data_t>(a->data+i*a->num_elems, 0);
     alist[i].num_elems = a->num_elems;
     alist[i].cache_elems = a->cache_elems;
-    alist[i].caller_node = a->caller;
+    alist[i].caller_node = 0;
     
     SoftXMT_template_spawn( &process_chunk_all, &alist[i] );
   }
@@ -112,7 +112,7 @@ static void cache_experiment_all(int64_t cache_elems, int64_t num_threads) {
   double start, end;
   start = timer();
   
-  spawn_all_args a = { num_threads, num_elems, cache_elems, SoftXMT_mynode() };
+  spawn_all_args a = { data, num_threads, num_elems, cache_elems, 0 };
   SoftXMT_call_on(1, &am_spawn_process_all, &a);
   
   while (replies < num_threads) {
@@ -137,7 +137,6 @@ static void cache_experiment_all(int64_t cache_elems, int64_t num_threads) {
 static void user_main(thread * me, void * args) {
   
   if (FLAGS_incoherent_all_remote) {
-    LOG(INFO) << "all remote";
     cache_experiment_all(FLAGS_cache_elems, FLAGS_num_threads);
   }
   
@@ -146,9 +145,8 @@ static void user_main(thread * me, void * args) {
 }
 
 int main(int argc, char * argv[]) {
-	SoftXMT_init(&argc, &argv);
+  SoftXMT_init(&argc, &argv);
   SoftXMT_activate();
-  LOG(INFO) << "main";
   N = FLAGS_nelems;
 //  size_t memsize = (N*sizeof(data_t)*2); // x2 just to be on the safe side
 //  char * mem = new char[memsize];
