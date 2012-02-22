@@ -1,11 +1,12 @@
 #!/usr/bin/env ruby
 require "experiments"
+trap("SIGINT") { puts ""; exit! } # exit (somewhat more) gracefully
 
 db = ENV["HOME"]+"/exp/softxmt.db"
 table = :cache
 
 cmd = "mpirun -l -H n01,n04 -np %{num_procs} -- \
-      %{exe} --%{experiment} --nelems=%{nelems} --cache_elems=%{cache_elems} --num_threads=%{num_threads}"
+      %{exe} --%{experiment} --nelems=%{nelems} --cache_elems=%{cache_elems} --num_threads=%{num_threads} --logtostderr"
 params = {
   exe:          './cache_experiment.exe',
   experiment:   'incoherent_all',
@@ -37,7 +38,7 @@ parser = lambda {|cmdout|
   results
 }
 
-ENV["GLOG_logtostderr"] = "1"
+# ENV["GLOG_logtostderr"] = "1"
 ENV["OMPI_MCA_btl_sm_use_knem"] = "0"
 
 run_experiments(cmd, params, db, table, &parser)
