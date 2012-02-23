@@ -10,11 +10,11 @@ cmd = "mpirun -l -H n01,n04 -np %{num_procs} -- \
 params = {
   exe:          './cache_experiment.exe',
   experiment:   'incoherent_all_remote',
-  num_threads:  [8, 32, 64],
+  num_threads:  [16, 32, 64, 128, 256, 384, 512],
   num_procs:    [2],
   num_nodes:    [2],
   nelems:       [1<<14, 1<<16, 1<<18, 1<<20, 1<<22, 1<<24],
-  cache_elems:  [1, 1<<2, 1<<4, 1<<6, 1<<7, 1<<8]
+  cache_elems:  [1<<1, 1<<2, 1<<4, 1<<6, 1<<7, 1<<8]
 }
 
 parser = lambda {|cmdout|

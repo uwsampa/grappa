@@ -1,0 +1,2996 @@
+------
+mpirun -l -H n01,n04 -np 2 --       ./cache_experiment.exe --incoherent_all_remote --nelems=16384 --cache_elems=4 --num_threads=32 --logtostderr
+n04:1] finishing
+n01:0] total_result = 16384
+n01:0] done with experiments...
+n01:0] finishing
+{
+             :exe => "./cache_experiment.exe",
+      :experiment => "incoherent_all_remote",
+     :num_threads => 32,
+       :num_procs => 2,
+       :num_nodes => 2,
+          :nelems => 16384,
+     :cache_elems => 4,
+          :commit => "6f7229edbe13f63f6ab7c77a80774e63b83541d9",
+          :run_at => 2012-02-22 19:28:57 -0800,
+    :total_work_s => 0.0808019,
+     :work_bw_wps => 405535,
+    :total_read_s => 0.082647,
+      :all_bw_wps => 396482
+}
+------
+mpirun -l -H n01,n04 -np 2 --       ./cache_experiment.exe --incoherent_all_remote --nelems=16384 --cache_elems=16 --num_threads=32 --logtostderr
+n04:1] finishing
+n01:0] total_result = 16384
+n01:0] done with experiments...
+n01:0] finishing
+{
+             :exe => "./cache_experiment.exe",
+      :experiment => "incoherent_all_remote",
+     :num_threads => 32,
+       :num_procs => 2,
+       :num_nodes => 2,
+          :nelems => 16384,
+     :cache_elems => 16,
+          :commit => "6f7229edbe13f63f6ab7c77a80774e63b83541d9",
+          :run_at => 2012-02-22 19:28:57 -0800,
+    :total_work_s => 0.055642,
+     :work_bw_wps => 588907,
+    :total_read_s => 0.0573815,
+      :all_bw_wps => 571055
+}
+------
+mpirun -l -H n01,n04 -np 2 --       ./cache_experiment.exe --incoherent_all_remote --nelems=16384 --cache_elems=64 --num_threads=32 --logtostderr
+n04:1] finishing
+n01:0] total_result = 16384
+n01:0] done with experiments...
+n01:0] finishing
+{
+             :exe => "./cache_experiment.exe",
+      :experiment => "incoherent_all_remote",
+     :num_threads => 32,
+       :num_procs => 2,
+       :num_nodes => 2,
+          :nelems => 16384,
+     :cache_elems => 64,
+          :commit => "6f7229edbe13f63f6ab7c77a80774e63b83541d9",
+          :run_at => 2012-02-22 19:28:57 -0800,
+    :total_work_s => 0.0488782,
+     :work_bw_wps => 670402,
+    :total_read_s => 0.050606,
+      :all_bw_wps => 647512
+}
+------
+mpirun -l -H n01,n04 -np 2 --       ./cache_experiment.exe --incoherent_all_remote --nelems=16384 --cache_elems=128 --num_threads=32 --logtostderr
+n04:1] finishing
+n01:0] total_result = 16384
+n01:0] done with experiments...
+n01:0] finishing
+{
+             :exe => "./cache_experiment.exe",
+      :experiment => "incoherent_all_remote",
+     :num_threads => 32,
+       :num_procs => 2,
+       :num_nodes => 2,
+          :nelems => 16384,
+     :cache_elems => 128,
+          :commit => "6f7229edbe13f63f6ab7c77a80774e63b83541d9",
+          :run_at => 2012-02-22 19:28:57 -0800,
+    :total_work_s => 0.0478171,
+     :work_bw_wps => 685278,
+    :total_read_s => 0.0495408,
+      :all_bw_wps => 661435
+}
+------
+mpirun -l -H n01,n04 -np 2 --       ./cache_experiment.exe --incoherent_all_remote --nelems=16384 --cache_elems=256 --num_threads=32 --logtostderr
+n04:1] finishing
+n01:0] total_result = 16384
+n01:0] done with experiments...
+n01:0] finishing
+{
+             :exe => "./cache_experiment.exe",
+      :experiment => "incoherent_all_remote",
+     :num_threads => 32,
+       :num_procs => 2,
+       :num_nodes => 2,
+          :nelems => 16384,
+     :cache_elems => 256,
+          :commit => "6f7229edbe13f63f6ab7c77a80774e63b83541d9",
+          :run_at => 2012-02-22 19:28:57 -0800,
+    :total_work_s => 0.0474259,
+     :work_bw_wps => 690931,
+    :total_read_s => 0.0491431,
+      :all_bw_wps => 666787
+}
+------
+mpirun -l -H n01,n04 -np 2 --       ./cache_experiment.exe --incoherent_all_remote --nelems=65536 --cache_elems=4 --num_threads=32 --logtostderr
+n04:1] finishing
+n01:0] total_result = 65536
+n01:0] done with experiments...
+n01:0] finishing
+{
+             :exe => "./cache_experiment.exe",
+      :experiment => "incoherent_all_remote",
+     :num_threads => 32,
+       :num_procs => 2,
+       :num_nodes => 2,
+          :nelems => 65536,
+     :cache_elems => 4,
+          :commit => "6f7229edbe13f63f6ab7c77a80774e63b83541d9",
+          :run_at => 2012-02-22 19:28:57 -0800,
+    :total_work_s => 0.181541,
+     :work_bw_wps => 721996,
+    :total_read_s => 0.183638,
+      :all_bw_wps => 713751
+}
+------
+mpirun -l -H n01,n04 -np 2 --       ./cache_experiment.exe --incoherent_all_remote --nelems=65536 --cache_elems=16 --num_threads=32 --logtostderr
+n01:0] total_result = 65536
+n01:0] done with experiments...
+n01:0] finishing
+n04:1] finishing
+{
+             :exe => "./cache_experiment.exe",
+      :experiment => "incoherent_all_remote",
+     :num_threads => 32,
+       :num_procs => 2,
+       :num_nodes => 2,
+          :nelems => 65536,
+     :cache_elems => 16,
+          :commit => "6f7229edbe13f63f6ab7c77a80774e63b83541d9",
+          :run_at => 2012-02-22 19:28:57 -0800,
+    :total_work_s => 0.0871719,
+     :work_bw_wps => 1503600.0,
+    :total_read_s => 0.0890263,
+      :all_bw_wps => 1472280.0
+}
+------
+mpirun -l -H n01,n04 -np 2 --       ./cache_experiment.exe --incoherent_all_remote --nelems=65536 --cache_elems=64 --num_threads=32 --logtostderr
+n04:1] finishing
+n01:0] total_result = 65536
+n01:0] done with experiments...
+n01:0] finishing
+{
+             :exe => "./cache_experiment.exe",
+      :experiment => "incoherent_all_remote",
+     :num_threads => 32,
+       :num_procs => 2,
+       :num_nodes => 2,
+          :nelems => 65536,
+     :cache_elems => 64,
+          :commit => "6f7229edbe13f63f6ab7c77a80774e63b83541d9",
+          :run_at => 2012-02-22 19:28:57 -0800,
+    :total_work_s => 0.0550745,
+     :work_bw_wps => 2379910.0,
+    :total_read_s => 0.056817,
+      :all_bw_wps => 2306910.0
+}
+------
+mpirun -l -H n01,n04 -np 2 --       ./cache_experiment.exe --incoherent_all_remote --nelems=65536 --cache_elems=128 --num_threads=32 --logtostderr
+n01:0] total_result = 65536
+n01:0] done with experiments...
+n01:0] finishing
+n04:1] finishing
+{
+             :exe => "./cache_experiment.exe",
+      :experiment => "incoherent_all_remote",
+     :num_threads => 32,
+       :num_procs => 2,
+       :num_nodes => 2,
+          :nelems => 65536,
+     :cache_elems => 128,
+          :commit => "6f7229edbe13f63f6ab7c77a80774e63b83541d9",
+          :run_at => 2012-02-22 19:28:57 -0800,
+    :total_work_s => 0.0512571,
+     :work_bw_wps => 2557150.0,
+    :total_read_s => 0.0529839,
+      :all_bw_wps => 2473810.0
+}
+------
+mpirun -l -H n01,n04 -np 2 --       ./cache_experiment.exe --incoherent_all_remote --nelems=65536 --cache_elems=256 --num_threads=32 --logtostderr
+n04:1] finishing
+n01:0] total_result = 65536
+n01:0] done with experiments...
+n01:0] finishing
+{
+             :exe => "./cache_experiment.exe",
+      :experiment => "incoherent_all_remote",
+     :num_threads => 32,
+       :num_procs => 2,
+       :num_nodes => 2,
+          :nelems => 65536,
+     :cache_elems => 256,
+          :commit => "6f7229edbe13f63f6ab7c77a80774e63b83541d9",
+          :run_at => 2012-02-22 19:28:57 -0800,
+    :total_work_s => 0.0499497,
+     :work_bw_wps => 2624080.0,
+    :total_read_s => 0.0516709,
+      :all_bw_wps => 2536670.0
+}
+------
+mpirun -l -H n01,n04 -np 2 --       ./cache_experiment.exe --incoherent_all_remote --nelems=262144 --cache_elems=4 --num_threads=32 --logtostderr
+n01:0] total_result = 262144
+n01:0] done with experiments...
+n01:0] finishing
+n04:1] finishing
+{
+             :exe => "./cache_experiment.exe",
+      :experiment => "incoherent_all_remote",
+     :num_threads => 32,
+       :num_procs => 2,
+       :num_nodes => 2,
+          :nelems => 262144,
+     :cache_elems => 4,
+          :commit => "6f7229edbe13f63f6ab7c77a80774e63b83541d9",
+          :run_at => 2012-02-22 19:28:57 -0800,
+    :total_work_s => 0.611577,
+     :work_bw_wps => 857273,
+    :total_read_s => 0.614733,
+      :all_bw_wps => 852871
+}
+------
+mpirun -l -H n01,n04 -np 2 --       ./cache_experiment.exe --incoherent_all_remote --nelems=262144 --cache_elems=16 --num_threads=32 --logtostderr
+n04:1] finishing
+n01:0] total_result = 262144
+n01:0] done with experiments...
+n01:0] finishing
+{
+             :exe => "./cache_experiment.exe",
+      :experiment => "incoherent_all_remote",
+     :num_threads => 32,
+       :num_procs => 2,
+       :num_nodes => 2,
+          :nelems => 262144,
+     :cache_elems => 16,
+          :commit => "6f7229edbe13f63f6ab7c77a80774e63b83541d9",
+          :run_at => 2012-02-22 19:28:57 -0800,
+    :total_work_s => 0.189402,
+     :work_bw_wps => 2768120.0,
+    :total_read_s => 0.191503,
+      :all_bw_wps => 2737760.0
+}
+------
+mpirun -l -H n01,n04 -np 2 --       ./cache_experiment.exe --incoherent_all_remote --nelems=262144 --cache_elems=64 --num_threads=32 --logtostderr
+n01:0] total_result = 262144
+n01:0] done with experiments...
+n01:0] finishing
+n04:1] finishing
+{
+             :exe => "./cache_experiment.exe",
+      :experiment => "incoherent_all_remote",
+     :num_threads => 32,
+       :num_procs => 2,
+       :num_nodes => 2,
+          :nelems => 262144,
+     :cache_elems => 64,
+          :commit => "6f7229edbe13f63f6ab7c77a80774e63b83541d9",
+          :run_at => 2012-02-22 19:28:57 -0800,
+    :total_work_s => 0.0773187,
+     :work_bw_wps => 6780870.0,
+    :total_read_s => 0.0791197,
+      :all_bw_wps => 6626510.0
+}
+------
+mpirun -l -H n01,n04 -np 2 --       ./cache_experiment.exe --incoherent_all_remote --nelems=262144 --cache_elems=128 --num_threads=32 --logtostderr
+n01:0] total_result = 262144
+n01:0] done with experiments...
+n01:0] finishing
+n04:1] finishing
+{
+             :exe => "./cache_experiment.exe",
+      :experiment => "incoherent_all_remote",
+     :num_threads => 32,
+       :num_procs => 2,
+       :num_nodes => 2,
+          :nelems => 262144,
+     :cache_elems => 128,
+          :commit => "6f7229edbe13f63f6ab7c77a80774e63b83541d9",
+          :run_at => 2012-02-22 19:28:57 -0800,
+    :total_work_s => 0.065788,
+     :work_bw_wps => 7969360.0,
+    :total_read_s => 0.0675641,
+      :all_bw_wps => 7759860.0
+}
+------
+mpirun -l -H n01,n04 -np 2 --       ./cache_experiment.exe --incoherent_all_remote --nelems=262144 --cache_elems=256 --num_threads=32 --logtostderr
+n01:0] total_result = 262144
+n01:0] done with experiments...
+n01:0] finishing
+n04:1] finishing
+{
+             :exe => "./cache_experiment.exe",
+      :experiment => "incoherent_all_remote",
+     :num_threads => 32,
+       :num_procs => 2,
+       :num_nodes => 2,
+          :nelems => 262144,
+     :cache_elems => 256,
+          :commit => "6f7229edbe13f63f6ab7c77a80774e63b83541d9",
+          :run_at => 2012-02-22 19:28:57 -0800,
+    :total_work_s => 0.0608895,
+     :work_bw_wps => 8610480.0,
+    :total_read_s => 0.065816,
+      :all_bw_wps => 7965960.0
+}
+------
+mpirun -l -H n01,n04 -np 2 --       ./cache_experiment.exe --incoherent_all_remote --nelems=1048576 --cache_elems=4 --num_threads=32 --logtostderr
+n04:1] finishing
+n01:0] total_result = 1048576
+n01:0] done with experiments...
+n01:0] finishing
+{
+             :exe => "./cache_experiment.exe",
+      :experiment => "incoherent_all_remote",
+     :num_threads => 32,
+       :num_procs => 2,
+       :num_nodes => 2,
+          :nelems => 1048576,
+     :cache_elems => 4,
+          :commit => "6f7229edbe13f63f6ab7c77a80774e63b83541d9",
+          :run_at => 2012-02-22 19:28:57 -0800,
+    :total_work_s => 2.32611,
+     :work_bw_wps => 901570,
+    :total_read_s => 2.33384,
+      :all_bw_wps => 898584
+}
+------
+mpirun -l -H n01,n04 -np 2 --       ./cache_experiment.exe --incoherent_all_remote --nelems=1048576 --cache_elems=16 --num_threads=32 --logtostderr
+n04:1] finishing
+n01:0] total_result = 1048576
+n01:0] done with experiments...
+n01:0] finishing
+{
+             :exe => "./cache_experiment.exe",
+      :experiment => "incoherent_all_remote",
+     :num_threads => 32,
+       :num_procs => 2,
+       :num_nodes => 2,
+          :nelems => 1048576,
+     :cache_elems => 16,
+          :commit => "6f7229edbe13f63f6ab7c77a80774e63b83541d9",
+          :run_at => 2012-02-22 19:28:57 -0800,
+    :total_work_s => 0.640127,
+     :work_bw_wps => 3276150.0,
+    :total_read_s => 0.646373,
+      :all_bw_wps => 3244490.0
+}
+------
+mpirun -l -H n01,n04 -np 2 --       ./cache_experiment.exe --incoherent_all_remote --nelems=1048576 --cache_elems=64 --num_threads=32 --logtostderr
+n04:1] finishing
+n01:0] total_result = 1048576
+n01:0] done with experiments...
+n01:0] finishing
+{
+             :exe => "./cache_experiment.exe",
+      :experiment => "incoherent_all_remote",
+     :num_threads => 32,
+       :num_procs => 2,
+       :num_nodes => 2,
+          :nelems => 1048576,
+     :cache_elems => 64,
+          :commit => "6f7229edbe13f63f6ab7c77a80774e63b83541d9",
+          :run_at => 2012-02-22 19:28:57 -0800,
+    :total_work_s => 0.173981,
+     :work_bw_wps => 12053900.0,
+    :total_read_s => 0.176036,
+      :all_bw_wps => 11913200.0
+}
+------
+mpirun -l -H n01,n04 -np 2 --       ./cache_experiment.exe --incoherent_all_remote --nelems=1048576 --cache_elems=128 --num_threads=32 --logtostderr
+n01:0] total_result = 1048576
+n01:0] done with experiments...
+n01:0] finishing
+n04:1] finishing
+{
+             :exe => "./cache_experiment.exe",
+      :experiment => "incoherent_all_remote",
+     :num_threads => 32,
+       :num_procs => 2,
+       :num_nodes => 2,
+          :nelems => 1048576,
+     :cache_elems => 128,
+          :commit => "6f7229edbe13f63f6ab7c77a80774e63b83541d9",
+          :run_at => 2012-02-22 19:28:57 -0800,
+    :total_work_s => 0.126556,
+     :work_bw_wps => 16571000.0,
+    :total_read_s => 0.128485,
+      :all_bw_wps => 16322200.0
+}
+------
+mpirun -l -H n01,n04 -np 2 --       ./cache_experiment.exe --incoherent_all_remote --nelems=1048576 --cache_elems=256 --num_threads=32 --logtostderr
+n01:0] total_result = 1048576
+n01:0] done with experiments...
+n01:0] finishing
+n04:1] finishing
+{
+             :exe => "./cache_experiment.exe",
+      :experiment => "incoherent_all_remote",
+     :num_threads => 32,
+       :num_procs => 2,
+       :num_nodes => 2,
+          :nelems => 1048576,
+     :cache_elems => 256,
+          :commit => "6f7229edbe13f63f6ab7c77a80774e63b83541d9",
+          :run_at => 2012-02-22 19:28:57 -0800,
+    :total_work_s => 0.106221,
+     :work_bw_wps => 19743200.0,
+    :total_read_s => 0.108114,
+      :all_bw_wps => 19397500.0
+}
+------
+mpirun -l -H n01,n04 -np 2 --       ./cache_experiment.exe --incoherent_all_remote --nelems=4194304 --cache_elems=4 --num_threads=32 --logtostderr
+n04:1] finishing
+n01:0] total_result = 4194304
+n01:0] done with experiments...
+n01:0] finishing
+{
+             :exe => "./cache_experiment.exe",
+      :experiment => "incoherent_all_remote",
+     :num_threads => 32,
+       :num_procs => 2,
+       :num_nodes => 2,
+          :nelems => 4194304,
+     :cache_elems => 4,
+          :commit => "6f7229edbe13f63f6ab7c77a80774e63b83541d9",
+          :run_at => 2012-02-22 19:28:57 -0800,
+    :total_work_s => 9.19566,
+     :work_bw_wps => 912236,
+    :total_read_s => 9.22367,
+      :all_bw_wps => 909466
+}
+------
+mpirun -l -H n01,n04 -np 2 --       ./cache_experiment.exe --incoherent_all_remote --nelems=4194304 --cache_elems=16 --num_threads=32 --logtostderr
+n01:0] total_result = 4194304
+n01:0] done with experiments...
+n01:0] finishing
+n04:1] finishing
+{
+             :exe => "./cache_experiment.exe",
+      :experiment => "incoherent_all_remote",
+     :num_threads => 32,
+       :num_procs => 2,
+       :num_nodes => 2,
+          :nelems => 4194304,
+     :cache_elems => 16,
+          :commit => "6f7229edbe13f63f6ab7c77a80774e63b83541d9",
+          :run_at => 2012-02-22 19:28:57 -0800,
+    :total_work_s => 2.3971,
+     :work_bw_wps => 3499470.0,
+    :total_read_s => 2.40771,
+      :all_bw_wps => 3484060.0
+}
+------
+mpirun -l -H n01,n04 -np 2 --       ./cache_experiment.exe --incoherent_all_remote --nelems=4194304 --cache_elems=64 --num_threads=32 --logtostderr
+n04:1] finishing
+n01:0] total_result = 4194304
+n01:0] done with experiments...
+n01:0] finishing
+{
+             :exe => "./cache_experiment.exe",
+      :experiment => "incoherent_all_remote",
+     :num_threads => 32,
+       :num_procs => 2,
+       :num_nodes => 2,
+          :nelems => 4194304,
+     :cache_elems => 64,
+          :commit => "6f7229edbe13f63f6ab7c77a80774e63b83541d9",
+          :run_at => 2012-02-22 19:28:57 -0800,
+    :total_work_s => 0.557517,
+     :work_bw_wps => 15046400.0,
+    :total_read_s => 0.560543,
+      :all_bw_wps => 14965100.0
+}
+------
+mpirun -l -H n01,n04 -np 2 --       ./cache_experiment.exe --incoherent_all_remote --nelems=4194304 --cache_elems=128 --num_threads=32 --logtostderr
+n01:0] total_result = 4194304
+n01:0] done with experiments...
+n01:0] finishing
+n04:1] finishing
+{
+             :exe => "./cache_experiment.exe",
+      :experiment => "incoherent_all_remote",
+     :num_threads => 32,
+       :num_procs => 2,
+       :num_nodes => 2,
+          :nelems => 4194304,
+     :cache_elems => 128,
+          :commit => "6f7229edbe13f63f6ab7c77a80774e63b83541d9",
+          :run_at => 2012-02-22 19:28:57 -0800,
+    :total_work_s => 0.368906,
+     :work_bw_wps => 22739200.0,
+    :total_read_s => 0.374322,
+      :all_bw_wps => 22410200.0
+}
+------
+mpirun -l -H n01,n04 -np 2 --       ./cache_experiment.exe --incoherent_all_remote --nelems=4194304 --cache_elems=256 --num_threads=32 --logtostderr
+n01:0] total_result = 4194304
+n01:0] done with experiments...
+n01:0] finishing
+n04:1] finishing
+{
+             :exe => "./cache_experiment.exe",
+      :experiment => "incoherent_all_remote",
+     :num_threads => 32,
+       :num_procs => 2,
+       :num_nodes => 2,
+          :nelems => 4194304,
+     :cache_elems => 256,
+          :commit => "6f7229edbe13f63f6ab7c77a80774e63b83541d9",
+          :run_at => 2012-02-22 19:28:57 -0800,
+    :total_work_s => 0.282536,
+     :work_bw_wps => 29690400.0,
+    :total_read_s => 0.284869,
+      :all_bw_wps => 29447200.0
+}
+------
+mpirun -l -H n01,n04 -np 2 --       ./cache_experiment.exe --incoherent_all_remote --nelems=16384 --cache_elems=4 --num_threads=64 --logtostderr
+n04:1] finishing
+n01:0] total_result = 16384
+n01:0] done with experiments...
+n01:0] finishing
+{
+             :exe => "./cache_experiment.exe",
+      :experiment => "incoherent_all_remote",
+     :num_threads => 64,
+       :num_procs => 2,
+       :num_nodes => 2,
+          :nelems => 16384,
+     :cache_elems => 4,
+          :commit => "6f7229edbe13f63f6ab7c77a80774e63b83541d9",
+          :run_at => 2012-02-22 19:28:57 -0800,
+    :total_work_s => 0.111893,
+     :work_bw_wps => 292850,
+    :total_read_s => 0.113788,
+      :all_bw_wps => 287975
+}
+------
+mpirun -l -H n01,n04 -np 2 --       ./cache_experiment.exe --incoherent_all_remote --nelems=16384 --cache_elems=16 --num_threads=64 --logtostderr
+n04:1] finishing
+n01:0] total_result = 16384
+n01:0] done with experiments...
+n01:0] finishing
+{
+             :exe => "./cache_experiment.exe",
+      :experiment => "incoherent_all_remote",
+     :num_threads => 64,
+       :num_procs => 2,
+       :num_nodes => 2,
+          :nelems => 16384,
+     :cache_elems => 16,
+          :commit => "6f7229edbe13f63f6ab7c77a80774e63b83541d9",
+          :run_at => 2012-02-22 19:28:57 -0800,
+    :total_work_s => 0.0959676,
+     :work_bw_wps => 341449,
+    :total_read_s => 0.0978075,
+      :all_bw_wps => 335025
+}
+------
+mpirun -l -H n01,n04 -np 2 --       ./cache_experiment.exe --incoherent_all_remote --nelems=16384 --cache_elems=64 --num_threads=64 --logtostderr
+n04:1] finishing
+n01:0] total_result = 16384
+n01:0] done with experiments...
+n01:0] finishing
+{
+             :exe => "./cache_experiment.exe",
+      :experiment => "incoherent_all_remote",
+     :num_threads => 64,
+       :num_procs => 2,
+       :num_nodes => 2,
+          :nelems => 16384,
+     :cache_elems => 64,
+          :commit => "6f7229edbe13f63f6ab7c77a80774e63b83541d9",
+          :run_at => 2012-02-22 19:28:57 -0800,
+    :total_work_s => 0.0947559,
+     :work_bw_wps => 345815,
+    :total_read_s => 0.0966019,
+      :all_bw_wps => 339207
+}
+------
+mpirun -l -H n01,n04 -np 2 --       ./cache_experiment.exe --incoherent_all_remote --nelems=16384 --cache_elems=128 --num_threads=64 --logtostderr
+n04:1] finishing
+n01:0] total_result = 16384
+n01:0] done with experiments...
+n01:0] finishing
+{
+             :exe => "./cache_experiment.exe",
+      :experiment => "incoherent_all_remote",
+     :num_threads => 64,
+       :num_procs => 2,
+       :num_nodes => 2,
+          :nelems => 16384,
+     :cache_elems => 128,
+          :commit => "6f7229edbe13f63f6ab7c77a80774e63b83541d9",
+          :run_at => 2012-02-22 19:28:57 -0800,
+    :total_work_s => 0.0934422,
+     :work_bw_wps => 350677,
+    :total_read_s => 0.0982766,
+      :all_bw_wps => 333426
+}
+------
+mpirun -l -H n01,n04 -np 2 --       ./cache_experiment.exe --incoherent_all_remote --nelems=16384 --cache_elems=256 --num_threads=64 --logtostderr
+n01:0] total_result = 16384
+n01:0] done with experiments...
+n01:0] finishing
+n04:1] finishing
+{
+             :exe => "./cache_experiment.exe",
+      :experiment => "incoherent_all_remote",
+     :num_threads => 64,
+       :num_procs => 2,
+       :num_nodes => 2,
+          :nelems => 16384,
+     :cache_elems => 256,
+          :commit => "6f7229edbe13f63f6ab7c77a80774e63b83541d9",
+          :run_at => 2012-02-22 19:28:57 -0800,
+    :total_work_s => 0.0937766,
+     :work_bw_wps => 349426,
+    :total_read_s => 0.0956299,
+      :all_bw_wps => 342654
+}
+------
+mpirun -l -H n01,n04 -np 2 --       ./cache_experiment.exe --incoherent_all_remote --nelems=65536 --cache_elems=4 --num_threads=64 --logtostderr
+n04:1] finishing
+n01:0] total_result = 65536
+n01:0] done with experiments...
+n01:0] finishing
+{
+             :exe => "./cache_experiment.exe",
+      :experiment => "incoherent_all_remote",
+     :num_threads => 64,
+       :num_procs => 2,
+       :num_nodes => 2,
+          :nelems => 65536,
+     :cache_elems => 4,
+          :commit => "6f7229edbe13f63f6ab7c77a80774e63b83541d9",
+          :run_at => 2012-02-22 19:28:57 -0800,
+    :total_work_s => 0.167621,
+     :work_bw_wps => 781957,
+    :total_read_s => 0.169669,
+      :all_bw_wps => 772514
+}
+------
+mpirun -l -H n01,n04 -np 2 --       ./cache_experiment.exe --incoherent_all_remote --nelems=65536 --cache_elems=16 --num_threads=64 --logtostderr
+n04:1] finishing
+n01:0] total_result = 65536
+n01:0] done with experiments...
+n01:0] finishing
+{
+             :exe => "./cache_experiment.exe",
+      :experiment => "incoherent_all_remote",
+     :num_threads => 64,
+       :num_procs => 2,
+       :num_nodes => 2,
+          :nelems => 65536,
+     :cache_elems => 16,
+          :commit => "6f7229edbe13f63f6ab7c77a80774e63b83541d9",
+          :run_at => 2012-02-22 19:28:57 -0800,
+    :total_work_s => 0.103094,
+     :work_bw_wps => 1271380.0,
+    :total_read_s => 0.104962,
+      :all_bw_wps => 1248760.0
+}
+------
+mpirun -l -H n01,n04 -np 2 --       ./cache_experiment.exe --incoherent_all_remote --nelems=65536 --cache_elems=64 --num_threads=64 --logtostderr
+n04:1] finishing
+n01:0] total_result = 65536
+n01:0] done with experiments...
+n01:0] finishing
+{
+             :exe => "./cache_experiment.exe",
+      :experiment => "incoherent_all_remote",
+     :num_threads => 64,
+       :num_procs => 2,
+       :num_nodes => 2,
+          :nelems => 65536,
+     :cache_elems => 64,
+          :commit => "6f7229edbe13f63f6ab7c77a80774e63b83541d9",
+          :run_at => 2012-02-22 19:28:57 -0800,
+    :total_work_s => 0.0980752,
+     :work_bw_wps => 1336440.0,
+    :total_read_s => 0.0999296,
+      :all_bw_wps => 1311640.0
+}
+------
+mpirun -l -H n01,n04 -np 2 --       ./cache_experiment.exe --incoherent_all_remote --nelems=65536 --cache_elems=128 --num_threads=64 --logtostderr
+n01:0] total_result = 65536
+n01:0] done with experiments...
+n01:0] finishing
+n04:1] finishing
+{
+             :exe => "./cache_experiment.exe",
+      :experiment => "incoherent_all_remote",
+     :num_threads => 64,
+       :num_procs => 2,
+       :num_nodes => 2,
+          :nelems => 65536,
+     :cache_elems => 128,
+          :commit => "6f7229edbe13f63f6ab7c77a80774e63b83541d9",
+          :run_at => 2012-02-22 19:28:57 -0800,
+    :total_work_s => 0.0972215,
+     :work_bw_wps => 1348180.0,
+    :total_read_s => 0.099086,
+      :all_bw_wps => 1322810.0
+}
+------
+mpirun -l -H n01,n04 -np 2 --       ./cache_experiment.exe --incoherent_all_remote --nelems=65536 --cache_elems=256 --num_threads=64 --logtostderr
+n01:0] total_result = 65536
+n01:0] done with experiments...
+n01:0] finishing
+n04:1] finishing
+{
+             :exe => "./cache_experiment.exe",
+      :experiment => "incoherent_all_remote",
+     :num_threads => 64,
+       :num_procs => 2,
+       :num_nodes => 2,
+          :nelems => 65536,
+     :cache_elems => 256,
+          :commit => "6f7229edbe13f63f6ab7c77a80774e63b83541d9",
+          :run_at => 2012-02-22 19:28:57 -0800,
+    :total_work_s => 0.095597,
+     :work_bw_wps => 1371090.0,
+    :total_read_s => 0.0974414,
+      :all_bw_wps => 1345140.0
+}
+------
+mpirun -l -H n01,n04 -np 2 --       ./cache_experiment.exe --incoherent_all_remote --nelems=262144 --cache_elems=4 --num_threads=64 --logtostderr
+n04:1] finishing
+n01:0] total_result = 262144
+n01:0] done with experiments...
+n01:0] finishing
+{
+             :exe => "./cache_experiment.exe",
+      :experiment => "incoherent_all_remote",
+     :num_threads => 64,
+       :num_procs => 2,
+       :num_nodes => 2,
+          :nelems => 262144,
+     :cache_elems => 4,
+          :commit => "6f7229edbe13f63f6ab7c77a80774e63b83541d9",
+          :run_at => 2012-02-22 19:28:57 -0800,
+    :total_work_s => 0.399804,
+     :work_bw_wps => 1311360.0,
+    :total_read_s => 0.402442,
+      :all_bw_wps => 1302770.0
+}
+------
+mpirun -l -H n01,n04 -np 2 --       ./cache_experiment.exe --incoherent_all_remote --nelems=262144 --cache_elems=16 --num_threads=64 --logtostderr
+n01:0] total_result = 262144
+n01:0] done with experiments...
+n01:0] finishing
+n04:1] finishing
+{
+             :exe => "./cache_experiment.exe",
+      :experiment => "incoherent_all_remote",
+     :num_threads => 64,
+       :num_procs => 2,
+       :num_nodes => 2,
+          :nelems => 262144,
+     :cache_elems => 16,
+          :commit => "6f7229edbe13f63f6ab7c77a80774e63b83541d9",
+          :run_at => 2012-02-22 19:28:57 -0800,
+    :total_work_s => 0.13009,
+     :work_bw_wps => 4030190.0,
+    :total_read_s => 0.132014,
+      :all_bw_wps => 3971460.0
+}
+------
+mpirun -l -H n01,n04 -np 2 --       ./cache_experiment.exe --incoherent_all_remote --nelems=262144 --cache_elems=64 --num_threads=64 --logtostderr
+n04:1] finishing
+n01:0] total_result = 262144
+n01:0] done with experiments...
+n01:0] finishing
+{
+             :exe => "./cache_experiment.exe",
+      :experiment => "incoherent_all_remote",
+     :num_threads => 64,
+       :num_procs => 2,
+       :num_nodes => 2,
+          :nelems => 262144,
+     :cache_elems => 64,
+          :commit => "6f7229edbe13f63f6ab7c77a80774e63b83541d9",
+          :run_at => 2012-02-22 19:28:57 -0800,
+    :total_work_s => 0.113721,
+     :work_bw_wps => 4610280.0,
+    :total_read_s => 0.115635,
+      :all_bw_wps => 4533990.0
+}
+------
+mpirun -l -H n01,n04 -np 2 --       ./cache_experiment.exe --incoherent_all_remote --nelems=262144 --cache_elems=128 --num_threads=64 --logtostderr
+n04:1] finishing
+n01:0] total_result = 262144
+n01:0] done with experiments...
+n01:0] finishing
+{
+             :exe => "./cache_experiment.exe",
+      :experiment => "incoherent_all_remote",
+     :num_threads => 64,
+       :num_procs => 2,
+       :num_nodes => 2,
+          :nelems => 262144,
+     :cache_elems => 128,
+          :commit => "6f7229edbe13f63f6ab7c77a80774e63b83541d9",
+          :run_at => 2012-02-22 19:28:57 -0800,
+    :total_work_s => 0.10673,
+     :work_bw_wps => 4912310.0,
+    :total_read_s => 0.108652,
+      :all_bw_wps => 4825400.0
+}
+------
+mpirun -l -H n01,n04 -np 2 --       ./cache_experiment.exe --incoherent_all_remote --nelems=262144 --cache_elems=256 --num_threads=64 --logtostderr
+n01:0] total_result = 262144
+n01:0] done with experiments...
+n01:0] finishing
+n04:1] finishing
+{
+             :exe => "./cache_experiment.exe",
+      :experiment => "incoherent_all_remote",
+     :num_threads => 64,
+       :num_procs => 2,
+       :num_nodes => 2,
+          :nelems => 262144,
+     :cache_elems => 256,
+          :commit => "6f7229edbe13f63f6ab7c77a80774e63b83541d9",
+          :run_at => 2012-02-22 19:28:57 -0800,
+    :total_work_s => 0.102809,
+     :work_bw_wps => 5099620.0,
+    :total_read_s => 0.10467,
+      :all_bw_wps => 5008980.0
+}
+------
+mpirun -l -H n01,n04 -np 2 --       ./cache_experiment.exe --incoherent_all_remote --nelems=1048576 --cache_elems=4 --num_threads=64 --logtostderr
+n01:0] total_result = 1048576
+n01:0] done with experiments...
+n01:0] finishing
+n04:1] finishing
+{
+             :exe => "./cache_experiment.exe",
+      :experiment => "incoherent_all_remote",
+     :num_threads => 64,
+       :num_procs => 2,
+       :num_nodes => 2,
+          :nelems => 1048576,
+     :cache_elems => 4,
+          :commit => "6f7229edbe13f63f6ab7c77a80774e63b83541d9",
+          :run_at => 2012-02-22 19:28:57 -0800,
+    :total_work_s => 1.3413,
+     :work_bw_wps => 1563530.0,
+    :total_read_s => 1.3467,
+      :all_bw_wps => 1557250.0
+}
+------
+mpirun -l -H n01,n04 -np 2 --       ./cache_experiment.exe --incoherent_all_remote --nelems=1048576 --cache_elems=16 --num_threads=64 --logtostderr
+n04:1] finishing
+n01:0] total_result = 1048576
+n01:0] done with experiments...
+n01:0] finishing
+{
+             :exe => "./cache_experiment.exe",
+      :experiment => "incoherent_all_remote",
+     :num_threads => 64,
+       :num_procs => 2,
+       :num_nodes => 2,
+          :nelems => 1048576,
+     :cache_elems => 16,
+          :commit => "6f7229edbe13f63f6ab7c77a80774e63b83541d9",
+          :run_at => 2012-02-22 19:28:57 -0800,
+    :total_work_s => 0.256614,
+     :work_bw_wps => 8172400.0,
+    :total_read_s => 0.258882,
+      :all_bw_wps => 8100790.0
+}
+------
+mpirun -l -H n01,n04 -np 2 --       ./cache_experiment.exe --incoherent_all_remote --nelems=1048576 --cache_elems=64 --num_threads=64 --logtostderr
+n01:0] total_result = 1048576
+n01:0] done with experiments...
+n01:0] finishing
+n04:1] finishing
+{
+             :exe => "./cache_experiment.exe",
+      :experiment => "incoherent_all_remote",
+     :num_threads => 64,
+       :num_procs => 2,
+       :num_nodes => 2,
+          :nelems => 1048576,
+     :cache_elems => 64,
+          :commit => "6f7229edbe13f63f6ab7c77a80774e63b83541d9",
+          :run_at => 2012-02-22 19:28:57 -0800,
+    :total_work_s => 0.176303,
+     :work_bw_wps => 11895100.0,
+    :total_read_s => 0.178382,
+      :all_bw_wps => 11756500.0
+}
+------
+mpirun -l -H n01,n04 -np 2 --       ./cache_experiment.exe --incoherent_all_remote --nelems=1048576 --cache_elems=128 --num_threads=64 --logtostderr
+n04:1] finishing
+n01:0] total_result = 1048576
+n01:0] done with experiments...
+n01:0] finishing
+{
+             :exe => "./cache_experiment.exe",
+      :experiment => "incoherent_all_remote",
+     :num_threads => 64,
+       :num_procs => 2,
+       :num_nodes => 2,
+          :nelems => 1048576,
+     :cache_elems => 128,
+          :commit => "6f7229edbe13f63f6ab7c77a80774e63b83541d9",
+          :run_at => 2012-02-22 19:28:57 -0800,
+    :total_work_s => 0.149011,
+     :work_bw_wps => 14073800.0,
+    :total_read_s => 0.151027,
+      :all_bw_wps => 13885900.0
+}
+------
+mpirun -l -H n01,n04 -np 2 --       ./cache_experiment.exe --incoherent_all_remote --nelems=1048576 --cache_elems=256 --num_threads=64 --logtostderr
+n01:0] total_result = 1048576
+n01:0] done with experiments...
+n01:0] finishing
+n04:1] finishing
+{
+             :exe => "./cache_experiment.exe",
+      :experiment => "incoherent_all_remote",
+     :num_threads => 64,
+       :num_procs => 2,
+       :num_nodes => 2,
+          :nelems => 1048576,
+     :cache_elems => 256,
+          :commit => "6f7229edbe13f63f6ab7c77a80774e63b83541d9",
+          :run_at => 2012-02-22 19:28:57 -0800,
+    :total_work_s => 0.132862,
+     :work_bw_wps => 15784500.0,
+    :total_read_s => 0.134805,
+      :all_bw_wps => 15557000.0
+}
+------
+mpirun -l -H n01,n04 -np 2 --       ./cache_experiment.exe --incoherent_all_remote --nelems=4194304 --cache_elems=4 --num_threads=64 --logtostderr
+n04:1] finishing
+n01:0] total_result = 4194304
+n01:0] done with experiments...
+n01:0] finishing
+{
+             :exe => "./cache_experiment.exe",
+      :experiment => "incoherent_all_remote",
+     :num_threads => 64,
+       :num_procs => 2,
+       :num_nodes => 2,
+          :nelems => 4194304,
+     :cache_elems => 4,
+          :commit => "6f7229edbe13f63f6ab7c77a80774e63b83541d9",
+          :run_at => 2012-02-22 19:28:57 -0800,
+    :total_work_s => 5.08448,
+     :work_bw_wps => 1649840.0,
+    :total_read_s => 5.09933,
+      :all_bw_wps => 1645040.0
+}
+------
+mpirun -l -H n01,n04 -np 2 --       ./cache_experiment.exe --incoherent_all_remote --nelems=4194304 --cache_elems=16 --num_threads=64 --logtostderr
+n04:1] finishing
+n01:0] total_result = 4194304
+n01:0] done with experiments...
+n01:0] finishing
+{
+             :exe => "./cache_experiment.exe",
+      :experiment => "incoherent_all_remote",
+     :num_threads => 64,
+       :num_procs => 2,
+       :num_nodes => 2,
+          :nelems => 4194304,
+     :cache_elems => 16,
+          :commit => "6f7229edbe13f63f6ab7c77a80774e63b83541d9",
+          :run_at => 2012-02-22 19:28:57 -0800,
+    :total_work_s => 0.82255,
+     :work_bw_wps => 10198300.0,
+    :total_read_s => 0.826271,
+      :all_bw_wps => 10152400.0
+}
+------
+mpirun -l -H n01,n04 -np 2 --       ./cache_experiment.exe --incoherent_all_remote --nelems=4194304 --cache_elems=64 --num_threads=64 --logtostderr
+n04:1] finishing
+n01:0] total_result = 4194304
+n01:0] done with experiments...
+n01:0] finishing
+{
+             :exe => "./cache_experiment.exe",
+      :experiment => "incoherent_all_remote",
+     :num_threads => 64,
+       :num_procs => 2,
+       :num_nodes => 2,
+          :nelems => 4194304,
+     :cache_elems => 64,
+          :commit => "6f7229edbe13f63f6ab7c77a80774e63b83541d9",
+          :run_at => 2012-02-22 19:28:57 -0800,
+    :total_work_s => 0.424685,
+     :work_bw_wps => 19752600.0,
+    :total_read_s => 0.42739,
+      :all_bw_wps => 19627500.0
+}
+------
+mpirun -l -H n01,n04 -np 2 --       ./cache_experiment.exe --incoherent_all_remote --nelems=4194304 --cache_elems=128 --num_threads=64 --logtostderr
+n04:1] finishing
+n01:0] total_result = 4194304
+n01:0] done with experiments...
+n01:0] finishing
+{
+             :exe => "./cache_experiment.exe",
+      :experiment => "incoherent_all_remote",
+     :num_threads => 64,
+       :num_procs => 2,
+       :num_nodes => 2,
+          :nelems => 4194304,
+     :cache_elems => 128,
+          :commit => "6f7229edbe13f63f6ab7c77a80774e63b83541d9",
+          :run_at => 2012-02-22 19:28:57 -0800,
+    :total_work_s => 0.314569,
+     :work_bw_wps => 26667000.0,
+    :total_read_s => 0.316988,
+      :all_bw_wps => 26463500.0
+}
+------
+mpirun -l -H n01,n04 -np 2 --       ./cache_experiment.exe --incoherent_all_remote --nelems=4194304 --cache_elems=256 --num_threads=64 --logtostderr
+n01:0] total_result = 4194304
+n01:0] done with experiments...
+n01:0] finishing
+n04:1] finishing
+{
+             :exe => "./cache_experiment.exe",
+      :experiment => "incoherent_all_remote",
+     :num_threads => 64,
+       :num_procs => 2,
+       :num_nodes => 2,
+          :nelems => 4194304,
+     :cache_elems => 256,
+          :commit => "6f7229edbe13f63f6ab7c77a80774e63b83541d9",
+          :run_at => 2012-02-22 19:28:57 -0800,
+    :total_work_s => 0.254853,
+     :work_bw_wps => 32915400.0,
+    :total_read_s => 0.257117,
+      :all_bw_wps => 32625700.0
+}
+------
+mpirun -l -H n01,n04 -np 2 --       ./cache_experiment.exe --incoherent_all_remote --nelems=16384 --cache_elems=4 --num_threads=128 --logtostderr
+n04:1] finishing
+n01:0] total_result = 16384
+n01:0] done with experiments...
+n01:0] finishing
+{
+             :exe => "./cache_experiment.exe",
+      :experiment => "incoherent_all_remote",
+     :num_threads => 128,
+       :num_procs => 2,
+       :num_nodes => 2,
+          :nelems => 16384,
+     :cache_elems => 4,
+          :commit => "6f7229edbe13f63f6ab7c77a80774e63b83541d9",
+          :run_at => 2012-02-22 19:28:57 -0800,
+    :total_work_s => 0.194052,
+     :work_bw_wps => 168862,
+    :total_read_s => 0.196165,
+      :all_bw_wps => 167043
+}
+------
+mpirun -l -H n01,n04 -np 2 --       ./cache_experiment.exe --incoherent_all_remote --nelems=16384 --cache_elems=16 --num_threads=128 --logtostderr
+n04:1] finishing
+n01:0] total_result = 16384
+n01:0] done with experiments...
+n01:0] finishing
+{
+             :exe => "./cache_experiment.exe",
+      :experiment => "incoherent_all_remote",
+     :num_threads => 128,
+       :num_procs => 2,
+       :num_nodes => 2,
+          :nelems => 16384,
+     :cache_elems => 16,
+          :commit => "6f7229edbe13f63f6ab7c77a80774e63b83541d9",
+          :run_at => 2012-02-22 19:28:57 -0800,
+    :total_work_s => 0.187841,
+     :work_bw_wps => 174446,
+    :total_read_s => 0.18992,
+      :all_bw_wps => 172536
+}
+------
+mpirun -l -H n01,n04 -np 2 --       ./cache_experiment.exe --incoherent_all_remote --nelems=16384 --cache_elems=64 --num_threads=128 --logtostderr
+n04:1] finishing
+n01:0] total_result = 16384
+n01:0] done with experiments...
+n01:0] finishing
+{
+             :exe => "./cache_experiment.exe",
+      :experiment => "incoherent_all_remote",
+     :num_threads => 128,
+       :num_procs => 2,
+       :num_nodes => 2,
+          :nelems => 16384,
+     :cache_elems => 64,
+          :commit => "6f7229edbe13f63f6ab7c77a80774e63b83541d9",
+          :run_at => 2012-02-22 19:28:57 -0800,
+    :total_work_s => 0.189259,
+     :work_bw_wps => 173138,
+    :total_read_s => 0.191415,
+      :all_bw_wps => 171188
+}
+------
+mpirun -l -H n01,n04 -np 2 --       ./cache_experiment.exe --incoherent_all_remote --nelems=16384 --cache_elems=128 --num_threads=128 --logtostderr
+n04:1] finishing
+n01:0] total_result = 16384
+n01:0] done with experiments...
+n01:0] finishing
+{
+             :exe => "./cache_experiment.exe",
+      :experiment => "incoherent_all_remote",
+     :num_threads => 128,
+       :num_procs => 2,
+       :num_nodes => 2,
+          :nelems => 16384,
+     :cache_elems => 128,
+          :commit => "6f7229edbe13f63f6ab7c77a80774e63b83541d9",
+          :run_at => 2012-02-22 19:28:57 -0800,
+    :total_work_s => 0.186433,
+     :work_bw_wps => 175763,
+    :total_read_s => 0.188509,
+      :all_bw_wps => 173827
+}
+------
+mpirun -l -H n01,n04 -np 2 --       ./cache_experiment.exe --incoherent_all_remote --nelems=16384 --cache_elems=256 --num_threads=128 --logtostderr
+error! pid 19707 exit 1
+### stdout ###
+n01:0. too small!
+### stderr ###
+MPIRUN.n01: n04:1 node program unexpectedly quit: Exiting.
+------
+mpirun -l -H n01,n04 -np 2 --       ./cache_experiment.exe --incoherent_all_remote --nelems=65536 --cache_elems=4 --num_threads=128 --logtostderr
+n04:1] finishing
+n01:0] total_result = 65536
+n01:0] done with experiments...
+n01:0] finishing
+{
+             :exe => "./cache_experiment.exe",
+      :experiment => "incoherent_all_remote",
+     :num_threads => 128,
+       :num_procs => 2,
+       :num_nodes => 2,
+          :nelems => 65536,
+     :cache_elems => 4,
+          :commit => "6f7229edbe13f63f6ab7c77a80774e63b83541d9",
+          :run_at => 2012-02-22 19:28:57 -0800,
+    :total_work_s => 0.211883,
+     :work_bw_wps => 618605,
+    :total_read_s => 0.214033,
+      :all_bw_wps => 612392
+}
+------
+mpirun -l -H n01,n04 -np 2 --       ./cache_experiment.exe --incoherent_all_remote --nelems=65536 --cache_elems=16 --num_threads=128 --logtostderr
+n04:1] finishing
+n01:0] total_result = 65536
+n01:0] done with experiments...
+n01:0] finishing
+{
+             :exe => "./cache_experiment.exe",
+      :experiment => "incoherent_all_remote",
+     :num_threads => 128,
+       :num_procs => 2,
+       :num_nodes => 2,
+          :nelems => 65536,
+     :cache_elems => 16,
+          :commit => "6f7229edbe13f63f6ab7c77a80774e63b83541d9",
+          :run_at => 2012-02-22 19:28:57 -0800,
+    :total_work_s => 0.192911,
+     :work_bw_wps => 679443,
+    :total_read_s => 0.195012,
+      :all_bw_wps => 672121
+}
+------
+mpirun -l -H n01,n04 -np 2 --       ./cache_experiment.exe --incoherent_all_remote --nelems=65536 --cache_elems=64 --num_threads=128 --logtostderr
+n04:1] finishing
+n01:0] total_result = 65536
+n01:0] done with experiments...
+n01:0] finishing
+{
+             :exe => "./cache_experiment.exe",
+      :experiment => "incoherent_all_remote",
+     :num_threads => 128,
+       :num_procs => 2,
+       :num_nodes => 2,
+          :nelems => 65536,
+     :cache_elems => 64,
+          :commit => "6f7229edbe13f63f6ab7c77a80774e63b83541d9",
+          :run_at => 2012-02-22 19:28:57 -0800,
+    :total_work_s => 0.189041,
+     :work_bw_wps => 693351,
+    :total_read_s => 0.191127,
+      :all_bw_wps => 685787
+}
+------
+mpirun -l -H n01,n04 -np 2 --       ./cache_experiment.exe --incoherent_all_remote --nelems=65536 --cache_elems=128 --num_threads=128 --logtostderr
+n01:0] total_result = 65536
+n01:0] done with experiments...
+n01:0] finishing
+n04:1] finishing
+{
+             :exe => "./cache_experiment.exe",
+      :experiment => "incoherent_all_remote",
+     :num_threads => 128,
+       :num_procs => 2,
+       :num_nodes => 2,
+          :nelems => 65536,
+     :cache_elems => 128,
+          :commit => "6f7229edbe13f63f6ab7c77a80774e63b83541d9",
+          :run_at => 2012-02-22 19:28:57 -0800,
+    :total_work_s => 0.188538,
+     :work_bw_wps => 695203,
+    :total_read_s => 0.190669,
+      :all_bw_wps => 687431
+}
+------
+mpirun -l -H n01,n04 -np 2 --       ./cache_experiment.exe --incoherent_all_remote --nelems=65536 --cache_elems=256 --num_threads=128 --logtostderr
+n01:0] total_result = 65536
+n01:0] done with experiments...
+n01:0] finishing
+n04:1] finishing
+{
+             :exe => "./cache_experiment.exe",
+      :experiment => "incoherent_all_remote",
+     :num_threads => 128,
+       :num_procs => 2,
+       :num_nodes => 2,
+          :nelems => 65536,
+     :cache_elems => 256,
+          :commit => "6f7229edbe13f63f6ab7c77a80774e63b83541d9",
+          :run_at => 2012-02-22 19:28:57 -0800,
+    :total_work_s => 0.189013,
+     :work_bw_wps => 693456,
+    :total_read_s => 0.191102,
+      :all_bw_wps => 685876
+}
+------
+mpirun -l -H n01,n04 -np 2 --       ./cache_experiment.exe --incoherent_all_remote --nelems=262144 --cache_elems=4 --num_threads=128 --logtostderr
+n04:1] finishing
+n01:0] total_result = 262144
+n01:0] done with experiments...
+n01:0] finishing
+{
+             :exe => "./cache_experiment.exe",
+      :experiment => "incoherent_all_remote",
+     :num_threads => 128,
+       :num_procs => 2,
+       :num_nodes => 2,
+          :nelems => 262144,
+     :cache_elems => 4,
+          :commit => "6f7229edbe13f63f6ab7c77a80774e63b83541d9",
+          :run_at => 2012-02-22 19:28:57 -0800,
+    :total_work_s => 0.302323,
+     :work_bw_wps => 1734200.0,
+    :total_read_s => 0.304711,
+      :all_bw_wps => 1720610.0
+}
+------
+mpirun -l -H n01,n04 -np 2 --       ./cache_experiment.exe --incoherent_all_remote --nelems=262144 --cache_elems=16 --num_threads=128 --logtostderr
+n01:0] total_result = 262144
+n01:0] done with experiments...
+n01:0] finishing
+n04:1] finishing
+{
+             :exe => "./cache_experiment.exe",
+      :experiment => "incoherent_all_remote",
+     :num_threads => 128,
+       :num_procs => 2,
+       :num_nodes => 2,
+          :nelems => 262144,
+     :cache_elems => 16,
+          :commit => "6f7229edbe13f63f6ab7c77a80774e63b83541d9",
+          :run_at => 2012-02-22 19:28:57 -0800,
+    :total_work_s => 0.21144,
+     :work_bw_wps => 2479610.0,
+    :total_read_s => 0.21359,
+      :all_bw_wps => 2454650.0
+}
+------
+mpirun -l -H n01,n04 -np 2 --       ./cache_experiment.exe --incoherent_all_remote --nelems=262144 --cache_elems=64 --num_threads=128 --logtostderr
+n04:1] finishing
+n01:0] total_result = 262144
+n01:0] done with experiments...
+n01:0] finishing
+{
+             :exe => "./cache_experiment.exe",
+      :experiment => "incoherent_all_remote",
+     :num_threads => 128,
+       :num_procs => 2,
+       :num_nodes => 2,
+          :nelems => 262144,
+     :cache_elems => 64,
+          :commit => "6f7229edbe13f63f6ab7c77a80774e63b83541d9",
+          :run_at => 2012-02-22 19:28:57 -0800,
+    :total_work_s => 0.197006,
+     :work_bw_wps => 2661290.0,
+    :total_read_s => 0.199126,
+      :all_bw_wps => 2632940.0
+}
+------
+mpirun -l -H n01,n04 -np 2 --       ./cache_experiment.exe --incoherent_all_remote --nelems=262144 --cache_elems=128 --num_threads=128 --logtostderr
+n01:0] total_result = 262144
+n01:0] done with experiments...
+n01:0] finishing
+n04:1] finishing
+{
+             :exe => "./cache_experiment.exe",
+      :experiment => "incoherent_all_remote",
+     :num_threads => 128,
+       :num_procs => 2,
+       :num_nodes => 2,
+          :nelems => 262144,
+     :cache_elems => 128,
+          :commit => "6f7229edbe13f63f6ab7c77a80774e63b83541d9",
+          :run_at => 2012-02-22 19:28:57 -0800,
+    :total_work_s => 0.196088,
+     :work_bw_wps => 2673730.0,
+    :total_read_s => 0.198207,
+      :all_bw_wps => 2645160.0
+}
+------
+mpirun -l -H n01,n04 -np 2 --       ./cache_experiment.exe --incoherent_all_remote --nelems=262144 --cache_elems=256 --num_threads=128 --logtostderr
+n01:0] total_result = 262144
+n01:0] done with experiments...
+n01:0] finishing
+n04:1] finishing
+{
+             :exe => "./cache_experiment.exe",
+      :experiment => "incoherent_all_remote",
+     :num_threads => 128,
+       :num_procs => 2,
+       :num_nodes => 2,
+          :nelems => 262144,
+     :cache_elems => 256,
+          :commit => "6f7229edbe13f63f6ab7c77a80774e63b83541d9",
+          :run_at => 2012-02-22 19:28:57 -0800,
+    :total_work_s => 0.196705,
+     :work_bw_wps => 2665360.0,
+    :total_read_s => 0.198839,
+      :all_bw_wps => 2636750.0
+}
+------
+mpirun -l -H n01,n04 -np 2 --       ./cache_experiment.exe --incoherent_all_remote --nelems=1048576 --cache_elems=4 --num_threads=128 --logtostderr
+n04:1] finishing
+n01:0] total_result = 1048576
+n01:0] done with experiments...
+n01:0] finishing
+{
+             :exe => "./cache_experiment.exe",
+      :experiment => "incoherent_all_remote",
+     :num_threads => 128,
+       :num_procs => 2,
+       :num_nodes => 2,
+          :nelems => 1048576,
+     :cache_elems => 4,
+          :commit => "6f7229edbe13f63f6ab7c77a80774e63b83541d9",
+          :run_at => 2012-02-22 19:28:57 -0800,
+    :total_work_s => 0.667222,
+     :work_bw_wps => 3143110.0,
+    :total_read_s => 0.670552,
+      :all_bw_wps => 3127500.0
+}
+------
+mpirun -l -H n01,n04 -np 2 --       ./cache_experiment.exe --incoherent_all_remote --nelems=1048576 --cache_elems=16 --num_threads=128 --logtostderr
+n04:1] finishing
+n01:0] total_result = 1048576
+n01:0] done with experiments...
+n01:0] finishing
+{
+             :exe => "./cache_experiment.exe",
+      :experiment => "incoherent_all_remote",
+     :num_threads => 128,
+       :num_procs => 2,
+       :num_nodes => 2,
+          :nelems => 1048576,
+     :cache_elems => 16,
+          :commit => "6f7229edbe13f63f6ab7c77a80774e63b83541d9",
+          :run_at => 2012-02-22 19:28:57 -0800,
+    :total_work_s => 0.292757,
+     :work_bw_wps => 7163470.0,
+    :total_read_s => 0.295127,
+      :all_bw_wps => 7105920.0
+}
+------
+mpirun -l -H n01,n04 -np 2 --       ./cache_experiment.exe --incoherent_all_remote --nelems=1048576 --cache_elems=64 --num_threads=128 --logtostderr
+n04:1] finishing
+n01:0] total_result = 1048576
+n01:0] done with experiments...
+n01:0] finishing
+{
+             :exe => "./cache_experiment.exe",
+      :experiment => "incoherent_all_remote",
+     :num_threads => 128,
+       :num_procs => 2,
+       :num_nodes => 2,
+          :nelems => 1048576,
+     :cache_elems => 64,
+          :commit => "6f7229edbe13f63f6ab7c77a80774e63b83541d9",
+          :run_at => 2012-02-22 19:28:57 -0800,
+    :total_work_s => 0.23009,
+     :work_bw_wps => 9114490.0,
+    :total_read_s => 0.232627,
+      :all_bw_wps => 9015080.0
+}
+------
+mpirun -l -H n01,n04 -np 2 --       ./cache_experiment.exe --incoherent_all_remote --nelems=1048576 --cache_elems=128 --num_threads=128 --logtostderr
+n01:0] total_result = 1048576
+n01:0] done with experiments...
+n01:0] finishing
+n04:1] finishing
+{
+             :exe => "./cache_experiment.exe",
+      :experiment => "incoherent_all_remote",
+     :num_threads => 128,
+       :num_procs => 2,
+       :num_nodes => 2,
+          :nelems => 1048576,
+     :cache_elems => 128,
+          :commit => "6f7229edbe13f63f6ab7c77a80774e63b83541d9",
+          :run_at => 2012-02-22 19:28:57 -0800,
+    :total_work_s => 0.219946,
+     :work_bw_wps => 9534860.0,
+    :total_read_s => 0.222122,
+      :all_bw_wps => 9441440.0
+}
+------
+mpirun -l -H n01,n04 -np 2 --       ./cache_experiment.exe --incoherent_all_remote --nelems=1048576 --cache_elems=256 --num_threads=128 --logtostderr
+n01:0] total_result = 1048576
+n01:0] done with experiments...
+n01:0] finishing
+n04:1] finishing
+{
+             :exe => "./cache_experiment.exe",
+      :experiment => "incoherent_all_remote",
+     :num_threads => 128,
+       :num_procs => 2,
+       :num_nodes => 2,
+          :nelems => 1048576,
+     :cache_elems => 256,
+          :commit => "6f7229edbe13f63f6ab7c77a80774e63b83541d9",
+          :run_at => 2012-02-22 19:28:57 -0800,
+    :total_work_s => 0.221693,
+     :work_bw_wps => 9459720.0,
+    :total_read_s => 0.223925,
+      :all_bw_wps => 9365430.0
+}
+------
+mpirun -l -H n01,n04 -np 2 --       ./cache_experiment.exe --incoherent_all_remote --nelems=4194304 --cache_elems=4 --num_threads=128 --logtostderr
+n04:1] finishing
+n01:0] total_result = 4194304
+n01:0] done with experiments...
+n01:0] finishing
+{
+             :exe => "./cache_experiment.exe",
+      :experiment => "incoherent_all_remote",
+     :num_threads => 128,
+       :num_procs => 2,
+       :num_nodes => 2,
+          :nelems => 4194304,
+     :cache_elems => 4,
+          :commit => "6f7229edbe13f63f6ab7c77a80774e63b83541d9",
+          :run_at => 2012-02-22 19:28:57 -0800,
+    :total_work_s => 1.88696,
+     :work_bw_wps => 4445570.0,
+    :total_read_s => 1.89351,
+      :all_bw_wps => 4430190.0
+}
+------
+mpirun -l -H n01,n04 -np 2 --       ./cache_experiment.exe --incoherent_all_remote --nelems=4194304 --cache_elems=16 --num_threads=128 --logtostderr
+n01:0] total_result = 4194304
+n01:0] done with experiments...
+n01:0] finishing
+n04:1] finishing
+{
+             :exe => "./cache_experiment.exe",
+      :experiment => "incoherent_all_remote",
+     :num_threads => 128,
+       :num_procs => 2,
+       :num_nodes => 2,
+          :nelems => 4194304,
+     :cache_elems => 16,
+          :commit => "6f7229edbe13f63f6ab7c77a80774e63b83541d9",
+          :run_at => 2012-02-22 19:28:57 -0800,
+    :total_work_s => 0.622047,
+     :work_bw_wps => 13485500.0,
+    :total_read_s => 0.625338,
+      :all_bw_wps => 13414500.0
+}
+------
+mpirun -l -H n01,n04 -np 2 --       ./cache_experiment.exe --incoherent_all_remote --nelems=4194304 --cache_elems=64 --num_threads=128 --logtostderr
+n04:1] finishing
+n01:0] total_result = 4194304
+n01:0] done with experiments...
+n01:0] finishing
+{
+             :exe => "./cache_experiment.exe",
+      :experiment => "incoherent_all_remote",
+     :num_threads => 128,
+       :num_procs => 2,
+       :num_nodes => 2,
+          :nelems => 4194304,
+     :cache_elems => 64,
+          :commit => "6f7229edbe13f63f6ab7c77a80774e63b83541d9",
+          :run_at => 2012-02-22 19:28:57 -0800,
+    :total_work_s => 0.356443,
+     :work_bw_wps => 23534200.0,
+    :total_read_s => 0.358964,
+      :all_bw_wps => 23369000.0
+}
+------
+mpirun -l -H n01,n04 -np 2 --       ./cache_experiment.exe --incoherent_all_remote --nelems=4194304 --cache_elems=128 --num_threads=128 --logtostderr
+n04:1] finishing
+n01:0] total_result = 4194304
+n01:0] done with experiments...
+n01:0] finishing
+{
+             :exe => "./cache_experiment.exe",
+      :experiment => "incoherent_all_remote",
+     :num_threads => 128,
+       :num_procs => 2,
+       :num_nodes => 2,
+          :nelems => 4194304,
+     :cache_elems => 128,
+          :commit => "6f7229edbe13f63f6ab7c77a80774e63b83541d9",
+          :run_at => 2012-02-22 19:28:57 -0800,
+    :total_work_s => 0.319512,
+     :work_bw_wps => 26254400.0,
+    :total_read_s => 0.322,
+      :all_bw_wps => 26051500.0
+}
+------
+mpirun -l -H n01,n04 -np 2 --       ./cache_experiment.exe --incoherent_all_remote --nelems=4194304 --cache_elems=256 --num_threads=128 --logtostderr
+n01:0] total_result = 4194304
+n01:0] done with experiments...
+n01:0] finishing
+n04:1] finishing
+{
+             :exe => "./cache_experiment.exe",
+      :experiment => "incoherent_all_remote",
+     :num_threads => 128,
+       :num_procs => 2,
+       :num_nodes => 2,
+          :nelems => 4194304,
+     :cache_elems => 256,
+          :commit => "6f7229edbe13f63f6ab7c77a80774e63b83541d9",
+          :run_at => 2012-02-22 19:28:57 -0800,
+    :total_work_s => 0.328858,
+     :work_bw_wps => 25508300.0,
+    :total_read_s => 0.331314,
+      :all_bw_wps => 25319200.0
+}
+------
+mpirun -l -H n01,n04 -np 2 --       ./cache_experiment.exe --incoherent_all_remote --nelems=16384 --cache_elems=4 --num_threads=256 --logtostderr
+n04:1] finishing
+n01:0] total_result = 16384
+n01:0] done with experiments...
+n01:0] finishing
+{
+             :exe => "./cache_experiment.exe",
+      :experiment => "incoherent_all_remote",
+     :num_threads => 256,
+       :num_procs => 2,
+       :num_nodes => 2,
+          :nelems => 16384,
+     :cache_elems => 4,
+          :commit => "6f7229edbe13f63f6ab7c77a80774e63b83541d9",
+          :run_at => 2012-02-22 19:28:57 -0800,
+    :total_work_s => 0.377983,
+     :work_bw_wps => 86691.7,
+    :total_read_s => 0.380575,
+      :all_bw_wps => 86101.3
+}
+------
+mpirun -l -H n01,n04 -np 2 --       ./cache_experiment.exe --incoherent_all_remote --nelems=16384 --cache_elems=16 --num_threads=256 --logtostderr
+n04:1] finishing
+n01:0] total_result = 16384
+n01:0] done with experiments...
+n01:0] finishing
+{
+             :exe => "./cache_experiment.exe",
+      :experiment => "incoherent_all_remote",
+     :num_threads => 256,
+       :num_procs => 2,
+       :num_nodes => 2,
+          :nelems => 16384,
+     :cache_elems => 16,
+          :commit => "6f7229edbe13f63f6ab7c77a80774e63b83541d9",
+          :run_at => 2012-02-22 19:28:57 -0800,
+    :total_work_s => 0.37513,
+     :work_bw_wps => 87351.1,
+    :total_read_s => 0.377719,
+      :all_bw_wps => 86752.3
+}
+------
+mpirun -l -H n01,n04 -np 2 --       ./cache_experiment.exe --incoherent_all_remote --nelems=16384 --cache_elems=64 --num_threads=256 --logtostderr
+n04:1] finishing
+n01:0] total_result = 16384
+n01:0] done with experiments...
+n01:0] finishing
+{
+             :exe => "./cache_experiment.exe",
+      :experiment => "incoherent_all_remote",
+     :num_threads => 256,
+       :num_procs => 2,
+       :num_nodes => 2,
+          :nelems => 16384,
+     :cache_elems => 64,
+          :commit => "6f7229edbe13f63f6ab7c77a80774e63b83541d9",
+          :run_at => 2012-02-22 19:28:57 -0800,
+    :total_work_s => 0.373747,
+     :work_bw_wps => 87674.3,
+    :total_read_s => 0.376324,
+      :all_bw_wps => 87073.8
+}
+------
+mpirun -l -H n01,n04 -np 2 --       ./cache_experiment.exe --incoherent_all_remote --nelems=16384 --cache_elems=128 --num_threads=256 --logtostderr
+error! pid 20174 exit 1
+### stdout ###
+n01:0. too small!
+### stderr ###
+MPIRUN.n01: n04:1 node program unexpectedly quit: Exiting.
+------
+mpirun -l -H n01,n04 -np 2 --       ./cache_experiment.exe --incoherent_all_remote --nelems=16384 --cache_elems=256 --num_threads=256 --logtostderr
+error! pid 20198 exit 1
+### stdout ###
+n01:0. too small!
+### stderr ###
+MPIRUN.n01: n04:1 node program unexpectedly quit: Exiting.
+------
+mpirun -l -H n01,n04 -np 2 --       ./cache_experiment.exe --incoherent_all_remote --nelems=65536 --cache_elems=4 --num_threads=256 --logtostderr
+n04:1] finishing
+n01:0] total_result = 65536
+n01:0] done with experiments...
+n01:0] finishing
+{
+             :exe => "./cache_experiment.exe",
+      :experiment => "incoherent_all_remote",
+     :num_threads => 256,
+       :num_procs => 2,
+       :num_nodes => 2,
+          :nelems => 65536,
+     :cache_elems => 4,
+          :commit => "6f7229edbe13f63f6ab7c77a80774e63b83541d9",
+          :run_at => 2012-02-22 19:28:57 -0800,
+    :total_work_s => 0.385281,
+     :work_bw_wps => 340198,
+    :total_read_s => 0.387858,
+      :all_bw_wps => 337938
+}
+------
+mpirun -l -H n01,n04 -np 2 --       ./cache_experiment.exe --incoherent_all_remote --nelems=65536 --cache_elems=16 --num_threads=256 --logtostderr
+n04:1] finishing
+n01:0] total_result = 65536
+n01:0] done with experiments...
+n01:0] finishing
+{
+             :exe => "./cache_experiment.exe",
+      :experiment => "incoherent_all_remote",
+     :num_threads => 256,
+       :num_procs => 2,
+       :num_nodes => 2,
+          :nelems => 65536,
+     :cache_elems => 16,
+          :commit => "6f7229edbe13f63f6ab7c77a80774e63b83541d9",
+          :run_at => 2012-02-22 19:28:57 -0800,
+    :total_work_s => 0.377063,
+     :work_bw_wps => 347613,
+    :total_read_s => 0.379683,
+      :all_bw_wps => 345214
+}
+------
+mpirun -l -H n01,n04 -np 2 --       ./cache_experiment.exe --incoherent_all_remote --nelems=65536 --cache_elems=64 --num_threads=256 --logtostderr
+n04:1] finishing
+n01:0] total_result = 65536
+n01:0] done with experiments...
+n01:0] finishing
+{
+             :exe => "./cache_experiment.exe",
+      :experiment => "incoherent_all_remote",
+     :num_threads => 256,
+       :num_procs => 2,
+       :num_nodes => 2,
+          :nelems => 65536,
+     :cache_elems => 64,
+          :commit => "6f7229edbe13f63f6ab7c77a80774e63b83541d9",
+          :run_at => 2012-02-22 19:28:57 -0800,
+    :total_work_s => 0.375709,
+     :work_bw_wps => 348865,
+    :total_read_s => 0.378284,
+      :all_bw_wps => 346491
+}
+------
+mpirun -l -H n01,n04 -np 2 --       ./cache_experiment.exe --incoherent_all_remote --nelems=65536 --cache_elems=128 --num_threads=256 --logtostderr
+n04:1] finishing
+n01:0] total_result = 65536
+n01:0] done with experiments...
+n01:0] finishing
+{
+             :exe => "./cache_experiment.exe",
+      :experiment => "incoherent_all_remote",
+     :num_threads => 256,
+       :num_procs => 2,
+       :num_nodes => 2,
+          :nelems => 65536,
+     :cache_elems => 128,
+          :commit => "6f7229edbe13f63f6ab7c77a80774e63b83541d9",
+          :run_at => 2012-02-22 19:28:57 -0800,
+    :total_work_s => 0.378939,
+     :work_bw_wps => 345892,
+    :total_read_s => 0.381239,
+      :all_bw_wps => 343806
+}
+------
+mpirun -l -H n01,n04 -np 2 --       ./cache_experiment.exe --incoherent_all_remote --nelems=65536 --cache_elems=256 --num_threads=256 --logtostderr
+n04:1] finishing
+n01:0] total_result = 65536
+n01:0] done with experiments...
+n01:0] finishing
+{
+             :exe => "./cache_experiment.exe",
+      :experiment => "incoherent_all_remote",
+     :num_threads => 256,
+       :num_procs => 2,
+       :num_nodes => 2,
+          :nelems => 65536,
+     :cache_elems => 256,
+          :commit => "6f7229edbe13f63f6ab7c77a80774e63b83541d9",
+          :run_at => 2012-02-22 19:28:57 -0800,
+    :total_work_s => 0.376606,
+     :work_bw_wps => 348035,
+    :total_read_s => 0.379244,
+      :all_bw_wps => 345614
+}
+------
+mpirun -l -H n01,n04 -np 2 --       ./cache_experiment.exe --incoherent_all_remote --nelems=262144 --cache_elems=4 --num_threads=256 --logtostderr
+n04:1] finishing
+n01:0] total_result = 262144
+n01:0] done with experiments...
+n01:0] finishing
+{
+             :exe => "./cache_experiment.exe",
+      :experiment => "incoherent_all_remote",
+     :num_threads => 256,
+       :num_procs => 2,
+       :num_nodes => 2,
+          :nelems => 262144,
+     :cache_elems => 4,
+          :commit => "6f7229edbe13f63f6ab7c77a80774e63b83541d9",
+          :run_at => 2012-02-22 19:28:57 -0800,
+    :total_work_s => 0.418872,
+     :work_bw_wps => 1251670.0,
+    :total_read_s => 0.421554,
+      :all_bw_wps => 1243700.0
+}
+------
+mpirun -l -H n01,n04 -np 2 --       ./cache_experiment.exe --incoherent_all_remote --nelems=262144 --cache_elems=16 --num_threads=256 --logtostderr
+n04:1] finishing
+n01:0] total_result = 262144
+n01:0] done with experiments...
+n01:0] finishing
+{
+             :exe => "./cache_experiment.exe",
+      :experiment => "incoherent_all_remote",
+     :num_threads => 256,
+       :num_procs => 2,
+       :num_nodes => 2,
+          :nelems => 262144,
+     :cache_elems => 16,
+          :commit => "6f7229edbe13f63f6ab7c77a80774e63b83541d9",
+          :run_at => 2012-02-22 19:28:57 -0800,
+    :total_work_s => 0.388792,
+     :work_bw_wps => 1348510.0,
+    :total_read_s => 0.391376,
+      :all_bw_wps => 1339600.0
+}
+------
+mpirun -l -H n01,n04 -np 2 --       ./cache_experiment.exe --incoherent_all_remote --nelems=262144 --cache_elems=64 --num_threads=256 --logtostderr
+n04:1] finishing
+n01:0] total_result = 262144
+n01:0] done with experiments...
+n01:0] finishing
+{
+             :exe => "./cache_experiment.exe",
+      :experiment => "incoherent_all_remote",
+     :num_threads => 256,
+       :num_procs => 2,
+       :num_nodes => 2,
+          :nelems => 262144,
+     :cache_elems => 64,
+          :commit => "6f7229edbe13f63f6ab7c77a80774e63b83541d9",
+          :run_at => 2012-02-22 19:28:57 -0800,
+    :total_work_s => 0.384377,
+     :work_bw_wps => 1363990.0,
+    :total_read_s => 0.387032,
+      :all_bw_wps => 1354640.0
+}
+------
+mpirun -l -H n01,n04 -np 2 --       ./cache_experiment.exe --incoherent_all_remote --nelems=262144 --cache_elems=128 --num_threads=256 --logtostderr
+n04:1] finishing
+n01:0] total_result = 262144
+n01:0] done with experiments...
+n01:0] finishing
+{
+             :exe => "./cache_experiment.exe",
+      :experiment => "incoherent_all_remote",
+     :num_threads => 256,
+       :num_procs => 2,
+       :num_nodes => 2,
+          :nelems => 262144,
+     :cache_elems => 128,
+          :commit => "6f7229edbe13f63f6ab7c77a80774e63b83541d9",
+          :run_at => 2012-02-22 19:28:57 -0800,
+    :total_work_s => 0.380585,
+     :work_bw_wps => 1377590.0,
+    :total_read_s => 0.383176,
+      :all_bw_wps => 1368270.0
+}
+------
+mpirun -l -H n01,n04 -np 2 --       ./cache_experiment.exe --incoherent_all_remote --nelems=262144 --cache_elems=256 --num_threads=256 --logtostderr
+n01:0] total_result = 262144
+n01:0] done with experiments...
+n01:0] finishing
+n04:1] finishing
+{
+             :exe => "./cache_experiment.exe",
+      :experiment => "incoherent_all_remote",
+     :num_threads => 256,
+       :num_procs => 2,
+       :num_nodes => 2,
+          :nelems => 262144,
+     :cache_elems => 256,
+          :commit => "6f7229edbe13f63f6ab7c77a80774e63b83541d9",
+          :run_at => 2012-02-22 19:28:57 -0800,
+    :total_work_s => 0.384013,
+     :work_bw_wps => 1365290.0,
+    :total_read_s => 0.38664,
+      :all_bw_wps => 1356010.0
+}
+------
+mpirun -l -H n01,n04 -np 2 --       ./cache_experiment.exe --incoherent_all_remote --nelems=1048576 --cache_elems=4 --num_threads=256 --logtostderr
+n01:0] total_result = 1048576
+n01:0] done with experiments...
+n01:0] finishing
+n04:1] finishing
+{
+             :exe => "./cache_experiment.exe",
+      :experiment => "incoherent_all_remote",
+     :num_threads => 256,
+       :num_procs => 2,
+       :num_nodes => 2,
+          :nelems => 1048576,
+     :cache_elems => 4,
+          :commit => "6f7229edbe13f63f6ab7c77a80774e63b83541d9",
+          :run_at => 2012-02-22 19:28:57 -0800,
+    :total_work_s => 0.556862,
+     :work_bw_wps => 3766020.0,
+    :total_read_s => 0.559905,
+      :all_bw_wps => 3745550.0
+}
+------
+mpirun -l -H n01,n04 -np 2 --       ./cache_experiment.exe --incoherent_all_remote --nelems=1048576 --cache_elems=16 --num_threads=256 --logtostderr
+n04:1] finishing
+n01:0] total_result = 1048576
+n01:0] done with experiments...
+n01:0] finishing
+{
+             :exe => "./cache_experiment.exe",
+      :experiment => "incoherent_all_remote",
+     :num_threads => 256,
+       :num_procs => 2,
+       :num_nodes => 2,
+          :nelems => 1048576,
+     :cache_elems => 16,
+          :commit => "6f7229edbe13f63f6ab7c77a80774e63b83541d9",
+          :run_at => 2012-02-22 19:28:57 -0800,
+    :total_work_s => 0.436265,
+     :work_bw_wps => 4807060.0,
+    :total_read_s => 0.438994,
+      :all_bw_wps => 4777170.0
+}
+------
+mpirun -l -H n01,n04 -np 2 --       ./cache_experiment.exe --incoherent_all_remote --nelems=1048576 --cache_elems=64 --num_threads=256 --logtostderr
+n04:1] finishing
+n01:0] total_result = 1048576
+n01:0] done with experiments...
+n01:0] finishing
+{
+             :exe => "./cache_experiment.exe",
+      :experiment => "incoherent_all_remote",
+     :num_threads => 256,
+       :num_procs => 2,
+       :num_nodes => 2,
+          :nelems => 1048576,
+     :cache_elems => 64,
+          :commit => "6f7229edbe13f63f6ab7c77a80774e63b83541d9",
+          :run_at => 2012-02-22 19:28:57 -0800,
+    :total_work_s => 0.409271,
+     :work_bw_wps => 5124120.0,
+    :total_read_s => 0.411915,
+      :all_bw_wps => 5091230.0
+}
+------
+mpirun -l -H n01,n04 -np 2 --       ./cache_experiment.exe --incoherent_all_remote --nelems=1048576 --cache_elems=128 --num_threads=256 --logtostderr
+n01:0] total_result = 1048576
+n01:0] done with experiments...
+n01:0] finishing
+n04:1] finishing
+{
+             :exe => "./cache_experiment.exe",
+      :experiment => "incoherent_all_remote",
+     :num_threads => 256,
+       :num_procs => 2,
+       :num_nodes => 2,
+          :nelems => 1048576,
+     :cache_elems => 128,
+          :commit => "6f7229edbe13f63f6ab7c77a80774e63b83541d9",
+          :run_at => 2012-02-22 19:28:57 -0800,
+    :total_work_s => 0.405568,
+     :work_bw_wps => 5170900.0,
+    :total_read_s => 0.408458,
+      :all_bw_wps => 5134310.0
+}
+------
+mpirun -l -H n01,n04 -np 2 --       ./cache_experiment.exe --incoherent_all_remote --nelems=1048576 --cache_elems=256 --num_threads=256 --logtostderr
+n01:0] total_result = 1048576
+n01:0] done with experiments...
+n01:0] finishing
+n04:1] finishing
+{
+             :exe => "./cache_experiment.exe",
+      :experiment => "incoherent_all_remote",
+     :num_threads => 256,
+       :num_procs => 2,
+       :num_nodes => 2,
+          :nelems => 1048576,
+     :cache_elems => 256,
+          :commit => "6f7229edbe13f63f6ab7c77a80774e63b83541d9",
+          :run_at => 2012-02-22 19:28:57 -0800,
+    :total_work_s => 0.409148,
+     :work_bw_wps => 5125660.0,
+    :total_read_s => 0.411828,
+      :all_bw_wps => 5092300.0
+}
+------
+mpirun -l -H n01,n04 -np 2 --       ./cache_experiment.exe --incoherent_all_remote --nelems=4194304 --cache_elems=4 --num_threads=256 --logtostderr
+n04:1] finishing
+n01:0] total_result = 4194304
+n01:0] done with experiments...
+n01:0] finishing
+{
+             :exe => "./cache_experiment.exe",
+      :experiment => "incoherent_all_remote",
+     :num_threads => 256,
+       :num_procs => 2,
+       :num_nodes => 2,
+          :nelems => 4194304,
+     :cache_elems => 4,
+          :commit => "6f7229edbe13f63f6ab7c77a80774e63b83541d9",
+          :run_at => 2012-02-22 19:28:57 -0800,
+    :total_work_s => 1.11118,
+     :work_bw_wps => 7549260.0,
+    :total_read_s => 1.11572,
+      :all_bw_wps => 7518560.0
+}
+------
+mpirun -l -H n01,n04 -np 2 --       ./cache_experiment.exe --incoherent_all_remote --nelems=4194304 --cache_elems=16 --num_threads=256 --logtostderr
+n04:1] finishing
+n01:0] total_result = 4194304
+n01:0] done with experiments...
+n01:0] finishing
+{
+             :exe => "./cache_experiment.exe",
+      :experiment => "incoherent_all_remote",
+     :num_threads => 256,
+       :num_procs => 2,
+       :num_nodes => 2,
+          :nelems => 4194304,
+     :cache_elems => 16,
+          :commit => "6f7229edbe13f63f6ab7c77a80774e63b83541d9",
+          :run_at => 2012-02-22 19:28:57 -0800,
+    :total_work_s => 0.630763,
+     :work_bw_wps => 13299200.0,
+    :total_read_s => 0.634013,
+      :all_bw_wps => 13231000.0
+}
+------
+mpirun -l -H n01,n04 -np 2 --       ./cache_experiment.exe --incoherent_all_remote --nelems=4194304 --cache_elems=64 --num_threads=256 --logtostderr
+n04:1] finishing
+n01:0] total_result = 4194304
+n01:0] done with experiments...
+n01:0] finishing
+{
+             :exe => "./cache_experiment.exe",
+      :experiment => "incoherent_all_remote",
+     :num_threads => 256,
+       :num_procs => 2,
+       :num_nodes => 2,
+          :nelems => 4194304,
+     :cache_elems => 64,
+          :commit => "6f7229edbe13f63f6ab7c77a80774e63b83541d9",
+          :run_at => 2012-02-22 19:28:57 -0800,
+    :total_work_s => 0.508081,
+     :work_bw_wps => 16510400.0,
+    :total_read_s => 0.511,
+      :all_bw_wps => 16416100.0
+}
+------
+mpirun -l -H n01,n04 -np 2 --       ./cache_experiment.exe --incoherent_all_remote --nelems=4194304 --cache_elems=128 --num_threads=256 --logtostderr
+n04:1] finishing
+n01:0] total_result = 4194304
+n01:0] done with experiments...
+n01:0] finishing
+{
+             :exe => "./cache_experiment.exe",
+      :experiment => "incoherent_all_remote",
+     :num_threads => 256,
+       :num_procs => 2,
+       :num_nodes => 2,
+          :nelems => 4194304,
+     :cache_elems => 128,
+          :commit => "6f7229edbe13f63f6ab7c77a80774e63b83541d9",
+          :run_at => 2012-02-22 19:28:57 -0800,
+    :total_work_s => 0.50035,
+     :work_bw_wps => 16765500.0,
+    :total_read_s => 0.503256,
+      :all_bw_wps => 16668700.0
+}
+------
+mpirun -l -H n01,n04 -np 2 --       ./cache_experiment.exe --incoherent_all_remote --nelems=4194304 --cache_elems=256 --num_threads=256 --logtostderr
+n04:1] finishing
+n01:0] total_result = 4194304
+n01:0] done with experiments...
+n01:0] finishing
+{
+             :exe => "./cache_experiment.exe",
+      :experiment => "incoherent_all_remote",
+     :num_threads => 256,
+       :num_procs => 2,
+       :num_nodes => 2,
+          :nelems => 4194304,
+     :cache_elems => 256,
+          :commit => "6f7229edbe13f63f6ab7c77a80774e63b83541d9",
+          :run_at => 2012-02-22 19:28:57 -0800,
+    :total_work_s => 0.513013,
+     :work_bw_wps => 16351600.0,
+    :total_read_s => 0.515919,
+      :all_bw_wps => 16259500.0
+}
+------
+mpirun -l -H n01,n04 -np 2 --       ./cache_experiment.exe --incoherent_all_remote --nelems=16384 --cache_elems=4 --num_threads=384 --logtostderr
+n04:1] finishing
+n01:0] total_result = 15360
+n01:0] done with experiments...
+n01:0] finishing
+{
+             :exe => "./cache_experiment.exe",
+      :experiment => "incoherent_all_remote",
+     :num_threads => 384,
+       :num_procs => 2,
+       :num_nodes => 2,
+          :nelems => 16384,
+     :cache_elems => 4,
+          :commit => "6f7229edbe13f63f6ab7c77a80774e63b83541d9",
+          :run_at => 2012-02-22 19:28:57 -0800,
+    :total_work_s => 0.563498,
+     :work_bw_wps => 58151.1,
+    :total_read_s => 0.56662,
+      :all_bw_wps => 57830.7
+}
+------
+mpirun -l -H n01,n04 -np 2 --       ./cache_experiment.exe --incoherent_all_remote --nelems=16384 --cache_elems=16 --num_threads=384 --logtostderr
+n04:1] finishing
+n01:0] total_result = 12288
+n01:0] done with experiments...
+n01:0] finishing
+{
+             :exe => "./cache_experiment.exe",
+      :experiment => "incoherent_all_remote",
+     :num_threads => 384,
+       :num_procs => 2,
+       :num_nodes => 2,
+          :nelems => 16384,
+     :cache_elems => 16,
+          :commit => "6f7229edbe13f63f6ab7c77a80774e63b83541d9",
+          :run_at => 2012-02-22 19:28:57 -0800,
+    :total_work_s => 0.560431,
+     :work_bw_wps => 58469.2,
+    :total_read_s => 0.563485,
+      :all_bw_wps => 58152.4
+}
+------
+mpirun -l -H n01,n04 -np 2 --       ./cache_experiment.exe --incoherent_all_remote --nelems=16384 --cache_elems=64 --num_threads=384 --logtostderr
+error! pid 20645 exit 1
+### stdout ###
+n01:0. too small!
+### stderr ###
+MPIRUN.n01: n04:1 node program unexpectedly quit: Exiting.
+------
+mpirun -l -H n01,n04 -np 2 --       ./cache_experiment.exe --incoherent_all_remote --nelems=16384 --cache_elems=128 --num_threads=384 --logtostderr
+error! pid 20667 exit 1
+### stdout ###
+n01:0. too small!
+### stderr ###
+MPIRUN.n01: n04:1 node program unexpectedly quit: Exiting.
+------
+mpirun -l -H n01,n04 -np 2 --       ./cache_experiment.exe --incoherent_all_remote --nelems=16384 --cache_elems=256 --num_threads=384 --logtostderr
+error! pid 20687 exit 1
+### stdout ###
+n01:0. too small!
+### stderr ###
+MPIRUN.n01: n04:1 node program unexpectedly quit: Exiting.
+------
+mpirun -l -H n01,n04 -np 2 --       ./cache_experiment.exe --incoherent_all_remote --nelems=65536 --cache_elems=4 --num_threads=384 --logtostderr
+n04:1] finishing
+n01:0] total_result = 64512
+n01:0] done with experiments...
+n01:0] finishing
+{
+             :exe => "./cache_experiment.exe",
+      :experiment => "incoherent_all_remote",
+     :num_threads => 384,
+       :num_procs => 2,
+       :num_nodes => 2,
+          :nelems => 65536,
+     :cache_elems => 4,
+          :commit => "6f7229edbe13f63f6ab7c77a80774e63b83541d9",
+          :run_at => 2012-02-22 19:28:57 -0800,
+    :total_work_s => 0.577649,
+     :work_bw_wps => 226906,
+    :total_read_s => 0.580767,
+      :all_bw_wps => 225688
+}
+------
+mpirun -l -H n01,n04 -np 2 --       ./cache_experiment.exe --incoherent_all_remote --nelems=65536 --cache_elems=16 --num_threads=384 --logtostderr
+n04:1] finishing
+n01:0] total_result = 61440
+n01:0] done with experiments...
+n01:0] finishing
+{
+             :exe => "./cache_experiment.exe",
+      :experiment => "incoherent_all_remote",
+     :num_threads => 384,
+       :num_procs => 2,
+       :num_nodes => 2,
+          :nelems => 65536,
+     :cache_elems => 16,
+          :commit => "6f7229edbe13f63f6ab7c77a80774e63b83541d9",
+          :run_at => 2012-02-22 19:28:57 -0800,
+    :total_work_s => 0.564615,
+     :work_bw_wps => 232144,
+    :total_read_s => 0.567659,
+      :all_bw_wps => 230899
+}
+------
+mpirun -l -H n01,n04 -np 2 --       ./cache_experiment.exe --incoherent_all_remote --nelems=65536 --cache_elems=64 --num_threads=384 --logtostderr
+n04:1] finishing
+n01:0] total_result = 49152
+n01:0] done with experiments...
+n01:0] finishing
+{
+             :exe => "./cache_experiment.exe",
+      :experiment => "incoherent_all_remote",
+     :num_threads => 384,
+       :num_procs => 2,
+       :num_nodes => 2,
+          :nelems => 65536,
+     :cache_elems => 64,
+          :commit => "6f7229edbe13f63f6ab7c77a80774e63b83541d9",
+          :run_at => 2012-02-22 19:28:57 -0800,
+    :total_work_s => 0.565791,
+     :work_bw_wps => 231661,
+    :total_read_s => 0.568923,
+      :all_bw_wps => 230386
+}
+------
+mpirun -l -H n01,n04 -np 2 --       ./cache_experiment.exe --incoherent_all_remote --nelems=65536 --cache_elems=128 --num_threads=384 --logtostderr
+n04:1] finishing
+n01:0] total_result = 49152
+n01:0] done with experiments...
+n01:0] finishing
+{
+             :exe => "./cache_experiment.exe",
+      :experiment => "incoherent_all_remote",
+     :num_threads => 384,
+       :num_procs => 2,
+       :num_nodes => 2,
+          :nelems => 65536,
+     :cache_elems => 128,
+          :commit => "6f7229edbe13f63f6ab7c77a80774e63b83541d9",
+          :run_at => 2012-02-22 19:28:57 -0800,
+    :total_work_s => 0.560912,
+     :work_bw_wps => 233677,
+    :total_read_s => 0.563991,
+      :all_bw_wps => 232401
+}
+------
+mpirun -l -H n01,n04 -np 2 --       ./cache_experiment.exe --incoherent_all_remote --nelems=65536 --cache_elems=256 --num_threads=384 --logtostderr
+error! pid 20786 exit 1
+### stdout ###
+n01:0. too small!
+### stderr ###
+MPIRUN.n01: n04:1 node program unexpectedly quit: Exiting.
+------
+mpirun -l -H n01,n04 -np 2 --       ./cache_experiment.exe --incoherent_all_remote --nelems=262144 --cache_elems=4 --num_threads=384 --logtostderr
+n04:1] finishing
+n01:0] total_result = 261120
+n01:0] done with experiments...
+n01:0] finishing
+{
+             :exe => "./cache_experiment.exe",
+      :experiment => "incoherent_all_remote",
+     :num_threads => 384,
+       :num_procs => 2,
+       :num_nodes => 2,
+          :nelems => 262144,
+     :cache_elems => 4,
+          :commit => "6f7229edbe13f63f6ab7c77a80774e63b83541d9",
+          :run_at => 2012-02-22 19:28:57 -0800,
+    :total_work_s => 0.608943,
+     :work_bw_wps => 860981,
+    :total_read_s => 0.612125,
+      :all_bw_wps => 856505
+}
+------
+mpirun -l -H n01,n04 -np 2 --       ./cache_experiment.exe --incoherent_all_remote --nelems=262144 --cache_elems=16 --num_threads=384 --logtostderr
+n04:1] finishing
+n01:0] total_result = 258048
+n01:0] done with experiments...
+n01:0] finishing
+{
+             :exe => "./cache_experiment.exe",
+      :experiment => "incoherent_all_remote",
+     :num_threads => 384,
+       :num_procs => 2,
+       :num_nodes => 2,
+          :nelems => 262144,
+     :cache_elems => 16,
+          :commit => "6f7229edbe13f63f6ab7c77a80774e63b83541d9",
+          :run_at => 2012-02-22 19:28:57 -0800,
+    :total_work_s => 0.576223,
+     :work_bw_wps => 909870,
+    :total_read_s => 0.579318,
+      :all_bw_wps => 905008
+}
+------
+mpirun -l -H n01,n04 -np 2 --       ./cache_experiment.exe --incoherent_all_remote --nelems=262144 --cache_elems=64 --num_threads=384 --logtostderr
+n01:0] total_result = 245760
+n01:0] done with experiments...
+n01:0] finishing
+n04:1] finishing
+{
+             :exe => "./cache_experiment.exe",
+      :experiment => "incoherent_all_remote",
+     :num_threads => 384,
+       :num_procs => 2,
+       :num_nodes => 2,
+          :nelems => 262144,
+     :cache_elems => 64,
+          :commit => "6f7229edbe13f63f6ab7c77a80774e63b83541d9",
+          :run_at => 2012-02-22 19:28:57 -0800,
+    :total_work_s => 0.567075,
+     :work_bw_wps => 924547,
+    :total_read_s => 0.570124,
+      :all_bw_wps => 919604
+}
+------
+mpirun -l -H n01,n04 -np 2 --       ./cache_experiment.exe --incoherent_all_remote --nelems=262144 --cache_elems=128 --num_threads=384 --logtostderr
+n04:1] finishing
+n01:0] total_result = 245760
+n01:0] done with experiments...
+n01:0] finishing
+{
+             :exe => "./cache_experiment.exe",
+      :experiment => "incoherent_all_remote",
+     :num_threads => 384,
+       :num_procs => 2,
+       :num_nodes => 2,
+          :nelems => 262144,
+     :cache_elems => 128,
+          :commit => "6f7229edbe13f63f6ab7c77a80774e63b83541d9",
+          :run_at => 2012-02-22 19:28:57 -0800,
+    :total_work_s => 0.566718,
+     :work_bw_wps => 925131,
+    :total_read_s => 0.569766,
+      :all_bw_wps => 920181
+}
+------
+mpirun -l -H n01,n04 -np 2 --       ./cache_experiment.exe --incoherent_all_remote --nelems=262144 --cache_elems=256 --num_threads=384 --logtostderr
+n01:0] total_result = 196608
+n01:0] done with experiments...
+n01:0] finishing
+n04:1] finishing
+{
+             :exe => "./cache_experiment.exe",
+      :experiment => "incoherent_all_remote",
+     :num_threads => 384,
+       :num_procs => 2,
+       :num_nodes => 2,
+          :nelems => 262144,
+     :cache_elems => 256,
+          :commit => "6f7229edbe13f63f6ab7c77a80774e63b83541d9",
+          :run_at => 2012-02-22 19:28:57 -0800,
+    :total_work_s => 0.56945,
+     :work_bw_wps => 920692,
+    :total_read_s => 0.572574,
+      :all_bw_wps => 915668
+}
+------
+mpirun -l -H n01,n04 -np 2 --       ./cache_experiment.exe --incoherent_all_remote --nelems=1048576 --cache_elems=4 --num_threads=384 --logtostderr
+n04:1] finishing
+n01:0] total_result = 1047552
+n01:0] done with experiments...
+n01:0] finishing
+{
+             :exe => "./cache_experiment.exe",
+      :experiment => "incoherent_all_remote",
+     :num_threads => 384,
+       :num_procs => 2,
+       :num_nodes => 2,
+          :nelems => 1048576,
+     :cache_elems => 4,
+          :commit => "6f7229edbe13f63f6ab7c77a80774e63b83541d9",
+          :run_at => 2012-02-22 19:28:57 -0800,
+    :total_work_s => 0.744671,
+     :work_bw_wps => 2816210.0,
+    :total_read_s => 0.748244,
+      :all_bw_wps => 2802770.0
+}
+------
+mpirun -l -H n01,n04 -np 2 --       ./cache_experiment.exe --incoherent_all_remote --nelems=1048576 --cache_elems=16 --num_threads=384 --logtostderr
+n01:0] total_result = 1044480
+n01:0] done with experiments...
+n01:0] finishing
+n04:1] finishing
+{
+             :exe => "./cache_experiment.exe",
+      :experiment => "incoherent_all_remote",
+     :num_threads => 384,
+       :num_procs => 2,
+       :num_nodes => 2,
+          :nelems => 1048576,
+     :cache_elems => 16,
+          :commit => "6f7229edbe13f63f6ab7c77a80774e63b83541d9",
+          :run_at => 2012-02-22 19:28:57 -0800,
+    :total_work_s => 0.623003,
+     :work_bw_wps => 3366200.0,
+    :total_read_s => 0.626224,
+      :all_bw_wps => 3348880.0
+}
+------
+mpirun -l -H n01,n04 -np 2 --       ./cache_experiment.exe --incoherent_all_remote --nelems=1048576 --cache_elems=64 --num_threads=384 --logtostderr
+n01:0] total_result = 1032192
+n01:0] done with experiments...
+n01:0] finishing
+n04:1] finishing
+{
+             :exe => "./cache_experiment.exe",
+      :experiment => "incoherent_all_remote",
+     :num_threads => 384,
+       :num_procs => 2,
+       :num_nodes => 2,
+          :nelems => 1048576,
+     :cache_elems => 64,
+          :commit => "6f7229edbe13f63f6ab7c77a80774e63b83541d9",
+          :run_at => 2012-02-22 19:28:57 -0800,
+    :total_work_s => 0.59572,
+     :work_bw_wps => 3520360.0,
+    :total_read_s => 0.598878,
+      :all_bw_wps => 3501800.0
+}
+------
+mpirun -l -H n01,n04 -np 2 --       ./cache_experiment.exe --incoherent_all_remote --nelems=1048576 --cache_elems=128 --num_threads=384 --logtostderr
+n01:0] total_result = 1032192
+n01:0] done with experiments...
+n01:0] finishing
+n04:1] finishing
+{
+             :exe => "./cache_experiment.exe",
+      :experiment => "incoherent_all_remote",
+     :num_threads => 384,
+       :num_procs => 2,
+       :num_nodes => 2,
+          :nelems => 1048576,
+     :cache_elems => 128,
+          :commit => "6f7229edbe13f63f6ab7c77a80774e63b83541d9",
+          :run_at => 2012-02-22 19:28:57 -0800,
+    :total_work_s => 0.593301,
+     :work_bw_wps => 3534720.0,
+    :total_read_s => 0.596459,
+      :all_bw_wps => 3516000.0
+}
+------
+mpirun -l -H n01,n04 -np 2 --       ./cache_experiment.exe --incoherent_all_remote --nelems=1048576 --cache_elems=256 --num_threads=384 --logtostderr
+n01:0] total_result = 983040
+n01:0] done with experiments...
+n01:0] finishing
+n04:1] finishing
+{
+             :exe => "./cache_experiment.exe",
+      :experiment => "incoherent_all_remote",
+     :num_threads => 384,
+       :num_procs => 2,
+       :num_nodes => 2,
+          :nelems => 1048576,
+     :cache_elems => 256,
+          :commit => "6f7229edbe13f63f6ab7c77a80774e63b83541d9",
+          :run_at => 2012-02-22 19:28:57 -0800,
+    :total_work_s => 0.601642,
+     :work_bw_wps => 3485710.0,
+    :total_read_s => 0.604814,
+      :all_bw_wps => 3467430.0
+}
+------
+mpirun -l -H n01,n04 -np 2 --       ./cache_experiment.exe --incoherent_all_remote --nelems=4194304 --cache_elems=4 --num_threads=384 --logtostderr
+n04:1] finishing
+n01:0] total_result = 4193280
+n01:0] done with experiments...
+n01:0] finishing
+{
+             :exe => "./cache_experiment.exe",
+      :experiment => "incoherent_all_remote",
+     :num_threads => 384,
+       :num_procs => 2,
+       :num_nodes => 2,
+          :nelems => 4194304,
+     :cache_elems => 4,
+          :commit => "6f7229edbe13f63f6ab7c77a80774e63b83541d9",
+          :run_at => 2012-02-22 19:28:57 -0800,
+    :total_work_s => 1.30519,
+     :work_bw_wps => 6427130.0,
+    :total_read_s => 1.31015,
+      :all_bw_wps => 6402770.0
+}
+------
+mpirun -l -H n01,n04 -np 2 --       ./cache_experiment.exe --incoherent_all_remote --nelems=4194304 --cache_elems=16 --num_threads=384 --logtostderr
+n04:1] finishing
+n01:0] total_result = 4190208
+n01:0] done with experiments...
+n01:0] finishing
+{
+             :exe => "./cache_experiment.exe",
+      :experiment => "incoherent_all_remote",
+     :num_threads => 384,
+       :num_procs => 2,
+       :num_nodes => 2,
+          :nelems => 4194304,
+     :cache_elems => 16,
+          :commit => "6f7229edbe13f63f6ab7c77a80774e63b83541d9",
+          :run_at => 2012-02-22 19:28:57 -0800,
+    :total_work_s => 0.817536,
+     :work_bw_wps => 10260800.0,
+    :total_read_s => 0.821302,
+      :all_bw_wps => 10213800.0
+}
+------
+mpirun -l -H n01,n04 -np 2 --       ./cache_experiment.exe --incoherent_all_remote --nelems=4194304 --cache_elems=64 --num_threads=384 --logtostderr
+n01:0] total_result = 4177920
+n01:0] done with experiments...
+n01:0] finishing
+n04:1] finishing
+{
+             :exe => "./cache_experiment.exe",
+      :experiment => "incoherent_all_remote",
+     :num_threads => 384,
+       :num_procs => 2,
+       :num_nodes => 2,
+          :nelems => 4194304,
+     :cache_elems => 64,
+          :commit => "6f7229edbe13f63f6ab7c77a80774e63b83541d9",
+          :run_at => 2012-02-22 19:28:57 -0800,
+    :total_work_s => 0.702708,
+     :work_bw_wps => 11937500.0,
+    :total_read_s => 0.706126,
+      :all_bw_wps => 11879800.0
+}
+------
+mpirun -l -H n01,n04 -np 2 --       ./cache_experiment.exe --incoherent_all_remote --nelems=4194304 --cache_elems=128 --num_threads=384 --logtostderr
+n01:0] total_result = 4177920
+n01:0] done with experiments...
+n01:0] finishing
+n04:1] finishing
+{
+             :exe => "./cache_experiment.exe",
+      :experiment => "incoherent_all_remote",
+     :num_threads => 384,
+       :num_procs => 2,
+       :num_nodes => 2,
+          :nelems => 4194304,
+     :cache_elems => 128,
+          :commit => "6f7229edbe13f63f6ab7c77a80774e63b83541d9",
+          :run_at => 2012-02-22 19:28:57 -0800,
+    :total_work_s => 0.685851,
+     :work_bw_wps => 12231000.0,
+    :total_read_s => 0.689213,
+      :all_bw_wps => 12171300.0
+}
+------
+mpirun -l -H n01,n04 -np 2 --       ./cache_experiment.exe --incoherent_all_remote --nelems=4194304 --cache_elems=256 --num_threads=384 --logtostderr
+n01:0] total_result = 4128768
+n01:0] done with experiments...
+n01:0] finishing
+n04:1] finishing
+{
+             :exe => "./cache_experiment.exe",
+      :experiment => "incoherent_all_remote",
+     :num_threads => 384,
+       :num_procs => 2,
+       :num_nodes => 2,
+          :nelems => 4194304,
+     :cache_elems => 256,
+          :commit => "6f7229edbe13f63f6ab7c77a80774e63b83541d9",
+          :run_at => 2012-02-22 19:28:57 -0800,
+    :total_work_s => 0.70664,
+     :work_bw_wps => 11871100.0,
+    :total_read_s => 0.710073,
+      :all_bw_wps => 11813700.0
+}
+------
+mpirun -l -H n01,n04 -np 2 --       ./cache_experiment.exe --incoherent_all_remote --nelems=16384 --cache_elems=4 --num_threads=512 --logtostderr
+n04:1] finishing
+n01:0] total_result = 16384
+n01:0] done with experiments...
+n01:0] finishing
+{
+             :exe => "./cache_experiment.exe",
+      :experiment => "incoherent_all_remote",
+     :num_threads => 512,
+       :num_procs => 2,
+       :num_nodes => 2,
+          :nelems => 16384,
+     :cache_elems => 4,
+          :commit => "6f7229edbe13f63f6ab7c77a80774e63b83541d9",
+          :run_at => 2012-02-22 19:28:57 -0800,
+    :total_work_s => 0.753394,
+     :work_bw_wps => 43493.8,
+    :total_read_s => 0.756926,
+      :all_bw_wps => 43290.9
+}
+------
+mpirun -l -H n01,n04 -np 2 --       ./cache_experiment.exe --incoherent_all_remote --nelems=16384 --cache_elems=16 --num_threads=512 --logtostderr
+n04:1] finishing
+n01:0] total_result = 16384
+n01:0] done with experiments...
+n01:0] finishing
+{
+             :exe => "./cache_experiment.exe",
+      :experiment => "incoherent_all_remote",
+     :num_threads => 512,
+       :num_procs => 2,
+       :num_nodes => 2,
+          :nelems => 16384,
+     :cache_elems => 16,
+          :commit => "6f7229edbe13f63f6ab7c77a80774e63b83541d9",
+          :run_at => 2012-02-22 19:28:57 -0800,
+    :total_work_s => 0.748559,
+     :work_bw_wps => 43774.8,
+    :total_read_s => 0.752144,
+      :all_bw_wps => 43566.1
+}
+------
+mpirun -l -H n01,n04 -np 2 --       ./cache_experiment.exe --incoherent_all_remote --nelems=16384 --cache_elems=64 --num_threads=512 --logtostderr
+error! pid 21137 exit 1
+### stdout ###
+n01:0. too small!
+### stderr ###
+MPIRUN.n01: n04:1 node program unexpectedly quit: Exiting.
+------
+mpirun -l -H n01,n04 -np 2 --       ./cache_experiment.exe --incoherent_all_remote --nelems=16384 --cache_elems=128 --num_threads=512 --logtostderr
+error! pid 21158 exit 1
+### stdout ###
+n01:0. too small!
+### stderr ###
+MPIRUN.n01: n04:1 node program unexpectedly quit: Exiting.
+------
+mpirun -l -H n01,n04 -np 2 --       ./cache_experiment.exe --incoherent_all_remote --nelems=16384 --cache_elems=256 --num_threads=512 --logtostderr
+error! pid 21178 exit 1
+### stdout ###
+n01:0. too small!
+### stderr ###
+MPIRUN.n01: n04:1 node program unexpectedly quit: Exiting.
+------
+mpirun -l -H n01,n04 -np 2 --       ./cache_experiment.exe --incoherent_all_remote --nelems=65536 --cache_elems=4 --num_threads=512 --logtostderr
+n04:1] finishing
+n01:0] total_result = 65536
+n01:0] done with experiments...
+n01:0] finishing
+{
+             :exe => "./cache_experiment.exe",
+      :experiment => "incoherent_all_remote",
+     :num_threads => 512,
+       :num_procs => 2,
+       :num_nodes => 2,
+          :nelems => 65536,
+     :cache_elems => 4,
+          :commit => "6f7229edbe13f63f6ab7c77a80774e63b83541d9",
+          :run_at => 2012-02-22 19:28:57 -0800,
+    :total_work_s => 0.757264,
+     :work_bw_wps => 173086,
+    :total_read_s => 0.760867,
+      :all_bw_wps => 172267
+}
+------
+mpirun -l -H n01,n04 -np 2 --       ./cache_experiment.exe --incoherent_all_remote --nelems=65536 --cache_elems=16 --num_threads=512 --logtostderr
+n04:1] finishing
+n01:0] total_result = 65536
+n01:0] done with experiments...
+n01:0] finishing
+{
+             :exe => "./cache_experiment.exe",
+      :experiment => "incoherent_all_remote",
+     :num_threads => 512,
+       :num_procs => 2,
+       :num_nodes => 2,
+          :nelems => 65536,
+     :cache_elems => 16,
+          :commit => "6f7229edbe13f63f6ab7c77a80774e63b83541d9",
+          :run_at => 2012-02-22 19:28:57 -0800,
+    :total_work_s => 0.752789,
+     :work_bw_wps => 174115,
+    :total_read_s => 0.756331,
+      :all_bw_wps => 173300
+}
+------
+mpirun -l -H n01,n04 -np 2 --       ./cache_experiment.exe --incoherent_all_remote --nelems=65536 --cache_elems=64 --num_threads=512 --logtostderr
+n01:0] total_result = 65536
+n01:0] done with experiments...
+n01:0] finishing
+n04:1] finishing
+{
+             :exe => "./cache_experiment.exe",
+      :experiment => "incoherent_all_remote",
+     :num_threads => 512,
+       :num_procs => 2,
+       :num_nodes => 2,
+          :nelems => 65536,
+     :cache_elems => 64,
+          :commit => "6f7229edbe13f63f6ab7c77a80774e63b83541d9",
+          :run_at => 2012-02-22 19:28:57 -0800,
+    :total_work_s => 0.749598,
+     :work_bw_wps => 174856,
+    :total_read_s => 0.753343,
+      :all_bw_wps => 173987
+}
+------
+mpirun -l -H n01,n04 -np 2 --       ./cache_experiment.exe --incoherent_all_remote --nelems=65536 --cache_elems=128 --num_threads=512 --logtostderr
+n01:0] total_result = 65536
+n01:0] done with experiments...
+n01:0] finishing
+n04:1] finishing
+{
+             :exe => "./cache_experiment.exe",
+      :experiment => "incoherent_all_remote",
+     :num_threads => 512,
+       :num_procs => 2,
+       :num_nodes => 2,
+          :nelems => 65536,
+     :cache_elems => 128,
+          :commit => "6f7229edbe13f63f6ab7c77a80774e63b83541d9",
+          :run_at => 2012-02-22 19:28:57 -0800,
+    :total_work_s => 0.747574,
+     :work_bw_wps => 175330,
+    :total_read_s => 0.75114,
+      :all_bw_wps => 174497
+}
+------
+mpirun -l -H n01,n04 -np 2 --       ./cache_experiment.exe --incoherent_all_remote --nelems=65536 --cache_elems=256 --num_threads=512 --logtostderr
+error! pid 21276 exit 1
+### stdout ###
+n01:0. too small!
+### stderr ###
+MPIRUN.n01: n04:1 node program unexpectedly quit: Exiting.
+------
+mpirun -l -H n01,n04 -np 2 --       ./cache_experiment.exe --incoherent_all_remote --nelems=262144 --cache_elems=4 --num_threads=512 --logtostderr
+n04:1] finishing
+n01:0] total_result = 262144
+n01:0] done with experiments...
+n01:0] finishing
+{
+             :exe => "./cache_experiment.exe",
+      :experiment => "incoherent_all_remote",
+     :num_threads => 512,
+       :num_procs => 2,
+       :num_nodes => 2,
+          :nelems => 262144,
+     :cache_elems => 4,
+          :commit => "6f7229edbe13f63f6ab7c77a80774e63b83541d9",
+          :run_at => 2012-02-22 19:28:57 -0800,
+    :total_work_s => 0.792323,
+     :work_bw_wps => 661710,
+    :total_read_s => 0.796021,
+      :all_bw_wps => 658636
+}
+------
+mpirun -l -H n01,n04 -np 2 --       ./cache_experiment.exe --incoherent_all_remote --nelems=262144 --cache_elems=16 --num_threads=512 --logtostderr
+n04:1] finishing
+n01:0] total_result = 262144
+n01:0] done with experiments...
+n01:0] finishing
+{
+             :exe => "./cache_experiment.exe",
+      :experiment => "incoherent_all_remote",
+     :num_threads => 512,
+       :num_procs => 2,
+       :num_nodes => 2,
+          :nelems => 262144,
+     :cache_elems => 16,
+          :commit => "6f7229edbe13f63f6ab7c77a80774e63b83541d9",
+          :run_at => 2012-02-22 19:28:57 -0800,
+    :total_work_s => 0.76791,
+     :work_bw_wps => 682746,
+    :total_read_s => 0.771484,
+      :all_bw_wps => 679584
+}
+------
+mpirun -l -H n01,n04 -np 2 --       ./cache_experiment.exe --incoherent_all_remote --nelems=262144 --cache_elems=64 --num_threads=512 --logtostderr
+n04:1] finishing
+n01:0] total_result = 262144
+n01:0] done with experiments...
+n01:0] finishing
+{
+             :exe => "./cache_experiment.exe",
+      :experiment => "incoherent_all_remote",
+     :num_threads => 512,
+       :num_procs => 2,
+       :num_nodes => 2,
+          :nelems => 262144,
+     :cache_elems => 64,
+          :commit => "6f7229edbe13f63f6ab7c77a80774e63b83541d9",
+          :run_at => 2012-02-22 19:28:57 -0800,
+    :total_work_s => 0.754601,
+     :work_bw_wps => 694788,
+    :total_read_s => 0.758189,
+      :all_bw_wps => 691501
+}
+------
+mpirun -l -H n01,n04 -np 2 --       ./cache_experiment.exe --incoherent_all_remote --nelems=262144 --cache_elems=128 --num_threads=512 --logtostderr
+n04:1] finishing
+n01:0] total_result = 262144
+n01:0] done with experiments...
+n01:0] finishing
+{
+             :exe => "./cache_experiment.exe",
+      :experiment => "incoherent_all_remote",
+     :num_threads => 512,
+       :num_procs => 2,
+       :num_nodes => 2,
+          :nelems => 262144,
+     :cache_elems => 128,
+          :commit => "6f7229edbe13f63f6ab7c77a80774e63b83541d9",
+          :run_at => 2012-02-22 19:28:57 -0800,
+    :total_work_s => 0.755426,
+     :work_bw_wps => 694030,
+    :total_read_s => 0.758951,
+      :all_bw_wps => 690806
+}
+------
+mpirun -l -H n01,n04 -np 2 --       ./cache_experiment.exe --incoherent_all_remote --nelems=262144 --cache_elems=256 --num_threads=512 --logtostderr
+n04:1] finishing
+n01:0] total_result = 262144
+n01:0] done with experiments...
+n01:0] finishing
+{
+             :exe => "./cache_experiment.exe",
+      :experiment => "incoherent_all_remote",
+     :num_threads => 512,
+       :num_procs => 2,
+       :num_nodes => 2,
+          :nelems => 262144,
+     :cache_elems => 256,
+          :commit => "6f7229edbe13f63f6ab7c77a80774e63b83541d9",
+          :run_at => 2012-02-22 19:28:57 -0800,
+    :total_work_s => 0.756947,
+     :work_bw_wps => 692635,
+    :total_read_s => 0.760557,
+      :all_bw_wps => 689347
+}
+------
+mpirun -l -H n01,n04 -np 2 --       ./cache_experiment.exe --incoherent_all_remote --nelems=1048576 --cache_elems=4 --num_threads=512 --logtostderr
+n04:1] finishing
+n01:0] total_result = 1048576
+n01:0] done with experiments...
+n01:0] finishing
+{
+             :exe => "./cache_experiment.exe",
+      :experiment => "incoherent_all_remote",
+     :num_threads => 512,
+       :num_procs => 2,
+       :num_nodes => 2,
+          :nelems => 1048576,
+     :cache_elems => 4,
+          :commit => "6f7229edbe13f63f6ab7c77a80774e63b83541d9",
+          :run_at => 2012-02-22 19:28:57 -0800,
+    :total_work_s => 0.938585,
+     :work_bw_wps => 2234380.0,
+    :total_read_s => 0.94261,
+      :all_bw_wps => 2224830.0
+}
+------
+mpirun -l -H n01,n04 -np 2 --       ./cache_experiment.exe --incoherent_all_remote --nelems=1048576 --cache_elems=16 --num_threads=512 --logtostderr
+n04:1] finishing
+n01:0] total_result = 1048576
+n01:0] done with experiments...
+n01:0] finishing
+{
+             :exe => "./cache_experiment.exe",
+      :experiment => "incoherent_all_remote",
+     :num_threads => 512,
+       :num_procs => 2,
+       :num_nodes => 2,
+          :nelems => 1048576,
+     :cache_elems => 16,
+          :commit => "6f7229edbe13f63f6ab7c77a80774e63b83541d9",
+          :run_at => 2012-02-22 19:28:57 -0800,
+    :total_work_s => 0.811938,
+     :work_bw_wps => 2582900.0,
+    :total_read_s => 0.815651,
+      :all_bw_wps => 2571140.0
+}
+------
+mpirun -l -H n01,n04 -np 2 --       ./cache_experiment.exe --incoherent_all_remote --nelems=1048576 --cache_elems=64 --num_threads=512 --logtostderr
+n01:0] total_result = 1048576
+n01:0] done with experiments...
+n01:0] finishing
+n04:1] finishing
+{
+             :exe => "./cache_experiment.exe",
+      :experiment => "incoherent_all_remote",
+     :num_threads => 512,
+       :num_procs => 2,
+       :num_nodes => 2,
+          :nelems => 1048576,
+     :cache_elems => 64,
+          :commit => "6f7229edbe13f63f6ab7c77a80774e63b83541d9",
+          :run_at => 2012-02-22 19:28:57 -0800,
+    :total_work_s => 0.782164,
+     :work_bw_wps => 2681220.0,
+    :total_read_s => 0.785774,
+      :all_bw_wps => 2668900.0
+}
+------
+mpirun -l -H n01,n04 -np 2 --       ./cache_experiment.exe --incoherent_all_remote --nelems=1048576 --cache_elems=128 --num_threads=512 --logtostderr
+n01:0] total_result = 1048576
+n01:0] done with experiments...
+n01:0] finishing
+n04:1] finishing
+{
+             :exe => "./cache_experiment.exe",
+      :experiment => "incoherent_all_remote",
+     :num_threads => 512,
+       :num_procs => 2,
+       :num_nodes => 2,
+          :nelems => 1048576,
+     :cache_elems => 128,
+          :commit => "6f7229edbe13f63f6ab7c77a80774e63b83541d9",
+          :run_at => 2012-02-22 19:28:57 -0800,
+    :total_work_s => 0.779974,
+     :work_bw_wps => 2688750.0,
+    :total_read_s => 0.783583,
+      :all_bw_wps => 2676360.0
+}
+------
+mpirun -l -H n01,n04 -np 2 --       ./cache_experiment.exe --incoherent_all_remote --nelems=1048576 --cache_elems=256 --num_threads=512 --logtostderr
+n01:0] total_result = 1048576
+n01:0] done with experiments...
+n01:0] finishing
+n04:1] finishing
+{
+             :exe => "./cache_experiment.exe",
+      :experiment => "incoherent_all_remote",
+     :num_threads => 512,
+       :num_procs => 2,
+       :num_nodes => 2,
+          :nelems => 1048576,
+     :cache_elems => 256,
+          :commit => "6f7229edbe13f63f6ab7c77a80774e63b83541d9",
+          :run_at => 2012-02-22 19:28:57 -0800,
+    :total_work_s => 0.785024,
+     :work_bw_wps => 2671450.0,
+    :total_read_s => 0.788698,
+      :all_bw_wps => 2659010.0
+}
+------
+mpirun -l -H n01,n04 -np 2 --       ./cache_experiment.exe --incoherent_all_remote --nelems=4194304 --cache_elems=4 --num_threads=512 --logtostderr
+n04:1] finishing
+n01:0] total_result = 4194304
+n01:0] done with experiments...
+n01:0] finishing
+{
+             :exe => "./cache_experiment.exe",
+      :experiment => "incoherent_all_remote",
+     :num_threads => 512,
+       :num_procs => 2,
+       :num_nodes => 2,
+          :nelems => 4194304,
+     :cache_elems => 4,
+          :commit => "6f7229edbe13f63f6ab7c77a80774e63b83541d9",
+          :run_at => 2012-02-22 19:28:57 -0800,
+    :total_work_s => 1.50407,
+     :work_bw_wps => 5577280.0,
+    :total_read_s => 1.50965,
+      :all_bw_wps => 5556670.0
+}
+------
+mpirun -l -H n01,n04 -np 2 --       ./cache_experiment.exe --incoherent_all_remote --nelems=4194304 --cache_elems=16 --num_threads=512 --logtostderr
+n04:1] finishing
+n01:0] total_result = 4194304
+n01:0] done with experiments...
+n01:0] finishing
+{
+             :exe => "./cache_experiment.exe",
+      :experiment => "incoherent_all_remote",
+     :num_threads => 512,
+       :num_procs => 2,
+       :num_nodes => 2,
+          :nelems => 4194304,
+     :cache_elems => 16,
+          :commit => "6f7229edbe13f63f6ab7c77a80774e63b83541d9",
+          :run_at => 2012-02-22 19:28:57 -0800,
+    :total_work_s => 1.00879,
+     :work_bw_wps => 8315500.0,
+    :total_read_s => 1.01309,
+      :all_bw_wps => 8280200.0
+}
+------
+mpirun -l -H n01,n04 -np 2 --       ./cache_experiment.exe --incoherent_all_remote --nelems=4194304 --cache_elems=64 --num_threads=512 --logtostderr
+n01:0] total_result = 4194304
+n01:0] done with experiments...
+n01:0] finishing
+n04:1] finishing
+{
+             :exe => "./cache_experiment.exe",
+      :experiment => "incoherent_all_remote",
+     :num_threads => 512,
+       :num_procs => 2,
+       :num_nodes => 2,
+          :nelems => 4194304,
+     :cache_elems => 64,
+          :commit => "6f7229edbe13f63f6ab7c77a80774e63b83541d9",
+          :run_at => 2012-02-22 19:28:57 -0800,
+    :total_work_s => 0.887782,
+     :work_bw_wps => 9448960.0,
+    :total_read_s => 0.891697,
+      :all_bw_wps => 9407460.0
+}
+------
+mpirun -l -H n01,n04 -np 2 --       ./cache_experiment.exe --incoherent_all_remote --nelems=4194304 --cache_elems=128 --num_threads=512 --logtostderr
+n01:0] total_result = 4194304
+n01:0] done with experiments...
+n01:0] finishing
+n04:1] finishing
+{
+             :exe => "./cache_experiment.exe",
+      :experiment => "incoherent_all_remote",
+     :num_threads => 512,
+       :num_procs => 2,
+       :num_nodes => 2,
+          :nelems => 4194304,
+     :cache_elems => 128,
+          :commit => "6f7229edbe13f63f6ab7c77a80774e63b83541d9",
+          :run_at => 2012-02-22 19:28:57 -0800,
+    :total_work_s => 0.872755,
+     :work_bw_wps => 9611640.0,
+    :total_read_s => 0.876604,
+      :all_bw_wps => 9569440.0
+}
+------
+mpirun -l -H n01,n04 -np 2 --       ./cache_experiment.exe --incoherent_all_remote --nelems=4194304 --cache_elems=256 --num_threads=512 --logtostderr
+n01:0] total_result = 4194304
+n01:0] done with experiments...
+n01:0] finishing
+n04:1] finishing
+{
+             :exe => "./cache_experiment.exe",
+      :experiment => "incoherent_all_remote",
+     :num_threads => 512,
+       :num_procs => 2,
+       :num_nodes => 2,
+          :nelems => 4194304,
+     :cache_elems => 256,
+          :commit => "6f7229edbe13f63f6ab7c77a80774e63b83541d9",
+          :run_at => 2012-02-22 19:28:57 -0800,
+    :total_work_s => 0.896431,
+     :work_bw_wps => 9357780.0,
+    :total_read_s => 0.900355,
+      :all_bw_wps => 9317000.0
+}

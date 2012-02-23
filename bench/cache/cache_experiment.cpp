@@ -98,7 +98,7 @@ static void th_spawn_all(thread * me, spawn_all_args* a) {
   start = timer();
   
   for (int i=0; i<a->num_threads; i++) {
-    alist[i].addr = GlobalAddress<data_t>(a->data+i*a->num_elems, a->caller);
+    alist[i].addr = GlobalAddress<data_t>(a->data, a->caller);
     alist[i].num_elems = a->num_elems;
     alist[i].cache_elems = a->cache_elems;
     alist[i].caller_node = a->caller;
@@ -112,7 +112,7 @@ static void th_spawn_all(thread * me, spawn_all_args* a) {
   
   end = timer();
   double work_time = end-start;
-  LOG(INFO) << "work time: " << work_time;
+  DVLOG(1) << "work time: " << work_time;
   
   chunk_result_args ra = { total_result, work_time };
   SoftXMT_call_on(a->caller, &am_chunk_result, &ra);
@@ -159,8 +159,9 @@ static void cache_experiment_all(int64_t cache_elems, int64_t num_threads) {
   LOG(INFO)
     << "{ experiment: 'incoherent_all_remote'"
     << ", total_work_s: " << total_work_time
+    << ", work_bw_wps: " << (2*N) / total_work_time
     << ", total_read_s: " << all_time
-    << ", all_bw_wps: " << (N)/(double)(all_time)
+    << ", all_bw_wps: " << (2*N)/(double)(all_time)
     << " }";
 }
 
@@ -185,9 +186,9 @@ int main(int argc, char * argv[]) {
   Node mynode = SoftXMT_mynode();
   if (mynode == 0) {
 //    data = (data_t*)a.malloc(N * sizeof(data_t));
-    data = (data_t*)malloc(N*sizeof(data_t));
+    data = (data_t*)malloc(FLAGS_cache_elems*sizeof(data_t));
     
-    for (int i=0; i<N; i++) { data[i] = 1; }
+    for (int i=0; i<FLAGS_cache_elems; i++) { data[i] = 1; }
   }
   
   SoftXMT_run_user_main(&user_main, NULL);
