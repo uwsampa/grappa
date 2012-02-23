@@ -1,4 +1,8 @@
 
+#ifdef HEAPCHECK
+#include <gperftools/heap-checker.h>
+#endif
+
 #include "SoftXMT.hpp"
 
 static Communicator * my_global_communicator;
@@ -10,7 +14,9 @@ static scheduler * sched;
 /// Flag to tell this node it's okay to exit.
 bool SoftXMT_done_flag;
 
-
+#ifdef HEAPCHECK
+HeapLeakChecker * SoftXMT_heapchecker = 0;
+#endif
 
 static void poller( thread * me, void * args ) {
   while( !SoftXMT_done() ) {
@@ -30,6 +36,11 @@ void SoftXMT_init( int * argc_p, char ** argv_p[] )
   // activate logging
   google::InitGoogleLogging( *argv_p[0] );
   google::InstallFailureSignalHandler( );
+
+  DVLOG(1) << "Initializing SoftXMT library....";
+#ifdef HEAPCHECK
+  SoftXMT_heapchecker = new HeapLeakChecker("SoftXMT");
+#endif
 
   // also initializes system_wide global_communicator pointer
   my_global_communicator = new Communicator();
@@ -51,6 +62,7 @@ void SoftXMT_init( int * argc_p, char ** argv_p[] )
 /// arbitrary communication is allowed.
 void SoftXMT_activate() 
 {
+  DVLOG(1) << "Activating SoftXMT library....";
   my_global_communicator->activate();
   SoftXMT_barrier();
 }
@@ -209,6 +221,8 @@ void SoftXMT_finish( int retval )
   SoftXMT_signal_done();
 
   SoftXMT_barrier();
+
+  DVLOG(1) << "Cleaning up SoftXMT library....";
   
   my_global_communicator->finish( retval );
   
@@ -219,5 +233,9 @@ void SoftXMT_finish( int retval )
 
   delete my_global_aggregator;
   delete my_global_communicator;
+
+#ifdef HEAPCHECK
+  assert( SoftXMT_heapchecker->NoLeaks() );
+#endif
 }
 
