@@ -56,11 +56,11 @@ static void process_chunk_all(thread * me, process_all_args* a) {
   int64_t num_chunks = a->num_elems / a->cache_elems;
   data_t total = 0;
   
-  data_t * buff = new data_t[a->cache_elems];
+  data_t buff[1024];
   assert(buff != NULL);
 
   for (int i=0; i<num_chunks; i++) {
-    Incoherent<data_t>::RO chunk(a->addr, a->cache_elems, buff);
+    Incoherent<data_t>::RW chunk(a->addr, a->cache_elems, buff);
     chunk.block_until_acquired();
     
     for (int i=0; i<a->cache_elems; i++) {
@@ -71,7 +71,7 @@ static void process_chunk_all(thread * me, process_all_args* a) {
   }
   
   total_result += total;
-  DVLOG(5) << "total: " << total;
+  DVLOG(1) << "total: " << total;
 
 //  chunk_result_args ra = { total };
 //  SoftXMT_call_on(a->caller_node, &am_chunk_result, &ra);
@@ -90,7 +90,7 @@ static void th_spawn_all(thread * me, spawn_all_args* a) {
   process_all_args * alist = new process_all_args[a->num_threads];
   thread ** ths = new thread*[a->num_threads];
   
-  DVLOG(5) << "spawning " << a->num_threads << " threads";
+  DVLOG(1) << "spawning " << a->num_threads << " threads";
   
   total_result = 0; // zero out 'total_result' on this node
   
@@ -145,13 +145,13 @@ static void cache_experiment_all(int64_t cache_elems, int64_t num_threads) {
   SoftXMT_call_on(1, &am_spawn_all, &a);
   
   while (replies < 1) {
-    DVLOG(5) << "waiting for replies (" << replies << "/" << num_threads << " so far)";
+    DVLOG(1) << "waiting for replies (" << replies << "/" << num_threads << " so far)";
     SoftXMT_suspend();
   }
   end = timer();
   double all_time = end-start;
-  DVLOG(5) << "all replies received";
-  DVLOG(5) << "total_result = " << total_result;
+  DVLOG(1) << "all replies received";
+  DVLOG(1) << "total_result = " << total_result;
   assert(total_result - (double)N < 1.0e-10);
   
   LOG(INFO) << "total_result = " << total_result;
@@ -160,7 +160,7 @@ static void cache_experiment_all(int64_t cache_elems, int64_t num_threads) {
     << "{ experiment: 'incoherent_all_remote'"
     << ", total_work_s: " << total_work_time
     << ", total_read_s: " << all_time
-    << ", all_bw_wps: " << (N*2)/(double)(all_time)
+    << ", all_bw_wps: " << (N)/(double)(all_time)
     << " }";
 }
 
