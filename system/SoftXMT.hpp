@@ -44,6 +44,24 @@ thread * SoftXMT_template_spawn( void (* fn_p)(thread *, T *), T * args )
   return th;
 }
 
+/// Active message for spawning a thread on a remote node (used by SoftXMT_remote_spawn())
+template< typename T >
+static void am_remote_spawn(T* args, size_t args_size, void* payload, size_t payload_size) {
+  typedef void (*thread_fn)(thread*,T*);
+  void (*fn_p)(thread*,T*) = static_cast<thread_fn>(payload);
+  T* aa = new T;
+  *aa = *args;
+  SoftXMT_template_spawn(&fn_p, aa);
+}
+
+/// Spawn a user thread on a remote node. Copies the passed arguments 
+/// to the remote node.
+/// Note: the thread function should take ownership of the arguments 
+/// and clean them up at the end of the function call.
+template< typename T >
+void SoftXMT_remote_spawn( void (*fn_p)(thread*,T*), T* args, Node target) {
+  SoftXMT_call_on(target, &am_remote_spawn, args, sizeof(T), fn_p, sizeof(fn_p));
+}
 
 /// Yield to scheduler, placing current thread on run queue.
 void SoftXMT_yield( );
