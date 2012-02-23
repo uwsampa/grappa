@@ -29,16 +29,18 @@ static data_t* data;
 static data_t total_result = 0;
 static int64_t replies = 0;
 
-static double total_acquire_time = 0;
+static double total_work_time = 0;
 
 static thread * main_thread = NULL;
 
 struct chunk_result_args {
   data_t result;
+  double work_time;
 };
 typedef void (am_chunk_result_t)(chunk_result_args*, size_t, void*, size_t);
 static void am_chunk_result(chunk_result_args* a, size_t asz, void* p, size_t psz) {
   total_result += a->result;
+  total_work_time += a->work_time;
   ++replies;
   SoftXMT_wake(main_thread); // let main_thread check if we're done
 }
@@ -109,9 +111,10 @@ static void th_spawn_all(thread * me, spawn_all_args* a) {
   }
   
   end = timer();
-  LOG(INFO) << "remote time: " << end-start;
+  double work_time = end-start;
+  LOG(INFO) << "work time: " << work_time;
   
-  chunk_result_args ra = { total_result };
+  chunk_result_args ra = { total_result, work_time };
   SoftXMT_call_on(a->caller, &am_chunk_result, &ra);
   SoftXMT_flush(a->caller);
 }
@@ -126,7 +129,7 @@ static void cache_experiment_all(int64_t cache_elems, int64_t num_threads) {
   main_thread = get_current_thread();
   replies = 0;
   total_result = 0;
-  total_acquire_time = 0;
+  total_work_time = 0;
   
   int64_t num_elems = N / num_threads;
   
@@ -155,6 +158,7 @@ static void cache_experiment_all(int64_t cache_elems, int64_t num_threads) {
   
   LOG(INFO)
     << "{ experiment: 'incoherent_all_remote'"
+    << ", total_work_s: " << total_work_time
     << ", total_read_s: " << all_time
     << ", all_bw_wps: " << (N*2)/(double)(all_time)
     << " }";
