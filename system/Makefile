@@ -55,6 +55,11 @@ NPROC:=2
 #
 NPROC:=2
 
+#
+# number of mpi processes
+#
+NPROC:=2
+
 # name of main executable to build and/or run
 TARGET:=
 
@@ -80,7 +85,11 @@ GlobalMemoryChunk_tests.test: libSoftXMT.a
 GlobalAllocator_tests.test: libSoftXMT.a
 Allocator_tests.test: Allocator.o
 
+<<<<<<< HEAD
 Collective_tests.test: libSoftXMT.a
+=======
+Collective_tests.test: Delegate.o SoftXMT.o Communicator.o Aggregator.o thread.o coro.o stack.o Collective.o
+>>>>>>> add collective test.
 
 thread_tests.test: thread.o stack.o coro.o
 thread2_tests.test: libSoftXMT.a
@@ -137,8 +146,16 @@ run: $(TARGET) $($(MPITYPE)_ENVVAR_TEMP)
 #
 mpi_test: $(TARGET) $($(MPITYPE)_ENVVAR_TEMP)
 	-killall $<
+<<<<<<< HEAD
 	$(ENV_VARIABLES) \
 	$($(MPITYPE)_MPIRUN) $($(MPITYPE)_EXPORT_ENV_VARIABLES) $($(MPITYPE)_HOST) $($(MPITYPE)_NPROC) -- ./$< --log_level=test_suite --run_test=$(TARGET:.test=) -- $(ARGS)
+=======
+	GLOG_logtostderr=1 \
+	OMPI_MCA_btl_sm_use_knem=0 \
+	LD_LIBRARY_PATH="$(LD_LIBRARY_PATH)" \
+	GASNET_BACKTRACE=1 \
+	$(MPIRUN) -x LD_LIBRARY_PATH -H $(HOST) -np $(NPROC) -- ./$< --log_level=test_suite --run_test=$(TARGET:.test=) $(ARGS)
+>>>>>>> add collective test.
 
 test: $(TARGET)
 	$(ENV_VARIABLES) \
@@ -255,12 +272,6 @@ stack.o: stack.S Makefile
 
 CLEAN_FILES= *.exe *.o *.d *.test *.dis libSoftXMT.a $($(MPITYPE)_CLEAN_FILES)
 clean:
-<<<<<<< HEAD
 	rm -f $(CLEAN_FILES)
-=======
-	rm -f *.exe *.o *.d *.test *.btr .mpirunrc.* *.dis lib*.a
-#	rm -f $(TARGET) $(OBJECTS) $(OBJECTS:.o=.d) $(OBJECTS:.o=.test) $(TEST_TARGET)
-
->>>>>>> add remove library to the clean target
 
 .PHONY: run test clean
