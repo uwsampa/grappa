@@ -44,6 +44,11 @@ include ../include.mk
 #
 HOST:=localhost
 
+#
+# number of mpi processes
+#
+NPROC:=2
+
 # name of main executable to build and/or run
 TARGET:= Addressing.test
 
@@ -65,6 +70,7 @@ Delegate_tests.test: Delegate.o SoftXMT.o Communicator.o Aggregator.o thread.o c
 Addressing_tests.test: SoftXMT.o Communicator.o Aggregator.o thread.o coro.o stack.o 
 Allocator_tests.test: Allocator.o
 
+Collective_tests.test: Delegate.o SoftXMT.o Communicator.o Aggregator.o thread.o coro.o stack.o Collective.o
 
 thread_tests.test: thread.o stack.o coro.o
 thread2_tests.test: SoftXMT.o Communicator.o Aggregator.o thread.o coro.o stack.o 
@@ -133,7 +139,7 @@ run: $(TARGET) $(ENVVAR_TEMP)
 mpi_test: $(TARGET) $(ENVVAR_TEMP)
 	-killall $<
 	$(ENV_VARIABLES) \
-	$(MPIRUN) $($(MPITYPE)_EXPORT_ENV_VARIABLES) -H $(HOST) -np 2 -- ./$< --log_level=test_suite --run_test=$(TARGET:.test=) -- $(ARGS)
+	$(MPIRUN) $($(MPITYPE)_EXPORT_ENV_VARIABLES) -H $(HOST) -np $(NPROC) -- ./$< --log_level=test_suite --run_test=$(TARGET:.test=) -- $(ARGS)
 
 test: $(TARGET)
 	$(ENV_VARIABLES) \
