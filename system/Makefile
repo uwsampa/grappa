@@ -55,8 +55,6 @@ lib: libSoftXMT.a
 #
 # object file dependences
 #
-scratch.exe: Delegate.o SoftXMT.o Communicator.o Aggregator.o thread.o coro.o stack.o
-
 Demo.exe: SoftXMT.o Communicator.o Aggregator.o thread.o coro.o stack.o
 
 Communicator_tests.test:
@@ -85,35 +83,68 @@ Rate_measure.exe: SoftXMT.o Delegate.o Communicator.o Aggregator.o thread.o coro
 LIBRARY_CONTENTS= SoftXMT.o Communicator.o Aggregator.o Allocator.o Cache.o thread.o coro.o stack.o
 libSoftXMT.a: $(patsubst %,libSoftXMT.a(%),$(LIBRARY_CONTENTS))
 
+
+#
+# environment variables for run
+#
+ENV_VARIABLES+= GLOG_logtostderr=1
+ENV_VARIABLES+= GLOG_v=1
+ENV_VARIABLES+= OMPI_MCA_btl_sm_use_knem=0
+ENV_VARIABLES+= LD_LIBRARY_PATH="$(LD_LIBRARY_PATH)"
+ENV_VARIABLES+= GASNET_BACKTRACE=1
+
+#
+# how do we export environment variables
+#
+OPENMPI_EXPORT_ENV_VARIABLES=$(patsubst %,-x %,$(patsubst DELETEME:%,,$(subst =, DELETEME:,$(ENV_VARIABLES))))
+
+#
+# temporary file for environment variables for QLogic MPI
+# 
+ENVVAR_TEMP:=$(shell mktemp --tmpdir=. .mpirunrc.XXXXXXXX )
+QLOGIC_EXPORT_ENV_VARIABLES=-rcfile $(ENVVAR_TEMP)
+
+# this is created when needed
+.mpirunrc.%:
+	echo \#!/bin/bash > $@
+	for i in $(ENV_VARIABLES); do echo export $$i  >> $@; done
+
+.INTERMEDIATE: .mpirunrc.%
+
+#
+# Heap Leak Checker
+# we must set environment variable HEAPCHECK=local to use annotations in code
+#
+ifdef HEAPCHECK
+ENV_VARIABLES+= HEAPCHECK=local
+ENV_VARIABLES+= HEAP_CHECK_DUMP_DIRECTORY=.
+CFLAGS+= -DHEAPCHECK
+LIBRARIES+= -ltcmalloc
+endif
+
 #
 # run a binary
 #
-run: $(TARGET)
-	GLOG_logtostderr=1 \
-	OMPI_MCA_btl_sm_use_knem=0 \
-	LD_LIBRARY_PATH="$(LD_LIBRARY_PATH)" \
-	$(MPIRUN) -x LD_LIBRARY_PATH -H $(HOST) -np 2 -- ./$< $(ARGS)
+run: $(TARGET) $(ENVVAR_TEMP)
+	$(ENV_VARIABLES) \
+	$(MPIRUN) $($(MPITYPE)_EXPORT_ENV_VARIABLES) -H $(HOST) -np 2 -- ./$< $(ARGS)
 
 #
 # run tests for a component
 #
-mpi_test: $(TARGET)
+mpi_test: $(TARGET) $(ENVVAR_TEMP)
 	-killall $<
-	GLOG_logtostderr=1 \
-	OMPI_MCA_btl_sm_use_knem=0 \
-	LD_LIBRARY_PATH="$(LD_LIBRARY_PATH)" \
-	GASNET_BACKTRACE=1 \
-	$(MPIRUN) -x LD_LIBRARY_PATH -H $(HOST) -np 2 -- ./$< --log_level=test_suite --run_test=$(TARGET:.test=) $(ARGS)
+	$(ENV_VARIABLES) \
+	$(MPIRUN) $($(MPITYPE)_EXPORT_ENV_VARIABLES) -H $(HOST) -np 2 -- ./$< --log_level=test_suite --run_test=$(TARGET:.test=) -- $(ARGS)
 
 test: $(TARGET)
-	GLOG_logtostderr=1 \
-	LD_LIBRARY_PATH="$(LD_LIBRARY_PATH)" \
-	./$< --log_level=test_suite --run_test=$(TARGET:.test=) $(ARGS)
+	$(ENV_VARIABLES) \
+	./$< --log_level=test_suite --run_test=$(TARGET:.test=) -- $(ARGS)
 
 # build a specific test and update autodependence info
 # include Boost test automagic main() generation
 %_tests.o: CXXFLAGS+= -DBOOST_TEST_DYN_LINK -DBOOST_TEST_MODULE=$@
-%_tests.test: -lboost_unit_test_framework 
+%_tests.test: LIBRARIES+= -lboost_unit_test_framework
 %_tests.test: %_tests.o
 	$(LD) $(CFLAGS) $(CXXFLAGS) $(LDFLAGS) $(LIBRARIES) $^ -o $@
 	objdump -S $@ > $@.dis
@@ -121,7 +152,7 @@ test: $(TARGET)
 #
 # What libraries do we need?
 #
-LIBRARIES:= -lgflags -lglog -lgasnet-ibv-seq -libverbs -lrt -lboost_unit_test_framework
+LIBRARIES+= -lgflags -lglog -lgasnet-ibv-seq -libverbs -lrt
 
 #
 # set compiler flags
@@ -212,7 +243,7 @@ stack.o: stack.S Makefile
 
 
 clean:
-	rm -f *.exe *.o *.d *.test *.btr libSoftXMT.a
+	rm -f *.exe *.o *.d *.test *.btr .mpirunrc.* *.dis libSoftXMT.a
 #	rm -f $(TARGET) $(OBJECTS) $(OBJECTS:.o=.d) $(OBJECTS:.o=.test) $(TEST_TARGET)
 
 

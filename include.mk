@@ -51,6 +51,10 @@ CFLAGS+= -I$(COMMON)
 # LDFLAGS+= -L$(BOOST)/lib
 # LD_LIBRARY_PATH:=$(LD_LIBRARY_PATH):$(BOOST)/lib
 
+# MPITYPE=OPENMPI
+# MPIRUN=mpirun
+
+
 #
 # for n01, n02, n04 
 #
@@ -86,8 +90,11 @@ CFLAGS+= -I$(BOOST)/include
 LDFLAGS+= -L$(BOOST)/lib64
 LD_LIBRARY_PATH:=$(LD_LIBRARY_PATH):$(BOOST)/lib
 
+GPERFTOOLS=/sampa/share/gperftools-2.0
+CFLAGS+= -I$(GPERFTOOLS)/include
+LDFLAGS+= -L$(GPERFTOOLS)/lib
+LD_LIBRARY_PATH:=$(LD_LIBRARY_PATH):$(GPERFTOOLS)/lib
+
+MPITYPE=QLOGIC
 MPIRUN=mpirun -l
-
-
-
 

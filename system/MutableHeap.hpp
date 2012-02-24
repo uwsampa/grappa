@@ -22,6 +22,7 @@ private:
   struct HeapElement {
     Priority priority;
     Key key;
+    bool bubble;
   };
 
   typedef std::vector< HeapElement > Heap;
@@ -37,7 +38,7 @@ private:
     HeapIndex parent = 0;
     for( HeapIndex child = 1; child < n; ++child ) {
       if( first[ parent ].priority < first[ child ].priority ) {
-	return false;
+        return false;
       }
       if( 0 == (child & 1) ) {
 	++parent;
@@ -52,7 +53,9 @@ private:
 
   void push_heap_helper( HeapIterator first, HeapIndex hole_index, HeapIndex top_index, HeapElement value ) {
     HeapIndex parent = ( hole_index - 1 ) / 2;
-    while( hole_index > top_index && (first + parent)->priority <= value.priority ) {
+    while( hole_index > top_index && 
+           ( ( (first + parent)->priority <= value.priority ) ||
+             ( value.bubble ) ) ) {
       *(first + hole_index) = *(first + parent);
       index_map[ (first + hole_index)->key ] = hole_index;
       hole_index = parent;
@@ -70,8 +73,9 @@ private:
     const HeapIndex top_index = hole_index;
     HeapIndex second_child = 2 * hole_index + 2;
     while( second_child < len ) {
-      if( (first + second_child)->priority <= (first + (second_child - 1))->priority ) {
-	second_child--;
+      if( ( (first + second_child)->priority <= (first + (second_child - 1))->priority ) ||
+          ( (first + (second_child - 1))->bubble ) ) {
+        second_child--;
       }
       *(first + hole_index) = *(first + second_child);
       index_map[ (first + hole_index)->key ] = hole_index;
@@ -106,7 +110,7 @@ private:
     while( true ) {
       adjust_heap( first, parent, len, *(first + parent) );
       if( parent == 0 ) {
-	return;
+        return;
       }
       parent--;
     }
@@ -123,7 +127,7 @@ public:
   }
 
   void insert( Key key, Priority priority ) {
-    HeapElement e = { priority, key };
+    HeapElement e = { priority, key, false };
     heap.push_back( e );
     index_map[ key ] = (heap.end() - heap.begin()) - 1;
     push_heap( heap.begin(), heap.end() );
@@ -150,8 +154,10 @@ public:
   }
 
   void remove() {
-    HeapElement e = *(heap.end() - 1);
+    //HeapElement e = *(heap.end() - 1);
     pop_heap( heap.begin(), heap.end() );
+    HeapElement e = *(heap.end() - 1);
+    //dump();
     heap.erase( heap.end() - 1 );
     index_map.erase( e.key );
   }
@@ -165,22 +171,32 @@ public:
 
   void update( Key key, Priority priority ) {
     HeapIndex location = index_map[ key ];
-    heap[ location ].priority = std::numeric_limits< Priority >::max();
+    //heap[ location ].priority = std::numeric_limits< Priority >::max();
+    heap[ location ].bubble = true;
     push_heap( heap.begin(), heap.begin() + index_map[ key ] + 1);
+    //dump();
+    heap.begin()->bubble = false;
     pop_heap( heap.begin(), heap.end() );
+    //dump();
     assert( (heap.end() - 1)->key == key );
     (heap.end() - 1)->priority = priority;
     push_heap( heap.begin(), heap.end() );
   }
 
   void remove_key( Key key ) {
+    // find entry for key
     HeapIndex location = index_map[ key ];
-    heap[ location ].priority = std::numeric_limits< Priority >::max();
+
+    // bubble to top of heap
+    //heap[ location ].priority = std::numeric_limits< Priority >::max();
+    heap[ location ].bubble = true;
     push_heap( heap.begin(), heap.begin() + index_map[ key ] + 1);
+    heap.begin()->bubble = false;
     pop_heap( heap.begin(), heap.end() );
     assert( (heap.end() - 1)->key == key );
+
+    // remove from heap
     HeapElement e = *(heap.end() - 1);
-    pop_heap( heap.begin(), heap.end() );
     heap.erase( heap.end() - 1 );
     index_map.erase( e.key );
   }
@@ -192,8 +208,10 @@ public:
     } else if( priority >= heap[ index_map[ key ] ].priority ) {
       increase( key, priority );
     } else {
-      heap[ index_map[ key ] ].priority = std::numeric_limits< Priority >::max();
+      //heap[ index_map[ key ] ].priority = std::numeric_limits< Priority >::max();
+      heap[ index_map[ key ] ].bubble = true;
       push_heap( heap.begin(), heap.begin() + index_map[ key ] + 1);
+      heap.begin()->bubble = false;
       pop_heap( heap.begin(), heap.end() );
       assert( (heap.end() - 1)->key == key );
       (heap.end() - 1)->priority = priority;
@@ -212,17 +230,19 @@ public:
     for( HeapIndex i = 0; i < heap.size(); ++i ){
       s << "  index " << i;
       s << ": priority " << heap[i].priority;
-	  s << " key " << heap[i].key;
+      s << " key " << heap[i].key;
+      s << " bubble " << heap[i].bubble;
       s << std::endl;
     }
     s << "}" << std::endl;
     s << "index {" << std::endl;
     for( typename std::tr1::unordered_map< Key, HeapIndex >::iterator i = index_map.begin(); i != index_map.end(); ++i ) {
       s << "  key " << i->first;
-	  s << ": index " << i->second;
+      s << ": index " << i->second;
       s << " priority " << heap[ i->second ].priority;
       s << " key " << heap[ i->second ].key;
-	  s << std::endl;
+      s << " bubble " << heap[ i->second ].bubble;
+      s << std::endl;
     }
     s << "}" << std::endl;
     
@@ -239,17 +259,19 @@ public:
     for( HeapIndex i = 0; i < heap.size(); ++i ){
       std::cout << "  index " << i;
       std::cout << ": priority " << heap[i].priority;
-	  std::cout << " key " << heap[i].key;
+      std::cout << " key " << heap[i].key;
+      std::cout << " bubble " << heap[i].bubble;
       std::cout << std::endl;
     }
     std::cout << "}" << std::endl;
     std::cout << "index {" << std::endl;
     for( typename std::tr1::unordered_map< Key, HeapIndex >::iterator i = index_map.begin(); i != index_map.end(); ++i ) {
       std::cout << "  key " << i->first;
-	  std::cout << ": index " << i->second;
+      std::cout << ": index " << i->second;
       std::cout << " priority " << heap[ i->second ].priority;
       std::cout << " key " << heap[ i->second ].key;
-	  std::cout << std::endl;
+      std::cout << " bubble " << heap[ i->second ].bubble;
+      std::cout << std::endl;
     }
     std::cout << "}" << std::endl;
   }
