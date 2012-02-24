@@ -36,12 +36,23 @@ CFLAGS_COMMON= -fopenmp -fomit-frame-pointer -O1
 CFLAGS+= $(CFLAGS_COMMON)
 CFLAGS+= -I$(GL_ARRAY) -I$(SOFTXMT_SYS)
 CFLAGS+= -I.. -I../../../bench/sp_gasnet_listwalk/collective
+
+EXPERIMENTS=/sampa/home/bdmyers/experiments
+CFLAGS+= -I$(EXPERIMENTS)/lib
+
 CFLAGS+= -DGASNET_SEQ -DGASNET_CONDUIT_IBV
+
+
 LIB=-lm 
 
 LDFLAGS+= $(CFLAGS_COMMON) -L$(SOFTXMT_SYS)
 
 LIBRARIES:= -lgflags -lglog -lgasnet-ibv-seq -libverbs -lrt -lboost_unit_test_framework -lSoftXMT
+
+#
+# set LD_LIBRARY_PATH
+#
+LD_LIBRARY_PATH:=$(LD_LIBRARY_PATH):$(GFLAGS)/lib
 
 OBJECTS=\
 	balloc.o \
@@ -68,7 +79,10 @@ gasnet_cbarrier_test: gasnet_cbarrier_test.c gasnet_cbarrier.c
 	$(CXX) $(CFLAGS) -o $@ $+ $(GASNET_LIB_PATHS) $(LIB) $(GASNET_LIBS)
 
 run: TreeGen.exe
-	mpirun -np 6 -host "localhost" ./$< $(T1)
+	GLOG_logtostderr=1 \
+	OMPI_MCA_btl_sm_use_knem=0 \
+	LD_LIBRARY_PATH="$(LD_LIBRARY_PATH)" \
+	mpirun -np 2 -host "localhost" ./$< $(T1)
 
 debug: TreeGen.exe
 	export GASNET_BACKTRACE=1
