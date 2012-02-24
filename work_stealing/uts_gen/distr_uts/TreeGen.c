@@ -1,3 +1,5 @@
+#include <iostream>
+
 #include <sched.h>
 #include <stdio.h>
 #include <stdlib.h>
@@ -16,7 +18,14 @@
 #include "collective.h"
 
 #include "SoftXMT.hpp"
-#include "buffered.hpp"
+#include "IncoherentAcquirer.hpp"
+#include "IncoherentReleaser.hpp"
+
+#include "getput.h"
+#include "global_memory.h"
+#include "global_array.h"
+
+#include "DictOut.hpp"
 
 #define PARALLEL 1
 #define PREFETCH_WORK 1
@@ -66,8 +75,6 @@ gasnet_handlerentry_t   handlers[] =
 
 gasnet_seginfo_t* shared_memory_blocks;
 
-#define SHARED_PROCESS_MEMORY_SIZE  (ONE_MEGA * 256)
-#define SHARED_PROCESS_MEMORY_OFFSET (ONE_MEGA * 256)
 
 void function_dispatch(int func_id, void *buffer, uint64_t size) {
     }
@@ -271,12 +278,12 @@ void visitTask(Node_ptr work, thread* me, StealStack* ss, global_array* nodes_ar
     complete_nb(me, tag);
     #else
 
-//    global_address workAddress;
-//    ga_index(nodes_array, work, &workAddress);
+    global_address workAddress;
+    ga_index(nodes_array, work, &workAddress);
 //    Node_piece_t* workLocal = get_local_copy_of_remote<Node_piece_t>(workAddress, 1); 
     Node_piece_t workLocal;
-    GlobalAddress< Node_piece_t > workAddress_gl = /* get global address for work */;
-    IncoherentAcquirer workLocalAq(workAddress_gl, 1, &workLocal);
+    GlobalAddress< Node_piece_t > workAddress_gl ((Node_piece_t*)gm_address_to_ptr(&workAddress), gm_node_of_address(&workAddress));
+    IncoherentAcquirer<Node_piece_t> workLocalAq(workAddress_gl, 1, &workLocal);
     workLocalAq.start_acquire();
     workLocalAq.block_until_acquired();
     #endif
@@ -292,19 +299,19 @@ void visitTask(Node_ptr work, thread* me, StealStack* ss, global_array* nodes_ar
 
     #else
 
-//    global_address childAddress;
-//    ga_index(children_arrays, workLocal->children, &childAddress);
+    global_address childAddress;
+    ga_index(children_arrays, workLocal.children, &childAddress);
 //    Node_ptr* childrenLocal = get_local_copy_of_remote<Node_ptr>(childAddress, workLocal->numChildren);
 
     Node_ptr childrenLocal[workLocal.numChildren];
-    GlobalAddress< Node_ptr > childAddress_gl = /* get global address for work */;
-    IncoherentAcquirer childrenLocalAq(childAddress_gl, workLocal.numChildren, childrenLocal);
+    GlobalAddress< Node_ptr > childAddress_gl ((Node_ptr*)gm_address_to_ptr(&childAddress), gm_node_of_address(&childAddress));
+    IncoherentAcquirer<Node_ptr> childrenLocalAq(childAddress_gl, workLocal.numChildren, childrenLocal);
     childrenLocalAq.start_acquire();
     childrenLocalAq.block_until_acquired();
     #endif
     #endif
 
-    for (int i=0; i<workLocal->numChildren; i++) {
+    for (int i=0; i<workLocal.numChildren; i++) {
         ss_push(ss, childrenLocal[i]);
     }
 
@@ -317,10 +324,10 @@ void visitTask(Node_ptr work, thread* me, StealStack* ss, global_array* nodes_ar
     
     
     #else
-    IncoherentReleaser childrenLocalRl( childAddress_gl, workLocal.numChildren, childrenLocal );
+    IncoherentReleaser<Node_ptr> childrenLocalRl( childAddress_gl, workLocal.numChildren, childrenLocal );
     childrenLocalRl.start_release();
 
-    IncoherentReleaser workLocalRl( workAddress_gl, 1, &workLocal );
+    IncoherentReleaser<Node_piece_t> workLocalRl( workAddress_gl, 1, &workLocal );
     workLocalRl.start_release();
 
 
@@ -438,6 +445,8 @@ int generateTree(Node_ptr root, global_array* nodes, int cid, global_array* chil
 struct user_main_args {
     int argc;
     char** argv;
+    global_array* nodes;
+    global_array* children_array_pool;
 };
 
 void user_main( thread* me, void* args );
@@ -448,89 +457,65 @@ int main(int argc, char *argv[]) {
 
     SoftXMT_activate();
 
-    user_main_args um_args = { argc, argv };  
+    
+    ////////////////////////////////////////////////
+    // Doing shared allocation in SPMD land right now
+    ////////////////////////////////////////////////
+    
+    // FIXME: remove once global memory is impl in SoftXMT
+    gm_init();
+    
+    int rank = SoftXMT_mynode();
+    int num_nodes = SoftXMT_nodes();
+    
+    global_array* nodes = ga_allocate(sizeof(TreeNode), numNodes*num_procs); //XXX for enough space
+    global_array* children_array_pool = ga_allocate(sizeof(Node_ptr), numNodes*num_procs); //children_array_size*num_procs);
+    
+    
+    SoftXMT_barrier();
+    ////////////////////////////////////////////////////////
+    
+    user_main_args um_args = { argc, argv, nodes, children_array_pool };  
     SoftXMT_run_user_main( &user_main, &um_args );
 
     SoftXMT_finish( 0 );
 }
    
-void user_main( thread* me, void* args) {
-    user_main_args* umargs = (user_main_args*) args;
-    int argc = umargs->argc;
-    char** argv = umargs->argv;
+   
+struct init_thread_args {
+    uint64_t num_genNodes;
+    global_array* nodes;
+    global_array* children_array_pool;
+    std::list<Node_ptr>* initialNodes;
+    double startTime;
+    double endTime;
+};
+   
+void init_thread_f(thread* me, void* args ) {
+    init_thread_args* iargs = (init_thread_args*) args;
     
-    // FIXME: remove once global memory is impl in SoftXMT
-    gm_init();
-     
-    int rank = SoftXMT_mynode();
     int num_nodes = SoftXMT_nodes();
+    int rank = SoftXMT_mynode(); 
     
-    //use uts to parse params
-    uts_parseParams(argc, argv, rank==0);
-    uts_printParams();
+    uint64_t num_genNodes = iargs->num_genNodes;
+    global_array* nodes = iargs->nodes;
+    global_array* children_array_pool = iargs->children_array_pool;
+    std::list<Node_ptr>* initialNodes = iargs->initialNodes;
+    
+    int num_local_nodes = num_nodes/num_places;
+    assert( num_local_nodes * num_places == num_nodes ); // For now: only allow equal processes per machine
+    int local_id = rank/num_places;
 
-    char hostname[1024];
-    gethostname(hostname, 1024);
-    printf("rank%d is on %s\n", rank, hostname);
-
-    /** Only for 1 or 2 machines in round-robin placement **/
-    int num_machines = 1; //num_places
-    int machine_id = rank%num_machines;
+    int machine_id = rank % num_places;
     int neighbors[12];
-    if ( num_machines == 1) {
+    if ( num_places == 1) {
         neighbors = {0,1,2,3,4,5,6,7,8,9,10,11};
-    } else if ( num_machines == 2) {
+    } else if ( num_places == 2) {
          if (machine_id) neighbors= {1,3,5,7,9,11}; else neighbors = {0,2,4,6,8,10};
     }
-    int num_local_nodes = num_nodes/num_machines;
-    int local_id = rank/num_machines;
-    /** **/
-
 
     cbarrier_init(num_nodes, rank);
     
-    SoftXMT_barrier();
-    
-    global_array* nodes = ga_allocate(sizeof(TreeNode), numNodes*num_procs); //XXX for enough space
-    global_array* children_array_pool = ga_allocate(sizeof(Node_ptr), numNodes*num_procs); //children_array_size*num_procs);
-   
-   
-    if (0 == rank) { printf("v_per_node = %lu\ncha_per_node = %lu\n", nodes->elements_per_node, children_array_pool->elements_per_node);}
-    
-    Node_ptr root = 0;
-    ballocator_t* bals[num_procs]; // for generating tree single threaded
- 
-    uint64_t num_genNodes;
-    std::list<Node_ptr>* initialNodes;
-    #if DISTRIBUTE_INITIAL
-    initialNodes = new std::list<Node_ptr>();
-    #endif
-  
-    if (generateFile || CHECK_SERIALIZE) {
-        if (0 == rank) {
-            for (int p=0; p<num_procs; p++) {
-                bals[p] = newBumpAllocator(children_array_pool, p*(children_array_pool->elements_per_node), children_array_pool->elements_per_node); 
-            }
-       
-            struct state_t* states = (struct state_t*)malloc(sizeof(struct state_t)*numNodes);
-        
-            TreeNode rootTemplate;  
-            uts_initRoot(&rootTemplate, type, &states[0]);
-            put_remote(nodes, root, &rootTemplate, 0, sizeof(TreeNode));
-          
-            num_genNodes = generateTree(root, nodes, 0, children_array_pool, bals, states, initialNodes);
-        
-            #if GEN_TREE_NBI
-            gasnet_wait_syncnbi_puts(); 
-            #endif
-            
-            free(states);
-           
-        }
-    }
-
-    SoftXMT_barrier();
-
     if (generateFile) { 
         // write the nodes file
         char fname[256];
@@ -652,8 +637,7 @@ void user_main( thread* me, void* args) {
     if (0 == rank) printf("num nodes gen: %lu\n", num_genNodes);
 
     ss_init(&myStealStack, MAXSTACKDEPTH);
-    SoftXMT_barrier();
-
+    
     #if DISTRIBUTE_INITIAL
     if (rank == 0) {
         printf("initial size %d\n", initialNodes->size());
@@ -675,13 +659,11 @@ void user_main( thread* me, void* args) {
         ss_push(&myStealStack, root);
     }
     #endif
-
-    SoftXMT_barrier();
     printf("rank(%d) starting size %d\n", rank, ss_localDepth(&myStealStack));
    
-    num_cores = 1; // TODO make 1 always
-     
-    // green threads init
+  
+    
+    /* spawn workers */
     worker_info wis[num_threads_per_core];
     int core_work_done;
     int core_okToSteal;
@@ -698,47 +680,143 @@ void user_main( thread* me, void* args) {
         wis[th].neighbors = neighbors;
         worker_threads[th] = SoftXMT_spawn(thread_runnable, &wis[th]);
     }
-
-
-    int coreslist[] = {0,2,4,6,8,10,1,3,5,7,9,11};
-  
-    SoftXMT_barrier();
-   
-    double startTime, endTime;
-    startTime = uts_wctime();
     
-/* TODO Set based on the rank
+    /*
+    int coreslist[] = {0,2,4,6,8,10,1,3,5,7,9,11};
+    //TODO Set based on the rank
     cpu_set_t set;
     CPU_ZERO(&set);
     CPU_SET(coreslist[core], &set);
     SCHED_SET(0, sizeof(cpu_set_t), &set);
-*/       
+    */       
     
 
-    // join on worker threads
+
+    SoftXMT_barrier(); // no communication yet so this is safe
+    
+    iargs->startTime = uts_wctime();
+    
+    /* join on workers (or any 1 worker since sync will be in work loop) */
     for (int th=0; th<num_threads_per_core; th++) {
         SoftXMT_join(worker_threads[th]);
     }
 
+    iargs->endTime = uts_wctime();
+
+    // count nodes
+    uint64_t t_nNodes = myStealStack.nVisited;
+
+    printf("rank(%d) total nodes %lu\n", rank, t_nNodes);
+    uint64_t total_nodes = ringReduce(COLL_ADD, 0, t_nNodes);
+}
+
+//space for init_thread args for this node
+init_thread_args this_node_iargs; 
+
+// AM for spawning remote thread
+void spawn_initthread_am( init_thread_args* args, size_t size, void* payload, size_t payload_size ) {
+   /* in general (for async am handling) this may need synchronization */
+   memcpy(&this_node_iargs, args, size);
+   SoftXMT_spawn(&init_thread_f, &this_node_iargs); 
+}
+
+void user_main( thread* me, void* args) {
+    user_main_args* umargs = (user_main_args*) args;
+    int argc = umargs->argc;
+    char** argv = umargs->argv;
+    global_array* nodes = umargs->nodes;
+    global_array* children_array_pool = umargs->children_array_pool;
+     
+    Node rank = SoftXMT_mynode();
+    int num_nodes = SoftXMT_nodes();
+    
+    //use uts to parse params
+    uts_parseParams(argc, argv, rank==0);
+    uts_printParams();
+
+    char hostname[1024];
+    gethostname(hostname, 1024);
+    printf("rank%d is on %s\n", rank, hostname);
 
 
-    endTime = uts_wctime();
- SoftXMT_barrier(); 
-    if (verbose > 2) {
-        for (int i=0; i<num_cores; i++) {
-            printf("** Thread %d\n", i);
-            printf("  # nodes explored    = %d\n", myStealStack.nNodes);
-            printf("  # chunks released   = %d\n", myStealStack.nRelease);
-            printf("  # chunks reacquired = %d\n", myStealStack.nAcquire);
-            printf("  # chunks stolen     = %d\n", myStealStack.nSteal);
-            printf("  # failed steals     = %d\n", myStealStack.nFail);
-            printf("  max stack depth     = %d\n", myStealStack.maxStackDepth);
-            printf("  wakeups             = %d, false wakeups = %d (%.2f%%)",
-                    myStealStack.wakeups, myStealStack.falseWakeups,
-                    (myStealStack.wakeups == 0) ? 0.00 : ((((double)myStealStack.falseWakeups)/myStealStack.wakeups)*100.0));
-            printf("\n");
+    if (0 == rank) { printf("v_per_node = %lu\ncha_per_node = %lu\n", nodes->elements_per_node, children_array_pool->elements_per_node);}
+    
+    Node_ptr root = 0;
+    ballocator_t* bals[num_procs]; // for generating tree single threaded
+ 
+    uint64_t num_genNodes;
+    std::list<Node_ptr>* initialNodes;
+    #if DISTRIBUTE_INITIAL
+    initialNodes = new std::list<Node_ptr>();
+    #endif
+  
+    if (generateFile || CHECK_SERIALIZE) {
+        if (0 == rank) {
+            for (int p=0; p<num_procs; p++) {
+                bals[p] = newBumpAllocator(children_array_pool, p*(children_array_pool->elements_per_node), children_array_pool->elements_per_node); 
+            }
+       
+            struct state_t* states = (struct state_t*)malloc(sizeof(struct state_t)*numNodes);
+        
+            TreeNode rootTemplate;  
+            uts_initRoot(&rootTemplate, type, &states[0]);
+            put_remote(nodes, root, &rootTemplate, 0, sizeof(TreeNode));
+          
+            num_genNodes = generateTree(root, nodes, 0, children_array_pool, bals, states, initialNodes);
+        
+            #if GEN_TREE_NBI
+            gasnet_wait_syncnbi_puts(); 
+            #endif
+            
+            free(states);
         }
     }
+
+
+    thread* init_thread;
+    init_thread_args my_iargs;
+    for (int nod = 0; nod<num_nodes; nod++) {
+        if (nod == 0) {
+            init_thread_args my_iargs; 
+            my_iargs.num_genNodes = num_genNodes;
+            my_iargs.nodes = nodes;
+            my_iargs.children_array_pool = children_array_pool;
+            my_iargs.initialNodes = initialNodes;
+            my_iargs.startTime = 0;
+            my_iargs.endTime = 0;
+            init_thread = SoftXMT_spawn(&init_thread_f, &my_iargs);
+        } else {
+            init_thread_args iargs = { 
+              num_genNodes,
+              nodes,
+              children_array_pool,
+              initialNodes,
+              0,
+              0,
+            };
+            SoftXMT_call_on( nod, &spawn_initthread_am, &iargs );
+        }
+    }
+    SoftXMT_join(init_thread);
+
+
+
+//TODO: finish Vlogging
+//    if (verbose > 2) {
+//        for (int i=0; i<num_cores; i++) {
+//            VLOG("** Thread %d\n", i);
+//            VLOG("  # nodes explored    = %d\n", myStealStack.nNodes);
+//            VLOG("  # chunks released   = %d\n", myStealStack.nRelease);
+//            VLOG("  # chunks reacquired = %d\n", myStealStack.nAcquire);
+//            VLOG("  # chunks stolen     = %d\n", myStealStack.nSteal);
+//            VLOG("  # failed steals     = %d\n", myStealStack.nFail);
+//            VLOG("  max stack depth     = %d\n", myStealStack.maxStackDepth);
+//            VLOG("  wakeups             = %d, false wakeups = %d (%.2f%%)",
+//                    myStealStack.wakeups, myStealStack.falseWakeups,
+//                    (myStealStack.wakeups == 0) ? 0.00 : ((((double)myStealStack.falseWakeups)/myStealStack.wakeups)*100.0));
+//            printf("\n");
+//        }
+//    }
     
     uint64_t t_nNodes = 0;
     uint64_t t_nRelease = 0;
@@ -747,17 +825,12 @@ void user_main( thread* me, void* args) {
     uint64_t t_nFail = 0;
     uint64_t m_maxStackDepth = 0;
 
-  //  for (int i=0; i<num_cores; i++) {
-        t_nNodes += myStealStack.nVisited;
-        t_nRelease += myStealStack.nRelease;
-        t_nAcquire += myStealStack.nAcquire;
-        t_nSteal += myStealStack.nSteal;
-        t_nFail += myStealStack.nFail;
-        m_maxStackDepth = maxint(m_maxStackDepth, myStealStack.maxStackDepth);
-  //  }
+    t_nRelease += myStealStack.nRelease;
+    t_nAcquire += myStealStack.nAcquire;
+    t_nSteal += myStealStack.nSteal;
+    t_nFail += myStealStack.nFail;
+    m_maxStackDepth = maxint(m_maxStackDepth, myStealStack.maxStackDepth);
 
-   printf("rank(%d) total nodes %lu\n", rank, t_nNodes);
-   uint64_t total_nodes = ringReduce(COLL_ADD, 0, t_nNodes);
 
     if (0 == rank) {
         printf("total visited %lu / %lu\n", total_nodes, num_genNodes);
@@ -792,15 +865,25 @@ void user_main( thread* me, void* args) {
 //    }
 //    printf("total visited %lu / %lu\n", total_visited, num_genNodes);
 
-    double runtime = endTime - startTime;
+    double runtime = my_iargs.endTime - my_iargs.startTime;
     double rate = total_nodes / runtime;
    
 
 //TODO: the steal statistics are currently for one node (rank 0)
 
     if (0 == rank) {
-    printf("{'runtime':%f, 'rate':%f, 'num_cores':%d, 'num_threads_per_core':%d, 'chunk_size':%d, 'cbint':%d, 'nVisited':%lu, 'nRelease':%lu, 'nAcquire':%lu, 'nSteal':%lu, 'nFail':%lu, 'maxStackDepth':%lu, 'num_processes':%d, 'num_places':%d}\n", runtime, rate, num_cores, num_threads_per_core, chunkSize, cbint, total_nodes, t_nRelease, t_nAcquire, t_nSteal, t_nFail, m_maxStackDepth, num_nodes, num_places);
+       DictOut outputs;
+       outputs.add( "runtime", runtime );
+       outputs.add( "rate", rate );
+       outputs.add( "num_threads", num_threads_per_core );
+       outputs.add( "chunk_size", chunkSize );
+       outputs.add( "cbint", cbint );
+       
+       std::cout << outputs.toString() << std::endl;   
+    
+    //printf("{'runtime':%f, 'rate':%f, 'num_cores':%d, 'num_threads_per_core':%d, 'chunk_size':%d, 'cbint':%d, 'nVisited':%lu, 'nRelease':%lu, 'nAcquire':%lu, 'nSteal':%lu, 'nFail':%lu, 'maxStackDepth':%lu, 'num_processes':%d, 'num_places':%d}\n", runtime, rate, num_cores, num_threads_per_core, chunkSize, cbint, total_nodes, t_nRelease, t_nAcquire, t_nSteal, t_nFail, m_maxStackDepth, num_nodes, num_places);
     }
+    SoftXMT_signal_done();
 
 }
 
