@@ -1,21 +1,10 @@
 #include <cassert>
 #include "Collective.hpp"
-<<<<<<< HEAD
-<<<<<<< HEAD
 #include "Delegate.hpp"
 
 // Delegates implementation of reductions.
 // Only one reduction can happen at a time.
 
-=======
-
-// Active messages implementation of reductions.
-// Only one reduction can happen at a time.
-
-// GCC atomic builtin
-#define atomic_fetch_and_add(PTR, VALUE) __sync_fetch_and_add((PTR), (VALUE))
-
->>>>>>> Collective reduction for SoftXMT Nodes.
 #define _MAX_PROC_NODES 128
 
 // relies on static address being the same all binaries
@@ -27,11 +16,7 @@ bool _col_allowed = true;
 /// Reduction involving all SoftXMT Nodes.
 /// For now involves a barrier, so only one
 /// collective op is allowed at a time.
-<<<<<<< HEAD
 int64_t SoftXMT_collective_reduce( int64_t (*commutative_func)(int64_t, int64_t), Node home_node, int64_t myValue, int64_t initial ) {
-=======
-int64_t SoftXMT_collective_reduce(int64_t (*commutative_func)(int64_t, int64_t), Node home_node, int64_t myValue, int64_t initial ) {
->>>>>>> Collective reduction for SoftXMT Nodes.
     assert(_col_allowed);
     _col_allowed = false;
 
