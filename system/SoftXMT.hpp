@@ -48,25 +48,15 @@ thread * SoftXMT_template_spawn( void (* fn_p)(thread *, T *), T * args )
   return th;
 }
 
-// I'm not sure that this is even possible (unable to resolve templated function pointer)... commenting out for now...
 /// Active message for spawning a thread on a remote node (used by SoftXMT_remote_spawn())
 template< typename T >
-static void am_remote_spawn(T* args, size_t args_size, void* payload, size_t payload_size);
-
-//template<typename T>
-//void fn(void) {
-//  LOG(INFO) << "testing fn()";
-//}
-//
-//template<> void fn<int>(void) {
-//  LOG(INFO) << "testing fn<int>()";
-//}
-////typedef void (*intfn)<int>(void);
-//
-//void foo() {
-//  int status;
-//  LOG(INFO) << abi::__cxa_demangle(typeid(&fn<int>).name(), 0, 0, &status);
-//}
+static void am_remote_spawn(T* args, size_t args_size, void* payload, size_t payload_size) {
+  typedef void (*thread_fn)(thread*,T*);
+  void (*fn_p)(thread*,T*) = *reinterpret_cast<thread_fn*>(payload);
+  T* aa = new T;
+  *aa = *args;
+  SoftXMT_template_spawn(fn_p, aa);
+}
 
 /// Spawn a user thread on a remote node. Copies the passed arguments 
 /// to the remote node.
@@ -77,15 +67,7 @@ void SoftXMT_remote_spawn( void (*fn_p)(thread*,T*), const T* args, Node target)
   typedef void (*am_t)(T*,size_t,void*,size_t);
   am_t a = &am_remote_spawn<T>;
   SoftXMT_call_on(target, a, args, sizeof(T), (void*)&fn_p, sizeof(fn_p));
-}
-
-template< typename T >
-static void am_remote_spawn(T* args, size_t args_size, void* payload, size_t payload_size) {
-  typedef void (*thread_fn)(thread*,T*);
-  void (*fn_p)(thread*,T*) = *reinterpret_cast<thread_fn*>(payload);
-  T* aa = new T;
-  *aa = *args;
-  SoftXMT_template_spawn(fn_p, aa);
+  DVLOG(5) << "Sent AM to spawn thread on Node " << target;
 }
 
 /// Yield to scheduler, placing current thread on run queue.
