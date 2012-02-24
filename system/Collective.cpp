@@ -1,10 +1,20 @@
 #include <cassert>
 #include "Collective.hpp"
+<<<<<<< HEAD
 #include "Delegate.hpp"
 
 // Delegates implementation of reductions.
 // Only one reduction can happen at a time.
 
+=======
+
+// Active messages implementation of reductions.
+// Only one reduction can happen at a time.
+
+// GCC atomic builtin
+#define atomic_fetch_and_add(PTR, VALUE) __sync_fetch_and_add((PTR), (VALUE))
+
+>>>>>>> Collective reduction for SoftXMT Nodes.
 #define _MAX_PROC_NODES 128
 
 // relies on static address being the same all binaries
