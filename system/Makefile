@@ -50,6 +50,11 @@ HOST:=n01,n04
 #
 NPROC:=2
 
+#
+# number of mpi processes
+#
+NPROC:=2
+
 # name of main executable to build and/or run
 TARGET:=
 
@@ -132,8 +137,16 @@ run: $(TARGET) $($(MPITYPE)_ENVVAR_TEMP)
 #
 mpi_test: $(TARGET) $($(MPITYPE)_ENVVAR_TEMP)
 	-killall $<
+<<<<<<< HEAD
 	$(ENV_VARIABLES) \
 	$($(MPITYPE)_MPIRUN) $($(MPITYPE)_EXPORT_ENV_VARIABLES) $($(MPITYPE)_HOST) $($(MPITYPE)_NPROC) -- ./$< --log_level=test_suite --run_test=$(TARGET:.test=) -- $(ARGS)
+=======
+	GLOG_logtostderr=1 \
+	OMPI_MCA_btl_sm_use_knem=0 \
+	LD_LIBRARY_PATH="$(LD_LIBRARY_PATH)" \
+	GASNET_BACKTRACE=1 \
+	$(MPIRUN) -x LD_LIBRARY_PATH -H $(HOST) -np $(NPROC) -- ./$< --log_level=test_suite --run_test=$(TARGET:.test=) $(ARGS)
+>>>>>>> add collective test.
 
 test: $(TARGET)
 	$(ENV_VARIABLES) \
