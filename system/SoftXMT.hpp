@@ -8,8 +8,8 @@
 #include "Communicator.hpp"
 #include "thread.h"
 
-#include <typeinfo>
-#include <cxxabi.h>
+//#include <typeinfo>
+//#include <cxxabi.h>
 
 
 void SoftXMT_init( int * argc_p, char ** argv_p[] );
@@ -62,9 +62,9 @@ static void am_remote_spawn(T* args, size_t args_size, void* payload, size_t pay
 /// and clean them up at the end of the function call.
 template< typename T >
 void SoftXMT_remote_spawn( void (*fn_p)(thread*,T*), const T* args, Node target) {
-  typedef void (*am_t)(T*,size_t,void*,size_t);
-  am_t a = &am_remote_spawn<T>;
-  SoftXMT_call_on(target, a, args, sizeof(T), (void*)&fn_p, sizeof(fn_p));
+  // typedef void (*am_t)(T*,size_t,void*,size_t);
+  // am_t a = &am_remote_spawn<T>;
+  SoftXMT_call_on(target, SoftXMT_magic_identity_function(&am_remote_spawn<T>), args, sizeof(T), (void*)&fn_p, sizeof(fn_p));
   DVLOG(5) << "Sent AM to spawn thread on Node " << target;
 }
 
