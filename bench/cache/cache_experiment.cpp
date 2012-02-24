@@ -142,7 +142,10 @@ static void cache_experiment_all(int64_t cache_elems, int64_t num_threads) {
   start = timer();
   
   spawn_all_args a = { data, num_threads, num_elems, cache_elems, 0 };
-  SoftXMT_call_on(1, &am_spawn_all, &a);
+//  SoftXMT_call_on(1, &am_spawn_all, &a);
+  LOG(INFO) << "before spawn";
+  
+  SoftXMT_remote_spawn(&th_spawn_all, &a, 1);
   
   while (replies < 1) {
     DVLOG(1) << "waiting for replies (" << replies << "/" << num_threads << " so far)";
