@@ -1,7 +1,7 @@
 #include "gasnet_cbarrier.h"
 #include "StealQueue.h"
 #include <queue>
-
+#include "SoftXMT.hpp"
 
 const int HOME_NODE = 0;
 gasnet_hsl_t cb_lock = GASNET_HSL_INITIALIZER;
@@ -52,23 +52,25 @@ void cbarrier_cancel() {
     gasnet_AMRequestShort0(HOME_NODE, CANCEL_CBARRIER_REQUEST_HANDLER);
 }
 
+
+//define statements that can be used inside gasnet_blockuntil as expressions
 #define STATEMENT_WRAP(stmt, id, value) \
-        int _wrapped_(id)_ () { \
-            (stmt); \
+        int gasnet_blockuntil_wrapped_##id () { \
+            stmt; \
             return (value); \
         } 
 
-#define STATEMENT(id) \
-        _wrapped_(id)_ ()
+#define STATEMENT(id) gasnet_blockuntil_wrapped_##id ()
 
-#define STATEMENT_WRAP(SET_LOCK(&cb_lock), 0, 1);
-#define set_my_lock = STATEMENT(0)
+STATEMENT_WRAP(SoftXMT_yield(), yield, 0)
+#define yield_stmt STATEMENT(yield)
 
-#define STATEMENT_WRAP(UNSET_LOCK(&cb_lock), 1, 0);
-#define unset_my_lock = STATEMENT(1)
+STATEMENT_WRAP(SET_LOCK(&cb_lock), set, 1)
+#define set_my_lock STATEMENT(set)
 
-#define STATEMENT_WRAP(SoftXMT_yield(), 2, 0);
-#define yield_stmt = STATEMENT(3)
+STATEMENT_WRAP(UNSET_LOCK(&cb_lock), unset, 0)
+#define unset_my_lock STATEMENT(unset)
+
 
 int cbarrier_wait() {
     gasnet_AMRequestShort0(HOME_NODE, ENTER_CBARRIER_REQUEST_HANDLER);
