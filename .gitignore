@@ -14,4 +14,5 @@
 .DS_Store
 */.gitignore
 *.db
+*.swp
 
