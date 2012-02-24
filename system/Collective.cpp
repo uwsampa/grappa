@@ -1,5 +1,6 @@
 #include <cassert>
 #include "Collective.hpp"
+#include "Delegate.hpp"
 
 // Active messages implementation of reductions.
 // Only one reduction can happen at a time.
@@ -43,7 +44,7 @@ int64_t SoftXMT_collective_reduce(int64_t (*commutative_func)(int64_t, int64_t),
         // perform the reduction
         int64_t sofar = initial;
         for (int i=0; i<num_nodes; i++) {
-           sofar = (*commutative_func)(sofar, values[i]);
+           sofar = (*commutative_func)(sofar, _col_values[i]);
         }
         
         _col_allowed = true;
@@ -57,7 +58,7 @@ int64_t SoftXMT_collective_reduce(int64_t (*commutative_func)(int64_t, int64_t),
 
         SoftXMT_delegate_write_word( value_adr, myValue );
         /* implicit fence since write is blocking */
-        SoftXMT_delegate_write_word( done_adr, 1);
+        SoftXMT_delegate_fetch_and_add_word( done_adr, 1);
         
         _col_allowed = true;
         return 0;
