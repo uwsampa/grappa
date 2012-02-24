@@ -40,4 +40,11 @@ inline unsigned int log2( unsigned int v ) {
     (val) = ((unsigned long)__a) | (((unsigned long)__d)<<32);	\
   } while(0)
 
+/// OMGWTFBBQ SoftXMT magic identity function
+/// Use this to get a pointer to a template function inside a template function, etc.
+template< typename T >
+T * SoftXMT_magic_identity_function(T * t) {
+  return t;
+}
+
 #endif
