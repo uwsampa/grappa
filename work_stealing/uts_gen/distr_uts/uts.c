@@ -398,7 +398,7 @@ void uts_parseParams(int argc, char *argv[], int printHelp){
       case 'f':
         shiftDepth = atof(argv[i+1]); break;
       case 'g':
-        computeGranularity = max(1,atoi(argv[i+1])); break;
+        computeGranularity = uts_max(1,atoi(argv[i+1])); break;
       default:
         err = i;
     }

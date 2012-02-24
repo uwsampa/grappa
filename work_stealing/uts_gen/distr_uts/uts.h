@@ -95,8 +95,8 @@ extern int    verbose;
 typedef unsigned long long counter_t;
 
 /* Utility Functions */
-#define max(a,b) (((a) > (b)) ? (a) : (b))
-#define min(a,b) (((a) < (b)) ? (a) : (b))
+#define uts_max(a,b) (((a) > (b)) ? (a) : (b))
+#define uts_min(a,b) (((a) < (b)) ? (a) : (b))
 
 void   uts_error(char *str);
 void   uts_parseParams(int argc, char **argv, int printHelp);
