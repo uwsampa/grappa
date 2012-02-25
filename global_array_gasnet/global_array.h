@@ -48,13 +48,6 @@ inline static void ga_local_range(struct global_array *ga,
     *end = *start + ga->elements_per_node - 1;
     }
     
-#define GA_HANDLER 131
-void ga_handler(gasnet_token_t token,
-    gasnet_handlerarg_t a0,
-    gasnet_handlerarg_t a1,
-    gasnet_handlerarg_t a2);
-    
-
 #endif // _GLOBAL_ARRAY_H_ 
 
 
