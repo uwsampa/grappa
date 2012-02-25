@@ -15,7 +15,7 @@
 #include <iterator>
 
 #include "gasnet_cbarrier.h"
-#include "collective.h"
+#include "Collective.hpp"
 
 #include "SoftXMT.hpp"
 #include "IncoherentAcquirer.hpp"
@@ -63,14 +63,12 @@ gasnet_handlerentry_t   handlers[] =
     {
         { GM_REQUEST_HANDLER, (void (*) ()) gm_request_handler },
         { GM_RESPONSE_HANDLER, (void (*) ()) gm_response_handler },
-        { GA_HANDLER, (void (*) ()) ga_handler },
         { WORKSTEAL_REQUEST_HANDLER, (void (*) ()) workStealRequestHandler },
         { WORKSTEAL_REPLY_HANDLER, (void (*) ()) workStealReplyHandler },
-        { PUSHWORK_REQUEST_HANDLER, (void (*) ()) pushWorkRequestHandler },
+        //{ PUSHWORK_REQUEST_HANDLER, (void (*) ()) pushWorkRequestHandler },
         { ENTER_CBARRIER_REQUEST_HANDLER, (void (*) ()) enter_cbarrier_request_handler },
         { EXIT_CBARRIER_REQUEST_HANDLER, (void (*) ()) exit_cbarrier_request_handler },
         { CANCEL_CBARRIER_REQUEST_HANDLER, (void (*) ()) cancel_cbarrier_request_handler },
-        { COLLECTIVE_RING_REDUCTION_HANDLER, (void (*)()) ringReduceRequestHandler }
     };
 
 gasnet_seginfo_t* shared_memory_blocks;
@@ -487,8 +485,16 @@ struct init_thread_args {
     global_array* nodes;
     global_array* children_array_pool;
     std::list<Node_ptr>* initialNodes;
+    
+    // results (only valid for main Node)
     double startTime;
     double endTime;
+    uint64_t total_nodes;
+    uint64_t total_release;      
+    uint64_t total_acquire;      
+    uint64_t total_steal;        
+    uint64_t total_fail;         
+    uint64_t total_maxStackDepth;
 };
    
 void init_thread_f(thread* me, void* args ) {
@@ -703,11 +709,21 @@ void init_thread_f(thread* me, void* args ) {
 
     iargs->endTime = uts_wctime();
 
-    // count nodes
+    // count totals -- only rank 0 is valid
     uint64_t t_nNodes = myStealStack.nVisited;
+    uint64_t t_nRelease = myStealStack.nRelease;
+    uint64_t t_nAcquire = myStealStack.nAcquire;
+    uint64_t t_nSteal = myStealStack.nSteal;
+    uint64_t t_nFail = myStealStack.nFail;
+    uint64_t m_maxStackDepth = myStealStack.maxStackDepth;
 
     printf("rank(%d) total nodes %lu\n", rank, t_nNodes);
-    uint64_t total_nodes = ringReduce(COLL_ADD, 0, t_nNodes);
+    iargs->total_nodes         = SoftXMT_collective_reduce(COLL_ADD, 0, t_nNodes,         0);
+    iargs->total_release       = SoftXMT_collective_reduce(COLL_ADD, 0, t_nRelease,       0);
+    iargs->total_acquire       = SoftXMT_collective_reduce(COLL_ADD, 0, t_nAcquire,       0);
+    iargs->total_steal         = SoftXMT_collective_reduce(COLL_ADD, 0, t_nSteal,         0);
+    iargs->total_fail          = SoftXMT_collective_reduce(COLL_ADD, 0, t_nFail,         0);
+    iargs->total_maxStackDepth = SoftXMT_collective_reduce(COLL_MAX, 0, m_maxStackDepth, -1);
 }
 
 //space for init_thread args for this node
@@ -818,33 +834,21 @@ void user_main( thread* me, void* args) {
 //        }
 //    }
     
-    uint64_t t_nNodes = 0;
-    uint64_t t_nRelease = 0;
-    uint64_t t_nAcquire = 0;
-    uint64_t t_nSteal = 0;
-    uint64_t t_nFail = 0;
-    uint64_t m_maxStackDepth = 0;
-
-    t_nRelease += myStealStack.nRelease;
-    t_nAcquire += myStealStack.nAcquire;
-    t_nSteal += myStealStack.nSteal;
-    t_nFail += myStealStack.nFail;
-    m_maxStackDepth = maxint(m_maxStackDepth, myStealStack.maxStackDepth);
 
 
     if (0 == rank) {
-        printf("total visited %lu / %lu\n", total_nodes, num_genNodes);
+        printf("total visited %ld / %lu\n", my_iargs.total_nodes, num_genNodes);
     }
 
-    if (verbose > 1) {
-        if (doSteal) {
-            printf("Total chunks released = %d, of which %d reacquired and %d stolen\n",
-          t_nRelease, t_nAcquire, t_nSteal);
-            printf("Failed steal operations = %d, ", t_nFail);
-        }
-        
-        printf("Max stealStack size = %d\n", m_maxStackDepth);
-    }
+//    if (verbose > 1) {
+//        if (doSteal) {
+//            printf("Total chunks released = %d, of which %d reacquired and %d stolen\n",
+//          t_nRelease, t_nAcquire, t_nSteal);
+//            printf("Failed steal operations = %d, ", t_nFail);
+//        }
+//        
+//        printf("Max stealStack size = %d\n", m_maxStackDepth);
+//    }
    
 //    uint64_t total_cores_vs[num_cores]; 
 //    uint64_t total_visited=0L;
@@ -866,7 +870,7 @@ void user_main( thread* me, void* args) {
 //    printf("total visited %lu / %lu\n", total_visited, num_genNodes);
 
     double runtime = my_iargs.endTime - my_iargs.startTime;
-    double rate = total_nodes / runtime;
+    double rate = my_iargs.total_nodes / runtime;
    
 
 //TODO: the steal statistics are currently for one node (rank 0)
@@ -878,6 +882,11 @@ void user_main( thread* me, void* args) {
        outputs.add( "num_threads", num_threads_per_core );
        outputs.add( "chunk_size", chunkSize );
        outputs.add( "cbint", cbint );
+       outputs.add( "nRelease", my_iargs.total_release );
+       outputs.add( "nAcquire", my_iargs.total_acquire );
+       outputs.add( "nSteal", my_iargs.total_steal );
+       outputs.add( "nFail", my_iargs.total_fail );
+       outputs.add( "maxStackDepth", my_iargs.total_maxStackDepth );
        
        std::cout << outputs.toString() << std::endl;   
     
