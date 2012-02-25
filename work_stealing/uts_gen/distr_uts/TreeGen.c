@@ -61,10 +61,6 @@ void __sched__noop__(pid_t pid, unsigned int x, cpu_set_t* y) {}
  *********************************/
 gasnet_handlerentry_t   handlers[] =
     {
-        { GM_REQUEST_HANDLER, (void (*) ()) gm_request_handler },
-        { GM_RESPONSE_HANDLER, (void (*) ()) gm_response_handler },
-        { WORKSTEAL_REQUEST_HANDLER, (void (*) ()) workStealRequestHandler },
-        { WORKSTEAL_REPLY_HANDLER, (void (*) ()) workStealReplyHandler },
         //{ PUSHWORK_REQUEST_HANDLER, (void (*) ()) pushWorkRequestHandler },
         { ENTER_CBARRIER_REQUEST_HANDLER, (void (*) ()) enter_cbarrier_request_handler },
         { EXIT_CBARRIER_REQUEST_HANDLER, (void (*) ()) exit_cbarrier_request_handler },
@@ -443,8 +439,6 @@ int generateTree(Node_ptr root, global_array* nodes, int cid, global_array* chil
 struct user_main_args {
     int argc;
     char** argv;
-    global_array* nodes;
-    global_array* children_array_pool;
 };
 
 void user_main( thread* me, void* args );
@@ -454,11 +448,6 @@ int main(int argc, char *argv[]) {
     SoftXMT_init(&argc, &argv);
 
     SoftXMT_activate();
-
-    
-    ////////////////////////////////////////////////
-    // Doing shared allocation in SPMD land right now
-    ////////////////////////////////////////////////
     
     // FIXME: remove once global memory is impl in SoftXMT
     gm_init();
@@ -466,20 +455,18 @@ int main(int argc, char *argv[]) {
     int rank = SoftXMT_mynode();
     int num_nodes = SoftXMT_nodes();
     
-    global_array* nodes = ga_allocate(sizeof(TreeNode), numNodes*num_procs); //XXX for enough space
-    global_array* children_array_pool = ga_allocate(sizeof(Node_ptr), numNodes*num_procs); //children_array_size*num_procs);
-    
-    
-    SoftXMT_barrier();
-    ////////////////////////////////////////////////////////
-    
-    user_main_args um_args = { argc, argv, nodes, children_array_pool };  
+    user_main_args um_args = { argc, argv };  
     SoftXMT_run_user_main( &user_main, &um_args );
 
     SoftXMT_finish( 0 );
 }
    
-   
+
+/////////////////////////////////////////////////////////
+// Main thread for each node. 
+// Writes/reads cached tree, spawns workers,
+// joins on workers
+/////////////////////////////////////////////////////////  
 struct init_thread_args {
     uint64_t num_genNodes;
     global_array* nodes;
@@ -496,6 +483,7 @@ struct init_thread_args {
     uint64_t total_fail;         
     uint64_t total_maxStackDepth;
 };
+  
    
 void init_thread_f(thread* me, void* args ) {
     init_thread_args* iargs = (init_thread_args*) args;
@@ -725,6 +713,30 @@ void init_thread_f(thread* me, void* args ) {
     iargs->total_fail          = SoftXMT_collective_reduce(COLL_ADD, 0, t_nFail,         0);
     iargs->total_maxStackDepth = SoftXMT_collective_reduce(COLL_MAX, 0, m_maxStackDepth, -1);
 }
+//////////////////////////////////////////////////////////////////////
+
+//////////////////////////////////////////////
+// Thread for allocation of the tree
+/////////////////////////////////////////////
+struct alloc_thread_args {
+    global_array* nodes;
+    global_array* children_array_pool;
+};
+
+void alloc_thread_f( thread* me, void * args) {
+    alloc_thread_args* alargs = (alloc_thread_args*) args;
+
+    alargs->nodes = ga_allocate(sizeof(TreeNode), numNodes*num_procs); //XXX for enough space
+    alargs->children_array_pool = ga_allocate(sizeof(Node_ptr), numNodes*num_procs); //children_array_size*num_procs);
+
+    SoftXMT_barrier_commsafe();
+}
+//////////////////////////////////////////////
+
+
+//////////////////////////////////////////////
+// Space for user threads' data; spawning AMs
+//////////////////////////////////////////////
 
 //space for init_thread args for this node
 init_thread_args this_node_iargs; 
@@ -736,12 +748,22 @@ void spawn_initthread_am( init_thread_args* args, size_t size, void* payload, si
    SoftXMT_spawn(&init_thread_f, &this_node_iargs); 
 }
 
+//space for alloc_thread_args for this node
+alloc_thread_args this_node_alargs;
+
+// AM for spawning remote thread
+void spawn_allocthread_am( alloc_thread_args* args, size_t size, void* payload, size_t payload_size ) {
+   /* in general (for async am handling) this may need synchronization */
+   memcpy(&this_node_alargs, args, size);
+   SoftXMT_spawn(&alloc_thread_f, &this_node_alargs); 
+}
+
+///////////////////////////////////////////////
+
 void user_main( thread* me, void* args) {
     user_main_args* umargs = (user_main_args*) args;
     int argc = umargs->argc;
     char** argv = umargs->argv;
-    global_array* nodes = umargs->nodes;
-    global_array* children_array_pool = umargs->children_array_pool;
      
     Node rank = SoftXMT_mynode();
     int num_nodes = SoftXMT_nodes();
@@ -754,8 +776,30 @@ void user_main( thread* me, void* args) {
     gethostname(hostname, 1024);
     printf("rank%d is on %s\n", rank, hostname);
 
+   
+    // spawn threads to allocate the space for the tree 
+    thread* alloc_thread;
+    alloc_thread_args my_alargs;
+    for (int nod = 0; nod<num_nodes; nod++) {
+        if (nod == 0) {
+            alloc_thread = SoftXMT_spawn(&alloc_thread_f, &my_alargs);
+        } else {
+            alloc_thread_args alargs_;
+            SoftXMT_call_on( nod, &spawn_allocthread_am, &alargs_ );
+        }
+    }
 
-    if (0 == rank) { printf("v_per_node = %lu\ncha_per_node = %lu\n", nodes->elements_per_node, children_array_pool->elements_per_node);}
+    // alloc_thread waits on barrier so this is a full join
+    SoftXMT_join(alloc_thread);
+
+    // get the arrays from the allocator thread
+    global_array* nodes = my_alargs.nodes;
+    global_array* children_array_pool = my_alargs.children_array_pool;
+
+
+    if (0 == rank) { 
+        printf("v_per_node = %lu\ncha_per_node = %lu\n", nodes->elements_per_node, children_array_pool->elements_per_node);
+    }
     
     Node_ptr root = 0;
     ballocator_t* bals[num_procs]; // for generating tree single threaded
@@ -793,7 +837,6 @@ void user_main( thread* me, void* args) {
     init_thread_args my_iargs;
     for (int nod = 0; nod<num_nodes; nod++) {
         if (nod == 0) {
-            init_thread_args my_iargs; 
             my_iargs.num_genNodes = num_genNodes;
             my_iargs.nodes = nodes;
             my_iargs.children_array_pool = children_array_pool;
