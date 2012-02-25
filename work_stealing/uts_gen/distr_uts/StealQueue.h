@@ -7,6 +7,7 @@ extern "C" {
 #define STEAL_QUEUE_H
 
 #include "uts.h"
+#include "SoftXMT.hpp"
 
 #define SHARED_INDEF /*nothing*/
 
@@ -35,7 +36,7 @@ omp_lock_t * omp_global_lock_alloc();
 #endif
 
 
-void ss_pushRemote(int destnode, Node_ptr* work, int k);
+void ss_pushRemote(Node destnode, Node_ptr* work, int k);
 
 
 //unused
