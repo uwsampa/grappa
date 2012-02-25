@@ -379,7 +379,7 @@ void uts_parseParams(int argc, char *argv[], int printHelp){
         rootId = atoi(argv[i+1]); break;
       case 'x':
         debug = atoi(argv[i+1]); break;
-      case 'v':
+      case 'V':
         verbose = atoi(argv[i+1]); break;
       case 't':
         type = (tree_t) atoi(argv[i+1]); 
