@@ -1,4 +1,5 @@
 #include "StealQueue.h"
+#include "SoftXMT.hpp"
 #include <stdlib.h>
 #include <stdio.h>
 #include <string.h>
@@ -199,6 +200,20 @@ void ss_pushRemote(int destnode, Node_ptr* work, int k) {
     gasnet_AMRequestMedium1 (destnode, PUSHWORK_REQUEST_HANDLER, work, sizeof(Node_ptr)*k, k);
 }
 
+/////////////////////////////////////////////
+// Work stealing
+/////////////////////////////////////////////
+struct workStealRequest_args {
+    int k;
+    Node from;
+};
+
+struct workStealReply_args {
+    int k;
+};
+
+void workStealRequest_am(workStealRequest_args * args, size_t size, void * payload, size_t payload_size);
+void workStealReply_am( workStealReply_args * args,  size_t size, void * payload, size_t payload_size );
 
 int ss_steal_locally(StealStack* thief, int victim, int k) {
     assert(thief == &myStealStack);//TODO just remove the parameter
@@ -207,26 +222,33 @@ int ss_steal_locally(StealStack* thief, int victim, int k) {
     local_steal_amount = -1;
     UNSET_LOCK(&lsa_lock);
 
-    gasnet_AMRequestShort1 (victim, WORKSTEAL_REQUEST_HANDLER, k);
+    workStealRequest_args req_args = { k, SoftXMT_mynode() };
+    SoftXMT_call_on( victim, &workStealRequest_am, &req_args );
 
     // steal is blocking
-    GASNET_BLOCKUNTIL((SET_COND(&lsa_lock) && 
-                      local_steal_amount != -1) 
-                      ||UNSET_COND(&lsa_lock)); 
+    // TODO: change to blocking thread?
+    while (true) {
+        SET_LOCK(&lsa_lock);
+        if (local_steal_amount != -1) {
+            break;
+        }
+        UNSET_LOCK(&lsa_lock);
+        SoftXMT_yield();
+    }
     
     if (local_steal_amount > 0) {
         myStealStack.nSteal++;
         myStealStack.top += local_steal_amount;
     }
     UNSET_LOCK(&lsa_lock);
-    
 
     return local_steal_amount;
 }
 
-void workStealRequestHandler(gasnet_token_t token, gasnet_handlerarg_t a0) {
 
-    int k = (int) a0;
+
+void workStealRequest_am(workStealRequest_args * args, size_t size, void * payload, size_t payload_size) {
+    int k = args->k;
 
     StealStack* victimStack = &myStealStack;
    
@@ -251,21 +273,25 @@ void workStealRequestHandler(gasnet_token_t token, gasnet_handlerarg_t a0) {
     if (ok) {
         Node_ptr* victimStackBase = victimStack->stack;
         Node_ptr* victimSharedStart = victimStackBase + victimShared;
-    
-        gasnet_AMReplyMedium1(token, WORKSTEAL_REPLY_HANDLER, victimSharedStart, k*sizeof(Node_ptr), k);
+   
+        workStealReply_args reply_args = { k };
+        SoftXMT_call_on( args->from, &workStealReply_am, 
+                         &reply_args, sizeof(workStealReply_args), 
+                         victimSharedStart, k*sizeof(Node_ptr));
     } else {
-        gasnet_AMReplyMedium1(token, WORKSTEAL_REPLY_HANDLER, 0, 0, 0);
+        workStealReply_args reply_args = { 0 };
+        SoftXMT_call_on( args->from, &workStealReply_am, &reply_args );
     }
 
 }
 
-void workStealReplyHandler(gasnet_token_t token, void* buf, size_t num_bytes, gasnet_handlerarg_t a0) {
-    Node_ptr* stolen_work = (Node_ptr*) buf;
-    int k = (int) a0;
+void workStealReply_am( workStealReply_args * args,  size_t size, void * payload, size_t payload_size ) {
+    Node_ptr* stolen_work = (Node_ptr*) payload;
+    int k = args->k;
 
     if (k > 0) {
         SET_LOCK(&lsa_lock);
-        memcpy(&myStealStack.stack[myStealStack.top], stolen_work, num_bytes);
+        memcpy(&myStealStack.stack[myStealStack.top], stolen_work, payload_size);
         local_steal_amount = k;
         UNSET_LOCK(&lsa_lock);
     } else {
@@ -276,7 +302,7 @@ void workStealReplyHandler(gasnet_token_t token, void* buf, size_t num_bytes, ga
     }
     
 }
-
+//////////////////////////////////////////////////////////////////////
 
 //TODO: should global steal go into a node-level queue or into the core's queue? 
 //core's queue:
