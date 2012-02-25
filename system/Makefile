@@ -85,11 +85,7 @@ GlobalMemoryChunk_tests.test: libSoftXMT.a
 GlobalAllocator_tests.test: libSoftXMT.a
 Allocator_tests.test: Allocator.o
 
-<<<<<<< HEAD
 Collective_tests.test: libSoftXMT.a
-=======
-Collective_tests.test: Delegate.o SoftXMT.o Communicator.o Aggregator.o thread.o coro.o stack.o Collective.o
->>>>>>> add collective test.
 
 thread_tests.test: thread.o stack.o coro.o
 thread2_tests.test: libSoftXMT.a
@@ -104,7 +100,11 @@ ForkJoin_tests.test: libSoftXMT.a
 #
 # Build SoftXMT static library
 #
+<<<<<<< HEAD
 LIBRARY_CONTENTS= SoftXMT.o GlobalAllocator.o GlobalMemory.o Communicator.o Aggregator.o Timestamp.o Allocator.o Cache.o thread.o coro.o stack.o Delegate.o Collective.o
+=======
+LIBRARY_CONTENTS= SoftXMT.o Communicator.o Delegate.o Aggregator.o thread.o coro.o stack.o Collective.o
+>>>>>>> save Collective to libSoftXMT
 libSoftXMT.a: $(patsubst %,libSoftXMT.a(%),$(LIBRARY_CONTENTS))
 
 
