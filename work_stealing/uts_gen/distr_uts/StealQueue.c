@@ -186,19 +186,28 @@ int UNSET_COND(LOCK_T* lock) {
     return 0;
 }
 
-void pushWorkRequestHandler(gasnet_token_t token, void* buf, size_t num_bytes, gasnet_handlerarg_t a0) {
-    Node_ptr* received_work = (Node_ptr*) buf;
-    int amount_pushed = (int) a0;
+///////////////////////////////////////////////////
+// Pushing work
+//////////////////////////////////////////////////
+struct pushWorkRequest_args {
+    int amount_pushed; 
+};
+
+void pushWorkRequest_am( pushWorkRequest_args * args, size_t size, void * payload, size_t payload_size ) {
+    Node_ptr* received_work = (Node_ptr*) payload;
+    int amount_pushed = args->amount_pushed;
     
     SET_LOCK(&lsa_lock);
-    memcpy(&myStealStack.stack[myStealStack.top], received_work, num_bytes);
+    memcpy(&myStealStack.stack[myStealStack.top], received_work, payload_size);
     myStealStack.top += amount_pushed;
     UNSET_LOCK(&lsa_lock);
 }
 
-void ss_pushRemote(int destnode, Node_ptr* work, int k) {
-    gasnet_AMRequestMedium1 (destnode, PUSHWORK_REQUEST_HANDLER, work, sizeof(Node_ptr)*k, k);
+void ss_pushRemote(Node destnode, Node_ptr* work, int k) {
+    pushWorkRequest_args pargs = { k };
+    SoftXMT_call_on( destnode, &pushWorkRequest_am, &pargs, sizeof(pushWorkRequest_args), work, sizeof(Node_ptr)*k);
 }
+////////////////////////////////////////////////////
 
 /////////////////////////////////////////////
 // Work stealing
