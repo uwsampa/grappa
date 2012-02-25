@@ -54,6 +54,13 @@ LIBRARIES:= -lgflags -lglog -lgasnet-ibv-seq -libverbs -lrt -lboost_unit_test_fr
 #
 LD_LIBRARY_PATH:=$(LD_LIBRARY_PATH):$(GFLAGS)/lib
 
+#
+# run vars
+#
+ARGS:=
+NPROC:=2
+HOST:=localhost
+
 OBJECTS=\
 	balloc.o \
 	getput.o \
@@ -78,7 +85,7 @@ run: TreeGen.exe
 	GLOG_logtostderr=1 \
 	OMPI_MCA_btl_sm_use_knem=0 \
 	LD_LIBRARY_PATH="$(LD_LIBRARY_PATH)" \
-	mpirun -np 2 -host "localhost" ./$< $(T1)
+	$(MPIRUN) -np $(NPROC) -H $(HOST) ./$< $(T1) $(ARGS)
 
 debug: TreeGen.exe
 	export GASNET_BACKTRACE=1
