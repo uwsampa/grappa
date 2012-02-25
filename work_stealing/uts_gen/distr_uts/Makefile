@@ -64,7 +64,6 @@ OBJECTS=\
 GL_OBJECTS=\
 	$(GL_ARRAY)/global_memory.o \
 	$(GL_ARRAY)/global_array.o 
-#	$(GL_ARRAY)/msg_aggregator.o
 
 %.o: %.c
 	$(CXX) $(CFLAGS) $(RNG_DEF) $(RNG_INCL) $< -c -o $@
