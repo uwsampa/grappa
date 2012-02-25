@@ -35,7 +35,7 @@ endif
 CFLAGS_COMMON= -fopenmp -fomit-frame-pointer -O1
 CFLAGS+= $(CFLAGS_COMMON)
 CFLAGS+= -I$(GL_ARRAY) -I$(SOFTXMT_SYS)
-CFLAGS+= -I.. -I../../../bench/sp_gasnet_listwalk/collective
+CFLAGS+= -I..
 
 EXPERIMENTS=/sampa/home/bdmyers/experiments
 CFLAGS+= -I$(EXPERIMENTS)/lib
@@ -66,14 +66,11 @@ GL_OBJECTS=\
 	$(GL_ARRAY)/global_array.o 
 #	$(GL_ARRAY)/msg_aggregator.o
 
-COLL_OBJECTS=\
-	../../../bench/sp_gasnet_listwalk/collective/collective.o
-
 %.o: %.c
 	$(CXX) $(CFLAGS) $(RNG_DEF) $(RNG_INCL) $< -c -o $@
 
 TreeGen.exe: TreeGen.o $(OBJECTS) 
-	$(LD) $(LDFLAGS) -o $@ $^ $(GL_OBJECTS) $(COLL_OBJECTS) $(RNG_SRC) $(LIBRARIES)  $(LIB) $(GASNET_LIBS) 
+	$(LD) $(LDFLAGS) -o $@ $^ $(GL_OBJECTS) $(RNG_SRC) $(LIBRARIES)  $(LIB) $(GASNET_LIBS) 
 
 gasnet_cbarrier_test: gasnet_cbarrier_test.c gasnet_cbarrier.c
 	$(CXX) $(CFLAGS) -o $@ $+ $(GASNET_LIB_PATHS) $(LIB) $(GASNET_LIBS)
