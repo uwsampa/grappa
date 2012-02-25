@@ -8,29 +8,45 @@ gasnet_hsl_t cb_lock = GASNET_HSL_INITIALIZER;
 int num_barrier_clients;
 int num_waiting_clients;
 int my_node;
-std::queue<int>* waiters;
+std::queue<Node>* waiters;
 int cb_reply;
 int cb_done;
 
-void enter_cbarrier_request_handler(gasnet_token_t token) {
-    gasnet_node_t source;
-    gasnet_AMGetMsgSource(token, &source);
+struct enter_cbarrier_request_args {
+    Node from;
+};
+
+struct exit_cbarrier_request_args {
+    int finished;
+};
+
+struct cancel_cbarrier_request_args {
+//nothing
+};
+
+void exit_cbarrier_request_am( exit_cbarrier_request_args * args, size_t size, void * payload, size_t payload_size );
+
+void enter_cbarrier_request_am( enter_cbarrier_request_args * args, size_t size, void * payload, size_t payload_size ) {
+    Node source = args->from;
+
     num_waiting_clients++;
     if (num_waiting_clients == num_barrier_clients) {
         while (!waiters->empty()) {
-            int nod = waiters->front();
+            Node nod = waiters->front();
             waiters->pop();
-            gasnet_AMRequestShort1(nod, EXIT_CBARRIER_REQUEST_HANDLER, 1);
+            exit_cbarrier_request_args exargs = { 1 };
+            SoftXMT_call_on( nod, &exit_cbarrier_request_am, &exargs );
         }
         num_waiting_clients = 0;
-        gasnet_AMReplyShort1(token, EXIT_CBARRIER_REQUEST_HANDLER, 1);
+        exit_cbarrier_request_args exargs = { 1 };
+        SoftXMT_call_on( source, &exit_cbarrier_request_am, &exargs );
     } else {
         waiters->push(source);
     }
 }
 
-void exit_cbarrier_request_handler(gasnet_token_t token, gasnet_handlerarg_t a0) {
-    int finished = (int) a0;
+void exit_cbarrier_request_am( exit_cbarrier_request_args * args, size_t size, void * payload, size_t payload_size ) {
+    int finished = args->finished;
 
     SET_LOCK(&cb_lock);
     cb_reply = 1;
@@ -38,21 +54,24 @@ void exit_cbarrier_request_handler(gasnet_token_t token, gasnet_handlerarg_t a0)
     UNSET_LOCK(&cb_lock);
 }
 
-void cancel_cbarrier_request_handler(gasnet_token_t token) {
+void cancel_cbarrier_request_am( cancel_cbarrier_request_args * args, size_t size, void * payload, size_t payload_size ) {
     while (!waiters->empty()) {
-        int nod = waiters->front();
+        Node nod = waiters->front();
         waiters->pop();
-        gasnet_AMRequestShort1(nod, EXIT_CBARRIER_REQUEST_HANDLER, 0);
+        exit_cbarrier_request_args exargs = { 0 };
+        SoftXMT_call_on( nod, &exit_cbarrier_request_am, &exargs );
     }
     num_waiting_clients = 0;
 }
 
 
 void cbarrier_cancel() {
-    gasnet_AMRequestShort0(HOME_NODE, CANCEL_CBARRIER_REQUEST_HANDLER);
+    cancel_cbarrier_request_args cargs;
+    SoftXMT_call_on( HOME_NODE, &cancel_cbarrier_request_am, &cargs );
 }
 
-
+/*
+ * This was used with GASNET_BLOCKUNTIL
 //define statements that can be used inside gasnet_blockuntil as expressions
 #define STATEMENT_WRAP(stmt, id, value) \
         int gasnet_blockuntil_wrapped_##id () { \
@@ -70,16 +89,28 @@ STATEMENT_WRAP(SET_LOCK(&cb_lock), set, 1)
 
 STATEMENT_WRAP(UNSET_LOCK(&cb_lock), unset, 0)
 #define unset_my_lock STATEMENT(unset)
-
+*/
 
 int cbarrier_wait() {
-    gasnet_AMRequestShort0(HOME_NODE, ENTER_CBARRIER_REQUEST_HANDLER);
+    enter_cbarrier_request_args enargs = { SoftXMT_mynode() };
+    SoftXMT_call_on( HOME_NODE, &enter_cbarrier_request_am, &enargs );
 
     int isDone;
+    while (true) {
+        SET_LOCK( &cb_lock );
+        if (cb_reply > 0) 
+            break;
+        UNSET_LOCK( &cb_lock );
+        SoftXMT_yield();
+    }
+
+    /*    
     GASNET_BLOCKUNTIL((set_my_lock &&
                         cb_reply > 0)
                         || unset_my_lock
                         || yield_stmt);
+    */
+
     isDone = cb_done;
     cb_done = 0;
     cb_reply = 0;
@@ -92,7 +123,7 @@ void cbarrier_init(int num_nodes, int rank) {
     num_waiting_clients = 0;
     my_node = rank;
     if (my_node == HOME_NODE) {
-        waiters = new std::queue <int>();
+        waiters = new std::queue <Node>();
     }
 
     SET_LOCK(&cb_lock) {
