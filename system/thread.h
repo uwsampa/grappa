@@ -125,7 +125,7 @@ static inline void thread_suspend(thread *me) {
         next = unassigned_dequeue(sched);
     } else if (sched->ready == NULL) {
         // technically should never be allowed to happen
-        assert(false); 
+        assert(0); 
         return;
     } else {
         next = scheduler_dequeue(me->sched);

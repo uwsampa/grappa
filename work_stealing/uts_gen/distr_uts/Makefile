@@ -32,10 +32,19 @@ RNG_DEF = -DUTS_ALFG
 endif
 #-----------------------------------------#
 
-CFLAGS_COMMON= -fopenmp -fomit-frame-pointer -O1
+CFLAGS_COMMON= -fopenmp -fomit-frame-pointer
 CFLAGS+= $(CFLAGS_COMMON)
 CFLAGS+= -I$(GL_ARRAY) -I$(SOFTXMT_SYS)
 CFLAGS+= -I..
+
+ifdef DEBUG
+CFLAGS+= -O1 -g
+else
+CFLAGS+= -O3
+endif
+
+# supress c char* warnings
+CFLAGS+= -Wno-write-strings 
 
 EXPERIMENTS=/sampa/home/bdmyers/experiments
 CFLAGS+= -I$(EXPERIMENTS)/lib
