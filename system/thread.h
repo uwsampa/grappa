@@ -1,6 +1,8 @@
+
 #ifdef __cplusplus
 extern "C" {
 #endif
+
 
 #ifndef THREAD_H
 #define THREAD_H
@@ -45,6 +47,7 @@ typedef struct scheduler {
 inline void scheduler_enqueue(scheduler *sched, thread *thr) {
   if (sched->ready == NULL) {
     sched->ready = thr;
+    assert(thr!=NULL);
   } else {
     sched->tail->next = thr;
   }
@@ -104,6 +107,7 @@ inline void thread_yield(thread *me) {
     assert(sched != NULL);
     thread *next;
     if (sched->idleReady && sched->idle_head!=NULL) { //first to prevent starvation by system threads, but might be better to have separate queue for system threads
+        scheduler_enqueue(sched, me);
         next = unassigned_dequeue(sched);
     } else if (sched->ready == NULL) { 
         return;
@@ -316,3 +320,4 @@ inline void thread_yield_alarm(thread *me, unsigned long ticks) {
 #ifdef __cplusplus
 }
 #endif
+
