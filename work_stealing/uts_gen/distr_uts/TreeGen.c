@@ -200,7 +200,7 @@ typedef struct Node_piece_t {
 
 void visitTask(Node_ptr work, thread* me, StealStack* ss, global_array* nodes_array, global_array* children_arrays);
     
-void worker_thread(StealStack* ss, thread* me, int* work_done, int* okToSteal, int num_workers, int num_local_nodes, global_array* nodes_array, global_array* children_arrays, int my_local_id, int* neighbors) {
+void worker_thread(StealStack* ss, thread* me, int* work_done, int* okToSteal, const int num_workers, int num_local_nodes, global_array* nodes_array, global_array* children_arrays, int my_local_id, int* neighbors) {
     VLOG(2) << me->id << "going idle";
     thread_idle(me, num_workers); // one thread will be allowed to start
     VLOG(2) << me->id << " un idle";
@@ -212,6 +212,8 @@ void worker_thread(StealStack* ss, thread* me, int* work_done, int* okToSteal, i
            VLOG(5) << me->id << " pops some work: " << ss->nVisited << " visited";
            visitTask(work, me, ss, nodes_array, children_arrays);  // TODO generalize
        }
+                       
+       thread_idlesReady(me, 0); // prevent idle unassigned threads from being scheduled
        
        if (doSteal) {
            // try to put some work back to local 
@@ -236,10 +238,10 @@ void worker_thread(StealStack* ss, thread* me, int* work_done, int* okToSteal, i
                    if (goodSteal) {
                        VLOG(5) << me->id << " stole from rank" << victimId;
                        *okToSteal = 1;
+                       thread_idlesReady(me, 1); // now there is work so allow more threads to be scheduled
                        continue;
                    } else {
                        VLOG(5) << me->id << " failed to steal";
-                       thread_idlesReady(me, 0); // prevent idle unassigned threads from being scheduled
                    }
 
                    /**TODO remote load balance**/
@@ -248,7 +250,8 @@ void worker_thread(StealStack* ss, thread* me, int* work_done, int* okToSteal, i
            }
        }
 
-       VLOG(5) << me->id << "goes idle because sees no work";
+       VLOG(5) << me->id << "goes idle because sees no work (idle=" <<me->sched->num_idle
+                                                         << " idleReady="<<me->sched->idleReady <<")";
        if (!thread_idle(me, num_workers)) {
             VLOG(5) << me->id << " saw all were idle so suggest barrier";
             // no work so suggest barrier
