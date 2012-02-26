@@ -137,16 +137,8 @@ run: $(TARGET) $($(MPITYPE)_ENVVAR_TEMP)
 #
 mpi_test: $(TARGET) $($(MPITYPE)_ENVVAR_TEMP)
 	-killall $<
-<<<<<<< HEAD
 	$(ENV_VARIABLES) \
 	$($(MPITYPE)_MPIRUN) $($(MPITYPE)_EXPORT_ENV_VARIABLES) $($(MPITYPE)_HOST) $($(MPITYPE)_NPROC) -- ./$< --log_level=test_suite --run_test=$(TARGET:.test=) -- $(ARGS)
-=======
-	GLOG_logtostderr=1 \
-	OMPI_MCA_btl_sm_use_knem=0 \
-	LD_LIBRARY_PATH="$(LD_LIBRARY_PATH)" \
-	GASNET_BACKTRACE=1 \
-	$(MPIRUN) -x LD_LIBRARY_PATH -H $(HOST) -np $(NPROC) -- ./$< --log_level=test_suite --run_test=$(TARGET:.test=) $(ARGS)
->>>>>>> add collective test.
 
 test: $(TARGET)
 	$(ENV_VARIABLES) \
@@ -262,6 +254,12 @@ stack.o: stack.S Makefile
 
 CLEAN_FILES= *.exe *.o *.d *.test *.dis libSoftXMT.a $($(MPITYPE)_CLEAN_FILES)
 clean:
+<<<<<<< HEAD
 	rm -f $(CLEAN_FILES)
+=======
+	rm -f *.exe *.o *.d *.test *.btr .mpirunrc.* *.dis lib*.a
+#	rm -f $(TARGET) $(OBJECTS) $(OBJECTS:.o=.d) $(OBJECTS:.o=.test) $(TEST_TARGET)
+
+>>>>>>> add remove library to the clean target
 
 .PHONY: run test clean
