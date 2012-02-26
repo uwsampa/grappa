@@ -105,6 +105,7 @@ QLOGIC_EXPORT_ENV_VARIABLES=-rcfile $(ENVVAR_TEMP)
 # this is created when needed
 .mpirunrc.%:
 	echo \#!/bin/bash > $@
+	echo "if [ -e ~/.mpirunrc ]; . ~/.mpirunrc; fi" >> $@
 	for i in $(ENV_VARIABLES); do echo export $$i  >> $@; done
 
 .INTERMEDIATE: .mpirunrc.%
