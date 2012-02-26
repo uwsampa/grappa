@@ -1,7 +1,4 @@
 
-#ifdef __cplusplus
-extern "C" {
-#endif
 
 #ifndef STEAL_QUEUE_H
 #define STEAL_QUEUE_H
@@ -100,6 +97,3 @@ extern StealStack myStealStack;
 #endif
 
 
-#ifdef __cplusplus 
-} 
-#endif
