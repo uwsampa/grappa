@@ -54,13 +54,13 @@ void user_main( thread * me, void * args )
     Incoherent<int64_t>::RW buf4( GlobalAddress< int64_t >( bar, 1 ), 1);
     buf4.start_acquire( );
     for (int i=0; i<2000; i++) {
-        SoftXMT_yield();
+        SoftXMT_yield(); // spin to let reply come back
     }
     buf4.block_until_acquired( );
 
     buf4.start_release( );
     for (int i=0; i<2000; i++) {
-        SoftXMT_yield();
+        SoftXMT_yield(); // spin to let reply come back
     }
     buf4.block_until_released( );
   }
