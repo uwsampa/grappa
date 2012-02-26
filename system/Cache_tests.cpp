@@ -48,6 +48,23 @@ void user_main( thread * me, void * args )
     BOOST_CHECK_EQUAL( buf3[2], bar[2] );
   }
 
+  {
+    // test for early wakeup handled properly
+    BOOST_MESSAGE( "Wakeup test" );
+    Incoherent<int64_t>::RW buf4( GlobalAddress< int64_t >( bar, 1 ), 1);
+    buf4.start_acquire( );
+    for (int i=0; i<2000; i++) {
+        SoftXMT_yield();
+    }
+    buf4.block_until_acquired( );
+
+    buf4.start_release( );
+    for (int i=0; i<2000; i++) {
+        SoftXMT_yield();
+    }
+    buf4.block_until_released( );
+  }
+
   SoftXMT_signal_done();
 }
 
@@ -58,6 +75,7 @@ BOOST_AUTO_TEST_CASE( test1 ) {
 
   SoftXMT_activate();
 
+  BOOST_CHECK_EQUAL( SoftXMT_nodes(), 2 );
   SoftXMT_run_user_main( &user_main, NULL );
   BOOST_CHECK( SoftXMT_done() == true );
 
