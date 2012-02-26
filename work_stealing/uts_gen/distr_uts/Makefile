@@ -97,8 +97,11 @@ run: TreeGen.exe
 	$(MPIRUN) -np $(NPROC) -H $(HOST) ./$< $(T1) $(ARGS)
 
 debug: TreeGen.exe
-	export GASNET_BACKTRACE=1
-	mpirun -np 2 -host "localhost" xterm -hold -e gdb --args ./$< $(T1)
+	GLOG_logtostderr=1 \
+	OMPI_MCA_btl_sm_use_knem=0 \
+	LD_LIBRARY_PATH="$(LD_LIBRARY_PATH)" \
+	GASNET_BACKTRACE=1 \
+	$(MPIRUN) -np $(NPROC) -H $(HOST) xterm -hold -e gdb --args ./$< $(T1) $(ARGS)
 
 test_gcb: gasnet_cbarrier_test
 	mpirun -np 3 -host "localhost" ./$< 
