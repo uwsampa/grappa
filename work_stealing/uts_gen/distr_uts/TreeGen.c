@@ -201,11 +201,15 @@ typedef struct Node_piece_t {
 void visitTask(Node_ptr work, thread* me, StealStack* ss, global_array* nodes_array, global_array* children_arrays);
     
 void worker_thread(StealStack* ss, thread* me, int* work_done, int* okToSteal, int num_workers, int num_local_nodes, global_array* nodes_array, global_array* children_arrays, int my_local_id, int* neighbors) {
-    thread_idle(me, num_workers);
+    VLOG(2) << me->id << "going idle";
+    thread_idle(me, num_workers); // one thread will be allowed to start
+    VLOG(2) << me->id << "un idle";
     while (!(*work_done)) {
+       VLOG(2) << me->id << "queue depth=" << ss_localDepth(ss);
        while (ss_localDepth(ss) > 0) {
            Node_ptr work = ss_top(ss); //TODO generalize
            ss_pop(ss);
+           VLOG(2) << me->id << "pops some work";
            visitTask(work, me, ss, nodes_array, children_arrays);  // TODO generalize
        }
        
@@ -658,11 +662,16 @@ void init_thread_f(thread* me, void* args ) {
     printf("rank(%d) starting size %d\n", rank, ss_localDepth(&myStealStack));
    
   
+    // moved here because pre-condition to barrier should be that the calling thread is only thread on run q TODO could suspend/wake the workers
+    VLOG(2) << "enter barrier before work starts";
+    SoftXMT_barrier_commsafe();
+    VLOG(2) << "starting work";
+   
     
     /* spawn workers */
     worker_info wis[num_threads_per_core];
-    int core_work_done;
-    int core_okToSteal;
+    int core_work_done = 0;
+    int core_okToSteal = 1;
     thread* worker_threads[num_threads_per_core];
 
     for (int th=0; th<num_threads_per_core; th++) {
@@ -687,8 +696,6 @@ void init_thread_f(thread* me, void* args ) {
     */       
     
 
-
-    SoftXMT_barrier_commsafe();
     
     iargs->startTime = uts_wctime();
     
