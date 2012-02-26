@@ -9,7 +9,6 @@
 #include "thread.h"
 #include "balloc.h"
 #include <omp.h>
-#include <math.h>
 
 #include <list>
 #include <iterator>
@@ -27,12 +26,15 @@
 
 #include "DictOut.hpp"
 
+#include <glog/logging.h>
+
 #define PARALLEL 1
 #define PREFETCH_WORK 1
 #define PREFETCH_CHILDREN 1
-#define DISTRIBUTE_INITIAL 1
+#define DISTRIBUTE_INITIAL 0
 #define GEN_TREE_NBI 1
 #define CHECK_SERIALIZE 0
+#define READ_IF_NOT_WRITE 0
 
 #define NO_INTEG 0
 
@@ -59,16 +61,6 @@ void __sched__noop__(pid_t pid, unsigned int x, cpu_set_t* y) {}
 /**********************************
  * Gasnet process code
  *********************************/
-gasnet_handlerentry_t   handlers[] =
-    {
-        //{ PUSHWORK_REQUEST_HANDLER, (void (*) ()) pushWorkRequestHandler },
-        { ENTER_CBARRIER_REQUEST_HANDLER, (void (*) ()) enter_cbarrier_request_handler },
-        { EXIT_CBARRIER_REQUEST_HANDLER, (void (*) ()) exit_cbarrier_request_handler },
-        { CANCEL_CBARRIER_REQUEST_HANDLER, (void (*) ()) cancel_cbarrier_request_handler },
-    };
-
-gasnet_seginfo_t* shared_memory_blocks;
-
 
 void function_dispatch(int func_id, void *buffer, uint64_t size) {
     }
@@ -87,7 +79,7 @@ int num_cores = 1;
 int num_threads_per_core = 2;
 int num_places = 1;
 int num_procs = 1;
-int generateFile = 1;
+int generateFile = 0; // 1
 char* genFilename = "default";
 const char* gf_tree_suffix = "tree";
 const char* gf_child_suffix = "child";
@@ -202,8 +194,8 @@ void releaseNodes(StealStack *ss){
 
 // Part of a TreeNode
 typedef struct Node_piece_t {
-    int numChildren;
     Node_ptr_ptr children;
+    int numChildren;
 } Node_piece_t;
 
 void visitTask(Node_ptr work, thread* me, StealStack* ss, global_array* nodes_array, global_array* children_arrays);
@@ -280,6 +272,8 @@ void visitTask(Node_ptr work, thread* me, StealStack* ss, global_array* nodes_ar
     IncoherentAcquirer<Node_piece_t> workLocalAq(workAddress_gl, 1, &workLocal);
     workLocalAq.start_acquire();
     workLocalAq.block_until_acquired();
+
+    VLOG(2) << "work received with nc=" << workLocal.numChildren << " and children="<< workLocal.children;
     #endif
     #endif
 
@@ -486,6 +480,9 @@ struct init_thread_args {
   
    
 void init_thread_f(thread* me, void* args ) {
+    SoftXMT_barrier_commsafe(); // to make sure everyone catches up
+    VLOG(2) << SoftXMT_mynode() << " init thread starting...";
+   
     init_thread_args* iargs = (init_thread_args*) args;
     
     int num_nodes = SoftXMT_nodes();
@@ -509,6 +506,8 @@ void init_thread_f(thread* me, void* args ) {
     }
 
     cbarrier_init(num_nodes, rank);
+
+    Node_ptr root = 0;
     
     if (generateFile) { 
         // write the nodes file
@@ -548,7 +547,7 @@ void init_thread_f(thread* me, void* args ) {
 
             fclose(metafile);
         }
-    } else { // read file
+    } else if (READ_IF_NOT_WRITE) { // read file
         //read nodes file
         char fname[256];
         sprintf(fname, "%s.%s.%d", genFilename, gf_tree_suffix, rank);
@@ -635,7 +634,7 @@ void init_thread_f(thread* me, void* args ) {
     #if DISTRIBUTE_INITIAL
     if (rank == 0) {
         printf("initial size %d\n", initialNodes->size());
-        int current_node = 0;
+        Node current_node = 0;
         while (!initialNodes->empty()) {
             Node_ptr c = initialNodes->front();
             initialNodes->pop_front();
@@ -651,6 +650,9 @@ void init_thread_f(thread* me, void* args ) {
     // push the root
     if (rank == 0) {
         ss_push(&myStealStack, root);
+        Node_piece_t checkedWork;
+        get_remote(nodes, root, 0, sizeof(Node_piece_t), &checkedWork);
+        VLOG(2) << "verify root: nc="<< checkedWork.numChildren << " c=" << checkedWork.children;
     }
     #endif
     printf("rank(%d) starting size %d\n", rank, ss_localDepth(&myStealStack));
@@ -686,7 +688,7 @@ void init_thread_f(thread* me, void* args ) {
     
 
 
-    SoftXMT_barrier(); // no communication yet so this is safe
+    SoftXMT_barrier_commsafe();
     
     iargs->startTime = uts_wctime();
     
@@ -726,10 +728,13 @@ struct alloc_thread_args {
 void alloc_thread_f( thread* me, void * args) {
     alloc_thread_args* alargs = (alloc_thread_args*) args;
 
+    VLOG(2) << SoftXMT_mynode() << " alloc thread is allocating...";
     alargs->nodes = ga_allocate(sizeof(TreeNode), numNodes*num_procs); //XXX for enough space
     alargs->children_array_pool = ga_allocate(sizeof(Node_ptr), numNodes*num_procs); //children_array_size*num_procs);
+    VLOG(2) << SoftXMT_mynode() << " alloc thread done allocating";
 
     SoftXMT_barrier_commsafe();
+    VLOG(2) << SoftXMT_mynode() << " alloc thread done exits post-alloc barrier";
 }
 //////////////////////////////////////////////
 
@@ -745,6 +750,8 @@ init_thread_args this_node_iargs;
 void spawn_initthread_am( init_thread_args* args, size_t size, void* payload, size_t payload_size ) {
    /* in general (for async am handling) this may need synchronization */
    memcpy(&this_node_iargs, args, size);
+   
+   VLOG(2) << SoftXMT_mynode() << " AM is spawning init thread";
    SoftXMT_spawn(&init_thread_f, &this_node_iargs); 
 }
 
@@ -755,6 +762,8 @@ alloc_thread_args this_node_alargs;
 void spawn_allocthread_am( alloc_thread_args* args, size_t size, void* payload, size_t payload_size ) {
    /* in general (for async am handling) this may need synchronization */
    memcpy(&this_node_alargs, args, size);
+
+   VLOG(2) << SoftXMT_mynode() << " AM is spawning alloc thread";
    SoftXMT_spawn(&alloc_thread_f, &this_node_alargs); 
 }
 
@@ -810,7 +819,7 @@ void user_main( thread* me, void* args) {
     initialNodes = new std::list<Node_ptr>();
     #endif
   
-    if (generateFile || CHECK_SERIALIZE) {
+    if (generateFile || CHECK_SERIALIZE || !READ_IF_NOT_WRITE) {
         if (0 == rank) {
             for (int p=0; p<num_procs; p++) {
                 bals[p] = newBumpAllocator(children_array_pool, p*(children_array_pool->elements_per_node), children_array_pool->elements_per_node); 
@@ -821,7 +830,8 @@ void user_main( thread* me, void* args) {
             TreeNode rootTemplate;  
             uts_initRoot(&rootTemplate, type, &states[0]);
             put_remote(nodes, root, &rootTemplate, 0, sizeof(TreeNode));
-          
+         
+            VLOG(2) << "generating tree..."; 
             num_genNodes = generateTree(root, nodes, 0, children_array_pool, bals, states, initialNodes);
         
             #if GEN_TREE_NBI
@@ -831,11 +841,17 @@ void user_main( thread* me, void* args) {
             free(states);
         }
     }
-
+    
+    VLOG(2) << "generated tree with " << num_genNodes << " nodes";
+    { 
+      Node_piece_t checkedWork;
+      get_remote(nodes, root, 0, sizeof(Node_piece_t), &checkedWork);
+      VLOG(2) << "verify root: nc="<< checkedWork.numChildren << " c=" << checkedWork.children;
+    }
 
     thread* init_thread;
     init_thread_args my_iargs;
-    for (int nod = 0; nod<num_nodes; nod++) {
+    for (Node nod = 0; nod<num_nodes; nod++) {
         if (nod == 0) {
             my_iargs.num_genNodes = num_genNodes;
             my_iargs.nodes = nodes;
