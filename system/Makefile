@@ -100,11 +100,7 @@ ForkJoin_tests.test: libSoftXMT.a
 #
 # Build SoftXMT static library
 #
-<<<<<<< HEAD
 LIBRARY_CONTENTS= SoftXMT.o GlobalAllocator.o GlobalMemory.o Communicator.o Aggregator.o Timestamp.o Allocator.o Cache.o thread.o coro.o stack.o Delegate.o Collective.o
-=======
-LIBRARY_CONTENTS= SoftXMT.o Communicator.o Delegate.o Aggregator.o thread.o coro.o stack.o Collective.o
->>>>>>> save Collective to libSoftXMT
 libSoftXMT.a: $(patsubst %,libSoftXMT.a(%),$(LIBRARY_CONTENTS))
 
 
@@ -146,16 +142,8 @@ run: $(TARGET) $($(MPITYPE)_ENVVAR_TEMP)
 #
 mpi_test: $(TARGET) $($(MPITYPE)_ENVVAR_TEMP)
 	-killall $<
-<<<<<<< HEAD
 	$(ENV_VARIABLES) \
 	$($(MPITYPE)_MPIRUN) $($(MPITYPE)_EXPORT_ENV_VARIABLES) $($(MPITYPE)_HOST) $($(MPITYPE)_NPROC) -- ./$< --log_level=test_suite --run_test=$(TARGET:.test=) -- $(ARGS)
-=======
-	GLOG_logtostderr=1 \
-	OMPI_MCA_btl_sm_use_knem=0 \
-	LD_LIBRARY_PATH="$(LD_LIBRARY_PATH)" \
-	GASNET_BACKTRACE=1 \
-	$(MPIRUN) -x LD_LIBRARY_PATH -H $(HOST) -np $(NPROC) -- ./$< --log_level=test_suite --run_test=$(TARGET:.test=) $(ARGS)
->>>>>>> add collective test.
 
 test: $(TARGET)
 	$(ENV_VARIABLES) \
