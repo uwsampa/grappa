@@ -87,6 +87,7 @@ inline void thread_yield(thread *me) {
     assert(sched != NULL);
     thread *next;
     if (sched->idleReady && sched->idle_head!=NULL) { //first to prevent starvation by system threads, but might be better to have separate queue for system threads
+        scheduler_enqueue(sched, me);
         next = unassigned_dequeue(sched);
     } else if (sched->ready == NULL) { 
         return;
