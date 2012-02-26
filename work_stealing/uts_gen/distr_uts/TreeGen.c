@@ -205,11 +205,11 @@ void worker_thread(StealStack* ss, thread* me, int* work_done, int* okToSteal, i
     thread_idle(me, num_workers); // one thread will be allowed to start
     VLOG(2) << me->id << "un idle";
     while (!(*work_done)) {
-       VLOG(2) << me->id << "queue depth=" << ss_localDepth(ss);
+       VLOG(5) << me->id << "queue depth=" << ss_localDepth(ss);
        while (ss_localDepth(ss) > 0) {
            Node_ptr work = ss_top(ss); //TODO generalize
            ss_pop(ss);
-           VLOG(2) << me->id << "pops some work";
+           VLOG(5) << me->id << "pops some work";
            visitTask(work, me, ss, nodes_array, children_arrays);  // TODO generalize
        }
        
@@ -277,7 +277,7 @@ void visitTask(Node_ptr work, thread* me, StealStack* ss, global_array* nodes_ar
     workLocalAq.start_acquire();
     workLocalAq.block_until_acquired();
 
-    VLOG(2) << "work received with nc=" << workLocal.numChildren << " and children="<< workLocal.children;
+    VLOG(5) << "work received with nc=" << workLocal.numChildren << " and children="<< workLocal.children;
     #endif
     #endif
 
