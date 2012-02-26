@@ -196,10 +196,10 @@ inline void thread_idlesReady(thread* me, int ready) {
 /// on a particular resource, just waiting to be woken.
 inline int thread_idle(thread* me, uint64_t total_idle) {
     scheduler* sched = me->sched;
-    sched->num_idle++;
-    if (sched->num_idle == total_idle) {
+    if (sched->num_idle+1 == total_idle) {
         return 0;
     } else {
+        sched->num_idle++;
         unassigned_enqueue(sched, me);
         thread_suspend(me);
         sched->num_idle--;
