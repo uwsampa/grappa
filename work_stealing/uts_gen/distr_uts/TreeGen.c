@@ -731,11 +731,19 @@ void init_thread_f(thread* me, void* args ) {
 
     printf("rank(%d) total nodes %lu\n", rank, t_nNodes);
     iargs->total_nodes         = SoftXMT_collective_reduce(COLL_ADD, 0, t_nNodes,         0);
+        VLOG(2) << "done collective total_nodes";
     iargs->total_release       = SoftXMT_collective_reduce(COLL_ADD, 0, t_nRelease,       0);
+        VLOG(2) << "done collective total_release";
     iargs->total_acquire       = SoftXMT_collective_reduce(COLL_ADD, 0, t_nAcquire,       0);
+        VLOG(2) << "done collective total_acquire";
     iargs->total_steal         = SoftXMT_collective_reduce(COLL_ADD, 0, t_nSteal,         0);
+        VLOG(2) << "done collective total_steal";
     iargs->total_fail          = SoftXMT_collective_reduce(COLL_ADD, 0, t_nFail,         0);
+        VLOG(2) << "done collective total_fail";
     iargs->total_maxStackDepth = SoftXMT_collective_reduce(COLL_MAX, 0, m_maxStackDepth, -1);
+        VLOG(2) << "done collective total_maxStackDepth";
+
+    SoftXMT_barrier_commsafe();
 }
 //////////////////////////////////////////////////////////////////////
 
