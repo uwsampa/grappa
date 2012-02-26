@@ -71,7 +71,7 @@ void function_dispatch(int func_id, void *buffer, uint64_t size) {
  *  Parallel execution parameters                          *
  ***********************************************************/
 
-int doSteal   = 1;        // 1 => use work stealing
+int doSteal   = 0;        // 1 => use work stealing
 int chunkSize = 10;       // number of nodes to move to/from shared area
 int cbint     = 1;        // Cancellable barrier polling interval
 
@@ -203,13 +203,13 @@ void visitTask(Node_ptr work, thread* me, StealStack* ss, global_array* nodes_ar
 void worker_thread(StealStack* ss, thread* me, int* work_done, int* okToSteal, int num_workers, int num_local_nodes, global_array* nodes_array, global_array* children_arrays, int my_local_id, int* neighbors) {
     VLOG(2) << me->id << "going idle";
     thread_idle(me, num_workers); // one thread will be allowed to start
-    VLOG(2) << me->id << "un idle";
+    VLOG(2) << me->id << " un idle";
     while (!(*work_done)) {
-       VLOG(5) << me->id << "queue depth=" << ss_localDepth(ss);
+       VLOG(5) << me->id << " queue depth=" << ss_localDepth(ss);
        while (ss_localDepth(ss) > 0) {
            Node_ptr work = ss_top(ss); //TODO generalize
            ss_pop(ss);
-           VLOG(5) << me->id << "pops some work";
+           VLOG(5) << me->id << " pops some work: " << ss->nVisited << " visited";
            visitTask(work, me, ss, nodes_array, children_arrays);  // TODO generalize
        }
        
@@ -222,6 +222,8 @@ void worker_thread(StealStack* ss, thread* me, int* work_done, int* okToSteal, i
 
                // try to steal
                if (doSteal) {
+                    *okToSteal = 0;      // prevent running unassigned threads from trying to steal again
+                   VLOG(5) << me->id << " trying to steal";
                    int goodSteal = 0;
                    int victimId;
 
@@ -232,10 +234,12 @@ void worker_thread(StealStack* ss, thread* me, int* work_done, int* okToSteal, i
                    }
 
                    if (goodSteal) {
+                       VLOG(5) << me->id << " stole from rank" << victimId;
+                       *okToSteal = 1;
                        continue;
                    } else {
+                       VLOG(5) << me->id << " failed to steal";
                        thread_idlesReady(me, 0); // prevent idle unassigned threads from being scheduled
-                       *okToSteal = 0;      // prevent running unassigned threads from trying to steal again
                    }
 
                    /**TODO remote load balance**/
@@ -244,10 +248,15 @@ void worker_thread(StealStack* ss, thread* me, int* work_done, int* okToSteal, i
            }
        }
 
+       VLOG(5) << me->id << "goes idle because sees no work";
        if (!thread_idle(me, num_workers)) {
+            VLOG(5) << me->id << " saw all were idle so suggest barrier";
             // no work so suggest barrier
             if (cbarrier_wait()) {
+                VLOG(5) << me->id << " left barrier from finish";
                 *work_done = 1;
+            } else {
+                VLOG(5) << me->id << " left barrier from cancel";
             }
             thread_idlesReady(me, 1);   // work is available so allow unassigned threads to be scheduled
             *okToSteal = 1;        // work is available so allow steal attempts
@@ -382,7 +391,10 @@ int generateTree(Node_ptr root, global_array* nodes, int cid, global_array* chil
     TreeNode rootTemp;
     rootTemp.type = rootLocal.type;  //copy (not needed if dont overwrite)
     rootTemp.height = rootLocal.height; // copy (not needed if dont overwrite)
-    rootTemp.children = (Node_ptr_ptr) balloc(bals[ga_node(nodes, root)], nc);
+    if (nc > 0) 
+        rootTemp.children = (Node_ptr_ptr) balloc(bals[ga_node(nodes, root)], nc);
+    else
+        rootTemp.children = 0;
     rootTemp.numChildren = nc;
     if (cid ==0) {printf("root has %d children\n", nc);}
     rootTemp.id = cid;
