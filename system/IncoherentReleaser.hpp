@@ -66,8 +66,11 @@ public:
         DVLOG(5) << "thread " << current_thread 
                 << " blocking on " << request_address_ 
                 << " * " << count_ ;
-        thread_ = current_thread;
-        SoftXMT_suspend();
+        if( !released_ ) {
+          thread_ = current_thread;
+          SoftXMT_suspend();
+          thread_ = NULL;
+        }
         DVLOG(5) << "thread " << current_thread 
                  << " woke up for " << request_address_ 
                  << " * " << count_ ;
@@ -76,7 +79,7 @@ public:
   }
 
   void release_reply( ) { 
-    SoftXMT_wake( thread_ );
+    if( thread_ ) SoftXMT_wake( thread_ );
     released_ = true;
   }
 
