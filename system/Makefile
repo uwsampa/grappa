@@ -68,7 +68,7 @@ Allocator_tests.test: Allocator.o
 
 thread_tests.test: thread.o stack.o coro.o
 thread2_tests.test: SoftXMT.o Communicator.o Aggregator.o thread.o coro.o stack.o 
-
+thread3_tests.test: SoftXMT.o Communicator.o Aggregator.o thread.o coro.o stack.o
 
 Cache_tests.test: Cache.o SoftXMT.o Communicator.o Aggregator.o thread.o coro.o stack.o 
 
