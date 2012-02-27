@@ -65,6 +65,7 @@ public:
               << " * " << count_ ;
         thread_ = current_thread;
         SoftXMT_suspend();
+        thread_ = NULL;
         DVLOG(5) << "thread " << current_thread 
                  << " woke up for " << request_address_ 
                  << " * " << count_ ;
@@ -77,7 +78,7 @@ public:
            << " copying reply payload of " << payload_size
            << " and waking thread " << thread_;
     memcpy( storage_, payload, payload_size );
-    SoftXMT_wake( thread_ );
+    if ( thread_ != NULL ) SoftXMT_wake( thread_ );
     acquired_ = true;
   }
 
