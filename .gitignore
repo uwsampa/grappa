@@ -12,3 +12,4 @@
 *.gch
 ._*
 .DS_Store
+.mpirunrc.*
