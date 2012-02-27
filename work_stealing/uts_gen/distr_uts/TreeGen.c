@@ -78,7 +78,7 @@ int cbint     = 1;        // Cancellable barrier polling interval
 int num_cores = 1;
 int num_threads_per_core = 2;
 int num_places = 1;
-int num_procs = 1;
+int num_procs = 2;
 int generateFile = 0; // 1
 char* genFilename = "default";
 const char* gf_tree_suffix = "tree";
@@ -856,6 +856,7 @@ void user_main( thread* me, void* args) {
     if (generateFile || CHECK_SERIALIZE || !READ_IF_NOT_WRITE) {
         if (0 == rank) {
             for (int p=0; p<num_procs; p++) {
+                VLOG(2) << "#procs="<< num_procs;
                 bals[p] = newBumpAllocator(children_array_pool, p*(children_array_pool->elements_per_node), children_array_pool->elements_per_node); 
             }
        
