@@ -17,8 +17,7 @@
 #include "Collective.hpp"
 
 #include "SoftXMT.hpp"
-#include "IncoherentAcquirer.hpp"
-#include "IncoherentReleaser.hpp"
+#include "Cache.hpp"
 
 #include "getput.h"
 #include "global_memory.h"
@@ -283,14 +282,12 @@ void visitTask(Node_ptr work, thread* me, StealStack* ss, global_array* nodes_ar
     VLOG(5) << me->id << " acquiring on workindex=" << work;
     global_address workAddress;
     ga_index(nodes_array, work, &workAddress);
-//    Node_piece_t* workLocal = get_local_copy_of_remote<Node_piece_t>(workAddress, 1); 
-    Node_piece_t workLocal;
+    Node_piece_t workLocal_storage_;
     GlobalAddress< Node_piece_t > workAddress_gl ((Node_piece_t*)gm_address_to_ptr(&workAddress), gm_node_of_address(&workAddress));
-    IncoherentAcquirer<Node_piece_t> workLocalAq(workAddress_gl, 1, &workLocal);
-    workLocalAq.start_acquire();
-    workLocalAq.block_until_acquired();
+    
+    Incoherent<Node_piece_t>::RO workLocal_cb(workAddress_gl, 1, &workLocal_storage_);  
 
-    VLOG(5) << me->id << " work received with nc=" << workLocal.numChildren << " and children="<< workLocal.children;
+    VLOG(5) << me->id << " work received with nc=" << (*workLocal_cb).numChildren << " and children="<< (*workLocal_cb).children;
     #endif
     #endif
 
@@ -305,35 +302,26 @@ void visitTask(Node_ptr work, thread* me, StealStack* ss, global_array* nodes_ar
     #else
 
     global_address childAddress;
-    ga_index(children_arrays, workLocal.children, &childAddress);
-//    Node_ptr* childrenLocal = get_local_copy_of_remote<Node_ptr>(childAddress, workLocal->numChildren);
-
-    Node_ptr childrenLocal[workLocal.numChildren];
+    ga_index(children_arrays, (*workLocal_cb).children, &childAddress);
+    Node_ptr childrenLocal_storage_[(*workLocal_cb).numChildren];
     GlobalAddress< Node_ptr > childAddress_gl ((Node_ptr*)gm_address_to_ptr(&childAddress), gm_node_of_address(&childAddress));
-    IncoherentAcquirer<Node_ptr> childrenLocalAq(childAddress_gl, workLocal.numChildren, childrenLocal);
-    childrenLocalAq.start_acquire();
-    childrenLocalAq.block_until_acquired();
-    #endif
-    #endif
-
-    for (int i=0; i<workLocal.numChildren; i++) {
-        ss_push(ss, childrenLocal[i]);
-    }
-
-
-
    
+    Incoherent<Node_ptr>::RO childAddresses_cb(childAddress_gl, (*workLocal_cb).numChildren, childrenLocal_storage_);
+    #endif
+    #endif
+
+    for (int i=0; i<(*workLocal_cb).numChildren; i++) {
+        ss_push(ss, childAddresses_cb[i]);
+    }
    
     #if NO_INTEG
     // notify other coroutines in my scheduler
     
     
     #else
-    IncoherentReleaser<Node_ptr> childrenLocalRl( childAddress_gl, workLocal.numChildren, childrenLocal );
-    childrenLocalRl.start_release();
+    childAddresses_cb.start_release();
 
-    IncoherentReleaser<Node_piece_t> workLocalRl( workAddress_gl, 1, &workLocal );
-    workLocalRl.start_release();
+    workLocal_cb.start_release();
 
 
     #endif
@@ -349,8 +337,8 @@ void visitTask(Node_ptr work, thread* me, StealStack* ss, global_array* nodes_ar
 
     #if NO_INTEG
     #else
-    childrenLocalRl.block_until_released();
-    workLocalRl.block_until_released();
+    childAddresses_cb.block_until_released();
+    workLocal_cb.block_until_released();
     #endif
 }
 
