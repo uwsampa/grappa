@@ -71,7 +71,7 @@ void function_dispatch(int func_id, void *buffer, uint64_t size) {
  *  Parallel execution parameters                          *
  ***********************************************************/
 
-int doSteal   = 0;        // 1 => use work stealing
+int doSteal   = 1;        // 1 => use work stealing
 int chunkSize = 10;       // number of nodes to move to/from shared area
 int cbint     = 1;        // Cancellable barrier polling interval
 
@@ -280,6 +280,7 @@ void visitTask(Node_ptr work, thread* me, StealStack* ss, global_array* nodes_ar
     complete_nb(me, tag);
     #else
 
+    VLOG(5) << me->id << " acquiring on workindex=" << work;
     global_address workAddress;
     ga_index(nodes_array, work, &workAddress);
 //    Node_piece_t* workLocal = get_local_copy_of_remote<Node_piece_t>(workAddress, 1); 
@@ -289,7 +290,7 @@ void visitTask(Node_ptr work, thread* me, StealStack* ss, global_array* nodes_ar
     workLocalAq.start_acquire();
     workLocalAq.block_until_acquired();
 
-    VLOG(5) << "work received with nc=" << workLocal.numChildren << " and children="<< workLocal.children;
+    VLOG(5) << me->id << " work received with nc=" << workLocal.numChildren << " and children="<< workLocal.children;
     #endif
     #endif
 
@@ -761,7 +762,7 @@ void alloc_thread_f( thread* me, void * args) {
     VLOG(2) << SoftXMT_mynode() << " alloc thread is allocating...";
     alargs->nodes = ga_allocate(sizeof(TreeNode), numNodes*num_procs); //XXX for enough space
     alargs->children_array_pool = ga_allocate(sizeof(Node_ptr), numNodes*num_procs); //children_array_size*num_procs);
-    VLOG(2) << SoftXMT_mynode() << " alloc thread done allocating";
+    VLOG(2) << SoftXMT_mynode() << " alloc thread done allocating nodes="<< alargs->nodes<< " children=" << alargs->children_array_pool;
 
     SoftXMT_barrier_commsafe();
     VLOG(2) << SoftXMT_mynode() << " alloc thread done exits post-alloc barrier";
@@ -773,18 +774,6 @@ void alloc_thread_f( thread* me, void * args) {
 // Space for user threads' data; spawning AMs
 //////////////////////////////////////////////
 
-//space for init_thread args for this node
-init_thread_args this_node_iargs; 
-
-// AM for spawning remote thread
-void spawn_initthread_am( init_thread_args* args, size_t size, void* payload, size_t payload_size ) {
-   /* in general (for async am handling) this may need synchronization */
-   memcpy(&this_node_iargs, args, size);
-   
-   VLOG(2) << SoftXMT_mynode() << " AM is spawning init thread";
-   SoftXMT_spawn(&init_thread_f, &this_node_iargs); 
-}
-
 //space for alloc_thread_args for this node
 alloc_thread_args this_node_alargs;
 
@@ -795,6 +784,21 @@ void spawn_allocthread_am( alloc_thread_args* args, size_t size, void* payload, 
 
    VLOG(2) << SoftXMT_mynode() << " AM is spawning alloc thread";
    SoftXMT_spawn(&alloc_thread_f, &this_node_alargs); 
+}
+
+
+//space for init_thread args for this node
+init_thread_args this_node_iargs; 
+
+// AM for spawning remote thread
+void spawn_initthread_am( init_thread_args* args, size_t size, void* payload, size_t payload_size ) {
+   /* in general (for async am handling) this may need synchronization */
+   memcpy(&this_node_iargs, args, size);
+   this_node_iargs.nodes = this_node_alargs.nodes; //TODO make this passing of array ptrs less ugly
+   this_node_iargs.children_array_pool = this_node_alargs.children_array_pool;
+   
+   VLOG(2) << SoftXMT_mynode() << " AM is spawning init thread";
+   SoftXMT_spawn(&init_thread_f, &this_node_iargs); 
 }
 
 ///////////////////////////////////////////////
@@ -893,9 +897,9 @@ void user_main( thread* me, void* args) {
         } else {
             init_thread_args iargs = { 
               num_genNodes,
-              nodes,
-              children_array_pool,
-              initialNodes,
+              NULL, // the remote node knows its own
+              NULL, // the remote node knows its own
+              initialNodes, // FIXME
               0,
               0,
             };
