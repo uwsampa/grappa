@@ -126,6 +126,9 @@ static void cache_experiment_all(int64_t cache_elems, int64_t num_threads) {
   total_result = 0;
   total_work_time = 0;
   
+  data = new data_t[cache_elems];
+  for (int i=0; i<cache_elems; i++) { data[i] = 1; }
+  
   int64_t num_elems = N / num_threads;
   
   if (num_elems/cache_elems == 0) {
@@ -181,9 +184,6 @@ int main(int argc, char * argv[]) {
   Node mynode = SoftXMT_mynode();
   if (mynode == 0) {
 //    data = (data_t*)a.malloc(N * sizeof(data_t));
-    data = (data_t*)malloc(FLAGS_cache_elems*sizeof(data_t));
-    
-    for (int i=0; i<FLAGS_cache_elems; i++) { data[i] = 1; }
   }
   
   SoftXMT_run_user_main(&user_main, NULL);
