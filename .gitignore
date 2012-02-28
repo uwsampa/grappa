@@ -15,4 +15,5 @@
 */.gitignore
 *.db
 *.swp
+.mpirunrc.*
 

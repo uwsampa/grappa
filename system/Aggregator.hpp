@@ -193,7 +193,10 @@ public:
     // in the future, this would lead us down a separate code path for large messages.
     // for now, fail.
     size_t total_call_size = payload_size + args_size + sizeof( AggregatorGenericCallHeader );
-    assert( total_call_size < buffer_size_ ); // TODO: this is not specific enough
+    CHECK( total_call_size < buffer_size_ ) << "payload_size( " << payload_size << " )"
+                                           << "+args_size( " << args_size << " )"
+                                           << "+header_size( " << sizeof( AggregatorGenericCallHeader ) << " )"
+                                           << "= " << total_call_size << " of max( " << buffer_size_ << " )";
   
     // does call fit in aggregation buffer?
     if( !( buffers_[ target ].fits( total_call_size ) ) ) {

@@ -19,7 +19,8 @@
 //#include "global_array.h"
 //#include "msg_aggregator.h"
 
-
+char data[ 1 << 24 ];
+void * global_payload_p = &data[0];
 
 /* #define __USE_GNU */
 /* #define _GNU_SOURCE */
@@ -91,12 +92,21 @@ void my_am(gasnet_token_t token,
   //*dest += a0;
 }
 
+#define MY_AM2 130
+void my_am2(gasnet_token_t token,
+            void * payload, size_t size) {
+  //    uint64_t * dest = (uint64_t *) shared_memory_blocks[1].addr;
+  //payload_t * dest = (payload_t *) shared_memory_blocks[gasnet_mynode()].addr;
+  //*dest += a0;
+}
+
 
 
 // This crys out for linker sets
 gasnet_handlerentry_t   handlers[] =
     {
       { MY_AM, (void *)my_am },
+      { MY_AM2, (void *)my_am2 },
         /* { GM_REQUEST_HANDLER, (void *)gm_request_handler }, */
         /* { GM_RESPONSE_HANDLER, (void *)gm_response_handler }, */
         /* { GA_HANDLER, (void *)ga_handler }, */
@@ -145,7 +155,7 @@ int main(int argc, char **argv) {
 
 	int max = opt.count / (gasnet_nodes() / 2);
 
-    if (0) {
+    if (1) {
     uintptr_t s = gasnet_getMaxLocalSegmentSize();
     printf("Max local segment size is %lu\n", s);
     }
@@ -165,7 +175,7 @@ int main(int argc, char **argv) {
         gasnet_exit(1);
         }
 
-    if (0) {
+    if (1) {
     if (gasnet_mynode() == 0) {
         for (i = 0; i < gasnet_nodes(); i++) {
             printf("SHM on %d: at %p of %llx bytes\n",
@@ -183,6 +193,8 @@ int main(int argc, char **argv) {
 
     payload_size = sizeof(payload_t);
     payload = 0;
+    //char data[ opt.payload_size ];
+    global_payload_p = &data[0];
 
     if (gasnet_mynode() >= gasnet_nodes() / 2) {
 
@@ -201,7 +213,8 @@ int main(int argc, char **argv) {
 	dest_node = 0;
       }
 
-    payload_t * dest = (payload_t *) shared_memory_blocks[dest_node].addr;
+      payload_t * source = (payload_t *) shared_memory_blocks[gasnet_mynode()].addr;
+      payload_t * dest = (payload_t *) shared_memory_blocks[dest_node].addr;
     payload = 1;
 
 
@@ -254,17 +267,23 @@ int main(int argc, char **argv) {
 	if (opt.messages) {
 	  for( j = base; j < base + frac; ++j ) {
 	    //GASNET_BEGIN_FUNCTION();
-	    gasnet_AMRequestShort1(dest_node, MY_AM, payload);
+	    //gasnet_AMRequestShort1(dest_node, MY_AM, payload);
+            gasnet_AMRequestMedium0(dest_node, MY_AM2, source, opt.payload_size);
 	  }
 	} else if (opt.rdma_write) {
 	  for( j = base; j < base + frac; ++j ) {
 	    //GASNET_BEGIN_FUNCTION();
-	    gasnet_put_nbi_bulk( dest_node, dest, &payload, payload_size );
+	    //gasnet_put_nbi_bulk( dest_node, dest, &payload, payload_size );
+            //gasnet_put_nbi_bulk( dest_node, global_payload_p, global_payload_p, opt.payload_size );
+            //gasnet_put( dest_node, global_payload_p, global_payload_p, opt.payload_size );
+            gasnet_put_nbi_bulk( dest_node, dest, source, opt.payload_size );
 	  }
 	} else if (opt.rdma_read) {
 	  for( j = base; j < base + frac; ++j ) {
 	    //GASNET_BEGIN_FUNCTION();
-	    gasnet_get_nbi_bulk( &payload, dest_node, dest, payload_size );
+	    //gasnet_get_nbi_bulk( &payload, dest_node, dest, payload_size );
+            //gasnet_get_nbi_bulk( global_payload_p, dest_node, global_payload_p, opt.payload_size );
+            gasnet_get( source, dest_node, dest, opt.payload_size );
 	  }
 	}
 	//sent += frac;
@@ -286,7 +305,7 @@ int main(int argc, char **argv) {
       double runtime = ( (double) end_ns - (double) start_ns ) / 1000000000.0;
       double message_rate = (double) opt.count / runtime;
       //double message_rate = (double) sent / runtime;
-      double bandwidth = (double) payload_size * message_rate;
+      double bandwidth = (double) opt.payload_size * message_rate;
       printf( "%d/%d messages in %f seconds = %f million messages per second = %f megabytes per second\n", sent, opt.count, runtime, message_rate / 1000 / 1000, bandwidth / 1024 / 1024 );
 
 

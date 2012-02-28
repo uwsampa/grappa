@@ -44,6 +44,11 @@ include ../include.mk
 #
 HOST:=n01,n04
 
+#
+# number of mpi processes
+#
+NPROC:=2
+
 # name of main executable to build and/or run
 TARGET:=
 
@@ -67,10 +72,11 @@ Delegate_tests.test: Delegate.o SoftXMT.o Communicator.o Aggregator.o thread.o c
 Addressing_tests.test: SoftXMT.o Communicator.o Aggregator.o thread.o coro.o stack.o 
 Allocator_tests.test: Allocator.o
 
+Collective_tests.test: Delegate.o SoftXMT.o Communicator.o Aggregator.o thread.o coro.o stack.o Collective.o
 
 thread_tests.test: thread.o stack.o coro.o
 thread2_tests.test: SoftXMT.o Communicator.o Aggregator.o thread.o coro.o stack.o 
-
+thread3_tests.test: SoftXMT.o Communicator.o Aggregator.o thread.o coro.o stack.o
 
 Cache_tests.test: Cache.o SoftXMT.o Communicator.o Aggregator.o thread.o coro.o stack.o 
 
@@ -86,11 +92,12 @@ libSoftXMT.a: $(patsubst %,libSoftXMT.a(%),$(LIBRARY_CONTENTS))
 
 #
 # environment variables for run
+# remember to include environment's $LD_LIBRARY_PATH, since MPI libs may be there
 #
 ENV_VARIABLES+= GLOG_logtostderr=1
 ENV_VARIABLES+= GLOG_v=1
 ENV_VARIABLES+= OMPI_MCA_btl_sm_use_knem=0
-ENV_VARIABLES+= LD_LIBRARY_PATH="$(LD_LIBRARY_PATH)"
+ENV_VARIABLES+= LD_LIBRARY_PATH="\$$LD_LIBRARY_PATH:$(LD_LIBRARY_PATH)"
 ENV_VARIABLES+= GASNET_BACKTRACE=1
 
 #
@@ -101,15 +108,20 @@ OPENMPI_EXPORT_ENV_VARIABLES=$(patsubst %,-x %,$(patsubst DELETEME:%,,$(subst =,
 #
 # temporary file for environment variables for QLogic MPI
 # 
-ENVVAR_TEMP:=$(shell mktemp --tmpdir=. .mpirunrc.XXXXXXXX )
+
+# create a temporary filename for environment variables
+ENVVAR_TEMP:=$(shell mktemp --dry-run --tmpdir=. .mpirunrc.XXXXXXXX )
+# command fragment to use environment variables
 QLOGIC_EXPORT_ENV_VARIABLES=-rcfile $(ENVVAR_TEMP)
 
-# this is created when needed
+# create an environment variable file when needed
 .mpirunrc.%:
 	echo \#!/bin/bash > $@
-	for i in $(ENV_VARIABLES); do echo export $$i  >> $@; done
+	echo "if [ -e ~/.mpirunrc ]; then . ~/.mpirunrc; fi" >> $@
+	for i in $(ENV_VARIABLES); do echo export $$i >> $@; done
 
-.INTERMEDIATE: .mpirunrc.%
+# delete when done
+.INTERMEDIATE: $(ENVVAR_TEMP)
 
 #
 # Heap Leak Checker
@@ -126,6 +138,7 @@ endif
 # run a binary
 #
 run: $(TARGET) $(ENVVAR_TEMP)
+	-killall $<
 	$(ENV_VARIABLES) \
 	$(MPIRUN) $($(MPITYPE)_EXPORT_ENV_VARIABLES) -H $(HOST) -np 2 -- ./$< $(ARGS)
 
@@ -135,7 +148,7 @@ run: $(TARGET) $(ENVVAR_TEMP)
 mpi_test: $(TARGET) $(ENVVAR_TEMP)
 	-killall $<
 	$(ENV_VARIABLES) \
-	$(MPIRUN) $($(MPITYPE)_EXPORT_ENV_VARIABLES) -H $(HOST) -np 2 -- ./$< --log_level=test_suite --run_test=$(TARGET:.test=) -- $(ARGS)
+	$(MPIRUN) $($(MPITYPE)_EXPORT_ENV_VARIABLES) -H $(HOST) -np $(NPROC) -- ./$< --log_level=test_suite --run_test=$(TARGET:.test=) -- $(ARGS)
 
 test: $(TARGET)
 	$(ENV_VARIABLES) \
