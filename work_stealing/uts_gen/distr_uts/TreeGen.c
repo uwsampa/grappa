@@ -961,9 +961,9 @@ void user_main( thread* me, void* args) {
        DictOut outputs;
        outputs.add( "runtime", runtime );
        outputs.add( "rate", rate );
-       outputs.add( "num_threads", num_threads_per_core );
-       outputs.add( "chunk_size", chunkSize );
-       outputs.add( "cbint", cbint );
+       // outputs.add( "num_threads", num_threads_per_core );
+       // outputs.add( "chunk_size", chunkSize );
+       // outputs.add( "cbint", cbint );
        outputs.add( "nRelease", my_iargs.total_release );
        outputs.add( "nAcquire", my_iargs.total_acquire );
        outputs.add( "nSteal", my_iargs.total_steal );
