@@ -283,9 +283,10 @@ void visitTask(Node_ptr work, thread* me, StealStack* ss, global_array* nodes_ar
     global_address workAddress;
     ga_index(nodes_array, work, &workAddress);
     Node_piece_t workLocal_storage_;
-    GlobalAddress< Node_piece_t > workAddress_gl ((Node_piece_t*)gm_address_to_ptr(&workAddress), gm_node_of_address(&workAddress));
-    
-    Incoherent<Node_piece_t>::RO workLocal_cb(workAddress_gl, 1, &workLocal_storage_);  
+    Incoherent<Node_piece_t>::RO workLocal_cb( GlobalAddress<Node_piece_t>::TwoDimensional( 
+                                                    (Node_piece_t*)gm_address_to_ptr(&workAddress), 
+                                                    gm_node_of_address(&workAddress) ),
+                                            1, &workLocal_storage_);  
 
     VLOG(5) << me->id << " work received with nc=" << (*workLocal_cb).numChildren << " and children="<< (*workLocal_cb).children;
     #endif
@@ -304,9 +305,10 @@ void visitTask(Node_ptr work, thread* me, StealStack* ss, global_array* nodes_ar
     global_address childAddress;
     ga_index(children_arrays, (*workLocal_cb).children, &childAddress);
     Node_ptr childrenLocal_storage_[(*workLocal_cb).numChildren];
-    GlobalAddress< Node_ptr > childAddress_gl ((Node_ptr*)gm_address_to_ptr(&childAddress), gm_node_of_address(&childAddress));
-   
-    Incoherent<Node_ptr>::RO childAddresses_cb(childAddress_gl, (*workLocal_cb).numChildren, childrenLocal_storage_);
+    Incoherent<Node_ptr>::RO childAddresses_cb( GlobalAddress<Node_ptr>::TwoDimensional(
+                                                   (Node_ptr*)gm_address_to_ptr(&childAddress),
+                                                   gm_node_of_address(&workAddress) ), 
+                                               (*workLocal_cb).numChildren, childrenLocal_storage_);
     #endif
     #endif
 
