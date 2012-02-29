@@ -71,7 +71,7 @@ static void process_chunk_all(thread * me, process_all_args* a) {
   }
   
   total_result += total;
-  DVLOG(1) << "total: " << total;
+  DVLOG(2) << "<" << SoftXMT_mynode() << "> " << "total: " << total;
 
 //  chunk_result_args ra = { total };
 //  SoftXMT_call_on(a->caller_node, &am_chunk_result, &ra);
@@ -79,7 +79,7 @@ static void process_chunk_all(thread * me, process_all_args* a) {
 }
 
 struct spawn_all_args {
-  data_t* data;
+  GlobalAddress<data_t> data;
   int64_t num_threads;
   int64_t num_elems;
   int64_t cache_elems;
@@ -98,7 +98,7 @@ static void th_spawn_all(thread * me, spawn_all_args* a) {
   start = timer();
   
   for (int i=0; i<a->num_threads; i++) {
-    alist[i].addr = GlobalAddress<data_t>(a->data, a->caller);
+    alist[i].addr = a->data;
     alist[i].num_elems = a->num_elems;
     alist[i].cache_elems = a->cache_elems;
     alist[i].caller_node = a->caller;
@@ -120,71 +120,101 @@ static void th_spawn_all(thread * me, spawn_all_args* a) {
   delete a;
 }
 
-static void cache_experiment_all(int64_t cache_elems, int64_t num_threads) {
-  main_thread = get_current_thread();
+struct exp_args {
+  Node target;
+  int64_t cache_size;
+  int num_threads;
+  int64_t elems_per_thread;
+};
+/// thread that initiates the data transfer between two nodes
+static void th_experiment_node(thread * me, exp_args * a) {
+  DVLOG(1) << "th_experiment_node";
   replies = 0;
   total_result = 0;
   total_work_time = 0;
   
-  data = new data_t[cache_elems];
-  for (int i=0; i<cache_elems; i++) { data[i] = 1; }
+  data = new data_t[a->cache_size];
+  for (int i=0; i<a->cache_size; i++) { data[i] = 1; }
   
-  int64_t num_elems = N / num_threads;
-  
-  if (num_elems/cache_elems == 0) {
+  DVLOG(1) << "starting transfer from " << SoftXMT_mynode() << " to " << a->target;
+
+  if (a->elems_per_thread/a->cache_size == 0) {
     std::cerr << "too small!" << std::endl;
     exit(1);
   }
   
+  Node caller = 0; // send all responses back to one node
+  spawn_all_args aa = { make_global(data), a->num_threads, a->elems_per_thread, a->cache_size, caller};
+  SoftXMT_remote_spawn(&th_spawn_all, &aa, a->target);
+  
+}
+static void cache_experiment_all() {
+  int64_t nt = FLAGS_num_threads;
+  int64_t cache_size = FLAGS_cache_elems;
+  int64_t N = FLAGS_nelems;
+  Node nodes = SoftXMT_nodes();
+  Node nstarters = nodes/2;
+  int64_t elems_per_thread = N / nt;
+
+  DVLOG(1) << "starting experiments across all nodes";
+  replies = 0;
+
   double start, end;
   start = timer();
   
-  spawn_all_args a = { data, num_threads, num_elems, cache_elems, 0 };
-  SoftXMT_remote_spawn(&th_spawn_all, &a, 1);
-  
-  while (replies < 1) {
-    DVLOG(1) << "waiting for replies (" << replies << "/" << num_threads << " so far)";
-    SoftXMT_suspend();
+  exp_args a[nstarters];
+  for (int i = 0; i < nstarters; i++) {
+    a[i].target = nstarters+i;
+    a[i].cache_size = cache_size;
+    a[i].num_threads = (int)nt;
+    a[i].elems_per_thread = elems_per_thread;
+
+    SoftXMT_remote_spawn(&th_experiment_node, &a[i], i);
+    SoftXMT_flush(i); // should be the only message going to that node
   }
-  end = timer();
-  double all_time = end-start;
-  DVLOG(1) << "all replies received";
-  DVLOG(1) << "total_result = " << total_result;
-  assert(total_result - (double)N < 1.0e-10);
   
-  LOG(INFO) << "total_result = " << total_result;
-  
-  LOG(INFO)
-    << "{ experiment: 'incoherent_all_remote'"
-    << ", total_work_s: " << total_work_time
-    << ", work_bw_wps: " << (2*N) / total_work_time
-    << ", total_read_s: " << all_time
-    << ", all_bw_wps: " << (2*N)/(double)(all_time)
-    << " }";
+  if (SoftXMT_mynode() == 0) {
+    while (replies < nstarters) {
+      DVLOG(1) << "waiting for replies (" << replies << "/" << nstarters << " so far)";
+      SoftXMT_suspend();
+    }
+    total_result /= nstarters; // 'average' result
+
+    end = timer();
+    double all_time = end-start;
+    DVLOG(1) << "all replies received";
+    DVLOG(1) << "total_result = " << total_result;
+    assert(total_result - (double)N < 1.0e-10);
+    
+    LOG(INFO) << "total_result = " << total_result;
+    
+    LOG(INFO) << "{ experiment: 'incoherent_all_remote'"
+              << ", total_work_s: " << total_work_time
+              << ", work_bw_wps: " << (2*elems_per_thread*nt) / total_work_time
+              << ", total_read_s: " << all_time
+              << ", all_bw_wps: " << (2*elems_per_thread*nt)/(double)(all_time)
+              << " }";
+  }
+  DVLOG(1) << SoftXMT_mynode() << " done with exp";
 }
 
 static void user_main(thread * me, void * args) {
-  
+  main_thread = get_current_thread();
+
   if (FLAGS_incoherent_all_remote) {
-    cache_experiment_all(FLAGS_cache_elems, FLAGS_num_threads);
+    cache_experiment_all();
   }
   
-  LOG(INFO) << "done with experiments...";
   SoftXMT_signal_done();
 }
 
 int main(int argc, char * argv[]) {
   SoftXMT_init(&argc, &argv);
   SoftXMT_activate();
-  N = FLAGS_nelems;
+//  N = FLAGS_nelems;
 //  size_t memsize = (N*sizeof(data_t)*2); // x2 just to be on the safe side
 //  char * mem = new char[memsize];
 //  Allocator a(&mem[0], memsize);
-  
-  Node mynode = SoftXMT_mynode();
-  if (mynode == 0) {
-//    data = (data_t*)a.malloc(N * sizeof(data_t));
-  }
   
   SoftXMT_run_user_main(&user_main, NULL);
 
