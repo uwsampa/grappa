@@ -236,5 +236,17 @@ inline void SoftXMT_call_on( Node destination, void (* fn_p)(ArgsStruct *, size_
                                 static_cast< const void * >( payload ), payload_size );
 }
 
+template< typename ArgsStruct, typename PayloadType >
+inline void SoftXMT_call_on_x( Node destination, void (* fn_p)(ArgsStruct *, size_t, PayloadType *, size_t), 
+                               const ArgsStruct * args, const size_t args_size = sizeof( ArgsStruct ),
+                               const PayloadType * payload = NULL, const size_t payload_size = 0)
+{
+  assert( global_aggregator != NULL );
+  global_aggregator->aggregate( destination, 
+                                reinterpret_cast< AggregatorAMHandler >( fn_p ), 
+                                static_cast< const void * >( args ), args_size,
+                                static_cast< const void * >( payload ), payload_size );
+}
+
 
 #endif

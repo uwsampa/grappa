@@ -12,7 +12,7 @@
 //#include <cxxabi.h>
 
 
-void SoftXMT_init( int * argc_p, char ** argv_p[] );
+void SoftXMT_init( int * argc_p, char ** argv_p[], size_t size = 0 );
 void SoftXMT_activate();
 
 bool SoftXMT_done();
@@ -68,6 +68,14 @@ void SoftXMT_remote_spawn( void (*fn_p)(thread*,T*), const T* args, Node target)
   SoftXMT_call_on(target, SoftXMT_magic_identity_function(&am_remote_spawn<T>), args, sizeof(T), (void*)&fn_p, sizeof(fn_p));
   DVLOG(5) << "Sent AM to spawn thread on Node " << target;
 }
+template< typename T >
+void SoftXMT_remote_spawn( void (*fn_p)(thread*,void*), const T* args, Node target) {
+  // typedef void (*am_t)(T*,size_t,void*,size_t);
+  // am_t a = &am_remote_spawn<T>;
+  SoftXMT_call_on(target, SoftXMT_magic_identity_function(&am_remote_spawn<T>), args, sizeof(T), (void*)&fn_p, sizeof(fn_p));
+  DVLOG(5) << "Sent AM to spawn thread on Node " << target;
+}
+
 
 
 /// Yield to scheduler, placing current thread on run queue.
@@ -90,6 +98,19 @@ void SoftXMT_join( thread * t );
 
 /// TODO: remove this
 void SoftXMT_signal_done();
+
+
+/// Memory management routines.
+
+// // allocate a block of memory from generic pool
+// GlobalAddress< void > SoftXMT_malloc( size_t size_bytes );
+
+// // free a block of memory from generic pool
+// void SoftXMT_free( GlobalAddress< void > pointer );
+
+// /// allocate some number of some type of object
+// template< typename T >
+// GlobalAddress< T > SoftXMT_typed_malloc( size_t count );
 
 #include "Aggregator.hpp"
 #include "Addressing.hpp"
