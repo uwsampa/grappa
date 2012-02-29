@@ -31,7 +31,7 @@
 #
 
 # include common variable definitions
-include ../include.mk
+include $(SOFTXMT_HOME)/include.mk
 
 #
 # Define DEBUG to build debug versions of binaries/tests

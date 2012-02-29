@@ -30,21 +30,10 @@
 #    To build and run an executable, say "make TARGET=<name>.test run". 
 #
 
-SOFTXMT_HOME:=../..
+SOFTXMT_HOME:=$(HOME)/softxmt
 
 # include common variable definitions
 include $(SOFTXMT_HOME)/include.mk
-
-#
-# Define DEBUG to build debug versions of binaries/tests
-# This may be done at the command line: "make TARGET=foo.test DEBUG=1 test"
-#
-#DEBUG:=1
-
-#
-# name of host on which to run tests
-#
-HOST:=n01
 
 # name of main executable to build and/or run
 TARGET:= cache_experiment.exe
@@ -52,146 +41,11 @@ TARGET:= cache_experiment.exe
 # default rule: just build
 $(TARGET): 
 
-INCLUDES+= -I$(SOFTXMT_HOME)/system
-
-#
-# object file dependences
-#
-cache_bench.exe: cache_bench.o $(SOFTXMT_HOME)/system/libSoftXMT.a
+CFLAGS+= -I$(SOFTXMT_HOME)/system
 
 cache_experiment.exe: cache_experiment.o $(SOFTXMT_HOME)/system/libSoftXMT.a
 
-#
-# run a binary
-#
-run: $(TARGET)
-	GLOG_logtostderr=1 \
-	OMPI_MCA_btl_sm_use_knem=0 \
-	LD_LIBRARY_PATH="$(LD_LIBRARY_PATH)" \
-	$(MPIRUN) -x LD_LIBRARY_PATH -H $(HOST) -np 2 -- ./$< $(ARGS)
-
-#
-# run tests for a component
-#
-mpi_test: $(TARGET)
-	-killall $<
-	GLOG_logtostderr=1 \
-	OMPI_MCA_btl_sm_use_knem=0 \
-	LD_LIBRARY_PATH="$(LD_LIBRARY_PATH)" \
-	GASNET_BACKTRACE=1 \
-	$(MPIRUN) -x LD_LIBRARY_PATH -H $(HOST) -np 2 -- ./$< --log_level=test_suite --run_test=$(TARGET:.test=) $(ARGS)
-
-test: $(TARGET)
-	GLOG_logtostderr=1 \
-	LD_LIBRARY_PATH="$(LD_LIBRARY_PATH)" \
-	./$< --log_level=test_suite --run_test=$(TARGET:.test=) $(ARGS)
-
-# build a specific test and update autodependence info
-# include Boost test automagic main() generation
-%_tests.o: CXXFLAGS+= -DBOOST_TEST_DYN_LINK -DBOOST_TEST_MODULE=$@
-%_tests.test: -lboost_unit_test_framework 
-%_tests.test: %_tests.o
-	$(LD) $(CFLAGS) $(CXXFLAGS) $(LDFLAGS) $(LIBRARIES) $^ -o $@
-	objdump -S $@ > $@.dis
-
-#
-# What libraries do we need?
-#
-LIBRARIES:= -lgflags -lglog -lgasnet-ibv-seq -libverbs -lrt -lboost_unit_test_framework
-
-#
-# set compiler flags
-#
-CFLAGS+= --param max-inline-insns-single=35000 --param inline-unit-growth=10000 --param large-function-growth=200000 -Winline
-CFLAGS+= -DGASNET_SEQ -DGASNET_CONDUIT_IBV
-CFLAGS+= -D_GNU_SOURCE
-
-# not sure if this is a good idea
-CFLAGS+= -Wno-inline
-#CFLAGS+= -Wall -Wextra
-
-CFLAGS+= $(INCLUDES)
-
-#
-# set debug flags
-#
-ifdef DEBUG
-CFLAGS+= -O1 -g -DDEBUG
-else
-ifdef PROFILE
-CFLAGS+= -O3 -DNDEBUG -pg
-else
-CFLAGS+= -O3 -DNDEBUG
-endif #PROFILE
-endif #DEBUG
+test.exe: test.o $(SOFTXMT_HOME)/system/libSoftXMT.a
 
 
-#
-# set LD_LIBRARY_PATH
-#
-LD_LIBRARY_PATH:=$(LD_LIBRARY_PATH):$(GFLAGS)/lib
-
-# build an executable
-# add an additional rule if you need to include multiple components
-%.exe: %.o 
-	$(LD) $(LDFLAGS) $^ $(LIBRARIES) -o $@
-	# objdump -S $@ > $@.dis
-
-# build documentation
-doc:: 
-	doxygen Doxyfile
-
-
-#
-# autodependency stuff
-#
-
-# pull in dependency info for *existing* .o files
-OBJECTS:=$(wildcard *.o)
--include $(OBJECTS:.o=.d)
-
-TESTS:=$(wildcard *.test)
--include $(TESTS:.test=.d)
-
-# build an object
-# includes autodependence stuff
-%.o: %.cpp Makefile
-	$(CXX) -c $(CFLAGS) $(CXXFLAGS) $< -o $*.o
-	$(CXX) -MM $(CFLAGS) $(CXXFLAGS) $< > $*.d
-	@mv -f $*.d $*.d.tmp
-	@sed -e 's|.*:|$*.o:|' < $*.d.tmp > $*.d
-	@sed -e 's/.*://' -e 's/\\$$//' < $*.d.tmp | fmt -1 | \
-	  sed -e 's/^ *//' -e 's/$$/:/' >> $*.d
-	@rm -f $*.d.tmp
-
-#
-# Temporary special handling for thread library
-#
-thread.o: thread.c Makefile
-	$(CC) -c $(CFLAGS) $< -o $*.o
-	$(CC) -MM $(CFLAGS) $< > $*.d
-	@mv -f $*.d $*.d.tmp
-	@sed -e 's|.*:|$*.o:|' < $*.d.tmp > $*.d
-	@sed -e 's/.*://' -e 's/\\$$//' < $*.d.tmp | fmt -1 | \
-	  sed -e 's/^ *//' -e 's/$$/:/' >> $*.d
-	@rm -f $*.d.tmp
-
-coro.o: coro.c Makefile
-	$(CC) -c $(CFLAGS) $< -o $*.o
-	$(CC) -MM $(CFLAGS) $< > $*.d
-	@mv -f $*.d $*.d.tmp
-	@sed -e 's|.*:|$*.o:|' < $*.d.tmp > $*.d
-	@sed -e 's/.*://' -e 's/\\$$//' < $*.d.tmp | fmt -1 | \
-	  sed -e 's/^ *//' -e 's/$$/:/' >> $*.d
-	@rm -f $*.d.tmp
-
-stack.o: stack.S Makefile
-	$(CC) -c $(CFLAGS) $< -o $*.o
-
-
-clean:
-	rm -f *.exe *.o *.d *.test *.btr
-#	rm -f $(TARGET) $(OBJECTS) $(OBJECTS:.o=.d) $(OBJECTS:.o=.test) $(TEST_TARGET)
-
-
-.PHONY: run test clean
+include $(SOFTXMT_HOME)/system/Makefile
