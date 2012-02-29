@@ -14,7 +14,7 @@ struct array_element {
   int index;
 };
 
-array_element global_array[ 1234 ];
+array_element global_array[ 1234 ] __attribute__ ((aligned (2048)));
 
 BOOST_AUTO_TEST_CASE( test1 ) {
 
@@ -133,6 +133,11 @@ BOOST_AUTO_TEST_CASE( test1 ) {
   l2 += 4;
   BOOST_CHECK_EQUAL( l2.node(), 0 );
   BOOST_CHECK_EQUAL( l2.pointer(), &global_array[5] );
+
+  // casting
+  array_element * foo = l2 - 4;
+  array_element * bar = l2;
+  BOOST_CHECK_EQUAL( foo + 4, bar );
 
   SoftXMT_finish( 0 );
 }

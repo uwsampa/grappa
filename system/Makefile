@@ -58,7 +58,7 @@ $(TARGET):
 #
 # object file dependences
 #
-Demo.exe: SoftXMT.o Communicator.o Aggregator.o thread.o coro.o stack.o
+Demo.exe: SoftXMT.o GlobalMemory.o Communicator.o Aggregator.o thread.o coro.o stack.o
 
 Communicator_tests.test:
 
@@ -66,26 +66,27 @@ Aggregator_tests.test: Communicator.o Aggregator.o
 MutableHeap.test:
 
 
-Delegate_tests.test: Delegate.o SoftXMT.o Communicator.o Aggregator.o thread.o coro.o stack.o 
+Delegate_tests.test: Delegate.o SoftXMT.o GlobalMemory.o  Communicator.o Aggregator.o thread.o coro.o stack.o 
 Addressing_tests.test: SoftXMT.o Communicator.o Aggregator.o thread.o coro.o stack.o 
-GlobalMemory_tests.test: Delegate.o SoftXMT.o Communicator.o Aggregator.o thread.o coro.o stack.o 
+GlobalMemoryChunk_tests.test: Delegate.o SoftXMT.o GlobalMemory.o Communicator.o Aggregator.o thread.o coro.o stack.o 
+GlobalAllocator_tests.test: GlobalAllocator.o Allocator.o Delegate.o SoftXMT.o GlobalMemory.o  Communicator.o Aggregator.o thread.o coro.o stack.o 
 Allocator_tests.test: Allocator.o
 
-Collective_tests.test: Delegate.o SoftXMT.o Communicator.o Aggregator.o thread.o coro.o stack.o Collective.o
+Collective_tests.test: Delegate.o SoftXMT.o GlobalMemory.o Communicator.o Aggregator.o thread.o coro.o stack.o Collective.o
 
 thread_tests.test: thread.o stack.o coro.o
-thread2_tests.test: SoftXMT.o Communicator.o Aggregator.o thread.o coro.o stack.o 
-thread3_tests.test: SoftXMT.o Communicator.o Aggregator.o thread.o coro.o stack.o
+thread2_tests.test: SoftXMT.o GlobalMemory.o Communicator.o Aggregator.o thread.o coro.o stack.o 
+thread3_tests.test: SoftXMT.o GlobalMemory.o Communicator.o Aggregator.o thread.o coro.o stack.o
 
-Cache_tests.test: Cache.o SoftXMT.o Communicator.o Aggregator.o thread.o coro.o stack.o 
+Cache_tests.test: Cache.o SoftXMT.o GlobalMemory.o Communicator.o Aggregator.o thread.o coro.o stack.o 
 
-Rate_measure.exe: SoftXMT.o Delegate.o Communicator.o Aggregator.o thread.o coro.o stack.o
+Rate_measure.exe: SoftXMT.o GlobalMemory.o Delegate.o Communicator.o Aggregator.o thread.o coro.o stack.o
 
 #thread.o: coro.o
 #
 # Build SoftXMT static library
 #
-LIBRARY_CONTENTS= SoftXMT.o Communicator.o Aggregator.o thread.o coro.o stack.o 
+LIBRARY_CONTENTS= SoftXMT.o GlobalMemory.o Communicator.o Aggregator.o thread.o coro.o stack.o 
 libSoftXMT.a: $(patsubst %,libSoftXMT.a(%),$(LIBRARY_CONTENTS))
 
 
