@@ -53,7 +53,7 @@ NPROC:=2
 TARGET:=
 
 # default rule: just build
-$(TARGET): 
+$(TARGET):
 
 lib: libSoftXMT.a
 
@@ -121,7 +121,7 @@ QLOGIC_EXPORT_ENV_VARIABLES=-rcfile $(ENVVAR_TEMP)
 	for i in $(ENV_VARIABLES); do echo export $$i >> $@; done
 
 # delete when done
-.INTERMEDIATE: $(ENVVAR_TEMP)
+# .INTERMEDIATE: $(ENVVAR_TEMP)
 
 #
 # Heap Leak Checker
@@ -201,7 +201,7 @@ LD_LIBRARY_PATH:=$(LD_LIBRARY_PATH):$(GFLAGS)/lib
 # add an additional rule if you need to include multiple components
 %.exe: %.o 
 	$(LD) $(LDFLAGS) $^ $(LIBRARIES) -o $@
-	objdump -S $@ > $@.dis
+	# objdump -S $@ > $@.dis
 
 # build documentation
 doc:: 
