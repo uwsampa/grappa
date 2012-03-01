@@ -158,7 +158,7 @@ int impl_parseParam(char *param, char *value) {
 
 
   
-#define IBT_PERMUTE 0  // 0->layout with sequential addresses,1->pseudorandom addresses
+#define IBT_PERMUTE 1  // 0->layout with sequential addresses,1->pseudorandom addresses
 
 int generateTree(Node_ptr root, global_array* nodes, int cid, global_array* child_array, ballocator_t* bals[], struct state_t* states, std::list<Node_ptr> initialNodes);
 
@@ -183,6 +183,7 @@ void releaseNodes(StealStack *ss){
       // This has significant overhead on clusters!
       if (ss->nNodes % cbint == 0) { // possible for cbint to get skipped if push multiple?
 /*        ss_setState(ss, SS_CBOVH);                */
+        VLOG(5) << "canceling barrier";
         cbarrier_cancel();
       }
 
@@ -216,10 +217,13 @@ void worker_thread(StealStack* ss, thread* me, int* work_done, int* okToSteal, c
        
        if (doSteal) {
            // try to put some work back to local 
-           if (ss_acquire(ss, chunkSize))
+           if (ss_acquire(ss, chunkSize)) {
+               thread_idlesReady(me, 1);
                continue;
+           }
 
            if (*okToSteal) {
+               VLOG(5) << me->id << " okToSteal";
 
                // try to steal
                if (doSteal) {
@@ -235,7 +239,7 @@ void worker_thread(StealStack* ss, thread* me, int* work_done, int* okToSteal, c
                    }
 
                    if (goodSteal) {
-                       VLOG(5) << me->id << " stole from rank" << victimId;
+                       VLOG(5) << me->id << " steal from rank" << victimId;
                        *okToSteal = 1;
                        thread_idlesReady(me, 1); // now there is work so allow more threads to be scheduled
                        continue;
@@ -246,6 +250,8 @@ void worker_thread(StealStack* ss, thread* me, int* work_done, int* okToSteal, c
                    /**TODO remote load balance**/
                }
 
+           } else {
+               VLOG(5) << me->id << " !okToSteal";
            }
        }
 
@@ -279,10 +285,10 @@ void visitTask(Node_ptr work, thread* me, StealStack* ss, global_array* nodes_ar
     complete_nb(me, tag);
     #else
 
-    VLOG(5) << me->id << " acquiring on workindex=" << work;
     global_address workAddress;
     ga_index(nodes_array, work, &workAddress);
     Node_piece_t workLocal_storage_;
+    VLOG(5) << me->id << " acquiring on workindex=" << work << " from node=" << gm_node_of_address(&workAddress);
     Incoherent<Node_piece_t>::RO workLocal_cb( GlobalAddress<Node_piece_t>::TwoDimensional( 
                                                     (Node_piece_t*)gm_address_to_ptr(&workAddress), 
                                                     gm_node_of_address(&workAddress) ),
@@ -367,7 +373,7 @@ static const int LARGEPRIME = 961748941;
 uint64_t Permute(int i) {
   #if IBT_PERMUTE
     long long int j = i;
-    return (j*LARGEPRIME) % numNodes; 
+    return (j*LARGEPRIME) % (numNodes*num_procs);  //XXX see ga_allocate calls
   #else
     return i;
   #endif
