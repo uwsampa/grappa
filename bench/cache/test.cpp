@@ -40,8 +40,8 @@ static void user_main(thread * me, void * args) {
   am_test_args a = { SoftXMT_mynode() };
   SoftXMT_remote_spawn(&th_test, &a, 0);
   SoftXMT_remote_spawn(&th_test, &a, 1);
-  SoftXMT_flush(0);
-  SoftXMT_flush(1);
+//  SoftXMT_flush(0);
+//  SoftXMT_flush(1);
   
   while (replies < 2) {
     DVLOG(1) << "waiting for replies (" << replies << "/" << 2 << " so far)";
