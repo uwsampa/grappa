@@ -22,16 +22,16 @@ struct global_array *ga_allocate( int element_size, uint64_t  size ) {
     ga = (global_array*) malloc(sizeof(*ga));
     ga->element_size = element_size;
     ga->size = size;
-    ga->elements_per_node = size / gasnet_nodes();
+    ga->elements_per_node = size / SoftXMT_nodes();
     ga->allocated_size = ga->elements_per_node * gasnet_nodes();
-    ga->component_addresses = (global_address*)malloc(sizeof(struct global_address) * gasnet_nodes());
+    ga->component_addresses = (global_address*)malloc(sizeof(struct global_address) * SoftXMT_nodes());
 
     current = ga;
     results = 0;
 
     SoftXMT_barrier_commsafe(); 
 
-    gm_allocate(&ga->component_addresses[gasnet_mynode()], gasnet_mynode(),
+    gm_allocate(&ga->component_addresses[SoftXMT_mynode()], SoftXMT_mynode(),
             ga->elements_per_node * ga->element_size);
 
     // communicate my location to everyone else
