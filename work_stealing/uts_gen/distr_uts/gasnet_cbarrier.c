@@ -46,6 +46,7 @@ void enter_cbarrier_request_am( enter_cbarrier_request_args * args, size_t size,
 }
 
 void exit_cbarrier_request_am( exit_cbarrier_request_args * args, size_t size, void * payload, size_t payload_size ) {
+    VLOG(5) << "exit_cbarrier_am: finished=" << args->finished;
     int finished = args->finished;
 
     SET_LOCK(&cb_lock);
@@ -55,10 +56,12 @@ void exit_cbarrier_request_am( exit_cbarrier_request_args * args, size_t size, v
 }
 
 void cancel_cbarrier_request_am( cancel_cbarrier_request_args * args, size_t size, void * payload, size_t payload_size ) {
+    VLOG(5) << "home_node called to send cancels";
     while (!waiters->empty()) {
         Node nod = waiters->front();
         waiters->pop();
         exit_cbarrier_request_args exargs = { 0 };
+        VLOG(5) << "home_node sends cancel to "<<nod;
         SoftXMT_call_on( nod, &exit_cbarrier_request_am, &exargs );
     }
     num_waiting_clients = 0;
@@ -68,6 +71,7 @@ void cancel_cbarrier_request_am( cancel_cbarrier_request_args * args, size_t siz
 void cbarrier_cancel() {
     cancel_cbarrier_request_args cargs;
     SoftXMT_call_on( HOME_NODE, &cancel_cbarrier_request_am, &cargs );
+    VLOG(5) << "sent cancel job to home_node";
 }
 
 /*
@@ -130,4 +134,5 @@ void cbarrier_init(int num_nodes, int rank) {
         cb_done = 0;
         cb_reply = 0;
     }
+    UNSET_LOCK(&cb_lock);
 }
