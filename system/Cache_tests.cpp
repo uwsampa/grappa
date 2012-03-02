@@ -13,13 +13,13 @@ int64_t bar[4] = { 2345, 3456, 4567, 6789 };
 void user_main( thread * me, void * args ) 
 {
   {
-    Incoherent< int64_t >::RO buf( GlobalAddress< int64_t >( &foo ), 1 );
+    Incoherent< int64_t >::RO buf( GlobalAddress< int64_t >::TwoDimensional( &foo ), 1 );
     BOOST_CHECK_EQUAL( *buf, foo );
   }
 
   {
     {
-      Incoherent<int64_t>::RW buf( GlobalAddress< int64_t >( &foo ), 1 );
+      Incoherent<int64_t>::RW buf( GlobalAddress< int64_t >::TwoDimensional( &foo ), 1 );
       BOOST_CHECK_EQUAL( *buf, foo );
       foo = 1235;
       BOOST_CHECK( *buf != foo );
@@ -33,25 +33,25 @@ void user_main( thread * me, void * args )
 
   {
     int64_t x;
-    Incoherent<int64_t>::RO buf( GlobalAddress< int64_t >( &foo ), 1, &x );
+    Incoherent<int64_t>::RO buf( GlobalAddress< int64_t >::TwoDimensional( &foo ), 1, &x );
     BOOST_CHECK_EQUAL( *buf, foo );
   }
 
   {
     int64_t y[4];
-    Incoherent<int64_t>::RO buf2( GlobalAddress< int64_t >( bar ), 4, &y[0] );
+    Incoherent<int64_t>::RO buf2( GlobalAddress< int64_t >::TwoDimensional( bar ), 4, &y[0] );
     BOOST_CHECK_EQUAL( buf2[2], bar[2] );
   }
 
   {
-    Incoherent<int64_t>::RW buf3( GlobalAddress< int64_t >( bar ), 4);
+    Incoherent<int64_t>::RW buf3( GlobalAddress< int64_t >::TwoDimensional( bar ), 4);
     BOOST_CHECK_EQUAL( buf3[2], bar[2] );
   }
 
   {
     // test for early wakeup handled properly
     BOOST_MESSAGE( "Wakeup test" );
-    Incoherent<int64_t>::RW buf4( GlobalAddress< int64_t >( bar, 1 ), 1);
+    Incoherent<int64_t>::RW buf4( GlobalAddress< int64_t >::TwoDimensional( bar, 1 ), 1);
     buf4.start_acquire( );
     for (int i=0; i<2000; i++) {
         SoftXMT_yield(); // spin to let reply come back

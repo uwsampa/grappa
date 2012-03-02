@@ -47,8 +47,8 @@ int64_t SoftXMT_collective_reduce( int64_t (*commutative_func)(int64_t, int64_t)
         _col_allowed = true;
         return sofar;
     } else {
-        GlobalAddress<int64_t> done_adr (&_col_done_count, home_node);
-        GlobalAddress<int64_t> value_adr (&_col_values[myNode], home_node);
+        GlobalAddress<int64_t> done_adr = GlobalAddress<int64_t>::TwoDimensional(&_col_done_count, home_node);
+        GlobalAddress<int64_t> value_adr = GlobalAddress<int64_t>::TwoDimensional(&_col_values[myNode], home_node);
 
         // TODO no barrier
         SoftXMT_barrier_commsafe();
