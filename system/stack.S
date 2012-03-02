@@ -137,8 +137,8 @@
         mov  0(%rsp), %r15; \
         add $56, %rsp;
 
-.global swapstacks
-swapstacks:
+.global _swapstacks
+_swapstacks:
         SAVE_REGISTERS
         mov %rsp, (%rdi)
         mov (%rsi), %rsp
@@ -148,8 +148,8 @@ swapstacks:
         ret
 
 
-.global makestack
-makestack:
+.global _makestack
+_makestack:
         /* save the needed arguments */
          mov %rdx, %r12 /* <f> */
         mov %rcx, %r13 /* <me> */
@@ -174,7 +174,7 @@ makestack:
         It then pops the registers I manually saved, and returns.
 	Return address should return to whoever called makestack.
         */
-        call swapstacks
+        call _swapstacks
 
         // now restore arguments and run function
         pop %rdi /* <me> */
