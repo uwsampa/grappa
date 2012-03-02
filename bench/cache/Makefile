@@ -30,8 +30,6 @@
 #    To build and run an executable, say "make TARGET=<name>.test run". 
 #
 
-SOFTXMT_HOME:=$(HOME)/softxmt
-
 # include common variable definitions
 include $(SOFTXMT_HOME)/include.mk
 
