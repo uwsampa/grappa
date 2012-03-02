@@ -1,0 +1,282 @@
+-------------------------------------------------------------------------------
+|                                                                             |
+|     Graph Characterization Kernels                                          |
+|        (Version 0.6.0 release)                                              |
+|                                                                             |
+|     Georgia Tech HPCL                                                       |
+|     5 April 2011                                                            |
+|                                                                             |
+-------------------------------------------------------------------------------
+
+
+The following represents a library of functions for analyzing and
+characterizing massive graph datasets on the Cray XMT.  Data structures and
+function prototypes are defined in 'defs.h' and global variables are defined
+in 'globals.h'.
+
+Generally, data generation and analysis kernels are called from 'main.c'.
+
+The examples/ directory holds example command-line scripts.
+
+The graphgen/ directory contains an RMAT graph generator that produces a
+binary input file for use with GraphCT.
+
+The parsers/ directory contains a DIMACS parser that produces a binary input
+file that can be read into GraphCT.
+
+***** 
+
+IMPLEMENTATION STATUS
+
+This version provides three mechanisms to launch GraphCT.  After building,
+the executable ./GraphCT can be used to run a medley of kernels.  These
+kernels are set up and defined in main.c.  The command to run is:
+
+./GraphCT <SCALE> [input file]
+
+where SCALE is the log base 2 of the number of vertices (as in SSCA2) or the
+approximate diameter of the input file.  If an input file in DIMACS format
+is not specified, an RMAT graph will be generated for the run.  In this release,
+degree distribution, connected components, and graph diameter estimation with 8
+source vertices are executed.
+
+The executable ./GraphCT-CLI is used to perform a single query on a data file.
+The command to run is:
+
+./GraphCT-CLI -i <graph filename> -t <graph type> [-o <output filename>] \ 
+[-s <random seed>] -z <kernel> [-d <diameter>] [--printstats]
+
+where <graph type> is 'binary' or 'dimacs' and the kernel is one of the following:
++ kcentrality <K> <num of sources>
++ modularity
++ degree
++ conductance
++ components
++ clustering
++ transitivity
++ diameter <num of sources>
+
+If an estimate of the diameter is known, the -d flag is recommended.  Otherwise,
+the diameter will be estimated by GraphCT.
+
+The executable ./GraphCT-script is used to launch a text-based script file
+that indicates the input data files and kernels to be executed.  The script
+mode is currently in testing.
+
+
+v0.5.0:  Numerous bug fixes.  New ability to seed prand().  File input and
+         output transitioned to fsworker (XMT) and wrappers for GCC.
+		 Use of luc_srv is now deprecated.
+		 Standalone RMAT graph generator included.  Scripting interface is
+		 operational, although lightly tested.
+
+v0.4.1:  Refinements of the command line, automatic diameter estimation.
+
+v0.4:    Added a single-shot command line version (GraphCT-CLI) and an in-memory
+         DIMACS graph engine.  Standalone parsers that create GraphCT binary
+		 files are available in the parsers/ directory.
+
+v0.3.3:  Added calculation of global clustering coefficient.
+
+v0.3.2:  Added parallelism over the starting vertices in k-betweenness.
+
+v0.3.1:  Sources vertices for betweenness centrality and k-betweenness centrality
+         are now randomized within the kernel.  It is no longer necessary
+		 to randomize vertices in the source data.
+
+*****
+
+BUILDING GRAPHCT
+
+For a Cray XMT, copy Make.inc-cougarxmt to Make.inc and modify to
+reflect your system.  For compiling on cougarxmt at PNNL or egret at
+Cray, directly use Make.inc-cougarxmt or Make.inc-egret
+(respectively).  For a gcc-based system, copy Make.inc-linux to
+Make.inc and modify appropriately.
+
+Running GNU make builds GraphCT and any supporting programs.  On a Cray XMT,
+you must start fsworker and set SWORKER_EP appropriately in order to use file I/O.
+
+*****
+
+LIBRARY FUNCTIONS
+
+centrality.c
+------------
+
+centrality()  --
+     Computes the approximate vertex betweenness centrality on an unweighted
+     graph using 'Vs' source vertices. Returns the execution time.
+
+
+clustering_global.c
+------------
+
+calculateTransitivityCoefficient()  --
+     Takes a directed graph as input and calculates the global transitivity
+     (clustering) coefficient, which is returned as a double.  Will also work
+	 for undirected graphs stored with symmetric edges.
+
+
+clustering_local.c
+------------
+
+calculateClusteringLocal()  --
+     Takes an undirected graph as input and calculates local clustering
+     coefficients, which are returned as an array of doubles.  An undirected
+	 graph means that both directions of the edge are stored in the data
+	 representation.
+
+
+clustering_trans.c
+------------
+
+calculateTransitivityLocal()  --
+     Takes a directed graph as input and calculates local transitivity
+     coefficients, which are returned as an array of doubles.
+
+
+computeGraph.c
+--------------
+
+SortStart()  --
+     Takes as input two arrays (sv1 & ev1) representing edges as pairs of
+     vertices and returns the arrays sorted (sv2 as key) as well as the indices
+     into sv2 for each vertex in 'start'.
+
+computeGraph()  --
+     Takes as input the raw graph data in the form of vertex pairs and
+     constructs a proper graph data structure for all kernels.
+
+
+conductance.c
+-------------
+
+computeConductanceValue()  --
+     The input array 'membership' defines a cut in the graph using 0 and 1 to
+     represent the two partitions for each vertex.  The function uses this
+     partitioning to return the conductance of the graph.
+
+
+connectedComponents.c
+---------------------
+
+connectedComponents()  --
+    Takes a graph as input and an array with length NV.  The array D will store
+    the coloring of each component.  The coloring will be using vertex IDs and
+    therefore will be an integer between 0 and NV-1.  The function returns the
+    total number of components. 
+
+
+distribution.c
+--------------
+
+calculateDegreeDistributions()  --
+     Given a graph data structure, the function computes the maximum out-degree,
+     the average out-degree, the variance, and the standard deviation.
+
+calculateGraphDiameter()  --
+     The function is used to calculate the exact or approximate diameter of a
+     directed graph. 'Vs' determines how many source vertices, and thus how
+     many breadth first searches, are used.
+
+calculateBFS()  --
+     Performs a breadth first search on a graph from a particular specified
+     vertex.  If 'mode' is 0, the function returns an array with the IDs of
+     the further vertices from the source.  If 'mode' is 1, it returns the
+     longest distance found in the BFS.
+
+makeUndirected()  --
+     Function takes a directed graph data structure as input and constructs a
+     complimentary undirected version of the graph.
+
+
+findSubGraphs.c
+---------------
+
+markSubGraph()  --
+     Recursive breadth first search.
+
+findSubGraphs()  --
+     Counts the number of vertices and edges in 'nSG' subgraphs formed from a
+     walk of length subGraphPathLength from the source vertex.
+
+
+genScalData.c
+-------------
+
+RMAT()  --
+     Runs the RMAT scale-free graph generator.  Produces pairs of vertices that
+     represent an edge in the graph.
+
+Remove()  --
+     Removes self- and duplicate edges from the vertex pairs.
+
+genScalData()  --
+     Wrapper function for RMAT.  Randomizes vertices, generates pairs, cleans
+     up vertex pairs, and assembles a raw graph data structure.  Data should
+     be passed to computeGraph() next.
+
+
+getStartLists.c
+---------------
+
+getStartLists()  --
+     Determines the maximum edge weight in the graph and marks those edges with
+     that weight.
+
+
+getUserParameters.c
+-------------------
+
+getUserParameters()  --
+     Sets the value of global variables used within the graph suite.
+
+
+graphio.c
+---------
+
+graphio_b()  --
+     Function reads the binary data from 'filename' into the graph data
+     structure provided using Cray Lightweight User I/O.  The binary data file
+     is a compressed version of the graph data structure using 4-byte integers.
+     The first 4 bytes represent the number of edges.  The second 4 bytes are
+     the number of vertices.  The next block of data is the 'edgeStart' array with
+     NV entries, followed by the 'endVertex' array with NE entries, and lastly
+     the 'intWeight' array with NE entries. 
+
+
+kcentrality.c
+-------------
+
+intpow()  --
+     Function for performing fast integer exponents.
+
+kcentrality()  --
+     Computes the approximate k-Betweenness Centrality for all vertices in the
+     graph where k is the number of hops longer than the shortest path to be
+     considered.
+
+W_realrecurse()  --
+     Recursive function for computing W in the algorithm.
+
+W_recurse()  --
+     Optimized version of the above where several values of k and d are
+     computed directly.
+
+
+modularity.c
+------------
+
+computeModularityValue()  --
+     Computes the modularity value of a given graph.  The partitions of the
+     graph are given by integer colors in the 'membership' array for each
+     vertex.  The modularity score is returned.
+
+
+timer.c
+-------
+
+timer()  --
+     Timer function based on mta_get_clock() and mta_clock_freq().
+

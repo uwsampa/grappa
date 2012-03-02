@@ -1,0 +1,1 @@
+../stinger-atomics.h

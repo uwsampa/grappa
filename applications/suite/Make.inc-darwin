@@ -1,0 +1,9 @@
+# -*- Makefile -*-
+IOLIB_DIR = compat
+COMPATLIB = $(IOLIB_DIR)/libxmt-ops.a
+CC = gcc -std=gnu9x -fopenmp
+CXX = g++
+LD = $(CXX) -fopenmp
+CFLAGS  = -Wall -g -O3 -fno-trapping-math -I$(IOLIB_DIR)
+LDFLAGS = 
+LIBS = -lm

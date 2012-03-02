@@ -1,0 +1,19 @@
+# Needs mta-linux-libs and xt-pe modules loaded
+CC = gcc
+CXX = g++
+LD = $(CXX)
+CFLAGS  = -I$(CPATH) -O3
+LDFLAGS = $(CFLAGS)
+LUC = -lluc
+INC  = 
+LIBS = -L$(LIBRARY_PATH) $(LUC) -L$(PE_DIR)/lib/snos64 -lportals -lrt -lpthread
+OBJS =	luc_srv.o
+
+all:	$(OBJS)
+	$(LD) $(LDFLAGS) -o luc_srv $(OBJS) $(LIBS)
+
+luc_srv.o:	luc_srv.C luc_defs.h
+	$(CXX) $(CFLAGS) $(INC) -c luc_srv.C
+
+clean:
+	rm -f $(OBJS) luc_srv *~
