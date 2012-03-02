@@ -30,7 +30,7 @@
 #define PARALLEL 1
 #define PREFETCH_WORK 1
 #define PREFETCH_CHILDREN 1
-#define DISTRIBUTE_INITIAL 0
+#define DISTRIBUTE_INITIAL 1
 #define GEN_TREE_NBI 1
 #define CHECK_SERIALIZE 0
 #define READ_IF_NOT_WRITE 0
@@ -648,6 +648,7 @@ void init_thread_f(thread* me, void* args ) {
     ss_init(&myStealStack, MAXSTACKDEPTH);
     
     #if DISTRIBUTE_INITIAL
+    // rank0 pushes the first row of child treenodes in round-robin
     if (rank == 0) {
         printf("initial size %d\n", initialNodes->size());
         Node current_node = 0;
@@ -896,7 +897,7 @@ void user_main( thread* me, void* args) {
               num_genNodes,
               NULL, // the remote node knows its own
               NULL, // the remote node knows its own
-              initialNodes, // FIXME
+              NULL, // unneeded since rank0 pushes to all
               0,
               0,
             };
