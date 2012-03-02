@@ -164,13 +164,13 @@ test: $(TARGET)
 #
 # What libraries do we need?
 #
-LIBRARIES+= -lgflags -lglog -lgasnet-ibv-seq -libverbs -lrt
+LIBRARIES+= -lgflags -lglog $(GASNET_LIBS) -lrt
 
 #
 # set compiler flags
 #
 CFLAGS+= --param max-inline-insns-single=35000 --param inline-unit-growth=10000 --param large-function-growth=200000 -Winline
-CFLAGS+= -DGASNET_SEQ -DGASNET_CONDUIT_IBV
+CFLAGS+= $(GASNET_FLAGS)
 CFLAGS+= -D_GNU_SOURCE
 
 # not sure if this is a good idea

@@ -64,9 +64,25 @@ CXX=g++
 LD=mpiCC
 
 # some library paths
+
+# gasnet
 GASNET=/sampa/share/gasnet18-rhel6
-CFLAGS+= -I$(GASNET)/include -I$(GASNET)/include/ibv-conduit
+GASNET_CONDUIT=ibv #values:ibv,mpi
+GASNET_THREAD=seq #values:seq,par,parsync -- seq recommended
+
+GASNET_CONDUIT_NS:=$(shell echo $(GASNET_CONDUIT)|tr -d " ")
+GASNET_THREAD_NS:=$(shell echo $(GASNET_THREAD)|tr -d " ")
+GASNET_LIBS+= -lgasnet-$(GASNET_CONDUIT_NS)-$(GASNET_THREAD_NS)
+ifeq ($(GASNET_CONDUIT_NS),ibv)
+GASNET_LIBS+= -libverbs
+endif
+ifeq ($(GASNET_CONDUIT_NS),mpi)
+GASNET_LIBS+= -lammpi
+endif
+GASNET_FLAGS:= -DGASNET_$(shell echo $(GASNET_THREAD_NS) | tr a-z A-Z) -DGASNET_CONDUIT_$(shell echo $(GASNET_CONDUIT_NS) | tr a-z A-Z)
+CFLAGS+= -I$(GASNET)/include -I$(GASNET)/include/$(GASNET_CONDUIT_NS)-conduit
 LDFLAGS+= -L$(GASNET)/lib
+
 
 HUGETLBFS=/usr
 CFLAGS+= -I$(HUGETLBFS)/include
