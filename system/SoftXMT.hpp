@@ -46,7 +46,6 @@ thread * SoftXMT_template_spawn( void (* fn_p)(thread *, T *), T * args )
   return th;
 }
 
-// I'm not sure that this is even possible (unable to resolve templated function pointer)... commenting out for now...
 /// Active message for spawning a thread on a remote node (used by SoftXMT_remote_spawn())
 template< typename T >
 static void am_remote_spawn(T* args, size_t args_size, void* payload, size_t payload_size) {
@@ -68,7 +67,6 @@ void SoftXMT_remote_spawn( void (*fn_p)(thread*,T*), const T* args, Node target)
   SoftXMT_call_on(target, SoftXMT_magic_identity_function(&am_remote_spawn<T>), args, sizeof(T), (void*)&fn_p, sizeof(fn_p));
   DVLOG(5) << "Sent AM to spawn thread on Node " << target;
 }
-
 
 /// Yield to scheduler, placing current thread on run queue.
 void SoftXMT_yield( );

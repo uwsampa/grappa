@@ -31,7 +31,7 @@
 #
 
 # include common variable definitions
-include ../include.mk
+include $(SOFTXMT_HOME)/include.mk
 
 #
 # Define DEBUG to build debug versions of binaries/tests
@@ -42,7 +42,7 @@ include ../include.mk
 #
 # name of host on which to run tests
 #
-HOST:=localhost
+HOST:=n01,n04
 
 #
 # number of mpi processes
@@ -50,10 +50,12 @@ HOST:=localhost
 NPROC:=2
 
 # name of main executable to build and/or run
-TARGET:= Addressing.test
+TARGET:=
 
 # default rule: just build
-$(TARGET): 
+$(TARGET):
+
+lib: libSoftXMT.a
 
 #
 # object file dependences
@@ -85,7 +87,7 @@ Rate_measure.exe: SoftXMT.o Delegate.o Communicator.o Aggregator.o thread.o coro
 #
 # Build SoftXMT static library
 #
-LIBRARY_CONTENTS= SoftXMT.o Communicator.o Aggregator.o thread.o coro.o stack.o 
+LIBRARY_CONTENTS= SoftXMT.o Communicator.o Aggregator.o Allocator.o Cache.o thread.o coro.o stack.o
 libSoftXMT.a: $(patsubst %,libSoftXMT.a(%),$(LIBRARY_CONTENTS))
 
 
@@ -120,7 +122,7 @@ QLOGIC_EXPORT_ENV_VARIABLES=-rcfile $(ENVVAR_TEMP)
 	for i in $(ENV_VARIABLES); do echo export $$i >> $@; done
 
 # delete when done
-.INTERMEDIATE: $(ENVVAR_TEMP)
+# .INTERMEDIATE: $(ENVVAR_TEMP)
 
 #
 # Heap Leak Checker
@@ -200,7 +202,7 @@ LD_LIBRARY_PATH:=$(LD_LIBRARY_PATH):$(GFLAGS)/lib
 # add an additional rule if you need to include multiple components
 %.exe: %.o 
 	$(LD) $(LDFLAGS) $^ $(LIBRARIES) -o $@
-	objdump -S $@ > $@.dis
+	# objdump -S $@ > $@.dis
 
 # build documentation
 doc:: 
@@ -255,7 +257,7 @@ stack.o: stack.S Makefile
 
 
 clean:
-	rm -f *.exe *.o *.d *.test *.btr .mpirunrc.* *.dis
+	rm -f *.exe *.o *.d *.test *.btr .mpirunrc.* *.dis libSoftXMT.a
 #	rm -f $(TARGET) $(OBJECTS) $(OBJECTS:.o=.d) $(OBJECTS:.o=.test) $(TEST_TARGET)
 
 
