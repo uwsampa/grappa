@@ -153,7 +153,9 @@ public:
                          buffers_[ target ].buffer_,
                          buffers_[ target ].current_position_ );
     buffers_[ target ].flush();
+    DVLOG(5) << "heap before flush:\n" << least_recently_sent_.toString( );
     least_recently_sent_.remove_key( target );
+    DVLOG(5) << "heap after flush:\n" << least_recently_sent_.toString( );
   }
 
   /// get timestamp. we avoid calling rdtsc for performance
