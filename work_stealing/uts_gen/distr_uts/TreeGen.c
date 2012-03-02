@@ -469,6 +469,16 @@ int main(int argc, char *argv[]) {
     int rank = SoftXMT_mynode();
     int num_nodes = SoftXMT_nodes();
     
+    //use uts to parse params
+    uts_parseParams(argc, argv, rank==0);
+    if (rank==0) uts_printParams();
+    
+    //print hostname    
+    char hostname[1024];
+    gethostname(hostname, 1024);
+    printf("rank%d is on %s\n", SoftXMT_mynode(), hostname);
+
+    
     user_main_args um_args = { argc, argv };  
     SoftXMT_run_user_main( &user_main, &um_args );
 
@@ -773,6 +783,7 @@ struct alloc_thread_args {
 
 void alloc_thread_f( thread* me, void * args) {
     alloc_thread_args* alargs = (alloc_thread_args*) args;
+    
 
     VLOG(2) << SoftXMT_mynode() << " alloc thread is allocating...";
     alargs->nodes = ga_allocate(sizeof(TreeNode), numNodes*num_procs); //XXX for enough space
@@ -826,16 +837,7 @@ void user_main( thread* me, void* args) {
     Node rank = SoftXMT_mynode();
     int num_nodes = SoftXMT_nodes();
     
-    //use uts to parse params
-    uts_parseParams(argc, argv, rank==0);
-    uts_printParams();
-
-    char hostname[1024];
-    gethostname(hostname, 1024);
-    printf("rank%d is on %s\n", rank, hostname);
-
-   
-    // spawn threads to allocate the space for the tree 
+    // spawn threads to allocate the space for the tree
     thread* alloc_thread;
     alloc_thread_args my_alargs;
     for (int nod = 0; nod<num_nodes; nod++) {
