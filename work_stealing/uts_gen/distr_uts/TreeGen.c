@@ -17,6 +17,7 @@
 #include "Collective.hpp"
 
 #include "SoftXMT.hpp"
+#include "Delegate.hpp"
 #include "Cache.hpp"
 
 #include "getput.h"
@@ -66,11 +67,14 @@ void function_dispatch(int func_id, void *buffer, uint64_t size) {
     
 /*********************************/
 
+//global for synchronizing on work pushes
+volatile int64_t pushingDone = 0;
+
 /***********************************************************
  *  Parallel execution parameters                          *
  ***********************************************************/
 
-int doSteal   = 1;        // 1 => use work stealing
+int doSteal   = 0;        // 1 => use work stealing
 int chunkSize = 10;       // number of nodes to move to/from shared area
 int cbint     = 1;        // Cancellable barrier polling interval
 
@@ -656,12 +660,26 @@ void init_thread_f(thread* me, void* args ) {
             Node_ptr c = initialNodes->front();
             initialNodes->pop_front();
             if (current_node == 0) {
+                VLOG(5) << "pushing " << c << " on my stack";
                 ss_push(&myStealStack, c);
             } else {
+                VLOG(5) << "pushing " << c << " to stack of " << current_node;
                 ss_pushRemote(current_node, &c, 1);
             }
             current_node = (current_node+1)%num_nodes;
         }
+       
+       ////////////////////////// 
+       //XXX use more idiomatic synchronization
+        for (int i=1; i<num_nodes; i++) {
+            SoftXMT_delegate_write_word(GlobalAddress<int64_t>::TwoDimensional((int64_t*)&pushingDone,i), 1);
+        }
+    } else {
+       while (!pushingDone) {
+            __asm__ volatile("" ::: "memory");
+            SoftXMT_yield();
+       }
+       /////////////////////////
     }
     #else
     // push the root
