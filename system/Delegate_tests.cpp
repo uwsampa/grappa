@@ -9,6 +9,8 @@ BOOST_AUTO_TEST_SUITE( Delegate_tests );
 
 int64_t some_data = 1234;
 
+int64_t other_data __attribute__ ((aligned (2048))) = 0;
+
 void user_main( thread * me, void * args ) 
 {
   BOOST_MESSAGE( "Spawning user main thread " << (void *) current_thread <<
@@ -39,6 +41,45 @@ void user_main( thread * me, void * args )
   remote_data = SoftXMT_delegate_read_word( make_global(&some_data,1) );
   BOOST_CHECK_EQUAL( 2346, remote_data );
 
+  // try linear global address
+
+  // initialize
+  other_data = 0;
+  SoftXMT_delegate_write_word( make_global(&other_data,1), 1 );
+
+  int * foop = new int;
+  *foop = 1234;
+  BOOST_MESSAGE( *foop );
+    
+
+  // make address
+  BOOST_MESSAGE( "pointer is " << &other_data );
+  GlobalAddress< int64_t > la = make_linear( &other_data );
+
+  // check pointer computation
+  BOOST_CHECK_EQUAL( la.node(), 0 );
+  BOOST_CHECK_EQUAL( la.pointer(), &other_data );
+
+  // check data
+  BOOST_CHECK_EQUAL( 0, other_data );
+  remote_data = SoftXMT_delegate_read_word( la );
+  BOOST_CHECK_EQUAL( 0, remote_data );
+
+  // change pointer and check computation
+  ++la;
+  BOOST_CHECK_EQUAL( la.node(), 0 );
+  BOOST_CHECK_EQUAL( la.pointer(), &other_data + 1 );
+
+  // change pointer and check computation
+  la += 7;
+  BOOST_CHECK_EQUAL( la.node(), 1 );
+  BOOST_CHECK_EQUAL( la.pointer(), &other_data );
+
+  // check remote data
+  remote_data = SoftXMT_delegate_read_word( la );
+  BOOST_CHECK_EQUAL( 1, remote_data );
+  
+
   SoftXMT_signal_done();
 }
 
@@ -49,6 +90,9 @@ BOOST_AUTO_TEST_CASE( test1 ) {
 
   SoftXMT_activate();
 
+
+
+  DVLOG(1) << "Spawning user main thread....";
   SoftXMT_run_user_main( &user_main, NULL );
   BOOST_CHECK( SoftXMT_done() == true );
 
