@@ -11,7 +11,7 @@ cmd=   "OMPI_MCA_btl_sm_use_knem=0 \\
 	    IPATH_PORT=2 \\
         GASNET_IBV_PORTS=qib0:2 \\
         LD_LIBRARY_PATH=':/usr/mpi/qlogic/lib64:/sampa/share/gflags/lib:/sampa/share/glog/lib:/usr/lib:/sampa/share/gflags/lib' \\
-        mpirun -l -x LD_LIBRARY_PATH -H n01,n04 -np %{num_procs} -- ./TreeGen.exe -- %{tree} -T %{num_threads} -c %{chunk_size} -i %{poll_interval} -P %{num_places} -p %{num_procs}"
+        mpirun -l -x LD_LIBRARY_PATH -H n01,n04 -np %{num_procs} -- ./TreeGen.copy.exe -- %{tree} -T %{num_threads} -c %{chunk_size} -i %{poll_interval} -P %{num_places} -p %{num_procs} -D %{distributeInitial} -S %{doSteal}"
 
 
 params = {
