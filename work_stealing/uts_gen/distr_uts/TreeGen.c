@@ -62,7 +62,7 @@ volatile int64_t pushingDone = 0;
  *  Parallel execution parameters                          *
  ***********************************************************/
 
-int doSteal   = 0;          // 1 => use work stealing
+int doSteal   = 1;          // 1 => use work stealing
 int distributeInitial = 0; // 1 => initially distribute first generation across all workers
 int chunkSize = 10;         // number of nodes to move to/from shared area
 int cbint     = 1;          // Cancellable barrier polling interval
@@ -111,6 +111,7 @@ void   impl_helpMessage() {
     printf("    -G  int   0:read, 1:gen-and-write\n");
     printf("    -F  str   generated tree file name\n");
     printf("    -D  int   distribute first generation\n");
+    printf("    -S  int   dynamic load balancing\n");
 }
 
 int impl_parseParam(char *param, char *value) { 
@@ -140,6 +141,9 @@ int impl_parseParam(char *param, char *value) {
             break;
         case 'D':
             distributeInitial = atoi(value);
+            break;
+        case 'S':
+            doSteal = atoi(value);
             break;
         default:
             err = 1;
