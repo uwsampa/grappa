@@ -91,6 +91,8 @@ gasnet_cbarrier_test: gasnet_cbarrier_test.c gasnet_cbarrier.c
 	$(CXX) $(CFLAGS) -o $@ $+ $(GASNET_LIB_PATHS) $(LIB) $(GASNET_LIBS)
 
 run: TreeGen.exe
+	IPATH_PORT=2 \
+    GASNET_IBV_PORTS=qib0:2 \
 	OMPI_MCA_btl_sm_use_knem=0 \
 	LD_LIBRARY_PATH="$(LD_LIBRARY_PATH)" \
 	$(MPIRUN) -np $(NPROC) -H $(HOST) ./$< $(SARGS) -- $(ARGS)
