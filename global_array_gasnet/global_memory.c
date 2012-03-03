@@ -1,4 +1,5 @@
 #include "global_memory.h"
+#include "glog/logging.h"
 #include "SoftXMT.hpp"
 
 gasnet_seginfo_t    *shared_memory_blocks;
@@ -82,8 +83,8 @@ void gm_allocate(struct global_address *a, int preferred_node, uint64_t size) {
             SoftXMT_yield(); /* i.e. gasnet_AMPoll(); */ 
         }
     }
-    if (response_value == 0)
-        panic("Out of memory");
+    
+    CHECK_NE(response_value, 0) << "Out of memory? size=" << size;
 
     a->node = preferred_node;
     a->offset = response_value;
