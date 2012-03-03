@@ -35,7 +35,12 @@ static uint64_t _perform_local_allocation(uint64_t request) {
     response = atomic_fetch_and_add_uint64(&local_allocation_offset, request);
     if ((response + request) >
         shared_memory_blocks[gasnet_mynode()].size) {
-        // Out of memory!
+        
+        CHECK (!((response + request) > shared_memory_blocks[gasnet_mynode()].size)) 
+               << "response(" << response << ") +"
+               << "request(" << request << ") > "
+               << "size(" << shared_memory_blocks[gasnet_mynode()].size << ")";
+
         response = 0;
         }
     return response;
@@ -84,7 +89,7 @@ void gm_allocate(struct global_address *a, int preferred_node, uint64_t size) {
         }
     }
     
-    CHECK_NE(response_value, 0) << "Out of memory? size=" << size;
+    CHECK_NE(response_value, 0) << "Out of memory? node=" << preferred_node << " size=" << size;
 
     a->node = preferred_node;
     a->offset = response_value;
