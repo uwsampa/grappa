@@ -1,41 +1,11 @@
-Graph500 sequentual and shared-memory reference implementation
+Graph500 SoftXMT Implementation
 
 See COPYING for the general license.  Portions copyright 2010 by
 the Georgia Institute of Technology, and portions copyright 2009-2011
-by the Trustees of Indiana University.
-
-The specification is included both in plain text format (Graph500.org,
-with Emacs Org mode annotations) and exported HTML (Graph500.html).
-
-Included implementations:
-  octave/Graph500.m : GNU Octave (may be Matlab(TM) compatible) from
-    the specification.
-  seq-list/seq-list : Sequential list-based implementation
-  seq-csr/seq-csr : Sequential compressed-sparse-row implementation
-  omp-csr/omp-csr : OpenMP compressed-sparse-row implementation
-  xmt-csr/xmt-csr : Cray XMT compressed-sparse-row implementation
-  xmt-csr-local/xmt-csr-local : Cray XMT compressed-sparse-row
-    implementation accumulating vertices into a small buffer before
-    storing globally
-  mpi/ : Several implementations using MPI
+by the Trustees of Indiana University, and portions copyright 2012
+by the University of Washington.
 
 BUILDING INSTRUCTIONS
-
-The Makefile includes make.inc to define compiler and flag variables.
-Some sample make.inc files are in the make-incs directory.  The
-Makefile relies heavily on implicit rules and is known to work using
-GNU Make.
-
-To build the MPI executables, set BUILD_MPI=Yes in your make.inc, and
-optionally set MPICC if needed.  There is a separate README file in the mpi/
-directory with more information.
-
-To build the OpenMP executables, set BUILD_OPENMP=Yes in your
-make.inc, and define CFLAGS_OPENMP appropriately.
-
-For the XMT, ensure the correct modules are loaded and set
-BUILD_XMT=Yes.  This disables all other builds, including the
-sequential versions.
 
 RUNNING INSTRUCTIONS (OTHER THAN MPI VERSIONS)
 
