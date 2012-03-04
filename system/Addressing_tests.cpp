@@ -23,6 +23,7 @@ BOOST_AUTO_TEST_CASE( test1 ) {
 
   SoftXMT_activate();
 
+
   if( 0 == SoftXMT_mynode() ) {
     int foo;
     int bar;
