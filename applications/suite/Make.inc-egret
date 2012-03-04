@@ -1,0 +1,18 @@
+# -*- Makefile -*-
+PARSER_DIR = parsers
+GRAPHGEN_DIR = graphgen
+#IOLIB_DIR = luc_file_io
+#IOLIB = $(IOLIB_DIR)/libluc_file_io.a
+CC = cc
+CXX = c++
+LD = $(CC)
+PLFILE = GraphCT.pl
+PLCMD = -pl $(PLFILE)
+CFLAGS = -O3 $(PLCMD) -par
+#CFLAGS = -O3 $(PLCMD) -par -I$(IOLIB_DIR)
+LDFLAGS = $(PLCMD)
+#LDFLAGS = $(PLCMD) -L$(IOLIB_DIR)
+LIBS = -lm -lprand -lluc
+#LIBS = -lm -lprand $(IOLIB) -lluc
+BUILD_SERVER=No
+
