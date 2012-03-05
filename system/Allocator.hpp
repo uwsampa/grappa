@@ -8,6 +8,7 @@
 #include <list>
 #include <map>
 
+#include <glog/logging.h>
 #include <iostream>
 #include <fstream>
 
@@ -95,14 +96,14 @@ private:
     // compute address of buddy
     intptr_t address = cmit->second.address;
     intptr_t buddy_address = (address ^ cmit->second.size);
-    std::cout << cmit->second << " buddy address " << (void *) buddy_address << std::endl;
+    DVLOG(5) << cmit->second << " buddy address " << (void *) buddy_address;
 
     // does it exist?
     ChunkMap::iterator buddy_iterator = chunks_.find( buddy_address );
     if( buddy_iterator != chunks_.end() && 
         buddy_iterator->second.size == cmit->second.size &&
         buddy_iterator->second.in_use == false ) {
-      std::cout << "buddy found! address " << (void *) address << " buddy address " << (void *) buddy_address << std::endl;
+      DVLOG(5) << "buddy found! address " << (void *) address << " buddy address " << (void *) buddy_address;
 
       // remove the higher-addressed chunk
       ChunkMap::iterator higher_iterator = address < buddy_address ? buddy_iterator : cmit;
@@ -112,8 +113,8 @@ private:
       // keep the the lower-addressed chunk in the map:
       // update its size and move it to the right free list
       ChunkMap::iterator lower_iterator = address < buddy_address ? cmit : buddy_iterator;
+      remove_from_free_list( lower_iterator ); // should these be swapped? I think so.
       lower_iterator->second.size *= 2;
-      remove_from_free_list( lower_iterator );
       add_to_free_list( lower_iterator );
 
       // see if we have more to merge
@@ -142,7 +143,7 @@ public:
       // is this chunk's size not a power of two?
       if( ( size & (size - 1) ) != 0 ) {
         this_chunk_size = next_largest_power_of_2( size / 2 );
-        //std::cout << "Not a power of two: adding chunk at " << this_chunk_offset << " with size " << this_chunk_size << std::endl;
+        //DVLOG(5) << "Not a power of two: adding chunk at " << this_chunk_offset << " with size " << this_chunk_size;
       }
       
       ChunkMap::iterator it = add_to_chunk_map( AllocatorChunk( this_chunk_offset, this_chunk_size ) );
@@ -169,7 +170,12 @@ public:
     // find a chunk large enough to start splitting.
     FreeListMap::iterator flit = free_lists_.lower_bound( allocation_size );
     int64_t chunk_size = flit->first;
-    ChunkMap::iterator cmit = flit->second.front();
+    DVLOG(5) << "chunk_size is " << chunk_size;
+    DVLOG(5) << "free list size is " << flit->second.size();
+    ChunkMap::iterator cmit = flit->second.front(); // huh. this is broken.
+    // I think there's nothing there, even though there isn't supposed to be.
+    //DVLOG(5) << "cmit is " << (void*)cmit;
+    if( cmit == chunks_.end() ) DVLOG(5) << "nothing found. dump:" << dump( std::cout );
 
     // subdivide chunk until we have what we need
     while( chunk_size > allocation_size ) {
@@ -190,7 +196,7 @@ public:
       add_to_free_list( cmit );
 
     }
-    
+
     // finally we have a chunk of the right size
     cmit->second.in_use = true;
     remove_from_free_list( cmit );
