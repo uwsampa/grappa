@@ -48,6 +48,19 @@ void second_call(second_call_args * args, size_t args_size, void * payload, size
   BOOST_CHECK( payload_size == 0 || payload_size == args_size );
 }
 
+struct done_call_args 
+{
+};
+
+bool done = false;
+
+void done_call(done_call_args * args, size_t args_size, void * payload, size_t payload_size) 
+{
+  done = true;
+  BOOST_MESSAGE( "received done " );
+  BOOST_CHECK( payload_size == 0 || payload_size == args_size );
+}
+
 
 BOOST_AUTO_TEST_CASE( test1 ) {
   google::ParseCommandLineFlags( &(boost::unit_test::framework::master_test_suite().argc),
@@ -100,7 +113,8 @@ BOOST_AUTO_TEST_CASE( test1 ) {
   // make sure we flush when full
   int j = 0;
   size_t second_message_size = sizeof(second_args) + sizeof( AggregatorGenericCallHeader );
-  for( int i = 0; i < global_aggregator->max_size(); i += second_message_size) {
+  for( int i = 0; i < global_aggregator->max_size() - second_message_size; i += second_message_size) {
+    BOOST_MESSAGE( "sending " << second_args.i << " with sum " << j << " second_int " << second_int );
     //BOOST_CHECK_EQUAL( 3, second_int );
     //SoftXMT_call_on( 0, &second_call, &second_args );
     second_args.i = i;
@@ -127,15 +141,60 @@ BOOST_AUTO_TEST_CASE( test1 ) {
   //SoftXMT_call_on( 0, &first_call, &first_args, NULL, 0 );
   BOOST_CHECK_EQUAL( 1, first_int );
   int64_t ts = a.get_timestamp();
-  for( int i = 0; i < FLAGS_aggregator_autoflush_ticks + 1; ++i ) {
+  for( int i = 0; i < FLAGS_aggregator_autoflush_ticks; ++i ) {
     a.poll();
-    //BOOST_CHECK_EQUAL( ++ts, a.get_timestamp() );
   }
-//   sleep(10);
-//   a.poll();
+  BOOST_CHECK_EQUAL( 1, first_int );
+  a.poll();
   BOOST_CHECK_EQUAL( 2, first_int );
 
+
+  // make we flush in the correct order
+  BOOST_CHECK_EQUAL( j + 3 + 1, second_int );
+  BOOST_CHECK_EQUAL( a.remaining_size( 0 ), a.max_size() );
+  BOOST_CHECK_EQUAL( a.remaining_size( 1 ), a.max_size() );
+
+  // send to node 1
+  second_args.i = 5;
+  SoftXMT_call_on( 1, &second_call, &second_args, sizeof(second_args), NULL, 0 );
+  BOOST_CHECK_EQUAL( j + 3 + 1, second_int );
+  BOOST_CHECK_EQUAL( a.remaining_size( 1 ), a.max_size() - second_message_size );
+
+  // send to node 0
+  second_args.i = 1;
+  SoftXMT_call_on( 0, &second_call, &second_args, sizeof(second_args), NULL, 0 );
+  BOOST_CHECK_EQUAL( j + 3 + 1, second_int );
+  BOOST_CHECK_EQUAL( a.remaining_size( 0 ), a.max_size() - second_message_size );
+  BOOST_CHECK_EQUAL( a.remaining_size( 1 ), a.max_size() - second_message_size );
+
+  // wait until just before timeout
+  for( int i = 0; i < FLAGS_aggregator_autoflush_ticks - 1; ++i ) {
+    a.poll();
   }
+
+  // nothing has flushed yet
+  BOOST_CHECK_EQUAL( j + 3 + 1, second_int );
+  BOOST_CHECK_EQUAL( a.remaining_size( 0 ), a.max_size() - second_message_size );
+  BOOST_CHECK_EQUAL( a.remaining_size( 1 ), a.max_size() - second_message_size );
+  
+  // one more tick! node 1 flushes
+  a.poll();
+  BOOST_CHECK_EQUAL( j + 3 + 1, second_int );
+  BOOST_CHECK_EQUAL( a.remaining_size( 0 ), a.max_size() - second_message_size );
+  BOOST_CHECK_EQUAL( a.remaining_size( 1 ), a.max_size() );
+
+  // one more tick! node 0 flushes
+  a.poll();
+  BOOST_CHECK_EQUAL( j + 3 + 2, second_int );
+  BOOST_CHECK_EQUAL( a.remaining_size( 0 ), a.max_size() );
+  BOOST_CHECK_EQUAL( a.remaining_size( 1 ), a.max_size() );
+
+  } 
+  // else {
+  //   while( !done ) {
+  //     a.poll();
+  //   }
+  // }
   s.finish();
 
 }
