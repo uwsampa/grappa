@@ -12,7 +12,7 @@
 //#include <cxxabi.h>
 
 
-void SoftXMT_init( int * argc_p, char ** argv_p[], size_t size = 0 );
+void SoftXMT_init( int * argc_p, char ** argv_p[], size_t size = 4096 );
 void SoftXMT_activate();
 
 bool SoftXMT_done();
