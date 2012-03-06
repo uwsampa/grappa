@@ -6,9 +6,15 @@
 
 #define _FILE_OFFSET_BITS 64
 #define _THREAD_SAFE
+#ifndef _XOPEN_SOURCE
 #define _XOPEN_SOURCE 600
+#endif
+#ifndef _XOPEN_SOURCE_EXTENDED
 #define _XOPEN_SOURCE_EXTENDED
+#endif
+#ifndef _SVID_SOURCE
 #define _SVID_SOURCE
+#endif
 
 #if __STDC_VERSION__ >= 199901L  || defined(__cplusplus)
 #include <inttypes.h>
