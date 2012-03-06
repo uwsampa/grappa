@@ -4,9 +4,15 @@
 #endif
 
 #include "SoftXMT.hpp"
+#include "GlobalMemory.hpp"
 
-static Communicator * my_global_communicator;
-static Aggregator * my_global_aggregator;
+
+static Communicator * my_global_communicator = NULL;
+static Aggregator * my_global_aggregator = NULL;
+
+// This is the pointer for the generic memory pool.
+// TODO: should granular memory pools be stored at this level?
+static GlobalMemory * my_global_memory = NULL;
 
 static thread * master_thread;
 static scheduler * sched;
@@ -27,7 +33,7 @@ static void poller( thread * me, void * args ) {
 
 /// Initialize SoftXMT components. We are not ready to run until the
 /// user calls SoftXMT_activate().
-void SoftXMT_init( int * argc_p, char ** argv_p[] )
+void SoftXMT_init( int * argc_p, char ** argv_p[], size_t global_memory_size_bytes )
 {
 
   // parse command line flags
@@ -48,6 +54,9 @@ void SoftXMT_init( int * argc_p, char ** argv_p[] )
 
   // also initializes system_wide global_aggregator pointer
   my_global_aggregator = new Aggregator( my_global_communicator );
+
+  // also initializes system_wide global_memory pointer
+  my_global_memory = new GlobalMemory( global_memory_size_bytes );
 
   SoftXMT_done_flag = false;
 
@@ -231,8 +240,9 @@ void SoftXMT_finish( int retval )
   destroy_scheduler( sched );
   destroy_thread( master_thread );
 
-  delete my_global_aggregator;
-  delete my_global_communicator;
+  if (my_global_memory) delete my_global_memory;
+  if (my_global_aggregator) delete my_global_aggregator;
+  if (my_global_communicator) delete my_global_communicator;
 
 #ifdef HEAPCHECK
   assert( SoftXMT_heapchecker->NoLeaks() );

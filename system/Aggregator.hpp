@@ -101,7 +101,9 @@ private:
   uint64_t previous_timestamp_;
 
   /// priority queue for autoflusher.
-  MutableHeap< uint64_t, int > least_recently_sent_;
+  MutableHeap< uint64_t, // priority (inverted timestamp)
+               int       // key (target)
+               > least_recently_sent_;
 
   /// handle for deaggregation active message
   const int aggregator_deaggregate_am_handle_;
@@ -132,7 +134,7 @@ public:
   explicit Aggregator( Communicator * communicator );
                                               
   /// route map lookup for hierarchical aggregation
-  inline Node get_target_for_node( Node n ) {
+  inline Node get_target_for_node( Node n ) const {
     return route_map_[ n ];
   }
 
@@ -156,7 +158,7 @@ public:
   /// get timestamp. we avoid calling rdtsc for performance
   inline uint64_t get_timestamp() {
     return previous_timestamp_ + 1;
-  }
+   }
 
   inline uint64_t get_previous_timestamp() {
     return previous_timestamp_;
@@ -166,14 +168,14 @@ public:
   inline void poll() {
     communicator_->poll();
     uint64_t ts = get_timestamp();
+    // timestamp overflows are silently ignored. 
+    // since it would take many many years to see one, I think that's okay for now.
     if( !least_recently_sent_.empty() ) {                                    // if messages are waiting, and
-      if( ( ( ts < least_recently_sent_.top_priority() ) &&  // we've wrapped around 
-            ( -least_recently_sent_.top_priority() + autoflush_ticks_ < ts ) ) ||
-	  ( least_recently_sent_.top_priority() + autoflush_ticks_ < ts ) ) { // we've waited long enough,
-        DVLOG(5) << "timeout:" << least_recently_sent_.top_key() 
-                << " inserted at " << least_recently_sent_.top_priority()
-                << " autoflush_ticks_ " << autoflush_ticks_ 
-                << " (current ts " << ts << ")";
+      if( -least_recently_sent_.top_priority() + autoflush_ticks_ < ts ) { // we've waited long enough,
+        DVLOG(5) << "timeout for node " << least_recently_sent_.top_key() 
+                 << ": inserted at " << -least_recently_sent_.top_priority()
+                 << " autoflush_ticks_ " << autoflush_ticks_ 
+                 << " (current ts " << ts << ")";
 	flush( least_recently_sent_.top_key() );                   // send.
       }
     }
@@ -182,6 +184,10 @@ public:
   }
 
   inline const size_t max_size() const { return buffer_size_; }
+  inline const size_t remaining_size( Node destination ) const { 
+    Node target = get_target_for_node( destination );
+    return buffer_size_ - buffers_[ target ].current_position_; 
+  }
 
   inline void aggregate( Node destination, AggregatorAMHandler fn_p, 
                          const void * args, const size_t args_size,
@@ -193,6 +199,8 @@ public:
     // in the future, this would lead us down a separate code path for large messages.
     // for now, fail.
     size_t total_call_size = payload_size + args_size + sizeof( AggregatorGenericCallHeader );
+    DVLOG(5) << "aggregating " << total_call_size << " bytes to " 
+             << destination << "(target " << target << ")";
     CHECK( total_call_size < buffer_size_ ) << "payload_size( " << payload_size << " )"
                                            << "+args_size( " << args_size << " )"
                                            << "+header_size( " << sizeof( AggregatorGenericCallHeader ) << " )"
@@ -200,6 +208,11 @@ public:
   
     // does call fit in aggregation buffer?
     if( !( buffers_[ target ].fits( total_call_size ) ) ) {
+      DVLOG(5) << "aggregating " << total_call_size << " bytes to " 
+               << destination << "(target " << target 
+               << "): didn't fit "
+               << "(current buffer position " << buffers_[ target ].current_position_
+               << ", next buffer position " << buffers_[ target ].current_position_ + total_call_size << ")";
       // doesn't fit, so flush before inserting
       flush( target );
       assert ( buffers_[ target ].fits( total_call_size ));
@@ -215,7 +228,7 @@ public:
     buffers_[ target ].insert( payload, payload_size );
     
     uint64_t ts = get_timestamp();
-    least_recently_sent_.update_or_insert( target, ts );
+    least_recently_sent_.update_or_insert( target, -ts );
     previous_timestamp_ = ts;
     DVLOG(5) << "aggregated " << header;
   }
@@ -228,6 +241,18 @@ template< typename ArgsStruct >
 inline void SoftXMT_call_on( Node destination, void (* fn_p)(ArgsStruct *, size_t, void *, size_t), 
                              const ArgsStruct * args, const size_t args_size = sizeof( ArgsStruct ),
                              const void * payload = NULL, const size_t payload_size = 0)
+{
+  assert( global_aggregator != NULL );
+  global_aggregator->aggregate( destination, 
+                                reinterpret_cast< AggregatorAMHandler >( fn_p ), 
+                                static_cast< const void * >( args ), args_size,
+                                static_cast< const void * >( payload ), payload_size );
+}
+
+template< typename ArgsStruct, typename PayloadType >
+inline void SoftXMT_call_on_x( Node destination, void (* fn_p)(ArgsStruct *, size_t, PayloadType *, size_t), 
+                               const ArgsStruct * args, const size_t args_size = sizeof( ArgsStruct ),
+                               const PayloadType * payload = NULL, const size_t payload_size = 0)
 {
   assert( global_aggregator != NULL );
   global_aggregator->aggregate( destination, 
