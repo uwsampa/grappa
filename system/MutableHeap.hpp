@@ -11,6 +11,7 @@
 #include <vector>
 #include <tr1/unordered_map>
 
+#include <glog/logging.h>
 #include "common.hpp"
 
 template< typename Priority, typename Key >
@@ -131,6 +132,7 @@ public:
     heap.push_back( e );
     index_map[ key ] = (heap.end() - heap.begin()) - 1;
     push_heap( heap.begin(), heap.end() );
+    DVLOG(6) << "After insert of (k=" << key << ", p=" << priority << "), heap is " << toString();
   }
 
   Priority top() {
@@ -160,16 +162,20 @@ public:
     //dump();
     heap.erase( heap.end() - 1 );
     index_map.erase( e.key );
+    DVLOG(6) << "After remove of (k=" << e.key << ", p=" << e.priority << "), heap is " << toString();
   }
 
   void increase( Key key, Priority priority ) {
+    CHECK( index_map.find( key ) != index_map.end() ) << "Whoops, tried to increase a nonexistent key " << key << "!";
     HeapIndex location = index_map[ key ];
     heap[ location ].priority = priority;
     push_heap( heap.begin(), heap.begin() + index_map[ key ] + 1);
+    DVLOG(6) << "After increase of (k=" << key << ", p=" << priority << "), heap is " << toString();
   }
 
 
   void update( Key key, Priority priority ) {
+    CHECK( index_map.find( key ) != index_map.end() ) << "Whoops, tried to update a nonexistent key " << key << "!";
     HeapIndex location = index_map[ key ];
     //heap[ location ].priority = std::numeric_limits< Priority >::max();
     heap[ location ].bubble = true;
@@ -181,24 +187,28 @@ public:
     assert( (heap.end() - 1)->key == key );
     (heap.end() - 1)->priority = priority;
     push_heap( heap.begin(), heap.end() );
+    DVLOG(6) << "After update of (k=" << key << ", p=" << priority << "), heap is " << toString();
   }
 
   void remove_key( Key key ) {
     // find entry for key
-    HeapIndex location = index_map[ key ];
+    if( index_map.find( key ) != index_map.end() ) {
+      HeapIndex location = index_map[ key ];
 
-    // bubble to top of heap
-    //heap[ location ].priority = std::numeric_limits< Priority >::max();
-    heap[ location ].bubble = true;
-    push_heap( heap.begin(), heap.begin() + index_map[ key ] + 1);
-    heap.begin()->bubble = false;
-    pop_heap( heap.begin(), heap.end() );
-    assert( (heap.end() - 1)->key == key );
-
-    // remove from heap
-    HeapElement e = *(heap.end() - 1);
-    heap.erase( heap.end() - 1 );
-    index_map.erase( e.key );
+      // bubble to top of heap
+      //heap[ location ].priority = std::numeric_limits< Priority >::max();
+      heap[ location ].bubble = true;
+      push_heap( heap.begin(), heap.begin() + index_map[ key ] + 1);
+      heap.begin()->bubble = false;
+      pop_heap( heap.begin(), heap.end() );
+      assert( (heap.end() - 1)->key == key );
+      
+      // remove from heap
+      HeapElement e = *(heap.end() - 1);
+      heap.erase( heap.end() - 1 );
+      index_map.erase( e.key );
+      DVLOG(6) << "After remove_key of (k=" << key << "), heap is " << toString();
+    }
   }
 
 
@@ -216,6 +226,7 @@ public:
       assert( (heap.end() - 1)->key == key );
       (heap.end() - 1)->priority = priority;
       push_heap( heap.begin(), heap.end() );
+      DVLOG(6) << "After update_or_insert of (k=" << key << ", p=" << priority << "), heap is " << toString();
     } 
   }
 
@@ -253,27 +264,28 @@ public:
 //  std::ostream& operator<<( std::ostream& o ) {
 //      return o<< toString();
 //  }
-  void dump () {
+  //void dump () {
+  std::ostream& dump( std::ostream& o ) {
     //assert( heap.size() == index.size() );
-    std::cout << "heap {" << std::endl;
+    o << "heap {" << std::endl;
     for( HeapIndex i = 0; i < heap.size(); ++i ){
-      std::cout << "  index " << i;
-      std::cout << ": priority " << heap[i].priority;
-      std::cout << " key " << heap[i].key;
-      std::cout << " bubble " << heap[i].bubble;
-      std::cout << std::endl;
+      o << "  index " << i;
+      o << ": priority " << heap[i].priority;
+      o << " key " << heap[i].key;
+      o << " bubble " << heap[i].bubble;
+      o << std::endl;
     }
-    std::cout << "}" << std::endl;
-    std::cout << "index {" << std::endl;
+    o << "}" << std::endl;
+    o << "index {" << std::endl;
     for( typename std::tr1::unordered_map< Key, HeapIndex >::iterator i = index_map.begin(); i != index_map.end(); ++i ) {
-      std::cout << "  key " << i->first;
-      std::cout << ": index " << i->second;
-      std::cout << " priority " << heap[ i->second ].priority;
-      std::cout << " key " << heap[ i->second ].key;
-      std::cout << " bubble " << heap[ i->second ].bubble;
-      std::cout << std::endl;
+      o << "  key " << i->first;
+      o << ": index " << i->second;
+      o << " priority " << heap[ i->second ].priority;
+      o << " key " << heap[ i->second ].key;
+      o << " bubble " << heap[ i->second ].bubble;
+      o << std::endl;
     }
-    std::cout << "}" << std::endl;
+    o << "}" << std::endl;
   }
 };
   

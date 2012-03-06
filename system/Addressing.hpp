@@ -94,6 +94,18 @@ public:
     return g;
   }
 
+  /// construct a global address from raw bits
+  static GlobalAddress Raw( intptr_t t )
+  {
+    GlobalAddress g;
+    g.storage_ = t;
+    return g;
+  }
+
+  inline intptr_t raw_bits() const {
+    return storage_;
+  }
+
   inline Node node() const {
     if( is_2D() ) {
       return (storage_ >> node_shift_val) & node_mask;
@@ -157,6 +169,19 @@ public:
   }
 
   //T& operator[]( ptrdiff_t index ) { return 
+
+  template< typename U >
+  operator GlobalAddress< U >( ) {
+    GlobalAddress< U > u = GlobalAddress< U >::Raw( storage_ );
+    return u;
+  }
+
+  template< typename U >
+  operator U * ( ) {
+    U * u = reinterpret_cast< U * >( storage_ );
+    return u;
+  }
+
 
 };
 
