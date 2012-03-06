@@ -111,66 +111,14 @@ int main(int argc, char** argv) {
      * row), and then do an allreduce at the end.  This scheme is used to avoid
      * non-local communication and reading the file separately just to find BFS
      * roots. */
+    
+    
+    //TODO
   }
   stop = timer();
   double make_graph_time = stop - start;
   if (rank == 0) { /* Not an official part of the results */
     fprintf(stderr, "graph_generation:               %f s\n", make_graph_time);
-  }
-
-  /* Make user's graph data structure. */
-  start = timer();
-  make_graph_data_structure(&tg);
-  stop = timer();
-  double data_struct_time = stop - start;
-  if (rank == 0) { /* Not an official part of the results */
-    fprintf(stderr, "construction_time:              %f s\n", data_struct_time);
-  }
-
-  /* Number of edges visited in each BFS; a double so get_statistics can be
-   * used directly. */
-  double* edge_counts = (double*)xmalloc(num_bfs_roots * sizeof(double));
-
-  /* Run BFS. */
-  int validation_passed = 1;
-  double* bfs_times = (double*)xmalloc(num_bfs_roots * sizeof(double));
-  double* validate_times = (double*)xmalloc(num_bfs_roots * sizeof(double));
-  uint64_t nlocalverts = get_nlocalverts_for_pred();
-  int64_t* pred = (int64_t*)xmalloc(nlocalverts * sizeof(int64_t));
-  
-  int bfs_root_idx;
-  for (bfs_root_idx = 0; bfs_root_idx < num_bfs_roots; ++bfs_root_idx) {
-    int64_t root = bfs_roots[bfs_root_idx];
-
-    if (rank == 0) fprintf(stderr, "Running BFS %d\n", bfs_root_idx);
-
-    /* Clear the pred array. */
-    memset(pred, 0, nlocalverts * sizeof(int64_t));
-
-    /* Do the actual BFS. */
-    start = timer();
-    run_bfs(root, &pred[0]);
-    stop = timer();
-    bfs_times[bfs_root_idx] = stop - start;
-    if (rank == 0) fprintf(stderr, "Time for BFS %d is %f\n", bfs_root_idx, bfs_times[bfs_root_idx]);
-
-    /* Validate result. */
-    if (rank == 0) fprintf(stderr, "Validating BFS %d\n", bfs_root_idx);
-
-    start = timer();
-    int64_t edge_visit_count;
-//    int validation_passed_one = validate_bfs_result(&tg, max_used_vertex + 1, nlocalverts, root, pred, &edge_visit_count);
-    stop = timer();
-    validate_times[bfs_root_idx] = stop - start;
-    if (rank == 0) fprintf(stderr, "Validate time for BFS %d is %f\n", bfs_root_idx, validate_times[bfs_root_idx]);
-    edge_counts[bfs_root_idx] = (double)edge_visit_count;
-    if (rank == 0) fprintf(stderr, "TEPS for BFS %d is %g\n", bfs_root_idx, edge_visit_count / bfs_times[bfs_root_idx]);
-
-//    if (!validation_passed_one) {
-//      validation_passed = 0;
-//      if (rank == 0) fprintf(stderr, "Validation failed for this BFS root; skipping rest.\n");
-//      break;
-//    }
   }
 
   free(bfs_roots);
