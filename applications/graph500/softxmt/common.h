@@ -37,11 +37,8 @@ extern int lgsize;
 #define VERTEX_TO_GLOBAL(r, i) ((int64_t)(MUL_SIZE((uint64_t)i) + (int)(r)))
 
 typedef struct tuple_graph {
-  int data_in_file; /* 1 for file, 0 for memory */
-  packed_edge * restrict edgememory; /* NULL if edges are in file */
-  int64_t edgememory_size;
-  int64_t max_edgememory_size;
-  int64_t nglobaledges; /* Number of edges in graph, in both cases */
+  packed_edge * restrict edges;
+  int64_t nedge; /* Number of edges in graph, in both cases */
 } tuple_graph;
 
 #ifdef __cplusplus
