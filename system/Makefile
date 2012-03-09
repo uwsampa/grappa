@@ -84,6 +84,8 @@ Cache_tests.test: Cache.o SoftXMT.o GlobalMemory.o Communicator.o Aggregator.o t
 
 Rate_measure.exe: SoftXMT.o GlobalMemory.o Delegate.o Communicator.o Aggregator.o thread.o coro.o stack.o
 
+ForkJoin_tests.test: SoftXMT.o GlobalMemory.o Communicator.o Aggregator.o Delegate.o coro.o stack.o thread.o GlobalAllocator.o Allocator.o
+
 #thread.o: coro.o
 #
 # Build SoftXMT static library
