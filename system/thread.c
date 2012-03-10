@@ -4,7 +4,7 @@
 #include <stdlib.h>
 #include <stdio.h>
 
-#define STACK_SIZE 1<<22
+#define STACK_SIZE 1<<18
 
 thread * current_thread;
 
