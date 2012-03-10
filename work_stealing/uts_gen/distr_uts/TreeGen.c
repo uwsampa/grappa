@@ -699,6 +699,14 @@ void init_thread_f(thread* me, void* args ) {
     }
     printf("rank(%d) starting size %d\n", rank, ss_localDepth(&myStealStack));
    
+    /*
+    int coreslist[] = {0,2,4,6,8,10,1,3,5,7,9,11};
+    //TODO Set based on the rank
+    cpu_set_t set;
+    CPU_ZERO(&set);
+    CPU_SET(coreslist[core], &set);
+    SCHED_SET(0, sizeof(cpu_set_t), &set);
+    */       
   
     // moved here because pre-condition to barrier should be that the calling thread is only thread on run q TODO could suspend/wake the workers
     VLOG(2) << "enter barrier before work starts";
@@ -721,19 +729,12 @@ void init_thread_f(thread* me, void* args ) {
         wis[th].children_arrays = children_array_pool;
         wis[th].my_local_id = local_id;
         wis[th].neighbors = neighbors;
-        worker_threads[th] = SoftXMT_spawn(thread_runnable, &wis[th]);
-    }
+        if (th<num_threads_per_core-1) worker_threads[th] = SoftXMT_spawn(thread_runnable, &wis[th]);
+    }// FIXME: hack: spawn last worker after the barrier to make sure they don't get past thread_idle() at start
     
-    /*
-    int coreslist[] = {0,2,4,6,8,10,1,3,5,7,9,11};
-    //TODO Set based on the rank
-    cpu_set_t set;
-    CPU_ZERO(&set);
-    CPU_SET(coreslist[core], &set);
-    SCHED_SET(0, sizeof(cpu_set_t), &set);
-    */       
+    SoftXMT_barrier_commsafe();
+    worker_threads[num_threads_per_core-1] = SoftXMT_spawn(thread_runnable, &wis[num_threads_per_core-1]); //FIXME: above
     
-
     
     iargs->startTime = uts_wctime();
     
