@@ -13,9 +13,11 @@ class Scheduler () {
         threadid_t nextId;
         uint64_t num_idle;
         thread * current_thread;
+        TaskManager * task_manager;
+        
+        thread * getWorker ();
 
         thread * nextCoroutine ( bool isBlocking=true ) {
-
             do {
                 thread* result;
 
@@ -37,19 +39,21 @@ class Scheduler () {
             } while ( isBlocking || (periodicQ.none() && unassignedQ.empty()) ); 
             // exit if all threads exited, including idle workers
             // TODO just as use mightBeWork as shortcut, also kill all idle unassigned workers on cbarrier_exit
-
+            
             return NULL;
         }
 
+
     public:
-       Scheduler ( thread * master ) 
+       Scheduler ( thread * master, TaskManager taskman ) 
         : readyQ ( )
         , periodicQ ( )
         , unassignedQ ( )
         , master ( master )
         , current_thread ( master )
         , nextID ( 1 )
-        , num_idle ( 0 ) { }
+        , num_idle ( 0 )
+        , task_manager ( taskman ) { }
 
        void assignTid( thread * thr ) {
            thr->id = nextId++;
@@ -65,6 +69,10 @@ class Scheduler () {
 
        void periodic( thread * thr ) {
            periodicQ.enqueue( thr );
+       }
+
+       thread * get_current_thread( ) {
+           return current_thread;
        }
 
        /// run threads until all exit 
@@ -193,6 +201,19 @@ thread * Scheduler::thread_wait( void **result );
 void Scheduler::thread_join( thread* wait_on );
 
 
+thread* Scheduler::getWorker () {
+    if (task_manager.available()) {
+        // check the pool of unassigned coroutines
+        thread* result = unassignedQ.dequeue();
+        if (result != NULL_THREAD) return result;
+
+        // possibly spawn more coroutines
+        thread* result = task_manager.maybeSpawnCoroutines();
+        return result;
+    } else {
+        return NULL_THREAD;
+    }
+}
 
 #endif
 

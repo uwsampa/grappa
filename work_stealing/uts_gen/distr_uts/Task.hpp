@@ -1,61 +1,15 @@
 #include <deque>
+#include "SoftXMT.hpp"
 #include "StealQueue.h"
 #include "gasnet_cbarrier.h"
-
+#include "thread.h"
 
 const thread* NULL_THREAD = NULL;
-
-//cases:
-//periodic yield: 
-//  back of periodic queue; 
-//  nextCoro swap
-//  (if only one then eventually will run again)
-//
-//yield: 
-//  back of readyQ
-//  nextCoro swap
-//  (if only one then will be chosen)
-//
-//suspend: 
-//  no Q;
-//  call nextCoro
-//  (if only one then periodic tasks
-//     should eventually cause it to
-//     go on the ready queue and will be chosen)
-
-
-
-
-
-// task assignment
-
 #define BASIC_MAX_WORKERS 1
-thread* maybeSpawnCoroutines( ) {
-    if ( num_workers < BASIC_MAX_WORKERS ) {
-       num_workers++;
-       return thread_spawn( current_thread, scheduler, workerLoop, NULL ); // current thread will be coro parent; is this okay?
-    } else {
-        // might have another way to spawn
-        return NULL_THREAD;
-    }
-}
-
-thread* getWorker () {
-    if (taskman.available()) {
-        // check the pool of unassigned coroutines
-        thread* result = unassignedQ.dequeue();
-        if (result != NULL_THREAD) return result;
-
-        // possibly spawn more coroutines
-        thread* result = taskman.maybeSpawnCoroutines();
-        return result;
-    } else {
-        return NULL_THREAD;
-    }
-}
 
 
-// worker loop
+/// Task is a function pointer and pointer to arguments
+/// Ideally Task would be interface that just declares execute and makeGlobal
 class Task {
 
     private:
@@ -71,12 +25,16 @@ class Task {
         void execute ( ) {
             func (args);
         }
+};
+// TODO: on steal of work, need to make sure args pointers are global or copy args struct
 
+
+struct task_worker_args {
+    TaskManager * tasks;
 };
 
-
-
-void workerLoop ( thread* me, void* args) {
+void workerLoop ( thread* me, void* args ) {
+    TaskManager* tasks = ((task_worker_args*)args)->tasks;
 
     while ( true ) {
         // block until receive work or termination reached
@@ -88,10 +46,7 @@ void workerLoop ( thread* me, void* args) {
         thread_yield( me ); // yield to the scheduler
     }
 }
-// NOTES:
-// "Task" can be a class that hold anything that
-// could go in a task queue
-//
+
 
 class TaskManager {
     private:
@@ -115,6 +70,8 @@ class TaskManager {
 
         // steal parameters
         int chunkSize;
+
+        thread* maybeSpawnCoroutines( );
 
         bool publicHasEle() {
             return ss_local_depth( &publicQ ) > 0;
@@ -152,13 +109,14 @@ class TaskManager {
                 , privateQ( ) {
                     
                    ss_init( &publicQ, MAXSTACKDEPTH ); 
+                   work_args.tasks = this;
         }
 
         /// create worker threads for executing tasks
         void createWorkers( uint64_t num ) {
             num_workers += num;
             for (int i=0; i<num; i++) {
-                thread* t = thread_spawn( current_thread, scheduler, workerLoop, NULL);
+                thread* t = thread_spawn( current_thread, scheduler, workerLoop, &work_args);
                 unassignedQ.enqueue( t );
             }
         }
@@ -193,18 +151,18 @@ class TaskManager {
         bool available ( );
 };
 
-void TaskManager::spawnPublic( void (*f)(void * arg), void * arg ) {
+inline void TaskManager::spawnPublic( void (*f)(void * arg), void * arg ) {
     Task newtask(f, arg);
     ss_push( &publicQ, newtask );
     releaseTasks();
 }
 
-void TaskManager::spawnPrivate( void (*f)(void * arg), void * arg ) {
+inline void TaskManager::spawnPrivate( void (*f)(void * arg), void * arg ) {
     Task newtask(f, arg);
     privateQ.push_front( newtask );
 }
 
-bool TaskManager::available ( ) {
+inline bool TaskManager::available ( ) {
     return  privateHasEle()
             || publicHasEle()
             || mightBeWork;
@@ -287,3 +245,30 @@ bool TaskManager::getWork ( Task* result ) {
 }
 
 
+thread* TaskManager::maybeSpawnCoroutines( ) {
+    if ( num_workers < BASIC_MAX_WORKERS ) {
+       num_workers++;
+       return thread_spawn( current_thread, scheduler, workerLoop, &work_args ); // current thread will be coro parent; is this okay?
+    } else {
+        // might have another way to spawn
+        return NULL_THREAD;
+    }
+}
+
+
+//cases:
+//periodic yield: 
+//  back of periodic queue; 
+//  nextCoro swap
+//  (if only one then eventually will run again)
+//
+//yield: 
+//  back of readyQ
+//  nextCoro swap
+//  (if only one then will be chosen)
+//
+//suspend: 
+//  no Q;
+//  call nextCoro
+//  (if only one then periodic tasks
+//     should eventually cause it to
