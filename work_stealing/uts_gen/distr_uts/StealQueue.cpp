@@ -5,13 +5,13 @@
 /// global task queue 
 #define MAXSTACKDEPTH 500000 
 #include "Task.hpp"
-StealQueue<Task> myStealStack(MAXSTACKDEPTH);
+StealQueue<Task> my_steal_stack(MAXSTACKDEPTH);
 
 
         
 template <class T>
 void StealQueue<T>::registerAddress( StealQueue<T> * addr ) {
-    CHECK( !boost::is_same<T, Task>::value ) << "[T = Task] instantiation need not call this (uses global &myStealStack)";
+    CHECK( !boost::is_same<T, Task>::value ) << "[T = Task] instantiation need not call this (uses global &my_steal_stack)";
     staticQueueAddress = addr;
 }
 
@@ -76,29 +76,22 @@ int StealQueue<T>::acquire( int k ) {
 int local_steal_amount;
 LOCK_T lsa_lock = LOCK_INITIALIZER;
 
-template <class T>
-struct workStealRequest_args {
-    int k;
-    Node from;
-    StealQueue<T>* victim_local;
-};
-
-struct workStealReply_args {
-    int k;
-};
 
 template <class T>
-void workStealReply_am( workStealReply_args * args,  size_t size, void * payload, size_t payload_size ) {
+static void StealQueue<T>::workStealReply_am( workStealReply_args * args,  size_t size, void * payload, size_t payload_size ) {
     T* stolen_work = static_cast<T>( payload );
     int k = args->k;
+    
+    // if using StealQueue<Task> use the global task steal stack address
+    StealQueue<T>* thiefStack = (boost::is_same<T, Task>::value) ? &my_steal_stack : args->thief_local;
 
     if (k > 0) {
         SET_LOCK(&lsa_lock);
-        memcpy(&myStealStack.stack[myStealStack.top], stolen_work, payload_size);
+        memcpy(thiefStack->stack[thiefStack->top], stolen_work, payload_size);
         local_steal_amount = k;
         UNSET_LOCK(&lsa_lock);
     } else {
-        myStealStack.nFail++;
+        thiefStack->nFail++;
         SET_LOCK(&lsa_lock);
         local_steal_amount = 0;
         UNSET_LOCK(&lsa_lock);
@@ -107,11 +100,11 @@ void workStealReply_am( workStealReply_args * args,  size_t size, void * payload
 }
 
 template <class T>
-void workStealRequest_am(workStealRequest_args<T> * args, size_t size, void * payload, size_t payload_size) {
+static void StealQueue<T>::workStealRequest_am(workStealRequest_args<T> * args, size_t size, void * payload, size_t payload_size) {
     int k = args->k;
 
     // if using StealQueue<Task> use the global task steal stack address
-    StealQueue<T>* victimStack = (boost::is_same<T, Task>::value) ? &myStealStack : args->victimLocal;
+    StealQueue<T>* victimStack = (boost::is_same<T, Task>::value) ? &my_steal_stack : args->victim_local;
    
     SET_LOCK(victimStack->stackLock);
     
@@ -135,12 +128,12 @@ void workStealRequest_am(workStealRequest_args<T> * args, size_t size, void * pa
         Node_ptr* victimStackBase = victimStack->stack;
         Node_ptr* victimSharedStart = victimStackBase + victimShared;
    
-        workStealReply_args reply_args = { k };
+        workStealReply_args reply_args = { k, args->victim_ocal };
         SoftXMT_call_on( args->from, &workStealReply_am<T>, 
                          &reply_args, sizeof(workStealReply_args), 
                          victimSharedStart, k*sizeof( T ));
     } else {
-        workStealReply_args reply_args = { 0 };
+        workStealReply_args reply_args = { 0, args->victim_local };
         SoftXMT_call_on( args->from, &workStealReply_am<T>, &reply_args );
     }
 

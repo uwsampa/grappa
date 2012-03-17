@@ -6,6 +6,19 @@
 #include "SoftXMT.hpp"
 
 template <class T>
+struct workStealRequest_args {
+    int k;
+    Node from;
+    StealQueue<T>* victim_local;
+};
+
+template <class T>
+struct workStealReply_args {
+    int k;
+    StealQueue<T>* thief_local;
+};
+
+template <class T>
 class StealQueue {
     private:
         uint64_t stackSize;     /* total space avail (in number of elements) */
@@ -32,6 +45,9 @@ class StealQueue {
                               addr space */
 
         StealQueue<T>* staticQueueAddress;        
+        
+        static void workStealReply_am( workStealReply_args<T> * args,  size_t size, void * payload, size_t payload_size );
+        static void workStealRequest_am( workStealRequest_args<T> * args, size_t size, void * payload, size_t payload_size );
     
     public:
         StealQueue( uint64_t numEle ) 
@@ -51,7 +67,7 @@ class StealQueue {
 
                 if (stack == NULL) {
                     LOG(FATAL) << "Request for " << nbytes <<< " bytes for stealStack on thread " << SoftXMT_mynode() << " failed";
-                    ss_error("ss_init: unable to allocate space for stealstack");
+                    ss_error("unable to allocate space for stealstack");
                 }
 
                 stackLock = (LOCK_T*)malloc(sizeof(LOCK_T));
@@ -70,11 +86,14 @@ class StealQueue {
         int acquire( int k ); 
         int steal_locally( Node victim, int chunkSize ); 
         void setState( int state );
-
+        
+        uint64_t get_nNodes( ) {
+            return nNodes;
+        }
         
         /// register local address of remote steal queues
-        void registerAddress( StealQueue<T> * addr ) {
-        
+        void registerAddress( StealQueue<T> * addr );
+
 };
 
         
@@ -154,5 +173,7 @@ void StealQueue::pushRemote(Node destnode, Node_ptr* work, int k) {
 */
 ////////////////////////////////////////////////////
 
+
+extern StealQueue<Task> my_steal_stack;
 
 #endif
