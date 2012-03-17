@@ -31,7 +31,7 @@ class Task {
 class TaskManager {
     private:
         std::deque<Task> privateQ; 
-        StealStack publicQ;
+        StealQueue<Task>* publicQ;
 
         Scheduler* scheduler;
 
@@ -40,6 +40,7 @@ class TaskManager {
        
         bool doSteal;   // stealing on/off
         bool okToSteal; // steal lock
+        int cbint;      // how often to make local public work visible
         
         // to support hierarchical dynamic load balancing
         Node localId;
@@ -54,7 +55,7 @@ class TaskManager {
         thread* maybeSpawnCoroutines( );
 
         bool publicHasEle() {
-            return ss_local_depth( &publicQ ) > 0;
+            return publicQ->local_depth > 0;
         }
 
         bool privateHasEle() {
@@ -67,8 +68,8 @@ class TaskManager {
                 privateQ.pop_front();
                 return true;
             } else if ( publicHasEle() ) {
-                *result = ss_top( &publicQ );
-                ss_pop( &publicQ );
+                *result = publicQ->top();
+                publicQ->pop( );
                 return true;
             } else {
                 return false;
@@ -76,19 +77,15 @@ class TaskManager {
         }
 
     public:
-        TaskManager (Scheduler* scheduler, bool doSteal, Node localId, Node* neighbors, Node numLocalNodes, int chunkSize) 
-                : workDone ( false )
-                , doSteal( doSteal )
-                , okToSteal ( true )
-                , mightBeWork ( true )
-                , localId( localId )
-                , neighbors ( neighbors )
-                , numLocalNodes ( numLocalNodes )
-                , chunkSize( chunkSize ) 
+        TaskManager (Scheduler* scheduler, bool doSteal, Node localId, Node* neighbors, Node numLocalNodes, int chunkSize, int cbint) 
+                : workDone( false )
+                , doSteal( doSteal ), okToSteal( true ), mightBeWork ( true )
+                , localId( localId ), neighbors( neighbors ), numLocalNodes( numLocalNodes )
+                , chunkSize( chunkSize ), cbint( cbint ) 
                 , scheduler( scheduler )
-                , privateQ( ) {
-                    
-                   ss_init( &publicQ, MAXSTACKDEPTH ); 
+                , privateQ( )
+                , publicQ( &my_steal_stack ) {
+                   
                    work_args.tasks = this;
         }
         
@@ -98,12 +95,12 @@ class TaskManager {
         /// Possibly move work from local partition of public queue to global partition
         void releaseTasks() {
           if (doSteal) {
-            if (ss_localDepth(ss) > 2 * chunkSize) {
+            if (publicQ->localDepth > 2 * chunkSize) {
               // Attribute this time to runtime overhead
         /*      ss_setState(ss, SS_OVH);                    */
-              ss_release(&publicQ, chunkSize);
+              publicQ->release(chunkSize);
               // This has significant overhead on clusters!
-              if (publicQ.nNodes % cbint == 0) { // possible for cbint to get skipped if push multiple?
+              if (publicQ->get_nNodes() % cbint == 0) { // possible for cbint to get skipped if push multiple?
         /*        ss_setState(ss, SS_CBOVH);                */
                 VLOG(5) << "canceling barrier";
                 cbarrier_cancel();
@@ -129,7 +126,7 @@ class TaskManager {
 
 inline void TaskManager::spawnPublic( void (*f)(void * arg), void * arg ) {
     Task newtask(f, arg);
-    ss_push( &publicQ, newtask );
+    publicQ->push( newtask );
     releaseTasks();
 }
 

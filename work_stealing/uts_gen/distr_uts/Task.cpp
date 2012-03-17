@@ -55,7 +55,7 @@ bool TaskManager::getWork ( Task* result ) {
 
         if (doSteal) {
             // try to put some work back to local 
-            if (ss_acquire( &publicQ, chunkSize )) {
+            if ( publicQ->acquire(chunkSize) ) {
                 mightBeWork = true;
                 continue;
             }
