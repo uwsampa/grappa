@@ -1,7 +1,7 @@
 #include <deque>
 #include "StealQueue.hpp"
 #include "gasnet_cbarrier.h"
-#include "thread.h"
+#include "Thread.hpp"
 
 const thread* NULL_THREAD = NULL;
 

@@ -2,12 +2,11 @@
 #define THREAD_HPP
 
 #include "coro.h"
-
+#include <stdint.h>
 
 class ThreadQueue;
 class Scheduler;
 typedef uint32_t threadid_t; 
-typedef void (*thread_func)(thread *, void *arg);
 
 typedef struct thread {
   coro *co;
@@ -19,6 +18,9 @@ typedef struct thread {
   ThreadQueue joinqueue;
   int done;
 } thread;
+
+typedef void (*thread_func)(thread *, void *arg);
+
 
 thread * thread_spawn ( thread * me, Scheduler * sched, thread_func f, void * arg);
 
@@ -46,8 +48,8 @@ class ThreadQueue {
 
     public:
         ThreadQueue ( ) 
-            : head ( NULL ),
-            : tail ( NULL ) { }
+            : head ( NULL )
+            , tail ( NULL ) { }
 
         thread* dequeue() {
             thread* result = head;
@@ -66,7 +68,9 @@ class ThreadQueue {
             } else {
                 tail->next = t;
             }
-            tail = thread;
+            tail = t;
             t->next = NULL;
         }
 };
+
+#endif

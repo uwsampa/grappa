@@ -1,9 +1,10 @@
 #ifndef _SCHEDULER_HPP_
 #define _SCHEDULER_HPP_
 
-#include "thread.h"
+#include "Thread.hpp"
+#include "Task.hpp"
 
-class Scheduler () {
+class Scheduler {
     private:
         ThreadQueue readyQ;
         ThreadQueue periodicQ;

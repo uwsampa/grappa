@@ -1,4 +1,4 @@
-#include "thread.h"
+#include "Thread.hpp"
 
 
 thread * thread_init() {
