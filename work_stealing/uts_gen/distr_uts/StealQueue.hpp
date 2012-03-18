@@ -62,18 +62,18 @@ class StealQueue {
         StealQueue( uint64_t numEle ) 
             : stackSize( numEle )
             , maxStackDepth( 0 )
-            , nNodes( 0 ), maxTreedepth( 0 ), nVisited( 0 ), nLeaves( 0 )
+            , nNodes( 0 ), maxTreeDepth( 0 ), nVisited( 0 ), nLeaves( 0 )
             , nAcquire( 0 ), nRelease( 0 ), nSteal( 0 ), nFail( 0 )
             , wakeups( 0 ), falseWakeups( 0 ), nNodes_last( 0 ) {
 
-                uint64_t nbytes = nelts * sizeof(T);
+                uint64_t nbytes = numEle * sizeof(T);
 
                 // allocate stack in shared addr space with affinity to calling thread
                 // and record local addr for efficient access in sequel
                 stack_g = static_cast<T*>( malloc( nbytes ) );
                 stack = stack_g;
 
-                CHECK( stack!= NULL ) << "Request for " << nbytes <<< " bytes for stealStack on thread " << SoftXMT_mynode() << " failed";
+                CHECK( stack!= NULL ) << "Request for " << nbytes << " bytes for stealStack on thread " << SoftXMT_mynode() << " failed";
 
                 stackLock = (LOCK_T*)malloc(sizeof(LOCK_T));
                 INIT_LOCK(stackLock);
@@ -83,7 +83,7 @@ class StealQueue {
         
         void mkEmpty(); 
         void push( T c); 
-        T top( ); 
+        T peek( ); 
         void pop( ); 
         uint64_t topPosn( );
         uint64_t localDepth( ); 
@@ -102,10 +102,12 @@ class StealQueue {
 };
 
 
+static int maxint(int x, int y) { return (x>y)?x:y; }
+
 /// Push onto top of local stack
 template <class T>
 inline void StealQueue<T>::push( T c ) {
-  CHECK( top < stackSize ) << "push: overflow (top:" << top << " stackSize:" << stackSize ")";
+  CHECK( top < stackSize ) << "push: overflow (top:" << top << " stackSize:" << stackSize << ")";
 
   stack[top] = c; 
   top++;
@@ -114,28 +116,31 @@ inline void StealQueue<T>::push( T c ) {
   //s->maxTreeDepth = maxint(s->maxTreeDepth, c->height); //XXX dont want to deref c here (expensive for just a bookkeeping operation
 }
 
+/// get top element
+template <class T>
+inline T StealQueue<T>::peek( ) {
+    CHECK(top > local) << "peek: empty local stack";
+    return stack[top-1];
+}
 
 /// local pop
 template <class T>
 inline void StealQueue<T>::pop( ) {
-  T* r;
-  if (top <= local)
-    ss_error("ss_pop: empty local stack");
+  CHECK(top > local) << "pop: empty local stack";
   top--;
   nVisited++;
-  r = &(stack[top]);
 }
 
 
 /// local depth
 template <class T>
-inline int StealQueue<T>::localDepth() {
+inline uint64_t StealQueue<T>::localDepth() {
   return (top - local);
 }
 
 
 template <class T>
-void StealQueue<T>::ss_setState( int state ) { return; }
+void StealQueue<T>::setState( int state ) { return; }
 
 
 ///////////////////////////////////////////////////

@@ -3,7 +3,7 @@
 
 /// Initialize the dedicated queue for T
 template <class T>
-StealQueue<T>::staticQueueAddress = NULL;
+StealQueue<T>* StealQueue<T>::staticQueueAddress = NULL;
 
 template <class T>
 void StealQueue<T>::registerAddress( StealQueue<T> * addr ) {
@@ -73,7 +73,7 @@ LOCK_T lsa_lock = LOCK_INITIALIZER;
 
 
 template <class T>
-void StealQueue<T>::workStealReply_am( workStealReply_args * args,  size_t size, void * payload, size_t payload_size ) {
+void StealQueue<T>::workStealReply_am( workStealReply_args<T> * args,  size_t size, void * payload, size_t payload_size ) {
     T* stolen_work = static_cast<T*>( payload );
     int k = args->k;
     
@@ -121,12 +121,12 @@ void StealQueue<T>::workStealRequest_am(workStealRequest_args<T> * args, size_t 
         Node_ptr* victimSharedStart = victimStackBase + victimShared;
    
         workStealReply_args<T> reply_args = { k };
-        SoftXMT_call_on( args->from, &workStealReply_am<T>, 
-                         &reply_args, sizeof(workStealReply_args), 
+        SoftXMT_call_on( args->from, &StealQueue<T>::workStealReply_am, 
+                         &reply_args, sizeof(workStealReply_args<T>), 
                          victimSharedStart, k*sizeof( T ));
     } else {
         workStealReply_args<T> reply_args = { 0 };
-        SoftXMT_call_on( args->from, &workStealReply_am<T>, &reply_args );
+        SoftXMT_call_on( args->from, &StealQueue<T>::workStealReply_am, &reply_args );
     }
 
 }
@@ -139,7 +139,7 @@ int StealQueue<T>::steal_locally( Node victim, int k ) {
     UNSET_LOCK(&lsa_lock);
 
     workStealRequest_args<T> req_args = { k, SoftXMT_mynode() };
-    SoftXMT_call_on( victim, &workStealRequest_am<T>, &req_args );
+    SoftXMT_call_on( victim, &StealQueue<T>::workStealRequest_am, &req_args );
 
     // steal is blocking
     // TODO: use suspend-wake mechanism
