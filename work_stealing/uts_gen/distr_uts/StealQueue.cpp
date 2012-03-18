@@ -1,17 +1,12 @@
 #include "StealQueue.hpp"
-#include <boost/type_traits/is_same.hpp>
-       
+#include <glog/logging.h>   
 
-/// global task queue 
-#define MAXSTACKDEPTH 500000 
-#include "Task.hpp"
-StealQueue<Task> my_steal_stack(MAXSTACKDEPTH);
+/// Initialize the dedicated queue for T
+template <class T>
+StealQueue<T>::staticQueueAddress = NULL;
 
-
-        
 template <class T>
 void StealQueue<T>::registerAddress( StealQueue<T> * addr ) {
-    CHECK( !boost::is_same<T, Task>::value ) << "[T = Task] instantiation need not call this (uses global &my_steal_stack)";
     staticQueueAddress = addr;
 }
 
@@ -78,12 +73,11 @@ LOCK_T lsa_lock = LOCK_INITIALIZER;
 
 
 template <class T>
-static void StealQueue<T>::workStealReply_am( workStealReply_args * args,  size_t size, void * payload, size_t payload_size ) {
-    T* stolen_work = static_cast<T>( payload );
+void StealQueue<T>::workStealReply_am( workStealReply_args * args,  size_t size, void * payload, size_t payload_size ) {
+    T* stolen_work = static_cast<T*>( payload );
     int k = args->k;
     
-    // if using StealQueue<Task> use the global task steal stack address
-    StealQueue<T>* thiefStack = (boost::is_same<T, Task>::value) ? &my_steal_stack : args->thief_local;
+    StealQueue<T>* thiefStack = StealQueue<T>::staticQueueAddress;
 
     if (k > 0) {
         SET_LOCK(&lsa_lock);
@@ -100,11 +94,10 @@ static void StealQueue<T>::workStealReply_am( workStealReply_args * args,  size_
 }
 
 template <class T>
-static void StealQueue<T>::workStealRequest_am(workStealRequest_args<T> * args, size_t size, void * payload, size_t payload_size) {
+void StealQueue<T>::workStealRequest_am(workStealRequest_args<T> * args, size_t size, void * payload, size_t payload_size) {
     int k = args->k;
 
-    // if using StealQueue<Task> use the global task steal stack address
-    StealQueue<T>* victimStack = (boost::is_same<T, Task>::value) ? &my_steal_stack : args->victim_local;
+    StealQueue<T>* victimStack = StealQueue<T>::staticQueueAddress;
    
     SET_LOCK(victimStack->stackLock);
     
@@ -128,12 +121,12 @@ static void StealQueue<T>::workStealRequest_am(workStealRequest_args<T> * args, 
         Node_ptr* victimStackBase = victimStack->stack;
         Node_ptr* victimSharedStart = victimStackBase + victimShared;
    
-        workStealReply_args reply_args = { k, args->victim_ocal };
+        workStealReply_args<T> reply_args = { k };
         SoftXMT_call_on( args->from, &workStealReply_am<T>, 
                          &reply_args, sizeof(workStealReply_args), 
                          victimSharedStart, k*sizeof( T ));
     } else {
-        workStealReply_args reply_args = { 0, args->victim_local };
+        workStealReply_args<T> reply_args = { 0 };
         SoftXMT_call_on( args->from, &workStealReply_am<T>, &reply_args );
     }
 
@@ -146,7 +139,7 @@ int StealQueue<T>::steal_locally( Node victim, int k ) {
     local_steal_amount = -1;
     UNSET_LOCK(&lsa_lock);
 
-    workStealRequest_args req_args = { k, SoftXMT_mynode(), staticQueueAddress };
+    workStealRequest_args<T> req_args = { k, SoftXMT_mynode() };
     SoftXMT_call_on( victim, &workStealRequest_am<T>, &req_args );
 
     // steal is blocking

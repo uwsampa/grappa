@@ -44,7 +44,7 @@ class StealQueue {
                               stack in global
                               addr space */
 
-        StealQueue<T>* staticQueueAddress;        
+        static StealQueue<T>* staticQueueAddress;        
         
         static void workStealReply_am( workStealReply_args<T> * args,  size_t size, void * payload, size_t payload_size );
         static void workStealRequest_am( workStealRequest_args<T> * args, size_t size, void * payload, size_t payload_size );
@@ -55,8 +55,7 @@ class StealQueue {
             , maxStackDepth( 0 )
             , nNodes( 0 ), maxTreedepth( 0 ), nVisited( 0 ), nLeaves( 0 )
             , nAcquire( 0 ), nRelease( 0 ), nSteal( 0 ), nFail( 0 )
-            , wakeups( 0 ), falseWakeups( 0 ), nNodes_last( 0 ),
-            , staticQueueAddress( NULL ) {
+            , wakeups( 0 ), falseWakeups( 0 ), nNodes_last( 0 ) {
 
                 uint64_t nbytes = nelts * sizeof(T);
 
@@ -173,7 +172,5 @@ void StealQueue::pushRemote(Node destnode, Node_ptr* work, int k) {
 */
 ////////////////////////////////////////////////////
 
-
-extern StealQueue<Task> my_steal_stack;
 
 #endif
