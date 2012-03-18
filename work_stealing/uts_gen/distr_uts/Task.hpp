@@ -1,9 +1,13 @@
+#ifndef TASK_HPP_
+#define TASK_HPP_
+
 #include <deque>
 #include "StealQueue.hpp"
 #include "gasnet_cbarrier.h"
 #include "Thread.hpp"
 
-const thread* NULL_THREAD = NULL;
+class Scheduler;
+//thread* const NULL_THREAD = NULL;
 
 
 /// Task is a function pointer and pointer to arguments
@@ -15,10 +19,10 @@ class Task {
         void* args;
     
     public:
+        Task () : func(NULL), args(NULL) {}
         Task (void (*f)(void*), void* args) 
             : func ( f )
-            , args ( args ) 
-            , valid ( valid ) {}
+            , args ( args ){}
 
         void execute ( ) {
             func (args);
@@ -31,7 +35,7 @@ class Task {
 class TaskManager {
     private:
         std::deque<Task> privateQ; 
-        StealQueue<Task>* publicQ;
+        StealQueue<Task> publicQ;
 
         Scheduler* scheduler;
 
@@ -52,10 +56,8 @@ class TaskManager {
         // steal parameters
         int chunkSize;
 
-        thread* maybeSpawnCoroutines( );
-
         bool publicHasEle() {
-            return publicQ->local_depth > 0;
+            return publicQ.localDepth() > 0;
         }
 
         bool privateHasEle() {
@@ -68,8 +70,8 @@ class TaskManager {
                 privateQ.pop_front();
                 return true;
             } else if ( publicHasEle() ) {
-                *result = publicQ->top();
-                publicQ->pop( );
+                *result = publicQ.peek();
+                publicQ.pop( );
                 return true;
             } else {
                 return false;
@@ -77,30 +79,21 @@ class TaskManager {
         }
 
     public:
-        TaskManager (Scheduler* scheduler, bool doSteal, Node localId, Node* neighbors, Node numLocalNodes, int chunkSize, int cbint) 
-                : workDone( false )
-                , doSteal( doSteal ), okToSteal( true ), mightBeWork ( true )
-                , localId( localId ), neighbors( neighbors ), numLocalNodes( numLocalNodes )
-                , chunkSize( chunkSize ), cbint( cbint ) 
-                , scheduler( scheduler )
-                , privateQ( )
-                , publicQ( &my_steal_stack ) {
-                   
-                   work_args.tasks = this;
-        }
-        
+        TaskManager (Scheduler* scheduler, bool doSteal, Node localId, Node* neighbors, Node numLocalNodes, int chunkSize, int cbint);
+
         void createWorkers( uint64_t num );
+        thread* maybeSpawnCoroutines( );
 
 
         /// Possibly move work from local partition of public queue to global partition
         void releaseTasks() {
           if (doSteal) {
-            if (publicQ->localDepth > 2 * chunkSize) {
+            if (publicQ.localDepth() > 2 * chunkSize) {
               // Attribute this time to runtime overhead
         /*      ss_setState(ss, SS_OVH);                    */
-              publicQ->release(chunkSize);
+              publicQ.release(chunkSize);
               // This has significant overhead on clusters!
-              if (publicQ->get_nNodes() % cbint == 0) { // possible for cbint to get skipped if push multiple?
+              if (publicQ.get_nNodes() % cbint == 0) { // possible for cbint to get skipped if push multiple?
         /*        ss_setState(ss, SS_CBOVH);                */
                 VLOG(5) << "canceling barrier";
                 cbarrier_cancel();
@@ -120,13 +113,39 @@ class TaskManager {
         bool getWork ( Task* result );
 
         bool available ( );
-        
-        static void spawnRemotePrivate( void (*f)(void * arg), void * arg);
+
+        Scheduler * get_scheduler() {
+            return scheduler;
+        }
+
+        static void spawnRemotePrivate( Node dest, void (*f)(void * arg), void * arg);
 };
+
+typedef struct task_worker_args {
+    TaskManager * tasks;
+} task_worker_args;
+task_worker_args work_args;
+
+#define MAXQUEUEDEPTH 500000
+
+TaskManager::TaskManager (Scheduler* scheduler, bool doSteal, Node localId, Node* neighbors, Node numLocalNodes, int chunkSize, int cbint) 
+    : workDone( false )
+    , doSteal( doSteal ), okToSteal( true ), mightBeWork ( true )
+    , localId( localId ), neighbors( neighbors ), numLocalNodes( numLocalNodes )
+    , chunkSize( chunkSize ), cbint( cbint ) 
+    , scheduler( scheduler )
+    , privateQ( )
+    , publicQ( MAXQUEUEDEPTH ) {
+    
+          // TODO the way this is being used, it might as well have a singleton
+          StealQueue<Task>::registerAddress( &publicQ );
+          work_args.tasks = this;
+}
+        
 
 inline void TaskManager::spawnPublic( void (*f)(void * arg), void * arg ) {
     Task newtask(f, arg);
-    publicQ->push( newtask );
+    publicQ.push( newtask );
     releaseTasks();
 }
 
@@ -168,3 +187,6 @@ struct spawn_args {
 //  call nextCoro
 //  (if only one then periodic tasks
 //     should eventually cause it to
+
+
+#endif

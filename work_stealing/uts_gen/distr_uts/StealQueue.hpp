@@ -2,7 +2,6 @@
 #ifndef STEAL_QUEUE_HPP
 #define STEAL_QUEUE_HPP
 
-#include "uts.h"
 #include "SoftXMT.hpp"
 #include <boost/cstdint.hpp>
 

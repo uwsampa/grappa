@@ -4,6 +4,7 @@
 #include "Thread.hpp"
 #include "Task.hpp"
 
+
 class Scheduler {
     private:
         ThreadQueue readyQ;
@@ -18,26 +19,37 @@ class Scheduler {
         
         thread * getWorker ();
 
+        // STUB: replace with real periodic threads
+        int periodctr;
+        thread * periodicDequeue() {
+            if (periodctr++ % 100 == 0) {
+                return periodicQ.dequeue();
+            } else {
+                return NULL;
+            }
+        }
+        //////
+
         thread * nextCoroutine ( bool isBlocking=true ) {
             do {
                 thread* result;
 
                 // check for periodic tasks
-                result = periodicQ.dequeue();
-                if (result != NULL_THREAD) return result;
+                result = periodicDequeue();
+                if (result != NULL) return result;
 
                 // check ready tasks
                 result = readyQ.dequeue();
-                if (result != NULL_THREAD) return result;
+                if (result != NULL) return result;
 
                 // check for new workers
                 result = getWorker();
-                if (result != NULL_THREAD) return result;
+                if (result != NULL) return result;
 
                 // no coroutines can run, so handle
                 DVLOG(5) << "scheduler: no coroutines can run";
                 usleep(1);
-            } while ( isBlocking || (periodicQ.none() && unassignedQ.empty()) ); 
+            } while ( isBlocking || (periodicQ.empty() && unassignedQ.empty()) ); 
             // exit if all threads exited, including idle workers
             // TODO just as use mightBeWork as shortcut, also kill all idle unassigned workers on cbarrier_exit
             
@@ -46,15 +58,15 @@ class Scheduler {
 
 
     public:
-       Scheduler ( thread * master, TaskManager taskman ) 
+       Scheduler ( thread * master, TaskManager * taskman ) 
         : readyQ ( )
         , periodicQ ( )
         , unassignedQ ( )
         , master ( master )
         , current_thread ( master )
-        , nextID ( 1 )
+        , nextId ( 1 )
         , num_idle ( 0 )
-        , task_manager ( taskman ) { }
+        , task_manager ( taskman ) { periodctr = 0;/*XXX*/}
 
        void assignTid( thread * thr ) {
            thr->id = nextId++;
@@ -85,8 +97,16 @@ class Scheduler {
        void thread_yield_wake( thread * next );
        void thread_suspend_wake( thread * next );
        bool thread_idle( uint64_t total_idle ); 
-       thread * thread_wait( void **result );
        void thread_join( thread* wait_on );
+
+       // Start running threads from <scheduler> until one dies.  Return that thread
+       // (which can't be restarted--it's trash.)  If <result> non-NULL,
+       // store the thread's exit value there.
+       // If no threads to run, returns NULL.
+       thread * thread_wait( void **result );
+
+
+       void thread_on_exit( );
 };  
 
 
@@ -105,7 +125,7 @@ inline bool Scheduler::thread_yield( ) {
     current_thread = next;
     thread_context_switch( yieldedThr, next, NULL);
     
-    return gotResecheduled; // 0=another ran; 1=me got rescheduled immediately
+    return gotRescheduled; // 0=another ran; 1=me got rescheduled immediately
 }
 
 
@@ -144,7 +164,7 @@ inline void Scheduler::thread_yield_wake( thread * next ) {
     CHECK( !thread_is_running( next ) ) << "woken thread should not be running";
   
     thread * yieldedThr = current_thread;
-    ready( yieldThr );
+    ready( yieldedThr );
     
     current_thread = next;
     thread_context_switch( yieldedThr, next, NULL);
@@ -179,7 +199,7 @@ inline bool Scheduler::thread_idle( uint64_t total_idle ) {
         thread_suspend( );
         
         // woke so decrement idle counter
-        sched->num_idle--;
+        num_idle--;
 
         return true;
     }
@@ -189,30 +209,23 @@ inline void Scheduler::thread_on_exit( ) {
   thread * exitedThr = current_thread;
   current_thread = master;
 
-  thread_context_switch( yieldedThr, next, (void *)exitedThr);
+  thread_context_switch( exitedThr, master, (void *)exitedThr);
 }
 
 
-// Start running threads from <scheduler> until one dies.  Return that thread
-// (which can't be restarted--it's trash.)  If <result> non-NULL,
-// store the thread's exit value there.
-// If no threads to run, returns NULL.
-thread * Scheduler::thread_wait( void **result );
-
-void Scheduler::thread_join( thread* wait_on );
 
 
 thread* Scheduler::getWorker () {
-    if (task_manager.available()) {
+    if (task_manager->available()) {
         // check the pool of unassigned coroutines
         thread* result = unassignedQ.dequeue();
-        if (result != NULL_THREAD) return result;
+        if (result != NULL) return result;
 
         // possibly spawn more coroutines
-        thread* result = task_manager.maybeSpawnCoroutines();
+        result = task_manager->maybeSpawnCoroutines();
         return result;
     } else {
-        return NULL_THREAD;
+        return NULL;
     }
 }
 

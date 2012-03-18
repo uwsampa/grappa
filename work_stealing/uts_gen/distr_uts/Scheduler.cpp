@@ -7,7 +7,7 @@ void Scheduler::run ( ) {
 
 void Scheduler::thread_join( thread* wait_on ) {
     if ( !wait_on->done ) {
-        wait_on->joinlist.enqueue( me );
+        wait_on->joinqueue.enqueue( current_thread );
         thread_suspend( );
     }
 }
