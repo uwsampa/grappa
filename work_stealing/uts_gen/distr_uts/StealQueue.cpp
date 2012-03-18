@@ -25,8 +25,7 @@ void StealQueue<T>::mkEmpty( ) {
 template <class T>
 uint64_t StealQueue<T>::topPosn()
 {
-  if (top <= local)
-    ss_error("ss_topPosn: empty local stack");
+  CHECK ( top > local ) << "ss_topPosn: empty local stack";
   return top - 1;
 }
 
@@ -34,14 +33,15 @@ uint64_t StealQueue<T>::topPosn()
 /// release k values from bottom of local stack
 template <class T>
 void StealQueue<T>::release( int k ) {
+  CHECK(top - local >= k) << "ss_release:  do not have k vals to release";
+ 
+  // the above check is not time-of-check-to-use bug, because top/local guarenteed
+  // not to change. We just need to update them
   SET_LOCK(stackLock);
-  if (top - local >= k) {
-    local += k;
-    workAvail += k;
-    nRelease++;
-  }
-  else
-    ss_error("ss_release:  do not have k vals to release");
+  local += k;
+  workAvail += k;
+  nRelease++;
+
   UNSET_LOCK(stackLock);
 }
 
@@ -105,8 +105,7 @@ void StealQueue<T>::workStealRequest_am(workStealRequest_args<T> * args, size_t 
     int victimShared = victimStack->sharedStart;
     int victimWorkAvail = victimStack->workAvail;
     
-    if (victimLocal - victimShared != victimWorkAvail)
-        ss_error("handle steal request: stealStack invariant violated");
+    CHECK( victimLocal - victimShared == victimWorkAvail ) << "handle steal request: stealStack invariant violated";
     
     int ok = victimWorkAvail >= k;
     if (ok) {

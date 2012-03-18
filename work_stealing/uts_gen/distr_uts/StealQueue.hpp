@@ -4,18 +4,27 @@
 
 #include "uts.h"
 #include "SoftXMT.hpp"
+#include <boost/cstdint.hpp>
+
+// TODO remove locks
+#include <gasnet.h>
+#define INIT_LOCK gasnet_hsl_init
+#define SET_LOCK gasnet_hsl_lock
+#define UNSET_LOCK gasnet_hsl_unlock
+#define LOCK_T gasnet_hsl_t
+#define LOCK_INITIALIZER GASNET_HSL_INITIALIZER
+
+#define SS_NSTATES 1
 
 template <class T>
 struct workStealRequest_args {
     int k;
     Node from;
-    StealQueue<T>* victim_local;
 };
 
 template <class T>
 struct workStealReply_args {
     int k;
-    StealQueue<T>* thief_local;
 };
 
 template <class T>
@@ -64,10 +73,7 @@ class StealQueue {
                 stack_g = static_cast<T*>( malloc( nbytes ) );
                 stack = stack_g;
 
-                if (stack == NULL) {
-                    LOG(FATAL) << "Request for " << nbytes <<< " bytes for stealStack on thread " << SoftXMT_mynode() << " failed";
-                    ss_error("unable to allocate space for stealstack");
-                }
+                CHECK( stack!= NULL ) << "Request for " << nbytes <<< " bytes for stealStack on thread " << SoftXMT_mynode() << " failed";
 
                 stackLock = (LOCK_T*)malloc(sizeof(LOCK_T));
                 INIT_LOCK(stackLock);
@@ -91,26 +97,16 @@ class StealQueue {
         }
         
         /// register local address of remote steal queues
-        void registerAddress( StealQueue<T> * addr );
+        static void registerAddress( StealQueue<T> * addr );
 
 };
-
-        
-void ss_error( char *str ) {
-    CHECK(false) << str;
-}
-
-
 
 
 /// Push onto top of local stack
 template <class T>
 inline void StealQueue<T>::push( T c ) {
-  if (top >= stackSize) {
-      char buf[2048];
-      sprintf(buf, "ss_push: overflow (top:%d stackSize:%d)\n", s->top, s->stackSize);
-      ss_error(buf);
-  }
+  CHECK( top < stackSize ) << "push: overflow (top:" << top << " stackSize:" << stackSize ")";
+
   stack[top] = c; 
   top++;
   nNodes++;
