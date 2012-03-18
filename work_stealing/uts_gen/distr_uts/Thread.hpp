@@ -2,11 +2,29 @@
 #define THREAD_HPP
 
 #include "coro.h"
-#include <stdint.h>
+#include <boost/cstdint.hpp>
 
-class ThreadQueue;
 class Scheduler;
 typedef uint32_t threadid_t; 
+struct thread;
+
+class ThreadQueue {
+    private:
+        thread* head;
+        thread* tail;
+
+    public:
+        ThreadQueue ( ) 
+            : head ( NULL )
+            , tail ( NULL ) { }
+
+        void enqueue(thread* t);
+        thread* dequeue();
+
+        bool empty() {
+            return (head==NULL);
+        }
+};
 
 typedef struct thread {
   coro *co;
@@ -18,6 +36,27 @@ typedef struct thread {
   ThreadQueue joinqueue;
   int done;
 } thread;
+        
+thread* ThreadQueue::dequeue() {
+    thread* result = head;
+    if (result != NULL) {
+        head = result->next;
+        result->next = NULL;
+    } else {
+        tail = NULL;
+    }
+    return result;
+}
+
+void ThreadQueue::enqueue(thread* t) {
+    if (head==NULL) {
+        head = t;
+    } else {
+        tail->next = t;
+    }
+    tail = t;
+    t->next = NULL;
+}
 
 typedef void (*thread_func)(thread *, void *arg);
 
@@ -41,36 +80,5 @@ void thread_exit(thread *me, void *retval);
 // Delete a thread.
 void destroy_thread(thread *thr);
 
-class ThreadQueue {
-    private:
-        thread* head;
-        thread* tail;
-
-    public:
-        ThreadQueue ( ) 
-            : head ( NULL )
-            , tail ( NULL ) { }
-
-        thread* dequeue() {
-            thread* result = head;
-            if (result != NULL) {
-                head = result->next;
-                result->next = NULL;
-            } else {
-                tail = NULL;
-            }
-            return result;
-        }
-
-        void enqueue(thread* t) {
-            if (head==NULL) {
-                head = t;
-            } else {
-                tail->next = t;
-            }
-            tail = t;
-            t->next = NULL;
-        }
-};
 
 #endif

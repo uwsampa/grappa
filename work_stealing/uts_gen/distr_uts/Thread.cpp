@@ -1,5 +1,9 @@
 #include "Thread.hpp"
+#include <cstdlib>
+#include <cassert>
+#include "Scheduler.hpp"
 
+#define STACK_SIZE 2<<18
 
 thread * thread_init() {
   coro* me = coro_init();
@@ -61,7 +65,6 @@ thread * thread_spawn(thread * me, Scheduler * sched,
 }
 
 void thread_exit(thread * me, void * retval) {
-  thread * master = me->sched->master;
 
   // Reuse the queue field for a return value.
   me->next = (thread *)retval;
