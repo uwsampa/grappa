@@ -41,6 +41,7 @@ include $(SOFTXMT_HOME)/include.mk
 
 #
 # name of host on which to run tests
+# (unused with srun)
 #
 HOST:=n01,n04
 
@@ -100,32 +101,11 @@ libSoftXMT.a: $(patsubst %,libSoftXMT.a(%),$(LIBRARY_CONTENTS))
 #
 ENV_VARIABLES+= GLOG_logtostderr=1
 ENV_VARIABLES+= GLOG_v=1
-ENV_VARIABLES+= OMPI_MCA_btl_sm_use_knem=0
+#ENV_VARIABLES+= OMPI_MCA_btl_sm_use_knem=0
 ENV_VARIABLES+= LD_LIBRARY_PATH="\$$LD_LIBRARY_PATH:$(LD_LIBRARY_PATH)"
 ENV_VARIABLES+= GASNET_BACKTRACE=1
 
-#
-# how do we export environment variables
-#
-OPENMPI_EXPORT_ENV_VARIABLES=$(patsubst %,-x %,$(patsubst DELETEME:%,,$(subst =, DELETEME:,$(ENV_VARIABLES))))
 
-#
-# temporary file for environment variables for QLogic MPI
-# 
-
-# create a temporary filename for environment variables
-ENVVAR_TEMP:=$(shell mktemp --dry-run --tmpdir=. .mpirunrc.XXXXXXXX )
-# command fragment to use environment variables
-QLOGIC_EXPORT_ENV_VARIABLES=-rcfile $(ENVVAR_TEMP)
-
-# create an environment variable file when needed
-.mpirunrc.%:
-	echo \#!/bin/bash > $@
-	echo "if [ -e ~/.mpirunrc ]; then . ~/.mpirunrc; fi" >> $@
-	for i in $(ENV_VARIABLES); do echo export $$i >> $@; done
-
-# delete when done
-# .INTERMEDIATE: $(ENVVAR_TEMP)
 
 #
 # Heap Leak Checker
@@ -141,35 +121,39 @@ endif
 #
 # run a binary
 #
-run: $(TARGET) $(ENVVAR_TEMP)
+run: $(TARGET) $($(MPITYPE)_ENVVAR_TEMP)
 	-killall $<
 	$(ENV_VARIABLES) \
-	$(MPIRUN) $($(MPITYPE)_EXPORT_ENV_VARIABLES) -H $(HOST) -np 2 -- ./$< $(ARGS)
+	$($(MPITYPE)_MPIRUN) $($(MPITYPE)_EXPORT_ENV_VARIABLES) $($(MPITYPE)_HOST) $($(MPITYPE)_NPROC) -- ./$< $(ARGS)
 
 #
 # run tests for a component
 #
-mpi_test: $(TARGET) $(ENVVAR_TEMP)
+mpi_test: $(TARGET) $($(MPITYPE)_ENVVAR_TEMP)
 	-killall $<
 	$(ENV_VARIABLES) \
-	$(MPIRUN) $($(MPITYPE)_EXPORT_ENV_VARIABLES) -H $(HOST) -np $(NPROC) -- ./$< --log_level=test_suite --run_test=$(TARGET:.test=) -- $(ARGS)
+	$($(MPITYPE)_MPIRUN) $($(MPITYPE)_EXPORT_ENV_VARIABLES) $($(MPITYPE)_HOST) $($(MPITYPE)_NPROC) -- ./$< --log_level=test_suite --run_test=$(TARGET:.test=) -- $(ARGS)
 
 test: $(TARGET)
 	$(ENV_VARIABLES) \
 	./$< --log_level=test_suite --run_test=$(TARGET:.test=) -- $(ARGS)
 
-# build a specific test and update autodependence info
+# build a specific test
 # include Boost test automagic main() generation
+# add an additional rule if you need to include multiple components
 %_tests.o: CXXFLAGS+= -DBOOST_TEST_DYN_LINK -DBOOST_TEST_MODULE=$@
 %_tests.test: LIBRARIES+= -lboost_unit_test_framework
 %_tests.test: %_tests.o
-	$(LD) $(CFLAGS) $(CXXFLAGS) $(LDFLAGS) $(LIBRARIES) $^ -o $@
-	objdump -S $@ > $@.dis
+	$(LD) $(CFLAGS) $(CXXFLAGS) $(LDFLAGS) $^ $(LIBRARIES) -o $@
+
+# disassemble test
+%_tests.dis: %_tests.test
+	objdump -S $< > $@
 
 #
 # What libraries do we need?
 #
-LIBRARIES+= -lgflags -lglog $(GASNET_LIBS) -lrt
+LIBRARIES+= -lgflags -lglog -lrt $(GASNET_LIBS)
 
 #
 # set compiler flags
@@ -205,7 +189,10 @@ LD_LIBRARY_PATH:=$(LD_LIBRARY_PATH):$(GFLAGS)/lib
 # add an additional rule if you need to include multiple components
 %.exe: %.o 
 	$(LD) $(LDFLAGS) $^ $(LIBRARIES) -o $@
-	# objdump -S $@ > $@.dis
+
+# disassemble executable
+%.dis: %.exe
+	objdump -S $< > $@
 
 # build documentation
 doc:: 
@@ -259,9 +246,8 @@ stack.o: stack.S Makefile
 	$(CC) -c $(CFLAGS) $< -o $*.o
 
 
+CLEAN_FILES= *.exe *.o *.d *.test *.dis libSoftXMT.a $($(MPITYPE)_CLEAN_FILES)
 clean:
-	rm -f *.exe *.o *.d *.test *.btr .mpirunrc.* *.dis libSoftXMT.a
-#	rm -f $(TARGET) $(OBJECTS) $(OBJECTS:.o=.d) $(OBJECTS:.o=.test) $(TEST_TARGET)
-
+	rm -f $(CLEAN_FILES)
 
 .PHONY: run test clean
