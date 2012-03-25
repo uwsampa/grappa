@@ -66,7 +66,7 @@ LD=mpiCC
 # some library paths
 
 # gasnet
-GASNET=/sampa/share/gasnet18-rhel6
+GASNET=/sampa/share/gasnet18-rhel6-openmpi
 GASNET_CONDUIT=ibv #values:ibv,mpi
 GASNET_THREAD=seq #values:seq,par,parsync -- seq recommended
 
@@ -111,6 +111,75 @@ CFLAGS+= -I$(GPERFTOOLS)/include
 LDFLAGS+= -L$(GPERFTOOLS)/lib
 LD_LIBRARY_PATH:=$(LD_LIBRARY_PATH):$(GPERFTOOLS)/lib
 
-MPITYPE=QLOGIC
-MPIRUN=mpirun -l
+MPITYPE=SRUN
 
+
+
+#############################################################################
+# configuration for running jobs with various MPI libraries
+#############################################################################
+
+#
+# OpenMPI with mpirun
+#
+
+# how do we export environment variables
+OPENMPI_EXPORT_ENV_VARIABLES=$(patsubst %,-x %,$(patsubst DELETEME:%,,$(subst =, DELETEME:,$(ENV_VARIABLES))))
+
+OPENMPI_HOST=-H $(HOST)
+OPENMPI_NPROC=-np $(NPROC)
+
+OPENMPI_MPIRUN=mpirun
+
+OPENMPI_CLEAN_FILE= *.btr
+
+#
+# Slurm with srun
+#
+
+# create a temporary filename for environment variables
+SRUN_ENVVAR_TEMP:=$(shell mktemp --dry-run --tmpdir=. .srunrc.XXXXXXXX )
+
+# command fragment to use environment variables
+SRUN_EXPORT_ENV_VARIABLES=--task-prolog=$(SRUN_ENVVAR_TEMP)
+
+# create an environment variable file when needed
+.srunrc.%:
+	echo \#!/bin/bash > $@
+	for i in $(ENV_VARIABLES); do echo echo export $$i >> $@; done
+	chmod +x $@
+
+# delete when done
+.INTERMEDIATE: $(SRUN_ENVVAR_TEMP)
+
+SRUN_HOST=--partition softxmt
+SRUN_NPROC=--nodes=$(NPROC) --ntasks-per-node=1
+
+SRUN_MPIRUN=srun --resv-ports --cpu_bind=verbose,rank --exclusive --label
+
+SRUN_CLEAN_FILES= .srunrc.* 
+
+#
+# QLogic MPI
+#
+
+# create a temporary filename for environment variables
+QLOGIC_ENVVAR_TEMP:=$(shell mktemp --dry-run --tmpdir=. .mpirunrc.XXXXXXXX )
+# command fragment to use environment variables
+QLOGIC_EXPORT_ENV_VARIABLES=-rcfile $(QLOGIC_ENVVAR_TEMP)
+
+# create an environment variable file when needed
+.mpirunrc.%:
+	echo \#!/bin/bash > $@
+	echo "if [ -e ~/.mpirunrc ]; then . ~/.mpirunrc; fi" >> $@
+	for i in $(ENV_VARIABLES); do echo export $$i >> $@; done
+
+# delete when done
+.INTERMEDIATE: $(QLOGIC_ENVVAR_TEMP)
+
+QLOGIC_HOST=-H $(HOST)
+QLOGIC_NPROC=-np $(NPROC)
+
+QLOGIC_MPIRUN=mpirun -l
+
+QLOGIC_CLEAN_FILES= *.btr .mpirunrc.* 
