@@ -17,7 +17,7 @@ static range_t blockDist(int64_t start, int64_t end, int64_t rank, int64_t numBl
 	int64_t each   = numElems / numBlocks,
   remain = numElems % numBlocks;
 	int64_t mynum = (rank < remain) ? each+1 : each;
-	int64_t mystart = (rank < remain) ? (each+1)*rank : (each+1)*remain + (rank-remain)*each;
+	int64_t mystart = start + ((rank < remain) ? (each+1)*rank : (each+1)*remain + (rank-remain)*each);
 	range_t r = { mystart, mystart+mynum };
   return r;
 }
@@ -45,13 +45,16 @@ public:
   static void am_release(GlobalAddress<Semaphore>* gaddr, size_t sz, void* payload, size_t psz) {
     SLOG(2) << "in am_release()";
     assert(gaddr->node() == SoftXMT_mynode());
-    int n = (int)reinterpret_cast<int64_t>(payload);
-    gaddr->pointer()->release(n);
+//    int64_t n = reinterpret_cast<int64_t>(payload);
+    int n = (int)*((int64_t*)payload);
+    SLOG(2) << "am_release n=" << n;
+    gaddr->pointer()->release((int)n);
   }
   static void release(GlobalAddress<Semaphore>* gaddr, int n) {
-    int64_t nn = n;
+//    int64_t nn = n;
     SLOG(2) << "about to call on " << gaddr->node();
-    SoftXMT_call_on(gaddr->node(), &Semaphore::am_release, gaddr, sizeof(GlobalAddress<Semaphore>), reinterpret_cast<void*>(nn), 0);
+//    SoftXMT_call_on(gaddr->node(), &Semaphore::am_release, gaddr, sizeof(GlobalAddress<Semaphore>), reinterpret_cast<void*>(nn), 0);
+    SoftXMT_call_on(gaddr->node(), &Semaphore::am_release, gaddr, sizeof(GlobalAddress<Semaphore>), &n, sizeof(int64_t));
   }
 };
 
@@ -97,6 +100,7 @@ template<typename T>
 static void th_iters(thread * me, iters_args* arg) {
   forkjoin_data_t<T> * fj = static_cast<forkjoin_data_t<T>*>(arg->fjdata);
   range_t myblock = blockDist(fj->local_start, fj->local_end, arg->rank, fj->nthreads);
+  SLOG(2) << "iters_block: " << myblock.start << " - " << myblock.end;
   
   for (int64_t i=myblock.start; i < myblock.end; i++) {
     (*fj->func)(me, i);
@@ -124,6 +128,7 @@ static void fork_join_onenode(thread * spawner, T* func, int64_t start, int64_t 
 template<typename T>
 static void th_node_fork_join(thread * me, NodeForkJoinArgs<T>* a) {
   range_t myblock = blockDist(a->start, a->end, SoftXMT_mynode(), SoftXMT_nodes());
+  SLOG(2) << "myblock: " << myblock.start << " - " << myblock.end;
   fork_join_onenode(me, &a->func, myblock.start, myblock.end);
   
   SLOG(2) << "about to update sem on " << a->sem.node();
