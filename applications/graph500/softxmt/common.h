@@ -14,6 +14,8 @@
 #include <stddef.h>
 #include "../generator/graph_generator.h"
 #include "../compat.h"
+#include "SoftXMT.hpp"
+#include "Addressing.hpp"
 
 #define SIZE_MUST_BE_A_POWER_OF_TWO
 
@@ -37,7 +39,7 @@ extern int lgsize;
 #define VERTEX_TO_GLOBAL(r, i) ((int64_t)(MUL_SIZE((uint64_t)i) + (int)(r)))
 
 typedef struct tuple_graph {
-  packed_edge * restrict edges;
+  GlobalAddress<packed_edge> edges;
   int64_t nedge; /* Number of edges in graph, in both cases */
 } tuple_graph;
 
