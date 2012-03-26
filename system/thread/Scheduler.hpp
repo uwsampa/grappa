@@ -2,8 +2,10 @@
 #define _SCHEDULER_HPP_
 
 #include "Thread.hpp"
-#include "Task.hpp"
+//#include "Task.hpp"
+#include <glog/logging.h>
 
+class TaskManager;
 
 class Scheduler {
     private:
@@ -214,20 +216,6 @@ inline void Scheduler::thread_on_exit( ) {
 
 
 
-
-thread* Scheduler::getWorker () {
-    if (task_manager->available()) {
-        // check the pool of unassigned coroutines
-        thread* result = unassignedQ.dequeue();
-        if (result != NULL) return result;
-
-        // possibly spawn more coroutines
-        result = task_manager->maybeSpawnCoroutines();
-        return result;
-    } else {
-        return NULL;
-    }
-}
 
 #endif
 
