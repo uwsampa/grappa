@@ -8,6 +8,20 @@
 
 #define min(A,B) ( (A) < (B) ? (A) : (B))
 
+DEFINE_int64(max_forkjoin_threads_per_node, 256, "maximum number of threads to spawn for a fork-join region");
+
+struct range_t { int64_t start, end; };
+
+static range_t blockDist(int64_t start, int64_t end, int64_t rank, int64_t numBlocks) {
+	int64_t numElems = end-start;
+	int64_t each   = numElems / numBlocks,
+  remain = numElems % numBlocks;
+	int64_t mynum = (rank < remain) ? each+1 : each;
+	int64_t mystart = start + ((rank < remain) ? (each+1)*rank : (each+1)*remain + (rank-remain)*each);
+	range_t r = { mystart, mystart+mynum };
+  return r;
+}
+
 class Semaphore {
 protected:
   thread * sleeper;
@@ -31,13 +45,16 @@ public:
   static void am_release(GlobalAddress<Semaphore>* gaddr, size_t sz, void* payload, size_t psz) {
     SLOG(2) << "in am_release()";
     assert(gaddr->node() == SoftXMT_mynode());
-    int n = (int)reinterpret_cast<int64_t>(payload);
-    gaddr->pointer()->release(n);
+//    int64_t n = reinterpret_cast<int64_t>(payload);
+    int n = (int)*((int64_t*)payload);
+    SLOG(2) << "am_release n=" << n;
+    gaddr->pointer()->release((int)n);
   }
   static void release(GlobalAddress<Semaphore>* gaddr, int n) {
-    int64_t nn = n;
+//    int64_t nn = n;
     SLOG(2) << "about to call on " << gaddr->node();
-    SoftXMT_call_on(gaddr->node(), &Semaphore::am_release, gaddr, sizeof(GlobalAddress<Semaphore>), reinterpret_cast<void*>(nn), 0);
+//    SoftXMT_call_on(gaddr->node(), &Semaphore::am_release, gaddr, sizeof(GlobalAddress<Semaphore>), reinterpret_cast<void*>(nn), 0);
+    SoftXMT_call_on(gaddr->node(), &Semaphore::am_release, gaddr, sizeof(GlobalAddress<Semaphore>), &n, sizeof(int64_t));
   }
 };
 
@@ -57,7 +74,6 @@ struct NodeForkJoinArgs {
 template<typename T>
 struct forkjoin_data_t {
   T* func;
-  size_t niters_each;
   size_t nthreads;
   size_t finished;
   thread * node_th;
@@ -65,29 +81,29 @@ struct forkjoin_data_t {
   size_t local_end;
   
   forkjoin_data_t(thread * me, T* f, int64_t start, int64_t end) {
-    size_t each_n = (end-start) / SoftXMT_nodes();
-    local_start = start + SoftXMT_mynode() * each_n;
-    local_end = local_start + each_n;
+    size_t each_n = (end-start); // / SoftXMT_nodes();
+    local_start = start; //start + SoftXMT_mynode() * each_n;
+    local_end = end; //local_start + each_n;
     func = f;
-    nthreads = min(128, each_n);
-    niters_each = (each_n)/nthreads;
+    nthreads = min(FLAGS_max_forkjoin_threads_per_node, each_n);
     finished = 0;
     node_th = me;
   }
 };
 
 struct iters_args {
-  size_t start_index;
+  size_t rank;
   void* fjdata;
 };
 
 template<typename T>
 static void th_iters(thread * me, iters_args* arg) {
   forkjoin_data_t<T> * fj = static_cast<forkjoin_data_t<T>*>(arg->fjdata);
-  size_t index = arg->start_index;
+  range_t myblock = blockDist(fj->local_start, fj->local_end, arg->rank, fj->nthreads);
+  SLOG(2) << "iters_block: " << myblock.start << " - " << myblock.end;
   
-  for (int i=0; i < fj->niters_each; i++) {
-    (*fj->func)(me, index+i);
+  for (int64_t i=myblock.start; i < myblock.end; i++) {
+    (*fj->func)(me, i);
   }
   fj->finished++;
   if (fj->finished == fj->nthreads) {
@@ -102,7 +118,7 @@ static void fork_join_onenode(thread * spawner, T* func, int64_t start, int64_t 
   
   for (int i=0; i<fj.nthreads; i++) {
     args[i].fjdata = &fj;
-    args[i].start_index = fj.local_start + i*fj.niters_each;
+    args[i].rank = i;
     
     SoftXMT_template_spawn(&th_iters<T>, &args[i]);
   }
@@ -111,7 +127,9 @@ static void fork_join_onenode(thread * spawner, T* func, int64_t start, int64_t 
 
 template<typename T>
 static void th_node_fork_join(thread * me, NodeForkJoinArgs<T>* a) {
-  fork_join_onenode(me, &a->func, a->start, a->end);
+  range_t myblock = blockDist(a->start, a->end, SoftXMT_mynode(), SoftXMT_nodes());
+  SLOG(2) << "myblock: " << myblock.start << " - " << myblock.end;
+  fork_join_onenode(me, &a->func, myblock.start, myblock.end);
   
   SLOG(2) << "about to update sem on " << a->sem.node();
   Semaphore::release(&a->sem, 1);
