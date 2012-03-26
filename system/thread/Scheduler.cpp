@@ -35,3 +35,19 @@ thread * Scheduler::thread_wait( void **result ) {
     }
 }
 
+
+inline thread* Scheduler::getWorker () {
+    if (task_manager->available()) {
+        // check the pool of unassigned coroutines
+        thread* result = unassignedQ.dequeue();
+        if (result != NULL) return result;
+
+        // possibly spawn more coroutines
+        result = task_manager->maybeSpawnCoroutines();
+        return result;
+    } else {
+        return NULL;
+    }
+}
+
+
