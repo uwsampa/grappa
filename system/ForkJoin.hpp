@@ -4,23 +4,23 @@
 #include <boost/static_assert.hpp>
 #include <boost/type_traits/is_base_of.hpp>
 
-#define SLOG(verboselevel) VLOG(verboselevel) << "<" << SoftXMT_mynode() << "> "
+//#define VLOG(verboselevel) VLOG(verboselevel) << "<" << SoftXMT_mynode() << "> "
 
 #define min(A,B) ( (A) < (B) ? (A) : (B))
 
 DEFINE_int64(max_forkjoin_threads_per_node, 256, "maximum number of threads to spawn for a fork-join region");
 
-struct range_t { int64_t start, end; };
-
-static range_t blockDist(int64_t start, int64_t end, int64_t rank, int64_t numBlocks) {
-	int64_t numElems = end-start;
-	int64_t each   = numElems / numBlocks,
-  remain = numElems % numBlocks;
-	int64_t mynum = (rank < remain) ? each+1 : each;
-	int64_t mystart = start + ((rank < remain) ? (each+1)*rank : (each+1)*remain + (rank-remain)*each);
-	range_t r = { mystart, mystart+mynum };
-  return r;
-}
+//struct range_t { int64_t start, end; };
+//
+//static range_t blockDist(int64_t start, int64_t end, int64_t rank, int64_t numBlocks) {
+//	int64_t numElems = end-start;
+//	int64_t each   = numElems / numBlocks,
+//  remain = numElems % numBlocks;
+//	int64_t mynum = (rank < remain) ? each+1 : each;
+//	int64_t mystart = start + ((rank < remain) ? (each+1)*rank : (each+1)*remain + (rank-remain)*each);
+//	range_t r = { mystart, mystart+mynum };
+//  return r;
+//}
 
 class Semaphore {
 protected:
@@ -32,7 +32,7 @@ public:
   void acquire_all(thread * me) {
     sleeper = me;
     while (count < total) {
-      SLOG(2) << "Semaphore.count = " << count << " of " << total << ", suspending...";
+      VLOG(2) << "Semaphore.count = " << count << " of " << total << ", suspending...";
       SoftXMT_suspend();
     }
   }
@@ -43,16 +43,16 @@ public:
     }
   }
   static void am_release(GlobalAddress<Semaphore>* gaddr, size_t sz, void* payload, size_t psz) {
-    SLOG(2) << "in am_release()";
+    VLOG(2) << "in am_release()";
     assert(gaddr->node() == SoftXMT_mynode());
 //    int64_t n = reinterpret_cast<int64_t>(payload);
     int n = (int)*((int64_t*)payload);
-    SLOG(2) << "am_release n=" << n;
+    VLOG(2) << "am_release n=" << n;
     gaddr->pointer()->release((int)n);
   }
   static void release(GlobalAddress<Semaphore>* gaddr, int n) {
 //    int64_t nn = n;
-    SLOG(2) << "about to call on " << gaddr->node();
+    VLOG(2) << "about to call on " << gaddr->node();
 //    SoftXMT_call_on(gaddr->node(), &Semaphore::am_release, gaddr, sizeof(GlobalAddress<Semaphore>), reinterpret_cast<void*>(nn), 0);
     SoftXMT_call_on(gaddr->node(), &Semaphore::am_release, gaddr, sizeof(GlobalAddress<Semaphore>), &n, sizeof(int64_t));
   }
@@ -100,7 +100,7 @@ template<typename T>
 static void th_iters(thread * me, iters_args* arg) {
   forkjoin_data_t<T> * fj = static_cast<forkjoin_data_t<T>*>(arg->fjdata);
   range_t myblock = blockDist(fj->local_start, fj->local_end, arg->rank, fj->nthreads);
-  SLOG(2) << "iters_block: " << myblock.start << " - " << myblock.end;
+  VLOG(2) << "iters_block: " << myblock.start << " - " << myblock.end;
   
   for (int64_t i=myblock.start; i < myblock.end; i++) {
     (*fj->func)(me, i);
@@ -128,10 +128,10 @@ static void fork_join_onenode(thread * spawner, T* func, int64_t start, int64_t 
 template<typename T>
 static void th_node_fork_join(thread * me, NodeForkJoinArgs<T>* a) {
   range_t myblock = blockDist(a->start, a->end, SoftXMT_mynode(), SoftXMT_nodes());
-  SLOG(2) << "myblock: " << myblock.start << " - " << myblock.end;
+  VLOG(2) << "myblock: " << myblock.start << " - " << myblock.end;
   fork_join_onenode(me, &a->func, myblock.start, myblock.end);
   
-  SLOG(2) << "about to update sem on " << a->sem.node();
+  VLOG(2) << "about to update sem on " << a->sem.node();
   Semaphore::release(&a->sem, 1);
 }
 
@@ -149,9 +149,9 @@ static void fork_join(thread * me, T* func, int64_t start, int64_t end) {
     SoftXMT_remote_spawn(&th_node_fork_join, &fj, i);
     SoftXMT_flush(i); // TODO: remove this?
   }
-  SLOG(2) << "waiting to acquire all";
+  VLOG(2) << "waiting to acquire all";
   sem.acquire_all(me);
   
-  SLOG(2) << "fork_join done";
+  VLOG(2) << "fork_join done";
 }
 
