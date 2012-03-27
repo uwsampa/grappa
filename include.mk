@@ -2,6 +2,8 @@
 # common variables for softxmt project
 #############################################################################
 
+SOFTXMT_HOME?=$(HOME)
+
 #
 # common across machines
 #
