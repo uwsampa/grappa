@@ -8,7 +8,7 @@
 
 #define min(A,B) ( (A) < (B) ? (A) : (B))
 
-DEFINE_int64(max_forkjoin_threads_per_node, 256, "maximum number of threads to spawn for a fork-join region");
+DECLARE_int64(max_forkjoin_threads_per_node);
 
 //struct range_t { int64_t start, end; };
 //
