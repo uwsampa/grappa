@@ -7,8 +7,6 @@
 #include "GlobalMemory.hpp"
 
 
-DEFINE_int64(max_forkjoin_threads_per_node, 256, "maximum number of threads to spawn for a fork-join region");
-
 static Communicator * my_global_communicator = NULL;
 static Aggregator * my_global_aggregator = NULL;
 
