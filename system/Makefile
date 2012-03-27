@@ -61,29 +61,28 @@ lib: libSoftXMT.a
 #
 # object file dependences
 #
-Demo.exe: SoftXMT.o GlobalMemory.o Communicator.o Aggregator.o thread.o coro.o stack.o
+Demo.exe: SoftXMT.o GlobalMemory.o Communicator.o Aggregator.o Timestamp.o thread.o coro.o stack.o
 
 Communicator_tests.test:
 
-Aggregator_tests.test: Communicator.o Aggregator.o
+Aggregator_tests.test: Communicator.o Aggregator.o Timestamp.o
 MutableHeap.test:
 
 
-Delegate_tests.test: Delegate.o SoftXMT.o GlobalMemory.o  Communicator.o Aggregator.o thread.o coro.o stack.o 
-Addressing_tests.test: SoftXMT.o Communicator.o Aggregator.o thread.o coro.o stack.o 
-GlobalMemoryChunk_tests.test: Delegate.o SoftXMT.o GlobalMemory.o Communicator.o Aggregator.o thread.o coro.o stack.o 
-GlobalAllocator_tests.test: GlobalAllocator.o Allocator.o Delegate.o SoftXMT.o GlobalMemory.o  Communicator.o Aggregator.o thread.o coro.o stack.o 
+Delegate_tests.test: Delegate.o SoftXMT.o GlobalMemory.o  Timestamp.o Communicator.o Aggregator.o thread.o coro.o stack.o 
+Addressing_tests.test: SoftXMT.o GlobalMemory.o GlobalAllocator.o Timestamp.o Allocator.o Communicator.o Aggregator.o thread.o coro.o stack.o 
+GlobalMemoryChunk_tests.test: Delegate.o SoftXMT.o GlobalMemory.o Timestamp.o Communicator.o Aggregator.o thread.o coro.o stack.o 
+GlobalAllocator_tests.test: GlobalAllocator.o Allocator.o Delegate.o SoftXMT.o Timestamp.o GlobalMemory.o  Communicator.o Aggregator.o thread.o coro.o stack.o 
 Allocator_tests.test: Allocator.o
 
-Collective_tests.test: Delegate.o SoftXMT.o GlobalMemory.o Communicator.o Aggregator.o thread.o coro.o stack.o Collective.o
+Collective_tests.test: Delegate.o SoftXMT.o GlobalMemory.o Communicator.o Aggregator.o Timestamp.o thread.o coro.o stack.o Collective.o
 
 thread_tests.test: thread.o stack.o coro.o
-thread2_tests.test: SoftXMT.o GlobalMemory.o Communicator.o Aggregator.o thread.o coro.o stack.o 
-thread3_tests.test: SoftXMT.o GlobalMemory.o Communicator.o Aggregator.o thread.o coro.o stack.o
+thread2_tests.test: SoftXMT.o GlobalMemory.o Communicator.o Aggregator.o Timestamp.o thread.o coro.o stack.o 
+thread3_tests.test: SoftXMT.o GlobalMemory.o Communicator.o Aggregator.o Timestamp.o thread.o coro.o stack.o
 
-Cache_tests.test: Cache.o SoftXMT.o GlobalMemory.o Communicator.o Aggregator.o thread.o coro.o stack.o 
-
-Rate_measure.exe: SoftXMT.o GlobalMemory.o Delegate.o Communicator.o Aggregator.o thread.o coro.o stack.o
+Cache_tests.test: Cache.o SoftXMT.o Delegate.o GlobalMemory.o GlobalAllocator.o Allocator.o Communicator.o Aggregator.o Timestamp.o thread.o coro.o stack.o 
+Rate_measure.exe: SoftXMT.o GlobalMemory.o Delegate.o Communicator.o Aggregator.o Timestamp.o thread.o coro.o stack.o
 
 ForkJoin_tests.test: SoftXMT.o GlobalMemory.o Communicator.o Aggregator.o Delegate.o coro.o stack.o thread.o GlobalAllocator.o Allocator.o
 
@@ -91,7 +90,7 @@ ForkJoin_tests.test: SoftXMT.o GlobalMemory.o Communicator.o Aggregator.o Delega
 #
 # Build SoftXMT static library
 #
-LIBRARY_CONTENTS= SoftXMT.o GlobalAllocator.o GlobalMemory.o Communicator.o Aggregator.o Allocator.o Cache.o thread.o coro.o stack.o 
+LIBRARY_CONTENTS= SoftXMT.o GlobalAllocator.o GlobalMemory.o Communicator.o Aggregator.o Timestamp.o Allocator.o Cache.o thread.o coro.o stack.o 
 libSoftXMT.a: $(patsubst %,libSoftXMT.a(%),$(LIBRARY_CONTENTS))
 
 
@@ -100,10 +99,15 @@ libSoftXMT.a: $(patsubst %,libSoftXMT.a(%),$(LIBRARY_CONTENTS))
 # remember to include environment's $LD_LIBRARY_PATH, since MPI libs may be there
 #
 ENV_VARIABLES+= GLOG_logtostderr=1
+#ENV_VARIABLES+= GLOG_vmodule=Cache*=5,Incoh*=5,Aggreg*=5
+#ENV_VARIABLES+= GLOG_vmodule=Cache*=5,Incoh*=5
 ENV_VARIABLES+= GLOG_v=1
 #ENV_VARIABLES+= OMPI_MCA_btl_sm_use_knem=0
 ENV_VARIABLES+= LD_LIBRARY_PATH="\$$LD_LIBRARY_PATH:$(LD_LIBRARY_PATH)"
 ENV_VARIABLES+= GASNET_BACKTRACE=1
+ENV_VARIABLES+= IPATH_PORT=1
+ENV_VARIABLES+= GASNET_IBV_PORTS=qib0:1
+ENV_VARIABLES+= GASNET_USE_XRC=0
 
 
 
