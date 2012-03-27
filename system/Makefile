@@ -86,6 +86,10 @@ Rate_measure.exe: libSoftXMT.a
 
 ForkJoin_tests.test: libSoftXMT.a
 
+<<<<<<< HEAD
+=======
+ForkJoin_tests.test: SoftXMT.o GlobalMemory.o Communicator.o Aggregator.o Delegate.o coro.o stack.o thread.o GlobalAllocator.o Allocator.o ForkJoin.o
+>>>>>>> Moved declaration of ForkJoin flag to cpp file.
 
 #
 # Build SoftXMT static library
