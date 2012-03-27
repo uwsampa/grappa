@@ -19,6 +19,12 @@ struct func_initialize : public ForkJoinIteration {
   }
 };
 
+struct func_hello : public ForkJoinIteration {
+  void operator()(thread * me, int64_t index) {
+    LOG(INFO) << "Hello from " << index << "!";
+  }
+};
+
 static void user_main(thread * me, void * args) {
   
   LOG(INFO) << "beginning user main... (" << SoftXMT_mynode() << ")";
@@ -50,6 +56,10 @@ static void user_main(thread * me, void * args) {
       BOOST_CHECK_EQUAL(i, *c);
     }
     SoftXMT_free(data);
+  }
+  {
+    func_hello f;
+    fork_join_custom(me, &f);
   }
   
   

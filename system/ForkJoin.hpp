@@ -155,3 +155,30 @@ static void fork_join(thread * me, T* func, int64_t start, int64_t end) {
   VLOG(2) << "fork_join done";
 }
 
+template<typename T>
+static void th_node_fork_join_custom(thread * me, NodeForkJoinArgs<T>* a) {
+  a->func(me, SoftXMT_mynode());
+  
+  VLOG(2) << "about to update sem on " << a->sem.node();
+  Semaphore::release(&a->sem, 1);
+}
+
+template<typename T>
+static void fork_join_custom(thread * me, T* func) {
+  Semaphore sem(SoftXMT_nodes(), 0);
+  
+  NodeForkJoinArgs<T> fj;
+  fj.start = 0;
+  fj.end = 0;
+  fj.func = *func;
+  fj.sem = make_global(&sem);
+  
+  for (int i=0; i < SoftXMT_nodes(); i++) {
+    SoftXMT_remote_spawn(&th_node_fork_join_custom, &fj, i);
+    SoftXMT_flush(i); // TODO: remove this?
+  }
+  VLOG(2) << "waiting to acquire all";
+  sem.acquire_all(me);
+  
+  VLOG(2) << "fork_join done";
+}
