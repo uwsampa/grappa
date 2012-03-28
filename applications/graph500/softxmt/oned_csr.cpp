@@ -247,9 +247,9 @@ struct pack_vtx_edges_func : public ForkJoinIteration {
     int64_t xei = SoftXMT_delegate_read_word(XENDOFF(i));
     if (xoi+1 >= xei) return;
     
-    int64_t * buf = (int64_t*)alloca(xei-xoi*sizeof(int64_t));
     Incoherent<int64_t>::RW cadj(xadj+xoi, xei-xoi, buf);
     cadj.block_until_acquired();
+    int64_t * buf = (int64_t*)alloca((xei-xoi)*sizeof(int64_t));
     
     qsort(buf, xei-xoi, sizeof(int64_t), i64cmp);
     kcur = 0;
