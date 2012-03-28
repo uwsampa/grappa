@@ -2,10 +2,13 @@
 #define _SCHEDULER_HPP_
 
 #include "Thread.hpp"
-//#include "Task.hpp"
 #include <glog/logging.h>
 
 class TaskManager;
+typedef struct task_worker_args {
+    TaskManager * tasks;
+    Scheduler * scheduler;
+} task_worker_args;
 
 class Scheduler {
     private:
@@ -20,6 +23,8 @@ class Scheduler {
         TaskManager * task_manager;
         
         thread * getWorker ();
+
+        task_worker_args work_args;
 
         // STUB: replace with real periodic threads
         int periodctr;
@@ -68,7 +73,12 @@ class Scheduler {
         , current_thread ( master )
         , nextId ( 1 )
         , num_idle ( 0 )
-        , task_manager ( taskman ) { periodctr = 0;/*XXX*/}
+        , task_manager ( taskman ) { 
+            
+            periodctr = 0;/*XXX*/
+            work_args.tasks = taskman;
+            work_args.scheduler = this;
+        }
         
       void createWorkers( uint64_t num );
       thread* maybeSpawnCoroutines( );

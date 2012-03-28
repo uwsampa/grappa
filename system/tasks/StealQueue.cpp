@@ -117,8 +117,8 @@ void StealQueue<T>::workStealRequest_am(workStealRequest_args<T> * args, size_t 
     
     /* if k elts reserved, move them to local portion of our stack */
     if (ok) {
-        Node_ptr* victimStackBase = victimStack->stack;
-        Node_ptr* victimSharedStart = victimStackBase + victimShared;
+        T* victimStackBase = victimStack->stack;
+        T* victimSharedStart = victimStackBase + victimShared;
    
         workStealReply_args<T> reply_args = { k };
         SoftXMT_call_on( args->from, &StealQueue<T>::workStealReply_am, 
