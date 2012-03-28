@@ -48,3 +48,5 @@ inline uint64_t timer_ns(void) {
 #endif
 }
 
+#define TIME(timevar, what) \
+do { double _start; _start = timer(); what; timevar = timer() - _start; } while (0)
