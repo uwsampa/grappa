@@ -12,18 +12,23 @@
 
 #include "common.h"
 
-typedef struct oned_csr_graph {
-  size_t nlocalverts;
-  int64_t max_nlocalverts;
-  size_t nlocaledges;
-  int lg_nglobalverts;
-  int64_t nglobalverts;
-  size_t *rowstarts;
-  int64_t *column;
-  const tuple_graph* tg; /* Original graph used to build this one */
-} oned_csr_graph;
+//typedef struct oned_csr_graph {
+//  size_t nlocalverts;
+//  int64_t max_nlocalverts;
+//  size_t nlocaledges;
+//  int lg_nglobalverts;
+//  int64_t nglobalverts;
+//  size_t *rowstarts;
+//  int64_t *column;
+//  const tuple_graph* tg; /* Original graph used to build this one */
+//} oned_csr_graph;
 
-void convert_graph_to_oned_csr(const tuple_graph* const tg, oned_csr_graph* const g);
-void free_oned_csr_graph(oned_csr_graph* const g);
+struct csr_graph {
+  GlobalAddress<int64_t> xoff, xadj, xadjstore;
+  int64_t nv;
+};
+
+void convert_graph_to_oned_csr(const tuple_graph* const tg, csr_graph* const g);
+void free_oned_csr_graph(csr_graph* const g);
 
 #endif /* ONED_CSR_H */
