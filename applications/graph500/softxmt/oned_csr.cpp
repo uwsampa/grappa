@@ -247,9 +247,13 @@ struct pack_vtx_edges_func : public ForkJoinIteration {
     int64_t xei = SoftXMT_delegate_read_word(XENDOFF(i));
     if (xoi+1 >= xei) return;
     
-    Incoherent<int64_t>::RW cadj(xadj+xoi, xei-xoi, buf);
-    cadj.block_until_acquired();
     int64_t * buf = (int64_t*)alloca((xei-xoi)*sizeof(int64_t));
+    //    Incoherent<int64_t>::RW cadj(xadj+xoi, xei-xoi, buf);
+    //    cadj.block_until_acquired();
+    // poor man's larger cache buffer, TODO: use cache as above once multi-node acquires are implemented...
+    for (int64_t i=0; i<xei-xoi; i++) {
+      buf[i] = SoftXMT_delegate_read_word(xadj+xoi+i);
+    }
     
     qsort(buf, xei-xoi, sizeof(int64_t), i64cmp);
     kcur = 0;
@@ -263,6 +267,11 @@ struct pack_vtx_edges_func : public ForkJoinIteration {
       buf[k] = -1;
     }
     SoftXMT_delegate_write_word(XENDOFF(i), xoi+kcur);
+    
+    // poor man's cache release, TODO: let RW cache just release it (once implemented)
+    for (int64_t i=0; i<xei-xoi; i++) {
+      SoftXMT_delegate_write_word(xadj+xoi+i, buf[i]);
+    }
   }
 };
 
