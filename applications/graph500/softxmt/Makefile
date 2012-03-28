@@ -8,7 +8,7 @@ TARGET:= graph.exe
 $(TARGET):
 
 CFLAGS += -I$(SOFTXMT_HOME)/system
-CFLAGS += -g -Wall -Drestrict=__restrict__ -O3 -DNDEBUG -ffast-math -DGRAPH_GENERATOR_SOFTXMT
+CFLAGS += -g -Wall -Drestrict=__restrict__ -ffast-math -DGRAPH_GENERATOR_SOFTXMT
 # CFLAGS += -g -pg
 # CFLAGS = -g -Wall -Drestrict= -DGRAPH_GENERATOR_MPI
 
