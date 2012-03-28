@@ -6,7 +6,6 @@
 #include "gasnet_cbarrier.h"
 #include "Thread.hpp"
 
-class Scheduler;
 //thread* const NULL_THREAD = NULL;
 
 
@@ -36,8 +35,6 @@ class TaskManager {
     private:
         std::deque<Task> privateQ; 
         StealQueue<Task> publicQ;
-
-        Scheduler* scheduler;
 
         bool workDone;
         bool mightBeWork; // flag to enable wake up optimization
@@ -79,10 +76,7 @@ class TaskManager {
         }
 
     public:
-        TaskManager (Scheduler* scheduler, bool doSteal, Node localId, Node* neighbors, Node numLocalNodes, int chunkSize, int cbint);
-
-        void createWorkers( uint64_t num );
-        thread* maybeSpawnCoroutines( );
+        TaskManager (bool doSteal, Node localId, Node* neighbors, Node numLocalNodes, int chunkSize, int cbint);
 
 
         /// Possibly move work from local partition of public queue to global partition
@@ -114,10 +108,6 @@ class TaskManager {
 
         bool available ( );
 
-        Scheduler * get_scheduler() {
-            return scheduler;
-        }
-
         static void spawnRemotePrivate( Node dest, void (*f)(void * arg), void * arg);
 };
 
@@ -128,12 +118,11 @@ task_worker_args work_args;
 
 #define MAXQUEUEDEPTH 500000
 
-TaskManager::TaskManager (Scheduler* scheduler, bool doSteal, Node localId, Node* neighbors, Node numLocalNodes, int chunkSize, int cbint) 
+TaskManager::TaskManager (bool doSteal, Node localId, Node* neighbors, Node numLocalNodes, int chunkSize, int cbint) 
     : workDone( false )
     , doSteal( doSteal ), okToSteal( true ), mightBeWork ( true )
     , localId( localId ), neighbors( neighbors ), numLocalNodes( numLocalNodes )
     , chunkSize( chunkSize ), cbint( cbint ) 
-    , scheduler( scheduler )
     , privateQ( )
     , publicQ( MAXQUEUEDEPTH ) {
     

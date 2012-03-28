@@ -51,3 +51,40 @@ inline thread* Scheduler::getWorker () {
 }
 
 
+void workerLoop ( thread* me, void* args ) {
+    task_worker_args* wargs = (task_worker_args*) args;
+    TaskManager* tasks = wargs->tasks;
+    Scheduler * sched = wargs->scheduler;
+
+    Task nextTask;
+   
+    while ( true ) {
+        // block until receive work or termination reached
+        if (!tasks->getWork(&nextTask)) break; // quitting time
+
+        nextTask.execute();
+
+        sched->thread_yield( ); // yield to the scheduler
+    }
+}
+
+
+/// create worker threads for executing tasks
+void Scheduler::createWorkers( uint64_t num ) {
+    task_manager->addNumWorkers( num );
+    for (int i=0; i<num; i++) {
+        thread* t = thread_spawn( current_thread, this, workerLoop, &work_args);
+        unassigned( t );
+    }
+}
+
+#define BASIC_MAX_WORKERS 1
+thread* Scheduler::maybeSpawnCoroutines( ) {
+    if ( task_manager->getNumWorkers() < BASIC_MAX_WORKERS ) {
+       task_manager->addNumWorkers( 1 );
+       return thread_spawn( current_thread, this, workerLoop, &work_args ); // current thread will be coro parent; is this okay?
+    } else {
+        // might have another way to spawn
+        return NULL;
+    }
+}

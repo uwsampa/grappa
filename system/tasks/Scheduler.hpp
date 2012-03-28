@@ -69,6 +69,9 @@ class Scheduler {
         , nextId ( 1 )
         , num_idle ( 0 )
         , task_manager ( taskman ) { periodctr = 0;/*XXX*/}
+        
+      void createWorkers( uint64_t num );
+      thread* maybeSpawnCoroutines( );
 
        void assignTid( thread * thr ) {
            thr->id = nextId++;
