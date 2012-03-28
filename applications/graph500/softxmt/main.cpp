@@ -36,6 +36,7 @@
 #include "Delegate.hpp"
 #include "timer.h"
 #include "rmat.h"
+#include "oned_csr.h"
 
 static int compare_doubles(const void* a, const void* b) {
   double aa = *(const double*)a;
@@ -45,15 +46,32 @@ static int compare_doubles(const void* a, const void* b) {
 enum {s_minimum, s_firstquartile, s_median, s_thirdquartile, s_maximum, s_mean, s_std, s_LAST};
 static void get_statistics(const double x[], int n, double r[s_LAST]);
 
-
 //### Globals ###
+#define NBFS_max 64
+#define MAX_SCALE 20
+
 int SCALE;
 int edgefactor;
 
-#define MAX_SCALE 20
+//static int64_t bfs_root[NBFS_max];
+
+static double generation_time;
+static double construction_time;
+static double bfs_time[NBFS_max];
+static int64_t bfs_nedge[NBFS_max];
 
 int lgsize;
 
+static void run_bfs(tuple_graph * tg) {
+  csr_graph g;
+  
+  TIME(construction_time,
+       convert_graph_to_oned_csr(tg, &g)
+  );
+  LOG(INFO) << "construction_time = " << construction_time;
+  
+  
+}
 
 static void user_main(thread * me, void * args) {    
   tuple_graph tg;
@@ -65,7 +83,7 @@ static void user_main(thread * me, void * args) {
   /* Make the raw graph edges. */
   /* Get roots for BFS runs, plus maximum vertex with non-zero degree (used by
    * validator). */
-  int num_bfs_roots = 64;
+  int num_bfs_roots = NBFS_max;
   //  int64_t* bfs_roots = (int64_t*)xmalloc(num_bfs_roots * sizeof(int64_t));
   GlobalAddress<int64_t> bfs_roots = SoftXMT_typed_malloc<int64_t>(num_bfs_roots);
   int64_t max_used_vertex = 0;
@@ -83,29 +101,32 @@ static void user_main(thread * me, void * args) {
     rmat_edgelist(&tg, SCALE);
     
     //debug: verify that rmat edgelist is valid
-    for (int64_t i=0; i<tg.nedge; i++) {
-      Incoherent<packed_edge>::RO e(tg.edges+i, 1);
-      VLOG(1) << "edge[" << i << "] = " << (*e).v0 << " -> " << (*e).v1;
-    }
-    
-    int64_t degree[NV];
-    for (int64_t i=0; i<NV; i++) degree[i] = 0;
-    
-    for (int64_t i=0; i<tg.nedge; i++) {
-      Incoherent<packed_edge>::RO e(tg.edges+i, 1);
-      assert(e[0].v0 < NV);
-      assert(e[0].v1 < NV);
-      degree[e[0].v0]++;
-    }
-    for (int64_t i=0; i<NV; i++) {
-      VLOG(1) << "degree[" << i << "] = " << degree[i];
-    }
-    
-    //TODO
+//    for (int64_t i=0; i<tg.nedge; i++) {
+//      Incoherent<packed_edge>::RO e(tg.edges+i, 1);
+//      VLOG(1) << "edge[" << i << "] = " << (*e).v0 << " -> " << (*e).v1;
+//    }
+//    
+//    int64_t degree[NV];
+//    for (int64_t i=0; i<NV; i++) degree[i] = 0;
+//    
+//    for (int64_t i=0; i<tg.nedge; i++) {
+//      Incoherent<packed_edge>::RO e(tg.edges+i, 1);
+//      assert(e[0].v0 < NV);
+//      assert(e[0].v1 < NV);
+//      if (e[0].v0 != e[0].v1) {
+//        degree[e[0].v0]++;
+//        degree[e[0].v1]++;
+//      }
+//    }
+//    for (int64_t i=0; i<NV; i++) {
+//      VLOG(1) << "degree[" << i << "] = " << degree[i];
+//    }
   }
   stop = timer();
   double make_graph_time = stop - start;
   fprintf(stderr, "graph_generation:               %f s\n", make_graph_time);
+  
+  run_bfs(&tg);
   
   SoftXMT_free(bfs_roots);
 //  free_graph_data_structure();
