@@ -1,40 +1,13 @@
 #include "Task.hpp"
-#include "Scheduler.hpp"
 
-void workerLoop ( thread* me, void* args ) {
-    TaskManager* tasks = ((task_worker_args*)args)->tasks;
-    Scheduler * sched = tasks->get_scheduler();
-
-    Task nextTask;
-   
-    while ( true ) {
-        // block until receive work or termination reached
-        if (!tasks->getWork(&nextTask)) break; // quitting time
-
-        nextTask.execute();
-
-        sched->thread_yield( ); // yield to the scheduler
-    }
+// TODO replace with call to something like SoftXMT_currentThreadId
+int cur_tid () {
+    return 1;
 }
 
-/// create worker threads for executing tasks
-void TaskManager::createWorkers( uint64_t num ) {
-    num_workers += num;
-    for (int i=0; i<num; i++) {
-        thread* t = thread_spawn( scheduler->get_current_thread(), scheduler, workerLoop, &work_args);
-        scheduler->unassigned( t );
-    }
-}
-
-#define BASIC_MAX_WORKERS 1
-thread* TaskManager::maybeSpawnCoroutines( ) {
-    if ( num_workers < BASIC_MAX_WORKERS ) {
-       num_workers++;
-       return thread_spawn( scheduler->get_current_thread(), scheduler, workerLoop, &work_args ); // current thread will be coro parent; is this okay?
-    } else {
-        // might have another way to spawn
-        return NULL;
-    }
+// TODO replace with real SoftXMT
+void SoftStubMT_threadIdle(int nw) {
+    return true;
 }
 
 bool TaskManager::getWork ( Task* result ) {
@@ -59,12 +32,12 @@ bool TaskManager::getWork ( Task* result ) {
                 continue;
             }
 
-            DVLOG(5) << scheduler->get_current_thread()->id << " okToSteal";
+            DVLOG(5) << cur_tid() << " okToSteal";
 
             // try to steal
             if (doSteal) {
                 okToSteal = false;      // prevent running unassigned threads from trying to steal again
-                DVLOG(5) << scheduler->get_current_thread()->id << " trying to steal";
+                DVLOG(5) << cur_tid() << " trying to steal";
                 bool goodSteal = false;
                 int victimId;
 
@@ -75,34 +48,35 @@ bool TaskManager::getWork ( Task* result ) {
                 }
 
                 if (goodSteal) {
-                    DVLOG(5) << scheduler->get_current_thread()->id << " steal from rank" << victimId;
+                    DVLOG(5) << cur_tid() << " steal from rank" << victimId;
                     okToSteal = true; // release steal lock
                     mightBeWork = true; // now there is work so allow more threads to be scheduled
                     continue;
                 } else {
-                    DVLOG(5) << scheduler->get_current_thread()->id << " failed to steal";
+                    DVLOG(5) << cur_tid() << " failed to steal";
                 }
 
                 /**TODO remote load balance**/
 
             } else {
-                DVLOG(5) << scheduler->get_current_thread()->id << " !okToSteal";
+                DVLOG(5) << cur_tid() << " !okToSteal";
             }
         }
 
-//        DVLOG(5) << scheduler->get_current_thread()->id << "goes idle because sees no work (idle=" << scheduler->num_idle
+//        DVLOG(5) << cur_tid() << "goes idle because sees no work (idle=" << scheduler->num_idle
 //            << " idleReady="<<me->sched->idleReady <<")";
 
-        if (!scheduler->thread_idle(num_workers)) {
+     //   if (!scheduler->thread_idle(num_workers)) {
+        if (!SoftStubMT_threadIdle(num_workers)) {
          
-            DVLOG(5) << scheduler->get_current_thread()->id << " saw all were idle so suggest barrier";
+            DVLOG(5) << cur_tid() << " saw all were idle so suggest barrier";
          
             // no work so suggest global termination barrier
             if (cbarrier_wait()) {
-                DVLOG(5) << scheduler->get_current_thread()->id << " left barrier from finish";
+                DVLOG(5) << cur_tid() << " left barrier from finish";
                 workDone = true;
             } else {
-                DVLOG(5) << scheduler->get_current_thread()->id << " left barrier from cancel";
+                DVLOG(5) << cur_tid() << " left barrier from cancel";
                 mightBeWork = true;   // work is available so allow unassigned threads to be scheduled
                 okToSteal = true;        // work is available so allow steal attempts
             }
