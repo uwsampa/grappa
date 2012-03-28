@@ -6,7 +6,7 @@ int cur_tid () {
 }
 
 // TODO replace with real SoftXMT
-void SoftStubMT_threadIdle(int nw) {
+bool SoftStubMT_threadIdle(int nw) {
     return true;
 }
 

@@ -98,6 +98,14 @@ class TaskManager {
           }
         }
 
+        void addNumWorkers( uint64_t num ) {
+            num_workers += num;
+        }
+
+        uint64_t getNumWorkers( ) {
+            return num_workers;
+        }
+
         /*TODO return value?*/ 
         void spawnPublic( void (*f)(void * arg), void * arg);
         
@@ -111,10 +119,6 @@ class TaskManager {
         static void spawnRemotePrivate( Node dest, void (*f)(void * arg), void * arg);
 };
 
-typedef struct task_worker_args {
-    TaskManager * tasks;
-} task_worker_args;
-task_worker_args work_args;
 
 #define MAXQUEUEDEPTH 500000
 
@@ -128,7 +132,6 @@ TaskManager::TaskManager (bool doSteal, Node localId, Node* neighbors, Node numL
     
           // TODO the way this is being used, it might as well have a singleton
           StealQueue<Task>::registerAddress( &publicQ );
-          work_args.tasks = this;
 }
         
 

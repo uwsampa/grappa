@@ -1,4 +1,5 @@
 #include "Scheduler.hpp"
+#include "Task.hpp"
 
 
 void Scheduler::run ( ) {
@@ -43,7 +44,7 @@ inline thread* Scheduler::getWorker () {
         if (result != NULL) return result;
 
         // possibly spawn more coroutines
-        result = task_manager->maybeSpawnCoroutines();
+        result = maybeSpawnCoroutines();
         return result;
     } else {
         return NULL;
