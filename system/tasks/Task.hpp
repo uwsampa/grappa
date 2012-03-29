@@ -3,7 +3,7 @@
 
 #include <deque>
 #include "StealQueue.hpp"
-#include "gasnet_cbarrier.h"
+#include "gasnet_cbarrier.hpp"
 #include "Thread.hpp"
 
 //thread* const NULL_THREAD = NULL;

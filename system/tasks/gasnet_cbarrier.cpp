@@ -1,4 +1,4 @@
-#include "gasnet_cbarrier.h"
+#include "gasnet_cbarrier.hpp"
 #include "StealQueue.hpp"
 #include <queue>
 #include "SoftXMT.hpp"
