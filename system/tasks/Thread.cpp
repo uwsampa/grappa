@@ -1,30 +1,10 @@
-#include "Thread.hpp"
 #include <cstdlib>
 #include <cassert>
+#include "Thread.hpp"
 #include "Scheduler.hpp"
 
 #define STACK_SIZE 2<<18
 
-inline thread* ThreadQueue::dequeue() {
-    thread* result = head;
-    if (result != NULL) {
-        head = result->next;
-        result->next = NULL;
-    } else {
-        tail = NULL;
-    }
-    return result;
-}
-
-inline void ThreadQueue::enqueue(thread* t) {
-    if (head==NULL) {
-        head = t;
-    } else {
-        tail->next = t;
-    }
-    tail = t;
-    t->next = NULL;
-}
 
 thread * thread_init() {
   coro* me = coro_init();
