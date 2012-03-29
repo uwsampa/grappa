@@ -6,7 +6,7 @@
 #include <glog/logging.h>
 
 #include "Communicator.hpp"
-#include "thread.h"
+#include "tasks/Thread.hpp"
 
 //#include <typeinfo>
 //#include <cxxabi.h>
