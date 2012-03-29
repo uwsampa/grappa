@@ -61,7 +61,7 @@ void workerLoop ( thread* me, void* args ) {
    
     while ( true ) {
         // block until receive work or termination reached
-        if (!tasks->getWork(&nextTask)) break; // quitting time
+        if (!tasks->getWork(&nextTask,sched)) break; // quitting time
 
         nextTask.execute();
 

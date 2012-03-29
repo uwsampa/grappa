@@ -5,12 +5,22 @@ int cur_tid () {
     return 1;
 }
 
-// TODO replace with real SoftXMT
-bool SoftStubMT_threadIdle(int nw) {
-    return true;
-}
+#define MAXQUEUEDEPTH 500000
 
-bool TaskManager::getWork ( Task* result ) {
+TaskManager::TaskManager (bool doSteal, Node localId, Node* neighbors, Node numLocalNodes, int chunkSize, int cbint) 
+    : workDone( false )
+    , doSteal( doSteal ), okToSteal( true ), mightBeWork ( true )
+    , localId( localId ), neighbors( neighbors ), numLocalNodes( numLocalNodes )
+    , chunkSize( chunkSize ), cbint( cbint ) 
+    , privateQ( )
+    , publicQ( MAXQUEUEDEPTH ) {
+    
+          // TODO the way this is being used, it might as well have a singleton
+          StealQueue<Task>::registerAddress( &publicQ );
+}
+        
+
+bool TaskManager::getWork ( Task* result, Scheduler* scheduler) {
 
     // break this loop under two conditions
     // 1. receive work from the work queues
@@ -66,8 +76,7 @@ bool TaskManager::getWork ( Task* result ) {
 //        DVLOG(5) << cur_tid() << "goes idle because sees no work (idle=" << scheduler->num_idle
 //            << " idleReady="<<me->sched->idleReady <<")";
 
-     //   if (!scheduler->thread_idle(num_workers)) {
-        if (!SoftStubMT_threadIdle(num_workers)) {
+        if (!scheduler->thread_idle(num_workers)) {
          
             DVLOG(5) << cur_tid() << " saw all were idle so suggest barrier";
          

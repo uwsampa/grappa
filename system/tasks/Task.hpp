@@ -120,20 +120,6 @@ class TaskManager {
 };
 
 
-#define MAXQUEUEDEPTH 500000
-
-TaskManager::TaskManager (bool doSteal, Node localId, Node* neighbors, Node numLocalNodes, int chunkSize, int cbint) 
-    : workDone( false )
-    , doSteal( doSteal ), okToSteal( true ), mightBeWork ( true )
-    , localId( localId ), neighbors( neighbors ), numLocalNodes( numLocalNodes )
-    , chunkSize( chunkSize ), cbint( cbint ) 
-    , privateQ( )
-    , publicQ( MAXQUEUEDEPTH ) {
-    
-          // TODO the way this is being used, it might as well have a singleton
-          StealQueue<Task>::registerAddress( &publicQ );
-}
-        
 
 inline void TaskManager::spawnPublic( void (*f)(void * arg), void * arg ) {
     Task newtask(f, arg);

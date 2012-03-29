@@ -1,4 +1,5 @@
 #include "StealQueue.hpp"
+#include "SoftXMT.hpp" // TODO: SoftXMT_comm only
 #include <glog/logging.h>   
 
 /// Initialize the dedicated queue for T
@@ -127,7 +128,7 @@ void StealQueue<T>::workStealRequest_am(workStealRequest_args<T> * args, size_t 
     } else {
         workStealReply_args<T> reply_args = { 0 };
         SoftXMT_call_on( args->from, &StealQueue<T>::workStealReply_am, &reply_args );
-    }
+    }//RESUME!!!: SoftXMT call_on dont use SoftXMT?
 
 }
 
