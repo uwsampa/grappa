@@ -155,7 +155,6 @@ void SoftXMT_yield( )
   thread * th1 = current_thread;
   int retval = thread_yield( current_thread );
   thread * th2 = current_thread;
-  DVLOG(5) << "Thread " << th1 << " yield to thread " << th2 << (retval ? " failed." : " succeeded.");
 }
 
 /// Yield to scheduler, suspending current thread.
