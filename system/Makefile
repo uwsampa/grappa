@@ -145,7 +145,7 @@ test: $(TARGET)
 %_tests.o: CXXFLAGS+= -DBOOST_TEST_DYN_LINK -DBOOST_TEST_MODULE=$@
 %_tests.test: LIBRARIES+= -lboost_unit_test_framework
 %_tests.test: %_tests.o
-	$(LD) $(CFLAGS) $(CXXFLAGS) $(LDFLAGS) $^ $(LIBRARIES) -o $@
+	$($(MPITYPE)_LD) $(CFLAGS) $(CXXFLAGS) $(LDFLAGS) $^ $(LIBRARIES) -o $@
 
 # disassemble test
 %_tests.dis: %_tests.test
@@ -189,7 +189,7 @@ LD_LIBRARY_PATH:=$(LD_LIBRARY_PATH):$(GFLAGS)/lib
 # build an executable
 # add an additional rule if you need to include multiple components
 %.exe: %.o 
-	$(LD) $(LDFLAGS) $^ $(LIBRARIES) -o $@
+	$($(MPITYPE)_LD) $(LDFLAGS) $^ $(LIBRARIES) -o $@
 
 # disassemble executable
 %.dis: %.exe
@@ -214,8 +214,8 @@ TESTS:=$(wildcard *.test)
 # build an object
 # includes autodependence stuff
 %.o: %.cpp Makefile
-	$(CXX) -c $(CFLAGS) $(CXXFLAGS) $< -o $*.o
-	$(CXX) -MM $(CFLAGS) $(CXXFLAGS) $< > $*.d
+	$($(MPITYPE)_CXX) -c $(CFLAGS) $(CXXFLAGS) $< -o $*.o
+	$($(MPITYPE)_CXX) -MM $(CFLAGS) $(CXXFLAGS) $< > $*.d
 	@mv -f $*.d $*.d.tmp
 	@sed -e 's|.*:|$*.o:|' < $*.d.tmp > $*.d
 	@sed -e 's/.*://' -e 's/\\$$//' < $*.d.tmp | fmt -1 | \
@@ -226,8 +226,8 @@ TESTS:=$(wildcard *.test)
 # Temporary special handling for thread library
 #
 thread.o: thread.c Makefile
-	$(CC) -c $(CFLAGS) $< -o $*.o
-	$(CC) -MM $(CFLAGS) $< > $*.d
+	$($(MPITYPE)_CC) -c $(CFLAGS) $< -o $*.o
+	$($(MPITYPE)_CC) -MM $(CFLAGS) $< > $*.d
 	@mv -f $*.d $*.d.tmp
 	@sed -e 's|.*:|$*.o:|' < $*.d.tmp > $*.d
 	@sed -e 's/.*://' -e 's/\\$$//' < $*.d.tmp | fmt -1 | \
@@ -235,8 +235,8 @@ thread.o: thread.c Makefile
 	@rm -f $*.d.tmp
 
 coro.o: coro.c Makefile
-	$(CC) -c $(CFLAGS) $< -o $*.o
-	$(CC) -MM $(CFLAGS) $< > $*.d
+	$($(MPITYPE)_CC) -c $(CFLAGS) $< -o $*.o
+	$($(MPITYPE)_CC) -MM $(CFLAGS) $< > $*.d
 	@mv -f $*.d $*.d.tmp
 	@sed -e 's|.*:|$*.o:|' < $*.d.tmp > $*.d
 	@sed -e 's/.*://' -e 's/\\$$//' < $*.d.tmp | fmt -1 | \
@@ -244,7 +244,7 @@ coro.o: coro.c Makefile
 	@rm -f $*.d.tmp
 
 stack.o: stack.S Makefile
-	$(CC) -c $(CFLAGS) $< -o $*.o
+	$($(MPITYPE)_CC) -c $(CFLAGS) $< -o $*.o
 
 
 CLEAN_FILES= *.exe *.o *.d *.test *.dis libSoftXMT.a $($(MPITYPE)_CLEAN_FILES)
