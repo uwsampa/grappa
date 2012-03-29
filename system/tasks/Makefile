@@ -34,7 +34,12 @@ LIBRARIES:= -lgflags -lglog -lgasnet-ibv-seq -libverbs -lrt -lboost_unit_test_fr
 #
 LD_LIBRARY_PATH:=$(LD_LIBRARY_PATH):$(GFLAGS)/lib
 
-objects: gasnet_cbarrier.o StealQueue.o Thread.o Task.o Scheduler.o
+OBJECTS=coro.o stack.o gasnet_cbarrier.o StealQueue.o Thread.o Task.o Scheduler.o
+
+objects: $(OBJECTS)
+
+Thread_test.exe: Thread_test.o $(OBJECTS)
+	$(CXX) $(LDFLAGS) $^ $(LIBRARIES) -o $@
 
 clean:
 	rm -f ./*.o

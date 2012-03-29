@@ -2,7 +2,6 @@
 #ifndef STEAL_QUEUE_HPP
 #define STEAL_QUEUE_HPP
 
-#include "SoftXMT.hpp"
 #include <boost/cstdint.hpp>
 
 // TODO remove locks
@@ -72,7 +71,7 @@ class StealQueue {
                 stack_g = static_cast<T*>( malloc( nbytes ) );
                 stack = stack_g;
 
-                CHECK( stack!= NULL ) << "Request for " << nbytes << " bytes for stealStack on thread " << SoftXMT_mynode() << " failed";
+                CHECK( stack!= NULL ) << "Request for " << nbytes << " bytes for stealStack failed";
 
                 stackLock = (LOCK_T*)malloc(sizeof(LOCK_T));
                 INIT_LOCK(stackLock);
