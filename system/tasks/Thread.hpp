@@ -37,6 +37,26 @@ typedef struct thread {
   int done;
 } thread;
         
+inline thread* ThreadQueue::dequeue() {
+    thread* result = head;
+    if (result != NULL) {
+        head = result->next;
+        result->next = NULL;
+    } else {
+        tail = NULL;
+    }
+    return result;
+}
+
+inline void ThreadQueue::enqueue(thread* t) {
+    if (head==NULL) {
+        head = t;
+    } else {
+        tail->next = t;
+    }
+    tail = t;
+    t->next = NULL;
+}
 
 typedef void (*thread_func)(thread *, void *arg);
 
