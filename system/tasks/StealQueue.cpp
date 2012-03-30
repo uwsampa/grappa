@@ -1,6 +1,5 @@
 #include "StealQueue.hpp"
-#include "SoftXMT.hpp" // TODO: SoftXMT_comm only
-#include <glog/logging.h>   
+#include "../SoftXMT.hpp" // TODO: SoftXMT_comm only
 
 /// Initialize the dedicated queue for T
 template <class T>
@@ -69,12 +68,21 @@ int StealQueue<T>::acquire( int k ) {
 
 /* TODO remove the locks */
 
+struct workStealRequest_args {
+    int k;
+    Node from;
+};
+
+struct workStealReply_args {
+    int k;
+};
+
 int local_steal_amount;
 LOCK_T lsa_lock = LOCK_INITIALIZER;
 
 
 template <class T>
-void StealQueue<T>::workStealReply_am( workStealReply_args<T> * args,  size_t size, void * payload, size_t payload_size ) {
+void StealQueue<T>::workStealReply_am( workStealReply_args * args,  size_t size, void * payload, size_t payload_size ) {
     T* stolen_work = static_cast<T*>( payload );
     int k = args->k;
     
@@ -95,7 +103,7 @@ void StealQueue<T>::workStealReply_am( workStealReply_args<T> * args,  size_t si
 }
 
 template <class T>
-void StealQueue<T>::workStealRequest_am(workStealRequest_args<T> * args, size_t size, void * payload, size_t payload_size) {
+void StealQueue<T>::workStealRequest_am(workStealRequest_args * args, size_t size, void * payload, size_t payload_size) {
     int k = args->k;
 
     StealQueue<T>* victimStack = StealQueue<T>::staticQueueAddress;
@@ -121,12 +129,12 @@ void StealQueue<T>::workStealRequest_am(workStealRequest_args<T> * args, size_t 
         T* victimStackBase = victimStack->stack;
         T* victimSharedStart = victimStackBase + victimShared;
    
-        workStealReply_args<T> reply_args = { k };
+        workStealReply_args reply_args = { k };
         SoftXMT_call_on( args->from, &StealQueue<T>::workStealReply_am, 
-                         &reply_args, sizeof(workStealReply_args<T>), 
+                         &reply_args, sizeof(workStealReply_args), 
                          victimSharedStart, k*sizeof( T ));
     } else {
-        workStealReply_args<T> reply_args = { 0 };
+        workStealReply_args reply_args = { 0 };
         SoftXMT_call_on( args->from, &StealQueue<T>::workStealReply_am, &reply_args );
     }//RESUME!!!: SoftXMT call_on dont use SoftXMT?
 
@@ -139,7 +147,7 @@ int StealQueue<T>::steal_locally( Node victim, int k ) {
     local_steal_amount = -1;
     UNSET_LOCK(&lsa_lock);
 
-    workStealRequest_args<T> req_args = { k, SoftXMT_mynode() };
+    workStealRequest_args req_args = { k, SoftXMT_mynode() };
     SoftXMT_call_on( victim, &StealQueue<T>::workStealRequest_am, &req_args );
 
     // steal is blocking

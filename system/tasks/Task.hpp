@@ -8,6 +8,7 @@
 
 //thread* const NULL_THREAD = NULL;
 
+class TaskingScheduler;
 
 /// Task is a function pointer and pointer to arguments
 /// Ideally Task would be interface that just declares execute and makeGlobal
@@ -112,7 +113,7 @@ class TaskManager {
         /*TODO return value?*/ 
         void spawnPrivate( void (*f)(void * arg), void * arg);
         
-        bool getWork ( Task* result );
+        bool getWork ( Task* result, TaskingScheduler * sched );
 
         bool available ( );
 

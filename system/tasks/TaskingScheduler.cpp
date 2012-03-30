@@ -74,7 +74,7 @@ void workerLoop ( thread* me, void* args ) {
 void TaskingScheduler::createWorkers( uint64_t num ) {
     task_manager->addNumWorkers( num );
     for (int i=0; i<num; i++) {
-        thread* t = thread_spawn( current_thread, this, workerLoop, &work_args);
+        thread* t = thread_spawn( current_thread, this, workerLoop, work_args);
         unassigned( t );
     }
 }
@@ -83,7 +83,7 @@ void TaskingScheduler::createWorkers( uint64_t num ) {
 thread* TaskingScheduler::maybeSpawnCoroutines( ) {
     if ( task_manager->getNumWorkers() < BASIC_MAX_WORKERS ) {
        task_manager->addNumWorkers( 1 );
-       return thread_spawn( current_thread, this, workerLoop, &work_args ); // current thread will be coro parent; is this okay?
+       return thread_spawn( current_thread, this, workerLoop, work_args ); // current thread will be coro parent; is this okay?
     } else {
         // might have another way to spawn
         return NULL;
