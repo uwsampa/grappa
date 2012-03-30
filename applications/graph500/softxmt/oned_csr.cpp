@@ -29,7 +29,7 @@
 #define XOFF(k) (xoff+2*(k))
 #define XENDOFF(k) (xoff+1+2*(k))
 
-static int64_t maxvtx, nv, sz;
+static int64_t maxvtx, nv;
 
 //struct temp_graph_data {
 //  GlobalAddress<int64_t> xoff, xadjstore, xadj;
@@ -40,7 +40,7 @@ struct func_set_const : public ForkJoinIteration {
   GlobalAddress<int64_t> base_addr;
   int64_t value;
   void operator()(thread * me, int64_t index) {
-    DVLOG(2) << "called func_initialize with index = " << index;
+    DVLOG(3) << "called func_initialize with index = " << index;
     Incoherent<int64_t>::RW c(base_addr+index, 1);
     c[0] = value;
   }
@@ -299,7 +299,7 @@ static void gather_edges(const tuple_graph * const tg, csr_graph * g) {
   fork_join(current_thread, &pf, 0, g->nv);
 }
 
-void convert_graph_to_oned_csr(const tuple_graph* const tg, csr_graph* const g) {    
+void create_graph_from_edgelist(const tuple_graph* const tg, csr_graph* const g) {    
   find_nv(tg);
   LOG(INFO) << "nv = " << nv;
   
