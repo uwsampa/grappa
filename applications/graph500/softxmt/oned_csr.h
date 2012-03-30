@@ -28,7 +28,7 @@ struct csr_graph {
   int64_t nv;
 };
 
-void convert_graph_to_oned_csr(const tuple_graph* const tg, csr_graph* const g);
+void create_graph_from_edgelist(const tuple_graph* const tg, csr_graph* const g);
 void free_oned_csr_graph(csr_graph* const g);
 
 #endif /* ONED_CSR_H */

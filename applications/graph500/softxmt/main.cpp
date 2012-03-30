@@ -62,15 +62,116 @@ static int64_t bfs_nedge[NBFS_max];
 
 int lgsize;
 
+#define XOFF(k) (xoff+2*(k))
+#define XENDOFF(k) (xoff+2*(k)+1)
+
+inline bool has_adj(GlobalAddress<int64_t> xoff, int64_t i) {
+  int64_t xoi = SoftXMT_delegate_read_word(XOFF(i));
+  int64_t xei = SoftXMT_delegate_read_word(XENDOFF(i));
+  return xei-xoi != 0;
+}
+
+static void choose_bfs_roots(GlobalAddress<int64_t> xoff, int64_t nvtx, int64_t * NBFS, int64_t bfs_roots[]) {
+
+  // sample from 0..nvtx-1 without replacement
+  int64_t m = 0, t = 0;
+  while (m < *NBFS && t < nvtx) {
+    double R = mrg_get_double_orig(prng_state);
+    if (!has_adj(xoff, t) || (nvtx - t)*R > *NBFS - m) ++t;
+    else bfs_roots[m++] = t++;
+  }
+  if (t >= nvtx && m < *NBFS) {
+    if (m > 0) {
+      LOG(INFO) << "Cannot find enough sample roots, using " << m;
+      *NBFS = m;
+    } else {
+      LOG(INFO) << "Cannot find any sample roots! Exiting...";
+      exit(1);
+    }
+  }
+}
+
+struct func_set_const : public ForkJoinIteration {
+  GlobalAddress<int64_t> base_addr;
+  int64_t value;
+  void operator()(thread * me, int64_t index) {
+    DVLOG(3) << "called func_initialize with index = " << index;
+    Incoherent<int64_t>::RW c(base_addr+index, 1);
+    c[0] = value;
+  }
+};
+
+struct func_bfs_onelevel : public ForkJoinIteration {
+  GlobalAddress<int64_t> vlist;
+  GlobalAddress<int64_t> xoff;
+  GlobalAddress<int64_t> xadj;
+  void operator()(thread * me, int64_t k) {
+    const int64_t v = SoftXMT_delegate_read_word(vlist+k);
+    
+    // TODO: do these two together
+    const int64_t vstart = SoftXMT_delegate_read_word(XOFF(v));
+    const int64_t vend = SoftXMT_delegate_read_word(XENDOFF(v));
+    
+    for (int64_t vo = vstart; vo < vend; vo++) {
+      const int64_t j = SoftXMT_delegate_read_word(xadj+vo);
+      
+    }
+  }
+};
+
+static void make_bfs_tree(csr_graph * g, GlobalAddress<int64_t> bfs_tree, int64_t root) {
+  int64_t NV = g->nv;
+  GlobalAddress<int64_t> vlist = SoftXMT_typed_malloc<int64_t>(NV);
+  
+  
+  // start with root as only thing in vlist
+  SoftXMT_delegate_write_word(vlist, root);
+  
+  int64_t k1, k2;
+  GlobalAddress<int64_t> k1addr = make_global(&k1);
+  GlobalAddress<int64_t> k2addr = make_global(&k2);
+  
+  // initialize bfs_tree to -1
+  func_set_const fc;
+  fc.base_addr = bfs_tree;
+  fc.value = -1;
+  fork_join(current_thread, &fc, 0, NV);
+  
+  SoftXMT_delegate_write_word(bfs_tree+root, root); // parent of root is self
+  
+  while (k1 != k2) {
+    const int64_t oldk2 = k2;
+    
+    
+  }
+}
+
 static void run_bfs(tuple_graph * tg) {
   csr_graph g;
   
   TIME(construction_time,
-       convert_graph_to_oned_csr(tg, &g)
+       create_graph_from_edgelist(tg, &g)
   );
   LOG(INFO) << "construction_time = " << construction_time;
   
+  // no rootname input method, so randomly choose
+  int64_t bfs_roots[NBFS_max];
+  int64_t nbfs = NBFS_max;
+  choose_bfs_roots(g.xoff, g.nv, &nbfs, bfs_roots);
   
+  // build bfs tree for each root
+  for (int64_t i=0; i < nbfs; i++) {
+    GlobalAddress<int64_t> bfs_tree = SoftXMT_typed_malloc<int64_t>(g.nv);
+    GlobalAddress<int64_t> max_bfsvtx;
+    
+    VLOG(1) << "Running bfs on root " << bfs_roots[i] << "...";
+    TIME(bfs_time[i],
+      make_bfs_tree(&g, bfs_tree, bfs_roots[i])
+    );
+    VLOG(1) << "done";
+    
+    
+  }
 }
 
 static void user_main(thread * me, void * args) {    
@@ -85,7 +186,7 @@ static void user_main(thread * me, void * args) {
    * validator). */
   int num_bfs_roots = NBFS_max;
   //  int64_t* bfs_roots = (int64_t*)xmalloc(num_bfs_roots * sizeof(int64_t));
-  GlobalAddress<int64_t> bfs_roots = SoftXMT_typed_malloc<int64_t>(num_bfs_roots);
+//  GlobalAddress<int64_t> bfs_roots = SoftXMT_typed_malloc<int64_t>(num_bfs_roots);
   int64_t max_used_vertex = 0;
   
   double start, stop;
@@ -128,7 +229,6 @@ static void user_main(thread * me, void * args) {
   
   run_bfs(&tg);
   
-  SoftXMT_free(bfs_roots);
 //  free_graph_data_structure();
   
   SoftXMT_free(tg.edges);

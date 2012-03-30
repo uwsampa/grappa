@@ -15,6 +15,7 @@ double C = 0.19;
 double D = 1.0-(A+B+C);
 
 static mrg_state prng_state_store;
+mrg_state * prng_state;
 
 #define NRAND(ne) (5 * SCALE * (ne))
 
@@ -228,6 +229,7 @@ void rmat_edgelist(tuple_graph* grin, int SCALE) {
   uint_fast32_t seed[5];
   make_mrg_seed(seed1, seed2, seed);
   mrg_seed(&prng_state_store, seed);
+  prng_state = &prng_state_store;
   
   int64_t NV = 1L<<SCALE;
   GlobalAddress<int64_t> iwork = SoftXMT_typed_malloc<int64_t>(NV);
