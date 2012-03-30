@@ -16,6 +16,15 @@ struct array_element {
 
 array_element global_array[ 1234 ] __attribute__ ((aligned (2048)));
 
+
+int64_t int64_array[ 32 ] __attribute__ ((aligned (1 << 12)));
+
+
+struct threeword_array_element {
+  int64_t a[ 3 ];
+};
+
+
 BOOST_AUTO_TEST_CASE( test1 ) {
 
   SoftXMT_init( &(boost::unit_test::framework::master_test_suite().argc),
@@ -111,6 +120,79 @@ BOOST_AUTO_TEST_CASE( test1 ) {
       BOOST_CHECK_EQUAL( array[i].node, ap->node );
       BOOST_CHECK_EQUAL( array[i].block, ap->block );
       BOOST_CHECK_EQUAL( array[i].offset, ap->offset );
+
+    }
+
+
+    // check block min block max
+    {
+      BOOST_CHECK_EQUAL( block_size, 64 ); // this is our assumption
+      
+      GlobalAddress< int64_t > a0 = make_linear( &int64_array[0] );
+      GlobalAddress< int64_t > a3 = a0 + 3;
+      GlobalAddress< int64_t > a7 = a0 + 7;
+      GlobalAddress< int64_t > a8 = a0 + 8;
+      GlobalAddress< int64_t > a15 = a0 + 15;
+      GlobalAddress< int64_t > a16 = a0 + 16;
+      GlobalAddress< int64_t > a24 = a0 + 24;
+      
+      BOOST_MESSAGE( "alignment is " << __alignof__ (int64_array) );
+      BOOST_MESSAGE( "a0: " << a0);
+      BOOST_MESSAGE( "a3: " << a3);
+      BOOST_MESSAGE( "a7: " << a7);
+      BOOST_MESSAGE( "a8: " << a8);
+      BOOST_MESSAGE( "a15: " << a15);
+      BOOST_MESSAGE( "a16: " << a16);
+      BOOST_MESSAGE( "a24: " << a24);
+
+      // make sure word block mins match
+      BOOST_CHECK_EQUAL( a0.block_min(), a0 );
+      BOOST_CHECK_EQUAL( a3.block_min(), a0 );
+      BOOST_CHECK_EQUAL( a7.block_min(), a0 );
+      BOOST_CHECK_EQUAL( a8.block_min(), a8 );
+      
+      // make sure word block maxes match
+      BOOST_CHECK_EQUAL( a0.block_max(), a8 );
+      BOOST_CHECK_EQUAL( a3.block_max(), a8 );
+      BOOST_CHECK_EQUAL( a7.block_max(), a8 );
+      BOOST_CHECK_EQUAL( a8.block_max(), a16 );
+
+      // check larger blocks
+      BOOST_CHECK_EQUAL( sizeof( threeword_array_element ), 3 * sizeof(int64_t) );
+      
+      BOOST_CHECK_EQUAL( sizeof( threeword_array_element * ), sizeof( int64_t * ) );
+      threeword_array_element * threeword_array_ptr = reinterpret_cast< threeword_array_element * >( &int64_array[0] );
+      GlobalAddress< threeword_array_element > t0 = make_linear( threeword_array_ptr );
+      GlobalAddress< threeword_array_element > t1 = t0 + 1;
+      GlobalAddress< threeword_array_element > t2 = t0 + 2;
+      GlobalAddress< threeword_array_element > t3 = t0 + 3;
+      GlobalAddress< threeword_array_element > t6 = t0 + 6;
+      GlobalAddress< threeword_array_element > t7 = t0 + 7;
+
+      BOOST_MESSAGE( "t0: " << t0);
+      BOOST_MESSAGE( "t1: " << t1);
+      BOOST_MESSAGE( "t2: " << t2);
+      BOOST_MESSAGE( "t3: " << t3);
+      BOOST_MESSAGE( "t6: " << t6);
+      BOOST_MESSAGE( "t7: " << t7);
+
+      // make sure triword block mins match
+      BOOST_CHECK_EQUAL( t0.block_min(), a0 );
+      BOOST_CHECK_EQUAL( t1.block_min(), a0 );
+      BOOST_CHECK_EQUAL( t2.block_min(), a0 );
+      BOOST_CHECK_EQUAL( t3.block_min(), a8 );
+      BOOST_CHECK_EQUAL( t6.block_min(), a16 );
+      BOOST_CHECK_EQUAL( t7.block_min(), a16 );
+      
+      // make sure triword block maxes match
+      BOOST_CHECK_EQUAL( t0.block_max(), a8 );
+      BOOST_CHECK_EQUAL( t1.block_max(), a8 );
+      BOOST_CHECK_EQUAL( t2.block_max(), a16 );
+      BOOST_CHECK_EQUAL( t3.block_max(), a16 );
+      BOOST_CHECK_EQUAL( t6.block_max(), a24 );
+      BOOST_CHECK_EQUAL( t7.block_max(), a24 );
+
+      
     }
   }
 
@@ -136,9 +218,9 @@ BOOST_AUTO_TEST_CASE( test1 ) {
   BOOST_CHECK_EQUAL( l2.pointer(), &global_array[5] );
 
   // casting
-  array_element * foo = l2 - 4;
-  array_element * bar = l2;
-  BOOST_CHECK_EQUAL( foo + 4, bar );
+  array_element * foo_p = l2 - 4;
+  array_element * bar_p = l2;
+  BOOST_CHECK_EQUAL( foo_p + 4, bar_p );
 
   SoftXMT_finish( 0 );
 }

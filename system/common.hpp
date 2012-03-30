@@ -40,6 +40,12 @@ inline unsigned int log2( unsigned int v ) {
     (val) = ((unsigned long)__a) | (((unsigned long)__d)<<32);	\
   } while(0)
 
+static inline unsigned long long rdtsc() {
+  unsigned long long val;
+  rdtscll(val);
+  return val;
+}
+
 /// OMGWTFBBQ SoftXMT magic identity function
 /// Use this to get a pointer to a template function inside a template function, etc.
 template< typename T >

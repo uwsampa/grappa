@@ -2,6 +2,8 @@
 # common variables for softxmt project
 #############################################################################
 
+SOFTXMT_HOME?=$(HOME)
+
 #
 # common across machines
 #
@@ -133,6 +135,10 @@ OPENMPI_MPIRUN=mpirun
 
 OPENMPI_CLEAN_FILE= *.btr
 
+OPENMPI_CC=$(CC)
+OPENMPI_CXX=$(CXX)
+OPENMPI_LD=$(LD)
+
 #
 # Slurm with srun
 #
@@ -159,6 +165,11 @@ SRUN_MPIRUN=srun --resv-ports --cpu_bind=verbose,rank --exclusive --label
 
 SRUN_CLEAN_FILES= .srunrc.* 
 
+SRUN_STUPID_NFS_DELAY=0.5s
+SRUN_CC=sleep $(SRUN_STUPID_NFS_DELAY) && srun -p softxmt $(CC)
+SRUN_CXX=sleep $(SRUN_STUPID_NFS_DELAY) && srun -p softxmt $(CXX)
+SRUN_LD=sleep $(SRUN_STUPID_NFS_DELAY) && srun -p softxmt $(LD)
+
 #
 # QLogic MPI
 #
@@ -183,3 +194,7 @@ QLOGIC_NPROC=-np $(NPROC)
 QLOGIC_MPIRUN=mpirun -l
 
 QLOGIC_CLEAN_FILES= *.btr .mpirunrc.* 
+
+QLOGIC_CC=$(CC)
+QLOGIC_CXX=$(CXX)
+QLOGIC_LD=$(LD)
