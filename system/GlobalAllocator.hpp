@@ -116,7 +116,7 @@ public:
   static GlobalAddress< void > remote_malloc( size_t size_bytes ) {
     // ask node 0 to allocate memory
     Descriptor descriptor;
-    descriptor.t = current_thread;
+    descriptor.t = CURRENT_THREAD;
     descriptor.done = false;
     GlobalAddress< Descriptor > global_descriptor = make_global( &descriptor );
     SoftXMT_call_on_x( 0, &malloc_request_am, 
@@ -130,7 +130,7 @@ public:
   static void remote_free( GlobalAddress< void > address ) {
     // ask node 0 to free memory
     Descriptor descriptor;
-    descriptor.t = current_thread;
+    descriptor.t = CURRENT_THREAD;
     descriptor.done = false;
     GlobalAddress< Descriptor > global_descriptor = make_global( &descriptor );
     SoftXMT_call_on_x( 0, &free_request_am, 

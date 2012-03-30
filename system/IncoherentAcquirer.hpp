@@ -73,7 +73,7 @@ public:
     
   void start_acquire() { 
     if( !acquire_started_ ) {
-      DVLOG(5) << "thread " << current_thread 
+      DVLOG(5) << "thread " << CURRENT_THREAD 
               << " issuing acquire for " << request_address_ 
               << " * " << count_ ;
       acquire_started_ = true;
@@ -107,19 +107,19 @@ public:
   void block_until_acquired() {
     if( !acquired_ ) {
       start_acquire();
-      DVLOG(5) << "thread " << current_thread 
+      DVLOG(5) << "thread " << CURRENT_THREAD 
               << " ready to block on " << request_address_ 
               << " * " << count_ ;
       while( !acquired_ ) {
-      DVLOG(5) << "thread " << current_thread 
+      DVLOG(5) << "thread " << CURRENT_THREAD 
               << " blocking on " << request_address_ 
               << " * " << count_ ;
         if( !acquired_ ) {
-          thread_ = current_thread;
+          thread_ = CURRENT_THREAD;
           SoftXMT_suspend();
           thread_ = NULL;
         }
-        DVLOG(5) << "thread " << current_thread 
+        DVLOG(5) << "thread " << CURRENT_THREAD 
                  << " woke up for " << request_address_ 
                  << " * " << count_ ;
       }
@@ -127,7 +127,7 @@ public:
   }
 
   void acquire_reply( size_t offset, void * payload, size_t payload_size ) { 
-    DVLOG(5) << "thread " << current_thread 
+    DVLOG(5) << "thread " << CURRENT_THREAD 
              << " copying reply payload of " << payload_size
              << " and waking thread " << thread_;
     memcpy( ((char*)storage_) + offset, payload, payload_size );
@@ -162,7 +162,7 @@ template< typename T >
 static void incoherent_acquire_reply_am( typename IncoherentAcquirer< T >::ReplyArgs * args, 
                                          size_t size, 
                                          void * payload, size_t payload_size ) {
-  DVLOG(5) << "thread " << current_thread 
+  DVLOG(5) << "thread " << CURRENT_THREAD 
            << " received acquire reply to " << args->reply_address
            << " offset " << args->offset
            << " payload size " << payload_size;
@@ -173,7 +173,7 @@ template< typename T >
 static void incoherent_acquire_request_am( typename IncoherentAcquirer< T >::RequestArgs * args, 
                                     size_t size, 
                                     void * payload, size_t payload_size ) {
-  DVLOG(5) << "thread " << current_thread 
+  DVLOG(5) << "thread " << CURRENT_THREAD 
            << " received acquire request to " << args->request_address
            << " size " << args->request_bytes
            << " offset " << args->offset
@@ -181,7 +181,7 @@ static void incoherent_acquire_request_am( typename IncoherentAcquirer< T >::Req
   typename IncoherentAcquirer<T>::ReplyArgs reply_args;
   reply_args.reply_address = args->reply_address;
   reply_args.offset = args->offset;
-  DVLOG(5) << "thread " << current_thread 
+  DVLOG(5) << "thread " << CURRENT_THREAD 
            << " sending acquire reply to " << args->reply_address
            << " offset " << args->offset
            << " request address " << args->request_address
@@ -190,7 +190,7 @@ static void incoherent_acquire_request_am( typename IncoherentAcquirer< T >::Req
   SoftXMT_call_on( args->reply_address.node(), incoherent_acquire_reply_am<T>,
                    &reply_args, sizeof( reply_args ),  
                    args->request_address.pointer(), args->request_bytes );
-  DVLOG(5) << "thread " << current_thread 
+  DVLOG(5) << "thread " << CURRENT_THREAD 
            << " sent acquire reply to " << args->reply_address
            << " offset " << args->offset
            << " request address " << args->request_address

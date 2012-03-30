@@ -28,12 +28,12 @@ void sending_task( thread* me, void* args ) {
     int64_t* base = sargs->base;
     uint64_t num = sargs->num;
 
-  //  std::cout << current_thread->id << " starts sending" << std::endl;
+  //  std::cout << CURRENT_THREAD->id << " starts sending" << std::endl;
     for (uint64_t i=0; i<num; i++) {
-        //std::cout << current_thread->id << " :: " << i << std::endl;
+        //std::cout << CURRENT_THREAD->id << " :: " << i << std::endl;
         *(base + i) = SoftXMT_delegate_read_word( base + i );
     }
- //   std::cout << current_thread->id << " finished sending" << std::endl;
+ //   std::cout << CURRENT_THREAD->id << " finished sending" << std::endl;
 }
 
 void user_main( thread * me, void * args ) {
@@ -65,9 +65,9 @@ void user_main( thread * me, void * args ) {
     std::cout << rank << " starting" << std::endl;
     rdtscll( start );
     for (int th=0; th<num_threads; th++) {
-    //    std::cout << current_thread->id << " will join on " << sender_threads[th]->id << std::endl;
+    //    std::cout << CURRENT_THREAD->id << " will join on " << sender_threads[th]->id << std::endl;
         SoftXMT_join( sender_threads[th] );
-    //    std::cout << current_thread->id << " has finished join on " << sender_threads[th]->id << std::endl;
+    //    std::cout << CURRENT_THREAD->id << " has finished join on " << sender_threads[th]->id << std::endl;
     }
     rdtscll( end );
 

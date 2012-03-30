@@ -39,7 +39,7 @@ void spawn_worker_am( worker_args* args, size_t size, void* payload, size_t payl
 
 void user_main( thread * me, void * args ) 
 {
-    BOOST_MESSAGE( "Spawning user main thread " << (void *) current_thread <<
+    BOOST_MESSAGE( "Spawning user main thread " << (void *) CURRENT_THREAD <<
             " " << me <<
             " on node " << SoftXMT_mynode() );
 
