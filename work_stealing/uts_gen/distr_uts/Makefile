@@ -50,7 +50,7 @@ EXPERIMENTS=/sampa/home/bdmyers/experiments
 CFLAGS+= -I$(EXPERIMENTS)/lib
 
 CFLAGS+= -DGASNET_SEQ -DGASNET_CONDUIT_IBV
-
+CXXFLAGS=$(CFLAGS)
 
 LIB=-lm 
 
@@ -81,8 +81,8 @@ GL_OBJECTS=\
 	$(GL_ARRAY)/global_memory.o \
 	$(GL_ARRAY)/global_array.o 
 
-%.o: %.c
-	$(CXX) $(CFLAGS) $(RNG_DEF) $(RNG_INCL) $< -c -o $@
+#%.o: %.cpp
+#	$(CXX) $(CFLAGS) $(RNG_DEF) $(RNG_INCL) $< -c -o $@
 
 TreeGen.exe: TreeGen.o $(OBJECTS) 
 	$(LD) $(LDFLAGS) -o $@ $^ $(GL_OBJECTS) $(RNG_SRC) $(LIBRARIES)  $(LIB) $(GASNET_LIBS) 
