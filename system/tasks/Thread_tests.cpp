@@ -152,12 +152,13 @@ BOOST_AUTO_TEST_CASE( benchmark_two_yield ) {
     BasicScheduler* sched = new BasicScheduler( master ); 
     
     const uint64_t num_yield = 20000000;
+    const uint64_t num_coro = 2;
     time_args arg = { sched, num_yield };
-    thread* t1 = thread_spawn( master, sched, threadf_yielding, &arg );
-    thread* t2 = thread_spawn( master, sched, threadf_yielding, &arg );
-    sched->ready( t1 );
-    sched->ready( t2 );
-    
+    for (uint64_t th; th<num_coro; th++) {
+        thread* t1 = thread_spawn( master, sched, threadf_yielding, &arg );
+        sched->ready( t1 );
+    }
+     
     uint64_t start, end;
     BOOST_MESSAGE( "call run" );
     rdtscll(start);
@@ -166,7 +167,7 @@ BOOST_AUTO_TEST_CASE( benchmark_two_yield ) {
     BOOST_MESSAGE( "finished" );
     
     double runtime_ns = (end - start) / 2.66;
-    double ns_per_yield = runtime_ns / (num_yield*2); // two threads
+    double ns_per_yield = runtime_ns / (num_yield*num_coro); 
     BOOST_MESSAGE( ns_per_yield << " ns per yield (avg)" );
 }
 
