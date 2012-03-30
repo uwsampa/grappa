@@ -32,7 +32,7 @@ struct memory_write_reply_args {
   GlobalAddress<memory_descriptor> descriptor;
 };
 
-void memory_write_reply_am( memory_write_reply_args * args, size_t size, void * payload, size_t payload_size ) {
+static void memory_write_reply_am( memory_write_reply_args * args, size_t size, void * payload, size_t payload_size ) {
   (args->descriptor.pointer())->done = true;
   Delegate_wakeup( args->descriptor.pointer() );
 }
@@ -43,7 +43,7 @@ struct memory_write_request_args {
 };
 
 
-void memory_write_request_am( memory_write_request_args * args, size_t size, void * payload, size_t payload_size ) {
+static void memory_write_request_am( memory_write_request_args * args, size_t size, void * payload, size_t payload_size ) {
   assert( payload_size == sizeof(int64_t) );
   *(args->address.pointer()) = *(static_cast<int64_t*>(payload));
   memory_write_reply_args reply_args;
@@ -72,7 +72,7 @@ struct memory_read_reply_args {
   GlobalAddress<memory_descriptor> descriptor;
 };
 
-void memory_read_reply_am( memory_read_reply_args * args, size_t size, void * payload, size_t payload_size ) {
+static void memory_read_reply_am( memory_read_reply_args * args, size_t size, void * payload, size_t payload_size ) {
   assert( payload_size == sizeof(int64_t ) );
   args->descriptor.pointer()->data = *(static_cast<int64_t*>(payload));
   args->descriptor.pointer()->done = true;
@@ -85,7 +85,7 @@ struct memory_read_request_args {
 };
 
 
-void memory_read_request_am( memory_read_request_args * args, size_t size, void * payload, size_t payload_size ) {
+static void memory_read_request_am( memory_read_request_args * args, size_t size, void * payload, size_t payload_size ) {
   int64_t data = *(args->address.pointer());
   memory_read_reply_args reply_args;
   reply_args.descriptor = args->descriptor;
@@ -121,7 +121,7 @@ struct memory_fetch_add_request_args {
   GlobalAddress<int64_t> address;
 };
 
-void memory_fetch_add_reply_am( memory_fetch_add_reply_args * args, size_t size, void * payload, size_t payload_size ) {
+static void memory_fetch_add_reply_am( memory_fetch_add_reply_args * args, size_t size, void * payload, size_t payload_size ) {
   assert( payload_size == sizeof(int64_t) );
   args->descriptor.pointer()->data = *(static_cast<int64_t*>(payload));
   args->descriptor.pointer()->done = true;
@@ -129,7 +129,7 @@ void memory_fetch_add_reply_am( memory_fetch_add_reply_args * args, size_t size,
 }
 
 /// runs on server side to fetch data 
-void memory_fetch_add_request_am( memory_fetch_add_request_args * args, size_t size, void * payload, size_t payload_size ) {
+static void memory_fetch_add_request_am( memory_fetch_add_request_args * args, size_t size, void * payload, size_t payload_size ) {
   assert( payload_size == sizeof(int64_t) );
   int64_t data = *(args->address.pointer()); // fetch
   *(args->address.pointer()) += *(static_cast<int64_t*>(payload)); // increment
@@ -165,3 +165,64 @@ int64_t SoftXMT_delegate_fetch_and_add_word( GlobalAddress<int64_t> address, int
   
   return md.data;
 }
+
+struct cmp_swap_request_args {
+  GlobalAddress<memory_descriptor> descriptor;
+  GlobalAddress<int64_t> address;
+  int64_t newval;
+  int64_t cmpval;
+};
+struct cmp_swap_reply_args {
+  GlobalAddress<memory_descriptor> descriptor;
+};
+
+static void cmp_swap_reply_am(cmp_swap_reply_args * args, size_t size, void * payload, size_t payload_size) {
+  assert( payload_size == sizeof(int64_t) );
+  args->descriptor.pointer()->data = *(static_cast<int64_t*>(payload));
+  args->descriptor.pointer()->done = true;
+  Delegate_wakeup( args->descriptor.pointer() );
+}
+
+static void cmp_swap_request_am(cmp_swap_request_args * args, size_t sz, void * p, size_t psz) {
+  int64_t data = *(args->address.pointer());
+  int64_t swapped = false;
+  if (data == args->cmpval) { // compare
+    *(args->address.pointer()) = args->newval; // swap
+    swapped = true;
+  }
+  
+  cmp_swap_reply_args reply_args;
+  reply_args.descriptor = args->descriptor;
+  
+  SoftXMT_call_on(args->descriptor.node(), &cmp_swap_reply_am, &reply_args, sizeof(reply_args), &swapped, sizeof(swapped));
+}
+
+bool SoftXMT_delegate_compare_and_swap_word(GlobalAddress<int64_t> address, int64_t cmpval, int64_t newval) {
+  // set up descriptor
+  memory_descriptor md;
+  md.address = address;
+  md.done = false;
+  md.t = get_current_thread();
+  
+  // set up args for request
+  cmp_swap_request_args args;
+  args.descriptor = make_global(&md);
+  args.address = address;
+  args.cmpval = cmpval;
+  args.newval = newval;
+  
+  // make request
+  SoftXMT_call_on( address.node(), &cmp_swap_request_am, 
+                  &args, sizeof(args), 
+                  NULL, 0);
+  
+  // wait for response
+  Delegate_wait( &md );
+  
+  return (md.data != 0);
+}
+
+
+
+
+

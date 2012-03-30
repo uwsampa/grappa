@@ -41,6 +41,21 @@ void user_main( thread * me, void * args )
   remote_data = SoftXMT_delegate_read_word( make_global(&some_data,1) );
   BOOST_CHECK_EQUAL( 2346, remote_data );
 
+  // check compare_and_swap
+  bool swapped;
+  swapped = SoftXMT_delegate_compare_and_swap_word( make_global(&some_data,1), 123, 3333); // shouldn't swap
+  BOOST_CHECK_EQUAL( swapped, false );
+  // verify value is unchanged
+  remote_data = SoftXMT_delegate_read_word( make_global(&some_data,1) );
+  BOOST_CHECK_EQUAL( 2346, remote_data );
+  
+  // now actually do swap
+  swapped = SoftXMT_delegate_compare_and_swap_word( make_global(&some_data,1), 2346, 3333); // shouldn't swap
+  BOOST_CHECK_EQUAL( swapped, true );
+  // verify value is unchanged
+  remote_data = SoftXMT_delegate_read_word( make_global(&some_data,1) );
+  BOOST_CHECK_EQUAL( 3333, remote_data );
+  
   // try linear global address
 
   // initialize
