@@ -67,7 +67,7 @@ void SoftXMT_init( int * argc_p, char ** argv_p[], size_t global_memory_size_byt
   master_thread = thread_init();
   my_task_manager = new TaskManager( false, 0, NULL, 1, 10, 1 ); //TODO: fill in steal options
   my_global_scheduler = new TaskingScheduler( master_thread, my_task_manager );
-  my_global_scheduler->periodic( thread_spawn( master_thread, my_scheduler, &poller, NULL ) );
+  my_global_scheduler->periodic( thread_spawn( master_thread, my_global_scheduler, &poller, NULL ) );
 }
 
 
@@ -137,7 +137,7 @@ int SoftXMT_run_user_main( void (* fn_p)(thread *, void *), void * args )
 {
   if( SoftXMT_mynode() == 0 ) {
     CHECK( my_global_scheduler->get_current_thread() == master_thread ); // this should only be run at the toplevel
-    thread * main = thread_spawn( my_global_scheduler->get_current_thread(), my_scheduler,
+    thread * main = thread_spawn( my_global_scheduler->get_current_thread(), my_global_scheduler,
                                   fn_p, args );
     my_global_scheduler->ready( main );
     DVLOG(5) << "Spawned main thread " << main;
@@ -149,7 +149,7 @@ int SoftXMT_run_user_main( void (* fn_p)(thread *, void *), void * args )
 /// TODO: remove thread * arg
 thread * SoftXMT_spawn( void (* fn_p)(thread *, void *), void * args )
 {
-  thread * th = thread_spawn( my_global_scheduler->get_current_thread(), my_scheduler, fn_p, args );
+  thread * th = thread_spawn( my_global_scheduler->get_current_thread(), my_global_scheduler, fn_p, args );
   my_global_scheduler->ready( th );
   DVLOG(5) << "Spawned thread " << th;
   return th;
@@ -159,7 +159,7 @@ thread * SoftXMT_spawn( void (* fn_p)(thread *, void *), void * args )
 void SoftXMT_yield( )
 {
   bool immed = my_global_scheduler->thread_yield( ); 
-  DVLOG(5) << "Thread " << my_global_scheduler->get_current_thread() << " yield to thread " << my_scheduler->get_current_thread() << (immed ? " (same thread)." : " (diff thread).");
+  DVLOG(5) << "Thread " << my_global_scheduler->get_current_thread() << " yield to thread " << my_global_scheduler->get_current_thread() << (immed ? " (same thread)." : " (diff thread).");
 }
 
 /// Yield to scheduler, suspending current thread.

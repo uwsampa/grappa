@@ -3,6 +3,7 @@
 #define STEAL_QUEUE_HPP
 
 #include <boost/cstdint.hpp>
+#include <glog/logging.h>   
 
 // TODO remove locks
 #include <gasnet.h>
@@ -14,16 +15,12 @@
 
 #define SS_NSTATES 1
 
-template <class T>
-struct workStealRequest_args {
-    int k;
-    Node from;
-};
+struct workStealRequest_args;
+struct workStealReply_args;
 
-template <class T>
-struct workStealReply_args {
-    int k;
-};
+/// Type for Node ID. 
+typedef int16_t Node;
+
 
 template <class T>
 class StealQueue {
@@ -53,8 +50,8 @@ class StealQueue {
 
         static StealQueue<T>* staticQueueAddress;        
         
-        static void workStealReply_am( workStealReply_args<T> * args,  size_t size, void * payload, size_t payload_size );
-        static void workStealRequest_am( workStealRequest_args<T> * args, size_t size, void * payload, size_t payload_size );
+        static void workStealReply_am( workStealReply_args * args,  size_t size, void * payload, size_t payload_size );
+        static void workStealRequest_am( workStealRequest_args * args, size_t size, void * payload, size_t payload_size );
     
     public:
         StealQueue( uint64_t numEle ) 

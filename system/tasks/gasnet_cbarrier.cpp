@@ -1,7 +1,7 @@
 #include "gasnet_cbarrier.hpp"
 #include "StealQueue.hpp"
 #include <queue>
-#include "SoftXMT.hpp"
+#include "../SoftXMT.hpp"
 
 const int HOME_NODE = 0;
 gasnet_hsl_t cb_lock = GASNET_HSL_INITIALIZER;

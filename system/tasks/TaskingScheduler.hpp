@@ -5,10 +5,7 @@
 #include <glog/logging.h>
 
 class TaskManager;
-typedef struct task_worker_args {
-    TaskManager * tasks;
-    TaskingScheduler * scheduler;
-} task_worker_args;
+struct task_worker_args;
 
 class TaskingScheduler : public Scheduler {
     private:
@@ -25,7 +22,7 @@ class TaskingScheduler : public Scheduler {
         
         thread * getWorker ();
 
-        task_worker_args work_args;
+        task_worker_args* work_args;
 
         // STUB: replace with real periodic threads
         int periodctr;
@@ -66,21 +63,7 @@ class TaskingScheduler : public Scheduler {
 
 
     public:
-       TaskingScheduler ( thread * master, TaskManager * taskman ) 
-        : readyQ ( )
-        , periodicQ ( )
-        , unassignedQ ( )
-        , master ( master )
-        , current_thread ( master )
-        , nextId ( 1 )
-        , num_idle ( 0 )
-        , task_manager ( taskman ) { 
-            
-            periodctr = 0;/*XXX*/
-            work_args.tasks = taskman;
-            work_args.scheduler = this;
-        }
-
+       TaskingScheduler ( thread * master, TaskManager * taskman ); 
 
        thread * get_current_thread() {
            return current_thread;
@@ -126,6 +109,28 @@ class TaskingScheduler : public Scheduler {
        void thread_on_exit( );
 };  
 
+struct task_worker_args {
+    TaskManager *const tasks;
+    TaskingScheduler *const scheduler;
+
+    task_worker_args( TaskManager * task_manager, TaskingScheduler * sched )
+        : tasks( task_manager )
+        , scheduler( sched ) { }
+};
+       
+TaskingScheduler::TaskingScheduler ( thread * master, TaskManager * taskman ) 
+    : readyQ ( )
+    , periodicQ ( )
+    , unassignedQ ( )
+    , master ( master )
+    , current_thread ( master )
+    , nextId ( 1 )
+    , num_idle ( 0 )
+    , task_manager ( taskman )
+    , work_args( new task_worker_args( taskman, this ) ) { 
+
+          periodctr = 0;/*XXX*/
+}
 
 /// Yield the CPU to the next thread on your scheduler.  Doesn't ever touch
 /// the master thread.
