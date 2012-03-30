@@ -13,7 +13,7 @@ int64_t other_data __attribute__ ((aligned (2048))) = 0;
 
 void user_main( thread * me, void * args ) 
 {
-  BOOST_MESSAGE( "Spawning user main thread " << (void *) current_thread <<
+  BOOST_MESSAGE( "Spawning user main thread " << (void *) CURRENT_THREAD <<
                  " " << me <<
                  " on node " << SoftXMT_mynode() );
 

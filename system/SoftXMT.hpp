@@ -11,6 +11,9 @@
 //#include <typeinfo>
 //#include <cxxabi.h>
 
+extern TaskingScheduler * my_global_scheduler;
+thread * TaskingScheduler::get_current_thread();
+#define CURRENT_THREAD my_global_scheduler->get_current_thread()
 
 void SoftXMT_init( int * argc_p, char ** argv_p[], size_t size = 4096 );
 void SoftXMT_activate();

@@ -15,7 +15,7 @@ size_t size;
 
 void user_main( thread * me, void * args ) 
 {
-  BOOST_MESSAGE( "Spawning user main thread " << (void *) current_thread <<
+  BOOST_MESSAGE( "Spawning user main thread " << (void *) CURRENT_THREAD <<
                  " " << me <<
                  " on node " << SoftXMT_mynode() );
 
