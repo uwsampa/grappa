@@ -20,6 +20,7 @@
 #include "gasnet_helpers.h"
 
 #include "Communicator.hpp"
+#include "Timestamp.hpp"
 
 #include "MutableHeap.hpp"
 
@@ -157,7 +158,8 @@ public:
 
   /// get timestamp. we avoid calling rdtsc for performance
   inline uint64_t get_timestamp() {
-    return previous_timestamp_ + 1;
+    //return previous_timestamp_ + 1;
+    return SoftXMT_get_timestamp();
    }
 
   inline uint64_t get_previous_timestamp() {

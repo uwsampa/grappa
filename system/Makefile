@@ -61,37 +61,36 @@ lib: libSoftXMT.a
 #
 # object file dependences
 #
-Demo.exe: SoftXMT.o GlobalMemory.o Communicator.o Aggregator.o thread.o coro.o stack.o
+Demo.exe: libSoftXMT.a
 
-Communicator_tests.test:
+Communicator_tests.test: Communicator.o
 
-Aggregator_tests.test: Communicator.o Aggregator.o
-MutableHeap.test:
+Aggregator_tests.test: Communicator.o Aggregator.o Timestamp.o
+MutableHeap_tests.test: 
 
 
-Delegate_tests.test: Delegate.o SoftXMT.o GlobalMemory.o  Communicator.o Aggregator.o thread.o coro.o stack.o 
-Addressing_tests.test: SoftXMT.o Communicator.o Aggregator.o thread.o coro.o stack.o 
-GlobalMemoryChunk_tests.test: Delegate.o SoftXMT.o GlobalMemory.o Communicator.o Aggregator.o thread.o coro.o stack.o 
-GlobalAllocator_tests.test: GlobalAllocator.o Allocator.o Delegate.o SoftXMT.o GlobalMemory.o  Communicator.o Aggregator.o thread.o coro.o stack.o 
+Delegate_tests.test: libSoftXMT.a
+Addressing_tests.test: libSoftXMT.a
+GlobalMemoryChunk_tests.test: libSoftXMT.a
+GlobalAllocator_tests.test: libSoftXMT.a
 Allocator_tests.test: Allocator.o
 
-Collective_tests.test: Delegate.o SoftXMT.o GlobalMemory.o Communicator.o Aggregator.o thread.o coro.o stack.o Collective.o
+Collective_tests.test: libSoftXMT.a
 
 thread_tests.test: thread.o stack.o coro.o
-thread2_tests.test: SoftXMT.o GlobalMemory.o Communicator.o Aggregator.o thread.o coro.o stack.o 
-thread3_tests.test: SoftXMT.o GlobalMemory.o Communicator.o Aggregator.o thread.o coro.o stack.o
+thread2_tests.test: libSoftXMT.a
+thread3_tests.test: libSoftXMT.a
 
-Cache_tests.test: Cache.o SoftXMT.o GlobalMemory.o Communicator.o Aggregator.o thread.o coro.o stack.o 
+Cache_tests.test: libSoftXMT.a
+Rate_measure.exe: libSoftXMT.a
 
-Rate_measure.exe: SoftXMT.o GlobalMemory.o Delegate.o Communicator.o Aggregator.o thread.o coro.o stack.o
+ForkJoin_tests.test: libSoftXMT.a
 
-ForkJoin_tests.test: SoftXMT.o GlobalMemory.o Communicator.o Aggregator.o Delegate.o coro.o stack.o thread.o GlobalAllocator.o Allocator.o
 
-#thread.o: coro.o
 #
 # Build SoftXMT static library
 #
-LIBRARY_CONTENTS= SoftXMT.o GlobalAllocator.o GlobalMemory.o Communicator.o Aggregator.o Allocator.o Cache.o thread.o coro.o stack.o 
+LIBRARY_CONTENTS= SoftXMT.o GlobalAllocator.o GlobalMemory.o Communicator.o Aggregator.o Timestamp.o Allocator.o Cache.o thread.o coro.o stack.o Delegate.o
 libSoftXMT.a: $(patsubst %,libSoftXMT.a(%),$(LIBRARY_CONTENTS))
 
 
@@ -100,6 +99,8 @@ libSoftXMT.a: $(patsubst %,libSoftXMT.a(%),$(LIBRARY_CONTENTS))
 # remember to include environment's $LD_LIBRARY_PATH, since MPI libs may be there
 #
 ENV_VARIABLES+= GLOG_logtostderr=1
+#ENV_VARIABLES+= GLOG_vmodule=Cache*=5,Incoh*=5,Aggreg*=5
+#ENV_VARIABLES+= GLOG_vmodule=Cache*=5,Incoh*=5
 ENV_VARIABLES+= GLOG_v=1
 #ENV_VARIABLES+= OMPI_MCA_btl_sm_use_knem=0
 ENV_VARIABLES+= LD_LIBRARY_PATH="\$$LD_LIBRARY_PATH:$(LD_LIBRARY_PATH)"
@@ -144,7 +145,7 @@ test: $(TARGET)
 %_tests.o: CXXFLAGS+= -DBOOST_TEST_DYN_LINK -DBOOST_TEST_MODULE=$@
 %_tests.test: LIBRARIES+= -lboost_unit_test_framework
 %_tests.test: %_tests.o
-	$(LD) $(CFLAGS) $(CXXFLAGS) $(LDFLAGS) $^ $(LIBRARIES) -o $@
+	$($(MPITYPE)_LD) $(CFLAGS) $(CXXFLAGS) $(LDFLAGS) $^ $(LIBRARIES) -o $@
 
 # disassemble test
 %_tests.dis: %_tests.test
@@ -188,7 +189,7 @@ LD_LIBRARY_PATH:=$(LD_LIBRARY_PATH):$(GFLAGS)/lib
 # build an executable
 # add an additional rule if you need to include multiple components
 %.exe: %.o 
-	$(LD) $(LDFLAGS) $^ $(LIBRARIES) -o $@
+	$($(MPITYPE)_LD) $(LDFLAGS) $^ $(LIBRARIES) -o $@
 
 # disassemble executable
 %.dis: %.exe
@@ -213,8 +214,8 @@ TESTS:=$(wildcard *.test)
 # build an object
 # includes autodependence stuff
 %.o: %.cpp Makefile
-	$(CXX) -c $(CFLAGS) $(CXXFLAGS) $< -o $*.o
-	$(CXX) -MM $(CFLAGS) $(CXXFLAGS) $< > $*.d
+	$($(MPITYPE)_CXX) -c $(CFLAGS) $(CXXFLAGS) $< -o $*.o
+	$($(MPITYPE)_CXX) -MM $(CFLAGS) $(CXXFLAGS) $< > $*.d
 	@mv -f $*.d $*.d.tmp
 	@sed -e 's|.*:|$*.o:|' < $*.d.tmp > $*.d
 	@sed -e 's/.*://' -e 's/\\$$//' < $*.d.tmp | fmt -1 | \
@@ -225,8 +226,8 @@ TESTS:=$(wildcard *.test)
 # Temporary special handling for thread library
 #
 thread.o: thread.c Makefile
-	$(CC) -c $(CFLAGS) $< -o $*.o
-	$(CC) -MM $(CFLAGS) $< > $*.d
+	$($(MPITYPE)_CC) -c $(CFLAGS) $< -o $*.o
+	$($(MPITYPE)_CC) -MM $(CFLAGS) $< > $*.d
 	@mv -f $*.d $*.d.tmp
 	@sed -e 's|.*:|$*.o:|' < $*.d.tmp > $*.d
 	@sed -e 's/.*://' -e 's/\\$$//' < $*.d.tmp | fmt -1 | \
@@ -234,8 +235,8 @@ thread.o: thread.c Makefile
 	@rm -f $*.d.tmp
 
 coro.o: coro.c Makefile
-	$(CC) -c $(CFLAGS) $< -o $*.o
-	$(CC) -MM $(CFLAGS) $< > $*.d
+	$($(MPITYPE)_CC) -c $(CFLAGS) $< -o $*.o
+	$($(MPITYPE)_CC) -MM $(CFLAGS) $< > $*.d
 	@mv -f $*.d $*.d.tmp
 	@sed -e 's|.*:|$*.o:|' < $*.d.tmp > $*.d
 	@sed -e 's/.*://' -e 's/\\$$//' < $*.d.tmp | fmt -1 | \
@@ -243,7 +244,7 @@ coro.o: coro.c Makefile
 	@rm -f $*.d.tmp
 
 stack.o: stack.S Makefile
-	$(CC) -c $(CFLAGS) $< -o $*.o
+	$($(MPITYPE)_CC) -c $(CFLAGS) $< -o $*.o
 
 
 CLEAN_FILES= *.exe *.o *.d *.test *.dis libSoftXMT.a $($(MPITYPE)_CLEAN_FILES)

@@ -10,6 +10,10 @@
 /// We support two types of global addresses:
 /// -# 2D addresses
 /// -# Linear addresses 
+///
+/// 2D addresses are node, address on node
+///
+/// linear addresses are block cyclic
 
 #include "SoftXMT.hpp"
 
@@ -136,6 +140,36 @@ public:
     }
   }
 
+  inline GlobalAddress< T > block_min() const { 
+    if( is_2D() ) {
+      //intptr_t signextended = (storage_ << pointer_shift_val) >> pointer_shift_val;
+      //GlobalAddress< U > u = GlobalAddress< U >::Raw( storage_ );
+      return GlobalAddress< T >::TwoDimensional( (T*) 0, node() );
+    } else {
+      intptr_t first_byte = (storage_ << pointer_shift_val) >> pointer_shift_val;
+      intptr_t first_byte_offset = first_byte % block_size;
+      intptr_t node = (first_byte / block_size) % SoftXMT_nodes();
+      intptr_t block = (first_byte / block_size) / SoftXMT_nodes();
+      return GlobalAddress< T >::Raw( this->raw_bits() - first_byte_offset );
+    }
+  }
+
+  inline GlobalAddress< T > block_max() const { 
+    if( is_2D() ) {
+      intptr_t signextended = (storage_ << pointer_shift_val) >> pointer_shift_val;
+      //return reinterpret_cast< T * >( -1 ); 
+      return GlobalAddress< T >::TwoDimensional( (T*) 1, node() );
+    } else {
+      intptr_t first_byte = (storage_ << pointer_shift_val) >> pointer_shift_val;
+      intptr_t first_byte_offset = first_byte % block_size;
+      intptr_t last_byte = first_byte + sizeof(T) - 1;
+      intptr_t last_byte_offset = last_byte % block_size;
+      intptr_t node = (last_byte / block_size) % SoftXMT_nodes();
+      intptr_t block = (last_byte / block_size) / SoftXMT_nodes();
+      return GlobalAddress< T >::Raw( this->raw_bits() + sizeof(T) + block_size - (last_byte_offset + 1) );
+    }
+  }
+
   inline bool is_2D() const {
     return storage_ & tag_mask; 
   }
@@ -143,6 +177,10 @@ public:
   inline bool is_linear() const {
     return !( storage_ & tag_mask );
   }
+
+  // inline size_t block_size() const {
+  //   return block_size_;
+  // }
 
   inline GlobalAddress< T >& operator++() { 
     storage_ += sizeof(T); 
@@ -168,6 +206,19 @@ public:
     return *this; 
   }
 
+  bool equals( const GlobalAddress< T >& t ) const {
+    return raw_bits() == t.raw_bits();
+  }
+
+  bool operator==( const GlobalAddress< T >& t ) const {
+    return raw_bits() == t.raw_bits();
+  }
+
+  template< typename U >
+  bool operator==( const GlobalAddress< U >& u ) const {
+    return raw_bits() == u.raw_bits();
+  }
+
   //T& operator[]( ptrdiff_t index ) { return 
 
   template< typename U >
@@ -184,6 +235,7 @@ public:
 
 
 };
+
 
 
 template< typename T >
@@ -210,8 +262,13 @@ GlobalAddress< T > operator-( const GlobalAddress< T >& t, ptrdiff_t i ) {
 
 template< typename T >
 ptrdiff_t operator-( const GlobalAddress< T >& t, const GlobalAddress< T >& u ) {
-  return t - u;
+  if( t.is_2D() ) {
+    return t.pointer() - u.pointer();
+  } else {
+    return (t.raw_bits() - u.raw_bits()) / sizeof(T);
+  }
 }
+
 
 template< typename T >
 GlobalAddress< T > localToGlobal( T * t ) {
