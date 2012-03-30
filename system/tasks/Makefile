@@ -56,4 +56,4 @@ test: $(TARGET)
 	./$< --log_level=test_suite --run_test=$(TARGET:.test=) -- $(ARGS)
 
 clean:
-	rm -f ./*.o
+	rm -f ./*.o ./*.test
