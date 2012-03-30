@@ -17,7 +17,7 @@ generator_test_mpi: generator_test_mpi.c $(GENERATOR_SOURCES) $(GENERATOR_HEADER
 	$(MPICC) $(CFLAGS) $(LDFLAGS) -o generator_test_mpi generator_test_mpi.c $(GENERATOR_SOURCES) -lm
 
 %.o: %.c
-	$(MPICC) $(CFLAGS) -o $*.o $<
+	$(MPICC) $(CFLAGS) -c -o $*.o $<
 
 clean:
 	-rm -f generator_test_mpi
