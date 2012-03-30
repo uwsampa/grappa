@@ -6,6 +6,7 @@
 #include "SoftXMT.hpp"
 #include "GlobalMemory.hpp"
 #include "tasks/Scheduler.hpp"
+#include "tasks/Task.hpp"
 
 
 static Communicator * my_global_communicator = NULL;
@@ -64,7 +65,7 @@ void SoftXMT_init( int * argc_p, char ** argv_p[], size_t global_memory_size_byt
 
   // start threading layer
   master_thread = thread_init();
-  my_task_manager = new TaskManager( false, 0, 0NULL, 1, 10, 1 ); //TODO: fill in steal options
+  my_task_manager = new TaskManager( false, 0, NULL, 1, 10, 1 ); //TODO: fill in steal options
   my_scheduler = new Scheduler( master_thread, my_task_manager );
   my_scheduler->periodic( thread_spawn( master_thread, my_scheduler, &poller, NULL ) );
 }
@@ -135,19 +136,21 @@ void SoftXMT_flush( Node n )
 int SoftXMT_run_user_main( void (* fn_p)(thread *, void *), void * args )
 {
   if( SoftXMT_mynode() == 0 ) {
-    assert( current_thread == master_thread ); // this should only be run at the toplevel
-    thread * main = thread_spawn( current_thread, sched,
+    CHECK( my_scheduler->get_current_thread() == master_thread ); // this should only be run at the toplevel
+    thread * main = thread_spawn( my_scheduler->get_current_thread(), my_scheduler,
                                   fn_p, args );
+    my_scheduler->ready( main );
     DVLOG(5) << "Spawned main thread " << main;
   }
-  run_all( sched );
+  my_scheduler->run( );
 }
 
 /// Spawn a user function. TODO: get return values working
 /// TODO: remove thread * arg
 thread * SoftXMT_spawn( void (* fn_p)(thread *, void *), void * args )
 {
-  thread * th = thread_spawn( current_thread, sched, fn_p, args );
+  thread * th = thread_spawn( my_scheduler->get_current_thread(), my_scheduler, fn_p, args );
+  my_scheduler->ready( th );
   DVLOG(5) << "Spawned thread " << th;
   return th;
 }
@@ -236,7 +239,7 @@ void SoftXMT_finish( int retval )
   
   // probably never get here (depending on communication layer)
 
-  destroy_scheduler( sched );
+  delete my_scheduler;
   destroy_thread( master_thread );
 
   if (my_global_memory) delete my_global_memory;
