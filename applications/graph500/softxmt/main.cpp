@@ -105,16 +105,21 @@ struct func_bfs_onelevel : public ForkJoinIteration {
   GlobalAddress<int64_t> vlist;
   GlobalAddress<int64_t> xoff;
   GlobalAddress<int64_t> xadj;
+  GlobalAddress<int64_t> bfs_tree;
+  GlobalAddress<int64_t> k2;
   void operator()(thread * me, int64_t k) {
     const int64_t v = SoftXMT_delegate_read_word(vlist+k);
     
-    // TODO: do these two together
+    // TODO: do these two together (cache)
     const int64_t vstart = SoftXMT_delegate_read_word(XOFF(v));
     const int64_t vend = SoftXMT_delegate_read_word(XENDOFF(v));
     
     for (int64_t vo = vstart; vo < vend; vo++) {
       const int64_t j = SoftXMT_delegate_read_word(xadj+vo);
-      
+      if (SoftXMT_delegate_compare_and_swap_word(bfs_tree+j, -1, v)) {
+        int64_t voff = SoftXMT_delegate_fetch_and_add_word(k2, 1);
+        SoftXMT_delegate_write_word(vlist+voff, j);
+      }
     }
   }
 };
@@ -142,7 +147,168 @@ static void make_bfs_tree(csr_graph * g, GlobalAddress<int64_t> bfs_tree, int64_
   while (k1 != k2) {
     const int64_t oldk2 = k2;
     
+    func_bfs_onelevel fb;
+      fb.vlist = vlist;
+      fb.xoff = g->xoff;
+      fb.xadj = g->xadj;
+      fb.bfs_tree = bfs_tree;
+      fb.k2 = k2addr;
+    fork_join(get_current_thread(), &fb, k1, oldk2);
     
+    k1 = oldk2;
+  }
+  
+  SoftXMT_free(vlist);
+}
+
+static void compute_levels(GlobalAddress<int64_t> level, int64_t nv, GlobalAddress<int64_t> bfs_tree, int64_t root) {
+  
+  // Incoherent::RW c_level(level, nv);
+  for (int64_t k=0; k < nv; k++) {
+    SoftXMT_delegate_write_word(level+k, (k == root) ? 0 : -1);
+  }
+  
+  for (int64_t k=0; k < nv; k++) {
+    int64_t level_k = SoftXMT_delegate_read_word(level+k);
+    if (level_k >= 0) continue;
+    
+    int64_t tree_k = SoftXMT_delegate_read_word(bfs_tree+k);
+    if (tree_k >= 0 && k != root) {
+      int64_t parent = k;
+      int64_t nhop = 0;
+      int64_t next_parent;
+      
+      /* Run up the three until we encounter an already-leveled vertex. */
+      while (parent >= 0 && SoftXMT_delegate_read_word(level+parent) < 0 && nhop < nv) {
+        next_parent = SoftXMT_delegate_read_word(bfs_tree+parent);
+        assert(parent != next_parent);
+        parent = next_parent;
+        ++nhop;
+      }
+      assert(nhop < nv); // no cycles
+      if (nhop >= nv) { LOG(INFO) << "Error: root " << k << " had a cycle."; }
+      assert(parent >= 0); // did not run off the end
+      if (parent < 0) { LOG(INFO) << "Error: ran off the end for root " << k << "."; }
+      
+      // Now assign levels until we meet an already-leveled vertex
+      // NOTE: This permits benign races if parallelized.
+      nhop += SoftXMT_delegate_read_word(level+parent);
+      parent = k;
+      while (SoftXMT_delegate_read_word(level+parent) < 0) {
+        assert(nhop > 0);
+        SoftXMT_delegate_write_word(level+parent, nhop);
+        nhop--;
+        parent = SoftXMT_delegate_read_word(bfs_tree+parent);
+      }
+      assert(nhop == SoftXMT_delegate_read_word(level+parent));
+      
+      // Internal check to catch mistakes in races...
+#if defined(DEBUG)
+      nhop = 0;
+      parent = k;
+      int64_t lastlvl = SoftXMT_delegate_read_word(level+k) + 1;
+      while ((next_parent = SoftXMT_delegate_read_word(level+parent)) > 0) {
+        assert(lastlvl == (1+next_parent));
+        lastlvl = next_parent;
+        parent = SoftXMT_delegate_read_word(bfs_tree+parent);
+        nhop++;
+      }
+#endif
+    }
+  }
+}
+
+static int64_t verify_bfs_tree(GlobalAddress<int64_t> bfs_tree, int64_t max_bfsvtx, int64_t root, tuple_graph * tg) {
+  assert(SoftXMT_delegate_read_word(bfs_tree+root) == root);
+  
+  int64_t nedge_traversed = 0;
+  int64_t nv = max_bfsvtx+1;
+  int64_t terr = 0;
+  
+  GlobalAddress<int64_t> seen_edge = SoftXMT_typed_malloc<int64_t>(nv);
+  GlobalAddress<int64_t> level = SoftXMT_typed_malloc<int64_t>(nv);
+  
+  compute_levels(level, nv, bfs_tree, root);
+  
+  for (int64_t k=0; k < nv; k++) {
+    SoftXMT_delegate_write_word(seen_edge+k, 0);
+  }
+  
+  for (int64_t k = 0; k < tg->nedge; k++) {
+    Incoherent<packed_edge>::RO cedge(tg->edges+k, 1);
+    const int64_t i = cedge[0].v0;
+    const int64_t j = cedge[0].v1;
+    int64_t lvldiff;
+    
+    if (i < 0 || j < 0) continue;
+    if (i > max_bfsvtx && j <= max_bfsvtx) {
+      terr = -10;
+      LOG(INFO) << "Error!";
+      continue;
+    }
+    if (j > max_bfsvtx && i <= max_bfsvtx) {
+      terr = -11;
+      LOG(INFO) << "Error!";
+      continue;
+    }
+    if (i > max_bfsvtx) // both i & j are on the same side of max_bfsvtx
+      continue;
+    
+    // All neighbors must be in the tree.
+    int64_t ti = SoftXMT_delegate_read_word(bfs_tree+i);
+    int64_t tj = SoftXMT_delegate_read_word(bfs_tree+j);
+    
+    if (ti >= 0 && tj < 0) { terr = -12; LOG(INFO) << "Error!"; continue; }
+    if (tj >= 0 && ti < 0) { terr = -13; LOG(INFO) << "Error!"; continue; }
+    if (ti < 0) // both i & j have the same sign
+      continue;
+    
+    /* Both i and j are in the tree, count as a traversed edge.
+     
+     NOTE: This counts self-edges and repeated edges.  They're
+     part of the input data.
+     */
+    ++nedge_traversed;
+    // Mark seen tree edges.
+    if (i != j) {
+      if (ti == j)
+        SoftXMT_delegate_write_word(seen_edge+i, 1);
+      if (tj == i)
+        SoftXMT_delegate_write_word(seen_edge+j, 1);
+    }
+    lvldiff = SoftXMT_delegate_read_word(level+i) - SoftXMT_delegate_read_word(level+j);
+    /* Check that the levels differ by no more than one. */
+    if (lvldiff > 1 || lvldiff < -1) {
+      terr = -14;
+      LOG(INFO) << "Error, levels differ by more than one!";
+    }    
+  }
+  
+  if (!terr) {
+    /* Check that every BFS edge was seen and that there's only one root. */
+    OMP("omp for") MTA("mta assert parallel") MTA("mta use 100 streams")
+    for (int64_t k = 0; k < nv; ++k) {
+      if (!terr && k != root) {
+        int64_t tk = SoftXMT_delegate_read_word(bfs_tree+k);
+        if (tk >= 0 && !SoftXMT_delegate_read_word(seen_edge+k)) {
+          terr = -15;
+          LOG(INFO) << "Error!";
+        }
+        if (tk == k) {
+          terr = -16;
+          LOG(INFO) << "Error!";
+        }
+      }
+    }
+  }
+  
+  SoftXMT_free(seen_edge);
+  SoftXMT_free(level);
+  
+  if (terr) {
+    return terr;
+  } else {
+    return nedge_traversed;
   }
 }
 
@@ -159,6 +325,10 @@ static void run_bfs(tuple_graph * tg) {
   int64_t nbfs = NBFS_max;
   choose_bfs_roots(g.xoff, g.nv, &nbfs, bfs_roots);
   
+  for (int64_t i=0; i < nbfs; i++) {
+    VLOG(1) << "bfs_roots[" << i << "] = " << bfs_roots[i];
+  }
+  
   // build bfs tree for each root
   for (int64_t i=0; i < nbfs; i++) {
     GlobalAddress<int64_t> bfs_tree = SoftXMT_typed_malloc<int64_t>(g.nv);
@@ -169,8 +339,20 @@ static void run_bfs(tuple_graph * tg) {
       make_bfs_tree(&g, bfs_tree, bfs_roots[i])
     );
     VLOG(1) << "done";
+    for (int64_t i=0; i < g.nv; i++) {
+      VLOG(1) << "bfs_tree[" << i << "] = " << SoftXMT_delegate_read_word(bfs_tree+i);
+    }
     
+    VLOG(1) << "Verifying bfs " << i << "...";
+    bfs_nedge[i] = verify_bfs_tree(bfs_tree, g.nv-1, bfs_roots[i], tg);
+    VLOG(1) << "done";
     
+    if (bfs_nedge[i] < 0) {
+      LOG(INFO) << "bfs " << i << " from root " << bfs_roots[i] << " failed verification: " << bfs_nedge[i];
+      exit(1);
+    }
+    
+    SoftXMT_free(bfs_tree);
   }
 }
 
@@ -178,16 +360,10 @@ static void user_main(thread * me, void * args) {
   tuple_graph tg;
   tg.nedge = (int64_t)(edgefactor) << SCALE;
   tg.edges = SoftXMT_typed_malloc<packed_edge>(tg.nedge);
-
-  int64_t NV = (int64_t)(1) << SCALE;
   
   /* Make the raw graph edges. */
   /* Get roots for BFS runs, plus maximum vertex with non-zero degree (used by
    * validator). */
-  int num_bfs_roots = NBFS_max;
-  //  int64_t* bfs_roots = (int64_t*)xmalloc(num_bfs_roots * sizeof(int64_t));
-//  GlobalAddress<int64_t> bfs_roots = SoftXMT_typed_malloc<int64_t>(num_bfs_roots);
-  int64_t max_used_vertex = 0;
   
   double start, stop;
   start = timer();
