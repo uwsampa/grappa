@@ -1,6 +1,20 @@
 #include "TaskingScheduler.hpp"
 #include "Task.hpp"
 
+TaskingScheduler::TaskingScheduler ( thread * master, TaskManager * taskman ) 
+    : readyQ ( )
+    , periodicQ ( )
+    , unassignedQ ( )
+    , master ( master )
+    , current_thread ( master )
+    , nextId ( 1 )
+    , num_idle ( 0 )
+    , num_workers ( 0 )
+    , task_manager ( taskman )
+    , work_args( new task_worker_args( taskman, this ) ) { 
+
+          periodctr = 0;/*XXX*/
+}
 
 void TaskingScheduler::run ( ) {
     while (thread_wait( NULL ) != NULL) { } // nothing
@@ -55,13 +69,13 @@ inline thread* TaskingScheduler::getWorker () {
 void workerLoop ( thread* me, void* args ) {
     task_worker_args* wargs = (task_worker_args*) args;
     TaskManager* tasks = wargs->tasks;
-    TaskingScheduler * sched = wargs->scheduler;
+    TaskingScheduler * sched = wargs->scheduler; //TODO remove this sched argument from task_worker_args
 
     Task nextTask;
    
     while ( true ) {
         // block until receive work or termination reached
-        if (!tasks->getWork(&nextTask,sched)) break; // quitting time
+        if (!tasks->getWork(&nextTask)) break; // quitting time
 
         nextTask.execute();
 
@@ -72,7 +86,7 @@ void workerLoop ( thread* me, void* args ) {
 
 /// create worker threads for executing tasks
 void TaskingScheduler::createWorkers( uint64_t num ) {
-    task_manager->addNumWorkers( num );
+    num_workers += num;
     for (int i=0; i<num; i++) {
         thread* t = thread_spawn( current_thread, this, workerLoop, work_args);
         unassigned( t );
@@ -81,8 +95,8 @@ void TaskingScheduler::createWorkers( uint64_t num ) {
 
 #define BASIC_MAX_WORKERS 1
 thread* TaskingScheduler::maybeSpawnCoroutines( ) {
-    if ( task_manager->getNumWorkers() < BASIC_MAX_WORKERS ) {
-       task_manager->addNumWorkers( 1 );
+    if ( num_workers < BASIC_MAX_WORKERS ) {
+       num_workers += 1;
        return thread_spawn( current_thread, this, workerLoop, work_args ); // current thread will be coro parent; is this okay?
     } else {
         // might have another way to spawn

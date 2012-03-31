@@ -19,6 +19,7 @@ class TaskingScheduler : public Scheduler {
         
         uint64_t num_idle;
         TaskManager * task_manager;
+        uint64_t num_workers;
         
         thread * getWorker ();
 
@@ -97,6 +98,7 @@ class TaskingScheduler : public Scheduler {
        void thread_yield_wake( thread * next );
        void thread_suspend_wake( thread * next );
        bool thread_idle( uint64_t total_idle ); 
+       bool thread_idle( );
        void thread_join( thread* wait_on );
 
        // Start running threads from <scheduler> until one dies.  Return that thread
@@ -118,19 +120,6 @@ struct task_worker_args {
         , scheduler( sched ) { }
 };
        
-TaskingScheduler::TaskingScheduler ( thread * master, TaskManager * taskman ) 
-    : readyQ ( )
-    , periodicQ ( )
-    , unassignedQ ( )
-    , master ( master )
-    , current_thread ( master )
-    , nextId ( 1 )
-    , num_idle ( 0 )
-    , task_manager ( taskman )
-    , work_args( new task_worker_args( taskman, this ) ) { 
-
-          periodctr = 0;/*XXX*/
-}
 
 /// Yield the CPU to the next thread on your scheduler.  Doesn't ever touch
 /// the master thread.
@@ -225,6 +214,10 @@ inline bool TaskingScheduler::thread_idle( uint64_t total_idle ) {
 
         return true;
     }
+}
+
+inline bool TaskingScheduler::thread_idle( ) {
+    return thread_idle( num_workers );
 }
 
 inline void TaskingScheduler::thread_on_exit( ) {

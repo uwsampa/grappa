@@ -8,8 +8,6 @@
 
 //thread* const NULL_THREAD = NULL;
 
-class TaskingScheduler;
-
 /// Task is a function pointer and pointer to arguments
 /// Ideally Task would be interface that just declares execute and makeGlobal
 class Task {
@@ -30,7 +28,8 @@ class Task {
 };
 // TODO: on steal of work, need to make sure args pointers are global or copy args struct
 
-
+// declare StealQueue of Tasks
+class StealQueue<Task>;
 
 class TaskManager {
     private:
@@ -48,8 +47,6 @@ class TaskManager {
         Node localId;
         Node* neighbors;
         Node numLocalNodes;
-
-        uint64_t num_workers;
 
         // steal parameters
         int chunkSize;
@@ -99,21 +96,13 @@ class TaskManager {
           }
         }
 
-        void addNumWorkers( uint64_t num ) {
-            num_workers += num;
-        }
-
-        uint64_t getNumWorkers( ) {
-            return num_workers;
-        }
-
         /*TODO return value?*/ 
         void spawnPublic( void (*f)(void * arg), void * arg);
         
         /*TODO return value?*/ 
         void spawnPrivate( void (*f)(void * arg), void * arg);
         
-        bool getWork ( Task* result, TaskingScheduler * sched );
+        bool getWork ( Task* result );
 
         bool available ( );
 
