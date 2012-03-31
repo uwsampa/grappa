@@ -1,5 +1,5 @@
+#include "../SoftXMT.hpp"
 #include "Task.hpp"
-#include "TaskingScheduler.hpp"
 
 // TODO replace with call to something like SoftXMT_currentThreadId
 int cur_tid () {
@@ -21,7 +21,7 @@ TaskManager::TaskManager (bool doSteal, Node localId, Node* neighbors, Node numL
 }
         
 
-bool TaskManager::getWork ( Task* result, TaskingScheduler* scheduler) {
+bool TaskManager::getWork ( Task* result ) {
 
     // break this loop under two conditions
     // 1. receive work from the work queues
@@ -77,7 +77,7 @@ bool TaskManager::getWork ( Task* result, TaskingScheduler* scheduler) {
 //        DVLOG(5) << cur_tid() << "goes idle because sees no work (idle=" << scheduler->num_idle
 //            << " idleReady="<<me->sched->idleReady <<")";
 
-        if (!scheduler->thread_idle(num_workers)) {
+        if (!SoftXMT_thread_idle( )) {
          
             DVLOG(5) << cur_tid() << " saw all were idle so suggest barrier";
          
@@ -105,7 +105,6 @@ static void spawnRemotePrivate_am( spawn_args * args, size_t size, void * payloa
   /**  my_task_manager->spawnPrivate( args->f, args->arg ); **/
 }
 
-#include "../SoftXMT.hpp"
 inline void TaskManager::spawnRemotePrivate( Node dest, void (*f)(void * arg), void * arg) {
     spawn_args args = {f, arg};
     SoftXMT_call_on( dest, &spawnRemotePrivate_am, &args );
