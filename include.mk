@@ -63,8 +63,7 @@ CFLAGS+= -I$(COMMON)
 
 CC=gcc
 CXX=g++
-#LD=mpiCC
-LD=g++
+LD=mpiCC
 
 # some library paths
 
