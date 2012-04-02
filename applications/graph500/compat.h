@@ -6,12 +6,19 @@
 
 #define _FILE_OFFSET_BITS 64
 #define _THREAD_SAFE
+#ifndef _XOPEN_SOURCE
 #define _XOPEN_SOURCE 600
+#endif
+#ifndef _XOPEN_SOURCE_EXTENDED
 #define _XOPEN_SOURCE_EXTENDED
+#endif
+#ifndef _SVID_SOURCE
 #define _SVID_SOURCE
+#endif
 
-#if __STDC_VERSION__ >= 199901L
+#if __STDC_VERSION__ >= 199901L  || defined(__cplusplus)
 #include <inttypes.h>
+#define restrict __restrict__
 #elif defined(__MTA__)
 #include <stdint.h>
 #define PRId64 "d"
@@ -22,9 +29,9 @@ typedef long int64_t;
 typedef unsigned uint32_fast_t;
 #define PRId64 "ld"
 #define SCNd64 "ld"
-#if !defined(restrict)
-#define restrict
-#endif
+//#if !defined(restrict)
+#define restrict __restrict__
+//#endif
 #endif
 
 #if defined(_OPENMP)

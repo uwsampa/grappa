@@ -13,9 +13,15 @@ struct func_initialize : public ForkJoinIteration {
   GlobalAddress<int64_t> base_addr;
   int64_t value;
   void operator()(thread * me, int64_t index) {
-    SLOG(2) << "called func_initialize with index = " << index;
+    VLOG(2) << "called func_initialize with index = " << index;
     Incoherent<int64_t>::RW c(base_addr+index, 1);
     c[0] = value+index;
+  }
+};
+
+struct func_hello : public ForkJoinIteration {
+  void operator()(thread * me, int64_t index) {
+    LOG(INFO) << "Hello from " << index << "!";
   }
 };
 
@@ -50,6 +56,10 @@ static void user_main(thread * me, void * args) {
       BOOST_CHECK_EQUAL(i, *c);
     }
     SoftXMT_free(data);
+  }
+  {
+    func_hello f;
+    fork_join_custom(me, &f);
   }
   
   
