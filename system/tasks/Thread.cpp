@@ -40,9 +40,10 @@ thread * thread_spawn(thread * me, Scheduler * sched,
                      thread_func f, void * arg) {
   assert( sched->get_current_thread() == me );
  
-  // allocate the thread and stack 
-  thread* thr = (thread*)malloc(sizeof(thread));
+  // allocate the thread and stack
+  thread * thr = new thread( sched );
   thr->co = coro_spawn(me->co, tramp, STACK_SIZE);
+  sched->assignTid( thr );
 
   // Pass control to the trampoline a few times quickly to set up
   // the call of <f>.  Could also create a struct with all this data?
@@ -55,12 +56,6 @@ thread * thread_spawn(thread * me, Scheduler * sched,
   coro_invoke(me->co, thr->co, (void *)arg);
   
   //current_thread = me; //legacy: unnecessary to set current thread
-  
-  thr->next = NULL;
-  thr->done = 0;
-  
-  thr->sched = sched;
-  sched->assignTid( thr );
   
   return thr;
 }

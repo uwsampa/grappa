@@ -26,7 +26,7 @@ class ThreadQueue {
         }
 };
 
-typedef struct thread {
+struct thread {
   coro *co;
   // Scheduler responsible for this thread. NULL means this is a system
   // thread.
@@ -35,7 +35,15 @@ typedef struct thread {
   threadid_t id; 
   ThreadQueue joinqueue;
   int done;
-} thread;
+
+  thread(Scheduler * sched) 
+    : sched( sched )
+    , next( NULL )
+    , done( 0 )
+    , joinqueue( ) { 
+        // NOTE: id, co still need to be initialized later
+    }
+};
         
 inline thread* ThreadQueue::dequeue() {
     thread* result = head;
