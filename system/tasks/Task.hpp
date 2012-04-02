@@ -74,6 +74,9 @@ class TaskManager {
     public:
         TaskManager (bool doSteal, Node localId, Node* neighbors, Node numLocalNodes, int chunkSize, int cbint);
 
+        bool isWorkDone() {
+            return workDone;
+        }
 
         /// Possibly move work from local partition of public queue to global partition
         void releaseTasks() {

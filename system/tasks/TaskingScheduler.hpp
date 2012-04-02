@@ -90,6 +90,7 @@ class TaskingScheduler : public Scheduler {
         
       void createWorkers( uint64_t num );
       thread* maybeSpawnCoroutines( );
+      void onWorkerStart( );
 
        void unassigned( thread * thr ) {
            unassignedQ.enqueue( thr );
@@ -107,6 +108,7 @@ class TaskingScheduler : public Scheduler {
        void run ( ); 
 
        bool thread_yield( );
+       bool thread_yield_periodic( );
        void thread_suspend( );
        void thread_wake( thread * next );
        void thread_yield_wake( thread * next );
@@ -148,11 +150,30 @@ inline bool TaskingScheduler::thread_yield( ) {
     bool gotRescheduled = (next == yieldedThr);
     
     current_thread = next;
+    DVLOG(5) << "Thread " << yieldedThr->id << " yielding to " << next->id << (gotRescheduled ? " (same thread)." : " (diff thread).");
     thread_context_switch( yieldedThr, next, NULL);
     
     return gotRescheduled; // 0=another ran; 1=me got rescheduled immediately
 }
 
+/// For periodic threads: yield the CPU to the next thread on your scheduler.  Doesn't ever touch
+/// the master thread.
+inline bool TaskingScheduler::thread_yield_periodic( ) {
+    CHECK( current_thread != master ) << "can't yield on a system thread";
+
+    periodic( current_thread ); 
+    
+    thread * yieldedThr = current_thread;
+
+    thread * next = nextCoroutine( );
+    bool gotRescheduled = (next == yieldedThr);
+    
+    current_thread = next;
+    DVLOG(5) << "Thread " << yieldedThr->id << " yielding to " << next->id << (gotRescheduled ? " (same thread)." : " (diff thread).");
+    thread_context_switch( yieldedThr, next, NULL);
+    
+    return gotRescheduled; // 0=another ran; 1=me got rescheduled immediately
+}
 
 /// Suspend the current thread. Thread is not placed on any queue.
 inline void TaskingScheduler::thread_suspend( ) {

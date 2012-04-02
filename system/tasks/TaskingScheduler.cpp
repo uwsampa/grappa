@@ -51,7 +51,7 @@ thread * TaskingScheduler::thread_wait( void **result ) {
 }
 
 
-inline thread* TaskingScheduler::getWorker () {
+thread* TaskingScheduler::getWorker () {
     if (task_manager->available()) {
         // check the pool of unassigned coroutines
         thread* result = unassignedQ.dequeue();
@@ -69,8 +69,10 @@ inline thread* TaskingScheduler::getWorker () {
 void workerLoop ( thread* me, void* args ) {
     task_worker_args* wargs = (task_worker_args*) args;
     TaskManager* tasks = wargs->tasks;
-    TaskingScheduler * sched = wargs->scheduler; //TODO remove this sched argument from task_worker_args
+    TaskingScheduler * sched = wargs->scheduler; 
 
+    sched->onWorkerStart();
+    
     Task nextTask;
    
     while ( true ) {
@@ -87,19 +89,30 @@ void workerLoop ( thread* me, void* args ) {
 /// create worker threads for executing tasks
 void TaskingScheduler::createWorkers( uint64_t num ) {
     num_workers += num;
+    VLOG(5) << "spawning " << num << " workers; now there are " << num_workers;
     for (int i=0; i<num; i++) {
         thread* t = thread_spawn( current_thread, this, workerLoop, work_args);
         unassigned( t );
     }
+    num_idle += num;
 }
 
-#define BASIC_MAX_WORKERS 1
+#define BASIC_MAX_WORKERS 2
 thread* TaskingScheduler::maybeSpawnCoroutines( ) {
     if ( num_workers < BASIC_MAX_WORKERS ) {
        num_workers += 1;
+       VLOG(5) << "spawning another worker; now there are " << num_workers;
        return thread_spawn( current_thread, this, workerLoop, work_args ); // current thread will be coro parent; is this okay?
     } else {
         // might have another way to spawn
         return NULL;
     }
+}
+
+void TaskingScheduler::onWorkerStart( ) {
+    num_idle--;
+}
+
+bool TaskingScheduler::queuesFinished( ) {
+    return periodicQ.empty() && task_manager->isWorkDone();
 }

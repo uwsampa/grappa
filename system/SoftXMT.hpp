@@ -81,6 +81,9 @@ void SoftXMT_remote_spawn( void (*fn_p)(thread*,void*), const T* args, Node targ
 
 /// Yield to scheduler, placing current thread on run queue.
 void SoftXMT_yield( );
+  
+/// Yield to scheduler, placing current thread on periodic queue.
+void SoftXMT_yield_periodic( );
 
 /// Yield to scheduler, suspending current thread.
 void SoftXMT_suspend( );
