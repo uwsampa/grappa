@@ -96,11 +96,12 @@ Rate_measure.exe: libSoftXMT.a
 
 ForkJoin_tests.test: libSoftXMT.a
 
+Tasking_tests.test: libSoftXMT.a
 
 #
 # Build SoftXMT static library
 #
-LIBRARY_CONTENTS= SoftXMT.o GlobalAllocator.o GlobalMemory.o Communicator.o Aggregator.o Timestamp.o Allocator.o Cache.o Delegate.o Collective.o tasks/StealQueue.o tasks/gasnet_cbarrier.o tasks/TaskingScheduler.o tasks/Task.o tasks/Thread.o tasks/stack.o tasks/coro.o
+LIBRARY_CONTENTS= SoftXMT.o GlobalAllocator.o GlobalMemory.o Communicator.o Aggregator.o Timestamp.o Allocator.o Cache.o Delegate.o Collective.o tasks/gasnet_cbarrier.o tasks/TaskingScheduler.o tasks/Task.o tasks/Thread.o tasks/stack.o tasks/coro.o
 libSoftXMT.a: $(patsubst %,libSoftXMT.a(%),$(LIBRARY_CONTENTS))
 
 
@@ -236,29 +237,29 @@ TESTS:=$(wildcard *.test)
 #
 # Temporary special handling for thread library
 #
-thread.o: thread.c Makefile
-	$($(MPITYPE)_CC) -c $(CFLAGS) $< -o $*.o
-	$($(MPITYPE)_CC) -MM $(CFLAGS) $< > $*.d
-	@mv -f $*.d $*.d.tmp
-	@sed -e 's|.*:|$*.o:|' < $*.d.tmp > $*.d
-	@sed -e 's/.*://' -e 's/\\$$//' < $*.d.tmp | fmt -1 | \
-	  sed -e 's/^ *//' -e 's/$$/:/' >> $*.d
-	@rm -f $*.d.tmp
+#thread.o: thread.c Makefile
+#	$($(MPITYPE)_CC) -c $(CFLAGS) $< -o $*.o
+#	$($(MPITYPE)_CC) -MM $(CFLAGS) $< > $*.d
+#	@mv -f $*.d $*.d.tmp
+#	@sed -e 's|.*:|$*.o:|' < $*.d.tmp > $*.d
+#	@sed -e 's/.*://' -e 's/\\$$//' < $*.d.tmp | fmt -1 | \
+#	  sed -e 's/^ *//' -e 's/$$/:/' >> $*.d
+#	@rm -f $*.d.tmp
+#
+#coro.o: coro.c Makefile
+#	$($(MPITYPE)_CC) -c $(CFLAGS) $< -o $*.o
+#	$($(MPITYPE)_CC) -MM $(CFLAGS) $< > $*.d
+#	@mv -f $*.d $*.d.tmp
+#	@sed -e 's|.*:|$*.o:|' < $*.d.tmp > $*.d
+#	@sed -e 's/.*://' -e 's/\\$$//' < $*.d.tmp | fmt -1 | \
+#	  sed -e 's/^ *//' -e 's/$$/:/' >> $*.d
+#	@rm -f $*.d.tmp
+#
+#stack.o: stack.S Makefile
+#	$($(MPITYPE)_CC) -c $(CFLAGS) $< -o $*.o
 
-coro.o: coro.c Makefile
-	$($(MPITYPE)_CC) -c $(CFLAGS) $< -o $*.o
-	$($(MPITYPE)_CC) -MM $(CFLAGS) $< > $*.d
-	@mv -f $*.d $*.d.tmp
-	@sed -e 's|.*:|$*.o:|' < $*.d.tmp > $*.d
-	@sed -e 's/.*://' -e 's/\\$$//' < $*.d.tmp | fmt -1 | \
-	  sed -e 's/^ *//' -e 's/$$/:/' >> $*.d
-	@rm -f $*.d.tmp
 
-stack.o: stack.S Makefile
-	$($(MPITYPE)_CC) -c $(CFLAGS) $< -o $*.o
-
-
-CLEAN_FILES= *.exe *.o *.d *.test *.dis libSoftXMT.a $($(MPITYPE)_CLEAN_FILES)
+CLEAN_FILES= *.exe *.o *.d *.test *.dis libSoftXMT.a ./tasks/*.o $($(MPITYPE)_CLEAN_FILES)
 clean:
 	rm -f $(CLEAN_FILES)
 
