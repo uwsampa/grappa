@@ -28,8 +28,6 @@ class Task {
 };
 // TODO: on steal of work, need to make sure args pointers are global or copy args struct
 
-// declare StealQueue of Tasks
-class StealQueue<Task>;
 
 class TaskManager {
     private:
@@ -105,6 +103,7 @@ class TaskManager {
         bool getWork ( Task* result );
 
         bool available ( );
+
 
         static void spawnRemotePrivate( Node dest, void (*f)(void * arg), void * arg);
 };
