@@ -215,9 +215,8 @@ struct workStealReply_args {
     int k;
 };
 
-int local_steal_amount;
-LOCK_T lsa_lock = LOCK_INITIALIZER;
-
+static int local_steal_amount;
+static LOCK_T lsa_lock = LOCK_INITIALIZER;
 
 template <class T>
 void StealQueue<T>::workStealReply_am( workStealReply_args * args,  size_t size, void * payload, size_t payload_size ) {
@@ -228,7 +227,7 @@ void StealQueue<T>::workStealReply_am( workStealReply_args * args,  size_t size,
 
     if (k > 0) {
         SET_LOCK(&lsa_lock);
-        memcpy(thiefStack->stack[thiefStack->top], stolen_work, payload_size);
+        memcpy(&thiefStack->stack[thiefStack->top], stolen_work, payload_size);
         local_steal_amount = k;
         UNSET_LOCK(&lsa_lock);
     } else {
