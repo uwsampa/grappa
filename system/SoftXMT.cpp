@@ -5,7 +5,6 @@
 
 #include "SoftXMT.hpp"
 #include "GlobalMemory.hpp"
-#include "tasks/TaskingScheduler.hpp"
 #include "tasks/Task.hpp"
 
 
@@ -30,8 +29,9 @@ HeapLeakChecker * SoftXMT_heapchecker = 0;
 static void poller( thread * me, void * args ) {
   while( !SoftXMT_done() ) {
     SoftXMT_poll();
-    SoftXMT_yield();
+    SoftXMT_yield_periodic();
   }
+  VLOG(5) << "polling thread exiting";
 }
 
 /// Initialize SoftXMT components. We are not ready to run until the
@@ -129,7 +129,7 @@ void SoftXMT_flush( Node n )
 ///
 /// Thread management routines
 ///
-
+static const uint64_t num_starting_workers = 4; // TODO cmdline
 /// Spawn and run user main function on node 0. Other nodes just run
 /// existing threads (service threads) until they are given more to
 /// do. TODO: get return values working TODO: remove thread * arg
@@ -142,6 +142,10 @@ int SoftXMT_run_user_main( void (* fn_p)(thread *, void *), void * args )
     my_global_scheduler->ready( main );
     DVLOG(5) << "Spawned main thread " << main;
   }
+
+  // spawn starting number of worker coroutines
+  my_global_scheduler->createWorkers( num_starting_workers );
+
   my_global_scheduler->run( );
 }
 
@@ -159,13 +163,18 @@ thread * SoftXMT_spawn( void (* fn_p)(thread *, void *), void * args )
 void SoftXMT_yield( )
 {
   bool immed = my_global_scheduler->thread_yield( ); 
-  DVLOG(5) << "Thread " << my_global_scheduler->get_current_thread() << " yield to thread " << my_global_scheduler->get_current_thread() << (immed ? " (same thread)." : " (diff thread).");
+}
+
+/// Yield to scheduler, placing current thread on periodic queue.
+void SoftXMT_yield_periodic( )
+{
+  bool immed = my_global_scheduler->thread_yield_periodic( );
 }
 
 /// Yield to scheduler, suspending current thread.
 void SoftXMT_suspend( )
 {
-  DVLOG(5) << "suspending thread " << my_global_scheduler->get_current_thread();
+  DVLOG(5) << "suspending thread " << my_global_scheduler->get_current_thread() << "(# " << my_global_scheduler->get_current_thread()->id << ")";
   my_global_scheduler->thread_suspend( );
   //CHECK_EQ(retval, 0) << "Thread " << th1 << " suspension failed. Have the server threads exited?";
 }
@@ -173,7 +182,7 @@ void SoftXMT_suspend( )
 /// Wake a thread by putting it on the run queue, leaving the current thread running.
 void SoftXMT_wake( thread * t )
 {
-  DVLOG(5) << "waking thread " << t;
+  DVLOG(5) << my_global_scheduler->get_current_thread()->id << " waking thread " << t;
   my_global_scheduler->thread_wake( t );
 }
 
@@ -209,12 +218,17 @@ bool SoftXMT_done() {
 
 /// Active message to tell this node it's okay to exit.
 static void SoftXMT_mark_done_am( void * args, size_t args_size, void * payload, size_t payload_size ) {
+  VLOG(5) << "mark done";
   SoftXMT_done_flag = true;
 }
 
 /// Tell all nodes that we are ready to exit
 void SoftXMT_signal_done() {
   if( !SoftXMT_done() ) {
+    while( !my_task_manager->isWorkDone() ) {
+       SoftXMT_yield(); // FIXME: non busy-wait method
+    }
+        
     for( Node i = 0; i < SoftXMT_nodes(); ++i ) {
       SoftXMT_call_on( i, &SoftXMT_mark_done_am, (void *)NULL, 0 );
       SoftXMT_flush( i );
