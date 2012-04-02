@@ -103,6 +103,18 @@ void SoftXMT_join( thread * t );
 /// TODO: remove this
 void SoftXMT_signal_done();
 
+/// Make thread idle; ie thread suspended not waiting on a particular resource
+bool SoftXMT_thread_idle( );
+
+/// Task routines
+
+/// Spawn a task visible to this Node only
+void SoftXMT_privateTask( void (*fn_p)(void * arg), void * arg);
+
+/// Spawn a task visible to other Nodes
+void SoftXMT_publicTask( void (*fn_p)(void * arg), void * arg);
+
+
 
 /// Memory management routines.
 
