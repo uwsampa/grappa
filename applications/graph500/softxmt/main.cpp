@@ -132,7 +132,7 @@ static void make_bfs_tree(csr_graph * g, GlobalAddress<int64_t> bfs_tree, int64_
   // start with root as only thing in vlist
   SoftXMT_delegate_write_word(vlist, root);
   
-  int64_t k1, k2;
+  int64_t k1 = 0, k2 = 1;
   GlobalAddress<int64_t> k1addr = make_global(&k1);
   GlobalAddress<int64_t> k2addr = make_global(&k2);
   
@@ -143,7 +143,7 @@ static void make_bfs_tree(csr_graph * g, GlobalAddress<int64_t> bfs_tree, int64_
   fork_join(current_thread, &fc, 0, NV);
   
   SoftXMT_delegate_write_word(bfs_tree+root, root); // parent of root is self
-  
+    
   while (k1 != k2) {
     const int64_t oldk2 = k2;
     
@@ -320,14 +320,29 @@ static void run_bfs(tuple_graph * tg) {
   );
   LOG(INFO) << "construction_time = " << construction_time;
   
+  GlobalAddress<int64_t> xoff = g.xoff;
+//  for (int64_t i=0; i < g.nv; i++) {
+//    VLOG(1) << "xoff[" << i << "] = " << SoftXMT_delegate_read_word(XOFF(i)) << " -> " << SoftXMT_delegate_read_word(XENDOFF(i));
+//  }  
+  for (int64_t i=0; i<g.nv; i++) {
+    std::stringstream ss;
+    int64_t xoi = SoftXMT_delegate_read_word(XOFF(i)), xei = SoftXMT_delegate_read_word(XENDOFF(i));
+    ss << "xoff[" << i << "] = " << xoi << "->" << xei << ": (";
+    for (int64_t j=xoi; j<xei; j++) {
+      ss << SoftXMT_delegate_read_word(g.xadj+j) << ",";
+    }
+    ss << ")";
+    VLOG(1) << ss.str();
+  }
+  
   // no rootname input method, so randomly choose
   int64_t bfs_roots[NBFS_max];
   int64_t nbfs = NBFS_max;
   choose_bfs_roots(g.xoff, g.nv, &nbfs, bfs_roots);
   
-  for (int64_t i=0; i < nbfs; i++) {
-    VLOG(1) << "bfs_roots[" << i << "] = " << bfs_roots[i];
-  }
+//  for (int64_t i=0; i < nbfs; i++) {
+//    VLOG(1) << "bfs_roots[" << i << "] = " << bfs_roots[i];
+//  }
   
   // build bfs tree for each root
   for (int64_t i=0; i < nbfs; i++) {
@@ -338,18 +353,20 @@ static void run_bfs(tuple_graph * tg) {
     TIME(bfs_time[i],
       make_bfs_tree(&g, bfs_tree, bfs_roots[i])
     );
-    VLOG(1) << "done";
-    for (int64_t i=0; i < g.nv; i++) {
-      VLOG(1) << "bfs_tree[" << i << "] = " << SoftXMT_delegate_read_word(bfs_tree+i);
-    }
+//    VLOG(1) << "done";
+//    for (int64_t i=0; i < g.nv; i++) {
+//      VLOG(1) << "bfs_tree[" << i << "] = " << SoftXMT_delegate_read_word(bfs_tree+i);
+//    }
     
     VLOG(1) << "Verifying bfs " << i << "...";
     bfs_nedge[i] = verify_bfs_tree(bfs_tree, g.nv-1, bfs_roots[i], tg);
-    VLOG(1) << "done";
+//    VLOG(1) << "done";
     
     if (bfs_nedge[i] < 0) {
       LOG(INFO) << "bfs " << i << " from root " << bfs_roots[i] << " failed verification: " << bfs_nedge[i];
       exit(1);
+    } else {
+      VLOG(1) << "bfs_time[" << i << "] = " << bfs_time[i];
     }
     
     SoftXMT_free(bfs_tree);

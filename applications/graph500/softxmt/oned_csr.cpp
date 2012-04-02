@@ -24,6 +24,8 @@
 #include "Collective.hpp"
 #include "Delegate.hpp"
 
+#include <sstream>
+
 #define MINVECT_SIZE 2
 
 #define XOFF(k) (xoff+2*(k))
@@ -177,9 +179,16 @@ static void setup_deg_off(const tuple_graph * const tg, csr_graph * g) {
   degree_func fd; fd.edges = tg->edges; fd.xoff = g->xoff;
   fork_join(current_thread, &fd, 0, tg->nedge);
   
-  for (int64_t i=0; i<g->nv; i++) {
-    VLOG(1) << "degree[" << i << "] = " << SoftXMT_delegate_read_word(XOFF(i));
-  }
+//  for (int64_t i=0; i<g->nv; i++) {
+//    std::stringstream ss;
+//    int64_t xoi = SoftXMT_delegate_read_word(XOFF(i)), xei = SoftXMT_delegate_read_word(XENDOFF(i));
+//    ss << "degree[" << i << "] = " << xoi << " : (";
+////    for (int64_t j=xoi; j<xei; j++) {
+////      ss << SoftXMT_delegate_read_word(g->xadj+j) << ", ";
+////    }
+//    ss << ")";
+//    VLOG(1) << ss.str();
+//  }
   
   // make sure every degree is at least MINVECT_SIZE (don't know why yet...)
   minvect_func fm; fm.xoff = g->xoff;
@@ -188,10 +197,10 @@ static void setup_deg_off(const tuple_graph * const tg, csr_graph * g) {
   // simple parallel prefix sum to compute offsets from degrees
   int64_t accum = prefix_sum(g->xoff, g->nv);
   
-  VLOG(1) << "accum = " << accum;
-  for (int64_t i=0; i<g->nv; i++) {
-    VLOG(1) << "offset[" << i << "] = " << SoftXMT_delegate_read_word(XOFF(i));
-  }
+//  VLOG(1) << "accum = " << accum;
+//  for (int64_t i=0; i<g->nv; i++) {
+//    VLOG(1) << "offset[" << i << "] = " << SoftXMT_delegate_read_word(XOFF(i));
+//  }
   
   //initialize XENDOFF to be the same as XOFF
   init_xendoff_func fe; fe.xoff = g->xoff;
@@ -289,6 +298,18 @@ static void gather_edges(const tuple_graph * const tg, csr_graph * g) {
   sf.xoff = g->xoff;
   sf.xadj = g->xadj;
   fork_join(current_thread, &sf, 0, tg->nedge);
+  
+//  GlobalAddress<int64_t> xoff = g->xoff;  
+//  for (int64_t i=0; i<g->nv; i++) {
+//    std::stringstream ss;
+//    int64_t xoi = SoftXMT_delegate_read_word(XOFF(i)), xei = SoftXMT_delegate_read_word(XENDOFF(i));
+//    ss << "scat_xoff[" << i << "] = " << xoi << " : (";
+//    for (int64_t j=xoi; j<xei; j++) {
+//      ss << SoftXMT_delegate_read_word(g->xadj+j) << ",";
+//    }
+//    ss << ")";
+//    VLOG(1) << ss.str();
+//  }
   
 //  pack_edges():
 //    for (v = 0; v < nv; ++v)
