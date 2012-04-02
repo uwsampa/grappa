@@ -85,7 +85,7 @@ prefix_sum (int64_t *buf)
 		buf[tid] += XOFF(k);
 	OMP("omp barrier");
 	OMP("omp single")
-    for (k = 1; k < nt; ++k)
+  for (k = 1; k < nt; ++k)
 		buf[k] += buf[k-1];
 	if (tid)
 		t1 = buf[tid-1];
@@ -195,7 +195,7 @@ pack_edges (void)
 	int64_t v;
 	
 	OMP("omp for")
-    for (v = 0; v < nv; ++v)
+  for (v = 0; v < nv; ++v)
 		pack_vtx_edges (v);
 }
 
@@ -234,7 +234,7 @@ create_graph_from_edgelist (struct packed_edge *IJ, int64_t nedge)
 
 int
 make_bfs_tree (int64_t *bfs_tree_out, int64_t *max_vtx_out,
-			   int64_t srcvtx)
+               int64_t srcvtx)
 {
 	int64_t * restrict bfs_tree = bfs_tree_out;
 	int err = 0;
