@@ -1,10 +1,6 @@
 #include "../SoftXMT.hpp"
 #include "Task.hpp"
 
-// TODO replace with call to something like SoftXMT_currentThreadId
-int cur_tid () {
-    return 1;
-}
 
 #define MAXQUEUEDEPTH 500000
 
@@ -18,6 +14,7 @@ TaskManager::TaskManager (bool doSteal, Node localId, Node* neighbors, Node numL
     
           // TODO the way this is being used, it might as well have a singleton
           StealQueue<Task>::registerAddress( &publicQ );
+          cbarrier_init( SoftXMT_nodes(), SoftXMT_mynode() );
 }
         
 
@@ -43,12 +40,12 @@ bool TaskManager::getWork ( Task* result ) {
                 continue;
             }
 
-            DVLOG(5) << cur_tid() << " okToSteal";
+            DVLOG(5) << CURRENT_THREAD << " okToSteal";
 
             // try to steal
             if (doSteal) {
                 okToSteal = false;      // prevent running unassigned threads from trying to steal again
-                DVLOG(5) << cur_tid() << " trying to steal";
+                DVLOG(5) << CURRENT_THREAD << " trying to steal";
                 bool goodSteal = false;
                 int victimId;
 
@@ -59,34 +56,34 @@ bool TaskManager::getWork ( Task* result ) {
                 }
 
                 if (goodSteal) {
-                    DVLOG(5) << cur_tid() << " steal from rank" << victimId;
+                    DVLOG(5) << CURRENT_THREAD << " steal from rank" << victimId;
                     okToSteal = true; // release steal lock
                     mightBeWork = true; // now there is work so allow more threads to be scheduled
                     continue;
                 } else {
-                    DVLOG(5) << cur_tid() << " failed to steal";
+                    DVLOG(5) << CURRENT_THREAD << " failed to steal";
                 }
 
                 /**TODO remote load balance**/
 
             } else {
-                DVLOG(5) << cur_tid() << " !okToSteal";
+                DVLOG(5) << CURRENT_THREAD << " !okToSteal";
             }
         }
 
-//        DVLOG(5) << cur_tid() << "goes idle because sees no work (idle=" << scheduler->num_idle
+//        DVLOG(5) << CURRENT_THREAD << "goes idle because sees no work (idle=" << scheduler->num_idle
 //            << " idleReady="<<me->sched->idleReady <<")";
 
         if (!SoftXMT_thread_idle( )) {
          
-            DVLOG(5) << cur_tid() << " saw all were idle so suggest barrier";
+            DVLOG(5) << CURRENT_THREAD << " saw all were idle so suggest barrier";
          
             // no work so suggest global termination barrier
             if (cbarrier_wait()) {
-                DVLOG(5) << cur_tid() << " left barrier from finish";
+                DVLOG(5) << CURRENT_THREAD << " left barrier from finish";
                 workDone = true;
             } else {
-                DVLOG(5) << cur_tid() << " left barrier from cancel";
+                DVLOG(5) << CURRENT_THREAD << " left barrier from cancel";
                 mightBeWork = true;   // work is available so allow unassigned threads to be scheduled
                 okToSteal = true;        // work is available so allow steal attempts
             }
