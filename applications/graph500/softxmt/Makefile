@@ -21,7 +21,7 @@ HEADERS = common.h oned_csr.h
 
 include $(SOFTXMT_HOME)/system/Makefile
 
-graph.exe: bfs_simple.o $(SOURCES) $(HEADERS) generator.a $(SOFTXMT_HOME)/system/libSoftXMT.a
+graph.exe: $(SOURCES) $(HEADERS) generator.a $(SOFTXMT_HOME)/system/libSoftXMT.a
 	$(LD) $(LDFLAGS) $(SOURCES) generator.a $(SOFTXMT_HOME)/system/libSoftXMT.a $(LIBRARIES) -o $@
 
 generator.a: ../generator/graph_generator.c ../generator/make_graph.c ../generator/splittable_mrg.c ../generator/utils.c
