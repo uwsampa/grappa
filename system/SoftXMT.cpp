@@ -207,6 +207,29 @@ void SoftXMT_join( thread * t )
   my_global_scheduler->thread_join( t );
 }
 
+bool SoftXMT_thread_idle( ) 
+{
+  DVLOG(5) << "thread " << my_global_scheduler->get_current_thread()->id << " going idle";
+  return my_global_scheduler->thread_idle( );
+}
+
+///
+/// Task routines
+///
+
+void SoftXMT_privateTask( void (*fn_p)(void * arg), void * arg) 
+{
+    DVLOG(5) << "thread " << my_global_scheduler->get_current_thread() << " spawns private";
+    my_task_manager->spawnPrivate( fn_p, arg );
+}
+
+void SoftXMT_publicTask( void (*fn_p)(void * arg), void * arg) 
+{
+    DVLOG(5) << "thread " << my_global_scheduler->get_current_thread() << " spawns public";
+    my_task_manager->spawnPublic( fn_p, arg );
+}
+
+
 ///
 /// Job exit routines
 ///
