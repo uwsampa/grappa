@@ -86,11 +86,12 @@ Rate_measure.exe: libSoftXMT.a
 
 ForkJoin_tests.test: libSoftXMT.a
 
+ForkJoin_tests.test: SoftXMT.o GlobalMemory.o Communicator.o Aggregator.o Delegate.o coro.o stack.o thread.o GlobalAllocator.o Allocator.o ForkJoin.o
 
 #
 # Build SoftXMT static library
 #
-LIBRARY_CONTENTS= SoftXMT.o GlobalAllocator.o GlobalMemory.o Communicator.o Aggregator.o Timestamp.o Allocator.o Cache.o thread.o coro.o stack.o Delegate.o
+LIBRARY_CONTENTS= SoftXMT.o GlobalAllocator.o GlobalMemory.o Communicator.o Aggregator.o Timestamp.o Allocator.o Cache.o thread.o coro.o stack.o Delegate.o ForkJoin.o Collective.o
 libSoftXMT.a: $(patsubst %,libSoftXMT.a(%),$(LIBRARY_CONTENTS))
 
 
