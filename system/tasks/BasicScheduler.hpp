@@ -121,9 +121,9 @@ inline void BasicScheduler::thread_suspend( ) {
     CHECK( current_thread != master ) << "can't yield on a system thread";
     CHECK( thread_is_running(current_thread) ) << "may only suspend a running coroutine";
     
-    thread* next = nextCoroutine( );
-
     thread* yieldedThr = current_thread;
+    
+    thread* next = nextCoroutine( );
     
     current_thread = next;
     thread_context_switch( yieldedThr, next, NULL);
