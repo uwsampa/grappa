@@ -322,7 +322,7 @@ static void gather_edges(const tuple_graph * const tg, csr_graph * g) {
 
 void create_graph_from_edgelist(const tuple_graph* const tg, csr_graph* const g) {    
   find_nv(tg);
-  LOG(INFO) << "nv = " << nv;
+  VLOG(2) << "nv = " << nv;
   
   g->nv = nv;
   g->xoff = SoftXMT_typed_malloc<int64_t>(2*nv+2);
