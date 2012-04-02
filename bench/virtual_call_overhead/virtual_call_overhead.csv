@@ -1,0 +1,55 @@
+header, hostname, call method, iterations, runtime, ns per iteration
+data, n02.sampa, inlineable direct, 2000000000, 3.164457, 1.582228
+data, n02.sampa, inlineable direct, 2000000000, 3.527669, 1.763834
+data, n02.sampa, inlineable direct, 2000000000, 6.266860, 3.133430
+data, n02.sampa, instance, 2000000000, 3.164512, 1.582256
+data, n02.sampa, instance, 2000000000, 3.164533, 1.582267
+data, n02.sampa, instance, 2000000000, 3.166441, 1.583221
+data, n02.sampa, not inlineable direct, 2000000000, 7.384045, 3.692022
+data, n02.sampa, not inlineable direct, 2000000000, 7.384603, 3.692301
+data, n02.sampa, not inlineable direct, 2000000000, 7.389893, 3.694946
+data, n02.sampa, pimpl inlineable, 2000000000, 3.164430, 1.582215
+data, n02.sampa, pimpl inlineable, 2000000000, 3.164546, 1.582273
+data, n02.sampa, pimpl inlineable, 2000000000, 3.164549, 1.582274
+data, n02.sampa, pimpl not inlineable, 2000000000, 6.361407, 3.180704
+data, n02.sampa, pimpl not inlineable, 2000000000, 6.362048, 3.181024
+data, n02.sampa, pimpl not inlineable, 2000000000, 6.663786, 3.331893
+data, n02.sampa, virtual, 2000000000, 7.385167, 3.692584
+data, n02.sampa, virtual, 2000000000, 7.386368, 3.693184
+data, n02.sampa, virtual, 2000000000, 7.386472, 3.693236
+data, n81, inlineable direct, 2000000000, 1.716980, 0.858490
+data, n81, inlineable direct, 2000000000, 1.717000, 0.858500
+data, n81, inlineable direct, 2000000000, 1.717047, 0.858524
+data, n81, instance, 2000000000, 2.253498, 1.126749
+data, n81, instance, 2000000000, 2.253529, 1.126765
+data, n81, instance, 2000000000, 2.253705, 1.126853
+data, n81, not inlineable direct, 2000000000, 5.258178, 2.629089
+data, n81, not inlineable direct, 2000000000, 5.258232, 2.629116
+data, n81, not inlineable direct, 2000000000, 5.258327, 2.629163
+data, n81, pimpl inlineable, 2000000000, 1.911651, 0.955825
+data, n81, pimpl inlineable, 2000000000, 1.912065, 0.956033
+data, n81, pimpl inlineable, 2000000000, 1.912427, 0.956213
+data, n81, pimpl not inlineable, 2000000000, 4.506993, 2.253496
+data, n81, pimpl not inlineable, 2000000000, 4.507074, 2.253537
+data, n81, pimpl not inlineable, 2000000000, 4.507164, 2.253582
+data, n81, virtual, 2000000000, 5.258200, 2.629100
+data, n81, virtual, 2000000000, 5.258211, 2.629105
+data, n81, virtual, 2000000000, 5.258241, 2.629121
+data, n71, inlineable direct, 2000000000, 1.846195, 0.923098
+data, n71, inlineable direct, 2000000000, 1.982039, 0.991020
+data, n71, inlineable direct, 2000000000, 2.082329, 1.041165
+data, n71, instance, 2000000000, 1.960938, 0.980469
+data, n71, instance, 2000000000, 2.023858, 1.011929
+data, n71, instance, 2000000000, 2.073748, 1.036874
+data, n71, not inlineable direct, 2000000000, 8.619990, 4.309995
+data, n71, not inlineable direct, 2000000000, 8.626016, 4.313008
+data, n71, not inlineable direct, 2000000000, 8.634983, 4.317491
+data, n71, pimpl inlineable, 2000000000, 2.246305, 1.123153
+data, n71, pimpl inlineable, 2000000000, 2.366523, 1.183261
+data, n71, pimpl inlineable, 2000000000, 2.401429, 1.200715
+data, n71, pimpl not inlineable, 2000000000, 8.616918, 4.308459
+data, n71, pimpl not inlineable, 2000000000, 8.636546, 4.318273
+data, n71, pimpl not inlineable, 2000000000, 8.649604, 4.324802
+data, n71, virtual, 2000000000, 12.921958, 6.460979
+data, n71, virtual, 2000000000, 12.927755, 6.463877
+data, n71, virtual, 2000000000, 12.959219, 6.479609
