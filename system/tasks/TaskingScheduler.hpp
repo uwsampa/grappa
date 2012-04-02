@@ -36,26 +36,40 @@ class TaskingScheduler : public Scheduler {
         }
         //////
 
+        bool queuesFinished();
+
         thread * nextCoroutine ( bool isBlocking=true ) {
             do {
                 thread* result;
 
                 // check for periodic tasks
                 result = periodicDequeue();
-                if (result != NULL) return result;
+                if (result != NULL) {
+                    DVLOG(5) << current_thread->id << " scheduler: pick periodic";
+                    return result;
+                }
 
                 // check ready tasks
                 result = readyQ.dequeue();
-                if (result != NULL) return result;
+                if (result != NULL) {
+                    DVLOG(5) << current_thread->id << " scheduler: pick ready";
+                    return result;
+                }
 
                 // check for new workers
                 result = getWorker();
-                if (result != NULL) return result;
+                if (result != NULL) {
+                    DVLOG(5) << current_thread->id << " scheduler: pick task worker";
+                    return result;
+                }
 
                 // no coroutines can run, so handle
-                DVLOG(5) << "scheduler: no coroutines can run";
+                DVLOG(5) << current_thread->id << " scheduler: no coroutines can run"
+                    << "[isBlocking=" << isBlocking
+                    << " periodQ=" << (periodicQ.empty() ? "empty" : "full")
+                    << " unassignedQ=" << (unassignedQ.empty() ? "empty" : "full") << "]";
                 usleep(1);
-            } while ( isBlocking || (!periodicQ.empty() || !unassignedQ.empty()) ); 
+            } while ( isBlocking || !queuesFinished() );
             // exit if all threads exited, including idle workers
             // TODO just as use mightBeWork as shortcut, also kill all idle unassigned workers on cbarrier_exit
             
@@ -161,6 +175,8 @@ inline void TaskingScheduler::thread_wake( thread * next ) {
   CHECK( next->sched == this ) << "can only wake a thread on your scheduler";
   CHECK( next->next == NULL ) << "woken thread should not be on any queue";
   CHECK( !thread_is_running( next ) ) << "woken thread should not be running";
+    
+  DVLOG(5) << "Thread " << current_thread->id << " wakes thread " << next->id;
 
   ready( next );
 }
@@ -200,9 +216,13 @@ inline void TaskingScheduler::thread_suspend_wake( thread *next ) {
 /// Like suspend except the thread is not blocking on a
 /// particular resource, just waiting to be woken.
 inline bool TaskingScheduler::thread_idle( uint64_t total_idle ) {
+    CHECK( num_idle+1 <= total_idle ) << "number of idle threads should not be more than total"
+                                      << " (" << num_idle+1 << " / " << total_idle << ")";
     if (num_idle+1 == total_idle) {
+        DVLOG(5) << "going idle and is last";
         return false;
     } else {
+        DVLOG(5) << "going idle and is " << num_idle+1 << " of " << total_idle;
         num_idle++;
         
         unassigned( current_thread );
