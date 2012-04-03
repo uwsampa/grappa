@@ -11,13 +11,13 @@ class BasicScheduler : public Scheduler {
         ThreadQueue readyQ;
         ThreadQueue periodicQ;
 
-        thread * master;
-        thread * current_thread; 
+        Thread * master;
+        Thread * current_thread; 
         threadid_t nextId;
         
         // STUB: replace with real periodic threads
         int periodctr;
-        thread * periodicDequeue() {
+        Thread * periodicDequeue() {
             if (periodctr++ % 128 == 0) {
                 return periodicQ.dequeue();
             } else {
@@ -26,10 +26,10 @@ class BasicScheduler : public Scheduler {
         }
         //////
 
-        thread * nextCoroutine ( bool isBlocking=true ) {
+        Thread * nextCoroutine ( bool isBlocking=true ) {
             do {
                 VLOG(5) << "scheduler: next coro";
-                thread* result;
+                Thread * result;
 
                 // check for periodic tasks
                 result = periodicDequeue();
@@ -50,7 +50,7 @@ class BasicScheduler : public Scheduler {
 
 
     public:
-       BasicScheduler ( thread * master ) 
+       BasicScheduler ( Thread * master ) 
         : readyQ ( )
         , periodicQ ( )
         , master ( master )
@@ -60,19 +60,19 @@ class BasicScheduler : public Scheduler {
             periodctr = 0;/*XXX*/
         }
        
-       thread * get_current_thread() {
+       Thread * get_current_thread() {
            return current_thread;
        }
        
-       void assignTid( thread * thr ) {
+       void assignTid( Thread * thr ) {
            thr->id = nextId++;
        }
         
-       void ready( thread * thr ) {
+       void ready( Thread * thr ) {
             readyQ.enqueue( thr );
        }
 
-       void periodic( thread * thr ) {
+       void periodic( Thread * thr ) {
            periodicQ.enqueue( thr );
        }
 
@@ -81,32 +81,32 @@ class BasicScheduler : public Scheduler {
 
        bool thread_yield( );
        void thread_suspend( );
-       void thread_wake( thread * next );
-       void thread_yield_wake( thread * next );
-       void thread_suspend_wake( thread * next );
-       void thread_join( thread* wait_on );
+       void thread_wake( Thread * next );
+       void thread_yield_wake( Thread * next );
+       void thread_suspend_wake( Thread * next );
+       void thread_join( Thread* wait_on );
 
-       // Start running threads from <scheduler> until one dies.  Return that thread
+       // Start running threads from <scheduler> until one dies.  Return that Thread
        // (which can't be restarted--it's trash.)  If <result> non-NULL,
-       // store the thread's exit value there.
+       // store the Thread's exit value there.
        // If no threads to run, returns NULL.
-       thread * thread_wait( void **result );
+       Thread * thread_wait( void **result );
 
 
        void thread_on_exit( );
 };  
 
 
-/// Yield the CPU to the next thread on your scheduler.  Doesn't ever touch
-/// the master thread.
+/// Yield the CPU to the next Thread on your scheduler.  Doesn't ever touch
+/// the master Thread.
 inline bool BasicScheduler::thread_yield( ) {
-    CHECK( current_thread != master ) << "can't yield on a system thread";
+    CHECK( current_thread != master ) << "can't yield on a system Thread";
 
     ready( current_thread ); 
     
-    thread * yieldedThr = current_thread;
+    Thread * yieldedThr = current_thread;
 
-    thread * next = nextCoroutine( );
+    Thread * next = nextCoroutine( );
     bool gotRescheduled = (next == yieldedThr);
     
     current_thread = next;
@@ -116,56 +116,56 @@ inline bool BasicScheduler::thread_yield( ) {
 }
 
 
-/// Suspend the current thread. Thread is not placed on any queue.
+/// Suspend the current Thread. Thread is not placed on any queue.
 inline void BasicScheduler::thread_suspend( ) {
-    CHECK( current_thread != master ) << "can't yield on a system thread";
+    CHECK( current_thread != master ) << "can't yield on a system Thread";
     CHECK( thread_is_running(current_thread) ) << "may only suspend a running coroutine";
     
-    thread* yieldedThr = current_thread;
+    Thread * yieldedThr = current_thread;
     
-    thread* next = nextCoroutine( );
+    Thread * next = nextCoroutine( );
     
     current_thread = next;
     thread_context_switch( yieldedThr, next, NULL);
 }
 
-/// Wake a suspended thread by putting it on the run queue.
-/// For now, waking a running thread is a fatal error.
-/// For now, waking a queued thread is also a fatal error. 
-/// For now, can only wake a thread on your scheduler
-inline void BasicScheduler::thread_wake( thread * next ) {
-  CHECK( next->sched == this ) << "can only wake a thread on your scheduler";
-  CHECK( next->next == NULL ) << "woken thread should not be on any queue";
-  CHECK( !thread_is_running( next ) ) << "woken thread should not be running";
+/// Wake a suspended Thread by putting it on the run queue.
+/// For now, waking a running Thread is a fatal error.
+/// For now, waking a queued Thread is also a fatal error. 
+/// For now, can only wake a Thread on your scheduler
+inline void BasicScheduler::thread_wake( Thread * next ) {
+  CHECK( next->sched == this ) << "can only wake a Thread on your scheduler";
+  CHECK( next->next == NULL ) << "woken Thread should not be on any queue";
+  CHECK( !thread_is_running( next ) ) << "woken Thread should not be running";
 
   ready( next );
 }
 
-/// Yield the current thread and wake a suspended thread.
-/// For now, waking a running thread is a fatal error.
-/// For now, waking a queued thread is also a fatal error. 
-inline void BasicScheduler::thread_yield_wake( thread * next ) {    
-    CHECK( current_thread != master ) << "can't yield on a system thread";
-    CHECK( next->sched == this ) << "can only wake a thread on your scheduler";
-    CHECK( next->next == NULL ) << "woken thread should not be on any queue";
-    CHECK( !thread_is_running( next ) ) << "woken thread should not be running";
+/// Yield the current Thread and wake a suspended thread.
+/// For now, waking a running Thread is a fatal error.
+/// For now, waking a queued Thread is also a fatal error. 
+inline void BasicScheduler::thread_yield_wake( Thread * next ) {    
+    CHECK( current_thread != master ) << "can't yield on a system Thread";
+    CHECK( next->sched == this ) << "can only wake a Thread on your scheduler";
+    CHECK( next->next == NULL ) << "woken Thread should not be on any queue";
+    CHECK( !thread_is_running( next ) ) << "woken Thread should not be running";
   
-    thread * yieldedThr = current_thread;
+    Thread * yieldedThr = current_thread;
     ready( yieldedThr );
     
     current_thread = next;
     thread_context_switch( yieldedThr, next, NULL);
 }
 
-/// Suspend current thread and wake a suspended thread.
-/// For now, waking a running thread is a fatal error.
-/// For now, waking a queued thread is also a fatal error. 
-inline void BasicScheduler::thread_suspend_wake( thread *next ) {
-    CHECK( current_thread != master ) << "can't yield on a system thread";
-    CHECK( next->next == NULL ) << "woken thread should not be on any queue";
-    CHECK( !thread_is_running( next ) ) << "woken thread should not be running";
+/// Suspend current Thread and wake a suspended thread.
+/// For now, waking a running Thread is a fatal error.
+/// For now, waking a queued Thread is also a fatal error. 
+inline void BasicScheduler::thread_suspend_wake( Thread *next ) {
+    CHECK( current_thread != master ) << "can't yield on a system Thread";
+    CHECK( next->next == NULL ) << "woken Thread should not be on any queue";
+    CHECK( !thread_is_running( next ) ) << "woken Thread should not be running";
   
-    thread * yieldedThr = current_thread;
+    Thread * yieldedThr = current_thread;
     
     current_thread = next;
     thread_context_switch( yieldedThr, next, NULL);
@@ -173,7 +173,7 @@ inline void BasicScheduler::thread_suspend_wake( thread *next ) {
 
     
 inline void BasicScheduler::thread_on_exit( ) {
-  thread * exitedThr = current_thread;
+  Thread * exitedThr = current_thread;
   current_thread = master;
 
   thread_context_switch( exitedThr, master, (void *)exitedThr);
