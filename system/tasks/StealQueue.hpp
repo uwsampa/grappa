@@ -337,8 +337,7 @@ void pushWorkRequest_am( pushWorkRequest_args * args, size_t size, void * payloa
 }
 
 /// Push work offline to a remote node. 
-/// Not concurrency-safe because pushes to local portion of queue,
-/// which is not lock protected for pops.
+/// Note: This should be safe as long as other stuff updating top do not do communication calls in between operations
 void StealQueue::pushRemote(Node destnode, Node_ptr* work, int k) {
     pushWorkRequest_args pargs = { k };
     SoftXMT_call_on( destnode, &pushWorkRequest_am, &pargs, sizeof(pushWorkRequest_args), work, sizeof(Node_ptr)*k);
