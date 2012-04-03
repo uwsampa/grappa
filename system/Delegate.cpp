@@ -7,7 +7,7 @@
 #include <glog/logging.h>
 
 struct memory_descriptor {
-  thread * t;
+  Thread * t;
   GlobalAddress<int64_t> address;
   int64_t data;
   bool done;
