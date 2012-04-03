@@ -6,37 +6,37 @@
 
 class Scheduler;
 typedef uint32_t threadid_t; 
-struct thread;
+struct Thread;
 
 class ThreadQueue {
     private:
-        thread* head;
-        thread* tail;
+        Thread * head;
+        Thread * tail;
 
     public:
         ThreadQueue ( ) 
             : head ( NULL )
             , tail ( NULL ) { }
 
-        void enqueue(thread* t);
-        thread* dequeue();
+        void enqueue(Thread * t);
+        Thread * dequeue();
 
         bool empty() {
             return (head==NULL);
         }
 };
 
-struct thread {
+struct Thread {
   coro *co;
-  // Scheduler responsible for this thread. NULL means this is a system
-  // thread.
+  // Scheduler responsible for this Thread. NULL means this is a system
+  // Thread.
   Scheduler * sched;
-  thread * next; // for queues--if we're not in one, should be NULL
+  Thread * next; // for queues--if we're not in one, should be NULL
   threadid_t id; 
   ThreadQueue joinqueue;
   int done;
 
-  thread(Scheduler * sched) 
+  Thread(Scheduler * sched) 
     : sched( sched )
     , next( NULL )
     , done( 0 )
@@ -45,8 +45,8 @@ struct thread {
     }
 };
         
-inline thread* ThreadQueue::dequeue() {
-    thread* result = head;
+inline Thread * ThreadQueue::dequeue() {
+    Thread * result = head;
     if (result != NULL) {
         head = result->next;
         result->next = NULL;
@@ -56,7 +56,7 @@ inline thread* ThreadQueue::dequeue() {
     return result;
 }
 
-inline void ThreadQueue::enqueue(thread* t) {
+inline void ThreadQueue::enqueue( Thread * t) {
     if (head==NULL) {
         head = t;
     } else {
@@ -66,27 +66,27 @@ inline void ThreadQueue::enqueue(thread* t) {
     t->next = NULL;
 }
 
-typedef void (*thread_func)(thread *, void *arg);
+typedef void (*thread_func)(Thread *, void *arg);
 
 
-thread * thread_spawn ( thread * me, Scheduler * sched, thread_func f, void * arg);
+Thread * thread_spawn ( Thread * me, Scheduler * sched, thread_func f, void * arg);
 
 // Turns the current (system) thread into a green thread.
-thread * thread_init();
+Thread * thread_init();
 
-inline void* thread_context_switch( thread * running, thread * next, void * val ) {
+inline void* thread_context_switch( Thread * running, Thread * next, void * val ) {
     return coro_invoke( running->co, next->co, val );
 }
 
-inline int thread_is_running( thread * thr ) {
+inline int thread_is_running( Thread * thr ) {
     return thr->co->running;
 }
 
 // Die and return to the master thread.
-void thread_exit(thread *me, void *retval);
+void thread_exit( Thread * me, void * retval );
 
 // Delete a thread.
-void destroy_thread(thread *thr);
+void destroy_thread( Thread *thr );
 
 
 #endif
