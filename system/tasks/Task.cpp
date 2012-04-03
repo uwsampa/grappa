@@ -1,8 +1,9 @@
-#include "../SoftXMT.hpp"
 #include "Task.hpp"
 
 
 #define MAXQUEUEDEPTH 500000
+
+
 
 TaskManager::TaskManager (bool doSteal, Node localId, Node* neighbors, Node numLocalNodes, int chunkSize, int cbint) 
     : workDone( false )
