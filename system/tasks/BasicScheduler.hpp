@@ -18,7 +18,7 @@ class BasicScheduler : public Scheduler {
         // STUB: replace with real periodic threads
         int periodctr;
         thread * periodicDequeue() {
-            if (periodctr++ % 100 == 0) {
+            if (periodctr++ % 128 == 0) {
                 return periodicQ.dequeue();
             } else {
                 return NULL;
