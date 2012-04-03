@@ -4,6 +4,8 @@
 #include "BasicScheduler.hpp"
 #include <glog/logging.h>
 
+#include <time.h>
+
 BOOST_AUTO_TEST_SUITE( Thread_tests );
 
 void thread_f1( Thread* me, void* args ) {
@@ -118,11 +120,10 @@ void threadf_yielding( Thread * me, void* args ) {
     BOOST_MESSAGE( me->id << " done" );
 }
 
-#define rdtscll(val) do { \
-    unsigned int __a,__d; \
-    asm volatile("rdtsc" : "=a" (__a), "=d" (__d)); \
-    (val) = ((unsigned long)__a) | (((unsigned long)__d)<<32); \
-  } while(0)
+double calcInterval( struct timespec start, struct timespec end ) {
+    const uint64_t BILLION_ = 1000000000;
+    return (end.tv_sec + (((double)end.tv_nsec)/BILLION_)) - (start.tv_sec + (((double)start.tv_nsec)/BILLION_));
+}
 
 BOOST_AUTO_TEST_CASE( benchmark_self_yield ) {
     Thread* master = thread_init();
@@ -134,15 +135,15 @@ BOOST_AUTO_TEST_CASE( benchmark_self_yield ) {
     Thread* t1 = thread_spawn( master, sched, threadf_yielding, &arg );
     sched->ready( t1 );
     
-    uint64_t start, end;
+    struct timespec start, end;
     BOOST_MESSAGE( "call run" );
-    rdtscll(start);
+    clock_gettime( CLOCK_MONOTONIC, &start );
     sched->run( );
-    rdtscll(end);
+    clock_gettime( CLOCK_MONOTONIC, &end );
     BOOST_MESSAGE( "finished" );
     
-    double runtime_ns = (end - start) / 2.66;
-    double ns_per_yield = runtime_ns / num_yield;
+    double runtime_s = calcInterval( start, end );
+    double ns_per_yield = (runtime_s*1000000000) / num_yield;
     BOOST_MESSAGE( ns_per_yield << " ns per yield (avg)" );
 }
 
@@ -159,16 +160,17 @@ BOOST_AUTO_TEST_CASE( benchmark_two_yield ) {
         sched->ready( t1 );
     }
      
-    uint64_t start, end;
+    struct timespec start, end;
     BOOST_MESSAGE( "call run" );
-    rdtscll(start);
+    clock_gettime( CLOCK_MONOTONIC, &start );
     sched->run( );
-    rdtscll(end);
+    clock_gettime( CLOCK_MONOTONIC, &end );
     BOOST_MESSAGE( "finished" );
     
-    double runtime_ns = (end - start) / 2.66;
-    double ns_per_yield = runtime_ns / (num_yield*num_coro); 
+    double runtime_s = calcInterval( start, end );
+    double ns_per_yield = (runtime_s*1000000000) / (num_yield*num_coro); 
     BOOST_MESSAGE( ns_per_yield << " ns per yield (avg)" );
 }
+
 
 BOOST_AUTO_TEST_SUITE_END();
