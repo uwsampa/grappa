@@ -8,24 +8,36 @@
 
 //thread* const NULL_THREAD = NULL;
 
+typedef int16_t Node;
+
 /// Task is a function pointer and pointer to arguments
 /// Ideally Task would be interface that just declares execute and makeGlobal
 class Task {
 
     private:
-        void (*func)(void*);
-        void* args;
+        void (* fn_p)(void *);
+        void * args;
+        size_t args_size;
+        Node home;
     
     public:
-        Task () : func(NULL), args(NULL) {}
-        Task (void (*f)(void*), void* args) 
-            : func ( f )
-            , args ( args ){}
+        Task (void (* fn_p)(void *), void * args, const size_t args_size, Node createdOn) 
+            : fn_p ( fn_p )
+            , args ( args )
+            , args_size ( args_size )
+            , home ( createdOn ){}
 
-        void execute ( ) {
-            func (args);
+        void execute ( );
+
+        template < typename ArgsStruct >
+        static Task createTask( void (* fn_p)(ArgStruct *), const ArgsStruct * args, 
+                const size_t args_size = sizeof( ArgsStruct ), Node createdOn) {
+            Task t( static_cast< void (*) (void*) >( fn_p )
+                    static_cast< void *>( args ), args_size, createdOn );
+            return t;
         }
 };
+
 // TODO: on steal of work, need to make sure args pointers are global or copy args struct
 
 
@@ -157,6 +169,21 @@ struct spawn_args {
 //  call nextCoro
 //  (if only one then periodic tasks
 //     should eventually cause it to
+
+
+#include "../SoftXMT.hpp"
+
+// XXX not templatized
+void Task::execute( ) {
+    if ( home != SoftXMT_mynode() ) {
+        Incoherent<ArgStruct>::RO cached_args( GlobalAddress<ArgStruct>::TwoDimensional(args, home) );
+        rem_args.block_until_acquired();
+        fn_p( cached_args );
+        rem_args.block_until_released();
+    } else {
+        fn_p( args );
+    }
+}
 
 
 #endif
