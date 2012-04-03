@@ -7,6 +7,11 @@
 #include "GlobalMemory.hpp"
 #include "tasks/Task.hpp"
 
+// command line arguments
+DEFINE_bool( steal, true, "Allow work-stealing between public task queues");
+DEFINE_int32( chunk_size, 10, "Amount of work to publish or steal in multiples of" );
+DEFINE_int32( cancel_interval, 1, "Interval for notifying others of new work" );
+DEFINE_uint64( num_starting_workers, 4, "Number of starting workers in task-executer pool" );
 
 static Communicator * my_global_communicator = NULL;
 static Aggregator * my_global_aggregator = NULL;
@@ -63,9 +68,15 @@ void SoftXMT_init( int * argc_p, char ** argv_p[], size_t global_memory_size_byt
 
   SoftXMT_done_flag = false;
 
+  //TODO: options for local stealing
+  Node * neighbors = new Node[SoftXMT_nodes()];
+  for ( Node nod=0; nod < SoftXMT_nodes(); nod++ ) {
+    neighbors[nod] = nod;
+  }
+
   // start threading layer
   master_thread = thread_init();
-  my_task_manager = new TaskManager( false, 0, NULL, 1, 10, 1 ); //TODO: fill in steal options
+  my_task_manager = new TaskManager( FLAGS_steal, SoftXMT_mynode(), neighbors, SoftXMT_nodes(), FLAGS_chunk_size, FLAGS_cancel_interval ); //TODO: options for local stealing
   my_global_scheduler = new TaskingScheduler( master_thread, my_task_manager );
   my_global_scheduler->periodic( thread_spawn( master_thread, my_global_scheduler, &poller, NULL ) );
 }
@@ -129,7 +140,6 @@ void SoftXMT_flush( Node n )
 ///
 /// Thread management routines
 ///
-static const uint64_t num_starting_workers = 4; // TODO cmdline
 /// Spawn and run user main function on node 0. Other nodes just run
 /// existing threads (service threads) until they are given more to
 /// do. TODO: get return values working TODO: remove thread * arg
@@ -144,7 +154,7 @@ int SoftXMT_run_user_main( void (* fn_p)(thread *, void *), void * args )
   }
 
   // spawn starting number of worker coroutines
-  my_global_scheduler->createWorkers( num_starting_workers );
+  my_global_scheduler->createWorkers( FLAGS_num_starting_workers );
 
   my_global_scheduler->run( );
 }
