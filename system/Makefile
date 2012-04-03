@@ -97,6 +97,7 @@ Rate_measure.exe: libSoftXMT.a
 ForkJoin_tests.test: libSoftXMT.a
 
 Tasking_tests.test: libSoftXMT.a
+Stealing_tests.test: libSoftXMT.a
 
 #
 # Build SoftXMT static library
