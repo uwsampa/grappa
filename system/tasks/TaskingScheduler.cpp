@@ -1,7 +1,7 @@
 #include "TaskingScheduler.hpp"
 #include "Task.hpp"
 
-TaskingScheduler::TaskingScheduler ( thread * master, TaskManager * taskman ) 
+TaskingScheduler::TaskingScheduler ( Thread * master, TaskManager * taskman ) 
     : readyQ ( )
     , periodicQ ( )
     , unassignedQ ( )
@@ -20,27 +20,27 @@ void TaskingScheduler::run ( ) {
     while (thread_wait( NULL ) != NULL) { } // nothing
 }
 
-void TaskingScheduler::thread_join( thread* wait_on ) {
-    if ( !wait_on->done ) {
+void TaskingScheduler::thread_join( Thread * wait_on ) {
+    while ( !wait_on->done ) {
         wait_on->joinqueue.enqueue( current_thread );
         thread_suspend( );
     }
 }
 
 
-thread * TaskingScheduler::thread_wait( void **result ) {
-    CHECK( current_thread == master ) << "only meant to be called by system thread";
+Thread * TaskingScheduler::thread_wait( void **result ) {
+    CHECK( current_thread == master ) << "only meant to be called by system Thread";
 
-    thread * next = nextCoroutine( false );
+    Thread * next = nextCoroutine( false );
     if (next == NULL) {
         // no user threads remain
         return NULL;
     } else {
         current_thread = next;
 
-        thread * died = (thread *) thread_context_switch( master, next, NULL);
+        Thread * died = (Thread *) thread_context_switch( master, next, NULL);
 
-        // At the moment, we only return from a thread in the case of death.
+        // At the moment, we only return from a Thread in the case of death.
 
         if (result != NULL) {
             void *retval = (void *)died->next;
@@ -51,10 +51,10 @@ thread * TaskingScheduler::thread_wait( void **result ) {
 }
 
 
-thread* TaskingScheduler::getWorker () {
+Thread * TaskingScheduler::getWorker () {
     if (task_manager->available()) {
         // check the pool of unassigned coroutines
-        thread* result = unassignedQ.dequeue();
+        Thread * result = unassignedQ.dequeue();
         if (result != NULL) return result;
 
         // possibly spawn more coroutines
@@ -66,7 +66,7 @@ thread* TaskingScheduler::getWorker () {
 }
 
 
-void workerLoop ( thread* me, void* args ) {
+void workerLoop ( Thread * me, void* args ) {
     task_worker_args* wargs = (task_worker_args*) args;
     TaskManager* tasks = wargs->tasks;
     TaskingScheduler * sched = wargs->scheduler; 
@@ -91,18 +91,18 @@ void TaskingScheduler::createWorkers( uint64_t num ) {
     num_workers += num;
     VLOG(5) << "spawning " << num << " workers; now there are " << num_workers;
     for (int i=0; i<num; i++) {
-        thread* t = thread_spawn( current_thread, this, workerLoop, work_args);
+        Thread * t = thread_spawn( current_thread, this, workerLoop, work_args);
         unassigned( t );
     }
     num_idle += num;
 }
 
 #define BASIC_MAX_WORKERS 2
-thread* TaskingScheduler::maybeSpawnCoroutines( ) {
+Thread * TaskingScheduler::maybeSpawnCoroutines( ) {
     if ( num_workers < BASIC_MAX_WORKERS ) {
        num_workers += 1;
        VLOG(5) << "spawning another worker; now there are " << num_workers;
-       return thread_spawn( current_thread, this, workerLoop, work_args ); // current thread will be coro parent; is this okay?
+       return thread_spawn( current_thread, this, workerLoop, work_args ); // current Thread will be coro parent; is this okay?
     } else {
         // might have another way to spawn
         return NULL;

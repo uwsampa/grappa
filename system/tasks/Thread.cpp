@@ -6,9 +6,9 @@
 #define STACK_SIZE 2<<18
 
 
-thread * thread_init() {
+Thread * thread_init() {
   coro* me = coro_init();
-  thread* master = (thread*)malloc(sizeof(thread));
+  Thread * master = (Thread *)malloc(sizeof(Thread));
   assert(master != NULL);
   master->co = me;
   master->sched = NULL;
@@ -22,7 +22,7 @@ thread * thread_init() {
 static void tramp(struct coro * me, void * arg) {
   // Pass control back and forth a few times to get the info we need.
   coro* master = (coro *)arg;
-  thread* my_thr = (thread *)coro_invoke(me, master, NULL);
+  Thread* my_thr = (Thread *)coro_invoke(me, master, NULL);
   thread_func f = (thread_func)coro_invoke(me, master, NULL);
   void* f_arg = coro_invoke(me, master, NULL);
   // Next time we're invoked, it'll be for real.
@@ -30,57 +30,55 @@ static void tramp(struct coro * me, void * arg) {
 
   f(my_thr, f_arg);
 
-  // We shouldn't return, but if we do, kill the thread.
+  // We shouldn't return, but if we do, kill the Thread.
   thread_exit(my_thr, NULL);
 }
 
-/// Spawn a new thread belonging to the Scheduler.
-/// Current thread is parent. Does NOT enqueue into any scheduling queue.
-thread * thread_spawn(thread * me, Scheduler * sched,
+/// Spawn a new Thread belonging to the Scheduler.
+/// Current Thread is parent. Does NOT enqueue into any scheduling queue.
+Thread * thread_spawn(Thread * me, Scheduler * sched,
                      thread_func f, void * arg) {
   assert( sched->get_current_thread() == me );
  
-  // allocate the thread and stack
-  thread * thr = new thread( sched );
+  // allocate the Thread and stack
+  Thread * thr = new Thread( sched );
   thr->co = coro_spawn(me->co, tramp, STACK_SIZE);
   sched->assignTid( thr );
 
   // Pass control to the trampoline a few times quickly to set up
   // the call of <f>.  Could also create a struct with all this data?
   
-  //current_thread = thr; //legacy: unnecessary to set current thread
   
   coro_invoke(me->co, thr->co, (void *)me->co);
   coro_invoke(me->co, thr->co, thr);
   coro_invoke(me->co, thr->co, (void *)f);
   coro_invoke(me->co, thr->co, (void *)arg);
   
-  //current_thread = me; //legacy: unnecessary to set current thread
   
   return thr;
 }
 
-void thread_exit(thread * me, void * retval) {
+void thread_exit(Thread * me, void * retval) {
 
   // Reuse the queue field for a return value.
-  me->next = (thread *)retval;
+  me->next = (Thread *)retval;
 
   // process join
   me->done = 1;
-  thread* waiter = me->joinqueue.dequeue();
+  Thread * waiter = me->joinqueue.dequeue();
   while (waiter!=NULL) {
     me->sched->thread_wake( waiter );
     waiter = me->joinqueue.dequeue();
   }
   
-  // call master thread
+  // call master Thread
   me->sched->thread_on_exit();
  
   // never returns
   exit(EXIT_FAILURE);
 }
 
-void destroy_thread(thread * thr) {
+void destroy_thread(Thread * thr) {
   destroy_coro(thr->co);
   free (thr);
 }

@@ -4,27 +4,27 @@ void BasicScheduler::run ( ) {
     while (thread_wait( NULL ) != NULL) { } // nothing
 }
 
-void BasicScheduler::thread_join( thread* wait_on ) {
-    if ( !wait_on->done ) {
+void BasicScheduler::thread_join( Thread* wait_on ) {
+    while ( !wait_on->done ) {
         wait_on->joinqueue.enqueue( current_thread );
         thread_suspend( );
     }
 }
 
 
-thread * BasicScheduler::thread_wait( void **result ) {
-    CHECK( current_thread == master ) << "only meant to be called by system thread";
+Thread * BasicScheduler::thread_wait( void **result ) {
+    CHECK( current_thread == master ) << "only meant to be called by system Thread";
 
-    thread * next = nextCoroutine( false );
+    Thread * next = nextCoroutine( false );
     if (next == NULL) {
         // no user threads remain
         return NULL;
     } else {
         current_thread = next;
 
-        thread * died = (thread *) thread_context_switch( master, next, NULL);
+        Thread * died = (Thread *) thread_context_switch( master, next, NULL);
 
-        // At the moment, we only return from a thread in the case of death.
+        // At the moment, we only return from a Thread in the case of death.
 
         if (result != NULL) {
             void *retval = (void *)died->next;
