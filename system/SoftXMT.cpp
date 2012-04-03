@@ -20,7 +20,7 @@ static Aggregator * my_global_aggregator = NULL;
 // TODO: should granular memory pools be stored at this level?
 static GlobalMemory * my_global_memory = NULL;
 
-static thread * master_thread;
+static Thread * master_thread;
 TaskingScheduler * my_global_scheduler;
 static TaskManager * my_task_manager;
 
@@ -31,12 +31,12 @@ bool SoftXMT_done_flag;
 HeapLeakChecker * SoftXMT_heapchecker = 0;
 #endif
 
-static void poller( thread * me, void * args ) {
+static void poller( Thread * me, void * args ) {
   while( !SoftXMT_done() ) {
     SoftXMT_poll();
     SoftXMT_yield_periodic();
   }
-  VLOG(5) << "polling thread exiting";
+  VLOG(5) << "polling Thread exiting";
 }
 
 /// Initialize SoftXMT components. We are not ready to run until the
@@ -142,15 +142,15 @@ void SoftXMT_flush( Node n )
 ///
 /// Spawn and run user main function on node 0. Other nodes just run
 /// existing threads (service threads) until they are given more to
-/// do. TODO: get return values working TODO: remove thread * arg
-int SoftXMT_run_user_main( void (* fn_p)(thread *, void *), void * args )
+/// do. TODO: get return values working TODO: remove Thread * arg
+int SoftXMT_run_user_main( void (* fn_p)(Thread *, void *), void * args )
 {
   if( SoftXMT_mynode() == 0 ) {
     CHECK( my_global_scheduler->get_current_thread() == master_thread ); // this should only be run at the toplevel
-    thread * main = thread_spawn( my_global_scheduler->get_current_thread(), my_global_scheduler,
+    Thread * main = thread_spawn( my_global_scheduler->get_current_thread(), my_global_scheduler,
                                   fn_p, args );
     my_global_scheduler->ready( main );
-    DVLOG(5) << "Spawned main thread " << main;
+    DVLOG(5) << "Spawned main Thread " << main;
   }
 
   // spawn starting number of worker coroutines
@@ -160,66 +160,66 @@ int SoftXMT_run_user_main( void (* fn_p)(thread *, void *), void * args )
 }
 
 /// Spawn a user function. TODO: get return values working
-/// TODO: remove thread * arg
-thread * SoftXMT_spawn( void (* fn_p)(thread *, void *), void * args )
+/// TODO: remove Thread * arg
+Thread * SoftXMT_spawn( void (* fn_p)(Thread *, void *), void * args )
 {
-  thread * th = thread_spawn( my_global_scheduler->get_current_thread(), my_global_scheduler, fn_p, args );
+  Thread * th = thread_spawn( my_global_scheduler->get_current_thread(), my_global_scheduler, fn_p, args );
   my_global_scheduler->ready( th );
-  DVLOG(5) << "Spawned thread " << th;
+  DVLOG(5) << "Spawned Thread " << th;
   return th;
 }
 
-/// Yield to scheduler, placing current thread on run queue.
+/// Yield to scheduler, placing current Thread on run queue.
 void SoftXMT_yield( )
 {
   bool immed = my_global_scheduler->thread_yield( ); 
 }
 
-/// Yield to scheduler, placing current thread on periodic queue.
+/// Yield to scheduler, placing current Thread on periodic queue.
 void SoftXMT_yield_periodic( )
 {
   bool immed = my_global_scheduler->thread_yield_periodic( );
 }
 
-/// Yield to scheduler, suspending current thread.
+/// Yield to scheduler, suspending current Thread.
 void SoftXMT_suspend( )
 {
-  DVLOG(5) << "suspending thread " << my_global_scheduler->get_current_thread() << "(# " << my_global_scheduler->get_current_thread()->id << ")";
+  DVLOG(5) << "suspending Thread " << my_global_scheduler->get_current_thread() << "(# " << my_global_scheduler->get_current_thread()->id << ")";
   my_global_scheduler->thread_suspend( );
   //CHECK_EQ(retval, 0) << "Thread " << th1 << " suspension failed. Have the server threads exited?";
 }
 
-/// Wake a thread by putting it on the run queue, leaving the current thread running.
-void SoftXMT_wake( thread * t )
+/// Wake a Thread by putting it on the run queue, leaving the current thread running.
+void SoftXMT_wake( Thread * t )
 {
-  DVLOG(5) << my_global_scheduler->get_current_thread()->id << " waking thread " << t;
+  DVLOG(5) << my_global_scheduler->get_current_thread()->id << " waking Thread " << t;
   my_global_scheduler->thread_wake( t );
 }
 
-/// Wake a thread t by placing current thread on run queue and running t next.
-void SoftXMT_yield_wake( thread * t )
+/// Wake a Thread t by placing current thread on run queue and running t next.
+void SoftXMT_yield_wake( Thread * t )
 {
-  DVLOG(5) << "yielding thread " << my_global_scheduler->get_current_thread() << " and waking thread " << t;
+  DVLOG(5) << "yielding Thread " << my_global_scheduler->get_current_thread() << " and waking thread " << t;
   my_global_scheduler->thread_yield_wake( t );
 }
 
-/// Wake a thread t by suspending current thread and running t next.
-void SoftXMT_suspend_wake( thread * t )
+/// Wake a Thread t by suspending current thread and running t next.
+void SoftXMT_suspend_wake( Thread * t )
 {
-  DVLOG(5) << "suspending thread " << my_global_scheduler->get_current_thread() << " and waking thread " << t;
+  DVLOG(5) << "suspending Thread " << my_global_scheduler->get_current_thread() << " and waking thread " << t;
   my_global_scheduler->thread_suspend_wake( t );
 }
 
-/// Join on thread t
-void SoftXMT_join( thread * t )
+/// Join on Thread t
+void SoftXMT_join( Thread * t )
 {
-  DVLOG(5) << "thread " << my_global_scheduler->get_current_thread() << " joining on thread " << t;
+  DVLOG(5) << "Thread " << my_global_scheduler->get_current_thread() << " joining on thread " << t;
   my_global_scheduler->thread_join( t );
 }
 
 bool SoftXMT_thread_idle( ) 
 {
-  DVLOG(5) << "thread " << my_global_scheduler->get_current_thread()->id << " going idle";
+  DVLOG(5) << "Thread " << my_global_scheduler->get_current_thread()->id << " going idle";
   return my_global_scheduler->thread_idle( );
 }
 
@@ -229,13 +229,13 @@ bool SoftXMT_thread_idle( )
 
 void SoftXMT_privateTask( void (*fn_p)(void * arg), void * arg) 
 {
-    DVLOG(5) << "thread " << my_global_scheduler->get_current_thread() << " spawns private";
+    DVLOG(5) << "Thread " << my_global_scheduler->get_current_thread() << " spawns private";
     my_task_manager->spawnPrivate( fn_p, arg );
 }
 
 void SoftXMT_publicTask( void (*fn_p)(void * arg), void * arg) 
 {
-    DVLOG(5) << "thread " << my_global_scheduler->get_current_thread() << " spawns public";
+    DVLOG(5) << "Thread " << my_global_scheduler->get_current_thread() << " spawns public";
     my_task_manager->spawnPublic( fn_p, arg );
 }
 
