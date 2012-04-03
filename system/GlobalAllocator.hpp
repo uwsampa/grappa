@@ -26,7 +26,7 @@ private:
   // 
 
   struct Descriptor {
-    thread * t;
+    Thread * t;
     GlobalAddress< void > address;
     size_t size;
     bool done;

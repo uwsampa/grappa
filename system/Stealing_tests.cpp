@@ -12,7 +12,7 @@ GlobalAddress<int64_t> nf_addr;
 
 struct task1_arg {
     int num;
-    thread * parent;
+    Thread * parent;
 };
 
 void wake_f( task1_arg * args, size_t size, void * payload, size_t payload_size ) {
@@ -22,7 +22,7 @@ void wake_f( task1_arg * args, size_t size, void * payload, size_t payload_size 
 void task1_f( void * arg ) {
     task1_arg* targ = (task1_arg*) arg;
     int mynum = targ->num;
-    thread * parent = targ->parent;
+    Thread * parent = targ->parent;
 
     if (mynum % 500 == 0) {
         BOOST_MESSAGE( CURRENT_THREAD << " with task " << mynum << " about to yield" );
@@ -40,7 +40,7 @@ void task1_f( void * arg ) {
     }
 }
 
-void user_main( thread * me, void * args ) 
+void user_main( Thread * me, void * args ) 
 {
   nf_addr = GlobalAddress<int64_t>::TwoDimensional( &num_finished );
 
@@ -64,7 +64,7 @@ BOOST_AUTO_TEST_CASE( test1 ) {
   SoftXMT_activate();
 
 
-  DVLOG(1) << "Spawning user main thread....";
+  DVLOG(1) << "Spawning user main Thread....";
   SoftXMT_run_user_main( &user_main, NULL );
   BOOST_CHECK( SoftXMT_done() == true );
 
