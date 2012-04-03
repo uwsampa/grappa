@@ -5,7 +5,7 @@ void BasicScheduler::run ( ) {
 }
 
 void BasicScheduler::thread_join( thread* wait_on ) {
-    if ( !wait_on->done ) {
+    while ( !wait_on->done ) {
         wait_on->joinqueue.enqueue( current_thread );
         thread_suspend( );
     }
