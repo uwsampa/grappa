@@ -171,19 +171,6 @@ struct spawn_args {
 //     should eventually cause it to
 
 
-#include "../SoftXMT.hpp"
-
-// XXX not templatized
-void Task::execute( ) {
-    if ( home != SoftXMT_mynode() ) {
-        Incoherent<ArgStruct>::RO cached_args( GlobalAddress<ArgStruct>::TwoDimensional(args, home) );
-        rem_args.block_until_acquired();
-        fn_p( cached_args );
-        rem_args.block_until_released();
-    } else {
-        fn_p( args );
-    }
-}
 
 
 #endif
