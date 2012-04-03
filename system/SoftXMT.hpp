@@ -32,78 +32,78 @@ void SoftXMT_barrier();
 void SoftXMT_barrier_commsafe();
 
 /// Spawn and run user main function. TODO: get return values working
-/// TODO: remove thread * arg
-int SoftXMT_run_user_main( void (* fn_p)(thread *, void *), void * args );
+/// TODO: remove Thread * arg
+int SoftXMT_run_user_main( void (* fn_p)(Thread *, void *), void * args );
 
 /// Spawn a user function. TODO: get return values working
-/// TODO: remove thread * arg
-thread * SoftXMT_spawn( void (* fn_p)(thread *, void *), void * args );
+/// TODO: remove Thread * arg
+Thread * SoftXMT_spawn( void (* fn_p)(Thread *, void *), void * args );
 
 template< typename T >
-thread * SoftXMT_template_spawn( void (* fn_p)(thread *, T *), T * args )
+Thread * SoftXMT_template_spawn( void (* fn_p)(Thread *, T *), T * args )
 {
-  typedef void (* fn_t)(thread *, void *);
+  typedef void (* fn_t)(Thread *, void *);
 
-  thread * th = SoftXMT_spawn( (fn_t)fn_p, (void *)args );
-  DVLOG(5) << "Spawned thread " << th;
+  Thread * th = SoftXMT_spawn( (fn_t)fn_p, (void *)args );
+  DVLOG(5) << "Spawned Thread " << th;
   return th;
 }
 
-/// Active message for spawning a thread on a remote node (used by SoftXMT_remote_spawn())
+/// Active message for spawning a Thread on a remote node (used by SoftXMT_remote_spawn())
 template< typename T >
 static void am_remote_spawn(T* args, size_t args_size, void* payload, size_t payload_size) {
-  typedef void (*thread_fn)(thread*,T*);
-  void (*fn_p)(thread*,T*) = *reinterpret_cast<thread_fn*>(payload);
+  typedef void (*thread_fn)(Thread*,T*);
+  void (*fn_p)(Thread*,T*) = *reinterpret_cast<thread_fn*>(payload);
   T* aa = new T;
   *aa = *args;
   SoftXMT_template_spawn(fn_p, aa);
 }
 
-/// Spawn a user thread on a remote node. Copies the passed arguments 
+/// Spawn a user Thread on a remote node. Copies the passed arguments 
 /// to the remote node.
-/// Note: the thread function should take ownership of the arguments 
+/// Note: the Thread function should take ownership of the arguments 
 /// and clean them up at the end of the function call.
 template< typename T >
-void SoftXMT_remote_spawn( void (*fn_p)(thread*,T*), const T* args, Node target) {
+void SoftXMT_remote_spawn( void (*fn_p)(Thread*,T*), const T* args, Node target) {
   // typedef void (*am_t)(T*,size_t,void*,size_t);
   // am_t a = &am_remote_spawn<T>;
   SoftXMT_call_on(target, SoftXMT_magic_identity_function(&am_remote_spawn<T>), args, sizeof(T), (void*)&fn_p, sizeof(fn_p));
-  DVLOG(5) << "Sent AM to spawn thread on Node " << target;
+  DVLOG(5) << "Sent AM to spawn Thread on Node " << target;
 }
 template< typename T >
-void SoftXMT_remote_spawn( void (*fn_p)(thread*,void*), const T* args, Node target) {
+void SoftXMT_remote_spawn( void (*fn_p)(Thread*,void*), const T* args, Node target) {
   // typedef void (*am_t)(T*,size_t,void*,size_t);
   // am_t a = &am_remote_spawn<T>;
   SoftXMT_call_on(target, SoftXMT_magic_identity_function(&am_remote_spawn<T>), args, sizeof(T), (void*)&fn_p, sizeof(fn_p));
-  DVLOG(5) << "Sent AM to spawn thread on Node " << target;
+  DVLOG(5) << "Sent AM to spawn Thread on Node " << target;
 }
 
 
-/// Yield to scheduler, placing current thread on run queue.
+/// Yield to scheduler, placing current Thread on run queue.
 void SoftXMT_yield( );
   
-/// Yield to scheduler, placing current thread on periodic queue.
+/// Yield to scheduler, placing current Thread on periodic queue.
 void SoftXMT_yield_periodic( );
 
-/// Yield to scheduler, suspending current thread.
+/// Yield to scheduler, suspending current Thread.
 void SoftXMT_suspend( );
 
-/// Wake a thread by putting it on the run queue, leaving the current thread running.
-void SoftXMT_wake( thread * t );
+/// Wake a Thread by putting it on the run queue, leaving the current thread running.
+void SoftXMT_wake( Thread * t );
 
-/// Wake a thread t by placing current thread on run queue and running t next.
-void SoftXMT_yield_wake( thread * t );
+/// Wake a Thread t by placing current thread on run queue and running t next.
+void SoftXMT_yield_wake( Thread * t );
 
-/// Wake a thread t by suspending current thread and running t next.
-void SoftXMT_suspend_wake( thread * t );
+/// Wake a Thread t by suspending current thread and running t next.
+void SoftXMT_suspend_wake( Thread * t );
 
-/// Join on thread t
-void SoftXMT_join( thread * t );
+/// Join on Thread t
+void SoftXMT_join( Thread * t );
 
 /// TODO: remove this
 void SoftXMT_signal_done();
 
-/// Make thread idle; ie thread suspended not waiting on a particular resource
+/// Make Thread idle; ie thread suspended not waiting on a particular resource
 bool SoftXMT_thread_idle( );
 
 /// Task routines
