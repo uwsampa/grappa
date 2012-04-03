@@ -275,7 +275,7 @@ void StealQueue<T>::workStealRequest_am(workStealRequest_args * args, size_t siz
     } else {
         workStealReply_args reply_args = { 0 };
         SoftXMT_call_on( args->from, &StealQueue<T>::workStealReply_am, &reply_args );
-    }//RESUME!!!: SoftXMT call_on dont use SoftXMT?
+    }
 
 }
 
