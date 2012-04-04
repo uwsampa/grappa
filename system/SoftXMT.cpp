@@ -246,10 +246,12 @@ static void SoftXMT_mark_done_am( void * args, size_t args_size, void * payload,
 }
 
 /// Tell all nodes that we are ready to exit
-void SoftXMT_signal_done() {
+void SoftXMT_signal_done ( bool inThread ) {
   if( !SoftXMT_done() ) {
-    while( !my_task_manager->isWorkDone() ) {
-       SoftXMT_yield(); // FIXME: non busy-wait method
+    if ( inThread ) {
+        while( !my_task_manager->isWorkDone() ) {
+           SoftXMT_yield(); // FIXME: non busy-wait method
+        }
     }
         
     for( Node i = 0; i < SoftXMT_nodes(); ++i ) {
@@ -266,7 +268,7 @@ void SoftXMT_signal_done() {
 /// notify everyone else, enter the barrier, and then clean up.
 void SoftXMT_finish( int retval )
 {
-  SoftXMT_signal_done();
+  SoftXMT_signal_done( false );
 
   SoftXMT_barrier();
 
