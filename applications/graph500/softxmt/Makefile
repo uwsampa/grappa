@@ -7,6 +7,7 @@ TARGET:= graph.exe
 #default rule: just build
 $(TARGET):
 
+CFLAGS += -w
 CFLAGS += -I$(SOFTXMT_HOME)/system
 CFLAGS += -g -Wall -Drestrict=__restrict__ -ffast-math -DGRAPH_GENERATOR_SOFTXMT
 # CFLAGS += -g -pg
