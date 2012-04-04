@@ -52,12 +52,12 @@ private:
     if( is_2D() ) {
       return o << "<GA 2D " << (void*)storage_ 
                << ": node " << node() 
-               << " pointer " << pointer() 
+               << " pointer " << static_cast<void *>( pointer() )
                << ">";
     } else {
         return o << "<GA Linear " << (void*)storage_ 
                  << ": pool " << pool() 
-                 << " pointer " << pointer() 
+                 << " pointer " << static_cast<void *>( pointer()  )
                  << ">";
     }
   }
