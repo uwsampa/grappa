@@ -121,8 +121,9 @@ struct func_bfs_onelevel : public ForkJoinIteration {
     const int64_t vstart = SoftXMT_delegate_read_word(XOFF(v));
     const int64_t vend = SoftXMT_delegate_read_word(XENDOFF(v));
     
-    for (int64_t vo = vstart; vo < vend; vo++) {
-      const int64_t j = SoftXMT_delegate_read_word(xadj+vo);
+    Incoherent<int64_t>::RO cadj(xadj+vstart, vend-vstart);
+    for (int64_t vo = 0; vo < vend-vstart; vo++) {
+      const int64_t j = cadj[vo]; // SoftXMT_delegate_read_word(xadj+vo);
       if (SoftXMT_delegate_compare_and_swap_word(bfs_tree+j, -1, v)) {
         int64_t voff = SoftXMT_delegate_fetch_and_add_word(k2, 1);
         SoftXMT_delegate_write_word(vlist+voff, j);
