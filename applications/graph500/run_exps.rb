@@ -7,19 +7,17 @@ table = :graph500
 
 # select between running on XMT or SoftXMT by if it's on cougar
 if `hostname`.match /cougar/ then
-  cmd = "mtarun -m 2 xmt-csr-local/xmt-csr-local -s %{scale} -e %{edgefactor}"
+  cmd = "mtarun -m %{nproc} xmt-csr-local/xmt-csr-local -s %{scale} -e %{edgefactor}"
 else
   # command that will be excuted on the command line, with variables in %{} substituted
-  cmd = "cd softxmt; make run TARGET=graph.exe ARGS='%{scale} %{edgefactor}'"
+  cmd = "cd softxmt && make run TARGET=graph.exe ARGS='%{scale} %{edgefactor} --v=0' NPROC=%{nproc}"
 end
 
 # map of parameters; key is the name used in command substitution
 params = {
-  # a: [1,2],
-  # b: expr('2*a', 'a**2', '3*a'), # can have expressions using previously defined variables
-  # c: 'abc'
   scale: [4, 6, 8, 12],
   edgefactor: [16],
+  nproc: [2, 4, 8, 12, 16, 24]
 }
 
 # Block that takes the stdout of the shell command and parses it into a Hash
@@ -35,6 +33,9 @@ parser = lambda {|cmdout|
     if m then
       h[m[:key].downcase.to_sym] = m[:value].to_f
     end
+  end
+  if h.keys.length == 0 then
+    puts "Error: didn't find any fields."
   end
   h
 }
