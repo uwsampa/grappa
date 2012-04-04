@@ -115,6 +115,7 @@ struct func_bfs_onelevel : public ForkJoinIteration {
   GlobalAddress<int64_t> k2;
   void operator()(thread * me, int64_t k) {
     const int64_t v = SoftXMT_delegate_read_word(vlist+k);
+    DVLOG(2) << "bfs vlist[" << k << "] = " << v;
     
     // TODO: do these two together (cache)
     const int64_t vstart = SoftXMT_delegate_read_word(XOFF(v));
@@ -134,7 +135,6 @@ static void make_bfs_tree(csr_graph * g, GlobalAddress<int64_t> bfs_tree, int64_
   int64_t NV = g->nv;
   GlobalAddress<int64_t> vlist = SoftXMT_typed_malloc<int64_t>(NV);
   
-  
   // start with root as only thing in vlist
   SoftXMT_delegate_write_word(vlist, root);
   
@@ -149,16 +149,18 @@ static void make_bfs_tree(csr_graph * g, GlobalAddress<int64_t> bfs_tree, int64_
   fork_join(current_thread, &fc, 0, NV);
   
   SoftXMT_delegate_write_word(bfs_tree+root, root); // parent of root is self
-    
+  
+  func_bfs_onelevel fb;
+  fb.vlist = vlist;
+  fb.xoff = g->xoff;
+  fb.xadj = g->xadj;
+  fb.bfs_tree = bfs_tree;
+  fb.k2 = k2addr;
+  
   while (k1 != k2) {
+    DVLOG(2) << "k1=" << k1 << ", k2=" << k2;
     const int64_t oldk2 = k2;
     
-    func_bfs_onelevel fb;
-      fb.vlist = vlist;
-      fb.xoff = g->xoff;
-      fb.xadj = g->xadj;
-      fb.bfs_tree = bfs_tree;
-      fb.k2 = k2addr;
     fork_join(get_current_thread(), &fb, k1, oldk2);
     
     k1 = oldk2;
@@ -357,7 +359,7 @@ static void run_bfs(tuple_graph * tg) {
     GlobalAddress<int64_t> bfs_tree = SoftXMT_typed_malloc<int64_t>(g.nv);
     GlobalAddress<int64_t> max_bfsvtx;
     
-    VLOG(1) << "Running bfs on root " << bfs_roots[i] << "...";
+    VLOG(1) << "Running bfs on root " << i << "(" << bfs_roots[i] << ")...";
     TIME(bfs_time[i],
       make_bfs_tree(&g, bfs_tree, bfs_roots[i])
     );
