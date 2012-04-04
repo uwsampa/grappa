@@ -8,16 +8,19 @@ table = :graph500
 # select between running on XMT or SoftXMT by if it's on cougar
 if `hostname`.match /cougar/ then
   cmd = "mtarun -m %{nproc} xmt-csr-local/xmt-csr-local -s %{scale} -e %{edgefactor}"
+  machinename = "cougarxmt"
 else
   # command that will be excuted on the command line, with variables in %{} substituted
   cmd = "cd softxmt && make run TARGET=graph.exe ARGS='%{scale} %{edgefactor} --v=0' NPROC=%{nproc}"
+  machinename = "sampa"
 end
 
 # map of parameters; key is the name used in command substitution
 params = {
   scale: [4, 6, 8, 12],
   edgefactor: [16],
-  nproc: [2, 4, 8, 12, 16, 24]
+  nproc: [2], #, 4, 8, 12, 16, 24],
+  machine: [machinename],
 }
 
 # Block that takes the stdout of the shell command and parses it into a Hash
