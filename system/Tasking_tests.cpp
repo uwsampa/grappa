@@ -4,6 +4,7 @@
 
 #include "SoftXMT.hpp"
 #include "Delegate.hpp"
+#include "Tasking.hpp"
 
 BOOST_AUTO_TEST_SUITE( Tasking_tests );
 
@@ -13,13 +14,12 @@ GlobalAddress<int64_t> nf_addr;
 
 struct task1_arg {
     int num;
-    thread * parent;
+    Thread * parent;
 };
 
-void task1_f( void * arg ) {
-    task1_arg* targ = (task1_arg*) arg;
-    int mynum = targ->num;
-    thread * parent = targ->parent;
+void task1_f( task1_arg * arg ) {
+    int mynum = arg->num;
+    Thread * parent = arg->parent;
 
     BOOST_MESSAGE( CURRENT_THREAD << " with task " << mynum << " about to yield 1" );
     SoftXMT_yield( );
@@ -34,7 +34,7 @@ void task1_f( void * arg ) {
     }
 }
 
-void user_main( thread * me, void * args ) 
+void user_main( Thread * me, void * args ) 
 {
   nf_addr = GlobalAddress<int64_t>::TwoDimensional( &num_finished );
 
@@ -58,7 +58,7 @@ BOOST_AUTO_TEST_CASE( test1 ) {
   SoftXMT_activate();
 
 
-  DVLOG(1) << "Spawning user main thread....";
+  DVLOG(1) << "Spawning user main Thread....";
   SoftXMT_run_user_main( &user_main, NULL );
   BOOST_CHECK( SoftXMT_done() == true );
 
