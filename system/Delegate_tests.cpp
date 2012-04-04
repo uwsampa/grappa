@@ -11,9 +11,9 @@ int64_t some_data = 1234;
 
 int64_t other_data __attribute__ ((aligned (2048))) = 0;
 
-void user_main( thread * me, void * args ) 
+void user_main( Thread * me, void * args ) 
 {
-  BOOST_MESSAGE( "Spawning user main thread " << (void *) CURRENT_THREAD <<
+  BOOST_MESSAGE( "Spawning user main Thread " << (void *) CURRENT_THREAD <<
                  " " << me <<
                  " on node " << SoftXMT_mynode() );
 
@@ -92,7 +92,7 @@ BOOST_AUTO_TEST_CASE( test1 ) {
 
 
 
-  DVLOG(1) << "Spawning user main thread....";
+  DVLOG(1) << "Spawning user main Thread....";
   SoftXMT_run_user_main( &user_main, NULL );
   BOOST_CHECK( SoftXMT_done() == true );
 
