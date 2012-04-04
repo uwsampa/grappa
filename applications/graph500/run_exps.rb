@@ -33,7 +33,7 @@ parser = lambda {|cmdout|
   cmdout.each_line do |line|
     m = line.chomp.match(/(?<key>[\w_]+):\ (?<value>#{REG_NUM})$/)
     if m then
-      h[m[:key]] = m[:value]
+      h[m[:key].downcase.to_sym] = m[:value].to_f
     end
   end
   h
