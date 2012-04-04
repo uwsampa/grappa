@@ -11,7 +11,7 @@ BOOST_AUTO_TEST_SUITE( Cache_tests );
 int64_t foo = 1234;
 int64_t bar[4] = { 2345, 3456, 4567, 6789 };
 
-void user_main( thread * me, void * args ) 
+void user_main( Thread * me, void * args ) 
 {
   {
     Incoherent< int64_t >::RO buf( GlobalAddress< int64_t >::TwoDimensional( &foo ), 1 );
