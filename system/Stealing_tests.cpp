@@ -63,6 +63,9 @@ BOOST_AUTO_TEST_CASE( test1 ) {
 
   SoftXMT_activate();
 
+  // force certain run parameters
+  //BOOST_CHECK_EQUAL( FLAGS_chunk_size, 4 );
+  //BOOST_CHECK_EQUAL( FLAGS_num_starting_workers, 4 );
 
   DVLOG(1) << "Spawning user main Thread....";
   SoftXMT_run_user_main( &user_main, NULL );
