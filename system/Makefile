@@ -113,7 +113,7 @@ libSoftXMT.a: $(patsubst %,libSoftXMT.a(%),$(LIBRARY_CONTENTS))
 ENV_VARIABLES+= GLOG_logtostderr=1
 #ENV_VARIABLES+= GLOG_vmodule=Cache*=5,Incoh*=5,Aggreg*=5
 #ENV_VARIABLES+= GLOG_vmodule=Cache*=5,Incoh*=5
-ENV_VARIABLES+= GLOG_v=1
+ENV_VARIABLES+= GLOG_v=5 GLOG_log_dir=/tmp
 #ENV_VARIABLES+= OMPI_MCA_btl_sm_use_knem=0
 ENV_VARIABLES+= LD_LIBRARY_PATH="\$$LD_LIBRARY_PATH:$(LD_LIBRARY_PATH)"
 ENV_VARIABLES+= GASNET_BACKTRACE=1
@@ -145,7 +145,7 @@ run: $(TARGET) $($(MPITYPE)_ENVVAR_TEMP)
 mpi_test: $(TARGET) $($(MPITYPE)_ENVVAR_TEMP)
 	-killall $<
 	$(ENV_VARIABLES) \
-	$($(MPITYPE)_MPIRUN) $($(MPITYPE)_EXPORT_ENV_VARIABLES) $($(MPITYPE)_HOST) $($(MPITYPE)_NPROC) -- ./$< --log_level=test_suite --run_test=$(TARGET:.test=) -- $(ARGS)
+	$($(MPITYPE)_MPIRUN) $($(MPITYPE)_EXPORT_ENV_VARIABLES) $($(MPITYPE)_HOST) $($(MPITYPE)_NPROC) -- ./$< $(GARGS) --log_level=test_suite --run_test=$(TARGET:.test=) -- $(ARGS)
 
 test: $(TARGET)
 	$(ENV_VARIABLES) \
