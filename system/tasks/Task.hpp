@@ -21,22 +21,25 @@ class Task {
         Node home;
     
     public:
-        Task (void (* fn_p)(void *), void * args, const size_t args_size, Node createdOn) 
+        Task () {}
+        Task (void (* fn_p)(void *), void * args, size_t args_size, Node createdOn) 
             : fn_p ( fn_p )
             , args ( args )
             , args_size ( args_size )
             , home ( createdOn ){}
 
         void execute ( );
-
-        template < typename ArgsStruct >
-        static Task createTask( void (* fn_p)(ArgStruct *), const ArgsStruct * args, 
-                const size_t args_size = sizeof( ArgsStruct ), Node createdOn) {
-            Task t( static_cast< void (*) (void*) >( fn_p )
-                    static_cast< void *>( args ), args_size, createdOn );
-            return t;
-        }
+        
 };
+
+
+template < typename ArgsStruct >
+static Task createTask( void (* fn_p)(ArgsStruct *), ArgsStruct * args, Node createdOn,
+                        size_t args_size = sizeof( ArgsStruct )) {
+    Task t( reinterpret_cast< void (*) (void*) >( fn_p ),
+            static_cast< void *>( args ), args_size, createdOn );
+    return t;
+}
 
 // TODO: on steal of work, need to make sure args pointers are global or copy args struct
 
@@ -109,11 +112,13 @@ class TaskManager {
           }
         }
 
-        /*TODO return value?*/ 
-        void spawnPublic( void (*f)(void * arg), void * arg);
+        /*TODO return value?*/
+        template < typename ArgsStruct > 
+        void spawnPublic( void (*f)(ArgsStruct * arg), ArgsStruct * arg);
         
         /*TODO return value?*/ 
-        void spawnPrivate( void (*f)(void * arg), void * arg);
+        template < typename ArgsStruct > 
+        void spawnPrivate( void (*f)(ArgsStruct * arg), ArgsStruct * arg);
         
         bool getWork ( Task* result );
 
@@ -125,17 +130,6 @@ class TaskManager {
 
 
 
-inline void TaskManager::spawnPublic( void (*f)(void * arg), void * arg ) {
-    Task newtask(f, arg);
-    publicQ.push( newtask );
-    releaseTasks();
-}
-
-inline void TaskManager::spawnPrivate( void (*f)(void * arg), void * arg ) {
-    Task newtask(f, arg);
-    privateQ.push_front( newtask );
-}
-
 
 
 inline bool TaskManager::available ( ) {
@@ -145,31 +139,27 @@ inline bool TaskManager::available ( ) {
 }
 
 
+Node SoftXMT_mynode();
+template < typename ArgsStruct > 
+inline void TaskManager::spawnPublic( void (*f)(ArgsStruct * arg), ArgsStruct * arg ) {
+    Task newtask = createTask(f, arg, SoftXMT_mynode());
+    publicQ.push( newtask );
+    releaseTasks();
+}
+
+template < typename ArgsStruct > 
+inline void TaskManager::spawnPrivate( void (*f)(ArgsStruct * arg), ArgsStruct * arg ) {
+    Task newtask = createTask(f, arg, SoftXMT_mynode());
+    privateQ.push_front( newtask );
+}
+
+
 
 // Remote spawning
 struct spawn_args {
     void (*f)(void * arg);
     void * arg;
 };
-
-
-//cases:
-//periodic yield: 
-//  back of periodic queue; 
-//  nextCoro swap
-//  (if only one then eventually will run again)
-//
-//yield: 
-//  back of readyQ
-//  nextCoro swap
-//  (if only one then will be chosen)
-//
-//suspend: 
-//  no Q;
-//  call nextCoro
-//  (if only one then periodic tasks
-//     should eventually cause it to
-
 
 
 
