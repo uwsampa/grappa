@@ -22,7 +22,7 @@ static GlobalMemory * my_global_memory = NULL;
 
 static Thread * master_thread;
 TaskingScheduler * my_global_scheduler;
-static TaskManager * my_task_manager;
+TaskManager * my_task_manager;
 
 /// Flag to tell this node it's okay to exit.
 bool SoftXMT_done_flag;
@@ -76,6 +76,11 @@ void SoftXMT_init( int * argc_p, char ** argv_p[], size_t global_memory_size_byt
 
   // start threading layer
   master_thread = thread_init();
+  DVLOG(1) << "Initializing tasking layer."
+           << " steal=" << FLAGS_steal
+           << " num_starting_workers=" << FLAGS_num_starting_workers
+           << " chunk_size=" << FLAGS_chunk_size
+           << " cbint=" << FLAGS_cancel_interval;
   my_task_manager = new TaskManager( FLAGS_steal, SoftXMT_mynode(), neighbors, SoftXMT_nodes(), FLAGS_chunk_size, FLAGS_cancel_interval ); //TODO: options for local stealing
   my_global_scheduler = new TaskingScheduler( master_thread, my_task_manager );
   my_global_scheduler->periodic( thread_spawn( master_thread, my_global_scheduler, &poller, NULL ) );
@@ -223,21 +228,6 @@ bool SoftXMT_thread_idle( )
   return my_global_scheduler->thread_idle( );
 }
 
-///
-/// Task routines
-///
-
-void SoftXMT_privateTask( void (*fn_p)(void * arg), void * arg) 
-{
-    DVLOG(5) << "Thread " << my_global_scheduler->get_current_thread() << " spawns private";
-    my_task_manager->spawnPrivate( fn_p, arg );
-}
-
-void SoftXMT_publicTask( void (*fn_p)(void * arg), void * arg) 
-{
-    DVLOG(5) << "Thread " << my_global_scheduler->get_current_thread() << " spawns public";
-    my_task_manager->spawnPublic( fn_p, arg );
-}
 
 
 ///

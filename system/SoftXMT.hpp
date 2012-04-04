@@ -15,6 +15,7 @@
 extern TaskingScheduler * my_global_scheduler;
 #define CURRENT_THREAD my_global_scheduler->get_current_thread()
 
+
 void SoftXMT_init( int * argc_p, char ** argv_p[], size_t size = 4096 );
 void SoftXMT_activate();
 
@@ -106,13 +107,6 @@ void SoftXMT_signal_done();
 /// Make Thread idle; ie thread suspended not waiting on a particular resource
 bool SoftXMT_thread_idle( );
 
-/// Task routines
-
-/// Spawn a task visible to this Node only
-void SoftXMT_privateTask( void (*fn_p)(void * arg), void * arg);
-
-/// Spawn a task visible to other Nodes
-void SoftXMT_publicTask( void (*fn_p)(void * arg), void * arg);
 
 
 
