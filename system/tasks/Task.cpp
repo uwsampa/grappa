@@ -7,11 +7,11 @@
 
 void Task::execute( ) {
     if ( home != SoftXMT_mynode() ) {
-        char argbuf[arg_size];
-        Incoherent<char>::RO cached_args( GlobalAddress<ArgStruct>::TwoDimensional(args, home), arg_size, &argbuf );
-        rem_args.block_until_acquired();
-        fn_p( cached_args );
-        rem_args.block_until_released();
+        char argbuf[args_size];
+        Incoherent<char>::RO cached_args( GlobalAddress<char>::TwoDimensional(static_cast<char*>(args), home), args_size, argbuf );
+        cached_args.block_until_acquired();
+        fn_p( &argbuf );
+        cached_args.block_until_released();
     } else {
         fn_p( args );
     }
@@ -70,7 +70,8 @@ bool TaskManager::getWork ( Task* result ) {
                 }
 
                 if (goodSteal) {
-                    DVLOG(5) << CURRENT_THREAD << " steal from rank" << victimId;
+                    DVLOG(5) << CURRENT_THREAD << " steal " << goodSteal
+                            << " from rank" << victimId;
                     okToSteal = true; // release steal lock
                     mightBeWork = true; // now there is work so allow more threads to be scheduled
                     continue;
