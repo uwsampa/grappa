@@ -131,9 +131,12 @@ struct func_bfs_onelevel : public ForkJoinIteration {
   }
 };
 
-static void make_bfs_tree(csr_graph * g, GlobalAddress<int64_t> bfs_tree, int64_t root) {
+static double make_bfs_tree(csr_graph * g, GlobalAddress<int64_t> bfs_tree, int64_t root) {
   int64_t NV = g->nv;
   GlobalAddress<int64_t> vlist = SoftXMT_typed_malloc<int64_t>(NV);
+  
+  double start, stop;
+  start = timer();
   
   // start with root as only thing in vlist
   SoftXMT_delegate_write_word(vlist, root);
@@ -166,7 +169,11 @@ static void make_bfs_tree(csr_graph * g, GlobalAddress<int64_t> bfs_tree, int64_
     k1 = oldk2;
   }
   
+  stop = timer();
+  
   SoftXMT_free(vlist);
+  
+  return stop-start;
 }
 
 static void compute_levels(GlobalAddress<int64_t> level, int64_t nv, GlobalAddress<int64_t> bfs_tree, int64_t root) {
@@ -360,9 +367,7 @@ static void run_bfs(tuple_graph * tg) {
     GlobalAddress<int64_t> max_bfsvtx;
     
     VLOG(1) << "Running bfs on root " << i << "(" << bfs_roots[i] << ")...";
-    TIME(bfs_time[i],
-      make_bfs_tree(&g, bfs_tree, bfs_roots[i])
-    );
+    bfs_time[i] = make_bfs_tree(&g, bfs_tree, bfs_roots[i]);
 //    VLOG(1) << "done";
 //    for (int64_t i=0; i < g.nv; i++) {
 //      VLOG(1) << "bfs_tree[" << i << "] = " << SoftXMT_delegate_read_word(bfs_tree+i);
@@ -462,7 +467,6 @@ int main(int argc, char** argv) {
   assert(SCALE <= MAX_SCALE);
 
   SoftXMT_run_user_main(&user_main, NULL);
-  
 
   SoftXMT_finish(0);
   return 0;
