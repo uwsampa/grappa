@@ -14,7 +14,7 @@ struct array_element {
   int index;
 };
 
-array_element global_array[ 1234 ] __attribute__ ((aligned (2048)));
+array_element global_array[ 1234 ] __attribute__ ((aligned (1 << 12)));
 
 
 int64_t int64_array[ 32 ] __attribute__ ((aligned (1 << 12)));
@@ -194,33 +194,37 @@ BOOST_AUTO_TEST_CASE( test1 ) {
 
       
     }
+
+    GlobalAddress< array_element > l2 = make_linear( &global_array[0] );
+    BOOST_MESSAGE( "Pointer is " << l2 );
+    BOOST_CHECK_EQUAL( l2.node(), 0 );
+    BOOST_CHECK_EQUAL( l2.pointer(), &global_array[0] );
+
+    ++l2;
+    BOOST_MESSAGE( "After increment, pointer is " << l2 );
+    BOOST_CHECK_EQUAL( l2.node(), 0 );
+    BOOST_CHECK_EQUAL( l2.pointer(), &global_array[1] );
+
+    l2 += 3;
+    BOOST_MESSAGE( "After += 3, pointer is " << l2 );
+    BOOST_CHECK_EQUAL( l2.node(), 1 );
+    BOOST_CHECK_EQUAL( l2.pointer(), &global_array[0] );
+
+    ++l2;
+    BOOST_MESSAGE( "After increment, pointer is " << l2 );
+    BOOST_CHECK_EQUAL( l2.node(), 1 );
+    BOOST_CHECK_EQUAL( l2.pointer(), &global_array[1] );
+
+    l2 += 4;
+    BOOST_MESSAGE( "After += 4, pointer is " << l2 );
+    BOOST_CHECK_EQUAL( l2.node(), 0 );
+    BOOST_CHECK_EQUAL( l2.pointer(), &global_array[5] );
+
+    // casting
+    array_element * foo_p = l2 - 4;
+    array_element * bar_p = l2;
+    BOOST_CHECK_EQUAL( foo_p + 4, bar_p );
   }
-
-
-  GlobalAddress< array_element > l2 = make_linear( &global_array[0] );
-  BOOST_CHECK_EQUAL( l2.node(), 0 );
-  BOOST_CHECK_EQUAL( l2.pointer(), &global_array[0] );
-
-  ++l2;
-  BOOST_CHECK_EQUAL( l2.node(), 0 );
-  BOOST_CHECK_EQUAL( l2.pointer(), &global_array[1] );
-
-  l2 += 3;
-  BOOST_CHECK_EQUAL( l2.node(), 1 );
-  BOOST_CHECK_EQUAL( l2.pointer(), &global_array[0] );
-
-  ++l2;
-  BOOST_CHECK_EQUAL( l2.node(), 1 );
-  BOOST_CHECK_EQUAL( l2.pointer(), &global_array[1] );
-
-  l2 += 4;
-  BOOST_CHECK_EQUAL( l2.node(), 0 );
-  BOOST_CHECK_EQUAL( l2.pointer(), &global_array[5] );
-
-  // casting
-  array_element * foo_p = l2 - 4;
-  array_element * bar_p = l2;
-  BOOST_CHECK_EQUAL( foo_p + 4, bar_p );
 
   SoftXMT_finish( 0 );
 }
