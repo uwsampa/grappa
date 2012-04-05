@@ -196,7 +196,7 @@ public:
   inline void aggregate( Node destination, AggregatorAMHandler fn_p, 
                          const void * args, const size_t args_size,
                          const void * payload, const size_t payload_size ) {
-    assert( destination < max_nodes_ );
+    CHECK( destination < max_nodes_ ) << "destination:" << destination << " max_nodes_:" << max_nodes_;
     Node target = get_target_for_node( destination );
   
     // make sure arg struct and payload aren't too big.

@@ -102,6 +102,8 @@ bool TaskManager::getWork ( Task* result ) {
                 mightBeWork = true;   // work is available so allow unassigned threads to be scheduled
                 okToSteal = true;        // work is available so allow steal attempts
             }
+        } else {
+            DVLOG(5) << CURRENT_THREAD << " un-idled";
         }
     }
 
