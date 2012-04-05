@@ -20,6 +20,7 @@ void user_main( thread * me, void * args )
                  " on node " << SoftXMT_mynode() );
 
   for( int i = 0; i < size; ++i ) {
+    BOOST_MESSAGE( "Writing to " << base + i );
     SoftXMT_delegate_write_word( base + i, i );
   }
 
@@ -73,12 +74,14 @@ BOOST_AUTO_TEST_CASE( test1 ) {
 
   SoftXMT_activate();
 
-  size_t local_size_bytes = 1 << 10;
+  size_t local_size_bytes = 1 << 8;
   GlobalMemoryChunk gm( local_size_bytes );
   base = gm.global_pointer();
+  BOOST_MESSAGE( "Base pointer is " << base );
+
   size = local_size_bytes * SoftXMT_nodes() / sizeof(int64_t);
 
-  assert( SoftXMT_nodes() == 2 );
+  BOOST_CHECK_EQUAL( SoftXMT_nodes(), 2 );
 
   DVLOG(1) << "Spawning user main thread....";
   SoftXMT_run_user_main( &user_main, NULL );
