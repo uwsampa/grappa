@@ -107,12 +107,16 @@ struct func_set_const : public ForkJoinIteration {
   }
 };
 
+#define BUF_LEN 16384
+
 struct func_bfs_onelevel : public ForkJoinIteration {
   GlobalAddress<int64_t> vlist;
   GlobalAddress<int64_t> xoff;
   GlobalAddress<int64_t> xadj;
   GlobalAddress<int64_t> bfs_tree;
   GlobalAddress<int64_t> k2;
+  int64_t * kbuf;
+  int64_t * buf;
   void operator()(thread * me, int64_t k) {
     const int64_t v = SoftXMT_delegate_read_word(vlist+k);
     DVLOG(2) << "bfs vlist[" << k << "] = " << v;
@@ -123,10 +127,50 @@ struct func_bfs_onelevel : public ForkJoinIteration {
     
     Incoherent<int64_t>::RO cadj(xadj+vstart, vend-vstart);
     for (int64_t vo = 0; vo < vend-vstart; vo++) {
-      const int64_t j = cadj[vo]; // SoftXMT_delegate_read_word(xadj+vo);
+      const int64_t j = cadj[vo];
       if (SoftXMT_delegate_compare_and_swap_word(bfs_tree+j, -1, v)) {
-        int64_t voff = SoftXMT_delegate_fetch_and_add_word(k2, 1);
-        SoftXMT_delegate_write_word(vlist+voff, j);
+        if (*kbuf < BUF_LEN) {
+          buf[*kbuf] = j;
+          (*kbuf)++;
+        } else {
+          int64_t voff = SoftXMT_delegate_fetch_and_add_word(k2, BUF_LEN);
+          Incoherent<int64_t>::RW cvlist(vlist+voff, BUF_LEN);
+          for (int64_t vk=0; vk < BUF_LEN; vk++) {
+            cvlist[vk] = buf[vk];
+          }
+          buf[0] = j;
+          *kbuf = 1;
+        }
+      }
+    }
+  }
+};
+
+struct func_bfs_node : public ForkJoinIteration {
+  GlobalAddress<int64_t> vlist;
+  GlobalAddress<int64_t> xoff;
+  GlobalAddress<int64_t> xadj;
+  GlobalAddress<int64_t> bfs_tree;
+  GlobalAddress<int64_t> k2;
+  int64_t start, end;
+  void operator()(thread * me, int64_t mynode) {
+    int64_t kbuf;
+    int64_t buf[BUF_LEN];
+    
+    range_t r = blockDist(start, end, mynode, SoftXMT_nodes());
+    
+    func_bfs_onelevel f;
+    f.vlist = vlist; f.xoff = xoff; f.xadj = xadj; f.bfs_tree = bfs_tree; f.k2 = k2;
+    f.kbuf = &kbuf;
+    f.buf = buf;
+    fork_join_onenode(me, &f, r.start, r.end);
+    
+    // make sure to commit what's left in the buffer at the end
+    if (kbuf) {
+      int64_t voff = SoftXMT_delegate_fetch_and_add_word(k2, kbuf);
+      Incoherent<int64_t>::RW cvlist(vlist+voff, kbuf);
+      for (int64_t vk=0; vk < kbuf; vk++) {
+        cvlist[vk] = buf[vk];
       }
     }
   }
@@ -154,7 +198,7 @@ static double make_bfs_tree(csr_graph * g, GlobalAddress<int64_t> bfs_tree, int6
   
   SoftXMT_delegate_write_word(bfs_tree+root, root); // parent of root is self
   
-  func_bfs_onelevel fb;
+  func_bfs_node fb;
   fb.vlist = vlist;
   fb.xoff = g->xoff;
   fb.xadj = g->xadj;
@@ -165,7 +209,10 @@ static double make_bfs_tree(csr_graph * g, GlobalAddress<int64_t> bfs_tree, int6
     DVLOG(2) << "k1=" << k1 << ", k2=" << k2;
     const int64_t oldk2 = k2;
     
-    fork_join(get_current_thread(), &fb, k1, oldk2);
+    fb.start = k1;
+    fb.end = oldk2;
+
+    fork_join_custom(get_current_thread(), &fb);
     
     k1 = oldk2;
   }
