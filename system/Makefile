@@ -113,7 +113,8 @@ libSoftXMT.a: $(patsubst %,libSoftXMT.a(%),$(LIBRARY_CONTENTS))
 ENV_VARIABLES+= GLOG_logtostderr=1
 #ENV_VARIABLES+= GLOG_vmodule=Cache*=5,Incoh*=5,Aggreg*=5
 #ENV_VARIABLES+= GLOG_vmodule=Cache*=5,Incoh*=5
-ENV_VARIABLES+= GLOG_v=5 GLOG_log_dir=/tmp
+ENV_VARIABLES+= GLOG_vmodule=Collective*=5,TaskingScheduler*=5
+ENV_VARIABLES+= GLOG_v=0 GLOG_log_dir=/tmp
 #ENV_VARIABLES+= OMPI_MCA_btl_sm_use_knem=0
 ENV_VARIABLES+= LD_LIBRARY_PATH="\$$LD_LIBRARY_PATH:$(LD_LIBRARY_PATH)"
 ENV_VARIABLES+= GASNET_BACKTRACE=1
