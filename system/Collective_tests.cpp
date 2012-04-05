@@ -18,7 +18,7 @@ worker_args this_node_wargs;
 const int64_t add_init = 0;
 const int64_t max_init = -1000;
 
-void worker_thread_f(thread* me, void* args) {
+void worker_thread_f(Thread* me, void* args) {
     worker_args* wargs = (worker_args*) args;
 
     BOOST_MESSAGE( "worker " << SoftXMT_mynode() << " entering add reduce" );
@@ -28,6 +28,7 @@ void worker_thread_f(thread* me, void* args) {
     
     BOOST_MESSAGE( "worker " << SoftXMT_mynode() << " is finished" );
     SoftXMT_barrier_commsafe();
+    BOOST_MESSAGE( "worker " << SoftXMT_mynode() << " exits finished barrier" );
 }
 
 void spawn_worker_am( worker_args* args, size_t size, void* payload, size_t payload_size ) {
@@ -37,9 +38,9 @@ void spawn_worker_am( worker_args* args, size_t size, void* payload, size_t payl
    SoftXMT_spawn(&worker_thread_f, &this_node_wargs); 
 }
 
-void user_main( thread * me, void * args ) 
+void user_main( Thread * me, void * args ) 
 {
-    BOOST_MESSAGE( "Spawning user main thread " << (void *) CURRENT_THREAD <<
+    BOOST_MESSAGE( "Spawning user main Thread " << (void *) CURRENT_THREAD <<
             " " << me <<
             " on node " << SoftXMT_mynode() );
 
@@ -47,7 +48,7 @@ void user_main( thread * me, void * args )
     BOOST_CHECK_EQUAL( expectedNodes, SoftXMT_nodes() );
 
     // spawn worker threads 
-    thread* worker_thread;
+    Thread* worker_thread;
     worker_args wargss[expectedNodes];
     for (int nod = 0; nod<expectedNodes; nod++) {
         wargss[nod].add1Operand = nod-1;
@@ -60,7 +61,9 @@ void user_main( thread * me, void * args )
             SoftXMT_call_on( nod, &spawn_worker_am, &wargss[nod] );
         }
     }
+    BOOST_MESSAGE( "user_main joins" );
     SoftXMT_join(worker_thread);//because 0 leads reduction this join will mean everything is done
+    BOOST_MESSAGE( "user_main leaves join" );
 
     // calculate the reductions manually
     int64_t addres = add_init;

@@ -28,9 +28,12 @@ int64_t SoftXMT_collective_reduce( int64_t (*commutative_func)(int64_t, int64_t)
         _col_done_count = 0;  
 
         // TODO method without barrier (or reducer thread-only barrier)
+        VLOG(5) << "home enters collective barrier";
         SoftXMT_barrier_commsafe();
+        VLOG(5) << SoftXMT_mynode() << " exits collective barrier";
 
         _col_values[home_node] = myValue;
+        VLOG(5) << "home enters collective waiting";
         while (true) {
             SoftXMT_yield();
             if (_col_done_count==num_nodes-1) {
@@ -51,7 +54,9 @@ int64_t SoftXMT_collective_reduce( int64_t (*commutative_func)(int64_t, int64_t)
         GlobalAddress<int64_t> value_adr = GlobalAddress<int64_t>::TwoDimensional(&_col_values[myNode], home_node);
 
         // TODO no barrier
+        VLOG(5) << SoftXMT_mynode() << " enters collective barrier";
         SoftXMT_barrier_commsafe();
+        VLOG(5) << SoftXMT_mynode() << " exits collective barrier";
 
         SoftXMT_delegate_write_word( value_adr, myValue );
         /* implicit fence since write is blocking */
