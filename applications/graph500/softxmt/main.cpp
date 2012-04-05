@@ -52,7 +52,7 @@ void output_results (const int64_t SCALE, int64_t nvtx_scale, int64_t edgefactor
                 const int NBFS, const double *bfs_time, const int64_t *bfs_nedge);
 
 //### Globals ###
-#define NBFS_max 64
+#define NBFS_max 1
 #define MAX_SCALE 20
 
 int SCALE;
