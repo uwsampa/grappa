@@ -50,16 +50,6 @@ HOST:=n01,n04
 #
 NPROC:=2
 
-#
-# number of mpi processes
-#
-NPROC:=2
-
-#
-# number of mpi processes
-#
-NPROC:=2
-
 # name of main executable to build and/or run
 TARGET:=
 
@@ -98,11 +88,12 @@ ForkJoin_tests.test: libSoftXMT.a
 
 Tasking_tests.test: libSoftXMT.a
 Stealing_tests.test: libSoftXMT.a
+ForkJoin_tests.test: libSoftXMT.a
 
 #
 # Build SoftXMT static library
 #
-LIBRARY_CONTENTS= SoftXMT.o GlobalAllocator.o GlobalMemory.o Communicator.o Aggregator.o Timestamp.o Allocator.o Cache.o Delegate.o Collective.o tasks/gasnet_cbarrier.o tasks/TaskingScheduler.o tasks/Task.o tasks/Thread.o tasks/stack.o tasks/coro.o
+LIBRARY_CONTENTS= SoftXMT.o GlobalAllocator.o GlobalMemory.o Communicator.o Aggregator.o Timestamp.o Allocator.o Cache.o Delegate.o Collective.o ForkJoin.o tasks/gasnet_cbarrier.o tasks/TaskingScheduler.o tasks/Task.o tasks/Thread.o tasks/stack.o tasks/coro.o 
 libSoftXMT.a: $(patsubst %,libSoftXMT.a(%),$(LIBRARY_CONTENTS))
 
 
@@ -113,8 +104,7 @@ libSoftXMT.a: $(patsubst %,libSoftXMT.a(%),$(LIBRARY_CONTENTS))
 ENV_VARIABLES+= GLOG_logtostderr=1
 #ENV_VARIABLES+= GLOG_vmodule=Cache*=5,Incoh*=5,Aggreg*=5
 #ENV_VARIABLES+= GLOG_vmodule=Cache*=5,Incoh*=5
-ENV_VARIABLES+= GLOG_vmodule=Collective*=5,TaskingScheduler*=5
-ENV_VARIABLES+= GLOG_v=0 GLOG_log_dir=/tmp
+ENV_VARIABLES+= GLOG_v=1
 #ENV_VARIABLES+= OMPI_MCA_btl_sm_use_knem=0
 ENV_VARIABLES+= LD_LIBRARY_PATH="\$$LD_LIBRARY_PATH:$(LD_LIBRARY_PATH)"
 ENV_VARIABLES+= GASNET_BACKTRACE=1
@@ -223,7 +213,6 @@ OBJECTS:=$(wildcard *.o)
 
 TESTS:=$(wildcard *.test)
 -include $(TESTS:.test=.d)
-
 
 # build an object
 # includes autodependence stuff

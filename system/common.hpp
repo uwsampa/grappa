@@ -2,6 +2,8 @@
 #ifndef __COMMON_HPP__
 #define __COMMON_HPP__
 
+#include <stdint.h>
+
 /// Disable copy constructor and assignment operator.
 /// Put this in your class' private declarations.
 /// (from google public C++ coding standards)
@@ -51,6 +53,18 @@ static inline unsigned long long rdtsc() {
 template< typename T >
 T * SoftXMT_magic_identity_function(T * t) {
   return t;
+}
+
+struct range_t { int64_t start, end; };
+
+inline range_t blockDist(int64_t start, int64_t end, int64_t rank, int64_t numBlocks) {
+	int64_t numElems = end-start;
+	int64_t each   = numElems / numBlocks,
+  remain = numElems % numBlocks;
+	int64_t mynum = (rank < remain) ? each+1 : each;
+	int64_t mystart = start + ((rank < remain) ? (each+1)*rank : (each+1)*remain + (rank-remain)*each);
+	range_t r = { mystart, mystart+mynum };
+  return r;
 }
 
 #endif

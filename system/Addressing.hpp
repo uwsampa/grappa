@@ -57,6 +57,7 @@ private:
     } else {
         return o << "<GA Linear " << (void*)storage_ 
                  << ": pool " << pool() 
+                 << " node " << node() 
                  << " pointer " << static_cast<void *>( pointer()  )
                  << ">";
     }
@@ -114,10 +115,9 @@ public:
     if( is_2D() ) {
       return (storage_ >> node_shift_val) & node_mask;
     } else {
-      intptr_t signextended = (storage_ << pointer_shift_val) >> pointer_shift_val;
-      intptr_t offset = signextended % block_size;
-      intptr_t node = (signextended / block_size) % SoftXMT_nodes();
-      intptr_t block = (signextended / block_size) / SoftXMT_nodes();
+      intptr_t offset = storage_ % block_size;
+      intptr_t node = (storage_ / block_size) % SoftXMT_nodes();
+      intptr_t node_block = (storage_ / block_size) / SoftXMT_nodes();
       return node;
     }
   }
@@ -132,11 +132,11 @@ public:
       intptr_t signextended = (storage_ << pointer_shift_val) >> pointer_shift_val;
       return reinterpret_cast< T * >( signextended ); 
     } else {
-      intptr_t signextended = (storage_ << pointer_shift_val) >> pointer_shift_val;
-      intptr_t offset = signextended % block_size;
-      intptr_t node = (signextended / block_size) % SoftXMT_nodes();
-      intptr_t block = (signextended / block_size) / SoftXMT_nodes();
-      return reinterpret_cast< T * >( block * block_size + offset );
+      intptr_t offset = storage_ % block_size;
+      intptr_t block = (storage_ / block_size);
+      intptr_t node = (storage_ / block_size) % SoftXMT_nodes();
+      intptr_t node_block = (storage_ / block_size) / SoftXMT_nodes();
+      return reinterpret_cast< T * >( node_block * block_size + offset );
     }
   }
 
@@ -146,10 +146,10 @@ public:
       //GlobalAddress< U > u = GlobalAddress< U >::Raw( storage_ );
       return GlobalAddress< T >::TwoDimensional( (T*) 0, node() );
     } else {
-      intptr_t first_byte = (storage_ << pointer_shift_val) >> pointer_shift_val;
+      intptr_t first_byte = storage_;
       intptr_t first_byte_offset = first_byte % block_size;
-      intptr_t node = (first_byte / block_size) % SoftXMT_nodes();
-      intptr_t block = (first_byte / block_size) / SoftXMT_nodes();
+      intptr_t node = (first_byte / block_size) %   SoftXMT_nodes();
+      intptr_t node_block = (first_byte / block_size) / SoftXMT_nodes();
       return GlobalAddress< T >::Raw( this->raw_bits() - first_byte_offset );
     }
   }
@@ -160,12 +160,12 @@ public:
       //return reinterpret_cast< T * >( -1 ); 
       return GlobalAddress< T >::TwoDimensional( (T*) 1, node() );
     } else {
-      intptr_t first_byte = (storage_ << pointer_shift_val) >> pointer_shift_val;
+      intptr_t first_byte = storage_;
       intptr_t first_byte_offset = first_byte % block_size;
       intptr_t last_byte = first_byte + sizeof(T) - 1;
       intptr_t last_byte_offset = last_byte % block_size;
       intptr_t node = (last_byte / block_size) % SoftXMT_nodes();
-      intptr_t block = (last_byte / block_size) / SoftXMT_nodes();
+      intptr_t node_block = (last_byte / block_size) / SoftXMT_nodes();
       return GlobalAddress< T >::Raw( this->raw_bits() + sizeof(T) + block_size - (last_byte_offset + 1) );
     }
   }
@@ -286,16 +286,17 @@ GlobalAddress< T > make_global( T * t, Node n = SoftXMT_mynode() ) {
 template< typename T >
 GlobalAddress< T > make_linear( T * t ) {
   intptr_t tt = reinterpret_cast< intptr_t >( t );
-  
+
   intptr_t offset = tt % block_size;
   intptr_t block = tt / block_size;
-  intptr_t node = block % SoftXMT_nodes();
-  intptr_t ga = ( block * SoftXMT_nodes() + node ) * block_size + offset;
+  // intptr_t node_from_address = block % SoftXMT_nodes();
+  // CHECK_EQ( node_from_address, 0 ) << "Node from address should be zero. (Check alignment?)";
+  intptr_t ga = ( block * SoftXMT_nodes() + SoftXMT_mynode() ) * block_size + offset;
 
   T * ttt = reinterpret_cast< T * >( ga );
   GlobalAddress< T > tttt = GlobalAddress< T >::Linear( ttt, 0 );
 
-  CHECK_EQ( tttt.node(), node ) << "converted linear address node doesn't match";
+  CHECK_EQ( tttt.node(), SoftXMT_mynode() ) << "converted linear address node doesn't match";
   CHECK_EQ( tttt.pointer(), t ) << "converted linear address local pointer doesn't match";
 
   return tttt;
