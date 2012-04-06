@@ -10,7 +10,10 @@ ballocator_t* newBumpAllocator(global_array* ga, uint64_t start, size_t localSiz
 }
 
 uint64_t balloc(ballocator_t* b, size_t size) {
-    assert(b->current_size+size <= b->total_size);
+    if (!(b->current_size+size <= b->total_size)) {
+        printf("current_size+size=%lu+%lu=%lu of total=%lu\n", b->current_size, size, b->current_size+size, b->total_size);
+        assert(b->current_size+size <= b->total_size);
+    }
     uint64_t result = b->next;
     b->next = b->next + size;
     return result;

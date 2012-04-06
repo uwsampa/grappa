@@ -32,11 +32,11 @@ inline static int ga_node(struct global_array *ga, uint64_t index) {
 // Returns a global address for an element
 inline static void ga_index(struct global_array *ga,
     uint64_t index, struct global_address *gm) {
-      assert(index < ga->size);
-//    if (!(index < ga->size)) {
-//        printf("index=%lu MAX=%lu\n", index, 0L-1);
-//        assert(index < ga->size);
-//    }
+//      assert(index < ga->size);
+    if (!(index < ga->size)) {
+        printf("index=%lu ga->size=%lu MAX=%lu\n", index, ga->size, 0L-1);
+        assert(index < ga->size);
+    }
     gm->node = index / ga->elements_per_node;
     gm->offset = ga->component_addresses[gm->node].offset +
         (index % ga->elements_per_node) * ga->element_size;
@@ -48,13 +48,6 @@ inline static void ga_local_range(struct global_array *ga,
     *end = *start + ga->elements_per_node - 1;
     }
     
-#define GA_HANDLER 131
-void ga_handler(gasnet_token_t token,
-    gasnet_handlerarg_t a0,
-    gasnet_handlerarg_t a1,
-    gasnet_handlerarg_t a2);
-    
-
 #endif // _GLOBAL_ARRAY_H_ 
 
 

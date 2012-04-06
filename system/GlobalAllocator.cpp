@@ -14,7 +14,7 @@ std::ostream& operator<<( std::ostream& o, const GlobalAllocator& a ) {
 /// TODO: aggregate and/or coalesce requests or something
 
 // struct GlobalAllocator_descriptor {
-//   thread * t;
+//   Thread * t;
 //   GlobalAddress< void > address;
 //   bool done;
 // };

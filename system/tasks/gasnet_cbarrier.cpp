@@ -1,7 +1,7 @@
-#include "gasnet_cbarrier.h"
-#include "StealQueue.h"
+#include "gasnet_cbarrier.hpp"
+#include "StealQueue.hpp"
 #include <queue>
-#include "SoftXMT.hpp"
+#include "../SoftXMT.hpp"
 
 const int HOME_NODE = 0;
 gasnet_hsl_t cb_lock = GASNET_HSL_INITIALIZER;
@@ -31,16 +31,20 @@ void enter_cbarrier_request_am( enter_cbarrier_request_args * args, size_t size,
 
     num_waiting_clients++;
     if (num_waiting_clients == num_barrier_clients) {
+        DVLOG(5) << "enter_cbarrier_request_am: last";
         while (!waiters->empty()) {
             Node nod = waiters->front();
             waiters->pop();
             exit_cbarrier_request_args exargs = { 1 };
+            DVLOG(5) << "enter_cbarrier_request_am: sending to " << nod;
             SoftXMT_call_on( nod, &exit_cbarrier_request_am, &exargs );
         }
         num_waiting_clients = 0;
         exit_cbarrier_request_args exargs = { 1 };
+        DVLOG(5) << "enter_cbarrier_request_am: sending to " << source;
         SoftXMT_call_on( source, &exit_cbarrier_request_am, &exargs );
     } else {
+        DVLOG(5) << "enter_cbarrier_request_am: not last";
         waiters->push(source);
     }
 }

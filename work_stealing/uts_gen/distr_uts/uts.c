@@ -148,7 +148,7 @@ double rng_toProb(int n) {
 }
 
 
-void uts_initRoot(Node* root, int type, struct state_t* rng_state) {
+void uts_initRoot(TreeNode* root, int type, struct state_t* rng_state) {
   root->type = type;
   root->height = 0;
   root->numChildren = -1;
@@ -160,7 +160,7 @@ void uts_initRoot(Node* root, int type, struct state_t* rng_state) {
 }
 
 
-int uts_numChildren_bin(Node * parent, struct state_t* state) {
+int uts_numChildren_bin(TreeNode * parent, struct state_t* state) {
   // distribution is identical everywhere below root
   int    v = rng_rand(state->state);	
   double d = rng_toProb(v);
@@ -169,7 +169,7 @@ int uts_numChildren_bin(Node * parent, struct state_t* state) {
 }
 
 
-int uts_numChildren_geo(Node * parent, struct state_t* state) {
+int uts_numChildren_geo(TreeNode * parent, struct state_t* state) {
   double b_i = b_0;
   int depth = parent->height;
   int numChildren, h;
@@ -222,7 +222,7 @@ int uts_numChildren_geo(Node * parent, struct state_t* state) {
   return numChildren;
 }
 
-int uts_numChildren(Node *parent, struct state_t* state) {
+int uts_numChildren(TreeNode *parent, struct state_t* state) {
   int numChildren = 0;
 
   /* Determine the number of children */
@@ -274,7 +274,7 @@ int uts_numChildren(Node *parent, struct state_t* state) {
 }
 
 
-int uts_childType(Node *parent) {
+int uts_childType(TreeNode *parent) {
   switch (type) {
     case BIN:
       return BIN;
@@ -379,7 +379,7 @@ void uts_parseParams(int argc, char *argv[], int printHelp){
         rootId = atoi(argv[i+1]); break;
       case 'x':
         debug = atoi(argv[i+1]); break;
-      case 'v':
+      case 'V':
         verbose = atoi(argv[i+1]); break;
       case 't':
         type = (tree_t) atoi(argv[i+1]); 
@@ -398,7 +398,7 @@ void uts_parseParams(int argc, char *argv[], int printHelp){
       case 'f':
         shiftDepth = atof(argv[i+1]); break;
       case 'g':
-        computeGranularity = max(1,atoi(argv[i+1])); break;
+        computeGranularity = uts_max(1,atoi(argv[i+1])); break;
       default:
         err = i;
     }

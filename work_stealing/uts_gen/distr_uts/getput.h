@@ -1,7 +1,4 @@
 
-#ifdef __cplusplus
-extern "C" {
-#endif
 
 #ifndef __GET_PUT_H__
 #define __GET_PUT_H__
@@ -31,6 +28,3 @@ void complete_nb(thread* me, mem_tag_t tag) ;
 #endif
 
 
-#ifdef __cplusplus
-}
-#endif

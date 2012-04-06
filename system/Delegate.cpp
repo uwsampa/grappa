@@ -8,7 +8,7 @@
 
 
 struct memory_descriptor {
-  thread * t;
+  Thread * t;
   GlobalAddress<int64_t> address;
   int64_t data;
   bool done;
@@ -56,7 +56,7 @@ void SoftXMT_delegate_write_word( GlobalAddress<int64_t> address, int64_t data )
   md.address = address;
   md.data = data;
   md.done = false;
-  md.t = get_current_thread();
+  md.t = CURRENT_THREAD;
   memory_write_request_args args;
   args.descriptor = make_global(&md);
   args.address = address;
@@ -99,7 +99,7 @@ int64_t SoftXMT_delegate_read_word( GlobalAddress<int64_t> address ) {
   md.address = address;
   md.data = 0;
   md.done = false;
-  md.t = get_current_thread();
+  md.t = CURRENT_THREAD;
   memory_read_request_args args;
   args.descriptor = make_global(&md);
   args.address = address;
@@ -148,7 +148,7 @@ int64_t SoftXMT_delegate_fetch_and_add_word( GlobalAddress<int64_t> address, int
   md.address = address;
   md.data = data;
   md.done = false;
-  md.t = get_current_thread();
+  md.t = CURRENT_THREAD;
 
   // set up args for request
   memory_fetch_add_request_args args;
@@ -202,7 +202,7 @@ bool SoftXMT_delegate_compare_and_swap_word(GlobalAddress<int64_t> address, int6
   memory_descriptor md;
   md.address = address;
   md.done = false;
-  md.t = get_current_thread();
+  md.t = CURRENT_THREAD;
   
   // set up args for request
   cmp_swap_request_args args;

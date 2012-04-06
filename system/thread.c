@@ -4,7 +4,7 @@
 #include <stdlib.h>
 #include <stdio.h>
 
-#define STACK_SIZE 1<<22
+#define STACK_SIZE 1<<18
 
 thread * current_thread;
 
@@ -32,10 +32,12 @@ scheduler *create_scheduler(thread *master) {
   assert(sched != NULL);
   sched->ready = NULL;
   sched->tail = NULL;
-  sched->wait = NULL;
-  sched->wait_tail = NULL;
+  sched->idle_head = NULL;
+  sched->idle_tail = NULL;
   sched->master = master;
   sched->nextId = 1; //non-master id starts at 1
+  sched->num_idle = 0;
+  sched->idleReady = 0;
   return sched;
 }
 
@@ -102,6 +104,23 @@ void thread_join(thread* me, thread* wait_on) {
     if (!wait_on->done) {
         join_list_enqueue(wait_on, me);
         thread_suspend(me);
+    }
+}
+
+
+/// Make the current thread idle.
+/// Like suspend except the thread is not blocking
+/// on a particular resource, just waiting to be woken.
+int thread_idle(thread* me, uint64_t total_idle) {
+    scheduler* sched = me->sched;
+    sched->num_idle++;
+    if (sched->num_idle == total_idle) {
+        return 0;
+    } else {
+        unassigned_enqueue(sched, me);
+        thread_suspend(me);
+        sched->num_idle--;
+        return 1;
     }
 }
 

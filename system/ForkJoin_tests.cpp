@@ -12,7 +12,7 @@ BOOST_AUTO_TEST_SUITE( ForkJoin_tests );
 struct func_initialize : public ForkJoinIteration {
   GlobalAddress<int64_t> base_addr;
   int64_t value;
-  void operator()(thread * me, int64_t index) {
+  void operator()(Thread * me, int64_t index) {
     VLOG(2) << "called func_initialize with index = " << index;
     Incoherent<int64_t>::RW c(base_addr+index, 1);
     c[0] = value+index;
@@ -20,7 +20,7 @@ struct func_initialize : public ForkJoinIteration {
 };
 
 struct func_hello : public ForkJoinIteration {
-  void operator()(thread * me, int64_t index) {
+  void operator()(Thread * me, int64_t index) {
     LOG(INFO) << "Hello from " << index << "!";
   }
 };
