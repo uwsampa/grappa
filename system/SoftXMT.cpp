@@ -21,6 +21,8 @@ static Aggregator * my_global_aggregator = NULL;
 static GlobalMemory * my_global_memory = NULL;
 
 static Thread * master_thread;
+static Thread * user_main_thr;
+static bool user_main_waiting;
 TaskingScheduler * my_global_scheduler;
 TaskManager * my_task_manager;
 
@@ -152,10 +154,11 @@ int SoftXMT_run_user_main( void (* fn_p)(Thread *, void *), void * args )
 {
   if( SoftXMT_mynode() == 0 ) {
     CHECK( my_global_scheduler->get_current_thread() == master_thread ); // this should only be run at the toplevel
-    Thread * main = thread_spawn( my_global_scheduler->get_current_thread(), my_global_scheduler,
+    user_main_thr = thread_spawn( my_global_scheduler->get_current_thread(), my_global_scheduler,
                                   fn_p, args );
-    my_global_scheduler->ready( main );
-    DVLOG(5) << "Spawned main Thread " << main;
+    my_global_scheduler->ready( user_main_thr );
+    user_main_waiting = false;
+    DVLOG(5) << "Spawned main Thread " << user_main_thr;
   }
 
   // spawn starting number of worker coroutines
@@ -245,20 +248,33 @@ static void SoftXMT_mark_done_am( void * args, size_t args_size, void * payload,
   SoftXMT_done_flag = true;
 }
 
-/// Tell all nodes that we are ready to exit
-void SoftXMT_signal_done ( bool inThread ) {
-  if( !SoftXMT_done() ) {
-    if ( inThread ) {
-        while( !my_task_manager->isWorkDone() ) {
-           SoftXMT_yield(); // FIXME: non busy-wait method
+/// Wait for all spawned tasks to complete
+/// Cannot be called by a task.
+void SoftXMT_waitForTasks( ) {
+    while ( !my_task_manager->isWorkDone() ) {
+        user_main_waiting = true;
+        SoftXMT_suspend( );
+        user_main_waiting = false;
+    }
+}
+
+/// Notify user_main that tasks are done
+void SoftXMT_notifyTasksDone() {
+    if ( SoftXMT_mynode() == 0 ) {
+        if ( user_main_waiting ) {
+            SoftXMT_wake( user_main_thr );
         }
     }
-        
-    for( Node i = 0; i < SoftXMT_nodes(); ++i ) {
-      SoftXMT_call_on( i, &SoftXMT_mark_done_am, (void *)NULL, 0 );
-      SoftXMT_flush( i );
+}
+
+/// Tell all nodes that we are ready to exit
+void SoftXMT_signal_done ( ) { 
+    if ( !SoftXMT_done() ) {       
+        for( Node i = 0; i < SoftXMT_nodes(); ++i ) {
+            SoftXMT_call_on( i, &SoftXMT_mark_done_am, (void *)NULL, 0 );
+            SoftXMT_flush( i );
+        }
     }
-  }
 }
 
 /// Finish the job. 
@@ -268,7 +284,7 @@ void SoftXMT_signal_done ( bool inThread ) {
 /// notify everyone else, enter the barrier, and then clean up.
 void SoftXMT_finish( int retval )
 {
-  SoftXMT_signal_done( false );
+  SoftXMT_signal_done( );
 
   SoftXMT_barrier();
 

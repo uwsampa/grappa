@@ -97,6 +97,7 @@ bool TaskManager::getWork ( Task* result ) {
             if (cbarrier_wait()) {
                 DVLOG(5) << CURRENT_THREAD << " left barrier from finish";
                 workDone = true;
+                SoftXMT_notifyTasksDone( );
             } else {
                 DVLOG(5) << CURRENT_THREAD << " left barrier from cancel";
                 mightBeWork = true;   // work is available so allow unassigned threads to be scheduled

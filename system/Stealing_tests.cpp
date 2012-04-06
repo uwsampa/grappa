@@ -128,10 +128,14 @@ void user_main( Thread * me, void * args )
   // another task to allow the last steal to happend ( localdepth > 2*chunkize)
   SoftXMT_publicTask( &dummy_f, &argss[0] );
 
-  SoftXMT_suspend( );  // currently here just not to starve workers
+  // wait for tasks to finish
+  SoftXMT_waitForTasks( );
+
+  // tell all nodes to close communication
+  SoftXMT_signal_done( );
 
   BOOST_MESSAGE( "user main is exiting" );
-  SoftXMT_signal_done();
+
 }
 
 
