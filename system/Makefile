@@ -77,7 +77,7 @@ Allocator_tests.test: Allocator.o
 
 Collective_tests.test: libSoftXMT.a
 
-thread_tests.test: thread.o stack.o coro.o
+#thread_tests.test: thread.o stack.o coro.o
 thread2_tests.test: libSoftXMT.a
 thread3_tests.test: libSoftXMT.a
 
