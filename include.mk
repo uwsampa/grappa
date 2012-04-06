@@ -161,7 +161,7 @@ SRUN_EXPORT_ENV_VARIABLES=--task-prolog=$(SRUN_ENVVAR_TEMP)
 SRUN_HOST=--partition softxmt
 SRUN_NPROC=--nodes=$(NPROC) --ntasks-per-node=1
 
-SRUN_MPIRUN=srun --resv-ports --cpu_bind=verbose,rank --exclusive --label
+SRUN_MPIRUN=srun --resv-ports --cpu_bind=verbose,rank --exclusive --label --kill-on-bad-exit
 
 SRUN_CLEAN_FILES= .srunrc.* 
 
