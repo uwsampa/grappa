@@ -76,7 +76,7 @@ void SoftXMT_init( int * argc_p, char ** argv_p[], size_t global_memory_size_byt
 
   // start threading layer
   master_thread = thread_init();
-  DVLOG(1) << "Initializing tasking layer."
+  VLOG(1) << "Initializing tasking layer."
            << " steal=" << FLAGS_steal
            << " num_starting_workers=" << FLAGS_num_starting_workers
            << " chunk_size=" << FLAGS_chunk_size
