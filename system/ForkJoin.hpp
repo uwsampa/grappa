@@ -24,12 +24,12 @@ DECLARE_int64(max_forkjoin_threads_per_node);
 
 class Semaphore {
 protected:
-  thread * sleeper;
+  Thread * sleeper;
   int count;
   int total;
 public:
   Semaphore(int total, int starting): total(total), count(starting) {}
-  void acquire_all(thread * me) {
+  void acquire_all(Thread * me) {
     sleeper = me;
     while (count < total) {
       VLOG(2) << "Semaphore.count = " << count << " of " << total << ", suspending...";
@@ -59,7 +59,7 @@ public:
 };
 
 struct ForkJoinIteration {
-  void operator()(thread * me, int64_t index);
+  void operator()(Thread * me, int64_t index);
 };
 
 template<typename T>
@@ -76,11 +76,11 @@ struct forkjoin_data_t {
   T* func;
   size_t nthreads;
   size_t finished;
-  thread * node_th;
+  Thread * node_th;
   size_t local_start;
   size_t local_end;
   
-  forkjoin_data_t(thread * me, T* f, int64_t start, int64_t end) {
+  forkjoin_data_t(Thread * me, T* f, int64_t start, int64_t end) {
     size_t each_n = (end-start); // / SoftXMT_nodes();
     local_start = start; //start + SoftXMT_mynode() * each_n;
     local_end = end; //local_start + each_n;
@@ -97,7 +97,7 @@ struct iters_args {
 };
 
 template<typename T>
-static void th_iters(thread * me, iters_args* arg) {
+static void th_iters(Thread * me, iters_args* arg) {
   forkjoin_data_t<T> * fj = static_cast<forkjoin_data_t<T>*>(arg->fjdata);
   range_t myblock = blockDist(fj->local_start, fj->local_end, arg->rank, fj->nthreads);
   VLOG(2) << "iters_block: " << myblock.start << " - " << myblock.end;
@@ -112,7 +112,7 @@ static void th_iters(thread * me, iters_args* arg) {
 }
 
 template<typename T>
-static void fork_join_onenode(thread * spawner, T* func, int64_t start, int64_t end) {
+static void fork_join_onenode(Thread * spawner, T* func, int64_t start, int64_t end) {
   forkjoin_data_t<T> fj(spawner, func, start, end);
   iters_args args[fj.nthreads];
   
@@ -126,7 +126,7 @@ static void fork_join_onenode(thread * spawner, T* func, int64_t start, int64_t 
 }
 
 template<typename T>
-static void th_node_fork_join(thread * me, NodeForkJoinArgs<T>* a) {
+static void th_node_fork_join(Thread * me, NodeForkJoinArgs<T>* a) {
   range_t myblock = blockDist(a->start, a->end, SoftXMT_mynode(), SoftXMT_nodes());
   VLOG(2) << "myblock: " << myblock.start << " - " << myblock.end;
   fork_join_onenode(me, &a->func, myblock.start, myblock.end);
@@ -136,7 +136,7 @@ static void th_node_fork_join(thread * me, NodeForkJoinArgs<T>* a) {
 }
 
 template<typename T>
-static void fork_join(thread * me, T* func, int64_t start, int64_t end) {
+static void fork_join(Thread * me, T* func, int64_t start, int64_t end) {
   Semaphore sem(SoftXMT_nodes(), 0);
   
   NodeForkJoinArgs<T> fj;
@@ -156,7 +156,7 @@ static void fork_join(thread * me, T* func, int64_t start, int64_t end) {
 }
 
 template<typename T>
-static void th_node_fork_join_custom(thread * me, NodeForkJoinArgs<T>* a) {
+static void th_node_fork_join_custom(Thread * me, NodeForkJoinArgs<T>* a) {
   a->func(me, SoftXMT_mynode());
   
   VLOG(2) << "about to update sem on " << a->sem.node();
@@ -164,7 +164,7 @@ static void th_node_fork_join_custom(thread * me, NodeForkJoinArgs<T>* a) {
 }
 
 template<typename T>
-static void fork_join_custom(thread * me, T* func) {
+static void fork_join_custom(Thread * me, T* func) {
   Semaphore sem(SoftXMT_nodes(), 0);
   
   NodeForkJoinArgs<T> fj;

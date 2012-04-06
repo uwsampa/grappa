@@ -153,7 +153,9 @@ public:
                          buffers_[ target ].buffer_,
                          buffers_[ target ].current_position_ );
     buffers_[ target ].flush();
+    DVLOG(5) << "heap before flush:\n" << least_recently_sent_.toString( );
     least_recently_sent_.remove_key( target );
+    DVLOG(5) << "heap after flush:\n" << least_recently_sent_.toString( );
   }
 
   /// get timestamp. we avoid calling rdtsc for performance
@@ -194,7 +196,7 @@ public:
   inline void aggregate( Node destination, AggregatorAMHandler fn_p, 
                          const void * args, const size_t args_size,
                          const void * payload, const size_t payload_size ) {
-    assert( destination < max_nodes_ );
+    CHECK( destination < max_nodes_ ) << "destination:" << destination << " max_nodes_:" << max_nodes_;
     Node target = get_target_for_node( destination );
   
     // make sure arg struct and payload aren't too big.

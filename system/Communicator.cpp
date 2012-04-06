@@ -39,14 +39,17 @@ void Communicator::init( int * argc_p, char ** argv_p[] ) {
   registration_is_allowed_ = true;
 }
 
+#define ONE_MEGA 1000000
+#define SHARED_PROCESS_MEMORY_SIZE  (ONE_MEGA * 256)
+#define SHARED_PROCESS_MEMORY_OFFSET (ONE_MEGA * 256)
 /// activate communication layer. finishes registering handlers and
 /// any shared memory segment. After this call, network communication
 /// is allowed, but no more handler registrations are allowed.
 void Communicator::activate() {
     assert( registration_is_allowed_ );
   GASNET_CHECK( gasnet_attach( &handlers_[0], handlers_.size(), // install active message handlers
-                               0,  // no shared segment right now
-                               0 ) );
+                               SHARED_PROCESS_MEMORY_SIZE,
+                               SHARED_PROCESS_MEMORY_OFFSET ) );
   registration_is_allowed_ = false;
   communication_is_allowed_ = true;
 }
