@@ -12,14 +12,14 @@ BOOST_AUTO_TEST_SUITE( ForkJoin_tests );
 struct func_initialize : public ForkJoinIteration {
   GlobalAddress<int64_t> base_addr;
   int64_t value;
-  void operator()(thread * me, int64_t index) {
+  void operator()(Thread * me, int64_t index) {
     SLOG(2) << "called func_initialize with index = " << index;
     Incoherent<int64_t>::RW c(base_addr+index, 1);
     c[0] = value+index;
   }
 };
 
-static void user_main(thread * me, void * args) {
+static void user_main(Thread * me, void * args) {
   
   LOG(INFO) << "beginning user main... (" << SoftXMT_mynode() << ")";
   
