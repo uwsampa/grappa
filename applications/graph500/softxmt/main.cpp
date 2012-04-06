@@ -343,8 +343,9 @@ static int64_t verify_bfs_tree(GlobalAddress<int64_t> bfs_tree, int64_t max_bfsv
     /* Check that the levels differ by no more than one. */
     if (lvldiff > 1 || lvldiff < -1) {
       terr = -14;
-      LOG(ERROR) << "Error, levels differ by more than one!";
-    }    
+      LOG(ERROR) << "Error, levels differ by more than one! (root = " << root << ", k = " << k << ", lvl[" << i << "]=" << SoftXMT_delegate_read_word(level+i) << ", lvl[" << j << "]=" << SoftXMT_delegate_read_word(level+j) << ")";
+      exit(1);
+    }
   }
   
   if (!terr) {
@@ -396,7 +397,7 @@ static void run_bfs(tuple_graph * tg) {
       ss << SoftXMT_delegate_read_word(g.xadj+j) << ",";
     }
     ss << ")";
-    VLOG(1) << ss.str();
+    VLOG(2) << ss.str();
   }
 #endif
   
@@ -420,6 +421,13 @@ static void run_bfs(tuple_graph * tg) {
 //    for (int64_t i=0; i < g.nv; i++) {
 //      VLOG(1) << "bfs_tree[" << i << "] = " << SoftXMT_delegate_read_word(bfs_tree+i);
 //    }
+    
+    std::stringstream ss;
+    ss << "bfs_tree[" << i << "] = ";
+    for (int64_t k=0; k<g.nv; k++) {
+      ss << SoftXMT_delegate_read_word(bfs_tree+k) << ",";
+    }
+    VLOG(1) << ss.str();
     
     VLOG(1) << "Verifying bfs " << i << "...";
     bfs_nedge[i] = verify_bfs_tree(bfs_tree, g.nv-1, bfs_roots[i], tg);
