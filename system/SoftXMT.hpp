@@ -102,7 +102,7 @@ void SoftXMT_suspend_wake( Thread * t );
 void SoftXMT_join( Thread * t );
 
 /// TODO: remove this
-void SoftXMT_signal_done( bool inThread=true );
+void SoftXMT_signal_done( );
 
 /// Make Thread idle; ie thread suspended not waiting on a particular resource
 bool SoftXMT_thread_idle( );
