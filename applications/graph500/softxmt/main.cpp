@@ -52,7 +52,7 @@ void output_results (const int64_t SCALE, int64_t nvtx_scale, int64_t edgefactor
                 const int NBFS, const double *bfs_time, const int64_t *bfs_nedge);
 
 //### Globals ###
-#define NBFS_max 1
+#define NBFS_max 2
 #define MAX_SCALE 20
 
 int SCALE;
@@ -167,7 +167,7 @@ struct func_bfs_node : public ForkJoinIteration {
     f.kbuf = &kbuf;
     f.buf = buf;
     f.nadj = nadj;
-    VLOG(1) << "on node";
+//    VLOG(1) << "on node";
     fork_join_onenode(me, &f, r.start, r.end);
     
     // make sure to commit what's left in the buffer at the end
@@ -185,7 +185,7 @@ static double make_bfs_tree(csr_graph * g, GlobalAddress<int64_t> bfs_tree, int6
   int64_t NV = g->nv;
   GlobalAddress<int64_t> vlist = SoftXMT_typed_malloc<int64_t>(NV);
   
-  VLOG(1) << "actually starting...";
+//  VLOG(1) << "actually starting...";
   double start, stop;
   start = timer();
   
@@ -213,7 +213,7 @@ static double make_bfs_tree(csr_graph * g, GlobalAddress<int64_t> bfs_tree, int6
   fb.nadj = g->nadj; //DEBUG only...
   
   while (k1 != k2) {
-    VLOG(1) << "k1=" << k1 << ", k2=" << k2;
+    VLOG(2) << "k1=" << k1 << ", k2=" << k2;
     const int64_t oldk2 = k2;
     
     fb.start = k1;
@@ -427,16 +427,16 @@ static void run_bfs(tuple_graph * tg) {
     VLOG(1) << "Running bfs on root " << i << "(" << bfs_roots[i] << ")...";
     bfs_time[i] = make_bfs_tree(&g, bfs_tree, bfs_roots[i]);
 //    VLOG(1) << "done";
-    for (int64_t i=0; i < g.nv; i++) {
-      VLOG(1) << "bfs_tree[" << i << "] = " << SoftXMT_delegate_read_word(bfs_tree+i);
-    }
+//    for (int64_t i=0; i < g.nv; i++) {
+//      VLOG(1) << "bfs_tree[" << i << "] = " << SoftXMT_delegate_read_word(bfs_tree+i);
+//    }
     
-    std::stringstream ss;
-    ss << "bfs_tree[" << i << "] = ";
-    for (int64_t k=0; k<g.nv; k++) {
-      ss << SoftXMT_delegate_read_word(bfs_tree+k) << ",";
-    }
-    VLOG(1) << ss.str();
+//    std::stringstream ss;
+//    ss << "bfs_tree[" << i << "] = ";
+//    for (int64_t k=0; k<g.nv; k++) {
+//      ss << SoftXMT_delegate_read_word(bfs_tree+k) << ",";
+//    }
+//    VLOG(1) << ss.str();
     
     VLOG(1) << "Verifying bfs " << i << "...";
     bfs_nedge[i] = verify_bfs_tree(bfs_tree, g.nv-1, bfs_roots[i], tg);
