@@ -42,7 +42,7 @@ struct func_set_const : public ForkJoinIteration {
   GlobalAddress<int64_t> base_addr;
   int64_t value;
   void operator()(thread * me, int64_t index) {
-    DVLOG(3) << "called func_initialize with index = " << index;
+//    DVLOG(3) << "called func_initialize with index = " << index;
     Incoherent<int64_t>::RW c(base_addr+index, 1);
     c[0] = value;
   }
@@ -196,8 +196,8 @@ static void setup_deg_off(const tuple_graph * const tg, csr_graph * g) {
   
   // simple parallel prefix sum to compute offsets from degrees
   int64_t accum = prefix_sum(g->xoff, g->nv);
-  
-//  VLOG(1) << "accum = " << accum;
+    
+  VLOG(1) << "accum = " << accum;
 //  for (int64_t i=0; i<g->nv; i++) {
 //    VLOG(1) << "offset[" << i << "] = " << SoftXMT_delegate_read_word(XOFF(i));
 //  }
@@ -207,6 +207,7 @@ static void setup_deg_off(const tuple_graph * const tg, csr_graph * g) {
   fork_join(current_thread, &fe, 0, g->nv);
   
   SoftXMT_delegate_write_word(XOFF(g->nv), accum);
+  g->nadj = accum+MINVECT_SIZE;
   
   g->xadjstore = SoftXMT_typed_malloc<int64_t>(accum + MINVECT_SIZE);
   g->xadj = g->xadjstore+MINVECT_SIZE; // cheat and permit xadj[-1] to work

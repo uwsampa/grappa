@@ -101,7 +101,7 @@ struct func_set_const : public ForkJoinIteration {
   GlobalAddress<int64_t> base_addr;
   int64_t value;
   void operator()(thread * me, int64_t index) {
-    DVLOG(3) << "called func_initialize with index = " << index;
+//    DVLOG(3) << "called func_initialize with index = " << index;
     Incoherent<int64_t>::RW c(base_addr+index, 1);
     c[0] = value;
   }
@@ -117,22 +117,35 @@ struct func_bfs_onelevel : public ForkJoinIteration {
   GlobalAddress<int64_t> k2;
   int64_t * kbuf;
   int64_t * buf;
+  int64_t nadj;
   void operator()(thread * me, int64_t k) {
+//    int64_t * buf = (int64_t*)alloca(sizeof(int64_t)*BUF_LEN);
+//    int64_t mykbuf = 0;
+//    int64_t * kbuf = &mykbuf;
     const int64_t v = SoftXMT_delegate_read_word(vlist+k);
-    DVLOG(2) << "bfs vlist[" << k << "] = " << v;
     
     // TODO: do these two together (cache)
     const int64_t vstart = SoftXMT_delegate_read_word(XOFF(v));
     const int64_t vend = SoftXMT_delegate_read_word(XENDOFF(v));
+    CHECK(vstart < nadj) << vstart << " < " << nadj;
+    CHECK(vend < nadj) << vend << " < " << nadj;
+//    VLOG(1) << "bfs vlist[" << k << "] = " << v << ", vstart=" << vstart << ", vend=" << vend;
     
-    Incoherent<int64_t>::RO cadj(xadj+vstart, vend-vstart);
-    for (int64_t vo = 0; vo < vend-vstart; vo++) {
-      const int64_t j = cadj[vo];
+//    const int64_t MAX_CACHE = 1 << 10;
+//    int64_t ts = vstart, te = min(vend, vstart+MAX_CACHE);
+//    while (te <= vend && ts < te) {
+//    int64_t ts = vstart, te = vend;
+//      Incoherent<int64_t>::RO cadj(xadj+ts, te-ts);
+//    for (int64_t vo = 0; vo < te-ts; vo++) {
+    for (int64_t vo = vstart; vo < vend; vo++) {
+      const int64_t j = SoftXMT_delegate_read_word(xadj+vo); // cadj[vo];
       if (SoftXMT_delegate_compare_and_swap_word(bfs_tree+j, -1, v)) {
+        while (*kbuf == -1) { SoftXMT_yield(); }
         if (*kbuf < BUF_LEN) {
           buf[*kbuf] = j;
           (*kbuf)++;
         } else {
+          *kbuf = -1; // lock other threads out temporarily
           int64_t voff = SoftXMT_delegate_fetch_and_add_word(k2, BUF_LEN);
           Incoherent<int64_t>::RW cvlist(vlist+voff, BUF_LEN);
           for (int64_t vk=0; vk < BUF_LEN; vk++) {
@@ -143,6 +156,35 @@ struct func_bfs_onelevel : public ForkJoinIteration {
         }
       }
     }
+//    if (*kbuf) {
+//      int64_t voff = SoftXMT_delegate_fetch_and_add_word(k2, *kbuf);
+//      Incoherent<int64_t>::RW cvlist(vlist+voff, *kbuf);
+//      for (int64_t vk=0; vk < *kbuf; vk++) {
+//        cvlist[vk] = buf[vk];
+//      }
+//    }
+//      ts += MAX_CACHE;
+//      te = (te+MAX_CACHE > vend) ? vend : te+MAX_CACHE;
+//      VLOG(1) << k << ": ts=" << ts << ", te=" << te;
+//    }    
+//    Incoherent<int64_t>::RO cadj(xadj+vstart, vend-vstart);
+//    for (int64_t vo = 0; vo < vend-vstart; vo++) {
+//      const int64_t j = cadj[vo];
+//      if (SoftXMT_delegate_compare_and_swap_word(bfs_tree+j, -1, v)) {
+//        if (*kbuf < BUF_LEN) {
+//          buf[*kbuf] = j;
+//          (*kbuf)++;
+//        } else {
+//          int64_t voff = SoftXMT_delegate_fetch_and_add_word(k2, BUF_LEN);
+//          Incoherent<int64_t>::RW cvlist(vlist+voff, BUF_LEN);
+//          for (int64_t vk=0; vk < BUF_LEN; vk++) {
+//            cvlist[vk] = buf[vk];
+//          }
+//          buf[0] = j;
+//          *kbuf = 1;
+//        }
+//      }
+//    }
   }
 };
 
@@ -153,6 +195,7 @@ struct func_bfs_node : public ForkJoinIteration {
   GlobalAddress<int64_t> bfs_tree;
   GlobalAddress<int64_t> k2;
   int64_t start, end;
+  int64_t nadj; // TODO: DEBUG only...
   void operator()(thread * me, int64_t mynode) {
     int64_t kbuf;
     int64_t buf[BUF_LEN];
@@ -163,6 +206,8 @@ struct func_bfs_node : public ForkJoinIteration {
     f.vlist = vlist; f.xoff = xoff; f.xadj = xadj; f.bfs_tree = bfs_tree; f.k2 = k2;
     f.kbuf = &kbuf;
     f.buf = buf;
+    f.nadj = nadj;
+    VLOG(1) << "on node";
     fork_join_onenode(me, &f, r.start, r.end);
     
     // make sure to commit what's left in the buffer at the end
@@ -180,6 +225,7 @@ static double make_bfs_tree(csr_graph * g, GlobalAddress<int64_t> bfs_tree, int6
   int64_t NV = g->nv;
   GlobalAddress<int64_t> vlist = SoftXMT_typed_malloc<int64_t>(NV);
   
+  VLOG(1) << "actually starting...";
   double start, stop;
   start = timer();
   
@@ -204,9 +250,10 @@ static double make_bfs_tree(csr_graph * g, GlobalAddress<int64_t> bfs_tree, int6
   fb.xadj = g->xadj;
   fb.bfs_tree = bfs_tree;
   fb.k2 = k2addr;
+  fb.nadj = g->nadj; //DEBUG only...
   
   while (k1 != k2) {
-    DVLOG(2) << "k1=" << k1 << ", k2=" << k2;
+    VLOG(1) << "k1=" << k1 << ", k2=" << k2;
     const int64_t oldk2 = k2;
     
     fb.start = k1;
@@ -321,8 +368,8 @@ static int64_t verify_bfs_tree(GlobalAddress<int64_t> bfs_tree, int64_t max_bfsv
     int64_t ti = SoftXMT_delegate_read_word(bfs_tree+i);
     int64_t tj = SoftXMT_delegate_read_word(bfs_tree+j);
     
-    if (ti >= 0 && tj < 0) { terr = -12; LOG(ERROR) << "Error!"; continue; }
-    if (tj >= 0 && ti < 0) { terr = -13; LOG(ERROR) << "Error!"; continue; }
+    if (ti >= 0 && tj < 0) { terr = -12; LOG(ERROR) << "Error! ti=" << ti << ", tj=" << tj; continue; }
+    if (tj >= 0 && ti < 0) { terr = -13; LOG(ERROR) << "Error! ti=" << ti << ", tj=" << tj; continue; }
     if (ti < 0) // both i & j have the same sign
       continue;
     
@@ -345,7 +392,7 @@ static int64_t verify_bfs_tree(GlobalAddress<int64_t> bfs_tree, int64_t max_bfsv
       terr = -14;
       LOG(ERROR) << "Error, levels differ by more than one! (root = " << root << ", k = " << k << ", lvl[" << i << "]=" << SoftXMT_delegate_read_word(level+i) << ", lvl[" << j << "]=" << SoftXMT_delegate_read_word(level+j) << ")";
       exit(1);
-    }
+    }    
   }
   
   if (!terr) {
@@ -388,18 +435,20 @@ static void run_bfs(tuple_graph * tg) {
 //  for (int64_t i=0; i < g.nv; i++) {
 //    VLOG(1) << "xoff[" << i << "] = " << SoftXMT_delegate_read_word(XOFF(i)) << " -> " << SoftXMT_delegate_read_word(XENDOFF(i));
 //  }
-#ifdef DEBUG
-  for (int64_t i=0; i<g.nv; i++) {
-    std::stringstream ss;
-    int64_t xoi = SoftXMT_delegate_read_word(XOFF(i)), xei = SoftXMT_delegate_read_word(XENDOFF(i));
-    ss << "xoff[" << i << "] = " << xoi << "->" << xei << ": (";
-    for (int64_t j=xoi; j<xei; j++) {
-      ss << SoftXMT_delegate_read_word(g.xadj+j) << ",";
-    }
-    ss << ")";
-    VLOG(2) << ss.str();
-  }
-#endif
+//#ifdef DEBUG
+//  for (int64_t i=0; i<g.nv; i++) {
+//    std::stringstream ss;
+//    int64_t xoi = SoftXMT_delegate_read_word(XOFF(i)), xei = SoftXMT_delegate_read_word(XENDOFF(i));
+//    CHECK(xoi <= g.nadj) << i << ": " << xoi << " > " << g.nadj;
+//    CHECK(xei <= g.nadj) << i << ": " << xei << " > " << g.nadj;
+//    ss << "xoff[" << i << "] = " << xoi << "->" << xei << ": (";
+//    for (int64_t j=xoi; j<xei; j++) {
+//      ss << SoftXMT_delegate_read_word(g.xadj+j) << ",";
+//    }
+//    ss << ")";
+//    VLOG(2) << ss.str();
+//  }
+//#endif
   
   // no rootname input method, so randomly choose
   int64_t bfs_roots[NBFS_max];
@@ -488,8 +537,8 @@ static void user_main(thread * me, void * args) {
 //    }
   }
   stop = timer();
-  double make_graph_time = stop - start;
-  VLOG(1) << "graph_generation: " << make_graph_time;
+  generation_time = stop - start;
+  VLOG(1) << "graph_generation: " << generation_time;
   
   run_bfs(&tg);
   
