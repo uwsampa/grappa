@@ -1,5 +1,11 @@
+
 #include "TaskingScheduler.hpp"
 #include "Task.hpp"
+
+#include <gflags/gflags.h>
+
+/// TODO: this should be based on some actual time-related metric so behavior is predictable across machines
+DEFINE_int64( periodic_poll_ticks, 500, "number of ticks to wait before polling periodic queue");
 
 TaskingScheduler::TaskingScheduler ( Thread * master, TaskManager * taskman ) 
     : readyQ ( )
@@ -11,7 +17,8 @@ TaskingScheduler::TaskingScheduler ( Thread * master, TaskManager * taskman )
     , num_idle ( 0 )
     , num_workers ( 0 )
     , task_manager ( taskman )
-    , work_args( new task_worker_args( taskman, this ) ) { 
+    , work_args( new task_worker_args( taskman, this ) )
+    , previous_periodic_ts( 0 ) {
 
           periodctr = 0;/*XXX*/
 }
