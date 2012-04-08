@@ -13,7 +13,7 @@ BOOST_AUTO_TEST_SUITE( GlobalAllocator_tests );
 
 const size_t local_size_bytes = 1 << 10;
 
-void test( thread * me, void* args ) {
+void test( Thread * me, void* args ) {
   GlobalAddress< int64_t > a = SoftXMT_malloc( 1 );
   LOG(INFO) << "got pointer " << a.pointer();
 
@@ -56,7 +56,7 @@ void test( thread * me, void* args ) {
   SoftXMT_flush( vargs->node() );
 }
 
-void user_main( thread * me, void * args ) 
+void user_main( Thread * me, void * args ) 
 {
   int count = 0;
   GlobalAddress< int64_t > global_count = make_global( &count );
@@ -89,7 +89,7 @@ BOOST_AUTO_TEST_CASE( test1 ) {
   assert( SoftXMT_nodes() == 2 );
   SoftXMT_activate();
 
-  DVLOG(1) << "Spawning user main thread....";
+  DVLOG(1) << "Spawning user main Thread....";
   SoftXMT_run_user_main( &user_main, NULL );
   BOOST_CHECK( SoftXMT_done() == true );
 

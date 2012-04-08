@@ -7,7 +7,6 @@ extern "C" {
 #ifndef _GLOBAL_MEMORY_H_
 #define _GLOBAL_MEMORY_H_
 
-#include <mpi.h>
 #include <gasnet.h>
 #include "base.h"
 
@@ -51,14 +50,6 @@ static inline int gm_is_address_local(struct global_address *ga) {
     }
 
 void gm_init();
-
-#define GM_REQUEST_HANDLER  129
-#define GM_RESPONSE_HANDLER 130
-
-void gm_request_handler(gasnet_token_t token,
-    gasnet_handlerarg_t a0, gasnet_handlerarg_t a1);
-void gm_response_handler(gasnet_token_t token,
-    gasnet_handlerarg_t a0, gasnet_handlerarg_t a1);
 
 
 #endif // _GLOBAL_MEMORY_H_

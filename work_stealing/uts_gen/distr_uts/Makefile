@@ -1,20 +1,8 @@
-GASNET?=/sampa/share/gasnet-rhel6
+# include common variable definitions
+include ../../../include.mk
+
 GL_ARRAY=../../../global_array_gasnet
-
-CXX=mpicxx
-LD= mpicxx
-
-#defualt gasnet library choice
-MA_CONDUIT_LIB?=ibv
-MA_CONDUIT_DEF?=IBV
-MA_THREADING_GASNET_DEF?=SEQ
-MA_THREADING_GASNET_LIB?=seq
-
-ifeq ($(MA_CONDUIT_LIB), mpi)
-GASLOADS=-lammpi
-else
-GASLOADS=-libverbs
-endif
+SOFTXMT_SYS=../../../system
 
 # ------------------------------------- #
 # Set Random Number Generator sources:
@@ -44,19 +32,43 @@ RNG_DEF = -DUTS_ALFG
 endif
 #-----------------------------------------#
 
-CFLAGS_COMMON= -Wno-write-strings -g -fopenmp -fomit-frame-pointer
-CFLAGS= $(CFLAGS_COMMON)
-CFLAGS+= -I$(GASNET)/include -I$(GASNET)/include/$(MA_CONDUIT_LIB)-conduit -DGASNET_$(MA_THREADING_GASNET_DEF) -DGASNET_CONDUIT_$(MA_CONDUIT_DEF)
-CFLAGS+= -I$(GL_ARRAY)
-CFLAGS+= -I.. -I../../../bench/sp_gasnet_listwalk/collective
-TH_CFLAGS=-I../../../greenery 
-TH_LIB=-L../../../greenery -lgreenery
+CFLAGS_COMMON= -fopenmp -fomit-frame-pointer
+CFLAGS+= $(CFLAGS_COMMON)
+CFLAGS+= -I$(GL_ARRAY) -I$(SOFTXMT_SYS)
+CFLAGS+= -I..
+
+ifdef DEBUG
+CFLAGS+= -O1 -g
+else
+CFLAGS+= -O3
+endif
+
+# supress c char* warnings
+CFLAGS+= -Wno-write-strings 
+
+EXPERIMENTS=/sampa/home/bdmyers/experiments
+CFLAGS+= -I$(EXPERIMENTS)/lib
+
+CFLAGS+= -DGASNET_SEQ -DGASNET_CONDUIT_IBV
+CXXFLAGS=$(CFLAGS)
+
 LIB=-lm 
 
-LD_FLAGS= $(CFLAGS_COMMON)
+LDFLAGS+= $(CFLAGS_COMMON) -L$(SOFTXMT_SYS)
 
-GASNET_LIB_PATHS= -L$(GASNET)/lib
-GASNET_LIBS= -lgasnet-$(MA_CONDUIT_LIB)-$(MA_THREADING_GASNET_LIB) $(GASLOADS) $(MA_ADD_GASNET_LIBS)
+LIBRARIES:= -lgflags -lglog -lgasnet-ibv-seq -libverbs -lrt -lboost_unit_test_framework -lSoftXMT
+
+#
+# set LD_LIBRARY_PATH
+#
+LD_LIBRARY_PATH:=$(LD_LIBRARY_PATH):$(GFLAGS)/lib
+
+#
+# run vars
+#
+ARGS:=
+NPROC:=2
+HOST:=localhost
 
 OBJECTS=\
 	balloc.o \
@@ -68,29 +80,32 @@ OBJECTS=\
 GL_OBJECTS=\
 	$(GL_ARRAY)/global_memory.o \
 	$(GL_ARRAY)/global_array.o 
-#	$(GL_ARRAY)/msg_aggregator.o
 
-COLL_OBJECTS=\
-	../../../bench/sp_gasnet_listwalk/collective/collective.o
+#%.o: %.cpp
+#	$(CXX) $(CFLAGS) $(RNG_DEF) $(RNG_INCL) $< -c -o $@
 
-%.o: %.c
-	$(CXX) $(CFLAGS) $(TH_CFLAGS) $(RNG_DEF) $(RNG_INCL) $< -c -o $@
-
-TreeGen: TreeGen.o $(OBJECTS) 
-	$(CXX) $(CFLAGS) $(TH_CFLAGS) -o $@ $^ $(GL_OBJECTS) $(COLL_OBJECTS) $(RNG_SRC) $(GASNET_LIB_PATHS) $(TH_LIB) $(LIB) $(GASNET_LIBS) 
+TreeGen.exe: TreeGen.o $(OBJECTS) 
+	$(LD) $(LDFLAGS) -o $@ $^ $(GL_OBJECTS) $(RNG_SRC) $(LIBRARIES)  $(LIB) $(GASNET_LIBS) 
 
 gasnet_cbarrier_test: gasnet_cbarrier_test.c gasnet_cbarrier.c
 	$(CXX) $(CFLAGS) -o $@ $+ $(GASNET_LIB_PATHS) $(LIB) $(GASNET_LIBS)
 
-run: TreeGen
-	mpirun -np 6 -host "localhost" ./$< $(T1)
+run: TreeGen.exe
+	IPATH_PORT=2 \
+    GASNET_IBV_PORTS=qib0:2 \
+	OMPI_MCA_btl_sm_use_knem=0 \
+	LD_LIBRARY_PATH="$(LD_LIBRARY_PATH)" \
+	$(MPIRUN) -np $(NPROC) -H $(HOST) ./$< $(SARGS) -- $(ARGS)
 
-debug: TreeGen
-	export GASNET_BACKTRACE=1
-	mpirun -np 2 -host "localhost" xterm -hold -e gdb --args ./$< $(T1)
+debug: TreeGen.exe
+	GLOG_logtostderr=1 \
+	OMPI_MCA_btl_sm_use_knem=0 \
+	LD_LIBRARY_PATH="$(LD_LIBRARY_PATH)" \
+	GASNET_BACKTRACE=1 \
+	$(MPIRUN) -np $(NPROC) -H $(HOST) xterm -hold -e gdb --args ./$< $(T1) $(ARGS)
 
 test_gcb: gasnet_cbarrier_test
 	mpirun -np 3 -host "localhost" ./$< 
 
 clean:
-	rm -f ./TreeGen ./*.o ./gasnet_cbarrier
+	rm -f ./*.exe ./*.o

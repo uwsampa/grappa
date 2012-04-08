@@ -5,7 +5,13 @@
 
 #include "SoftXMT.hpp"
 #include "GlobalMemory.hpp"
+#include "tasks/Task.hpp"
 
+// command line arguments
+DEFINE_bool( steal, true, "Allow work-stealing between public task queues");
+DEFINE_int32( chunk_size, 10, "Amount of work to publish or steal in multiples of" );
+DEFINE_int32( cancel_interval, 1, "Interval for notifying others of new work" );
+DEFINE_uint64( num_starting_workers, 4, "Number of starting workers in task-executer pool" );
 
 static Communicator * my_global_communicator = NULL;
 static Aggregator * my_global_aggregator = NULL;
@@ -14,8 +20,9 @@ static Aggregator * my_global_aggregator = NULL;
 // TODO: should granular memory pools be stored at this level?
 static GlobalMemory * my_global_memory = NULL;
 
-static thread * master_thread;
-static scheduler * sched;
+static Thread * master_thread;
+TaskingScheduler * my_global_scheduler;
+TaskManager * my_task_manager;
 
 /// Flag to tell this node it's okay to exit.
 bool SoftXMT_done_flag;
@@ -24,11 +31,12 @@ bool SoftXMT_done_flag;
 HeapLeakChecker * SoftXMT_heapchecker = 0;
 #endif
 
-static void poller( thread * me, void * args ) {
+static void poller( Thread * me, void * args ) {
   while( !SoftXMT_done() ) {
     SoftXMT_poll();
-    SoftXMT_yield();
+    SoftXMT_yield_periodic();
   }
+  VLOG(5) << "polling Thread exiting";
 }
 
 /// Initialize SoftXMT components. We are not ready to run until the
@@ -60,10 +68,22 @@ void SoftXMT_init( int * argc_p, char ** argv_p[], size_t global_memory_size_byt
 
   SoftXMT_done_flag = false;
 
+  //TODO: options for local stealing
+  Node * neighbors = new Node[SoftXMT_nodes()];
+  for ( Node nod=0; nod < SoftXMT_nodes(); nod++ ) {
+    neighbors[nod] = nod;
+  }
+
   // start threading layer
   master_thread = thread_init();
-  sched = create_scheduler( master_thread );
-  thread_spawn( master_thread, sched, &poller, NULL );
+  VLOG(1) << "Initializing tasking layer."
+           << " steal=" << FLAGS_steal
+           << " num_starting_workers=" << FLAGS_num_starting_workers
+           << " chunk_size=" << FLAGS_chunk_size
+           << " cbint=" << FLAGS_cancel_interval;
+  my_task_manager = new TaskManager( FLAGS_steal, SoftXMT_mynode(), neighbors, SoftXMT_nodes(), FLAGS_chunk_size, FLAGS_cancel_interval ); //TODO: options for local stealing
+  my_global_scheduler = new TaskingScheduler( master_thread, my_task_manager );
+  my_global_scheduler->periodic( thread_spawn( master_thread, my_global_scheduler, &poller, NULL ) );
 }
 
 
@@ -125,75 +145,90 @@ void SoftXMT_flush( Node n )
 ///
 /// Thread management routines
 ///
-
 /// Spawn and run user main function on node 0. Other nodes just run
 /// existing threads (service threads) until they are given more to
-/// do. TODO: get return values working TODO: remove thread * arg
-int SoftXMT_run_user_main( void (* fn_p)(thread *, void *), void * args )
+/// do. TODO: get return values working TODO: remove Thread * arg
+int SoftXMT_run_user_main( void (* fn_p)(Thread *, void *), void * args )
 {
   if( SoftXMT_mynode() == 0 ) {
-    assert( current_thread == master_thread ); // this should only be run at the toplevel
-    thread * main = thread_spawn( current_thread, sched,
+    CHECK( my_global_scheduler->get_current_thread() == master_thread ); // this should only be run at the toplevel
+    Thread * main = thread_spawn( my_global_scheduler->get_current_thread(), my_global_scheduler,
                                   fn_p, args );
-    DVLOG(5) << "Spawned main thread " << main;
+    my_global_scheduler->ready( main );
+    DVLOG(5) << "Spawned main Thread " << main;
   }
-  run_all( sched );
+
+  // spawn starting number of worker coroutines
+  my_global_scheduler->createWorkers( FLAGS_num_starting_workers );
+
+  my_global_scheduler->run( );
 }
 
 /// Spawn a user function. TODO: get return values working
-/// TODO: remove thread * arg
-thread * SoftXMT_spawn( void (* fn_p)(thread *, void *), void * args )
+/// TODO: remove Thread * arg
+Thread * SoftXMT_spawn( void (* fn_p)(Thread *, void *), void * args )
 {
-  thread * th = thread_spawn( current_thread, sched, fn_p, args );
-  DVLOG(5) << "Spawned thread " << th;
+  Thread * th = thread_spawn( my_global_scheduler->get_current_thread(), my_global_scheduler, fn_p, args );
+  my_global_scheduler->ready( th );
+  DVLOG(5) << "Spawned Thread " << th;
   return th;
 }
 
-/// Yield to scheduler, placing current thread on run queue.
+/// Yield to scheduler, placing current Thread on run queue.
 void SoftXMT_yield( )
 {
-  thread * th1 = current_thread;
-  int retval = thread_yield( current_thread );
-  thread * th2 = current_thread;
+  bool immed = my_global_scheduler->thread_yield( ); 
 }
 
-/// Yield to scheduler, suspending current thread.
+/// Yield to scheduler, placing current Thread on periodic queue.
+void SoftXMT_yield_periodic( )
+{
+  bool immed = my_global_scheduler->thread_yield_periodic( );
+}
+
+/// Yield to scheduler, suspending current Thread.
 void SoftXMT_suspend( )
 {
-  DVLOG(5) << "suspending thread " << current_thread;
-  thread * th1 = current_thread;
-  int retval = thread_suspend( current_thread );
-  //thread * th2 = current_thread;
-  //DVLOG(5) << "Thread " << th1 << " suspend to thread " << th2 << (retval ? " failed." : " succeeded.");}
-  CHECK_EQ(retval, 0) << "Thread " << th1 << " suspension failed. Have the server threads exited?";
+  DVLOG(5) << "suspending Thread " << my_global_scheduler->get_current_thread() << "(# " << my_global_scheduler->get_current_thread()->id << ")";
+  my_global_scheduler->thread_suspend( );
+  //CHECK_EQ(retval, 0) << "Thread " << th1 << " suspension failed. Have the server threads exited?";
 }
 
-/// Wake a thread by putting it on the run queue, leaving the current thread running.
-void SoftXMT_wake( thread * t )
+/// Wake a Thread by putting it on the run queue, leaving the current thread running.
+void SoftXMT_wake( Thread * t )
 {
-  DVLOG(5) << "waking thread " << t;
-  thread_wake( t );
+  DVLOG(5) << my_global_scheduler->get_current_thread()->id << " waking Thread " << t;
+  my_global_scheduler->thread_wake( t );
 }
 
-/// Wake a thread t by placing current thread on run queue and running t next.
-void SoftXMT_yield_wake( thread * t )
+/// Wake a Thread t by placing current thread on run queue and running t next.
+void SoftXMT_yield_wake( Thread * t )
 {
-  thread_yield_wake( current_thread, t );
+  DVLOG(5) << "yielding Thread " << my_global_scheduler->get_current_thread() << " and waking thread " << t;
+  my_global_scheduler->thread_yield_wake( t );
 }
 
-/// Wake a thread t by suspending current thread and running t next.
-void SoftXMT_suspend_wake( thread * t )
+/// Wake a Thread t by suspending current thread and running t next.
+void SoftXMT_suspend_wake( Thread * t )
 {
-  DVLOG(5) << "suspending thread " << current_thread << " and waking thread " << t;
-  thread_suspend_wake( current_thread, t );
+  DVLOG(5) << "suspending Thread " << my_global_scheduler->get_current_thread() << " and waking thread " << t;
+  my_global_scheduler->thread_suspend_wake( t );
 }
 
-/// Join on thread t
-void SoftXMT_join( thread * t )
+/// Join on Thread t
+void SoftXMT_join( Thread * t )
 {
-  DVLOG(5) << "thread " << current_thread << " joining on thread " << t;
-  thread_join( current_thread, t );
+  DVLOG(5) << "Thread " << my_global_scheduler->get_current_thread() << " joining on thread " << t;
+  my_global_scheduler->thread_join( t );
 }
+
+bool SoftXMT_thread_idle( ) 
+{
+  DVLOG(5) << "Thread " << my_global_scheduler->get_current_thread()->id << " going idle";
+  return my_global_scheduler->thread_idle( );
+}
+
+
 
 ///
 /// Job exit routines
@@ -206,12 +241,19 @@ bool SoftXMT_done() {
 
 /// Active message to tell this node it's okay to exit.
 static void SoftXMT_mark_done_am( void * args, size_t args_size, void * payload, size_t payload_size ) {
+  VLOG(5) << "mark done";
   SoftXMT_done_flag = true;
 }
 
 /// Tell all nodes that we are ready to exit
-void SoftXMT_signal_done() {
+void SoftXMT_signal_done ( bool inThread ) {
   if( !SoftXMT_done() ) {
+    if ( inThread ) {
+        while( !my_task_manager->isWorkDone() ) {
+           SoftXMT_yield(); // FIXME: non busy-wait method
+        }
+    }
+        
     for( Node i = 0; i < SoftXMT_nodes(); ++i ) {
       SoftXMT_call_on( i, &SoftXMT_mark_done_am, (void *)NULL, 0 );
       SoftXMT_flush( i );
@@ -226,7 +268,7 @@ void SoftXMT_signal_done() {
 /// notify everyone else, enter the barrier, and then clean up.
 void SoftXMT_finish( int retval )
 {
-  SoftXMT_signal_done();
+  SoftXMT_signal_done( false );
 
   SoftXMT_barrier();
 
@@ -236,7 +278,7 @@ void SoftXMT_finish( int retval )
   
   // probably never get here (depending on communication layer)
 
-  destroy_scheduler( sched );
+  delete my_global_scheduler;
   destroy_thread( master_thread );
 
   if (my_global_memory) delete my_global_memory;

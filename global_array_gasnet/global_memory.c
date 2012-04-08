@@ -1,5 +1,6 @@
 #include "global_memory.h"
-
+#include "glog/logging.h"
+#include "SoftXMT.hpp"
 
 gasnet_seginfo_t    *shared_memory_blocks;
 void *my_shared_memory_block; 
@@ -34,37 +35,39 @@ static uint64_t _perform_local_allocation(uint64_t request) {
     response = atomic_fetch_and_add_uint64(&local_allocation_offset, request);
     if ((response + request) >
         shared_memory_blocks[gasnet_mynode()].size) {
-        // Out of memory!
+        
+        CHECK (!((response + request) > shared_memory_blocks[gasnet_mynode()].size)) 
+               << "response(" << response << ") +"
+               << "request(" << request << ") > "
+               << "size(" << shared_memory_blocks[gasnet_mynode()].size << ")";
+
         response = 0;
         }
     return response;
 }
 
-void gm_request_handler(gasnet_token_t token,
-    gasnet_handlerarg_t a0,
-    gasnet_handlerarg_t a1) {
-    uint64_t request, response;
-    
-    request = a0;
-    request = request << 32;
-    request = request | a1;
-    
-    response = _perform_local_allocation(request);
-    
-    gasnet_AMReplyShort2(token, GM_RESPONSE_HANDLER,
-        (response >> 32), (response & 0xffffffff));
-    }
+struct gm_request_handler_args {
+    Node from;
+    uint64_t request;
+};
 
-void gm_response_handler(gasnet_token_t token,
-    gasnet_handlerarg_t a0,
-    gasnet_handlerarg_t a1) {
-    
-    response_value = a0;
-    response_value = response_value << 32;
-    response_value = response_value | a1;
-    
+struct gm_response_handler_args {
+    uint64_t response;
+};
+
+void gm_response_handler_am( gm_response_handler_args * args, size_t size, void * payload, size_t payload_size) {
+    response_value = args->response;
     response_received = true;
-    }
+}
+
+void gm_request_handler_am( gm_request_handler_args * args, size_t size, void * payload, size_t payload_size ) {
+   uint64_t response = _perform_local_allocation(args->request);
+
+   gm_response_handler_args resp_args = { response };
+  
+   SoftXMT_call_on( args->from, &gm_response_handler_am, &resp_args);
+}   
+
 
 void gm_allocate(struct global_address *a, int preferred_node, uint64_t size) {
     if (preferred_node == ANY_NODE) {
@@ -72,30 +75,30 @@ void gm_allocate(struct global_address *a, int preferred_node, uint64_t size) {
         next_random_node = next_random_node + 1;
         if (next_random_node >= gasnet_nodes())
             next_random_node = 0;
-        }
-    if (preferred_node == gasnet_mynode()) {
+    }
+    if (preferred_node == SoftXMT_mynode()) {
         // yeah!  local node
         response_value = _perform_local_allocation(size);
-        } else {
-            response_received = false;
-            gasnet_AMRequestShort2(preferred_node, GM_REQUEST_HANDLER,
-                (size >> 32), (size & 0xffffffff));
-            while (!response_received) {
-                address_expose();
-                gasnet_AMPoll();
-                }
+    } else {
+        response_received = false;
+        gm_request_handler_args req_args = { SoftXMT_mynode(), size };
+        SoftXMT_call_on( preferred_node, &gm_request_handler_am, &req_args );
+        while (!response_received) { //wait with delegate ops instead
+            address_expose();
+            SoftXMT_yield(); /* i.e. gasnet_AMPoll(); */ 
         }
-    if (response_value == 0)
-       panic("Out of memory");
+    }
     
+    CHECK_NE(response_value, 0) << "Out of memory? node=" << preferred_node << " size=" << size;
+
     a->node = preferred_node;
     a->offset = response_value;
-    }
+}
 
 // Warning: pointer may not be valid on this machine.
 void *gm_address_to_ptr(struct global_address *ga) {
     return (void *) ((uint8_t*)shared_memory_blocks[ga->node].addr + ga->offset);
-    }
+}
     
 void gm_copy_from(struct global_address *ga, void *local_address, uint64_t size) {
     gasnet_get_nbi_bulk(local_address, ga->node,
