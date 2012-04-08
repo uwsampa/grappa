@@ -1,5 +1,8 @@
 #include "BasicScheduler.hpp"
 
+/// TODO: this should be based on some actual time-related metric so behavior is predictable across machines
+DEFINE_int64( periodic_poll_ticks, 500, "number of ticks to wait before polling periodic queue");
+
 void BasicScheduler::run ( ) {
     while (thread_wait( NULL ) != NULL) { } // nothing
 }

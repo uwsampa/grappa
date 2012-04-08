@@ -17,7 +17,7 @@ static inline SoftXMT_Timestamp SoftXMT_tick() {
 }
   
 static inline SoftXMT_Timestamp SoftXMT_get_timestamp() { 
-  SoftXMT_tick();
+  //SoftXMT_tick();
   return SoftXMT_current_timestamp;
 }
 
