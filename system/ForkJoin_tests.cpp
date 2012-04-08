@@ -25,7 +25,7 @@ struct func_hello : public ForkJoinIteration {
   }
 };
 
-static void user_main(thread * me, void * args) {
+static void user_main(Thread * me, void * args) {
   
   LOG(INFO) << "beginning user main... (" << SoftXMT_mynode() << ")";
   
@@ -68,7 +68,7 @@ static void user_main(thread * me, void * args) {
 
 BOOST_AUTO_TEST_CASE( test1 ) {
   SoftXMT_init( &(boost::unit_test::framework::master_test_suite().argc),
-               &(boost::unit_test::framework::master_test_suite().argv), 4096);
+               &(boost::unit_test::framework::master_test_suite().argv), 1<<14);
   SoftXMT_activate();
   
   SoftXMT_run_user_main(&user_main, NULL);

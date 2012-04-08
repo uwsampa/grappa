@@ -3,7 +3,7 @@
 #include <iostream>
 #include <boost/static_assert.hpp>
 #include <boost/type_traits/is_base_of.hpp>
-#include "thread.h"
+#include "tasks/Thread.hpp"
 
 //#define VLOG(verboselevel) VLOG(verboselevel) << "<" << SoftXMT_mynode() << "> "
 
@@ -116,7 +116,7 @@ template<typename T>
 static void fork_join_onenode(Thread * spawner, T* func, int64_t start, int64_t end) {
   forkjoin_data_t<T> fj(spawner, func, start, end);
   iters_args args[fj.nthreads];
-  thread* ths[fj.nthreads];
+  Thread* ths[fj.nthreads];
   
   for (int i=0; i<fj.nthreads; i++) {
     args[i].fjdata = &fj;
