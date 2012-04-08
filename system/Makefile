@@ -80,6 +80,7 @@ Collective_tests.test: libSoftXMT.a
 #thread_tests.test: thread.o stack.o coro.o
 thread2_tests.test: libSoftXMT.a
 thread3_tests.test: libSoftXMT.a
+tasks/Thread_tests.test: tasks/Thread.o coro.o stack.o tasks/BasicScheduler.o Timestamp.o
 
 Cache_tests.test: libSoftXMT.a
 Rate_measure.exe: libSoftXMT.a
