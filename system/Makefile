@@ -77,7 +77,7 @@ Allocator_tests.test: Allocator.o
 
 Collective_tests.test: libSoftXMT.a
 
-thread_tests.test: thread.o stack.o coro.o
+#thread_tests.test: thread.o stack.o coro.o
 thread2_tests.test: libSoftXMT.a
 thread3_tests.test: libSoftXMT.a
 
@@ -86,12 +86,14 @@ Rate_measure.exe: libSoftXMT.a
 
 ForkJoin_tests.test: libSoftXMT.a
 
-ForkJoin_tests.test: SoftXMT.o GlobalMemory.o Communicator.o Aggregator.o Delegate.o coro.o stack.o thread.o GlobalAllocator.o Allocator.o ForkJoin.o
+Tasking_tests.test: libSoftXMT.a
+Stealing_tests.test: libSoftXMT.a
+ForkJoin_tests.test: libSoftXMT.a
 
 #
 # Build SoftXMT static library
 #
-LIBRARY_CONTENTS= SoftXMT.o GlobalAllocator.o GlobalMemory.o Communicator.o Aggregator.o Timestamp.o Allocator.o Cache.o thread.o coro.o stack.o Delegate.o ForkJoin.o Collective.o
+LIBRARY_CONTENTS= SoftXMT.o GlobalAllocator.o GlobalMemory.o Communicator.o Aggregator.o Timestamp.o Allocator.o Cache.o Delegate.o Collective.o ForkJoin.o tasks/gasnet_cbarrier.o tasks/TaskingScheduler.o tasks/Task.o tasks/Thread.o tasks/stack.o tasks/coro.o 
 libSoftXMT.a: $(patsubst %,libSoftXMT.a(%),$(LIBRARY_CONTENTS))
 
 
@@ -134,7 +136,7 @@ run: $(TARGET) $($(MPITYPE)_ENVVAR_TEMP)
 mpi_test: $(TARGET) $($(MPITYPE)_ENVVAR_TEMP)
 	-killall $<
 	$(ENV_VARIABLES) \
-	$($(MPITYPE)_MPIRUN) $($(MPITYPE)_EXPORT_ENV_VARIABLES) $($(MPITYPE)_HOST) $($(MPITYPE)_NPROC) -- ./$< --log_level=test_suite --run_test=$(TARGET:.test=) -- $(ARGS)
+	$($(MPITYPE)_MPIRUN) $($(MPITYPE)_EXPORT_ENV_VARIABLES) $($(MPITYPE)_HOST) $($(MPITYPE)_NPROC) -- ./$< $(GARGS) --log_level=test_suite --run_test=$(TARGET:.test=) -- $(ARGS)
 
 test: $(TARGET)
 	$(ENV_VARIABLES) \
@@ -226,29 +228,29 @@ TESTS:=$(wildcard *.test)
 #
 # Temporary special handling for thread library
 #
-thread.o: thread.c Makefile
-	$($(MPITYPE)_CC) -c $(CFLAGS) $< -o $*.o
-	$($(MPITYPE)_CC) -MM $(CFLAGS) $< > $*.d
-	@mv -f $*.d $*.d.tmp
-	@sed -e 's|.*:|$*.o:|' < $*.d.tmp > $*.d
-	@sed -e 's/.*://' -e 's/\\$$//' < $*.d.tmp | fmt -1 | \
-	  sed -e 's/^ *//' -e 's/$$/:/' >> $*.d
-	@rm -f $*.d.tmp
+#thread.o: thread.c Makefile
+#	$($(MPITYPE)_CC) -c $(CFLAGS) $< -o $*.o
+#	$($(MPITYPE)_CC) -MM $(CFLAGS) $< > $*.d
+#	@mv -f $*.d $*.d.tmp
+#	@sed -e 's|.*:|$*.o:|' < $*.d.tmp > $*.d
+#	@sed -e 's/.*://' -e 's/\\$$//' < $*.d.tmp | fmt -1 | \
+#	  sed -e 's/^ *//' -e 's/$$/:/' >> $*.d
+#	@rm -f $*.d.tmp
+#
+#coro.o: coro.c Makefile
+#	$($(MPITYPE)_CC) -c $(CFLAGS) $< -o $*.o
+#	$($(MPITYPE)_CC) -MM $(CFLAGS) $< > $*.d
+#	@mv -f $*.d $*.d.tmp
+#	@sed -e 's|.*:|$*.o:|' < $*.d.tmp > $*.d
+#	@sed -e 's/.*://' -e 's/\\$$//' < $*.d.tmp | fmt -1 | \
+#	  sed -e 's/^ *//' -e 's/$$/:/' >> $*.d
+#	@rm -f $*.d.tmp
+#
+#stack.o: stack.S Makefile
+#	$($(MPITYPE)_CC) -c $(CFLAGS) $< -o $*.o
 
-coro.o: coro.c Makefile
-	$($(MPITYPE)_CC) -c $(CFLAGS) $< -o $*.o
-	$($(MPITYPE)_CC) -MM $(CFLAGS) $< > $*.d
-	@mv -f $*.d $*.d.tmp
-	@sed -e 's|.*:|$*.o:|' < $*.d.tmp > $*.d
-	@sed -e 's/.*://' -e 's/\\$$//' < $*.d.tmp | fmt -1 | \
-	  sed -e 's/^ *//' -e 's/$$/:/' >> $*.d
-	@rm -f $*.d.tmp
 
-stack.o: stack.S Makefile
-	$($(MPITYPE)_CC) -c $(CFLAGS) $< -o $*.o
-
-
-CLEAN_FILES= *.exe *.o *.d *.test *.dis libSoftXMT.a $($(MPITYPE)_CLEAN_FILES)
+CLEAN_FILES= *.exe *.o *.d *.test *.dis libSoftXMT.a ./tasks/*.o $($(MPITYPE)_CLEAN_FILES)
 clean:
 	rm -f $(CLEAN_FILES)
 

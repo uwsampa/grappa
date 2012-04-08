@@ -13,9 +13,9 @@ BOOST_AUTO_TEST_SUITE( GlobalMemoryChunk_tests );
 GlobalAddress< int64_t > base;
 size_t size;
 
-void user_main( thread * me, void * args ) 
+void user_main( Thread * me, void * args ) 
 {
-  BOOST_MESSAGE( "Spawning user main thread " << (void *) current_thread <<
+  BOOST_MESSAGE( "Spawning user main Thread " << (void *) CURRENT_THREAD <<
                  " " << me <<
                  " on node " << SoftXMT_mynode() );
 
@@ -83,7 +83,7 @@ BOOST_AUTO_TEST_CASE( test1 ) {
 
   BOOST_CHECK_EQUAL( SoftXMT_nodes(), 2 );
 
-  DVLOG(1) << "Spawning user main thread....";
+  DVLOG(1) << "Spawning user main Thread....";
   SoftXMT_run_user_main( &user_main, NULL );
   BOOST_CHECK( SoftXMT_done() == true );
 
