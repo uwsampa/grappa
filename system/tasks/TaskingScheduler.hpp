@@ -2,7 +2,10 @@
 #define _TASKING_SCHEDULER_HPP_
 
 #include "Scheduler.hpp"
+#include <Timestamp.hpp>
 #include <glog/logging.h>
+
+DECLARE_int64( periodic_poll_ticks );
 
 class TaskManager;
 struct task_worker_args;
@@ -26,9 +29,15 @@ class TaskingScheduler : public Scheduler {
         task_worker_args * work_args;
 
         // STUB: replace with real periodic threads
+        SoftXMT_Timestamp previous_periodic_ts;
         int periodctr;
         Thread * periodicDequeue() {
-            if (periodctr++ % 128 == 0) {
+	    // tick the timestap counter
+	    SoftXMT_tick();
+	    SoftXMT_Timestamp current_ts = SoftXMT_get_timestamp();
+
+	    if( current_ts - previous_periodic_ts > FLAGS_periodic_poll_ticks ) {
+	        previous_periodic_ts =  current_ts;
                 return periodicQ.dequeue();
             } else {
                 return NULL;

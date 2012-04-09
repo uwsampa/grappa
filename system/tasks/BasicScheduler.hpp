@@ -2,9 +2,12 @@
 #define _BASIC_SCHEDULER_HPP_
 
 #include "Scheduler.hpp"
+#include <Timestamp.hpp>
 #include <glog/logging.h>
 
 /// A basic scheduler with just a readyQ and periodicQ
+
+DECLARE_int64( periodic_poll_ticks );
 
 class BasicScheduler : public Scheduler {
     private:
@@ -16,9 +19,14 @@ class BasicScheduler : public Scheduler {
         threadid_t nextId;
         
         // STUB: replace with real periodic threads
+        SoftXMT_Timestamp previous_periodic_ts;
         int periodctr;
         Thread * periodicDequeue() {
-            if (periodctr++ % 128 == 0) {
+	    // tick the timestap counter
+	    SoftXMT_tick();
+	    SoftXMT_Timestamp current_ts = SoftXMT_get_timestamp();
+
+	    if( current_ts - previous_periodic_ts > FLAGS_periodic_poll_ticks ) {
                 return periodicQ.dequeue();
             } else {
                 return NULL;
