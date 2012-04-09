@@ -5,9 +5,9 @@
 #include "Delegate.hpp"
 #include "Tasking.hpp"
 
-/// 8 tasks are spawned; first 4 meant to be stolen, then 4 meant to stay put
-/// chunksize is 4 to ensure half the 8 will be released and stolen
-/// these 4 stolen tasks are meant to wake the unstolen tasks
+/// tasks_per_node*nodes tasks are spawned; all but 4 meant to be stolen,
+/// chunksize is 4 to ensure every node gets copy of indices 0,1,2,3.
+/// A index task on each node must enter the multibarrier to continue
 BOOST_AUTO_TEST_SUITE( Stealing_tests );
 
 int tasks_per_node = 4;
@@ -17,6 +17,8 @@ int64_t num_stolen_started = 0;
 int64_t vals[4] = {0};
 Thread * threads[4]={NULL};
 Thread * dummy_thr=NULL;
+bool isWoken[4] = {false};
+bool isActuallyAsleep[4] = {false};
 
 struct task1_arg {
     int num;
@@ -36,7 +38,10 @@ struct wakeindex_args {
 };
 
 void wakeindex_f( wakeindex_args * args, size_t size, void * payload, size_t payload_size ) {
-    SoftXMT_wake( threads[args->index] );
+    isWoken[args->index] = true;
+    if (isActuallyAsleep[args->index]) {
+        SoftXMT_wake( threads[args->index] );
+    }
 }
 
 void multiBarrier( int index ) {
@@ -46,7 +51,10 @@ void multiBarrier( int index ) {
     if ( result < SoftXMT_nodes()-1 ) {
         // I not last so suspend
         BOOST_MESSAGE( index << " suspended index:" << result);
-        SoftXMT_suspend( );
+        isActuallyAsleep[index] = true;
+        if ( !isWoken[index] ) {
+            SoftXMT_suspend( );
+        }
         BOOST_MESSAGE( index << " wake from barrier");
     } else if ( result == SoftXMT_nodes()-1 ) {
         BOOST_MESSAGE( index << " is last and sending");
