@@ -32,12 +32,12 @@ class TaskingScheduler : public Scheduler {
         SoftXMT_Timestamp previous_periodic_ts;
         int periodctr;
         Thread * periodicDequeue() {
-	    // tick the timestap counter
-	    SoftXMT_tick();
-	    SoftXMT_Timestamp current_ts = SoftXMT_get_timestamp();
+            // tick the timestap counter
+            SoftXMT_tick();
+            SoftXMT_Timestamp current_ts = SoftXMT_get_timestamp();
 
-	    if( current_ts - previous_periodic_ts > FLAGS_periodic_poll_ticks ) {
-	        previous_periodic_ts =  current_ts;
+            if( current_ts - previous_periodic_ts > FLAGS_periodic_poll_ticks ) {
+                previous_periodic_ts =  current_ts;
                 return periodicQ.dequeue();
             } else {
                 return NULL;
@@ -54,29 +54,29 @@ class TaskingScheduler : public Scheduler {
                 // check for periodic tasks
                 result = periodicDequeue();
                 if (result != NULL) {
-                    DVLOG(5) << current_thread->id << " scheduler: pick periodic";
+                 //   DVLOG(5) << current_thread->id << " scheduler: pick periodic";
                     return result;
                 }
 
                 // check ready tasks
                 result = readyQ.dequeue();
                 if (result != NULL) {
-                    DVLOG(5) << current_thread->id << " scheduler: pick ready";
+                //    DVLOG(5) << current_thread->id << " scheduler: pick ready";
                     return result;
                 }
 
                 // check for new workers
                 result = getWorker();
                 if (result != NULL) {
-                    DVLOG(5) << current_thread->id << " scheduler: pick task worker";
+                  //  DVLOG(5) << current_thread->id << " scheduler: pick task worker";
                     return result;
                 }
 
                 // no coroutines can run, so handle
-                DVLOG(5) << current_thread->id << " scheduler: no coroutines can run"
+                /*DVLOG(5) << current_thread->id << " scheduler: no coroutines can run"
                     << "[isBlocking=" << isBlocking
                     << " periodQ=" << (periodicQ.empty() ? "empty" : "full")
-                    << " unassignedQ=" << (unassignedQ.empty() ? "empty" : "full") << "]";
+                    << " unassignedQ=" << (unassignedQ.empty() ? "empty" : "full") << "]";*/
                 usleep(1);
             } while ( isBlocking || !queuesFinished() );
             // exit if all threads exited, including idle workers
@@ -159,7 +159,7 @@ inline bool TaskingScheduler::thread_yield( ) {
     bool gotRescheduled = (next == yieldedThr);
     
     current_thread = next;
-    DVLOG(5) << "Thread " << yieldedThr->id << " yielding to " << next->id << (gotRescheduled ? " (same thread)." : " (diff thread).");
+    //DVLOG(5) << "Thread " << yieldedThr->id << " yielding to " << next->id << (gotRescheduled ? " (same thread)." : " (diff thread).");
     thread_context_switch( yieldedThr, next, NULL);
     
     return gotRescheduled; // 0=another ran; 1=me got rescheduled immediately
@@ -178,7 +178,7 @@ inline bool TaskingScheduler::thread_yield_periodic( ) {
     bool gotRescheduled = (next == yieldedThr);
     
     current_thread = next;
-    DVLOG(5) << "Thread " << yieldedThr->id << " yielding to " << next->id << (gotRescheduled ? " (same thread)." : " (diff thread).");
+    //DVLOG(5) << "Thread " << yieldedThr->id << " yielding to " << next->id << (gotRescheduled ? " (same thread)." : " (diff thread).");
     thread_context_switch( yieldedThr, next, NULL);
     
     return gotRescheduled; // 0=another ran; 1=me got rescheduled immediately
