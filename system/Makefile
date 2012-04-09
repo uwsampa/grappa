@@ -72,6 +72,7 @@ MutableHeap_tests.test:
 Delegate_tests.test: libSoftXMT.a
 Addressing_tests.test: libSoftXMT.a
 GlobalMemoryChunk_tests.test: libSoftXMT.a
+GlobalMemory_tests.test: libSoftXMT.a
 GlobalAllocator_tests.test: libSoftXMT.a
 Allocator_tests.test: Allocator.o
 
@@ -80,6 +81,7 @@ Collective_tests.test: libSoftXMT.a
 #thread_tests.test: thread.o stack.o coro.o
 thread2_tests.test: libSoftXMT.a
 thread3_tests.test: libSoftXMT.a
+tasks/Thread_tests.test: tasks/Thread.o coro.o stack.o tasks/BasicScheduler.o Timestamp.o
 
 Cache_tests.test: libSoftXMT.a
 Rate_measure.exe: libSoftXMT.a
@@ -93,7 +95,7 @@ ForkJoin_tests.test: libSoftXMT.a
 #
 # Build SoftXMT static library
 #
-LIBRARY_CONTENTS= SoftXMT.o GlobalAllocator.o GlobalMemory.o Communicator.o Aggregator.o Timestamp.o Allocator.o Cache.o Delegate.o Collective.o ForkJoin.o tasks/gasnet_cbarrier.o tasks/TaskingScheduler.o tasks/Task.o tasks/Thread.o tasks/stack.o tasks/coro.o 
+LIBRARY_CONTENTS= SoftXMT.o GlobalAllocator.o GlobalMemory.o Communicator.o Aggregator.o Timestamp.o Allocator.o Cache.o Delegate.o Collective.o ForkJoin.o tasks/gasnet_cbarrier.o tasks/TaskingScheduler.o tasks/Task.o tasks/Thread.o stack.o coro.o 
 libSoftXMT.a: $(patsubst %,libSoftXMT.a(%),$(LIBRARY_CONTENTS))
 
 
@@ -169,6 +171,7 @@ CFLAGS+= -D_GNU_SOURCE
 # not sure if this is a good idea
 CFLAGS+= -Wno-inline
 #CFLAGS+= -Wall -Wextra
+CFLAGS+= -I. -I./tasks
 
 #
 # set debug flags
@@ -236,18 +239,18 @@ TESTS:=$(wildcard *.test)
 #	@sed -e 's/.*://' -e 's/\\$$//' < $*.d.tmp | fmt -1 | \
 #	  sed -e 's/^ *//' -e 's/$$/:/' >> $*.d
 #	@rm -f $*.d.tmp
-#
-#coro.o: coro.c Makefile
-#	$($(MPITYPE)_CC) -c $(CFLAGS) $< -o $*.o
-#	$($(MPITYPE)_CC) -MM $(CFLAGS) $< > $*.d
-#	@mv -f $*.d $*.d.tmp
-#	@sed -e 's|.*:|$*.o:|' < $*.d.tmp > $*.d
-#	@sed -e 's/.*://' -e 's/\\$$//' < $*.d.tmp | fmt -1 | \
-#	  sed -e 's/^ *//' -e 's/$$/:/' >> $*.d
-#	@rm -f $*.d.tmp
-#
-#stack.o: stack.S Makefile
-#	$($(MPITYPE)_CC) -c $(CFLAGS) $< -o $*.o
+
+coro.o: coro.c Makefile
+	$($(MPITYPE)_CXX) -c $(CFLAGS) $< -o $*.o
+	$($(MPITYPE)_CXX) -MM $(CFLAGS) $< > $*.d
+	@mv -f $*.d $*.d.tmp
+	@sed -e 's|.*:|$*.o:|' < $*.d.tmp > $*.d
+	@sed -e 's/.*://' -e 's/\\$$//' < $*.d.tmp | fmt -1 | \
+	  sed -e 's/^ *//' -e 's/$$/:/' >> $*.d
+	@rm -f $*.d.tmp
+
+stack.o: stack.S Makefile
+	$($(MPITYPE)_CC) -c $(CFLAGS) $< -o $*.o
 
 
 CLEAN_FILES= *.exe *.o *.d *.test *.dis libSoftXMT.a ./tasks/*.o $($(MPITYPE)_CLEAN_FILES)
