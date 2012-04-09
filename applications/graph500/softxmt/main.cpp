@@ -288,6 +288,17 @@ static void compute_levels(GlobalAddress<int64_t> level, int64_t nv, GlobalAddre
   }
 }
 
+struct verify_func : ForkJoinIteration {
+  GlobalAddress<int64_t> bfs_tree;
+  GlobalAddress<packed_edge> edges;
+  GlobalAddress<int64_t> seen_edge;
+  GlobalAddress<int64_t> level;
+  GlobalAddress<int64_t> nedge_traversed;
+  void operator()(int64_t index) {
+    
+  }
+};
+
 static int64_t verify_bfs_tree(GlobalAddress<int64_t> bfs_tree, int64_t max_bfsvtx, int64_t root, tuple_graph * tg) {
   assert(SoftXMT_delegate_read_word(bfs_tree+root) == root);
   
