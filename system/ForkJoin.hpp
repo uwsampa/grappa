@@ -1,9 +1,13 @@
 #include "SoftXMT.hpp"
 #include "Addressing.hpp"
+#include "tasks/Thread.hpp"
+
 #include <iostream>
+#include <glog/logging.h>
+#include <fstream>
+
 #include <boost/static_assert.hpp>
 #include <boost/type_traits/is_base_of.hpp>
-#include "tasks/Thread.hpp"
 
 //#define VLOG(verboselevel) VLOG(verboselevel) << "<" << SoftXMT_mynode() << "> "
 
