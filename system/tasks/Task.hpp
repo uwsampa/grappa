@@ -52,10 +52,12 @@ class TaskManager {
         bool workDone;
         bool mightBeWork; // flag to enable wake up optimization
        
+        bool inCBarrier;
+
         bool doSteal;   // stealing on/off
         bool okToSteal; // steal lock
         int cbint;      // how often to make local public work visible
-        
+
         // to support hierarchical dynamic load balancing
         Node localId;
         Node* neighbors;
@@ -151,6 +153,18 @@ template < typename ArgsStruct >
 inline void TaskManager::spawnPrivate( void (*f)(ArgsStruct * arg), ArgsStruct * arg ) {
     Task newtask = createTask(f, arg, SoftXMT_mynode());
     privateQ.push_front( newtask );
+     
+    // TODO: only need to check this if spawnPrivate called from AM
+    // ie write a separate remote spawn
+    
+    // goal is just to notify the barrier that mynode is not in the barrier
+    // any longer, so just call cancel if mynode is in the barrier
+    if ( inCBarrier ) { 
+        cbarrier_cancel();
+        //TODO more efficient local cancel since we produced only private work
+    } 
+
+    // if not in cbarrier, then do nothing, since available()-->true if privateQ has element
 }
 
 

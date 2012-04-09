@@ -21,6 +21,7 @@ void Task::execute( ) {
 TaskManager::TaskManager (bool doSteal, Node localId, Node* neighbors, Node numLocalNodes, int chunkSize, int cbint) 
     : workDone( false )
     , doSteal( doSteal ), okToSteal( true ), mightBeWork ( true )
+    , inCBarrier( false ),
     , localId( localId ), neighbors( neighbors ), numLocalNodes( numLocalNodes )
     , chunkSize( chunkSize ), cbint( cbint ) 
     , privateQ( )
@@ -94,7 +95,10 @@ bool TaskManager::getWork ( Task* result ) {
             DVLOG(5) << CURRENT_THREAD << " saw all were idle so suggest barrier";
          
             // no work so suggest global termination barrier
-            if (cbarrier_wait()) {
+            inCBarrier = true;
+            int finished_barrier = cbarrier_wait();
+            inCBarrier = false;
+            if (finished_barrier) {
                 DVLOG(5) << CURRENT_THREAD << " left barrier from finish";
                 workDone = true;
                 SoftXMT_notifyTasksDone( );
