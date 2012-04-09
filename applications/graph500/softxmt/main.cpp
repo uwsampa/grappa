@@ -97,15 +97,6 @@ static void choose_bfs_roots(GlobalAddress<int64_t> xoff, int64_t nvtx, int64_t 
   }
 }
 
-struct func_set_const : public ForkJoinIteration {
-  GlobalAddress<int64_t> base_addr;
-  int64_t value;
-  void operator()(int64_t index) {
-    Incoherent<int64_t>::RW c(base_addr+index, 1);
-    c[0] = value;
-  }
-};
-
 #define BUF_LEN 16384
 
 struct func_bfs_onelevel : public ForkJoinIteration {

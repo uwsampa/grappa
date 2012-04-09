@@ -19,7 +19,7 @@ mrg_state * prng_state;
 
 #define NRAND(ne) (5 * SCALE * (ne))
 
-struct func_initialize : public ForkJoinIteration {
+struct func_set_seq : public ForkJoinIteration {
   GlobalAddress<int64_t> base_addr;
   int64_t value;
   void operator()(int64_t index) {
@@ -109,7 +109,7 @@ static void permute_vertex_labels (GlobalAddress<packed_edge> ij, int64_t nedge,
   //	for (k = 0; k < max_nvtx; ++k)
   //		newlabel[k] = k;
   {
-    func_initialize f;
+    func_set_seq f;
     f.base_addr = newlabel;
     f.value = 0.0;
     fork_join(&f, 0, max_nvtx);

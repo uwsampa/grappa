@@ -33,21 +33,6 @@
 
 static int64_t maxvtx, nv;
 
-//struct temp_graph_data {
-//  GlobalAddress<int64_t> xoff, xadjstore, xadj;
-//  int64_t nv;
-//};
-
-struct func_set_const : public ForkJoinIteration {
-  GlobalAddress<int64_t> base_addr;
-  int64_t value;
-  void operator()(int64_t index) {
-//    DVLOG(3) << "called func_initialize with index = " << index;
-    Incoherent<int64_t>::RW c(base_addr+index, 1);
-    c[0] = value;
-  }
-};
-
 struct max_func : public ForkJoinIteration {
   GlobalAddress<packed_edge> edges;
   int64_t * max;
@@ -192,7 +177,7 @@ static void setup_deg_off(const tuple_graph * const tg, csr_graph * g) {
   
   // make sure every degree is at least MINVECT_SIZE (don't know why yet...)
   minvect_func fm; fm.xoff = g->xoff;
-  fork_join(CURRENT_THREAD, &fm, 0, g->nv);
+  fork_join(&fm, 0, g->nv);
   
   // simple parallel prefix sum to compute offsets from degrees
   int64_t accum = prefix_sum(g->xoff, g->nv);
