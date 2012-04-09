@@ -72,6 +72,7 @@ MutableHeap_tests.test:
 Delegate_tests.test: libSoftXMT.a
 Addressing_tests.test: libSoftXMT.a
 GlobalMemoryChunk_tests.test: libSoftXMT.a
+GlobalMemory_tests.test: libSoftXMT.a
 GlobalAllocator_tests.test: libSoftXMT.a
 Allocator_tests.test: Allocator.o
 
