@@ -60,7 +60,7 @@ public:
 };
 
 struct ForkJoinIteration {
-  void operator()(Thread * me, int64_t index);
+  void operator()(int64_t index);
 };
 
 template<typename T>
@@ -104,7 +104,7 @@ static void th_iters(Thread * me, iters_args* arg) {
   VLOG(3) << "iters_block: " << myblock.start << " - " << myblock.end;
   
   for (int64_t i=myblock.start; i < myblock.end; i++) {
-    (*fj->func)(me, i);
+    (*fj->func)(i);
   }
   fj->finished++;
   if (fj->finished == fj->nthreads) {
@@ -113,8 +113,8 @@ static void th_iters(Thread * me, iters_args* arg) {
 }
 
 template<typename T>
-static void fork_join_onenode(Thread * spawner, T* func, int64_t start, int64_t end) {
-  forkjoin_data_t<T> fj(spawner, func, start, end);
+static void fork_join_onenode(T* func, int64_t start, int64_t end) {
+  forkjoin_data_t<T> fj(CURRENT_THREAD, func, start, end);
   iters_args args[fj.nthreads];
   Thread* ths[fj.nthreads];
   VLOG(3) << "fj.nthreads = " << fj.nthreads;
@@ -136,14 +136,14 @@ template<typename T>
 static void th_node_fork_join(Thread * me, NodeForkJoinArgs<T>* a) {
   range_t myblock = blockDist(a->start, a->end, SoftXMT_mynode(), SoftXMT_nodes());
   VLOG(3) << "myblock: " << myblock.start << " - " << myblock.end;
-  fork_join_onenode(me, &a->func, myblock.start, myblock.end);
+  fork_join_onenode(&a->func, myblock.start, myblock.end);
   
   VLOG(3) << "about to update sem on " << a->sem.node();
   Semaphore::release(&a->sem, 1);
 }
 
 template<typename T>
-static void fork_join(Thread * me, T* func, int64_t start, int64_t end) {
+static void fork_join(T* func, int64_t start, int64_t end) {
   Semaphore sem(SoftXMT_nodes(), 0);
   
   NodeForkJoinArgs<T> fj;
@@ -157,21 +157,21 @@ static void fork_join(Thread * me, T* func, int64_t start, int64_t end) {
     SoftXMT_flush(i); // TODO: remove this?
   }
   VLOG(3) << "waiting to acquire all";
-  sem.acquire_all(me);
+  sem.acquire_all(CURRENT_THREAD);
   
   VLOG(3) << "fork_join done";
 }
 
 template<typename T>
 static void th_node_fork_join_custom(Thread * me, NodeForkJoinArgs<T>* a) {
-  a->func(me, SoftXMT_mynode());
+  a->func(SoftXMT_mynode());
   
   VLOG(3) << "about to update sem on " << a->sem.node();
   Semaphore::release(&a->sem, 1);
 }
 
 template<typename T>
-static void fork_join_custom(Thread * me, T* func) {
+static void fork_join_custom(T* func) {
   Semaphore sem(SoftXMT_nodes(), 0);
   
   NodeForkJoinArgs<T> fj;
@@ -185,7 +185,7 @@ static void fork_join_custom(Thread * me, T* func) {
     SoftXMT_flush(i); // TODO: remove this?
   }
   VLOG(3) << "waiting to acquire all";
-  sem.acquire_all(me);
+  sem.acquire_all(CURRENT_THREAD);
   
   VLOG(3) << "fork_join done";
 }

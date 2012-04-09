@@ -22,7 +22,7 @@ mrg_state * prng_state;
 struct func_initialize : public ForkJoinIteration {
   GlobalAddress<int64_t> base_addr;
   int64_t value;
-  void operator()(Thread * me, int64_t index) {
+  void operator()(int64_t index) {
 //    DVLOG(3) << "called func_initialize with index = " << index;
     Incoherent<int64_t>::RW c(base_addr+index, 1);
     c[0] = value+index;
@@ -33,7 +33,7 @@ struct randpermute_func : public ForkJoinIteration {
   GlobalAddress<int64_t> array;
   int64_t nelem;
   mrg_state st;
-  void operator()(Thread * me, int64_t index) {
+  void operator()(int64_t index) {
     int64_t k = index;
     int64_t place;
     //    elt_type Ak, Aplace;
@@ -92,7 +92,7 @@ struct write_edge_func : public ForkJoinIteration {
   GlobalAddress<int64_t> newlabel;
   GlobalAddress<packed_edge> ij;
   int64_t nedge;
-  void operator()(Thread * me, int64_t index) {
+  void operator()(int64_t index) {
     Incoherent<packed_edge>::RW edge(ij+index, 1);
     int64_t v0 = (*edge).v0;
     int64_t v1 = (*edge).v1;
@@ -112,7 +112,7 @@ static void permute_vertex_labels (GlobalAddress<packed_edge> ij, int64_t nedge,
     func_initialize f;
     f.base_addr = newlabel;
     f.value = 0.0;
-    fork_join(CURRENT_THREAD, &f, 0, max_nvtx);
+    fork_join(&f, 0, max_nvtx);
   }
   
   //	randpermute(newlabel, max_nvtx, st);
@@ -136,7 +136,7 @@ static void permute_vertex_labels (GlobalAddress<packed_edge> ij, int64_t nedge,
     write_edge_func f;
     f.newlabel = newlabel;
     f.ij = ij;
-    fork_join(CURRENT_THREAD, &f, 0, nedge);
+    fork_join(&f, 0, nedge);
   }
 }
 
@@ -189,7 +189,7 @@ struct random_edges_functor : public ForkJoinIteration {
   int64_t nedge;
   mrg_state * prng_state;
   int SCALE;
-  void operator()(Thread * me, int64_t index) {
+  void operator()(int64_t index) {
     double * restrict Rlocal = (double*)alloca(NRAND(1) * sizeof(double));
     mrg_skip(prng_state, 1, NRAND(1), 0);
     for (int64_t i=0; i < NRAND(1); i++) {
@@ -209,7 +209,7 @@ struct random_edges_node_work : public ForkJoinIteration {
   GlobalAddress<int64_t> iwork;
   int64_t nedge;
   int SCALE;
-  void operator()(Thread * me, int64_t mynode) {
+  void operator()(int64_t mynode) {
     range_t myblock = blockDist(0, nedge, mynode, SoftXMT_nodes());
     random_edges_functor f;
     f.ij = edges;
@@ -217,7 +217,7 @@ struct random_edges_node_work : public ForkJoinIteration {
     f.nedge = nedge;
     f.prng_state = &local_prng_state;
     f.SCALE = SCALE;
-    fork_join_onenode(me, &f, myblock.start, myblock.end);
+    fork_join_onenode(&f, myblock.start, myblock.end);
   }
 };
 
@@ -241,7 +241,7 @@ void rmat_edgelist(tuple_graph* grin, int SCALE) {
     f.nedge = grin->nedge;
     f.local_prng_state = prng_state_store;
     f.SCALE = SCALE;
-    fork_join_custom(CURRENT_THREAD, &f);
+    fork_join_custom(&f);
   }
   VLOG(1) << "done: random_edges forkjoin";
   
