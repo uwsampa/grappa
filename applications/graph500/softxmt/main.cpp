@@ -100,7 +100,7 @@ static void choose_bfs_roots(GlobalAddress<int64_t> xoff, int64_t nvtx, int64_t 
 struct func_set_const : public ForkJoinIteration {
   GlobalAddress<int64_t> base_addr;
   int64_t value;
-  void operator()(thread * me, int64_t index) {
+  void operator()(Thread * me, int64_t index) {
     Incoherent<int64_t>::RW c(base_addr+index, 1);
     c[0] = value;
   }
@@ -117,7 +117,7 @@ struct func_bfs_onelevel : public ForkJoinIteration {
   int64_t * kbuf;
   int64_t * buf;
   int64_t nadj;
-  void operator()(thread * me, int64_t k) {
+  void operator()(Thread * me, int64_t k) {
     const int64_t v = SoftXMT_delegate_read_word(vlist+k);
     
     // TODO: do these two together (cache)
@@ -156,7 +156,7 @@ struct func_bfs_node : public ForkJoinIteration {
   GlobalAddress<int64_t> k2;
   int64_t start, end;
   int64_t nadj; // TODO: DEBUG only...
-  void operator()(thread * me, int64_t mynode) {
+  void operator()(Thread * me, int64_t mynode) {
     int64_t kbuf;
     int64_t buf[BUF_LEN];
     
@@ -200,7 +200,7 @@ static double make_bfs_tree(csr_graph * g, GlobalAddress<int64_t> bfs_tree, int6
   func_set_const fc;
   fc.base_addr = bfs_tree;
   fc.value = -1;
-  fork_join(current_thread, &fc, 0, NV);
+  fork_join(CURRENT_THREAD, &fc, 0, NV);
   
   SoftXMT_delegate_write_word(bfs_tree+root, root); // parent of root is self
   
@@ -219,7 +219,7 @@ static double make_bfs_tree(csr_graph * g, GlobalAddress<int64_t> bfs_tree, int6
     fb.start = k1;
     fb.end = oldk2;
 
-    fork_join_custom(get_current_thread(), &fb);
+    fork_join_custom(CURRENT_THREAD, &fb);
     
     k1 = oldk2;
   }
@@ -453,7 +453,7 @@ static void run_bfs(tuple_graph * tg) {
   }
 }
 
-static void user_main(thread * me, void * args) {    
+static void user_main(Thread * me, void * args) {    
   tuple_graph tg;
   tg.nedge = (int64_t)(edgefactor) << SCALE;
   tg.edges = SoftXMT_typed_malloc<packed_edge>(tg.nedge);
