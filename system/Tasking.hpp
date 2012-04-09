@@ -24,3 +24,12 @@ void SoftXMT_publicTask( void (*fn_p)(ArgsStruct * arg), ArgsStruct * arg)
     my_task_manager->spawnPublic( fn_p, arg );
 }
 
+
+
+///// Spawn a private task on another Node
+//template < typename ArgsStruct >
+//void SoftXMT_remotePrivateTask( Node target, void (*fn_p)(ArgsStruct * arg), ArgsStruct * arg)
+//{
+//    SoftXMT_call_on( target, &remote_task_spawn_am, arg );
+//}
+//
