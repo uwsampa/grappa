@@ -5,16 +5,20 @@
 #include "Delegate.hpp"
 #include "Tasking.hpp"
 
-/// 8 tasks are spawned; first 4 meant to be stolen, then 4 meant to stay put
-/// chunksize is 4 to ensure half the 8 will be released and stolen
-/// these 4 stolen tasks are meant to wake the unstolen tasks
+/// tasks_per_node*nodes tasks are spawned; all but 4 meant to be stolen,
+/// chunksize is 4 to ensure every node gets copy of indices 0,1,2,3.
+/// A index task on each node must enter the multibarrier to continue
 BOOST_AUTO_TEST_SUITE( Stealing_tests );
 
 int tasks_per_node = 4;
 int num_tasks;
 int64_t num_finished=0;
+int64_t num_stolen_started = 0;
 int64_t vals[4] = {0};
-Thread * threads[4];
+Thread * threads[4]={NULL};
+Thread * dummy_thr=NULL;
+bool isWoken[4] = {false};
+bool isActuallyAsleep[4] = {false};
 
 struct task1_arg {
     int num;
@@ -34,7 +38,10 @@ struct wakeindex_args {
 };
 
 void wakeindex_f( wakeindex_args * args, size_t size, void * payload, size_t payload_size ) {
-    SoftXMT_wake( threads[args->index] );
+    isWoken[args->index] = true;
+    if (isActuallyAsleep[args->index]) {
+        SoftXMT_wake( threads[args->index] );
+    }
 }
 
 void multiBarrier( int index ) {
@@ -43,8 +50,11 @@ void multiBarrier( int index ) {
     int64_t result = SoftXMT_delegate_fetch_and_add_word( vals_addr, 1 );
     if ( result < SoftXMT_nodes()-1 ) {
         // I not last so suspend
-        BOOST_MESSAGE( index << " suspended");
-        SoftXMT_suspend( );
+        BOOST_MESSAGE( index << " suspended index:" << result);
+        isActuallyAsleep[index] = true;
+        if ( !isWoken[index] ) {
+            SoftXMT_suspend( );
+        }
         BOOST_MESSAGE( index << " wake from barrier");
     } else if ( result == SoftXMT_nodes()-1 ) {
         BOOST_MESSAGE( index << " is last and sending");
@@ -81,12 +91,25 @@ void task_local( task1_arg * arg ) {
     }
 }
 
+void wakedum_f( wake_arg * unused, size_t arg_size, void * payload, size_t payload_size ) {
+    if ( dummy_thr != NULL ) {
+        SoftXMT_wake( dummy_thr );
+    }
+}
+
 void task_stolen( task1_arg * arg ) {
     int mynum = arg->num;
     Thread * parent = arg->parent;
 
     // this task should have been stolen and running on not 0
     BOOST_CHECK( 0 != SoftXMT_mynode() );
+    
+    GlobalAddress<int64_t> dum_addr = GlobalAddress<int64_t>::TwoDimensional( &num_stolen_started, 0 );
+    int64_t result_d = SoftXMT_delegate_fetch_and_add_word( dum_addr, 1 );
+    if ( result_d == (SoftXMT_nodes()-1)*tasks_per_node - 1 ) {
+        wake_arg wwwarg = {NULL};
+        SoftXMT_call_on( 0, &wakedum_f, &wwwarg);
+    }
 
     // wake the corresponding task on Node 0
     BOOST_MESSAGE( CURRENT_THREAD << " with task(stolen) " << mynum << " about to enter multi barrier" );
@@ -104,9 +127,15 @@ void task_stolen( task1_arg * arg ) {
     }     
 }
 
+
 void dummy_f( task1_arg * arg ) {
-    // do nothing
-    BOOST_MESSAGE( "dummy runs" );
+    // must wait until all stolen tasks start
+    BOOST_MESSAGE( "dummy start" );
+    while ( num_stolen_started < (SoftXMT_nodes()-1)*tasks_per_node) {
+        dummy_thr = CURRENT_THREAD;
+        SoftXMT_suspend();
+    }
+    BOOST_MESSAGE( "dummy done" );
 }
 
 void user_main( Thread * me, void * args ) 
@@ -125,13 +154,17 @@ void user_main( Thread * me, void * args )
     argss[ta] = { ta, me };
     SoftXMT_publicTask( &task_local, &argss[ta] );
   }
-  // another task to allow the last steal to happend ( localdepth > 2*chunkize)
+  // another task to allow the last steal to happen ( localdepth > 2*chunkize)
   SoftXMT_publicTask( &dummy_f, &argss[0] );
 
-  SoftXMT_suspend( );  // currently here just not to starve workers
+  // wait for tasks to finish
+  SoftXMT_waitForTasks( );
+
+  // tell all nodes to close communication
+  SoftXMT_signal_done( );
 
   BOOST_MESSAGE( "user main is exiting" );
-  SoftXMT_signal_done();
+
 }
 
 

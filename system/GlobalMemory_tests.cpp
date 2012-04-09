@@ -28,8 +28,9 @@ void user_main( Thread * me, void * args )
 
   // SoftXMT_free(data);
 
+  SoftXMT_waitForTasks( );
   BOOST_MESSAGE( "signaling done" );
-  SoftXMT_signal_done();
+  SoftXMT_signal_done( );
   BOOST_MESSAGE( "signaled done" );
 }
 
