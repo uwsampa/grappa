@@ -21,7 +21,7 @@ void Task::execute( ) {
 TaskManager::TaskManager (bool doSteal, Node localId, Node* neighbors, Node numLocalNodes, int chunkSize, int cbint) 
     : workDone( false )
     , doSteal( doSteal ), okToSteal( true ), mightBeWork ( true )
-    , inCBarrier( false ),
+    , inCBarrier( false )
     , localId( localId ), neighbors( neighbors ), numLocalNodes( numLocalNodes )
     , chunkSize( chunkSize ), cbint( cbint ) 
     , privateQ( )
