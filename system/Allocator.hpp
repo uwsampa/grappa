@@ -131,8 +131,10 @@ public:
     , free_lists_( )
   { 
     // must pass a non-zero chunk to constructor
-    assert( size != 0 );
-    
+    CHECK( size != 0 ) << "Must pass a non-zero chunk size to constructor";
+
+    DVLOG(1) << "Allocator is responsible for addresses from " << base << " to " << (void*) ((char*) base + size);
+
     intptr_t offset = 0;
 
     // add chunks
