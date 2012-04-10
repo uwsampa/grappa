@@ -27,11 +27,11 @@ void task1_f( task1_arg * arg ) {
     SoftXMT_yield( );
     BOOST_MESSAGE( CURRENT_THREAD << " with task " << mynum << " is done" );
 
-    int64_t result = SoftXMT_delegate_fetch_and_add_word( nf_addr, 1 );
-    BOOST_MESSAGE( CURRENT_THREAD << " with task " << mynum << " result=" << result );
-    if ( result == num_tasks-1 ) {
-        SoftXMT_wake( parent );
-    }
+//    int64_t result = SoftXMT_delegate_fetch_and_add_word( nf_addr, 1 );
+//    BOOST_MESSAGE( CURRENT_THREAD << " with task " << mynum << " result=" << result );
+//    if ( result == num_tasks-1 ) {
+//        SoftXMT_wake( parent );
+//    }
 }
 
 void user_main( Thread * me, void * args ) 
@@ -44,7 +44,7 @@ void user_main( Thread * me, void * args )
     SoftXMT_privateTask( &task1_f, &argss[ta] );
   }
 
-  SoftXMT_suspend( );  
+  SoftXMT_waitForTasks();
 
   BOOST_MESSAGE( "user main is exiting" );
   SoftXMT_signal_done();
