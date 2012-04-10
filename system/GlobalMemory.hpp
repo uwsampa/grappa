@@ -11,6 +11,7 @@
 class GlobalMemory
 {
 private:
+  size_t size_per_node_;
   GlobalMemoryChunk chunk_;
   GlobalAllocator allocator_;
 
