@@ -10,7 +10,7 @@ coro *coro_spawn(coro *me, coro_func f, size_t ssize) {
   c->running = 0;
   c->base = malloc(ssize);
   assert(c->base != NULL);
-  c->stack = c->base + ssize;
+  c->stack = (char*) c->base + ssize;
   memset(c->base, 0, ssize);
   makestack(&me->stack, &c->stack, f, c);
   return c;

@@ -91,11 +91,24 @@ public:
   /// construct a linear global address
   static GlobalAddress Linear( T * t, Pool p = 0 )
   {
+    intptr_t tt = reinterpret_cast< intptr_t >( t );
+
+    intptr_t offset = tt % block_size;
+    intptr_t block = tt / block_size;
+    // intptr_t node_from_address = block % SoftXMT_nodes();
+    // CHECK_EQ( node_from_address, 0 ) << "Node from address should be zero. (Check alignment?)";
+    intptr_t ga = ( block * SoftXMT_nodes() + SoftXMT_mynode() ) * block_size + offset;
+    
+    T * ttt = reinterpret_cast< T * >( ga );
+    
     GlobalAddress g;
     g.storage_ = ( ( 0L << tag_shift_val ) |
                    //( ( n & node_mask) << node_shift_val ) |
-                   ( reinterpret_cast<intptr_t>( t ) ) );
-    assert( reinterpret_cast<intptr_t>( t ) >> node_shift_val == 0 );
+                   ( reinterpret_cast<intptr_t>( ttt ) ) );
+
+    CHECK_EQ( g.node(), SoftXMT_mynode() ) << "converted linear address node doesn't match";
+    CHECK_EQ( g.pointer(), t ) << "converted linear address local pointer doesn't match";
+    
     return g;
   }
 
@@ -285,22 +298,9 @@ GlobalAddress< T > make_global( T * t, Node n = SoftXMT_mynode() ) {
 /// a linear global pointer pointing to that byte.
 template< typename T >
 GlobalAddress< T > make_linear( T * t ) {
-  intptr_t tt = reinterpret_cast< intptr_t >( t );
-
-  intptr_t offset = tt % block_size;
-  intptr_t block = tt / block_size;
-  // intptr_t node_from_address = block % SoftXMT_nodes();
-  // CHECK_EQ( node_from_address, 0 ) << "Node from address should be zero. (Check alignment?)";
-  intptr_t ga = ( block * SoftXMT_nodes() + SoftXMT_mynode() ) * block_size + offset;
-
-  T * ttt = reinterpret_cast< T * >( ga );
-  GlobalAddress< T > tttt = GlobalAddress< T >::Linear( ttt, 0 );
-
-  CHECK_EQ( tttt.node(), SoftXMT_mynode() ) << "converted linear address node doesn't match";
-  CHECK_EQ( tttt.pointer(), t ) << "converted linear address local pointer doesn't match";
-
-  return tttt;
+  return GlobalAddress< T >::Linear( t );
 }
+
 
 template< typename T >
 std::ostream& operator<<( std::ostream& o, const GlobalAddress< T >& ga ) {
