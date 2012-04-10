@@ -13,20 +13,21 @@ BOOST_AUTO_TEST_SUITE( GlobalMemory_tests );
 
 void user_main( Thread * me, void * args ) 
 {
-  // size_t N = 128;
-  // GlobalAddress<int64_t> data = SoftXMT_typed_malloc<int64_t>(N);
+  size_t N = 128;
+  GlobalAddress<int64_t> data = SoftXMT_typed_malloc<int64_t>(N);
   
-  // for (size_t i=0; i<N; i++) {
-  //   SoftXMT_delegate_write_word(data+i, i);
-  // }
+  for (size_t i=0; i<N; i++) {
+    BOOST_MESSAGE( "Writing " << i << " to " << data+i );
+    SoftXMT_delegate_write_word(data+i, i);
+  }
   
-  // for (size_t i=0; i<N; i++) {
-  //   Incoherent<int64_t>::RO c(data+i, 1);
-  //   VLOG(2) << i << " == " << *c;
-  //   BOOST_CHECK_EQUAL(i, *c);
-  // }
+  for (size_t i=0; i<N; i++) {
+    Incoherent<int64_t>::RO c(data+i, 1);
+    VLOG(2) << i << " == " << *c;
+    BOOST_CHECK_EQUAL(i, *c);
+  }
 
-  // SoftXMT_free(data);
+  SoftXMT_free(data);
 
   SoftXMT_waitForTasks( );
   BOOST_MESSAGE( "signaling done" );
@@ -38,7 +39,7 @@ BOOST_AUTO_TEST_CASE( test1 ) {
 
   SoftXMT_init( &(boost::unit_test::framework::master_test_suite().argc),
                 &(boost::unit_test::framework::master_test_suite().argv),
-		1 << 14 );
+		(1L << 20) );
 
   SoftXMT_activate();
 
