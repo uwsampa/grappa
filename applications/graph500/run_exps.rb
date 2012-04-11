@@ -17,9 +17,9 @@ end
 
 # map of parameters; key is the name used in command substitution
 params = {
-  scale: [4, 6, 8, 12, 14],
+  scale: [8, 12, 14, 16, 17, 18],
   edgefactor: [16],
-  nproc: [2], #, 4, 8, 12, 16, 24],
+  nproc: [2, 4], #8, 12, 16, 24],
   machine: [machinename],
 }
 

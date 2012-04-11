@@ -1,5 +1,0 @@
-#!/bin/bash
-echo export GLOG_logtostderr=1
-echo export GLOG_v=1
-echo export LD_LIBRARY_PATH=$LD_LIBRARY_PATH:/usr/local/lib:/sampa/home/bholt/opt/lib:/usr/lib64/openmpi-psm/lib:/usr/local/lib:/sampa/home/bholt/opt/lib::/sampa/share/gflags/lib:/sampa/share/glog/lib:/usr/lib:/sampa/share/gflags/lib:/sampa/share/glog/lib:/usr/lib:/sampa/share/gflags/lib:/sampa/share/glog/lib:/usr/lib:/sampa/share/gperftools-2.0/lib:/sampa/share/gflags/lib:/sampa/share/glog/lib:/usr/lib:/sampa/share/gperftools-2.0/lib:/sampa/share/gflags/lib
-echo export GASNET_BACKTRACE=1
