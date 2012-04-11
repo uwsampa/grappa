@@ -111,6 +111,7 @@ void SoftXMT_waitForTasks( );
 
 void SoftXMT_notifyTasksDone( );
 
+void SoftXMT_dump_stats();
 
 /// Memory management routines.
 
