@@ -54,7 +54,7 @@ void output_results (const int64_t SCALE, int64_t nvtx_scale, int64_t edgefactor
 
 //### Globals ###
 #define NBFS_max 2
-#define MAX_SCALE 20
+#define MEM_SCALE 30
 
 int SCALE;
 int edgefactor;
@@ -353,7 +353,7 @@ static void user_main(Thread * me, void * args) {
 }
 
 int main(int argc, char** argv) {
-  SoftXMT_init(&argc, &argv, 1<<(MAX_SCALE+8));
+  SoftXMT_init(&argc, &argv, (1<<MEM_SCALE)); //*SoftXMT_nodes());
   SoftXMT_activate();
 
   Node rank = SoftXMT_mynode();
@@ -369,7 +369,6 @@ int main(int argc, char** argv) {
     }
     exit(0);
   }
-  assert(SCALE <= MAX_SCALE);
 
   SoftXMT_run_user_main(&user_main, NULL);
 
