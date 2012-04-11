@@ -12,14 +12,15 @@ Aggregator * global_aggregator = NULL;
 
 // Construct Aggregator. Takes a Communicator pointer to register active message handlers
 Aggregator::Aggregator( Communicator * communicator ) 
-  : communicator_( communicator ),
-    max_nodes_( communicator->nodes() ),
-    buffers_( max_nodes_ ),
-    route_map_( max_nodes_ ),
-    autoflush_ticks_( FLAGS_aggregator_autoflush_ticks ),
-    previous_timestamp_( 0L ),
-    least_recently_sent_( ),
-    aggregator_deaggregate_am_handle_( communicator_->register_active_message_handler( &Aggregator_deaggregate_am ) )
+  : communicator_( communicator )
+  , max_nodes_( communicator->nodes() )
+  , buffers_( max_nodes_ )
+  , route_map_( max_nodes_ )
+  , autoflush_ticks_( FLAGS_aggregator_autoflush_ticks )
+  , previous_timestamp_( 0L )
+  , least_recently_sent_( )
+  , aggregator_deaggregate_am_handle_( communicator_->register_active_message_handler( &Aggregator_deaggregate_am ) )
+  , stats()
 { 
   // initialize route map
   for( Node i = 0; i < max_nodes_; ++i ) {
@@ -63,12 +64,13 @@ void Aggregator::deaggregate( ) {
   }
 }
   
+void Aggregator::finish() {
+  stats.dump();
+}
+
 void Aggregator_deaggregate_am( gasnet_token_t token, void * buf, size_t size ) {
   DVLOG(5) << "received message with size " << size;
   // TODO: too much copying
   Aggregator::ReceivedAM am( size, buf );
   global_aggregator->received_AM_queue_.push( am );
 }
-  
-  
-
