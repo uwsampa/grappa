@@ -148,7 +148,8 @@ static void fork_join_onenode(T* func, int64_t start, int64_t end) {
 }
 
 template<typename T>
-static void th_node_fork_join(Thread * me, NodeForkJoinArgs<T>* a) {
+//static void th_node_fork_join(Thread * me, NodeForkJoinArgs<T>* a) {
+static void th_node_fork_join(NodeForkJoinArgs<T>* a) {
   range_t myblock = blockDist(a->start, a->end, SoftXMT_mynode(), SoftXMT_nodes());
   VLOG(3) << "myblock: " << myblock.start << " - " << myblock.end;
   fork_join_onenode(&a->func, myblock.start, myblock.end);
@@ -168,7 +169,9 @@ static void fork_join(T* func, int64_t start, int64_t end) {
   fj.sem = make_global(&sem);
   
   for (int i=0; i < SoftXMT_nodes(); i++) {
-    SoftXMT_remote_spawn(&th_node_fork_join, &fj, i);
+//    SoftXMT_remote_spawn(&th_node_fork_join, &fj, i);
+    SoftXMT_remote_privateTask(&th_node_fork_join, &fj, i);
+    
     SoftXMT_flush(i); // TODO: remove this?
   }
   VLOG(3) << "waiting to acquire all";
