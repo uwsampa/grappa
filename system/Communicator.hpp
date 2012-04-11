@@ -20,6 +20,11 @@
 
 #include <cassert>
 #include <vector>
+#include <iostream>
+#include <ctime>
+
+#include <glog/logging.h>
+
 #include "common.hpp"
 
 #include <gasnet.h>
@@ -47,6 +52,78 @@ typedef int16_t Node;
 /// is true even if the network is configured with a smaller MTU.
 //#define GASNET_NOARG_MAX_MEDIUM (GASNETC_MAX_MEDIUM + sizeof( int32_t ) * 16)
 
+/// Class for recording Communicator stats
+class CommunicatorStatistics {
+private:
+  uint64_t messages;
+  uint64_t bytes;
+  uint64_t histogram[16];
+  timespec start;
+
+  std::ostream& header( std::ostream& o ) {
+    o << "CommunicatorStatistics, header, time, "
+      "messages, bytes, messages_per_second, bytes_per_second, "
+      "0_to_255_bytes, "
+      "256_to_511_bytes, "
+      "512_to_767_bytes, "
+      "768_to_1023_bytes, "
+      "1024_to_1279_bytes, "
+      "1280_to_1535_bytes, "
+      "1536_to_1791_bytes, "
+      "1792_to_2047_bytes, "
+      "2048_to_2303_bytes, "
+      "2304_to_2559_bytes, "
+      "2560_to_2815_bytes, "
+      "2816_to_3071_bytes, "
+      "3072_to_3327_bytes, "
+      "3328_to_3583_bytes, "
+      "3584_to_3839_bytes, "
+      "3840_to_4095_bytes";
+  }
+
+  std::ostream& data( std::ostream& o, double time ) {
+    o << "CommunicatorStatistics, data, " << time << ", ";
+    double messages_per_second = messages / time;
+    double bytes_per_second = bytes / time;
+    o << messages << ", " 
+      << bytes << ", "
+      << messages_per_second << ", "
+      << bytes_per_second;
+    for( int i = 0; i < 16; ++i ) {
+      o << ", " << histogram[ i ];
+    }
+  }
+
+public:
+  CommunicatorStatistics()
+    : messages(0)
+    , bytes(0)
+    , histogram()
+    , start()
+  { 
+    clock_gettime(CLOCK_MONOTONIC, &start);
+    for( int i = 0; i < 16; ++i ) {
+      histogram[i] = 0;
+    }
+  }
+
+  void reset_clock() {
+    clock_gettime(CLOCK_MONOTONIC, &start);
+  }
+
+  void record_message( size_t bytes ) {
+    messages++;
+    bytes += bytes;
+    histogram[ (bytes >> 8) & 0xf ]++;
+  }
+  void dump() {
+    header( LOG(INFO) );
+    timespec end;
+    clock_gettime( CLOCK_MONOTONIC, &end );
+    double time = (end.tv_sec + end.tv_nsec * 0.000000001) - (start.tv_sec + start.tv_nsec * 0.000000001);
+    data( LOG(INFO), time );
+  }
+};
 
 /// Communication layer wrapper class.
 class Communicator {
@@ -66,6 +143,9 @@ private:
 
   /// Are we in the phase that allows communication?
   bool communication_is_allowed_;
+
+  /// Record statistics
+  CommunicatorStatistics stats;
 
 public:
 
@@ -114,6 +194,8 @@ public:
   void activate();
   void finish( int retval = 0 );
 
+  void dump_stats() { stats.dump(); }
+
   /// Get id of this node
   inline Node mynode() const { 
     assert( registration_is_allowed_ || communication_is_allowed_ );
@@ -148,6 +230,7 @@ public:
   inline void send( Node node, int handler, void * buf, size_t size ) { 
     assert( communication_is_allowed_ );
     assert( size < maximum_message_payload_size ); // make sure payload isn't too big
+    stats.record_message( size );
     GASNET_CHECK( gasnet_AMRequestMedium0( node, handler, buf, size ) );
   }
 
