@@ -111,8 +111,8 @@ struct iters_args {
 };
 
 template<typename T>
-//static void th_iters(Thread * me, iters_args* arg) {
-static void task_iters(iters_args * arg) {
+static void th_iters(Thread * me, iters_args* arg) {
+//static void task_iters(iters_args * arg) {
   forkjoin_data_t<T> * fj = static_cast<forkjoin_data_t<T>*>(arg->fjdata);
   range_t myblock = blockDist(fj->local_start, fj->local_end, arg->rank, fj->nthreads);
   VLOG(3) << "iters_block: " << myblock.start << " - " << myblock.end;
@@ -130,21 +130,21 @@ template<typename T>
 static void fork_join_onenode(T* func, int64_t start, int64_t end) {
   forkjoin_data_t<T> fj(CURRENT_THREAD, func, start, end);
   iters_args args[fj.nthreads];
-//  Thread* ths[fj.nthreads];
+  Thread* ths[fj.nthreads];
   VLOG(3) << "fj.nthreads = " << fj.nthreads;
   
   for (int i=0; i<fj.nthreads; i++) {
     args[i].fjdata = &fj;
     args[i].rank = i;
     
-//    ths[i] = SoftXMT_template_spawn(&th_iters<T>, &args[i]);
-    SoftXMT_privateTask(&task_iters<T>, &args[i]);
+    ths[i] = SoftXMT_template_spawn(&th_iters<T>, &args[i]);
+//    SoftXMT_privateTask(&task_iters<T>, &args[i]);
   }
   while (fj.finished < fj.nthreads) SoftXMT_suspend();
   
-//  for (int i=0; i<fj.nthreads; i++) {
-//    destroy_thread(ths[i]);
-//  }
+  for (int i=0; i<fj.nthreads; i++) {
+    destroy_thread(ths[i]);
+  }
 }
 
 template<typename T>
