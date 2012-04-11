@@ -20,9 +20,8 @@ static Aggregator * my_global_aggregator = NULL;
 // TODO: should granular memory pools be stored at this level?
 static GlobalMemory * my_global_memory = NULL;
 
-static Thread * master_thread;
+Thread * master_thread;
 static Thread * user_main_thr;
-static bool user_main_waiting;
 TaskingScheduler * my_global_scheduler;
 TaskManager * my_task_manager;
 
@@ -147,25 +146,6 @@ void SoftXMT_flush( Node n )
 ///
 /// Thread management routines
 ///
-/// Spawn and run user main function on node 0. Other nodes just run
-/// existing threads (service threads) until they are given more to
-/// do. TODO: get return values working TODO: remove Thread * arg
-int SoftXMT_run_user_main( void (* fn_p)(Thread *, void *), void * args )
-{
-  if( SoftXMT_mynode() == 0 ) {
-    CHECK( my_global_scheduler->get_current_thread() == master_thread ); // this should only be run at the toplevel
-    user_main_thr = thread_spawn( my_global_scheduler->get_current_thread(), my_global_scheduler,
-                                  fn_p, args );
-    my_global_scheduler->ready( user_main_thr );
-    user_main_waiting = false;
-    DVLOG(5) << "Spawned main Thread " << user_main_thr;
-  }
-
-  // spawn starting number of worker coroutines
-  my_global_scheduler->createWorkers( FLAGS_num_starting_workers );
-
-  my_global_scheduler->run( );
-}
 
 /// Spawn a user function. TODO: get return values working
 /// TODO: remove Thread * arg
@@ -248,26 +228,8 @@ static void SoftXMT_mark_done_am( void * args, size_t args_size, void * payload,
   SoftXMT_done_flag = true;
 }
 
-/// Wait for all spawned tasks to complete
-/// Cannot be called by a task.
-void SoftXMT_waitForTasks( ) {
-    while ( !my_task_manager->isWorkDone() ) {
-        user_main_waiting = true;
-        SoftXMT_suspend( );
-        user_main_waiting = false;
-    }
-}
-
-/// Notify user_main that tasks are done
-void SoftXMT_notifyTasksDone() {
-    if ( SoftXMT_mynode() == 0 ) {
-        if ( user_main_waiting ) {
-            SoftXMT_wake( user_main_thr );
-        }
-    }
-}
-
 /// Tell all nodes that we are ready to exit
+/// This will terminate the automatic portions of the communication layer
 void SoftXMT_signal_done ( ) { 
     if ( !SoftXMT_done() ) {       
         for( Node i = 0; i < SoftXMT_nodes(); ++i ) {
@@ -284,7 +246,7 @@ void SoftXMT_signal_done ( ) {
 /// notify everyone else, enter the barrier, and then clean up.
 void SoftXMT_finish( int retval )
 {
-  SoftXMT_signal_done( );
+  SoftXMT_signal_done(); // this may be overkill (just set done bit?)
 
   SoftXMT_barrier();
 

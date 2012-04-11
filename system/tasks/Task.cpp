@@ -101,7 +101,9 @@ bool TaskManager::getWork ( Task* result ) {
             if (finished_barrier) {
                 DVLOG(5) << CURRENT_THREAD << " left barrier from finish";
                 workDone = true;
-                SoftXMT_notifyTasksDone( );
+                SoftXMT_signal_done( ); // terminate auto communications
+                //TODO: if we do this on just node0 can we ensure there is not a race between
+                //      cbarrier_exit_am and the softxmt_mark_done_am?
             } else {
                 DVLOG(5) << CURRENT_THREAD << " left barrier from cancel";
                 mightBeWork = true;   // work is available so allow unassigned threads to be scheduled

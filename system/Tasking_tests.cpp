@@ -27,27 +27,29 @@ void task1_f( task1_arg * arg ) {
     SoftXMT_yield( );
     BOOST_MESSAGE( CURRENT_THREAD << " with task " << mynum << " is done" );
 
-//    int64_t result = SoftXMT_delegate_fetch_and_add_word( nf_addr, 1 );
-//    BOOST_MESSAGE( CURRENT_THREAD << " with task " << mynum << " result=" << result );
-//    if ( result == num_tasks-1 ) {
-//        SoftXMT_wake( parent );
-//    }
+    int64_t result = SoftXMT_delegate_fetch_and_add_word( nf_addr, 1 );
+    BOOST_MESSAGE( CURRENT_THREAD << " with task " << mynum << " result=" << result );
+    if ( result == num_tasks-1 ) {
+        SoftXMT_wake( parent );
+    }
 }
 
-void user_main( Thread * me, void * args ) 
+struct user_main_args {
+};
+
+void user_main( user_main_args * args ) 
 {
   nf_addr = GlobalAddress<int64_t>::TwoDimensional( &num_finished );
 
   task1_arg argss[num_tasks];
   for (int ta = 0; ta<num_tasks; ta++) {
-    argss[ta] = { ta, me };
+    argss[ta] = { ta, CURRENT_THREAD };
     SoftXMT_privateTask( &task1_f, &argss[ta] );
   }
 
-  SoftXMT_waitForTasks();
+  SoftXMT_suspend(); // no wakeup race because tasks wont run until this yield occurs
 
   BOOST_MESSAGE( "user main is exiting" );
-  SoftXMT_signal_done();
 }
 
 BOOST_AUTO_TEST_CASE( test1 ) {
@@ -57,10 +59,12 @@ BOOST_AUTO_TEST_CASE( test1 ) {
 
   SoftXMT_activate();
 
+  user_main_args uargs;
 
   DVLOG(1) << "Spawning user main Thread....";
-  SoftXMT_run_user_main( &user_main, NULL );
-  BOOST_CHECK( SoftXMT_done() == true );
+  SoftXMT_run_user_main( &user_main, &uargs );
+  VLOG(5) << "run_user_main returned";
+  CHECK( SoftXMT_done() );
 
   SoftXMT_finish( 0 );
 }

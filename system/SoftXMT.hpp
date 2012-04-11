@@ -13,6 +13,7 @@
 //#include <cxxabi.h>
 
 extern TaskingScheduler * my_global_scheduler;
+extern Thread * master_thread;
 #define CURRENT_THREAD my_global_scheduler->get_current_thread()
 
 
@@ -106,10 +107,6 @@ void SoftXMT_signal_done( );
 
 /// Make Thread idle; ie thread suspended not waiting on a particular resource
 bool SoftXMT_thread_idle( );
-
-void SoftXMT_waitForTasks( );
-
-void SoftXMT_notifyTasksDone( );
 
 
 /// Memory management routines.
