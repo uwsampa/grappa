@@ -251,6 +251,8 @@ public:
 
   void finish();
 
+  void dump_stats() { stats.dump(); }
+
   /// route map lookup for hierarchical aggregation
   inline Node get_target_for_node( Node n ) const {
     return route_map_[ n ];
