@@ -141,15 +141,19 @@ BOOST_AUTO_TEST_CASE( test1 ) {
   //SoftXMT_call_on( 0, &first_call, &first_args, NULL, 0 );
   BOOST_CHECK_EQUAL( 1, first_int );
   int64_t initial_ts, ts;
+  SoftXMT_tick();
   for( initial_ts = ts = SoftXMT_get_timestamp(); ts - initial_ts < FLAGS_aggregator_autoflush_ticks - 10000; ) {
     a.poll();
     BOOST_CHECK_EQUAL( 1, first_int );
     BOOST_MESSAGE( "initial " << initial_ts << " current " << ts );  
+    SoftXMT_tick();
     ts = SoftXMT_get_timestamp();
   }
 
   BOOST_CHECK_EQUAL( 1, first_int );
+  SoftXMT_tick();
   for( initial_ts = ts = SoftXMT_get_timestamp(); ts - initial_ts < FLAGS_aggregator_autoflush_ticks; ) {
+    SoftXMT_tick();
     ts = SoftXMT_get_timestamp();
   }
   a.poll();
@@ -178,6 +182,7 @@ BOOST_AUTO_TEST_CASE( test1 ) {
   // for( int i = 0; i < FLAGS_aggregator_autoflush_ticks - 1; ++i ) {
   //   a.poll();
   // }
+  SoftXMT_tick();
   for( initial_ts = ts = SoftXMT_get_timestamp(); ts - initial_ts < FLAGS_aggregator_autoflush_ticks - 100000; ) {
     BOOST_MESSAGE( "initial " << initial_ts << " current " << ts );  
     // nothing has flushed yet
@@ -185,12 +190,15 @@ BOOST_AUTO_TEST_CASE( test1 ) {
     BOOST_CHECK_EQUAL( a.remaining_size( 0 ), a.max_size() - second_message_size );
     BOOST_CHECK_EQUAL( a.remaining_size( 1 ), a.max_size() - second_message_size );
     a.poll();
+    SoftXMT_tick();
     ts = SoftXMT_get_timestamp();
   }
 
   BOOST_CHECK_EQUAL( a.remaining_size( 1 ), a.max_size() - second_message_size );
   // one more tick! node 1 flushes
+  SoftXMT_tick();
   for( initial_ts = ts = SoftXMT_get_timestamp(); ts - initial_ts < FLAGS_aggregator_autoflush_ticks - 1000; ) {
+    SoftXMT_tick();
     ts = SoftXMT_get_timestamp();
   }
   a.poll();
@@ -210,6 +218,8 @@ BOOST_AUTO_TEST_CASE( test1 ) {
   //     a.poll();
   //   }
   // }
+  s.barrier();
+  a.finish();
   s.finish();
 
 }

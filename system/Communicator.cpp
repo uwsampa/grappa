@@ -15,6 +15,7 @@ Communicator::Communicator( )
   : handlers_()
   , registration_is_allowed_( false )
   , communication_is_allowed_( false )
+  , stats()
 { 
   assert( global_communicator == NULL );
   global_communicator = this;
@@ -50,6 +51,7 @@ void Communicator::activate() {
   GASNET_CHECK( gasnet_attach( &handlers_[0], handlers_.size(), // install active message handlers
                                SHARED_PROCESS_MEMORY_SIZE,
                                SHARED_PROCESS_MEMORY_OFFSET ) );
+  stats.reset_clock();
   registration_is_allowed_ = false;
   communication_is_allowed_ = true;
 }
@@ -57,6 +59,7 @@ void Communicator::activate() {
 /// tear down communication layer.
 void Communicator::finish(int retval) {
   communication_is_allowed_ = false;
+  stats.dump();
   // TODO: for now, don't call gasnet exit. should we in future?
   //gasnet_exit( retval );
 }

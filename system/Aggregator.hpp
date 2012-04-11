@@ -30,6 +30,118 @@ typedef void (* AggregatorAMHandler)( void *, size_t, void *, size_t );
 /// Active message handler called to deaggregate aggregated messages.
 extern void Aggregator_deaggregate_am( gasnet_token_t token, void * buf, size_t size );
 
+class AggregatorStatistics {
+private:
+  uint64_t messages_aggregated;
+  uint64_t bytes_aggregated;
+  uint64_t messages_sent;
+  uint64_t bytes_sent;
+  uint64_t flushes;
+  uint64_t timeouts;
+  uint64_t histogram[16];
+  timespec start;
+
+  std::ostream& header( std::ostream& o ) {
+    o << "AggregatorStatistics, header, time, "
+      "messages_aggregated, bytes_aggregated, messages_aggregated_per_second, bytes_aggregated_per_second, "
+      "messages_sent, bytes_sent, messages_sent_per_second, bytes_sent_per_second, "
+      "flushes, timeouts, "
+      "0_to_255_bytes, "
+      "256_to_511_bytes, "
+      "512_to_767_bytes, "
+      "768_to_1023_bytes, "
+      "1024_to_1279_bytes, "
+      "1280_to_1535_bytes, "
+      "1536_to_1791_bytes, "
+      "1792_to_2047_bytes, "
+      "2048_to_2303_bytes, "
+      "2304_to_2559_bytes, "
+      "2560_to_2815_bytes, "
+      "2816_to_3071_bytes, "
+      "3072_to_3327_bytes, "
+      "3328_to_3583_bytes, "
+      "3584_to_3839_bytes, "
+      "3840_to_4095_bytes";
+  }
+
+  std::ostream& data( std::ostream& o, double time ) {
+    o << "AggregatorStatistics, data, " << time << ", ";
+    double messages_aggregated_per_second = messages_aggregated / time;
+    double bytes_aggregated_per_second = bytes_aggregated / time;
+    o << messages_aggregated << ", " 
+      << bytes_aggregated << ", "
+      << messages_aggregated_per_second << ", "
+      << bytes_aggregated_per_second << ", ";
+    double messages_sent_per_second = messages_sent / time;
+    double bytes_sent_per_second = bytes_sent / time;
+    o << messages_sent << ", " 
+      << bytes_sent << ", "
+      << messages_sent_per_second << ", "
+      << bytes_sent_per_second << ", ";
+    o << flushes << ", " << timeouts;
+    for( int i = 0; i < 16; ++i ) {
+      o << ", " << histogram[ i ];
+    }
+  }
+
+public:
+  AggregatorStatistics()
+    : messages_aggregated(0)
+    , bytes_aggregated(0)
+    , messages_sent(0)
+    , bytes_sent(0)
+    , flushes(0)
+    , timeouts(0)
+    , histogram()
+    , start()
+  { 
+    clock_gettime(CLOCK_MONOTONIC, &start);
+    for( int i = 0; i < 16; ++i ) {
+      histogram[i] = 0;
+    }
+  }
+
+  void record_flush() { 
+    flushes++;
+  }
+
+  void record_timeout() {
+    timeouts++;
+  }
+
+  void record_aggregation( size_t bytes ) {
+    messages_aggregated++;
+    bytes_aggregated += bytes;
+  }
+  void record_send( size_t bytes ) {
+    messages_sent++;
+    bytes_sent += bytes;
+    histogram[ (bytes >> 8) & 0xf ]++;
+  }
+  void dump() {
+    header( LOG(INFO) );
+    timespec end;
+    clock_gettime( CLOCK_MONOTONIC, &end );
+    double time = (end.tv_sec + end.tv_nsec * 0.000000001) - (start.tv_sec + start.tv_nsec * 0.000000001);
+    data( LOG(INFO), time );
+      // double messages_aggregated_per_second = messages_aggregated / time;
+      // double bytes_aggregated_per_second = bytes_aggregated / time;
+      // LOG(INFO) << "After " << time << " seconds, aggregated " 
+      // 	      << messages_aggregated << " messages, " 
+      // 	      << bytes_aggregated << " bytes, "
+      // 	      << messages_aggregated_per_second / 1000.0 / 1000.0 << " MM/s, "
+      // 	      << bytes_aggregated_per_second / 1024.0 / 1024.0 << " MB/s ";
+      // LOG(INFO) << "Histogram: " << time << " seconds, aggregated " 
+      // double messages_sent_per_second = messages_sent / time;
+      // double bytes_sent_per_second = bytes_sent / time;
+      // LOG(INFO) << "After " << time << " seconds, sent " 
+      // 	      << messages_sent << " messages, " 
+      // 	      << bytes_sent << " bytes, "
+      // 	      << messages_sent_per_second / 1000.0 / 1000.0 << " MM/s, "
+      // 	      << bytes_sent_per_second / 1024.0 / 1024.0 << " MB/s ";
+  }
+};
+
 /// Header for aggregated active messages.
 struct AggregatorGenericCallHeader {
   uintptr_t function_pointer;
@@ -128,12 +240,17 @@ private:
   void deaggregate( );
   friend void Aggregator_deaggregate_am( gasnet_token_t token, void * buf, size_t size );
 
+  /// statistics
+  AggregatorStatistics stats;
+
 public:
 
   /// Construct Aggregator. Takes a Communicator pointer in order to
   /// register active message handlers
   explicit Aggregator( Communicator * communicator );
-                                              
+
+  void finish();
+
   /// route map lookup for hierarchical aggregation
   inline Node get_target_for_node( Node n ) const {
     return route_map_[ n ];
@@ -147,11 +264,13 @@ public:
   /// send aggregated messages for node
   inline void flush( Node node ) {
     DVLOG(5) << "flushing node " << node;
+    stats.record_flush();
     Node target = route_map_[ node ];
     communicator_->send( target, 
                          aggregator_deaggregate_am_handle_,
                          buffers_[ target ].buffer_,
                          buffers_[ target ].current_position_ );
+    stats.record_send( buffers_[ target ].current_position_ );
     buffers_[ target ].flush();
     DVLOG(5) << "heap before flush:\n" << least_recently_sent_.toString( );
     least_recently_sent_.remove_key( target );
@@ -161,6 +280,7 @@ public:
   /// get timestamp. we avoid calling rdtsc for performance
   inline uint64_t get_timestamp() {
     //return previous_timestamp_ + 1;
+    SoftXMT_tick();
     return SoftXMT_get_timestamp();
    }
 
@@ -176,6 +296,7 @@ public:
     // since it would take many many years to see one, I think that's okay for now.
     if( !least_recently_sent_.empty() ) {                                    // if messages are waiting, and
       if( -least_recently_sent_.top_priority() + autoflush_ticks_ < ts ) { // we've waited long enough,
+	stats.record_timeout();
         DVLOG(5) << "timeout for node " << least_recently_sent_.top_key() 
                  << ": inserted at " << -least_recently_sent_.top_priority()
                  << " autoflush_ticks_ " << autoflush_ticks_ 
@@ -230,6 +351,7 @@ public:
     buffers_[ target ].insert( &header, sizeof( header ) );
     buffers_[ target ].insert( args, args_size );
     buffers_[ target ].insert( payload, payload_size );
+    stats.record_aggregation( total_call_size );
     
     uint64_t ts = get_timestamp();
     least_recently_sent_.update_or_insert( target, -ts );

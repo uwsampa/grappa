@@ -239,6 +239,12 @@ void SoftXMT_signal_done ( ) {
     }
 }
 
+/// Dump statistics
+void SoftXMT_dump_stats() {
+  my_global_aggregator->dump_stats();
+  my_global_communicator->dump_stats();
+}
+
 /// Finish the job. 
 /// 
 /// If we've already been notified that we can exit, enter global
@@ -251,7 +257,8 @@ void SoftXMT_finish( int retval )
   SoftXMT_barrier();
 
   DVLOG(1) << "Cleaning up SoftXMT library....";
-  
+
+  my_global_aggregator->finish();
   my_global_communicator->finish( retval );
   
   // probably never get here (depending on communication layer)
