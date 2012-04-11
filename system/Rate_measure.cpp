@@ -36,7 +36,7 @@ void sending_task( thread* me, void* args ) {
  //   std::cout << CURRENT_THREAD->id << " finished sending" << std::endl;
 }
 
-void user_main( thread * me, void * args ) {
+void user_main( Thread * me, void * args ) {
  
     user_main_args* umargs = (user_main_args*) args;
     uint64_t num_threads = umargs->num_threads;//atoi(umargs->argv[1]); 
