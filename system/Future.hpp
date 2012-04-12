@@ -32,10 +32,19 @@ class MyArgs : public FutureArgs {
 // Additional possibility is method #2 above
     */
 
+//////////////////////////////////////////
+#if DEBUG
+static int64_t count_ = 0;
+#endif
 
 template < typename ArgsStruct >
 class Future {
     private:
+        int64_t started;
+        Thread * waiter;
+        bool done;
+        ArgsStruct * userArgs_lp;
+        
         struct future_args {
             GlobalAddress<Future> futureAddr;
             void (* user_fn_p)(ArgsStruct *);
@@ -47,6 +56,8 @@ class Future {
                 , user_fn_p( fn_p ) 
             { }
         };
+        
+        future_args task_args;
 
         struct future_done_args { 
             Future< ArgsStruct > * futurePtr;
@@ -60,10 +71,80 @@ class Future {
             }
         }
 
+        /////////////////
+        //Custom delegate operation
+        //TODO: use a generalized mechanism that abstracts all but function
+        /////////////////
+        struct started_memory_descriptor {
+            Thread * t;
+            GlobalAddress< Future<ArgsStruct> > address;
+            int64_t data;
+            bool done;
+        };
+
+        struct started_reply_args {
+            GlobalAddress<started_memory_descriptor> descriptor;
+        };
+
+        static void started_reply_am( started_reply_args * args, size_t size, void * payload, size_t payload_size ) {
+            assert( payload_size == sizeof(int64_t ) );
+            args->descriptor.pointer()->data = *(static_cast<int64_t*>(payload));
+            args->descriptor.pointer()->done = true;
+            SoftXMT_wake( args->descriptor.pointer()->t );
+        }
+        
+        struct started_request_args {
+            GlobalAddress<started_memory_descriptor> descriptor;
+            GlobalAddress< Future<ArgsStruct> > address;
+        };
+
+        static void started_request_am( started_request_args * args, size_t size, void * payload, size_t payload_size ) {
+            Future< ArgsStruct > * fptr = args->address.pointer();
+
+            DVLOG(5) << "dequeued request (node:" << args->descriptor.node()
+                    << "): future ptr:" << (void*)fptr
+                    << "(id:"<<fptr->id<<")";
+            int64_t data = fptr->started;
+            fptr->started = data + 1;
+            
+            // If future was already started in this case, it must have been started by touching thread.
+            // Incrementing started again will tell the touching thread it can deallocate the Future
+            if ( data > 0 ) {
+                if ( fptr->done ) { //if it is done then toucher is waiting for the dequeue
+                    SoftXMT_wake( fptr->waiter );
+                    fptr->waiter = NULL;
+                }
+            }
+            
+            started_reply_args reply_args;
+            reply_args.descriptor = args->descriptor;
+            SoftXMT_call_on( args->descriptor.node(), &started_reply_am, 
+                    &reply_args, sizeof(reply_args),
+                    &data, sizeof(data) );
+        }
+
+        static int64_t future_delegate_started( GlobalAddress< Future<ArgsStruct> > address ) {
+            started_memory_descriptor md;
+            md.address = address;
+            md.data = 0;
+            md.done = false;
+            md.t = CURRENT_THREAD;
+            started_request_args args;
+            args.descriptor = make_global(&md);
+            args.address = address;
+            SoftXMT_call_on( address.node(), &started_request_am, &args );
+            while( !md.done ) {
+                SoftXMT_suspend();
+            }
+            return md.data;
+        }
+        //////////////////////////////////////
+
         static void future_function( future_args * args ) {
-            // TODO test Global address calculations (so I can say address of 'started' instead)
-            if ( SoftXMT_delegate_fetch_and_add_word( args->futureAddr, 1 ) == 0 ) { 
-                
+            // TODO #1: the make_global is just calculating location of Future->started
+            //if ( SoftXMT_delegate_fetch_and_add_word( make_global( args->startedAddr, args->futureAddr.node() ), 1 ) == 0 ) { 
+            DVLOG(5) << CURRENT_THREAD->id << "args("<<(void*)args<<") will call started am " << args->futureAddr.pointer();
+            if ( future_delegate_started( args->futureAddr ) == 0 ) {  
                 // grab the user arguments
                 size_t args_size = sizeof(ArgsStruct);
                 ArgsStruct argsbuf;
@@ -77,16 +158,13 @@ class Future {
                 // call wake up AM on Node that has the Future
                 future_done_args done_args = { args->futureAddr.pointer() };
                 SoftXMT_call_on( args->futureAddr.node(), &future_done_am, &done_args );
-            }
+            } 
         }
     
     public:
-        int64_t started;//MUST be first (because address)
-        Thread * waiter;
-        bool done;
-        ArgsStruct * userArgs_lp;
-
-        future_args task_args;
+#if DEBUG
+        int64_t id;
+#endif
 
 
         // TODO: NOTE that this does not copy user arguments because we want to 
@@ -100,13 +178,26 @@ class Future {
               , waiter( NULL )
               , done( false )
               , userArgs_lp( userArgs )
-              , task_args( this, userArgs, fn_p ) { }
+#if DEBUG
+              , id( count_++ )
+#endif
+              , task_args( this, userArgs, fn_p ) { 
+                  
+           DVLOG(5) << CURRENT_THREAD->id << " creates Future:"<< (void*)this << " id:"<< id << " args:"<< &task_args;
+        }
 
         void touch( ) {
             // start if not started
             if ( SoftXMT_delegate_fetch_and_add_word( make_global(&started), 1 )==0 ) {
+                DVLOG(5) << CURRENT_THREAD->id << " gets to touch-go " << id;
                 task_args.user_fn_p( userArgs_lp );
                 done = true;
+                while ( started < 2 ) { // wait until dequeued
+                    DVLOG(5) << CURRENT_THREAD->id << " has to wait on dequeue " << id;
+                    waiter = CURRENT_THREAD;
+                    SoftXMT_suspend( );
+                    DVLOG(5) << CURRENT_THREAD->id << " has woke on dequeue " << id;
+                }
             } else  {
                 // otherwise block on done event
                 while ( !done ) {
