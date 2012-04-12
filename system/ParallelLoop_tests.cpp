@@ -24,13 +24,16 @@ void ind_array( int64_t i, array_args * a ) {
 void dub_array( int64_t i, array_args * a ) {
     dub_local_count++;
     GlobalAddress<int64_t> addr = make_global( a->array+i, 0);
+    CHECK( (int64_t)addr.pointer() > 0x1000 ) << "calc addr:"<<addr<<"\n a="<<(void*)a<<"\n iter="<<i<<"\n array:"<<(void*)a->array<<" \narray+i:"<<a->array+i;
     int64_t x =  SoftXMT_delegate_read_word( addr );
-    SoftXMT_delegate_write_word( addr, 2*x );
+    SoftXMT_delegate_write_word( addr, 2*x ); //here!
 }
 
 struct count_args {
     int64_t * ind;
     int64_t * dub;
+
+    count_args() {} // Future templates complain without this defualt
 
     count_args(int64_t * ind, int64_t * dub)
     :ind(ind),dub(dub){}
@@ -56,14 +59,14 @@ void user_main( user_main_args * args )
     BOOST_MESSAGE( "&array1="<<array1<< "&aa="<<&aa );
     
     // a[i] = i
-    parallel_loop( 0, length1, &ind_array, &aa );
+    parallel_loop( 0, length1, &ind_array, aa );
     // check
     for (int i=0; i<length1; i++) {
         BOOST_CHECK_EQUAL( array1[i], i );
     }
 
     // a[i] = a[i]*2
-    parallel_loop( 0, length1, &dub_array, &aa ); 
+    parallel_loop( 0, length1, &dub_array, aa ); 
     // check
     for (int i=0; i<length1; i++) {
         BOOST_CHECK_EQUAL( array1[i], 2*i );
@@ -75,7 +78,7 @@ void user_main( user_main_args * args )
     int64_t * ind_counts = new int64_t[SoftXMT_nodes()];
     int64_t * dub_counts = new int64_t[SoftXMT_nodes()];
     count_args cargs ( ind_counts, dub_counts );
-    parallel_loop( 0, SoftXMT_nodes(), &countUp, &cargs ); 
+    parallel_loop( 0, SoftXMT_nodes(), &countUp, cargs ); 
 
     for (Node i=0; i<SoftXMT_nodes(); i++) {
         BOOST_MESSAGE( "node" << i << ":"
