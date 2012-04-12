@@ -239,7 +239,13 @@ void StealQueue<T>::workStealReply_am( workStealReply_args * args,  size_t size,
     
 }
 
-#include "../SoftXMT.hpp" // TODO: SoftXMT_comm only
+//#include "../SoftXMT.hpp" // TODO: SoftXMT_comm only
+Node SoftXMT_mynode();
+void SoftXMT_yield();
+
+//#include <Communicator.hpp>
+#include <Aggregator.hpp>
+
 
 template <class T>
 void StealQueue<T>::workStealRequest_am(workStealRequest_args * args, size_t size, void * payload, size_t payload_size) {
