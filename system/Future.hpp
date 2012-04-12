@@ -1,3 +1,6 @@
+#ifndef __FUTURE_HPP__
+#define __FUTURE_HPP__
+
 #include "SoftXMT.hpp"
 #include "Delegate.hpp"
 #include "Cache.hpp"
@@ -118,4 +121,4 @@ class Future {
         }
 };
 
-
+#endif
