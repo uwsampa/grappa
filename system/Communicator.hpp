@@ -55,10 +55,10 @@ typedef int16_t Node;
 /// Class for recording Communicator stats
 class CommunicatorStatistics {
 private:
-  uint64_t messages;
-  uint64_t bytes;
-  uint64_t histogram[16];
-  timespec start;
+  uint64_t messages_;
+  uint64_t bytes_;
+  uint64_t histogram_[16];
+  timespec start_;
 
   std::ostream& header( std::ostream& o ) {
     o << "CommunicatorStatistics, header, time, "
@@ -83,44 +83,44 @@ private:
 
   std::ostream& data( std::ostream& o, double time ) {
     o << "CommunicatorStatistics, data, " << time << ", ";
-    double messages_per_second = messages / time;
-    double bytes_per_second = bytes / time;
-    o << messages << ", " 
-      << bytes << ", "
+    double messages_per_second = messages_ / time;
+    double bytes_per_second = bytes_ / time;
+    o << messages_ << ", " 
+      << bytes_ << ", "
       << messages_per_second << ", "
       << bytes_per_second;
     for( int i = 0; i < 16; ++i ) {
-      o << ", " << histogram[ i ];
+      o << ", " << histogram_[ i ];
     }
   }
 
 public:
   CommunicatorStatistics()
-    : messages(0)
-    , bytes(0)
-    , histogram()
-    , start()
+    : messages_(0)
+    , bytes_(0)
+    , histogram_()
+    , start_()
   { 
-    clock_gettime(CLOCK_MONOTONIC, &start);
+    clock_gettime(CLOCK_MONOTONIC, &start_);
     for( int i = 0; i < 16; ++i ) {
-      histogram[i] = 0;
+      histogram_[i] = 0;
     }
   }
 
   void reset_clock() {
-    clock_gettime(CLOCK_MONOTONIC, &start);
+    clock_gettime(CLOCK_MONOTONIC, &start_);
   }
 
   void record_message( size_t bytes ) {
-    messages++;
-    bytes += bytes;
-    histogram[ (bytes >> 8) & 0xf ]++;
+    messages_++;
+    bytes_ += bytes;
+    histogram_[ (bytes >> 8) & 0xf ]++;
   }
   void dump() {
     header( LOG(INFO) );
     timespec end;
     clock_gettime( CLOCK_MONOTONIC, &end );
-    double time = (end.tv_sec + end.tv_nsec * 0.000000001) - (start.tv_sec + start.tv_nsec * 0.000000001);
+    double time = (end.tv_sec + end.tv_nsec * 0.000000001) - (start_.tv_sec + start_.tv_nsec * 0.000000001);
     data( LOG(INFO), time );
   }
 };

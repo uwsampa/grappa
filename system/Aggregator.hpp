@@ -32,19 +32,16 @@ extern void Aggregator_deaggregate_am( gasnet_token_t token, void * buf, size_t 
 
 class AggregatorStatistics {
 private:
-  uint64_t messages_aggregated;
-  uint64_t bytes_aggregated;
-  uint64_t messages_sent;
-  uint64_t bytes_sent;
-  uint64_t flushes;
-  uint64_t timeouts;
-  uint64_t histogram[16];
-  timespec start;
+  uint64_t messages_aggregated_;
+  uint64_t bytes_aggregated_;
+  uint64_t flushes_;
+  uint64_t timeouts_;
+  uint64_t histogram_[16];
+  timespec start_;
 
   std::ostream& header( std::ostream& o ) {
     o << "AggregatorStatistics, header, time, "
       "messages_aggregated, bytes_aggregated, messages_aggregated_per_second, bytes_aggregated_per_second, "
-      "messages_sent, bytes_sent, messages_sent_per_second, bytes_sent_per_second, "
       "flushes, timeouts, "
       "0_to_255_bytes, "
       "256_to_511_bytes, "
@@ -66,79 +63,52 @@ private:
 
   std::ostream& data( std::ostream& o, double time ) {
     o << "AggregatorStatistics, data, " << time << ", ";
-    double messages_aggregated_per_second = messages_aggregated / time;
-    double bytes_aggregated_per_second = bytes_aggregated / time;
-    o << messages_aggregated << ", " 
-      << bytes_aggregated << ", "
+    double messages_aggregated_per_second = messages_aggregated_ / time;
+    double bytes_aggregated_per_second = bytes_aggregated_ / time;
+    o << messages_aggregated_ << ", " 
+      << bytes_aggregated_ << ", "
       << messages_aggregated_per_second << ", "
       << bytes_aggregated_per_second << ", ";
-    double messages_sent_per_second = messages_sent / time;
-    double bytes_sent_per_second = bytes_sent / time;
-    o << messages_sent << ", " 
-      << bytes_sent << ", "
-      << messages_sent_per_second << ", "
-      << bytes_sent_per_second << ", ";
-    o << flushes << ", " << timeouts;
+    o << flushes_ << ", " << timeouts_;
     for( int i = 0; i < 16; ++i ) {
-      o << ", " << histogram[ i ];
+      o << ", " << histogram_[ i ];
     }
   }
 
 public:
   AggregatorStatistics()
-    : messages_aggregated(0)
-    , bytes_aggregated(0)
-    , messages_sent(0)
-    , bytes_sent(0)
-    , flushes(0)
-    , timeouts(0)
-    , histogram()
-    , start()
+    : messages_aggregated_(0)
+    , bytes_aggregated_(0)
+    , flushes_(0)
+    , timeouts_(0)
+    , histogram_()
+    , start_()
   { 
-    clock_gettime(CLOCK_MONOTONIC, &start);
+    clock_gettime(CLOCK_MONOTONIC, &start_);
     for( int i = 0; i < 16; ++i ) {
-      histogram[i] = 0;
+      histogram_[i] = 0;
     }
   }
 
   void record_flush() { 
-    flushes++;
+    flushes_++;
   }
 
   void record_timeout() {
-    timeouts++;
+    timeouts_++;
   }
 
   void record_aggregation( size_t bytes ) {
-    messages_aggregated++;
-    bytes_aggregated += bytes;
-  }
-  void record_send( size_t bytes ) {
-    messages_sent++;
-    bytes_sent += bytes;
-    histogram[ (bytes >> 8) & 0xf ]++;
+    messages_aggregated_++;
+    bytes_aggregated_ += bytes;
+    histogram_[ (bytes >> 8) & 0xf ]++;
   }
   void dump() {
     header( LOG(INFO) );
     timespec end;
     clock_gettime( CLOCK_MONOTONIC, &end );
-    double time = (end.tv_sec + end.tv_nsec * 0.000000001) - (start.tv_sec + start.tv_nsec * 0.000000001);
+    double time = (end.tv_sec + end.tv_nsec * 0.000000001) - (start_.tv_sec + start_.tv_nsec * 0.000000001);
     data( LOG(INFO), time );
-      // double messages_aggregated_per_second = messages_aggregated / time;
-      // double bytes_aggregated_per_second = bytes_aggregated / time;
-      // LOG(INFO) << "After " << time << " seconds, aggregated " 
-      // 	      << messages_aggregated << " messages, " 
-      // 	      << bytes_aggregated << " bytes, "
-      // 	      << messages_aggregated_per_second / 1000.0 / 1000.0 << " MM/s, "
-      // 	      << bytes_aggregated_per_second / 1024.0 / 1024.0 << " MB/s ";
-      // LOG(INFO) << "Histogram: " << time << " seconds, aggregated " 
-      // double messages_sent_per_second = messages_sent / time;
-      // double bytes_sent_per_second = bytes_sent / time;
-      // LOG(INFO) << "After " << time << " seconds, sent " 
-      // 	      << messages_sent << " messages, " 
-      // 	      << bytes_sent << " bytes, "
-      // 	      << messages_sent_per_second / 1000.0 / 1000.0 << " MM/s, "
-      // 	      << bytes_sent_per_second / 1024.0 / 1024.0 << " MB/s ";
   }
 };
 
@@ -272,7 +242,6 @@ public:
                          aggregator_deaggregate_am_handle_,
                          buffers_[ target ].buffer_,
                          buffers_[ target ].current_position_ );
-    stats.record_send( buffers_[ target ].current_position_ );
     buffers_[ target ].flush();
     DVLOG(5) << "heap before flush:\n" << least_recently_sent_.toString( );
     least_recently_sent_.remove_key( target );
