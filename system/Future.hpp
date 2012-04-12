@@ -103,7 +103,7 @@ class Future {
 
             DVLOG(5) << "dequeued request (node:" << args->descriptor.node()
                     << "): future ptr:" << (void*)fptr
-                    << "(id:"<<fptr->id<<")";
+                    << "(id:"<<fptr->id()<<")";
             int64_t data = fptr->started;
             fptr->started = data + 1;
             
@@ -160,6 +160,14 @@ class Future {
                 SoftXMT_call_on( args->futureAddr.node(), &future_done_am, &done_args );
             } 
         }
+
+        int64_t id() {
+#if DEBUG
+            return id;
+#else       
+            return -1;
+#endif  
+        }
     
     public:
 #if DEBUG
@@ -183,20 +191,20 @@ class Future {
 #endif
               , task_args( this, userArgs, fn_p ) { 
                   
-           DVLOG(5) << CURRENT_THREAD->id << " creates Future:"<< (void*)this << " id:"<< id << " args:"<< &task_args;
+           DVLOG(5) << CURRENT_THREAD->id << " creates Future:"<< (void*)this << " id:"<< id() << " args:"<< &task_args;
         }
 
         void touch( ) {
             // start if not started
             if ( SoftXMT_delegate_fetch_and_add_word( make_global(&started), 1 )==0 ) {
-                DVLOG(5) << CURRENT_THREAD->id << " gets to touch-go " << id;
+                DVLOG(5) << CURRENT_THREAD->id << " gets to touch-go " << id();
                 task_args.user_fn_p( userArgs_lp );
                 done = true;
                 while ( started < 2 ) { // wait until dequeued
-                    DVLOG(5) << CURRENT_THREAD->id << " has to wait on dequeue " << id;
+                    DVLOG(5) << CURRENT_THREAD->id << " has to wait on dequeue " << id();
                     waiter = CURRENT_THREAD;
                     SoftXMT_suspend( );
-                    DVLOG(5) << CURRENT_THREAD->id << " has woke on dequeue " << id;
+                    DVLOG(5) << CURRENT_THREAD->id << " has woke on dequeue " << id();
                 }
             } else  {
                 // otherwise block on done event
