@@ -48,6 +48,8 @@ bool TaskManager::getWork ( Task* result ) {
         }
 
         // assume no work
+        // TODO: Since private spawns can occur while one worker is busy stealing
+        //       it would be good to ensure one worker will wake to be around for privateQ
         mightBeWork = false;
 
         if (doSteal) {
@@ -93,26 +95,31 @@ bool TaskManager::getWork ( Task* result ) {
 //        DVLOG(5) << CURRENT_THREAD << "goes idle because sees no work (idle=" << scheduler->num_idle
 //            << " idleReady="<<me->sched->idleReady <<")";
 
-        if (!SoftXMT_thread_idle( )) {
-         
-            DVLOG(5) << CURRENT_THREAD << " saw all were idle so suggest barrier";
-         
-            // no work so suggest global termination barrier
-            inCBarrier = true;
-            int finished_barrier = cbarrier_wait();
-            inCBarrier = false;
-            if (finished_barrier) {
-                DVLOG(5) << CURRENT_THREAD << " left barrier from finish";
-                workDone = true;
-                SoftXMT_signal_done( ); // terminate auto communications
-                //TODO: if we do this on just node0 can we ensure there is not a race between
-                //      cbarrier_exit_am and the softxmt_mark_done_am?
+        // check for possible work one more time before idling
+        // Interleavings at steal allow for private tasks to have been created
+        if ( !mightBeWork ) {
+            if (!SoftXMT_thread_idle( )) {
+
+                DVLOG(5) << CURRENT_THREAD << " saw all were idle so suggest barrier";
+
+                // no work so suggest global termination barrier
+                inCBarrier = true;
+                int finished_barrier = cbarrier_wait();
+                inCBarrier = false;
+                if (finished_barrier) {
+                    DVLOG(5) << CURRENT_THREAD << " left barrier from finish";
+                    workDone = true;
+                    SoftXMT_signal_done( ); // terminate auto communications
+                    //TODO: if we do this on just node0 can we ensure there is not a race between
+                    //      cbarrier_exit_am and the softxmt_mark_done_am?
+                } else {
+                    DVLOG(5) << CURRENT_THREAD << " left barrier from cancel";
+                    mightBeWork = true;   // work is available so allow unassigned threads to be scheduled
+                    okToSteal = true;        // work is available so allow steal attempts
+                }
             } else {
-                DVLOG(5) << CURRENT_THREAD << " left barrier from cancel";
-                mightBeWork = true;   // work is available so allow unassigned threads to be scheduled
+                DVLOG(5) << CURRENT_THREAD << " un-idled";
             }
-        } else {
-            DVLOG(5) << CURRENT_THREAD << " un-idled";
         }
     }
 
