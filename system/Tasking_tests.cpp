@@ -4,7 +4,6 @@
 
 #include "SoftXMT.hpp"
 #include "Delegate.hpp"
-#include "Tasking.hpp"
 
 BOOST_AUTO_TEST_SUITE( Tasking_tests );
 
