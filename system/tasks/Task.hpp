@@ -153,7 +153,10 @@ template < typename ArgsStruct >
 inline void TaskManager::spawnPrivate( void (*f)(ArgsStruct * arg), ArgsStruct * arg ) {
     Task newtask = createTask(f, arg, SoftXMT_mynode());
     privateQ.push_front( newtask );
-     
+
+    // set to make sure that any alive worker looking for tasks knows not to idle
+    mightBeWork = true;
+    
     // TODO: only need to check this if spawnPrivate called from AM
     // ie write a separate remote spawn
     
@@ -162,9 +165,8 @@ inline void TaskManager::spawnPrivate( void (*f)(ArgsStruct * arg), ArgsStruct *
     if ( inCBarrier ) { 
         cbarrier_cancel();
         //TODO more efficient local cancel since we produced only private work
-    } 
+    }
 
-    // if not in cbarrier, then do nothing, since available()-->true if privateQ has element
 }
 
 
