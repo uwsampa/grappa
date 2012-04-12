@@ -1,0 +1,61 @@
+
+
+#include <boost/test/unit_test.hpp>
+
+#include "SoftXMT.hpp"
+#include "ForkJoin.hpp"
+#include "Delegate.hpp"
+
+BOOST_AUTO_TEST_SUITE( RemotePrivateTasks_tests );
+
+struct task1_arg {
+    GlobalAddress<Semaphore> sem;
+    int i;
+};
+
+void task1_f( task1_arg * args ) {
+    
+    BOOST_MESSAGE( CURRENT_THREAD << " task runs i=" << args->i );
+    SoftXMT_yield();
+    SoftXMT_yield();
+
+    Semaphore::release( &args->sem, 1 ); 
+}
+
+struct user_main_args {
+};
+
+void user_main( user_main_args * args ) 
+{
+
+    // do several rounds of private spawns
+    for (int i=0; i<100; i++) {
+        Semaphore sem(1, 0);
+        task1_arg t1_arg = { make_global( &sem ), i };
+        SoftXMT_remote_privateTask( &task1_f, &t1_arg, 1 );
+        sem.acquire_all( CURRENT_THREAD );
+        BOOST_MESSAGE( "phase " << i << " done" );
+    }
+
+    BOOST_MESSAGE( "user main is exiting" );
+}
+
+BOOST_AUTO_TEST_CASE( test1 ) {
+
+    SoftXMT_init( &(boost::unit_test::framework::master_test_suite().argc),
+            &(boost::unit_test::framework::master_test_suite().argv) );
+
+    SoftXMT_activate();
+
+    user_main_args uargs;
+
+    DVLOG(1) << "Spawning user main Thread....";
+    SoftXMT_run_user_main( &user_main, &uargs );
+    VLOG(5) << "run_user_main returned";
+    CHECK( SoftXMT_done() );
+
+    SoftXMT_finish( 0 );
+}
+
+BOOST_AUTO_TEST_SUITE_END();
+
