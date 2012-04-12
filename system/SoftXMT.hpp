@@ -33,10 +33,6 @@ void SoftXMT_barrier();
 
 void SoftXMT_barrier_commsafe();
 
-/// Spawn and run user main function. TODO: get return values working
-/// TODO: remove Thread * arg
-int SoftXMT_run_user_main( void (* fn_p)(Thread *, void *), void * args );
-
 /// Spawn a user function. TODO: get return values working
 /// TODO: remove Thread * arg
 Thread * SoftXMT_spawn( void (* fn_p)(Thread *, void *), void * args );
@@ -124,5 +120,6 @@ void SoftXMT_dump_stats();
 
 #include "Aggregator.hpp"
 #include "Addressing.hpp"
+#include "Tasking.hpp"
 
 #endif

@@ -3,6 +3,7 @@
 
 #include "GlobalAllocator.hpp"
 #include "Delegate.hpp"
+#include "Tasking.hpp"
 
 #include <boost/test/unit_test.hpp>
 
@@ -11,7 +12,7 @@ BOOST_AUTO_TEST_SUITE( Cache_tests );
 int64_t foo = 1234;
 int64_t bar[4] = { 2345, 3456, 4567, 6789 };
 
-void user_main( Thread * me, void * args ) 
+void user_main( int * args ) 
 {
   {
     Incoherent< int64_t >::RO buf( GlobalAddress< int64_t >::TwoDimensional( &foo ), 1 );
@@ -153,7 +154,8 @@ void user_main( Thread * me, void * args )
     SoftXMT_free( array );
   }
 
-  SoftXMT_signal_done();
+  //SoftXMT_waitForTasks();
+  //SoftXMT_signal_done();
 }
 
 BOOST_AUTO_TEST_CASE( test1 ) {
@@ -165,7 +167,7 @@ BOOST_AUTO_TEST_CASE( test1 ) {
   SoftXMT_activate();
 
   BOOST_CHECK_EQUAL( SoftXMT_nodes(), 2 );
-  SoftXMT_run_user_main( &user_main, NULL );
+  SoftXMT_run_user_main( &user_main, (int*)NULL );
   BOOST_CHECK( SoftXMT_done() == true );
 
   SoftXMT_finish( 0 );

@@ -1,4 +1,8 @@
-#include "SoftXMT.hpp"
+
+#ifndef __TASKING_HPP__
+#define __TASKING_HPP__
+
+//#include "SoftXMT.hpp"
 #include "tasks/Task.hpp"
 
 extern TaskManager * my_task_manager;
@@ -58,3 +62,5 @@ int SoftXMT_run_user_main( void (* fn_p)(ArgsStruct *), ArgsStruct * args )
 //    SoftXMT_call_on( target, &remote_task_spawn_am, arg );
 //}
 //
+
+#endif
