@@ -11,12 +11,8 @@ int64_t some_data = 1234;
 
 int64_t other_data __attribute__ ((aligned (2048))) = 0;
 
-void user_main( Thread * me, void * args ) 
+void user_main( int * args ) 
 {
-  BOOST_MESSAGE( "Spawning user main Thread " << (void *) CURRENT_THREAD <<
-                 " " << me <<
-                 " on node " << SoftXMT_mynode() );
-
   BOOST_CHECK_EQUAL( 2, SoftXMT_nodes() );
   // try read
   some_data = 1111;
@@ -95,7 +91,6 @@ void user_main( Thread * me, void * args )
   BOOST_CHECK_EQUAL( 1, remote_data );
   
 
-  SoftXMT_signal_done();
 }
 
 BOOST_AUTO_TEST_CASE( test1 ) {
@@ -108,7 +103,7 @@ BOOST_AUTO_TEST_CASE( test1 ) {
 
 
   DVLOG(1) << "Spawning user main Thread....";
-  SoftXMT_run_user_main( &user_main, NULL );
+  SoftXMT_run_user_main( &user_main, (int*)NULL );
   BOOST_CHECK( SoftXMT_done() == true );
 
   SoftXMT_finish( 0 );
