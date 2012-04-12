@@ -4,7 +4,7 @@
 #include "SoftXMT.hpp"
 #include "Future.hpp"
 
-static int64_t threshold = 2;
+static int64_t threshold = 1;
 
 template < typename ArgsStruct >
 struct parloop_args {
