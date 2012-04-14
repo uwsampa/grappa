@@ -2,6 +2,8 @@
 #include common SoftXMT definitions
 include $(SOFTXMT_HOME)/include.mk
 
+SRUN_FLAGS:=--time=00:40:00
+
 TARGET:= graph.exe
 
 #default rule: just build
