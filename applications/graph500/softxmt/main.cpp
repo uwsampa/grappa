@@ -149,7 +149,7 @@ struct func_bfs_node : public ForkJoinIteration {
   int64_t start, end;
   int64_t nadj; // TODO: DEBUG only...
   void operator()(int64_t mynode) {
-    int64_t kbuf;
+    int64_t kbuf = 0;
     int64_t buf[BUF_LEN];
     
     range_t r = blockDist(start, end, mynode, SoftXMT_nodes());
@@ -293,7 +293,7 @@ static void run_bfs(tuple_graph * tg) {
   }
 }
 
-static void user_main(Thread * me, void * args) {    
+static void user_main(int * args) {    
   tuple_graph tg;
   tg.nedge = (int64_t)(edgefactor) << SCALE;
   tg.edges = SoftXMT_typed_malloc<packed_edge>(tg.nedge);
@@ -320,6 +320,7 @@ static void user_main(Thread * me, void * args) {
 //      VLOG(1) << "edge[" << i << "] = " << (*e).v0 << " -> " << (*e).v1;
 //    }
 //    
+//    int64_t NV = 1<<SCALE;
 //    int64_t degree[NV];
 //    for (int64_t i=0; i<NV; i++) degree[i] = 0;
 //    
@@ -349,7 +350,7 @@ static void user_main(Thread * me, void * args) {
   /* Print results. */
   output_results(SCALE, 1<<SCALE, edgefactor, A, B, C, D, generation_time, construction_time, (int)nbfs, bfs_time, bfs_nedge);
 
-  SoftXMT_signal_done();
+//  SoftXMT_signal_done();
 }
 
 int main(int argc, char** argv) {
@@ -370,7 +371,7 @@ int main(int argc, char** argv) {
     exit(0);
   }
 
-  SoftXMT_run_user_main(&user_main, NULL);
+  SoftXMT_run_user_main(&user_main, (int*)NULL);
 
   SoftXMT_finish(0);
   return 0;

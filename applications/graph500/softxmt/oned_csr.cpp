@@ -103,7 +103,7 @@ struct prefix_sum_node : public ForkJoinIteration {
   void operator()(int64_t nid) {
     range_t myblock = blockDist(0, nv, nid, SoftXMT_nodes());
     
-    int64_t mysum;
+    int64_t mysum = 0;
     local_reduce_sum fr;
     fr.xoff = xoff;
     fr.sum = &mysum;
