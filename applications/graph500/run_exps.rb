@@ -11,15 +11,16 @@ if `hostname`.match /cougar/ then
   machinename = "cougarxmt"
 else
   # command that will be excuted on the command line, with variables in %{} substituted
-  cmd = "cd softxmt && make run TARGET=graph.exe ARGS='%{scale} %{edgefactor} --v=0' NPROC=%{nproc}"
+  cmd = "cd softxmt && make run TARGET=graph.exe ARGS='%{scale} %{edgefactor} --v=0 --num_starting_workers=%{nworkers}' NPROC=%{nproc} NNODE=%{nproc} PPN=1"
   machinename = "sampa"
 end
 
 # map of parameters; key is the name used in command substitution
 params = {
-  scale: [8, 12, 14, 16, 17, 18],
+  scale: [12, 16, 18],
   edgefactor: [16],
-  nproc: [2, 4], #8, 12, 16, 24],
+  nproc: [2, 4],# 8, 12, 16, 24],
+  nworkers: [16, 128, 256, 384, 512],
   machine: [machinename],
 }
 
