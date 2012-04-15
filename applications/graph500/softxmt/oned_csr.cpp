@@ -24,6 +24,8 @@
 #include "Collective.hpp"
 #include "Delegate.hpp"
 
+#include "timer.h"
+
 #include <sstream>
 
 #define MINVECT_SIZE 2
@@ -157,7 +159,7 @@ struct init_xendoff_func : public ForkJoinIteration {
 static void setup_deg_off(const tuple_graph * const tg, csr_graph * g) {
   GlobalAddress<int64_t> xoff = g->xoff;
   // initialize xoff to 0
-  func_set_const fc; fc.value = 0; fc.base_addr = g->xoff;
+  func_set_const fc(g->xoff, 0);
   fork_join(&fc, 0, 2*g->nv+2);
   
   // count occurrences of each vertex in edges
@@ -313,9 +315,12 @@ void create_graph_from_edgelist(const tuple_graph* const tg, csr_graph* const g)
   g->nv = nv;
   g->xoff = SoftXMT_typed_malloc<int64_t>(2*nv+2);
   
-  setup_deg_off(tg, g);
+  double time;
+  TIME(time, setup_deg_off(tg, g));
+  LOG(INFO) << "setup_deg_off time: " << time;
   
-  gather_edges(tg, g);
+  TIME(time, gather_edges(tg, g));
+  LOG(INFO) << "gather_edges time: " << time;
 }
 
 void free_oned_csr_graph(csr_graph* const g) {

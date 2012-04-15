@@ -8,6 +8,7 @@
 #include "Cache.hpp"
 #include "Delegate.hpp"
 #include "rmat.h"
+#include "timer.h"
 
 double A = 0.57;
 double B = 0.19;
@@ -123,21 +124,24 @@ static void permute_vertex_labels (GlobalAddress<packed_edge> ij, int64_t nedge,
   //      f.st = *st;
   //    fork_join(current_thread, &f, 0, max_nvtx);
   //  }
-  randpermute(newlabel, max_nvtx, st); // TODO: doing this serially for now...
-	
-  VLOG(1) << "done: randpermute";
+  double t;
+  TIME(t, randpermute(newlabel, max_nvtx, st)); // TODO: doing this serially for now...
+  VLOG(1) << "done: randpermute (time = " << t << ")";
   
   //	OMP("omp for")
   //	for (k = 0; k < nedge; ++k)
   //		write_edge(&IJ[k],
   //               newlabel[get_v0_from_edge(&IJ[k])],
   //               newlabel[get_v1_from_edge(&IJ[k])]);
+  t = timer();
   {
     write_edge_func f;
     f.newlabel = newlabel;
     f.ij = ij;
     fork_join(&f, 0, nedge);
   }
+  t = timer() - t;
+  VLOG(1) << "done write_edge_func (time = " << t << ")";
 }
 
 static void rmat_edge(packed_edge *out, int SCALE, double A, double B, double C, double D, const double *rn) {
@@ -234,6 +238,8 @@ void rmat_edgelist(tuple_graph* grin, int SCALE) {
   int64_t NV = 1L<<SCALE;
   GlobalAddress<int64_t> iwork = SoftXMT_typed_malloc<int64_t>(NV);
   
+  double t;
+  t = timer();
   {
     random_edges_node_work f;
     f.edges = grin->edges;
@@ -243,15 +249,17 @@ void rmat_edgelist(tuple_graph* grin, int SCALE) {
     f.SCALE = SCALE;
     fork_join_custom(&f);
   }
-  VLOG(1) << "done: random_edges forkjoin";
+  t = timer() - t;
+  VLOG(1) << "done: random_edges forkjoin (time = " << t << ")";
   
   mrg_skip(&prng_state_store, 1, NRAND(grin->nedge), 0);
   
-  permute_vertex_labels(grin->edges, grin->nedge, NV, &prng_state_store, iwork);
+  TIME(t, permute_vertex_labels(grin->edges, grin->nedge, NV, &prng_state_store, iwork));
   
-  VLOG(1) << "done: permute_vertex_labels";
+  VLOG(1) << "done: permute_vertex_labels (time = " << t << ")";
   
   mrg_skip(&prng_state_store, 1, NV, 0);
   
-  randpermute(grin->edges, grin->nedge, &prng_state_store);
+  TIME(t, randpermute(grin->edges, grin->nedge, &prng_state_store));
+  VLOG(1) << "done: randpermute (time = " << t << ")";
 }

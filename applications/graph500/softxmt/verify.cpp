@@ -8,6 +8,7 @@
 #include "GlobalAllocator.hpp"
 
 #include "oned_csr.h"
+#include "timer.h"
 
 struct compute_levels_func : ForkJoinIteration {
   GlobalAddress<int64_t> bfs_tree;
@@ -173,13 +174,19 @@ int64_t verify_bfs_tree(GlobalAddress<int64_t> bfs_tree, int64_t max_bfsvtx, int
   GlobalAddress<int64_t> seen_edge = SoftXMT_typed_malloc<int64_t>(nv);
   GlobalAddress<int64_t> level = SoftXMT_typed_malloc<int64_t>(nv);
   
-  compute_levels(level, nv, bfs_tree, root);
+  double t;
+  TIME(t, compute_levels(level, nv, bfs_tree, root));
+  VLOG(1) << "compute_levels time: " << t;
   
+  t = timer();
   func_set_const fc;
   fc.base_addr = seen_edge;
   fc.value = 0;
   fork_join(&fc, 0, nv);
+  t = timer() - t;
+  VLOG(1) << "set_const time: " << t;
   
+  t = timer();
   verify_func fv;
   fv.bfs_tree = bfs_tree;
   fv.edges = tg->edges;
@@ -189,16 +196,20 @@ int64_t verify_bfs_tree(GlobalAddress<int64_t> bfs_tree, int64_t max_bfsvtx, int
   fv.max_bfsvtx = max_bfsvtx;
   fv.err = make_global(&err);
   fork_join(&fv, 0, tg->nedge);
+  t = timer() - t;
+  VLOG(1) << "verify_func time: " << t;
   
   if (!err) {
     /* Check that every BFS edge was seen and that there's only one root. */
-    OMP("omp for") MTA("mta assert parallel") MTA("mta use 100 streams")
+    t = timer();
     final_verify_func ff;
     ff.bfs_tree = bfs_tree;
     ff.seen_edge = seen_edge;
     ff.err = make_global(&err);
     ff.root = root;
     fork_join(&ff, 0, nv);
+    t = timer() - t;
+    VLOG(1) << "final_verify_func time: " << t;
   }
   
   SoftXMT_free(seen_edge);
