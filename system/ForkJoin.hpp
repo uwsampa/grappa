@@ -71,6 +71,7 @@ struct ForkJoinIteration {
 struct func_set_const : public ForkJoinIteration {
   GlobalAddress<int64_t> base_addr;
   int64_t value;
+  func_set_const() {}
   func_set_const(GlobalAddress<int64_t> base_addr, int64_t value): base_addr(base_addr), value(value) {}
   void operator()(int64_t index) {
     SoftXMT_delegate_write_word(base_addr+index, value);
