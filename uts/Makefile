@@ -1,25 +1,7 @@
-###  UTS - Unbalanced Tree Search  ###
+# include common variable definitions
+include ../include.mk
 
-# CONFFILE should be a symlink to your configuration
-CONFFILE    = config.in
--include      $(CONFFILE)
-
-DIST_EXCLUDE= DIST_EXCLUDE
-
-COMMON_SRCS = uts.c
-DM_SRCS     = uts_dm.c stats.c
-QUEUE_SRCS  = dequeue.c dlist.c
-SHM_SRCS    = uts_shm.c
-
-TARGETS     = uts-seq uts-dfs uts-stat          \
-              uts-omp uts-pthread               \
-              uts-upc uts-upc-dcq               \
-	      uts-upc-enhanced                  \
-              uts-shmem uts-gpshmem             \
-              uts-mpi-wm uts-mpi-wm-nb          \
-	      uts-mpi-ws uts-mpi-hws            \
-              uts-mta uts-gtc time_rng time_poll\
-              uts-dot
+SOFTXMT_SYS=../system
 
 # ------------------------------------- #
 # Set Random Number Generator sources:
@@ -45,104 +27,70 @@ RNG_SRC = rng/alfg.c
 RNG_INCL= rng/alfg.h
 RNG_DEF = -DUTS_ALFG
 endif
+#-----------------------------------------#
 
-# ------------------------------------- #
-# Targets:
-# ------------------------------------- #
+CFLAGS_COMMON= -fomit-frame-pointer
+CFLAGS+= $(CFLAGS_COMMON)
+CFLAGS+= -I$(SOFTXMT_SYS)
+CFLAGS+= -I..
 
-.PHONY: clean uts-mpi
-
-ifndef TARGETS_ALL
-TARGETS_ALL=uts-seq
+ifdef DEBUG
+CFLAGS+= -O1 -g
+else
+CFLAGS+= -O3
 endif
 
-all: $(TARGETS_ALL)
+# supress c char* warnings
+CFLAGS+= -Wno-write-strings 
 
-$(CONFFILE):
-	$(error UTS has not been configured.  Please run configure.sh)
+EXPERIMENTS=/sampa/home/bdmyers/experiments
+CFLAGS+= -I$(EXPERIMENTS)/lib
 
-tags:
-	ctags --recurse --language-force=C rng *.c *.h
-
-########## Sequential Implementations ##########
-
-uts-seq:  $(SHM_SRCS) $(RNG_SRC) $(COMMON_SRCS)
-	$(CC) $(CC_OPTS) $(LD_OPTS) $(RNG_DEF) $(FLAGS) -o $@ $+
-
-uts-dfs:  uts_dfs.c $(RNG_SRC) $(COMMON_SRCS)
-	$(CC) $(CC_OPTS) $(LD_OPTS) $(RNG_DEF) -o $@ $+
-
-uts-dot:  uts_dot.c $(RNG_SRC) $(COMMON_SRCS)
-	$(CC) $(CC_OPTS) $(LD_OPTS) $(RNG_DEF) -o $@ $+
-
-uts-stat: $(SHM_SRCS) $(RNG_SRC) $(COMMON_SRCS)
-	$(CC) $(CC_OPTS) $(LD_OPTS) $(RNG_DEF) -DUTS_STAT -o $@ $+
-
-time_rng:  time_rng.c $(RNG_SRC) $(COMMON_SRCS)
-	$(CC) $(CC_OPTS) $(RNG_DEF) -o $@ $+ $(LD_OPTS)
+CFLAGS+= -DGASNET_SEQ -DGASNET_CONDUIT_IBV
 
 
-########## Distributed Memory Model Implementations ##########
+LIB=-lm 
 
-uts-mpi: uts-mpi-wm uts-mpi-ws
+LDFLAGS+= $(CFLAGS_COMMON) -L$(SOFTXMT_SYS)
 
-uts-mpi-wm: $(DM_SRCS) $(QUEUE_SRCS) mpi_worksharing.c $(RNG_SRC) $(COMMON_SRCS)
-	$(MPICC) $(MPICC_OPTS) $(MPILD_OPTS) $(RNG_DEF) $(FLAGS) -D__MPI__ -o $@ $+
+LIBRARIES:= -lgflags -lglog -lgasnet-ibv-seq -libverbs -lrt -lboost_unit_test_framework -lSoftXMT
 
-uts-mpi-wm-nb: $(DM_SRCS) $(QUEUE_SRCS) mpi_worksharing.c $(RNG_SRC) $(COMMON_SRCS)
-	$(MPICC) $(MPICC_OPTS) $(MPILD_OPTS) $(RNG_DEF) $(FLAGS) -DNONBLOCK -D__MPI__ -o $@ $+
+#
+# set LD_LIBRARY_PATH
+#
+#LD_LIBRARY_PATH:=$(LD_LIBRARY_PATH):$(GFLAGS)/lib
+ENV_VARIABLES+= LD_LIBRARY_PATH="\$$LD_LIBRARY_PATH:$(LD_LIBRARY_PATH)"
 
-uts-mpi-ws: $(DM_SRCS) $(QUEUE_SRCS) mpi_workstealing.c $(RNG_SRC) $(COMMON_SRCS)
-	$(MPICC) $(MPICC_OPTS) $(MPILD_OPTS) $(RNG_DEF) $(FLAGS) -D__MPI__ -o $@ $+ 
+ENV_VARIABLES+= GASNET_BACKTRACE=1
+ENV_VARIABLES+= GLOG_logtostderr=1
+ENV_VARIABLES+= GLOG_v=1
 
-time_poll:  time_poll.c $(RNG_SRC) $(COMMON_SRCS) stats.c mpi_workstealing.c $(QUEUE_SRCS)
-	$(MPICC) $(MPICC_OPTS) $(RNG_DEF) -o $@ $+ $(MPILD_OPTS)
+#
+# run vars
+#
+ARGS:=
+NPROC:=2
+HOST:=localhost
+TARGET:=
+PPN:=2
 
-uts-gtc: $(DM_SRCS) gtc_ldbal.c $(RNG_SRC) $(COMMON_SRCS)
-	$(MPICC) $(MPICC_OPTS) $(RNG_DEF) $(FLAGS) -DUSING_GTC -I$(ARMCI_INCLUDE) -I$(GA_INCLUDE) -I$(SCIOTO_INCLUDE) -D__MPI__ -c $(RNG_SRC)
-	$(MPICC) $(MPICC_OPTS) $(RNG_DEF) $(FLAGS) -DUSING_GTC -I$(ARMCI_INCLUDE) -I$(GA_INCLUDE) -I$(SCIOTO_INCLUDE) -D__MPI__ -c $+
-	$(MPICC) $(MPICC_OPTS) $(MPILD_OPTS) $(RNG_DEF) $(FLAGS) -DUSING_GTC -I$(ARMCI_INCLUDE) -I$(GA_INCLUDE) -I$(SCIOTO_INCLUDE) \
-        -L$(ARMCI_LIBS) -L$(GA_LIBS) -L$(SCIOTO_LIBS) -D__MPI__ -o $@ $(+:.c=.o) -ltc -lsynch -larmci -lm
+%.o: %.cpp
+	$(CXX) $(CFLAGS) $(RNG_DEF) $< -c -o $@
 
-uts-mpi-hws: $(RNG_SRC) uts_hws.c
-	$(MPICC) $(MPICC_OPTS) $(MPILD_OPTS) $(RNG_DEF) $(FLAGS) -D__MPI__ -D__PTHREADS__ -lpthread -o $@ $+
+uts_grappa.exe: uts_grappa.o $(RNG_SRC)
+	$(LD) $(LDFLAGS) -o $@ $^  $(LIBRARIES) $(LIB) $(GASNET_LIBS) 
 
-uts-upc-dcq: $(DM_SRCS) $(RNG_SRC) $(COMMON_SRCS) $(QUEUE_SRCS) upc_worksharing.c shared_dequeue.c shared_dlist.c
-	$(UPCC) $(UPCC_OPTS) $(UPCLD_OPTS) $(RNG_DEF) $(FLAGS) -o $@ $+
+run: $(TARGET) $($(MPITYPE)_ENVVAR_TEMP)
+	-killall $<
+	$(ENV_VARIABLES) \
+	$($(MPITYPE)_MPIRUN) $($(MPITYPE)_EXPORT_ENV_VARIABLES) $($(MPITYPE)_HOST) $($(MPITYPE)_NPROC) -- ./$< $(ARGS)
 
+#debug: TreeGen.exe
+#	GLOG_logtostderr=1 \
+#	OMPI_MCA_btl_sm_use_knem=0 \
+#	LD_LIBRARY_PATH="$(LD_LIBRARY_PATH)" \
+#	GASNET_BACKTRACE=1 \
+#	mpirun -np $(NPROC) -H $(HOST) xterm -hold -e gdb --args ./$< $(T1) $(ARGS)
 
-########## Shared Memory Model Implementations ##########
-
-uts-pthread: $(SHM_SRCS) $(RNG_SRC) $(COMMON_SRCS)
-	$(CC) $(CC_OPTS) $(LD_OPTS) $(RNG_DEF) $(FLAGS) -D__PTHREADS__ -lpthread -o $@ $+
-
-uts-omp: $(SHM_SRCS) $(RNG_SRC) $(COMMON_SRCS)
-	$(OMPCC) $(OMPCC_OPTS) $(OMPLD_OPTS) $(RNG_DEF) $(FLAGS) -o $@ $+
-
-uts-upc: $(SHM_SRCS) $(RNG_SRC) $(COMMON_SRCS)
-	$(UPCC) $(UPCC_OPTS) $(UPCLD_OPTS) $(RNG_DEF) $(FLAGS) -o $@ $+
-
-uts-upc-enhanced: uts_upc_enhanced.c $(RNG_SRC) $(COMMON_SRCS)
-	$(UPCC) $(UPCC_OPTS) $(UPCLD_OPTS) $(RNG_DEF) $(FLAGS) -o $@ $+
-
-uts-mta:  uts_dfs.c $(RNG_SRC) $(COMMON_SRCS)
-	$(CC) $(CC_OPTS) $(RNG_DEF) -D__MTA__ -o $@ $+ $(LD_OPTS)
-
-uts-shmem: $(SHM_SRCS) $(RNG_SRC) $(COMMON_SRCS)
-	$(SHMCC) $(SHMCC_OPTS) $(SHMLD_OPTS) $(RNG_DEF) $(FLAGS) -D_SHMEM -o $@ $+
-
-uts-gpshmem: uts_gpshmem.c $(RNG_SRC) $(COMMON_SRCS)
-	$(GPSHMCC) $(GPSHMCC_OPTS) $(GPSHMLD_OPTS) $(RNG_DEF) -D_GPSHMEM -o $@ $+
-
-
-clean: config
-	rm -f *.o $(TARGETS) tags
-
-distclean: clean
-	rm -f $(CONFFILE)
-
-distrib: clean
-	mkdir distrib
-	tar -X DIST_EXCLUDE -c * | tar -C distrib/ -xf -
-	bash -c 'cd distrib; echo ++ Entering `pwd`; for file in *.c *.h rng/alfg.*; do echo \ \ \ Inserting header into $$file; (echo 0a; cat ../DIST_HEADER; echo .; echo wq) | ed -s $$file; done'
-	@echo "++ Distribution has been built in ./distrib/"
+clean:
+	rm -f ./*.exe ./*.o

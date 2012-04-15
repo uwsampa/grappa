@@ -30,19 +30,18 @@ extern "C" {
 
 #define MAXNUMCHILDREN    100  // cap on children (BIN root is exempt)
 
-namespace uts {
-
 struct node_t {
   int type;          // distribution governing number of children
   int height;        // depth of this node in the tree
   int numChildren;   // number of children, -1 => not yet determined
+  
+  int id;
   
   /* for statistics (if configured via UTS_STAT) */
 #ifdef UTS_STAT
   struct node_t *pp;          // parent pointer
   int sizeChildren;           // sum of children sizes
   int maxSizeChildren;        // max of children sizes
-  int ind;
   int size[MAXNUMCHILDREN];   // children sizes
   double unb[MAXNUMCHILDREN]; // imbalance of each child 0 <= unb_i <= 1
 #endif
