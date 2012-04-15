@@ -30,6 +30,8 @@ extern "C" {
 
 #define MAXNUMCHILDREN    100  // cap on children (BIN root is exempt)
 
+namespace uts {
+
 struct node_t {
   int type;          // distribution governing number of children
   int height;        // depth of this node in the tree
@@ -49,7 +51,8 @@ struct node_t {
   struct state_t state;
 };
 
-typedef struct node_t Node;
+typedef struct node_t TreeNode;
+
 
 /* Tree type
  *   Trees are generated using a Galton-Watson process, in 
@@ -106,11 +109,11 @@ double uts_wctime();
 double rng_toProb(int n);
 
 /* Common tree routines */
-void   uts_initRoot(Node * root, int type);
-int    uts_numChildren(Node *parent);
-int    uts_numChildren_bin(Node * parent);
-int    uts_numChildren_geo(Node * parent);
-int    uts_childType(Node *parent);
+void   uts_initRoot(TreeNode * root, int type);
+int    uts_numChildren(TreeNode *parent);
+int    uts_numChildren_bin(TreeNode * parent);
+int    uts_numChildren_geo(TreeNode * parent);
+int    uts_childType(TreeNode *parent);
 
 /* Implementation Specific Functions */
 char * impl_getName();
