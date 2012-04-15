@@ -189,9 +189,7 @@ static double make_bfs_tree(csr_graph * g, GlobalAddress<int64_t> bfs_tree, int6
   GlobalAddress<int64_t> k2addr = make_global(&k2);
   
   // initialize bfs_tree to -1
-  func_set_const fc;
-  fc.base_addr = bfs_tree;
-  fc.value = -1;
+  func_set_const fc(bfs_tree, -1);
   fork_join(&fc, 0, NV);
   
   SoftXMT_delegate_write_word(bfs_tree+root, root); // parent of root is self
@@ -249,11 +247,13 @@ static void run_bfs(tuple_graph * tg) {
 //    VLOG(2) << ss.str();
 //  }
 //#endif
+  double t;
   
   // no rootname input method, so randomly choose
   int64_t bfs_roots[NBFS_max];
   nbfs = NBFS_max;
-  choose_bfs_roots(g.xoff, g.nv, &nbfs, bfs_roots);
+  TIME(t, choose_bfs_roots(g.xoff, g.nv, &nbfs, bfs_roots));
+  VLOG(1) << "choose_bfs_roots time: " << t;
   
 //  for (int64_t i=0; i < nbfs; i++) {
 //    VLOG(1) << "bfs_roots[" << i << "] = " << bfs_roots[i];
@@ -265,7 +265,10 @@ static void run_bfs(tuple_graph * tg) {
     GlobalAddress<int64_t> max_bfsvtx;
     
     VLOG(1) << "Running bfs on root " << i << "(" << bfs_roots[i] << ")...";
+    t = timer();
     bfs_time[i] = make_bfs_tree(&g, bfs_tree, bfs_roots[i]);
+    t = timer() - t;
+    VLOG(1) << "make_bfs_tree time: " << t;
 //    VLOG(1) << "done";
 //    for (int64_t i=0; i < g.nv; i++) {
 //      VLOG(1) << "bfs_tree[" << i << "] = " << SoftXMT_delegate_read_word(bfs_tree+i);
@@ -279,7 +282,10 @@ static void run_bfs(tuple_graph * tg) {
 //    VLOG(1) << ss.str();
     
     VLOG(1) << "Verifying bfs " << i << "...";
+    t = timer();
     bfs_nedge[i] = verify_bfs_tree(bfs_tree, g.nv-1, bfs_roots[i], tg);
+    t = timer() - t;
+    VLOG(1) << "verify time: " << t;
 //    VLOG(1) << "done";
     
     if (bfs_nedge[i] < 0) {
@@ -289,7 +295,8 @@ static void run_bfs(tuple_graph * tg) {
       VLOG(1) << "bfs_time[" << i << "] = " << bfs_time[i];
     }
     
-    SoftXMT_free(bfs_tree);
+    TIME(t, SoftXMT_free(bfs_tree));
+    VLOG(1) << "Free bfs_tree time: " << t;
   }
 }
 
