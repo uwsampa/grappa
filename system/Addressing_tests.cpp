@@ -224,6 +224,20 @@ BOOST_AUTO_TEST_CASE( test1 ) {
     array_element * foo_p = l2 - 4;
     array_element * bar_p = l2;
     BOOST_CHECK_EQUAL( foo_p + 4, bar_p );
+
+    // pointer to member
+    GlobalAddress< array_element > l3 = make_linear( &global_array[0] );
+    GlobalAddress< int > l3block = global_pointer_to_member( l3, &array_element::block );
+    BOOST_CHECK_EQUAL( l3block.pointer(), &(global_array[0].block) );
+
+    while( l3.node() == 0 ) {
+      ++l3;
+    }
+    ++l3; // one more to put us on second element of second node
+    
+    l3block = global_pointer_to_member( l3, &array_element::block );
+    // still in first block, so address should be same as second element on first node
+    BOOST_CHECK_EQUAL( l3block.pointer(), &(global_array[1].block) ); 
   }
 
   SoftXMT_finish( 0 );

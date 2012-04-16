@@ -307,5 +307,21 @@ std::ostream& operator<<( std::ostream& o, const GlobalAddress< T >& ga ) {
   return ga.dump( o );
 }
 
+/// computes offsets of members in structs and claases
+/// call like this:
+///   struct Foo {
+///     int i;
+///   } foo;
+///   GlobalAddress< Foo > foo_gp = make_global( foo );
+///   GlobalAddress< int > foo_i_gp = global_pointer_to_member( foo_gp, &Foo::i );
+template< typename T, typename M >
+inline GlobalAddress< M > global_pointer_to_member( const GlobalAddress< T > t, const M T::*m ) {
+  const intptr_t t_raw = t.raw_bits();
+  const T * tp = reinterpret_cast< T * >( t_raw );
+  const M * mp = &(tp->*m);
+  return GlobalAddress< M >::Raw( reinterpret_cast< intptr_t >( mp ) );
+}
+
+
 //template< typename T >
 #endif
