@@ -8,6 +8,7 @@ const int HOME_NODE = 0;
 Node num_barrier_clients;
 Node num_waiting_clients;
 std::list<Node>* waiters;
+bool * notified;
 bool cb_reply;
 bool cb_done;
 Thread * wakeme;
@@ -29,25 +30,34 @@ void exit_cbarrier_request_am( exit_cbarrier_request_args * args, size_t size, v
 void enter_cbarrier_request_am( enter_cbarrier_request_args * args, size_t size, void * payload, size_t payload_size ) {
     Node source = args->from;
 
-    num_waiting_clients++;
-    if (num_waiting_clients == num_barrier_clients) {
-        // only one thread can enter by proper usage of barrier (only one last enter AM)
-        // And after this message no cancel can be received
-        DVLOG(5) << "enter_cbarrier_request_am: last";
-        while (!waiters->empty()) {
-            Node nod = waiters->front();
-            waiters->pop_front();
+    // ensure we haven't gotten a duplicate message
+    // (supports efficient cancel_local)
+    if ( !notified[source] ) {
+        notified[source] = true;
+        num_waiting_clients++;
+        if (num_waiting_clients == num_barrier_clients) {
+            // only one thread can enter by proper usage of barrier (only one last enter AM)
+            // And after this message no cancel can be received
+            DVLOG(5) << "enter_cbarrier_request_am: last";
+            while (!waiters->empty()) {
+                Node nod = waiters->front();
+                waiters->pop_front();
+                exit_cbarrier_request_args exargs = { true };
+                DVLOG(5) << "enter_cbarrier_request_am: sending to " << nod;
+                notified[nod] = false;
+                SoftXMT_call_on( nod, &exit_cbarrier_request_am, &exargs ); 
+            }
+            num_waiting_clients = 0;
             exit_cbarrier_request_args exargs = { true };
-            DVLOG(5) << "enter_cbarrier_request_am: sending to " << nod;
-            SoftXMT_call_on( nod, &exit_cbarrier_request_am, &exargs ); 
+            DVLOG(5) << "enter_cbarrier_request_am: sending to " << source;
+            notified[source] = false;
+            SoftXMT_call_on( source, &exit_cbarrier_request_am, &exargs );
+        } else {
+            DVLOG(5) << "enter_cbarrier_request_am: not last (" << num_waiting_clients << "/" << num_barrier_clients;
+            waiters->push_back(source);
         }
-        num_waiting_clients = 0;
-        exit_cbarrier_request_args exargs = { true };
-        DVLOG(5) << "enter_cbarrier_request_am: sending to " << source;
-        SoftXMT_call_on( source, &exit_cbarrier_request_am, &exargs );
     } else {
-        DVLOG(5) << "enter_cbarrier_request_am: not last";
-        waiters->push_back(source);
+        DVLOG(5) << "enter_cbarrier_request_am: duplicate (" << num_waiting_clients << "/" << num_barrier_clients;;
     }
 }
 
@@ -74,6 +84,7 @@ void cancel_cbarrier_request_am( cancel_cbarrier_request_args * args, size_t siz
         waiters->pop_front();
         exit_cbarrier_request_args exargs = { false };
         VLOG(5) << "home_node sends cancel to "<<nod;
+        notified[nod] = false;
         SoftXMT_call_on( nod, &exit_cbarrier_request_am, &exargs );
     }
 }
@@ -89,7 +100,7 @@ void cbarrier_cancel() {
 
 bool cbarrier_wait() {
     CHECK( wakeme == NULL ) << "more than one thread entered cbarrier on this Node";
-    CHECK( cb_done != NULL ) << "cannot call wait on a finished barrier";
+    CHECK( !cb_done ) << "cannot call wait on a finished barrier";
     
     enter_cbarrier_request_args enargs = { SoftXMT_mynode() };
     SoftXMT_call_on( HOME_NODE, &enter_cbarrier_request_am, &enargs );
@@ -110,6 +121,10 @@ void cbarrier_init( Node num_nodes ) {
     
     if ( SoftXMT_mynode() == HOME_NODE ) {
         waiters = new std::list <Node>();
+        notified = new bool[SoftXMT_nodes()];
+        for (Node i=0; i<SoftXMT_nodes(); i++) {
+            notified[i] = false;
+        }
     }
 
     cb_done = false;
@@ -122,7 +137,7 @@ void cbarrier_init( Node num_nodes ) {
 /// of things actually waiting. This is because
 /// user_main should not exit until things are done.
 void cbarrier_cancel_local( ) {
-    if ( wakeme ) {
+   if ( wakeme ) {
         SoftXMT_wake( wakeme );
         wakeme = NULL;
     }
