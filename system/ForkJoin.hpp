@@ -1,14 +1,24 @@
+#ifndef __FORK_JOIN_HPP__
+#define __FORK_JOIN_HPP__
+
 #include "SoftXMT.hpp"
 #include "Addressing.hpp"
 #include "tasks/Thread.hpp"
 #include "Delegate.hpp"
 #include "Tasking.hpp"
+#include "common.hpp"
 
 #include <iostream>
 #include <fstream>
 
 #include <boost/static_assert.hpp>
 #include <boost/type_traits/is_base_of.hpp>
+#include <boost/preprocessor/seq/enum.hpp>
+#include <boost/preprocessor/empty.hpp>
+#include <boost/preprocessor/seq/transform.hpp>
+#include <boost/preprocessor/cat.hpp>
+#include <boost/preprocessor/tuple/elem.hpp>
+#include <boost/preprocessor/seq/for_each.hpp>
 
 //#define VLOG(verboselevel) VLOG(verboselevel) << "<" << SoftXMT_mynode() << "> "
 
@@ -68,16 +78,6 @@ struct ForkJoinIteration {
   void operator()(int64_t index);
 };
 
-struct func_set_const : public ForkJoinIteration {
-  GlobalAddress<int64_t> base_addr;
-  int64_t value;
-  func_set_const() {}
-  func_set_const(GlobalAddress<int64_t> base_addr, int64_t value): base_addr(base_addr), value(value) {}
-  void operator()(int64_t index) {
-    SoftXMT_delegate_write_word(base_addr+index, value);
-  }
-};
-
 template<typename T>
 struct NodeForkJoinArgs {
   BOOST_STATIC_ASSERT((boost::is_base_of<ForkJoinIteration, T>::value));
@@ -128,19 +128,57 @@ static void task_iters(iters_args * arg) {
   }
 }
 
+#include <boost/preprocessor/cat.hpp>
+
+#define TASK_FUNCTOR(name, members) \
+  struct name { \
+    AUTO_DECLS(members) \
+    AUTO_CONSTRUCTOR( name, members ) \
+    name() {} /* default constructor */ \
+    inline void run(); \
+  }; \
+  inline void name::run()
+
+#define TASK_FUNCTOR_TEMPLATED(T, name, members) \
+template< typename T > \
+struct name { \
+AUTO_DECLS(members) \
+AUTO_CONSTRUCTOR(name, members) \
+name() {} /* default constructor */ \
+inline void run(); \
+}; \
+template< typename T >\
+inline void name<T>::run()
+
+
+TASK_FUNCTOR_TEMPLATED(T, do_iters, ((size_t,rank)) ((void*,fjdata)) ) {
+  forkjoin_data_t<T> * fj = static_cast<forkjoin_data_t<T>*>(fjdata);
+  range_t myblock = blockDist(fj->local_start, fj->local_end, rank, fj->nthreads);
+  VLOG(3) << "iters_block: " << myblock.start << " - " << myblock.end;
+  
+  for (int64_t i=myblock.start; i < myblock.end; i++) {
+    (*fj->func)(i);
+  }
+  fj->finished++;
+  if (fj->finished == fj->nthreads) {
+    SoftXMT_wake(fj->node_th);
+  }
+}
+
 template<typename T>
 static void fork_join_onenode(T* func, int64_t start, int64_t end) {
   forkjoin_data_t<T> fj(CURRENT_THREAD, func, start, end);
-  iters_args args[fj.nthreads];
+//  iters_args args[fj.nthreads];
+  do_iters<T> funcs[fj.nthreads];
 //  Thread* ths[fj.nthreads];
   VLOG(2) << "fj.nthreads = " << fj.nthreads;
   
   for (int i=0; i<fj.nthreads; i++) {
-    args[i].fjdata = &fj;
-    args[i].rank = i;
+    funcs[i].fjdata = &fj;
+    funcs[i].rank = i;
     
 //    ths[i] = SoftXMT_template_spawn(&th_iters<T>, &args[i]);
-    SoftXMT_privateTask(&task_iters<T>, &args[i]);
+    SoftXMT_privateTask(&do_iters<T>::run, &funcs[i]);
   }
   while (fj.finished < fj.nthreads) SoftXMT_suspend();
   
@@ -258,31 +296,35 @@ static void parallel_loop(T* func, int64_t start, int64_t iterations) {
   }
 }
 
-static void test() {
-  struct temp : ForkJoinIteration {
-    
-    void operator()(int64_t index) {
-      
-    }
-  };
+/// Create a functor for iterations of a loop. This automatically creates a struct which is a subtype of ForkJoinIteration, with the given "state" arguments as fields and a constructor with the fields enumerated in the given order.
+/// 
+/// Arguments:
+///   name: struct which is created
+///   index: name of variable used for loop iteration
+///   state: seq of type/name pairs for functor state, of the form:
+///     ((type1,name1)) ((type2,name2)) ...
+///
+/// Example:
+///   LOOP_FUNCTOR(set_const, i, ((GlobalAddress<int64_t>,array)) ((int64_t,value)) ) {
+///     SoftXMT_delegate_write_word(array+i, value);
+///   }
+#define LOOP_FUNCTOR(name, index_var,  members) \
+struct name : ForkJoinIteration { \
+AUTO_DECLS(members) \
+AUTO_CONSTRUCTOR( name, members ) \
+name() {} /* default constructor */\
+inline void operator()(int64_t); \
+}; \
+inline void name::operator()(int64_t index_var)
+
+LOOP_FUNCTOR(func_set_const, index, ((GlobalAddress<int64_t>,base_addr)) ((int64_t,value)) ) {
+  SoftXMT_delegate_write_word(base_addr+index, value);
 }
 
-//#define for_each(index_var, start, iterations) {\
-//  struct temp_func : ForkJoinIteration \
-//    void operator()(int64_t index_var) \
-//  }; \
-//}
 
 
 
 
 
 
-
-
-
-
-
-
-
-
+#endif /* define __FORK_JOIN_HPP__ */
