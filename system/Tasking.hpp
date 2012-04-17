@@ -19,7 +19,7 @@ template < typename ArgsStruct >
 void SoftXMT_privateTask( void (*fn_p)(ArgsStruct * arg), ArgsStruct * arg) 
 {
     DVLOG(5) << "Thread " << my_global_scheduler->get_current_thread() << " spawns private";
-    my_task_manager->spawnPrivate( fn_p, arg );
+    my_task_manager->spawnLocalPrivate( fn_p, arg );
 }
 
 /// Spawn a task visible to other Nodes
@@ -58,12 +58,12 @@ int SoftXMT_run_user_main( void (* fn_p)(ArgsStruct *), ArgsStruct * args )
 template< typename T >
 struct remote_task_spawn_args {
     void (*fn_p)(T *);
-    const T * argPtr;
+    T * argPtr;
     Node from;
 };
 
 template< typename T >
-static void remote_task_spawn_am(T* args, size_t args_size, void* payload, size_t payload_size) {
+static void remote_task_spawn_am( remote_task_spawn_args<T> * args, size_t args_size, void* payload, size_t payload_size) {
 //  typedef void (*task_fn)(T*);
 //  void (*fn_p)(T*) = *reinterpret_cast<task_fn*>(payload);
 //  T* aa = new T;
@@ -73,11 +73,11 @@ static void remote_task_spawn_am(T* args, size_t args_size, void* payload, size_
 
 /// Spawn a private task on another Node
 template< typename T >
-void SoftXMT_remote_privateTask( void (*fn_p)(T*), const T* args, Node target) {
+void SoftXMT_remote_privateTask( void (*fn_p)(T*), T* args, Node target) {
   // typedef void (*am_t)(T*,size_t,void*,size_t);
   // am_t a = &am_remote_spawn<T>;
   remote_task_spawn_args<T> spawn_args = { fn_p, args, SoftXMT_mynode() };
-  SoftXMT_call_on( target, SoftXMT_magic_identity_function(&remote_task_spawn_am<T>), spawn_args );
+  SoftXMT_call_on( target, SoftXMT_magic_identity_function(&remote_task_spawn_am<T>), &spawn_args );
   DVLOG(5) << "Sent AM to spawn private task on Node " << target;
 }
 
