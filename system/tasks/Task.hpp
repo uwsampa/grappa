@@ -3,7 +3,7 @@
 
 #include <deque>
 #include "StealQueue.hpp"
-#include "gasnet_cbarrier.hpp"
+#include "cbarrier.hpp"
 #include "Thread.hpp"
 
 //thread* const NULL_THREAD = NULL;
@@ -51,8 +51,6 @@ class TaskManager {
 
         bool workDone;
        
-        bool inCBarrier;
-
         bool doSteal;   // stealing on/off
         bool okToSteal; // steal lock
         int cbint;      // how often to make local public work visible
@@ -126,9 +124,9 @@ class TaskManager {
         
         /*TODO return value?*/ 
         template < typename ArgsStruct > 
-        void spawnRemotePrivate( void (*f)(ArgsStruct * arg), ArgsStruct * arg);
+        void spawnRemotePrivate( void (*f)(ArgsStruct * arg), ArgsStruct * arg, Node from);
         
-        bool getWork ( Task* result );
+        bool getWork ( Task * result );
 
         bool available ( );
 
@@ -136,7 +134,7 @@ class TaskManager {
 };
 
 
-bool TaskManager::available( ) {
+inline bool TaskManager::available( ) {
     return sharedMayHaveWork ||
            globalMayHaveWork ||
            privateQHasEle()  ||
@@ -168,9 +166,8 @@ inline void TaskManager::spawnLocalPrivate( void (*f)(ArgsStruct * arg), ArgsStr
 /// Should ONLY be called from the context of
 /// an AM handler
 template < typename ArgsStruct > 
-inline void TaskManager::spawnRemotePrivate( void (*f)(ArgsStruct * arg), ArgsStruct * arg ) {
-    /// 
-    Task newtask = createTask(f, arg, SoftXMT_mynode());
+inline void TaskManager::spawnRemotePrivate( void (*f)(ArgsStruct * arg), ArgsStruct * arg, Node from ) {
+    Task newtask = createTask(f, arg, from);
     privateQ.push_front();
 
     cbarrier_cancel_local();
