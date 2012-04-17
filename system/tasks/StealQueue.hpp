@@ -14,6 +14,9 @@ struct workStealReply_args;
 /// Type for Node ID. 
 typedef int16_t Node;
 
+/// Forward declare for steal_locally
+class Thread;
+
 
 template <class T>
 class StealQueue {
@@ -72,7 +75,7 @@ class StealQueue {
         uint64_t localDepth( ); 
         void release( int k ); 
         int acquire( int k ); 
-        int steal_locally( Node victim, int chunkSize ); 
+        int steal_locally( Node victim, int chunkSize, Thread * current ); 
         void setState( int state );
         
         uint64_t get_nNodes( ) {
@@ -191,11 +194,10 @@ int StealQueue<T>::acquire( int k ) {
 /////////////////////////////////////////////////
 
 //#include "../SoftXMT.hpp" 
-Node SoftXMT_mynode();
-void SoftXMT_suspend();
-//#include <Communicator.hpp>
 #include <Aggregator.hpp>
-
+void SoftXMT_suspend();
+void SoftXMT_wake( Thread * );
+Node SoftXMT_mynode();
 
 struct workStealRequest_args {
     int k;
@@ -277,7 +279,7 @@ void StealQueue<T>::workStealRequest_am(workStealRequest_args * args, size_t siz
 }
 
 template <class T>
-int StealQueue<T>::steal_locally( Node victim, int k ) {
+int StealQueue<T>::steal_locally( Node victim, int k, Thread * current ) {
 
     local_steal_amount = -1;
 
@@ -287,7 +289,7 @@ int StealQueue<T>::steal_locally( Node victim, int k ) {
     // steal is blocking
     // TODO: use suspend-wake mechanism
     while ( local_steal_amount == -1 ) {
-        steal_waiter = CURRENT_THREAD;
+        steal_waiter = current;
         SoftXMT_suspend();
     }
 
