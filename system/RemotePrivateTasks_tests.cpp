@@ -22,8 +22,7 @@ void task1_f( task1_arg * args ) {
     SoftXMT_yield();
     SoftXMT_yield();
 
-    //Semaphore::release( &args->sem, 1 ); 
-    SoftXMT_barrier_commsafe();
+    Semaphore::release( &args->sem, 1 ); 
 }
 
 struct user_main_args {
@@ -38,12 +37,11 @@ void user_main( user_main_args * args )
         task1_arg t1_arg = { make_global( &sem ), i };
         BLOG( "remote-spawn " << i );
         SoftXMT_remote_privateTask( &task1_f, &t1_arg, 1 );
-      //  sem.acquire_all( CURRENT_THREAD );
-        SoftXMT_barrier_commsafe();
+        sem.acquire_all( CURRENT_THREAD );
         BLOG( "phase " << i << " done" );
     }
 
-    BOOST_MESSAGE( "user main is exiting" );
+    BLOG( "user main is exiting" );
 }
 
 BOOST_AUTO_TEST_CASE( test1 ) {
