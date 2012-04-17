@@ -13,6 +13,8 @@ void Task::execute( ) {
         fn_p( &argbuf );
         cached_args.block_until_released();
     } else {
+        CHECK( fn_p!=NULL ) << "fn_p=" << (void*)fn_p << "\nargs=" << (void*)args << "\nhome=" << home;
+        CHECK( args!=NULL ) << "fn_p=" << (void*)fn_p << "\nargs=" << (void*)args << "\nhome=" << home;
         fn_p( args );
     }
 }
