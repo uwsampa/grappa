@@ -69,7 +69,7 @@ bool TaskManager::getWork ( Task* result ) {
                 /*          ss_setState(ss, SS_SEARCH);             */
                 for (int i = 1; i < numLocalNodes && !goodSteal; i++) { // TODO permutation order
                     victimId = (localId + i) % numLocalNodes;
-                    goodSteal = publicQ.steal_locally(neighbors[victimId], chunkSize);
+                    goodSteal = publicQ.steal_locally(neighbors[victimId], chunkSize, CURRENT_THREAD);
                 }
 
                 if (goodSteal) {
