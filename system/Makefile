@@ -98,7 +98,7 @@ RemotePrivateTasks_tests.test: libSoftXMT.a
 #
 # Build SoftXMT static library
 #
-LIBRARY_CONTENTS= SoftXMT.o GlobalAllocator.o GlobalMemory.o Communicator.o Aggregator.o Timestamp.o Allocator.o Cache.o Delegate.o Collective.o ForkJoin.o tasks/gasnet_cbarrier.o tasks/TaskingScheduler.o tasks/Task.o tasks/Thread.o stack.o coro.o
+LIBRARY_CONTENTS= SoftXMT.o GlobalAllocator.o GlobalMemory.o Communicator.o Aggregator.o Timestamp.o Allocator.o Cache.o Delegate.o Collective.o ForkJoin.o tasks/cbarrier.o tasks/TaskingScheduler.o tasks/Task.o tasks/Thread.o stack.o coro.o
 libSoftXMT.a: $(patsubst %,libSoftXMT.a(%),$(LIBRARY_CONTENTS))
 
 
@@ -109,7 +109,7 @@ libSoftXMT.a: $(patsubst %,libSoftXMT.a(%),$(LIBRARY_CONTENTS))
 ENV_VARIABLES+= GLOG_logtostderr=1
 #ENV_VARIABLES+= GLOG_vmodule=Cache*=5,Incoh*=5,Aggreg*=5
 #ENV_VARIABLES+= GLOG_vmodule=Cache*=5,Incoh*=5
-ENV_VARIABLES+= GLOG_v=5
+ENV_VARIABLES+= GLOG_v=1
 #ENV_VARIABLES+= OMPI_MCA_btl_sm_use_knem=0
 ENV_VARIABLES+= LD_LIBRARY_PATH="\$$LD_LIBRARY_PATH:$(LD_LIBRARY_PATH)"
 ENV_VARIABLES+= GASNET_BACKTRACE=1
