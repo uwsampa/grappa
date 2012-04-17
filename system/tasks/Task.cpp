@@ -22,7 +22,7 @@ void Task::execute( ) {
 
 TaskManager::TaskManager (bool doSteal, Node localId, Node * neighbors, Node numLocalNodes, int chunkSize, int cbint) 
     : workDone( false )
-    , doSteal( doSteal ), okToSteal( true ), 
+    , doSteal( doSteal ), okToSteal( true )
     , sharedMayHaveWork ( true )
     , globalMayHaveWork ( true )
     , localId( localId ), neighbors( neighbors ), numLocalNodes( numLocalNodes )
@@ -32,7 +32,7 @@ TaskManager::TaskManager (bool doSteal, Node localId, Node * neighbors, Node num
     
           // TODO the way this is being used, it might as well have a singleton
           StealQueue<Task>::registerAddress( &publicQ );
-          cbarrier_init( SoftXMT_nodes(), SoftXMT_mynode() );
+          cbarrier_init( SoftXMT_nodes() );
 }
         
 
@@ -58,12 +58,12 @@ bool TaskManager::getWork( Task * result ) {
 
 
 /// "work queue" operations
-bool tryConsumeLocal( Task * result ) {
+bool TaskManager::tryConsumeLocal( Task * result ) {
     if ( privateHasEle() ) {
         *result = privateQ.front();
         privateQ.pop_front();
         return true;
-    } else if ( publicQHasEle() ) {
+    } else if ( publicHasEle() ) {
         *result = publicQ.peek();
         publicQ.pop( );
         return true;
@@ -72,10 +72,10 @@ bool tryConsumeLocal( Task * result ) {
     }
 }
 
-bool tryConsumeShared( Task * result ) {
+bool TaskManager::tryConsumeShared( Task * result ) {
     if ( doSteal ) {
-        if ( publicQ.aquire( chunkSize ) ) {
-            CHECK( publicQHasEle() );
+        if ( publicQ.acquire( chunkSize ) ) {
+            CHECK( publicHasEle() );
             *result = publicQ.peek();
             publicQ.pop( );
             return true;
@@ -88,23 +88,23 @@ bool tryConsumeShared( Task * result ) {
 
 /// Only returns when there is work or when
 /// the system has no more work.
-bool waitConsumeAny( Task * result ) {
+bool TaskManager::waitConsumeAny( Task * result ) {
     if ( doSteal ) {
         if ( okToSteal ) {
             // only one Thread is allowed to steal
             okToSteal = false;
 
-            DVLOG(5) << CURRENT_THREAD << " trying to steal";
+            VLOG(5) << CURRENT_THREAD << " trying to steal";
             bool goodSteal = false;
             Node victimId;
 
             /*          ss_setState(ss, SS_SEARCH);             */
             for ( Node i = 1; 
-                  i < numLocalNodes && !goodSteal && !queues_mightBeWork; 
+                  i < numLocalNodes && !goodSteal && !(sharedMayHaveWork || publicHasEle() || privateHasEle());
                   i++ ) { // TODO permutation order
 
                 victimId = (localId + i) % numLocalNodes;
-                goodSteal = publicQ.steal_locally(neighbors[victimId], chunkSize);
+                goodSteal = publicQ.steal_locally(neighbors[victimId], chunkSize, CURRENT_THREAD);
             }
 
             // if finished because succeeded in stealing
@@ -121,7 +121,11 @@ bool waitConsumeAny( Task * result ) {
                 globalMayHaveWork = false;
             }
 
-
+            VLOG(5) << "left stealing loop with goodSteal=" << goodSteal
+                    << " last victim=" << victimId
+                    << " sharedMayHaveWork=" << sharedMayHaveWork
+                    << " publicHasEle()=" << publicHasEle()
+                    << " privateHasEle()=" << privateHasEle();
             okToSteal = true; // release steal lock
 
             /**TODO remote load balance**/
