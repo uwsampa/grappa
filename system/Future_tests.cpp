@@ -43,7 +43,7 @@ void user_main( user_main_args * args )
     int64_t array1[8] = { 0,1,2,3,4,5,6,7 };
     task1_args t1_args = { length1, make_global(&array1) };
     Future< task1_args > d1( &task1_f, &t1_args );
-    d1.asPublicTask( );
+    d1.addAsPublicTask( );
     BOOST_MESSAGE( "user main (thread " << CURRENT_THREAD->id << ")"
                    << " spawned future 1" );
     
@@ -66,7 +66,7 @@ void user_main( user_main_args * args )
     int64_t out2[5]   = { 2,6,12,20,30 };
     task1_args t2_args = { length2, make_global(&array2) };
     Future< task1_args > d2( &task1_f, &t2_args );
-    d2.asPublicTask( );
+    d2.addAsPublicTask( );
     BOOST_MESSAGE( "user main (thread " << CURRENT_THREAD->id << ")"
                    << " spawned future 2" );
    

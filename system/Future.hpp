@@ -228,7 +228,7 @@ class Future {
             }
         }
 
-        void asPublicTask( ) {
+        void addAsPublicTask( ) {
             DVLOG(4) << "Future(spawn) " << this->getId() << " ga:"<<task_args.futureAddr;
             SoftXMT_publicTask( &future_function, &task_args );
         }

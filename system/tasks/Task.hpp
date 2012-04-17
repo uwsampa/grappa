@@ -6,8 +6,6 @@
 #include "cbarrier.hpp"
 #include "Thread.hpp"
 
-//thread* const NULL_THREAD = NULL;
-
 typedef int16_t Node;
 
 /// Task is a function pointer and pointer to arguments
@@ -40,8 +38,6 @@ static Task createTask( void (* fn_p)(ArgsStruct *), ArgsStruct * args, Node cre
             static_cast< void *>( args ), args_size, createdOn );
     return t;
 }
-
-// TODO: on steal of work, need to make sure args pointers are global or copy args struct
 
 
 class TaskManager {
