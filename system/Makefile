@@ -93,11 +93,12 @@ Stealing_tests.test: libSoftXMT.a
 ForkJoin_tests.test: libSoftXMT.a
 Future_tests.test: libSoftXMT.a
 ParallelLoop_tests.test: libSoftXMT.a
+RemotePrivateTasks_tests.test: libSoftXMT.a
 
 #
 # Build SoftXMT static library
 #
-LIBRARY_CONTENTS= SoftXMT.o GlobalAllocator.o GlobalMemory.o Communicator.o Aggregator.o Timestamp.o Allocator.o Cache.o Delegate.o Collective.o ForkJoin.o tasks/gasnet_cbarrier.o tasks/TaskingScheduler.o tasks/Task.o tasks/Thread.o stack.o coro.o
+LIBRARY_CONTENTS= SoftXMT.o GlobalAllocator.o GlobalMemory.o Communicator.o Aggregator.o Timestamp.o Allocator.o Cache.o Delegate.o Collective.o ForkJoin.o tasks/cbarrier.o tasks/TaskingScheduler.o tasks/Task.o tasks/Thread.o stack.o coro.o
 libSoftXMT.a: $(patsubst %,libSoftXMT.a(%),$(LIBRARY_CONTENTS))
 
 
