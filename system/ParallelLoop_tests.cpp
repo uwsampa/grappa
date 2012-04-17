@@ -30,13 +30,14 @@ void dub_array( int64_t i, array_args * a ) {
 }
 
 struct count_args {
-    int64_t * ind;
-    int64_t * dub;
+    GlobalAddress<int64_t> ind;
+    GlobalAddress<int64_t> dub;
 
     count_args() {} // Future templates complain without this defualt
 
     count_args(int64_t * ind, int64_t * dub)
-    :ind(ind),dub(dub){}
+    : ind( make_global(ind) )
+    , dub( make_global(dub) ){}
 };
 
 
@@ -44,8 +45,8 @@ void countUp( int64_t i, count_args * args ) {
     int64_t ind_contrib = SoftXMT_delegate_read_word( make_global( &ind_local_count, i ) );
     int64_t dub_contrib = SoftXMT_delegate_read_word( make_global( &dub_local_count, i ) );
 
-    SoftXMT_delegate_write_word( make_global( args->ind, 0 ), ind_contrib );
-    SoftXMT_delegate_write_word( make_global( args->dub, 0 ), dub_contrib );
+    SoftXMT_delegate_write_word( args->ind + i, ind_contrib );
+    SoftXMT_delegate_write_word( args->dub + i, dub_contrib );
 }
 
 struct user_main_args {
@@ -53,7 +54,7 @@ struct user_main_args {
 
 void user_main( user_main_args * args ) 
 {
-    int64_t length1 = 256;
+    int64_t length1 = 1024;
     int64_t * array1 = new int64_t[length1];
     array_args aa = { array1 };
     BOOST_MESSAGE( "&array1="<<array1<< "&aa="<<&aa );
