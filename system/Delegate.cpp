@@ -44,8 +44,13 @@ struct memory_write_request_args {
 
 
 static void memory_write_request_am( memory_write_request_args * args, size_t size, void * payload, size_t payload_size ) {
+  CHECK( (int64_t)args->address.pointer() > 0x1000 )<< "read request:"
+                                                    << "\n address="<<args->address
+                                                    << "\n descriptor="<<args->descriptor;
   assert( payload_size == sizeof(int64_t) );
-  *(args->address.pointer()) = *(static_cast<int64_t*>(payload));
+  int64_t payload_int = *(static_cast<int64_t*>(payload));
+  VLOG(2) << "payload("<<(void*)payload<<")="<<payload_int<<"\n    pointer="<<(void*)args->address.pointer();
+  *(args->address.pointer()) = payload_int;
   memory_write_reply_args reply_args;
   reply_args.descriptor = args->descriptor;
   SoftXMT_call_on( args->descriptor.node(), &memory_write_reply_am, &reply_args );
@@ -86,6 +91,9 @@ struct memory_read_request_args {
 
 
 static void memory_read_request_am( memory_read_request_args * args, size_t size, void * payload, size_t payload_size ) {
+  CHECK( (int64_t)args->address.pointer() > 0x1000 )<< "read request:"
+                                                    << "\n address="<<args->address
+                                                    << "\n descriptor="<<args->descriptor;
   int64_t data = *(args->address.pointer());
   memory_read_reply_args reply_args;
   reply_args.descriptor = args->descriptor;

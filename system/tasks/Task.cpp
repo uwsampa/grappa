@@ -13,6 +13,8 @@ void Task::execute( ) {
         fn_p( &argbuf );
         cached_args.block_until_released();
     } else {
+        CHECK( fn_p!=NULL ) << "fn_p=" << (void*)fn_p << "\nargs=" << (void*)args << "\nhome=" << home;
+        CHECK( args!=NULL ) << "fn_p=" << (void*)fn_p << "\nargs=" << (void*)args << "\nhome=" << home;
         fn_p( args );
     }
 }
@@ -58,7 +60,7 @@ bool TaskManager::getWork ( Task* result ) {
             DVLOG(5) << CURRENT_THREAD << " okToSteal";
 
             // try to steal
-            if (doSteal) {
+            if (okToSteal) {
                 okToSteal = false;      // prevent running unassigned threads from trying to steal again
                 DVLOG(5) << CURRENT_THREAD << " trying to steal";
                 bool goodSteal = false;
@@ -67,18 +69,19 @@ bool TaskManager::getWork ( Task* result ) {
                 /*          ss_setState(ss, SS_SEARCH);             */
                 for (int i = 1; i < numLocalNodes && !goodSteal; i++) { // TODO permutation order
                     victimId = (localId + i) % numLocalNodes;
-                    goodSteal = publicQ.steal_locally(neighbors[victimId], chunkSize);
+                    goodSteal = publicQ.steal_locally(neighbors[victimId], chunkSize, CURRENT_THREAD);
                 }
 
                 if (goodSteal) {
                     DVLOG(5) << CURRENT_THREAD << " steal " << goodSteal
                             << " from rank" << victimId;
-                    okToSteal = true; // release steal lock
                     mightBeWork = true; // now there is work so allow more threads to be scheduled
                     continue;
                 } else {
                     DVLOG(5) << CURRENT_THREAD << " failed to steal";
                 }
+                
+                okToSteal = true;        // release steal lock
 
                 /**TODO remote load balance**/
 
@@ -107,7 +110,6 @@ bool TaskManager::getWork ( Task* result ) {
             } else {
                 DVLOG(5) << CURRENT_THREAD << " left barrier from cancel";
                 mightBeWork = true;   // work is available so allow unassigned threads to be scheduled
-                okToSteal = true;        // work is available so allow steal attempts
             }
         } else {
             DVLOG(5) << CURRENT_THREAD << " un-idled";

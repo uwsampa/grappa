@@ -4,14 +4,7 @@
 
 #include <boost/cstdint.hpp>
 #include <glog/logging.h>   
-
-// TODO remove locks
-#include <gasnet.h>
-#define INIT_LOCK gasnet_hsl_init
-#define SET_LOCK gasnet_hsl_lock
-#define UNSET_LOCK gasnet_hsl_unlock
-#define LOCK_T gasnet_hsl_t
-#define LOCK_INITIALIZER GASNET_HSL_INITIALIZER
+#include <stdlib.h>
 
 #define SS_NSTATES 1
 
@@ -20,6 +13,9 @@ struct workStealReply_args;
 
 /// Type for Node ID. 
 typedef int16_t Node;
+
+/// Forward declare for steal_locally
+class Thread;
 
 
 template <class T>
@@ -37,8 +33,6 @@ class StealQueue {
         double time[SS_NSTATES], timeLast;
         /* perf measurements */ 
         int entries[SS_NSTATES], curState; 
-        LOCK_T* stackLock; 
-        LOCK_T* stackLock_g;
         /* lock for manipulation of shared portion */ 
         T* stack;       /* addr of actual
                                   stack of nodes
@@ -70,9 +64,6 @@ class StealQueue {
 
                 CHECK( stack!= NULL ) << "Request for " << nbytes << " bytes for stealStack failed";
 
-                stackLock = (LOCK_T*)malloc(sizeof(LOCK_T));
-                INIT_LOCK(stackLock);
-
                 mkEmpty();
             }
         
@@ -84,7 +75,7 @@ class StealQueue {
         uint64_t localDepth( ); 
         void release( int k ); 
         int acquire( int k ); 
-        int steal_locally( Node victim, int chunkSize ); 
+        int steal_locally( Node victim, int chunkSize, Thread * current ); 
         void setState( int state );
         
         uint64_t get_nNodes( ) {
@@ -122,6 +113,10 @@ inline T StealQueue<T>::peek( ) {
 template <class T>
 inline void StealQueue<T>::pop( ) {
   CHECK(top > local) << "pop: empty local stack";
+  
+  // 0 out the popped element (to detect errors)
+  memset( &stack[top-1], 0, sizeof(T) );
+  
   top--;
   nVisited++;
 }
@@ -150,12 +145,10 @@ void StealQueue<T>::registerAddress( StealQueue<T> * addr ) {
 /// set queue to empty
 template <class T>
 void StealQueue<T>::mkEmpty( ) {
-    SET_LOCK(stackLock);
     sharedStart = 0;
     local  = 0;
     top    = 0;
     workAvail = 0;
-    UNSET_LOCK(stackLock);
 }
 
 /// local top position:  stack index of top element
@@ -174,12 +167,10 @@ void StealQueue<T>::release( int k ) {
  
   // the above check is not time-of-check-to-use bug, because top/local guarenteed
   // not to change. We just need to update them
-  SET_LOCK(stackLock);
   local += k;
   workAvail += k;
   nRelease++;
 
-  UNSET_LOCK(stackLock);
 }
 
 
@@ -188,14 +179,12 @@ void StealQueue<T>::release( int k ) {
 template <class T>
 int StealQueue<T>::acquire( int k ) {
   int avail;
-  SET_LOCK(stackLock);
   avail = local - sharedStart;
   if (avail >= k) {
     local -= k;
     workAvail -= k;
     nAcquire++;
   }
-  UNSET_LOCK(stackLock);
   return (avail >= k);
 }
 
@@ -204,7 +193,11 @@ int StealQueue<T>::acquire( int k ) {
 // Work stealing
 /////////////////////////////////////////////////
 
-/* TODO remove the locks */
+//#include "../SoftXMT.hpp" 
+#include <Aggregator.hpp>
+void SoftXMT_suspend();
+void SoftXMT_wake( Thread * );
+Node SoftXMT_mynode();
 
 struct workStealRequest_args {
     int k;
@@ -216,35 +209,35 @@ struct workStealReply_args {
 };
 
 static int local_steal_amount;
-static LOCK_T lsa_lock = LOCK_INITIALIZER;
+static Thread * steal_waiter = NULL;
 
 template <class T>
 void StealQueue<T>::workStealReply_am( workStealReply_args * args,  size_t size, void * payload, size_t payload_size ) {
-    T* stolen_work = static_cast<T*>( payload );
+    CHECK ( local_steal_amount == -1 ) << "local_steal_amount=" << local_steal_amount << " when steal reply arrives";
+
+    T * stolen_work = static_cast<T*>( payload );
     int k = args->k;
     
     StealQueue<T>* thiefStack = StealQueue<T>::staticQueueAddress;
 
     if (k > 0) {
-        SET_LOCK(&lsa_lock);
         memcpy(&thiefStack->stack[thiefStack->top], stolen_work, payload_size);
         local_steal_amount = k;
-        UNSET_LOCK(&lsa_lock);
+        
+        thiefStack->top += local_steal_amount;
+        thiefStack->nSteal++;
     } else {
-        thiefStack->nFail++;
-        SET_LOCK(&lsa_lock);
         local_steal_amount = 0;
-        UNSET_LOCK(&lsa_lock);
+        
+        thiefStack->nFail++;
     }
-    
+
+    if ( steal_waiter != NULL ) {
+        SoftXMT_wake( steal_waiter );
+        steal_waiter = NULL;
+    }
 }
 
-//#include "../SoftXMT.hpp" // TODO: SoftXMT_comm only
-Node SoftXMT_mynode();
-void SoftXMT_yield();
-
-//#include <Communicator.hpp>
-#include <Aggregator.hpp>
 
 
 template <class T>
@@ -253,8 +246,6 @@ void StealQueue<T>::workStealRequest_am(workStealRequest_args * args, size_t siz
 
     StealQueue<T>* victimStack = StealQueue<T>::staticQueueAddress;
    
-    SET_LOCK(victimStack->stackLock);
-    
     int victimLocal = victimStack->local;
     int victimShared = victimStack->sharedStart;
     int victimWorkAvail = victimStack->workAvail;
@@ -267,7 +258,6 @@ void StealQueue<T>::workStealRequest_am(workStealRequest_args * args, size_t siz
         victimStack->sharedStart =  victimShared + k;
         victimStack->workAvail = victimWorkAvail - k;
     }
-    UNSET_LOCK(victimStack->stackLock);
     
     /* if k elts reserved, move them to local portion of our stack */
     if (ok) {
@@ -278,6 +268,9 @@ void StealQueue<T>::workStealRequest_am(workStealRequest_args * args, size_t siz
         SoftXMT_call_on( args->from, &StealQueue<T>::workStealReply_am, 
                          &reply_args, sizeof(workStealReply_args), 
                          victimSharedStart, k*sizeof( T ));
+        
+        // 0 out the stolen stuff (to detect errors)
+        memset( victimSharedStart, 0, k*sizeof( T ) );
     } else {
         workStealReply_args reply_args = { 0 };
         SoftXMT_call_on( args->from, &StealQueue<T>::workStealReply_am, &reply_args );
@@ -286,31 +279,19 @@ void StealQueue<T>::workStealRequest_am(workStealRequest_args * args, size_t siz
 }
 
 template <class T>
-int StealQueue<T>::steal_locally( Node victim, int k ) {
+int StealQueue<T>::steal_locally( Node victim, int k, Thread * current ) {
 
-    SET_LOCK(&lsa_lock);
     local_steal_amount = -1;
-    UNSET_LOCK(&lsa_lock);
 
     workStealRequest_args req_args = { k, SoftXMT_mynode() };
     SoftXMT_call_on( victim, &StealQueue<T>::workStealRequest_am, &req_args );
 
     // steal is blocking
     // TODO: use suspend-wake mechanism
-    while (true) {
-        SET_LOCK(&lsa_lock);
-        if (local_steal_amount != -1) {
-            break;
-        }
-        UNSET_LOCK(&lsa_lock);
-        SoftXMT_yield();
+    while ( local_steal_amount == -1 ) {
+        steal_waiter = current;
+        SoftXMT_suspend();
     }
-    
-    if (local_steal_amount > 0) {
-        nSteal++;
-        top += local_steal_amount;
-    }
-    UNSET_LOCK(&lsa_lock);
 
     return local_steal_amount;
 }
