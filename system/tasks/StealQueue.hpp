@@ -298,39 +298,4 @@ int StealQueue<T>::steal_locally( Node victim, int k, Thread * current ) {
 /////////////////////////////////////////////////////////
 
 
-
-
-
-
-
-///////////////////////////////////////////////////
-// Pushing work
-//////////////////////////////////////////////////
-//
-// 
-/*
-struct pushWorkRequest_args {
-    int amount_pushed; 
-};
-
-void pushWorkRequest_am( pushWorkRequest_args * args, size_t size, void * payload, size_t payload_size ) {
-    Node_ptr* received_work = (Node_ptr*) payload;
-    int amount_pushed = args->amount_pushed;
-    
-    SET_LOCK(&lsa_lock);
-    memcpy(&myStealStack.stack[myStealStack.top], received_work, payload_size);
-    myStealStack.top += amount_pushed;
-    UNSET_LOCK(&lsa_lock);
-}
-
-/// Push work offline to a remote node. 
-/// Note: This should be safe as long as other stuff updating top do not do communication calls in between operations
-void StealQueue::pushRemote(Node destnode, Node_ptr* work, int k) {
-    pushWorkRequest_args pargs = { k };
-    SoftXMT_call_on( destnode, &pushWorkRequest_am, &pargs, sizeof(pushWorkRequest_args), work, sizeof(Node_ptr)*k);
-}
-*/
-////////////////////////////////////////////////////
-
-
 #endif
