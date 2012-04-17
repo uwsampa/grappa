@@ -135,10 +135,12 @@ class TaskManager {
 
 
 inline bool TaskManager::available( ) {
-    return sharedMayHaveWork ||
-           globalMayHaveWork ||
-           privateQHasEle()  ||
-           publicQHasEle();
+    VLOG(5) << " sharedMayHaveWork=" << sharedMayHaveWork
+            << " publicHasEle()=" << publicHasEle()
+            << " privateHasEle()=" << privateHasEle();
+    return privateHasEle() 
+           || publicHasEle()
+           || (doSteal && (sharedMayHaveWork || (okToSteal && globalMayHaveWork)));
 }
 
 
