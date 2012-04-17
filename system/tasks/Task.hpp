@@ -105,8 +105,8 @@ class TaskManager {
                     // This has significant overhead on clusters!
                     if (publicQ.get_nNodes() % cbint == 0) { // possible for cbint to get skipped if push multiple?
                         /*        ss_setState(ss, SS_CBOVH);                */
-                        VLOG(5) << "canceling barrier"
-                            cbarrier_cancel();
+                        VLOG(5) << "canceling barrier";
+                        cbarrier_cancel();
                     }
 
                     /*      ss_setState(ss, SS_WORK);                   */
@@ -156,7 +156,7 @@ template < typename ArgsStruct >
 inline void TaskManager::spawnLocalPrivate( void (*f)(ArgsStruct * arg), ArgsStruct * arg ) {
 
     Task newtask = createTask(f, arg, SoftXMT_mynode());
-    privateQ.push_front();
+    privateQ.push_front( newtask );
 
     /* no notification necessary since
      * presence of a local spawn means
@@ -168,7 +168,7 @@ inline void TaskManager::spawnLocalPrivate( void (*f)(ArgsStruct * arg), ArgsStr
 template < typename ArgsStruct > 
 inline void TaskManager::spawnRemotePrivate( void (*f)(ArgsStruct * arg), ArgsStruct * arg, Node from ) {
     Task newtask = createTask(f, arg, from);
-    privateQ.push_front();
+    privateQ.push_front( newtask );
 
     cbarrier_cancel_local();
 }
