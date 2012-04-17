@@ -4,7 +4,6 @@
 #include "../SoftXMT.hpp"
 
 const int HOME_NODE = 0;
-gasnet_hsl_t cb_lock = GASNET_HSL_INITIALIZER;
 int num_barrier_clients;
 int num_waiting_clients;
 int my_node;
@@ -53,10 +52,8 @@ void exit_cbarrier_request_am( exit_cbarrier_request_args * args, size_t size, v
     VLOG(5) << "exit_cbarrier_am: finished=" << args->finished;
     int finished = args->finished;
 
-    SET_LOCK(&cb_lock);
     cb_reply = 1;
     cb_done = finished;
-    UNSET_LOCK(&cb_lock);
 }
 
 void cancel_cbarrier_request_am( cancel_cbarrier_request_args * args, size_t size, void * payload, size_t payload_size ) {
@@ -105,10 +102,8 @@ int cbarrier_wait() {
 
     int isDone;
     while (true) {
-        SET_LOCK( &cb_lock );
         if (cb_reply > 0) 
             break;
-        UNSET_LOCK( &cb_lock );
         SoftXMT_yield();
     }
 
@@ -122,7 +117,6 @@ int cbarrier_wait() {
     isDone = cb_done;
     cb_done = 0;
     cb_reply = 0;
-    UNSET_LOCK(&cb_lock);
     return isDone;
 }
 
@@ -134,9 +128,6 @@ void cbarrier_init(int num_nodes, int rank) {
         waiters = new std::queue <Node>();
     }
 
-    SET_LOCK(&cb_lock) {
-        cb_done = 0;
-        cb_reply = 0;
-    }
-    UNSET_LOCK(&cb_lock);
+    cb_done = 0;
+    cb_reply = 0;
 }

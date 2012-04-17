@@ -92,6 +92,7 @@ Tasking_tests.test: libSoftXMT.a
 Stealing_tests.test: libSoftXMT.a
 ForkJoin_tests.test: libSoftXMT.a
 Future_tests.test: libSoftXMT.a
+ParallelLoop_tests.test: libSoftXMT.a
 
 #
 # Build SoftXMT static library
