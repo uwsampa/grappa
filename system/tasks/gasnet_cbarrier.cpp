@@ -36,7 +36,7 @@ void enter_cbarrier_request_am( enter_cbarrier_request_args * args, size_t size,
             waiters->pop();
             exit_cbarrier_request_args exargs = { 1 };
             DVLOG(5) << "enter_cbarrier_request_am: sending to " << nod;
-            SoftXMT_call_on( nod, &exit_cbarrier_request_am, &exargs );
+            SoftXMT_call_on( nod, &exit_cbarrier_request_am, &exargs );  // not cause race because SoftXMT_call_on not call deaggregate
         }
         num_waiting_clients = 0;
         exit_cbarrier_request_args exargs = { 1 };

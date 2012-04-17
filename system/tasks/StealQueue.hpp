@@ -2,7 +2,6 @@
 #ifndef STEAL_QUEUE_HPP
 #define STEAL_QUEUE_HPP
 
-#include <boost/cstdint.hpp>
 #include <glog/logging.h>   
 #include <stdlib.h>
 
@@ -12,6 +11,7 @@ struct workStealRequest_args;
 struct workStealReply_args;
 
 /// Type for Node ID. 
+#include <boost/cstdint.hpp>
 typedef int16_t Node;
 
 /// Forward declare for steal_locally
@@ -167,8 +167,10 @@ void StealQueue<T>::release( int k ) {
  
   // the above check is not time-of-check-to-use bug, because top/local guarenteed
   // not to change. We just need to update them
+  VLOG(4) << "(before)release: k=" << k << " local size=" << top-local << " sharedSize=" << workAvail;
   local += k;
   workAvail += k;
+  VLOG(4) << "(after)release: k=" << k << " local size=" << top-local << " sharedSize=" << workAvail;
   nRelease++;
 
 }
@@ -180,9 +182,11 @@ template <class T>
 int StealQueue<T>::acquire( int k ) {
   int avail;
   avail = local - sharedStart;
+  VLOG(4) << "(before)acquire: k=" << k << " avail=" << avail << " acquire?=" << (avail>=k);
   if (avail >= k) {
     local -= k;
     workAvail -= k;
+    VLOG(4) << "(after)acquire: local" << local << " workAvail=" << workAvail;
     nAcquire++;
   }
   return (avail >= k);
@@ -253,6 +257,7 @@ void StealQueue<T>::workStealRequest_am(workStealRequest_args * args, size_t siz
     CHECK( victimLocal - victimShared == victimWorkAvail ) << "handle steal request: stealStack invariant violated";
     
     int ok = victimWorkAvail >= k;
+    VLOG(4) << "Victim (Node " << SoftXMT_mynode() << ") victimWorkAvail=" << victimWorkAvail << " k=" << k;
     if (ok) {
         /* reserve a chunk */
         victimStack->sharedStart =  victimShared + k;
@@ -296,41 +301,6 @@ int StealQueue<T>::steal_locally( Node victim, int k, Thread * current ) {
     return local_steal_amount;
 }
 /////////////////////////////////////////////////////////
-
-
-
-
-
-
-
-///////////////////////////////////////////////////
-// Pushing work
-//////////////////////////////////////////////////
-//
-// 
-/*
-struct pushWorkRequest_args {
-    int amount_pushed; 
-};
-
-void pushWorkRequest_am( pushWorkRequest_args * args, size_t size, void * payload, size_t payload_size ) {
-    Node_ptr* received_work = (Node_ptr*) payload;
-    int amount_pushed = args->amount_pushed;
-    
-    SET_LOCK(&lsa_lock);
-    memcpy(&myStealStack.stack[myStealStack.top], received_work, payload_size);
-    myStealStack.top += amount_pushed;
-    UNSET_LOCK(&lsa_lock);
-}
-
-/// Push work offline to a remote node. 
-/// Note: This should be safe as long as other stuff updating top do not do communication calls in between operations
-void StealQueue::pushRemote(Node destnode, Node_ptr* work, int k) {
-    pushWorkRequest_args pargs = { k };
-    SoftXMT_call_on( destnode, &pushWorkRequest_am, &pargs, sizeof(pushWorkRequest_args), work, sizeof(Node_ptr)*k);
-}
-*/
-////////////////////////////////////////////////////
 
 
 #endif
