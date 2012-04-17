@@ -50,7 +50,6 @@ class TaskManager {
         StealQueue<Task> publicQ;
 
         bool workDone;
-        bool mightBeWork; // flag to enable wake up optimization
        
         bool inCBarrier;
 
@@ -74,19 +73,17 @@ class TaskManager {
             return !privateQ.empty();
         }
 
-        bool getNextInQueues(Task * result) {
-            if ( privateHasEle() ) {
-                *result = privateQ.front();
-                privateQ.pop_front();
-                return true;
-            } else if ( publicHasEle() ) {
-                *result = publicQ.peek();
-                publicQ.pop( );
-                return true;
-            } else {
-                return false;
-            }
-        }
+        /// Flags to save whether a worker thinks there
+        /// could be work or if other workers should not
+        /// also try.
+        bool sharedMayHaveWork;
+        bool globalMayHaveWork;
+        
+        // "queue" operations
+        bool tryConsumeLocal( Task * result );
+        bool tryConsumeShared( Task * result );
+        bool waitConsumeAny( Task * result );
+
 
     public:
         TaskManager (bool doSteal, Node localId, Node* neighbors, Node numLocalNodes, int chunkSize, int cbint);
@@ -94,24 +91,29 @@ class TaskManager {
         bool isWorkDone() {
             return workDone;
         }
-
-        /// Possibly move work from local partition of public queue to global partition
+        
+        /// Maybe release tasks to the shared portion of publicQ
         void releaseTasks() {
-          if (doSteal) {
-            if (publicQ.localDepth() > 2 * chunkSize) {
-              // Attribute this time to runtime overhead
-        /*      ss_setState(ss, SS_OVH);                    */
-              publicQ.release(chunkSize);
-              // This has significant overhead on clusters!
-              if (publicQ.get_nNodes() % cbint == 0) { // possible for cbint to get skipped if push multiple?
-        /*        ss_setState(ss, SS_CBOVH);                */
-                VLOG(5) << "canceling barrier";
-                cbarrier_cancel();
-              }
+            if (doSteal) {
+                if (publicQ.localDepth() > 2 * chunkSize) {
+                    // Attribute this time to runtime overhead
+                    /*      ss_setState(ss, SS_OVH);                    */
+                    publicQ.release(chunkSize);
 
-        /*      ss_setState(ss, SS_WORK);                   */
+                    // set that there COULD be work in shared portion
+                    // (not "is work" because may be stolen)
+                    sharedMayHaveWork = true;
+
+                    // This has significant overhead on clusters!
+                    if (publicQ.get_nNodes() % cbint == 0) { // possible for cbint to get skipped if push multiple?
+                        /*        ss_setState(ss, SS_CBOVH);                */
+                        VLOG(5) << "canceling barrier"
+                            cbarrier_cancel();
+                    }
+
+                    /*      ss_setState(ss, SS_WORK);                   */
+                }
             }
-          }
         }
 
         /*TODO return value?*/
@@ -120,24 +122,25 @@ class TaskManager {
         
         /*TODO return value?*/ 
         template < typename ArgsStruct > 
-        void spawnPrivate( void (*f)(ArgsStruct * arg), ArgsStruct * arg);
+        void spawnLocalPrivate( void (*f)(ArgsStruct * arg), ArgsStruct * arg);
+        
+        /*TODO return value?*/ 
+        template < typename ArgsStruct > 
+        void spawnRemotePrivate( void (*f)(ArgsStruct * arg), ArgsStruct * arg);
         
         bool getWork ( Task* result );
 
         bool available ( );
 
 
-        static void spawnRemotePrivate( Node dest, void (*f)(void * arg), void * arg);
 };
 
 
-
-
-
-inline bool TaskManager::available ( ) {
-    return  privateHasEle()
-            || publicHasEle()
-            || mightBeWork;
+bool TaskManager::available( ) {
+    return sharedMayHaveWork ||
+           globalMayHaveWork ||
+           privateQHasEle()  ||
+           publicQHasEle();
 }
 
 
@@ -149,34 +152,29 @@ inline void TaskManager::spawnPublic( void (*f)(ArgsStruct * arg), ArgsStruct * 
     releaseTasks();
 }
 
+/// Should NOT be called from the context of
+/// an AM handler
 template < typename ArgsStruct > 
-inline void TaskManager::spawnPrivate( void (*f)(ArgsStruct * arg), ArgsStruct * arg ) {
+inline void TaskManager::spawnLocalPrivate( void (*f)(ArgsStruct * arg), ArgsStruct * arg ) {
+
     Task newtask = createTask(f, arg, SoftXMT_mynode());
-    privateQ.push_front( newtask );
+    privateQ.push_front();
 
-    // set to make sure that any alive worker looking for tasks knows not to idle
-    mightBeWork = true;
-    
-    // TODO: only need to check this if spawnPrivate called from AM
-    // ie write a separate remote spawn
-    
-    // goal is just to notify the barrier that mynode is not in the barrier
-    // any longer, so just call cancel if mynode is in the barrier
-    if ( inCBarrier ) { 
-        cbarrier_cancel();
-        //TODO more efficient local cancel since we produced only private work
-    }
-
+    /* no notification necessary since
+     * presence of a local spawn means
+     * we are not in the cbarrier */
 }
 
+/// Should ONLY be called from the context of
+/// an AM handler
+template < typename ArgsStruct > 
+inline void TaskManager::spawnRemotePrivate( void (*f)(ArgsStruct * arg), ArgsStruct * arg ) {
+    /// 
+    Task newtask = createTask(f, arg, SoftXMT_mynode());
+    privateQ.push_front();
 
-
-// Remote spawning
-struct spawn_args {
-    void (*f)(void * arg);
-    void * arg;
-};
-
+    cbarrier_cancel_local();
+}
 
 
 #endif

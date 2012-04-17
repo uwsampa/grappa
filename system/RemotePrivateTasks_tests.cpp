@@ -6,6 +6,9 @@
 #include "ForkJoin.hpp"
 #include "Delegate.hpp"
 
+//#define BLOG(msg) BOOST_MESSAGE(msg)
+#define BLOG(msg) VLOG(1) << msg
+
 BOOST_AUTO_TEST_SUITE( RemotePrivateTasks_tests );
 
 struct task1_arg {
@@ -15,11 +18,12 @@ struct task1_arg {
 
 void task1_f( task1_arg * args ) {
     
-    BOOST_MESSAGE( CURRENT_THREAD << " task runs i=" << args->i );
+    BLOG( CURRENT_THREAD << " task runs i=" << args->i );
     SoftXMT_yield();
     SoftXMT_yield();
 
-    Semaphore::release( &args->sem, 1 ); 
+    //Semaphore::release( &args->sem, 1 ); 
+    SoftXMT_barrier_commsafe();
 }
 
 struct user_main_args {
@@ -29,12 +33,14 @@ void user_main( user_main_args * args )
 {
 
     // do several rounds of private spawns
-    for (int i=0; i<100; i++) {
+    for (int i=0; i<500; i++) {
         Semaphore sem(1, 0);
         task1_arg t1_arg = { make_global( &sem ), i };
+        BLOG( "remote-spawn " << i );
         SoftXMT_remote_privateTask( &task1_f, &t1_arg, 1 );
-        sem.acquire_all( CURRENT_THREAD );
-        BOOST_MESSAGE( "phase " << i << " done" );
+      //  sem.acquire_all( CURRENT_THREAD );
+        SoftXMT_barrier_commsafe();
+        BLOG( "phase " << i << " done" );
     }
 
     BOOST_MESSAGE( "user main is exiting" );
