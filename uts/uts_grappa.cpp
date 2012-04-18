@@ -7,6 +7,8 @@
 #include <GlobalAllocator.hpp>
 #include <Addressing.hpp>
 
+#include <iostream>
+
 #include <stdlib.h> // for memset
 
 DEFINE_int64( num_places, 2, "Number of locality domains this is running on (e.g., machines, 'locales')" );
@@ -51,6 +53,11 @@ int impl_parseParam(char * param, char * value) {
     return 0;
 }
 
+void impl_abort(int err) {
+    exit(err);
+    //SoftXMT_finish( err );//TODO KILL ALL NODES
+} 
+
 
 //convenience
 //calculate global address of a struct field from struct address (only use on POD)
@@ -67,6 +74,12 @@ struct vertex_t {
     int64_t numChildren;
     int64_t childIndex;
 };
+std::ostream& operator<< ( std::ostream& out, const vertex_t& v ) {
+    out << "vertex{numChildren=" << v.numChildren
+        << ", childIndex=" << v.childIndex
+        << "} ";
+    return out;
+}
 
 GlobalAddress<vertex_t> Vertex;
 GlobalAddress<int64_t> Child;
@@ -304,6 +317,7 @@ Result parTreeCreate( int64_t depth, TreeNode * parent ) {
 
     /* Record the number and index of children: */
     // TODO! Change to just a write (not R/W)
+    VLOG(5) << "creating vertex: " << (vertex_t){ numChildren, index };
     vertex_t childVertex_storage;
     Incoherent<vertex_t>::RW childVertex( Vertex + id, 1, &childVertex_storage );
     (*childVertex).numChildren = numChildren;
@@ -312,7 +326,6 @@ Result parTreeCreate( int64_t depth, TreeNode * parent ) {
     //SoftXMT_delegate_write_word( NumChildren + id, numChildren );
     //SoftXMT_delegate_write_word( ChildIndex + id, index );
     
-
     // Write out child indexes as one block
     // Incoherent acquire is fine because this section of Child is reserved
     int64_t childIds_storage[numChildren];
@@ -374,7 +387,7 @@ void user_main ( user_main_args * args ) {
     double t1=0.0, t2=0.0;
    
     // start tree generation (traditional UTS, plus saving the tree)
-    LOG(1) << "starting tree generation";
+    LOG(INFO) << "starting tree generation";
     t1 = uts_wctime();
     Result r = parTreeCreate(0, &root);
     t2 = uts_wctime();
@@ -398,7 +411,7 @@ void user_main ( user_main_args * args ) {
     }
     init_sem.acquire_all( CURRENT_THREAD );
 
-    LOG(1) << "starting tree search";
+    LOG(INFO) << "starting tree search";
     t1 = uts_wctime();
     r =  parTreeSearch(0, 0);
     t2 = uts_wctime();
