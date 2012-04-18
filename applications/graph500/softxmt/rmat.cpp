@@ -75,65 +75,114 @@ struct swap_desc {
   GlobalAddress<int64_t> fb2;
   GlobalAddress<Thread> caller;
   GlobalAddress<bool> done;
+  int64_t k;
 };
 
+/// Note: do not call in am handler.
 inline void wait_for_full(int64_t * fullptr) {
   while (*fullptr == 0) SoftXMT_yield(); // wait for other swapper to finish
-  assert(*fullptr == 1);
+  CHECK(*fullptr == 1) << "*fullptr == " << *fullptr;
 }
 
 static void am_swap_done(GlobalAddress<bool>* done, size_t sz, GlobalAddress<Thread>* caller, size_t psz) {
-  assert(done->node() == SoftXMT_mynode());
-  assert(caller->node() == SoftXMT_mynode());
+  CHECK(done->node() == SoftXMT_mynode());
+  CHECK(caller->node() == SoftXMT_mynode());
   
   *done->pointer() = true;
   SoftXMT_wake(caller->pointer());
 }
 
+//template< typename T >
+//static void am_swap_3(swap_desc<T> * desc, size_t sz, T* payload, size_t psz) {
+////  assert(desc->addr1.node() == SoftXMT_mynode());
+//  assert(desc->fb1.node() == SoftXMT_mynode());
+////  assert(psz == sizeof(T));
+//  assert(*desc->fb1.pointer() == 0); // should still be empty from am_swap_1
+//  
+////  *desc->addr1.pointer() = *payload;
+//  
+//  *desc->fb1.pointer() = 1;
+//  
+//  VLOG(2) << "about to call am_swap_done";
+//  SoftXMT_call_on_x(desc->done.node(), &am_swap_done, &desc->done, sizeof(desc->done), &desc->caller, sizeof(desc->caller));
+//}
+//
+//template< typename T >
+//struct swap_struct_2 {
+//  swap_desc<T> * desc;
+//  T val1;
+//  bool wait;
+//};
+//
+//template< typename T >
+//static void swap_task_2(swap_struct_2<T> * s) {
+//  if (s->wait) {
+//    wait_for_full(s->desc->fb2.pointer());
+//  }
+//  
+//  T * val2 = s->desc->addr2.pointer();
+//  T tmp = *val2;
+//  *val2 = s->val1;
+//  
+//  VLOG(2) << "about to call am_swap_3";
+//  SoftXMT_call_on_x(s->desc->addr1.node(), &am_swap_3<T>, s->desc, sizeof(*s->desc), &tmp, sizeof(tmp));
+//}
+
 template< typename T >
-static void am_swap_3(swap_desc<T> * desc, size_t sz, T* payload, size_t psz) {
-  assert(desc->addr1.node() == SoftXMT_mynode());
-  assert(desc->fb1.node() == SoftXMT_mynode());
-  assert(psz == sizeof(T));
-  assert(*desc->fb1.pointer() == 0); // should still be empty from am_swap_1
+static void swap_task_2(swap_desc<T> * desc) {
+//  assert(desc->addr2.node() == SoftXMT_mynode());
+  CHECK(desc->fb2.node() == SoftXMT_mynode()) << "<" << desc->k << "> fb2.node() = " << desc->fb2.node();
   
-  *desc->addr1.pointer() = *payload;
+  int64_t * fb2 = desc->fb2.pointer();
+  VLOG(2) << "<" << desc->k << "> about to wait for addr2: " << fb2;
+  wait_for_full(fb2);
+  *fb2 = 0;
   
-  *desc->fb1.pointer() = 1;
+  typename Incoherent<T>::RW cval1(desc->addr1, 1);
+  typename Incoherent<T>::RW cval2(desc->addr2, 1);
   
+  cval1.block_until_acquired();
+  cval2.block_until_acquired();
+  
+  T tmp = *cval2;
+  *cval2 = *cval1;
+  *cval1 = tmp;
+  
+  cval1.block_until_released();
+  cval2.block_until_released();
+  
+  SoftXMT_delegate_write_word(desc->fb1, 1);
+  *fb2 = 1;
+  
+//  VLOG(2) << "about to call am_swap_3";
+//  SoftXMT_call_on_x(desc->fb1.node(), &am_swap_3<T>, desc);
+  VLOG(2) << "<" << desc->k << "> about to call am_swap_done";
   SoftXMT_call_on_x(desc->done.node(), &am_swap_done, &desc->done, sizeof(desc->done), &desc->caller, sizeof(desc->caller));
 }
 
 template< typename T >
-static void am_swap_2(swap_desc<T> * desc, size_t sz, T* payload, size_t psz) {
-  assert(desc->addr2.node() == SoftXMT_mynode());
-  assert(desc->fb2.node() == SoftXMT_mynode());
-  assert(psz == sizeof(T));
+static void swap_task_1(swap_desc<T>* desc) {
   
-  wait_for_full(desc->fb2.pointer());
+//  assert(desc->addr1.node() == SoftXMT_mynode());
+  CHECK(desc->fb1.node() == SoftXMT_mynode()) << "<" << desc->k << "> fb1.node() = " << desc->fb1.node();
   
-  T * val2 = desc->addr2.pointer();
-  T tmp = *val2;
-  *val2 = *payload;
-  
-  SoftXMT_call_on_x(desc->addr1.node(), &am_swap_3<T>, desc, sizeof(*desc), &tmp, sizeof(tmp));
-}
-
-template< typename T >
-static void am_swap_1(swap_desc<T> * desc, size_t sz, void* payload, size_t psz) {
-  assert(desc->addr1.node() == SoftXMT_mynode());
-  assert(desc->fb1.node() == SoftXMT_mynode());
-  
+  VLOG(2) << "<" << desc-> k << "> about to wait for addr1: " << desc->fb1.pointer();
   wait_for_full(desc->fb1.pointer());
   *desc->fb1.pointer() = 0; //empty it again
-  T * val = desc->addr1.pointer();
+//  T * val = desc->addr1.pointer();
   
-  SoftXMT_call_on_x(desc->addr2.node(), &am_swap_2<T>, desc, sizeof(*desc), val, sizeof(*val));
+  VLOG(2) << "<" << desc->k << "> calling am_swap_2";
+  SoftXMT_remote_privateTask(&swap_task_2<T>, desc, desc->fb2.node());
 }
 
 template< typename T >
 static void swap_globals(GlobalAddress<T> array, GlobalAddress<int64_t> fullbits, int64_t index1, int64_t index2) {
+  
+  swap_desc<T> desc;
+  desc.k = index1;
+  
   // ensure total ordering to avoid deadlock
+  if (index1 == index2) return;
   if (index1 > index2) {
     int64_t tmp = index1;
     index1 = index2;
@@ -141,7 +190,6 @@ static void swap_globals(GlobalAddress<T> array, GlobalAddress<int64_t> fullbits
   }
   
   bool done = false;
-  swap_desc<T> desc;
   desc.addr1 = array+index1;
   desc.addr2 = array+index2;
   desc.fb1 = fullbits+index1;
@@ -149,11 +197,13 @@ static void swap_globals(GlobalAddress<T> array, GlobalAddress<int64_t> fullbits
   desc.caller = make_global(CURRENT_THREAD);
   desc.done = make_global(&done);
   
-  VLOG(2) << "swapping " << index1 << " & " << index2;
+  VLOG(2) << "<" << desc.k << "> swapping " << index1 << " & " << index2;
   
-  SoftXMT_call_on(desc.addr1.node(), &am_swap_1<T>, &desc);
+  GlobalAddress< swap_desc<T> > ptr = make_global(&desc);
+  SoftXMT_remote_privateTask(&swap_task_1<T>, &desc, desc.fb1.node());
   
   while (!done) SoftXMT_suspend();
+  VLOG(2) << "<" << desc.k << "> DONE";
 }
 
 template< typename T >
@@ -177,13 +227,12 @@ template<typename T>
 static void randpermute(GlobalAddress<T> array, int64_t nelem, mrg_state * restrict st) {
   //  typename Incoherent<T>::RW carray(array, nelem);
   GlobalAddress<int64_t> fullbits = SoftXMT_typed_malloc<int64_t>(nelem);
-  func_set_const fc(fullbits, 0);
+  func_set_const fc(fullbits, 1);
   fork_join(&fc, 0, nelem);
 
   rand_permute<T> f;
   f.array = array; f.fullbits = fullbits; f.st = *st; f.nelem = nelem;
   fork_join(&f, 0, nelem);
-  
   SoftXMT_free(fullbits);
 }
 
