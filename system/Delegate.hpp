@@ -12,4 +12,58 @@ int64_t SoftXMT_delegate_fetch_and_add_word( GlobalAddress<int64_t> address, int
 
 bool SoftXMT_delegate_compare_and_swap_word(GlobalAddress<int64_t> address, int64_t cmpval, int64_t newval);
 
+template< typename T >
+struct memory_desc;
+
+template< typename T >
+struct read_reply_args {
+  GlobalAddress< memory_desc<T> > descriptor;
+};
+
+template< typename T >
+static void read_reply_am( read_reply_args<T> * args, size_t size, void * payload, size_t payload_size ) {
+  assert( payload_size == sizeof(T) );
+  *(args->descriptor.pointer()->data) = *(static_cast<T*>(payload));
+  args->descriptor.pointer()->done = true;
+  SoftXMT_wake( args->descriptor.pointer()->t );
+}
+
+template< typename T >
+struct memory_desc {
+  Thread * t;
+  GlobalAddress<T> address;
+  T* data;
+  bool done;
+};
+
+template< typename T >
+struct read_request_args {
+  GlobalAddress< memory_desc<T> > descriptor;
+  GlobalAddress<T> address;
+};
+
+template< typename T >
+static void read_request_am( read_request_args<T> * args, size_t size, void * payload, size_t payload_size ) {
+  T data = *(args->address.pointer());
+  read_reply_args<T> reply_args;
+  reply_args.descriptor = args->descriptor;
+  SoftXMT_call_on( args->descriptor.node(), &read_reply_am<T>, 
+                  &reply_args, sizeof(reply_args), 
+                  &data, sizeof(data) );
+}
+
+template< typename T >
+void SoftXMT_delegate_read( GlobalAddress<T> address, T * buf) {
+  memory_desc<T> md;
+  md.address = address;
+  md.done = false;
+  md.data = buf;
+  md.t = CURRENT_THREAD;
+  read_request_args<T> args;
+  args.descriptor = make_global(&md);
+  args.address = address;
+  SoftXMT_call_on( address.node(), &read_request_am<T>, &args );
+  while (!md.done) SoftXMT_suspend();
+}
+
 #endif

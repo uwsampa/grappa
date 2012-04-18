@@ -2,11 +2,14 @@
 #include common SoftXMT definitions
 include $(SOFTXMT_HOME)/include.mk
 
+SRUN_FLAGS:=--time=00:40:00
+
 TARGET:= graph.exe
 
 #default rule: just build
 $(TARGET):
 
+CFLAGS += -w
 CFLAGS += -I$(SOFTXMT_HOME)/system
 CFLAGS += -g -Wall -Drestrict=__restrict__ -ffast-math -DGRAPH_GENERATOR_SOFTXMT
 # CFLAGS += -g -pg
@@ -16,8 +19,8 @@ LDFLAGS = -g # -g -pg
 
 # GENERATOR_SOURCES = ../generator/graph_generator.o ../generator/make_graph.o ../generator/splittable_mrg.o ../generator/utils.o
 GENERATOR_SOURCES = graph_generator.o make_graph.o splittable_mrg.o utils.o
-SOURCES = main.o oned_csr.o rmat.o
-HEADERS = common.h oned_csr.h
+SOURCES = main.o oned_csr.o rmat.o verify.o
+HEADERS = common.h oned_csr.h verify.hpp
 
 include $(SOFTXMT_HOME)/system/Makefile
 
