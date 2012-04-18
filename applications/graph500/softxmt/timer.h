@@ -21,7 +21,7 @@ inline double timer(void) {
 #elif  defined(CLOCK_REALTIME_ID)
 #define CLKID CLOCK_REALTIME_ID
 #endif
-	clock_gettime(CLKID, &tp);
+	clock_gettime(CLOCK_MONOTONIC, &tp);
 	return (double)tp.tv_sec + (double)tp.tv_nsec / BILLION;
 #endif
 }

@@ -67,4 +67,32 @@ inline range_t blockDist(int64_t start, int64_t end, int64_t rank, int64_t numBl
   return r;
 }
 
+#define GET_TYPE(member) BOOST_PP_TUPLE_ELEM(2,0,member)
+
+#define GET_NAME(member) BOOST_PP_TUPLE_ELEM(2,1,member)
+
+#define CAT_EACH(r, data, elem) BOOST_PP_CAT(elem, data)
+
+#define AUTO_CONSTRUCTOR_DETAIL_PARAM(r, data, member) \
+GET_TYPE(member) GET_NAME(member) 
+
+#define DECL_W_TYPE(r, data, member) \
+GET_TYPE(member) GET_NAME(member);
+
+#define AUTO_CONSTRUCTOR_DETAIL_INIT(r, data, member) \
+GET_NAME(member) ( GET_NAME(member) )
+
+#define AUTO_CONSTRUCTOR_DETAIL(className, members) \
+className(BOOST_PP_SEQ_ENUM(BOOST_PP_SEQ_TRANSFORM( \
+AUTO_CONSTRUCTOR_DETAIL_PARAM, BOOST_PP_EMPTY, members))) : \
+BOOST_PP_SEQ_ENUM(BOOST_PP_SEQ_TRANSFORM( \
+AUTO_CONSTRUCTOR_DETAIL_INIT, BOOST_PP_EMPTY, members)) \
+{} 
+
+#define AUTO_CONSTRUCTOR(className, members) \
+AUTO_CONSTRUCTOR_DETAIL(className, members)
+
+#define AUTO_DECLS(members) \
+BOOST_PP_SEQ_FOR_EACH(CAT_EACH, ,BOOST_PP_SEQ_TRANSFORM(DECL_W_TYPE, BOOST_PP_EMPTY, members))
+
 #endif
