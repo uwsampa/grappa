@@ -159,7 +159,7 @@ class Future {
                 // grab the user arguments
                 size_t args_size = sizeof(ArgsStruct);
                 ArgsStruct argsbuf;
-                typename Incoherent<ArgsStruct>::RO cached_args( args->userArgs, args_size, &argsbuf );
+                typename Incoherent<ArgsStruct>::RO cached_args( args->userArgs, 1, &argsbuf );
                 cached_args.block_until_acquired();
                 
                 // call the user task
