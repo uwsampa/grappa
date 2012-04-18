@@ -26,6 +26,7 @@
 struct csr_graph {
   GlobalAddress<int64_t> xoff, xadj, xadjstore;
   int64_t nv;
+  int64_t nadj;
 };
 
 void create_graph_from_edgelist(const tuple_graph* const tg, csr_graph* const g);

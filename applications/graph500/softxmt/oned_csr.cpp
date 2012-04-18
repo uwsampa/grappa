@@ -24,6 +24,8 @@
 #include "Collective.hpp"
 #include "Delegate.hpp"
 
+#include "timer.h"
+
 #include <sstream>
 
 #define MINVECT_SIZE 2
@@ -33,25 +35,10 @@
 
 static int64_t maxvtx, nv;
 
-//struct temp_graph_data {
-//  GlobalAddress<int64_t> xoff, xadjstore, xadj;
-//  int64_t nv;
-//};
-
-struct func_set_const : public ForkJoinIteration {
-  GlobalAddress<int64_t> base_addr;
-  int64_t value;
-  void operator()(thread * me, int64_t index) {
-    DVLOG(3) << "called func_initialize with index = " << index;
-    Incoherent<int64_t>::RW c(base_addr+index, 1);
-    c[0] = value;
-  }
-};
-
 struct max_func : public ForkJoinIteration {
   GlobalAddress<packed_edge> edges;
   int64_t * max;
-  void operator()(thread * me, int64_t index) {
+  void operator()(int64_t index) {
     Incoherent<packed_edge>::RO cedge(edges+index, 1);
     if (cedge[0].v0 > *max) {
       *max = cedge[0].v0;
@@ -66,13 +53,13 @@ struct node_max_func : public ForkJoinIteration {
   GlobalAddress<packed_edge> edges;
   int64_t start, end;
   int64_t max;
-  void operator()(thread * me, int64_t mynode) {
+  void operator()(int64_t mynode) {
     max = -1;
     range_t myblock = blockDist(start, end, mynode, SoftXMT_nodes());
     max_func f;
     f.edges = edges;
     f.max = &max;
-    fork_join_onenode(me, &f, myblock.start, myblock.end);
+    fork_join_onenode(&f, myblock.start, myblock.end);
     
     maxvtx = SoftXMT_collective_reduce(&collective_max, 0, max, -1);
     nv = maxvtx+1;
@@ -84,14 +71,14 @@ static void find_nv(const tuple_graph* const tg) {
   f.edges = tg->edges;
   f.start = 0;
   f.end = tg->nedge;
-  fork_join_custom(current_thread, &f);
+  fork_join_custom(&f);
 }
 
 // note: this corresponds to how Graph500 counts 'degree' (both in- and outgoing edges to each vertex)
 struct degree_func : public ForkJoinIteration {
   GlobalAddress<packed_edge> edges;
   GlobalAddress<int64_t> xoff;
-  void operator()(thread * me, int64_t index) {
+  void operator()(int64_t index) {
     Incoherent<packed_edge>::RO cedge(edges+index, 1);
     int64_t i = cedge[0].v0;
     int64_t j = cedge[0].v1;
@@ -105,7 +92,7 @@ struct degree_func : public ForkJoinIteration {
 struct local_reduce_sum : public ForkJoinIteration {
   GlobalAddress<int64_t> xoff;
   int64_t * sum;
-  void operator()(thread * me, int64_t index) {
+  void operator()(int64_t index) {
     int64_t v = SoftXMT_delegate_read_word(XOFF(index));
     *sum += v;
   }
@@ -115,14 +102,14 @@ struct prefix_sum_node : public ForkJoinIteration {
   GlobalAddress<int64_t> xoff;
   GlobalAddress<int64_t> buf; // one per node, used to store local total
   int64_t nv;
-  void operator()(thread * me, int64_t nid) {
+  void operator()(int64_t nid) {
     range_t myblock = blockDist(0, nv, nid, SoftXMT_nodes());
     
-    int64_t mysum;
+    int64_t mysum = 0;
     local_reduce_sum fr;
     fr.xoff = xoff;
     fr.sum = &mysum;
-    fork_join_onenode(me, &fr, myblock.start, myblock.end);
+    fork_join_onenode(&fr, myblock.start, myblock.end);
     
     // add my sum to every buf count following this node
     // TODO: do this in a tree rather than brute-force push-to-all
@@ -147,14 +134,14 @@ static int64_t prefix_sum(GlobalAddress<int64_t> xoff, int64_t nv) {
   fps.xoff = xoff;
   fps.buf = SoftXMT_typed_malloc<int64_t>(SoftXMT_nodes());
   fps.nv = nv;
-  fork_join_custom(current_thread, &fps);
+  fork_join_custom(&fps);
   
   return SoftXMT_delegate_read_word(fps.buf+SoftXMT_nodes()-1);
 }
 
 struct minvect_func : public ForkJoinIteration {
   GlobalAddress<int64_t> xoff;
-  void operator()(thread * me, int64_t index) {
+  void operator()(int64_t index) {
     int64_t v = SoftXMT_delegate_read_word(XOFF(index));
     if (v < MINVECT_SIZE) {
       SoftXMT_delegate_write_word(XOFF(index), MINVECT_SIZE);
@@ -164,7 +151,7 @@ struct minvect_func : public ForkJoinIteration {
 
 struct init_xendoff_func : public ForkJoinIteration {
   GlobalAddress<int64_t> xoff;
-  void operator()(thread * me, int64_t index) {
+  void operator()(int64_t index) {
     SoftXMT_delegate_write_word(XENDOFF(index), SoftXMT_delegate_read_word(XOFF(index)));
   }
 };
@@ -172,12 +159,12 @@ struct init_xendoff_func : public ForkJoinIteration {
 static void setup_deg_off(const tuple_graph * const tg, csr_graph * g) {
   GlobalAddress<int64_t> xoff = g->xoff;
   // initialize xoff to 0
-  func_set_const fc; fc.value = 0; fc.base_addr = g->xoff;
-  fork_join(current_thread, &fc, 0, 2*g->nv+2);
+  func_set_const fc(g->xoff, 0);
+  fork_join(&fc, 0, 2*g->nv+2);
   
   // count occurrences of each vertex in edges
   degree_func fd; fd.edges = tg->edges; fd.xoff = g->xoff;
-  fork_join(current_thread, &fd, 0, tg->nedge);
+  fork_join(&fd, 0, tg->nedge);
   
 //  for (int64_t i=0; i<g->nv; i++) {
 //    std::stringstream ss;
@@ -192,27 +179,28 @@ static void setup_deg_off(const tuple_graph * const tg, csr_graph * g) {
   
   // make sure every degree is at least MINVECT_SIZE (don't know why yet...)
   minvect_func fm; fm.xoff = g->xoff;
-  fork_join(current_thread, &fm, 0, g->nv);
+  fork_join(&fm, 0, g->nv);
   
   // simple parallel prefix sum to compute offsets from degrees
   int64_t accum = prefix_sum(g->xoff, g->nv);
-  
-//  VLOG(1) << "accum = " << accum;
+    
+  VLOG(1) << "accum = " << accum;
 //  for (int64_t i=0; i<g->nv; i++) {
 //    VLOG(1) << "offset[" << i << "] = " << SoftXMT_delegate_read_word(XOFF(i));
 //  }
   
   //initialize XENDOFF to be the same as XOFF
   init_xendoff_func fe; fe.xoff = g->xoff;
-  fork_join(current_thread, &fe, 0, g->nv);
+  fork_join(&fe, 0, g->nv);
   
   SoftXMT_delegate_write_word(XOFF(g->nv), accum);
+  g->nadj = accum+MINVECT_SIZE;
   
   g->xadjstore = SoftXMT_typed_malloc<int64_t>(accum + MINVECT_SIZE);
   g->xadj = g->xadjstore+MINVECT_SIZE; // cheat and permit xadj[-1] to work
   // func set const = fc
   fc.value = -1; fc.base_addr = g->xadjstore;
-  fork_join(current_thread, &fc, 0, accum+MINVECT_SIZE);
+  fork_join(&fc, 0, accum+MINVECT_SIZE);
 }
 
 inline void scatter_edge(GlobalAddress<int64_t> xoff, GlobalAddress<int64_t> xadj, const int64_t i, const int64_t j) {
@@ -224,7 +212,7 @@ struct scatter_func : public ForkJoinIteration {
   GlobalAddress<packed_edge> ij;
   GlobalAddress<int64_t> xoff;
   GlobalAddress<int64_t> xadj;
-  void operator()(thread * me, int64_t k) {
+  void operator()(int64_t k) {
     Incoherent<packed_edge>::RO cedge(ij+k, 1);
     int64_t i = cedge[0].v0, j = cedge[0].v1;
     if (i >= 0 && j >= 0 && i != j) {
@@ -248,7 +236,7 @@ i64cmp (const void *a, const void *b)
 struct pack_vtx_edges_func : public ForkJoinIteration {
   GlobalAddress<int64_t> xoff;
   GlobalAddress<int64_t> xadj;
-  void operator()(thread * me, int64_t i) {
+  void operator()(int64_t i) {
     int64_t kcur;
 //    Incoherent<int64_t>::RO xoi(XOFF(i), 1);
 //    Incoherent<int64_t>::RO xei(XENDOFF(i), 1);
@@ -297,7 +285,7 @@ static void gather_edges(const tuple_graph * const tg, csr_graph * g) {
   sf.ij = tg->edges;
   sf.xoff = g->xoff;
   sf.xadj = g->xadj;
-  fork_join(current_thread, &sf, 0, tg->nedge);
+  fork_join(&sf, 0, tg->nedge);
   
 //  GlobalAddress<int64_t> xoff = g->xoff;  
 //  for (int64_t i=0; i<g->nv; i++) {
@@ -317,7 +305,7 @@ static void gather_edges(const tuple_graph * const tg, csr_graph * g) {
   pack_vtx_edges_func pf;
   pf.xoff = g->xoff;
   pf.xadj = g->xadj;
-  fork_join(current_thread, &pf, 0, g->nv);
+  fork_join(&pf, 0, g->nv);
 }
 
 void create_graph_from_edgelist(const tuple_graph* const tg, csr_graph* const g) {    
@@ -327,9 +315,12 @@ void create_graph_from_edgelist(const tuple_graph* const tg, csr_graph* const g)
   g->nv = nv;
   g->xoff = SoftXMT_typed_malloc<int64_t>(2*nv+2);
   
-  setup_deg_off(tg, g);
+  double time;
+  TIME(time, setup_deg_off(tg, g));
+  LOG(INFO) << "setup_deg_off time: " << time;
   
-  gather_edges(tg, g);
+  TIME(time, gather_edges(tg, g));
+  LOG(INFO) << "gather_edges time: " << time;
 }
 
 void free_oned_csr_graph(csr_graph* const g) {
