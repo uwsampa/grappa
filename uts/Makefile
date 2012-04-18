@@ -64,6 +64,7 @@ ENV_VARIABLES+= LD_LIBRARY_PATH="\$$LD_LIBRARY_PATH:$(LD_LIBRARY_PATH)"
 ENV_VARIABLES+= GASNET_BACKTRACE=1
 ENV_VARIABLES+= GLOG_logtostderr=1
 ENV_VARIABLES+= GLOG_v=1
+ENV_VARIABLES+= GLOG_vmodule=uts_grappa=5,Aggregator=5,Incoh*=5
 
 #
 # run vars
@@ -74,10 +75,13 @@ HOST:=localhost
 TARGET:=
 PPN:=2
 
+uts.o: uts.c
+	$(CXX) $(CFLAGS) $(RNG_DEF) $< -c -o $@
+
 %.o: %.cpp
 	$(CXX) $(CFLAGS) $(RNG_DEF) $< -c -o $@
 
-uts_grappa.exe: uts_grappa.o $(RNG_SRC)
+uts_grappa.exe: uts_grappa.o $(RNG_SRC) uts.o
 	$(LD) $(LDFLAGS) -o $@ $^  $(LIBRARIES) $(LIB) $(GASNET_LIBS) 
 
 run: $(TARGET) $($(MPITYPE)_ENVVAR_TEMP)
