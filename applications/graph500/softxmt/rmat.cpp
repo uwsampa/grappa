@@ -30,6 +30,8 @@ struct func_set_seq : public ForkJoinIteration {
   }
 };
 
+#if 0 /* disabled parallel randpermute for faster builds */
+
 struct randpermute_func : public ForkJoinIteration {
   GlobalAddress<int64_t> array;
   int64_t nelem;
@@ -160,6 +162,27 @@ static void swap_task_2(swap_desc<T> * desc) {
   SoftXMT_call_on_x(desc->done.node(), &am_swap_done, &desc->done, sizeof(desc->done), &desc->caller, sizeof(desc->caller));
 }
 
+/// Sketching a wrapper function?
+//template< typename Func >
+//static void wrapper(void* ptr) {
+//  GlobalAddress<Func> addr = reinterpret_cast< GlobalAddress<Func> >(ptr);
+//  Func f;
+//  typename Incoherent<Func>::RW c(addr, 1, &f);
+//  c.block_until_acquired();
+//  f();
+//  c.block_until_released();
+//}
+//
+//template< typename FnTy, typename Args >
+//static void wrapper(void* ptr) {
+//  GlobalAddress<Args> addr = reinterpret_cast< GlobalAddress<Func> >(ptr);
+//  Func f;
+//  typename Incoherent<Func>::RW c(addr, 1, &f);
+//  c.block_until_acquired();
+//  f();
+//  c.block_until_released();
+//}
+
 template< typename T >
 static void swap_task_1(swap_desc<T>* desc) {
   
@@ -200,7 +223,7 @@ static void swap_globals(GlobalAddress<T> array, GlobalAddress<int64_t> fullbits
   VLOG(2) << "<" << desc.k << "> swapping " << index1 << " & " << index2;
   
   GlobalAddress< swap_desc<T> > ptr = make_global(&desc);
-  SoftXMT_remote_privateTask(&swap_task_1<T>, &desc, desc.fb1.node());
+  SoftXMT_remote_privateTask(&swap_task_1<T>, reinterpret_cast< swap_desc<T>* >(ptr), desc.fb1.node());
   
   while (!done) SoftXMT_suspend();
   VLOG(2) << "<" << desc.k << "> DONE";
@@ -222,7 +245,7 @@ struct rand_permute : ForkJoinIteration {
   }
 };
 
-// temporarily just do it serially on one node rather than doing parallel swaps
+/// An attempt at a parallel version of randpermute that doesn't work yet.
 template<typename T>
 static void randpermute(GlobalAddress<T> array, int64_t nelem, mrg_state * restrict st) {
   //  typename Incoherent<T>::RW carray(array, nelem);
@@ -234,6 +257,31 @@ static void randpermute(GlobalAddress<T> array, int64_t nelem, mrg_state * restr
   f.array = array; f.fullbits = fullbits; f.st = *st; f.nelem = nelem;
   fork_join(&f, 0, nelem);
   SoftXMT_free(fullbits);
+}
+#endif /* /disabled parallel randpermute for faster builds */
+
+// temporarily just do it serially on one node rather than doing parallel swaps
+template<typename T>
+static void randpermute(GlobalAddress<T> array, int64_t nelem, mrg_state * restrict st) {
+  //  typename Incoherent<T>::RW carray(array, nelem);
+  
+  for (int64_t k=0; k < nelem; k++) {
+    mrg_state new_st = *st;
+    int64_t which = k % SoftXMT_nodes();
+    mrg_skip(&new_st, 1, k*(which+1), 0);
+    int64_t place = k + (int64_t)floor( mrg_get_double_orig(&new_st) * (nelem - k) );
+    
+    typename Incoherent<T>::RW c_this(array+k, 1);
+    typename Incoherent<T>::RW c_place(array+place, 1);
+    
+    // swap
+    T t;
+    t = *c_place;
+    *c_place = *c_this;
+    *c_this = t;
+    
+    if (k % 4096 == 0) VLOG(1) << "k: " << k << " -- " << timer();
+  }
 }
 
 struct write_edge_func : public ForkJoinIteration {
@@ -407,6 +455,8 @@ void rmat_edgelist(tuple_graph* grin, int SCALE) {
   
   mrg_skip(&prng_state_store, 1, NV, 0);
   
-  TIME(t, randpermute(grin->edges, grin->nedge, &prng_state_store));
+  t = timer();
+  randpermute(grin->edges, grin->nedge, &prng_state_store);
+  t = timer() - t;
   VLOG(1) << "done: randpermute (time = " << t << ")";
 }
