@@ -49,7 +49,7 @@ static void memory_write_request_am( memory_write_request_args * args, size_t si
                                                     << "\n descriptor="<<args->descriptor;
   assert( payload_size == sizeof(int64_t) );
   int64_t payload_int = *(static_cast<int64_t*>(payload));
-  VLOG(2) << "payload("<<(void*)payload<<")="<<payload_int<<"\n    pointer="<<(void*)args->address.pointer();
+  VLOG(3) << "payload("<<(void*)payload<<")="<<payload_int<<"\n    pointer="<<(void*)args->address.pointer();
   *(args->address.pointer()) = payload_int;
   memory_write_reply_args reply_args;
   reply_args.descriptor = args->descriptor;
