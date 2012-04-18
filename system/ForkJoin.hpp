@@ -128,8 +128,6 @@ static void task_iters(iters_args * arg) {
   }
 }
 
-#include <boost/preprocessor/cat.hpp>
-
 #define TASK_FUNCTOR(name, members) \
   struct name { \
     AUTO_DECLS(members) \
@@ -168,17 +166,17 @@ TASK_FUNCTOR_TEMPLATED(T, do_iters, ((size_t,rank)) ((void*,fjdata)) ) {
 template<typename T>
 static void fork_join_onenode(T* func, int64_t start, int64_t end) {
   forkjoin_data_t<T> fj(CURRENT_THREAD, func, start, end);
-//  iters_args args[fj.nthreads];
-  do_iters<T> funcs[fj.nthreads];
+  iters_args args[fj.nthreads];
+//  do_iters<T> funcs[fj.nthreads];
 //  Thread* ths[fj.nthreads];
   VLOG(2) << "fj.nthreads = " << fj.nthreads;
   
   for (int i=0; i<fj.nthreads; i++) {
-    funcs[i].fjdata = &fj;
-    funcs[i].rank = i;
+    args[i].fjdata = &fj;
+    args[i].rank = i;
     
 //    ths[i] = SoftXMT_template_spawn(&th_iters<T>, &args[i]);
-    SoftXMT_privateTask(&do_iters<T>::run, &funcs[i]);
+    SoftXMT_privateTask(&task_iters<T>, &args[i]);
   }
   while (fj.finished < fj.nthreads) SoftXMT_suspend();
   
@@ -209,7 +207,6 @@ static void fork_join(T* func, int64_t start, int64_t end) {
   fj.sem = make_global(&sem);
   
   for (Node i=0; i < SoftXMT_nodes(); i++) {
-//    SoftXMT_remote_spawn(&th_node_fork_join, &fj, i);
     SoftXMT_remote_privateTask(&th_node_fork_join, &fj, i);
     
     SoftXMT_flush(i); // TODO: remove this?
