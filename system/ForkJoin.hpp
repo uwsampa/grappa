@@ -44,18 +44,19 @@ protected:
   int count;
   int total;
 public:
-  Semaphore(int total, int starting): total(total), count(starting) {}
+  Semaphore(int total, int starting): total(total), count(starting), sleeper(NULL) {}
   void acquire_all(Thread * me) {
-    sleeper = me;
     while (count < total) {
       VLOG(3) << "Semaphore.count = " << count << " of " << total << ", suspending...";
+      sleeper = me;
       SoftXMT_suspend();
     }
   }
   void release(int n=1) {
     count += n;
-    if (count >= total) {
+    if (count >= total && sleeper) {
       SoftXMT_wake(sleeper);
+      sleeper = NULL;
     }
   }
   static void am_release(GlobalAddress<Semaphore>* gaddr, size_t sz, void* payload, size_t psz) {
