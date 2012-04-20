@@ -13,12 +13,12 @@ typedef int16_t Node;
 class Task {
 
     private:
-        void (* fn_p)(void *);
-        void * arg;
+        void (* fn_p)(void*);
+        void* arg;
     
     public:
         Task () {}
-        Task (void (* fn_p)(void *), void * arg) 
+        Task (void (* fn_p)(void*), void* arg) 
             : fn_p ( fn_p )
             , arg ( arg ) { }
 
@@ -31,9 +31,8 @@ class Task {
 
 
 template < typename T >
-static Task createTask( void (* fn_p)(T *), T * args ) {
-    Task t( reinterpret_cast< void (*) (void*) >( fn_p ),
-            reinterpret_cast< void *>( *args ) );
+static Task createTask( void (* fn_p)(T), T args ) {
+    Task t( reinterpret_cast< void (*) (void*) >( fn_p ), args);
     return t;
 }
 
@@ -110,15 +109,15 @@ class TaskManager {
 
         /*TODO return value?*/
         template < typename T > 
-        void spawnPublic( void (*f)(T *), T * arg);
+        void spawnPublic( void (*f)(T), T arg);
         
         /*TODO return value?*/ 
         template < typename T > 
-        void spawnLocalPrivate( void (*f)(T *), T * arg);
+        void spawnLocalPrivate( void (*f)(T), T arg);
         
         /*TODO return value?*/ 
         template < typename T > 
-        void spawnRemotePrivate( void (*f)(T *), T * arg);
+        void spawnRemotePrivate( void (*f)(T), T arg);
         
         bool getWork ( Task * result );
 
@@ -140,7 +139,7 @@ inline bool TaskManager::available( ) {
 
 Node SoftXMT_mynode();
 template < typename T > 
-inline void TaskManager::spawnPublic( void (*f)(T *), T * arg ) {
+inline void TaskManager::spawnPublic( void (*f)(T), T arg ) {
     Task newtask = createTask(f, arg);
     publicQ.push( newtask );
     releaseTasks();
@@ -149,7 +148,7 @@ inline void TaskManager::spawnPublic( void (*f)(T *), T * arg ) {
 /// Should NOT be called from the context of
 /// an AM handler
 template < typename T > 
-inline void TaskManager::spawnLocalPrivate( void (*f)(T *), T * arg ) {
+inline void TaskManager::spawnLocalPrivate( void (*f)(T), T arg ) {
 
     Task newtask = createTask(f, arg);
     privateQ.push_front( newtask );
@@ -162,7 +161,7 @@ inline void TaskManager::spawnLocalPrivate( void (*f)(T *), T * arg ) {
 /// Should ONLY be called from the context of
 /// an AM handler
 template < typename T > 
-inline void TaskManager::spawnRemotePrivate( void (*f)(T *), T * arg ) {
+inline void TaskManager::spawnRemotePrivate( void (*f)(T), T arg ) {
     Task newtask = createTask(f, arg);
     privateQ.push_front( newtask );
 
