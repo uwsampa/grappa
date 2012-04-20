@@ -222,21 +222,17 @@ bool SoftXMT_done() {
   return SoftXMT_done_flag;
 }
 
-/// Active message to tell this node it's okay to exit.
-static void SoftXMT_mark_done_am( void * args, size_t args_size, void * payload, size_t payload_size ) {
-  VLOG(5) << "mark done";
-  SoftXMT_done_flag = true;
-}
+///// Active message to tell this node it's okay to exit.
+//static void SoftXMT_mark_done_am( void * args, size_t args_size, void * payload, size_t payload_size ) {
+//  VLOG(5) << "mark done";
+//  SoftXMT_done_flag = true;
+//}
 
 /// Tell all nodes that we are ready to exit
 /// This will terminate the automatic portions of the communication layer
 void SoftXMT_signal_done ( ) { 
-    if ( !SoftXMT_done() ) {       
-        for( Node i = 0; i < SoftXMT_nodes(); ++i ) {
-            SoftXMT_call_on( i, &SoftXMT_mark_done_am, (void *)NULL, 0 );
-            SoftXMT_flush( i );
-        }
-    }
+    VLOG(5) << "mark done";
+    SoftXMT_done_flag = true;
 }
 
 /// Dump statistics
