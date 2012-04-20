@@ -115,7 +115,7 @@ struct iters_args {
 
 template<typename T>
 //static void th_iters(Thread * me, iters_args* arg) {
-static void task_iters(iters_args * arg) {
+void task_iters(iters_args * arg) {
   forkjoin_data_t<T> * fj = static_cast<forkjoin_data_t<T>*>(arg->fjdata);
   range_t myblock = blockDist(fj->local_start, fj->local_end, arg->rank, fj->nthreads);
   VLOG(3) << "iters_block: " << myblock.start << " - " << myblock.end;
@@ -165,7 +165,7 @@ TASK_FUNCTOR_TEMPLATED(T, do_iters, ((size_t,rank)) ((void*,fjdata)) ) {
 }
 
 template<typename T>
-static void fork_join_onenode(T* func, int64_t start, int64_t end) {
+void fork_join_onenode(T* func, int64_t start, int64_t end) {
   forkjoin_data_t<T> fj(CURRENT_THREAD, func, start, end);
   iters_args args[fj.nthreads];
 //  do_iters<T> funcs[fj.nthreads];
@@ -177,7 +177,7 @@ static void fork_join_onenode(T* func, int64_t start, int64_t end) {
     args[i].rank = i;
     
 //    ths[i] = SoftXMT_template_spawn(&th_iters<T>, &args[i]);
-    SoftXMT_privateTask(&task_iters<T>, &args[i]);
+    SoftXMT_privateTask(CACHE_WRAP(task_iters<T>, &args[i]));
   }
   while (fj.finished < fj.nthreads) SoftXMT_suspend();
   
@@ -188,7 +188,7 @@ static void fork_join_onenode(T* func, int64_t start, int64_t end) {
 
 template<typename T>
 //static void th_node_fork_join(Thread * me, NodeForkJoinArgs<T>* a) {
-static void th_node_fork_join(NodeForkJoinArgs<T>* a) {
+void th_node_fork_join(NodeForkJoinArgs<T>* a) {
   range_t myblock = blockDist(a->start, a->end, SoftXMT_mynode(), SoftXMT_nodes());
   VLOG(2) << "myblock: " << myblock.start << " - " << myblock.end;
   fork_join_onenode(&a->func, myblock.start, myblock.end);
@@ -198,7 +198,7 @@ static void th_node_fork_join(NodeForkJoinArgs<T>* a) {
 }
 
 template<typename T>
-static void fork_join(T* func, int64_t start, int64_t end) {
+void fork_join(T* func, int64_t start, int64_t end) {
   Semaphore sem(SoftXMT_nodes(), 0);
   
   NodeForkJoinArgs<T> fj;
@@ -208,7 +208,7 @@ static void fork_join(T* func, int64_t start, int64_t end) {
   fj.sem = make_global(&sem);
   
   for (Node i=0; i < SoftXMT_nodes(); i++) {
-    SoftXMT_remote_privateTask(&th_node_fork_join, &fj, i);
+    SoftXMT_remote_privateTask(CACHE_WRAP(th_node_fork_join, &fj), i);
     
     SoftXMT_flush(i); // TODO: remove this?
   }
@@ -220,7 +220,7 @@ static void fork_join(T* func, int64_t start, int64_t end) {
 
 template<typename T>
 //static void th_node_fork_join_custom(Thread * me, NodeForkJoinArgs<T>* a) {
-static void th_node_fork_join_custom(NodeForkJoinArgs<T>* a) {
+void th_node_fork_join_custom(NodeForkJoinArgs<T>* a) {
   a->func(SoftXMT_mynode());
   
   VLOG(2) << "about to update sem on " << a->sem.node();
@@ -228,7 +228,7 @@ static void th_node_fork_join_custom(NodeForkJoinArgs<T>* a) {
 }
 
 template<typename T>
-static void fork_join_custom(T* func) {
+void fork_join_custom(T* func) {
   Semaphore sem(SoftXMT_nodes(), 0);
   
   NodeForkJoinArgs<T> fj;
@@ -238,7 +238,7 @@ static void fork_join_custom(T* func) {
   fj.sem = make_global(&sem);
   
   for (Node i=0; i < SoftXMT_nodes(); i++) {
-    SoftXMT_remote_privateTask(&th_node_fork_join_custom, &fj, i);
+    SoftXMT_remote_privateTask(CACHE_WRAP(th_node_fork_join_custom, &fj), i);
     SoftXMT_flush(i); // TODO: remove this?
   }
   VLOG(2) << "waiting to acquire all";
