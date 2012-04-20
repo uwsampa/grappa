@@ -78,10 +78,12 @@ std::ostream& operator<< ( std::ostream& out, const vertex_t& v ) {
     return out;
 }
 std::ostream& operator<< ( std::ostream& out, const uts::Node& n ) {
+    char debug_str[1000];
     out << "uts::Node{type=" << n.type
         << ", height=" << n.height
         << ", numChildren=" << n.numChildren
         << ", id=" << n.id
+        << ", state=" << rng_showstate((RNG_state*)n.state.state, debug_str)
         << "} ";
     return out;
 }
@@ -237,13 +239,14 @@ static void spawn_rng_reply_am( spawn_rng_reply_args * args, size_t size, void *
 struct spawn_rng_request_args {
     GlobalAddress<memory_descriptor> descriptor;
     GlobalAddress<uts::Node> address;
+    int i;
 };
 
 void spawn_rng_request_am( spawn_rng_request_args * args, size_t args_size, void * payload, size_t size ) {
     uts::Node * parent = args->address.pointer();
     struct state_t data;
     for (int j=0; j<computeGranularity; j++) {
-        rng_spawn(parent->state.state, data.state, j);
+        rng_spawn(parent->state.state, data.state, args->i);
     }
    
     spawn_rng_reply_args reply_args = { args->descriptor }; 
@@ -252,7 +255,7 @@ void spawn_rng_request_am( spawn_rng_request_args * args, size_t args_size, void
                    &data, sizeof(data) );
 }
 
-struct state_t spawn_rng_remote( GlobalAddress<uts::Node> parentAddress ) {
+struct state_t spawn_rng_remote( GlobalAddress<uts::Node> parentAddress, int child_num ) {
   memory_descriptor md;
   md.address = parentAddress;
   memset(&md.data, 0, sizeof(struct state_t));
@@ -261,6 +264,7 @@ struct state_t spawn_rng_remote( GlobalAddress<uts::Node> parentAddress ) {
   spawn_rng_request_args args;
   args.descriptor = make_global(&md);
   args.address = parentAddress;
+  args.i = child_num;
   SoftXMT_call_on( parentAddress.node(), &spawn_rng_request_am, &args );
   
   while( !md.done ) {
@@ -279,7 +283,7 @@ void create_children( int64_t i, sibling_args * s ) {
     child.numChildren = -1; // not yet determined
     child.id = s->childid0 + i;
 
-    child.state = spawn_rng_remote( s->parent );
+    child.state = spawn_rng_remote( s->parent, i );
     // spawn child RNG state
     // TODO Coherent cache object (instead of AM)
 //    struct state_t parentState_storage;
