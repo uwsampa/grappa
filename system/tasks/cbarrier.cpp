@@ -36,6 +36,7 @@ void enter_cbarrier_request_am( enter_cbarrier_request_args * args, size_t size,
         notified[source] = true;
         num_waiting_clients++;
         if (num_waiting_clients == num_barrier_clients) {
+            num_waiting_clients = 0;
             // only one thread can enter by proper usage of barrier (only one last enter AM)
             // And after this message no cancel can be received
             DVLOG(5) << "enter_cbarrier_request_am: last";
@@ -47,7 +48,6 @@ void enter_cbarrier_request_am( enter_cbarrier_request_args * args, size_t size,
                 notified[nod] = false;
                 SoftXMT_call_on( nod, &exit_cbarrier_request_am, &exargs ); 
             }
-            num_waiting_clients = 0;
             exit_cbarrier_request_args exargs = { true };
             DVLOG(5) << "enter_cbarrier_request_am: sending to " << source;
             notified[source] = false;
@@ -100,17 +100,28 @@ void cbarrier_cancel() {
 
 bool cbarrier_wait() {
     CHECK( wakeme == NULL ) << "more than one thread entered cbarrier on this Node";
-    CHECK( !cb_done ) << "cannot call wait on a finished barrier";
     
-    enter_cbarrier_request_args enargs = { SoftXMT_mynode() };
-    SoftXMT_call_on( HOME_NODE, &enter_cbarrier_request_am, &enargs );
     
-    wakeme = CURRENT_THREAD;
+    // NOTE: due to cancel_local making the waiting count not decrement
+    // it was possible that user_main exit causing Node0 cbarrier_wait,
+    // causing count to trigger, causing cb_done on Node1 to be set
+    // before it enters the barrier again. So instead of asserting
+    // cb_done=false, we just check to see if already set.
+    // TODO: really we want user_main to probably just set a done bit,
+    //       orthogonal to the cbarrier
+    //CHECK( !cb_done ) << "cannot call wait on a finished barrier";
+    if ( !cb_done ) {
 
-    SoftXMT_suspend( );
-    //CHECK( cb_reply ) << "waiter woke without cb_reply=1";
+        enter_cbarrier_request_args enargs = { SoftXMT_mynode() };
+        SoftXMT_call_on( HOME_NODE, &enter_cbarrier_request_am, &enargs );
 
-    cb_reply = false;
+        wakeme = CURRENT_THREAD;
+
+        SoftXMT_suspend( );
+        //CHECK( cb_reply ) << "waiter woke without cb_reply=1";
+
+        cb_reply = false;
+    }
     
     return cb_done;
 }
