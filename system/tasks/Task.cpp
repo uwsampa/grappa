@@ -136,6 +136,7 @@ bool TaskManager::waitConsumeAny( Task * result ) {
             VLOG(5) << CURRENT_THREAD << " saw all were idle so suggest barrier";
 
             // no work so suggest global termination barrier
+            CHECK( !workDone ) << "perhaps there is a stray unidled thread problem?";
             int finished_barrier = cbarrier_wait();
             if (finished_barrier) {
                 VLOG(5) << CURRENT_THREAD << " left barrier from finish";
