@@ -5,6 +5,9 @@
 
 #define STACK_SIZE 2<<18
 
+std::ostream& operator<< ( std::ostream& o, const ThreadQueue& tq ) {
+    tq.dump( o );
+}
 
 Thread * thread_init() {
   coro* me = coro_init();
