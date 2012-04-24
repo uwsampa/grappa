@@ -30,14 +30,12 @@ class TaskingScheduler : public Scheduler {
 
         // STUB: replace with real periodic threads
         SoftXMT_Timestamp previous_periodic_ts;
-        int periodctr;
         Thread * periodicDequeue() {
             // tick the timestap counter
             SoftXMT_tick();
             SoftXMT_Timestamp current_ts = SoftXMT_get_timestamp();
 
             if( current_ts - previous_periodic_ts > FLAGS_periodic_poll_ticks ) {
-                previous_periodic_ts =  current_ts;
                 return periodicQ.dequeue();
             } else {
                 return NULL;
@@ -203,7 +201,7 @@ inline void TaskingScheduler::thread_suspend( ) {
     CHECK( thread_is_running(current_thread) ) << "may only suspend a running coroutine";
     
     Thread * yieldedThr = current_thread;
-    yieldedThr->co->running = 0;
+    yieldedThr->co->running = 0; // XXX: hack; really want to know at a user Thread level that it isn't running
     Thread * next = nextCoroutine( );
     
     current_thread = next;
