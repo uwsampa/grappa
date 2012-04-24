@@ -123,3 +123,7 @@ void TaskingScheduler::onWorkerStart( ) {
 bool TaskingScheduler::queuesFinished( ) {
     return periodicQ.empty() && task_manager->isWorkDone();
 }
+
+std::ostream& operator<<( std::ostream& o, const TaskingScheduler& ts ) {
+    return ts.dump( o );
+}

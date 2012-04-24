@@ -85,6 +85,15 @@ class TaskingScheduler : public Scheduler {
             return NULL;
         }
 
+        std::ostream& dump( std::ostream& o ) const {
+            return o << "TaskingScheduler {" << std::endl
+                << "  readyQ: " << readyQ << std::endl
+                << "  periodicQ: " << periodicQ << std::endl
+                << "  num_workers: " << num_workers << std::endl
+                << "  num_idle: " << num_idle << std::endl
+                << "  unassignedQ: " << unassignedQ << std::endl
+                << "}";
+        }
 
     public:
        TaskingScheduler ( Thread * master, TaskManager * taskman ); 
@@ -136,6 +145,8 @@ class TaskingScheduler : public Scheduler {
 
 
        void thread_on_exit( );
+
+       friend std::ostream& operator<<( std::ostream& o, const TaskingScheduler& ts );
 };  
 
 struct task_worker_args {
@@ -278,7 +289,6 @@ inline void TaskingScheduler::thread_on_exit( ) {
 
   thread_context_switch( exitedThr, master, (void *)exitedThr);
 }
-
 
 
 
