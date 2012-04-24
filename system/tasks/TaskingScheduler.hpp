@@ -37,7 +37,6 @@ class TaskingScheduler : public Scheduler {
             SoftXMT_Timestamp current_ts = SoftXMT_get_timestamp();
 
             if( current_ts - previous_periodic_ts > FLAGS_periodic_poll_ticks ) {
-                previous_periodic_ts =  current_ts;
                 return periodicQ.dequeue();
             } else {
                 return NULL;
@@ -203,7 +202,10 @@ inline void TaskingScheduler::thread_suspend( ) {
     CHECK( thread_is_running(current_thread) ) << "may only suspend a running coroutine";
     
     Thread * yieldedThr = current_thread;
+  
+    // FIXME: a bit of a hack to make sure that nextCoroutine doesn't treat this task as running
     yieldedThr->co->running = 0;
+  
     Thread * next = nextCoroutine( );
     
     current_thread = next;
