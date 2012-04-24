@@ -156,3 +156,6 @@ bool TaskManager::waitConsumeAny( Task * result ) {
     return false;
 }
 
+std::ostream& operator<<( std::ostream& o, const TaskManager& tm ) {
+    return tm.dump( o );
+}
