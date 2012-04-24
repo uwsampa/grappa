@@ -111,6 +111,8 @@ class TaskingScheduler : public Scheduler {
 
        void periodic( Thread * thr ) {
            periodicQ.enqueue( thr );
+           SoftXMT_tick();
+           previous_periodic_ts = SoftXMT_get_timestamp();
        }
 
        /// run threads until all exit 
