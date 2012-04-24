@@ -188,6 +188,8 @@ void explore_child (int64_t i, sibling_args_search * s) {
 Result parTreeSearch(int64_t depth, int64_t id) {
 
     Result r = { depth, 1, 0 };
+    
+    VLOG_EVERY_N(2, 250000) << "search vertex" << id;
 
     vertex_t v_storage;
     Incoherent<vertex_t>::RO v( Vertex + id, 1, &v_storage );
@@ -195,6 +197,7 @@ Result parTreeSearch(int64_t depth, int64_t id) {
 
     int64_t numChildren = (*v).numChildren;
     int64_t childIndex = (*v).childIndex;
+    
 
     int64_t childid0_storage;
     Incoherent<int64_t>::RO childid0( Child + childIndex, 1, &childid0_storage ); // XXX: this is not edgelist acquire right now because there is locality in addresses of children (see explore child just does childid0+i)
