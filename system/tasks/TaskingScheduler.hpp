@@ -190,7 +190,7 @@ inline void TaskingScheduler::thread_suspend( ) {
     CHECK( thread_is_running(current_thread) ) << "may only suspend a running coroutine";
     
     Thread * yieldedThr = current_thread;
-    
+    yieldedThr->co->running = 0;
     Thread * next = nextCoroutine( );
     
     current_thread = next;
