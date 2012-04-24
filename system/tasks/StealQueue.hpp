@@ -71,8 +71,9 @@ class StealQueue {
         void push( T c); 
         T peek( ); 
         void pop( ); 
-        uint64_t topPosn( );
-        uint64_t localDepth( ); 
+        uint64_t topPosn( ) const;
+        uint64_t localDepth( ) const; 
+        uint64_t sharedDepth( ) const;
         void release( int k ); 
         int acquire( int k ); 
         int steal_locally( Node victim, int chunkSize, Thread * current ); 
@@ -124,7 +125,7 @@ inline void StealQueue<T>::pop( ) {
 
 /// local depth
 template <class T>
-inline uint64_t StealQueue<T>::localDepth() {
+inline uint64_t StealQueue<T>::localDepth() const {
   return (top - local);
 }
 
@@ -153,7 +154,7 @@ void StealQueue<T>::mkEmpty( ) {
 
 /// local top position:  stack index of top element
 template <class T>
-uint64_t StealQueue<T>::topPosn()
+uint64_t StealQueue<T>::topPosn() const
 {
   CHECK ( top > local ) << "ss_topPosn: empty local stack";
   return top - 1;
@@ -190,6 +191,11 @@ int StealQueue<T>::acquire( int k ) {
     nAcquire++;
   }
   return (avail >= k);
+}
+
+template <class T>
+uint64_t StealQueue<T>::sharedDepth( ) const {
+    return local - sharedStart;
 }
 
 
