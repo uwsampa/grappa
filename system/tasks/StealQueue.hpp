@@ -2,6 +2,7 @@
 #ifndef STEAL_QUEUE_HPP
 #define STEAL_QUEUE_HPP
 
+#include <iostream>
 #include <glog/logging.h>   
 #include <stdlib.h>
 
@@ -18,7 +19,7 @@ typedef int16_t Node;
 class Thread;
 
 
-template <class T>
+template <typename T>
 class StealQueue {
     private:
         uint64_t stackSize;     /* total space avail (in number of elements) */
@@ -46,6 +47,15 @@ class StealQueue {
         
         static void workStealReply_am( workStealReply_args * args,  size_t size, void * payload, size_t payload_size );
         static void workStealRequest_am( workStealRequest_args * args, size_t size, void * payload, size_t payload_size );
+        
+        std::ostream& dump ( std::ostream& o ) const {
+            return o << "StealQueue[localDepth=" << localDepth()
+                     << "; sharedDepth=" << sharedDepth()
+                     << "; indices(top= " << top 
+                                   << " local=" << local 
+                                   << " sharedStart=" << sharedStart << ")"
+                     << "; stackSize=" << stackSize << "]";
+        }
     
     public:
         StealQueue( uint64_t numEle ) 
@@ -86,13 +96,15 @@ class StealQueue {
         /// register local address of remote steal queues
         static void registerAddress( StealQueue<T> * addr );
 
+        template< typename U >
+        friend std::ostream& operator<<( std::ostream& o, const StealQueue<U>& sq );
 };
 
 
 static int maxint(int x, int y) { return (x>y)?x:y; }
 
 /// Push onto top of local stack
-template <class T>
+template <typename T>
 inline void StealQueue<T>::push( T c ) {
   CHECK( top < stackSize ) << "push: overflow (top:" << top << " stackSize:" << stackSize << ")";
 
@@ -104,14 +116,14 @@ inline void StealQueue<T>::push( T c ) {
 }
 
 /// get top element
-template <class T>
+template <typename T>
 inline T StealQueue<T>::peek( ) {
     CHECK(top > local) << "peek: empty local stack";
     return stack[top-1];
 }
 
 /// local pop
-template <class T>
+template <typename T>
 inline void StealQueue<T>::pop( ) {
   CHECK(top > local) << "pop: empty local stack";
   
@@ -124,27 +136,27 @@ inline void StealQueue<T>::pop( ) {
 
 
 /// local depth
-template <class T>
+template <typename T>
 inline uint64_t StealQueue<T>::localDepth() const {
   return (top - local);
 }
 
 
-template <class T>
+template <typename T>
 void StealQueue<T>::setState( int state ) { return; }
 
 
 /// Initialize the dedicated queue for T
-template <class T>
+template <typename T>
 StealQueue<T>* StealQueue<T>::staticQueueAddress = NULL;
 
-template <class T>
+template <typename T>
 void StealQueue<T>::registerAddress( StealQueue<T> * addr ) {
     staticQueueAddress = addr;
 }
 
 /// set queue to empty
-template <class T>
+template <typename T>
 void StealQueue<T>::mkEmpty( ) {
     sharedStart = 0;
     local  = 0;
@@ -153,7 +165,7 @@ void StealQueue<T>::mkEmpty( ) {
 }
 
 /// local top position:  stack index of top element
-template <class T>
+template <typename T>
 uint64_t StealQueue<T>::topPosn() const
 {
   CHECK ( top > local ) << "ss_topPosn: empty local stack";
@@ -162,7 +174,7 @@ uint64_t StealQueue<T>::topPosn() const
 
 
 /// release k values from bottom of local stack
-template <class T>
+template <typename T>
 void StealQueue<T>::release( int k ) {
   CHECK(top - local >= k) << "ss_release:  do not have k vals to release";
  
@@ -179,7 +191,7 @@ void StealQueue<T>::release( int k ) {
 
 /// move k values from top of shared stack into local stack
 /// return false if k vals are not avail on shared stack
-template <class T>
+template <typename T>
 int StealQueue<T>::acquire( int k ) {
   int avail;
   avail = local - sharedStart;
@@ -193,7 +205,7 @@ int StealQueue<T>::acquire( int k ) {
   return (avail >= k);
 }
 
-template <class T>
+template <typename T>
 uint64_t StealQueue<T>::sharedDepth( ) const {
     return local - sharedStart;
 }
@@ -221,7 +233,7 @@ struct workStealReply_args {
 static int local_steal_amount;
 static Thread * steal_waiter = NULL;
 
-template <class T>
+template <typename T>
 void StealQueue<T>::workStealReply_am( workStealReply_args * args,  size_t size, void * payload, size_t payload_size ) {
     CHECK ( local_steal_amount == -1 ) << "local_steal_amount=" << local_steal_amount << " when steal reply arrives";
 
@@ -250,7 +262,7 @@ void StealQueue<T>::workStealReply_am( workStealReply_args * args,  size_t size,
 
 
 
-template <class T>
+template <typename T>
 void StealQueue<T>::workStealRequest_am(workStealRequest_args * args, size_t size, void * payload, size_t payload_size) {
     int k = args->k;
 
@@ -289,7 +301,7 @@ void StealQueue<T>::workStealRequest_am(workStealRequest_args * args, size_t siz
 
 }
 
-template <class T>
+template <typename T>
 int StealQueue<T>::steal_locally( Node victim, int k, Thread * current ) {
 
     local_steal_amount = -1;
@@ -308,5 +320,9 @@ int StealQueue<T>::steal_locally( Node victim, int k, Thread * current ) {
 }
 /////////////////////////////////////////////////////////
 
+template <typename T>
+std::ostream& operator<<( std::ostream& o, const StealQueue<T>& sq ) {
+    return sq.dump( o );
+}
 
 #endif
