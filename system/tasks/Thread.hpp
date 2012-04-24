@@ -3,6 +3,7 @@
 
 #include <coro.h>
 #include <boost/cstdint.hpp>
+#include <iostream>
 
 class Scheduler;
 typedef uint32_t threadid_t; 
@@ -12,18 +13,32 @@ class ThreadQueue {
     private:
         Thread * head;
         Thread * tail;
+        int len;
+        
+        std::ostream& dump( std::ostream& o ) const {
+            return o << "[length:" << len
+                     << "; head:" << (void*)head
+                     << "; tail:" << (void*)tail << "]";
+        }
 
     public:
         ThreadQueue ( ) 
             : head ( NULL )
-            , tail ( NULL ) { }
+            , tail ( NULL )
+            , len ( 0 ) { }
 
         void enqueue(Thread * t);
         Thread * dequeue();
+        
+        int length() { 
+            return len;
+        }
 
         bool empty() {
             return (head==NULL);
         }
+        
+        friend std::ostream& operator<< ( std::ostream& o, const ThreadQueue& tq );
 };
 
 struct Thread {
@@ -50,6 +65,7 @@ inline Thread * ThreadQueue::dequeue() {
     if (result != NULL) {
         head = result->next;
         result->next = NULL;
+        len--;
     } else {
         tail = NULL;
     }
@@ -64,7 +80,9 @@ inline void ThreadQueue::enqueue( Thread * t) {
     }
     tail = t;
     t->next = NULL;
+    len++;
 }
+
 
 typedef void (*thread_func)(Thread *, void *arg);
 

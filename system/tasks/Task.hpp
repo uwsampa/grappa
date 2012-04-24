@@ -1,6 +1,7 @@
 #ifndef TASK_HPP_
 #define TASK_HPP_
 
+#include <iostream>
 #include <deque>
 #include "StealQueue.hpp"
 #include "cbarrier.hpp"
@@ -59,11 +60,11 @@ class TaskManager {
         // steal parameters
         int chunkSize;
 
-        bool publicHasEle() {
+        bool publicHasEle() const {
             return publicQ.localDepth() > 0;
         }
 
-        bool privateHasEle() {
+        bool privateHasEle() const {
             return !privateQ.empty();
         }
 
@@ -77,6 +78,17 @@ class TaskManager {
         bool tryConsumeLocal( Task * result );
         bool tryConsumeShared( Task * result );
         bool waitConsumeAny( Task * result );
+        
+        
+        std::ostream& dump( std::ostream& o ) const {
+            return o << "TaskManager {" << std::endl
+                << "  publicQ.local: " << publicQ.localDepth( ) << std::endl
+                << "  publicQ.shared: " << publicQ.sharedDepth( ) << std::endl
+                << "  privateQ: " << privateQ.size() << std::endl
+                << "  work-may-be-available? " << available() << std::endl
+                << "}";
+        }
+
 
 
     public:
@@ -124,13 +136,14 @@ class TaskManager {
         
         bool getWork ( Task * result );
 
-        bool available ( );
+        bool available ( ) const;
 
+        friend std::ostream& operator<<( std::ostream& o, const TaskManager& tm );
 
 };
 
 
-inline bool TaskManager::available( ) {
+inline bool TaskManager::available( ) const {
     VLOG(5) << " sharedMayHaveWork=" << sharedMayHaveWork
             << " publicHasEle()=" << publicHasEle()
             << " privateHasEle()=" << privateHasEle();
