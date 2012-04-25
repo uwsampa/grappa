@@ -49,10 +49,12 @@ bool TaskManager::tryConsumeLocal( Task * result ) {
     if ( privateHasEle() ) {
         *result = privateQ.front();
         privateQ.pop_front();
+        stats.record_private_task_dequeue();
         return true;
     } else if ( publicHasEle() ) {
         *result = publicQ.peek();
         publicQ.pop( );
+        stats.record_public_task_dequeue();
         return true;
     } else {
         return false;
@@ -67,6 +69,7 @@ bool TaskManager::tryConsumeShared( Task * result ) {
         
             *result = publicQ.peek();
             publicQ.pop( );
+            stats.record_public_task_dequeue();
             return true;
         } else {
             stats.record_failed_acquire();
@@ -176,6 +179,8 @@ void TaskStatistics::dump() {
     DICT_ADD(dout, acquire_successes_);
     DICT_ADD(dout, acquire_fails_);
     DICT_ADD(dout, releases_);
+    DICT_ADD(dout, public_tasks_dequeued_);
+    DICT_ADD(dout, private_tasks_dequeued_);
 
     LOG(INFO) << dout.toString();
 }
