@@ -7,6 +7,18 @@
 /// TODO: this should be based on some actual time-related metric so behavior is predictable across machines
 DEFINE_int64( periodic_poll_ticks, 500, "number of ticks to wait before polling periodic queue");
 
+DEFINE_bool(flush_on_idle, true, "have tasking layer flush all aggregations if it has nothing better to do");
+
+// for debugging
+//int64_t num_active_tasks;
+//int64_t task_calls;
+//int64_t task_log_index;
+//short active_task_log[1<<20];
+//
+//int64_t max_active;
+//double  avg_active;
+
+
 TaskingScheduler::TaskingScheduler ( Thread * master, TaskManager * taskman ) 
     : readyQ ( )
     , periodicQ ( )
@@ -85,7 +97,9 @@ void workerLoop ( Thread * me, void* args ) {
         // block until receive work or termination reached
         if (!tasks->getWork(&nextTask)) break; // quitting time
 
+        sched->stats.num_active_tasks++;
         nextTask.execute();
+        sched->stats.num_active_tasks--;
 
         sched->thread_yield( ); // yield to the scheduler
     }

@@ -36,32 +36,20 @@ private:
   uint64_t bytes_aggregated_;
   uint64_t flushes_;
   uint64_t timeouts_;
+  uint64_t idle_flushes_;
+  uint64_t capacity_flushes_;
   uint64_t histogram_[16];
   timespec start_;
 
+  std::string hist_labels[16];
+  
   std::ostream& header( std::ostream& o ) {
-    o << "AggregatorStatistics, header, time, "
-      "messages_aggregated, bytes_aggregated, messages_aggregated_per_second, bytes_aggregated_per_second, "
-      "flushes, timeouts, "
-      "0_to_255_bytes, "
-      "256_to_511_bytes, "
-      "512_to_767_bytes, "
-      "768_to_1023_bytes, "
-      "1024_to_1279_bytes, "
-      "1280_to_1535_bytes, "
-      "1536_to_1791_bytes, "
-      "1792_to_2047_bytes, "
-      "2048_to_2303_bytes, "
-      "2304_to_2559_bytes, "
-      "2560_to_2815_bytes, "
-      "2816_to_3071_bytes, "
-      "3072_to_3327_bytes, "
-      "3328_to_3583_bytes, "
-      "3584_to_3839_bytes, "
-      "3840_to_4095_bytes";
+    o << "AggregatorStatistics, header, time, messages_aggregated, bytes_aggregated, messages_aggregated_per_second, bytes_aggregated_per_second, flushes, timeouts";
+    for (int i=0; i<16; i++) o << ", " << hist_labels[i];
+    return o;
   }
 
-  std::ostream& data( std::ostream& o, double time ) {
+  std::ostream& data( std::ostream& o, double time) {
     o << "AggregatorStatistics, data, " << time << ", ";
     double messages_aggregated_per_second = messages_aggregated_ / time;
     double bytes_aggregated_per_second = bytes_aggregated_ / time;
@@ -73,17 +61,67 @@ private:
     for( int i = 0; i < 16; ++i ) {
       o << ", " << histogram_[ i ];
     }
+    return o;
+  }
+  
+  std::ostream& as_map( std::ostream& o, double time) {
+    double messages_aggregated_per_second = messages_aggregated_ / time;
+    double bytes_aggregated_per_second = bytes_aggregated_ / time;
+    
+    o << "AggregatorStatistics {" ;
+    o << "time_aggregated: " << time << ", "
+      << "messages_aggregated: " << messages_aggregated_ << ", "
+      << "bytes_aggregated: " << bytes_aggregated_ << ", "
+      << "messages_aggregated_per_second: " << messages_aggregated_per_second << ", "
+      << "bytes_aggregated_per_second: " << bytes_aggregated_per_second << ", "
+      << "flushes: " << flushes_ << ", "
+      << "timeouts: " << timeouts_ << ", "
+      << "idle_flushes: " << idle_flushes_ << ", "
+      << "capacity_flushes: " << capacity_flushes_;
+    for (int i=0; i<16; i++) {
+      o << ", " << hist_labels[i] << ": " << histogram_[i];
+    }
+    o << " }";
+    return o;
+  }
+  
+  double time() {
+    timespec end;
+    clock_gettime( CLOCK_MONOTONIC, &end );
+    return (end.tv_sec + end.tv_nsec * 0.000000001) - (start_.tv_sec + start_.tv_nsec * 0.000000001);
   }
 
 public:
   AggregatorStatistics()
-    : messages_aggregated_(0)
-    , bytes_aggregated_(0)
-    , flushes_(0)
-    , timeouts_(0)
-    , histogram_()
+    : histogram_()
     , start_()
-  { 
+  {
+    reset();
+    hist_labels[ 0] = "aggregator_0_to_255_bytes";
+    hist_labels[ 1] = "aggregator_256_to_511_bytes";
+    hist_labels[ 2] = "aggregator_512_to_767_bytes";
+    hist_labels[ 3] = "aggregator_768_to_1023_bytes";
+    hist_labels[ 4] = "aggregator_1024_to_1279_bytes";
+    hist_labels[ 5] = "aggregator_1280_to_1535_bytes";
+    hist_labels[ 6] = "aggregator_1536_to_1791_bytes";
+    hist_labels[ 7] = "aggregator_1792_to_2047_bytes";
+    hist_labels[ 8] = "aggregator_2048_to_2303_bytes";
+    hist_labels[ 9] = "aggregator_2304_to_2559_bytes";
+    hist_labels[10] = "aggregator_2560_to_2815_bytes";
+    hist_labels[11] = "aggregator_2816_to_3071_bytes";
+    hist_labels[12] = "aggregator_3072_to_3327_bytes";
+    hist_labels[13] = "aggregator_3328_to_3583_bytes";
+    hist_labels[14] = "aggregator_3584_to_3839_bytes";
+    hist_labels[15] = "aggregator_3840_to_4095_bytes";
+  }
+  
+  void reset() {
+    messages_aggregated_ = 0;
+    bytes_aggregated_ = 0;
+    flushes_ = 0;
+    timeouts_ = 0;
+    idle_flushes_ = 0;
+    capacity_flushes_ = 0;
     clock_gettime(CLOCK_MONOTONIC, &start_);
     for( int i = 0; i < 16; ++i ) {
       histogram_[i] = 0;
@@ -98,6 +136,14 @@ public:
     timeouts_++;
   }
 
+  void record_idle_flush() {
+    idle_flushes_++;
+  }
+  
+  void record_capacity_flush() {
+    capacity_flushes_++;
+  }
+  
   void record_aggregation( size_t bytes ) {
     messages_aggregated_++;
     bytes_aggregated_ += bytes;
@@ -105,10 +151,11 @@ public:
   }
   void dump() {
     header( LOG(INFO) );
-    timespec end;
-    clock_gettime( CLOCK_MONOTONIC, &end );
-    double time = (end.tv_sec + end.tv_nsec * 0.000000001) - (start_.tv_sec + start_.tv_nsec * 0.000000001);
-    data( LOG(INFO), time );
+    data( LOG(INFO), time() );
+  }
+  void dump_as_map() {
+    as_map( std::cout, time() );
+    std::cout << std::endl;
   }
 };
 
@@ -221,7 +268,9 @@ public:
 
   void finish();
 
-  void dump_stats() { stats.dump(); }
+  void dump_stats() { stats.dump_as_map(); }
+  
+  void reset_stats() { stats.reset(); }
 
   /// route map lookup for hierarchical aggregation
   inline Node get_target_for_node( Node n ) const {
@@ -310,6 +359,7 @@ public:
                << "(current buffer position " << buffers_[ target ].current_position_
                << ", next buffer position " << buffers_[ target ].current_position_ + total_call_size << ")";
       // doesn't fit, so flush before inserting
+      stats.record_capacity_flush();
       flush( target );
       assert ( buffers_[ target ].fits( total_call_size ));
     }

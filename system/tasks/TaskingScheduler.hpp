@@ -2,16 +2,81 @@
 #define _TASKING_SCHEDULER_HPP_
 
 #include "Scheduler.hpp"
+#include "Communicator.hpp"
 #include <Timestamp.hpp>
 #include <glog/logging.h>
+#include <sstream>
 
 DECLARE_int64( periodic_poll_ticks );
+DECLARE_bool(flush_on_idle);
+
+extern void SoftXMT_idle_flush();
+
+//extern int64_t num_active_tasks;
+//extern int64_t task_calls;
+//extern int64_t task_log_index;
+//extern short active_task_log[1<<20];
+//
+//extern int64_t max_active;
+//extern double  avg_active;
+
+static inline double inc_avg(double curr_avg, uint64_t count, double val) {
+	return curr_avg + (val-curr_avg)/(count);
+}
+
+class TaskingSchedulerStatistics {
+  int64_t task_calls;
+  int64_t task_log_index;
+  short active_task_log[1<<20];
+  
+  int64_t max_active;
+  double avg_active;
+public:
+  int64_t num_active_tasks;
+
+  TaskingSchedulerStatistics() {
+    reset();
+  }
+  
+  void reset() {
+    task_calls = 0;
+    num_active_tasks = 0;
+    task_log_index = 0;
+    
+    max_active = 0;
+    avg_active = 0.0;
+  }
+  void print_active_task_log() {
+#ifdef DEBUG
+    if (task_log_index == 0) return;
+    
+    std::stringstream ss;
+    for (int64_t i=0; i<task_log_index; i++) ss << active_task_log[i] << " ";
+    LOG(INFO) << "Active tasks log: " << ss.str();
+#endif
+  }
+  void sample() {
+    task_calls++;
+    if (num_active_tasks > max_active) max_active = num_active_tasks;
+    avg_active = inc_avg(avg_active, task_calls, num_active_tasks);
+#ifdef DEBUG  
+    if ((task_calls % 1024) == 0) {
+      active_task_log[task_log_index++] = num_active_tasks;
+    }
+#endif
+  }
+  void dump() {
+    std::cout << "TaskStats { "
+    << "max_active: " << max_active << ", "
+    << "avg_active: " << avg_active << " }" << std::endl;
+  }
+};
 
 class TaskManager;
 struct task_worker_args;
 
 class TaskingScheduler : public Scheduler {
-    private:
+    private:  
         ThreadQueue readyQ;
         ThreadQueue periodicQ;
         ThreadQueue unassignedQ;
@@ -94,6 +159,8 @@ class TaskingScheduler : public Scheduler {
         }
 
     public:
+       TaskingSchedulerStatistics stats;
+  
        TaskingScheduler ( Thread * master, TaskManager * taskman ); 
 
        Thread * get_current_thread() {
@@ -121,9 +188,17 @@ class TaskingScheduler : public Scheduler {
            SoftXMT_tick();
            previous_periodic_ts = SoftXMT_get_timestamp();
        }
+  
+       void dump_stats() {
+           stats.dump();
+       }
 
+       void reset_stats() {
+         stats.reset();
+       }
+  
        /// run threads until all exit 
-       void run ( ); 
+       void run ( );
 
        bool thread_yield( );
        bool thread_yield_periodic( );

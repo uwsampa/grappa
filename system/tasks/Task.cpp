@@ -159,7 +159,6 @@ std::ostream& operator<<( std::ostream& o, const TaskManager& tm ) {
 }
 
 void TaskManager::finish() {
-    dump_stats();
 }
 
 void TaskManager::dump_stats() {
@@ -177,5 +176,5 @@ void TaskStatistics::dump() {
     DICT_ADD(dout, acquire_fails_);
     DICT_ADD(dout, releases_);
 
-    LOG(INFO) << dout.toString();
+    std::cout << dout.toString();
 }
