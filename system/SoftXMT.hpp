@@ -111,6 +111,7 @@ void SoftXMT_dump_stats_all_nodes();
 void SoftXMT_reset_stats();
 void SoftXMT_reset_stats_all_nodes();
 
+void SoftXMT_dump_task_series();
 
 /// Memory management routines.
 
