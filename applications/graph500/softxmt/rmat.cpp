@@ -9,11 +9,8 @@
 #include "Delegate.hpp"
 #include "rmat.h"
 #include "timer.h"
+#include "options.h"
 
-double A = 0.57;
-double B = 0.19;
-double C = 0.19;
-double D = 1.0-(A+B+C);
 
 static mrg_state prng_state_store;
 mrg_state * prng_state;
@@ -420,7 +417,7 @@ struct random_edges_node_work : public ForkJoinIteration {
   }
 };
 
-void rmat_edgelist(tuple_graph* grin, int SCALE) {
+void rmat_edgelist(tuple_graph* grin, int64_t SCALE) {
   uint64_t seed1 = 2, seed2 = 3;
   
   /* Spread the two 64-bit numbers into five nonzero values in the correct

@@ -38,6 +38,7 @@
 #include "rmat.h"
 #include "oned_csr.h"
 #include "verify.hpp"
+#include "options.h"
 
 static int compare_doubles(const void* a, const void* b) {
   double aa = *(const double*)a;
@@ -53,11 +54,8 @@ void output_results (const int64_t SCALE, int64_t nvtx_scale, int64_t edgefactor
                 const int NBFS, const double *bfs_time, const int64_t *bfs_nedge);
 
 //### Globals ###
-#define NBFS_max 2
 #define MEM_SCALE 30
 
-int SCALE;
-int edgefactor;
 int64_t nbfs;
 
 //static int64_t bfs_root[NBFS_max];
@@ -99,6 +97,123 @@ static void choose_bfs_roots(GlobalAddress<int64_t> xoff, int64_t nvtx, int64_t 
 }
 
 #define BUF_LEN 16384
+static int64_t buf[BUF_LEN];
+static int64_t kbuf;
+static GlobalAddress<int64_t> vlist;
+static GlobalAddress<int64_t> xoff;
+static GlobalAddress<int64_t> xadj;
+static GlobalAddress<int64_t> bfs_tree;
+static GlobalAddress<int64_t> k2;
+static int64_t nadj;
+
+static Thread * joiner;
+static int64_t ntasks;
+
+//static int64_t bfs_calls;
+//static int64_t bfs_hist_index;
+//static short bfs_hist[1<<24];
+//
+//inline void bfs_reset_stats() {
+//  bfs_calls = 0;
+//  ntasks = 0;
+//  bfs_hist_index = 0;
+//}
+//inline void bfs_print_hist() {
+//  if (bfs_hist_index == 0) return;
+//  
+//  std::stringstream ss;
+//  for (int64_t i=0; i<hist_index; i++) ss << bfs_hist[i] << " ";
+//  LOG(INFO) << "active_hist: " << ss.str();
+//}
+//inline void bfs_sample_stats() {
+//  if ((bfs_calls % 512) == 0) bfs_hist[bfs_hist_index++] = ntasks;
+//  bfs_calls++;
+//}
+
+#define GA64(name) ((GlobalAddress<int64_t>,name))
+
+LOOP_FUNCTOR(bfs_setup, nid, GA64(_vlist)GA64(_xoff)GA64(_xadj)GA64(_bfs_tree)GA64(_k2)((int64_t,_nadj))) {
+  kbuf = 0;
+  vlist = _vlist;
+  xoff = _xoff;
+  xadj = _xadj;
+  bfs_tree = _bfs_tree;
+  k2 = _k2;
+  nadj = _nadj;
+}
+
+static void bfs_visit_neighbor(uint64_t packed) {
+  int64_t vo = packed & 0xFFFFFFFF;
+  int64_t v = packed >> 32;
+  const int64_t j = SoftXMT_delegate_read_word(xadj+vo);
+  if (SoftXMT_delegate_compare_and_swap_word(bfs_tree+j, -1, v)) {
+    while (kbuf == -1) { SoftXMT_yield(); }
+    if (kbuf < BUF_LEN) {
+      buf[kbuf] = j;
+      (kbuf)++;
+    } else {
+      kbuf = -1; // lock other threads out temporarily
+      int64_t voff = SoftXMT_delegate_fetch_and_add_word(k2, BUF_LEN);
+      Incoherent<int64_t>::RW cvlist(vlist+voff, BUF_LEN);
+      for (int64_t vk=0; vk < BUF_LEN; vk++) {
+        cvlist[vk] = buf[vk];
+      }
+      buf[0] = j;
+      kbuf = 1;
+    }
+  }
+  ntasks--;
+  if (ntasks == 0) SoftXMT_wake(joiner);
+}
+
+//LOOP_FUNCTION(bfs_func, k) {
+static void bfs_visit_vertex(int64_t k) {
+  const int64_t v = SoftXMT_delegate_read_word(vlist+k);
+  
+  // TODO: do these two together (cache)
+  const int64_t vstart = SoftXMT_delegate_read_word(XOFF(v));
+  const int64_t vend = SoftXMT_delegate_read_word(XENDOFF(v));
+  CHECK(vstart < nadj) << vstart << " < " << nadj;
+  CHECK(vend < nadj) << vend << " < " << nadj;
+  CHECK(v < (((int64_t)1)<<32)) << "can't pack into 64-bit value! have to get more creative";
+  
+  for (int64_t vo = vstart; vo < vend; vo++) {
+    uint64_t packed = (((uint64_t)v) << 32) + vo;
+    ntasks++;
+    SoftXMT_privateTask(&bfs_visit_neighbor, packed);
+  }
+  ntasks--;
+  if (ntasks == 0) SoftXMT_wake(joiner);
+}
+
+LOOP_FUNCTOR(bfs_node, nid, ((int64_t,start)) ((int64_t,end))) {
+  range_t r = blockDist(start, end, nid, SoftXMT_nodes());
+  
+//  reset_task_stats();
+  
+  kbuf = 0;
+  joiner = CURRENT_THREAD;
+  ntasks = r.end - r.start;
+  
+  for (int64_t i = r.start; i < r.end; i++) {
+    SoftXMT_privateTask(&bfs_visit_vertex, i);
+  }
+  
+  while (ntasks > 0) SoftXMT_suspend();
+  
+  // make sure to commit what's left in the buffer at the end
+  if (kbuf) {
+    int64_t voff = SoftXMT_delegate_fetch_and_add_word(k2, kbuf);
+    VLOG(2) << "flushing vlist buffer (kbuf=" << kbuf << ", k2=" << voff << ")";
+    Incoherent<int64_t>::RW cvlist(vlist+voff, kbuf);
+    for (int64_t vk=0; vk < kbuf; vk++) {
+      cvlist[vk] = buf[vk];
+    }
+    kbuf = 0;
+  }
+
+  SoftXMT_dump_task_series();
+}
 
 struct func_bfs_onelevel : public ForkJoinIteration {
   GlobalAddress<int64_t> vlist;
@@ -159,7 +274,7 @@ struct func_bfs_node : public ForkJoinIteration {
     f.kbuf = &kbuf;
     f.buf = buf;
     f.nadj = nadj;
-//    VLOG(1) << "on node";
+    
     fork_join_onenode(&f, r.start, r.end);
     
     // make sure to commit what's left in the buffer at the end
@@ -177,15 +292,15 @@ static double make_bfs_tree(csr_graph * g, GlobalAddress<int64_t> bfs_tree, int6
   int64_t NV = g->nv;
   GlobalAddress<int64_t> vlist = SoftXMT_typed_malloc<int64_t>(NV);
   
-//  VLOG(1) << "actually starting...";
-  double start, stop;
-  start = timer();
+  SoftXMT_reset_stats_all_nodes();
+  
+  double t;
+  t = timer();
   
   // start with root as only thing in vlist
   SoftXMT_delegate_write_word(vlist, root);
   
   int64_t k1 = 0, k2 = 1;
-  GlobalAddress<int64_t> k1addr = make_global(&k1);
   GlobalAddress<int64_t> k2addr = make_global(&k2);
   
   // initialize bfs_tree to -1
@@ -194,42 +309,48 @@ static double make_bfs_tree(csr_graph * g, GlobalAddress<int64_t> bfs_tree, int6
   
   SoftXMT_delegate_write_word(bfs_tree+root, root); // parent of root is self
   
-  func_bfs_node fb;
-  fb.vlist = vlist;
-  fb.xoff = g->xoff;
-  fb.xadj = g->xadj;
-  fb.bfs_tree = bfs_tree;
-  fb.k2 = k2addr;
-  fb.nadj = g->nadj; //DEBUG only...
+//  func_bfs_node fb;
+//  fb.vlist = vlist;
+//  fb.xoff = g->xoff;
+//  fb.xadj = g->xadj;
+//  fb.bfs_tree = bfs_tree;
+//  fb.k2 = k2addr;
+//  fb.nadj = g->nadj; //DEBUG only...
+    
+  bfs_setup fsetup(vlist, g->xoff, g->xadj, bfs_tree, k2addr, g->nadj);
+  
+  fork_join_custom(&fsetup);
   
   while (k1 != k2) {
     VLOG(2) << "k1=" << k1 << ", k2=" << k2;
     const int64_t oldk2 = k2;
     
-    fb.start = k1;
-    fb.end = oldk2;
-
-    fork_join_custom(&fb);
+//    fb.start = k1;
+//    fb.end = oldk2;
+//    fork_join_custom(&fb);
     
+    bfs_node fbfs(k1, oldk2);
+    fork_join_custom(&fbfs);
+        
     k1 = oldk2;
   }
   
-  stop = timer();
+  t = timer() - t;
   
   SoftXMT_free(vlist);
+  SoftXMT_dump_stats_all_nodes();
   
-  return stop-start;
+  return t;
 }
 
-static void run_bfs(tuple_graph * tg) {
-  csr_graph g;
+static void setup_bfs(tuple_graph * tg, csr_graph * g, int64_t * bfs_roots) {
   
   TIME(construction_time,
-       create_graph_from_edgelist(tg, &g)
+       create_graph_from_edgelist(tg, g)
   );
   VLOG(1) << "construction_time = " << construction_time;
   
-  GlobalAddress<int64_t> xoff = g.xoff;
+  GlobalAddress<int64_t> xoff = g->xoff;
 //  for (int64_t i=0; i < g.nv; i++) {
 //    VLOG(1) << "xoff[" << i << "] = " << SoftXMT_delegate_read_word(XOFF(i)) << " -> " << SoftXMT_delegate_read_word(XENDOFF(i));
 //  }
@@ -250,23 +371,26 @@ static void run_bfs(tuple_graph * tg) {
   double t;
   
   // no rootname input method, so randomly choose
-  int64_t bfs_roots[NBFS_max];
   nbfs = NBFS_max;
-  TIME(t, choose_bfs_roots(g.xoff, g.nv, &nbfs, bfs_roots));
+  TIME(t, choose_bfs_roots(g->xoff, g->nv, &nbfs, bfs_roots));
   VLOG(1) << "choose_bfs_roots time: " << t;
   
 //  for (int64_t i=0; i < nbfs; i++) {
 //    VLOG(1) << "bfs_roots[" << i << "] = " << bfs_roots[i];
 //  }
+}
+
+static void run_bfs(tuple_graph * tg, csr_graph * g, int64_t * bfs_roots) {
+  double t;
   
   // build bfs tree for each root
   for (int64_t i=0; i < nbfs; i++) {
-    GlobalAddress<int64_t> bfs_tree = SoftXMT_typed_malloc<int64_t>(g.nv);
+    GlobalAddress<int64_t> bfs_tree = SoftXMT_typed_malloc<int64_t>(g->nv);
     GlobalAddress<int64_t> max_bfsvtx;
     
     VLOG(1) << "Running bfs on root " << i << "(" << bfs_roots[i] << ")...";
     t = timer();
-    bfs_time[i] = make_bfs_tree(&g, bfs_tree, bfs_roots[i]);
+    bfs_time[i] = make_bfs_tree(g, bfs_tree, bfs_roots[i]);
     t = timer() - t;
     VLOG(1) << "make_bfs_tree time: " << t;
 //    VLOG(1) << "done";
@@ -276,17 +400,16 @@ static void run_bfs(tuple_graph * tg) {
     
 //    std::stringstream ss;
 //    ss << "bfs_tree[" << i << "] = ";
-//    for (int64_t k=0; k<g.nv; k++) {
+//    for (int64_t k=0; k<g->nv; k++) {
 //      ss << SoftXMT_delegate_read_word(bfs_tree+k) << ",";
 //    }
 //    VLOG(1) << ss.str();
-    
+
     VLOG(1) << "Verifying bfs " << i << "...";
     t = timer();
-    bfs_nedge[i] = verify_bfs_tree(bfs_tree, g.nv-1, bfs_roots[i], tg);
+    bfs_nedge[i] = verify_bfs_tree(bfs_tree, g->nv-1, bfs_roots[i], tg);
     t = timer() - t;
     VLOG(1) << "verify time: " << t;
-//    VLOG(1) << "done";
     
     if (bfs_nedge[i] < 0) {
       LOG(ERROR) << "bfs " << i << " from root " << bfs_roots[i] << " failed verification: " << bfs_nedge[i];
@@ -298,57 +421,164 @@ static void run_bfs(tuple_graph * tg) {
     TIME(t, SoftXMT_free(bfs_tree));
     VLOG(1) << "Free bfs_tree time: " << t;
   }
+  
 }
 
-static void user_main(int * args) {    
-  tuple_graph tg;
-  tg.nedge = (int64_t)(edgefactor) << SCALE;
-  tg.edges = SoftXMT_typed_malloc<packed_edge>(tg.nedge);
+static void checkpoint_in(tuple_graph * tg, csr_graph * g, int64_t * bfs_roots) {
+  VLOG(1) << "start reading checkpoint";
+  double t = timer();
   
-  /* Make the raw graph edges. */
-  /* Get roots for BFS runs, plus maximum vertex with non-zero degree (used by
-   * validator). */
-  
-  double start, stop;
-  start = timer();
-  {
-    /* As the graph is being generated, also keep a bitmap of vertices with
-     * incident edges.  We keep a grid of processes, each row of which has a
-     * separate copy of the bitmap (distributed among the processes in the
-     * row), and then do an allreduce at the end.  This scheme is used to avoid
-     * non-local communication and reading the file separately just to find BFS
-     * roots. */
-    
-    rmat_edgelist(&tg, SCALE);
-    
-    //debug: verify that rmat edgelist is valid
-//    for (int64_t i=0; i<tg.nedge; i++) {
-//      Incoherent<packed_edge>::RO e(tg.edges+i, 1);
-//      VLOG(1) << "edge[" << i << "] = " << (*e).v0 << " -> " << (*e).v1;
-//    }
-//    
-//    int64_t NV = 1<<SCALE;
-//    int64_t degree[NV];
-//    for (int64_t i=0; i<NV; i++) degree[i] = 0;
-//    
-//    for (int64_t i=0; i<tg.nedge; i++) {
-//      Incoherent<packed_edge>::RO e(tg.edges+i, 1);
-//      assert(e[0].v0 < NV);
-//      assert(e[0].v1 < NV);
-//      if (e[0].v0 != e[0].v1) {
-//        degree[e[0].v0]++;
-//        degree[e[0].v1]++;
-//      }
-//    }
-//    for (int64_t i=0; i<NV; i++) {
-//      VLOG(1) << "degree[" << i << "] = " << degree[i];
-//    }
+  char fname[256];
+  sprintf(fname, "ckpts/graph500.%lld.%lld.ckpt", SCALE, edgefactor);
+  FILE * fin = fopen(fname, "r");
+  if (!fin) {
+    LOG(ERROR) << "Unable to open file: " << fname << ", will generate graph and write checkpoint.";
+    load_checkpoint = false;
+    write_checkpoint = true;
+    return;
   }
-  stop = timer();
-  generation_time = stop - start;
-  VLOG(1) << "graph_generation: " << generation_time;
   
-  run_bfs(&tg);
+  fread(&tg->nedge, sizeof(tg->nedge), 1, fin);
+  fread(&g->nv, sizeof(g->nv), 1, fin);
+  fread(&g->nadj, sizeof(g->nadj), 1, fin);
+  fread(&nbfs, sizeof(nbfs), 1, fin);
+  
+  packed_edge * local_edges = new packed_edge[tg->nedge];
+  int64_t * local_xoff = new int64_t[2*g->nv+2];
+  int64_t * local_xadjstore = new int64_t[g->nadj];
+  
+  fread(local_edges, sizeof(packed_edge), tg->nedge, fin);
+  fread(local_xoff, sizeof(int64_t), 2*g->nv+2, fin);
+  fread(local_xadjstore, sizeof(int64_t), g->nadj, fin);
+  
+  tg->edges = SoftXMT_typed_malloc<packed_edge>(tg->nedge);
+  g->xoff = SoftXMT_typed_malloc<int64_t>(2*g->nv+2);
+  g->xadjstore = SoftXMT_typed_malloc<int64_t>(g->nadj);
+  g->xadj = g->xadjstore+2;
+  
+  // write out edge tuples
+  read_array(tg->edges, tg->nedge, local_edges);
+  
+  // xoff
+  read_array(g->xoff, 2*g->nv+2, local_xoff);
+  
+  // xadj
+  read_array(g->xadjstore, g->nadj, local_xadjstore);
+  
+  // bfs_roots
+  fread(bfs_roots, sizeof(int64_t), nbfs, fin);
+  
+  fclose(fin);
+  free(local_edges);
+  free(local_xoff);
+  free(local_xadjstore);
+  
+  t = timer() - t;
+  VLOG(1) << "done reading in checkpoint (time = " << t << ")";
+}
+
+static void checkpoint_out(tuple_graph * tg, csr_graph * g, int64_t * bfs_roots) {
+  VLOG(1) << "starting checkpoint output";
+  double t = timer();
+  
+  char fname[256];
+  sprintf(fname, "ckpts/graph500.%lld.%lld.ckpt", SCALE, edgefactor);
+  FILE * fout = fopen(fname, "w");
+  if (!fout) {
+    LOG(ERROR) << "Unable to open file for writing: " << fname;
+    exit(1);
+  }
+  
+  fwrite(&tg->nedge, sizeof(tg->nedge), 1, fout);
+  fwrite(&g->nv, sizeof(g->nv), 1, fout);
+  fwrite(&g->nadj, sizeof(g->nadj), 1, fout);
+  fwrite(&nbfs, sizeof(nbfs), 1, fout);
+  
+  // write out edge tuples
+  write_array(tg->edges, tg->nedge, fout);
+  
+  // xoff
+  write_array(g->xoff, 2*g->nv+2, fout);
+  
+  // xadj
+  write_array(g->xadjstore, g->nadj, fout);
+  
+  // bfs_roots
+  fwrite(bfs_roots, sizeof(int64_t), nbfs, fout);
+  
+  fclose(fout);
+  
+  t = timer() - t;
+  VLOG(1) << "done writing checkpoint (time = " << t << ")";
+}
+
+static void user_main(int * args) {
+  double t = timer();
+  
+  tuple_graph tg;
+  csr_graph g;
+  int64_t bfs_roots[NBFS_max];
+
+  if (load_checkpoint) {
+    checkpoint_in(&tg, &g, bfs_roots);
+  } // checkpoint_in may change 'load_checkpoint' to false if unable to read in file correctly
+  
+  if (!load_checkpoint) {
+    
+    tg.nedge = (int64_t)(edgefactor) << SCALE;
+    tg.edges = SoftXMT_typed_malloc<packed_edge>(tg.nedge);
+    
+    /* Make the raw graph edges. */
+    /* Get roots for BFS runs, plus maximum vertex with non-zero degree (used by
+     * validator). */
+    
+    double start, stop;
+    start = timer();
+    {
+      /* As the graph is being generated, also keep a bitmap of vertices with
+       * incident edges.  We keep a grid of processes, each row of which has a
+       * separate copy of the bitmap (distributed among the processes in the
+       * row), and then do an allreduce at the end.  This scheme is used to avoid
+       * non-local communication and reading the file separately just to find BFS
+       * roots. */
+      
+      rmat_edgelist(&tg, SCALE);
+      
+      //debug: verify that rmat edgelist is valid
+  //    for (int64_t i=0; i<tg.nedge; i++) {
+  //      Incoherent<packed_edge>::RO e(tg.edges+i, 1);
+  //      VLOG(1) << "edge[" << i << "] = " << (*e).v0 << " -> " << (*e).v1;
+  //    }
+  //    
+  //    int64_t NV = 1<<SCALE;
+  //    int64_t degree[NV];
+  //    for (int64_t i=0; i<NV; i++) degree[i] = 0;
+  //    
+  //    for (int64_t i=0; i<tg.nedge; i++) {
+  //      Incoherent<packed_edge>::RO e(tg.edges+i, 1);
+  //      assert(e[0].v0 < NV);
+  //      assert(e[0].v1 < NV);
+  //      if (e[0].v0 != e[0].v1) {
+  //        degree[e[0].v0]++;
+  //        degree[e[0].v1]++;
+  //      }
+  //    }
+  //    for (int64_t i=0; i<NV; i++) {
+  //      VLOG(1) << "degree[" << i << "] = " << degree[i];
+  //    }
+    }
+    stop = timer();
+    generation_time = stop - start;
+    VLOG(1) << "graph_generation: " << generation_time;
+    
+    setup_bfs(&tg, &g, bfs_roots);
+    
+    if (write_checkpoint) checkpoint_out(&tg, &g, bfs_roots);
+  }
+  
+  SoftXMT_reset_stats();
+  
+  run_bfs(&tg, &g, bfs_roots);
   
 //  free_graph_data_structure();
   
@@ -357,29 +587,22 @@ static void user_main(int * args) {
   /* Print results. */
   output_results(SCALE, 1<<SCALE, edgefactor, A, B, C, D, generation_time, construction_time, (int)nbfs, bfs_time, bfs_nedge);
 
-//  SoftXMT_signal_done();
+  t = timer() - t;
+  std::cout << "total_runtime: " << t << std::endl;
+  
 }
 
 int main(int argc, char** argv) {
   SoftXMT_init(&argc, &argv, (1<<MEM_SCALE)); //*SoftXMT_nodes());
   SoftXMT_activate();
 
-  Node rank = SoftXMT_mynode();
-  
   /* Parse arguments. */
-  SCALE = 16;
-  edgefactor = 16; /* nedges / nvertices, i.e., 2*avg. degree */
-  if (argc >= 2) SCALE = atoi(argv[1]);
-  if (argc >= 3) edgefactor = atoi(argv[2]);
-  if (argc <= 1 || argc >= 4 || SCALE == 0 || edgefactor == 0) {
-    if (rank == 0) {
-      fprintf(stderr, "Usage: %s SCALE edgefactor\n  SCALE = log_2(# vertices) [integer, required]\n  edgefactor = (# edges) / (# vertices) = .5 * (average vertex degree) [integer, defaults to 16]\n(Random number seed and Kronecker initiator are in main.c)\n", argv[0]);
-    }
-    exit(0);
-  }
+  get_options(argc, argv);
 
   SoftXMT_run_user_main(&user_main, (int*)NULL);
 
+  LOG(INFO) << "waiting to finish";
+  
   SoftXMT_finish(0);
   return 0;
 }

@@ -1,5 +1,3 @@
-#include "verify.hpp"
-
 #include "SoftXMT.hpp"
 #include "Addressing.hpp"
 #include "Cache.hpp"
@@ -7,8 +5,11 @@
 #include "ForkJoin.hpp"
 #include "GlobalAllocator.hpp"
 
+#include "verify.hpp"
+
 #include "oned_csr.h"
 #include "timer.h"
+#include "options.h"
 
 struct compute_levels_func : ForkJoinIteration {
   GlobalAddress<int64_t> bfs_tree;
@@ -164,11 +165,49 @@ struct final_verify_func : ForkJoinIteration {
   }
 };
 
+static int64_t load_nedge(int64_t root, GlobalAddress<int64_t> bfs_tree) {
+  char fname[256];
+  sprintf(fname, "ckpts/graph500.%lld.%lld.%lld.nedge", SCALE, edgefactor, root);
+  FILE * fin = fopen(fname, "r");
+  if (!fin) {
+    LOG(ERROR) << "Unable to open file: " << fname << ", will do verify manually and save checkpoint.";
+    return -1;
+  }
+  
+  int64_t nedge_traversed;
+  fread(&nedge_traversed, sizeof(nedge_traversed), 1, fin);
+  return nedge_traversed;
+}
+
+static void save_nedge(int64_t root, int64_t nedge_traversed, GlobalAddress<int64_t> bfs_tree) {
+  char fname[256];
+  sprintf(fname, "ckpts/graph500.%lld.%lld.%lld.nedge", SCALE, edgefactor, root);
+  FILE * fout = fopen(fname, "w");
+  if (!fout) {
+    LOG(ERROR) << "Unable to open file for writing: " << fname;
+    exit(1);
+  }
+  
+  fwrite(&nedge_traversed, sizeof(nedge_traversed), 1, fout);
+  
+  fclose(fout);
+}
+
 int64_t verify_bfs_tree(GlobalAddress<int64_t> bfs_tree, int64_t max_bfsvtx, int64_t root, tuple_graph * tg) {
   assert(SoftXMT_delegate_read_word(bfs_tree+root) == root);
   
   int64_t nedge_traversed = 0;
   int64_t nv = max_bfsvtx+1;
+  
+  if (!verify) {
+    LOG(INFO) << "warning: skipping verification!!";
+    nedge_traversed = load_nedge(root, bfs_tree);
+
+    if (nedge_traversed != -1) {
+      return nedge_traversed;
+    }
+  }
+  
   int64_t err = 0;
   
   GlobalAddress<int64_t> seen_edge = SoftXMT_typed_malloc<int64_t>(nv);
@@ -218,6 +257,9 @@ int64_t verify_bfs_tree(GlobalAddress<int64_t> bfs_tree, int64_t max_bfsvtx, int
   if (err) {
     return err;
   } else {
+    // everything checked out...
+    if (!verify) save_nedge(root, nedge_traversed, bfs_tree);
+    
     return nedge_traversed;
   }
 }
