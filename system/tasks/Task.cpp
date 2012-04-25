@@ -176,5 +176,5 @@ void TaskStatistics::dump() {
     DICT_ADD(dout, acquire_fails_);
     DICT_ADD(dout, releases_);
 
-    std::cout << dout.toString();
+    std::cout << "TaskStatistics " << dout.toString() << std::endl;
 }
