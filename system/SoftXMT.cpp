@@ -8,6 +8,7 @@
 #include "SoftXMT.hpp"
 #include "GlobalMemory.hpp"
 #include "tasks/Task.hpp"
+#include "ForkJoin.hpp"
 
 // command line arguments
 DEFINE_bool( steal, true, "Allow work-stealing between public task queues");
@@ -36,6 +37,7 @@ HeapLeakChecker * SoftXMT_heapchecker = 0;
 
 static void poller( Thread * me, void * args ) {
   while( !SoftXMT_done() ) {
+    my_global_scheduler->stats.sample();
     SoftXMT_poll();
     SoftXMT_yield_periodic();
   }
@@ -252,12 +254,37 @@ void SoftXMT_signal_done ( ) {
     SoftXMT_done_flag = true;
 }
 
+void SoftXMT_reset_stats() {
+  my_global_aggregator->reset_stats();
+  my_global_communicator->reset_stats();
+  my_global_scheduler->reset_stats();
+}
+
+LOOP_FUNCTION(reset_stats_func,nid) {
+  SoftXMT_reset_stats();
+}
+void SoftXMT_reset_stats_all_nodes() {
+  reset_stats_func f;
+  fork_join_custom(&f);
+}
+
+
 /// Dump statistics
 void SoftXMT_dump_stats() {
   my_global_aggregator->dump_stats();
   my_global_communicator->dump_stats();
   my_task_manager->dump_stats();
+  my_global_scheduler->dump_stats();
 }
+
+LOOP_FUNCTION(dump_stats_func,nid) {
+  SoftXMT_dump_stats();
+}
+void SoftXMT_dump_stats_all_nodes() {
+  dump_stats_func f;
+  fork_join_custom(&f);
+}
+
 
 /// Finish the job. 
 /// 
@@ -275,7 +302,9 @@ void SoftXMT_finish( int retval )
   my_task_manager->finish();
   my_global_aggregator->finish();
   my_global_communicator->finish( retval );
-  
+ 
+  SoftXMT_dump_stats();
+
   // probably never get here (depending on communication layer)
 
   delete my_global_scheduler;

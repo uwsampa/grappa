@@ -306,11 +306,17 @@ static void parallel_loop(T* func, int64_t start, int64_t iterations) {
 ///   LOOP_FUNCTOR(set_const, i, ((GlobalAddress<int64_t>,array)) ((int64_t,value)) ) {
 ///     SoftXMT_delegate_write_word(array+i, value);
 ///   }
-#define LOOP_FUNCTOR(name, index_var,  members) \
+#define LOOP_FUNCTOR(name, index_var, members) \
 struct name : ForkJoinIteration { \
 AUTO_DECLS(members) \
 AUTO_CONSTRUCTOR( name, members ) \
 name() {} /* default constructor */\
+inline void operator()(int64_t); \
+}; \
+inline void name::operator()(int64_t index_var)
+
+#define LOOP_FUNCTION(name, index_var) \
+struct name : ForkJoinIteration { \
 inline void operator()(int64_t); \
 }; \
 inline void name::operator()(int64_t index_var)

@@ -197,7 +197,7 @@ class TaskManager {
 
 
 inline bool TaskManager::available( ) const {
-    VLOG(5) << " sharedMayHaveWork=" << sharedMayHaveWork
+    VLOG(6) << " sharedMayHaveWork=" << sharedMayHaveWork
             << " publicHasEle()=" << publicHasEle()
             << " privateHasEle()=" << privateHasEle();
     return privateHasEle() 

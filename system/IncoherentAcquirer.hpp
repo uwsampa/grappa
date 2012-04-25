@@ -3,6 +3,7 @@
 #define __INCOHERENT_ACQUIRER_HPP__
 
 #include "SoftXMT.hpp"
+#include "Addressing.hpp"
 
 // forward declare for active message templates
 template< typename T >

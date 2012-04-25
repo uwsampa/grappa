@@ -59,26 +59,12 @@ private:
   uint64_t bytes_;
   uint64_t histogram_[16];
   timespec start_;
+  std::string hist_labels[16];
 
   std::ostream& header( std::ostream& o ) {
-    o << "CommunicatorStatistics, header, time, "
-      "messages, bytes, messages_per_second, bytes_per_second, "
-      "0_to_255_bytes, "
-      "256_to_511_bytes, "
-      "512_to_767_bytes, "
-      "768_to_1023_bytes, "
-      "1024_to_1279_bytes, "
-      "1280_to_1535_bytes, "
-      "1536_to_1791_bytes, "
-      "1792_to_2047_bytes, "
-      "2048_to_2303_bytes, "
-      "2304_to_2559_bytes, "
-      "2560_to_2815_bytes, "
-      "2816_to_3071_bytes, "
-      "3072_to_3327_bytes, "
-      "3328_to_3583_bytes, "
-      "3584_to_3839_bytes, "
-      "3840_to_4095_bytes";
+    o << "CommunicatorStatistics, header, time, messages, bytes, messages_per_second, bytes_per_second";
+    for (int i=0; i<16; i++) o << ", " << hist_labels[i];
+    return o;
   }
 
   std::ostream& data( std::ostream& o, double time ) {
@@ -92,6 +78,27 @@ private:
     for( int i = 0; i < 16; ++i ) {
       o << ", " << histogram_[ i ];
     }
+    return o;
+  }
+  
+  std::ostream& as_map( std::ostream& o, double time) {
+    double messages_per_second = messages_ / time;
+    double bytes_per_second = bytes_ / time;
+    o << "CommunicatorStatistics {"
+      << "comm_time: " << time
+      << ", messages: " << messages_
+      << ", bytes: " << bytes_
+      << ", messages_per_second: " << messages_per_second
+      << ", bytes_per_second: " << bytes_per_second;
+    for (int i=0; i<16; i++) o << ", " << hist_labels[i] << ": " << histogram_[i];
+    o << " }";
+    return o;
+  }
+  
+  double time() {
+    timespec end;
+    clock_gettime( CLOCK_MONOTONIC, &end );
+    return (end.tv_sec + end.tv_nsec * 0.000000001) - (start_.tv_sec + start_.tv_nsec * 0.000000001);
   }
 
 public:
@@ -101,6 +108,28 @@ public:
     , histogram_()
     , start_()
   { 
+    reset();
+    hist_labels[ 0] = "comm_0_to_255_bytes";
+    hist_labels[ 1] = "comm_256_to_511_bytes";
+    hist_labels[ 2] = "comm_512_to_767_bytes";
+    hist_labels[ 3] = "comm_768_to_1023_bytes";
+    hist_labels[ 4] = "comm_1024_to_1279_bytes";
+    hist_labels[ 5] = "comm_1280_to_1535_bytes";
+    hist_labels[ 6] = "comm_1536_to_1791_bytes";
+    hist_labels[ 7] = "comm_1792_to_2047_bytes";
+    hist_labels[ 8] = "comm_2048_to_2303_bytes";
+    hist_labels[ 9] = "comm_2304_to_2559_bytes";
+    hist_labels[10] = "comm_2560_to_2815_bytes";
+    hist_labels[11] = "comm_2816_to_3071_bytes";
+    hist_labels[12] = "comm_3072_to_3327_bytes";
+    hist_labels[13] = "comm_3328_to_3583_bytes";
+    hist_labels[14] = "comm_3584_to_3839_bytes";
+    hist_labels[15] = "comm_3840_to_4095_bytes";
+  }
+  
+  void reset() {
+    messages_ = 0;
+    bytes_ = 0;
     clock_gettime(CLOCK_MONOTONIC, &start_);
     for( int i = 0; i < 16; ++i ) {
       histogram_[i] = 0;
@@ -117,11 +146,13 @@ public:
     histogram_[ (bytes >> 8) & 0xf ]++;
   }
   void dump() {
-    header( LOG(INFO) );
-    timespec end;
-    clock_gettime( CLOCK_MONOTONIC, &end );
-    double time = (end.tv_sec + end.tv_nsec * 0.000000001) - (start_.tv_sec + start_.tv_nsec * 0.000000001);
-    data( LOG(INFO), time );
+    header(LOG(INFO));
+    data(LOG(INFO), time());
+  }
+  
+  void dump_as_map() {
+    as_map(std::cout, time());
+    std::cout << std::endl;
   }
 };
 
@@ -194,7 +225,9 @@ public:
   void activate();
   void finish( int retval = 0 );
 
-  void dump_stats() { stats.dump(); }
+  void dump_stats() { stats.dump_as_map(); }
+  
+  void reset_stats() { stats.reset(); }
 
   /// Get id of this node
   inline Node mynode() const { 

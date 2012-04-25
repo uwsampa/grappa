@@ -105,6 +105,11 @@ void SoftXMT_signal_done( );
 bool SoftXMT_thread_idle( );
 
 void SoftXMT_dump_stats();
+void SoftXMT_dump_stats_all_nodes();
+
+void SoftXMT_reset_stats();
+void SoftXMT_reset_stats_all_nodes();
+
 
 /// Memory management routines.
 
