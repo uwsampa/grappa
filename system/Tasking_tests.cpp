@@ -38,7 +38,7 @@ struct user_main_args {
 
 void user_main( user_main_args * args ) 
 {
-  nf_addr = GlobalAddress<int64_t>::TwoDimensional( &num_finished );
+  nf_addr = make_global( &num_finished );
 
   task1_arg argss[num_tasks];
   for (int ta = 0; ta<num_tasks; ta++) {

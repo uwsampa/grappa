@@ -20,7 +20,6 @@ TaskingScheduler::TaskingScheduler ( Thread * master, TaskManager * taskman )
     , work_args( new task_worker_args( taskman, this ) )
     , previous_periodic_ts( 0 ) {
 
-          periodctr = 0;/*XXX*/
 }
 
 void TaskingScheduler::run ( ) {

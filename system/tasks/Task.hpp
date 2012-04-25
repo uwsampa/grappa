@@ -14,29 +14,79 @@ typedef int16_t Node;
 class Task {
 
     private:
-        void (* fn_p)(void *);
-        void * args;
-        size_t args_size;
-        Node home;
+        void (* fn_p)(void*);
+        void* arg;
     
     public:
         Task () {}
-        Task (void (* fn_p)(void *), void * args, size_t args_size, Node createdOn) 
+        Task (void (* fn_p)(void*), void* arg) 
             : fn_p ( fn_p )
-            , args ( args )
-            , args_size ( args_size )
-            , home ( createdOn ){}
+            , arg ( arg ) { }
 
-        void execute ( );
+        void execute( ) {
+            CHECK( fn_p!=NULL ) << "fn_p=" << (void*)fn_p << "\nargs=" << (void*)arg;
+            fn_p( arg );
+        }
+};
+
+class TaskStatistics {
+    private:
+        uint64_t single_steal_successes_;
+        uint64_t single_steal_fails_;
+        uint64_t session_steal_successes_;
+        uint64_t session_steal_fails_;
+        uint64_t acquire_successes_;
+        uint64_t acquire_fails_;
+        uint64_t releases_;
+
+    public:
+        TaskStatistics()
+            : single_steal_successes_ (0)
+            , single_steal_fails_ (0)
+            , session_steal_successes_ (0)
+            , session_steal_fails_ (0)
+            , acquire_successes_ (0)
+            , acquire_fails_ (0)
+            , releases_ (0)
+         { }
+
+        void record_successful_steal_session() {
+            session_steal_successes_++;
+        }
+
+        void record_failed_steal_session() {
+            session_steal_fails_++;
+        }
+
+        void record_successful_steal() {
+            single_steal_successes_++;
+        }
+
+        void record_failed_steal() {
+            single_steal_fails_++;
+        }
+
+        void record_successful_acquire() {
+            acquire_successes_++;
+        }
         
+        void record_failed_acquire() {
+            acquire_fails_++;
+        }
+
+        void record_release() {
+            releases_++;
+        }
+
+        void dump();
 };
 
 
-template < typename ArgsStruct >
-static Task createTask( void (* fn_p)(ArgsStruct *), ArgsStruct * args, Node createdOn,
-                        size_t args_size = sizeof( ArgsStruct )) {
-    Task t( reinterpret_cast< void (*) (void*) >( fn_p ),
-            static_cast< void *>( args ), args_size, createdOn );
+
+
+template < typename T >
+static Task createTask( void (* fn_p)(T), T args ) {
+    Task t( reinterpret_cast< void (*) (void*) >( fn_p ), args);
     return t;
 }
 
@@ -59,7 +109,15 @@ class TaskManager {
 
         // steal parameters
         int chunkSize;
+        
+        /// Flags to save whether a worker thinks there
+        /// could be work or if other workers should not
+        /// also try.
+        bool sharedMayHaveWork;
+        bool globalMayHaveWork;
 
+        TaskStatistics stats;
+       
         bool publicHasEle() const {
             return publicQ.localDepth() > 0;
         }
@@ -67,12 +125,6 @@ class TaskManager {
         bool privateHasEle() const {
             return !privateQ.empty();
         }
-
-        /// Flags to save whether a worker thinks there
-        /// could be work or if other workers should not
-        /// also try.
-        bool sharedMayHaveWork;
-        bool globalMayHaveWork;
         
         // "queue" operations
         bool tryConsumeLocal( Task * result );
@@ -102,9 +154,8 @@ class TaskManager {
         void releaseTasks() {
             if (doSteal) {
                 if (publicQ.localDepth() > 2 * chunkSize) {
-                    // Attribute this time to runtime overhead
-                    /*      ss_setState(ss, SS_OVH);                    */
                     publicQ.release(chunkSize);
+                    stats.record_release(); 
 
                     // set that there COULD be work in shared portion
                     // (not "is work" because may be stolen)
@@ -112,31 +163,33 @@ class TaskManager {
 
                     // This has significant overhead on clusters!
                     if (publicQ.get_nNodes() % cbint == 0) { // possible for cbint to get skipped if push multiple?
-                        /*        ss_setState(ss, SS_CBOVH);                */
                         VLOG(5) << "canceling barrier";
                         cbarrier_cancel();
                     }
 
-                    /*      ss_setState(ss, SS_WORK);                   */
                 }
             }
         }
 
         /*TODO return value?*/
-        template < typename ArgsStruct > 
-        void spawnPublic( void (*f)(ArgsStruct * arg), ArgsStruct * arg);
+        template < typename T > 
+        void spawnPublic( void (*f)(T), T arg);
         
         /*TODO return value?*/ 
-        template < typename ArgsStruct > 
-        void spawnLocalPrivate( void (*f)(ArgsStruct * arg), ArgsStruct * arg);
+        template < typename T > 
+        void spawnLocalPrivate( void (*f)(T), T arg);
         
         /*TODO return value?*/ 
-        template < typename ArgsStruct > 
-        void spawnRemotePrivate( void (*f)(ArgsStruct * arg), ArgsStruct * arg, Node from);
+        template < typename T > 
+        void spawnRemotePrivate( void (*f)(T), T arg);
         
         bool getWork ( Task * result );
 
         bool available ( ) const;
+        
+        void dump_stats();
+        void finish();
+
 
         friend std::ostream& operator<<( std::ostream& o, const TaskManager& tm );
 
@@ -154,19 +207,19 @@ inline bool TaskManager::available( ) const {
 
 
 Node SoftXMT_mynode();
-template < typename ArgsStruct > 
-inline void TaskManager::spawnPublic( void (*f)(ArgsStruct * arg), ArgsStruct * arg ) {
-    Task newtask = createTask(f, arg, SoftXMT_mynode());
+template < typename T > 
+inline void TaskManager::spawnPublic( void (*f)(T), T arg ) {
+    Task newtask = createTask(f, arg);
     publicQ.push( newtask );
     releaseTasks();
 }
 
 /// Should NOT be called from the context of
 /// an AM handler
-template < typename ArgsStruct > 
-inline void TaskManager::spawnLocalPrivate( void (*f)(ArgsStruct * arg), ArgsStruct * arg ) {
+template < typename T > 
+inline void TaskManager::spawnLocalPrivate( void (*f)(T), T arg ) {
 
-    Task newtask = createTask(f, arg, SoftXMT_mynode());
+    Task newtask = createTask(f, arg);
     privateQ.push_front( newtask );
 
     /* no notification necessary since
@@ -176,9 +229,9 @@ inline void TaskManager::spawnLocalPrivate( void (*f)(ArgsStruct * arg), ArgsStr
 
 /// Should ONLY be called from the context of
 /// an AM handler
-template < typename ArgsStruct > 
-inline void TaskManager::spawnRemotePrivate( void (*f)(ArgsStruct * arg), ArgsStruct * arg, Node from ) {
-    Task newtask = createTask(f, arg, from);
+template < typename T > 
+inline void TaskManager::spawnRemotePrivate( void (*f)(T), T arg ) {
+    Task newtask = createTask(f, arg);
     privateQ.push_front( newtask );
 
     cbarrier_cancel_local();
