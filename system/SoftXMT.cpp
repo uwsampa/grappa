@@ -289,6 +289,10 @@ void SoftXMT_dump_stats_all_nodes() {
   fork_join_custom(&f);
 }
 
+void SoftXMT_dump_task_series() {
+	my_global_scheduler->stats.print_active_task_log();
+}
+
 
 /// Finish the job. 
 /// 
