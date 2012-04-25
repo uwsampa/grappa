@@ -191,19 +191,24 @@ Result parTreeSearch(int64_t depth, int64_t id) {
     
     VLOG_EVERY_N(2, 250000) << "search vertex" << id;
 
-    vertex_t v_storage;
-    Incoherent<vertex_t>::RO v( Vertex + id, 1, &v_storage );
-    /* (v) = Vertex[id] */
+    int64_t numChildren;
+    int64_t childIndex;
+    {
+        vertex_t v_storage;
+        Incoherent<vertex_t>::RO v( Vertex + id, 1, &v_storage );
+        /* (v) = Vertex[id] */
 
-    int64_t numChildren = (*v).numChildren;
-    int64_t childIndex = (*v).childIndex;
+        numChildren = (*v).numChildren;
+        childIndex = (*v).childIndex;
+    }
     
-
-    int64_t childid0_storage;
-    Incoherent<int64_t>::RO childid0( Child + childIndex, 1, &childid0_storage ); // XXX: this is not edgelist acquire right now because there is locality in addresses of children (see explore child just does childid0+i)
-    /* (childid0) = Child[ChildIndex[id]]; */
-    int64_t childid0_val = *childid0;
-    childid0.block_until_released();
+    int64_t childid0_val;
+    {
+        int64_t childid0_storage;
+        Incoherent<int64_t>::RO childid0( Child + childIndex, 1, &childid0_storage ); // XXX: this is not edgelist acquire right now because there is locality in addresses of children (see explore child just does childid0+i)
+        /** (childid0) = Child[ChildIndex[id]]; **/
+        childid0_val = *childid0;
+    }
 
     // Recurse on the children
     if (numChildren > 0) {
