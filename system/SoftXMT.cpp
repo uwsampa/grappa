@@ -161,6 +161,10 @@ void SoftXMT_flush( Node n )
   my_global_aggregator->flush( n );
 }
 
+void SoftXMT_idle_flush() {
+  my_global_aggregator->idle_flush();
+}
+
 
 ///
 /// Thread management routines

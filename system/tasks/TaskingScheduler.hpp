@@ -135,12 +135,18 @@ class TaskingScheduler : public Scheduler {
                     return result;
                 }
 
+                if (FLAGS_flush_on_idle) {
+                  SoftXMT_idle_flush();
+                } else {
+                  usleep(1);
+                }
+                
                 // no coroutines can run, so handle
                 /*DVLOG(5) << current_thread->id << " scheduler: no coroutines can run"
                     << "[isBlocking=" << isBlocking
                     << " periodQ=" << (periodicQ.empty() ? "empty" : "full")
                     << " unassignedQ=" << (unassignedQ.empty() ? "empty" : "full") << "]";*/
-                usleep(1);
+//                usleep(1);
             } while ( isBlocking || !queuesFinished() );
             // exit if all threads exited, including idle workers
             // TODO just as use mightBeWork as shortcut, also kill all idle unassigned workers on cbarrier_exit
