@@ -25,6 +25,8 @@ void task1_f( task1_arg * args ) {
     Semaphore::release( &args->sem, 1 ); 
 }
 
+DECLARE_CACHE_WRAPPED(task1_f_CA, &task1_f, task1_arg )
+
 struct user_main_args {
 };
 
@@ -36,7 +38,7 @@ void user_main( user_main_args * args )
         Semaphore sem(1, 0);
         task1_arg t1_arg = { make_global( &sem ), i };
         BLOG( "remote-spawn " << i );
-        SoftXMT_remote_privateTask( &task1_f, &t1_arg, 1 );
+        SoftXMT_remote_privateTask( &task1_f_CA, make_global( &t1_arg ), 1 );
         sem.acquire_all( CURRENT_THREAD );
         BLOG( "phase " << i << " done" );
     }
