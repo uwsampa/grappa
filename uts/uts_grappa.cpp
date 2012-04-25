@@ -112,6 +112,7 @@ void init_node( init_args * args ) {
 
     Semaphore::release( &args->sem, 1 );
 }
+DECLARE_CACHE_WRAPPED(init_node_Caching, &init_node, init_args);
 
 struct payinit_args {
     GlobalAddress<Semaphore> sem;
@@ -123,6 +124,8 @@ void payinit( payinit_args * args ) {
 
     Semaphore::release( &args->sem, 1 );
 }
+DECLARE_CACHE_WRAPPED(payinit_Caching, &payinit, payinit_args);
+
 //////////////////////////////////
 
 struct Result {
@@ -396,7 +399,7 @@ void user_main ( user_main_args * args ) {
                         Vertex,
                         Child };
     for (Node nod=0; nod<SoftXMT_nodes(); nod++) {
-        SoftXMT_remote_privateTask( &init_node, &iargs, nod );
+        SoftXMT_remote_privateTask( &init_node_Caching, make_global(&iargs), nod );
     }
     init_sem.acquire_all( CURRENT_THREAD );
     
@@ -434,7 +437,7 @@ void user_main ( user_main_args * args ) {
     Semaphore pi_sem( SoftXMT_nodes(), 0 );
     payinit_args piargs = { make_global(&pi_sem, 0), Payload };
     for (Node nod=0; nod<SoftXMT_nodes(); nod++) {
-        SoftXMT_remote_privateTask( &payinit, &piargs, nod );
+        SoftXMT_remote_privateTask( &payinit_Caching, make_global(&piargs), nod );
     }
     init_sem.acquire_all( CURRENT_THREAD );
 
