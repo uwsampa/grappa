@@ -1,22 +1,9 @@
 #include "Task.hpp"
-#include "../Cache.hpp"
 #include "../SoftXMT.hpp"
 
 
 #define MAXQUEUEDEPTH 500000
 
-void Task::execute( ) {
-    if ( home != SoftXMT_mynode() ) {
-        char argbuf[args_size];
-        Incoherent<char>::RO cached_args( GlobalAddress<char>::TwoDimensional(static_cast<char*>(args), home), args_size, argbuf );
-        cached_args.block_until_acquired();
-        fn_p( &argbuf );
-        cached_args.block_until_released();
-    } else {
-        CHECK( fn_p!=NULL ) << "fn_p=" << (void*)fn_p << "\nargs=" << (void*)args << "\nhome=" << home;
-        fn_p( args );
-    }
-}
 
 
 TaskManager::TaskManager (bool doSteal, Node localId, Node * neighbors, Node numLocalNodes, int chunkSize, int cbint) 
@@ -27,7 +14,8 @@ TaskManager::TaskManager (bool doSteal, Node localId, Node * neighbors, Node num
     , localId( localId ), neighbors( neighbors ), numLocalNodes( numLocalNodes )
     , chunkSize( chunkSize ), cbint( cbint ) 
     , privateQ( )
-    , publicQ( MAXQUEUEDEPTH ) {
+    , publicQ( MAXQUEUEDEPTH ) 
+    , stats( ) {
     
           // TODO the way this is being used, it might as well have a singleton
           StealQueue<Task>::registerAddress( &publicQ );
@@ -74,10 +62,14 @@ bool TaskManager::tryConsumeLocal( Task * result ) {
 bool TaskManager::tryConsumeShared( Task * result ) {
     if ( doSteal ) {
         if ( publicQ.acquire( chunkSize ) ) {
-            CHECK( publicHasEle() );
+            stats.record_successful_acquire();
+            CHECK( publicHasEle() ) << "successful acquire must produce local work";
+        
             *result = publicQ.peek();
             publicQ.pop( );
             return true;
+        } else {
+            stats.record_failed_acquire();
         }
     }
      
@@ -97,24 +89,30 @@ bool TaskManager::waitConsumeAny( Task * result ) {
             bool goodSteal = false;
             Node victimId;
 
-            /*          ss_setState(ss, SS_SEARCH);             */
             for ( Node i = 1; 
                   i < numLocalNodes && !goodSteal && !(sharedMayHaveWork || publicHasEle() || privateHasEle());
                   i++ ) { // TODO permutation order
 
                 victimId = (localId + i) % numLocalNodes;
                 goodSteal = publicQ.steal_locally(neighbors[victimId], chunkSize, CURRENT_THREAD);
+                
+                if (goodSteal) { stats.record_successful_steal(); }
+                else { stats.record_failed_steal(); }
             }
 
             // if finished because succeeded in stealing
             if ( goodSteal ) {
                 VLOG(5) << CURRENT_THREAD << " steal " << goodSteal
                     << " from Node" << victimId;
+                
+                stats.record_successful_steal_session();
 
                 // publicQ should have had some elements in it
                 // at some point after successful steal
             } else {
                 VLOG(5) << CURRENT_THREAD << " failed to steal";
+                
+                stats.record_failed_steal_session();
 
                 // mark that we already tried to steal from other queues
                 globalMayHaveWork = false;
@@ -158,4 +156,26 @@ bool TaskManager::waitConsumeAny( Task * result ) {
 
 std::ostream& operator<<( std::ostream& o, const TaskManager& tm ) {
     return tm.dump( o );
+}
+
+void TaskManager::finish() {
+    dump_stats();
+}
+
+void TaskManager::dump_stats() {
+    stats.dump();
+}
+
+#include "DictOut.hpp"
+void TaskStatistics::dump() {
+    DictOut dout;
+    DICT_ADD(dout, session_steal_successes_);
+    DICT_ADD(dout, session_steal_fails_);
+    DICT_ADD(dout, single_steal_successes_);
+    DICT_ADD(dout, single_steal_fails_);
+    DICT_ADD(dout, acquire_successes_);
+    DICT_ADD(dout, acquire_fails_);
+    DICT_ADD(dout, releases_);
+
+    LOG(INFO) << dout.toString();
 }

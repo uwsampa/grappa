@@ -239,6 +239,7 @@ void SoftXMT_signal_done ( ) {
 void SoftXMT_dump_stats() {
   my_global_aggregator->dump_stats();
   my_global_communicator->dump_stats();
+  my_task_manager->dump_stats();
 }
 
 /// Finish the job. 
@@ -254,6 +255,7 @@ void SoftXMT_finish( int retval )
 
   DVLOG(1) << "Cleaning up SoftXMT library....";
 
+  my_task_manager->finish();
   my_global_aggregator->finish();
   my_global_communicator->finish( retval );
   
