@@ -1,4 +1,6 @@
 
+#include <signal.h>
+
 #ifdef HEAPCHECK
 #include <gperftools/heap-checker.h>
 #endif
@@ -38,6 +40,13 @@ static void poller( Thread * me, void * args ) {
     SoftXMT_yield_periodic();
   }
   VLOG(5) << "polling Thread exiting";
+}
+
+// handler for dumping stats on a signal
+static int stats_dump_signal = SIGUSR2;
+static void stats_dump_sighandler( int signum ) {
+  // TODO: make this set a flag and have scheduler check and dump.
+  SoftXMT_dump_stats();
 }
 
 /// Initialize SoftXMT components. We are not ready to run until the
@@ -85,6 +94,14 @@ void SoftXMT_init( int * argc_p, char ** argv_p[], size_t global_memory_size_byt
   my_task_manager = new TaskManager( FLAGS_steal, SoftXMT_mynode(), neighbors, SoftXMT_nodes(), FLAGS_chunk_size, FLAGS_cancel_interval ); //TODO: options for local stealing
   my_global_scheduler = new TaskingScheduler( master_thread, my_task_manager );
   my_global_scheduler->periodic( thread_spawn( master_thread, my_global_scheduler, &poller, NULL ) );
+
+
+  // set up stats dump signal handler
+  struct sigaction stats_dump_sa;
+  sigemptyset( &stats_dump_sa.sa_mask );
+  stats_dump_sa.sa_flags = 0;
+  stats_dump_sa.sa_handler = &stats_dump_sighandler;
+  CHECK_EQ( 0, sigaction( stats_dump_signal, &stats_dump_sa, 0 ) ) << "Stats dump signal handler installation failed.";
 }
 
 
