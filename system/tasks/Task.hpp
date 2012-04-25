@@ -86,7 +86,7 @@ class TaskStatistics {
 
 template < typename T >
 static Task createTask( void (* fn_p)(T), T args ) {
-    Task t( reinterpret_cast< void (*) (void*) >( fn_p ), args);
+    Task t( reinterpret_cast< void (*) (void*) >( fn_p ), (void*)args);
     return t;
 }
 
