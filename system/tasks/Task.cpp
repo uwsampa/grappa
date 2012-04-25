@@ -1,22 +1,9 @@
 #include "Task.hpp"
-#include "../Cache.hpp"
 #include "../SoftXMT.hpp"
 
 
 #define MAXQUEUEDEPTH 500000
 
-void Task::execute( ) {
-    if ( home != SoftXMT_mynode() ) {
-        char argbuf[args_size];
-        Incoherent<char>::RO cached_args( GlobalAddress<char>::TwoDimensional(static_cast<char*>(args), home), args_size, argbuf );
-        cached_args.block_until_acquired();
-        fn_p( &argbuf );
-        cached_args.block_until_released();
-    } else {
-        CHECK( fn_p!=NULL ) << "fn_p=" << (void*)fn_p << "\nargs=" << (void*)args << "\nhome=" << home;
-        fn_p( args );
-    }
-}
 
 
 TaskManager::TaskManager (bool doSteal, Node localId, Node * neighbors, Node numLocalNodes, int chunkSize, int cbint) 

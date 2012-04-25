@@ -14,21 +14,19 @@ typedef int16_t Node;
 class Task {
 
     private:
-        void (* fn_p)(void *);
-        void * args;
-        size_t args_size;
-        Node home;
+        void (* fn_p)(void*);
+        void* arg;
     
     public:
         Task () {}
-        Task (void (* fn_p)(void *), void * args, size_t args_size, Node createdOn) 
+        Task (void (* fn_p)(void*), void* arg) 
             : fn_p ( fn_p )
-            , args ( args )
-            , args_size ( args_size )
-            , home ( createdOn ){}
+            , arg ( arg ) { }
 
-        void execute ( );
-        
+        void execute( ) {
+            CHECK( fn_p!=NULL ) << "fn_p=" << (void*)fn_p << "\nargs=" << (void*)arg;
+            fn_p( arg );
+        }
 };
 
 class TaskStatistics {
@@ -85,11 +83,10 @@ class TaskStatistics {
 
 
 
-template < typename ArgsStruct >
-static Task createTask( void (* fn_p)(ArgsStruct *), ArgsStruct * args, Node createdOn,
-                        size_t args_size = sizeof( ArgsStruct )) {
-    Task t( reinterpret_cast< void (*) (void*) >( fn_p ),
-            static_cast< void *>( args ), args_size, createdOn );
+
+template < typename T >
+static Task createTask( void (* fn_p)(T), T args ) {
+    Task t( reinterpret_cast< void (*) (void*) >( fn_p ), args);
     return t;
 }
 
@@ -175,16 +172,16 @@ class TaskManager {
         }
 
         /*TODO return value?*/
-        template < typename ArgsStruct > 
-        void spawnPublic( void (*f)(ArgsStruct * arg), ArgsStruct * arg);
+        template < typename T > 
+        void spawnPublic( void (*f)(T), T arg);
         
         /*TODO return value?*/ 
-        template < typename ArgsStruct > 
-        void spawnLocalPrivate( void (*f)(ArgsStruct * arg), ArgsStruct * arg);
+        template < typename T > 
+        void spawnLocalPrivate( void (*f)(T), T arg);
         
         /*TODO return value?*/ 
-        template < typename ArgsStruct > 
-        void spawnRemotePrivate( void (*f)(ArgsStruct * arg), ArgsStruct * arg, Node from);
+        template < typename T > 
+        void spawnRemotePrivate( void (*f)(T), T arg);
         
         bool getWork ( Task * result );
 
@@ -210,19 +207,19 @@ inline bool TaskManager::available( ) const {
 
 
 Node SoftXMT_mynode();
-template < typename ArgsStruct > 
-inline void TaskManager::spawnPublic( void (*f)(ArgsStruct * arg), ArgsStruct * arg ) {
-    Task newtask = createTask(f, arg, SoftXMT_mynode());
+template < typename T > 
+inline void TaskManager::spawnPublic( void (*f)(T), T arg ) {
+    Task newtask = createTask(f, arg);
     publicQ.push( newtask );
     releaseTasks();
 }
 
 /// Should NOT be called from the context of
 /// an AM handler
-template < typename ArgsStruct > 
-inline void TaskManager::spawnLocalPrivate( void (*f)(ArgsStruct * arg), ArgsStruct * arg ) {
+template < typename T > 
+inline void TaskManager::spawnLocalPrivate( void (*f)(T), T arg ) {
 
-    Task newtask = createTask(f, arg, SoftXMT_mynode());
+    Task newtask = createTask(f, arg);
     privateQ.push_front( newtask );
 
     /* no notification necessary since
@@ -232,9 +229,9 @@ inline void TaskManager::spawnLocalPrivate( void (*f)(ArgsStruct * arg), ArgsStr
 
 /// Should ONLY be called from the context of
 /// an AM handler
-template < typename ArgsStruct > 
-inline void TaskManager::spawnRemotePrivate( void (*f)(ArgsStruct * arg), ArgsStruct * arg, Node from ) {
-    Task newtask = createTask(f, arg, from);
+template < typename T > 
+inline void TaskManager::spawnRemotePrivate( void (*f)(T), T arg ) {
+    Task newtask = createTask(f, arg);
     privateQ.push_front( newtask );
 
     cbarrier_cancel_local();
