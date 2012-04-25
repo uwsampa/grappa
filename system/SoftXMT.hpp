@@ -28,6 +28,7 @@ Node SoftXMT_mynode();
 
 void SoftXMT_poll();
 void SoftXMT_flush( Node n );
+void SoftXMT_idle_flush();
 
 void SoftXMT_barrier();
 

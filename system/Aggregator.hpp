@@ -296,6 +296,17 @@ public:
     least_recently_sent_.remove_key( target );
     DVLOG(5) << "heap after flush:\n" << least_recently_sent_.toString( );
   }
+  
+  inline void idle_flush() {
+    communicator_->poll();
+    while ( !least_recently_sent_.empty() ) {
+      stats.record_idle_flush();
+      DVLOG(5) << "idle flush Node " << least_recently_sent_.top_key();
+      flush(least_recently_sent_.top_key());
+    }
+    deaggregate();
+  }
+  
 
   /// get timestamp. we avoid calling rdtsc for performance
   inline uint64_t get_timestamp() {
