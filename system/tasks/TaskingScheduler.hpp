@@ -10,7 +10,7 @@
 DECLARE_int64( periodic_poll_ticks );
 DECLARE_bool(flush_on_idle);
 
-extern void SoftXMT_idle_flush();
+extern void SoftXMT_idle_flush_poll();
 
 //extern int64_t num_active_tasks;
 //extern int64_t task_calls;
@@ -136,7 +136,7 @@ class TaskingScheduler : public Scheduler {
                 }
 
                 if (FLAGS_flush_on_idle) {
-                  SoftXMT_idle_flush();
+                  SoftXMT_idle_flush_poll();
                 } else {
                   usleep(1);
                 }

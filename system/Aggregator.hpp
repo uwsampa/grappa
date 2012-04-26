@@ -297,7 +297,7 @@ public:
     DVLOG(5) << "heap after flush:\n" << least_recently_sent_.toString( );
   }
   
-  inline void idle_flush() {
+  inline void idle_flush_poll() {
     communicator_->poll();
     while ( !least_recently_sent_.empty() ) {
       stats.record_idle_flush();
