@@ -161,8 +161,10 @@ void SoftXMT_flush( Node n )
   my_global_aggregator->flush( n );
 }
 
-void SoftXMT_idle_flush() {
-  my_global_aggregator->idle_flush();
+/// Meant to be called when there's no other work to be done, calls poll, 
+/// flushes any aggregator buffers with anything in them, and deaggregates.
+void SoftXMT_idle_flush_poll() {
+  my_global_aggregator->idle_flush_poll();
 }
 
 

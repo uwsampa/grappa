@@ -10,10 +10,16 @@ if `hostname`.match /cougar/ then
   machinename = "cougarxmt"
 else
   # command that will be excuted on the command line, with variables in %{} substituted
-  # cmd = "cd softxmt && make run TARGET=graph.exe ARGS='--v=0 --num_starting_workers=%{nworkers} -- -s %{scale} -e %{edgefactor} -p' NPROC=%{nproc} NNODE=%{nnode} PPN=%{ppn}"
-  cmd = %Q< cd softxmt && GLOG_logtostderr=1 LD_LIBRARY_PATH="\$LD_LIBRARY_PATH:/usr/local/lib:/sampa/home/bholt/opt/lib:/usr/lib64/openmpi-psm/lib:/sampa/home/bholt/opt/lib:/sampa/share/gflags/lib:/sampa/share/glog/lib:/usr/lib:/usr/lib:/sampa/share/gperftools-2.0/lib" GASNET_NUM_QPS=3 \
-  srun --resv-ports --cpu_bind=verbose,rank --exclusive --label --kill-on-bad-exit --task-prolog ~/srunrc.all --partition softxmt --nodes=%{nnode} --ntasks-per-node=%{ppn} -- ./graph.exe --v=0 --num_starting_workers=%{nworkers} --aggregator_autoflush_ticks=%{flushticks} --flush_on_idle=%{flush_on_idle} -- -s %{scale} -e %{edgefactor} -p >
-  
+  cmd = %Q[ cd softxmt && GLOG_logtostderr=1 LD_LIBRARY_PATH="\$LD_LIBRARY_PATH:/usr/local/lib:/sampa/home/bholt/opt/lib:/usr/lib64/openmpi-psm/lib:/sampa/home/bholt/opt/lib:/sampa/share/gflags/lib:/sampa/share/glog/lib:/usr/lib:/usr/lib:/sampa/share/gperftools-2.0/lib" GASNET_NUM_QPS=3 \
+    srun --resv-ports --cpu_bind=verbose,rank --exclusive --label --kill-on-bad-exit --task-prolog ~/srunrc.all --partition softxmt 
+      --nodes=%{nnode}
+      --ntasks-per-node=%{ppn} --
+      ./graph.exe --v=0
+        --num_starting_workers=%{nworkers}
+        --aggregator_autoflush_ticks=%{flushticks}
+        --flush_on_idle=%{flush_on_idle}
+        -- -s %{scale} -e %{edgefactor} -pn
+  ]
   machinename = "sampa"
 end
 
