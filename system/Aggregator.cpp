@@ -65,7 +65,6 @@ void Aggregator::deaggregate( ) {
 }
   
 void Aggregator::finish() {
-  stats.dump();
 }
 
 void Aggregator_deaggregate_am( gasnet_token_t token, void * buf, size_t size ) {

@@ -1,7 +1,6 @@
 #!/usr/bin/env ruby
 require "experiments"
 
-
 db = "#{ENV['HOME']}/exp/softxmt.db"
 table = :graph500
 
@@ -11,18 +10,35 @@ if `hostname`.match /cougar/ then
   machinename = "cougarxmt"
 else
   # command that will be excuted on the command line, with variables in %{} substituted
-  cmd = "cd softxmt && make run TARGET=graph.exe ARGS='%{scale} %{edgefactor} --v=0 --num_starting_workers=%{nworkers}' NPROC=%{nproc} NNODE=%{nproc} PPN=1"
+  cmd = %Q[ cd softxmt && GLOG_logtostderr=1 LD_LIBRARY_PATH="\$LD_LIBRARY_PATH:/usr/local/lib:/sampa/home/bholt/opt/lib:/usr/lib64/openmpi-psm/lib:/sampa/home/bholt/opt/lib:/sampa/share/gflags/lib:/sampa/share/glog/lib:/usr/lib:/usr/lib:/sampa/share/gperftools-2.0/lib" GASNET_NUM_QPS=3 \
+    srun --resv-ports --cpu_bind=verbose,rank --exclusive --label --kill-on-bad-exit --task-prolog ~/srunrc.all --partition softxmt 
+      --nodes=%{nnode}
+      --ntasks-per-node=%{ppn} --
+      ./graph.exe --v=0
+        --num_starting_workers=%{nworkers}
+        --aggregator_autoflush_ticks=%{flushticks}
+        --flush_on_idle=%{flush_on_idle}
+        -- -s %{scale} -e %{edgefactor} -pn
+  ]
   machinename = "sampa"
 end
 
 # map of parameters; key is the name used in command substitution
 params = {
-  scale: [12, 16, 18],
+  scale: [18],
   edgefactor: [16],
-  nproc: [2, 4],# 8, 12, 16, 24],
-  nworkers: [16, 128, 256, 384, 512],
+  nworkers: [256, 384, 512, 1024, 2048],
+  nnode: [2, 4],
+  ppn: [2, 4, 6, 8],
+  flushticks: [100000, 500000, 1000000],
+  flush_on_idle: [0, 1],
+  nproc: expr('nnode*ppn'),
   machine: [machinename],
 }
+
+def inc_avg(avg, count, val)
+  return avg + (val-avg)/count
+end
 
 # Block that takes the stdout of the shell command and parses it into a Hash
 # which will be incorporated into the record inserted into the database.
@@ -32,10 +48,22 @@ params = {
 parser = lambda {|cmdout|
   # /(?<ao>\d+)\s+(?<bo>\d+)\s+(?<co>\w+)/.match(cmdout).dictionize
   h = {}
+  c = Hash.new(0)
   cmdout.each_line do |line|
     m = line.chomp.match(/(?<key>[\w_]+):\ (?<value>#{REG_NUM})$/)
     if m then
       h[m[:key].downcase.to_sym] = m[:value].to_f
+    else
+      # match statistics
+      puts "trying to match statistics...\n#{line.chomp}"
+      m = line.chomp.match(/(?<obj>[\w_]+)\ +(?<data>{.*})/m)
+      if m then
+        obj = m[:obj]
+        data = eval(m[:data])
+        # puts "#{ap obj}: #{ap data}"
+        # do incremental average if key is found in map already
+        h.merge!(data) {|key,v1,v2| inc_avg(v1, c[key]+=1, v2) }
+      end
     end
   end
   if h.keys.length == 0 then
