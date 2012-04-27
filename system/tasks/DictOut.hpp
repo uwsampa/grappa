@@ -77,6 +77,12 @@ class DictOut {
             ssv << value;
             outputs.push( new Entry( name, ssv.str() ));
         }
+        
+        void add( std::string name, int64_t value ) {
+            std::stringstream ssv;
+            ssv << value;
+            outputs.push( new Entry( name, ssv.str() ));
+        }
 
         const std::string toString( ) {
             std::stringstream ss;
