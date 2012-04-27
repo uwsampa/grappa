@@ -1,4 +1,6 @@
 
+#include <signal.h>
+
 #ifdef HEAPCHECK
 #include <gperftools/heap-checker.h>
 #endif
@@ -6,6 +8,7 @@
 #include "SoftXMT.hpp"
 #include "GlobalMemory.hpp"
 #include "tasks/Task.hpp"
+#include "ForkJoin.hpp"
 
 // command line arguments
 DEFINE_bool( steal, true, "Allow work-stealing between public task queues");
@@ -34,10 +37,18 @@ HeapLeakChecker * SoftXMT_heapchecker = 0;
 
 static void poller( Thread * me, void * args ) {
   while( !SoftXMT_done() ) {
+    my_global_scheduler->stats.sample();
     SoftXMT_poll();
     SoftXMT_yield_periodic();
   }
   VLOG(5) << "polling Thread exiting";
+}
+
+// handler for dumping stats on a signal
+static int stats_dump_signal = SIGUSR2;
+static void stats_dump_sighandler( int signum ) {
+  // TODO: make this set a flag and have scheduler check and dump.
+  SoftXMT_dump_stats();
 }
 
 /// Initialize SoftXMT components. We are not ready to run until the
@@ -85,6 +96,14 @@ void SoftXMT_init( int * argc_p, char ** argv_p[], size_t global_memory_size_byt
   my_task_manager = new TaskManager( FLAGS_steal, SoftXMT_mynode(), neighbors, SoftXMT_nodes(), FLAGS_chunk_size, FLAGS_cancel_interval ); //TODO: options for local stealing
   my_global_scheduler = new TaskingScheduler( master_thread, my_task_manager );
   my_global_scheduler->periodic( thread_spawn( master_thread, my_global_scheduler, &poller, NULL ) );
+
+
+  // set up stats dump signal handler
+  struct sigaction stats_dump_sa;
+  sigemptyset( &stats_dump_sa.sa_mask );
+  stats_dump_sa.sa_flags = 0;
+  stats_dump_sa.sa_handler = &stats_dump_sighandler;
+  CHECK_EQ( 0, sigaction( stats_dump_signal, &stats_dump_sa, 0 ) ) << "Stats dump signal handler installation failed.";
 }
 
 
@@ -140,6 +159,12 @@ void SoftXMT_poll()
 void SoftXMT_flush( Node n )
 {
   my_global_aggregator->flush( n );
+}
+
+/// Meant to be called when there's no other work to be done, calls poll, 
+/// flushes any aggregator buffers with anything in them, and deaggregates.
+void SoftXMT_idle_flush_poll() {
+  my_global_aggregator->idle_flush_poll();
 }
 
 
@@ -235,12 +260,41 @@ void SoftXMT_signal_done ( ) {
     SoftXMT_done_flag = true;
 }
 
+void SoftXMT_reset_stats() {
+  my_global_aggregator->reset_stats();
+  my_global_communicator->reset_stats();
+  my_global_scheduler->reset_stats();
+}
+
+LOOP_FUNCTION(reset_stats_func,nid) {
+  SoftXMT_reset_stats();
+}
+void SoftXMT_reset_stats_all_nodes() {
+  reset_stats_func f;
+  fork_join_custom(&f);
+}
+
+
 /// Dump statistics
 void SoftXMT_dump_stats() {
   my_global_aggregator->dump_stats();
   my_global_communicator->dump_stats();
   my_task_manager->dump_stats();
+  my_global_scheduler->dump_stats();
 }
+
+LOOP_FUNCTION(dump_stats_func,nid) {
+  SoftXMT_dump_stats();
+}
+void SoftXMT_dump_stats_all_nodes() {
+  dump_stats_func f;
+  fork_join_custom(&f);
+}
+
+void SoftXMT_dump_task_series() {
+	my_global_scheduler->stats.print_active_task_log();
+}
+
 
 /// Finish the job. 
 /// 
@@ -258,7 +312,9 @@ void SoftXMT_finish( int retval )
   my_task_manager->finish();
   my_global_aggregator->finish();
   my_global_communicator->finish( retval );
-  
+ 
+  SoftXMT_dump_stats();
+
   // probably never get here (depending on communication layer)
 
   delete my_global_scheduler;

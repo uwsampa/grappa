@@ -1,5 +1,8 @@
 #ifndef CORO_H
 #define CORO_H
+#ifdef __cplusplus
+extern "C" {
+#endif
 
 #include <stddef.h>
 #include "stack.h"
@@ -36,5 +39,7 @@ static inline void *coro_invoke(coro *me, coro *to, void *val) {
 
 void destroy_coro(coro *c);
 
-
+#ifdef __cplusplus
+}
+#endif
 #endif
