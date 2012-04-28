@@ -49,6 +49,10 @@ static int stats_dump_signal = SIGUSR2;
 static void stats_dump_sighandler( int signum ) {
   // TODO: make this set a flag and have scheduler check and dump.
   SoftXMT_dump_stats();
+
+  // instantaneous state
+  LOG(INFO) << *my_global_scheduler;
+  LOG(INFO) << *my_task_manager;
 }
 
 /// Initialize SoftXMT components. We are not ready to run until the
@@ -281,6 +285,7 @@ void SoftXMT_dump_stats() {
   my_global_communicator->dump_stats();
   my_task_manager->dump_stats();
   my_global_scheduler->dump_stats();
+
 }
 
 LOOP_FUNCTION(dump_stats_func,nid) {
