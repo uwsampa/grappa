@@ -5,9 +5,11 @@ void compute_levels(GlobalAddress<int64_t> level, int64_t nv, GlobalAddress<int6
 
 int64_t verify_bfs_tree(GlobalAddress<int64_t> bfs_tree, int64_t max_bfsvtx, int64_t root, tuple_graph * tg);
 
+#define MAX_ACQUIRE_SIZE 3000
+
 template< typename T >
 inline void read_array(GlobalAddress<T> base_addr, int64_t nelem, FILE* fin) {
-  int64_t bufsize = 128;
+  int64_t bufsize = MAX_ACQUIRE_SIZE / sizeof(T);
   T buf[bufsize];
   for (int64_t i=0; i<nelem; i+=bufsize) {
     if (i % 51200 == 0) VLOG(3) << "reading " << i;
@@ -22,7 +24,7 @@ inline void read_array(GlobalAddress<T> base_addr, int64_t nelem, FILE* fin) {
 
 template< typename T >
 inline void read_array(GlobalAddress<T> base_addr, int64_t nelem, T* array) {
-  int64_t bufsize = 128;
+  int64_t bufsize = MAX_ACQUIRE_SIZE / sizeof(T);
   T buf[bufsize];
   for (int64_t i=0; i<nelem; i+=bufsize) {
     if (i % 51200 == 0) VLOG(3) << "sending " << i;
@@ -36,7 +38,7 @@ inline void read_array(GlobalAddress<T> base_addr, int64_t nelem, T* array) {
 
 template< typename T >
 inline void write_array(GlobalAddress<T> base_addr, int64_t nelem, FILE* fout) {
-  int64_t bufsize = 128;
+  int64_t bufsize = MAX_ACQUIRE_SIZE / sizeof(T);
   T buf[bufsize];
   for (int64_t i=0; i<nelem; i+=bufsize) {
     int64_t n = min(nelem-i, bufsize);
