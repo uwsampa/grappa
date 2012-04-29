@@ -350,7 +350,8 @@ public:
                          const void * payload, const size_t payload_size ) {
     CHECK( destination < max_nodes_ ) << "destination:" << destination << " max_nodes_:" << max_nodes_;
     Node target = get_target_for_node( destination );
-  
+    CHECK( target < max_nodes_ ) << "target:" << target << " max_nodes_:" << max_nodes_;
+
     // make sure arg struct and payload aren't too big.
     // in the future, this would lead us down a separate code path for large messages.
     // for now, fail.
