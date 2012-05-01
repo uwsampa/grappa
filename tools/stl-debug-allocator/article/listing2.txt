@@ -1,0 +1,22 @@
+class Victim
+{
+public:
+    // public interface
+
+    // a setter method
+    void setSomeData(/* ... */);
+
+private:
+    // internal data
+    char charArray_[100];
+    std::vector<int> intData_;
+
+protected:
+    // a method for controlling
+    // access to internal data
+
+    enum MemoryAccessMode
+    { noAccess, readOnly, readWrite };
+
+    void setMemoryAccessMode(MemoryAccessMode);
+};
