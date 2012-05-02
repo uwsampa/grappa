@@ -26,17 +26,17 @@ private:
   bool released_;
   GlobalAddress< T > request_address_;
   size_t count_;
-  T * storage_;
+  T ** pointer_;
   Thread * thread_;
   int num_messages_;
   int response_count_;
 
 public:
 
-  IncoherentReleaser( GlobalAddress< T > request_address, size_t count, T * storage )
+  IncoherentReleaser( GlobalAddress< T > request_address, size_t count, T ** pointer )
     : request_address_( request_address )
     , count_( count )
-    , storage_( storage )
+    , pointer_( pointer )
     , release_started_( false )
     , released_( false )
     , thread_(NULL)
@@ -45,6 +45,10 @@ public:
   { 
     if( request_address_.is_2D() ) {
       num_messages_ = 1;
+      if( request_address_.node() == SoftXMT_mynode() ) {
+	release_started_ = true;
+	released_ = true;
+      }
     } else {
       DVLOG(5) << "Straddle: block_max is " << (request_address_ + count).block_max() ;
       DVLOG(5) << ", request_address is " << request_address_;
@@ -99,7 +103,7 @@ public:
 
         SoftXMT_call_on( args.request_address.node(), &incoherent_release_request_am<T>, 
 			 &args, sizeof( args ),
-			 ((char*)storage_) + offset, request_bytes);
+			 ((char*)(*pointer_)) + offset, request_bytes);
 
         args.request_address += request_bytes / sizeof(T);
       }
