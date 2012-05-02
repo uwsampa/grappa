@@ -336,7 +336,7 @@ inline void TaskingScheduler::thread_suspend( ) {
 /// For now, waking a queued Thread is also a fatal error. 
 /// For now, can only wake a Thread on your scheduler
 inline void TaskingScheduler::thread_wake( Thread * next ) {
-  CHECK( next->sched == this ) << "can only wake a Thread on your scheduler";
+  CHECK( next->sched == this ) << "can only wake a Thread on your scheduler (next="<<(void*) next << " next->sched="<<(void*)next->sched <<" this="<<(void*)this;
   CHECK( next->next == NULL ) << "woken Thread should not be on any queue";
   CHECK( !thread_is_running( next ) ) << "woken Thread should not be running";
   
