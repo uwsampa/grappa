@@ -124,7 +124,7 @@ void fork_join_onenode(const T* func, int64_t start, int64_t end) {
     args[i].fjdata = &fj;
     args[i].rank = i;
     
-    SoftXMT_privateTask(CACHE_WRAP(task_iters<T>, &args[i]));
+    SoftXMT_privateTask(task_iters<T>, &args[i]);
   }
   while (*fj.finished < fj.nthreads) SoftXMT_suspend();
   
