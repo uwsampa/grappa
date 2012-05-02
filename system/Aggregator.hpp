@@ -34,6 +34,8 @@ typedef void (* AggregatorAMHandler)( void *, size_t, void *, size_t );
 /// Active message handler called to deaggregate aggregated messages.
 extern void Aggregator_deaggregate_am( gasnet_token_t token, void * buf, size_t size );
 
+extern bool aggregator_access_control_active;
+
 class AggregatorStatistics {
 private:
   uint64_t messages_aggregated_;
