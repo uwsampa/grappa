@@ -114,6 +114,21 @@ namespace STLMemDebug
             { getMemMgr().setAccessMode(memReadWrite); }
         };
 
+        /* /\** */
+        /*  * A helper class that uses RAII */
+        /*  * (resource-acquisition-is-initialization) */
+        /*  * to make all memory blocks allocated with */
+        /*  * the BaseAllocator read-only. */
+        /*  *\/ */
+        /* struct MemScope */
+        /* { */
+        /*     MemScope( ) */
+        /*     { getMemMgr().setAccessMode(memRead); } */
+
+        /*     ~MemScope() */
+        /*     { getMemMgr().setAccessMode(memReadWrite); } */
+        /* }; */
+
         /**
          * Allocate nbytes of raw memory, can throw
          * std::bad_alloc

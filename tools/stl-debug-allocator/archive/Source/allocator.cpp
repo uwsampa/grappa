@@ -24,6 +24,9 @@ using namespace STLMemDebug;
  #include <malloc.h>
  #include <unistd.h>
  #include <sys/mman.h>
+
+//added by nelson
+#include <cstring>
  
 static const bool use_mmap =
  #if USE_MMAP
@@ -486,8 +489,8 @@ void MemMgrImpl::insert(const void* ptr, size_t size)
         memBlockList_.insert(i, mblock);
     }
 
-    clog << "allocated " << size 
-         << " bytes at " << hex << ptr << dec << endl;
+    // clog << "allocated " << size 
+    //      << " bytes at " << hex << ptr << dec << endl;
 }
 
 /**************************************************************
@@ -523,8 +526,8 @@ void MemMgrImpl::erase(const void* ptr, size_t size)
 
         memBlockList_.erase(i);
     }
-    clog << "deallocated " << size 
-         << " bytes at "   << hex << ptr << dec << endl;
+    // clog << "deallocated " << size 
+    //      << " bytes at "   << hex << ptr << dec << endl;
 }
 
 
