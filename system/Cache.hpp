@@ -22,7 +22,7 @@ public:
     , heap_( buffer != NULL ? false : true ) 
   { }
   ~CacheAllocator() {
-    if( heap_ ) {
+    if( heap_ && storage_ != NULL ) {
       delete [] storage_;
     }
   }
@@ -68,6 +68,7 @@ protected:
   GlobalAddress< T > address_;
   size_t count_;
   Allocator< T > storage_;
+  T * pointer_;
   Acquirer< T > acquirer_;
   Releaser< T > releaser_;
 
@@ -76,8 +77,9 @@ public:
     : address_( address )
     , count_( count )
     , storage_( buffer, count )
-    , acquirer_( address, count, storage_ )
-    , releaser_( address, count, storage_ )
+    , pointer_( storage_.pointer() )
+    , acquirer_( address, count, &pointer_ )
+    , releaser_( address, count, &pointer_ )
   { }
 
   void start_acquire( ) { 
@@ -95,12 +97,12 @@ public:
   operator const T*() { 
     block_until_acquired();
     DVLOG(5) << "Const dereference of " << address_ << " * " << count_;
-    return storage_.const_pointer(); 
+    return pointer_;
   } 
   operator const void*() { 
     block_until_acquired();
     DVLOG(5) << "Const void * dereference of " << address_ << " * " << count_;
-    return storage_.const_pointer();
+    return pointer_;
   } 
 };
 
@@ -113,6 +115,7 @@ protected:
   GlobalAddress< T > address_;
   size_t count_;
   Allocator< T > storage_;
+  T * pointer_;
   Acquirer< T > acquirer_;
   Releaser< T > releaser_;
 
@@ -121,8 +124,9 @@ public:
     : address_( address )
     , count_( count )
     , storage_( buffer, count )
-    , acquirer_( address, count, storage_ )
-    , releaser_( address, count, storage_ )
+    , pointer_( storage_.pointer() )
+    , acquirer_( address, count, &pointer_ )
+    , releaser_( address, count, &pointer_ )
   { }
 
   ~CacheRW() {
@@ -144,12 +148,12 @@ public:
   operator T*() { 
     block_until_acquired();
     DVLOG(5) << "RW dereference of " << address_ << " * " << count_;
-    return storage_.pointer(); 
+    return pointer_;
   } 
   operator void*() { 
     block_until_acquired();
     DVLOG(5) << "RW dereference of " << address_ << " * " << count_;
-    return storage_.pointer();
+    return pointer_;
   } 
 };
 
