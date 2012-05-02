@@ -76,6 +76,9 @@ GlobalMemory_tests.test: libSoftXMT.a
 GlobalAllocator_tests.test: libSoftXMT.a
 Allocator_tests.test: Allocator.o
 
+QueueDebug_tests.exe: ../tools/stl-debug-allocator/archive/Source/allocator.o
+../tools/stl-debug-allocator/archive/Source/allocator.o: CFLAGS+= -DUNIX
+
 Collective_tests.test: libSoftXMT.a
 
 #thread_tests.test: thread.o stack.o coro.o
@@ -99,6 +102,9 @@ RemotePrivateTasks_tests.test: libSoftXMT.a
 # Build SoftXMT static library
 #
 LIBRARY_CONTENTS= SoftXMT.o GlobalAllocator.o GlobalMemory.o Communicator.o Aggregator.o Timestamp.o Allocator.o Cache.o Delegate.o Collective.o ForkJoin.o tasks/cbarrier.o tasks/TaskingScheduler.o tasks/Task.o tasks/Thread.o stack.o coro.o
+ifdef STL_DEBUG_ALLOCATOR
+LIBRARY_CONTENTS+= ../tools/stl-debug-allocator/archive/Source/allocator.o
+endif
 libSoftXMT.a: $(patsubst %,libSoftXMT.a(%),$(LIBRARY_CONTENTS))
 
 
@@ -127,6 +133,11 @@ ENV_VARIABLES+= HEAPCHECK=local
 ENV_VARIABLES+= HEAP_CHECK_DUMP_DIRECTORY=.
 CFLAGS+= -DHEAPCHECK
 LIBRARIES+= -ltcmalloc
+endif
+
+ifdef STL_DEBUG_ALLOCATOR
+CFLAGS+= -DSTL_DEBUG_ALLOCATOR
+Aggregator_tests.test: ../tools/stl-debug-allocator/archive/Source/allocator.o
 endif
 
 #

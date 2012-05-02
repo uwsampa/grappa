@@ -22,6 +22,9 @@ Aggregator::Aggregator( Communicator * communicator )
   , aggregator_deaggregate_am_handle_( communicator_->register_active_message_handler( &Aggregator_deaggregate_am ) )
   , stats()
 { 
+#ifdef STL_DEBUG_ALLOCATOR
+    STLMemDebug::BaseAllocator::getMemMgr().setAccessMode(STLMemDebug::memReadOnly);
+#endif
   // initialize route map
   for( Node i = 0; i < max_nodes_; ++i ) {
     route_map_[i] = i;
@@ -30,12 +33,26 @@ Aggregator::Aggregator( Communicator * communicator )
   global_aggregator = this;
 }
 
+Aggregator::~Aggregator() {
+#ifdef STL_DEBUG_ALLOCATOR
+    STLMemDebug::BaseAllocator::getMemMgr().setAccessMode(STLMemDebug::memReadWrite);
+#endif
+}
+
 void Aggregator::deaggregate( ) {
   while( !received_AM_queue_.empty() ) {
     DVLOG(5) << "deaggregating";
     // TODO: too much copying
     ReceivedAM amp = received_AM_queue_.front();
+
+#ifdef STL_DEBUG_ALLOCATOR
+    STLMemDebug::BaseAllocator::getMemMgr().setAccessMode(STLMemDebug::memReadWrite);
+#endif
     received_AM_queue_.pop();
+#ifdef STL_DEBUG_ALLOCATOR
+    STLMemDebug::BaseAllocator::getMemMgr().setAccessMode(STLMemDebug::memReadOnly);
+#endif
+
     DVLOG(5) << "deaggregating message of size " << amp.size_;
     uintptr_t msg_base = reinterpret_cast< uintptr_t >( amp.buf_ );
     for( int i = 0; i < amp.size_; ) {
@@ -65,11 +82,20 @@ void Aggregator::deaggregate( ) {
 }
   
 void Aggregator::finish() {
+#ifdef STL_DEBUG_ALLOCATOR
+    STLMemDebug::BaseAllocator::getMemMgr().setAccessMode(STLMemDebug::memReadWrite);
+#endif
 }
 
 void Aggregator_deaggregate_am( gasnet_token_t token, void * buf, size_t size ) {
   DVLOG(5) << "received message with size " << size;
   // TODO: too much copying
   Aggregator::ReceivedAM am( size, buf );
+#ifdef STL_DEBUG_ALLOCATOR
+    STLMemDebug::BaseAllocator::getMemMgr().setAccessMode(STLMemDebug::memReadWrite);
+#endif
   global_aggregator->received_AM_queue_.push( am );
+#ifdef STL_DEBUG_ALLOCATOR
+    STLMemDebug::BaseAllocator::getMemMgr().setAccessMode(STLMemDebug::memReadOnly);
+#endif
 }
