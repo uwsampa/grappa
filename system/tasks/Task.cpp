@@ -8,7 +8,7 @@
 
 TaskManager::TaskManager (bool doSteal, Node localId, Node * neighbors, Node numLocalNodes, int chunkSize, int cbint) 
     : workDone( false )
-    , doSteal( doSteal ), okToSteal( true )
+    , doSteal( doSteal ), stealLock( true )
     , sharedMayHaveWork ( true )
     , globalMayHaveWork ( true )
     , localId( localId ), neighbors( neighbors ), numLocalNodes( numLocalNodes )
@@ -83,10 +83,10 @@ bool TaskManager::tryConsumeShared( Task * result ) {
 /// Only returns when there is work or when
 /// the system has no more work.
 bool TaskManager::waitConsumeAny( Task * result ) {
-    if ( doSteal ) {
-        if ( okToSteal ) {
+    if ( doSteal && globalMayHaveWork ) {
+        if ( stealLock ) {
             // only one Thread is allowed to steal
-            okToSteal = false;
+            stealLock = false;
 
             VLOG(5) << CURRENT_THREAD << " trying to steal";
             bool goodSteal = false;
@@ -126,7 +126,7 @@ bool TaskManager::waitConsumeAny( Task * result ) {
                     << " sharedMayHaveWork=" << sharedMayHaveWork
                     << " publicHasEle()=" << publicHasEle()
                     << " privateHasEle()=" << privateHasEle();
-            okToSteal = true; // release steal lock
+            stealLock = true; // release steal lock
 
             /**TODO remote load balance**/
         }
@@ -134,20 +134,40 @@ bool TaskManager::waitConsumeAny( Task * result ) {
 
     if ( !available() ) {
         if ( !SoftXMT_thread_idle() ) {
+            // no work so suggest global termination barrier
+            
             VLOG(5) << CURRENT_THREAD << " saw all were idle so suggest barrier";
 
-            // no work so suggest global termination barrier
             CHECK( !workDone ) << "perhaps there is a stray unidled thread problem?";
-            int finished_barrier = cbarrier_wait();
-            if (finished_barrier) {
-                VLOG(5) << CURRENT_THREAD << " left barrier from finish";
-                workDone = true;
-                SoftXMT_signal_done( ); // terminate auto communications
-                //TODO: if we do this on just node0 can we ensure there is not a race between
-                //      cbarrier_exit_am and the softxmt_mark_done_am?
-            } else {
-                VLOG(5) << CURRENT_THREAD << " left barrier from cancel";
-                globalMayHaveWork = true;   // work is available so allow unassigned threads to be scheduled
+
+            cb_cause finished_barrier = cbarrier_wait();
+            switch( finished_barrier ) {
+                case CB_Cause_Done:
+                    VLOG(5) << CURRENT_THREAD << " left barrier from finish";
+                    workDone = true;
+                    SoftXMT_signal_done( ); // terminate auto communications
+                    break;
+                case CB_Cause_Cancel:
+                    VLOG(5) << CURRENT_THREAD << " left barrier from cancel";
+                    globalMayHaveWork = true;   // work is available so allow unassigned threads to be scheduled
+                    // we rely on the invariant that if globalMayHaveWork=true then the cbarrier
+                    // is NOT counting mynode. This way a barrier finish cannot occur without mynode,
+                    // and so mynode can safely steal and receive steal replies without 
+                    // communication layer terminating.
+                    break;
+                case CB_Cause_Local:
+                    VLOG(5) << CURRENT_THREAD << " left barrier from local cancel";
+
+                    // we rely on the invariant that mynode will not try to steal again
+                    // until it enters the cbarrier and receives a CB_Cause_Cancel.
+                    // Thus, the only communication mynode will then depend on until the next
+                    // time it enters the cbarrier is communication initiated by user code, 
+                    // which is guarenteed to be okay by the NoUnsyncedTasks requirement.
+
+                    break;
+
+                default:
+                    CHECK ( false ) << "invalid cbarrier exit cause " << finished_barrier;
             }
         } else {
             DVLOG(5) << CURRENT_THREAD << " un-idled";
