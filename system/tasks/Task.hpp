@@ -111,7 +111,7 @@ class TaskManager {
         bool workDone;
        
         bool doSteal;   // stealing on/off
-        bool okToSteal; // steal lock
+        bool stealLock; // steal lock
         int cbint;      // how often to make local public work visible
 
         // to support hierarchical dynamic load balancing
@@ -150,6 +150,10 @@ class TaskManager {
                 << "  publicQ.shared: " << publicQ.sharedDepth( ) << std::endl
                 << "  privateQ: " << privateQ.size() << std::endl
                 << "  work-may-be-available? " << available() << std::endl
+                << "  sharedMayHaveWork: " << sharedMayHaveWork << std::endl
+                << "  globalMayHaveWork: " << globalMayHaveWork << std::endl
+                << "  workDone: " << workDone << std::endl
+                << "  stealLock: " << stealLock << std::endl
                 << "}";
         }
 
@@ -214,7 +218,7 @@ inline bool TaskManager::available( ) const {
             << " privateHasEle()=" << privateHasEle();
     return privateHasEle() 
            || publicHasEle()
-           || (doSteal && (sharedMayHaveWork || (okToSteal && globalMayHaveWork)));
+           || (doSteal && (sharedMayHaveWork || (stealLock && globalMayHaveWork)));
 }
 
 

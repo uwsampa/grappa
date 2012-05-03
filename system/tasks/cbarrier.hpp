@@ -5,8 +5,15 @@
 #include <boost/cstdint.hpp>
 typedef int16_t Node;
 
+enum cb_cause {
+    CB_Cause_Null,
+    CB_Cause_Local,
+    CB_Cause_Cancel,
+    CB_Cause_Done
+};
+
 void cbarrier_cancel( );
-bool cbarrier_wait( );
+cb_cause cbarrier_wait( );
 void cbarrier_init( Node num_nodes );
 void cbarrier_cancel_local( );
 
