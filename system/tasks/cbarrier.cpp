@@ -11,6 +11,7 @@ std::list<Node>* waiters;
 bool * notified;
 bool cb_reply;
 bool cb_done;
+cb_cause cb_myCause;
 Thread * wakeme;
 
 struct enter_cbarrier_request_args {
@@ -71,6 +72,9 @@ void exit_cbarrier_request_am( exit_cbarrier_request_args * args, size_t size, v
     if ( wakeme ) {  // might have been woken by local cancel, or by an enter-finish
         cb_reply = true;
         SoftXMT_wake( wakeme );
+        if ( !args->finished ) {
+            cb_myCause = CB_Cause_Cancel;
+        }
         wakeme = NULL;
     }
 }
@@ -98,7 +102,7 @@ void cbarrier_cancel() {
 }
 
 
-bool cbarrier_wait() {
+cb_cause cbarrier_wait() {
     CHECK( wakeme == NULL ) << "more than one thread entered cbarrier on this Node";
     
     
@@ -116,14 +120,21 @@ bool cbarrier_wait() {
         SoftXMT_call_on( HOME_NODE, &enter_cbarrier_request_am, &enargs );
 
         wakeme = CURRENT_THREAD;
+        cb_myCause = CB_Cause_Null;
 
         SoftXMT_suspend( );
         //CHECK( cb_reply ) << "waiter woke without cb_reply=1";
 
         cb_reply = false;
+
+        if ( cb_done ) {
+            return CB_Cause_Done;
+        } else {
+            return cb_myCause;
+        }
+    } else {
+        return CB_Cause_Done;
     }
-    
-    return cb_done;
 }
 
 void cbarrier_init( Node num_nodes ) {
@@ -140,6 +151,7 @@ void cbarrier_init( Node num_nodes ) {
 
     cb_done = false;
     cb_reply = false;
+    cb_myCause = CB_Cause_Null;
     wakeme = NULL;
 }
 
@@ -150,6 +162,7 @@ void cbarrier_init( Node num_nodes ) {
 void cbarrier_cancel_local( ) {
    if ( wakeme ) {
         SoftXMT_wake( wakeme );
+        cb_myCause = CB_Cause_Local;
         wakeme = NULL;
     }
 }
