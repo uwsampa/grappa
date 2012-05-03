@@ -19,18 +19,32 @@ void user_main( int * args )
     BOOST_CHECK_EQUAL( *buf, foo );
   }
 
-  {
+  { // local. watch out for short-circuit
     {
       Incoherent<int64_t>::RW buf( GlobalAddress< int64_t >::TwoDimensional( &foo ), 1 );
       BOOST_CHECK_EQUAL( *buf, foo );
       foo = 1235;
-      BOOST_CHECK( *buf != foo );
-      BOOST_CHECK_EQUAL( foo, 1235 );
-      *buf = 1235;
       BOOST_CHECK_EQUAL( *buf, foo );
       *buf = 1236;
     }
     BOOST_CHECK_EQUAL( foo, 1236 );
+  }
+
+  { // remote. no short-circuit.
+    {
+      Incoherent<int64_t>::RW buf( GlobalAddress< int64_t >::TwoDimensional( &foo, 1 ), 1 );
+      int64_t foo1 = SoftXMT_delegate_read_word( GlobalAddress< int64_t >::TwoDimensional( &foo, 1 ) );
+      BOOST_CHECK_EQUAL( *buf, foo1 );
+      SoftXMT_delegate_write_word( GlobalAddress< int64_t >::TwoDimensional( &foo, 1 ), 1235 );
+      foo1 = SoftXMT_delegate_read_word( GlobalAddress< int64_t >::TwoDimensional( &foo, 1 ) );
+      BOOST_CHECK( *buf != foo1 );
+      BOOST_CHECK_EQUAL( foo1, 1235 );
+      *buf = 1235;
+      BOOST_CHECK_EQUAL( *buf, foo1 );
+      *buf = 1236;
+    }
+    int64_t foo1 = SoftXMT_delegate_read_word( GlobalAddress< int64_t >::TwoDimensional( &foo, 1 ) );
+    BOOST_CHECK_EQUAL( foo1, 1236 );
   }
 
   {
