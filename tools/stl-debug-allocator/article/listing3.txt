@@ -1,0 +1,28 @@
+void Victim::setMemoryAccessMode(MemoryAccessMode mode)
+{
+    int flags(MEM_ACCESS_DENIED);
+
+    // convert clean C++ enum to old C-style integer bitmask:
+    switch(mode)
+    {
+    case readOnly:
+        flags = MEM_ACCESS_READ;
+        break;
+
+    case readWrite:
+        flags = MEM_ACCESS_READ | MEM_ACCESS_WRITE;
+        break;
+
+    default:
+        throw ("incorrect access mode specification");
+    }
+    protect_memory(charArray_, sizeof(charArray_), flags);
+    protect_memory(&intData_[0],
+        intData_.capacity() * sizeof(int), flags);
+
+    protect_memory(this, sizeof(*this), flags);
+    // In order for the line above to work, we may need to
+    // take extra actions, such as defining operator new.
+    // A concrete incarnation of protect_memory [8] may require
+    // the memory to be page-aligned.
+}

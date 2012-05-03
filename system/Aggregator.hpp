@@ -3,6 +3,10 @@
 #define __AGGREGATOR_HPP__
 
 
+#ifdef STL_DEBUG_ALLOCATOR
+#include "../tools/stl-debug-allocator/archive/Source/includes.h"
+#include "../tools/stl-debug-allocator/archive/Source/allocator.h"
+#endif
 
 #include <vector>
 #include <algorithm>
@@ -29,6 +33,8 @@ typedef void (* AggregatorAMHandler)( void *, size_t, void *, size_t );
 
 /// Active message handler called to deaggregate aggregated messages.
 extern void Aggregator_deaggregate_am( gasnet_token_t token, void * buf, size_t size );
+
+extern bool aggregator_access_control_active;
 
 class AggregatorStatistics {
 private:
@@ -253,7 +259,13 @@ private:
       memcpy( buf_, buf, size );
     }
   };
+
+#ifdef STL_DEBUG_ALLOCATOR
+  std::queue< ReceivedAM, std::deque< ReceivedAM, STLMemDebug::Allocator< ReceivedAM > > > received_AM_queue_;
+#else
   std::queue< ReceivedAM > received_AM_queue_;
+#endif
+
   void deaggregate( );
   friend void Aggregator_deaggregate_am( gasnet_token_t token, void * buf, size_t size );
 
@@ -265,6 +277,8 @@ public:
   /// Construct Aggregator. Takes a Communicator pointer in order to
   /// register active message handlers
   explicit Aggregator( Communicator * communicator );
+
+  ~Aggregator();
 
   void finish();
 

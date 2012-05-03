@@ -1,0 +1,35 @@
+// Memory access modes
+enum AccessMode
+
+    memNoAccess,
+    memReadOnly,
+    memReadWrite
+};
+
+/**
+* Abstract interface for a memory
+* manager class that keeps track of
+* the allocated memory blocks.
+* Memory blocks are described by
+* their start address and length.
+*/
+class MemMgr
+{
+public:
+    virtual ~MemMgr() {}
+
+    // Sets access mode for
+    // all managed memory blocks
+    virtual void setAccessMode(AccessMode) = 0;
+
+    // Inserts block info into the
+    // internal list of mem blocks
+    virtual void insert(const void*, size_t) = 0;
+
+    // Remove memory block info
+    virtual void erase(const void*, size_t) = 0;
+
+     // More methods not shown here
+    // ...
+    //
+};

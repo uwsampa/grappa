@@ -1,0 +1,26 @@
+class Victim
+{
+public:
+    // public interface
+
+    // a setter method
+    void setSomeData(/* ... */);
+    // ...
+
+private:
+    // internal data
+    // ...
+
+protected:
+    // a method for controlling
+    // access to internal data
+
+    enum MemoryAccessMode
+    { noAccess, readOnly, readWrite };
+
+    // Sets memory access mode for the data members;
+    // needs to be overrideable, if derived classes
+    // add more data members.
+    virtual void setMemoryAccessMode(MemoryAccessMode);
+};
+

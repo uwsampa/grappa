@@ -1,0 +1,39 @@
+namespace STLMemDebug
+{
+
+void* allocate(size_t size)
+{
+    void *pv = 0;
+
+#if defined(WIN32)
+
+    pv = ::VirtualAlloc(0, size, MEM_COMMIT, PAGE_READWRITE);
+
+#elif defined(UNIX)
+
+    // allocate memory aligned to a page boundary
+    pv = ::pvalloc(size);
+#endif // UNIX
+
+    if (pv == 0)
+    {
+        throw std::bad_alloc(); // pvalloc failed
+    }
+
+    return pv;
+}
+
+
+void deallocate(void* ptr, size_t size) throw()
+{
+#if defined(WIN32)
+
+    ::VirtualFree(ptr, size, MEM_DECOMMIT);
+
+#elif defined(UNIX)
+
+    ::free(ptr);
+
+#endif // UNIX
+}
+} // namespace STLMemDebug

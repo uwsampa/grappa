@@ -2,6 +2,7 @@
 #include <gflags/gflags.h>
 
 #include "Aggregator.hpp"
+#include <csignal>
 
 /// command line options for Aggregator
 DEFINE_int64( aggregator_autoflush_ticks, 1000, "number of ticks to wait before autoflushing aggregated active messages");
@@ -9,6 +10,14 @@ DEFINE_int64( aggregator_autoflush_ticks, 1000, "number of ticks to wait before 
 /// global Aggregator pointer
 Aggregator * global_aggregator = NULL;
 
+#ifdef STL_DEBUG_ALLOCATOR
+DEFINE_int64( aggregator_access_control_signal, SIGUSR2, "signal used to toggle aggregator queue access control");
+bool aggregator_access_control_active = false;
+static void aggregator_toggle_access_control_sighandler( int signum ) {
+  aggregator_access_control_active = ~aggregator_access_control_active;
+}
+
+#endif
 
 // Construct Aggregator. Takes a Communicator pointer to register active message handlers
 Aggregator::Aggregator( Communicator * communicator ) 
@@ -22,6 +31,15 @@ Aggregator::Aggregator( Communicator * communicator )
   , aggregator_deaggregate_am_handle_( communicator_->register_active_message_handler( &Aggregator_deaggregate_am ) )
   , stats()
 { 
+#ifdef STL_DEBUG_ALLOCATOR
+  struct sigaction access_control_toggle_sa;
+  sigemptyset( &access_control_toggle_sa.sa_mask );
+  access_control_toggle_sa.sa_flags = 0;
+  access_control_toggle_sa.sa_handler = &aggregator_toggle_access_control_sighandler;
+  CHECK_EQ( 0, sigaction( FLAGS_aggregator_access_control_signal, &access_control_toggle_sa, 0 ) ) 
+    << "Aggregator access control signal handler installation failed.";
+  if( aggregator_access_control_active ) STLMemDebug::BaseAllocator::getMemMgr().setAccessMode(STLMemDebug::memReadOnly);
+#endif
   // initialize route map
   for( Node i = 0; i < max_nodes_; ++i ) {
     route_map_[i] = i;
@@ -30,12 +48,26 @@ Aggregator::Aggregator( Communicator * communicator )
   global_aggregator = this;
 }
 
+Aggregator::~Aggregator() {
+#ifdef STL_DEBUG_ALLOCATOR
+  STLMemDebug::BaseAllocator::getMemMgr().setAccessMode(STLMemDebug::memReadWrite);
+#endif
+}
+
 void Aggregator::deaggregate( ) {
   while( !received_AM_queue_.empty() ) {
     DVLOG(5) << "deaggregating";
     // TODO: too much copying
     ReceivedAM amp = received_AM_queue_.front();
+
+#ifdef STL_DEBUG_ALLOCATOR
+    if( aggregator_access_control_active ) STLMemDebug::BaseAllocator::getMemMgr().setAccessMode(STLMemDebug::memReadWrite);
+#endif
     received_AM_queue_.pop();
+#ifdef STL_DEBUG_ALLOCATOR
+    if( aggregator_access_control_active ) STLMemDebug::BaseAllocator::getMemMgr().setAccessMode(STLMemDebug::memReadOnly);
+#endif
+
     DVLOG(5) << "deaggregating message of size " << amp.size_;
     uintptr_t msg_base = reinterpret_cast< uintptr_t >( amp.buf_ );
     for( int i = 0; i < amp.size_; ) {
@@ -65,11 +97,21 @@ void Aggregator::deaggregate( ) {
 }
   
 void Aggregator::finish() {
+#ifdef STL_DEBUG_ALLOCATOR
+  LOG(INFO) << "Cleaning up access control....";
+  STLMemDebug::BaseAllocator::getMemMgr().setAccessMode(STLMemDebug::memReadWrite);
+#endif
 }
 
 void Aggregator_deaggregate_am( gasnet_token_t token, void * buf, size_t size ) {
   DVLOG(5) << "received message with size " << size;
   // TODO: too much copying
   Aggregator::ReceivedAM am( size, buf );
+#ifdef STL_DEBUG_ALLOCATOR
+  if( aggregator_access_control_active ) STLMemDebug::BaseAllocator::getMemMgr().setAccessMode(STLMemDebug::memReadWrite);
+#endif
   global_aggregator->received_AM_queue_.push( am );
+#ifdef STL_DEBUG_ALLOCATOR
+  if( aggregator_access_control_active ) STLMemDebug::BaseAllocator::getMemMgr().setAccessMode(STLMemDebug::memReadOnly);
+#endif
 }

@@ -1,0 +1,38 @@
+template<class T>
+class Allocator : public BaseAllocator
+{
+public:
+    typedef size_t     size_type;
+    typedef T*         pointer;
+    typedef const T*   const_pointer;
+
+     // more type definitions and methods
+     // required by proper working with
+     // STL containers not shown here
+
+    pointer allocate(size_type n, const_pointer = 0)
+    {
+        const size_type size =
+            calcMemSize(n, sizeof(T));
+
+        void* ptr = STLMemDebug::allocate(size);
+        // register the newly allocated block
+        // with the memory manager object
+        getMemMgr().insert(ptr, size);
+        return reinterpret_cast<pointer>(ptr);
+    }
+
+    // Deallocate n elements at address p
+    void deallocate(pointer p, size_type n)
+    {
+        const size_type size =
+            calcMemSize(n, sizeof(T));
+
+        // remove memory block starting at
+        // 'p' and of size 'size' from
+        // the memory manager's internal
+        // list of allocated block
+        getMemMgr().erase(p, size);
+        STLMemDebug::deallocate(p, size);
+    }
+};
