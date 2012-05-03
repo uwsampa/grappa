@@ -87,6 +87,7 @@ Cache_tests.test: libSoftXMT.a
 Rate_measure.exe: libSoftXMT.a
 
 ForkJoin_tests.test: libSoftXMT.a
+ForkJoinStress_tests.test: libSoftXMT.a
 
 Tasking_tests.test: libSoftXMT.a
 Stealing_tests.test: libSoftXMT.a
