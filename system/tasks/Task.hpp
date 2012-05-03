@@ -150,6 +150,10 @@ class TaskManager {
                 << "  publicQ.shared: " << publicQ.sharedDepth( ) << std::endl
                 << "  privateQ: " << privateQ.size() << std::endl
                 << "  work-may-be-available? " << available() << std::endl
+                << "  sharedMayHaveWork: " << sharedMayHaveWork << std::endl
+                << "  globalMayHaveWork: " << globalMayHaveWork << std::endl
+                << "  workDone: " << workDone << std::endl
+                << "  okToSteal: " << okToSteal << std::endl
                 << "}";
         }
 
