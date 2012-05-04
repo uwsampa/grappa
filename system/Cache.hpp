@@ -174,10 +174,10 @@ template< typename T, void (*F)(T*) >
 void call_with_caching(GlobalAddress<T> ptr) {
   VLOG(5) << "caching args";
   T args;
-  typename Incoherent<T>::RW c(ptr, 1, &args);
-  c.block_until_acquired();
-  F(&args);
-  c.block_until_released();
+  typename Incoherent<T>::RW cache(ptr, 1, &args);
+  cache.block_until_acquired();
+  F(&cache[0]);
+  cache.block_until_released();
 }
 
 /// Cache GlobalAddress argument and pass cached copy as a ref to the wrapped function
@@ -187,22 +187,32 @@ void call_with_caching(GlobalAddress<T> ptr) {
   T args;
   typename Incoherent<T>::RW cache(ptr, 1, &args);
   cache.block_until_acquired();
-  F(args);
+  F(*cache);
   cache.block_until_released();
 }
 
-/// Cache GlobalAddress argument and pass by value to wrapped function
-/// Also, doesn't hold onto ownership of cached value.
-/// (not sure how useful this is, but figured we'd round out the set)
-template< typename T, void (*F)(T) >
+/// Cache GlobalAddress argument and pass pointer to const cached copy to the wrapped function
+template< typename T, void (*F)(const T*) >
 void call_with_caching(GlobalAddress<T> ptr) {
-  VLOG(5) << "caching args";
-  T args;
-  typename Incoherent<T>::RW cache(ptr, 1, &args);
-  cache.block_until_acquired();
-  cache.block_until_released();
-  F(args);
+    VLOG(5) << "caching args";
+    T args;
+    typename Incoherent<T>::RO cache(ptr, 1, &args);
+    cache.block_until_acquired();
+    F(&cache[0]);
+    cache.block_until_released();
 }
+
+/// Cache GlobalAddress argument and pass const cached copy as a ref to the wrapped function
+template< typename T, void (*F)(const T&) >
+void call_with_caching(GlobalAddress<T> ptr) {
+    VLOG(5) << "caching args";
+    T args;
+    typename Incoherent<T>::RO cache(ptr, 1, &args);
+    cache.block_until_acquired();
+    F(*cache);
+    cache.block_until_released();
+}
+
 
 /// Wrap arguments to spawn task (at call site) for tasks that used to assume caching
 #define CACHE_WRAP(fn, arg) \
