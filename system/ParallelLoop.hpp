@@ -19,7 +19,7 @@ struct parloop_args {
 
 // cannot be static because require external linkage
 template < typename UserArg >
-void parallel_loop_task_wrap( parloop_args< UserArg > * args ) {
+void parallel_loop_task_wrap( const parloop_args< UserArg > * args ) {
     parallel_loop( args->start_index,
                    args->iterations,
                    args->loop_body,
@@ -43,7 +43,7 @@ void parallel_loop(int64_t start_index, int64_t iterations, void (*loop_body)(in
            }
        } else {
            // spawn right half
-           parloop_args< UserArg > right_args = { start_index + (iterations+1)/2,
+           const parloop_args< UserArg > right_args = { start_index + (iterations+1)/2,
                             iterations/2,
                             loop_body,
                             args }; // copy the loop body args
