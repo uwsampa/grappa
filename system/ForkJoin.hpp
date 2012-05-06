@@ -52,7 +52,7 @@ public:
     VLOG(3) << "am_release n=" << n;
     gaddr->pointer()->release((int)n);
   }
-  static void release(GlobalAddress<Semaphore>* gaddr, int n) {
+  static void release(const GlobalAddress<Semaphore>* gaddr, int n) {
     VLOG(3) << "about to call on " << gaddr->node();
     SoftXMT_call_on(gaddr->node(), &Semaphore::am_release, gaddr, sizeof(GlobalAddress<Semaphore>), &n, sizeof(int64_t));
   }
@@ -73,49 +73,50 @@ struct NodeForkJoinArgs {
 
 template<typename T>
 struct forkjoin_data_t {
-  T* func;
+  const T* func;
   size_t nthreads;
-  size_t finished;
+  size_t* finished;
   Thread * node_th;
   size_t local_start;
   size_t local_end;
   
-  forkjoin_data_t(Thread * me, T* f, int64_t start, int64_t end) {
+  forkjoin_data_t(Thread * me, const T* f, int64_t start, int64_t end, size_t * finished) {
     size_t each_n = (end-start);
     local_start = start;
     local_end = end;
     func = f;
     nthreads = min(FLAGS_max_forkjoin_threads_per_node, each_n);
-    finished = 0;
+    this->finished = finished;
     node_th = me;
   }
 };
 
 struct iters_args {
   size_t rank;
-  void* fjdata;
+  const void* fjdata;
 };
 
 template<typename T>
 void task_iters(iters_args * arg) {
-  forkjoin_data_t<T> * fj = static_cast<forkjoin_data_t<T>*>(arg->fjdata);
+  const forkjoin_data_t<T> * fj = static_cast<const forkjoin_data_t<T>*>(arg->fjdata);
   range_t myblock = blockDist(fj->local_start, fj->local_end, arg->rank, fj->nthreads);
   VLOG(3) << "iters_block: " << myblock.start << " - " << myblock.end;
   
   for (int64_t i=myblock.start; i < myblock.end; i++) {
     (*fj->func)(i);
   }
-  fj->finished++;
-  if (fj->finished == fj->nthreads) {
+  (*fj->finished)++;
+  if (*fj->finished == fj->nthreads) {
     SoftXMT_wake(fj->node_th);
   }
-  
 }
 
 
 template<typename T>
-void fork_join_onenode(T* func, int64_t start, int64_t end) {
-  forkjoin_data_t<T> fj(CURRENT_THREAD, func, start, end);
+void fork_join_onenode(const T* func, int64_t start, int64_t end) {
+  size_t finished = 0;
+  
+  forkjoin_data_t<T> fj(CURRENT_THREAD, func, start, end, &finished);
   iters_args args[fj.nthreads];
   VLOG(2) << "fj.nthreads = " << fj.nthreads;
   
@@ -125,12 +126,12 @@ void fork_join_onenode(T* func, int64_t start, int64_t end) {
     
     SoftXMT_privateTask(CACHE_WRAP(task_iters<T>, &args[i]));
   }
-  while (fj.finished < fj.nthreads) SoftXMT_suspend();
+  while (*fj.finished < fj.nthreads) SoftXMT_suspend();
   
 }
 
 template<typename T>
-void th_node_fork_join(NodeForkJoinArgs<T>* a) {
+void th_node_fork_join(const NodeForkJoinArgs<T>* a) {
   range_t myblock = blockDist(a->start, a->end, SoftXMT_mynode(), SoftXMT_nodes());
   VLOG(2) << "myblock: " << myblock.start << " - " << myblock.end;
   fork_join_onenode(&a->func, myblock.start, myblock.end);
@@ -161,7 +162,7 @@ void fork_join(T* func, int64_t start, int64_t end) {
 }
 
 template<typename T>
-void th_node_fork_join_custom(NodeForkJoinArgs<T>* a) {
+void th_node_fork_join_custom(const NodeForkJoinArgs<T>* a) {
   a->func(SoftXMT_mynode());
   
   VLOG(2) << "about to update sem on " << a->sem.node();
@@ -205,15 +206,26 @@ struct name : ForkJoinIteration { \
 AUTO_DECLS(members) \
 AUTO_CONSTRUCTOR( name, members ) \
 name() {} /* default constructor */\
-inline void operator()(int64_t); \
+inline void operator()(int64_t) const; \
 }; \
-inline void name::operator()(int64_t index_var)
+inline void name::operator()(int64_t index_var) const
+
+#define LOOP_FUNCTOR_TEMPLATED(T, name, index_var, members) \
+template< typename T > \
+struct name : ForkJoinIteration { \
+AUTO_DECLS(members) \
+AUTO_CONSTRUCTOR( name, members ) \
+name() {} /* default constructor */\
+inline void operator()(int64_t) const; \
+}; \
+template< typename T > \
+inline void name::operator()(int64_t index_var) const
 
 #define LOOP_FUNCTION(name, index_var) \
 struct name : ForkJoinIteration { \
-inline void operator()(int64_t); \
+inline void operator()(int64_t) const; \
 }; \
-inline void name::operator()(int64_t index_var)
+inline void name::operator()(int64_t index_var) const
 
 LOOP_FUNCTOR(func_set_const, index, ((GlobalAddress<int64_t>,base_addr)) ((int64_t,value)) ) {
   SoftXMT_delegate_write_word(base_addr+index, value);

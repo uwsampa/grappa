@@ -170,14 +170,12 @@ struct Incoherent {
 ///
 
 /// Cache GlobalAddress argument and pass pointer to the cached copy to the wrapped function
-template< typename T, void (*F)(T*) >
+template< typename T, void (*F)(const T*) >
 void call_with_caching(GlobalAddress<T> ptr) {
   VLOG(5) << "caching args";
-  T args;
-  typename Incoherent<T>::RW c(ptr, 1, &args);
-  c.block_until_acquired();
-  F(&args);
-  c.block_until_released();
+  T buf;
+  typename Incoherent<T>::RO c(ptr, 1, &buf);
+  F(&c[0]);
 }
 
 /// Cache GlobalAddress argument and pass cached copy as a ref to the wrapped function
@@ -189,19 +187,6 @@ void call_with_caching(GlobalAddress<T> ptr) {
   cache.block_until_acquired();
   F(args);
   cache.block_until_released();
-}
-
-/// Cache GlobalAddress argument and pass by value to wrapped function
-/// Also, doesn't hold onto ownership of cached value.
-/// (not sure how useful this is, but figured we'd round out the set)
-template< typename T, void (*F)(T) >
-void call_with_caching(GlobalAddress<T> ptr) {
-  VLOG(5) << "caching args";
-  T args;
-  typename Incoherent<T>::RW cache(ptr, 1, &args);
-  cache.block_until_acquired();
-  cache.block_until_released();
-  F(args);
 }
 
 /// Wrap arguments to spawn task (at call site) for tasks that used to assume caching
