@@ -174,8 +174,12 @@ _makestack:
         It then pops the registers I manually saved, and returns.
 	Return address should return to whoever called makestack.
         */
-        call _swapstacks
-
+#ifndef DYNAMIC_LIB
+	call _swapstacks
+#else
+        call _swapstacks@PLT
+#endif
+	
         // now restore arguments and run function
         pop %rdi /* <me> */
         pop %r12 /* <f> */

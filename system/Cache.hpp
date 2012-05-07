@@ -169,34 +169,34 @@ struct Incoherent {
 /// Wrapper functions for making it simpler to use the bare-bones tasking
 ///
 
-/// Cache GlobalAddress argument and pass pointer to the cached copy to the wrapped function
-template< typename T, void (*F)(T*) >
-void call_with_caching(GlobalAddress<T> ptr) {
-  VLOG(5) << "caching args";
-  T args;
-  typename Incoherent<T>::RW cache(ptr, 1, &args);
-  cache.block_until_acquired();
-  F(&cache[0]);
-  cache.block_until_released();
-}
-
-/// Cache GlobalAddress argument and pass cached copy as a ref to the wrapped function
-template< typename T, void (*F)(T&) >
-void call_with_caching(GlobalAddress<T> ptr) {
-  VLOG(5) << "caching args";
-  T args;
-  typename Incoherent<T>::RW cache(ptr, 1, &args);
-  cache.block_until_acquired();
-  F(*cache);
-  cache.block_until_released();
-}
+/// Cache GlobalAddress argument and pass pointer to cached copy to the wrapped function
+//template< typename T, void (*F)(T*) >
+//void call_with_caching(GlobalAddress<T> ptr) {
+//    VLOG(5) << "caching args";
+//    T buf;
+//    typename Incoherent<T>::RW cache(ptr, 1, &buf);
+//    cache.block_until_acquired();
+//    F(&cache[0]);
+//    cache.block_until_released();
+//}
+//
+///// Cache GlobalAddress argument and pass cached copy as a ref to the wrapped function
+//template< typename T, void (*F)(T&) >
+//void call_with_caching(GlobalAddress<T> ptr) {
+//    VLOG(5) << "caching args";
+//    T buf;
+//    typename Incoherent<T>::RW cache(ptr, 1, &buf);
+//    cache.block_until_acquired();
+//    F(*cache);
+//    cache.block_until_released();
+//}
 
 /// Cache GlobalAddress argument and pass pointer to const cached copy to the wrapped function
 template< typename T, void (*F)(const T*) >
 void call_with_caching(GlobalAddress<T> ptr) {
     VLOG(5) << "caching args";
-    T args;
-    typename Incoherent<T>::RO cache(ptr, 1, &args);
+    T buf;
+    typename Incoherent<T>::RO cache(ptr, 1, &buf);
     cache.block_until_acquired();
     F(&cache[0]);
     cache.block_until_released();
@@ -206,8 +206,8 @@ void call_with_caching(GlobalAddress<T> ptr) {
 template< typename T, void (*F)(const T&) >
 void call_with_caching(GlobalAddress<T> ptr) {
     VLOG(5) << "caching args";
-    T args;
-    typename Incoherent<T>::RO cache(ptr, 1, &args);
+    T buf;
+    typename Incoherent<T>::RO cache(ptr, 1, &buf);
     cache.block_until_acquired();
     F(*cache);
     cache.block_until_released();
