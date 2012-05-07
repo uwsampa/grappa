@@ -59,7 +59,7 @@ void user_main( user_main_args * args )
             SoftXMT_remote_privateTask( &pointer_task_f_CW, make_global( &args ), i );
             sem.acquire_all( CURRENT_THREAD );
             // User sync will not guarentee this
-//            CHECK( args.num == 2 ) << "num=" << args.num << " i=" << i; 
+            //CHECK( args.num == 2 ) << "num=" << args.num << " i=" << i; 
         }
     }
     
@@ -82,7 +82,7 @@ void user_main( user_main_args * args )
             SoftXMT_remote_privateTask( &ref_task_f_CW, make_global( &args ), i );
             sem.acquire_all( CURRENT_THREAD );
             // User sync will not guarentee this
-//            CHECK( args.num == 2 ) << "num=" << args.num << " i=" << i; 
+            //CHECK( args.num == 2 ) << "num=" << args.num << " i=" << i; 
         }
     }
     
