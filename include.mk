@@ -138,6 +138,7 @@ OPENMPI_CLEAN_FILE= *.btr
 OPENMPI_CC=$(CC)
 OPENMPI_CXX=$(CXX)
 OPENMPI_LD=$(LD)
+OPENMPI_AR=$(AR)
 
 #
 # Slurm with srun
@@ -168,10 +169,13 @@ SRUN_MPIRUN=srun --resv-ports --cpu_bind=verbose,rank --exclusive --label --kill
 
 SRUN_CLEAN_FILES= .srunrc.* 
 
+SRUN_PARTITION=softxmt
 SRUN_STUPID_NFS_DELAY=0.5s
-SRUN_CC=sleep $(SRUN_STUPID_NFS_DELAY) && srun -p softxmt $(CC)
-SRUN_CXX=sleep $(SRUN_STUPID_NFS_DELAY) && srun -p softxmt $(CXX)
-SRUN_LD=sleep $(SRUN_STUPID_NFS_DELAY) && srun -p softxmt $(LD)
+SRUN_BUILD_CMD=srun -p $(SRUN_PARTITION) --share
+SRUN_CC=sleep $(SRUN_STUPID_NFS_DELAY) && $(SRUN_BUILD_CMD) $(CC)
+SRUN_CXX=sleep $(SRUN_STUPID_NFS_DELAY) && $(SRUN_BUILD_CMD) $(CXX)
+SRUN_LD=sleep $(SRUN_STUPID_NFS_DELAY) && $(SRUN_BUILD_CMD) $(LD)
+SRUN_AR=sleep $(SRUN_STUPID_NFS_DELAY) && $(SRUN_BUILD_CMD) $(AR)
 
 #
 # QLogic MPI
@@ -201,3 +205,4 @@ QLOGIC_CLEAN_FILES= *.btr .mpirunrc.*
 QLOGIC_CC=$(CC)
 QLOGIC_CXX=$(CXX)
 QLOGIC_LD=$(LD)
+QLOGIC_AR=$(AR)
