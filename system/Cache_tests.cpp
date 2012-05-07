@@ -164,6 +164,19 @@ void user_main( int * args )
       //BOOST_CHECK_EQUAL( dd, *d );
     }
 
+    {
+      BOOST_MESSAGE("Write-only tests");
+      {
+        Incoherent<int64_t>::WO c(array, array_size);
+        for (int64_t i=0; i<array_size; i++) {
+          c[i] = 1234+i;
+        }
+      }
+      for (int64_t i=0; i<array_size; i++) {
+        int64_t v = SoftXMT_delegate_read_word(array+i);
+        BOOST_CHECK_EQUAL(v, 1234+i);
+      }
+    }
 
     SoftXMT_free( array );
   }
