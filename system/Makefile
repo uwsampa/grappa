@@ -56,58 +56,53 @@ TARGET:=
 # default rule: just build
 $(TARGET):
 
-lib: libSoftXMT.a
+# library build rule
+ifdef DYNAMIC_LIB
+LIBRARY=libSoftXMT.so
+else
+LIBRARY=libSoftXMT.a
+endif
+lib: $(LIBRARY)
 
 #
 # object file dependences
 #
-Demo.exe: libSoftXMT.a
+Demo.o Demo.exe: $(LIBRARY)
 
-Communicator_tests.test: Communicator.o
+Communicator_tests.o Communicator_tests.test: Communicator.o
 
-Aggregator_tests.test: Communicator.o Aggregator.o Timestamp.o
-MutableHeap_tests.test: 
+Aggregator_tests.o Aggregator_tests.test: Communicator.o Aggregator.o Timestamp.o
+MutableHeap_tests.o MutableHeap_tests.test: 
 
 
-Delegate_tests.test: libSoftXMT.a
-Addressing_tests.test: libSoftXMT.a
-GlobalMemoryChunk_tests.test: libSoftXMT.a
-GlobalMemory_tests.test: libSoftXMT.a
-GlobalAllocator_tests.test: libSoftXMT.a
-Allocator_tests.test: Allocator.o
+Delegate_tests.o Delegate_tests.test: $(LIBRARY)
+Addressing_tests.o Addressing_tests.test: $(LIBRARY)
+GlobalMemoryChunk_tests.o GlobalMemoryChunk_tests.test: $(LIBRARY)
+GlobalMemory_tests.o GlobalMemory_tests.test: $(LIBRARY)
+GlobalAllocator_tests.o GlobalAllocator_tests.test: $(LIBRARY)
+Allocator_tests.o Allocator_tests.test: Allocator.o
 
-QueueDebug_tests.exe: ../tools/stl-debug-allocator/archive/Source/allocator.o
-../tools/stl-debug-allocator/archive/Source/allocator.o: CFLAGS+= -DUNIX
+QueueDebug_tests.o QueueDebug_tests.exe: ../tools/stl-debug-allocator/archive/Source/allocator.o
 
-Collective_tests.test: libSoftXMT.a
+Collective_tests.o Collective_tests.test: $(LIBRARY)
 
 #thread_tests.test: thread.o stack.o coro.o
-thread2_tests.test: libSoftXMT.a
-thread3_tests.test: libSoftXMT.a
-tasks/Thread_tests.test: tasks/Thread.o coro.o stack.o tasks/BasicScheduler.o Timestamp.o
+thread2_tests.o thread2_tests.test: $(LIBRARY)
+thread3_tests.o thread3_tests.test: $(LIBRARY)
+tasks/Thread_tests.o tasks/Thread_tests.test: tasks/Thread.o coro.o stack.o tasks/BasicScheduler.o Timestamp.o
 
-Cache_tests.test: libSoftXMT.a
-Rate_measure.exe: libSoftXMT.a
+Cache_tests.o Cache_tests.test: $(LIBRARY)
+Rate_measure.o Rate_measure.exe: $(LIBRARY)
 
-ForkJoin_tests.test: libSoftXMT.a
-ForkJoinStress_tests.test: libSoftXMT.a
+ForkJoin_tests.o ForkJoin_tests.test: $(LIBRARY)
+ForkJoinStress_tests.o ForkJoinStress_tests.test: $(LIBRARY)
 
-Tasking_tests.test: libSoftXMT.a
-Stealing_tests.test: libSoftXMT.a
-ForkJoin_tests.test: libSoftXMT.a
-Future_tests.test: libSoftXMT.a
-ParallelLoop_tests.test: libSoftXMT.a
-RemotePrivateTasks_tests.test: libSoftXMT.a
-
-#
-# Build SoftXMT static library
-#
-LIBRARY_CONTENTS= SoftXMT.o GlobalAllocator.o GlobalMemory.o Communicator.o Aggregator.o Timestamp.o Allocator.o Cache.o Delegate.o Collective.o ForkJoin.o tasks/cbarrier.o tasks/TaskingScheduler.o tasks/Task.o tasks/Thread.o stack.o coro.o
-ifdef STL_DEBUG_ALLOCATOR
-LIBRARY_CONTENTS+= ../tools/stl-debug-allocator/archive/Source/allocator.o
-endif
-libSoftXMT.a: $(patsubst %,libSoftXMT.a(%),$(LIBRARY_CONTENTS))
-
+Tasking_tests.o Tasking_tests.test: $(LIBRARY)
+Stealing_tests.o Stealing_tests.test: $(LIBRARY)
+ForkJoin_tests.o ForkJoin_tests.test: $(LIBRARY)
+Future_tests.o Future_tests.test: $(LIBRARY)
+ParallelLoop_tests.o ParallelLoop_tests.test: $(LIBRARY)
+RemotePrivateTasks_tests.o RemotePrivateTasks_tests.test: $(LIBRARY)
 
 #
 # environment variables for run
@@ -138,16 +133,42 @@ endif
 
 ifdef STL_DEBUG_ALLOCATOR
 CFLAGS+= -DSTL_DEBUG_ALLOCATOR
+../tools/stl-debug-allocator/archive/Source/allocator.o: CFLAGS+= -DUNIX
+LIBRARY_CONTENTS+= ../tools/stl-debug-allocator/archive/Source/allocator.o
 Aggregator_tests.test: ../tools/stl-debug-allocator/archive/Source/allocator.o
+endif
+
+ifdef DYNAMIC_LIB
+CFLAGS+= -fPIC -DDYNAMIC_LIB
+endif
+
+#
+# Build SoftXMT static library
+#
+LIBRARY_CONTENTS+= SoftXMT.o GlobalAllocator.o GlobalMemory.o Communicator.o Aggregator.o Timestamp.o Allocator.o Cache.o Delegate.o Collective.o ForkJoin.o tasks/cbarrier.o tasks/TaskingScheduler.o tasks/Task.o tasks/Thread.o stack.o coro.o
+
+libSoftXMT.a: $(LIBRARY_CONTENTS)
+	$($(MPITYPE)_AR) rv $@ $^
+
+ifdef DYNAMIC_LIB
+libSoftXMT.so: $(LIBRARY_CONTENTS)
+	$($(MPITYPE)_LD) -shared -Wl,-soname,$@.1 -o $@.1.0 $^
+	ln -sf $@.1.0 $@
+	ln -sf $@.1.0 $@.1
 endif
 
 #
 # run a binary
 #
-run: $(TARGET) $($(MPITYPE)_ENVVAR_TEMP)
+mpi_run: $(TARGET) $($(MPITYPE)_ENVVAR_TEMP)
 	-killall $<
 	$(ENV_VARIABLES) \
 	$($(MPITYPE)_MPIRUN) $($(MPITYPE)_EXPORT_ENV_VARIABLES) $($(MPITYPE)_HOST) $($(MPITYPE)_NPROC) -- ./$< $(ARGS)
+
+run: $(TARGET) $($(MPITYPE)_ENVVAR_TEMP)
+	-killall $<
+	$(ENV_VARIABLES) \
+	./$< $(ARGS)
 
 #
 # run tests for a component
@@ -158,6 +179,7 @@ mpi_test: $(TARGET) $($(MPITYPE)_ENVVAR_TEMP)
 	$($(MPITYPE)_MPIRUN) $($(MPITYPE)_EXPORT_ENV_VARIABLES) $($(MPITYPE)_HOST) $($(MPITYPE)_NPROC) -- ./$< $(GARGS) --log_level=test_suite --run_test=$(TARGET:.test=) -- $(ARGS)
 
 test: $(TARGET)
+	-killall $<
 	$(ENV_VARIABLES) \
 	./$< --log_level=test_suite --run_test=$(TARGET:.test=) -- $(ARGS)
 
@@ -207,7 +229,7 @@ endif #DEBUG
 #
 # set LD_LIBRARY_PATH
 #
-LD_LIBRARY_PATH:=$(LD_LIBRARY_PATH):$(GFLAGS)/lib
+LD_LIBRARY_PATH:=$(LD_LIBRARY_PATH):$(GFLAGS)/lib:$(SOFTXMT_HOME)/system
 
 # build an executable
 # add an additional rule if you need to include multiple components
@@ -236,11 +258,18 @@ TESTS:=$(wildcard *.test)
 
 # build an object
 # includes autodependence stuff
-%.o: %.cpp Makefile
-	$($(MPITYPE)_CXX) -c $(CFLAGS) $(CXXFLAGS) $< -o $*.o
-	$($(MPITYPE)_CXX) -MM $(CFLAGS) $(CXXFLAGS) $< > $*.d
-	@mv -f $*.d $*.d.tmp
+%.o: %.cpp
+	$($(MPITYPE)_CXX) -MMD -MF $*.d.tmp -c $(CFLAGS) $(CXXFLAGS) $< -o $*.o
 	@sed -e 's|.*:|$*.o:|' < $*.d.tmp > $*.d
+	@sed -e 's/.*://' -e 's/\\$$//' < $*.d.tmp | fmt -1 | \
+	  sed -e 's/^ *//' -e 's/$$/:/' >> $*.d
+	@rm -f $*.d.tmp
+
+# build a precompiled header
+# includes autodependence stuff
+%.pch: %.hpp
+	$($(MPITYPE)_CXX) -MMD -MF $*.d.tmp -c $(CFLAGS) $(CXXFLAGS) $< -o $*.pch
+	@sed -e 's|.*:|$*.pch:|' < $*.d.tmp > $*.d
 	@sed -e 's/.*://' -e 's/\\$$//' < $*.d.tmp | fmt -1 | \
 	  sed -e 's/^ *//' -e 's/$$/:/' >> $*.d
 	@rm -f $*.d.tmp
@@ -248,29 +277,19 @@ TESTS:=$(wildcard *.test)
 #
 # Temporary special handling for thread library
 #
-#thread.o: thread.c Makefile
-#	$($(MPITYPE)_CC) -c $(CFLAGS) $< -o $*.o
-#	$($(MPITYPE)_CC) -MM $(CFLAGS) $< > $*.d
-#	@mv -f $*.d $*.d.tmp
-#	@sed -e 's|.*:|$*.o:|' < $*.d.tmp > $*.d
-#	@sed -e 's/.*://' -e 's/\\$$//' < $*.d.tmp | fmt -1 | \
-#	  sed -e 's/^ *//' -e 's/$$/:/' >> $*.d
-#	@rm -f $*.d.tmp
 
-coro.o: coro.c Makefile
-	$($(MPITYPE)_CXX) -c $(CFLAGS) $< -o $*.o
-	$($(MPITYPE)_CXX) -MM $(CFLAGS) $< > $*.d
-	@mv -f $*.d $*.d.tmp
+coro.o: coro.c
+	$($(MPITYPE)_CXX) -MMD -MF $*.d.tmp -c $(CFLAGS) $< -o $*.o
 	@sed -e 's|.*:|$*.o:|' < $*.d.tmp > $*.d
 	@sed -e 's/.*://' -e 's/\\$$//' < $*.d.tmp | fmt -1 | \
 	  sed -e 's/^ *//' -e 's/$$/:/' >> $*.d
 	@rm -f $*.d.tmp
 
-stack.o: stack.S Makefile
+stack.o: stack.S
 	$($(MPITYPE)_CC) -c $(CFLAGS) $< -o $*.o
 
 
-CLEAN_FILES= *.exe *.o *.d *.test *.dis libSoftXMT.a ./tasks/*.o $($(MPITYPE)_CLEAN_FILES)
+CLEAN_FILES+= *.exe *.o *.pch *.d *.test *.dis libSoftXMT.a libSoftXMT.so* ./tasks/*.o $(LIBRARY_CONTENTS) $($(MPITYPE)_CLEAN_FILES)
 clean:
 	rm -f $(CLEAN_FILES)
 
