@@ -16,7 +16,7 @@ struct task1_arg {
     int i;
 };
 
-void task1_f( task1_arg * args ) {
+void task1_f( const task1_arg * args ) {
     
     BLOG( CURRENT_THREAD << " task runs i=" << args->i );
     SoftXMT_yield();
