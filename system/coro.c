@@ -3,16 +3,35 @@
 #include <assert.h>
 #include <stdlib.h>
 #include <string.h>
+#include <sys/mman.h>
+
 
 coro *coro_spawn(coro *me, coro_func f, size_t ssize) {
   coro *c = (coro*)malloc(sizeof(coro));
   assert(c != NULL);
   c->running = 0;
-  c->base = malloc(ssize);
+
+  // allocate stack and guard page
+  c->base = valloc(ssize+4096);
+  c->ssize = ssize;
   assert(c->base != NULL);
-  c->stack = (char*) c->base + ssize;
+
+  // set stack pointer
+  c->stack = (char*) c->base + ssize + 4096;
+
+  // clear stack
   memset(c->base, 0, ssize);
+
+  // arm guard page
+  assert( 0 == mprotect( c->base, 4096, PROT_NONE ) );  
+
+  // set up coroutine to be able to run next time we're switched in
   makestack(&me->stack, &c->stack, f, c);
+
+#ifdef CORO_PROTECT_UNUSED_STACK
+  // disable writes to stack until we're swtiched in again.
+  assert( 0 == mprotect( (void*)((intptr_t)c->base + 4096), ssize, PROT_READ ) );
+#endif
   return c;
 }
 
@@ -28,6 +47,15 @@ coro *coro_init() {
 }
 
 void destroy_coro(coro *c) {
-  free(c->base);
+  if( c->base != NULL ) {
+    // disarm guard page
+    assert( 0 == mprotect( c->base, 4096, PROT_READ | PROT_WRITE ) );
+#ifdef CORO_PROTECT_UNUSED_STACK
+    // enable writes to stack so we can deallocate
+    assert( 0 == mprotect( (void*)((intptr_t)c->base + 4096), c->ssize, PROT_READ | PROT_WRITE ) );
+#endif
+    free(c->base);
+  }
   free(c);
 }
+
