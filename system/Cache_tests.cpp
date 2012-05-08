@@ -167,6 +167,7 @@ void user_main( int * args )
     {
       BOOST_MESSAGE("Write-only tests");
       {
+        BOOST_MESSAGE("WO block test");
         Incoherent<int64_t>::WO c(array, array_size);
         for (int64_t i=0; i<array_size; i++) {
           c[i] = 1234+i;
@@ -176,6 +177,14 @@ void user_main( int * args )
         int64_t v = SoftXMT_delegate_read_word(array+i);
         BOOST_CHECK_EQUAL(v, 1234+i);
       }
+      
+      {
+        LOG(INFO) << "WO short-circuit test";
+        LOG(INFO) << "&foo = " << &foo;
+        Incoherent<int64_t>::WO cfoo(make_global(&foo), 1);
+        *cfoo = 321;
+      }
+      BOOST_CHECK_EQUAL(321, foo);
     }
 
     SoftXMT_free( array );

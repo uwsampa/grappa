@@ -190,8 +190,8 @@ class CacheWO {
 protected:
   GlobalAddress< T > address_;
   size_t count_;
-  T * pointer_;
   Allocator< T > storage_;
+  T * pointer_;
   Acquirer< T > acquirer_;
   Releaser< T > releaser_;
   
@@ -200,10 +200,10 @@ public:
   : address_( address )
   , count_( count )
   , storage_( buffer, count )
+  , pointer_( storage_.pointer() )
   , acquirer_( address, count, &pointer_ )
   , releaser_( address, count, &pointer_ )
   {
-    pointer_ = storage_.pointer();
     VLOG(6) << "pointer_ = " << pointer_ << ", &pointer_ = " << &pointer_ << ", storage_.pointer() = " << storage_.pointer();
   }
   
@@ -211,7 +211,7 @@ public:
     block_until_released();
   }
   
-  void start_acquire( ) { 
+  void start_acquire( ) {
     acquirer_.start_acquire( );
   }
   void block_until_acquired() {
@@ -226,12 +226,13 @@ public:
   operator T*() { 
     block_until_acquired();
     DVLOG(5) << "WO dereference of " << address_ << " * " << count_;
-    return storage_.pointer(); 
+    VLOG(1) << "pointer_ = " << pointer_;
+    return pointer_;
   } 
   operator void*() { 
     block_until_acquired();
     DVLOG(5) << "WO dereference of " << address_ << " * " << count_;
-    return storage_.pointer();
+    return pointer_;
   }
 };
     
