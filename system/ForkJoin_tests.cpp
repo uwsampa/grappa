@@ -7,23 +7,17 @@
 
 BOOST_AUTO_TEST_SUITE( ForkJoin_tests );
 
-#define MEM_SIZE 1<<24;
+#define MEM_SIZE 1L<<24;
 
-struct func_initialize : public ForkJoinIteration {
-  GlobalAddress<int64_t> base_addr;
-  int64_t value;
-  void operator()(int64_t index) {
-    VLOG(2) << "called func_initialize with index = " << index;
-    Incoherent<int64_t>::RW c(base_addr+index, 1);
-    c[0] = value+index;
-  }
-};
+LOOP_FUNCTOR( func_initialize, index, ((GlobalAddress<int64_t>, base_addr)) ((int64_t, value)) ) {
+  VLOG(2) << "called func_initialize with index = " << index;
+  Incoherent<int64_t>::RW c(base_addr+index, 1);
+  c[0] = value+index;
+}
 
-struct func_hello : public ForkJoinIteration {
-  void operator()(int64_t index) {
-    LOG(INFO) << "Hello from " << index << "!";
-  }
-};
+LOOP_FUNCTION( func_hello, index ) {
+  LOG(INFO) << "Hello from " << index << "!";
+}
 
 static void user_main(int * args) {
   
@@ -33,7 +27,7 @@ static void user_main(int * args) {
     size_t N = 128;
     GlobalAddress<int64_t> data = SoftXMT_typed_malloc<int64_t>(N);
     
-    func_initialize a; a.base_addr = data; a.value = 0;
+    func_initialize a(data, 0);
     fork_join(&a, 0, N);
     
     for (size_t i=0; i<N; i++) {
@@ -47,7 +41,7 @@ static void user_main(int * args) {
     size_t N = 101;
     GlobalAddress<int64_t> data = SoftXMT_typed_malloc<int64_t>(N);
     
-    func_initialize a; a.base_addr = data; a.value = 0;
+    func_initialize a(data, 0);
     fork_join(&a, 0, N);
     
     for (size_t i=0; i<N; i++) {
@@ -65,7 +59,7 @@ static void user_main(int * args) {
     size_t N = 128 + 13;
     GlobalAddress<int64_t> data = SoftXMT_typed_malloc<int64_t>(N);
     
-    func_initialize a; a.base_addr = data; a.value = 0;
+    func_initialize a(data, 0);
     fork_join(&a, 0, N);
    
 	VLOG(2) << "done with init";
