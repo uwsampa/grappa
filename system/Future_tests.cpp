@@ -16,7 +16,7 @@ struct sumArray_args {
     GlobalAddress<int64_t> array;
 };
 
-void sumArray( sumArray_args * args ) {
+void sumArray( const sumArray_args * args ) {
     BOOST_MESSAGE( "task1 (thread " << CURRENT_THREAD->id << ")"
                    << " started" );
     
