@@ -20,7 +20,7 @@ LOOP_FUNCTION(task1_func,nid) {
 
 struct func_yield : public ForkJoinIteration {
     int64_t * ignore;
-    void operator()(int64_t i) {
+    void operator()(int64_t i) const {
         ind_local_count+=i;
         SoftXMT_yield();
     }
