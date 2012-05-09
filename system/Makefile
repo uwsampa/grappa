@@ -139,6 +139,10 @@ LIBRARY_CONTENTS+= ../tools/stl-debug-allocator/archive/Source/allocator.o
 Aggregator_tests.test: ../tools/stl-debug-allocator/archive/Source/allocator.o
 endif
 
+ifdef CORO_PROTECT_UNUSED_STACK
+CFLAGS+= -DCORO_PROTECT_UNUSED_STACK
+endif
+
 ifdef DYNAMIC_LIB
 CFLAGS+= -fPIC -DDYNAMIC_LIB
 endif
@@ -204,7 +208,7 @@ LIBRARIES+= -lgflags -lglog -lrt $(GASNET_LIBS)
 #
 # set compiler flags
 #
-CFLAGS+= --param max-inline-insns-single=35000 --param inline-unit-growth=10000 --param large-function-growth=200000 -Winline
+CFLAGS+= -Winline
 CFLAGS+= $(GASNET_FLAGS)
 CFLAGS+= -D_GNU_SOURCE
 
