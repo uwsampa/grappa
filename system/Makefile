@@ -153,7 +153,7 @@ endif
 #
 # Build SoftXMT static library
 #
-LIBRARY_CONTENTS+= SoftXMT.o GlobalAllocator.o GlobalMemory.o Communicator.o Aggregator.o Timestamp.o Allocator.o Cache.o Delegate.o Collective.o ForkJoin.o tasks/cbarrier.o tasks/TaskingScheduler.o tasks/Task.o tasks/Thread.o stack.o coro.o
+LIBRARY_CONTENTS+= SoftXMT.o GlobalAllocator.o GlobalMemory.o GlobalMemoryChunk.o Communicator.o Aggregator.o Timestamp.o Allocator.o Cache.o Delegate.o Collective.o ForkJoin.o tasks/cbarrier.o tasks/TaskingScheduler.o tasks/Task.o tasks/Thread.o stack.o coro.o
 
 libSoftXMT.a: $(LIBRARY_CONTENTS)
 	$($(MPITYPE)_AR) rv $@ $^
@@ -168,12 +168,12 @@ endif
 #
 # run a binary
 #
-mpi_run: $(TARGET) $($(MPITYPE)_ENVVAR_TEMP)
+mpi_run: $(TARGET) $($(MPITYPE)_ENVVAR_TEMP) $($(MPITYPE)_EPILOG_TEMP)
 	-killall $<
 	$(ENV_VARIABLES) \
 	$($(MPITYPE)_MPIRUN) $($(MPITYPE)_EXPORT_ENV_VARIABLES) $($(MPITYPE)_HOST) $($(MPITYPE)_NPROC) -- ./$< $(ARGS)
 
-run: $(TARGET) $($(MPITYPE)_ENVVAR_TEMP)
+run: $(TARGET)
 	-killall $<
 	$(ENV_VARIABLES) \
 	./$< $(ARGS)
@@ -181,7 +181,7 @@ run: $(TARGET) $($(MPITYPE)_ENVVAR_TEMP)
 #
 # run tests for a component
 #
-mpi_test: $(TARGET) $($(MPITYPE)_ENVVAR_TEMP)
+mpi_test: $(TARGET) $($(MPITYPE)_ENVVAR_TEMP) $($(MPITYPE)_EPILOG_TEMP)
 	-killall $<
 	$(ENV_VARIABLES) \
 	$($(MPITYPE)_MPIRUN) $($(MPITYPE)_EXPORT_ENV_VARIABLES) $($(MPITYPE)_HOST) $($(MPITYPE)_NPROC) -- ./$< $(GARGS) --log_level=test_suite --run_test=$(TARGET:.test=) -- $(ARGS)

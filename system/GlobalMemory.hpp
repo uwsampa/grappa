@@ -16,8 +16,7 @@ private:
   GlobalAllocator allocator_;
 
 public:
-  GlobalMemory( size_t total_size_bytes, 
-                void * base = reinterpret_cast< void* >( 0x0000123400000000L ) );
+  GlobalMemory( size_t total_size_bytes );
 
 };
 

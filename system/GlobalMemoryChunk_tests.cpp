@@ -1,11 +1,13 @@
 
+#include <gflags/gflags.h>
 #include <sys/mman.h>
 
 #include <boost/test/unit_test.hpp>
 
 #include "SoftXMT.hpp"
 #include "Delegate.hpp"
-#include "GlobalMemoryChunk.hpp"
+
+DECLARE_int64( global_memory_per_node_base_address );
 
 BOOST_AUTO_TEST_SUITE( GlobalMemoryChunk_tests );
 
@@ -13,12 +15,8 @@ BOOST_AUTO_TEST_SUITE( GlobalMemoryChunk_tests );
 GlobalAddress< int64_t > base;
 size_t size;
 
-void user_main( Thread * me, void * args ) 
+void user_main( void * args ) 
 {
-  BOOST_MESSAGE( "Spawning user main Thread " << (void *) CURRENT_THREAD <<
-                 " " << me <<
-                 " on node " << SoftXMT_mynode() );
-
   for( int i = 0; i < size; ++i ) {
     BOOST_MESSAGE( "Writing to " << base + i );
     SoftXMT_delegate_write_word( base + i, i );
@@ -64,7 +62,6 @@ void user_main( Thread * me, void * args )
   BOOST_CHECK_EQUAL( (base + 31).pointer(), base.pointer() + 15 );
 
 
-  SoftXMT_signal_done();
 }
 
 BOOST_AUTO_TEST_CASE( test1 ) {
@@ -75,8 +72,8 @@ BOOST_AUTO_TEST_CASE( test1 ) {
   SoftXMT_activate();
 
   size_t local_size_bytes = 1 << 8;
-  GlobalMemoryChunk gm( local_size_bytes );
-  base = gm.global_pointer();
+  // cheat. we know this 
+  base = make_linear( (void*) FLAGS_global_memory_per_node_base_address );
   BOOST_MESSAGE( "Base pointer is " << base );
 
   size = local_size_bytes * SoftXMT_nodes() / sizeof(int64_t);
@@ -84,7 +81,7 @@ BOOST_AUTO_TEST_CASE( test1 ) {
   BOOST_CHECK_EQUAL( SoftXMT_nodes(), 2 );
 
   DVLOG(1) << "Spawning user main Thread....";
-  SoftXMT_run_user_main( &user_main, NULL );
+  SoftXMT_run_user_main( &user_main, (void*) NULL );
   BOOST_CHECK( SoftXMT_done() == true );
 
   SoftXMT_finish( 0 );
