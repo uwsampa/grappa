@@ -159,7 +159,7 @@ SRUN_EXPORT_ENV_VARIABLES=--task-prolog=$(SRUN_ENVVAR_TEMP) --task-epilog=$(SRUN
 
 .srunrc_epilog.%:
 	echo \#!/bin/bash > $@
-	echo 'for i in `ipcs -m | head -n-1 | tail -n+4 | sort | cut -d" " -f1`; do ipcrm -M $$i; done' >> $@
+	echo 'for i in `ipcs -m | grep nelson | cut -d" " -f1`; do ipcrm -M $$i; done' >> $@
 	chmod +x $@
 
 # delete when done
