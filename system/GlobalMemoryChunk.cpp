@@ -14,7 +14,7 @@ extern "C" {
 
 #include "GlobalMemoryChunk.hpp"
 
-DEFINE_bool( global_memory_use_hugepages, false, "use 1GB huge pages for global heap" );
+DEFINE_bool( global_memory_use_hugepages, true, "use 1GB huge pages for global heap" );
 DEFINE_int64( global_memory_per_node_base_address, 0x0000123400000000L, "global memory base address");
 
 static const size_t round_to_gb_huge_page( size_t size ) {
