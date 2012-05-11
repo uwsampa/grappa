@@ -235,6 +235,20 @@ endif #DEBUG
 
 
 #
+# set tau performance profile/tracing flags
+#
+ifdef TAU
+TAUDIR=/sampa/share/tau-perf
+ENV_VARIABLES+= TAU_MAKEFILE=$(TAUDIR)/tau/x86_64/lib/Makefile.tau-mpi-pdt
+ENV_VARIABLES+= TAU_OPTIONS="-optCompInst -optTauSelectFile=tau.conf"
+ENV_VARIABLES+= PROFILEDIR=./profiles
+CC=tau_cc.sh
+CXX=tau_cxx.sh
+LD=tau_cxx.sh
+endif
+
+
+#
 # set LD_LIBRARY_PATH
 #
 LD_LIBRARY_PATH:=$(LD_LIBRARY_PATH):$(GFLAGS)/lib:$(SOFTXMT_HOME)/system
@@ -242,6 +256,7 @@ LD_LIBRARY_PATH:=$(LD_LIBRARY_PATH):$(GFLAGS)/lib:$(SOFTXMT_HOME)/system
 # build an executable
 # add an additional rule if you need to include multiple components
 %.exe: %.o 
+	$(ENV_VARIABLES) \
 	$($(MPITYPE)_LD) $(LDFLAGS) $^ $(LIBRARIES) -o $@
 
 # disassemble executable
@@ -267,6 +282,7 @@ TESTS:=$(wildcard *.test)
 # build an object
 # includes autodependence stuff
 %.o: %.cpp
+	$(ENV_VARIABLES) \
 	$($(MPITYPE)_CXX) -MMD -MF $*.d.tmp -c $(CFLAGS) $(CXXFLAGS) $< -o $*.o
 	@sed -e 's|.*:|$*.o:|' < $*.d.tmp > $*.d
 	@sed -e 's/.*://' -e 's/\\$$//' < $*.d.tmp | fmt -1 | \
@@ -276,6 +292,7 @@ TESTS:=$(wildcard *.test)
 # build a precompiled header
 # includes autodependence stuff
 %.pch: %.hpp
+	$(ENV_VARIABLES) \
 	$($(MPITYPE)_CXX) -MMD -MF $*.d.tmp -c $(CFLAGS) $(CXXFLAGS) $< -o $*.pch
 	@sed -e 's|.*:|$*.pch:|' < $*.d.tmp > $*.d
 	@sed -e 's/.*://' -e 's/\\$$//' < $*.d.tmp | fmt -1 | \
@@ -287,6 +304,7 @@ TESTS:=$(wildcard *.test)
 #
 
 coro.o: coro.c
+	$(ENV_VARIABLES) \
 	$($(MPITYPE)_CXX) -MMD -MF $*.d.tmp -c $(CFLAGS) $< -o $*.o
 	@sed -e 's|.*:|$*.o:|' < $*.d.tmp > $*.d
 	@sed -e 's/.*://' -e 's/\\$$//' < $*.d.tmp | fmt -1 | \
@@ -294,7 +312,8 @@ coro.o: coro.c
 	@rm -f $*.d.tmp
 
 stack.o: stack.S
-	$($(MPITYPE)_CC) -c $(CFLAGS) $< -o $*.o
+	$(ENV_VARIABLES) \
+	$($(MPITYPE)_CC2) -c $(CFLAGS) $< -o $*.o
 
 
 CLEAN_FILES+= *.exe *.o *.pch *.d *.test *.dis libSoftXMT.a libSoftXMT.so* ./tasks/*.o $(LIBRARY_CONTENTS) $($(MPITYPE)_CLEAN_FILES)
