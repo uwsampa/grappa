@@ -191,6 +191,12 @@ test: $(TARGET)
 	$(ENV_VARIABLES) \
 	./$< --log_level=test_suite --run_test=$(TARGET:.test=) -- $(ARGS)
 
+
+# TODO: fixme so I'm not so dumb
+cleanup_shm:
+	for i in 69 70 71 01 04 72 73 74 75 76 77 78 79 80 81; do ssh n$$i bash -c "ipcs -m | grep $(USER) | cut -d' ' -f1 | xargs -n1 -r ipcrm -M"; done
+
+
 # build a specific test
 # include Boost test automagic main() generation
 # add an additional rule if you need to include multiple components
