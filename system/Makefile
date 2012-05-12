@@ -239,12 +239,13 @@ endif #DEBUG
 #
 ifdef TAU
 TAUDIR=/sampa/share/tau-perf
-ENV_VARIABLES+= TAU_MAKEFILE=$(TAUDIR)/tau/x86_64/lib/Makefile.tau-mpi-pdt
-ENV_VARIABLES+= TAU_OPTIONS="-optCompInst -optTauSelectFile=tau.conf"
+include $(TAUDIR)/tau/x86_64/lib/Makefile.tau-mpi-pdt
+#TAU_COMP_OPTIONS="-optCompInst -optTauSelectFile=tau.conf"
+TAU_COMP_OPTIONS="-optTauSelectFile=tau.conf"
 ENV_VARIABLES+= PROFILEDIR=./profiles
-CC=tau_cc.sh
-CXX=tau_cxx.sh
-LD=tau_cxx.sh
+CC:=$(TAU_COMPILER) $(TAU_COMP_OPTIONS) $(CC)
+CXX:=$(TAU_COMPILER) $(TAU_COMP_OPTIONS) $(CXX)
+LD:=$(TAU_COMPILER) $(TAU_COMP_OPTIONS) $(LD)
 endif
 
 
