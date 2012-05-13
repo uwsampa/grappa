@@ -195,9 +195,15 @@ public:
   //   return block_size_;
   // }
 
-  inline GlobalAddress< T >& operator++() { 
+  inline GlobalAddress< T >& operator++() {
     storage_ += sizeof(T); 
-    return *this; 
+    return *this;
+  }
+  
+  inline GlobalAddress< T > operator++(int) {
+    GlobalAddress<T> result = *this;
+    storage_ += sizeof(T);
+    return result;
   }
 
   //inline GlobalAddress< T > operator++(int i) { return storage_ ++ i; }
@@ -231,6 +237,11 @@ public:
   bool operator==( const GlobalAddress< U >& u ) const {
     return raw_bits() == u.raw_bits();
   }
+  
+  bool operator<(const GlobalAddress<T>& t) const {
+    CHECK(is_2D() == t.is_2D()); // probably not good if you're comparing 2D & Linear addresses
+    return raw_bits() < t.raw_bits();
+  }
 
   //T& operator[]( ptrdiff_t index ) { return 
 
@@ -245,7 +256,6 @@ public:
     U * u = reinterpret_cast< U * >( storage_ );
     return u;
   }
-
 
 };
 
