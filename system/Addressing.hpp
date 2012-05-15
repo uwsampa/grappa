@@ -243,6 +243,10 @@ public:
     return raw_bits() < t.raw_bits();
   }
 
+  bool operator<(const GlobalAddress<T>& t) const {
+    return raw_bits() < t.raw_bits();
+  }
+
   //T& operator[]( ptrdiff_t index ) { return 
 
   template< typename U >
