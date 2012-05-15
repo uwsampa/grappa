@@ -112,44 +112,46 @@ void user_main( int * args )
     //   if( i+1 < array_size ) BOOST_CHECK_EQUAL( i+1, d[1] );
     // }
 
-
-    LOG(INFO) << "verifying block reads";
-    for( int size = 1; size < array_size; ++size ) {
-      LOG(INFO) << "checking blocks of size " << size; 
-      for( int start = 0; start < array_size; ++start ) {
-        //LOG(INFO) << "checking from start " << start;
-        int actual_size = ( start + size > array_size ? array_size : start + size ) - start;
-        DVLOG(5) << "starting iteration with start:" << start 
-                 << " size:" << size 
-                 << " actual_size:" << actual_size;
-
-        DVLOG(5) << "*****************************************************************************";
-        //start:2 size:4 actual_size:4 i:2
-        if( start == 2 && size == 4 ) {
-          BOOST_CHECK_EQUAL( 2, SoftXMT_delegate_read_word( array + start + 0 ) );
-          BOOST_CHECK_EQUAL( 3, SoftXMT_delegate_read_word( array + start + 1 ) );
-          BOOST_CHECK_EQUAL( 4, SoftXMT_delegate_read_word( array + start + 2 ) );
-          BOOST_CHECK_EQUAL( 5, SoftXMT_delegate_read_word( array + start + 3 ) );
-        }
-        DVLOG(5) << "*****************************************************************************";
-
-        {
-          Incoherent<int64_t>::RW d( array + start, actual_size );
-          d.block_until_acquired();
-          DVLOG(5) << "*****************************************************************************";
-          for( int i = start; i < actual_size; ++i ) {
-            DVLOG(5) << "checking word with start:" << start 
-                     << " size:" << size 
-                     << " actual_size:" << actual_size 
-                     << " i:" << i;
-            BOOST_CHECK_EQUAL( i, d[i - start] );
-            CHECK_EQ( i, d[i - start] ) << "start:" << start 
-                                        << " size:" << size 
-                                        << " actual_size:" << actual_size 
-                                        << " i:" << i;
-	    d[i - start] = i;
-          }
-        }
+    
+    {
+      LOG(INFO) << "verifying block reads";
+      for( int size = 1; size < array_size; ++size ) {
+	LOG(INFO) << "checking blocks of size " << size; 
+	for( int start = 0; start < array_size; ++start ) {
+	  //LOG(INFO) << "checking from start " << start;
+	  int actual_size = ( start + size > array_size ? array_size : start + size ) - start;
+	  DVLOG(5) << "starting iteration with start:" << start 
+		   << " size:" << size 
+		   << " actual_size:" << actual_size;
+	  
+	  DVLOG(5) << "*****************************************************************************";
+	  //start:2 size:4 actual_size:4 i:2
+	  if( start == 2 && size == 4 ) {
+	    BOOST_CHECK_EQUAL( 2, SoftXMT_delegate_read_word( array + start + 0 ) );
+	    BOOST_CHECK_EQUAL( 3, SoftXMT_delegate_read_word( array + start + 1 ) );
+	    BOOST_CHECK_EQUAL( 4, SoftXMT_delegate_read_word( array + start + 2 ) );
+	    BOOST_CHECK_EQUAL( 5, SoftXMT_delegate_read_word( array + start + 3 ) );
+	  }
+	  DVLOG(5) << "*****************************************************************************";
+	  
+	  {
+	    Incoherent<int64_t>::RW d( array + start, actual_size );
+	    d.block_until_acquired();
+	    DVLOG(5) << "*****************************************************************************";
+	    for( int i = start; i < actual_size; ++i ) {
+	      DVLOG(5) << "checking word with start:" << start 
+		       << " size:" << size 
+		       << " actual_size:" << actual_size 
+		       << " i:" << i;
+	      BOOST_CHECK_EQUAL( i, d[i - start] );
+	      CHECK_EQ( i, d[i - start] ) << "start:" << start 
+					  << " size:" << size 
+					  << " actual_size:" << actual_size 
+					  << " i:" << i;
+	      d[i - start] = i;
+	    }
+	  }
+	}
       }
     }
 
@@ -185,6 +187,52 @@ void user_main( int * args )
         *cfoo = 321;
       }
       BOOST_CHECK_EQUAL(321, foo);
+    }
+
+    {
+      LOG(INFO) << "reset tests";
+
+      int64_t my_array_size = array_size;
+
+      // make sure array is initialized the way we expect
+      {
+      	Incoherent<int64_t>::WO c(array, array_size);
+      	for (int64_t i=0; i<array_size; i++) {
+      	  c[i] = 1234+i;
+      	}
+      }
+
+      LOG(INFO) << "write-only reset tests";
+      {
+      	Incoherent< int64_t >::WO wo( array, 1 );
+      	for (int64_t i=0; i<my_array_size; i++) {
+      	  *wo = 2345+i;
+      	  wo.reset( array+i+1, 1 );
+      	}
+      }
+
+      LOG(INFO) << "read-write reset tests";
+      { 
+      	Incoherent< int64_t >::RW rw( array, 1 );
+      	for (int64_t i=0; i<my_array_size; i++) {
+      	  BOOST_CHECK_EQUAL( 2345+i, *rw );
+      	  *rw = 3456+i;
+      	  rw.reset( array+i+1, 1 );
+      	}
+      }
+
+      LOG(INFO) << "read-only reset tests";
+      {
+      	Incoherent< int64_t >::RO ro( array, 1 );
+      	for (int64_t i=0; i<my_array_size; i++) {
+      	  BOOST_CHECK_EQUAL( 3456+i, *ro );
+      	  ro.reset( array+i+1, 1 );
+      	}
+
+	// check address()
+	BOOST_CHECK_EQUAL( ro.address(), array + my_array_size );
+      }
+
     }
 
     SoftXMT_free( array );
