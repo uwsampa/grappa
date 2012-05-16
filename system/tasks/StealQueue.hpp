@@ -6,6 +6,9 @@
 #include <glog/logging.h>   
 #include <stdlib.h>
 
+// profiling/tracing
+#include <TAU.h>
+
 #define SS_NSTATES 1
 
 struct workStealRequest_args;
@@ -243,6 +246,9 @@ void StealQueue<T>::workStealReply_am( workStealReply_args * args,  size_t size,
     StealQueue<T>* thiefStack = StealQueue<T>::staticQueueAddress;
 
     if (k > 0) {
+        TAU_REGISTER_EVENT(steal_success_ev, "Steal success");
+        TAU_EVENT(steal_success_ev, k);
+        
         memcpy(&thiefStack->stack[thiefStack->top], stolen_work, payload_size);
         local_steal_amount = k;
         
@@ -284,6 +290,9 @@ void StealQueue<T>::workStealRequest_am(workStealRequest_args * args, size_t siz
     
     /* if k elts reserved, move them to local portion of our stack */
     if (ok) {
+        TAU_REGISTER_EVENT(steal_victim_ev, "Steal victim");
+        TAU_EVENT(steal_victim_ev, k);
+
         T* victimStackBase = victimStack->stack;
         T* victimSharedStart = victimStackBase + victimShared;
    
