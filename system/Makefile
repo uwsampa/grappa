@@ -197,7 +197,7 @@ test: $(TARGET)
 %_tests.o: CXXFLAGS+= -DBOOST_TEST_DYN_LINK -DBOOST_TEST_MODULE=$@
 %_tests.test: LIBRARIES+= -lboost_unit_test_framework
 %_tests.test: %_tests.o
-	$($(MPITYPE)_LD) $(CFLAGS) $(CXXFLAGS) $(LDFLAGS) $^ $(LIBRARIES) -o $@
+	$($(MPITYPE)_LD) $(CFLAGS) $(CXXFLAGS) $(LDFLAGS) $^ $(LIBRARIES) -o $@ $(LIBS)
 
 # disassemble test
 %_tests.dis: %_tests.test
@@ -235,19 +235,32 @@ endif #DEBUG
 
 
 #
-# set tau performance profile/tracing flags
+# set Tau performance profiling instrumentation flags
 #
-ifdef TAU
-TAUDIR=/sampa/share/tau-perf
-include $(TAUDIR)/tau-no-pdt/x86_64/lib/Makefile.tau-mpi
+ifdef TAU_INST
+TAUDIR=/sampa/share/tau-perf/tau-trace-otf
+include $(TAUDIR)/x86_64/lib/Makefile.tau-trace
 #TAU_COMP_OPTIONS="-optCompInst -optTauSelectFile=tau.conf"
-TAU_COMP_OPTIONS="-optCompInst -optTauSelectFile=tau.conf"
-ENV_VARIABLES+= PROFILEDIR=./profiles
+TAU_COMP_OPTIONS="-optCompInst"
 CC:=$(TAU_COMPILER) $(TAU_COMP_OPTIONS) $(CC)
 CXX:=$(TAU_COMPILER) $(TAU_COMP_OPTIONS) $(CXX)
 LD:=$(TAU_COMPILER) $(TAU_COMP_OPTIONS) $(LD)
 endif
 
+#
+# set flags to use Tau API
+#
+ifdef TAU_API
+#TAUDIR=/sampa/share/tau-perf/tau-no-pdt
+TAUDIR=/sampa/share/tau-perf/tau-trace-otf
+include $(TAUDIR)/include/Makefile
+CXX= $(TAU_CXX)
+CC= $(TAU_CC)
+LD= $(TAU_MPICC)
+CFLAGS+= $(TAU_INCLUDE) $(TAU_DEFS) -DGRAPPA_TRACE -Wno-write-strings
+LIBS= $(TAU_LIBS)
+LDFLAGS+= $(USER_OPT)
+endif
 
 #
 # set LD_LIBRARY_PATH
@@ -258,7 +271,7 @@ LD_LIBRARY_PATH:=$(LD_LIBRARY_PATH):$(GFLAGS)/lib:$(SOFTXMT_HOME)/system
 # add an additional rule if you need to include multiple components
 %.exe: %.o 
 	$(ENV_VARIABLES) \
-	$($(MPITYPE)_LD) $(LDFLAGS) $^ $(LIBRARIES) -o $@
+	$($(MPITYPE)_LD) $(LDFLAGS) $^ $(LIBRARIES) -o $@ $(LIBS)
 
 # disassemble executable
 %.dis: %.exe
