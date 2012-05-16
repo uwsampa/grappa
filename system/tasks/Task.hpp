@@ -41,6 +41,7 @@ class TaskStatistics {
         uint64_t public_tasks_dequeued_;
         uint64_t private_tasks_dequeued_;
 
+
     public:
         TaskStatistics()
             : single_steal_successes_ (0)
@@ -52,6 +53,7 @@ class TaskStatistics {
             , releases_ (0)
             , public_tasks_dequeued_ (0)
             , private_tasks_dequeued_ (0)
+
          { }
 
         void record_successful_steal_session() {
@@ -91,6 +93,7 @@ class TaskStatistics {
         }
 
         void dump();
+
 };
 
 
@@ -128,8 +131,6 @@ class TaskManager {
         bool sharedMayHaveWork;
         bool globalMayHaveWork;
 
-        TaskStatistics stats;
-       
         bool publicHasEle() const {
             return publicQ.localDepth() > 0;
         }
@@ -142,6 +143,9 @@ class TaskManager {
         bool tryConsumeLocal( Task * result );
         bool tryConsumeShared( Task * result );
         bool waitConsumeAny( Task * result );
+        
+        // stats
+        uint64_t sample_calls;
         
         
         std::ostream& dump( std::ostream& o ) const {
@@ -160,6 +164,9 @@ class TaskManager {
 
 
     public:
+        TaskStatistics stats;
+        void sample();
+       
         TaskManager (bool doSteal, Node localId, Node* neighbors, Node numLocalNodes, int chunkSize, int cbint);
 
         bool isWorkDone() {

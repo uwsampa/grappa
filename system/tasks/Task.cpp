@@ -15,6 +15,7 @@ TaskManager::TaskManager (bool doSteal, Node localId, Node * neighbors, Node num
     , chunkSize( chunkSize ), cbint( cbint ) 
     , privateQ( )
     , publicQ( MAXQUEUEDEPTH ) 
+    , sample_calls (0)
     , stats( ) {
     
           // TODO the way this is being used, it might as well have a singleton
@@ -184,6 +185,10 @@ std::ostream& operator<<( std::ostream& o, const TaskManager& tm ) {
 void TaskManager::finish() {
 }
 
+///
+/// Stats
+///
+
 void TaskManager::dump_stats() {
     stats.dump();
 }
@@ -203,3 +208,20 @@ void TaskStatistics::dump() {
 
     std::cout << "TaskStatistics " << dout.toString() << std::endl;
 }
+
+void TaskManager::sample() {
+    sample_calls++;
+    /* todo: avgs */
+
+#ifdef GRAPPA_TRACE
+    if ((sample_calls % 1) == 0) {
+      TAU_REGISTER_EVENT(privateQ_size_ev, "privateQ size sample");
+      TAU_REGISTER_EVENT(publicQ_size_ev, "publicQ size sample");
+      
+      TAU_EVENT(privateQ_size_ev, privateQ.size());
+      TAU_EVENT(publicQ_size_ev, publicQ.localDepth());
+    }
+#endif
+}
+
+
