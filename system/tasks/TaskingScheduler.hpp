@@ -7,6 +7,8 @@
 #include <glog/logging.h>
 #include <sstream>
 
+#include <TAU.h>
+
 DECLARE_int64( periodic_poll_ticks );
 DECLARE_bool(flush_on_idle);
 
@@ -35,12 +37,12 @@ public:
   int64_t num_active_tasks;
 
   TaskingSchedulerStatistics() {
+    num_active_tasks = 0; //this is state so not in reset()
     reset();
   }
   
   void reset() {
     task_calls = 0;
-    num_active_tasks = 0;
     task_log_index = 0;
     
     max_active = 0;
@@ -62,6 +64,12 @@ public:
 #ifdef DEBUG  
     if ((task_calls % 1024) == 0) {
       active_task_log[task_log_index++] = num_active_tasks;
+    }
+#endif
+#ifdef GRAPPA_TRACE
+    if ((task_calls % 1) == 0) {
+      TAU_REGISTER_EVENT(active_tasks_out_event, "Active tasks sample");
+      TAU_EVENT(active_tasks_out_event, num_active_tasks);
     }
 #endif
   }

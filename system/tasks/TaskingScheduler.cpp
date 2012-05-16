@@ -3,6 +3,7 @@
 #include "Task.hpp"
 
 #include <gflags/gflags.h>
+#include <TAU.h>
 
 /// TODO: this should be based on some actual time-related metric so behavior is predictable across machines
 DEFINE_int64( periodic_poll_ticks, 500, "number of ticks to wait before polling periodic queue");
@@ -96,6 +97,9 @@ void workerLoop ( Thread * me, void* args ) {
     while ( true ) {
         // block until receive work or termination reached
         if (!tasks->getWork(&nextTask)) break; // quitting time
+      
+        TAU_REGISTER_EVENT(dq_ev, "DQ task");
+      TAU_EVENT(dq_ev, sched->get_current_thread()->id);
 
         sched->stats.num_active_tasks++;
         nextTask.execute();
