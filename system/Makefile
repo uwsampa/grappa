@@ -250,14 +250,18 @@ endif
 #
 # set flags to use Tau API
 #
-ifdef TAU_API
-#TAUDIR=/sampa/share/tau-perf/tau-no-pdt
+
+# always include headers, but only use wrapper and libaries if enabled
 TAUDIR=/sampa/share/tau-perf/tau-trace-otf
 include $(TAUDIR)/include/Makefile
+CFLAGS+= $(TAU_INCLUDE) 
+
+ifdef TAU_API
+#TAUDIR=/sampa/share/tau-perf/tau-no-pdt
 CXX= $(TAU_CXX)
 CC= $(TAU_CC)
 LD= $(TAU_MPICC)
-CFLAGS+= $(TAU_INCLUDE) $(TAU_DEFS) -DGRAPPA_TRACE -Wno-write-strings
+CFLAGS+= $(TAU_DEFS) -DGRAPPA_TRACE -Wno-write-strings
 LIBS= $(TAU_LIBS)
 LDFLAGS+= $(USER_OPT)
 endif
