@@ -239,11 +239,6 @@ public:
   }
   
   bool operator<(const GlobalAddress<T>& t) const {
-    CHECK(is_2D() == t.is_2D()); // probably not good if you're comparing 2D & Linear addresses
-    return raw_bits() < t.raw_bits();
-  }
-
-  bool operator<(const GlobalAddress<T>& t) const {
     return raw_bits() < t.raw_bits();
   }
 
