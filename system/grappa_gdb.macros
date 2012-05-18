@@ -138,6 +138,20 @@ Syntax:
    (gdb) grappa_queue_print <queue name> <queue pointer>
 end
 
+define grappa_queue_length
+  set $grappa_queue = $arg1
+  if $grappa_queue->head
+    set $grappa_queue_length = 0
+  else
+    set $grappa_queue_length = $grappa_queue->len
+  end
+  printf "%s queue has length %d. (Contents not shown.)\n", $arg0, $grappa_queue->len
+end
+document grappa_queue_length
+Prints length of queue.
+Syntax:
+   (gdb) grappa_queue_length <queue name> <queue pointer>
+end
 
 
 
@@ -167,6 +181,15 @@ document unassigned_queue
 Prints contents of Grappa unassigned queue.
 Syntax:
    (gdb) unassigned_queue
+end
+
+define unassigned_queue_length
+  grappa_queue_length "Unassigned" &my_global_scheduler->unassignedQ
+end
+document unassigned_queue_length
+Prints length of Grappa unassigned queue.
+Syntax:
+   (gdb) unassigned_queue_length
 end
 
 define suspended_coroutines
@@ -199,7 +222,7 @@ define coroutines
   current_coroutine
   periodic_queue
   ready_queue
-  unassigned_queue
+  unassigned_queue_length
   suspended_coroutines
 end
 document coroutines
