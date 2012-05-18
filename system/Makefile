@@ -238,7 +238,7 @@ endif #DEBUG
 # set Tau performance profiling instrumentation flags
 #
 ifdef TAU_INST
-TAUDIR=/sampa/share/tau-perf/tau-trace-otf
+TAUDIR=/sampa/share/tau-perf/tau-trace-otf-tsc
 include $(TAUDIR)/x86_64/lib/Makefile.tau-trace
 #TAU_COMP_OPTIONS="-optCompInst -optTauSelectFile=tau.conf"
 TAU_COMP_OPTIONS="-optCompInst"
@@ -252,7 +252,7 @@ endif
 #
 
 # always include headers, but only use wrapper and libaries if enabled
-TAUDIR=/sampa/share/tau-perf/tau-trace-otf
+TAUDIR=/sampa/share/tau-perf/tau-trace-otf-tsc
 include $(TAUDIR)/include/Makefile
 CFLAGS+= $(TAU_INCLUDE) 
 
