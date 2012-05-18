@@ -1,0 +1,315 @@
+#
+# Grappa gdb macros
+#
+
+set print pretty on
+set print address on
+set print object on
+set print static-members on
+set print vtbl on
+set print demangle on
+set print asm-demangle on
+
+echo Loading Grappa GDB Macros package.  Type "help grappa" for more info.\n
+
+define grappa
+printf ""
+echo  These are the gdb macros for Grappa debugging.  Type "help grappa" for more info.\n
+end
+
+document grappa
+These are the Grappa gdb macros.
+
+  queues                               print both task and coroutine queues
+
+  tasks                                print public and private task queues
+  public_tasks
+  private_tasks
+
+  coroutines                           print all coroutines
+  current_coroutine
+  periodic_queue
+  ready_queue
+  unassigned_queue
+  suspended_coroutines
+
+  backtrace_coroutine <coroutine pointer>   backtrace for specific coroutine
+  btc <coroutine pointer>                   backtrace for specific coroutine
+
+  switch_to_coroutine <coroutine pointer>   change $rip and $rsp to coroutine's. 
+                                            DO NOT CONTINUE UNTIL RESTORE
+  grappa_save_state                         save real $rip and $rsp
+  grappa_restore_state                      restore real $rip and $rsp
+
+Type "help <macro>" for more specific help on a particular macro.
+Type "show user <macro>" to see what the macro is really doing.
+end
+
+
+set $grappa_stack_offset = 0x40
+
+set $grappa_saved_rip = 0
+set $grappa_saved_rsp = 0
+
+define grappa_save_state
+  if $grappa_saved_rip != 0 
+    grappa_restore_state
+  end
+  set $grappa_saved_rip = $rip
+  set $grappa_saved_rsp = $rsp
+end
+document grappa_save_state
+Save current coroutine $rip and $rsp for later.
+Syntax:
+   (gdb) grappa_save_state
+end
+
+define grappa_restore_state
+  if $grappa_saved_rip != 0
+    set $rip = $grappa_saved_rip
+    set $rsp = $grappa_saved_rsp
+    set $grappa_saved_rip = 0
+  end
+end
+document grappa_restore_state
+Restore saved coroutine $rip and $rsp.
+Syntax:
+   (gdb) grappa_restore_state
+end
+
+
+
+
+
+
+define grappa_coroutine_print
+  set $grappa_coroutine_print_elem = (coro*) $arg0
+  printf "  Coroutine %p running=%d suspended=%d IP ", $grappa_coroutine_print_elem, $grappa_coroutine_print_elem->running, $grappa_coroutine_print_elem->suspended
+  output/a *(int*)($grappa_coroutine_print_elem->stack + $grappa_stack_offset) 
+  printf "\n"
+end
+document grappa_coroutine_print
+Prints coroutine data
+Syntax:
+   (gdb) grappa_coroutine_print <coroutine pointer>
+end
+
+define grappa_coroutines
+  set $grappa_coroutines_elem = all_coros
+  while $grappa_coroutines_elem != 0
+    grappa_coroutine_print $grappa_coroutines_elem
+    set $grappa_coroutines_elem = $grappa_coroutines_elem->next
+  end
+end
+document grappa_coroutines
+Prints simple state of all coroutines
+Syntax:
+   (gdb) grappa_coroutines
+end
+
+
+define grappa_thread_print
+  set $grappa_thread_print_elem = (Thread*)($arg0)
+  grappa_coroutine_print $grappa_thread_print_elem->co
+end
+document grappa_thread_print
+Prints coroutine data from thread.
+Syntax:
+   (gdb) grappa_thread_print <thread pointer>
+end
+
+define grappa_queue_print
+  set $grappa_queue = $arg1
+  if $grappa_queue->head
+    set $grappa_queue_length = 0
+  else
+    set $grappa_queue_length = $grappa_queue->len
+  end
+  printf "%s queue has length %d:\n", $arg0, $grappa_queue->len
+  set $grappa_queue_print_elem = $grappa_queue->head
+  while $grappa_queue_print_elem != 0
+    grappa_coroutine_print $grappa_queue_print_elem->co
+    set $grappa_queue_print_elem = $grappa_queue_print_elem->next
+  end
+end
+document grappa_queue_print
+Prints contents of queue.
+Syntax:
+   (gdb) grappa_queue_print <queue name> <queue pointer>
+end
+
+
+
+
+
+define periodic_queue
+  grappa_queue_print "Periodic" &my_global_scheduler->periodicQ
+end
+document periodic_queue
+Prints contents of Grappa periodic queue.
+Syntax:
+   (gdb) periodic_queue
+end
+
+define ready_queue
+  grappa_queue_print "Ready" &my_global_scheduler->readyQ
+end
+document ready_queue
+Prints contents of Grappa ready queue.
+Syntax:
+   (gdb) ready_queue
+end
+
+define unassigned_queue
+  grappa_queue_print "Unassigned" &my_global_scheduler->unassignedQ
+end
+document unassigned_queue
+Prints contents of Grappa unassigned queue.
+Syntax:
+   (gdb) unassigned_queue
+end
+
+define suspended_coroutines
+  printf "Suspended coroutines:\n"
+  set $grappa_suspended_coros_elem = all_coros
+  while $grappa_suspended_coros_elem != 0
+    if $grappa_suspended_coros_elem->suspended
+      grappa_coroutine_print $grappa_suspended_coros_elem
+    end
+    set $grappa_suspended_coros_elem = $grappa_suspended_coros_elem->next
+  end
+end
+document suspended_coroutines
+Prints all suspended coroutines
+Syntax:
+   (gdb) suspended_coroutines
+end
+
+define current_coroutine
+  printf "Current coroutine:\n"
+  grappa_coroutine_print my_global_scheduler->current_thread->co
+end
+document current_coroutine
+Prints currently scheduled Grappa coroutine.
+Syntax:
+   (gdb) current_coroutine
+end
+
+define coroutines
+  current_coroutine
+  periodic_queue
+  ready_queue
+  unassigned_queue
+  suspended_coroutines
+end
+document coroutines
+Prints contents of Grappa coroutine queues.
+Syntax:
+   (gdb) coroutines
+end
+
+
+
+
+define private_tasks
+  printf "Private tasks (newest at top): "
+  output/a my_global_scheduler->task_manager->privateQ
+  printf "\n"
+end
+document private_tasks
+Prints contents of Grappa private task queue.
+Syntax:
+   (gdb) private_tasks
+end
+
+define public_tasks
+  set $grappa_publicQ = my_global_scheduler->task_manager->publicQ
+  set $grappa_local_tasks = $grappa_publicQ->top - $grappa_publicQ->local
+  set $grappa_shared_tasks = $grappa_publicQ->local - $grappa_publicQ->sharedStart
+  printf "Shared public tasks (newest at bottom) (%d shared):\n", $grappa_shared_tasks
+  set $grappa_task_index = $grappa_publicQ->sharedStart
+  while $grappa_task_index != $grappa_publicQ->local
+    printf "  Task function: "
+    output $grappa_publicQ->stack[ $grappa_task_index ].fn_p 
+    printf "   argument: "
+    output $grappa_publicQ->stack[ $grappa_task_index ].arg
+    printf "\n"
+    set $grappa_task_index++
+  end
+  printf "Local public tasks (newest at bottom) (%d local):\n", $grappa_local_tasks
+  set $grappa_task_index = $grappa_publicQ->local
+  while $grappa_task_index != $grappa_publicQ->top
+    printf "  Task function: "
+    output $grappa_publicQ->stack[ $grappa_task_index ].fn_p 
+    printf "   argument: "
+    output $grappa_publicQ->stack[ $grappa_task_index ].arg
+    printf "\n"
+    set $grappa_task_index++
+  end
+end
+document public_tasks
+Prints contents of Grappa public task queue.
+Syntax:
+   (gdb) public_tasks
+end
+
+define tasks
+  private_tasks
+  public_tasks
+end
+document tasks
+Prints contents of Grappa task queues.
+Syntax:
+   (gdb) tasks
+end
+
+define queues
+  coroutines
+  tasks
+end
+document queues
+Prints contents of Grappa coroutine/task queues.
+Syntax:
+   (gdb) queues
+end
+
+
+
+
+
+
+
+define switch_to_coroutine
+  grappa_save_state
+  set $grappa_coro = (coro*) $arg0
+  set $rsp = $grappa_coro->stack + $grappa_stack_offset
+  set $rip = *(int*)$rsp
+end
+document switch_to_coroutine
+Switch to a Grappa coroutine for backtracing. Do not continue or bad things will happen.
+Use grappa_restore_state to switch back to the original context.
+Syntax:
+   (gdb) switch_to_coroutine <coroutine pointer>
+end
+
+define backtrace_coroutine
+  switch_to_coroutine $arg0
+  backtrace
+  grappa_restore_state
+end
+document backtrace_coroutine
+Print backtrace of Grappa coroutine.
+Syntax:
+   (gdb) backtrace_coroutine <coroutine pointer>
+end
+
+define btc
+  switch_to_coroutine $arg0
+  backtrace
+  grappa_restore_state
+end
+document btc
+Print backtrace of Grappa coroutine.
+Syntax:
+   (gdb) btc <coroutine pointer> [full] [+/-count]
+end
