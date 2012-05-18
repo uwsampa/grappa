@@ -55,6 +55,11 @@ static void stats_dump_sighandler( int signum ) {
   LOG(INFO) << *my_task_manager;
 }
 
+// handler for SIGABRT override
+static void sigabrt_sighandler( int signum ) {
+  raise( SIGUSR1 );
+}
+
 /// Initialize SoftXMT components. We are not ready to run until the
 /// user calls SoftXMT_activate().
 void SoftXMT_init( int * argc_p, char ** argv_p[], size_t global_memory_size_bytes )
@@ -71,6 +76,18 @@ void SoftXMT_init( int * argc_p, char ** argv_p[], size_t global_memory_size_byt
 #ifdef HEAPCHECK
   SoftXMT_heapchecker = new HeapLeakChecker("SoftXMT");
 #endif
+
+  // set up stats dump signal handler
+  struct sigaction stats_dump_sa;
+  sigemptyset( &stats_dump_sa.sa_mask );
+  stats_dump_sa.sa_flags = 0;
+  stats_dump_sa.sa_handler = &stats_dump_sighandler;
+  CHECK_EQ( 0, sigaction( stats_dump_signal, &stats_dump_sa, 0 ) ) << "Stats dump signal handler installation failed.";
+  struct sigaction sigabrt_sa;
+  sigemptyset( &sigabrt_sa.sa_mask );
+  sigabrt_sa.sa_flags = 0;
+  sigabrt_sa.sa_handler = &sigabrt_sighandler;
+  CHECK_EQ( 0, sigaction( SIGABRT, &sigabrt_sa, 0 ) ) << "SIGABRT signal handler installation failed.";
 
   // also initializes system_wide global_communicator pointer
   my_global_communicator = new Communicator();
@@ -100,14 +117,6 @@ void SoftXMT_init( int * argc_p, char ** argv_p[], size_t global_memory_size_byt
   my_task_manager = new TaskManager( FLAGS_steal, SoftXMT_mynode(), neighbors, SoftXMT_nodes(), FLAGS_chunk_size, FLAGS_cancel_interval ); //TODO: options for local stealing
   my_global_scheduler = new TaskingScheduler( master_thread, my_task_manager );
   my_global_scheduler->periodic( thread_spawn( master_thread, my_global_scheduler, &poller, NULL ) );
-
-
-  // set up stats dump signal handler
-  struct sigaction stats_dump_sa;
-  sigemptyset( &stats_dump_sa.sa_mask );
-  stats_dump_sa.sa_flags = 0;
-  stats_dump_sa.sa_handler = &stats_dump_sighandler;
-  CHECK_EQ( 0, sigaction( stats_dump_signal, &stats_dump_sa, 0 ) ) << "Stats dump signal handler installation failed.";
 }
 
 
