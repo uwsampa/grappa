@@ -73,7 +73,6 @@ coro *coro_spawn(coro *me, coro_func f, size_t ssize) {
 
   total_coros++;
   insert_coro( c ); // insert into debugging list of coros
-  fprintf( stderr, "Spawned coroutine %p\n", c );
   return c;
 }
 
@@ -81,6 +80,9 @@ coro *coro_init() {
   coro *me = (coro*)malloc(sizeof(coro));
   me->running = 1;
   me->suspended = 0;
+  me->prev = NULL;
+  me->next = NULL;
+
   // We don't need to free this (it's just the main stack segment)
   // so ignore it.
   me->base = NULL;
