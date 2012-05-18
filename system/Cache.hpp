@@ -53,7 +53,10 @@ public:
   : request_address_(request_address), count_(count), pointer_(pointer)
   {
     VLOG(6) << "pointer = " << pointer << ", pointer_ = " << pointer_;
-    if( request_address_->is_2D() && request_address_->node() == SoftXMT_mynode() ) {
+    if( count == 0 ) {
+      DVLOG(5) << "Zero-length acquire";
+      *pointer_ = NULL;
+    } else if( request_address_->is_2D() && request_address_->node() == SoftXMT_mynode() ) {
       DVLOG(5) << "Short-circuiting to address " << request_address_->pointer();
       *pointer_ = request_address_->pointer();
     }

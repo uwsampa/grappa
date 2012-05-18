@@ -235,6 +235,12 @@ void user_main( int * args )
 
     }
 
+    // make sure zero-length cache objects don't fail
+    Incoherent< int64_t >::RW zero_length( make_global( &foo ), 0 );
+    zero_length.block_until_acquired();
+    BOOST_CHECK_EQUAL( zero_length.address(), make_global( &foo ) );
+    zero_length.block_until_released();
+
     SoftXMT_free( array );
   }
 
