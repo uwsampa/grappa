@@ -53,7 +53,12 @@ public:
     thread_ = NULL;
     num_messages_ = 0;
     response_count_ = 0;
-    if( request_address_->is_2D() ) {
+    if( count_ == 0 ) {
+      DVLOG(5) << "Zero-length acquire";
+      *pointer_ = NULL;
+      acquire_started_ = true;
+      acquired_ = true;
+    } else if( request_address_->is_2D() ) {
       num_messages_ = 1;
       if( request_address_->node() == SoftXMT_mynode() ) {
 	DVLOG(5) << "Short-circuiting to address " << request_address_->pointer();
