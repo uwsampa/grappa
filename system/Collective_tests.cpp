@@ -39,15 +39,6 @@ void spawn_worker_am( worker_args* args, size_t size, void* payload, size_t payl
    SoftXMT_spawn(&worker_thread_f, &this_node_wargs); 
 }
 
-struct Data {
-  int64_t x;
-  double y;
-  Data(int64_t x, double y): x(x), y(y) {}
-  Data operator+(const Data& o) {
-    return Data(x+o.x, y+o.y);
-  }
-};
-
 LOOP_FUNCTION( all_reduce_test_func, nid ) {
   int64_t myval = 123;
   
