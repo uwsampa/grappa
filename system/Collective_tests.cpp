@@ -3,6 +3,7 @@
 
 #include "SoftXMT.hpp"
 #include "Collective.hpp"
+#include "ForkJoin.hpp"
 
 BOOST_AUTO_TEST_SUITE( Collective_tests );
 
@@ -38,10 +39,26 @@ void spawn_worker_am( worker_args* args, size_t size, void* payload, size_t payl
    SoftXMT_spawn(&worker_thread_f, &this_node_wargs); 
 }
 
-void user_main( Thread * me, void * args ) 
+struct Data {
+  int64_t x;
+  double y;
+  Data(int64_t x, double y): x(x), y(y) {}
+  Data operator+(const Data& o) {
+    return Data(x+o.x, y+o.y);
+  }
+};
+
+LOOP_FUNCTION( all_reduce_test_func, nid ) {
+  int64_t myval = 123;
+  
+  int64_t sum = SoftXMT_allreduce<int64_t,coll_add<int64_t>,0>(myval);
+  BOOST_CHECK_EQUAL(sum, 123*SoftXMT_nodes());
+}
+
+void user_main( int * args ) 
 {
     BOOST_MESSAGE( "Spawning user main Thread " << (void *) CURRENT_THREAD <<
-            " " << me <<
+            " " << CURRENT_THREAD <<
             " on node " << SoftXMT_mynode() );
 
     Node expectedNodes = 4; 
@@ -77,6 +94,8 @@ void user_main( Thread * me, void * args )
     BOOST_CHECK_EQUAL ( addres, wargss[0].add1Result );
     BOOST_CHECK_EQUAL ( maxres, wargss[0].max1Result );
 
+  all_reduce_test_func f;
+  fork_join_custom(&f);
 
     SoftXMT_signal_done();
 }
@@ -88,7 +107,7 @@ BOOST_AUTO_TEST_CASE( test1 ) {
 
   SoftXMT_activate();
 
-  SoftXMT_run_user_main( &user_main, NULL );
+  SoftXMT_run_user_main( &user_main, (int*)NULL );
   BOOST_CHECK( SoftXMT_done() == true );
 
   SoftXMT_finish( 0 );
