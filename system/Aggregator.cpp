@@ -130,3 +130,23 @@ void Aggregator_deaggregate_am( gasnet_token_t token, void * buf, size_t size ) 
 #endif
 
 }
+
+static void aggregator_stats_merge_am(AggregatorStatistics * other, size_t sz, void* payload, size_t psz) {
+  global_aggregator->stats.merge(other);
+}
+
+static void merge_stats_task(int64_t target) {
+  SoftXMT_call_on(target, &aggregator_stats_merge_am, &global_aggregator->stats);
+}
+
+#include "SoftXMT.hpp"
+
+void Aggregator::merge_stats() {
+  Node me = SoftXMT_mynode();
+  for (Node n=0; n<SoftXMT_nodes(); n++) {
+    if (n != me) {
+      SoftXMT_remote_privateTask(&merge_stats_task, (int64_t)me, n);
+    }
+  }
+}
+

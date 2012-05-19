@@ -172,6 +172,18 @@ public:
     as_map( std::cout, time() );
     std::cout << std::endl;
   }
+  
+  void merge(AggregatorStatistics * other) {
+    messages_aggregated_ += other->messages_aggregated_;
+    bytes_aggregated_ += other->bytes_aggregated_;
+    flushes_ += other->flushes_;
+    timeouts_ += other->timeouts_;
+    idle_flushes_ += other->idle_flushes_;
+    capacity_flushes_ += other->capacity_flushes_;
+    for( int i = 0; i < 16; ++i ) {
+      histogram_[i] += other->histogram_[i];
+    }
+  }
 };
 
 /// Header for aggregated active messages.
@@ -282,10 +294,9 @@ private:
   void deaggregate( );
   friend void Aggregator_deaggregate_am( gasnet_token_t token, void * buf, size_t size );
 
-  /// statistics
-  AggregatorStatistics stats;
-
 public:
+  /// statistics
+  AggregatorStatistics stats;  
 
   /// Construct Aggregator. Takes a Communicator pointer in order to
   /// register active message handlers
@@ -296,7 +307,7 @@ public:
   void finish();
 
   void dump_stats() { stats.dump_as_map(); }
-  
+  void merge_stats();
   void reset_stats() { stats.reset(); }
 
   /// route map lookup for hierarchical aggregation

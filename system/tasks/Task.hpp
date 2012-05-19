@@ -29,10 +29,6 @@ class Task {
         }
 };
 
-
-
-
-
 template < typename T >
 static Task createTask( void (* fn_p)(T), T args ) {
     Task t( reinterpret_cast< void (*) (void*) >( fn_p ), (void*)args);
@@ -64,7 +60,7 @@ class TaskManager {
         /// also try.
         bool sharedMayHaveWork;
         bool globalMayHaveWork;
-
+       
         bool publicHasEle() const {
             return publicQ.localDepth() > 0;
         }
@@ -168,10 +164,11 @@ class TaskManager {
                 }
 
                 void dump();
+                void merge(TaskStatistics * other);
         };
         
         TaskStatistics stats;
-       
+  
         TaskManager (bool doSteal, Node localId, Node* neighbors, Node numLocalNodes, int chunkSize, int cbint);
 
         bool isWorkDone() {
@@ -216,6 +213,7 @@ class TaskManager {
         bool available ( ) const;
         
         void dump_stats();
+        void merge_stats();
         void finish();
 
 
@@ -265,5 +263,6 @@ inline void TaskManager::spawnRemotePrivate( void (*f)(T), T arg ) {
     cbarrier_cancel_local();
 }
 
+extern TaskManager * global_task_manager;
 
 #endif

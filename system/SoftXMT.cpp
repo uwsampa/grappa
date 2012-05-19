@@ -330,6 +330,21 @@ void SoftXMT_dump_stats_all_nodes() {
   fork_join_custom(&f);
 }
 
+static void am_merge_comm(CommunicatorStatistics * other, size_t sz, void* payload, size_t psz) {
+  my_global_communicator->stats.merge(other);
+}
+
+
+
+void SoftXMT_merge_and_dump_stats() {
+  my_global_communicator->merge_stats();
+  my_global_aggregator->merge_stats();
+  my_global_scheduler->merge_stats();
+  my_task_manager->merge_stats();
+  
+  SoftXMT_dump_stats();
+}
+
 void SoftXMT_dump_task_series() {
 	my_global_scheduler->stats.print_active_task_log();
 }
@@ -355,7 +370,7 @@ void SoftXMT_finish( int retval )
   my_global_aggregator->finish();
   my_global_communicator->finish( retval );
  
-  SoftXMT_dump_stats();
+//  SoftXMT_dump_stats();
 
   // probably never get here (depending on communication layer)
 
