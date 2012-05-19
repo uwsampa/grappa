@@ -258,5 +258,67 @@ LOOP_FUNCTOR(func_set_const, index, ((GlobalAddress<int64_t>,base_addr)) ((int64
   SoftXMT_delegate_write_word(base_addr+index, value);
 }
 
+struct ConstReplyArgs {
+  int64_t replies_left;
+  Thread * sleeper;
+};
+
+template< typename T >
+struct ConstRequestArgs {
+  GlobalAddress<T> addr;
+  size_t count;
+  T value;
+  GlobalAddress<ConstReplyArgs> reply;
+};
+
+static void const_reply_am(GlobalAddress<ConstReplyArgs> * reply, size_t sz, void * payload, size_t psz) {
+  CHECK(reply->node() == SoftXMT_mynode());
+  ConstReplyArgs * r = reply->pointer();
+  (r->replies_left)--;
+  if (r->replies_left == 0) {
+    SoftXMT_wake(r->sleeper);
+  }
+}
+
+template< typename T >
+static void const_request_am(ConstRequestArgs<T> * args, size_t sz, void* payload, size_t psz) {
+  CHECK(args->addr.node() == SoftXMT_mynode()) << "args->addr.node() = " << args->addr.node();
+  T * ptr = args->addr.pointer();
+  for (size_t i=0; i<args->count; i++) {
+    ptr[i] = args->value;
+  }
+  SoftXMT_call_on(args->reply.node(), &const_reply_am, &args->reply);
+}
+
+template< typename T >
+static void set_const(GlobalAddress<T> request_address, size_t count, T value) {
+  size_t offset = 0;
+  size_t request_bytes = 0;
+  
+  ConstReplyArgs reply;
+  reply.replies_left = 0;
+  reply.sleeper = CURRENT_THREAD;
+  
+  ConstRequestArgs<T> args;
+  args.addr = request_address;
+  args.value = value;
+  args.reply = make_global(&reply);
+  
+  for (size_t total_bytes = count*sizeof(T); offset < total_bytes; offset += request_bytes) {
+    request_bytes = (args.addr.block_max() - args.addr) * sizeof(T);
+    if (request_bytes > total_bytes - offset) {
+      request_bytes = total_bytes - offset;
+    }
+    CHECK(request_bytes % sizeof(T) == 0);
+    args.count = request_bytes / sizeof(T);
+    
+    reply.replies_left++;
+    SoftXMT_call_on(args.addr.node(), &const_request_am, &args);
+    
+    args.addr += args.count;
+  }
+  
+  while (reply.replies_left > 0) SoftXMT_suspend();
+}
 
 #endif /* define __FORK_JOIN_HPP__ */
