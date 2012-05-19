@@ -18,5 +18,15 @@
 *.swo
 .mpirunrc.*
 *.pyc
-
 *.out
+*.ckpt
+*.nedge
+*.log*
+*.INFO
+*.ERROR
+*.FATAL
+*.WARNING
+.fuse_hidden*
+.srunrc*
+*.d.tmp
+
