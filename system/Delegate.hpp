@@ -80,4 +80,41 @@ void SoftXMT_delegate_read( GlobalAddress<T> address, T * buf) {
   }
 }
 
+struct DelegateCallbackArgs {
+  GlobalAddress<Thread> sleeper;
+  void* forig; // pointer to original functor
+};
+
+static void am_delegate_wake(DelegateCallbackArgs * callback, size_t csz, void * p, size_t psz) {
+  // copy possibly-modified functor back 
+  // (allows user to modify func to effectively pass a return value back)
+  memcpy(callback->forig, p, psz);
+  SoftXMT_wake(callback->sleeper.pointer());
+}
+
+template<typename Func>
+static void am_delegate(DelegateCallbackArgs * callback, size_t csz, void* p, size_t fsz) {
+  Func * f = static_cast<Func*>(p);
+  (*f)();
+  SoftXMT_call_on(callback->sleeper.node(), &am_delegate_wake, callback, sizeof(*callback), p, fsz);
+}
+
+/// Supports more generic delegate operations in the form of functors. The given 
+/// functor is copied over to remote node, executed atomically, and copied back. 
+/// This allows a value to be 'returned' by the delegate in the form of a modified 
+/// Functor field. Note: this functor will be run in an active message, so 
+/// operations disallowed in active messages are disallowed here (i.e. no yielding 
+/// or suspending)
+/// TODO: it would be better to not do the extra copying associated with sending the "return" value back and forth
+template<typename Func>
+void SoftXMT_delegate_func(Func * f, Node target) {
+  if (target == SoftXMT_mynode()) {
+    (*f)();
+  } else {
+    DelegateCallbackArgs callbackArgs = { make_global(CURRENT_THREAD), (void*)f };
+    SoftXMT_call_on(target, &am_delegate<Func>, &callbackArgs, sizeof(callbackArgs), (void*)f, sizeof(*f));
+    SoftXMT_suspend();
+  }
+}
+
 #endif
