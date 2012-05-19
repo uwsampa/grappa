@@ -63,4 +63,22 @@ void Communicator::finish(int retval) {
   //gasnet_exit( retval );
 }
 
+static void comm_stats_merge_am(CommunicatorStatistics * other, size_t sz, void* payload, size_t psz) {
+  global_communicator->stats.merge(other);
+}
+
+#include "SoftXMT.hpp"
+
+static void merge_stats_task(int64_t target) {
+  SoftXMT_call_on(target, &comm_stats_merge_am, &global_communicator->stats);
+}
+
+void Communicator::merge_stats() {
+  Node me = SoftXMT_mynode();
+  for (Node n=0; n<SoftXMT_nodes(); n++) {
+    if (n != me) {
+      SoftXMT_remote_privateTask(&merge_stats_task, (int64_t)me, n);
+    }
+  }
+}
 

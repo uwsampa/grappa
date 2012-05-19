@@ -20,7 +20,7 @@ DEFINE_bool(flush_on_idle, true, "have tasking layer flush all aggregations if i
 //
 //int64_t max_active;
 //double  avg_active;
-
+TaskingScheduler * global_scheduler;
 
 TaskingScheduler::TaskingScheduler ( Thread * master, TaskManager * taskman ) 
     : readyQ ( )
@@ -35,7 +35,7 @@ TaskingScheduler::TaskingScheduler ( Thread * master, TaskManager * taskman )
     , work_args( new task_worker_args( taskman, this ) )
     , previous_periodic_ts( 0 ) 
     , stats( this ) {
-
+  global_scheduler = this;
 }
 
 void TaskingScheduler::run ( ) {
@@ -178,3 +178,35 @@ void TaskingScheduler::TaskingSchedulerStatistics::sample() {
 //    }
 //#endif
 }
+
+void TaskingScheduler::TaskingSchedulerStatistics::merge(TaskingSchedulerStatistics * other) {
+  task_calls += other->task_calls;
+  merged++;
+  max_active = (int64_t)inc_avg((double)max_active, merged, (double)other->max_active);
+  avg_active = inc_avg(avg_active, merged, other->avg_active);
+}
+
+static void taskingscheduler_stats_merge_am(TaskingScheduler::TaskingSchedulerStatistics * other, size_t sz, void* payload, size_t psz) {
+  global_scheduler->stats.merge(other);
+}
+
+static void merge_sched_stats_func(int64_t target) {
+  SoftXMT_call_on(target, &taskingscheduler_stats_merge_am, &global_scheduler->stats);
+}
+
+#include "SoftXMT.hpp"
+
+void TaskingScheduler::merge_stats() {
+  Node me = SoftXMT_mynode();
+  for (Node n=0; n<SoftXMT_nodes(); n++) {
+    if (n != me) {
+      SoftXMT_remote_privateTask(&merge_sched_stats_func, (int64_t)me, n);
+    }
+  }
+}
+
+
+
+
+
+

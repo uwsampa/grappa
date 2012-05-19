@@ -52,6 +52,8 @@ typedef int16_t Node;
 /// is true even if the network is configured with a smaller MTU.
 //#define GASNET_NOARG_MAX_MEDIUM (GASNETC_MAX_MEDIUM + sizeof( int32_t ) * 16)
 
+class Communicator;
+
 /// Class for recording Communicator stats
 class CommunicatorStatistics {
 private:
@@ -145,14 +147,22 @@ public:
     bytes_ += bytes;
     histogram_[ (bytes >> 8) & 0xf ]++;
   }
-  void dump() {
+  void dump_csv() {
     header(LOG(INFO));
     data(LOG(INFO), time());
   }
   
-  void dump_as_map() {
+  void dump() {
     as_map(std::cout, time());
     std::cout << std::endl;
+  }
+  
+  void merge(CommunicatorStatistics * other) {
+    messages_ += other->messages_;
+    bytes_ += other->bytes_;
+    for (int i=0; i<16; i++) histogram_[i] += other->histogram_[i];
+    // pick earlier start time of the two
+    start_ = (start_.tv_sec < other->start_.tv_sec && start_.tv_nsec < other->start_.tv_nsec) ? start_ : other->start_;
   }
 };
 
@@ -175,11 +185,11 @@ private:
   /// Are we in the phase that allows communication?
   bool communication_is_allowed_;
 
-  /// Record statistics
-  CommunicatorStatistics stats;
-
 public:
 
+  /// Record statistics
+  CommunicatorStatistics stats;
+  
   /// Maximum size of GASNet medium active message payload. 
   ///
   /// Each GASNet medium message carries a bunch of overhead:
@@ -225,8 +235,8 @@ public:
   void activate();
   void finish( int retval = 0 );
 
-  void dump_stats() { stats.dump_as_map(); }
-  
+  void dump_stats() { stats.dump(); }
+  void merge_stats();
   void reset_stats() { stats.reset(); }
 
   /// Get id of this node

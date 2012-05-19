@@ -14,18 +14,9 @@ DECLARE_bool(flush_on_idle);
 
 extern void SoftXMT_idle_flush_poll();
 
-//extern int64_t num_active_tasks;
-//extern int64_t task_calls;
-//extern int64_t task_log_index;
-//extern short active_task_log[1<<20];
-//
-//extern int64_t max_active;
-//extern double  avg_active;
-
 static inline double inc_avg(double curr_avg, uint64_t count, double val) {
 	return curr_avg + (val-curr_avg)/(count);
 }
-
 
 class TaskManager;
 struct task_worker_args;
@@ -127,20 +118,26 @@ class TaskingScheduler : public Scheduler {
             private:
                 int64_t task_calls;
                 int64_t task_log_index;
-                short active_task_log[1<<20];
+                short * active_task_log;
 
                 int64_t max_active;
                 double avg_active;
 
                 TaskingScheduler * sched;
-
+                
+                unsigned merged;
             public:
                 TaskingSchedulerStatistics( TaskingScheduler * scheduler )
                     : sched( scheduler ) {
+                        active_task_log = new short[1L<<20];
                         reset();
                     }
+                ~TaskingSchedulerStatistics() {
+                    delete[] active_task_log;
+                }
 
                 void reset() {
+                    merged = 0;
                     task_calls = 0;
                     task_log_index = 0;
 
@@ -162,6 +159,7 @@ class TaskingScheduler : public Scheduler {
                         << "avg_active: " << avg_active << " }" << std::endl;
                 }
                 void sample();
+                void merge(TaskingSchedulerStatistics * other); 
         };
        
        TaskingSchedulerStatistics stats;
@@ -197,7 +195,9 @@ class TaskingScheduler : public Scheduler {
        void dump_stats() {
            stats.dump();
        }
-
+  
+       void merge_stats();
+  
        void reset_stats() {
          stats.reset();
        }
@@ -382,7 +382,7 @@ inline void TaskingScheduler::thread_on_exit( ) {
   thread_context_switch( exitedThr, master, (void *)exitedThr);
 }
 
-
+extern TaskingScheduler * global_scheduler;
 
 #endif
 
