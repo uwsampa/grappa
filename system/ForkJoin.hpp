@@ -58,6 +58,33 @@ public:
   }
 };
 
+struct LocalPhaser {
+  ThreadQueue wakelist;
+  int64_t outstanding;
+  void reset() {
+    outstanding = 0;
+  }
+  void operator++(int) {
+    ++outstanding;
+  }
+  void operator++() {
+    outstanding++;
+  }
+  void signal() {
+    outstanding--;
+    VLOG(5) << "LocalPhaser[" << outstanding << " outstanding]";
+    if (outstanding == 0) {
+      while (!wakelist.empty()) {
+        SoftXMT_wake(wakelist.dequeue());
+      }
+    }
+  }
+  void wait() {
+    wakelist.enqueue(CURRENT_THREAD);
+    while (outstanding > 0) SoftXMT_suspend();
+  }
+};
+
 struct ForkJoinIteration {
   void operator()(int64_t index);
 };
