@@ -4,7 +4,8 @@ LOCATION=$(dirname $0)
 INPUT=$1
 OUTPUT=$2
 REPS=$3
-TEMPLATE=$(tempfile)
+#TEMPLATE=$(tempfile)
+TEMPLATE=/tmp/jt_template
 
 echo "" > $OUTPUT
 for i in $(seq 1 $REPS)
@@ -18,8 +19,10 @@ cat $LOCATION/preamble.greenery > $TEMPLATE
 sed -e 's/replicate \(.*\)/#define \1 \1`/' -e 's/START/START\nlabel`_BEGIN:/'  $INPUT >> $TEMPLATE
 cat $LOCATION/postamble.greenery >> $TEMPLATE
 
-DECLTEMP=$(tempfile)
-CODETEMP=$(tempfile)
+#DECLTEMP=$(tempfile)
+DECLTEMP=/tmp/jt_decltemp
+#CODETEMP=$(tempfile)
+CODETEMP=/tmp/jt_codetemp
 sed -e '/DECLARATIONS/,/START/d' $TEMPLATE > $CODETEMP
 sed -n -e '/DECLARATIONS/d' -e '/START/q' -e p $TEMPLATE > $DECLTEMP
 echo $TEMPLATE
