@@ -164,6 +164,7 @@ void SoftXMT_barrier_commsafe() {
 /// Poll SoftXMT aggregation and communication layers.
 void SoftXMT_poll()
 {
+  TAU_PROFILE("poll()", "()", TAU_USER);
   my_global_aggregator->poll();
 }
 
