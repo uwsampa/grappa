@@ -3,6 +3,7 @@
 #include "Task.hpp"
 
 #include <gflags/gflags.h>
+#include <TAU.h>
 
 /// TODO: this should be based on some actual time-related metric so behavior is predictable across machines
 DEFINE_int64( periodic_poll_ticks, 500, "number of ticks to wait before polling periodic queue");
@@ -30,7 +31,8 @@ TaskingScheduler::TaskingScheduler ( Thread * master, TaskManager * taskman )
     , num_workers ( 0 )
     , task_manager ( taskman )
     , work_args( new task_worker_args( taskman, this ) )
-    , previous_periodic_ts( 0 ) {
+    , previous_periodic_ts( 0 ) 
+    , stats( this ) {
 
 }
 
@@ -96,10 +98,10 @@ void workerLoop ( Thread * me, void* args ) {
     while ( true ) {
         // block until receive work or termination reached
         if (!tasks->getWork(&nextTask)) break; // quitting time
-
-        sched->stats.num_active_tasks++;
+      
+        sched->num_active_tasks++;
         nextTask.execute();
-        sched->stats.num_active_tasks--;
+        sched->num_active_tasks--;
 
         sched->thread_yield( ); // yield to the scheduler
     }
@@ -139,4 +141,26 @@ bool TaskingScheduler::queuesFinished( ) {
 
 std::ostream& operator<<( std::ostream& o, const TaskingScheduler& ts ) {
     return ts.dump( o );
+}
+
+
+void TaskingScheduler::TaskingSchedulerStatistics::sample() {
+    task_calls++;
+    if (sched->num_active_tasks > max_active) max_active = sched->num_active_tasks;
+    avg_active = inc_avg(avg_active, task_calls, sched->num_active_tasks);
+#ifdef DEBUG  
+    if ((task_calls % 1024) == 0) {
+        active_task_log[task_log_index++] = sched->num_active_tasks;
+    }
+#endif
+#ifdef GRAPPA_TRACE
+    if ((task_calls % 1) == 0) {
+        TAU_REGISTER_EVENT(active_tasks_out_event, "Active tasks sample");
+        TAU_REGISTER_EVENT(num_idle_out_event, "Idle workers sample");
+
+        TAU_EVENT(active_tasks_out_event, sched->num_active_tasks);
+        TAU_EVENT(num_idle_out_event, sched->num_idle);
+
+    }
+#endif
 }

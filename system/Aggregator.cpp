@@ -4,6 +4,7 @@
 #include "Aggregator.hpp"
 #include <csignal>
 
+
 /// command line options for Aggregator
 DEFINE_int64( aggregator_autoflush_ticks, 1000, "number of ticks to wait before autoflushing aggregated active messages");
 
@@ -80,6 +81,16 @@ void Aggregator::deaggregate( ) {
                                                    header->args_size );
       
       if( header->destination == gasnet_mynode() ) { // for us?
+          
+          // trace fine-grain communication
+#ifdef GRAPPA_TRACE
+          {
+              // TODO: good candidate for TAU_CONTEXT_EVENT
+              int fn_p_tag = aggregator_trace_tag( fp );
+              TAU_TRACE_RECVMSG(fn_p_tag, header->source, header->args_size + header->payload_size );
+          }
+#endif
+
         DVLOG(5) << "calling " << *header 
                 << " with args " << args
                 << " and payload " << payload;
@@ -95,6 +106,7 @@ void Aggregator::deaggregate( ) {
     }
   }
 }
+  
   
 void Aggregator::finish() {
 #ifdef STL_DEBUG_ALLOCATOR
@@ -114,4 +126,5 @@ void Aggregator_deaggregate_am( gasnet_token_t token, void * buf, size_t size ) 
 #ifdef STL_DEBUG_ALLOCATOR
   if( aggregator_access_control_active ) STLMemDebug::BaseAllocator::getMemMgr().setAccessMode(STLMemDebug::memReadOnly);
 #endif
+
 }

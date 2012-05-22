@@ -10,6 +10,8 @@
 #include <boost/typeof/typeof.hpp>
 #include <boost/static_assert.hpp>
 
+#include <TAU.h>
+
 #define STATIC_ASSERT_SIZE_8( type ) BOOST_STATIC_ASSERT( sizeof(type) == 8 )
 
 extern TaskManager * my_task_manager;
@@ -48,6 +50,8 @@ template < typename T >
 int SoftXMT_run_user_main( void (* fn_p)(T), T args )
 {
   STATIC_ASSERT_SIZE_8( T );
+    
+  TAU_PROFILE("run_user_main()", "(user code entry)", TAU_DEFAULT);
   
   if( SoftXMT_mynode() == 0 ) {
     CHECK( CURRENT_THREAD == master_thread ); // this should only be run at the toplevel

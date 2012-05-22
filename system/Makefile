@@ -184,7 +184,7 @@ run: $(TARGET) $($(MPITYPE)_ENVVAR_TEMP)
 mpi_test: $(TARGET) $($(MPITYPE)_ENVVAR_TEMP)
 	-killall $<
 	$(ENV_VARIABLES) \
-	$($(MPITYPE)_MPIRUN) $($(MPITYPE)_EXPORT_ENV_VARIABLES) $($(MPITYPE)_HOST) $($(MPITYPE)_NPROC) -- ./$< $(GARGS) --log_level=test_suite --run_test=$(TARGET:.test=) -- $(ARGS)
+	$($(MPITYPE)_MPIRUN) $($(MPITYPE)_EXPORT_ENV_VARIABLES) $($(MPITYPE)_HOST) $($(MPITYPE)_NPROC) -- $(MY_TAU_RUN) ./$< $(GARGS) --log_level=test_suite --run_test=$(TARGET:.test=) -- $(ARGS)
 
 test: $(TARGET)
 	-killall $<
@@ -197,7 +197,7 @@ test: $(TARGET)
 %_tests.o: CXXFLAGS+= -DBOOST_TEST_DYN_LINK -DBOOST_TEST_MODULE=$@
 %_tests.test: LIBRARIES+= -lboost_unit_test_framework
 %_tests.test: %_tests.o
-	$($(MPITYPE)_LD) $(CFLAGS) $(CXXFLAGS) $(LDFLAGS) $^ $(LIBRARIES) -o $@
+	$($(MPITYPE)_LD) $(CFLAGS) $(CXXFLAGS) $(LDFLAGS) $^ $(LIBRARIES) -o $@ $(LIBS)
 
 # disassemble test
 %_tests.dis: %_tests.test
@@ -235,6 +235,40 @@ endif #DEBUG
 
 
 #
+# set Tau performance profiling instrumentation flags
+#
+ifdef TAU_INST
+TAUDIR=/sampa/share/tau-perf/tau-trace-otf-tsc
+include $(TAUDIR)/x86_64/lib/Makefile.tau-trace
+#TAU_COMP_OPTIONS="-optCompInst -optTauSelectFile=tau.conf"
+TAU_COMP_OPTIONS="-optCompInst"
+CC:=$(TAU_COMPILER) $(TAU_COMP_OPTIONS) $(CC)
+CXX:=$(TAU_COMPILER) $(TAU_COMP_OPTIONS) $(CXX)
+LD:=$(TAU_COMPILER) $(TAU_COMP_OPTIONS) $(LD)
+endif
+
+#
+# set flags to use Tau API
+#
+
+# always include headers, but only use wrapper and libaries if enabled
+#TAUDIR=/sampa/share/tau-perf/tau-trace-otf-tsc
+TAUDIR=/sampa/share/tau-perf/tau
+include $(TAUDIR)/include/Makefile
+CFLAGS+= $(TAU_INCLUDE) 
+
+ifdef TAU_API
+#TAUDIR=/sampa/share/tau-perf/tau-no-pdt
+CXX= $(TAU_CXX)
+CC= $(TAU_CC)
+LD= $(TAU_MPICC)
+CFLAGS+= $(TAU_DEFS) -DGRAPPA_TRACE -Wno-write-strings
+LIBS= $(TAU_LIBS)
+LDFLAGS+= $(USER_OPT)
+MY_TAU_RUN=/sampa/share/tau-perf/tau/x86_64/bin/tau_load.sh
+endif
+
+#
 # set LD_LIBRARY_PATH
 #
 LD_LIBRARY_PATH:=$(LD_LIBRARY_PATH):$(GFLAGS)/lib:$(SOFTXMT_HOME)/system
@@ -242,7 +276,8 @@ LD_LIBRARY_PATH:=$(LD_LIBRARY_PATH):$(GFLAGS)/lib:$(SOFTXMT_HOME)/system
 # build an executable
 # add an additional rule if you need to include multiple components
 %.exe: %.o 
-	$($(MPITYPE)_LD) $(LDFLAGS) $^ $(LIBRARIES) -o $@
+	$(ENV_VARIABLES) \
+	$($(MPITYPE)_LD) $(LDFLAGS) $^ $(LIBRARIES) -o $@ $(LIBS)
 
 # disassemble executable
 %.dis: %.exe
@@ -267,6 +302,7 @@ TESTS:=$(wildcard *.test)
 # build an object
 # includes autodependence stuff
 %.o: %.cpp
+	$(ENV_VARIABLES) \
 	$($(MPITYPE)_CXX) -MMD -MF $*.d.tmp -c $(CFLAGS) $(CXXFLAGS) $< -o $*.o
 	@sed -e 's|.*:|$*.o:|' < $*.d.tmp > $*.d
 	@sed -e 's/.*://' -e 's/\\$$//' < $*.d.tmp | fmt -1 | \
@@ -276,6 +312,7 @@ TESTS:=$(wildcard *.test)
 # build a precompiled header
 # includes autodependence stuff
 %.pch: %.hpp
+	$(ENV_VARIABLES) \
 	$($(MPITYPE)_CXX) -MMD -MF $*.d.tmp -c $(CFLAGS) $(CXXFLAGS) $< -o $*.pch
 	@sed -e 's|.*:|$*.pch:|' < $*.d.tmp > $*.d
 	@sed -e 's/.*://' -e 's/\\$$//' < $*.d.tmp | fmt -1 | \
@@ -287,6 +324,7 @@ TESTS:=$(wildcard *.test)
 #
 
 coro.o: coro.c
+	$(ENV_VARIABLES) \
 	$($(MPITYPE)_CXX) -MMD -MF $*.d.tmp -c $(CFLAGS) $< -o $*.o
 	@sed -e 's|.*:|$*.o:|' < $*.d.tmp > $*.d
 	@sed -e 's/.*://' -e 's/\\$$//' < $*.d.tmp | fmt -1 | \
@@ -294,6 +332,7 @@ coro.o: coro.c
 	@rm -f $*.d.tmp
 
 stack.o: stack.S
+	$(ENV_VARIABLES) \
 	$($(MPITYPE)_CC) -c $(CFLAGS) $< -o $*.o
 
 
