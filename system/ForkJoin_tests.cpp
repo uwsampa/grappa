@@ -19,6 +19,13 @@ LOOP_FUNCTION( func_hello, index ) {
   LOG(INFO) << "Hello from " << index << "!";
 }
 
+static LocalDynamicBarrier dybar;
+
+static void set_to_one(int64_t * x) {
+  *x = 1;
+  dybar.signal();
+}
+
 static void user_main(int * args) {
   
   LOG(INFO) << "beginning user main.... (" << SoftXMT_mynode() << ")";
@@ -62,16 +69,47 @@ static void user_main(int * args) {
     func_initialize a(data, 0);
     fork_join(&a, 0, N);
    
-	VLOG(2) << "done with init";
+    VLOG(2) << "done with init";
 
     for (size_t i=0; i<N; i++) {
       Incoherent<int64_t>::RO c(data+i, 1);
       VLOG(2) << i << " == " << *c;
       BOOST_CHECK_EQUAL(i, *c);
     }
+    
+    SoftXMT_memset(data, (int64_t)1, N);
+    
+    Incoherent<int64_t>::RO c(data, N);
+    for (size_t i=0; i<N; i++) {
+      BOOST_CHECK_EQUAL(1, c[i]);
+    }
+    
     SoftXMT_free(data);
   }
   
+  { // Test LocalDynamicBarrier
+    dybar.reset();
+    
+    // make sure it doesn't hang here
+    dybar.wait();
+    
+    int64_t x = 0, y = 0;
+    
+    dybar.registerTask();
+    SoftXMT_privateTask(&set_to_one, &x);
+    
+    dybar.registerTask();
+    SoftXMT_privateTask(&set_to_one, &y);
+    
+    BOOST_CHECK_EQUAL(x, 0);
+    BOOST_CHECK_EQUAL(y, 0);
+    
+    dybar.wait();
+    
+    BOOST_CHECK_EQUAL(x, 1);
+    BOOST_CHECK_EQUAL(y, 1);    
+    
+  }
 }
 
 BOOST_AUTO_TEST_CASE( test1 ) {
