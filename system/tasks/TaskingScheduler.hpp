@@ -7,7 +7,6 @@
 #include <glog/logging.h>
 #include <sstream>
 
-#include <TAU.h>
 
 DECLARE_int64( periodic_poll_ticks );
 DECLARE_bool(flush_on_idle);
@@ -26,59 +25,6 @@ static inline double inc_avg(double curr_avg, uint64_t count, double val) {
 	return curr_avg + (val-curr_avg)/(count);
 }
 
-class TaskingSchedulerStatistics {
-  int64_t task_calls;
-  int64_t task_log_index;
-  short active_task_log[1<<20];
-  
-  int64_t max_active;
-  double avg_active;
-public:
-  int64_t num_active_tasks;
-
-  TaskingSchedulerStatistics() {
-    num_active_tasks = 0; //this is state so not in reset()
-    reset();
-  }
-  
-  void reset() {
-    task_calls = 0;
-    task_log_index = 0;
-    
-    max_active = 0;
-    avg_active = 0.0;
-  }
-  void print_active_task_log() {
-#ifdef DEBUG
-    if (task_log_index == 0) return;
-    
-    std::stringstream ss;
-    for (int64_t i=0; i<task_log_index; i++) ss << active_task_log[i] << " ";
-    LOG(INFO) << "Active tasks log: " << ss.str();
-#endif
-  }
-  void sample() {
-    task_calls++;
-    if (num_active_tasks > max_active) max_active = num_active_tasks;
-    avg_active = inc_avg(avg_active, task_calls, num_active_tasks);
-#ifdef DEBUG  
-    if ((task_calls % 1024) == 0) {
-      active_task_log[task_log_index++] = num_active_tasks;
-    }
-#endif
-#ifdef GRAPPA_TRACE
-    if ((task_calls % 1) == 0) {
-      TAU_REGISTER_EVENT(active_tasks_out_event, "Active tasks sample");
-      TAU_EVENT(active_tasks_out_event, num_active_tasks);
-    }
-#endif
-  }
-  void dump() {
-    std::cout << "TaskStats { "
-    << "max_active: " << max_active << ", "
-    << "avg_active: " << avg_active << " }" << std::endl;
-  }
-};
 
 class TaskManager;
 struct task_worker_args;
@@ -94,6 +40,7 @@ class TaskingScheduler : public Scheduler {
         threadid_t nextId;
         
         uint64_t num_idle;
+        uint64_t num_active_tasks;
         TaskManager * task_manager;
         uint64_t num_workers;
         
@@ -173,6 +120,47 @@ class TaskingScheduler : public Scheduler {
         }
 
     public:
+        class TaskingSchedulerStatistics {
+            private:
+                int64_t task_calls;
+                int64_t task_log_index;
+                short active_task_log[1<<20];
+
+                int64_t max_active;
+                double avg_active;
+
+                TaskingScheduler * sched;
+
+            public:
+                TaskingSchedulerStatistics( TaskingScheduler * scheduler )
+                    : sched( scheduler ) {
+                        reset();
+                    }
+
+                void reset() {
+                    task_calls = 0;
+                    task_log_index = 0;
+
+                    max_active = 0;
+                    avg_active = 0.0;
+                }
+                void print_active_task_log() {
+#ifdef DEBUG
+                    if (task_log_index == 0) return;
+
+                    std::stringstream ss;
+                    for (int64_t i=0; i<task_log_index; i++) ss << active_task_log[i] << " ";
+                    LOG(INFO) << "Active tasks log: " << ss.str();
+#endif
+                }
+                void dump() {
+                    std::cout << "TaskStats { "
+                        << "max_active: " << max_active << ", "
+                        << "avg_active: " << avg_active << " }" << std::endl;
+                }
+                void sample();
+        };
+       
        TaskingSchedulerStatistics stats;
   
        TaskingScheduler ( Thread * master, TaskManager * taskman ); 
@@ -210,7 +198,7 @@ class TaskingScheduler : public Scheduler {
        void reset_stats() {
          stats.reset();
        }
-  
+
        /// run threads until all exit 
        void run ( );
 
@@ -234,6 +222,7 @@ class TaskingScheduler : public Scheduler {
        void thread_on_exit( );
 
        friend std::ostream& operator<<( std::ostream& o, const TaskingScheduler& ts );
+       friend void workerLoop ( Thread *, void * );
 };  
 
 struct task_worker_args {
