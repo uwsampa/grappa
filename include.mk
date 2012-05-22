@@ -145,10 +145,11 @@ OPENMPI_AR=$(AR)
 #
 
 # create a temporary filename for environment variables
-SRUN_ENVVAR_TEMP:=$(shell mktemp --dry-run --tmpdir=. .srunrc.XXXXXXXX )
+SRUN_ENVVAR_TEMP:=$(shell mktemp --dry-run --tmpdir=$(PWD) .srunrc.XXXXXXXX )
+SRUN_EPILOG_TEMP:=$(shell mktemp --dry-run --tmpdir=$(PWD) .srunrc_epilog.XXXXXXXX )
 
 # command fragment to use environment variables
-SRUN_EXPORT_ENV_VARIABLES=--task-prolog=$(SRUN_ENVVAR_TEMP)
+SRUN_EXPORT_ENV_VARIABLES=--task-prolog=$(SRUN_ENVVAR_TEMP) --task-epilog=$(SRUN_EPILOG_TEMP)
 
 # create an environment variable file when needed
 .srunrc.%:
@@ -156,8 +157,13 @@ SRUN_EXPORT_ENV_VARIABLES=--task-prolog=$(SRUN_ENVVAR_TEMP)
 	for i in $(ENV_VARIABLES); do echo echo export $$i >> $@; done
 	chmod +x $@
 
+.srunrc_epilog.%:
+	echo \#!/bin/bash > $@
+	echo 'for i in `ipcs -m | grep $(USER) | cut -d" " -f1`; do ipcrm -M $$i; done' >> $@
+	chmod +x $@
+
 # delete when done
-.INTERMEDIATE: $(SRUN_ENVVAR_TEMP)
+.INTERMEDIATE: $(SRUN_ENVVAR_TEMP) $(SRUN_EPILOG_TEMP)
 
 NNODE?=$(NPROC)
 PPN?=1
