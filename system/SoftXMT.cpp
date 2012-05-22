@@ -40,7 +40,7 @@ HeapLeakChecker * SoftXMT_heapchecker = 0;
 static void poller( Thread * me, void * args ) {
   while( !SoftXMT_done() ) {
     my_global_scheduler->stats.sample();
-    my_task_manager->sample();
+    my_task_manager->stats.sample();
 
     SoftXMT_poll();
     SoftXMT_yield_periodic();

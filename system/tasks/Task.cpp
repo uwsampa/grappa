@@ -15,8 +15,7 @@ TaskManager::TaskManager (bool doSteal, Node localId, Node * neighbors, Node num
     , chunkSize( chunkSize ), cbint( cbint ) 
     , privateQ( )
     , publicQ( MAXQUEUEDEPTH ) 
-    , sample_calls (0)
-    , stats( ) {
+    , stats( this ) {
     
           // TODO the way this is being used, it might as well have a singleton
           StealQueue<Task>::registerAddress( &publicQ );
@@ -194,7 +193,7 @@ void TaskManager::dump_stats() {
 }
 
 #include "DictOut.hpp"
-void TaskStatistics::dump() {
+void TaskManager::TaskStatistics::dump() {
     DictOut dout;
     DICT_ADD(dout, session_steal_successes_);
     DICT_ADD(dout, session_steal_fails_);
@@ -209,17 +208,19 @@ void TaskStatistics::dump() {
     std::cout << "TaskStatistics " << dout.toString() << std::endl;
 }
 
-void TaskManager::sample() {
+void TaskManager::TaskStatistics::sample() {
     sample_calls++;
     /* todo: avgs */
 
 #ifdef GRAPPA_TRACE
     if ((sample_calls % 1) == 0) {
       TAU_REGISTER_EVENT(privateQ_size_ev, "privateQ size sample");
-      TAU_REGISTER_EVENT(publicQ_size_ev, "publicQ size sample");
+      TAU_REGISTER_EVENT(publicQ_local_size_ev, "publicQ.local sample");
+      TAU_REGISTER_EVENT(publicQ_shared_size_ev, "publicQ.shared sample");
       
-      TAU_EVENT(privateQ_size_ev, privateQ.size());
-      TAU_EVENT(publicQ_size_ev, publicQ.localDepth());
+      TAU_EVENT(privateQ_size_ev, tm->privateQ.size());
+      TAU_EVENT(publicQ_local_size_ev, tm->publicQ.localDepth());
+      TAU_EVENT(publicQ_shared_size_ev, tm->publicQ.sharedDepth());
     }
 #endif
 }

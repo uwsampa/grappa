@@ -29,72 +29,6 @@ class Task {
         }
 };
 
-class TaskStatistics {
-    private:
-        uint64_t single_steal_successes_;
-        uint64_t single_steal_fails_;
-        uint64_t session_steal_successes_;
-        uint64_t session_steal_fails_;
-        uint64_t acquire_successes_;
-        uint64_t acquire_fails_;
-        uint64_t releases_;
-        uint64_t public_tasks_dequeued_;
-        uint64_t private_tasks_dequeued_;
-
-
-    public:
-        TaskStatistics()
-            : single_steal_successes_ (0)
-            , single_steal_fails_ (0)
-            , session_steal_successes_ (0)
-            , session_steal_fails_ (0)
-            , acquire_successes_ (0)
-            , acquire_fails_ (0)
-            , releases_ (0)
-            , public_tasks_dequeued_ (0)
-            , private_tasks_dequeued_ (0)
-
-         { }
-
-        void record_successful_steal_session() {
-            session_steal_successes_++;
-        }
-
-        void record_failed_steal_session() {
-            session_steal_fails_++;
-        }
-
-        void record_successful_steal() {
-            single_steal_successes_++;
-        }
-
-        void record_failed_steal() {
-            single_steal_fails_++;
-        }
-
-        void record_successful_acquire() {
-            acquire_successes_++;
-        }
-        
-        void record_failed_acquire() {
-            acquire_fails_++;
-        }
-
-        void record_release() {
-            releases_++;
-        }
-
-        void record_public_task_dequeue() {
-            public_tasks_dequeued_++;
-        }
-        
-        void record_private_task_dequeue() {
-            private_tasks_dequeued_++;
-        }
-
-        void dump();
-
-};
 
 
 
@@ -144,8 +78,6 @@ class TaskManager {
         bool tryConsumeShared( Task * result );
         bool waitConsumeAny( Task * result );
         
-        // stats
-        uint64_t sample_calls;
         
         
         std::ostream& dump( std::ostream& o ) const {
@@ -164,8 +96,81 @@ class TaskManager {
 
 
     public:
+        class TaskStatistics {
+            private:
+                uint64_t single_steal_successes_;
+                uint64_t single_steal_fails_;
+                uint64_t session_steal_successes_;
+                uint64_t session_steal_fails_;
+                uint64_t acquire_successes_;
+                uint64_t acquire_fails_;
+                uint64_t releases_;
+                uint64_t public_tasks_dequeued_;
+                uint64_t private_tasks_dequeued_;
+
+                // number of calls to sample() 
+                uint64_t sample_calls;
+
+                TaskManager * tm;
+
+            public:
+                TaskStatistics(TaskManager * task_manager)
+                    : single_steal_successes_ (0)
+                      , single_steal_fails_ (0)
+                      , session_steal_successes_ (0)
+                      , session_steal_fails_ (0)
+                      , acquire_successes_ (0)
+                      , acquire_fails_ (0)
+                      , releases_ (0)
+                      , public_tasks_dequeued_ (0)
+                      , private_tasks_dequeued_ (0)
+
+                      , sample_calls (0)
+                      , tm( task_manager )
+                          { }
+
+                void sample();
+
+                void record_successful_steal_session() {
+                    session_steal_successes_++;
+                }
+
+                void record_failed_steal_session() {
+                    session_steal_fails_++;
+                }
+
+                void record_successful_steal() {
+                    single_steal_successes_++;
+                }
+
+                void record_failed_steal() {
+                    single_steal_fails_++;
+                }
+
+                void record_successful_acquire() {
+                    acquire_successes_++;
+                }
+
+                void record_failed_acquire() {
+                    acquire_fails_++;
+                }
+
+                void record_release() {
+                    releases_++;
+                }
+
+                void record_public_task_dequeue() {
+                    public_tasks_dequeued_++;
+                }
+
+                void record_private_task_dequeue() {
+                    private_tasks_dequeued_++;
+                }
+
+                void dump();
+        };
+        
         TaskStatistics stats;
-        void sample();
        
         TaskManager (bool doSteal, Node localId, Node* neighbors, Node numLocalNodes, int chunkSize, int cbint);
 
