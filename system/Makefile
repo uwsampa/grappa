@@ -119,7 +119,7 @@ ENV_VARIABLES+= GASNET_PHYSMEM_MAX=217M
 #ENV_VARIABLES+= GASNET_PHYSMEM_NOPROBE=0
 ENV_VARIABLES+= GASNET_BACKTRACE=1
 ENV_VARIABLES+= GASNET_NUM_QPS=3
-#ENV_VARIABLES+= GASNET_FREEZE_SIGNAL=SIGSEGV
+ENV_VARIABLES+= GASNET_FREEZE_SIGNAL=SIGUSR1
 ENV_VARIABLES+= GASNET_FREEZE_ON_ERROR=1
 ENV_VARIABLES+= GASNET_FREEZE=0
 
@@ -153,7 +153,7 @@ endif
 #
 # Build SoftXMT static library
 #
-LIBRARY_CONTENTS+= SoftXMT.o GlobalAllocator.o GlobalMemory.o Communicator.o Aggregator.o Timestamp.o Allocator.o Cache.o Delegate.o Collective.o ForkJoin.o tasks/cbarrier.o tasks/TaskingScheduler.o tasks/Task.o tasks/Thread.o stack.o coro.o
+LIBRARY_CONTENTS+= SoftXMT.o GlobalAllocator.o GlobalMemory.o GlobalMemoryChunk.o Communicator.o Aggregator.o Timestamp.o Allocator.o Cache.o Delegate.o Collective.o ForkJoin.o tasks/cbarrier.o tasks/TaskingScheduler.o tasks/Task.o tasks/Thread.o stack.o coro.o
 
 libSoftXMT.a: $(LIBRARY_CONTENTS)
 	$($(MPITYPE)_AR) rv $@ $^
@@ -168,12 +168,12 @@ endif
 #
 # run a binary
 #
-mpi_run: $(TARGET) $($(MPITYPE)_ENVVAR_TEMP)
+mpi_run: $(TARGET) $($(MPITYPE)_ENVVAR_TEMP) $($(MPITYPE)_EPILOG_TEMP)
 	-killall $<
 	$(ENV_VARIABLES) \
 	$($(MPITYPE)_MPIRUN) $($(MPITYPE)_EXPORT_ENV_VARIABLES) $($(MPITYPE)_HOST) $($(MPITYPE)_NPROC) -- ./$< $(ARGS)
 
-run: $(TARGET) $($(MPITYPE)_ENVVAR_TEMP)
+run: $(TARGET)
 	-killall $<
 	$(ENV_VARIABLES) \
 	./$< $(ARGS)
@@ -181,7 +181,7 @@ run: $(TARGET) $($(MPITYPE)_ENVVAR_TEMP)
 #
 # run tests for a component
 #
-mpi_test: $(TARGET) $($(MPITYPE)_ENVVAR_TEMP)
+mpi_test: $(TARGET) $($(MPITYPE)_ENVVAR_TEMP) $($(MPITYPE)_EPILOG_TEMP)
 	-killall $<
 	$(ENV_VARIABLES) \
 	$($(MPITYPE)_MPIRUN) $($(MPITYPE)_EXPORT_ENV_VARIABLES) $($(MPITYPE)_HOST) $($(MPITYPE)_NPROC) -- $(MY_TAU_RUN) ./$< $(GARGS) --log_level=test_suite --run_test=$(TARGET:.test=) -- $(ARGS)
@@ -190,6 +190,12 @@ test: $(TARGET)
 	-killall $<
 	$(ENV_VARIABLES) \
 	./$< --log_level=test_suite --run_test=$(TARGET:.test=) -- $(ARGS)
+
+
+# TODO: fixme so I'm not so dumb
+cleanup_shm:
+	for i in 69 70 71 01 04 72 73 74 75 76 77 78 79 80 81; do ssh n$$i bash -c "ipcs -m | grep $(USER) | cut -d' ' -f1 | xargs -n1 -r ipcrm -M"; done
+
 
 # build a specific test
 # include Boost test automagic main() generation

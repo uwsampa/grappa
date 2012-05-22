@@ -280,6 +280,7 @@ inline void TaskingScheduler::thread_suspend( ) {
     
     Thread * yieldedThr = current_thread;
     yieldedThr->co->running = 0; // XXX: hack; really want to know at a user Thread level that it isn't running
+    yieldedThr->co->suspended = 1;
     Thread * next = nextCoroutine( );
     
     current_thread = next;
@@ -294,6 +295,7 @@ inline void TaskingScheduler::thread_wake( Thread * next ) {
   CHECK( next->sched == this ) << "can only wake a Thread on your scheduler";
   CHECK( next->next == NULL ) << "woken Thread should not be on any queue";
   CHECK( !thread_is_running( next ) ) << "woken Thread should not be running";
+  next->co->suspended = 0;
     
   DVLOG(5) << "Thread " << current_thread->id << " wakes thread " << next->id;
 
@@ -308,7 +310,8 @@ inline void TaskingScheduler::thread_yield_wake( Thread * next ) {
     CHECK( next->sched == this ) << "can only wake a Thread on your scheduler";
     CHECK( next->next == NULL ) << "woken Thread should not be on any queue";
     CHECK( !thread_is_running( next ) ) << "woken Thread should not be running";
-  
+    next->co->suspended = 0;
+
     Thread * yieldedThr = current_thread;
     ready( yieldedThr );
     
@@ -323,9 +326,11 @@ inline void TaskingScheduler::thread_suspend_wake( Thread *next ) {
     CHECK( current_thread != master ) << "can't yield on a system Thread";
     CHECK( next->next == NULL ) << "woken Thread should not be on any queue";
     CHECK( !thread_is_running( next ) ) << "woken Thread should not be running";
+    next->co->suspended = 0;
   
     Thread * yieldedThr = current_thread;
-    
+    yieldedThr->co->suspended = 1;
+
     current_thread = next;
     thread_context_switch( yieldedThr, next, NULL);
 }

@@ -13,6 +13,7 @@ extern "C" {
 /* might add more fields later */
 typedef struct coro {
   int running;
+  int suspended;
   // start of stack
   void *base;
   size_t ssize;
@@ -22,6 +23,10 @@ typedef struct coro {
   // current stack pointer.  Since stack grows down in x86,
   // stack >= base (hopefully!)
   void *stack;
+
+  // pointers for tracking all coroutines
+  struct coro * prev;
+  struct coro * next;
 } coro;
 
 /* Turns the current thread into a coro. */

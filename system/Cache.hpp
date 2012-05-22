@@ -45,19 +45,24 @@ public:
 template< typename T >
 class NullAcquirer {
 private:
-  GlobalAddress<T> request_address_;
-  size_t count_;
+  GlobalAddress<T> * request_address_;
+  size_t * count_;
   T ** pointer_;
 public:
-  NullAcquirer(GlobalAddress<T> request_address, size_t count, T** pointer)
+  NullAcquirer(GlobalAddress<T> * request_address, size_t * count, T** pointer)
   : request_address_(request_address), count_(count), pointer_(pointer)
   {
     VLOG(6) << "pointer = " << pointer << ", pointer_ = " << pointer_;
-    if( request_address_.is_2D() && request_address_.node() == SoftXMT_mynode() ) {
-      DVLOG(5) << "Short-circuiting to address " << request_address_.pointer();
-      *pointer_ = request_address_.pointer();
+    if( count == 0 ) {
+      DVLOG(5) << "Zero-length acquire";
+      *pointer_ = NULL;
+    } else if( request_address_->is_2D() && request_address_->node() == SoftXMT_mynode() ) {
+      DVLOG(5) << "Short-circuiting to address " << request_address_->pointer();
+      *pointer_ = request_address_->pointer();
     }
   }
+  void reset( )
+  { }
   void start_acquire() {}
   void block_until_acquired() {}
   bool acquired() const { return true; }
@@ -69,9 +74,13 @@ class NullReleaser {
 private:
   bool released_;
 public:
-  NullReleaser( GlobalAddress< T > request_address, size_t count, void * storage )
+  NullReleaser( GlobalAddress< T > * request_address, size_t * count, void * storage )
     : released_(false) 
   { }
+  void reset( )
+  { 
+    released_ = false;
+  }
   void start_release() { 
     released_ = true;
   }
@@ -103,8 +112,8 @@ public:
     , count_( count )
     , storage_( buffer, count )
     , pointer_( storage_.pointer() )
-    , acquirer_( address, count, &pointer_ )
-    , releaser_( address, count, &pointer_ )
+    , acquirer_( &address_, &count_, &pointer_ )
+    , releaser_( &address_, &count_, &pointer_ )
   { }
 
   void start_acquire( ) { 
@@ -119,6 +128,18 @@ public:
   void block_until_released() {
     releaser_.block_until_released( );
   }
+
+  void reset( GlobalAddress< T > address, size_t count ) {
+    block_until_acquired();
+    block_until_released();
+    address_ = address;
+    count_ = count;
+    releaser_.reset( );
+    acquirer_.reset( );
+  }
+
+  GlobalAddress< T > address() { return address_; }
+
   operator const T*() { 
     block_until_acquired();
     DVLOG(5) << "Const dereference of " << address_ << " * " << count_;
@@ -150,8 +171,8 @@ public:
     , count_( count )
     , storage_( buffer, count )
     , pointer_( storage_.pointer() )
-    , acquirer_( address, count, &pointer_ )
-    , releaser_( address, count, &pointer_ )
+    , acquirer_( &address_, &count_, &pointer_ )
+    , releaser_( &address_, &count_, &pointer_ )
   { }
 
   ~CacheRW() {
@@ -170,6 +191,18 @@ public:
   void block_until_released() {
     releaser_.block_until_released( );
   }
+
+  void reset( GlobalAddress< T > address, size_t count ) {
+    block_until_acquired();
+    block_until_released();
+    address_ = address;
+    count_ = count;
+    releaser_.reset( );
+    acquirer_.reset( );
+  }
+
+  GlobalAddress< T > address() { return address_; }
+
   operator T*() { 
     block_until_acquired();
     DVLOG(5) << "RW dereference of " << address_ << " * " << count_;
@@ -201,8 +234,8 @@ public:
   , count_( count )
   , storage_( buffer, count )
   , pointer_( storage_.pointer() )
-  , acquirer_( address, count, &pointer_ )
-  , releaser_( address, count, &pointer_ )
+  , acquirer_( &address_, &count_, &pointer_ )
+  , releaser_( &address_, &count_, &pointer_ )
   {
     VLOG(6) << "pointer_ = " << pointer_ << ", &pointer_ = " << &pointer_ << ", storage_.pointer() = " << storage_.pointer();
   }
@@ -223,10 +256,22 @@ public:
   void block_until_released() {
     releaser_.block_until_released( );
   }
+
+  void reset( GlobalAddress< T > address, size_t count ) {
+    block_until_acquired();
+    block_until_released();
+    address_ = address;
+    count_ = count;
+    releaser_.reset( );
+    acquirer_.reset( );
+  }
+
+  GlobalAddress< T > address() { return address_; }
+
   operator T*() { 
     block_until_acquired();
     DVLOG(5) << "WO dereference of " << address_ << " * " << count_;
-    VLOG(1) << "pointer_ = " << pointer_;
+    VLOG(6) << "pointer_ = " << pointer_;
     return pointer_;
   } 
   operator void*() { 

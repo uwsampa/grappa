@@ -238,6 +238,9 @@ BOOST_AUTO_TEST_CASE( test1 ) {
     l3block = global_pointer_to_member( l3, &array_element::block );
     // still in first block, so address should be same as second element on first node
     BOOST_CHECK_EQUAL( l3block.pointer(), &(global_array[1].block) ); 
+
+    // check ordering
+    BOOST_CHECK( l3 < l3+1 );
   }
 
   SoftXMT_finish( 0 );
