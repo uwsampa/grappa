@@ -10,6 +10,8 @@
 #include "tasks/Task.hpp"
 #include "ForkJoin.hpp"
 
+#include <TAU.h>
+
 // command line arguments
 DEFINE_bool( steal, true, "Allow work-stealing between public task queues");
 DEFINE_int32( chunk_size, 10, "Amount of work to publish or steal in multiples of" );
@@ -38,6 +40,8 @@ HeapLeakChecker * SoftXMT_heapchecker = 0;
 static void poller( Thread * me, void * args ) {
   while( !SoftXMT_done() ) {
     my_global_scheduler->stats.sample();
+    my_task_manager->stats.sample();
+
     SoftXMT_poll();
     SoftXMT_yield_periodic();
   }
@@ -83,6 +87,10 @@ void SoftXMT_init( int * argc_p, char ** argv_p[], size_t global_memory_size_byt
   my_global_memory = new GlobalMemory( global_memory_size_bytes );
 
   SoftXMT_done_flag = false;
+
+  // process command line args for Tau
+  //TAU_INIT( argc_p, argv_p );
+  TAU_PROFILE_SET_NODE(SoftXMT_mynode());
 
   //TODO: options for local stealing
   Node * neighbors = new Node[SoftXMT_nodes()];
@@ -156,6 +164,7 @@ void SoftXMT_barrier_commsafe() {
 /// Poll SoftXMT aggregation and communication layers.
 void SoftXMT_poll()
 {
+  TAU_PROFILE("poll()", "()", TAU_USER);
   my_global_aggregator->poll();
 }
 
@@ -310,6 +319,7 @@ void SoftXMT_finish( int retval )
 {
   SoftXMT_signal_done(); // this may be overkill (just set done bit?)
 
+  //TAU_PROFILE_EXIT("Tau_profile_exit called");
   SoftXMT_barrier();
 
   DVLOG(1) << "Cleaning up SoftXMT library....";
@@ -332,5 +342,6 @@ void SoftXMT_finish( int retval )
 #ifdef HEAPCHECK
   assert( SoftXMT_heapchecker->NoLeaks() );
 #endif
+  
 }
 

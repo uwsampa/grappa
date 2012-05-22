@@ -18,6 +18,7 @@
 #include <gflags/gflags.h>
 #include <glog/logging.h>
 
+
 #include <gasnet.h>
 
 #include "common.hpp"
@@ -27,6 +28,11 @@
 #include "Timestamp.hpp"
 
 #include "MutableHeap.hpp"
+
+
+#include <TAU.h>
+// function to compute a mpi-like tag for communication tracing
+#define aggregator_trace_tag(data) (int) (0xffffffff & ((uint64_t)data))
 
 /// Type of aggregated active message handler
 typedef void (* AggregatorAMHandler)( void *, size_t, void *, size_t );
@@ -171,6 +177,10 @@ struct AggregatorGenericCallHeader {
   Node destination;
   uint16_t args_size;
   uint16_t payload_size;
+#ifdef GRAPPA_TRACE
+// TODO: really don't want this transmitted even in tracing
+  Node source;
+#endif
 };
 
 static std::ostream& operator<<( std::ostream& o, const AggregatorGenericCallHeader& h ) {
@@ -359,7 +369,7 @@ public:
     return buffer_size_ - buffers_[ target ].current_position_; 
   }
 
-  inline void aggregate( Node destination, AggregatorAMHandler fn_p, 
+inline void aggregate( Node destination, AggregatorAMHandler fn_p, 
                          const void * args, const size_t args_size,
                          const void * payload, const size_t payload_size ) {
     CHECK( destination < max_nodes_ ) << "destination:" << destination << " max_nodes_:" << max_nodes_;
@@ -394,21 +404,37 @@ public:
     AggregatorGenericCallHeader header = { reinterpret_cast< intptr_t >( fn_p ),
                                            destination,
                                            args_size,
-                                           payload_size };
+                                           payload_size
+#ifdef GRAPPA_TRACE
+                                          , communicator_->mynode()
+#endif
+   
+             };
+   
     buffers_[ target ].insert( &header, sizeof( header ) );
     buffers_[ target ].insert( args, args_size );
     buffers_[ target ].insert( payload, payload_size );
     stats.record_aggregation( total_call_size );
-    
-    uint64_t ts = get_timestamp();
-    least_recently_sent_.update_or_insert( target, -ts );
-    previous_timestamp_ = ts;
-    DVLOG(5) << "aggregated " << header;
+  
+    // trace fine-grain communication
+  {
+    // TODO: good candidate for TAU_CONTEXT_EVENT
+      int fn_p_tag = aggregator_trace_tag( fn_p );
+      TAU_TRACE_SENDMSG(fn_p_tag, destination, args_size + payload_size );
   }
+
+  uint64_t ts = get_timestamp();
+  least_recently_sent_.update_or_insert( target, -ts );
+  previous_timestamp_ = ts;
+  DVLOG(5) << "aggregated " << header;
+}
 
 };
 
+
 extern Aggregator * global_aggregator;
+
+
 
 template< typename ArgsStruct >
 inline void SoftXMT_call_on( Node destination, void (* fn_p)(ArgsStruct *, size_t, void *, size_t), 
@@ -416,11 +442,14 @@ inline void SoftXMT_call_on( Node destination, void (* fn_p)(ArgsStruct *, size_
                              const void * payload = NULL, const size_t payload_size = 0)
 {
   assert( global_aggregator != NULL );
+
+
   global_aggregator->aggregate( destination, 
                                 reinterpret_cast< AggregatorAMHandler >( fn_p ), 
                                 static_cast< const void * >( args ), args_size,
                                 static_cast< const void * >( payload ), payload_size );
 }
+
 
 template< typename ArgsStruct, typename PayloadType >
 inline void SoftXMT_call_on_x( Node destination, void (* fn_p)(ArgsStruct *, size_t, PayloadType *, size_t), 
