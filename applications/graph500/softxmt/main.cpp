@@ -304,8 +304,7 @@ static double make_bfs_tree(csr_graph * g, GlobalAddress<int64_t> bfs_tree, int6
   GlobalAddress<int64_t> k2addr = make_global(&k2);
   
   // initialize bfs_tree to -1
-  func_set_const fc(bfs_tree, -1);
-  fork_join(&fc, 0, NV);
+  SoftXMT_memset(bfs_tree, (graphint)-1, NV);
   
   SoftXMT_delegate_write_word(bfs_tree+root, root); // parent of root is self
   

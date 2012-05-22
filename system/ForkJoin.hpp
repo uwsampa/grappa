@@ -75,7 +75,7 @@ struct LocalDynamicBarrier {
     } else {
       outstanding--;
     }
-    VLOG(5) << "LocalPhaser(outstanding=" << outstanding << ")";
+    VLOG(5) << "barrier(outstanding=" << outstanding << ")";
     if (outstanding == 0) {
       while (!wakelist.empty()) {
         SoftXMT_wake(wakelist.dequeue());
@@ -259,9 +259,6 @@ inline void operator()(int64_t) const; \
 }; \
 inline void name::operator()(int64_t index_var) const
 
-//LOOP_FUNCTOR(func_set_const, index, ((GlobalAddress<int64_t>,base_addr)) ((int64_t,value)) ) {
-//  SoftXMT_delegate_write_word(base_addr+index, value);
-//}
 
 struct ConstReplyArgs {
   int64_t replies_left;

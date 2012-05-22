@@ -12,11 +12,11 @@ static GlobalAddress<color_t> marks;
 static graphint nchanged;
 static graphint ncomponents;
 
-static LocalPhaser phaser;
+static LocalDynamicBarrier barrier;
 
 static void init_marks(graphint k) {
   SoftXMT_delegate_write_word(marks+k, (color_t)k);
-  phaser.signal();
+  barrier.signal();
 }
 
 static void merge_marks(graphint k) {
@@ -31,7 +31,7 @@ static void merge_marks(graphint k) {
       ++nchanged;
     }
   }
-  phaser.signal();
+  barrier.signal();
 }
 
 template <bool final>
@@ -50,7 +50,7 @@ static void compact_marks(graphint i) {
     }
   }
   di.block_until_released();
-  phaser.signal();
+  barrier.signal();
 }
 
 LOOP_FUNCTOR( connectedCompFunc, nid,
@@ -69,14 +69,14 @@ LOOP_FUNCTOR( connectedCompFunc, nid,
   eV = endVertex;
   marks = marks_;
   
-  phaser.reset();
+  barrier.reset();
   
   VLOG(5) << "before init_marks";
   for (graphint i=vr.start; i < vr.end; i++) {
-    phaser++;
+    barrier.registerTask();
     SoftXMT_privateTask(&init_marks, i);
   }
-  phaser.wait();
+  barrier.wait();
   SoftXMT_barrier_commsafe();
   
   VLOG(5) << "here";
@@ -86,10 +86,10 @@ LOOP_FUNCTOR( connectedCompFunc, nid,
 //    if (global_nchanged.node() == nid) *global_nchanged.pointer() = 0;
     
     for (graphint i = er.start; i < er.end; i++) {
-      phaser++;
+      barrier.registerTask();
       SoftXMT_privateTask(&merge_marks, i);
     }
-    phaser.wait();
+    barrier.wait();
     VLOG(5) << "nchanged = " << nchanged;
     // global reduction to find out if anyone changed anything
     nchanged = SoftXMT_allreduce<graphint,coll_add<graphint>,0>(nchanged);
@@ -98,19 +98,19 @@ LOOP_FUNCTOR( connectedCompFunc, nid,
     if (nchanged == 0) break;
     
     for (graphint i = vr.start; i < vr.end; i++) {
-      phaser++;
+      barrier.registerTask();
       SoftXMT_privateTask(&compact_marks<false>, i);
     }
-    phaser.wait();
+    barrier.wait();
     VLOG(5) << "ncomponents = " << ncomponents;
     SoftXMT_barrier_commsafe();
   }
   
   for (graphint i = vr.start; i < vr.end; i++) {
-    phaser++;
+    barrier.registerTask();
     SoftXMT_privateTask(&compact_marks<true>, i);
   }
-  phaser.wait();
+  barrier.wait();
   VLOG(5) << "ncomponents = " << ncomponents;
   SoftXMT_barrier_commsafe();
   

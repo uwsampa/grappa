@@ -27,7 +27,7 @@ struct CentralityScratch {
                           Qnext;
 };
 
-static LocalPhaser phaser;
+static LocalDynamicBarrier barrier;
 
 static graph g;
 static CentralityScratch c;
@@ -62,7 +62,7 @@ static void bfs_push_visit_neighbor(uint64_t packed) {
     write(c.child+l, w);
   }
 //----------------------------
-  phaser.signal();
+  barrier.signal();
 }
 
 static void bfs_push_visit_vertex(int64_t j) {
@@ -74,13 +74,13 @@ static void bfs_push_visit_vertex(int64_t j) {
   const graphint vend = vrange[1];
   CHECK(v < (1L<<32)) << "can't pack 'v' into 32-bit value! have to get more creative";
   CHECK(vend < (1L<<32)) << "can't pack 'vo' into 32-bit value! have to get more creative";
-    
+  
   for (int64_t k = vstart; k < vend; k++) {
     uint64_t packed = (((uint64_t)v) << 32) | k;
-    phaser++;
+    barrier.registerTask();
     SoftXMT_privateTask(&bfs_push_visit_neighbor, packed);
   }
-  phaser.signal();
+  barrier.signal();
 }
 
 LOOP_FUNCTOR(bfs_push, nid, ((graphint,d_phase_)) ((int64_t,start)) ((int64_t,end))) {
@@ -88,12 +88,12 @@ LOOP_FUNCTOR(bfs_push, nid, ((graphint,d_phase_)) ((int64_t,start)) ((int64_t,en
   
   range_t r = blockDist(start, end, nid, SoftXMT_nodes());
   
-  phaser.reset();
+  barrier.reset();
   for (int64_t i = r.start; i < r.end; i++) {
-    phaser++;
+    barrier.registerTask();
     SoftXMT_privateTask(&bfs_push_visit_vertex, i);
   }
-  phaser.wait();
+  barrier.wait();
 }
 
 FUNCTOR(AtomicAddDouble, ((GlobalAddress<double>,r)) ((double,v)) ) {
@@ -116,17 +116,17 @@ static void bfs_pop_visit_vertex(graphint j) {
 
   AtomicAddDouble aad(bc+v, sum);
   SoftXMT_delegate_func(&aad, aad.r.node());
-  phaser.signal();
+  barrier.signal();
 }
 
 LOOP_FUNCTOR(bfs_pop, nid, ((graphint,start)) ((graphint,end)) ) {
   range_t r = blockDist(start, end, nid, SoftXMT_nodes());
-  phaser.reset();
+  barrier.reset();
   for (int64_t i = r.start; i < r.end; i++) {
-    phaser++;
+    barrier.registerTask();
     SoftXMT_privateTask(&bfs_pop_visit_vertex, i);
   }
-  phaser.wait();
+  barrier.wait();
 }
 
 LOOP_FUNCTOR( initCentrality, nid, ((graph,g_)) ((CentralityScratch,s_)) ((GlobalAddress<double>,bc_)) ) {
@@ -160,8 +160,8 @@ double centrality(graph *g, GlobalAddress<double> bc, graphint Vs) {
     initCentrality f(*g, c, bc); fork_join_custom(&f);
   }
   
-  set_const(bc, g->numVertices, 0.0);
-  if (!computeAllVertices) set_const(c.explored, g->numVertices, (graphint)0L);
+  SoftXMT_memset(bc, 0.0, g->numVertices);
+  if (!computeAllVertices) SoftXMT_memset(c.explored, (graphint)0L, g->numVertices);
   
   srand(12345);
   
@@ -189,10 +189,10 @@ double centrality(graph *g, GlobalAddress<double> bc, graphint Vs) {
     
     VLOG(3) << "s = " << s;
     
-    set_const(c.dist, g->numVertices, (graphint)-1);
-    set_const(c.sigma, g->numVertices, (graphint)0);
-    set_const(c.marks, g->numVertices, (graphint)0);
-    set_const(c.child_count, g->numVertices, (graphint)0);
+    SoftXMT_memset(c.dist, (graphint)-1, g->numVertices);
+    SoftXMT_memset(c.sigma, (graphint)0, g->numVertices);
+    SoftXMT_memset(c.marks, (graphint)0, g->numVertices);
+    SoftXMT_memset(c.child_count, (graphint)0, g->numVertices);
     
     // Push node i onto Q and set bounds for first Q sublist
     write(c.Q+0, s);
@@ -233,7 +233,7 @@ double centrality(graph *g, GlobalAddress<double> bc, graphint Vs) {
 //      ss << " ]";
 //      VLOG(1) << ss.str();
 //    } 
-    set_const(c.delta, g->numVertices, 0.0);
+    SoftXMT_memset(c.delta, 0.0, g->numVertices);
     
     // Pop nodes off of Q in the reverse order they were pushed on
     for ( ; nQ > 1; nQ--) {
