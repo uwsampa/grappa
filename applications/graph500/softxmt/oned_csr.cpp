@@ -159,8 +159,8 @@ struct init_xendoff_func : public ForkJoinIteration {
 static void setup_deg_off(const tuple_graph * const tg, csr_graph * g) {
   GlobalAddress<int64_t> xoff = g->xoff;
   // initialize xoff to 0
-  func_set_const fc(g->xoff, 0);
-  fork_join(&fc, 0, 2*g->nv+2);
+  
+  SoftXMT_memset(g->xoff, 0, 2*g->nv+2);
   
   // count occurrences of each vertex in edges
   degree_func fd; fd.edges = tg->edges; fd.xoff = g->xoff;

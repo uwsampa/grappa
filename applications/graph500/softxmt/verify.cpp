@@ -69,10 +69,7 @@ struct compute_levels_func : ForkJoinIteration {
 void compute_levels(GlobalAddress<int64_t> level, int64_t nv, GlobalAddress<int64_t> bfs_tree, int64_t root) {
   
   // Incoherent::RW c_level(level, nv);
-  func_set_const fc;
-  fc.base_addr = level;
-  fc.value = -1;
-  fork_join(&fc, 0, nv);
+  SoftXMT_memset(level, -1, nv);
   
   SoftXMT_delegate_write_word(level+root, 0);
   
@@ -218,12 +215,9 @@ int64_t verify_bfs_tree(GlobalAddress<int64_t> bfs_tree, int64_t max_bfsvtx, int
   VLOG(1) << "compute_levels time: " << t;
   
   t = timer();
-  func_set_const fc;
-  fc.base_addr = seen_edge;
-  fc.value = 0;
-  fork_join(&fc, 0, nv);
+  SoftXMT_memset(seen_edge, 0, nv);
   t = timer() - t;
-  VLOG(1) << "set_const time: " << t;
+  VLOG(1) << "SoftXMT_memset time: " << t;
   
   t = timer();
   verify_func fv;

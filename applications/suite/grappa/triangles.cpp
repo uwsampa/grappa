@@ -14,7 +14,7 @@ typedef GlobalAddress<graphint> Addr;
 static Addr edge;
 static Addr eV;
 static graphint ntriangles;
-static LocalPhaser phaser;
+static LocalDynamicBarrier barrier;
 
 #define BUFSIZE (1L<<12)
 
@@ -77,7 +77,7 @@ static void trianglesTask(graphint v) {
 //    Astart++;
   }
   
-  phaser.signal();
+  barrier.signal();
 }
 
 inline void checkAndMoveCache(graphint& index, graphint& currStart, graphint& currLimit, const graphint& globalLimit, Incoherent<graphint>::RO& cache) {
@@ -153,7 +153,7 @@ static void search_children(uint64_t packed) {
       while (bstart+bi < Blimit && temp == edgesB[bi]) incrB();
     }
   }
-  phaser.signal();
+  barrier.signal();
 }
 #undef incrA
 #undef incrB
@@ -171,7 +171,7 @@ static void gen_tasks(graphint A) {
   
   while (Astart < Alimit) {
     uint64_t packed = (Astart << 32) + A;
-    phaser++;
+    barrier.registerTask();
     SoftXMT_privateTask(&search_children, packed);
     
     temp = read(eV+Astart);
@@ -179,7 +179,7 @@ static void gen_tasks(graphint A) {
     while (Astart < Alimit && temp == read(eV+Astart)) Astart++;
   }
   
-  phaser.signal();
+  barrier.signal();
 }
 
 LOOP_FUNCTOR( trianglesFunc, nid, ((graphint,NV)) ((Addr,edge_)) ((Addr,eV_)) ) {
@@ -191,14 +191,14 @@ LOOP_FUNCTOR( trianglesFunc, nid, ((graphint,NV)) ((Addr,edge_)) ((Addr,eV_)) ) 
 //  NE = NE_;
   
   range_t r = blockDist(0, NV, SoftXMT_mynode(), SoftXMT_nodes());
-  phaser.reset();
+  barrier.reset();
   
   for (graphint i=r.start; i<r.end; i++) {
-    phaser++;
+    barrier.registerTask();
     SoftXMT_privateTask(&gen_tasks, i);
 //    SoftXMT_privateTask(&trianglesTask, i);
   }
-  phaser.wait();
+  barrier.wait();
   VLOG(3) << "ntriangles (local) = " << ntriangles;
   
 //  ntriangles = SoftXMT_collective_reduce(&collective_add, 0, ntriangles, 0);

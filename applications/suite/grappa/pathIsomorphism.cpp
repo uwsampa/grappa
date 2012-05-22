@@ -18,7 +18,7 @@ static size_t npattern;
 
 static graphint nmatches;
 
-static LocalPhaser phaser;
+static LocalDynamicBarrier barrier;
 
 static void checkEdgesRecursiveTask(uint64_t packed) {
   graphint v = packed & 0xFFFFFFFF;
@@ -40,12 +40,12 @@ static void checkEdgesRecursiveTask(uint64_t packed) {
       } else {
         CHECK(ceV[j] < (1L<<32)) << "v = " << ceV[j];
         packed = (((uint64_t)poff+1) << 32) | ceV[j];
-        phaser++;
+        barrier.registerTask();
         SoftXMT_privateTask(&checkEdgesRecursiveTask, packed);
       }
     }
   }
-  phaser.signal();
+  barrier.signal();
 }
 
 static void pathIsoTask(graphint v) {
@@ -58,7 +58,7 @@ static void pathIsoTask(graphint v) {
     uint64_t packed = (((uint64_t)1) << 32) | v;
     checkEdgesRecursiveTask(packed);
   } else {
-    phaser.signal();
+    barrier.signal();
   }
 }
 
@@ -70,13 +70,13 @@ LOOP_FUNCTOR( pathIsomorphismFunc, nid, ((graph,g_)) ((GlobalAddress<color_t>,pa
   cpattern.start_acquire();
   pattern = &(*cpattern);
   
-  phaser.reset();
+  barrier.reset();
   range_t vr = blockDist(0, g.numVertices, SoftXMT_mynode(), SoftXMT_nodes());
   for (graphint i=vr.start; i<vr.end; i++) {
-    phaser++;
+    barrier.registerTask();
     SoftXMT_privateTask(&pathIsoTask, i);
   }
-  phaser.wait();
+  barrier.wait();
   
   VLOG(5) << "nmatches = " << nmatches;
   
@@ -108,7 +108,7 @@ static void markColorsTask(graphint v) {
     }
     *cmark = (total % (maxc-minc)) + minc;
   }
-  phaser.signal();
+  barrier.signal();
 }
 
 LOOP_FUNCTOR( markColorsFunc, nid, ((graph,g_)) ((color_t,minc_)) ((color_t,maxc_)) ) {
@@ -118,13 +118,13 @@ LOOP_FUNCTOR( markColorsFunc, nid, ((graph,g_)) ((color_t,minc_)) ((color_t,maxc
   
   range_t vr = blockDist(0, g.numVertices, SoftXMT_mynode(), SoftXMT_nodes());
   
-  phaser.reset();
+  barrier.reset();
   
   for (graphint i=vr.start; i<vr.end; i++) {
-    phaser++;
+    barrier.registerTask();
     SoftXMT_privateTask(&markColorsTask, i);
   }
-  phaser.wait();
+  barrier.wait();
 }
 
 /// In order to get reproducible results for pathIsomorphism, mark for 
