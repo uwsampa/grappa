@@ -62,7 +62,6 @@ CFLAGS+= -I$(COMMON)
 #
 
 CC=gcc
-CC2=gcc
 CXX=g++
 LD=mpiCC
 
@@ -177,9 +176,6 @@ SRUN_CC=sleep $(SRUN_STUPID_NFS_DELAY) && $(SRUN_BUILD_CMD) $(CC)
 SRUN_CXX=sleep $(SRUN_STUPID_NFS_DELAY) && $(SRUN_BUILD_CMD) $(CXX)
 SRUN_LD=sleep $(SRUN_STUPID_NFS_DELAY) && $(SRUN_BUILD_CMD) $(LD)
 SRUN_AR=sleep $(SRUN_STUPID_NFS_DELAY) && $(SRUN_BUILD_CMD) $(AR)
-
-#to not get overloaded when CC overloaded
-SRUN_CC2=sleep $(SRUN_STUPID_NFS_DELAY) && $(SRUN_BUILD_CMD) $(CC2)
 
 #
 # QLogic MPI
