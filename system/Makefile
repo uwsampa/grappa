@@ -333,7 +333,7 @@ coro.o: coro.c
 
 stack.o: stack.S
 	$(ENV_VARIABLES) \
-	$($(MPITYPE)_CC2) -c $(CFLAGS) $< -o $*.o
+	$($(MPITYPE)_CC) -c $(CFLAGS) $< -o $*.o
 
 
 CLEAN_FILES+= *.exe *.o *.pch *.d *.test *.dis libSoftXMT.a libSoftXMT.so* ./tasks/*.o $(LIBRARY_CONTENTS) $($(MPITYPE)_CLEAN_FILES)
