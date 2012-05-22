@@ -58,21 +58,24 @@ public:
   }
 };
 
-struct LocalPhaser {
+struct LocalDynamicBarrier {
   ThreadQueue wakelist;
   int64_t outstanding;
+  LocalDynamicBarrier(): outstanding(0) {}
   void reset() {
     outstanding = 0;
+    while (!wakelist.empty()) SoftXMT_wake(wakelist.dequeue());
   }
-  void operator++(int) {
-    ++outstanding;
-  }
-  void operator++() {
+  void registerTask() {
     outstanding++;
   }
   void signal() {
-    outstanding--;
-    VLOG(5) << "LocalPhaser[" << outstanding << " outstanding]";
+    if (outstanding == 0) {
+      LOG(ERROR) << "too many calls to signal()";
+    } else {
+      outstanding--;
+    }
+    VLOG(5) << "LocalPhaser(outstanding=" << outstanding << ")";
     if (outstanding == 0) {
       while (!wakelist.empty()) {
         SoftXMT_wake(wakelist.dequeue());
@@ -80,8 +83,10 @@ struct LocalPhaser {
     }
   }
   void wait() {
-    wakelist.enqueue(CURRENT_THREAD);
-    while (outstanding > 0) SoftXMT_suspend();
+    if (outstanding > 0) {
+      wakelist.enqueue(CURRENT_THREAD);
+      while (outstanding > 0) SoftXMT_suspend();
+    }
   }
 };
 
@@ -225,7 +230,7 @@ void fork_join_custom(T* func) {
 ///     ((type1,name1)) ((type2,name2)) ...
 ///
 /// Example:
-///   LOOP_FUNCTOR(set_const, i, ((GlobalAddress<int64_t>,array)) ((int64_t,value)) ) {
+///   LOOP_FUNCTOR(set_all, i, ((GlobalAddress<int64_t>,array)) ((int64_t,value)) ) {
 ///     SoftXMT_delegate_write_word(array+i, value);
 ///   }
 #define LOOP_FUNCTOR(name, index_var, members) \
@@ -254,9 +259,9 @@ inline void operator()(int64_t) const; \
 }; \
 inline void name::operator()(int64_t index_var) const
 
-LOOP_FUNCTOR(func_set_const, index, ((GlobalAddress<int64_t>,base_addr)) ((int64_t,value)) ) {
-  SoftXMT_delegate_write_word(base_addr+index, value);
-}
+//LOOP_FUNCTOR(func_set_const, index, ((GlobalAddress<int64_t>,base_addr)) ((int64_t,value)) ) {
+//  SoftXMT_delegate_write_word(base_addr+index, value);
+//}
 
 struct ConstReplyArgs {
   int64_t replies_left;
@@ -271,7 +276,7 @@ struct ConstRequestArgs {
   GlobalAddress<ConstReplyArgs> reply;
 };
 
-static void const_reply_am(GlobalAddress<ConstReplyArgs> * reply, size_t sz, void * payload, size_t psz) {
+static void memset_reply_am(GlobalAddress<ConstReplyArgs> * reply, size_t sz, void * payload, size_t psz) {
   CHECK(reply->node() == SoftXMT_mynode());
   ConstReplyArgs * r = reply->pointer();
   (r->replies_left)--;
@@ -281,17 +286,17 @@ static void const_reply_am(GlobalAddress<ConstReplyArgs> * reply, size_t sz, voi
 }
 
 template< typename T >
-static void const_request_am(ConstRequestArgs<T> * args, size_t sz, void* payload, size_t psz) {
+static void memset_request_am(ConstRequestArgs<T> * args, size_t sz, void* payload, size_t psz) {
   CHECK(args->addr.node() == SoftXMT_mynode()) << "args->addr.node() = " << args->addr.node();
   T * ptr = args->addr.pointer();
   for (size_t i=0; i<args->count; i++) {
     ptr[i] = args->value;
   }
-  SoftXMT_call_on(args->reply.node(), &const_reply_am, &args->reply);
+  SoftXMT_call_on(args->reply.node(), &memset_reply_am, &args->reply);
 }
 
 template< typename T >
-static void set_const(GlobalAddress<T> request_address, size_t count, T value) {
+static void SoftXMT_memset(GlobalAddress<T> request_address, T value, size_t count) {
   size_t offset = 0;
   size_t request_bytes = 0;
   
@@ -313,7 +318,7 @@ static void set_const(GlobalAddress<T> request_address, size_t count, T value) {
     args.count = request_bytes / sizeof(T);
     
     reply.replies_left++;
-    SoftXMT_call_on(args.addr.node(), &const_request_am, &args);
+    SoftXMT_call_on(args.addr.node(), &memset_request_am, &args);
     
     args.addr += args.count;
   }
