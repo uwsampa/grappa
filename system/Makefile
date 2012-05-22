@@ -184,7 +184,7 @@ run: $(TARGET) $($(MPITYPE)_ENVVAR_TEMP)
 mpi_test: $(TARGET) $($(MPITYPE)_ENVVAR_TEMP)
 	-killall $<
 	$(ENV_VARIABLES) \
-	$($(MPITYPE)_MPIRUN) $($(MPITYPE)_EXPORT_ENV_VARIABLES) $($(MPITYPE)_HOST) $($(MPITYPE)_NPROC) -- ./$< $(GARGS) --log_level=test_suite --run_test=$(TARGET:.test=) -- $(ARGS)
+	$($(MPITYPE)_MPIRUN) $($(MPITYPE)_EXPORT_ENV_VARIABLES) $($(MPITYPE)_HOST) $($(MPITYPE)_NPROC) -- $(MY_TAU_RUN) ./$< $(GARGS) --log_level=test_suite --run_test=$(TARGET:.test=) -- $(ARGS)
 
 test: $(TARGET)
 	-killall $<
@@ -252,7 +252,8 @@ endif
 #
 
 # always include headers, but only use wrapper and libaries if enabled
-TAUDIR=/sampa/share/tau-perf/tau-trace-otf-tsc
+#TAUDIR=/sampa/share/tau-perf/tau-trace-otf-tsc
+TAUDIR=/sampa/share/tau-perf/tau
 include $(TAUDIR)/include/Makefile
 CFLAGS+= $(TAU_INCLUDE) 
 
@@ -264,6 +265,7 @@ LD= $(TAU_MPICC)
 CFLAGS+= $(TAU_DEFS) -DGRAPPA_TRACE -Wno-write-strings
 LIBS= $(TAU_LIBS)
 LDFLAGS+= $(USER_OPT)
+MY_TAU_RUN=/sampa/share/tau-perf/tau/x86_64/bin/tau_load.sh
 endif
 
 #
