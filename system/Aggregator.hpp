@@ -32,7 +32,8 @@
 
 #include <TAU.h>
 // function to compute a mpi-like tag for communication tracing
-#define aggregator_trace_tag(data) (int) (0xffffffff & ((uint64_t)data))
+//#define aggregator_trace_tag(data) (int) (0x7FFF & reinterpret_cast<intptr_t>(data))
+#define aggregator_trace_tag(data) reinterpret_cast<intptr_t>(data)
 
 /// Type of aggregated active message handler
 typedef void (* AggregatorAMHandler)( void *, size_t, void *, size_t );
@@ -420,6 +421,7 @@ inline void aggregate( Node destination, AggregatorAMHandler fn_p,
   {
     // TODO: good candidate for TAU_CONTEXT_EVENT
       int fn_p_tag = aggregator_trace_tag( fn_p );
+      VLOG(1) << "fn_p= " << reinterpret_cast<intptr_t>(fn_p) << " fn_p_tag= " << fn_p_tag;
       TAU_TRACE_SENDMSG(fn_p_tag, destination, args_size + payload_size );
   }
 

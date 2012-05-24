@@ -1,0 +1,41 @@
+
+# TODO consolidate into same build of tau
+TAU_BIN=$(TAUDIR)/tau-trace-otf/x86_64/bin
+TAU_READER_PATH=$(TAUDIR)/tau-no-pdt/examples/traceinput/c++
+
+# TODO 
+TRANSLATE_UTILS=./translate_tags
+
+merge: $(TRACEDIR)/tau.trc $(TRACEDIR)/tau.edf
+otf: $(TRACEDIR)/app.otf
+fm: $(TRACEDIR)/fn_mappings
+
+# merge trace files; also creates tau.edf
+$(TRACEDIR)/tau.trc:
+	cd $(TRACEDIR);	$(TAU_BIN)/tau_treemerge.pl
+
+$(TRACEDIR)/tau.edf: $(TRACEDIR)/tau.trc
+	# tau.edf created by merge
+
+TAU2OTF_PARALLEL_STREAMS=8
+
+# convert trace to OTF (Open Trace Format)
+$(TRACEDIR)/app.otf: $(TRACEDIR)/tau.trc $(TRACEDIR)/tau.edf
+	$(TAU_BIN)/tau2otf $^ $@ -z -n $(TAU2OTF_PARALLEL_STREAMS)
+
+# generate tau_reader human-readable trace output
+$(TRACEDIR)/reader.out: $(TRACEDIR)/tau.trc $(TRACEDIR)/tau.edf
+	$(TAU_READER_PATH)/tau_reader $^ > $@
+
+$(TARGET).d: $(TARGET)
+	objdump -d $< > $@
+
+# generate mapping from trace message tags to function names
+$(TRACEDIR)/fn_mappings: $(TRACEDIR)/reader.out $(TARGET).d
+	grep Message $< | cut -d , -f5 | cut -d ' ' -f3 | sort | uniq | $(TRANSLATE_UTILS)/obj_grep.rb $(TARGET).d > $@
+
+# remove pre-merged trace files
+clean_orig: $(TRACEDIR)/tau.trc $(TRACEDIR)/tau.edf
+	rm -f $(TRACEDIR)/tautrace.*.*.*.trc
+	rm -f $(TRACEDIR)/events.*.edf
+
