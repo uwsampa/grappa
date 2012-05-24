@@ -421,7 +421,6 @@ inline void aggregate( Node destination, AggregatorAMHandler fn_p,
   {
     // TODO: good candidate for TAU_CONTEXT_EVENT
       int fn_p_tag = aggregator_trace_tag( fn_p );
-      VLOG(1) << "fn_p= " << reinterpret_cast<intptr_t>(fn_p) << " fn_p_tag= " << fn_p_tag;
       TAU_TRACE_SENDMSG(fn_p_tag, destination, args_size + payload_size );
   }
 
