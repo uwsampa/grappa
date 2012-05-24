@@ -10,6 +10,12 @@ merge: $(TRACEDIR)/tau.trc $(TRACEDIR)/tau.edf
 otf: $(TRACEDIR)/app.otf
 fm: $(TRACEDIR)/fn_mappings
 
+TRACE_BACKUP_DIR=./profiles_backup
+backup:
+	mkdir -p $(TRACE_BACKUP_DIR)
+	mv $(TRACEDIR) $(shell echo $(TRACE_BACKUP_DIR)/$(TARGET)-$(shell git rev-parse HEAD))-$(shell date | awk '{gsub(/ +/, "_");print}')
+	mkdir -p $(TRACEDIR)
+
 # merge trace files; also creates tau.edf
 $(TRACEDIR)/tau.trc:
 	cd $(TRACEDIR);	$(TAU_BIN)/tau_treemerge.pl
