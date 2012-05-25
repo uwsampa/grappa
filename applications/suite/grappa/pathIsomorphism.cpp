@@ -18,7 +18,7 @@ static size_t npattern;
 
 static graphint nmatches;
 
-static LocalDynamicBarrier barrier;
+static LocalTaskJoiner joiner;
 
 static void checkEdgesRecursiveTask(uint64_t packed) {
   graphint v = packed & 0xFFFFFFFF;
@@ -40,12 +40,12 @@ static void checkEdgesRecursiveTask(uint64_t packed) {
       } else {
         CHECK(ceV[j] < (1L<<32)) << "v = " << ceV[j];
         packed = (((uint64_t)poff+1) << 32) | ceV[j];
-        barrier.registerTask();
+        joiner.registerTask();
         SoftXMT_privateTask(&checkEdgesRecursiveTask, packed);
       }
     }
   }
-  barrier.signal();
+  joiner.signal();
 }
 
 static void pathIsoTask(graphint v) {
@@ -58,7 +58,7 @@ static void pathIsoTask(graphint v) {
     uint64_t packed = (((uint64_t)1) << 32) | v;
     checkEdgesRecursiveTask(packed);
   } else {
-    barrier.signal();
+    joiner.signal();
   }
 }
 
@@ -70,13 +70,13 @@ LOOP_FUNCTOR( pathIsomorphismFunc, nid, ((graph,g_)) ((GlobalAddress<color_t>,pa
   cpattern.start_acquire();
   pattern = &(*cpattern);
   
-  barrier.reset();
+  joiner.reset();
   range_t vr = blockDist(0, g.numVertices, SoftXMT_mynode(), SoftXMT_nodes());
   for (graphint i=vr.start; i<vr.end; i++) {
-    barrier.registerTask();
+    joiner.registerTask();
     SoftXMT_privateTask(&pathIsoTask, i);
   }
-  barrier.wait();
+  joiner.wait();
   
   VLOG(5) << "nmatches = " << nmatches;
   
@@ -108,7 +108,7 @@ static void markColorsTask(graphint v) {
     }
     *cmark = (total % (maxc-minc)) + minc;
   }
-  barrier.signal();
+  joiner.signal();
 }
 
 LOOP_FUNCTOR( markColorsFunc, nid, ((graph,g_)) ((color_t,minc_)) ((color_t,maxc_)) ) {
@@ -118,13 +118,13 @@ LOOP_FUNCTOR( markColorsFunc, nid, ((graph,g_)) ((color_t,minc_)) ((color_t,maxc
   
   range_t vr = blockDist(0, g.numVertices, SoftXMT_mynode(), SoftXMT_nodes());
   
-  barrier.reset();
+  joiner.reset();
   
   for (graphint i=vr.start; i<vr.end; i++) {
-    barrier.registerTask();
+    joiner.registerTask();
     SoftXMT_privateTask(&markColorsTask, i);
   }
-  barrier.wait();
+  joiner.wait();
 }
 
 /// In order to get reproducible results for pathIsomorphism, mark for 
