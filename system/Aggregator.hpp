@@ -33,7 +33,7 @@
 #include <TAU.h>
 // function to compute a mpi-like tag for communication tracing
 //#define aggregator_trace_tag(data) (int) (0x7FFF & reinterpret_cast<intptr_t>(data))
-#define aggregator_trace_tag(data) reinterpret_cast<intptr_t>(data)
+#define aggregator_trace_tag(data) (0xffffffff & reinterpret_cast<intptr_t>(data))
 
 /// Type of aggregated active message handler
 typedef void (* AggregatorAMHandler)( void *, size_t, void *, size_t );
