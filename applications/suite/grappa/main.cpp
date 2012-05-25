@@ -210,7 +210,7 @@ static void user_main(int* ignore) {
     t = timer();
     
     GlobalAddress<double> bc = SoftXMT_typed_malloc<double>(numVertices);
-    double avgbc = centrality(g, bc, 10);
+    double avgbc = centrality(g, bc, kcent);
     
     t = timer() - t;
     printf("Betweenness Centrality: (avg) = %lf\n", avgbc);
