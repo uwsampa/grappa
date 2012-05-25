@@ -214,7 +214,7 @@ int main(int argc, char* argv[]) {
   time = timer();
   
   double *bc = xmalloc(numVertices*sizeof(double));
-  double avgbc = centrality(g, bc, 10);
+  double avgbc = centrality(g, bc, kcent);
   
   time = timer() - time;
   printf("Betweenness Centrality: (avg) = %lf\n", avgbc);
