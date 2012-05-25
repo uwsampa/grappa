@@ -25,6 +25,8 @@ static Aggregator * my_global_aggregator = NULL;
 // TODO: should granular memory pools be stored at this level?
 static GlobalMemory * my_global_memory = NULL;
 
+static Thread * barrier_thread = NULL;
+
 Thread * master_thread;
 static Thread * user_main_thr;
 TaskingScheduler * my_global_scheduler;
@@ -43,6 +45,12 @@ static void poller( Thread * me, void * args ) {
     my_task_manager->stats.sample();
 
     SoftXMT_poll();
+    if (barrier_thread) {
+      if (my_global_communicator->barrier_try()) {
+        SoftXMT_wake(barrier_thread);
+        barrier_thread = NULL;
+      }
+    }
     SoftXMT_yield_periodic();
   }
   VLOG(5) << "polling Thread exiting";
@@ -168,6 +176,12 @@ void SoftXMT_barrier_commsafe() {
     while (!my_global_communicator->barrier_try()) {
         SoftXMT_yield();
     }
+}
+
+void SoftXMT_barrier_suspending() {
+  my_global_communicator->barrier_notify();
+  barrier_thread = CURRENT_THREAD;
+  SoftXMT_suspend();
 }
 
 /// Poll SoftXMT aggregation and communication layers.
