@@ -58,10 +58,10 @@ public:
   }
 };
 
-struct LocalDynamicBarrier {
+struct LocalTaskJoiner {
   ThreadQueue wakelist;
   int64_t outstanding;
-  LocalDynamicBarrier(): outstanding(0) {}
+  LocalTaskJoiner(): outstanding(0) {}
   void reset() {
     outstanding = 0;
     while (!wakelist.empty()) SoftXMT_wake(wakelist.dequeue());

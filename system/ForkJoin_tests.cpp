@@ -19,11 +19,11 @@ LOOP_FUNCTION( func_hello, index ) {
   LOG(INFO) << "Hello from " << index << "!";
 }
 
-static LocalDynamicBarrier dybar;
+static LocalTaskJoiner joiner;
 
 static void set_to_one(int64_t * x) {
   *x = 1;
-  dybar.signal();
+  joiner.signal();
 }
 
 static void user_main(int * args) {
@@ -87,24 +87,24 @@ static void user_main(int * args) {
     SoftXMT_free(data);
   }
   
-  { // Test LocalDynamicBarrier
-    dybar.reset();
+  { // Test LocalTaskJoiner
+    joiner.reset();
     
     // make sure it doesn't hang here
-    dybar.wait();
+    joiner.wait();
     
     int64_t x = 0, y = 0;
     
-    dybar.registerTask();
+    joiner.registerTask();
     SoftXMT_privateTask(&set_to_one, &x);
     
-    dybar.registerTask();
+    joiner.registerTask();
     SoftXMT_privateTask(&set_to_one, &y);
     
     BOOST_CHECK_EQUAL(x, 0);
     BOOST_CHECK_EQUAL(y, 0);
     
-    dybar.wait();
+    joiner.wait();
     
     BOOST_CHECK_EQUAL(x, 1);
     BOOST_CHECK_EQUAL(y, 1);    

@@ -12,11 +12,11 @@ static GlobalAddress<color_t> marks;
 static graphint nchanged;
 static graphint ncomponents;
 
-static LocalDynamicBarrier barrier;
+static LocalTaskJoiner joiner;
 
 static void init_marks(graphint k) {
   SoftXMT_delegate_write_word(marks+k, (color_t)k);
-  barrier.signal();
+  joiner.signal();
 }
 
 static void merge_marks(graphint k) {
@@ -31,7 +31,7 @@ static void merge_marks(graphint k) {
       ++nchanged;
     }
   }
-  barrier.signal();
+  joiner.signal();
 }
 
 template <bool final>
@@ -50,16 +50,14 @@ static void compact_marks(graphint i) {
     }
   }
   di.block_until_released();
-  barrier.signal();
+  joiner.signal();
 }
 
 LOOP_FUNCTOR( connectedCompFunc, nid,
     ((graphint,NV)) ((graphint,NE))
     ((GlobalAddress<color_t>,marks_))
     ((GlobalAddress<graphint>,startVertex))
-    ((GlobalAddress<graphint>,endVertex))
-//    ((GlobalAddress<graphint>,global_nchanged))
-    ((GlobalAddress<graphint>,global_ncomponents)) ) {
+    ((GlobalAddress<graphint>,endVertex)) ) {
   
   range_t vr = blockDist(0, NV, SoftXMT_mynode(), SoftXMT_nodes());
   range_t er = blockDist(0, NE, SoftXMT_mynode(), SoftXMT_nodes());
@@ -69,27 +67,27 @@ LOOP_FUNCTOR( connectedCompFunc, nid,
   eV = endVertex;
   marks = marks_;
   
-  barrier.reset();
+  joiner.reset();
   
   VLOG(5) << "before init_marks";
   for (graphint i=vr.start; i < vr.end; i++) {
-    barrier.registerTask();
+    joiner.registerTask();
     SoftXMT_privateTask(&init_marks, i);
   }
-  barrier.wait();
-  SoftXMT_barrier_commsafe();
+  joiner.wait();
+//  SoftXMT_barrier_commsafe();
+  SoftXMT_barrier_suspending();
   
   VLOG(5) << "here";
   
   while (1) {
     nchanged = 0;
-//    if (global_nchanged.node() == nid) *global_nchanged.pointer() = 0;
     
     for (graphint i = er.start; i < er.end; i++) {
-      barrier.registerTask();
+      joiner.registerTask();
       SoftXMT_privateTask(&merge_marks, i);
     }
-    barrier.wait();
+    joiner.wait();
     VLOG(5) << "nchanged = " << nchanged;
     // global reduction to find out if anyone changed anything
     nchanged = SoftXMT_allreduce<graphint,coll_add<graphint>,0>(nchanged);
@@ -98,30 +96,31 @@ LOOP_FUNCTOR( connectedCompFunc, nid,
     if (nchanged == 0) break;
     
     for (graphint i = vr.start; i < vr.end; i++) {
-      barrier.registerTask();
+      joiner.registerTask();
       SoftXMT_privateTask(&compact_marks<false>, i);
     }
-    barrier.wait();
+    joiner.wait();
     VLOG(5) << "ncomponents = " << ncomponents;
-    SoftXMT_barrier_commsafe();
+//    SoftXMT_barrier_commsafe();
+    SoftXMT_barrier_suspending();
   }
   
   for (graphint i = vr.start; i < vr.end; i++) {
-    barrier.registerTask();
+    joiner.registerTask();
     SoftXMT_privateTask(&compact_marks<true>, i);
   }
-  barrier.wait();
+  joiner.wait();
   VLOG(5) << "ncomponents = " << ncomponents;
-  SoftXMT_barrier_commsafe();
+//  SoftXMT_barrier_commsafe();
+  SoftXMT_barrier_suspending();
   
-  SoftXMT_delegate_fetch_and_add_word(global_ncomponents, ncomponents);
+  ncomponents = SoftXMT_allreduce<graphint,coll_add<graphint>,0>(ncomponents);
 }
 
 graphint connectedComponents(graph * g) {
-  graphint global_ncomponents = 0;
   
-  connectedCompFunc f(g->numVertices, g->numEdges, g->marks, g->startVertex, g->endVertex, make_global(&global_ncomponents));
+  connectedCompFunc f(g->numVertices, g->numEdges, g->marks, g->startVertex, g->endVertex);
   fork_join_custom(&f);
   
-  return global_ncomponents;
+  return ncomponents;
 }
