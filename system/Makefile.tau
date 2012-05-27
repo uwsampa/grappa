@@ -1,7 +1,7 @@
+TAUDIR=/sampa/share/tau-perf/tau
 
 # TODO consolidate into same build of tau
-TAU_BIN=$(TAUDIR)/tau-trace-otf/x86_64/bin
-TAU_READER_PATH=$(TAUDIR)/tau-no-pdt/examples/traceinput/c++
+TAU_BIN=$(TAUDIR)/x86_64/bin
 
 # TODO 
 TRANSLATE_UTILS=./translate_tags
@@ -31,7 +31,7 @@ $(TRACEDIR)/app.otf: $(TRACEDIR)/tau.trc $(TRACEDIR)/tau.edf
 
 # generate tau_reader human-readable trace output
 $(TRACEDIR)/reader.out: $(TRACEDIR)/tau.trc $(TRACEDIR)/tau.edf
-	$(TAU_READER_PATH)/tau_reader $^ > $@
+	$(TAU_BIN)/tau_reader $^ > $@
 
 $(TARGET).d: $(TARGET)
 	objdump -d $< > $@
