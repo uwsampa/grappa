@@ -244,8 +244,8 @@ endif #DEBUG
 # set Tau performance profiling instrumentation flags
 #
 ifdef TAU_INST
-TAUDIR=/sampa/share/tau-perf/tau-trace-otf-tsc
-include $(TAUDIR)/x86_64/lib/Makefile.tau-trace
+TAUDIR=/sampa/share/tau-perf/tau
+include $(TAUDIR)/x86_64/lib/Makefile.tau-mpi-pdt-trace
 #TAU_COMP_OPTIONS="-optCompInst -optTauSelectFile=tau.conf"
 TAU_COMP_OPTIONS="-optCompInst"
 CC:=$(TAU_COMPILER) $(TAU_COMP_OPTIONS) $(CC)
@@ -258,20 +258,18 @@ endif
 #
 
 # always include headers, but only use wrapper and libaries if enabled
-#TAUDIR=/sampa/share/tau-perf/tau-trace-otf-tsc
 TAUDIR=/sampa/share/tau-perf/tau
 include $(TAUDIR)/include/Makefile
 CFLAGS+= $(TAU_INCLUDE) 
 
 ifdef TAU_API
-#TAUDIR=/sampa/share/tau-perf/tau-no-pdt
 CXX= $(TAU_CXX)
 CC= $(TAU_CC)
 LD= $(TAU_MPICC)
 CFLAGS+= $(TAU_DEFS) -DGRAPPA_TRACE -Wno-write-strings
 LIBS= $(TAU_LIBS)
 LDFLAGS+= $(USER_OPT)
-MY_TAU_RUN=/sampa/share/tau-perf/tau/x86_64/bin/tau_load.sh
+MY_TAU_RUN=$(TAUDIR)/x86_64/bin/tau_load.sh
 endif
 
 #
