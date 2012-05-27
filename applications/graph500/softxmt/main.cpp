@@ -54,7 +54,7 @@ void output_results (const int64_t SCALE, int64_t nvtx_scale, int64_t edgefactor
                 const int NBFS, const double *bfs_time, const int64_t *bfs_nedge);
 
 //### Globals ###
-#define MEM_SCALE 36
+#define MEM_SCALE 32
 
 int64_t nbfs;
 
@@ -304,66 +304,6 @@ LOOP_FUNCTOR(func_bfs_node, mynode,
   }
 }
 
-struct ConstReplyArgs {
-  int64_t replies_left;
-  Thread * sleeper;
-};
-
-struct ConstRequestArgs {
-  GlobalAddress<int64_t> addr;
-  size_t count;
-  int64_t value;
-  GlobalAddress<ConstReplyArgs> reply;
-};
-
-static void const_reply_am(GlobalAddress<ConstReplyArgs> * reply, size_t sz, void * payload, size_t psz) {
-  CHECK(reply->node() == SoftXMT_mynode());
-  ConstReplyArgs * r = reply->pointer();
-  (r->replies_left)--;
-  if (r->replies_left == 0) {
-    SoftXMT_wake(r->sleeper);
-  }
-}
-
-static void const_request_am(ConstRequestArgs * args, size_t sz, void* payload, size_t psz) {
-  CHECK(args->addr.node() == SoftXMT_mynode()) << "args->addr.node() = " << args->addr.node();
-  int64_t * ptr = args->addr.pointer();
-  for (int64_t i=0; i<args->count; i++) {
-    ptr[i] = args->value;
-  }
-  SoftXMT_call_on(args->reply.node(), &const_reply_am, &args->reply);
-}
-
-static void set_const(GlobalAddress<int64_t> request_address, size_t count, int64_t value) {
-  size_t offset = 0;
-  size_t request_bytes = 0;
-  
-  ConstReplyArgs reply;
-  reply.replies_left = 0;
-  reply.sleeper = CURRENT_THREAD;
-  
-  ConstRequestArgs args;
-  args.addr = request_address;
-  args.value = value;
-  args.reply = make_global(&reply);
-  
-  for (size_t total_bytes = count*sizeof(int64_t); offset < total_bytes; offset += request_bytes) {
-    request_bytes = (args.addr.block_max() - args.addr) * sizeof(int64_t);
-    if (request_bytes > total_bytes - offset) {
-      request_bytes = total_bytes - offset;
-    }
-    CHECK(request_bytes % sizeof(int64_t) == 0);
-    args.count = request_bytes / sizeof(int64_t);
-    
-    reply.replies_left++;
-    SoftXMT_call_on(args.addr.node(), &const_request_am, &args);
-    
-    args.addr += args.count;
-  }
-  
-  while (reply.replies_left > 0) SoftXMT_suspend();
-}
-
 static double make_bfs_tree(csr_graph * g, GlobalAddress<int64_t> bfs_tree, int64_t root) {
   int64_t NV = g->nv;
   GlobalAddress<int64_t> vlist = SoftXMT_typed_malloc<int64_t>(NV);
@@ -378,7 +318,7 @@ static double make_bfs_tree(csr_graph * g, GlobalAddress<int64_t> bfs_tree, int6
   GlobalAddress<int64_t> k2addr = make_global(&k2);
   
   // initialize bfs_tree to -1
-  set_const(bfs_tree, NV, -1);
+  SoftXMT_memset(bfs_tree, (int64_t)-1,  NV);
   
   SoftXMT_delegate_write_word(bfs_tree+root, root); // parent of root is self
   
@@ -410,8 +350,8 @@ static double make_bfs_tree(csr_graph * g, GlobalAddress<int64_t> bfs_tree, int6
   t = timer() - t;
   
   SoftXMT_free(vlist);
-//  SoftXMT_dump_stats_all_nodes();
-  SoftXMT_merge_and_dump_stats();
+  SoftXMT_dump_stats_all_nodes();
+//  SoftXMT_merge_and_dump_stats();
   
   return t;
 }

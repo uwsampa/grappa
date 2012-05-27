@@ -144,9 +144,8 @@ LOOP_FUNCTOR( init_xendoff_func, index,
 static void setup_deg_off(const tuple_graph * const tg, csr_graph * g) {
   GlobalAddress<int64_t> xoff = g->xoff;
   // initialize xoff to 0
-  func_set_const fc(g->xoff, 0);
-  fork_join(&fc, 0, 2*g->nv+2);
-  
+  SoftXMT_memset(g->xoff, (int64_t)0, 2*g->nv+2);
+
   // count occurrences of each vertex in edges
   degree_func fd; fd.edges = tg->edges; fd.xoff = g->xoff;
   fork_join(&fd, 0, tg->nedge);
@@ -183,9 +182,8 @@ static void setup_deg_off(const tuple_graph * const tg, csr_graph * g) {
   
   g->xadjstore = SoftXMT_typed_malloc<int64_t>(accum + MINVECT_SIZE);
   g->xadj = g->xadjstore+MINVECT_SIZE; // cheat and permit xadj[-1] to work
-  // func set const = fc
-  fc.value = -1; fc.base_addr = g->xadjstore;
-  fork_join(&fc, 0, accum+MINVECT_SIZE);
+  
+  SoftXMT_memset(g->xadjstore, (int64_t)0, accum+MINVECT_SIZE);
 }
 
 inline void scatter_edge(GlobalAddress<int64_t> xoff, GlobalAddress<int64_t> xadj, const int64_t i, const int64_t j) {
