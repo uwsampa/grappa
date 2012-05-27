@@ -10,28 +10,34 @@ if `hostname`.match /cougar/ then
   machinename = "cougarxmt"
 else
   # command that will be excuted on the command line, with variables in %{} substituted
-  cmd = %Q[ cd softxmt && GLOG_logtostderr=1 LD_LIBRARY_PATH="\$LD_LIBRARY_PATH:/usr/local/lib:/sampa/home/bholt/opt/lib:/usr/lib64/openmpi-psm/lib:/sampa/home/bholt/opt/lib:/sampa/share/gflags/lib:/sampa/share/glog/lib:/usr/lib:/usr/lib:/sampa/share/gperftools-2.0/lib" GASNET_NUM_QPS=3 \
+  cmd = %Q[cd softxmt && GLOG_logtostderr=1 LD_LIBRARY_PATH="\$LD_LIBRARY_PATH:/usr/local/lib:/sampa/home/bholt/opt/lib:/usr/lib64/openmpi-psm/lib:/sampa/home/bholt/opt/lib:/sampa/share/gflags/lib:/sampa/share/glog/lib:/usr/lib:/usr/lib:/sampa/share/gperftools-2.0/lib" GASNET_NUM_QPS=3 \
     srun --resv-ports --cpu_bind=verbose,rank --exclusive --label --kill-on-bad-exit --task-prolog ~/srunrc.all --partition softxmt 
       --nodes=%{nnode}
-      --ntasks-per-node=%{ppn} --
+      --ntasks-per-node=%{ppn}
+	  --time=00:15:00 
+	--
       ./graph.exe --v=0
         --num_starting_workers=%{nworkers}
         --aggregator_autoflush_ticks=%{flushticks}
+		--periodic_poll_ticks=%{pollticks}
         --flush_on_idle=%{flush_on_idle}
-        -- -s %{scale} -e %{edgefactor} -pn
-  ]
+		--steal=0
+      --
+	    -s %{scale} -e %{edgefactor} -pn
+  ].gsub(/[\n\r\ ]+/," ")
   machinename = "sampa"
 end
 
 # map of parameters; key is the name used in command substitution
 params = {
-  scale: [18],
+  scale: [20, 21, 22, 23],
   edgefactor: [16],
-  nworkers: [256, 384, 512, 1024, 2048],
-  nnode: [2, 4],
+  nworkers: [512, 1024, 2048],
+  nnode: [4, 8],
   ppn: [2, 4, 6, 8],
-  flushticks: [100000, 500000, 1000000],
-  flush_on_idle: [0, 1],
+  flushticks: [500000, 1000000],
+  pollticks: [5000],
+  flush_on_idle: [1],
   nproc: expr('nnode*ppn'),
   machine: [machinename],
 }
@@ -61,8 +67,8 @@ parser = lambda {|cmdout|
         obj = m[:obj]
         data = eval(m[:data])
         # puts "#{ap obj}: #{ap data}"
-        # do incremental average if key is found in map already
-        h.merge!(data) {|key,v1,v2| inc_avg(v1, c[key]+=1, v2) }
+        # sum the fields
+        h.merge!(data) {|key,v1,v2| v1+v2 }
       end
     end
   end

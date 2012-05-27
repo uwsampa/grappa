@@ -35,99 +35,86 @@
 
 static int64_t maxvtx, nv;
 
-struct max_func : public ForkJoinIteration {
-  GlobalAddress<packed_edge> edges;
-  int64_t * max;
-  void operator()(int64_t index) {
-    Incoherent<packed_edge>::RO cedge(edges+index, 1);
-    if (cedge[0].v0 > *max) {
-      *max = cedge[0].v0;
-    }
-    if (cedge[0].v1 > *max) {
-      *max = cedge[0].v1;
-    }
+LOOP_FUNCTOR( max_func, index,
+             (( GlobalAddress<packed_edge>,edges))
+             ((int64_t *, max)) )
+{
+  Incoherent<packed_edge>::RO cedge(edges+index, 1);
+  if (cedge[0].v0 > *max) {
+    *max = cedge[0].v0;
   }
-};
+  if (cedge[0].v1 > *max) {
+    *max = cedge[0].v1;
+  }
+}
 
-struct node_max_func : public ForkJoinIteration {
-  GlobalAddress<packed_edge> edges;
-  int64_t start, end;
-  int64_t max;
-  void operator()(int64_t mynode) {
-    max = -1;
-    range_t myblock = blockDist(start, end, mynode, SoftXMT_nodes());
-    max_func f;
-    f.edges = edges;
-    f.max = &max;
-    fork_join_onenode(&f, myblock.start, myblock.end);
+LOOP_FUNCTOR( node_max_func, mynode, 
+  ((GlobalAddress<packed_edge>, edges))
+  ((int64_t,start)) (( int64_t,end )) ((int64_t,init_max)) )
+{
+  int64_t max = init_max;
+  range_t myblock = blockDist(start, end, mynode, SoftXMT_nodes());
+  max_func f;
+  f.edges = edges;
+  f.max = &max;
+  fork_join_onenode(&f, myblock.start, myblock.end);
     
-    maxvtx = SoftXMT_collective_reduce(&collective_max, 0, max, -1);
-    nv = maxvtx+1;
-  }
-};
+  maxvtx = SoftXMT_collective_reduce(&collective_max, 0, max, -1);
+  nv = maxvtx+1;
+}
 
 static void find_nv(const tuple_graph* const tg) {
-  node_max_func f;
-  f.edges = tg->edges;
-  f.start = 0;
-  f.end = tg->nedge;
+  node_max_func f(tg->edges, 0, tg->nedge, 0);
   fork_join_custom(&f);
 }
 
 // note: this corresponds to how Graph500 counts 'degree' (both in- and outgoing edges to each vertex)
-struct degree_func : public ForkJoinIteration {
-  GlobalAddress<packed_edge> edges;
-  GlobalAddress<int64_t> xoff;
-  void operator()(int64_t index) {
-    Incoherent<packed_edge>::RO cedge(edges+index, 1);
-    int64_t i = cedge[0].v0;
-    int64_t j = cedge[0].v1;
-    if (i != j) { //skip self-edges
-      SoftXMT_delegate_fetch_and_add_word(XOFF(i), 1);
-      SoftXMT_delegate_fetch_and_add_word(XOFF(j), 1);
-    }
+LOOP_FUNCTOR( degree_func, index, (( GlobalAddress<packed_edge>, edges )) ((GlobalAddress<int64_t>,xoff)) )
+{ 
+  Incoherent<packed_edge>::RO cedge(edges+index, 1);
+  int64_t i = cedge[0].v0;
+  int64_t j = cedge[0].v1;
+  if (i != j) { //skip self-edges
+    SoftXMT_delegate_fetch_and_add_word(XOFF(i), 1);
+    SoftXMT_delegate_fetch_and_add_word(XOFF(j), 1);
   }
-};
+}
 
-struct local_reduce_sum : public ForkJoinIteration {
-  GlobalAddress<int64_t> xoff;
-  int64_t * sum;
-  void operator()(int64_t index) {
-    int64_t v = SoftXMT_delegate_read_word(XOFF(index));
-    *sum += v;
-  }
-};
+LOOP_FUNCTOR( local_reduce_sum, index,
+    (( GlobalAddress<int64_t>, xoff )) (( int64_t *, sum )) )
+{
+  int64_t v = SoftXMT_delegate_read_word(XOFF(index));
+  *sum += v;
+}
 
-struct prefix_sum_node : public ForkJoinIteration {
-  GlobalAddress<int64_t> xoff;
-  GlobalAddress<int64_t> buf; // one per node, used to store local total
-  int64_t nv;
-  void operator()(int64_t nid) {
-    range_t myblock = blockDist(0, nv, nid, SoftXMT_nodes());
-    
-    int64_t mysum = 0;
-    local_reduce_sum fr;
-    fr.xoff = xoff;
-    fr.sum = &mysum;
-    fork_join_onenode(&fr, myblock.start, myblock.end);
-    
-    // add my sum to every buf count following this node
-    // TODO: do this in a tree rather than brute-force push-to-all
-    for (int64_t i=nid; i<SoftXMT_nodes(); i++) {
-      SoftXMT_delegate_fetch_and_add_word(buf+i, mysum);
-    }
-    
-    SoftXMT_barrier_commsafe();
-    
-    int64_t prev_sum = (nid > 0) ? SoftXMT_delegate_read_word(buf+nid-1) : 0;
-    
-    for (int64_t i=myblock.start; i<myblock.end; i++) {
-      int64_t tmp = SoftXMT_delegate_read_word(XOFF(i));
-      SoftXMT_delegate_write_word(XOFF(i), prev_sum);
-      prev_sum += tmp;
-    }
+LOOP_FUNCTOR( prefix_sum_node, nid,
+    ((GlobalAddress<int64_t>,xoff))
+    ((GlobalAddress<int64_t>,buf)) // one per node, used to store local total
+    ((int64_t,nv)) ) {
+  range_t myblock = blockDist(0, nv, nid, SoftXMT_nodes());
+  
+  int64_t mysum = 0;
+  local_reduce_sum fr;
+  fr.xoff = xoff;
+  fr.sum = &mysum;
+  fork_join_onenode(&fr, myblock.start, myblock.end);
+  
+  // add my sum to every buf count following this node
+  // TODO: do this in a tree rather than brute-force push-to-all
+  for (int64_t i=nid; i<SoftXMT_nodes(); i++) {
+    SoftXMT_delegate_fetch_and_add_word(buf+i, mysum);
   }
-};
+  
+  SoftXMT_barrier_commsafe();
+  
+  int64_t prev_sum = (nid > 0) ? SoftXMT_delegate_read_word(buf+nid-1) : 0;
+  
+  for (int64_t i=myblock.start; i<myblock.end; i++) {
+    int64_t tmp = SoftXMT_delegate_read_word(XOFF(i));
+    SoftXMT_delegate_write_word(XOFF(i), prev_sum);
+    prev_sum += tmp;
+  }
+}
 
 static int64_t prefix_sum(GlobalAddress<int64_t> xoff, int64_t nv) {
   prefix_sum_node fps;
@@ -139,28 +126,26 @@ static int64_t prefix_sum(GlobalAddress<int64_t> xoff, int64_t nv) {
   return SoftXMT_delegate_read_word(fps.buf+SoftXMT_nodes()-1);
 }
 
-struct minvect_func : public ForkJoinIteration {
-  GlobalAddress<int64_t> xoff;
-  void operator()(int64_t index) {
-    int64_t v = SoftXMT_delegate_read_word(XOFF(index));
-    if (v < MINVECT_SIZE) {
-      SoftXMT_delegate_write_word(XOFF(index), MINVECT_SIZE);
-    }
+LOOP_FUNCTOR( minvect_func, index,
+          (( GlobalAddress<int64_t>,xoff )) )
+{
+  int64_t v = SoftXMT_delegate_read_word(XOFF(index));
+  if (v < MINVECT_SIZE) {
+    SoftXMT_delegate_write_word(XOFF(index), MINVECT_SIZE);
   }
-};
+}
 
-struct init_xendoff_func : public ForkJoinIteration {
-  GlobalAddress<int64_t> xoff;
-  void operator()(int64_t index) {
-    SoftXMT_delegate_write_word(XENDOFF(index), SoftXMT_delegate_read_word(XOFF(index)));
-  }
-};
+LOOP_FUNCTOR( init_xendoff_func, index,
+             (( GlobalAddress<int64_t>, xoff )) )
+{
+  SoftXMT_delegate_write_word(XENDOFF(index), SoftXMT_delegate_read_word(XOFF(index)));
+}
 
 static void setup_deg_off(const tuple_graph * const tg, csr_graph * g) {
   GlobalAddress<int64_t> xoff = g->xoff;
   // initialize xoff to 0
-  
-  SoftXMT_memset(g->xoff, 0, 2*g->nv+2);
+  func_set_const fc(g->xoff, 0);
+  fork_join(&fc, 0, 2*g->nv+2);
   
   // count occurrences of each vertex in edges
   degree_func fd; fd.edges = tg->edges; fd.xoff = g->xoff;
@@ -208,19 +193,18 @@ inline void scatter_edge(GlobalAddress<int64_t> xoff, GlobalAddress<int64_t> xad
   SoftXMT_delegate_write_word(xadj+where, j);
 }
 
-struct scatter_func : public ForkJoinIteration {
-  GlobalAddress<packed_edge> ij;
-  GlobalAddress<int64_t> xoff;
-  GlobalAddress<int64_t> xadj;
-  void operator()(int64_t k) {
-    Incoherent<packed_edge>::RO cedge(ij+k, 1);
-    int64_t i = cedge[0].v0, j = cedge[0].v1;
-    if (i >= 0 && j >= 0 && i != j) {
-      scatter_edge(xoff, xadj, i, j);
-      scatter_edge(xoff, xadj, j, i);
-    }
+LOOP_FUNCTOR( scatter_func, k, 
+  (( GlobalAddress<packed_edge>, ij ))
+  (( GlobalAddress<int64_t>, xoff ))
+  (( GlobalAddress<int64_t>, xadj )) )
+{
+  Incoherent<packed_edge>::RO cedge(ij+k, 1);
+  int64_t i = cedge[0].v0, j = cedge[0].v1;
+  if (i >= 0 && j >= 0 && i != j) {
+    scatter_edge(xoff, xadj, i, j);
+    scatter_edge(xoff, xadj, j, i);
   }
-};
+}
 
 static int
 i64cmp (const void *a, const void *b)
@@ -233,44 +217,43 @@ i64cmp (const void *a, const void *b)
 }
 
 // TODO: with power-law graphs, this could be a problem (everyone waiting for one big one to finish). Consider breaking up this operation into smaller chunks of work (maybe once we have work-stealing working).
-struct pack_vtx_edges_func : public ForkJoinIteration {
-  GlobalAddress<int64_t> xoff;
-  GlobalAddress<int64_t> xadj;
-  void operator()(int64_t i) {
-    int64_t kcur;
+LOOP_FUNCTOR( pack_vtx_edges_func, i,
+  (( GlobalAddress<int64_t>, xoff ))
+  (( GlobalAddress<int64_t>, xadj )) )
+{   
+  int64_t kcur;
 //    Incoherent<int64_t>::RO xoi(XOFF(i), 1);
 //    Incoherent<int64_t>::RO xei(XENDOFF(i), 1);
-    int64_t xoi = SoftXMT_delegate_read_word(XOFF(i));
-    int64_t xei = SoftXMT_delegate_read_word(XENDOFF(i));
-    if (xoi+1 >= xei) return;
-    
-    int64_t * buf = (int64_t*)alloca((xei-xoi)*sizeof(int64_t));
-    //    Incoherent<int64_t>::RW cadj(xadj+xoi, xei-xoi, buf);
-    //    cadj.block_until_acquired();
-    // poor man's larger cache buffer, TODO: use cache as above once multi-node acquires are implemented...
-    for (int64_t i=0; i<xei-xoi; i++) {
-      buf[i] = SoftXMT_delegate_read_word(xadj+xoi+i);
-    }
-    
-    qsort(buf, xei-xoi, sizeof(int64_t), i64cmp);
-    kcur = 0;
-    for (int64_t k = 1; k < xei-xoi; k++) {
-      if (buf[k] != buf[kcur]) {
-        buf[++kcur] = buf[k];
-      }
-    }
-    ++kcur;
-    for (int64_t k = kcur; k < xei-xoi; k++) {
-      buf[k] = -1;
-    }
-    SoftXMT_delegate_write_word(XENDOFF(i), xoi+kcur);
-    
-    // poor man's cache release, TODO: let RW cache just release it (once implemented)
-    for (int64_t i=0; i<xei-xoi; i++) {
-      SoftXMT_delegate_write_word(xadj+xoi+i, buf[i]);
+  int64_t xoi = SoftXMT_delegate_read_word(XOFF(i));
+  int64_t xei = SoftXMT_delegate_read_word(XENDOFF(i));
+  if (xoi+1 >= xei) return;
+  
+  int64_t * buf = (int64_t*)alloca((xei-xoi)*sizeof(int64_t));
+  //    Incoherent<int64_t>::RW cadj(xadj+xoi, xei-xoi, buf);
+  //    cadj.block_until_acquired();
+  // poor man's larger cache buffer, TODO: use cache as above once multi-node acquires are implemented...
+  for (int64_t i=0; i<xei-xoi; i++) {
+    buf[i] = SoftXMT_delegate_read_word(xadj+xoi+i);
+  }
+  
+  qsort(buf, xei-xoi, sizeof(int64_t), i64cmp);
+  kcur = 0;
+  for (int64_t k = 1; k < xei-xoi; k++) {
+    if (buf[k] != buf[kcur]) {
+      buf[++kcur] = buf[k];
     }
   }
-};
+  ++kcur;
+  for (int64_t k = kcur; k < xei-xoi; k++) {
+    buf[k] = -1;
+  }
+  SoftXMT_delegate_write_word(XENDOFF(i), xoi+kcur);
+  
+  // poor man's cache release, TODO: let RW cache just release it (once implemented)
+  for (int64_t i=0; i<xei-xoi; i++) {
+    SoftXMT_delegate_write_word(xadj+xoi+i, buf[i]);
+  }
+}
 
 static void gather_edges(const tuple_graph * const tg, csr_graph * g) {
 //  for (k = 0; k < nedge; ++k) {

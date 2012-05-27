@@ -53,6 +53,8 @@ static void output_results (const int64_t SCALE, int64_t nvtx_scale,
 							const int NBFS,
 							const double *bfs_time, const int64_t *bfs_nedge);
 
+void checkpoint_out(int64_t SCALE, int64_t edgefactor, const struct packed_edge * restrict edges, const int64_t nedge, const int64_t * restrict bfs_roots, const int64_t nbfs);
+
 int main (int argc, char **argv) {
 	int64_t desired_nedge;
 	if (sizeof (int64_t) < 8) {
@@ -104,6 +106,9 @@ int main (int argc, char **argv) {
 	
 	run_bfs ();
 	
+  checkpoint_out(SCALE, edgefactor, IJ, nedge, bfs_root, NBFS);
+  
+  destroy_graph();
 	xfree_large (IJ);
 	
 	output_results (SCALE, nvtx_scale, edgefactor, A, B, C, D,
@@ -210,7 +215,7 @@ run_bfs (void)
 		xfree_large (bfs_tree);
 	}
 	
-	destroy_graph ();
+//	destroy_graph ();
 }
 
 #define NSTAT 9

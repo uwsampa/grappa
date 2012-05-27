@@ -11,7 +11,8 @@ GRAPH500_SOURCES=graph500.c options.c rmat.c kronecker.c verify.c prng.c \
 MAKE_EDGELIST_SOURCES=make-edgelist.c options.c rmat.c kronecker.c prng.c \
 	xalloc.c timer.c 
 
-BIN=seq-list/seq-list seq-csr/seq-csr make-edgelist
+#BIN=seq-list/seq-list seq-csr/seq-csr make-edgelist
+BIN=make-edgelist
 
 ifeq ($(BUILD_OPENMP), Yes)
 BIN += omp-csr/omp-csr
