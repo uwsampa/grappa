@@ -21,7 +21,7 @@ HEADERS = defs.hpp
 include $(SOFTXMT_HOME)/system/Makefile
 
 suite.exe: $(SOURCES) $(HEADERS) $(SOFTXMT_HOME)/system/libSoftXMT.a
-	$(LD) $(LDFLAGS) $(SOURCES) $(SOFTXMT_HOME)/system/libSoftXMT.a $(LIBRARIES) -o $@
+	$(ENV_VARIABLES) $($(MPITYPE)_LD) $(LDFLAGS) $(SOURCES) $(SOFTXMT_HOME)/system/libSoftXMT.a $(LIBRARIES) -o $@ $(LIBS)
 
 $(SOFTXMT_HOME)/system/libSoftXMT.a: force
 	cd ../../../system; $(MAKE) lib

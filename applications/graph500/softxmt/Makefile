@@ -2,22 +2,18 @@
 #include common SoftXMT definitions
 include $(SOFTXMT_HOME)/include.mk
 
-#SRUN_FLAGS:=--time=00:40:00
-
+#default target: graph500 executable
 TARGET:= graph.exe
-
-#default rule: just build
+	
+#default rule: just build TARGET
 $(TARGET):
 
 CFLAGS += -w
 CFLAGS += -I$(SOFTXMT_HOME)/system
 CFLAGS += -g -Wall -Drestrict=__restrict__ -ffast-math -DGRAPH_GENERATOR_SOFTXMT
-# CFLAGS += -g -pg
-# CFLAGS = -g -Wall -Drestrict= -DGRAPH_GENERATOR_MPI
 
-LDFLAGS = -g # -g -pg
+LDFLAGS = -g
 
-# GENERATOR_SOURCES = ../generator/graph_generator.o ../generator/make_graph.o ../generator/splittable_mrg.o ../generator/utils.o
 GENERATOR_SOURCES = graph_generator.o make_graph.o splittable_mrg.o utils.o
 SOURCES = main.o oned_csr.o rmat.o verify.o options.o
 HEADERS = common.h oned_csr.h verify.hpp
@@ -25,10 +21,17 @@ HEADERS = common.h oned_csr.h verify.hpp
 include $(SOFTXMT_HOME)/system/Makefile
 
 graph.exe: $(SOURCES) $(HEADERS) generator.a $(SOFTXMT_HOME)/system/libSoftXMT.a
-	$(LD) $(LDFLAGS) $(SOURCES) generator.a $(SOFTXMT_HOME)/system/libSoftXMT.a $(LIBRARIES) -o $@
+	$(ENV_VARIABLES) $($(MPITYPE)_LD) $(LDFLAGS) $(SOURCES) generator.a $(SOFTXMT_HOME)/system/libSoftXMT.a $(LIBRARIES) -o $@ $(LIBS)
+
+$(SOFTXMT_HOME)/system/libSoftXMT.a: force
+	cd $(SOFTXMT_HOME)/system; $(MAKE) lib
 
 generator.a: ../generator/graph_generator.c ../generator/make_graph.c ../generator/splittable_mrg.c ../generator/utils.c
 	cd ../generator; $(MAKE) -f Makefile.softxmt lib
 	cd ../softxmt; cp ../generator/generator.a generator.a
 	
+force: ;
+
+allclean: clean
+	pushd $(SOFTXMT_HOME)/system; $(MAKE) clean; popd
 
