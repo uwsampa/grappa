@@ -247,8 +247,7 @@ template<typename T>
 static void randpermute(GlobalAddress<T> array, int64_t nelem, mrg_state * restrict st) {
   //  typename Incoherent<T>::RW carray(array, nelem);
   GlobalAddress<int64_t> fullbits = SoftXMT_typed_malloc<int64_t>(nelem);
-  func_set_const fc(fullbits, 1);
-  fork_join(&fc, 0, nelem);
+  SoftXMT_memset(fullbits, (graphint)1, nelem);
 
   rand_permute<T> f;
   f.array = array; f.fullbits = fullbits; f.st = *st; f.nelem = nelem;

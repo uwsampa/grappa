@@ -4,13 +4,13 @@ TAUDIR=/sampa/share/tau-perf/tau
 TAU_BIN=$(TAUDIR)/x86_64/bin
 
 # TODO 
-TRANSLATE_UTILS=./translate_tags
+TRANSLATE_UTILS=$(SOFTXMT_HOME)/system/translate_tags
 
 merge: $(TRACEDIR)/tau.trc $(TRACEDIR)/tau.edf
 otf: $(TRACEDIR)/app.otf
 fm: $(TRACEDIR)/fn_mappings
 
-TRACE_BACKUP_DIR=./profiles_backup
+TRACE_BACKUP_DIR=$(TRACEDIR)/../profiles_backup
 backup:
 	mkdir -p $(TRACE_BACKUP_DIR)
 	mv $(TRACEDIR) $(shell echo $(TRACE_BACKUP_DIR)/$(TARGET)-$(shell git rev-parse --short HEAD))-$(shell date | awk '{gsub(/ +/, "_");print}')
