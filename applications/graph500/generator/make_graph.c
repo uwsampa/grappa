@@ -50,7 +50,7 @@ void make_graph(int log_numverts, int64_t M, uint64_t userseed1, uint64_t userse
 	make_mrg_seed(userseed1, userseed2, seed);
 	
 	*nedges_ptr = M;
-	packed_edge* edges = (packed_edge*)xmalloc(M * sizeof(packed_edge));
+	packed_edge* edges = (packed_edge*)malloc(M * sizeof(packed_edge));
 	*result_ptr = edges;
 	
 	/* In OpenMP and XMT versions, the inner loop in generate_kronecker_range is
@@ -75,7 +75,7 @@ void make_graph(int log_numverts, int64_t M, uint64_t userseed1, uint64_t userse
 	compute_edge_range(rank, size, M, &start_idx, &end_idx);
 	int64_t nedges = end_idx - start_idx;
 	
-	packed_edge* local_edges = (packed_edge*)xmalloc(nedges * sizeof(packed_edge));
+	packed_edge* local_edges = (packed_edge*)malloc(nedges * sizeof(packed_edge));
 	
 	double start = MPI_Wtime();
 	generate_kronecker_range(seed, log_numverts, start_idx, end_idx, local_edges);
