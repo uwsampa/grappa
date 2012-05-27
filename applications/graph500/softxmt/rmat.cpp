@@ -17,15 +17,13 @@ mrg_state * prng_state;
 
 #define NRAND(ne) (5 * SCALE * (ne))
 
-struct func_set_seq : public ForkJoinIteration {
-  GlobalAddress<int64_t> base_addr;
-  int64_t value;
-  void operator()(int64_t index) {
-//    DVLOG(3) << "called func_initialize with index = " << index;
-    Incoherent<int64_t>::RW c(base_addr+index, 1);
-    c[0] = value+index;
-  }
-};
+LOOP_FUNCTOR( func_set_seq, index, 
+  (( GlobalAddress<int64_t>, base_addr))
+  (( int64_t, value)) )
+{ //    DVLOG(3) << "called func_initialize with index = " << index;
+  Incoherent<int64_t>::RW c(base_addr+index, 1);
+  c[0] = value+index;
+}
 
 #if 0 /* disabled parallel randpermute for faster builds */
 
@@ -226,28 +224,27 @@ static void swap_globals(GlobalAddress<T> array, GlobalAddress<int64_t> fullbits
   VLOG(2) << "<" << desc.k << "> DONE";
 }
 
-template< typename T >
-struct rand_permute : ForkJoinIteration {
-  GlobalAddress<T> array;
-  GlobalAddress<int64_t> fullbits;
-  mrg_state st;
-  int64_t nelem;
-  void operator()(int64_t k) {
-    mrg_state new_st = st;
-    int64_t which = k % SoftXMT_nodes();
-    mrg_skip(&new_st, 1, k*(which+1), 0);
-    int64_t place = k + (int64_t)floor( mrg_get_double_orig(&new_st) * (nelem - k) );
+LOOP_FUNCTOR_TEMPLATED(T, rand_permute, k,
+  (( GlobalAddress<T>, array ))
+  (( GlobalAddress<int64_t>, fullbits ))
+  (( mrg_state, st ))
+  (( int64_t, nelem )) )
+{
+  mrg_state new_st = st;
+  int64_t which = k % SoftXMT_nodes();
+  mrg_skip(&new_st, 1, k*(which+1), 0);
+  int64_t place = k + (int64_t)floor( mrg_get_double_orig(&new_st) * (nelem - k) );
     
-    swap_globals(array, fullbits, k, place);
-  }
-};
+  swap_globals(array, fullbits, k, place);
+}
 
 /// An attempt at a parallel version of randpermute that doesn't work yet.
 template<typename T>
 static void randpermute(GlobalAddress<T> array, int64_t nelem, mrg_state * restrict st) {
   //  typename Incoherent<T>::RW carray(array, nelem);
   GlobalAddress<int64_t> fullbits = SoftXMT_typed_malloc<int64_t>(nelem);
-  SoftXMT_memset(fullbits, (graphint)1, nelem);
+  func_set_const fc(fullbits, 1);
+  fork_join(&fc, 0, nelem);
 
   rand_permute<T> f;
   f.array = array; f.fullbits = fullbits; f.st = *st; f.nelem = nelem;
@@ -280,20 +277,19 @@ static void randpermute(GlobalAddress<T> array, int64_t nelem, mrg_state * restr
   }
 }
 
-struct write_edge_func : public ForkJoinIteration {
-  GlobalAddress<int64_t> newlabel;
-  GlobalAddress<packed_edge> ij;
-  int64_t nedge;
-  void operator()(int64_t index) {
-    Incoherent<packed_edge>::RW edge(ij+index, 1);
-    int64_t v0 = (*edge).v0;
-    int64_t v1 = (*edge).v1;
-    packed_edge new_edge;
-    new_edge.v0 = SoftXMT_delegate_read_word(newlabel+v0);
-    new_edge.v1 = SoftXMT_delegate_read_word(newlabel+v1);
-    *edge = new_edge;
-  }
-};
+LOOP_FUNCTOR( write_edge_func, index,
+             (( GlobalAddress<int64_t>,newlabel ))
+             (( GlobalAddress<packed_edge>, ij))
+             (( int64_t, nedge )) )
+{
+  Incoherent<packed_edge>::RW edge(ij+index, 1);
+  int64_t v0 = (*edge).v0;
+  int64_t v1 = (*edge).v1;
+  packed_edge new_edge;
+  new_edge.v0 = SoftXMT_delegate_read_word(newlabel+v0);
+  new_edge.v1 = SoftXMT_delegate_read_word(newlabel+v1);
+  *edge = new_edge;
+}
 
 static void permute_vertex_labels (GlobalAddress<packed_edge> ij, int64_t nedge, int64_t max_nvtx, mrg_state * restrict st, GlobalAddress<int64_t> newlabel) {
 	
@@ -378,43 +374,42 @@ static void rmat_edge(packed_edge *out, int SCALE, double A, double B, double C,
 	write_edge(out, i, j);
 }
 
-struct random_edges_functor : public ForkJoinIteration {
-  GlobalAddress<packed_edge> ij;
-  GlobalAddress<int64_t> iwork;
-  int64_t nedge;
-  mrg_state * prng_state;
-  int SCALE;
-  void operator()(int64_t index) {
-    double * restrict Rlocal = (double*)alloca(NRAND(1) * sizeof(double));
-    mrg_skip(prng_state, 1, NRAND(1), 0);
-    for (int64_t i=0; i < NRAND(1); i++) {
-      Rlocal[i] = mrg_get_double_orig(prng_state);
-    }
-    packed_edge new_edge;
-    rmat_edge(&new_edge, this->SCALE, A, B, C, D, Rlocal);
-    
-    Incoherent<packed_edge>::RW cedge(ij+index, 1);
-    *cedge = new_edge;
+LOOP_FUNCTOR( random_edges_functor, index,
+             (( GlobalAddress<packed_edge>, ij ))
+             (( GlobalAddress<int64_t>, iwork  ))
+             (( int64_t, nedge ))
+             (( mrg_state*, prng_state ))
+             (( int, SCALE )) )
+{
+  double * restrict Rlocal = (double*)alloca(NRAND(1) * sizeof(double));
+  mrg_skip(prng_state, 1, NRAND(1), 0);
+  for (int64_t i=0; i < NRAND(1); i++) {
+    Rlocal[i] = mrg_get_double_orig(prng_state);
   }
-};
+  packed_edge new_edge;
+  rmat_edge(&new_edge, this->SCALE, A, B, C, D, Rlocal);
+  
+  Incoherent<packed_edge>::RW cedge(ij+index, 1);
+  *cedge = new_edge;
+}
 
-struct random_edges_node_work : public ForkJoinIteration {
-  mrg_state local_prng_state;
-  GlobalAddress<packed_edge> edges;
-  GlobalAddress<int64_t> iwork;
-  int64_t nedge;
-  int SCALE;
-  void operator()(int64_t mynode) {
-    range_t myblock = blockDist(0, nedge, mynode, SoftXMT_nodes());
-    random_edges_functor f;
-    f.ij = edges;
-    f.iwork = iwork;
-    f.nedge = nedge;
-    f.prng_state = &local_prng_state;
-    f.SCALE = SCALE;
-    fork_join_onenode(&f, myblock.start, myblock.end);
-  }
-};
+LOOP_FUNCTOR( random_edges_node_work, mynode,
+  ((mrg_state, local_prng_state))
+  ((GlobalAddress<packed_edge>, edges))
+  ((GlobalAddress<int64_t>, iwork))
+  ((int64_t, nedge))
+  ((int, SCALE)) )
+{
+  mrg_state mrg_here = local_prng_state;
+  range_t myblock = blockDist(0, nedge, mynode, SoftXMT_nodes());
+  random_edges_functor f;
+  f.ij = edges;
+  f.iwork = iwork;
+  f.nedge = nedge;
+  f.prng_state = &mrg_here;
+  f.SCALE = SCALE;
+  fork_join_onenode(&f, myblock.start, myblock.end);
+}
 
 void rmat_edgelist(tuple_graph* grin, int64_t SCALE) {
   uint64_t seed1 = 2, seed2 = 3;

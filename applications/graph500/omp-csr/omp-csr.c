@@ -21,10 +21,43 @@ static int int64_cas(int64_t* p, int64_t oldval, int64_t newval);
 
 #define MINVECT_SIZE 2
 
-static int64_t maxvtx, nv, sz;
+static int64_t maxvtx, nv, sz, nadj;
 static int64_t * restrict xoff; /* Length 2*nv+2 */
 static int64_t * restrict xadjstore; /* Length MINVECT_SIZE + (xoff[nv] == nedge) */
 static int64_t * restrict xadj;
+
+void checkpoint_out(int64_t SCALE, int64_t edgefactor, const struct packed_edge * restrict edges, const int64_t nedge, const int64_t * restrict bfs_roots, const int64_t nbfs) {
+  fprintf(stderr, "starting checkpoint...\n");
+  char fname[256];
+  sprintf(fname, "softxmt/ckpts/graph500.%lld.%lld.omp.ckpt", SCALE, edgefactor);
+  FILE * fout = fopen(fname, "w");
+  if (!fout) {
+    fprintf(stderr,"Unable to open file for writing: %s\n", fname);
+    exit(1);
+  }
+  
+  fprintf(stderr, "%lld %lld %lld %lld\n", nedge, nv, nadj, nbfs);
+  
+  fwrite(&nedge, sizeof(nedge), 1, fout);
+  fwrite(&nv, sizeof(nv), 1, fout);
+  fwrite(&nadj, sizeof(nadj), 1, fout);
+  fwrite(&nbfs, sizeof(nbfs), 1, fout);
+  
+  // write out edge tuples
+  fwrite(edges, sizeof(*edges), nedge, fout);
+  
+  // xoff
+  fwrite(xoff, sizeof(*xoff), 2*nv+2, fout);
+  
+  // xadj
+  fwrite(xadjstore, sizeof(*xadjstore), nadj, fout);
+  
+  // bfs_roots
+  fwrite(bfs_roots, sizeof(*bfs_roots), nbfs, fout);
+  
+  fclose(fout);
+  fprintf(stderr, "done checkpointing!\n");
+}
 
 static void
 find_nv (const struct packed_edge * restrict IJ, const int64_t nedge)
@@ -50,6 +83,9 @@ find_nv (const struct packed_edge * restrict IJ, const int64_t nedge)
 static int
 alloc_graph (int64_t nedge)
 {
+  OMP("omp parallel") {
+    printf("omp_num_threads: %d\n", omp_get_num_threads());
+  }
 	sz = (2*nv+2) * sizeof (*xoff);
 	xoff = xmalloc_large_ext (sz);
 	if (!xoff) return -1;
@@ -143,6 +179,8 @@ setup_deg_off (const struct packed_edge * restrict IJ, int64_t nedge)
 			XENDOFF(k) = XOFF(k);
 		OMP("omp single") {
 			XOFF(nv) = accum;
+      nadj = accum+MINVECT_SIZE;
+      fprintf(stderr, "XOFF(nv) = %d\n", XOFF(nv));
 			if (!(xadjstore = xmalloc_large_ext ((XOFF(nv) + MINVECT_SIZE) * sizeof (*xadjstore))))
 				err = -1;
 			if (!err) {
@@ -152,6 +190,7 @@ setup_deg_off (const struct packed_edge * restrict IJ, int64_t nedge)
 			}
 		}
 	}
+  fprintf(stderr, "nadj = %lld, %lld, %p\n", nadj, xadjstore[0], xadjstore);
 	return !xadj;
 }
 
