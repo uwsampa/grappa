@@ -7,6 +7,7 @@
 #include <stdlib.h>
 #include <stdint.h>
 #include <stdio.h>
+#include <stdbool.h>
 
 #if defined(__MTA__)
 #include <sys/mta_task.h>
@@ -41,23 +42,23 @@ typedef graphint color_t;
 
 /* graph structure with explicit start and end vertices for each edge */
 typedef struct {
-	graphint numEdges;
-	graphint * startVertex;	/* sorted, primary key   */
-	graphint * endVertex;	/* sorted, secondary key */
-	graphint * intWeight;	/* integer weight        */ 
-	size_t map_size;
+  graphint numEdges;
+  graphint * startVertex;	/* sorted, primary key   */
+  graphint * endVertex;	/* sorted, secondary key */
+  graphint * intWeight;	/* integer weight        */ 
+  size_t map_size;
 } graphedges;
 
 /* primary graph structure for the kernels */
 typedef struct { 
-	graphint numEdges;
-	graphint numVertices;
-	graphint * startVertex;    /* start vertex of edge, sorted, primary key      */
-	graphint * endVertex;      /* end   vertex of edge, sorted, secondary key    */
-	graphint * intWeight;      /* integer weight                                 */
-	graphint * edgeStart;      /* index into startVertex and endVertex list      */
-	color_t * marks;		/* array for marking/coloring of vertices	  */
-	size_t map_size;
+  graphint numEdges;
+  graphint numVertices;
+  graphint * startVertex;    /* start vertex of edge, sorted, primary key      */
+  graphint * endVertex;      /* end   vertex of edge, sorted, secondary key    */
+  graphint * intWeight;      /* integer weight                                 */
+  graphint * edgeStart;      /* index into startVertex and endVertex list      */
+  color_t * marks;		/* array for marking/coloring of vertices	  */
+  size_t map_size;
 } graph;
 
 /*### Global Variables ###*/
@@ -72,6 +73,8 @@ extern graphint numEdges;
 extern graphint maxWeight;
 extern int K4approx;
 extern graphint subGraphPathLength;
+
+extern bool checkpointing;
 
 /*### Prototypes ###*/
 
@@ -101,8 +104,8 @@ void setupParams(int scale, int edgefactor);
 void genScalData(graphedges* ing, double a, double b, double c, double d);
 
 /* computeGraph.c */
-graph* computeGraph(graphedges* ge);
-graph* makeUndirected(graph *G);
+void computeGraph(graphedges* ge, graph * g);
+void makeUndirected(graph *g, graph * undirG);
 
 /* connectedComponents.c */
 graphint connectedComponents(graph *g);

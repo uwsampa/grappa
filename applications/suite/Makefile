@@ -1,5 +1,7 @@
 include Make.inc
 
+EXE = suite.exe
+
 OBJS = 	computeGraph.o \
 		connectedComponents.o \
 		genScalData.o \
@@ -12,9 +14,9 @@ OBJS = 	computeGraph.o \
 		xmalloc.o \
 		centrality.o
 
-all: graphb
+all: $(EXE)
 	
-graphb: main.o $(OBJS) $(COMPATLIB) $(IOLIB)
+$(EXE): main.o $(OBJS) $(COMPATLIB) $(IOLIB)
 	$(LD) $(LDFLAGS) -o $@ $^ $(LIBS)
 
 computeGraph.o: computeGraph.c defs.h
@@ -37,10 +39,10 @@ $(IOLIB) $(COMPATLIB):
 	$(CC) $(CFLAGS) -c $<
 
 clean:
-	rm -f *.o graphb{,.pl,.ap2} profile.out trace.out
+	rm -f *.o $(EXE){,.pl,.ap2} profile.out trace.out
 	-if test -n "$(IOLIB_DIR)" ; then make -C $(IOLIB_DIR) clean; fi
 
 distclean:
-	rm -f *.o graphb
+	rm -f *.o $(EXE)
 	-if test -n "$(IOLIB_DIR)" ; then make -C $(IOLIB_DIR) clean; fi
 

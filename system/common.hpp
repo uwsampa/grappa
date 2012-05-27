@@ -95,4 +95,17 @@ AUTO_CONSTRUCTOR_DETAIL(className, members)
 #define AUTO_DECLS(members) \
 BOOST_PP_SEQ_FOR_EACH(CAT_EACH, ,BOOST_PP_SEQ_TRANSFORM(DECL_W_TYPE, BOOST_PP_EMPTY, members))
 
+struct Functor {
+  void operator()();
+};
+
+#define FUNCTOR(name, members) \
+struct name : public Functor { \
+AUTO_DECLS(members) \
+AUTO_CONSTRUCTOR( name, members ) \
+name() {} /* default constructor */\
+inline void operator()() const; \
+}; \
+inline void name::operator()() const
+
 #endif

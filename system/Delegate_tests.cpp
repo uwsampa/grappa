@@ -7,7 +7,14 @@
 BOOST_AUTO_TEST_SUITE( Delegate_tests );
 
 
+FUNCTOR( AtomicAddDouble, ((GlobalAddress<double>,addr)) ((double,value)) ) {
+  CHECK(addr.node() == SoftXMT_mynode());
+  *addr.pointer() += value;
+}
+
 int64_t some_data = 1234;
+
+double some_double = 123.0;
 
 int64_t other_data __attribute__ ((aligned (2048))) = 0;
 
@@ -99,6 +106,14 @@ void user_main( int * args )
   BOOST_CHECK_EQUAL( 3333, remote_data );
 
 
+  // check delegate func
+  GlobalAddress<double> other_double = make_global(&some_double, 1);
+  AtomicAddDouble aad(other_double, 12.0);
+  SoftXMT_delegate_func(&aad, aad.addr.node());
+  
+  double chk_double;
+  SoftXMT_delegate_read(other_double, &chk_double);
+  BOOST_CHECK_EQUAL( chk_double, some_double+12.0 );
 }
 
 BOOST_AUTO_TEST_CASE( test1 ) {

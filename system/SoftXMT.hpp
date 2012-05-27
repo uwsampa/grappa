@@ -31,8 +31,8 @@ void SoftXMT_flush( Node n );
 void SoftXMT_idle_flush_poll();
 
 void SoftXMT_barrier();
-
 void SoftXMT_barrier_commsafe();
+void SoftXMT_barrier_suspending();
 
 /// Spawn a user function. TODO: get return values working
 /// TODO: remove Thread * arg
