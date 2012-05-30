@@ -6,6 +6,7 @@
 #include <iostream>
 
 #include "StateTimer.hpp"
+#include <TAU.h>
 
 class Scheduler;
 typedef uint32_t threadid_t; 
@@ -55,6 +56,7 @@ struct Thread {
   int done;
 #ifdef GRAPPA_TRACE
   int state;
+  TAU_PROFILE_STMT( int tau_taskid );
 #endif
 
   Thread(Scheduler * sched) 
