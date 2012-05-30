@@ -1,6 +1,7 @@
 #include "Task.hpp"
 #include "../SoftXMT.hpp"
 #include "../PerformanceTools.hpp"
+#include "TaskingScheduler.hpp"
 
 #define MAXQUEUEDEPTH 500000
 
@@ -35,20 +36,27 @@ void TaskManager::init (bool doSteal_arg, Node localId_arg, Node * neighbors_arg
         
 
 bool TaskManager::getWork( Task * result ) {
+    void * prof;
+    TAU_PROFILER_CREATE( prof, "getWork_loop", "()", TAU_USER1 );
+    TAU_PROFILER_START_TASK( prof, CURRENT_THREAD->tau_taskid );
 
     while ( !workDone ) {
         if ( tryConsumeLocal( result ) ) {
+            TAU_PROFILER_STOP_TASK( prof, CURRENT_THREAD->tau_taskid );
             return true;
         }
 
         if ( tryConsumeShared( result ) ) {
+            TAU_PROFILER_STOP_TASK( prof, CURRENT_THREAD->tau_taskid );
             return true;
         }
 
         if ( waitConsumeAny( result ) ) {
+        TAU_PROFILER_STOP_TASK( prof, CURRENT_THREAD->tau_taskid );
             return true;
         }
     }
+    TAU_PROFILER_STOP_TASK( prof, CURRENT_THREAD->tau_taskid );
 
     return false;
 
@@ -96,6 +104,12 @@ bool TaskManager::tryConsumeShared( Task * result ) {
 bool TaskManager::waitConsumeAny( Task * result ) {
     if ( doSteal && globalMayHaveWork ) {
         if ( stealLock ) {
+    
+            void * prof;
+            void * stealprof;
+            TAU_PROFILER_CREATE( prof, "stealing", "()", TAU_USER1 );
+            TAU_PROFILER_START_TASK( prof, CURRENT_THREAD->tau_taskid );
+            
             // only one Thread is allowed to steal
             stealLock = false;
 
@@ -108,6 +122,7 @@ bool TaskManager::waitConsumeAny( Task * result ) {
                   i++ ) { // TODO permutation order
 
                 victimId = (localId + i) % numLocalNodes;
+
                 goodSteal = publicQ.steal_locally(neighbors[victimId], chunkSize, CURRENT_THREAD);
                 
                 if (goodSteal) { stats.record_successful_steal(); }
@@ -140,10 +155,15 @@ bool TaskManager::waitConsumeAny( Task * result ) {
             stealLock = true; // release steal lock
 
             /**TODO remote load balance**/
+        
+            TAU_PROFILER_STOP_TASK( prof, CURRENT_THREAD->tau_taskid );
         }
     }
 
     if ( !available() ) {
+        void * prof;
+        TAU_PROFILER_CREATE( prof, "worker idle", "(suspended)", TAU_USER2 ); 
+        TAU_PROFILER_START_TASK( prof, CURRENT_THREAD->tau_taskid );
         if ( !SoftXMT_thread_idle() ) {
             // no work so suggest global termination barrier
             
@@ -183,6 +203,7 @@ bool TaskManager::waitConsumeAny( Task * result ) {
         } else {
             DVLOG(5) << CURRENT_THREAD << " un-idled";
         }
+        TAU_PROFILER_STOP_TASK( prof, CURRENT_THREAD->tau_taskid );
     }
 
     return false;

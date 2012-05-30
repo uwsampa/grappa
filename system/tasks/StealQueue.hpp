@@ -318,6 +318,7 @@ void StealQueue<T>::workStealRequest_am(workStealRequest_args * args, size_t siz
 
 }
 
+#include "Thread.hpp"
 template <typename T>
 int StealQueue<T>::steal_locally( Node victim, int k, Thread * current ) {
 
@@ -326,12 +327,22 @@ int StealQueue<T>::steal_locally( Node victim, int k, Thread * current ) {
     workStealRequest_args req_args = { k, global_communicator.mynode() };
     SoftXMT_call_on( victim, &StealQueue<T>::workStealRequest_am, &req_args );
 
+    void * stealprof;
+    TAU_PROFILER_CREATE( stealprof, "steal_locally", "(suspended)", TAU_USER2);
+
     // steal is blocking
     // TODO: use suspend-wake mechanism
     while ( local_steal_amount == -1 ) {
         steal_waiter = current;
+        
+        TAU_PROFILER_START_TASK( stealprof, current->tau_taskid );
+	    
+        global_scheduler.thread_suspend();
         //SoftXMT_suspend();
-	global_scheduler.thread_suspend();
+        
+        TAU_PROFILER_STOP_TASK( stealprof, current->tau_taskid );
+
+        SoftXMT_suspend();
     }
 
     return local_steal_amount;
