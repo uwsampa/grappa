@@ -29,7 +29,7 @@ class ThreadQueue {
 
         void enqueue(Thread * t);
         Thread * dequeue();
-        
+        void prefetch();
         int length() { 
             return len;
         }
@@ -47,6 +47,7 @@ struct Thread {
   // Thread.
   Scheduler * sched;
   Thread * next; // for queues--if we're not in one, should be NULL
+  void * data_prefetch;
   threadid_t id; 
   ThreadQueue joinqueue;
   int done;
@@ -54,10 +55,16 @@ struct Thread {
   Thread(Scheduler * sched) 
     : sched( sched )
     , next( NULL )
+    , data_prefetch( NULL )
     , done( 0 )
     , joinqueue( ) { 
         // NOTE: id, co still need to be initialized later
     }
+
+  inline void prefetch() {
+    __builtin_prefetch( co->stack, 0, 3 );                           // try to keep stack in cache
+    if( data_prefetch ) __builtin_prefetch( data_prefetch, 0, 0 );   // for low-locality data
+  }
 };
         
 inline Thread * ThreadQueue::dequeue() {
@@ -83,6 +90,18 @@ inline void ThreadQueue::enqueue( Thread * t) {
     len++;
 }
 
+
+inline void ThreadQueue::prefetch() {
+    Thread * result = head;
+    // try to prefetch 4 away
+    if( result ) {
+      if( result->next ) result = result->next;
+      if( result->next ) result = result->next;
+      if( result->next ) result = result->next;
+      if( result->next ) result = result->next;
+      result->prefetch();
+    }
+}
 
 typedef void (*thread_func)(Thread *, void *arg);
 
