@@ -33,7 +33,20 @@ static void tramp(struct coro * me, void * arg) {
 
   StateTimer::setThreadState( StateTimer::SYSTEM );
   StateTimer::enterState_system();
+  
+  // create new Tau task, and top level timer for the task
+  void * mainprof;
+  int new_taskid;
+  TAU_CREATE_TASK(new_taskid);
+  TAU_PROFILE_STMT( my_thr->tau_taskid = new_taskid; );
+  TAU_PROFILER_CREATE( mainprof, "start_thread", "()", TAU_USER1 );
+  TAU_PROFILER_START_TASK( mainprof, my_thr->tau_taskid );
+
+  // call thread target function
   f(my_thr, f_arg);
+
+  // stop top level Tau task timer
+  TAU_PROFILER_STOP_TASK( mainprof, my_thr->tau_taskid );
 
   // We shouldn't return, but if we do, kill the Thread.
   thread_exit(my_thr, NULL);
