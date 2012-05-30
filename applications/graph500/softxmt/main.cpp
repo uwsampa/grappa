@@ -40,6 +40,8 @@
 #include "verify.hpp"
 #include "options.h"
 
+#include <TAU.h>
+
 static int compare_doubles(const void* a, const void* b) {
   double aa = *(const double*)a;
   double bb = *(const double*)b;
@@ -305,6 +307,8 @@ LOOP_FUNCTOR(func_bfs_node, mynode,
 }
 
 static double make_bfs_tree(csr_graph * g, GlobalAddress<int64_t> bfs_tree, int64_t root) {
+  TAU_PHASE("make_bfs_tree", "double (csr_graph*,GlobalAddress<int64_t>,int64_t)", TAU_DEFAULT);
+
   int64_t NV = g->nv;
   GlobalAddress<int64_t> vlist = SoftXMT_typed_malloc<int64_t>(NV);
   
@@ -403,9 +407,11 @@ static void run_bfs(tuple_graph * tg, csr_graph * g, int64_t * bfs_roots) {
     
     VLOG(1) << "Running bfs on root " << i << "(" << bfs_roots[i] << ")...";
     SoftXMT_reset_stats_all_nodes();
+    TAU_ENABLE_INSTRUMENTATION();
     t = timer();
     bfs_time[i] = make_bfs_tree(g, bfs_tree, bfs_roots[i]);
     t = timer() - t;
+    TAU_DISABLE_INSTRUMENTATION();
     VLOG(1) << "make_bfs_tree time: " << t;
 //    VLOG(1) << "done";
 //    for (int64_t i=0; i < g.nv; i++) {
@@ -438,6 +444,8 @@ static void run_bfs(tuple_graph * tg, csr_graph * g, int64_t * bfs_roots) {
 }
 
 static void checkpoint_in(tuple_graph * tg, csr_graph * g, int64_t * bfs_roots) {
+  TAU_PHASE("checkpoint_in","void (tuple_graph*,csr_graph*,int64_t*)", TAU_DEFAULT);
+  
   VLOG(1) << "start reading checkpoint";
   double t = timer();
   
@@ -532,6 +540,8 @@ static void user_main(int * args) {
   csr_graph g;
   int64_t bfs_roots[NBFS_max];
 
+
+
   if (load_checkpoint) {
     checkpoint_in(&tg, &g, bfs_roots);
   } // checkpoint_in may change 'load_checkpoint' to false if unable to read in file correctly
@@ -606,6 +616,7 @@ static void user_main(int * args) {
 }
 
 int main(int argc, char** argv) {
+  TAU_DISABLE_INSTRUMENTATION();
   SoftXMT_init(&argc, &argv, (1L<<MEM_SCALE));
   SoftXMT_activate();
 

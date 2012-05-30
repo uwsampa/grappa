@@ -273,7 +273,7 @@ static void randpermute(GlobalAddress<T> array, int64_t nelem, mrg_state * restr
     *c_place = *c_this;
     *c_this = t;
     
-    if (k % 4096 == 0) VLOG(1) << "k: " << k << " -- " << timer();
+    if (k % 4096 == 0) VLOG(1) << "k: " << k << " / " << nelem;
   }
 }
 
