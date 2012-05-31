@@ -35,3 +35,6 @@ force: ;
 allclean: clean
 	pushd $(SOFTXMT_HOME)/system; $(MAKE) clean; popd
 
+otf: force
+	make -f ../../../system/Makefile.tau otf
+

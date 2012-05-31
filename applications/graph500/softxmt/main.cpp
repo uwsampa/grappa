@@ -333,7 +333,7 @@ static double make_bfs_tree(csr_graph * g, GlobalAddress<int64_t> bfs_tree, int6
 //  fb.bfs_tree = bfs_tree;
 //  fb.k2 = k2addr;
 //  fb.nadj = g->nadj; //DEBUG only...
-    
+  
   bfs_setup fsetup(vlist, g->xoff, g->xadj, bfs_tree, k2addr, g->nadj);
   fork_join_custom(&fsetup);
   
@@ -344,9 +344,15 @@ static double make_bfs_tree(csr_graph * g, GlobalAddress<int64_t> bfs_tree, int6
 //    fb.start = k1;
 //    fb.end = oldk2;
 //    fork_join_custom(&fb);
-    
+    char phaseName[64];
+    sprintf(phaseName, "Level %lld -> %lld\n", k1, k2);
+    TAU_PHASE_CREATE_DYNAMIC(bfs_level, phaseName, "", TAU_USER);
+    TAU_PHASE_START(bfs_level);
+
     bfs_node fbfs(k1, oldk2);
     fork_join_custom(&fbfs);
+
+    TAU_PHASE_STOP(bfs_level);
     
     k1 = oldk2;
   }
@@ -397,6 +403,25 @@ static void setup_bfs(tuple_graph * tg, csr_graph * g, int64_t * bfs_roots) {
 //  }
 }
 
+LOOP_FUNCTION(func_enable_tau, nid) {
+  //SoftXMT_barrier_commsafe();
+  //TAU_ENABLE_INSTRUMENTATION();
+  FLAGS_record_grappa_events = true;
+}
+static void enable_tau() {
+  VLOG(1) << "Enabling TAU recording.";
+  func_enable_tau f;
+  fork_join_custom(&f);
+}
+LOOP_FUNCTION(func_disable_tau, nid) {
+  //TAU_DISABLE_INSTRUMENTATION();
+  FLAGS_record_grappa_events = false;
+}
+static void disable_tau() {
+  func_disable_tau f;
+  fork_join_custom(&f);
+}
+
 static void run_bfs(tuple_graph * tg, csr_graph * g, int64_t * bfs_roots) {
   double t;
   
@@ -407,11 +432,15 @@ static void run_bfs(tuple_graph * tg, csr_graph * g, int64_t * bfs_roots) {
     
     VLOG(1) << "Running bfs on root " << i << "(" << bfs_roots[i] << ")...";
     SoftXMT_reset_stats_all_nodes();
-    TAU_ENABLE_INSTRUMENTATION();
+    
+    enable_tau();
+
     t = timer();
     bfs_time[i] = make_bfs_tree(g, bfs_tree, bfs_roots[i]);
     t = timer() - t;
-    TAU_DISABLE_INSTRUMENTATION();
+
+    disable_tau();
+    
     VLOG(1) << "make_bfs_tree time: " << t;
 //    VLOG(1) << "done";
 //    for (int64_t i=0; i < g.nv; i++) {
@@ -616,7 +645,7 @@ static void user_main(int * args) {
 }
 
 int main(int argc, char** argv) {
-  TAU_DISABLE_INSTRUMENTATION();
+  //TAU_DISABLE_INSTRUMENTATION();
   SoftXMT_init(&argc, &argv, (1L<<MEM_SCALE));
   SoftXMT_activate();
 
