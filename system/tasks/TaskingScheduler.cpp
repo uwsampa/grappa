@@ -37,7 +37,7 @@ TaskingScheduler::TaskingScheduler ( Thread * master, TaskManager * taskman )
 }
 
 void TaskingScheduler::run ( ) {
-    current_thread->state = StateTimer::SCHEDULER;
+    StateTimer::setThreadState( StateTimer::SCHEDULER );
     StateTimer::enterState_scheduler();
     while (thread_wait( NULL ) != NULL) { } // nothing
 }
@@ -95,7 +95,7 @@ void workerLoop ( Thread * me, void* args ) {
 
     sched->onWorkerStart();
     
-    sched->get_current_thread()->state = StateTimer::FINDWORK;
+    StateTimer::setThreadState( StateTimer::FINDWORK );
     StateTimer::enterState_findwork();
     
     Task nextTask;
@@ -105,10 +105,10 @@ void workerLoop ( Thread * me, void* args ) {
         if (!tasks->getWork(&nextTask)) break; // quitting time
       
         sched->num_active_tasks++;
-        sched->get_current_thread()->state = StateTimer::USER;
+        StateTimer::setThreadState( StateTimer::USER );
         StateTimer::enterState_user();
         nextTask.execute();
-        sched->get_current_thread()->state = StateTimer::FINDWORK;
+        StateTimer::setThreadState( StateTimer::FINDWORK );
         sched->num_active_tasks--;
 
         sched->thread_yield( ); // yield to the scheduler

@@ -40,7 +40,7 @@ HeapLeakChecker * SoftXMT_heapchecker = 0;
 #endif
 
 static void poller( Thread * me, void * args ) {
-  me->state = StateTimer::COMMUNICATION;
+  StateTimer::setThreadState( StateTimer::COMMUNICATION );
   StateTimer::enterState_communication();
   while( !SoftXMT_done() ) {
     my_global_scheduler->stats.sample();

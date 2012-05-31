@@ -4,6 +4,7 @@
 StateTimer * state_timer;
 
 void StateTimer::enterState_thread_( ) {
+#ifdef GRAPPA_TRACE
     switch ( CURRENT_THREAD->state ) {
         case USER:
             enterState_user_();
@@ -26,4 +27,11 @@ void StateTimer::enterState_thread_( ) {
         default:
             CHECK( false ) << "not valid thread state";
     }
+#endif
+}
+
+void StateTimer::setThreadState_( int state ) {
+#ifdef GRAPPA_TRACE
+    CURRENT_THREAD->state = state;
+#endif
 }

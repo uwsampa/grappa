@@ -52,14 +52,19 @@ struct Thread {
   threadid_t id; 
   ThreadQueue joinqueue;
   int done;
+#ifdef GRAPPA_TRACE
   int state;
+#endif
 
   Thread(Scheduler * sched) 
     : sched( sched )
     , next( NULL )
     , done( 0 )
     , joinqueue( ) 
-    , state ( 0 ) { 
+#ifdef GRAPPA_TRACE
+    , state ( 0 ) 
+#endif
+    {
         // NOTE: id, co still need to be initialized later
     }
 };
