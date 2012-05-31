@@ -17,7 +17,7 @@ backup:
 	mkdir -p $(TRACEDIR)
 
 # merge trace files; also creates tau.edf
-$(TRACEDIR)/tau.trc:
+$(TRACEDIR)/tau.trc: $(TRACEDIR)/tautrace.*
 	cd $(TRACEDIR);	$(TAU_BIN)/tau_treemerge.pl
 
 $(TRACEDIR)/tau.edf: $(TRACEDIR)/tau.trc

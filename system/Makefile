@@ -153,7 +153,7 @@ endif
 #
 # Build SoftXMT static library
 #
-LIBRARY_CONTENTS+= SoftXMT.o GlobalAllocator.o GlobalMemory.o GlobalMemoryChunk.o Communicator.o Aggregator.o Timestamp.o Allocator.o Cache.o Delegate.o Collective.o ForkJoin.o tasks/cbarrier.o tasks/TaskingScheduler.o tasks/Task.o tasks/Thread.o stack.o coro.o StateTimer.o
+LIBRARY_CONTENTS+= SoftXMT.o GlobalAllocator.o GlobalMemory.o GlobalMemoryChunk.o Communicator.o Aggregator.o Timestamp.o Allocator.o Cache.o Delegate.o Collective.o ForkJoin.o tasks/cbarrier.o tasks/TaskingScheduler.o tasks/Task.o tasks/Thread.o stack.o coro.o StateTimer.o PerformanceTools.o
 
 libSoftXMT.a: $(LIBRARY_CONTENTS)
 	$($(MPITYPE)_AR) rv $@ $^
@@ -171,7 +171,7 @@ endif
 mpi_run: $(TARGET) $($(MPITYPE)_ENVVAR_TEMP) $($(MPITYPE)_EPILOG_TEMP)
 	-killall $<
 	$(ENV_VARIABLES) \
-	$($(MPITYPE)_MPIRUN) $($(MPITYPE)_EXPORT_ENV_VARIABLES) $($(MPITYPE)_HOST) $($(MPITYPE)_NPROC) -- $(MY_TAU_RUN) ./$< $(ARGS)
+	$($(MPITYPE)_MPIRUN) $($(MPITYPE)_EXPORT_ENV_VARIABLES) $($(MPITYPE)_HOST) $($(MPITYPE)_NPROC) -- $(MY_TAU_RUN) ./$< $(GARGS)
 
 run: $(TARGET)
 	-killall $<
