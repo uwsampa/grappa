@@ -29,6 +29,8 @@
 
 #include "MutableHeap.hpp"
 
+#include "StateTimer.hpp"
+
 
 #include <TAU.h>
 // function to compute a mpi-like tag for communication tracing
@@ -323,6 +325,7 @@ public:
   }
   
   inline void idle_flush_poll() {
+    StateTimer::enterState_communication();
     communicator_->poll();
     while ( !least_recently_sent_.empty() ) {
       stats.record_idle_flush();
@@ -444,11 +447,12 @@ inline void SoftXMT_call_on( Node destination, void (* fn_p)(ArgsStruct *, size_
 {
   assert( global_aggregator != NULL );
 
-
+  StateTimer::start_communication();
   global_aggregator->aggregate( destination, 
                                 reinterpret_cast< AggregatorAMHandler >( fn_p ), 
                                 static_cast< const void * >( args ), args_size,
                                 static_cast< const void * >( payload ), payload_size );
+  StateTimer::stop_communication();
 }
 
 
@@ -458,10 +462,12 @@ inline void SoftXMT_call_on_x( Node destination, void (* fn_p)(ArgsStruct *, siz
                                const PayloadType * payload = NULL, const size_t payload_size = 0)
 {
   assert( global_aggregator != NULL );
+  StateTimer::start_communication();
   global_aggregator->aggregate( destination, 
                                 reinterpret_cast< AggregatorAMHandler >( fn_p ), 
                                 static_cast< const void * >( args ), args_size,
                                 static_cast< const void * >( payload ), payload_size );
+  StateTimer::stop_communication();
 }
 
 
