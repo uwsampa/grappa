@@ -30,3 +30,14 @@
 .srunrc*
 *.d.tmp
 
+# Tau/profiling
+tau*.trc
+*.edf
+profile.*.*.*
+app*.def
+app.otf
+app.vsettings
+app*.events
+fn_mappings
+reader.out
+
