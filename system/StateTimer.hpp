@@ -2,6 +2,15 @@
 #define STATE_TIMER_HPP
 
 #include <TAU.h>
+// need to define these when tau is disabled
+// because for some reason they are not even blank defined,
+// unlike other Tau api calls
+#ifndef GRAPPA_TRACE
+    #define TAU_CREATE_TASK( a )
+    #define TAU_PROFILER_START_TASK( a, b )
+    #define TAU_PROFILER_STOP_TASK( a, b )
+#endif
+
 #include <glog/logging.h>
 
 #define STATE_TIMER_GROUP TAU_USER3
@@ -27,6 +36,7 @@ class StateTimer {
     int tau_taskid;
 
     StateTimer() {
+#ifdef GRAPPA_TRACE
         // top level timer
         TAU_PROFILER_CREATE( top_level_timer, "state_timing", "(top level)", STATE_TIMER_GROUP );
 
@@ -47,72 +57,93 @@ class StateTimer {
         // assume created in system
         current_timer = system_timer;
         ST_START( system_timer );
+#endif
     }
 
     ~StateTimer() {
+#ifdef GRAPPA_TRACE
         ST_STOP( current_timer );
         ST_STOP( top_level_timer );
+#endif
     }
 
     void enterState_user_() {
+#ifdef GRAPPA_TRACE
         CHECK( current_timer != user_timer );
 
         ST_STOP( current_timer );
         current_timer = user_timer;
         ST_START( user_timer );
+#endif
     }
 
     void enterState_system_() {
+#ifdef GRAPPA_TRACE
         CHECK( current_timer != system_timer );
 
         ST_STOP( current_timer );
         current_timer = system_timer;
         ST_START( system_timer );
+#endif
     }
     
     void enterState_communication_() {
+#ifdef GRAPPA_TRACE
         CHECK( current_timer != communication_timer );
 
         ST_STOP( current_timer );
         current_timer = communication_timer;
         ST_START( communication_timer );
+#endif
     }
     
     void start_communication_() {
+#ifdef GRAPPA_TRACE
         CHECK( current_timer != communication_timer );
         ST_START( communication_timer );
+#endif
     }
     
     void stop_communication_() {
+#ifdef GRAPPA_TRACE
         CHECK( current_timer != communication_timer );
         ST_STOP( communication_timer );
+#endif
     }
 
     void enterState_deaggregation_() {
+#ifdef GRAPPA_TRACE
         CHECK( current_timer != deaggregation_timer );
 
         ST_STOP( current_timer );
         current_timer = deaggregation_timer;
         ST_START( deaggregation_timer );
+#endif
     }
 
     void enterState_scheduler_() {
+#ifdef GRAPPA_TRACE
         CHECK( current_timer != scheduler_timer );
 
         ST_STOP( current_timer );
         current_timer = scheduler_timer;
         ST_START( scheduler_timer );
+#endif
     }
     
     void enterState_findwork_() {
+#ifdef GRAPPA_TRACE
         CHECK( current_timer != findwork_timer );
 
         ST_STOP( current_timer );
         current_timer = findwork_timer;
         ST_START( findwork_timer );
+#endif
     }
 
     void enterState_thread_();
+
+    void setThreadState_( int state );
     
     public:
     static const int USER = 1;
@@ -132,6 +163,7 @@ class StateTimer {
     static void enterState_scheduler() { state_timer->enterState_scheduler_(); }
     static void enterState_findwork() { state_timer->enterState_findwork_(); }
     static void enterState_thread() { state_timer->enterState_thread_(); }
+    static void setThreadState(int state) { state_timer->setThreadState_( state ); }
 
     static void start_communication() { state_timer->start_communication_(); }
     static void stop_communication() { state_timer->stop_communication_(); }

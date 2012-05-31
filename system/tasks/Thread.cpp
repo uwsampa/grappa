@@ -31,7 +31,7 @@ static void tramp(struct coro * me, void * arg) {
   // Next time we're invoked, it'll be for real.
   coro_invoke(me, master, NULL);
 
-  my_thr->state = StateTimer::SYSTEM;
+  StateTimer::setThreadState( StateTimer::SYSTEM );
   StateTimer::enterState_system();
   f(my_thr, f_arg);
 
