@@ -128,5 +128,6 @@ void SoftXMT_dump_task_series();
 #include "Aggregator.hpp"
 #include "Addressing.hpp"
 #include "Tasking.hpp"
+#include "StateTimer.hpp"
 
 #endif

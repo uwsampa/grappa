@@ -40,6 +40,8 @@ HeapLeakChecker * SoftXMT_heapchecker = 0;
 #endif
 
 static void poller( Thread * me, void * args ) {
+  me->state = StateTimer::COMMUNICATION;
+  StateTimer::enterState_communication();
   while( !SoftXMT_done() ) {
     my_global_scheduler->stats.sample();
     my_task_manager->stats.sample();
@@ -346,6 +348,8 @@ void SoftXMT_finish( int retval )
   SoftXMT_barrier();
 
   DVLOG(1) << "Cleaning up SoftXMT library....";
+
+  StateTimer::finish();
 
   my_task_manager->finish();
   my_global_aggregator->finish();
