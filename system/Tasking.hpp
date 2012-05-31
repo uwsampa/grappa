@@ -5,6 +5,7 @@
 //#include "SoftXMT.hpp"
 #include "tasks/Task.hpp"
 #include "Cache.hpp"
+#include "StateTimer.hpp"
 
 #include <boost/type_traits/remove_pointer.hpp>
 #include <boost/typeof/typeof.hpp>
@@ -66,6 +67,8 @@ int SoftXMT_run_user_main( void (* fn_p)(T), T args )
 
   // spawn starting number of worker coroutines
   my_global_scheduler->createWorkers( FLAGS_num_starting_workers );
+  
+  StateTimer::init();
 
   // start the scheduler
   my_global_scheduler->run( );

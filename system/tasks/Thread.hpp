@@ -5,6 +5,8 @@
 #include <boost/cstdint.hpp>
 #include <iostream>
 
+#include "StateTimer.hpp"
+
 class Scheduler;
 typedef uint32_t threadid_t; 
 struct Thread;
@@ -50,12 +52,19 @@ struct Thread {
   threadid_t id; 
   ThreadQueue joinqueue;
   int done;
+#ifdef GRAPPA_TRACE
+  int state;
+#endif
 
   Thread(Scheduler * sched) 
     : sched( sched )
     , next( NULL )
     , done( 0 )
-    , joinqueue( ) { 
+    , joinqueue( ) 
+#ifdef GRAPPA_TRACE
+    , state ( 0 ) 
+#endif
+    {
         // NOTE: id, co still need to be initialized later
     }
 };
@@ -93,7 +102,9 @@ Thread * thread_spawn ( Thread * me, Scheduler * sched, thread_func f, void * ar
 Thread * thread_init();
 
 inline void* thread_context_switch( Thread * running, Thread * next, void * val ) {
-    return coro_invoke( running->co, next->co, val );
+    void* res = coro_invoke( running->co, next->co, val );
+    StateTimer::enterState_thread();
+    return res;
 }
 
 inline int thread_is_running( Thread * thr ) {

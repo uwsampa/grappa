@@ -7,6 +7,7 @@
 #include <glog/logging.h>
 #include <sstream>
 
+#include "StateTimer.hpp"
 
 DECLARE_int64( periodic_poll_ticks );
 DECLARE_bool(flush_on_idle);
@@ -92,6 +93,7 @@ class TaskingScheduler : public Scheduler {
 
                 if (FLAGS_flush_on_idle) {
                   SoftXMT_idle_flush_poll();
+                  StateTimer::enterState_scheduler();
                 } else {
                   usleep(1);
                 }
@@ -239,6 +241,7 @@ struct task_worker_args {
 /// the master Thread.
 inline bool TaskingScheduler::thread_yield( ) {
     CHECK( current_thread != master ) << "can't yield on a system Thread";
+    StateTimer::enterState_scheduler();
 
     ready( current_thread ); 
     
@@ -258,6 +261,7 @@ inline bool TaskingScheduler::thread_yield( ) {
 /// the master Thread.
 inline bool TaskingScheduler::thread_yield_periodic( ) {
     CHECK( current_thread != master ) << "can't yield on a system Thread";
+    StateTimer::enterState_scheduler();
 
     periodic( current_thread ); 
     
@@ -277,6 +281,7 @@ inline bool TaskingScheduler::thread_yield_periodic( ) {
 inline void TaskingScheduler::thread_suspend( ) {
     CHECK( current_thread != master ) << "can't yield on a system Thread";
     CHECK( thread_is_running(current_thread) ) << "may only suspend a running coroutine";
+    StateTimer::enterState_scheduler();
     
     Thread * yieldedThr = current_thread;
     yieldedThr->co->running = 0; // XXX: hack; really want to know at a user Thread level that it isn't running
@@ -295,6 +300,7 @@ inline void TaskingScheduler::thread_wake( Thread * next ) {
   CHECK( next->sched == this ) << "can only wake a Thread on your scheduler";
   CHECK( next->next == NULL ) << "woken Thread should not be on any queue";
   CHECK( !thread_is_running( next ) ) << "woken Thread should not be running";
+  
   next->co->suspended = 0;
     
   DVLOG(5) << "Thread " << current_thread->id << " wakes thread " << next->id;
@@ -310,6 +316,8 @@ inline void TaskingScheduler::thread_yield_wake( Thread * next ) {
     CHECK( next->sched == this ) << "can only wake a Thread on your scheduler";
     CHECK( next->next == NULL ) << "woken Thread should not be on any queue";
     CHECK( !thread_is_running( next ) ) << "woken Thread should not be running";
+    StateTimer::enterState_scheduler();
+    
     next->co->suspended = 0;
 
     Thread * yieldedThr = current_thread;
@@ -326,6 +334,8 @@ inline void TaskingScheduler::thread_suspend_wake( Thread *next ) {
     CHECK( current_thread != master ) << "can't yield on a system Thread";
     CHECK( next->next == NULL ) << "woken Thread should not be on any queue";
     CHECK( !thread_is_running( next ) ) << "woken Thread should not be running";
+    StateTimer::enterState_scheduler();
+  
     next->co->suspended = 0;
   
     Thread * yieldedThr = current_thread;

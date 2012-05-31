@@ -2,6 +2,7 @@
 #include <gflags/gflags.h>
 
 #include "Aggregator.hpp"
+#include "SoftXMT.hpp"
 #include <csignal>
 
 
@@ -56,6 +57,7 @@ Aggregator::~Aggregator() {
 }
 
 void Aggregator::deaggregate( ) {
+  StateTimer::enterState_deaggregation();
   while( !received_AM_queue_.empty() ) {
     DVLOG(5) << "deaggregating";
     // TODO: too much copying
