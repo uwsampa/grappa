@@ -80,6 +80,7 @@ class TaskingScheduler : public Scheduler {
                 // check ready tasks
                 result = readyQ.dequeue();
                 if (result != NULL) {
+                  readyQ.prefetch();
                 //    DVLOG(5) << current_thread->id << " scheduler: pick ready";
                     return result;
                 }
