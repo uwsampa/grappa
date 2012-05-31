@@ -1,10 +1,12 @@
 #include "Task.hpp"
 #include "../SoftXMT.hpp"
-
+#include "../PerformanceTools.hpp"
 
 #define MAXQUEUEDEPTH 500000
 
 
+GRAPPA_DEFINE_EVENT_GROUP(task_manager);
+//DEFINE_bool(TaskManager_events, true, "Enable tracing of events in TaskManager.");
 
 TaskManager::TaskManager (bool doSteal, Node localId, Node * neighbors, Node numLocalNodes, int chunkSize, int cbint) 
     : workDone( false )
@@ -209,20 +211,23 @@ void TaskManager::TaskStatistics::dump() {
 }
 
 void TaskManager::TaskStatistics::sample() {
-    sample_calls++;
-    /* todo: avgs */
-
-#ifdef GRAPPA_TRACE
-    if ((sample_calls % 1) == 0) {
-      TAU_REGISTER_EVENT(privateQ_size_ev, "privateQ size sample");
-      TAU_REGISTER_EVENT(publicQ_local_size_ev, "publicQ.local sample");
-      TAU_REGISTER_EVENT(publicQ_shared_size_ev, "publicQ.shared sample");
-      
-      TAU_EVENT(privateQ_size_ev, tm->privateQ.size());
-      TAU_EVENT(publicQ_local_size_ev, tm->publicQ.localDepth());
-      TAU_EVENT(publicQ_shared_size_ev, tm->publicQ.sharedDepth());
-    }
-#endif
+  GRAPPA_EVENT(privateQ_size_ev,       "privateQ size sample",  SAMPLE_RATE, task_manager, tm->privateQ.size());
+  GRAPPA_EVENT(publicQ_local_size_ev,  "publicQ.local sample",  SAMPLE_RATE, task_manager, tm->publicQ.localDepth());
+  GRAPPA_EVENT(publicQ_shared_size_ev, "publicQ.shared sample", SAMPLE_RATE, task_manager, tm->publicQ.sharedDepth());
+//    sample_calls++;
+//    /* todo: avgs */
+//
+//#ifdef GRAPPA_TRACE
+//    if ((sample_calls % 1) == 0) {
+//      TAU_REGISTER_EVENT(privateQ_size_ev, "privateQ size sample");
+//      TAU_REGISTER_EVENT(publicQ_local_size_ev, "publicQ.local sample");
+//      TAU_REGISTER_EVENT(publicQ_shared_size_ev, "publicQ.shared sample");
+//      
+//      TAU_EVENT(privateQ_size_ev, tm->privateQ.size());
+//      TAU_EVENT(publicQ_local_size_ev, tm->publicQ.localDepth());
+//      TAU_EVENT(publicQ_shared_size_ev, tm->publicQ.sharedDepth());
+//    }
+//#endif
 }
 
 

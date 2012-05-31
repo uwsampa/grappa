@@ -3,7 +3,9 @@
 #include "Task.hpp"
 
 #include <gflags/gflags.h>
-#include <TAU.h>
+#include "../PerformanceTools.hpp"
+
+GRAPPA_DEFINE_EVENT_GROUP(scheduler);
 
 /// TODO: this should be based on some actual time-related metric so behavior is predictable across machines
 DEFINE_int64( periodic_poll_ticks, 500, "number of ticks to wait before polling periodic queue");
@@ -161,14 +163,17 @@ void TaskingScheduler::TaskingSchedulerStatistics::sample() {
         active_task_log[task_log_index++] = sched->num_active_tasks;
     }
 #endif
-#ifdef GRAPPA_TRACE
-    if ((task_calls % 1) == 0) {
-        TAU_REGISTER_EVENT(active_tasks_out_event, "Active tasks sample");
-        TAU_REGISTER_EVENT(num_idle_out_event, "Idle workers sample");
 
-        TAU_EVENT(active_tasks_out_event, sched->num_active_tasks);
-        TAU_EVENT(num_idle_out_event, sched->num_idle);
-
-    }
-#endif
+    GRAPPA_EVENT(active_tasks_out_ev, "Active tasks sample", SAMPLE_RATE, scheduler, sched->num_active_tasks);
+    GRAPPA_EVENT(num_idle_out_event, "Idle workers sample", SAMPLE_RATE, scheduler, sched->num_idle);
+//#ifdef GRAPPA_TRACE
+//    if ((task_calls % 1) == 0) {
+//        TAU_REGISTER_EVENT(active_tasks_out_event, "Active tasks sample");
+//        TAU_REGISTER_EVENT(num_idle_out_event, "Idle workers sample");
+//
+//        TAU_EVENT(active_tasks_out_event, sched->num_active_tasks);
+//        TAU_EVENT(num_idle_out_event, sched->num_idle);
+//
+//    }
+//#endif
 }
