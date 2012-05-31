@@ -153,7 +153,7 @@ endif
 #
 # Build SoftXMT static library
 #
-LIBRARY_CONTENTS+= SoftXMT.o GlobalAllocator.o GlobalMemory.o GlobalMemoryChunk.o Communicator.o Aggregator.o Timestamp.o Allocator.o Cache.o Delegate.o Collective.o ForkJoin.o tasks/cbarrier.o tasks/TaskingScheduler.o tasks/Task.o tasks/Thread.o stack.o coro.o
+LIBRARY_CONTENTS+= SoftXMT.o GlobalAllocator.o GlobalMemory.o GlobalMemoryChunk.o Communicator.o Aggregator.o Timestamp.o Allocator.o Cache.o Delegate.o Collective.o ForkJoin.o tasks/cbarrier.o tasks/TaskingScheduler.o tasks/Task.o tasks/Thread.o stack.o coro.o StateTimer.o
 
 libSoftXMT.a: $(LIBRARY_CONTENTS)
 	$($(MPITYPE)_AR) rv $@ $^
