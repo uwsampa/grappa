@@ -41,3 +41,4 @@ app*.events
 fn_mappings
 reader.out
 
+core.*
