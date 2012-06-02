@@ -5,6 +5,7 @@
 #include "SoftXMT.hpp"
 #include <csignal>
 
+#include "PerformanceTools.hpp"
 
 /// command line options for Aggregator
 DEFINE_int64( aggregator_autoflush_ticks, 1000, "number of ticks to wait before autoflushing aggregated active messages");
@@ -101,7 +102,7 @@ void Aggregator::deaggregate( ) {
           
           // trace fine-grain communication
 #ifdef GRAPPA_TRACE
-          {
+          if (FLAGS_record_grappa_events) {
               // TODO: good candidate for TAU_CONTEXT_EVENT
               int fn_p_tag = aggregator_trace_tag( fp );
               TAU_TRACE_RECVMSG(fn_p_tag, header->source, header->args_size + header->payload_size );

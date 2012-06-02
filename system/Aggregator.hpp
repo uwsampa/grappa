@@ -36,6 +36,7 @@
 #ifdef VTRACE
 #include <vt_user.h>
 #endif
+#include "PerformanceTools.hpp"
 
 // function to compute a mpi-like tag for communication tracing
 //#define aggregator_trace_tag(data) (int) (0x7FFF & reinterpret_cast<intptr_t>(data))
@@ -456,7 +457,7 @@ inline void aggregate( Node destination, AggregatorAMHandler fn_p,
     stats.record_aggregation( total_call_size );
   
     // trace fine-grain communication
-  {
+  if (FLAGS_record_grappa_events) {
     // TODO: good candidate for TAU_CONTEXT_EVENT
       int fn_p_tag = aggregator_trace_tag( fn_p );
       TAU_TRACE_SENDMSG(fn_p_tag, destination, args_size + payload_size );
@@ -508,6 +509,5 @@ inline void SoftXMT_call_on_x( Node destination, void (* fn_p)(ArgsStruct *, siz
                                static_cast< const void * >( payload ), payload_size );
   StateTimer::stop_communication();
 }
-
 
 #endif
