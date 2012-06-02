@@ -33,6 +33,8 @@ $(TRACEDIR)/app.otf: $(TRACEDIR)/tau.trc $(TRACEDIR)/tau.edf
 $(TRACEDIR)/reader.out: $(TRACEDIR)/tau.trc $(TRACEDIR)/tau.edf
 	$(TAU_BIN)/tau_reader $^ > $@
 
+.PRECIOUS: $(TRACEDIR)/tau.trc $(TRACEDIR)/tau.edf
+
 $(TARGET).d: $(TARGET)
 	objdump -d $< > $@
 
