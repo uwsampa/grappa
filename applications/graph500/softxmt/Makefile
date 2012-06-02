@@ -38,3 +38,6 @@ allclean: clean
 otf: force
 	make -f ../../../system/Makefile.tau otf
 
+fm: force
+	make -f ../../../system/Makefile.tau fm TARGET=graph.exe
+
