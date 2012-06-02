@@ -9,8 +9,8 @@
 /// command line options for Aggregator
 DEFINE_int64( aggregator_autoflush_ticks, 1000, "number of ticks to wait before autoflushing aggregated active messages");
 
-/// global Aggregator pointer
-Aggregator * global_aggregator = NULL;
+/// global Aggregator instance
+Aggregator global_aggregator;
 
 #ifdef STL_DEBUG_ALLOCATOR
 DEFINE_int64( aggregator_access_control_signal, SIGUSR2, "signal used to toggle aggregator queue access control");
@@ -21,16 +21,14 @@ static void aggregator_toggle_access_control_sighandler( int signum ) {
 
 #endif
 
-// Construct Aggregator. Takes a Communicator pointer to register active message handlers
-Aggregator::Aggregator( Communicator * communicator ) 
-  : communicator_( communicator )
-  , max_nodes_( communicator->nodes() )
-  , buffers_( max_nodes_ )
-  , route_map_( max_nodes_ )
-  , autoflush_ticks_( FLAGS_aggregator_autoflush_ticks )
+// Construct Aggregator.
+Aggregator::Aggregator( ) 
+  : max_nodes_( -1 )
+  , buffers_( )
+  , route_map_( )
   , previous_timestamp_( 0L )
   , least_recently_sent_( )
-  , aggregator_deaggregate_am_handle_( communicator_->register_active_message_handler( &Aggregator_deaggregate_am ) )
+  , aggregator_deaggregate_am_handle_( -1 )
   , stats()
 { 
 #ifdef STL_DEBUG_ALLOCATOR
@@ -42,12 +40,18 @@ Aggregator::Aggregator( Communicator * communicator )
     << "Aggregator access control signal handler installation failed.";
   if( aggregator_access_control_active ) STLMemDebug::BaseAllocator::getMemMgr().setAccessMode(STLMemDebug::memReadOnly);
 #endif
+}
+
+void Aggregator_deaggregate_am( gasnet_token_t token, void * buf, size_t size );
+void Aggregator::init() {
+  max_nodes_ = global_communicator.nodes();
+  aggregator_deaggregate_am_handle_ = global_communicator.register_active_message_handler( &Aggregator_deaggregate_am );
+  buffers_.resize( max_nodes_ - buffers_.size() );
+  route_map_.resize( max_nodes_ - route_map_.size() );
   // initialize route map
   for( Node i = 0; i < max_nodes_; ++i ) {
     route_map_[i] = i;
   }
-  assert( global_aggregator == NULL );
-  global_aggregator = this;
 }
 
 Aggregator::~Aggregator() {
@@ -124,7 +128,7 @@ void Aggregator_deaggregate_am( gasnet_token_t token, void * buf, size_t size ) 
 #ifdef STL_DEBUG_ALLOCATOR
   if( aggregator_access_control_active ) STLMemDebug::BaseAllocator::getMemMgr().setAccessMode(STLMemDebug::memReadWrite);
 #endif
-  global_aggregator->received_AM_queue_.push( am );
+  global_aggregator.received_AM_queue_.push( am );
 #ifdef STL_DEBUG_ALLOCATOR
   if( aggregator_access_control_active ) STLMemDebug::BaseAllocator::getMemMgr().setAccessMode(STLMemDebug::memReadOnly);
 #endif

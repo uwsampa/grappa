@@ -22,20 +22,26 @@ DEFINE_bool(flush_on_idle, true, "have tasking layer flush all aggregations if i
 //double  avg_active;
 TaskingScheduler * global_scheduler;
 
-TaskingScheduler::TaskingScheduler ( Thread * master, TaskManager * taskman ) 
+TaskingScheduler::TaskingScheduler ( )
     : readyQ ( )
     , periodicQ ( )
     , unassignedQ ( )
-    , master ( master )
-    , current_thread ( master )
+    , master ( NULL )
+    , current_thread ( NULL )
     , nextId ( 1 )
     , num_idle ( 0 )
     , num_workers ( 0 )
-    , task_manager ( taskman )
-    , work_args( new task_worker_args( taskman, this ) )
+    , task_manager ( NULL )
+    , work_args( NULL )
     , previous_periodic_ts( 0 ) 
-    , stats( this ) {
-  global_scheduler = this;
+    , stats( this )
+{ }
+
+void TaskingScheduler::init ( Thread * master_arg, TaskManager * taskman ) {
+  master = master_arg;
+  current_thread = master;
+  task_manager = taskman;
+  work_args = new task_worker_args( taskman, this );
 }
 
 void TaskingScheduler::run ( ) {

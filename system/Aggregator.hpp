@@ -37,6 +37,9 @@
 //#define aggregator_trace_tag(data) (int) (0x7FFF & reinterpret_cast<intptr_t>(data))
 #define aggregator_trace_tag(data) (0xffffffff & reinterpret_cast<intptr_t>(data))
 
+/// number of ticks to wait before automatically flushing a buffer.
+DECLARE_int64( aggregator_autoflush_ticks );
+
 /// Type of aggregated active message handler
 typedef void (* AggregatorAMHandler)( void *, size_t, void *, size_t );
 
@@ -241,11 +244,8 @@ class Aggregator {
 private:
   DISALLOW_COPY_AND_ASSIGN( Aggregator );
 
-  /// Pointer to communication layer.
-  Communicator * communicator_;
-
   /// max node count. used to allocate buffers.
-  const int max_nodes_;
+  int max_nodes_;
 
   /// number of bytes in each aggregation buffer
   /// TODO: this should track the IB MTU
@@ -253,10 +253,6 @@ private:
 
   /// buffers holding aggregated messages. 
   std::vector< AggregatorBuffer< buffer_size_ > > buffers_;
-
-
-  /// number of ticks to wait before automatically flushing a buffer.
-  const int autoflush_ticks_;
 
   /// current timestamp for autoflusher.
   uint64_t previous_timestamp_;
@@ -267,7 +263,7 @@ private:
                > least_recently_sent_;
 
   /// handle for deaggregation active message
-  const int aggregator_deaggregate_am_handle_;
+  int aggregator_deaggregate_am_handle_;
 
   /// routing table for hierarchical aggregation
   std::vector< Node > route_map_;
@@ -298,9 +294,10 @@ public:
   /// statistics
   AggregatorStatistics stats;  
 
-  /// Construct Aggregator. Takes a Communicator pointer in order to
-  /// register active message handlers
-  explicit Aggregator( Communicator * communicator );
+  /// Construct Aggregator.
+  Aggregator( );
+
+  void init();
 
   ~Aggregator();
 
@@ -325,10 +322,10 @@ public:
     DVLOG(5) << "flushing node " << node;
     stats.record_flush();
     Node target = route_map_[ node ];
-    communicator_->send( target, 
-                         aggregator_deaggregate_am_handle_,
-                         buffers_[ target ].buffer_,
-                         buffers_[ target ].current_position_ );
+    global_communicator.send( target,
+                              aggregator_deaggregate_am_handle_,
+                              buffers_[ target ].buffer_,
+                              buffers_[ target ].current_position_ );
     buffers_[ target ].flush();
     DVLOG(5) << "heap before flush:\n" << least_recently_sent_.toString( );
     least_recently_sent_.remove_key( target );
@@ -337,7 +334,7 @@ public:
   
   inline void idle_flush_poll() {
     StateTimer::enterState_communication();
-    communicator_->poll();
+    global_communicator.poll();
     while ( !least_recently_sent_.empty() ) {
       stats.record_idle_flush();
       DVLOG(5) << "idle flush Node " << least_recently_sent_.top_key();
@@ -360,18 +357,18 @@ public:
 
   /// poll communicator. send any aggregated messages that have been sitting for too long
   inline void poll() {
-    communicator_->poll();
+    global_communicator.poll();
     uint64_t ts = get_timestamp();
     // timestamp overflows are silently ignored. 
     // since it would take many many years to see one, I think that's okay for now.
     if( !least_recently_sent_.empty() ) {                                    // if messages are waiting, and
-      if( -least_recently_sent_.top_priority() + autoflush_ticks_ < ts ) { // we've waited long enough,
-	stats.record_timeout();
+      if( -least_recently_sent_.top_priority() + FLAGS_aggregator_autoflush_ticks < ts ) { // we've waited long enough,
+        stats.record_timeout();
         DVLOG(5) << "timeout for node " << least_recently_sent_.top_key() 
                  << ": inserted at " << -least_recently_sent_.top_priority()
-                 << " autoflush_ticks_ " << autoflush_ticks_ 
+                 << " autoflush_ticks " << FLAGS_aggregator_autoflush_ticks
                  << " (current ts " << ts << ")";
-	flush( least_recently_sent_.top_key() );                   // send.
+        flush( least_recently_sent_.top_key() );                   // send.
       }
     }
     previous_timestamp_ = ts;
@@ -384,7 +381,7 @@ public:
     return buffer_size_ - buffers_[ target ].current_position_; 
   }
 
-inline void aggregate( Node destination, AggregatorAMHandler fn_p, 
+inline void aggregate( Node destination, AggregatorAMHandler fn_p,
                          const void * args, const size_t args_size,
                          const void * payload, const size_t payload_size ) {
     CHECK( destination < max_nodes_ ) << "destination:" << destination << " max_nodes_:" << max_nodes_;
@@ -421,7 +418,7 @@ inline void aggregate( Node destination, AggregatorAMHandler fn_p,
                                            args_size,
                                            payload_size
 #ifdef GRAPPA_TRACE
-                                          , communicator_->mynode()
+                                          , global_communicator.mynode()
 #endif
    
              };
@@ -447,7 +444,7 @@ inline void aggregate( Node destination, AggregatorAMHandler fn_p,
 };
 
 
-extern Aggregator * global_aggregator;
+extern Aggregator global_aggregator;
 
 
 
@@ -456,13 +453,11 @@ inline void SoftXMT_call_on( Node destination, void (* fn_p)(ArgsStruct *, size_
                              const ArgsStruct * args, const size_t args_size = sizeof( ArgsStruct ),
                              const void * payload = NULL, const size_t payload_size = 0)
 {
-  assert( global_aggregator != NULL );
-
   StateTimer::start_communication();
-  global_aggregator->aggregate( destination, 
-                                reinterpret_cast< AggregatorAMHandler >( fn_p ), 
-                                static_cast< const void * >( args ), args_size,
-                                static_cast< const void * >( payload ), payload_size );
+  global_aggregator.aggregate( destination,
+                               reinterpret_cast< AggregatorAMHandler >( fn_p ),
+                               static_cast< const void * >( args ), args_size,
+                               static_cast< const void * >( payload ), payload_size );
   StateTimer::stop_communication();
 }
 
@@ -472,12 +467,11 @@ inline void SoftXMT_call_on_x( Node destination, void (* fn_p)(ArgsStruct *, siz
                                const ArgsStruct * args, const size_t args_size = sizeof( ArgsStruct ),
                                const PayloadType * payload = NULL, const size_t payload_size = 0)
 {
-  assert( global_aggregator != NULL );
   StateTimer::start_communication();
-  global_aggregator->aggregate( destination, 
-                                reinterpret_cast< AggregatorAMHandler >( fn_p ), 
-                                static_cast< const void * >( args ), args_size,
-                                static_cast< const void * >( payload ), payload_size );
+  global_aggregator.aggregate( destination,
+                               reinterpret_cast< AggregatorAMHandler >( fn_p ),
+                               static_cast< const void * >( args ), args_size,
+                               static_cast< const void * >( payload ), payload_size );
   StateTimer::stop_communication();
 }
 

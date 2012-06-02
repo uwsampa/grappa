@@ -31,7 +31,7 @@ template < typename T >
 void SoftXMT_privateTask( void (*fn_p)(T), T arg) 
 {
     STATIC_ASSERT_SIZE_8( T );
-    DVLOG(5) << "Thread " << my_global_scheduler->get_current_thread() << " spawns private";
+    DVLOG(5) << "Thread " << global_scheduler.get_current_thread() << " spawns private";
     my_task_manager->spawnLocalPrivate( fn_p, arg );
 }
 
@@ -40,7 +40,7 @@ template < typename T >
 void SoftXMT_publicTask( void (*fn_p)(T), T arg) 
 {
     STATIC_ASSERT_SIZE_8( T );
-    DVLOG(5) << "Thread " << my_global_scheduler->get_current_thread() << " spawns public";
+    DVLOG(5) << "Thread " << global_scheduler.get_current_thread() << " spawns public";
     my_task_manager->spawnPublic( fn_p, arg );
 }
 
@@ -62,16 +62,16 @@ int SoftXMT_run_user_main( void (* fn_p)(T), T args )
     DVLOG(5) << "Spawned user_main";
     
     // spawn 1 extra worker that will take user_main
-    my_global_scheduler->createWorkers( 1 );
+    global_scheduler.createWorkers( 1 );
   }
 
   // spawn starting number of worker coroutines
-  my_global_scheduler->createWorkers( FLAGS_num_starting_workers );
+  global_scheduler.createWorkers( FLAGS_num_starting_workers );
   
   StateTimer::init();
 
   // start the scheduler
-  my_global_scheduler->run( );
+  global_scheduler.run( );
 }
 
 /// remote task spawn

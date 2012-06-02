@@ -3,6 +3,7 @@
 
 #include "Scheduler.hpp"
 #include "Communicator.hpp"
+#include "Aggregator.hpp"
 #include <Timestamp.hpp>
 #include <glog/logging.h>
 #include <sstream>
@@ -12,7 +13,6 @@
 DECLARE_int64( periodic_poll_ticks );
 DECLARE_bool(flush_on_idle);
 
-extern void SoftXMT_idle_flush_poll();
 
 static inline double inc_avg(double curr_avg, uint64_t count, double val) {
 	return curr_avg + (val-curr_avg)/(count);
@@ -84,7 +84,7 @@ class TaskingScheduler : public Scheduler {
                 }
 
                 if (FLAGS_flush_on_idle) {
-                  SoftXMT_idle_flush_poll();
+                  global_aggregator.idle_flush_poll();
                   StateTimer::enterState_scheduler();
                 } else {
                   usleep(1);
@@ -164,7 +164,8 @@ class TaskingScheduler : public Scheduler {
        
        TaskingSchedulerStatistics stats;
   
-       TaskingScheduler ( Thread * master, TaskManager * taskman ); 
+       TaskingScheduler ( );
+       void init ( Thread * master, TaskManager * taskman );
 
        Thread * get_current_thread() {
            return current_thread;
