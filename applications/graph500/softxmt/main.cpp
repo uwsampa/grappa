@@ -40,7 +40,9 @@
 #include "verify.hpp"
 #include "options.h"
 
-#include <TAU.h>
+#include "PerformanceTools.hpp"
+
+GRAPPA_DEFINE_EVENT_GROUP(bfs);
 
 #ifdef GOOGLE_PROFILER
 #include <gperftools/profiler.h>
@@ -51,7 +53,6 @@ static int compare_doubles(const void* a, const void* b) {
   double bb = *(const double*)b;
   return (aa < bb) ? -1 : (aa == bb) ? 0 : 1;
 }
-
 enum {s_minimum, s_firstquartile, s_median, s_thirdquartile, s_maximum, s_mean, s_std, s_LAST};
 static void get_statistics(const double x[], int n, double r[s_LAST]);
 void output_results (const int64_t SCALE, int64_t nvtx_scale, int64_t edgefactor,
@@ -128,10 +129,14 @@ LOOP_FUNCTOR(bfs_setup, nid, GA64(_vlist)GA64(_xoff)GA64(_xadj)GA64(_bfs_tree)GA
 }
 
 static void bfs_visit_neighbor(uint64_t packed) {
+  //TAU_PROFILE("bfs_visit_neighbor", "void (uint64_t)", TAU_USER1);
+
   int64_t vo = packed & 0xFFFFFFFF;
   int64_t v = packed >> 32;
   CHECK(vo < nadj) << "unpacking 'vo' unsuccessful (" << vo << " < " << nadj << ")";
   CHECK(v < nadj) << "unpacking 'v' unsuccessful (" << v << " < " << nadj << ")";  
+  
+  GRAPPA_EVENT(visit_neighbor_ev, "visit neighbor of vertex", 1, bfs, v);
   
   GlobalAddress<int64_t> xv = xadj+vo;
   CHECK(xv.node() < SoftXMT_nodes()) << " [" << xv.node() << " < " << SoftXMT_nodes() << "]";
@@ -157,6 +162,8 @@ static void bfs_visit_neighbor(uint64_t packed) {
 }
 
 static void bfs_visit_vertex(int64_t k) {
+  //TAU_PROFILE("bfs_visit_vertex", "void (int64_t)", TAU_USER2);
+
   GlobalAddress<int64_t> vk = vlist+k;
   CHECK(vk.node() < SoftXMT_nodes()) << " [" << vk.node() << " < " << SoftXMT_nodes() << "]";
   const int64_t v = SoftXMT_delegate_read_word(vk);
@@ -169,6 +176,8 @@ static void bfs_visit_vertex(int64_t k) {
   CHECK(v < (1L<<32)) << "can't pack 'v' into 32-bit value! have to get more creative";
   CHECK(vend < (1L<<32)) << "can't pack 'vo' into 32-bit value! have to get more creative";
   
+  GRAPPA_EVENT(visit_vertex_ev, "visit vertex: num neighbors", 1, bfs, vend-vstart);
+
   for (int64_t vo = vstart; vo < vend; vo++) {
     uint64_t packed = (((uint64_t)v) << 32) | vo;
     joiner.registerTask();
@@ -274,7 +283,7 @@ LOOP_FUNCTOR(func_bfs_node, mynode,
 }
 
 static double make_bfs_tree(csr_graph * g, GlobalAddress<int64_t> bfs_tree, int64_t root) {
-  TAU_PHASE("make_bfs_tree", "double (csr_graph*,GlobalAddress<int64_t>,int64_t)", TAU_USER);
+  //TAU_PHASE("make_bfs_tree", "double (csr_graph*,GlobalAddress<int64_t>,int64_t)", TAU_DEFAULT);
 
   int64_t NV = g->nv;
   GlobalAddress<int64_t> vlist = SoftXMT_typed_malloc<int64_t>(NV);
@@ -313,13 +322,13 @@ static double make_bfs_tree(csr_graph * g, GlobalAddress<int64_t> bfs_tree, int6
 //    fork_join_custom(&fb);
     char phaseName[64];
     sprintf(phaseName, "Level %lld -> %lld\n", k1, k2);
-    TAU_PHASE_CREATE_DYNAMIC(bfs_level, phaseName, "", TAU_USER);
-    TAU_PHASE_START(bfs_level);
+    //TAU_PHASE_CREATE_DYNAMIC(bfs_level, phaseName, "", TAU_USER);
+    //TAU_PHASE_START(bfs_level);
 
     bfs_node fbfs(k1, oldk2);
     fork_join_custom(&fbfs);
 
-    TAU_PHASE_STOP(bfs_level);
+    //TAU_PHASE_STOP(bfs_level);
     
     k1 = oldk2;
   }
@@ -372,6 +381,11 @@ static void setup_bfs(tuple_graph * tg, csr_graph * g, int64_t * bfs_roots) {
 
 LOOP_FUNCTION(func_enable_tau, nid) {
   //TAU_ENABLE_INSTRUMENTATION();
+  //TAU_ENABLE_GROUP(TAU_USER);
+  //TAU_ENABLE_GROUP(TAU_USER1);
+  //TAU_ENABLE_GROUP(TAU_USER2);
+  TAU_ENABLE_GROUP(TAU_USER3);
+
   FLAGS_record_grappa_events = true;
 }
 LOOP_FUNCTION(func_enable_google_profiler, nid) {
@@ -392,6 +406,11 @@ static void enable_tau() {
 }
 LOOP_FUNCTION(func_disable_tau, nid) {
   //TAU_DISABLE_INSTRUMENTATION();
+  //TAU_DISABLE_GROUP(TAU_USER);
+  //TAU_DISABLE_GROUP(TAU_USER1);
+  //TAU_DISABLE_GROUP(TAU_USER2);
+  TAU_DISABLE_GROUP(TAU_USER3);
+
   FLAGS_record_grappa_events = false;
 }
 LOOP_FUNCTION(func_disable_google_profiler, nid) {
@@ -625,6 +644,13 @@ static void user_main(int * args) {
 int main(int argc, char** argv) {
   SoftXMT_init(&argc, &argv, (1L<<MEM_SCALE));
   SoftXMT_activate();
+
+  //TAU_DISABLE_GROUP(TAU_DEFAULT);
+  //TAU_DISABLE_GROUP(TAU_USER);
+  TAU_DISABLE_GROUP(TAU_USER3);
+  //TAU_DISABLE_INSTRUMENTATION();
+  //TAU_DISABLE_ALL_GROUPS();
+  //TAU_ENABLE_GROUP(TAU_USER1);
 
   /* Parse arguments. */
   get_options(argc, argv);
