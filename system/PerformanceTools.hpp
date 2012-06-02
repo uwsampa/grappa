@@ -22,6 +22,6 @@ DECLARE_bool(record_grappa_events);
   } \
   do {} while (0)
 #else
-#define GRAPPA_EVENT(group, name, text, val) do {} while (0)
+#define GRAPPA_EVENT(name, text, frequency, group, val) do {} while (0)
 #endif
 

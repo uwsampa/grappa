@@ -166,6 +166,7 @@ void TaskingScheduler::TaskingSchedulerStatistics::sample() {
 
     GRAPPA_EVENT(active_tasks_out_ev, "Active tasks sample", SAMPLE_RATE, scheduler, sched->num_active_tasks);
     GRAPPA_EVENT(num_idle_out_event, "Idle workers sample", SAMPLE_RATE, scheduler, sched->num_idle);
+    GRAPPA_EVENT(readyQ_size_ev, "readyQ size", SAMPLE_RATE, scheduler, sched->readyQ.length());
 //#ifdef GRAPPA_TRACE
 //    if ((task_calls % 1) == 0) {
 //        TAU_REGISTER_EVENT(active_tasks_out_event, "Active tasks sample");

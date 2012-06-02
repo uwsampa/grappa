@@ -47,6 +47,7 @@ static int compare_doubles(const void* a, const void* b) {
   double bb = *(const double*)b;
   return (aa < bb) ? -1 : (aa == bb) ? 0 : 1;
 }
+
 enum {s_minimum, s_firstquartile, s_median, s_thirdquartile, s_maximum, s_mean, s_std, s_LAST};
 static void get_statistics(const double x[], int n, double r[s_LAST]);
 void output_results (const int64_t SCALE, int64_t nvtx_scale, int64_t edgefactor,
@@ -111,27 +112,6 @@ static int64_t nadj;
 static Thread * joiner;
 static int64_t ntasks;
 
-//static int64_t bfs_calls;
-//static int64_t bfs_hist_index;
-//static short bfs_hist[1<<24];
-//
-//inline void bfs_reset_stats() {
-//  bfs_calls = 0;
-//  ntasks = 0;
-//  bfs_hist_index = 0;
-//}
-//inline void bfs_print_hist() {
-//  if (bfs_hist_index == 0) return;
-//  
-//  std::stringstream ss;
-//  for (int64_t i=0; i<hist_index; i++) ss << bfs_hist[i] << " ";
-//  LOG(INFO) << "active_hist: " << ss.str();
-//}
-//inline void bfs_sample_stats() {
-//  if ((bfs_calls % 512) == 0) bfs_hist[bfs_hist_index++] = ntasks;
-//  bfs_calls++;
-//}
-
 #define GA64(name) ((GlobalAddress<int64_t>,name))
 
 LOOP_FUNCTOR(bfs_setup, nid, GA64(_vlist)GA64(_xoff)GA64(_xadj)GA64(_bfs_tree)GA64(_k2)((int64_t,_nadj))) {
@@ -144,16 +124,9 @@ LOOP_FUNCTOR(bfs_setup, nid, GA64(_vlist)GA64(_xoff)GA64(_xadj)GA64(_bfs_tree)GA
   nadj = _nadj;
 }
 
-//struct packed_pair {
-//  uint32_t v;
-//  uint32_t vo;
-//};
-
 static void bfs_visit_neighbor(uint64_t packed) {
   int64_t vo = packed & 0xFFFFFFFF;
   int64_t v = packed >> 32;
-//  int64_t vo = packed.vo;
-//  int64_t v = packed.v;
   CHECK(vo < nadj) << "unpacking 'vo' unsuccessful (" << vo << " < " << nadj << ")";
   CHECK(v < nadj) << "unpacking 'v' unsuccessful (" << v << " < " << nadj << ")";  
   
@@ -181,7 +154,6 @@ static void bfs_visit_neighbor(uint64_t packed) {
   if (ntasks == 0) SoftXMT_wake(joiner);
 }
 
-//LOOP_FUNCTION(bfs_func, k) {
 static void bfs_visit_vertex(int64_t k) {
   GlobalAddress<int64_t> vk = vlist+k;
   CHECK(vk.node() < SoftXMT_nodes()) << " [" << vk.node() << " < " << SoftXMT_nodes() << "]";
@@ -307,7 +279,7 @@ LOOP_FUNCTOR(func_bfs_node, mynode,
 }
 
 static double make_bfs_tree(csr_graph * g, GlobalAddress<int64_t> bfs_tree, int64_t root) {
-  TAU_PHASE("make_bfs_tree", "double (csr_graph*,GlobalAddress<int64_t>,int64_t)", TAU_DEFAULT);
+  TAU_PHASE("make_bfs_tree", "double (csr_graph*,GlobalAddress<int64_t>,int64_t)", TAU_USER);
 
   int64_t NV = g->nv;
   GlobalAddress<int64_t> vlist = SoftXMT_typed_malloc<int64_t>(NV);
@@ -409,17 +381,22 @@ LOOP_FUNCTION(func_enable_tau, nid) {
   FLAGS_record_grappa_events = true;
 }
 static void enable_tau() {
+#ifdef GRAPPA_TRACE
   VLOG(1) << "Enabling TAU recording.";
   func_enable_tau f;
   fork_join_custom(&f);
+#endif
 }
 LOOP_FUNCTION(func_disable_tau, nid) {
   //TAU_DISABLE_INSTRUMENTATION();
   FLAGS_record_grappa_events = false;
 }
 static void disable_tau() {
+#ifdef GRAPPA_TRACE
+  VLOG(1) << "Disabling TAU recording.";
   func_disable_tau f;
   fork_join_custom(&f);
+#endif
 }
 
 static void run_bfs(tuple_graph * tg, csr_graph * g, int64_t * bfs_roots) {
@@ -473,7 +450,7 @@ static void run_bfs(tuple_graph * tg, csr_graph * g, int64_t * bfs_roots) {
 }
 
 static void checkpoint_in(tuple_graph * tg, csr_graph * g, int64_t * bfs_roots) {
-  TAU_PHASE("checkpoint_in","void (tuple_graph*,csr_graph*,int64_t*)", TAU_DEFAULT);
+  TAU_PHASE("checkpoint_in","void (tuple_graph*,csr_graph*,int64_t*)", TAU_USER);
   
   VLOG(1) << "start reading checkpoint";
   double t = timer();
