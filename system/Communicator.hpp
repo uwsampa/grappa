@@ -285,6 +285,6 @@ public:
       
 };
 
-extern Communicator * global_communicator;
+extern Communicator global_communicator;
 
 #endif

@@ -12,9 +12,9 @@
 //#include <typeinfo>
 //#include <cxxabi.h>
 
-extern TaskingScheduler * my_global_scheduler;
+extern TaskingScheduler global_scheduler;
 extern Thread * master_thread;
-#define CURRENT_THREAD my_global_scheduler->get_current_thread()
+#define CURRENT_THREAD global_scheduler.get_current_thread()
 
 
 void SoftXMT_init( int * argc_p, char ** argv_p[], size_t size = 1L << 30 );
@@ -23,16 +23,103 @@ void SoftXMT_activate();
 bool SoftXMT_done();
 void SoftXMT_finish( int retval );
 
-Node SoftXMT_nodes();
-Node SoftXMT_mynode();
 
-void SoftXMT_poll();
-void SoftXMT_flush( Node n );
-void SoftXMT_idle_flush_poll();
+///
+/// Thread management routines
+///
 
-void SoftXMT_barrier();
-void SoftXMT_barrier_commsafe();
+/// Yield to scheduler, placing current Thread on run queue.
+static inline void SoftXMT_yield( )
+{
+  bool immed = global_scheduler.thread_yield( );
+}
+
+/// Yield to scheduler, placing current Thread on periodic queue.
+static inline void SoftXMT_yield_periodic( )
+{
+  bool immed = global_scheduler.thread_yield_periodic( );
+}
+
+/// Yield to scheduler, suspending current Thread.
+static inline void SoftXMT_suspend( )
+{
+  DVLOG(5) << "suspending Thread " << global_scheduler.get_current_thread() << "(# " << global_scheduler.get_current_thread()->id << ")";
+  global_scheduler.thread_suspend( );
+  //CHECK_EQ(retval, 0) << "Thread " << th1 << " suspension failed. Have the server threads exited?";
+}
+
+/// Wake a Thread by putting it on the run queue, leaving the current thread running.
+static inline void SoftXMT_wake( Thread * t )
+{
+  DVLOG(5) << global_scheduler.get_current_thread()->id << " waking Thread " << t;
+  global_scheduler.thread_wake( t );
+}
+
+/// Wake a Thread t by placing current thread on run queue and running t next.
+static inline void SoftXMT_yield_wake( Thread * t )
+{
+  DVLOG(5) << "yielding Thread " << global_scheduler.get_current_thread() << " and waking thread " << t;
+  global_scheduler.thread_yield_wake( t );
+}
+
+/// Wake a Thread t by suspending current thread and running t next.
+static inline void SoftXMT_suspend_wake( Thread * t )
+{
+  DVLOG(5) << "suspending Thread " << global_scheduler.get_current_thread() << " and waking thread " << t;
+  global_scheduler.thread_suspend_wake( t );
+}
+
+/// Join on Thread t
+static inline void SoftXMT_join( Thread * t )
+{
+  DVLOG(5) << "Thread " << global_scheduler.get_current_thread() << " joining on thread " << t;
+  global_scheduler.thread_join( t );
+}
+
+/// Place thread on queue to be reused by tasking layer
+static inline bool SoftXMT_thread_idle( )
+{
+  DVLOG(5) << "Thread " << global_scheduler.get_current_thread()->id << " going idle";
+  return global_scheduler.thread_idle( );
+}
+
+
+///
+/// Query job info
+///
+
+/// How many nodes are there?
+static inline Node SoftXMT_nodes() {
+  return global_communicator.nodes();
+}
+
+/// What is my node?
+static inline Node SoftXMT_mynode() {
+  return global_communicator.mynode();
+}
+
+
+///
+/// Communication utilities
+///
+
+/// Enter global barrier.
+static inline void SoftXMT_barrier() {
+  global_communicator.barrier();
+}
+
+/// Enter global barrier that is poller safe
+static inline void SoftXMT_barrier_commsafe() {
+    global_communicator.barrier_notify();
+    while (!global_communicator.barrier_try()) {
+        SoftXMT_yield();
+    }
+}
+
 void SoftXMT_barrier_suspending();
+
+
+
 
 /// Spawn a user function. TODO: get return values working
 /// TODO: remove Thread * arg
@@ -77,33 +164,8 @@ void SoftXMT_remote_spawn( void (*fn_p)(Thread*,void*), const T* args, Node targ
   DVLOG(5) << "Sent AM to spawn Thread on Node " << target;
 }
 
-
-/// Yield to scheduler, placing current Thread on run queue.
-void SoftXMT_yield( );
-  
-/// Yield to scheduler, placing current Thread on periodic queue.
-void SoftXMT_yield_periodic( );
-
-/// Yield to scheduler, suspending current Thread.
-void SoftXMT_suspend( );
-
-/// Wake a Thread by putting it on the run queue, leaving the current thread running.
-void SoftXMT_wake( Thread * t );
-
-/// Wake a Thread t by placing current thread on run queue and running t next.
-void SoftXMT_yield_wake( Thread * t );
-
-/// Wake a Thread t by suspending current thread and running t next.
-void SoftXMT_suspend_wake( Thread * t );
-
-/// Join on Thread t
-void SoftXMT_join( Thread * t );
-
 /// TODO: remove this
 void SoftXMT_signal_done( );
-
-/// Make Thread idle; ie thread suspended not waiting on a particular resource
-bool SoftXMT_thread_idle( );
 
 void SoftXMT_dump_stats();
 void SoftXMT_dump_stats_all_nodes();
@@ -128,6 +190,25 @@ void SoftXMT_dump_task_series();
 // GlobalAddress< T > SoftXMT_typed_malloc( size_t count );
 
 #include "Aggregator.hpp"
+
+/// Poll SoftXMT aggregation and communication layers.
+static inline void SoftXMT_poll()
+{
+  global_aggregator.poll();
+}
+
+/// Send waiting aggregated messages to a particular destination.
+static inline void SoftXMT_flush( Node n )
+{
+  global_aggregator.flush( n );
+}
+
+/// Meant to be called when there's no other work to be done, calls poll, 
+/// flushes any aggregator buffers with anything in them, and deaggregates.
+static inline void SoftXMT_idle_flush_poll() {
+  global_aggregator.idle_flush_poll();
+}
+
 #include "Addressing.hpp"
 #include "Tasking.hpp"
 #include "StateTimer.hpp"

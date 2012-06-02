@@ -70,12 +70,16 @@ BOOST_AUTO_TEST_CASE( test1 ) {
   google::InstallFailureSignalHandler( );
   FLAGS_aggregator_autoflush_ticks = 1000000;
 
-  Communicator s;
+  Communicator& s = global_communicator;
   s.init( &(boost::unit_test::framework::master_test_suite().argc),
           &(boost::unit_test::framework::master_test_suite().argv) );
-  Aggregator a( &s );
+  BOOST_CHECK( s.nodes() >= 2 );
+  BOOST_MESSAGE( "We have " << s.nodes() << " nodes." );
+  Aggregator& a = global_aggregator;
+  a.init();
 
   s.activate();
+
   BOOST_CHECK( s.nodes() >= 2 );
   if( s.mynode() == 0 ) {
 
@@ -114,7 +118,7 @@ BOOST_AUTO_TEST_CASE( test1 ) {
   BOOST_MESSAGE( "make sure we flush when full" );
   int j = 0;
   size_t second_message_size = sizeof(second_args) + sizeof( AggregatorGenericCallHeader );
-  for( int i = 0; i < global_aggregator->max_size() - second_message_size; i += second_message_size) {
+  for( int i = 0; i < global_aggregator.max_size() - second_message_size; i += second_message_size) {
     BOOST_MESSAGE( "sending " << second_args.i << " with sum " << j << " second_int " << second_int );
     //BOOST_CHECK_EQUAL( 3, second_int );
     //SoftXMT_call_on( 0, &second_call, &second_args );
@@ -143,13 +147,13 @@ BOOST_AUTO_TEST_CASE( test1 ) {
   BOOST_CHECK_EQUAL( 1, first_int );
   int64_t initial_ts, ts;
   SoftXMT_tick();
-  for( initial_ts = ts = SoftXMT_get_timestamp(); ts - initial_ts < FLAGS_aggregator_autoflush_ticks - 10000; ) {
+  for( initial_ts = ts = SoftXMT_get_timestamp(); ts - initial_ts < FLAGS_aggregator_autoflush_ticks - FLAGS_aggregator_autoflush_ticks/2; ) {
     a.poll();
     // watch out---the debug allocator slows things way down and makes this fail
 #ifndef STL_DEBUG_ALLOCATOR
     BOOST_CHECK_EQUAL( 1, first_int );
 #endif
-    BOOST_MESSAGE( "initial " << initial_ts << " current " << ts );  
+    BOOST_MESSAGE( "initial " << initial_ts << " current " << ts;) 
     SoftXMT_tick();
     ts = SoftXMT_get_timestamp();
   }
@@ -191,7 +195,7 @@ BOOST_AUTO_TEST_CASE( test1 ) {
   // }
   SoftXMT_tick();
   for( initial_ts = ts = SoftXMT_get_timestamp(); ts - initial_ts < FLAGS_aggregator_autoflush_ticks - 100000; ) {
-    BOOST_MESSAGE( "initial " << initial_ts << " current " << ts );  
+    BOOST_MESSAGE( "initial " << initial_ts << " current " << ts;) 
     // nothing has flushed yet
     BOOST_CHECK_EQUAL( j + 3 + 1, second_int );
     BOOST_CHECK_EQUAL( a.remaining_size( 0 ), a.max_size() - second_message_size );

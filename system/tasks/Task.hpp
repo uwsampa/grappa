@@ -232,7 +232,6 @@ inline bool TaskManager::available( ) const {
 }
 
 
-Node SoftXMT_mynode();
 template < typename T > 
 inline void TaskManager::spawnPublic( void (*f)(T), T arg ) {
     Task newtask = createTask(f, arg);

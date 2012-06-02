@@ -18,9 +18,6 @@ DEFINE_int32( chunk_size, 10, "Amount of work to publish or steal in multiples o
 DEFINE_int32( cancel_interval, 1, "Interval for notifying others of new work" );
 DEFINE_uint64( num_starting_workers, 4, "Number of starting workers in task-executer pool" );
 
-static Communicator * my_global_communicator = NULL;
-static Aggregator * my_global_aggregator = NULL;
-
 // This is the pointer for the generic memory pool.
 // TODO: should granular memory pools be stored at this level?
 static GlobalMemory * my_global_memory = NULL;
@@ -29,7 +26,9 @@ static Thread * barrier_thread = NULL;
 
 Thread * master_thread;
 static Thread * user_main_thr;
-TaskingScheduler * my_global_scheduler;
+
+TaskingScheduler global_scheduler;
+
 TaskManager * my_task_manager;
 
 /// Flag to tell this node it's okay to exit.
@@ -43,12 +42,12 @@ static void poller( Thread * me, void * args ) {
   StateTimer::setThreadState( StateTimer::COMMUNICATION );
   StateTimer::enterState_communication();
   while( !SoftXMT_done() ) {
-    my_global_scheduler->stats.sample();
+    global_scheduler.stats.sample();
     my_task_manager->stats.sample();
 
     SoftXMT_poll();
     if (barrier_thread) {
-      if (my_global_communicator->barrier_try()) {
+      if (global_communicator.barrier_try()) {
         SoftXMT_wake(barrier_thread);
         barrier_thread = NULL;
       }
@@ -65,7 +64,7 @@ static void stats_dump_sighandler( int signum ) {
   SoftXMT_dump_stats();
 
   // instantaneous state
-  LOG(INFO) << *my_global_scheduler;
+  LOG(INFO) << global_scheduler;
   LOG(INFO) << *my_task_manager;
 }
 
@@ -104,14 +103,13 @@ void SoftXMT_init( int * argc_p, char ** argv_p[], size_t global_memory_size_byt
   CHECK_EQ( 0, sigaction( SIGABRT, &sigabrt_sa, 0 ) ) << "SIGABRT signal handler installation failed.";
 
   // also initializes system_wide global_communicator pointer
-  my_global_communicator = new Communicator();
-  my_global_communicator->init( argc_p, argv_p );
+  global_communicator.init( argc_p, argv_p );
 
   // also initializes system_wide global_aggregator pointer
-  my_global_aggregator = new Aggregator( my_global_communicator );
+  global_aggregator.init();
 
   // also initializes system_wide global_memory pointer
-  my_global_memory = new GlobalMemory( global_memory_size_bytes );
+  global_memory = new GlobalMemory( global_memory_size_bytes );
 
   SoftXMT_done_flag = false;
 
@@ -133,8 +131,8 @@ void SoftXMT_init( int * argc_p, char ** argv_p[], size_t global_memory_size_byt
            << " chunk_size=" << FLAGS_chunk_size
            << " cbint=" << FLAGS_cancel_interval;
   my_task_manager = new TaskManager( FLAGS_steal, SoftXMT_mynode(), neighbors, SoftXMT_nodes(), FLAGS_chunk_size, FLAGS_cancel_interval ); //TODO: options for local stealing
-  my_global_scheduler = new TaskingScheduler( master_thread, my_task_manager );
-  my_global_scheduler->periodic( thread_spawn( master_thread, my_global_scheduler, &poller, NULL ) );
+  global_scheduler.init( master_thread, my_task_manager );
+  global_scheduler.periodic( thread_spawn( master_thread, &global_scheduler, &poller, NULL ) );
 }
 
 
@@ -143,66 +141,14 @@ void SoftXMT_init( int * argc_p, char ** argv_p[], size_t global_memory_size_byt
 void SoftXMT_activate() 
 {
   DVLOG(1) << "Activating SoftXMT library....";
-  my_global_communicator->activate();
+  global_communicator.activate();
   SoftXMT_barrier();
 }
 
-
-///
-/// Query job info
-///
-
-
-/// How many nodes are there?
-Node SoftXMT_nodes() {
-  return my_global_communicator->nodes();
-}
-
-/// What is my node?
-Node SoftXMT_mynode() {
-  return my_global_communicator->mynode();
-}
-
-///
-/// Communication utilities
-///
-
-/// Enter global barrier.
-void SoftXMT_barrier() {
-  my_global_communicator->barrier();
-}
-
-/// Enter global barrier that is poller safe
-void SoftXMT_barrier_commsafe() {
-    my_global_communicator->barrier_notify();
-    while (!my_global_communicator->barrier_try()) {
-        SoftXMT_yield();
-    }
-}
-
 void SoftXMT_barrier_suspending() {
-  my_global_communicator->barrier_notify();
+  global_communicator.barrier_notify();
   barrier_thread = CURRENT_THREAD;
   SoftXMT_suspend();
-}
-
-/// Poll SoftXMT aggregation and communication layers.
-void SoftXMT_poll()
-{
-  TAU_PROFILE("poll()", "()", TAU_USER);
-  my_global_aggregator->poll();
-}
-
-/// Send waiting aggregated messages to a particular destination.
-void SoftXMT_flush( Node n )
-{
-  my_global_aggregator->flush( n );
-}
-
-/// Meant to be called when there's no other work to be done, calls poll, 
-/// flushes any aggregator buffers with anything in them, and deaggregates.
-void SoftXMT_idle_flush_poll() {
-  my_global_aggregator->idle_flush_poll();
 }
 
 
@@ -212,69 +158,13 @@ void SoftXMT_idle_flush_poll() {
 
 /// Spawn a user function. TODO: get return values working
 /// TODO: remove Thread * arg
-Thread * SoftXMT_spawn( void (* fn_p)(Thread *, void *), void * args )
+inline Thread * SoftXMT_spawn( void (* fn_p)(Thread *, void *), void * args )
 {
-  Thread * th = thread_spawn( my_global_scheduler->get_current_thread(), my_global_scheduler, fn_p, args );
-  my_global_scheduler->ready( th );
+  Thread * th = thread_spawn( global_scheduler.get_current_thread(), &global_scheduler, fn_p, args );
+  global_scheduler.ready( th );
   DVLOG(5) << "Spawned Thread " << th;
   return th;
 }
-
-/// Yield to scheduler, placing current Thread on run queue.
-void SoftXMT_yield( )
-{
-  bool immed = my_global_scheduler->thread_yield( ); 
-}
-
-/// Yield to scheduler, placing current Thread on periodic queue.
-void SoftXMT_yield_periodic( )
-{
-  bool immed = my_global_scheduler->thread_yield_periodic( );
-}
-
-/// Yield to scheduler, suspending current Thread.
-void SoftXMT_suspend( )
-{
-  DVLOG(5) << "suspending Thread " << my_global_scheduler->get_current_thread() << "(# " << my_global_scheduler->get_current_thread()->id << ")";
-  my_global_scheduler->thread_suspend( );
-  //CHECK_EQ(retval, 0) << "Thread " << th1 << " suspension failed. Have the server threads exited?";
-}
-
-/// Wake a Thread by putting it on the run queue, leaving the current thread running.
-void SoftXMT_wake( Thread * t )
-{
-  DVLOG(5) << my_global_scheduler->get_current_thread()->id << " waking Thread " << t;
-  my_global_scheduler->thread_wake( t );
-}
-
-/// Wake a Thread t by placing current thread on run queue and running t next.
-void SoftXMT_yield_wake( Thread * t )
-{
-  DVLOG(5) << "yielding Thread " << my_global_scheduler->get_current_thread() << " and waking thread " << t;
-  my_global_scheduler->thread_yield_wake( t );
-}
-
-/// Wake a Thread t by suspending current thread and running t next.
-void SoftXMT_suspend_wake( Thread * t )
-{
-  DVLOG(5) << "suspending Thread " << my_global_scheduler->get_current_thread() << " and waking thread " << t;
-  my_global_scheduler->thread_suspend_wake( t );
-}
-
-/// Join on Thread t
-void SoftXMT_join( Thread * t )
-{
-  DVLOG(5) << "Thread " << my_global_scheduler->get_current_thread() << " joining on thread " << t;
-  my_global_scheduler->thread_join( t );
-}
-
-bool SoftXMT_thread_idle( ) 
-{
-  DVLOG(5) << "Thread " << my_global_scheduler->get_current_thread()->id << " going idle";
-  return my_global_scheduler->thread_idle( );
-}
-
-
 
 ///
 /// Job exit routines
@@ -299,9 +189,9 @@ void SoftXMT_signal_done ( ) {
 }
 
 void SoftXMT_reset_stats() {
-  my_global_aggregator->reset_stats();
-  my_global_communicator->reset_stats();
-  my_global_scheduler->reset_stats();
+  global_aggregator.reset_stats();
+  global_communicator.reset_stats();
+  global_scheduler.reset_stats();
 }
 
 LOOP_FUNCTION(reset_stats_func,nid) {
@@ -315,10 +205,10 @@ void SoftXMT_reset_stats_all_nodes() {
 
 /// Dump statistics
 void SoftXMT_dump_stats() {
-  my_global_aggregator->dump_stats();
-  my_global_communicator->dump_stats();
+  global_aggregator.dump_stats();
+  global_communicator.dump_stats();
   my_task_manager->dump_stats();
-  my_global_scheduler->dump_stats();
+  global_scheduler.dump_stats();
 
 }
 
@@ -346,7 +236,7 @@ void SoftXMT_merge_and_dump_stats() {
 }
 
 void SoftXMT_dump_task_series() {
-	my_global_scheduler->stats.print_active_task_log();
+	global_scheduler.stats.print_active_task_log();
 }
 
 
@@ -367,19 +257,16 @@ void SoftXMT_finish( int retval )
   StateTimer::finish();
 
   my_task_manager->finish();
-  my_global_aggregator->finish();
-  my_global_communicator->finish( retval );
+  global_aggregator.finish();
+  global_communicator.finish( retval );
  
 //  SoftXMT_dump_stats();
 
   // probably never get here (depending on communication layer)
 
-  delete my_global_scheduler;
   destroy_thread( master_thread );
 
   if (my_global_memory) delete my_global_memory;
-  if (my_global_aggregator) delete my_global_aggregator;
-  if (my_global_communicator) delete my_global_communicator;
 
 #ifdef HEAPCHECK
   assert( SoftXMT_heapchecker->NoLeaks() );

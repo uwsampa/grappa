@@ -8,7 +8,8 @@ extern HeapLeakChecker * SoftXMT_heapchecker;
 
 #include "Communicator.hpp"
 
-Communicator * global_communicator;
+// global communicator instance
+Communicator global_communicator;
 
 ///construct
 Communicator::Communicator( )
@@ -16,10 +17,7 @@ Communicator::Communicator( )
   , registration_is_allowed_( false )
   , communication_is_allowed_( false )
   , stats()
-{ 
-  assert( global_communicator == NULL );
-  global_communicator = this;
-}
+{ }
 
 
 /// initialize communication layer. After this call, node parameters

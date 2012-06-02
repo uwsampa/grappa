@@ -221,10 +221,13 @@ uint64_t StealQueue<T>::sharedDepth( ) const {
 /////////////////////////////////////////////////
 
 //#include "../SoftXMT.hpp" 
-#include <Aggregator.hpp>
-void SoftXMT_suspend();
-void SoftXMT_wake( Thread * );
-Node SoftXMT_mynode();
+#include <Communicator.hpp>
+#include <tasks/TaskingScheduler.hpp>
+
+extern TaskingScheduler global_scheduler;
+// void SoftXMT_suspend();
+// void SoftXMT_wake( Thread * );
+// Node SoftXMT_mynode();
 
 struct workStealRequest_args {
     int k;
@@ -264,7 +267,8 @@ void StealQueue<T>::workStealReply_am( workStealReply_args * args,  size_t size,
     }
 
     if ( steal_waiter != NULL ) {
-        SoftXMT_wake( steal_waiter );
+      //SoftXMT_wake( steal_waiter );
+      global_scheduler.thread_wake( steal_waiter );
         steal_waiter = NULL;
     }
 }
@@ -284,7 +288,7 @@ void StealQueue<T>::workStealRequest_am(workStealRequest_args * args, size_t siz
     CHECK( victimLocal - victimShared == victimWorkAvail ) << "handle steal request: stealStack invariant violated";
     
     int ok = victimWorkAvail >= k;
-    VLOG(4) << "Victim (Node " << SoftXMT_mynode() << ") victimWorkAvail=" << victimWorkAvail << " k=" << k;
+    VLOG(4) << "Victim (Node " << global_communicator.mynode() << ") victimWorkAvail=" << victimWorkAvail << " k=" << k;
     if (ok) {
         /* reserve a chunk */
         victimStack->sharedStart =  victimShared + k;
@@ -319,14 +323,15 @@ int StealQueue<T>::steal_locally( Node victim, int k, Thread * current ) {
 
     local_steal_amount = -1;
 
-    workStealRequest_args req_args = { k, SoftXMT_mynode() };
+    workStealRequest_args req_args = { k, global_communicator.mynode() };
     SoftXMT_call_on( victim, &StealQueue<T>::workStealRequest_am, &req_args );
 
     // steal is blocking
     // TODO: use suspend-wake mechanism
     while ( local_steal_amount == -1 ) {
         steal_waiter = current;
-        SoftXMT_suspend();
+        //SoftXMT_suspend();
+	global_scheduler.thread_suspend();
     }
 
     return local_steal_amount;
