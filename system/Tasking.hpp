@@ -52,7 +52,7 @@ int SoftXMT_run_user_main( void (* fn_p)(T), T args )
 {
   STATIC_ASSERT_SIZE_8( T );
     
-  TAU_PROFILE("run_user_main()", "(user code entry)", TAU_DEFAULT);
+  TAU_PROFILE("run_user_main()", "(user code entry)", TAU_USER);
   
   if( SoftXMT_mynode() == 0 ) {
     CHECK( CURRENT_THREAD == master_thread ); // this should only be run at the toplevel
