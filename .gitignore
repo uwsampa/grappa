@@ -40,5 +40,7 @@ app.vsettings
 app*.events
 fn_mappings
 reader.out
+*.filt
+*.uctl
 
 core.*
