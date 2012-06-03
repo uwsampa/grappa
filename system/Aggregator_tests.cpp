@@ -153,7 +153,7 @@ BOOST_AUTO_TEST_CASE( test1 ) {
 #ifndef STL_DEBUG_ALLOCATOR
     BOOST_CHECK_EQUAL( 1, first_int );
 #endif
-    BOOST_MESSAGE( "initial " << initial_ts << " current " << ts;) 
+    BOOST_MESSAGE( "initial " << initial_ts << " current " << ts );
     SoftXMT_tick();
     ts = SoftXMT_get_timestamp();
   }
@@ -195,7 +195,7 @@ BOOST_AUTO_TEST_CASE( test1 ) {
   // }
   SoftXMT_tick();
   for( initial_ts = ts = SoftXMT_get_timestamp(); ts - initial_ts < FLAGS_aggregator_autoflush_ticks - 100000; ) {
-    BOOST_MESSAGE( "initial " << initial_ts << " current " << ts;) 
+    BOOST_MESSAGE( "initial " << initial_ts << " current " << ts);
     // nothing has flushed yet
     BOOST_CHECK_EQUAL( j + 3 + 1, second_int );
     BOOST_CHECK_EQUAL( a.remaining_size( 0 ), a.max_size() - second_message_size );
