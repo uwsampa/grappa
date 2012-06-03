@@ -51,7 +51,12 @@ GlobalMemoryChunk::GlobalMemoryChunk( size_t size )
 {
   // build shm key from job id and node id
   char * job_id_str = getenv("SLURM_JOB_ID");
-  int job_id = atoi( job_id_str );
+  int job_id = -1;
+  if( job_id_str != NULL ) {
+    job_id = atoi( job_id_str );
+  } else {
+    job_id = getpid();
+  }
   shm_key_ = job_id * global_communicator.nodes() + global_communicator.mynode();
   LOG(INFO) << size << " rounded to " << size_;
   // get shared memory region id
