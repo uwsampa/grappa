@@ -138,7 +138,7 @@ void dummy_f( task1_arg * arg ) {
     BOOST_MESSAGE( "dummy done" );
 }
 
-void user_main( Thread * me, void * args ) 
+void user_main(void * args ) 
 {
   num_tasks = tasks_per_node * SoftXMT_nodes();
 
@@ -151,17 +151,17 @@ void user_main( Thread * me, void * args )
       }
   }
   for (int ta = 0; ta<tasks_per_node; ta++) {
-    argss[ta] = { ta, me };
+    argss[ta] = { ta, CURRENT_THREAD };
     SoftXMT_publicTask( &task_local, &argss[ta] );
   }
   // another task to allow the last steal to happen ( localdepth > 2*chunkize)
   SoftXMT_publicTask( &dummy_f, &argss[0] );
 
   // wait for tasks to finish
-  SoftXMT_waitForTasks( );
+  //SoftXMT_waitForTasks( );
 
   // tell all nodes to close communication
-  SoftXMT_signal_done( );
+  //SoftXMT_signal_done( );
 
   BOOST_MESSAGE( "user main is exiting" );
 
@@ -180,7 +180,7 @@ BOOST_AUTO_TEST_CASE( test1 ) {
   //BOOST_CHECK_EQUAL( FLAGS_num_starting_workers, 4 );
 
   DVLOG(1) << "Spawning user main Thread....";
-  SoftXMT_run_user_main( &user_main, NULL );
+  SoftXMT_run_user_main( &user_main, (void*)NULL );
   BOOST_CHECK( SoftXMT_done() == true );
 
   SoftXMT_finish( 0 );
