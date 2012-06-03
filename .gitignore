@@ -42,5 +42,6 @@ fn_mappings
 reader.out
 *.filt
 *.uctl
+*.slog2
 
 core.*
