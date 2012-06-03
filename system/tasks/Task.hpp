@@ -165,6 +165,8 @@ class TaskManager {
 
                 void dump();
                 void merge(TaskStatistics * other);
+                static void merge_am(TaskManager::TaskStatistics * other, size_t sz, void* payload, size_t psz);
+
         };
         
         TaskStatistics stats;
