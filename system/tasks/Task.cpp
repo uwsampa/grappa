@@ -4,26 +4,32 @@
 
 #define MAXQUEUEDEPTH 500000
 
-TaskManager * global_task_manager;
+TaskManager global_task_manager;
 
 GRAPPA_DEFINE_EVENT_GROUP(task_manager);
 //DEFINE_bool(TaskManager_events, true, "Enable tracing of events in TaskManager.");
 
-TaskManager::TaskManager (bool doSteal, Node localId, Node * neighbors, Node numLocalNodes, int chunkSize, int cbint) 
+TaskManager::TaskManager ( )
     : workDone( false )
-    , doSteal( doSteal ), stealLock( true )
+    , doSteal( false )
+    , stealLock( true )
     , sharedMayHaveWork ( true )
     , globalMayHaveWork ( true )
-    , localId( localId ), neighbors( neighbors ), numLocalNodes( numLocalNodes )
-    , chunkSize( chunkSize ), cbint( cbint ) 
     , privateQ( )
     , publicQ( MAXQUEUEDEPTH ) 
     , stats( this ) {
-    
-          // TODO the way this is being used, it might as well have a singleton
           StealQueue<Task>::registerAddress( &publicQ );
-          cbarrier_init( SoftXMT_nodes() );
-      global_task_manager = this;
+}
+
+
+void TaskManager::init (bool doSteal_arg, Node localId_arg, Node * neighbors_arg, Node numLocalNodes_arg, int chunkSize_arg, int cbint_arg) {
+  doSteal = doSteal_arg;
+  localId = localId_arg;
+  neighbors = neighbors_arg;
+  numLocalNodes = numLocalNodes_arg;
+  chunkSize = chunkSize_arg;
+  cbint = cbint_arg;
+  cbarrier_init( SoftXMT_nodes() );
 }
         
 

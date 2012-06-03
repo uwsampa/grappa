@@ -169,7 +169,9 @@ class TaskManager {
         
         TaskStatistics stats;
   
-        TaskManager (bool doSteal, Node localId, Node* neighbors, Node numLocalNodes, int chunkSize, int cbint);
+        //TaskManager (bool doSteal, Node localId, Node* neighbors, Node numLocalNodes, int chunkSize, int cbint);
+        TaskManager();
+        void init (bool doSteal, Node localId, Node* neighbors, Node numLocalNodes, int chunkSize, int cbint);
 
         bool isWorkDone() {
             return workDone;
@@ -262,6 +264,6 @@ inline void TaskManager::spawnRemotePrivate( void (*f)(T), T arg ) {
     cbarrier_cancel_local();
 }
 
-extern TaskManager * global_task_manager;
+extern TaskManager global_task_manager;
 
 #endif
