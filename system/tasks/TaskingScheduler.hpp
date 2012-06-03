@@ -383,7 +383,5 @@ inline void TaskingScheduler::thread_on_exit( ) {
   thread_context_switch( exitedThr, master, (void *)exitedThr);
 }
 
-extern TaskingScheduler * global_scheduler;
-
 #endif
 

@@ -20,7 +20,7 @@ DEFINE_bool(flush_on_idle, true, "have tasking layer flush all aggregations if i
 //
 //int64_t max_active;
 //double  avg_active;
-TaskingScheduler * global_scheduler;
+TaskingScheduler global_scheduler;
 
 TaskingScheduler::TaskingScheduler ( )
     : readyQ ( )

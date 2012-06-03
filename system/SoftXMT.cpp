@@ -27,10 +27,6 @@ static Thread * barrier_thread = NULL;
 Thread * master_thread;
 static Thread * user_main_thr;
 
-TaskingScheduler global_scheduler;
-
-TaskManager * my_task_manager;
-
 /// Flag to tell this node it's okay to exit.
 bool SoftXMT_done_flag;
 
@@ -43,7 +39,7 @@ static void poller( Thread * me, void * args ) {
   StateTimer::enterState_communication();
   while( !SoftXMT_done() ) {
     global_scheduler.stats.sample();
-    my_task_manager->stats.sample();
+    global_task_manager.stats.sample();
 
     SoftXMT_poll();
     if (barrier_thread) {
@@ -65,7 +61,7 @@ static void stats_dump_sighandler( int signum ) {
 
   // instantaneous state
   LOG(INFO) << global_scheduler;
-  LOG(INFO) << *my_task_manager;
+  LOG(INFO) << global_task_manager;
 }
 
 // handler for SIGABRT override
@@ -102,13 +98,13 @@ void SoftXMT_init( int * argc_p, char ** argv_p[], size_t global_memory_size_byt
   sigabrt_sa.sa_handler = &sigabrt_sighandler;
   CHECK_EQ( 0, sigaction( SIGABRT, &sigabrt_sa, 0 ) ) << "SIGABRT signal handler installation failed.";
 
-  // also initializes system_wide global_communicator pointer
+  // initializes system_wide global_communicator
   global_communicator.init( argc_p, argv_p );
 
-  // also initializes system_wide global_aggregator pointer
+  //  initializes system_wide global_aggregator
   global_aggregator.init();
 
-  // also initializes system_wide global_memory pointer
+  // initializes system_wide global_memory pointer
   global_memory = new GlobalMemory( global_memory_size_bytes );
 
   SoftXMT_done_flag = false;
@@ -130,8 +126,8 @@ void SoftXMT_init( int * argc_p, char ** argv_p[], size_t global_memory_size_byt
            << " num_starting_workers=" << FLAGS_num_starting_workers
            << " chunk_size=" << FLAGS_chunk_size
            << " cbint=" << FLAGS_cancel_interval;
-  my_task_manager = new TaskManager( FLAGS_steal, SoftXMT_mynode(), neighbors, SoftXMT_nodes(), FLAGS_chunk_size, FLAGS_cancel_interval ); //TODO: options for local stealing
-  global_scheduler.init( master_thread, my_task_manager );
+  global_task_manager.init( FLAGS_steal, SoftXMT_mynode(), neighbors, SoftXMT_nodes(), FLAGS_chunk_size, FLAGS_cancel_interval ); //TODO: options for local stealing
+  global_scheduler.init( master_thread, &global_task_manager );
   global_scheduler.periodic( thread_spawn( master_thread, &global_scheduler, &poller, NULL ) );
 }
 
@@ -207,7 +203,7 @@ void SoftXMT_reset_stats_all_nodes() {
 void SoftXMT_dump_stats() {
   global_aggregator.dump_stats();
   global_communicator.dump_stats();
-  my_task_manager->dump_stats();
+  global_task_manager.dump_stats();
   global_scheduler.dump_stats();
 
 }
@@ -256,7 +252,7 @@ void SoftXMT_finish( int retval )
 
   StateTimer::finish();
 
-  my_task_manager->finish();
+  global_task_manager.finish();
   global_aggregator.finish();
   global_communicator.finish( retval );
  

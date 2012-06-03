@@ -15,7 +15,7 @@
 
 #define STATIC_ASSERT_SIZE_8( type ) BOOST_STATIC_ASSERT( sizeof(type) == 8 )
 
-extern TaskManager * my_task_manager;
+extern TaskManager global_task_manager;
 
 DECLARE_uint64( num_starting_workers );
 
@@ -32,7 +32,7 @@ void SoftXMT_privateTask( void (*fn_p)(T), T arg)
 {
     STATIC_ASSERT_SIZE_8( T );
     DVLOG(5) << "Thread " << global_scheduler.get_current_thread() << " spawns private";
-    my_task_manager->spawnLocalPrivate( fn_p, arg );
+    global_task_manager.spawnLocalPrivate( fn_p, arg );
 }
 
 /// Spawn a task visible to other Nodes
@@ -41,7 +41,7 @@ void SoftXMT_publicTask( void (*fn_p)(T), T arg)
 {
     STATIC_ASSERT_SIZE_8( T );
     DVLOG(5) << "Thread " << global_scheduler.get_current_thread() << " spawns public";
-    my_task_manager->spawnPublic( fn_p, arg );
+    global_task_manager.spawnPublic( fn_p, arg );
 }
 
 /// Spawn and run user main function on node 0. Other nodes just run
@@ -83,7 +83,7 @@ struct remote_task_spawn_args {
 
 template< typename T >
 static void remote_task_spawn_am( remote_task_spawn_args<T> * args, size_t args_size, void* payload, size_t payload_size) {
-  my_task_manager->spawnRemotePrivate(args->fn_p, args->userArgs );
+  global_task_manager.spawnRemotePrivate(args->fn_p, args->userArgs );
 }
 
 /// Spawn a private task on another Node
