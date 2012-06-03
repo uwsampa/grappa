@@ -13,29 +13,31 @@ typedef int16_t Node;
 /// Ideally Task would be interface that just declares execute and makeGlobal
 class Task {
 
-    private:
-        void (* fn_p)(void*);
-        void* arg;
-    
-    public:
-        Task () {}
-        Task (void (* fn_p)(void*), void* arg) 
-            : fn_p ( fn_p )
-            , arg ( arg ) { }
+  private:
+    void (* fn_p)(void*,void*);
+    void* arg;
+    void* shared_arg;
 
-        void execute( ) {
-            CHECK( fn_p!=NULL ) << "fn_p=" << (void*)fn_p << "\nargs=" << (void*)arg;
-            fn_p( arg );
-        }
+  public:
+    Task () {}
+    Task (void (* fn_p)(void*, void*), void* arg, void* shared_arg) 
+      : fn_p ( fn_p )
+        , arg ( arg )
+        , shared_arg( shared_arg ) { }
+
+    void execute( ) {
+      CHECK( fn_p!=NULL ) << "fn_p=" << (void*)fn_p << "\narg=" << (void*)arg << "\nshared_arg=" << (void*)shared_arg;
+      fn_p( arg, shared_arg );
+    }
 };
 
-template < typename T >
-static Task createTask( void (* fn_p)(T), T args ) {
-    Task t( reinterpret_cast< void (*) (void*) >( fn_p ), (void*)args);
-    return t;
+template < typename T, typename S>
+static Task createTask( void (*fn_p)(T, S), T arg, S shared_arg ) {
+  Task t( reinterpret_cast< void (*) (void*, void*) >( fn_p ), (void*)arg, (void*)shared_arg);
+  return t;
 }
 
-
+ 
 class TaskManager {
     private:
         std::deque<Task> privateQ; 
@@ -200,18 +202,18 @@ class TaskManager {
             }
         }
 
-        /*TODO return value?*/
-        template < typename T > 
-        void spawnPublic( void (*f)(T), T arg);
-        
-        /*TODO return value?*/ 
-        template < typename T > 
-        void spawnLocalPrivate( void (*f)(T), T arg);
-        
-        /*TODO return value?*/ 
-        template < typename T > 
-        void spawnRemotePrivate( void (*f)(T), T arg);
-        
+    /*TODO return value?*/
+    template < typename T, typename S > 
+      void spawnPublic( void (*f)(T, S), T arg, S shared_arg);
+
+    /*TODO return value?*/ 
+    template < typename T, typename S > 
+      void spawnLocalPrivate( void (*f)(T, S), T arg, S shared_arg);
+
+    /*TODO return value?*/ 
+    template < typename T, typename S > 
+      void spawnRemotePrivate( void (*f)(T, S), T arg, S shared_arg);
+
         bool getWork ( Task * result );
 
         bool available ( ) const;
@@ -219,10 +221,8 @@ class TaskManager {
         void dump_stats();
         void merge_stats();
         void finish();
-
-
+    
         friend std::ostream& operator<<( std::ostream& o, const TaskManager& tm );
-
 };
 
 
@@ -235,21 +235,19 @@ inline bool TaskManager::available( ) const {
            || (doSteal && (sharedMayHaveWork || (stealLock && globalMayHaveWork)));
 }
 
-
-template < typename T > 
-inline void TaskManager::spawnPublic( void (*f)(T), T arg ) {
-    Task newtask = createTask(f, arg);
-    publicQ.push( newtask );
-    releaseTasks();
+template < typename T, typename S > 
+inline void TaskManager::spawnPublic( void (*f)(T, S), T arg, S shared_arg) {
+  Task newtask = createTask(f, arg, shared_arg);
+  publicQ.push( newtask );
+  releaseTasks();
 }
 
 /// Should NOT be called from the context of
 /// an AM handler
-template < typename T > 
-inline void TaskManager::spawnLocalPrivate( void (*f)(T), T arg ) {
-
-    Task newtask = createTask(f, arg);
-    privateQ.push_front( newtask );
+template < typename T, typename S >
+inline void TaskManager::spawnLocalPrivate( void (*f)(T, S), T arg, S shared_arg) {
+  Task newtask = createTask(f, arg, shared_arg);
+  privateQ.push_back( newtask );
 
     /* no notification necessary since
      * presence of a local spawn means
@@ -258,12 +256,12 @@ inline void TaskManager::spawnLocalPrivate( void (*f)(T), T arg ) {
 
 /// Should ONLY be called from the context of
 /// an AM handler
-template < typename T > 
-inline void TaskManager::spawnRemotePrivate( void (*f)(T), T arg ) {
-    Task newtask = createTask(f, arg);
-    privateQ.push_front( newtask );
+template < typename T, typename S > 
+inline void TaskManager::spawnRemotePrivate( void (*f)(T, S), T arg, S shared_arg ) {
+  Task newtask = createTask(f, arg, shared_arg);
+  privateQ.push_front( newtask );
 
-    cbarrier_cancel_local();
+  cbarrier_cancel_local();
 }
 
 extern TaskManager global_task_manager;

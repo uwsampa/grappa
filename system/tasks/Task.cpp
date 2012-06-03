@@ -9,16 +9,17 @@ TaskManager global_task_manager;
 GRAPPA_DEFINE_EVENT_GROUP(task_manager);
 //DEFINE_bool(TaskManager_events, true, "Enable tracing of events in TaskManager.");
 
-TaskManager::TaskManager ( )
-    : workDone( false )
-    , doSteal( false )
-    , stealLock( true )
-    , sharedMayHaveWork ( true )
-    , globalMayHaveWork ( true )
-    , privateQ( )
-    , publicQ( MAXQUEUEDEPTH ) 
-    , stats( this ) {
-          StealQueue<Task>::registerAddress( &publicQ );
+TaskManager::TaskManager ( ) 
+  : workDone( false )
+  , doSteal( false )
+  , stealLock( true )
+  , sharedMayHaveWork ( true )
+  , globalMayHaveWork ( true )
+  , privateQ( )
+  , publicQ( MAXQUEUEDEPTH ) 
+  , stats( this )
+{
+  StealQueue<Task>::registerAddress( &publicQ );
 }
 
 
