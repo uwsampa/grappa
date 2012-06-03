@@ -4,6 +4,7 @@
 
 #include "SoftXMT.hpp"
 #include "Delegate.hpp"
+#include "ForkJoin.hpp"
 
 BOOST_AUTO_TEST_SUITE( Tasking_tests );
 
@@ -33,20 +34,57 @@ void task1_f( task1_arg * arg ) {
     }
 }
 
-struct user_main_args {
+struct task2_shared {
+  GlobalAddress<int64_t> nf;
+  int64_t * array;
+  Thread * parent;
+  LocalTaskJoiner * joiner;
 };
 
-void user_main( user_main_args * args ) 
+void task2_f(int64_t index, task2_shared * sa) {
+  
+  BOOST_MESSAGE( CURRENT_THREAD << " with task " << index << ", sa = " << sa);
+
+  int64_t result = SoftXMT_delegate_fetch_and_add_word( sa->nf, 1 );
+  sa->array[index] = result;
+
+  BOOST_MESSAGE( CURRENT_THREAD << " with task " << index << " about to yield" );
+  SoftXMT_yield( );
+  BOOST_MESSAGE( CURRENT_THREAD << " with task " << index << " is done" );
+
+  BOOST_MESSAGE( CURRENT_THREAD << " with task " << index << " result=" << result );
+  
+  sa->joiner->signal();
+}
+
+void user_main( void* args ) 
 {
   nf_addr = make_global( &num_finished );
 
   task1_arg argss[num_tasks];
   for (int ta = 0; ta<num_tasks; ta++) {
-    argss[ta] = { ta, CURRENT_THREAD };
+    argss[ta].num = ta; argss[ta].parent = CURRENT_THREAD;
     SoftXMT_privateTask( &task1_f, &argss[ta] );
   }
 
   SoftXMT_suspend(); // no wakeup race because tasks wont run until this yield occurs
+
+  BOOST_MESSAGE( "testing shared args" );
+  int64_t array[num_tasks];
+  int64_t nf = 0;
+  LocalTaskJoiner joiner;
+  
+  task2_shared sa;
+  sa.nf = make_global(&nf);
+  sa.array = array;
+  sa.parent = CURRENT_THREAD;
+  sa.joiner = &joiner;
+
+  for (int64_t i=0; i<num_tasks; i++) {
+    joiner.registerTask();
+    SoftXMT_privateTask(&task2_f, i, &sa);
+  }
+  joiner.wait();
 
   BOOST_MESSAGE( "user main is exiting" );
 }
@@ -58,10 +96,8 @@ BOOST_AUTO_TEST_CASE( test1 ) {
 
   SoftXMT_activate();
 
-  user_main_args uargs;
-
   DVLOG(1) << "Spawning user main Thread....";
-  SoftXMT_run_user_main( &user_main, &uargs );
+  SoftXMT_run_user_main( &user_main, (void*)NULL );
   VLOG(5) << "run_user_main returned";
   CHECK( SoftXMT_done() );
 

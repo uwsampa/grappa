@@ -27,22 +27,35 @@ DECLARE_uint64( num_starting_workers );
 
 
 /// Spawn a task visible to this Node only
-template < typename T >
-void SoftXMT_privateTask( void (*fn_p)(T), T arg) 
+template < typename T, typename S >
+void SoftXMT_privateTask( void (*fn_p)(T, S), T arg, S shared_arg) 
 {
-    STATIC_ASSERT_SIZE_8( T );
-    DVLOG(5) << "Thread " << global_scheduler.get_current_thread() << " spawns private";
-    global_task_manager.spawnLocalPrivate( fn_p, arg );
+  STATIC_ASSERT_SIZE_8( T );
+  STATIC_ASSERT_SIZE_8( S );
+  DVLOG(5) << "Thread " << global_scheduler.get_current_thread() << " spawns private";
+  global_task_manager.spawnLocalPrivate( fn_p, arg, shared_arg );
+}
+
+template < typename T >
+inline void SoftXMT_privateTask( void (*fn_p)(T), T arg) {
+  SoftXMT_privateTask(reinterpret_cast<void (*)(T,void*)>(fn_p), arg, (void*)NULL);
 }
 
 /// Spawn a task visible to other Nodes
-template < typename T >
-void SoftXMT_publicTask( void (*fn_p)(T), T arg) 
+template < typename T, typename S >
+void SoftXMT_publicTask( void (*fn_p)(T, S), T arg, S shared_arg) 
 {
-    STATIC_ASSERT_SIZE_8( T );
-    DVLOG(5) << "Thread " << global_scheduler.get_current_thread() << " spawns public";
-    global_task_manager.spawnPublic( fn_p, arg );
+  STATIC_ASSERT_SIZE_8( T );
+  STATIC_ASSERT_SIZE_8( S );
+  DVLOG(5) << "Thread " << global_scheduler.get_current_thread() << " spawns public";
+  global_task_manager.spawnPublic( fn_p, arg, shared_arg );
 }
+
+template < typename T >
+void SoftXMT_publicTask( void (*fn_p)(T), T arg) {
+  SoftXMT_publicTask(reinterpret_cast<void (*)(T,void*)>(fn_p), arg, (void*)NULL);
+}
+
 
 /// Spawn and run user main function on node 0. Other nodes just run
 /// existing threads (service threads) until they are given more to
@@ -75,25 +88,31 @@ int SoftXMT_run_user_main( void (* fn_p)(T), T args )
 }
 
 /// remote task spawn
-template< typename T >
+template< typename T, typename S >
 struct remote_task_spawn_args {
-    void (*fn_p)(T);
-    T userArgs;
+  void (*fn_p)(T, S);
+  T userArgs;
+  S shared_arg;
 };
 
-template< typename T >
-static void remote_task_spawn_am( remote_task_spawn_args<T> * args, size_t args_size, void* payload, size_t payload_size) {
-  global_task_manager.spawnRemotePrivate(args->fn_p, args->userArgs );
+template< typename T, typename S >
+static void remote_task_spawn_am( remote_task_spawn_args<T,S> * args, size_t args_size, void* payload, size_t payload_size) {
+   global_task_manager.spawnRemotePrivate(args->fn_p, args->userArgs, args->shared_arg );
 }
 
 /// Spawn a private task on another Node
+template< typename T, typename S >
+void SoftXMT_remote_privateTask( void (*fn_p)(T,S), T args, S shared_arg, Node target) {
+  STATIC_ASSERT_SIZE_8( T );
+  STATIC_ASSERT_SIZE_8( S );
+
+  remote_task_spawn_args<T,S> spawn_args = { fn_p, args, shared_arg };
+  SoftXMT_call_on( target, SoftXMT_magic_identity_function(&remote_task_spawn_am<T,S>), &spawn_args );
+  DVLOG(5) << "Sent AM to spawn private task on Node " << target;
+}
 template< typename T >
 void SoftXMT_remote_privateTask( void (*fn_p)(T), T args, Node target) {
-  STATIC_ASSERT_SIZE_8( T );
-  
-  remote_task_spawn_args<T> spawn_args = { fn_p, args };
-  SoftXMT_call_on( target, SoftXMT_magic_identity_function(&remote_task_spawn_am<T>), &spawn_args );
-  DVLOG(5) << "Sent AM to spawn private task on Node " << target;
+  SoftXMT_remote_privateTask(reinterpret_cast<void (*)(T,void*)>(fn_p), args, (void*)NULL, target);
 }
 
 #endif

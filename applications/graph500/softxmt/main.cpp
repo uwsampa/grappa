@@ -202,8 +202,6 @@ LOOP_FUNCTOR(bfs_node, nid, ((int64_t,start)) ((int64_t,end))) {
     }
     kbuf = 0;
   }
-
-  //SoftXMT_dump_task_series();
 }
 
 LOOP_FUNCTOR(func_bfs_onelevel, k,
