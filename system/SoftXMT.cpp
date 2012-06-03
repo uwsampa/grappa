@@ -216,17 +216,22 @@ void SoftXMT_dump_stats_all_nodes() {
   fork_join_custom(&f);
 }
 
-static void am_merge_comm(CommunicatorStatistics * other, size_t sz, void* payload, size_t psz) {
-  my_global_communicator->stats.merge(other);
+
+static void merge_stats_task(int64_t target) {
+  SoftXMT_call_on(target, &CommunicatorStatistics::merge_am, &global_communicator.stats);
+  SoftXMT_call_on(target, &AggregatorStatistics::merge_am, &global_aggregator.stats);
+  SoftXMT_call_on(target, &TaskingScheduler::TaskingSchedulerStatistics::merge_am, &global_scheduler.stats);
+  SoftXMT_call_on(target, &TaskManager::TaskStatistics::merge_am, &global_task_manager.stats);
 }
 
 
-
 void SoftXMT_merge_and_dump_stats() {
-  my_global_communicator->merge_stats();
-  my_global_aggregator->merge_stats();
-  my_global_scheduler->merge_stats();
-  my_task_manager->merge_stats();
+  Node me = SoftXMT_mynode();
+  for (Node n=0; n<SoftXMT_nodes(); n++) {
+    if (n != me) {
+      SoftXMT_remote_privateTask(&merge_stats_task, (int64_t)me, n);
+    }
+  }
   
   SoftXMT_dump_stats();
 }

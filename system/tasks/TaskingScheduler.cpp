@@ -192,27 +192,9 @@ void TaskingScheduler::TaskingSchedulerStatistics::merge(TaskingSchedulerStatist
   avg_active = inc_avg(avg_active, merged, other->avg_active);
 }
 
-static void taskingscheduler_stats_merge_am(TaskingScheduler::TaskingSchedulerStatistics * other, size_t sz, void* payload, size_t psz) {
-  global_scheduler->stats.merge(other);
+void TaskingScheduler::TaskingSchedulerStatistics::merge_am(TaskingScheduler::TaskingSchedulerStatistics * other, size_t sz, void* payload, size_t psz) {
+  global_scheduler.stats.merge(other);
 }
-
-static void merge_sched_stats_func(int64_t target) {
-  SoftXMT_call_on(target, &taskingscheduler_stats_merge_am, &global_scheduler->stats);
-}
-
-#include "SoftXMT.hpp"
-
-void TaskingScheduler::merge_stats() {
-  Node me = SoftXMT_mynode();
-  for (Node n=0; n<SoftXMT_nodes(); n++) {
-    if (n != me) {
-      SoftXMT_remote_privateTask(&merge_sched_stats_func, (int64_t)me, n);
-    }
-  }
-}
-
-
-
 
 
 

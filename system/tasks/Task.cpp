@@ -251,19 +251,7 @@ void TaskManager::TaskStatistics::merge(TaskManager::TaskStatistics * other) {
   private_tasks_dequeued_ += other->private_tasks_dequeued_;
 }
 
-static void task_stats_merge_am(TaskManager::TaskStatistics * other, size_t sz, void* payload, size_t psz) {
-  global_task_manager->stats.merge(other);
+void TaskManager::TaskStatistics::merge_am(TaskManager::TaskStatistics * other, size_t sz, void* payload, size_t psz) {
+  global_task_manager.stats.merge(other);
 }
 
-static void merge_task_stats_task(int64_t target) {
-  SoftXMT_call_on(target, &task_stats_merge_am, &global_task_manager->stats);
-}
-
-void TaskManager::merge_stats() {
-  Node me = SoftXMT_mynode();
-  for (Node n=0; n<SoftXMT_nodes(); n++) {
-    if (n != me) {
-      SoftXMT_remote_privateTask(&merge_task_stats_task, (int64_t)me, n);
-    }
-  }
-}

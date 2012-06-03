@@ -187,6 +187,8 @@ public:
       histogram_[i] += other->histogram_[i];
     }
   }
+
+  static void merge_am(AggregatorStatistics * other, size_t sz, void* payload, size_t psz);
 };
 
 /// Header for aggregated active messages.

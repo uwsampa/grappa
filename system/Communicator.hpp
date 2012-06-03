@@ -164,6 +164,8 @@ public:
     // pick earlier start time of the two
     start_ = (start_.tv_sec < other->start_.tv_sec && start_.tv_nsec < other->start_.tv_nsec) ? start_ : other->start_;
   }
+
+  static void merge_am(CommunicatorStatistics * other, size_t sz, void* payload, size_t psz);
 };
 
 /// Communication layer wrapper class.

@@ -160,6 +160,8 @@ class TaskingScheduler : public Scheduler {
                 }
                 void sample();
                 void merge(TaskingSchedulerStatistics * other); 
+
+	  static void merge_am(TaskingScheduler::TaskingSchedulerStatistics * other, size_t sz, void* payload, size_t psz);
         };
        
        TaskingSchedulerStatistics stats;
