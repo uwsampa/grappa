@@ -18,10 +18,6 @@ DEFINE_int32( chunk_size, 10, "Amount of work to publish or steal in multiples o
 DEFINE_int32( cancel_interval, 1, "Interval for notifying others of new work" );
 DEFINE_uint64( num_starting_workers, 4, "Number of starting workers in task-executer pool" );
 
-// This is the pointer for the generic memory pool.
-// TODO: should granular memory pools be stored at this level?
-static GlobalMemory * my_global_memory = NULL;
-
 static Thread * barrier_thread = NULL;
 
 Thread * master_thread;
@@ -267,7 +263,7 @@ void SoftXMT_finish( int retval )
 
   destroy_thread( master_thread );
 
-  if (my_global_memory) delete my_global_memory;
+  if (global_memory) delete global_memory;
 
 #ifdef HEAPCHECK
   assert( SoftXMT_heapchecker->NoLeaks() );
