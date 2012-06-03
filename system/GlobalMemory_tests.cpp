@@ -11,7 +11,7 @@
 BOOST_AUTO_TEST_SUITE( GlobalMemory_tests );
 
 
-void user_main( Thread * me, void * args ) 
+void user_main( void * args ) 
 {
   size_t N = 128;
   GlobalAddress<int64_t> data = SoftXMT_typed_malloc<int64_t>(N);
@@ -28,11 +28,6 @@ void user_main( Thread * me, void * args )
   }
 
   SoftXMT_free(data);
-
-  SoftXMT_waitForTasks( );
-  BOOST_MESSAGE( "signaling done" );
-  SoftXMT_signal_done( );
-  BOOST_MESSAGE( "signaled done" );
 }
 
 BOOST_AUTO_TEST_CASE( test1 ) {
@@ -44,7 +39,7 @@ BOOST_AUTO_TEST_CASE( test1 ) {
   SoftXMT_activate();
 
   DVLOG(1) << "Spawning user main Thread....";
-  SoftXMT_run_user_main( &user_main, NULL );
+  SoftXMT_run_user_main( &user_main, (void*)NULL );
   BOOST_CHECK( SoftXMT_done() == true );
 
   SoftXMT_finish( 0 );
