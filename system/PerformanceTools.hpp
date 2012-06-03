@@ -1,6 +1,6 @@
 #include <TAU.h>
 #include <gflags/gflags.h>
-#include <glog/glog.h>
+#include <glog/logging.h>
 
 DECLARE_bool(record_grappa_events);
 
