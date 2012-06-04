@@ -75,7 +75,7 @@ struct LocalTaskJoiner {
     } else {
       outstanding--;
     }
-    VLOG(5) << "barrier(outstanding=" << outstanding << ")";
+    VLOG(3) << "barrier(outstanding=" << outstanding << ")";
     if (outstanding == 0) {
       while (!wakelist.empty()) {
         SoftXMT_wake(wakelist.dequeue());
@@ -86,6 +86,18 @@ struct LocalTaskJoiner {
     if (outstanding > 0) {
       wakelist.enqueue(CURRENT_THREAD);
       while (outstanding > 0) SoftXMT_suspend();
+    }
+  }
+  static void am_remoteSignal(GlobalAddress<LocalTaskJoiner>* joinAddr, size_t sz, void* payload, size_t psz) {
+    CHECK(joinAddr->node() == SoftXMT_mynode());
+    joinAddr->pointer()->signal();
+  }
+  static void remoteSignal(GlobalAddress<LocalTaskJoiner> joinAddr) {
+    if (joinAddr.node() == SoftXMT_mynode()) {
+      joinAddr.pointer()->signal();
+    } else {
+      VLOG(1) << "remoteSignal -> " << joinAddr.node();
+      SoftXMT_call_on(joinAddr.node(), &LocalTaskJoiner::am_remoteSignal, &joinAddr);
     }
   }
 };
@@ -132,7 +144,7 @@ template<typename T>
 void task_iters(iters_args * arg) {
   const forkjoin_data_t<T> * fj = static_cast<const forkjoin_data_t<T>*>(arg->fjdata);
   range_t myblock = blockDist(fj->local_start, fj->local_end, arg->rank, fj->nthreads);
-  VLOG(3) << "iters_block: " << myblock.start << " - " << myblock.end;
+  VLOG(4) << "iters_block: " << myblock.start << " - " << myblock.end;
   
   for (int64_t i=myblock.start; i < myblock.end; i++) {
     (*fj->func)(i);

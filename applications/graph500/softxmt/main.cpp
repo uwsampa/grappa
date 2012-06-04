@@ -114,8 +114,6 @@ static GlobalAddress<int64_t> bfs_tree;
 static GlobalAddress<int64_t> k2;
 static int64_t nadj;
 
-static LocalTaskJoiner joiner;
-
 #define GA64(name) ((GlobalAddress<int64_t>,name))
 
 LOOP_FUNCTOR(bfs_setup, nid, GA64(_vlist)GA64(_xoff)GA64(_xadj)GA64(_bfs_tree)GA64(_k2)((int64_t,_nadj))) {
@@ -128,7 +126,7 @@ LOOP_FUNCTOR(bfs_setup, nid, GA64(_vlist)GA64(_xoff)GA64(_xadj)GA64(_bfs_tree)GA
   nadj = _nadj;
 }
 
-static void bfs_visit_neighbor(uint64_t packed) {
+static void bfs_visit_neighbor(uint64_t packed, GlobalAddress<LocalTaskJoiner> rjoiner) {
   //TAU_PROFILE("bfs_visit_neighbor", "void (uint64_t)", TAU_USER1);
 
   int64_t vo = packed & 0xFFFFFFFF;
@@ -158,10 +156,10 @@ static void bfs_visit_neighbor(uint64_t packed) {
       kbuf = 1;
     }
   }
-  joiner.signal();
+  LocalTaskJoiner::remoteSignal(rjoiner);
 }
 
-static void bfs_visit_vertex(int64_t k) {
+static void bfs_visit_vertex(int64_t k, GlobalAddress<LocalTaskJoiner> rjoiner) {
   //TAU_PROFILE("bfs_visit_vertex", "void (int64_t)", TAU_USER2);
 
   GlobalAddress<int64_t> vk = vlist+k;
@@ -178,12 +176,17 @@ static void bfs_visit_vertex(int64_t k) {
   
   GRAPPA_EVENT(visit_vertex_ev, "visit vertex: num neighbors", 1, bfs, vend-vstart);
 
+  LocalTaskJoiner myjoiner;
+  GlobalAddress<LocalTaskJoiner> myjoiner_addr = make_global(&myjoiner);
+
   for (int64_t vo = vstart; vo < vend; vo++) {
     uint64_t packed = (((uint64_t)v) << 32) | vo;
-    joiner.registerTask();
-    SoftXMT_privateTask(&bfs_visit_neighbor, packed);
+    myjoiner.registerTask(); // register these new tasks on *this task*'s joiner
+    SoftXMT_publicTask(&bfs_visit_neighbor, packed, myjoiner_addr);
   }
-  joiner.signal();
+  myjoiner.wait();
+  //VLOG(1) << "myjoiner (outstanding=" << myjoiner.outstanding << ")";
+  LocalTaskJoiner::remoteSignal(rjoiner);
 }
 
 LOOP_FUNCTOR(bfs_node, nid, ((int64_t,start)) ((int64_t,end))) {
@@ -191,14 +194,21 @@ LOOP_FUNCTOR(bfs_node, nid, ((int64_t,start)) ((int64_t,end))) {
   
   kbuf = 0;
   
-  for (int64_t i = r.start; i < r.end; i++) {
-    joiner.registerTask();
-    SoftXMT_privateTask(&bfs_visit_vertex, i);
-  }
+  LocalTaskJoiner nodejoiner;
+  GlobalAddress<LocalTaskJoiner> nodejoiner_addr = make_global(&nodejoiner);
 
-  joiner.wait();
+  for (int64_t i = r.start; i < r.end; i++) {
+    nodejoiner.registerTask();
+    SoftXMT_publicTask(&bfs_visit_vertex, i, nodejoiner_addr);
+  }
   
-  // make sure to commit what's left in the buffer at the end
+  VLOG(1) << "node joiner (" << nodejoiner.outstanding << ") before wait";
+  nodejoiner.wait();
+  VLOG(1) << "node joiner (" << nodejoiner.outstanding << ")";
+  
+}
+
+LOOP_FUNCTION(clear_buffers, nid) {
   if (kbuf) {
     int64_t voff = SoftXMT_delegate_fetch_and_add_word(k2, kbuf);
     VLOG(2) << "flushing vlist buffer (kbuf=" << kbuf << ", k2=" << voff << ")";
@@ -302,14 +312,6 @@ static double make_bfs_tree(csr_graph * g, GlobalAddress<int64_t> bfs_tree, int6
   
   SoftXMT_delegate_write_word(bfs_tree+root, root); // parent of root is self
   
-//  func_bfs_node fb;
-//  fb.vlist = vlist;
-//  fb.xoff = g->xoff;
-//  fb.xadj = g->xadj;
-//  fb.bfs_tree = bfs_tree;
-//  fb.k2 = k2addr;
-//  fb.nadj = g->nadj; //DEBUG only...
-  
   bfs_setup fsetup(vlist, g->xoff, g->xadj, bfs_tree, k2addr, g->nadj);
   fork_join_custom(&fsetup);
   
@@ -328,6 +330,8 @@ static double make_bfs_tree(csr_graph * g, GlobalAddress<int64_t> bfs_tree, int6
     bfs_node fbfs(k1, oldk2);
     fork_join_custom(&fbfs);
 
+    { clear_buffers f; fork_join_custom(&f); }
+
     //TAU_PHASE_STOP(bfs_level);
     
     k1 = oldk2;
@@ -336,8 +340,8 @@ static double make_bfs_tree(csr_graph * g, GlobalAddress<int64_t> bfs_tree, int6
   t = timer() - t;
   
   SoftXMT_free(vlist);
-  SoftXMT_dump_stats_all_nodes();
-//  SoftXMT_merge_and_dump_stats();
+  //SoftXMT_dump_stats_all_nodes();
+  SoftXMT_merge_and_dump_stats();
   
   return t;
 }
