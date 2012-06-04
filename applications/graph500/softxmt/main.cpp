@@ -48,6 +48,11 @@ GRAPPA_DEFINE_EVENT_GROUP(bfs);
 #include <gperftools/profiler.h>
 #endif
 
+#define read      SoftXMT_delegate_read_word
+#define write     SoftXMT_delegate_write_word
+#define cmp_swap  SoftXMT_delegate_compare_and_swap_word
+#define fetch_add SoftXMT_delegate_fetch_and_add_word
+
 static int compare_doubles(const void* a, const void* b) {
   double aa = *(const double*)a;
   double bb = *(const double*)b;
@@ -79,8 +84,8 @@ int lgsize;
 #define XENDOFF(k) (xoff+2*(k)+1)
 
 inline bool has_adj(GlobalAddress<int64_t> xoff, int64_t i) {
-  int64_t xoi = SoftXMT_delegate_read_word(XOFF(i));
-  int64_t xei = SoftXMT_delegate_read_word(XENDOFF(i));
+  int64_t xoi = read(XOFF(i));
+  int64_t xei = read(XENDOFF(i));
   return xei-xoi != 0;
 }
 
@@ -139,15 +144,15 @@ static void bfs_visit_neighbor(uint64_t packed, GlobalAddress<LocalTaskJoiner> r
   GlobalAddress<int64_t> xv = xadj+vo;
   CHECK(xv.node() < SoftXMT_nodes()) << " [" << xv.node() << " < " << SoftXMT_nodes() << "]";
   
-  const int64_t j = SoftXMT_delegate_read_word(xv);
-  if (SoftXMT_delegate_compare_and_swap_word(bfs_tree+j, -1, v)) {
+  const int64_t j = read(xv);
+  if (cmp_swap(bfs_tree+j, -1, v)) {
     while (kbuf == -1) { SoftXMT_yield(); }
     if (kbuf < BUF_LEN) {
       buf[kbuf] = j;
       (kbuf)++;
     } else {
       kbuf = -1; // lock other threads out temporarily
-      int64_t voff = SoftXMT_delegate_fetch_and_add_word(k2, BUF_LEN);
+      int64_t voff = fetch_add(k2, BUF_LEN);
       Incoherent<int64_t>::RW cvlist(vlist+voff, BUF_LEN);
       for (int64_t vk=0; vk < BUF_LEN; vk++) {
         cvlist[vk] = buf[vk];
@@ -164,11 +169,11 @@ static void bfs_visit_vertex(int64_t k, GlobalAddress<LocalTaskJoiner> rjoiner) 
 
   GlobalAddress<int64_t> vk = vlist+k;
   CHECK(vk.node() < SoftXMT_nodes()) << " [" << vk.node() << " < " << SoftXMT_nodes() << "]";
-  const int64_t v = SoftXMT_delegate_read_word(vk);
+  const int64_t v = read(vk);
   
   // TODO: do these two together (cache)
-  const int64_t vstart = SoftXMT_delegate_read_word(XOFF(v));
-  const int64_t vend = SoftXMT_delegate_read_word(XENDOFF(v));
+  const int64_t vstart = read(XOFF(v));
+  const int64_t vend = read(XENDOFF(v));
   CHECK(vstart < nadj) << vstart << " < " << nadj;
   CHECK(vend < nadj) << vend << " < " << nadj;
   CHECK(v < (1L<<32)) << "can't pack 'v' into 32-bit value! have to get more creative";
@@ -210,7 +215,7 @@ LOOP_FUNCTOR(bfs_node, nid, ((int64_t,start)) ((int64_t,end))) {
 
 LOOP_FUNCTION(clear_buffers, nid) {
   if (kbuf) {
-    int64_t voff = SoftXMT_delegate_fetch_and_add_word(k2, kbuf);
+    int64_t voff = fetch_add(k2, kbuf);
     VLOG(2) << "flushing vlist buffer (kbuf=" << kbuf << ", k2=" << voff << ")";
     Incoherent<int64_t>::RW cvlist(vlist+voff, kbuf);
     for (int64_t vk=0; vk < kbuf; vk++) {
@@ -230,24 +235,24 @@ LOOP_FUNCTOR(func_bfs_onelevel, k,
     (( int64_t*,buf  ))
     (( int64_t, nadj )) )
 {
-  const int64_t v = SoftXMT_delegate_read_word(vlist+k);
+  const int64_t v = read(vlist+k);
   
   // TODO: do these two together (cache)
-  const int64_t vstart = SoftXMT_delegate_read_word(XOFF(v));
-  const int64_t vend = SoftXMT_delegate_read_word(XENDOFF(v));
+  const int64_t vstart = read(XOFF(v));
+  const int64_t vend = read(XENDOFF(v));
   CHECK(vstart < nadj) << vstart << " < " << nadj;
   CHECK(vend < nadj) << vend << " < " << nadj;
 
   for (int64_t vo = vstart; vo < vend; vo++) {
-    const int64_t j = SoftXMT_delegate_read_word(xadj+vo); // cadj[vo];
-    if (SoftXMT_delegate_compare_and_swap_word(bfs_tree+j, -1, v)) {
+    const int64_t j = read(xadj+vo); // cadj[vo];
+    if (cmp_swap(bfs_tree+j, -1, v)) {
       while (*kbuf == -1) { SoftXMT_yield(); }
       if (*kbuf < BUF_LEN) {
         buf[*kbuf] = j;
         (*kbuf)++;
       } else {
         *kbuf = -1; // lock other threads out temporarily
-        int64_t voff = SoftXMT_delegate_fetch_and_add_word(k2, BUF_LEN);
+        int64_t voff = fetch_add(k2, BUF_LEN);
         Incoherent<int64_t>::RW cvlist(vlist+voff, BUF_LEN);
         for (int64_t vk=0; vk < BUF_LEN; vk++) {
           cvlist[vk] = buf[vk];
@@ -284,7 +289,7 @@ LOOP_FUNCTOR(func_bfs_node, mynode,
   
   // make sure to commit what's left in the buffer at the end
   if (kbuf) {
-    int64_t voff = SoftXMT_delegate_fetch_and_add_word(k2, kbuf);
+    int64_t voff = fetch_add(k2, kbuf);
     Incoherent<int64_t>::RW cvlist(vlist+voff, kbuf);
     for (int64_t vk=0; vk < kbuf; vk++) {
       cvlist[vk] = buf[vk];
@@ -302,7 +307,7 @@ static double make_bfs_tree(csr_graph * g, GlobalAddress<int64_t> bfs_tree, int6
   t = timer();
   
   // start with root as only thing in vlist
-  SoftXMT_delegate_write_word(vlist, root);
+  write(vlist, root);
   
   int64_t k1 = 0, k2 = 1;
   GlobalAddress<int64_t> k2addr = make_global(&k2);
@@ -310,7 +315,7 @@ static double make_bfs_tree(csr_graph * g, GlobalAddress<int64_t> bfs_tree, int6
   // initialize bfs_tree to -1
   SoftXMT_memset(bfs_tree, (int64_t)-1,  NV);
   
-  SoftXMT_delegate_write_word(bfs_tree+root, root); // parent of root is self
+  write(bfs_tree+root, root); // parent of root is self
   
   bfs_setup fsetup(vlist, g->xoff, g->xadj, bfs_tree, k2addr, g->nadj);
   fork_join_custom(&fsetup);
@@ -355,17 +360,17 @@ static void setup_bfs(tuple_graph * tg, csr_graph * g, int64_t * bfs_roots) {
   
   GlobalAddress<int64_t> xoff = g->xoff;
 //  for (int64_t i=0; i < g.nv; i++) {
-//    VLOG(1) << "xoff[" << i << "] = " << SoftXMT_delegate_read_word(XOFF(i)) << " -> " << SoftXMT_delegate_read_word(XENDOFF(i));
+//    VLOG(1) << "xoff[" << i << "] = " << read(XOFF(i)) << " -> " << read(XENDOFF(i));
 //  }
 //#ifdef DEBUG
 //  for (int64_t i=0; i<g.nv; i++) {
 //    std::stringstream ss;
-//    int64_t xoi = SoftXMT_delegate_read_word(XOFF(i)), xei = SoftXMT_delegate_read_word(XENDOFF(i));
+//    int64_t xoi = read(XOFF(i)), xei = read(XENDOFF(i));
 //    CHECK(xoi <= g.nadj) << i << ": " << xoi << " > " << g.nadj;
 //    CHECK(xei <= g.nadj) << i << ": " << xei << " > " << g.nadj;
 //    ss << "xoff[" << i << "] = " << xoi << "->" << xei << ": (";
 //    for (int64_t j=xoi; j<xei; j++) {
-//      ss << SoftXMT_delegate_read_word(g.xadj+j) << ",";
+//      ss << read(g.xadj+j) << ",";
 //    }
 //    ss << ")";
 //    VLOG(2) << ss.str();
