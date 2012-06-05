@@ -194,7 +194,8 @@ static void bfs_visit_vertex(int64_t k, GlobalAddress<LocalTaskJoiner> rjoiner) 
   LocalTaskJoiner::remoteSignal(rjoiner);
 }
 
-LOOP_FUNCTOR(bfs_node, nid, ((int64_t,start)) ((int64_t,end))) {
+//LOOP_FUNCTOR(bfs_node, nid, ((int64_t,start)) ((int64_t,end))) {
+void bfs_level(Node nid, int64_t start, int64_t end) {
   range_t r = blockDist(start, end, nid, SoftXMT_nodes());
   
   kbuf = 0;
@@ -206,14 +207,11 @@ LOOP_FUNCTOR(bfs_node, nid, ((int64_t,start)) ((int64_t,end))) {
     nodejoiner.registerTask();
     SoftXMT_publicTask(&bfs_visit_vertex, i, nodejoiner_addr);
   }
-  
-  VLOG(1) << "node joiner (" << nodejoiner.outstanding << ") before wait";
   nodejoiner.wait();
-  VLOG(1) << "node joiner (" << nodejoiner.outstanding << ")";
-  
 }
 
-LOOP_FUNCTION(clear_buffers, nid) {
+//LOOP_FUNCTION(clear_buffers, nid) {
+void clear_buffers() {
   if (kbuf) {
     int64_t voff = fetch_add(k2, kbuf);
     VLOG(2) << "flushing vlist buffer (kbuf=" << kbuf << ", k2=" << voff << ")";
@@ -297,6 +295,41 @@ LOOP_FUNCTOR(func_bfs_node, mynode,
   }
 }
 
+LOOP_FUNCTOR(bfs_node, nid, GA64(_vlist)GA64(_xoff)GA64(_xadj)GA64(_bfs_tree)GA64(_k2)((int64_t,_nadj))) {
+  // setup globals
+  kbuf = 0;
+  vlist = _vlist;
+  xoff = _xoff;
+  xadj = _xadj;
+  bfs_tree = _bfs_tree;
+  k2 = _k2;
+  nadj = _nadj;
+
+  int64_t k1 = 0, _k2 = 1;
+  
+  while (k1 != _k2) {
+    VLOG(2) << "k1=" << k1 << ", k2=" << _k2;
+    const int64_t oldk2 = _k2;
+    
+    //char phaseName[64];
+    //sprintf(phaseName, "Level %lld -> %lld\n", k1, k2);
+    //TAU_PHASE_CREATE_DYNAMIC(bfs_level, phaseName, "", TAU_USER);
+    //TAU_PHASE_START(bfs_level);
+
+    bfs_level(SoftXMT_mynode(), k1, oldk2);
+
+    SoftXMT_barrier_suspending();
+
+    clear_buffers();
+
+    SoftXMT_barrier_suspending();
+    //TAU_PHASE_STOP(bfs_level);
+    
+    k1 = oldk2;
+    _k2 = read(k2);
+  }  
+}
+
 static double make_bfs_tree(csr_graph * g, GlobalAddress<int64_t> bfs_tree, int64_t root) {
   //TAU_PHASE("make_bfs_tree", "double (csr_graph*,GlobalAddress<int64_t>,int64_t)", TAU_DEFAULT);
 
@@ -317,31 +350,8 @@ static double make_bfs_tree(csr_graph * g, GlobalAddress<int64_t> bfs_tree, int6
   
   write(bfs_tree+root, root); // parent of root is self
   
-  bfs_setup fsetup(vlist, g->xoff, g->xadj, bfs_tree, k2addr, g->nadj);
-  fork_join_custom(&fsetup);
-  
-  while (k1 != k2) {
-    VLOG(2) << "k1=" << k1 << ", k2=" << k2;
-    const int64_t oldk2 = k2;
+  { bfs_node f(vlist, g->xoff, g->xadj, bfs_tree, k2addr, g->nadj); fork_join_custom(&f); }
     
-//    fb.start = k1;
-//    fb.end = oldk2;
-//    fork_join_custom(&fb);
-    char phaseName[64];
-    sprintf(phaseName, "Level %lld -> %lld\n", k1, k2);
-    //TAU_PHASE_CREATE_DYNAMIC(bfs_level, phaseName, "", TAU_USER);
-    //TAU_PHASE_START(bfs_level);
-
-    bfs_node fbfs(k1, oldk2);
-    fork_join_custom(&fbfs);
-
-    { clear_buffers f; fork_join_custom(&f); }
-
-    //TAU_PHASE_STOP(bfs_level);
-    
-    k1 = oldk2;
-  }
-  
   t = timer() - t;
   
   SoftXMT_free(vlist);

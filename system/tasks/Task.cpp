@@ -2,7 +2,8 @@
 #include "../SoftXMT.hpp"
 #include "../PerformanceTools.hpp"
 
-#define MAXQUEUEDEPTH 500000
+//#define MAXQUEUEDEPTH 500000
+#define MAXQUEUEDEPTH (1L<<26)
 
 TaskManager global_task_manager;
 
