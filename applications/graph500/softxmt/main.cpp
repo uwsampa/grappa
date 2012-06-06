@@ -109,8 +109,7 @@ static GlobalAddress<int64_t> bfs_tree;
 static GlobalAddress<int64_t> k2;
 static int64_t nadj;
 
-static Thread * joiner;
-static int64_t ntasks;
+static LocalTaskJoiner joiner;
 
 #define GA64(name) ((GlobalAddress<int64_t>,name))
 
@@ -150,8 +149,7 @@ static void bfs_visit_neighbor(uint64_t packed) {
       kbuf = 1;
     }
   }
-  ntasks--;
-  if (ntasks == 0) SoftXMT_wake(joiner);
+  joiner.signal();
 }
 
 static void bfs_visit_vertex(int64_t k) {
@@ -169,28 +167,23 @@ static void bfs_visit_vertex(int64_t k) {
   
   for (int64_t vo = vstart; vo < vend; vo++) {
     uint64_t packed = (((uint64_t)v) << 32) | vo;
-//    packed_pair packed; packed.v = (uint32_t)v; packed.vo = (uint32_t)vo;
-    ntasks++;
+    joiner.registerTask();
     SoftXMT_privateTask(&bfs_visit_neighbor, packed);
   }
-  ntasks--;
-  if (ntasks == 0) SoftXMT_wake(joiner);
+  joiner.signal();
 }
 
 LOOP_FUNCTOR(bfs_node, nid, ((int64_t,start)) ((int64_t,end))) {
   range_t r = blockDist(start, end, nid, SoftXMT_nodes());
   
-//  reset_task_stats();
-  
   kbuf = 0;
-  joiner = CURRENT_THREAD;
-  ntasks = r.end - r.start;
   
   for (int64_t i = r.start; i < r.end; i++) {
+    joiner.registerTask();
     SoftXMT_privateTask(&bfs_visit_vertex, i);
   }
-  
-  while (ntasks > 0) SoftXMT_suspend();
+
+  joiner.wait();
   
   // make sure to commit what's left in the buffer at the end
   if (kbuf) {
@@ -374,7 +367,6 @@ static void setup_bfs(tuple_graph * tg, csr_graph * g, int64_t * bfs_roots) {
 }
 
 LOOP_FUNCTION(func_enable_tau, nid) {
-  //SoftXMT_barrier_commsafe();
   //TAU_ENABLE_INSTRUMENTATION();
   FLAGS_record_grappa_events = true;
 }
@@ -417,17 +409,6 @@ static void run_bfs(tuple_graph * tg, csr_graph * g, int64_t * bfs_roots) {
     disable_tau();
     
     VLOG(1) << "make_bfs_tree time: " << t;
-//    VLOG(1) << "done";
-//    for (int64_t i=0; i < g.nv; i++) {
-//      VLOG(1) << "bfs_tree[" << i << "] = " << SoftXMT_delegate_read_word(bfs_tree+i);
-//    }
-    
-//    std::stringstream ss;
-//    ss << "bfs_tree[" << i << "] = ";
-//    for (int64_t k=0; k<g->nv; k++) {
-//      ss << SoftXMT_delegate_read_word(bfs_tree+k) << ",";
-//    }
-//    VLOG(1) << ss.str();
 
     VLOG(1) << "Verifying bfs " << i << "...";
     t = timer();
@@ -620,7 +601,6 @@ static void user_main(int * args) {
 }
 
 int main(int argc, char** argv) {
-  //TAU_DISABLE_INSTRUMENTATION();
   SoftXMT_init(&argc, &argv, (1L<<MEM_SCALE));
   SoftXMT_activate();
 
@@ -637,20 +617,20 @@ int main(int argc, char** argv) {
 
 #define NSTAT 9
 #define PRINT_STATS(lbl, israte)					\
-do {									\
-printf ("min_%s: %20.17e\n", lbl, stats[0]);			\
-printf ("firstquartile_%s: %20.17e\n", lbl, stats[1]);		\
-printf ("median_%s: %20.17e\n", lbl, stats[2]);			\
-printf ("thirdquartile_%s: %20.17e\n", lbl, stats[3]);		\
-printf ("max_%s: %20.17e\n", lbl, stats[4]);			\
-if (!israte) {							\
-printf ("mean_%s: %20.17e\n", lbl, stats[5]);			\
-printf ("stddev_%s: %20.17e\n", lbl, stats[6]);			\
-} else {								\
-printf ("harmonic_mean_%s: %20.17e\n", lbl, stats[7]);		\
-printf ("harmonic_stddev_%s: %20.17e\n", lbl, stats[8]);	\
-}									\
-} while (0)
+  do {									\
+    printf ("min_%s: %20.17e\n", lbl, stats[0]);			\
+    printf ("firstquartile_%s: %20.17e\n", lbl, stats[1]);		\
+    printf ("median_%s: %20.17e\n", lbl, stats[2]);			\
+    printf ("thirdquartile_%s: %20.17e\n", lbl, stats[3]);		\
+    printf ("max_%s: %20.17e\n", lbl, stats[4]);			\
+    if (!israte) {							\
+      printf ("mean_%s: %20.17e\n", lbl, stats[5]);			\
+      printf ("stddev_%s: %20.17e\n", lbl, stats[6]);			\
+    } else {								\
+      printf ("harmonic_mean_%s: %20.17e\n", lbl, stats[7]);		\
+      printf ("harmonic_stddev_%s: %20.17e\n", lbl, stats[8]);	\
+    }									\
+  } while (0)
 
 static int
 dcmp (const void *a, const void *b)
