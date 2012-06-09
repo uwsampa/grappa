@@ -1,0 +1,89 @@
+<!--#include virtual="header.inc" -->
+
+<div class="navbar navbar-fixed-top">
+  <div class="navbar-inner">
+    <div class="container">
+      <a class="btn btn-navbar" data-toggle="collapse" data-target=".nav-collapse">
+        <span class="icon-bar"></span>
+        <span class="icon-bar"></span>  
+        <span class="icon-bar"></span>
+      </a>
+      <a class="brand" href="index.html">Grappa</a>
+      <div class="nav-collapse">
+        <ul class="nav">
+          <li><a href="index.html">Home</a></li>
+          <li><a href="about.html">About</a></li>
+          <li><a href="contact.html">Contact</a></li>
+          <!-- <li><a href="#download">Download</a></li> -->
+        </ul>
+      </div><!--/.nav-collapse -->
+    </div>
+  </div>
+</div>
+
+
+<div class="container">
+
+  <div class="row">
+    <div class="span6">
+
+      <h3>Grappa tolerates local memory latency</h3>
+      <p>By prefetching and yielding on likely cache misses, Grappa
+      exposes more memory parallelism to the processor and increases
+      node-local random access bandwidth.</p>
+      
+      <h3>Grappa balances load by stealing work between nodes</h3>
+      <p>The programmer is responsible for expressing parallelism by
+      creating tasks. When a core has no more tasks to run in its
+      local queues, it will steal from other cores across the
+      system.</p>
+
+      <h3>Grappa mitigates low network injection rates through aggregation</h3>
+      <p>Graph applications make many small references to remote
+      memory, but mass-market networks require large packets to fully
+      utilize their bandwidth. Grappa delays messages heading to the
+      same destination until it can form a packet of reasonable
+      size.</p>
+
+      <h3>Grappa enables high bandwidth access to global shared memory</h3>
+      <p>Grappa's shared heap is constructed out of chunks allocated on each
+	node in the system. Contiguous addresses are spread across the chunks
+	in a block-cyclic fashion. Remote memory accesses are done through
+	active messages to allow for aggregation and latency tolerance.</p>
+
+      <h3>Grappa provides high-throughput fine-grained synchronization</h3>
+      <p>Grappa matches each synchronization variable with a delegate
+      core. All accesses to that variable, whether local or remote,
+      are done by sending active messages to that core and are then
+      executed serially. This allows Grappa to provide atomic
+      semantics without performing atomic operations.</p>
+
+      <h3>Grappa exploits locality when available</h3>
+      <p>Global memory can be accessed through a software caching
+      layer with user-controllable granularity. The cache gathers all
+      the memory blocks involved in an operation, optionally
+      performing synchronization during the acquire and release.</p>
+
+      <h3>Grappa supports low-locality operations through delegation</h3>
+      <p>Mass-market networks have limited support for concurrent RDMA
+	operations. Grappa works around this by turning remote memory
+	operations into active messages directed to a delegate core on
+	the remote node. After issuing the message, the requester
+	context-switches to other work until the response arrives. The
+	delegate core performs the operation. Read-modify-write cycles
+	are performed entirely on the delegate core.</p>
+
+      <p><a class="btn" href="performance.html">See how Grappa performs &raquo;</a></p>
+    </div>
+  </div>
+  
+  <hr>
+  
+  <footer>
+    <p>&copy; University of Washington CSE 2012</p>
+  </footer>
+  
+</div> <!-- /container -->
+
+
+<!--#include virtual="footer.inc" -->

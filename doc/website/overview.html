@@ -1,0 +1,71 @@
+<!--#include virtual="header.inc" -->
+
+<div class="navbar navbar-fixed-top">
+  <div class="navbar-inner">
+    <div class="container">
+      <a class="btn btn-navbar" data-toggle="collapse" data-target=".nav-collapse">
+        <span class="icon-bar"></span>
+        <span class="icon-bar"></span>  
+        <span class="icon-bar"></span>
+      </a>
+      <a class="brand" href="index.html">Grappa</a>
+      <div class="nav-collapse">
+        <ul class="nav">
+          <li><a href="index.html">Home</a></li>
+          <li><a href="about.html">About</a></li>
+          <li><a href="contact.html">Contact</a></li>
+          <!-- <li><a href="#download">Download</a></li> -->
+        </ul>
+      </div><!--/.nav-collapse -->
+    </div>
+  </div>
+</div>
+
+
+<div class="container">
+
+  <div class="row">
+    <div class="span5">
+
+      <h2>What is Grappa?</h2>
+      <p>Many emerging problems are irregular, with little locality and
+	imbalanced work, leading to inefficient execution at scale. Social
+	networks are one example.</p>
+      
+      <p>Performance on these problems is artificially limited by
+	processors' dependence on locality for performance. There are two main
+	challenges:
+	<ul>
+	  <li>Latency in chasing down low-locality data</li>
+	  <li>Load imbalance due to irregularity</li>
+	</ul>
+      </p>
+      
+      <p>Grappa is a parallel runtime system that leverages the parallelism
+	inherent in these applications to get faster performance on
+	mass-market clusters.</p>
+	
+      <h2>Key idea: Trade latency for throughput</h2>
+      <p>Grappa’s core component is a lightweight cooperative threading system. We tolerate latency by context-switching to other work.
+	Given this ability, we can increase throughput by increasing the latency of key operations:
+	<ul>
+	  <li>Context-switch on long-latency memory operations</li>
+	  <li>Delay and aggregate messages for better utilization of network bandwidth</li>
+	  <li>Migrate synchronization operations to avoid unnecessary serialization</li>
+	</ul>
+      </p>
+      
+      <p><a class="btn" href="approach.html">See how Grappa works &raquo;</a></p>
+    </div>
+  </div>
+  
+  <hr>
+  
+  <footer>
+    <p>&copy; University of Washington CSE 2012</p>
+  </footer>
+  
+</div> <!-- /container -->
+
+
+<!--#include virtual="footer.inc" -->
