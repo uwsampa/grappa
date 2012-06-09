@@ -1,0 +1,12 @@
+options +includes
+addoutputfilter INCLUDES html
+
+
+satisfy all
+
+order deny,allow
+allow from all
+
+#authtype csenetid
+#require valid-user
+
