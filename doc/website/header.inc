@@ -20,7 +20,7 @@
       }
 
       .hero-img {
-	background-image: url("images/header2.png");
+	background-image: url("images/header2.jpg");
 	background-position:top right;
 	background-repeat:no-repeat;
 	z-index:1;
