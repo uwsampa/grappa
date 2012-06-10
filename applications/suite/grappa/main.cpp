@@ -127,7 +127,7 @@ static void user_main(int* ignore) {
     genScalData(ge, A, B, C, D);
     
     t = timer() - t;
-    printf("\nedge_generation_time %g sec.\n", t);
+    printf("\nedge_generation_time: %g sec.\n", t);
     //	if (graphfile) print_edgelist_dot(ge, graphfile);
     
     //###############################################
@@ -148,7 +148,7 @@ static void user_main(int* ignore) {
     makeUndirected(dirg, g);
     
     t = timer() - t;
-    printf("compute_graph_time %g\n", t);
+    printf("compute_graph_time: %g\n", t);
   }
   
   SoftXMT_reset_stats();
