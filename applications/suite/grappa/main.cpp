@@ -127,7 +127,7 @@ static void user_main(int* ignore) {
     genScalData(ge, A, B, C, D);
     
     t = timer() - t;
-    printf("\nTime taken for Scalable Data Generation is %9.6lf sec.\n", t);
+    printf("\nedge_generation_time %g sec.\n", t);
     //	if (graphfile) print_edgelist_dot(ge, graphfile);
     
     //###############################################
@@ -148,7 +148,7 @@ static void user_main(int* ignore) {
     makeUndirected(dirg, g);
     
     t = timer() - t;
-    printf("Time taken for computeGraph is %9.6lf sec.\n", t);
+    printf("compute_graph_time %g\n", t);
   }
   
   SoftXMT_reset_stats();
@@ -162,8 +162,8 @@ static void user_main(int* ignore) {
     graphint connected = connectedComponents(g);
     
     t = timer() - t;
-    printf("Number of connected components: %"DFMT"\n", connected);
-    printf("Time taken for connectedComponents is %9.6lf sec.\n", t); fflush(stdout);
+    printf("ncomponents: %"DFMT"\n", connected);
+    printf("components_time: %g", t); fflush(stdout);
   }  
   
   //###############################################
@@ -178,7 +178,7 @@ static void user_main(int* ignore) {
     size_t npattern = 3;
     
     color_t *c = pattern;
-    printf("\nKernel - Path Isomorphism beginning execution...\nfinding path: %"DFMT"", *c);
+    printf("\nKernel - Path Isomorphism beginning execution...\nfinding path %"DFMT"", *c);
     for (color_t * c = pattern+1; c < pattern+npattern; c++) { printf(" -> %"DFMT"", *c); } printf("\n"); fflush(stdout);
     t = timer();
     
@@ -186,8 +186,8 @@ static void user_main(int* ignore) {
     
     t = timer() - t;
     
-    printf("Number of matches: %"DFMT"\n", num_matches);
-    printf("Time taken for pathIsomorphismPar is %9.6lf sec.\n", t);
+    printf("path_iso_matches: %"DFMT"\n", num_matches);
+    printf("path_isomorphism_time: %g", t); fflush(stdout);
   }
     
   //###############################################
@@ -199,8 +199,8 @@ static void user_main(int* ignore) {
     graphint num_triangles = triangles(g);
     
     t = timer() - t;
-    printf("Number of triangles: %"DFMT"\n", num_triangles);
-    printf("Time taken for triangles is %9.6lf sec.\n", t);
+    printf("ntriangles: %"DFMT"\n", num_triangles);
+    printf("triangles_time: %g", t); fflush(stdout);
   }
   
   //###############################################
@@ -213,8 +213,8 @@ static void user_main(int* ignore) {
     double avgbc = centrality(g, bc, kcent);
     
     t = timer() - t;
-    printf("Betweenness Centrality: (avg) = %lf\n", avgbc);
-    printf("Time taken for betweenness centrality is %9.6lf sec.\n", t); fflush(stdout);
+    printf("avg_centrality: %lf\n", avgbc);
+    printf("centrality_time: %g\n", t); fflush(stdout);
   }
   
   //###################
