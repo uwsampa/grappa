@@ -14,10 +14,12 @@
 #endif
 #include "stinger-atomics.h"
 
+static int64_t nedge_traversed;
 
-double centrality(graph *g, double *bc, graphint Vs) {
+double centrality(graph *g, double *bc, graphint Vs, int64_t* total_nedge) {
   graphint num_srcs = 0;
-  
+  nedge_traversed = 0;
+
   graphint NE      = g->numEdges;
   graphint NV      = g->numVertices;
   graphint *eV     = g->endVertex;
@@ -112,6 +114,7 @@ double centrality(graph *g, double *bc, graphint Vs) {
       graphint myEnd   = start[v+1];
       graphint ccount = 0;
       
+      nedge_traversed += myEnd - myStart;
       for (k = myStart; k < myEnd; k++) {
         graphint d, w, l;
         w = eV[k];                    
@@ -156,6 +159,8 @@ double centrality(graph *g, double *bc, graphint Vs) {
     for ( ; nQ > 1; nQ --) {
       Qstart = QHead[nQ-1];
       Qend   = QHead[nQ];
+
+      nedge_traversed += Qend - Qstart;
       /* For each v in the sublist AND for each w on v's list */
       MTA("mta assert parallel")
       MTA("mta block dynamic schedule")
@@ -191,6 +196,8 @@ double centrality(graph *g, double *bc, graphint Vs) {
   
   double bc_total = 0;
   for (graphint i=0; i<NV; i++) { bc_total += bc[i]; }
-  
+ 
+  *total_nedge = nedge_traversed;
+
   return bc_total/NV;
 }

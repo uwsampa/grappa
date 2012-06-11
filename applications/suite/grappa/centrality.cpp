@@ -6,6 +6,7 @@
 #include <ForkJoin.hpp>
 #include <GlobalAllocator.hpp>
 #include <Delegate.hpp>
+#include <Collective.hpp>
 #include <common.hpp>
 
 #define read      SoftXMT_delegate_read_word
@@ -34,6 +35,8 @@ static CentralityScratch c;
 static GlobalAddress<double> bc;
 static graphint d_phase;
 static graphint local_Qnext;
+
+static int64_t nedge_traversed;
 
 //static inline void visit_adj(const graphint& v, const graphint& k, const graphint& sigmav, graphint * ccount) {
 static void bfs_push_visit_neighbor(uint64_t packed) {
@@ -74,7 +77,8 @@ static void bfs_push_visit_vertex(int64_t j) {
   const graphint vend = vrange[1];
   CHECK(v < (1L<<32)) << "can't pack 'v' into 32-bit value! have to get more creative";
   CHECK(vend < (1L<<32)) << "can't pack 'vo' into 32-bit value! have to get more creative";
-  
+ 
+  nedge_traversed += vend - vstart;
   for (int64_t k = vstart; k < vend; k++) {
     uint64_t packed = (((uint64_t)v) << 32) | k;
     joiner.registerTask();
@@ -108,6 +112,7 @@ static void bfs_pop_visit_vertex(graphint j) {
   double sum = 0;
   double sigma_v = (double)read(c.sigma+v);
   
+  nedge_traversed += myEnd - myStart;
   for (graphint k = myStart; k < myEnd; k++) {
     graphint w = read(c.child+k);
     sum += sigma_v * (1.0 + read_double(c.delta+w)) / (double)read(c.sigma+w);
@@ -130,6 +135,7 @@ LOOP_FUNCTOR(bfs_pop, nid, ((graphint,start)) ((graphint,end)) ) {
 }
 
 LOOP_FUNCTOR( initCentrality, nid, ((graph,g_)) ((CentralityScratch,s_)) ((GlobalAddress<double>,bc_)) ) {
+  nedge_traversed = 0;
   g = g_;
   c = s_;
   bc = bc_;
@@ -140,7 +146,12 @@ LOOP_FUNCTOR( totalCentrality, v, ((GlobalAddress<double>,total)) ) {
   SoftXMT_delegate_func(&aad, total.node());
 }
 
-double centrality(graph *g, GlobalAddress<double> bc, graphint Vs) {
+LOOP_FUNCTION( totalNedgeFunc, n ) {
+  nedge_traversed = SoftXMT_allreduce<int64_t,coll_add<int64_t>,0>(nedge_traversed);
+}
+
+double centrality(graph *g, GlobalAddress<double> bc, graphint Vs,
+    /* outputs: */ double * avg_centrality = NULL, int64_t * total_nedge = NULL) {
   graphint Qnext;
 
   bool computeAllVertices = (Vs == g->numVertices);
@@ -155,6 +166,8 @@ double centrality(graph *g, GlobalAddress<double> bc, graphint Vs) {
   c.child_count = SoftXMT_typed_malloc<graphint>(g->numVertices);
   if (!computeAllVertices) c.explored = SoftXMT_typed_malloc<graphint>(g->numVertices);
   c.Qnext       = make_global(&Qnext);
+  
+  double t; t = timer();
   
   {
     initCentrality f(*g, c, bc); fork_join_custom(&f);
@@ -254,6 +267,8 @@ double centrality(graph *g, GlobalAddress<double> bc, graphint Vs) {
 //    VLOG(1) << "bc[" << 12 << "] = " << read_double(bc+12);
   } // end for(x=0; x<NV && Vs>0)
     
+  t = timer() - t;
+  
   SoftXMT_free(c.delta);
   SoftXMT_free(c.dist);
   SoftXMT_free(c.Q);
@@ -263,10 +278,14 @@ double centrality(graph *g, GlobalAddress<double> bc, graphint Vs) {
   SoftXMT_free(c.child);
   SoftXMT_free(c.child_count);
   SoftXMT_free(c.explored);
-  
+
   double bc_total = 0;
   {
     totalCentrality f(make_global(&bc_total)); fork_join(&f, 0, g->numVertices);
   }
-  return bc_total / g->numVertices;
+  { totalNedgeFunc f; fork_join_custom(&f); }
+
+  if (avg_centrality != NULL) *avg_centrality = bc_total / g->numVertices;
+  if (total_nedge != NULL) *total_nedge = nedge_traversed;
+  return t;
 }
