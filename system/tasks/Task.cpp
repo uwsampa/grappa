@@ -11,10 +11,10 @@ GRAPPA_DEFINE_EVENT_GROUP(task_manager);
 
 TaskManager::TaskManager ( ) 
   : workDone( false )
+  , all_terminate( false )
   , doSteal( false )
   , stealLock( true )
   , sharedMayHaveWork ( true )
-  , globalMayHaveWork ( true )
   , privateQ( )
   , publicQ( MAXQUEUEDEPTH ) 
   , stats( this )
@@ -30,7 +30,6 @@ void TaskManager::init (bool doSteal_arg, Node localId_arg, Node * neighbors_arg
   numLocalNodes = numLocalNodes_arg;
   chunkSize = chunkSize_arg;
   cbint = cbint_arg;
-  cbarrier_init( SoftXMT_nodes() );
 }
         
 
@@ -94,7 +93,7 @@ bool TaskManager::tryConsumeShared( Task * result ) {
 /// Only returns when there is work or when
 /// the system has no more work.
 bool TaskManager::waitConsumeAny( Task * result ) {
-    if ( doSteal && globalMayHaveWork ) {
+    if ( doSteal ) {
         if ( stealLock ) {
             // only one Thread is allowed to steal
             stealLock = false;
@@ -104,7 +103,7 @@ bool TaskManager::waitConsumeAny( Task * result ) {
             Node victimId;
 
             for ( Node i = 1; 
-                  i < numLocalNodes && !goodSteal && !(sharedMayHaveWork || publicHasEle() || privateHasEle());
+                  i < numLocalNodes && !goodSteal && !(sharedMayHaveWork || publicHasEle() || privateHasEle() || all_terminate);
                   i++ ) { // TODO permutation order
 
                 victimId = (localId + i) % numLocalNodes;
@@ -128,8 +127,6 @@ bool TaskManager::waitConsumeAny( Task * result ) {
                 
                 stats.record_failed_steal_session();
 
-                // mark that we already tried to steal from other queues
-                globalMayHaveWork = false;
             }
 
             VLOG(5) << "left stealing loop with goodSteal=" << goodSteal
@@ -143,42 +140,13 @@ bool TaskManager::waitConsumeAny( Task * result ) {
         }
     }
 
-    if ( !available() ) {
+    if ( !local_available() ) {
         if ( !SoftXMT_thread_idle() ) {
-            // no work so suggest global termination barrier
-            
-            VLOG(5) << CURRENT_THREAD << " saw all were idle so suggest barrier";
-
             CHECK( !workDone ) << "perhaps there is a stray unidled thread problem?";
-
-            cb_cause finished_barrier = cbarrier_wait();
-            switch( finished_barrier ) {
-                case CB_Cause_Done:
-                    VLOG(5) << CURRENT_THREAD << " left barrier from finish";
-                    workDone = true;
-                    SoftXMT_signal_done( ); // terminate auto communications
-                    break;
-                case CB_Cause_Cancel:
-                    VLOG(5) << CURRENT_THREAD << " left barrier from cancel";
-                    globalMayHaveWork = true;   // work is available so allow unassigned threads to be scheduled
-                    // we rely on the invariant that if globalMayHaveWork=true then the cbarrier
-                    // is NOT counting mynode. This way a barrier finish cannot occur without mynode,
-                    // and so mynode can safely steal and receive steal replies without 
-                    // communication layer terminating.
-                    break;
-                case CB_Cause_Local:
-                    VLOG(5) << CURRENT_THREAD << " left barrier from local cancel";
-
-                    // we rely on the invariant that mynode will not try to steal again
-                    // until it enters the cbarrier and receives a CB_Cause_Cancel.
-                    // Thus, the only communication mynode will then depend on until the next
-                    // time it enters the cbarrier is communication initiated by user code, 
-                    // which is guarenteed to be okay by the NoUnsyncedTasks requirement.
-
-                    break;
-
-                default:
-                    CHECK ( false ) << "invalid cbarrier exit cause " << finished_barrier;
+            if ( all_terminate ) {
+                DVLOG(4) << CURRENT_THREAD << " responding to termination";
+                workDone = true;
+                SoftXMT_signal_done();
             }
         } else {
             DVLOG(5) << CURRENT_THREAD << " un-idled";
@@ -187,6 +155,7 @@ bool TaskManager::waitConsumeAny( Task * result ) {
 
     return false;
 }
+
 
 std::ostream& operator<<( std::ostream& o, const TaskManager& tm ) {
     return tm.dump( o );
