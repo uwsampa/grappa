@@ -85,7 +85,9 @@ int SoftXMT_run_user_main( void (* fn_p)(T), T args )
 
   // start the scheduler
   global_scheduler.run( );
+      
 }
+
 
 /// remote task spawn
 template< typename T, typename S >
