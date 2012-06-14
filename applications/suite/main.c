@@ -26,6 +26,10 @@ static void parseOptions(int argc, char ** argv);
 
 static char* graphfile;
 static graphint kcent;
+static bool do_components = false,
+            do_pathiso = false,
+            do_triangles = false,
+            do_centrality = false;
 
 static void graph_in(graph * g, FILE * fin) {
   fread(&g->numVertices, sizeof(graphint), 1, fin);
@@ -159,65 +163,71 @@ int main(int argc, char* argv[]) {
   
   //###############################################
   // Kernel: Connected Components
-  printf("Kernel - Connected Components beginning execution...\n"); fflush(stdout);
-  MTA("mta trace \"begin connectedComponents\"")
-  t = timer();
-  
-  graphint connected = connectedComponents(g);
-  
-  t = timer() - t;
-  printf("ncomponents: %"DFMT"\n", connected);
-  printf("components_time: %g\n", t); fflush(stdout);
-  
+  if (do_components) {
+    printf("Kernel - Connected Components beginning execution...\n"); fflush(stdout);
+    MTA("mta trace \"begin connectedComponents\"")
+    t = timer();
+    
+    graphint connected = connectedComponents(g);
+    
+    t = timer() - t;
+    printf("ncomponents: %"DFMT"\n", connected);
+    printf("components_time: %g\n", t); fflush(stdout);
+  }
+
   //###############################################
   // Kernel: Path Isomorphism
-  
-  // assign random colors to vertices in the range: [0,10)
-  //	MTA("mta trace \"begin markColors\"")
-  markColors(dirg, 0, 10);
-  
-  // path to find (sequence of specifically colored vertices)
-  color_t pattern[] = {2, 5, 9, END};
-  
-  color_t *c = pattern;
-  printf("Kernel - Path Isomorphism beginning execution...\nfinding path: %"DFMT"", *c);
-  c++; while (*c != END) { printf(" -> %"DFMT"", *c); c++; } printf("\n"); fflush(stdout);
-  //	MTA("mta trace \"begin pathIsomorphism\"")
-  t = timer();
-  
-  graphint num_matches = pathIsomorphismPar(dirg, pattern);
-  
-  t = timer() - t;
-  printf("path_iso_matches: %"DFMT"\n", num_matches);
-  printf("path_isomorphism_time: %g\n", t); fflush(stdout);
+  if (do_pathiso) {
+    // assign random colors to vertices in the range: [0,10)
+    //	MTA("mta trace \"begin markColors\"")
+    markColors(dirg, 0, 10);
+    
+    // path to find (sequence of specifically colored vertices)
+    color_t pattern[] = {2, 5, 9, END};
+    
+    color_t *c = pattern;
+    printf("Kernel - Path Isomorphism beginning execution...\nfinding path: %"DFMT"", *c);
+    c++; while (*c != END) { printf(" -> %"DFMT"", *c); c++; } printf("\n"); fflush(stdout);
+    //	MTA("mta trace \"begin pathIsomorphism\"")
+    t = timer();
+    
+    graphint num_matches = pathIsomorphismPar(dirg, pattern);
+    
+    t = timer() - t;
+    printf("path_iso_matches: %"DFMT"\n", num_matches);
+    printf("path_isomorphism_time: %g\n", t); fflush(stdout);
+  }
   
   //###############################################
   // Kernel: Triangles
-  printf("Kernel - Triangles beginning execution...\n"); fflush(stdout);
-  //	MTA("mta trace \"begin triangles\"")
-  t = timer();
-  
-  graphint num_triangles = triangles(g);
-  
-  t = timer() - t;
-  printf("ntriangles: %"DFMT"\n", num_triangles);
-  printf("triangles_time: %g\n", t); fflush(stdout);
-  
+  if (do_triangles) {
+    printf("Kernel - Triangles beginning execution...\n"); fflush(stdout);
+    //	MTA("mta trace \"begin triangles\"")
+    t = timer();
+    
+    graphint num_triangles = triangles(g);
+    
+    t = timer() - t;
+    printf("ntriangles: %"DFMT"\n", num_triangles);
+    printf("triangles_time: %g\n", t); fflush(stdout);
+  } 
   
   //###############################################
   // Kernel: Betweenness Centrality
-  printf("Kernel - Betweenness Centrality beginning execution...\n"); fflush(stdout);
-  //	MTA("mta trace \"begin centrality\"")
-  t = timer();
-  
-  double *bc = xmalloc(numVertices*sizeof(double));
-  int64_t total_nedge;
-  double avgbc = centrality(g, bc, kcent, &total_nedge);
-  
-  t = timer() - t;
-  printf("avg_centrality: %g\n", avgbc);
-  printf("centrality_time: %g\n", t); fflush(stdout);
-  printf("centrality_teps: %g\n", total_nedge / t);
+  if (do_centrality) {
+    printf("Kernel - Betweenness Centrality beginning execution...\n"); fflush(stdout);
+    //	MTA("mta trace \"begin centrality\"")
+    t = timer();
+    
+    double *bc = xmalloc(numVertices*sizeof(double));
+    int64_t total_nedge;
+    double avgbc = centrality(g, bc, kcent, &total_nedge);
+    
+    t = timer() - t;
+    printf("avg_centrality: %g\n", avgbc);
+    printf("centrality_time: %g\n", t); fflush(stdout);
+    printf("centrality_teps: %g\n", total_nedge / t);
+  }
   
   //###################
   // Kernels complete!
@@ -243,7 +253,11 @@ static void parseOptions(int argc, char ** argv) {
     {"scale", required_argument, 0, 's'},
     {"dot", required_argument, 0, 'd'},
     {"ckpt", no_argument, 0, 'p'},
-    {"kcent", required_argument, 0, 'c'}
+    {"kcent", required_argument, 0, 'c'},
+    {"components", no_argument, (int*)&do_components, true},
+    {"pathiso", no_argument, (int*)&do_pathiso, true},
+    {"triangles", no_argument, (int*)&do_triangles, true},
+    {"centrality", no_argument, (int*)&do_centrality, true}
   };
   
   SCALE = 8; //default value
@@ -254,7 +268,7 @@ static void parseOptions(int argc, char ** argv) {
   while (c != -1) {
     int option_index = 0;
     
-    c = getopt_long(argc, argv, "hsdpc", long_opts, &option_index);
+    c = getopt_long(argc, argv, "hsdpck", long_opts, &option_index);
     switch (c) {
       case 'h':
         printHelp(argv[0]);
@@ -272,6 +286,11 @@ static void parseOptions(int argc, char ** argv) {
         checkpointing = true;
         break;
     }
+  }
+
+  // if no flags set, default to doing all
+  if (!(do_components || do_pathiso || do_triangles || do_centrality)) {
+    do_components = do_pathiso = do_triangles = do_centrality = true;
   }
 }
 
