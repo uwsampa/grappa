@@ -474,7 +474,7 @@ void user_main( user_main_args * args )
 //
 //    }
 
-
+    SoftXMT_dump_stats_all_nodes();
     BOOST_MESSAGE( "user main is exiting" );
 }
 
