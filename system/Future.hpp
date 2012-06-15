@@ -37,6 +37,13 @@ class MyArgs : public FutureArgs {
 static int64_t count_ = 0;
 #endif
 
+extern uint64_t global_futures_num_touched;
+extern uint64_t global_futures_num_local_started;
+extern uint64_t global_futures_num_remote_started;
+extern uint64_t global_futures_num_local_dq;
+extern uint64_t global_futures_num_remote_dq;
+
+
 template < typename UserArg, void (*F)(UserArg) >
 class Future {
     
@@ -47,6 +54,7 @@ class Future {
         Thread * waiter;
         UserArg userArg;
         bool done;
+
         
         struct future_done_args { 
             Future< UserArg, F > * futurePtr;
@@ -93,6 +101,27 @@ class Future {
             FutureAddress_t address;
         };
 
+        static bool started_request_helper( Future<UserArg, F> * f ) {
+            int64_t st = f->started;
+            bool alreadyStarted = (st > 0);
+            f->started = st + 1;
+            
+            if ( alreadyStarted ) {
+                DVLOG(5) << "already started:(id:"<<f->getId();
+                if ( f->done ) { //if it is done then toucher is waiting for the dequeue
+                    DVLOG(5) << "need to wake:(id:"<<f->getId();
+                    CHECK ( f->waiter!=NULL ) << "future ptr:" << (void*)f <<"\n done="<<f->done<<" (id:"<<f->getId()<<") st="<<st;//<< " (AM from "<<args->descriptor.node();
+                    
+                    SoftXMT_wake( f->waiter );
+                    f->waiter = NULL;
+                } else {
+                    DVLOG(5) << "not need to wake:(id:"<<f->getId();
+                }
+            }
+
+            return alreadyStarted;
+        }
+
         static void started_request_am( started_request_args * args, size_t size, void * payload, size_t payload_size ) {
             Future< UserArg, F > * fptr = args->address.pointer();
             
@@ -103,27 +132,14 @@ class Future {
 //                    << "): future ptr:" << (void*)fptr
 //                    << "(future gaddress:"<<args->address;
 
-            int64_t st = fptr->started;
-            bool alreadyStarted = (st > 0);
-            fptr->started = st + 1;
-           
             void * reply_payload;
             size_t reply_payload_size;
+           
+            bool alreadyStarted = started_request_helper( fptr );
             
             // If future was already started in this case, it must have been started by touching thread.
             // Incrementing started again will tell the touching thread it can deallocate the Future
             if ( alreadyStarted ) {
-                DVLOG(5) << "already started:(id:"<<fptr->getId();
-                if ( fptr->done ) { //if it is done then toucher is waiting for the dequeue
-                    DVLOG(5) << "need to wake:(id:"<<fptr->getId();
-                    CHECK ( fptr->waiter!=NULL ) << "future ptr:" << (void*)fptr <<"\n done="<<fptr->done<<" (id:"<<fptr->getId()<<") st="<<st<< " (AM from "<<args->descriptor.node();
-                    
-                    SoftXMT_wake( fptr->waiter );
-                    fptr->waiter = NULL;
-                } else {
-                    DVLOG(5) << "not need to wake:(id:"<<fptr->getId();
-                }
-                
                 reply_payload = NULL;
                 reply_payload_size = 0;
             } else {
@@ -143,22 +159,31 @@ class Future {
         }
 
         static bool future_delegate_started( FutureAddress_t address, UserArg * arg ) {
-            started_memory_descriptor md;
-            md.address = address;
-            md.futureStarted = false;
-            md.done = false;
-            md.t = CURRENT_THREAD;
+            if ( address.node() == SoftXMT_mynode() ) {
+                // local shortcut
+                bool started = started_request_helper(address.pointer());
+                if ( !started ) {
+                    *arg = address.pointer()->userArg;
+                }
+                return started;
+            } else {
+                started_memory_descriptor md;
+                md.address = address;
+                md.futureStarted = false;
+                md.done = false;
+                md.t = CURRENT_THREAD;
 
-            started_request_args args;
-            args.descriptor = make_global(&md);
-            args.address = address;
-            SoftXMT_call_on( address.node(), &started_request_am, &args );
-            
-            while( !md.done ) {
-                SoftXMT_suspend();
+                started_request_args args;
+                args.descriptor = make_global(&md);
+                args.address = address;
+                SoftXMT_call_on( address.node(), &started_request_am, &args );
+
+                while( !md.done ) {
+                    SoftXMT_suspend();
+                }
+                *arg = md.result;
+                return md.futureStarted;
             }
-            *arg = md.result;
-            return md.futureStarted;
         }
         //////////////////////////////////////
         
@@ -166,6 +191,12 @@ class Future {
         static void call_as_future(FutureAddress_t futureAddr) {
             DVLOG(4) << "Future(other) "<< futureAddr;
             DVLOG(5) << CURRENT_THREAD->id << "will call started am " << futureAddr.pointer();
+
+            if (futureAddr.node() == SoftXMT_mynode()) {
+                global_futures_num_local_dq++;
+            } else {
+                global_futures_num_remote_dq++;
+            }
             
             UserArg arg;
             // check whether it is already started (and notify of dequeueing the task)
@@ -173,6 +204,12 @@ class Future {
                 DVLOG(5) << CURRENT_THREAD->id << "user_args="<<arg<<" for ftraddr="<< futureAddr.pointer();
                 // call user task 
                 F(arg);
+               
+                if (futureAddr.node() == SoftXMT_mynode()) {
+                    global_futures_num_local_started++;
+                } else {
+                    global_futures_num_remote_started++;
+                }
                 
                 // call wake up AM on Node that has the Future
                 future_done_args done_args = { futureAddr.pointer() };
@@ -212,10 +249,12 @@ class Future {
             // start if not started
             if ( SoftXMT_delegate_fetch_and_add_word( make_global(&started), 1 )==0 ) {
                 DVLOG(5) << CURRENT_THREAD->id << " gets to touch-go " << getId();
-            
+           
                 // call the user task
                 F(userArg);
                 done = true;
+                
+                global_futures_num_touched++;
             
                 CHECK( started <= 2 ) << "started=" << started << " (at most one additional increment should occur)";
             
@@ -238,6 +277,10 @@ class Future {
             DVLOG(4) << "Future(spawn) " << this->getId() << " address:"<< (void*)this;
             SoftXMT_publicTask( &call_as_future, make_global(this) );
         }
+
 };
+
+void futures_dump_stats();
+void futures_reset_stats();
 
 #endif
