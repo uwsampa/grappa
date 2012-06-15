@@ -87,6 +87,8 @@ void user_main( void* args )
   joiner.wait();
 
   BOOST_MESSAGE( "user main is exiting" );
+
+  SoftXMT_end_tasks();
 }
 
 BOOST_AUTO_TEST_CASE( test1 ) {
