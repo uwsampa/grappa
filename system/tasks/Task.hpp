@@ -270,9 +270,6 @@ inline void TaskManager::spawnRemotePrivate( void (*f)(T, S), T arg, S shared_ar
   cbarrier_cancel_local();
 }
 
-inline void TaskManager::signal_termination( ) {
-    all_terminate = true;
-}
 
 extern TaskManager global_task_manager;
 
