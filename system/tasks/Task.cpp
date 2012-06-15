@@ -62,6 +62,7 @@ bool TaskManager::tryConsumeLocal( Task * result ) {
         stats.record_private_task_dequeue();
         return true;
     } else if ( publicHasEle() ) {
+        DVLOG(5) << "consuming local task";
         *result = publicQ.peek();
         publicQ.pop( );
         stats.record_public_task_dequeue();
@@ -99,11 +100,11 @@ bool TaskManager::waitConsumeAny( Task * result ) {
             stealLock = false;
 
             VLOG(5) << CURRENT_THREAD << " trying to steal";
-            bool goodSteal = false;
+            int goodSteal = 0;
             Node victimId;
 
             for ( Node i = 1; 
-                  i < numLocalNodes && !goodSteal && !(sharedMayHaveWork || publicHasEle() || privateHasEle() || all_terminate);
+                  i < numLocalNodes && !goodSteal && !(sharedMayHaveWork || publicHasEle() || privateHasEle() || workDone);
                   i++ ) { // TODO permutation order
 
                 victimId = (localId + i) % numLocalNodes;
@@ -117,7 +118,7 @@ bool TaskManager::waitConsumeAny( Task * result ) {
             if ( goodSteal ) {
                 VLOG(5) << CURRENT_THREAD << " steal " << goodSteal
                     << " from Node" << victimId;
-                
+                VLOG(5) << *this; 
                 stats.record_successful_steal_session();
 
                 // publicQ should have had some elements in it
@@ -142,23 +143,23 @@ bool TaskManager::waitConsumeAny( Task * result ) {
 
     if ( !local_available() ) {
         if ( !SoftXMT_thread_idle() ) {
-            CHECK( !workDone ) << "perhaps there is a stray unidled thread problem?";
-            if ( all_terminate ) {
-                DVLOG(4) << CURRENT_THREAD << " responding to termination";
-                workDone = true;
-                SoftXMT_signal_done();
-            }
+            SoftXMT_yield();
         } else {
             DVLOG(5) << CURRENT_THREAD << " un-idled";
         }
     }
-
+    
     return false;
 }
 
 
 std::ostream& operator<<( std::ostream& o, const TaskManager& tm ) {
     return tm.dump( o );
+}
+
+void TaskManager::signal_termination( ) {
+    workDone = true;
+    SoftXMT_signal_done();
 }
 
 void TaskManager::finish() {
