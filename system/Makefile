@@ -184,7 +184,7 @@ run: $(TARGET)
 mpi_test: $(TARGET) $($(MPITYPE)_ENVVAR_TEMP) $($(MPITYPE)_EPILOG_TEMP)
 	-killall $<
 	$(ENV_VARIABLES) \
-	$($(MPITYPE)_MPIRUN) $($(MPITYPE)_EXPORT_ENV_VARIABLES) $($(MPITYPE)_HOST) $($(MPITYPE)_NPROC) -- $(MY_TAU_RUN) ./$< --log_level=test_suite --run_test=$(TARGET:.test=) $(ARGS)
+	$($(MPITYPE)_MPIRUN) $($(MPITYPE)_EXPORT_ENV_VARIABLES) $($(MPITYPE)_HOST) $($(MPITYPE)_NPROC) -- $(MY_TAU_RUN) ./$< --log_level=test_suite --run_test=$(TARGET:.test=) $(GRAPPA_ARGS)
 
 test: $(TARGET)
 	-killall $<
