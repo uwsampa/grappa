@@ -59,10 +59,10 @@ void yield_iter( int64_t i, int64_t * ignore ) {
     SoftXMT_yield();
 }
 
-void yield_next_iter( int64_t i, int64_t * ignore ) {
-    ind_local_count+=i;
-    SoftXMT_yield_next();
-}
+//void yield_next_iter( int64_t i, int64_t * ignore ) {
+//    ind_local_count+=i;
+//    SoftXMT_yield_next();
+//}
 
 ///
 /// ForkJoin loop bodies
@@ -106,13 +106,13 @@ struct func_yield : public ForkJoinIteration {
         SoftXMT_yield();
     }
 };
-struct func_yield_next : public ForkJoinIteration {
-    int64_t * ignore;
-    void operator()(int64_t i) const {
-        ind_local_count+=i;
-        SoftXMT_yield_next();
-    }
-};
+//struct func_yield_next : public ForkJoinIteration {
+//    int64_t * ignore;
+//    void operator()(int64_t i) const {
+//        ind_local_count+=i;
+//        SoftXMT_yield_next();
+//    }
+//};
 
 ///
 /// ForkJoin dump stats
