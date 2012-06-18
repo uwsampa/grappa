@@ -92,7 +92,7 @@ thread3_tests.o thread3_tests.test: $(LIBRARY)
 tasks/Thread_tests.o tasks/Thread_tests.test: tasks/Thread.o coro.o stack.o tasks/BasicScheduler.o Timestamp.o
 
 Cache_tests.o Cache_tests.test: $(LIBRARY)
-Rate_measure.o Rate_measure.exe: $(LIBRARY)
+RateMeasure_tests.o RateMeasure_tests.test: $(LIBRARY)
 CacheWrapped_tests.o CacheWrapped_tests.test: $(LIBRARY)
 
 ForkJoin_tests.o ForkJoin_tests.test: $(LIBRARY)
