@@ -264,13 +264,14 @@ include $(TAUDIR)/include/Makefile
 CFLAGS+= $(TAU_INCLUDE) 
 
 ifdef TAU_API
-CXX= $(TAU_CXX)
+CXX= $(TAU_CXX) 
 CC= $(TAU_CC)
 LD= $(TAU_MPICC)
 CFLAGS+= $(TAU_DEFS) -DGRAPPA_TRACE -Wno-write-strings
 LIBS= $(TAU_LIBS)
 LDFLAGS+= $(USER_OPT)
 MY_TAU_RUN=$(TAUDIR)/x86_64/bin/tau_load.sh
+ENV_VARIABLES+= TAU_METRICS=LINUX_TIMERS
 endif
 
 #
