@@ -5,6 +5,10 @@
 #include <boost/cstdint.hpp>
 #include <iostream>
 
+#ifdef VTRACE
+#include <vt_user.h>
+#endif
+
 #include "StateTimer.hpp"
 
 class Scheduler;
@@ -121,6 +125,9 @@ Thread * thread_spawn ( Thread * me, Scheduler * sched, thread_func f, void * ar
 Thread * thread_init();
 
 inline void* thread_context_switch( Thread * running, Thread * next, void * val ) {
+#ifdef VTRACE
+  VT_TRACER("context switch");
+#endif
     void* res = coro_invoke( running->co, next->co, val );
     StateTimer::enterState_thread();
     return res;
