@@ -16,6 +16,10 @@ Communicator::Communicator( )
   : handlers_()
   , registration_is_allowed_( false )
   , communication_is_allowed_( false )
+#ifdef VTRACE
+  , communicator_grp_vt( VT_COUNT_GROUP_DEF( "Communicator" ) )
+  , send_ev_vt( VT_COUNT_DEF( "Sends", "bytes", VT_COUNT_TYPE_UNSIGNED, communicator_grp_vt ) )
+#endif
   , stats()
 { }
 
