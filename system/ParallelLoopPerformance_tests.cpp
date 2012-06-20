@@ -132,6 +132,38 @@ void futures_reset_stats_all_nodes() {
   fork_join_custom(&f);
 }
 
+LOOP_FUNCTION(tau_disable_func,nid) {
+  TAU_DISABLE_INSTRUMENTATION();
+}
+LOOP_FUNCTION(tau_enable_func,nid) {
+  TAU_ENABLE_INSTRUMENTATION();
+}
+void tau_enable_instrumentation_all() {
+    tau_enable_func f;
+    fork_join_custom(&f);
+}
+void tau_disable_instrumentation_all() {
+    tau_disable_func f;
+    fork_join_custom(&f);
+}
+
+LOOP_FUNCTION(tau_db_dump_func,nid) {
+  //TAU_DB_DUMP();
+  dump_all_task_profiles();
+}
+LOOP_FUNCTION(tau_db_purge_func,nid) {
+  TAU_DB_PURGE();
+}
+void tau_db_dump_all() {
+    tau_db_dump_func f;
+    fork_join_custom(&f);
+}
+void tau_db_purge_all() {
+    tau_db_purge_func f;
+    fork_join_custom(&f);
+}
+
+
 #define FUTURE_DUMP_ON 0
 #if FUTURE_DUMP_ON
 #define FUTURE_DUMP future_dump_stats_all_nodes()
@@ -148,6 +180,8 @@ struct user_main_args {
 
 void user_main( user_main_args * args ) 
 {
+    //tau_disable_instrumentation_all();
+    
     int64_t iters = 1 << FLAGS_iters;
     
     DictOut d;
@@ -213,9 +247,16 @@ void user_main( user_main_args * args )
         SoftXMT_reset_stats();
 
         // a[i] = i
-        double start = wctime(); 
+        double start, end;
+        {
+        //tau_enable_instrumentation_all();
+        tau_db_purge_all();
+        start = wctime(); 
         parallel_loop_implFuture( 0, iters, &delegate_iter, (int64_t)0 );
-        double end = wctime();
+        end = wctime();
+        //tau_disable_instrumentation_all();
+        tau_db_dump_all();
+        }
 
         double runtime = end - start;
         BOOST_MESSAGE( "fd{runtime: " << runtime << ", rate: " << ((double)iters)/runtime << ", iterations: " << iters << "}" );
@@ -489,10 +530,14 @@ BOOST_AUTO_TEST_CASE( test1 ) {
 
     user_main_args uargs;
 
+    //TAU_DISABLE_INSTRUMENTATION();
+    
     DVLOG(1) << "Spawning user main Thread....";
     SoftXMT_run_user_main( &user_main, &uargs );
     VLOG(5) << "run_user_main returned";
     CHECK( SoftXMT_done() );
+    
+    //TAU_ENABLE_INSTRUMENTATION();
 
     SoftXMT_finish( 0 );
 }
