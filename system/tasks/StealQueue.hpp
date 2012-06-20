@@ -91,7 +91,7 @@ class StealQueue {
         uint64_t sharedDepth( ) const;
         void release( int k ); 
         int acquire( int k ); 
-        int steal_locally( Node victim, int chunkSize, Thread * current ); 
+        int steal_locally( Node victim, int chunkSize ); 
         void setState( int state );
         
         uint64_t get_nNodes( ) {
@@ -320,29 +320,26 @@ void StealQueue<T>::workStealRequest_am(workStealRequest_args * args, size_t siz
 
 #include "Thread.hpp"
 template <typename T>
-int StealQueue<T>::steal_locally( Node victim, int k, Thread * current ) {
+int StealQueue<T>::steal_locally( Node victim, int k ) {
 
     local_steal_amount = -1;
 
     workStealRequest_args req_args = { k, global_communicator.mynode() };
     SoftXMT_call_on( victim, &StealQueue<T>::workStealRequest_am, &req_args );
 
-    void * stealprof;
-    TAU_PROFILER_CREATE( stealprof, "steal_locally", "(suspended)", TAU_USER2);
+    GRAPPA_PROFILE_CREATE( stealprof, "steal_locally", "(suspended)", TAU_USER2);
 
     // steal is blocking
     // TODO: use suspend-wake mechanism
     while ( local_steal_amount == -1 ) {
-        steal_waiter = current;
+        steal_waiter = global_scheduler.get_current_thread();
         
-        TAU_PROFILER_START_TASK( stealprof, current->tau_taskid );
+        GRAPPA_PROFILE_THREAD_START( stealprof, global_scheduler.get_current_thread() );
 	    
         global_scheduler.thread_suspend();
         //SoftXMT_suspend();
         
-        TAU_PROFILER_STOP_TASK( stealprof, current->tau_taskid );
-
-        SoftXMT_suspend();
+        GRAPPA_PROFILE_THREAD_STOP( stealprof, global_scheduler.get_current_thread() );
     }
 
     return local_steal_amount;

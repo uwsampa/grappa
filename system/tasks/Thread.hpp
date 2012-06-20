@@ -6,7 +6,7 @@
 #include <iostream>
 
 #include "StateTimer.hpp"
-#include <TAU.h>
+#include "PerformanceTools.hpp"
 
 class Scheduler;
 typedef uint32_t threadid_t; 
@@ -43,6 +43,9 @@ class ThreadQueue {
         
         friend std::ostream& operator<< ( std::ostream& o, const ThreadQueue& tq );
 };
+
+// keeps track of last id assigned
+TAU_PROFILE_STMT( extern int thread_last_tau_taskid );
 
 struct Thread {
   coro *co;
@@ -123,9 +126,12 @@ Thread * thread_spawn ( Thread * me, Scheduler * sched, thread_func f, void * ar
 Thread * thread_init();
 
 inline void* thread_context_switch( Thread * running, Thread * next, void * val ) {
+    // This timer ensures we are able to calculate exclusive time for the previous thing in this thread's callstack,
+    // so that we don't count time in another thread
+    GRAPPA_THREAD_FUNCTION_PROFILE( GRAPPA_SUSPEND_GROUP, running );  
     void* res = coro_invoke( running->co, next->co, val );
     StateTimer::enterState_thread();
-    return res;
+    return res; 
 }
 
 inline int thread_is_running( Thread * thr ) {

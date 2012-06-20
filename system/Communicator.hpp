@@ -30,6 +30,8 @@
 #include <gasnet.h>
 #include "gasnet_helpers.h"
 
+#include "PerformanceTools.hpp"
+
 /// Common pointer type for active message handlers used by GASNet
 /// library. Actual handlers may have arguments.
 typedef void (*HandlerPointer)();    
@@ -281,6 +283,7 @@ public:
 
   /// poll messaging layer
   inline void poll() { 
+    GRAPPA_FUNCTION_PROFILE( GRAPPA_COMM_GROUP );
     assert( communication_is_allowed_ );
     GASNET_CHECK( gasnet_AMPoll() ); 
   }
