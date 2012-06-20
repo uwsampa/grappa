@@ -61,6 +61,7 @@ Aggregator::~Aggregator() {
 }
 
 void Aggregator::deaggregate( ) {
+  GRAPPA_FUNCTION_PROFILE( GRAPPA_COMM_GROUP );
   StateTimer::enterState_deaggregation();
   while( !received_AM_queue_.empty() ) {
     DVLOG(5) << "deaggregating";
@@ -100,7 +101,11 @@ void Aggregator::deaggregate( ) {
         DVLOG(5) << "calling " << *header 
                 << " with args " << args
                 << " and payload " << payload;
-        fp( args, header->args_size, payload, header->payload_size ); // execute
+      
+        {   
+            GRAPPA_PROFILE( deag_func_timer, "deaggregate execution", "", TAU_USER );
+            fp( args, header->args_size, payload, header->payload_size ); // execute
+        } 
       } else { // not for us, so forward towards destination
         DVLOG(5) << "forwarding " << *header
                 << " with args " << args
@@ -122,6 +127,7 @@ void Aggregator::finish() {
 }
 
 void Aggregator_deaggregate_am( gasnet_token_t token, void * buf, size_t size ) {
+  GRAPPA_FUNCTION_PROFILE( GRAPPA_COMM_GROUP );
   DVLOG(5) << "received message with size " << size;
   // TODO: too much copying
   Aggregator::ReceivedAM am( size, buf );

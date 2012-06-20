@@ -8,6 +8,7 @@
 #include <glog/logging.h>
 #include <sstream>
 
+#include "PerformanceTools.hpp"
 #include "StateTimer.hpp"
 
 DECLARE_int64( periodic_poll_ticks );

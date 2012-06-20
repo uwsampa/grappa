@@ -4,7 +4,7 @@
 StateTimer * state_timer;
 
 void StateTimer::enterState_thread_( ) {
-#ifdef GRAPPA_TRACE
+#if STATE_TIMER_ON
     switch ( CURRENT_THREAD->state ) {
         case USER:
             enterState_user_();
@@ -31,7 +31,7 @@ void StateTimer::enterState_thread_( ) {
 }
 
 void StateTimer::setThreadState_( int state ) {
-#ifdef GRAPPA_TRACE
+#if STATE_TIMER_ON
     CURRENT_THREAD->state = state;
 #endif
 }
