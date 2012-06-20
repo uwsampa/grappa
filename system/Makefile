@@ -315,6 +315,11 @@ TESTS:=$(wildcard *.test)
 	  sed -e 's/^ *//' -e 's/$$/:/' >> $*.d
 	@rm -f $*.d.tmp
 
+# build a pre-processed
+%.preproc: %.cpp
+	$(ENV_VARIABLES) \
+	$($(MPITYPE)_CXX) -E -MMD -MF $*.d.tmp $(CFLAGS) $(CXXFLAGS) $< -o $*.preproc
+
 # build a precompiled header
 # includes autodependence stuff
 %.pch: %.hpp
@@ -342,7 +347,7 @@ stack.o: stack.S
 	$($(MPITYPE)_CC) -c $(CFLAGS) $< -o $*.o
 
 
-CLEAN_FILES+= *.exe *.o *.pch *.d *.test *.dis libSoftXMT.a libSoftXMT.so* ./tasks/*.o $(LIBRARY_CONTENTS) $($(MPITYPE)_CLEAN_FILES)
+CLEAN_FILES+= *.exe *.o *.pch *.d *.test *.preproc *.dis libSoftXMT.a libSoftXMT.so* ./tasks/*.o ./tasks/*.preproc $(LIBRARY_CONTENTS) $($(MPITYPE)_CLEAN_FILES)
 clean:
 	rm -f $(CLEAN_FILES)
 
