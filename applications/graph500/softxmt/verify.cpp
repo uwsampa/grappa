@@ -147,7 +147,7 @@ LOOP_FUNCTOR(final_verify_func, k, ((GlobalAddress<int64_t>,bfs_tree)) ((GlobalA
 
 static int64_t load_nedge(int64_t root, GlobalAddress<int64_t> bfs_tree) {
   char fname[256];
-  sprintf(fname, "ckpts/graph500.%lld.%lld.%lld.nedge", SCALE, edgefactor, root);
+  sprintf(fname, "ckpts/graph500.%lld.%lld.%lld%s.nedge", SCALE, edgefactor, root, (use_RMAT)?".rmat":"");
   FILE * fin = fopen(fname, "r");
   if (!fin) {
     LOG(ERROR) << "Unable to open file: " << fname << ", will do verify manually and save checkpoint.";
@@ -161,7 +161,7 @@ static int64_t load_nedge(int64_t root, GlobalAddress<int64_t> bfs_tree) {
 
 static void save_nedge(int64_t root, int64_t nedge_traversed, GlobalAddress<int64_t> bfs_tree) {
   char fname[256];
-  sprintf(fname, "ckpts/graph500.%lld.%lld.%lld.nedge", SCALE, edgefactor, root);
+  sprintf(fname, "ckpts/graph500.%lld.%lld.%lld%s.nedge", SCALE, edgefactor, root, (use_RMAT)?".rmat":"");
   FILE * fout = fopen(fname, "w");
   if (!fout) {
     LOG(ERROR) << "Unable to open file for writing: " << fname;
