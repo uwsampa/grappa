@@ -35,6 +35,8 @@ int NBFS = NBFS_max;
 int64_t SCALE = default_SCALE;
 int64_t edgefactor = default_edgefactor;
 
+int load_checkpoint = 0;
+
 void
 get_options (int argc, char **argv) {
 	extern int opterr;
@@ -48,7 +50,7 @@ get_options (int argc, char **argv) {
 	if (getenv ("VERBOSE"))
 		VERBOSE = 1;
 	
-	while ((c = getopt (argc, argv, "v?hRs:e:A:a:B:b:C:c:D:d:Vo:r:")) != -1)
+	while ((c = getopt (argc, argv, "v?hRKs:e:A:a:B:b:C:c:D:d:Vo:r:p")) != -1)
 		switch (c) {
 			case 'v':
 				printf ("%s version %d\n", NAME, VERSION);
@@ -59,8 +61,10 @@ get_options (int argc, char **argv) {
 				printf ("Options:\n"
 						"  v   : version\n"
 						"  h|? : this message\n"
-						"  R   : use R-MAT from SSCA2 (default: use Kronecker generator)\n"
-						"  s   : R-MAT scale (default %" PRId64 ")\n"
+						"  R   : explicitly use R-MAT from SSCA2 (this is now default, kept for legacy reasons)\n"
+            "  K   : use Kronecker generator (default: use RMAT)\n"
+						"  p   : Load from checkpoint file and just do BFS\n"
+            "  s   : R-MAT scale (default %" PRId64 ")\n"
 						"  e   : R-MAT edge factor (default %" PRId64 ")\n"
 						"  A|a : R-MAT A (default %lg) >= 0\n"
 						"  B|b : R-MAT B (default %lg) >= 0\n"
@@ -110,6 +114,12 @@ get_options (int argc, char **argv) {
 			case 'R':
 				use_RMAT = 1;
 				break;
+      case 'K':
+        use_RMAT = 0;
+        break;
+      case 'p':
+        load_checkpoint = 1;
+        break;
 			case 'o':
 				dumpname = strdup (optarg);
 				if (!dumpname) {

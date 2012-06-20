@@ -14,6 +14,7 @@
 #include "../graph500.h"
 #include "../xalloc.h"
 #include "../generator/graph_generator.h"
+#include "../options.h"
 
 #define MINVECT_SIZE 2
 
@@ -21,6 +22,11 @@ static int64_t maxvtx, nv, sz;
 static int64_t * restrict xoff; /* Length 2*nv+2 */
 static int64_t * restrict xadjstore; /* Length MINVECT_SIZE + (xoff[nv] == nedge) */
 static int64_t * restrict xadj;
+
+void checkpoint_in(int SCALE, int edgefactor, struct packed_edge * restrict IJ, int64_t * nedge, int64_t * bfs_roots, int64_t * nbfs) {
+  fprintf(stderr, "checkpointing not supported for this version yet!\n");
+  load_checkpoint = 0;
+}
 
 static void
 find_nv (const struct packed_edge * restrict IJ, const int64_t nedge)
@@ -238,4 +244,9 @@ void
 destroy_graph (void)
 {
 	free_graph ();
+}
+
+void checkpoint_out(int64_t SCALE, int64_t edgefactor, const struct packed_edge * restrict edges, const int64_t nedge, const int64_t * restrict bfs_roots, const int64_t nbfs)
+{
+	fprintf(stderr, "checkpoint not implemented for this platform\n");
 }

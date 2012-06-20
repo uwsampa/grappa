@@ -16,7 +16,7 @@ extern char *rootname;
 
 extern double A, B, C, D;
 
-#define NBFS_max 2
+#define NBFS_max 8
 extern int NBFS;
 
 #define default_SCALE ((int64_t)14)
@@ -26,5 +26,7 @@ extern int64_t SCALE;
 extern int64_t edgefactor;
 
 void get_options (int argc, char **argv);
+
+extern int load_checkpoint;
 
 #endif /* OPTIONS_HEADER_ */

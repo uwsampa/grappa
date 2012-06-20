@@ -36,7 +36,7 @@ void checkpoint_out(int64_t SCALE, int64_t edgefactor, const struct packed_edge 
     exit(1);
   }
   
-  fprintf(stderr, "%lld %lld %lld %lld\n", nedge, nv, nadj, nbfs);
+  fprintf(stderr, "nedge=%lld, nv=%lld, nadj=%lld, nbfs=%lld\n", nedge, nv, nadj, nbfs);
   
   fwrite(&nedge, sizeof(nedge), 1, fout);
   fwrite(&nv, sizeof(nv), 1, fout);
