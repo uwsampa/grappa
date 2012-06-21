@@ -1,10 +1,8 @@
 TAUDIR=/sampa/share/tau-perf/tau
 
-# TODO consolidate into same build of tau
 TAU_BIN=$(TAUDIR)/x86_64/bin
 
-# TODO 
-TRANSLATE_UTILS=$(SOFTXMT_HOME)/system/translate_tags
+UTILS=$(SOFTXMT_HOME)/system/utils
 
 merge: $(TRACEDIR)/tau.trc $(TRACEDIR)/tau.edf
 otf: $(TRACEDIR)/app.otf
@@ -15,6 +13,10 @@ backup:
 	mkdir -p $(TRACE_BACKUP_DIR)
 	mv $(TRACEDIR) $(shell echo $(TRACE_BACKUP_DIR)/$(TARGET)-$(shell git rev-parse --short HEAD))-$(shell date | awk '{gsub(/ +/, "_");print}')
 	mkdir -p $(TRACEDIR)
+
+# fix GRAPPA tau profiling group names
+fixg:
+	cd $(TRACEDIR); cat ../ProfilerConfig.hpp | cut -d ' ' -f2,3 | $(UTILS)/rename_groups.sh
 
 # merge trace files; also creates tau.edf
 $(TRACEDIR)/tau.trc: $(TRACEDIR)/tautrace.*
@@ -40,7 +42,7 @@ $(TARGET).d: $(TARGET)
 
 # generate mapping from trace message tags to function names
 $(TRACEDIR)/fn_mappings: $(TRACEDIR)/reader.out $(TARGET).d
-	grep Message $< | cut -d , -f5 | cut -d ' ' -f3 | sort | uniq | $(TRANSLATE_UTILS)/obj_grep.rb $(TARGET).d > $@
+	grep Message $< | cut -d , -f5 | cut -d ' ' -f3 | sort | uniq | $(UTILS)/obj_grep.rb $(TARGET).d > $@
 
 # remove pre-merged trace files
 clean_orig: $(TRACEDIR)/tau.trc $(TRACEDIR)/tau.edf
