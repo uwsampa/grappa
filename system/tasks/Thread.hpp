@@ -44,8 +44,10 @@ class ThreadQueue {
         friend std::ostream& operator<< ( std::ostream& o, const ThreadQueue& tq );
 };
 
+#ifdef GRAPPA_TRACE
 // keeps track of last id assigned
-TAU_PROFILE_STMT( extern int thread_last_tau_taskid );
+extern int thread_last_tau_taskid;
+#endif
 
 struct Thread {
   coro *co;
@@ -59,7 +61,7 @@ struct Thread {
   int done;
 #ifdef GRAPPA_TRACE
   int state;
-  TAU_PROFILE_STMT( int tau_taskid );
+  int tau_taskid;
 #endif
 
   Thread(Scheduler * sched) 
