@@ -14,6 +14,8 @@
     #define TAU_DB_DUMP_PREFIX_TASK( a, b )
 #endif
 
+DECLARE_bool(record_grappa_events);
+
 #define SAMPLE_RATE (1<<4)
 
 #define GRAPPA_DEFINE_EVENT_GROUP(group) \
@@ -54,6 +56,7 @@
 #endif
 
 
+// Convenient C++ scope profiling macros
 #ifdef GRAPPA_TRACE
 #define __cat2(x,y) x##y
 #define __cat(x,y) __cat2(x,y)
@@ -93,13 +96,11 @@ class GrappaProfiler {
 
 
 
-// groups
-#define GRAPPA_SUSPEND_GROUP TAU_USER4
-#define GRAPPA_COMM_GROUP TAU_USER3
-
-
 void dump_all_task_profiles();
 
+
+// include profiler groups
+#include "ProfilerGroups.hpp"
 
 #endif // PERFORMANCE_TOOLS_HPP
 
