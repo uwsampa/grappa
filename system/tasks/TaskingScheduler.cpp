@@ -116,7 +116,7 @@ void workerLoop ( Thread * me, void* args ) {
         StateTimer::setThreadState( StateTimer::USER );
         StateTimer::enterState_user();
         {
-            GRAPPA_PROFILE( exectimer, "user_execution", "", TAU_USER );
+            GRAPPA_PROFILE( exectimer, "user_execution", "", GRAPPA_USER_GROUP );
             nextTask.execute();
         }
         StateTimer::setThreadState( StateTimer::FINDWORK );

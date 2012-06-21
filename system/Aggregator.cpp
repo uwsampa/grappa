@@ -103,7 +103,7 @@ void Aggregator::deaggregate( ) {
                 << " and payload " << payload;
       
         {   
-            GRAPPA_PROFILE( deag_func_timer, "deaggregate execution", "", TAU_USER );
+            GRAPPA_PROFILE( deag_func_timer, "deaggregate execution", "", GRAPPA_USERAM_GROUP );
             fp( args, header->args_size, payload, header->payload_size ); // execute
         } 
       } else { // not for us, so forward towards destination
