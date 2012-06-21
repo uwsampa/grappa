@@ -209,6 +209,8 @@ static inline void SoftXMT_idle_flush_poll() {
   global_aggregator.idle_flush_poll();
 }
 
+char * SoftXMT_get_profiler_filename( );
+
 #include "Addressing.hpp"
 #include "Tasking.hpp"
 #include "StateTimer.hpp"

@@ -12,6 +12,9 @@
 #include <boost/static_assert.hpp>
 
 #include <TAU.h>
+#ifdef VTRACE
+#include <vt_user.h>
+#endif
 
 #define STATIC_ASSERT_SIZE_8( type ) BOOST_STATIC_ASSERT( sizeof(type) == 8 )
 
@@ -66,6 +69,9 @@ int SoftXMT_run_user_main( void (* fn_p)(T), T args )
   STATIC_ASSERT_SIZE_8( T );
     
   TAU_PROFILE("run_user_main()", "(user code entry)", TAU_USER);
+#ifdef VTRACE
+  VT_TRACER("run_user_main()");
+#endif
   
   if( SoftXMT_mynode() == 0 ) {
     CHECK( CURRENT_THREAD == master_thread ); // this should only be run at the toplevel

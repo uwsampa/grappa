@@ -33,6 +33,10 @@
 
 
 #include <TAU.h>
+#ifdef VTRACE
+#include <vt_user.h>
+#endif
+
 // function to compute a mpi-like tag for communication tracing
 //#define aggregator_trace_tag(data) (int) (0x7FFF & reinterpret_cast<intptr_t>(data))
 #define aggregator_trace_tag(data) (0xffffffff & reinterpret_cast<intptr_t>(data))
@@ -201,6 +205,10 @@ struct AggregatorGenericCallHeader {
 // TODO: really don't want this transmitted even in tracing
   Node source;
 #endif
+#ifdef VTRACE
+// TODO: really don't want this transmitted even in tracing
+  uint64_t tag;
+#endif
 };
 
 static std::ostream& operator<<( std::ostream& o, const AggregatorGenericCallHeader& h ) {
@@ -270,6 +278,11 @@ private:
   /// routing table for hierarchical aggregation
   std::vector< Node > route_map_;
 
+#ifdef VTRACE
+  uint64_t tag_;
+  unsigned vt_agg_commid_;
+#endif
+
   /// storage for deaggregation
   struct ReceivedAM {
     size_t size_;
@@ -335,6 +348,9 @@ public:
   }
   
   inline void idle_flush_poll() {
+#ifdef VTRACE
+    VT_TRACER("idle_flush_poll");
+#endif
     StateTimer::enterState_communication();
     global_communicator.poll();
     while ( !least_recently_sent_.empty() ) {
@@ -359,6 +375,9 @@ public:
 
   /// poll communicator. send any aggregated messages that have been sitting for too long
   inline void poll() {
+#ifdef VTRACE
+    VT_TRACER("poll");
+#endif
     global_communicator.poll();
     uint64_t ts = get_timestamp();
     // timestamp overflows are silently ignored. 
@@ -386,6 +405,9 @@ public:
 inline void aggregate( Node destination, AggregatorAMHandler fn_p,
                          const void * args, const size_t args_size,
                          const void * payload, const size_t payload_size ) {
+#ifdef VTRACE
+    VT_TRACER("aggregate");
+#endif
     CHECK( destination < max_nodes_ ) << "destination:" << destination << " max_nodes_:" << max_nodes_;
     Node target = get_target_for_node( destination );
     CHECK( target < max_nodes_ ) << "target:" << target << " max_nodes_:" << max_nodes_;
@@ -422,6 +444,9 @@ inline void aggregate( Node destination, AggregatorAMHandler fn_p,
 #ifdef GRAPPA_TRACE
                                           , global_communicator.mynode()
 #endif
+#ifdef VTRACE
+					   , tag_
+#endif
    
              };
    
@@ -435,11 +460,18 @@ inline void aggregate( Node destination, AggregatorAMHandler fn_p,
     // TODO: good candidate for TAU_CONTEXT_EVENT
       int fn_p_tag = aggregator_trace_tag( fn_p );
       TAU_TRACE_SENDMSG(fn_p_tag, destination, args_size + payload_size );
+      // TODO: maybe add named communicators for separate function calls?
+#ifdef VTRACE
+      VT_SEND( vt_agg_commid_, tag_, total_call_size );
+#endif
   }
 
   uint64_t ts = get_timestamp();
   least_recently_sent_.update_or_insert( target, -ts );
   previous_timestamp_ = ts;
+#ifdef VTRACE
+  tag_ += global_communicator.mynode();
+#endif
   DVLOG(5) << "aggregated " << header;
 }
 
