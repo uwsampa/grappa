@@ -36,7 +36,7 @@ void TaskManager::init (bool doSteal_arg, Node localId_arg, Node * neighbors_arg
         
 
 bool TaskManager::getWork( Task * result ) {
-    GRAPPA_FUNCTION_PROFILE( TAU_USER1 );
+    GRAPPA_FUNCTION_PROFILE( GRAPPA_TASK_GROUP );
 
     while ( !workDone ) {
         if ( tryConsumeLocal( result ) ) {
@@ -99,7 +99,7 @@ bool TaskManager::waitConsumeAny( Task * result ) {
     if ( doSteal && globalMayHaveWork ) {
         if ( stealLock ) {
     
-            GRAPPA_PROFILE_CREATE( prof, "stealing", "(session)", TAU_USER1 );
+            GRAPPA_PROFILE_CREATE( prof, "stealing", "(session)", GRAPPA_TASK_GROUP );
             GRAPPA_PROFILE_START( prof );
             
             // only one Thread is allowed to steal
@@ -153,7 +153,7 @@ bool TaskManager::waitConsumeAny( Task * result ) {
     }
 
     if ( !available() ) {
-        GRAPPA_PROFILE_CREATE( prof, "worker idle", "(suspended)", TAU_USER2 ); 
+        GRAPPA_PROFILE_CREATE( prof, "worker idle", "(suspended)", GRAPPA_SUSPEND_GROUP ); 
         GRAPPA_PROFILE_START( prof );
         if ( !SoftXMT_thread_idle() ) {
             // no work so suggest global termination barrier

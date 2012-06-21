@@ -327,7 +327,7 @@ int StealQueue<T>::steal_locally( Node victim, int k ) {
     workStealRequest_args req_args = { k, global_communicator.mynode() };
     SoftXMT_call_on( victim, &StealQueue<T>::workStealRequest_am, &req_args );
 
-    GRAPPA_PROFILE_CREATE( stealprof, "steal_locally", "(suspended)", TAU_USER2);
+    GRAPPA_PROFILE_CREATE( stealprof, "steal_locally", "(suspended)", GRAPPA_SUSPEND_GROUP );
 
     // steal is blocking
     // TODO: use suspend-wake mechanism

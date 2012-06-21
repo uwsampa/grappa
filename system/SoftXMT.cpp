@@ -9,8 +9,7 @@
 #include "GlobalMemory.hpp"
 #include "tasks/Task.hpp"
 #include "ForkJoin.hpp"
-
-#include <TAU.h>
+#include "PerformanceTools.hpp"
 
 // command line arguments
 DEFINE_bool( steal, true, "Allow work-stealing between public task queues");
@@ -93,6 +92,9 @@ void SoftXMT_init( int * argc_p, char ** argv_p[], size_t global_memory_size_byt
   sigabrt_sa.sa_flags = 0;
   sigabrt_sa.sa_handler = &sigabrt_sighandler;
   CHECK_EQ( 0, sigaction( SIGABRT, &sigabrt_sa, 0 ) ) << "SIGABRT signal handler installation failed.";
+
+  // initialize Tau profiling groups
+  generate_profile_groups();
 
   // initializes system_wide global_communicator
   global_communicator.init( argc_p, argv_p );

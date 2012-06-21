@@ -13,8 +13,6 @@
 
 #include <glog/logging.h>
 
-#define STATE_TIMER_GROUP TAU_USER3
-
 #ifdef GRAPPA_TRACE
 #define STATE_TIMER_ON 0
 #else 
@@ -44,15 +42,15 @@ class StateTimer {
     StateTimer() {
 #if STATE_TIMER_ON
         // top level timer
-        TAU_PROFILER_CREATE( top_level_timer, "state_timing", "(top level)", STATE_TIMER_GROUP );
+        TAU_PROFILER_CREATE( top_level_timer, "state_timing", "(top level)", GRAPPA_STATE_TIMER_GROUP );
 
         // create the timers
-        TAU_PROFILER_CREATE( user_timer, "user_timer", "()", STATE_TIMER_GROUP );
-        TAU_PROFILER_CREATE( system_timer, "system_timer", "()", STATE_TIMER_GROUP );
-        TAU_PROFILER_CREATE( communication_timer, "communication_timer", "()", STATE_TIMER_GROUP );
-        TAU_PROFILER_CREATE( deaggregation_timer, "deaggregation_timer", "()", STATE_TIMER_GROUP );
-        TAU_PROFILER_CREATE( scheduler_timer, "scheduler_timer", "()", STATE_TIMER_GROUP );
-        TAU_PROFILER_CREATE( findwork_timer, "findwork_timer", "()", STATE_TIMER_GROUP );
+        TAU_PROFILER_CREATE( user_timer, "user_timer", "()", GRAPPA_STATE_TIMER_GROUP );
+        TAU_PROFILER_CREATE( system_timer, "system_timer", "()", GRAPPA_STATE_TIMER_GROUP );
+        TAU_PROFILER_CREATE( communication_timer, "communication_timer", "()", GRAPPA_STATE_TIMER_GROUP );
+        TAU_PROFILER_CREATE( deaggregation_timer, "deaggregation_timer", "()", GRAPPA_STATE_TIMER_GROUP );
+        TAU_PROFILER_CREATE( scheduler_timer, "scheduler_timer", "()", GRAPPA_STATE_TIMER_GROUP );
+        TAU_PROFILER_CREATE( findwork_timer, "findwork_timer", "()", GRAPPA_STATE_TIMER_GROUP );
 
         // Create a fake task to make State timers separate from normal profiling.
         // This is necessary because Tau expects only nested timers
