@@ -46,3 +46,4 @@ reader.out
 *.slog2
 
 core.*
+*.prof
