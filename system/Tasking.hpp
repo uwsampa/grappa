@@ -56,12 +56,20 @@ void SoftXMT_publicTask( void (*fn_p)(T), T arg) {
   SoftXMT_publicTask(reinterpret_cast<void (*)(T,void*)>(fn_p), arg, (void*)NULL);
 }
 
+// wrapper to make user_main terminate the tasking layer
+void SoftXMT_end_tasks();
+template < typename T >
+void user_main_wrapper( void (*fp)(T), T args ) {
+    fp( args );
+    SoftXMT_end_tasks();
+}
 
 /// Spawn and run user main function on node 0. Other nodes just run
 /// existing threads (service threads) until they are given more to
 /// do. TODO: get return values working
+//template < typename T, void (*F)(T) >
 template < typename T >
-int SoftXMT_run_user_main( void (* fn_p)(T), T args )
+int SoftXMT_run_user_main( void (*fp)(T), T args )
 {
   STATIC_ASSERT_SIZE_8( T );
     
@@ -71,7 +79,7 @@ int SoftXMT_run_user_main( void (* fn_p)(T), T args )
     CHECK( CURRENT_THREAD == master_thread ); // this should only be run at the toplevel
 
     // create user_main as a private task
-    SoftXMT_privateTask( fn_p, args );
+    SoftXMT_privateTask( &user_main_wrapper<T>, fp, args );
     DVLOG(5) << "Spawned user_main";
     
     // spawn 1 extra worker that will take user_main

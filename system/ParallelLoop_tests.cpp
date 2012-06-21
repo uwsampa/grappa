@@ -90,7 +90,6 @@ void user_main( user_main_args * args )
     delete dub_counts;
 
     BOOST_MESSAGE( "user main is exiting" );
-    SoftXMT_end_tasks();
 }
 
 
