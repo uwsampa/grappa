@@ -19,14 +19,18 @@ Thread * thread_init() {
   master->next = NULL;
   master->id = 0; // master always id 0
   master->done = 0;
-  
-  TAU_PROFILE_STMT( master->tau_taskid=0 );
+ 
+#ifdef GRAPPA_TRACE 
+  master->tau_taskid=0;
+#endif
 
   return master;
 }
 
+#ifdef GRAPPA_TRACE
 // keeps track of last id assigned
-TAU_PROFILE_STMT( int thread_last_tau_taskid=0 );
+int thread_last_tau_taskid=0;
+#endif
 
 static void tramp(struct coro * me, void * arg) {
   // Pass control back and forth a few times to get the info we need.
@@ -43,9 +47,11 @@ static void tramp(struct coro * me, void * arg) {
   // create new Tau task, and top level timer for the task
   int new_taskid;
   TAU_CREATE_TASK(new_taskid);
-  TAU_PROFILE_STMT( my_thr->tau_taskid = new_taskid );
-  TAU_PROFILE_STMT( thread_last_tau_taskid = new_taskid );
-  GRAPPA_PROFILE_CREATE( mainprof, "start_thread", "()", TAU_USER1 );
+#ifdef GRAPPA_TRACE
+  my_thr->tau_taskid = new_taskid;
+  thread_last_tau_taskid = new_taskid;
+#endif
+  GRAPPA_PROFILE_CREATE( mainprof, "start_thread", "()", TAU_DEFAULT );
   GRAPPA_PROFILE_THREAD_START( mainprof, my_thr );
 
   // call thread target function
