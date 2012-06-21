@@ -52,7 +52,6 @@ void user_main( user_main_args * args )
     }
 
     BLOG( "user main is exiting" );
-    SoftXMT_end_tasks();
 }
 
 BOOST_AUTO_TEST_CASE( test1 ) {
