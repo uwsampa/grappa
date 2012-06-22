@@ -167,6 +167,9 @@ void SoftXMT_remote_spawn( void (*fn_p)(Thread*,void*), const T* args, Node targ
 /// TODO: remove this
 void SoftXMT_signal_done( );
 
+/// User main signal tasks done
+void SoftXMT_end_tasks( );
+
 void SoftXMT_dump_stats();
 void SoftXMT_dump_stats_all_nodes();
 

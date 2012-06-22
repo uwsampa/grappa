@@ -49,6 +49,8 @@ class TaskManager {
 
         bool workDone;
        
+        bool all_terminate;
+
         bool doSteal;   // stealing on/off
         bool stealLock; // steal lock
         int cbint;      // how often to make local public work visible
@@ -65,7 +67,6 @@ class TaskManager {
         /// could be work or if other workers should not
         /// also try.
         bool sharedMayHaveWork;
-        bool globalMayHaveWork;
        
         bool publicHasEle() const {
             return publicQ.localDepth() > 0;
@@ -89,7 +90,6 @@ class TaskManager {
                 << "  privateQ: " << privateQ.size() << std::endl
                 << "  work-may-be-available? " << available() << std::endl
                 << "  sharedMayHaveWork: " << sharedMayHaveWork << std::endl
-                << "  globalMayHaveWork: " << globalMayHaveWork << std::endl
                 << "  workDone: " << workDone << std::endl
                 << "  stealLock: " << stealLock << std::endl
                 << "}";
@@ -209,13 +209,6 @@ class TaskManager {
                     // set that there COULD be work in shared portion
                     // (not "is work" because may be stolen)
                     sharedMayHaveWork = true;
-
-                    // This has significant overhead on clusters!
-                    if (publicQ.get_nNodes() % cbint == 0) { // possible for cbint to get skipped if push multiple?
-                        VLOG(5) << "canceling barrier";
-                        cbarrier_cancel();
-                    }
-
                 }
             }
         }
@@ -235,12 +228,15 @@ class TaskManager {
         bool getWork ( Task * result );
 
         bool available ( ) const;
+        bool local_available ( ) const;
         
         void dump_stats();
         void merge_stats();
         void finish();
     
         friend std::ostream& operator<<( std::ostream& o, const TaskManager& tm );
+
+     void signal_termination( );
 };
 
 
@@ -250,8 +246,18 @@ inline bool TaskManager::available( ) const {
             << " privateHasEle()=" << privateHasEle();
     return privateHasEle() 
            || publicHasEle()
-           || (doSteal && (sharedMayHaveWork || (stealLock && globalMayHaveWork)));
+           || (doSteal && (sharedMayHaveWork || stealLock ));
 }
+
+inline bool TaskManager::local_available( ) const {
+    VLOG(6) << " sharedMayHaveWork=" << sharedMayHaveWork
+            << " publicHasEle()=" << publicHasEle()
+            << " privateHasEle()=" << privateHasEle();
+    return privateHasEle() 
+           || publicHasEle()
+           || (doSteal && sharedMayHaveWork);
+}
+
 
 template < typename T, typename S > 
 inline void TaskManager::spawnPublic( void (*f)(T, S), T arg, S shared_arg) {
@@ -281,6 +287,7 @@ inline void TaskManager::spawnRemotePrivate( void (*f)(T, S), T arg, S shared_ar
 
   cbarrier_cancel_local();
 }
+
 
 extern TaskManager global_task_manager;
 

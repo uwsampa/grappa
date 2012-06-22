@@ -192,6 +192,27 @@ bool SoftXMT_done() {
   return SoftXMT_done_flag;
 }
 
+//// termination fork join declaration
+//LOOP_FUNCTION(signal_task_termination_func,nid) {
+//    global_task_manager.signal_termination();
+//}
+static void signal_task_termination_am( int * ignore, size_t isize, void * payload, size_t payload_size ) {
+    global_task_manager.signal_termination();
+}
+
+/// User main done
+void SoftXMT_end_tasks() {
+  // send task termination signal
+  CHECK( SoftXMT_mynode() == 0 );
+  for ( Node n = 1; n < SoftXMT_nodes(); n++ ) {
+      int ignore = 0;
+      SoftXMT_call_on( n, &signal_task_termination_am, &ignore );
+      SoftXMT_flush( n );
+  }
+  signal_task_termination_am( NULL, 0, NULL, 0 );
+}
+
+
 ///// Active message to tell this node it's okay to exit.
 //static void SoftXMT_mark_done_am( void * args, size_t args_size, void * payload, size_t payload_size ) {
 //  VLOG(5) << "mark done";
