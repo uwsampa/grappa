@@ -1,5 +1,7 @@
 #include <boost/test/unit_test.hpp>
 
+#include "tasks/DictOut.hpp"
+
 #include "SoftXMT.hpp"
 #include "Tasking.hpp"
 #include "Delegate.hpp"
@@ -55,7 +57,8 @@ void user_main( user_main_args * args ) {
     int num_tasks = 256;
 
     SoftXMT_reset_stats_all_nodes();
-   
+  
+    double sing_runtime, sing_rate, stream_runtime, stream_rate; 
     {
     double start, end;
     single_location_func f;
@@ -63,9 +66,10 @@ void user_main( user_main_args * args ) {
     start = wctime();
     fork_join( &f, 0, (num_tasks*SoftXMT_nodes())-1 );
     end = wctime();
-    double runtime = end - start;
-    BOOST_MESSAGE( "single location: " << runtime <<" s, " 
-                    << (data_size*num_tasks*SoftXMT_nodes())/runtime << " reads/sec" );
+    sing_runtime = end - start;
+    sing_rate = (data_size*num_tasks*SoftXMT_nodes())/sing_runtime;
+    BOOST_MESSAGE( "single location: " << sing_runtime <<" s, " 
+                    << sing_rate << " reads/sec" );
     }
 
     {
@@ -75,11 +79,19 @@ void user_main( user_main_args * args ) {
     start = wctime();
     fork_join( &f, 0, (num_tasks*SoftXMT_nodes())-1 );
     end = wctime();
-    double runtime = end - start;
-    BOOST_MESSAGE( "stream location: " << runtime <<" s, " 
-                    << (data_size*num_tasks*SoftXMT_nodes())/runtime << " reads/sec" );
+    stream_runtime = end - start;
+    stream_rate = (data_size*num_tasks*SoftXMT_nodes())/stream_runtime;
+    BOOST_MESSAGE( "stream location: " << stream_runtime <<" s, " 
+                    << stream_rate << " reads/sec" );
     }
 
+    DictOut d;
+    d.add( "single_location_runtime_s", sing_runtime );
+    d.add( "single_location_rate", sing_rate );
+    d.add( "stream_location_runtime_s", stream_runtime );
+    d.add( "stream_location_rate", stream_rate );
+    BOOST_MESSAGE( "RateMeasure_tests: " << d.toString() );
+    
     BOOST_MESSAGE( "User main exiting" );
     SoftXMT_dump_stats_all_nodes();
 }
