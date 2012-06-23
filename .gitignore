@@ -20,6 +20,7 @@
 *.pyc
 *.out
 *.ckpt
+ckpts
 *.nedge
 *.log*
 *.INFO
@@ -45,3 +46,4 @@ reader.out
 *.slog2
 
 core.*
+*.prof

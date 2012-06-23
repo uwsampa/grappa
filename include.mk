@@ -108,11 +108,16 @@ CFLAGS+= -I$(BOOST)/include
 LDFLAGS+= -L$(BOOST)/lib64
 LD_LIBRARY_PATH:=$(LD_LIBRARY_PATH):$(BOOST)/lib
 
-GPERFTOOLS=/sampa/share/gperftools-2.0
+GPERFTOOLS=/sampa/share/gperftools-2.0-nolibunwind
 CFLAGS+= -I$(GPERFTOOLS)/include
 LDFLAGS+= -L$(GPERFTOOLS)/lib
 LD_LIBRARY_PATH:=$(LD_LIBRARY_PATH):$(GPERFTOOLS)/lib
 
+
+VAMPIRTRACE=/sampa/share/vampirtrace
+CFLAGS+= -I$(VAMPIRTRACE)/include
+LDFLAGS+= -L$(VAMPIRTRACE)/lib
+LD_LIBRARY_PATH:=$(VAMPIRTRACE)/lib:$(LD_LIBRARY_PATH)
 
 
 MPITYPE=SRUN

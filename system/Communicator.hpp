@@ -31,6 +31,9 @@
 #include "gasnet_helpers.h"
 
 #include "PerformanceTools.hpp"
+#ifdef VTRACE
+#include <vt_user.h>
+#endif
 
 /// Common pointer type for active message handlers used by GASNet
 /// library. Actual handlers may have arguments.
@@ -189,6 +192,11 @@ private:
   /// Are we in the phase that allows communication?
   bool communication_is_allowed_;
 
+#ifdef VTRACE
+  unsigned communicator_grp_vt;
+  unsigned send_ev_vt;
+#endif
+
 public:
 
   /// Record statistics
@@ -278,6 +286,9 @@ public:
     assert( communication_is_allowed_ );
     assert( size < maximum_message_payload_size ); // make sure payload isn't too big
     stats.record_message( size );
+#ifdef VTRACE
+    VT_COUNT_UNSIGNED_VAL( send_ev_vt, size );
+#endif
     GASNET_CHECK( gasnet_AMRequestMedium0( node, handler, buf, size ) );
   }
 

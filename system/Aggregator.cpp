@@ -29,6 +29,10 @@ Aggregator::Aggregator( )
   , previous_timestamp_( 0L )
   , least_recently_sent_( )
   , aggregator_deaggregate_am_handle_( -1 )
+#ifdef VTRACE
+  , tag_( -1 )
+  , vt_agg_commid_( VT_COMM_DEF( "Aggregator" ) )
+#endif
   , stats()
 { 
 #ifdef STL_DEBUG_ALLOCATOR
@@ -43,6 +47,7 @@ Aggregator::Aggregator( )
 }
 
 void Aggregator_deaggregate_am( gasnet_token_t token, void * buf, size_t size );
+
 void Aggregator::init() {
   max_nodes_ = global_communicator.nodes();
   aggregator_deaggregate_am_handle_ = global_communicator.register_active_message_handler( &Aggregator_deaggregate_am );
@@ -52,6 +57,9 @@ void Aggregator::init() {
   for( Node i = 0; i < max_nodes_; ++i ) {
     route_map_[i] = i;
   }
+#ifdef VTRACE
+  tag_ = global_communicator.mynode();
+#endif
 }
 
 Aggregator::~Aggregator() {
@@ -62,6 +70,9 @@ Aggregator::~Aggregator() {
 
 void Aggregator::deaggregate( ) {
   GRAPPA_FUNCTION_PROFILE( GRAPPA_COMM_GROUP );
+#ifdef VTRACE
+  VT_TRACER("deaggregate");
+#endif
   StateTimer::enterState_deaggregation();
   while( !received_AM_queue_.empty() ) {
     DVLOG(5) << "deaggregating";
@@ -98,6 +109,13 @@ void Aggregator::deaggregate( ) {
           }
 #endif
 
+#ifdef VTRACE
+	  {
+	    VT_RECV( vt_agg_commid_, header->tag, sizeof( AggregatorGenericCallHeader ) + header->args_size + header->payload_size );
+	  }
+#endif
+
+
         DVLOG(5) << "calling " << *header 
                 << " with args " << args
                 << " and payload " << payload;
@@ -128,6 +146,10 @@ void Aggregator::finish() {
 
 void Aggregator_deaggregate_am( gasnet_token_t token, void * buf, size_t size ) {
   GRAPPA_FUNCTION_PROFILE( GRAPPA_COMM_GROUP );
+#ifdef VTRACE
+  VT_TRACER("deaggregate AM");
+#endif
+
   DVLOG(5) << "received message with size " << size;
   // TODO: too much copying
   Aggregator::ReceivedAM am( size, buf );

@@ -42,6 +42,10 @@
 
 #include <TAU.h>
 
+#ifdef GOOGLE_PROFILER
+#include <gperftools/profiler.h>
+#endif
+
 static int compare_doubles(const void* a, const void* b) {
   double aa = *(const double*)a;
   double bb = *(const double*)b;
@@ -370,22 +374,40 @@ LOOP_FUNCTION(func_enable_tau, nid) {
   //TAU_ENABLE_INSTRUMENTATION();
   FLAGS_record_grappa_events = true;
 }
+LOOP_FUNCTION(func_enable_google_profiler, nid) {
+#ifdef GOOGLE_PROFILER
+    ProfilerStart( SoftXMT_get_profiler_filename() );
+#endif
+}
 static void enable_tau() {
 #ifdef GRAPPA_TRACE
   VLOG(1) << "Enabling TAU recording.";
   func_enable_tau f;
   fork_join_custom(&f);
 #endif
+#ifdef GOOGLE_PROFILER
+  func_enable_google_profiler g;
+  fork_join_custom(&g);
+#endif
 }
 LOOP_FUNCTION(func_disable_tau, nid) {
   //TAU_DISABLE_INSTRUMENTATION();
   FLAGS_record_grappa_events = false;
+}
+LOOP_FUNCTION(func_disable_google_profiler, nid) {
+#ifdef GOOGLE_PROFILER
+    ProfilerStop( );
+#endif
 }
 static void disable_tau() {
 #ifdef GRAPPA_TRACE
   VLOG(1) << "Disabling TAU recording.";
   func_disable_tau f;
   fork_join_custom(&f);
+#endif
+#ifdef GOOGLE_PROFILER
+  func_disable_google_profiler g;
+  fork_join_custom(&g);
 #endif
 }
 

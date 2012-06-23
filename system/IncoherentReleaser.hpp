@@ -4,6 +4,10 @@
 
 #include "SoftXMT.hpp"
 
+#ifdef VTRACE
+#include <vt_user.h>
+#endif
+
 // forward declare for active message templates
 template< typename T >
 class IncoherentReleaser;
@@ -93,6 +97,9 @@ public:
 
   void start_release() { 
     if( !release_started_ ) {
+#ifdef VTRACE
+      VT_TRACER("incoherent start_release");
+#endif
             DVLOG(5) << "Thread " << CURRENT_THREAD 
               << " issuing release for " << *request_address_ 
               << " * " << *count_ ;
@@ -129,6 +136,9 @@ public:
   void block_until_released() {
     if( !released_ ) {
       start_release();
+#ifdef VTRACE
+      VT_TRACER("incoherent block_until_released");
+#endif
       DVLOG(5) << "Thread " << CURRENT_THREAD 
               << " ready to block on " << *request_address_ 
               << " * " << *count_ ;
