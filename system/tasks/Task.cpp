@@ -1,6 +1,7 @@
 #include "Task.hpp"
 #include "../SoftXMT.hpp"
 #include "../PerformanceTools.hpp"
+#include "TaskingScheduler.hpp"
 
 #define MAXQUEUEDEPTH 500000
 
@@ -34,6 +35,7 @@ void TaskManager::init (bool doSteal_arg, Node localId_arg, Node * neighbors_arg
         
 
 bool TaskManager::getWork( Task * result ) {
+    GRAPPA_FUNCTION_PROFILE( GRAPPA_TASK_GROUP );
 
     while ( !workDone ) {
         if ( tryConsumeLocal( result ) ) {
@@ -96,6 +98,10 @@ bool TaskManager::tryConsumeShared( Task * result ) {
 bool TaskManager::waitConsumeAny( Task * result ) {
     if ( doSteal ) {
         if ( stealLock ) {
+    
+            GRAPPA_PROFILE_CREATE( prof, "stealing", "(session)", GRAPPA_TASK_GROUP );
+            GRAPPA_PROFILE_START( prof );
+            
             // only one Thread is allowed to steal
             stealLock = false;
 
@@ -108,7 +114,8 @@ bool TaskManager::waitConsumeAny( Task * result ) {
                   i++ ) { // TODO permutation order
 
                 victimId = (localId + i) % numLocalNodes;
-                goodSteal = publicQ.steal_locally(neighbors[victimId], chunkSize, CURRENT_THREAD);
+
+                goodSteal = publicQ.steal_locally(neighbors[victimId], chunkSize);
                 
                 if (goodSteal) { stats.record_successful_steal(); }
                 else { stats.record_failed_steal(); }
@@ -138,15 +145,20 @@ bool TaskManager::waitConsumeAny( Task * result ) {
             stealLock = true; // release steal lock
 
             /**TODO remote load balance**/
+        
+            GRAPPA_PROFILE_STOP( prof );
         }
     }
 
     if ( !local_available() ) {
+        GRAPPA_PROFILE_CREATE( prof, "worker idle", "(suspended)", GRAPPA_SUSPEND_GROUP ); 
+        GRAPPA_PROFILE_START( prof );
         if ( !SoftXMT_thread_idle() ) {
             SoftXMT_yield();
         } else {
             DVLOG(5) << CURRENT_THREAD << " un-idled";
         }
+        GRAPPA_PROFILE_STOP( prof );
     }
     
     return false;

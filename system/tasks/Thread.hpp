@@ -10,6 +10,7 @@
 #endif
 
 #include "StateTimer.hpp"
+#include "PerformanceTools.hpp"
 
 class Scheduler;
 typedef uint32_t threadid_t; 
@@ -47,6 +48,11 @@ class ThreadQueue {
         friend std::ostream& operator<< ( std::ostream& o, const ThreadQueue& tq );
 };
 
+#ifdef GRAPPA_TRACE
+// keeps track of last id assigned
+extern int thread_last_tau_taskid;
+#endif
+
 struct Thread {
   coro *co;
   // Scheduler responsible for this Thread. NULL means this is a system
@@ -59,6 +65,7 @@ struct Thread {
   int done;
 #ifdef GRAPPA_TRACE
   int state;
+  int tau_taskid;
 #endif
 
   Thread(Scheduler * sched) 
@@ -125,12 +132,15 @@ Thread * thread_spawn ( Thread * me, Scheduler * sched, thread_func f, void * ar
 Thread * thread_init();
 
 inline void* thread_context_switch( Thread * running, Thread * next, void * val ) {
+    // This timer ensures we are able to calculate exclusive time for the previous thing in this thread's callstack,
+    // so that we don't count time in another thread
+    GRAPPA_THREAD_FUNCTION_PROFILE( GRAPPA_SUSPEND_GROUP, running );  
 #ifdef VTRACE
   VT_TRACER("context switch");
 #endif
     void* res = coro_invoke( running->co, next->co, val );
     StateTimer::enterState_thread();
-    return res;
+    return res; 
 }
 
 inline int thread_is_running( Thread * thr ) {

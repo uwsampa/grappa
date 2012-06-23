@@ -161,7 +161,7 @@ endif
 #
 # Build SoftXMT static library
 #
-LIBRARY_CONTENTS+= SoftXMT.o GlobalAllocator.o GlobalMemory.o GlobalMemoryChunk.o Communicator.o Aggregator.o Timestamp.o Allocator.o Cache.o Delegate.o Collective.o ForkJoin.o tasks/cbarrier.o tasks/TaskingScheduler.o tasks/Task.o tasks/Thread.o stack.o coro.o StateTimer.o PerformanceTools.o Future.o
+LIBRARY_CONTENTS+= SoftXMT.o GlobalAllocator.o GlobalMemory.o GlobalMemoryChunk.o Communicator.o Aggregator.o Timestamp.o Allocator.o Cache.o Delegate.o Collective.o ForkJoin.o tasks/cbarrier.o tasks/TaskingScheduler.o tasks/Task.o tasks/Thread.o stack.o coro.o StateTimer.o PerformanceTools.o Future.o CurrentThread.o ProfilerGroups.o
 
 libSoftXMT.a: $(LIBRARY_CONTENTS)
 	$($(MPITYPE)_AR) rv $@ $^
@@ -192,7 +192,7 @@ run: $(TARGET)
 mpi_test: $(TARGET) $($(MPITYPE)_ENVVAR_TEMP) $($(MPITYPE)_EPILOG_TEMP)
 	-killall $<
 	$(ENV_VARIABLES) \
-	$($(MPITYPE)_MPIRUN) $($(MPITYPE)_EXPORT_ENV_VARIABLES) $($(MPITYPE)_HOST) $($(MPITYPE)_NPROC) -- $(MY_TAU_RUN) ./$< --log_level=test_suite --run_test=$(TARGET:.test=) $(GRAPPA_ARGS)
+	$($(MPITYPE)_MPIRUN) $($(MPITYPE)_EXPORT_ENV_VARIABLES) $($(MPITYPE)_HOST) $($(MPITYPE)_NPROC) -- $(MY_TAU_RUN) ./$< --log_level=test_suite --run_test=$(TARGET:.test=) $(GARGS)
 
 test: $(TARGET)
 	-killall $<
@@ -336,6 +336,11 @@ TESTS:=$(wildcard *.test)
 	  sed -e 's/^ *//' -e 's/$$/:/' >> $*.d
 	@rm -f $*.d.tmp
 
+# build a pre-processed
+%.preproc: %.cpp
+	$(ENV_VARIABLES) \
+	$($(MPITYPE)_CXX) -E -MMD -MF $*.d.tmp $(CFLAGS) $(CXXFLAGS) $< -o $*.preproc
+
 # build a precompiled header
 # includes autodependence stuff
 %.pch: %.hpp
@@ -363,7 +368,7 @@ stack.o: stack.S
 	$($(MPITYPE)_CC) -c $(CFLAGS) $< -o $*.o
 
 
-CLEAN_FILES+= *.exe *.o *.pch *.d *.test *.dis libSoftXMT.a libSoftXMT.so* ./tasks/*.o $(LIBRARY_CONTENTS) $($(MPITYPE)_CLEAN_FILES)
+CLEAN_FILES+= *.exe *.o *.pch *.d *.test *.preproc *.dis libSoftXMT.a libSoftXMT.so* ./tasks/*.o ./tasks/*.preproc $(LIBRARY_CONTENTS) $($(MPITYPE)_CLEAN_FILES)
 clean:
 	rm -f $(CLEAN_FILES)
 
