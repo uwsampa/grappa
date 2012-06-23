@@ -15,7 +15,7 @@ CFLAGS += -g -Wall -Drestrict=__restrict__ -ffast-math -DGRAPH_GENERATOR_SOFTXMT
 LDFLAGS = -g
 
 GENERATOR_SOURCES = graph_generator.o make_graph.o splittable_mrg.o utils.o
-SOURCES = main.o oned_csr.o rmat.o verify.o options.o
+SOURCES = main.o oned_csr.o rmat.o verify.o options.o bfs.o
 HEADERS = common.h oned_csr.h verify.hpp
 
 include $(SOFTXMT_HOME)/system/Makefile
