@@ -30,6 +30,7 @@
 #include <gasnet.h>
 #include "gasnet_helpers.h"
 
+#include "PerformanceTools.hpp"
 #ifdef VTRACE
 #include <vt_user.h>
 #endif
@@ -293,6 +294,7 @@ public:
 
   /// poll messaging layer
   inline void poll() { 
+    GRAPPA_FUNCTION_PROFILE( GRAPPA_COMM_GROUP );
     assert( communication_is_allowed_ );
     GASNET_CHECK( gasnet_AMPoll() ); 
   }

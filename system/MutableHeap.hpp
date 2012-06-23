@@ -191,6 +191,8 @@ public:
   }
 
   void remove_key( Key key ) {
+    GRAPPA_FUNCTION_PROFILE( GRAPPA_COMM_GROUP );
+   
     // find entry for key
     if( index_map.find( key ) != index_map.end() ) {
       HeapIndex location = index_map[ key ];
@@ -213,6 +215,8 @@ public:
 
 
   void update_or_insert( Key key, Priority priority ) {
+    GRAPPA_FUNCTION_PROFILE( GRAPPA_COMM_GROUP );
+    
     if( index_map.find( key ) == index_map.end() ) {
       insert( key, priority );
     } else if( priority >= heap[ index_map[ key ] ].priority ) {

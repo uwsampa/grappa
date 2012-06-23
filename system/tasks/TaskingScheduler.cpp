@@ -119,7 +119,10 @@ void workerLoop ( Thread * me, void* args ) {
         sched->num_active_tasks++;
         StateTimer::setThreadState( StateTimer::USER );
         StateTimer::enterState_user();
-        nextTask.execute();
+        {
+            GRAPPA_PROFILE( exectimer, "user_execution", "", GRAPPA_USER_GROUP );
+            nextTask.execute();
+        }
         StateTimer::setThreadState( StateTimer::FINDWORK );
         sched->num_active_tasks--;
 

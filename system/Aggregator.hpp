@@ -30,6 +30,7 @@
 #include "MutableHeap.hpp"
 
 #include "StateTimer.hpp"
+#include "PerformanceTools.hpp"
 
 
 #include <TAU.h>
@@ -334,6 +335,7 @@ public:
 
   /// send aggregated messages for node
   inline void flush( Node node ) {
+    GRAPPA_FUNCTION_PROFILE( GRAPPA_COMM_GROUP );
     DVLOG(5) << "flushing node " << node;
     stats.record_flush();
     Node target = route_map_[ node ];
@@ -348,6 +350,7 @@ public:
   }
   
   inline void idle_flush_poll() {
+    GRAPPA_FUNCTION_PROFILE( GRAPPA_COMM_GROUP );
 #ifdef VTRACE
     VT_TRACER("idle_flush_poll");
 #endif
@@ -375,6 +378,7 @@ public:
 
   /// poll communicator. send any aggregated messages that have been sitting for too long
   inline void poll() {
+    GRAPPA_FUNCTION_PROFILE( GRAPPA_COMM_GROUP );
 #ifdef VTRACE
     VT_TRACER("poll");
 #endif
@@ -405,6 +409,7 @@ public:
 inline void aggregate( Node destination, AggregatorAMHandler fn_p,
                          const void * args, const size_t args_size,
                          const void * payload, const size_t payload_size ) {
+    GRAPPA_FUNCTION_PROFILE( GRAPPA_COMM_GROUP );
 #ifdef VTRACE
     VT_TRACER("aggregate");
 #endif

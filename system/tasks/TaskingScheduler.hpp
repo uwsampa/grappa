@@ -8,6 +8,7 @@
 #include <glog/logging.h>
 #include <sstream>
 
+#include "PerformanceTools.hpp"
 #ifdef VTRACE
 #include <vt_user.h>
 #endif

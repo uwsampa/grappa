@@ -2,6 +2,7 @@
 #include <cassert>
 #include "Thread.hpp"
 #include "Scheduler.hpp"
+#include "PerformanceTools.hpp"
 
 #define STACK_SIZE 2<<18
 
@@ -18,9 +19,18 @@ Thread * thread_init() {
   master->next = NULL;
   master->id = 0; // master always id 0
   master->done = 0;
-  
+ 
+#ifdef GRAPPA_TRACE 
+  master->tau_taskid=0;
+#endif
+
   return master;
 }
+
+#ifdef GRAPPA_TRACE
+// keeps track of last id assigned
+int thread_last_tau_taskid=0;
+#endif
 
 static void tramp(struct coro * me, void * arg) {
   // Pass control back and forth a few times to get the info we need.
@@ -33,7 +43,22 @@ static void tramp(struct coro * me, void * arg) {
 
   StateTimer::setThreadState( StateTimer::SYSTEM );
   StateTimer::enterState_system();
+  
+  // create new Tau task, and top level timer for the task
+  int new_taskid;
+  TAU_CREATE_TASK(new_taskid);
+#ifdef GRAPPA_TRACE
+  my_thr->tau_taskid = new_taskid;
+  thread_last_tau_taskid = new_taskid;
+#endif
+  GRAPPA_PROFILE_CREATE( mainprof, "start_thread", "()", TAU_DEFAULT );
+  GRAPPA_PROFILE_THREAD_START( mainprof, my_thr );
+
+  // call thread target function
   f(my_thr, f_arg);
+
+  // stop top level Tau task timer
+  GRAPPA_PROFILE_THREAD_STOP( mainprof, my_thr );
 
   // We shouldn't return, but if we do, kill the Thread.
   thread_exit(my_thr, NULL);
