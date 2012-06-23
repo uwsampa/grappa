@@ -29,19 +29,7 @@ static int64_t nadj;
 
 #define GA64(name) ((GlobalAddress<int64_t>,name))
 
-LOOP_FUNCTOR(bfs_setup, nid, GA64(_vlist)GA64(_xoff)GA64(_xadj)GA64(_bfs_tree)GA64(_k2)((int64_t,_nadj))) {
-  kbuf = 0;
-  vlist = _vlist;
-  xoff = _xoff;
-  xadj = _xadj;
-  bfs_tree = _bfs_tree;
-  k2 = _k2;
-  nadj = _nadj;
-}
-
 static void bfs_visit_neighbor(uint64_t packed, GlobalAddress<LocalTaskJoiner> rjoiner) {
-  //TAU_PROFILE("bfs_visit_neighbor", "void (uint64_t)", TAU_USER1);
-
   int64_t vo = packed & 0xFFFFFFFF;
   int64_t v = packed >> 32;
   CHECK(vo < nadj) << "unpacking 'vo' unsuccessful (" << vo << " < " << nadj << ")";
@@ -73,8 +61,6 @@ static void bfs_visit_neighbor(uint64_t packed, GlobalAddress<LocalTaskJoiner> r
 }
 
 static void bfs_visit_vertex(int64_t k, GlobalAddress<LocalTaskJoiner> rjoiner) {
-  //TAU_PROFILE("bfs_visit_vertex", "void (int64_t)", TAU_USER2);
-
   GlobalAddress<int64_t> vk = vlist+k;
   CHECK(vk.node() < SoftXMT_nodes()) << " [" << vk.node() << " < " << SoftXMT_nodes() << "]";
   const int64_t v = read(vk);
@@ -98,11 +84,9 @@ static void bfs_visit_vertex(int64_t k, GlobalAddress<LocalTaskJoiner> rjoiner) 
     SoftXMT_publicTask(&bfs_visit_neighbor, packed, myjoiner_addr);
   }
   myjoiner.wait();
-  //VLOG(1) << "myjoiner (outstanding=" << myjoiner.outstanding << ")";
   LocalTaskJoiner::remoteSignal(rjoiner);
 }
 
-//LOOP_FUNCTOR(bfs_node, nid, ((int64_t,start)) ((int64_t,end))) {
 void bfs_level(Node nid, int64_t start, int64_t end) {
   range_t r = blockDist(start, end, nid, SoftXMT_nodes());
   
@@ -118,7 +102,6 @@ void bfs_level(Node nid, int64_t start, int64_t end) {
   nodejoiner.wait();
 }
 
-//LOOP_FUNCTION(clear_buffers, nid) {
 void clear_buffers() {
   if (kbuf) {
     int64_t voff = fetch_add(k2, kbuf);
@@ -128,78 +111,6 @@ void clear_buffers() {
       cvlist[vk] = buf[vk];
     }
     kbuf = 0;
-  }
-}
-
-LOOP_FUNCTOR(func_bfs_onelevel, k,
-    (( GlobalAddress<int64_t>,vlist    ))
-    (( GlobalAddress<int64_t>,xoff     ))
-    (( GlobalAddress<int64_t>,xadj     ))
-    (( GlobalAddress<int64_t>,bfs_tree ))
-    (( GlobalAddress<int64_t>,k2       ))
-    (( int64_t*,kbuf ))
-    (( int64_t*,buf  ))
-    (( int64_t, nadj )) )
-{
-  const int64_t v = read(vlist+k);
-  
-  // TODO: do these two together (cache)
-  const int64_t vstart = read(XOFF(v));
-  const int64_t vend = read(XENDOFF(v));
-  CHECK(vstart < nadj) << vstart << " < " << nadj;
-  CHECK(vend < nadj) << vend << " < " << nadj;
-
-  for (int64_t vo = vstart; vo < vend; vo++) {
-    const int64_t j = read(xadj+vo); // cadj[vo];
-    if (cmp_swap(bfs_tree+j, -1, v)) {
-      while (*kbuf == -1) { SoftXMT_yield(); }
-      if (*kbuf < BUF_LEN) {
-        buf[*kbuf] = j;
-        (*kbuf)++;
-      } else {
-        *kbuf = -1; // lock other threads out temporarily
-        int64_t voff = fetch_add(k2, BUF_LEN);
-        Incoherent<int64_t>::RW cvlist(vlist+voff, BUF_LEN);
-        for (int64_t vk=0; vk < BUF_LEN; vk++) {
-          cvlist[vk] = buf[vk];
-        }
-        buf[0] = j;
-        *kbuf = 1;
-      }
-    }
-  }
-}
-
-LOOP_FUNCTOR(func_bfs_node, mynode,
-  (( GlobalAddress<int64_t>,vlist    ))
-  (( GlobalAddress<int64_t>,xoff     ))
-  (( GlobalAddress<int64_t>,xadj     ))
-  (( GlobalAddress<int64_t>,bfs_tree ))
-  (( GlobalAddress<int64_t>,k2       ))
-  (( int64_t,start ))
-  (( int64_t,end  ))
-  (( int64_t,nadj )) )
-{
-  int64_t kbuf = 0;
-  int64_t buf[BUF_LEN];
-  
-  range_t r = blockDist(start, end, mynode, SoftXMT_nodes());
-  
-  func_bfs_onelevel f;
-  f.vlist = vlist; f.xoff = xoff; f.xadj = xadj; f.bfs_tree = bfs_tree; f.k2 = k2;
-  f.kbuf = &kbuf;
-  f.buf = buf;
-  f.nadj = nadj;
-  
-  fork_join_onenode(&f, r.start, r.end);
-  
-  // make sure to commit what's left in the buffer at the end
-  if (kbuf) {
-    int64_t voff = fetch_add(k2, kbuf);
-    Incoherent<int64_t>::RW cvlist(vlist+voff, kbuf);
-    for (int64_t vk=0; vk < kbuf; vk++) {
-      cvlist[vk] = buf[vk];
-    }
   }
 }
 
@@ -219,11 +130,6 @@ LOOP_FUNCTOR(bfs_node, nid, GA64(_vlist)GA64(_xoff)GA64(_xadj)GA64(_bfs_tree)GA6
     VLOG(2) << "k1=" << k1 << ", k2=" << _k2;
     const int64_t oldk2 = _k2;
     
-    //char phaseName[64];
-    //sprintf(phaseName, "Level %lld -> %lld\n", k1, k2);
-    //TAU_PHASE_CREATE_DYNAMIC(bfs_level, phaseName, "", TAU_USER);
-    //TAU_PHASE_START(bfs_level);
-
     bfs_level(SoftXMT_mynode(), k1, oldk2);
 
     SoftXMT_barrier_suspending();
@@ -231,7 +137,6 @@ LOOP_FUNCTOR(bfs_node, nid, GA64(_vlist)GA64(_xoff)GA64(_xadj)GA64(_bfs_tree)GA6
     clear_buffers();
 
     SoftXMT_barrier_suspending();
-    //TAU_PHASE_STOP(bfs_level);
     
     k1 = oldk2;
     _k2 = read(k2);
@@ -239,8 +144,6 @@ LOOP_FUNCTOR(bfs_node, nid, GA64(_vlist)GA64(_xoff)GA64(_xadj)GA64(_bfs_tree)GA6
 }
 
 double make_bfs_tree(csr_graph * g, GlobalAddress<int64_t> bfs_tree, int64_t root) {
-  //TAU_PHASE("make_bfs_tree", "double (csr_graph*,GlobalAddress<int64_t>,int64_t)", TAU_DEFAULT);
-
   int64_t NV = g->nv;
   GlobalAddress<int64_t> vlist = SoftXMT_typed_malloc<int64_t>(NV);
   
@@ -263,7 +166,7 @@ double make_bfs_tree(csr_graph * g, GlobalAddress<int64_t> bfs_tree, int64_t roo
   t = timer() - t;
   
   SoftXMT_free(vlist);
-  //SoftXMT_dump_stats_all_nodes();
+  
   SoftXMT_merge_and_dump_stats();
   
   return t;
