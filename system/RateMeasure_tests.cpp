@@ -45,7 +45,7 @@ struct stream_location_func : public ForkJoinIteration {
         int64_t nodes_per_place = SoftXMT_nodes() / FLAGS_num_places;
         Node dest = (SoftXMT_mynode()+nodes_per_place)%SoftXMT_nodes();
         GlobalAddress<int64_t> addr = make_global( &some_data[0], dest);
-        VLOG(3) << SoftXMT_mynode() << "sends to " << dest;
+        VLOG(3) << SoftXMT_mynode() << "sends to " << addr.node();
         for ( uint64_t i=0; i<data_size; i++ ) {
             SoftXMT_delegate_read_word( addr + i );
         }
