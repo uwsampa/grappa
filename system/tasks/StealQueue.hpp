@@ -9,6 +9,10 @@
 // profiling/tracing
 #include "../PerformanceTools.hpp"
 
+#ifdef VTRACE
+#include <vt_user.h>
+#endif
+
 GRAPPA_DECLARE_EVENT_GROUP(scheduler);
 
 #define SS_NSTATES 1
@@ -36,6 +40,13 @@ class StealQueue {
         uint64_t nNodes, maxTreeDepth, nVisited, nLeaves;        /* tree stats: (num pushed, max depth, num popped, leaves)  */
         uint64_t nAcquire, nRelease, nSteal, nFail;  /* steal stats */
         uint64_t wakeups, falseWakeups, nNodes_last;
+  
+#ifdef VTRACE
+  unsigned steal_queue_grp_vt;
+  unsigned steal_success_ev_vt;
+  unsigned steal_victim_ev_vt;
+#endif
+
         double time[SS_NSTATES], timeLast;
         /* perf measurements */ 
         int entries[SS_NSTATES], curState; 
@@ -68,7 +79,13 @@ class StealQueue {
             , maxStackDepth( 0 )
             , nNodes( 0 ), maxTreeDepth( 0 ), nVisited( 0 ), nLeaves( 0 )
             , nAcquire( 0 ), nRelease( 0 ), nSteal( 0 ), nFail( 0 )
-            , wakeups( 0 ), falseWakeups( 0 ), nNodes_last( 0 ) {
+            , wakeups( 0 ), falseWakeups( 0 ), nNodes_last( 0 ) 
+#ifdef VTRACE
+	    , steal_queue_grp_vt( VT_COUNT_GROUP_DEF( "Steal queue" ) )
+	    , steal_success_ev_vt( VT_COUNT_DEF( "Steal success", "tasks", VT_COUNT_TYPE_UNSIGNED, steal_queue_grp_vt ) )
+	    , steal_victim_ev_vt( VT_COUNT_DEF( "Steal victim", "tasks", VT_COUNT_TYPE_UNSIGNED, steal_queue_grp_vt ) )
+#endif
+{
 
                 uint64_t nbytes = numEle * sizeof(T);
 
@@ -252,6 +269,9 @@ void StealQueue<T>::workStealReply_am( workStealReply_args * args,  size_t size,
 
     if (k > 0) {
         GRAPPA_EVENT(steal_success_ev, "Steal success", 1, scheduler, k);
+#ifdef VTRACE
+	//VT_COUNT_UNSIGNED_VAL( thiefStack->steal_success_ev_vt, k );
+#endif
         //TAU_REGISTER_EVENT(steal_success_ev, "Steal success");
         //TAU_EVENT(steal_success_ev, k);
         
@@ -298,6 +318,9 @@ void StealQueue<T>::workStealRequest_am(workStealRequest_args * args, size_t siz
     /* if k elts reserved, move them to local portion of our stack */
     if (ok) {
         GRAPPA_EVENT(steal_victim_ev, "Steal victim", 1, scheduler, k);
+#ifdef VTRACE
+	//VT_COUNT_UNSIGNED_VAL( victimStack->steal_victim_ev_vt, k );
+#endif
         //TAU_REGISTER_EVENT(steal_victim_ev, "Steal victim");
         //TAU_EVENT(steal_victim_ev, k);
 

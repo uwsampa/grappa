@@ -12,10 +12,10 @@ GRAPPA_DEFINE_EVENT_GROUP(task_manager);
 
 TaskManager::TaskManager ( ) 
   : workDone( false )
+  , all_terminate( false )
   , doSteal( false )
   , stealLock( true )
   , sharedMayHaveWork ( true )
-  , globalMayHaveWork ( true )
   , privateQ( )
   , publicQ( MAXQUEUEDEPTH ) 
   , stats( this )
@@ -31,7 +31,6 @@ void TaskManager::init (bool doSteal_arg, Node localId_arg, Node * neighbors_arg
   numLocalNodes = numLocalNodes_arg;
   chunkSize = chunkSize_arg;
   cbint = cbint_arg;
-  cbarrier_init( SoftXMT_nodes() );
 }
         
 
@@ -65,6 +64,7 @@ bool TaskManager::tryConsumeLocal( Task * result ) {
         stats.record_private_task_dequeue();
         return true;
     } else if ( publicHasEle() ) {
+        DVLOG(5) << "consuming local task";
         *result = publicQ.peek();
         publicQ.pop( );
         stats.record_public_task_dequeue();
@@ -96,7 +96,7 @@ bool TaskManager::tryConsumeShared( Task * result ) {
 /// Only returns when there is work or when
 /// the system has no more work.
 bool TaskManager::waitConsumeAny( Task * result ) {
-    if ( doSteal && globalMayHaveWork ) {
+    if ( doSteal ) {
         if ( stealLock ) {
     
             GRAPPA_PROFILE_CREATE( prof, "stealing", "(session)", GRAPPA_TASK_GROUP );
@@ -106,11 +106,11 @@ bool TaskManager::waitConsumeAny( Task * result ) {
             stealLock = false;
 
             VLOG(5) << CURRENT_THREAD << " trying to steal";
-            bool goodSteal = false;
+            int goodSteal = 0;
             Node victimId;
 
             for ( Node i = 1; 
-                  i < numLocalNodes && !goodSteal && !(sharedMayHaveWork || publicHasEle() || privateHasEle());
+                  i < numLocalNodes && !goodSteal && !(sharedMayHaveWork || publicHasEle() || privateHasEle() || workDone);
                   i++ ) { // TODO permutation order
 
                 victimId = (localId + i) % numLocalNodes;
@@ -125,7 +125,7 @@ bool TaskManager::waitConsumeAny( Task * result ) {
             if ( goodSteal ) {
                 VLOG(5) << CURRENT_THREAD << " steal " << goodSteal
                     << " from Node" << victimId;
-                
+                VLOG(5) << *this; 
                 stats.record_successful_steal_session();
 
                 // publicQ should have had some elements in it
@@ -135,8 +135,6 @@ bool TaskManager::waitConsumeAny( Task * result ) {
                 
                 stats.record_failed_steal_session();
 
-                // mark that we already tried to steal from other queues
-                globalMayHaveWork = false;
             }
 
             VLOG(5) << "left stealing loop with goodSteal=" << goodSteal
@@ -152,56 +150,28 @@ bool TaskManager::waitConsumeAny( Task * result ) {
         }
     }
 
-    if ( !available() ) {
+    if ( !local_available() ) {
         GRAPPA_PROFILE_CREATE( prof, "worker idle", "(suspended)", GRAPPA_SUSPEND_GROUP ); 
         GRAPPA_PROFILE_START( prof );
         if ( !SoftXMT_thread_idle() ) {
-            // no work so suggest global termination barrier
-            
-            VLOG(5) << CURRENT_THREAD << " saw all were idle so suggest barrier";
-
-            CHECK( !workDone ) << "perhaps there is a stray unidled thread problem?";
-
-            cb_cause finished_barrier = cbarrier_wait();
-            switch( finished_barrier ) {
-                case CB_Cause_Done:
-                    VLOG(5) << CURRENT_THREAD << " left barrier from finish";
-                    workDone = true;
-                    SoftXMT_signal_done( ); // terminate auto communications
-                    break;
-                case CB_Cause_Cancel:
-                    VLOG(5) << CURRENT_THREAD << " left barrier from cancel";
-                    globalMayHaveWork = true;   // work is available so allow unassigned threads to be scheduled
-                    // we rely on the invariant that if globalMayHaveWork=true then the cbarrier
-                    // is NOT counting mynode. This way a barrier finish cannot occur without mynode,
-                    // and so mynode can safely steal and receive steal replies without 
-                    // communication layer terminating.
-                    break;
-                case CB_Cause_Local:
-                    VLOG(5) << CURRENT_THREAD << " left barrier from local cancel";
-
-                    // we rely on the invariant that mynode will not try to steal again
-                    // until it enters the cbarrier and receives a CB_Cause_Cancel.
-                    // Thus, the only communication mynode will then depend on until the next
-                    // time it enters the cbarrier is communication initiated by user code, 
-                    // which is guarenteed to be okay by the NoUnsyncedTasks requirement.
-
-                    break;
-
-                default:
-                    CHECK ( false ) << "invalid cbarrier exit cause " << finished_barrier;
-            }
+            SoftXMT_yield();
         } else {
             DVLOG(5) << CURRENT_THREAD << " un-idled";
         }
         GRAPPA_PROFILE_STOP( prof );
     }
-
+    
     return false;
 }
 
+
 std::ostream& operator<<( std::ostream& o, const TaskManager& tm ) {
     return tm.dump( o );
+}
+
+void TaskManager::signal_termination( ) {
+    workDone = true;
+    SoftXMT_signal_done();
 }
 
 void TaskManager::finish() {
@@ -235,6 +205,12 @@ void TaskManager::TaskStatistics::sample() {
   GRAPPA_EVENT(privateQ_size_ev,       "privateQ size sample",  SAMPLE_RATE, task_manager, tm->privateQ.size());
   GRAPPA_EVENT(publicQ_local_size_ev,  "publicQ.local sample",  SAMPLE_RATE, task_manager, tm->publicQ.localDepth());
   GRAPPA_EVENT(publicQ_shared_size_ev, "publicQ.shared sample", SAMPLE_RATE, task_manager, tm->publicQ.sharedDepth());
+
+#ifdef VTRACE
+  //VT_COUNT_UNSIGNED_VAL( privateQ_size_vt_ev, tm->privateQ.size() );
+  //VT_COUNT_UNSIGNED_VAL( publicQ_local_size_vt_ev, tm->publicQ.localDepth() );
+  //VT_COUNT_UNSIGNED_VAL( publicQ_shared_size_vt_ev, tm->publicQ.sharedDepth() );
+#endif
 //    sample_calls++;
 //    /* todo: avgs */
 //

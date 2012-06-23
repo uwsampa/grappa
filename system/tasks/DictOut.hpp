@@ -5,6 +5,7 @@
 #include <string>
 #include <iostream>
 #include <sstream>
+#include <stdint.h>
 
 // ruby symbol map ":"
 
@@ -72,12 +73,12 @@ class DictOut {
             outputs.push( new Entry( name, ssv.str() ));
         }
 
-        void add( std::string name, int value ) {
-            std::stringstream ssv;
-            ssv << value;
-            outputs.push( new Entry( name, ssv.str() ));
-        }
-        
+//        void add( std::string name, int value ) {
+//            std::stringstream ssv;
+//            ssv << value;
+//            outputs.push( new Entry( name, ssv.str() ));
+//        }
+//        
         void add( std::string name, int64_t value ) {
             std::stringstream ssv;
             ssv << value;

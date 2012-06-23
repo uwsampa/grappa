@@ -9,6 +9,10 @@
 #include <sstream>
 
 #include "PerformanceTools.hpp"
+#ifdef VTRACE
+#include <vt_user.h>
+#endif
+
 #include "StateTimer.hpp"
 
 DECLARE_int64( periodic_poll_ticks );
@@ -59,6 +63,9 @@ class TaskingScheduler : public Scheduler {
         bool queuesFinished();
 
         Thread * nextCoroutine ( bool isBlocking=true ) {
+#ifdef VTRACE
+	  VT_TRACER("nextCoroutine");
+#endif
             do {
                 Thread * result;
 
@@ -124,12 +131,27 @@ class TaskingScheduler : public Scheduler {
                 int64_t max_active;
                 double avg_active;
 
+#ifdef VTRACE
+	  unsigned tasking_scheduler_grp_vt;
+	  unsigned active_tasks_out_ev_vt;
+	  unsigned num_idle_out_ev_vt;
+	  unsigned readyQ_size_ev_vt;
+#endif
+
+
                 TaskingScheduler * sched;
                 
                 unsigned merged;
             public:
                 TaskingSchedulerStatistics( TaskingScheduler * scheduler )
-                    : sched( scheduler ) {
+                    : sched( scheduler ) 
+#ifdef VTRACE
+		    , tasking_scheduler_grp_vt( VT_COUNT_GROUP_DEF( "Tasking scheduler" ) )
+		    , active_tasks_out_ev_vt( VT_COUNT_DEF( "Active workers sample", "tasks", VT_COUNT_TYPE_UNSIGNED, tasking_scheduler_grp_vt ) )
+		    , num_idle_out_ev_vt( VT_COUNT_DEF( "Idle workers sample", "tasks", VT_COUNT_TYPE_UNSIGNED, tasking_scheduler_grp_vt ) )
+		    , readyQ_size_ev_vt( VT_COUNT_DEF( "ReadyQ size", "workers", VT_COUNT_TYPE_UNSIGNED, tasking_scheduler_grp_vt ) )
+#endif
+	  {
                         active_task_log = new short[1L<<20];
                         reset();
                     }

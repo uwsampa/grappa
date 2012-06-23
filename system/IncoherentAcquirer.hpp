@@ -5,6 +5,11 @@
 #include "SoftXMT.hpp"
 #include "Addressing.hpp"
 
+
+#ifdef VTRACE
+#include <vt_user.h>
+#endif
+
 // forward declare for active message templates
 template< typename T >
 class IncoherentAcquirer;
@@ -95,6 +100,9 @@ public:
     
   void start_acquire() { 
     if( !acquire_started_ ) {
+#ifdef VTRACE
+      VT_TRACER("incoherent start_acquire");
+#endif
       DVLOG(5) << "Thread " << CURRENT_THREAD 
               << " issuing acquire for " << *request_address_ 
               << " * " << *count_ ;
@@ -129,6 +137,9 @@ public:
   void block_until_acquired() {
     if( !acquired_ ) {
       start_acquire();
+#ifdef VTRACE
+      VT_TRACER("incoherent block_until_acquired");
+#endif
       DVLOG(5) << "Thread " << CURRENT_THREAD 
               << " ready to block on " << *request_address_ 
               << " * " << *count_ ;

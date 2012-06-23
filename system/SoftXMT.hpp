@@ -167,6 +167,9 @@ void SoftXMT_remote_spawn( void (*fn_p)(Thread*,void*), const T* args, Node targ
 /// TODO: remove this
 void SoftXMT_signal_done( );
 
+/// User main signal tasks done
+void SoftXMT_end_tasks( );
+
 void SoftXMT_dump_stats();
 void SoftXMT_dump_stats_all_nodes();
 
@@ -208,6 +211,8 @@ static inline void SoftXMT_flush( Node n )
 static inline void SoftXMT_idle_flush_poll() {
   global_aggregator.idle_flush_poll();
 }
+
+char * SoftXMT_get_profiler_filename( );
 
 #include "Addressing.hpp"
 #include "Tasking.hpp"
