@@ -40,6 +40,7 @@ void SoftXMT_take_profiling_sample() {
   global_communicator.stats.profiling_sample();
   global_task_manager.stats.profiling_sample();
   global_scheduler.stats.profiling_sample();
+  delegate_stats.profiling_sample();
 }
 
 static void poller( Thread * me, void * args ) {
@@ -220,6 +221,7 @@ void SoftXMT_reset_stats() {
   global_aggregator.reset_stats();
   global_communicator.reset_stats();
   global_scheduler.reset_stats();
+  delegate_stats.reset();
 }
 
 LOOP_FUNCTION(reset_stats_func,nid) {
@@ -237,7 +239,7 @@ void SoftXMT_dump_stats() {
   global_communicator.dump_stats();
   global_task_manager.dump_stats();
   global_scheduler.dump_stats();
-
+  delegate_stats.dump();
 }
 
 LOOP_FUNCTION(dump_stats_func,nid) {
@@ -248,12 +250,12 @@ void SoftXMT_dump_stats_all_nodes() {
   fork_join_custom(&f);
 }
 
-
 static void merge_stats_task(int64_t target) {
   SoftXMT_call_on(target, &CommunicatorStatistics::merge_am, &global_communicator.stats);
   SoftXMT_call_on(target, &AggregatorStatistics::merge_am, &global_aggregator.stats);
   SoftXMT_call_on(target, &TaskingScheduler::TaskingSchedulerStatistics::merge_am, &global_scheduler.stats);
   SoftXMT_call_on(target, &TaskManager::TaskStatistics::merge_am, &global_task_manager.stats);
+  SoftXMT_call_on(target, &DelegateStatistics::merge_am, &delegate_stats);
 }
 
 

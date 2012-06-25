@@ -65,6 +65,9 @@ static void memory_write_request_am( memory_write_request_args * args, size_t si
 }
 
 void SoftXMT_delegate_write_word( GlobalAddress<int64_t> address, int64_t data ) {
+  delegate_stats.count_op();
+  delegate_stats.count_word_write();
+
   memory_descriptor md;
   md.address = address;
   md.data = data;
@@ -120,6 +123,9 @@ static void memory_read_request_am( memory_read_request_args * args, size_t size
 }
 
 int64_t SoftXMT_delegate_read_word( GlobalAddress<int64_t> address ) {
+  delegate_stats.count_op();
+  delegate_stats.count_word_read();
+
   memory_descriptor md;
   md.address = address;
   md.data = 0;
@@ -177,6 +183,8 @@ static void memory_fetch_add_request_am( memory_fetch_add_request_args * args, s
 }
 
 int64_t SoftXMT_delegate_fetch_and_add_word( GlobalAddress<int64_t> address, int64_t data ) {
+  delegate_stats.count_op();
+  delegate_stats.count_word_fetch_add();
 
   // set up descriptor
   memory_descriptor md;
@@ -243,6 +251,9 @@ static void cmp_swap_request_am(cmp_swap_request_args * args, size_t sz, void * 
 }
 
 bool SoftXMT_delegate_compare_and_swap_word(GlobalAddress<int64_t> address, int64_t cmpval, int64_t newval) {
+  delegate_stats.count_op();
+  delegate_stats.count_word_compare_swap();
+
   // set up descriptor
   memory_descriptor md;
   md.address = address;
@@ -274,5 +285,66 @@ bool SoftXMT_delegate_compare_and_swap_word(GlobalAddress<int64_t> address, int6
 
 
 
+DelegateStatistics delegate_stats;
 
+DelegateStatistics::DelegateStatistics()
+#ifdef VTRACE_SAMPLED
+  : delegate_grp_vt( VT_COUNT_GROUP_DEF( "Delegate" ) )
+  , ops_ev_vt( VT_COUNT_DEF( "Delegate operations", "operations", VT_COUNT_TYPE_UNSIGNED, delegate_grp_vt ) )
+  , word_writes_ev_vt( VT_COUNT_DEF( "Delegate word writes", "writes", VT_COUNT_TYPE_UNSIGNED, delegate_grp_vt ) )
+  , word_reads_ev_vt( VT_COUNT_DEF( "Delegate word reads", "reads", VT_COUNT_TYPE_UNSIGNED, delegate_grp_vt ) )
+  , word_fetch_adds_ev_vt( VT_COUNT_DEF( "Delegate word fetch and adds", "fads", VT_COUNT_TYPE_UNSIGNED, delegate_grp_vt ) )
+  , word_compare_swaps_ev_vt( VT_COUNT_DEF( "Delegate word compare and swaps", "casses", VT_COUNT_TYPE_UNSIGNED, delegate_grp_vt ) )
+  , generic_ops_ev_vt( VT_COUNT_DEF( "Delegate generic operations", "operations", VT_COUNT_TYPE_UNSIGNED, delegate_grp_vt ) )
+#endif
+{
+  reset();
+}
 
+void DelegateStatistics::reset() {
+  ops = 0;
+  word_writes = 0;
+  word_reads = 0;
+  word_fetch_adds = 0;
+  word_compare_swaps = 0;
+  generic_ops = 0;
+}
+
+void DelegateStatistics::dump() {
+  std::cout << "DelegateStats { "
+	    << "ops: " << ops << ", "
+	    << "word_writes: " << word_writes  << ", "
+	    << "word_reads: " << word_reads  << ", "
+	    << "word_fetch_adds: " << word_fetch_adds  << ", "
+	    << "word_compare_swaps: " << word_compare_swaps  << ", "
+	    << "generic_ops: " << generic_ops  << ", "
+	    << " }" << std::endl;
+}
+
+void DelegateStatistics::sample() {
+  ;
+}
+
+void DelegateStatistics::profiling_sample() {
+#ifdef VTRACE_SAMPLED
+  VT_COUNT_UNSIGNED_VAL( ops_ev_vt, ops );
+  VT_COUNT_UNSIGNED_VAL( word_writes_ev_vt, word_writes );
+  VT_COUNT_UNSIGNED_VAL( word_reads_ev_vt, word_reads );
+  VT_COUNT_UNSIGNED_VAL( word_fetch_adds_ev_vt, word_fetch_adds );
+  VT_COUNT_UNSIGNED_VAL( word_compare_swaps_ev_vt, word_compare_swaps );
+  VT_COUNT_UNSIGNED_VAL( generic_ops_ev_vt, generic_ops );
+#endif
+}
+
+void DelegateStatistics::merge(DelegateStatistics * other) {
+  ops += other->ops;
+  word_writes += other->word_writes;
+  word_reads += other->word_reads;
+  word_fetch_adds += other->word_fetch_adds;
+  word_compare_swaps += other->word_compare_swaps;
+  generic_ops += other->generic_ops;
+}
+
+void DelegateStatistics::merge_am(DelegateStatistics * other, size_t sz, void* payload, size_t psz) {
+  delegate_stats.merge( other );
+}
