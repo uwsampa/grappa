@@ -97,7 +97,7 @@ public:
 
   void start_release() { 
     if( !release_started_ ) {
-#ifdef VTRACE
+#ifdef VTRACE_FULL
       VT_TRACER("incoherent start_release");
 #endif
             DVLOG(5) << "Thread " << CURRENT_THREAD 
@@ -136,7 +136,7 @@ public:
   void block_until_released() {
     if( !released_ ) {
       start_release();
-#ifdef VTRACE
+#ifdef VTRACE_FULL
       VT_TRACER("incoherent block_until_released");
 #endif
       DVLOG(5) << "Thread " << CURRENT_THREAD 

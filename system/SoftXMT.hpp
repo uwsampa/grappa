@@ -8,6 +8,7 @@
 #include "Communicator.hpp"
 #include "tasks/Thread.hpp"
 #include "tasks/TaskingScheduler.hpp"
+#include "PerformanceTools.hpp"
 
 //#include <typeinfo>
 //#include <cxxabi.h>
@@ -212,7 +213,7 @@ static inline void SoftXMT_idle_flush_poll() {
   global_aggregator.idle_flush_poll();
 }
 
-char * SoftXMT_get_profiler_filename( );
+void SoftXMT_take_profiling_sample();
 
 #include "Addressing.hpp"
 #include "Tasking.hpp"

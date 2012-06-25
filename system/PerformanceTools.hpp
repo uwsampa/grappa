@@ -25,3 +25,10 @@ DECLARE_bool(record_grappa_events);
 #define GRAPPA_EVENT(name, text, frequency, group, val) do {} while (0)
 #endif
 
+void SoftXMT_set_profiler_argv0( char * argv0 );
+
+void SoftXMT_start_profiling();
+void SoftXMT_stop_profiling();
+
+extern bool take_profiling_sample;
+

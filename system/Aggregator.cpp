@@ -30,7 +30,7 @@ Aggregator::Aggregator( )
   , previous_timestamp_( 0L )
   , least_recently_sent_( )
   , aggregator_deaggregate_am_handle_( -1 )
-#ifdef VTRACE
+#ifdef VTRACE_FULL
   , tag_( -1 )
   , vt_agg_commid_( VT_COMM_DEF( "Aggregator" ) )
 #endif
@@ -58,7 +58,7 @@ void Aggregator::init() {
   for( Node i = 0; i < max_nodes_; ++i ) {
     route_map_[i] = i;
   }
-#ifdef VTRACE
+#ifdef VTRACE_FULL
   tag_ = global_communicator.mynode();
 #endif
 }
@@ -70,7 +70,7 @@ Aggregator::~Aggregator() {
 }
 
 void Aggregator::deaggregate( ) {
-#ifdef VTRACE
+#ifdef VTRACE_FULL
   VT_TRACER("deaggregate");
 #endif
   StateTimer::enterState_deaggregation();
@@ -109,7 +109,7 @@ void Aggregator::deaggregate( ) {
           }
 #endif
 
-#ifdef VTRACE
+#ifdef VTRACE_FULL
 	  {
 	    VT_RECV( vt_agg_commid_, header->tag, sizeof( AggregatorGenericCallHeader ) + header->args_size + header->payload_size );
 	  }
@@ -141,7 +141,7 @@ void Aggregator::finish() {
 }
 
 void Aggregator_deaggregate_am( gasnet_token_t token, void * buf, size_t size ) {
-#ifdef VTRACE
+#ifdef VTRACE_FULL
   VT_TRACER("deaggregate AM");
 #endif
 

@@ -14,6 +14,11 @@
 
 #include "StateTimer.hpp"
 
+
+// maybe sample
+extern bool take_profiling_sample;
+void SoftXMT_take_profiling_sample();
+
 DECLARE_int64( periodic_poll_ticks );
 DECLARE_bool(flush_on_idle);
 
@@ -62,11 +67,17 @@ class TaskingScheduler : public Scheduler {
         bool queuesFinished();
 
         Thread * nextCoroutine ( bool isBlocking=true ) {
-#ifdef VTRACE
+#ifdef VTRACE_FULL
 	  VT_TRACER("nextCoroutine");
 #endif
             do {
                 Thread * result;
+
+		// maybe sample
+		if( take_profiling_sample ) {
+		  take_profiling_sample = false;
+		  SoftXMT_take_profiling_sample();
+		}
 
                 // check for periodic tasks
                 result = periodicDequeue();
@@ -130,7 +141,7 @@ class TaskingScheduler : public Scheduler {
                 int64_t max_active;
                 double avg_active;
 
-#ifdef VTRACE
+#ifdef VTRACE_SAMPLED
 	  unsigned tasking_scheduler_grp_vt;
 	  unsigned active_tasks_out_ev_vt;
 	  unsigned num_idle_out_ev_vt;
@@ -144,7 +155,7 @@ class TaskingScheduler : public Scheduler {
             public:
                 TaskingSchedulerStatistics( TaskingScheduler * scheduler )
                     : sched( scheduler ) 
-#ifdef VTRACE
+#ifdef VTRACE_SAMPLED
 		    , tasking_scheduler_grp_vt( VT_COUNT_GROUP_DEF( "Tasking scheduler" ) )
 		    , active_tasks_out_ev_vt( VT_COUNT_DEF( "Active workers sample", "tasks", VT_COUNT_TYPE_UNSIGNED, tasking_scheduler_grp_vt ) )
 		    , num_idle_out_ev_vt( VT_COUNT_DEF( "Idle workers sample", "tasks", VT_COUNT_TYPE_UNSIGNED, tasking_scheduler_grp_vt ) )
@@ -181,6 +192,7 @@ class TaskingScheduler : public Scheduler {
                         << "avg_active: " << avg_active << " }" << std::endl;
                 }
                 void sample();
+	        void profiling_sample();
                 void merge(TaskingSchedulerStatistics * other); 
 
 	  static void merge_am(TaskingScheduler::TaskingSchedulerStatistics * other, size_t sz, void* payload, size_t psz);
