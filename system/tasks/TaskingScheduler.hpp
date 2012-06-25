@@ -157,8 +157,8 @@ class TaskingScheduler : public Scheduler {
                     : sched( scheduler ) 
 #ifdef VTRACE_SAMPLED
 		    , tasking_scheduler_grp_vt( VT_COUNT_GROUP_DEF( "Tasking scheduler" ) )
-		    , active_tasks_out_ev_vt( VT_COUNT_DEF( "Active workers sample", "tasks", VT_COUNT_TYPE_UNSIGNED, tasking_scheduler_grp_vt ) )
-		    , num_idle_out_ev_vt( VT_COUNT_DEF( "Idle workers sample", "tasks", VT_COUNT_TYPE_UNSIGNED, tasking_scheduler_grp_vt ) )
+		    , active_tasks_out_ev_vt( VT_COUNT_DEF( "Active workers", "tasks", VT_COUNT_TYPE_UNSIGNED, tasking_scheduler_grp_vt ) )
+		    , num_idle_out_ev_vt( VT_COUNT_DEF( "Idle workers", "tasks", VT_COUNT_TYPE_UNSIGNED, tasking_scheduler_grp_vt ) )
 		    , readyQ_size_ev_vt( VT_COUNT_DEF( "ReadyQ size", "workers", VT_COUNT_TYPE_UNSIGNED, tasking_scheduler_grp_vt ) )
 #endif
 	  {
