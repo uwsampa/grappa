@@ -4,6 +4,46 @@
 
 #include "SoftXMT.hpp"
 
+
+class DelegateStatistics {
+private:
+  uint64_t ops;
+  uint64_t word_writes;
+  uint64_t word_reads;
+  uint64_t word_fetch_adds;
+  uint64_t word_compare_swaps;
+  uint64_t generic_ops;
+#ifdef VTRACE_SAMPLED
+  unsigned delegate_grp_vt;
+  unsigned ops_ev_vt;
+  unsigned word_writes_ev_vt;
+  unsigned word_reads_ev_vt;
+  unsigned word_fetch_adds_ev_vt;
+  unsigned word_compare_swaps_ev_vt;
+  unsigned generic_ops_ev_vt;
+#endif
+
+public:
+  DelegateStatistics();
+  void reset();
+
+  inline void count_op() { ops++; }
+  inline void count_word_write() { word_writes++; }
+  inline void count_word_read() { word_reads++; }
+  inline void count_word_fetch_add() { word_fetch_adds++; }
+  inline void count_word_compare_swap() { word_compare_swaps++; }
+  inline void count_generic_op() { generic_ops++; }
+
+  void dump();
+  void sample();
+  void profiling_sample();
+  void merge(DelegateStatistics * other);
+  static void merge_am(DelegateStatistics * other, size_t sz, void* payload, size_t psz);
+};
+
+extern DelegateStatistics delegate_stats;
+
+
 void SoftXMT_delegate_write_word( GlobalAddress<int64_t> address, int64_t data );
 
 int64_t SoftXMT_delegate_read_word( GlobalAddress<int64_t> address );
@@ -108,6 +148,8 @@ static void am_delegate(DelegateCallbackArgs * callback, size_t csz, void* p, si
 /// TODO: it would be better to not do the extra copying associated with sending the "return" value back and forth
 template<typename Func>
 void SoftXMT_delegate_func(Func * f, Node target) {
+  delegate_stats.count_op();
+  delegate_stats.count_generic_op();
   if (target == SoftXMT_mynode()) {
     (*f)();
   } else {
