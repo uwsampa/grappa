@@ -125,7 +125,7 @@ Thread * thread_spawn ( Thread * me, Scheduler * sched, thread_func f, void * ar
 Thread * thread_init();
 
 inline void* thread_context_switch( Thread * running, Thread * next, void * val ) {
-#ifdef VTRACE
+#ifdef VTRACE_FULL
   VT_TRACER("context switch");
 #endif
     void* res = coro_invoke( running->co, next->co, val );

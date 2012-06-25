@@ -216,6 +216,14 @@ void TaskManager::TaskStatistics::sample() {
 //#endif
 }
 
+void TaskManager::TaskStatistics::profiling_sample() {
+#ifdef VTRACE_SAMPLED
+  VT_COUNT_UNSIGNED_VAL( privateQ_size_vt_ev, tm->privateQ.size() );
+  VT_COUNT_UNSIGNED_VAL( publicQ_local_size_vt_ev, tm->publicQ.localDepth() );
+  VT_COUNT_UNSIGNED_VAL( publicQ_shared_size_vt_ev, tm->publicQ.sharedDepth() );
+#endif
+}
+
 
 void TaskManager::TaskStatistics::merge(TaskManager::TaskStatistics * other) {
   session_steal_successes_ += other->session_steal_successes_;

@@ -33,6 +33,7 @@
 
 
 #include <TAU.h>
+
 #ifdef VTRACE
 #include <vt_user.h>
 #endif
@@ -63,6 +64,33 @@ private:
   uint64_t capacity_flushes_;
   uint64_t histogram_[16];
   timespec start_;
+
+#ifdef VTRACE_SAMPLED
+  unsigned aggregator_vt_grp;
+  unsigned messages_aggregated_vt_ev;
+  unsigned bytes_aggregated_vt_ev;
+  unsigned flushes_vt_ev;
+  unsigned timeouts_vt_ev;
+  unsigned idle_flushes_vt_ev;
+  unsigned capacity_flushes_vt_ev;
+  unsigned aggregator_0_to_255_bytes_vt_ev;
+  unsigned aggregator_256_to_511_bytes_vt_ev;
+  unsigned aggregator_512_to_767_bytes_vt_ev;
+  unsigned aggregator_768_to_1023_bytes_vt_ev;
+  unsigned aggregator_1024_to_1279_bytes_vt_ev;
+  unsigned aggregator_1280_to_1535_bytes_vt_ev;
+  unsigned aggregator_1536_to_1791_bytes_vt_ev;
+  unsigned aggregator_1792_to_2047_bytes_vt_ev;
+  unsigned aggregator_2048_to_2303_bytes_vt_ev;
+  unsigned aggregator_2304_to_2559_bytes_vt_ev;
+  unsigned aggregator_2560_to_2815_bytes_vt_ev;
+  unsigned aggregator_2816_to_3071_bytes_vt_ev;
+  unsigned aggregator_3072_to_3327_bytes_vt_ev;
+  unsigned aggregator_3328_to_3583_bytes_vt_ev;
+  unsigned aggregator_3584_to_3839_bytes_vt_ev;
+  unsigned aggregator_3840_to_4095_bytes_vt_ev;
+#endif
+
 
   std::string hist_labels[16];
   
@@ -118,6 +146,31 @@ public:
   AggregatorStatistics()
     : histogram_()
     , start_()
+#ifdef VTRACE_SAMPLED
+    , aggregator_vt_grp( VT_COUNT_GROUP_DEF( "Aggregator" ) )
+    , messages_aggregated_vt_ev( VT_COUNT_DEF( "Total messages aggregated", "messages", VT_COUNT_TYPE_UNSIGNED, aggregator_vt_grp ) )
+    , bytes_aggregated_vt_ev( VT_COUNT_DEF( "Total bytes aggregated", "bytes", VT_COUNT_TYPE_UNSIGNED, aggregator_vt_grp ) )
+    , flushes_vt_ev( VT_COUNT_DEF( "Flushes", "flushes", VT_COUNT_TYPE_UNSIGNED, aggregator_vt_grp ) )
+    , timeouts_vt_ev( VT_COUNT_DEF( "Timeouts", "timeouts", VT_COUNT_TYPE_UNSIGNED, aggregator_vt_grp ) )
+    , idle_flushes_vt_ev( VT_COUNT_DEF( "Idle flushes", "flushes", VT_COUNT_TYPE_UNSIGNED, aggregator_vt_grp ) )
+    , capacity_flushes_vt_ev( VT_COUNT_DEF( "Capacity flushes", "flushes", VT_COUNT_TYPE_UNSIGNED, aggregator_vt_grp ) )
+    , aggregator_0_to_255_bytes_vt_ev(     VT_COUNT_DEF(     "Aggregated 0 to 255 bytes", "messages", VT_COUNT_TYPE_DOUBLE, aggregator_vt_grp ) )
+    , aggregator_256_to_511_bytes_vt_ev(   VT_COUNT_DEF(   "Aggregated 256 to 511 bytes", "messages", VT_COUNT_TYPE_DOUBLE, aggregator_vt_grp ) )
+    , aggregator_512_to_767_bytes_vt_ev(   VT_COUNT_DEF(   "Aggregated 512 to 767 bytes", "messages", VT_COUNT_TYPE_DOUBLE, aggregator_vt_grp ) )
+    , aggregator_768_to_1023_bytes_vt_ev(  VT_COUNT_DEF(  "Aggregated 768 to 1023 bytes", "messages", VT_COUNT_TYPE_DOUBLE, aggregator_vt_grp ) )
+    , aggregator_1024_to_1279_bytes_vt_ev( VT_COUNT_DEF( "Aggregated 1024 to 1279 bytes", "messages", VT_COUNT_TYPE_DOUBLE, aggregator_vt_grp ) )
+    , aggregator_1280_to_1535_bytes_vt_ev( VT_COUNT_DEF( "Aggregated 1280 to 1535 bytes", "messages", VT_COUNT_TYPE_DOUBLE, aggregator_vt_grp ) )
+    , aggregator_1536_to_1791_bytes_vt_ev( VT_COUNT_DEF( "Aggregated 1536 to 1791 bytes", "messages", VT_COUNT_TYPE_DOUBLE, aggregator_vt_grp ) )
+    , aggregator_1792_to_2047_bytes_vt_ev( VT_COUNT_DEF( "Aggregated 1792 to 2047 bytes", "messages", VT_COUNT_TYPE_DOUBLE, aggregator_vt_grp ) )
+    , aggregator_2048_to_2303_bytes_vt_ev( VT_COUNT_DEF( "Aggregated 2048 to 2303 bytes", "messages", VT_COUNT_TYPE_DOUBLE, aggregator_vt_grp ) )
+    , aggregator_2304_to_2559_bytes_vt_ev( VT_COUNT_DEF( "Aggregated 2304 to 2559 bytes", "messages", VT_COUNT_TYPE_DOUBLE, aggregator_vt_grp ) )
+    , aggregator_2560_to_2815_bytes_vt_ev( VT_COUNT_DEF( "Aggregated 2560 to 2815 bytes", "messages", VT_COUNT_TYPE_DOUBLE, aggregator_vt_grp ) )
+    , aggregator_2816_to_3071_bytes_vt_ev( VT_COUNT_DEF( "Aggregated 2816 to 3071 bytes", "messages", VT_COUNT_TYPE_DOUBLE, aggregator_vt_grp ) )
+    , aggregator_3072_to_3327_bytes_vt_ev( VT_COUNT_DEF( "Aggregated 3072 to 3327 bytes", "messages", VT_COUNT_TYPE_DOUBLE, aggregator_vt_grp ) )
+    , aggregator_3328_to_3583_bytes_vt_ev( VT_COUNT_DEF( "Aggregated 3328 to 3583 bytes", "messages", VT_COUNT_TYPE_DOUBLE, aggregator_vt_grp ) )
+    , aggregator_3584_to_3839_bytes_vt_ev( VT_COUNT_DEF( "Aggregated 3584 to 3839 bytes", "messages", VT_COUNT_TYPE_DOUBLE, aggregator_vt_grp ) )
+    , aggregator_3840_to_4095_bytes_vt_ev( VT_COUNT_DEF( "Aggregated 3840 to 4095 bytes", "messages", VT_COUNT_TYPE_DOUBLE, aggregator_vt_grp ) )
+#endif
   {
     reset();
     hist_labels[ 0] = "aggregator_0_to_255_bytes";
@@ -172,6 +225,34 @@ public:
     bytes_aggregated_ += bytes;
     histogram_[ (bytes >> 8) & 0xf ]++;
   }
+
+  void profiling_sample() {
+#ifdef VTRACE_SAMPLED
+    VT_COUNT_UNSIGNED_VAL( messages_aggregated_vt_ev, messages_aggregated_ );
+    VT_COUNT_UNSIGNED_VAL( bytes_aggregated_vt_ev, bytes_aggregated_ );
+    VT_COUNT_UNSIGNED_VAL( flushes_vt_ev, flushes_ );
+    VT_COUNT_UNSIGNED_VAL( timeouts_vt_ev, timeouts_ );
+    VT_COUNT_UNSIGNED_VAL( idle_flushes_vt_ev, idle_flushes_ );
+    VT_COUNT_UNSIGNED_VAL( capacity_flushes_vt_ev, capacity_flushes_ );
+    VT_COUNT_DOUBLE_VAL( aggregator_0_to_255_bytes_vt_ev,     (double) histogram_[0]  / messages_aggregated_ );
+    VT_COUNT_DOUBLE_VAL( aggregator_256_to_511_bytes_vt_ev,   (double) histogram_[1]  / messages_aggregated_ );
+    VT_COUNT_DOUBLE_VAL( aggregator_512_to_767_bytes_vt_ev,   (double) histogram_[2]  / messages_aggregated_ );
+    VT_COUNT_DOUBLE_VAL( aggregator_768_to_1023_bytes_vt_ev,  (double) histogram_[3]  / messages_aggregated_ );
+    VT_COUNT_DOUBLE_VAL( aggregator_1024_to_1279_bytes_vt_ev, (double) histogram_[4]  / messages_aggregated_ );
+    VT_COUNT_DOUBLE_VAL( aggregator_1280_to_1535_bytes_vt_ev, (double) histogram_[5]  / messages_aggregated_ );
+    VT_COUNT_DOUBLE_VAL( aggregator_1536_to_1791_bytes_vt_ev, (double) histogram_[6]  / messages_aggregated_ );
+    VT_COUNT_DOUBLE_VAL( aggregator_1792_to_2047_bytes_vt_ev, (double) histogram_[7]  / messages_aggregated_ );
+    VT_COUNT_DOUBLE_VAL( aggregator_2048_to_2303_bytes_vt_ev, (double) histogram_[8]  / messages_aggregated_ );
+    VT_COUNT_DOUBLE_VAL( aggregator_2304_to_2559_bytes_vt_ev, (double) histogram_[9]  / messages_aggregated_ );
+    VT_COUNT_DOUBLE_VAL( aggregator_2560_to_2815_bytes_vt_ev, (double) histogram_[10] / messages_aggregated_ );
+    VT_COUNT_DOUBLE_VAL( aggregator_2816_to_3071_bytes_vt_ev, (double) histogram_[11] / messages_aggregated_ );
+    VT_COUNT_DOUBLE_VAL( aggregator_3072_to_3327_bytes_vt_ev, (double) histogram_[12] / messages_aggregated_ );
+    VT_COUNT_DOUBLE_VAL( aggregator_3328_to_3583_bytes_vt_ev, (double) histogram_[13] / messages_aggregated_ );
+    VT_COUNT_DOUBLE_VAL( aggregator_3584_to_3839_bytes_vt_ev, (double) histogram_[14] / messages_aggregated_ );
+    VT_COUNT_DOUBLE_VAL( aggregator_3840_to_4095_bytes_vt_ev, (double) histogram_[15] / messages_aggregated_ );
+#endif
+  }
+
   void dump() {
     header( LOG(INFO) );
     data( LOG(INFO), time() );
@@ -206,7 +287,7 @@ struct AggregatorGenericCallHeader {
 // TODO: really don't want this transmitted even in tracing
   Node source;
 #endif
-#ifdef VTRACE
+#ifdef VTRACE_FULL
 // TODO: really don't want this transmitted even in tracing
   uint64_t tag;
 #endif
@@ -279,7 +360,7 @@ private:
   /// routing table for hierarchical aggregation
   std::vector< Node > route_map_;
 
-#ifdef VTRACE
+#ifdef VTRACE_FULL
   uint64_t tag_;
   unsigned vt_agg_commid_;
 #endif
@@ -349,7 +430,7 @@ public:
   }
   
   inline void idle_flush_poll() {
-#ifdef VTRACE
+#ifdef VTRACE_FULL
     VT_TRACER("idle_flush_poll");
 #endif
     StateTimer::enterState_communication();
@@ -376,7 +457,7 @@ public:
 
   /// poll communicator. send any aggregated messages that have been sitting for too long
   inline void poll() {
-#ifdef VTRACE
+#ifdef VTRACE_FULL
     VT_TRACER("poll");
 #endif
     global_communicator.poll();
@@ -406,7 +487,7 @@ public:
 inline void aggregate( Node destination, AggregatorAMHandler fn_p,
                          const void * args, const size_t args_size,
                          const void * payload, const size_t payload_size ) {
-#ifdef VTRACE
+#ifdef VTRACE_FULL
     VT_TRACER("aggregate");
 #endif
     CHECK( destination < max_nodes_ ) << "destination:" << destination << " max_nodes_:" << max_nodes_;
@@ -445,7 +526,7 @@ inline void aggregate( Node destination, AggregatorAMHandler fn_p,
 #ifdef GRAPPA_TRACE
                                           , global_communicator.mynode()
 #endif
-#ifdef VTRACE
+#ifdef VTRACE_FULL
 					   , tag_
 #endif
    
@@ -462,7 +543,7 @@ inline void aggregate( Node destination, AggregatorAMHandler fn_p,
       int fn_p_tag = aggregator_trace_tag( fn_p );
       TAU_TRACE_SENDMSG(fn_p_tag, destination, args_size + payload_size );
       // TODO: maybe add named communicators for separate function calls?
-#ifdef VTRACE
+#ifdef VTRACE_FULL
       VT_SEND( vt_agg_commid_, tag_, total_call_size );
 #endif
   }
@@ -470,7 +551,7 @@ inline void aggregate( Node destination, AggregatorAMHandler fn_p,
   uint64_t ts = get_timestamp();
   least_recently_sent_.update_or_insert( target, -ts );
   previous_timestamp_ = ts;
-#ifdef VTRACE
+#ifdef VTRACE_FULL
   tag_ += global_communicator.mynode();
 #endif
   DVLOG(5) << "aggregated " << header;

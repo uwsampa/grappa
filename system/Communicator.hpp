@@ -65,6 +65,29 @@ private:
   uint64_t bytes_;
   uint64_t histogram_[16];
   timespec start_;
+
+#ifdef VTRACE_SAMPLED
+  unsigned communicator_vt_grp;
+  unsigned messages_vt_ev;
+  unsigned bytes_vt_ev;
+  unsigned communicator_0_to_255_bytes_vt_ev;
+  unsigned communicator_256_to_511_bytes_vt_ev;
+  unsigned communicator_512_to_767_bytes_vt_ev;
+  unsigned communicator_768_to_1023_bytes_vt_ev;
+  unsigned communicator_1024_to_1279_bytes_vt_ev;
+  unsigned communicator_1280_to_1535_bytes_vt_ev;
+  unsigned communicator_1536_to_1791_bytes_vt_ev;
+  unsigned communicator_1792_to_2047_bytes_vt_ev;
+  unsigned communicator_2048_to_2303_bytes_vt_ev;
+  unsigned communicator_2304_to_2559_bytes_vt_ev;
+  unsigned communicator_2560_to_2815_bytes_vt_ev;
+  unsigned communicator_2816_to_3071_bytes_vt_ev;
+  unsigned communicator_3072_to_3327_bytes_vt_ev;
+  unsigned communicator_3328_to_3583_bytes_vt_ev;
+  unsigned communicator_3584_to_3839_bytes_vt_ev;
+  unsigned communicator_3840_to_4095_bytes_vt_ev;
+#endif
+
   std::string hist_labels[16];
 
   std::ostream& header( std::ostream& o ) {
@@ -113,6 +136,27 @@ public:
     , bytes_(0)
     , histogram_()
     , start_()
+#ifdef VTRACE_SAMPLED
+    , communicator_vt_grp( VT_COUNT_GROUP_DEF( "Communicator" ) )
+    , messages_vt_ev( VT_COUNT_DEF( "Total messages sent", "messages", VT_COUNT_TYPE_UNSIGNED, communicator_vt_grp ) )
+    , bytes_vt_ev( VT_COUNT_DEF( "Total bytes sent", "bytes", VT_COUNT_TYPE_UNSIGNED, communicator_vt_grp ) )
+    , communicator_0_to_255_bytes_vt_ev(     VT_COUNT_DEF(     "Raw 0 to 255 bytes", "messages", VT_COUNT_TYPE_DOUBLE, communicator_vt_grp ) )
+    , communicator_256_to_511_bytes_vt_ev(   VT_COUNT_DEF(   "Raw 256 to 511 bytes", "messages", VT_COUNT_TYPE_DOUBLE, communicator_vt_grp ) )
+    , communicator_512_to_767_bytes_vt_ev(   VT_COUNT_DEF(   "Raw 512 to 767 bytes", "messages", VT_COUNT_TYPE_DOUBLE, communicator_vt_grp ) )
+    , communicator_768_to_1023_bytes_vt_ev(  VT_COUNT_DEF(  "Raw 768 to 1023 bytes", "messages", VT_COUNT_TYPE_DOUBLE, communicator_vt_grp ) )
+    , communicator_1024_to_1279_bytes_vt_ev( VT_COUNT_DEF( "Raw 1024 to 1279 bytes", "messages", VT_COUNT_TYPE_DOUBLE, communicator_vt_grp ) )
+    , communicator_1280_to_1535_bytes_vt_ev( VT_COUNT_DEF( "Raw 1280 to 1535 bytes", "messages", VT_COUNT_TYPE_DOUBLE, communicator_vt_grp ) )
+    , communicator_1536_to_1791_bytes_vt_ev( VT_COUNT_DEF( "Raw 1536 to 1791 bytes", "messages", VT_COUNT_TYPE_DOUBLE, communicator_vt_grp ) )
+    , communicator_1792_to_2047_bytes_vt_ev( VT_COUNT_DEF( "Raw 1792 to 2047 bytes", "messages", VT_COUNT_TYPE_DOUBLE, communicator_vt_grp ) )
+    , communicator_2048_to_2303_bytes_vt_ev( VT_COUNT_DEF( "Raw 2048 to 2303 bytes", "messages", VT_COUNT_TYPE_DOUBLE, communicator_vt_grp ) )
+    , communicator_2304_to_2559_bytes_vt_ev( VT_COUNT_DEF( "Raw 2304 to 2559 bytes", "messages", VT_COUNT_TYPE_DOUBLE, communicator_vt_grp ) )
+    , communicator_2560_to_2815_bytes_vt_ev( VT_COUNT_DEF( "Raw 2560 to 2815 bytes", "messages", VT_COUNT_TYPE_DOUBLE, communicator_vt_grp ) )
+    , communicator_2816_to_3071_bytes_vt_ev( VT_COUNT_DEF( "Raw 2816 to 3071 bytes", "messages", VT_COUNT_TYPE_DOUBLE, communicator_vt_grp ) )
+    , communicator_3072_to_3327_bytes_vt_ev( VT_COUNT_DEF( "Raw 3072 to 3327 bytes", "messages", VT_COUNT_TYPE_DOUBLE, communicator_vt_grp ) )
+    , communicator_3328_to_3583_bytes_vt_ev( VT_COUNT_DEF( "Raw 3328 to 3583 bytes", "messages", VT_COUNT_TYPE_DOUBLE, communicator_vt_grp ) )
+    , communicator_3584_to_3839_bytes_vt_ev( VT_COUNT_DEF( "Raw 3584 to 3839 bytes", "messages", VT_COUNT_TYPE_DOUBLE, communicator_vt_grp ) )
+    , communicator_3840_to_4095_bytes_vt_ev( VT_COUNT_DEF( "Raw 3840 to 4095 bytes", "messages", VT_COUNT_TYPE_DOUBLE, communicator_vt_grp ) )
+#endif
   { 
     reset();
     hist_labels[ 0] = "comm_0_to_255_bytes";
@@ -151,6 +195,30 @@ public:
     bytes_ += bytes;
     histogram_[ (bytes >> 8) & 0xf ]++;
   }
+
+  void profiling_sample() {
+#ifdef VTRACE_SAMPLED
+    VT_COUNT_UNSIGNED_VAL( messages_vt_ev, messages_ );
+    VT_COUNT_UNSIGNED_VAL( bytes_vt_ev, bytes_ );
+    VT_COUNT_DOUBLE_VAL( communicator_0_to_255_bytes_vt_ev,     (double) histogram_[0]  / messages_ );
+    VT_COUNT_DOUBLE_VAL( communicator_256_to_511_bytes_vt_ev,   (double) histogram_[1]  / messages_ );
+    VT_COUNT_DOUBLE_VAL( communicator_512_to_767_bytes_vt_ev,   (double) histogram_[2]  / messages_ );
+    VT_COUNT_DOUBLE_VAL( communicator_768_to_1023_bytes_vt_ev,  (double) histogram_[3]  / messages_ );
+    VT_COUNT_DOUBLE_VAL( communicator_1024_to_1279_bytes_vt_ev, (double) histogram_[4]  / messages_ );
+    VT_COUNT_DOUBLE_VAL( communicator_1280_to_1535_bytes_vt_ev, (double) histogram_[5]  / messages_ );
+    VT_COUNT_DOUBLE_VAL( communicator_1536_to_1791_bytes_vt_ev, (double) histogram_[6]  / messages_ );
+    VT_COUNT_DOUBLE_VAL( communicator_1792_to_2047_bytes_vt_ev, (double) histogram_[7]  / messages_ );
+    VT_COUNT_DOUBLE_VAL( communicator_2048_to_2303_bytes_vt_ev, (double) histogram_[8]  / messages_ );
+    VT_COUNT_DOUBLE_VAL( communicator_2304_to_2559_bytes_vt_ev, (double) histogram_[9]  / messages_ );
+    VT_COUNT_DOUBLE_VAL( communicator_2560_to_2815_bytes_vt_ev, (double) histogram_[10] / messages_ );
+    VT_COUNT_DOUBLE_VAL( communicator_2816_to_3071_bytes_vt_ev, (double) histogram_[11] / messages_ );
+    VT_COUNT_DOUBLE_VAL( communicator_3072_to_3327_bytes_vt_ev, (double) histogram_[12] / messages_ );
+    VT_COUNT_DOUBLE_VAL( communicator_3328_to_3583_bytes_vt_ev, (double) histogram_[13] / messages_ );
+    VT_COUNT_DOUBLE_VAL( communicator_3584_to_3839_bytes_vt_ev, (double) histogram_[14] / messages_ );
+    VT_COUNT_DOUBLE_VAL( communicator_3840_to_4095_bytes_vt_ev, (double) histogram_[15] / messages_ );
+#endif
+  }
+
   void dump_csv() {
     header(LOG(INFO));
     data(LOG(INFO), time());
@@ -191,7 +259,7 @@ private:
   /// Are we in the phase that allows communication?
   bool communication_is_allowed_;
 
-#ifdef VTRACE
+#ifdef VTRACE_FULL
   unsigned communicator_grp_vt;
   unsigned send_ev_vt;
 #endif
@@ -285,7 +353,7 @@ public:
     assert( communication_is_allowed_ );
     assert( size < maximum_message_payload_size ); // make sure payload isn't too big
     stats.record_message( size );
-#ifdef VTRACE
+#ifdef VTRACE_FULL
     VT_COUNT_UNSIGNED_VAL( send_ev_vt, size );
 #endif
     GASNET_CHECK( gasnet_AMRequestMedium0( node, handler, buf, size ) );

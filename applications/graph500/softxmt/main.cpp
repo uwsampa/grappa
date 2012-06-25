@@ -42,10 +42,6 @@
 
 #include "PerformanceTools.hpp"
 
-#ifdef GOOGLE_PROFILER
-#include <gperftools/profiler.h>
-#endif
-
 static int compare_doubles(const void* a, const void* b) {
   double aa = *(const double*)a;
   double bb = *(const double*)b;
@@ -113,9 +109,7 @@ LOOP_FUNCTION(func_enable_tau, nid) {
   FLAGS_record_grappa_events = true;
 }
 LOOP_FUNCTION(func_enable_google_profiler, nid) {
-#ifdef GOOGLE_PROFILER
-    ProfilerStart( SoftXMT_get_profiler_filename() );
-#endif
+  SoftXMT_start_profiling();
 }
 static void enable_tau() {
 #ifdef GRAPPA_TRACE
@@ -138,9 +132,7 @@ LOOP_FUNCTION(func_disable_tau, nid) {
   FLAGS_record_grappa_events = false;
 }
 LOOP_FUNCTION(func_disable_google_profiler, nid) {
-#ifdef GOOGLE_PROFILER
-    ProfilerStop( );
-#endif
+  SoftXMT_stop_profiling();
 }
 static void disable_tau() {
 #ifdef GRAPPA_TRACE

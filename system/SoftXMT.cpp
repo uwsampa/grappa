@@ -12,6 +12,11 @@
 
 #include <TAU.h>
 
+
+#ifdef VTRACE
+#include <vt_user.h>
+#endif
+
 // command line arguments
 DEFINE_bool( steal, true, "Allow work-stealing between public task queues");
 DEFINE_int32( chunk_size, 10, "Amount of work to publish or steal in multiples of" );
@@ -29,6 +34,13 @@ bool SoftXMT_done_flag;
 #ifdef HEAPCHECK
 HeapLeakChecker * SoftXMT_heapchecker = 0;
 #endif
+
+void SoftXMT_take_profiling_sample() {
+  global_aggregator.stats.profiling_sample();
+  global_communicator.stats.profiling_sample();
+  global_task_manager.stats.profiling_sample();
+  global_scheduler.stats.profiling_sample();
+}
 
 static void poller( Thread * me, void * args ) {
   StateTimer::setThreadState( StateTimer::COMMUNICATION );
@@ -65,35 +77,13 @@ static void sigabrt_sighandler( int signum ) {
   raise( SIGUSR1 );
 }
 
-
-
-/// returns a static filename for profiling
-static char profiler_filename[2048] = {0};
-
-void SoftXMT_set_profiler_filename( char * argv0 ) {
-  // use Slurm environment variables if we can
-  char * jobname = getenv("SLURM_JOB_NAME");
-  char * jobid = getenv("SLURM_JOB_ID");
-  char * procid = getenv("SLURM_PROCID");
-  if( jobname != NULL && jobid != NULL && procid != NULL ) {
-    sprintf( profiler_filename, "%s.%s.%s.prof", jobname, jobid, procid );
-  } else {
-    sprintf( profiler_filename, "%s.%d.%d.prof", argv0, 0, getpid() );
-  }
-}
-
-char * SoftXMT_get_profiler_filename( ) {
-  return profiler_filename;
-}
-
-
 /// Initialize SoftXMT components. We are not ready to run until the
 /// user calls SoftXMT_activate().
 void SoftXMT_init( int * argc_p, char ** argv_p[], size_t global_memory_size_bytes )
 {
 
-  // generate unique profile filename
-  SoftXMT_set_profiler_filename( (*argv_p)[0] );
+  // help generate unique profile filename
+  SoftXMT_set_profiler_argv0( (*argv_p)[0] );
 
   // parse command line flags
   google::ParseCommandLineFlags(argc_p, argv_p, true);
@@ -316,4 +306,3 @@ void SoftXMT_finish( int retval )
 #endif
   
 }
-
