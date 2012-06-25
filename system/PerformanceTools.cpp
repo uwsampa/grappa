@@ -41,7 +41,7 @@ char * SoftXMT_get_next_profiler_filename( ) {
   char * jobname = getenv("SLURM_JOB_NAME");
   char * jobid = getenv("SLURM_JOB_ID");
   char * procid = getenv("SLURM_PROCID");
-  if( false && jobname != NULL && jobid != NULL && procid != NULL ) {
+  if( jobname != NULL && jobid != NULL && procid != NULL ) {
     sprintf( profiler_filename, "%s.%s.rank%s.phase%d.prof", jobname, jobid, procid, profiler_phase );
   } else {
     sprintf( profiler_filename, "%s.%d.pid%d.phase%d.prof", argv0_for_profiler, time_for_profiler, getpid(), profiler_phase );
