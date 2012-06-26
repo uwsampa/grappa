@@ -25,6 +25,7 @@ void dump_all_task_profiles() {
     for ( int t=1; t <= thread_last_tau_taskid; t++ ) {
         TAU_DB_DUMP_PREFIX_TASK( "dump", t ); // dump <node>.0.<1-N>
     }
+#endif //GRAPPA_TRACE
 }
     
 /// set when we should take a sample at the next context switch
