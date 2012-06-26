@@ -106,6 +106,8 @@ ParallelLoop_tests.o ParallelLoop_tests.test: $(LIBRARY)
 ParallelLoopPerformance_tests.o ParallelLoopPerformance_tests.test: $(LIBRARY)
 RemotePrivateTasks_tests.o RemotePrivateTasks_tests.test: $(LIBRARY)
 
+AsyncParallelFor_tests.o AsyncParallelFor_tests.test: AsyncParallelFor.o
+
 #
 # environment variables for run
 # remember to include environment's $LD_LIBRARY_PATH, since MPI libs may be there
@@ -161,7 +163,7 @@ endif
 #
 # Build SoftXMT static library
 #
-LIBRARY_CONTENTS+= SoftXMT.o GlobalAllocator.o GlobalMemory.o GlobalMemoryChunk.o Communicator.o Aggregator.o Timestamp.o Allocator.o Cache.o Delegate.o Collective.o ForkJoin.o tasks/cbarrier.o tasks/TaskingScheduler.o tasks/Task.o tasks/Thread.o stack.o coro.o StateTimer.o PerformanceTools.o Future.o CurrentThread.o ProfilerGroups.o
+LIBRARY_CONTENTS+= SoftXMT.o GlobalAllocator.o GlobalMemory.o GlobalMemoryChunk.o Communicator.o Aggregator.o Timestamp.o Allocator.o Cache.o Delegate.o Collective.o ForkJoin.o tasks/cbarrier.o tasks/TaskingScheduler.o tasks/Task.o tasks/Thread.o stack.o coro.o StateTimer.o PerformanceTools.o Future.o CurrentThread.o ProfilerGroups.o AsyncParallelFor.o
 
 libSoftXMT.a: $(LIBRARY_CONTENTS)
 	$($(MPITYPE)_AR) rv $@ $^
