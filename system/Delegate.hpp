@@ -10,17 +10,33 @@ private:
   uint64_t ops;
   uint64_t word_writes;
   uint64_t word_reads;
+  uint64_t T_reads;
   uint64_t word_fetch_adds;
   uint64_t word_compare_swaps;
   uint64_t generic_ops;
+  uint64_t op_ams;
+  uint64_t word_write_ams;
+  uint64_t word_read_ams;
+  uint64_t T_read_ams;
+  uint64_t word_fetch_add_ams;
+  uint64_t word_compare_swap_ams;
+  uint64_t generic_op_ams;
 #ifdef VTRACE_SAMPLED
   unsigned delegate_grp_vt;
   unsigned ops_ev_vt;
   unsigned word_writes_ev_vt;
   unsigned word_reads_ev_vt;
+  unsigned T_reads_ev_vt;
   unsigned word_fetch_adds_ev_vt;
   unsigned word_compare_swaps_ev_vt;
   unsigned generic_ops_ev_vt;
+  unsigned op_ams_ev_vt;
+  unsigned word_write_ams_ev_vt;
+  unsigned word_read_ams_ev_vt;
+  unsigned T_read_ams_ev_vt;
+  unsigned word_fetch_add_ams_ev_vt;
+  unsigned word_compare_swap_ams_ev_vt;
+  unsigned generic_op_ams_ev_vt;
 #endif
 
 public:
@@ -30,9 +46,18 @@ public:
   inline void count_op() { ops++; }
   inline void count_word_write() { word_writes++; }
   inline void count_word_read() { word_reads++; }
+  inline void count_T_read() { T_reads++; }
   inline void count_word_fetch_add() { word_fetch_adds++; }
   inline void count_word_compare_swap() { word_compare_swaps++; }
   inline void count_generic_op() { generic_ops++; }
+
+  inline void count_op_am() { op_ams++; }
+  inline void count_word_write_am() { word_write_ams++; }
+  inline void count_word_read_am() { word_read_ams++; }
+  inline void count_T_read_am() { T_read_ams++; }
+  inline void count_word_fetch_add_am() { word_fetch_add_ams++; }
+  inline void count_word_compare_swap_am() { word_compare_swap_ams++; }
+  inline void count_generic_op_am() { generic_op_ams++; }
 
   void dump();
   void sample();
@@ -86,6 +111,8 @@ struct read_request_args {
 
 template< typename T >
 static void read_request_am( read_request_args<T> * args, size_t size, void * payload, size_t payload_size ) {
+  delegate_stats.count_op_am();
+  delegate_stats.count_T_read_am();
   T data = *(args->address.pointer());
   read_reply_args<T> reply_args;
   reply_args.descriptor = args->descriptor;
@@ -100,6 +127,8 @@ static void read_request_am( read_request_args<T> * args, size_t size, void * pa
 
 template< typename T >
 void SoftXMT_delegate_read( GlobalAddress<T> address, T * buf) {
+  delegate_stats.count_op();
+  delegate_stats.count_T_read();
   memory_desc<T> md;
   md.address = address;
   md.done = false;
@@ -134,6 +163,8 @@ static void am_delegate_wake(DelegateCallbackArgs * callback, size_t csz, void *
 
 template<typename Func>
 static void am_delegate(DelegateCallbackArgs * callback, size_t csz, void* p, size_t fsz) {
+  delegate_stats.count_op_am();
+  delegate_stats.count_generic_op_am();
   Func * f = static_cast<Func*>(p);
   (*f)();
   SoftXMT_call_on(callback->sleeper.node(), &am_delegate_wake, callback, sizeof(*callback), p, fsz);

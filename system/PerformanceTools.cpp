@@ -57,6 +57,8 @@ int SoftXMT_profile_handler( void * arg ) {
   return 1; // tell profiler to profile at this tick
 }
 
+void SoftXMT_reset_stats();
+
 void SoftXMT_start_profiling() {
 #ifdef GOOGLE_PROFILER
   ProfilerOptions po;
@@ -66,6 +68,8 @@ void SoftXMT_start_profiling() {
   //ProfilerStart( SoftXMT_get_profiler_filename() );
 #ifdef VTRACE_SAMPLED
   VT_USER_START("sampling");
+  SoftXMT_reset_stats();
+  void SoftXMT_take_profiling_sample();
 #endif
 #endif
 }
@@ -76,6 +80,8 @@ void SoftXMT_stop_profiling() {
     SoftXMT_profile_handler(NULL);
 #ifdef VTRACE_SAMPLED
   VT_USER_END("sampling");
+  SoftXMT_reset_stats();
+  void SoftXMT_take_profiling_sample();
 #endif
 #endif
 }

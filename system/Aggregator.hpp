@@ -58,6 +58,10 @@ class AggregatorStatistics {
 private:
   uint64_t messages_aggregated_;
   uint64_t bytes_aggregated_;
+  uint64_t messages_deaggregated_;
+  uint64_t bytes_deaggregated_;
+  uint64_t messages_forwarded_;
+  uint64_t bytes_forwarded_;
   uint64_t flushes_;
   uint64_t timeouts_;
   uint64_t idle_flushes_;
@@ -69,6 +73,10 @@ private:
   unsigned aggregator_vt_grp;
   unsigned messages_aggregated_vt_ev;
   unsigned bytes_aggregated_vt_ev;
+  unsigned messages_deaggregated_vt_ev;
+  unsigned bytes_deaggregated_vt_ev;
+  unsigned messages_forwarded_vt_ev;
+  unsigned bytes_forwarded_vt_ev;
   unsigned flushes_vt_ev;
   unsigned timeouts_vt_ev;
   unsigned idle_flushes_vt_ev;
@@ -150,6 +158,10 @@ public:
     , aggregator_vt_grp( VT_COUNT_GROUP_DEF( "Aggregator" ) )
     , messages_aggregated_vt_ev( VT_COUNT_DEF( "Total messages aggregated", "messages", VT_COUNT_TYPE_UNSIGNED, aggregator_vt_grp ) )
     , bytes_aggregated_vt_ev( VT_COUNT_DEF( "Total bytes aggregated", "bytes", VT_COUNT_TYPE_UNSIGNED, aggregator_vt_grp ) )
+    , messages_deaggregated_vt_ev( VT_COUNT_DEF( "Total messages deaggregated", "messages", VT_COUNT_TYPE_UNSIGNED, aggregator_vt_grp ) )
+    , bytes_deaggregated_vt_ev( VT_COUNT_DEF( "Total bytes deaggregated", "bytes", VT_COUNT_TYPE_UNSIGNED, aggregator_vt_grp ) )
+    , messages_forwarded_vt_ev( VT_COUNT_DEF( "Total messages deaggregated", "messages", VT_COUNT_TYPE_UNSIGNED, aggregator_vt_grp ) )
+    , bytes_forwarded_vt_ev( VT_COUNT_DEF( "Total bytes deaggregated", "bytes", VT_COUNT_TYPE_UNSIGNED, aggregator_vt_grp ) )
     , flushes_vt_ev( VT_COUNT_DEF( "Flushes", "flushes", VT_COUNT_TYPE_UNSIGNED, aggregator_vt_grp ) )
     , timeouts_vt_ev( VT_COUNT_DEF( "Timeouts", "timeouts", VT_COUNT_TYPE_UNSIGNED, aggregator_vt_grp ) )
     , idle_flushes_vt_ev( VT_COUNT_DEF( "Idle flushes", "flushes", VT_COUNT_TYPE_UNSIGNED, aggregator_vt_grp ) )
@@ -194,6 +206,10 @@ public:
   void reset() {
     messages_aggregated_ = 0;
     bytes_aggregated_ = 0;
+    messages_deaggregated_ = 0;
+    bytes_deaggregated_ = 0;
+    messages_forwarded_ = 0;
+    bytes_forwarded_ = 0;
     flushes_ = 0;
     timeouts_ = 0;
     idle_flushes_ = 0;
@@ -226,10 +242,24 @@ public:
     histogram_[ (bytes >> 8) & 0xf ]++;
   }
 
+  void record_deaggregation( size_t bytes ) {
+    ++messages_deaggregated_;
+    bytes_deaggregated_ += bytes;
+  }
+
+  void record_forward( size_t bytes ) {
+    ++messages_forwarded_;
+    bytes_forwarded_ += bytes;
+  }
+
   void profiling_sample() {
 #ifdef VTRACE_SAMPLED
     VT_COUNT_UNSIGNED_VAL( messages_aggregated_vt_ev, messages_aggregated_ );
     VT_COUNT_UNSIGNED_VAL( bytes_aggregated_vt_ev, bytes_aggregated_ );
+    VT_COUNT_UNSIGNED_VAL( messages_deaggregated_vt_ev, messages_deaggregated_ );
+    VT_COUNT_UNSIGNED_VAL( bytes_deaggregated_vt_ev, bytes_deaggregated_ );
+    VT_COUNT_UNSIGNED_VAL( messages_forwarded_vt_ev, messages_forwarded_ );
+    VT_COUNT_UNSIGNED_VAL( bytes_forwarded_vt_ev, bytes_forwarded_ );
     VT_COUNT_UNSIGNED_VAL( flushes_vt_ev, flushes_ );
     VT_COUNT_UNSIGNED_VAL( timeouts_vt_ev, timeouts_ );
     VT_COUNT_UNSIGNED_VAL( idle_flushes_vt_ev, idle_flushes_ );
@@ -265,6 +295,10 @@ public:
   void merge(AggregatorStatistics * other) {
     messages_aggregated_ += other->messages_aggregated_;
     bytes_aggregated_ += other->bytes_aggregated_;
+    messages_deaggregated_ += other->messages_deaggregated_;
+    bytes_deaggregated_ += other->bytes_deaggregated_;
+    messages_forwarded_ += other->messages_forwarded_;
+    bytes_forwarded_ += other->bytes_forwarded_;
     flushes_ += other->flushes_;
     timeouts_ += other->timeouts_;
     idle_flushes_ += other->idle_flushes_;

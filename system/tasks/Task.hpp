@@ -121,6 +121,15 @@ class TaskManager {
 	  unsigned privateQ_size_vt_ev;
 	  unsigned publicQ_local_size_vt_ev;
 	  unsigned publicQ_shared_size_vt_ev;
+	  unsigned session_steal_successes_vt_ev;
+	  unsigned session_steal_fails_vt_ev;
+	  unsigned single_steal_successes_vt_ev;
+	  unsigned single_steal_fails_vt_ev;
+	  unsigned acquire_successes_vt_ev;
+	  unsigned acquire_fails_vt_ev;
+	  unsigned releases_vt_ev;
+	  unsigned public_tasks_dequeued_vt_ev;
+	  unsigned private_tasks_dequeued_vt_ev;
 #endif
 
                 TaskManager * tm;
@@ -143,6 +152,15 @@ class TaskManager {
 		    , privateQ_size_vt_ev( VT_COUNT_DEF( "privateQ size", "tasks", VT_COUNT_TYPE_UNSIGNED, task_manager_vt_grp ) )
 		    , publicQ_local_size_vt_ev( VT_COUNT_DEF( "publicQ local size", "tasks", VT_COUNT_TYPE_UNSIGNED, task_manager_vt_grp ) )
 		    , publicQ_shared_size_vt_ev( VT_COUNT_DEF( "publicQ shared size", "tasks", VT_COUNT_TYPE_UNSIGNED, task_manager_vt_grp ) )
+		    , session_steal_successes_vt_ev( VT_COUNT_DEF( "session_steal_successes", "steals", VT_COUNT_TYPE_UNSIGNED, task_manager_vt_grp ) )
+		    , session_steal_fails_vt_ev( VT_COUNT_DEF( "session_steal_fails", "steals", VT_COUNT_TYPE_UNSIGNED, task_manager_vt_grp ) )
+		    , single_steal_successes_vt_ev( VT_COUNT_DEF( "single_steal_successes", "steals", VT_COUNT_TYPE_UNSIGNED, task_manager_vt_grp ) )
+		    , single_steal_fails_vt_ev( VT_COUNT_DEF( "single_steal_fails", "steals", VT_COUNT_TYPE_UNSIGNED, task_manager_vt_grp ) )
+		    , acquire_successes_vt_ev( VT_COUNT_DEF( "acquire_successes", "acquires", VT_COUNT_TYPE_UNSIGNED, task_manager_vt_grp ) )
+		    , acquire_fails_vt_ev( VT_COUNT_DEF( "acquire_fails", "acquires", VT_COUNT_TYPE_UNSIGNED, task_manager_vt_grp ) )
+		    , releases_vt_ev( VT_COUNT_DEF( "releases", "acquires", VT_COUNT_TYPE_UNSIGNED, task_manager_vt_grp ) )
+		    , public_tasks_dequeued_vt_ev( VT_COUNT_DEF( "public_tasks_dequeued", "tasks", VT_COUNT_TYPE_UNSIGNED, task_manager_vt_grp ) )
+		    , private_tasks_dequeued_vt_ev( VT_COUNT_DEF( "private_tasks_dequeued", "tasks", VT_COUNT_TYPE_UNSIGNED, task_manager_vt_grp ) )
 #endif
 
                       , tm( task_manager )
