@@ -4,6 +4,7 @@
 #include "Cache.hpp"
 #include "ForkJoin.hpp"
 #include "GlobalAllocator.hpp"
+#include "GlobalTaskJoiner.hpp"
 
 BOOST_AUTO_TEST_SUITE( ForkJoin_tests );
 
@@ -17,6 +18,29 @@ LOOP_FUNCTOR( func_initialize, index, ((GlobalAddress<int64_t>, base_addr)) ((in
 
 LOOP_FUNCTION( func_hello, index ) {
   LOG(INFO) << "Hello from " << index << "!";
+}
+
+static void test_global_join_task_single(GlobalAddress<int64_t> addr) {
+  SoftXMT_delegate_fetch_and_add_word(addr, 1);
+  GlobalTaskJoiner::remoteSignal(global_joiner.addr());
+}
+static void test_global_join_task(GlobalAddress<int64_t> addr) {
+  SoftXMT_delegate_fetch_and_add_word(addr, 1);
+
+  for (int64_t i=0; i<3; i++) {
+    global_joiner.registerTask();
+    SoftXMT_publicTask(&test_global_join_task_single, addr);
+  }
+
+  GlobalTaskJoiner::remoteSignal(global_joiner.addr());
+}
+
+LOOP_FUNCTOR( func_test_global_join, nid, ((GlobalAddress<int64_t>, addr)) ) {
+  for (int64_t i=0; i<10; i++) {
+    global_joiner.registerTask();
+    SoftXMT_publicTask(&test_global_join_task, addr);
+  }
+  global_joiner.wait();
 }
 
 static LocalTaskJoiner joiner;
@@ -109,6 +133,15 @@ static void user_main(int * args) {
     BOOST_CHECK_EQUAL(x, 1);
     BOOST_CHECK_EQUAL(y, 1);    
     
+  }
+  { // Test GlobalTaskJoiner
+    BOOST_MESSAGE("Testing GlobalTaskJoiner");
+    global_joiner.reset();
+    
+    int64_t x = 0;
+    { func_test_global_join f(make_global(&x)); fork_join_custom(&f); }
+    
+    BOOST_CHECK_EQUAL(x, SoftXMT_nodes()*10*4);
   }
 }
 
