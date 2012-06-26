@@ -12,6 +12,7 @@
 #include <boost/static_assert.hpp>
 
 #include <TAU.h>
+
 #ifdef VTRACE
 #include <vt_user.h>
 #endif
@@ -22,6 +23,7 @@ extern TaskManager global_task_manager;
 
 DECLARE_uint64( num_starting_workers );
 
+void SoftXMT_take_profiling_sample();
 
 
 ///
@@ -80,7 +82,11 @@ int SoftXMT_run_user_main( void (*fp)(T), T args )
 #ifdef VTRACE
   VT_TRACER("run_user_main()");
 #endif
-  
+#ifdef VTRACE_SAMPLED
+  // this doesn't really add anything to the profiled trace
+  //SoftXMT_take_profiling_sample();
+#endif
+
   if( SoftXMT_mynode() == 0 ) {
     CHECK( CURRENT_THREAD == master_thread ); // this should only be run at the toplevel
 
@@ -99,7 +105,11 @@ int SoftXMT_run_user_main( void (*fp)(T), T args )
 
   // start the scheduler
   global_scheduler.run( );
-      
+
+#ifdef VTRACE_SAMPLED
+  // this doesn't really add anything to the profiled trace
+  //SoftXMT_take_profiling_sample();
+#endif
 }
 
 

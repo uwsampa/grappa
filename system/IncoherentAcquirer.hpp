@@ -100,7 +100,7 @@ public:
     
   void start_acquire() { 
     if( !acquire_started_ ) {
-#ifdef VTRACE
+#ifdef VTRACE_FULL
       VT_TRACER("incoherent start_acquire");
 #endif
       DVLOG(5) << "Thread " << CURRENT_THREAD 
@@ -137,7 +137,7 @@ public:
   void block_until_acquired() {
     if( !acquired_ ) {
       start_acquire();
-#ifdef VTRACE
+#ifdef VTRACE_FULL
       VT_TRACER("incoherent block_until_acquired");
 #endif
       DVLOG(5) << "Thread " << CURRENT_THREAD 

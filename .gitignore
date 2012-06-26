@@ -47,3 +47,4 @@ reader.out
 
 core.*
 *.prof
+*.z

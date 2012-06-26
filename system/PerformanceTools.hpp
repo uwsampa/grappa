@@ -102,5 +102,13 @@ void dump_all_task_profiles();
 // include profiler groups
 #include "ProfilerGroups.hpp"
 
+
+void SoftXMT_set_profiler_argv0( char * argv0 );
+
+void SoftXMT_start_profiling();
+void SoftXMT_stop_profiling();
+
+extern bool take_profiling_sample;
+
 #endif // PERFORMANCE_TOOLS_HPP
 

@@ -3,7 +3,8 @@
 #include "../PerformanceTools.hpp"
 #include "TaskingScheduler.hpp"
 
-#define MAXQUEUEDEPTH 500000
+//#define MAXQUEUEDEPTH 500000
+#define MAXQUEUEDEPTH (1L<<26)
 
 TaskManager global_task_manager;
 
@@ -225,6 +226,23 @@ void TaskManager::TaskStatistics::sample() {
 //      TAU_EVENT(publicQ_shared_size_ev, tm->publicQ.sharedDepth());
 //    }
 //#endif
+}
+
+void TaskManager::TaskStatistics::profiling_sample() {
+#ifdef VTRACE_SAMPLED
+  VT_COUNT_UNSIGNED_VAL( privateQ_size_vt_ev, tm->privateQ.size() );
+  VT_COUNT_UNSIGNED_VAL( publicQ_local_size_vt_ev, tm->publicQ.localDepth() );
+  VT_COUNT_UNSIGNED_VAL( publicQ_shared_size_vt_ev, tm->publicQ.sharedDepth() );
+  VT_COUNT_UNSIGNED_VAL( session_steal_successes_vt_ev, session_steal_successes_);
+  VT_COUNT_UNSIGNED_VAL( session_steal_fails_vt_ev, session_steal_fails_);
+  VT_COUNT_UNSIGNED_VAL( single_steal_successes_vt_ev, single_steal_successes_);
+  VT_COUNT_UNSIGNED_VAL( single_steal_fails_vt_ev, single_steal_fails_);
+  VT_COUNT_UNSIGNED_VAL( acquire_successes_vt_ev, acquire_successes_);
+  VT_COUNT_UNSIGNED_VAL( acquire_fails_vt_ev, acquire_fails_);
+  VT_COUNT_UNSIGNED_VAL( releases_vt_ev, releases_);
+  VT_COUNT_UNSIGNED_VAL( public_tasks_dequeued_vt_ev, public_tasks_dequeued_);
+  VT_COUNT_UNSIGNED_VAL( private_tasks_dequeued_vt_ev, private_tasks_dequeued_);
+#endif
 }
 
 

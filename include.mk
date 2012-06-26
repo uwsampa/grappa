@@ -68,7 +68,7 @@ LD=mpiCC
 # some library paths
 
 # gasnet
-GASNET=/sampa/share/gasnet18-rhel6-openmpi
+GASNET=/sampa/share/gasnet-1.18.2-openmpi-4kbuf-symbols
 GASNET_CONDUIT=ibv #values:ibv,mpi
 GASNET_THREAD=seq #values:seq,par,parsync -- seq recommended
 

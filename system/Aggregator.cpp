@@ -5,6 +5,7 @@
 #include "SoftXMT.hpp"
 #include <csignal>
 
+#include "PerformanceTools.hpp"
 
 /// command line options for Aggregator
 DEFINE_int64( aggregator_autoflush_ticks, 1000, "number of ticks to wait before autoflushing aggregated active messages");
@@ -29,7 +30,7 @@ Aggregator::Aggregator( )
   , previous_timestamp_( 0L )
   , least_recently_sent_( )
   , aggregator_deaggregate_am_handle_( -1 )
-#ifdef VTRACE
+#ifdef VTRACE_FULL
   , tag_( -1 )
   , vt_agg_commid_( VT_COMM_DEF( "Aggregator" ) )
 #endif
@@ -57,7 +58,7 @@ void Aggregator::init() {
   for( Node i = 0; i < max_nodes_; ++i ) {
     route_map_[i] = i;
   }
-#ifdef VTRACE
+#ifdef VTRACE_FULL
   tag_ = global_communicator.mynode();
 #endif
 }
@@ -70,7 +71,7 @@ Aggregator::~Aggregator() {
 
 void Aggregator::deaggregate( ) {
   GRAPPA_FUNCTION_PROFILE( GRAPPA_COMM_GROUP );
-#ifdef VTRACE
+#ifdef VTRACE_FULL
   VT_TRACER("deaggregate");
 #endif
   StateTimer::enterState_deaggregation();
@@ -97,19 +98,19 @@ void Aggregator::deaggregate( ) {
       void * payload = reinterpret_cast< void * >( msg_base +
                                                    sizeof( AggregatorGenericCallHeader ) +
                                                    header->args_size );
-      
       if( header->destination == gasnet_mynode() ) { // for us?
           
+	stats.record_deaggregation( sizeof( AggregatorGenericCallHeader ) + header->args_size + header->payload_size );
           // trace fine-grain communication
 #ifdef GRAPPA_TRACE
-          {
+          if (FLAGS_record_grappa_events) {
               // TODO: good candidate for TAU_CONTEXT_EVENT
               int fn_p_tag = aggregator_trace_tag( fp );
               TAU_TRACE_RECVMSG(fn_p_tag, header->source, header->args_size + header->payload_size );
           }
 #endif
 
-#ifdef VTRACE
+#ifdef VTRACE_FULL
 	  {
 	    VT_RECV( vt_agg_commid_, header->tag, sizeof( AggregatorGenericCallHeader ) + header->args_size + header->payload_size );
 	  }
@@ -128,6 +129,7 @@ void Aggregator::deaggregate( ) {
         DVLOG(5) << "forwarding " << *header
                 << " with args " << args
                 << " and payload " << payload;
+	stats.record_forward( sizeof( AggregatorGenericCallHeader ) + header->args_size + header->payload_size );
         SoftXMT_call_on( header->destination, fp, args, header->args_size, payload, header->payload_size );
       }
       i += sizeof( AggregatorGenericCallHeader ) + header->args_size + header->payload_size;
@@ -146,7 +148,7 @@ void Aggregator::finish() {
 
 void Aggregator_deaggregate_am( gasnet_token_t token, void * buf, size_t size ) {
   GRAPPA_FUNCTION_PROFILE( GRAPPA_COMM_GROUP );
-#ifdef VTRACE
+#ifdef VTRACE_FULL
   VT_TRACER("deaggregate AM");
 #endif
 
