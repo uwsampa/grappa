@@ -6,6 +6,7 @@
 #include "PerformanceTools.hpp"
 #include "GlobalAllocator.hpp"
 #include "timer.h"
+#include "GlobalTaskJoiner.hpp"
 
 GRAPPA_DEFINE_EVENT_GROUP(bfs);
 
@@ -29,18 +30,17 @@ static int64_t nadj;
 
 #define GA64(name) ((GlobalAddress<int64_t>,name))
 
-static void bfs_visit_neighbor(uint64_t packed, GlobalAddress<LocalTaskJoiner> rjoiner) {
+static void bfs_visit_neighbor(uint64_t packed, GlobalAddress<GlobalTaskJoiner> rjoiner) {
   int64_t vo = packed & 0xFFFFFFFF;
   int64_t v = packed >> 32;
+#ifdef DEBUG
   CHECK(vo < nadj) << "unpacking 'vo' unsuccessful (" << vo << " < " << nadj << ")";
   CHECK(v < nadj) << "unpacking 'v' unsuccessful (" << v << " < " << nadj << ")";  
-  
   GRAPPA_EVENT(visit_neighbor_ev, "visit neighbor of vertex", 1, bfs, v);
+#endif
   
-  GlobalAddress<int64_t> xv = xadj+vo;
-  CHECK(xv.node() < SoftXMT_nodes()) << " [" << xv.node() << " < " << SoftXMT_nodes() << "]";
+  const int64_t j = read(xadj+vo);
   
-  const int64_t j = read(xv);
   if (cmp_swap(bfs_tree+j, -1, v)) {
     while (kbuf == -1) { SoftXMT_yield(); }
     if (kbuf < BUF_LEN) {
@@ -57,49 +57,36 @@ static void bfs_visit_neighbor(uint64_t packed, GlobalAddress<LocalTaskJoiner> r
       kbuf = 1;
     }
   }
-  LocalTaskJoiner::remoteSignal(rjoiner);
+  GlobalTaskJoiner::remoteSignal(rjoiner);
 }
 
-static void bfs_visit_vertex(int64_t k, GlobalAddress<LocalTaskJoiner> rjoiner) {
-  GlobalAddress<int64_t> vk = vlist+k;
-  CHECK(vk.node() < SoftXMT_nodes()) << " [" << vk.node() << " < " << SoftXMT_nodes() << "]";
-  const int64_t v = read(vk);
+static void bfs_visit_vertex(int64_t k, GlobalAddress<GlobalTaskJoiner> rjoiner) {
+  const int64_t v = read(vlist+k);
   
-  // TODO: do these two together (cache)
-  const int64_t vstart = read(XOFF(v));
-  const int64_t vend = read(XENDOFF(v));
-  CHECK(vstart < nadj) << vstart << " < " << nadj;
-  CHECK(vend < nadj) << vend << " < " << nadj;
-  CHECK(v < (1L<<32)) << "can't pack 'v' into 32-bit value! have to get more creative";
-  CHECK(vend < (1L<<32)) << "can't pack 'vo' into 32-bit value! have to get more creative";
+  int64_t buf[2];
+  Incoherent<int64_t>::RO cr(xoff+2*v, 2, buf);
+  const int64_t vstart = cr[0], vend = cr[1];
   
-  GRAPPA_EVENT(visit_vertex_ev, "visit vertex: num neighbors", 1, bfs, vend-vstart);
-
-  LocalTaskJoiner myjoiner;
-  GlobalAddress<LocalTaskJoiner> myjoiner_addr = make_global(&myjoiner);
-
   for (int64_t vo = vstart; vo < vend; vo++) {
     uint64_t packed = (((uint64_t)v) << 32) | vo;
-    myjoiner.registerTask(); // register these new tasks on *this task*'s joiner
-    SoftXMT_publicTask(&bfs_visit_neighbor, packed, myjoiner_addr);
+    global_joiner.registerTask(); // register these new tasks on *this task*'s joiner
+    SoftXMT_publicTask(&bfs_visit_neighbor, packed, global_joiner.addr());
   }
-  myjoiner.wait();
-  LocalTaskJoiner::remoteSignal(rjoiner);
+  GlobalTaskJoiner::remoteSignal(rjoiner);
 }
 
 void bfs_level(Node nid, int64_t start, int64_t end) {
   range_t r = blockDist(start, end, nid, SoftXMT_nodes());
-  
+
   kbuf = 0;
   
-  LocalTaskJoiner nodejoiner;
-  GlobalAddress<LocalTaskJoiner> nodejoiner_addr = make_global(&nodejoiner);
+  global_joiner.reset();
 
   for (int64_t i = r.start; i < r.end; i++) {
-    nodejoiner.registerTask();
-    SoftXMT_publicTask(&bfs_visit_vertex, i, nodejoiner_addr);
+    global_joiner.registerTask();
+    SoftXMT_publicTask(&bfs_visit_vertex, i, global_joiner.addr());
   }
-  nodejoiner.wait();
+  global_joiner.wait();
 }
 
 void clear_buffers() {

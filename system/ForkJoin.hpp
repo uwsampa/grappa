@@ -96,7 +96,7 @@ struct LocalTaskJoiner {
     if (joinAddr.node() == SoftXMT_mynode()) {
       joinAddr.pointer()->signal();
     } else {
-      VLOG(1) << "remoteSignal -> " << joinAddr.node();
+      //VLOG(1) << "remoteSignal -> " << joinAddr.node();
       SoftXMT_call_on(joinAddr.node(), &LocalTaskJoiner::am_remoteSignal, &joinAddr);
     }
   }
