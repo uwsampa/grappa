@@ -36,7 +36,7 @@ tau*.trc
 *.edf
 profile.*.*.*
 app*.def
-app.otf
+*.otf
 app.vsettings
 app*.events
 fn_mappings
