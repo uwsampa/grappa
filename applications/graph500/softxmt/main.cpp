@@ -40,18 +40,13 @@
 #include "verify.hpp"
 #include "options.h"
 
-#include <TAU.h>
-
-#ifdef GOOGLE_PROFILER
-#include <gperftools/profiler.h>
-#endif
+#include "PerformanceTools.hpp"
 
 static int compare_doubles(const void* a, const void* b) {
   double aa = *(const double*)a;
   double bb = *(const double*)b;
   return (aa < bb) ? -1 : (aa == bb) ? 0 : 1;
 }
-
 enum {s_minimum, s_firstquartile, s_median, s_thirdquartile, s_maximum, s_mean, s_std, s_LAST};
 static void get_statistics(const double x[], int n, double r[s_LAST]);
 void output_results (const int64_t SCALE, int64_t nvtx_scale, int64_t edgefactor,
@@ -72,14 +67,14 @@ static double construction_time;
 static double bfs_time[NBFS_max];
 static int64_t bfs_nedge[NBFS_max];
 
-int lgsize;
-
 #define XOFF(k) (xoff+2*(k))
 #define XENDOFF(k) (xoff+2*(k)+1)
 
+#define read SoftXMT_delegate_read_word
+
 inline bool has_adj(GlobalAddress<int64_t> xoff, int64_t i) {
-  int64_t xoi = SoftXMT_delegate_read_word(XOFF(i));
-  int64_t xei = SoftXMT_delegate_read_word(XENDOFF(i));
+  int64_t xoi = read(XOFF(i));
+  int64_t xei = read(XENDOFF(i));
   return xei-xoi != 0;
 }
 
@@ -103,281 +98,18 @@ static void choose_bfs_roots(GlobalAddress<int64_t> xoff, int64_t nvtx, int64_t 
   }
 }
 
-#define BUF_LEN 16384
-static int64_t buf[BUF_LEN];
-static int64_t kbuf;
-static GlobalAddress<int64_t> vlist;
-static GlobalAddress<int64_t> xoff;
-static GlobalAddress<int64_t> xadj;
-static GlobalAddress<int64_t> bfs_tree;
-static GlobalAddress<int64_t> k2;
-static int64_t nadj;
-
-static LocalTaskJoiner joiner;
-
-#define GA64(name) ((GlobalAddress<int64_t>,name))
-
-LOOP_FUNCTOR(bfs_setup, nid, GA64(_vlist)GA64(_xoff)GA64(_xadj)GA64(_bfs_tree)GA64(_k2)((int64_t,_nadj))) {
-  kbuf = 0;
-  vlist = _vlist;
-  xoff = _xoff;
-  xadj = _xadj;
-  bfs_tree = _bfs_tree;
-  k2 = _k2;
-  nadj = _nadj;
-}
-
-static void bfs_visit_neighbor(uint64_t packed) {
-  int64_t vo = packed & 0xFFFFFFFF;
-  int64_t v = packed >> 32;
-  CHECK(vo < nadj) << "unpacking 'vo' unsuccessful (" << vo << " < " << nadj << ")";
-  CHECK(v < nadj) << "unpacking 'v' unsuccessful (" << v << " < " << nadj << ")";  
-  
-  GlobalAddress<int64_t> xv = xadj+vo;
-  CHECK(xv.node() < SoftXMT_nodes()) << " [" << xv.node() << " < " << SoftXMT_nodes() << "]";
-  
-  const int64_t j = SoftXMT_delegate_read_word(xv);
-  if (SoftXMT_delegate_compare_and_swap_word(bfs_tree+j, -1, v)) {
-    while (kbuf == -1) { SoftXMT_yield(); }
-    if (kbuf < BUF_LEN) {
-      buf[kbuf] = j;
-      (kbuf)++;
-    } else {
-      kbuf = -1; // lock other threads out temporarily
-      int64_t voff = SoftXMT_delegate_fetch_and_add_word(k2, BUF_LEN);
-      Incoherent<int64_t>::RW cvlist(vlist+voff, BUF_LEN);
-      for (int64_t vk=0; vk < BUF_LEN; vk++) {
-        cvlist[vk] = buf[vk];
-      }
-      buf[0] = j;
-      kbuf = 1;
-    }
-  }
-  joiner.signal();
-}
-
-static void bfs_visit_vertex(int64_t k) {
-  GlobalAddress<int64_t> vk = vlist+k;
-  CHECK(vk.node() < SoftXMT_nodes()) << " [" << vk.node() << " < " << SoftXMT_nodes() << "]";
-  const int64_t v = SoftXMT_delegate_read_word(vk);
-  
-  // TODO: do these two together (cache)
-  const int64_t vstart = SoftXMT_delegate_read_word(XOFF(v));
-  const int64_t vend = SoftXMT_delegate_read_word(XENDOFF(v));
-  CHECK(vstart < nadj) << vstart << " < " << nadj;
-  CHECK(vend < nadj) << vend << " < " << nadj;
-  CHECK(v < (1L<<32)) << "can't pack 'v' into 32-bit value! have to get more creative";
-  CHECK(vend < (1L<<32)) << "can't pack 'vo' into 32-bit value! have to get more creative";
-  
-  for (int64_t vo = vstart; vo < vend; vo++) {
-    uint64_t packed = (((uint64_t)v) << 32) | vo;
-    joiner.registerTask();
-    SoftXMT_privateTask(&bfs_visit_neighbor, packed);
-  }
-  joiner.signal();
-}
-
-LOOP_FUNCTOR(bfs_node, nid, ((int64_t,start)) ((int64_t,end))) {
-  range_t r = blockDist(start, end, nid, SoftXMT_nodes());
-  
-  kbuf = 0;
-  
-  for (int64_t i = r.start; i < r.end; i++) {
-    joiner.registerTask();
-    SoftXMT_privateTask(&bfs_visit_vertex, i);
-  }
-
-  joiner.wait();
-  
-  // make sure to commit what's left in the buffer at the end
-  if (kbuf) {
-    int64_t voff = SoftXMT_delegate_fetch_and_add_word(k2, kbuf);
-    VLOG(2) << "flushing vlist buffer (kbuf=" << kbuf << ", k2=" << voff << ")";
-    Incoherent<int64_t>::RW cvlist(vlist+voff, kbuf);
-    for (int64_t vk=0; vk < kbuf; vk++) {
-      cvlist[vk] = buf[vk];
-    }
-    kbuf = 0;
-  }
-}
-
-LOOP_FUNCTOR(func_bfs_onelevel, k,
-    (( GlobalAddress<int64_t>,vlist    ))
-    (( GlobalAddress<int64_t>,xoff     ))
-    (( GlobalAddress<int64_t>,xadj     ))
-    (( GlobalAddress<int64_t>,bfs_tree ))
-    (( GlobalAddress<int64_t>,k2       ))
-    (( int64_t*,kbuf ))
-    (( int64_t*,buf  ))
-    (( int64_t, nadj )) )
-{
-  const int64_t v = SoftXMT_delegate_read_word(vlist+k);
-  
-  // TODO: do these two together (cache)
-  const int64_t vstart = SoftXMT_delegate_read_word(XOFF(v));
-  const int64_t vend = SoftXMT_delegate_read_word(XENDOFF(v));
-  CHECK(vstart < nadj) << vstart << " < " << nadj;
-  CHECK(vend < nadj) << vend << " < " << nadj;
-
-  for (int64_t vo = vstart; vo < vend; vo++) {
-    const int64_t j = SoftXMT_delegate_read_word(xadj+vo); // cadj[vo];
-    if (SoftXMT_delegate_compare_and_swap_word(bfs_tree+j, -1, v)) {
-      while (*kbuf == -1) { SoftXMT_yield(); }
-      if (*kbuf < BUF_LEN) {
-        buf[*kbuf] = j;
-        (*kbuf)++;
-      } else {
-        *kbuf = -1; // lock other threads out temporarily
-        int64_t voff = SoftXMT_delegate_fetch_and_add_word(k2, BUF_LEN);
-        Incoherent<int64_t>::RW cvlist(vlist+voff, BUF_LEN);
-        for (int64_t vk=0; vk < BUF_LEN; vk++) {
-          cvlist[vk] = buf[vk];
-        }
-        buf[0] = j;
-        *kbuf = 1;
-      }
-    }
-  }
-}
-
-LOOP_FUNCTOR(func_bfs_node, mynode,
-  (( GlobalAddress<int64_t>,vlist    ))
-  (( GlobalAddress<int64_t>,xoff     ))
-  (( GlobalAddress<int64_t>,xadj     ))
-  (( GlobalAddress<int64_t>,bfs_tree ))
-  (( GlobalAddress<int64_t>,k2       ))
-  (( int64_t,start ))
-  (( int64_t,end  ))
-  (( int64_t,nadj )) )
-{
-  int64_t kbuf = 0;
-  int64_t buf[BUF_LEN];
-  
-  range_t r = blockDist(start, end, mynode, SoftXMT_nodes());
-  
-  func_bfs_onelevel f;
-  f.vlist = vlist; f.xoff = xoff; f.xadj = xadj; f.bfs_tree = bfs_tree; f.k2 = k2;
-  f.kbuf = &kbuf;
-  f.buf = buf;
-  f.nadj = nadj;
-  
-  fork_join_onenode(&f, r.start, r.end);
-  
-  // make sure to commit what's left in the buffer at the end
-  if (kbuf) {
-    int64_t voff = SoftXMT_delegate_fetch_and_add_word(k2, kbuf);
-    Incoherent<int64_t>::RW cvlist(vlist+voff, kbuf);
-    for (int64_t vk=0; vk < kbuf; vk++) {
-      cvlist[vk] = buf[vk];
-    }
-  }
-}
-
-static double make_bfs_tree(csr_graph * g, GlobalAddress<int64_t> bfs_tree, int64_t root) {
-  TAU_PHASE("make_bfs_tree", "double (csr_graph*,GlobalAddress<int64_t>,int64_t)", TAU_USER);
-
-  int64_t NV = g->nv;
-  GlobalAddress<int64_t> vlist = SoftXMT_typed_malloc<int64_t>(NV);
-  
-  double t;
-  t = timer();
-  
-  // start with root as only thing in vlist
-  SoftXMT_delegate_write_word(vlist, root);
-  
-  int64_t k1 = 0, k2 = 1;
-  GlobalAddress<int64_t> k2addr = make_global(&k2);
-  
-  // initialize bfs_tree to -1
-  SoftXMT_memset(bfs_tree, (int64_t)-1,  NV);
-  
-  SoftXMT_delegate_write_word(bfs_tree+root, root); // parent of root is self
-  
-//  func_bfs_node fb;
-//  fb.vlist = vlist;
-//  fb.xoff = g->xoff;
-//  fb.xadj = g->xadj;
-//  fb.bfs_tree = bfs_tree;
-//  fb.k2 = k2addr;
-//  fb.nadj = g->nadj; //DEBUG only...
-  
-  bfs_setup fsetup(vlist, g->xoff, g->xadj, bfs_tree, k2addr, g->nadj);
-  fork_join_custom(&fsetup);
-  
-  while (k1 != k2) {
-    VLOG(2) << "k1=" << k1 << ", k2=" << k2;
-    const int64_t oldk2 = k2;
-    
-//    fb.start = k1;
-//    fb.end = oldk2;
-//    fork_join_custom(&fb);
-    char phaseName[64];
-    sprintf(phaseName, "Level %lld -> %lld\n", k1, k2);
-    TAU_PHASE_CREATE_DYNAMIC(bfs_level, phaseName, "", TAU_USER);
-    TAU_PHASE_START(bfs_level);
-
-    bfs_node fbfs(k1, oldk2);
-    fork_join_custom(&fbfs);
-
-    TAU_PHASE_STOP(bfs_level);
-    
-    k1 = oldk2;
-  }
-  
-  t = timer() - t;
-  
-  SoftXMT_free(vlist);
-  SoftXMT_dump_stats_all_nodes();
-//  SoftXMT_merge_and_dump_stats();
-  
-  return t;
-}
-
-static void setup_bfs(tuple_graph * tg, csr_graph * g, int64_t * bfs_roots) {
-  
-  TIME(construction_time,
-       create_graph_from_edgelist(tg, g)
-  );
-  VLOG(1) << "construction_time = " << construction_time;
-  
-  GlobalAddress<int64_t> xoff = g->xoff;
-//  for (int64_t i=0; i < g.nv; i++) {
-//    VLOG(1) << "xoff[" << i << "] = " << SoftXMT_delegate_read_word(XOFF(i)) << " -> " << SoftXMT_delegate_read_word(XENDOFF(i));
-//  }
-//#ifdef DEBUG
-//  for (int64_t i=0; i<g.nv; i++) {
-//    std::stringstream ss;
-//    int64_t xoi = SoftXMT_delegate_read_word(XOFF(i)), xei = SoftXMT_delegate_read_word(XENDOFF(i));
-//    CHECK(xoi <= g.nadj) << i << ": " << xoi << " > " << g.nadj;
-//    CHECK(xei <= g.nadj) << i << ": " << xei << " > " << g.nadj;
-//    ss << "xoff[" << i << "] = " << xoi << "->" << xei << ": (";
-//    for (int64_t j=xoi; j<xei; j++) {
-//      ss << SoftXMT_delegate_read_word(g.xadj+j) << ",";
-//    }
-//    ss << ")";
-//    VLOG(2) << ss.str();
-//  }
-//#endif
-  double t;
-  
-  // no rootname input method, so randomly choose
-  nbfs = NBFS_max;
-  TIME(t, choose_bfs_roots(g->xoff, g->nv, &nbfs, bfs_roots));
-  VLOG(1) << "choose_bfs_roots time: " << t;
-  
-//  for (int64_t i=0; i < nbfs; i++) {
-//    VLOG(1) << "bfs_roots[" << i << "] = " << bfs_roots[i];
-//  }
-}
 
 LOOP_FUNCTION(func_enable_tau, nid) {
   //TAU_ENABLE_INSTRUMENTATION();
+  //TAU_ENABLE_GROUP(TAU_USER);
+  //TAU_ENABLE_GROUP(TAU_USER1);
+  //TAU_ENABLE_GROUP(TAU_USER2);
+  TAU_ENABLE_GROUP(TAU_USER3);
+
   FLAGS_record_grappa_events = true;
 }
 LOOP_FUNCTION(func_enable_google_profiler, nid) {
-#ifdef GOOGLE_PROFILER
-    ProfilerStart( SoftXMT_get_profiler_filename() );
-#endif
+  SoftXMT_start_profiling();
 }
 static void enable_tau() {
 #ifdef GRAPPA_TRACE
@@ -392,12 +124,15 @@ static void enable_tau() {
 }
 LOOP_FUNCTION(func_disable_tau, nid) {
   //TAU_DISABLE_INSTRUMENTATION();
+  //TAU_DISABLE_GROUP(TAU_USER);
+  //TAU_DISABLE_GROUP(TAU_USER1);
+  //TAU_DISABLE_GROUP(TAU_USER2);
+  TAU_DISABLE_GROUP(TAU_USER3);
+
   FLAGS_record_grappa_events = false;
 }
 LOOP_FUNCTION(func_disable_google_profiler, nid) {
-#ifdef GOOGLE_PROFILER
-    ProfilerStop( );
-#endif
+  SoftXMT_stop_profiling();
 }
 static void disable_tau() {
 #ifdef GRAPPA_TRACE
@@ -540,6 +275,43 @@ static void checkpoint_out(tuple_graph * tg, csr_graph * g, int64_t * bfs_roots)
   VLOG(1) << "done writing checkpoint (time = " << t << ")";
 }
 
+static void setup_bfs(tuple_graph * tg, csr_graph * g, int64_t * bfs_roots) {
+  
+  TIME(construction_time,
+       create_graph_from_edgelist(tg, g)
+  );
+  VLOG(1) << "construction_time = " << construction_time;
+  
+  GlobalAddress<int64_t> xoff = g->xoff;
+//  for (int64_t i=0; i < g.nv; i++) {
+//    VLOG(1) << "xoff[" << i << "] = " << read(XOFF(i)) << " -> " << read(XENDOFF(i));
+//  }
+//#ifdef DEBUG
+//  for (int64_t i=0; i<g.nv; i++) {
+//    std::stringstream ss;
+//    int64_t xoi = read(XOFF(i)), xei = read(XENDOFF(i));
+//    CHECK(xoi <= g.nadj) << i << ": " << xoi << " > " << g.nadj;
+//    CHECK(xei <= g.nadj) << i << ": " << xei << " > " << g.nadj;
+//    ss << "xoff[" << i << "] = " << xoi << "->" << xei << ": (";
+//    for (int64_t j=xoi; j<xei; j++) {
+//      ss << read(g.xadj+j) << ",";
+//    }
+//    ss << ")";
+//    VLOG(2) << ss.str();
+//  }
+//#endif
+  double t;
+  
+  // no rootname input method, so randomly choose
+  nbfs = NBFS_max;
+  TIME(t, choose_bfs_roots(g->xoff, g->nv, &nbfs, bfs_roots));
+  VLOG(1) << "choose_bfs_roots time: " << t;
+  
+//  for (int64_t i=0; i < nbfs; i++) {
+//    VLOG(1) << "bfs_roots[" << i << "] = " << bfs_roots[i];
+//  }
+}
+
 static void user_main(int * args) {
   double t = timer();
   
@@ -625,6 +397,13 @@ static void user_main(int * args) {
 int main(int argc, char** argv) {
   SoftXMT_init(&argc, &argv, (1L<<MEM_SCALE));
   SoftXMT_activate();
+
+  //TAU_DISABLE_GROUP(TAU_DEFAULT);
+  //TAU_DISABLE_GROUP(TAU_USER);
+  TAU_DISABLE_GROUP(TAU_USER3);
+  //TAU_DISABLE_INSTRUMENTATION();
+  //TAU_DISABLE_ALL_GROUPS();
+  //TAU_ENABLE_GROUP(TAU_USER1);
 
   /* Parse arguments. */
   get_options(argc, argv);

@@ -27,11 +27,12 @@ inline T coll_add(const T& a, const T& b) {
 #define HOME_NODE 0
 extern Thread * reducing_thread;
 extern int64_t reduction_result;
+extern int64_t final_reduction_result;
 extern Node reduction_reported_in;
 
 template< typename T >
 static void am_reduce_wake(T * val, size_t sz, void * payload, size_t psz) {
-  reduction_result = *val;
+  final_reduction_result = *val;
   SoftXMT_wake(reducing_thread);
 }
 
@@ -66,7 +67,7 @@ T SoftXMT_allreduce(T myval) {
   
   SoftXMT_suspend();
   
-  return reduction_result;
+  return final_reduction_result;
 }
 
 #endif // _COLLECTIVE_HPP

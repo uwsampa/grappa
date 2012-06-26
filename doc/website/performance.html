@@ -1,0 +1,65 @@
+<!--#include virtual="header.inc" -->
+
+<div class="navbar navbar-fixed-top">
+  <div class="navbar-inner">
+    <div class="container">
+      <a class="btn btn-navbar" data-toggle="collapse" data-target=".nav-collapse">
+        <span class="icon-bar"></span>
+        <span class="icon-bar"></span>  
+        <span class="icon-bar"></span>
+      </a>
+      <a class="brand" href="index.html">Grappa</a>
+      <div class="nav-collapse">
+        <ul class="nav">
+          <li><a href="index.html">Home</a></li>
+          <li><a href="about.html">About</a></li>
+          <li><a href="contact.html">Contact</a></li>
+          <!-- <li><a href="#download">Download</a></li> -->
+        </ul>
+      </div><!--/.nav-collapse -->
+    </div>
+  </div>
+</div>
+
+
+<div class="container">
+
+  <div class="row">
+    <div class="span6">
+
+      <h1>Early results show promise</h1>
+      
+      <p>Grappa is still under development, but early results suggest
+      we can perform well.</p>
+
+      <img src="images/grappa-performance.png" />
+
+      <p>We ran a modified version of the Unbalanced Tree Search (UTS)
+	benchmark in order to evaluate random access bandwidth and load
+	balancing.</p>
+
+      <p>Grappa & the Cray XMT are both traversing a tree dispersed
+	randomly through global shared memory using a parallel loop
+	decomposition.</p>
+
+      <p>The MPI execution uses out-of-box UTS & traverses the tree
+	implicitly, so there are RNG calls and work-stealing, but not
+	remote references at every node.</p>
+      
+      <p>The Grappa and MPI runs used our 12-node 144-core 2.66 GHz
+	Intel Westmere system with Mellanox QDR Infiniband. The XMT run
+	used on PNNL’s 128-processsor Cray XMT-I.</p>
+
+    </div>
+  </div>
+  
+  <hr>
+  
+  <footer>
+    <p>&copy; University of Washington CSE 2012</p>
+  </footer>
+  
+</div> <!-- /container -->
+
+
+<!--#include virtual="footer.inc" -->

@@ -14,8 +14,14 @@ CFLAGS += -g -Wall -Drestrict=__restrict__ -ffast-math -DGRAPH_GENERATOR_SOFTXMT
 
 LDFLAGS = -g
 
+# can be set to one of:
+# * bfs (public tasks, barriers rather than full join)
+# * bfs_steal_phases (public tasks, but full joins for each BFS level)
+# * bfs_nosteal (private tasks, no stealing, full joins)
+BFS = bfs
+
 GENERATOR_SOURCES = graph_generator.o make_graph.o splittable_mrg.o utils.o
-SOURCES = main.o oned_csr.o rmat.o verify.o options.o
+SOURCES = main.o oned_csr.o rmat.o verify.o options.o $(BFS).o
 HEADERS = common.h oned_csr.h verify.hpp
 
 include $(SOFTXMT_HOME)/system/Makefile

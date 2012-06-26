@@ -43,6 +43,8 @@ typedef struct tuple_graph {
   int64_t nedge; /* Number of edges in graph, in both cases */
 } tuple_graph;
 
+#include "oned_csr.h"
+
 #ifdef __cplusplus
 extern "C" {
 #endif
@@ -63,6 +65,7 @@ void run_bfs(int64_t root, int64_t* pred);
 void get_vertex_distribution_for_pred(size_t count, const int64_t* vertices, int* owners, size_t* locals);
 int64_t vertex_to_global_for_pred(int v_rank, size_t v_local); /* Only used for error messages */
 size_t get_nlocalverts_for_pred(void);
+double make_bfs_tree(csr_graph * g, GlobalAddress<int64_t> bfs_tree, int64_t root);
 
 static inline size_t size_min(size_t a, size_t b) {
   return a < b ? a : b;

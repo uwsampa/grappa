@@ -135,7 +135,7 @@ inline void* thread_context_switch( Thread * running, Thread * next, void * val 
     // This timer ensures we are able to calculate exclusive time for the previous thing in this thread's callstack,
     // so that we don't count time in another thread
     GRAPPA_THREAD_FUNCTION_PROFILE( GRAPPA_SUSPEND_GROUP, running );  
-#ifdef VTRACE
+#ifdef VTRACE_FULL
   VT_TRACER("context switch");
 #endif
     void* res = coro_invoke( running->co, next->co, val );

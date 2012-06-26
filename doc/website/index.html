@@ -1,0 +1,70 @@
+<!--#include virtual="header.inc" -->
+
+<div class="navbar navbar-fixed-top">
+  <div class="navbar-inner">
+    <div class="container">
+      <a class="btn btn-navbar" data-toggle="collapse" data-target=".nav-collapse">
+        <span class="icon-bar"></span>
+        <span class="icon-bar"></span>  
+        <span class="icon-bar"></span>
+      </a>
+      <a class="brand" href="index.html">Grappa</a>
+      <div class="nav-collapse">
+        <ul class="nav">
+          <li class="active"><a href="index.html">Home</a></li>
+          <li><a href="about.html">About</a></li>
+          <li><a href="contact.html">Contact</a></li>
+          <!-- <li><a href="#download">Download</a></li> -->
+        </ul>
+      </div><!--/.nav-collapse -->
+    </div>
+  </div>
+</div>
+
+
+<div class="container">
+
+  <div class="hero-unit hero-img" style="color:white">
+    <h1>Grappa</h1>
+    <p>Grappa enables high-throughput graph processing on commodity clusters.</p>
+    <p><a class="btn btn-primary btn-large" href="overview.html">Learn more &raquo;</a></p>
+  </div>
+  
+  <div class="row">
+    <div class="span4">
+      <h2>Exploit irregular parallelism</h2>
+      <p>Big graph problems present big performance problems on
+	mass-market hardware. Finding locality is difficult, and
+	parallelism is irregular, making it hard to balance load
+	across a cluster. Grappa helps you express and exploit the
+	parallelism in your application.</p>
+      <p><a class="btn" href="overview.html">View details &raquo;</a></p>
+    </div>
+    <div class="span4">
+      <h2>Trade latency for throughput</h2>
+      <p>Grappa's lightweight context switching opens up optimization
+	opportunities that lead to better performance. Given lots of
+	parallelism, Grappa can trade latency for high random-access
+	memory bandwith, better effective network injection rates, and
+	fine-grained lightweight synchronization.</p>
+      <p><a class="btn" href="approach.html">View details &raquo;</a></p>
+    </div>
+    <div class="span4">
+      <h2>Beat special-purpose hardware</h2>
+      <p>Early results suggest that Grappa enables commodity
+	hardware to crunch graphs faster than special-purpose
+	supercomputers like the Cray XMT.</p>
+      <p><a class="btn" href="performance.html">View details &raquo;</a></p>
+    </div>
+  </div>
+  
+  <hr>
+  
+  <footer>
+    <p>&copy; University of Washington CSE 2012</p>
+  </footer>
+  
+</div> <!-- /container -->
+
+
+<!--#include virtual="footer.inc" -->

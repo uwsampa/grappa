@@ -13,19 +13,22 @@
 
 #include <TAU.h>
 
+#define read SoftXMT_delegate_read_word
+#define write SoftXMT_delegate_write_word
+
 LOOP_FUNCTOR(compute_levels_func, k, ((GlobalAddress<int64_t>,bfs_tree))((GlobalAddress<int64_t>,level))((int64_t,nv))((int64_t,root)) ) {
-  int64_t level_k = SoftXMT_delegate_read_word(level+k);
+  int64_t level_k = read(level+k);
   if (level_k >= 0) return;
   
-  int64_t tree_k = SoftXMT_delegate_read_word(bfs_tree+k);
+  int64_t tree_k = read(bfs_tree+k);
   if (tree_k >= 0 && k != root) {
     int64_t parent = k;
     int64_t nhop = 0;
     int64_t next_parent;
     
     /* Run up the three until we encounter an already-leveled vertex. */
-    while (parent >= 0 && SoftXMT_delegate_read_word(level+parent) < 0 && nhop < nv) {
-      next_parent = SoftXMT_delegate_read_word(bfs_tree+parent);
+    while (parent >= 0 && read(level+parent) < 0 && nhop < nv) {
+      next_parent = read(bfs_tree+parent);
       assert(parent != next_parent);
       parent = next_parent;
       ++nhop;
@@ -37,25 +40,25 @@ LOOP_FUNCTOR(compute_levels_func, k, ((GlobalAddress<int64_t>,bfs_tree))((Global
     
     // Now assign levels until we meet an already-leveled vertex
     // NOTE: This permits benign races if parallelized.
-    nhop += SoftXMT_delegate_read_word(level+parent);
+    nhop += read(level+parent);
     parent = k;
-    while (SoftXMT_delegate_read_word(level+parent) < 0) {
+    while (read(level+parent) < 0) {
       assert(nhop > 0);
-      SoftXMT_delegate_write_word(level+parent, nhop);
+      write(level+parent, nhop);
       nhop--;
-      parent = SoftXMT_delegate_read_word(bfs_tree+parent);
+      parent = read(bfs_tree+parent);
     }
-    assert(nhop == SoftXMT_delegate_read_word(level+parent));
+    assert(nhop == read(level+parent));
     
     // Internal check to catch mistakes in races...
 #if defined(DEBUG)
     nhop = 0;
     parent = k;
-    int64_t lastlvl = SoftXMT_delegate_read_word(level+k) + 1;
-    while ((next_parent = SoftXMT_delegate_read_word(level+parent)) > 0) {
+    int64_t lastlvl = read(level+k) + 1;
+    while ((next_parent = read(level+parent)) > 0) {
       assert(lastlvl == (1+next_parent));
       lastlvl = next_parent;
-      parent = SoftXMT_delegate_read_word(bfs_tree+parent);
+      parent = read(bfs_tree+parent);
       nhop++;
     }
 #endif
@@ -66,7 +69,7 @@ void compute_levels(GlobalAddress<int64_t> level, int64_t nv, GlobalAddress<int6
   
   SoftXMT_memset(level, (int64_t)-1, nv);
 
-  SoftXMT_delegate_write_word(level+root, 0);
+  write(level+root, 0);
   
   compute_levels_func fl;
   fl.bfs_tree = bfs_tree;
@@ -98,8 +101,8 @@ LOOP_FUNCTOR(verify_func, k, ((GlobalAddress<int64_t>,bfs_tree)) ((GlobalAddress
     return;
   
   // All neighbors must be in the tree.
-  int64_t ti = SoftXMT_delegate_read_word(bfs_tree+i);
-  int64_t tj = SoftXMT_delegate_read_word(bfs_tree+j);
+  int64_t ti = read(bfs_tree+i);
+  int64_t tj = read(bfs_tree+j);
   
   if (ti >= 0 && tj < 0) { terr = -12; LOG(ERROR) << "Error! ti=" << ti << ", tj=" << tj; return; }
   if (tj >= 0 && ti < 0) { terr = -13; LOG(ERROR) << "Error! ti=" << ti << ", tj=" << tj; return; }
@@ -115,28 +118,28 @@ LOOP_FUNCTOR(verify_func, k, ((GlobalAddress<int64_t>,bfs_tree)) ((GlobalAddress
   // Mark seen tree edges.
   if (i != j) {
     if (ti == j)
-      SoftXMT_delegate_write_word(seen_edge+i, 1);
+      write(seen_edge+i, 1);
     if (tj == i)
-      SoftXMT_delegate_write_word(seen_edge+j, 1);
+      write(seen_edge+j, 1);
   }
-  lvldiff = SoftXMT_delegate_read_word(level+i) - SoftXMT_delegate_read_word(level+j);
+  lvldiff = read(level+i) - read(level+j);
   /* Check that the levels differ by no more than one. */
   if (lvldiff > 1 || lvldiff < -1) {
     terr = -14;
-    LOG(ERROR) << "Error, levels differ by more than one! (k = " << k << ", lvl[" << i << "]=" << SoftXMT_delegate_read_word(level+i) << ", lvl[" << j << "]=" << SoftXMT_delegate_read_word(level+j) << ")";
+    LOG(ERROR) << "Error, levels differ by more than one! (k = " << k << ", lvl[" << i << "]=" << read(level+i) << ", lvl[" << j << "]=" << read(level+j) << ")";
     exit(1);
   }
 }
 
 LOOP_FUNCTOR(final_verify_func, k, ((GlobalAddress<int64_t>,bfs_tree)) ((GlobalAddress<int64_t>,seen_edge)) ((GlobalAddress<int64_t>,err)) ((int64_t,root))) {
   if (k != root) {
-    int64_t tk = SoftXMT_delegate_read_word(bfs_tree+k);
-    if (tk >= 0 && !SoftXMT_delegate_read_word(seen_edge+k)) {
-      SoftXMT_delegate_write_word(err, -15);
+    int64_t tk = read(bfs_tree+k);
+    if (tk >= 0 && !read(seen_edge+k)) {
+      write(err, -15);
       LOG(ERROR) << "Error!";
     }
     if (tk == k) {
-      SoftXMT_delegate_write_word(err, -16);
+      write(err, -16);
       LOG(ERROR) << "Error!";
     }
   }
@@ -173,7 +176,7 @@ static void save_nedge(int64_t root, int64_t nedge_traversed, GlobalAddress<int6
 int64_t verify_bfs_tree(GlobalAddress<int64_t> bfs_tree, int64_t max_bfsvtx, int64_t root, tuple_graph * tg) {
   TAU_PHASE("verify_bfs_tree", "int64_t (GlobalAddress<int64_t>,int64_t,int64_t,tuple_graph*)", TAU_USER);
   
-  assert(SoftXMT_delegate_read_word(bfs_tree+root) == root);
+  assert(read(bfs_tree+root) == root);
   
   int64_t nedge_traversed = 0;
   int64_t nv = max_bfsvtx+1;

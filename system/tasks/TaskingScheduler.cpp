@@ -5,10 +5,6 @@
 #include <gflags/gflags.h>
 #include "../PerformanceTools.hpp"
 
-#ifdef VTRACE
-#include <vt_user.h>
-#endif
-
 GRAPPA_DEFINE_EVENT_GROUP(scheduler);
 
 /// TODO: this should be based on some actual time-related metric so behavior is predictable across machines
@@ -186,6 +182,7 @@ void TaskingScheduler::TaskingSchedulerStatistics::sample() {
     //VT_COUNT_UNSIGNED_VAL(num_idle_out_ev_vt, sched->num_idle);
     //VT_COUNT_UNSIGNED_VAL(readyQ_size_ev_vt, sched->readyQ.length());
 #endif
+
 //#ifdef GRAPPA_TRACE
 //    if ((task_calls % 1) == 0) {
 //        TAU_REGISTER_EVENT(active_tasks_out_event, "Active tasks sample");
@@ -196,6 +193,14 @@ void TaskingScheduler::TaskingSchedulerStatistics::sample() {
 //
 //    }
 //#endif
+}
+
+void TaskingScheduler::TaskingSchedulerStatistics::profiling_sample() {
+#ifdef VTRACE_SAMPLED
+    VT_COUNT_UNSIGNED_VAL( active_tasks_out_ev_vt, sched->num_active_tasks);
+    VT_COUNT_UNSIGNED_VAL(num_idle_out_ev_vt, sched->num_idle);
+    VT_COUNT_UNSIGNED_VAL(readyQ_size_ev_vt, sched->readyQ.length());
+#endif
 }
 
 void TaskingScheduler::TaskingSchedulerStatistics::merge(TaskingSchedulerStatistics * other) {
