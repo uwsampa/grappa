@@ -107,6 +107,7 @@ ParallelLoopPerformance_tests.o ParallelLoopPerformance_tests.test: $(LIBRARY)
 RemotePrivateTasks_tests.o RemotePrivateTasks_tests.test: $(LIBRARY)
 
 AsyncParallelFor_tests.o AsyncParallelFor_tests.test: AsyncParallelFor.o
+AsyncParallelFor_Local_tests.o AsyncParallelFor_Local_tests.test: $(LIBRARY)
 
 #
 # environment variables for run
