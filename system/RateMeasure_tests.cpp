@@ -93,7 +93,8 @@ void user_main( user_main_args * args ) {
     BOOST_MESSAGE( "RateMeasure_tests: " << d.toString() );
     
     BOOST_MESSAGE( "User main exiting" );
-    SoftXMT_dump_stats_all_nodes();
+    //SoftXMT_dump_stats_all_nodes();
+    SoftXMT_merge_and_dump_stats();
 }
 
 BOOST_AUTO_TEST_CASE( test1 ) {
