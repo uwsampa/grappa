@@ -97,9 +97,9 @@ void Aggregator::deaggregate( ) {
       void * payload = reinterpret_cast< void * >( msg_base +
                                                    sizeof( AggregatorGenericCallHeader ) +
                                                    header->args_size );
-      
       if( header->destination == gasnet_mynode() ) { // for us?
           
+	stats.record_deaggregation( sizeof( AggregatorGenericCallHeader ) + header->args_size + header->payload_size );
           // trace fine-grain communication
 #ifdef GRAPPA_TRACE
           if (FLAGS_record_grappa_events) {
@@ -124,6 +124,7 @@ void Aggregator::deaggregate( ) {
         DVLOG(5) << "forwarding " << *header
                 << " with args " << args
                 << " and payload " << payload;
+	stats.record_forward( sizeof( AggregatorGenericCallHeader ) + header->args_size + header->payload_size );
         SoftXMT_call_on( header->destination, fp, args, header->args_size, payload, header->payload_size );
       }
       i += sizeof( AggregatorGenericCallHeader ) + header->args_size + header->payload_size;
