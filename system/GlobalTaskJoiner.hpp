@@ -15,11 +15,11 @@ struct GlobalTaskJoiner {
   Thread * waiter;
   Node nodes_outstanding;
   int64_t outstanding;
-  bool complete;
+  bool localComplete;
   Node target;
   GlobalAddress<GlobalTaskJoiner> _addr;
   
-  GlobalTaskJoiner(): complete(false), target(0), outstanding(0), nodes_outstanding(0), waiter(NULL) {}
+  GlobalTaskJoiner(): localComplete(false), target(0), outstanding(0), nodes_outstanding(0), waiter(NULL) {}
   void reset();
   GlobalAddress<GlobalTaskJoiner> addr() {
     if (_addr.pointer() == NULL) { _addr = make_global(this); }
@@ -39,3 +39,22 @@ private:
 };
 extern GlobalTaskJoiner global_joiner;
 
+
+///
+/// Spawning tasks that use the global_joiner
+///
+
+/// task wrapper: signal upon user task completion
+template < void (*F)(int64_t, int64_t) >
+void call_with_globalTaskJoiner(int64_t s, int64_t n, GlobalAddress<GlobalTaskJoiner> joiner) {
+  //NOTE: really we just need the joiner Node because of the static global_joiner
+  F(s, n);
+  global_joiner.remoteSignal( joiner );
+}
+
+/// spawn wrapper: register new task before spawned
+template < void (*F)(int64_t,int64_t) >
+void joinerSpawn( void (*fp)(int64_t,int64_t), int64_t s, int64_t n) {
+  global_joiner.registerTask();
+  SoftXMT_publicTask(&call_with_globalTaskJoiner<F>, s, n, make_global( &global_joiner ) );
+}

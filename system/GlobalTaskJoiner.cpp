@@ -2,8 +2,10 @@
 
 GlobalTaskJoiner global_joiner;
 
+
+
 void GlobalTaskJoiner::reset() {
-  complete = false;
+  localComplete = false;
   target = 0; // for now, just have everyone report into Node 0
   outstanding = 0;
   nodes_outstanding = SoftXMT_nodes();
@@ -11,7 +13,7 @@ void GlobalTaskJoiner::reset() {
 }
 
 void GlobalTaskJoiner::registerTask() {
-  if (complete) cancel_completed();
+  if (localComplete) cancel_completed();
   outstanding++;
   VLOG(3) << "registered - outstanding = " << outstanding;
 }
@@ -29,9 +31,12 @@ void GlobalTaskJoiner::signal() {
 
 void GlobalTaskJoiner::wake() {
   CHECK(outstanding == 0);
-  Thread * w = waiter;
-  complete = false;
-  SoftXMT_wake(w);
+  localComplete = false;
+  if ( waiter != NULL ) {
+    Thread * w = waiter;
+    waiter = NULL;
+    SoftXMT_wake(w);
+  }
 }
 
 void GlobalTaskJoiner::wait() {
@@ -39,19 +44,23 @@ void GlobalTaskJoiner::wait() {
     VLOG(2) << "no local work, entering cancellable barrier";
     notify_completed();
   }
-  waiter = CURRENT_THREAD;
-  SoftXMT_suspend(); // won't be woken until *all* nodes have no work left
-  waiter = NULL;
+  
+  if ( localComplete || outstanding > 0 ) {  // IF, because conditions should not change once correct
+    waiter = CURRENT_THREAD;
+    SoftXMT_suspend(); // won't be woken until *all* nodes have no work left
+  }
 }
 
 void GlobalTaskJoiner::am_remoteSignal(GlobalAddress<GlobalTaskJoiner>* joiner, size_t sz, void* payload, size_t psz) {
   CHECK(joiner->node() == SoftXMT_mynode());
-  joiner->pointer()->signal();
+  //joiner->pointer()->signal();
+  global_joiner.signal(); // equivalent to above, right now
 }
 
 void GlobalTaskJoiner::remoteSignal(GlobalAddress<GlobalTaskJoiner> joiner) {
   if (joiner.node() == SoftXMT_mynode()) {
-    joiner.pointer()->signal();
+    //joiner.pointer()->signal();
+    global_joiner.signal(); // equivalent to above, right now
   } else {
     VLOG(2) << "remoteSignal -> " << joiner.node();
     SoftXMT_call_on(joiner.node(), &GlobalTaskJoiner::am_remoteSignal, &joiner);
@@ -76,15 +85,16 @@ void GlobalTaskJoiner::am_notify_completed(bool * ignore, size_t sz, void * p, s
 }
 
 void GlobalTaskJoiner::notify_completed() {
-  complete = true;
+  localComplete = true;
   VLOG(3) << "notify_completed";
-  SoftXMT_call_on(target, &GlobalTaskJoiner::am_notify_completed, &complete);
+  SoftXMT_call_on(target, &GlobalTaskJoiner::am_notify_completed, &localComplete);
 }
 
 void GlobalTaskJoiner::cancel_completed() {
-  complete = false;
+  localComplete = false;
   GlobalAddress<GlobalTaskJoiner> global_joiner_addr = make_global(&global_joiner, target);
   GlobalAddress<int64_t> global_outstanding_addr = global_pointer_to_member(global_joiner_addr, &GlobalTaskJoiner::nodes_outstanding);
   int64_t result = SoftXMT_delegate_fetch_and_add_word(global_outstanding_addr, 1);
   VLOG(2) << "(cancelled) nodescomplete: " << result+1;
 }
+
