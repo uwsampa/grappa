@@ -12,6 +12,8 @@
 #else
 #if !defined(__MTA__)
 #include <getopt.h>
+#else
+#include "compat/getopt.h"
 #endif
 #endif
 
@@ -63,7 +65,7 @@ static void graph_out(graph * g, FILE * fin) {
   fwrite(g->marks, sizeof(color_t), NV, fin);
 }
 
-static void checkpoint_in(graph * dirg, graph * g) {
+static bool checkpoint_in(graph * dirg, graph * g) {
   fprintf(stderr,"start reading checkpoint\n");
   double t = timer();
   
@@ -72,8 +74,7 @@ static void checkpoint_in(graph * dirg, graph * g) {
   FILE * fin = fopen(fname, "r");
   if (!fin) {
     fprintf(stderr, "Unable to open file: %s, will generate graph and write checkpoint.\n", fname);
-    checkpointing = false;
-    return;
+    return false;
   }
   
   graph_in(dirg, fin);
@@ -83,6 +84,8 @@ static void checkpoint_in(graph * dirg, graph * g) {
   
   t = timer() - t;
   fprintf(stderr, "done reading in checkpoint (time = %g)\n", t);
+
+  return true;
 }
 
 static void checkpoint_out(graph * dirg, graph * undirg) {
@@ -121,11 +124,13 @@ int main(int argc, char* argv[]) {
   graph * dirg = &_dirg;
   graph * g = &_g;
   
+  bool generate_checkpoint = false;
+
   if (checkpointing) {
-    checkpoint_in(dirg, g);
+    generate_checkpoint = !checkpoint_in(dirg, g);
   }
   
-  if (!checkpointing) {
+  if (!checkpointing || generate_checkpoint) {
     graphedges * ge = &_ge;
     
     printf("\nScalable Data Generator - genScalData() randomly generating edgelist...\n"); fflush(stdout);
@@ -158,7 +163,7 @@ int main(int argc, char* argv[]) {
     printf("compute_graph_time: %g\n", t);
     if (graphfile) print_graph_dot(g, graphfile);
     
-    checkpoint_out(dirg, g);
+    if (generate_checkpoint) checkpoint_out(dirg, g);
   }
   
   //###############################################
@@ -263,7 +268,8 @@ static void parseOptions(int argc, char ** argv) {
   SCALE = 8; //default value
   graphfile = NULL;
   kcent = 1L << SCALE;
-  
+  checkpointing = false;
+
   int c = 0;
   while (c != -1) {
     int option_index = 0;
