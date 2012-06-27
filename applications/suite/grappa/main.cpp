@@ -289,7 +289,7 @@ static void parseOptions(int argc, char ** argv) {
   while (c != -1) {
     int option_index = 0;
     
-    c = getopt_long(argc, argv, "hsdpck", long_opts, &option_index);
+    c = getopt_long(argc, argv, "hs:d:pc:", long_opts, &option_index);
     switch (c) {
       case 'h':
         printHelp(argv[0]);

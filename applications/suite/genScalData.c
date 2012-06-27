@@ -115,7 +115,7 @@ void genScalData(graphedges* SDGdataPtr, double a, double b, double c, double d)
   /* STEP 3: Remove self- and duplicate edges                                */
   /*-------------------------------------------------------------------------*/
   NE = Remove(NV, NE, sV, eV);
-  printf("\nNumber of edges created - %9"DFMT"\n", NE);
+  printf("\nnedge: %9"DFMT"\n", NE);
   
   SDGdataPtr->numEdges = NE; // added by bholt--why wasn't this here? NE not used...
   
