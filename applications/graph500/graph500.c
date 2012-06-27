@@ -325,8 +325,8 @@ output_results (const int64_t SCALE, int64_t nvtx_scale, int64_t edgefactor,
 	double *tm;
 	double *stats;
 	
-	tm = alloca (NBFS * sizeof (*tm));
-	stats = alloca (NSTAT * sizeof (*stats));
+	tm = alloca(NBFS_max * sizeof (*tm));
+	stats = alloca(NSTAT * sizeof (*stats));
 	if (!tm || !stats) {
 		perror ("Error allocating within final statistics calculation.");
 		abort ();
