@@ -155,7 +155,7 @@ int main(int argc, char* argv[]) {
     makeUndirected(dirg, g);
     
     t = timer() - t;
-    printf("compute_graph_time %g\n", t);
+    printf("compute_graph_time: %g\n", t);
     if (graphfile) print_graph_dot(g, graphfile);
     
     checkpoint_out(dirg, g);
