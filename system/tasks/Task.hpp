@@ -21,26 +21,28 @@ typedef int16_t Node;
 class Task {
 
   private:
-    void (* fn_p)(void*,void*);
-    void* arg;
-    void* shared_arg;
+    void (* fn_p)(void*,void*,void*);
+    void* arg0;
+    void* arg1;
+    void* arg2;
 
   public:
     Task () {}
-    Task (void (* fn_p)(void*, void*), void* arg, void* shared_arg) 
+    Task (void (* fn_p)(void*, void*, void*), void* arg0, void* arg1, void* arg2) 
       : fn_p ( fn_p )
-        , arg ( arg )
-        , shared_arg( shared_arg ) { }
+        , arg0 ( arg0 )
+        , arg1 ( arg1 )
+        , arg2 ( arg2 ) { }
 
     void execute( ) {
-      CHECK( fn_p!=NULL ) << "fn_p=" << (void*)fn_p << "\narg=" << (void*)arg << "\nshared_arg=" << (void*)shared_arg;
-      fn_p( arg, shared_arg );
+      CHECK( fn_p!=NULL ) << "fn_p=" << (void*)fn_p << "\narg0=" << (void*)arg0 << "\narg1=" << (void*)arg1 << "\narg2=" << (void*)arg2;
+      fn_p( arg0, arg1, arg2 );  // NOTE: this executes 1-parameter function's with 3 args
     }
 };
 
-template < typename T, typename S>
-static Task createTask( void (*fn_p)(T, S), T arg, S shared_arg ) {
-  Task t( reinterpret_cast< void (*) (void*, void*) >( fn_p ), (void*)arg, (void*)shared_arg);
+template < typename T, typename S, typename R >
+static Task createTask( void (*fn_p)(T, S, R), T arg0, S arg1, R arg2 ) {
+  Task t( reinterpret_cast< void (*) (void*, void*, void*) >( fn_p ), (void*)arg0, (void*)arg1, (void*)arg2 );
   return t;
 }
 
@@ -236,16 +238,16 @@ class TaskManager {
         }
 
     /*TODO return value?*/
-    template < typename T, typename S > 
-      void spawnPublic( void (*f)(T, S), T arg, S shared_arg);
+    template < typename T, typename S, typename R > 
+      void spawnPublic( void (*f)(T, S, R), T arg0, S arg1, R arg2 );
 
     /*TODO return value?*/ 
-    template < typename T, typename S > 
-      void spawnLocalPrivate( void (*f)(T, S), T arg, S shared_arg);
+    template < typename T, typename S, typename R > 
+      void spawnLocalPrivate( void (*f)(T, S, R), T arg0, S arg1, R arg2 );
 
     /*TODO return value?*/ 
-    template < typename T, typename S > 
-      void spawnRemotePrivate( void (*f)(T, S), T arg, S shared_arg);
+    template < typename T, typename S, typename R > 
+      void spawnRemotePrivate( void (*f)(T, S, R), T arg0, S arg1, R arg2 );
 
         bool getWork ( Task * result );
 
@@ -281,20 +283,21 @@ inline bool TaskManager::local_available( ) const {
 }
 
 
-template < typename T, typename S > 
-inline void TaskManager::spawnPublic( void (*f)(T, S), T arg, S shared_arg) {
-  Task newtask = createTask(f, arg, shared_arg);
+template < typename T, typename S, typename R > 
+inline void TaskManager::spawnPublic( void (*f)(T, S, R), T arg0, S arg1, R arg2 ) {
+  Task newtask = createTask(f, arg0, arg1, arg2 );
   publicQ.push( newtask );
   releaseTasks();
 }
 
 /// Should NOT be called from the context of
 /// an AM handler
-template < typename T, typename S >
-inline void TaskManager::spawnLocalPrivate( void (*f)(T, S), T arg, S shared_arg) {
-  Task newtask = createTask(f, arg, shared_arg);
+template < typename T, typename S, typename R >
+inline void TaskManager::spawnLocalPrivate( void (*f)(T, S, R), T arg0, S arg1, R arg2 ) {
+  Task newtask = createTask( f, arg0, arg1, arg2 );
   privateQ.push_back( newtask );
 
+  /// note from cbarrier implementation
     /* no notification necessary since
      * presence of a local spawn means
      * we are not in the cbarrier */
@@ -302,12 +305,15 @@ inline void TaskManager::spawnLocalPrivate( void (*f)(T, S), T arg, S shared_arg
 
 /// Should ONLY be called from the context of
 /// an AM handler
-template < typename T, typename S > 
-inline void TaskManager::spawnRemotePrivate( void (*f)(T, S), T arg, S shared_arg ) {
-  Task newtask = createTask(f, arg, shared_arg);
+template < typename T, typename S, typename R > 
+inline void TaskManager::spawnRemotePrivate( void (*f)(T, S, R), T arg0, S arg1, R arg2 ) {
+  Task newtask = createTask( f, arg0, arg1, arg2 );
   privateQ.push_front( newtask );
 
-  cbarrier_cancel_local();
+  /// note from cbarrier implementation
+  /*
+   * local cancel cbarrier
+   */
 }
 
 
