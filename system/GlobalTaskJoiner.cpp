@@ -19,7 +19,7 @@ void GlobalTaskJoiner::registerTask() {
 }
 
 void GlobalTaskJoiner::signal() {
-  CHECK(outstanding > 0) << "too many calls to signal()";
+  CHECK(outstanding > 0) << "too many calls to signal(): outstanding == " << outstanding;
   
   outstanding--;
   VLOG(3) << "signaled - outstanding = " << outstanding;
@@ -64,6 +64,21 @@ void GlobalTaskJoiner::remoteSignal(GlobalAddress<GlobalTaskJoiner> joiner) {
   } else {
     VLOG(2) << "remoteSignal -> " << joiner.node();
     SoftXMT_call_on(joiner.node(), &GlobalTaskJoiner::am_remoteSignal, &joiner);
+  }
+}
+
+// version of remote signal that takes the Node of the joiner only
+void GlobalTaskJoiner::am_remoteSignalNode(int* dummy_arg, size_t sz, void* payload, size_t psz) {
+  global_joiner.signal(); 
+}
+
+void GlobalTaskJoiner::remoteSignalNode(Node joiner_node) {
+  if (joiner_node == SoftXMT_mynode()) {
+    global_joiner.signal(); 
+  } else {
+    VLOG(2) << "remoteSignalNode -> " << joiner_node;
+    int dummy_arg = -1;
+    SoftXMT_call_on(joiner_node, &GlobalTaskJoiner::am_remoteSignalNode, &dummy_arg);
   }
 }
 

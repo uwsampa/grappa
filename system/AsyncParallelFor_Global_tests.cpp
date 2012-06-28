@@ -11,8 +11,9 @@
 BOOST_AUTO_TEST_SUITE( AsyncParallelFor_Global_tests );
 
 #define MAX_NODES 8
-#define SIZE 1000000
+#define SIZE 10000
 int64_t done[SIZE*MAX_NODES] = {0};
+int64_t count2 = 0;
 int64_t global_count = 0;
 int64_t local_count = 0;
 
@@ -38,7 +39,48 @@ struct parallel_func : public ForkJoinIteration {
     async_parallel_for<&loop_body, &joinerSpawn<&loop_body> > ( start, iters ); 
     global_joiner.wait();
   }
-}; 
+};
+
+
+// don't care what type goes into the GlobalAddress
+typedef int64_t dummy_t;
+
+void loop_body2(int64_t start, int64_t num, GlobalAddress<dummy_t> shared_arg_packed) {
+  /*BOOST_MESSAGE( "execute [" << start << ","
+            << start+num << ") with thread " << CURRENT_THREAD->id );*/
+  BOOST_CHECK( num <= FLAGS_async_par_for_threshold );
+  int64_t origin = reinterpret_cast<int64_t>(shared_arg_packed.pointer());
+  for (int i=start; i<start+num; i++) {
+    SoftXMT_delegate_fetch_and_add_word( make_global( &count2, origin ), 1 );
+
+    SoftXMT_delegate_fetch_and_add_word( make_global( &global_count, 0 ), 1 ); 
+    local_count++;
+  }
+}
+
+LOOP_FUNCTION(check_count2, nid) {
+  BOOST_CHECK( count2 == SIZE );
+}
+
+struct parallel_func2 : public ForkJoinIteration {
+  void operator()(int64_t nid) const {
+    local_count = 0;
+
+    int64_t start = nid * SIZE;
+    int64_t iters = SIZE;
+
+    // pack an argument into the global address (hack).
+    // This is useful if we need just the node() from the global address and want to use the other
+    // bits for something else.
+    int64_t shared_arg = SoftXMT_mynode(); 
+    GlobalAddress<dummy_t> shared_arg_packed = make_global( reinterpret_cast<dummy_t*>(shared_arg) );
+
+    global_joiner.reset();
+    async_parallel_for<dummy_t,&loop_body2, &joinerSpawn_hack<dummy_t,&loop_body2> >(start,iters,shared_arg_packed);
+    global_joiner.wait();
+  }
+};
+
 
   
 LOOP_FUNCTION(func_enable_google_profiler, nid) {
@@ -67,6 +109,8 @@ void user_main( void * args ) {
   BOOST_MESSAGE( total_iters << " iterations over " <<
                  SoftXMT_nodes() << " nodes" );
 
+  BOOST_MESSAGE( "Test default" );
+  {
   parallel_func f;
   
   SoftXMT_reset_stats_all_nodes();
@@ -83,6 +127,31 @@ void user_main( void * args ) {
   for (Node n=0; n<SoftXMT_nodes(); n++) {
     int64_t n_count = SoftXMT_delegate_read_word( make_global( &local_count, n ) );
     BOOST_MESSAGE( n << " did " << n_count << " iterations" );
+  }
+  }
+
+
+  BOOST_MESSAGE( "Test with shared arg" );
+  {
+  // with shared arg
+  global_count = 0;
+  parallel_func2 f; 
+  profile_start();
+  fork_join_custom(&f);
+  profile_stop();
+
+  // check all iterations happened
+  BOOST_CHECK( global_count == total_iters );
+
+  // check all shared args used properly
+  check_count2 ff;
+  fork_join_custom(&ff);
+
+  // print out individual participations 
+  for (Node n=0; n<SoftXMT_nodes(); n++) {
+    int64_t n_count = SoftXMT_delegate_read_word( make_global( &local_count, n ) );
+    BOOST_MESSAGE( n << " did " << n_count << " iterations" );
+  }
   }
 
   BOOST_MESSAGE( "user main is exiting" );
