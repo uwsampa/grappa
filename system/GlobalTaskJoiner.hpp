@@ -44,17 +44,22 @@ extern GlobalTaskJoiner global_joiner;
 /// Spawning tasks that use the global_joiner
 ///
 
+
+#include "AsyncParallelFor.hpp"
+template < void (*LoopBody)(int64_t,int64_t) >
+void joinerSpawn( int64_t s, int64_t n );
+
 /// task wrapper: signal upon user task completion
-template < void (*F)(int64_t, int64_t) >
-void call_with_globalTaskJoiner(int64_t s, int64_t n, GlobalAddress<GlobalTaskJoiner> joiner) {
+template < void (*LoopBody)(int64_t,int64_t) >
+void asyncFor_with_globalTaskJoiner(int64_t s, int64_t n, GlobalAddress<GlobalTaskJoiner> joiner) {
   //NOTE: really we just need the joiner Node because of the static global_joiner
-  F(s, n);
+  async_parallel_for<LoopBody, &joinerSpawn<LoopBody> > (s, n);
   global_joiner.remoteSignal( joiner );
 }
 
 /// spawn wrapper: register new task before spawned
-template < void (*F)(int64_t,int64_t) >
-void joinerSpawn( void (*fp)(int64_t,int64_t), int64_t s, int64_t n) {
+template < void (*LoopBody)(int64_t,int64_t) >
+void joinerSpawn( int64_t s, int64_t n ) {
   global_joiner.registerTask();
-  SoftXMT_publicTask(&call_with_globalTaskJoiner<F>, s, n, make_global( &global_joiner ) );
+  SoftXMT_publicTask(&asyncFor_with_globalTaskJoiner<LoopBody>, s, n, make_global( &global_joiner ) );
 }
