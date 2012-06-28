@@ -63,3 +63,25 @@ void joinerSpawn( int64_t s, int64_t n ) {
   global_joiner.registerTask();
   SoftXMT_publicTask(&asyncFor_with_globalTaskJoiner<LoopBody>, s, n, make_global( &global_joiner ) );
 }
+
+
+
+template < typename Arg,
+           void (*LoopBody)(int64_t,int64_t,GlobalAddress<Arg>) >
+void joinerSpawn_hack( int64_t s, int64_t n, GlobalAddress<Arg> shared_arg );
+
+/// task wrapper: signal upon user task completion
+template < typename Arg,
+           void (*LoopBody)(int64_t,int64_t,GlobalAddress<Arg>) >
+void asyncFor_with_globalTaskJoiner_hack(int64_t s, int64_t n, GlobalAddress<Arg> shared_arg ) {
+  //NOTE: really we just need the joiner Node because of the static global_joiner
+  async_parallel_for<LoopBody, &joinerSpawn_hack<Arg, LoopBody> > (s, n, shared_arg);
+  global_joiner.remoteSignal( reinterpret_cast< GlobalAddress<GlobalTaskJoiner> >(shared_arg) ); // XXX only node() portion valid here
+}
+
+template < typename Arg,
+           void (*LoopBody)(int64_t,int64_t,GlobalAddress<Arg>) >
+void joinerSpawn_hack( int64_t s, int64_t n, GlobalAddress<Arg> shared_arg ) {
+  global_joiner.registerTask();
+  SoftXMT_publicTask( &asyncFor_with_globalTaskJoiner_hack<LoopBody>, s, n, shared_arg );
+} 
