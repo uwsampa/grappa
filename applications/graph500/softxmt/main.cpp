@@ -56,7 +56,7 @@ void output_results (const int64_t SCALE, int64_t nvtx_scale, int64_t edgefactor
                 const int NBFS, const double *bfs_time, const int64_t *bfs_nedge);
 
 //### Globals ###
-#define MEM_SCALE 32
+#define MEM_SCALE 34
 
 int64_t nbfs;
 
@@ -192,7 +192,7 @@ static void checkpoint_in(tuple_graph * tg, csr_graph * g, int64_t * bfs_roots) 
   double t = timer();
   
   char fname[256];
-  sprintf(fname, "ckpts/graph500.%lld.%lld.ckpt", SCALE, edgefactor);
+  sprintf(fname, "ckpts/graph500.%lld.%lld%s.ckpt", SCALE, edgefactor, (use_RMAT)?".rmat":"");
   FILE * fin = fopen(fname, "r");
   if (!fin) {
     LOG(ERROR) << "Unable to open file: " << fname << ", will generate graph and write checkpoint.";
@@ -206,35 +206,24 @@ static void checkpoint_in(tuple_graph * tg, csr_graph * g, int64_t * bfs_roots) 
   fread(&g->nadj, sizeof(g->nadj), 1, fin);
   fread(&nbfs, sizeof(nbfs), 1, fin);
   
-  packed_edge * local_edges = new packed_edge[tg->nedge];
-  int64_t * local_xoff = new int64_t[2*g->nv+2];
-  int64_t * local_xadjstore = new int64_t[g->nadj];
-  
-  fread(local_edges, sizeof(packed_edge), tg->nedge, fin);
-  fread(local_xoff, sizeof(int64_t), 2*g->nv+2, fin);
-  fread(local_xadjstore, sizeof(int64_t), g->nadj, fin);
-  
   tg->edges = SoftXMT_typed_malloc<packed_edge>(tg->nedge);
   g->xoff = SoftXMT_typed_malloc<int64_t>(2*g->nv+2);
   g->xadjstore = SoftXMT_typed_malloc<int64_t>(g->nadj);
   g->xadj = g->xadjstore+2;
   
   // write out edge tuples
-  read_array(tg->edges, tg->nedge, local_edges);
+  read_array(tg->edges, tg->nedge, fin);
   
   // xoff
-  read_array(g->xoff, 2*g->nv+2, local_xoff);
+  read_array(g->xoff, 2*g->nv+2, fin);
   
   // xadj
-  read_array(g->xadjstore, g->nadj, local_xadjstore);
+  read_array(g->xadjstore, g->nadj, fin);
   
   // bfs_roots
   fread(bfs_roots, sizeof(int64_t), nbfs, fin);
   
   fclose(fin);
-  free(local_edges);
-  free(local_xoff);
-  free(local_xadjstore);
   
   t = timer() - t;
   VLOG(1) << "done reading in checkpoint (time = " << t << ")";
@@ -245,7 +234,7 @@ static void checkpoint_out(tuple_graph * tg, csr_graph * g, int64_t * bfs_roots)
   double t = timer();
   
   char fname[256];
-  sprintf(fname, "ckpts/graph500.%lld.%lld.ckpt", SCALE, edgefactor);
+  sprintf(fname, "ckpts/graph500.%lld.%lld%s.ckpt", SCALE, edgefactor, (use_RMAT)?".rmat":"");
   FILE * fout = fopen(fname, "w");
   if (!fout) {
     LOG(ERROR) << "Unable to open file for writing: " << fname;

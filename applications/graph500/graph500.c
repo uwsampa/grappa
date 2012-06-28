@@ -19,6 +19,8 @@
 #include <getopt.h>
 #endif
 
+#include <stdbool.h>
+
 #include "graph500.h"
 #include "rmat.h"
 #include "kronecker.h"
@@ -53,6 +55,8 @@ static void output_results (const int64_t SCALE, int64_t nvtx_scale,
 							const int NBFS,
 							const double *bfs_time, const int64_t *bfs_nedge);
 
+
+bool checkpoint_in(int SCALE, int edgefactor, struct packed_edge * restrict IJ, int64_t * nedge, int64_t * bfs_roots, int64_t * nbfs);
 void checkpoint_out(int64_t SCALE, int64_t edgefactor, const struct packed_edge * restrict edges, const int64_t nedge, const int64_t * restrict bfs_roots, const int64_t nbfs);
 
 int main (int argc, char **argv) {
@@ -73,7 +77,13 @@ int main (int argc, char **argv) {
 	/* Catch a few possible overflows. */
 	assert (desired_nedge >= nvtx_scale);
 	assert (desired_nedge >= edgefactor);
-	
+
+  bool generate_ckpt = false;
+
+  if (load_checkpoint) {
+    generate_ckpt = !checkpoint_in(SCALE, edgefactor, IJ, &nedge, bfs_root, &NBFS);
+  }
+
 	/*
 	 If running the benchmark under an architecture simulator, replace
 	 the following if () {} else {} with a statement pointing IJ
@@ -106,7 +116,7 @@ int main (int argc, char **argv) {
 	
 	run_bfs ();
 	
-  checkpoint_out(SCALE, edgefactor, IJ, nedge, bfs_root, NBFS);
+  if (generate_ckpt) checkpoint_out(SCALE, edgefactor, IJ, nedge, bfs_root, NBFS);
   
   destroy_graph();
 	xfree_large (IJ);
@@ -325,8 +335,8 @@ output_results (const int64_t SCALE, int64_t nvtx_scale, int64_t edgefactor,
 	double *tm;
 	double *stats;
 	
-	tm = alloca (NBFS * sizeof (*tm));
-	stats = alloca (NSTAT * sizeof (*stats));
+	tm = alloca(NBFS_max * sizeof (*tm));
+	stats = alloca(NSTAT * sizeof (*stats));
 	if (!tm || !stats) {
 		perror ("Error allocating within final statistics calculation.");
 		abort ();

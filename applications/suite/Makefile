@@ -2,7 +2,7 @@ include Make.inc
 
 EXE = suite.exe
 
-OBJS = 	computeGraph.o \
+OBJS += 	computeGraph.o \
 		connectedComponents.o \
 		genScalData.o \
 		globals.o \

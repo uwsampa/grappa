@@ -100,7 +100,7 @@ static void checkpoint_in(graph * dirg, graph * g) {
   printf("done reading in checkpoint (time = %g)\n", t); fflush(stdout);
 }
 
-static void user_main(int* ignore) {
+static void user_main(void* ignore) {
   double t;
   
   graphedges _ge;
@@ -117,7 +117,7 @@ static void user_main(int* ignore) {
   }
   
   if (!checkpointing) {
-    fprintf(stderr, "graph generation not implemented for Grappa yet...");
+    fprintf(stderr, "graph generation not implemented for Grappa yet...\n");
     exit(0);
     
     printf("\nScalable Data Generator - genScalData() randomly generating edgelist...\n"); fflush(stdout);
@@ -127,14 +127,14 @@ static void user_main(int* ignore) {
     genScalData(ge, A, B, C, D);
     
     t = timer() - t;
-    printf("\nedge_generation_time %g sec.\n", t);
+    printf("edge_generation_time: %g sec.\n", t);
     //	if (graphfile) print_edgelist_dot(ge, graphfile);
     
     //###############################################
     // Kernel: Compute Graph
     
     /* From the input edges, construct the graph 'G'.  */
-    printf("\nKernel - Compute Graph beginning execution...\n"); fflush(stdout);
+    printf("Kernel - Compute Graph beginning execution...\n"); fflush(stdout);
     //	MTA("mta trace \"begin computeGraph\"")
     
     t = timer();
@@ -148,7 +148,7 @@ static void user_main(int* ignore) {
     makeUndirected(dirg, g);
     
     t = timer() - t;
-    printf("compute_graph_time %g\n", t);
+    printf("compute_graph_time: %g\n", t);
   }
   
   SoftXMT_reset_stats();
@@ -156,14 +156,14 @@ static void user_main(int* ignore) {
   //###############################################
   // Kernel: Connected Components
   if (do_components) {
-    printf("\nKernel - Connected Components beginning execution...\n"); fflush(stdout);
+    printf("Kernel - Connected Components beginning execution...\n"); fflush(stdout);
     t = timer();
     
     graphint connected = connectedComponents(g);
     
     t = timer() - t;
     printf("ncomponents: %"DFMT"\n", connected);
-    printf("components_time: %g", t); fflush(stdout);
+    printf("components_time: %g\n", t); fflush(stdout);
   }  
   
   //###############################################
@@ -178,50 +178,51 @@ static void user_main(int* ignore) {
     size_t npattern = 3;
     
     color_t *c = pattern;
-    printf("\nKernel - Path Isomorphism beginning execution...\nfinding path %"DFMT"", *c);
+    printf("Kernel - Path Isomorphism beginning execution...\nfinding path: %"DFMT"", *c);
     for (color_t * c = pattern+1; c < pattern+npattern; c++) { printf(" -> %"DFMT"", *c); } printf("\n"); fflush(stdout);
     t = timer();
     
     graphint num_matches = pathIsomorphism(dirg, pattern, npattern);
     
     t = timer() - t;
-    
     printf("path_iso_matches: %"DFMT"\n", num_matches);
-    printf("path_isomorphism_time: %g", t); fflush(stdout);
+    printf("path_isomorphism_time: %g\n", t); fflush(stdout);
   }
     
   //###############################################
   // Kernel: Triangles
   if (do_triangles) {
-    printf("\nKernel - Triangles beginning execution...\n"); fflush(stdout);
+    printf("Kernel - Triangles beginning execution...\n"); fflush(stdout);
     t = timer();
     
     graphint num_triangles = triangles(g);
     
     t = timer() - t;
     printf("ntriangles: %"DFMT"\n", num_triangles);
-    printf("triangles_time: %g", t); fflush(stdout);
+    printf("triangles_time: %g\n", t); fflush(stdout);
   }
   
   //###############################################
   // Kernel: Betweenness Centrality
   if (do_centrality) {
-    printf("\nKernel - Betweenness Centrality beginning execution...\n"); fflush(stdout);
-    t = timer();
+    printf("Kernel - Betweenness Centrality beginning execution...\n"); fflush(stdout);
     
     GlobalAddress<double> bc = SoftXMT_typed_malloc<double>(numVertices);
-    double avgbc = centrality(g, bc, kcent);
     
-    t = timer() - t;
-    printf("avg_centrality: %lf\n", avgbc);
+    double avgbc;
+    int64_t total_nedge;
+    t = centrality(g, bc, kcent, &avgbc, &total_nedge);
+    
+    printf("avg_centrality: %g\n", avgbc);
     printf("centrality_time: %g\n", t); fflush(stdout);
+    printf("centrality_teps: %g\n", (double)total_nedge / t);
   }
   
   //###################
   // Kernels complete!
   
-  //SoftXMT_merge_and_dump_stats();
-  SoftXMT_dump_stats_all_nodes();
+  SoftXMT_merge_and_dump_stats();
+  //SoftXMT_dump_stats_all_nodes();
 
   VLOG(1) << "freeing graphs";
   free_graph(dirg);
@@ -236,7 +237,7 @@ int main(int argc, char* argv[]) {
   parseOptions(argc, argv);
   setupParams(SCALE, 8);
   
-  SoftXMT_run_user_main(&user_main, (int*)NULL);
+  SoftXMT_run_user_main(&user_main, (void*)NULL);
   
   VLOG(1) << "finishing...";
   SoftXMT_finish(0);
@@ -288,7 +289,7 @@ static void parseOptions(int argc, char ** argv) {
   while (c != -1) {
     int option_index = 0;
     
-    c = getopt_long(argc, argv, "hsdpck", long_opts, &option_index);
+    c = getopt_long(argc, argv, "hs:d:pc:", long_opts, &option_index);
     switch (c) {
       case 'h':
         printHelp(argv[0]);
