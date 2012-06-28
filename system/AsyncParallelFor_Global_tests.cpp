@@ -6,6 +6,8 @@
 #include "AsyncParallelFor.hpp"
 #include "Delegate.hpp"
 
+#include "PerformanceTools.hpp"
+
 BOOST_AUTO_TEST_SUITE( AsyncParallelFor_Global_tests );
 
 #define MAX_NODES 8
@@ -17,6 +19,7 @@ int64_t local_count = 0;
 void loop_body(int64_t start, int64_t num ) {
   /*BOOST_MESSAGE( "execute [" << start << ","
             << start+num << ") with thread " << CURRENT_THREAD->id );*/
+  BOOST_CHECK( num <= FLAGS_async_par_for_threshold );
   for (int i=start; i<start+num; i++) {
     int64_t marked = SoftXMT_delegate_fetch_and_add_word( make_global( &done[i], 0 ), 1 );
     BOOST_CHECK( marked == 0 );
@@ -32,12 +35,30 @@ struct parallel_func : public ForkJoinIteration {
     int64_t iters = SIZE;
 
     global_joiner.reset();
-    async_parallel_for<&loop_body, &joinerSpawn<loop_body> >( start, iters ); 
+    async_parallel_for<&loop_body, &joinerSpawn<&loop_body> > ( start, iters ); 
     global_joiner.wait();
   }
 }; 
 
   
+LOOP_FUNCTION(func_enable_google_profiler, nid) {
+  SoftXMT_start_profiling();
+}
+void profile_start() {
+#ifdef GOOGLE_PROFILER
+  func_enable_google_profiler g;
+  fork_join_custom(&g);
+#endif
+}
+LOOP_FUNCTION(func_disable_google_profiler, nid) {
+  SoftXMT_stop_profiling();
+}
+void profile_stop() {
+#ifdef GOOGLE_PROFILER
+  func_disable_google_profiler g;
+  fork_join_custom(&g);
+#endif
+}
 
 void user_main( void * args ) {
   BOOST_CHECK( SoftXMT_nodes() <= MAX_NODES );
@@ -47,7 +68,11 @@ void user_main( void * args ) {
                  SoftXMT_nodes() << " nodes" );
 
   parallel_func f;
+  
+  SoftXMT_reset_stats_all_nodes();
+  profile_start();
   fork_join_custom(&f);
+  profile_stop();
 
   for (int i=0; i<total_iters; i++) {
     BOOST_CHECK( done[i] == 1 );
@@ -61,6 +86,7 @@ void user_main( void * args ) {
   }
 
   BOOST_MESSAGE( "user main is exiting" );
+  SoftXMT_dump_stats_all_nodes();
 }
 
 

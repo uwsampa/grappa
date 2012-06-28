@@ -13,6 +13,8 @@ int count = 0;
 
 
 void loop_body(int64_t start, int64_t num ) {
+  BOOST_CHECK( num <= FLAGS_async_par_for_threshold );
+
   BOOST_MESSAGE( "execute [" << start << ","
             << start+num << ") with thread " << CURRENT_THREAD->id );
   for (int i=start; i<start+num; i++) {
@@ -23,10 +25,14 @@ void loop_body(int64_t start, int64_t num ) {
   }
 }
 
+void spawn_private_task(int64_t a, int64_t b) {
+  SoftXMT_privateTask( &async_parallel_for<&loop_body, &spawn_private_task>, a, b );
+}
+
 void user_main( void * args ) {
   sem = new Semaphore(size, 0);
 
-  async_parallel_for<&loop_body, &SoftXMT_privateTask<int64_t, int64_t> >( 0, size );
+  async_parallel_for<&loop_body, &spawn_private_task >( 0, size );
 
   sem->acquire_all( CURRENT_THREAD );
 
