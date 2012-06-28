@@ -109,6 +109,7 @@ RemotePrivateTasks_tests.o RemotePrivateTasks_tests.test: $(LIBRARY)
 AsyncParallelFor_tests.o AsyncParallelFor_tests.test: AsyncParallelFor.o
 AsyncParallelFor_Local_tests.o AsyncParallelFor_Local_tests.test: $(LIBRARY)
 AsyncParallelFor_Global_tests.o AsyncParallelFor_Global_tests.test: $(LIBRARY)
+AsyncParallelFor_Rate.o AsyncParallelFor_Rate.exe: $(LIBRARY)
 
 #
 # environment variables for run
@@ -326,7 +327,7 @@ LD_LIBRARY_PATH:=$(LD_LIBRARY_PATH):$(GFLAGS)/lib:$(SOFTXMT_HOME)/system
 # add an additional rule if you need to include multiple components
 %.exe: %.o 
 	$(ENV_VARIABLES) \
-	$($(MPITYPE)_LD) $(LDFLAGS) $^ $(LIBRARIES) -o $@ $(LIBS)
+	$($(MPITYPE)_LD) $(CFLAGS) $(CXXFLAGS) $(LDFLAGS) $^ $(LIBRARIES) -o $@ $(LIBS)
 
 # disassemble executable
 %.dis: %.exe
