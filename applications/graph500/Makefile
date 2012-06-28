@@ -66,5 +66,6 @@ mpi/graph500_mpi_simple mpi/graph500_mpi_one_sided mpi/graph500_mpi_replicated:
 .PHONY:	clean
 clean:
 	rm -f generator/generator_test_seq generator/generator_test_omp \
-		$(BIN)
+		$(BIN) \
+		$(CLEANS)
 	-$(MAKE) -C mpi clean

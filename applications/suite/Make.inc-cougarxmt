@@ -16,4 +16,5 @@ LIBS = -lm -lprand
 #LIBS = -lm -lprand $(IOLIB)
 BUILD_SERVER=No
 #BUILD_SERVER=Yes
+OBJS += compat/getopt.o
 

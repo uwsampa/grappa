@@ -12,6 +12,8 @@
 #else
 #if !defined(__MTA__)
 #include <getopt.h>
+#else
+#include "compat/getopt.h"
 #endif
 #endif
 
@@ -26,6 +28,10 @@ static void parseOptions(int argc, char ** argv);
 
 static char* graphfile;
 static graphint kcent;
+static bool do_components = false,
+            do_pathiso = false,
+            do_triangles = false,
+            do_centrality = false;
 
 static void graph_in(graph * g, FILE * fin) {
   fread(&g->numVertices, sizeof(graphint), 1, fin);
@@ -59,7 +65,7 @@ static void graph_out(graph * g, FILE * fin) {
   fwrite(g->marks, sizeof(color_t), NV, fin);
 }
 
-static void checkpoint_in(graph * dirg, graph * g) {
+static bool checkpoint_in(graph * dirg, graph * g) {
   fprintf(stderr,"start reading checkpoint\n");
   double t = timer();
   
@@ -68,8 +74,7 @@ static void checkpoint_in(graph * dirg, graph * g) {
   FILE * fin = fopen(fname, "r");
   if (!fin) {
     fprintf(stderr, "Unable to open file: %s, will generate graph and write checkpoint.\n", fname);
-    checkpointing = false;
-    return;
+    return false;
   }
   
   graph_in(dirg, fin);
@@ -79,6 +84,8 @@ static void checkpoint_in(graph * dirg, graph * g) {
   
   t = timer() - t;
   fprintf(stderr, "done reading in checkpoint (time = %g)\n", t);
+
+  return true;
 }
 
 static void checkpoint_out(graph * dirg, graph * undirg) {
@@ -110,39 +117,40 @@ int main(int argc, char* argv[]) {
   graph _dirg;
   graph _g;
   
-  double time;
+  double t;
   
   printf("[[ Graph Application Suite ]]\n"); fflush(stdout);
   
   graph * dirg = &_dirg;
   graph * g = &_g;
   
+  bool generate_checkpoint = false;
+
   if (checkpointing) {
-    checkpoint_in(dirg, g);
+    generate_checkpoint = !checkpoint_in(dirg, g);
   }
   
-  if (!checkpointing) {
+  if (!checkpointing || generate_checkpoint) {
     graphedges * ge = &_ge;
     
     printf("\nScalable Data Generator - genScalData() randomly generating edgelist...\n"); fflush(stdout);
     //	MTA("mta trace \"begin genScalData\"")
-    time = timer();
-    
+    t = timer();
     
     genScalData(ge, A, B, C, D);
     
-    time = timer() - time;
-    printf("Time taken for Scalable Data Generation is %9.6lf sec.\n", time);
+    t = timer() - t;
+    printf("edge_generation_time: %g\n", t);
     if (graphfile) print_edgelist_dot(ge, graphfile);
     
     //###############################################
     // Kernel: Compute Graph
     
     /* From the input edges, construct the graph 'G'.  */
-    printf("\nKernel - Compute Graph beginning execution...\n"); fflush(stdout);
+    printf("Kernel - Compute Graph beginning execution...\n"); fflush(stdout);
     //	MTA("mta trace \"begin computeGraph\"")
     
-    time = timer();
+    t = timer();
     
     // directed graph
     computeGraph(ge, dirg);
@@ -151,74 +159,80 @@ int main(int argc, char* argv[]) {
     // undirected graph
     makeUndirected(dirg, g);
     
-    time = timer() - time;
-    printf("Time taken for computeGraph is %9.6lf sec.\n", time);
+    t = timer() - t;
+    printf("compute_graph_time: %g\n", t);
     if (graphfile) print_graph_dot(g, graphfile);
     
-    checkpoint_out(dirg, g);
+    if (generate_checkpoint) checkpoint_out(dirg, g);
   }
   
   //###############################################
   // Kernel: Connected Components
-  printf("\nKernel - Connected Components beginning execution...\n"); fflush(stdout);
-  MTA("mta trace \"begin connectedComponents\"")
-  time = timer();
-  
-  graphint connected = connectedComponents(g);
-  
-  time = timer() - time;
-  printf("Number of connected components: %"DFMT"\n", connected);
-  printf("Time taken for connectedComponents is %9.6lf sec.\n", time);
-  
-  
+  if (do_components) {
+    printf("Kernel - Connected Components beginning execution...\n"); fflush(stdout);
+    MTA("mta trace \"begin connectedComponents\"")
+    t = timer();
+    
+    graphint connected = connectedComponents(g);
+    
+    t = timer() - t;
+    printf("ncomponents: %"DFMT"\n", connected);
+    printf("components_time: %g\n", t); fflush(stdout);
+  }
+
   //###############################################
   // Kernel: Path Isomorphism
-  
-  // assign random colors to vertices in the range: [0,10)
-  //	MTA("mta trace \"begin markColors\"")
-  markColors(dirg, 0, 10);
-  
-  // path to find (sequence of specifically colored vertices)
-  color_t pattern[] = {2, 5, 9, END};
-  
-  color_t *c = pattern;
-  printf("\nKernel - Path Isomorphism beginning execution...\nfinding path: %"DFMT"", *c);
-  c++; while (*c != END) { printf(" -> %"DFMT"", *c); c++; } printf("\n"); fflush(stdout);
-  //	MTA("mta trace \"begin pathIsomorphism\"")
-  time = timer();
-  
-  graphint num_matches = pathIsomorphismPar(dirg, pattern);
-  
-  time = timer() - time;
-  
-  printf("Number of matches: %"DFMT"\n", num_matches);
-  printf("Time taken for pathIsomorphismPar is %9.6lf sec.\n", time);
+  if (do_pathiso) {
+    // assign random colors to vertices in the range: [0,10)
+    //	MTA("mta trace \"begin markColors\"")
+    markColors(dirg, 0, 10);
+    
+    // path to find (sequence of specifically colored vertices)
+    color_t pattern[] = {2, 5, 9, END};
+    
+    color_t *c = pattern;
+    printf("Kernel - Path Isomorphism beginning execution...\nfinding path: %"DFMT"", *c);
+    c++; while (*c != END) { printf(" -> %"DFMT"", *c); c++; } printf("\n"); fflush(stdout);
+    //	MTA("mta trace \"begin pathIsomorphism\"")
+    t = timer();
+    
+    graphint num_matches = pathIsomorphismPar(dirg, pattern);
+    
+    t = timer() - t;
+    printf("path_iso_matches: %"DFMT"\n", num_matches);
+    printf("path_isomorphism_time: %g\n", t); fflush(stdout);
+  }
   
   //###############################################
   // Kernel: Triangles
-  printf("\nKernel - Triangles beginning execution...\n"); fflush(stdout);
-  //	MTA("mta trace \"begin triangles\"")
-  time = timer();
-  
-  graphint num_triangles = triangles(g);
-  
-  time = timer() - time;
-  printf("Number of triangles: %"DFMT"\n", num_triangles);
-  printf("Time taken for triangles is %9.6lf sec.\n", time);
-  
+  if (do_triangles) {
+    printf("Kernel - Triangles beginning execution...\n"); fflush(stdout);
+    //	MTA("mta trace \"begin triangles\"")
+    t = timer();
+    
+    graphint num_triangles = triangles(g);
+    
+    t = timer() - t;
+    printf("ntriangles: %"DFMT"\n", num_triangles);
+    printf("triangles_time: %g\n", t); fflush(stdout);
+  } 
   
   //###############################################
   // Kernel: Betweenness Centrality
-  printf("\nKernel - Betweenness Centrality beginning execution...\n"); fflush(stdout);
-  //	MTA("mta trace \"begin centrality\"")
-  time = timer();
-  
-  double *bc = xmalloc(numVertices*sizeof(double));
-  double avgbc = centrality(g, bc, kcent);
-  
-  time = timer() - time;
-  printf("Betweenness Centrality: (avg) = %lf\n", avgbc);
-  printf("Time taken for betweenness centrality is %9.6lf sec.\n", time);
+  if (do_centrality) {
+    printf("Kernel - Betweenness Centrality beginning execution...\n"); fflush(stdout);
+    //	MTA("mta trace \"begin centrality\"")
+    t = timer();
+    
+    double *bc = xmalloc(numVertices*sizeof(double));
+    int64_t total_nedge;
+    double avgbc = centrality(g, bc, kcent, &total_nedge);
+    
+    t = timer() - t;
+    printf("avg_centrality: %g\n", avgbc);
+    printf("centrality_time: %g\n", t); fflush(stdout);
+    printf("centrality_teps: %g\n", total_nedge / t);
+  }
   
   //###################
   // Kernels complete!
@@ -244,18 +258,23 @@ static void parseOptions(int argc, char ** argv) {
     {"scale", required_argument, 0, 's'},
     {"dot", required_argument, 0, 'd'},
     {"ckpt", no_argument, 0, 'p'},
-    {"kcent", required_argument, 0, 'c'}
+    {"kcent", required_argument, 0, 'c'},
+    {"components", no_argument, (int*)&do_components, true},
+    {"pathiso", no_argument, (int*)&do_pathiso, true},
+    {"triangles", no_argument, (int*)&do_triangles, true},
+    {"centrality", no_argument, (int*)&do_centrality, true}
   };
   
   SCALE = 8; //default value
   graphfile = NULL;
   kcent = 1L << SCALE;
-  
+  checkpointing = false;
+
   int c = 0;
   while (c != -1) {
     int option_index = 0;
     
-    c = getopt_long(argc, argv, "hsdpc", long_opts, &option_index);
+    c = getopt_long(argc, argv, "hs:d:pc:", long_opts, &option_index);
     switch (c) {
       case 'h':
         printHelp(argv[0]);
@@ -273,6 +292,11 @@ static void parseOptions(int argc, char ** argv) {
         checkpointing = true;
         break;
     }
+  }
+
+  // if no flags set, default to doing all
+  if (!(do_components || do_pathiso || do_triangles || do_centrality)) {
+    do_components = do_pathiso = do_triangles = do_centrality = true;
   }
 }
 

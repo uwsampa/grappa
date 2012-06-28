@@ -9,18 +9,137 @@
 #include <math.h>
 
 #include <assert.h>
+#include <stdbool.h>
 
 #include "../compat.h"
 #include "../graph500.h"
 #include "../xalloc.h"
 #include "../generator/graph_generator.h"
+#include "../options.h"
+#include "../timer.h"
+
+#ifdef __MTA__
+#include <machine/mtaops.h>
+#define flip64(v) MTA_BIT_MAT_OR(0x0102040810204080, v)
+#define min(a,b) (a)<(b) ? (a) : (b)
+
+#define BUFELEMS (1L<<10)
+
+size_t xmt_fread(void * dest, size_t sz, size_t ct, FILE * fin) {
+	int64_t buf[BUFELEMS];
+	int64_t i;
+
+  int64_t * d = (int64_t*)dest;
+
+	int64_t pos = 0;
+
+	while (pos < ct) {
+		int64_t n = min(ct-pos, BUFELEMS);
+		int64_t res = fread(buf, sizeof(int64_t), n, fin);
+		for (i=0; i<n; i++) {
+			d[pos+i] = flip64(buf[i]);
+		}
+		pos += n;
+	}
+  return ct;
+}
+#define fread xmt_fread
+size_t xmt_fwrite(const void * src, size_t sz, size_t ct, FILE * fout) {
+	int64_t buf[BUFELEMS];
+	int64_t i;
+
+  int64_t * d = (int64_t*)src;
+
+	int64_t pos = 0;
+
+	while (pos < ct) {
+		int64_t n = min(ct-pos, BUFELEMS);
+		for (i=0; i<n; i++) {
+			buf[i] = flip64(d[pos+i]);
+		}
+		int64_t res = fwrite(buf, sizeof(int64_t), n, fout);
+		pos += n;
+	}
+  return ct;
+}
+#define fwrite xmt_fwrite
+#endif
 
 #define MINVECT_SIZE 2
 
-static int64_t maxvtx, nv, sz;
+static int64_t maxvtx, nv, sz, nadj;
 static int64_t * restrict xoff; /* Length 2*nv+2 */
 static int64_t * restrict xadjstore; /* Length MINVECT_SIZE + (xoff[nv] == nedge) */
 static int64_t * restrict xadj;
+
+
+bool checkpoint_in(int SCALE, int edgefactor, struct packed_edge * restrict IJ, int64_t * nedge, int64_t * bfs_roots, int64_t * nbfs) {
+  tic();
+
+  char fname[256];
+  /*sprintf(fname, "/scratch/tmp/holt225/graph500.%ld.%ld.ckpt", SCALE, edgefactor);*/
+  sprintf(fname, "ckpts/graph500.%ld.%ld.xmt.ckpt", SCALE, edgefactor);
+  FILE * fin = fopen(fname, "r");
+  if (!fin) {
+    fprintf(stderr, "Unable to open file: %s, will generate graph and write checkpoint.", fname);
+    return false;
+  }
+
+  int64_t nadj;
+
+  fread(nedge, sizeof(*nedge), 1, fin);
+  fread(&nv, sizeof(nv), 1, fin);
+  fread(&nadj, sizeof(nadj), 1, fin);
+  fread(nbfs, sizeof(*nbfs), 1, fin);
+
+  IJ = xmalloc(*nedge * sizeof(*IJ));
+  xoff = xmalloc(nv * sizeof(*xoff));
+  xadjstore = xmalloc(nadj * sizeof(*xadjstore));
+  xadj = xadjstore + 2;
+
+  fread(IJ, sizeof(packed_edge), *nedge, fin);
+  fread(xoff, sizeof(*xoff), nv, fin);
+  fread(xadjstore, sizeof(*xadjstore), nadj, fin);
+
+  double t = toc();
+  fprintf(stderr, "done reading in checkpoint (%e s)\n", t);
+
+  return true;
+}
+
+void checkpoint_out(int64_t SCALE, int64_t edgefactor, const struct packed_edge * restrict edges, const int64_t nedge, const int64_t * restrict bfs_roots, const int64_t nbfs) {
+  fprintf(stderr, "starting checkpoint...\n");
+  char fname[256];
+  /*sprintf(fname, "ckpts/graph500.%lld.%lld.xmt.ckpt", SCALE, edgefactor);*/
+  sprintf(fname, "ckpts/graph500.%lld.%lld.xmt.ckpt", SCALE, edgefactor);
+  FILE * fout = fopen(fname, "w");
+  if (!fout) {
+    fprintf(stderr,"Unable to open file for writing: %s\n", fname);
+    exit(1);
+  }
+  
+  fprintf(stderr, "nedge=%lld, nv=%lld, nadj=%lld, nbfs=%lld\n", nedge, nv, nadj, nbfs);
+  
+  fwrite(&nedge, sizeof(nedge), 1, fout);
+  fwrite(&nv, sizeof(nv), 1, fout);
+  fwrite(&nadj, sizeof(nadj), 1, fout);
+  fwrite(&nbfs, sizeof(nbfs), 1, fout);
+  
+  // write out edge tuples
+  fwrite(edges, sizeof(*edges), nedge, fout);
+  
+  // xoff
+  fwrite(xoff, sizeof(*xoff), 2*nv+2, fout);
+  
+  // xadj
+  fwrite(xadjstore, sizeof(*xadjstore), nadj, fout);
+  
+  // bfs_roots
+  fwrite(bfs_roots, sizeof(*bfs_roots), nbfs, fout);
+  
+  fclose(fout);
+  fprintf(stderr, "done checkpointing!\n");
+}
 
 static void
 find_nv (const struct packed_edge * restrict IJ, const int64_t nedge)
@@ -84,6 +203,7 @@ setup_deg_off (const struct packed_edge * restrict IJ, int64_t nedge)
 		accum += tmp;
 	}
 	XOFF(nv) = accum;
+  nadj = accum+MINVECT_SIZE;
 	MTA("mta use 100 streams")
 	for (k = 0; k < nv; ++k)
 		XENDOFF(k) = XOFF(k);
@@ -224,3 +344,4 @@ destroy_graph (void)
 {
 	free_graph ();
 }
+
