@@ -84,7 +84,7 @@ static void checkpoint_in(graph * dirg, graph * g) {
   sprintf(fname, "../ckpts/suite.%d.ckpt", SCALE);
   FILE * fin = fopen(fname, "r");
   if (!fin) {
-    fprintf(stderr, "Unable to open file: %s, will generate graph and write checkpoint.\n", fname);
+    fprintf(stderr, "Unable to open file (%s), will generate graph and write checkpoint.\n", fname);
     checkpointing = false;
     return;
   }
@@ -97,7 +97,7 @@ static void checkpoint_in(graph * dirg, graph * g) {
   fclose(fin);
   
   t = timer() - t;
-  printf("done reading in checkpoint (time = %g)\n", t); fflush(stdout);
+  printf("checkpoint_read_time: %g\n", t); fflush(stdout);
 }
 
 static void user_main(void* ignore) {
@@ -127,7 +127,7 @@ static void user_main(void* ignore) {
     genScalData(ge, A, B, C, D);
     
     t = timer() - t;
-    printf("edge_generation_time: %g sec.\n", t);
+    printf("edge_generation_time: %g\n", t);
     //	if (graphfile) print_edgelist_dot(ge, graphfile);
     
     //###############################################
