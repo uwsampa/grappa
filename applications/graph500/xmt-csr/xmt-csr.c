@@ -11,77 +11,37 @@
 #include <assert.h>
 #include <stdbool.h>
 
+
 #include "../compat.h"
+#include "../compatio.h"
+
 #include "../graph500.h"
 #include "../xalloc.h"
 #include "../generator/graph_generator.h"
 #include "../options.h"
 #include "../timer.h"
+#include "../prng.h"
 
-#ifdef __MTA__
-#include <machine/mtaops.h>
-#define flip64(v) MTA_BIT_MAT_OR(0x0102040810204080, v)
-#define min(a,b) (a)<(b) ? (a) : (b)
-
-#define BUFELEMS (1L<<10)
-
-size_t xmt_fread(void * dest, size_t sz, size_t ct, FILE * fin) {
-	int64_t buf[BUFELEMS];
-	int64_t i;
-
-  int64_t * d = (int64_t*)dest;
-
-	int64_t pos = 0;
-
-	while (pos < ct) {
-		int64_t n = min(ct-pos, BUFELEMS);
-		int64_t res = fread(buf, sizeof(int64_t), n, fin);
-		for (i=0; i<n; i++) {
-			d[pos+i] = flip64(buf[i]);
-		}
-		pos += n;
-	}
-  return ct;
-}
-#define fread xmt_fread
-size_t xmt_fwrite(const void * src, size_t sz, size_t ct, FILE * fout) {
-	int64_t buf[BUFELEMS];
-	int64_t i;
-
-  int64_t * d = (int64_t*)src;
-
-	int64_t pos = 0;
-
-	while (pos < ct) {
-		int64_t n = min(ct-pos, BUFELEMS);
-		for (i=0; i<n; i++) {
-			buf[i] = flip64(d[pos+i]);
-		}
-		int64_t res = fwrite(buf, sizeof(int64_t), n, fout);
-		pos += n;
-	}
-  return ct;
-}
-#define fwrite xmt_fwrite
-#endif
 
 #define MINVECT_SIZE 2
+#define XOFF(k) (xoff[2*(k)])
+#define XENDOFF(k) (xoff[1+2*(k)])
 
 static int64_t maxvtx, nv, sz, nadj;
 static int64_t * restrict xoff; /* Length 2*nv+2 */
 static int64_t * restrict xadjstore; /* Length MINVECT_SIZE + (xoff[nv] == nedge) */
 static int64_t * restrict xadj;
 
-
-bool checkpoint_in(int SCALE, int edgefactor, struct packed_edge * restrict IJ, int64_t * nedge, int64_t * bfs_roots, int64_t * nbfs) {
+// TODO: fix me so I'm not assigning to copies of pointers...
+bool checkpoint_in(int SCALE, int edgefactor, struct packed_edge *restrict * IJ, int64_t * nedge, int64_t * bfs_roots, int64_t * nbfs) {
   tic();
 
   char fname[256];
   /*sprintf(fname, "/scratch/tmp/holt225/graph500.%ld.%ld.ckpt", SCALE, edgefactor);*/
-  sprintf(fname, "ckpts/graph500.%ld.%ld.xmt.ckpt", SCALE, edgefactor);
+  sprintf(fname, "ckpts/graph500.%ld.%ld.xmt.w.ckpt", SCALE, edgefactor);
   FILE * fin = fopen(fname, "r");
   if (!fin) {
-    fprintf(stderr, "Unable to open file: %s, will generate graph and write checkpoint.", fname);
+    fprintf(stderr, "Unable to open file - %s, will generate graph and write checkpoint.\n", fname);
     return false;
   }
 
@@ -92,33 +52,46 @@ bool checkpoint_in(int SCALE, int edgefactor, struct packed_edge * restrict IJ, 
   fread(&nadj, sizeof(nadj), 1, fin);
   fread(nbfs, sizeof(*nbfs), 1, fin);
 
-  IJ = xmalloc(*nedge * sizeof(*IJ));
-  xoff = xmalloc(nv * sizeof(*xoff));
+  (*IJ) = xmalloc(*nedge * sizeof(**IJ));
+  xoff = xmalloc((2*nv+2) * sizeof(*xoff));
   xadjstore = xmalloc(nadj * sizeof(*xadjstore));
   xadj = xadjstore + 2;
 
-  fread(IJ, sizeof(packed_edge), *nedge, fin);
-  fread(xoff, sizeof(*xoff), nv, fin);
+  fread(*IJ, sizeof(packed_edge), *nedge, fin);
+  fread(xoff, sizeof(*xoff), 2*nv+2, fin);
   fread(xadjstore, sizeof(*xadjstore), nadj, fin);
 
   double t = toc();
-  fprintf(stderr, "done reading in checkpoint (%e s)\n", t);
+  fprintf(stderr, "checkpoint_read_time: %g\n", t);
 
   return true;
 }
 
+/*#define BUFSIZE (1L<<10)*/
+/*static char buf[BUFSIZE];*/
+/*size_t kbuf;*/
+
+/*inline void buf_init() { kbuf = 0; }*/
+/*void buf_fwrite(void * data, size_t size, size_t nmemb, FILE * f) {*/
+  /*size_t p = 0;*/
+  /*while (p < size*nmemb) {*/
+    /*size_t n = min(size*nmemb, BUFSIZE-kbuf)*/
+    
+  /*}*/
+/*}*/
+
 void checkpoint_out(int64_t SCALE, int64_t edgefactor, const struct packed_edge * restrict edges, const int64_t nedge, const int64_t * restrict bfs_roots, const int64_t nbfs) {
   fprintf(stderr, "starting checkpoint...\n");
+  tic();
   char fname[256];
-  /*sprintf(fname, "ckpts/graph500.%lld.%lld.xmt.ckpt", SCALE, edgefactor);*/
-  sprintf(fname, "ckpts/graph500.%lld.%lld.xmt.ckpt", SCALE, edgefactor);
+  sprintf(fname, "ckpts/graph500.%lld.%lld.xmt.w.ckpt", SCALE, edgefactor);
   FILE * fout = fopen(fname, "w");
   if (!fout) {
     fprintf(stderr,"Unable to open file for writing: %s\n", fname);
     exit(1);
   }
   
-  fprintf(stderr, "nedge=%lld, nv=%lld, nadj=%lld, nbfs=%lld\n", nedge, nv, nadj, nbfs);
+  /*fprintf(stderr, "nedge=%lld, nv=%lld, nadj=%lld, nbfs=%lld\n", nedge, nv, nadj, nbfs);*/
   
   fwrite(&nedge, sizeof(nedge), 1, fout);
   fwrite(&nv, sizeof(nv), 1, fout);
@@ -127,7 +100,7 @@ void checkpoint_out(int64_t SCALE, int64_t edgefactor, const struct packed_edge 
   
   // write out edge tuples
   fwrite(edges, sizeof(*edges), nedge, fout);
-  
+
   // xoff
   fwrite(xoff, sizeof(*xoff), 2*nv+2, fout);
   
@@ -137,8 +110,27 @@ void checkpoint_out(int64_t SCALE, int64_t edgefactor, const struct packed_edge 
   // bfs_roots
   fwrite(bfs_roots, sizeof(*bfs_roots), nbfs, fout);
   
+  // int weights (for suite)
+  int64_t actual_nadj = 0;
+  for (int64_t j=0; j<nv; j++) { actual_nadj += XENDOFF(j)-XOFF(j); }
+  fwrite(&actual_nadj, sizeof(actual_nadj), 1, fout);
+
+  int64_t bufsize = (1L<<12);
+  double * rn = xmalloc(bufsize*sizeof(double));
+  int64_t * rni = xmalloc(bufsize*sizeof(int64_t));
+  for (int64_t j=0; j<actual_nadj; j+=bufsize) {
+    prand(bufsize, rn);
+    for (int64_t i=0; i<bufsize; i++) {
+      rni[i] = (int64_t)(rn[i]*nv);
+    }
+    int64_t n = min(bufsize, actual_nadj-j);
+    fwrite(rni, sizeof(int64_t), n, fout);
+  }
+  free(rn); free(rni);
+
   fclose(fout);
-  fprintf(stderr, "done checkpointing!\n");
+  double t = toc();
+  fprintf(stderr, "checkpoint_write_time: %g\n", t);
 }
 
 static void
@@ -175,9 +167,6 @@ free_graph (void)
 	xfree_large (xadjstore);
 	xfree_large (xoff);
 }
-
-#define XOFF(k) (xoff[2*(k)])
-#define XENDOFF(k) (xoff[1+2*(k)])
 
 static int
 setup_deg_off (const struct packed_edge * restrict IJ, int64_t nedge)
@@ -240,7 +229,7 @@ pack_edges (void)
 	int64_t v;
 	
 	MTA("mta assert parallel") MTA("mta use 100 streams")
-    for (v = 0; v < nv; ++v) {
+  for (v = 0; v < nv; ++v) {
 		int64_t kcur, k;
 		if (XOFF(v)+1 < XENDOFF(v)) {
 			qsort (&xadj[XOFF(v)], XENDOFF(v)-XOFF(v), sizeof(*xadj), i64cmp);
@@ -254,7 +243,7 @@ pack_edges (void)
 				xadj[k] = -1;
 			XENDOFF(v) = kcur;
 		}
-    }
+  }
 }
 
 static void

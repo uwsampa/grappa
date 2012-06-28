@@ -56,7 +56,7 @@ static void output_results (const int64_t SCALE, int64_t nvtx_scale,
 							const double *bfs_time, const int64_t *bfs_nedge);
 
 
-bool checkpoint_in(int SCALE, int edgefactor, struct packed_edge * restrict IJ, int64_t * nedge, int64_t * bfs_roots, int64_t * nbfs);
+bool checkpoint_in(int SCALE, int edgefactor, struct packed_edge *restrict * IJ, int64_t * nedge, int64_t * bfs_roots, int * nbfs);
 void checkpoint_out(int64_t SCALE, int64_t edgefactor, const struct packed_edge * restrict edges, const int64_t nedge, const int64_t * restrict bfs_roots, const int64_t nbfs);
 
 int main (int argc, char **argv) {
@@ -81,7 +81,7 @@ int main (int argc, char **argv) {
   bool generate_ckpt = false;
 
   if (load_checkpoint) {
-    generate_ckpt = !checkpoint_in(SCALE, edgefactor, IJ, &nedge, bfs_root, &NBFS);
+    generate_ckpt = !checkpoint_in(SCALE, edgefactor, &IJ, &nedge, bfs_root, &NBFS);
   }
 
 	/*
