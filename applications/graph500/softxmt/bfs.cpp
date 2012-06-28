@@ -7,6 +7,7 @@
 #include "GlobalAllocator.hpp"
 #include "timer.h"
 #include "GlobalTaskJoiner.hpp"
+#include "AsyncParallelFor.hpp"
 
 GRAPPA_DEFINE_EVENT_GROUP(bfs);
 
@@ -30,49 +31,61 @@ static int64_t nadj;
 
 #define GA64(name) ((GlobalAddress<int64_t>,name))
 
-static void bfs_visit_neighbor(uint64_t packed, GlobalAddress<GlobalTaskJoiner> rjoiner) {
-  int64_t vo = packed & 0xFFFFFFFF;
-  int64_t v = packed >> 32;
-#ifdef DEBUG
-  CHECK(vo < nadj) << "unpacking 'vo' unsuccessful (" << vo << " < " << nadj << ")";
-  CHECK(v < nadj) << "unpacking 'v' unsuccessful (" << v << " < " << nadj << ")";  
-  GRAPPA_EVENT(visit_neighbor_ev, "visit neighbor of vertex", 1, bfs, v);
-#endif
+void bfs_visit_neighbor(int64_t estart, int64_t eiters, GlobalAddress<void*> packed) {
+  int64_t v = (int64_t)packed.pointer();
   
-  const int64_t j = read(xadj+vo);
+  //const int64_t j = read(xadj+vo);
+  //VLOG(1) << "estart: " << estart << ", eiters: " << eiters;
+
+  int64_t cbuf[eiters];
+  Incoherent<int64_t>::RO cadj(xadj+estart, eiters, cbuf);
   
-  if (cmp_swap(bfs_tree+j, -1, v)) {
-    while (kbuf == -1) { SoftXMT_yield(); }
-    if (kbuf < BUF_LEN) {
-      buf[kbuf] = j;
-      (kbuf)++;
-    } else {
-      kbuf = -1; // lock other threads out temporarily
-      int64_t voff = fetch_add(k2, BUF_LEN);
-      Incoherent<int64_t>::RW cvlist(vlist+voff, BUF_LEN);
-      for (int64_t vk=0; vk < BUF_LEN; vk++) {
-        cvlist[vk] = buf[vk];
+  for (int64_t i = 0; i < eiters; i++) {
+    const int64_t j = cadj[i];
+    //VLOG(1) << "v = " << v << ", j = " << j << ", i = " << i << ", eiters = " << eiters;
+
+    if (cmp_swap(bfs_tree+j, -1, v)) {
+      while (kbuf == -1) { SoftXMT_yield(); }
+      if (kbuf < BUF_LEN) {
+        buf[kbuf] = j;
+        (kbuf)++;
+      } else {
+        // TODO: swap buffer!
+        kbuf = -1; // lock other threads out temporarily
+        int64_t voff = fetch_add(k2, BUF_LEN);
+        Incoherent<int64_t>::RW cvlist(vlist+voff, BUF_LEN);
+        for (int64_t vk=0; vk < BUF_LEN; vk++) {
+          cvlist[vk] = buf[vk];
+        }
+        buf[0] = j;
+        kbuf = 1;
       }
-      buf[0] = j;
-      kbuf = 1;
     }
   }
-  GlobalTaskJoiner::remoteSignal(rjoiner);
 }
 
-static void bfs_visit_vertex(int64_t k, GlobalAddress<GlobalTaskJoiner> rjoiner) {
-  const int64_t v = read(vlist+k);
-  
-  int64_t buf[2];
-  Incoherent<int64_t>::RO cr(xoff+2*v, 2, buf);
-  const int64_t vstart = cr[0], vend = cr[1];
-  
-  for (int64_t vo = vstart; vo < vend; vo++) {
-    uint64_t packed = (((uint64_t)v) << 32) | vo;
-    global_joiner.registerTask(); // register these new tasks on *this task*'s joiner
-    SoftXMT_publicTask(&bfs_visit_neighbor, packed, global_joiner.addr());
+void bfs_visit_vertex(int64_t kstart, int64_t kiters) {
+  //VLOG(1) << "bfs_visit_vertex(" << kstart << ", " << kiters << ")";
+
+  int64_t buf[kiters];
+  Incoherent<int64_t>::RO cvlist(vlist+kstart, kiters, buf);
+
+  for (int64_t i=0; i<kiters; i++) {
+    const int64_t v = cvlist[i];
+    
+    int64_t buf[2];
+    Incoherent<int64_t>::RO cxoff(xoff+2*v, 2, buf);
+    const int64_t vstart = cxoff[0], vend = cxoff[1];
+   
+    GlobalAddress<void*> packed = make_global( (void**)(v) );
+    //VLOG(1) << "apfor<bfs_visit_neighbor>(" << vstart << ", " << vend << ")";
+    async_parallel_for<void*, bfs_visit_neighbor, joinerSpawn_hack<void*,bfs_visit_neighbor> >(vstart, vend-vstart, packed);
+    //for (int64_t vo = vstart; vo < vend; vo++) {
+      //uint64_t packed = (((uint64_t)v) << 32) | vo;
+      //global_joiner.registerTask(); // register these new tasks on *this task*'s joiner
+      //SoftXMT_publicTask(&bfs_visit_neighbor, packed, global_joiner.addr());
+    //}
   }
-  GlobalTaskJoiner::remoteSignal(rjoiner);
 }
 
 void bfs_level(Node nid, int64_t start, int64_t end) {
@@ -81,12 +94,14 @@ void bfs_level(Node nid, int64_t start, int64_t end) {
   kbuf = 0;
   
   global_joiner.reset();
-
-  for (int64_t i = r.start; i < r.end; i++) {
-    global_joiner.registerTask();
-    SoftXMT_publicTask(&bfs_visit_vertex, i, global_joiner.addr());
-  }
+  VLOG(2) << "phase start <" << end-start << "> (" << r.start << ", " << r.end << ")";
+  async_parallel_for< bfs_visit_vertex, joinerSpawn<bfs_visit_vertex> >(r.start, r.end-r.start);
+  //for (int64_t i = r.start; i < r.end; i++) {
+    //global_joiner.registerTask();
+    //SoftXMT_publicTask(&bfs_visit_vertex, i, global_joiner.addr());
+  //}
   global_joiner.wait();
+  VLOG(2) << "phase complete";
 }
 
 void clear_buffers() {
