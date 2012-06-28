@@ -29,6 +29,7 @@ struct GlobalTaskJoiner {
   void signal();
   void wait();
   static void remoteSignal(GlobalAddress<GlobalTaskJoiner> joiner);
+  static void remoteSignalNode(Node joiner_node);
 private:
   void wake();
   void notify_completed();
@@ -36,6 +37,7 @@ private:
   static void am_wake(bool * ignore, size_t sz, void * p, size_t psz);
   static void am_notify_completed(bool * ignore, size_t sz, void * p, size_t psz);
   static void am_remoteSignal(GlobalAddress<GlobalTaskJoiner>* joiner, size_t sz, void* payload, size_t psz);
+  static void am_remoteSignalNode(int* dummy_arg, size_t sz, void* payload, size_t psz);
 };
 extern GlobalTaskJoiner global_joiner;
 
@@ -74,14 +76,16 @@ void joinerSpawn_hack( int64_t s, int64_t n, GlobalAddress<Arg> shared_arg );
 template < typename Arg,
            void (*LoopBody)(int64_t,int64_t,GlobalAddress<Arg>) >
 void asyncFor_with_globalTaskJoiner_hack(int64_t s, int64_t n, GlobalAddress<Arg> shared_arg ) {
-  //NOTE: really we just need the joiner Node because of the static global_joiner
-  async_parallel_for<LoopBody, &joinerSpawn_hack<Arg, LoopBody> > (s, n, shared_arg);
-  global_joiner.remoteSignal( reinterpret_cast< GlobalAddress<GlobalTaskJoiner> >(shared_arg) ); // XXX only node() portion valid here
+  async_parallel_for<Arg, LoopBody, &joinerSpawn_hack<Arg, LoopBody> > (s, n, shared_arg);
+  global_joiner.remoteSignalNode( shared_arg.node() ); 
 }
 
 template < typename Arg,
            void (*LoopBody)(int64_t,int64_t,GlobalAddress<Arg>) >
 void joinerSpawn_hack( int64_t s, int64_t n, GlobalAddress<Arg> shared_arg ) {
   global_joiner.registerTask();
-  SoftXMT_publicTask( &asyncFor_with_globalTaskJoiner_hack<LoopBody>, s, n, shared_arg );
+
+  // copy the shared_arg data into a global address that corresponds to this Node
+  GlobalAddress<Arg> packed = make_global( reinterpret_cast<Arg*>(shared_arg.pointer()) );
+  SoftXMT_publicTask( &asyncFor_with_globalTaskJoiner_hack<Arg,LoopBody>, s, n, packed );
 } 

@@ -25,6 +25,10 @@ void async_parallel_for( int64_t start, int64_t iterations ) {
   }
 }
 
+
+
+#include "Addressing.hpp"
+
 template < typename Arg,
            void (*LoopBody)(int64_t,int64_t,GlobalAddress<Arg>),
            void (*Spawn)(int64_t,int64_t,GlobalAddress<Arg>) >
