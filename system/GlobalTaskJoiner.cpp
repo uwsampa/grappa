@@ -5,16 +5,27 @@ GlobalTaskJoiner global_joiner;
 
 
 void GlobalTaskJoiner::reset() {
-  localComplete = false;
-  target = 0; // for now, just have everyone report into Node 0
+  VLOG(2) << "reset";
+  // only matters for Master
+  nodes_in = 0;
+  barrier_done = false;
+ 
+  // all
+  global_done = false;
   outstanding = 0;
-  nodes_outstanding = SoftXMT_nodes();
   waiter = NULL;
+  cancel_in_flight = false;
+  enter_called = false;
+
+  SoftXMT_barrier_suspending();
+  VLOG(2) << "barrier_done = " << barrier_done;
 }
 
 void GlobalTaskJoiner::registerTask() {
-  if (localComplete) cancel_completed();
   outstanding++;
+  if (outstanding == 1) { // 0 -> 1
+    send_cancel();
+  }
   VLOG(3) << "registered - outstanding = " << outstanding;
 }
 
@@ -24,30 +35,35 @@ void GlobalTaskJoiner::signal() {
   outstanding--;
   VLOG(3) << "signaled - outstanding = " << outstanding;
 
-  if (outstanding == 0) {
-    notify_completed();
+  if (outstanding == 0) { // 1 -> 0
+    send_enter();
   }
 }
 
 void GlobalTaskJoiner::wake() {
-  CHECK(outstanding == 0);
-  localComplete = false;
+  CHECK(!global_done);
+  CHECK(outstanding == 0) << "outstanding = " << outstanding;
+  VLOG(2) << "wake!";
+  global_done = true;
+  
   if ( waiter != NULL ) {
-    Thread * w = waiter;
+    SoftXMT_wake(waiter);
     waiter = NULL;
-    SoftXMT_wake(w);
   }
 }
 
 void GlobalTaskJoiner::wait() {
-  if (outstanding == 0) {
-    VLOG(2) << "no local work, entering cancellable barrier";
-    notify_completed();
-  }
-  
-  if ( localComplete || outstanding > 0 ) {  // IF, because conditions should not change once correct
+  if (!global_done) {
+    if (!cancel_in_flight && outstanding == 0 && !enter_called) {
+      // TODO: doing extra 'cancel_in_flight' check
+      VLOG(2) << "no local work, entering cancellable barrier";
+      send_enter();
+    }
     waiter = CURRENT_THREAD;
-    SoftXMT_suspend(); // won't be woken until *all* nodes have no work left
+    SoftXMT_suspend();
+    CHECK(global_done);
+    CHECK(!cancel_in_flight);
+    CHECK(outstanding == 0);
   }
 }
 
@@ -86,12 +102,16 @@ void GlobalTaskJoiner::am_wake(bool * ignore, size_t sz, void * p, size_t psz) {
   global_joiner.wake();
 }
 
-void GlobalTaskJoiner::am_notify_completed(bool * ignore, size_t sz, void * p, size_t psz) {
-  CHECK(SoftXMT_mynode() == 0); // for now, Node 0 is responsible for global state
-  global_joiner.nodes_outstanding--;
-  VLOG(2) << "(completed) nodes_outstanding: " << global_joiner.nodes_outstanding;
-  if (global_joiner.nodes_outstanding == 0) {
-    global_joiner.nodes_outstanding = SoftXMT_nodes();
+void GlobalTaskJoiner::am_enter(bool * ignore, size_t sz, void * p, size_t psz) {
+  CHECK(SoftXMT_mynode() == 0); // Node 0 is Master
+  //CHECK(!global_joiner.barrier_done);
+
+  global_joiner.nodes_in++;
+  VLOG(2) << "(completed) nodes_in: " << global_joiner.nodes_in;
+  
+  if (global_joiner.nodes_in == SoftXMT_nodes()) {
+    global_joiner.barrier_done = true;
+    VLOG(2) << "### done! ### nodes_in: " << global_joiner.nodes_in;
     for (Node n=0; n<SoftXMT_nodes(); n++) {
       bool ignore = false;
       SoftXMT_call_on(n, &GlobalTaskJoiner::am_wake, &ignore);
@@ -99,17 +119,31 @@ void GlobalTaskJoiner::am_notify_completed(bool * ignore, size_t sz, void * p, s
   }
 }
 
-void GlobalTaskJoiner::notify_completed() {
-  localComplete = true;
-  VLOG(3) << "notify_completed";
-  SoftXMT_call_on(target, &GlobalTaskJoiner::am_notify_completed, &localComplete);
+void GlobalTaskJoiner::send_enter() {
+  enter_called = true;
+  if (!cancel_in_flight) {
+    VLOG(2) << "notify_completed";
+    bool ignore = false;
+    SoftXMT_call_on(target, &GlobalTaskJoiner::am_enter, &ignore);
+  }
 }
 
-void GlobalTaskJoiner::cancel_completed() {
-  localComplete = false;
-  GlobalAddress<GlobalTaskJoiner> global_joiner_addr = make_global(&global_joiner, target);
-  GlobalAddress<int64_t> global_outstanding_addr = global_pointer_to_member(global_joiner_addr, &GlobalTaskJoiner::nodes_outstanding);
-  int64_t result = SoftXMT_delegate_fetch_and_add_word(global_outstanding_addr, 1);
-  VLOG(2) << "(cancelled) nodescomplete: " << result+1;
+void GlobalTaskJoiner::send_cancel() {
+  if (!cancel_in_flight && enter_called) {
+    cancel_in_flight = true;
+    enter_called = false;
+
+    GlobalAddress<GlobalTaskJoiner> global_joiner_addr = make_global(&global_joiner, target);
+    GlobalAddress<int64_t> global_nodes_in_addr = global_pointer_to_member(global_joiner_addr, &GlobalTaskJoiner::nodes_in);
+    int64_t result = SoftXMT_delegate_fetch_and_add_word(global_nodes_in_addr, -1);
+    VLOG(2) << "(cancelled) nodes_in: " << result-1;
+
+    cancel_in_flight = false;
+   
+    CHECK(outstanding > 0);
+    //if (outstanding == 0) {
+      //send_enter();
+    //}
+  }
 }
 
