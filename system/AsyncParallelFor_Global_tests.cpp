@@ -102,6 +102,34 @@ void profile_stop() {
 #endif
 }
 
+LOOP_FUNCTION( no_work_func, nid ) {
+    global_joiner.reset();
+    /* no work */
+    global_joiner.wait();
+}
+
+void signaling_task( int64_t * arg ) {
+  global_joiner.signal();
+}
+
+LOOP_FUNCTION( one_work_func, nid ) {
+    global_joiner.reset();
+    global_joiner.registerTask();
+    int64_t ignore;
+    SoftXMT_privateTask( &signaling_task, &ignore );
+    global_joiner.wait();
+}
+
+LOOP_FUNCTION( one_self_work_func, nid ) {
+    global_joiner.reset();
+
+    // register and signal
+    global_joiner.registerTask();
+    global_joiner.signal();
+
+    global_joiner.wait();
+}
+
 void user_main( void * args ) {
   BOOST_CHECK( SoftXMT_nodes() <= MAX_NODES );
   
@@ -128,6 +156,24 @@ void user_main( void * args ) {
     int64_t n_count = SoftXMT_delegate_read_word( make_global( &local_count, n ) );
     BOOST_MESSAGE( n << " did " << n_count << " iterations" );
   }
+  }
+
+  BOOST_MESSAGE( "No work test" );
+  {
+    no_work_func f;
+    fork_join_custom(&f);
+  }
+
+  BOOST_MESSAGE( "One work test" );
+  {
+    one_work_func f;
+    fork_join_custom(&f);
+  }
+  
+  BOOST_MESSAGE( "One self work test" );
+  {
+    one_self_work_func f;
+    fork_join_custom(&f);
   }
 
 
