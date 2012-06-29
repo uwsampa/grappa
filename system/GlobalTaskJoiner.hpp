@@ -12,14 +12,23 @@
 /// version also keeps the original waiting task suspended and uses AMs
 /// exclusively to do synchronization.
 struct GlobalTaskJoiner {
+  // Master barrier
+  Node nodes_in;
+  bool barrier_done; // only for our own verification
+
+  // All nodes
   Thread * waiter;
-  Node nodes_outstanding;
   int64_t outstanding;
-  bool localComplete;
+  bool global_done;
+  bool cancel_in_flight;
+  bool enter_called;
+ 
+  // Const
   Node target;
   GlobalAddress<GlobalTaskJoiner> _addr;
   
-  GlobalTaskJoiner(): localComplete(false), target(0), outstanding(0), nodes_outstanding(0), waiter(NULL) {}
+  //GlobalTaskJoiner(): localComplete(false), target(0), outstanding(0), nodes_outstanding(0), waiter(NULL) {}
+  GlobalTaskJoiner(): nodes_in(0), barrier_done(false), waiter(NULL), outstanding(0), global_done(false), cancel_in_flight(false), enter_called(false), target(0 /* Node 0 == Master */) {}
   void reset();
   GlobalAddress<GlobalTaskJoiner> addr() {
     if (_addr.pointer() == NULL) { _addr = make_global(this); }
@@ -32,10 +41,10 @@ struct GlobalTaskJoiner {
   static void remoteSignalNode(Node joiner_node);
 private:
   void wake();
-  void notify_completed();
-  void cancel_completed();
+  void send_enter();
+  void send_cancel();
   static void am_wake(bool * ignore, size_t sz, void * p, size_t psz);
-  static void am_notify_completed(bool * ignore, size_t sz, void * p, size_t psz);
+  static void am_enter(bool * ignore, size_t sz, void * p, size_t psz);
   static void am_remoteSignal(GlobalAddress<GlobalTaskJoiner>* joiner, size_t sz, void* payload, size_t psz);
   static void am_remoteSignalNode(int* dummy_arg, size_t sz, void* payload, size_t psz);
 };
