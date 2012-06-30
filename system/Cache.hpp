@@ -11,6 +11,38 @@
 #include "IncoherentAcquirer.hpp"
 #include "IncoherentReleaser.hpp"
 
+class CacheStatistics {
+  private:
+    uint64_t ro_acquires;
+    uint64_t ro_releases;
+    uint64_t rw_acquires;
+    uint64_t rw_releases;
+#ifdef VTRACE_SAMPLED
+    unsigned cache_grp_vt;
+    unsigned ro_acquires_ev_vt;
+    unsigned ro_releases_ev_vt;
+    unsigned rw_acquires_ev_vt;
+    unsigned rw_releases_ev_vt;
+#endif
+  
+  public:
+    CacheStatistics();
+    void reset();
+    
+    inline void count_ro_acquire() { ro_acquires++; }
+    inline void count_ro_release() { ro_releases++; }
+    inline void count_rw_acquire() { rw_acquires++; }
+    inline void count_rw_release() { rw_acquires++; }
+
+    void dump();
+    void sample();
+    void profiling_sample();
+    void merge(CacheStatistics * other);
+    static void merge_am(CacheStatistics * other, size_t sz, void* payload, size_t psz);
+};
+
+extern CacheStatistics cache_stats;
+    
 
 template< typename T >
 class CacheAllocator {
