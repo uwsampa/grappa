@@ -54,7 +54,7 @@ void bfs_visit_neighbor(int64_t estart, int64_t eiters, GlobalAddress<void*> pac
         // TODO: swap buffer!
         kbuf = -1; // lock other threads out temporarily
         int64_t voff = fetch_add(k2, BUF_LEN);
-        Incoherent<int64_t>::RW cvlist(vlist+voff, BUF_LEN);
+        Incoherent<int64_t>::WO cvlist(vlist+voff, BUF_LEN);
         for (int64_t vk=0; vk < BUF_LEN; vk++) {
           cvlist[vk] = buf[vk];
         }
@@ -122,7 +122,7 @@ void clear_buffers() {
   if (kbuf) {
     int64_t voff = fetch_add(k2, kbuf);
     VLOG(2) << "flushing vlist buffer (kbuf=" << kbuf << ", k2=" << voff << ")";
-    Incoherent<int64_t>::RW cvlist(vlist+voff, kbuf);
+    Incoherent<int64_t>::WO cvlist(vlist+voff, kbuf);
     for (int64_t vk=0; vk < kbuf; vk++) {
       cvlist[vk] = buf[vk];
     }
