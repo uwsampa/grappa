@@ -11,6 +11,7 @@
 
 GRAPPA_DEFINE_EVENT_GROUP(bfs);
 
+
 #define read      SoftXMT_delegate_read_word
 #define write     SoftXMT_delegate_write_word
 #define cmp_swap  SoftXMT_delegate_compare_and_swap_word
@@ -88,12 +89,25 @@ void bfs_visit_vertex(int64_t kstart, int64_t kiters) {
   }
 }
 
+static unsigned marker = -1;
+
 void bfs_level(Node nid, int64_t start, int64_t end) {
   range_t r = blockDist(start, end, nid, SoftXMT_nodes());
 
   kbuf = 0;
   
+#ifdef VTRACE
+  VT_TRACER("bfs_level");
+#endif
+
   global_joiner.reset();
+#ifdef VTRACE
+  if (SoftXMT_mynode() == 0) {
+    char s[256];
+    sprintf(s, "<%ld>", end-start);
+    VT_MARKER(marker, s);
+  }
+#endif
   VLOG(2) << "phase start <" << end-start << "> (" << r.start << ", " << r.end << ")";
   async_parallel_for< bfs_visit_vertex, joinerSpawn<bfs_visit_vertex> >(r.start, r.end-r.start);
   //for (int64_t i = r.start; i < r.end; i++) {
@@ -115,6 +129,7 @@ void clear_buffers() {
     kbuf = 0;
   }
 }
+
 
 LOOP_FUNCTOR(bfs_node, nid, GA64(_vlist)GA64(_xoff)GA64(_xadj)GA64(_bfs_tree)GA64(_k2)((int64_t,_nadj))) {
   // setup globals
@@ -139,7 +154,7 @@ LOOP_FUNCTOR(bfs_node, nid, GA64(_vlist)GA64(_xoff)GA64(_xadj)GA64(_bfs_tree)GA6
     clear_buffers();
 
     SoftXMT_barrier_suspending();
-    
+
     k1 = oldk2;
     _k2 = read(k2);
   }  
@@ -148,7 +163,11 @@ LOOP_FUNCTOR(bfs_node, nid, GA64(_vlist)GA64(_xoff)GA64(_xadj)GA64(_bfs_tree)GA6
 double make_bfs_tree(csr_graph * g, GlobalAddress<int64_t> bfs_tree, int64_t root) {
   int64_t NV = g->nv;
   GlobalAddress<int64_t> vlist = SoftXMT_typed_malloc<int64_t>(NV);
-  
+ 
+#ifdef VTRACE 
+  if (marker == -1) marker = VT_MARKER_DEF("bfs_level", VT_MARKER_TYPE_HINT);
+#endif
+
   double t;
   t = timer();
   
@@ -168,8 +187,6 @@ double make_bfs_tree(csr_graph * g, GlobalAddress<int64_t> bfs_tree, int64_t roo
   t = timer() - t;
   
   SoftXMT_free(vlist);
-  
-  SoftXMT_merge_and_dump_stats();
   
   return t;
 }
