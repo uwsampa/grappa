@@ -7,7 +7,6 @@
 #include <string.h>
 #include <signal.h>
 #include <errno.h>
-#include <limits.h>
 #include <unistd.h>
 #include <time.h>
 #include <fcntl.h>
