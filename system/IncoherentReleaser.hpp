@@ -23,6 +23,35 @@ static void incoherent_release_request_am( typename IncoherentReleaser< T >::Req
                                            size_t size, 
                                            void * payload, size_t payload_size );
 
+
+class IRStatistics {
+  private:
+    uint64_t release_ams;
+    uint64_t release_ams_bytes;
+#ifdef VTRACE_SAMPLED
+    unsigned ir_grp_vt;
+    unsigned release_ams_ev_vt;
+    unsigned release_ams_bytes_ev_vt;
+#endif
+
+  public:
+    IRStatistics();
+    void reset();
+
+    inline void count_release_ams( uint64_t bytes ) {
+      release_ams++;
+      release_ams_bytes+=bytes;
+    }
+
+    void dump();
+    void sample();
+    void profiling_sample();
+    void merge(IRStatistics * other);
+};
+
+extern IRStatistics incoherent_releaser_stats;
+
+
 template< typename T >
 class IncoherentReleaser {
 private:
@@ -198,6 +227,7 @@ template< typename T >
 static void incoherent_release_request_am( typename IncoherentReleaser< T >::RequestArgs * args, 
                                     size_t size, 
                                     void * payload, size_t payload_size ) {
+  incoherent_releaser_stats.count_release_ams( payload_size );
   DVLOG(5) << "Thread " << CURRENT_THREAD 
            << " received release request to " << args->request_address 
            << " reply to " << args->reply_address;

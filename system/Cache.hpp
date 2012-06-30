@@ -14,25 +14,41 @@
 class CacheStatistics {
   private:
     uint64_t ro_acquires;
-    uint64_t ro_releases;
+    uint64_t wo_releases;
     uint64_t rw_acquires;
     uint64_t rw_releases;
+    uint64_t bytes_acquired;
+    uint64_t bytes_released;
 #ifdef VTRACE_SAMPLED
     unsigned cache_grp_vt;
     unsigned ro_acquires_ev_vt;
-    unsigned ro_releases_ev_vt;
+    unsigned wo_releases_ev_vt;
     unsigned rw_acquires_ev_vt;
     unsigned rw_releases_ev_vt;
+    unsigned bytes_acquired_ev_vt;
+    unsigned bytes_released_ev_vt;
 #endif
   
   public:
     CacheStatistics();
     void reset();
     
-    inline void count_ro_acquire() { ro_acquires++; }
-    inline void count_ro_release() { ro_releases++; }
-    inline void count_rw_acquire() { rw_acquires++; }
-    inline void count_rw_release() { rw_acquires++; }
+    inline void count_ro_acquire( uint64_t bytes ) { 
+      ro_acquires++;
+      bytes_acquired+=bytes;
+    }
+    inline void count_wo_release( uint64_t bytes ) { 
+      wo_releases++; 
+      bytes_released+=bytes;
+    }
+    inline void count_rw_acquire( uint64_t bytes) { 
+      rw_acquires++;
+      bytes_acquired+=bytes;
+    }
+    inline void count_rw_release( uint64_t bytes ) { 
+      rw_acquires++; 
+      bytes_released+=bytes;
+    }
 
     void dump();
     void sample();
@@ -149,9 +165,11 @@ public:
   { }
 
   void start_acquire( ) { 
+    cache_stats.count_ro_acquire( sizeof(T)*count_ );
     acquirer_.start_acquire( );
   }
   void block_until_acquired() {
+    cache_stats.count_ro_acquire( sizeof(T)*count_ );
     acquirer_.block_until_acquired();
   }
   void start_release() { 
@@ -212,15 +230,19 @@ public:
   }
 
   void start_acquire( ) { 
+    cache_stats.count_rw_acquire( sizeof(T)*count_ );
     acquirer_.start_acquire( );
   }
   void block_until_acquired() {
+    cache_stats.count_rw_acquire( sizeof(T)*count_ );
     acquirer_.block_until_acquired();
   }
   void start_release() { 
+    cache_stats.count_rw_release( sizeof(T)*count_ );
     releaser_.start_release( );
   }
   void block_until_released() {
+    cache_stats.count_rw_release( sizeof(T)*count_ );
     releaser_.block_until_released( );
   }
 
@@ -283,9 +305,11 @@ public:
     acquirer_.block_until_acquired();
   }
   void start_release() { 
+    cache_stats.count_wo_release( sizeof(T)*count_ );
     releaser_.start_release( );
   }
   void block_until_released() {
+    cache_stats.count_wo_release( sizeof(T)*count_ );
     releaser_.block_until_released( );
   }
 

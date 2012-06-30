@@ -6,6 +6,7 @@
 #include "tasks/Thread.hpp"
 #include "Delegate.hpp"
 #include "Tasking.hpp"
+#include "Cache.hpp"
 #include "common.hpp"
 
 #include <iostream>

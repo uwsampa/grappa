@@ -24,6 +24,33 @@ static void incoherent_acquire_request_am( typename IncoherentAcquirer< T >::Req
                                            size_t size, 
                                            void * payload, size_t payload_size );
 
+class IAStatistics {
+  private:
+    uint64_t acquire_ams;
+    uint64_t acquire_ams_bytes;
+#ifdef VTRACE_SAMPLED
+    unsigned ia_grp_vt;
+    unsigned acquire_ams_ev_vt;
+    unsigned acquire_ams_bytes_ev_vt;
+#endif
+
+  public:
+    IAStatistics();
+    void reset();
+
+    inline void count_acquire_ams( uint64_t bytes ) {
+      acquire_ams++;
+      acquire_ams_bytes+=bytes;
+    }
+
+    void dump();
+    void sample();
+    void profiling_sample();
+    void merge(IAStatistics * other);
+};
+
+extern IAStatistics incoherent_acquirer_stats;
+
 template< typename T >
 class IncoherentAcquirer {
 private:
@@ -206,6 +233,7 @@ template< typename T >
 static void incoherent_acquire_request_am( typename IncoherentAcquirer< T >::RequestArgs * args, 
                                     size_t size, 
                                     void * payload, size_t payload_size ) {
+  incoherent_acquirer_stats.count_acquire_ams( args->request_bytes );
   DVLOG(5) << "Thread " << CURRENT_THREAD 
            << " received acquire request to " << args->request_address
            << " size " << args->request_bytes
