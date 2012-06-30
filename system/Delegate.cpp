@@ -328,6 +328,13 @@ void DelegateStatistics::reset() {
   word_fetch_adds = 0;
   word_compare_swaps = 0;
   generic_ops = 0;
+  op_ams = 0;
+  word_write_ams = 0;
+  word_read_ams = 0;
+  T_read_ams = 0;
+  word_fetch_add_ams = 0;
+  word_compare_swap_ams = 0;
+  generic_op_ams = 0;
 }
 
 void DelegateStatistics::dump() {
