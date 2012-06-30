@@ -246,6 +246,8 @@ void user_main( int * args )
 
   //SoftXMT_waitForTasks();
   //SoftXMT_signal_done();
+
+  SoftXMT_dump_stats_all_nodes();
 }
 
 BOOST_AUTO_TEST_CASE( test1 ) {

@@ -4,7 +4,6 @@
 
 //#include "SoftXMT.hpp"
 #include "tasks/Task.hpp"
-#include "Cache.hpp"
 #include "StateTimer.hpp"
 
 #include <boost/type_traits/remove_pointer.hpp>
