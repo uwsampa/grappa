@@ -253,16 +253,17 @@ static void printHelp(const char * exe) {
 }
 
 static void parseOptions(int argc, char ** argv) {
+  enum GraphKernel { KERNEL_COMPONENTS, KERNEL_PATHISO, KERNEL_TRIANGLES, KERNEL_CENTRALITY };
   struct option long_opts[] = {
     {"help", no_argument, 0, 'h'},
     {"scale", required_argument, 0, 's'},
     {"dot", required_argument, 0, 'd'},
     {"ckpt", no_argument, 0, 'p'},
     {"kcent", required_argument, 0, 'c'},
-    {"components", no_argument, (int*)&do_components, true},
-    {"pathiso", no_argument, (int*)&do_pathiso, true},
-    {"triangles", no_argument, (int*)&do_triangles, true},
-    {"centrality", no_argument, (int*)&do_centrality, true}
+    {"components", no_argument, 0, KERNEL_COMPONENTS},
+    {"pathiso",    no_argument, 0, KERNEL_PATHISO},
+    {"triangles",  no_argument, 0, KERNEL_TRIANGLES},
+    {"centrality", no_argument, 0, KERNEL_CENTRALITY}
   };
   
   SCALE = 8; //default value
@@ -290,6 +291,18 @@ static void parseOptions(int argc, char ** argv) {
         break;
       case 'p':
         checkpointing = true;
+        break;
+      case KERNEL_COMPONENTS:
+        do_components = true;
+        break;
+      case KERNEL_PATHISO:
+        do_pathiso = true;
+        break;
+      case KERNEL_TRIANGLES:
+        do_triangles = true;
+        break;
+      case KERNEL_CENTRALITY:
+        do_centrality = true;
         break;
     }
   }
