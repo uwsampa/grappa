@@ -55,6 +55,108 @@ extern void Aggregator_deaggregate_am( gasnet_token_t token, void * buf, size_t 
 
 extern bool aggregator_access_control_active;
 
+class LRQueue {
+private:
+  struct LREntry {
+    LREntry * older_;
+    LREntry * newer_;
+    int key_;
+    uint64_t priority_;
+    LREntry() 
+      : older_(NULL)
+      , newer_(NULL)
+      , key_( 0 )
+      , priority_( 0 ) 
+    { }
+  };
+
+  LREntry * entries_;
+
+  LREntry oldest_;
+  LREntry newest_;
+
+  int size_;
+
+public:
+  LRQueue( ) 
+    : entries_( NULL )
+    , oldest_( )
+    , newest_( )
+    , size_( 0 )
+  { 
+    oldest_.newer_ = &newest_;
+    oldest_.key_ = -1;
+    oldest_.priority_ = 0;
+
+    newest_.older_ = &oldest_;
+    newest_.key_ = -1;
+    newest_.priority_ = 0;
+  }
+
+  ~LRQueue() {
+    delete [] entries_;
+  }
+
+  void resize( int size ) {
+    CHECK( entries_ == NULL ) << "may only resize once";
+    entries_ = new LREntry[ size ];
+    for( int i = size_; i < size; ++i ) {
+      entries_[i].key_ = i;
+      entries_[i].priority_ = 0;
+    }
+    size_ = size;
+  }
+
+  inline void update_or_insert( int key, uint64_t priority ) {
+    // NB: update has no effect.
+    // TODO: change method name
+
+    //DCHECK( key < size_ ) << "key too big";
+
+    // are we not already in the queue?
+    if( entries_[key].older_ == NULL ) {
+      //DCHECK( entries_[key].newer_ == NULL ) << "if older is NULL, newer must be NULL";
+
+      // insert at newer end
+      entries_[key].newer_ = &newest_;
+      entries_[key].older_ = newest_.older_; 
+      newest_.older_ = &entries_[key];
+
+      // add back link
+      entries_[key].older_->newer_ = &entries_[key];
+
+      // keeping this is the whole point!
+      entries_[key].priority_ = priority;
+    } 
+  }
+
+  int top_key() {
+    return oldest_.newer_->key_;
+  }
+
+  uint64_t top_priority() {
+    return oldest_.newer_->priority_;
+  }
+
+  void remove_key( int key ) {
+    //DCHECK( key < size_ ) << "key too big";
+    if( entries_[key].older_ != NULL ) {
+      //DCHECK( entries_[key].newer_ != NULL ) << "nullness should match";
+      entries_[key].older_->newer_ = entries_[key].newer_;
+      entries_[key].newer_->older_ = entries_[key].older_;
+      entries_[key].older_ = NULL;
+      entries_[key].newer_ = NULL;
+    }
+  }
+  
+  bool empty() {
+    return oldest_.newer_ == &newest_;
+  }
+  
+};
+
+
+
 class AggregatorStatistics {
 private:
   uint64_t messages_aggregated_;
@@ -384,10 +486,8 @@ private:
   /// current timestamp for autoflusher.
   uint64_t previous_timestamp_;
 
-  /// priority queue for autoflusher.
-  MutableHeap< uint64_t, // priority (inverted timestamp)
-               int       // key (target)
-               > least_recently_sent_;
+  /// queue for autoflusher.
+  LRQueue least_recently_sent_;
 
   /// handle for deaggregation active message
   int aggregator_deaggregate_am_handle_;
@@ -460,9 +560,9 @@ public:
                               buffers_[ target ].buffer_,
                               buffers_[ target ].current_position_ );
     buffers_[ target ].flush();
-    DVLOG(5) << "heap before flush:\n" << least_recently_sent_.toString( );
+    //DVLOG(5) << "heap before flush:\n" << least_recently_sent_.toString( );
     least_recently_sent_.remove_key( target );
-    DVLOG(5) << "heap after flush:\n" << least_recently_sent_.toString( );
+    //DVLOG(5) << "heap after flush:\n" << least_recently_sent_.toString( );
   }
   
   inline void idle_flush_poll() {
