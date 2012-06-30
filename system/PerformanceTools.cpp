@@ -80,6 +80,7 @@ void SoftXMT_start_profiling() {
   VT_USER_START("sampling");
   SoftXMT_reset_stats();
   void SoftXMT_take_profiling_sample();
+  SoftXMT_take_profiling_sample();
 #endif
 #endif
 }
@@ -90,8 +91,12 @@ void SoftXMT_stop_profiling() {
     SoftXMT_profile_handler(NULL);
 #ifdef VTRACE_SAMPLED
   VT_USER_END("sampling");
+  void SoftXMT_dump_stats();
+  SoftXMT_dump_stats();
+
   SoftXMT_reset_stats();
   void SoftXMT_take_profiling_sample();
+  SoftXMT_take_profiling_sample();
 #endif
 #endif
 }
