@@ -64,6 +64,10 @@ CFLAGS+= -I$(COMMON)
 CC=gcc
 CXX=g++
 LD=mpiCC
+NONE_CC=$(CC)
+NONE_CXX=$(CXX)
+NONE_LD=$(LD)
+
 
 # some library paths
 
@@ -183,8 +187,9 @@ SRUN_MPIRUN=srun --resv-ports --cpu_bind=verbose,rank --exclusive --label --kill
 SRUN_CLEAN_FILES= .srunrc.* 
 
 SRUN_PARTITION=softxmt
+SRUN_BUILD_PARTITION=softxmt
 SRUN_STUPID_NFS_DELAY=0.5s
-SRUN_BUILD_CMD=srun -p $(SRUN_PARTITION) --share
+SRUN_BUILD_CMD=srun -p $(SRUN_BUILD_PARTITION) --share
 SRUN_CC=sleep $(SRUN_STUPID_NFS_DELAY) && $(SRUN_BUILD_CMD) $(CC)
 SRUN_CXX=sleep $(SRUN_STUPID_NFS_DELAY) && $(SRUN_BUILD_CMD) $(CXX)
 SRUN_LD=sleep $(SRUN_STUPID_NFS_DELAY) && $(SRUN_BUILD_CMD) $(LD)
