@@ -11,7 +11,6 @@
 #include <stdint.h>
 #include <stdio.h>
 #include <string.h>
-#include <limits.h>
 #include <assert.h>
 #include <math.h>
 #ifdef __MTA__
