@@ -94,8 +94,8 @@ void CacheStatistics::profiling_sample() {
   VT_COUNT_UNSIGNED_VAL( wo_releases_ev_vt, wo_releases );
   VT_COUNT_UNSIGNED_VAL( rw_acquires_ev_vt, rw_acquires );
   VT_COUNT_UNSIGNED_VAL( rw_releases_ev_vt, rw_releases );
-  VT_COUNT_UNSIGNED_VAL( bytes_acquired_ev_vt, bytes_acquires );
-  VT_COUNT_UNSIGNED_VAL( bytes_released_ev_vt, bytes_releases );
+  VT_COUNT_UNSIGNED_VAL( bytes_acquired_ev_vt, bytes_acquired );
+  VT_COUNT_UNSIGNED_VAL( bytes_released_ev_vt, bytes_released );
 #endif
 
   incoherent_acquirer_stats.profiling_sample();

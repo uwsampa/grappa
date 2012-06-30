@@ -7,7 +7,7 @@ IRStatistics incoherent_releaser_stats;
 IRStatistics::IRStatistics()
 #ifdef VTRACE_SAMPLED
   : ir_grp_vt( VT_COUNT_GROUP_DEF( "IncoherentReleaser" ) )
-  , release_ams_ev_vt( VT_COUNT_DEF( "IR release ams", "iaams", VT_COUNT_TYPE_UNSIGNED, ia_grp_vt ) )
+  , release_ams_ev_vt( VT_COUNT_DEF( "IR release ams", "iaams", VT_COUNT_TYPE_UNSIGNED, ir_grp_vt ) )
   , release_ams_bytes_ev_vt( VT_COUNT_DEF( "IR release ams bytes", "irms_bytes", VT_COUNT_TYPE_UNSIGNED, ir_grp_vt ) )
 #endif
 {
