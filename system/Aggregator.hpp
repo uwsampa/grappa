@@ -367,22 +367,26 @@ public:
     VT_COUNT_UNSIGNED_VAL( timeouts_vt_ev, timeouts_ );
     VT_COUNT_UNSIGNED_VAL( idle_flushes_vt_ev, idle_flushes_ );
     VT_COUNT_UNSIGNED_VAL( capacity_flushes_vt_ev, capacity_flushes_ );
-    VT_COUNT_DOUBLE_VAL( aggregator_0_to_255_bytes_vt_ev,     (double) histogram_[0]  / messages_aggregated_ );
-    VT_COUNT_DOUBLE_VAL( aggregator_256_to_511_bytes_vt_ev,   (double) histogram_[1]  / messages_aggregated_ );
-    VT_COUNT_DOUBLE_VAL( aggregator_512_to_767_bytes_vt_ev,   (double) histogram_[2]  / messages_aggregated_ );
-    VT_COUNT_DOUBLE_VAL( aggregator_768_to_1023_bytes_vt_ev,  (double) histogram_[3]  / messages_aggregated_ );
-    VT_COUNT_DOUBLE_VAL( aggregator_1024_to_1279_bytes_vt_ev, (double) histogram_[4]  / messages_aggregated_ );
-    VT_COUNT_DOUBLE_VAL( aggregator_1280_to_1535_bytes_vt_ev, (double) histogram_[5]  / messages_aggregated_ );
-    VT_COUNT_DOUBLE_VAL( aggregator_1536_to_1791_bytes_vt_ev, (double) histogram_[6]  / messages_aggregated_ );
-    VT_COUNT_DOUBLE_VAL( aggregator_1792_to_2047_bytes_vt_ev, (double) histogram_[7]  / messages_aggregated_ );
-    VT_COUNT_DOUBLE_VAL( aggregator_2048_to_2303_bytes_vt_ev, (double) histogram_[8]  / messages_aggregated_ );
-    VT_COUNT_DOUBLE_VAL( aggregator_2304_to_2559_bytes_vt_ev, (double) histogram_[9]  / messages_aggregated_ );
-    VT_COUNT_DOUBLE_VAL( aggregator_2560_to_2815_bytes_vt_ev, (double) histogram_[10] / messages_aggregated_ );
-    VT_COUNT_DOUBLE_VAL( aggregator_2816_to_3071_bytes_vt_ev, (double) histogram_[11] / messages_aggregated_ );
-    VT_COUNT_DOUBLE_VAL( aggregator_3072_to_3327_bytes_vt_ev, (double) histogram_[12] / messages_aggregated_ );
-    VT_COUNT_DOUBLE_VAL( aggregator_3328_to_3583_bytes_vt_ev, (double) histogram_[13] / messages_aggregated_ );
-    VT_COUNT_DOUBLE_VAL( aggregator_3584_to_3839_bytes_vt_ev, (double) histogram_[14] / messages_aggregated_ );
-    VT_COUNT_DOUBLE_VAL( aggregator_3840_to_4095_bytes_vt_ev, (double) histogram_[15] / messages_aggregated_ );
+    
+#define calc_hist(bin,total) (total == 0) ? 0.0 : (double)bin/total
+
+    VT_COUNT_DOUBLE_VAL( aggregator_0_to_255_bytes_vt_ev,     calc_hist(histogram_[0] , messages_aggregated_) );
+    VT_COUNT_DOUBLE_VAL( aggregator_256_to_511_bytes_vt_ev,   calc_hist(histogram_[1] , messages_aggregated_) );
+    VT_COUNT_DOUBLE_VAL( aggregator_512_to_767_bytes_vt_ev,   calc_hist(histogram_[2] , messages_aggregated_) );
+    VT_COUNT_DOUBLE_VAL( aggregator_768_to_1023_bytes_vt_ev,  calc_hist(histogram_[3] , messages_aggregated_) );
+    VT_COUNT_DOUBLE_VAL( aggregator_1024_to_1279_bytes_vt_ev, calc_hist(histogram_[4] , messages_aggregated_) );
+    VT_COUNT_DOUBLE_VAL( aggregator_1280_to_1535_bytes_vt_ev, calc_hist(histogram_[5] , messages_aggregated_) );
+    VT_COUNT_DOUBLE_VAL( aggregator_1536_to_1791_bytes_vt_ev, calc_hist(histogram_[6] , messages_aggregated_) );
+    VT_COUNT_DOUBLE_VAL( aggregator_1792_to_2047_bytes_vt_ev, calc_hist(histogram_[7] , messages_aggregated_) );
+    VT_COUNT_DOUBLE_VAL( aggregator_2048_to_2303_bytes_vt_ev, calc_hist(histogram_[8] , messages_aggregated_) );
+    VT_COUNT_DOUBLE_VAL( aggregator_2304_to_2559_bytes_vt_ev, calc_hist(histogram_[9] , messages_aggregated_) );
+    VT_COUNT_DOUBLE_VAL( aggregator_2560_to_2815_bytes_vt_ev, calc_hist(histogram_[10], messages_aggregated_) );
+    VT_COUNT_DOUBLE_VAL( aggregator_2816_to_3071_bytes_vt_ev, calc_hist(histogram_[11], messages_aggregated_) );
+    VT_COUNT_DOUBLE_VAL( aggregator_3072_to_3327_bytes_vt_ev, calc_hist(histogram_[12], messages_aggregated_) );
+    VT_COUNT_DOUBLE_VAL( aggregator_3328_to_3583_bytes_vt_ev, calc_hist(histogram_[13], messages_aggregated_) );
+    VT_COUNT_DOUBLE_VAL( aggregator_3584_to_3839_bytes_vt_ev, calc_hist(histogram_[14], messages_aggregated_) );
+    VT_COUNT_DOUBLE_VAL( aggregator_3840_to_4095_bytes_vt_ev, calc_hist(histogram_[15], messages_aggregated_) );
+#undef calc_hist
 #endif
   }
 

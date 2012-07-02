@@ -199,24 +199,26 @@ public:
 
   void profiling_sample() {
 #ifdef VTRACE_SAMPLED
+#define calc_hist(bin,total) (total == 0) ? 0.0 : (double)bin/total
     VT_COUNT_UNSIGNED_VAL( messages_vt_ev, messages_ );
     VT_COUNT_UNSIGNED_VAL( bytes_vt_ev, bytes_ );
-    VT_COUNT_DOUBLE_VAL( communicator_0_to_255_bytes_vt_ev,     (double) histogram_[0]  / messages_ );
-    VT_COUNT_DOUBLE_VAL( communicator_256_to_511_bytes_vt_ev,   (double) histogram_[1]  / messages_ );
-    VT_COUNT_DOUBLE_VAL( communicator_512_to_767_bytes_vt_ev,   (double) histogram_[2]  / messages_ );
-    VT_COUNT_DOUBLE_VAL( communicator_768_to_1023_bytes_vt_ev,  (double) histogram_[3]  / messages_ );
-    VT_COUNT_DOUBLE_VAL( communicator_1024_to_1279_bytes_vt_ev, (double) histogram_[4]  / messages_ );
-    VT_COUNT_DOUBLE_VAL( communicator_1280_to_1535_bytes_vt_ev, (double) histogram_[5]  / messages_ );
-    VT_COUNT_DOUBLE_VAL( communicator_1536_to_1791_bytes_vt_ev, (double) histogram_[6]  / messages_ );
-    VT_COUNT_DOUBLE_VAL( communicator_1792_to_2047_bytes_vt_ev, (double) histogram_[7]  / messages_ );
-    VT_COUNT_DOUBLE_VAL( communicator_2048_to_2303_bytes_vt_ev, (double) histogram_[8]  / messages_ );
-    VT_COUNT_DOUBLE_VAL( communicator_2304_to_2559_bytes_vt_ev, (double) histogram_[9]  / messages_ );
-    VT_COUNT_DOUBLE_VAL( communicator_2560_to_2815_bytes_vt_ev, (double) histogram_[10] / messages_ );
-    VT_COUNT_DOUBLE_VAL( communicator_2816_to_3071_bytes_vt_ev, (double) histogram_[11] / messages_ );
-    VT_COUNT_DOUBLE_VAL( communicator_3072_to_3327_bytes_vt_ev, (double) histogram_[12] / messages_ );
-    VT_COUNT_DOUBLE_VAL( communicator_3328_to_3583_bytes_vt_ev, (double) histogram_[13] / messages_ );
-    VT_COUNT_DOUBLE_VAL( communicator_3584_to_3839_bytes_vt_ev, (double) histogram_[14] / messages_ );
-    VT_COUNT_DOUBLE_VAL( communicator_3840_to_4095_bytes_vt_ev, (double) histogram_[15] / messages_ );
+    VT_COUNT_DOUBLE_VAL( communicator_0_to_255_bytes_vt_ev,     calc_hist(histogram_[0] , messages_) );
+    VT_COUNT_DOUBLE_VAL( communicator_256_to_511_bytes_vt_ev,   calc_hist(histogram_[1] , messages_) );
+    VT_COUNT_DOUBLE_VAL( communicator_512_to_767_bytes_vt_ev,   calc_hist(histogram_[2] , messages_) );
+    VT_COUNT_DOUBLE_VAL( communicator_768_to_1023_bytes_vt_ev,  calc_hist(histogram_[3] , messages_) );
+    VT_COUNT_DOUBLE_VAL( communicator_1024_to_1279_bytes_vt_ev, calc_hist(histogram_[4] , messages_) );
+    VT_COUNT_DOUBLE_VAL( communicator_1280_to_1535_bytes_vt_ev, calc_hist(histogram_[5] , messages_) );
+    VT_COUNT_DOUBLE_VAL( communicator_1536_to_1791_bytes_vt_ev, calc_hist(histogram_[6] , messages_) );
+    VT_COUNT_DOUBLE_VAL( communicator_1792_to_2047_bytes_vt_ev, calc_hist(histogram_[7] , messages_) );
+    VT_COUNT_DOUBLE_VAL( communicator_2048_to_2303_bytes_vt_ev, calc_hist(histogram_[8] , messages_) );
+    VT_COUNT_DOUBLE_VAL( communicator_2304_to_2559_bytes_vt_ev, calc_hist(histogram_[9] , messages_) );
+    VT_COUNT_DOUBLE_VAL( communicator_2560_to_2815_bytes_vt_ev, calc_hist(histogram_[10], messages_) );
+    VT_COUNT_DOUBLE_VAL( communicator_2816_to_3071_bytes_vt_ev, calc_hist(histogram_[11], messages_) );
+    VT_COUNT_DOUBLE_VAL( communicator_3072_to_3327_bytes_vt_ev, calc_hist(histogram_[12], messages_) );
+    VT_COUNT_DOUBLE_VAL( communicator_3328_to_3583_bytes_vt_ev, calc_hist(histogram_[13], messages_) );
+    VT_COUNT_DOUBLE_VAL( communicator_3584_to_3839_bytes_vt_ev, calc_hist(histogram_[14], messages_) );
+    VT_COUNT_DOUBLE_VAL( communicator_3840_to_4095_bytes_vt_ev, calc_hist(histogram_[15], messages_) );
+#undef calc_hist
 #endif
   }
 
