@@ -605,6 +605,7 @@ public:
 #endif
     global_communicator.poll();
     uint64_t ts = get_timestamp();
+    deaggregate();
     // timestamp overflows are silently ignored. 
     // since it would take many many years to see one, I think that's okay for now.
     if( !least_recently_sent_.empty() ) {                                    // if messages are waiting, and
@@ -618,7 +619,6 @@ public:
       }
     }
     previous_timestamp_ = ts;
-    deaggregate();
   }
 
   inline const size_t max_size() const { return buffer_size_; }
