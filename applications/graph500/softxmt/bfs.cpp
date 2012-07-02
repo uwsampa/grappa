@@ -32,6 +32,10 @@ static int64_t nadj;
 
 #define GA64(name) ((GlobalAddress<int64_t>,name))
 
+// count number of neighbors visited
+static uint64_t bfs_neighbors_visited = 0;
+static bool bfs_counters_added = false;
+
 void bfs_visit_neighbor(int64_t estart, int64_t eiters, GlobalAddress<void*> packed) {
   int64_t v = (int64_t)packed.pointer();
   
@@ -42,6 +46,8 @@ void bfs_visit_neighbor(int64_t estart, int64_t eiters, GlobalAddress<void*> pac
   Incoherent<int64_t>::RO cadj(xadj+estart, eiters, cbuf);
   
   for (int64_t i = 0; i < eiters; i++) {
+    ++bfs_neighbors_visited;
+
     const int64_t j = cadj[i];
     //VLOG(1) << "v = " << v << ", j = " << j << ", i = " << i << ", eiters = " << eiters;
 
@@ -65,6 +71,9 @@ void bfs_visit_neighbor(int64_t estart, int64_t eiters, GlobalAddress<void*> pac
   }
 }
 
+// count number of vertex visited
+static uint64_t bfs_vertex_visited = 0;
+
 void bfs_visit_vertex(int64_t kstart, int64_t kiters) {
   //VLOG(1) << "bfs_visit_vertex(" << kstart << ", " << kiters << ")";
 
@@ -72,6 +81,8 @@ void bfs_visit_vertex(int64_t kstart, int64_t kiters) {
   Incoherent<int64_t>::RO cvlist(vlist+kstart, kiters, buf);
 
   for (int64_t i=0; i<kiters; i++) {
+    ++bfs_vertex_visited;
+
     const int64_t v = cvlist[i];
     
     int64_t buf[2];
@@ -132,6 +143,13 @@ void clear_buffers() {
 
 
 LOOP_FUNCTOR(bfs_node, nid, GA64(_vlist)GA64(_xoff)GA64(_xadj)GA64(_bfs_tree)GA64(_k2)((int64_t,_nadj))) {
+  
+  if ( !bfs_counters_added ) {
+    bfs_counters_added = true;
+    SoftXMT_add_profiling_counter( &bfs_neighbors_visited, "bfs_neighbors_visited", "bfsneigh", true, 0 );
+    SoftXMT_add_profiling_counter( &bfs_vertex_visited, "bfs_vertex_visited", "bfsverts", true, 0 );
+  }
+
   // setup globals
   kbuf = 0;
   vlist = _vlist;

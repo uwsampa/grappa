@@ -230,7 +230,8 @@ void SoftXMT_reset_stats() {
   global_scheduler.reset_stats();
   delegate_stats.reset();
   cache_stats.reset();
-  
+ 
+  SoftXMT_reset_user_stats(); 
 }
 
 LOOP_FUNCTION(reset_stats_func,nid) {

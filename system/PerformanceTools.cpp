@@ -106,6 +106,8 @@ void SoftXMT_stop_profiling() {
 unsigned app_counters[MAX_APP_COUNTERS];
 unsigned app_grp_vt = -1;
 uint64_t * app_counter_addrs[MAX_APP_COUNTERS];
+uint64_t app_counter_reset_vals[MAX_APP_COUNTERS];
+bool app_counter_doReset[MAX_APP_COUNTERS];
 int ae_next_id = 0;
 
 void SoftXMT_profiling_sample_user() {
@@ -116,15 +118,27 @@ void SoftXMT_profiling_sample_user() {
 #endif
 }
 
-void SoftXMT_add_profiling_counter(uint64_t * counter, std::string name, std::string abbrev ) {
+void SoftXMT_add_profiling_counter(uint64_t * counter, std::string name, std::string abbrev, bool reset, uint64_t resetVal  ) {
 #ifdef VTRACE_SAMPLED
   if ( app_grp_vt == -1 ) app_grp_vt = VT_COUNT_GROUP_DEF( "App" );
 
   CHECK( ae_next_id < MAX_APP_COUNTERS );
   app_counters[ae_next_id] = VT_COUNT_DEF( name.c_str(), abbrev.c_str(), VT_COUNT_TYPE_UNSIGNED, app_grp_vt );
   app_counter_addrs[ae_next_id] = counter;
+  app_counter_doReset[ae_next_id] = reset;
+  app_counter_reset_vals[ae_next_id] = resetVal;
 
   ++ae_next_id;
+#endif
+}
+
+void SoftXMT_reset_user_stats() {
+#ifdef VTRACE_SAMPLED
+  for (int i=0; i<ae_next_id; i++) {
+    if ( app_counter_doReset[i] ) {
+      *(app_counter_addrs[i]) = app_counter_reset_vals[i];
+    }
+  }
 #endif
 }
 
