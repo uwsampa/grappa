@@ -89,7 +89,7 @@ Thread * TaskingScheduler::getWorker () {
 
         // possibly spawn more coroutines
         result = maybeSpawnCoroutines();
-        VLOG_IF(2, result==NULL) << "run out of coroutines";
+        VLOG_IF(3, result==NULL) << "run out of coroutines";
         return result;
     } else {
         return NULL;
