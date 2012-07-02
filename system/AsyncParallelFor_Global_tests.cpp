@@ -139,6 +139,10 @@ void user_main( void * args ) {
 
   BOOST_MESSAGE( "Test default" );
   {
+
+  // add sampling of global_count
+  SoftXMT_add_profiling_counter( (uint64_t*)&global_count, "global count", "globcnt" );
+  
   parallel_func f;
   
   SoftXMT_reset_stats_all_nodes();
