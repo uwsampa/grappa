@@ -51,6 +51,7 @@ void Aggregator_deaggregate_am( gasnet_token_t token, void * buf, size_t size );
 
 void Aggregator::init() {
   max_nodes_ = global_communicator.nodes();
+  least_recently_sent_.resize( global_communicator.nodes() );
   aggregator_deaggregate_am_handle_ = global_communicator.register_active_message_handler( &Aggregator_deaggregate_am );
   buffers_.resize( max_nodes_ - buffers_.size() );
   route_map_.resize( max_nodes_ - route_map_.size() );
