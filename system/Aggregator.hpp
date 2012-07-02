@@ -575,13 +575,14 @@ public:
     VT_TRACER("idle_flush_poll");
 #endif
     StateTimer::enterState_communication();
-    global_communicator.poll();
-    while ( !least_recently_sent_.empty() ) {
-      stats.record_idle_flush();
-      DVLOG(5) << "idle flush Node " << least_recently_sent_.top_key();
-      flush(least_recently_sent_.top_key());
-    }
-    deaggregate();
+    //global_communicator.poll();
+    //while ( !least_recently_sent_.empty() ) {
+      //stats.record_idle_flush();
+      //DVLOG(5) << "idle flush Node " << least_recently_sent_.top_key();
+      //flush(least_recently_sent_.top_key());
+    //}
+    //deaggregate();
+    poll();
   }
   
 
