@@ -104,7 +104,7 @@ struct init_args {
     GlobalAddress<int64_t> Child;
 };
 
-void init_node( init_args * args ) {
+void init_node( const init_args * args ) {
     global_id_ga = make_global( &global_id, 0 );
     global_child_index_ga = make_global( &global_child_index, 0 );
 
@@ -124,7 +124,7 @@ struct payinit_args {
     GlobalAddress<int64_t> Payload;
 };
 
-void payinit( payinit_args * args ) {
+void payinit( const payinit_args * args ) {
     Payload = args->Payload;
 
     Semaphore::release( &args->sem, 1 );
@@ -221,7 +221,7 @@ Result parTreeSearch(int64_t depth, int64_t id) {
     // Recurse on the children
     if (numChildren > 0) {
         sibling_args_search args = {id, depth, make_global( &r ), childid0_val}; 
-        parallel_loop(0, numChildren, &explore_child, args);
+        parallel_loop_implFuture(0, numChildren, &explore_child, args);
     } else {
         r.leaves = 1;
     }
@@ -447,7 +447,7 @@ Result parTreeCreate( int64_t depth, uts::Node * parent ) {
     // Recurse on the children
     if (numChildren > 0) {
         sibling_args args = { childType, parentHeight, make_global( parent ), depth, make_global( &r ), childid0 };
-        parallel_loop(0, numChildren, &create_children, args);
+        parallel_loop_implFuture(0, numChildren, &create_children, args);
     } else {
         r.leaves = 1;
     }

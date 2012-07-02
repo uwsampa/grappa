@@ -1,8 +1,8 @@
 # include common variable definitions
-include ../include.mk
 
 SOFTXMT_SYS=../system
 
+include $(SOFTXMT_SYS)/Makefile
 
 # ------------------------------------- #
 # Set Random Number Generator sources:
@@ -16,30 +16,27 @@ endif
 ifeq ($(RNG), Devine) 
 RNG_SRC = rng/devine_sha1.c
 RNG_INCL= rng/devine_sha1.h
+RNG_OBJ = rng/devine_sha1.o
 RNG_DEF = -DDEVINE_RNG
 endif
 ifeq ($(RNG), BRG)
 RNG_SRC = rng/brg_sha1.c
 RNG_INCL= rng/brg_sha1.h
+RNG_OBJ = rng/brg_sha1.o
 RNG_DEF = -DBRG_RNG
 endif
 ifeq ($(RNG), ALFG)
 RNG_SRC = rng/alfg.c
 RNG_INCL= rng/alfg.h
+RNG_OBJ = rng/alfg.o
 RNG_DEF = -DUTS_ALFG
 endif
 #-----------------------------------------#
 
 CFLAGS_COMMON= -fomit-frame-pointer
-CFLAGS+= $(CFLAGS_COMMON)
+CFLAGS+= $(CFLAGS_COMMON) $(RNG_DEF) -I./rng
 CFLAGS+= -I$(SOFTXMT_SYS)
-CFLAGS+= -I..
-
-ifdef DEBUG
-CFLAGS+= -O1 -g
-else
-CFLAGS+= -O3
-endif
+CFLAGS+= -I.. 
 
 # supress c char* warnings
 CFLAGS+= -Wno-write-strings 
@@ -67,28 +64,12 @@ ENV_VARIABLES+= GLOG_logtostderr=1
 ENV_VARIABLES+= GLOG_vmodule=uts_grappa=5,Aggregator=5,Incoh*=5
 ENV_VARIABLES+= GLOG_v=1
 
-#
-# run vars
-#
-ARGS:=
-NPROC:=2
-HOST:=localhost
-TARGET:=
-PPN:=2
+uts_grappa.exe: uts_grappa.o $(RNG_OBJ) uts.o $(SOFTXMT_SYS)/libSoftXMT.a
+	$(ENV_VARIABLES) \
+	$($(MPITYPE)_LD) $(CFLAGS) $(CXXFLAGS) $(LDFLAGS) $^ $(LIBRARIES) -o $@ $(LIBS)
 
 uts.o: uts.c
 	$(CXX) $(CFLAGS) $(RNG_DEF) $< -c -o $@
-
-%.o: %.cpp
-	$(CXX) $(CFLAGS) $(RNG_DEF) $< -c -o $@
-
-uts_grappa.exe: uts_grappa.o $(RNG_SRC) uts.o
-	$(LD) $(LDFLAGS) -o $@ $^  $(LIBRARIES) $(LIB) $(GASNET_LIBS) 
-
-run: $(TARGET) $($(MPITYPE)_ENVVAR_TEMP)
-	-killall $<
-	$(ENV_VARIABLES) \
-	$($(MPITYPE)_MPIRUN) $($(MPITYPE)_EXPORT_ENV_VARIABLES) $($(MPITYPE)_HOST) $($(MPITYPE)_NPROC) -- ./$< $(ARGS)
 
 #debug: TreeGen.exe
 #	GLOG_logtostderr=1 \
