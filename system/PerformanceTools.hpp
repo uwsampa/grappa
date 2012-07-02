@@ -113,8 +113,10 @@ extern bool take_profiling_sample;
 
 #include <string>
 /// User-registered sampled counters
-void SoftXMT_add_profiling_counter( uint64_t * counter, std::string name, std::string abbrev );
+void SoftXMT_add_profiling_counter( uint64_t * counter, std::string name, std::string abbrev, bool reset, uint64_t resetVal );
 void SoftXMT_profiling_sample_user();
+
+void SoftXMT_reset_user_stats();
 
 
 #endif // PERFORMANCE_TOOLS_HPP
