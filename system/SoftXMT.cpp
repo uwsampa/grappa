@@ -42,6 +42,9 @@ void SoftXMT_take_profiling_sample() {
   global_scheduler.stats.profiling_sample();
   delegate_stats.profiling_sample();
   cache_stats.profiling_sample();
+
+  // print user-registered stats
+  SoftXMT_profiling_sample_user();
 }
 
 static void poller( Thread * me, void * args ) {
