@@ -11,7 +11,7 @@
 BOOST_AUTO_TEST_SUITE( AsyncParallelFor_Global_tests );
 
 #define MAX_NODES 8
-#define SIZE 10000
+#define SIZE 1000000
 int64_t done[SIZE*MAX_NODES] = {0};
 int64_t count2 = 0;
 int64_t global_count = 0;
@@ -141,7 +141,7 @@ void user_main( void * args ) {
   {
 
   // add sampling of global_count
-  SoftXMT_add_profiling_counter( (uint64_t*)&global_count, "global count", "globcnt" );
+  SoftXMT_add_profiling_counter( (uint64_t*)&global_count, "global count", "globcnt", false, 0 );
   
   parallel_func f;
   
