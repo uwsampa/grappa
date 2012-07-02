@@ -15,6 +15,7 @@ TaskManager::TaskManager ( )
   : workDone( false )
   , all_terminate( false )
   , doSteal( false )
+  , nextVictimIndex( 0 )
   , stealLock( true )
   , sharedMayHaveWork ( true )
   , privateQ( )
@@ -32,6 +33,15 @@ void TaskManager::init (bool doSteal_arg, Node localId_arg, Node * neighbors_arg
   numLocalNodes = numLocalNodes_arg;
   chunkSize = chunkSize_arg;
   cbint = cbint_arg;
+
+  // initialize neighbors to steal permutation
+  srandom(0);
+  for (int i=numLocalNodes; i>=2; i--) {
+    int ri = random() % i;
+    Node temp = neighbors[ri];
+    neighbors[ri] = neighbors[i-1];
+    neighbors[i-1] = temp;
+  }
 }
         
 
@@ -110,13 +120,13 @@ bool TaskManager::waitConsumeAny( Task * result ) {
             int goodSteal = 0;
             Node victimId;
 
-            for ( Node i = 1; 
-                  i < numLocalNodes && !goodSteal && !(sharedMayHaveWork || publicHasEle() || privateHasEle() || workDone);
-                  i++ ) { // TODO permutation order
+            for ( int64_t tryCount=0; 
+                  tryCount < numLocalNodes && !goodSteal && !(sharedMayHaveWork || publicHasEle() || privateHasEle() || workDone);
+                  tryCount++ ) {
 
-                victimId = (localId + i) % numLocalNodes;
-
-                goodSteal = publicQ.steal_locally(neighbors[victimId], chunkSize);
+                Node v = neighbors[nextVictimIndex];
+                nextVictimIndex = (nextVictimIndex+1) % numLocalNodes;
+                goodSteal = publicQ.steal_locally(v, chunkSize);
                 
                 if (goodSteal) { stats.record_successful_steal(); }
                 else { stats.record_failed_steal(); }

@@ -64,6 +64,7 @@ class TaskManager {
         Node localId;
         Node* neighbors;
         Node numLocalNodes;
+        int64_t nextVictimIndex;
 
         // steal parameters
         int chunkSize;
