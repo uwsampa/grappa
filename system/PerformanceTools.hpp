@@ -110,5 +110,12 @@ void SoftXMT_stop_profiling();
 
 extern bool take_profiling_sample;
 
+
+#include <string>
+/// User-registered sampled counters
+void SoftXMT_add_profiling_counter( uint64_t * counter, std::string name, std::string abbrev );
+void SoftXMT_profiling_sample_user();
+
+
 #endif // PERFORMANCE_TOOLS_HPP
 
