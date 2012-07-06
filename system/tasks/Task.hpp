@@ -75,7 +75,7 @@ class TaskManager {
         bool sharedMayHaveWork;
        
         bool publicHasEle() const {
-            return publicQ.localDepth() > 0;
+            return publicQ.depth() > 0;
         }
 
         bool privateHasEle() const {
@@ -91,8 +91,7 @@ class TaskManager {
         
         std::ostream& dump( std::ostream& o ) const {
             return o << "TaskManager {" << std::endl
-                << "  publicQ.local: " << publicQ.localDepth( ) << std::endl
-                << "  publicQ.shared: " << publicQ.sharedDepth( ) << std::endl
+                << "  publicQ: " << publicQ.depth( ) << std::endl
                 << "  privateQ: " << privateQ.size() << std::endl
                 << "  work-may-be-available? " << available() << std::endl
                 << "  sharedMayHaveWork: " << sharedMayHaveWork << std::endl
@@ -122,8 +121,7 @@ class TaskManager {
 #ifdef VTRACE_SAMPLED
 	  unsigned task_manager_vt_grp;
 	  unsigned privateQ_size_vt_ev;
-	  unsigned publicQ_local_size_vt_ev;
-	  unsigned publicQ_shared_size_vt_ev;
+	  unsigned publicQ_size_vt_ev;
 	  unsigned session_steal_successes_vt_ev;
 	  unsigned session_steal_fails_vt_ev;
 	  unsigned single_steal_successes_vt_ev;
@@ -153,8 +151,7 @@ class TaskManager {
 #ifdef VTRACE_SAMPLED
 		    , task_manager_vt_grp( VT_COUNT_GROUP_DEF( "Task manager" ) )
 		    , privateQ_size_vt_ev( VT_COUNT_DEF( "privateQ size", "tasks", VT_COUNT_TYPE_UNSIGNED, task_manager_vt_grp ) )
-		    , publicQ_local_size_vt_ev( VT_COUNT_DEF( "publicQ local size", "tasks", VT_COUNT_TYPE_UNSIGNED, task_manager_vt_grp ) )
-		    , publicQ_shared_size_vt_ev( VT_COUNT_DEF( "publicQ shared size", "tasks", VT_COUNT_TYPE_UNSIGNED, task_manager_vt_grp ) )
+		    , publicQ_size_vt_ev( VT_COUNT_DEF( "publicQ size", "tasks", VT_COUNT_TYPE_UNSIGNED, task_manager_vt_grp ) )
 		    , session_steal_successes_vt_ev( VT_COUNT_DEF( "session_steal_successes", "steals", VT_COUNT_TYPE_UNSIGNED, task_manager_vt_grp ) )
 		    , session_steal_fails_vt_ev( VT_COUNT_DEF( "session_steal_fails", "steals", VT_COUNT_TYPE_UNSIGNED, task_manager_vt_grp ) )
 		    , single_steal_successes_vt_ev( VT_COUNT_DEF( "single_steal_successes", "steals", VT_COUNT_TYPE_UNSIGNED, task_manager_vt_grp ) )
@@ -224,20 +221,6 @@ class TaskManager {
             return workDone;
         }
         
-        /// Maybe release tasks to the shared portion of publicQ
-        void releaseTasks() {
-            if (doSteal) {
-                if (publicQ.localDepth() > 2 * chunkSize) {
-                    publicQ.release(chunkSize);
-                    stats.record_release(); 
-
-                    // set that there COULD be work in shared portion
-                    // (not "is work" because may be stolen)
-                    sharedMayHaveWork = true;
-                }
-            }
-        }
-
     /*TODO return value?*/
     template < typename T, typename S, typename R > 
       void spawnPublic( void (*f)(T, S, R), T arg0, S arg1, R arg2 );
@@ -266,21 +249,18 @@ class TaskManager {
 
 
 inline bool TaskManager::available( ) const {
-    VLOG(6) << " sharedMayHaveWork=" << sharedMayHaveWork
-            << " publicHasEle()=" << publicHasEle()
+    VLOG(6) << " publicHasEle()=" << publicHasEle()
             << " privateHasEle()=" << privateHasEle();
     return privateHasEle() 
            || publicHasEle()
-           || (doSteal && (sharedMayHaveWork || stealLock ));
+           || (doSteal && stealLock );
 }
 
 inline bool TaskManager::local_available( ) const {
-    VLOG(6) << " sharedMayHaveWork=" << sharedMayHaveWork
-            << " publicHasEle()=" << publicHasEle()
+    VLOG(6) << " publicHasEle()=" << publicHasEle()
             << " privateHasEle()=" << privateHasEle();
     return privateHasEle() 
-           || publicHasEle()
-           || (doSteal && sharedMayHaveWork);
+           || publicHasEle();
 }
 
 
@@ -288,7 +268,6 @@ template < typename T, typename S, typename R >
 inline void TaskManager::spawnPublic( void (*f)(T, S, R), T arg0, S arg1, R arg2 ) {
   Task newtask = createTask(f, arg0, arg1, arg2 );
   publicQ.push( newtask );
-  releaseTasks();
 }
 
 /// Should NOT be called from the context of
