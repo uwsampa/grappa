@@ -12,6 +12,12 @@ BOOST_AUTO_TEST_SUITE( Cache_tests );
 int64_t foo = 1234;
 int64_t bar[4] = { 2345, 3456, 4567, 6789 };
 
+struct BrandonM {
+  int8_t foo[36];
+};
+
+BrandonM brandonm_arr[ 8 ] __attribute__ ((aligned (1 << 12)));
+
 void user_main( int * args ) 
 {
   {
@@ -113,43 +119,41 @@ void user_main( int * args )
     // }
 
     
-    {
-      LOG(INFO) << "verifying block reads";
-      for( int size = 1; size < array_size; ++size ) {
-	LOG(INFO) << "checking blocks of size " << size; 
-	for( int start = 0; start < array_size; ++start ) {
-	  //LOG(INFO) << "checking from start " << start;
-	  int actual_size = ( start + size > array_size ? array_size : start + size ) - start;
-	  DVLOG(5) << "starting iteration with start:" << start 
-		   << " size:" << size 
-		   << " actual_size:" << actual_size;
-	  
+    LOG(INFO) << "verifying block reads";
+    for( int size = 1; size < array_size; ++size ) {
+      LOG(INFO) << "checking blocks of size " << size; 
+      for( int start = 0; start < array_size; ++start ) {
+	//LOG(INFO) << "checking from start " << start;
+	int actual_size = ( start + size > array_size ? array_size : start + size ) - start;
+	DVLOG(5) << "starting iteration with start:" << start 
+		 << " size:" << size 
+		 << " actual_size:" << actual_size;
+	
+	DVLOG(5) << "*****************************************************************************";
+	//start:2 size:4 actual_size:4 i:2
+	if( start == 2 && size == 4 ) {
+	  BOOST_CHECK_EQUAL( 2, SoftXMT_delegate_read_word( array + start + 0 ) );
+	  BOOST_CHECK_EQUAL( 3, SoftXMT_delegate_read_word( array + start + 1 ) );
+	  BOOST_CHECK_EQUAL( 4, SoftXMT_delegate_read_word( array + start + 2 ) );
+	  BOOST_CHECK_EQUAL( 5, SoftXMT_delegate_read_word( array + start + 3 ) );
+	}
+	DVLOG(5) << "*****************************************************************************";
+	
+	{
+	  Incoherent<int64_t>::RW d( array + start, actual_size );
+	  d.block_until_acquired();
 	  DVLOG(5) << "*****************************************************************************";
-	  //start:2 size:4 actual_size:4 i:2
-	  if( start == 2 && size == 4 ) {
-	    BOOST_CHECK_EQUAL( 2, SoftXMT_delegate_read_word( array + start + 0 ) );
-	    BOOST_CHECK_EQUAL( 3, SoftXMT_delegate_read_word( array + start + 1 ) );
-	    BOOST_CHECK_EQUAL( 4, SoftXMT_delegate_read_word( array + start + 2 ) );
-	    BOOST_CHECK_EQUAL( 5, SoftXMT_delegate_read_word( array + start + 3 ) );
-	  }
-	  DVLOG(5) << "*****************************************************************************";
-	  
-	  {
-	    Incoherent<int64_t>::RW d( array + start, actual_size );
-	    d.block_until_acquired();
-	    DVLOG(5) << "*****************************************************************************";
-	    for( int i = start; i < actual_size; ++i ) {
-	      DVLOG(5) << "checking word with start:" << start 
-		       << " size:" << size 
-		       << " actual_size:" << actual_size 
-		       << " i:" << i;
-	      BOOST_CHECK_EQUAL( i, d[i - start] );
-	      CHECK_EQ( i, d[i - start] ) << "start:" << start 
-					  << " size:" << size 
-					  << " actual_size:" << actual_size 
-					  << " i:" << i;
-	      d[i - start] = i;
-	    }
+	  for( int i = start; i < actual_size; ++i ) {
+	    DVLOG(5) << "checking word with start:" << start 
+		     << " size:" << size 
+		     << " actual_size:" << actual_size 
+		     << " i:" << i;
+	    BOOST_CHECK_EQUAL( i, d[i - start] );
+	    CHECK_EQ( i, d[i - start] ) << "start:" << start 
+					<< " size:" << size 
+					<< " actual_size:" << actual_size 
+					<< " i:" << i;
+	    d[i - start] = i;
 	  }
 	}
       }
@@ -229,8 +233,8 @@ void user_main( int * args )
       	  ro.reset( array+i+1, 1 );
       	}
 
-	// check address()
-	BOOST_CHECK_EQUAL( ro.address(), array + my_array_size );
+  	// check address()
+  	BOOST_CHECK_EQUAL( ro.address(), array + my_array_size );
       }
 
     }
@@ -240,6 +244,54 @@ void user_main( int * args )
     zero_length.block_until_acquired();
     BOOST_CHECK_EQUAL( zero_length.address(), make_global( &foo ) );
     zero_length.block_until_released();
+
+    // make sure non-word-multiple cache objects don't fail
+    BOOST_MESSAGE( "brandonm bug tests" );
+    Incoherent< BrandonM >::RW brandonm( make_global( &brandonm_arr, 1 ), 1 );
+    brandonm.block_until_acquired();
+    BOOST_CHECK_EQUAL( brandonm.address(), make_global( &brandonm_arr, 1 ) );
+    brandonm.block_until_released();
+
+    // make sure non-word-multiple cache objects don't fail
+    Incoherent< BrandonM >::WO brandonmwo( make_global( &brandonm_arr, 1 ), 1 );
+    brandonmwo.block_until_acquired();
+    BrandonM brandonm_val = { 123 };
+    *brandonmwo = brandonm_val;
+    BOOST_CHECK_EQUAL( brandonmwo.address(), make_global( &brandonm_arr, 1 ) );
+    brandonmwo.block_until_released();
+
+    // make sure non-word-multiple cache objects don't fail
+    BOOST_MESSAGE( "brandonm bug direct tests" );
+    LOG(INFO) << "brandonm bug direct tests";
+    GlobalAddress< BrandonM > brandonmx_addr = SoftXMT_typed_malloc< BrandonM >( 5 );
+    // BOOST_MESSAGE( "brandonmx address is " << brandonmx_addr );
+    // LOG(INFO) << "brandonmx address is " << brandonmx_addr;
+
+    // should be 1 block
+    LOG(INFO) << "should be 1 block";
+    Incoherent< BrandonM >::WO brandonmx( brandonmx_addr, 1 );
+    brandonmx.block_until_acquired();
+    brandonmx.block_until_released();
+
+    // should be 2 blocks
+    LOG(INFO) << "should be 2 blocks";
+    Incoherent< BrandonM >::WO brandonmx1( brandonmx_addr + 1, 1 );
+    brandonmx1.block_until_acquired();
+    brandonmx1.block_until_released();
+
+    // should be 2 blocks
+    LOG(INFO) << "should be 2 blocks";
+    Incoherent< BrandonM >::WO brandonmx2( brandonmx_addr, 3 );
+    brandonmx2.block_until_acquired();
+    brandonmx2.block_until_released();
+
+    // should be 3 blocks
+    LOG(INFO) << "should be 3 blocks";
+    Incoherent< BrandonM >::WO brandonmx3( brandonmx_addr + 1, 3 );
+    brandonmx3.block_until_acquired();
+    brandonmx3.block_until_released();
+
+    SoftXMT_free( brandonmx_addr );
 
     SoftXMT_free( array );
   }

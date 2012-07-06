@@ -24,6 +24,19 @@ struct threeword_array_element {
   int64_t a[ 3 ];
 };
 
+// test for brandonm
+struct BrandonM { 
+  int8_t bar[36];
+};
+
+struct BrandonM32 { 
+  int8_t bar[32];
+};
+
+struct BrandonM64 { 
+  int8_t bar[64];
+};
+
 
 BOOST_AUTO_TEST_CASE( test1 ) {
 
@@ -241,6 +254,47 @@ BOOST_AUTO_TEST_CASE( test1 ) {
 
     // check ordering
     BOOST_CHECK( l3 < l3+1 );
+
+
+    // test for brandonm
+    {
+      GlobalAddress< BrandonM > brandonm = GlobalAddress< BrandonM >::Raw( 0x2469c0000000 );
+      GlobalAddress< BrandonM > brandonm_min = GlobalAddress< BrandonM >::Raw( 0x2469c0000000 );
+      GlobalAddress< BrandonM > brandonm_max = GlobalAddress< BrandonM >::Raw( 0x2469c0000040 );
+      BOOST_CHECK_EQUAL( sizeof( BrandonM ), 36 );
+      BOOST_CHECK_EQUAL( block_size, 64 );
+      BOOST_CHECK_EQUAL( brandonm.block_min(), brandonm_min );
+      BOOST_CHECK_EQUAL( brandonm.block_max(), brandonm_max );
+      BOOST_MESSAGE( "brandonm address is " << brandonm );
+      BOOST_MESSAGE( "brandonm address + 1 is " << brandonm + 1 );
+      BOOST_MESSAGE( "brandonm address + 2 - 1 is " << brandonm + 2 - 1 );
+      BOOST_MESSAGE( "brandonm block_min is " << brandonm.block_min() );
+      BOOST_MESSAGE( "brandonm block_max is " << brandonm.block_max() );
+      BOOST_MESSAGE( "brandonm address + 1 block max is " << (brandonm + 1).block_max() );
+      BOOST_MESSAGE( "brandonm address + 2 - 1 block max is " << (brandonm + 2 - 1).block_max() );
+      BOOST_MESSAGE( "block_min" << GlobalAddress< BrandonM >::Raw( 0x2469c0000003 ).block_min() );
+      BOOST_MESSAGE( "block_max" << GlobalAddress< BrandonM >::Raw( 0x2469c0000003 ).block_max() );
+
+      ptrdiff_t brandonm_byte_diff = ( (brandonm + 1 - 1).block_max() - brandonm.block_min() );
+      ptrdiff_t brandonm_block_diff = brandonm_byte_diff / block_size;
+      BOOST_CHECK_EQUAL( brandonm_block_diff, 1 );
+      BOOST_CHECK_EQUAL( brandonm_byte_diff, 64 );
+      
+      ptrdiff_t brandonm_byte_diff2 = ( (brandonm + 2 - 1).block_max() - brandonm.block_min() );
+      ptrdiff_t brandonm_block_diff2 = brandonm_byte_diff2 / block_size;
+      BOOST_CHECK_EQUAL( brandonm_block_diff2, 2 );
+      BOOST_CHECK_EQUAL( brandonm_byte_diff2, 128 );
+      
+      ptrdiff_t brandonm_byte_diff3 = ( (brandonm + 3 - 1).block_max() - brandonm.block_min() );
+      ptrdiff_t brandonm_block_diff3 = brandonm_byte_diff3 / block_size;
+      BOOST_CHECK_EQUAL( brandonm_block_diff3, 2 );
+      BOOST_CHECK_EQUAL( brandonm_byte_diff3, 128 );
+
+      ptrdiff_t brandonm_byte_diff4 = ( (brandonm + 4 - 1).block_max() - brandonm.block_min() );
+      ptrdiff_t brandonm_block_diff4 = brandonm_byte_diff4 / block_size;
+      BOOST_CHECK_EQUAL( brandonm_block_diff4, 3 );
+      BOOST_CHECK_EQUAL( brandonm_byte_diff4, 192 );
+    }
   }
 
   SoftXMT_finish( 0 );

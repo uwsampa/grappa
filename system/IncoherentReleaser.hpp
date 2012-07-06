@@ -107,8 +107,9 @@ public:
 
       DVLOG(5) << "Straddle: address is " << *request_address_ ;
       DVLOG(5) << ", address + count is " << *request_address_ + *count_;
-      ptrdiff_t byte_diff = ( (*request_address_ + *count_ - 1).block_max() - request_address_->block_min() ) * sizeof(T);
-      ptrdiff_t block_diff = byte_diff / block_size;
+      ptrdiff_t byte_diff = ( (*request_address_ + *count_ - 1).block_max() - 
+      			      request_address_->block_min() );
+      ptrdiff_t block_diff =  byte_diff / block_size;
       DVLOG(5) << "Straddle: address block max is " << request_address_->block_max();
       DVLOG(5) << " address + count block max is " << (*request_address_ + *count_).block_max();
       DVLOG(5) << " address block min " << request_address_->block_min();
@@ -143,7 +144,7 @@ public:
            offset < total_bytes; 
            offset += request_bytes) {
 
-        request_bytes = (args.request_address.block_max() - args.request_address) * sizeof(T);
+	request_bytes = args.request_address.block_minmax() - args.request_address;
         if( request_bytes > total_bytes - offset ) {
           request_bytes = total_bytes - offset;
         }
