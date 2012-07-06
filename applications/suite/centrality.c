@@ -16,6 +16,8 @@
 
 static int64_t nedge_traversed;
 
+/// Computes the approximate vertex betweenness centrality on an unweighted
+/// graph using 'Vs' source vertices. Returns the average centrality.
 double centrality(graph *g, double *bc, graphint Vs, int64_t* total_nedge) {
   graphint num_srcs = 0;
   nedge_traversed = 0;
