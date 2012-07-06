@@ -235,6 +235,7 @@ void StealQueue<T>::steal_reply( uint64_t amt, uint64_t total, T * stolen_work, 
       memcpy(&stack[top], stolen_work, stolen_size_bytes);
 
       received_tasks += amt;
+      VLOG(5) << "Steal packet returns with amt=" << amt << ", received=" << received_tasks << " / total=" << total;
       top += amt;
       nStealPackets++;
 
@@ -242,6 +243,7 @@ void StealQueue<T>::steal_reply( uint64_t amt, uint64_t total, T * stolen_work, 
       /// of the tasks that have been copied in
       if ( received_tasks == total ) { 
         GRAPPA_EVENT(steal_success_ev, "Steal success", 1, GRAPPA_SCHEDULER_GROUP, total);
+        VLOG(5) << "Last packet; will wake steal_waiter=" << steal_waiter;
         local_steal_amount = total;
         if ( steal_waiter != NULL ) {
           //SoftXMT_wake( steal_waiter );
@@ -287,7 +289,7 @@ void StealQueue<T>::workStealRequest_am(workStealRequest_args * args, size_t siz
     int stealAmt;
     bool ok = victimHalfWorkAvail > 0;
   
-    VLOG(4) << "Victim (Node " << global_communicator.mynode() << ") victimHalfWorkAvail=" << victimHalfWorkAvail;
+    VLOG(4) << "Victim of thief=" << args->from << " victimHalfWorkAvail=" << victimHalfWorkAvail;
     if (ok) {
       stealAmt = victimHalfWorkAvail;
 
@@ -308,6 +310,7 @@ void StealQueue<T>::workStealRequest_am(workStealRequest_args * args, size_t siz
       int offset = 0;
       for ( int remain = stealAmt; remain > 0; ) {
         int transfer_amt = (remain < bufsize) ? remain : bufsize;
+        VLOG(5) << "sending steal packet of transfer_amt=" << transfer_amt << " remain=" << remain << " / stealAmt=" << stealAmt;
         remain -= transfer_amt;
         workStealReply_args reply_args = { transfer_amt, stealAmt };
         SoftXMT_call_on( args->from, &StealQueue<T>::workStealReply_am, 
@@ -333,7 +336,9 @@ void StealQueue<T>::workStealRequest_am(workStealRequest_args * args, size_t siz
 template <typename T>
 int StealQueue<T>::steal_locally( Node victim, int op ) {
 
+    // initialize stealing state
     local_steal_amount = -1;
+    received_tasks = 0;
 
     workStealRequest_args req_args = { op, global_communicator.mynode() };
     SoftXMT_call_on( victim, &StealQueue<T>::workStealRequest_am, &req_args );
