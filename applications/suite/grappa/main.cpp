@@ -18,6 +18,10 @@
 #include "defs.hpp"
 #include <SoftXMT.hpp>
 #include <GlobalAllocator.hpp>
+#include <Cache.hpp>
+#include <ForkJoin.hpp>
+#include <GlobalTaskJoiner.hpp>
+#include <Collective.hpp>
 
 static void printHelp(const char * exe);
 static void parseOptions(int argc, char ** argv);
@@ -43,61 +47,254 @@ graphint subGraphPathLength;
 bool checkpointing;
 
 #define MAX_ACQUIRE_SIZE (1L<<20)
+#define NBUF (1L<<20)
+#define NBUF_STACK (1L<<12)
+
+static GlobalAddress<int64_t> xoff;
+static graph g;
+static int64_t actual_nadj;
 
 template< typename T >
-static void read_array(GlobalAddress<T> base_addr, size_t nelem, FILE* fin) {
-  size_t bufsize = MAX_ACQUIRE_SIZE / sizeof(T);
-  T* buf = new T[bufsize];
+static void read_array(GlobalAddress<T> base_addr, size_t nelem, FILE* fin, T * buf = NULL, size_t bufsize = 0) {
+  bool should_free = false;
+  if (buf == NULL) {
+    bufsize = MAX_ACQUIRE_SIZE / sizeof(T);
+    buf = new T[bufsize];
+    should_free = true;
+  }
   for (size_t i=0; i<nelem; i+=bufsize) {
     size_t n = (nelem-i < bufsize) ? nelem-i : bufsize;
     typename Incoherent<T>::WO c(base_addr+i, n, buf);
     c.block_until_acquired();
     size_t nread = fread(buf, sizeof(T), n, fin);
     CHECK(nread == n) << nread << " : " << n;
-    c.block_until_released();
   }
-  delete [] buf;
+  if (should_free) delete [] buf;
 }
 
-static void graph_in(graph * g, FILE * fin) {
-  fread(&g->numVertices, sizeof(graphint), 1, fin);
-  fread(&g->numEdges, sizeof(graphint), 1, fin);
-  
-  graphint NV = g->numVertices;
-  graphint NE = g->numEdges;
-  
-  alloc_graph(g, NV, NE);
-  
-  /* now read in contents... */
-  read_array(g->startVertex, NE, fin);
-  read_array(g->endVertex, NE, fin);
-  read_array(g->edgeStart, NV+2, fin);
-  read_array(g->intWeight, NE, fin);
-  read_array(g->marks, NV, fin);
+//static void graph_in(graph * g, FILE * fin) {
+//  fread(&g->numVertices, sizeof(graphint), 1, fin);
+//  fread(&g->numEdges, sizeof(graphint), 1, fin);
+//  
+//  graphint NV = g->numVertices;
+//  graphint NE = g->numEdges;
+//  
+//  alloc_graph(g, NV, NE);
+//  
+//  /* now read in contents... */
+//  read_array(g->startVertex, NE, fin);
+//  read_array(g->endVertex, NE, fin);
+//  read_array(g->edgeStart, NV+2, fin);
+//  read_array(g->intWeight, NE, fin);
+//  read_array(g->marks, NV, fin);
+//}
+//
+//static void checkpoint_in(graph * dirg, graph * g) {
+//  printf("start reading checkpoint\n"); fflush(stdout);
+//  double t = timer();
+//  
+//  char fname[256];
+//  sprintf(fname, "../ckpts/suite.%d.ckpt", SCALE);
+//  FILE * fin = fopen(fname, "r");
+//  if (!fin) {
+//    fprintf(stderr, "Unable to open file (%s), will generate graph and write checkpoint.\n", fname);
+//    checkpointing = false;
+//    return;
+//  }
+//  
+//  VLOG(1) << "about to load dirg";
+//  graph_in(dirg, fin);
+//  VLOG(1) << "about to load g";
+//  graph_in(g, fin);
+//  
+//  fclose(fin);
+//  
+//  t = timer() - t;
+//  printf("checkpoint_read_time: %g\n", t); fflush(stdout);
+//}
+
+
+#define global_forall(f, g_start, g_iters) \
+{ \
+  range_t r = blockDist(g_start, g_start+g_iters, SoftXMT_mynode(), SoftXMT_nodes()); \
+  VLOG(1) << "range: " << r.start << " -> " << r.end; \
+  global_joiner.reset(); \
+  async_parallel_for<f, joinerSpawn<f> >(r.start, r.end-r.start); \
+  global_joiner.wait(); \
 }
 
-static void checkpoint_in(graph * dirg, graph * g) {
-  printf("start reading checkpoint\n"); fflush(stdout);
+//#define add_underscore(r,data,elem) _##elem
+
+//#define assign_global(r,data,global) \
+  //global = _##global;
+
+//#define auto_assigns(globals) \
+  //BOOST_PP_SEQ_FOR_EACH(CAT_EACH, ,BOOST_PP_TRANSFORM(assign_global, BOOST_PP_EMPTY, globals))
+
+//#define global_forall(f, start, niters, globals) {
+  //LOOP_FUNCTOR(func_##f, nid, BOOST_PP_SEQ_TRANSFORM(add_underscore, BOOST_PP_EMPTY, globals)) {
+    //auto_assigns(globals)
+    
+    //range_t r = blockDist(start, niters, nid, SoftXMT_nodes());
+
+    //global_joiner.reset();
+    //async_parallel_for<f, joinerSpawn<f> >(r.start, r.end-r.start);
+    //global_joiner.wait();
+  //}
+//}
+
+void calc_actual_nadj(int64_t sv, int64_t n) {
+  int64_t buf[2*n];
+  Incoherent<int64_t>::RO c(xoff+2*sv, 2*n, buf);
+  for (int64_t i=0; i<n; i++) {
+    actual_nadj += c[2*i+1] - c[2*i];
+  }
+}
+LOOP_FUNCTOR(func_actual_nadj, nid, ((GlobalAddress<int64_t>,_xoff)) ((int64_t,nv)) ) {
+  xoff = _xoff;
+  actual_nadj = 0;
+
+  global_forall(calc_actual_nadj, 0, nv);
+  
+  VLOG(1) << "actual_nadj (local): " << actual_nadj;
+  actual_nadj = SoftXMT_allreduce<int64_t,coll_add<int64_t>,0>(actual_nadj);
+}
+
+void set_startVertex(int64_t s, int64_t n) {
+  int64_t sbuf[n];
+  Incoherent<int64_t>::RO cstarts(g.edgeStart, n+1, sbuf);
+  for (int64_t i=0; i<n; i++) {
+    int64_t v = s+i;
+    int64_t d = cstarts[i+1]-cstarts[i];
+    SoftXMT_memset(g.startVertex+cstarts[i], v, d);
+  }
+}
+LOOP_FUNCTION(func_startVertex, nid) {
+  global_forall(set_startVertex, 0, g.numVertices);
+}
+
+// TODO: need parallel prefix_sum
+//void calc_edgeStart(int64_t sv, int64_t n) {
+//  int64_t _estarts[n], _xoff[2*n];
+//  Incoherent<int64_t>::WO ces(g.edgeStart+sv, n, _estarts);
+//  Incoherent<int64_t>::RO cxoff(xoff+sv, 2*n, _xoff);
+//  
+//  for (int64_t i=0; i<n; i++) {
+//    ces[i] = cxoff[2*i+1] - cxoff[2*i];
+//  }
+//}
+//LOOP_FUNCTOR(func_edgeStart, nid, ((graph,_g))) {
+//  g = _g;
+//
+//  forall(calc_edgeStart, 0, g.numVertices);
+//}
+
+bool checkpoint_in(graphedges * ge, graph * g) {
+  int64_t buf[NBUF_STACK];
+  int64_t * rbuf = (int64_t*)malloc(2*(NBUF+1)*sizeof(int64_t));
+  int64_t * wbuf = (int64_t*)malloc(NBUF*sizeof(int64_t));
+  VLOG(1) << "wbuf = " << wbuf << ", wbuf[0] = " << wbuf[0];
+
+  fprintf(stderr, "starting to read ckpt...\n");
   double t = timer();
   
   char fname[256];
-  sprintf(fname, "../ckpts/suite.%d.ckpt", SCALE);
+  sprintf(fname, "../ckpts/graph500.%lld.%lld.xmt.w.ckpt", SCALE, 16);
   FILE * fin = fopen(fname, "r");
   if (!fin) {
-    fprintf(stderr, "Unable to open file (%s), will generate graph and write checkpoint.\n", fname);
-    checkpointing = false;
-    return;
+    fprintf(stderr, "Unable to open file - %s.\n", fname);
+    exit(1);
   }
   
-  VLOG(1) << "about to load dirg";
-  graph_in(dirg, fin);
-  VLOG(1) << "about to load g";
-  graph_in(g, fin);
-  
-  fclose(fin);
-  
-  t = timer() - t;
-  printf("checkpoint_read_time: %g\n", t); fflush(stdout);
+  int64_t nedge, nv, nadj, nbfs;
+  fread(&nedge, sizeof(nedge), 1, fin);
+  fread(&nv,    sizeof(nv),    1, fin);
+  fread(&nadj,  sizeof(nadj),  1, fin);
+  fread(&nbfs,  sizeof(nbfs),  1, fin);
+  fprintf(stderr, "nedge=%ld, nv=%ld, nadj=%ld, nbfs=%ld\n", nedge, nv, nadj, nbfs);
+
+  // eat all the edges, we don't need them (I think)
+  for (int64_t i=0; i<nedge*2; i+=NBUF) {
+    int64_t n = min(NBUF, nedge*2-i);
+    fread(wbuf, sizeof(int64_t), n, fin);
+  }
+
+  GlobalAddress<int64_t> xoff = SoftXMT_typed_malloc<int64_t>(2*nv+2);
+
+  double tt = timer();
+  read_array(xoff, 2*nv, fin, wbuf, NBUF);
+  tt = timer() - tt; VLOG(1) << "xoff time: " << tt;
+  VLOG(1) << "actual_nadj (read_array): " << actual_nadj;
+
+  // burn extra two xoff's
+  fread(wbuf, sizeof(int64_t), 2, fin);
+
+  tt = timer();
+  { func_actual_nadj f(xoff, nv); fork_join_custom(&f); }
+  tt = timer() - tt; VLOG(1) << "actual_nadj: " << tt;
+
+  VLOG(1) << "nv: " << nv << ", actual_nadj: " << actual_nadj;
+  alloc_graph(g, nv, actual_nadj);
+
+  tt = timer();
+  // xoff/edgeStart
+  int64_t deg = 0;
+  for (int64_t i=0; i<nv; i+=NBUF) {
+    int64_t n = min(nv-i, NBUF);
+    Incoherent<int64_t>::RO cxoff(xoff+i, 2*n, rbuf);
+    Incoherent<int64_t>::WO cstarts(g->edgeStart+i, n, wbuf);
+    for (int64_t j=0; j<n; j++) {
+      cstarts[j] = deg;
+      deg += cxoff[2*j+1]-cxoff[2*j];
+    }
+  }
+  SoftXMT_delegate_write_word(g->edgeStart+nv, deg);
+  tt = timer() - tt; VLOG(1) << "edgeStart time: " << tt;
+
+  // xadj/endVertex
+  // eat first 2 because we actually stored 'xadjstore' which has an extra 2 elements
+  fread(buf, sizeof(int64_t), 2, fin);
+
+  tt = timer();
+  int64_t pos = 0; nadj -= 2;
+  for (int64_t v=0; v<nv; v+=NBUF) {
+    int64_t nstarts = min(nv-v, NBUF);
+    Incoherent<int64_t>::RO cxoff(xoff+2*v, 2*nstarts+((v+1==nv) ? 0 : 1),rbuf);
+    
+    for (int64_t i=0; i<nstarts; i++) {
+      if ((v+i) % 1024 == 0) VLOG(1) << "endVertex progress (v " << v+i << "/" << nv << ")";
+      int64_t d = cxoff[2*i+1]-cxoff[2*i];
+      read_array(g->endVertex+cxoff[i], d, fin, wbuf, NBUF);
+      pos += d;
+      // eat up to next one
+      d = (v+i+1==nv) ? nadj-pos : cxoff[2*(v+i+1)]-pos;
+      for (int64_t j=0; j < d; j+=NBUF) {
+        int64_t n = min(NBUF, d-j);
+        fread(wbuf, sizeof(int64_t), n, fin); pos += n;
+      }
+    }
+  }
+  SoftXMT_free(xoff);
+  tt = timer() - tt; VLOG(1) << "endVertex time: " << tt;
+
+  tt = timer();
+  { func_startVertex f; fork_join_custom(&f); }
+  tt = timer() - tt; VLOG(1) << "startVertex time: " << tt;
+
+  // bfs roots (don't need 'em)
+  CHECK(NBUF > nbfs) << "too many bfs";
+  fread(buf, sizeof(int64_t), nbfs, fin);
+
+  tt = timer();
+  // int weights
+  int64_t nw;
+  fread(&nw, sizeof(int64_t), 1, fin);
+  CHECK(nw == actual_nadj) << "nw = " << nw << ", actual_nadj = " << actual_nadj;
+  read_array(g->intWeight, nw, fin);
+  tt = timer() - tt; VLOG(1) << "intWeight time: " << tt;
+
+  fprintf(stderr, "checkpoint_read_time: %g\n", timer()-t);
+  return true;
 }
 
 static void user_main(void* ignore) {
@@ -109,11 +306,12 @@ static void user_main(void* ignore) {
   
   printf("[[ Graph Application Suite ]]\n"); fflush(stdout);	
   
+  graphedges * ge = &_ge;
   graph * dirg = &_dirg;
   graph * g = &_g;
   
   if (checkpointing) {
-    checkpoint_in(dirg, g);
+    checkpoint_in(ge, g);
   }
   
   if (!checkpointing) {
@@ -123,7 +321,6 @@ static void user_main(void* ignore) {
     printf("\nScalable Data Generator - genScalData() randomly generating edgelist...\n"); fflush(stdout);
     t = timer();
     
-    graphedges * ge = &_ge;
     genScalData(ge, A, B, C, D);
     
     t = timer() - t;
@@ -231,7 +428,7 @@ static void user_main(void* ignore) {
 }
 
 int main(int argc, char* argv[]) {
-  SoftXMT_init(&argc, &argv, (1L<<34));
+  SoftXMT_init(&argc, &argv, (1L<<32));
   SoftXMT_activate();
   
   parseOptions(argc, argv);
