@@ -37,7 +37,7 @@ tau*.trc
 profile.*.*.*
 app*.def
 *.otf
-app.vsettings
+*.vsettings
 app*.events
 fn_mappings
 reader.out
