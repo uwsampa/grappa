@@ -205,7 +205,8 @@ static void checkpoint_in(tuple_graph * tg, csr_graph * g, int64_t * bfs_roots) 
   fread(&g->nv, sizeof(g->nv), 1, fin);
   fread(&g->nadj, sizeof(g->nadj), 1, fin);
   fread(&nbfs, sizeof(nbfs), 1, fin);
-  
+  CHECK(nbfs <= NBFS_max);
+
   tg->edges = SoftXMT_typed_malloc<packed_edge>(tg->nedge);
   g->xoff = SoftXMT_typed_malloc<int64_t>(2*g->nv+2);
   g->xadjstore = SoftXMT_typed_malloc<int64_t>(g->nadj);
@@ -226,7 +227,7 @@ static void checkpoint_in(tuple_graph * tg, csr_graph * g, int64_t * bfs_roots) 
   fclose(fin);
   
   t = timer() - t;
-  VLOG(1) << "done reading in checkpoint (time = " << t << ")";
+  VLOG(1) << "checkpoint_read_time: " << t;
 }
 
 static void checkpoint_out(tuple_graph * tg, csr_graph * g, int64_t * bfs_roots) {
@@ -261,7 +262,7 @@ static void checkpoint_out(tuple_graph * tg, csr_graph * g, int64_t * bfs_roots)
   fclose(fout);
   
   t = timer() - t;
-  VLOG(1) << "done writing checkpoint (time = " << t << ")";
+  VLOG(1) << "checkpoint_write_time: " << t;
 }
 
 static void setup_bfs(tuple_graph * tg, csr_graph * g, int64_t * bfs_roots) {

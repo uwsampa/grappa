@@ -16,7 +16,7 @@ extern char *rootname;
 
 extern double A, B, C, D;
 
-#define NBFS_max 2
+#define NBFS_max 64
 extern int NBFS;
 
 #define default_SCALE ((int64_t)14)
