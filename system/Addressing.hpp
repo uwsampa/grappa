@@ -153,6 +153,7 @@ public:
     }
   }
 
+  // base address of block containing this byte
   inline GlobalAddress< T > block_min() const { 
     if( is_2D() ) {
       //intptr_t signextended = (storage_ << pointer_shift_val) >> pointer_shift_val;
@@ -167,6 +168,22 @@ public:
     }
   }
 
+  // base address of block after the one containing this byte
+  inline GlobalAddress< T > block_minmax() const { 
+    if( is_2D() ) {
+      //intptr_t signextended = (storage_ << pointer_shift_val) >> pointer_shift_val;
+      //GlobalAddress< U > u = GlobalAddress< U >::Raw( storage_ );
+      return GlobalAddress< T >::TwoDimensional( (T*) 0, node() );
+    } else {
+      intptr_t first_byte = storage_;
+      intptr_t first_byte_offset = first_byte % block_size;
+      intptr_t node = (first_byte / block_size) %   global_communicator.nodes();
+      intptr_t node_block = (first_byte / block_size) / global_communicator.nodes();
+      return GlobalAddress< T >::Raw( this->raw_bits() + (block_size - first_byte_offset) );
+    }
+  }
+
+  // base address of block after the one containing the last byte of this object
   inline GlobalAddress< T > block_max() const { 
     if( is_2D() ) {
       intptr_t signextended = (storage_ << pointer_shift_val) >> pointer_shift_val;
@@ -284,13 +301,8 @@ GlobalAddress< T > operator-( const GlobalAddress< T >& t, ptrdiff_t i ) {
 
 template< typename T >
 ptrdiff_t operator-( const GlobalAddress< T >& t, const GlobalAddress< T >& u ) {
-  if( t.is_2D() ) {
-    return t.pointer() - u.pointer();
-  } else {
-    return (t.raw_bits() - u.raw_bits()) / sizeof(T);
-  }
+  return t.raw_bits() - u.raw_bits();
 }
-
 
 template< typename T >
 GlobalAddress< T > localToGlobal( T * t ) {
