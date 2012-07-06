@@ -117,6 +117,10 @@ LOOP_FUNCTOR( connectedCompFunc, nid,
   ncomponents = SoftXMT_allreduce<graphint,coll_add<graphint>,0>(ncomponents);
 }
 
+/// Takes a graph as input and an array with length NV.  The array D will store
+/// the coloring of each component.  The coloring will be using vertex IDs and
+/// therefore will be an integer between 0 and NV-1.  The function returns the
+/// total number of components.
 graphint connectedComponents(graph * g) {
   
   connectedCompFunc f(g->numVertices, g->numEdges, g->marks, g->startVertex, g->endVertex);

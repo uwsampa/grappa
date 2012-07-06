@@ -150,6 +150,8 @@ LOOP_FUNCTION( totalNedgeFunc, n ) {
   nedge_traversed = SoftXMT_allreduce<int64_t,coll_add<int64_t>,0>(nedge_traversed);
 }
 
+/// Computes the approximate vertex betweenness centrality on an unweighted
+/// graph using 'Vs' source vertices. Returns the average centrality.
 double centrality(graph *g, GlobalAddress<double> bc, graphint Vs,
     /* outputs: */ double * avg_centrality = NULL, int64_t * total_nedge = NULL) {
   graphint Qnext;
