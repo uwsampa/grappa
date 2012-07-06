@@ -62,6 +62,8 @@ private:
   Thread * thread_;
   int num_messages_;
   int response_count_;
+  int total_reply_payload_;
+  int expected_reply_payload_;
 
 public:
 
@@ -74,6 +76,8 @@ public:
     , thread_(NULL)
     , num_messages_(0)
     , response_count_(0)
+    , total_reply_payload_( 0 )
+    , expected_reply_payload_( 0 )
   { 
     reset( );
   }
@@ -116,6 +120,8 @@ public:
       DVLOG(5) << " address block min " << request_address_->block_min();
       DVLOG(5) << "Straddle: diff is " << byte_diff << " div " << block_diff << " bs " << block_size;
       num_messages_ = block_diff;
+      expected_reply_payload_ = sizeof( T ) * *count_;
+      total_reply_payload_ = 0;
     }
 
     if( num_messages_ > 1 ) DVLOG(5) << "****************************** MULTI BLOCK CACHE REQUEST ******************************";
@@ -193,7 +199,9 @@ public:
              << " and waking Thread " << thread_;
     memcpy( ((char*)(*pointer_)) + offset, payload, payload_size );
     ++response_count_;
+    total_reply_payload_ += payload_size;
     if ( response_count_ == num_messages_ ) {
+      CHECK_EQ( total_reply_payload_, expected_reply_payload_ ) << "Got back the wrong amount of data";
       acquired_ = true;
       if( thread_ != NULL ) {
         SoftXMT_wake( thread_ );
