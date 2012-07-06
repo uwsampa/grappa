@@ -60,14 +60,14 @@ void user_main( user_main_args * args )
     BOOST_MESSAGE( "&array1="<<array1<< "&aa="<<&aa );
     
     // a[i] = i
-    parallel_loop( 0, length1, &ind_array, aa );
+    parallel_loop_implFuture( 0, length1, &ind_array, aa );
     // check
     for (int i=0; i<length1; i++) {
         BOOST_CHECK_EQUAL( array1[i], i );
     }
 
     // a[i] = a[i]*2
-    parallel_loop( 0, length1, &dub_array, aa ); 
+    parallel_loop_implFuture( 0, length1, &dub_array, aa ); 
     // check
     for (int i=0; i<length1; i++) {
         BOOST_CHECK_EQUAL( array1[i], 2*i );
@@ -79,7 +79,7 @@ void user_main( user_main_args * args )
     int64_t * ind_counts = new int64_t[SoftXMT_nodes()];
     int64_t * dub_counts = new int64_t[SoftXMT_nodes()];
     count_args cargs ( ind_counts, dub_counts );
-    parallel_loop( 0, SoftXMT_nodes(), &countUp, cargs ); 
+    parallel_loop_implFuture( 0, SoftXMT_nodes(), &countUp, cargs ); 
 
     for (Node i=0; i<SoftXMT_nodes(); i++) {
         BOOST_MESSAGE( "node" << i << ":"
@@ -89,6 +89,7 @@ void user_main( user_main_args * args )
     delete ind_counts;
     delete dub_counts;
 
+    SoftXMT_dump_stats_all_nodes();
     BOOST_MESSAGE( "user main is exiting" );
 }
 
