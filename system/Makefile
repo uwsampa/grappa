@@ -224,7 +224,12 @@ test: $(TARGET)
 
 # TODO: fixme so I'm not so dumb
 cleanup_shm:
-	for i in 69 70 71 01 04 72 73 74 75 76 77 78 79 80 81; do ssh n$$i bash -c "ipcs -m | grep $(USER) | cut -d' ' -f1 | xargs -n1 -r ipcrm -M"; done
+	echo "State before cleanup:"
+	for i in `sinfo -h -p grappa -o '%n'`; do ssh $$i bash -c "echo;hostname; ipcs -m; grep Huge /proc/meminfo"; done
+	echo "Cleaning up...."
+	for i in `sinfo -h -p grappa -o '%n'`; do ssh $$i bash -c "ipcs -m | grep $(USER) | cut -d' ' -f1 | xargs -n1 -r ipcrm -M"; done
+	echo "State after cleanup:"
+	for i in `sinfo -h -p grappa -o '%n'`; do ssh $$i bash -c "echo; hostname; ipcs -m; grep Huge /proc/meminfo"; done
 
 
 # build a specific test
