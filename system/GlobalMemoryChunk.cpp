@@ -58,7 +58,7 @@ GlobalMemoryChunk::GlobalMemoryChunk( size_t size )
     job_id = getpid();
   }
   shm_key_ = job_id * global_communicator.nodes() + global_communicator.mynode();
-  LOG(INFO) << size << " rounded to " << size_;
+  DVLOG(2) << size << " rounded to " << size_;
   // get shared memory region id
   shm_id_ = shmget( shm_key_, size_, IPC_CREAT | SHM_R | SHM_W | 
                     (FLAGS_global_memory_use_hugepages ? SHM_HUGETLB : 0) );
