@@ -256,7 +256,7 @@ BOOST_AUTO_TEST_CASE( test1 ) {
     BOOST_CHECK( l3 < l3+1 );
 
 
-    // test for brandonm
+    // test for brandonm's 36-byte request bug
     {
       GlobalAddress< BrandonM > brandonm = GlobalAddress< BrandonM >::Raw( 0x2469c0000000 );
       GlobalAddress< BrandonM > brandonm_min = GlobalAddress< BrandonM >::Raw( 0x2469c0000000 );

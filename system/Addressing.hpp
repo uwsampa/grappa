@@ -168,19 +168,12 @@ public:
     }
   }
 
-  // base address of block after the one containing this byte
-  inline GlobalAddress< T > block_minmax() const { 
-    if( is_2D() ) {
-      //intptr_t signextended = (storage_ << pointer_shift_val) >> pointer_shift_val;
-      //GlobalAddress< U > u = GlobalAddress< U >::Raw( storage_ );
-      return GlobalAddress< T >::TwoDimensional( (T*) 0, node() );
-    } else {
-      intptr_t first_byte = storage_;
-      intptr_t first_byte_offset = first_byte % block_size;
-      intptr_t node = (first_byte / block_size) %   global_communicator.nodes();
-      intptr_t node_block = (first_byte / block_size) / global_communicator.nodes();
-      return GlobalAddress< T >::Raw( this->raw_bits() + (block_size - first_byte_offset) );
-    }
+  inline GlobalAddress< char > first_byte() const { 
+    return GlobalAddress< char >::Raw( this->raw_bits() );
+  }
+
+  inline GlobalAddress< char > last_byte() const { 
+    return GlobalAddress< char >::Raw( this->raw_bits() + sizeof(T) - 1 );
   }
 
   // base address of block after the one containing the last byte of this object
@@ -300,7 +293,13 @@ GlobalAddress< T > operator-( const GlobalAddress< T >& t, ptrdiff_t i ) {
 // }
 
 template< typename T >
-ptrdiff_t operator-( const GlobalAddress< T >& t, const GlobalAddress< T >& u ) {
+inline ptrdiff_t operator-( const GlobalAddress< T >& t, const GlobalAddress< T >& u ) {
+  CHECK(false) << "Danger! You probably don't want to call this function. " 
+               << "Try using .first_byte() or .last_byte() to get the right overload";
+}
+
+template<  >
+inline ptrdiff_t operator-<char>( const GlobalAddress< char >& t, const GlobalAddress< char >& u ) {
   return t.raw_bits() - u.raw_bits();
 }
 
