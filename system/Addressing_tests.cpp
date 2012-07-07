@@ -234,8 +234,10 @@ BOOST_AUTO_TEST_CASE( test1 ) {
     BOOST_CHECK_EQUAL( l2.pointer(), &global_array[5] );
 
     // casting
-    array_element * foo_p = l2 - 4;
-    array_element * bar_p = l2;
+    void * foo_pv = l2 - 4;
+    void * bar_pv = l2;
+    array_element * foo_p = reinterpret_cast< array_element * >( foo_pv );
+    array_element * bar_p = reinterpret_cast< array_element * >( bar_pv );
     BOOST_CHECK_EQUAL( foo_p + 4, bar_p );
 
     // pointer to member
