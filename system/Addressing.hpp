@@ -260,11 +260,16 @@ public:
     return u;
   }
 
-  template< typename U >
-  operator U * ( ) {
-    U * u = reinterpret_cast< U * >( storage_ );
+  operator void * ( ) {
+    void * u = reinterpret_cast< void * >( storage_ );
     return u;
   }
+
+  // template< typename U >
+  // operator U * ( ) {
+  //   U * u = reinterpret_cast< U * >( storage_ );
+  //   return u;
+  // }
 
 };
 
@@ -294,8 +299,9 @@ GlobalAddress< T > operator-( const GlobalAddress< T >& t, ptrdiff_t i ) {
 
 template< typename T >
 inline ptrdiff_t operator-( const GlobalAddress< T >& t, const GlobalAddress< T >& u ) {
-  CHECK(false) << "Danger! You probably don't want to call this function. " 
-               << "Try using .first_byte() or .last_byte() to get the right overload";
+  LOG(WARNING) << "Danger! You probably don't want to call this function. " 
+	       << "Try using .first_byte() or .last_byte() to get the right overload";
+  return t.raw_bits() - u.raw_bits();
 }
 
 template<  >
