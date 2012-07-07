@@ -97,4 +97,16 @@ void joinerSpawn_hack( int64_t s, int64_t n, GlobalAddress<Arg> shared_arg ) {
   // copy the shared_arg data into a global address that corresponds to this Node
   GlobalAddress<Arg> packed = make_global( reinterpret_cast<Arg*>(shared_arg.pointer()) );
   SoftXMT_publicTask( &asyncFor_with_globalTaskJoiner_hack<Arg,LoopBody>, s, n, packed );
-} 
+}
+
+/// Does a global join phase with starting iterations of the for loop
+/// split evenly among nodes.
+/// To be called from within a fork_join_custom setting by all nodes
+#define global_async_parallel_for(f, g_start, g_iters) \
+{ \
+  range_t r = blockDist(g_start, g_start+g_iters, SoftXMT_mynode(), SoftXMT_nodes()); \
+  global_joiner.reset(); \
+  async_parallel_for<f, joinerSpawn<f> >(r.start, r.end-r.start); \
+  global_joiner.wait(); \
+}
+

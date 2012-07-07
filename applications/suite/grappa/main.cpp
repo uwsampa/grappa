@@ -113,36 +113,6 @@ static void read_array(GlobalAddress<T> base_addr, size_t nelem, FILE* fin, T * 
 //  printf("checkpoint_read_time: %g\n", t); fflush(stdout);
 //}
 
-
-#define global_forall(f, g_start, g_iters) \
-{ \
-  range_t r = blockDist(g_start, g_start+g_iters, SoftXMT_mynode(), SoftXMT_nodes()); \
-  VLOG(1) << "range: " << r.start << " -> " << r.end; \
-  global_joiner.reset(); \
-  async_parallel_for<f, joinerSpawn<f> >(r.start, r.end-r.start); \
-  global_joiner.wait(); \
-}
-
-//#define add_underscore(r,data,elem) _##elem
-
-//#define assign_global(r,data,global) \
-  //global = _##global;
-
-//#define auto_assigns(globals) \
-  //BOOST_PP_SEQ_FOR_EACH(CAT_EACH, ,BOOST_PP_TRANSFORM(assign_global, BOOST_PP_EMPTY, globals))
-
-//#define global_forall(f, start, niters, globals) {
-  //LOOP_FUNCTOR(func_##f, nid, BOOST_PP_SEQ_TRANSFORM(add_underscore, BOOST_PP_EMPTY, globals)) {
-    //auto_assigns(globals)
-    
-    //range_t r = blockDist(start, niters, nid, SoftXMT_nodes());
-
-    //global_joiner.reset();
-    //async_parallel_for<f, joinerSpawn<f> >(r.start, r.end-r.start);
-    //global_joiner.wait();
-  //}
-//}
-
 void calc_actual_nadj(int64_t sv, int64_t n) {
   int64_t buf[2*n];
   Incoherent<int64_t>::RO c(xoff+2*sv, 2*n, buf);
@@ -154,7 +124,7 @@ LOOP_FUNCTOR(func_actual_nadj, nid, ((GlobalAddress<int64_t>,_xoff)) ((int64_t,n
   xoff = _xoff;
   actual_nadj = 0;
 
-  global_forall(calc_actual_nadj, 0, nv);
+  global_async_parallel_for(calc_actual_nadj, 0, nv);
   
   VLOG(1) << "actual_nadj (local): " << actual_nadj;
   actual_nadj = SoftXMT_allreduce<int64_t,coll_add<int64_t>,0>(actual_nadj);
@@ -170,7 +140,7 @@ void set_startVertex(int64_t s, int64_t n) {
   }
 }
 LOOP_FUNCTION(func_startVertex, nid) {
-  global_forall(set_startVertex, 0, g.numVertices);
+  global_async_parallel_for(set_startVertex, 0, g.numVertices);
 }
 
 // TODO: need parallel prefix_sum
@@ -186,7 +156,7 @@ LOOP_FUNCTION(func_startVertex, nid) {
 //LOOP_FUNCTOR(func_edgeStart, nid, ((graph,_g))) {
 //  g = _g;
 //
-//  forall(calc_edgeStart, 0, g.numVertices);
+//  global_async_parallel_for(calc_edgeStart, 0, g.numVertices);
 //}
 
 bool checkpoint_in(graphedges * ge, graph * g) {
