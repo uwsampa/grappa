@@ -157,7 +157,7 @@ end
 
 
 define periodic_queue
-  grappa_queue_print "Periodic" &my_global_scheduler->periodicQ
+  grappa_queue_print "Periodic" &global_scheduler.periodicQ
 end
 document periodic_queue
 Prints contents of Grappa periodic queue.
@@ -166,7 +166,7 @@ Syntax:
 end
 
 define ready_queue
-  grappa_queue_print "Ready" &my_global_scheduler->readyQ
+  grappa_queue_print "Ready" &global_scheduler.readyQ
 end
 document ready_queue
 Prints contents of Grappa ready queue.
@@ -175,7 +175,7 @@ Syntax:
 end
 
 define unassigned_queue
-  grappa_queue_print "Unassigned" &my_global_scheduler->unassignedQ
+  grappa_queue_print "Unassigned" &global_scheduler.unassignedQ
 end
 document unassigned_queue
 Prints contents of Grappa unassigned queue.
@@ -184,7 +184,7 @@ Syntax:
 end
 
 define unassigned_queue_length
-  grappa_queue_length "Unassigned" &my_global_scheduler->unassignedQ
+  grappa_queue_length "Unassigned" &global_scheduler.unassignedQ
 end
 document unassigned_queue_length
 Prints length of Grappa unassigned queue.
@@ -210,7 +210,7 @@ end
 
 define current_coroutine
   printf "Current coroutine:\n"
-  grappa_coroutine_print my_global_scheduler->current_thread->co
+  grappa_coroutine_print global_scheduler.current_thread->co
 end
 document current_coroutine
 Prints currently scheduled Grappa coroutine.
@@ -236,7 +236,7 @@ end
 
 define private_tasks
   printf "Private tasks (newest at top): "
-  output/a my_global_scheduler->task_manager->privateQ
+  output/a global_scheduler.task_manager->privateQ
   printf "\n"
 end
 document private_tasks
@@ -246,7 +246,7 @@ Syntax:
 end
 
 define public_tasks
-  set $grappa_publicQ = my_global_scheduler->task_manager->publicQ
+  set $grappa_publicQ = global_scheduler.task_manager->publicQ
   set $grappa_local_tasks = $grappa_publicQ->top - $grappa_publicQ->local
   set $grappa_shared_tasks = $grappa_publicQ->local - $grappa_publicQ->sharedStart
   printf "Shared public tasks (newest at bottom) (%d shared):\n", $grappa_shared_tasks
