@@ -4,6 +4,9 @@
 #include "Delegate.hpp"
 #include "ForkJoin.hpp"
 #include "GlobalAllocator.hpp"
+#include "Collective.hpp"
+#include "GlobalTaskJoiner.hpp"
+
 
 #include "verify.hpp"
 
@@ -15,6 +18,7 @@
 
 #define read SoftXMT_delegate_read_word
 #define write SoftXMT_delegate_write_word
+#define fetch_add SoftXMT_delegate_fetch_and_add_word
 
 LOOP_FUNCTOR(compute_levels_func, k, ((GlobalAddress<int64_t>,bfs_tree))((GlobalAddress<int64_t>,level))((int64_t,nv))((int64_t,root)) ) {
   int64_t level_k = read(level+k);
@@ -79,56 +83,133 @@ void compute_levels(GlobalAddress<int64_t> level, int64_t nv, GlobalAddress<int6
   fork_join(&fl, 0, nv);
 }
 
-LOOP_FUNCTOR(verify_func, k, ((GlobalAddress<int64_t>,bfs_tree)) ((GlobalAddress<packed_edge>,edges)) ((GlobalAddress<int64_t>,seen_edge)) ((GlobalAddress<int64_t>,level)) ((GlobalAddress<int64_t>,nedge_traversed)) ((GlobalAddress<int64_t>,err)) ((int64_t,max_bfsvtx)) ) {
-  int terr;
-  Incoherent<packed_edge>::RO cedge(edges+k, 1);
-  const int64_t i = cedge[0].v0;
-  const int64_t j = cedge[0].v1;
-  int64_t lvldiff;
+//LOOP_FUNCTOR(verify_func, k, ((GlobalAddress<int64_t>,bfs_tree)) ((GlobalAddress<packed_edge>,edges)) ((GlobalAddress<int64_t>,seen_edge)) ((GlobalAddress<int64_t>,level)) ((GlobalAddress<int64_t>,nedge_traversed)) ((GlobalAddress<int64_t>,err)) ((int64_t,max_bfsvtx)) ) {
+  //int terr;
+  //Incoherent<packed_edge>::RO cedge(edges+k, 1);
+  //const int64_t i = cedge[0].v0;
+  //const int64_t j = cedge[0].v1;
+  //int64_t lvldiff;
   
-  if (i < 0 || j < 0) return;
-  if (i > max_bfsvtx && j <= max_bfsvtx) {
-    terr = -10;
-    LOG(ERROR) << "Error!";
-    return;
-  }
-  if (j > max_bfsvtx && i <= max_bfsvtx) {
-    terr = -11;
-    LOG(ERROR) << "Error!";
-    return;
-  }
-  if (i > max_bfsvtx) // both i & j are on the same side of max_bfsvtx
-    return;
+  //if (i < 0 || j < 0) return;
+  //if (i > max_bfsvtx && j <= max_bfsvtx) {
+    //terr = -10;
+    //LOG(ERROR) << "Error!";
+    //return;
+  //}
+  //if (j > max_bfsvtx && i <= max_bfsvtx) {
+    //terr = -11;
+    //LOG(ERROR) << "Error!";
+    //return;
+  //}
+  //if (i > max_bfsvtx) // both i & j are on the same side of max_bfsvtx
+    //return;
   
-  // All neighbors must be in the tree.
-  int64_t ti = read(bfs_tree+i);
-  int64_t tj = read(bfs_tree+j);
+  //// All neighbors must be in the tree.
+  //int64_t ti = read(bfs_tree+i);
+  //int64_t tj = read(bfs_tree+j);
   
-  if (ti >= 0 && tj < 0) { terr = -12; LOG(ERROR) << "Error! ti=" << ti << ", tj=" << tj; return; }
-  if (tj >= 0 && ti < 0) { terr = -13; LOG(ERROR) << "Error! ti=" << ti << ", tj=" << tj; return; }
-  if (ti < 0) // both i & j have the same sign
-    return;
+  //if (ti >= 0 && tj < 0) { terr = -12; LOG(ERROR) << "Error! ti=" << ti << ", tj=" << tj; return; }
+  //if (tj >= 0 && ti < 0) { terr = -13; LOG(ERROR) << "Error! ti=" << ti << ", tj=" << tj; return; }
+  //if (ti < 0) // both i & j have the same sign
+    //return;
   
-  /* Both i and j are in the tree, count as a traversed edge.
+  //[> Both i and j are in the tree, count as a traversed edge.
    
-   NOTE: This counts self-edges and repeated edges.  They're
-   part of the input data.
-   */
-  SoftXMT_delegate_fetch_and_add_word(nedge_traversed, 1);
-  // Mark seen tree edges.
-  if (i != j) {
-    if (ti == j)
-      write(seen_edge+i, 1);
-    if (tj == i)
-      write(seen_edge+j, 1);
+   //NOTE: This counts self-edges and repeated edges.  They're
+   //part of the input data.
+   //*/
+  //SoftXMT_delegate_fetch_and_add_word(nedge_traversed, 1);
+  //// Mark seen tree edges.
+  //if (i != j) {
+    //if (ti == j)
+      //write(seen_edge+i, 1);
+    //if (tj == i)
+      //write(seen_edge+j, 1);
+  //}
+  //lvldiff = read(level+i) - read(level+j);
+  //[> Check that the levels differ by no more than one. <]
+  //if (lvldiff > 1 || lvldiff < -1) {
+    //terr = -14;
+    //LOG(ERROR) << "Error, levels differ by more than one! (k = " << k << ", lvl[" << i << "]=" << read(level+i) << ", lvl[" << j << "]=" << read(level+j) << ")";
+    //exit(1);
+  //}
+//}
+
+static GlobalAddress<packed_edge> edges;
+static GlobalAddress<int64_t> bfs_tree;
+static GlobalAddress<int64_t> level;
+static GlobalAddress<int64_t> seen_edge;
+static int64_t max_bfsvtx;
+static int64_t nedge_traversed;
+
+void verify_edges(int64_t start, int64_t iters) {
+  int terr;
+  packed_edge buf[iters];
+  Incoherent<packed_edge>::RO cedge(edges+start, iters, buf);
+  
+  for (int64_t e=0; e<iters; e++) {
+    const int64_t i = cedge[e].v0;
+    const int64_t j = cedge[e].v1;
+    int64_t lvldiff;
+    
+    if (i < 0 || j < 0) continue;
+    if (i > max_bfsvtx && j <= max_bfsvtx) {
+      terr = -10;
+      LOG(ERROR) << "Error!";
+      exit(1);
+    }
+    if (j > max_bfsvtx && i <= max_bfsvtx) {
+      terr = -11;
+      LOG(ERROR) << "Error!";
+      exit(1);
+    }
+    if (i > max_bfsvtx) // both i & j are on the same side of max_bfsvtx
+      continue;
+    
+    // All neighbors must be in the tree.
+    int64_t ti = read(bfs_tree+i);
+    int64_t tj = read(bfs_tree+j);
+    
+    if (ti >= 0 && tj < 0) { terr = -12; LOG(ERROR) << "Error! ti=" << ti << ", tj=" << tj; exit(1); }
+    if (tj >= 0 && ti < 0) { terr = -13; LOG(ERROR) << "Error! ti=" << ti << ", tj=" << tj; exit(1); }
+    if (ti < 0) // both i & j have the same sign
+      continue;
+    
+    /* Both i and j are in the tree, count as a traversed edge.
+     
+     NOTE: This counts self-edges and repeated edges.  They're
+     part of the input data.
+     */
+    nedge_traversed++;
+
+    // Mark seen tree edges.
+    if (i != j) {
+      if (ti == j)
+        write(seen_edge+i, 1);
+      if (tj == i)
+        write(seen_edge+j, 1);
+    }
+    lvldiff = read(level+i) - read(level+j);
+    /* Check that the levels differ by no more than one. */
+    if (lvldiff > 1 || lvldiff < -1) {
+      terr = -14;
+      LOG(ERROR) << "Error, levels differ by more than one! (k = " << start+e << ", lvl[" << i << "]=" << read(level+i) << ", lvl[" << j << "]=" << read(level+j) << ")";
+      exit(1);
+    }
   }
-  lvldiff = read(level+i) - read(level+j);
-  /* Check that the levels differ by no more than one. */
-  if (lvldiff > 1 || lvldiff < -1) {
-    terr = -14;
-    LOG(ERROR) << "Error, levels differ by more than one! (k = " << k << ", lvl[" << i << "]=" << read(level+i) << ", lvl[" << j << "]=" << read(level+j) << ")";
-    exit(1);
-  }
+}
+
+LOOP_FUNCTOR(node_verify_func, nid,  ((GlobalAddress<int64_t>,_bfs_tree)) ((GlobalAddress<packed_edge>,_edges)) ((int64_t,nedge)) ((GlobalAddress<int64_t>,_seen_edge)) ((GlobalAddress<int64_t>,_level)) ((GlobalAddress<int64_t>,err)) ((int64_t,_max_bfsvtx)) ) {
+  bfs_tree = _bfs_tree;
+  edges = _edges;
+  seen_edge = _seen_edge;
+  level = _level;
+  max_bfsvtx = _max_bfsvtx;
+  nedge_traversed = 0;
+
+  global_async_parallel_for(verify_edges, 0, nedge);
+
+  nedge_traversed = SoftXMT_allreduce<int64_t,coll_add<int64_t>,0>(nedge_traversed);
 }
 
 LOOP_FUNCTOR(final_verify_func, k, ((GlobalAddress<int64_t>,bfs_tree)) ((GlobalAddress<int64_t>,seen_edge)) ((GlobalAddress<int64_t>,err)) ((int64_t,root))) {
@@ -205,15 +286,16 @@ int64_t verify_bfs_tree(GlobalAddress<int64_t> bfs_tree, int64_t max_bfsvtx, int
   VLOG(1) << "set_const time: " << t;
   
   t = timer();
-  verify_func fv;
-  fv.bfs_tree = bfs_tree;
-  fv.edges = tg->edges;
-  fv.seen_edge = seen_edge;
-  fv.level = level;
-  fv.nedge_traversed = make_global(&nedge_traversed);
-  fv.max_bfsvtx = max_bfsvtx;
-  fv.err = make_global(&err);
-  fork_join(&fv, 0, tg->nedge);
+  //verify_func fv;
+  //fv.bfs_tree = bfs_tree;
+  //fv.edges = tg->edges;
+  //fv.seen_edge = seen_edge;
+  //fv.level = level;
+  //fv.nedge_traversed = make_global(&nedge_traversed);
+  //fv.max_bfsvtx = max_bfsvtx;
+  //fv.err = make_global(&err);
+  //fork_join(&fv, 0, tg->nedge);
+  { node_verify_func f(bfs_tree, tg->edges, tg->nedge, seen_edge, level, make_global(&err), max_bfsvtx); fork_join_custom(&f); }
   t = timer() - t;
   VLOG(1) << "verify_func time: " << t;
   
