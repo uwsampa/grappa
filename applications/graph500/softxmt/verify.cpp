@@ -259,7 +259,6 @@ int64_t verify_bfs_tree(GlobalAddress<int64_t> bfs_tree, int64_t max_bfsvtx, int
   
   assert(read(bfs_tree+root) == root);
   
-  int64_t nedge_traversed = 0;
   int64_t nv = max_bfsvtx+1;
   
   if (!verify) {
