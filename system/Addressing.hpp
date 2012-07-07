@@ -265,12 +265,6 @@ public:
     return u;
   }
 
-  // template< typename U >
-  // operator U * ( ) {
-  //   U * u = reinterpret_cast< U * >( storage_ );
-  //   return u;
-  // }
-
 };
 
 
