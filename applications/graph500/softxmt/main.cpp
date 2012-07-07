@@ -400,7 +400,7 @@ int main(int argc, char** argv) {
 
   SoftXMT_run_user_main(&user_main, (int*)NULL);
 
-  LOG(INFO) << "waiting to finish";
+  DVLOG(1) << "waiting to finish";
   
   SoftXMT_finish(0);
   return 0;
