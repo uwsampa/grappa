@@ -36,6 +36,9 @@ These are the Grappa gdb macros.
   backtrace_coroutine <coroutine pointer>   backtrace for specific coroutine
   btc <coroutine pointer>                   backtrace for specific coroutine
 
+  backtrace_coroutine_full <coroutine pointer> backtrace for specific coroutine with locals
+  btcf <coroutine pointer>                  backtrace for specific coroutine with locals
+
   switch_to_coroutine <coroutine pointer>   change $rip and $rsp to coroutine's. 
                                             DO NOT CONTINUE UNTIL RESTORE
   grappa_save_state                         save real $rip and $rsp
@@ -326,13 +329,36 @@ Syntax:
    (gdb) backtrace_coroutine <coroutine pointer>
 end
 
+define backtrace_coroutine_full
+  switch_to_coroutine $arg0
+  backtrace full
+  grappa_restore_state
+end
+document backtrace_coroutine_full
+Print backtrace of Grappa coroutine with locals.
+Syntax:
+   (gdb) backtrace_coroutine_full <coroutine pointer>
+end
+
 define btc
   switch_to_coroutine $arg0
   backtrace
   grappa_restore_state
 end
-document btc
+document btcf
 Print backtrace of Grappa coroutine.
 Syntax:
-   (gdb) btc <coroutine pointer> [full] [+/-count]
+   (gdb) btcf <coroutine pointer>
 end
+
+define btcf
+  switch_to_coroutine $arg0
+  backtrace full
+  grappa_restore_state
+end
+document btcf
+Print backtrace of Grappa coroutine with locals.
+Syntax:
+   (gdb) btcf <coroutine pointer>
+end
+
