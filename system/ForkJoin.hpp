@@ -320,7 +320,8 @@ static void SoftXMT_memset(GlobalAddress<T> request_address, T value, size_t cou
   args.reply = make_global(&reply);
   
   for (size_t total_bytes = count*sizeof(T); offset < total_bytes; offset += request_bytes) {
-    request_bytes = (args.addr.block_max() - args.addr) * sizeof(T);
+    // compute number of bytes remaining in the block containing args.addr
+    request_bytes = (args.addr.first_byte().block_max() - args.addr.first_byte());
     if (request_bytes > total_bytes - offset) {
       request_bytes = total_bytes - offset;
     }

@@ -246,7 +246,7 @@ void user_main( int * args )
     zero_length.block_until_released();
 
     // make sure non-word-multiple cache objects don't fail
-    BOOST_MESSAGE( "brandonm bug tests" );
+    BOOST_MESSAGE( "brandonm 36-byte request bug tests" );
     Incoherent< BrandonM >::RW brandonm( make_global( &brandonm_arr, 1 ), 1 );
     brandonm.block_until_acquired();
     BOOST_CHECK_EQUAL( brandonm.address(), make_global( &brandonm_arr, 1 ) );

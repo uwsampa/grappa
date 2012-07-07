@@ -89,6 +89,8 @@ public:
     thread_ = NULL;
     num_messages_ = 0;
     response_count_ = 0;
+    expected_reply_payload_ = sizeof( T ) * *count_;
+    total_reply_payload_ = 0;
     if( count_ == 0 ) {
       DVLOG(5) << "Zero-length acquire";
       *pointer_ = NULL;
@@ -97,10 +99,10 @@ public:
     } else if( request_address_->is_2D() ) {
       num_messages_ = 1;
       if( request_address_->node() == SoftXMT_mynode() ) {
-	DVLOG(5) << "Short-circuiting to address " << request_address_->pointer();
-	*pointer_ = request_address_->pointer();
-	acquire_started_ = true;
-	acquired_ = true;
+        DVLOG(5) << "Short-circuiting to address " << request_address_->pointer();
+        *pointer_ = request_address_->pointer();
+        acquire_started_ = true;
+        acquired_ = true;
       }
     } else {
       DVLOG(5) << "Straddle: block_max is " << (*request_address_ + *count_).block_max() ;
@@ -112,16 +114,15 @@ public:
 
       DVLOG(5) << "Straddle: address is " << *request_address_ ;
       DVLOG(5) << ", address + count is " << *request_address_ + *count_;
-      ptrdiff_t byte_diff = ( (*request_address_ + *count_ - 1).block_max() - 
-      			      request_address_->block_min() );
-      ptrdiff_t block_diff = byte_diff / block_size;
+
+      ptrdiff_t byte_diff = ( (*request_address_ + *count_ - 1).last_byte().block_max() - 
+                               request_address_->first_byte().block_min() );
+
       DVLOG(5) << "Straddle: address block max is " << request_address_->block_max();
       DVLOG(5) << " address + count block max is " << (*request_address_ + *count_).block_max();
       DVLOG(5) << " address block min " << request_address_->block_min();
-      DVLOG(5) << "Straddle: diff is " << byte_diff << " div " << block_diff << " bs " << block_size;
-      num_messages_ = block_diff;
-      expected_reply_payload_ = sizeof( T ) * *count_;
-      total_reply_payload_ = 0;
+      DVLOG(5) << "Straddle: diff is " << byte_diff << " bs " << block_size;
+      num_messages_ = byte_diff / block_size;
     }
 
     if( num_messages_ > 1 ) DVLOG(5) << "****************************** MULTI BLOCK CACHE REQUEST ******************************";
@@ -143,7 +144,7 @@ public:
       acquire_started_ = true;
       RequestArgs args;
       args.request_address = *request_address_;
-      DVLOG(5) << "Computing request_bytes from block_max " << request_address_->block_max() << " and " << *request_address_;
+      DVLOG(5) << "Computing request_bytes from block_max " << request_address_->first_byte().block_max() << " and " << *request_address_;
       args.reply_address = make_global( this );
       args.offset = 0;  
 
@@ -151,7 +152,9 @@ public:
            args.offset < total_bytes; 
            args.offset += args.request_bytes) {
 
-        args.request_bytes = args.request_address.block_max() - args.request_address;
+        args.request_bytes = args.request_address.first_byte().block_max() - args.request_address.first_byte();
+
+
         if( args.request_bytes > total_bytes - args.offset ) {
           args.request_bytes = total_bytes - args.offset;
         }
@@ -201,7 +204,10 @@ public:
     ++response_count_;
     total_reply_payload_ += payload_size;
     if ( response_count_ == num_messages_ ) {
-      CHECK_EQ( total_reply_payload_, expected_reply_payload_ ) << "Got back the wrong amount of data";
+      DCHECK_EQ( total_reply_payload_, expected_reply_payload_ ) << "Got back the wrong amount of data "
+                                                                 << "(with base = " << *request_address_
+                                                                 << " and sizeof(T) = " << sizeof(T) 
+                                                                 << " and count = " << *count_;
       acquired_ = true;
       if( thread_ != NULL ) {
         SoftXMT_wake( thread_ );
