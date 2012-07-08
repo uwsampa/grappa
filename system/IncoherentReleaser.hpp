@@ -162,7 +162,8 @@ public:
                          &args, sizeof( args ),
                          ((char*)(*pointer_)) + offset, request_bytes);
 
-        args.request_address += request_bytes / sizeof(T);
+	// TODO: change type so we don't screw with pointer like this
+        args.request_address = GlobalAddress<T>::Raw( args.request_address.raw_bits() + request_bytes );
       }
       DVLOG(5) << "release started for " << args.request_address;
     }

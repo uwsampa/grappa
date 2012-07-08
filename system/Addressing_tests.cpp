@@ -296,6 +296,20 @@ BOOST_AUTO_TEST_CASE( test1 ) {
       ptrdiff_t brandonm_block_diff4 = brandonm_byte_diff4 / block_size;
       BOOST_CHECK_EQUAL( brandonm_block_diff4, 3 );
       BOOST_CHECK_EQUAL( brandonm_byte_diff4, 192 );
+
+      GlobalAddress< BrandonM > brandonm2 = GlobalAddress< BrandonM >::Raw( 0x2469c000007c );
+      GlobalAddress< BrandonM > brandonm2_max = brandonm2.last_byte().block_max();    
+      GlobalAddress< BrandonM > brandonm2_min = brandonm2.first_byte().block_min();
+      BOOST_MESSAGE( "brandonm2 = " << brandonm2 );
+      BOOST_MESSAGE( "brandonm2_max = " << brandonm2_max );
+      BOOST_MESSAGE( "brandonm2_min = " << brandonm2_min );
+
+      ptrdiff_t brandonm2_byte_diff = ( brandonm2.last_byte().block_max() - 
+					brandonm2.first_byte().block_min() );
+      ptrdiff_t brandonm2_block_diff = brandonm2_byte_diff / block_size;
+
+      BOOST_CHECK_EQUAL( brandonm2_byte_diff, 128 );
+      BOOST_CHECK_EQUAL( brandonm2_block_diff, 2 );
     }
   }
 
