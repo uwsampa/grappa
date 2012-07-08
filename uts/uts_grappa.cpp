@@ -16,6 +16,7 @@
 
 DEFINE_int64( num_places, 2, "Number of locality domains this is running on (e.g., machines, 'locales')" );
 DEFINE_int64( vertices_size, 1<<20, "Upper bound count of vertices" );
+DEFINE_bool( verify_tree, false, "Verify the generated tree" );
 
 // declare stealing parameters
 DECLARE_bool( steal );
@@ -77,6 +78,9 @@ bool opt_ff = true;
 // vertices being visited in the noJoin search
 uint64_t node_private_num_vertices = 0;
 Semaphore * node_private_vertex_sem;
+
+/// verification counts
+uint64_t local_verify_children_count = 0;
 
 // shared tree structures
 struct vertex_t {
@@ -543,7 +547,7 @@ void tj_create_children( uts::Node * parent ) {
   // make sure v and vvert.childIndex has been written out before recursing
   v.block_until_released();
   vvert.block_until_released();
-  VLOG(5) << "[done] released vertex " << parent->id;
+  VLOG(5) << "[done] released vertex " << vvert_storage << " id=" << parent->id;
 
   GlobalAddress<void*> packedParentId = make_global( reinterpret_cast<void**>( parent->id ) );
   async_parallel_for<void*, tj_create_vertex, joinerSpawn_hack<void*,tj_create_vertex> >((int64_t)0, numChildren, packedParentId);
@@ -615,6 +619,103 @@ LOOP_FUNCTOR(search_func, nid, ((int64_t, root)) ) {
 
 //////////////////////// end ff impl //////////////////////////
 
+///////////////////////////////////////////////////////////////
+// Tree generation verification
+///////////////////////////////////////////////////////////////
+
+void verifyChild(int64_t start, int64_t num) {
+  int64_t c_stor[num];
+  Incoherent<int64_t>::RO c( Child + start, num, c_stor );
+  for (int64_t i=0; i<num; i++) {
+    CHECK( c[i] > 0 ) << "Child[" << i << "] = " << c[i]; // > 0 because root is never child
+  }
+}
+
+void verifyVertex(int64_t start, int64_t num) {
+  vertex_t v_stor[num];
+  Incoherent<vertex_t>::RO v( Vertex + start, num, v_stor );
+  for (int64_t i=0; i<num; i++) {
+    CHECK( v[i].numChildren >= 0 ) << "Vertex[" << i << "].numChildren = " << v[i].numChildren; // >= 0 because must be initialized
+    CHECK( v[i].childIndex >= 0 ) << "Vertex[" << i << "].childIndex = " << v[i].childIndex; // >= 0 because must be initialized
+    
+    local_verify_children_count += v[i].numChildren;
+  }
+}
+
+LOOP_FUNCTOR(verify_f,nid, ((uint64_t, num_vertices_gen)) ) {
+  // verify Child[]
+  global_joiner.reset();
+  if (nid==0) {
+    async_parallel_for<verifyChild, joinerSpawn<verifyChild> >( 0, num_vertices_gen-1 ); // -1, root is not in it
+  }
+  global_joiner.wait();
+
+  // verify Vertex[]
+  global_joiner.reset();
+  if (nid==0) {
+    async_parallel_for<verifyVertex, joinerSpawn<verifyVertex> >( 0, num_vertices_gen ); // no -1, include root
+  }
+  global_joiner.wait();
+}
+    
+void verify_generation( uint64_t num_vert ) {
+  verify_f verf;
+  verf.num_vertices_gen = num_vert;
+  fork_join_custom(&verf);
+   
+  uint64_t total_numChildren = 0;
+  // count numChildren entries
+  for (Node n=0; n<SoftXMT_nodes(); n++) {
+    uint64_t nc = SoftXMT_delegate_read_word( make_global( &local_verify_children_count, n ) );
+    //VLOG(5) << "Node " << n << " counted " << nc << " children";
+    total_numChildren += nc;
+  }
+
+  CHECK( total_numChildren == num_vert-1 ) << "verify got " << total_numChildren <<", expected " << num_vert-1;
+}
+
+void safeinitChild( int64_t start, int64_t num ) {
+  int64_t c_stor[num];
+  VLOG(5) << "initializing Child[ " << start << " , " << start+(num-1) << " ]";
+  Incoherent<int64_t>::WO c( Child + start, num, c_stor );
+  for (int64_t i=0; i<num; i++) {
+    c[i] = -1; 
+  }
+}
+
+void safeinitVertex( int64_t start, int64_t num ) {
+  vertex_t v_stor[num];
+  VLOG(5) << "initializing Vertex[ " << start << " , " << start+(num-1) << " ]";
+  Incoherent<vertex_t>::WO v( Vertex + start, num, v_stor );
+  for (int64_t i=0; i<num; i++) {
+    v[i].numChildren = -2;
+    v[i].childIndex = -3;
+  }
+}
+
+LOOP_FUNCTION(safe_init_f,nid) {
+  // init Child[]
+  global_joiner.reset();
+  if (nid==0) {
+    async_parallel_for<safeinitChild, joinerSpawn<safeinitChild> >( 0, FLAGS_vertices_size ); // entire array
+  }
+  global_joiner.wait();
+ 
+  // init Vertex[] 
+  global_joiner.reset();
+  if (nid==0) {
+    async_parallel_for<safeinitVertex, joinerSpawn<safeinitVertex> >( 0, FLAGS_vertices_size ); // entire array
+  }
+  global_joiner.wait();
+}
+
+void safe_initialize_data() {
+  safe_init_f sf;
+  fork_join_custom(&sf);
+}
+
+
+/////////////////////// end verify ///////////////////////////
 
 
 ///
@@ -650,6 +751,7 @@ struct user_main_args {
     char** argv;
 };
 
+
 void user_main ( user_main_args * args ) {
   
     // allocate tree structures 
@@ -669,6 +771,12 @@ void user_main ( user_main_args * args ) {
     infu.Vertex_addr = Vertex;
     infu.Tree_Nodes_addr = Tree_Nodes;
     fork_join_custom(&infu);
+    
+
+    if ( FLAGS_verify_tree ) {
+      LOG(INFO) << "initializing arrays to support verification";
+      safe_initialize_data();
+    }
 
     // print tree/search parameters
     uts_printParams();
@@ -713,6 +821,7 @@ void user_main ( user_main_args * args ) {
       SoftXMT_free( Tree_Nodes );
     }
 
+
     //SoftXMT_dump_task_series();
 
     // show tree stats 
@@ -723,6 +832,20 @@ void user_main ( user_main_args * args ) {
     double gen_runtime = t2-t1;
 
     uts_showStats(SoftXMT_nodes(), FLAGS_chunk_size, gen_runtime, nNodes, nLeaves, maxTreeDepth);
+    
+    
+    // verify generated tree
+    if ( FLAGS_verify_tree ) {
+      LOG(INFO) << "starting tree verify";
+      t1 = uts_wctime();
+      verify_generation( r_gen.size );
+      t2 = uts_wctime();
+      double veri_runtime = t2-t1;
+
+      LOG(INFO) << "verify runtime: " << veri_runtime << " s";
+    }
+
+
 
 
     // TODO Payload =  SoftXMT_typed_malloc<int64_t>( FLAGS_vertices_size );
