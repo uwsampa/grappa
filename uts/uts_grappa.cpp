@@ -6,6 +6,9 @@
 #include <ForkJoin.hpp>
 #include <GlobalAllocator.hpp>
 #include <Addressing.hpp>
+#include <PerformanceTools.hpp>
+#include <GlobalTaskJoiner.hpp>
+#include <AsyncParallelFor.hpp>
 
 #include <iostream>
 
@@ -66,6 +69,10 @@ uint64_t global_child_index = 0; // only Node 0 matters
 GlobalAddress<uint64_t> global_id_ga;
 GlobalAddress<uint64_t> global_child_index_ga;
 
+uint64_t tj_num_gen_nodes = 0;
+uint64_t tj_num_searched_nodes = 0;
+bool opt_ff = true;
+
 // these are for doing a join on all
 // vertices being visited in the noJoin search
 uint64_t node_private_num_vertices = 0;
@@ -93,43 +100,32 @@ std::ostream& operator<< ( std::ostream& out, const uts::Node& n ) {
     return out;
 }
 
-GlobalAddress<vertex_t> Vertex;
-GlobalAddress<int64_t> Child;
+GlobalAddress<vertex_t> Vertex; // vertices
+GlobalAddress<int64_t> Child; // child ids (edgelists)
+GlobalAddress<uts::Node> Tree_Nodes; // temporary for building the tree
 GlobalAddress<int64_t> Payload;
 
-// Initialization on each node
-struct init_args {
-    GlobalAddress<Semaphore> sem;
-    GlobalAddress<vertex_t> Vertex;
-    GlobalAddress<int64_t> Child;
-};
 
-void init_node( const init_args * args ) {
+// Initialization on each node
+LOOP_FUNCTOR( init_node_f, nid, ((GlobalAddress<vertex_t>, Vertex_addr))
+                           ((GlobalAddress<int64_t>, Child_addr))
+                           ((GlobalAddress<uts::Node>, Tree_Nodes_addr)) ) {
     global_id_ga = make_global( &global_id, 0 );
     global_child_index_ga = make_global( &global_child_index, 0 );
 
-    Vertex = args->Vertex;
-    Child = args->Child;
+    Vertex = Vertex_addr;
+    Child = Child_addr;
+    Tree_Nodes = Tree_Nodes_addr;
     
     // initialize UTS with args
     LOG(INFO) << "Initializing UTS";
     uts_parseParams(global_argc, global_argv);
-
-    Semaphore::release( &args->sem, 1 );
 }
-DECLARE_CACHE_WRAPPED(init_node_Caching, &init_node, init_args);
 
-struct payinit_args {
-    GlobalAddress<Semaphore> sem;
-    GlobalAddress<int64_t> Payload;
-};
-
-void payinit( const payinit_args * args ) {
-    Payload = args->Payload;
-
-    Semaphore::release( &args->sem, 1 );
+// initialize payload info on each node
+LOOP_FUNCTOR( payinit_f, nid, ((GlobalAddress<int64_t>, Payload_addr)) ) {
+    Payload = Payload_addr;
 }
-DECLARE_CACHE_WRAPPED(payinit_Caching, &payinit, payinit_args);
 
 //////////////////////////////////
 
@@ -417,10 +413,9 @@ Result parTreeCreate( int64_t depth, uts::Node * parent ) {
     int64_t index = SoftXMT_delegate_fetch_and_add_word( global_child_index_ga, numChildren );
 
     /* Record the number and index of children: */
-    // TODO! Change to just a write (not R/W)
     VLOG(5) << "record vertex: " << (vertex_t){ numChildren, index } << "\n\t\tfor parent=" << *parent << "\n\t\tat " << make_global(parent);
     vertex_t childVertex_storage;
-    Incoherent<vertex_t>::RW childVertex( Vertex + id, 1, &childVertex_storage );
+    Incoherent<vertex_t>::WO childVertex( Vertex + id, 1, &childVertex_storage );
     (*childVertex).numChildren = numChildren;
     (*childVertex).childIndex  = index;
     childVertex.block_until_released();
@@ -432,7 +427,7 @@ Result parTreeCreate( int64_t depth, uts::Node * parent ) {
         // Write out child indexes as one block
         // Incoherent acquire is fine because this section of Child is reserved
         int64_t childIds_storage[numChildren];
-        Incoherent<int64_t>::RW childIds( Child + index, numChildren, childIds_storage );
+        Incoherent<int64_t>::WO childIds( Child + index, numChildren, childIds_storage );
 
         for (int i = 0; i < numChildren; i++) {
             VLOG(5) << "[in progress] writing out childIds [i=" << i << "]="<< childid0 + i << "\n\t\tfor parent=" << *parent;
@@ -455,6 +450,173 @@ Result parTreeCreate( int64_t depth, uts::Node * parent ) {
     return r;
 }
 
+
+///////////////////////////////////////////////////////////////
+/// GlobalTaskJoiner feed forward versions of create and search
+///////////////////////////////////////////////////////////////
+
+
+/// Create
+void tj_create_children( uts::Node * parent );
+
+void tj_create_vertex( int64_t start, int64_t num, GlobalAddress<void*> pp ) {
+
+  // acquiring these two parent items is the only thing shared by doing
+  // num > 1 iterations
+  int64_t unpacked_parent_id = reinterpret_cast<int64_t>(pp.pointer());
+  uts::Node parent_storage;
+  int64_t p_childid0_storage;
+  Incoherent<uts::Node>::RO parentc( Tree_Nodes + unpacked_parent_id, 1, &parent_storage);
+  Incoherent<int64_t>::RO p_childid0( global_pointer_to_member( Vertex+unpacked_parent_id, &vertex_t::childIndex), 1, &p_childid0_storage );
+
+  parentc.block_until_acquired();
+  int64_t childType = uts_childType(&parent_storage);// need to pass in normal pointer
+  int64_t height = (*parentc).height + 1;
+
+  for ( int64_t cn=0; cn<num; cn++ ) {
+    int64_t childnum = start+cn;
+    int64_t v_id = *p_childid0 + childnum;
+    VLOG(5) << "v_id = *p_child0(" << *p_childid0 << ") + childnum(" << childnum << ")";
+    uts::Node v_storage;
+    v_storage.type = childType;
+    v_storage.height = height;
+    v_storage.id = v_id;
+
+    for (int k=0; k<computeGranularity; k++) {
+        // un-const cast
+        rng_spawn((RNG_state*)(*parentc).state.state, v_storage.state.state, childnum); 
+    }
+
+    tj_create_children( &v_storage );
+  }
+}
+
+void tj_create_children( uts::Node * parent ) {
+  VLOG(5) << "creating children for id=" << parent->id;
+  Incoherent<uts::Node>::WO v( Tree_Nodes + parent->id, 1, parent );
+
+  int64_t numChildren = uts_numChildren( parent );
+  (*v).numChildren = numChildren;
+  v.start_release(); // done writing to v locally
+  
+  tj_num_gen_nodes+=parent->numChildren;
+
+  /* Assign fresh unique ids for the children: */
+  int64_t childid0 = SoftXMT_delegate_fetch_and_add_word( global_id_ga, numChildren );
+  VLOG_EVERY_N(2, 250000) << "new childids: [" << childid0 
+    << ", " << (childid0 + numChildren - 1) 
+    << "]";
+
+  /* Record ids and indices of the children: */ 
+  int64_t index = SoftXMT_delegate_fetch_and_add_word( global_child_index_ga, numChildren );
+
+  /* store parts of parent that will be read in tree search */
+  vertex_t vvert_storage;
+  Incoherent<vertex_t>::WO vvert( Vertex + parent->id, 1, &vvert_storage );
+  (*vvert).numChildren = numChildren;
+  (*vvert).childIndex = index;
+  vvert.start_release();  // done writing to vvert locally
+
+  /* write children indices */
+  if ( numChildren > 0 ) { 
+    // Write out as one block
+    // Incoherent is fine because this section of Child is reserved
+    int64_t childIds_storage[numChildren];
+    Incoherent<int64_t>::WO childIds( Child + index, numChildren, childIds_storage );
+
+    for (int i = 0; i < numChildren; i++) {
+      VLOG(5) << "[in progress] writing out childIds [i=" 
+        << i << "]="<< childid0 + i 
+        << "\n\t\tfor parent=" << *parent;
+      childIds[i] = childid0 + i;
+    }
+    VLOG(5) << "[done] writing out childIds [" << childid0 
+      << "," << childid0 + (numChildren-1) 
+      << "]\n\t\tfor parent=" << *parent;
+
+    // TODO: I actually just want the WO childIds to start_release() at the
+    // end of this scope, not block
+  } else {
+    VLOG(5) << "[done] no childIds to write\n\t\tfor parent=" << *parent;
+  }
+
+  // make sure v and vvert.childIndex has been written out before recursing
+  v.block_until_released();
+  vvert.block_until_released();
+  VLOG(5) << "[done] released vertex " << parent->id;
+
+  GlobalAddress<void*> packedParentId = make_global( reinterpret_cast<void**>( parent->id ) );
+  async_parallel_for<void*, tj_create_vertex, joinerSpawn_hack<void*,tj_create_vertex> >((int64_t)0, numChildren, packedParentId);
+}
+
+LOOP_FUNCTION(create_func,nid) {
+  global_joiner.reset();
+  if (nid==0) {
+    global_id = 0;
+    uts::Node root;
+    uts_initRoot( &root, type );
+    root.id = global_id++;
+    tj_num_gen_nodes = 1; // count the root
+    tj_create_children( &root );
+  }
+  global_joiner.wait();
+}
+
+/// Search
+void search_children( int64_t start, int64_t iters );
+
+void search_vertex( int64_t start, int64_t iters ) {
+  for ( int64_t id = start; id<start+iters; id++ ) {
+    tj_num_searched_nodes++;
+    int64_t numChildren;
+    int64_t childIndex;
+    
+    GlobalAddress<vertex_t> v_addr = Vertex + id;
+    { 
+        vertex_t v_storage;
+        Incoherent<vertex_t>::RO v( v_addr, 1, &v_storage );
+        /* (v) = Vertex[id] */
+
+        numChildren = (*v).numChildren;
+        childIndex = (*v).childIndex;
+    }
+
+    // process children
+    async_parallel_for<search_children, joinerSpawn<search_children> >( childIndex, numChildren );
+  }
+}
+
+void wrapped_search_vertex( int64_t start, int64_t iters, GlobalAddress<GlobalTaskJoiner> joiner ) {
+  search_vertex( start, iters );
+  global_joiner.remoteSignal( joiner );
+}
+
+void search_children( int64_t start, int64_t iters ) {
+  int64_t childid_storage[iters];
+  Incoherent<int64_t>::RO childids( Child + start, iters, childid_storage );
+
+  // spawning tasks serially since iters<thr
+  for ( int64_t i=0; i<iters; i++ ) {
+    global_joiner.registerTask();
+    SoftXMT_publicTask( &wrapped_search_vertex, childids[i], (int64_t)1, make_global( &global_joiner) );
+  }
+}
+
+LOOP_FUNCTOR(search_func, nid, ((int64_t, root)) ) {
+  global_joiner.reset();
+
+  // node0 starts search by visiting root
+  if ( nid==0 ) {
+    search_vertex( root, 1 );
+  }
+
+  global_joiner.wait();
+}
+
+//////////////////////// end ff impl //////////////////////////
+
+
+
 ///
 /// User main program
 ///
@@ -467,6 +629,22 @@ LOOP_FUNCTION(initialize_tss_func, nid) {
     VLOG(2) << "Node " << nid << " has " << node_private_num_vertices << " vertices. New Sem="<<(void*)node_private_vertex_sem;
 }
 
+LOOP_FUNCTION(start_prof,nid) {
+  SoftXMT_start_profiling();
+}
+
+LOOP_FUNCTION(stop_prof,nid) {
+  SoftXMT_stop_profiling();
+}
+void start_profiling() {
+  start_prof f;
+  fork_join_custom(&f);
+}
+void stop_profiling() {
+  stop_prof f;
+  fork_join_custom(&f);
+}
+
 struct user_main_args {
     int argc;
     char** argv;
@@ -477,113 +655,158 @@ void user_main ( user_main_args * args ) {
     // allocate tree structures 
     Vertex = SoftXMT_typed_malloc<vertex_t>( FLAGS_vertices_size); 
     Child =  SoftXMT_typed_malloc<int64_t>( FLAGS_vertices_size);
+    VLOG(2) << "Vertex = " << Vertex;
+    VLOG(2) << "Child = " << Child;
+
+    if ( opt_ff ) {
+      Tree_Nodes = SoftXMT_typed_malloc<uts::Node>( FLAGS_vertices_size );
+      VLOG(2) << "Tree_Nodes = " << Tree_Nodes;
+    }
 
     // initialization on each node
-    Semaphore init_sem( SoftXMT_nodes(), 0 );
-    init_args iargs = { make_global(&init_sem, 0),
-                        Vertex,
-                        Child };
-    for (Node nod=0; nod<SoftXMT_nodes(); nod++) {
-        SoftXMT_remote_privateTask( &init_node_Caching, make_global(&iargs), nod );
-    }
-    init_sem.acquire_all( CURRENT_THREAD );
-    
+    init_node_f infu;
+    infu.Child_addr = Child;
+    infu.Vertex_addr = Vertex;
+    infu.Tree_Nodes_addr = Tree_Nodes;
+    fork_join_custom(&infu);
+
     // print tree/search parameters
     uts_printParams();
 
     // initialize root of the tree
     uts::Node root;
     uts_initRoot(&root, type);
-    
+
     global_id = 1;
     root.id = 0;
 
     // run times
     double t1=0.0, t2=0.0;
-    
+
     SoftXMT_reset_stats_all_nodes();
-   
+
     // start tree generation (traditional UTS, plus saving the tree)
     LOG(INFO) << "starting tree generation";
+    Result r_gen;
+    start_profiling();
     t1 = uts_wctime();
-    Result r_gen = parTreeCreate(0, &root);
+    if ( opt_ff ) {
+      create_func cfu;
+      fork_join_custom(&cfu);
+      r_gen.maxdepth = 0; // don't care
+      r_gen.leaves = 0; // don't care
+      r_gen.size = -1; // will calculate with a reduce
+    } else {
+      r_gen = parTreeCreate(0, &root);
+    }
     t2 = uts_wctime();
-  
-    SoftXMT_dump_task_series();
-   
+    stop_profiling();
+
+    if ( opt_ff ) { 
+      // count nodes generated
+      r_gen.size = 0;
+      for (Node n=0; n<SoftXMT_nodes(); n++) {
+        r_gen.size += SoftXMT_delegate_read_word( make_global( &tj_num_gen_nodes, n ) );
+      }
+
+      // only needed for generation
+      SoftXMT_free( Tree_Nodes );
+    }
+
+    //SoftXMT_dump_task_series();
+
     // show tree stats 
     counter_t maxTreeDepth = r_gen.maxdepth;
     counter_t nNodes  = r_gen.size;
     counter_t nLeaves = r_gen.leaves;
-  
+
     double gen_runtime = t2-t1;
 
     uts_showStats(SoftXMT_nodes(), FLAGS_chunk_size, gen_runtime, nNodes, nLeaves, maxTreeDepth);
-   
-    
+
+
     // TODO Payload =  SoftXMT_typed_malloc<int64_t>( FLAGS_vertices_size );
     // payload initialization on each node
-    Semaphore pi_sem( SoftXMT_nodes(), 0 );
-    payinit_args piargs = { make_global(&pi_sem, 0), Payload };
-    for (Node nod=0; nod<SoftXMT_nodes(); nod++) {
-        SoftXMT_remote_privateTask( &payinit_Caching, make_global(&piargs), nod );
-    }
-    init_sem.acquire_all( CURRENT_THREAD );
-    
-    SoftXMT_reset_stats_all_nodes();
+    //payinit_f pfu;
+    //pfu.Payload_ = Payload;
+    //fork_join_custom(&pfu);
+
 
     LOG(INFO) << "starting tree search";
+    Result r_search;
+    start_profiling();
     t1 = uts_wctime();
-    Result r_search =  parTreeSearch(0, 0);
+    if ( opt_ff ) {
+      search_func sfu;
+      sfu.root = 0;
+      fork_join_custom(&sfu);
+      r_search.maxdepth = 0; // don't care
+      r_search.leaves = 0; // don't care
+      r_search.size = -1; // will calculate with reduce
+    } else {
+      r_search =  parTreeSearch(0, 0);
+    }
     t2 = uts_wctime();
-    
-    SoftXMT_dump_task_series();
-    
+    stop_profiling();
+
+    if ( opt_ff ) { 
+      // count nodes searched
+      r_search.size = 0;
+      for (Node n=0; n<SoftXMT_nodes(); n++) {
+        r_search.size += SoftXMT_delegate_read_word( make_global( &tj_num_searched_nodes, n ) );
+      }
+    }
+
+    //SoftXMT_dump_task_series();
+
     double search_runtime = t2-t1;
 
-  
-    // no-join tree search
-    // use one semaphore per node to count up vertices for termination
-    initialize_tss_func itss_f;
-    fork_join_custom( &itss_f );
     
-    SoftXMT_reset_stats_all_nodes();
+    if ( !opt_ff ) {
+      LOG(INFO) << "starting simple no-join tree search";
+      // no-join tree search
+      // use one semaphore per node to count up vertices for termination
+      initialize_tss_func itss_f;
+      fork_join_custom( &itss_f );
 
-    t1 = uts_wctime();
+      SoftXMT_reset_stats_all_nodes();
 
-    // start the tree search
-    noJoinParTreeSearch( 0 );
+      start_profiling();
+      t1 = uts_wctime();
 
-    // join on all Nodes' vertex counts
-    tree_search_semaphore_func tss_f;
-    fork_join_custom( &tss_f );
-    
-    t2 = uts_wctime();
+      // start the tree search
+      noJoinParTreeSearch( 0 );
 
-    SoftXMT_dump_task_series();
-    
+      // join on all Nodes' vertex counts
+      tree_search_semaphore_func tss_f;
+      fork_join_custom( &tss_f );
+
+      t2 = uts_wctime();
+      stop_profiling();
+
+      //SoftXMT_dump_task_series();
+    }
     double noJoin_runtime = t2-t1;
-   
 
     SoftXMT_free( Vertex );
     SoftXMT_free( Child );
     //TODO SoftXMT_free( Payload );
-    
-    
+
+
     LOG(INFO) << "generated size=" << r_gen.size << ", searched size=" << r_search.size;
-    
+
     LOG(INFO) << "{"
-              << "search_runtime: " << search_runtime << ","
-              << "noJoin_runtime: " << noJoin_runtime << ","
-              << "nNodes: " << nNodes
-              << "}";
+      << "search_runtime: " << search_runtime << ","
+      << "noJoin_runtime: " << noJoin_runtime << ","
+      << "nNodes: " << nNodes
+      << "}";
 }
 
    
 
 /// Main() entry
 int main (int argc, char** argv) {
-    SoftXMT_init( &argc, &argv, (1<<28) * (sizeof(int64_t) + sizeof(int64_t) + sizeof(vertex_t)) );
+    SoftXMT_init( &argc, &argv, (1<<27) * (sizeof(int64_t) + sizeof(uts::Node) + sizeof(vertex_t)) );
     SoftXMT_activate();
 
     // TODO: would be good to give user interface to get the args as pass to this Node; to avoid this
