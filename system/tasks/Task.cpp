@@ -17,7 +17,6 @@ TaskManager::TaskManager ( )
   , doSteal( false )
   , nextVictimIndex( 0 )
   , stealLock( true )
-  , sharedMayHaveWork ( true )
   , privateQ( )
   , publicQ( MAXQUEUEDEPTH ) 
   , stats( this )
@@ -53,10 +52,6 @@ bool TaskManager::getWork( Task * result ) {
             return true;
         }
 
-        if ( tryConsumeShared( result ) ) {
-            return true;
-        }
-
         if ( waitConsumeAny( result ) ) {
             return true;
         }
@@ -85,25 +80,6 @@ bool TaskManager::tryConsumeLocal( Task * result ) {
     }
 }
 
-bool TaskManager::tryConsumeShared( Task * result ) {
-    if ( doSteal ) {
-        if ( publicQ.acquire( chunkSize ) ) {
-            stats.record_successful_acquire();
-            CHECK( publicHasEle() ) << "successful acquire must produce local work";
-        
-            *result = publicQ.peek();
-            publicQ.pop( );
-            stats.record_public_task_dequeue();
-            return true;
-        } else {
-            stats.record_failed_acquire();
-        }
-    }
-     
-    sharedMayHaveWork = false;   
-    return false;
-}
-
 /// Only returns when there is work or when
 /// the system has no more work.
 bool TaskManager::waitConsumeAny( Task * result ) {
@@ -121,11 +97,14 @@ bool TaskManager::waitConsumeAny( Task * result ) {
             Node victimId;
 
             for ( int64_t tryCount=0; 
-                  tryCount < numLocalNodes && !goodSteal && !(sharedMayHaveWork || publicHasEle() || privateHasEle() || workDone);
+                  tryCount < numLocalNodes && !goodSteal && !(publicHasEle() || privateHasEle() || workDone);
                   tryCount++ ) {
 
                 Node v = neighbors[nextVictimIndex];
                 nextVictimIndex = (nextVictimIndex+1) % numLocalNodes;
+                
+                if ( v == SoftXMT_mynode() ) continue;
+                
                 goodSteal = publicQ.steal_locally(v, chunkSize);
                 
                 if (goodSteal) { stats.record_successful_steal(); }
@@ -150,7 +129,6 @@ bool TaskManager::waitConsumeAny( Task * result ) {
 
             VLOG(5) << "left stealing loop with goodSteal=" << goodSteal
                     << " last victim=" << victimId
-                    << " sharedMayHaveWork=" << sharedMayHaveWork
                     << " publicHasEle()=" << publicHasEle()
                     << " privateHasEle()=" << privateHasEle();
             stealLock = true; // release steal lock
@@ -214,13 +192,11 @@ void TaskManager::TaskStatistics::dump() {
 
 void TaskManager::TaskStatistics::sample() {
   GRAPPA_EVENT(privateQ_size_ev,       "privateQ size sample",  SAMPLE_RATE, task_manager, tm->privateQ.size());
-  GRAPPA_EVENT(publicQ_local_size_ev,  "publicQ.local sample",  SAMPLE_RATE, task_manager, tm->publicQ.localDepth());
-  GRAPPA_EVENT(publicQ_shared_size_ev, "publicQ.shared sample", SAMPLE_RATE, task_manager, tm->publicQ.sharedDepth());
+  GRAPPA_EVENT(publicQ_size_ev,  "publicQ size sample",  SAMPLE_RATE, task_manager, tm->publicQ.depth());
 
 #ifdef VTRACE
   //VT_COUNT_UNSIGNED_VAL( privateQ_size_vt_ev, tm->privateQ.size() );
-  //VT_COUNT_UNSIGNED_VAL( publicQ_local_size_vt_ev, tm->publicQ.localDepth() );
-  //VT_COUNT_UNSIGNED_VAL( publicQ_shared_size_vt_ev, tm->publicQ.sharedDepth() );
+  //VT_COUNT_UNSIGNED_VAL( publicQ_size_vt_ev, tm->publicQ.depth() );
 #endif
 //    sample_calls++;
 //    /* todo: avgs */
@@ -228,12 +204,10 @@ void TaskManager::TaskStatistics::sample() {
 //#ifdef GRAPPA_TRACE
 //    if ((sample_calls % 1) == 0) {
 //      TAU_REGISTER_EVENT(privateQ_size_ev, "privateQ size sample");
-//      TAU_REGISTER_EVENT(publicQ_local_size_ev, "publicQ.local sample");
-//      TAU_REGISTER_EVENT(publicQ_shared_size_ev, "publicQ.shared sample");
+//      TAU_REGISTER_EVENT(publicQ_size_ev, "publicQ size sample");
 //      
 //      TAU_EVENT(privateQ_size_ev, tm->privateQ.size());
-//      TAU_EVENT(publicQ_local_size_ev, tm->publicQ.localDepth());
-//      TAU_EVENT(publicQ_shared_size_ev, tm->publicQ.sharedDepth());
+//      TAU_EVENT(publicQ_size_ev, tm->publicQ size);
 //    }
 //#endif
 }
@@ -241,8 +215,7 @@ void TaskManager::TaskStatistics::sample() {
 void TaskManager::TaskStatistics::profiling_sample() {
 #ifdef VTRACE_SAMPLED
   VT_COUNT_UNSIGNED_VAL( privateQ_size_vt_ev, tm->privateQ.size() );
-  VT_COUNT_UNSIGNED_VAL( publicQ_local_size_vt_ev, tm->publicQ.localDepth() );
-  VT_COUNT_UNSIGNED_VAL( publicQ_shared_size_vt_ev, tm->publicQ.sharedDepth() );
+  VT_COUNT_UNSIGNED_VAL( publicQ_size_vt_ev, tm->publicQ.depth() );
   VT_COUNT_UNSIGNED_VAL( session_steal_successes_vt_ev, session_steal_successes_);
   VT_COUNT_UNSIGNED_VAL( session_steal_fails_vt_ev, session_steal_fails_);
   VT_COUNT_UNSIGNED_VAL( single_steal_successes_vt_ev, single_steal_successes_);
