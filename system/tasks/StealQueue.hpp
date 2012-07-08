@@ -13,6 +13,8 @@
 #include <vt_user.h>
 #endif
 
+#define MIN_INT(a, b) ( (a) < (b) ) ? (a) : (b);
+
 #define SS_NSTATES 1
 
 struct workStealRequest_args;
@@ -286,12 +288,11 @@ void StealQueue<T>::workStealRequest_am(workStealRequest_args * args, size_t siz
     int victimBottom = victimStack->bottom;
     
     const int victimHalfWorkAvail = (victimTop - victimBottom) / 2;
-    int stealAmt;
-    bool ok = victimHalfWorkAvail > 0;
+    const int stealAmt = MIN_INT( victimHalfWorkAvail, k );
+    bool ok = stealAmt > 0;
   
     VLOG(4) << "Victim of thief=" << args->from << " victimHalfWorkAvail=" << victimHalfWorkAvail;
     if (ok) {
-      stealAmt = victimHalfWorkAvail;
 
       /* reserve a chunk */
       victimStack->bottom =  victimBottom + stealAmt;
