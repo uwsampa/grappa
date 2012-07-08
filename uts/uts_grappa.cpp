@@ -469,18 +469,20 @@ void tj_create_vertex( int64_t start, int64_t num, GlobalAddress<void*> pp ) {
   // num > 1 iterations
   int64_t unpacked_parent_id = reinterpret_cast<int64_t>(pp.pointer());
   uts::Node parent_storage;
-  int64_t p_childid0_storage;
   Incoherent<uts::Node>::RO parentc( Tree_Nodes + unpacked_parent_id, 1, &parent_storage);
-  Incoherent<int64_t>::RO p_childid0( global_pointer_to_member( Vertex+unpacked_parent_id, &vertex_t::childIndex), 1, &p_childid0_storage );
-
+ 
+  // TODO: this is a lot of extra reads just to obtain childid0; easier to have args but ff
+  int64_t p_childIndex = SoftXMT_delegate_read_word( global_pointer_to_member( Vertex+unpacked_parent_id, &vertex_t::childIndex) );
+  int64_t p_childid0 = SoftXMT_delegate_read_word( Child + p_childIndex );
+  
   parentc.block_until_acquired();
   int64_t childType = uts_childType(&parent_storage);// need to pass in normal pointer
   int64_t height = (*parentc).height + 1;
 
   for ( int64_t cn=0; cn<num; cn++ ) {
     int64_t childnum = start+cn;
-    int64_t v_id = *p_childid0 + childnum;
-    VLOG(5) << "v_id = *p_child0(" << *p_childid0 << ") + childnum(" << childnum << ")";
+    int64_t v_id = p_childid0 + childnum;
+    VLOG(5) << "v_id = p_child0(" << p_childid0 << ") + childnum(" << childnum << ")";
     uts::Node v_storage;
     v_storage.type = childType;
     v_storage.height = height;
@@ -507,7 +509,7 @@ void tj_create_children( uts::Node * parent ) {
 
   /* Assign fresh unique ids for the children: */
   int64_t childid0 = SoftXMT_delegate_fetch_and_add_word( global_id_ga, numChildren );
-  VLOG_EVERY_N(2, 250000) << "new childids: [" << childid0 
+  VLOG_EVERY_N(2, 50000) << "new childids: [" << childid0 
     << ", " << (childid0 + numChildren - 1) 
     << "]";
 
