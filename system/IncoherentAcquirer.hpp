@@ -165,7 +165,8 @@ public:
 
         SoftXMT_call_on( args.request_address.node(), &incoherent_acquire_request_am<T>, &args );
 
-        args.request_address += args.request_bytes / sizeof(T);
+	// TODO: change type so we don't screw with pointer like this
+        args.request_address = GlobalAddress<T>::Raw( args.request_address.raw_bits() + args.request_bytes );
       }
       DVLOG(5) << "acquire started for " << args.request_address;
     }
