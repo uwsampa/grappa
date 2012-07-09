@@ -1,7 +1,7 @@
 #!/usr/bin/env ruby
 require "experiments"
 
-db = "#{ENV['HOME']}/exp/softxmt.db"
+db = "#{ENV['HOME']}/exp/grappa.db"
 table = :graph500
 
 # select between running on XMT or SoftXMT by if it's on cougar
