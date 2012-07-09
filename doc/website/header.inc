@@ -20,7 +20,7 @@
       }
 
       .hero-img {
-	background-image: url("images/header.jpg");
+	background-image: url("images/hairball-header-cropped.jpg");
 	background-position:top right;
 	background-repeat:no-repeat;
 	z-index:1;
