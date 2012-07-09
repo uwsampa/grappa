@@ -179,15 +179,15 @@ SRUN_EXPORT_ENV_VARIABLES=--task-prolog=$(SRUN_ENVVAR_TEMP) --task-epilog=$(SRUN
 NNODE?=$(NPROC)
 PPN?=1
 
-SRUN_HOST=--partition softxmt
+SRUN_HOST=--partition grappa
 SRUN_NPROC=--nodes=$(NNODE) --ntasks-per-node=$(PPN)
 
 SRUN_MPIRUN=srun --resv-ports --cpu_bind=verbose,rank --exclusive --label --kill-on-bad-exit $(SRUN_FLAGS)
 
 SRUN_CLEAN_FILES= .srunrc.* 
 
-SRUN_PARTITION=softxmt
-SRUN_BUILD_PARTITION=softxmt
+SRUN_PARTITION=grappa
+SRUN_BUILD_PARTITION=sampa
 SRUN_STUPID_NFS_DELAY=0.5s
 SRUN_BUILD_CMD=srun -p $(SRUN_BUILD_PARTITION) --share
 SRUN_CC=sleep $(SRUN_STUPID_NFS_DELAY) && $(SRUN_BUILD_CMD) $(CC)
