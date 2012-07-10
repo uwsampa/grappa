@@ -1,0 +1,6 @@
+\section{Motivation} \label{sec:motivation}
+
+Grappa is built on many existing widely available hardware and software packages and designed for the typical high performance computing (HPC) cluster.  Hardware nodes consist of rack mount servers that each have a multicore processor and multiple gigabytes of memory.  These servers communicate with each other through both switched 10G ethernet and switched Infiniband.  Individual nodes boot Linux, and except for the high performance network that ties them together are otherwise indistinguishable from an individual server operating in isolation.  Freely available MPI~\cite{mpi} and GASnet~\cite{gasnet} software packages are installed on the system, as well as usermode device driver support for the Infiniband network.
+
+\noindent\textbf{Why do graph applications perform poorly on clusters?}  
+
