@@ -17,6 +17,11 @@
 #endif
 #endif
 
+#if defined(__MTA__)
+#include <sys/types.h>
+#include <sys/mman.h>
+#endif
+
 // includes XMT version of fread & fwrite which flip endianness
 #include "../graph500/compatio.h"
 
