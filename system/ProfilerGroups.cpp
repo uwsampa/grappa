@@ -1,6 +1,9 @@
 #include "ProfilerGroups.hpp"
 #include <glog/logging.h>
+
+#ifdef GRAPPA_TRACE
 #include <TAU.h>
+#endif
 
 const int num_profile_groups = 8;
 

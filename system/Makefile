@@ -292,12 +292,11 @@ endif
 # set flags to use Tau API
 #
 
-# always include headers, but only use wrapper and libaries if enabled
+ifdef TAU_API
 TAUDIR=/sampa/share/tau-perf/tau
 include $(TAUDIR)/include/Makefile
 CFLAGS+= $(TAU_INCLUDE) 
 
-ifdef TAU_API
 CXX= $(TAU_CXX) 
 CC= $(TAU_CC)
 LD= $(TAU_MPICC)

@@ -8,7 +8,9 @@
 #include "Future.hpp"
 #include "ForkJoin.hpp"
 
+#ifdef GRAPPA_TRACE
 #include <TAU.h>
+#endif
 
 #include <sys/time.h>
 double wctime() {
@@ -133,10 +135,14 @@ void futures_reset_stats_all_nodes() {
 }
 
 LOOP_FUNCTION(tau_disable_func,nid) {
+#ifdef GRAPPA_TRACE
   TAU_DISABLE_INSTRUMENTATION();
+#endif
 }
 LOOP_FUNCTION(tau_enable_func,nid) {
+#ifdef GRAPPA_TRACE
   TAU_ENABLE_INSTRUMENTATION();
+#endif
 }
 void tau_enable_instrumentation_all() {
     tau_enable_func f;
@@ -152,7 +158,9 @@ LOOP_FUNCTION(tau_db_dump_func,nid) {
   dump_all_task_profiles();
 }
 LOOP_FUNCTION(tau_db_purge_func,nid) {
+#ifdef GRAPPA_TRACE
   TAU_DB_PURGE();
+#endif
 }
 void tau_db_dump_all() {
     tau_db_dump_func f;

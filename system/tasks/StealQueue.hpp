@@ -15,6 +15,8 @@
 
 #define MIN_INT(a, b) ( (a) < (b) ) ? (a) : (b);
 
+GRAPPA_DECLARE_EVENT_GROUP(scheduler);
+
 #define SS_NSTATES 1
 
 struct workStealRequest_args;
@@ -222,7 +224,7 @@ static Thread * steal_waiter = NULL;
 template <typename T>
 void StealQueue<T>::steal_reply( uint64_t amt, uint64_t total, T * stolen_work, size_t stolen_size_bytes ) {
     if (amt > 0) {
-      GRAPPA_EVENT(steal_packet_ev, "Steal packet", 1, GRAPPA_SCHEDULER_GROUP, amt);
+      GRAPPA_EVENT(steal_packet_ev, "Steal packet", 1, scheduler, amt);
 
 #ifdef VTRACE
       //VT_COUNT_UNSIGNED_VAL( thiefStack->steal_success_ev_vt, k );
@@ -244,7 +246,7 @@ void StealQueue<T>::steal_reply( uint64_t amt, uint64_t total, T * stolen_work, 
       /// The steal requestor stays asleep until all received, but other threads can take advantage
       /// of the tasks that have been copied in
       if ( received_tasks == total ) { 
-        GRAPPA_EVENT(steal_success_ev, "Steal success", 1, GRAPPA_SCHEDULER_GROUP, total);
+        GRAPPA_EVENT(steal_success_ev, "Steal success", 1, scheduler, total);
         VLOG(5) << "Last packet; will wake steal_waiter=" << steal_waiter;
         local_steal_amount = total;
         if ( steal_waiter != NULL ) {

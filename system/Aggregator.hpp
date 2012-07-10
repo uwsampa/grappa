@@ -33,8 +33,6 @@
 #include "PerformanceTools.hpp"
 
 
-#include <TAU.h>
-
 #ifdef VTRACE
 #include <vt_user.h>
 #endif
@@ -685,8 +683,10 @@ inline void aggregate( Node destination, AggregatorAMHandler fn_p,
   if (FLAGS_record_grappa_events) {
     // TODO: good candidate for TAU_CONTEXT_EVENT
       int fn_p_tag = aggregator_trace_tag( fn_p );
+#ifdef GRAPPA_TRACE
       TAU_TRACE_SENDMSG(fn_p_tag, destination, args_size + payload_size );
       // TODO: maybe add named communicators for separate function calls?
+#endif
 #ifdef VTRACE_FULL
       VT_SEND( vt_agg_commid_, tag_, total_call_size );
 #endif
