@@ -96,6 +96,7 @@ static bool do_components = false,
 #define NBUF (1L<<12)
 
 static void read_endVertex(int64_t * endVertex, int64_t nadj, FILE * fin, int64_t * xoff, int64_t * edgeStart, int64_t nv) {
+#ifdef __MTA__
   int64_t * buf = (int64_t*)xmmap(NULL, sizeof(int64_t)*nadj, PROT_READ | PROT_WRITE, MAP_PRIVATE | MAP_ANON, 0,0);
   int64_t pos = 0;
   fread(buf, sizeof(int64_t), nadj, fin);
@@ -110,6 +111,25 @@ static void read_endVertex(int64_t * endVertex, int64_t nadj, FILE * fin, int64_
   }
 
   munmap((caddr_t)buf, sizeof(int64_t)*nadj);
+#else
+  int64_t * buf = (int64_t*)xmalloc(NBUF*sizeof(int64_t));
+  int64_t pos = 0;
+  printf("endVertex: [ ");
+  for (int64_t i=0; i<nadj; i+=NBUF) {
+    int64_t n = min(nadj-i, NBUF);
+    fread(buf, sizeof(int64_t), n, fin);
+    for (int64_t j=0; j<n; j++) {
+      if (buf[j] != -1) {
+        endVertex[pos] = buf[j];
+        printf("%ld ", endVertex[pos]);
+        pos++;
+      }
+    }
+  }
+  printf("]\n");
+  printf("pos = %ld\n", pos); fflush(stdout);
+  free(buf);
+#endif
 }
 
 bool checkpoint_in(graphedges * ge, graph * g) {
@@ -170,10 +190,10 @@ bool checkpoint_in(graphedges * ge, graph * g) {
   // xadj/endVertex
   // eat first 2 because we actually stored 'xadjstore' which has an extra 2 elements
   tt = timer();
-  fread(buf, sizeof(int64_t), 2, fin);
+  fread(buf, sizeof(int64_t), 2, fin); nadj -= 2;
   read_endVertex(g->endVertex, nadj, fin, xoff, g->edgeStart, nv);
   printf("endVertex read time: %g\n", timer()-tt);
-  //int64_t pos = 0; nadj -= 2;
+  //int64_t pos = 0; 
   //for (int64_t v=0; v<nv; v++) {
   //  int64_t d = xoff[2*v+1]-xoff[2*v];
   //  fread(g->endVertex+g->edgeStart[v], sizeof(int64_t), d, fin); pos += d;
