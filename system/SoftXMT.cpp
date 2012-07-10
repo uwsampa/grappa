@@ -130,7 +130,9 @@ void SoftXMT_init( int * argc_p, char ** argv_p[], size_t global_memory_size_byt
 
   // process command line args for Tau
   //TAU_INIT( argc_p, argv_p );
+#ifdef GRAPPA_TRACE
   TAU_PROFILE_SET_NODE(SoftXMT_mynode());
+#endif
 
   //TODO: options for local stealing
   Node * neighbors = new Node[SoftXMT_nodes()];

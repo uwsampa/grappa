@@ -1,7 +1,10 @@
 #ifndef PERFORMANCE_TOOLS_HPP
 #define PERFORMANCE_TOOLS_HPP
 
+#ifdef GRAPPA_TRACE
 #include <TAU.h>
+#endif
+
 #include "CurrentThread.hpp"
 #include <gflags/gflags.h>
 #include <glog/logging.h>

@@ -10,7 +10,9 @@
 #include <boost/typeof/typeof.hpp>
 #include <boost/static_assert.hpp>
 
+#ifdef GRAPPA_TRACE
 #include <TAU.h>
+#endif
 
 #ifdef VTRACE
 #include <vt_user.h>
@@ -88,8 +90,10 @@ template < typename T >
 int SoftXMT_run_user_main( void (*fp)(T), T args )
 {
   STATIC_ASSERT_SIZE_8( T );
-    
+  
+#ifdef GRAPPA_TRACE  
   TAU_PROFILE("run_user_main()", "(user code entry)", TAU_USER);
+#endif
 #ifdef VTRACE
   VT_TRACER("run_user_main()");
 #endif

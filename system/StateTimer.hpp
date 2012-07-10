@@ -1,11 +1,12 @@
 #ifndef STATE_TIMER_HPP
 #define STATE_TIMER_HPP
 
+#ifdef GRAPPA_TRACE
 #include <TAU.h>
+#else
 // need to define these when tau is disabled
 // because for some reason they are not even blank defined,
 // unlike other Tau api calls
-#ifndef GRAPPA_TRACE
     #define TAU_CREATE_TASK( a )
     #define TAU_PROFILER_START_TASK( a, b )
     #define TAU_PROFILER_STOP_TASK( a, b )

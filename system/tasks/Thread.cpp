@@ -46,13 +46,13 @@ static void tramp(struct coro * me, void * arg) {
   
   // create new Tau task, and top level timer for the task
   int new_taskid;
-  TAU_CREATE_TASK(new_taskid);
 #ifdef GRAPPA_TRACE
+  TAU_CREATE_TASK(new_taskid);
   my_thr->tau_taskid = new_taskid;
   thread_last_tau_taskid = new_taskid;
-#endif
   GRAPPA_PROFILE_CREATE( mainprof, "start_thread", "()", TAU_DEFAULT );
   GRAPPA_PROFILE_THREAD_START( mainprof, my_thr );
+#endif
 
   // call thread target function
   f(my_thr, f_arg);
