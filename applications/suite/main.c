@@ -95,6 +95,23 @@ static bool do_components = false,
 
 #define NBUF (1L<<12)
 
+static void read_endVertex(int64_t * endVertex, int64_t nadj, FILE * fin, int64_t * xoff, int64_t * edgeStart, int64_t nv) {
+  int64_t * buf = (int64_t*)xmmap(NULL, sizeof(int64_t)*nadj, PROT_READ | PROT_WRITE, MAP_PRIVATE | MAP_ANON, 0,0);
+  int64_t pos = 0;
+  fread(buf, sizeof(int64_t), nadj, fin);
+  
+  MTA("mta assert nodep")
+  for (int64_t i=0; i<nv; i++) {
+    int64_t d = xoff[2*i+1] - xoff[2*i];
+    MTA("mta assert nodep")
+    for (int64_t j=0; j<d; j++) {
+      endVertex[edgeStart[i]+j] = buf[xoff[2*i]+j];
+    }
+  }
+
+  munmap((caddr_t)buf, sizeof(int64_t)*nadj);
+}
+
 bool checkpoint_in(graphedges * ge, graph * g) {
   int64_t buf[NBUF];
 
@@ -116,65 +133,79 @@ bool checkpoint_in(graphedges * ge, graph * g) {
   fread(&nbfs,  sizeof(nbfs),  1, fin);
   fprintf(stderr, "nedge=%ld, nv=%ld, nadj=%ld, nbfs=%ld\n", nedge, nv, nadj, nbfs);
 
+  double tt = timer();
   alloc_edgelist(ge, nedge);
   for (size_t i=0; i<nedge; i+=NBUF/2) {
     int64_t n = min(NBUF/2, nedge-i);
     fread(buf, sizeof(int64_t), 2*n, fin);
-    for (size_t j=0; j<n; j++) {
-      ge->startVertex[i+j] = buf[2*j];
-      ge->endVertex[i+j] = buf[2*j+1];
-    }
+    //for (size_t j=0; j<n; j++) {
+    //  ge->startVertex[i+j] = buf[2*j];
+    //  ge->endVertex[i+j] = buf[2*j+1];
+    //}
   }
-  
+  printf("edgelist read time: %g\n", timer()-tt);
+
+  tt = timer();
   int64_t * xoff = xmalloc((2*nv+2)*sizeof(int64_t));
   fread(xoff, sizeof(int64_t), 2*nv+2, fin);
-  
+  printf("xoff read time: %g\n", timer()-tt);
+ 
+  tt = timer();
   int64_t actual_nadj = 0;
   for (size_t i=0; i<nv; i++) { actual_nadj += xoff[2*i+1] - xoff[2*i]; }
+  printf("actual_nadj compute time: %g\n", timer()-tt);
 
   alloc_graph(g, nv, actual_nadj);
 
   // xoff/edgeStart
+  tt = timer();
   int64_t deg = 0;
   for (size_t i=0; i<nv; i++) {
     g->edgeStart[i] = deg;
     deg += xoff[2*i+1] - xoff[2*i];
   }
   g->edgeStart[nv] = deg;
+  printf("edgeStart compute time: %g\n", timer()-tt);
 
   // xadj/endVertex
   // eat first 2 because we actually stored 'xadjstore' which has an extra 2 elements
+  tt = timer();
   fread(buf, sizeof(int64_t), 2, fin);
-
-  int64_t pos = 0; nadj -= 2;
-  for (int64_t v=0; v<nv; v++) {
-    int64_t d = xoff[2*v+1]-xoff[2*v];
-    fread(g->endVertex+g->edgeStart[v], sizeof(int64_t), d, fin); pos += d;
-    // eat up to next one
-    d = (v+1==nv) ? nadj-pos : xoff[2*(v+1)]-pos;
-    for (int64_t j=0; j < d; j+=NBUF) {
-      int64_t n = min(NBUF, d-j);
-      fread(buf, sizeof(int64_t), n, fin); pos += n;
-    }
-  }
+  read_endVertex(g->endVertex, nadj, fin, xoff, g->edgeStart, nv);
+  printf("endVertex read time: %g\n", timer()-tt);
+  //int64_t pos = 0; nadj -= 2;
+  //for (int64_t v=0; v<nv; v++) {
+  //  int64_t d = xoff[2*v+1]-xoff[2*v];
+  //  fread(g->endVertex+g->edgeStart[v], sizeof(int64_t), d, fin); pos += d;
+  //  // eat up to next one
+  //  d = (v+1==nv) ? nadj-pos : xoff[2*(v+1)]-pos;
+  //  for (int64_t j=0; j < d; j+=NBUF) {
+  //    int64_t n = min(NBUF, d-j);
+  //    fread(buf, sizeof(int64_t), n, fin); pos += n;
+  //  }
+  //}
   free(xoff);
 
   // startVertex
+  tt = timer();
   for (int64_t v=0; v<nv; v++) {
     for (int64_t j=g->edgeStart[v]; j<g->edgeStart[v+1]; j++) {
       g->startVertex[j] = v;
     }
   }
+  printf("startVertex time: %g\n", timer()-tt);
 
   // bfs roots (don't need 'em)
   CHECK(NBUF > nbfs) { fprintf(stderr, "too many bfs\n"); }
   fread(buf, sizeof(int64_t), nbfs, fin);
 
   // int weights
+  tt = timer();
   int64_t nw;
   fread(&nw, sizeof(int64_t), 1, fin);
   CHECK(nw == actual_nadj) { fprintf(stderr, "nw = %ld, actual_nadj = %ld\n", nw, actual_nadj); }
   fread(g->intWeight, sizeof(int64_t), nw, fin);
+  printf("intWeight read time: %g\n", timer()-tt);
   /*for (int64_t i=0; i<nw; i++) { fprintf(stdout, "%ld ", g->intWeight[i]); } fprintf(stdout, "\n"); fflush(stdout);*/
 
   fprintf(stderr, "checkpoint_read_time: %g\n", timer()-t);
@@ -306,7 +337,7 @@ int main(int argc, char* argv[]) {
   //###############################################
   // Kernel: Betweenness Centrality
   if (do_centrality) {
-    printf("Kernel - Betweenness Centrality beginning execution...\n"); fflush(stdout);
+    printf("Kernel - Betweenness Centrality (kcent = %ld) beginning execution...\n", kcent); fflush(stdout);
     t = timer();
     
     double *bc = xmalloc(numVertices*sizeof(double));

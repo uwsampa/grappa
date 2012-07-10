@@ -72,6 +72,22 @@ static void read_array(GlobalAddress<T> base_addr, size_t nelem, FILE* fin, T * 
   if (should_free) delete [] buf;
 }
 
+static void read_endVertex(GlobalAddress<int64_t> endVertex, int64_t nadj, FILE * fin, int64_t * buf, size_t bufsize) {
+  int64_t pos = 0;
+  for (int64_t i=0; i<nadj; i+=bufsize) {
+    int64_t n = min(nadj-i, bufsize);
+    fread(buf, sizeof(int64_t), n, fin);
+    int64_t p = 0;
+    for (int64_t j=0; j<n; j++) {
+      if (buf[j] != -1) {
+        buf[p] = buf[i];
+        p++;
+      }
+    }
+    Incoherent<int64_t>::WO cout(endVertex+pos, p, buf);
+    pos += p;
+  }
+}
 //static void graph_in(graph * g, FILE * fin) {
 //  fread(&g->numVertices, sizeof(graphint), 1, fin);
 //  fread(&g->numEdges, sizeof(graphint), 1, fin);
@@ -227,23 +243,25 @@ bool checkpoint_in(graphedges * ge, graph * g) {
 
   tt = timer();
   int64_t pos = 0; nadj -= 2;
-  for (int64_t v=0; v<nv; v+=NBUF) {
-    int64_t nstarts = min(nv-v, NBUF);
-    Incoherent<int64_t>::RO cxoff(xoff+2*v, 2*nstarts+((v+1==nv) ? 0 : 1),rbuf);
+  read_endVertex(g->endVertex, nadj, fin, wbuf, NBUF);
+
+  //for (int64_t v=0; v<nv; v+=NBUF) {
+    //int64_t nstarts = min(nv-v, NBUF);
+    //Incoherent<int64_t>::RO cxoff(xoff+2*v, 2*nstarts+((v+1==nv) ? 0 : 1),rbuf);
     
-    for (int64_t i=0; i<nstarts; i++) {
-      if ((v+i) % 1024 == 0) VLOG(1) << "endVertex progress (v " << v+i << "/" << nv << ")";
-      int64_t d = cxoff[2*i+1]-cxoff[2*i];
-      read_array(g->endVertex+cxoff[i], d, fin, wbuf, NBUF);
-      pos += d;
-      // eat up to next one
-      d = (v+i+1==nv) ? nadj-pos : cxoff[2*(v+i+1)]-pos;
-      for (int64_t j=0; j < d; j+=NBUF) {
-        int64_t n = min(NBUF, d-j);
-        fread(wbuf, sizeof(int64_t), n, fin); pos += n;
-      }
-    }
-  }
+    //for (int64_t i=0; i<nstarts; i++) {
+      //if ((v+i) % 1024 == 0) VLOG(1) << "endVertex progress (v " << v+i << "/" << nv << ")";
+      //int64_t d = cxoff[2*i+1]-cxoff[2*i];
+      //read_array(g->endVertex+cxoff[i], d, fin, wbuf, NBUF);
+      //pos += d;
+      //// eat up to next one
+      //d = (v+i+1==nv) ? nadj-pos : cxoff[2*(v+i+1)]-pos;
+      //for (int64_t j=0; j < d; j+=NBUF) {
+        //int64_t n = min(NBUF, d-j);
+        //fread(wbuf, sizeof(int64_t), n, fin); pos += n;
+      //}
+    //}
+  //}
   SoftXMT_free(xoff);
   tt = timer() - tt; VLOG(1) << "endVertex time: " << tt;
 
@@ -392,7 +410,7 @@ static void user_main(void* ignore) {
   //SoftXMT_dump_stats_all_nodes();
 
   VLOG(1) << "freeing graphs";
-  free_graph(dirg);
+  //free_graph(dirg);
   free_graph(g);
   VLOG(1) << "done freeing";
 }
