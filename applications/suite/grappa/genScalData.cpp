@@ -40,7 +40,7 @@ double genScalData(graphedges * ge, double a, double b, double c, double d) {
 	/* Perform in sets of NV permutations to save space */
   for (int j = 0; j < SCALE; j++) {
     graphint n = 2 * numVertices;
-    prand(n, rn);
+    //prand(n, rn);
   }
   
   t = timer() - t;

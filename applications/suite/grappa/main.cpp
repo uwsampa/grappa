@@ -80,7 +80,7 @@ static void read_endVertex(GlobalAddress<int64_t> endVertex, int64_t nadj, FILE 
     int64_t p = 0;
     for (int64_t j=0; j<n; j++) {
       if (buf[j] != -1) {
-        buf[p] = buf[i];
+        buf[p] = buf[j];
         p++;
       }
     }
