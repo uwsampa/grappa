@@ -1,5 +1,10 @@
 #ifndef COMPATIO_H_
 
+/// poor man's assert+message, allows you to call it with a { } after it with code to run if it fails
+/// Usage: CHECK( x == 0 ) { fprintf(stderr, "Invalid value of 'x' (%ld)\n", x); }
+/// Note, you need not call it with a block if you don't want to (i.e. `CHECK(x == 0);` is valid as well and will simply do the same as `assert(x == 0)`)
+#define CHECK(b) for ( ; !(b) ; assert(b) )
+
 #ifdef __MTA__
 #include <assert.h>
 #include <stdint.h>
@@ -9,11 +14,6 @@
 #define min(a,b) (a)<(b) ? (a) : (b)
 
 #define BUFELEMS (1L<<10)
-
-/// poor man's assert+message, allows you to call it with a { } after it with code to run if it fails
-/// Usage: CHECK( x == 0 ) { fprintf(stderr, "Invalid value of 'x' (%ld)\n", x); }
-/// Note, you need not call it with a block if you don't want to (i.e. `CHECK(x == 0);` is valid as well and will simply do the same as `assert(x == 0)`)
-#define CHECK(b) for ( ; !(b) ; assert(b) )
 
 inline size_t xmt_fread(void * dest, size_t sz, size_t ct, FILE * fin) {
   CHECK(sz % sizeof(int64_t) == 0) { fprintf(stderr, "invalid fread size (not a multiple of int64_t's)"); }
