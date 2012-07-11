@@ -87,7 +87,7 @@ public:
     thread_ = NULL;
     num_messages_ = 0;
     response_count_ = 0;
-    if( count_ == 0 ) {
+    if( *count_ == 0 ) {
       DVLOG(5) << "Zero-length release";
       release_started_ = true;
       released_ = true;
