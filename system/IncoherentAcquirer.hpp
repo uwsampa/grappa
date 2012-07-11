@@ -91,7 +91,7 @@ public:
     response_count_ = 0;
     expected_reply_payload_ = sizeof( T ) * *count_;
     total_reply_payload_ = 0;
-    if( count_ == 0 ) {
+    if( *count_ == 0 ) {
       DVLOG(5) << "Zero-length acquire";
       *pointer_ = NULL;
       acquire_started_ = true;

@@ -296,6 +296,21 @@ void user_main( int * args )
     SoftXMT_free( array );
   }
 
+  {
+    BOOST_MESSAGE("Empty cache test");
+
+    int64_t x = 0, y;
+    GlobalAddress<int64_t> xa = make_global(&x);
+    int64_t buf;
+    LOG(INFO) << "empty RO...";
+    { Incoherent<int64_t>::RO c(xa, 1, &buf); y = c[0]; }
+    
+    LOG(INFO) << "empty WO...";
+    { Incoherent<int64_t>::WO c(xa, 1, &buf); c[0] = 1; }
+    
+    LOG(INFO) << "empty RW...";
+    { Incoherent<int64_t>::RW c(xa, 1, &buf); c[0] = c[0]+1; }
+  }
   //SoftXMT_waitForTasks();
   //SoftXMT_signal_done();
 
