@@ -14,6 +14,7 @@
 #endif
 
 #include <stdio.h>
+#include <math.h>
 
 #include "defs.hpp"
 #include <SoftXMT.hpp>
@@ -398,7 +399,21 @@ static void user_main(void* ignore) {
     int64_t total_nedge;
     t = centrality(g, bc, kcent, &avgbc, &total_nedge);
     
-    printf("avg_centrality: %g\n", avgbc);
+    double ref_bc = -1;
+    switch (SCALE) {
+      case 10: ref_bc = 11.736328; break;
+      case 16: ref_bc = 10.87493896; break;
+      case 20: ref_bc = 10.52443173; break;
+    }
+    if (ref_bc != -1) {
+      if ( fabs(avgbc - ref_bc) > 0.000001 ) {
+        fprintf(stderr, "error: check failed: avgbc = %10.8g, ref = %10.8g\n", avgbc, ref_bc);
+      }
+    } else {
+      printf("warning: no reference available\n");
+    }
+
+    printf("avg_centrality: %10.8g\n", avgbc);
     printf("centrality_time: %g\n", t); fflush(stdout);
     printf("centrality_teps: %g\n", (double)total_nedge / t);
   }
