@@ -12,7 +12,8 @@ OBJS += 	computeGraph.o \
 		triangles.o \
 		util.o \
 		xmalloc.o \
-		centrality.o
+		centrality.o \
+		compat/mersenne.o
 
 all: $(EXE)
 	
@@ -29,8 +30,8 @@ timer.o: timer.c defs.h
 triangles.o: triangles.c defs.h
 util.o: util.c defs.h
 xmalloc.o: xmalloc.c defs.h
-centrality.o: centrality.c defs.h
-
+centrality.o: centrality.c defs.h compat/mersenne.c
+compat/mersenne.o: compat/mersenne.c compat/mersenne.h
 
 $(IOLIB) $(COMPATLIB):
 	$(MAKE) -C $(IOLIB_DIR)

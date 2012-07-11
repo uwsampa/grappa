@@ -15,7 +15,7 @@ CFLAGS += -g -Wall -Drestrict=__restrict__ -ffast-math
 
 LDFLAGS = -g
 
-SOURCES = main.o centrality.o computeGraph.o connectedComponents.o genScalData.o graphManip.o pathIsomorphism.o timer.o triangles.o
+SOURCES = main.o centrality.o computeGraph.o connectedComponents.o genScalData.o graphManip.o pathIsomorphism.o timer.o triangles.o ../compat/mersenne.o
 HEADERS = defs.hpp
 
 include $(SOFTXMT_HOME)/system/Makefile

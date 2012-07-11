@@ -9,6 +9,8 @@
 #include <Collective.hpp>
 #include <common.hpp>
 
+#include "../compat/mersenne.h"
+
 #define read      SoftXMT_delegate_read_word
 #define write     SoftXMT_delegate_write_word
 #define cmp_swap  SoftXMT_delegate_compare_and_swap_word
@@ -178,8 +180,9 @@ double centrality(graph *g, GlobalAddress<double> bc, graphint Vs,
   SoftXMT_memset(bc, 0.0, g->numVertices);
   if (!computeAllVertices) SoftXMT_memset(c.explored, (graphint)0L, g->numVertices);
   
-  srand(12345);
-  
+  //srand(12345);
+  mersenne_seed(12345);
+
   graphint nQ, d_phase, Qstart, Qend;
   
   for (graphint x = 0; (x < g->numVertices) && (Vs > 0); x++) {
@@ -189,7 +192,7 @@ double centrality(graph *g, GlobalAddress<double> bc, graphint Vs,
       s = x;
     } else {
       do {
-        s = rand() % g->numVertices;
+        s = mersenne_rand() % g->numVertices;
       } while (!cmp_swap(c.explored+s, 0, 1));
     }
     
