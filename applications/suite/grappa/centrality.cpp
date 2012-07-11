@@ -331,6 +331,8 @@ double centrality(graph *g, GlobalAddress<double> bc, graphint Vs,
   }
   { totalNedgeFunc f; fork_join_custom(&f); }
 
+  VLOG(2) << "nedge_traversed: " << nedge_traversed;
+
   if (avg_centrality != NULL) *avg_centrality = bc_total / g->numVertices;
   if (total_nedge != NULL) *total_nedge = nedge_traversed;
   return t;
