@@ -370,7 +370,7 @@ int main(int argc, char* argv[]) {
     double avgbc = centrality(g, bc, kcent, &total_nedge);
     
     t = timer() - t;
-    printf("avg_centrality: %g\n", avgbc);
+    printf("avg_centrality: %12.10g\n", avgbc);
     printf("centrality_time: %g\n", t); fflush(stdout);
     printf("centrality_teps: %g\n", total_nedge / t);
   }
