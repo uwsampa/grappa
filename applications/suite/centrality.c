@@ -14,6 +14,8 @@
 #endif
 #include "stinger-atomics.h"
 
+#include "compat/mersenne.h"
+
 static int64_t nedge_traversed;
 
 /// Computes the approximate vertex betweenness centrality on an unweighted
@@ -45,7 +47,8 @@ double centrality(graph *g, double *bc, graphint Vs, int64_t* total_nedge) {
   /* Reuse the dist memory in the accumulation phase */
   double *delta = (double *) dist;
   
-  srand(12345);
+  /*srand(12345);*/
+  mersenne_seed(12345);
   
   OMP("omp parallel for")
   for (j = 0; j < NV; j++) {
@@ -63,10 +66,10 @@ double centrality(graph *g, double *bc, graphint Vs, int64_t* total_nedge) {
     if (computeAllVertices) {
       s = x;
     } else {
-      s = rand() % NV;
-      while(explored[s]) {
-        s = rand() % NV;
-      }
+      double d;
+      do {
+        s = (graphint)(mersenne_rand() % NV);
+      } while (explored[s]);
       explored[s] = 1;
     }
     
@@ -77,7 +80,7 @@ double centrality(graph *g, double *bc, graphint Vs, int64_t* total_nedge) {
     }
     num_srcs++;
     
-//    deprint("s = %lld\n", s);
+    deprint("s = %lld\n", s);
       
     OMP("omp parallel for")
     MTA("mta assert nodep")
