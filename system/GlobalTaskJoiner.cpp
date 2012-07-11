@@ -36,7 +36,10 @@ void GlobalTaskJoiner::signal() {
   VLOG(3) << "signaled - outstanding = " << outstanding;
 
   if (outstanding == 0) { // 1 -> 0
-    send_enter();
+    // TODO: shouldn't be necessary, but because we don't 'count' the original task, we have to assume it's still running. If this is the case, the original task will call 'send_enter()' before waiting
+    if (waiter != NULL) {
+      send_enter();
+    }
   }
 }
 
