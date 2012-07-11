@@ -119,20 +119,20 @@ static void read_endVertex(int64_t * endVertex, int64_t nadj, FILE * fin, int64_
 #else
   int64_t * buf = (int64_t*)xmalloc(NBUF*sizeof(int64_t));
   int64_t pos = 0;
-  printf("endVertex: [ ");
+  /*printf("endVertex: [ ");*/
   for (int64_t i=0; i<nadj; i+=NBUF) {
     int64_t n = min(nadj-i, NBUF);
     fread(buf, sizeof(int64_t), n, fin);
     for (int64_t j=0; j<n; j++) {
       if (buf[j] != -1) {
         endVertex[pos] = buf[j];
-        printf("%ld ", endVertex[pos]);
+        /*printf("%ld ", endVertex[pos]);*/
         pos++;
       }
     }
   }
-  printf("]\n");
-  printf("pos = %ld\n", pos); fflush(stdout);
+  /*printf("]\n");*/
+  /*printf("pos = %ld\n", pos); fflush(stdout);*/
   free(buf);
 #endif
 }
