@@ -254,6 +254,7 @@ public:
 
   //T& operator[]( ptrdiff_t index ) { return 
 
+  //TODO: do we really need this? leads to unneccessary type errors...
   template< typename U >
   operator GlobalAddress< U >( ) {
     GlobalAddress< U > u = GlobalAddress< U >::Raw( storage_ );
