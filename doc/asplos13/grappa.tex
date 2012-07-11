@@ -4,6 +4,20 @@ In this section we describe the Grappa runtime system (Figure~\ref{fig:grappa}).
 
 \subsection{Memory}
 
+Applications written for Grappa utilize two forms of memory: local and global.
+
+Local memory is exactly what its name implies.  Accesses occur through conventional pointers.  The compiler emits an access and the memory is manipulated directly.  Obviously, local pointers cannot access memory on other system nodes.  Applications use local accesses for a number of things in Grappa: the stack associated with a task, accesses to localized global memory in caches (see below), and accesses to debugging infrastructure that is local to each system node.
+
+Global memory is a distributed block cyclic heap.  Applications allocate memory in this heap and a global pointer is returned.  Global pointers are utilized in one of two ways: (1) via a \emph{cache} or (2) via a \emph{delegate}.
+
+\paragraph{Cache:} With a cache, applications can instruct Grappa to fetch a global pointer (of any length) and return a local pointer to a cached copy of the global memory.  Under the hood, Grappa performs the mechanics of gathering chunks of data from multiple system nodes and presenting a conventional appearing linear block of memory as a pointer into a cache.  Caches are either read-only or read-write and alternatively incoherent or coherent.  Read-only and and read-write caches are what their names imply.  Under the hood, the distinction between these two forms of caches lays in how they interact with the directories that maintain the coherence state for coherent access to the memory the global pointer points to.  For coherent caches, these directories maintain a simple coherence protocol that permits multiple outstanding read-only cached copies of data to exist, or alternatively, only a single outstanding read-write cached copy to exist.  Unlike hardware caches, these software caches require explicit release operations issued in software; i.e., applications must explicitly inform Grappa when the local pointer that points into a local cached copy of global memory is no longer needed.  Grappa then uses this release operation to interact with the directories that control the global memory in question.  For incoherent accesses, the directories are bypassed.  Applications acquire a local pointer to a cached copy of the global data and can expressly push the data from this local copy back to global memory in order to post any writes.  Obviously, applications should only use incoherent accesses when they can \emph{prove} accesses across multiple threads and system nodes are disjoint, or solely read-only, or (in rarer cases) maintaining a consistent view of memory is irrelevant to application correctness, or for debugging purposes.
+
+\paragraph{Delegates:} Alternatively applications can dispatch computation to be performed on individual machine-word sized chunks of global memory to the memory system itself (e.g., \emph{fetch-and-add}).  Applications provide a pointer to a function and a global pointer to Grappa, which takes care to execute that function on the system node that actually stores the memory pointed to by the global pointer.  In such cases, localization of the pointer is more efficient.  Delegate operations are most often used for synchronization primitives, but really any computation is permissible.
+
+\TODO{Check: Do delegate operations interact with the directories?  Are they coherent?}
+
+Figure~\ref{fig:globalmemory} depicts the global memory architecture and access interface.
+
 \subsection{Tasking}
 
 \subsection{Communication}
