@@ -100,12 +100,6 @@ static void choose_bfs_roots(GlobalAddress<int64_t> xoff, int64_t nvtx, int64_t 
 
 
 LOOP_FUNCTION(func_enable_tau, nid) {
-  //TAU_ENABLE_INSTRUMENTATION();
-  //TAU_ENABLE_GROUP(TAU_USER);
-  //TAU_ENABLE_GROUP(TAU_USER1);
-  //TAU_ENABLE_GROUP(TAU_USER2);
-  TAU_ENABLE_GROUP(TAU_USER3);
-
   FLAGS_record_grappa_events = true;
 }
 LOOP_FUNCTION(func_enable_google_profiler, nid) {
@@ -123,12 +117,6 @@ static void enable_tau() {
 #endif
 }
 LOOP_FUNCTION(func_disable_tau, nid) {
-  //TAU_DISABLE_INSTRUMENTATION();
-  //TAU_DISABLE_GROUP(TAU_USER);
-  //TAU_DISABLE_GROUP(TAU_USER1);
-  //TAU_DISABLE_GROUP(TAU_USER2);
-  TAU_DISABLE_GROUP(TAU_USER3);
-
   FLAGS_record_grappa_events = false;
 }
 LOOP_FUNCTION(func_disable_google_profiler, nid) {
@@ -186,7 +174,7 @@ static void run_bfs(tuple_graph * tg, csr_graph * g, int64_t * bfs_roots) {
 }
 
 static void checkpoint_in(tuple_graph * tg, csr_graph * g, int64_t * bfs_roots) {
-  TAU_PHASE("checkpoint_in","void (tuple_graph*,csr_graph*,int64_t*)", TAU_USER);
+  //TAU_PHASE("checkpoint_in","void (tuple_graph*,csr_graph*,int64_t*)", TAU_USER);
   
   VLOG(1) << "start reading checkpoint";
   double t = timer();
@@ -387,13 +375,6 @@ static void user_main(int * args) {
 int main(int argc, char** argv) {
   SoftXMT_init(&argc, &argv, (1L<<MEM_SCALE));
   SoftXMT_activate();
-
-  //TAU_DISABLE_GROUP(TAU_DEFAULT);
-  //TAU_DISABLE_GROUP(TAU_USER);
-  TAU_DISABLE_GROUP(TAU_USER3);
-  //TAU_DISABLE_INSTRUMENTATION();
-  //TAU_DISABLE_ALL_GROUPS();
-  //TAU_ENABLE_GROUP(TAU_USER1);
 
   /* Parse arguments. */
   get_options(argc, argv);
