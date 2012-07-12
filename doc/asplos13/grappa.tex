@@ -20,6 +20,12 @@ Figure~\ref{fig:globalmemory} depicts the global memory architecture and access 
 
 \subsection{Tasking}
 
+Grappa provides its own task library to applications.  Applications begin execution with a single task, bound to an existing thread stack.  Tasks can spawn new tasks, and those new tasks are initially not bound to a thread stack, but instead are queued for future execution.
+
+Grappa context switches between tasks non-preemptively.  Most calls into the Grappa library, however, do initiate a context switch, and tasks can explicitly yield control.  Grappa switches between tasks entirely within usermode, and in our experiments we have measured the context switch time to be only \checkme{40ns}.  This time is kept small because it is done entirely in usermode and only registers specified as caller saved by the compiler need be saved/restored.  Tasks become bound to a thread stack when no other task is runnable, or Grappa determines it is profitable to do so.  \TODO{How does Grappa determine this?}.
+
+Tasks that are not bound to a stack are steelable by the work steeling system within Grappa.  This load balances work across the collection of nodes executing an application built on Grappa.  \TODO{Talk about the work steeling algorithm that we use}.
+
 \subsection{Communication}
 
 With Grappa, from the perspective of the application, all communication between tasks occurs through global shared memory.  These requests are ultimately translated into explicit inter system node communication requests that are dispatched to GASnet.  Under the hood there exists a key component within Grappa, the message aggregator, that makes fine-grained communication efficient on commodity Infiniband networks.  Infiniband achieves its peek bisection bandwidth \emph{only} when the packet sizes are relatively large (a kilobyte or more).  In our experience, graph algorithms request objects through the caching system (previously described) with a median object size of \checkme{16} bytes.  Our measurements, confirm manufactures published data~\cite{infinibandbandwidth}, that with this packet size the bisection bandwidth is only a small fraction, less than ~\checkme{5\%} of the peak bisection bandwidth.  The reason for this discrepancy is the combination of overheads associated with handling each packet (in terms of bytes that form the actual Infiniband packet, processing time at the card and processing on the CPU within the driver stack).
