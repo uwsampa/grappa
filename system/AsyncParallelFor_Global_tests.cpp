@@ -5,8 +5,10 @@
 #include "ForkJoin.hpp"
 #include "AsyncParallelFor.hpp"
 #include "Delegate.hpp"
+#include "GlobalAllocator.hpp"
 
 #include "PerformanceTools.hpp"
+
 
 BOOST_AUTO_TEST_SUITE( AsyncParallelFor_Global_tests );
 
@@ -16,6 +18,8 @@ int64_t done[SIZE*MAX_NODES] = {0};
 int64_t count2 = 0;
 int64_t global_count = 0;
 int64_t local_count = 0;
+
+#define N (1L<<10)
 
 void loop_body(int64_t start, int64_t num ) {
   /*BOOST_MESSAGE( "execute [" << start << ","
@@ -130,6 +134,18 @@ LOOP_FUNCTION( one_self_work_func, nid ) {
     global_joiner.wait();
 }
 
+LOOP_FUNCTOR( ff_test_func, nid, ((GlobalAddress<double>,array)) ) {
+  global_joiner.reset();
+
+  range_t r = blockDist(0, N, nid, SoftXMT_nodes());
+
+  for (int64_t i=r.start; i<r.end; i++) {
+    ff_delegate_write(array+i, (double)i);
+  }
+
+  global_joiner.wait();
+}
+
 void user_main( void * args ) {
   BOOST_CHECK( SoftXMT_nodes() <= MAX_NODES );
   
@@ -202,6 +218,18 @@ void user_main( void * args ) {
     int64_t n_count = SoftXMT_delegate_read_word( make_global( &local_count, n ) );
     BOOST_MESSAGE( n << " did " << n_count << " iterations" );
   }
+  }
+
+  BOOST_MESSAGE("testing feed-forward delegates");
+  {
+    GlobalAddress<double> array = SoftXMT_typed_malloc<double>(N);
+    { ff_test_func f(array); fork_join_custom(&f); }
+    
+    for (int64_t i=0; i<N; i++) {
+      double d;
+      SoftXMT_delegate_read(array+i, &d);
+      BOOST_CHECK( d == (double)i );
+    }
   }
 
   BOOST_MESSAGE( "user main is exiting" );
