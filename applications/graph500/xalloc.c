@@ -136,7 +136,7 @@ void *
 xmalloc_large_ext (size_t sz)
 {
 #if !defined(__MTA__)&&defined(USE_MMAP_LARGE_EXT)
-	char extname[PATH_MAX+1];
+	char extname[4096+1];
 	char *tmppath;
 	void *out;
 	int fd, which;
