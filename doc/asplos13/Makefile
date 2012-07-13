@@ -1,6 +1,6 @@
 # main latex file and bib file should have same prefix
 MAIN      = paper
-TEXFILES  = paper.tex header.tex abstract.tex intro.tex whynot.tex grappa.tex
+TEXFILES  = paper.tex header.tex abstract.tex intro.tex whynot.tex grappa.tex method.tex
 BIBFILES  = paper.bib
 FIGURES   = figs/*pdf
 TARGET    = $(MAIN).pdf
