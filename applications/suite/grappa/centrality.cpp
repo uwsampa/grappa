@@ -182,6 +182,50 @@ LOOP_FUNCTION( totalNedgeFunc, n ) {
   nedge_traversed = SoftXMT_allreduce<int64_t,coll_add<int64_t>,0>(nedge_traversed);
 }
 
+//////////////////////
+// Profiling stuff
+/////////////////////
+LOOP_FUNCTION(func_enable_tau, nid) {
+  FLAGS_record_grappa_events = true;
+}
+LOOP_FUNCTION(func_enable_google_profiler, nid) {
+  SoftXMT_start_profiling();
+}
+static void enable_tau() {
+#ifdef GRAPPA_TRACE
+  VLOG(1) << "Enabling TAU recording.";
+  func_enable_tau f;
+  fork_join_custom(&f);
+#endif
+#ifdef GOOGLE_PROFILER
+  func_enable_google_profiler g;
+  fork_join_custom(&g);
+#else
+  SoftXMT_reset_stats_all_nodes();
+#endif
+}
+LOOP_FUNCTION(func_disable_tau, nid) {
+  FLAGS_record_grappa_events = false;
+}
+LOOP_FUNCTION(func_disable_google_profiler, nid) {
+  SoftXMT_stop_profiling();
+}
+static void disable_tau() {
+#ifdef GRAPPA_TRACE
+  VLOG(1) << "Disabling TAU recording.";
+  func_disable_tau f;
+  fork_join_custom(&f);
+#endif
+#ifdef GOOGLE_PROFILER
+  func_disable_google_profiler g;
+  fork_join_custom(&g);
+#else
+  SoftXMT_merge_and_dump_stats();
+  SoftXMT_reset_stats_all_nodes();
+#endif
+}
+///////////////////////
+
 /// Computes the approximate vertex betweenness centrality on an unweighted
 /// graph using 'Vs' source vertices. Returns the average centrality.
 double centrality(graph *g, GlobalAddress<double> bc, graphint Vs,
@@ -204,6 +248,8 @@ double centrality(graph *g, GlobalAddress<double> bc, graphint Vs,
   
   double t; t = timer();
   double rngtime, tt;
+
+  enable_tau();
 
   {
     initCentrality f(*g, c, bc); fork_join_custom(&f);
@@ -313,7 +359,8 @@ double centrality(graph *g, GlobalAddress<double> bc, graphint Vs,
   } // end for(x=0; x<NV && Vs>0)
     
   t = timer() - t;
-  
+  disable_tau();
+
   VLOG(1) << "centrality rngtime = " << rngtime;
 
   SoftXMT_free(c.delta);
