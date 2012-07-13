@@ -429,7 +429,7 @@ static void user_main(void* ignore) {
 }
 
 int main(int argc, char* argv[]) {
-  SoftXMT_init(&argc, &argv, (1L<<32));
+  SoftXMT_init(&argc, &argv, (1L<<34));
   SoftXMT_activate();
   
   parseOptions(argc, argv);
