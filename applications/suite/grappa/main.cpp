@@ -200,11 +200,8 @@ bool checkpoint_in(graphedges * ge, graph * g) {
   fread(&nbfs,  sizeof(nbfs),  1, fin);
   fprintf(stderr, "nedge=%ld, nv=%ld, nadj=%ld, nbfs=%ld\n", nedge, nv, nadj, nbfs);
 
-  // eat all the edges, we don't need them (I think)
-  for (int64_t i=0; i<nedge*2; i+=NBUF) {
-    int64_t n = min(NBUF, nedge*2-i);
-    fread(wbuf, sizeof(int64_t), n, fin);
-  }
+  fprintf(stderr, "warning: skipping edgelist\n");
+  fseek(fin, nedge * 2*sizeof(int64_t), SEEK_CUR);
 
   GlobalAddress<int64_t> xoff = SoftXMT_typed_malloc<int64_t>(2*nv+2);
 
@@ -279,8 +276,9 @@ bool checkpoint_in(graphedges * ge, graph * g) {
   int64_t nw;
   fread(&nw, sizeof(int64_t), 1, fin);
   CHECK(nw == actual_nadj) << "nw = " << nw << ", actual_nadj = " << actual_nadj;
-  read_array(g->intWeight, nw, fin);
-  tt = timer() - tt; VLOG(1) << "intWeight time: " << tt;
+  fprintf(stderr, "warning: skipping intWeight");
+  //read_array(g->intWeight, nw, fin);
+  //tt = timer() - tt; VLOG(1) << "intWeight time: " << tt;
 
   fprintf(stderr, "checkpoint_read_time: %g\n", timer()-t);
   return true;

@@ -159,15 +159,16 @@ bool checkpoint_in(graphedges * ge, graph * g) {
   fprintf(stderr, "nedge=%ld, nv=%ld, nadj=%ld, nbfs=%ld\n", nedge, nv, nadj, nbfs);
 
   double tt = timer();
-  alloc_edgelist(ge, nedge);
-  for (size_t i=0; i<nedge; i+=NBUF/2) {
-    int64_t n = min(NBUF/2, nedge-i);
-    fread(buf, sizeof(int64_t), 2*n, fin);
-    //for (size_t j=0; j<n; j++) {
-    //  ge->startVertex[i+j] = buf[2*j];
-    //  ge->endVertex[i+j] = buf[2*j+1];
-    //}
-  }
+  //alloc_edgelist(ge, nedge);
+  //for (size_t i=0; i<nedge; i+=NBUF/2) {
+  //  int64_t n = min(NBUF/2, nedge-i);
+  //  fread(buf, sizeof(int64_t), 2*n, fin);
+  //  //for (size_t j=0; j<n; j++) {
+  //  //  ge->startVertex[i+j] = buf[2*j];
+  //  //  ge->endVertex[i+j] = buf[2*j+1];
+  //  //}
+  //}
+  fseek(fin, nedge * 2*sizeof(int64_t), SEEK_CUR);
   printf("edgelist read time: %g\n", timer()-tt);
 
   tt = timer();
@@ -184,12 +185,14 @@ bool checkpoint_in(graphedges * ge, graph * g) {
 
   // xoff/edgeStart
   tt = timer();
-  int64_t deg = 0;
+ 
+  graphint * eS = g->edgeStart;
+  eS[0] = 0;
+  
+  MTA("mta noalias *eS *xoff") 
   for (size_t i=0; i<nv; i++) {
-    g->edgeStart[i] = deg;
-    deg += xoff[2*i+1] - xoff[2*i];
+    eS[i+1] = eS[i] + xoff[2*i+1]-xoff[2*i];
   }
-  g->edgeStart[nv] = deg;
   printf("edgeStart compute time: %g\n", timer()-tt);
 
   // xadj/endVertex
@@ -213,6 +216,7 @@ bool checkpoint_in(graphedges * ge, graph * g) {
 
   // startVertex
   tt = timer();
+  MTA("mta assert nodep")
   for (int64_t v=0; v<nv; v++) {
     for (int64_t j=g->edgeStart[v]; j<g->edgeStart[v+1]; j++) {
       g->startVertex[j] = v;
@@ -229,8 +233,9 @@ bool checkpoint_in(graphedges * ge, graph * g) {
   int64_t nw;
   fread(&nw, sizeof(int64_t), 1, fin);
   CHECK(nw == actual_nadj) { fprintf(stderr, "nw = %ld, actual_nadj = %ld\n", nw, actual_nadj); }
-  fread(g->intWeight, sizeof(int64_t), nw, fin);
-  printf("intWeight read time: %g\n", timer()-tt);
+  fprintf(stderr, "warning: skipping intWeight\n");
+  /*fread(g->intWeight, sizeof(int64_t), nw, fin);*/
+  /*printf("intWeight read time: %g\n", timer()-tt);*/
   /*for (int64_t i=0; i<nw; i++) { fprintf(stdout, "%ld ", g->intWeight[i]); } fprintf(stdout, "\n"); fflush(stdout);*/
 
   fprintf(stderr, "checkpoint_read_time: %g\n", timer()-t);
