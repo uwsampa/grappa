@@ -48,7 +48,7 @@ get_options (int argc, char **argv) {
 	if (getenv ("VERBOSE"))
 		VERBOSE = 1;
 	
-	while ((c = getopt (argc, argv, "v?hRKwpns:e:A:a:B:b:C:c:D:d:Vo:r:")) != -1)
+	while ((c = getopt (argc, argv, "v?hRKwpns:e:A:a:B:b:C:c:D:d:Vo:r:f:")) != -1)
 		switch (c) {
 //			case 'v':
 //				printf ("%s version %d\n", NAME, VERSION);
@@ -67,7 +67,8 @@ get_options (int argc, char **argv) {
 						"  e   : R-MAT edge factor (default %lld)\n"
             "  K   : Use Kronecker generator (smarter RMAT-style) (default)\n"
             "  R   : Use old RMAT generator from SSCA2\n"
-						"  A|a : R-MAT A (default %lg) >= 0\n"
+            "  f   : NBFS\n"
+            "  A|a : R-MAT A (default %lg) >= 0\n"
 						"  B|b : R-MAT B (default %lg) >= 0\n"
 						"  C|c : R-MAT C (default %lg) >= 0\n"
 						"  D|d : R-MAT D (default %lg) >= 0\n"
@@ -126,6 +127,9 @@ get_options (int argc, char **argv) {
         break;
       case 'n':
         verify = false;
+        break;
+      case 'f':
+        NBFS = atoi(optarg);
         break;
 			case 'o':
 				dumpname = strdup (optarg);

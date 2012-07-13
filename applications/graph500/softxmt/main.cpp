@@ -56,7 +56,7 @@ void output_results (const int64_t SCALE, int64_t nvtx_scale, int64_t edgefactor
                 const int NBFS, const double *bfs_time, const int64_t *bfs_nedge);
 
 //### Globals ###
-#define MEM_SCALE 34
+#define MEM_SCALE 37
 
 int64_t nbfs;
 
@@ -189,10 +189,12 @@ static void checkpoint_in(tuple_graph * tg, csr_graph * g, int64_t * bfs_roots) 
     return;
   }
   
+  int64_t ckpt_nbfs;
+
   fread(&tg->nedge, sizeof(tg->nedge), 1, fin);
   fread(&g->nv, sizeof(g->nv), 1, fin);
   fread(&g->nadj, sizeof(g->nadj), 1, fin);
-  fread(&nbfs, sizeof(nbfs), 1, fin);
+  fread(&ckpt_nbfs, sizeof(nbfs), 1, fin);
   CHECK(nbfs <= NBFS_max);
 
   tg->edges = SoftXMT_typed_malloc<packed_edge>(tg->nedge);
@@ -210,8 +212,13 @@ static void checkpoint_in(tuple_graph * tg, csr_graph * g, int64_t * bfs_roots) 
   read_array(g->xadjstore, g->nadj, fin);
   
   // bfs_roots
-  fread(bfs_roots, sizeof(int64_t), nbfs, fin);
-  
+  fread(bfs_roots, sizeof(int64_t), ckpt_nbfs, fin);
+ 
+  if (ckpt_nbfs < nbfs) {
+    fprintf(stderr, "warning: only %ld bfs roots found\n", ckpt_nbfs);
+    nbfs = ckpt_nbfs;
+  }
+
   fclose(fin);
   
   t = timer() - t;
