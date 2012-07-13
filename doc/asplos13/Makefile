@@ -10,8 +10,7 @@ FIG2PDF   = fig2dev -L pdf
 
 default: $(TARGET)
 
-# add $(FIGURES) when there are some :-)
-$(TARGET): $(TEXFILES) $(BIBFILES) 
+$(TARGET): $(TEXFILES) $(FIGURES) $(BIBFILES) 
 	$(LATEX) $(MAIN)
 	if grep "bibdata" $(MAIN).aux; then $(BIBTEX) $(MAIN); fi
 	$(LATEX) $(MAIN)
