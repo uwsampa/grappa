@@ -1,0 +1,77 @@
+\section{Implementation} \label{sec:implementation}
+
+We now discuss implementation details for the major system components discussed in Section~\ref{sec:grappa}.
+
+\subsection{Tasking}
+
+\subsubsection{Tasks and workers}
+
+Grappa tasks are 32-byte entities: a 64-bit function pointer plus
+three 64-bit arguments. We use three arguments because tasks are
+usually generated as part of a parallel loop decomposition, and thus
+each task needs three kinds of data:
+\begin{description}
+\item[Function pointer] This 64-bit value indicates what routine
+  should run. We depend on the fact that all processes in the system
+  load the same binary so that function pointers are consistent across
+  processes.
+\item[Private argument] This 64-bit value is used for task-specific
+  data, and is often a loop index.
+\item[Shared argument] This 64-bit value is used for data shared
+  between all tasks that are part of a loop, and is usually a global
+  pointer to a struct. Each task uses its private argument to 
+\item[Synchronization argument] This 64-bit value is used to determine
+  when all tasks that are part of a loop have finished. It is usually
+  a global pointer to a synchronization object allocated at the core
+  that spawned the task.
+\end{description}
+While these are the most common uses of the three task arguments, they
+are treated as arbitray 64-bit values in the runtime, and can be used
+to store whatever the user wants.
+
+Tasks are not allocated any execution resources until the scheduler
+decides to run them; when this occurs, tasks are matched with {\em
+  workers}. Each worker simply a collection of status bits and a
+stack, allocated at a particular core. Workers 
+
+
+\subsubsection{Context switching}
+
+Context switching in Grappa is non-preemptive. Any Grappa routine that
+does a potentially-long-latency operation calls a context-switch
+routine that gives control of the core back to the scheduler. Users
+may also explicity yield control to the scheduler.
+
+As with other cooperative multithreading systems, we treat context
+switches as function calls, saving and restoring only the callee-saved
+state as specified in the x86-64 ABI \TODO{cite}. This involves saving
+six general-purpose 64-bit registers and the stack pointer, as well as
+the 16-bit x87 floating point control word and the SSE context/status
+register. Thus, the minimum amount of state a cooperative context
+switch routine must save according to the ABI is 62 bytes.
+
+Since the compiler sees all calls to the context switch routine, we
+can save even less state. Our context switch routine appears to the
+compiler as inline assembly; we can declare all the registers we need
+to save as ``clobbered'' by the inline assembly routine, and the
+compiler will issue its own save and restore code. This allows the
+compiler to avoid saving any registers that are not used, or are used
+for temporary values that are not needed after the context switch. In
+particular, only one of our applications does floating point
+operations; all the other applications can safely ignore the x87 and
+SSE2 registers as part of context switching.
+
+\subsubsection{Scheduling}
+
+Grappa's scheduler is simple. When 
+
+\subsubsection{Work stealing}
+
+\subsection{Communication}
+
+
+\subsection{Aggregation}
+
+\subsection{Synchronization}
+
+\subsection{Consistency}
