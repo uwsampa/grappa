@@ -22,7 +22,6 @@
 #include "../timer.h"
 #include "../prng.h"
 
-
 #define MINVECT_SIZE 2
 #define XOFF(k) (xoff[2*(k)])
 #define XENDOFF(k) (xoff[1+2*(k)])
@@ -32,8 +31,10 @@ static int64_t * restrict xoff; /* Length 2*nv+2 */
 static int64_t * restrict xadjstore; /* Length MINVECT_SIZE + (xoff[nv] == nedge) */
 static int64_t * restrict xadj;
 
-// TODO: fix me so I'm not assigning to copies of pointers...
 bool checkpoint_in(int SCALE, int edgefactor, struct packed_edge *restrict * IJ, int64_t * nedge, int64_t * bfs_roots, int64_t * nbfs) {
+#ifdef __MTA__
+  snap_init();
+#endif
   tic();
 
   char fname[256];
@@ -56,13 +57,13 @@ bool checkpoint_in(int SCALE, int edgefactor, struct packed_edge *restrict * IJ,
   xoff = xmalloc((2*nv+2) * sizeof(*xoff));
   xadjstore = xmalloc(nadj * sizeof(*xadjstore));
   xadj = xadjstore + 2;
-
-  fread(*IJ, sizeof(packed_edge), *nedge, fin);
-  fread(xoff, sizeof(*xoff), 2*nv+2, fin);
-  fread(xadjstore, sizeof(*xadjstore), nadj, fin);
+  
+  fread_plus(*IJ, sizeof(packed_edge), *nedge, fin, "edges", SCALE, edgefactor);
+  fread_plus(xoff, sizeof(*xoff), 2*nv+2, fin, "xoff", SCALE, edgefactor);
+  fread_plus(xadjstore, sizeof(*xadjstore), nadj, fin, "xadj", SCALE, edgefactor);
 
   double t = toc();
-  fprintf(stderr, "checkpoint_read_time: %g\n", t);
+  printf("checkpoint_read_time: %g\n", t);
 
   return true;
 }

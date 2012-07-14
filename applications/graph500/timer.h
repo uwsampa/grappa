@@ -10,6 +10,9 @@ void tic (void);
 /** Return seconds since last tic. */
 double toc (void);
 
+/** return current seconds */
+double timer(void);
+
 /** Macro to time a block. */
 #define TIME(timevar, what) do { tic (); what; timevar = toc(); } while (0)
 

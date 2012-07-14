@@ -143,7 +143,6 @@ LOOP_FUNCTOR(func_actual_nadj, nid, ((GlobalAddress<int64_t>,_xoff)) ((int64_t,n
 
   global_async_parallel_for(calc_actual_nadj, 0, nv);
   
-  VLOG(1) << "actual_nadj (local): " << actual_nadj;
   actual_nadj = SoftXMT_allreduce<int64_t,coll_add<int64_t>,0>(actual_nadj);
 }
 
@@ -276,7 +275,7 @@ bool checkpoint_in(graphedges * ge, graph * g) {
   int64_t nw;
   fread(&nw, sizeof(int64_t), 1, fin);
   CHECK(nw == actual_nadj) << "nw = " << nw << ", actual_nadj = " << actual_nadj;
-  fprintf(stderr, "warning: skipping intWeight");
+  fprintf(stderr, "warning: skipping intWeight\n");
   //read_array(g->intWeight, nw, fin);
   //tt = timer() - tt; VLOG(1) << "intWeight time: " << tt;
 

@@ -20,6 +20,9 @@
 #if defined(__MTA__)
 #include <sys/types.h>
 #include <sys/mman.h>
+
+/*#include <luc/common.h>*/
+#include <snapshot/client.h>
 #endif
 
 // includes XMT version of fread & fwrite which flip endianness
@@ -102,16 +105,21 @@ static bool do_components = false,
 
 static void read_endVertex(int64_t * endVertex, int64_t nadj, FILE * fin, int64_t * xoff, int64_t * edgeStart, int64_t nv) {
 #ifdef __MTA__
+  double tt = timer();
   int64_t * buf = (int64_t*)xmmap(NULL, sizeof(int64_t)*nadj, PROT_READ | PROT_WRITE, MAP_PRIVATE | MAP_ANON, 0,0);
-  int64_t pos = 0;
-  fread(buf, sizeof(int64_t), nadj, fin);
   
+  fread_plus(buf, sizeof(int64_t), nadj, fin, "xadj", SCALE, 16);
+
+  int64_t * xadj = buf+2; // remember we skip over the first two elements...
+
   MTA("mta assert nodep")
   for (int64_t i=0; i<nv; i++) {
     int64_t d = xoff[2*i+1] - xoff[2*i];
     MTA("mta assert nodep")
     for (int64_t j=0; j<d; j++) {
-      endVertex[edgeStart[i]+j] = buf[xoff[2*i]+j];
+      int64_t v = xadj[xoff[2*i]+j];
+      CHECK(v != -1) { fprintf(stderr, "Bad vertex id! v = %ld, j = %ld, xoff[%ld] = %ld -> %ld\n", v, j, i, xoff[2*i], xoff[2*i+1]); }
+      endVertex[edgeStart[i]+j] = v;
     }
   }
 
@@ -138,12 +146,17 @@ static void read_endVertex(int64_t * endVertex, int64_t nadj, FILE * fin, int64_
 }
 
 bool checkpoint_in(graphedges * ge, graph * g) {
+#ifdef __MTA__
+  snap_init();
+#endif
   int64_t buf[NBUF];
 
   fprintf(stderr, "starting to read ckpt...\n");
   double t = timer();
 
   char fname[256];
+  
+
   sprintf(fname, "ckpts/graph500.%lld.%lld.xmt.w.ckpt", SCALE, 16);
   FILE * fin = fopen(fname, "r");
   if (!fin) {
@@ -173,9 +186,15 @@ bool checkpoint_in(graphedges * ge, graph * g) {
 
   tt = timer();
   int64_t * xoff = xmalloc((2*nv+2)*sizeof(int64_t));
-  fread(xoff, sizeof(int64_t), 2*nv+2, fin);
-  printf("xoff read time: %g\n", timer()-tt);
- 
+  
+  fread_plus(xoff, sizeof(int64_t), 2*nv+2, fin, "xoff", SCALE, 16);
+
+  /*for (int64_t i=0; i<(1L<<10); i++) {*/
+  /*int64_t target = 5436636;*/
+  /*for (int64_t i=-10; i<10; i++) {*/
+    /*printf("xoff[%ld] = < %ld, %ld >\n", i, xoff[2*(target+i)], xoff[2*(target+i)+1]);*/
+  /*}*/
+
   tt = timer();
   int64_t actual_nadj = 0;
   for (size_t i=0; i<nv; i++) { actual_nadj += xoff[2*i+1] - xoff[2*i]; }
@@ -191,33 +210,28 @@ bool checkpoint_in(graphedges * ge, graph * g) {
   
   MTA("mta noalias *eS *xoff") 
   for (size_t i=0; i<nv; i++) {
-    eS[i+1] = eS[i] + xoff[2*i+1]-xoff[2*i];
+    eS[i+1] = eS[i] + (xoff[2*i+1]-xoff[2*i]);
   }
   printf("edgeStart compute time: %g\n", timer()-tt);
+  /*printf("edgeStart: [ ");*/
+  /*for (int64_t i=-10; i<10; i++) {*/
+    /*printf((i==0)?"(%ld) " : "%ld ", eS[target+i]);*/
+  /*}*/
+  /*printf("]\n");*/
 
   // xadj/endVertex
-  // eat first 2 because we actually stored 'xadjstore' which has an extra 2 elements
   tt = timer();
   fread(buf, sizeof(int64_t), 2, fin); nadj -= 2;
   read_endVertex(g->endVertex, nadj, fin, xoff, g->edgeStart, nv);
   printf("endVertex read time: %g\n", timer()-tt);
-  //int64_t pos = 0; 
-  //for (int64_t v=0; v<nv; v++) {
-  //  int64_t d = xoff[2*v+1]-xoff[2*v];
-  //  fread(g->endVertex+g->edgeStart[v], sizeof(int64_t), d, fin); pos += d;
-  //  // eat up to next one
-  //  d = (v+1==nv) ? nadj-pos : xoff[2*(v+1)]-pos;
-  //  for (int64_t j=0; j < d; j+=NBUF) {
-  //    int64_t n = min(NBUF, d-j);
-  //    fread(buf, sizeof(int64_t), n, fin); pos += n;
-  //  }
-  //}
+  
   free(xoff);
 
   // startVertex
   tt = timer();
   MTA("mta assert nodep")
   for (int64_t v=0; v<nv; v++) {
+    MTA("mta assert nodep")
     for (int64_t j=g->edgeStart[v]; j<g->edgeStart[v+1]; j++) {
       g->startVertex[j] = v;
     }
