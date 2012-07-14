@@ -35,6 +35,8 @@
 
 static int64_t nvtx_scale;
 
+static bool generate_ckpt = true;
+
 static int64_t bfs_root[NBFS_max];
 
 static double generation_time;
@@ -78,42 +80,43 @@ int main (int argc, char **argv) {
 	assert (desired_nedge >= nvtx_scale);
 	assert (desired_nedge >= edgefactor);
 
-  bool generate_ckpt = false;
 
   if (load_checkpoint) {
     generate_ckpt = !checkpoint_in(SCALE, edgefactor, &IJ, &nedge, bfs_root, &NBFS);
   }
 
-	/*
-	 If running the benchmark under an architecture simulator, replace
-	 the following if () {} else {} with a statement pointing IJ
-	 to wherever the edge list is mapped into the simulator's memory.
-	 */
-	if (!dumpname) {
-		if (VERBOSE) fprintf (stderr, "Generating edge list...");
-		if (use_RMAT) {
-			nedge = desired_nedge;
-			IJ = xmalloc_large_ext (nedge * sizeof (*IJ));
-			TIME(generation_time, rmat_edgelist (IJ, nedge, SCALE, A, B, C));
-		} else {
-			TIME(generation_time, make_graph (SCALE, desired_nedge, userseed, userseed, &nedge, (packed_edge**)(&IJ)));
-		}
-		if (VERBOSE) fprintf (stderr, " done.\n");
-	} else {
-		int fd;
-		ssize_t sz;
-		if ((fd = open (dumpname, O_RDONLY)) < 0) {
-			perror ("Cannot open input graph file");
-			return EXIT_FAILURE;
-		}
-		sz = nedge * sizeof (*IJ);
-		if (sz != read (fd, IJ, sz)) {
-			perror ("Error reading input graph file");
-			return EXIT_FAILURE;
-		}
-		close (fd);
-	}
-	
+  if (generate_ckpt) {
+    /*
+     If running the benchmark under an architecture simulator, replace
+     the following if () {} else {} with a statement pointing IJ
+     to wherever the edge list is mapped into the simulator's memory.
+     */
+    if (!dumpname) {
+      if (VERBOSE) fprintf (stderr, "Generating edge list...");
+      if (use_RMAT) {
+        nedge = desired_nedge;
+        IJ = xmalloc_large_ext (nedge * sizeof (*IJ));
+        TIME(generation_time, rmat_edgelist (IJ, nedge, SCALE, A, B, C));
+      } else {
+        TIME(generation_time, make_graph (SCALE, desired_nedge, userseed, userseed, &nedge, (packed_edge**)(&IJ)));
+      }
+      if (VERBOSE) fprintf (stderr, " done.\n");
+    } else {
+      int fd;
+      ssize_t sz;
+      if ((fd = open (dumpname, O_RDONLY)) < 0) {
+        perror ("Cannot open input graph file");
+        return EXIT_FAILURE;
+      }
+      sz = nedge * sizeof (*IJ);
+      if (sz != read (fd, IJ, sz)) {
+        perror ("Error reading input graph file");
+        return EXIT_FAILURE;
+      }
+      close (fd);
+    }
+  }
+
 	run_bfs ();
 	
   if (generate_ckpt) checkpoint_out(SCALE, edgefactor, IJ, nedge, bfs_root, NBFS);
@@ -131,12 +134,14 @@ void
 run_bfs (void)
 {
 	int * restrict has_adj;
-	int m, err;
+	int m, err = 0;
 	int64_t k, t;
 	
-	if (VERBOSE) fprintf (stderr, "Creating graph...");
-	TIME(construction_time, err = create_graph_from_edgelist (IJ, nedge));
-	if (VERBOSE) fprintf (stderr, "done.\n");
+  if (generate_ckpt) {
+    if (VERBOSE) fprintf (stderr, "Creating graph...");
+    TIME(construction_time, err = create_graph_from_edgelist (IJ, nedge));
+    if (VERBOSE) fprintf (stderr, "done.\n");
+  }
 	if (err) {
 		fprintf (stderr, "Failure creating graph.\n");
 		exit (EXIT_FAILURE);
