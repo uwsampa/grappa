@@ -58,6 +58,8 @@ bool checkpoint_in(int SCALE, int edgefactor, struct packed_edge *restrict * IJ,
   xadjstore = xmalloc(nadj * sizeof(*xadjstore));
   xadj = xadjstore + 2;
   
+  maxvtx = nv-1;
+
   fread_plus(*IJ, sizeof(packed_edge), *nedge, fin, "edges", SCALE, edgefactor);
   fread_plus(xoff, sizeof(*xoff), 2*nv+2, fin, "xoff", SCALE, edgefactor);
   fread_plus(xadjstore, sizeof(*xadjstore), nadj, fin, "xadj", SCALE, edgefactor);
