@@ -224,7 +224,7 @@ bool checkpoint_in(graphedges * ge, graph * g) {
   int64_t deg = 0;
   for (int64_t i=0; i<nv; i+=NBUF) {
     int64_t n = min(nv-i, NBUF);
-    Incoherent<int64_t>::RO cxoff(xoff+i, 2*n, rbuf);
+    Incoherent<int64_t>::RO cxoff(xoff+2*i, 2*n, rbuf);
     Incoherent<int64_t>::WO cstarts(g->edgeStart+i, n, wbuf);
     for (int64_t j=0; j<n; j++) {
       cstarts[j] = deg;
