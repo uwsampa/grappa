@@ -201,7 +201,7 @@ bool checkpoint_in(graphedges * ge, graph * g) {
   printf("actual_nadj compute time: %g\n", timer()-tt);
 
   alloc_graph(g, nv, actual_nadj);
-
+  
   // xoff/edgeStart
   tt = timer();
  

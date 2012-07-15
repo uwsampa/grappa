@@ -23,6 +23,10 @@
 #include <ForkJoin.hpp>
 #include <GlobalTaskJoiner.hpp>
 #include <Collective.hpp>
+#include <Delegate.hpp>
+
+#define read SoftXMT_delegate_read_word
+#define write SoftXMT_delegate_write_word
 
 static void printHelp(const char * exe);
 static void parseOptions(int argc, char ** argv);
@@ -208,6 +212,11 @@ bool checkpoint_in(graphedges * ge, graph * g) {
   read_array(xoff, 2*nv, fin, wbuf, NBUF);
   tt = timer() - tt; VLOG(1) << "xoff time: " << tt;
   VLOG(1) << "actual_nadj (read_array): " << actual_nadj;
+  //for (int64_t i=0; i<(1L<<10); i++) {
+  //int64_t target = 5436636;
+  //for (int64_t i=-10; i<10; i++) {
+    //printf("xoff[%ld] = < %ld, %ld >\n", i, read(xoff+2*(target+i)), read(xoff+2*(target+i)+1));
+  //}
 
   // burn extra two xoff's
   fread(wbuf, sizeof(int64_t), 2, fin);
@@ -228,11 +237,19 @@ bool checkpoint_in(graphedges * ge, graph * g) {
     Incoherent<int64_t>::WO cstarts(g->edgeStart+i, n, wbuf);
     for (int64_t j=0; j<n; j++) {
       cstarts[j] = deg;
-      deg += cxoff[2*j+1]-cxoff[2*j];
+      int64_t d = cxoff[2*j+1]-cxoff[2*j];
+      //if (i+j == target ) printf("deg[%ld] = %ld\n", i+j, d);
+      deg += d;
     }
   }
   SoftXMT_delegate_write_word(g->edgeStart+nv, deg);
   tt = timer() - tt; VLOG(1) << "edgeStart time: " << tt;
+  //printf("edgeStart: [ ");
+  //for (int64_t i=0; i<(1<<10); i++) {
+  //for (int64_t i=-10; i<10; i++) {
+    //printf((i==0)?"(%ld) " : "%ld ", read(g->edgeStart+(target+i)));
+  //}
+  //printf("]\n");
 
   // xadj/endVertex
   // eat first 2 because we actually stored 'xadjstore' which has an extra 2 elements
@@ -401,6 +418,10 @@ static void user_main(void* ignore) {
       case 10: ref_bc = 11.736328; break;
       case 16: ref_bc = 10.87493896; break;
       case 20: ref_bc = 10.52443173; break;
+      case 23: 
+        switch (kcent) {
+          case 4: ref_bc = 4.894700766; break;
+        } break;
     }
     if (ref_bc != -1) {
       if ( fabs(avgbc - ref_bc) > 0.000001 ) {
