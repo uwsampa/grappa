@@ -75,7 +75,7 @@ inline bool has_adj(GlobalAddress<int64_t> xoff, int64_t i) {
   return xei-xoi != 0;
 }
 
-static void choose_bfs_roots(GlobalAddress<int64_t> xoff, int64_t nvtx, int64_t * NBFS, int64_t bfs_roots[]) {
+static void choose_bfs_roots(GlobalAddress<int64_t> xoff, int64_t nvtx, int * NBFS, int64_t bfs_roots[]) {
 
   // sample from 0..nvtx-1 without replacement
   int64_t m = 0, t = 0;
@@ -135,7 +135,7 @@ static void run_bfs(tuple_graph * tg, csr_graph * g, int64_t * bfs_roots) {
   double t;
   
   // build bfs tree for each root
-  for (int64_t i=0; i < nbfs; i++) {
+  for (int64_t i=0; i < NBFS; i++) {
     GlobalAddress<int64_t> bfs_tree = SoftXMT_typed_malloc<int64_t>(g->nv);
     GlobalAddress<int64_t> max_bfsvtx;
     
@@ -191,8 +191,8 @@ static void checkpoint_in(tuple_graph * tg, csr_graph * g, int64_t * bfs_roots) 
   fread(&tg->nedge, sizeof(tg->nedge), 1, fin);
   fread(&g->nv, sizeof(g->nv), 1, fin);
   fread(&g->nadj, sizeof(g->nadj), 1, fin);
-  fread(&ckpt_nbfs, sizeof(nbfs), 1, fin);
-  CHECK(nbfs <= NBFS_max);
+  fread(&ckpt_nbfs, sizeof(ckpt_nbfs), 1, fin);
+  CHECK(ckpt_nbfs <= NBFS_max);
 
   tg->edges = SoftXMT_typed_malloc<packed_edge>(tg->nedge);
   g->xoff = SoftXMT_typed_malloc<int64_t>(2*g->nv+2);
@@ -211,9 +211,9 @@ static void checkpoint_in(tuple_graph * tg, csr_graph * g, int64_t * bfs_roots) 
   // bfs_roots
   fread(bfs_roots, sizeof(int64_t), ckpt_nbfs, fin);
  
-  if (ckpt_nbfs < nbfs) {
-    fprintf(stderr, "warning: only %ld bfs roots found\n", ckpt_nbfs);
-    nbfs = ckpt_nbfs;
+  if (ckpt_nbfs < NBFS) {
+    fprintf(stderr, "only %ld bfs roots found\n", ckpt_nbfs);
+    NBFS = ckpt_nbfs;
   }
 
   fclose(fin);
@@ -237,7 +237,7 @@ static void checkpoint_out(tuple_graph * tg, csr_graph * g, int64_t * bfs_roots)
   fwrite(&tg->nedge, sizeof(tg->nedge), 1, fout);
   fwrite(&g->nv, sizeof(g->nv), 1, fout);
   fwrite(&g->nadj, sizeof(g->nadj), 1, fout);
-  fwrite(&nbfs, sizeof(nbfs), 1, fout);
+  fwrite(&NBFS, sizeof(NBFS), 1, fout);
   
   // write out edge tuples
   write_array(tg->edges, tg->nedge, fout);
@@ -249,7 +249,7 @@ static void checkpoint_out(tuple_graph * tg, csr_graph * g, int64_t * bfs_roots)
   write_array(g->xadjstore, g->nadj, fout);
   
   // bfs_roots
-  fwrite(bfs_roots, sizeof(int64_t), nbfs, fout);
+  fwrite(bfs_roots, sizeof(int64_t), NBFS, fout);
   
   fclose(fout);
   
@@ -285,8 +285,7 @@ static void setup_bfs(tuple_graph * tg, csr_graph * g, int64_t * bfs_roots) {
   double t;
   
   // no rootname input method, so randomly choose
-  nbfs = NBFS_max;
-  TIME(t, choose_bfs_roots(g->xoff, g->nv, &nbfs, bfs_roots));
+  TIME(t, choose_bfs_roots(g->xoff, g->nv, &NBFS, bfs_roots));
   VLOG(1) << "choose_bfs_roots time: " << t;
   
 //  for (int64_t i=0; i < nbfs; i++) {
@@ -369,7 +368,7 @@ static void user_main(int * args) {
   SoftXMT_free(tg.edges);
   
   /* Print results. */
-  output_results(SCALE, 1<<SCALE, edgefactor, A, B, C, D, generation_time, construction_time, (int)nbfs, bfs_time, bfs_nedge);
+  output_results(SCALE, 1<<SCALE, edgefactor, A, B, C, D, generation_time, construction_time, NBFS, bfs_time, bfs_nedge);
 
   t = timer() - t;
   std::cout << "total_runtime: " << t << std::endl;
