@@ -1,8 +1,17 @@
 \documentclass{acm_proc_article-sp}
 
+%%% packages %%%
 \usepackage{color}
 \usepackage{graphicx}
+\usepackage{listings}
+
+%%% utilities %%%
 \newcommand{\TODO}[1]{\textcolor{red}{{\bf TODO:} #1}}
 \newcommand{\checkme}[1]{\textcolor{red}{\textbf{#1}}}
 
+%%% literal terms %%%
+
+% runtime parameter names 
+\newcommand{\flushtimeout}{\emph{network\_flush\_timeout}}
+\newcommand{\asyncforthr}{\emph{async\_parallel\_for\_thresold}}
 
