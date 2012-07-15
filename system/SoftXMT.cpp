@@ -84,8 +84,18 @@ static void sigabrt_sighandler( int signum ) {
 
 /// Initialize SoftXMT components. We are not ready to run until the
 /// user calls SoftXMT_activate().
-void SoftXMT_init( int * argc_p, char ** argv_p[], size_t global_memory_size_bytes )
+void SoftXMT_init( int * argc_p, char ** argv_p[], size_t global_memory_size_bytes)
 {
+  // by default, will allocate as many whole 1GB hugepages as it is
+  // possible to evenly split among the processors on a node
+  if (global_memory_size_bytes == -1) {
+    int nnode = atoi(getenv("SLURM_NNODES"));
+    int ppn = atoi(getenv("SLURM_TASKS_PER_NODE"));
+    int gb_per_proc = 12 / ppn;
+    int gbs = nnode * ppn * gb_per_proc;
+    DVLOG(2) << "nnode: " << nnode << ", ppn: " << ppn << ", total_GBs: " << gbs;
+    global_memory_size_bytes = gbs * (1L<<30);
+  }
 
   // help generate unique profile filename
   SoftXMT_set_profiler_argv0( (*argv_p)[0] );

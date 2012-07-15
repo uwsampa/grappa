@@ -18,7 +18,7 @@ extern Thread * master_thread;
 #define CURRENT_THREAD global_scheduler.get_current_thread()
 
 
-void SoftXMT_init( int * argc_p, char ** argv_p[], size_t size = 1L << 30 );
+void SoftXMT_init( int * argc_p, char ** argv_p[], size_t size = -1 );
 void SoftXMT_activate();
 
 bool SoftXMT_done();

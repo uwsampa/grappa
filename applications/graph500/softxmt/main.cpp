@@ -56,9 +56,6 @@ void output_results (const int64_t SCALE, int64_t nvtx_scale, int64_t edgefactor
                 const int NBFS, const double *bfs_time, const int64_t *bfs_nedge);
 
 //### Globals ###
-#define MEM_SCALE 37
-
-int64_t nbfs;
 
 //static int64_t bfs_root[NBFS_max];
 
@@ -380,7 +377,7 @@ static void user_main(int * args) {
 }
 
 int main(int argc, char** argv) {
-  SoftXMT_init(&argc, &argv, (1L<<MEM_SCALE));
+  SoftXMT_init(&argc, &argv);
   SoftXMT_activate();
 
   /* Parse arguments. */
