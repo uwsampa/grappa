@@ -63,9 +63,45 @@ SSE2 registers as part of context switching.
 
 \subsubsection{Scheduling}
 
-Grappa's scheduler is simple. When 
+Each core in the Grappa system has its own independent scheduler. Each
+scheduler has three main tasks to perform.  First, it must ensure that
+its communication resources are serviced reasonably often. Second, it
+must ensure that if a running task was waiting on a long-latency
+operation and that operation has completed, the task will be
+rescheduled. Third, if there are tasks waiting to be run and spare
+execution resources, the tasks must be matched with idle workers.
+
+Each scheduler has three queues:
+\begin{description}
+\item{Ready worker queue} This is a FIFO queue of tasks that are
+  matched with workers and are ready to execute.
+\item{Private task queue} This is a FIFO queue of tasks that must run on this core.
+\item{Public task queue} This is a LIFO queue of tasks that are
+  waiting to be matched with workers. Tasks may be stolen from this
+  queue by other cores in the system; this is described in the next section.
+\end{description}
+
+Whenever a task yields or suspends, the scheduler makes a decision
+about what to do next. First, it determines if it is time to service
+the communication resources should be serviced. This is done on a
+periodic basis. Second, it determines if any workers with running
+tasks are ready to execute; if so, one is scheduled. Finally, if there
+are no workers ready to run, but there are tasks waiting to be matched
+with workers, an idle worker is woken (or a new worker is spawned),
+matched with a task, and scheduled.
+
+The scheduler uses its core's timestamp counter to track time. The
+timestamp counter is read once per scheduling decision. Timestamp
+values are not shared between cores. We use timestamp values only to
+ensure period execution of communication maintenance tasks; being
+wrong will only change the rate of these events with a potential
+performance cost, and no correctness violation. Nevertheless, we
+assume Grappa will run on machines with modern timestamp counter
+implementations that are monotonic and frequency-compensated.
 
 \subsubsection{Work stealing}
+
+\TODO{BrandonM or Jacob}
 
 \subsection{Communication}
 
