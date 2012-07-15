@@ -69,10 +69,13 @@ double centrality(graph *g, double *bc, graphint Vs, int64_t* total_nedge) {
       double d;
       do {
         s = (graphint)(mersenne_rand() % NV);
+        deprint("s (%ld)\n", s);
       } while (explored[s]);
       explored[s] = 1;
     }
     
+    deprint("degree (%ld)\n", start[s+1]-start[s]);
+
     if (start[s+1] == start[s]) {
       continue; 
     } else {
@@ -122,8 +125,8 @@ double centrality(graph *g, double *bc, graphint Vs, int64_t* total_nedge) {
       nedge_traversed += myEnd - myStart;
       for (k = myStart; k < myEnd; k++) {
         graphint d, w, l;
-        w = eV[k];                    
-        d = dist[w];             
+        w = eV[k];
+        d = dist[w];
         /* If node has not been visited, set distance and push on Q (but only once) */
         
         if (d < 0) {

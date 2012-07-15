@@ -272,6 +272,7 @@ double centrality(graph *g, GlobalAddress<double> bc, graphint Vs,
     } else {
       do {
         s = mersenne_rand() % g->numVertices;
+        VLOG(1) << "s (" << s << ")";
       } while (!cmp_swap(c.explored+s, 0, 1));
     }
     rngtime += timer() - tt;
@@ -279,6 +280,8 @@ double centrality(graph *g, GlobalAddress<double> bc, graphint Vs,
     graphint pair_[2];
     Incoherent<graphint>::RO pair(g->edgeStart+s, 2, pair_);
     
+    VLOG(1) << "degree (" << pair[1]-pair[0] << ")";
+
     if (pair[0] == pair[1]) {
       continue;
     } else {
