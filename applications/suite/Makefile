@@ -15,11 +15,15 @@ OBJS += 	computeGraph.o \
 		centrality.o \
 		compat/mersenne.o
 
-all: $(EXE)
+all: $(EXE) make_snaps.exe
 	
 $(EXE): main.o $(OBJS) $(COMPATLIB) $(IOLIB)
 	$(LD) $(LDFLAGS) -o $@ $^ $(LIBS)
 
+make_snaps.exe: make_snaps.c
+	gcc -std=c99 -o $@ $^
+
+main.o: defs.h ../graph500/compatio.h
 computeGraph.o: computeGraph.c defs.h
 connectedComponents.o: connectedComponents.c defs.h
 genScalData.o: genScalData.c defs.h
