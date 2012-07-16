@@ -64,7 +64,7 @@ void impl_abort(int err) {
 #include <stddef.h>
 #define getFieldAddress(resultAddr, objtype, field) make_global((resultAddr).pointer()+offsetof(objtype, field), (resultAddr).node())
 
-uint64_t global_id = 0; // only Node 0 matters
+uint64_t global_id; // only Node 0 matters
 uint64_t global_child_index = 0; // only Node 0 matters
 GlobalAddress<uint64_t> global_id_ga;
 GlobalAddress<uint64_t> global_child_index_ga;
@@ -77,6 +77,14 @@ struct vertex_t {
 std::ostream& operator<< ( std::ostream& out, const vertex_t& v ) {
     out << "vertex{numChildren=" << v.numChildren
         << ", childIndex=" << v.childIndex
+        << "} ";
+    return out;
+}
+std::ostream& operator<< ( std::ostream& out, const TreeNode& n ) {
+    out << "TreeNode{type=" << n.type
+        << ", height=" << n.height
+        << ", numChildren=" << n.numChildren
+        << ", id=" << n.id
         << "} ";
     return out;
 }
@@ -328,16 +336,23 @@ Result parTreeCreate( int64_t depth, TreeNode * parent ) {
     childVertex.block_until_released();
     //SoftXMT_delegate_write_word( NumChildren + id, numChildren );
     //SoftXMT_delegate_write_word( ChildIndex + id, index );
-    
-    // Write out child indexes as one block
-    // Incoherent acquire is fine because this section of Child is reserved
-    int64_t childIds_storage[numChildren];
-    Incoherent<int64_t>::RW childIds( Child + index, numChildren, childIds_storage );
+   
 
-    for (int i = 0; i < numChildren; i++) {
-        childIds[i] = childid0 + i;
+    if ( numChildren > 0 ) { 
+        // Write out child indexes as one block
+        // Incoherent acquire is fine because this section of Child is reserved
+        int64_t childIds_storage[numChildren];
+        Incoherent<int64_t>::RW childIds( Child + index, numChildren, childIds_storage );
+
+        for (int i = 0; i < numChildren; i++) {
+            VLOG(5) << "[in progress] writing out childIds [i=" << i << "]="<< childid0 + i << "\n\t\tfor parent=" << *parent;
+            childIds[i] = childid0 + i;
+        }
+        childIds.block_until_released();
+        VLOG(5) << "[done] writing out childIds [" << childid0 << "," << childid0 + (numChildren-1) << "]\n\t\tfor parent=" << *parent;
+    } else {
+        VLOG(5) << "[done] no childIds to write\n\t\tfor parent=" << *parent;
     }
-    childIds.block_until_released();
 
     // Recurse on the children
     if (numChildren > 0) {
