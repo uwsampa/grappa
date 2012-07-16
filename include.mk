@@ -45,10 +45,10 @@ VAMPIRTRACE=$(NELSON)/vampirtrace
 
 MPITYPE=SRUN
 
-SRUN_PARTITION=pal --reservation=pal_25
+SRUN_PARTITION=pal
 SRUN_BUILD_PARTITION=pal
-SRUN_HOST=--partition $(SRUN_PARTITION) --account pal
-SRUN_RUN=salloc -p pal -A pal --exclusive $(SRUN_FLAGS) $($(MPITYPE)_HOST) $($(MPITYPE)_NPROC) $($(MPITYPE)_BATCH_TEMP)
+SRUN_HOST=--partition $(SRUN_PARTITION) --account pal  --reservation=pal_25
+SRUN_RUN=salloc --exclusive $(SRUN_FLAGS) $($(MPITYPE)_HOST) $($(MPITYPE)_NPROC) $($(MPITYPE)_BATCH_TEMP)
 SRUN_BUILD_CMD=
 SRUN_CC=$(CC)
 SRUN_CXX=$(CXX)
