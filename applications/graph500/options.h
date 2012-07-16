@@ -4,6 +4,8 @@
 #if !defined(OPTIONS_HEADER_)
 #define OPTIONS_HEADER_
 
+#include <stdbool.h>
+
 extern int VERBOSE;
 extern int use_RMAT;
 extern char *dumpname;
@@ -27,6 +29,7 @@ extern int64_t edgefactor;
 
 void get_options (int argc, char **argv);
 
-extern int load_checkpoint;
+extern bool load_checkpoint;
+extern bool verify;
 
 #endif /* OPTIONS_HEADER_ */
