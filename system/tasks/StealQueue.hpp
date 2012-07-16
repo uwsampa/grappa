@@ -129,6 +129,7 @@ template <typename T>
 inline void StealQueue<T>::push( T c ) {
   CHECK( top < stackSize ) << "push: overflow (top:" << top << " stackSize:" << stackSize << ")";
 
+  VLOG(5) << "stack[" << top << "] <-- push";
   stack[top] = c; 
   top++;
   nNodes++;
