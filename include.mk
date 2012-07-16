@@ -166,7 +166,7 @@ SBATCH_MPIRUN_EXPORT_ENV_VARIABLES=$(patsubst %,-x %,$(patsubst DELETEME:%,,$(su
 .INTERMEDIATE: $(SRUN_ENVVAR_TEMP) $(SRUN_EPILOG_TEMP) $(SRUN_BATCH_TEMP)
 
 NNODE?=$(NPROC)
-PPN?=1
+NTPN?=$(PPN)
 
 SRUN_HOST?=--partition grappa
 SRUN_NPROC=--nodes=$(NNODE) --ntasks-per-node=$(PPN)
