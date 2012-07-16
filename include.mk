@@ -27,7 +27,7 @@ NONE_LD=$(LD)
 
 
 # define to build on PAL cluster
-PAL=true
+#PAL=true
 ifdef PAL
 BDMYERS=/pic/people/bdmyers
 NELSON=/pic/people/nels707
