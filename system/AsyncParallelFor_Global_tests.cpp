@@ -40,7 +40,7 @@ struct parallel_func : public ForkJoinIteration {
     int64_t iters = SIZE;
 
     global_joiner.reset();
-    async_parallel_for<loop_body, joinerSpawn<loop_body> > ( start, iters ); 
+    async_parallel_for<loop_body, joinerSpawn<loop_body, ASYNC_PAR_FOR_DEFAULT>, ASYNC_PAR_FOR_DEFAULT > ( start, iters ); 
     global_joiner.wait();
   }
 };
@@ -80,7 +80,7 @@ struct parallel_func2 : public ForkJoinIteration {
     GlobalAddress<dummy_t> shared_arg_packed = make_global( reinterpret_cast<dummy_t*>(shared_arg) );
 
     global_joiner.reset();
-    async_parallel_for<dummy_t,loop_body2,joinerSpawn_hack<dummy_t,loop_body2> >(start,iters,shared_arg_packed);
+    async_parallel_for<dummy_t,loop_body2,joinerSpawn_hack<dummy_t,loop_body2,ASYNC_PAR_FOR_DEFAULT>,ASYNC_PAR_FOR_DEFAULT >(start,iters,shared_arg_packed);
     global_joiner.wait();
   }
 };
