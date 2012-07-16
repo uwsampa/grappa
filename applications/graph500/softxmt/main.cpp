@@ -128,6 +128,9 @@ static void disable_tau() {
 #ifdef GOOGLE_PROFILER
   func_disable_google_profiler g;
   fork_join_custom(&g);
+#else
+  SoftXMT_merge_and_dump_stats();
+  SoftXMT_reset_stats_all_nodes();
 #endif
 }
 
