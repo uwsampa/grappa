@@ -63,6 +63,8 @@ bool checkpoint_in(int SCALE, int edgefactor, struct packed_edge *restrict * IJ,
   fread_plus(*IJ, sizeof(packed_edge), *nedge, fin, "edges", SCALE, edgefactor);
   fread_plus(xoff, sizeof(*xoff), 2*nv+2, fin, "xoff", SCALE, edgefactor);
   fread_plus(xadjstore, sizeof(*xadjstore), nadj, fin, "xadj", SCALE, edgefactor);
+  
+  fread(bfs_roots, sizeof(*bfs_roots), *nbfs, fin);
 
   double t = toc();
   printf("checkpoint_read_time: %g\n", t);
