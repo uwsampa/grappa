@@ -32,6 +32,8 @@
 
 #include "uts.h"
 
+using namespace uts;
+
 /***********************************************************
  *  tree generation and search parameters                  *
  *                                                         *
@@ -148,7 +150,7 @@ double rng_toProb(int n) {
 }
 
 
-void uts_initRoot(TreeNode * root, int type) {
+void uts_initRoot(Node * root, int type) {
   root->type = type;
   root->height = 0;
   root->numChildren = -1;      // means not yet determined
@@ -159,7 +161,7 @@ void uts_initRoot(TreeNode * root, int type) {
 }
 
 
-int uts_numChildren_bin(TreeNode * parent) {
+int uts_numChildren_bin(Node * parent) {
   // distribution is identical everywhere below root
   int    v = rng_rand(parent->state.state);	
   double d = rng_toProb(v);
@@ -168,7 +170,7 @@ int uts_numChildren_bin(TreeNode * parent) {
 }
 
 
-int uts_numChildren_geo(TreeNode * parent) {
+int uts_numChildren_geo(Node * parent) {
   double b_i = b_0;
   int depth = parent->height;
   int numChildren, h;
@@ -222,7 +224,7 @@ int uts_numChildren_geo(TreeNode * parent) {
 }
 
 
-int uts_numChildren(TreeNode *parent) {
+int uts_numChildren(Node *parent) {
   int numChildren = 0;
 
   /* Determine the number of children */
@@ -274,7 +276,7 @@ int uts_numChildren(TreeNode *parent) {
 }
 
 
-int uts_childType(TreeNode *parent) {
+int uts_childType(Node *parent) {
   switch (type) {
     case BIN:
       return BIN;

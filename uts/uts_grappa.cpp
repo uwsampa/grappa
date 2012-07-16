@@ -12,7 +12,7 @@
 #include <stdlib.h> // for memset
 
 DEFINE_int64( num_places, 2, "Number of locality domains this is running on (e.g., machines, 'locales')" );
-DEFINE_int64( vertices_size, 4200000, "Upper bound count of vertices" );
+DEFINE_int64( vertices_size, 1<<20, "Upper bound count of vertices" );
 
 // declare stealing parameters
 DECLARE_bool( steal );
@@ -50,7 +50,7 @@ void   impl_helpMessage() {
 
 int impl_parseParam(char * param, char * value) { 
     // not using this mechanism for implementation params (gflags)
-    return 0;
+    return 1;
 }
 
 void impl_abort(int err) {
@@ -58,11 +58,8 @@ void impl_abort(int err) {
     //SoftXMT_finish( err );//TODO KILL ALL NODES
 } 
 
-
-//convenience
-//calculate global address of a struct field from struct address (only use on POD)
-#include <stddef.h>
-#define getFieldAddress(resultAddr, objtype, field) make_global((resultAddr).pointer()+offsetof(objtype, field), (resultAddr).node())
+int global_argc;
+char **global_argv;
 
 uint64_t global_id; // only Node 0 matters
 uint64_t global_child_index = 0; // only Node 0 matters
@@ -80,8 +77,8 @@ std::ostream& operator<< ( std::ostream& out, const vertex_t& v ) {
         << "} ";
     return out;
 }
-std::ostream& operator<< ( std::ostream& out, const TreeNode& n ) {
-    out << "TreeNode{type=" << n.type
+std::ostream& operator<< ( std::ostream& out, const uts::Node& n ) {
+    out << "uts::Node{type=" << n.type
         << ", height=" << n.height
         << ", numChildren=" << n.numChildren
         << ", id=" << n.id
@@ -98,8 +95,6 @@ struct init_args {
     GlobalAddress<Semaphore> sem;
     GlobalAddress<vertex_t> Vertex;
     GlobalAddress<int64_t> Child;
-    int argc;
-    char** argv;
 };
 
 void init_node( init_args * args ) {
@@ -110,7 +105,8 @@ void init_node( init_args * args ) {
     Child = args->Child;
     
     // initialize UTS with args
-    uts_parseParams(args->argc, args->argv);
+    LOG(INFO) << "Initializing UTS";
+    uts_parseParams(global_argc, global_argv);
 
     Semaphore::release( &args->sem, 1 );
 }
@@ -134,7 +130,7 @@ struct Result {
 struct sibling_args {
   int64_t childType;
   counter_t parentHeight;
-  GlobalAddress<TreeNode> parent;
+  GlobalAddress<uts::Node> parent;
   int64_t depth;
   GlobalAddress<Result> r;
   int64_t childid0;
@@ -172,7 +168,9 @@ Result parTreeSearch(int64_t depth, int64_t id);
 void explore_child (int64_t i, sibling_args_search * s) {
   int64_t id = s->childid0 + i;
   int64_t pid = s->parentid;
-  //TODO PAYLOAD for (i = 0; i < payloadSize; i++) Payload[(id*payloadSize+i)&0x3fffffff]+=Payload[(pid*payloadSize+i)&0x3fffffff];
+
+  // payload processing
+  //for (i = 0; i < payloadSize; i++) Payload[(id*payloadSize+i)&0x3fffffff]+=Payload[(pid*payloadSize+i)&0x3fffffff];
   
   Result c = parTreeSearch(s->depth+1, id);
  
@@ -214,7 +212,7 @@ Result parTreeSearch(int64_t depth, int64_t id) {
 }
 
 
-Result parTreeCreate( int64_t depth, TreeNode * parent );
+Result parTreeCreate( int64_t depth, uts::Node * parent );
 
 //////////////////////////////////////////////////
 // RNG spawn delegate operation
@@ -238,11 +236,11 @@ static void spawn_rng_reply_am( spawn_rng_reply_args * args, size_t size, void *
 
 struct spawn_rng_request_args {
     GlobalAddress<memory_descriptor> descriptor;
-    GlobalAddress<TreeNode> address;
+    GlobalAddress<uts::Node> address;
 };
 
 void spawn_rng_request_am( spawn_rng_request_args * args, size_t args_size, void * payload, size_t size ) {
-    TreeNode * parent = args->address.pointer();
+    uts::Node * parent = args->address.pointer();
     struct state_t data;
     for (int j=0; j<computeGranularity; j++) {
         rng_spawn(parent->state.state, data.state, j);
@@ -254,7 +252,7 @@ void spawn_rng_request_am( spawn_rng_request_args * args, size_t args_size, void
                    &data, sizeof(data) );
 }
 
-struct state_t spawn_rng_remote( GlobalAddress<TreeNode> parentAddress ) {
+struct state_t spawn_rng_remote( GlobalAddress<uts::Node> parentAddress ) {
   memory_descriptor md;
   md.address = parentAddress;
   memset(&md.data, 0, sizeof(struct state_t));
@@ -275,7 +273,7 @@ struct state_t spawn_rng_remote( GlobalAddress<TreeNode> parentAddress ) {
 
 
 void create_children( int64_t i, sibling_args * s ) {
-    TreeNode child;
+    uts::Node child;
     child.type = s->childType;
     child.height = s->parentHeight + 1;
     child.numChildren = -1; // not yet determined
@@ -285,7 +283,7 @@ void create_children( int64_t i, sibling_args * s ) {
     // spawn child RNG state
     // TODO Coherent cache object (instead of AM)
 //    struct state_t parentState_storage;
-//    Incoherent<struct state_t>::RW parentState( getFieldAddress( s.parent, TreeNode, state ), 1, &parentState_storage );
+//    Incoherent<struct state_t>::RW parentState( getFieldAddress( s.parent, uts::Node, state ), 1, &parentState_storage );
 //    
 //    for (int j=0; j<computeGranularity; j++) {
 //        rng_spawn((*parentState).state, child.state.state, i);
@@ -301,17 +299,17 @@ void create_children( int64_t i, sibling_args * s ) {
     atomic_max( s->r, c.maxdepth ); 
 
     // update the size and leaves
-    int64_t size_result = SoftXMT_delegate_fetch_and_add_word( getFieldAddress(s->r, Result, size), c.size );
-    int64_t leaves_result = SoftXMT_delegate_fetch_and_add_word( getFieldAddress(s->r, Result, leaves), c.leaves );
+    int64_t size_result = SoftXMT_delegate_fetch_and_add_word( global_pointer_to_member(s->r, &Result::size), c.size );
+    int64_t leaves_result = SoftXMT_delegate_fetch_and_add_word( global_pointer_to_member(s->r, &Result::leaves), c.leaves );
     VLOG(4) << "added c.size=" << c.size << " to s->r->size=" << size_result;
     VLOG(4) << "added c.leaves=" << c.size << " to s->r->leaves=" << leaves_result;
 }
    
-int64_t uts_nodeId( TreeNode * n ) {
+int64_t uts_nodeId( uts::Node * n ) {
     return n->id;
 }
 
-Result parTreeCreate( int64_t depth, TreeNode * parent ) {
+Result parTreeCreate( int64_t depth, uts::Node * parent ) {
     int64_t numChildren, childType;
     counter_t parentHeight = parent->height; 
     
@@ -323,6 +321,7 @@ Result parTreeCreate( int64_t depth, TreeNode * parent ) {
     int64_t id = uts_nodeId(parent);
     /* Assign fresh unique ids for the children: */
     int64_t childid0 = SoftXMT_delegate_fetch_and_add_word( global_id_ga, numChildren );
+    VLOG_EVERY_N(2, 250000) << "new childids: [" << childid0 << ", " << (childid0 + numChildren - 1) << "]";
     /* Record ids and indices of the children: */ 
     int64_t index = SoftXMT_delegate_fetch_and_add_word( global_child_index_ga, numChildren );
 
@@ -383,9 +382,7 @@ void user_main ( user_main_args * args ) {
     Semaphore init_sem( SoftXMT_nodes(), 0 );
     init_args iargs = { make_global(&init_sem, 0),
                         Vertex,
-                        Child,
-                        args->argc,
-                        args->argv };
+                        Child };
     for (Node nod=0; nod<SoftXMT_nodes(); nod++) {
         SoftXMT_remote_privateTask( &init_node, &iargs, nod );
     }
@@ -395,7 +392,7 @@ void user_main ( user_main_args * args ) {
     uts_printParams();
 
     // initialize root of the tree
-    TreeNode root;
+    uts::Node root;
     uts_initRoot(&root, type);
     
     global_id = 1;
@@ -407,13 +404,13 @@ void user_main ( user_main_args * args ) {
     // start tree generation (traditional UTS, plus saving the tree)
     LOG(INFO) << "starting tree generation";
     t1 = uts_wctime();
-    Result r = parTreeCreate(0, &root);
+    Result r_gen = parTreeCreate(0, &root);
     t2 = uts_wctime();
    
     // show tree stats 
-    counter_t maxTreeDepth = r.maxdepth;
-    counter_t nNodes  = r.size;
-    counter_t nLeaves = r.leaves;
+    counter_t maxTreeDepth = r_gen.maxdepth;
+    counter_t nNodes  = r_gen.size;
+    counter_t nLeaves = r_gen.leaves;
   
     double gen_runtime = t2-t1;
 
@@ -431,14 +428,17 @@ void user_main ( user_main_args * args ) {
 
     LOG(INFO) << "starting tree search";
     t1 = uts_wctime();
-    r =  parTreeSearch(0, 0);
+    Result r_search =  parTreeSearch(0, 0);
     t2 = uts_wctime();
-    
-    double search_runtime = t2-t1;
+   
 
     SoftXMT_free( Vertex );
     SoftXMT_free( Child );
     //TODO SoftXMT_free( Payload );
+    
+    
+    double search_runtime = t2-t1;
+    LOG(INFO) << "generated size=" << r_gen.size << ", searched size=" << r_search.size;
     
     LOG(INFO) << "{"
               << "runtime: " << search_runtime << ","
@@ -447,12 +447,16 @@ void user_main ( user_main_args * args ) {
 }
 
    
-size_t local_size_bytes = 1<<30; 
 
 /// Main() entry
 int main (int argc, char** argv) {
-    SoftXMT_init( &argc, &argv, local_size_bytes*2 ); //TODO find num nodes (not 2)...
+    SoftXMT_init( &argc, &argv, (1<<28) * (sizeof(int64_t) + sizeof(int64_t) + sizeof(vertex_t)) );
     SoftXMT_activate();
+
+    // TODO: would be good to give user interface to get the args as pass to this Node; to avoid this
+    // (sometimes all nodes parse their own args instead of passing variable size argv)
+    global_argc = argc;
+    global_argv = argv;
 
     user_main_args uargs = { argc, argv };
 

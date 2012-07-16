@@ -24,6 +24,7 @@ extern "C" {
 
 #define UTS_VERSION "2.1"
 
+
 /***********************************************************
  *  Tree node descriptor and statistics                    *
  ***********************************************************/
@@ -50,7 +51,10 @@ struct node_t {
   struct state_t state;
 };
 
-typedef struct node_t TreeNode;
+namespace uts {
+typedef struct node_t Node;
+}
+
 
 
 /* Tree type
@@ -108,11 +112,11 @@ double uts_wctime();
 double rng_toProb(int n);
 
 /* Common tree routines */
-void   uts_initRoot(TreeNode * root, int type);
-int    uts_numChildren(TreeNode *parent);
-int    uts_numChildren_bin(TreeNode * parent);
-int    uts_numChildren_geo(TreeNode * parent);
-int    uts_childType(TreeNode *parent);
+void   uts_initRoot(uts::Node * root, int type);
+int    uts_numChildren(uts::Node *parent);
+int    uts_numChildren_bin(uts::Node * parent);
+int    uts_numChildren_geo(uts::Node * parent);
+int    uts_childType(uts::Node *parent);
 
 /* Implementation Specific Functions */
 char * impl_getName();

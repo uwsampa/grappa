@@ -3,6 +3,7 @@ include ../include.mk
 
 SOFTXMT_SYS=../system
 
+
 # ------------------------------------- #
 # Set Random Number Generator sources:
 # ------------------------------------- #
@@ -63,8 +64,8 @@ ENV_VARIABLES+= LD_LIBRARY_PATH="\$$LD_LIBRARY_PATH:$(LD_LIBRARY_PATH)"
 
 ENV_VARIABLES+= GASNET_BACKTRACE=1
 ENV_VARIABLES+= GLOG_logtostderr=1
-ENV_VARIABLES+= GLOG_v=1
 ENV_VARIABLES+= GLOG_vmodule=uts_grappa=5,Aggregator=5,Incoh*=5
+ENV_VARIABLES+= GLOG_v=1
 
 #
 # run vars
