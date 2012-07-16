@@ -127,7 +127,7 @@ void joinerSpawn_hack( int64_t s, int64_t n, GlobalAddress<Arg> shared_arg ) {
 #define async_parallel_for_hack(f, start, iters, value) \
 { \
   GlobalAddress<void*> packed = make_global( (void**)(value) ); \
-  async_parallel_for<void*, f, joinerSpawn_hack<void*,f> >(start, iters, packed); \
+  async_parallel_for<void*, f, joinerSpawn_hack<void*,f, ASYNC_PAR_FOR_DEFAULT>, ASYNC_PAR_FOR_DEFAULT >(start, iters, packed); \
 }
 
 #include "Delegate.hpp"

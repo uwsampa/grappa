@@ -8,6 +8,7 @@
 #include "timer.h"
 #include "GlobalTaskJoiner.hpp"
 #include "AsyncParallelFor.hpp"
+#include "PushBuffer.hpp"
 
 GRAPPA_DEFINE_EVENT_GROUP(bfs);
 
@@ -17,9 +18,8 @@ GRAPPA_DEFINE_EVENT_GROUP(bfs);
 #define cmp_swap  SoftXMT_delegate_compare_and_swap_word
 #define fetch_add SoftXMT_delegate_fetch_and_add_word
 
-#define BUF_LEN 16384
-static int64_t buf[BUF_LEN];
-static int64_t kbuf;
+static PushBuffer<int64_t> vlist_buf;
+
 static GlobalAddress<int64_t> vlist;
 static GlobalAddress<int64_t> xoff;
 static GlobalAddress<int64_t> xadj;
@@ -52,21 +52,7 @@ void bfs_visit_neighbor(int64_t estart, int64_t eiters, GlobalAddress<void*> pac
     //VLOG(1) << "v = " << v << ", j = " << j << ", i = " << i << ", eiters = " << eiters;
 
     if (cmp_swap(bfs_tree+j, -1, v)) {
-      while (kbuf == -1) { SoftXMT_yield(); }
-      if (kbuf < BUF_LEN) {
-        buf[kbuf] = j;
-        (kbuf)++;
-      } else {
-        // TODO: swap buffer!
-        kbuf = -1; // lock other threads out temporarily
-        int64_t voff = fetch_add(k2, BUF_LEN);
-        Incoherent<int64_t>::WO cvlist(vlist+voff, BUF_LEN);
-        for (int64_t vk=0; vk < BUF_LEN; vk++) {
-          cvlist[vk] = buf[vk];
-        }
-        buf[0] = j;
-        kbuf = 1;
-      }
+      vlist_buf.push(j);
     }
   }
 }
@@ -88,59 +74,33 @@ void bfs_visit_vertex(int64_t kstart, int64_t kiters) {
     int64_t buf[2];
     Incoherent<int64_t>::RO cxoff(xoff+2*v, 2, buf);
     const int64_t vstart = cxoff[0], vend = cxoff[1];
-   
-    GlobalAddress<void*> packed = make_global( (void**)(v) );
-    //VLOG(1) << "apfor<bfs_visit_neighbor>(" << vstart << ", " << vend << ")";
-    async_parallel_for<void*, bfs_visit_neighbor, joinerSpawn_hack<void*,bfs_visit_neighbor> >(vstart, vend-vstart, packed);
-    //for (int64_t vo = vstart; vo < vend; vo++) {
-      //uint64_t packed = (((uint64_t)v) << 32) | vo;
-      //global_joiner.registerTask(); // register these new tasks on *this task*'s joiner
-      //SoftXMT_publicTask(&bfs_visit_neighbor, packed, global_joiner.addr());
-    //}
+    
+    async_parallel_for_hack(bfs_visit_neighbor, vstart, vend-vstart, v);
   }
 }
 
 static unsigned marker = -1;
 
 void bfs_level(Node nid, int64_t start, int64_t end) {
-  range_t r = blockDist(start, end, nid, SoftXMT_nodes());
-
-  kbuf = 0;
-  
 #ifdef VTRACE
   VT_TRACER("bfs_level");
-#endif
-
-  global_joiner.reset();
-#ifdef VTRACE
   if (SoftXMT_mynode() == 0) {
     char s[256];
     sprintf(s, "<%ld>", end-start);
     VT_MARKER(marker, s);
   }
 #endif
-  VLOG(2) << "phase start <" << end-start << "> (" << r.start << ", " << r.end << ")";
-  async_parallel_for< bfs_visit_vertex, joinerSpawn<bfs_visit_vertex> >(r.start, r.end-r.start);
-  //for (int64_t i = r.start; i < r.end; i++) {
-    //global_joiner.registerTask();
-    //SoftXMT_publicTask(&bfs_visit_vertex, i, global_joiner.addr());
-  //}
-  global_joiner.wait();
+
+  vlist_buf.setup(vlist, k2);
+  
+  global_async_parallel_for_thresh(bfs_visit_vertex, start, end-start, 1);
+  
+  vlist_buf.flush();
+    
+  SoftXMT_barrier_suspending();
+
   VLOG(2) << "phase complete";
 }
-
-void clear_buffers() {
-  if (kbuf) {
-    int64_t voff = fetch_add(k2, kbuf);
-    VLOG(2) << "flushing vlist buffer (kbuf=" << kbuf << ", k2=" << voff << ")";
-    Incoherent<int64_t>::WO cvlist(vlist+voff, kbuf);
-    for (int64_t vk=0; vk < kbuf; vk++) {
-      cvlist[vk] = buf[vk];
-    }
-    kbuf = 0;
-  }
-}
-
 
 LOOP_FUNCTOR(bfs_node, nid, GA64(_vlist)GA64(_xoff)GA64(_xadj)GA64(_bfs_tree)GA64(_k2)((int64_t,_nadj))) {
   
@@ -151,7 +111,6 @@ LOOP_FUNCTOR(bfs_node, nid, GA64(_vlist)GA64(_xoff)GA64(_xadj)GA64(_bfs_tree)GA6
   }
 
   // setup globals
-  kbuf = 0;
   vlist = _vlist;
   xoff = _xoff;
   xadj = _xadj;
@@ -166,12 +125,6 @@ LOOP_FUNCTOR(bfs_node, nid, GA64(_vlist)GA64(_xoff)GA64(_xadj)GA64(_bfs_tree)GA6
     const int64_t oldk2 = _k2;
     
     bfs_level(SoftXMT_mynode(), k1, oldk2);
-
-    SoftXMT_barrier_suspending();
-
-    clear_buffers();
-
-    SoftXMT_barrier_suspending();
 
     k1 = oldk2;
     _k2 = read(k2);
