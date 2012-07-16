@@ -20,7 +20,7 @@ DEFINE_bool( verify_tree, true, "Verify the generated tree" );
 
 #define VERIFY_THRESHOLD ((int64_t) 4)
 #define CREATE_THRESHOLD ((int64_t) 1)
-#define SEARCH_THRESHOLD ((int64_t) 2)
+#define SEARCH_THRESHOLD ((int64_t) 2) //8
 
   // declare stealing parameters
   DECLARE_bool( steal );
@@ -762,9 +762,18 @@ struct user_main_args {
 };
 
 
+#define BILLION 1000000000
 void user_main ( user_main_args * args ) {
   
     // allocate tree structures 
+    LOG(INFO) << "Allocating global structures...\n"
+              << "\tVertex= " << ((double)sizeof(vertex_t)*FLAGS_vertices_size)/BILLION << "\n"
+              << "\tChild= " << ((double)sizeof(int64_t)*FLAGS_vertices_size)/BILLION << "\n"
+              << "\tTree_Nodes= "<< ((double)sizeof(uts::Node)*FLAGS_vertices_size)/BILLION << "\n"
+              << "\tTotal= " << ((double)((sizeof(vertex_t)*FLAGS_vertices_size)
+                                  +(sizeof(int64_t)*FLAGS_vertices_size)
+                                  +(sizeof(uts::Node)*FLAGS_vertices_size)))/BILLION;
+
     Vertex = SoftXMT_typed_malloc<vertex_t>( FLAGS_vertices_size); 
     Child =  SoftXMT_typed_malloc<int64_t>( FLAGS_vertices_size);
     VLOG(2) << "Vertex = " << Vertex;
@@ -824,7 +833,9 @@ void user_main ( user_main_args * args ) {
       // count nodes generated
       r_gen.size = 0;
       for (Node n=0; n<SoftXMT_nodes(); n++) {
-        r_gen.size += SoftXMT_delegate_read_word( make_global( &tj_num_gen_nodes, n ) );
+        uint64_t this_size = SoftXMT_delegate_read_word( make_global( &tj_num_gen_nodes, n ) );  
+        LOG(INFO) << "Node " << n << " generated " << this_size;
+        r_gen.size += this_size;
       }
 
       // only needed for generation
@@ -886,7 +897,9 @@ void user_main ( user_main_args * args ) {
       // count nodes searched
       r_search.size = 0;
       for (Node n=0; n<SoftXMT_nodes(); n++) {
-        r_search.size += SoftXMT_delegate_read_word( make_global( &tj_num_searched_nodes, n ) );
+        uint64_t this_size = SoftXMT_delegate_read_word( make_global( &tj_num_searched_nodes, n ) );  
+        LOG(INFO) << "Node " << n << " searched " << this_size;
+        r_search.size += this_size;
       }
     }
 
@@ -946,7 +959,7 @@ void user_main ( user_main_args * args ) {
 
 /// Main() entry
 int main (int argc, char** argv) {
-    SoftXMT_init( &argc, &argv, (1<<27) * (sizeof(int64_t) + sizeof(uts::Node) + sizeof(vertex_t)) );
+    SoftXMT_init( &argc, &argv, 200000000 * (sizeof(int64_t) + sizeof(uts::Node) + sizeof(vertex_t)) ); //; 12L*12L*(1L<<30) 
     SoftXMT_activate();
 
     // TODO: would be good to give user interface to get the args as pass to this Node; to avoid this
