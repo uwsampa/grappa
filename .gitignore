@@ -49,3 +49,5 @@ reader.out
 core.*
 *.prof
 *.z
+
+doc/asplos13/paper.pdf
