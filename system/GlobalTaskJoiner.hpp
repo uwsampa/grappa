@@ -57,46 +57,52 @@ extern GlobalTaskJoiner global_joiner;
 
 
 #include "AsyncParallelFor.hpp"
-template < void (*LoopBody)(int64_t,int64_t) >
+template < void (*LoopBody)(int64_t,int64_t),
+           int64_t Threshold >
 void joinerSpawn( int64_t s, int64_t n );
 
 /// task wrapper: signal upon user task completion
-template < void (*LoopBody)(int64_t,int64_t) >
+template < void (*LoopBody)(int64_t,int64_t),
+           int64_t Threshold >
 void asyncFor_with_globalTaskJoiner(int64_t s, int64_t n, GlobalAddress<GlobalTaskJoiner> joiner) {
   //NOTE: really we just need the joiner Node because of the static global_joiner
-  async_parallel_for<LoopBody, &joinerSpawn<LoopBody> > (s, n);
+  async_parallel_for<LoopBody, &joinerSpawn<LoopBody,Threshold>, Threshold > (s, n);
   global_joiner.remoteSignal( joiner );
 }
 
 /// spawn wrapper: register new task before spawned
-template < void (*LoopBody)(int64_t,int64_t) >
+template < void (*LoopBody)(int64_t,int64_t),
+           int64_t Threshold >
 void joinerSpawn( int64_t s, int64_t n ) {
   global_joiner.registerTask();
-  SoftXMT_publicTask(&asyncFor_with_globalTaskJoiner<LoopBody>, s, n, make_global( &global_joiner ) );
+  SoftXMT_publicTask(&asyncFor_with_globalTaskJoiner<LoopBody,Threshold>, s, n, make_global( &global_joiner ) );
 }
 
 
 
 template < typename Arg,
-           void (*LoopBody)(int64_t,int64_t,GlobalAddress<Arg>) >
+           void (*LoopBody)(int64_t,int64_t,GlobalAddress<Arg>),
+           int64_t Threshold >
 void joinerSpawn_hack( int64_t s, int64_t n, GlobalAddress<Arg> shared_arg );
 
 /// task wrapper: signal upon user task completion
 template < typename Arg,
-           void (*LoopBody)(int64_t,int64_t,GlobalAddress<Arg>) >
+           void (*LoopBody)(int64_t,int64_t,GlobalAddress<Arg>),
+           int64_t Threshold >
 void asyncFor_with_globalTaskJoiner_hack(int64_t s, int64_t n, GlobalAddress<Arg> shared_arg ) {
-  async_parallel_for<Arg, LoopBody, &joinerSpawn_hack<Arg, LoopBody> > (s, n, shared_arg);
+  async_parallel_for<Arg, LoopBody, &joinerSpawn_hack<Arg, LoopBody, Threshold>, Threshold > (s, n, shared_arg);
   global_joiner.remoteSignalNode( shared_arg.node() ); 
 }
 
 template < typename Arg,
-           void (*LoopBody)(int64_t,int64_t,GlobalAddress<Arg>) >
+           void (*LoopBody)(int64_t,int64_t,GlobalAddress<Arg>),
+           int64_t Threshold >
 void joinerSpawn_hack( int64_t s, int64_t n, GlobalAddress<Arg> shared_arg ) {
   global_joiner.registerTask();
 
   // copy the shared_arg data into a global address that corresponds to this Node
   GlobalAddress<Arg> packed = make_global( reinterpret_cast<Arg*>(shared_arg.pointer()) );
-  SoftXMT_publicTask( &asyncFor_with_globalTaskJoiner_hack<Arg,LoopBody>, s, n, packed );
+  SoftXMT_publicTask( &asyncFor_with_globalTaskJoiner_hack<Arg,LoopBody,Threshold>, s, n, packed );
 }
 
 /// Does a global join phase with starting iterations of the for loop
@@ -106,7 +112,15 @@ void joinerSpawn_hack( int64_t s, int64_t n, GlobalAddress<Arg> shared_arg ) {
 { \
   range_t r = blockDist(g_start, g_start+g_iters, SoftXMT_mynode(), SoftXMT_nodes()); \
   global_joiner.reset(); \
-  async_parallel_for<f, joinerSpawn<f> >(r.start, r.end-r.start); \
+  async_parallel_for<f, joinerSpawn<f,ASYNC_PAR_FOR_DEFAULT>, ASYNC_PAR_FOR_DEFAULT >(r.start, r.end-r.start); \
+  global_joiner.wait(); \
+}
+
+#define global_async_parallel_for_thresh(f, g_start, g_iters, static_threshold) \
+{ \
+  range_t r = blockDist(g_start, g_start+g_iters, SoftXMT_mynode(), SoftXMT_nodes()); \
+  global_joiner.reset(); \
+  async_parallel_for<f, joinerSpawn<f,static_threshold>,static_threshold>(r.start, r.end-r.start); \
   global_joiner.wait(); \
 }
 
