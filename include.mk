@@ -27,6 +27,9 @@ NONE_LD=$(LD)
 
 
 # define to build on PAL cluster
+# should load modules:
+#   module unload pathscale openmpi
+#   module load git gcc/4.6.2 openmpi
 #PAL=true
 ifdef PAL
 BDMYERS=/pic/people/bdmyers
