@@ -172,8 +172,8 @@ void explore_child (int64_t i, sibling_args_search * s) {
   atomic_max( s->r, c.maxdepth ); 
 
   // update the size and leaves
-  SoftXMT_delegate_fetch_and_add_word( getFieldAddress(s->r, Result, size), c.size );
-  SoftXMT_delegate_fetch_and_add_word( getFieldAddress(s->r, Result, leaves), c.leaves );
+  SoftXMT_delegate_fetch_and_add_word( global_pointer_to_member( s->r, &Result::size ), c.size );
+  SoftXMT_delegate_fetch_and_add_word( global_pointer_to_member(s->r, &Result::leaves), c.leaves );
 }
 
 
@@ -285,15 +285,18 @@ void create_children( int64_t i, sibling_args * s ) {
 //
 //    parentState.block_until_released();
 
-
+    VLOG(5) << "Calling parTreeCreate on child " << child
+            << "\n\t\tof iter=" << i << " of parentGA=" << s->parent;
     Result c = parTreeCreate(s->depth+1, &child);
   
     // update the max depth of parent   
     atomic_max( s->r, c.maxdepth ); 
 
     // update the size and leaves
-    SoftXMT_delegate_fetch_and_add_word( getFieldAddress(s->r, Result, size), c.size );
-    SoftXMT_delegate_fetch_and_add_word( getFieldAddress(s->r, Result, leaves), c.leaves );
+    int64_t size_result = SoftXMT_delegate_fetch_and_add_word( getFieldAddress(s->r, Result, size), c.size );
+    int64_t leaves_result = SoftXMT_delegate_fetch_and_add_word( getFieldAddress(s->r, Result, leaves), c.leaves );
+    VLOG(4) << "added c.size=" << c.size << " to s->r->size=" << size_result;
+    VLOG(4) << "added c.leaves=" << c.size << " to s->r->leaves=" << leaves_result;
 }
    
 int64_t uts_nodeId( TreeNode * n ) {
@@ -317,7 +320,7 @@ Result parTreeCreate( int64_t depth, TreeNode * parent ) {
 
     /* Record the number and index of children: */
     // TODO! Change to just a write (not R/W)
-    VLOG(5) << "creating vertex: " << (vertex_t){ numChildren, index };
+    VLOG(5) << "record vertex: " << (vertex_t){ numChildren, index } << "\n\t\tfor parent=" << *parent << "\n\t\tat " << make_global(parent);
     vertex_t childVertex_storage;
     Incoherent<vertex_t>::RW childVertex( Vertex + id, 1, &childVertex_storage );
     (*childVertex).numChildren = numChildren;
@@ -418,10 +421,14 @@ void user_main ( user_main_args * args ) {
     
     double search_runtime = t2-t1;
 
-
     SoftXMT_free( Vertex );
     SoftXMT_free( Child );
     //TODO SoftXMT_free( Payload );
+    
+    LOG(INFO) << "{"
+              << "runtime: " << search_runtime << ","
+              << "nNodes: " << nNodes
+              << "}";
 }
 
    
