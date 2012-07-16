@@ -44,9 +44,6 @@ CFLAGS+= -Wno-write-strings
 EXPERIMENTS=/sampa/home/bdmyers/experiments
 CFLAGS+= -I$(EXPERIMENTS)/lib
 
-CFLAGS+= -DGASNET_SEQ -DGASNET_CONDUIT_IBV
-
-
 LIB=-lm 
 
 LDFLAGS+= $(CFLAGS_COMMON) -L$(SOFTXMT_SYS)
@@ -61,7 +58,7 @@ ENV_VARIABLES+= LD_LIBRARY_PATH="\$$LD_LIBRARY_PATH:$(LD_LIBRARY_PATH)"
 
 ENV_VARIABLES+= GASNET_BACKTRACE=1
 ENV_VARIABLES+= GLOG_logtostderr=1
-ENV_VARIABLES+= GLOG_vmodule=uts_grappa=5,Aggregator=5,Incoh*=5
+#ENV_VARIABLES+= GLOG_vmodule=uts_grappa=5,Aggregator=5,Incoh*=5
 ENV_VARIABLES+= GLOG_v=1
 
 uts_grappa.exe: uts_grappa.o $(RNG_OBJ) uts.o $(SOFTXMT_SYS)/libSoftXMT.a

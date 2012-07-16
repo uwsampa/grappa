@@ -29,6 +29,8 @@ export T3="-t 0 -b 2000 -q 0.124875 -m 8 -r 42"
 # (T4) Hybrid ------------------ Tree size = 4132453, tree depth = 134, num leaves = 3108986 (75.23%)
 export T4="-t 2 -a 0 -d 16 -b 6 -r 1 -q 0.234375 -m 4 -r 1"
 
+export SIZE0=4500000
+
 # ====================================
 # Large Workloads (~100 million nodes):
 # ====================================
@@ -42,12 +44,15 @@ export T2L="-t 1 -a 2 -d 23 -b 7 -r 220"
 # (T3L) Binomial --------------- Tree size = 111345631, tree depth = 17844, num leaves = 89076904 (80.00%)
 export T3L="-t 0 -b 2000 -q 0.200014 -m 5 -r 7"
 
+export SIZEL=103000000
 # ====================================
 # Extra Large (XL) Workloads (~1.6 billion nodes):
 # ====================================
 
 # (T1XL) Geometric [fixed] ----- Tree size = 1635119272, tree depth = 15, num leaves = 1308100063 (80.00%)
 export T1XL="-t 1 -a 3 -d 15 -b 4 -r 29"
+
+export SIZEXL=1635119272
 
 # ====================================
 # Extra Extra Large (XXL) Workloads (~3-10 billion nodes):
