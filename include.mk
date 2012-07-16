@@ -1,8 +1,11 @@
 #############################################################################
 # common variables for softxmt project
+#
+# many are defined with ?=, so they can be overridden at the top.
 #############################################################################
 
 SOFTXMT_HOME?=$(HOME)
+
 
 #
 # common across machines
@@ -10,56 +13,6 @@ SOFTXMT_HOME?=$(HOME)
 COMMON=../common
 CFLAGS+= -I$(COMMON)
 
-#GREENERY=../greenery
-#CFLAGS+= -I$(GREENERY)
-#LDFLAGS+= -L$(GREENERY)
-
-#
-# different for specific machines
-#
-
-# #
-# # for janus03? at HPC Advisory Council
-# #
-
-# CC=gcc44
-# CXX=g++44
-# #CXX=mpic++
-# LD=mpic++
-
-# #CFLAGS+= -std=c++0x
-
-# # some library paths
-# GASNET=/home/jnelson/gasnet18-mellanox-default
-# CFLAGS+= -I$(GASNET)/include -I$(GASNET)/include/ibv-conduit
-# LDFLAGS+= -L$(GASNET)/lib
-
-# HUGETLBFS=/home/jnelson/libhugetlbfs-2.12
-# CFLAGS+= -I$(HUGETLBFS)/include
-# LDFLAGS+= -L$(HUGETLBFS)/lib
-
-# GFLAGS=/home/jnelson/gflags-install
-# CFLAGS+= -I$(GFLAGS)/include
-# LDFLAGS+= -L$(GFLAGS)/lib
-# LD_LIBRARY_PATH:=$(LD_LIBRARY_PATH):$(GFLAGS)/lib
-
-# GLOG=/home/jnelson/glog-install
-# CFLAGS+= -I$(GLOG)/include
-# LDFLAGS+= -L$(GLOG)/lib
-# LD_LIBRARY_PATH:=$(LD_LIBRARY_PATH):$(GLOG)/lib
-
-# BOOST=/home/jnelson/boost-install
-# CFLAGS+= -I$(BOOST)/include
-# LDFLAGS+= -L$(BOOST)/lib
-# LD_LIBRARY_PATH:=$(LD_LIBRARY_PATH):$(BOOST)/lib
-
-# MPITYPE=OPENMPI
-# MPIRUN=mpirun
-
-
-#
-# for n01, n02, n04 
-#
 
 CC=gcc
 CXX=g++
@@ -69,10 +22,55 @@ NONE_CXX=$(CXX)
 NONE_LD=$(LD)
 
 
+
+
+
+
+# define to build on PAL cluster
+PAL=true
+ifdef PAL
+BDMYERS=/pic/people/bdmyers
+NELSON=/pic/people/nels707
+
+GASNET=$(NELSON)/gasnet
+HUGETLBFS=/usr
+GFLAGS=$(BDMYERS)/local
+GLOG=$(BDMYERS)/local
+BOOST=$(NELSON)/boost
+GPERFTOOLS=$(NELSON)/gperftools
+VAMPIRTRACE=$(NELSON)/vampirtrace
+
+MPITYPE=SRUN
+
+SRUN_PARTITION=pal --reservation=pal_25
+SRUN_BUILD_PARTITION=pal
+SRUN_HOST=--partition $(SRUN_PARTITION) --account pal
+SRUN_RUN=salloc -p pal -A pal --exclusive $(SRUN_FLAGS) $($(MPITYPE)_HOST) $($(MPITYPE)_NPROC) $($(MPITYPE)_BATCH_TEMP)
+SRUN_BUILD_CMD=
+SRUN_CC=$(CC)
+SRUN_CXX=$(CXX)
+SRUN_LD=$(LD)
+SRUN_AR=$(AR)
+endif
+
+
+
+
+
+
+
+
 # some library paths
+# defaults are for sampa cluster
+
+# include this first to override system default if necessary
+BOOST?=/usr
+CFLAGS+= -I$(BOOST)/include
+LDFLAGS+= -L$(BOOST)/lib64 -L$(BOOST)/lib
+LD_LIBRARY_PATH:=$(LD_LIBRARY_PATH):$(BOOST)/lib
 
 # gasnet
-GASNET=/sampa/share/gasnet-1.18.2-openmpi-4kbuf-symbols
+GASNET?=/sampa/share/gasnet-1.18.2-openmpi-4kbuf-symbols
 GASNET_CONDUIT=ibv #values:ibv,mpi
 GASNET_THREAD=seq #values:seq,par,parsync -- seq recommended
 
@@ -90,35 +88,32 @@ CFLAGS+= -I$(GASNET)/include -I$(GASNET)/include/$(GASNET_CONDUIT_NS)-conduit
 LDFLAGS+= -L$(GASNET)/lib
 
 
-HUGETLBFS=/usr
+HUGETLBFS?=/usr
 CFLAGS+= -I$(HUGETLBFS)/include
 LDFLAGS+= -L$(HUGETLBFS)/lib64
 
-GFLAGS=/sampa/share/gflags
+GFLAGS?=/sampa/share/gflags
 CFLAGS+= -I$(GFLAGS)/include
 LDFLAGS+= -L$(GFLAGS)/lib
 LD_LIBRARY_PATH:=$(LD_LIBRARY_PATH):$(GFLAGS)/lib
 
-GLOG=/sampa/share/glog
+GLOG?=/sampa/share/glog
 CFLAGS+= -I$(GLOG)/include
 LDFLAGS+= -L$(GLOG)/lib
 LD_LIBRARY_PATH:=$(LD_LIBRARY_PATH):$(GLOG)/lib
 
-EZLOGGER=/sampa/share/ezlogger
+EZLOGGER?=/sampa/share/ezlogger
 CFLAGS+= -I$(EZLOGGER)/include
 
-BOOST=/usr
-CFLAGS+= -I$(BOOST)/include
-LDFLAGS+= -L$(BOOST)/lib64
-LD_LIBRARY_PATH:=$(LD_LIBRARY_PATH):$(BOOST)/lib
 
-GPERFTOOLS=/sampa/share/gperftools-2.0-nolibunwind
+
+GPERFTOOLS?=/sampa/share/gperftools-2.0-nolibunwind
 CFLAGS+= -I$(GPERFTOOLS)/include
 LDFLAGS+= -L$(GPERFTOOLS)/lib
 LD_LIBRARY_PATH:=$(LD_LIBRARY_PATH):$(GPERFTOOLS)/lib
 
 
-VAMPIRTRACE=/sampa/share/vampirtrace
+VAMPIRTRACE?=/sampa/share/vampirtrace
 CFLAGS+= -I$(VAMPIRTRACE)/include
 LDFLAGS+= -L$(VAMPIRTRACE)/lib
 LD_LIBRARY_PATH:=$(VAMPIRTRACE)/lib:$(LD_LIBRARY_PATH)
@@ -133,31 +128,13 @@ MPITYPE=SRUN
 #############################################################################
 
 #
-# OpenMPI with mpirun
-#
-
-# how do we export environment variables
-OPENMPI_EXPORT_ENV_VARIABLES=$(patsubst %,-x %,$(patsubst DELETEME:%,,$(subst =, DELETEME:,$(ENV_VARIABLES))))
-
-OPENMPI_HOST=-H $(HOST)
-OPENMPI_NPROC=-np $(NPROC)
-
-OPENMPI_MPIRUN=mpirun
-
-OPENMPI_CLEAN_FILE= *.btr
-
-OPENMPI_CC=$(CC)
-OPENMPI_CXX=$(CXX)
-OPENMPI_LD=$(LD)
-OPENMPI_AR=$(AR)
-
-#
-# Slurm with srun
+# Slurm with srun or salloc/openmpi-mpirun
 #
 
 # create a temporary filename for environment variables
-SRUN_ENVVAR_TEMP:=$(shell mktemp --dry-run --tmpdir=$(PWD) .srunrc.XXXXXXXX )
-SRUN_EPILOG_TEMP:=$(shell mktemp --dry-run --tmpdir=$(PWD) .srunrc_epilog.XXXXXXXX )
+SRUN_ENVVAR_TEMP:=$(shell mktemp -utp $(PWD) .srunrc.XXXXXXXX )
+SRUN_EPILOG_TEMP:=$(shell mktemp -utp $(PWD) .srunrc_epilog.XXXXXXXX )
+SRUN_BATCH_TEMP:=$(shell mktemp -utp $(PWD) .sbatch.XXXXXXXX )
 
 # command fragment to use environment variables
 SRUN_EXPORT_ENV_VARIABLES=--task-prolog=$(SRUN_ENVVAR_TEMP) --task-epilog=$(SRUN_EPILOG_TEMP)
@@ -173,54 +150,35 @@ SRUN_EXPORT_ENV_VARIABLES=--task-prolog=$(SRUN_ENVVAR_TEMP) --task-epilog=$(SRUN
 	echo 'for i in `ipcs -m | grep $(USER) | cut -d" " -f1`; do ipcrm -M $$i; done' >> $@
 	chmod +x $@
 
+SBATCH_MPIRUN_EXPORT_ENV_VARIABLES=$(patsubst %,-x %,$(patsubst DELETEME:%,,$(subst =, DELETEME:,$(ENV_VARIABLES))))
+.sbatch.%:
+	echo \#!/bin/bash > $@
+	for i in $(ENV_VARIABLES); do echo export $$i >> $@; done
+	echo mpirun $(SBATCH_MPIRUN_EXPORT_ENV_VARIABLES) -bind-to-core -report-bindings -tag-output -- $(MY_TAU_RUN) \$$* >> $@
+	echo \# Clean up any leftover shared memory regions
+	echo 'for i in `ipcs -m | grep $(USER) | cut -d" " -f1`; do ipcrm -M $$i; done' >> $@
+	chmod +x $@
+
 # delete when done
-.INTERMEDIATE: $(SRUN_ENVVAR_TEMP) $(SRUN_EPILOG_TEMP)
+.INTERMEDIATE: $(SRUN_ENVVAR_TEMP) $(SRUN_EPILOG_TEMP) $(SRUN_BATCH_TEMP)
 
 NNODE?=$(NPROC)
 PPN?=1
 
-SRUN_HOST=--partition grappa
+SRUN_HOST?=--partition grappa
 SRUN_NPROC=--nodes=$(NNODE) --ntasks-per-node=$(PPN)
 
-SRUN_MPIRUN=srun --resv-ports --cpu_bind=verbose,rank --exclusive --label --kill-on-bad-exit $(SRUN_FLAGS)
+SRUN_MPIRUN?=srun --resv-ports --cpu_bind=verbose,rank --exclusive --label --kill-on-bad-exit $(SRUN_FLAGS)
 
-SRUN_CLEAN_FILES= .srunrc.* 
+SRUN_CLEAN_FILES= -f .srunrc*  .sbatch*
 
-SRUN_PARTITION=grappa
-SRUN_BUILD_PARTITION=sampa
+SRUN_PARTITION?=grappa
+SRUN_BUILD_PARTITION?=sampa
 SRUN_STUPID_NFS_DELAY=0.5s
-SRUN_BUILD_CMD=srun -p $(SRUN_BUILD_PARTITION) --share
-SRUN_CC=sleep $(SRUN_STUPID_NFS_DELAY) && $(SRUN_BUILD_CMD) $(CC)
-SRUN_CXX=sleep $(SRUN_STUPID_NFS_DELAY) && $(SRUN_BUILD_CMD) $(CXX)
-SRUN_LD=sleep $(SRUN_STUPID_NFS_DELAY) && $(SRUN_BUILD_CMD) $(LD)
-SRUN_AR=sleep $(SRUN_STUPID_NFS_DELAY) && $(SRUN_BUILD_CMD) $(AR)
+SRUN_BUILD_CMD?=srun -p $(SRUN_BUILD_PARTITION) --share
+SRUN_CC?=sleep $(SRUN_STUPID_NFS_DELAY) && $(SRUN_BUILD_CMD) $(CC)
+SRUN_CXX?=sleep $(SRUN_STUPID_NFS_DELAY) && $(SRUN_BUILD_CMD) $(CXX)
+SRUN_LD?=sleep $(SRUN_STUPID_NFS_DELAY) && $(SRUN_BUILD_CMD) $(LD)
+SRUN_AR?=sleep $(SRUN_STUPID_NFS_DELAY) && $(SRUN_BUILD_CMD) $(AR)
 
-#
-# QLogic MPI
-#
-
-# create a temporary filename for environment variables
-QLOGIC_ENVVAR_TEMP:=$(shell mktemp --dry-run --tmpdir=. .mpirunrc.XXXXXXXX )
-# command fragment to use environment variables
-QLOGIC_EXPORT_ENV_VARIABLES=-rcfile $(QLOGIC_ENVVAR_TEMP)
-
-# create an environment variable file when needed
-.mpirunrc.%:
-	echo \#!/bin/bash > $@
-	echo "if [ -e ~/.mpirunrc ]; then . ~/.mpirunrc; fi" >> $@
-	for i in $(ENV_VARIABLES); do echo export $$i >> $@; done
-
-# delete when done
-.INTERMEDIATE: $(QLOGIC_ENVVAR_TEMP)
-
-QLOGIC_HOST=-H $(HOST)
-QLOGIC_NPROC=-np $(NPROC)
-
-QLOGIC_MPIRUN=mpirun -l
-
-QLOGIC_CLEAN_FILES= *.btr .mpirunrc.* 
-
-QLOGIC_CC=$(CC)
-QLOGIC_CXX=$(CXX)
-QLOGIC_LD=$(LD)
-QLOGIC_AR=$(AR)
+SRUN_RUN?=$($(MPITYPE)_MPIRUN) $($(MPITYPE)_EXPORT_ENV_VARIABLES) $($(MPITYPE)_HOST) $($(MPITYPE)_NPROC) -- $(MY_TAU_RUN)
