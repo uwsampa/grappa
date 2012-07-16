@@ -198,10 +198,10 @@ endif
 #
 # run a binary
 #
-mpi_run: $(TARGET) $($(MPITYPE)_ENVVAR_TEMP) $($(MPITYPE)_EPILOG_TEMP)
+mpi_run: $(TARGET) $($(MPITYPE)_ENVVAR_TEMP) $($(MPITYPE)_EPILOG_TEMP) $($(MPITYPE)_BATCH_TEMP)
 	-killall $<
 	$(ENV_VARIABLES) \
-	$($(MPITYPE)_MPIRUN) $($(MPITYPE)_EXPORT_ENV_VARIABLES) $($(MPITYPE)_HOST) $($(MPITYPE)_NPROC) -- $(MY_TAU_RUN) ./$< $(GARGS)
+	$($(MPITYPE)_RUN) ./$< $(GARGS)
 
 run: $(TARGET)
 	-killall $<
@@ -211,10 +211,9 @@ run: $(TARGET)
 #
 # run tests for a component
 #
-mpi_test: $(TARGET) $($(MPITYPE)_ENVVAR_TEMP) $($(MPITYPE)_EPILOG_TEMP)
-	-killall $<
+mpi_test: $(TARGET) $($(MPITYPE)_ENVVAR_TEMP) $($(MPITYPE)_EPILOG_TEMP) $($(MPITYPE)_BATCH_TEMP)
 	$(ENV_VARIABLES) \
-	$($(MPITYPE)_MPIRUN) $($(MPITYPE)_EXPORT_ENV_VARIABLES) $($(MPITYPE)_HOST) $($(MPITYPE)_NPROC) -- $(MY_TAU_RUN) ./$< --log_level=test_suite --run_test=$(TARGET:.test=) $(GARGS)
+	$($(MPITYPE)_RUN) ./$< --log_level=test_suite --run_test=$(TARGET:.test=) $(GARGS)
 
 test: $(TARGET)
 	-killall $<
