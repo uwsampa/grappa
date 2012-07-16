@@ -5,24 +5,32 @@
 #include <glog/logging.h>
 #include <stdint.h>
 
+// If the default threshold value is used, then use the command line flag value
+#define ASYNC_PAR_FOR_DEFAULT -1
 DECLARE_int64( async_par_for_threshold );
 
-
 template < void (*LoopBody)(int64_t,int64_t),
-           void (*Spawn)(int64_t,int64_t) >
+           void (*Spawn)(int64_t,int64_t),
+           int64_t Threshold >
 void async_parallel_for( int64_t start, int64_t iterations ) {
-  VLOG(5) << "[" << start << "," << start+iterations << ")";
-  if ( iterations == 0 ) {
+  DVLOG(5) << "[" << start << "," << start+iterations << ")";
+  if ( iterations == 0 ) { // TODO: remove this redundant branch
     return;
-  } else if ( iterations <= FLAGS_async_par_for_threshold ) {
-    LoopBody ( start, iterations );
-  } else {
-    // asyncronous spawn right half
-    Spawn ( start + (iterations+1)/2, iterations/2 );
-   
-    // go down left half
-    async_parallel_for<LoopBody,Spawn>( start, (iterations+1)/2 );
+  } else if ( Threshold == ASYNC_PAR_FOR_DEFAULT ) { // template specialization that should compile out
+    if ( iterations <= FLAGS_async_par_for_threshold ) {
+      LoopBody ( start, iterations );
+      return;
+    }
+  } else if ( iterations <= Threshold ) {
+    LoopBody( start, iterations );
+    return;
   }
+
+  // asyncronous spawn right half
+  Spawn ( start + (iterations+1)/2, iterations/2 );
+
+  // go down left half
+  async_parallel_for<LoopBody,Spawn,Threshold>( start, (iterations+1)/2 );
 }
 
 
@@ -31,20 +39,27 @@ void async_parallel_for( int64_t start, int64_t iterations ) {
 
 template < typename Arg,
            void (*LoopBody)(int64_t,int64_t,GlobalAddress<Arg>),
-           void (*Spawn)(int64_t,int64_t,GlobalAddress<Arg>) >
+           void (*Spawn)(int64_t,int64_t,GlobalAddress<Arg>),
+           int64_t Threshold >
 void async_parallel_for( int64_t start, int64_t iterations, GlobalAddress<Arg> shared_arg ) {
-  VLOG(5) << "[" << start << "," << start+iterations << ")";
-  if ( iterations == 0 ) {
+  DVLOG(5) << "[" << start << "," << start+iterations << ")";
+  if ( iterations == 0 ) { // TODO: remove this redundant branch
     return;
-  } else if ( iterations <= FLAGS_async_par_for_threshold ) {
-    LoopBody ( start, iterations, shared_arg );
-  } else {
-    // asyncronous spawn right half
-    Spawn ( start + (iterations+1)/2, iterations/2, shared_arg );
-   
-    // go down left half
-    async_parallel_for<Arg,LoopBody,Spawn>( start, (iterations+1)/2, shared_arg );
+  } else if ( Threshold == ASYNC_PAR_FOR_DEFAULT ) {    // template specialization that should compile out
+    if ( iterations <= FLAGS_async_par_for_threshold ) {
+      LoopBody ( start, iterations, shared_arg );
+      return;
+    }
+  } else if ( iterations <= Threshold ) {
+    LoopBody( start, iterations, shared_arg );
+    return;
   }
+
+  // asyncronous spawn right half
+  Spawn ( start + (iterations+1)/2, iterations/2, shared_arg );
+
+  // go down left half
+  async_parallel_for<Arg,LoopBody,Spawn,Threshold>( start, (iterations+1)/2, shared_arg );
 }
 
 #endif // __ASYNC_PARALLEL_FOR__
