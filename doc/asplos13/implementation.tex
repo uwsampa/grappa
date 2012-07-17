@@ -150,7 +150,7 @@ In order to mitigate the low message injection rate limits of commodity
 networks, Grappa's communication has two layers. 
 
 At the upper layer, Grappa implements asynchronous active messages
-\cite{vonEicken92}. Each message consists of a function pointer, an
+\TODO{cite vonEicken92}. Each message consists of a function pointer, an
 optional argument payload, and an optional data payload. When a task
 sends a message, the message is copied to a send queue associated with
 the message's destination and the task continues execution.
@@ -192,7 +192,7 @@ messages that have been waiting longer than the threshold; if so, it
 sends them.
 
 Underneath the aggregation layer, Grappa uses the GASNet communication
-library \cite{GASNet} to actually move data. All interprocess
+library \TODO{cite GASNet} to actually move data. All interprocess
 communication, whether on or off a cluster node, is handled by the
 GASNet library. GASNet is able to take advantage of many communication
 mechanism, including Ethernet and Infiniband between nodes, as well as
@@ -222,5 +222,4 @@ allocation
 synchronization
 
 consistency
->>>>>>> Stashed changes
 
