@@ -30,6 +30,7 @@ ckpts
 *.WARNING
 .fuse_hidden*
 .srunrc*
+.sbatch.*
 *.d.tmp
 
 # Tau/profiling
