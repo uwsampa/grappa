@@ -121,12 +121,12 @@ of the following conditions hold: no workers are ready to run,
 the unstarted task queues are empty, and there are no outstanding steal requests. 
 Having one outstanding steal request allowed throttles steals to
 prevent flooding the network, but other scalable quieting mechanisms
-would be possible, such as voting tree\cite{scalable work stealing or
-cilk98} or lifelines \cite{lifelines}. Termination detection is not
+would be possible, such as voting tree\cite{scalableWorkStealingOrCilk98}
+or lifelines \cite{lifelines}. Termination detection is not
 built into the Grappa task scheduler, rather, it is considered a programming error for
 the program to exit without syncing all tasks.
 
-\todo{where to put the following related}
+\TODO{where to put the following related}
 Fork join computations: implement with futures or continuation passing
 style
 feed-forward computations: implement with scalable task counting (we
