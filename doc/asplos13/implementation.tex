@@ -31,7 +31,7 @@ to store whatever the user wants.
 
 Tasks are not allocated any execution resources until the scheduler
 decides to run them; when this occurs, tasks are matched with {\em
-  workers}. Each worker simply a collection of status bits and a
+  workers}. Each worker is simply a collection of status bits and a
 stack, allocated at a particular core. Workers 
 
 
@@ -82,7 +82,7 @@ Each scheduler has three queues:
 \end{description}
 
 Whenever a task yields or suspends, the scheduler makes a decision
-about what to do next. First, it determines if it is time to service
+about what to do next. First, it determines if
 the communication resources should be serviced. This is done on a
 periodic basis. Second, it determines if any workers with running
 tasks are ready to execute; if so, one is scheduled. Finally, if there
@@ -99,12 +99,35 @@ performance cost, and no correctness violation. Nevertheless, we
 assume Grappa will run on machines with modern timestamp counter
 implementations that are monotonic and frequency-compensated.
 
-\subsubsection{Work stealing}
+\subsubsection{Work stealing} \label{subsec:implementation-worksteal}
+When a \TODO{grappa process} runs
+out of work, it becomes a ``thief'' and asks a random other
+\TODO{grappa process} (``victim'') for work. If the victim has tasks
+to spare in its public queue, they will be transferred to the thief's public queue.
 
-\TODO{BrandonM or Jacob}
+Most study of work stealing assumes that a processor has one worker
+thread and so it only steals when utilization would go to zero. 
+%that is,when there are no more local tasks available. 
+Grappa, on the other hand, relies on having many worker threads per core. The
+core would be fully-utilized if there is always something on the ready
+queue. Even if there are many active tasks, if they are all suspended
+for long-latency network requests, then the core is underutilized. 
+
+choices we've made
+-random victims
+-steal from FIFO side of queue
+-steal when at the moment readyQ empty and task queues empty
+-steal min(chunk\_size, half)
+
+Recent work has explored scalable work stealing in terms of efficient
+termination detection. 
+\TODO{we should reference or put our global task joiner here}
+
+
 
 \subsection{Communication}
 
+\TODO{Jacob}
 
 \subsection{Aggregation}
 

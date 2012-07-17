@@ -32,9 +32,28 @@ Figure~\ref{fig:globalmemory} depicts the global memory architecture and access 
 
 Grappa provides its own task library to applications.  Applications begin execution with a single task, bound to an existing thread stack.  Tasks can spawn new tasks, and those new tasks are initially not bound to a thread stack, but instead are queued for future execution.
 
-Grappa context switches between tasks non-preemptively.  Most calls into the Grappa library, however, do initiate a context switch, and tasks can explicitly yield control.  Grappa switches between tasks entirely within usermode, and in our experiments we have measured the context switch time to be only \checkme{40ns}.  This time is kept small because it is done entirely in usermode and only registers specified as caller saved by the compiler need be saved/restored.  Tasks become bound to a thread stack when no other task is runnable, or Grappa determines it is profitable to do so.  \TODO{How does Grappa determine this?}.
+Grappa context switches between tasks non-preemptively. \TODO{too
+    vague: Most calls
+    into the Grappa library, however, do initiate a context switch}, and
+tasks can explicitly yield control.  Grappa switches between tasks
+entirely within usermode, and in our experiments we have measured the
+context switch time to be only \checkme{40ns}.  This time is kept
+small because it is done entirely in usermode and only registers
+specified as caller saved by the compiler need be saved/restored.
+Tasks become bound to a thread stack when no other task is runnable,
+or Grappa determines it is profitable to do so.  \TODO{How does Grappa
+    determine this? BrandonM: right now we don't actually spawn beyond
+the starting number of stacks, so Grappa only bounds when there exist
+idle worker and unbound task}.
 
-Tasks that are not bound to a stack are steelable by the work steeling system within Grappa.  This load balances work across the collection of nodes executing an application built on Grappa.  \TODO{Talk about the work steeling algorithm that we use}.
+\TODO{some of this first sentence might be in the part where we discuss our high
+    level solutions to irregular dynamic parallelism}
+The combination of running tasks on a large non-uniform system and
+dynamic parallelism creates the potential for an imbalance of tasks
+across the system. Some form of dynamic load balancing is necessary.
+Grappa employs work stealing: if a \checkme{grappa-process} determines it
+does not have enough work, it takes some from a \checkme{grappa-process}
+that has public, unstarted tasks.
 
 \subsection{Communication}
 
