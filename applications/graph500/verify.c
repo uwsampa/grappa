@@ -13,6 +13,7 @@
 
 #include "xalloc.h"
 #include "options.h"
+#include "compatio.h"
 
 static int
 compute_levels (int64_t * level,
