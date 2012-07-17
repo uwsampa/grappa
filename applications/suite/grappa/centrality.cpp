@@ -104,7 +104,7 @@ LOOP_FUNCTOR(bfs_push, nid, ((graphint,d_phase_)) ((int64_t,start)) ((int64_t,en
 
   Qbuf.setup(c.Q, c.Qnext);
 
-  global_async_parallel_for(bfs_push_visit_vertex, start, end-start);  
+  global_async_parallel_for_thresh(bfs_push_visit_vertex, start, end-start, 1);  
 
   Qbuf.flush();
 }
@@ -162,9 +162,9 @@ void bc_add_delta(int64_t jstart, int64_t jiters) {
 
 LOOP_FUNCTOR(bfs_pop, nid, ((graphint,start)) ((graphint,end)) ) {
   //TODO: consider adjusting threshold programmatically for different kinds of apf's...
-  global_async_parallel_for(bfs_pop_vertex, start, end-start);
+  global_async_parallel_for_thresh(bfs_pop_vertex, start, end-start, 1);
   DVLOG(4) << "###################";
-  global_async_parallel_for(bc_add_delta, start, end-start);
+  global_async_parallel_for_thresh(bc_add_delta, start, end-start, 1);
 }
 
 LOOP_FUNCTOR( initCentrality, nid, ((graph,g_)) ((CentralityScratch,s_)) ((GlobalAddress<double>,bc_)) ) {
