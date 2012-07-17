@@ -40,12 +40,13 @@ size_t read_array(char * name, size_t sz, size_t ct, FILE * fin, int64_t SCALE, 
 
 	for (int64_t i=0; i<ct; i+= NBUF) {
 		int64_t n = min(ct-i, NBUF);
-		fread(buf, sizeof(int64_t), n, fin);
+		size_t r = fread(buf, sizeof(int64_t), n, fin);
+    CHECK(r == n) { fprintf(stderr, "didn't read enough! (%ld instead of %ld\n", r, n); }
 		for (int64_t j=0; j<n; j++) {
       // flip for XMT
 			buf[j] = flip64(buf[j]);
 		}
-    fwrite(buf, sizeof(int64_t), ct, fout);
+    fwrite(buf, sizeof(int64_t), n, fout);
 	}
 
   fclose(fout);
