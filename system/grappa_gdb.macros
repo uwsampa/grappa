@@ -250,33 +250,26 @@ end
 
 define public_tasks
   set $grappa_publicQ = global_scheduler.task_manager->publicQ
-  set $grappa_local_tasks = $grappa_publicQ->top - $grappa_publicQ->local
-  set $grappa_shared_tasks = $grappa_publicQ->local - $grappa_publicQ->sharedStart
+  set $grappa_shared_tasks = $grappa_publicQ->top - $grappa_publicQ->bottom
   printf "Shared public tasks (newest at bottom) (%d shared):\n", $grappa_shared_tasks
-  set $grappa_task_index = $grappa_publicQ->sharedStart
-  while $grappa_task_index != $grappa_publicQ->local
-    printf "  Task function: "
-    output $grappa_publicQ->stack[ $grappa_task_index ].fn_p 
-    printf "   argument: "
-    output $grappa_publicQ->stack[ $grappa_task_index ].arg
-    printf "\n"
-    set $grappa_task_index++
-  end
-  printf "Local public tasks (newest at bottom) (%d local):\n", $grappa_local_tasks
-  set $grappa_task_index = $grappa_publicQ->local
+  set $grappa_task_index = $grappa_publicQ->bottom
   while $grappa_task_index != $grappa_publicQ->top
     printf "  Task function: "
     output $grappa_publicQ->stack[ $grappa_task_index ].fn_p 
-    printf "   argument: "
-    output $grappa_publicQ->stack[ $grappa_task_index ].arg
+    printf "   args: "
+    output $grappa_publicQ->stack[ $grappa_task_index ].arg0
+    printf ", "
+    output $grappa_publicQ->stack[ $grappa_task_index ].arg1
+    printf ", "
+    output $grappa_publicQ->stack[ $grappa_task_index ].arg2
     printf "\n"
     set $grappa_task_index++
   end
 end
 document public_tasks
-Prints contents of Grappa public task queue.
-Syntax:
-   (gdb) public_tasks
+  Prints contents of Grappa public task queue.
+  Syntax:
+  (gdb) public_tasks
 end
 
 define tasks
