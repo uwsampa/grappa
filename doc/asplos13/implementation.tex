@@ -210,16 +210,87 @@ to RDMA-capable networks.
 
 \subsection{Memory}
 
+Grappa implements a software distributed shared memory. This memory is
+exposed through two address spaces; one optimized for global access to
+node-local data, and another optimized for high aggregate random
+access bandwidth to low locality data.
 
+All global addresses in Grappa are 64-bit values. Each byte of global
+memory is associated with a {\em home core}; this core is responsible
+for allocating and modifying that memory. Since today's commodity
+processors support a 48-bit virtual address space \TODO{cite?}, Grappa
+uses the spare bits to distinguish which address space a global
+address belongs to, and to represent the home core of a global
+address.
 
+The first global address space is the {\em two-dimensional} address
+space. This uses a traditional PGAS addressing model, where each
+address is a tuple of a rank in the job (or global process ID) and an
+address in that process. The lower 48 bits of the address hold a
+virtual address in the process. The top bit is set to indicate that
+this a 2D address. This leaves 15 bits for network endpoint ID, which
+limits our scalability to $2^15$ endpoints.
 
-remote access
+Any local data can be made accessible by other nodes in the system by
+wrapping the address and node ID into a 2D global address. This
+address can then be accessed with delegate or cache operations. At the
+destination the address is converted into a canonical x86 address by
+replacing the upper bits with the sign-exteded upper bit of the
+virtual address.
 
-heap
+The second global address space is the {\em linear} address space, so
+named because nearby addresses can be treated as adjacent even if they
+are stored on different nodes. Addresses in the linear address space
+are partitioned across the cluster in a block-cyclic fashion. Choosing
+the block size involves trading off sequential bandwidth agains
+aggregate random access bandwidth. Smaller block sizes help spread
+data across all the memory controllers in the cluster, but larger
+block sizes allow the locality-optimized memory controllers to provide
+increased sequential bandwidth. The block size is typically set to 64
+bytes, or the size of a single hardware cache line, in order to
+exploit spatial locality when available.
 
-allocation
+All linear addresses refer to data allocated from a global heap. The
+heap metadata is stored on a single node. Currently all heap
+operations serialize through this node; while this has been sufficient
+for our benchmarks, parallel performance can be achieved through
+combining \TODO{ cite MAMA and flat combining }. 2D addresses may
+refer to memory allocated from a single processes' heap or from a
+task's stack.
 
-synchronization
+All global memory operations are implemented with active
+messages. Requestors construct a descriptor holding the current
+task/worker ID and space for a response, issue their request active
+message to the node given by the request address, and suspend
+themselves. When the request arrives at the address' home node, the
+operation is performed and a response active message is sent. When the
+response arrives at the requesting node, the descriptor is filled in
+with the results of the operation and the requesting task is woken.
 
-consistency
+Delegate operations are used for syncronization. Their modifications
+are always executed at the home core of their address. Each task may
+have only one outstanding delegate operation. We limit delegate
+operations to operate objects in the 2D address space or objects that
+fit in a single block of the linear address space. No context switches
+are allowed while the data it being modified. Given these
+restrictions, we can ensure that delegate operations from multiple
+requestors are always serialized through a single core in the system,
+providing atomic semantics without using atomic operations.
+
+Cache operations are used to exploit spatial or temporal
+locality. They allow a single task to buffer a range of data, read or
+modify it, and write the modified version back to its home node. All
+acquires and releases are expressed explicitly by the
+programmer. Cache operations may operate on data that spans multiple
+blocks of the linear address space; the programmer provides the
+starting address and length, and the cache issues as many active
+messages as necessary to retrieve all necessary data.
+
+All current cache operations are incoherent; two tasks may
+concurrently modify the same block with their writes interfereing
+unless protected by synchronization through delegate operations. While
+this has been sufficient for our benchmarks, it is possible to embed
+synchronization in the cache active messages and reduce the number of
+network round trips necessary.
+
 
