@@ -3,7 +3,24 @@
 
 \subsection{Unbalanced tree search}
 
-We ran UTS-mem on Grappa and the XMT with two different 100M-vertex trees with a geometric distribution numChildren distribution. Figure~\ref{fig:grappa-xmt-uts} shows the performance in terms of number of vertices visited per second versus number of compute nodes. The Grappa results are for the best parameter values from a limited search over \flushtimeout~and \asyncforthr~\TODO{want to say this in general at beginning of eval?}. Grappa achieves 3x better performance for 12 nodes. Scaling up, Grappa adds 2Mvert/s/node versus XMT's 850Kvert/s/node.
+We ran UTS-mem on Grappa and the XMT with a binomial and two geometric
+100M-vertex trees and a geometric 1.6B-vertex tree
+\footnote{T3L: -t 0 -b 2000 -q 0.200014 -m 5 -r 7\\
+          T2L: -t 1 -a 2 -d 23 -b 7 -r 220\\
+          T1L: -t 1 -a 3 -d 13 -b 4 -r 29\\
+          T1XL: -t 1 -a 3 -d 15 -b 4 -r 29\\}.
+Both systems do relatively poorly on the binomial tree because it is very deep and a
+traversal produces little parallelism. Figure~\ref{fig:grappa-xmt-uts}
+shows the performance in terms of number of vertices visited per
+second versus number of compute nodes. The Grappa results are for the
+best parameter values from a limited search over \flushtimeout~and
+\asyncforthr~\TODO{want to say this in general at beginning of eval?}.
+Grappa with 16 machines is faster than the entire XMT. Grappa achieves \checkme{81Mvert/s} with \checkme{60 machines} and the
+XMT achieves only 50Mvert/s. Scaling up, Grappa adds 2Mvert/s/nodes
+and the XMT adds 850Kvert/s/node.
+
+Grappa
+\TODO{Preston/Simon: why the xmt stops scaling}
 
 
 
