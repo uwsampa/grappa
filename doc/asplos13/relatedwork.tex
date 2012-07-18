@@ -1,0 +1,25 @@
+\section{Related work}
+
+Ways to organize this:
+Approaches to graphs: special purpose XMT -> cluster -> distributed frameworks {pregel,graphlab} -> limited programming model -> grappa gen purpose
+
+dsm, pgas
+lightweight threading
+other graph solutions: 
+-graph parallel, distributed
+--pregel - but is synchronous and thus inefficient
+--graphlab - asynchrounous, esp useful for problems that have been shown empirically to converge faster with asynchrony
+
+\subsection{Multithreading to tolerate latency}
+hardware: tera, cray
+smt,
+alewife
+gpu,
+software threads
+
+\subsection{Programming models for distributed graph processing}
+
+Distributed graph processing frameworks like Pregel \cite{pregel:2010} and Distributed GraphLab \cite{distgraphlab:vldb12} provide graph-parallel, vertex-centric programming abstractions that free the application writer from solving distributed system issues like scheduling parallelism, handling fault tolerance, and scaling communication. Pregel adopts a bulk-synchronous parallel (BSP) execution model, which makes it inefficient on workloads that could prioritize vertices. GraphLab, on the other hand, schedules vertex computations individually, allowing prioritization, which gives faster convergence in a variety of iterative algorithms. Grappa also supports dynamic parallelism with asynchronous execution, but has a more general purpose programming model, where parallelism is expressed as tasks or loop iterations. \todo{and express locality? mention pgas e.g. Chapel language implementation? How much to talk about how graphlab achieves scalable performance?}
+
+\subsection{Partitioned Global Address space}
+The goal of presenting a global view of distributed memory to the programmer is shared by the PGAS community, and is used in languages like Chapel \cite{Chapel}, X10 \cite{X10}, and UPC \cite{UPC}. In these programming models, access to shared structures look like normal memory references, but the programmer tries to minimize references to remote nodes. Unlike the usual programming goal in PGAS, since we target problems with poor locality, we design Grappa for remote references as a common case. Thread private data is still local, and unlike the XMT, we exploit locality where it does exist in an application (such as spatial locality in a graph edgelist), but we design the system to perform well in the midst of mostly remote accesses to large shared data structures. We would like to implement PGAS languages that support dynamic parallelism, like Chapel, in Grappa.
