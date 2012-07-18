@@ -2,6 +2,96 @@
 
 We now discuss implementation details for the major system components discussed in Section~\ref{sec:grappa}.
 
+\subsection{Memory}
+
+Grappa implements a software distributed shared memory. This memory is
+exposed through two address spaces; one optimized for global access to
+node-local data, and another optimized for high aggregate random
+access bandwidth to low locality data.
+
+\paragraph{2D global addresses:} All global addresses in Grappa are 64-bit values. Each byte of global
+memory is associated with a {\em home core}; this core is responsible
+for allocating and modifying that memory. Since today's commodity
+processors support a 48-bit virtual address space \TODO{cite?}, Grappa
+uses the spare bits to distinguish which address space a global
+address belongs to, and to represent the home core of a global
+address.
+
+The first global address space is the {\em two-dimensional} address
+space. This uses a traditional PGAS addressing model, where each
+address is a tuple of a rank in the job (or global process ID) and an
+address in that process. The lower 48 bits of the address hold a
+virtual address in the process. The top bit is set to indicate that
+this a 2D address. This leaves 15 bits for network endpoint ID, which
+limits our scalability to $2^15$ endpoints.
+
+Any local data can be made accessible by other nodes in the system by
+wrapping the address and node ID into a 2D global address. This
+address can then be accessed with delegate or cache operations. At the
+destination the address is converted into a canonical x86 address by
+replacing the upper bits with the sign-exteded upper bit of the
+virtual address.
+
+\paragraph{Linear global addresses:} The second global address space is the {\em linear} address space, so
+named because nearby addresses can be treated as adjacent even if they
+are stored on different nodes. Addresses in the linear address space
+are partitioned across the cluster in a block-cyclic fashion. Choosing
+the block size involves trading off sequential bandwidth against
+aggregate random access bandwidth. Smaller block sizes help spread
+data across all the memory controllers in the cluster, but larger
+block sizes allow the locality-optimized memory controllers to provide
+increased sequential bandwidth. The block size, which is configurable, is typically set to 64
+bytes, or the size of a single hardware cache line, in order to
+exploit spatial locality when available.
+
+All linear addresses refer to data allocated from a global heap. The
+heap metadata is stored on a single node. Currently all heap
+operations serialize through this node; while this has been sufficient
+for our benchmarks, parallel performance can be achieved through
+combining \TODO{ cite MAMA and flat combining }. 2D addresses may
+refer to memory allocated from a single processes' heap or from a
+task's stack.
+
+\TODO{Add a figure that depicts both forms of global addresses.}
+
+All global memory operations are implemented with active
+messages. Requestors construct a descriptor holding the current
+task/worker ID and space for a response, issue their request active
+message to the node given by the request address, and suspend
+themselves. When the request arrives at the address' home node, the
+operation is performed and a response active message is sent. When the
+response arrives at the requesting node, the descriptor is filled in
+with the results of the operation and the requesting task is woken.
+
+\paragraph{Delegates:} Delegate operations are used for syncronization. Their modifications
+are always executed at the home core of their address. Each task may
+have only one outstanding delegate operation. We limit delegate
+operations to operate on objects in the 2D address space or objects that
+fit in a single block of the linear address space. No context switches
+are allowed while the data it being modified. Given these
+restrictions, we can ensure that delegate operations for the same address from multiple
+requestors are always serialized through a single core in the system,
+providing atomic semantics without using atomic operations.
+
+Cache operations are used to exploit spatial or temporal
+locality. They allow a single task to buffer a range of data, read or
+modify it, and write the modified version back to its home node. All
+acquires and releases are expressed explicitly by the
+programmer. Cache operations may operate on data that spans multiple
+blocks of the linear address space; the programmer provides the
+starting address and length, and the cache issues as many active
+messages as necessary to retrieve all necessary data.
+
+\comment{If anything, this is just a footnote. -M
+
+All current cache operations are incoherent; two tasks may
+concurrently modify the same block with their writes interfereing
+unless protected by synchronization through delegate operations. While
+this has been sufficient for our benchmarks, it is possible to embed
+synchronization in the cache active messages and reduce the number of
+network round trips necessary.}
+
+
 \subsection{Tasking}
 
 \subsubsection{Tasks and workers}
@@ -12,27 +102,24 @@ usually generated as part of a parallel loop decomposition, and thus
 each task needs three kinds of data:
 \begin{description}
 \item[Function pointer] This 64-bit value indicates what routine
-  should run. We depend on the fact that all processes in the system
-  load the same binary so that function pointers are consistent across
-  processes.
-\item[Private argument] This 64-bit value is used for task-specific
-  data, and is often a loop index.
-\item[Shared argument] This 64-bit value is used for data shared
-  between all tasks that are part of a loop, and is usually a global
-  pointer to a struct. Each task uses its private argument to 
-\item[Synchronization argument] This 64-bit value is used to determine
+  should run. We configure the system nodes to disable address randomization, so that we can depend on the fact that function pointers are valid across process images.
+\item[Private argument] This 64-bit value is typically used for task-specific
+  data (e.g., a loop index).
+\item[Shared argument] This 64-bit value is typically used for data shared
+  between all tasks that are part of a loop.
+\item[Synchronization argument] This 64-bit value is typically used to determine
   when all tasks that are part of a loop have finished. It is usually
   a global pointer to a synchronization object allocated at the core
   that spawned the task.
 \end{description}
 While these are the most common uses of the three task arguments, they
 are treated as arbitray 64-bit values in the runtime, and can be used
-to store whatever the user wants.
+for any purpose.
 
 Tasks are not allocated any execution resources until the scheduler
 decides to run them; when this occurs, tasks are matched with {\em
   workers}. Each worker is simply a collection of status bits and a
-stack, allocated at a particular core. Workers 
+stack, allocated at a particular core.
 
 
 \subsubsection{Context switching}
@@ -52,14 +139,17 @@ switch routine must save according to the ABI is 62 bytes.
 
 Since the compiler sees all calls to the context switch routine, we
 can save even less state. Our context switch routine appears to the
-compiler as inline assembly; we can declare all the registers we need
+compiler as inline assembly; we declare all the registers we need
 to save as ``clobbered'' by the inline assembly routine, and the
-compiler will issue its own save and restore code. This allows the
+compiler will issue its own save and restore code as needed. This allows the
 compiler to avoid saving any registers that are not used, or are used
-for temporary values that are not needed after the context switch. In
+for temporary values that are not needed after the context switch.
+\comment{I highly doubt this is important in real apps beyond our kernels.  -M
+
+In
 particular, only one of our applications does floating point
 operations; all the other applications can safely ignore the x87 and
-SSE2 registers as part of context switching.
+SSE2 registers as part of context switching.}
 
 \subsubsection{Scheduling}
 
@@ -81,6 +171,8 @@ Each scheduler has three queues:
   task pool; this is described in the next section.
 \end{description}
 
+\TODO{What is a worker?  We don't realyl describe this.  -M}
+
 Whenever a task yields or suspends, the scheduler makes a decision
 about what to do next. First, it determines if
 the communication resources should be serviced. This is done on a
@@ -93,9 +185,9 @@ matched with a task, and scheduled.
 The scheduler uses its core's timestamp counter to track time. The
 timestamp counter is read once per scheduling decision. Timestamp
 values are not shared between cores. We use timestamp values only to
-ensure period execution of communication maintenance tasks; being
+ensure periodic execution of communication maintenance tasks; being
 wrong will only change the rate of these events with a potential
-performance cost, and no correctness violation. Nevertheless, we
+performance cost, but does not cause a correctness violation. Nevertheless, we
 assume Grappa will run on machines with modern timestamp counter
 implementations that are monotonic and frequency-compensated.
 
@@ -107,21 +199,18 @@ to spare in its public queue, they will be transferred to the thief's public que
 
 Most study of work stealing assumes that a processor has one worker
 thread and so it only steals when utilization would go to zero. 
-%that is,when there are no more local tasks available. 
 Grappa, on the other hand, relies on having many worker threads per core. The
 core would be fully-utilized if there is always something on the ready
 queue. Even if there are many active tasks, if they are all suspended
 for long-latency network requests, then the core is underutilized.
 So, there is a choice: should the core use some of this idle time to
-do perform work stealing or should it just wait that local tasks will
+perform work stealing or should it just wait as it is possible that local tasks will
 create more work. We choose to have a core inititiate a steal when all
 of the following conditions hold: no workers are ready to run, 
-%\checkme{there are idle worker threads --not required to mention since
-%technically would happen if have right number}
 the unstarted task queues are empty, and there are no outstanding steal requests. 
-Having one outstanding steal request allowed throttles steals to
+Having only one outstanding steal request throttles steals to
 prevent flooding the network, but other scalable quieting mechanisms
-would be possible, such as voting tree\cite{scalableWorkStealingOrCilk98}
+would be possible, such as a voting tree\cite{scalableWorkStealingOrCilk98}
 or lifelines \cite{lifelines}. Termination detection is not
 built into the Grappa task scheduler, rather, it is considered a programming error for
 the program to exit without syncing all tasks.
@@ -147,7 +236,7 @@ termination detection.
 \subsection{Communication}
 
 In order to mitigate the low message injection rate limits of commodity
-networks, Grappa's communication has two layers. 
+networks, Grappa's communication stack has two layers. 
 
 At the upper layer, Grappa implements asynchronous active messages
 \TODO{cite vonEicken92}. Each message consists of a function pointer, an
@@ -195,7 +284,7 @@ Underneath the aggregation layer, Grappa uses the GASNet communication
 library \TODO{cite GASNet} to actually move data. All interprocess
 communication, whether on or off a cluster node, is handled by the
 GASNet library. GASNet is able to take advantage of many communication
-mechanism, including Ethernet and Infiniband between nodes, as well as
+mechanisms, including Ethernet and Infiniband between nodes, as well as
 shared memory within a node.
 
 Some networks provide access to a remote machine's memory
@@ -204,93 +293,5 @@ focused on global shared memory, but in fact we do not use it. RDMA
 operations are subject to the same message rate limitations as all
 other messages on these cards, and thus using raw RDMA operations for
 our small messages would make inefficient use of bandwidth. Instead,
-we implement remote memory operations with active messages as
-described in the next section. This means that Grappa is not limited
+we implement remote memory operations with active messages. A byproduct of this design decision is that Grappa is not limited
 to RDMA-capable networks.
-
-\subsection{Memory}
-
-Grappa implements a software distributed shared memory. This memory is
-exposed through two address spaces; one optimized for global access to
-node-local data, and another optimized for high aggregate random
-access bandwidth to low locality data.
-
-All global addresses in Grappa are 64-bit values. Each byte of global
-memory is associated with a {\em home core}; this core is responsible
-for allocating and modifying that memory. Since today's commodity
-processors support a 48-bit virtual address space \TODO{cite?}, Grappa
-uses the spare bits to distinguish which address space a global
-address belongs to, and to represent the home core of a global
-address.
-
-The first global address space is the {\em two-dimensional} address
-space. This uses a traditional PGAS addressing model, where each
-address is a tuple of a rank in the job (or global process ID) and an
-address in that process. The lower 48 bits of the address hold a
-virtual address in the process. The top bit is set to indicate that
-this a 2D address. This leaves 15 bits for network endpoint ID, which
-limits our scalability to $2^15$ endpoints.
-
-Any local data can be made accessible by other nodes in the system by
-wrapping the address and node ID into a 2D global address. This
-address can then be accessed with delegate or cache operations. At the
-destination the address is converted into a canonical x86 address by
-replacing the upper bits with the sign-exteded upper bit of the
-virtual address.
-
-The second global address space is the {\em linear} address space, so
-named because nearby addresses can be treated as adjacent even if they
-are stored on different nodes. Addresses in the linear address space
-are partitioned across the cluster in a block-cyclic fashion. Choosing
-the block size involves trading off sequential bandwidth agains
-aggregate random access bandwidth. Smaller block sizes help spread
-data across all the memory controllers in the cluster, but larger
-block sizes allow the locality-optimized memory controllers to provide
-increased sequential bandwidth. The block size is typically set to 64
-bytes, or the size of a single hardware cache line, in order to
-exploit spatial locality when available.
-
-All linear addresses refer to data allocated from a global heap. The
-heap metadata is stored on a single node. Currently all heap
-operations serialize through this node; while this has been sufficient
-for our benchmarks, parallel performance can be achieved through
-combining \TODO{ cite MAMA and flat combining }. 2D addresses may
-refer to memory allocated from a single processes' heap or from a
-task's stack.
-
-All global memory operations are implemented with active
-messages. Requestors construct a descriptor holding the current
-task/worker ID and space for a response, issue their request active
-message to the node given by the request address, and suspend
-themselves. When the request arrives at the address' home node, the
-operation is performed and a response active message is sent. When the
-response arrives at the requesting node, the descriptor is filled in
-with the results of the operation and the requesting task is woken.
-
-Delegate operations are used for syncronization. Their modifications
-are always executed at the home core of their address. Each task may
-have only one outstanding delegate operation. We limit delegate
-operations to operate objects in the 2D address space or objects that
-fit in a single block of the linear address space. No context switches
-are allowed while the data it being modified. Given these
-restrictions, we can ensure that delegate operations from multiple
-requestors are always serialized through a single core in the system,
-providing atomic semantics without using atomic operations.
-
-Cache operations are used to exploit spatial or temporal
-locality. They allow a single task to buffer a range of data, read or
-modify it, and write the modified version back to its home node. All
-acquires and releases are expressed explicitly by the
-programmer. Cache operations may operate on data that spans multiple
-blocks of the linear address space; the programmer provides the
-starting address and length, and the cache issues as many active
-messages as necessary to retrieve all necessary data.
-
-All current cache operations are incoherent; two tasks may
-concurrently modify the same block with their writes interfereing
-unless protected by synchronization through delegate operations. While
-this has been sufficient for our benchmarks, it is possible to embed
-synchronization in the cache active messages and reduce the number of
-network round trips necessary.
-
-
