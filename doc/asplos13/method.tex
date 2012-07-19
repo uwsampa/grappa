@@ -6,11 +6,37 @@ The metric we use is algorithmic time, which means startup and loading of the da
 
 One question that must be answered when making a comparison between the Cray XMT and a typical HPC cluster is what is a fair comparison -- these systems are quite different.  Three options immediately come to mind: equal number of processing cores, equal number of network interfaces, and equal dollars.  We discounted the last option fairly quickly, because it isn't a lasting data-point and, as will be evident later, would be hugely unfair to the XMT.  The first option, cores, has some merit, but Grappa is designed for applications that have no locality in their computation.  This means almost all of their memory accesses are remote.  Hence, the factor that limits their performance is not processing, but communicating.  Hence, we have chosen the middle option, network interfaces as the way to normalize across the XMT and our cluster.  Each processor in the XMT system has its own network interface to access shared memory.  In the HPC cluster we use, each processor (which contains 12 cores), has a single Infiniband interface.  Hence, for our results we scale up XMT processors one for one with full system nodes.
 
+\subsection{Systems}
+For measurements, we run Grappa on a 144-node cluster of AMD
+Interlagos processors, located at Pacific Northwest National Lab
+(PNNL). Nodes have 32 core (every pair share a floating-point
+unit) 2.1-GHz processors, and 64GB of memory, and \TODO{xxx 40Gb network card}. \todo{cluster
+    uses xxx Infiniband switch}. We configure the nodes to have 32 1-GB
+hugepages to minimize TLB misses for the random access patterns we
+expect from irregular applications. The results we present are for
+this machine, but we have also run Grappa on our own 12-node Intel
+Xeon Westmere cluster.
+
+For the MTA comparison, we use a 128-node Cray XMT (3rd generation
+of the MTA), also located at PNNL. Each node consists of a 500-MHz MTA Threadstorm multithreaded
+processor that supports 128 streams. The machine uses Cray's proprietary
+SeaStar2 interconnection network.
+
 \subsection{Applications}
 %Traversal of an unbalanced, unpartitioned tree captures the foundations for implementing most forms of irregular parallelism. 
 %Recursion is found in every irregular divide and conquer algorithm. Loops, even regular ones, must be dynamically scheduled to get good load balance when run on a large, non-uniform system. Nested parallelism involves fine-grain creation of dynamic amounts of work. Dataflow..
 
-\paragraph{Unbalanced tree search (UTS)}, is a benchmark for evaluating the programmability and performance of systems for parallel applications that require dynamic load balancing \cite{Olivier:uts2006}. It involves traversing an unbalanced implicit tree: at each vertex, its number of children is sampled from some probability distribution, and this number of new nodes are added to a work queue to be visited. While this benchmark captures irregular, dynamic parallelism, we want to evaluate performance on algorithms that touch existing data. We augment UTS by using the traversal to create a large tree in memory, and then we traverse the in-memory tree. We call this benchmark UTS-mem, and the timed portion is this traversal of the in-memory tree. The assumption is that in general the size of each subtree is unknown until that subtree has actually been traversed.
+\paragraph{Unbalanced tree search in-memory (UTS-Mem)}, is a benchmark
+for evaluating the programmability and performance of systems for
+parallel applications that require dynamic load balancing
+\cite{Olivier:uts2006}. It involves traversing an unbalanced implicit
+tree: at each vertex, its number of children is sampled from some
+probability distribution, and this number of new nodes are added to a
+work queue to be visited. While this benchmark captures irregular,
+dynamic parallelism, we want to evaluate performance on algorithms
+that touch existing data. We augment UTS by using the traversal to
+create a large tree in memory, and then we traverse the in-memory
+tree. We call this benchmark UTS-Mem, and the timed portion is this traversal of the in-memory tree. The assumption is that in general the size of each subtree is unknown until that subtree has actually been traversed.
 
 %todo: say tree explore is same as a search except we are additionally needing to synchronize on all vertices visited
 
