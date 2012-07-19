@@ -10,18 +10,25 @@ We ran UTS-mem on Grappa and the XMT with a binomial and two geometric
           T1L: -t 1 -a 3 -d 13 -b 4 -r 29\\
           T1XL: -t 1 -a 3 -d 15 -b 4 -r 29\\}.
 Both systems do relatively poorly on the binomial tree because it is very deep and a
-traversal produces little parallelism. Figure~\ref{fig:grappa-xmt-uts}
+traversal produces little parallelism, which both systems depend on.
+\todo{data from our trace would be nice here}. Figure~\ref{fig:grappa-xmt-uts}
 shows the performance in terms of number of vertices visited per
 second versus number of compute nodes. The Grappa results are for the
 best parameter values from a limited search over \flushtimeout~and
 \asyncforthr~\TODO{want to say this in general at beginning of eval?}.
-Grappa with 16 machines is faster than the entire XMT. Grappa achieves \checkme{81Mvert/s} with \checkme{60 machines} and the
+Grappa with 16 machines is faster than the entire XMT. Grappa achieves
+\checkme{112Mvert/s} with \checkme{60 machines} and the
 XMT achieves only 50Mvert/s. Scaling up, Grappa adds 2Mvert/s/nodes
-and the XMT adds 850Kvert/s/node.
+and the XMT adds 850Kvert/s/node. Grappa's scaling slows down at
+\checkme{90} machines because of the unscalability of our aggregation
+mechanism as there are more network endpoints.
 
 Grappa
-\TODO{Preston/Simon: why the xmt stops scaling}
+\TODO{Preston/Simon: why the xmt stops scaling, readfe retries?}
 
+The XMT plataeus around \checkme{60} processors for 100M, 1.6B, and
+4.2B-vertex trees, so performance is not limited by availability of
+parallelism for this implementation of UTS-mem.
 
 
 \TODO{why is XMT getting different results for T1L,T2L; would expect it to be the machine with the most uniform results.}
