@@ -173,6 +173,34 @@ static void run_bfs(tuple_graph * tg, csr_graph * g, int64_t * bfs_roots) {
   }
 }
 
+template <typename T>
+inline void read_my_chunk(GlobalAddress<T> base_addr, int64_t n, FILE * fin) {
+  range_t r = blockDist(0, n, SoftXMT_mynode(), SoftXMT_nodes());
+  fseek(fin, r.start*sizeof(T), SEEK_CUR);
+  read_array(base_addr+r.start, r.end-r.start, fin);
+  fseek(fin, (n-r.end)*sizeof(T), SEEK_CUR);
+}
+
+LOOP_FUNCTOR( checkpoint_in_func, nid, ((tuple_graph,tg)) ((csr_graph,g)) ((int64_t*,bfs_roots)) ((int64_t, ckpt_nbfs)) ) {
+  char fname[256];
+  sprintf(fname, "ckpts/graph500.%lld.%lld.xmt.w.ckpt", SCALE, edgefactor);
+  FILE * fin = fopen(fname, "r");
+  
+  fseek(fin, 4*sizeof(int64_t), SEEK_CUR);
+
+  read_my_chunk(tg.edges, tg.nedge, fin);
+  
+  read_my_chunk(g.xoff, 2*g.nv+2, fin);
+
+  read_my_chunk(g.xadjstore, g.nadj, fin);
+  
+  if (nid == 0) {
+    fread(bfs_roots, sizeof(int64_t), ckpt_nbfs, fin);
+  }
+
+  fclose(fin);
+}
+
 static void checkpoint_in(tuple_graph * tg, csr_graph * g, int64_t * bfs_roots) {
   //TAU_PHASE("checkpoint_in","void (tuple_graph*,csr_graph*,int64_t*)", TAU_USER);
   
@@ -202,24 +230,18 @@ static void checkpoint_in(tuple_graph * tg, csr_graph * g, int64_t * bfs_roots) 
   g->xadjstore = SoftXMT_typed_malloc<int64_t>(g->nadj);
   g->xadj = g->xadjstore+2;
   
-  // write out edge tuples
-  read_array(tg->edges, tg->nedge, fin);
-  
-  // xoff
-  read_array(g->xoff, 2*g->nv+2, fin);
-  
-  // xadj
-  read_array(g->xadjstore, g->nadj, fin);
-  
-  // bfs_roots
-  fread(bfs_roots, sizeof(int64_t), ckpt_nbfs, fin);
+  //read_array(tg->edges, tg->nedge, fin);
+  //read_array(g->xoff, 2*g->nv+2, fin);
+  //read_array(g->xadjstore, g->nadj, fin);
+  //fread(bfs_roots, sizeof(int64_t), ckpt_nbfs, fin);
+  fclose(fin);
+  { checkpoint_in_func f(*tg, *g, bfs_roots, ckpt_nbfs); fork_join_custom(&f); }
  
   if (ckpt_nbfs < NBFS) {
     fprintf(stderr, "only %ld bfs roots found\n", ckpt_nbfs);
     NBFS = ckpt_nbfs;
   }
 
-  fclose(fin);
   
   t = timer() - t;
   VLOG(1) << "checkpoint_read_time: " << t;
