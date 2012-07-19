@@ -402,6 +402,8 @@ static void user_main(void* ignore) {
     printf("triangles_time: %g\n", t); fflush(stdout);
   }
   
+  SoftXMT_reset_stats_all_nodes();
+
   //###############################################
   // Kernel: Betweenness Centrality
   if (do_centrality) {
