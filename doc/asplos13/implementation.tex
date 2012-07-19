@@ -9,7 +9,7 @@ exposed through two address spaces; one optimized for global access to
 node-local data, and another optimized for high aggregate random
 access bandwidth to low locality data.
 
-\paragraph{2D global addresses:} All global addresses in Grappa are 64-bit values. Each byte of global
+\paragraph{2D global addresses} All global addresses in Grappa are 64-bit values. Each byte of global
 memory is associated with a {\em home core}; this core is responsible
 for allocating and modifying that memory. Since today's commodity
 processors support a 48-bit virtual address space \TODO{cite?}, Grappa
@@ -29,10 +29,10 @@ Any local data can be made accessible by other nodes in the system by
 wrapping the address and node ID into a 2D global address. This
 address can then be accessed with delegate or cache operations. At the
 destination the address is converted into a canonical x86 address by
-replacing the upper bits with the sign-exteded upper bit of the
+replacing the upper bits with the sign-extended upper bit of the
 virtual address.
 
-\paragraph{Linear global addresses:} The second global address space is the {\em linear} address space, so
+\paragraph{Linear global addresses} The second global address space is the {\em linear} address space, so
 named because nearby addresses can be treated as adjacent even if they
 are stored on different nodes. Addresses in the linear address space
 are partitioned across the cluster in a block-cyclic fashion. Choosing
@@ -55,7 +55,7 @@ task's stack.
 \TODO{Add a figure that depicts both forms of global addresses.}
 
 All global memory operations are implemented with active
-messages. Requestors construct a descriptor holding the current
+messages. Requesters construct a descriptor holding the current
 task/worker ID and space for a response, issue their request active
 message to the node given by the request address, and suspend
 themselves. When the request arrives at the address' home node, the
@@ -63,17 +63,17 @@ operation is performed and a response active message is sent. When the
 response arrives at the requesting node, the descriptor is filled in
 with the results of the operation and the requesting task is woken.
 
-\paragraph{Delegates:} Delegate operations are used for syncronization. Their modifications
+\paragraph{Delegates} Delegate operations are used for low-locality accesses and synchronization. Their modifications
 are always executed at the home core of their address. Each task may
 have only one outstanding delegate operation. We limit delegate
 operations to operate on objects in the 2D address space or objects that
 fit in a single block of the linear address space. No context switches
 are allowed while the data it being modified. Given these
 restrictions, we can ensure that delegate operations for the same address from multiple
-requestors are always serialized through a single core in the system,
+requesters are always serialized through a single core in the system,
 providing atomic semantics without using atomic operations.
 
-Cache operations are used to exploit spatial or temporal
+\paragraph{Caches} Cache operations are used to exploit spatial or temporal
 locality. They allow a single task to buffer a range of data, read or
 modify it, and write the modified version back to its home node. All
 acquires and releases are expressed explicitly by the
@@ -85,7 +85,7 @@ messages as necessary to retrieve all necessary data.
 \comment{If anything, this is just a footnote. -M
 
 All current cache operations are incoherent; two tasks may
-concurrently modify the same block with their writes interfereing
+concurrently modify the same block with their writes interfering
 unless protected by synchronization through delegate operations. While
 this has been sufficient for our benchmarks, it is possible to embed
 synchronization in the cache active messages and reduce the number of
@@ -113,7 +113,7 @@ each task needs three kinds of data:
   that spawned the task.
 \end{description}
 While these are the most common uses of the three task arguments, they
-are treated as arbitray 64-bit values in the runtime, and can be used
+are treated as arbitrary 64-bit values in the runtime, and can be used
 for any purpose.
 
 Tasks are not allocated any execution resources until the scheduler
@@ -127,7 +127,7 @@ stack, allocated at a particular core.
 Context switching in Grappa is non-preemptive. Any Grappa routine that
 does a potentially-long-latency operation calls a context-switch
 routine that gives control of the core back to the scheduler. Users
-may also explicity yield control to the scheduler.
+may also explicit yield control to the scheduler.
 
 As with other cooperative multithreading systems, we treat context
 switches as function calls, saving and restoring only the callee-saved
@@ -171,7 +171,7 @@ Each scheduler has three queues:
   task pool; this is described in the next section.
 \end{description}
 
-\TODO{What is a worker?  We don't realyl describe this.  -M}
+\TODO{What is a worker?  We don't really describe this.  -M}
 
 Whenever a task yields or suspends, the scheduler makes a decision
 about what to do next. First, it determines if
@@ -205,7 +205,7 @@ queue. Even if there are many active tasks, if they are all suspended
 for long-latency network requests, then the core is underutilized.
 So, there is a choice: should the core use some of this idle time to
 perform work stealing or should it just wait as it is possible that local tasks will
-create more work. We choose to have a core inititiate a steal when all
+create more work. We choose to have a core initiate a steal when all
 of the following conditions hold: no workers are ready to run, 
 the unstarted task queues are empty, and there are no outstanding steal requests. 
 Having only one outstanding steal request throttles steals to
@@ -220,7 +220,7 @@ Fork join computations: implement with futures or continuation passing
 style
 feed-forward computations: implement with scalable task counting (we
 focus on this style in our benchmarks)
-(breifly describe global task joiner)
+(briefly describe global task joiner)
 
 choices we've made
 -random victims
@@ -245,12 +245,21 @@ sends a message, the message is copied to a send queue associated with
 the message's destination and the task continues execution.
 
 Grappa's lower networking layer aggregates the upper layer's messages
-to improve performance. In our applications we see that the bulk of
-the messages sent are small. \TODO{include stats} Commodity networks,
-even ones designed for high-performance computing, provide low
-bandwidth utilization at small message sizes. \TODO{include stats?} To
-make the best use of the network, we must convert our small messages
-into large ones.
+to improve performance. Commodity networks including Infiniband
+achieves their peak injection bandwidth \emph{only} when the packet
+sizes are relatively large---on the order of multiple kilobytes. The
+reason for this discrepancy is the combination of overheads associated
+with handling each packet (in terms of bytes that form the actual
+Infiniband packet, processing time at the card and processing on the
+CPU within the driver stack). Our measurements confirm manufactures
+published data~\cite{infinibandbandwidth}, that with this packet size
+the bisection bandwidth is only a small fraction, less than
+~\checkme{5\%} of the peak bisection bandwidth.
+
+In our experiments the vast majority of requests were smaller than 255
+bytes \TODO{more precise? median?}, far too small to make efficient
+use of the network. To make the best use of the network, we must
+convert our small messages into large ones.
 
 Grappa leverages its lightweight context switching to do this
 conversion. When a task sends a message, the message is not
@@ -263,7 +272,7 @@ There are three situations in which a queue of aggregated messages is
 sent. First, each queue has a message size threshold, chosen to give
 reasonable network performance. If the size in bytes of a queue is
 above the threshold, the contents of the queue are sent
-immediately. Second, each queue has a wait time threshhold. If the
+immediately. Second, each queue has a wait time threshold. If the
 oldest message in a queue has been waiting longer than this threshold,
 the contents of the queue are sent immediately, even if the queue size
 is lower than the message size threshold.  Third, queues may be
