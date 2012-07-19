@@ -1,4 +1,4 @@
-\section{Metholody} \label{sec:method}
+\section{Methodolody} \label{sec:method}
 
 To explore the performance of the Grappa runtime we have implemented three algorithms: breadth first search, betweenness centrality, and unbalanced tree search.  These algorithms were implemented for the Cray XMT (our baseline) and for Grappa.  Performance results for Grappa were obtained on a 144 node cluster.  Individual nodes of this cluster contain the hardware depicted in Table~\ref{table:grappanode}.  Nodes are interconnected with both 10G Ethernet and Infiniband.  For all but startup and configuration, they are configured to communicate over the Infiniband network for these experiments.
 
@@ -10,7 +10,7 @@ One question that must be answered when making a comparison between the Cray XMT
 For measurements, we run Grappa on a 144-node cluster of AMD
 Interlagos processors, located at Pacific Northwest National Lab
 (PNNL). Nodes have 32 core (every pair share a floating-point
-unit) 2.1-GHz processors, and 64GB of memory, and \TODO{xxx 40Gb network card}. \todo{cluster
+unit) 2.1-GHz processors, and 64GB of memory, and \TODO{xxx 40Gb network card}. \TODO{cluster
     uses xxx Infiniband switch}. We configure the nodes to have 32 1-GB
 hugepages to minimize TLB misses for the random access patterns we
 expect from irregular applications. The results we present are for
@@ -26,7 +26,8 @@ SeaStar2 interconnection network.
 %Traversal of an unbalanced, unpartitioned tree captures the foundations for implementing most forms of irregular parallelism. 
 %Recursion is found in every irregular divide and conquer algorithm. Loops, even regular ones, must be dynamically scheduled to get good load balance when run on a large, non-uniform system. Nested parallelism involves fine-grain creation of dynamic amounts of work. Dataflow..
 
-\paragraph{Unbalanced tree search in-memory (UTS-Mem)}, is a benchmark
+\paragraph{Unbalanced tree search in-memory (UTS-Mem)}. Unbalanced
+Search Tree (UTS) is a benchmark
 for evaluating the programmability and performance of systems for
 parallel applications that require dynamic load balancing
 \cite{Olivier:uts2006}. It involves traversing an unbalanced implicit
@@ -34,7 +35,9 @@ tree: at each vertex, its number of children is sampled from some
 probability distribution, and this number of new nodes are added to a
 work queue to be visited. While this benchmark captures irregular,
 dynamic parallelism, we want to evaluate performance on algorithms
-that touch existing data. We augment UTS by using the traversal to
+that touch existing data. 
+
+We augment UTS by using the traversal to
 create a large tree in memory, and then we traverse the in-memory
 tree. We call this benchmark UTS-Mem, and the timed portion is this traversal of the in-memory tree. The assumption is that in general the size of each subtree is unknown until that subtree has actually been traversed.
 
