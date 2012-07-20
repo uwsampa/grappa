@@ -34,6 +34,8 @@ static Thread * user_main_thr;
 /// Flag to tell this node it's okay to exit.
 bool SoftXMT_done_flag;
 
+double tick_rate = 0.0;
+
 #ifdef HEAPCHECK
 HeapLeakChecker * SoftXMT_heapchecker = 0;
 #endif
@@ -104,6 +106,14 @@ void SoftXMT_init( int * argc_p, char ** argv_p[], size_t global_memory_size_byt
   SoftXMT_heapchecker = new HeapLeakChecker("SoftXMT");
 #endif
 
+  // how fast do we tick?
+  SoftXMT_tick();
+  SoftXMT_tick();
+  SoftXMT_Timestamp start_ts = SoftXMT_get_timestamp();
+  struct timespec start;
+  clock_gettime(CLOCK_MONOTONIC, &start);
+  // now go do other stuff for a while
+  
   // set up stats dump signal handler
   struct sigaction stats_dump_sa;
   sigemptyset( &stats_dump_sa.sa_mask );
@@ -163,6 +173,14 @@ void SoftXMT_init( int * argc_p, char ** argv_p[], size_t global_memory_size_byt
   global_task_manager.init( FLAGS_steal, SoftXMT_mynode(), neighbors, SoftXMT_nodes(), FLAGS_chunk_size, FLAGS_cancel_interval ); //TODO: options for local stealing
   global_scheduler.init( master_thread, &global_task_manager );
   global_scheduler.periodic( thread_spawn( master_thread, &global_scheduler, &poller, NULL ) );
+
+  SoftXMT_tick();
+  SoftXMT_Timestamp end_ts = SoftXMT_get_timestamp();
+  struct timespec end;
+  clock_gettime(CLOCK_MONOTONIC, &end);
+  double start_time = (double) start.tv_sec + (start.tv_nsec * 1.0e-9);
+  double end_time = (double) end.tv_sec + (end.tv_nsec * 1.0e-9);
+  tick_rate = (double) (end_ts - start_ts) / (end_time - start_time);
 }
 
 
@@ -260,6 +278,7 @@ void SoftXMT_reset_stats_all_nodes() {
 
 /// Dump statistics
 void SoftXMT_dump_stats() {
+  std::cout << "SoftXMTStats { tick_rate: " << tick_rate << " }" << std::endl;
   global_aggregator.dump_stats();
   global_communicator.dump_stats();
   global_task_manager.dump_stats();
