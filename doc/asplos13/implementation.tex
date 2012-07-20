@@ -293,10 +293,10 @@ handlers. Third, it checks to see if any aggregation queues have
 messages that have been waiting longer than the threshold; if so, it
 sends them.
 
-Underneath the aggregation layer, Grappa uses the GASNet communication
+Underneath the aggregation layer, Grappa uses the \gasnet~communication
 library \TODO{cite GASNet} to actually move data. All interprocess
 communication, whether on or off a cluster node, is handled by the
-GASNet library. GASNet is able to take advantage of many communication
+\gasnet~library. \gasnet~is able to take advantage of many communication
 mechanisms, including Ethernet and Infiniband between nodes, as well as
 shared memory within a node.
 

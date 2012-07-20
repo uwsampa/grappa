@@ -24,17 +24,16 @@ each processor (which contains up to 32 cores), has a single Infiniband interfac
 
 \subsection{Systems}
 For measurements, we run Grappa on a 144-node cluster of AMD
-Interlagos processors, located at Pacific Northwest National Lab
-(PNNL). Nodes have 32 core (every pair share a floating-point
-unit) 2.1-GHz processors, and 64GB of memory, and \TODO{xxx 40Gb network card}. \TODO{cluster
+Interlagos processors. Nodes have 32-core (every pair share a floating-point
+unit) 2.1-GHz processors, 64GB of memory, and \TODO{xxx 40Gb network card}. \TODO{cluster
     uses xxx Infiniband switch}. We configure the nodes to have 32 1-GB
 hugepages to minimize TLB misses for the random access patterns we
 expect from irregular applications. The results we present are for
 this machine, but we have also run Grappa on our own 12-node Intel
 Xeon Westmere cluster.
 
-For the MTA comparison, we use a 128-node Cray XMT (3rd generation
-of the MTA), also located at PNNL. Each node consists of a 500-MHz MTA Threadstorm multithreaded
+We compare to the MTA using a 128-node Cray XMT (3rd generation MTA). 
+Each node consists of a 500-MHz MTA Threadstorm multithreaded
 processor that supports 128 streams. The machine uses Cray's proprietary
 SeaStar2 interconnection network.
 
