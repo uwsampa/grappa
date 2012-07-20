@@ -9,6 +9,7 @@
 
 /// command line options for Aggregator
 DEFINE_int64( aggregator_autoflush_ticks, 1000, "number of ticks to wait before autoflushing aggregated active messages");
+DEFINE_int64( aggregator_max_flush, 0, "flush no more than this many buffers per poll (0 for unlimited)");
 DEFINE_bool( aggregator_enable, true, "should we aggregate packets or just send them?");
 
 /// global Aggregator instance
