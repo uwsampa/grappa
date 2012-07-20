@@ -27,6 +27,20 @@
   organization={IEEE}
 }
 
+@inproceedings{Nelson:hotpar2011,
+    author = {Nelson, Jacob and Myers, Brandon and Hunter, A. H. and Briggs, Preston and Ceze, Luis and Ebeling, Carl and Grossman, Dan and Kahan, Simon and Oskin, Mark},
+    title = {Crunching large graphs with commodity processors},
+    booktitle = {Proceedings of the 3rd USENIX conference on Hot topic in parallelism},
+    series = {HotPar'11},
+    year = {2011},
+    location = {Berkeley, CA},
+    pages = {10--10},
+    numpages = {1},
+    url = {http://dl.acm.org/citation.cfm?id=2001252.2001262},
+    acmid = {2001262},
+    publisher = {USENIX Association},
+    address = {Berkeley, CA, USA},
+} 
 
 %%% Other programming models
 % pregel
@@ -57,3 +71,81 @@
     wwwfilebase = {vldb2012-low-gonzalez-kyrola-bickson-guestrin-hellerstein},
     wwwtopic = {Parallel Learning} 
 }
+
+%%% Communication
+%communication opts for UPC
+@inproceedings{Chen:2005,
+    author = {Chen, Wei-Yu and Iancu, Costin and Yelick, Katherine},
+    title = {Communication Optimizations for Fine-Grained UPC Applications},
+    booktitle = {Proceedings of the 14th International Conference on Parallel Architectures and Compilation Techniques},
+    series = {PACT '05},
+    year = {2005},
+    isbn = {0-7695-2429-X},
+    pages = {267--278},
+    numpages = {12},
+    url = {http://dx.doi.org/10.1109/PACT.2005.13},
+    doi = {10.1109/PACT.2005.13},
+    acmid = {1092221},
+    publisher = {IEEE Computer Society},
+    address = {Washington, DC, USA},
+} 
+
+% Fortran D compiler opts for communication
+@article{FortranD:1992,
+    author = {Hiranandani, Seema and Kennedy, Ken and Tseng, Chau-Wen},
+    title = {Compiling Fortran D for MIMD distributed-memory machines},
+    journal = {Commun. ACM},
+    issue_date = {Aug. 1992},
+    volume = {35},
+    number = {8},
+    month = aug,
+    year = {1992},
+    issn = {0001-0782},
+    pages = {66--80},
+    numpages = {15},
+    url = {http://doi.acm.org/10.1145/135226.135230},
+    doi = {10.1145/135226.135230},
+    acmid = {135230},
+    publisher = {ACM},
+    address = {New York, NY, USA},
+    keywords = {Fortran D, concurrent languages, distributed languages, distributed programming, parallel languages, parallel programming},
+} 
+
+
+%%% Synchronization
+
+% isolation through delegation
+@INPROCEEDINGS{delegated:oopsla11,
+    AUTHOR = "Roberto Lublinerman and Jisheng Zhao and Zoran Budimlic and Swarat Chaudhuri and Vivek Sarkar",
+    TITLE = "Delegated isolation",
+    BOOKTITLE = "OOPSLA'11",
+    PAGES = {885-902},
+    YEAR = {2011}, 
+}
+
+% Betweenness centrality
+@techreport{ssca2,
+  title={HPCS Scalable Synthetic Compact Applications #2: Graph Analysis},
+  author={Bader, D.A. and Feo, J. and Gilbert, J. and Kepner, J. and Koester, D. and Loh, E.},
+  group={DARPA High Productivity Computing Systems},
+  year={2006}
+}
+
+@inproceedings{GraphCT,
+  title={Massive social network analysis: Mining twitter for social good},
+  author={Ediger, D. and Jiang, K. and Riedy, J. and Bader, D.A. and Corley, C. and Farber, R. and Reynolds, W.N.},
+  booktitle={39th International Conference on Parallel Processing (ICPP)},
+  pages={583--593},
+  year={2010},
+  organization={IEEE}
+}
+
+@inproceedings{bader:bc,
+  title={Parallel algorithms for evaluating centrality indices in real-world networks},
+  author={Bader, D.A. and Madduri, K.},
+  journal={The 35th International Conference on Parallel Processing (ICPP)},
+  pages={539--550},
+  year={2006},
+  organization={IEEE}
+}
+
