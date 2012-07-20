@@ -103,7 +103,7 @@ int SoftXMT_run_user_main( void (*fp)(T), T args )
 #endif
 
   if( SoftXMT_mynode() == 0 ) {
-    CHECK( CURRENT_THREAD == master_thread ); // this should only be run at the toplevel
+    CHECK_EQ( CURRENT_THREAD, master_thread ); // this should only be run at the toplevel
 
     // create user_main as a private task
     SoftXMT_privateTask( &user_main_wrapper<T>, fp, args );
