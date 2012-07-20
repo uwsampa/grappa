@@ -635,7 +635,7 @@ public:
     int num_flushes = 0;
     while( !least_recently_sent_.empty() &&
 	   ((-least_recently_sent_.top_priority() + FLAGS_aggregator_autoflush_ticks) < ts) &&
-	   ((FLAGS_aggregator_max_flush > 0) && (num_flushes < FLAGS_aggregator_max_flush)) ) {
+	   ((FLAGS_aggregator_max_flush == 0) || (num_flushes < FLAGS_aggregator_max_flush)) ) {
       stats.record_timeout();
       DVLOG(5) << "timeout for node " << least_recently_sent_.top_key()
 	       << ": inserted at " << -least_recently_sent_.top_priority()
