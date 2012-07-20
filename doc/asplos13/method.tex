@@ -4,7 +4,23 @@ To explore the performance of the Grappa runtime we have implemented three algor
 
 The metric we use is algorithmic time, which means startup and loading of the data structure (from disk) is not included in the measurement.  Data is collected on real systems, which means minor variations in runtime exist from run to run.  The average of multiple runs are used, and where appropriate, confidence in the result is reported (error bars, standard deviation, etc).
 
-One question that must be answered when making a comparison between the Cray XMT and a typical HPC cluster is what is a fair comparison -- these systems are quite different.  Three options immediately come to mind: equal number of processing cores, equal number of network interfaces, and equal dollars.  We discounted the last option fairly quickly, because it isn't a lasting data-point and, as will be evident later, would be hugely unfair to the XMT.  The first option, cores, has some merit, but Grappa is designed for applications that have no locality in their computation.  This means almost all of their memory accesses are remote.  Hence, the factor that limits their performance is not processing, but communicating.  Hence, we have chosen the middle option, network interfaces as the way to normalize across the XMT and our cluster.  Each processor in the XMT system has its own network interface to access shared memory.  In the HPC cluster we use, each processor (which contains 12 cores), has a single Infiniband interface.  Hence, for our results we scale up XMT processors one for one with full system nodes.
+One question that must be answered when making a comparison between
+the Cray XMT and a typical HPC cluster is what is a fair comparison --
+these systems are quite different.  Three options immediately come to
+mind: equal number of processing cores, equal number of network
+interfaces, and equal dollars.  \checkme{We discounted the last option fairly
+quickly, because it isn't a lasting data-point and, as will be evident
+later, would be hugely unfair to the XMT.}  The first option, cores,
+has some merit, but Grappa is designed for applications that have no
+locality in their computation.  This means almost all of their memory
+accesses are remote.  Hence, the factor that limits their performance
+is not processing, but communicating.  Hence, we have chosen the
+middle option, network interfaces as the way to normalize across the
+XMT and our cluster.  Each processor in the XMT system has its own
+network interface to access shared memory.  In the HPC cluster we use,
+each processor (which contains up to 32 cores), has a single Infiniband interface.  Hence, for our results we scale up XMT processors one for one with full system nodes.
+
+
 
 \subsection{Systems}
 For measurements, we run Grappa on a 144-node cluster of AMD
@@ -23,11 +39,17 @@ processor that supports 128 streams. The machine uses Cray's proprietary
 SeaStar2 interconnection network.
 
 \subsection{Applications}
-%Traversal of an unbalanced, unpartitioned tree captures the foundations for implementing most forms of irregular parallelism. 
-%Recursion is found in every irregular divide and conquer algorithm. Loops, even regular ones, must be dynamically scheduled to get good load balance when run on a large, non-uniform system. Nested parallelism involves fine-grain creation of dynamic amounts of work. Dataflow..
+\TODO{
+    Traversal of an unbalanced, unpartitioned tree captures the foundations for implementing most forms of irregular parallelism. 
+Recursion is found in every irregular divide and conquer algorithm.
+Loops, even regular ones, must be dynamically scheduled to get good
+load balance when run on a large, non-uniform system. Nested
+parallelism involves fine-grain creation of dynamic amounts of work.
+Dataflow..
+}
 
-\paragraph{Unbalanced tree search in-memory (UTS-Mem)}. Unbalanced
-Search Tree (UTS) is a benchmark
+\paragraph{Unbalanced tree search in-memory (UTS-Mem)}
+Unbalanced Tree Search (UTS) is a benchmark
 for evaluating the programmability and performance of systems for
 parallel applications that require dynamic load balancing
 \cite{Olivier:uts2006}. It involves traversing an unbalanced implicit
@@ -35,15 +57,20 @@ tree: at each vertex, its number of children is sampled from some
 probability distribution, and this number of new nodes are added to a
 work queue to be visited. While this benchmark captures irregular,
 dynamic parallelism, we want to evaluate performance on algorithms
-that touch existing data. 
+with irregular memory access patterns.
 
-We augment UTS by using the traversal to
+We augment UTS by using the existing traversal code to
 create a large tree in memory, and then we traverse the in-memory
-tree. We call this benchmark UTS-Mem, and the timed portion is this traversal of the in-memory tree. The assumption is that in general the size of each subtree is unknown until that subtree has actually been traversed.
+tree. We call this benchmark UTS-Mem, and the timed portion is this
+traversal of the in-memory tree. This in-memory traversal is
+unknowledgeable of the tree structure beforehand.
 
 %todo: say tree explore is same as a search except we are additionally needing to synchronize on all vertices visited
 
-The Grappa version of the in-memory tree search uses the asynchronous parallel for loop over a visited vertex's children list. A larger threshold can be set to take advantage of this locality by processing more child pointers sequentially in a single task.
+The Grappa version of the in-memory tree search uses the
+asynchronous parallel for loop over a visited vertex's children 
+list. A larger threshold can be set to take advantage of this 
+locality by processing more child pointers sequentially in a single task.
 
 \comment{The Grappa version of tree search UTS-mem
 
