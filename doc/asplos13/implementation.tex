@@ -56,7 +56,7 @@ task's stack.
 
 All global memory operations are implemented with active
 messages. Requesters construct a descriptor holding the current
-task/worker ID and space for a response, issue their request active
+worker \TODO{reorder this paragraph after defined} ID and space for a response, issue their request active
 message to the node given by the request address, and suspend
 themselves. When the request arrives at the address' home node, the
 operation is performed and a response active message is sent. When the
@@ -65,7 +65,9 @@ with the results of the operation and the requesting task is woken.
 
 \paragraph{Delegates} Delegate operations are used for low-locality accesses and synchronization. Their modifications
 are always executed at the home core of their address. Each task may
-have only one outstanding delegate operation. We limit delegate
+have only one outstanding delegate operation \TODO{this is not an
+    inherent limitation, it would be better to discuss in terms of
+    fence -BM}. We limit delegate
 operations to operate on objects in the 2D address space or objects that
 fit in a single block of the linear address space. No context switches
 are allowed while the data it being modified. Given these
@@ -83,7 +85,6 @@ starting address and length, and the cache issues as many active
 messages as necessary to retrieve all necessary data.
 
 \comment{If anything, this is just a footnote. -M
-
 All current cache operations are incoherent; two tasks may
 concurrently modify the same block with their writes interfering
 unless protected by synchronization through delegate operations. While
@@ -99,14 +100,15 @@ network round trips necessary.}
 Grappa tasks are 32-byte entities: a 64-bit function pointer plus
 three 64-bit arguments. We use three arguments because tasks are
 usually generated as part of a parallel loop decomposition, and thus
-each task needs three kinds of data:
+each task needs three kinds of data.
 \begin{description}
 \item[Function pointer] This 64-bit value indicates what routine
   should run. We configure the system nodes to disable address randomization, so that we can depend on the fact that function pointers are valid across process images.
 \item[Private argument] This 64-bit value is typically used for task-specific
   data (e.g., a loop index).
 \item[Shared argument] This 64-bit value is typically used for data shared
-  between all tasks that are part of a loop.
+  between all tasks that are part of a loop or to specify the number
+  of loop iterations.
 \item[Synchronization argument] This 64-bit value is typically used to determine
   when all tasks that are part of a loop have finished. It is usually
   a global pointer to a synchronization object allocated at the core
@@ -118,7 +120,7 @@ for any purpose.
 
 Tasks are not allocated any execution resources until the scheduler
 decides to run them; when this occurs, tasks are matched with {\em
-  workers}. Each worker is simply a collection of status bits and a
+  worker} threads. Each worker is simply a collection of status bits and a
 stack, allocated at a particular core.
 
 
@@ -145,6 +147,7 @@ compiler will issue its own save and restore code as needed. This allows the
 compiler to avoid saving any registers that are not used, or are used
 for temporary values that are not needed after the context switch.
 \comment{I highly doubt this is important in real apps beyond our kernels.  -M
+Why not? liveness is a common compiler analysis -BM
 
 In
 particular, only one of our applications does floating point
@@ -170,8 +173,6 @@ Each scheduler has three queues:
   waiting to be matched with workers. It is a local partition of a shared
   task pool; this is described in the next section.
 \end{description}
-
-\TODO{What is a worker?  We don't really describe this.  -M}
 
 Whenever a task yields or suspends, the scheduler makes a decision
 about what to do next. First, it determines if
@@ -236,7 +237,8 @@ termination detection.
 \subsection{Communication}
 
 In order to mitigate the low message injection rate limits of commodity
-networks, Grappa's communication stack has two layers. 
+networks, Grappa's communication stack has two layers: one for
+user-level messages and one for network-level messages. 
 
 At the upper layer, Grappa implements asynchronous active messages
 \TODO{cite vonEicken92}. Each message consists of a function pointer, an
@@ -251,15 +253,17 @@ sizes are relatively large---on the order of multiple kilobytes. The
 reason for this discrepancy is the combination of overheads associated
 with handling each packet (in terms of bytes that form the actual
 Infiniband packet, processing time at the card and processing on the
-CPU within the driver stack). Our measurements confirm manufactures
+CPU within the driver stack). Our measurements confirm manufacturers
 published data~\cite{infinibandbandwidth}, that with this packet size
 the bisection bandwidth is only a small fraction, less than
 ~\checkme{5\%} of the peak bisection bandwidth.
 
-In our experiments the vast majority of requests were smaller than 255
+In our experiments the vast majority of requests were smaller than
+\checkme{255}
 bytes \TODO{more precise? median?}, far too small to make efficient
 use of the network. To make the best use of the network, we must
 convert our small messages into large ones.
+\TODO{reference to aggregation evaluation later in the paper}
 
 Grappa leverages its lightweight context switching to do this
 conversion. When a task sends a message, the message is not
