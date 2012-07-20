@@ -63,10 +63,10 @@ static void memory_write_request_am( memory_write_request_args * args, size_t si
   delegate_stats.count_op_am();
   delegate_stats.count_word_write_am();
 
-  CHECK( (int64_t)args->address.pointer() > 0x1000 )<< "read request:"
+  DCHECK( (int64_t)args->address.pointer() > 0x1000 )<< "read request:"
                                                     << "\n address="<<args->address
                                                     << "\n descriptor="<<args->descriptor;
-  assert( payload_size == sizeof(int64_t) );
+  DCHECK_EQ( payload_size, sizeof(int64_t) );
   int64_t payload_int = *(static_cast<int64_t*>(payload));
   VLOG(3) << "payload("<<(void*)payload<<")="<<payload_int<<"\n    pointer="<<(void*)args->address.pointer();
   *(args->address.pointer()) = payload_int;
@@ -110,7 +110,7 @@ struct memory_read_reply_args {
 };
 
 static void memory_read_reply_am( memory_read_reply_args * args, size_t size, void * payload, size_t payload_size ) {
-  DCHECK( payload_size == sizeof(int64_t ) );
+  DCHECK_EQ( payload_size, sizeof(int64_t ) );
   args->descriptor.pointer()->data = *(static_cast<int64_t*>(payload));
   args->descriptor.pointer()->done = true;
   Delegate_wakeup( args->descriptor.pointer() );
@@ -178,7 +178,7 @@ struct memory_fetch_add_request_args {
 };
 
 static void memory_fetch_add_reply_am( memory_fetch_add_reply_args * args, size_t size, void * payload, size_t payload_size ) {
-  assert( payload_size == sizeof(int64_t) );
+  DCHECK_EQ( payload_size, sizeof(int64_t) );
   args->descriptor.pointer()->data = *(static_cast<int64_t*>(payload));
   args->descriptor.pointer()->done = true;
   Delegate_wakeup( args->descriptor.pointer() );
@@ -189,7 +189,7 @@ static void memory_fetch_add_request_am( memory_fetch_add_request_args * args, s
   delegate_stats.count_op_am();
   delegate_stats.count_word_fetch_add_am();
 
-  assert( payload_size == sizeof(int64_t) );
+  DCHECK_EQ( payload_size, sizeof(int64_t) );
   int64_t data = *(args->address.pointer()); // fetch
   *(args->address.pointer()) += *(static_cast<int64_t*>(payload)); // increment
   memory_fetch_add_reply_args reply_args;
@@ -249,7 +249,7 @@ struct cmp_swap_reply_args {
 };
 
 static void cmp_swap_reply_am(cmp_swap_reply_args * args, size_t size, void * payload, size_t payload_size) {
-  assert( payload_size == sizeof(int64_t) );
+  DCHECK_EQ( payload_size, sizeof(int64_t) );
   args->descriptor.pointer()->data = *(static_cast<int64_t*>(payload));
   args->descriptor.pointer()->done = true;
   Delegate_wakeup( args->descriptor.pointer() );
