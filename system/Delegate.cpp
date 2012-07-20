@@ -1,8 +1,11 @@
 
 
 #include "Delegate.hpp"
+#include "Timestamp.hpp"
 
 #include <cassert>
+#include <numeric>
+
 #include <gflags/gflags.h>
 #include <glog/logging.h>
 
@@ -12,21 +15,30 @@ struct memory_descriptor {
   GlobalAddress<int64_t> address;
   int64_t data;
   bool done;
+  int64_t start_time;
 };
 
 /////////////////////////////////////////////////////////////////////////////
 
 static inline void Delegate_wait( memory_descriptor * md ) {
-  while( !md->done ) {
-    md->t = CURRENT_THREAD;
-    SoftXMT_suspend();
-    md->t = NULL;
+  if( !md->done ) {
+    md->start_time = SoftXMT_get_timestamp();
+    while( !md->done ) {
+      md->t = CURRENT_THREAD;
+      SoftXMT_suspend();
+      md->t = NULL;
+    }
+  } else {
+    md->start_time = 0;
   }
 }
 
 static inline void Delegate_wakeup( memory_descriptor * md ) {
   if( md->t != NULL ) {
     SoftXMT_wake( md->t );
+  }
+  if( md->start_time != 0 ) {
+    delegate_stats.record_latency( SoftXMT_get_timestamp() - md->start_time );
   }
 }
 
@@ -76,6 +88,7 @@ void SoftXMT_delegate_write_word( GlobalAddress<int64_t> address, int64_t data )
   md.data = data;
   md.done = false;
   md.t = NULL;
+  md.start_time = 0;
   memory_write_request_args args;
   args.descriptor = make_global(&md);
   args.address = address;
@@ -137,6 +150,7 @@ int64_t SoftXMT_delegate_read_word( GlobalAddress<int64_t> address ) {
   md.data = 0;
   md.done = false;
   md.t = NULL;
+  md.start_time = 0;
   memory_read_request_args args;
   args.descriptor = make_global(&md);
   args.address = address;
@@ -201,6 +215,7 @@ int64_t SoftXMT_delegate_fetch_and_add_word( GlobalAddress<int64_t> address, int
   md.data = data;
   md.done = false;
   md.t = NULL;
+  md.start_time = 0;
 
   // set up args for request
   memory_fetch_add_request_args args;
@@ -271,7 +286,8 @@ bool SoftXMT_delegate_compare_and_swap_word(GlobalAddress<int64_t> address, int6
   md.address = address;
   md.done = false;
   md.t = NULL;
-  
+  md.start_time = 0;
+
   // set up args for request
   cmp_swap_request_args args;
   args.descriptor = make_global(&md);
@@ -316,6 +332,11 @@ DelegateStatistics::DelegateStatistics()
   , word_fetch_add_ams_ev_vt( VT_COUNT_DEF( "Delegate word fetch and add active messages", "fads", VT_COUNT_TYPE_UNSIGNED, delegate_grp_vt ) )
   , word_compare_swap_ams_ev_vt( VT_COUNT_DEF( "Delegate word compare and swap active messages", "casses", VT_COUNT_TYPE_UNSIGNED, delegate_grp_vt ) )
   , generic_op_ams_ev_vt( VT_COUNT_DEF( "Delegate generic operation active messages", "operations", VT_COUNT_TYPE_UNSIGNED, delegate_grp_vt ) )
+  , ops_blocked_ev_vt( VT_COUNT_DEF( "Delegate blocked op count", "operations", VT_COUNT_TYPE_UNSIGNED, delegate_grp_vt ) )
+  , ops_blocked_ticks_total_ev_vt( VT_COUNT_DEF( "Delegate total blocked ticks", "ticks", VT_COUNT_TYPE_UNSIGNED, delegate_grp_vt ) )
+  , ops_blocked_ticks_min_ev_vt( VT_COUNT_DEF( "Delegate min blocked ticks", "ticks", VT_COUNT_TYPE_UNSIGNED, delegate_grp_vt ) )
+  , ops_blocked_ticks_max_ev_vt( VT_COUNT_DEF( "Delegate max blocked ticks", "ticks", VT_COUNT_TYPE_UNSIGNED, delegate_grp_vt ) )
+  , average_latency_ev_vt( VT_COUNT_DEF( "Delegate average latency", "ticks/s", VT_COUNT_TYPE_DOUBLE, delegate_grp_vt ) )
 #endif
 {
   reset();
@@ -335,6 +356,10 @@ void DelegateStatistics::reset() {
   word_fetch_add_ams = 0;
   word_compare_swap_ams = 0;
   generic_op_ams = 0;
+  ops_blocked = 0;
+  ops_blocked_ticks_total = 0;
+  ops_blocked_ticks_min = std::numeric_limits<uint64_t>::max();
+  ops_blocked_ticks_max = std::numeric_limits<uint64_t>::min();
 }
 
 void DelegateStatistics::dump() {
@@ -352,6 +377,11 @@ void DelegateStatistics::dump() {
 	    << "word_fetch_add_ams: " << word_fetch_add_ams  << ", "
 	    << "word_compare_swap_ams: " << word_compare_swap_ams  << ", "
 	    << "generic_op_ams: " << generic_op_ams  << ", "
+	    << "ops_blocked: " << ops_blocked  << ", "
+	    << "ops_blocked_ticks_total: " << ops_blocked_ticks_total  << ", "
+	    << "ops_blocked_ticks_min: " << ops_blocked_ticks_min  << ", "
+	    << "ops_blocked_ticks_max: " << ops_blocked_ticks_max  << ", "
+	    << "average_latency: " << (double) ops_blocked_ticks_total / ops_blocked  << ", "
 	    << " }" << std::endl;
 }
 
@@ -375,6 +405,11 @@ void DelegateStatistics::profiling_sample() {
   VT_COUNT_UNSIGNED_VAL( word_fetch_add_ams_ev_vt, word_fetch_add_ams );
   VT_COUNT_UNSIGNED_VAL( word_compare_swap_ams_ev_vt, word_compare_swap_ams );
   VT_COUNT_UNSIGNED_VAL( generic_op_ams_ev_vt, generic_op_ams );
+  VT_COUNT_UNSIGNED_VAL( ops_blocked_ev_vt, ops_blocked );
+  VT_COUNT_UNSIGNED_VAL( ops_blocked_ticks_total_ev_vt, ops_blocked_ticks_total );
+  VT_COUNT_UNSIGNED_VAL( ops_blocked_ticks_min_ev_vt, ops_blocked_ticks_min );
+  VT_COUNT_UNSIGNED_VAL( ops_blocked_ticks_max_ev_vt, ops_blocked_ticks_max );
+  VT_COUNT_DOUBLE_VAL( average_latency_ev_vt, (double) ops_blocked / ops_blocked_ticks );
 #endif
 }
 
@@ -393,6 +428,12 @@ void DelegateStatistics::merge(DelegateStatistics * other) {
   word_fetch_add_ams += other->word_fetch_add_ams;
   word_compare_swap_ams += other->word_compare_swap_ams;
   generic_op_ams += other->generic_op_ams;
+  ops_blocked += other->ops_blocked;
+  ops_blocked_ticks_total += other->ops_blocked_ticks_total;
+  if( other->ops_blocked_ticks_min < ops_blocked_ticks_min )
+    ops_blocked_ticks_min = other->ops_blocked_ticks_min;
+  if( other->ops_blocked_ticks_max > ops_blocked_ticks_max )
+    ops_blocked_ticks_max = other->ops_blocked_ticks_max;
 }
 
 void DelegateStatistics::merge_am(DelegateStatistics * other, size_t sz, void* payload, size_t psz) {

@@ -7,8 +7,9 @@
 DEFINE_bool( half, false, "Communicate bidirectionally, half cores sending, half receiving" );
 DEFINE_bool( simul, false, "Communicate bidirectionally, sending and receiving simultaneously" );
 DEFINE_bool( strong, true, "Strong scaling (iters per cores) or weak scaling (iters / core per core)?" );
+DEFINE_bool( delegate, false, "Do delegate ops instead of calls" );
+DEFINE_bool( delegate2, false, "Do delegate ops instead of calls" );
 DEFINE_int64( iterations, 1 << 26, "Iterations" );
-
 
 double wall_clock_time() {
   const double nano = 1.0e-9;
@@ -20,6 +21,7 @@ double wall_clock_time() {
 BOOST_AUTO_TEST_SUITE( NetworkPerformance_tests );
 
 static int64_t value = 0;
+
 
 void receive( char* arg, size_t size, void * payload, size_t payload_size ) {
   ++value;
@@ -112,6 +114,37 @@ LOOP_FUNCTOR( func_bidir_ping, index, ((int64_t, count)) ((int64_t, payload_size
   BOOST_CHECK( value == count );
 }
 
+LOOP_FUNCTOR( func_delegate, index, ((int64_t, count)) ((int64_t, payload_size)) ) {
+  if( SoftXMT_mynode() < SoftXMT_nodes() / 2 ) {
+    // senders
+    Node target = SoftXMT_mynode() + SoftXMT_nodes() / 2;
+    LOG(INFO) << "Node " << SoftXMT_mynode() << " sending " << count << " messages to " << target;
+    for( int i = 0; i < count; ++i ) {
+      GlobalAddress< int64_t > global_value = make_global( &value, target );
+      SoftXMT_delegate_fetch_and_add_word( global_value, 1 );
+      ++target;
+      if( target == SoftXMT_nodes() ) target = SoftXMT_nodes() / 2;
+      //if( (i & 0x0) == 0 ) SoftXMT_yield();
+      SoftXMT_yield();
+    }
+    // for( int i = SoftXMT_nodes() / 2; i < SoftXMT_nodes(); ++i ) {
+    //   SoftXMT_flush( i );
+    // }
+    value = count;
+    LOG(INFO) << "Node " << SoftXMT_mynode() << " sent " << count << " messages to " << target;
+  } else {
+    // receivers
+    while( value != count ) SoftXMT_yield();
+    LOG(INFO) << "Node " << SoftXMT_mynode() << " received " << value << " messages";
+  }
+  BOOST_CHECK( value == count );
+}
+
+LOOP_FUNCTOR( func_delegate2, index, ((int64_t, payload_size)) ) {
+  Node target = index % SoftXMT_nodes();
+  GlobalAddress< int64_t > global_value = make_global( &value, target );
+  SoftXMT_delegate_fetch_and_add_word( global_value, 1 );
+}
 
 void user_main( int * args ) {
   value = 0;
@@ -124,6 +157,8 @@ void user_main( int * args ) {
   func_ping ping( FLAGS_strong ? FLAGS_iterations : FLAGS_iterations / SoftXMT_nodes(), 0 );
   func_bidir_ping bidir_ping( FLAGS_strong ? FLAGS_iterations : FLAGS_iterations / SoftXMT_nodes(), 0 );
   func_half_ping half_ping( FLAGS_strong ? FLAGS_iterations : FLAGS_iterations / SoftXMT_nodes(), 0 );
+  func_delegate delegate( FLAGS_strong ? FLAGS_iterations : FLAGS_iterations / SoftXMT_nodes(), 0 );
+  func_delegate2 delegate2( 0 );
 
   fork_join_custom( &start_profiling );
 
@@ -132,6 +167,10 @@ void user_main( int * args ) {
     fork_join_custom( &bidir_ping );
   } else if( FLAGS_half ){
     fork_join_custom( &half_ping );
+  } else if( FLAGS_delegate ) {
+    fork_join_custom( &delegate );
+  } else if( FLAGS_delegate2 ) {
+    fork_join( &delegate2, 0, FLAGS_iterations );
   } else {
     fork_join_custom( &ping );
   }

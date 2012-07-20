@@ -21,6 +21,10 @@ private:
   uint64_t word_fetch_add_ams;
   uint64_t word_compare_swap_ams;
   uint64_t generic_op_ams;
+  uint64_t ops_blocked;
+  uint64_t ops_blocked_ticks_total;
+  uint64_t ops_blocked_ticks_max;
+  uint64_t ops_blocked_ticks_min;
 #ifdef VTRACE_SAMPLED
   unsigned delegate_grp_vt;
   unsigned ops_ev_vt;
@@ -37,6 +41,11 @@ private:
   unsigned word_fetch_add_ams_ev_vt;
   unsigned word_compare_swap_ams_ev_vt;
   unsigned generic_op_ams_ev_vt;
+  unsigned ops_blocked_ev_vt;
+  unsigned ops_blocked_ticks_total_ev_vt;
+  unsigned ops_blocked_ticks_max_ev_vt;
+  unsigned ops_blocked_ticks_min_ev_vt;
+
 #endif
 
 public:
@@ -58,6 +67,13 @@ public:
   inline void count_word_fetch_add_am() { word_fetch_add_ams++; }
   inline void count_word_compare_swap_am() { word_compare_swap_ams++; }
   inline void count_generic_op_am() { generic_op_ams++; }
+
+  inline void record_latency( int64_t latency ) { 
+    ops_blocked++; 
+    ops_blocked_ticks_total += latency;
+    if( latency > ops_blocked_ticks_max ) ops_blocked_ticks_max = latency;
+    if( latency < ops_blocked_ticks_min ) ops_blocked_ticks_min = latency;
+  }
 
   void dump();
   void sample();
@@ -93,6 +109,9 @@ static void read_reply_am( read_reply_args<T> * args, size_t size, void * payloa
   if( args->descriptor.pointer()->t != NULL ) {
     SoftXMT_wake( args->descriptor.pointer()->t );
   }
+  if( args->descriptor.pointer()->start_time != 0 ) {
+    delegate_stats.record_latency( SoftXMT_get_timestamp() - args->descriptor.pointer()->start_time );
+  }
 }
 
 template< typename T >
@@ -101,6 +120,7 @@ struct memory_desc {
   GlobalAddress<T> address;
   T* data;
   bool done;
+  int64_t start_time;
 };
 
 template< typename T >
@@ -134,6 +154,7 @@ void SoftXMT_delegate_read( GlobalAddress<T> address, T * buf) {
   md.done = false;
   md.data = buf;
   md.t = NULL;
+  md.start_time = 0;
   read_request_args<T> args;
   args.descriptor = make_global(&md);
   args.address = address;
@@ -142,10 +163,15 @@ void SoftXMT_delegate_read( GlobalAddress<T> address, T * buf) {
   } else {
     SoftXMT_call_on( address.node(), &read_request_am<T>, &args );
   }
-  while (!md.done) {
-    md.t = CURRENT_THREAD;
-    SoftXMT_suspend();
-    md.t = NULL;
+  if( !md.done ) {
+    md.start_time = SoftXMT_get_timestamp();
+    while (!md.done) {
+      md.t = CURRENT_THREAD;
+      SoftXMT_suspend();
+      md.t = NULL;
+    }
+  } else {
+    md.start_time = 0;
   }
 }
 
