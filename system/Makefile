@@ -111,6 +111,7 @@ AsyncParallelFor_Local_tests.o AsyncParallelFor_Local_tests.test: $(LIBRARY)
 AsyncParallelFor_Global_tests.o AsyncParallelFor_Global_tests.test: $(LIBRARY)
 AsyncParallelFor_Rate.o AsyncParallelFor_Rate.exe: $(LIBRARY)
 
+NetworkPerformance_tests.test NetworkPerformance_tests.o: $(LIBRARY)
 #
 # environment variables for run
 # remember to include environment's $LD_LIBRARY_PATH, since MPI libs may be there
