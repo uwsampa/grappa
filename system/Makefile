@@ -122,10 +122,29 @@ ENV_VARIABLES+= GLOG_logtostderr=1
 ENV_VARIABLES+= GLOG_v=1
 #ENV_VARIABLES+= OMPI_MCA_btl_sm_use_knem=0
 ENV_VARIABLES+= LD_LIBRARY_PATH="\$$LD_LIBRARY_PATH:$(LD_LIBRARY_PATH)"
+
+# work around 1GB huge page bug in gasnet by limiting size of memory 
+#ENV_VARIABLES+= GASNET_PHYSMEM_MAX=217M # appears to be minimum
 ENV_VARIABLES+= GASNET_PHYSMEM_MAX=1024M
 #ENV_VARIABLES+= GASNET_PHYSMEM_NOPROBE=0
+
+# disabling this by setting it to 0 may reduce delays
+# but so may enabling it. best leave this commented out.
+#ENV_VARIABLES+= GASNET_AMRDMA_LIMIT=0
+
+# 0 is a safe value, but more (3?) may provide a performance boost
+# I'm not seeing one, though. Best leave commented out.
+#ENV_VARIABLES+= GASNET_NUM_QPS=3
+
+# adjusting these may do something....
+# but I didn't see much difference
+#ENV_VARIABLES+= GASNET_PSHMNET_QUEUE_DEPTH=8
+#ENV_VARIABLES+= GASNET_PSHMNET_QUEUE_MEMORY=1MB
+
+
+
+# gasnet debugging
 ENV_VARIABLES+= GASNET_BACKTRACE=1
-ENV_VARIABLES+= GASNET_NUM_QPS=1
 ENV_VARIABLES+= GASNET_FREEZE_SIGNAL=SIGUSR1
 ENV_VARIABLES+= GASNET_FREEZE_ON_ERROR=1
 ENV_VARIABLES+= GASNET_FREEZE=0
