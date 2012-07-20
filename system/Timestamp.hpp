@@ -7,7 +7,7 @@
 
 #include "common.hpp"
 
-typedef int64_t SoftXMT_Timestamp;
+typedef uint64_t SoftXMT_Timestamp;
 extern SoftXMT_Timestamp SoftXMT_current_timestamp;
 
 static inline SoftXMT_Timestamp SoftXMT_tick() {
