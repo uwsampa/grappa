@@ -4,33 +4,31 @@ We now discuss implementation details for the major system components discussed 
 
 \subsection{Memory}
 
-Grappa implements a software distributed shared memory. This memory is
-exposed through two address spaces; one optimized for global access to
-node-local data, and another optimized for high aggregate random
+Grappa implements a software distributed shared memory. This memory is exposed
+through two distinct, non-overlapping address spaces; one optimized for global
+access to node-local data, and another optimized for high aggregate random
 access bandwidth to low locality data.
 
-\paragraph{2D global addresses} All global addresses in Grappa are 64-bit values. Each byte of global
-memory is associated with a {\em home core}; this core is responsible
-for allocating and modifying that memory. Since today's commodity
-processors support a 48-bit virtual address space \TODO{cite?}, Grappa
-uses the spare bits to distinguish which address space a global
-address belongs to, and to represent the home core of a global
-address.
+All global addresses in Grappa are 64-bit
+values. Each byte of global memory is associated with a {\em home core}; this
+core is responsible for allocating and modifying that memory. Since today's
+commodity processors support a 48-bit virtual address space \TODO{cite?},
+Grappa uses the spare bits to distinguish which address space a global address
+belongs to, and to represent the home core of a global address.
 
-The first global address space is the {\em two-dimensional} address
-space. This uses a traditional PGAS addressing model, where each
-address is a tuple of a rank in the job (or global process ID) and an
-address in that process. The lower 48 bits of the address hold a
-virtual address in the process. The top bit is set to indicate that
-this a 2D address. This leaves 15 bits for network endpoint ID, which
-limits our scalability to $2^15$ endpoints.
+\paragraph{2D global addresses} The first global address space is the {\em
+two-dimensional} address space. This uses a traditional PGAS addressing model,
+where each address is a tuple of a rank in the job (or global process ID) and
+an address in that process. The lower 48 bits of the address hold a virtual
+address in the process. The top bit is set to indicates that the reference is
+a 2D address. This leaves 15 bits for network endpoint ID, which limits our
+scalability to $2^15$ endpoints.
 
-Any local data can be made accessible by other nodes in the system by
-wrapping the address and node ID into a 2D global address. This
-address can then be accessed with delegate or cache operations. At the
-destination the address is converted into a canonical x86 address by
-replacing the upper bits with the sign-extended upper bit of the
-virtual address.
+Any node-local data can be made accessible by other nodes in the system by
+wrapping the address and node ID into a 2D global address. This address can
+then be accessed with delegate and can also be cached by other nodes. At the
+destination the address is converted into a canonical x86 address by replacing
+the upper bits with the sign-extended upper bit of the virtual address.
 
 \paragraph{Linear global addresses} The second global address space is the {\em linear} address space, so
 named because nearby addresses can be treated as adjacent even if they
@@ -75,14 +73,14 @@ restrictions, we can ensure that delegate operations for the same address from m
 requesters are always serialized through a single core in the system,
 providing atomic semantics without using atomic operations.
 
-\paragraph{Caches} Cache operations are used to exploit spatial or temporal
-locality. They allow a single task to buffer a range of data, read or
-modify it, and write the modified version back to its home node. All
-acquires and releases are expressed explicitly by the
-programmer. Cache operations may operate on data that spans multiple
-blocks of the linear address space; the programmer provides the
-starting address and length, and the cache issues as many active
-messages as necessary to retrieve all necessary data.
+\paragraph{Explicit caches} Grappa cache operations are used to exploit
+spatial or temporal locality. They allow a single task to buffer a range of
+data, read or modify it, and write the modified version back to its home node.
+All fetch and update operations of cache data are expressed explicitly by the
+programmer. Cache operations may operate on data that spans multiple blocks of
+the linear address space; the programmer provides the starting address and
+length, and the cache issues as many active messages as necessary to retrieve
+all necessary data.
 
 \comment{If anything, this is just a footnote. -M
 All current cache operations are incoherent; two tasks may

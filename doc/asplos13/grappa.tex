@@ -4,7 +4,7 @@
 \begin{center}
   \includegraphics[width=0.5\columnwidth]{figs/grappa-crappy}
 \begin{minipage}{0.95\columnwidth}
-  \caption{\label{fig:grappa} Grappa runtime system \vspace{-4ex}\TODO{should we use the canonical Grappa picture here agumented withe the software stack?}}
+  \caption{\label{fig:grappa} Grappa runtime system \vspace{-4ex}\TODO{should we use the canonical Grappa picture here augmented withe the software stack?}}
 \end{minipage}
 \vspace{-3ex}
 \end{center}
@@ -12,15 +12,6 @@
 
 In this section we describe the Grappa runtime system
 (Figure~\ref{fig:grappa}). 
-%%% Moved to intro
-% Grappa is a software runtime system that allows a commodity distributed-memory
-% HPC cluster to be programmed as if it were a single large shared-memory
-% machine.
-% Grappa is designed to
-% smooth over some of the performance discontinuities in commodity
-% hardware, giving good performance when there is little locality to be
-% exploited while allowing the programmer to exploit it when it is
-% available.
 Grappa provides three key capabilities. The first is a distributed
 shared \textbf{global memory} with high aggregate random access
 bandwidth. The second is a \textbf{tasking} system with lightweight
@@ -32,7 +23,7 @@ Grappa's main capabilities, including a subset of the Grappa API. In
 Section~\ref{implementation}, we discuss the details of their
 implementation.
 
-\TODO{Should we have an example of code here, and walk thru as we explain the
+\TODO{Should we have a code example here, and walk thru it as we explain the
 components and parts of the API?}
 
 \subsection{Tasks}
@@ -40,7 +31,7 @@ components and parts of the API?}
 %The basic unit of locality in Grappa is the {\em core}. Each core is
 %responsible for a section of the global memory
 
-The basic unit of execution in Grappa is the {\em task}. Tasks are
+The basic unit of execution in Grappa is a {\em task}. Tasks are
 small; just a function pointer and arguments. Tasks are only
 queued when they are spawned; later, when resources are free, they are
 allocated a stack, bound to a core, and executed.
@@ -153,9 +144,9 @@ debugging infrastructure that is local to each system node.  Local
 pointers cannot access memory on other cores, and are valid only on
 their home core.
 
-Large data that is expected to be shared and accessed with low locality is stored in Grappa's global memory. All
-global data must be accessed through calls into Grappa's API, shown in
-Figure~\ref{fig:accessing-memory}.
+Large data that is expected to be shared and accessed with low locality is
+stored in Grappa's global memory. All global data must be accessed through
+calls into Grappa's API, shown in Figure~\ref{fig:accessing-memory}.
 
 \paragraph{Global memory allocation}
 Grappa provides two methods for {\emph storing} data in the global memory. The
