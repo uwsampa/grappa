@@ -23,8 +23,14 @@ private:
   uint64_t generic_op_ams;
   uint64_t ops_blocked;
   uint64_t ops_blocked_ticks_total;
+  uint64_t ops_wakeup_ticks_total;
+  uint64_t ops_network_ticks_total;
   uint64_t ops_blocked_ticks_max;
   uint64_t ops_blocked_ticks_min;
+  uint64_t ops_network_ticks_max;
+  uint64_t ops_network_ticks_min;
+  uint64_t ops_wakeup_ticks_max;
+  uint64_t ops_wakeup_ticks_min;
 #ifdef VTRACE_SAMPLED
   unsigned delegate_grp_vt;
   unsigned ops_ev_vt;
@@ -43,8 +49,14 @@ private:
   unsigned generic_op_ams_ev_vt;
   unsigned ops_blocked_ev_vt;
   unsigned ops_blocked_ticks_total_ev_vt;
+  unsigned ops_wakeup_ticks_total_ev_vt;
+  unsigned ops_network_ticks_total_ev_vt;
   unsigned ops_blocked_ticks_max_ev_vt;
   unsigned ops_blocked_ticks_min_ev_vt;
+  unsigned ops_wakeup_ticks_max_ev_vt;
+  unsigned ops_wakeup_ticks_min_ev_vt;
+  unsigned ops_network_ticks_max_ev_vt;
+  unsigned ops_network_ticks_min_ev_vt;
 
 #endif
 
@@ -68,11 +80,31 @@ public:
   inline void count_word_compare_swap_am() { word_compare_swap_ams++; }
   inline void count_generic_op_am() { generic_op_ams++; }
 
-  inline void record_latency( int64_t latency ) { 
+  inline void record_wakeup_latency( int64_t start_time, int64_t network_time ) { 
     ops_blocked++; 
-    ops_blocked_ticks_total += latency;
-    if( latency > ops_blocked_ticks_max ) ops_blocked_ticks_max = latency;
-    if( latency < ops_blocked_ticks_min ) ops_blocked_ticks_min = latency;
+    int64_t current_time = SoftXMT_get_timestamp();
+    int64_t blocked_latency = current_time - start_time;
+    int64_t wakeup_latency = current_time - network_time;
+    ops_blocked_ticks_total += blocked_latency;
+    ops_wakeup_ticks_total += wakeup_latency;
+    if( blocked_latency > ops_blocked_ticks_max ) 
+      ops_blocked_ticks_max = blocked_latency;
+    if( blocked_latency < ops_blocked_ticks_min ) 
+      ops_blocked_ticks_min = blocked_latency;
+    if( wakeup_latency > ops_wakeup_ticks_max )
+      ops_wakeup_ticks_max = wakeup_latency;
+    if( wakeup_latency < ops_wakeup_ticks_min )
+      ops_wakeup_ticks_min = wakeup_latency;
+  }
+
+  inline void record_network_latency( int64_t start_time ) { 
+    int64_t current_time = SoftXMT_get_timestamp();
+    int64_t latency = current_time - start_time;
+    ops_network_ticks_total += latency;
+    if( latency > ops_network_ticks_max )
+      ops_network_ticks_max = latency;
+    if( latency < ops_network_ticks_min )
+      ops_network_ticks_min = latency;
   }
 
   void dump();
@@ -110,7 +142,8 @@ static void read_reply_am( read_reply_args<T> * args, size_t size, void * payloa
     SoftXMT_wake( args->descriptor.pointer()->t );
   }
   if( args->descriptor.pointer()->start_time != 0 ) {
-    delegate_stats.record_latency( SoftXMT_get_timestamp() - args->descriptor.pointer()->start_time );
+    args->descriptor.pointer()->network_time = SoftXMT_get_timestamp();
+    delegate_stats.record_network_latency( args->descriptor.pointer()->start_time );
   }
 }
 
@@ -121,6 +154,7 @@ struct memory_desc {
   T* data;
   bool done;
   int64_t start_time;
+  int64_t network_time;
 };
 
 template< typename T >
@@ -155,6 +189,7 @@ void SoftXMT_delegate_read( GlobalAddress<T> address, T * buf) {
   md.data = buf;
   md.t = NULL;
   md.start_time = 0;
+  md.network_time = 0;
   read_request_args<T> args;
   args.descriptor = make_global(&md);
   args.address = address;
@@ -170,6 +205,7 @@ void SoftXMT_delegate_read( GlobalAddress<T> address, T * buf) {
       SoftXMT_suspend();
       md.t = NULL;
     }
+    delegate_stats.record_wakeup_latency( md.start_time, md.network_time );
   } else {
     md.start_time = 0;
   }
