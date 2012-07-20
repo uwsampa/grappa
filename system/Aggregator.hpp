@@ -44,6 +44,7 @@
 
 /// number of ticks to wait before automatically flushing a buffer.
 DECLARE_int64( aggregator_autoflush_ticks );
+DECLARE_int64( aggregator_max_flush );
 DECLARE_bool( aggregator_enable );
 
 /// Type of aggregated active message handler
@@ -164,7 +165,9 @@ private:
   uint64_t bytes_deaggregated_;
   uint64_t messages_forwarded_;
   uint64_t bytes_forwarded_;
+  uint64_t polls_;
   uint64_t flushes_;
+  uint64_t multiflushes_;
   uint64_t timeouts_;
   uint64_t idle_flushes_;
   uint64_t capacity_flushes_;
@@ -179,7 +182,9 @@ private:
   unsigned bytes_deaggregated_vt_ev;
   unsigned messages_forwarded_vt_ev;
   unsigned bytes_forwarded_vt_ev;
+  unsigned polls_vt_ev;
   unsigned flushes_vt_ev;
+  unsigned multiflushes_vt_ev;
   unsigned timeouts_vt_ev;
   unsigned idle_flushes_vt_ev;
   unsigned capacity_flushes_vt_ev;
@@ -235,7 +240,9 @@ private:
       << "bytes_aggregated: " << bytes_aggregated_ << ", "
       << "messages_aggregated_per_second: " << messages_aggregated_per_second << ", "
       << "bytes_aggregated_per_second: " << bytes_aggregated_per_second << ", "
+      << "polls: " << polls_ << ", "
       << "flushes: " << flushes_ << ", "
+      << "multiflushes: " << multiflushes_ << ", "
       << "timeouts: " << timeouts_ << ", "
       << "idle_flushes: " << idle_flushes_ << ", "
       << "capacity_flushes: " << capacity_flushes_;
@@ -264,7 +271,9 @@ public:
     , bytes_deaggregated_vt_ev( VT_COUNT_DEF( "Total bytes deaggregated", "bytes", VT_COUNT_TYPE_UNSIGNED, aggregator_vt_grp ) )
     , messages_forwarded_vt_ev( VT_COUNT_DEF( "Total messages deaggregated", "messages", VT_COUNT_TYPE_UNSIGNED, aggregator_vt_grp ) )
     , bytes_forwarded_vt_ev( VT_COUNT_DEF( "Total bytes deaggregated", "bytes", VT_COUNT_TYPE_UNSIGNED, aggregator_vt_grp ) )
+    , polls_vt_ev( VT_COUNT_DEF( "Aggregator polls", "polls", VT_COUNT_TYPE_UNSIGNED, aggregator_vt_grp ) )
     , flushes_vt_ev( VT_COUNT_DEF( "Flushes", "flushes", VT_COUNT_TYPE_UNSIGNED, aggregator_vt_grp ) )
+    , multiflushes_vt_ev( VT_COUNT_DEF( "Nonzero timeout loops", "multiflushes", VT_COUNT_TYPE_UNSIGNED, aggregator_vt_grp ) )
     , timeouts_vt_ev( VT_COUNT_DEF( "Timeouts", "timeouts", VT_COUNT_TYPE_UNSIGNED, aggregator_vt_grp ) )
     , idle_flushes_vt_ev( VT_COUNT_DEF( "Idle flushes", "flushes", VT_COUNT_TYPE_UNSIGNED, aggregator_vt_grp ) )
     , capacity_flushes_vt_ev( VT_COUNT_DEF( "Capacity flushes", "flushes", VT_COUNT_TYPE_UNSIGNED, aggregator_vt_grp ) )
@@ -312,7 +321,9 @@ public:
     bytes_deaggregated_ = 0;
     messages_forwarded_ = 0;
     bytes_forwarded_ = 0;
+    polls_ = 0;
     flushes_ = 0;
+    multiflushes_ = 0;
     timeouts_ = 0;
     idle_flushes_ = 0;
     capacity_flushes_ = 0;
@@ -322,8 +333,16 @@ public:
     }
   }
 
-  void record_flush() { 
+  void record_poll() {
+    polls_++;
+  }
+
+  void record_flush() {
     flushes_++;
+  }
+
+  void record_multiflush() {
+    multiflushes_++;
   }
 
   void record_timeout() {
@@ -362,7 +381,9 @@ public:
     VT_COUNT_UNSIGNED_VAL( bytes_deaggregated_vt_ev, bytes_deaggregated_ );
     VT_COUNT_UNSIGNED_VAL( messages_forwarded_vt_ev, messages_forwarded_ );
     VT_COUNT_UNSIGNED_VAL( bytes_forwarded_vt_ev, bytes_forwarded_ );
+    VT_COUNT_UNSIGNED_VAL( polls_vt_ev, polls_ );
     VT_COUNT_UNSIGNED_VAL( flushes_vt_ev, flushes_ );
+    VT_COUNT_UNSIGNED_VAL( multiflushes_vt_ev, multiflushes_ );
     VT_COUNT_UNSIGNED_VAL( timeouts_vt_ev, timeouts_ );
     VT_COUNT_UNSIGNED_VAL( idle_flushes_vt_ev, idle_flushes_ );
     VT_COUNT_UNSIGNED_VAL( capacity_flushes_vt_ev, capacity_flushes_ );
@@ -405,7 +426,9 @@ public:
     bytes_deaggregated_ += other->bytes_deaggregated_;
     messages_forwarded_ += other->messages_forwarded_;
     bytes_forwarded_ += other->bytes_forwarded_;
+    polls_ += other->polls_;
     flushes_ += other->flushes_;
+    multiflushes_ += other->multiflushes_;
     timeouts_ += other->timeouts_;
     idle_flushes_ += other->idle_flushes_;
     capacity_flushes_ += other->capacity_flushes_;
@@ -603,21 +626,25 @@ public:
 #ifdef VTRACE_FULL
     VT_TRACER("poll");
 #endif
+    stats.record_poll();
     global_communicator.poll();
     uint64_t ts = get_timestamp();
     deaggregate();
     // timestamp overflows are silently ignored. 
     // since it would take many many years to see one, I think that's okay for now.
-    if( !least_recently_sent_.empty() ) {                                    // if messages are waiting, and
-      if( -least_recently_sent_.top_priority() + FLAGS_aggregator_autoflush_ticks < ts ) { // we've waited long enough,
-        stats.record_timeout();
-        DVLOG(5) << "timeout for node " << least_recently_sent_.top_key() 
-                 << ": inserted at " << -least_recently_sent_.top_priority()
-                 << " autoflush_ticks " << FLAGS_aggregator_autoflush_ticks
-                 << " (current ts " << ts << ")";
-        flush( least_recently_sent_.top_key() );                   // send.
-      }
+    int num_flushes = 0;
+    while( !least_recently_sent_.empty() &&
+	   ((-least_recently_sent_.top_priority() + FLAGS_aggregator_autoflush_ticks) < ts) &&
+	   ((FLAGS_aggregator_max_flush > 0) && (num_flushes < FLAGS_aggregator_max_flush)) ) {
+      stats.record_timeout();
+      DVLOG(5) << "timeout for node " << least_recently_sent_.top_key()
+	       << ": inserted at " << -least_recently_sent_.top_priority()
+	       << " autoflush_ticks " << FLAGS_aggregator_autoflush_ticks
+	       << " (current ts " << ts << ")";
+      flush( least_recently_sent_.top_key() );                   // send.
+      ++num_flushes;
     }
+    if( num_flushes > 0 ) stats.record_multiflush();
     previous_timestamp_ = ts;
   }
 
