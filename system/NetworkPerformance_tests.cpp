@@ -184,6 +184,9 @@ void user_main( int * args ) {
   double throughput = (SoftXMT_nodes() / 2) * FLAGS_iterations / runtime;
   if( FLAGS_half ) throughput /= 4.0;
 
+  int nnode = atoi(getenv("SLURM_NNODES"));
+  if( FLAGS_delegate2 ) throughput = (double) (FLAGS_iterations / nnode)  / runtime;
+
   LOG(INFO) << "Value finishes at " << value 
 	    << " in " << runtime 
 	    << "s == " << throughput << "it/s per node";
