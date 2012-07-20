@@ -10,7 +10,31 @@ An idealized alternative to demanding this expertise of programmers was provided
 
 In the twenty years that have elapsed since the Tera MTA, commodity microprocessors have become much faster and multicore has driven down the absolute price of computation; commodity network price-performance has improved as well.  This shift has afforded us the opportunity to attack the challenges posed by irregular applications by emulating with inexpensive mass market hardware components the approach taken by Tera. We exploit the increased aggregate instruction rate per socket relative to chip bandwidth.  That is, where locality friendly computations make use of instructions to get work done in cache, we use what would otherwise be wasted instructions to manage the multiplexing of as many as several thousand tasks per core, thus tolerating memory latency, reducing stalls, and making better use of available bandwidth.  Ultimately, the opportunity is to cover the spectrum of irregular to regular computation:  where tasks exhibit locality, multiplex fewer tasks and expend fewer instructions on context switching; where locality is lacking, multiplex more tasks at a higher rate to tolerate latency.  Thus we make best use of task parallelism -- either to scale to more cores or to tolerate latency -- and of caches -- either to exploit application locality or to house more task contexts.
 
-We have developed Grappa:  a latency tolerant runtime for scaling irregular applications on x86 clusters.  Grappa leverages as much freely available and commodity infrastructure as possible. We use unmodified Linux for the operating system.  An off the shelf user-mode infiniband device driver stack~\cite{Melonox?} is used for network interfacing.  MPI~\cite{mpi} is used for process setup and tear down.  GASnet~\cite{gasnet} is used as the underlying mechanism for remote memory reads and writes using active message invocations. To this commodity hardware and software mix Grappa adds three main software components: (1) a lightweight tasking layer that supports a context switch in as few as \checkme{40ns} and distributed load balancing; (2) a distributed shared memory layer that supports customary operations such as read and write as well as remote operations such as fetch-and-add~\cite{fetchandadd}; and (3) a message aggregation layer that combines short messages to mitigate the aforementioned problem that commodity networks are designed to achieve peak bandwidth only on large packet sizes, yet irregular applications tend to fetch only a handful of bytes at a time.  Each of these components will be described in more detail in Section~\ref{sec:grappa}.
+In this paper we introduce Grappa, a software runtime system that allows a
+commodity x86 distributed-memory HPC cluster to be programmed as if it were a
+single large shared-memory machine and provides scalable performance for
+irregular applications. Grappa is designed to smooth over some of the
+performance discontinuities in commodity hardware, giving good performance
+when there is little locality to be exploited while allowing the programmer to
+exploit it when it is available. Grappa leverages as much freely available and
+commodity infrastructure as possible. We use unmodified Linux for the
+operating system. An off the shelf user-mode infiniband device driver
+stack~\cite{Melonox?} is used for network interfacing. MPI~\cite{mpi} is used
+for process setup and tear down. GASnet~\cite{gasnet} is used as the
+underlying mechanism for remote memory reads and writes using active message
+invocations. To this commodity hardware and software mix Grappa adds three
+main software components: (1) a lightweight tasking layer that supports a
+context switch in as few as \checkme{40ns} and distributed load balancing; (2)
+a distributed shared memory layer that supports customary operations such as
+read and write as well as remote operations such as
+fetch-and-add~\cite{fetchandadd}; and (3) a message aggregation layer that
+combines short messages to mitigate the aforementioned problem that commodity
+networks are designed to achieve peak bandwidth only on large packet sizes,
+yet irregular applications tend to fetch only a handful of bytes at a time.
+
+
+
+Each of these components will be described in more detail in Section~\ref{sec:grappa}.
 
 {\em Provide evidence we have succeeded -- will rewrite as necessary based on final results:}
 Grappa achieves its design goal, which is to make irregular applications execute quickly and scalably on commodity clusters.  Our yardstick for comparison is the XMT hardware itself.  Using the same number of processors (in our case cores on a single multicore processor), Grappa is in the same ballpark as the XMT: on some graphs, such as the \checkme{WTF} Grappa is \checkme{2X} faster, while on others, such as the \checkme{WTF2} Grappa is \checkme{2X} slower.  In Section~\ref{sec:results} we explore the factors that underpin this performance.  But most importantly, application performance \emph{scales} with Grappa.  For significantly less real world cost, users can \emph{add} more processors to a commodity cluster and easily outperform the XMT hardware on graph processing, while still saving significant dollars.

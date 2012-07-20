@@ -4,34 +4,36 @@
 \begin{center}
   \includegraphics[width=0.5\columnwidth]{figs/grappa-crappy}
 \begin{minipage}{0.95\columnwidth}
-  \caption{\label{fig:grappa} Grappa runtime system \vspace{-4ex}}
+  \caption{\label{fig:grappa} Grappa runtime system \vspace{-4ex}\TODO{should we use the canonical Grappa picture here agumented withe the software stack?}}
 \end{minipage}
 \vspace{-3ex}
 \end{center}
 \end{figure}
 
 In this section we describe the Grappa runtime system
-(Figure~\ref{fig:grappa}). Grappa is a software runtime system that
-allows a commodity distributed-memory HPC cluster to be programmed as
-if it were a single large shared-memory machine. Grappa is designed to
-smooth over some of the performance discontinuities in commodity
-hardware, giving good performance when there is little locality to be
-exploited while allowing the programmer to exploit it when it is
-available.
-
+(Figure~\ref{fig:grappa}). 
+%%% Moved to intro
+% Grappa is a software runtime system that allows a commodity distributed-memory
+% HPC cluster to be programmed as if it were a single large shared-memory
+% machine.
+% Grappa is designed to
+% smooth over some of the performance discontinuities in commodity
+% hardware, giving good performance when there is little locality to be
+% exploited while allowing the programmer to exploit it when it is
+% available.
 Grappa provides three key capabilities. The first is a distributed
 shared \textbf{global memory} with high aggregate random access
 bandwidth. The second is a \textbf{tasking} system with lightweight
 multithreading and automatic load balancing through work
 stealing. Finally, under the hood, a \textbf{communication} layer uses
 network packet scheduling and aggregation to achieve high performance
-while remaining largely invisible to applications.
-
-In the following sections, we discuss the programmer's view of
+while remaining largely invisible to applications. We now discuss the programmer's view of
 Grappa's main capabilities, including a subset of the Grappa API. In
-section~\ref{implementation}, we discuss the details of their
+Section~\ref{implementation}, we discuss the details of their
 implementation.
 
+\TODO{Should we have an example of code here, and walk thru as we explain the
+components and parts of the API?}
 
 \subsection{Tasks}
 
@@ -39,7 +41,7 @@ implementation.
 %responsible for a section of the global memory
 
 The basic unit of execution in Grappa is the {\em task}. Tasks are
-small; just a function pointer and some arguments. Tasks are only
+small; just a function pointer and arguments. Tasks are only
 queued when they are spawned; later, when resources are free, they are
 allocated a stack, bound to a core, and executed.
 
@@ -55,7 +57,6 @@ calls shown in Figure~\ref{fig:scheduling}. \TODO{cite UPC split phase
 All Grappa scheduling is done in userspace, and minimal state is
 saved, in order to minimize the context switch time. In our
 experiments, we saw context switch times as low as \TODO{40ns}.
-
 This lightweight context switching is Grappa's key enabling
 feature. It gives us the ability to tolerate latency. Given that
 ability, we are able to trade latency for throughput: by {\em
@@ -85,9 +86,9 @@ bandwidth, and our ability to tolerate load.
 
 A programmer's goal in coding with Grappa should be to express as much
 parallelism as possible without worrying about where it will execute.
-Grappa then chooses where and when to execute this parallelism,
+Grappa then chooses where and when to exploit this parallelism,
 scheduling as much work as necessary to tolerate network latencies and
-keep the systems' cores busy. 
+keep cores busy. 
 
 Grappa provides four methods for expressing parallelism, shown in
 Figure~\ref{fig:expressing-parallelism}. The first is explicit task
@@ -99,17 +100,19 @@ or at the home core of a particular memory location. Grappa provides a
 \texttt{spawn\_on} call for this purpose; the task is immediately
 enqueued on the specified core and is not available to other cores.
 
-The next method for expressing parallelism is a parallel for loop,
-where the number of iterations must be known at loop entry. The programmer specifies
-a function pointer along with start and end indices and an optional
-threshold to control parallel overhead. Grappa does {\em recursive decomposition} of iterations,
- as in the implementation of Cilk's cilk\_for construct \TODO{cite cilk\_for implementation:
-     could only find slides page6 of http://www.clear.rice.edu/comp422/lecture-notes/comp422-2012-Lecture5-Cilk++.pdf}.
-It generates a logarithmically-deep tree of tasks, stopping to execute
-the loop body when the number of iterations is below the threshold (``grainsize'' in Cilk).
-\TODO{we may want to make our classification purer: the for loop is
-    not Grappa's core, and is built atop tasks as a useful construct; in some sense the only way
-to express parallelism in Grappa is tasks and perhaps call\_on. -BM}
+The next method for expressing parallelism is a parallel for loop, where the
+number of iterations must be known at loop entry. The programmer specifies a
+function pointer along with start and end indices and an optional threshold to
+control parallel overhead. Grappa does {\em recursive decomposition} of
+iterations, as in the implementation of Cilk's cilk\_for construct \TODO{cite
+cilk\_for implementation: could only find slides page6 of
+http://www.clear.rice.edu/comp422/lecture-notes/comp422-2012-Lecture5-Cilk++.pdf}.
+It generates a logarithmically-deep tree of tasks, stopping to execute the
+loop body when the number of iterations is below the threshold (``grainsize''
+in Cilk). \TODO{we may want to make our classification purer: the for loop is
+not Grappa's core, and is built atop tasks as a useful construct; in some
+sense the only way to express parallelism in Grappa is tasks and perhaps
+call\_on. -BM}
 
 Finally, a programmer may want to run a small piece of code on a
 particular core in the system without waiting for execution resources
@@ -136,7 +139,7 @@ purpose.
   \end{center}
 \end{figure}
 
-\subsection{Accessing memory}
+\subsection{Memory}
 
 Applications written for Grappa utilize two forms of memory: local and
 global.
@@ -150,10 +153,11 @@ debugging infrastructure that is local to each system node.  Local
 pointers cannot access memory on other cores, and are valid only on
 their home core.
 
-Large data that is expected to be accessed with low locality is stored in Grappa's global memory. All
+Large data that is expected to be shared and accessed with low locality is stored in Grappa's global memory. All
 global data must be accessed through calls into Grappa's API, shown in
 Figure~\ref{fig:accessing-memory}.
 
+\paragraph{Global memory allocation}
 Grappa provides two methods for {\emph storing} data in the global memory. The
 first is a distributed heap striped across all the machines in the
 system. The \texttt{global\_malloc} and \texttt{global\_free} calls
@@ -162,14 +166,16 @@ allocation, a global pointer is returned. Grappa also allows any local
 data on a core's stacks or heap to be exported to the global address
 space to be made accessible to other cores across the system.
 
-There are also two approaches to {\emph accessing} global memory. When the
+\paragraph{Global memory access}
+There are two approaches to {\emph accessing} global memory. When the
 programmer expects a computation on shared data to have spatial
 locality to exploit, {\em cache} operations may be used. When there is no locality to
 exploit, {\em delegate} operations are used. Since these operations
 are expected communicate with other nodes and have high latency,
-\TODO{...}
+\TODO{the runtime systems might context switch? what do we want to say here?}
 
-With a cache, applications can instruct Grappa to fetch a global
+\paragraph{Explicit caching}
+With Grappa's explicit caching support, applications can instruct Grappa to fetch a global
 pointer of any length and return a local pointer to a cached copy of
 the global memory. Under the hood, Grappa performs the mechanics of
 gathering chunks of data from multiple system nodes and presenting a
@@ -177,7 +183,7 @@ conventional appearing linear block of memory as a pointer into a
 cache. Grappa cache operations have the usual read-only and read-write
 variants, along with a write-only variant used to initialize data
 structures. Cache operations exploit spatial locality by reducing the number of small network
-messages accessing contguous data. Languages for distributed
+messages accessing contiguous data. Languages for distributed
 shared memory systems have done optimizations to achieve a similar goal. The UPC compiler
 coalesces struct and array accesses into 
 remote get/put \cite{Chen:2005}, or Fortran D compiler's message
@@ -185,13 +191,14 @@ vectorization that hoists small messages out of a loop
 \cite{FortranD:1992}. Caching in Grappa additionally provides a
 mechanism for exploiting temporal locality by operating on the data locally. 
 
+\paragraph{Delegate operations}
 When the access pattern has low-locality, it is more efficient
 to modify the data on its home core rather than bringing a copy to the
 requesting core and returning it after modification. Delegate
 operations provide this capability. Applications can dispatch
 computation to be performed on individual machine-word sized chunks of
 global memory to the memory system itself (e.g.,
-\emph{fetch-and-add}).
+\emph{fetch-and-add}). \TODO{should we bring up delegation in the intro?}
 
 Delegate operations, proposed in \cite{Nelson:hotpar11}, are also the primary synchronization method in
 Grappa. Each piece of global memory is paired with a single core in
@@ -227,14 +234,14 @@ memory has been explored in \cite{delegated:oopsla11}.
 
 
 
-\subsection{Under the hood}
+\subsection{Load Balancing and Network Aggregation}
 
 Grappa contains two key components that are not directly visible to
 the programmer but are key to providing good performance. Both depend
 on Grappa's ability to tolerate latency in order to obtain this
 performance.
 
-The first is a dynamic load balancing mechanism that uses work stealing to
+The first is a distributed dynamic load balancing mechanism that uses work stealing to
 move tasks from busy nodes to idle nodes. When a core detects that it
 has idle execution resources and no new tasks to run, it issues steal
 requests over the network. The core continues to execute remaining
@@ -252,4 +259,4 @@ networks do not transport small packets efficiently. In order to make
 more efficient use of bandwidth, Grappa aggregates packets going to the
 same destination until it can form a larger packet that will make more
 efficient use of the network. In this way, Grappa trades per-request
-latency for application-level throughput.
+latency for application-level throughput. \TODO{Jacob, can you add more details here on how this works?}
