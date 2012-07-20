@@ -44,6 +44,7 @@
 
 /// number of ticks to wait before automatically flushing a buffer.
 DECLARE_int64( aggregator_autoflush_ticks );
+DECLARE_bool( aggregator_enable );
 
 /// Type of aggregated active message handler
 typedef void (* AggregatorAMHandler)( void *, size_t, void *, size_t );
@@ -481,6 +482,7 @@ private:
   /// number of bytes in each aggregation buffer
   /// TODO: this should track the IB MTU
   static const int buffer_size_ = 4024;
+  char raw_send_buffer_[ buffer_size_ ];
 
   /// buffers holding aggregated messages. 
   std::vector< AggregatorBuffer< buffer_size_ > > buffers_;
@@ -646,42 +648,57 @@ inline void aggregate( Node destination, AggregatorAMHandler fn_p,
                                            << "+args_size( " << args_size << " )"
                                            << "+header_size( " << sizeof( AggregatorGenericCallHeader ) << " )"
                                            << "= " << total_call_size << " of max( " << buffer_size_ << " )";
-  
-    // does call fit in aggregation buffer?
-    if( !( buffers_[ target ].fits( total_call_size ) ) ) {
-      DVLOG(5) << "aggregating " << total_call_size << " bytes to " 
-               << destination << "(target " << target 
-               << "): didn't fit "
-               << "(current buffer position " << buffers_[ target ].current_position_
-               << ", next buffer position " << buffers_[ target ].current_position_ + total_call_size << ")";
-      // doesn't fit, so flush before inserting
-      stats.record_capacity_flush();
-      flush( target );
-      assert ( buffers_[ target ].fits( total_call_size ));
-    }
-  
-    // now call must fit, so just insert it
+
     AggregatorGenericCallHeader header = { reinterpret_cast< intptr_t >( fn_p ),
-                                           destination,
-                                           args_size,
-                                           payload_size
+					   destination,
+					   args_size,
+					   payload_size
 #ifdef GRAPPA_TRACE
-                                          , global_communicator.mynode()
+					   , global_communicator.mynode()
 #endif
 #ifdef VTRACE_FULL
 					   , tag_
 #endif
-   
-             };
-   
-    buffers_[ target ].insert( &header, sizeof( header ) );
-    buffers_[ target ].insert( args, args_size );
-    buffers_[ target ].insert( payload, payload_size );
-    stats.record_aggregation( total_call_size );
-  
+      };
+
+    if( FLAGS_aggregator_enable ) {
+      // does call fit in aggregation buffer?
+      if( !( buffers_[ target ].fits( total_call_size ) ) ) {
+	DVLOG(5) << "aggregating " << total_call_size << " bytes to "
+		 << destination << "(target " << target
+		 << "): didn't fit "
+		 << "(current buffer position " << buffers_[ target ].current_position_
+		 << ", next buffer position " << buffers_[ target ].current_position_ + total_call_size << ")";
+	// doesn't fit, so flush before inserting
+	stats.record_capacity_flush();
+	flush( target );
+	assert ( buffers_[ target ].fits( total_call_size ));
+      }
+
+      // now call must fit, so just insert it
+      buffers_[ target ].insert( &header, sizeof( header ) );
+      buffers_[ target ].insert( args, args_size );
+      buffers_[ target ].insert( payload, payload_size );
+      stats.record_aggregation( total_call_size );
+
+    } else {
+
+      // aggregator is disabled; just send message
+      char * buf = raw_send_buffer_;
+      memcpy( buf, &header, sizeof( header ) );
+      buf += sizeof( header );
+      memcpy( buf, args, args_size );
+      buf += args_size;
+      memcpy( buf, payload, payload_size );
+      global_communicator.send( target,
+				aggregator_deaggregate_am_handle_,
+				raw_send_buffer_,
+				total_call_size );
+    }
+
     // trace fine-grain communication
-  if (FLAGS_record_grappa_events) {
-    // TODO: good candidate for TAU_CONTEXT_EVENT
+    if (FLAGS_record_grappa_events) {
+      // TODO: good candidate for TAU_CONTEXT_EVENT
       int fn_p_tag = aggregator_trace_tag( fn_p );
 #ifdef GRAPPA_TRACE
       TAU_TRACE_SENDMSG(fn_p_tag, destination, args_size + payload_size );
