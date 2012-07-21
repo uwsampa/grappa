@@ -16,13 +16,24 @@ commodity processors support a 48-bit virtual address space \TODO{cite?},
 Grappa uses the spare bits to distinguish which address space a global address
 belongs to, and to represent the home core of a global address.
 
+\begin{figure}[t]
+\begin{center}
+  \includegraphics[width=0.95\columnwidth]{figs/memory-structure}
+\begin{minipage}{0.95\columnwidth}
+  \caption{\label{fig:memory-structure} Grappa memory structure}
+\end{minipage}
+\vspace{-3ex}
+\end{center}
+\end{figure}
+
+
 \paragraph{2D global addresses} The first global address space is the {\em
 two-dimensional} address space. This uses a traditional PGAS addressing model,
 where each address is a tuple of a rank in the job (or global process ID) and
 an address in that process. The lower 48 bits of the address hold a virtual
 address in the process. The top bit is set to indicates that the reference is
 a 2D address. This leaves 15 bits for network endpoint ID, which limits our
-scalability to $2^15$ endpoints.
+scalability to $2^{15}$ endpoints.
 
 Any node-local data can be made accessible by other nodes in the system by
 wrapping the address and node ID into a 2D global address. This address can
@@ -40,38 +51,42 @@ data across all the memory controllers in the cluster, but larger
 block sizes allow the locality-optimized memory controllers to provide
 increased sequential bandwidth. The block size, which is configurable, is typically set to 64
 bytes, or the size of a single hardware cache line, in order to
-exploit spatial locality when available.
+exploit spatial locality when available. 
 
 All linear addresses refer to data allocated from a global heap. The
 heap metadata is stored on a single node. Currently all heap
 operations serialize through this node; while this has been sufficient
 for our benchmarks, parallel performance can be achieved through
-combining \TODO{ cite MAMA and flat combining }. 2D addresses may
-refer to memory allocated from a single processes' heap or from a
-task's stack.
+combining \TODO{ cite MAMA and flat combining}. 2D addresses may refer
+to memory allocated from a single processes' heap or from a task's
+stack. Figure~\ref{fig:memory-structure} shows how 2D and linear
+addresses can refer to other cores' memory.
 
 \TODO{Add a figure that depicts both forms of global addresses.}
 
 All global memory operations are implemented with active
-messages. Requesters construct a descriptor holding the current
-worker \TODO{reorder this paragraph after defined} ID and space for a response, issue their request active
-message to the node given by the request address, and suspend
-themselves. When the request arrives at the address' home node, the
-operation is performed and a response active message is sent. When the
-response arrives at the requesting node, the descriptor is filled in
-with the results of the operation and the requesting task is woken.
+messages. Requesters construct a descriptor holding the current task
+ID and space for a response, issue their request active message to the
+node given by the request address, and suspend themselves. When the
+request arrives at the address' home node, the operation is performed
+and a response active message is sent. When the response arrives at
+the requesting node, the descriptor is filled in with the results of
+the operation and the requesting task is woken.
 
 \paragraph{Delegates} Delegate operations are used for low-locality accesses and synchronization. Their modifications
-are always executed at the home core of their address. Each task may
-have only one outstanding delegate operation \TODO{this is not an
-    inherent limitation, it would be better to discuss in terms of
-    fence -BM}. We limit delegate
-operations to operate on objects in the 2D address space or objects that
-fit in a single block of the linear address space. No context switches
-are allowed while the data it being modified. Given these
-restrictions, we can ensure that delegate operations for the same address from multiple
-requesters are always serialized through a single core in the system,
-providing atomic semantics without using atomic operations.
+are always executed at the home core of their address, and while
+arbitrary memory operations can be delegated, we restrict the use of
+delegate operations in three ways to make them more useful for
+synchronization. First, we limit each task to one outstanding delegate
+operation to avoid the possibility of reordering in the
+network. Second, we limit delegate operations to operate on objects in
+the 2D address space or objects that fit in a single block of the
+linear address space so they can be satisfied with a single network
+request. Finally, no context switches are allowed while the data is
+being modified. Given these restrictions, we can ensure that delegate
+operations for the same address from multiple requesters are always
+serialized through a single core in the system, providing atomic
+semantics without using atomic operations.
 
 \paragraph{Explicit caches} Grappa cache operations are used to exploit
 spatial or temporal locality. They allow a single task to buffer a range of

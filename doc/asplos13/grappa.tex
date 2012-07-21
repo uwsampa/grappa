@@ -2,9 +2,9 @@
 
 \begin{figure}[t]
 \begin{center}
-  \includegraphics[width=0.5\columnwidth]{figs/grappa-crappy}
+  \includegraphics[width=0.95\columnwidth]{figs/system-overview}
 \begin{minipage}{0.95\columnwidth}
-  \caption{\label{fig:grappa} Grappa runtime system \vspace{-4ex}\TODO{should we use the canonical Grappa picture here augmented withe the software stack?}}
+  \caption{\label{fig:grappa} Grappa system overview}
 \end{minipage}
 \vspace{-3ex}
 \end{center}
@@ -160,10 +160,13 @@ space to be made accessible to other cores across the system.
 \paragraph{Global memory access}
 There are two approaches to {\emph accessing} global memory. When the
 programmer expects a computation on shared data to have spatial
-locality to exploit, {\em cache} operations may be used. When there is no locality to
-exploit, {\em delegate} operations are used. Since these operations
-are expected communicate with other nodes and have high latency,
-\TODO{the runtime systems might context switch? what do we want to say here?}
+locality to exploit, {\em cache} operations may be used. When there is
+no locality to exploit, {\em delegate} operations are used. Since
+these operations are expected to communicate with other nodes and have
+high latency, cache and delegate operations interact with the
+scheduler; when issuing a long-latency request, they suspend the
+requesting task and allow the core to execute other work until their
+response arrives.
 
 \paragraph{Explicit caching}
 With Grappa's explicit caching support, applications can instruct Grappa to fetch a global
@@ -227,13 +230,13 @@ memory has been explored in \cite{delegated:oopsla11}.
 
 \subsection{Load Balancing and Network Aggregation}
 
-Grappa contains two key components that are not directly visible to
+Grappa contains two components that are not directly visible to
 the programmer but are key to providing good performance. Both depend
 on Grappa's ability to tolerate latency in order to obtain this
 performance.
 
 The first is a distributed dynamic load balancing mechanism that uses work stealing to
-move tasks from busy nodes to idle nodes. When a core detects that it
+move tasks from busy cores to idle cores. When a core detects that it
 has idle execution resources and no new tasks to run, it issues steal
 requests over the network. The core continues to execute remaining
 active work while the steal requests are in flight. When a steal
@@ -245,9 +248,26 @@ the perspective of the application, all communication between tasks in
 Grappa takes place either through global shared memory or remote task
 spawns. Both of these requests are ultimately translated into explicit
 inter-system-node/core communication requests that are dispatched to
-the \gasnet~library. Most of \checkme{our requests} are small, and commodity
-networks do not transport small packets efficiently. In order to make
-more efficient use of bandwidth, Grappa aggregates packets going to the
-same destination until it can form a larger packet that will make more
-efficient use of the network. In this way, Grappa trades per-request
-latency for application-level throughput. \TODO{Jacob, can you add more details here on how this works?}
+the \gasnet~library. In our benchmarks, we found that most of our
+packets were small (44 bytes on average for BFS). Commodity network
+interfaces do not transport small packets efficiently (see
+Section~\ref{sec:bandwidth-versus-packet-size}): the rate at which the
+network interface will accept new packets of any size is limited, so
+the only way to use a respectable fraction of the bandwidth is to send
+larger messages. 
+
+Grappa's latency tolerance allows us to leverage the parallelism in
+our problem domain to build larger packets. Tasks can generate
+requests faster than the network will accept new packets, so instead
+of immediately sending every message, Grappa queues messages heading
+for the same destination. Once enough messages are queued, Grappa
+bundles all the messages into a single packet and sends it to the
+destination core. Tasks that require a response can suspend, allowing
+their core to do other work while waiting for a reply. 
+
+While queuing adds latency to each individual request, it is a much
+lighter-weight operation than sending a packet and allows us to
+amoritize the cost of sending the packet across multiple tasks, while
+also making better use of available network bandwidth. In this way,
+Grappa trades per-request latency for application-level
+throughput.
