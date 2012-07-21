@@ -138,6 +138,7 @@ class TaskingScheduler : public Scheduler {
 
                 int64_t max_active;
                 double avg_active;
+                double avg_ready;
 
 #ifdef VTRACE_SAMPLED
 	  unsigned tasking_scheduler_grp_vt;
@@ -174,6 +175,7 @@ class TaskingScheduler : public Scheduler {
 
                     max_active = 0;
                     avg_active = 0.0;
+                    avg_ready = 0.0;
                 }
                 void print_active_task_log() {
 #ifdef DEBUG
@@ -187,7 +189,8 @@ class TaskingScheduler : public Scheduler {
                 void dump() {
                     std::cout << "TaskStats { "
                         << "max_active: " << max_active << ", "
-                        << "avg_active: " << avg_active << " }" << std::endl;
+                        << "avg_active: " << avg_active << ", " 
+                        << "avg_ready: " << avg_ready << " }" << std::endl;
                 }
                 void sample();
 	        void profiling_sample();

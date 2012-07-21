@@ -107,6 +107,7 @@ class TaskManager {
         class TaskStatistics {
             private:
                 uint64_t single_steal_successes_;
+                uint64_t total_steal_tasks_;
                 uint64_t max_steal_amt_;
                 RunningStandardDeviation stddev_steal_amt_;
                 uint64_t single_steal_fails_;
@@ -128,6 +129,7 @@ class TaskManager {
 	  unsigned session_steal_successes_vt_ev;
 	  unsigned session_steal_fails_vt_ev;
 	  unsigned single_steal_successes_vt_ev;
+	  unsigned total_steal_tasks_vt_ev;
 	  unsigned single_steal_fails_vt_ev;
 	  unsigned acquire_successes_vt_ev;
 	  unsigned acquire_fails_vt_ev;
@@ -141,6 +143,7 @@ class TaskManager {
             public:
                 TaskStatistics(TaskManager * task_manager)
                     : single_steal_successes_ (0)
+                      , total_steal_tasks_ (0)
                       , max_steal_amt_ (0)
                       , stddev_steal_amt_()
                       , single_steal_fails_ (0)
@@ -160,6 +163,7 @@ class TaskManager {
 		    , session_steal_successes_vt_ev( VT_COUNT_DEF( "session_steal_successes", "steals", VT_COUNT_TYPE_UNSIGNED, task_manager_vt_grp ) )
 		    , session_steal_fails_vt_ev( VT_COUNT_DEF( "session_steal_fails", "steals", VT_COUNT_TYPE_UNSIGNED, task_manager_vt_grp ) )
 		    , single_steal_successes_vt_ev( VT_COUNT_DEF( "single_steal_successes", "steals", VT_COUNT_TYPE_UNSIGNED, task_manager_vt_grp ) )
+		    , total_steal_tasks_vt_ev( VT_COUNT_DEF( "total_steal_tasks", "steals", VT_COUNT_TYPE_UNSIGNED, task_manager_vt_grp ) )
 		    , single_steal_fails_vt_ev( VT_COUNT_DEF( "single_steal_fails", "steals", VT_COUNT_TYPE_UNSIGNED, task_manager_vt_grp ) )
 		    , acquire_successes_vt_ev( VT_COUNT_DEF( "acquire_successes", "acquires", VT_COUNT_TYPE_UNSIGNED, task_manager_vt_grp ) )
 		    , acquire_fails_vt_ev( VT_COUNT_DEF( "acquire_fails", "acquires", VT_COUNT_TYPE_UNSIGNED, task_manager_vt_grp ) )
@@ -182,8 +186,9 @@ class TaskManager {
                     session_steal_fails_++;
                 }
 
-                void record_successful_steal( uint64_t amount ) {
+                void record_successful_steal( int64_t amount ) {
                     single_steal_successes_++;
+                    total_steal_tasks_+=amount;
                     max_steal_amt_ = max2( max_steal_amt_, amount );
                     stddev_steal_amt_.addSample( amount );
                 }
