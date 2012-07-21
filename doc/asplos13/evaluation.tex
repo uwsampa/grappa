@@ -46,3 +46,47 @@ Despite our efforts to tune the UTS implementation specific to Cray XMT, perform
 \end{figure}
 
 
+
+
+
+
+\subsection{Sensitivity}
+
+\subsection{Latency tolerance parameters}
+
+\paragraph{Benefit of aggregator}
+what happens with aggregator on and off
+
+\paragraph{Latency}
+aggregation latency and delegate latency
+
+
+\paragraph{Number of workers}
+We need enough workers to cover the network+aggregation latency, but more just slow things down.
+
+UTS
+BFS
+
+
+\subsubsection{Work stealing parameters}
+
+\paragraph{Chunk size}
+
+it's important to steal multiple tasks to 
+amortize cost of stealing
+spread work out quickly in large system
+
+there are times when it's useful to steal lots of stuff, even though
+we steal only a few things most of the time.
+
+UTS
+
+
+\paragraph{Parallel loop threshold}
+
+allows us to amoritize task creation overhead and exploit locality
+Gets us a 2x bump in performance
+not too sensitive
+
+UTS
+BFS
