@@ -181,6 +181,7 @@ void TaskManager::TaskStatistics::dump() {
     DICT_ADD(dout, session_steal_successes_);
     DICT_ADD(dout, session_steal_fails_);
     DICT_ADD(dout, single_steal_successes_);
+    DICT_ADD(dout, total_steal_tasks_);
     DICT_ADD(dout, max_steal_amt_);
     DICT_ADD(dout, stddev_steal_amount); 
     DICT_ADD(dout, single_steal_fails_);
@@ -222,6 +223,7 @@ void TaskManager::TaskStatistics::profiling_sample() {
   VT_COUNT_UNSIGNED_VAL( session_steal_successes_vt_ev, session_steal_successes_);
   VT_COUNT_UNSIGNED_VAL( session_steal_fails_vt_ev, session_steal_fails_);
   VT_COUNT_UNSIGNED_VAL( single_steal_successes_vt_ev, single_steal_successes_);
+  VT_COUNT_UNSIGNED_VAL( total_steal_tasks_vt_ev, total_steal_tasks_);
   VT_COUNT_UNSIGNED_VAL( single_steal_fails_vt_ev, single_steal_fails_);
   VT_COUNT_UNSIGNED_VAL( acquire_successes_vt_ev, acquire_successes_);
   VT_COUNT_UNSIGNED_VAL( acquire_fails_vt_ev, acquire_fails_);
@@ -236,6 +238,7 @@ void TaskManager::TaskStatistics::merge(TaskManager::TaskStatistics * other) {
   session_steal_successes_ += other->session_steal_successes_;
   session_steal_fails_ += other->session_steal_fails_;
   single_steal_successes_ += other->single_steal_successes_;
+  total_steal_tasks_ += other->total_steal_tasks_;
   max_steal_amt_ = max2( max_steal_amt_, other->max_steal_amt_ );
   stddev_steal_amt_.merge( other->stddev_steal_amt_ );
   single_steal_fails_ += other->single_steal_fails_;
