@@ -9,6 +9,7 @@
 #include <sstream>
 
 #include "PerformanceTools.hpp"
+#include "StatisticsTools.hpp"
 #ifdef VTRACE
 #include <vt_user.h>
 #endif
@@ -23,10 +24,6 @@ void SoftXMT_take_profiling_sample();
 DECLARE_int64( periodic_poll_ticks );
 DECLARE_bool(flush_on_idle);
 
-
-static inline double inc_avg(double curr_avg, uint64_t count, double val) {
-	return curr_avg + (val-curr_avg)/(count);
-}
 
 class TaskManager;
 struct task_worker_args;

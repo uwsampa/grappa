@@ -107,7 +107,7 @@ bool TaskManager::waitConsumeAny( Task * result ) {
                 
                 goodSteal = publicQ.steal_locally(v, chunkSize);
                 
-                if (goodSteal) { stats.record_successful_steal(); }
+                if (goodSteal) { stats.record_successful_steal( goodSteal ); }
                 else { stats.record_failed_steal(); }
             }
 
@@ -176,10 +176,13 @@ void TaskManager::dump_stats() {
 
 #include "DictOut.hpp"
 void TaskManager::TaskStatistics::dump() {
+    double stddev_steal_amount = stddev_steal_amt_.value();
     DictOut dout;
     DICT_ADD(dout, session_steal_successes_);
     DICT_ADD(dout, session_steal_fails_);
     DICT_ADD(dout, single_steal_successes_);
+    DICT_ADD(dout, max_steal_amt_);
+    DICT_ADD(dout, stddev_steal_amount); 
     DICT_ADD(dout, single_steal_fails_);
     DICT_ADD(dout, acquire_successes_);
     DICT_ADD(dout, acquire_fails_);
@@ -233,6 +236,8 @@ void TaskManager::TaskStatistics::merge(TaskManager::TaskStatistics * other) {
   session_steal_successes_ += other->session_steal_successes_;
   session_steal_fails_ += other->session_steal_fails_;
   single_steal_successes_ += other->single_steal_successes_;
+  max_steal_amt_ = max2( max_steal_amt_, other->max_steal_amt_ );
+  stddev_steal_amt_.merge( other->stddev_steal_amt_ );
   single_steal_fails_ += other->single_steal_fails_;
   acquire_successes_ += other->acquire_successes_;
   acquire_fails_ += other->acquire_fails_;

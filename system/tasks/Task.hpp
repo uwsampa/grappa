@@ -6,6 +6,7 @@
 #include "StealQueue.hpp"
 #include "cbarrier.hpp"
 #include "Thread.hpp"
+#include "StatisticsTools.hpp"
 
 #ifdef VTRACE
 #include <vt_user.h>
@@ -106,6 +107,8 @@ class TaskManager {
         class TaskStatistics {
             private:
                 uint64_t single_steal_successes_;
+                uint64_t max_steal_amt_;
+                RunningStandardDeviation stddev_steal_amt_;
                 uint64_t single_steal_fails_;
                 uint64_t session_steal_successes_;
                 uint64_t session_steal_fails_;
@@ -138,6 +141,8 @@ class TaskManager {
             public:
                 TaskStatistics(TaskManager * task_manager)
                     : single_steal_successes_ (0)
+                      , max_steal_amt_ (0)
+                      , stddev_steal_amt_()
                       , single_steal_fails_ (0)
                       , session_steal_successes_ (0)
                       , session_steal_fails_ (0)
@@ -177,8 +182,10 @@ class TaskManager {
                     session_steal_fails_++;
                 }
 
-                void record_successful_steal() {
+                void record_successful_steal( uint64_t amount ) {
                     single_steal_successes_++;
+                    max_steal_amt_ = max2( max_steal_amt_, amount );
+                    stddev_steal_amt_.addSample( amount );
                 }
 
                 void record_failed_steal() {
