@@ -213,8 +213,10 @@ void TaskingScheduler::TaskingSchedulerStatistics::merge(TaskingSchedulerStatist
   avg_ready = inc_avg(avg_ready, merged, other->avg_ready);
 }
 
+extern uint64_t merge_reply_count;
 void TaskingScheduler::TaskingSchedulerStatistics::merge_am(TaskingScheduler::TaskingSchedulerStatistics * other, size_t sz, void* payload, size_t psz) {
   global_scheduler.stats.merge(other);
+  merge_reply_count++;
 }
 
 

@@ -249,8 +249,10 @@ void TaskManager::TaskStatistics::merge(TaskManager::TaskStatistics * other) {
   private_tasks_dequeued_ += other->private_tasks_dequeued_;
 }
 
+extern uint64_t merge_reply_count;
 void TaskManager::TaskStatistics::merge_am(TaskManager::TaskStatistics * other, size_t sz, void* payload, size_t psz) {
   global_task_manager.stats.merge(other);
+  merge_reply_count++;
 }
 
 void TaskManager::reset_stats() {

@@ -296,22 +296,33 @@ void SoftXMT_dump_stats_all_nodes() {
   fork_join_custom(&f);
 }
 
+// XXX: yield based synchro
+uint64_t merge_reply_count;
+#define NUM_STATS_MERGE 6
 static void merge_stats_task(int64_t target) {
-  SoftXMT_call_on(target, &CommunicatorStatistics::merge_am, &global_communicator.stats);
-  SoftXMT_call_on(target, &AggregatorStatistics::merge_am, &global_aggregator.stats);
-  SoftXMT_call_on(target, &TaskingScheduler::TaskingSchedulerStatistics::merge_am, &global_scheduler.stats);
-  SoftXMT_call_on(target, &TaskManager::TaskStatistics::merge_am, &global_task_manager.stats);
-  SoftXMT_call_on(target, &DelegateStatistics::merge_am, &delegate_stats);
-  SoftXMT_call_on(target, &CacheStatistics::merge_am, &cache_stats);
+  if ( target != SoftXMT_mynode() ) {
+    SoftXMT_call_on(target, &CommunicatorStatistics::merge_am, &global_communicator.stats);
+    SoftXMT_call_on(target, &AggregatorStatistics::merge_am, &global_aggregator.stats);
+    SoftXMT_call_on(target, &TaskingScheduler::TaskingSchedulerStatistics::merge_am, &global_scheduler.stats);
+    SoftXMT_call_on(target, &TaskManager::TaskStatistics::merge_am, &global_task_manager.stats);
+    SoftXMT_call_on(target, &DelegateStatistics::merge_am, &delegate_stats);
+    SoftXMT_call_on(target, &CacheStatistics::merge_am, &cache_stats);
+  }
 }
 
+LOOP_FUNCTOR(merge_stats_task_func,nid, ((Node,target)) ) {
+  merge_stats_task( target );
+}
 
 void SoftXMT_merge_and_dump_stats() {
-  Node me = SoftXMT_mynode();
-  for (Node n=0; n<SoftXMT_nodes(); n++) {
-    if (n != me) {
-      SoftXMT_remote_privateTask(&merge_stats_task, (int64_t)me, n);
-    }
+  merge_reply_count = 0;
+  merge_stats_task_func f;
+  f.target = SoftXMT_mynode();
+  fork_join_custom(&f);
+
+  // wait for all merges to happen
+  while( merge_reply_count < (SoftXMT_nodes()-1)*NUM_STATS_MERGE ) {
+    SoftXMT_yield();
   }
   
   SoftXMT_dump_stats();
