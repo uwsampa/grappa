@@ -10,14 +10,13 @@
 \end{center}
 \end{figure}
 
-In this section we describe the Grappa runtime system
-(Figure~\ref{fig:grappa}). Grappa provides three key capabilities. The
-first is a distributed shared \textbf{global memory} with high aggregate
-random access bandwidth. The second is a \textbf{tasking} system with
-lightweight multithreading and automatic load balancing through work
-stealing. Finally, under the hood, a \textbf{communication} layer uses
-network packet scheduling and aggregation to achieve high performance
-while remaining largely invisible to applications. We now discuss the
+The Grappa runtime system (Figure~\ref{fig:grappa}) supports scaling of irregular applications via three key components:
+a \textbf{distributed shared global memory} providing high aggregate random access bandwidth for both normal and synchronized operations;  
+a \textbf{tasking system} with lightweight multithreading to tolerate latency and workstealing to automate load balance;
+and a \textbf{communication layer} using network packet scheduling and aggregation to achieve high performance while remaining largely invisible to applications.
+Unlike many runtime systems where the task scheduler, memory access manager, and the communication  are separable subsystems, in Grappa these three components are tightly integrated and the performance of each depends heavily on that of the other two.  For example, eficiency of the communication layer requires that the tasking system multiplex tasks -- and the memory manager fetch data -- sufficiently rapidly to aggregate hundreds of individual requests into each packet; otherwise, the network will be poorly utilized.  Nonetheless, for simplicity of exposition, we describe each component in turn.
+
+We now discuss the
 programmer's view of Grappa's main capabilities, including a subset of
 the Grappa API. In Section~\ref{implementation}, we discuss the details
 of their implementation.
