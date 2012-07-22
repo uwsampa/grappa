@@ -1,12 +1,85 @@
 \section{Introduction} \label{sec:intro}
 
-Irregular applications are those whose parallel execution generates tasks with work, interdependences, or memory accesses that are highly sensitive to input.  Classic examples of irregular applications include branch and bound optimization, SPICE circuit simulation, contact algorithms in car crash analysis, and network flow.  Contemporary examples include real-time mining or querying large unstructured data sets in the business, national security, machine learning, data-driven science, and social network computing domains.  For these emerging applications, fast response -- given the sheer amount of data -- requires multinode systems.  The most broadly available multinode systems are those built from x86 commodity computing nodes interconnected via ethernet or infiniband.  Our goal is to facilitate scaling of irregular applications efficiently on these mass market systems.
+Irregular applications generates tasks with work, interdependences, or memory
+accesses that are highly sensitive to input. Classic examples of irregular
+applications include branch and bound optimization, SPICE circuit simulation,
+contact algorithms in car crash analysis, and network flow. Important
+contemporary examples include processing large graphs in the business,
+national security, machine learning, data-driven science, and social network
+computing domains. For these emerging applications, fast response -- given the
+sheer amount of data -- requires multinode systems. The most broadly available
+multinode systems are those built from x86 commodity computing nodes
+interconnected via ethernet or infiniband. Our goal is to enable scalable
+performance of irregular applications on these mass market systems.
 
-What makes our goal challenging is that irregular applications do not readily exploit the features of commodity systems.  This is true even for single node systems.  It is not atypical for any given task's data references to be spread randomly across the entire memory of the system. Yet, for commodity processors' caches to be effective, computations must exploit spatial locality.  Unfortunately, commodity prefetching hardware is effective only when addresses are known many cycles before the resident data is consumed or the accesses follow a predictable pattern, neither of which occurs in irregular applications.  As a consequence, commodity microprocessors stall often when executing irregular applications.
+Our goals is challenging for two key reasons: 
 
-On multinode systems, the challenges presented by low locality are analogous, and exacerbated by the increased latency of going off-node.  Irregular applications also present a challenge to mass market network technology, which is designed to transfer large blocks of data, not the word-sized references emitted by irregular application tasks.  Injection rate into the network is insufficient to utilize wire bandwidth when blocks are below about two-kilobytes, so any straightforward communication strategy severely under-utilizes the network.  While some irregular applications can be restructured to better exploit locality, aggregating requests to increase message size, and manage the additional challenges of load balance and synchronization across multinode systems, the work to do so is formidable and requires knowledge and skills pertaining to distributed systems far beyond those of most application programmers.
+\noindent{\bf Irregular applications observe little spatial locality.} It is
+not atypical for any given task's data references to be spread randomly across
+the entire memory of the system. This makes current memory hierarchy features
+ineffective. Unfortunately, commodity prefetching hardware is effective only
+when addresses are known many cycles before the data is consumed or the
+accesses follow a predictable pattern, neither of which occurs in irregular
+applications. As a consequence, commodity microprocessors stall often when
+executing irregular applications.
 
-An alternative to demanding programmers manage locality in their applications, was provided by the fully custom Tera MTA-2~\cite{mta-2} system.  The MTA was well-suited to extremely irregular applications: it had a large distributed shared memory with no caches, relying on multithreaded processors to tolerate memory latency.  On every clock cycle, each processor would execute a ready instruction chosen from one of its 128 hardware thread contexts.  Any application with sufficient thread parallelism would fully utilize the processors independent of the memory access pattern (modulo hot-spots).  The network was designed with an single word injection rate that matched the processor clock frequency and sufficient bandwidth to sustain a reference from every processor on every clock cycle.  Unfortunately, while an excellent match to extremely irregular applications, the MTA was not cost-effective on applications that could exploit locality and had very poor single threaded performance, making it a commercial failure.  The Cray XMT approximates the Tera MTA-2, substantially reducing its cost but not overcoming its narrow range of applicability.
+
+% What makes our goal challenging is that irregular applications do not
+% readily exploit the features of commodity systems.	This is true even for
+% single node systems.	It is not atypical for any given task's data
+% references to be spread randomly across the entire memory of the system.
+% Yet, for commodity processors' caches to be effective, computations must
+% exploit spatial locality.	Unfortunately, commodity prefetching hardware is
+% effective only when addresses are known many cycles before the data is
+% consumed or the accesses follow a predictable pattern, neither of which
+% occurs in irregular applications.	As a consequence, commodity
+% microprocessors stall often when executing irregular applications.
+
+\noindent{\bf Irregular applications frequently request off-node data with
+small messages.} On multinode systems, the challenges presented by low
+locality are analogous, and exacerbated by the increased latency of going
+off-node. Irregular applications also present a challenge to mass market
+network technology, which is designed to transfer large blocks of data, not
+the word-sized references emitted by irregular application tasks. Injection
+rate into the network is insufficient to utilize wire bandwidth when blocks
+are below about two-kilobytes, so any straightforward communication strategy
+severely under-utilizes the network. 
+
+While some irregular applications can be restructured to better exploit
+locality, aggregating requests to increase message size, and manage the
+additional challenges of load balance and synchronization across multinode
+systems, the work to do so is formidable and requires knowledge and skills
+pertaining to distributed systems far beyond those of most application
+programmers.
+
+Luckily, many of the important irregular applications (e.g., graph processing,
+our focus on this paper) naturally offer large amounts of concurrency. This
+immediately suggests taking advantage of concurrency tolerate latencies of
+dealing with data movement. The fully custom Tera MTA-2~\cite{mta-2} system is
+classic example of supporting irregular applications by using concurrency to
+hide latencies. The MTA was well-suited to extremely irregular applications:
+it had a large distributed shared memory with no caches, relying on
+multithreaded processors to tolerate memory latency. On every clock cycle,
+each processor would execute a ready instruction chosen from one of its 128
+hardware thread contexts. Any application with sufficient thread parallelism
+would fully utilize the processors independent of the memory access pattern
+(modulo hot-spots). The network was designed with an single word injection
+rate that matched the processor clock frequency and sufficient bandwidth to
+sustain a reference from every processor on every clock cycle. Unfortunately,
+while an excellent match to extremely irregular applications, the MTA was not
+cost-effective on applications that could exploit locality and had very poor
+single threaded performance, making it a commercial failure. The Cray XMT
+approximates the Tera MTA-2, substantially reducing its cost but not
+overcoming its narrow range of applicability.
+
+% Two opportunities help overcome these challenges without putting more burden on the programmer: (1) Many interesting irregular applications (e.g., graph processing, our focus on this paper) naturally observe large amounts of concurrency; (2) 
+
+% In addition to large amounts of concurrency in irregular applications, 
+% 
+% Commodity systems offer a large number of cores with good single-thread performance. Concurrency can be used to hide network latencies involved in fetching data from remote notes, mitigating the lack of locality. 
+% 
+% 
+% ; (3) Commodity networks improved significantly and offer high bandwidth at a relatively low cost
 
 In the twenty years that have elapsed since the Tera MTA, commodity microprocessors have become much faster and multicore has driven down the absolute price of computation; commodity network price-performance has improved as well.  This shift has afforded us the opportunity to attack the challenges posed by irregular applications by emulating with inexpensive mass market hardware components the approach taken by Tera. We exploit the increased aggregate instruction rate per socket relative to chip bandwidth, using what would otherwise be wasted instructions to manage the multiplexing of as many as several thousand tasks per core, thus tolerating memory latency, reducing stalls, and making better use of available bandwidth.  Ultimately, the opportunity is to cover the spectrum of irregular to regular computation:  where tasks exhibit locality, multiplex fewer tasks and expend fewer instructions on context switching; where locality is lacking, multiplex more tasks at a higher rate to tolerate latency.  Thus we make best use of task parallelism -- either to scale to more cores or to tolerate latency -- and of caches -- either to exploit application locality or to house more task contexts.
 
@@ -23,23 +96,24 @@ stack~\cite{Melonox?} is used for network interfacing. MPI~\cite{mpi} is used
 for process setup and tear down. GASnet~\cite{gasnet} is used as the
 underlying mechanism for remote memory reads and writes using active message
 invocations. To this commodity hardware and software mix Grappa adds three
-main software components: (1) a lightweight tasking layer that supports a
+main software components: (1) a \emph{lightweight tasking} layer that supports a
 context switch in as few as \checkme{40ns} and distributed load balancing; (2)
-a distributed shared memory layer that supports customary operations such as
-read and write as well as remote operations such as
-fetch-and-add~\cite{fetchandadd}; and (3) a message aggregation layer that
+a \emph{distributed shared memory} layer that supports customary operations such as
+\emph{read and write as well as remote operations} such as
+fetch-and-add~\cite{fetchandadd}; and (3) a \emph{message aggregation} layer that
 combines short messages to mitigate the aforementioned problem that commodity
 networks are designed to achieve peak bandwidth only on large packet sizes,
 yet irregular applications tend to fetch only a handful of bytes at a time.
 
 
+% 
+% Each of these components will be described in more detail in Section~\ref{sec:grappa}.
+% 
+% {\em Provide evidence we have succeeded -- will rewrite as necessary based on final results:}
 
-Each of these components will be described in more detail in Section~\ref{sec:grappa}.
-
-{\em Provide evidence we have succeeded -- will rewrite as necessary based on final results:}
-Grappa achieves its design goal, which is to make irregular applications execute quickly and scalably on commodity clusters.  Our yardstick for comparison is the XMT hardware itself.  Using the same number of processors (in our case cores on a single multicore processor), Grappa is in the same ballpark as the XMT: on some graphs, such as the \checkme{WTF} Grappa is \checkme{2X} faster, while on others, such as the \checkme{WTF2} Grappa is \checkme{2X} slower.  In Section~\ref{sec:results} we explore the factors that underpin this performance.  But most importantly, application performance \emph{scales} with Grappa.  For significantly less real world cost, users can \emph{add} more processors to a commodity cluster and easily outperform the XMT hardware on graph processing, while still saving significant dollars.
-
-\TODO{Add roadmap here. Luis: do we really want a roadmap here? We have enough about what we have done I think, so we might not need to sell things we plan to do.}
+Our evaluation of Grappa shows that it runs several graph-crunching applications (classic examples of irregular behavior) very efficiently on a commodity cluster  Our yardstick for comparison is the XMT hardware itself.  Using the same number of processors (in our case cores on a single multicore processor), Grappa is in the same ballpark as the XMT: on some graphs, such as the \checkme{WTF} Grappa is \checkme{2X} faster, while on others, such as the \checkme{WTF2} Grappa is \checkme{2X} slower.  In Section~\ref{sec:results} we explore the factors that underpin this performance.  But most importantly, application performance \emph{scales} with Grappa.  For significantly less real world cost, users can \emph{add} more processors to a commodity cluster and easily outperform the XMT hardware on graph processing, while still saving significant dollars.
+% 
+% \TODO{Add roadmap here. Luis: do we really want a roadmap here? We have enough about what we have done I think, so we might not need to sell things we plan to do.}
 
 
 
