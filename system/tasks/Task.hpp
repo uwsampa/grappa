@@ -219,6 +219,8 @@ class TaskManager {
 
                 void dump();
                 void merge(TaskStatistics * other);
+                void reset();
+
                 static void merge_am(TaskManager::TaskStatistics * other, size_t sz, void* payload, size_t psz);
 
         };
@@ -252,6 +254,7 @@ class TaskManager {
         
         void dump_stats();
         void merge_stats();
+        void reset_stats();
         void finish();
     
         friend std::ostream& operator<<( std::ostream& o, const TaskManager& tm );

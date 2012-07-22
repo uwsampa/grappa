@@ -261,6 +261,7 @@ void SoftXMT_reset_stats() {
   global_aggregator.reset_stats();
   global_communicator.reset_stats();
   global_scheduler.reset_stats();
+  global_task_manager.reset_stats();
   delegate_stats.reset();
   cache_stats.reset();
  
