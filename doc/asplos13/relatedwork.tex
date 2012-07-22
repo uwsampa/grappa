@@ -6,8 +6,7 @@ Grappa is built on many existing ideas in programming languages, systems and
 architecture. In this section we discuss related frameworks and key enabling
 technologies that Grappa builds upon.
 
-\subsection{Comparative Frameworks}
-
+\paragraph{Comparable frameworks}
 Distributed graph processing frameworks like Pregel \cite{pregel:2010} and
 Distributed GraphLab \cite{distgraphlab:vldb12} share similar goals. Pregel
 adopts a bulk-synchronous parallel (BSP) execution model, which makes it
@@ -19,8 +18,7 @@ a strong point about generality.} Grappa also supports dynamic parallelism
 with asynchronous execution, but parallelism is expressed as tasks or loop
 iterations.
 
-\subsection{Global memory}
-
+\paragraph{Global memory}
 Grappa implements a software distributed shared memory DSM system. Many
 traditional software DSM systems are page based~\cite{Treadmarks,munin} and
 aim to hide the fact that they are built in software from applications by
@@ -35,8 +33,7 @@ a caching and coherence model to ensure high performance and consistent
 results. Cache operations are exposed to in the API, however, allowing
 software to optimize their usage.
 
-\subsection{Multithreading}
-
+\paragraph{Multithreading}
 Grappa uses multithreading to tolerate memory latency. This is a well known
 technique. Hardware implementations include the Tera MTA \cite{Tera}, Cray XMT
 \cite{XMT}, Simultaneous multithreading \cite{SMT}, MIT Alewife
