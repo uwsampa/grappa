@@ -1,6 +1,11 @@
 \section{Evaluation} \label{sec:evaluation}
 
-\subsection{Unbalanced tree search}
+
+\subsection{Performance}
+
+
+
+\subsubsection{Unbalanced tree search}
 
 We ran UTS-mem on Grappa and the XMT with a binomial and two geometric
 100M-vertex trees and a geometric 1.6B-vertex tree
@@ -47,31 +52,181 @@ Despite our efforts to tune the UTS implementation specific to Cray XMT, perform
 
 
 
+\subsubsection{BFS}
+
+\begin{figure}[tH]
+\begin{center}
+  \includegraphics[width=0.95\columnwidth]{figs/bfs_compare}
+\begin{minipage}{0.95\columnwidth}
+  \caption{\label{fig:bfs-performance} BFS performance}
+\end{minipage}
+\vspace{-3ex}
+\end{center}
+\end{figure}
+
+Figure~\ref{fig:bfs-performance} shows Grappa's performance on BFS
+compared to that of the XMT\footnote{We do not know the reason for the
+  XMT's performance dip at 112 nodes, but it is repeatable}. There are
+two things to observe. First, At 128 XMT processors/cluster nodes,
+the XMT is  4.17 times faster than Grappa. This is likely due to the
+XMT's faster network: the XMT is able to issue 100 million network
+requests per second per node; at the 128 nodes datapoint, Grappa is
+aggregating 25 million network requests per second, or 4 times slower.
+Second, Grappa is scaling as we add processors.
+
+\subsubsection{Centrality}
+
+\begin{figure}[tH]
+\begin{center}
+  \includegraphics[width=0.95\columnwidth]{figs/centrality-performance}
+\begin{minipage}{0.95\columnwidth}
+  \caption{\label{fig:centrality-performance} Centrality performance}
+\end{minipage}
+\vspace{-3ex}
+\end{center}
+\end{figure}
+
+Figure~\ref{fig:centrality-performance} shows Grappa's performance on
+Betweenness Centrality compared to that of the XMT. At 128 XMT
+processors/cluster nodes, the XMT is 1.75 times faster than Grappa.
 
 
+\subsection{Benefit of aggregator}
+
+
+\begin{figure}[htbH]
+\begin{center}
+  \includegraphics[width=0.95\columnwidth]{figs/bfs_aggregator_value}
+\begin{minipage}{0.95\columnwidth}
+  \caption{\label{fig:bfs-aggregator} BFS performance with and without aggregator enabled \TODO{This graph sucks; rerun on actual data point and include in performance comparison}}
+\end{minipage}
+\vspace{-3ex}
+\end{center}
+\end{figure}
+
+
+
+
+\begin{figure}[htb]
+\begin{center}
+  \includegraphics[width=0.95\columnwidth]{figs/aggregator_ping}
+\begin{minipage}{0.95\columnwidth}
+  \caption{\label{fig:aggregator-ping} Bandwidth versus message size
+    unidirectional ping test for Grappa with aggregation, Grappa with
+    raw GASNet messages, and MPI. Aggregation provides an 11x
+    bandwidth benefit at our common operating point.}
+\end{minipage}
+\vspace{-3ex}
+\end{center}
+\end{figure}
+
+To evaluate the benefit of the aggregator, we ran two
+experiments. First, we ran a simple unidirectionaly ping test to see
+the maximum benefit the aggregator can provide in terms of improved
+network efficiency. Second, we ran BFS with the aggregator disabled in
+order to measure its benefit on an application.
+
+To implement the ping test, we wrote a simple Grappa application where
+the cores of one node send messages as fast as possible to the cores
+of another node. We vary the size of the payload up the maximum
+payload size supported by the aggregator (nearly 4KB). Each core has a
+single task sending to a single destination, so this is a best case
+scenario for the aggregator. To see the benefit of the aggregator, we
+added a bypass that lets us send messages directly through GASNet. We
+also compare against the OSU \texttt{osu\_mbw\_mr} benchmark
+\TODO{cite?}  compiled against OpenMPI 1.5.3 \TODO{cite?}; this
+benchmark has the same pattern of communication but doesn't have the
+overhead of Grappa's context switching.
+
+The results are shown in Figure~\ref{fig:aggregator-ping}. There are
+two key observations.
+
+First, small message performance against the existing libraries is
+terrible. The MPI application test shows us that peak per node
+bandwidth supported by our Infiniband card is 3.4GB/s. This is
+achievable only with large messages; we must send 16KB packets to get
+within 5 percent of peak bandwidth. But in our benchmarks, we saw
+average message between 32 and 64 bytes. At 32 bytes, the MPI test is
+using less than 7 percent of its peak bandwidth. Grappa sending
+messages directly through GASNet uses less than 3 percent of the peak
+bandwidth.
+
+Second, aggregation has the potential to improve this situation by an
+order of magnitude. With aggregation, Grappa is able to send 32-byte
+messags over 12 times faster than using GASNet directly. This is a
+more respectable 32 percent of peak bandwidth. Due to expedient design
+decisions, Grappa's aggregator limits its aggregation to 4KB; this
+limits its peak achievable bandwidth to to 75 percent of the actual
+peak.
+
+But this comparison is the best possible case for the aggregator. In
+order to verify that the aggregator still has value on actual
+applications at scale, we ran a small (scale 20 \TODO{run larger}) BFS
+with the aggregator disabled, with both 32 and 96
+nodes. Figure~\ref{fig:bfs-aggregator} shows the results. With 96
+nodes, the aggregator improves our application performance by 4 times.
 
 \subsection{Sensitivity}
 
-\subsection{Latency tolerance parameters}
+\paragraph{Aggreator timeout}
 
-\paragraph{Benefit of aggregator}
-what happens with aggregator on and off
+\begin{figure}[htb]
+\begin{center}
+  \includegraphics[width=0.95\columnwidth]{figs/bfs_sweep_flushticks}
+\begin{minipage}{0.95\columnwidth}
+  \caption{\label{fig:bfs-sweep-flushticks} Sensitivity to aggregation delay}
+\end{minipage}
+\vspace{-3ex}
+\end{center}
+\end{figure}
 
-\paragraph{Latency}
-aggregation latency and delegate latency
+
+One of the key parameters of the aggregator is the message
+timeout. All messages that are queued must eventually be sent in order
+to ensure progress. In the best case, we are able to aggregate enough
+messages to fill an aggregation buffer and cause it to be sent, but as
+we scale up, the average rate of messages heading to a common
+destination decreases, and this gets harder. To bound the problem, the
+aggregator includes a timeout. Any packet waiting this long must be sent.
+
+Figure~\ref{fig:bfs-sweep-flushticks} shows a sweep of this parameter
+for 32-node and 96-node BFS runs. The optimal timeout value varies
+with the size of the job. In the 32-node job, performance peaks with a
+2 ms timeout; with the 96-node job, performance peaks with a 14 ms
+timeout.
+
+\paragraph{Number of active tasks}
 
 
-\paragraph{Number of workers}
-We need enough workers to cover the network+aggregation latency, but more just slow things down.
+\begin{figure}[htb]
+\begin{center}
+  \includegraphics[width=0.95\columnwidth]{figs/bfs_sweep_workers}
+\begin{minipage}{0.95\columnwidth} 
+  \caption{\label{fig:bfs-sweep-workers} Sensitivity to maximum active tasks}
+\end{minipage}
+\vspace{-3ex}
+\end{center}
+\end{figure}
 
-UTS
-BFS
+When a task issues a request that requires a response, it blocks to
+allow other tasks to utilize its core. These tasks may also block. To
+support the many milleseconds of latency aggregation adds, we need to
+support many thousands of blocked tasks. One of the key parameters of
+the runtime is the number of blocked tasks allowed; we need enough to
+cover the network and aggregation latency, but too many running tasks
+can add extra latency as they all must be multiplexed onto the same core.
 
+Figure~\ref{fig:bfs-sweep-workers} shows a sweep of the maximum number
+of active tasks per core, holding all other parameters
+constant. Again, the optimal value varies with the size of the
+run. For 32 nodes, a maximum of 3072 active tasks per core gives the
+best result; for 96 nodes, 16000 tasks is best. 
 
 \subsubsection{Work stealing parameters}
 
 \paragraph{Chunk size}
 
+\TODO{incorporate UTS chunk size after rerun}
 it's important to steal multiple tasks to 
 amortize cost of stealing
 spread work out quickly in large system
@@ -79,17 +234,38 @@ spread work out quickly in large system
 there are times when it's useful to steal lots of stuff, even though
 we steal only a few things most of the time.
 
-UTS
+
+
+
+amortizing cost of stealing
+spreading work out more
+most of the time we still little  (about 10 avg) but sometimes a lot
+(difference with BFS)
+
 
 
 \paragraph{Parallel loop threshold}
 
-allows us to amoritize task creation overhead and exploit locality
-Gets us a 2x bump in performance
-not too sensitive
+\begin{figure}[htb]
+\begin{center}
+  \includegraphics[width=0.95\columnwidth]{figs/bfs_sweep_threshold}
+\begin{minipage}{0.95\columnwidth}
+  \caption{\label{fig:bfs-sweep-threshold} Sensitivity to parallel loop threshold. Note the log scale.}
+\end{minipage}
+\vspace{-3ex}
+\end{center}
+\end{figure}
 
-UTS
-BFS
+We see benefit to limiting the amount of parallelism created by a
+recursive loop decoposition. The decomposition threshold parameter the
+runtime when to stop creating new tasks and just execute iterations
+serially. This allows us to amoritize the overhead of task creation
+and potentially exploit locality when data for adjacent iterations is
+also adjacent in memory.
+
+Figure~\ref{fig:bfs-sweep-threshold} shows a sweep of this parameter
+for a 32-node BFS run. We saw the best results serializing 32 or fewer
+iterations.
 
 
 
@@ -113,10 +289,3 @@ BFS
 %        \label{fig:thresh-uts}
 %    \end{minipage}
 %\end{figure*}
-
-
-Chunksize:
-amortizing cost of stealing
-spreading work out more
-most of the time we still little  (about 10 avg) but sometimes a lot
-(difference with BFS)
