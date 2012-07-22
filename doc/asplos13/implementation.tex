@@ -4,12 +4,10 @@ We now discuss implementation details for the major system components discussed 
 
 \subsection{Tasks}
 
-\subsubsection{Tasks and workers}
-
-Grappa tasks are 32-byte entities: a 64-bit function pointer plus
-three 64-bit arguments. We use three arguments because tasks are
-usually generated as part of a parallel loop decomposition, and thus
-each task needs three kinds of data.
+\paragraph{Tasks and workers} Grappa tasks are 32-byte entities: a
+64-bit function pointer plus three 64-bit arguments. We use three
+arguments because tasks are usually generated as part of a parallel loop
+decomposition, and thus each task needs three kinds of data.
 \begin{description}
 \item[Function pointer] This 64-bit value indicates what routine
   should run. We configure the system nodes to disable address randomization, so that we can depend on the fact that function pointers are valid across process images.
@@ -32,16 +30,15 @@ decides to run them; when this occurs, tasks are matched with {\em
   worker} threads. Each worker is simply a collection of status bits and a
 stack, allocated at a particular core.
 
-\subsubsection{Context switching}
-
-Context switching in Grappa is non-preemptive. As with other cooperative
-multithreading systems, we treat context switches as function calls,
-saving and restoring only the callee-saved state as specified in the
-x86-64 ABI \cite{someone}. This involves saving six general-purpose
-64-bit registers and the stack pointer, as well as the 16-bit x87
-floating point control word and the SSE context/status register. Thus,
-the minimum amount of state a cooperative context switch routine must
-save according to the ABI is 62 bytes.
+\paragraph{Context switching} Grappa context switches between tasks
+non-preemptively. As with other cooperative multithreading systems, we
+treat context switches as function calls, saving and restoring only the
+callee-saved state as specified in the x86-64 ABI \cite{someone}. This
+involves saving six general-purpose 64-bit registers and the stack
+pointer, as well as the 16-bit x87 floating point control word and the
+SSE context/status register. Thus, the minimum amount of state a
+cooperative context switch routine must save according to the ABI is 62
+bytes.
 
 Since the compiler sees all calls to the context switch routine, we
 can save even less state. Our context switch routine appears to the
@@ -50,24 +47,15 @@ to save as ``clobbered'' by the inline assembly routine, and the
 compiler will issue its own save and restore code as needed. This allows the
 compiler to avoid saving any registers that are not used, or are used
 for temporary values that are not needed after the context switch.
-\comment{I highly doubt this is important in real apps beyond our kernels.  -M
-Why not? liveness is a common compiler analysis -BM
-Because it has to be live across the entire application.  All real applications do some form of floating point, however minor... -M
 
-In
-particular, only one of our applications does floating point
-operations; all the other applications can safely ignore the x87 and
-SSE2 registers as part of context switching.}
-
-\subsubsection{Scheduling}
-
-Each core in the Grappa system has its own independent scheduler. Each
-scheduler has three main tasks to perform.  First, it must ensure that
-its communication resources are serviced reasonably often. Second, it
-must ensure that if a running task was waiting on a long-latency
-operation and that operation has completed, the task will be
-rescheduled. Third, if there are tasks waiting to be run and spare
-execution resources, the tasks must be matched with idle workers.
+\paragraph{Scheduling} Each core in the Grappa system has its own
+independent scheduler. Each scheduler has three main tasks to perform. 
+First, it must ensure that its communication resources are serviced
+reasonably often. Second, it must ensure that if a running task was
+waiting on a long-latency operation and that operation has completed,
+the task will be rescheduled. Third, if there are tasks waiting to be
+run and spare execution resources, the tasks must be matched with idle
+workers.
 
 Each scheduler has three queues:
 \begin{description}
@@ -88,6 +76,42 @@ there are tasks waiting to be matched with workers, an idle worker is
 woken (or a new worker is spawned), matched with a task, and scheduled.
 The scheduler ensures that communication maintenance tasks are executed periodically.
 
+\paragraph{Work stealing} When a Grappa node runs out of work, it
+becomes a ``thief'' and asks another other Grappa nodes (``victim'') for
+work. If the victim has tasks to spare in its public queue, they will be
+transferred to the thief's public queue.
+
+Most prior work on work stealing assumes that a processor has one worker
+thread and so it only steals when utilization would go to zero. Grappa,
+on the other hand, relies on having many worker threads per core. The
+core would be fully-utilized if there is always something on the ready
+queue. Even if there are many active tasks, if they are all suspended
+for long-latency network requests, then the core is underutilized. So,
+there is a choice: should the core use some of this idle time to perform
+work stealing or should it just wait as it is possible that local tasks
+will create more work. We choose to have a core initiate a steal when
+all of the following conditions hold: no workers are ready to run, the
+unstarted task queues are empty, and there are no outstanding steal
+requests. Having only one outstanding steal request throttles steals to
+prevent flooding the network, but other scalable quieting mechanisms
+would be possible, such as a voting
+tree\cite{scalableWorkStealingOrCilk98} or lifelines \cite{lifelines}.
+Termination detection is not built into the Grappa task scheduler,
+rather, it is considered a programming error for the program to exit
+without syncing all tasks.
+
+\TODO{Someone check this paragraph to make sure it is true. :-)  -Mark}
+
+When a grappa node decides to issue a steal request it chooses the
+victim node at random.  It also requests a block of tasks at once.  If
+this block exceeds the amount of stealable tasks on the victim node,
+half of the stealable tasks are stolen instead.  While we did study the
+number of tasks to steal at once, we found performance was maximized
+with \checkme{128} tasks with little sensitivity around this number,
+hence we omit results for this from Section~\ref{sec:results} and simply
+use \checkme{128} as the parameter for all experiments.
+
+
 \subsection{Memory}
 
 \TODO{Is there an off by 1 error in here?  Need to read the AMD64 docs carefully to see if we can sign extend the top bit of the 48 bits of real virtual address space, or if we need to maintain bit 49.  -M}
@@ -107,7 +131,6 @@ optimized for high aggregate random access bandwidth to low locality
 data.
 
 
-
 \begin{figure}[t]
 \begin{center}
   \includegraphics[width=0.95\columnwidth]{figs/memory-structure}
@@ -117,7 +140,6 @@ data.
 \vspace{-3ex}
 \end{center}
 \end{figure}
-
 
 \paragraph{2D global addresses} The first global address space is the {\em
 two-dimensional} address space. This uses a traditional PGAS addressing model,
@@ -201,66 +223,7 @@ synchronization in the cache active messages and reduce the number of
 network round trips necessary.}
 
 
-\subsection{Load Balancing and Network Aggregation}
-
-\subsubsection{Work stealing} \label{subsec:implementation-worksteal}
-
-When a \checkme{grappa-process} runs out of work, it becomes a ``thief''
-and asks another other \checkme{grappa-process} (``victim'') for work.
-If the victim has tasks to spare in its public queue, they will be
-transferred to the thief's public queue.
-
-Most prior work on work stealing assumes that a processor has one worker
-thread and so it only steals when utilization would go to zero. Grappa,
-on the other hand, relies on having many worker threads per core. The
-core would be fully-utilized if there is always something on the ready
-queue. Even if there are many active tasks, if they are all suspended
-for long-latency network requests, then the core is underutilized. So,
-there is a choice: should the core use some of this idle time to perform
-work stealing or should it just wait as it is possible that local tasks
-will create more work. We choose to have a core initiate a steal when
-all of the following conditions hold: no workers are ready to run, the
-unstarted task queues are empty, and there are no outstanding steal
-requests. Having only one outstanding steal request throttles steals to
-prevent flooding the network, but other scalable quieting mechanisms
-would be possible, such as a voting
-tree\cite{scalableWorkStealingOrCilk98} or lifelines \cite{lifelines}.
-Termination detection is not built into the Grappa task scheduler,
-rather, it is considered a programming error for the program to exit
-without syncing all tasks.
-
-\TODO{Someone check this paragraph to make sure it is true. :-)  -Mark}
-
-When a grappa node decides to issue a steal request it chooses the
-victim node at random.  It also requests a block of tasks at once.  If
-this block exceeds the amount of stealable tasks on the victim node,
-half of the stealable tasks are stolen instead.  While we did study the
-number of tasks to steal at once, we found performance was maximized
-with \checkme{128} tasks with little sensitivity around this number,
-hence we omit results for this from Section~\ref{sec:results} and simply
-use \checkme{128} as the parameter for all experiments.
-
-\comment{
-where to put the following related? -BM
-
-Fork join computations: implement with futures or continuation passing
-style
-feed-forward computations: implement with scalable task counting (we
-focus on this style in our benchmarks)
-(briefly describe global task joiner)
-
-choices we've made
-done -random victims
-hmm..  -steal from FIFO side of queue
-hmmm... -steal when at the moment readyQ empty and task queues empty
-done -steal min(chunk\_size, half)
-
-omit - Recent work has explored scalable work stealing in terms of efficient
-termination detection. 
-}
-
-
-\subsubsection{Network Aggregation}
+\subsection{Network Aggregation}
 
 In order to mitigate the low message injection rate limits of commodity
 networks, Grappa's communication stack has two layers: one for
@@ -329,3 +292,52 @@ RDMA operations for our small messages would make inefficient use of
 bandwidth. Instead, we implement remote memory operations with active
 messages. A byproduct of this design decision is that Grappa is not
 limited to RDMA-capable networks.
+
+\comment{
+
+Text that was in section 3 - Grappa.  Seems entirely redundant.  Not adding this anywhere.  -Mark
+
+\subsection{Load Balancing and Network Aggregation}
+
+Grappa contains two components that are not directly visible to
+the programmer but are key to providing good performance. Both depend
+on Grappa's ability to tolerate latency in order to obtain this
+performance.
+
+The first is a distributed dynamic load balancing mechanism that uses
+work stealing to move tasks from busy cores to idle cores. When a core
+detects that it has idle execution resources and no new tasks to run, it
+issues steal requests over the network. The core continues to execute
+remaining active work while the steal requests are in flight. When a
+steal request succeeds, it returns with more tasks that can be matched
+with execution resources and scheduled.
+
+The second is a network packet scheduling and aggregation system. From
+the perspective of the application, all communication between tasks in
+Grappa takes place either through global shared memory or remote task
+spawns. Both of these requests are ultimately translated into explicit
+inter-system-node/core communication requests that are dispatched to
+the \gasnet~library. In our benchmarks, we found that most of our
+packets were small (44 bytes on average for BFS). Commodity network
+interfaces do not transport small packets efficiently (see
+Section~\ref{sec:bandwidth-versus-packet-size}): the rate at which the
+network interface will accept new packets of any size is limited, so
+the only way to use a respectable fraction of the bandwidth is to send
+larger messages. 
+
+Grappa's latency tolerance allows us to leverage the parallelism in
+our problem domain to build larger packets. Tasks can generate
+requests faster than the network will accept new packets, so instead
+of immediately sending every message, Grappa queues messages heading
+for the same destination. Once enough messages are queued, Grappa
+bundles all the messages into a single packet and sends it to the
+destination core. Tasks that require a response can suspend, allowing
+their core to do other work while waiting for a reply. 
+
+While queuing adds latency to each individual request, it is a much
+lighter-weight operation than sending a packet and allows us to
+amoritize the cost of sending the packet across multiple tasks, while
+also making better use of available network bandwidth. In this way,
+Grappa trades per-request latency for application-level
+throughput.
+}
