@@ -11,17 +11,16 @@
 \end{figure}
 
 In this section we describe the Grappa runtime system
-(Figure~\ref{fig:grappa}). 
-Grappa provides three key capabilities. The first is a distributed
-shared \textbf{global memory} with high aggregate random access
-bandwidth. The second is a \textbf{tasking} system with lightweight
-multithreading and automatic load balancing through work
+(Figure~\ref{fig:grappa}). Grappa provides three key capabilities. The
+first is a distributed shared \textbf{global memory} with high aggregate
+random access bandwidth. The second is a \textbf{tasking} system with
+lightweight multithreading and automatic load balancing through work
 stealing. Finally, under the hood, a \textbf{communication} layer uses
 network packet scheduling and aggregation to achieve high performance
-while remaining largely invisible to applications. We now discuss the programmer's view of
-Grappa's main capabilities, including a subset of the Grappa API. In
-Section~\ref{implementation}, we discuss the details of their
-implementation.
+while remaining largely invisible to applications. We now discuss the
+programmer's view of Grappa's main capabilities, including a subset of
+the Grappa API. In Section~\ref{implementation}, we discuss the details
+of their implementation.
 
 \TODO{Should we have a code example here, and walk thru it as we explain the
 components and parts of the API?}
@@ -36,24 +35,23 @@ small; just a function pointer and arguments. Tasks are only
 queued when they are spawned; later, when resources are free, they are
 allocated a stack, bound to a core, and executed.
 
-What makes Grappa's tasks special is that when they perform
-long-latency operations they can give up control of their core,
-allowing the core to remain busy while waiting for the operation to
-complete. This most often done implicitly inside a call into Grappa's
-API, but it can also be done explicitly by the programmer using the
-calls shown in Figure~\ref{fig:scheduling}. \TODO{cite UPC split phase
-    reads and writes, but include that we provide a way to overlap
-    computation}
+Grappa's tasks give up control of their core when when they perform
+long-latency operations, allowing the processor to remain busy while
+waiting for the operation to complete. This is most often done
+implicitly inside a call into Grappa's API, but it can also be done
+explicitly by the programmer using the calls shown in
+Figure~\ref{fig:scheduling}. \TODO{cite UPC split phase reads and
+writes, but include that we provide a way to overlap computation}
 
-All Grappa scheduling is done in userspace, and minimal state is
-saved, in order to minimize the context switch time. In our
-experiments, we saw context switch times as low as \TODO{40ns}.
-This lightweight context switching is Grappa's key enabling
-feature. It gives us the ability to tolerate latency. Given that
-ability, we are able to trade latency for throughput: by {\em
-  increasing} latency in key components in the system we are able to
-increase our aggregate random access bandwidth, our synchronization
-bandwidth, and our ability to tolerate load.
+All Grappa scheduling is done in userspace, and minimal state is saved,
+in order to minimize the context switch time. In our experiments, we saw
+context switch times as low as \checkme{40ns}. This lightweight context
+switching is Grappa's key enabling feature. It gives us the ability to
+tolerate latency. Given that ability, we are able to \textbf{trade
+latency for throughput}: by {\em increasing} latency in key components
+in the system we are able to increase our aggregate random access
+bandwidth, our synchronization bandwidth, and our ability to tolerate
+load.
 
 \begin{figure}[htbp]
   \begin{center}
@@ -85,30 +83,25 @@ Grappa provides four methods for expressing parallelism, shown in
 Figure~\ref{fig:expressing-parallelism}. The first is explicit task
 spawns. When the programmer identifies work that can be done in
 parallel, the work may be wrapped up in a function and queued with its
-arguments for later execution using a \texttt{spawn}. Sometimes the
-programmer may want to spawn a task on a specific core in the system,
-or at the home core of a particular memory location. Grappa provides a
-\texttt{spawn\_on} call for this purpose; the task is immediately
-enqueued on the specified core and is not available to other cores.
+arguments for later execution using a \texttt{spawn}. If the
+programmer wishes to spawn a task on a specific core in the system,
+or at the home core of a particular memory location, Grappa provides a
+\texttt{spawn\_on} call for this purpose.
 
-The next method for expressing parallelism is a parallel for loop, where the
-number of iterations must be known at loop entry. The programmer specifies a
-function pointer along with start and end indices and an optional threshold to
-control parallel overhead. Grappa does {\em recursive decomposition} of
-iterations, as in the implementation of Cilk's cilk\_for construct \TODO{cite
-cilk\_for implementation: could only find slides page6 of
-http://www.clear.rice.edu/comp422/lecture-notes/comp422-2012-Lecture5-Cilk++.pdf}.
-It generates a logarithmically-deep tree of tasks, stopping to execute the
-loop body when the number of iterations is below the threshold (``grainsize''
-in Cilk). \TODO{we may want to make our classification purer: the for loop is
-not Grappa's core, and is built atop tasks as a useful construct; in some
-sense the only way to express parallelism in Grappa is tasks and perhaps
-call\_on. -BM}
-
-Finally, a programmer may want to run a small piece of code on a
-particular core in the system without waiting for execution resources
-to be available. Grappa provides the \texttt{call\_on} call for this
-purpose.
+The next method for expressing parallelism is a parallel for loop, where
+the number of iterations must be known at loop entry. The programmer
+specifies a function pointer along with start and end indices and an
+optional threshold to control parallel overhead. Grappa does {\em
+recursive decomposition} of iterations, similar to Cilk's cilk\_for
+construct~\cite {cilkforimplementation} \comment{could only find slides
+page6 of
+http://www.clear.rice.edu/comp422/lecture-notes/comp422-2012-Lecture5-
+Cilk++.pdf    ---- Good enough.  Cite it.  -Mark}.  It generates a
+logarithmically-deep tree of tasks, stopping to execute the loop body
+when the number of iterations is below the required threshold. Finally,
+a programmer may want to run a small piece of code on a particular core
+in the system without waiting for execution resources to be available.
+Grappa provides the \texttt{call\_on} call for this purpose.
 
 \begin{figure}[htbp]
   \begin{center}
@@ -157,33 +150,32 @@ allocation, a global pointer is returned. Grappa also allows any local
 data on a core's stacks or heap to be exported to the global address
 space to be made accessible to other cores across the system.
 
-\paragraph{Global memory access}
-There are two approaches to {\emph accessing} global memory. When the
-programmer expects a computation on shared data to have spatial
-locality to exploit, {\em cache} operations may be used. When there is
-no locality to exploit, {\em delegate} operations are used. Since
-these operations are expected to communicate with other nodes and have
-high latency, cache and delegate operations interact with the
-scheduler; when issuing a long-latency request, they suspend the
-requesting task and allow the core to execute other work until their
-response arrives.
+\paragraph{Global memory access} There are two approaches to {\emph
+accessing} global memory. When the programmer expects a computation on
+shared data to have spatial locality to exploit, {\em cache} operations
+may be used. When there is no locality to exploit, {\em delegate}
+operations are used. Since these operations are expected to communicate
+with other nodes and have high latency, cache and delegate operations
+interact with the scheduler; when issuing a long-latency request, they
+suspend the requesting task and allow the core to execute other work
+until their response arrives.
 
-\paragraph{Explicit caching}
-With Grappa's explicit caching support, applications can instruct Grappa to fetch a global
-pointer of any length and return a local pointer to a cached copy of
-the global memory. Under the hood, Grappa performs the mechanics of
-gathering chunks of data from multiple system nodes and presenting a
-conventional appearing linear block of memory as a pointer into a
-cache. Grappa cache operations have the usual read-only and read-write
-variants, along with a write-only variant used to initialize data
-structures. Cache operations exploit spatial locality by reducing the number of small network
-messages accessing contiguous data. Languages for distributed
-shared memory systems have done optimizations to achieve a similar goal. The UPC compiler
-coalesces struct and array accesses into 
-remote get/put \cite{Chen:2005}, or Fortran D compiler's message
-vectorization that hoists small messages out of a loop
-\cite{FortranD:1992}. Caching in Grappa additionally provides a
-mechanism for exploiting temporal locality by operating on the data locally. 
+\paragraph{Explicit caching} With Grappa's explicit caching support,
+applications can instruct Grappa to fetch a global pointer of any length
+and return a local pointer to a cached copy of the global memory. Under
+the hood, Grappa performs the mechanics of gathering chunks of data from
+multiple system nodes and presenting a conventional appearing linear
+block of memory as a pointer into a cache. Grappa cache operations have
+the usual read-only and read-write variants, along with a write-only
+variant used to initialize data structures. Cache operations exploit
+spatial locality by reducing the number of small network messages
+accessing contiguous data. Languages for distributed shared memory
+systems have done optimizations to achieve a similar goal. For example,
+the UPC compiler coalesces struct and array accesses into remote get/put
+\cite{Chen:2005}, and Fortran D compiler's message vectorization hoists
+small messages out of a loop \cite{FortranD:1992}. Caching in Grappa
+additionally provides a mechanism for exploiting temporal locality by
+operating on the data locally. 
 
 \paragraph{Delegate operations}
 When the access pattern has low-locality, it is more efficient
@@ -192,17 +184,18 @@ requesting core and returning it after modification. Delegate
 operations provide this capability. Applications can dispatch
 computation to be performed on individual machine-word sized chunks of
 global memory to the memory system itself (e.g.,
-\emph{fetch-and-add}). \TODO{should we bring up delegation in the intro?}
+\emph{fetch-and-add}). \comment{should we bring up delegation in the intro?}
 
-Delegate operations, proposed in \cite{Nelson:hotpar11}, are also the primary synchronization method in
-Grappa. Each piece of global memory is paired with a single core in
-the system; all accesses to that memory are done by that core. This
-allows delegate operations to be performed atomically on the core
-simply by making sure no other code interleaves; since context
-switches in Grappa are cooperative, this is trivial. Thus, delegate
-operations are able to provide atomic semantics to memory owned by one core without using atomic
-operations. Using delegation to implement isolation for any subset of
-memory has been explored in \cite{delegated:oopsla11}.
+Delegate operations, proposed in \cite{Nelson:hotpar11}, are also the
+primary synchronization method in Grappa. Each piece of global memory is
+paired with a single core in the system; all accesses to that actual
+memory location are done by that core. This allows delegate operations
+to be performed atomically on the core simply by making sure no other
+code interleaves their operation; and, since context switches in Grappa
+are cooperative, this is trivial. Thus, delegate operations are able to
+provide atomic semantics to memory owned by one core without using
+atomic operations. Using delegation to implement isolation for any
+subset of memory has been explored in \cite{delegated:oopsla11}.
 
 \begin{figure}[htbp]
   \begin{center}
@@ -235,13 +228,13 @@ the programmer but are key to providing good performance. Both depend
 on Grappa's ability to tolerate latency in order to obtain this
 performance.
 
-The first is a distributed dynamic load balancing mechanism that uses work stealing to
-move tasks from busy cores to idle cores. When a core detects that it
-has idle execution resources and no new tasks to run, it issues steal
-requests over the network. The core continues to execute remaining
-active work while the steal requests are in flight. When a steal
-request succeeds, it returns with more tasks that can be matched with
-execution resources and scheduled.
+The first is a distributed dynamic load balancing mechanism that uses
+work stealing to move tasks from busy cores to idle cores. When a core
+detects that it has idle execution resources and no new tasks to run, it
+issues steal requests over the network. The core continues to execute
+remaining active work while the steal requests are in flight. When a
+steal request succeeds, it returns with more tasks that can be matched
+with execution resources and scheduled.
 
 The second is a network packet scheduling and aggregation system. From
 the perspective of the application, all communication between tasks in
