@@ -33,9 +33,13 @@ TaskingScheduler::TaskingScheduler ( )
     , num_workers ( 0 )
     , task_manager ( NULL )
     , work_args( NULL )
+    , prev_ts( 0 )
     , previous_periodic_ts( 0 ) 
     , stats( this )
-{ }
+{ 
+  SoftXMT_tick();
+  prev_ts = SoftXMT_get_timestamp();
+}
 
 void TaskingScheduler::init ( Thread * master_arg, TaskManager * taskman ) {
   master = master_arg;
