@@ -3,26 +3,39 @@
 Ways to organize this:
 Approaches to graphs: special purpose XMT -> cluster -> distributed frameworks {pregel,graphlab} -> limited programming model -> grappa gen purpose
 
-dsm, pgas
-lightweight threading
-other graph solutions: 
--graph parallel, distributed
---pregel - but is synchronous and thus inefficient
---graphlab - asynchrounous, esp useful for problems that have been shown empirically to converge faster with asynchrony
+
 
 \subsection{Multithreading to tolerate latency}
 Using multithreading to tolerate memory latency is well-covered in the literature. Hardware implementations include the Tera MTA \cite{Tera}, Cray XMT \cite{}, Simultaneous multithreading \cite{}, MIT Alewife \cite{}, Cyclops \cite{}, and even GPUs \cite{fatahalian}.
 
-\subsection{systems?}
-RAMCloud - low latency; RPC call communication abstraction
-
-sDSM - most are page based and deal with maintaining consistency of data; built on shared memory programming models rather than something more PGAS. They can use prefetching, based on prediction to overlap communication and computation, but does this work for irregular apps? Difference from txDSM is that we don't try to provide txns over multiple nodes, only within one core's memory.
-
 software threads
+lightweight threading
+
+RAMCloud takes a different approach and argues for optimizing networked systems for very low latency with the motivation of getting good performance regardless of access pattern, as well as reducing latency of recovery to reduce backup storage costs.
+
+
+\subsection{Distribute Shared Memory}
+
+Grappa includes a software distributed shared memory (SDSM). Many traditional SDSM systems are page based [Treadmarks,...], and a lot of work deals with maintaining consistency of data efficiently and optimizing for sharing. Grappa's shared memory is implemented by Active Messages and there is no caching under the hood. Every piece of memory in the shared address space belongs to a single core, and data can be accessed incoherently at any granularity. Grappa provides an API for explicit incoherent caching to take advantage of locality where it exists, as well as sharing. 
+
+Shared memory systems often try to reduce the cost of memory access by predicting good prefetches to overlap memory access and computation; however, this is less effective for irregular applications with fine-grained, data-dependent memory accesses. Grappa depends on high amounts of concurrency to tolerate latency with multithreading.
+
+SDSM systems are usually built to be programmed with flat shared memory programming models like OpenMP, rather than models that make locality explicit like PGAS. 
+
+
+GASNet is a networking library for supporting portable implmentations of global address space applications or languages, like UPC and recently Chapel...
+Grappa currently uses GASNet for networking, but does not use gasnet's mapped shared memory segments for supporting RDMA. Rather, the global address space is implemented at a higher level using Active Messages.
+
+RAMCloud - RPC call communication abstraction like us because it supports more flexibility,...
+
+
+Difference from txDSM \cite{sdsm with txn coherence} is that we don't try to provide txns over multiple nodes, only within one core's memory.
+
+\subsection{Partitioned Global Address space}
+The goal of presenting a global view of distributed memory to the programmer is shared by the PGAS community, and is used in languages like Chapel \cite{Chapel}, X10 \cite{X10}, and UPC \cite{UPC}. In these programming models, access to shared structures look like normal memory references, but the programmer tries to minimize references to remote nodes. Unlike the usual programming goal in PGAS, since we target problems with poor locality, we design Grappa for remote references as a common case. Thread private data is still local, and unlike the XMT, we exploit locality where it does exist in an application (such as spatial locality in a graph edgelist), but we design the system to perform well in the midst of mostly remote accesses to large shared data structures. We would like to implement PGAS languages that support dynamic parallelism, like Chapel, in Grappa.
 
 \subsection{Programming models for distributed graph processing}
 
 Distributed graph processing frameworks like Pregel \cite{pregel:2010} and Distributed GraphLab \cite{distgraphlab:vldb12} provide graph-parallel, vertex-centric programming abstractions that free the application writer from solving distributed system issues like scheduling parallelism, handling fault tolerance, and scaling communication. Pregel adopts a bulk-synchronous parallel (BSP) execution model, which makes it inefficient on workloads that could prioritize vertices. GraphLab, on the other hand, schedules vertex computations individually, allowing prioritization, which gives faster convergence in a variety of iterative algorithms. Grappa also supports dynamic parallelism with asynchronous execution, but has a more general purpose programming model, where parallelism is expressed as tasks or loop iterations. \TODO{and express locality? How much to talk about how graphlab achieves scalable performance?}
 
-\subsection{Partitioned Global Address space}
-The goal of presenting a global view of distributed memory to the programmer is shared by the PGAS community, and is used in languages like Chapel \cite{Chapel}, X10 \cite{X10}, and UPC \cite{UPC}. In these programming models, access to shared structures look like normal memory references, but the programmer tries to minimize references to remote nodes. Unlike the usual programming goal in PGAS, since we target problems with poor locality, we design Grappa for remote references as a common case. Thread private data is still local, and unlike the XMT, we exploit locality where it does exist in an application (such as spatial locality in a graph edgelist), but we design the system to perform well in the midst of mostly remote accesses to large shared data structures. We would like to implement PGAS languages that support dynamic parallelism, like Chapel, in Grappa.
+\TODO{should we mention GreenMarl and how its first distributed try is compile down to Pregel}
