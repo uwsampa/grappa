@@ -10,16 +10,17 @@
 \end{center}
 \end{figure}
 
-The Grappa runtime system (Figure~\ref{fig:grappa}) supports scaling of irregular applications via three key components:
-a \textbf{distributed shared global memory} providing high aggregate random access bandwidth for both normal and synchronized operations;  
-a \textbf{tasking system} with lightweight multithreading to tolerate latency and workstealing to automate load balance;
-and a \textbf{communication layer} using network packet scheduling and aggregation to achieve high performance while remaining largely invisible to applications.
-Unlike many runtime systems where the task scheduler, memory access manager, and the communication  are separable subsystems, in Grappa these three components are tightly integrated and the performance of each depends heavily on that of the other two.  For example, eficiency of the communication layer requires that the tasking system multiplex tasks -- and the memory manager fetch data -- sufficiently rapidly to aggregate hundreds of individual requests into each packet; otherwise, the network will be poorly utilized.  Nonetheless, for simplicity of exposition, we describe each component in turn.
-
-We now discuss the
-programmer's view of Grappa's main capabilities, including a subset of
-the Grappa API. In Section~\ref{implementation}, we discuss the details
-of their implementation.
+From the perspective of a software developer, Grappa
+(Figure~\ref{fig:grappa}) provides two main software components: a
+\textbf{tasking system} with lightweight multithreading to tolerate
+latency and workstealing to automate load balance; and a
+\textbf{distributed shared global memory} providing high aggregate
+random access bandwidth for both normal and synchronized operations. We
+now discuss the programmer's view of Grappa's main capabilities,
+including a subset of the Grappa API. In Section~\ref{implementation},
+we discuss the details of their implementation as well as a third
+component, the network communication layer that is key to performance
+but largely invisible to software developers.
 
 \TODO{Should we have a code example here, and walk thru it as we explain the
 components and parts of the API?}
