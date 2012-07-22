@@ -180,14 +180,24 @@ through combining~\cite{MAMA,flatcombining}.
 
 \TODO{Add a figure that depicts both forms of global addresses.}
 
-All global memory operations are implemented with active
-messages. Requesters construct a descriptor holding the current task
-ID and space for a response, issue their request active message to the
-node given by the request address, and suspend themselves. When the
-request arrives at the address' home node, the operation is performed
-and a response active message is sent. When the response arrives at
-the requesting node, the descriptor is filled in with the results of
-the operation and the requesting task is placed back on the ready queue.
+All global memory operations are implemented with active messages.
+Requesters construct a descriptor holding the current task ID and space
+for a response, issue their request active message to the node given by
+the request address, and suspend themselves. When the request arrives at
+the address' home node, the operation is performed and a response active
+message is sent. When the response arrives at the requesting node, the
+descriptor is filled in with the results of the operation and the
+requesting task is placed back on the ready queue.
+
+\paragraph{Explicit caching.} Under the hood, Grappa performs the
+mechanics of gathering chunks of data from multiple system nodes and
+presenting a conventional appearing linear block of memory as a local
+pointer into a cache. The strategy employed is to issue all the
+constituent requests of a cache access request and then yield until all
+responses have occurred.  Currently, Grappa caches are \emph{not}
+coherent, requiring the programmer to maintain consistent access to
+data.  Future work will develop a software directory based coherence
+scheme to simplify consistent access to global data.
 
 \paragraph{Delegates} Delegate operations are used for low-locality
 accesses and synchronization. Their modifications are always executed at
@@ -203,24 +213,6 @@ the data is being modified. Given these restrictions, we can ensure that
 delegate operations for the same address from multiple requesters are
 always serialized through a single core in the system, providing atomic
 semantics without using atomic operations.
-
-\paragraph{Explicit caches} Grappa cache operations are used to exploit
-spatial or temporal locality. They allow a single task to buffer a range
-of data, read or modify it, and write the modified version back to its
-home node(s). All fetch and update operations of cache data are
-expressed explicitly by the programmer. Cache operations may operate on
-data that spans multiple blocks of the linear address space; the
-programmer provides the starting address and length, and the cache
-issues as many active messages as necessary to retrieve all necessary
-data.
-
-\comment{If anything, this is just a footnote. -M
-All current cache operations are incoherent; two tasks may
-concurrently modify the same block with their writes interfering
-unless protected by synchronization through delegate operations. While
-this has been sufficient for our benchmarks, it is possible to embed
-synchronization in the cache active messages and reduce the number of
-network round trips necessary.}
 
 
 \subsection{Network Aggregation}
@@ -293,51 +285,3 @@ bandwidth. Instead, we implement remote memory operations with active
 messages. A byproduct of this design decision is that Grappa is not
 limited to RDMA-capable networks.
 
-\comment{
-
-Text that was in section 3 - Grappa.  Seems entirely redundant.  Not adding this anywhere.  -Mark
-
-\subsection{Load Balancing and Network Aggregation}
-
-Grappa contains two components that are not directly visible to
-the programmer but are key to providing good performance. Both depend
-on Grappa's ability to tolerate latency in order to obtain this
-performance.
-
-The first is a distributed dynamic load balancing mechanism that uses
-work stealing to move tasks from busy cores to idle cores. When a core
-detects that it has idle execution resources and no new tasks to run, it
-issues steal requests over the network. The core continues to execute
-remaining active work while the steal requests are in flight. When a
-steal request succeeds, it returns with more tasks that can be matched
-with execution resources and scheduled.
-
-The second is a network packet scheduling and aggregation system. From
-the perspective of the application, all communication between tasks in
-Grappa takes place either through global shared memory or remote task
-spawns. Both of these requests are ultimately translated into explicit
-inter-system-node/core communication requests that are dispatched to
-the \gasnet~library. In our benchmarks, we found that most of our
-packets were small (44 bytes on average for BFS). Commodity network
-interfaces do not transport small packets efficiently (see
-Section~\ref{sec:bandwidth-versus-packet-size}): the rate at which the
-network interface will accept new packets of any size is limited, so
-the only way to use a respectable fraction of the bandwidth is to send
-larger messages. 
-
-Grappa's latency tolerance allows us to leverage the parallelism in
-our problem domain to build larger packets. Tasks can generate
-requests faster than the network will accept new packets, so instead
-of immediately sending every message, Grappa queues messages heading
-for the same destination. Once enough messages are queued, Grappa
-bundles all the messages into a single packet and sends it to the
-destination core. Tasks that require a response can suspend, allowing
-their core to do other work while waiting for a reply. 
-
-While queuing adds latency to each individual request, it is a much
-lighter-weight operation than sending a packet and allows us to
-amoritize the cost of sending the packet across multiple tasks, while
-also making better use of available network bandwidth. In this way,
-Grappa trades per-request latency for application-level
-throughput.
-}

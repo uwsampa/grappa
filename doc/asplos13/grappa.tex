@@ -153,48 +153,28 @@ space to be made accessible to other cores across the system.
 accessing} global memory. When the programmer expects a computation on
 shared data to have spatial locality to exploit, {\em cache} operations
 may be used. When there is no locality to exploit, {\em delegate}
-operations are used. Since these operations are expected to communicate
-with other nodes and have high latency, cache and delegate operations
-interact with the scheduler; when issuing a long-latency request, they
-suspend the requesting task and allow the core to execute other work
-until their response arrives.
+operations are used.
 
-\paragraph{Explicit caching} With Grappa's explicit caching support,
-applications can instruct Grappa to fetch a global pointer of any length
-and return a local pointer to a cached copy of the global memory. Under
-the hood, Grappa performs the mechanics of gathering chunks of data from
-multiple system nodes and presenting a conventional appearing linear
-block of memory as a pointer into a cache. Grappa cache operations have
-the usual read-only and read-write variants, along with a write-only
-variant used to initialize data structures. Cache operations exploit
-spatial locality by reducing the number of small network messages
-accessing contiguous data. Languages for distributed shared memory
-systems have done optimizations to achieve a similar goal. For example,
-the UPC compiler coalesces struct and array accesses into remote get/put
+\textbf{Explicit caching.} Grappa provides an API to fetch a global
+pointer of any length and return a local pointer to a cached copy of the
+global memory.  Grappa cache operations have the usual read-only and
+read-write variants, along with a write-only variant used to initialize
+data structures. Languages for distributed shared memory systems have
+done optimizations to achieve a similar goal. For example, the UPC
+compiler coalesces struct and array accesses into remote get/put
 \cite{Chen:2005}, and Fortran D compiler's message vectorization hoists
 small messages out of a loop \cite{FortranD:1992}. Caching in Grappa
 additionally provides a mechanism for exploiting temporal locality by
 operating on the data locally. 
 
-\paragraph{Delegate operations}
-When the access pattern has low-locality, it is more efficient
-to modify the data on its home core rather than bringing a copy to the
-requesting core and returning it after modification. Delegate
-operations provide this capability. Applications can dispatch
-computation to be performed on individual machine-word sized chunks of
-global memory to the memory system itself (e.g.,
-\emph{fetch-and-add}). \comment{should we bring up delegation in the intro?}
-
-Delegate operations, proposed in \cite{Nelson:hotpar11}, are also the
-primary synchronization method in Grappa. Each piece of global memory is
-paired with a single core in the system; all accesses to that actual
-memory location are done by that core. This allows delegate operations
-to be performed atomically on the core simply by making sure no other
-code interleaves their operation; and, since context switches in Grappa
-are cooperative, this is trivial. Thus, delegate operations are able to
-provide atomic semantics to memory owned by one core without using
-atomic operations. Using delegation to implement isolation for any
-subset of memory has been explored in \cite{delegated:oopsla11}.
+\textbf{Delegate operations.}
+When the access pattern has low-locality, it is more efficient to modify
+the data on its home core rather than bringing a copy to the requesting
+core and returning it after modification. Delegate operations provide
+this capability. Applications can dispatch computation to be performed
+on individual machine-word sized chunks of global memory to the memory
+system itself (e.g., \emph{fetch-and-add}).  Delegate operations,
+proposed in \cite{Nelson:hotpar11} and \cite{delegated:oopsla11}, are also the primary synchronization method in Grappa.
 
 \begin{figure}[htbp]
   \begin{center}
