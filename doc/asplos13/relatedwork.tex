@@ -29,7 +29,7 @@ Grappa currently uses GASNet for networking, but does not use gasnet's mapped sh
 RAMCloud - RPC call communication abstraction like us because it supports more flexibility,...
 
 
-Difference from txDSM \cite{sdsm with txn coherence} is that we don't try to provide txns over multiple nodes, only within one core's memory.
+Difference from txDSM \cite{sdsm-with-txn-coherence} is that we don't try to provide txns over multiple nodes, only within one core's memory.
 
 \subsection{Partitioned Global Address space}
 The goal of presenting a global view of distributed memory to the programmer is shared by the PGAS community, and is used in languages like Chapel \cite{Chapel}, X10 \cite{X10}, and UPC \cite{UPC}. In these programming models, access to shared structures look like normal memory references, but the programmer tries to minimize references to remote nodes. Unlike the usual programming goal in PGAS, since we target problems with poor locality, we design Grappa for remote references as a common case. Thread private data is still local, and unlike the XMT, we exploit locality where it does exist in an application (such as spatial locality in a graph edgelist), but we design the system to perform well in the midst of mostly remote accesses to large shared data structures. We would like to implement PGAS languages that support dynamic parallelism, like Chapel, in Grappa.
