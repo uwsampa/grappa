@@ -49,6 +49,7 @@ HOST:=n01,n04
 # number of mpi processes
 #
 NPROC:=2
+PPN:=1
 
 # name of main executable to build and/or run
 TARGET:=
