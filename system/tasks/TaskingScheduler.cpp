@@ -168,6 +168,7 @@ void TaskingScheduler::TaskingSchedulerStatistics::sample() {
     task_calls++;
     if (sched->num_active_tasks > max_active) max_active = sched->num_active_tasks;
     avg_active = inc_avg(avg_active, task_calls, sched->num_active_tasks);
+    avg_ready = inc_avg(avg_ready, task_calls, sched->readyQ.length());
 #ifdef DEBUG  
     if ((task_calls % 1024) == 0) {
         active_task_log[task_log_index++] = sched->num_active_tasks;
@@ -209,6 +210,7 @@ void TaskingScheduler::TaskingSchedulerStatistics::merge(TaskingSchedulerStatist
   merged++;
   max_active = (int64_t)inc_avg((double)max_active, merged, (double)other->max_active);
   avg_active = inc_avg(avg_active, merged, other->avg_active);
+  avg_ready = inc_avg(avg_ready, merged, other->avg_ready);
 }
 
 void TaskingScheduler::TaskingSchedulerStatistics::merge_am(TaskingScheduler::TaskingSchedulerStatistics * other, size_t sz, void* payload, size_t psz) {
