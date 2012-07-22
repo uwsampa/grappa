@@ -21,10 +21,15 @@ class RunningStandardDeviation {
 
   public:
     RunningStandardDeviation() {
+      reset();
+    }
+
+    void reset() {
         s0 = 0.0;
         s1 = 0.0;
         s2 = 0.0;
     }
+
 
     void addSample( uint64_t value ) {
         s0 += 1;

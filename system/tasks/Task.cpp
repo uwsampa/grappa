@@ -253,3 +253,23 @@ void TaskManager::TaskStatistics::merge_am(TaskManager::TaskStatistics * other, 
   global_task_manager.stats.merge(other);
 }
 
+void TaskManager::reset_stats() {
+  stats.reset();
+}
+
+void TaskManager::TaskStatistics::reset() {
+  single_steal_successes_ =0;
+    total_steal_tasks_ =0;
+    max_steal_amt_ =0;
+    stddev_steal_amt_.reset();
+    single_steal_fails_ =0;
+    session_steal_successes_ =0;
+    session_steal_fails_ =0;
+    acquire_successes_ =0;
+    acquire_fails_ =0;
+    releases_ =0;
+    public_tasks_dequeued_ =0;
+    private_tasks_dequeued_ =0;
+
+    sample_calls =0;
+}
