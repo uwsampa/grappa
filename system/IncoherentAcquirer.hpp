@@ -28,10 +28,30 @@ class IAStatistics {
   private:
     uint64_t acquire_ams;
     uint64_t acquire_ams_bytes;
+  uint64_t acquire_blocked;
+  uint64_t acquire_blocked_ticks_total;
+  uint64_t acquire_wakeup_ticks_total;
+  uint64_t acquire_network_ticks_total;
+  uint64_t acquire_blocked_ticks_max;
+  uint64_t acquire_blocked_ticks_min;
+  uint64_t acquire_network_ticks_max;
+  uint64_t acquire_network_ticks_min;
+  uint64_t acquire_wakeup_ticks_max;
+  uint64_t acquire_wakeup_ticks_min;
 #ifdef VTRACE_SAMPLED
     unsigned ia_grp_vt;
     unsigned acquire_ams_ev_vt;
     unsigned acquire_ams_bytes_ev_vt;
+  unsigned acquire_blocked_ev_vt;
+  unsigned acquire_blocked_ticks_total_ev_vt;
+  unsigned acquire_wakeup_ticks_total_ev_vt;
+  unsigned acquire_network_ticks_total_ev_vt;
+  unsigned acquire_blocked_ticks_max_ev_vt;
+  unsigned acquire_blocked_ticks_min_ev_vt;
+  unsigned acquire_wakeup_ticks_max_ev_vt;
+  unsigned acquire_wakeup_ticks_min_ev_vt;
+  unsigned acquire_network_ticks_max_ev_vt;
+  unsigned acquire_network_ticks_min_ev_vt;
 #endif
 
   public:
@@ -42,6 +62,33 @@ class IAStatistics {
       acquire_ams++;
       acquire_ams_bytes+=bytes;
     }
+
+  inline void record_wakeup_latency( int64_t start_time, int64_t network_time ) { 
+    acquire_blocked++; 
+    int64_t current_time = SoftXMT_get_timestamp();
+    int64_t blocked_latency = current_time - start_time;
+    int64_t wakeup_latency = current_time - network_time;
+    acquire_blocked_ticks_total += blocked_latency;
+    acquire_wakeup_ticks_total += wakeup_latency;
+    if( blocked_latency > acquire_blocked_ticks_max ) 
+      acquire_blocked_ticks_max = blocked_latency;
+    if( blocked_latency < acquire_blocked_ticks_min ) 
+      acquire_blocked_ticks_min = blocked_latency;
+    if( wakeup_latency > acquire_wakeup_ticks_max )
+      acquire_wakeup_ticks_max = wakeup_latency;
+    if( wakeup_latency < acquire_wakeup_ticks_min )
+      acquire_wakeup_ticks_min = wakeup_latency;
+  }
+
+  inline void record_network_latency( int64_t start_time ) { 
+    int64_t current_time = SoftXMT_get_timestamp();
+    int64_t latency = current_time - start_time;
+    acquire_network_ticks_total += latency;
+    if( latency > acquire_network_ticks_max )
+      acquire_network_ticks_max = latency;
+    if( latency < acquire_network_ticks_min )
+      acquire_network_ticks_min = latency;
+  }
 
     void dump();
     void sample();
@@ -64,6 +111,8 @@ private:
   int response_count_;
   int total_reply_payload_;
   int expected_reply_payload_;
+  int64_t start_time_;
+  int64_t network_time_;
 
 public:
 
@@ -78,6 +127,8 @@ public:
     , response_count_(0)
     , total_reply_payload_( 0 )
     , expected_reply_payload_( 0 )
+    , start_time_(0)
+    , network_time_(0)
   { 
     reset( );
   }
@@ -91,6 +142,8 @@ public:
     response_count_ = 0;
     expected_reply_payload_ = sizeof( T ) * *count_;
     total_reply_payload_ = 0;
+    start_time_ = 0;
+    network_time_ = 0;
     if( *count_ == 0 ) {
       DVLOG(5) << "Zero-length acquire";
       *pointer_ = NULL;
@@ -181,6 +234,11 @@ public:
       DVLOG(5) << "Thread " << CURRENT_THREAD 
               << " ready to block on " << *request_address_ 
               << " * " << *count_ ;
+      if( !acquired_ ) {
+	start_time_ = SoftXMT_get_timestamp();
+      } else {
+	start_time_ = 0;
+      }
       while( !acquired_ ) {
       DVLOG(5) << "Thread " << CURRENT_THREAD 
               << " blocking on " << *request_address_ 
@@ -194,6 +252,7 @@ public:
                  << " woke up for " << *request_address_ 
                  << " * " << *count_ ;
       }
+      incoherent_acquirer_stats.record_wakeup_latency( start_time_, network_time_ );
     }
   }
 
@@ -212,6 +271,10 @@ public:
       acquired_ = true;
       if( thread_ != NULL ) {
         SoftXMT_wake( thread_ );
+      }
+      if( start_time_ != 0 ) {
+	network_time_ = SoftXMT_get_timestamp();
+	incoherent_acquirer_stats.record_network_latency( start_time_ );
       }
     }
   }

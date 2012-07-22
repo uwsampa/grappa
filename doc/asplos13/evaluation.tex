@@ -18,9 +18,9 @@ best parameter values from a limited search over \flushtimeout~and
 Grappa with 16 machines is faster than the entire XMT. Grappa achieves
 \checkme{112Mvert/s} with \checkme{60 machines} and the
 XMT achieves only 50Mvert/s. Scaling up, Grappa adds 2Mvert/s/nodes
-and the XMT adds 850Kvert/s/node. Grappa's scaling slows down at
-\checkme{90} machines because of the unscalability of our aggregation
-mechanism as there are more network endpoints.
+and the XMT adds 850Kvert/s/node. Grappa keeps scaling up through 128
+machines, although scaling declines because of the unscalability of our aggregation
+mechanism as number of network endpoints increases.
 
 
 The XMT plataeus around \checkme{60} processors for 100M, 1.6B, and
@@ -39,10 +39,84 @@ Despite our efforts to tune the UTS implementation specific to Cray XMT, perform
 
 \begin{figure}[h]
     \begin{center}
-        \includegraphics[width=0.5\textwidth]{figs/grappa-xmt-uts.pdf}
+      \includegraphics[width=0.5\textwidth]{figs/grappa-xmt-uts.pdf}
     \end{center}
     \caption{describe...}
     \label{fig:grappa-xmt-uts}
 \end{figure}
 
 
+
+
+
+
+\subsection{Sensitivity}
+
+\subsection{Latency tolerance parameters}
+
+\paragraph{Benefit of aggregator}
+what happens with aggregator on and off
+
+\paragraph{Latency}
+aggregation latency and delegate latency
+
+
+\paragraph{Number of workers}
+We need enough workers to cover the network+aggregation latency, but more just slow things down.
+
+UTS
+BFS
+
+
+\subsubsection{Work stealing parameters}
+
+\paragraph{Chunk size}
+
+it's important to steal multiple tasks to 
+amortize cost of stealing
+spread work out quickly in large system
+
+there are times when it's useful to steal lots of stuff, even though
+we steal only a few things most of the time.
+
+UTS
+
+
+\paragraph{Parallel loop threshold}
+
+allows us to amoritize task creation overhead and exploit locality
+Gets us a 2x bump in performance
+not too sensitive
+
+UTS
+BFS
+
+
+
+%\begin{figure*}[ht]
+%    \begin{minipage}{0.3\linewidth}
+%        \centering
+%        \includegraphics[width=\textwidth]{figs/chunksize-uts.pdf}
+%        \caption{chunksize caption}
+%        \label{fig:chunksize-uts}
+%    \end{minipage}
+%    \begin{minipage}{0.3\linewidth}
+%        \centering
+%        \includegraphics[width=\textwidth]{figs/workers-uts.pdf}
+%        \caption{workers caption}
+%        \label{fig:workers-uts}
+%    \end{minipage}
+%    \begin{minipage}{0.3\linewidth}
+%        \centering
+%        \includegraphics[width=\textwidth]{figs/thresh-uts.pdf}
+%        \caption{threshold caption}
+%        \label{fig:thresh-uts}
+%    \end{minipage}
+%\end{figure*}
+
+
+Chunksize:
+amortizing cost of stealing
+spreading work out more
+most of the time we still little  (about 10 avg) but sometimes a lot
+(difference with BFS)

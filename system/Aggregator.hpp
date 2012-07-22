@@ -165,6 +165,9 @@ private:
   uint64_t bytes_deaggregated_;
   uint64_t messages_forwarded_;
   uint64_t bytes_forwarded_;
+  uint64_t total_wait_ticks_;
+  uint64_t oldest_wait_ticks_;
+  uint64_t newest_wait_ticks_;
   uint64_t polls_;
   uint64_t flushes_;
   uint64_t multiflushes_;
@@ -182,6 +185,8 @@ private:
   unsigned bytes_deaggregated_vt_ev;
   unsigned messages_forwarded_vt_ev;
   unsigned bytes_forwarded_vt_ev;
+  unsigned oldest_wait_ticks_vt_ev;
+  unsigned newest_wait_ticks_vt_ev;
   unsigned polls_vt_ev;
   unsigned flushes_vt_ev;
   unsigned multiflushes_vt_ev;
@@ -240,6 +245,9 @@ private:
       << "bytes_aggregated: " << bytes_aggregated_ << ", "
       << "messages_aggregated_per_second: " << messages_aggregated_per_second << ", "
       << "bytes_aggregated_per_second: " << bytes_aggregated_per_second << ", "
+      << "newest_wait_ticks: " << newest_wait_ticks_ << ", "
+      << "oldest_wait_ticks: " << oldest_wait_ticks_ << ", "
+      << "average_wait_time: " << (double) (oldest_wait_ticks_ + newest_wait_ticks_) / (2 * flushes_) << ", "
       << "polls: " << polls_ << ", "
       << "flushes: " << flushes_ << ", "
       << "multiflushes: " << multiflushes_ << ", "
@@ -271,6 +279,9 @@ public:
     , bytes_deaggregated_vt_ev( VT_COUNT_DEF( "Total bytes deaggregated", "bytes", VT_COUNT_TYPE_UNSIGNED, aggregator_vt_grp ) )
     , messages_forwarded_vt_ev( VT_COUNT_DEF( "Total messages deaggregated", "messages", VT_COUNT_TYPE_UNSIGNED, aggregator_vt_grp ) )
     , bytes_forwarded_vt_ev( VT_COUNT_DEF( "Total bytes deaggregated", "bytes", VT_COUNT_TYPE_UNSIGNED, aggregator_vt_grp ) )
+    , newest_wait_ticks_vt_ev( VT_COUNT_DEF( "Aggregator oldest wait ticks", "ticks", VT_COUNT_TYPE_UNSIGNED, aggregator_vt_grp ) )
+    , oldest_wait_ticks_vt_ev( VT_COUNT_DEF( "Aggregator newest wait ticks", "ticks", VT_COUNT_TYPE_UNSIGNED, aggregator_vt_grp ) )
+    , average_wait_vt_ev( VT_COUNT_DEF( "Aggregator average wait time", "ticks", VT_COUNT_TYPE_DOUBLE, aggregator_vt_grp ) )
     , polls_vt_ev( VT_COUNT_DEF( "Aggregator polls", "polls", VT_COUNT_TYPE_UNSIGNED, aggregator_vt_grp ) )
     , flushes_vt_ev( VT_COUNT_DEF( "Flushes", "flushes", VT_COUNT_TYPE_UNSIGNED, aggregator_vt_grp ) )
     , multiflushes_vt_ev( VT_COUNT_DEF( "Nonzero timeout loops", "multiflushes", VT_COUNT_TYPE_UNSIGNED, aggregator_vt_grp ) )
@@ -321,6 +332,8 @@ public:
     bytes_deaggregated_ = 0;
     messages_forwarded_ = 0;
     bytes_forwarded_ = 0;
+    newest_wait_ticks_ = 0;
+    oldest_wait_ticks_ = 0;
     polls_ = 0;
     flushes_ = 0;
     multiflushes_ = 0;
@@ -337,7 +350,10 @@ public:
     polls_++;
   }
 
-  void record_flush() {
+  void record_flush( SoftXMT_Timestamp oldest_ts, SoftXMT_Timestamp newest_ts ) {
+    SoftXMT_Timestamp ts = SoftXMT_get_timestamp();
+    oldest_wait_ticks_ += ts - oldest_ts;
+    newest_wait_ticks_ += ts - newest_ts;
     flushes_++;
   }
 
@@ -381,6 +397,9 @@ public:
     VT_COUNT_UNSIGNED_VAL( bytes_deaggregated_vt_ev, bytes_deaggregated_ );
     VT_COUNT_UNSIGNED_VAL( messages_forwarded_vt_ev, messages_forwarded_ );
     VT_COUNT_UNSIGNED_VAL( bytes_forwarded_vt_ev, bytes_forwarded_ );
+    VT_COUNT_UNSIGNED_VAL( oldest_wait_ticks_vt_ev, oldest_wait_ticks_ );
+    VT_COUNT_UNSIGNED_VAL( newest_wait_ticks_vt_ev, newest_wait_ticks_ );
+    VT_COUNT_DOUBLE_VAL( average_wait_vt_ev, (double) (oldest_wait_ticks_ + newest_wait_ticks_) / (2 * flushes_) );
     VT_COUNT_UNSIGNED_VAL( polls_vt_ev, polls_ );
     VT_COUNT_UNSIGNED_VAL( flushes_vt_ev, flushes_ );
     VT_COUNT_UNSIGNED_VAL( multiflushes_vt_ev, multiflushes_ );
@@ -426,6 +445,8 @@ public:
     bytes_deaggregated_ += other->bytes_deaggregated_;
     messages_forwarded_ += other->messages_forwarded_;
     bytes_forwarded_ += other->bytes_forwarded_;
+    oldest_wait_ticks_ += other->oldest_wait_ticks_;
+    newest_wait_ticks_ += other->newest_wait_ticks_;
     polls_ += other->polls_;
     flushes_ += other->flushes_;
     multiflushes_ += other->multiflushes_;
@@ -470,6 +491,8 @@ template< const int max_size_ >
 class AggregatorBuffer {
 private:
 public:
+  SoftXMT_Timestamp oldest_ts_;
+  SoftXMT_Timestamp newest_ts_;
   int current_position_;
   char buffer_[ max_size_ ];
 
@@ -484,7 +507,9 @@ public:
   }
 
   inline void insert( const void * data, size_t size ) {
-    assert ( fits( size ) );
+    newest_ts_ = SoftXMT_get_timestamp();
+    if( current_position_ == 0 ) oldest_ts_ = newest_ts_;
+    DCHECK ( fits( size ) );
     memcpy( &buffer_[ current_position_ ], data, size );
     current_position_ += size;
   }
@@ -535,7 +560,7 @@ private:
       : size_( size )
       , buf_()
     { 
-      assert( size < buffer_size_ );
+      DCHECK( size < buffer_size_ );
       memcpy( buf_, buf, size );
     }
   };
@@ -580,8 +605,8 @@ public:
   inline void flush( Node node ) {
     GRAPPA_FUNCTION_PROFILE( GRAPPA_COMM_GROUP );
     DVLOG(5) << "flushing node " << node;
-    stats.record_flush();
     Node target = route_map_[ node ];
+    stats.record_flush( buffers_[ target ].oldest_ts_, buffers_[ target ].newest_ts_ );
     global_communicator.send( target,
                               aggregator_deaggregate_am_handle_,
                               buffers_[ target ].buffer_,
@@ -635,7 +660,7 @@ public:
     int num_flushes = 0;
     while( !least_recently_sent_.empty() &&
 	   ((-least_recently_sent_.top_priority() + FLAGS_aggregator_autoflush_ticks) < ts) &&
-	   ((FLAGS_aggregator_max_flush > 0) && (num_flushes < FLAGS_aggregator_max_flush)) ) {
+	   ((FLAGS_aggregator_max_flush == 0) || (num_flushes < FLAGS_aggregator_max_flush)) ) {
       stats.record_timeout();
       DVLOG(5) << "timeout for node " << least_recently_sent_.top_key()
 	       << ": inserted at " << -least_recently_sent_.top_priority()
@@ -699,7 +724,7 @@ inline void aggregate( Node destination, AggregatorAMHandler fn_p,
 	// doesn't fit, so flush before inserting
 	stats.record_capacity_flush();
 	flush( target );
-	assert ( buffers_[ target ].fits( total_call_size ));
+	DCHECK( buffers_[ target ].fits( total_call_size ));
       }
 
       // now call must fit, so just insert it
