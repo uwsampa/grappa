@@ -1,15 +1,46 @@
 \section{Background}
 
-The goal of the Grappa framework is to simplify the task of implementing irregular applications.  Grappa is built on many existing ideas in programming languages, systems and architecture.  In this section we discuss related frameworks and key enabling technologies that Grappa builds upon.
+% The goal of the Grappa framework is to simplify the task of implementing
+% irregular applications.
+Grappa is built on many existing ideas in programming languages, systems and
+architecture. In this section we discuss related frameworks and key enabling
+technologies that Grappa builds upon.
 
 \subsection{Comparative Frameworks}
 
-Distributed graph processing frameworks like Pregel \cite{pregel:2010} and Distributed GraphLab \cite{distgraphlab:vldb12} share similar goals.  Pregel adopts a bulk-synchronous parallel (BSP) execution model, which makes it inefficient on workloads that could prioritize vertices. GraphLab, on the other hand, schedules vertex computations individually, allowing prioritization, which gives faster convergence in a variety of iterative algorithms. Grappa also supports dynamic parallelism with asynchronous execution, but parallelism is expressed as tasks or loop iterations.
+Distributed graph processing frameworks like Pregel \cite{pregel:2010} and
+Distributed GraphLab \cite{distgraphlab:vldb12} share similar goals. Pregel
+adopts a bulk-synchronous parallel (BSP) execution model, which makes it
+inefficient on workloads that could prioritize vertices. GraphLab, on the
+other hand, schedules vertex computations individually, allowing
+prioritization, which gives faster convergence in a variety of iterative
+algorithms.\TODO{GraphLab is not general. Myers will expand on that here. Make
+a strong point about generality.} Grappa also supports dynamic parallelism
+with asynchronous execution, but parallelism is expressed as tasks or loop
+iterations.
 
 \subsection{Global memory}
 
-Grappa implements a software distributed shared memory DSM system.  Many traditional software DSM systems are page based~\cite{Treadmarks} and aim to hide the fact that they are built in software from applications by exploiting the processor's paging mechanisms.  Instead Grappa, like other partitioned global address space (PGAS) models, implements its DSM at the language, rather than system level.  Languages such as Chapel \cite{Chapel}, X10 \cite{X10}, and UPC \cite{UPC} make accesses to shared structures look like normal memory references.  As we describe later, Grappa chooses a middle ground, where global addresses are explicit in the API and local accesses are emitted conventionally by the compiler.  Similar to DSM systems Grappa provides a caching and coherence model to ensure high performance and consistent results.  Cache operations are exposed to in the API, however, allowing software to optimize their usage.
+Grappa implements a software distributed shared memory DSM system. Many
+traditional software DSM systems are page based~\cite{Treadmarks,munin} and
+aim to hide the fact that they are built in software from applications by
+exploiting the processor's paging mechanisms. Instead Grappa, like other
+partitioned global address space (PGAS) models, implements its DSM at the
+language, rather than system level. Languages such as Chapel \cite{Chapel},
+X10 \cite{X10}, and UPC \cite{UPC} make accesses to shared structures look
+like normal memory references. As we describe later, Grappa chooses a middle
+ground, where global addresses are explicit in the API and local accesses are
+emitted conventionally by the compiler. Similar to DSM systems Grappa provides
+a caching and coherence model to ensure high performance and consistent
+results. Cache operations are exposed to in the API, however, allowing
+software to optimize their usage.
 
 \subsection{Multithreading}
 
-Grappa uses multithreading to tolerate memory latency.  This is a well known technique.  Hardware implementations include the Tera MTA \cite{Tera}, Cray XMT \cite{XMT}, Simultaneous multithreading \cite{SMT}, MIT Alewife \cite{Alewife}, Cyclops \cite{Cyclops}, and even GPUs \cite{fatahalian}.  As we describe in this paper, Grappa use a lightweight user-mode task scheduler to multiplex thousands of tasks on a single processing core.  The large number of tasks is required because of the extremely large internode latency.
+Grappa uses multithreading to tolerate memory latency. This is a well known
+technique. Hardware implementations include the Tera MTA \cite{Tera}, Cray XMT
+\cite{XMT}, Simultaneous multithreading \cite{SMT}, MIT Alewife
+\cite{Alewife}, Cyclops \cite{Cyclops}, and even GPUs \cite{fatahalian}. As we
+describe in this paper, Grappa use a lightweight user-mode task scheduler to
+multiplex thousands of tasks on a single processing core. The large number of
+tasks is required because of the extremely large internode latency.
