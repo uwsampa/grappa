@@ -24,7 +24,7 @@ they are built in software from applications by exploiting the processor's
 paging mechanisms, therefore relying heavily on locality. Instead, Grappa,
 like other partitioned global address space (PGAS) models, implements its DSM
 at the language, rather than system level. Languages such as Chapel
-\cite{Chapel}, X10 \cite{X10}, and UPC \cite{UPC} make accesses to shared
+\cite{Chamberlain:2007}, X10 \cite{X10:2005}, and UPC \cite{upc:2005} make accesses to shared
 structures look like normal memory references. As we describe later, Grappa
 chooses a middle ground, where global addresses are explicit in the API and
 local accesses are emitted conventionally by the compiler. Similar to DSM
@@ -44,9 +44,9 @@ must make use of the network message aggregator.
 
 \paragraph{Multithreading}
 Grappa uses multithreading to tolerate memory latency. This is a well known
-technique. Hardware implementations include the Tera MTA \cite{Tera}, Cray XMT
-\cite{XMT}, Simultaneous multithreading \cite{SMT}, MIT Alewife
-\cite{Alewife}, Cyclops \cite{Cyclops}, and even GPUs \cite{fatahalian}. As we
+technique. Hardware implementations include the Tera MTA \cite{tera:mta1}, Cray XMT
+\cite{feo:xmt}, Simultaneous multithreading \cite{tullsen:smt}, MIT Alewife
+\cite{agarwal:alewife}, Cyclops \cite{almasi:cyclops}, and even GPUs \cite{gpus}. As we
 describe in this paper, Grappa use a lightweight user-mode task scheduler to
 multiplex thousands of tasks on a single processing core. The large number of
 tasks is required because of the extremely large internode latency.
