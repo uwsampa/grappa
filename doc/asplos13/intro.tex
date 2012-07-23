@@ -112,8 +112,7 @@ sizes, yet irregular applications tend to fetch only a handful of bytes at a
 time. As we will show later, Grappa can tolerate latencies way beyond that of
 the network. Therefore, Grappa can afford to \emph{trade latency for
 throughput}: by {\em increasing} latency in key components of the system we
-are able to increase our aggregate random access bandwidth (by delaying and
-aggregating messages), our synchronization bandwidth (by delegating operations
+are able to increase our effective random access memory bandwidth (by delaying and aggregating messages), our synchronization bandwidth (by delegating operations
 to remote nodes), and our ability to improve load imbalance (work stealing
 increases latency).
 
