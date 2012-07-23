@@ -216,44 +216,44 @@ constant. Again, the optimal value varies with the size of the
 run. For 32 nodes, a maximum of 3072 active tasks per core gives the
 best result; for 96 nodes, 16000 tasks is best. 
 
-\subsubsection{Work stealing parameters}
-
-\paragraph{Chunk size}
-
-It is important to steal multiple tasks at a time to both amortize the
-cost of stealing over the network and to spread out work quickly in a
-large system. Figure~\ref{fig:ut_chunksize} shows performance and
-stealing statistics for UTS on \checkme{30} nodes as we increase the stealing chunk size. Recall
-that a thief will take a number of tasks equal to the minimum of half
-the available work or the chunk size; steals fail only when the victim
-has fewer than 2 available tasks. As the scheduler is allowed to
-steal more work beyond 1 task, we see that performance increases up to 6x. This
-shows that the heuristic of stealing the oldest task from victims is
-insufficient alone when a tree-structured computation is imbalanced,
-as observed in \cite{UTS}. By observing sampled state in the execution
-trace, we find that a chunk size as low as 1 allows stealing to
-spread the load evenly across the cluster but cores spend much time
-underutilized as multiple workers wait for steal replies that
-utlimately return little new work.
-
-Performance plateaus before maximum steal amount is limited by the
-size of the victim's task queue. This indicates that artificially limiting steals
-to \checkme{128} tasks does not limit performance. Although a lower
-chunk size limits how quickly work spreads, for sufficient chunk size,
-the heuristic of stealing the oldest tasks from victims in tree-based computations allows for
-stolen work to expand quickly.
+%\subsubsection{Work stealing parameters}
+%
+%\paragraph{Chunk size}
+%
+%It is important to steal multiple tasks at a time to both amortize the
+%cost of stealing over the network and to spread out work quickly in a
+%large system. Figure~\ref{fig:ut_chunksize} shows performance and
+%stealing statistics for UTS on \checkme{30} nodes as we increase the stealing chunk size. Recall
+%that a thief will take a number of tasks equal to the minimum of half
+%the available work or the chunk size; steals fail only when the victim
+%has fewer than 2 available tasks. As the scheduler is allowed to
+%steal more work beyond 1 task, we see that performance increases up to 6x. This
+%shows that the heuristic of stealing the oldest task from victims is
+%insufficient alone when a tree-structured computation is imbalanced,
+%as observed in \cite{UTS}. By observing sampled state in the execution
+%trace, we find that a chunk size as low as 1 allows stealing to
+%spread the load evenly across the cluster but cores spend much time
+%underutilized as multiple workers wait for steal replies that
+%utlimately return little new work.
+%
+%Performance plateaus before maximum steal amount is limited by the
+%size of the victim's task queue. This indicates that artificially limiting steals
+%to \checkme{128} tasks does not limit performance. Although a lower
+%chunk size limits how quickly work spreads, for sufficient chunk size,
+%the heuristic of stealing the oldest tasks from victims in tree-based computations allows for
+%stolen work to expand quickly.
 
 
 %% UTS: chunk size
-\begin{figure}[ht]
-    \begin{center}
-      \includegraphics[width=0.5\textwidth]{figs/uts_chunksize.pdf}
-    \end{center}
-    \caption{Performance of UTS-Mem with varying maximum chunk size of
-    steals, run with 30 nodes, 6 cores per node, 4000 workers,
-    \checkme{6M flush ticks}}
-    \label{fig:uts_chunksize}
-\end{figure}
+%\begin{figure}[ht]
+%    \begin{center}
+%      \includegraphics[width=0.5\textwidth]{figs/uts_chunksize.pdf}
+%    \end{center}
+%    \caption{Performance of UTS-Mem with varying maximum chunk size of
+%    steals, run with 30 nodes, 6 cores per node, 4000 workers,
+%    \checkme{6M flush ticks}}
+%    \label{fig:uts_chunksize}
+%\end{figure}
 
 
 \TODO{(difference with BFS)}
@@ -280,22 +280,25 @@ granularity'') parameter tells the runtime when to stop creating new tasks and j
 sequentially. This allows us to amoritize the overhead of task
 creation. In addition, assigning sequential iterations to a single
 task provides the potential to exploit locality when data for adjacent iterations is
-also adjacent in memory.
+also adjacent in memory. The ability to exploit this locality that
+exists in the application is an important advantage. We found that in UTS and BFS, increasing the
+threshold from 1 up to 8 or 16, respectively, increases performance by
+more than 60\%.
 
 Figure~\ref{fig:bfs-sweep-threshold} shows a sweep of this parameter
 for a 32-node BFS run. We saw the best results serializing 32 or fewer
 iterations.
 
 % uts threshold
-\begin{figure}[ht]
-    \begin{center}
-      \includegraphics[width=0.5\textwidth]{figs/uts_threshold.pdf}
-    \end{center}
-    \caption{Performance of UTS-Mem with varying parallel loop
-        threshold, run with 30 nodes, 6 cores per node, 4000 workers,
-    \checkme{6M flush ticks}}
-    \label{fig:uts_threshold}
-\end{figure}
+%\begin{figure}[ht]
+%    \begin{center}
+%      \includegraphics[width=0.5\textwidth]{figs/uts_threshold.pdf}
+%    \end{center}
+%    \caption{Performance of UTS-Mem with varying parallel loop
+%        threshold, run with 30 nodes, 6 cores per node, 4000 workers,
+%    \checkme{6M flush ticks}}
+%    \label{fig:uts_threshold}
+%\end{figure}
 
 \subsection{Scaling}
 \paragraph{UTS-Mem}
