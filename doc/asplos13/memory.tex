@@ -1,10 +1,7 @@
 \section{Memory}
 
-
 Applications written for Grappa utilize two forms of memory: local and
-global.
-
-Local memory is local to a single core in the system.  Accesses occur
+global.  Local memory is local to a single core in the system.  Accesses occur
 through conventional pointers.  The compiler emits an access and the
 memory is manipulated directly.  Applications use local accesses for a
 number of things in Grappa: the stack associated with a task, accesses
@@ -17,14 +14,42 @@ Large data that is expected to be shared and accessed with low locality is
 stored in Grappa's global memory. All global data must be accessed through
 calls into Grappa's API, shown in Figure~\ref{fig:accessing-memory}.
 
-\paragraph{Global memory allocation}
-Grappa provides two methods for {\emph storing} data in the global memory. The
-first is a distributed heap striped across all the machines in the
-system. The \texttt{global\_malloc} and \texttt{global\_free} calls
-are used to allocate and deallocate memory in the global heap; on
-allocation, a global pointer is returned. Grappa also allows any local
-data on a core's stacks or heap to be exported to the global address
-space to be made accessible to other cores across the system.
+\paragraph{Global memory addressing} Grappa provides two methods for
+storing data in the global memory. The first is a distributed heap
+striped across all the machines in the system in a block cyclic fashion.
+The \texttt{global\_malloc} and \texttt{global\_free} calls are used to
+allocate and deallocate memory in the global heap.  Addresses to memory
+in the global heap use \textbf{linear addresses}.  Choosing the block
+size involves trading off sequential bandwidth against aggregate random
+access bandwidth. Smaller block sizes help spread data across all the
+memory controllers in the cluster, but larger block sizes allow the
+locality-optimized memory controllers to provide increased sequential
+bandwidth. The block size, which is configurable, is typically set to 64
+bytes, or the size of a single hardware cache line, in order to exploit
+spatial locality when available. The heap metadata is stored on a single
+node. Currently all heap operations serialize through this node; while
+this has been sufficient for our benchmarks, in the future Grappa will
+provide parallel performance through combining~\cite{MAMA,flatcombining}.
+
+Grappa also allows any local data on a core's stacks or heap to be
+exported to the global address space to be made accessible to other
+cores across the system. Addresses to global memory allocated in this
+way use \textbf{2D global addresses}.  This uses a traditional PGAS
+addressing model, where each address is a tuple of a rank in the job (or
+global process ID) and an address in that process. The lower 48 bits of
+the address hold a virtual address in the process. The top bit is set to
+indicates that the reference is a 2D address (as opposed to linear
+address). This leaves 15 bits for network endpoint ID, which limits our
+scalability to $2^{15}$ endpoints. Any node-local data can be made
+accessible by other nodes in the system by wrapping the address and node
+ID into a 2D global address. This address can then be accessed with a
+delegate and can also be cached by other nodes. At the destination the
+address is converted into a canonical x86 address by replacing the upper
+bits with the sign-extended upper bit of the virtual address. 2D
+addresses may refer to memory allocated from a single processes' heap or
+from a task's stack. Figure~\ref{fig:memory-structure} shows how 2D and
+linear addresses can refer to other cores' memory.
+
 
 \begin{figure}[htbp]
   \begin{center}
@@ -51,25 +76,6 @@ space to be made accessible to other cores across the system.
 \end{figure}
 
 
-\paragraph{Global memory access} There are two approaches to {\emph
-accessing} global memory. When the programmer expects a computation on
-shared data to have spatial locality to exploit, {\em cache} operations
-may be used. When there is no locality to exploit, {\em delegate}
-operations are used.
-
-All global addresses in Grappa are 64-bit values. Each byte of global
-memory is associated with a {\em home core}; this core is responsible
-for allocating and modifying that memory. Since today's commodity
-processors support a 48-bit virtual address space \cite{AMD64}, Grappa
-uses the spare bits to distinguish which address space a global address
-belongs to, and to represent the home core of a global address.
-
-Global memory in Grappa is exposed through two distinct, non-overlapping
-address spaces; \textbf{2D global addresses}, optimized for global
-access to node-local data, and \textbf{linear global addresses},
-optimized for high aggregate random access bandwidth to low locality
-data.
-
 
 \begin{figure}[t]
 \begin{center}
@@ -81,54 +87,11 @@ data.
 \end{center}
 \end{figure}
 
-\paragraph{2D global addresses} The first global address space is the {\em
-two-dimensional} address space. This uses a traditional PGAS addressing model,
-where each address is a tuple of a rank in the job (or global process ID) and
-an address in that process. The lower 48 bits of the address hold a virtual
-address in the process. The top bit is set to indicates that the reference is
-a 2D address. This leaves 15 bits for network endpoint ID, which limits our
-scalability to $2^{15}$ endpoints.
-
-Any node-local data can be made accessible by other nodes in the system
-by wrapping the address and node ID into a 2D global address. This
-address can then be accessed with a delegate and can also be cached by
-other nodes. At the destination the address is converted into a
-canonical x86 address by replacing the upper bits with the sign-extended
-upper bit of the virtual address. 2D addresses may refer to memory
-allocated from a single processes' heap or from a task's stack.
-Figure~\ref{fig:memory-structure} shows how 2D and linear addresses can
-refer to other cores' memory.
-
-\paragraph{Linear global addresses} The second global address space is
-the {\em linear} address space, so named because nearby addresses can be
-treated as adjacent even if they are stored on different nodes.
-Addresses in the linear address space are partitioned across the cluster
-in a block-cyclic fashion. Choosing the block size involves trading off
-sequential bandwidth against aggregate random access bandwidth. Smaller
-block sizes help spread data across all the memory controllers in the
-cluster, but larger block sizes allow the locality-optimized memory
-controllers to provide increased sequential bandwidth. The block size,
-which is configurable, is typically set to 64 bytes, or the size of a
-single hardware cache line, in order to exploit spatial locality when
-available. 
-
-All linear addresses refer to data allocated from a global heap. The
-heap metadata is stored on a single node. Currently all heap operations
-serialize through this node; while this has been sufficient for our
-benchmarks, in the future Grappa will provide parallel performance
-through combining~\cite{MAMA,flatcombining}.
-
-\TODO{Add a figure that depicts both forms of global addresses.}
-
-All global memory operations are implemented with active messages.
-Requesters construct a descriptor holding the current task ID and space
-for a response, issue their request active message to the node given by
-the request address, and suspend themselves. When the request arrives at
-the address' home node, the operation is performed and a response active
-message is sent. When the response arrives at the requesting node, the
-descriptor is filled in with the results of the operation and the
-requesting task is placed back on the ready queue.
-
+\paragraph{Global memory access} There are two general approaches
+Grappa applications use to {\emph access} global memory. When the
+programmer expects a computation on shared data to have spatial locality
+to exploit, {\em cache} operations may be used. When there is no
+locality to exploit, {\em delegate} operations are used.
 
 \textbf{Explicit caching.} Grappa provides an API to fetch a global
 pointer of any length and return a local pointer to a cached copy of the
@@ -146,20 +109,21 @@ Under the hood, Grappa performs the mechanics of gathering chunks of
 data from multiple system nodes and presenting a conventional appearing
 linear block of memory as a local pointer into a cache. The strategy
 employed is to issue all the constituent requests of a cache access
-request and then yield until all responses have occurred.  Currently,
-Grappa caches are \emph{not} coherent, requiring the programmer to
-maintain consistent access to data.  Future work will develop a software
-directory based coherence scheme to simplify consistent access to global
-data.
+request  (as Active Messages) and then yield until all responses have
+occurred.  Currently, Grappa caches are \emph{not} coherent, requiring
+the programmer to maintain consistent access to data.  Future work will
+develop a software directory based coherence scheme to simplify
+consistent access to global data.
 
-\textbf{Delegate operations.}
-When the access pattern has low-locality, it is more efficient to modify
-the data on its home core rather than bringing a copy to the requesting
-core and returning it after modification. Delegate operations provide
-this capability. Applications can dispatch computation to be performed
-on individual machine-word sized chunks of global memory to the memory
-system itself (e.g., \emph{fetch-and-add}).  Delegate operations,
-proposed in \cite{Nelson:hotpar11} and \cite{delegated:oopsla11}, are also the primary synchronization method in Grappa.
+\textbf{Delegate operations.} When the access pattern has low-locality,
+it is more efficient to modify the data on its home core rather than
+bringing a copy to the requesting core and returning it after
+modification. Delegate operations provide this capability. Applications
+can dispatch computation to be performed on individual machine-word
+sized chunks of global memory to the memory system itself (e.g.,
+\emph{fetch-and-add}).  Delegate operations, proposed in
+\cite{Nelson:hotpar11} and \cite{delegated:oopsla11}, are also the
+primary synchronization method in Grappa.
 
 Delegate operations are always executed at the home core of their
 address, and while arbitrary memory operations can be delegated, we
@@ -175,8 +139,6 @@ operations for the same address from multiple requesters are always
 serialized through a single core in the system, providing atomic
 semantics without using atomic operations.
 
-\paragraph{Example}
-
 \begin{figure*}[htb]
 \begin{center}
   \includegraphics[width=1.5\columnwidth]{figs/delegate-cache}
@@ -187,10 +149,10 @@ semantics without using atomic operations.
 \end{center}
 \end{figure*}
 
-Figure~\ref{fig:delegate-cache} shows an example of delegate and cache
-operations. In step 1, a core allocates an array in the global
-heap. It then spawns two tasks on remote cores to increment elements
-of the array.
+\paragraph{Example} Figure~\ref{fig:delegate-cache} shows an example of
+delegate and cache operations. In step 1, a core allocates an array in
+the global heap. It then spawns two tasks on remote cores to increment
+elements of the array.
 
 The first task increments two elements of the array using cache
 operations. In step 2, the task is invoked. A cache request is issued
