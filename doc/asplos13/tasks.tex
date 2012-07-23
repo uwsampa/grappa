@@ -179,7 +179,7 @@ with a task, and scheduled.
 
 When the scheduler finds no work to assign to its workers, it
 commences to steal work from other cores using an asynchronous
-\tt{call_on} active message.  It chooses a victim at random until it
+\texttt{call\_on} active message.  It chooses a victim at random until it
 finds one with a non-zero amount of work in its public task queue.  Up
 to a tunable limit, the scheduler steals half of the tasks it finds.
 We did study the impact of this limit on performance and found
