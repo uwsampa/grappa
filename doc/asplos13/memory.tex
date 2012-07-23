@@ -66,7 +66,7 @@ linear addresses can refer to other cores' memory.
       \item[ \texttt{ cache\_acquire( global\_address, local\_buf, \{RO,RW,WO\})} ]
       \item[ \texttt{ cache\_release( global\_address, local\_buf )} ] %\vspace{-2ex} 
 \hfill \\
-        Perform cache operations \TODO{expand}
+Perform cache operations to acquire/release global data.  Acquire, returns a local pointer after all data has been copied to the local node.  Release, optionally writes data back to global memory and frees up management resources.
     \end{description}
     \begin{minipage}{0.95\columnwidth}
       \caption{\label{fig:accessing-memory} Grappa API: accessing memory} %{-4ex}}
