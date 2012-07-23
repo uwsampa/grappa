@@ -38,13 +38,6 @@ current network aggregator design.
         nodes.}
     \label{fig:uts_compare}
 \end{figure}
-\begin{figure}[ht]
-    \begin{center}
-      \includegraphics[width=0.5\textwidth]{figs/uts_xmt_temp.pdf}
-    \end{center}
-    \caption{This is XMT uts result, \TODO{overlay the plots}}
-    \label{fig:uts_compare_temp}
-\end{figure}
 
 
 Despite our efforts to tune the UTS implementation specific to the 
@@ -226,13 +219,28 @@ best result; for 96 nodes, 16000 tasks is best.
 
 \paragraph{Chunk size}
 
-\TODO{incorporate UTS chunk size after rerun}
-it's important to steal multiple tasks to 
-amortize cost of stealing
-spread work out quickly in large system
+It is important to steal multiple tasks at a time to both amortize the
+cost of stealing over the network and to spread out work quickly in a
+large system. Figure~\ref{fig:ut_chunksize} shows performance and
+stealing statistics for UTS on \checkme{30} nodes as we increase the stealing chunk size. Recall
+that a thief will take a number of tasks equal to the minimum of half
+the available work or the chunk size; steals fail only when the victim
+has fewer than 2 available tasks. As the scheduler is allowed to
+steal more work beyond 1 task, we see that performance increases up to 6x. This
+shows that the heuristic of stealing the oldest task from victims is
+insufficient alone when a tree-structured computation is imbalanced,
+as observed in \cite{UTS}. By observing sampled state in the execution
+trace, we find that a chunk size as low as 1 allows stealing to
+spread the load evenly across the cluster but cores spend much time
+underutilized as multiple workers wait for steal replies that
+utlimately return little new work.
 
-there are times when it's useful to steal lots of stuff, even though
-we steal only a few things most of the time.
+Performance plateaus before maximum steal amount is limited by the
+size of the victim's task queue. This indicates that artificially limiting steals
+to \checkme{128} tasks does not limit performance. Although a lower
+chunk size limits how quickly work spreads, for sufficient chunk size,
+the heuristic of stealing the oldest tasks from victims in tree-based computations allows for
+stolen work to expand quickly.
 
 
 %% UTS: chunk size
@@ -247,10 +255,7 @@ we steal only a few things most of the time.
 \end{figure}
 
 
-amortizing cost of stealing
-spreading work out more
-most of the time we still little  (about 10 avg) but sometimes a lot
-(difference with BFS)
+\TODO{(difference with BFS)}
 
 
 
@@ -266,11 +271,14 @@ most of the time we still little  (about 10 avg) but sometimes a lot
 \end{center}
 \end{figure}
 
-We see benefit to limiting the amount of parallelism created by a
-recursive loop decoposition. The decomposition threshold parameter the
-runtime when to stop creating new tasks and just execute iterations
-serially. This allows us to amoritize the overhead of task creation
-and potentially exploit locality when data for adjacent iterations is
+Parallel overhead---in the form of context switches, task spawns, and
+synchronization---can reduce the performance benefit of parallelism.
+Grappa sees a benefit to limiting the amount of parallelism created by
+a recursive loop decomposition. The parallel loop threshold (``parallel
+granularity'') parameter tells the runtime when to stop creating new tasks and just execute iterations
+sequentially. This allows us to amoritize the overhead of task
+creation. In addition, assigning sequential iterations to a single
+task provides the potential to exploit locality when data for adjacent iterations is
 also adjacent in memory.
 
 Figure~\ref{fig:bfs-sweep-threshold} shows a sweep of this parameter
@@ -283,7 +291,7 @@ iterations.
       \includegraphics[width=0.5\textwidth]{figs/uts_threshold.pdf}
     \end{center}
     \caption{Performance of UTS-Mem with varying parallel loop
-        threshol, run with 30 nodes, 6 cores per node, 4000 workers,
+        threshold, run with 30 nodes, 6 cores per node, 4000 workers,
     \checkme{6M flush ticks}}
     \label{fig:uts_threshold}
 \end{figure}
