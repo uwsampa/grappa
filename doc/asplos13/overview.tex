@@ -38,7 +38,7 @@ programmer.
 
 \end{description}
 
-\paragraph{Exploiting Latency Tolerance} As we will show later, Grappa can tolerate latencies way beyond that of the network. Therefore, Grappa can afford to \emph{trade latency for throughput}: by {\em increasing} latency in key components of the system we are able to increase our aggregate random access bandwidth (by delaying and aggregating messages), our synchronization bandwidth (by delegating operations to remote nodes), and our ability to improve load imbalance (work stealing increases latency).
+% \paragraph{Exploiting Latency Tolerance} As we will show later, Grappa can tolerate latencies way beyond that of the network. Therefore, Grappa can afford to \emph{trade latency for throughput}: by {\em increasing} latency in key components of the system we are able to increase our aggregate random access bandwidth (by delaying and aggregating messages), our synchronization bandwidth (by delegating operations to remote nodes), and our ability to improve load imbalance (work stealing increases latency).
 
 % \TODO{check to see we actually explain these three somewhere.  Ie, that aggregating increases throughput and latency, that delegating synchronization increases the rate and the latency at which we can eg atomically increment, and that stealing work increases the latency of some tasks (eg when their data is largely at the originating node) but provides greater throughput overall.}
 

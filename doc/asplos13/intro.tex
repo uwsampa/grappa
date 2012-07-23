@@ -69,7 +69,23 @@ applicability.
 % 
 % ; (3) Commodity networks improved significantly and offer high bandwidth at a relatively low cost
 
-In the twenty years that have elapsed since the Tera MTA, commodity microprocessors have become much faster and multicore has driven down the absolute price of computation; commodity network price-performance has improved as well.  This shift has afforded us the opportunity to attack the challenges posed by irregular applications by emulating in software and inexpensive mass market hardware, the approach taken by Tera. We exploit the increased aggregate instruction rate per socket relative to chip bandwidth, using what would otherwise be wasted instructions to manage the multiplexing of as many as several thousand tasks per core, thus tolerating memory latency, reducing stalls, and making better use of available bandwidth.  Ultimately, the opportunity is to cover the spectrum of irregular to regular computation: where tasks exhibit locality, multiplex fewer tasks and expend fewer instructions on context switching; where locality is lacking, multiplex more tasks at a higher rate to tolerate latency.  Thus we make the best use of task parallelism -- either to scale to more cores or to tolerate latency -- and of caches -- either to exploit application locality or to house more task contexts.
+In the twenty years that have elapsed since the Tera MTA, commodity
+microprocessors have become much faster and multicore has driven down the
+absolute price of computation; commodity network price-performance has
+improved as well. This shift has afforded us the opportunity to attack the
+challenges posed by irregular applications by emulating in software and
+inexpensive mass market hardware, the approach taken by Tera. We exploit the
+increased aggregate instruction rate per socket relative to chip bandwidth,
+using what would otherwise be wasted instructions to manage the multiplexing
+of as many as several thousand tasks per core, thus tolerating memory latency,
+reducing stalls, and making better use of available bandwidth. Ultimately, the
+opportunity is to cover the spectrum of irregular to regular computation:
+where tasks exhibit locality, multiplex fewer tasks and expend fewer
+instructions on context switching; where locality is lacking, multiplex more
+tasks at a higher rate to tolerate latency. Thus we make the best use of task
+parallelism -- either to scale to more cores or to tolerate latency -- and of
+caches -- either to exploit application locality or to house more task
+contexts.
 
 In this paper we introduce Grappa, a software runtime system that allows
 a commodity x86 distributed-memory HPC cluster to be programmed as if it
@@ -77,24 +93,29 @@ were a single large shared-memory machine and provides scalable
 performance for irregular applications. Grappa is designed to smooth
 over some of the performance discontinuities in commodity hardware,
 giving good performance when there is little locality to be exploited
-while allowing the programmer to exploit it when it is available. Grappa
-leverages as much freely available and commodity infrastructure as
-possible. We use unmodified Linux for the operating system. An off the
-shelf user-mode infiniband device driver stack~\cite{OFED} is used
-for network interfacing. MPI is used for process setup and
-tear down. GASnet~\cite{gasnet:spec} is used as the underlying mechanism for
-remote memory reads and writes using active message invocations. To this
-commodity hardware and software mix Grappa adds three main software
-components: (1) a \emph{lightweight tasking} layer that supports a
-context switch in as few as 38ns and distributed load balancing; (2) a
-\emph{distributed shared memory} layer that supports customary
-operations such as \emph{read and write as well as remote operations}
-such as fetch-and-add~\cite{fetchandadd}; and (3) a \emph{message
-aggregation} layer that combines short messages to mitigate the
-aforementioned problem that commodity networks are designed to achieve
-peak bandwidth only on large packet sizes, yet irregular applications
-tend to fetch only a handful of bytes at a time.
+while allowing the programmer to exploit it when it is available. 
 
+Grappa leverages as much freely available and commodity infrastructure as
+possible. We use unmodified Linux for the operating system and an
+off-the-shelf user-mode infiniband device driver stack~\cite{OFED}. MPI is
+used for process setup and tear down. GASnet~\cite{gasnet:spec} is used as the
+underlying mechanism for remote memory reads and writes using active message
+invocations. To this commodity hardware and software mix Grappa adds three
+main software components: (1) a \emph{lightweight tasking} layer that supports
+a context switch in as few as 38ns and distributed global load balancing; (2)
+a \emph{distributed shared memory} layer that supports customary operations
+such as \emph{read and write as well as remote operations} such as
+fetch-and-add~\cite{fetchandadd}; and (3) a \emph{message aggregation} layer
+that combines short messages to mitigate the aforementioned problem that
+commodity networks are designed to achieve peak bandwidth only on large packet
+sizes, yet irregular applications tend to fetch only a handful of bytes at a
+time. As we will show later, Grappa can tolerate latencies way beyond that of
+the network. Therefore, Grappa can afford to \emph{trade latency for
+throughput}: by {\em increasing} latency in key components of the system we
+are able to increase our aggregate random access bandwidth (by delaying and
+aggregating messages), our synchronization bandwidth (by delegating operations
+to remote nodes), and our ability to improve load imbalance (work stealing
+increases latency).
 
 % 
 % Each of these components will be described in more detail in Section~\ref{sec:grappa}.
