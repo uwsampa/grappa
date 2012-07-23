@@ -20,10 +20,10 @@ packet, processing time at the card and processing on the
 CPU within the driver stack). Our measurements confirm manufacturers
 published data~\cite{infinibandbandwidth}, that with this packet size
 the bisection bandwidth is only a small fraction, less than
-~\checkme{5\%} of the peak bisection bandwidth.
+3\% of the peak bisection bandwidth.
 
 In our experiments the vast majority of requests were smaller than
-\checkme{255} bytes \TODO{more precise? median?}, far too small to make
+44 bytes, far too small to make
 efficient use of the network. To make the best use of the network, we
 must convert our small messages into large ones
 (Section~\ref{sec:results-aggregation}).  When a task sends a message,
@@ -32,10 +32,10 @@ destination.
 
 There are three situations in which a queue of aggregated messages is
 sent. First, each queue has a message size threshold, chosen to give
-reasonable network performance (\checkme{2048 bytes}). If the size in
+reasonable network performance 4096. If the size in
 bytes of a queue is above the threshold, the contents of the queue are
 sent immediately. Second, each queue has a wait time threshold
-(\checkme{200ms}). If the oldest message in a queue has been waiting
+($\approx${1ms}). If the oldest message in a queue has been waiting
 longer than this threshold, the contents of the queue are sent
 immediately, even if the queue size is lower than the message size
 threshold.  Third, queues may be explicitly flushed in situations where
