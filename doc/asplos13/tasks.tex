@@ -132,7 +132,7 @@ stack, allocated at a particular core.
 \paragraph{Context switching} Grappa context switches between tasks
 non-preemptively. As with other cooperative multithreading systems, we
 treat context switches as function calls, saving and restoring only the
-callee-saved state as specified in the x86-64 ABI \cite{someone}. This
+callee-saved state as specified in the x86-64 ABI \cite{amd64:abi:2012}. This
 involves saving six general-purpose 64-bit registers and the stack
 pointer, as well as the 16-bit x87 floating point control word and the
 SSE context/status register. Thus, the minimum amount of state a
