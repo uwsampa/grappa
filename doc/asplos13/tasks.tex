@@ -1,31 +1,35 @@
 \section{Tasks}
 
 The basic unit of execution in Grappa is a {\em task}. Each task is
-represented by a function pointer and its arguments and is enqueued when
-spawned, but not instantiated.  Later, when resources are free,
-the task is allocated a stack, bound to a core, and executed.
+represented by a function pointer and its arguments. A new task is enqueued at
+spawn time; when resources are free, it is allocated a stack, bound to a core,
+and executed.
 
 During execution, a task yields control of its core whenever it performs
 a long-latency operation, allowing the processor to remain busy while
 waiting for the operation to complete.  In addition,  a programmer can
 direct scheduling explicitly via the Grappa API calls shown
 in Figure~\ref{fig:scheduling}.
-\TODO{cite UPC split phase reads and
-writes, but include that we provide a way to overlap computation}
+% \TODO{cite UPC split phase reads and
+% writes, but include that we provide a way to overlap computation}
 
 To minimize yield overhead, the Grappa scheduler operates entirely in
-user-space and does little more than store register state of one task and load that of another. Context switch times are as
-low as \checkme{40ns} even when switching amongst thousands of tasks.
-Fast context switching amongst many tasks is crucial to Grappa for two reasons. 
-
-First, only when the net cost of context switching is dominated by the loss incurred by stalling does a latency tolerant approach work to increase throughput on computations with intense random access.  Random access latencies to node local memory are on the order of 100ns.  Were the scheduler to add more overhead than this, it would actually slow down rather than speed up computations that randomly access node local data.
-
-Second, because we can switch amongst so many tasks without dramatically increasing scheduling overhead, Grappa can tolerate system latencies orders of magnitude greater than that of local memory.  Network ping latency alone is approximately 2us, but we can tolerate much greater latency than this.  Indeed, we can \textbf{trade latency for throughput}:  by {\em increasing} latency in key components of the system we are able to increase our aggregate random access bandwidth,
-our synchronization bandwidth, and our ability to tolerate load
-imbalance.
-\TODO{check to see we actually explain these three somewhere.  Ie, that aggregating increases throughput and latency, that delegating synchronization increases the rate and the latency at which we can eg atomically increment, and that stealing work increases the latency of some tasks (eg when their data is largely at the originating node) but provides greater throughput overall.}
-
-Furthermore, by overprovisioning task parallelism, Grappa promises to provide robust throughput that is relatively insensitive to variations in latencies within and across our target systems.
+user-space and does little more than store register state of one task and load
+that of another. Context switch times are as low as 38ns even when switching
+amongst thousands of tasks. Fast context switching amongst many tasks is
+crucial to Grappa for two reasons. First, only when the net cost of context
+switching is dominated by the loss incurred by stalling does a latency
+tolerant approach work to increase throughput on computations with intense
+random access. Random access latencies to node local memory are on the order
+of 100ns. Were the scheduler to add more overhead than this, it would actually
+slow down rather than speed up computations that randomly access node local
+data. Second, because we can switch amongst so many tasks without dramatically
+increasing scheduling overhead, Grappa can tolerate system latencies many
+orders of magnitude greater than that of local memory. Network ping latency
+alone is approximately 2us, but we can tolerate latencies in the millisecond
+scale. Furthermore, by over-provisioning task parallelism, Grappa promises to
+provide robust throughput that is relatively insensitive to variations in
+latencies within and across our target systems.
 
 \begin{figure}[htbp]
   \begin{center}
@@ -70,10 +74,10 @@ the trip count is known at loop entry. The programmer
 specifies a function pointer along with start and end indices and an
 optional threshold to control parallel overhead. Grappa does {\em
 recursive decomposition} of iterations, similar to Cilk's cilk\_for
-construct~\cite {cilkforimplementation} \comment{could only find slides
+construct~\cite {cilkforimplementation}.\comment{could only find slides
 page6 of
 http://www.clear.rice.edu/comp422/lecture-notes/comp422-2012-Lecture5-
-Cilk++.pdf    ---- Good enough.  Cite it.  -Mark}.  It generates a
+Cilk++.pdf    ---- Good enough.  Cite it.  -Mark.}  It generates a
 logarithmically-deep tree of tasks, stopping to execute the loop body
 when the number of iterations is below the required threshold.
 
