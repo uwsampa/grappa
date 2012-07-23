@@ -91,6 +91,10 @@ void user_main( user_main_args * args )
 
     SoftXMT_dump_stats_all_nodes();
     BOOST_MESSAGE( "user main is exiting" );
+    
+    SoftXMT_merge_and_dump_stats();
+    SoftXMT_reset_stats_all_nodes();
+    SoftXMT_dump_stats_all_nodes();
 }
 
 
