@@ -31,8 +31,7 @@ it is not immediately sent, but rather placed in a queue specific to the
 destination.
 
 There are three situations in which a queue of aggregated messages is
-sent. First, each queue has a message size threshold, chosen to give
-reasonable network performance 4096. If the size in
+sent. First, each queue has a message size threshold of 4096 bytes, chosen to give reasonable network performance. If the size in
 bytes of a queue is above the threshold, the contents of the queue are
 sent immediately. Second, each queue has a wait time threshold
 ($\approx${1ms}). If the oldest message in a queue has been waiting
