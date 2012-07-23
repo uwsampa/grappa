@@ -92,6 +92,8 @@ thread2_tests.o thread2_tests.test: $(LIBRARY)
 thread3_tests.o thread3_tests.test: $(LIBRARY)
 tasks/Thread_tests.o tasks/Thread_tests.test: tasks/Thread.o coro.o stack.o tasks/BasicScheduler.o Timestamp.o
 
+Scheduler_benchmarking_tests.o Scheduler_benchmarking_tests.test: $(LIBRARY)
+
 Cache_tests.o Cache_tests.test: $(LIBRARY)
 RateMeasure_tests.o RateMeasure_tests.test: $(LIBRARY)
 CacheWrapped_tests.o CacheWrapped_tests.test: $(LIBRARY)
@@ -294,7 +296,7 @@ else
 ifdef PROFILE
 CFLAGS+= -O3 -DNDEBUG -pg
 else
-CFLAGS+= -O3 -DNDEBUG
+CFLAGS+= -O3 -DNDEBUG 
 endif #PROFILE
 endif #DEBUG
 
