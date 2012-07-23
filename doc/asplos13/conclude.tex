@@ -16,9 +16,4 @@ search, breadth first search, and betweenness centrality. Performance
 comparisons to the Cray XMT for a small number of nodes (16 nodes / 96 cores)
 show great promise: Grappa performs on-par with the far more expensive and
 custom XMT system, sometimes achieving better performance and sometimes worse.
-Our initial scaling experiments to a higher number of nodes suggests Grappa
-does scale, but there is some room for further improvement. Due to limitations
-in the initial aggregator design Grappa cannot utilize more than 6 cores/node,
-and this limits not only peak performance at a small number of nodes, but
-scaling performance at a larger number of nodes. Current work is ongoing on a
-new aggregator design.
+Our initial large scaling experiments to a higher number of nodes shows both promise and room for improvement.  Grappa trounces XMT on UTS, but has a ways to go with achieving the same scaling performance on betweenness centrality.  Grappa and XMT scale at similar rates on BFS, a key benchmark in this space.
