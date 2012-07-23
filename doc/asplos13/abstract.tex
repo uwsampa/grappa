@@ -1,14 +1,16 @@
-Grappa is a latency tolerant runtime system for commodity multinode multicore
-platforms that addresses the challenges posed in scaling irregular parallel
-applications to large datasets. These applications are of growing importance
-as interactive analysis of large unstructured data sets emerges as a
-commercial and government priority. Grappa serves both as a C++ user library
-and as a foundation upon which higher level languages can be developed or
-adapted to support development of irregular parallel applications. Grappa
-tolerates the delays to distant memory by multiplexing hundreds to thousands
-of lightweight tasks to each processor core; balances load via fine-grained
-workstealing; and provides efficient synchronization and consistency across
-its single shared address space. We present a detailed description
-of the Grappa system, programming examples using the library interface, and
-compare performance for several irregular benchmarks to the Cray XMT, a custom
-system used to target the real time graph analytics market.
+Grappa is a latency tolerant runtime system for commodity clusters of
+multicore computers, its goal is to provide scalable performance for irregular
+parallel applications. These applications are of growing importance as
+interactive analysis of large data sets emerges as a commercial and government
+priority, typically in the form of graph processing. Grappa serves both as a
+C++ user library and as a foundation upon which higher level languages can be
+developed or adapted to support development of irregular parallel
+applications. Grappa tolerates the delays to distant memory by multiplexing
+thousands of lightweight tasks to each processor core; balances load via
+fine-grained distributed work-stealing; takes full advantage of network
+characteristics by aggregating smaller requests into large ones; and provides
+efficient synchronization and remote operations across its single shared
+address space. We present a detailed description of the Grappa system,
+programming examples using the library interface, and compare performance for
+several irregular benchmarks to the Cray XMT, a custom system used to target
+the real time graph analytics market.
