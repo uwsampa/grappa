@@ -211,7 +211,11 @@ class TaskingScheduler : public Scheduler {
 
                     max_active = 0;
                     avg_active = 0.0;
-                    avg_ready = 0.0;
+                    avg_ready = 1.0;
+
+                    for (int i=StatePoll; i<StateLast; i++) state_timers[i] = 0;
+                    scheduler_count = 0;
+
                 }
                 void print_active_task_log() {
 #ifdef DEBUG
