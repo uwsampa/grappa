@@ -237,6 +237,9 @@ public:
     bytes_ += other->bytes_;
     for (int i=0; i<16; i++) histogram_[i] += other->histogram_[i];
     // pick earlier start time of the two
+    //
+
+    // XXX broken logic
     start_ = (start_.tv_sec < other->start_.tv_sec && start_.tv_nsec < other->start_.tv_nsec) ? start_ : other->start_;
   }
 
