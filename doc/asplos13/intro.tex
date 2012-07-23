@@ -45,7 +45,7 @@ Luckily, many of the important irregular applications (e.g., graph
 processing, our focus in this paper) naturally offer large amounts of
 concurrency. This immediately suggests taking advantage of concurrency
 to tolerate the latency of data movement. The fully custom Tera
-MTA-2~\cite{mta-2} system is a classic example of supporting irregular
+MTA-2~\cite{tera} \TODO{this is mta-1 citation} system is a classic example of supporting irregular
 applications by using concurrency to hide latencies. It had a large
 distributed shared memory with no caches.  On every clock cycle, each
 processor would execute a ready instruction chosen from one of its 128
@@ -81,8 +81,8 @@ while allowing the programmer to exploit it when it is available. Grappa
 leverages as much freely available and commodity infrastructure as
 possible. We use unmodified Linux for the operating system. An off the
 shelf user-mode infiniband device driver stack~\cite{Melonox?} is used
-for network interfacing. MPI~\cite{mpi} is used for process setup and
-tear down. GASnet~\cite{gasnet} is used as the underlying mechanism for
+for network interfacing. MPI is used for process setup and
+tear down. GASnet~\cite{gasnet:spec} is used as the underlying mechanism for
 remote memory reads and writes using active message invocations. To this
 commodity hardware and software mix Grappa adds three main software
 components: (1) a \emph{lightweight tasking} layer that supports a
