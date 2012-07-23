@@ -10,13 +10,15 @@ a long-latency operation, allowing the processor to remain busy while
 waiting for the operation to complete.  In addition,  a programmer can
 direct scheduling explicitly via the Grappa API calls shown
 in Figure~\ref{fig:scheduling}.
-% \TODO{cite UPC split phase reads and
-% writes, but include that we provide a way to overlap computation}
-
 To minimize yield overhead, the Grappa scheduler operates entirely in
 user-space and does little more than store register state of one task and load
 that of another. Context switch times are as low as 38ns even when switching
-amongst thousands of tasks. Fast context switching amongst many tasks is
+amongst thousands of tasks.
+
+\comment{
+Delete the spin and move the 2us and ms thing to results if we have data to show it. -Mark
+
+Fast context switching amongst many tasks is
 crucial to Grappa for two reasons. First, only when the net cost of context
 switching is dominated by the loss incurred by stalling does a latency
 tolerant approach work to increase throughput on computations with intense
@@ -26,10 +28,11 @@ slow down rather than speed up computations that randomly access node local
 data. Second, because we can switch amongst so many tasks without dramatically
 increasing scheduling overhead, Grappa can tolerate system latencies many
 orders of magnitude greater than that of local memory. Network ping latency
-alone is approximately 2us, but we can tolerate latencies in the millisecond
+alone is approximately 2us, but our data suggests we can tolerate latencies in the millisecond
 scale. Furthermore, by over-provisioning task parallelism, Grappa promises to
 provide robust throughput that is relatively insensitive to variations in
 latencies within and across our target systems.
+}
 
 \begin{figure}[htbp]
   \begin{center}
@@ -176,19 +179,13 @@ workers, an idle worker is woken (or a new worker is spawned), matched
 with a task, and scheduled.
 
 \paragraph{Work stealing} 
-
 When the scheduler finds no work to assign to its workers, it
 commences to steal work from other cores using an asynchronous
 \texttt{call\_on} active message.  It chooses a victim at random until it
-finds one with a non-zero amount of work in its public task queue.  Up
-to a tunable limit, the scheduler steals half of the tasks it finds.
-We did study the impact of this limit on performance and found
-\checkme{128} tasks to be optimal with little sensitivity around this
-number.  Hence we omit results for this study from
-Section~\ref{sec:results} and simply use \checkme{128} as the
-parameter for all experiments.
+finds one with a non-zero amount of work in its public task queue.  The scheduler steals half of the tasks it finds at the victim.
 
-\TODO{Someone check this paragraph to make sure it is true. :-)  -Mark}
+\comment{Commenting out.  Simon things it doesn't add much I worried about its usefulness too.  -M
+
 \TODO{Anything after this I'm not sure adds to the paper -- if it does, please edit -Simon}
 The
 core would be fully-utilized if there is always something on the ready
@@ -206,5 +203,6 @@ tree\cite{scalableWorkStealingOrCilk98} or lifelines \cite{lifelines}.
 Termination detection is not built into the Grappa task scheduler,
 rather, it is considered a programming error for the program to exit
 without syncing all tasks.
+}
 
 
