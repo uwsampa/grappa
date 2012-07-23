@@ -155,16 +155,17 @@ to ensure progress. In the best case, we are able to aggregate enough
 messages to fill an aggregation buffer and cause it to be sent, but as
 we scale up, the average rate of messages heading to a common
 destination decreases, and this gets harder. To bound the problem, the
-aggregator includes a timeout. Any packet waiting this long must be sent.
+aggregator includes a timeout. Any packet waiting this long is sent
+the next time the communications layer is serviced.
 
 Figure~\ref{fig:bfs-sweep-flushticks} shows a sweep of this parameter
-for 32-node and 96-node BFS runs. The optimal timeout value varies
-with the size of the job. In the 32-node job, performance peaks with a
-2 ms timeout; with the 96-node job, performance peaks with a 14 ms
-timeout.
-
-
-\paragraph{Number of active tasks}
+for UTS, BFS, and Betweenness Centrality on 16 nodes, using the
+datasets described previously. The maximum number of workers is fixed
+at 2048. All the benchmarks show a performance peak with a 2
+millisecond timeout; at this point we are delaying long enough to
+aggregate the largest packets we can; setting the parameter higher
+causes tasks to wait longer for responses, but few new requests are
+being generated.
 
 
 \begin{figure}[htb]
@@ -177,6 +178,9 @@ timeout.
 \end{center}
 \end{figure}
 
+\paragraph{Number of active tasks}
+
+
 When a task issues a request that requires a response, it blocks to
 allow other tasks to utilize its core. These tasks may also block. To
 support the many milliseconds of latency aggregation adds, we need to
@@ -186,10 +190,14 @@ cover the network and aggregation latency, but too many running tasks
 can add extra latency as they all must be multiplexed onto the same core.
 
 Figure~\ref{fig:bfs-sweep-workers} shows a sweep of the maximum number
-of active tasks per core, holding all other parameters
-constant. Again, the optimal value varies with the size of the
-run. For 32 nodes, a maximum of 3072 active tasks per core gives the
-best result; for 96 nodes, 16000 tasks is best. 
+of active tasks (workers) per core for each of our three benchmarks on
+16 nodes. The aggregator timeout is set at 1 ms for UTS and 2 ms for
+BFS and Betweenness Centrality. The performance peak shifts in this
+case, with UTS peaking at 1536 workers, BFS peaking at 2048 workers,
+and Betweenness Centrality peaking at 3072 workers. This is the point
+where we have enough workers to cover the latency of aggreation. The
+different values reflect the different amounts of work done by a task
+in each benchmark; UTS does the least, while Betweenness Centrality does the most.
 
 %\subsubsection{Work stealing parameters}
 %
@@ -231,7 +239,7 @@ best result; for 96 nodes, 16000 tasks is best.
 %\end{figure}
 
 
-\TODO{(difference with BFS)}
+%\TODO{(difference with BFS)}
 
 
 
