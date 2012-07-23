@@ -340,13 +340,13 @@ Q
 Q
 0 0 0 rg
 q
-3 -586 39 572 re W n
+3 -598 39 595 re W n
 q
-1 0 0 1 3 -14 cm
+1 0 0 1 3 -3 cm
 0.00000 1.00000 -1.00000 0.00000 0 0 cm
-BT %% Traversed edges per second (millions)
+BT %% Traversed vertices per second (millions)
   /TT0 32 Tf
-  -553 -28.00203514 Td <0037> Tj
+  -577 -28.00212669 Td <0037> Tj
   19 0 Td <0055> Tj
   11 0 Td <0044> Tj
   17 0 Td <0059> Tj
@@ -356,10 +356,13 @@ BT %% Traversed edges per second (millions)
   16 0 Td <0048> Tj
   17 0 Td <0047> Tj
   17 0 Td <0003> Tj
-  9 0 Td <0048> Tj
-  17 0 Td <0047> Tj
-  17 0 Td <004a> Tj
-  17 0 Td <0048> Tj
+  9 0 Td <0059> Tj
+  15 0 Td <0048> Tj
+  17 0 Td <0055> Tj
+  11 0 Td <0057> Tj
+  9 0 Td <004c> Tj
+  7 0 Td <0046> Tj
+  16 0 Td <0048> Tj
   17 0 Td <0056> Tj
   16 0 Td <0003> Tj
   9 0 Td <0053> Tj
@@ -1343,11 +1346,11 @@ Q
 Q
 0 0 0 rg
 q
-0 -1334 623 37 re W n
+0 -1334 662 37 re W n
 q
 1 0 0 1 0 -1297 cm
 1.00000 -0.00000 0.00000 1.00000 0 0 cm
-BT %% lem filter keeps utsT1L. The tree filter keeps
+BT %% lem filter keeps UTS. The tree filter keeps T1L.
   /TT0 32 Tf
   0 -28 Td <004f> Tj
   7 0 Td <0048> Tj
@@ -1366,13 +1369,10 @@ BT %% lem filter keeps utsT1L. The tree filter keeps
   17 0 Td <0053> Tj
   17 0 Td <0056> Tj
   16 0 Td <0003> Tj
-  9 0 Td <0058> Tj
-  18 0 Td <0057> Tj
-  9 0 Td <0056> Tj
-  16 0 Td <0037> Tj
-  19 0 Td <0014> Tj
-  18 0 Td <002f> Tj
-  18 0 Td <0011> Tj
+  9 0 Td <0038> Tj
+  23 0 Td <0037> Tj
+  19 0 Td <0036> Tj
+  21 0 Td <0011> Tj
   9 0 Td <0003> Tj
   9 0 Td <0037> Tj
   19 0 Td <004b> Tj
@@ -1395,23 +1395,23 @@ BT %% lem filter keeps utsT1L. The tree filter keeps
   17 0 Td <0048> Tj
   17 0 Td <0053> Tj
   17 0 Td <0056> Tj
+  16 0 Td <0003> Tj
+  9 0 Td <0037> Tj
+  19 0 Td <0014> Tj
+  18 0 Td <002f> Tj
+  18 0 Td <0011> Tj
 ET
 Q
 Q
 0 0 0 rg
 q
-0 -1371 612 37 re W n
+0 -1371 634 37 re W n
 q
 1 0 0 1 0 -1334 cm
 1.00000 -0.00000 0.00000 1.00000 0 0 cm
-BT %% T1L. The view is filtered on machine, which
+BT %% The view is filtered on machine, which keeps
   /TT0 32 Tf
   0 -28 Td <0037> Tj
-  19 0 Td <0014> Tj
-  18 0 Td <002f> Tj
-  18 0 Td <0011> Tj
-  9 0 Td <0003> Tj
-  9 0 Td <0037> Tj
   19 0 Td <004b> Tj
   18 0 Td <0048> Tj
   17 0 Td <0003> Tj
@@ -1449,24 +1449,24 @@ BT %% T1L. The view is filtered on machine, which
   18 0 Td <004c> Tj
   7 0 Td <0046> Tj
   16 0 Td <004b> Tj
+  18 0 Td <0003> Tj
+  9 0 Td <004e> Tj
+  16 0 Td <0048> Tj
+  17 0 Td <0048> Tj
+  17 0 Td <0053> Tj
+  17 0 Td <0056> Tj
 ET
 Q
 Q
 0 0 0 rg
 q
-0 -1408 577 37 re W n
+0 -1408 482 37 re W n
 q
 1 0 0 1 0 -1371 cm
 1.00000 -0.00000 0.00000 1.00000 0 0 cm
-BT %% keeps XMT,  XMT, Grappa and  Grappa.
+BT %% XMT,  XMT, Grappa and  Grappa.
   /TT0 32 Tf
-  0 -28 Td <004e> Tj
-  16 0 Td <0048> Tj
-  17 0 Td <0048> Tj
-  17 0 Td <0053> Tj
-  17 0 Td <0056> Tj
-  16 0 Td <0003> Tj
-  9 0 Td <003b> Tj
+  0 -28 Td <003b> Tj
   21 0 Td <0030> Tj
   27 0 Td <0037> Tj
   19 0 Td <000f> Tj
@@ -1504,7 +1504,7 @@ endstream
 endobj
 
 5 0 obj
-  26457
+  26456
 endobj
 
 10 0 obj
@@ -2025,39 +2025,39 @@ xref
 0000000000 65535 f
 0000000019 00000 n
 0000000101 00000 n
-0000129763 00000 n
+0000129762 00000 n
 0000000166 00000 n
-0000027045 00000 n
-0000128851 00000 n
-0000128903 00000 n
-0000128944 00000 n
-0000128996 00000 n
-0000027073 00000 n
-0000027224 00000 n
-0000027467 00000 n
-0000027626 00000 n
-0000085708 00000 n
-0000085737 00000 n
-0000085767 00000 n
-0000085918 00000 n
-0000086161 00000 n
-0000086320 00000 n
-0000128646 00000 n
-0000128675 00000 n
-0000128705 00000 n
-0000128778 00000 n
-0000129024 00000 n
-0000129415 00000 n
-0000129607 00000 n
-0000129634 00000 n
-0000129663 00000 n
-0000129705 00000 n
-0000129734 00000 n
+0000027044 00000 n
+0000128850 00000 n
+0000128902 00000 n
+0000128943 00000 n
+0000128995 00000 n
+0000027072 00000 n
+0000027223 00000 n
+0000027466 00000 n
+0000027625 00000 n
+0000085707 00000 n
+0000085736 00000 n
+0000085766 00000 n
+0000085917 00000 n
+0000086160 00000 n
+0000086319 00000 n
+0000128645 00000 n
+0000128674 00000 n
+0000128704 00000 n
+0000128777 00000 n
+0000129023 00000 n
+0000129414 00000 n
+0000129606 00000 n
+0000129633 00000 n
+0000129662 00000 n
+0000129704 00000 n
+0000129733 00000 n
 trailer
   << /Size 30
      /Info 1 0 R
      /Root 2 0 R
   >>
 startxref
-129844
+129843
 %%EOF

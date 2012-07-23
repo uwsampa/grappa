@@ -1,29 +1,16 @@
 \section{Evaluation} \label{sec:evaluation}
 
+We evaluate Grappa in four ways. First, we evaluate its performance
+with respect to the XMT. Second, we explore the benefit that
+aggregation gives us. Third, we investigate sensitivity of two key
+parameters in the runtime. Fourth, we investigate scaling.
 
 \subsection{Performance}
 
-
-
-\subsubsection{Unbalanced tree search in memory}
-
-
-%Using 6 cores per node gave
-%Grappa up to a 20\% benefit at each data point, but Grappa could not run
-%well beyond 90 machines with this core configuration because of the
-%current network aggregator designa.
-
-We ran UTS-mem on Grappa and the XMT with a binomial and two geometric
-100M-vertex trees (T3L,T1L,T2L), a geometric 1.6B-vertex tree (T1XL),
-and a geometric 4.2B-vertex tree (T1XXL). Both systems do relatively
-poorly on the binomial tree because it is very deep and a traversal
-produces too little parallelism. Figure~\ref{fig:uts_compare} shows
-the performance in terms of number of vertices visited per second versus
-number of compute nodes. The Grappa results shown are for 6 cores per
-node and the best parameter values from a search over runtime and
-application parameters.
-
-
+To evaluate Grappa's preformance with respect to the XMT, we ran each
+of our three benchmarks on up to 16 nodes of each machine. Grappa used
+6 cores per node, with the best parameters chosen for each point. The
+XMT could not run on 2 nodes, so the point is omitted.
 
 %% UTS: performance comparison
 \begin{figure}[ht]
@@ -34,10 +21,10 @@ application parameters.
     \label{fig:uts_compare}
 \end{figure}
 
-
-\TODO{ we still win with th=1 }
-
-\subsubsection{BFS}
+\paragraph{Unbalanced tree search} We ran UTS-mem with a geometric 100M-vertex tree
+(T1L). Figure~\ref{fig:uts_compare} shows the performance in terms of
+number of vertices visited per second versus number of compute
+nodes. Grappa is 3.2 times faster than the XMT at 16 nodes.
 
 \begin{figure}[tH]
 \begin{center}
@@ -49,16 +36,12 @@ application parameters.
 \end{center}
 \end{figure}
 
-Figure~\ref{fig:bfs-performance} shows Grappa's performance on BFS
-compared to that of the XMT.\footnote{The performance dip at 112 nodes is not an anomaly; it is highly repeatable.  Despite extensive investigation on our part, we can find no reasonable explanation for it.} There are
-two things to observe. First, At 128 XMT processors/cluster nodes,
-the XMT is  4.17 times faster than Grappa. This is due to the
-XMT's faster network: the XMT is able to issue 100 million network
-requests per second per node; at the 128 nodes datapoint, Grappa is
-aggregating 25 million network requests per second, or 4 times slower.
-\checkme{Second, Grappa is scaling...}
+\paragraph{BFS}
 
-\subsubsection{Centrality}
+We ran BFS on a synthetic Kronecker graph with $2^{25}$ vertices and
+$2^{29}$ edges (25 GB of data). Figure~\ref{fig:bfs-performance} shows
+our performance in terms of graph edges traversed per second . The XMT
+is 2.5 times faster than Grappa at 16 nodes.
 
 \begin{figure}[tH]
 \begin{center}
@@ -70,10 +53,12 @@ aggregating 25 million network requests per second, or 4 times slower.
 \end{center}
 \end{figure}
 
-Figure~\ref{fig:centrality-performance} shows Grappa's performance on
-Betweenness Centrality compared to that of the XMT. At 128 XMT
+\subsubsection{Centrality}
+
+We ran Betweenness Centrality on the same scale 25 Kronecker graph as
+we did for BFS. Figure~\ref{fig:centrality-performance} shows our
+performance in terms of graph edges traversed per second. At 16 XMT
 processors/cluster nodes, the XMT is 1.75 times faster than Grappa.
-\TODO{Add more here...}
 
 \subsection{Network aggregation performance}
 
