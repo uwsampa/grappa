@@ -25,8 +25,8 @@ the bisection bandwidth is only a small fraction, less than
 In our experiments the vast majority of requests were smaller than
 44 bytes, far too small to make
 efficient use of the network. To make the best use of the network, we
-must convert our small messages into large ones
-(Section~\ref{sec:results-aggregation}).  When a task sends a message,
+must convert our small messages into large ones.
+When a task sends a message,
 it is not immediately sent, but rather placed in a queue specific to the
 destination.
 
