@@ -28,11 +28,9 @@ application parameters.
 %% UTS: performance comparison
 \begin{figure}[ht]
     \begin{center}
-      \includegraphics[width=0.5\textwidth]{figs/uts_compare.pdf}
+      \includegraphics[width=0.5\textwidth]{figs/uts_performance.pdf}
     \end{center}
-    \caption{Performance of in-memory unbalanced tree search. Grappa
-        keeps scaling through 128 nodes and beats the XMT with 16
-        nodes.}
+    \caption{Performance of in-memory unbalanced tree search.}
     \label{fig:uts_compare}
 \end{figure}
 
@@ -43,7 +41,7 @@ application parameters.
 
 \begin{figure}[tH]
 \begin{center}
-  \includegraphics[width=0.95\columnwidth]{figs/bfs_compare}
+  \includegraphics[width=0.95\columnwidth]{figs/bfs_performance}
 \begin{minipage}{0.95\columnwidth}
   \caption{\label{fig:bfs-performance} BFS performance}
 \end{minipage}
@@ -64,7 +62,7 @@ aggregating 25 million network requests per second, or 4 times slower.
 
 \begin{figure}[tH]
 \begin{center}
-  \includegraphics[width=0.95\columnwidth]{figs/centrality-performance}
+  \includegraphics[width=0.95\columnwidth]{figs/centrality_performance}
 \begin{minipage}{0.95\columnwidth}
   \caption{\label{fig:centrality-performance} Centrality performance}
 \end{minipage}
@@ -196,7 +194,7 @@ timeout.
 
 \begin{figure}[htb]
 \begin{center}
-  \includegraphics[width=0.95\columnwidth]{figs/bfs_sweep_workers}
+  \includegraphics[width=0.95\columnwidth]{figs/worker_sweep}
 \begin{minipage}{0.95\columnwidth} 
   \caption{\label{fig:bfs-sweep-workers} Sensitivity to maximum active tasks}
 \end{minipage}
