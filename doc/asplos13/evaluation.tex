@@ -178,7 +178,7 @@ timeout.
 
 When a task issues a request that requires a response, it blocks to
 allow other tasks to utilize its core. These tasks may also block. To
-support the many milleseconds of latency aggregation adds, we need to
+support the many milliseconds of latency aggregation adds, we need to
 support many thousands of blocked tasks. One of the key parameters of
 the runtime is the number of blocked tasks allowed; we need enough to
 cover the network and aggregation latency, but too many running tasks
@@ -251,7 +251,7 @@ synchronization---can reduce the performance benefit of parallelism.
 Grappa sees a benefit to limiting the amount of parallelism created by
 a recursive loop decomposition. The parallel loop threshold (``parallel
 granularity'') parameter tells the runtime when to stop creating new tasks and just execute iterations
-sequentially. This allows us to amoritize the overhead of task
+sequentially. This allows us to amortize the overhead of task
 creation. In addition, assigning sequential iterations to a single
 task provides the potential to exploit locality when data for adjacent iterations is
 also adjacent in memory. The ability to exploit this locality that
