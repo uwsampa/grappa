@@ -25,7 +25,7 @@ point is omitted.
 \paragraph{Unbalanced tree search} We ran UTS-mem with a geometric 100M-vertex tree
 (T1L). Figure~\ref{fig:uts_compare} shows the performance in terms of
 number of vertices visited per second versus number of compute
-nodes. Grappa is 3.2 times faster than the XMT at 16 nodes.
+nodes. Grappa is 3.2 times faster than the XMT at 16 nodes.  As we will show later, the performance advantage Grappa has over XMT increases as more nodes are added.  The main reason Grappa performs better is the software-based delegate synchronization obviates the need for the retry-based synchronization that XMT uses.
 
 \begin{figure}[tH]
 \begin{center}
@@ -42,7 +42,7 @@ nodes. Grappa is 3.2 times faster than the XMT at 16 nodes.
 We ran BFS on a synthetic Kronecker graph with $2^{25}$ vertices and
 $2^{29}$ edges (25 GB of data). Figure~\ref{fig:bfs-performance} shows
 our performance in terms of graph edges traversed per second. The XMT
-is 2.5 times faster than Grappa at 16 nodes.
+is 2.5 times faster than Grappa at 16 nodes.  Performance does scale at a constant rate for Grappa, suggesting that adding more nodes will increase performance.
 
 \begin{figure}[tH]
 \begin{center}
