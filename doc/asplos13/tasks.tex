@@ -73,13 +73,16 @@ recursive decomposition} of iterations, similar to Cilk's cilk\_for
 construct~\cite {cilkforimplementation} \comment{could only find slides
 page6 of
 http://www.clear.rice.edu/comp422/lecture-notes/comp422-2012-Lecture5-
-Cilk++.pdf    ---- Good enough.  Cite it.  -Mark}.  It generates a
+Cilk++.pdf    ---- Good enough.  Cite it.  -Mark} and TBB's {\tt parallel\_for}~\cite{intel_tbb}.  It generates a
 logarithmically-deep tree of tasks, stopping to execute the loop body
 when the number of iterations is below the required threshold.
 
-Fourth, a programmer may want to run a small piece of code on a particular core
-in the system without waiting for execution resources to be available.
-Grappa provides the \texttt{call\_on} call for this purpose.
+Fourth, a programmer may want to execute an active message; that is,
+to run a small piece of code on a particular core in the system
+without waiting for execution resources to be available.  For example,
+custom synchronization primitives execute this way, as a function
+executed on the core where the data lives.  Grappa provides the
+\texttt{call\_on} call for this purpose.
 
 \begin{figure}[htbp]
   \begin{center}
@@ -105,20 +108,14 @@ Grappa provides the \texttt{call\_on} call for this purpose.
 
 \paragraph{Tasks and workers} Grappa tasks are 32-byte entities: a
 64-bit function pointer plus three 64-bit arguments. We use three
-arguments because tasks are usually generated as part of a parallel loop
-decomposition, and thus each task needs three kinds of data.
+arguments because tasks are often generated via a parallel loop
+decomposition, in which each task needs three kinds of data.
 \begin{description}
-\item[Function pointer] This 64-bit value indicates what routine
-  should run. We configure the system nodes to disable address randomization, so that we can depend on the fact that function pointers are valid across process images.
-\item[Private argument] This 64-bit value is typically used for task-specific
-  data (e.g., a loop index).
-\item[Shared argument] This 64-bit value is typically used for data shared
-  between all tasks that are part of a loop or to specify the number
-  of loop iterations.
-\item[Synchronization argument] This 64-bit value is typically used to determine
-  when all tasks that are part of a loop have finished. It is usually
-  a global pointer to a synchronization object allocated at the core
-  that spawned the task.
+\item[Function pointer] addresses the routine to run. We configure the system nodes to disable address randomization, so that function pointers are valid across process images.
+\item[Private argument] often a loop index.
+\item[Shared argument] typically data shared amongst a group of tasks, or the number of loop iterations to be performed by this task
+\item[Synchronization argument] often used to determine
+  when all tasks that are part of a loop have finished; a global pointer to a synchronization object allocated at the core that spawned a group of tasks.
 \end{description}
 While these are the most common uses of the three task arguments, they
 are treated as arbitrary 64-bit values in the runtime, and can be used
@@ -148,13 +145,11 @@ compiler to avoid saving any registers that are not used, or are used
 for temporary values that are not needed after the context switch.
 
 \paragraph{Scheduling} Each core in the Grappa system has its own
-independent scheduler. Each scheduler has three main tasks to perform. 
-First, it must ensure that its communication resources are serviced
-reasonably often. Second, it must ensure that if a running task was
-waiting on a long-latency operation and that operation has completed,
-the task will be rescheduled. Third, if there are tasks waiting to be
-run and spare execution resources, the tasks must be matched with idle
-workers.
+independent scheduler. Each scheduler has three main tasks to perform:
+servicing communication requests as described in
+Section~\ref{sec:communication}; rescheduling tasks that have been
+waiting on long-latency operations; and assigning ready tasks to
+worker resources that have become idle.
 
 Each scheduler has three queues:
 \begin{description}
@@ -166,23 +161,32 @@ Each scheduler has three queues:
   task pool.
 \end{description}
 
-Whenever a task yields or suspends, the scheduler makes a decision about
-what to do next. First, it determines if the communication resources
-should be serviced. This is done on a periodic basis. Second, it
-determines if any workers with running tasks are ready to execute; if
-so, one is scheduled. Finally, if there are no workers ready to run, but
-there are tasks waiting to be matched with workers, an idle worker is
-woken (or a new worker is spawned), matched with a task, and scheduled.
-The scheduler ensures that communication maintenance tasks are executed periodically.
 
-\paragraph{Work stealing} When a Grappa node runs out of work, it
-becomes a ``thief'' and asks another other Grappa nodes (``victim'') for
-work. If the victim has tasks to spare in its public queue, they will be
-transferred to the thief's public queue.
+Whenever a task yields or suspends, the scheduler makes a decision
+about what to do next. Servicing communication requests is given priority
+to ensure responsiveness, but to minimize overhead should context switches be frequent, servicing is performed only if sufficient time has elapsed.
+Second, the scheduler determines if any workers with running tasks are
+ready to execute; if so, one is scheduled. Finally, if there are no
+workers ready to run, but there are tasks waiting to be matched with
+workers, an idle worker is woken (or a new worker is spawned), matched
+with a task, and scheduled.
 
-Most prior work on work stealing assumes that a processor has one worker
-thread and so it only steals when utilization would go to zero. Grappa,
-on the other hand, relies on having many worker threads per core. The
+\paragraph{Work stealing} 
+
+When the scheduler finds no work to assign to its workers, it
+commences to steal work from other cores using an asynchronous
+\tt{call_on} active message.  It chooses a victim at random until it
+finds one with a non-zero amount of work in its public task queue.  Up
+to a tunable limit, the scheduler steals half of the tasks it finds.
+We did study the impact of this limit on performance and found
+\checkme{128} tasks to be optimal with little sensitivity around this
+number.  Hence we omit results for this study from
+Section~\ref{sec:results} and simply use \checkme{128} as the
+parameter for all experiments.
+
+\TODO{Someone check this paragraph to make sure it is true. :-)  -Mark}
+\TODO{Anything after this I'm not sure adds to the paper -- if it does, please edit -Simon}
+The
 core would be fully-utilized if there is always something on the ready
 queue. Even if there are many active tasks, if they are all suspended
 for long-latency network requests, then the core is underutilized. So,
@@ -198,17 +202,5 @@ tree\cite{scalableWorkStealingOrCilk98} or lifelines \cite{lifelines}.
 Termination detection is not built into the Grappa task scheduler,
 rather, it is considered a programming error for the program to exit
 without syncing all tasks.
-
-\TODO{Someone check this paragraph to make sure it is true. :-)  -Mark}
-
-When a grappa node decides to issue a steal request it chooses the
-victim node at random.  It also requests a block of tasks at once.  If
-this block exceeds the amount of stealable tasks on the victim node,
-half of the stealable tasks are stolen instead.  While we did study the
-number of tasks to steal at once, we found performance was maximized
-with \checkme{128} tasks with little sensitivity around this number,
-hence we omit results for this from Section~\ref{sec:results} and simply
-use \checkme{128} as the parameter for all experiments.
-
 
 
