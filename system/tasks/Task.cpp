@@ -107,7 +107,7 @@ bool TaskManager::waitConsumeAny( Task * result ) {
                 
                 goodSteal = publicQ.steal_locally(v, chunkSize);
                 
-                if (goodSteal) { stats.record_successful_steal(); }
+                if (goodSteal) { stats.record_successful_steal( goodSteal ); }
                 else { stats.record_failed_steal(); }
             }
 
@@ -176,10 +176,14 @@ void TaskManager::dump_stats() {
 
 #include "DictOut.hpp"
 void TaskManager::TaskStatistics::dump() {
+    double stddev_steal_amount = stddev_steal_amt_.value();
     DictOut dout;
     DICT_ADD(dout, session_steal_successes_);
     DICT_ADD(dout, session_steal_fails_);
     DICT_ADD(dout, single_steal_successes_);
+    DICT_ADD(dout, total_steal_tasks_);
+    DICT_ADD(dout, max_steal_amt_);
+    DICT_ADD(dout, stddev_steal_amount); 
     DICT_ADD(dout, single_steal_fails_);
     DICT_ADD(dout, acquire_successes_);
     DICT_ADD(dout, acquire_fails_);
@@ -219,6 +223,7 @@ void TaskManager::TaskStatistics::profiling_sample() {
   VT_COUNT_UNSIGNED_VAL( session_steal_successes_vt_ev, session_steal_successes_);
   VT_COUNT_UNSIGNED_VAL( session_steal_fails_vt_ev, session_steal_fails_);
   VT_COUNT_UNSIGNED_VAL( single_steal_successes_vt_ev, single_steal_successes_);
+  VT_COUNT_UNSIGNED_VAL( total_steal_tasks_vt_ev, total_steal_tasks_);
   VT_COUNT_UNSIGNED_VAL( single_steal_fails_vt_ev, single_steal_fails_);
   VT_COUNT_UNSIGNED_VAL( acquire_successes_vt_ev, acquire_successes_);
   VT_COUNT_UNSIGNED_VAL( acquire_fails_vt_ev, acquire_fails_);
@@ -233,6 +238,9 @@ void TaskManager::TaskStatistics::merge(TaskManager::TaskStatistics * other) {
   session_steal_successes_ += other->session_steal_successes_;
   session_steal_fails_ += other->session_steal_fails_;
   single_steal_successes_ += other->single_steal_successes_;
+  total_steal_tasks_ += other->total_steal_tasks_;
+  max_steal_amt_ = max2( max_steal_amt_, other->max_steal_amt_ );
+  stddev_steal_amt_.merge( other->stddev_steal_amt_ );
   single_steal_fails_ += other->single_steal_fails_;
   acquire_successes_ += other->acquire_successes_;
   acquire_fails_ += other->acquire_fails_;
@@ -241,7 +249,29 @@ void TaskManager::TaskStatistics::merge(TaskManager::TaskStatistics * other) {
   private_tasks_dequeued_ += other->private_tasks_dequeued_;
 }
 
+extern uint64_t merge_reply_count;
 void TaskManager::TaskStatistics::merge_am(TaskManager::TaskStatistics * other, size_t sz, void* payload, size_t psz) {
   global_task_manager.stats.merge(other);
+  merge_reply_count++;
 }
 
+void TaskManager::reset_stats() {
+  stats.reset();
+}
+
+void TaskManager::TaskStatistics::reset() {
+  single_steal_successes_ =0;
+    total_steal_tasks_ =0;
+    max_steal_amt_ =0;
+    stddev_steal_amt_.reset();
+    single_steal_fails_ =0;
+    session_steal_successes_ =0;
+    session_steal_fails_ =0;
+    acquire_successes_ =0;
+    acquire_fails_ =0;
+    releases_ =0;
+    public_tasks_dequeued_ =0;
+    private_tasks_dequeued_ =0;
+
+    sample_calls =0;
+}

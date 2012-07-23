@@ -33,9 +33,13 @@ TaskingScheduler::TaskingScheduler ( )
     , num_workers ( 0 )
     , task_manager ( NULL )
     , work_args( NULL )
+    , prev_ts( 0 )
     , previous_periodic_ts( 0 ) 
     , stats( this )
-{ }
+{ 
+  SoftXMT_tick();
+  prev_ts = SoftXMT_get_timestamp();
+}
 
 void TaskingScheduler::init ( Thread * master_arg, TaskManager * taskman ) {
   master = master_arg;
@@ -168,6 +172,7 @@ void TaskingScheduler::TaskingSchedulerStatistics::sample() {
     task_calls++;
     if (sched->num_active_tasks > max_active) max_active = sched->num_active_tasks;
     avg_active = inc_avg(avg_active, task_calls, sched->num_active_tasks);
+    avg_ready = inc_avg(avg_ready, task_calls, sched->readyQ.length());
 #ifdef DEBUG  
     if ((task_calls % 1024) == 0) {
         active_task_log[task_log_index++] = sched->num_active_tasks;
@@ -206,13 +211,19 @@ void TaskingScheduler::TaskingSchedulerStatistics::profiling_sample() {
 
 void TaskingScheduler::TaskingSchedulerStatistics::merge(TaskingSchedulerStatistics * other) {
   task_calls += other->task_calls;
+  for (int i=StatePoll; i<StateLast; i++) state_timers[i] += other->state_timers[i];
+	scheduler_count += other->scheduler_count;
+
   merged++;
   max_active = (int64_t)inc_avg((double)max_active, merged, (double)other->max_active);
   avg_active = inc_avg(avg_active, merged, other->avg_active);
+  avg_ready = inc_avg(avg_ready, merged, other->avg_ready);
 }
 
+extern uint64_t merge_reply_count;
 void TaskingScheduler::TaskingSchedulerStatistics::merge_am(TaskingScheduler::TaskingSchedulerStatistics * other, size_t sz, void* payload, size_t psz) {
   global_scheduler.stats.merge(other);
+  merge_reply_count++;
 }
 
 

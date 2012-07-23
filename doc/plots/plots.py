@@ -6,6 +6,8 @@ import exceptions
 
 import sqlite3
 
+import matplotlib
+matplotlib.use('Agg')
 import matplotlib.pyplot as plt
 #from matplotlib.figure import Figure                       
 #from matplotlib.axes import Axes                           
@@ -78,8 +80,9 @@ def graph500(c):
         plt.xlabel('Number of network interfaces')
         plt.ylabel('TEPS')
         plt.legend( ["Grappa", "XMT"], loc=0 )
-        plt.show()
-
+        #plt.show()
+        plt.savefig('bfs-performance.pdf',format='pdf')
+        plt.close()
     
 def suite(c):
     def get(machine, scale):
@@ -96,6 +99,10 @@ def suite(c):
 
     pal = get('pal', 27)
     cougarxmt = get('cougarxmt', 27)
+    
+    maxpal = max(values(pal))
+    maxxmt = max(values(cougarxmt))
+    print "centrality speedup", maxxmt/maxpal
 
     if True:
         plt.plot( indices(pal), values(pal), label="Grappa" )
@@ -104,7 +111,9 @@ def suite(c):
         plt.xlabel('Number of network interfaces')
         plt.ylabel('TEPS')
         plt.legend( ["Grappa", "XMT"], loc=0 )
-        plt.show()
+        #plt.show()
+        plt.savefig('centrality-performance.pdf',format='pdf')
+        plt.close()
 
 
 
@@ -157,15 +166,22 @@ def uts(c):
         plt.xlabel('Number of network interfaces')
         plt.ylabel('TEPS')
         #plt.legend( loc=0 )
-        plt.show()
-
+        #plt.show()
+        plt.savefig('uts-performance.pdf', format='pdf')
+        plt.close()
 
 
 def dowork():
+    font = {'family' : 'Bitstream Vera Sans',
+            'weight' : 'normal',
+            'size'   : 14}
+    
+    matplotlib.rc('font', **font)
+
     bholt_conn = sqlite3.connect( bholt_db )
     bholt_c = bholt_conn.cursor()
-    #graph500(bholt_c)
-    #suite(bholt_c)
+    graph500(bholt_c)
+    suite(bholt_c)
     bholt_c.close()
 
     bdmyers_conn = sqlite3.connect( bdmyers_db )

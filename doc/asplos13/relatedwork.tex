@@ -1,25 +1,52 @@
-\section{Related work}
+\section{Background}
 
-Ways to organize this:
-Approaches to graphs: special purpose XMT -> cluster -> distributed frameworks {pregel,graphlab} -> limited programming model -> grappa gen purpose
+% The goal of the Grappa framework is to simplify the task of implementing
+% irregular applications.
+Grappa is built on many existing ideas in programming languages, systems and
+architecture. In this section we discuss related frameworks and key enabling
+technologies that Grappa builds upon.
 
-dsm, pgas
-lightweight threading
-other graph solutions: 
--graph parallel, distributed
---pregel - but is synchronous and thus inefficient
---graphlab - asynchrounous, esp useful for problems that have been shown empirically to converge faster with asynchrony
+\paragraph{Comparable frameworks} Distributed graph processing frameworks like
+Pregel \cite{pregel:2010} and Distributed GraphLab \cite{distgraphlab:vldb12}
+share similar goals as Grappa. Pregel adopts a bulk-synchronous parallel (BSP)
+execution model, which makes it inefficient on workloads that could prioritize
+vertices. GraphLab, on the other hand, schedules vertex computations
+individually, allowing prioritization, which gives faster convergence in a
+variety of iterative algorithms.\TODO{GraphLab is not general. Myers will
+expand on that here. Make a strong point about generality.} Grappa also
+supports dynamic parallelism with asynchronous execution, but parallelism is
+expressed as tasks or loop iterations.\TODO{Should RAMcloud go here?}.
 
-\subsection{Multithreading to tolerate latency}
-hardware: tera, cray
-smt,
-alewife
-gpu,
-software threads
+\paragraph{Global memory} Grappa includes a custom implementation of a
+software distributed shared memory (DSM) system. Many traditional software DSM
+systems are page based~\cite{Treadmarks,munin} and aim to hide the fact that
+they are built in software from applications by exploiting the processor's
+paging mechanisms, therefore relying heavily on locality. Instead, Grappa,
+like other partitioned global address space (PGAS) models, implements its DSM
+at the language, rather than system level. Languages such as Chapel
+\cite{Chamberlain:2007}, X10 \cite{X10:2005}, and UPC \cite{upc:2005} make accesses to shared
+structures look like normal memory references. As we describe later, Grappa
+chooses a middle ground, where global addresses are explicit in the API and
+local accesses are emitted conventionally by the compiler. Similar to DSM
+systems, Grappa provides a consistency model that ensure high performance and
+with good programmability properties. % Caching is Cache operations are explicit in the  exposed to in the
+% API, however, allowing software to optimize their usage.
 
-\subsection{Programming models for distributed graph processing}
+We decided to build a custom distributed shared memory implementation, as
+opposed to using an existing implementation, for two key reasons: (1) in order
+to support the large number of tasks required for latency tolerance, the
+implementation of the global memory system is tightly coupled to the task
+scheduler; and (2) since commodity networks only do efficient RDMA or ordinary
+transmission of small messages, the implementation of the global memory system
+must make use of the network message aggregator.
 
-Distributed graph processing frameworks like Pregel \cite{pregel:2010} and Distributed GraphLab \cite{distgraphlab:vldb12} provide graph-parallel, vertex-centric programming abstractions that free the application writer from solving distributed system issues like scheduling parallelism, handling fault tolerance, and scaling communication. Pregel adopts a bulk-synchronous parallel (BSP) execution model, which makes it inefficient on workloads that could prioritize vertices. GraphLab, on the other hand, schedules vertex computations individually, allowing prioritization, which gives faster convergence in a variety of iterative algorithms. Grappa also supports dynamic parallelism with asynchronous execution, but has a more general purpose programming model, where parallelism is expressed as tasks or loop iterations. \TODO{and express locality? mention pgas e.g. Chapel language implementation? How much to talk about how graphlab achieves scalable performance?}
+% 
 
-\subsection{Partitioned Global Address space}
-The goal of presenting a global view of distributed memory to the programmer is shared by the PGAS community, and is used in languages like Chapel \cite{Chapel}, X10 \cite{X10}, and UPC \cite{UPC}. In these programming models, access to shared structures look like normal memory references, but the programmer tries to minimize references to remote nodes. Unlike the usual programming goal in PGAS, since we target problems with poor locality, we design Grappa for remote references as a common case. Thread private data is still local, and unlike the XMT, we exploit locality where it does exist in an application (such as spatial locality in a graph edgelist), but we design the system to perform well in the midst of mostly remote accesses to large shared data structures. We would like to implement PGAS languages that support dynamic parallelism, like Chapel, in Grappa.
+\paragraph{Multithreading}
+Grappa uses multithreading to tolerate memory latency. This is a well known
+technique. Hardware implementations include the Tera MTA \cite{tera:mta1}, Cray XMT
+\cite{feo:xmt}, Simultaneous multithreading \cite{tullsen:smt}, MIT Alewife
+\cite{agarwal:alewife}, Cyclops \cite{almasi:cyclops}, and even GPUs \cite{gpus}. As we
+describe in this paper, Grappa use a lightweight user-mode task scheduler to
+multiplex thousands of tasks on a single processing core. The large number of
+tasks is required because of the extremely large internode latency.

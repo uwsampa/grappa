@@ -8,7 +8,9 @@
 #include <glog/logging.h>
 #include <sstream>
 
+#include "Timestamp.hpp"
 #include "PerformanceTools.hpp"
+#include "StatisticsTools.hpp"
 #ifdef VTRACE
 #include <vt_user.h>
 #endif
@@ -23,10 +25,6 @@ void SoftXMT_take_profiling_sample();
 DECLARE_int64( periodic_poll_ticks );
 DECLARE_bool(flush_on_idle);
 
-
-static inline double inc_avg(double curr_avg, uint64_t count, double val) {
-	return curr_avg + (val-curr_avg)/(count);
-}
 
 class TaskManager;
 struct task_worker_args;
@@ -52,10 +50,10 @@ class TaskingScheduler : public Scheduler {
 
         // STUB: replace with real periodic threads
         SoftXMT_Timestamp previous_periodic_ts;
-        Thread * periodicDequeue() {
-            // tick the timestap counter
-            SoftXMT_tick();
-            SoftXMT_Timestamp current_ts = SoftXMT_get_timestamp();
+        Thread * periodicDequeue(SoftXMT_Timestamp current_ts) {
+            // // tick the timestap counter
+            // SoftXMT_tick();
+            // SoftXMT_Timestamp current_ts = SoftXMT_get_timestamp();
 
             if( current_ts - previous_periodic_ts > FLAGS_periodic_poll_ticks ) {
                 return periodicQ.dequeue();
@@ -66,13 +64,22 @@ class TaskingScheduler : public Scheduler {
         //////
 
         bool queuesFinished();
+  
+  SoftXMT_Timestamp prev_ts;
+  static const int tick_scale = 1; //(1L << 30);
 
         Thread * nextCoroutine ( bool isBlocking=true ) {
+	  SoftXMT_Timestamp current_ts = 0;
 #ifdef VTRACE_FULL
 	  VT_TRACER("nextCoroutine");
 #endif
             do {
                 Thread * result;
+		++stats.scheduler_count;
+
+		// tick the timestap counter
+		SoftXMT_tick();
+		current_ts = SoftXMT_get_timestamp();
 
 		// maybe sample
 		if( take_profiling_sample ) {
@@ -81,9 +88,12 @@ class TaskingScheduler : public Scheduler {
 		}
 
                 // check for periodic tasks
-                result = periodicDequeue();
+                result = periodicDequeue(current_ts);
                 if (result != NULL) {
                  //   DVLOG(5) << current_thread->id << " scheduler: pick periodic";
+		  stats.state_timers[ stats.prev_state ] += (current_ts - prev_ts) / tick_scale;
+		  stats.prev_state = TaskingSchedulerStatistics::StatePoll;
+		prev_ts = current_ts;
                     return result;
                 }
 
@@ -92,6 +102,9 @@ class TaskingScheduler : public Scheduler {
                 if (result != NULL) {
                   readyQ.prefetch();
                 //    DVLOG(5) << current_thread->id << " scheduler: pick ready";
+		  stats.state_timers[ stats.prev_state ] += (current_ts - prev_ts) / tick_scale;
+		  stats.prev_state = TaskingSchedulerStatistics::StateReady;
+		prev_ts = current_ts;
                     return result;
                 }
 
@@ -99,16 +112,24 @@ class TaskingScheduler : public Scheduler {
                 result = getWorker();
                 if (result != NULL) {
                   //  DVLOG(5) << current_thread->id << " scheduler: pick task worker";
+		  stats.state_timers[ stats.prev_state ] += (current_ts - prev_ts) / tick_scale;
+		  stats.prev_state = TaskingSchedulerStatistics::StateReady;
+		  prev_ts = current_ts;
                     return result;
                 }
 
                 if (FLAGS_flush_on_idle) {
+		  stats.state_timers[ stats.prev_state ] += (current_ts - prev_ts) / tick_scale;
+		  stats.prev_state = TaskingSchedulerStatistics::StateIdle;
                   global_aggregator.idle_flush_poll();
                   StateTimer::enterState_scheduler();
                 } else {
+		  stats.state_timers[ stats.prev_state ] += (current_ts - prev_ts) / tick_scale;
+		  stats.prev_state = TaskingSchedulerStatistics::StateIdle;
                   usleep(1);
                 }
                 
+		prev_ts = current_ts;
                 // no coroutines can run, so handle
                 /*DVLOG(5) << current_thread->id << " scheduler: no coroutines can run"
                     << "[isBlocking=" << isBlocking
@@ -118,7 +139,6 @@ class TaskingScheduler : public Scheduler {
             } while ( isBlocking || !queuesFinished() );
             // exit if all threads exited, including idle workers
             // TODO just as use mightBeWork as shortcut, also kill all idle unassigned workers on cbarrier_exit
-            
             return NULL;
         }
 
@@ -141,6 +161,7 @@ class TaskingScheduler : public Scheduler {
 
                 int64_t max_active;
                 double avg_active;
+                double avg_ready;
 
 #ifdef VTRACE_SAMPLED
 	  unsigned tasking_scheduler_grp_vt;
@@ -154,7 +175,12 @@ class TaskingScheduler : public Scheduler {
                 
                 unsigned merged;
             public:
-                TaskingSchedulerStatistics( TaskingScheduler * scheduler )
+	  enum State { StatePoll=0, StateReady=1, StateIdle=2, StateLast=3 };
+	  int64_t state_timers[ StateLast ];
+	  State prev_state;
+	  int64_t scheduler_count;
+
+	  TaskingSchedulerStatistics( TaskingScheduler * scheduler )
                     : sched( scheduler ) 
 #ifdef VTRACE_SAMPLED
 		    , tasking_scheduler_grp_vt( VT_COUNT_GROUP_DEF( "Tasking scheduler" ) )
@@ -162,10 +188,18 @@ class TaskingScheduler : public Scheduler {
 		    , num_idle_out_ev_vt( VT_COUNT_DEF( "Idle workers", "tasks", VT_COUNT_TYPE_UNSIGNED, tasking_scheduler_grp_vt ) )
 		    , readyQ_size_ev_vt( VT_COUNT_DEF( "ReadyQ size", "workers", VT_COUNT_TYPE_UNSIGNED, tasking_scheduler_grp_vt ) )
 #endif
+		    , merged(0)
+		    , prev_state( StateIdle )
+	    , state_timers()
+	    , scheduler_count(0)
+	    
 	  {
-                        active_task_log = new short[1L<<20];
-                        reset();
-                    }
+	    for( int i = StatePoll; i < StateLast; ++i ) {
+	      state_timers[ i ] = 0;
+	    }
+	    active_task_log = new short[1L<<20];
+	    reset();
+	  }
                 ~TaskingSchedulerStatistics() {
                     delete[] active_task_log;
                 }
@@ -177,6 +211,11 @@ class TaskingScheduler : public Scheduler {
 
                     max_active = 0;
                     avg_active = 0.0;
+                    avg_ready = 1.0;
+
+                    for (int i=StatePoll; i<StateLast; i++) state_timers[i] = 0;
+                    scheduler_count = 0;
+
                 }
                 void print_active_task_log() {
 #ifdef DEBUG
@@ -190,7 +229,13 @@ class TaskingScheduler : public Scheduler {
                 void dump() {
                     std::cout << "TaskStats { "
                         << "max_active: " << max_active << ", "
-                        << "avg_active: " << avg_active << " }" << std::endl;
+                        << "avg_active: " << avg_active << ", " 
+                        << "avg_ready: " << avg_ready
+			      << ", scheduler_polling_thread_ticks: " << state_timers[ StatePoll ]
+			      << ", scheduler_ready_thread_ticks: " << state_timers[ StateReady ]
+			      << ", scheduler_idle_thread_ticks: " << state_timers[ StateIdle ]
+			      << ", scheduler_count: " << scheduler_count
+			      << " }" << std::endl;
                 }
                 void sample();
 	        void profiling_sample();
