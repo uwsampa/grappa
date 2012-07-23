@@ -1,37 +1,41 @@
 \section{Tasks}
 
-The basic unit of execution in Grappa is a {\em task}. Tasks are
-small; just a function pointer and arguments. Tasks are only
-queued when they are spawned; later, when resources are free, they are
-allocated a stack, bound to a core, and executed.
+The basic unit of execution in Grappa is a {\em task}. Each task is
+represented by a function pointer and its arguments and is enqueued,
+but not instantiated, when spawned.  Later, when resources are free,
+the task is allocated a stack, bound to a core, and executed.
 
-Grappa's tasks give up control of their core when when they perform
-long-latency operations, allowing the processor to remain busy while
-waiting for the operation to complete. This is most often done
-implicitly inside a call into Grappa's API, but it can also be done
-explicitly by the programmer using the calls shown in
-Figure~\ref{fig:scheduling}. \TODO{cite UPC split phase reads and
+During execution, a task yields control of its core whenever it performs
+a long-latency operation, allowing the processor to remain busy while
+waiting for the operation to complete.  In addition,  a programmer can
+direct scheduling explicitly via the Grappa API calls shown
+in Figure~\ref{fig:scheduling}.
+\TODO{cite UPC split phase reads and
 writes, but include that we provide a way to overlap computation}
 
-All Grappa scheduling is done in userspace, and minimal state is saved,
-in order to minimize the context switch time. In our experiments, we saw
-context switch times as low as \checkme{40ns}. This lightweight context
-switching is Grappa's key enabling feature. It gives us the ability to
-tolerate latency. Given that ability, we are able to \textbf{trade
-latency for throughput}: by {\em increasing} latency in key components
-in the system we are able to increase our aggregate random access
-bandwidth, our synchronization bandwidth, and our ability to tolerate
-load.
+To minimize yield overhead, all Grappa scheduling is done in
+user-space and saves minimal state, leading to context switch times as
+low as \checkme{40ns} even when switching amongst thousands of tasks.
+This fast context switching amongst many tasks is crucial to Grappa's
+effectiveness for two reasons.  First, latency can be tolerated only
+when the net cost of context switching is dwarfed by the loss incurred
+by the alternative: stalling.  Second, because we can switch amongst
+so many tasks efficiently, we can \textbf{trade latency for throughput}:
+by {\em increasing} latency in key components of the
+system we are able to increase our aggregate random access bandwidth,
+our synchronization bandwidth, and our ability to tolerate load
+imbalance.
+\TODO{check to see we actually explain these three somewhere.  Ie, that aggregating increases throughput and latency, that delegating synchronization increases the rate and the latency at which we can eg atomically increment, and that stealing work increases the latency of some tasks (eg when their data is largely at the originating node) but provides greater throughput overall.}
 
 \begin{figure}[htbp]
   \begin{center}
     \begin{description}\small
     \item[ \texttt{ yield() } ] \hfill \\
-      Gives up control of core to scheduler, queuing task to be scheduled again soon
+      Yields core to scheduler, enqueuing caller to be scheduled again soon
     \item[ \texttt{ suspend() } ] \hfill \\
-      Gives up control of core to scheduler
+      Yields core to scheduler, enqueuing caller only once another task calls wake
     \item[ \texttt{ wake( task * $t$ ) } ] \hfill \\
-      Enqueues $t$ to be scheduled again soon
+      Enqueues some other task $t$ to be scheduled again soon
     \end{description}
     \begin{minipage}{0.95\columnwidth}
       \caption{\label{fig:scheduling} Grappa API: scheduling} %{-4ex}}
@@ -43,23 +47,26 @@ load.
 
 \subsection{Expressing parallelism}
 
-A programmer's goal in coding with Grappa should be to express as much
-parallelism as possible without worrying about where it will execute.
+Grappa programmers focus on expressing as much
+parallelism as possible without concern for where it will execute.
 Grappa then chooses where and when to exploit this parallelism,
-scheduling as much work as necessary to tolerate network latencies and
-keep cores busy. 
+scheduling as much work as is necessary on each core to keep it busy
+in the presence of system latencies and task dependences.
 
 Grappa provides four methods for expressing parallelism, shown in
-Figure~\ref{fig:expressing-parallelism}. The first is explicit task
-spawns. When the programmer identifies work that can be done in
-parallel, the work may be wrapped up in a function and queued with its
-arguments for later execution using a \texttt{spawn}. If the
-programmer wishes to spawn a task on a specific core in the system,
-or at the home core of a particular memory location, Grappa provides a
-\texttt{spawn\_on} call for this purpose.
+Figure~\ref{fig:expressing-parallelism}:
 
-The next method for expressing parallelism is a parallel for loop, where
-the number of iterations must be known at loop entry. The programmer
+First, when the programmer identifies work
+that can be done in parallel, the work may be wrapped up in a function
+and queued with its arguments for later execution using a
+\texttt{spawn}.
+
+Second, a programmer can use \texttt{spawn\_on} to spawn a task on a
+specific core in the system or at the home core of a particular memory
+location.
+
+Third, the programmer can invoke a parallel for loop, provided that
+the trip count is known at loop entry. The programmer
 specifies a function pointer along with start and end indices and an
 optional threshold to control parallel overhead. Grappa does {\em
 recursive decomposition} of iterations, similar to Cilk's cilk\_for
@@ -68,8 +75,9 @@ page6 of
 http://www.clear.rice.edu/comp422/lecture-notes/comp422-2012-Lecture5-
 Cilk++.pdf    ---- Good enough.  Cite it.  -Mark}.  It generates a
 logarithmically-deep tree of tasks, stopping to execute the loop body
-when the number of iterations is below the required threshold. Finally,
-a programmer may want to run a small piece of code on a particular core
+when the number of iterations is below the required threshold.
+
+Fourth, a programmer may want to run a small piece of code on a particular core
 in the system without waiting for execution resources to be available.
 Grappa provides the \texttt{call\_on} call for this purpose.
 
