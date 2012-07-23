@@ -168,6 +168,8 @@ void Aggregator_deaggregate_am( gasnet_token_t token, void * buf, size_t size ) 
 
 }
 
+extern uint64_t merge_reply_count;
 void AggregatorStatistics::merge_am(AggregatorStatistics * other, size_t sz, void* payload, size_t psz) {
   global_aggregator.stats.merge(other);
+  merge_reply_count++;
 }

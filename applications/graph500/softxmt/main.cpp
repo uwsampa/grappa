@@ -203,7 +203,9 @@ LOOP_FUNCTOR( checkpoint_in_func, nid, ((tuple_graph,tg)) ((csr_graph,g)) ((int6
 
 static void checkpoint_in(tuple_graph * tg, csr_graph * g, int64_t * bfs_roots) {
   //TAU_PHASE("checkpoint_in","void (tuple_graph*,csr_graph*,int64_t*)", TAU_USER);
-  
+  bool agg_enable = FLAGS_aggregator_enable;
+  FLAGS_aggregator_enable = true;
+
   VLOG(1) << "start reading checkpoint";
   double t = timer();
   
@@ -245,6 +247,7 @@ static void checkpoint_in(tuple_graph * tg, csr_graph * g, int64_t * bfs_roots) 
   
   t = timer() - t;
   VLOG(1) << "checkpoint_read_time: " << t;
+  FLAGS_aggregator_enable = agg_enable;
 }
 
 static void checkpoint_out(tuple_graph * tg, csr_graph * g, int64_t * bfs_roots) {
