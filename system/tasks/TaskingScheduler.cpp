@@ -211,6 +211,9 @@ void TaskingScheduler::TaskingSchedulerStatistics::profiling_sample() {
 
 void TaskingScheduler::TaskingSchedulerStatistics::merge(TaskingSchedulerStatistics * other) {
   task_calls += other->task_calls;
+  for (int i=StatePoll; i<StateLast; i++) state_timers[i] += other->state_timers[i];
+	scheduler_count += other->scheduler_count;
+
   merged++;
   max_active = (int64_t)inc_avg((double)max_active, merged, (double)other->max_active);
   avg_active = inc_avg(avg_active, merged, other->avg_active);
