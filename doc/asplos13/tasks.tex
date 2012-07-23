@@ -47,23 +47,26 @@ imbalance.
 
 \subsection{Expressing parallelism}
 
-A programmer's goal in coding with Grappa should be to express as much
-parallelism as possible without worrying about where it will execute.
+Grappa programmers focus on expressing as much
+parallelism as possible without concern for where it will execute.
 Grappa then chooses where and when to exploit this parallelism,
-scheduling as much work as necessary to tolerate network latencies and
-keep cores busy. 
+scheduling as much work as is necessary on each core to keep it busy
+in the presence of system latencies and task dependences.
 
 Grappa provides four methods for expressing parallelism, shown in
-Figure~\ref{fig:expressing-parallelism}. The first is explicit task
-spawns. When the programmer identifies work that can be done in
-parallel, the work may be wrapped up in a function and queued with its
-arguments for later execution using a \texttt{spawn}. If the
-programmer wishes to spawn a task on a specific core in the system,
-or at the home core of a particular memory location, Grappa provides a
-\texttt{spawn\_on} call for this purpose.
+Figure~\ref{fig:expressing-parallelism}:
 
-The next method for expressing parallelism is a parallel for loop, where
-the number of iterations must be known at loop entry. The programmer
+First, when the programmer identifies work
+that can be done in parallel, the work may be wrapped up in a function
+and queued with its arguments for later execution using a
+\texttt{spawn}.
+
+Second, a programmer can use \texttt{spawn\_on} to spawn a task on a
+specific core in the system or at the home core of a particular memory
+location.
+
+Third, the programmer can invoke a parallel for loop, provided that
+the trip count is known at loop entry. The programmer
 specifies a function pointer along with start and end indices and an
 optional threshold to control parallel overhead. Grappa does {\em
 recursive decomposition} of iterations, similar to Cilk's cilk\_for
@@ -72,8 +75,9 @@ page6 of
 http://www.clear.rice.edu/comp422/lecture-notes/comp422-2012-Lecture5-
 Cilk++.pdf    ---- Good enough.  Cite it.  -Mark}.  It generates a
 logarithmically-deep tree of tasks, stopping to execute the loop body
-when the number of iterations is below the required threshold. Finally,
-a programmer may want to run a small piece of code on a particular core
+when the number of iterations is below the required threshold.
+
+Fourth, a programmer may want to run a small piece of code on a particular core
 in the system without waiting for execution resources to be available.
 Grappa provides the \texttt{call\_on} call for this purpose.
 
