@@ -92,7 +92,7 @@ single task sending to a single destination, so this is a best case
 scenario for the aggregator. To see the benefit of the aggregator, we
 added a bypass that lets us send messages directly through GASNet. We
 also compare against the OSU \texttt{osu\_mbw\_mr} benchmark
-\TODO{cite?}  compiled against OpenMPI 1.5.3 \TODO{cite?}; this
+\cite{osu:mpi}  compiled against OpenMPI 1.5.3; this
 benchmark has the same pattern of communication but doesn't have the
 overhead of Grappa's context switching.
 
@@ -116,12 +116,23 @@ decisions, Grappa's aggregator limits its aggregation to 4KB; this
 limits its peak achievable bandwidth to 75 percent of the actual
 peak.
 
-But this comparison is the best possible case for the aggregator. In
+This comparison is the best possible case for the aggregator. In
 order to verify that the aggregator still has value on actual
-applications at scale, we ran a small (scale 20 \TODO{run larger}) BFS
-with the aggregator disabled, with both 32 and 96
-nodes. Figure~\ref{fig:bfs-aggregator} shows the results. With 96
-nodes, the aggregator improves our application performance by 4 times.
+applications at scale, we ran a small (100M node tree) UTS-Mem
+with the aggregator disabled, on 16 nodes.
+Figure~\ref{fig:no-aggregation-uts}. At this configuration, the aggregator
+improves our application performance by 10x. 
+
+\begin{figure}[htb]
+\begin{center}
+  \includegraphics[width=0.95\columnwidth]{figs/no_aggregation_uts.pdf}
+\begin{minipage}{0.95\columnwidth}
+  \caption{\label{fig:no-aggregation-uts} Performance of UTS on 16
+      nodes with and without Grappa's aggregation.}
+\end{minipage}
+\vspace{-3ex}
+\end{center}
+\end{figure}
 
 \subsection{Sensitivity}
 
@@ -152,16 +163,6 @@ with the size of the job. In the 32-node job, performance peaks with a
 2 ms timeout; with the 96-node job, performance peaks with a 14 ms
 timeout.
 
-\begin{figure}[htb]
-\begin{center}
-  \includegraphics[width=0.95\columnwidth]{figs/no_aggregation_uts.pdf}
-\begin{minipage}{0.95\columnwidth}
-  \caption{\label{fig:no-aggregation-uts} Performance of UTS on 16
-      nodes with and without Grappa's aggregation.}
-\end{minipage}
-\vspace{-3ex}
-\end{center}
-\end{figure}
 
 \paragraph{Number of active tasks}
 
