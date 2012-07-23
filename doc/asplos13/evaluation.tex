@@ -7,7 +7,7 @@ parameters in the runtime. Fourth, we investigate scaling.
 
 \subsection{Performance}
 
-To evaluate Grappa's preformance with respect to the XMT, we ran each
+To evaluate Grappa's performance with respect to the XMT, we ran each
 of our three benchmarks on up to 16 nodes of each machine. Grappa used
 6 cores per node, with the best parameters chosen for each point. In
 some cases, the XMT could not run the benchmark with 2 nodes, so the
@@ -41,7 +41,7 @@ nodes. Grappa is 3.2 times faster than the XMT at 16 nodes.
 
 We ran BFS on a synthetic Kronecker graph with $2^{25}$ vertices and
 $2^{29}$ edges (25 GB of data). Figure~\ref{fig:bfs-performance} shows
-our performance in terms of graph edges traversed per second . The XMT
+our performance in terms of graph edges traversed per second. The XMT
 is 2.5 times faster than Grappa at 16 nodes.
 
 \begin{figure}[tH]
