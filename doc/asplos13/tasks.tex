@@ -183,6 +183,11 @@ When the scheduler finds no work to assign to its workers, it
 commences to steal work from other cores using an asynchronous
 \texttt{call\_on} active message.  It chooses a victim at random until it
 finds one with a non-zero amount of work in its public task queue.  The scheduler steals half of the tasks it finds at the victim.
+Work stealing is particularly interesting in Grappa since performance depends
+on having many active worker threads on each core. Even if there are many
+active threads, if they are all suspended on long-latency operations,
+then the core is underutilized. We choose to initiate one outstanding
+steal whenever the ready queue is empty there are idle worker threads.
 
 \comment{Commenting out.  Simon things it doesn't add much I worried about its usefulness too.  -M
 
