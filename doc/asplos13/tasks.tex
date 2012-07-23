@@ -1,8 +1,8 @@
 \section{Tasks}
 
 The basic unit of execution in Grappa is a {\em task}. Each task is
-represented by a function pointer and its arguments and is enqueued,
-but not instantiated, when spawned.  Later, when resources are free,
+represented by a function pointer and its arguments and is enqueued when
+spawned, but not instantiated.  Later, when resources are free,
 the task is allocated a stack, bound to a core, and executed.
 
 During execution, a task yields control of its core whenever it performs
@@ -13,19 +13,19 @@ in Figure~\ref{fig:scheduling}.
 \TODO{cite UPC split phase reads and
 writes, but include that we provide a way to overlap computation}
 
-To minimize yield overhead, all Grappa scheduling is done in
-user-space and saves minimal state, leading to context switch times as
+To minimize yield overhead, the Grappa scheduler operates entirely in
+user-space and does little more than store register state of one task and load that of another. Context switch times are as
 low as \checkme{40ns} even when switching amongst thousands of tasks.
-This fast context switching amongst many tasks is crucial to Grappa's
-effectiveness for two reasons.  First, latency can be tolerated only
-when the net cost of context switching is dwarfed by the loss incurred
-by the alternative: stalling.  Second, because we can switch amongst
-so many tasks efficiently, we can \textbf{trade latency for throughput}:
-by {\em increasing} latency in key components of the
-system we are able to increase our aggregate random access bandwidth,
+Fast context switching amongst many tasks is crucial to Grappa for two reasons. 
+
+First, only when the net cost of context switching is dominated by the loss incurred by stalling does a latency tolerant approach work to increase throughput on computations with intense random access.  Random access latencies to node local memory are on the order of 100ns.  Were the scheduler to add more overhead than this, it would actually slow down rather than speed up computations that randomly access node local data.
+
+Second, because we can switch amongst so many tasks without dramatically increasing scheduling overhead, Grappa can tolerate system latencies orders of magnitude greater than that of local memory.  Network ping latency alone is approximately 2us, but we can tolerate much greater latency than this.  Indeed, we can \textbf{trade latency for throughput}:  by {\em increasing} latency in key components of the system we are able to increase our aggregate random access bandwidth,
 our synchronization bandwidth, and our ability to tolerate load
 imbalance.
 \TODO{check to see we actually explain these three somewhere.  Ie, that aggregating increases throughput and latency, that delegating synchronization increases the rate and the latency at which we can eg atomically increment, and that stealing work increases the latency of some tasks (eg when their data is largely at the originating node) but provides greater throughput overall.}
+
+Furthermore, by overprovisioning task parallelism, Grappa promises to provide robust throughput that is relatively insensitive to variations in latencies within and across our target systems.
 
 \begin{figure}[htbp]
   \begin{center}
