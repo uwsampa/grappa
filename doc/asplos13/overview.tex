@@ -21,16 +21,16 @@ provides automated load balancing.
 
 \item[Distributed shared memory.] Our DSM system provides support for
 fine-grain access to data anywhere in the system. It supports synchronization
-operations on global data, explicit local caching of any local in the system,
+operations on global data, explicit local caching of any memory in the system,
 and support for operation on remote data (delegating operations to home node).
-By tight integration with the tasking system described about and the
-communication layer (below), our DSM system offers high aggregate random
+By tight integration with the tasking system and the
+communication layer, our DSM system offers high aggregate random
 access bandwidth for accessing remote data.
 
 \item[Communication layer.] As discussed earlier, modern commodity networks
 support high bandwidth only for large messages. Since irregular applications
 tend to need frequent communication of small requests, the main goal of our
-communication layer is to aggregate small messages into large ones better
+communication layer is to aggregate small messages into large ones to better
 exploit what the network can offer. It is largely invisible to the application
 programmer.
 
@@ -38,6 +38,5 @@ programmer.
 
 \end{description}
 
-In the next three sections we describe both the programmer's view of Grappa's main capabilities and how they are implemented.
-
+In the next three sections we describe both Grappa's main capabilities and how they are implemented.
 
