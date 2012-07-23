@@ -124,7 +124,7 @@
 }
 
 % Betweenness centrality
-@techreport{ssca2,
+@misc{ssca2,
   title={HPCS Scalable Synthetic Compact Applications $\#$2: Graph Analysis},
   author={Bader, D.A. and Feo, J. and Gilbert, J. and Kepner, J. and Koester, D. and Loh, E.},
   group={DARPA High Productivity Computing Systems},
@@ -140,7 +140,7 @@
   organization={IEEE}
 }
 
-@inproceedings{bader:bc,
+@article{bader:bc,
   title={Parallel algorithms for evaluating centrality indices in real-world networks},
   author={Bader, D.A. and Madduri, K.},
   journal={The 35th International Conference on Parallel Processing (ICPP)},
@@ -176,7 +176,7 @@
 } 
 
 % gasnet spec
-@article{gasnet:spec,
+@misc{gasnet:spec,
     author = {Bonachea, Dan},
     title = {GASNet Specification v1.8},
     year = {2006},
@@ -305,7 +305,7 @@
 author={Agarwal, Anant and Bianchini, Ricardo and Chaiken, David and Johnson, Kirk L. and Kranz, David and Kubiatowicz, John and Beng-Hong Lim and Mackenzie, Ken and Yeung, Donald}, 
 booktitle={22nd Annual International Symposium on Computer Architecture}, title={The {MIT} {Alewife} machine: architecture and performance}, 
 year={1995}, 
-month=June,
+month={June},
 volume={}, 
 number={}, 
 keywords={ MIT Alewife machine; block multithreading; communication; compiler designers; constant cost; cost-effective mesh network; fine-grain computation; global linear address space; integrated message passing; latency tolerance mechanisms; microbenchmarks; multiprocessor architecture; operating system designers; parallel system; performance; prefetching; processing nodes; programmable system; prototype implementation; scalable mesh network; software-extended coherent shared memory; synchronization; cache storage; message passing; operating systems (computers); parallel architectures; parallel machines; parallel programming; performance evaluation; program compilers; reconfigurable architectures; shared memory systems; synchronisation;}, 
@@ -352,6 +352,7 @@ ISSN={1063-6897 },
 
 % website: amd64 ABI
 @MISC{amd64:abi:2012,
+    key = {AMD64},
     title = {AMD64 ABI},
     year = {2012},
     month = {July},
@@ -370,3 +371,205 @@ ISSN={1063-6897 },
     publisher = {IEEE Computer Society},
     address = {Los Alamitos, CA, USA},
 }
+
+@MISC{OFED,
+    key = {OFED},
+    title = {OpenFabrics Alliance},
+    year = {2012},
+    month = {July},
+    howpublished={\url{https://www.openfabrics.org/index.php}}
+    }
+
+@ARTICLE{fetchandadd,
+author={Gottlieb, A. and Grishman, R. and Kruskal, C.P. and McAuliffe, K.P. and Rudolph, L. and Snir, M.}, 
+journal={Computers, IEEE Transactions on}, title={The NYU Ultracomputer: Designing an MIMD Shared Memory Parallel Computer}, 
+year={1983}, 
+month={feb. }, 
+volume={C-32}, 
+number={2}, 
+pages={175 -189}, 
+keywords={Computer architecture;MIMD;Omega-network;VLSI;fetch-and-add;multiprocessor;parallel computer;parallel processing;shared memory;systolic queues;}, 
+doi={10.1109/TC.1983.1676201}, 
+ISSN={0018-9340},}
+
+@ARTICLE{Treadmarks,
+author={Amza, C. and Cox, A.L. and Dwarkadas, S. and Keleher, P. and Honghui Lu and Rajamony, R. and Weimin Yu and Zwaenepoel, W.}, 
+journal={Computer}, title={TreadMarks: shared memory computing on networks of workstations}, 
+year={1996}, 
+month={feb}, 
+volume={29}, 
+number={2}, 
+pages={18 -28}, 
+keywords={TreadMarks;data structures;distributed shared memory system;globally shared virtual memory;parallel processing;programming;sequential processing;shared memory computing;synchronization;workstation networks;data structures;distributed memory systems;local area networks;shared memory systems;virtual storage;}, 
+doi={10.1109/2.485843}, 
+ISSN={0018-9162},}
+
+@inproceedings{cilkforimplementation,
+ author = {Blumofe, Robert D. and Joerg, Christopher F. and Kuszmaul, Bradley C. and Leiserson, Charles E. and Randall, Keith H. and Zhou, Yuli},
+  title = {Cilk: an efficient multithreaded runtime system},
+   booktitle = {Proceedings of the fifth ACM SIGPLAN symposium on Principles and practice of parallel programming},
+    series = {PPOPP '95},
+     year = {1995},
+      isbn = {0-89791-700-6},
+       location = {Santa Barbara, California, United States},
+        pages = {207--216},
+         numpages = {10},
+          url = {http://doi.acm.org/10.1145/209936.209958},
+           doi = {10.1145/209936.209958},
+            acmid = {209958},
+             publisher = {ACM},
+              address = {New York, NY, USA},
+              } 
+
+
+@inproceedings{scalableWorkStealingOrCilk98,
+ author = {Agrawal, Kunal and He, Yuxiong and Leiserson, Charles E.},
+  title = {Adaptive work stealing with parallelism feedback},
+   booktitle = {Proceedings of the 12th ACM SIGPLAN symposium on Principles and practice of parallel programming},
+    series = {PPoPP '07},
+     year = {2007},
+      isbn = {978-1-59593-602-8},
+       location = {San Jose, California, USA},
+        pages = {112--120},
+         numpages = {9},
+          url = {http://doi.acm.org/10.1145/1229428.1229448},
+           doi = {10.1145/1229428.1229448},
+            acmid = {1229448},
+             publisher = {ACM},
+              address = {New York, NY, USA},
+               keywords = {adaptive scheduling, adversary, distributed scheduling, job scheduling, multiprogramming, multithreaded languages, parallel computation, parallelism feedback, processor allocation, space sharing, thread scheduling, trim analysis, two-level scheduling, work stealing},
+               } 
+               [download]
+
+@inproceedings{lifelines,
+ author = {Saraswat, Vijay A. and Kambadur, Prabhanjan and Kodali, Sreedhar and Grove, David and Krishnamoorthy, Sriram},
+  title = {Lifeline-based global load balancing},
+   booktitle = {Proceedings of the 16th ACM symposium on Principles and practice of parallel programming},
+    series = {PPoPP '11},
+     year = {2011},
+      isbn = {978-1-4503-0119-0},
+       location = {San Antonio, TX, USA},
+        pages = {201--212},
+         numpages = {12},
+          url = {http://doi.acm.org/10.1145/1941553.1941582},
+           doi = {10.1145/1941553.1941582},
+            acmid = {1941582},
+             publisher = {ACM},
+              address = {New York, NY, USA},
+               keywords = {distributed work-stealing, global load balancing, uts, x10},
+               } 
+
+@inproceedings{MAMA,
+ author = {Kahan, Simon and Konecny, Petr},
+  title = {"MAMA!": a memory allocator for multithreaded architectures},
+   booktitle = {Proceedings of the eleventh ACM SIGPLAN symposium on Principles and practice of parallel programming},
+    series = {PPoPP '06},
+     year = {2006},
+      isbn = {1-59593-189-9},
+       location = {New York, New York, USA},
+        pages = {178--186},
+         numpages = {9},
+          url = {http://doi.acm.org/10.1145/1122971.1122999},
+           doi = {10.1145/1122971.1122999},
+            acmid = {1122999},
+             publisher = {ACM},
+              address = {New York, NY, USA},
+               keywords = {Eldorado, MTA, combining, malloc, multithreading, parallel memory allocation},
+               } 
+
+@inproceedings{flatcombining,
+ author = {Dice, Dave and Marathe, Virendra J. and Shavit, Nir},
+  title = {Flat-combining NUMA locks},
+   booktitle = {Proceedings of the 23rd ACM symposium on Parallelism in algorithms and architectures},
+    series = {SPAA '11},
+     year = {2011},
+      isbn = {978-1-4503-0743-7},
+       location = {San Jose, California, USA},
+        pages = {65--74},
+         numpages = {10},
+          url = {http://doi.acm.org/10.1145/1989493.1989502},
+           doi = {10.1145/1989493.1989502},
+            acmid = {1989502},
+             publisher = {ACM},
+              address = {New York, NY, USA},
+               keywords = {flat combining, hierarchical locks, queue locks},
+               } 
+
+
+@inproceedings{vonEicken92,
+ author = {von Eicken, Thorsten and Culler, David E. and Goldstein, Seth Copen and Schauser, Klaus Erik},
+  title = {Active messages: a mechanism for integrated communication and computation},
+   booktitle = {Proceedings of the 19th annual international symposium on Computer architecture},
+    series = {ISCA '92},
+     year = {1992},
+      isbn = {0-89791-509-7},
+       location = {Queensland, Australia},
+        pages = {256--266},
+         numpages = {11},
+          url = {http://doi.acm.org/10.1145/139669.140382},
+           doi = {10.1145/139669.140382},
+            acmid = {140382},
+             publisher = {ACM},
+              address = {New York, NY, USA},
+              } 
+
+
+@misc{gasnet,
+ author = {Bonachea, Dan},
+  title = {GASNet Specification, v1.1},
+   year = {2002},
+    source = {http://www.ncstrl.org:8900/ncstrl/servlet/search?formname=detail\&id=oai%3Ancstrlh%3Aucb%3AUCB%2F%2FCSD-02-1207},
+     publisher = {University of California at Berkeley},
+      address = {Berkeley, CA, USA},
+      } 
+
+@inproceedings{Beamer:Graph500,
+author = {Scott Beamer and Krste Asanović and David Patterson},
+title = {Direction-Optimizing Breadth-First Search},
+booktitle={Conference on Supercomputing (SC-2012)},
+location={Salt Lake City, Utah},
+month={November},
+year={2012}
+}
+
+@MISC{graph500list,
+    key={Graph500},
+    title = {Graph 500},
+    year = {2012},
+    month = {July},
+    howpublished={\url{http://www.graph500.org/}}
+    }
+
+
+@MISC{UTS,
+    author = {Stephen Olivier and Jun Huan and Jinze Liu and Jan Prins and James Dinan and Chau-wen Tseng},
+        title = {UTS: An Unbalanced Tree Search Benchmark ⋆},
+            year = {2006}
+            }
+
+
+@ARTICLE{Freeman1979centrality,
+    author = {Linton C. Freeman},
+        title = {Centrality in social networks conceptual clarification},
+            journal = {Social Networks},
+                year = {1978},
+                    pages = {215}
+                    }
+
+
+@article{Nelson:hotpar11,
+    title={Crunching Large Graphs on Commodity Processors},
+    author={Jacob Nelson and Brandon Myers and A.H. Hunter and Luis Ceze and Dan Grossman and Mark Oskin and Carl Ebeling and Simon Kahan and Preston Briggs.},
+    journal={3rd USENIX Workshop on Hot Topics in Parallelism (HotPar)},
+    year={2011},
+    month={May},
+    }
+
+@misc{infinibandbandwidth,
+    title={Interconnect Analysis: 10GigE and InfiniBand in High Performance Computing},
+    author={HPC Advisory Council},
+    year={2012},
+    month={July},
+    howpublished={\url{http://www.hpcadvisorycouncil.com/pdf/IB_and_10GigE_in_HPC.pdf}}
+    }
+
