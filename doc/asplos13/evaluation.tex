@@ -17,7 +17,7 @@ We ran UTS-mem on Grappa and the XMT with a binomial and two geometric
 100M-vertex trees (T3L,T1L,T2L), a geometric 1.6B-vertex tree (T1XL),
 and a geometric 4.2B-vertex tree (T1XXL). Both systems do relatively
 poorly on the binomial tree because it is very deep and a traversal
-produces too little parallelism. Figure~\ref{fig:grappa-xmt-uts} shows
+produces too little parallelism. Figure~\ref{fig:uts_compare} shows
 the performance in terms of number of vertices visited per second versus
 number of compute nodes. The Grappa results shown are for 6 cores per
 node and the best parameter values from a search over runtime and
@@ -50,7 +50,7 @@ application parameters.
 \end{figure}
 
 Figure~\ref{fig:bfs-performance} shows Grappa's performance on BFS
-compared to that of the XMT\footnote{The performance dip at 112 nodes is not an anomaly.  It is highly repeatable.  Despite extensive investigation on our part, we can find no reasonable explanation for it.}. There are
+compared to that of the XMT.\footnote{The performance dip at 112 nodes is not an anomaly; it is highly repeatable.  Despite extensive investigation on our part, we can find no reasonable explanation for it.} There are
 two things to observe. First, At 128 XMT processors/cluster nodes,
 the XMT is  4.17 times faster than Grappa. This is due to the
 XMT's faster network: the XMT is able to issue 100 million network
