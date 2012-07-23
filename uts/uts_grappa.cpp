@@ -20,7 +20,7 @@ DEFINE_bool( verify_tree, true, "Verify the generated tree" );
 
 #define VERIFY_THRESHOLD ((int64_t) 4)
 #define CREATE_THRESHOLD ((int64_t) 1)
-#define SEARCH_THRESHOLD ((int64_t) 2) //8
+#define SEARCH_THRESHOLD ((int64_t) 4) //8
 
   // declare stealing parameters
   DECLARE_bool( steal );
@@ -517,12 +517,14 @@ DEFINE_bool( verify_tree, true, "Verify the generated tree" );
     
 
     /* Assign fresh unique ids for the children: */
+    /* TODO: make global_id_ga not a hotspot */
     int64_t childid0 = SoftXMT_delegate_fetch_and_add_word( global_id_ga, numChildren );
     VLOG_EVERY_N(2, 250000) << "new childids: [" << childid0 
       << ", " << (childid0 + numChildren - 1) 
       << "]";
 
     /* Record ids and indices of the children: */ 
+    /* TODO: make global_child_index_ga not a hotspot */
     int64_t index = SoftXMT_delegate_fetch_and_add_word( global_child_index_ga, numChildren );
 
     /* store parts of parent that will be read in tree search */
@@ -953,6 +955,8 @@ void user_main ( user_main_args * args ) {
       //<< "noJoin_runtime: " << noJoin_runtime << ","
       << "nNodes: " << nNodes
       << "}" << std::endl;
+
+    LOG(INFO) << ((double)nNodes / search_runtime) / 1000000 << " Mvert/s";
 }
 
    
