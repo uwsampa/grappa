@@ -137,24 +137,17 @@ Finally, no context switches are allowed while the data is being
 modified. Given these restrictions, we can ensure that delegate
 operations for the same address from multiple requesters are always
 serialized through a single core in the system, providing atomic
-semantics without using atomic operations.
+semantics without using atomic operations. 
+Figure~\ref{fig:delegate-cache} depicts an example of how delegate and
+cache operations interact.
 
 \begin{figure*}[htb]
 \begin{center}
   \includegraphics[width=1.5\columnwidth]{figs/delegate-cache}
-\begin{minipage}{1.5\columnwidth}
-  \caption{\label{fig:delegate-cache} Delegation and cache example.}
-\end{minipage}
-\vspace{-3ex}
-\end{center}
-\end{figure*}
-
-\paragraph{Example} Figure~\ref{fig:delegate-cache} shows an example of
-delegate and cache operations. In step 1, a core allocates an array in
+\begin{minipage}{1.9\columnwidth}
+  \caption{\label{fig:delegate-cache} \textbf{Delegation and cache example:} In step 1, a core allocates an array in
 the global heap. It then spawns two tasks on remote cores to increment
-elements of the array.
-
-The first task increments two elements of the array using cache
+elements of the array.  The first task increments two elements of the array using cache
 operations. In step 2, the task is invoked. A cache request is issued
 for two adjacent integers starting at the second element of the
 array. Since these element are stored in the memories of two different
@@ -163,14 +156,17 @@ is suspended until both responses arrive in step 4. The data carried
 in these responses is stored in the local buffer. The elements are
 then increment in the buffer. Then in step 5, the modified data is
 sent back to the home node. Acknoledgements are returned in step 6 so
-the task knows when the writes are complete.
-
-The second task increments an element of the array with a delegate
+the task knows when the writes are complete. The second task increments an element of the array with a delegate
 operation. In step 7, the task is invoked. A delegate request is sent
 to the home core of the array element with the increment value. The
 task suspends until the response is received. In step 8, the increment
 is executed on the remote core. A response is returned in step 9 with
 the previous value of the array element.
+}
+\end{minipage}
+\vspace{-3ex}
+\end{center}
+\end{figure*}
 
 
 
