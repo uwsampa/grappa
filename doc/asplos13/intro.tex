@@ -103,9 +103,8 @@ underlying mechanism for remote memory reads and writes using active message
 invocations. To this commodity hardware and software mix Grappa adds three
 main software components: (1) a \emph{lightweight tasking} layer that supports
 a context switch in as few as 38ns and distributed global load balancing; (2)
-a \emph{distributed shared memory} layer that supports customary operations
-such as \emph{read and write as well as remote operations} such as
-fetch-and-add~\cite{fetchandadd}; and (3) a \emph{message aggregation} layer
+a \emph{distributed shared memory} layer that supports normal access operations
+such as \emph{read} and \emph{write} as well as synchronizing operations such as \emph{fetch-and-add}\cite{fetchandadd}; and (3) a \emph{message aggregation} layer
 that combines short messages to mitigate the aforementioned problem that
 commodity networks are designed to achieve peak bandwidth only on large packet
 sizes, yet irregular applications tend to fetch only a handful of bytes at a
