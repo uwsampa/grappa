@@ -13,8 +13,8 @@ vertices. GraphLab, on the other hand, schedules vertex computations
 individually, allowing prioritization, which gives faster convergence
 in a variety of iterative algorithms.  GraphLab, however, imposes a
 rigid computation model where programmers must express computation as
-transformations on a vertex and its edge list only, with only
-information from adjacent vertexes. Pregel is only slightly less
+transformations on a vertex and its edge list only, with information only
+from adjacent vertexes. Pregel is only slightly less
 restrictive, as the input data can be any vertex in the graph.  Grappa
 also supports dynamic parallelism with asynchronous execution, but
 parallelism is expressed as tasks or loop iterations, which is a far
