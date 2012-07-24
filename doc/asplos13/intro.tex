@@ -101,16 +101,16 @@ off-the-shelf user-mode infiniband device driver stack~\cite{OFED}. MPI is
 used for process setup and tear down. GASnet~\cite{gasnet} is used as the
 underlying mechanism for remote memory reads and writes using active message
 invocations. To this commodity hardware and software mix Grappa adds three
-main software components: (1) a \emph{lightweight tasking} layer that supports
+main software components: (1) a \emph{lightweight tasking\/} layer that supports
 a context switch in as few as 38ns and distributed global load balancing; (2)
-a \emph{distributed shared memory} layer that supports normal access operations
-such as \emph{read} and \emph{write} as well as synchronizing operations such as \emph{fetch-and-add}\cite{fetchandadd}; and (3) a \emph{message aggregation} layer
+a \emph{distributed shared memory\/} layer that supports normal access operations
+such as \emph{read\/} and \emph{write\/} as well as synchronizing operations such as \emph{fetch-and-add\/}~\cite{fetchandadd}; and (3) a \emph{message aggregation\/} layer
 that combines short messages to mitigate the aforementioned problem that
 commodity networks are designed to achieve peak bandwidth only on large packet
 sizes, yet irregular applications tend to fetch only a handful of bytes at a
 time. As we will show later, Grappa can tolerate latencies way beyond that of
 the network. Therefore, Grappa can afford to \emph{trade latency for
-throughput}: by {\em increasing} latency in key components of the system we
+throughput\/}: by {\em increasing\/} latency in key components of the system we
 are able to increase our effective random access memory bandwidth (by delaying and aggregating messages), our synchronization bandwidth (by delegating operations
 to remote nodes), and our ability to improve load imbalance (work stealing
 increases latency).
@@ -129,7 +129,7 @@ faster and shows greatly improved scalability; conversely, for breadth
 first search and betweenness centrality Grappa is 2.5X slower.  In
 Section~\ref{sec:evaluation} we explore the factors that underpin this
 performance. Most importantly, however, for significantly less real
-world cost, users can \emph{add} significantly more processors to a
+world cost, users can \emph{add\/} significantly more processors to a
 commodity cluster than an XMT machine and use Grappa to achieve scalable
 performance.
 
