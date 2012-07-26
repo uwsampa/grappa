@@ -125,6 +125,8 @@ int SoftXMT_run_user_main( void (*fp)(T), T args )
   // this doesn't really add anything to the profiled trace
   //SoftXMT_take_profiling_sample();
 #endif
+
+  return 0;
 }
 
 
