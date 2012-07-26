@@ -28,10 +28,10 @@ static void aggregator_toggle_access_control_sighandler( int signum ) {
 Aggregator::Aggregator( ) 
   : max_nodes_( -1 )
   , buffers_( )
-  , route_map_( )
   , previous_timestamp_( 0L )
   , least_recently_sent_( )
   , aggregator_deaggregate_am_handle_( -1 )
+  , route_map_( )
 #ifdef VTRACE_FULL
   , tag_( -1 )
   , vt_agg_commid_( VT_COMM_DEF( "Aggregator" ) )
@@ -93,7 +93,7 @@ void Aggregator::deaggregate( ) {
 
     DVLOG(5) << "deaggregating message of size " << amp.size_;
     uintptr_t msg_base = reinterpret_cast< uintptr_t >( amp.buf_ );
-    for( int i = 0; i < amp.size_; ) {
+    for( unsigned int i = 0; i < amp.size_; ) {
       AggregatorGenericCallHeader * header = reinterpret_cast< AggregatorGenericCallHeader * >( msg_base );
       AggregatorAMHandler fp = reinterpret_cast< AggregatorAMHandler >( header->function_pointer );
       void * args = reinterpret_cast< void * >( msg_base + 
