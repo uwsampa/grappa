@@ -1,5 +1,5 @@
 #include "IncoherentAcquirer.hpp"
-
+#include <limits>
 
 IAStatistics incoherent_acquirer_stats;
 
