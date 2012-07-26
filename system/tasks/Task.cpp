@@ -12,13 +12,13 @@ GRAPPA_DEFINE_EVENT_GROUP(task_manager);
 //DEFINE_bool(TaskManager_events, true, "Enable tracing of events in TaskManager.");
 
 TaskManager::TaskManager ( ) 
-  : workDone( false )
+  : privateQ( )
+  , publicQ( MAXQUEUEDEPTH ) 
+  , workDone( false )
   , all_terminate( false )
   , doSteal( false )
-  , nextVictimIndex( 0 )
   , stealLock( true )
-  , privateQ( )
-  , publicQ( MAXQUEUEDEPTH ) 
+  , nextVictimIndex( 0 )
   , stats( this )
 {
   StealQueue<Task>::registerAddress( &publicQ );
@@ -94,13 +94,14 @@ bool TaskManager::waitConsumeAny( Task * result ) {
 
             VLOG(5) << CURRENT_THREAD << " trying to steal";
             int goodSteal = 0;
-            Node victimId;
+            Node victimId = -1;
 
             for ( int64_t tryCount=0; 
                   tryCount < numLocalNodes && !goodSteal && !(publicHasEle() || privateHasEle() || workDone);
                   tryCount++ ) {
 
                 Node v = neighbors[nextVictimIndex];
+                victimId = v;
                 nextVictimIndex = (nextVictimIndex+1) % numLocalNodes;
                 
                 if ( v == SoftXMT_mynode() ) continue;
