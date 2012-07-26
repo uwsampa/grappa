@@ -5,6 +5,7 @@
 
 #include <cassert>
 #include <numeric>
+#include <limits>
 
 #include <gflags/gflags.h>
 #include <glog/logging.h>
