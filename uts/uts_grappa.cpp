@@ -20,7 +20,7 @@ DEFINE_bool( verify_tree, true, "Verify the generated tree" );
 
 #define VERIFY_THRESHOLD ((int64_t) 4)
 #define CREATE_THRESHOLD ((int64_t) 1)
-#define SEARCH_THRESHOLD ((int64_t) 4) //8
+#define SEARCH_THRESHOLD ((int64_t) 8) //8
 
   // declare stealing parameters
   DECLARE_bool( steal );
@@ -598,7 +598,7 @@ DEFINE_bool( verify_tree, true, "Verify the generated tree" );
       }
 
       // process children
-      async_parallel_for<search_children, joinerSpawn<search_children,SEARCH_THRESHOLD>,SEARCH_THRESHOLD >( childIndex, numChildren );
+      async_parallel_for<search_children, joinerSpawn<search_children,ASYNC_PAR_FOR_DEFAULT>,ASYNC_PAR_FOR_DEFAULT >( childIndex, numChildren );
     }
   }
 
@@ -881,6 +881,7 @@ void user_main ( user_main_args * args ) {
     LOG(INFO) << "starting tree search";
     Result r_search;
     start_profiling();
+    SoftXMT_reset_stats_all_nodes();
     t1 = uts_wctime();
     if ( opt_ff ) {
       search_func sfu;
@@ -894,6 +895,7 @@ void user_main ( user_main_args * args ) {
     }
     t2 = uts_wctime();
     stop_profiling();
+    SoftXMT_merge_and_dump_stats();
 
     if ( opt_ff ) { 
       // count nodes searched
@@ -963,7 +965,7 @@ void user_main ( user_main_args * args ) {
 
 /// Main() entry
 int main (int argc, char** argv) {
-    SoftXMT_init( &argc, &argv, 200000000 * (sizeof(int64_t) + sizeof(uts::Node) + sizeof(vertex_t)) ); //; 12L*12L*(1L<<30) 
+    SoftXMT_init( &argc, &argv ); 
     SoftXMT_activate();
 
     // TODO: would be good to give user interface to get the args as pass to this Node; to avoid this
