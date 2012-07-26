@@ -27,8 +27,6 @@
 #include "Communicator.hpp"
 #include "Timestamp.hpp"
 
-#include "MutableHeap.hpp"
-
 #include "StateTimer.hpp"
 #include "PerformanceTools.hpp"
 
@@ -529,7 +527,7 @@ private:
 
   /// number of bytes in each aggregation buffer
   /// TODO: this should track the IB MTU
-  static const int buffer_size_ = 4024;
+  static const unsigned int buffer_size_ = 4024;
   char raw_send_buffer_[ buffer_size_ ];
 
   /// buffers holding aggregated messages. 
@@ -751,8 +749,8 @@ inline void aggregate( Node destination, AggregatorAMHandler fn_p,
     // trace fine-grain communication
     if (FLAGS_record_grappa_events) {
       // TODO: good candidate for TAU_CONTEXT_EVENT
-      int fn_p_tag = aggregator_trace_tag( fn_p );
 #ifdef GRAPPA_TRACE
+      int fn_p_tag = aggregator_trace_tag( fn_p );
       TAU_TRACE_SENDMSG(fn_p_tag, destination, args_size + payload_size );
       // TODO: maybe add named communicators for separate function calls?
 #endif
