@@ -72,8 +72,8 @@ struct Thread {
     : sched( sched )
     , next( NULL )
     , data_prefetch( NULL )
-    , done( 0 )
     , joinqueue( ) 
+    , done( 0 )
 #ifdef GRAPPA_TRACE
     , state ( 0 ) 
 #endif

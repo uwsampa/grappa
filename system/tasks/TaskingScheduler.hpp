@@ -159,7 +159,7 @@ class TaskingScheduler : public Scheduler {
                 int64_t task_log_index;
                 short * active_task_log;
 
-                int64_t max_active;
+                uint64_t max_active;
                 double avg_active;
                 double avg_ready;
 
@@ -189,8 +189,8 @@ class TaskingScheduler : public Scheduler {
 		    , readyQ_size_ev_vt( VT_COUNT_DEF( "ReadyQ size", "workers", VT_COUNT_TYPE_UNSIGNED, tasking_scheduler_grp_vt ) )
 #endif
 		    , merged(0)
-		    , prev_state( StateIdle )
 	    , state_timers()
+		  , prev_state( StateIdle )
 	    , scheduler_count(0)
 	    
 	  {

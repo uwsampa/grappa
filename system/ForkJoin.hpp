@@ -27,9 +27,9 @@ DECLARE_int64(max_forkjoin_threads_per_node);
 
 class Semaphore {
 protected:
-  Thread * sleeper;
-  int count;
   int total;
+  int count;
+  Thread * sleeper;
 public:
   Semaphore(int total, int starting): total(total), count(starting), sleeper(NULL) {}
   void acquire_all(Thread * me) {

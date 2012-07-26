@@ -7,7 +7,7 @@
 #define STACK_SIZE 2<<18
 
 std::ostream& operator<< ( std::ostream& o, const ThreadQueue& tq ) {
-    tq.dump( o );
+    return tq.dump( o );
 }
 
 Thread * thread_init() {
@@ -45,8 +45,8 @@ static void tramp(struct coro * me, void * arg) {
   StateTimer::enterState_system();
   
   // create new Tau task, and top level timer for the task
-  int new_taskid;
 #ifdef GRAPPA_TRACE
+  int new_taskid;
   TAU_CREATE_TASK(new_taskid);
   my_thr->tau_taskid = new_taskid;
   thread_last_tau_taskid = new_taskid;

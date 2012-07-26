@@ -30,11 +30,12 @@ TaskingScheduler::TaskingScheduler ( )
     , current_thread ( NULL )
     , nextId ( 1 )
     , num_idle ( 0 )
-    , num_workers ( 0 )
+    , num_active_tasks( 0 )
     , task_manager ( NULL )
+    , num_workers ( 0 )
     , work_args( NULL )
-    , prev_ts( 0 )
     , previous_periodic_ts( 0 ) 
+    , prev_ts( 0 )
     , stats( this )
 { 
   SoftXMT_tick();
@@ -136,7 +137,7 @@ void workerLoop ( Thread * me, void* args ) {
 void TaskingScheduler::createWorkers( uint64_t num ) {
     num_workers += num;
     VLOG(5) << "spawning " << num << " workers; now there are " << num_workers;
-    for (int i=0; i<num; i++) {
+    for (uint64_t i=0; i<num; i++) {
         Thread * t = thread_spawn( current_thread, this, workerLoop, work_args);
         unassigned( t );
     }
