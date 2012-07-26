@@ -32,13 +32,13 @@ void SoftXMT_finish( int retval );
 /// Yield to scheduler, placing current Thread on run queue.
 static inline void SoftXMT_yield( )
 {
-  bool immed = global_scheduler.thread_yield( );
+  /*bool immed =*/ global_scheduler.thread_yield( );
 }
 
 /// Yield to scheduler, placing current Thread on periodic queue.
 static inline void SoftXMT_yield_periodic( )
 {
-  bool immed = global_scheduler.thread_yield_periodic( );
+  /*bool immed =*/ global_scheduler.thread_yield_periodic( );
 }
 
 /// Yield to scheduler, suspending current Thread.
