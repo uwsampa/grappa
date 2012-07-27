@@ -137,7 +137,7 @@
         mov  0(%rsp), %r15; \
         add $56, %rsp;
 
-.global _swapstacks
+.globl _swapstacks
 _swapstacks:
         SAVE_REGISTERS
         mov %rsp, (%rdi)
@@ -148,7 +148,7 @@ _swapstacks:
         ret
 
 
-.global _makestack
+.globl _makestack
 _makestack:
         /* save the needed arguments */
          mov %rdx, %r12 /* <f> */

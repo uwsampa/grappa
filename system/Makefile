@@ -43,13 +43,13 @@ include $(SOFTXMT_HOME)/include.mk
 # name of host on which to run tests
 # (unused with srun)
 #
-HOST:=n01,n04
+#HOST:=n01,n04
 
 #
 # number of mpi processes
 #
 NPROC:=2
-PPN:=1
+#PPN:=1
 
 # name of main executable to build and/or run
 TARGET:=
@@ -72,8 +72,8 @@ Demo.o Demo.exe: $(LIBRARY)
 
 Communicator_tests.o Communicator_tests.test: Communicator.o
 
-Aggregator_tests.o Aggregator_tests.test: Communicator.o Aggregator.o Timestamp.o
-MutableHeap_tests.o MutableHeap_tests.test: 
+Aggregator_tests.o Aggregator_tests.test: $(LIBRARY)
+MutableHeap_tests.o MutableHeap_tests.test:  $(LIBRARY)
 
 
 Delegate_tests.o Delegate_tests.test: $(LIBRARY)
@@ -129,7 +129,6 @@ ENV_VARIABLES+= LD_LIBRARY_PATH="\$$LD_LIBRARY_PATH:$(LD_LIBRARY_PATH)"
 
 # work around 1GB huge page bug in gasnet by limiting size of memory 
 #ENV_VARIABLES+= GASNET_PHYSMEM_MAX=217M # appears to be minimum
-ENV_VARIABLES+= GASNET_PHYSMEM_MAX=1024M
 #ENV_VARIABLES+= GASNET_PHYSMEM_NOPROBE=0
 
 # disabling this by setting it to 0 may reduce delays
@@ -148,14 +147,17 @@ ENV_VARIABLES+= GASNET_PHYSMEM_MAX=1024M
 
 
 # gasnet debugging
-ENV_VARIABLES+= GASNET_BACKTRACE=1
-ENV_VARIABLES+= GASNET_FREEZE_SIGNAL=SIGUSR1
-ENV_VARIABLES+= GASNET_FREEZE_ON_ERROR=1
-ENV_VARIABLES+= GASNET_FREEZE=0
-ENV_VARIABLES+= GASNET_NETWORKDEPTH_PP=96
-ENV_VARIABLES+= GASNET_NETWORKDEPTH_TOTAL=1024
-ENV_VARIABLES+= GASNET_AMCREDITS_PP=48
-
+ifndef GASNET_SETTINGS
+GASNET_SETTINGS+= GASNET_BACKTRACE=1
+GASNET_SETTINGS+= GASNET_FREEZE_SIGNAL=SIGUSR1
+GASNET_SETTINGS+= GASNET_FREEZE_ON_ERROR=1
+GASNET_SETTINGS+= GASNET_FREEZE=0
+GASNET_SETTINGS+= GASNET_NETWORKDEPTH_PP=96
+GASNET_SETTINGS+= GASNET_NETWORKDEPTH_TOTAL=1024
+GASNET_SETTINGS+= GASNET_AMCREDITS_PP=48
+GASNET_SETTINGS+= GASNET_PHYSMEM_MAX=1024M
+endif
+ENV_VARIABLES+= $(GASNET_SETTINGS)
 
 
 #
@@ -263,7 +265,7 @@ cleanup_shm:
 # include Boost test automagic main() generation
 # add an additional rule if you need to include multiple components
 %_tests.o: CXXFLAGS+= -DBOOST_TEST_DYN_LINK -DBOOST_TEST_MODULE=$@
-%_tests.test: LIBRARIES+= -lboost_unit_test_framework
+%_tests.test: LIBRARIES+= -lboost_unit_test_framework-mt
 %_tests.test: %_tests.o
 	$($(MPITYPE)_LD) $(CFLAGS) $(CXXFLAGS) $(LDFLAGS) $^ $(LIBRARIES) -o $@ $(LIBS)
 
@@ -274,7 +276,7 @@ cleanup_shm:
 #
 # What libraries do we need?
 #
-LIBRARIES+= -lgflags -lglog -lrt $(GASNET_LIBS)
+LIBRARIES+= -lgflags -lglog $(PLATFORM_SPECIFIC_LIBS) $(GASNET_LIBS)
 
 #
 # set compiler flags
@@ -427,3 +429,4 @@ clean:
 	rm -f $(CLEAN_FILES)
 
 .PHONY: run test clean
+
