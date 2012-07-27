@@ -12,8 +12,8 @@
 #include "Cache.hpp"
 #include "PerformanceTools.hpp"
 
-#ifndef HUGEPAGES_PER_MACHINE
-#define HUGEPAGES_PER_MACHINE 12
+#ifndef SHMMAX
+#error "no SHMMAX defined -- look it up with the command: `syctl -A | grep shm`"
 #endif
 
 #ifdef VTRACE
@@ -139,11 +139,13 @@ void SoftXMT_init( int * argc_p, char ** argv_p[], size_t global_memory_size_byt
   if (global_memory_size_bytes == -1) {
     int nnode = atoi(getenv("SLURM_NNODES"));
     int ppn = atoi(getenv("SLURM_NTASKS_PER_NODE"));
-    int gb_per_proc = HUGEPAGES_PER_MACHINE / ppn;
-    int gbs = nnode * ppn * gb_per_proc;
-    VLOG(1) << "nnode: " << nnode << ", ppn: " << ppn << ", total_GBs: " << gbs;
-    global_memory_size_bytes = gbs * (1L<<30);
+    int bytes_per_proc = SHMMAX / ppn;
+    int bytes = nnode * ppn * bytes_per_proc;
+    VLOG(1) << "nnode: " << nnode << ", ppn: " << ppn << ", total_Bs: " << bytes;
+    global_memory_size_bytes = bytes;
   }
+
+  VLOG(1) << "global_memory_size_bytes = " << global_memory_size_bytes;
 
   // initializes system_wide global_memory pointer
   global_memory = new GlobalMemory( global_memory_size_bytes );

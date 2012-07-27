@@ -9,12 +9,18 @@ extern "C" {
 #include <sys/ipc.h>
 #include <sys/shm.h>
 }
+#ifndef SHM_HUGETLB
+#define SHM_HUGETLB 0
+#define USE_HUGEPAGES_DEFAULT false
+#else
+#define USE_HUGEPAGES_DEFAULT true
+#endif
 
 #include "Communicator.hpp"
 
 #include "GlobalMemoryChunk.hpp"
 
-DEFINE_bool( global_memory_use_hugepages, true, "use 1GB huge pages for global heap" );
+DEFINE_bool( global_memory_use_hugepages, USE_HUGEPAGES_DEFAULT, "use 1GB huge pages for global heap" );
 DEFINE_int64( global_memory_per_node_base_address, 0x0000123400000000L, "global memory base address");
 
 static const size_t round_to_gb_huge_page( size_t size ) {
@@ -60,6 +66,8 @@ GlobalMemoryChunk::GlobalMemoryChunk( size_t size )
   shm_key_ = job_id * global_communicator.nodes() + global_communicator.mynode();
   DVLOG(2) << size << " rounded to " << size_;
   // get shared memory region id
+  VLOG(1) << "shm_size_: " << size_ << ", use_hugepages? " << FLAGS_global_memory_use_hugepages;
+
   shm_id_ = shmget( shm_key_, size_, IPC_CREAT | SHM_R | SHM_W | 
                     (FLAGS_global_memory_use_hugepages ? SHM_HUGETLB : 0) );
   PCHECK( shm_id_ != -1 ) << "Failed to get shared memory region for shared heap";
