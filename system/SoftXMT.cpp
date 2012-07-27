@@ -110,8 +110,7 @@ void SoftXMT_init( int * argc_p, char ** argv_p[], size_t global_memory_size_byt
   SoftXMT_tick();
   SoftXMT_tick();
   SoftXMT_Timestamp start_ts = SoftXMT_get_timestamp();
-  struct timespec start;
-  clock_gettime(CLOCK_MONOTONIC, &start);
+  double start = SoftXMT_walltime();
   // now go do other stuff for a while
   
   // set up stats dump signal handler
@@ -176,11 +175,8 @@ void SoftXMT_init( int * argc_p, char ** argv_p[], size_t global_memory_size_byt
 
   SoftXMT_tick();
   SoftXMT_Timestamp end_ts = SoftXMT_get_timestamp();
-  struct timespec end;
-  clock_gettime(CLOCK_MONOTONIC, &end);
-  double start_time = (double) start.tv_sec + (start.tv_nsec * 1.0e-9);
-  double end_time = (double) end.tv_sec + (end.tv_nsec * 1.0e-9);
-  tick_rate = (double) (end_ts - start_ts) / (end_time - start_time);
+  double end = SoftXMT_walltime();
+  tick_rate = (double) (end_ts - start_ts) / (end-start);
 }
 
 
