@@ -9,7 +9,7 @@
     if( (retval = code) != GASNET_OK ) {		\
       fprintf( stderr, "ERROR: %s returned %d\n"	\
 	       "%s:%i: %s (%s)\n",			\
-	       #code, __FILE__, __LINE__,		\
+	       #code, retval, __FILE__, __LINE__,		\
 	       gasnet_ErrorName(retval),		\
 	       gasnet_ErrorDesc(retval) );		\
       fflush( stderr );					\
