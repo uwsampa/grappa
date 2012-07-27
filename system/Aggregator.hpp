@@ -173,7 +173,7 @@ private:
   uint64_t idle_flushes_;
   uint64_t capacity_flushes_;
   uint64_t histogram_[16];
-  timespec start_;
+  double start_;
 
 #ifdef VTRACE_SAMPLED
   unsigned aggregator_vt_grp;
@@ -260,9 +260,8 @@ private:
   }
   
   double time() {
-    timespec end;
-    clock_gettime( CLOCK_MONOTONIC, &end );
-    return (end.tv_sec + end.tv_nsec * 0.000000001) - (start_.tv_sec + start_.tv_nsec * 0.000000001);
+    double end = SoftXMT_walltime();
+    return end-start_;
   }
 
 public:
@@ -338,7 +337,7 @@ public:
     timeouts_ = 0;
     idle_flushes_ = 0;
     capacity_flushes_ = 0;
-    clock_gettime(CLOCK_MONOTONIC, &start_);
+    start_ = SoftXMT_walltime();
     for( int i = 0; i < 16; ++i ) {
       histogram_[i] = 0;
     }

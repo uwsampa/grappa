@@ -21,8 +21,6 @@
 #include <boost/preprocessor/tuple/elem.hpp>
 #include <boost/preprocessor/seq/for_each.hpp>
 
-#define min(A,B) ( (A) < (B) ? (A) : (B))
-
 DECLARE_int64(max_forkjoin_threads_per_node);
 
 class Semaphore {
@@ -130,7 +128,7 @@ struct forkjoin_data_t {
     local_start = start;
     local_end = end;
     func = f;
-    nthreads = min(FLAGS_max_forkjoin_threads_per_node, each_n);
+    nthreads = MIN(FLAGS_max_forkjoin_threads_per_node, each_n);
     this->finished = finished;
     node_th = me;
   }

@@ -21,7 +21,6 @@
 #include <cassert>
 #include <vector>
 #include <iostream>
-#include <ctime>
 
 #include <glog/logging.h>
 
@@ -65,7 +64,7 @@ private:
   uint64_t messages_;
   uint64_t bytes_;
   uint64_t histogram_[16];
-  timespec start_;
+  double start_;
 
 #ifdef VTRACE_SAMPLED
   unsigned communicator_vt_grp;
@@ -126,9 +125,8 @@ private:
   }
   
   double time() {
-    timespec end;
-    clock_gettime( CLOCK_MONOTONIC, &end );
-    return (end.tv_sec + end.tv_nsec * 0.000000001) - (start_.tv_sec + start_.tv_nsec * 0.000000001);
+    double end = SoftXMT_walltime();
+    return end-start_;
   }
 
 public:
@@ -181,14 +179,14 @@ public:
   void reset() {
     messages_ = 0;
     bytes_ = 0;
-    clock_gettime(CLOCK_MONOTONIC, &start_);
+    start_ = SoftXMT_walltime();
     for( int i = 0; i < 16; ++i ) {
       histogram_[i] = 0;
     }
   }
 
   void reset_clock() {
-    clock_gettime(CLOCK_MONOTONIC, &start_);
+    start_ = SoftXMT_walltime();
   }
 
   void record_message( size_t bytes ) {
@@ -237,10 +235,7 @@ public:
     bytes_ += other->bytes_;
     for (int i=0; i<16; i++) histogram_[i] += other->histogram_[i];
     // pick earlier start time of the two
-    //
-
-    // XXX broken logic
-    start_ = (start_.tv_sec < other->start_.tv_sec && start_.tv_nsec < other->start_.tv_nsec) ? start_ : other->start_;
+    start_ = MIN(start_, other->start_);
   }
 
   static void merge_am(CommunicatorStatistics * other, size_t sz, void* payload, size_t psz);
