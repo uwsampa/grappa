@@ -1,0 +1,18 @@
+#! /bin/bash
+# Get the comma separated output for the testing summary spreadsheet.
+# Columns:
+#               Name:   cache gups 
+#               Day:    Date of qb_run.out file
+#               Run:    Always "1"
+#               Score:  Taken from "Rate:" line of cache gups output.
+#
+# Benchmark: cache gups
+#
+upsec=""
+upsec=`cat $1/qb_run.out | gawk '{ if ($0 ~ /Rate\:/) { print $0 }}'`
+fileDate=$(stat -c %y $1/qb_run.out | cut -d" " -f1)
+if [ "$upsec" != "" ];
+then
+	runScore=$(echo $upsec | egrep "GUPS" | gawk '{ print substr($4, 2, length($4)-3 ) }')
+        echo "cache_gups, $fileDate, 1, $runScore"
+fi

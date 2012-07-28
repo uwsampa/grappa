@@ -1,0 +1,58 @@
+   The routines in this directory are configured and compiled by the
+bconfig script in the parent directory. This script will create a makefile
+in this directory from the file makefile_template.mk . This makefile can
+be used for the basic timing run. For the timed runs, copy the generated
+makefile and make any appropriate changes.
+
+   These routines are used by all of the benchmarks. They are compiled
+once by bconfig and are linked into the benchmarks as required. Remaking
+a benchmark does not recompile the routines in source.
+
+
+Files
+
+bench.h
+bench.h_org
+bm_timers.c          Computes cpu and wall clock time. uses gettimeofday
+    cpus             to get the wall time and getrusage to get the
+    wall             cpu time
+    timer_clear
+    timer_start
+    timer_stop
+    timer_report
+
+bm_timers.h
+brand.c              Generates flat random bit stream
+     brand_init      Run up RNG
+     brand           returns a random unsigned 64-bit value
+     rfraction       random fraction between 0.0 and 1.0
+brand.h
+
+common_inc.h
+
+error_routines.c     Output errors with unique id strings
+     sys_err_exit    Write message based on errno and exit
+     sys_err_ret     Write message based on errno and return
+     err_msg_exit    Write user message and exit
+     err_msg_ret     Write user message and exit
+error_routines.h
+
+for_drivers.c
+     bench_init      Initalization
+                       Read arguments and environment, initialize
+                       random number generator, check for invalid
+		       users, output header data
+     bench_end       Compute times and output footer data
+
+gen_file.c
+                     Generate files of a given size and content
+
+iobench.h
+iobmversion.h
+local_types.h
+makefile_template.mk  Template file that bconfig uses to create a
+                      makefile
+read_write_io.c
+sec_frm_epoch.c      Prints the number of seconds since the epoch
+                     to standard out
+

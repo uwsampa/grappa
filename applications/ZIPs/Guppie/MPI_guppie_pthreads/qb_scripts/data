@@ -1,0 +1,9 @@
+#! /bin/bash
+#
+# Gets the main data (human readable) for reporting.
+# Benchmark: MPI_guppie_pthreads or bench13
+# 
+#
+echo "Benchmark: bench13"
+echo "$(cat $1/qb_run.out | grep 'avg:')"
+

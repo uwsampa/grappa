@@ -1,0 +1,88 @@
+
+===================================================
+
+INFO> Benchmark Version iobmversion 4.0
+INFO> _XOPEN_VERSION
+INFO> system name:
+INFO> node name:
+INFO> release:
+INFO> version:
+INFO> machine:
+INFO> icc -O3 -std=c99 -DRESTRICT=restrict -DUSE_POP3 -DB_S_X2=b_s_x2_ -ansi_alias -I. -I../support
+INFO> started on cnode at             -  launched at epoch            = diff 0: Sleep  0 - diff  0 = 0
+
+INIT> ../xba/xba started at:
+INIT> host machine_is
+INIT> program built on
+INIT> seed is 2301   niters is 64375678610
+
+bc70bd298dc40efd  c1ab974d8767af0f
+26bf9dc5410be007  4adf0f1e92378e7f
+dce2c7cee0f0897d  7b34b0e1af194502
+ad3d65779296858d  1e400d10f0cdde23
+b8d69d6e62e79ebe  88bcfb9c59e93918
+37b954ee1accd7f8  acd57ea47537dab3
+2596112239bb6359  6847698298343952
+c5661a3ec7234d1a  4124d02be068b9b4
+a1ca839ffdc34ce5  ef7c936b0f00e198
+dbf02a5ee4c892aa  c6c86ec740577a5d
+13e1dc5569efae87  5804c3ce00b288d6
+02af7d93d9ea42ad  9082f0d8bd67efe1
+060448cadfbd700f  72bb2b9f91546321
+8f974c522a884024  4144e7db9b7794df
+5f8f8eda6051c017  3339b7cc0a95ba4d
+f0ead17819c07fce  23b415cb0f0c9c43
+2ffc722be233b1e1  ee38d98fe6688b60
+66c1d8bd690be68b  81fc1ba1b7abd42e
+e2f36d125e073385  26f96a9ab529e45f
+9b0de0c140888fb1  ef1cc57aa60ca71a
+15278b179344c941  ea362663b974f066
+5d8e3a1accd570ba  fe27b493dbd70cba
+f8460cc03a55414e  31631e6e417460ab
+de97944b0bf05ed9  3a50fcb7a898d24b
+50c7a8d0319c99b1  6cdd65baf66fade9
+2bdb8622a598ed7e  3a9faffea8034a06
+3d410b3f681eb7a5  059f1880d7655c48
+85824a81e3a53b79  6c4a578fec6fa873
+59306f9a14c33011  8c7f1dde9b6eb36c
+926ad6a1e59b70b1  12ad4dba459ca925
+f108450ae234fc7e  6fda0782b59cc0ee
+1b75517c0ac219fe  4a53518700208ff0
+c6d47d087c970e69  1e7297ade539ee5b
+26caf7341651eaad  8bbbf90fa525cfb6
+a0be30c83ea794be  2f0b1eab71578e47
+4cb12b05cfdd1d1d  1eb2255198dd0e69
+7fac3b1e7977743c  98424fae037fe5a2
+5fc6037fde22dd3c  e3c07aa3a6dac01d
+7c267c2defa65cfc  c7351777a5c36bfc
+590304fe4346a09d  42ec6287eed6938f
+4f8f7ce50975f5b4  14683f80075fcaac
+bea6ff7c425baa95  c93e49945788eb42
+c5f90fbf669c4b4f  a7e9a2213369d1c0
+f9ac1433f826ffa9  fafe46e3650cb238
+9779d13e1457370f  94212badf7733e9d
+caa7199605d5cc63  66bd497f96a273b6
+3340781c6d01bb78  92f82dce67ab2c36
+521701f1c3fd28ad  e1fb986a2a099f64
+d35c7ffad94998f0  976408fff918f310
+1cf3294516fd4e67  7ee9253515e51d4b
+d8a56e1892c4bdee  3e769971b990c48d
+bdb2f94101f59d1e  9bfafa36e1698810
+62fff951a9e0ba34  688b89105926a3ba
+f293201214139463  59874956f96b219e
+58a41c3df8a20f38  7e5d9b9203eecc97
+3244ed81b8adfb9c  fa76e04cd3de6454
+ea2bf45669f77295  1f0ca97176ae737a
+569e58d61060204d  049bc32b6440d2b6
+733e57645bf479f5  a30fa4027a27cb70
+2072bed1ff4d2431  7b80fb747d794c14
+101d10d677951f00  f6e7d75505425b37
+2dc44be3b7b4b5ca  ed7110d9f741250b
+5a2301a8b335dcf9  115a472fd033cae6
+83f2060ea78746f8  aef08ec763542165
+
+END> ended at:
+END> elapsed time is     seconds
+END>         secs of wall time             % of value reported by time()
+END>         secs of cpu+sys time   utilization =       %
+END>          M conditional sums per second

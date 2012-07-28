@@ -1,0 +1,13 @@
+[Test-MPP-Shmem]
+mpp_bench v1, mpirun 8 ./bin/all2all.shmem 1 4096 64 4
+mpp_bench v1, mpirun 8 ./bin/barrier.shmem 100000
+mpp_bench v1, mpirun 8 ./bin/bcast.shmem 0 100000 1000
+mpp_bench v1, mpirun 8 ./bin/pingpong.shmem 0 4 16
+mpp_bench v1, mpirun 8 ./bin/reduce.shmem 100000
+
+[Test-MPP-SgiUpc]
+mpp_bench upc, mpirun 128 ./bin/all2all.upc 1 4096 64 4
+mpp_bench upc, mpirun 128 ./bin/barrier.upc 100000
+mpp_bench upc, mpirun 128 ./bin/bcast.upc 0 100000 1000
+mpp_bench upc, mpirun 128 ./bin/pingpong.upc 0 4 16
+mpp_bench upc, mpirun 128 ./bin/reduce.upc 100000

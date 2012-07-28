@@ -1,0 +1,59 @@
+===================================================
+
+INIT> ../gtsc/gt started at:
+INIT> host machine is
+INIT> program built on
+INIT> seed is 1501   niters is 112197
+INIT> other args:  8
+
+Checksum = 0x8a81c7b26bdd9315
+Checksum = 0x5af344f737e3fbbe
+
+data array is 2^8 = (256) words long
+           cycles/load at      MHertz
+
+END> ended at:
+END> elapsed time is    seconds
+END>         secs of wall time             % of value reported by time()
+END>         secs of cpu+sys time   utilization =       %
+END>          G Bytes per second
+
+===================================================
+
+INIT> ../gtsc/gt started at:
+INIT> host machine is
+INIT> program built on
+INIT> seed is 1601   niters is 552
+INIT> other args:  16
+
+Checksum = 0x5f91c04e42654b17
+Checksum = 0x5f1dec4cdca9fe22
+
+data array is 2^16 = (65536) words long
+           cycles/load at      MHertz
+
+END> ended at:
+END> elapsed time is    seconds
+END>         secs of wall time             % of value reported by time()
+END>         secs of cpu+sys time   utilization =       %
+END>          M Bytes per second
+
+===================================================
+
+INIT> ../gtsc/gt started at:
+INIT> host machine is
+INIT> program built on
+INIT> seed is 1701   niters is 29
+INIT> other args:  25
+
+Checksum = 0x2c5febf2e836a03c
+Checksum = 0x918eee0f80bd58b4
+
+data array is 2^25 = (33554432) words long
+           cycles/load at 2194 MHertz
+
+END> ended at:
+END> elapsed time is    seconds
+END>         secs of wall time             % of value reported by time()
+END>         secs of cpu+sys time   utilization =       %
+END>          M Bytes per second

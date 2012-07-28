@@ -1,0 +1,43 @@
+CVS info  
+$Date: 2005/06/07 18:59:09 $    
+$Revision: 1.1 $
+$RCSfile: README,v $ 
+$Name:  $
+
+
+
+Output:
+
+If the output from bench13 specifies (passed) then 
+the program ran 99% error free which is acceptable, 
+otherwise, (failed) will appear.
+ 
+To build from top_level bench13 dir:
+
+<cd ./bench13>
+<make>
+
+./bench13/Makefile will call the Makefiles in the 
+./bench13/EZThreads/src and 
+./bench13/src
+
+
+To build the subdirectories:
+First do make to create the archive library
+Second do make to create the bench13 executable
+
+<cd ./bench13/EZThreads/src>
+<make>
+
+<cd ./bench13/src>
+<make>
+
+To Execute:
+
+<cd ./bench13/bin>
+<./run_bench13.csh>
+OR
+<./bench13 <nthreads> <ltabsize> <lnupdate> # e.g. "./bench13 2 24 27> 
+
+
+

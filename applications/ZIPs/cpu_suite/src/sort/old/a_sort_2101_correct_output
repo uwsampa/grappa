@@ -1,0 +1,46 @@
+
+===================================================
+
+INFO> Benchmark Version iobmversion 4.0
+INFO> _XOPEN_VERSION
+INFO> system name:
+INFO> node name:
+INFO> release:
+INFO> version:
+INFO> machine:
+INFO> icc -O3 -std=c99 -DRESTRICT=restrict -DUSE_POP3 -DB_S_X2=b_s_x2_ -ansi_alias -I../support
+INFO> launched at epoch            then slept 0 sec
+
+INIT> ./a_sort started at:
+INIT> host machine is
+INIT> program built on
+INIT> seed is 2101   niters is 11587
+INIT> other args:  16 3000
+
+Ave sort size (2^^16)+6.1% = 69510 64-bit words
+
+First 5 and last 5 of last sort
+data[0]		 = 0x0002dd6493ec11b1
+data[1]		 = 0x0002f595f9324b4c
+data[2]		 = 0x000951c2d489e026
+data[3]		 = 0x000b687e781e9c57
+data[4]		 = 0x000e52dc179ea4bd
+
+data[46335]	 = 0xfff5876833dc4dfe
+data[46336]	 = 0xfff8af42910da2a5
+data[46337]	 = 0xfffad373d364c973
+data[46338]	 = 0xfffc2d7e2ab489c6
+data[46339]	 = 0xfffc8ecd4909468e
+
+
+ 2.62e+07 element/second
+
+ 3.82e-08 second/element
+
+ 114.54 cycle/element at 3000 MHertz
+
+END> ended at:
+END> elapsed time is    seconds
+END>         secs of wall time             % of value reported by time()
+END>         secs of cpu+sys time   utilization =       %
+END>          M words sorted per second

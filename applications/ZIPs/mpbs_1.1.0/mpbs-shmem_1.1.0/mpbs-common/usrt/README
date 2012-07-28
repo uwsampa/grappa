@@ -1,0 +1,12 @@
+UNCLASSIFIED//FOR OFFICIAL USE ONLY
+
+To build usort, unpack the tarball and then just type make, assuming
+this refers to GNU Make.
+
+If make complains about an unknown platform, you'll have to hack the
+makefile to define CC, CFLAGS, and CACHEMB for your new platform.
+CACHEMB should be the size of the largest on-chip cache, in megabytes,
+divided by the number of cores sharing that cache.  If unsure, it's
+better to set it too low than too high.
+
+-- Miller Maley, fmmaley@nsa.ic.gov

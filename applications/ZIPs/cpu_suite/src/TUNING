@@ -1,0 +1,176 @@
+This note describes the tunables for the different benchmarks.
+
+======================================================================
+
+BMM
+
+> CFLAGS only
+
+======================================================================
+
+TILT
+
+> CFLAGS only
+
+======================================================================
+
+FTILT
+
+> FFLAGS only
+> can set -DTILT="name" to the proper name to link in the Fortan
+  version of the routine (the provided makefile uses -DTILT="tilt_")
+
+======================================================================
+
+BS2
+
+> FFLAGS
+> CFLAGS: can set -DB_S_X2="name" to the proper name to link in
+  the Fortran version of the routine (defaults to b_s_x2_)
+> parameter(nwords) in bs2.f, #define NWORDS in driver.c
+  This value can be any of 1,2,4,8,16,32; it must be the same
+  in both the C and Fortran otherwise the routine will fail
+> PAD is >= 0
+    - the number of words of PAD between input and output arrays
+
+======================================================================
+
+CBA
+
+> CFLAGS
+> BLOCKSIZE, NITERS, PAD (#defines in cba.h)
+  BLOCKSIZE can be 1,2,4,8,16,32,64
+    - the blocking factor (in words) for the matrix
+  NITERS must be a multiple of 64
+    - the number of partial row popcnts per block
+  PAD is >= 0
+    - the number of words of PAD between input and output arrays
+
+> -DUSE_POP3 can be set or not
+
+  >> if USE_POP3 is set:
+
+  The intent of USE_POP3 is to provide an efficient 3-word
+  popcnt in software (C) for machines which lack hardware
+  popcnt acceleration.
+
+  If USE_POP3 is set you can rewrite the POPCNT3 macro using
+  any ANSI C you like.  No inline assembly, #pragmas, or 
+  intrinsics are allowed.  You cannot alter the semantics of the
+  macro:
+
+  POPCNT3(A,B,C,Z) sets Z to be the total number of ones
+                   in A, B, C
+
+  In addition you can rewrite the function _popcnt (uint64 x)
+  as desired.  Again it must be ANSI C (no inline assembly,
+  #pragmas, or intrinsics).  It should return the number
+  of ones in x.
+
+  >> if USE_POP3 is not set:
+
+  In this case you need only provide a macro for _popcnt(x).
+  Here inline assembly, compiler intrinsics, and #pragmas are allowed.
+  The intent of this version of the code is to allow for use of a
+  hardware popcnt instruction or related instruction to accelerate the
+  popcnt if available.  For example:
+
+#define _popcnt(x)  _your_compilers_popcnt_intrinsic(x)
+
+or
+
+#define _popcnt(x)  asm ("the_pop_instruction", ...)
+
+  Alternatively you can declare _popcnt as a static function
+  taking uint64 and returning int64.  However, you can only
+  use inline assembly to issue instructions not otherwise
+  available in C.  This cannot be used as a mechanism to
+  work around poor code generation by your compiler--this would
+  invalidate the tuned results for this benchmark.
+
+======================================================================
+
+GMP
+
+> CFLAGS
+> Vendor's C or GCC
+> Assembly language coding/re-coding of certain primitive GMP
+  routines allowed.
+
+  The performance of this benchmarks depends on how GMP is compiled
+  and the tuned implementation of certain primitive GMP routines.
+  This code can be built either using your C compiler or using GCC.  
+  If you use GCC provide relevant version and configuration information.  
+  Our testing of GMP has indicated that GCC often produces superior performance
+  than "native" compilers. 
+
+  The following GMP primitives may be rewritten as desired by the
+  vendor, either in C or assembly.  Note that this code must be
+  functionally equivalent to the base GMP code.  In particular it
+  cannot be customized to deal only with parameter sizes as tested
+  by the benchmarks.  These primitives may be rewritten/tuned:
+
+  mpn_addmul_1
+  mpn_submul_1
+  mpn_add_n
+  mpn_sub_n
+  mpn_lshift
+  mpn_mul_1
+
+  To insure consistent algorithms are used by all the vendors, none
+  of the higher level GMP code may be modified.  Only the listed
+  low-level primitives may be re-written for performance on a given
+  system.
+
+  In addition to configuration information on how GMP was built, the
+  Vendor shall provide a list of modified GMP primitives together
+  with annotated source code for these modifications.
+
+======================================================================
+
+XOR
+
+> CFLAGS
+> A_PAD (#define in xor.c)
+    - the number of words of pad between the two arrays
+
+======================================================================
+
+GTSC
+
+> CFLAGS
+> large page size
+
+  If the vendor supports a ld option or command to tag the binary
+  to request non-standard pages this is allowed subject to the
+  rules found in GROUNDRULES.  The selected page size cannot be
+  varied from run to run, it must be fixed per binary (i.e. one
+  for gt, one for sc).  Changes to the makefile to make use of
+  non-standard pages must be documented by the Vendor.
+
+
+
+======================================================================
+
+A_SORT
+
+> CFLAGS
+> PSZ1
+    - bucket size for larger (~2^25) sorts
+    - in the range 1-64
+> PSZ3
+    - bucket size for smaller (~2^16) sorts
+    - in the range 1-64
+> SmallSortSz
+    - if <= this value (in words) we switch to the Shell sort
+    - must be > 85
+
+
+======================================================================
+
+XBA
+
+CFLAGS as desired
+-DRESTRICT=<whatever you want>
+Can optionally insert #pragma unroll directive (with loop scope ONLY)
+in xor_bit_arr() function (see xba.c)

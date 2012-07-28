@@ -1,0 +1,54 @@
+################################################################################
+# Name          : Cache Gups 
+# Description   : This is the cache version of the ubquitous guppie program
+# Compile	: make -C ./src
+# Run		: ./bin/cache_bench
+# Origin	: 
+#
+#
+################################################################################
+# Revisions     : CPD   18 August 2011  : Original version
+# 		: TLN	29 Augest 2011	: Minor additions
+#
+################################################################################
+
+This benchmark will measure the GUPS rate gigabyte updates per second given a 
+certain table size and the number of update
+
+Eg:
+ LUPS Code - For the Power7, use the following arguments: */
+ ./bin/cache_bench -T16384 [for L1 UPS since POWER7 L1 is 32 KB */
+ ./bin/cache_bench -T131072 [for L2 UPS since POWER7 L2 is 256 KB */
+ ./bin/cache_bench -T2097152 [for L3 UPS since POWER7 L3 is 4MB */
+
+
+	1. ./bin/cache_gups [-T table size] [-U number of updates]
+	   Binary executable for cache_bench 
+
+################################################################################
+# Usage		:
+#
+	./bin/cache_bench	
+	
+################################################################################
+# Parameters		:
+#
+# All of the following parameters are optional:
+#
+	-T		: table size in bytes. Defaults to 262144 bytes.
+
+	-U 		: The number of updates. Defaults to 524288.
+
+
+
+
+################################################################################
+# Sample output		:
+
+Table = (nil)
+  main table size   = 262144 bytes
+  Number of updates = 524288
+Init done
+Warm up done
+Test done
+Rate: 0.284921 GUPS (1.840115e-03), sum=2.220320e+19

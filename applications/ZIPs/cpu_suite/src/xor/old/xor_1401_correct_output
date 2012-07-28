@@ -1,0 +1,30 @@
+
+===================================================
+
+INFO> Benchmark Version iobmversion 4.0
+INFO> _XOPEN_VERSION
+INFO> system name:
+INFO> node name:
+INFO> release:
+INFO> version:
+INFO> machine:
+INFO> icc -O3 -std=c99 -DRESTRICT=restrict -DUSE_POP3 -DB_S_X2=b_s_x2_ -ansi_alias -I. -I../support
+INFO> launched at epoch            then slept 0 sec
+
+INIT> ./xor started at:
+INIT> host machine is
+INIT> program built on
+INIT> seed is 1401   niters is 81
+INIT> other args:  33554432
+
+Array lengths are 33554432
+Total memory size is 100663296 words 805306368 bytes
+
+          MB/w_s
+          MW/w_s
+
+END> ended at:
+END> elapsed time is    seconds
+END>         secs of wall time             % of value reported by time()
+END>         secs of cpu+sys time   utilization =       %
+END>          G Bytes per second

@@ -1,0 +1,29 @@
+
+===================================================
+
+INFO> Benchmark Version iobmversion 4.0
+INFO> _XOPEN_VERSION = 500
+INFO> system name: Linux
+INFO> node name:   nid00223
+INFO> release:     2.6.16.60-0.39_1.0102.4729.2.2.41GS01-ss
+INFO> version:     #1 SMP Tue Oct 20 11:40:39 PDT 2009
+INFO> machine:     x86_64
+INFO> icc -O3 -std=c99 -DRESTRICT=restrict -DUSE_POP3 -DB_S_X2=b_s_x2_ -I. -I../support 
+INFO> started on cnode at 1266530361  -  launched at epoch 1266530361 = diff 0: Sleep  0 - diff  0 = 0
+
+INIT> ./gt started at:  Thu Feb 18 21:59:21 2010
+INIT> host machine is nid00223
+INIT> program built on Feb 18 2010 @ 21:53:02
+INIT> seed is 1501   niters is 112197
+INIT> other args:  8
+
+Valid checksum = 0xc6fe43ba87ec0edb
+Checksum       = 0xc6fe43ba87ec0edb
+
+data array is 2^8 = (256) words long
+
+END> ended at:  Thu Feb 18 21:59:32 2010
+END> elapsed time is 11 seconds
+END>  10.685 secs of wall time       97.139% of value reported by time()
+END>  10.685 secs of cpu+sys time   utilization = 99.994%
+END>  15.3810 G Bytes per second
