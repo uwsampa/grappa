@@ -212,24 +212,33 @@ void SoftXMT_delegate_read( GlobalAddress<T> address, T * buf) {
 }
 
 struct DelegateCallbackArgs {
-  GlobalAddress<Thread> sleeper;
+  Thread * sleeper;
   void* forig; // pointer to original functor
+  bool done;
 };
 
-static void am_delegate_wake(DelegateCallbackArgs * callback, size_t csz, void * p, size_t psz) {
+static void am_delegate_wake(GlobalAddress<DelegateCallbackArgs> * callback, size_t csz, void * p, size_t psz) {
   // copy possibly-modified functor back 
   // (allows user to modify func to effectively pass a return value back)
-  memcpy(callback->forig, p, psz);
-  SoftXMT_wake(callback->sleeper.pointer());
+  DelegateCallbackArgs * args = callback->pointer();
+
+  memcpy(args->forig, p, psz);
+ 
+  if ( args->sleeper != NULL ) { 
+    SoftXMT_wake(args->sleeper);
+    args->sleeper = NULL;
+  }
+  
+  args->done = true;
 }
 
 template<typename Func>
-static void am_delegate(DelegateCallbackArgs * callback, size_t csz, void* p, size_t fsz) {
+static void am_delegate(GlobalAddress<DelegateCallbackArgs> * callback, size_t csz, void* p, size_t fsz) {
   delegate_stats.count_op_am();
   delegate_stats.count_generic_op_am();
   Func * f = static_cast<Func*>(p);
   (*f)();
-  SoftXMT_call_on(callback->sleeper.node(), &am_delegate_wake, callback, sizeof(*callback), p, fsz);
+  SoftXMT_call_on(callback->node(), &am_delegate_wake, callback, sizeof(*callback), p, fsz);
 }
 
 /// Supports more generic delegate operations in the form of functors. The given 
@@ -246,9 +255,14 @@ void SoftXMT_delegate_func(Func * f, Node target) {
   if (target == SoftXMT_mynode()) {
     (*f)();
   } else {
-    DelegateCallbackArgs callbackArgs = { make_global(CURRENT_THREAD), (void*)f };
-    SoftXMT_call_on(target, &am_delegate<Func>, &callbackArgs, sizeof(callbackArgs), (void*)f, sizeof(*f));
-    SoftXMT_suspend();
+    DelegateCallbackArgs callbackArgs = { NULL, (void*)f, false };
+    GlobalAddress<DelegateCallbackArgs> args_address = make_global( &callbackArgs );
+    SoftXMT_call_on(target, &am_delegate<Func>, &args_address, sizeof(args_address), (void*)f, sizeof(*f));
+    
+    if ( !callbackArgs.done ) {
+        callbackArgs.sleeper = CURRENT_THREAD;
+        SoftXMT_suspend();
+    }
   }
 }
 
