@@ -37,8 +37,8 @@ NELSON=/pic/people/nels707
 
 GASNET=$(NELSON)/gasnet
 HUGETLBFS=/usr
-GFLAGS=$(BDMYERS)/local
-GLOG=$(BDMYERS)/local
+#GFLAGS=$(BDMYERS)/local
+#GLOG=$(BDMYERS)/local
 BOOST=$(NELSON)/boost
 GPERFTOOLS=$(NELSON)/gperftools
 VAMPIRTRACE=$(NELSON)/vampirtrace
@@ -61,15 +61,18 @@ SRUN_AR=$(AR)
 CFLAGS+= -DSHMMAX=34359738368
 endif
 
+GFLAGS=$(SOFTXMT_HOME)/tools/gflags
+GLOG=$(SOFTXMT_HOME)/tools/google-glog
 
 OSX_BHOLT=true
 ifdef OSX_BHOLT
 GASNET=/opt/grappa
-GFLAGS=/opt/grappa
-GLOG=/opt/grappa
+#GFLAGS=/opt/grappa
+#GLOG=/opt/grappa
+
 BOOST=/usr/local
-GPERFTOOLS=/opt/grappa
-VAMPIRTRACE=/opt/grappa
+#GPERFTOOLS=/opt/grappa
+#VAMPIRTRACE=/opt/grappa
 MPITYPE=OPENMPI
 HOST=localhost
 GASNET_CONDUIT=mpi
@@ -127,23 +130,31 @@ CFLAGS+= -I$(HUGETLBFS)/include
 LDFLAGS+= -L$(HUGETLBFS)/lib64
 
 GFLAGS?=/sampa/share/gflags
-CFLAGS+= -I$(GFLAGS)/include
-LDFLAGS+= -L$(GFLAGS)/lib
-LD_LIBRARY_PATH:=$(LD_LIBRARY_PATH):$(GFLAGS)/lib
+#CFLAGS+= -I$(GFLAGS)/include
+CFLAGS+= -I$(GFLAGS)/src
+#LDFLAGS+= -L$(GFLAGS)/lib
+LDFLAGS+= -L$(GFLAGS)/.libs
+#LD_LIBRARY_PATH:=$(LD_LIBRARY_PATH):$(GFLAGS)/lib
+LD_LIBRARY_PATH:=$(LD_LIBRARY_PATH):$(GFLAGS)/.libs
 
 GLOG?=/sampa/share/glog
-CFLAGS+= -I$(GLOG)/include
-LDFLAGS+= -L$(GLOG)/lib
-LD_LIBRARY_PATH:=$(LD_LIBRARY_PATH):$(GLOG)/lib
+#CFLAGS+= -I$(GLOG)/include
+#LDFLAGS+= -L$(GLOG)/lib
+#LD_LIBRARY_PATH:=$(LD_LIBRARY_PATH):$(GLOG)/lib
+CFLAGS+= -I$(GLOG)/src
+LDFLAGS+= -L$(GLOG)/.libs
+LD_LIBRARY_PATH:=$(LD_LIBRARY_PATH):$(GLOG)/.libs
 
 
-GPERFTOOLS?=/sampa/share/gperftools-2.0-nolibunwind
-CFLAGS+= -I$(GPERFTOOLS)/include
-LDFLAGS+= -L$(GPERFTOOLS)/lib
-LD_LIBRARY_PATH:=$(LD_LIBRARY_PATH):$(GPERFTOOLS)/lib
+GPERFTOOLS=$(SOFTXMT_HOME)/gperftools-2.0
+#GPERFTOOLS?=/sampa/share/gperftools-2.0-nolibunwind
+CFLAGS+= -I$(GPERFTOOLS)/src
+LDFLAGS+= -L$(GPERFTOOLS)/.libs
+LD_LIBRARY_PATH:=$(LD_LIBRARY_PATH):$(GPERFTOOLS)/.libs
 
 
-VAMPIRTRACE?=/sampa/share/vampirtrace
+VAMPIRTRACE?=$(SOFTXMT_HOME)/VampirTrace-5.12.2/build
+#VAMPIRTRACE?=/sampa/share/vampirtrace
 CFLAGS+= -I$(VAMPIRTRACE)/include
 LDFLAGS+= -L$(VAMPIRTRACE)/lib
 LD_LIBRARY_PATH:=$(VAMPIRTRACE)/lib:$(LD_LIBRARY_PATH)
