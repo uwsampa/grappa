@@ -110,26 +110,32 @@ if test x"$acx_pthread_ok" = x"yes"; then
 fi
 
 # Check if there is google-gflags library installed.
-SAVE_CFLAGS="$CFLAGS"
-SAVE_LIBS="$LIBS"
-AC_ARG_WITH(gflags, AS_HELP_STRING[--with-gflags=GFLAGS_DIR],
-  GFLAGS_CFLAGS="-I${with_gflags}/include"
-  GFLAGS_LIBS="-L${with_gflags}/lib -lgflags"
-  CFLAGS="$CFLAGS $GFLAGS_CFLAGS"
-  LIBS="$LIBS $GFLAGS_LIBS"
-)
-AC_CHECK_LIB(gflags, main, ac_cv_have_libgflags=1, ac_cv_have_libgflags=0)
-if test x"$ac_cv_have_libgflags" = x"1"; then
-  AC_DEFINE(HAVE_LIB_GFLAGS, 1, [define if you have google gflags library])
-  if test x"$GFLAGS_LIBS" = x""; then
-    GFLAGS_LIBS="-lgflags"
-  fi
-else
-  GFLAGS_CFLAGS=
-  GFLAGS_LIBS=
-fi
-CFLAGS="$SAVE_CFLAGS"
-LIBS="$SAVE_LIBS"
+#SAVE_CFLAGS="$CFLAGS"
+#SAVE_LIBS="$LIBS"
+#AC_ARG_WITH(gflags, AS_HELP_STRING[--with-gflags=GFLAGS_DIR],
+  #GFLAGS_CFLAGS="-I${with_gflags}/include"
+  #GFLAGS_LIBS="-L${with_gflags}/lib -lgflags"
+  #CFLAGS="$CFLAGS $GFLAGS_CFLAGS"
+  #LIBS="$LIBS $GFLAGS_LIBS"
+#)
+#AC_CHECK_LIB(gflags, main, ac_cv_have_libgflags=1, ac_cv_have_libgflags=0)
+#if test x"$ac_cv_have_libgflags" = x"1"; then
+  #AC_DEFINE(HAVE_LIB_GFLAGS, 1, [define if you have google gflags library])
+  #if test x"$GFLAGS_LIBS" = x""; then
+    #GFLAGS_LIBS="-lgflags"
+  #fi
+#else
+  #GFLAGS_CFLAGS=
+  #GFLAGS_LIBS=
+#fi
+#CFLAGS="$SAVE_CFLAGS"
+#LIBS="$SAVE_LIBS"
+# Modified for Ymer 2011-01-30: use local copy of gflags
+GFLAGS_CFLAGS="-I../gflags/src"
+GFLAGS_LIBS="../gflags/.libs/libgflags.la"
+AC_DEFINE([HAVE_LIB_GFLAGS], [1], [Define to 1 if you have google glog library])
+ac_cv_have_libgflags=1
+
 
 # TODO(hamaji): Use official m4 macros provided by testing libraries
 #               once the m4 macro of Google Mocking becomes ready.
