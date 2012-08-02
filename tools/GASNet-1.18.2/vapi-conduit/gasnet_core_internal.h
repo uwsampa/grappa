@@ -582,6 +582,9 @@ typedef struct {
 #define GASNETC_AMRDMA_HDRSZ    sizeof(gasnetc_amrdma_hdr_t)
 #define GASNETC_AMRDMA_SZ	4096 /* Keep to a power-of-2 */  /* XXX: should determine automatically */
 #define GASNETC_AMRDMA_SZ_LG2	12 /* log-base-2(GASNETC_AMRDMA_SZ) */
+//-jn
+/* #define GASNETC_AMRDMA_SZ	8192 /\* Keep to a power-of-2 *\/  /\* XXX: should determine automatically *\/ */
+/* #define GASNETC_AMRDMA_SZ_LG2	13 /\* log-base-2(GASNETC_AMRDMA_SZ) *\/ */
 #define GASNETC_AMRDMA_PAD      (GASNETI_ALIGNUP(GASNETC_AMRDMA_HDRSZ,SIZEOF_VOID_P) - GASNETC_AMRDMA_HDRSZ)
 #define GASNETC_AMRDMA_LIMIT_MAX (GASNETC_AMRDMA_SZ - GASNETC_AMRDMA_HDRSZ - GASNETC_AMRDMA_PAD)
 typedef char gasnetc_amrdma_buf_t[GASNETC_AMRDMA_SZ];

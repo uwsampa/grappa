@@ -216,6 +216,8 @@ typedef struct {
   /* Thread-local list of sreq's. */
   gasnetc_sreq_t	*sreqs;
   
+  uint8_t rcv_amrdma_medium_buf[ GASNETC_BUFSZ + 8 ];  /* temporary storage for AMRDMA medium reception -jn */
+
   /* Nothing else yet, but lockfree algorithms for x84_64 and ia64 will also need
    * some thread-local data if they are ever implemented. */
 } gasnetc_per_thread_t;
@@ -1439,7 +1441,12 @@ int gasnetc_rcv_amrdma(gasnetc_cep_t *cep) {
     /* Relocate the Medium to avoid problems w/ "late zeros" and provide 8-byte alignment */
     /* Note: no harm here if flags is not correct, since length must by ok */
 #if GASNETI_USE_ALLOCA
-    void *tmp = alloca(length + 8);
+    //    void *tmp = alloca(length + 8);
+    GASNETC_PERTHREAD_LOOKUP;
+    gasnetc_per_thread_t *td = GASNETC_MY_PERTHREAD();
+    void *tmp = td->rcv_amrdma_medium_buf;
+    /* uint8_t alloca_buf[ GASNETC_BUFSZ + 8 ]; */
+    /* void *tmp = &alloca_buf[0]; */
 #else
     /* XXX: Work around bug 2079 ("stack overflow" from alloca() w/ PGI compiler)
        TODO: Try freelist or thread-specific buffers (of max size)? */
