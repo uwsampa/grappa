@@ -52,3 +52,5 @@ core.*
 *.z
 
 doc/asplos13/paper.pdf
+
+.svn
