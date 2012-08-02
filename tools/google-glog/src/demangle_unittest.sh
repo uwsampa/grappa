@@ -47,8 +47,9 @@ DEMANGLER="$BINDIR/demangle_unittest"
 
 if test -e "$DEMANGLER"; then
   # We need shared object.
-  export LD_LIBRARY_PATH=$BINDIR
-  export DYLD_LIBRARY_PATH=$BINDIR
+  # Modified to use local copy of gflags
+  export LD_LIBRARY_PATH=$BINDIR:`pwd`/../gflags/.libs
+  export DYLD_LIBRARY_PATH=$BINDIR:`pwd`/../gflags/.libs
 else
   # For windows
   DEMANGLER="./demangle_unittest.exe"
