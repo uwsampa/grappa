@@ -116,3 +116,4 @@ config.cache
 # VampirTrace
 # (hack to ignore all autogen'd files)
 /tools/VampirTrace-5.12.2/
+

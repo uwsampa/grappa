@@ -125,7 +125,11 @@ ENV_VARIABLES+= GLOG_logtostderr=1
 #ENV_VARIABLES+= GLOG_vmodule=Cache*=5,Incoh*=5
 ENV_VARIABLES+= GLOG_v=1
 #ENV_VARIABLES+= OMPI_MCA_btl_sm_use_knem=0
-ENV_VARIABLES+= LD_LIBRARY_PATH="\$$LD_LIBRARY_PATH:$(LD_LIBRARY_PATH)"
+ifdef OSX_BHOLT
+ENV_VARIABLES+= DYLD_LIBRARY_PATH="$(LD_LIBRARY_PATH)"
+else
+ENV_VARIABLES+= LD_LIBRARY_PATH="$(LD_LIBRARY_PATH)"
+endif
 
 # work around 1GB huge page bug in gasnet by limiting size of memory 
 #ENV_VARIABLES+= GASNET_PHYSMEM_MAX=217M # appears to be minimum
@@ -354,7 +358,7 @@ endif
 #
 # set LD_LIBRARY_PATH
 #
-LD_LIBRARY_PATH:=$(LD_LIBRARY_PATH):$(GFLAGS)/lib:$(SOFTXMT_HOME)/system
+#LD_LIBRARY_PATH:=$(LD_LIBRARY_PATH):$(GFLAGS)/lib:$(SOFTXMT_HOME)/system
 
 # build an executable
 # add an additional rule if you need to include multiple components

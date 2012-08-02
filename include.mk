@@ -35,7 +35,7 @@ ifdef PAL
 BDMYERS=/pic/people/bdmyers
 NELSON=/pic/people/nels707
 
-GASNET=$(NELSON)/gasnet
+#GASNET=$(NELSON)/gasnet
 HUGETLBFS=/usr
 #GFLAGS=$(BDMYERS)/local
 #GLOG=$(BDMYERS)/local
@@ -61,12 +61,9 @@ SRUN_AR=$(AR)
 CFLAGS+= -DSHMMAX=34359738368
 endif
 
-GFLAGS=$(SOFTXMT_HOME)/tools/gflags
-GLOG=$(SOFTXMT_HOME)/tools/google-glog
-
 OSX_BHOLT=true
 ifdef OSX_BHOLT
-GASNET=/opt/grappa
+#GASNET=/opt/grappa
 #GFLAGS=/opt/grappa
 #GLOG=/opt/grappa
 
@@ -107,7 +104,8 @@ LDFLAGS+= -L$(BOOST)/lib64 -L$(BOOST)/lib
 LD_LIBRARY_PATH:=$(LD_LIBRARY_PATH):$(BOOST)/lib
 
 # gasnet
-GASNET?=/sampa/share/gasnet-1.18.2-openmpi-4kbuf-symbols
+GASNET=$(SOFTXMT_HOME)/tools/GASNet-1.18.2/build
+#GASNET?=/sampa/share/gasnet-1.18.2-openmpi-4kbuf-symbols
 GASNET_CONDUIT?=ibv #values:ibv,mpi
 GASNET_THREAD=seq #values:seq,par,parsync -- seq recommended
 
@@ -129,7 +127,8 @@ HUGETLBFS?=/usr
 CFLAGS+= -I$(HUGETLBFS)/include
 LDFLAGS+= -L$(HUGETLBFS)/lib64
 
-GFLAGS?=/sampa/share/gflags
+GFLAGS=$(SOFTXMT_HOME)/tools/gflags
+#GFLAGS?=/sampa/share/gflags
 #CFLAGS+= -I$(GFLAGS)/include
 CFLAGS+= -I$(GFLAGS)/src
 #LDFLAGS+= -L$(GFLAGS)/lib
@@ -137,7 +136,8 @@ LDFLAGS+= -L$(GFLAGS)/.libs
 #LD_LIBRARY_PATH:=$(LD_LIBRARY_PATH):$(GFLAGS)/lib
 LD_LIBRARY_PATH:=$(LD_LIBRARY_PATH):$(GFLAGS)/.libs
 
-GLOG?=/sampa/share/glog
+GLOG=$(SOFTXMT_HOME)/tools/google-glog
+#GLOG?=/sampa/share/glog
 #CFLAGS+= -I$(GLOG)/include
 #LDFLAGS+= -L$(GLOG)/lib
 #LD_LIBRARY_PATH:=$(LD_LIBRARY_PATH):$(GLOG)/lib
