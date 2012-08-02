@@ -235,7 +235,10 @@ void gasnetc_counter_wait(gasnetc_counter_t *counter, int handler_context) {
   ==========================
 */
 
+// changed in attempt to improve aggregation -jn
 #define GASNETC_BUFSZ		4096
+//#define GASNETC_BUFSZ		(1 << 12)
+//#define GASNETC_BUFSZ		(1 << 13)
 
 #if GASNETI_STATS_OR_TRACE
   #define GASNETC_HDR_TIMESTAMP	8
