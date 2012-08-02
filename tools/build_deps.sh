@@ -1,6 +1,7 @@
 #!/bin/bash
 
 cd GASNet-1.18.2
+make distclean
 ./configure --prefix=`pwd`/build
 make -j
 make install
@@ -15,6 +16,7 @@ cd ..
 cd google-glog
 ./configure
 make clean
+<<<<<<< HEAD
 make -j
 cd ..
 
