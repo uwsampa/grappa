@@ -137,10 +137,10 @@ void SoftXMT_init( int * argc_p, char ** argv_p[], size_t global_memory_size_byt
   // by default, will allocate as many whole 1GB hugepages as it is
   // possible to evenly split among the processors on a node
   if (global_memory_size_bytes == -1) {
-    int nnode = atoi(getenv("SLURM_NNODES"));
-    int ppn = atoi(getenv("SLURM_NTASKS_PER_NODE"));
-    int bytes_per_proc = SHMMAX / ppn;
-    int bytes = nnode * ppn * bytes_per_proc;
+    int64_t nnode = atoi(getenv("SLURM_NNODES"));
+    int64_t ppn = atoi(getenv("SLURM_NTASKS_PER_NODE"));
+    int64_t bytes_per_proc = SHMMAX / ppn;
+    int64_t bytes = nnode * ppn * bytes_per_proc;
     VLOG(1) << "nnode: " << nnode << ", ppn: " << ppn << ", total_Bs: " << bytes;
     global_memory_size_bytes = bytes;
   }
