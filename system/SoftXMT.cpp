@@ -13,7 +13,7 @@
 #include "PerformanceTools.hpp"
 
 #ifndef SHMMAX
-#error "no SHMMAX defined -- look it up with the command: `syctl -A | grep shm`"
+#error "no SHMMAX defined for this system -- look it up with the command: `sysctl -A | grep shm`"
 #endif
 
 #ifdef VTRACE
