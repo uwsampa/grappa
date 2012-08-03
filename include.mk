@@ -54,6 +54,8 @@ SRUN_CXX=$(CXX)
 SRUN_LD=$(LD)
 SRUN_AR=$(AR)
 
+TEST_LIBS=-lboost_unit_test_framework
+
 #CFLAGS+=-DHUGEPAGES_PER_MACHINE=32
 # 32 GB of shared memory
 SHMMAX=34359738368
@@ -88,12 +90,14 @@ GASNET_SETTINGS+= GASNET_FREEZE=0
 #GASNET_SETTINGS+= GASNET_PHYSMEM_MAX=217M
 
 PLATFORM_SPECIFIC_LIBS=
+TEST_LIBS=-lboost_unit_test_framework-mt
 
 NNODE=1
 PPN?=2
 endif
 
-PLATFORM_SPECIFIC_LIBS?=-lrt 
+PLATFORM_SPECIFIC_LIBS?=-lrt
+TEST_LIBS?=-lboost_unit_test_framework
 
 # (for Sampa cluster) 12 GB
 SHMMAX?=12884901888

@@ -271,7 +271,7 @@ cleanup_shm:
 # include Boost test automagic main() generation
 # add an additional rule if you need to include multiple components
 %_tests.o: CXXFLAGS+= -DBOOST_TEST_DYN_LINK -DBOOST_TEST_MODULE=$@
-%_tests.test: LIBRARIES+= -lboost_unit_test_framework-mt
+%_tests.test: LIBRARIES+= $(TEST_LIBS)
 %_tests.test: %_tests.o
 	$($(MPITYPE)_LD) $(CFLAGS) $(CXXFLAGS) $(LDFLAGS) $^ $(LIBRARIES) -o $@ $(LIBS)
 
