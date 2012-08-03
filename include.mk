@@ -208,8 +208,10 @@ SBATCH_MPIRUN_EXPORT_ENV_VARIABLES=$(patsubst %,-x %,$(patsubst DELETEME:%,,$(su
 # delete when done
 .INTERMEDIATE: $(SRUN_ENVVAR_TEMP) $(SRUN_EPILOG_TEMP) $(SRUN_BATCH_TEMP)
 
-NNODE?=$(NPROC)
+NNODE?=2
+PPN?=1
 NTPN?=$(PPN)
+NPROC=$(shell echo ${NNODE}*${PPN} | bc)
 
 SRUN_HOST?=--partition grappa
 SRUN_NPROC=--nodes=$(NNODE) --ntasks-per-node=$(PPN)
@@ -230,8 +232,6 @@ SRUN_AR?=sleep $(SRUN_STUPID_NFS_DELAY) && $(SRUN_BUILD_CMD) $(AR)
 #SRUN_RUN?=$($(MPITYPE)_MPIRUN) $($(MPITYPE)_EXPORT_ENV_VARIABLES) $($(MPITYPE)_HOST) $($(MPITYPE)_NPROC) -- $(MY_TAU_RUN)
 
 # OpenMPI
-NPROC=$(shell echo ${NNODE}*${PPN} | bc)
-
 OPENMPI_NPROC= --n $(NPROC) --npernode $(PPN)
 #OPENMPI_RUN=mpirun $($(MPI_TYPE)_MPIRUN) 
 OPENMPI_BUILD_CMD?=

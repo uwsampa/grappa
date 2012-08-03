@@ -46,18 +46,6 @@ include $(SOFTXMT_HOME)/include.mk
 #
 #DEBUG:=1
 
-#
-# name of host on which to run tests
-# (unused with srun)
-#
-#HOST:=n01,n04
-
-#
-# number of mpi processes
-#
-NPROC:=2
-#PPN:=1
-
 # name of main executable to build and/or run
 TARGET:=
 
@@ -133,9 +121,9 @@ ENV_VARIABLES+= GLOG_logtostderr=1
 ENV_VARIABLES+= GLOG_v=1
 #ENV_VARIABLES+= OMPI_MCA_btl_sm_use_knem=0
 ifdef OSX
-ENV_VARIABLES+= DYLD_LIBRARY_PATH="$(LD_LIBRARY_PATH)"
+ENV_VARIABLES+= DYLD_LIBRARY_PATH="\$$DYLD_LIBRARY_PATH:$(LD_LIBRARY_PATH)"
 else
-ENV_VARIABLES+= LD_LIBRARY_PATH="$(LD_LIBRARY_PATH)"
+ENV_VARIABLES+= LD_LIBRARY_PATH="\$$LD_LIBRARY_PATH:$(LD_LIBRARY_PATH)"
 endif
 
 # work around 1GB huge page bug in gasnet by limiting size of memory 
