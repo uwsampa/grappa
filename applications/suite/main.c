@@ -6,6 +6,11 @@
 //  Copyright 2011 University of Washington. All rights reserved.
 //
 #include <stdio.h>
+#ifndef __MTA__
+#include <sys/param.h>
+#else
+#define MIN(a,b) ((a)<(b))?(a):(b)
+#endif
 
 #if HAVE_UNISTD_H
 #include <unistd.h>
@@ -43,8 +48,6 @@ static bool do_components = false,
             do_pathiso = false,
             do_triangles = false,
             do_centrality = false;
-
-#define min(a,b) (a)<(b) ? (a) : (b)
 
 //static void graph_in(graph * g, FILE * fin) {
 //  fread(&g->numVertices, sizeof(graphint), 1, fin);
@@ -129,7 +132,7 @@ static void read_endVertex(int64_t * endVertex, int64_t nadj, FILE * fin, int64_
   int64_t pos = 0;
   /*printf("endVertex: [ ");*/
   for (int64_t i=0; i<nadj; i+=NBUF) {
-    int64_t n = min(nadj-i, NBUF);
+    int64_t n = MIN(nadj-i, NBUF);
     fread(buf, sizeof(int64_t), n, fin);
     for (int64_t j=0; j<n; j++) {
       if (buf[j] != -1) {
@@ -174,7 +177,7 @@ bool checkpoint_in(graphedges * ge, graph * g) {
   double tt = timer();
   //alloc_edgelist(ge, nedge);
   //for (size_t i=0; i<nedge; i+=NBUF/2) {
-  //  int64_t n = min(NBUF/2, nedge-i);
+  //  int64_t n = MIN(NBUF/2, nedge-i);
   //  fread(buf, sizeof(int64_t), 2*n, fin);
   //  //for (size_t j=0; j<n; j++) {
   //  //  ge->startVertex[i+j] = buf[2*j];

@@ -85,7 +85,7 @@ inline void checkAndMoveCache(graphint& index, graphint& currStart, graphint& cu
   if (index >= currLimit) {
     GlobalAddress<graphint> newAddr = cache.address() + currLimit;
     currStart += currLimit;
-    currLimit = min(BUFSIZE, globalLimit-currStart);
+    currLimit = MIN(BUFSIZE, globalLimit-currStart);
     if (currLimit > 0) {
       index = 0;
       cache.reset(newAddr, currLimit);
@@ -109,7 +109,7 @@ static void search_children(uint64_t packed) {
   
   graphint Alimit = rangeA[1] - Astart;
   graphint astart = 0;
-  graphint alim = min(BUFSIZE, Alimit); // A current limit
+  graphint alim = MIN(BUFSIZE, Alimit); // A current limit
   
 //  CHECK(Astart + alim-1 < NE) << Astart << " + " << alim << " < " << NE;
   
@@ -121,7 +121,7 @@ static void search_children(uint64_t packed) {
   Incoherent<graphint>::RO rangeB(edge+B, 2, bufRangeB);
   graphint Blimit = rangeB[1] - rangeB[0];
   graphint bstart = 0;
-  graphint blim = min(BUFSIZE, Blimit); // B current limit
+  graphint blim = MIN(BUFSIZE, Blimit); // B current limit
   
 //  CHECK(rangeB[0] + blim-1 < NE) << rangeB[0] << " + " << blim << " < " << NE;
   
