@@ -1,4 +1,6 @@
 
+SOFTXMT_HOME?=$(shell git rev-parse --show-toplevel)
+
 #include common SoftXMT definitions
 include $(SOFTXMT_HOME)/include.mk
 

@@ -30,6 +30,8 @@
 #    To build and run an executable, say "make TARGET=<name>.test run". 
 #
 
+SOFTXMT_HOME?=$(shell git rev-parse --show-toplevel)
+
 # include common variable definitions
 include $(SOFTXMT_HOME)/include.mk
 
@@ -125,7 +127,7 @@ ENV_VARIABLES+= GLOG_logtostderr=1
 #ENV_VARIABLES+= GLOG_vmodule=Cache*=5,Incoh*=5
 ENV_VARIABLES+= GLOG_v=1
 #ENV_VARIABLES+= OMPI_MCA_btl_sm_use_knem=0
-ifdef OSX_BHOLT
+ifdef OSX
 ENV_VARIABLES+= DYLD_LIBRARY_PATH="$(LD_LIBRARY_PATH)"
 else
 ENV_VARIABLES+= LD_LIBRARY_PATH="$(LD_LIBRARY_PATH)"
