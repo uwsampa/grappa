@@ -58,7 +58,7 @@ SRUN_AR=$(AR)
 
 #CFLAGS+=-DHUGEPAGES_PER_MACHINE=32
 # 32 GB of shared memory
-CFLAGS+= -DSHMMAX=34359738368
+SHMMAX=34359738368
 endif
 
 OSX_BHOLT=true
@@ -74,7 +74,7 @@ MPITYPE=OPENMPI
 HOST=localhost
 GASNET_CONDUIT=mpi
 
-CFLAGS+= -DSHMMAX=67108864
+SHMMAX=67108864
 GASNET_SETTINGS+= GASNET_BACKTRACE=1
 GASNET_SETTINGS+= GASNET_FREEZE_SIGNAL=SIGUSR1
 GASNET_SETTINGS+= GASNET_FREEZE_ON_ERROR=1
@@ -92,7 +92,8 @@ endif
 
 PLATFORM_SPECIFIC_LIBS?=-lrt 
 
-
+# (for Sampa cluster) 12 GB
+SHMMAX?=12884901888
 
 # some library paths
 # defaults are for sampa cluster
@@ -162,6 +163,7 @@ LD_LIBRARY_PATH:=$(VAMPIRTRACE)/lib:$(LD_LIBRARY_PATH)
 
 MPITYPE?=SRUN
 
+CFLAGS+= -DSHMMAX=$(SHMMAX)
 
 
 #############################################################################
