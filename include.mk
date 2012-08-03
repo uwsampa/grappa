@@ -4,9 +4,6 @@
 # many are defined with ?=, so they can be overridden at the top.
 #############################################################################
 
-SOFTXMT_HOME?=$(HOME)
-
-
 #
 # common across machines
 #
@@ -22,15 +19,16 @@ NONE_CXX=$(CXX)
 NONE_LD=$(LD)
 
 
-
-
-
-
 # define to build on PAL cluster
 # should load modules:
 #   module unload pathscale openmpi
 #   module load git gcc/4.6.2 openmpi
-#PAL=true
+
+MACHINENAME:=$(shell hostname)
+ifeq ($(MACHINENAME), pal.local)
+PAL=true
+endif
+
 ifdef PAL
 BDMYERS=/pic/people/bdmyers
 NELSON=/pic/people/nels707
@@ -61,8 +59,13 @@ SRUN_AR=$(AR)
 SHMMAX=34359738368
 endif
 
-OSX_BHOLT=true
-ifdef OSX_BHOLT
+UNAME:=$(shell uname)
+
+ifeq ($(UNAME), Darwin)
+OSX=true
+endif
+
+ifdef OSX
 #GASNET=/opt/grappa
 #GFLAGS=/opt/grappa
 #GLOG=/opt/grappa
