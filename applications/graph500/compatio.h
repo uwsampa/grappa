@@ -5,16 +5,16 @@
 /// Note, you need not call it with a block if you don't want to (i.e. `CHECK(x == 0);` is valid as well and will simply do the same as `assert(x == 0)`)
 #define CHECK(b) for ( ; !(b) ; assert(b) )
 
-#ifdef __MTA__
-#include <assert.h>
 #include <stdint.h>
 #include <stdio.h>
+#include "timer.h"
+
+#ifdef __MTA__
+#include <assert.h>
 #include <machine/mtaops.h>
 #include <snapshot/client.h>
 #include <unistd.h>
-#include "timer.h"
 #define flip64(v) MTA_BIT_MAT_OR(0x0102040810204080, v)
-#define min(a,b) (a)<(b) ? (a) : (b)
 
 #define BUFELEMS (1L<<10)
 
@@ -31,7 +31,7 @@ inline size_t xmt_fread(void * dest, size_t sz, size_t ct, FILE * fin) {
 	int64_t pos = 0;
 
 	while (pos < ct) {
-		int64_t n = min(ct-pos, BUFELEMS);
+		int64_t n = MIN(ct-pos, BUFELEMS);
 		int64_t res = fread(buf, sizeof(int64_t), n, fin);
 		for (i=0; i<n; i++) {
 			d[pos+i] = flip64(buf[i]);
@@ -55,7 +55,7 @@ inline size_t xmt_fwrite(const void * src, size_t sz, size_t ct, FILE * fout) {
 	int64_t pos = 0;
 
 	while (pos < ct) {
-		int64_t n = min(ct-pos, BUFELEMS);
+		int64_t n = MIN(ct-pos, BUFELEMS);
 		for (i=0; i<n; i++) {
 			buf[i] = flip64(d[pos+i]);
 		}
@@ -68,8 +68,8 @@ inline size_t xmt_fwrite(const void * src, size_t sz, size_t ct, FILE * fout) {
 #endif /* defined(__MTA__) */
 
 inline size_t fread_plus(void * buf, size_t elt_size, size_t nelt, FILE * fin, char * name, int64_t SCALE, int64_t edgefactor) {
-#ifdef __MTA__
   double t = timer();
+#ifdef __MTA__
   // first look for XMT snapshot
   char fsnap[256];
   //sprintf(fsnap, "/ufs2/home/users/holt225/snapshots/%s.%ld.%ld.snap", name, SCALE, edgefactor);

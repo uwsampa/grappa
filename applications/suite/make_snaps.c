@@ -4,6 +4,12 @@
 #include <stdbool.h>
 #include <stdlib.h>
 
+#ifndef __MTA__
+#include <sys/param.h>
+#else
+#define MIN(a,b) ((a)<(b))?(a):(b)
+#endif
+
 int64_t flip64(int64_t n) {
   union {
     int64_t i;
@@ -21,7 +27,6 @@ int64_t flip64(int64_t n) {
 }
 
 #define NBUF (1L<<26)
-#define min(a,b) ((a)<(b)) ? (a) : (b)
 #define CHECK(b) for ( ; !(b) ; assert(b) )
 
 size_t read_array(char * name, size_t sz, size_t ct, FILE * fin, int64_t SCALE, int64_t edgefactor) {
@@ -39,7 +44,7 @@ size_t read_array(char * name, size_t sz, size_t ct, FILE * fin, int64_t SCALE, 
 	int64_t * buf = malloc(NBUF*sizeof(int64_t));
 
 	for (int64_t i=0; i<ct; i+= NBUF) {
-		int64_t n = min(ct-i, NBUF);
+		int64_t n = MIN(ct-i, NBUF);
 		size_t r = fread(buf, sizeof(int64_t), n, fin);
     CHECK(r == n) { fprintf(stderr, "didn't read enough! (%ld instead of %ld\n", r, n); }
 		for (int64_t j=0; j<n; j++) {

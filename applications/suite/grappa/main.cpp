@@ -80,7 +80,7 @@ static void read_array(GlobalAddress<T> base_addr, size_t nelem, FILE* fin, T * 
 static void read_endVertex(GlobalAddress<int64_t> endVertex, int64_t nadj, FILE * fin, int64_t * buf, size_t bufsize) {
   int64_t pos = 0;
   for (int64_t i=0; i<nadj; i+=bufsize) {
-    int64_t n = min(nadj-i, bufsize);
+    int64_t n = MIN(nadj-i, bufsize);
     fread(buf, sizeof(int64_t), n, fin);
     int64_t p = 0;
     for (int64_t j=0; j<n; j++) {
@@ -232,7 +232,7 @@ bool checkpoint_in(graphedges * ge, graph * g) {
   // xoff/edgeStart
   int64_t deg = 0;
   for (int64_t i=0; i<nv; i+=NBUF) {
-    int64_t n = min(nv-i, NBUF);
+    int64_t n = MIN(nv-i, NBUF);
     Incoherent<int64_t>::RO cxoff(xoff+2*i, 2*n, rbuf);
     Incoherent<int64_t>::WO cstarts(g->edgeStart+i, n, wbuf);
     for (int64_t j=0; j<n; j++) {
@@ -260,7 +260,7 @@ bool checkpoint_in(graphedges * ge, graph * g) {
   read_endVertex(g->endVertex, nadj, fin, wbuf, NBUF);
 
   //for (int64_t v=0; v<nv; v+=NBUF) {
-    //int64_t nstarts = min(nv-v, NBUF);
+    //int64_t nstarts = MIN(nv-v, NBUF);
     //Incoherent<int64_t>::RO cxoff(xoff+2*v, 2*nstarts+((v+1==nv) ? 0 : 1),rbuf);
     
     //for (int64_t i=0; i<nstarts; i++) {
@@ -271,7 +271,7 @@ bool checkpoint_in(graphedges * ge, graph * g) {
       //// eat up to next one
       //d = (v+i+1==nv) ? nadj-pos : cxoff[2*(v+i+1)]-pos;
       //for (int64_t j=0; j < d; j+=NBUF) {
-        //int64_t n = min(NBUF, d-j);
+        //int64_t n = MIN(NBUF, d-j);
         //fread(wbuf, sizeof(int64_t), n, fin); pos += n;
       //}
     //}

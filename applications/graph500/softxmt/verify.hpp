@@ -13,7 +13,7 @@ inline void read_array(GlobalAddress<T> base_addr, int64_t nelem, FILE* fin) {
   T* buf = new T[bufsize];
   for (int64_t i=0; i<nelem; i+=bufsize) {
     if (i % 51200 == 0) VLOG(3) << "reading " << i;
-    int64_t n = min(nelem-i, bufsize);
+    int64_t n = MIN(nelem-i, bufsize);
     typename Incoherent<T>::WO c(base_addr+i, n, buf);
     c.block_until_acquired();
     size_t nread = fread(buf, sizeof(T), n, fin);
@@ -29,7 +29,7 @@ inline void read_array(GlobalAddress<T> base_addr, int64_t nelem, T* array) {
   T* buf = new T[bufsize];
   for (int64_t i=0; i<nelem; i+=bufsize) {
     if (i % 51200 == 0) VLOG(3) << "sending " << i;
-    int64_t n = min(nelem-i, bufsize);
+    int64_t n = MIN(nelem-i, bufsize);
     VLOG(5) << "buf = " << buf;
     typename Incoherent<T>::WO c(base_addr+i, n, buf);
     c.block_until_acquired();
@@ -44,7 +44,7 @@ inline void write_array(GlobalAddress<T> base_addr, int64_t nelem, FILE* fout) {
   int64_t bufsize = MAX_ACQUIRE_SIZE / sizeof(T);
   T * buf = new T[bufsize];
   for (int64_t i=0; i<nelem; i+=bufsize) {
-    int64_t n = min(nelem-i, bufsize);
+    int64_t n = MIN(nelem-i, bufsize);
     typename Incoherent<T>::RO c(base_addr+i, n, buf);
     c.block_until_acquired();
     fwrite(buf, sizeof(T), n, fout);
