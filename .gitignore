@@ -117,3 +117,4 @@ config.cache
 # (hack to ignore all autogen'd files)
 /tools/VampirTrace-5.12.2/
 
+/tools/built_deps

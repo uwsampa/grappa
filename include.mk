@@ -4,6 +4,12 @@
 # many are defined with ?=, so they can be overridden at the top.
 #############################################################################
 
+# check if autodetect SOFTXMT_HOME is consistent
+AUTO_HOME=$(shell git rev-parse --show-toplevel)
+ifneq ($(SOFTXMT_HOME), $(AUTO_HOME))
+warning "Environment variable SOFTXMT_HOME was set but doesn't match the autodetected home. $(SOFTXMT_HOME), $(AUTO_HOME)"
+endif
+
 #
 # common across machines
 #
@@ -112,7 +118,7 @@ LDFLAGS+= -L$(BOOST)/lib64 -L$(BOOST)/lib
 LD_LIBRARY_PATH:=$(LD_LIBRARY_PATH):$(BOOST)/lib
 
 # gasnet
-GASNET=$(SOFTXMT_HOME)/tools/GASNet-1.18.2/build
+GASNET=$(SOFTXMT_HOME)/tools/built_deps
 #GASNET?=/sampa/share/gasnet-1.18.2-openmpi-4kbuf-symbols
 GASNET_CONDUIT?=ibv #values:ibv,mpi
 GASNET_THREAD=seq #values:seq,par,parsync -- seq recommended
@@ -135,34 +141,24 @@ HUGETLBFS?=/usr
 CFLAGS+= -I$(HUGETLBFS)/include
 LDFLAGS+= -L$(HUGETLBFS)/lib64
 
-GFLAGS=$(SOFTXMT_HOME)/tools/gflags
-#GFLAGS?=/sampa/share/gflags
-#CFLAGS+= -I$(GFLAGS)/include
-CFLAGS+= -I$(GFLAGS)/src
-#LDFLAGS+= -L$(GFLAGS)/lib
-LDFLAGS+= -L$(GFLAGS)/.libs
-#LD_LIBRARY_PATH:=$(LD_LIBRARY_PATH):$(GFLAGS)/lib
-LD_LIBRARY_PATH:=$(LD_LIBRARY_PATH):$(GFLAGS)/.libs
+GFLAGS=$(SOFTXMT_HOME)/tools/built_deps
+CFLAGS+= -I$(GFLAGS)/include
+LDFLAGS+= -L$(GFLAGS)/lib
+LD_LIBRARY_PATH:=$(LD_LIBRARY_PATH):$(GFLAGS)/lib
 
-GLOG=$(SOFTXMT_HOME)/tools/google-glog
-#GLOG?=/sampa/share/glog
-#CFLAGS+= -I$(GLOG)/include
-#LDFLAGS+= -L$(GLOG)/lib
-#LD_LIBRARY_PATH:=$(LD_LIBRARY_PATH):$(GLOG)/lib
-CFLAGS+= -I$(GLOG)/src
-LDFLAGS+= -L$(GLOG)/.libs
-LD_LIBRARY_PATH:=$(LD_LIBRARY_PATH):$(GLOG)/.libs
+GLOG=$(SOFTXMT_HOME)/tools/built_deps
+CFLAGS+= -I$(GLOG)/include
+LDFLAGS+= -L$(GLOG)/lib
+LD_LIBRARY_PATH:=$(LD_LIBRARY_PATH):$(GLOG)/lib
 
-
-GPERFTOOLS=$(SOFTXMT_HOME)/gperftools-2.0
+GPERFTOOLS=$(SOFTXMT_HOME)/tools/built_deps
 #GPERFTOOLS?=/sampa/share/gperftools-2.0-nolibunwind
-CFLAGS+= -I$(GPERFTOOLS)/src
-LDFLAGS+= -L$(GPERFTOOLS)/.libs
-LD_LIBRARY_PATH:=$(LD_LIBRARY_PATH):$(GPERFTOOLS)/.libs
+CFLAGS+= -I$(GPERFTOOLS)/include
+LDFLAGS+= -L$(GPERFTOOLS)/lib
+LD_LIBRARY_PATH:=$(LD_LIBRARY_PATH):$(GPERFTOOLS)/lib
 
 
-VAMPIRTRACE?=$(SOFTXMT_HOME)/VampirTrace-5.12.2/build
-#VAMPIRTRACE?=/sampa/share/vampirtrace
+VAMPIRTRACE?=$(SOFTXMT_HOME)/tools/built_deps
 CFLAGS+= -I$(VAMPIRTRACE)/include
 LDFLAGS+= -L$(VAMPIRTRACE)/lib
 LD_LIBRARY_PATH:=$(VAMPIRTRACE)/lib:$(LD_LIBRARY_PATH)

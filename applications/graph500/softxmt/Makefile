@@ -1,5 +1,9 @@
-
 SOFTXMT_HOME?=$(shell git rev-parse --show-toplevel)
+# check if autodetect SOFTXMT_HOME is consistent
+AUTO_HOME=$(shell git rev-parse --show-toplevel)
+ifneq ($(SOFTXMT_HOME), $(AUTO_HOME))
+$(warning warning: Environment variable SOFTXMT_HOME was set but doesn't match the autodetected home: env=$(SOFTXMT_HOME), auto=$(AUTO_HOME))
+endif
 
 #include common SoftXMT definitions
 include $(SOFTXMT_HOME)/include.mk
