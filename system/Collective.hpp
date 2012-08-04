@@ -26,28 +26,65 @@ inline T coll_add(const T& a, const T& b) {
 
 #define HOME_NODE 0
 extern Thread * reducing_thread;
-extern int64_t reduction_result;
-extern int64_t final_reduction_result;
 extern Node reduction_reported_in;
+
+// This class is just for holding the reduction
+// value in a type-safe manner
+template < typename T >
+class Reductions {
+  private:
+    Reductions() {}
+  public:
+    static T reduction_result;
+    static T final_reduction_result;
+};
+
+template <typename T>
+T Reductions<T>::reduction_result;
+
+template <typename T> 
+T Reductions<T>::final_reduction_result;
 
 template< typename T >
 static void am_reduce_wake(T * val, size_t sz, void * payload, size_t psz) {
-  final_reduction_result = *val;
+  Reductions<T>::final_reduction_result = *val;
   SoftXMT_wake(reducing_thread);
 }
 
 template< typename T, T (*Reducer)(const T&, const T&), T BaseVal>
 static void am_reduce(T * val, size_t sz, void* payload, size_t psz) {
   CHECK(SoftXMT_mynode() == HOME_NODE);
-  if (reduction_reported_in == 0) reduction_result = BaseVal;
-  reduction_result = (int64_t)Reducer((T)reduction_result, *val);
+
+  if (reduction_reported_in == 0) Reductions<T>::reduction_result = BaseVal;
+  Reductions<T>::reduction_result = Reducer(Reductions<T>::reduction_result, *val);
+
   reduction_reported_in++;
   VLOG(5) << "reported_in = " << reduction_reported_in;
   if (reduction_reported_in == SoftXMT_nodes()) {
     reduction_reported_in = 0;
     for (Node n = 0; n < SoftXMT_nodes(); n++) {
       VLOG(5) << "waking " << n;
-      SoftXMT_call_on(n, &am_reduce_wake, (T*)(&reduction_result));
+      T data = Reductions<T>::reduction_result;
+      SoftXMT_call_on(n, &am_reduce_wake, &data);
+    }
+  }
+}
+
+template< typename T, T (*Reducer)(const T&, const T&) >
+static void am_reduce_noinit(T * val, size_t sz, void* payload, size_t psz) {
+  CHECK(SoftXMT_mynode() == HOME_NODE);
+  
+  if (reduction_reported_in == 0) Reductions<T>::reduction_result = *val; // no base val
+  else Reductions<T>::reduction_result = Reducer(Reductions<T>::reduction_result, *val);
+  
+  reduction_reported_in++;
+  VLOG(5) << "reported_in = " << reduction_reported_in;
+  if (reduction_reported_in == SoftXMT_nodes()) {
+    reduction_reported_in = 0;
+    for (Node n = 0; n < SoftXMT_nodes(); n++) {
+      VLOG(5) << "waking " << n;
+      T data = Reductions<T>::reduction_result;
+      SoftXMT_call_on(n, &am_reduce_wake, &data);
     }
   }
 }
@@ -59,7 +96,6 @@ static void am_reduce(T * val, size_t sz, void* payload, size_t psz) {
 ///  - and it must be called by every node or deadlock will occur
 template< typename T, T (*Reducer)(const T&, const T&), T BaseVal>
 T SoftXMT_allreduce(T myval) {
-  BOOST_STATIC_ASSERT( sizeof(T) <= 8 );
   // TODO: do tree reduction to reduce amount of serialization at Node 0
   reducing_thread = CURRENT_THREAD;
   
@@ -67,7 +103,19 @@ T SoftXMT_allreduce(T myval) {
   
   SoftXMT_suspend();
   
-  return final_reduction_result;
+  return Reductions<T>::final_reduction_result;
+}
+
+template< typename T, T (*Reducer)(const T&, const T&) >
+T SoftXMT_allreduce_noinit(T myval) {
+  // TODO: do tree reduction to reduce amount of serialization at Node 0
+  reducing_thread = CURRENT_THREAD;
+  
+  SoftXMT_call_on(0, &am_reduce_noinit<T,Reducer>, &myval);
+  
+  SoftXMT_suspend();
+  
+  return Reductions<T>::final_reduction_result;
 }
 
 #endif // _COLLECTIVE_HPP
