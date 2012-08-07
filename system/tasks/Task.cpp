@@ -260,7 +260,7 @@ void TaskManager::TaskStatistics::merge(const TaskManager::TaskStatistics * othe
 
 void TaskManager::reset_stats() {
   stats.reset();
-  //publicQ.reset_stats();
+  publicQ.reset_stats();
 }
 
 void TaskManager::TaskStatistics::reset() {
