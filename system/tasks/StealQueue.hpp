@@ -316,7 +316,10 @@ void StealQueue<T>::workStealReply_am( workStealReply_args * args,  size_t size,
 
 template <typename T>
 void StealQueue<T>::steal_request( int k, Node from ) {
-    const int victimHalfWorkAvail = (top - bottom) / 2;
+    int victimBottom = this->bottom;
+    int victimTop = this->top;
+    
+    const int victimHalfWorkAvail = (victimTop - victimBottom) / 2;
     const int stealAmt = MIN_INT( victimHalfWorkAvail, k );
     bool ok = stealAmt > 0;
   
@@ -324,7 +327,7 @@ void StealQueue<T>::steal_request( int k, Node from ) {
     if (ok) {
 
       /* reserve a chunk */
-      bottom = bottom + stealAmt;
+      this->bottom = victimBottom + stealAmt;
 
 
       GRAPPA_EVENT(steal_victim_ev, "Steal victim", 1, scheduler, stealAmt);
@@ -332,8 +335,8 @@ void StealQueue<T>::steal_request( int k, Node from ) {
       //VT_COUNT_UNSIGNED_VAL( steal_victim_ev_vt, k );
 #endif
 
-      T* victimStackBase = stack;
-      T* victimStealStart = victimStackBase + bottom;
+      T* victimStackBase = this->stack;
+      T* victimStealStart = victimStackBase + victimBottom;
 
       const int bufsize = 110; // TODO: I now 32B*110 < aggreg bufsize-header size
                                // but do this precisely
