@@ -210,22 +210,13 @@ void TaskingScheduler::TaskingSchedulerStatistics::profiling_sample() {
 #endif
 }
 
-void TaskingScheduler::TaskingSchedulerStatistics::merge(TaskingSchedulerStatistics * other) {
+void TaskingScheduler::TaskingSchedulerStatistics::merge(const TaskingSchedulerStatistics * other) {
   task_calls += other->task_calls;
   for (int i=StatePoll; i<StateLast; i++) state_timers[i] += other->state_timers[i];
 	scheduler_count += other->scheduler_count;
 
-  merged++;
+  merged+=other->merged;
   max_active = (int64_t)inc_avg((double)max_active, merged, (double)other->max_active);
   avg_active = inc_avg(avg_active, merged, other->avg_active);
   avg_ready = inc_avg(avg_ready, merged, other->avg_ready);
 }
-
-extern uint64_t merge_reply_count;
-void TaskingScheduler::TaskingSchedulerStatistics::merge_am(TaskingScheduler::TaskingSchedulerStatistics * other, size_t sz, void* payload, size_t psz) {
-  global_scheduler.stats.merge(other);
-  merge_reply_count++;
-}
-
-
-

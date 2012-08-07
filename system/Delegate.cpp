@@ -486,9 +486,3 @@ void DelegateStatistics::merge(DelegateStatistics * other) {
   if( other->ops_wakeup_ticks_min < ops_wakeup_ticks_min )
     ops_wakeup_ticks_min = other->ops_wakeup_ticks_min;
 }
-
-extern uint64_t merge_reply_count;
-void DelegateStatistics::merge_am(DelegateStatistics * other, size_t sz, void* payload, size_t psz) {
-  delegate_stats.merge( other );
-  merge_reply_count++;
-}

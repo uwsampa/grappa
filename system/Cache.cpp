@@ -115,8 +115,3 @@ void CacheStatistics::merge(CacheStatistics * other) {
   //incoherent_releaser_stats.merge(?);
 }
 
-extern uint64_t merge_reply_count;
-void CacheStatistics::merge_am(CacheStatistics * other, size_t sz, void* payload, size_t psz) {
-  cache_stats.merge( other );
-  merge_reply_count++;
-}

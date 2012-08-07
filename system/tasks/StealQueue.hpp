@@ -28,6 +28,23 @@ typedef int16_t Node;
 
 /// Forward declare for steal_locally
 class Thread;
+        
+class StealStatistics {
+  private:
+    uint64_t stealq_reply_messages;
+    uint64_t stealq_reply_total_bytes;
+    uint64_t stealq_request_messages;
+    uint64_t stealq_request_total_bytes;
+
+  public:
+    StealStatistics();
+    void reset();
+    void record_steal_reply( size_t msg_bytes ); 
+    void record_steal_request( size_t msg_bytes ); 
+    void dump(); 
+    void merge( const StealStatistics * other );
+    static StealStatistics reduce( const StealStatistics& a, const StealStatistics& b );
+};
 
 
 template <typename T>
@@ -63,6 +80,7 @@ class StealQueue {
         static StealQueue<T>* staticQueueAddress;        
         
         void steal_reply( uint64_t amt, uint64_t total, T * stolen_work, size_t stolen_size_bytes );
+        void steal_request( int k, Node from );
         static void workStealReply_am( workStealReply_args * args,  size_t size, void * payload, size_t payload_size );
         static void workStealRequest_am( workStealRequest_args * args, size_t size, void * payload, size_t payload_size );
         
@@ -85,6 +103,7 @@ class StealQueue {
 	    , steal_success_ev_vt( VT_COUNT_DEF( "Steal success", "tasks", VT_COUNT_TYPE_UNSIGNED, steal_queue_grp_vt ) )
 	    , steal_victim_ev_vt( VT_COUNT_DEF( "Steal victim", "tasks", VT_COUNT_TYPE_UNSIGNED, steal_queue_grp_vt ) )
 #endif
+            , stats()
 {
 
                 uint64_t nbytes = numEle * sizeof(T);
@@ -119,7 +138,22 @@ class StealQueue {
 
         template< typename U >
         friend std::ostream& operator<<( std::ostream& o, const StealQueue<U>& sq );
+
+        StealStatistics stats;
+        void reset_stats();
+        void dump_stats();
 };
+
+template < typename T >
+void StealQueue<T>::reset_stats() {
+  stats.reset();
+}
+
+template < typename T >
+void StealQueue<T>::dump_stats() {
+  stats.dump();
+}
+
 
 
 static int maxint(int x, int y) { return (x>y)?x:y; }
@@ -280,34 +314,26 @@ void StealQueue<T>::workStealReply_am( workStealReply_args * args,  size_t size,
     thiefStack->steal_reply( args->stealAmt, args->total, stolen_work, payload_size );
 }
 
-
 template <typename T>
-void StealQueue<T>::workStealRequest_am(workStealRequest_args * args, size_t size, void * payload, size_t payload_size) {
-    int k = args->k;
-
-    StealQueue<T>* victimStack = StealQueue<T>::staticQueueAddress;
-   
-    int victimTop = victimStack->top;
-    int victimBottom = victimStack->bottom;
-    
-    const int victimHalfWorkAvail = (victimTop - victimBottom) / 2;
+void StealQueue<T>::steal_request( int k, Node from ) {
+    const int victimHalfWorkAvail = (top - bottom) / 2;
     const int stealAmt = MIN_INT( victimHalfWorkAvail, k );
     bool ok = stealAmt > 0;
   
-    VLOG(4) << "Victim of thief=" << args->from << " victimHalfWorkAvail=" << victimHalfWorkAvail;
+    VLOG(4) << "Victim of thief=" << from << " victimHalfWorkAvail=" << victimHalfWorkAvail;
     if (ok) {
 
       /* reserve a chunk */
-      victimStack->bottom =  victimBottom + stealAmt;
+      bottom = bottom + stealAmt;
 
 
       GRAPPA_EVENT(steal_victim_ev, "Steal victim", 1, scheduler, stealAmt);
 #ifdef VTRACE
-      //VT_COUNT_UNSIGNED_VAL( victimStack->steal_victim_ev_vt, k );
+      //VT_COUNT_UNSIGNED_VAL( steal_victim_ev_vt, k );
 #endif
 
-      T* victimStackBase = victimStack->stack;
-      T* victimStealStart = victimStackBase + victimBottom;
+      T* victimStackBase = stack;
+      T* victimStealStart = victimStackBase + bottom;
 
       const int bufsize = 110; // TODO: I now 32B*110 < aggreg bufsize-header size
                                // but do this precisely
@@ -317,9 +343,10 @@ void StealQueue<T>::workStealRequest_am(workStealRequest_args * args, size_t siz
         VLOG(5) << "sending steal packet of transfer_amt=" << transfer_amt << " remain=" << remain << " / stealAmt=" << stealAmt;
         remain -= transfer_amt;
         workStealReply_args reply_args = { transfer_amt, stealAmt };
-        SoftXMT_call_on( args->from, &StealQueue<T>::workStealReply_am, 
+        size_t msg_size = SoftXMT_call_on( from, &StealQueue<T>::workStealReply_am, 
             &reply_args, sizeof(workStealReply_args), 
             victimStealStart + offset, transfer_amt*sizeof( T ));
+        stats.record_steal_reply( msg_size );
 
         offset += transfer_amt;
       }
@@ -331,9 +358,18 @@ void StealQueue<T>::workStealRequest_am(workStealRequest_args * args, size_t siz
 
     } else {
       workStealReply_args reply_args = { 0, 0 };
-      SoftXMT_call_on( args->from, &StealQueue<T>::workStealReply_am, &reply_args );
+      SoftXMT_call_on( from, &StealQueue<T>::workStealReply_am, &reply_args );
     }
 
+}
+
+template <typename T>
+void StealQueue<T>::workStealRequest_am(workStealRequest_args * args, size_t size, void * payload, size_t payload_size) {
+    int k = args->k;
+    Node from = args->from;
+
+    StealQueue<T>* victimStack = StealQueue<T>::staticQueueAddress;
+    victimStack->steal_request( k, from );
 }
 
 #include "Thread.hpp"
@@ -345,7 +381,8 @@ int StealQueue<T>::steal_locally( Node victim, int op ) {
     received_tasks = 0;
 
     workStealRequest_args req_args = { op, global_communicator.mynode() };
-    SoftXMT_call_on( victim, &StealQueue<T>::workStealRequest_am, &req_args );
+    size_t msg_size = SoftXMT_call_on( victim, &StealQueue<T>::workStealRequest_am, &req_args );
+    stats.record_steal_request( msg_size );
 
     GRAPPA_PROFILE_CREATE( stealprof, "steal_locally", "(suspended)", GRAPPA_SUSPEND_GROUP );
         

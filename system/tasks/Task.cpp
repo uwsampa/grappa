@@ -173,6 +173,7 @@ void TaskManager::finish() {
 
 void TaskManager::dump_stats() {
     stats.dump();
+    publicQ.dump_stats();
 }
 
 #include "DictOut.hpp"
@@ -235,7 +236,7 @@ void TaskManager::TaskStatistics::profiling_sample() {
 }
 
 
-void TaskManager::TaskStatistics::merge(TaskManager::TaskStatistics * other) {
+void TaskManager::TaskStatistics::merge(const TaskManager::TaskStatistics * other) {
   session_steal_successes_ += other->session_steal_successes_;
   session_steal_fails_ += other->session_steal_fails_;
   single_steal_successes_ += other->single_steal_successes_;
@@ -248,16 +249,13 @@ void TaskManager::TaskStatistics::merge(TaskManager::TaskStatistics * other) {
   releases_ += other->releases_;
   public_tasks_dequeued_ += other->public_tasks_dequeued_;
   private_tasks_dequeued_ += other->private_tasks_dequeued_;
-}
 
-extern uint64_t merge_reply_count;
-void TaskManager::TaskStatistics::merge_am(TaskManager::TaskStatistics * other, size_t sz, void* payload, size_t psz) {
-  global_task_manager.stats.merge(other);
-  merge_reply_count++;
+  //publicQ.merge_stats();
 }
 
 void TaskManager::reset_stats() {
   stats.reset();
+  //publicQ.reset_stats();
 }
 
 void TaskManager::TaskStatistics::reset() {

@@ -435,7 +435,7 @@ public:
     std::cout << std::endl;
   }
   
-  void merge(AggregatorStatistics * other) {
+  void merge(const AggregatorStatistics * other) {
     messages_aggregated_ += other->messages_aggregated_;
     bytes_aggregated_ += other->bytes_aggregated_;
     messages_deaggregated_ += other->messages_deaggregated_;
@@ -455,7 +455,11 @@ public:
     }
   }
 
-  static void merge_am(AggregatorStatistics * other, size_t sz, void* payload, size_t psz);
+  static AggregatorStatistics reduce(const AggregatorStatistics& a, const AggregatorStatistics& b) {
+    AggregatorStatistics newst = a;
+    newst.merge(&b);
+    return newst;
+  }
 };
 
 /// Header for aggregated active messages.

@@ -13,8 +13,6 @@ int64_t _col_done_count;
 bool _col_allowed = true;
 
 Thread * reducing_thread;
-int64_t reduction_result;
-int64_t final_reduction_result;
 Node reduction_reported_in = 0;
 
 /// Reduction involving all SoftXMT Nodes.

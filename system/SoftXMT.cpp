@@ -11,6 +11,7 @@
 #include "ForkJoin.hpp"
 #include "Cache.hpp"
 #include "PerformanceTools.hpp"
+#include "Collective.hpp"
 
 #ifndef SHMMAX
 #error "no SHMMAX defined for this system -- look it up with the command: `sysctl -A | grep shm`"
@@ -294,37 +295,49 @@ void SoftXMT_dump_stats_all_nodes() {
   fork_join_custom(&f);
 }
 
-// XXX: yield based synchro
-uint64_t merge_reply_count;
-#define NUM_STATS_MERGE 6
-static void merge_stats_task(int64_t target) {
-  if ( target != SoftXMT_mynode() ) {
-    SoftXMT_call_on(target, &CommunicatorStatistics::merge_am, &global_communicator.stats);
-    SoftXMT_call_on(target, &AggregatorStatistics::merge_am, &global_aggregator.stats);
-    SoftXMT_call_on(target, &TaskingScheduler::TaskingSchedulerStatistics::merge_am, &global_scheduler.stats);
-    SoftXMT_call_on(target, &TaskManager::TaskStatistics::merge_am, &global_task_manager.stats);
-    SoftXMT_call_on(target, &DelegateStatistics::merge_am, &delegate_stats);
-    SoftXMT_call_on(target, &CacheStatistics::merge_am, &cache_stats);
+
+///
+/// Statistics reduction
+///
+#define STAT_REDUCE(statType, stat) (statType) SoftXMT_allreduce_noinit<statType, statType::reduce>( (stat) )
+#define STAT_FUNC( name, statType, stat ) \
+  LOOP_FUNCTOR( name, nid, ((statType*, resultAddress)) ) { \
+    statType result = STAT_REDUCE( statType, (stat) ); \
+    if ( nid == 0 ) { \
+      *resultAddress = result; \
+    } \
   }
+#define STAT_FORK_AND_DUMP(name, statType) { \
+  statType result; \
+  name f; \
+  f.resultAddress = &result; \
+  fork_join_custom(&f); \
+  result.dump(); \
 }
 
-LOOP_FUNCTOR(merge_stats_task_func,nid, ((Node,target)) ) {
-  merge_stats_task( target );
+
+STAT_FUNC(schedulerstat_func, TaskingScheduler::TaskingSchedulerStatistics, global_scheduler.stats );
+STAT_FUNC(aggregatorstat_func, AggregatorStatistics, global_aggregator.stats );
+STAT_FUNC(commstat_func, CommunicatorStatistics, global_communicator.stats );
+STAT_FUNC(taskmanagerstat_func, TaskManager::TaskStatistics, global_task_manager.stats );
+STAT_FUNC(stealstat_func, StealStatistics, global_task_manager.stealStats() );
+
+
+static void reduce_stats_and_dump() {
+  CHECK( SoftXMT_mynode() == 0 );
+  STAT_FORK_AND_DUMP(aggregatorstat_func, AggregatorStatistics)
+  STAT_FORK_AND_DUMP(commstat_func, CommunicatorStatistics)
+  STAT_FORK_AND_DUMP(taskmanagerstat_func, TaskManager::TaskStatistics)
+  STAT_FORK_AND_DUMP(schedulerstat_func, TaskingScheduler::TaskingSchedulerStatistics)
+  STAT_FORK_AND_DUMP(stealstat_func, StealStatistics)
 }
 
 void SoftXMT_merge_and_dump_stats() {
-  merge_reply_count = 0;
-  merge_stats_task_func f;
-  f.target = SoftXMT_mynode();
-  fork_join_custom(&f);
-
-  // wait for all merges to happen
-  while( merge_reply_count < (SoftXMT_nodes()-1)*NUM_STATS_MERGE ) {
-    SoftXMT_yield();
-  }
-  
-  SoftXMT_dump_stats();
+  reduce_stats_and_dump();
 }
+
+
+
 
 void SoftXMT_dump_task_series() {
 	global_scheduler.stats.print_active_task_log();
