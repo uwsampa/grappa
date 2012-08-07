@@ -268,6 +268,10 @@ class TaskingScheduler : public Scheduler {
       Thread* maybeSpawnCoroutines( );
       void onWorkerStart( );
 
+       uint64_t active_task_count() {
+         return num_active_tasks;
+       }
+
        void unassigned( Thread * thr ) {
            unassignedQ.enqueue( thr );
        }
