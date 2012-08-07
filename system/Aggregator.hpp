@@ -680,7 +680,7 @@ public:
     return buffer_size_ - buffers_[ target ].current_position_; 
   }
 
-inline void aggregate( Node destination, AggregatorAMHandler fn_p,
+inline size_t aggregate( Node destination, AggregatorAMHandler fn_p,
                          const void * args, const size_t args_size,
                          const void * payload, const size_t payload_size ) {
     GRAPPA_FUNCTION_PROFILE( GRAPPA_COMM_GROUP );
@@ -769,6 +769,8 @@ inline void aggregate( Node destination, AggregatorAMHandler fn_p,
   tag_ += global_communicator.mynode();
 #endif
   DVLOG(5) << "aggregated " << header;
+
+  return total_call_size;
 }
 
 };
@@ -779,30 +781,32 @@ extern Aggregator global_aggregator;
 
 
 template< typename ArgsStruct >
-inline void SoftXMT_call_on( Node destination, void (* fn_p)(ArgsStruct *, size_t, void *, size_t), 
+inline size_t SoftXMT_call_on( Node destination, void (* fn_p)(ArgsStruct *, size_t, void *, size_t), 
                              const ArgsStruct * args, const size_t args_size = sizeof( ArgsStruct ),
                              const void * payload = NULL, const size_t payload_size = 0)
 {
   StateTimer::start_communication();
-  global_aggregator.aggregate( destination,
+  size_t total_size = global_aggregator.aggregate( destination,
                                reinterpret_cast< AggregatorAMHandler >( fn_p ),
                                static_cast< const void * >( args ), args_size,
                                static_cast< const void * >( payload ), payload_size );
   StateTimer::stop_communication();
+  return total_size;
 }
 
 
 template< typename ArgsStruct, typename PayloadType >
-inline void SoftXMT_call_on_x( Node destination, void (* fn_p)(ArgsStruct *, size_t, PayloadType *, size_t), 
+inline size_t SoftXMT_call_on_x( Node destination, void (* fn_p)(ArgsStruct *, size_t, PayloadType *, size_t), 
                                const ArgsStruct * args, const size_t args_size = sizeof( ArgsStruct ),
                                const PayloadType * payload = NULL, const size_t payload_size = 0)
 {
   StateTimer::start_communication();
-  global_aggregator.aggregate( destination,
+  size_t total_size = global_aggregator.aggregate( destination,
                                reinterpret_cast< AggregatorAMHandler >( fn_p ),
                                static_cast< const void * >( args ), args_size,
                                static_cast< const void * >( payload ), payload_size );
   StateTimer::stop_communication();
+  return total_size;
 }
 
 #endif
