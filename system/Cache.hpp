@@ -54,7 +54,6 @@ class CacheStatistics {
     void sample();
     void profiling_sample();
     void merge(CacheStatistics * other);
-    static void merge_am(CacheStatistics * other, size_t sz, void* payload, size_t psz);
 };
 
 extern CacheStatistics cache_stats;

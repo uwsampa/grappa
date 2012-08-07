@@ -114,7 +114,6 @@ public:
   void sample();
   void profiling_sample();
   void merge(DelegateStatistics * other);
-  static void merge_am(DelegateStatistics * other, size_t sz, void* payload, size_t psz);
 };
 
 extern DelegateStatistics delegate_stats;
