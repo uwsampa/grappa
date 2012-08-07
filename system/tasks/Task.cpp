@@ -80,11 +80,16 @@ bool TaskManager::tryConsumeLocal( Task * result ) {
     }
 }
 
+DEFINE_bool( steal_idle_only, false, "Only steal when the core has no active tasks" );
+static bool stealOk() {
+  return (!FLAGS_steal_idle_only) || global_scheduler.active_task_count() < 4; // allow some for FJ private tasks
+}
+
 /// Only returns when there is work or when
 /// the system has no more work.
 bool TaskManager::waitConsumeAny( Task * result ) {
     if ( doSteal ) {
-        if ( stealLock ) {
+        if ( stealLock && stealOk() ) {
     
             GRAPPA_PROFILE_CREATE( prof, "stealing", "(session)", GRAPPA_TASK_GROUP );
             GRAPPA_PROFILE_START( prof );
@@ -144,7 +149,7 @@ bool TaskManager::waitConsumeAny( Task * result ) {
         GRAPPA_PROFILE_CREATE( prof, "worker idle", "(suspended)", GRAPPA_SUSPEND_GROUP ); 
         GRAPPA_PROFILE_START( prof );
         if ( !SoftXMT_thread_idle() ) {
-            SoftXMT_yield();
+            SoftXMT_yield(); // allow polling thread to run
         } else {
             DVLOG(5) << CURRENT_THREAD << " un-idled";
         }
