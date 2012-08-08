@@ -427,8 +427,9 @@ public:
   }
 
   void dump() {
-    header( LOG(INFO) );
-    data( LOG(INFO), time() );
+    dump_as_map();
+//    header( LOG(INFO) );
+//    data( LOG(INFO), time() );
   }
   void dump_as_map() {
     as_map( std::cout, time() );
