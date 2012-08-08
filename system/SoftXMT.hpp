@@ -17,6 +17,8 @@ extern TaskingScheduler global_scheduler;
 extern Thread * master_thread;
 #define CURRENT_THREAD global_scheduler.get_current_thread()
 
+extern Node * node_neighbors;
+
 
 void SoftXMT_init( int * argc_p, char ** argv_p[], size_t size = -1 );
 void SoftXMT_activate();
