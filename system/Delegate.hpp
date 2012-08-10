@@ -23,8 +23,8 @@ private:
   uint64_t generic_op_ams;
   uint64_t ops_blocked;
   uint64_t ops_blocked_ticks_total;
-  uint64_t ops_wakeup_ticks_total;
   uint64_t ops_network_ticks_total;
+  uint64_t ops_wakeup_ticks_total;
   uint64_t ops_blocked_ticks_max;
   uint64_t ops_blocked_ticks_min;
   uint64_t ops_network_ticks_max;
@@ -49,14 +49,17 @@ private:
   unsigned generic_op_ams_ev_vt;
   unsigned ops_blocked_ev_vt;
   unsigned ops_blocked_ticks_total_ev_vt;
-  unsigned ops_wakeup_ticks_total_ev_vt;
   unsigned ops_network_ticks_total_ev_vt;
+  unsigned ops_wakeup_ticks_total_ev_vt;
   unsigned ops_blocked_ticks_max_ev_vt;
   unsigned ops_blocked_ticks_min_ev_vt;
   unsigned ops_wakeup_ticks_max_ev_vt;
   unsigned ops_wakeup_ticks_min_ev_vt;
   unsigned ops_network_ticks_max_ev_vt;
   unsigned ops_network_ticks_min_ev_vt;
+  unsigned average_latency_ev_vt;
+  unsigned average_network_latency_ev_vt;
+  unsigned average_wakeup_latency_ev_vt;
 
 #endif
 
