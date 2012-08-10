@@ -22,7 +22,7 @@ make install
 cd ..
 
 cd gperftools-2.0
-./configure --prefix=`pwd`/../built_deps
+./configure --prefix=`pwd`/../built_deps --enable-frame-pointers
 make clean
 make -j
 make install
