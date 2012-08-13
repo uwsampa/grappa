@@ -2,6 +2,7 @@
 
 #include "Delegate.hpp"
 #include "Timestamp.hpp"
+#include "common.hpp"
 
 #include <cassert>
 #include <numeric>
@@ -68,8 +69,8 @@ static void memory_write_request_am( memory_write_request_args * args, size_t si
   delegate_stats.count_word_write_am();
 
   DCHECK( (int64_t)args->address.pointer() > 0x1000 )<< "read request:"
-                                                    << "\n address="<<args->address
-                                                    << "\n descriptor="<<args->descriptor;
+						     << "\n address="<<args->address
+						     << "\n descriptor="<<args->descriptor;
   DCHECK_EQ( payload_size, sizeof(int64_t) );
   int64_t payload_int = *(static_cast<int64_t*>(payload));
   VLOG(3) << "payload("<<(void*)payload<<")="<<payload_int<<"\n    pointer="<<(void*)args->address.pointer();
@@ -405,15 +406,15 @@ void DelegateStatistics::dump() {
 	    << "ops_blocked_ticks_total: " << ops_blocked_ticks_total  << ", "
 	    << "ops_blocked_ticks_min: " << ops_blocked_ticks_min  << ", "
 	    << "ops_blocked_ticks_max: " << ops_blocked_ticks_max  << ", "
-	    << "average_latency: " << (double) ops_blocked_ticks_total / ops_blocked  << ", "
+	    << "average_latency: " << nanless_double_ratio( ops_blocked_ticks_total, ops_blocked ) << ", "
 	    << "ops_network_ticks_total: " << ops_network_ticks_total  << ", "
 	    << "ops_network_ticks_min: " << ops_network_ticks_min  << ", "
 	    << "ops_network_ticks_max: " << ops_network_ticks_max  << ", "
-	    << "average_network_latency: " << (double) ops_network_ticks_total / ops_blocked  << ", "
+	    << "average_network_latency: " << nanless_double_ratio( ops_network_ticks_total, ops_blocked ) << ", "
 	    << "ops_wakeup_ticks_total: " << ops_wakeup_ticks_total  << ", "
 	    << "ops_wakeup_ticks_min: " << ops_wakeup_ticks_min  << ", "
 	    << "ops_wakeup_ticks_max: " << ops_wakeup_ticks_max  << ", "
-	    << "average_wakeup_latency: " << (double) ops_wakeup_ticks_total / ops_blocked  << ", "
+	    << "average_wakeup_latency: " << nanless_double_ratio( ops_wakeup_ticks_total, ops_blocked ) << ", "
 	    << " }" << std::endl;
 }
 
@@ -447,9 +448,9 @@ void DelegateStatistics::profiling_sample() {
   VT_COUNT_UNSIGNED_VAL( ops_network_ticks_min_ev_vt, ops_network_ticks_min );
   VT_COUNT_UNSIGNED_VAL( ops_wakeup_ticks_max_ev_vt, ops_wakeup_ticks_max );
   VT_COUNT_UNSIGNED_VAL( ops_wakeup_ticks_min_ev_vt, ops_wakeup_ticks_min );
-  VT_COUNT_DOUBLE_VAL( average_latency_ev_vt, (double) ops_blocked_ticks_total / ops_blocked );
-  VT_COUNT_DOUBLE_VAL( average_network_latency_ev_vt, (double) ops_network_ticks_total / ops_blocked );
-  VT_COUNT_DOUBLE_VAL( average_wakeup_latency_ev_vt, (double) ops_wakeup_ticks_total / ops_blocked );
+  VT_COUNT_DOUBLE_VAL( average_latency_ev_vt, nanless_double_ratio( ops_blocked_ticks_total, ops_blocked ) );
+  VT_COUNT_DOUBLE_VAL( average_network_latency_ev_vt, nanless_double_ratio( ops_network_ticks_total, ops_blocked ) );
+  VT_COUNT_DOUBLE_VAL( average_wakeup_latency_ev_vt, nanless_double_ratio( ops_wakeup_ticks_total, ops_blocked ) );
 #endif
 }
 
