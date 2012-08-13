@@ -42,8 +42,8 @@ static const size_t round_to_4kb_page( size_t size ) {
 }
 
 GlobalMemoryChunk::~GlobalMemoryChunk() {
-  PCHECK( 0 == shmdt( memory_ ) ) << "GlobalMemoryChunk destructor failed to detach from shared memory region";
-  PCHECK( 0 == shmctl(shm_id_, IPC_RMID, NULL ) ) << "GlobalMemoryChunk destructor failed to deallocate shared memory region id";
+  PCHECK( -1 != shmdt( memory_ ) ) << "GlobalMemoryChunk destructor failed to detach from shared memory region";
+  PCHECK( -1 != shmctl(shm_id_, IPC_RMID, NULL ) ) << "GlobalMemoryChunk destructor failed to deallocate shared memory region id";
 }
 
 GlobalMemoryChunk::GlobalMemoryChunk( size_t size )
