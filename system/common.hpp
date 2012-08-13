@@ -39,6 +39,11 @@ inline double SoftXMT_walltime(void) {
 #endif
 }
 
+template< typename T, typename U >
+static inline double nanless_double_ratio( T x, U y ) {
+  return y == 0 ? 0.0 : static_cast<double>(x) / static_cast<double>(y);
+}
+
 /// Disable copy constructor and assignment operator.
 /// Put this in your class' private declarations.
 /// (from google public C++ coding standards)
