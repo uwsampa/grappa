@@ -240,14 +240,23 @@ run: $(TARGET)
 #
 # run tests for a component
 #
+
+ifdef VERBOSE_TESTS
+TEST_LOG_LEVEL=test_suite
+TEST_REPORT_LEVEL=confirm
+else
+TEST_LOG_LEVEL=nothing
+TEST_REPORT_LEVEL=no
+endif
+
 mpi_test: $(TARGET) $($(MPITYPE)_ENVVAR_TEMP) $($(MPITYPE)_EPILOG_TEMP) $($(MPITYPE)_BATCH_TEMP)
 	$(ENV_VARIABLES) \
-	$($(MPITYPE)_RUN) ./$< --log_level=test_suite --run_test=$(TARGET:.test=) $(GARGS)
+	$($(MPITYPE)_RUN) ./$< --log_level=$(TEST_LOG_LEVEL) --report_level=$(TEST_REPORT_LEVEL) --run_test=$(TARGET:.test=) $(GARGS)
 
 test: $(TARGET)
 	-killall $<
 	$(ENV_VARIABLES) \
-	./$< --log_level=test_suite --run_test=$(TARGET:.test=) -- $(ARGS)
+	./$< --log_level=$(TEST_LOG_LEVEL) --report_level=$(TEST_REPORT_LEVEL) --run_test=$(TARGET:.test=) -- $(ARGS)
 
 
 # TODO: fixme so I'm not so dumb
