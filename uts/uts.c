@@ -32,7 +32,11 @@
 
 #include "uts.h"
 
+// xmt version requires gcc
+#ifdef __MTA__
+#else
 using namespace uts;
+#endif /* __MTA__ */
 
 /***********************************************************
  *  tree generation and search parameters                  *
@@ -97,6 +101,9 @@ double shiftDepth = 0.5;
 
 /* compute granularity - number of rng evaluations per tree node */
 int computeGranularity = 1;
+
+/* payload size */
+int payloadSize = 0;
 
 /* display parameters */
 int debug    = 0;
@@ -295,6 +302,9 @@ int uts_childType(Node *parent) {
   }
 }
 
+int uts_nodeId(Node *parent) {
+  return (parent->id);
+}
 
 // construct string with all parameter settings 
 int uts_paramsToStr(char *strBuf, int ind) {
@@ -307,6 +317,8 @@ int uts_paramsToStr(char *strBuf, int ind) {
   // tree shape parameters
   ind += sprintf(strBuf+ind, "Tree shape parameters:\n");
   ind += sprintf(strBuf+ind, "  root branching factor b_0 = %.1f, root seed = %d\n", b_0, rootId);
+
+  ind += sprintf(strBuf+ind, "Payload: %d\n", payloadSize);
 	
   if (type == GEO || type == HYBRID) {
     ind += sprintf(strBuf+ind, "  GEO parameters: gen_mx = %d, shape function = %d (%s)\n", 
@@ -400,6 +412,8 @@ void uts_parseParams(int argc, char *argv[]){
         shiftDepth = atof(argv[i+1]); break;
       case 'g':
         computeGranularity = max(1,atoi(argv[i+1])); break;
+      case 'p':
+        payloadSize = max(0,atoi(argv[i+1])); break;
       default:
         err = i;
     }
