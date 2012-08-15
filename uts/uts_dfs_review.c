@@ -88,10 +88,10 @@ counter_t maxTreeDepth = 0;
 
 counter_t global_id = 0;
 counter_t global_child_index = 0;
-int NumChildren[1<<31];
-int ChildIndex[1<<31];
-int Child[1<<31];
-int Payload[1<<31];
+int NumChildren[1<<32];
+int ChildIndex[1<<32];
+int Child[1<<32];
+int Payload[1<<32];
 
 /***********************************************************
  *  UTS Implementation Hooks                               *
@@ -109,7 +109,7 @@ char * impl_getName() {
 int  impl_paramsToStr(char *strBuf, int ind) { 
   ind += sprintf(strBuf+ind, "Execution strategy:  %s\n", impl_getName());
 #ifdef __MTA__
-  ind += sprintf(strBuf+ind, "  MTA parallel search using %d teams, %d max teams\n", mta_get_num_teams(), mta_get_max_teams()); 
+  ind += sprintf(strBuf+ind, "  MTA parallel search using %d teams, %d max teams, %d max streams per team\n", mta_get_num_teams(), mta_get_max_teams(), max_streams); 
 #endif
   return ind;
 }
@@ -138,13 +138,6 @@ typedef struct {
 
 int threshold = 4;
 void parallel_loop(int start_index, int iterations, void (*loop_body)(int i, void *sargs), void * shared_args) {
-//  switch (iterations) {
-//  case 0:
-//    return;
-//  case 1:
-//    loop_body(start_index, shared_args);
-//    break;
-//  default:
   if (iterations < threshold) {
     for (int iter=0; iter<iterations; iter++) {
       loop_body(start_index+iter, shared_args);
@@ -296,9 +289,10 @@ int main(int argc, char *argv[]) {
   Node root;
   double t1=0.0, t2=0.0;
 
-  fprintf(stderr, "%lu %lu %lu", Child, NumChildren, ChildIndex);
-  
+
   uts_parseParams(argc, argv);
+
+  if (mta_rt_set_stream_limit(max_streams)) fprintf(stderr, "mta_rt_set_stream_limit failed\n");
 
   if (GET_THREAD_NUM == 0) {
     uts_printParams();
@@ -329,17 +323,12 @@ int main(int argc, char *argv[]) {
 
 #pragma mta fence
   t2 = uts_wctime();
-  
-  maxTreeDepth = r.maxdepth;
-  nNodes  = r.size;
-  nLeaves = r.leaves;
 
   if (GET_THREAD_NUM == 0) {
     uts_showStats(GET_NUM_THREADS, 0, t2-t1, nNodes, nLeaves, maxTreeDepth);
-  } 
-  
-  
-  fprintf(stderr, "searching tree twice....\n");
+  }
+
+fprintf(stderr, "searching tree twice....\n");
 #pragma mta fence
   t1 = uts_wctime();
 
@@ -348,13 +337,9 @@ int main(int argc, char *argv[]) {
 #pragma mta fence
   t2 = uts_wctime();
 
-  maxTreeDepth = r.maxdepth;
-  nNodes  = r.size;
-  nLeaves = r.leaves;
-
   if (GET_THREAD_NUM == 0) {
     uts_showStats(GET_NUM_THREADS, 0, t2-t1, nNodes, nLeaves, maxTreeDepth);
   } 
-  
+
   return 0;
 }

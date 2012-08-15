@@ -98,6 +98,7 @@ extern int    computeGranularity;
 extern int    payloadSize;
 extern int    debug;
 extern int    verbose;
+extern int    max_streams;
 
 /* For stats generation: */
 typedef unsigned long long counter_t;

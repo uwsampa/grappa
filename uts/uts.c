@@ -109,6 +109,7 @@ int payloadSize = 0;
 int debug    = 0;
 int verbose  = 1;
 
+int max_streams = 127;
 
 /***********************************************************
  *                                                         *
@@ -414,6 +415,8 @@ void uts_parseParams(int argc, char *argv[]){
         computeGranularity = max(1,atoi(argv[i+1])); break;
       case 'p':
         payloadSize = max(0,atoi(argv[i+1])); break;
+      case 's':
+	max_streams = max(0, min(max_streams, atoi(argv[i+1]))); break;
       default:
         err = i;
     }
@@ -447,6 +450,7 @@ void uts_helpMessage() {
   printf("   -g  int   compute granularity: number of rng_spawns per node\n");
   printf("   -v  int   nonzero to set verbose output\n");
   printf("   -x  int   debug level\n");
+  printf("   -s  int   maximum number of streams per processor (CrayXMT)\n");
 
   // Get help message from the implementation
   printf("\n  Additional Implementation Parameters:\n");
