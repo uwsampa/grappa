@@ -32,8 +32,7 @@ extern "C" {
 #define MAXNUMCHILDREN    100  // cap on children (BIN root is exempt)
 
 struct node_t {
- 
-  int id; /* used for building the tree from pointers */
+  int64_t id; /* used for building the tree from pointers */
   
   int type;          // distribution governing number of children
   int height;        // depth of this node in the tree
@@ -127,7 +126,7 @@ int    uts_numChildren_bin(Node * parent);
 int    uts_numChildren_geo(Node * parent);
 int    uts_childType(Node *parent);
 
-int    uts_nodeId(Node *parent);
+int64_t    uts_nodeId(Node *parent);
 
 #else
 
@@ -137,7 +136,7 @@ int    uts_numChildren_bin(uts::Node * parent);
 int    uts_numChildren_geo(uts::Node * parent);
 int    uts_childType(uts::Node *parent);
 
-int    uts_nodeId(uts::Node *parent);
+int64_t    uts_nodeId(uts::Node *parent);
 #endif /* __MTA__ */
 
 /* Implementation Specific Functions */

@@ -303,7 +303,7 @@ int uts_childType(Node *parent) {
   }
 }
 
-int uts_nodeId(Node *parent) {
+int64_t uts_nodeId(Node *parent) {
   return (parent->id);
 }
 
