@@ -87,6 +87,8 @@ static void sigabrt_sighandler( int signum ) {
   raise( SIGUSR1 );
 }
 
+DECLARE_bool( global_memory_use_hugepages );
+
 /// Initialize SoftXMT components. We are not ready to run until the
 /// user calls SoftXMT_activate().
 void SoftXMT_init( int * argc_p, char ** argv_p[], size_t global_memory_size_bytes)
@@ -134,14 +136,28 @@ void SoftXMT_init( int * argc_p, char ** argv_p[], size_t global_memory_size_byt
   //  initializes system_wide global_aggregator
   global_aggregator.init();
 
-  // by default, will allocate as many whole 1GB hugepages as it is
+  // by default, will allocate as much shared memory as it is
   // possible to evenly split among the processors on a node
   if (global_memory_size_bytes == -1) {
     int64_t nnode = atoi(getenv("SLURM_NNODES"));
     int64_t ppn = atoi(getenv("SLURM_NTASKS_PER_NODE"));
     int64_t bytes_per_proc = SHMMAX / ppn;
+    
+    // be aware of hugepages
+    // Each core should ask for a multiple of 1GB hugepages
+    // and the whole node should ask for no more than the total pages available
+    if ( FLAGS_global_memory_use_hugepages ) {
+      int64_t pages_per_proc = bytes_per_proc / (1L << 30);
+      int64_t new_bpp = pages_per_proc * (1L << 30);
+      VLOG_IF(1, bytes_per_proc != new_bpp) << "With ppn=" << ppn << ", can only allocate " 
+                                            << pages_per_proc*ppn << " / " << SHMMAX / (1L << 30) << " 1GB huge pages per node";
+      bytes_per_proc = new_bpp;
+    }
+
     int64_t bytes = nnode * ppn * bytes_per_proc;
-    VLOG(1) << "nnode: " << nnode << ", ppn: " << ppn << ", total_Bs: " << bytes;
+    int64_t bytes_per_node = ppn * bytes_per_proc;
+    DVLOG(2) << "bpp = " << bytes_per_proc << ", bytes = " << bytes << ", bytes_per_node = " << bytes_per_node << ", SHMMAX = " << SHMMAX;
+    VLOG(1) << "nnode: " << nnode << ", ppn: " << ppn << ", iBs/node: " << log2((double)bytes_per_node) << ", total_iBs: " << log2((double)bytes);
     global_memory_size_bytes = bytes;
   }
 
