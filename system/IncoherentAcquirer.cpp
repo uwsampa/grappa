@@ -82,7 +82,7 @@ void IAStatistics::profiling_sample() {
   VT_COUNT_UNSIGNED_VAL( acquire_network_ticks_min_ev_vt, acquire_network_ticks_min );
   VT_COUNT_UNSIGNED_VAL( acquire_wakeup_ticks_max_ev_vt, acquire_wakeup_ticks_max );
   VT_COUNT_UNSIGNED_VAL( acquire_wakeup_ticks_min_ev_vt, acquire_wakeup_ticks_min );
-  VT_COUNT_DOUBLE_VAL( average_latency_ev_vt, nanless_double_ratio( acquire_blocked_ticks_tota, acquire_blocked ) );
+  VT_COUNT_DOUBLE_VAL( average_latency_ev_vt, nanless_double_ratio( acquire_blocked_ticks_total, acquire_blocked ) );
   VT_COUNT_DOUBLE_VAL( average_network_latency_ev_vt, nanless_double_ratio( acquire_network_ticks_total, acquire_blocked ) );
   VT_COUNT_DOUBLE_VAL( average_wakeup_latency_ev_vt, nanless_double_ratio( acquire_wakeup_ticks_total, acquire_blocked ) );
 #endif

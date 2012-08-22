@@ -41,10 +41,8 @@ class RunningStandardDeviation {
     double value() {
       double sq = s0*s2 - pow(s1, 2);
       if (sq > 0 && s0 > 0) {
-        LOG(INFO) << "CHECKSDEV" << sq << " " << s0;
         return sqrt(sq) / s0;
       } else {
-        LOG(INFO) << "CHECKSDEV" << sq << " " << s0;
         return 0;
       }
     }
