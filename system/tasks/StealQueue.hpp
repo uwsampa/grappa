@@ -6,6 +6,8 @@
 #include <glog/logging.h>   
 #include <stdlib.h>
 
+#include <sstream>
+
 // profiling/tracing
 #include "../PerformanceTools.hpp"
 
@@ -21,6 +23,8 @@ GRAPPA_DECLARE_EVENT_GROUP(scheduler);
 
 struct workStealRequest_args;
 struct workStealReply_args;
+struct workShareRequest_args;
+struct workShareReply_args;
 
 /// Type for Node ID. 
 #include <boost/cstdint.hpp>
@@ -63,14 +67,30 @@ class StealQueue {
         static StealQueue<T>* staticQueueAddress;        
         
         void steal_reply( uint64_t amt, uint64_t total, T * stolen_work, size_t stolen_size_bytes );
+        
+        void workShareRequest( uint64_t remoteSize, Node from, T * data, int num );
+        void workShareReplyFewer( int amountDenied );
+        void workShareReplyGreater( int amountGiven, T * data );
+
+        void reclaimSpace();
+        
         static void workStealReply_am( workStealReply_args * args,  size_t size, void * payload, size_t payload_size );
         static void workStealRequest_am( workStealRequest_args * args, size_t size, void * payload, size_t payload_size );
+        static void workShareRequest_am ( workShareRequest_args * args, size_t args_size, void * payload, size_t payload_size );
+        static void workShareReplyFewer_am ( workShareReply_args * args, size_t args_size, void * payload, size_t payload_size );
+        static void workShareReplyGreater_am ( workShareReply_args * args, size_t args_size, void * payload, size_t payload_size );
         
         std::ostream& dump ( std::ostream& o ) const {
-            return o << "StealQueue[depth=" << depth()
-                     << "; indices(top= " << top 
-                              << " bottom=" << bottom << ")"
-                     << "; stackSize=" << stackSize << "]";
+          std::stringstream ss;
+          for ( uint64_t i = top; i>bottom; i-- ) {
+            ss << stack[i-1];
+            ss << ",\n";
+          }
+          return o << "StealQueue[depth=" << depth()
+            << "; indices(top= " << top 
+            << " bottom=" << bottom << ")"
+            << "; stackSize=" << stackSize 
+            << "; contents=\n" << ss.str() << "]";
         }
     
     public:
@@ -119,6 +139,11 @@ class StealQueue {
 
         template< typename U >
         friend std::ostream& operator<<( std::ostream& o, const StealQueue<U>& sq );
+      
+        static const int bufsize = 110; // TODO: I know 32B*110 < aggreg bufsize-header size
+                                        // but do this precisely
+
+        int64_t workShare( Node target );
 };
 
 
@@ -135,6 +160,8 @@ inline void StealQueue<T>::push( T c ) {
   nNodes++;
   maxStackDepth = maxint(top, maxStackDepth);
   //s->maxTreeDepth = maxint(s->maxTreeDepth, c->height); //XXX dont want to deref c here (expensive for just a bookkeeping operation
+  
+  DVLOG(5) << "after push:" << *this;
 }
 
 /// get top element
@@ -156,6 +183,8 @@ inline void StealQueue<T>::pop( ) {
   
   top--;
   nVisited++;
+  
+  DVLOG(5) << "after pop:" << *this;
 }
 
 
@@ -221,6 +250,13 @@ struct workStealReply_args {
 static int64_t local_steal_amount;
 static uint64_t received_tasks;
 static Thread * steal_waiter = NULL;
+  
+static int64_t local_push_retVal = -1;
+static int64_t local_push_amount = 0;
+static bool local_push_replyfewer;
+static uint64_t local_push_old_bottom;
+static Thread * push_waiter = NULL;
+static bool pendingWorkShare = false;
 
 template <typename T>
 void StealQueue<T>::steal_reply( uint64_t amt, uint64_t total, T * stolen_work, size_t stolen_size_bytes ) {
@@ -231,10 +267,7 @@ void StealQueue<T>::steal_reply( uint64_t amt, uint64_t total, T * stolen_work, 
       //VT_COUNT_UNSIGNED_VAL( thiefStack->steal_success_ev_vt, k );
 #endif
 
-      // reclaim array space if empty
-      if ( depth() == 0 ) {
-        mkEmpty();
-      }
+      reclaimSpace();
 
       CHECK( top + amt < stackSize ) << "steal reply: overflow (top:" << top << " stackSize:" << stackSize << " amt:" << amt << ")";
       memcpy(&stack[top], stolen_work, stolen_size_bytes);
@@ -280,7 +313,6 @@ void StealQueue<T>::workStealReply_am( workStealReply_args * args,  size_t size,
     thiefStack->steal_reply( args->stealAmt, args->total, stolen_work, payload_size );
 }
 
-
 template <typename T>
 void StealQueue<T>::workStealRequest_am(workStealRequest_args * args, size_t size, void * payload, size_t payload_size) {
     int k = args->k;
@@ -309,8 +341,6 @@ void StealQueue<T>::workStealRequest_am(workStealRequest_args * args, size_t siz
       T* victimStackBase = victimStack->stack;
       T* victimStealStart = victimStackBase + victimBottom;
 
-      const int bufsize = 110; // TODO: I now 32B*110 < aggreg bufsize-header size
-                               // but do this precisely
       int offset = 0;
       for ( int remain = stealAmt; remain > 0; ) {
         int transfer_amt = (remain < bufsize) ? remain : bufsize;
@@ -349,10 +379,7 @@ int StealQueue<T>::steal_locally( Node victim, int op ) {
 
     GRAPPA_PROFILE_CREATE( stealprof, "steal_locally", "(suspended)", GRAPPA_SUSPEND_GROUP );
         
-    // reclaim array space if empty
-    if ( depth() == 0 ) {
-      mkEmpty();
-    }
+    reclaimSpace(); 
 
     // steal is blocking
     // TODO: use suspend-wake mechanism
@@ -370,6 +397,227 @@ int StealQueue<T>::steal_locally( Node victim, int op ) {
     return local_steal_amount;
 }
 /////////////////////////////////////////////////////////
+
+struct workShareRequest_args {
+  uint64_t queueSize;
+  int amountPushed;
+  Node from;
+};
+
+/// returns change in number of elements
+template <typename T>
+int64_t StealQueue<T>::workShare( Node target ) {
+  CHECK( !pendingWorkShare ) << "Implementation allows only one pending workshare per node";
+  CHECK( global_communicator.mynode() != target ) << "cannot workshare with self target: " << target;
+
+  uint64_t mySize = depth();
+    
+  reclaimSpace();
+
+  // initialize sharing state
+  local_push_retVal = -1;
+
+  uint64_t amount = mySize / 2;  // offer half
+  amount = MIN_INT( amount, bufsize ); // or max xfer size
+
+  local_push_amount = amount;
+
+  uint64_t origBottom = bottom;
+  uint64_t origTop = top;
+
+  // reserve a chunk
+  bottom = bottom + amount;
+
+  T * xfer_stackBase = stack;
+  T * xfer_start = xfer_stackBase + origBottom;
+
+  pendingWorkShare = true;
+  local_push_old_bottom = origBottom;
+
+  DVLOG(5) << "Initiating work share: target=" << target << ", mySize=" << mySize << ", amount=" << amount << ", new bottom=" << bottom;
+  
+  workShareRequest_args args = { mySize, amount, global_communicator.mynode() };
+  SoftXMT_call_on( target, StealQueue<T>::workShareRequest_am, &args, sizeof(args), xfer_start, amount * sizeof(T) );
+
+  if ( local_push_retVal < 0 ) {
+    push_waiter = global_scheduler.get_current_thread();
+    global_scheduler.thread_suspend();
+    CHECK( local_push_retVal >= 0 );
+  }
+  
+  DVLOG(5) << "Initiator wakes from work share: target=" << target << ", updated bottom=" << bottom;
+
+  pendingWorkShare = false;
+
+  if ( local_push_replyfewer ) {
+    DVLOG(5) << "  woken by: target " << target << ", had fewer and denied " << local_push_retVal;
+
+    // amount pushed = total amount - amount denied
+    return -(amount - local_push_retVal);
+  } else {
+    DVLOG(5) << "  woken by: target " << target << ", had greater so denied all and sent " << local_push_retVal;
+
+    // amount received
+    return local_push_retVal;
+  }
+}
+
+struct workShareReply_args {
+  int amount;
+};
+
+template <typename T>
+void StealQueue<T>::reclaimSpace() {
+  // reclaim space if the queue is empty
+  // and there is no pending transfer below 'bottom'
+  if ( depth() == 0 && !pendingWorkShare ) {
+    mkEmpty();
+  }
+}
+
+template <typename T>
+void StealQueue<T>::workShareReplyFewer( int amountDenied ) {
+  // restore denied work
+  CHECK( bottom >= amountDenied ) << "bottom = " << bottom 
+                                  << " amountDenied = " << amountDenied;
+
+  // invariant that bottom does not change
+  CHECK( bottom == local_push_old_bottom+local_push_amount );
+
+  uint64_t prev_bottom = bottom;
+  bottom -= amountDenied;
+
+#if DEBUG
+      T * xfer_start = stack + (bottom-local_push_amount);
+  
+      // 0 out the transfered stuff (to detect errors)
+      memset(xfer_start, 0, (local_push_amount-amountDenied)*sizeof( T ) );
+#endif
+  
+  DVLOG(5) << "replyFewer: " << amountDenied << " denied; moving bottom " << prev_bottom << " -> " << bottom
+          << " " << *this;
+
+  local_push_replyfewer = true;
+  local_push_retVal = amountDenied;
+  if ( push_waiter != NULL ) {
+    global_scheduler.thread_wake( push_waiter );
+    push_waiter = NULL;
+  }
+  
+}
+
+template <typename T>
+void StealQueue<T>::workShareReplyGreater( int amountGiven, T * data ) {
+  // restore all pushed work
+  CHECK( bottom >= local_push_amount );
+  
+  // invariant that bottom does not change
+  CHECK( bottom == local_push_old_bottom+local_push_amount );
+
+  uint64_t prev_bottom = bottom;
+  bottom -= local_push_amount;
+
+
+  // copy received work onto stack
+  CHECK( top + amountGiven < stackSize ) << "steal reply: overflow (top:" << top << " stackSize:" << stackSize << " amt:" << amountGiven << ")";
+  memcpy(&stack[top], data, amountGiven * sizeof(T));
+
+  top += amountGiven;
+
+  DVLOG(5) << "replyGreater: " << amountGiven << " given; moving bottom " << prev_bottom << " -> " << bottom
+          << " " << *this;
+
+  local_push_replyfewer = false;
+  local_push_retVal = amountGiven;
+  if ( push_waiter != NULL ) {
+    global_scheduler.thread_wake( push_waiter );
+    push_waiter = NULL;
+  }
+}
+
+template <typename T>
+void StealQueue<T>::workShareReplyFewer_am ( workShareReply_args * args, size_t args_size, void * payload, size_t payload_size ) {
+  StealQueue<T> * localQueue = StealQueue::staticQueueAddress;
+  localQueue->workShareReplyFewer( args->amount );
+}
+
+template <typename T>
+void StealQueue<T>::workShareReplyGreater_am ( workShareReply_args * args, size_t args_size, void * payload, size_t payload_size ) {
+  CHECK( payload_size == args->amount * sizeof(T) );
+
+  StealQueue<T> * localQueue = StealQueue::staticQueueAddress;
+  localQueue->workShareReplyGreater( args->amount, static_cast<T*>( payload ) );
+}
+
+template <typename T>
+void StealQueue<T>::workShareRequest_am ( workShareRequest_args * args, size_t args_size, void * payload, size_t payload_size ) {
+  CHECK( payload_size == args->amountPushed * sizeof(T) );
+
+  StealQueue<T> * localQueue = StealQueue::staticQueueAddress;
+  localQueue->workShareRequest( args->queueSize, args->from, static_cast<T*>( payload ), args->amountPushed );
+}
+
+template <typename T>
+void StealQueue<T>::workShareRequest( uint64_t remoteSize, Node from, T * data, int num ) {
+  uint64_t mySize = depth();
+  
+  reclaimSpace();
+  
+  int64_t diff = mySize - remoteSize;
+  if ( diff > 0 ) {
+    // we have more elements, so ignore the incoming data and send some
+    
+    // cannot violate that bottom is constant during pendingWorkShare=true
+    if ( pendingWorkShare ) {
+      // reply that all work is denied, none sent
+      workShareReply_args reply_args = { num };
+      SoftXMT_call_on ( from, &StealQueue<T>::workShareReplyFewer_am, &reply_args );
+      return;
+    }
+
+    // no pendingWorkShare, so proceed
+    uint64_t balanceAmount = ((mySize+remoteSize)/2) - remoteSize;
+    int amountToSend = MIN_INT( balanceAmount, bufsize ); // XXX: restricting to one medium AM
+    CHECK( amountToSend >= 0 ) << "amountToSend = " << amountToSend;
+    
+    uint64_t origBottom = bottom;
+    uint64_t origTop = top;
+    
+    // reserve a chunk
+    bottom = bottom + amountToSend;
+    
+    T * xfer_stackBase = stack;
+    T * xfer_start = xfer_stackBase + origBottom;
+  
+    DVLOG(5) << "from=" << from << ", size=" << mySize << " vs " << remoteSize << ", received " << num << ", sending " << amountToSend;
+
+    // reply with number of elements being sent
+    workShareReply_args reply_args = { amountToSend };
+    SoftXMT_call_on( from, &StealQueue<T>::workShareReplyGreater_am, &reply_args, sizeof(reply_args), xfer_start, amountToSend * sizeof(T) );
+
+#if DEBUG
+    // 0 out the transfered stuff (to detect errors)
+    memset(xfer_start, 0, amountToSend*sizeof( T ) );
+#endif
+  } else {
+    // we have fewer elements, so take it and reply that we had fewer elements in the queue
+
+    uint64_t balanceAmount = ((mySize+remoteSize)/2) - mySize;
+    int amountToTake = MIN_INT( balanceAmount, num );
+    CHECK( amountToTake >= 0 ) << "amountToTake = " << amountToTake;
+    
+    DVLOG(5) << "from=" << from << ", size=" << mySize << " vs " << remoteSize << ", received " << num << ", taking " << amountToTake;
+
+    // TODO consider below bottom
+    memcpy(&stack[top], data, amountToTake * sizeof(T) );
+    top += amountToTake;
+
+    // reply with number of elements denied
+    workShareReply_args reply_args = { num - amountToTake };
+    SoftXMT_call_on ( from, &StealQueue<T>::workShareReplyFewer_am, &reply_args );
+  }
+}
+
 
 template <typename T>
 std::ostream& operator<<( std::ostream& o, const StealQueue<T>& sq ) {
