@@ -2,6 +2,9 @@
 #include "../SoftXMT.hpp"
 #include "../PerformanceTools.hpp"
 #include "TaskingScheduler.hpp"
+#include "common.hpp"
+
+DEFINE_bool( work_share, false, "Allow work-sharing between public task queues" );
 
 //#define MAXQUEUEDEPTH 500000
 #define MAXQUEUEDEPTH (1L<<26)
@@ -17,7 +20,9 @@ TaskManager::TaskManager ( )
   , workDone( false )
   , all_terminate( false )
   , doSteal( false )
+  , doShare( false )
   , stealLock( true )
+  , wshareLock( true )
   , nextVictimIndex( 0 )
   , stats( this )
 {
@@ -26,7 +31,12 @@ TaskManager::TaskManager ( )
 
 
 void TaskManager::init (bool doSteal_arg, Node localId_arg, Node * neighbors_arg, Node numLocalNodes_arg, int chunkSize_arg, int cbint_arg) {
+  CHECK( !(doSteal_arg && FLAGS_work_share) ) << "cannot use both work stealing and sharing";
+  fast_srand(0);
+
   doSteal = doSteal_arg;
+  doShare = FLAGS_work_share;
+
   localId = localId_arg;
   neighbors = neighbors_arg;
   numLocalNodes = numLocalNodes_arg;
@@ -42,42 +52,57 @@ void TaskManager::init (bool doSteal_arg, Node localId_arg, Node * neighbors_arg
     neighbors[i-1] = temp;
   }
 }
-        
+     
 
 bool TaskManager::getWork( Task * result ) {
-    GRAPPA_FUNCTION_PROFILE( GRAPPA_TASK_GROUP );
+  GRAPPA_FUNCTION_PROFILE( GRAPPA_TASK_GROUP );
 
-    while ( !workDone ) {
-        if ( tryConsumeLocal( result ) ) {
-            return true;
-        }
+  while ( !workDone ) {
 
-        if ( waitConsumeAny( result ) ) {
-            return true;
-        }
+    if ( tryConsumeLocal( result ) ) {
+      return true;
     }
 
-    return false;
+    if ( waitConsumeAny( result ) ) {
+      return true;
+    }
+  }
 
+  return false;
 }
 
 
 /// "work queue" operations
 bool TaskManager::tryConsumeLocal( Task * result ) {
-    if ( privateHasEle() ) {
-        *result = privateQ.front();
-        privateQ.pop_front();
-        stats.record_private_task_dequeue();
-        return true;
-    } else if ( publicHasEle() ) {
-        DVLOG(5) << "consuming local task";
-        *result = publicQ.peek();
-        publicQ.pop( );
-        stats.record_public_task_dequeue();
-        return true;
-    } else {
-        return false;
+  if ( privateHasEle() ) {
+    *result = privateQ.front();
+    privateQ.pop_front();
+    stats.record_private_task_dequeue();
+    return true;
+  } else {
+    // initiate load balancing with prob=1/publicQ.depth
+    if ( doShare && wshareLock ) {
+      wshareLock = false;
+      if ( publicQ.depth() == 0 || ((fast_rand()%(1<<16)) < ((1<<16)/publicQ.depth())) ) {
+        Node target = fast_rand()%SoftXMT_nodes();
+        if ( target == SoftXMT_mynode() ) target = (target+1)%SoftXMT_nodes(); // don't share with ourself
+        DVLOG(5) << "before share: " << publicQ;
+        int64_t numChange = publicQ.workShare( target );
+        DVLOG(5) << "after share of " << numChange << " tasks: " << publicQ;
+      }
+      wshareLock = true;
     }
+
+    if ( publicHasEle() ) {
+      DVLOG(5) << "consuming local task";
+      *result = publicQ.peek();
+      publicQ.pop( );
+      stats.record_public_task_dequeue();
+      return true;
+    } else {
+      return false;
+    }
+  }
 }
 
 /// Only returns when there is work or when

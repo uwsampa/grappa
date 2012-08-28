@@ -58,7 +58,9 @@ class TaskManager {
         bool all_terminate;
 
         bool doSteal;   // stealing on/off
+        bool doShare;   // sharing on/off
         bool stealLock; // steal lock
+        bool wshareLock; // work share lock
         int cbint;      // how often to make local public work visible
 
         // to support hierarchical dynamic load balancing
@@ -98,6 +100,7 @@ class TaskManager {
                 << "  sharedMayHaveWork: " << sharedMayHaveWork << std::endl
                 << "  workDone: " << workDone << std::endl
                 << "  stealLock: " << stealLock << std::endl
+                << "  wshareLock: " << wshareLock << std::endl
                 << "}";
         }
 
@@ -268,7 +271,8 @@ inline bool TaskManager::available( ) const {
             << " privateHasEle()=" << privateHasEle();
     return privateHasEle() 
            || publicHasEle()
-           || (doSteal && stealLock );
+           || (doSteal && stealLock )
+           || (doShare && wshareLock );
 }
 
 inline bool TaskManager::local_available( ) const {
@@ -310,7 +314,6 @@ inline void TaskManager::spawnRemotePrivate( void (*f)(T, S, R), T arg0, S arg1,
    * local cancel cbarrier
    */
 }
-
 
 extern TaskManager global_task_manager;
 
