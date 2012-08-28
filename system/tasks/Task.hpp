@@ -27,6 +27,15 @@ class Task {
     void* arg1;
     void* arg2;
 
+    std::ostream& dump ( std::ostream& o ) const {
+      return o << "Task{"
+               << " fn_p=" << fn_p
+               << ", arg0=" << std::dec << arg0
+               << ", arg1=" << std::dec << arg1
+               << ", arg2=" << std::dec << arg2
+               << "}";
+    }
+
   public:
     Task () {}
     Task (void (* fn_p)(void*, void*, void*), void* arg0, void* arg1, void* arg2) 
@@ -39,6 +48,8 @@ class Task {
       CHECK( fn_p!=NULL ) << "fn_p=" << (void*)fn_p << "\narg0=" << (void*)arg0 << "\narg1=" << (void*)arg1 << "\narg2=" << (void*)arg2;
       fn_p( arg0, arg1, arg2 );  // NOTE: this executes 1-parameter function's with 3 args
     }
+
+    friend std::ostream& operator<<( std::ostream& o, const Task& t );
 };
 
 template < typename T, typename S, typename R >
