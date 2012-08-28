@@ -184,6 +184,10 @@ std::ostream& operator<<( std::ostream& o, const TaskManager& tm ) {
     return tm.dump( o );
 }
 
+std::ostream& operator<<( std::ostream& o, const Task& t ) {
+    return t.dump( o );
+}
+
 void TaskManager::signal_termination( ) {
     workDone = true;
     SoftXMT_signal_done();
