@@ -109,6 +109,8 @@ AsyncParallelFor_Local_tests.o AsyncParallelFor_Local_tests.test: $(LIBRARY)
 AsyncParallelFor_Global_tests.o AsyncParallelFor_Global_tests.test: $(LIBRARY)
 AsyncParallelFor_Rate.o AsyncParallelFor_Rate.exe: $(LIBRARY)
 
+LocalIterator_tests.o LocalIterator_tests.test: $(LIBRARY)
+
 NetworkPerformance_tests.test NetworkPerformance_tests.o: $(LIBRARY)
 Gups_tests.o Gups_tests.test: $(LIBRARY)
 #
