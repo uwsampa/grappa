@@ -335,4 +335,22 @@ static void SoftXMT_memset(GlobalAddress<T> request_address, T value, size_t cou
   while (reply.replies_left > 0) SoftXMT_suspend();
 }
 
+LOOP_FUNCTOR_TEMPLATED(T, memset_func, nid, ((GlobalAddress<T>,base)) ((T,value)) ((size_t,count))) {
+  T * local_base = base.localize(), * local_end = (base+count).localize();
+  for (size_t i=0; i<local_end-local_base; i++) {
+    local_base[i] = value;
+  }
+}
+
+/// Does memset across a global array using a single task on each node and doing local assignments
+/// Uses 'GlobalAddress::localize()' to determine the range of actual memory from the global array
+/// on a particular node.
+template< typename T >
+void SoftXMT_memset_local(GlobalAddress<T> base, T value, size_t count) {
+  {
+    memset_func<T> f(base, value, count);
+    fork_join_custom(&f);
+  }
+}
+
 #endif /* define __FORK_JOIN_HPP__ */
