@@ -262,7 +262,7 @@ name() {} /* default constructor */\
 inline void operator()(int64_t) const; \
 }; \
 template< typename T > \
-inline void name::operator()(int64_t index_var) const
+inline void name<T>::operator()(int64_t index_var) const
 
 #define LOOP_FUNCTION(name, index_var) \
 struct name : ForkJoinIteration { \
