@@ -35,35 +35,20 @@ void user_main( void * ignore ) {
 
   BOOST_MESSAGE("checking local memset works");
   SOFTXMT_TIME(local_time, {
+    // local memset uses 'localize'
     SoftXMT_memset_local(array, 1L, N);
   });
+  //log_array("array", array);
 
+  const size_t nbuf = 1L<<22;
+  int64_t * buf = new int64_t[nbuf];
   for (size_t i=0; i<N; i+=nbuf) {
     size_t n = MIN(N-i, nbuf);
     Incoherent<int64_t>::RO c(array+i, n, buf);
     for (size_t j=0; j<n; j++) {
-      //VLOG(1) << c[j];
-      //BOOST_CHECK_EQUAL(c[j], 1);
-      CHECK(c[j] == 1) << ">>> j = " << j;
+      BOOST_CHECK_EQUAL(c[j], 1);
     }
   }
-
-  BOOST_MESSAGE("checking forall_local");
-  t = SoftXMT_walltime();
-  forall_local<uint64_t,set_0>(array, N);
-  double local_for_time = SoftXMT_walltime() - t;
-  
-  for (size_t i=0; i<N; i+=nbuf) {
-    size_t n = MIN(N-i, nbuf);
-    Incoherent<int64_t>::RO c(array+i, n, buf);
-    for (size_t j=0; j<n; j++) {
-      //VLOG(1) << c[j];
-      BOOST_CHECK_EQUAL(c[j], 0);
-      CHECK(c[j] == 0) << ">>> j = " << j;
-    }
-  }
-
-  VLOG(1) << "local_memset_time: " << local_time << ", local_for_time: " << local_for_time;
 }
 
 BOOST_AUTO_TEST_CASE( test1 ) {
@@ -80,4 +65,5 @@ BOOST_AUTO_TEST_CASE( test1 ) {
 }
 
 BOOST_AUTO_TEST_SUITE_END();
+
 
