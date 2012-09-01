@@ -38,10 +38,10 @@ void async_parallel_for( int64_t start, int64_t iterations ) {
 #include "Addressing.hpp"
 
 template < typename Arg,
-           void (*LoopBody)(int64_t,int64_t,GlobalAddress<Arg>),
-           void (*Spawn)(int64_t,int64_t,GlobalAddress<Arg>),
+           void (*LoopBody)(int64_t,int64_t,Arg),
+           void (*Spawn)(int64_t,int64_t,Arg),
            int64_t Threshold >
-void async_parallel_for( int64_t start, int64_t iterations, GlobalAddress<Arg> shared_arg ) {
+void async_parallel_for( int64_t start, int64_t iterations, Arg shared_arg ) {
   DVLOG(5) << "[" << start << "," << start+iterations << ")";
   if ( iterations == 0 ) { // TODO: remove this redundant branch
     return;
@@ -60,6 +60,15 @@ void async_parallel_for( int64_t start, int64_t iterations, GlobalAddress<Arg> s
 
   // go down left half
   async_parallel_for<Arg,LoopBody,Spawn,Threshold>( start, (iterations+1)/2, shared_arg );
+}
+
+// redeclaration to handle special GlobalAddress case used in some places
+template < typename Arg,
+           void (*LoopBody)(int64_t,int64_t,GlobalAddress<Arg>),
+           void (*Spawn)(int64_t,int64_t,GlobalAddress<Arg>),
+           int64_t Threshold >
+void async_parallel_for( int64_t start, int64_t iterations, GlobalAddress<Arg> shared_arg ) {
+  async_parallel_for<GlobalAddress<Arg>,LoopBody,Spawn,Threshold>(start, iterations, shared_arg);
 }
 
 #endif // __ASYNC_PARALLEL_FOR__
