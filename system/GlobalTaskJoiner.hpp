@@ -134,10 +134,10 @@ void joinerSpawn_hack( int64_t s, int64_t n, GlobalAddress<Arg> shared_arg ) {
 
 #include "Delegate.hpp"
 
-template<typename T, void (*BinOp)(T&,const T&)>
-static void am_ff_delegate(GlobalAddress<T>* target_back, size_t tsz, void* payload, size_t psz) {
+template< typename S, typename T, void (*BinOp)(S&,const T&)>
+static void am_ff_delegate(GlobalAddress<S>* target_back, size_t tsz, void* payload, size_t psz) {
   CHECK(psz == sizeof(T));
-  CHECK(tsz == sizeof(GlobalAddress<T>));
+  CHECK(tsz == sizeof(GlobalAddress<S>));
 
   T* val = reinterpret_cast<T*>(payload);
 
@@ -148,17 +148,21 @@ static void am_ff_delegate(GlobalAddress<T>* target_back, size_t tsz, void* payl
 }
 
 /// Feed-forward version of delegate, uses GlobalTaskJoiner
-template<typename T, void (*BinOp)(T&,const T&)>
-void ff_delegate(GlobalAddress<T> target, const T& val) {
+template< typename S, typename T, void (*BinOp)(S&, const T&) >
+void ff_delegate(GlobalAddress<S> target, const T& val) {
   if (target.node() == SoftXMT_mynode()) {
     BinOp(*target.pointer(), val);
   } else {
     global_joiner.registerTask();
 
     // store return node & remote pointer in the GlobalAddress
-    GlobalAddress<T> back = make_global(target.pointer());
-    SoftXMT_call_on(target.node(), &am_ff_delegate<T,BinOp>, &back, sizeof(GlobalAddress<T>), &val, sizeof(T));
+    GlobalAddress<S> back = make_global(target.pointer());
+    SoftXMT_call_on(target.node(), &am_ff_delegate<S,T,BinOp>, &back, sizeof(GlobalAddress<S>), &val, sizeof(T));
   }
+}
+template<typename T, void (*BinOp)(T&,const T&)>
+void ff_delegate(GlobalAddress<T> target, const T& val) {
+  ff_delegate<T,T,BinOp>(target,val);
 }
 
 template< typename T >
