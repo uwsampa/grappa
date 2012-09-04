@@ -68,11 +68,13 @@ class TaskManager {
        
         bool all_terminate;
 
-        bool doSteal;   // stealing on/off
-        bool doShare;   // sharing on/off
-        bool stealLock; // steal lock
+        bool doSteal;    // stealing on/off
+        bool doShare;    // sharing on/off
+        bool doGQ;       // global queue on/off
+        bool stealLock;  // steal lock
         bool wshareLock; // work share lock
-        int cbint;      // how often to make local public work visible
+        bool gqLock;     // global queue lock
+        int cbint;       // how often to make local public work visible
 
         // to support hierarchical dynamic load balancing
         Node localId;
@@ -283,7 +285,8 @@ inline bool TaskManager::available( ) const {
     return privateHasEle() 
            || publicHasEle()
            || (doSteal && stealLock )
-           || (doShare && wshareLock );
+           || (doShare && wshareLock )
+           || (doGQ    && gqLock );
 }
 
 inline bool TaskManager::local_available( ) const {
@@ -298,6 +301,7 @@ template < typename T, typename S, typename R >
 inline void TaskManager::spawnPublic( void (*f)(T, S, R), T arg0, S arg1, R arg2 ) {
   Task newtask = createTask(f, arg0, arg1, arg2 );
   publicQ.push( newtask );
+
 }
 
 /// Should NOT be called from the context of

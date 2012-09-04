@@ -3,8 +3,11 @@
 #include "../PerformanceTools.hpp"
 #include "TaskingScheduler.hpp"
 #include "common.hpp"
+#include "GlobalQueue.hpp"
 
-DEFINE_bool( work_share, false, "Allow work-sharing between public task queues" );
+DEFINE_bool( work_share, false, "Load balance with work-sharing between public task queues" );
+DEFINE_bool( global_queue, false, "Load balance with a global queue" );
+DEFINE_uint64( global_queue_threshold, 1024, "Threshold to trigger release of tasks to global queue" );
 
 //#define MAXQUEUEDEPTH 500000
 #define MAXQUEUEDEPTH (1L<<26)
@@ -21,8 +24,10 @@ TaskManager::TaskManager ( )
   , all_terminate( false )
   , doSteal( false )
   , doShare( false )
+  , doGQ( false )
   , stealLock( true )
   , wshareLock( true )
+  , gqLock( true )
   , nextVictimIndex( 0 )
   , stats( this )
 {
@@ -31,11 +36,14 @@ TaskManager::TaskManager ( )
 
 
 void TaskManager::init (bool doSteal_arg, Node localId_arg, Node * neighbors_arg, Node numLocalNodes_arg, int chunkSize_arg, int cbint_arg) {
-  CHECK( !(doSteal_arg && FLAGS_work_share) ) << "cannot use both work stealing and sharing";
+  CHECK( !(doSteal_arg && FLAGS_work_share) &&
+         !(doSteal_arg && FLAGS_global_queue) &&
+         !(FLAGS_work_share && FLAGS_global_queue) ) << "cannot use more than one load balancing mechanism";
   fast_srand(0);
 
   doSteal = doSteal_arg;
   doShare = FLAGS_work_share;
+  doGQ = FLAGS_global_queue;
 
   localId = localId_arg;
   neighbors = neighbors_arg;
@@ -54,10 +62,26 @@ void TaskManager::init (bool doSteal_arg, Node localId_arg, Node * neighbors_arg
 }
      
 
+// GlobalQueue instantiations
+template bool global_queue_pull<Task>( ChunkInfo<Task> * result );
+template bool global_queue_push<Task>( GlobalAddress<Task> chunk_base, uint64_t chunk_amount );
+
+
+
 bool TaskManager::getWork( Task * result ) {
   GRAPPA_FUNCTION_PROFILE( GRAPPA_TASK_GROUP );
 
   while ( !workDone ) {
+  
+    // push to global queue if local queue has grown large
+    if ( doGQ && gqLock ) {
+      gqLock = false;
+      uint64_t local_size = publicQ.depth();
+      if ( local_size >= FLAGS_global_queue_threshold ) {
+        publicQ.push_global( MIN_INT( local_size/2, chunkSize ) );
+      }
+      gqLock = true;
+    }
 
     if ( tryConsumeLocal( result ) ) {
       return true;
