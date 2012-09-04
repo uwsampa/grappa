@@ -15,7 +15,22 @@
 #include <vt_user.h>
 #endif
 
-#define MIN_INT(a, b) ( (a) < (b) ) ? (a) : (b);
+
+#include "../Addressing.hpp"
+#include "../ConditionVariables.hpp"
+
+// global queue forward declarations
+template <typename T>
+struct ChunkInfo;
+
+template <typename T>
+bool global_queue_pull( ChunkInfo<T> * result );
+template <typename T>
+bool global_queue_push( GlobalAddress<T> chunk_base, uint64_t chunk_amount );
+
+
+
+#define MIN_INT(a, b) ( (a) < (b) ) ? (a) : (b)
 
 GRAPPA_DECLARE_EVENT_GROUP(scheduler);
 
@@ -25,6 +40,13 @@ struct workStealRequest_args;
 struct workStealReply_args;
 struct workShareRequest_args;
 struct workShareReply_args;
+
+template <typename T>
+struct pull_global_data_args {
+  GlobalAddress<Signaler> signal;
+  ChunkInfo<T> chunk;
+};
+
 
 /// Type for Node ID. 
 #include <boost/cstdint.hpp>
@@ -65,20 +87,43 @@ class StealQueue {
                               addr space */
 
         static StealQueue<T>* staticQueueAddress;        
-        
+       
+        // work stealing 
         void steal_reply( uint64_t amt, uint64_t total, T * stolen_work, size_t stolen_size_bytes );
-        
+       
+        // work sharing
         void workShareRequest( uint64_t remoteSize, Node from, T * data, int num );
         void workShareReplyFewer( int amountDenied );
         void workShareReplyGreater( int amountGiven, T * data );
 
+        // global queue
+        void pull_global_data_request( pull_global_data_args<T> * args );
+        void pull_global_data_reply( GlobalAddress< Signaler > * signal, T * received_elements, size_t elements_size );
+
+        /* The number of elements that have been released
+         * below <bottom> but not yet copied out. Reclaiming
+         * array space is only allowed if this is zero 
+         */
+        uint64_t numPendingElements;
+  
+        /* The stack is a non-circular array. This routine
+         * reclaims empty space without copying elements
+         * if it is safe.
+         */
         void reclaimSpace();
-        
+       
+        // work stealing dispatch
         static void workStealReply_am( workStealReply_args * args,  size_t size, void * payload, size_t payload_size );
         static void workStealRequest_am( workStealRequest_args * args, size_t size, void * payload, size_t payload_size );
+
+        // work sharing dispatch
         static void workShareRequest_am ( workShareRequest_args * args, size_t args_size, void * payload, size_t payload_size );
         static void workShareReplyFewer_am ( workShareReply_args * args, size_t args_size, void * payload, size_t payload_size );
         static void workShareReplyGreater_am ( workShareReply_args * args, size_t args_size, void * payload, size_t payload_size );
+
+        // global queue dispatch
+        static void pull_global_data_request_g_am( pull_global_data_args<T> * args, size_t args_size, void * payload, size_t payload_size );
+        static void pull_global_data_reply_g_am( GlobalAddress< Signaler > * signal, size_t arg_size, T * payload, size_t payload_size );
         
         std::ostream& dump ( std::ostream& o ) const {
           std::stringstream ss;
@@ -100,6 +145,7 @@ class StealQueue {
             , nNodes( 0 ), maxTreeDepth( 0 ), nVisited( 0 ), nLeaves( 0 )
             , nAcquire( 0 ), nRelease( 0 ), nStealPackets( 0 ), nFail( 0 )
             , wakeups( 0 ), falseWakeups( 0 ), nNodes_last( 0 ) 
+            , numPendingElements( 0 )
 #ifdef VTRACE
 	    , steal_queue_grp_vt( VT_COUNT_GROUP_DEF( "Steal queue" ) )
 	    , steal_success_ev_vt( VT_COUNT_DEF( "Steal success", "tasks", VT_COUNT_TYPE_UNSIGNED, steal_queue_grp_vt ) )
@@ -127,7 +173,6 @@ class StealQueue {
         uint64_t depth( ) const; 
         void release( int k ); 
         int acquire( int k ); 
-        int steal_locally( Node victim, int chunkSize ); 
         void setState( int state );
         
         uint64_t get_nNodes( ) {
@@ -142,8 +187,16 @@ class StealQueue {
       
         static const int bufsize = 110; // TODO: I know 32B*110 < aggreg bufsize-header size
                                         // but do this precisely
+        
+        // work stealing API
+        int steal_locally( Node victim, int chunkSize ); 
 
+        // work sharing API
         int64_t workShare( Node target );
+        
+        // global queue API
+        uint64_t pull_global();
+        bool push_global( uint64_t amount );
 };
 
 
@@ -257,6 +310,8 @@ static bool local_push_replyfewer;
 static uint64_t local_push_old_bottom;
 static Thread * push_waiter = NULL;
 static bool pendingWorkShare = false;
+
+static bool pendingGlobalPush = false;
 
 template <typename T>
 void StealQueue<T>::steal_reply( uint64_t amt, uint64_t total, T * stolen_work, size_t stolen_size_bytes ) {
@@ -469,8 +524,8 @@ struct workShareReply_args {
 template <typename T>
 void StealQueue<T>::reclaimSpace() {
   // reclaim space if the queue is empty
-  // and there is no pending transfer below 'bottom'
-  if ( depth() == 0 && !pendingWorkShare ) {
+  // and there is no pending transfer below 'bottom' (workshare or pending global q pull)
+  if ( depth() == 0 && !pendingWorkShare && numPendingElements == 0 ) {
     mkEmpty();
   }
 }
@@ -616,6 +671,108 @@ void StealQueue<T>::workShareRequest( uint64_t remoteSize, Node from, T * data, 
     workShareReply_args reply_args = { num - amountToTake };
     SoftXMT_call_on ( from, &StealQueue<T>::workShareReplyFewer_am, &reply_args );
   }
+}
+
+
+///////////////////////////
+// Global queue interaction
+///////////////////////////
+
+class Signaler;
+
+template <typename T>
+uint64_t StealQueue<T>::pull_global() {
+  ChunkInfo<T> data_ptr;
+  if ( global_queue_pull<T>( &data_ptr ) ) {
+
+    Signaler signal;
+    pull_global_data_args<T> args;
+    args.signal = make_global( &signal );
+    args.chunk = data_ptr;
+    SoftXMT_call_on( data_ptr.base.node(), pull_global_data_request_g_am, &args );
+    signal.wait();
+
+    return data_ptr.amount;
+  } else {
+    return 0;
+  }
+}
+
+template <typename T>
+void StealQueue<T>::pull_global_data_request_g_am( pull_global_data_args<T> * args, size_t args_size, void * payload, size_t payload_size ) {
+  StealQueue<T> * localQueue = StealQueue::staticQueueAddress; 
+  localQueue->pull_global_data_request( args );
+}
+
+template <typename T>
+void StealQueue<T>::pull_global_data_request( pull_global_data_args<T> * args ) {
+  CHECK( numPendingElements >= args->chunk.amount ) << "trying to take more than released number of elements";
+
+  T * chunk_base = args->chunk.base.pointer();
+  CHECK( chunk_base >= stack && chunk_base < stack+stackSize ) << "chunk base pointer falls outside of the stack range";
+  
+  CHECK( chunk_base + args->chunk.amount <= stack+bottom ) << "chunk overlaps the local part of the stack";
+
+  SoftXMT_call_on_x( args->signal.node(), pull_global_data_reply_g_am, &(args->signal), sizeof(args->signal), chunk_base, args->chunk.amount * sizeof(T) );
+
+  numPendingElements -= args->chunk.amount;
+
+#if DEBUG
+  // 0 out the transfered elements (to detect errors)
+  memset( chunk_base, 0, args->chunk.amount*sizeof(T) );
+#endif
+  
+  // in case all pending elements are now gone, try to reclaim space
+  reclaimSpace();
+}
+
+template <typename T>
+void StealQueue<T>::pull_global_data_reply_g_am( GlobalAddress< Signaler > * signal, size_t arg_size, T * payload, size_t payload_size ) {
+  StealQueue<T> * localQueue = StealQueue::staticQueueAddress; 
+  localQueue->pull_global_data_reply( signal, payload, payload_size );
+}
+
+template <typename T>
+void StealQueue<T>::pull_global_data_reply( GlobalAddress< Signaler > * signal, T * received_elements, size_t elements_size ) {
+  uint64_t num_elements = elements_size / sizeof(T);
+
+  CHECK( top + num_elements < stackSize ) << "pull_global_data reply: overflow (top:" << top << " stackSize:" << stackSize << " amt:" << num_elements << ")";
+
+  // TODO bottom better
+  memcpy( &stack[top], received_elements, elements_size );
+  top += num_elements;
+
+  // wake the thread that initiated the pull
+  signal->pointer()->signal();
+}
+
+template <typename T>
+bool StealQueue<T>::push_global( uint64_t amount ) {
+  CHECK( !pendingGlobalPush ) << "multiple outstanding pushes not allowed"; // due to reclaiming unaccepted elements
+  pendingGlobalPush = true;
+
+  // check the amount is legal
+  CHECK( amount <= depth() ) << "trying to release more elements than are in the queue";
+  CHECK( amount <= bufsize ) << "Only support single-packet transfers";
+ 
+  // release elements 
+  uint64_t orig_bottom = bottom;
+  bottom += amount;
+  numPendingElements += amount;
+
+  // push chunk information to the global queue.
+  // this is a blocking/yielding operation
+  bool accepted = global_queue_push<T>( make_global( &stack[orig_bottom] ), amount );
+
+  if ( !accepted ) {
+    // reclaim unaacepted elements
+    bottom = orig_bottom;
+    numPendingElements -= amount;
+  }
+  
+  pendingGlobalPush = false;
+
+  return accepted;
 }
 
 
