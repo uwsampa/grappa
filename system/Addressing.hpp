@@ -156,7 +156,7 @@ public:
   inline T * localize() const {
     Node nid = global_communicator.mynode();
     T * local_base;
-    T block_elems = block_size / sizeof(T);
+    size_t block_elems = block_size / sizeof(T);
     T * block_base = block_min().pointer();
     if (nid < node()) {
       local_base = block_base+block_elems;
@@ -309,9 +309,9 @@ GlobalAddress< T > operator-( const GlobalAddress< T >& t, ptrdiff_t i ) {
 
 template< typename T >
 inline ptrdiff_t operator-( const GlobalAddress< T >& t, const GlobalAddress< T >& u ) {
-  LOG(WARNING) << "Danger! You probably don't want to call this function. " 
-	       << "Try using .first_byte() or .last_byte() to get the right overload";
-  return t.raw_bits() - u.raw_bits();
+  //LOG(WARNING) << "Danger! You probably don't want to call this function. " 
+		   //<< "Try using .first_byte() or .last_byte() to get the right overload";
+  return (t.raw_bits() - u.raw_bits())/sizeof(T);
 }
 
 template<  >
