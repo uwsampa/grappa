@@ -39,6 +39,15 @@ typedef boost::mt19937_64 engine_t;
 typedef boost::uniform_int<uint64_t> dist_t;
 typedef boost::variate_generator<engine_t&,dist_t> gen_t;
 
+//union bucket_t {
+  //std::vector<uint64_t> b; // 24 bytes (way less than block size == 64)
+  //char _padder[block_size]; // make sure it takes up a whole block so we get one per Node in SoftXMT_malloc
+//};
+struct bucket_t {
+  std::vector<uint64_t> b;
+  char pad[block_size-sizeof(b)];
+};
+
 ////////////
 // Globals
 ////////////
@@ -47,10 +56,10 @@ int log2buckets;
 size_t nbuckets;
 std::vector<size_t> counts;
 std::vector<size_t> offsets;
-std::vector<uint64_t>** buckets;
-size_t nlocalb;
+GlobalAddress<bucket_t> bucketlist;
+GlobalAddress<uint64_t> array;
 
-const size_t NBUF = 1L<<20;
+#define LOBITS (64 - log2buckets)
 
 inline void set_random(uint64_t * v) {
   // continue using same generator with multiple calls (to not repeat numbers)
@@ -61,8 +70,11 @@ inline void set_random(uint64_t * v) {
   *v = gen();
 }
 
-LOOP_FUNCTOR(setup_counts, nid, ((size_t,nbuckets_)) ) {
-  nbuckets = nbuckets_;
+LOOP_FUNCTOR(setup_counts, nid, ((GlobalAddress<uint64_t>,_array)) ((size_t,_nbuckets)) ((GlobalAddress<bucket_t>,_buckets)) ) {
+  array = _array;
+  nbuckets = _nbuckets;
+  bucketlist = _buckets;
+
   counts.resize(nbuckets);
   offsets.resize(nbuckets);
   for (size_t i=0; i<nbuckets; i++) {
@@ -71,8 +83,7 @@ LOOP_FUNCTOR(setup_counts, nid, ((size_t,nbuckets_)) ) {
 }
 
 inline void histogram(uint64_t * v) {
-  int lobits = 64 - log2buckets;
-  size_t b = (*v) >> lobits;
+  size_t b = (*v) >> LOBITS;
   counts[b]++;
 }
 
@@ -88,39 +99,22 @@ LOOP_FUNCTION(aggregate_counts, nid ) {
   }
 }
 
-LOOP_FUNCTION(allocate_buckets, nid) {
-  range_t r = blockDist(0, nbuckets, nid, SoftXMT_nodes());
-  nlocalb = r.end-r.start;
-  buckets = new std::vector<uint64_t>*[nlocalb];
-  for (int64_t n = nid, i=0; n<nbuckets; n+=SoftXMT_nodes(), i++) {
-    buckets[i] = new std::vector<uint64_t>(0);
-    buckets[i]->reserve(counts[n]);
-  }
+inline size_t calc_bucket_id(bucket_t * bucket) {
+  return make_linear(bucket) - bucketlist;
 }
 
-void ff_append(void*& bucket_id, const uint64_t& val) {
-  size_t local_b = ((size_t)&bucket_id) / SoftXMT_nodes();
-  buckets[local_b]->push_back(val);
+inline void resize_bucket(bucket_t * bucket) {
+  size_t id = calc_bucket_id(bucket);
+  bucket->b.reserve(counts[id]);
+}
+
+void ff_append(bucket_t& bucket, const uint64_t& val) {
+  bucket.b.push_back(val);
 }
 
 inline void scatter(uint64_t * v) {
-  int lobits = 64 - log2buckets;
-  size_t b = (*v) >> lobits;
-  Node remote = b % SoftXMT_nodes();
-  ff_delegate<void*,uint64_t,ff_append>(make_global((void*)b, remote), *v);
-}
-
-LOOP_FUNCTION(print_buckets, nid) {
-  for (size_t i=0; i<nlocalb; i++) {
-    std::stringstream ss;
-    ss << "buckets[" << i << "] = ";
-    std::vector<uint64_t>& b = *buckets[i];
-    for (size_t j=0; j<b.size(); j++) {
-      ss << "  " << (b[j] >> (57-log2buckets)) << "\n";
-      //ss << " " << b[j];
-    }
-    ss << " ]"; VLOG(1) << ss.str();
-  }
+  size_t b = (*v) >> LOBITS;
+  ff_delegate<bucket_t,uint64_t,ff_append>(bucketlist+b, *v);
 }
 
 int ui64cmp(const void * a, const void * b) {
@@ -131,34 +125,13 @@ int ui64cmp(const void * a, const void * b) {
   else return 0;
 }
 
-void put_back(GlobalAddress<uint64_t> array, size_t local_bucket_id, LocalTaskJoiner * lj) {
-  size_t b = SoftXMT_mynode() + local_bucket_id * SoftXMT_nodes();
-  std::vector<uint64_t>& bkt = *buckets[local_bucket_id];
-  {
-    Incoherent<uint64_t>::WO c(array+offsets[b], bkt.size(), &bkt[0]);
-  }
-  lj->signal();
+inline void sort_bucket(bucket_t * bucket) {
+  qsort(&bucket->b[0], bucket->b.size(), sizeof(uint64_t), &ui64cmp);
 }
 
-
-LOOP_FUNCTOR(sort_buckets, nid, ((GlobalAddress<uint64_t>,array))) {
-  double t, local_sort_time = 0;
-
-  for (size_t i=0; i<nlocalb; i++) {
-    std::vector<uint64_t>& b = *buckets[i];
-    qsort(&b[0], b.size(), sizeof(uint64_t), &ui64cmp);
-  }
-}
-
-LOOP_FUNCTOR(put_back_all, nid, ((GlobalAddress<uint64_t>,array)) ) {
-  double t, local_sort_time = 0;
-  LocalTaskJoiner lj; lj.reset();
-
-  for (size_t i=0; i<nlocalb; i++) {
-    lj.registerTask();
-    SoftXMT_privateTask(&put_back, array, i, &lj);
-  }
-  lj.wait();
+inline void put_back_bucket(bucket_t * bucket) {
+  size_t b = calc_bucket_id(bucket);
+  Incoherent<uint64_t>::WO c(array+offsets[b], bucket->b.size(), &bucket->b[0]);
 }
 
 
@@ -171,6 +144,7 @@ void user_main(void* ignore) {
   LOG(INFO) << "nbuckets = (1 << " << log2buckets << ") = " << nbuckets;
 
   GlobalAddress<uint64_t> array = SoftXMT_typed_malloc<uint64_t>(nelems);
+  GlobalAddress<bucket_t> bucketlist = SoftXMT_typed_malloc<bucket_t>(nbuckets);
 
   // fill vector with random 64-bit integers
   t = SoftXMT_walltime();
@@ -184,37 +158,47 @@ void user_main(void* ignore) {
   sort_time = SoftXMT_walltime();
 
     // initialize histogram counts
-    { setup_counts f(nbuckets); fork_join_custom(&f); }
+    { setup_counts f(array, nbuckets, bucketlist); fork_join_custom(&f); }
 
     // do local bucket counts
     t = SoftXMT_walltime();
+
       forall_local<uint64_t,histogram>(array, nelems);
+
     histogram_time = SoftXMT_walltime() - t;
     LOG(INFO) << "histogram_time: " << histogram_time;
     
     // allreduce everyone's counts & compute global offsets (prefix sum)
-    t = SoftXMT_walltime(); 
+    t = SoftXMT_walltime();
+
       { aggregate_counts f; fork_join_custom(&f); }
+    
     allreduce_time = SoftXMT_walltime() - t;
     LOG(INFO) << "allreduce_time: " << allreduce_time;
 
     // allocate buckets
-    { allocate_buckets f; fork_join_custom(&f); }
-
+    forall_local<bucket_t,resize_bucket>(bucketlist, nbuckets);
+    
     // scatter into buckets
-    t = SoftXMT_walltime(); 
+    t = SoftXMT_walltime();
+
       forall_local<uint64_t,scatter>(array, nelems);
+    
     scatter_time = SoftXMT_walltime() - t;
     LOG(INFO) << "scatter_time: " << scatter_time;
 
     // sort buckets locally and scatter back into original array
-    t = SoftXMT_walltime(); 
-      { sort_buckets f(array); fork_join_custom(&f); }
+    t = SoftXMT_walltime();
+
+      forall_local<bucket_t,sort_bucket>(bucketlist, nbuckets);
+
     local_sort_scatter_time = SoftXMT_walltime() - t;
     LOG(INFO) << "local_sort_time: " << local_sort_scatter_time;
     
     t = SoftXMT_walltime(); 
-      { put_back_all f(array); fork_join_custom(&f); }
+    
+      forall_local<bucket_t,put_back_bucket>(bucketlist, nbuckets);
+    
     put_back_time = SoftXMT_walltime() - t;
     LOG(INFO) << "put_back_time: " << put_back_time;
     
