@@ -52,21 +52,13 @@ size_t nlocalb;
 
 const size_t NBUF = 1L<<20;
 
-void fill_random(uint64_t * base, size_t nelems) {
+inline void set_random(uint64_t * v) {
   // continue using same generator with multiple calls (to not repeat numbers)
   // but start at different seed on each node so we don't get overlap
   static engine_t engine(12345L*SoftXMT_mynode());
   static gen_t gen(engine, dist_t(0, std::numeric_limits<uint64_t>::max()));
   
-  double t;
-  for (size_t i=0; i<nelems; i++) {
-    base[i] = gen();
-  }
-}
-
-LOOP_FUNCTOR(fill_random_func, nid, ((GlobalAddress<uint64_t>,array)) ((size_t,nelems))) {
-  uint64_t * base = array.localize(), * end = (array+nelems).localize();
-  fill_random(base, end-base);
+  *v = gen();
 }
 
 LOOP_FUNCTOR(setup_counts, nid, ((size_t,nbuckets_)) ) {
@@ -94,13 +86,6 @@ LOOP_FUNCTION(aggregate_counts, nid ) {
   for (size_t i=1; i<nbuckets; i++) {
     offsets[i] = offsets[i-1] + counts[i-1];
   }
-}
-
-inline Node bucket_to_node(int64_t bucket) {
-  return bucket % SoftXMT_nodes();
-}
-inline int64_t bucket_on_node(int64_t bucket) {
-  return bucket / SoftXMT_nodes();
 }
 
 LOOP_FUNCTION(allocate_buckets, nid) {
@@ -178,6 +163,7 @@ LOOP_FUNCTOR(put_back_all, nid, ((GlobalAddress<uint64_t>,array)) ) {
 
 
 void user_main(void* ignore) {
+  double t, rand_time, sort_time, histogram_time, allreduce_time, scatter_time, local_sort_scatter_time, put_back_time;
   size_t nelems = 1L << scale;
 
   LOG(INFO) << "### Sort ###";
@@ -187,16 +173,14 @@ void user_main(void* ignore) {
   GlobalAddress<uint64_t> array = SoftXMT_typed_malloc<uint64_t>(nelems);
 
   // fill vector with random 64-bit integers
-  double rand_time;
-  SOFTXMT_TIME(rand_time, {
-      fill_random_func f(array, nelems); fork_join_custom(&f);
-  });
-  VLOG(1) << "fill_random_time: " << rand_time;
+  t = SoftXMT_walltime();
+    forall_local<uint64_t,set_random>(array, nelems);
+  rand_time = SoftXMT_walltime() - t;
+  LOG(INFO) << "fill_random_time: " << rand_time;
 
   /////////
   // sort
   /////////
-  double t, sort_time, histogram_time, allreduce_time, scatter_time, local_sort_scatter_time, put_back_time;
   sort_time = SoftXMT_walltime();
 
     // initialize histogram counts
