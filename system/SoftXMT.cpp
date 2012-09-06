@@ -36,6 +36,8 @@ bool SoftXMT_done_flag;
 
 double tick_rate = 0.0;
 
+Node * node_neighbors;
+
 #ifdef HEAPCHECK
 HeapLeakChecker * SoftXMT_heapchecker = 0;
 #endif
@@ -175,9 +177,9 @@ void SoftXMT_init( int * argc_p, char ** argv_p[], size_t global_memory_size_byt
 #endif
 
   //TODO: options for local stealing
-  Node * neighbors = new Node[SoftXMT_nodes()];
+  node_neighbors = new Node[SoftXMT_nodes()];
   for ( Node nod=0; nod < SoftXMT_nodes(); nod++ ) {
-    neighbors[nod] = nod;
+    node_neighbors[nod] = nod;
   }
 
   // start threading layer
@@ -187,7 +189,7 @@ void SoftXMT_init( int * argc_p, char ** argv_p[], size_t global_memory_size_byt
            << " num_starting_workers=" << FLAGS_num_starting_workers
            << " chunk_size=" << FLAGS_chunk_size
            << " cbint=" << FLAGS_cancel_interval;
-  global_task_manager.init( FLAGS_steal, SoftXMT_mynode(), neighbors, SoftXMT_nodes(), FLAGS_chunk_size, FLAGS_cancel_interval ); //TODO: options for local stealing
+  global_task_manager.init( FLAGS_steal, SoftXMT_mynode(), node_neighbors, SoftXMT_nodes(), FLAGS_chunk_size, FLAGS_cancel_interval ); //TODO: options for local stealing
   global_scheduler.init( master_thread, &global_task_manager );
   global_scheduler.periodic( thread_spawn( master_thread, &global_scheduler, &poller, NULL ) );
 
