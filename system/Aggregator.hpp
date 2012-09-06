@@ -427,15 +427,16 @@ public:
   }
 
   void dump() {
-    header( LOG(INFO) );
-    data( LOG(INFO), time() );
+    dump_as_map();
+//    header( LOG(INFO) );
+//    data( LOG(INFO), time() );
   }
   void dump_as_map() {
     as_map( std::cout, time() );
     std::cout << std::endl;
   }
   
-  void merge(AggregatorStatistics * other) {
+  void merge(const AggregatorStatistics * other) {
     messages_aggregated_ += other->messages_aggregated_;
     bytes_aggregated_ += other->bytes_aggregated_;
     messages_deaggregated_ += other->messages_deaggregated_;
@@ -455,7 +456,11 @@ public:
     }
   }
 
-  static void merge_am(AggregatorStatistics * other, size_t sz, void* payload, size_t psz);
+  static AggregatorStatistics reduce(const AggregatorStatistics& a, const AggregatorStatistics& b) {
+    AggregatorStatistics newst = a;
+    newst.merge(&b);
+    return newst;
+  }
 };
 
 /// Header for aggregated active messages.
@@ -676,7 +681,7 @@ public:
     return buffer_size_ - buffers_[ target ].current_position_; 
   }
 
-inline void aggregate( Node destination, AggregatorAMHandler fn_p,
+inline size_t aggregate( Node destination, AggregatorAMHandler fn_p,
                          const void * args, const size_t args_size,
                          const void * payload, const size_t payload_size ) {
     GRAPPA_FUNCTION_PROFILE( GRAPPA_COMM_GROUP );
@@ -765,6 +770,8 @@ inline void aggregate( Node destination, AggregatorAMHandler fn_p,
   tag_ += global_communicator.mynode();
 #endif
   DVLOG(5) << "aggregated " << header;
+
+  return total_call_size;
 }
 
 };
@@ -775,30 +782,32 @@ extern Aggregator global_aggregator;
 
 
 template< typename ArgsStruct >
-inline void SoftXMT_call_on( Node destination, void (* fn_p)(ArgsStruct *, size_t, void *, size_t), 
+inline size_t SoftXMT_call_on( Node destination, void (* fn_p)(ArgsStruct *, size_t, void *, size_t), 
                              const ArgsStruct * args, const size_t args_size = sizeof( ArgsStruct ),
                              const void * payload = NULL, const size_t payload_size = 0)
 {
   StateTimer::start_communication();
-  global_aggregator.aggregate( destination,
+  size_t total_size = global_aggregator.aggregate( destination,
                                reinterpret_cast< AggregatorAMHandler >( fn_p ),
                                static_cast< const void * >( args ), args_size,
                                static_cast< const void * >( payload ), payload_size );
   StateTimer::stop_communication();
+  return total_size;
 }
 
 
 template< typename ArgsStruct, typename PayloadType >
-inline void SoftXMT_call_on_x( Node destination, void (* fn_p)(ArgsStruct *, size_t, PayloadType *, size_t), 
+inline size_t SoftXMT_call_on_x( Node destination, void (* fn_p)(ArgsStruct *, size_t, PayloadType *, size_t), 
                                const ArgsStruct * args, const size_t args_size = sizeof( ArgsStruct ),
                                const PayloadType * payload = NULL, const size_t payload_size = 0)
 {
   StateTimer::start_communication();
-  global_aggregator.aggregate( destination,
+  size_t total_size = global_aggregator.aggregate( destination,
                                reinterpret_cast< AggregatorAMHandler >( fn_p ),
                                static_cast< const void * >( args ), args_size,
                                static_cast< const void * >( payload ), payload_size );
   StateTimer::stop_communication();
+  return total_size;
 }
 
 #endif

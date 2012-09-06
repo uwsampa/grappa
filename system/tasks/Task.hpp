@@ -157,6 +157,8 @@ class TaskManager {
                 TaskManager * tm;
 
             public:
+                TaskStatistics() { } // only for declarations that will be copy-assigned to
+
                 TaskStatistics(TaskManager * task_manager)
                     : single_steal_successes_ (0)
                       , total_steal_tasks_ (0)
@@ -234,14 +236,21 @@ class TaskManager {
                 }
 
                 void dump();
-                void merge(TaskStatistics * other);
+                void merge(const TaskStatistics * other);
                 void reset();
+                static TaskStatistics reduce(const TaskStatistics& a, const TaskStatistics& b) {
+                  TaskStatistics newst = a;
+                  newst.merge(&b);
+                  return newst;
+                }
 
-                static void merge_am(TaskManager::TaskStatistics * other, size_t sz, void* payload, size_t psz);
 
         };
         
         TaskStatistics stats;
+        StealStatistics stealStats() {
+          return publicQ.stats;
+        }
   
         //TaskManager (bool doSteal, Node localId, Node* neighbors, Node numLocalNodes, int chunkSize, int cbint);
         TaskManager();

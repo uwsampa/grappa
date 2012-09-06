@@ -180,6 +180,7 @@ class TaskingScheduler : public Scheduler {
 	  State prev_state;
 	  int64_t scheduler_count;
 
+    TaskingSchedulerStatistics() { active_task_log = new short[16]; }  // only for declarations that will be copy-assigned to
 	  TaskingSchedulerStatistics( TaskingScheduler * scheduler )
                     : sched( scheduler ) 
 #ifdef VTRACE_SAMPLED
@@ -188,7 +189,7 @@ class TaskingScheduler : public Scheduler {
 		    , num_idle_out_ev_vt( VT_COUNT_DEF( "Idle workers", "tasks", VT_COUNT_TYPE_UNSIGNED, tasking_scheduler_grp_vt ) )
 		    , readyQ_size_ev_vt( VT_COUNT_DEF( "ReadyQ size", "workers", VT_COUNT_TYPE_UNSIGNED, tasking_scheduler_grp_vt ) )
 #endif
-		    , merged(0)
+		    , merged(1)
 	    , state_timers()
 		  , prev_state( StateIdle )
 	    , scheduler_count(0)
@@ -201,11 +202,12 @@ class TaskingScheduler : public Scheduler {
 	    reset();
 	  }
                 ~TaskingSchedulerStatistics() {
-                    delete[] active_task_log;
+                  // XXX: not copy-safe, so pointer can be invalid
+                    /* delete[] active_task_log; */
                 }
 
                 void reset() {
-                    merged = 0;
+                    merged = 1;
                     task_calls = 0;
                     task_log_index = 0;
 
@@ -239,9 +241,14 @@ class TaskingScheduler : public Scheduler {
                 }
                 void sample();
 	        void profiling_sample();
-                void merge(TaskingSchedulerStatistics * other); 
+                void merge(const TaskingSchedulerStatistics * other); 
 
-	  static void merge_am(TaskingScheduler::TaskingSchedulerStatistics * other, size_t sz, void* payload, size_t psz);
+          static TaskingSchedulerStatistics reduce( const TaskingSchedulerStatistics& a, const TaskingSchedulerStatistics& b ) {
+            TaskingSchedulerStatistics newst = a;
+            newst.merge(&b);
+            return newst;
+          }
+
         };
        
        TaskingSchedulerStatistics stats;
@@ -260,6 +267,10 @@ class TaskingScheduler : public Scheduler {
       void createWorkers( uint64_t num );
       Thread* maybeSpawnCoroutines( );
       void onWorkerStart( );
+
+       uint64_t active_task_count() {
+         return num_active_tasks;
+       }
 
        void unassigned( Thread * thr ) {
            unassignedQ.enqueue( thr );
