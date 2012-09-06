@@ -230,7 +230,7 @@ public:
     std::cout << std::endl;
   }
   
-  void merge(CommunicatorStatistics * other) {
+  void merge(const CommunicatorStatistics * other) {
     messages_ += other->messages_;
     bytes_ += other->bytes_;
     for (int i=0; i<16; i++) histogram_[i] += other->histogram_[i];
@@ -238,7 +238,12 @@ public:
     start_ = MIN(start_, other->start_);
   }
 
-  static void merge_am(CommunicatorStatistics * other, size_t sz, void* payload, size_t psz);
+  static CommunicatorStatistics reduce( const CommunicatorStatistics& a, const CommunicatorStatistics& b ) {
+    CommunicatorStatistics newst = a;
+    newst.merge( &b );
+    return newst;
+  }
+
 };
 
 /// Communication layer wrapper class.

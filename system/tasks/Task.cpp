@@ -129,11 +129,16 @@ bool TaskManager::tryConsumeLocal( Task * result ) {
   }
 }
 
+DEFINE_bool( steal_idle_only, false, "Only steal when the core has no active tasks" );
+static bool stealOk() {
+  return (!FLAGS_steal_idle_only) || global_scheduler.active_task_count() < 4; // allow some for FJ private tasks
+}
+
 /// Only returns when there is work or when
 /// the system has no more work.
 bool TaskManager::waitConsumeAny( Task * result ) {
     if ( doSteal ) {
-        if ( stealLock ) {
+        if ( stealLock && stealOk() ) {
     
             GRAPPA_PROFILE_CREATE( prof, "stealing", "(session)", GRAPPA_TASK_GROUP );
             GRAPPA_PROFILE_START( prof );
@@ -201,7 +206,7 @@ bool TaskManager::waitConsumeAny( Task * result ) {
         GRAPPA_PROFILE_CREATE( prof, "worker idle", "(suspended)", GRAPPA_SUSPEND_GROUP ); 
         GRAPPA_PROFILE_START( prof );
         if ( !SoftXMT_thread_idle() ) {
-            SoftXMT_yield();
+            SoftXMT_yield(); // allow polling thread to run
         } else {
             DVLOG(5) << CURRENT_THREAD << " un-idled";
         }
@@ -234,6 +239,7 @@ void TaskManager::finish() {
 
 void TaskManager::dump_stats() {
     stats.dump();
+    publicQ.dump_stats();
 }
 
 #include "DictOut.hpp"
@@ -296,7 +302,7 @@ void TaskManager::TaskStatistics::profiling_sample() {
 }
 
 
-void TaskManager::TaskStatistics::merge(TaskManager::TaskStatistics * other) {
+void TaskManager::TaskStatistics::merge(const TaskManager::TaskStatistics * other) {
   session_steal_successes_ += other->session_steal_successes_;
   session_steal_fails_ += other->session_steal_fails_;
   single_steal_successes_ += other->single_steal_successes_;
@@ -309,16 +315,13 @@ void TaskManager::TaskStatistics::merge(TaskManager::TaskStatistics * other) {
   releases_ += other->releases_;
   public_tasks_dequeued_ += other->public_tasks_dequeued_;
   private_tasks_dequeued_ += other->private_tasks_dequeued_;
-}
 
-extern uint64_t merge_reply_count;
-void TaskManager::TaskStatistics::merge_am(TaskManager::TaskStatistics * other, size_t sz, void* payload, size_t psz) {
-  global_task_manager.stats.merge(other);
-  merge_reply_count++;
+  //publicQ.merge_stats();
 }
 
 void TaskManager::reset_stats() {
   stats.reset();
+  publicQ.reset_stats();
 }
 
 void TaskManager::TaskStatistics::reset() {
