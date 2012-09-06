@@ -74,7 +74,7 @@ bool TaskManager::getWork( Task * result ) {
   while ( !workDone ) {
   
     // push to global queue if local queue has grown large
-    if ( doGQ && gqLock ) {
+    if ( doGQ && SoftXMT_global_queue_isInit() && gqLock ) {
       gqLock = false;
       uint64_t local_size = publicQ.depth();
       if ( local_size >= FLAGS_global_queue_threshold ) {
@@ -187,6 +187,14 @@ bool TaskManager::waitConsumeAny( Task * result ) {
         
             GRAPPA_PROFILE_STOP( prof );
         }
+    } else if ( doGQ && SoftXMT_global_queue_isInit() ) {
+      if ( gqLock ) {
+        gqLock = false;
+        
+        publicQ.pull_global(); // TODO logging/stats how much we got
+
+        gqLock = true;
+      }
     }
 
     if ( !local_available() ) {
