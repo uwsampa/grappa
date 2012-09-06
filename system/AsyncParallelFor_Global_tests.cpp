@@ -22,6 +22,7 @@ int64_t local_count = 0;
 #define N (1L<<10)
 
 void loop_body(int64_t start, int64_t num ) {
+  DVLOG(5) << "iters " << start << ", " << num;
   /*BOOST_MESSAGE( "execute [" << start << ","
             << start+num << ") with thread " << CURRENT_THREAD->id );*/
   BOOST_CHECK( num <= FLAGS_async_par_for_threshold );
@@ -147,6 +148,7 @@ LOOP_FUNCTOR( ff_test_func, nid, ((GlobalAddress<double>,array)) ) {
 }
 
 void user_main( void * args ) {
+  
   BOOST_CHECK( SoftXMT_nodes() <= MAX_NODES );
   
   int64_t total_iters = SoftXMT_nodes() * SIZE;

@@ -39,6 +39,13 @@ inline double SoftXMT_walltime(void) {
 #endif
 }
 
+#define SOFTXMT_TIME(var, block) \
+   	do { \
+		double _tmptime = SoftXMT_walltime(); \
+		block \
+		var = SoftXMT_walltime()-_tmptime; \
+	} while(0)
+
 template< typename T, typename U >
 static inline double nanless_double_ratio( T x, U y ) {
   return y == 0 ? 0.0 : static_cast<double>(x) / static_cast<double>(y);
