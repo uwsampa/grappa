@@ -148,6 +148,7 @@ LOOP_FUNCTOR( ff_test_func, nid, ((GlobalAddress<double>,array)) ) {
 }
 
 void user_main( void * args ) {
+  SoftXMT_global_queue_initialize();
   
   BOOST_CHECK( SoftXMT_nodes() <= MAX_NODES );
   
