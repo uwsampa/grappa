@@ -104,7 +104,7 @@ bool TaskManager::waitConsumeAny( Task * result ) {
                 victimId = v;
                 nextVictimIndex = (nextVictimIndex+1) % numLocalNodes;
                 
-                if ( v == SoftXMT_mynode() ) continue;
+                if ( v == SoftXMT_mynode() ) continue; // don't steal from myself
                 
                 goodSteal = publicQ.steal_locally(v, chunkSize);
                 
