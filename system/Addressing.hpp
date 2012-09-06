@@ -16,7 +16,6 @@
 /// linear addresses are block cyclic
 
 #include "Communicator.hpp"
-#include "SoftXMT.hpp"
 
 typedef int Pool;
 
@@ -155,7 +154,7 @@ public:
   }
 
   inline T * localize() const {
-    Node nid = SoftXMT_mynode();
+    Node nid = global_communicator.mynode();
     T * local_base;
     T block_elems = block_size / sizeof(T);
     T * block_base = block_min().pointer();
