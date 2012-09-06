@@ -11,6 +11,7 @@
 #include "ForkJoin.hpp"
 #include "Cache.hpp"
 #include "PerformanceTools.hpp"
+#include "tasks/GlobalQueue.hpp"
 
 #ifndef SHMMAX
 #error "no SHMMAX defined for this system -- look it up with the command: `sysctl -A | grep shm`"
@@ -25,6 +26,8 @@ DEFINE_bool( steal, true, "Allow work-stealing between public task queues");
 DEFINE_int32( chunk_size, 10, "Amount of work to publish or steal in multiples of" );
 DEFINE_int32( cancel_interval, 1, "Interval for notifying others of new work" );
 DEFINE_uint64( num_starting_workers, 4, "Number of starting workers in task-executer pool" );
+
+DECLARE_bool( global_queue );
 
 static Thread * barrier_thread = NULL;
 
@@ -229,6 +232,28 @@ inline Thread * SoftXMT_spawn( void (* fn_p)(Thread *, void *), void * args )
   DVLOG(5) << "Spawned Thread " << th;
   return th;
 }
+
+
+static bool global_queue_initialized = false;
+// fork-join function for SoftXMT_initialize_global_queue
+LOOP_FUNCTION( initialize_global_queue_func, nid ) {
+  GlobalQueue<Task>::global_queue.init();
+  global_queue_initialized = true;
+}
+
+/// Initialize global queue for load balancing.
+/// Must be called in user_main
+void SoftXMT_global_queue_initialize() {
+  if ( FLAGS_global_queue ) {
+    initialize_global_queue_func f;
+    fork_join_custom( &f );
+  }
+}
+
+bool SoftXMT_global_queue_isInit() {
+  return global_queue_initialized;
+}
+
 
 ///
 /// Job exit routines
