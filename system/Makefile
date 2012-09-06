@@ -112,6 +112,8 @@ AsyncParallelFor_Rate.o AsyncParallelFor_Rate.exe: $(LIBRARY)
 Uid_tests.o Uid_tests.test: $(LIBRARY)
 Uid_rate_tests.o Uid_rate_tests.test: $(LIBRARY)
 
+LocalIterator_tests.o LocalIterator_tests.test: $(LIBRARY)
+
 NetworkPerformance_tests.test NetworkPerformance_tests.o: $(LIBRARY)
 Gups_tests.o Gups_tests.test: $(LIBRARY)
 #
