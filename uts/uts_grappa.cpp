@@ -762,6 +762,7 @@ struct user_main_args {
 
 #define BILLION 1000000000
 void user_main ( user_main_args * args ) {
+    SoftXMT_global_queue_initialize();
   
     // allocate tree structures 
     LOG(INFO) << "Allocating global structures...\n"
