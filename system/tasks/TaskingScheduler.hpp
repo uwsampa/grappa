@@ -243,12 +243,6 @@ class TaskingScheduler : public Scheduler {
 	        void profiling_sample();
                 void merge(const TaskingSchedulerStatistics * other); 
 
-          static TaskingSchedulerStatistics reduce( const TaskingSchedulerStatistics& a, const TaskingSchedulerStatistics& b ) {
-            TaskingSchedulerStatistics newst = a;
-            newst.merge(&b);
-            return newst;
-          }
-
         };
        
        TaskingSchedulerStatistics stats;

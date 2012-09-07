@@ -13,6 +13,7 @@
 #include "PerformanceTools.hpp"
 #include "tasks/GlobalQueue.hpp"
 #include "Collective.hpp"
+#include "StatisticsTools.hpp"
 
 #ifndef SHMMAX
 #error "no SHMMAX defined for this system -- look it up with the command: `sysctl -A | grep shm`"
@@ -342,7 +343,7 @@ void SoftXMT_dump_stats_all_nodes() {
 ///
 /// Statistics reduction
 ///
-#define STAT_REDUCE(statType, stat) (statType) SoftXMT_allreduce_noinit<statType, statType::reduce>( (stat) )
+#define STAT_REDUCE(statType, stat) (statType) SoftXMT_allreduce_noinit<statType, stat_reduce<statType> >( (stat) )
 #define STAT_FUNC( name, statType, stat ) \
   LOOP_FUNCTOR( name, nid, ((statType*, resultAddress)) ) { \
     statType result = STAT_REDUCE( statType, (stat) ); \

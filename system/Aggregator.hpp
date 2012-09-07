@@ -455,12 +455,6 @@ public:
       histogram_[i] += other->histogram_[i];
     }
   }
-
-  static AggregatorStatistics reduce(const AggregatorStatistics& a, const AggregatorStatistics& b) {
-    AggregatorStatistics newst = a;
-    newst.merge(&b);
-    return newst;
-  }
 };
 
 /// Header for aggregated active messages.

@@ -237,13 +237,6 @@ public:
     // pick earlier start time of the two
     start_ = MIN(start_, other->start_);
   }
-
-  static CommunicatorStatistics reduce( const CommunicatorStatistics& a, const CommunicatorStatistics& b ) {
-    CommunicatorStatistics newst = a;
-    newst.merge( &b );
-    return newst;
-  }
-
 };
 
 /// Communication layer wrapper class.
