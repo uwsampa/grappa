@@ -96,7 +96,7 @@ class IAStatistics {
     void dump();
     void sample();
     void profiling_sample();
-    void merge(IAStatistics * other);
+    void merge(const IAStatistics * other);
 };
 
 extern IAStatistics incoherent_acquirer_stats;

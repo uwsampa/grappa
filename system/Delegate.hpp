@@ -113,7 +113,7 @@ public:
   void dump();
   void sample();
   void profiling_sample();
-  void merge(DelegateStatistics * other);
+  void merge(const DelegateStatistics * other);
 };
 
 extern DelegateStatistics delegate_stats;

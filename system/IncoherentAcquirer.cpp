@@ -88,7 +88,7 @@ void IAStatistics::profiling_sample() {
 #endif
 }
 
-void IAStatistics::merge(IAStatistics * other) {
+void IAStatistics::merge(const IAStatistics * other) {
   acquire_ams += other->acquire_ams;
   acquire_ams_bytes += other->acquire_ams_bytes;
   acquire_blocked += other->acquire_blocked;

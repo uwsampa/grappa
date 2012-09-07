@@ -454,7 +454,7 @@ void DelegateStatistics::profiling_sample() {
 #endif
 }
 
-void DelegateStatistics::merge(DelegateStatistics * other) {
+void DelegateStatistics::merge(const DelegateStatistics * other) {
   ops += other->ops;
   word_writes += other->word_writes;
   word_reads += other->word_reads;
