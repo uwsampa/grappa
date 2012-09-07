@@ -62,9 +62,6 @@ void CacheStatistics::reset() {
   rw_releases = 0;
   bytes_acquired = 0;
   bytes_released = 0;
-
-  incoherent_acquirer_stats.reset();
-  incoherent_releaser_stats.reset();
 }
 
 void CacheStatistics::dump() {
@@ -77,15 +74,10 @@ void CacheStatistics::dump() {
 	    << "bytes_released: " << bytes_released << ", "
     << " }" << std::endl;
   
-  incoherent_acquirer_stats.dump();
-  incoherent_releaser_stats.dump();
 }
 
 void CacheStatistics::sample() {
   ;
-
-  incoherent_acquirer_stats.sample();
-  incoherent_releaser_stats.sample();
 }
 
 void CacheStatistics::profiling_sample() {
@@ -97,21 +89,14 @@ void CacheStatistics::profiling_sample() {
   VT_COUNT_UNSIGNED_VAL( bytes_acquired_ev_vt, bytes_acquired );
   VT_COUNT_UNSIGNED_VAL( bytes_released_ev_vt, bytes_released );
 #endif
-
-  incoherent_acquirer_stats.profiling_sample();
-  incoherent_releaser_stats.profiling_sample();
 }
 
-void CacheStatistics::merge(CacheStatistics * other) {
+void CacheStatistics::merge(const CacheStatistics * other) {
   ro_acquires += other->ro_acquires;
   wo_releases += other->wo_releases;
   rw_acquires += other->rw_acquires;
   rw_releases += other->rw_releases;
   bytes_acquired += other->bytes_acquired;
   bytes_released += other->bytes_released;
-  
-  // cant call from here, need other
-  //incoherent_acquirer_stats.merge(?);
-  //incoherent_releaser_stats.merge(?);
 }
 

@@ -53,7 +53,7 @@ class CacheStatistics {
     void dump();
     void sample();
     void profiling_sample();
-    void merge(CacheStatistics * other);
+    void merge(const CacheStatistics * other);
 };
 
 extern CacheStatistics cache_stats;

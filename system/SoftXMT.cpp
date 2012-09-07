@@ -54,6 +54,8 @@ void SoftXMT_take_profiling_sample() {
   global_scheduler.stats.profiling_sample();
   delegate_stats.profiling_sample();
   cache_stats.profiling_sample();
+  incoherent_acquirer_stats.profiling_sample();
+  incoherent_releaser_stats.profiling_sample();
 
   // print user-registered stats
   SoftXMT_profiling_sample_user();
@@ -307,6 +309,8 @@ void SoftXMT_reset_stats() {
   global_task_manager.reset_stats();
   delegate_stats.reset();
   cache_stats.reset();
+  incoherent_acquirer_stats.reset();
+  incoherent_releaser_stats.reset();
  
   SoftXMT_reset_user_stats(); 
 }
@@ -329,6 +333,8 @@ void SoftXMT_dump_stats() {
   global_scheduler.dump_stats();
   delegate_stats.dump();
   cache_stats.dump();
+  incoherent_acquirer_stats.dump();
+  incoherent_releaser_stats.dump();
 }
 
 LOOP_FUNCTION(dump_stats_func,nid) {
@@ -359,14 +365,18 @@ void SoftXMT_dump_stats_all_nodes() {
   result.dump(); \
 }
 
-
+// define the forkjoin calls to SoftXMT_allreduce
 STAT_FUNC(schedulerstat_func, TaskingScheduler::TaskingSchedulerStatistics, global_scheduler.stats );
 STAT_FUNC(aggregatorstat_func, AggregatorStatistics, global_aggregator.stats );
 STAT_FUNC(commstat_func, CommunicatorStatistics, global_communicator.stats );
 STAT_FUNC(taskmanagerstat_func, TaskManager::TaskStatistics, global_task_manager.stats );
 STAT_FUNC(stealstat_func, StealStatistics, global_task_manager.stealStats() );
+STAT_FUNC(delegatestat_func, DelegateStatistics, delegate_stats );
+STAT_FUNC(cachestat_func, CacheStatistics, cache_stats );
+STAT_FUNC(incoherentacq_func, IAStatistics, incoherent_acquirer_stats );
+STAT_FUNC(incoherentrel_func, IRStatistics, incoherent_releaser_stats );
 
-
+// call the forkjoin functions to reduce and print each statistic object
 static void reduce_stats_and_dump() {
   CHECK( SoftXMT_mynode() == 0 );
   STAT_FORK_AND_DUMP(aggregatorstat_func, AggregatorStatistics)
@@ -374,6 +384,10 @@ static void reduce_stats_and_dump() {
   STAT_FORK_AND_DUMP(taskmanagerstat_func, TaskManager::TaskStatistics)
   STAT_FORK_AND_DUMP(schedulerstat_func, TaskingScheduler::TaskingSchedulerStatistics)
   STAT_FORK_AND_DUMP(stealstat_func, StealStatistics)
+  STAT_FORK_AND_DUMP(delegatestat_func, DelegateStatistics) 
+  STAT_FORK_AND_DUMP(cachestat_func, CacheStatistics)
+  STAT_FORK_AND_DUMP(incoherentacq_func, IAStatistics)
+  STAT_FORK_AND_DUMP(incoherentrel_func, IRStatistics)
 }
 
 void SoftXMT_merge_and_dump_stats() {
