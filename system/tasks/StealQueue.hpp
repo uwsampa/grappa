@@ -585,7 +585,7 @@ void StealQueue<T>::workShareReplyFewer( int amountDenied ) {
   bottom -= amountDenied;
 
 #if DEBUG
-      T * xfer_start = stack + (bottom-local_push_amount);
+      T * xfer_start = stack + local_push_old_bottom;
   
       // 0 out the transfered stuff (to detect errors)
       memset(xfer_start, 0, (local_push_amount-amountDenied)*sizeof( T ) );
