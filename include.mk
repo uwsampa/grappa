@@ -52,7 +52,7 @@ MPITYPE=SRUN
 SRUN_PARTITION=pal
 SRUN_BUILD_PARTITION=pal
 #SRUN_HOST=--partition $(SRUN_PARTITION) --account pal  --reservation=pal_25
-SRUN_HOST=--partition $(SRUN_PARTITION) --account pal $(SRUN_RESERVE)
+SRUN_HOST=--partition $(SRUN_PARTITION) --account pal $(SRUN_RESERVE) --exclude=node0196
 SRUN_RUN=salloc --exclusive $(SRUN_FLAGS) $($(MPITYPE)_HOST) $($(MPITYPE)_NPROC) $($(MPITYPE)_BATCH_TEMP)
 SRUN_BUILD_CMD=
 SRUN_CC=$(CC)
@@ -187,23 +187,55 @@ SRUN_EXPORT_ENV_VARIABLES=--task-prolog=$(SRUN_ENVVAR_TEMP) --task-epilog=$(SRUN
 
 # create an environment variable file when needed
 .srunrc.%:
-	echo \#!/bin/bash > $@
-	for i in $(ENV_VARIABLES); do echo echo export $$i >> $@; done
-	chmod +x $@
+	@echo \#!/bin/bash > $@
+	@for i in $(ENV_VARIABLES); do echo echo export $$i >> $@; done
+	@chmod +x $@
 
 .srunrc_epilog.%:
-	echo \#!/bin/bash > $@
-	echo 'for i in `ipcs -m | grep $(USER) | cut -d" " -f1`; do ipcrm -M $$i; done' >> $@
-	chmod +x $@
+	@echo \#!/bin/bash > $@
+	@echo 'for i in `ipcs -m | grep $(USER) | cut -d" " -f1`; do ipcrm -M $$i; done' >> $@
+	@chmod +x $@
+
+# set to force libs to be recopied to scratch disks
+ifdef FORCE_COPY_LIBS 
+SBATCH_FORCE_COPY_LIBS=-f
+endif
+
+# directory for scratch storage of libs
+SBATCH_SCRATCH_DIR=/scratch/$(USER)/libs
 
 SBATCH_MPIRUN_EXPORT_ENV_VARIABLES=$(patsubst %,-x %,$(patsubst DELETEME:%,,$(subst =, DELETEME:,$(ENV_VARIABLES))))
 .sbatch.%:
-	echo \#!/bin/bash > $@
-	for i in $(ENV_VARIABLES); do echo export $$i >> $@; done
-	echo mpirun $(SBATCH_MPIRUN_EXPORT_ENV_VARIABLES) -bind-to-core -report-bindings -tag-output -- $(MY_TAU_RUN) \$$* >> $@
-	echo \# Clean up any leftover shared memory regions
-	echo 'for i in `ipcs -m | grep $(USER) | cut -d" " -f1`; do ipcrm -M $$i; done' >> $@
-	chmod +x $@
+	@echo '#!/bin/bash' > $@
+	@for i in $(ENV_VARIABLES); do echo "export $$i" >> $@; done
+	@echo '# Make scratch directory'  >> $@
+	@echo 'mkdir -p $(SBATCH_SCRATCH_DIR)' >> $@
+	@echo 'srun --ntasks-per-node=1 --ntasks=$(NNODE) mkdir -p $(SBATCH_SCRATCH_DIR)' >> $@
+#	@echo 'srun bash -c "hostname; ls -ld $(SBATCH_SCRATCH_DIR)"' >> $@
+	@echo '# Copy libraries to scratch directory' >> $@
+	@echo 'LIBS_TO_COPY=$$( ldd $$1 | egrep -v linux-vdso\.so\|ld-linux\|"> /lib64" | sed "s/.*> \(.*\) (.*/\1/" )' >> $@
+	@echo 'for i in $$LIBS_TO_COPY; do sbcast $(SBATCH_FORCE_COPY_LIBS) $${i} $(SBATCH_SCRATCH_DIR)/$${i/*\//}; done' >> $@
+	@echo 'for i in $$LIBS_TO_COPY; do cp $${i} $(SBATCH_SCRATCH_DIR)/$${i/*\//}; done' >> $@
+	@echo 'export LD_LIBRARY_PATH=$(SBATCH_SCRATCH_DIR)' >> $@
+	@echo '# Reformat command and (force) copy binary to scratch directory' >> $@
+	@echo 'export CMD=$${*/.\//$(SBATCH_SCRATCH_DIR)\/}' >> $@
+	@echo 'export BINARY=$${1/.\//$(SBATCH_SCRATCH_DIR)\/}' >> $@
+	@echo 'sbcast -f $(SBATCH_FORCE_COPY_LIBS) $$1 $$BINARY' >> $@
+	@echo 'cp -f $(SBATCH_FORCE_COPY_LIBS) $$1 $$BINARY' >> $@
+	@echo '# Copy mpirun to scratch directory' >> $@
+	@echo 'export SYSTEM_MPIRUN=`which mpirun`' >> $@
+	@echo 'export MPIRUN=$${SYSTEM_MPIRUN/*\//$(SBATCH_SCRATCH_DIR)\/}' >> $@
+	@echo 'sbcast $(SBATCH_FORCE_COPY_LIBS) $$SYSTEM_MPIRUN $$MPIRUN' >> $@
+	@echo 'cp $(SBATCH_FORCE_COPY_LIBS) $$SYSTEM_MPIRUN $$MPIRUN' >> $@
+#	@echo 'echo $$CMD' >> $@
+#	@echo 'ldd $$1' >> $@
+#	@echo 'ldd `which mpirun`' >> $@
+#	@echo mpirun $(SBATCH_MPIRUN_EXPORT_ENV_VARIABLES) -bind-to-core -report-bindings -tag-output -- $(MY_TAU_RUN) \$$* >> $@
+	@echo '# Run!' >> $@
+	@echo '$(SBATCH_SCRATCH_DIR)/mpirun $(SBATCH_MPIRUN_EXPORT_ENV_VARIABLES) -bind-to-core -tag-output -- $(MY_TAU_RUN) $$CMD' >> $@
+	@echo '# Clean up any leftover shared memory regions' >> $@
+	@echo 'for i in `ipcs -m | grep $(USER) | cut -d" " -f1`; do ipcrm -M $$i; done' >> $@
+	@chmod +x $@
 
 # delete when done
 .INTERMEDIATE: $(SRUN_ENVVAR_TEMP) $(SRUN_EPILOG_TEMP) $(SRUN_BATCH_TEMP)

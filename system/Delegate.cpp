@@ -2,6 +2,7 @@
 
 #include "Delegate.hpp"
 #include "Timestamp.hpp"
+#include "common.hpp"
 
 #include <cassert>
 #include <numeric>
@@ -68,8 +69,8 @@ static void memory_write_request_am( memory_write_request_args * args, size_t si
   delegate_stats.count_word_write_am();
 
   DCHECK( (int64_t)args->address.pointer() > 0x1000 )<< "read request:"
-                                                    << "\n address="<<args->address
-                                                    << "\n descriptor="<<args->descriptor;
+						     << "\n address="<<args->address
+						     << "\n descriptor="<<args->descriptor;
   DCHECK_EQ( payload_size, sizeof(int64_t) );
   int64_t payload_int = *(static_cast<int64_t*>(payload));
   VLOG(3) << "payload("<<(void*)payload<<")="<<payload_int<<"\n    pointer="<<(void*)args->address.pointer();
@@ -342,16 +343,16 @@ DelegateStatistics::DelegateStatistics()
   , generic_op_ams_ev_vt( VT_COUNT_DEF( "Delegate generic operation active messages", "operations", VT_COUNT_TYPE_UNSIGNED, delegate_grp_vt ) )
   , ops_blocked_ev_vt( VT_COUNT_DEF( "Delegate blocked op count", "operations", VT_COUNT_TYPE_UNSIGNED, delegate_grp_vt ) )
   , ops_blocked_ticks_total_ev_vt( VT_COUNT_DEF( "Delegate total blocked ticks", "ticks", VT_COUNT_TYPE_UNSIGNED, delegate_grp_vt ) )
-  , ops_blocked_ticks_min_ev_vt( VT_COUNT_DEF( "Delegate min blocked ticks", "ticks", VT_COUNT_TYPE_UNSIGNED, delegate_grp_vt ) )
-  , ops_blocked_ticks_max_ev_vt( VT_COUNT_DEF( "Delegate max blocked ticks", "ticks", VT_COUNT_TYPE_UNSIGNED, delegate_grp_vt ) )
-  , average_latency_ev_vt( VT_COUNT_DEF( "Delegate average latency", "ticks/s", VT_COUNT_TYPE_DOUBLE, delegate_grp_vt ) )
   , ops_network_ticks_total_ev_vt( VT_COUNT_DEF( "Delegate total network ticks", "ticks", VT_COUNT_TYPE_UNSIGNED, delegate_grp_vt ) )
-  , ops_network_ticks_min_ev_vt( VT_COUNT_DEF( "Delegate min network ticks", "ticks", VT_COUNT_TYPE_UNSIGNED, delegate_grp_vt ) )
+  , ops_wakeup_ticks_total_ev_vt( VT_COUNT_DEF( "Delegate total wakeup ticks", "ticks", VT_COUNT_TYPE_UNSIGNED, delegate_grp_vt ) )
+  , ops_blocked_ticks_max_ev_vt( VT_COUNT_DEF( "Delegate max blocked ticks", "ticks", VT_COUNT_TYPE_UNSIGNED, delegate_grp_vt ) )
+  , ops_blocked_ticks_min_ev_vt( VT_COUNT_DEF( "Delegate min blocked ticks", "ticks", VT_COUNT_TYPE_UNSIGNED, delegate_grp_vt ) )
   , ops_network_ticks_max_ev_vt( VT_COUNT_DEF( "Delegate max network ticks", "ticks", VT_COUNT_TYPE_UNSIGNED, delegate_grp_vt ) )
-  , average_network_latency_ev_vt( VT_COUNT_DEF( "Delegate average network latency", "ticks/s", VT_COUNT_TYPE_DOUBLE, delegate_grp_vt ) )
-  , ops_network_ticks_total_ev_vt( VT_COUNT_DEF( "Delegate total wakeup ticks", "ticks", VT_COUNT_TYPE_UNSIGNED, delegate_grp_vt ) )
-  , ops_wakeup_ticks_min_ev_vt( VT_COUNT_DEF( "Delegate min wakeup ticks", "ticks", VT_COUNT_TYPE_UNSIGNED, delegate_grp_vt ) )
+  , ops_network_ticks_min_ev_vt( VT_COUNT_DEF( "Delegate min network ticks", "ticks", VT_COUNT_TYPE_UNSIGNED, delegate_grp_vt ) )
   , ops_wakeup_ticks_max_ev_vt( VT_COUNT_DEF( "Delegate max wakeup ticks", "ticks", VT_COUNT_TYPE_UNSIGNED, delegate_grp_vt ) )
+  , ops_wakeup_ticks_min_ev_vt( VT_COUNT_DEF( "Delegate min wakeup ticks", "ticks", VT_COUNT_TYPE_UNSIGNED, delegate_grp_vt ) )
+  , average_latency_ev_vt( VT_COUNT_DEF( "Delegate average latency", "ticks/s", VT_COUNT_TYPE_DOUBLE, delegate_grp_vt ) )
+  , average_network_latency_ev_vt( VT_COUNT_DEF( "Delegate average network latency", "ticks/s", VT_COUNT_TYPE_DOUBLE, delegate_grp_vt ) )
   , average_wakeup_latency_ev_vt( VT_COUNT_DEF( "Delegate average wakeup latency", "ticks/s", VT_COUNT_TYPE_DOUBLE, delegate_grp_vt ) )
 #endif
 {
@@ -362,6 +363,7 @@ void DelegateStatistics::reset() {
   ops = 0;
   word_writes = 0;
   word_reads = 0;
+  T_reads = 0;
   word_fetch_adds = 0;
   word_compare_swaps = 0;
   generic_ops = 0;
@@ -374,14 +376,14 @@ void DelegateStatistics::reset() {
   generic_op_ams = 0;
   ops_blocked = 0;
   ops_blocked_ticks_total = 0;
-  ops_blocked_ticks_min = std::numeric_limits<uint64_t>::max();
-  ops_blocked_ticks_max = std::numeric_limits<uint64_t>::min();
   ops_network_ticks_total = 0;
-  ops_network_ticks_min = std::numeric_limits<uint64_t>::max();
-  ops_network_ticks_max = std::numeric_limits<uint64_t>::min();
   ops_wakeup_ticks_total = 0;
-  ops_wakeup_ticks_min = std::numeric_limits<uint64_t>::max();
+  ops_blocked_ticks_max = std::numeric_limits<uint64_t>::min();
+  ops_blocked_ticks_min = std::numeric_limits<uint64_t>::max();
+  ops_network_ticks_max = std::numeric_limits<uint64_t>::min();
+  ops_network_ticks_min = std::numeric_limits<uint64_t>::max();
   ops_wakeup_ticks_max = std::numeric_limits<uint64_t>::min();
+  ops_wakeup_ticks_min = std::numeric_limits<uint64_t>::max();
 }
 
 void DelegateStatistics::dump() {
@@ -396,6 +398,7 @@ void DelegateStatistics::dump() {
 	    << "op_ams: " << op_ams << ", "
 	    << "word_write_ams: " << word_write_ams  << ", "
 	    << "word_read_ams: " << word_read_ams  << ", "
+	    << "T_read_ams: " << T_read_ams  << ", "
 	    << "word_fetch_add_ams: " << word_fetch_add_ams  << ", "
 	    << "word_compare_swap_ams: " << word_compare_swap_ams  << ", "
 	    << "generic_op_ams: " << generic_op_ams  << ", "
@@ -403,15 +406,15 @@ void DelegateStatistics::dump() {
 	    << "ops_blocked_ticks_total: " << ops_blocked_ticks_total  << ", "
 	    << "ops_blocked_ticks_min: " << ops_blocked_ticks_min  << ", "
 	    << "ops_blocked_ticks_max: " << ops_blocked_ticks_max  << ", "
-	    << "average_latency: " << (double) ops_blocked_ticks_total / ops_blocked  << ", "
+	    << "average_latency: " << nanless_double_ratio( ops_blocked_ticks_total, ops_blocked ) << ", "
 	    << "ops_network_ticks_total: " << ops_network_ticks_total  << ", "
 	    << "ops_network_ticks_min: " << ops_network_ticks_min  << ", "
 	    << "ops_network_ticks_max: " << ops_network_ticks_max  << ", "
-	    << "average_network_latency: " << (double) ops_network_ticks_total / ops_blocked  << ", "
+	    << "average_network_latency: " << nanless_double_ratio( ops_network_ticks_total, ops_blocked ) << ", "
 	    << "ops_wakeup_ticks_total: " << ops_wakeup_ticks_total  << ", "
 	    << "ops_wakeup_ticks_min: " << ops_wakeup_ticks_min  << ", "
 	    << "ops_wakeup_ticks_max: " << ops_wakeup_ticks_max  << ", "
-	    << "average_wakeup_latency: " << (double) ops_wakeup_ticks_total / ops_blocked  << ", "
+	    << "average_wakeup_latency: " << nanless_double_ratio( ops_wakeup_ticks_total, ops_blocked ) << ", "
 	    << " }" << std::endl;
 }
 
@@ -437,17 +440,17 @@ void DelegateStatistics::profiling_sample() {
   VT_COUNT_UNSIGNED_VAL( generic_op_ams_ev_vt, generic_op_ams );
   VT_COUNT_UNSIGNED_VAL( ops_blocked_ev_vt, ops_blocked );
   VT_COUNT_UNSIGNED_VAL( ops_blocked_ticks_total_ev_vt, ops_blocked_ticks_total );
-  VT_COUNT_UNSIGNED_VAL( ops_blocked_ticks_min_ev_vt, ops_blocked_ticks_min );
-  VT_COUNT_UNSIGNED_VAL( ops_blocked_ticks_max_ev_vt, ops_blocked_ticks_max );
-  VT_COUNT_DOUBLE_VAL( average_latency_ev_vt, (double) ops_blocked / ops_blocked_ticks );
   VT_COUNT_UNSIGNED_VAL( ops_network_ticks_total_ev_vt, ops_network_ticks_total );
-  VT_COUNT_UNSIGNED_VAL( ops_network_ticks_min_ev_vt, ops_network_ticks_min );
-  VT_COUNT_UNSIGNED_VAL( ops_network_ticks_max_ev_vt, ops_network_ticks_max );
-  VT_COUNT_DOUBLE_VAL( average_network_latency_ev_vt, (double) ops_network / ops_blocked_ticks );
   VT_COUNT_UNSIGNED_VAL( ops_wakeup_ticks_total_ev_vt, ops_wakeup_ticks_total );
-  VT_COUNT_UNSIGNED_VAL( ops_wakeup_ticks_min_ev_vt, ops_wakeup_ticks_min );
+  VT_COUNT_UNSIGNED_VAL( ops_blocked_ticks_max_ev_vt, ops_blocked_ticks_max );
+  VT_COUNT_UNSIGNED_VAL( ops_blocked_ticks_min_ev_vt, ops_blocked_ticks_min );
+  VT_COUNT_UNSIGNED_VAL( ops_network_ticks_max_ev_vt, ops_network_ticks_max );
+  VT_COUNT_UNSIGNED_VAL( ops_network_ticks_min_ev_vt, ops_network_ticks_min );
   VT_COUNT_UNSIGNED_VAL( ops_wakeup_ticks_max_ev_vt, ops_wakeup_ticks_max );
-  VT_COUNT_DOUBLE_VAL( average_wakeup_latency_ev_vt, (double) ops_wakeup / ops_blocked_ticks );
+  VT_COUNT_UNSIGNED_VAL( ops_wakeup_ticks_min_ev_vt, ops_wakeup_ticks_min );
+  VT_COUNT_DOUBLE_VAL( average_latency_ev_vt, nanless_double_ratio( ops_blocked_ticks_total, ops_blocked ) );
+  VT_COUNT_DOUBLE_VAL( average_network_latency_ev_vt, nanless_double_ratio( ops_network_ticks_total, ops_blocked ) );
+  VT_COUNT_DOUBLE_VAL( average_wakeup_latency_ev_vt, nanless_double_ratio( ops_wakeup_ticks_total, ops_blocked ) );
 #endif
 }
 
@@ -468,20 +471,20 @@ void DelegateStatistics::merge(DelegateStatistics * other) {
   generic_op_ams += other->generic_op_ams;
   ops_blocked += other->ops_blocked;
   ops_blocked_ticks_total += other->ops_blocked_ticks_total;
-  if( other->ops_blocked_ticks_min < ops_blocked_ticks_min )
-    ops_blocked_ticks_min = other->ops_blocked_ticks_min;
+  ops_network_ticks_total += other->ops_network_ticks_total;
+  ops_wakeup_ticks_total += other->ops_wakeup_ticks_total;
   if( other->ops_blocked_ticks_max > ops_blocked_ticks_max )
     ops_blocked_ticks_max = other->ops_blocked_ticks_max;
-  ops_network_ticks_total += other->ops_network_ticks_total;
-  if( other->ops_network_ticks_min < ops_network_ticks_min )
-    ops_network_ticks_min = other->ops_network_ticks_min;
+  if( other->ops_blocked_ticks_min < ops_blocked_ticks_min )
+    ops_blocked_ticks_min = other->ops_blocked_ticks_min;
   if( other->ops_network_ticks_max > ops_network_ticks_max )
     ops_network_ticks_max = other->ops_network_ticks_max;
-  ops_wakeup_ticks_total += other->ops_wakeup_ticks_total;
-  if( other->ops_wakeup_ticks_min < ops_wakeup_ticks_min )
-    ops_wakeup_ticks_min = other->ops_wakeup_ticks_min;
+  if( other->ops_network_ticks_min < ops_network_ticks_min )
+    ops_network_ticks_min = other->ops_network_ticks_min;
   if( other->ops_wakeup_ticks_max > ops_wakeup_ticks_max )
     ops_wakeup_ticks_max = other->ops_wakeup_ticks_max;
+  if( other->ops_wakeup_ticks_min < ops_wakeup_ticks_min )
+    ops_wakeup_ticks_min = other->ops_wakeup_ticks_min;
 }
 
 extern uint64_t merge_reply_count;

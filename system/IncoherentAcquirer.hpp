@@ -26,12 +26,12 @@ static void incoherent_acquire_request_am( typename IncoherentAcquirer< T >::Req
 
 class IAStatistics {
   private:
-    uint64_t acquire_ams;
-    uint64_t acquire_ams_bytes;
+  uint64_t acquire_ams;
+  uint64_t acquire_ams_bytes;
   uint64_t acquire_blocked;
   uint64_t acquire_blocked_ticks_total;
-  uint64_t acquire_wakeup_ticks_total;
   uint64_t acquire_network_ticks_total;
+  uint64_t acquire_wakeup_ticks_total;
   uint64_t acquire_blocked_ticks_max;
   uint64_t acquire_blocked_ticks_min;
   uint64_t acquire_network_ticks_max;
@@ -39,19 +39,22 @@ class IAStatistics {
   uint64_t acquire_wakeup_ticks_max;
   uint64_t acquire_wakeup_ticks_min;
 #ifdef VTRACE_SAMPLED
-    unsigned ia_grp_vt;
-    unsigned acquire_ams_ev_vt;
-    unsigned acquire_ams_bytes_ev_vt;
+  unsigned ia_grp_vt;
+  unsigned acquire_ams_ev_vt;
+  unsigned acquire_ams_bytes_ev_vt;
   unsigned acquire_blocked_ev_vt;
   unsigned acquire_blocked_ticks_total_ev_vt;
-  unsigned acquire_wakeup_ticks_total_ev_vt;
   unsigned acquire_network_ticks_total_ev_vt;
+  unsigned acquire_wakeup_ticks_total_ev_vt;
   unsigned acquire_blocked_ticks_max_ev_vt;
   unsigned acquire_blocked_ticks_min_ev_vt;
   unsigned acquire_wakeup_ticks_max_ev_vt;
   unsigned acquire_wakeup_ticks_min_ev_vt;
   unsigned acquire_network_ticks_max_ev_vt;
   unsigned acquire_network_ticks_min_ev_vt;
+  unsigned average_latency_ev_vt;
+  unsigned average_network_latency_ev_vt;
+  unsigned average_wakeup_latency_ev_vt;
 #endif
 
   public:
