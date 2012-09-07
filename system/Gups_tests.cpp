@@ -59,6 +59,14 @@ void user_main( int * args ) {
             << FLAGS_iterations << " updates at "
             << throughput << "updates/s ("
             << throughput/nnodes << " updates/s/node).";
+
+  std::cout << "GUPS { "
+	    << "runtime:" << runtime << ", "
+            << "iterations:" << FLAGS_iterations << ", "
+            << "sizeA:" << FLAGS_sizeA << ", "
+            << "updates_per_s:" << throughput << ", "
+            << "updates_per_s_per_node:" << throughput/nnodes << ", "
+	    << "}" << std::endl;
 }
 
 

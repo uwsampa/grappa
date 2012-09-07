@@ -163,9 +163,8 @@ private:
   uint64_t bytes_deaggregated_;
   uint64_t messages_forwarded_;
   uint64_t bytes_forwarded_;
-  uint64_t total_wait_ticks_;
-  uint64_t oldest_wait_ticks_;
   uint64_t newest_wait_ticks_;
+  uint64_t oldest_wait_ticks_;
   uint64_t polls_;
   uint64_t flushes_;
   uint64_t multiflushes_;
@@ -183,8 +182,9 @@ private:
   unsigned bytes_deaggregated_vt_ev;
   unsigned messages_forwarded_vt_ev;
   unsigned bytes_forwarded_vt_ev;
-  unsigned oldest_wait_ticks_vt_ev;
   unsigned newest_wait_ticks_vt_ev;
+  unsigned oldest_wait_ticks_vt_ev;
+  unsigned average_wait_vt_ev;
   unsigned polls_vt_ev;
   unsigned flushes_vt_ev;
   unsigned multiflushes_vt_ev;
@@ -274,10 +274,10 @@ public:
     , bytes_aggregated_vt_ev( VT_COUNT_DEF( "Total bytes aggregated", "bytes", VT_COUNT_TYPE_UNSIGNED, aggregator_vt_grp ) )
     , messages_deaggregated_vt_ev( VT_COUNT_DEF( "Total messages deaggregated", "messages", VT_COUNT_TYPE_UNSIGNED, aggregator_vt_grp ) )
     , bytes_deaggregated_vt_ev( VT_COUNT_DEF( "Total bytes deaggregated", "bytes", VT_COUNT_TYPE_UNSIGNED, aggregator_vt_grp ) )
-    , messages_forwarded_vt_ev( VT_COUNT_DEF( "Total messages deaggregated", "messages", VT_COUNT_TYPE_UNSIGNED, aggregator_vt_grp ) )
-    , bytes_forwarded_vt_ev( VT_COUNT_DEF( "Total bytes deaggregated", "bytes", VT_COUNT_TYPE_UNSIGNED, aggregator_vt_grp ) )
-    , newest_wait_ticks_vt_ev( VT_COUNT_DEF( "Aggregator oldest wait ticks", "ticks", VT_COUNT_TYPE_UNSIGNED, aggregator_vt_grp ) )
-    , oldest_wait_ticks_vt_ev( VT_COUNT_DEF( "Aggregator newest wait ticks", "ticks", VT_COUNT_TYPE_UNSIGNED, aggregator_vt_grp ) )
+    , messages_forwarded_vt_ev( VT_COUNT_DEF( "Total messages forwarded", "messages", VT_COUNT_TYPE_UNSIGNED, aggregator_vt_grp ) )
+    , bytes_forwarded_vt_ev( VT_COUNT_DEF( "Total bytes forwarded", "bytes", VT_COUNT_TYPE_UNSIGNED, aggregator_vt_grp ) )
+    , newest_wait_ticks_vt_ev( VT_COUNT_DEF( "Aggregator newest wait ticks", "ticks", VT_COUNT_TYPE_UNSIGNED, aggregator_vt_grp ) )
+    , oldest_wait_ticks_vt_ev( VT_COUNT_DEF( "Aggregator oldest wait ticks", "ticks", VT_COUNT_TYPE_UNSIGNED, aggregator_vt_grp ) )
     , average_wait_vt_ev( VT_COUNT_DEF( "Aggregator average wait time", "ticks", VT_COUNT_TYPE_DOUBLE, aggregator_vt_grp ) )
     , polls_vt_ev( VT_COUNT_DEF( "Aggregator polls", "polls", VT_COUNT_TYPE_UNSIGNED, aggregator_vt_grp ) )
     , flushes_vt_ev( VT_COUNT_DEF( "Flushes", "flushes", VT_COUNT_TYPE_UNSIGNED, aggregator_vt_grp ) )
@@ -394,8 +394,8 @@ public:
     VT_COUNT_UNSIGNED_VAL( bytes_deaggregated_vt_ev, bytes_deaggregated_ );
     VT_COUNT_UNSIGNED_VAL( messages_forwarded_vt_ev, messages_forwarded_ );
     VT_COUNT_UNSIGNED_VAL( bytes_forwarded_vt_ev, bytes_forwarded_ );
-    VT_COUNT_UNSIGNED_VAL( oldest_wait_ticks_vt_ev, oldest_wait_ticks_ );
     VT_COUNT_UNSIGNED_VAL( newest_wait_ticks_vt_ev, newest_wait_ticks_ );
+    VT_COUNT_UNSIGNED_VAL( oldest_wait_ticks_vt_ev, oldest_wait_ticks_ );
     VT_COUNT_DOUBLE_VAL( average_wait_vt_ev, (double) (oldest_wait_ticks_ + newest_wait_ticks_) / (2 * flushes_) );
     VT_COUNT_UNSIGNED_VAL( polls_vt_ev, polls_ );
     VT_COUNT_UNSIGNED_VAL( flushes_vt_ev, flushes_ );
@@ -442,8 +442,8 @@ public:
     bytes_deaggregated_ += other->bytes_deaggregated_;
     messages_forwarded_ += other->messages_forwarded_;
     bytes_forwarded_ += other->bytes_forwarded_;
-    oldest_wait_ticks_ += other->oldest_wait_ticks_;
     newest_wait_ticks_ += other->newest_wait_ticks_;
+    oldest_wait_ticks_ += other->oldest_wait_ticks_;
     polls_ += other->polls_;
     flushes_ += other->flushes_;
     multiflushes_ += other->multiflushes_;

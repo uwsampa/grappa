@@ -32,11 +32,11 @@ extern "C" {
 #define MAXNUMCHILDREN    100  // cap on children (BIN root is exempt)
 
 struct node_t {
+  int64_t id; /* used for building the tree from pointers */
+  
   int type;          // distribution governing number of children
   int height;        // depth of this node in the tree
   int numChildren;   // number of children, -1 => not yet determined
-  
-  int id;
   
   /* for statistics (if configured via UTS_STAT) */
 #ifdef UTS_STAT
@@ -51,10 +51,14 @@ struct node_t {
   struct state_t state;
 };
 
+// xmt version requires gcc
+#ifdef __MTA__
+typedef struct node_t Node;
+#else
 namespace uts {
 typedef struct node_t Node;
 }
-
+#endif /* __MTA__ */
 
 
 /* Tree type
@@ -90,8 +94,10 @@ extern double     shiftDepth;
 
 /* Benchmark parameters */
 extern int    computeGranularity;
+extern int    payloadSize;
 extern int    debug;
 extern int    verbose;
+extern int    max_streams;
 
 /* For stats generation: */
 typedef unsigned long long counter_t;
@@ -112,11 +118,26 @@ double uts_wctime();
 double rng_toProb(int n);
 
 /* Common tree routines */
+// xmt version requires gcc
+#ifdef __MTA__
+void   uts_initRoot(Node * root, int type);
+int    uts_numChildren(Node *parent);
+int    uts_numChildren_bin(Node * parent);
+int    uts_numChildren_geo(Node * parent);
+int    uts_childType(Node *parent);
+
+int64_t    uts_nodeId(Node *parent);
+
+#else
+
 void   uts_initRoot(uts::Node * root, int type);
 int    uts_numChildren(uts::Node *parent);
 int    uts_numChildren_bin(uts::Node * parent);
 int    uts_numChildren_geo(uts::Node * parent);
 int    uts_childType(uts::Node *parent);
+
+int64_t    uts_nodeId(uts::Node *parent);
+#endif /* __MTA__ */
 
 /* Implementation Specific Functions */
 char * impl_getName();

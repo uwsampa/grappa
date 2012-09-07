@@ -23,8 +23,8 @@ private:
   uint64_t generic_op_ams;
   uint64_t ops_blocked;
   uint64_t ops_blocked_ticks_total;
-  uint64_t ops_wakeup_ticks_total;
   uint64_t ops_network_ticks_total;
+  uint64_t ops_wakeup_ticks_total;
   uint64_t ops_blocked_ticks_max;
   uint64_t ops_blocked_ticks_min;
   uint64_t ops_network_ticks_max;
@@ -49,14 +49,17 @@ private:
   unsigned generic_op_ams_ev_vt;
   unsigned ops_blocked_ev_vt;
   unsigned ops_blocked_ticks_total_ev_vt;
-  unsigned ops_wakeup_ticks_total_ev_vt;
   unsigned ops_network_ticks_total_ev_vt;
+  unsigned ops_wakeup_ticks_total_ev_vt;
   unsigned ops_blocked_ticks_max_ev_vt;
   unsigned ops_blocked_ticks_min_ev_vt;
   unsigned ops_wakeup_ticks_max_ev_vt;
   unsigned ops_wakeup_ticks_min_ev_vt;
   unsigned ops_network_ticks_max_ev_vt;
   unsigned ops_network_ticks_min_ev_vt;
+  unsigned average_latency_ev_vt;
+  unsigned average_network_latency_ev_vt;
+  unsigned average_wakeup_latency_ev_vt;
 
 #endif
 
@@ -263,6 +266,105 @@ void SoftXMT_delegate_func(Func * f, Node target) {
         callbackArgs.sleeper = CURRENT_THREAD;
         SoftXMT_suspend();
     }
+  }
+}
+
+
+
+/// 
+/// Generic delegate operations, with templated argument, return type, function pointer
+///
+
+/* TODO alternative is to take a GlobalAddress, which we can get
+ * the target from, but then F will take the pointer part as an argument 
+ */
+
+// wrapper for the user's delegated function arguments
+// to include a pointer to the memory descriptor
+template < typename ArgType, typename T > 
+struct generic_delegate_request_args {
+  ArgType argument;
+  GlobalAddress< memory_desc<T> > descriptor;
+};
+
+template < typename T > 
+struct generic_delegate_reply_args {
+  T retVal;
+  GlobalAddress< memory_desc<T> > descriptor;
+};
+
+// generic delegate reply active message
+// Fill the return value, wake the sleeping thread, mark operation as done
+template < typename ArgType, typename ReturnType, ReturnType (*F)(ArgType) >
+void generic_delegate_reply_am( generic_delegate_reply_args<ReturnType> * args, size_t arg_size, void * payload, size_t payload_size ) {
+  memory_desc<ReturnType> * md = args->descriptor.pointer();
+  
+  *(md->data) = args->retVal;
+
+  if ( md->t != NULL ) {
+    SoftXMT_wake( md->t );
+    md->t = NULL;
+  }
+
+  md->done = true;
+  
+  if( md->start_time != 0 ) {
+    md->network_time = SoftXMT_get_timestamp();
+    delegate_stats.record_network_latency( md->start_time );
+  }
+}
+
+// generic delegate request active message
+// Call the delegated function, reply with the return value
+template < typename ArgType, typename ReturnType, ReturnType (*F)(ArgType) >
+void generic_delegate_request_am( generic_delegate_request_args<ArgType,ReturnType> * args, size_t arg_size, void * payload, size_t payload_size ) {
+  delegate_stats.count_op_am();
+ 
+  ReturnType r = F( args->argument );
+
+  generic_delegate_reply_args< ReturnType > reply_args;
+  reply_args.retVal = r;
+  reply_args.descriptor = args->descriptor;
+  
+  SoftXMT_call_on( args->descriptor.node(), &generic_delegate_reply_am<ArgType, ReturnType, F>, &reply_args );
+}
+
+///
+/// Call F(arg) as a delegated function on the target node, and return the return value.
+/// Blocking operation.
+///
+template < typename ArgType, typename ReturnType, ReturnType (*F)(ArgType) >
+ReturnType SoftXMT_delegate_func( ArgType arg, Node target ) {
+  delegate_stats.count_op();
+  delegate_stats.count_generic_op();
+  
+  if (target == SoftXMT_mynode() ) {
+    return F(arg);
+  } else {
+    memory_desc<ReturnType> md;
+    md.done = false;
+
+    ReturnType result;
+    md.data = &result; 
+    md.t = NULL;
+    md.start_time = 0;
+    md.network_time = 0;
+
+    generic_delegate_request_args< ArgType, ReturnType > del_args; 
+    del_args.argument = arg;
+    del_args.descriptor = make_global(&md);
+
+    SoftXMT_call_on( target, &generic_delegate_request_am<ArgType,ReturnType,F>, &del_args );
+
+    if ( !md.done ) {
+      md.start_time = SoftXMT_get_timestamp();
+      md.t = CURRENT_THREAD;
+      SoftXMT_suspend();
+      CHECK( md.done );
+      delegate_stats.record_wakeup_latency( md.start_time, md.network_time );
+    }
+
+    return result;
   }
 }
 

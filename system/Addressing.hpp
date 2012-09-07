@@ -153,6 +153,21 @@ public:
     }
   }
 
+  inline T * localize() const {
+    Node nid = global_communicator.mynode();
+    T * local_base;
+    T block_elems = block_size / sizeof(T);
+    T * block_base = block_min().pointer();
+    if (nid < node()) {
+      local_base = block_base+block_elems;
+    } else if (nid > node()) {
+      local_base = block_base;
+    } else {
+      local_base = pointer();
+    }
+    return local_base;
+  }
+
   // base address of block containing this byte
   inline GlobalAddress< T > block_min() const { 
     if( is_2D() ) {

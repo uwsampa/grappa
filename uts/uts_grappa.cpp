@@ -404,10 +404,6 @@ DEFINE_bool( verify_tree, true, "Verify the generated tree" );
       VLOG(4) << "added c.leaves=" << c.size << " to s->r->leaves=" << leaves_result;
   }
      
-  int64_t uts_nodeId( uts::Node * n ) {
-      return n->id;
-  }
-
   Result parTreeCreate( int64_t depth, uts::Node * parent ) {
       int64_t numChildren, childType;
       counter_t parentHeight = parent->height; 
