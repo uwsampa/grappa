@@ -54,4 +54,13 @@ class RunningStandardDeviation {
     }
 };
 
+/// associative reduce function for Statistics
+/// StatType must have void merge(const StatType *)
+template <typename StatType>
+StatType stat_reduce(const StatType& a, const StatType& b) {
+  StatType newst = a;
+  newst.merge(&b);
+  return newst;
+}
+
 #endif // STATISTICS_TOOLS_HPP_

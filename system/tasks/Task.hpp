@@ -238,13 +238,6 @@ class TaskManager {
                 void dump();
                 void merge(const TaskStatistics * other);
                 void reset();
-                static TaskStatistics reduce(const TaskStatistics& a, const TaskStatistics& b) {
-                  TaskStatistics newst = a;
-                  newst.merge(&b);
-                  return newst;
-                }
-
-
         };
         
         TaskStatistics stats;
