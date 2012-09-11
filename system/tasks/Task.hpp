@@ -104,7 +104,12 @@ class TaskManager {
         bool tryConsumeLocal( Task * result );
         bool tryConsumeShared( Task * result );
         bool waitConsumeAny( Task * result );
-        
+
+        // helper operations; called each in once place
+        // for sampling profiler to distinguish code by function
+        void checkPull();
+        void tryPushToGlobal();
+        void checkWorkShare();
         
         
         std::ostream& dump( std::ostream& o ) const {
