@@ -28,9 +28,11 @@ optionally:
         shmmax = 1024*self.shmmaxkB
         for node in nodes:
             if shmmax > 0:
-                self.pool.simple_job(node.ssh.execute, ('sysctl -w kernel.shmmax=%d' %shmmax), jobid=node.alias)           
+                self.pool.simple_job(node.ssh.execute, ('sysctl -w kernel.shmmax=%d' %shmmax), jobid=node.alias)
+                self.pool.simple_job(node.ssh.execute, ('sysctl -w kernel.shmall=%d' %shmmax/4096), jobid=node.alias)
             else:
-                    self.pool.simple_job(node.ssh.execute, ("sysctl -w kernel.shmmax=`grep MemTotal /proc/meminfo | awk '{print $2*1024}'`"), jobid=node.alias)
+                self.pool.simple_job(node.ssh.execute, ("sysctl -w kernel.shmmax=`grep MemTotal /proc/meminfo | awk '{print rshift($2*1024,1)}'`"), jobid=node.alias)
+                self.pool.simple_job(node.ssh.execute, ("sysctl -w kernel.shmall=`grep MemTotal /proc/meminfo | awk '{print rshift($2*1024,13)}'`"), jobid=node.alias)
 
         self.pool.wait(len(nodes))
 
@@ -38,8 +40,10 @@ optionally:
         shmmax = 1024*self.shmmaxkB
         if shmmax > 0:
             self.pool.simple_job(new_node.ssh.execute, ('sysctl -w kernel.shmmax=%d' %shmmax), jobid=node.alias)           
+            self.pool.simple_job(new_node.ssh.execute, ('sysctl -w kernel.shmall=%d' %shmmax/4096), jobid=node.alias)
         else:
-            self.pool.simple_job(new_node.ssh.execute, ("sysctl -w kernel.shmmax=`grep MemTotal /proc/meminfo | awk '{print 1024*$2}'`"), jobid=node.alias)
+            self.pool.simple_job(new_node.ssh.execute, ("sysctl -w kernel.shmmax=`grep MemTotal /proc/meminfo | awk '{print rshift($2*1024,1)}'`"), jobid=node.alias)
+            self.pool.simple_job(new_node.ssh.execute, ("sysctl -w kernel.shmall=`grep MemTotal /proc/meminfo | awk '{print rshift($2*1024,13)}'`"), jobid=node.alias)
 
     def on_remove_node(self, node, nodes, master, user, user_shell, volumes):
         pass
