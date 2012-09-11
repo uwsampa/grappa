@@ -319,29 +319,32 @@ void TaskManager::TaskStatistics::merge(const TaskManager::TaskStatistics * othe
   session_steal_successes_ += other->session_steal_successes_;
   session_steal_fails_ += other->session_steal_fails_;
   single_steal_successes_ += other->single_steal_successes_;
-  total_steal_tasks_ += other->total_steal_tasks_;
-  max_steal_amt_ = max2( max_steal_amt_, other->max_steal_amt_ );
-  stddev_steal_amt_.merge( other->stddev_steal_amt_ );
+  MERGE_STAT_TOTAL( steal_amt_, other );
   single_steal_fails_ += other->single_steal_fails_;
   acquire_successes_ += other->acquire_successes_;
   acquire_fails_ += other->acquire_fails_;
   releases_ += other->releases_;
   public_tasks_dequeued_ += other->public_tasks_dequeued_;
   private_tasks_dequeued_ += other->private_tasks_dequeued_;
+                
+  globalq_pushes_                        += other->globalq_pushes_;
+  globalq_push_attempts_                 += other->globalq_push_attempts_;
+  MERGE_STAT_TOTAL( globalq_elements_pushed_, other );
+  
+  workshare_tests_ += other->workshare_tests_;
+  workshares_initiated_ += other->workshares_initiated_;
+  MERGE_STAT_TOTAL( workshares_initiated_received_elements_, other );
 
-  //publicQ.merge_stats();
+  MERGE_STAT_TOTAL( workshares_initiated_pushed_elements_, other );  
 }
 
 void TaskManager::reset_stats() {
   stats.reset();
-  publicQ.reset_stats();
 }
 
 void TaskManager::TaskStatistics::reset() {
   single_steal_successes_ =0;
-    total_steal_tasks_ =0;
-    max_steal_amt_ =0;
-    stddev_steal_amt_.reset();
+    steal_amt_.reset();
     single_steal_fails_ =0;
     session_steal_successes_ =0;
     session_steal_fails_ =0;
@@ -350,6 +353,15 @@ void TaskManager::TaskStatistics::reset() {
     releases_ =0;
     public_tasks_dequeued_ =0;
     private_tasks_dequeued_ =0;
+                
+    globalq_pushes_ = 0;
+    globalq_push_attempts_ = 0;
+    globalq_elements_pushed_.reset();
+
+    workshare_tests_ = 0;
+    workshares_initiated_ = 0;
+    workshares_initiated_received_elements_.reset();
+    workshares_initiated_pushed_elements_.reset();
 
     sample_calls =0;
 }
