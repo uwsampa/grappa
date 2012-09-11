@@ -146,65 +146,67 @@ void user_main(void* ignore) {
   GlobalAddress<uint64_t> array = SoftXMT_typed_malloc<uint64_t>(nelems);
   GlobalAddress<bucket_t> bucketlist = SoftXMT_typed_malloc<bucket_t>(nbuckets);
 
+      t = SoftXMT_walltime();
+
   // fill vector with random 64-bit integers
-  t = SoftXMT_walltime();
-    forall_local<uint64_t,set_random>(array, nelems);
-  rand_time = SoftXMT_walltime() - t;
-  LOG(INFO) << "fill_random_time: " << rand_time;
+  forall_local<uint64_t,set_random>(array, nelems);
+
+      rand_time = SoftXMT_walltime() - t;
+      LOG(INFO) << "fill_random_time: " << rand_time;
 
   /////////
   // sort
   /////////
-  sort_time = SoftXMT_walltime();
+      sort_time = SoftXMT_walltime();
 
-    // initialize histogram counts
-    { setup_counts f(array, nbuckets, bucketlist); fork_join_custom(&f); }
+  // initialize globals and histogram counts
+  { setup_counts f(array, nbuckets, bucketlist); fork_join_custom(&f); }
 
-    // do local bucket counts
-    t = SoftXMT_walltime();
+      t = SoftXMT_walltime();
 
-      forall_local<uint64_t,histogram>(array, nelems);
+  // do local bucket counts
+  forall_local<uint64_t,histogram>(array, nelems);
 
-    histogram_time = SoftXMT_walltime() - t;
-    LOG(INFO) << "histogram_time: " << histogram_time;
+      histogram_time = SoftXMT_walltime() - t;
+      LOG(INFO) << "histogram_time: " << histogram_time;
     
-    // allreduce everyone's counts & compute global offsets (prefix sum)
-    t = SoftXMT_walltime();
+      t = SoftXMT_walltime();
 
-      { aggregate_counts f; fork_join_custom(&f); }
+  // allreduce everyone's counts & compute global offsets (prefix sum)
+  { aggregate_counts f; fork_join_custom(&f); }
     
-    allreduce_time = SoftXMT_walltime() - t;
-    LOG(INFO) << "allreduce_time: " << allreduce_time;
+      allreduce_time = SoftXMT_walltime() - t;
+      LOG(INFO) << "allreduce_time: " << allreduce_time;
 
-    // allocate buckets
-    forall_local<bucket_t,resize_bucket>(bucketlist, nbuckets);
+  // allocate space in buckets
+  forall_local<bucket_t,resize_bucket>(bucketlist, nbuckets);
     
-    // scatter into buckets
-    t = SoftXMT_walltime();
+      t = SoftXMT_walltime();
 
-      forall_local<uint64_t,scatter>(array, nelems);
+  // scatter into buckets
+  forall_local<uint64_t,scatter>(array, nelems);
     
-    scatter_time = SoftXMT_walltime() - t;
-    LOG(INFO) << "scatter_time: " << scatter_time;
+      scatter_time = SoftXMT_walltime() - t;
+      LOG(INFO) << "scatter_time: " << scatter_time;
 
-    // sort buckets locally and scatter back into original array
-    t = SoftXMT_walltime();
+      t = SoftXMT_walltime();
 
-      forall_local<bucket_t,sort_bucket>(bucketlist, nbuckets);
+  // sort buckets locally
+  forall_local<bucket_t,sort_bucket>(bucketlist, nbuckets);
 
-    local_sort_scatter_time = SoftXMT_walltime() - t;
-    LOG(INFO) << "local_sort_time: " << local_sort_scatter_time;
+      local_sort_scatter_time = SoftXMT_walltime() - t;
+      LOG(INFO) << "local_sort_time: " << local_sort_scatter_time;
+  
+      t = SoftXMT_walltime(); 
+  
+  // redistribute buckets back into global array  
+  forall_local<bucket_t,put_back_bucket>(bucketlist, nbuckets);
     
-    t = SoftXMT_walltime(); 
-    
-      forall_local<bucket_t,put_back_bucket>(bucketlist, nbuckets);
-    
-    put_back_time = SoftXMT_walltime() - t;
-    LOG(INFO) << "put_back_time: " << put_back_time;
-    
-  sort_time = SoftXMT_walltime() - sort_time;
-
-  LOG(INFO) << "total_sort_time: " << sort_time;
+      put_back_time = SoftXMT_walltime() - t;
+      LOG(INFO) << "put_back_time: " << put_back_time;
+  
+      sort_time = SoftXMT_walltime() - sort_time;
+      LOG(INFO) << "total_sort_time: " << sort_time;
 
   // verify
   size_t jump = nelems/17;
