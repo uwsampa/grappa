@@ -138,8 +138,6 @@ class StealQueue {
                               stack in global
                               addr space */
 
-        static StealQueue<T>* staticQueueAddress;        
-       
         // work stealing 
         void steal_reply( uint64_t amt, uint64_t total, T * stolen_work, size_t stolen_size_bytes );
         void steal_request( int k, Node from );
@@ -192,31 +190,38 @@ class StealQueue {
         }
     
     public:
-        StealQueue( uint64_t numEle ) 
-            : stackSize( numEle )
+        static StealQueue<T> steal_queue;
+       
+        void init( uint64_t numEle ) {
+          stackSize = numEle;
+          
+          uint64_t nbytes = numEle * sizeof(T);
+
+          // allocate stack in shared addr space with affinity to calling thread
+          // and record local addr for efficient access in sequel
+          stack_g = static_cast<T*>( malloc( nbytes ) );
+          stack = stack_g;
+
+          CHECK( stack!= NULL ) << "Request for " << nbytes << " bytes for stealStack failed";
+
+          mkEmpty();
+
+#ifdef VTRACE
+          steal_queue_grp_vt = VT_COUNT_GROUP_DEF( "Steal queue" );
+          steal_success_ev_vt = VT_COUNT_DEF( "Steal success", "tasks", VT_COUNT_TYPE_UNSIGNED, steal_queue_grp_vt );
+          steal_victim_ev_vt = VT_COUNT_DEF( "Steal victim", "tasks", VT_COUNT_TYPE_UNSIGNED, steal_queue_grp_vt );
+#endif
+        }
+
+        StealQueue( ) 
+            : stackSize( -1 )
             , maxStackDepth( 0 )
             , nNodes( 0 ), maxTreeDepth( 0 ), nVisited( 0 ), nLeaves( 0 )
             , nAcquire( 0 ), nRelease( 0 ), nStealPackets( 0 ), nFail( 0 )
             , wakeups( 0 ), falseWakeups( 0 ), nNodes_last( 0 ) 
             , numPendingElements( 0 )
-#ifdef VTRACE
-	    , steal_queue_grp_vt( VT_COUNT_GROUP_DEF( "Steal queue" ) )
-	    , steal_success_ev_vt( VT_COUNT_DEF( "Steal success", "tasks", VT_COUNT_TYPE_UNSIGNED, steal_queue_grp_vt ) )
-	    , steal_victim_ev_vt( VT_COUNT_DEF( "Steal victim", "tasks", VT_COUNT_TYPE_UNSIGNED, steal_queue_grp_vt ) )
-#endif
-            , stats()
 {
 
-                uint64_t nbytes = numEle * sizeof(T);
-
-                // allocate stack in shared addr space with affinity to calling thread
-                // and record local addr for efficient access in sequel
-                stack_g = static_cast<T*>( malloc( nbytes ) );
-                stack = stack_g;
-
-                CHECK( stack!= NULL ) << "Request for " << nbytes << " bytes for stealStack failed";
-
-                mkEmpty();
             }
         
         void mkEmpty(); 
@@ -304,16 +309,6 @@ inline uint64_t StealQueue<T>::depth() const {
 
 template <typename T>
 void StealQueue<T>::setState( int state ) { return; }
-
-
-/// Initialize the dedicated queue for T
-template <typename T>
-StealQueue<T>* StealQueue<T>::staticQueueAddress = NULL;
-
-template <typename T>
-void StealQueue<T>::registerAddress( StealQueue<T> * addr ) {
-    staticQueueAddress = addr;
-}
 
 /// set queue to empty
 template <typename T>
@@ -418,8 +413,7 @@ void StealQueue<T>::workStealReply_am( workStealReply_args * args,  size_t size,
 
     T * stolen_work = static_cast<T*>( payload );
     
-    StealQueue<T>* thiefStack = StealQueue<T>::staticQueueAddress;
-    thiefStack->steal_reply( args->stealAmt, args->total, stolen_work, payload_size );
+    steal_queue.steal_reply( args->stealAmt, args->total, stolen_work, payload_size );
 }
 
 template <typename T>
@@ -479,8 +473,7 @@ void StealQueue<T>::workStealRequest_am(workStealRequest_args * args, size_t siz
     int k = args->k;
     Node from = args->from;
 
-    StealQueue<T>* victimStack = StealQueue<T>::staticQueueAddress;
-    victimStack->steal_request( k, from );
+    steal_queue.steal_request( k, from );
 }
 
 #include "Thread.hpp"
@@ -658,24 +651,21 @@ void StealQueue<T>::workShareReplyGreater( int amountGiven, T * data ) {
 
 template <typename T>
 void StealQueue<T>::workShareReplyFewer_am ( workShareReply_args * args, size_t args_size, void * payload, size_t payload_size ) {
-  StealQueue<T> * localQueue = StealQueue::staticQueueAddress;
-  localQueue->workShareReplyFewer( args->amount );
+  steal_queue.workShareReplyFewer( args->amount );
 }
 
 template <typename T>
 void StealQueue<T>::workShareReplyGreater_am ( workShareReply_args * args, size_t args_size, void * payload, size_t payload_size ) {
   CHECK( payload_size == args->amount * sizeof(T) );
 
-  StealQueue<T> * localQueue = StealQueue::staticQueueAddress;
-  localQueue->workShareReplyGreater( args->amount, static_cast<T*>( payload ) );
+  steal_queue.workShareReplyGreater( args->amount, static_cast<T*>( payload ) );
 }
 
 template <typename T>
 void StealQueue<T>::workShareRequest_am ( workShareRequest_args * args, size_t args_size, void * payload, size_t payload_size ) {
   CHECK( payload_size == args->amountPushed * sizeof(T) );
 
-  StealQueue<T> * localQueue = StealQueue::staticQueueAddress;
-  localQueue->workShareRequest( args->queueSize, args->from, static_cast<T*>( payload ), args->amountPushed );
+  steal_queue.workShareRequest( args->queueSize, args->from, static_cast<T*>( payload ), args->amountPushed );
 }
 
 template <typename T>
@@ -775,8 +765,7 @@ uint64_t StealQueue<T>::pull_global() {
 
 template <typename T>
 void StealQueue<T>::pull_global_data_request_g_am( pull_global_data_args<T> * args, size_t args_size, void * payload, size_t payload_size ) {
-  StealQueue<T> * localQueue = StealQueue::staticQueueAddress; 
-  localQueue->pull_global_data_request( args );
+  steal_queue.pull_global_data_request( args );
 }
 
 template <typename T>
@@ -804,8 +793,7 @@ void StealQueue<T>::pull_global_data_request( pull_global_data_args<T> * args ) 
 
 template <typename T>
 void StealQueue<T>::pull_global_data_reply_g_am( GlobalAddress< Signaler > * signal, size_t arg_size, T * payload, size_t payload_size ) {
-  StealQueue<T> * localQueue = StealQueue::staticQueueAddress; 
-  localQueue->pull_global_data_reply( signal, payload, payload_size );
+  steal_queue.pull_global_data_reply( signal, payload, payload_size );
 }
 
 template <typename T>
@@ -851,6 +839,9 @@ bool StealQueue<T>::push_global( uint64_t amount ) {
   return accepted;
 }
 
+// allocation of steal_queue instance
+template <typename T>
+StealQueue<T> StealQueue<T>::steal_queue;
 
 template <typename T>
 std::ostream& operator<<( std::ostream& o, const StealQueue<T>& sq ) {

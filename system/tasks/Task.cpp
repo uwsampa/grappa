@@ -19,7 +19,6 @@ GRAPPA_DEFINE_EVENT_GROUP(task_manager);
 
 TaskManager::TaskManager ( ) 
   : privateQ( )
-  , publicQ( MAXQUEUEDEPTH ) 
   , workDone( false )
   , all_terminate( false )
   , doSteal( false )
@@ -31,7 +30,6 @@ TaskManager::TaskManager ( )
   , nextVictimIndex( 0 )
   , stats( this )
 {
-  StealQueue<Task>::registerAddress( &publicQ );
 }
 
 
@@ -44,6 +42,9 @@ void TaskManager::init (bool doSteal_arg, Node localId_arg, Node * neighbors_arg
   doSteal = doSteal_arg;
   doShare = FLAGS_work_share;
   doGQ = FLAGS_global_queue;
+
+  // initialize public task queue
+  publicQ.init( MAXQUEUEDEPTH );
 
   localId = localId_arg;
   neighbors = neighbors_arg;
@@ -66,6 +67,9 @@ void TaskManager::init (bool doSteal_arg, Node localId_arg, Node * neighbors_arg
 template bool global_queue_pull<Task>( ChunkInfo<Task> * result );
 template bool global_queue_push<Task>( GlobalAddress<Task> chunk_base, uint64_t chunk_amount );
 
+// StealQueue instantiations
+template StealQueue<Task> StealQueue<Task>::steal_queue;
+template GlobalQueue<Task> GlobalQueue<Task>::global_queue;
 
 
 bool TaskManager::getWork( Task * result ) {
@@ -78,7 +82,9 @@ bool TaskManager::getWork( Task * result ) {
       gqLock = false;
       uint64_t local_size = publicQ.depth();
       if ( local_size >= FLAGS_global_queue_threshold ) {
-        publicQ.push_global( MIN_INT( local_size/2, chunkSize ) );
+        uint64_t push_amount = MIN_INT( local_size/2, chunkSize );
+        bool push_success = publicQ.push_global( push_amount );
+        stats.record_globalq_push( push_amount, push_success );
       }
       gqLock = true;
     }
@@ -107,12 +113,14 @@ bool TaskManager::tryConsumeLocal( Task * result ) {
     // initiate load balancing with prob=1/publicQ.depth
     if ( doShare && wshareLock ) {
       wshareLock = false;
+      stats.record_workshare_test( );
       if ( publicQ.depth() == 0 || ((fast_rand()%(1<<16)) < ((1<<16)/publicQ.depth())) ) {
         Node target = fast_rand()%SoftXMT_nodes();
         if ( target == SoftXMT_mynode() ) target = (target+1)%SoftXMT_nodes(); // don't share with ourself
         DVLOG(5) << "before share: " << publicQ;
         int64_t numChange = publicQ.workShare( target );
         DVLOG(5) << "after share of " << numChange << " tasks: " << publicQ;
+        stats.record_workshare( numChange );
       }
       wshareLock = true;
     }
@@ -239,32 +247,37 @@ void TaskManager::finish() {
 
 void TaskManager::dump_stats() {
     stats.dump();
-    publicQ.dump_stats();
 }
 
 #include "DictOut.hpp"
 void TaskManager::TaskStatistics::dump() {
-    double stddev_steal_amount = stddev_steal_amt_.value();
     DictOut dout;
     DICT_ADD(dout, session_steal_successes_);
     DICT_ADD(dout, session_steal_fails_);
     DICT_ADD(dout, single_steal_successes_);
-    DICT_ADD(dout, total_steal_tasks_);
-    DICT_ADD(dout, max_steal_amt_);
-    DICT_ADD(dout, stddev_steal_amount); 
+    DICT_ADD_STAT_TOTAL(dout, steal_amt_);
     DICT_ADD(dout, single_steal_fails_);
     DICT_ADD(dout, acquire_successes_);
     DICT_ADD(dout, acquire_fails_);
     DICT_ADD(dout, releases_);
     DICT_ADD(dout, public_tasks_dequeued_);
     DICT_ADD(dout, private_tasks_dequeued_);
+    
+    DICT_ADD( dout, globalq_pushes_ );
+    DICT_ADD( dout, globalq_push_attempts_ );
+    DICT_ADD_STAT_TOTAL( dout, globalq_elements_pushed_ );
+
+    DICT_ADD( dout, workshare_tests_ );
+    DICT_ADD( dout, workshares_initiated_ );
+    DICT_ADD_STAT_TOTAL( dout, workshares_initiated_received_elements_ );
+    DICT_ADD_STAT_TOTAL( dout, workshares_initiated_pushed_elements_ );
 
     std::cout << "TaskStatistics " << dout.toString() << std::endl;
 }
 
 void TaskManager::TaskStatistics::sample() {
   GRAPPA_EVENT(privateQ_size_ev,       "privateQ size sample",  SAMPLE_RATE, task_manager, tm->privateQ.size());
-  GRAPPA_EVENT(publicQ_size_ev,  "publicQ size sample",  SAMPLE_RATE, task_manager, tm->publicQ.depth());
+  GRAPPA_EVENT(publicQ_size_ev,  "publicQ size sample",  SAMPLE_RATE, task_manager, publicQ.depth());
 
 #ifdef VTRACE
   //VT_COUNT_UNSIGNED_VAL( privateQ_size_vt_ev, tm->privateQ.size() );
@@ -287,7 +300,7 @@ void TaskManager::TaskStatistics::sample() {
 void TaskManager::TaskStatistics::profiling_sample() {
 #ifdef VTRACE_SAMPLED
   VT_COUNT_UNSIGNED_VAL( privateQ_size_vt_ev, tm->privateQ.size() );
-  VT_COUNT_UNSIGNED_VAL( publicQ_size_vt_ev, tm->publicQ.depth() );
+  VT_COUNT_UNSIGNED_VAL( publicQ_size_vt_ev, publicQ.depth() );
   VT_COUNT_UNSIGNED_VAL( session_steal_successes_vt_ev, session_steal_successes_);
   VT_COUNT_UNSIGNED_VAL( session_steal_fails_vt_ev, session_steal_fails_);
   VT_COUNT_UNSIGNED_VAL( single_steal_successes_vt_ev, single_steal_successes_);
