@@ -126,7 +126,6 @@ Gups_tests.o Gups_tests.test: $(LIBRARY)
 ENV_VARIABLES+= GLOG_logtostderr=1
 #ENV_VARIABLES+= GLOG_vmodule=Cache*=5,Incoh*=5,Aggreg*=5
 #ENV_VARIABLES+= GLOG_vmodule=Cache*=5,Incoh*=5
-ENV_VARIABLES+= GLOG_vmodule=StatisticsTools*=5
 ENV_VARIABLES+= GLOG_v=1
 #ENV_VARIABLES+= OMPI_MCA_btl_sm_use_knem=0
 ifdef OSX
