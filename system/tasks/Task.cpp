@@ -279,6 +279,9 @@ void TaskManager::TaskStatistics::dump() {
     DICT_ADD( dout, globalq_pushes_ );
     DICT_ADD( dout, globalq_push_attempts_ );
     DICT_ADD_STAT_TOTAL( dout, globalq_elements_pushed_ );
+    DICT_ADD( dout, globalq_pulls_ );
+    DICT_ADD( dout, globalq_pull_attempts_ );
+    DICT_ADD_STAT_TOTAL( dout, globalq_elements_pulled_ );
 
     DICT_ADD( dout, workshare_tests_ );
     DICT_ADD( dout, workshares_initiated_ );
@@ -343,6 +346,9 @@ void TaskManager::TaskStatistics::merge(const TaskManager::TaskStatistics * othe
   globalq_pushes_                        += other->globalq_pushes_;
   globalq_push_attempts_                 += other->globalq_push_attempts_;
   MERGE_STAT_TOTAL( globalq_elements_pushed_, other );
+  globalq_pulls_                        += other->globalq_pulls_;
+  globalq_pull_attempts_                 += other->globalq_pull_attempts_;
+  MERGE_STAT_TOTAL( globalq_elements_pulled_, other );
   
   workshare_tests_ += other->workshare_tests_;
   workshares_initiated_ += other->workshares_initiated_;
@@ -370,6 +376,9 @@ void TaskManager::TaskStatistics::reset() {
     globalq_pushes_ = 0;
     globalq_push_attempts_ = 0;
     globalq_elements_pushed_.reset();
+    globalq_pulls_ = 0;
+    globalq_pull_attempts_ = 0;
+    globalq_elements_pulled_.reset();
 
     workshare_tests_ = 0;
     workshares_initiated_ = 0;
