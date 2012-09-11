@@ -235,7 +235,7 @@ endif
 mpi_run: $(TARGET) $($(MPITYPE)_ENVVAR_TEMP) $($(MPITYPE)_EPILOG_TEMP) $($(MPITYPE)_BATCH_TEMP)
 	-killall $<
 	$(ENV_VARIABLES) \
-	$($(MPITYPE)_RUN) ./$< $(GARGS)
+	$($(MPITYPE)_RUN) ./$< $($(MPITYPE)_UDPTASKS) $(GARGS)
 
 run: $(TARGET)
 	-killall $<
@@ -256,7 +256,7 @@ endif
 
 mpi_test: $(TARGET) $($(MPITYPE)_ENVVAR_TEMP) $($(MPITYPE)_EPILOG_TEMP) $($(MPITYPE)_BATCH_TEMP)
 	$(ENV_VARIABLES) \
-	$($(MPITYPE)_RUN) ./$< --log_level=$(TEST_LOG_LEVEL) --report_level=$(TEST_REPORT_LEVEL) --run_test=$(TARGET:.test=) $(GARGS)
+	$($(MPITYPE)_RUN) ./$< $($(MPITYPE)_UDPTASKS) --log_level=$(TEST_LOG_LEVEL) --report_level=$(TEST_REPORT_LEVEL) --run_test=$(TARGET:.test=) $(GARGS)
 
 test: $(TARGET)
 	-killall $<
