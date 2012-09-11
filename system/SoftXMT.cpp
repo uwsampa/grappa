@@ -14,6 +14,8 @@
 #include "tasks/GlobalQueue.hpp"
 #include "Collective.hpp"
 #include "StatisticsTools.hpp"
+#include "tasks/StealQueue.hpp"
+#include "tasks/GlobalQueue.hpp"
 
 #ifndef SHMMAX
 #error "no SHMMAX defined for this system -- look it up with the command: `sysctl -A | grep shm`"
@@ -56,6 +58,8 @@ void SoftXMT_take_profiling_sample() {
   cache_stats.profiling_sample();
   incoherent_acquirer_stats.profiling_sample();
   incoherent_releaser_stats.profiling_sample();
+  steal_queue_stats.profiling_sample();
+  global_queue_stats.profiling_sample();
 
   // print user-registered stats
   SoftXMT_profiling_sample_user();
@@ -311,6 +315,8 @@ void SoftXMT_reset_stats() {
   cache_stats.reset();
   incoherent_acquirer_stats.reset();
   incoherent_releaser_stats.reset();
+  steal_queue_stats.reset();
+  global_queue_stats.reset();
  
   SoftXMT_reset_user_stats(); 
 }
@@ -335,6 +341,8 @@ void SoftXMT_dump_stats() {
   cache_stats.dump();
   incoherent_acquirer_stats.dump();
   incoherent_releaser_stats.dump();
+  steal_queue_stats.dump();
+  global_queue_stats.dump();
 }
 
 LOOP_FUNCTION(dump_stats_func,nid) {
@@ -370,11 +378,12 @@ STAT_FUNC(schedulerstat_func, TaskingScheduler::TaskingSchedulerStatistics, glob
 STAT_FUNC(aggregatorstat_func, AggregatorStatistics, global_aggregator.stats );
 STAT_FUNC(commstat_func, CommunicatorStatistics, global_communicator.stats );
 STAT_FUNC(taskmanagerstat_func, TaskManager::TaskStatistics, global_task_manager.stats );
-STAT_FUNC(stealstat_func, StealStatistics, global_task_manager.stealStats() );
+STAT_FUNC(stealstat_func, StealStatistics, steal_queue_stats );
 STAT_FUNC(delegatestat_func, DelegateStatistics, delegate_stats );
 STAT_FUNC(cachestat_func, CacheStatistics, cache_stats );
 STAT_FUNC(incoherentacq_func, IAStatistics, incoherent_acquirer_stats );
 STAT_FUNC(incoherentrel_func, IRStatistics, incoherent_releaser_stats );
+STAT_FUNC(globalqueuestat_func, GlobalQueueStatistics, global_queue_stats );
 
 // call the forkjoin functions to reduce and print each statistic object
 static void reduce_stats_and_dump() {
@@ -388,6 +397,7 @@ static void reduce_stats_and_dump() {
   STAT_FORK_AND_DUMP(cachestat_func, CacheStatistics)
   STAT_FORK_AND_DUMP(incoherentacq_func, IAStatistics)
   STAT_FORK_AND_DUMP(incoherentrel_func, IRStatistics)
+  STAT_FORK_AND_DUMP(globalqueuestat_func, GlobalQueueStatistics)
 }
 
 void SoftXMT_merge_and_dump_stats() {

@@ -325,10 +325,6 @@ void GlobalQueue<T>::pull_entry_request_g_am( pull_entry_args<T> * args, size_t 
   global_queue.pull_entry_request( args );
 } 
 
-// allocation of global_queue instance
-template <typename T>
-GlobalQueue<T> GlobalQueue<T>::global_queue;
-
 
 // global object GlobalQueue<T>::global_queue convenience methods
 template <typename T>
@@ -340,7 +336,9 @@ bool global_queue_push( GlobalAddress<T> chunk_base, uint64_t chunk_amount ) {
   GlobalQueue<T>::global_queue.push( chunk_base, chunk_amount );
 }
 
-
+// allocation of global_queue instance
+template <typename T>
+GlobalQueue<T> GlobalQueue<T>::global_queue;
 
 
 #endif //__GLOBAL_QUEUE_HPP__
