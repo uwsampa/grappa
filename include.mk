@@ -102,6 +102,30 @@ NNODE=1
 PPN?=2
 endif
 
+# check if we're running on ec2
+# TODO: can we make this more robust?
+ifeq ($(shell if [ -e /etc/ec2 ]; then echo yes; fi), yes)
+MPITYPE=SRUN
+GASNET_CONDUIT=mpi
+SHMMAX=$(shell sysctl kernel.shmmax | cut -d' ' -f3)
+$(info shmmax $(SHMMAX))
+BOOST=/usr/local
+TEST_LIBS=-lboost_unit_test_framework
+
+SRUN_PARTITION=compute
+SRUN_BUILD_PARTITION=compute
+SRUN_HOST=--partition $(SRUN_PARTITION)
+SRUN_RUN=salloc --exclusive $(SRUN_FLAGS) $($(MPITYPE)_HOST) $($(MPITYPE)_NPROC) $($(MPITYPE)_BATCH_TEMP)
+SRUN_BUILD_CMD=
+SRUN_CC=$(CC)
+SRUN_CXX=$(CXX)
+SRUN_LD=$(LD)
+SRUN_AR=$(AR)
+
+CFLAGS+=-DUSE_HUGEPAGES_DEFAULT=false
+endif
+
+
 PLATFORM_SPECIFIC_LIBS?=-lrt
 TEST_LIBS?=-lboost_unit_test_framework
 
@@ -213,7 +237,7 @@ SBATCH_MPIRUN_EXPORT_ENV_VARIABLES=$(patsubst %,-x %,$(patsubst DELETEME:%,,$(su
 	@echo 'srun --ntasks-per-node=1 --ntasks=$(NNODE) mkdir -p $(SBATCH_SCRATCH_DIR)' >> $@
 #	@echo 'srun bash -c "hostname; ls -ld $(SBATCH_SCRATCH_DIR)"' >> $@
 	@echo '# Copy libraries to scratch directory' >> $@
-	@echo 'LIBS_TO_COPY=$$( ldd $$1 | egrep -v linux-vdso\.so\|ld-linux\|"> /lib64" | sed "s/.*> \(.*\) (.*/\1/" )' >> $@
+	@echo 'LIBS_TO_COPY=$$( ldd $$1 | egrep -v linux-vdso\.so\|ld-linux\|"> /lib64" | sed "s/.*> \(.*\) (.*/\\1/" )' >> $@
 	@echo 'for i in $$LIBS_TO_COPY; do sbcast $(SBATCH_FORCE_COPY_LIBS) $${i} $(SBATCH_SCRATCH_DIR)/$${i/*\//}; done' >> $@
 	@echo 'for i in $$LIBS_TO_COPY; do cp $${i} $(SBATCH_SCRATCH_DIR)/$${i/*\//}; done' >> $@
 	@echo 'export LD_LIBRARY_PATH=$(SBATCH_SCRATCH_DIR)' >> $@
@@ -245,7 +269,7 @@ PPN?=1
 NTPN?=$(PPN)
 NPROC=$(shell echo ${NNODE}*${PPN} | bc)
 
-SRUN_HOST?=--partition grappa
+SRUN_HOST?=--partition $(SRUN_PARTITION)
 SRUN_NPROC=--nodes=$(NNODE) --ntasks-per-node=$(PPN)
 
 SRUN_MPIRUN?=srun --resv-ports --cpu_bind=verbose,rank --exclusive --label --kill-on-bad-exit $(SRUN_FLAGS)

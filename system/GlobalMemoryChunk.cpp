@@ -13,7 +13,9 @@ extern "C" {
 #define SHM_HUGETLB 0
 #define USE_HUGEPAGES_DEFAULT false
 #else
+#ifndef USE_HUGEPAGES_DEFAULT
 #define USE_HUGEPAGES_DEFAULT true
+#endif
 #endif
 
 #include "Communicator.hpp"
