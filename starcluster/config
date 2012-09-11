@@ -127,12 +127,19 @@ ADD_USERS = True
 
 [plugin createusers]
 SETUP_CLASS = starcluster.plugins.users.CreateUsers
-usernames = ec2-user, root
+usernames = ec2-user, root, nelson, skahan, bholt, bdmyers, claram2, oskin
+DOWNLOAD_KEYS = True
 
 [plugin pkginstaller]
 SETUP_CLASS = starcluster.plugins.pkginstaller.PackageInstaller
-pkg_to_install = libboost-all-dev
+packages = libboost-all-dev
 
+[plugin hadoop]
+SETUP_CLASS = starcluster.plugins.hadoop.Hadoop
+
+# sets shmmax to the available memory on each node
+[plugin config_grappa]
+SETUP_CLASS = config_grappa.SetShmmax
 
 ###########################################
 ## Defining Additional Cluster Templates ##
@@ -164,8 +171,8 @@ NODE_IMAGE_ID = ami-4583572c
 NODE_INSTANCE_TYPE = cc1.4xlarge
 AWS_REGION_NAME = us-east-1
 AWS_REGION_HOST = ec2.us-east-1.amazonaws.com
-VOLUMES = grappa_system
-PLUGINS = createusers, slurm, pkginstaller
+VOLUMES = grappa_home
+PLUGINS = config_grappa, hadoop, pkginstaller, createusers, slurm
 
 #############################
 ## Configuring EBS Volumes ##
@@ -181,7 +188,13 @@ PLUGINS = createusers, slurm, pkginstaller
 
 [volume grappa_system]
 VOLUME_ID = vol-32239949
-MOUNT_PATH = /opt
+MOUNT_PATH = /old_grappa
+
+# mount persistent home directories
+# may be resized with "starcluster resizevolume <volume_id> <size>"
+[volume grappa_home]
+VOLUME_ID = vol-2bc89750
+MOUNT_PATH = /home
 
 # Sections starting with "volume" define your EBS volumes
 # [volume biodata]
