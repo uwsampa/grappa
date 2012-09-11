@@ -104,7 +104,7 @@ endif
 
 # check if we're running on ec2
 # TODO: can we make this more robust?
-ifeq ($(shell if [ -e /etc/ec2 ]; then echo yes; fi), yes)
+ifeq ($(shell if [ -e /etc/ec2.FIND_SOMETHING_BETTER ]; then echo yes; fi), yes)
 MPITYPE=SRUN
 GASNET_CONDUIT=mpi
 SHMMAX=$(shell sysctl kernel.shmmax | cut -d' ' -f3)
@@ -115,12 +115,17 @@ TEST_LIBS=-lboost_unit_test_framework
 SRUN_PARTITION=compute
 SRUN_BUILD_PARTITION=compute
 SRUN_HOST=--partition $(SRUN_PARTITION)
-SRUN_RUN=salloc --exclusive $(SRUN_FLAGS) $($(MPITYPE)_HOST) $($(MPITYPE)_NPROC) $($(MPITYPE)_BATCH_TEMP)
+SRUN_MPIRUN=srun --exclusive --label --kill-on-bad-exit $(SRUN_FLAGS)
 SRUN_BUILD_CMD=
 SRUN_CC=$(CC)
 SRUN_CXX=$(CXX)
 SRUN_LD=$(LD)
 SRUN_AR=$(AR)
+
+ENV_VARIABLES+=GASNET_SPAWNFN='C'
+ENV_VARIABLES+=GASNET_CSPAWN_CMD="$(SRUN_MPIRUN) %C"
+# only defined for UDP spawners
+SRUN_UDPTASKS=$(NPROC)
 
 CFLAGS+=-DUSE_HUGEPAGES_DEFAULT=false
 endif
@@ -155,6 +160,9 @@ GASNET_LIBS+= -libverbs
 endif
 ifeq ($(GASNET_CONDUIT_NS),mpi)
 GASNET_LIBS+= -lammpi
+endif
+ifeq ($(GASNET_CONDUIT_NS),udp)
+GASNET_LIBS+= -lamudp
 endif
 GASNET_FLAGS+= -DGASNET_$(shell echo $(GASNET_THREAD_NS) | tr a-z A-Z) -DGASNET_CONDUIT_$(shell echo $(GASNET_CONDUIT_NS) | tr a-z A-Z)
 CFLAGS+= -I$(GASNET)/include -I$(GASNET)/include/$(GASNET_CONDUIT_NS)-conduit
@@ -267,7 +275,7 @@ SBATCH_MPIRUN_EXPORT_ENV_VARIABLES=$(patsubst %,-x %,$(patsubst DELETEME:%,,$(su
 NNODE?=2
 PPN?=1
 NTPN?=$(PPN)
-NPROC=$(shell echo ${NNODE}*${PPN} | bc)
+NPROC=$(shell echo $(( $(NNODE)*$(PPN) )) )
 
 SRUN_HOST?=--partition $(SRUN_PARTITION)
 SRUN_NPROC=--nodes=$(NNODE) --ntasks-per-node=$(PPN)
