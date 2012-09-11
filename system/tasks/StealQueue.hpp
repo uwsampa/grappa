@@ -461,9 +461,10 @@ void StealQueue<T>::steal_request( int k, Node from ) {
         VLOG(5) << "sending steal packet of transfer_amt=" << transfer_amt << " remain=" << remain << " / stealAmt=" << stealAmt;
         remain -= transfer_amt;
         workStealReply_args reply_args = { transfer_amt, stealAmt };
-        size_t msg_size = SoftXMT_call_on( from, &StealQueue<T>::workStealReply_am, 
+        SoftXMT_call_on( from, &StealQueue<T>::workStealReply_am, 
             &reply_args, sizeof(workStealReply_args), 
             victimStealStart + offset, transfer_amt*sizeof( T ));
+        size_t msg_size = SoftXMT_sizeof_message( &reply_args, sizeof(workStealReply_args), victimStealStart + offset, transfer_amt*sizeof(T));
         stats.record_steal_reply( msg_size );
 
         offset += transfer_amt;
@@ -477,8 +478,9 @@ void StealQueue<T>::steal_request( int k, Node from ) {
     } else {
       workStealReply_args reply_args = { 0, 0 };
       SoftXMT_call_on( from, &StealQueue<T>::workStealReply_am, &reply_args );
+      size_t msg_size = SoftXMT_sizeof_message( &reply_args );
+      stats.record_steal_reply( msg_size );
     }
-
 }
 
 template <typename T>
@@ -499,7 +501,8 @@ int StealQueue<T>::steal_locally( Node victim, int op ) {
     received_tasks = 0;
 
     workStealRequest_args req_args = { op, global_communicator.mynode() };
-    size_t msg_size = SoftXMT_call_on( victim, &StealQueue<T>::workStealRequest_am, &req_args );
+    SoftXMT_call_on( victim, &StealQueue<T>::workStealRequest_am, &req_args );
+    size_t msg_size = SoftXMT_sizeof_message( &req_args );
     stats.record_steal_request( msg_size );
 
     GRAPPA_PROFILE_CREATE( stealprof, "steal_locally", "(suspended)", GRAPPA_SUSPEND_GROUP );
@@ -562,7 +565,8 @@ int64_t StealQueue<T>::workShare( Node target ) {
   DVLOG(5) << "Initiating work share: target=" << target << ", mySize=" << mySize << ", amount=" << amount << ", new bottom=" << bottom;
   
   workShareRequest_args args = { mySize, amount, global_communicator.mynode() };
-  size_t msg_size = SoftXMT_call_on( target, StealQueue<T>::workShareRequest_am, &args, sizeof(args), xfer_start, amount * sizeof(T) );
+  SoftXMT_call_on( target, StealQueue<T>::workShareRequest_am, &args, sizeof(args), xfer_start, amount * sizeof(T) );
+  size_t msg_size = SoftXMT_sizeof_message( &args, sizeof(args), xfer_start, amount * sizeof(T) );
   stats.record_workshare_request( msg_size );
 
   if ( local_push_retVal < 0 ) {
@@ -698,6 +702,8 @@ void StealQueue<T>::workShareRequest( uint64_t remoteSize, Node from, T * data, 
       // reply that all work is denied, none sent
       workShareReply_args reply_args = { num };
       SoftXMT_call_on ( from, &StealQueue<T>::workShareReplyFewer_am, &reply_args );
+      size_t msg_size = SoftXMT_sizeof_message( &reply_args );
+      stats.record_workshare_reply_nack( msg_size );
       return;
     }
 
@@ -719,7 +725,8 @@ void StealQueue<T>::workShareRequest( uint64_t remoteSize, Node from, T * data, 
 
     // reply with number of elements being sent
     workShareReply_args reply_args = { amountToSend };
-    size_t msg_size = SoftXMT_call_on( from, &StealQueue<T>::workShareReplyGreater_am, &reply_args, sizeof(reply_args), xfer_start, amountToSend * sizeof(T) );
+    SoftXMT_call_on( from, &StealQueue<T>::workShareReplyGreater_am, &reply_args, sizeof(reply_args), xfer_start, amountToSend * sizeof(T) );
+    size_t msg_size = SoftXMT_sizeof_message( &reply_args, sizeof(reply_args), xfer_start, amountToSend * sizeof(T) );
     stats.record_workshare_reply( msg_size, false, num, num, amountToSend );
 
 #if DEBUG
@@ -742,7 +749,8 @@ void StealQueue<T>::workShareRequest( uint64_t remoteSize, Node from, T * data, 
     // reply with number of elements denied
     int denied = num - amountToTake;
     workShareReply_args reply_args = { denied };
-    size_t msg_size = SoftXMT_call_on ( from, &StealQueue<T>::workShareReplyFewer_am, &reply_args );
+    SoftXMT_call_on ( from, &StealQueue<T>::workShareReplyFewer_am, &reply_args );
+    size_t msg_size = SoftXMT_sizeof_message( &reply_args );
     stats.record_workshare_reply( msg_size, true, num, denied, 0 );
   }
 }
@@ -763,7 +771,8 @@ uint64_t StealQueue<T>::pull_global() {
     pull_global_data_args<T> args;
     args.signal = make_global( &signal );
     args.chunk = data_ptr;
-    size_t msg_size = SoftXMT_call_on( data_ptr.base.node(), pull_global_data_request_g_am, &args );
+    SoftXMT_call_on( data_ptr.base.node(), pull_global_data_request_g_am, &args );
+    size_t msg_size = SoftXMT_sizeof_message( &args );
     stats.record_globalq_data_pull_request( msg_size, data_ptr.amount );
     signal.wait();
 

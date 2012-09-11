@@ -515,6 +515,13 @@ public:
   }
 };
 
+template <typename ArgStruct>
+size_t SoftXMT_sizeof_message( const ArgStruct * args, const size_t args_size = sizeof( ArgStruct ),
+                             const void * payload = NULL, const size_t payload_size = 0) {
+  return payload_size + args_size + sizeof( AggregatorGenericCallHeader );
+}
+
+
 /// Active message aggregation class.
 class Aggregator {
 private:
@@ -675,7 +682,7 @@ public:
     return buffer_size_ - buffers_[ target ].current_position_; 
   }
 
-inline size_t aggregate( Node destination, AggregatorAMHandler fn_p,
+inline void aggregate( Node destination, AggregatorAMHandler fn_p,
                          const void * args, const size_t args_size,
                          const void * payload, const size_t payload_size ) {
     GRAPPA_FUNCTION_PROFILE( GRAPPA_COMM_GROUP );
@@ -689,7 +696,7 @@ inline size_t aggregate( Node destination, AggregatorAMHandler fn_p,
     // make sure arg struct and payload aren't too big.
     // in the future, this would lead us down a separate code path for large messages.
     // for now, fail.
-    size_t total_call_size = payload_size + args_size + sizeof( AggregatorGenericCallHeader );
+    size_t total_call_size = SoftXMT_sizeof_message( args, args_size, payload, payload_size );
     DVLOG(5) << "aggregating " << total_call_size << " bytes to " 
              << destination << "(target " << target << ")";
     CHECK( total_call_size < buffer_size_ ) << "payload_size( " << payload_size << " )"
@@ -764,8 +771,6 @@ inline size_t aggregate( Node destination, AggregatorAMHandler fn_p,
   tag_ += global_communicator.mynode();
 #endif
   DVLOG(5) << "aggregated " << header;
-
-  return total_call_size;
 }
 
 };
@@ -776,17 +781,16 @@ extern Aggregator global_aggregator;
 
 
 template< typename ArgsStruct >
-inline size_t SoftXMT_call_on( Node destination, void (* fn_p)(ArgsStruct *, size_t, void *, size_t), 
+inline void SoftXMT_call_on( Node destination, void (* fn_p)(ArgsStruct *, size_t, void *, size_t), 
                              const ArgsStruct * args, const size_t args_size = sizeof( ArgsStruct ),
                              const void * payload = NULL, const size_t payload_size = 0)
 {
   StateTimer::start_communication();
-  size_t total_size = global_aggregator.aggregate( destination,
+  global_aggregator.aggregate( destination,
                                reinterpret_cast< AggregatorAMHandler >( fn_p ),
                                static_cast< const void * >( args ), args_size,
                                static_cast< const void * >( payload ), payload_size );
   StateTimer::stop_communication();
-  return total_size;
 }
 
 
@@ -796,12 +800,12 @@ inline size_t SoftXMT_call_on_x( Node destination, void (* fn_p)(ArgsStruct *, s
                                const PayloadType * payload = NULL, const size_t payload_size = 0)
 {
   StateTimer::start_communication();
-  size_t total_size = global_aggregator.aggregate( destination,
+  global_aggregator.aggregate( destination,
                                reinterpret_cast< AggregatorAMHandler >( fn_p ),
                                static_cast< const void * >( args ), args_size,
                                static_cast< const void * >( payload ), payload_size );
   StateTimer::stop_communication();
-  return total_size;
 }
+
 
 #endif
