@@ -63,4 +63,58 @@ StatType stat_reduce(const StatType& a, const StatType& b) {
   return newst;
 }
 
+/// Stats that are totals.
+/// A total can be summed, have a max, and a std deviation
+class TotalStatistic {
+  private:
+    uint64_t total_;
+    uint64_t max_;
+    RunningStandardDeviation stddev_;
+
+  public:
+    TotalStatistic() {
+      reset();
+    }
+
+    void merge( const TotalStatistic& other ) {
+      total_ += other.total_;
+      max_ = max2( max_, other.max_ );
+      stddev_.merge( other.stddev_ );
+    }
+
+    void reset() {
+      total_ = 0;
+      max_ = 0;
+      stddev_.reset();
+    }
+
+    void update( uint64_t val ) {
+      total_ += val;
+      max_ = max2( max_, val );
+      stddev_.addSample( val );
+    }
+
+    uint64_t getTotal() {
+      return total_;
+    }
+
+    uint64_t getMax() {
+      return max_;
+    }
+
+    double getStddev() {
+      return stddev_.value();
+    }
+};
+
+// convenience macros for merging and printing stats
+#define MERGE_STAT_COUNT( name, other ) name += (other)->name
+#define MERGE_STAT_TOTAL( name, other ) name.merge((other)->name)
+
+#define STRINGIFY(s) #s
+#define DICT_ADD_STAT_TOTAL( d, name ) (d).add(#name, name.getTotal() ); \
+                                       (d).add(STRINGIFY(max_##name), name.getMax() ); \
+                                       (d).add(STRINGIFY(stddev_##name), name.getStddev() );
+
 #endif // STATISTICS_TOOLS_HPP_
+
