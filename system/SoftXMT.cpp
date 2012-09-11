@@ -141,7 +141,13 @@ void SoftXMT_init( int * argc_p, char ** argv_p[], size_t global_memory_size_byt
   // by default, will allocate as much shared memory as it is
   // possible to evenly split among the processors on a node
   if (global_memory_size_bytes == -1) {
-    int64_t nnode = atoi(getenv("SLURM_NNODES"));
+    // TODO: this should be a long literal
+    int64_t shmmax_gb = SHMMAX; // make sure it's a long literal
+    // seems to work better with salloc
+    char * nnodes_str = getenv("SLURM_JOB_NUM_NODES");
+    // if not, try the one that srun sets
+    if( NULL == nnodes_str ) nnodes_str = getenv("SLURM_NNODES");
+    int64_t nnode = atoi(nnodes_str);
     int64_t ppn = atoi(getenv("SLURM_NTASKS_PER_NODE"));
     int64_t bytes_per_proc = SHMMAX / ppn;
     
