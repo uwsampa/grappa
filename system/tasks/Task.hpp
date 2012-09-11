@@ -143,6 +143,9 @@ class TaskManager {
                 uint64_t globalq_pushes_;
                 uint64_t globalq_push_attempts_;
                 TotalStatistic globalq_elements_pushed_;
+                uint64_t globalq_pulls_;
+                uint64_t globalq_pull_attempts_;
+                TotalStatistic globalq_elements_pulled_;
 
                 uint64_t workshare_tests_;
                 uint64_t workshares_initiated_;
@@ -242,6 +245,14 @@ class TaskManager {
                   if (success) {
                     globalq_elements_pushed_.update(amount);
                     globalq_pushes_ += 1;
+                  }
+                }
+
+                void record_globalq_pull( uint64_t amount ) {
+                  globalq_pull_attempts_ += 1;
+                  if ( amount > 0 ) {
+                    globalq_elements_pulled_.update(amount);
+                    globalq_pulls_ += 1;
                   }
                 }
 
