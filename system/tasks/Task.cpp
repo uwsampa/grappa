@@ -71,23 +71,26 @@ template bool global_queue_push<Task>( GlobalAddress<Task> chunk_base, uint64_t 
 template StealQueue<Task> StealQueue<Task>::steal_queue;
 template GlobalQueue<Task> GlobalQueue<Task>::global_queue;
 
+inline void TaskManager::tryPushToGlobal() {
+  // push to global queue if local queue has grown large
+  if ( doGQ && SoftXMT_global_queue_isInit() && gqLock ) {
+    gqLock = false;
+    uint64_t local_size = publicQ.depth();
+    if ( local_size >= FLAGS_global_queue_threshold ) {
+      uint64_t push_amount = MIN_INT( local_size/2, chunkSize );
+      bool push_success = publicQ.push_global( push_amount );
+      stats.record_globalq_push( push_amount, push_success );
+    }
+    gqLock = true;
+  }
+}
 
 bool TaskManager::getWork( Task * result ) {
   GRAPPA_FUNCTION_PROFILE( GRAPPA_TASK_GROUP );
 
   while ( !workDone ) {
-  
-    // push to global queue if local queue has grown large
-    if ( doGQ && SoftXMT_global_queue_isInit() && gqLock ) {
-      gqLock = false;
-      uint64_t local_size = publicQ.depth();
-      if ( local_size >= FLAGS_global_queue_threshold ) {
-        uint64_t push_amount = MIN_INT( local_size/2, chunkSize );
-        bool push_success = publicQ.push_global( push_amount );
-        stats.record_globalq_push( push_amount, push_success );
-      }
-      gqLock = true;
-    }
+
+    tryPushToGlobal();
 
     if ( tryConsumeLocal( result ) ) {
       return true;
@@ -101,6 +104,23 @@ bool TaskManager::getWork( Task * result ) {
   return false;
 }
 
+inline void TaskManager::checkWorkShare() {
+  // initiate load balancing with prob=1/publicQ.depth
+  if ( doShare && wshareLock ) {
+    wshareLock = false;
+    stats.record_workshare_test( );
+    if ( publicQ.depth() == 0 || ((fast_rand()%(1<<16)) < ((1<<16)/publicQ.depth())) ) {
+      Node target = fast_rand()%SoftXMT_nodes();
+      if ( target == SoftXMT_mynode() ) target = (target+1)%SoftXMT_nodes(); // don't share with ourself
+      DVLOG(5) << "before share: " << publicQ;
+      int64_t numChange = publicQ.workShare( target );
+      DVLOG(5) << "after share of " << numChange << " tasks: " << publicQ;
+      stats.record_workshare( numChange );
+    }
+    wshareLock = true;
+  }
+}
+
 
 /// "work queue" operations
 bool TaskManager::tryConsumeLocal( Task * result ) {
@@ -110,20 +130,7 @@ bool TaskManager::tryConsumeLocal( Task * result ) {
     stats.record_private_task_dequeue();
     return true;
   } else {
-    // initiate load balancing with prob=1/publicQ.depth
-    if ( doShare && wshareLock ) {
-      wshareLock = false;
-      stats.record_workshare_test( );
-      if ( publicQ.depth() == 0 || ((fast_rand()%(1<<16)) < ((1<<16)/publicQ.depth())) ) {
-        Node target = fast_rand()%SoftXMT_nodes();
-        if ( target == SoftXMT_mynode() ) target = (target+1)%SoftXMT_nodes(); // don't share with ourself
-        DVLOG(5) << "before share: " << publicQ;
-        int64_t numChange = publicQ.workShare( target );
-        DVLOG(5) << "after share of " << numChange << " tasks: " << publicQ;
-        stats.record_workshare( numChange );
-      }
-      wshareLock = true;
-    }
+    checkWorkShare();
 
     if ( publicHasEle() ) {
       DVLOG(5) << "consuming local task";
@@ -142,73 +149,79 @@ static bool stealOk() {
   return (!FLAGS_steal_idle_only) || global_scheduler.active_task_count() < 4; // allow some for FJ private tasks
 }
 
+inline void TaskManager::checkPull() {
+  if ( doSteal ) {
+    if ( stealLock && stealOk() ) {
+
+      GRAPPA_PROFILE_CREATE( prof, "stealing", "(session)", GRAPPA_TASK_GROUP );
+      GRAPPA_PROFILE_START( prof );
+
+      // only one Thread is allowed to steal
+      stealLock = false;
+
+      VLOG(5) << CURRENT_THREAD << " trying to steal";
+      int goodSteal = 0;
+      Node victimId = -1;
+
+      for ( int64_t tryCount=0; 
+          tryCount < numLocalNodes && !goodSteal && !(publicHasEle() || privateHasEle() || workDone);
+          tryCount++ ) {
+
+        Node v = neighbors[nextVictimIndex];
+        victimId = v;
+        nextVictimIndex = (nextVictimIndex+1) % numLocalNodes;
+
+        if ( v == SoftXMT_mynode() ) continue; // don't steal from myself
+
+        goodSteal = publicQ.steal_locally(v, chunkSize);
+
+        if (goodSteal) { stats.record_successful_steal( goodSteal ); }
+        else { stats.record_failed_steal(); }
+      }
+
+      // if finished because succeeded in stealing
+      if ( goodSteal ) {
+        VLOG(5) << CURRENT_THREAD << " steal " << goodSteal
+          << " from Node" << victimId;
+        VLOG(5) << *this; 
+        stats.record_successful_steal_session();
+
+        // publicQ should have had some elements in it
+        // at some point after successful steal
+      } else {
+        VLOG(5) << CURRENT_THREAD << " failed to steal";
+
+        stats.record_failed_steal_session();
+
+      }
+
+      VLOG(5) << "left stealing loop with goodSteal=" << goodSteal
+        << " last victim=" << victimId
+        << " publicHasEle()=" << publicHasEle()
+        << " privateHasEle()=" << privateHasEle();
+      stealLock = true; // release steal lock
+
+      /**TODO remote load balance**/
+
+      GRAPPA_PROFILE_STOP( prof );
+    }
+  } else if ( doGQ && SoftXMT_global_queue_isInit() ) {
+    if ( gqLock ) {
+      gqLock = false;
+
+      uint64_t num_received = publicQ.pull_global(); 
+      stats.record_globalq_pull( num_received ); 
+
+      gqLock = true;
+    }
+  }
+}
+
+
 /// Only returns when there is work or when
 /// the system has no more work.
 bool TaskManager::waitConsumeAny( Task * result ) {
-    if ( doSteal ) {
-        if ( stealLock && stealOk() ) {
-    
-            GRAPPA_PROFILE_CREATE( prof, "stealing", "(session)", GRAPPA_TASK_GROUP );
-            GRAPPA_PROFILE_START( prof );
-            
-            // only one Thread is allowed to steal
-            stealLock = false;
-
-            VLOG(5) << CURRENT_THREAD << " trying to steal";
-            int goodSteal = 0;
-            Node victimId = -1;
-
-            for ( int64_t tryCount=0; 
-                  tryCount < numLocalNodes && !goodSteal && !(publicHasEle() || privateHasEle() || workDone);
-                  tryCount++ ) {
-
-                Node v = neighbors[nextVictimIndex];
-                victimId = v;
-                nextVictimIndex = (nextVictimIndex+1) % numLocalNodes;
-                
-                if ( v == SoftXMT_mynode() ) continue; // don't steal from myself
-                
-                goodSteal = publicQ.steal_locally(v, chunkSize);
-                
-                if (goodSteal) { stats.record_successful_steal( goodSteal ); }
-                else { stats.record_failed_steal(); }
-            }
-
-            // if finished because succeeded in stealing
-            if ( goodSteal ) {
-                VLOG(5) << CURRENT_THREAD << " steal " << goodSteal
-                    << " from Node" << victimId;
-                VLOG(5) << *this; 
-                stats.record_successful_steal_session();
-
-                // publicQ should have had some elements in it
-                // at some point after successful steal
-            } else {
-                VLOG(5) << CURRENT_THREAD << " failed to steal";
-                
-                stats.record_failed_steal_session();
-
-            }
-
-            VLOG(5) << "left stealing loop with goodSteal=" << goodSteal
-                    << " last victim=" << victimId
-                    << " publicHasEle()=" << publicHasEle()
-                    << " privateHasEle()=" << privateHasEle();
-            stealLock = true; // release steal lock
-
-            /**TODO remote load balance**/
-        
-            GRAPPA_PROFILE_STOP( prof );
-        }
-    } else if ( doGQ && SoftXMT_global_queue_isInit() ) {
-      if ( gqLock ) {
-        gqLock = false;
-        
-        publicQ.pull_global(); // TODO logging/stats how much we got
-
-        gqLock = true;
-      }
-    }
+    checkPull();
 
     if ( !local_available() ) {
         GRAPPA_PROFILE_CREATE( prof, "worker idle", "(suspended)", GRAPPA_SUSPEND_GROUP ); 
