@@ -125,9 +125,7 @@ class TaskManager {
         class TaskStatistics {
             private:
                 uint64_t single_steal_successes_;
-                uint64_t total_steal_tasks_;
-                uint64_t max_steal_amt_;
-                RunningStandardDeviation stddev_steal_amt_;
+                TotalStatistic steal_amt_;
                 uint64_t single_steal_fails_;
                 uint64_t session_steal_successes_;
                 uint64_t session_steal_fails_;
@@ -136,6 +134,15 @@ class TaskManager {
                 uint64_t releases_;
                 uint64_t public_tasks_dequeued_;
                 uint64_t private_tasks_dequeued_;
+
+                uint64_t globalq_pushes_;
+                uint64_t globalq_push_attempts_;
+                TotalStatistic globalq_elements_pushed_;
+
+                uint64_t workshare_tests_;
+                uint64_t workshares_initiated_;
+                TotalStatistic workshares_initiated_received_elements_;
+                TotalStatistic workshares_initiated_pushed_elements_;
 
                 // number of calls to sample() 
                 uint64_t sample_calls;
@@ -162,20 +169,10 @@ class TaskManager {
                 TaskStatistics() { } // only for declarations that will be copy-assigned to
 
                 TaskStatistics(TaskManager * task_manager)
-                    : single_steal_successes_ (0)
-                      , total_steal_tasks_ (0)
-                      , max_steal_amt_ (0)
-                      , stddev_steal_amt_()
-                      , single_steal_fails_ (0)
-                      , session_steal_successes_ (0)
-                      , session_steal_fails_ (0)
-                      , acquire_successes_ (0)
-                      , acquire_fails_ (0)
-                      , releases_ (0)
-                      , public_tasks_dequeued_ (0)
-                      , private_tasks_dequeued_ (0)
-
-                      , sample_calls (0)
+                      : steal_amt_ ()
+                      , globalq_elements_pushed_ ()
+                      , workshares_initiated_received_elements_ ()
+                      , workshares_initiated_pushed_elements_ ()
 #ifdef VTRACE_SAMPLED
 		    , task_manager_vt_grp( VT_COUNT_GROUP_DEF( "Task manager" ) )
 		    , privateQ_size_vt_ev( VT_COUNT_DEF( "privateQ size", "tasks", VT_COUNT_TYPE_UNSIGNED, task_manager_vt_grp ) )
@@ -193,7 +190,7 @@ class TaskManager {
 #endif
 
                       , tm( task_manager )
-                          { }
+                          { reset(); }
 
                 void sample();
                 void profiling_sample();
@@ -208,9 +205,7 @@ class TaskManager {
 
                 void record_successful_steal( int64_t amount ) {
                     single_steal_successes_++;
-                    total_steal_tasks_+=amount;
-                    max_steal_amt_ = max2( max_steal_amt_, amount );
-                    stddev_steal_amt_.addSample( amount );
+                    steal_amt_.update( amount );
                 }
 
                 void record_failed_steal() {
@@ -237,15 +232,33 @@ class TaskManager {
                     private_tasks_dequeued_++;
                 }
 
+                void record_globalq_push( uint64_t amount, bool success ) {
+                  globalq_push_attempts_ += 1;
+                  if (success) {
+                    globalq_elements_pushed_.update(amount);
+                    globalq_pushes_ += 1;
+                  }
+                }
+
+                void record_workshare_test() {
+                  workshare_tests_++;
+                }
+
+                void record_workshare( int64_t change ) {
+                  workshares_initiated_ += 1;
+                  if ( change < 0 ) {
+                    workshares_initiated_pushed_elements_.update((-change));
+                  } else {
+                    workshares_initiated_received_elements_.update( change );
+                  }
+                }
+
                 void dump();
                 void merge(const TaskStatistics * other);
                 void reset();
         };
         
         TaskStatistics stats;
-        StealStatistics stealStats() {
-          return publicQ.stats;
-        }
   
         //TaskManager (bool doSteal, Node localId, Node* neighbors, Node numLocalNodes, int chunkSize, int cbint);
         TaskManager();
