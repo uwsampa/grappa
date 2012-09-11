@@ -15,6 +15,8 @@
 #include <vt_user.h>
 #endif
 
+#define publicQ StealQueue<Task>::steal_queue
+
 typedef int16_t Node;
 
 /// Task is a function pointer and pointer to arguments
@@ -62,7 +64,7 @@ static Task createTask( void (*fn_p)(T, S, R), T arg0, S arg1, R arg2 ) {
 class TaskManager {
     private:
         std::deque<Task> privateQ; 
-        StealQueue<Task> publicQ;
+        /* global steal_queue StealQueue<Task> publicQ; */
 
         bool workDone;
        
