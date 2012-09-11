@@ -126,6 +126,7 @@ Gups_tests.o Gups_tests.test: $(LIBRARY)
 ENV_VARIABLES+= GLOG_logtostderr=1
 #ENV_VARIABLES+= GLOG_vmodule=Cache*=5,Incoh*=5,Aggreg*=5
 #ENV_VARIABLES+= GLOG_vmodule=Cache*=5,Incoh*=5
+ENV_VARIABLES+= GLOG_vmodule=StatisticsTools*=5
 ENV_VARIABLES+= GLOG_v=1
 #ENV_VARIABLES+= OMPI_MCA_btl_sm_use_knem=0
 ifdef OSX
@@ -220,7 +221,7 @@ endif
 #
 # Build SoftXMT static library
 #
-LIBRARY_CONTENTS+= SoftXMT.o GlobalAllocator.o GlobalMemory.o GlobalMemoryChunk.o Communicator.o Aggregator.o Timestamp.o Allocator.o Cache.o Delegate.o Collective.o ForkJoin.o tasks/cbarrier.o tasks/TaskingScheduler.o tasks/Task.o tasks/Thread.o stack.o coro.o StateTimer.o PerformanceTools.o Future.o CurrentThread.o ProfilerGroups.o AsyncParallelFor.o GlobalTaskJoiner.o IncoherentAcquirer.o IncoherentReleaser.o ConditionVariables.o Uid.o tasks/StealQueue.o 
+LIBRARY_CONTENTS+= SoftXMT.o GlobalAllocator.o GlobalMemory.o GlobalMemoryChunk.o Communicator.o Aggregator.o Timestamp.o Allocator.o Cache.o Delegate.o Collective.o ForkJoin.o tasks/cbarrier.o tasks/TaskingScheduler.o tasks/Task.o tasks/Thread.o stack.o coro.o StateTimer.o PerformanceTools.o Future.o CurrentThread.o ProfilerGroups.o AsyncParallelFor.o GlobalTaskJoiner.o IncoherentAcquirer.o IncoherentReleaser.o ConditionVariables.o Uid.o tasks/StealQueue.o tasks/GlobalQueue.o
 
 libSoftXMT.a: $(LIBRARY_CONTENTS)
 	$($(MPITYPE)_AR) rv $@ $^
