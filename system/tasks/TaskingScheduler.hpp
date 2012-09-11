@@ -66,7 +66,7 @@ class TaskingScheduler : public Scheduler {
         bool queuesFinished();
   
   SoftXMT_Timestamp prev_ts;
-  static const int tick_scale = 1; //(1L << 30);
+  static const int64_t tick_scale = 1L; //(1L << 30);
 
         Thread * nextCoroutine ( bool isBlocking=true ) {
 	  SoftXMT_Timestamp current_ts = 0;
@@ -177,6 +177,7 @@ class TaskingScheduler : public Scheduler {
             public:
 	  enum State { StatePoll=0, StateReady=1, StateIdle=2, StateLast=3 };
 	  int64_t state_timers[ StateLast ];
+    double state_timers_d[ StateLast ];
 	  State prev_state;
 	  int64_t scheduler_count;
 
@@ -191,12 +192,14 @@ class TaskingScheduler : public Scheduler {
 #endif
 		    , merged(1)
 	    , state_timers()
+      , state_timers_d()
 		  , prev_state( StateIdle )
 	    , scheduler_count(0)
 	    
 	  {
 	    for( int i = StatePoll; i < StateLast; ++i ) {
 	      state_timers[ i ] = 0;
+        state_timers_d[ i ] = 0.0f;
 	    }
 	    active_task_log = new short[1L<<20];
 	    reset();
@@ -229,6 +232,7 @@ class TaskingScheduler : public Scheduler {
 #endif
                 }
                 void dump() {
+                  if (merged==1) { // state_timers_d invalid
                     std::cout << "TaskStats { "
                         << "max_active: " << max_active << ", "
                         << "avg_active: " << avg_active << ", " 
@@ -238,6 +242,18 @@ class TaskingScheduler : public Scheduler {
 			      << ", scheduler_idle_thread_ticks: " << state_timers[ StateIdle ]
 			      << ", scheduler_count: " << scheduler_count
 			      << " }" << std::endl;
+                  } else {
+                    CHECK( merged > 1 );
+                    std::cout << "TaskStats { "
+                        << "max_active: " << max_active << ", "
+                        << "avg_active: " << avg_active << ", " 
+                        << "avg_ready: " << avg_ready
+			      << ", scheduler_polling_thread_ticks: " << state_timers_d[ StatePoll ]
+			      << ", scheduler_ready_thread_ticks: " << state_timers_d[ StateReady ]
+			      << ", scheduler_idle_thread_ticks: " << state_timers_d[ StateIdle ]
+			      << ", scheduler_count: " << scheduler_count
+			      << " }" << std::endl;
+                  }
                 }
                 void sample();
 	        void profiling_sample();

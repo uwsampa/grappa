@@ -212,7 +212,17 @@ void TaskingScheduler::TaskingSchedulerStatistics::profiling_sample() {
 
 void TaskingScheduler::TaskingSchedulerStatistics::merge(const TaskingSchedulerStatistics * other) {
   task_calls += other->task_calls;
-  for (int i=StatePoll; i<StateLast; i++) state_timers[i] += other->state_timers[i];
+  // if *this has not been merged with others, then copy int timers to double timers
+  if (merged==1) {
+    for (int i=StatePoll; i<StateLast; i++) state_timers_d[i] = state_timers[i];
+  }
+  // if *other has not been merged with others, then use its int timers (double are invalid);
+  // otherwise use its double timers (int are unmerged)
+  if ( other->merged == 1 ) {
+    for (int i=StatePoll; i<StateLast; i++) state_timers_d[i] += other->state_timers[i];
+  } else {
+    for (int i=StatePoll; i<StateLast; i++) state_timers_d[i] += other->state_timers_d[i];
+  }
 	scheduler_count += other->scheduler_count;
 
   merged+=other->merged;
