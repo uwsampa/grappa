@@ -12,6 +12,58 @@
 #define CAPACITY_PER_NODE (1L<<19)
 #define HOME_NODE 0
 
+class GlobalQueueStatistics {
+  private:
+    // network usage
+    uint64_t globalq_pull_reserve_request_messages;
+    uint64_t globalq_pull_reserve_request_total_bytes;
+    
+    uint64_t globalq_pull_reserve_reply_messages;
+    uint64_t globalq_pull_reserve_reply_total_bytes;
+    
+    uint64_t globalq_push_reserve_request_messages;
+    uint64_t globalq_push_reserve_request_total_bytes;
+    
+    uint64_t globalq_push_entry_request_messages;
+    uint64_t globalq_push_entry_request_total_bytes;
+    
+    uint64_t globalq_push_reserve_reply_messages;
+    uint64_t globalq_push_reserve_reply_total_bytes;
+
+    // pull
+    uint64_t globalq_pull_request_granted;
+    uint64_t globalq_pull_request_denied;
+    uint64_t globalq_pull_entry_request_messages;
+    uint64_t globalq_pull_entry_request_total_bytes;
+    uint64_t globalq_pull_entry_reply_messages;
+    uint64_t globalq_pull_entry_reply_total_bytes;
+    
+    // push
+    uint64_t globalq_push_request_accepted;
+    uint64_t globalq_push_request_rejected;
+    uint64_t globalq_push_entry_hadConsumer;
+    uint64_t globalq_push_entry_noConsumer;
+  
+  
+  public:
+    GlobalQueueStatistics();
+    void reset();
+    void dump(); 
+    void merge( const GlobalQueueStatistics * other );
+    void profiling_sample();
+
+    void record_push_reserve_request( size_t msg_bytes, bool accepted );
+    void record_push_entry_request( size_t msg_bytes, bool had_consumer );
+    void record_pull_reserve_request( size_t msg_bytes, bool granted );
+    void record_pull_entry_request( size_t msg_bytes );
+    void record_push_reserve_reply( size_t msg_bytes );
+    void record_pull_reserve_reply( size_t msg_bytes );
+    void record_pull_entry_reply( size_t msg_bytes );
+};
+
+extern GlobalQueueStatistics global_queue_stats;
+
+
 template <typename T>
 struct ChunkInfo {
   GlobalAddress<T> base;
@@ -105,13 +157,17 @@ bool GlobalQueue<T>::push( GlobalAddress<T> chunk_base, uint64_t chunk_amount ) 
   DVLOG(5) << "push() base:" << chunk_base << " amount:" << chunk_amount;
 
   GlobalAddress< QueueEntry<T> > loc = SoftXMT_delegate_func< bool, GlobalAddress< QueueEntry<T> >, GlobalQueue<T>::push_reserve_g > ( false, HOME_NODE );
+  size_t msg_bytes = SoftXMT_sizeof_delegate_func_request< bool, GlobalAddress< QueueEntry<T> > >( );
   
   DVLOG(5) << "push() reserve done -- loc:" << loc;
   
   if ( loc.pointer() == NULL ) {
+    global_queue_stats.record_push_reserve_request( msg_bytes, false );
     // no space in global queue; push failed
     return false;
   }
+    
+  global_queue_stats.record_push_reserve_request( msg_bytes, true );
 
   // push the queue entry that points to my chunk 
   ChunkInfo<T> c;
@@ -121,7 +177,9 @@ bool GlobalQueue<T>::push( GlobalAddress<T> chunk_base, uint64_t chunk_amount ) 
   entry_args.target = loc;
   entry_args.chunk = c;
   DVLOG(5) << "push() sending entry to " << loc;
-  /*bool hadSleeper =*/ SoftXMT_delegate_func< push_entry_args<T>, bool, GlobalQueue<T>::push_entry_g > ( entry_args, loc.node() ); 
+  bool had_sleeper = SoftXMT_delegate_func< push_entry_args<T>, bool, GlobalQueue<T>::push_entry_g > ( entry_args, loc.node() ); 
+  size_t entry_msg_bytes = SoftXMT_sizeof_delegate_func_request< push_entry_args<T>, bool >( );
+  global_queue_stats.record_push_entry_request( entry_msg_bytes, had_sleeper );
 
   return true;
 }
@@ -142,9 +200,14 @@ bool GlobalQueue<T>::pull( ChunkInfo<T> * result ) {
                                                 GlobalAddress< QueueEntry<T> >,
                                                 GlobalQueue<T>::pull_reserve_g >
                                             ( false, HOME_NODE );
+  size_t resv_msg_bytes = SoftXMT_sizeof_delegate_func_request< bool, GlobalAddress< QueueEntry<T> > >( );
+
   if ( loc.pointer() == NULL ) {
+    global_queue_stats.record_pull_reserve_request( resv_msg_bytes, false );
     return false; // no space in global queue; push failed
   }
+ 
+  global_queue_stats.record_pull_reserve_request( resv_msg_bytes, true );
 
   // get the element of the queue, which will point to data
   Descriptor< ChunkInfo<T> > desc( result );
@@ -153,6 +216,9 @@ bool GlobalQueue<T>::pull( ChunkInfo<T> * result ) {
   entry_args.target = loc;
   entry_args.descriptor = make_global( &desc );
   SoftXMT_call_on( loc.node(), pull_entry_request_g_am, &entry_args );
+  size_t entry_msg_bytes = SoftXMT_sizeof_message( &entry_args );
+  global_queue_stats.record_pull_entry_request( entry_msg_bytes );
+
   desc.wait();
 
   return true;
@@ -161,6 +227,8 @@ bool GlobalQueue<T>::pull( ChunkInfo<T> * result ) {
 template <typename T>
 GlobalAddress< QueueEntry<T> > GlobalQueue<T>::push_reserve ( bool ignore ) {
   CHECK( isMaster() );
+
+  global_queue_stats.record_push_reserve_reply( SoftXMT_sizeof_delegate_func_reply< bool, GlobalAddress< QueueEntry<T> > >() );
   
   DVLOG(5) << "push_reserve";
 
@@ -178,6 +246,8 @@ template <typename T>
 GlobalAddress< QueueEntry<T> > GlobalQueue<T>::pull_reserve ( bool ignore ) {
   CHECK( isMaster() );
   DVLOG(5) << "pull_reserve";
+
+  global_queue_stats.record_pull_reserve_reply( SoftXMT_sizeof_delegate_func_reply< bool, GlobalAddress< QueueEntry<T> > > () );
   
   if ( tail == head ) {
     return make_global( static_cast<QueueEntry<T> * >( NULL ) ); // empty
@@ -195,6 +265,8 @@ void GlobalQueue<T>::pull_entry_sendreply( GlobalAddress< Descriptor< ChunkInfo<
 
   // send data to puller
   descriptor_reply_one( desc, &(e->chunk) );
+  size_t msg_bytes = SoftXMT_sizeof_descriptor_reply_one( desc, &(e->chunk) );
+  global_queue_stats.record_pull_entry_reply( msg_bytes );
 }
 
 template <typename T>
@@ -223,7 +295,8 @@ void GlobalQueue<T>::pull_entry_request( pull_entry_args<T> * args ) {
 
   QueueEntry<T> * e = args->target.pointer();  
   if ( !e->valid ) {
-    // leave a note to wake the client
+    // leave a note to wake the client.
+    // send no reply yet; the client will block
     e->sleeper = args->descriptor; 
   } else {
     pull_entry_sendreply( args->descriptor, e );
