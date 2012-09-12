@@ -282,6 +282,10 @@ class TaskManager {
         bool isWorkDone() {
             return workDone;
         }
+
+        bool global_queue_on() {
+          return doGQ;
+        }
         
     /*TODO return value?*/
     template < typename T, typename S, typename R > 
