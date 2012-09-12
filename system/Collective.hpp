@@ -51,6 +51,12 @@ static void am_reduce_wake(T * val, size_t sz, void * payload, size_t psz) {
   SoftXMT_wake(reducing_thread);
 }
 
+template< typename T >
+static void am_reduce_array_wake(T * val, size_t sz, void * payload, size_t psz) {
+  memcpy(Reductions<T*>::final_reduction_result, val, sz);
+  SoftXMT_wake(reducing_thread);
+}
+
 template< typename T, T (*Reducer)(const T&, const T&), T BaseVal>
 static void am_reduce(T * val, size_t sz, void* payload, size_t psz) {
   CHECK(SoftXMT_mynode() == HOME_NODE);
@@ -67,6 +73,35 @@ static void am_reduce(T * val, size_t sz, void* payload, size_t psz) {
       T data = Reductions<T>::reduction_result;
       SoftXMT_call_on(n, &am_reduce_wake, &data);
     }
+  }
+}
+
+template< typename T, T (*Reducer)(const T&, const T&), T BaseVal>
+static void am_reduce_array(T * val, size_t sz, void* payload, size_t psz) {
+  CHECK(SoftXMT_mynode() == HOME_NODE);
+  
+  size_t nelem = sz / sizeof(T);
+
+  if (reduction_reported_in == 0) {
+    // allocate space for result
+    Reductions<T*>::reduction_result = new T[nelem];
+    for (size_t i=0; i<nelem; i++) Reductions<T*>::reduction_result[i] = BaseVal;
+  }
+
+  T * rarray = Reductions<T*>::reduction_result;
+  for (size_t i=0; i<nelem; i++) {
+    rarray[i] = Reducer(rarray[i], val[i]);
+  }
+  
+  reduction_reported_in++;
+  VLOG(5) << "reported_in = " << reduction_reported_in;
+  if (reduction_reported_in == SoftXMT_nodes()) {
+    reduction_reported_in = 0;
+    for (Node n = 0; n < SoftXMT_nodes(); n++) {
+      VLOG(5) << "waking " << n;
+      SoftXMT_call_on(n, &am_reduce_array_wake, rarray, sizeof(T)*nelem);
+    }
+    delete [] Reductions<T*>::reduction_result;
   }
 }
 
@@ -104,6 +139,20 @@ T SoftXMT_allreduce(T myval) {
   SoftXMT_suspend();
   
   return Reductions<T>::final_reduction_result;
+}
+
+template< typename T, T (*Reducer)(const T&, const T&), T BaseVal>
+void SoftXMT_allreduce(T * array, size_t nelem, T * result = NULL) {
+  // default is to overwrite original array
+  if (!result) result = array;
+  Reductions<T*>::final_reduction_result = result;
+
+  // TODO: do tree reduction to reduce amount of serialization at Node 0
+  reducing_thread = CURRENT_THREAD;
+  
+  SoftXMT_call_on(0, &am_reduce_array<T,Reducer,BaseVal>, array, sizeof(T)*nelem);
+  
+  SoftXMT_suspend();
 }
 
 template< typename T, T (*Reducer)(const T&, const T&) >
