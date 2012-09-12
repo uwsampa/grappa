@@ -373,7 +373,9 @@ public:
   void record_aggregation( size_t bytes ) {
     messages_aggregated_++;
     bytes_aggregated_ += bytes;
+#ifdef GASNET_CONDUIT_IBV
     histogram_[ (bytes >> 8) & 0xf ]++;
+#endif
   }
 
   void record_deaggregation( size_t bytes ) {
@@ -526,7 +528,15 @@ private:
 
   /// number of bytes in each aggregation buffer
   /// TODO: this should track the IB MTU
-  static const unsigned int buffer_size_ = 4024;
+#ifdef GASNET_CONDUIT_IBV
+  static const unsigned int buffer_size_ = 4096 - 72;
+#endif
+#ifdef GASNET_CONDUIT_UDP
+  static const unsigned int buffer_size_ = 512 - 72;
+#endif
+#ifdef GASNET_CONDUIT_MPI
+  static const unsigned int buffer_size_ = 65000 - 72;
+#endif
   char raw_send_buffer_[ buffer_size_ ];
 
   /// buffers holding aggregated messages. 

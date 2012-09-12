@@ -104,32 +104,50 @@ endif
 
 # check if we're running on ec2
 # TODO: can we make this more robust?
-ifeq ($(shell if [ -e /etc/ec2.FIND_SOMETHING_BETTER ]; then echo yes; fi), yes)
+ifeq ($(shell if [ -e /etc/ec2_version ]; then echo yes; fi), yes)
 MPITYPE=SRUN
-GASNET_CONDUIT=mpi
 SHMMAX=$(shell sysctl kernel.shmmax | cut -d' ' -f3)
-$(info shmmax $(SHMMAX))
+
 BOOST=/usr/local
 TEST_LIBS=-lboost_unit_test_framework
 
 SRUN_PARTITION=compute
 SRUN_BUILD_PARTITION=compute
 SRUN_HOST=--partition $(SRUN_PARTITION)
-SRUN_MPIRUN=srun --exclusive --label --kill-on-bad-exit $(SRUN_FLAGS)
 SRUN_BUILD_CMD=
 SRUN_CC=$(CC)
 SRUN_CXX=$(CXX)
 SRUN_LD=$(LD)
 SRUN_AR=$(AR)
 
-ENV_VARIABLES+=GASNET_SPAWNFN='C'
-ENV_VARIABLES+=GASNET_CSPAWN_CMD="$(SRUN_MPIRUN) %C"
+CFLAGS+=-DUSE_HUGEPAGES_DEFAULT=false
+
+# 
+#EC2_UDP=true
+
+ifdef EC2_UDP
+
+GASNET_CONDUIT=udp
+SRUN_MPIRUN?=srun --exclusive --label --kill-on-bad-exit $(SRUN_FLAGS)
+SRUN_RUN=
+
+# unfortunately running the epilog will require more configuration.
+SRUN_EXPORT_ENV_VARIABLES=--task-prolog=$(SRUN_ENVVAR_TEMP)
+
+GASNET_SETTINGS+=GASNET_SPAWNFN='C'
+GASNET_SETTINGS+=GASNET_CSPAWN_CMD="$(SRUN_MPIRUN) $($(MPITYPE)_EXPORT_ENV_VARIABLES) $($(MPITYPE)_HOST) $($(MPITYPE)_NPROC) -- $(MY_TAU_RUN) \$$( echo '%C' | tr \\\" ' ' | cut -d' ' -f4,5,6 ) $(GARGS)"
+
 # only defined for UDP spawners
 SRUN_UDPTASKS=$(NPROC)
 
-CFLAGS+=-DUSE_HUGEPAGES_DEFAULT=false
+else
+
+GASNET_CONDUIT=mpi
+SRUN_RUN=salloc --exclusive $(SRUN_FLAGS) $($(MPITYPE)_HOST) $($(MPITYPE)_NPROC) $($(MPITYPE)_BATCH_TEMP)
+
 endif
 
+endif
 
 PLATFORM_SPECIFIC_LIBS?=-lrt
 TEST_LIBS?=-lboost_unit_test_framework
@@ -215,7 +233,7 @@ SRUN_EPILOG_TEMP:=$(shell mktemp -utp $(PWD) .srunrc_epilog.XXXXXXXX )
 SRUN_BATCH_TEMP:=$(shell mktemp -utp $(PWD) .sbatch.XXXXXXXX )
 
 # command fragment to use environment variables
-SRUN_EXPORT_ENV_VARIABLES=--task-prolog=$(SRUN_ENVVAR_TEMP) --task-epilog=$(SRUN_EPILOG_TEMP)
+SRUN_EXPORT_ENV_VARIABLES?=--task-prolog=$(SRUN_ENVVAR_TEMP) --task-epilog=$(SRUN_EPILOG_TEMP)
 
 # create an environment variable file when needed
 .srunrc.%:
@@ -240,6 +258,7 @@ SBATCH_MPIRUN_EXPORT_ENV_VARIABLES=$(patsubst %,-x %,$(patsubst DELETEME:%,,$(su
 .sbatch.%:
 	@echo '#!/bin/bash' > $@
 	@for i in $(ENV_VARIABLES); do echo "export $$i" >> $@; done
+ifdef PAL	
 	@echo '# Make scratch directory'  >> $@
 	@echo 'mkdir -p $(SBATCH_SCRATCH_DIR)' >> $@
 	@echo 'srun --ntasks-per-node=1 --ntasks=$(NNODE) mkdir -p $(SBATCH_SCRATCH_DIR)' >> $@
@@ -265,6 +284,12 @@ SBATCH_MPIRUN_EXPORT_ENV_VARIABLES=$(patsubst %,-x %,$(patsubst DELETEME:%,,$(su
 #	@echo mpirun $(SBATCH_MPIRUN_EXPORT_ENV_VARIABLES) -bind-to-core -report-bindings -tag-output -- $(MY_TAU_RUN) \$$* >> $@
 	@echo '# Run!' >> $@
 	@echo '$(SBATCH_SCRATCH_DIR)/mpirun $(SBATCH_MPIRUN_EXPORT_ENV_VARIABLES) -bind-to-core -tag-output -- $(MY_TAU_RUN) $$CMD' >> $@
+else
+	@echo '# Run!' >> $@
+	@echo 'mpirun -npernode 1 bash -c "ipcs -m | grep $(USER) | cut -d\  -f1 | xargs -n1 -r ipcrm -M"' >> $@
+	@echo 'mpirun $(SBATCH_MPIRUN_EXPORT_ENV_VARIABLES) -bind-to-core -tag-output -- $(MY_TAU_RUN) $$*' >> $@
+	@echo 'mpirun -npernode 1 bash -c "ipcs -m | grep $(USER) | cut -d\  -f1 | xargs -n1 -r ipcrm -M"' >> $@
+endif
 	@echo '# Clean up any leftover shared memory regions' >> $@
 	@echo 'for i in `ipcs -m | grep $(USER) | cut -d" " -f1`; do ipcrm -M $$i; done' >> $@
 	@chmod +x $@
@@ -275,7 +300,7 @@ SBATCH_MPIRUN_EXPORT_ENV_VARIABLES=$(patsubst %,-x %,$(patsubst DELETEME:%,,$(su
 NNODE?=2
 PPN?=1
 NTPN?=$(PPN)
-NPROC=$(shell echo $(( $(NNODE)*$(PPN) )) )
+NPROC=$(shell echo $$(( $(NNODE)*$(PPN) )) )
 
 SRUN_HOST?=--partition $(SRUN_PARTITION)
 SRUN_NPROC=--nodes=$(NNODE) --ntasks-per-node=$(PPN)

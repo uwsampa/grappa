@@ -25,6 +25,7 @@ DEFINE_bool( steal, true, "Allow work-stealing between public task queues");
 DEFINE_int32( chunk_size, 10, "Amount of work to publish or steal in multiples of" );
 DEFINE_int32( cancel_interval, 1, "Interval for notifying others of new work" );
 DEFINE_uint64( num_starting_workers, 4, "Number of starting workers in task-executer pool" );
+DEFINE_bool( set_affinity, false, "Set processor affinity based on local rank" );
 
 static Thread * barrier_thread = NULL;
 
@@ -95,6 +96,10 @@ DECLARE_bool( global_memory_use_hugepages );
 /// user calls SoftXMT_activate().
 void SoftXMT_init( int * argc_p, char ** argv_p[], size_t global_memory_size_bytes)
 {
+  // std::cerr << "Argc is " << *argc_p << std::endl;
+  // for( int i = 0; i < *argc_p; ++i ) {
+  //   std::cerr << "Arg " << i << ": " << (*argv_p)[i] << std::endl;
+  // }
   // help generate unique profile filename
   SoftXMT_set_profiler_argv0( (*argv_p)[0] );
 
@@ -138,6 +143,19 @@ void SoftXMT_init( int * argc_p, char ** argv_p[], size_t global_memory_size_byt
   //  initializes system_wide global_aggregator
   global_aggregator.init();
 
+  // set CPU affinity if requested
+  if( FLAGS_set_affinity ) {
+    char * localid_str = getenv("SLURM_LOCALID");
+    if( NULL != localid_str ) {
+      int localid = atoi( localid_str );
+      cpu_set_t mask;
+      CPU_ZERO( &mask );
+      CPU_SET( localid, &mask );
+      sched_setaffinity( 0, sizeof(mask), &mask );
+    }
+  }
+
+
   // by default, will allocate as much shared memory as it is
   // possible to evenly split among the processors on a node
   if (global_memory_size_bytes == -1) {
@@ -150,7 +168,9 @@ void SoftXMT_init( int * argc_p, char ** argv_p[], size_t global_memory_size_byt
     int64_t nnode = atoi(nnodes_str);
     int64_t ppn = atoi(getenv("SLURM_NTASKS_PER_NODE"));
     int64_t bytes_per_proc = SHMMAX / ppn;
-    
+    // round down to page size so we don't ask for too much?
+    bytes_per_proc &= ~( (1L << 12) - 1 );
+
     // be aware of hugepages
     // Each core should ask for a multiple of 1GB hugepages
     // and the whole node should ask for no more than the total pages available
