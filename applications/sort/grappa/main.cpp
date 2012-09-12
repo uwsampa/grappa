@@ -28,6 +28,8 @@
 #include <Collective.hpp>
 #include <Delegate.hpp>
 
+#include "npb_intsort.h"
+
 #define read SoftXMT_delegate_read_word
 #define write SoftXMT_delegate_write_word
 
@@ -39,10 +41,6 @@ typedef boost::mt19937_64 engine_t;
 typedef boost::uniform_int<uint64_t> dist_t;
 typedef boost::variate_generator<engine_t&,dist_t> gen_t;
 
-//union bucket_t {
-  //std::vector<uint64_t> b; // 24 bytes (way less than block size == 64)
-  //char _padder[block_size]; // make sure it takes up a whole block so we get one per Node in SoftXMT_malloc
-//};
 struct bucket_t {
   std::vector<uint64_t> b;
   char pad[block_size-sizeof(b)];
@@ -53,19 +51,22 @@ struct bucket_t {
 ////////////
 int scale;
 int log2buckets;
+int log2maxkey;
+size_t nelems;
 size_t nbuckets;
+uint64_t maxkey;
 std::vector<size_t> counts;
 std::vector<size_t> offsets;
 GlobalAddress<bucket_t> bucketlist;
 GlobalAddress<uint64_t> array;
 
-#define LOBITS (64 - log2buckets)
+#define LOBITS (log2maxkey - log2buckets)
 
 inline void set_random(uint64_t * v) {
   // continue using same generator with multiple calls (to not repeat numbers)
   // but start at different seed on each node so we don't get overlap
   static engine_t engine(12345L*SoftXMT_mynode());
-  static gen_t gen(engine, dist_t(0, std::numeric_limits<uint64_t>::max()));
+  static gen_t gen(engine, dist_t(0, maxkey));
   
   *v = gen();
 }
@@ -87,12 +88,23 @@ inline void histogram(uint64_t * v) {
   counts[b]++;
 }
 
+template< typename T >
+inline void print_array(const char * name, std::vector<T> v) {
+  std::stringstream ss; ss << name << ": [";
+  for (size_t i=0; i<v.size(); i++) ss << " " << v[i];
+  ss << " ]"; VLOG(1) << ss.str();
+}
+template< typename T >
+inline void print_array(const char * name, GlobalAddress<T> base, size_t nelem) {
+  std::stringstream ss; ss << name << ": [";
+  for (size_t i=0; i<nelem; i++) ss << " " << read(base+i);
+  ss << " ]"; VLOG(1) << ss.str();
+}
+
 LOOP_FUNCTION(aggregate_counts, nid ) {
-  // TODO/FIXME: do as single message rather than a number of global sync's
-  // (implement a 'replicator' that is statically declared on all nodes and has methods to bcast/reduce)
-  for (size_t i=0; i<nbuckets; i++) {
-    counts[i] = SoftXMT_allreduce<int64_t,coll_add<int64_t>,0>(counts[i]);
-  }
+  
+  SoftXMT_allreduce<size_t,coll_add<size_t>,0>(&counts[0], nbuckets);
+
   offsets[0] = 0;
   for (size_t i=1; i<nbuckets; i++) {
     offsets[i] = offsets[i-1] + counts[i-1];
@@ -137,11 +149,11 @@ inline void put_back_bucket(bucket_t * bucket) {
 
 void user_main(void* ignore) {
   double t, rand_time, sort_time, histogram_time, allreduce_time, scatter_time, local_sort_scatter_time, put_back_time;
-  size_t nelems = 1L << scale;
 
   LOG(INFO) << "### Sort ###";
   LOG(INFO) << "nelems = (1 << " << scale << ") = " << nelems << " (" << ((double)nelems)*sizeof(uint64_t)/(1L<<30) << " GB)";
   LOG(INFO) << "nbuckets = (1 << " << log2buckets << ") = " << nbuckets;
+  LOG(INFO) << "maxkey = (1 << " << log2maxkey << ") = " << maxkey;
 
   GlobalAddress<uint64_t> array = SoftXMT_typed_malloc<uint64_t>(nelems);
   GlobalAddress<bucket_t> bucketlist = SoftXMT_typed_malloc<bucket_t>(nbuckets);
@@ -208,11 +220,14 @@ void user_main(void* ignore) {
       sort_time = SoftXMT_walltime() - sort_time;
       LOG(INFO) << "total_sort_time: " << sort_time;
 
+  //print_array("array (sorted)", array, nelems);
+
   // verify
   size_t jump = nelems/17;
-  uint64_t prev = read(array+0);
+  uint64_t prev;
   for (size_t i=0; i<nelems; i+=jump) {
-    for (size_t j=0; j<64 && (i+j)<nelems; j++) {
+    prev = 0;
+    for (size_t j=1; j<64 && (i+j)<nelems; j++) {
       uint64_t curr = read(array+i+j);
       CHECK( curr >= prev ) << "verify failed: prev = " << prev << ", curr = " << curr;
       prev = curr;
@@ -237,6 +252,8 @@ static void printHelp(const char * exe) {
   printf("  --help,h   Prints this help message displaying command-line options\n");
   printf("  --scale,s  Scale of the graph: 2^SCALE vertices.\n");
   printf("  --log2buckets,b  Number of buckets will be 2^log2buckets.\n");
+  printf("  --log2maxkey,k   Maximum value of random numbers, range will be [0,2^log2maxkey)");
+  printf("  --class,c   NAS Parallel Benchmark Class (problem size) (W, S, A, B, C, or D)");
   exit(0);
 }
 
@@ -244,7 +261,9 @@ static void parseOptions(int argc, char ** argv) {
   struct option long_opts[] = {
     {"help", no_argument, 0, 'h'},
     {"scale", required_argument, 0, 's'},
-    {"log2buckets", required_argument, 0, 'b'}
+    {"log2buckets", required_argument, 0, 'b'},
+    {"log2maxkey", required_argument, 0, 'k'},
+    {"class", required_argument, 0, 'c'}
   };
   
   // defaults
@@ -252,13 +271,12 @@ static void parseOptions(int argc, char ** argv) {
 
   // at least 2*num_nodes buckets by default
   nbuckets = 2;
-  log2buckets = 0;
+  log2buckets = 1;
   Node nodes = SoftXMT_nodes();
   while (nbuckets < nodes) {
     nbuckets <<= 1;
     log2buckets++;
   }
-  nbuckets << 1; log2buckets++; 
 
   int c = 0;
   while (c != -1) {
@@ -274,9 +292,20 @@ static void parseOptions(int argc, char ** argv) {
         break;
       case 'b':
         log2buckets = atoi(optarg);
-        nbuckets = 1L << log2buckets;
+        break;
+      case 'k':
+        log2maxkey = atoi(optarg);
+        break;
+      case 'c':
+        npb_class cls = get_npb_class(optarg[0]);
+        log2maxkey = MAX_KEY_LOG2[cls];
+        log2buckets = NBUCKET_LOG2[cls];
+        scale = NKEY_LOG2[cls];
         break;
     }
   }
+  nelems = 1L << scale;
+  nbuckets = 1L << log2buckets;
+  maxkey = 1L << log2maxkey;
 }
 
