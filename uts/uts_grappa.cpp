@@ -23,9 +23,7 @@ DEFINE_bool( verify_tree, true, "Verify the generated tree" );
 #define SEARCH_THRESHOLD ((int64_t) 8) //8
 
   // declare stealing parameters
-  DECLARE_bool( steal );
-  DECLARE_bool( work_share );
-  DECLARE_bool( global_queue );
+  DECLARE_string( load_balance );
   DECLARE_int32( chunk_size );
 
   // UTS interface definitions
@@ -37,12 +35,8 @@ DEFINE_bool( verify_tree, true, "Verify the generated tree" );
       ind += sprintf(strBuf+ind, "   up to %d threads per core\n", FLAGS_num_starting_workers );
       ind += sprintf(strBuf+ind, "%d places\n", FLAGS_num_places);
       
-      if (FLAGS_steal) {
-          ind += sprintf(strBuf+ind, "    Dynamic load balance by work-stealing, chunk size = %d nodes\n", FLAGS_chunk_size);
-      } else if (FLAGS_work_share) {
-          ind += sprintf(strBuf+ind, "    Dynamic load balance by work-sharing, chunk size = %d nodes\n", FLAGS_chunk_size);
-      } else if (FLAGS_global_queue) {
-          ind += sprintf(strBuf+ind, "    Dynamic load balance by global queue, chunk size = %d nodes\n", FLAGS_chunk_size);
+      if (true) {
+          ind += sprintf(strBuf+ind, "    Dynamic load balancing: %s, chunk size = %d nodes\n", FLAGS_load_balance.c_str(), FLAGS_chunk_size);
       } else {
           ind += sprintf(strBuf+ind, "   No dynamic load balancing.\n");
       }

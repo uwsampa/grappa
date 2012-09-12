@@ -246,7 +246,7 @@ LOOP_FUNCTION( initialize_global_queue_func, nid ) {
 /// Initialize global queue for load balancing.
 /// Must be called in user_main
 void SoftXMT_global_queue_initialize() {
-  if ( FLAGS_global_queue ) {
+  if ( global_task_manager.global_queue_on() ) {
     initialize_global_queue_func f;
     fork_join_custom( &f );
   }

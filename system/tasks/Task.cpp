@@ -6,9 +6,7 @@
 #include "GlobalQueue.hpp"
 
 DEFINE_int32( chunk_size, 10, "Max amount of work transfered per load balance" );
-DEFINE_bool( steal, true, "Load balance with work-stealing between public task queues");
-DEFINE_bool( work_share, false, "Load balance with work-sharing between public task queues" );
-DEFINE_bool( global_queue, false, "Load balance with a global queue" );
+DEFINE_string( load_balance, "steal", "Type of dynamic load balancing {none, steal (default), share, gq}" );
 DEFINE_uint64( global_queue_threshold, 1024, "Threshold to trigger release of tasks to global queue" );
 
 //#define MAXQUEUEDEPTH 500000
@@ -36,14 +34,19 @@ TaskManager::TaskManager ( )
 
 
 void TaskManager::init ( Node localId_arg, Node * neighbors_arg, Node numLocalNodes_arg ) {
-  CHECK( !(FLAGS_steal && FLAGS_work_share) &&
-         !(FLAGS_steal && FLAGS_global_queue) &&
-         !(FLAGS_work_share && FLAGS_global_queue) ) << "cannot use more than one load balancing mechanism";
-  fast_srand(0);
+  if ( FLAGS_load_balance.compare(        "none" ) == 0 ) {
+    doSteal = false; doShare = false; doGQ = false;
+  } else if ( FLAGS_load_balance.compare( "steal" ) == 0 ) {
+    doSteal = true; doShare = false; doGQ = false;
+  } else if ( FLAGS_load_balance.compare( "share" ) == 0 ) {
+    doSteal = false; doShare = true; doGQ = false;
+  } else if ( FLAGS_load_balance.compare( "gq" ) == 0 ) {
+    doSteal = false; doShare = false; doGQ = true;
+  } else {
+    CHECK( false ) << "load_balance=" << FLAGS_load_balance << "; must be {none, steal, share, gq}";
+  }
 
-  doSteal = FLAGS_steal;
-  doShare = FLAGS_work_share;
-  doGQ = FLAGS_global_queue;
+  fast_srand(0);
 
   // initialize public task queue
   publicQ.init( MAXQUEUEDEPTH );
