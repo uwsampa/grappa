@@ -76,7 +76,6 @@ class TaskManager {
         bool stealLock;  // steal lock
         bool wshareLock; // work share lock
         bool gqLock;     // global queue lock
-        int cbint;       // how often to make local public work visible
 
         // to support hierarchical dynamic load balancing
         Node localId;
