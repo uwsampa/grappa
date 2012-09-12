@@ -110,11 +110,13 @@ inline void TaskManager::checkWorkShare() {
   if ( doShare && wshareLock ) {
     wshareLock = false;
     stats.record_workshare_test( );
-    if ( publicQ.depth() == 0 || ((fast_rand()%(1<<16)) < ((1<<16)/publicQ.depth())) ) {
+    uint64_t local_size = publicQ.depth();
+    if ( local_size == 0 || ((fast_rand()%(1<<16)) < ((1<<16)/local_size)) ) {
       Node target = fast_rand()%SoftXMT_nodes();
       if ( target == SoftXMT_mynode() ) target = (target+1)%SoftXMT_nodes(); // don't share with ourself
       DVLOG(5) << "before share: " << publicQ;
-      int64_t numChange = publicQ.workShare( target );
+      uint64_t amount = MIN_INT( local_size/2, chunkSize );  // offer half or limit
+      int64_t numChange = publicQ.workShare( target, amount );
       DVLOG(5) << "after share of " << numChange << " tasks: " << publicQ;
       stats.record_workshare( numChange );
     }

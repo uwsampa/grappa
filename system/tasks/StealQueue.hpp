@@ -251,7 +251,7 @@ class StealQueue {
         int steal_locally( Node victim, int chunkSize ); 
 
         // work sharing API
-        int64_t workShare( Node target );
+        int64_t workShare( Node target, uint64_t amount );
         
         // global queue API
         uint64_t pull_global();
@@ -518,9 +518,10 @@ struct workShareRequest_args {
 
 /// returns change in number of elements
 template <typename T>
-int64_t StealQueue<T>::workShare( Node target ) {
+int64_t StealQueue<T>::workShare( Node target, uint64_t amount ) {
   CHECK( !pendingWorkShare ) << "Implementation allows only one pending workshare per node";
   CHECK( global_communicator.mynode() != target ) << "cannot workshare with self target: " << target;
+  CHECK( amount <= bufsize ) << "Only support single-packet transfers";
 
   uint64_t mySize = depth();
     
@@ -528,9 +529,6 @@ int64_t StealQueue<T>::workShare( Node target ) {
 
   // initialize sharing state
   local_push_retVal = -1;
-
-  uint64_t amount = mySize / 2;  // offer half
-  amount = MIN_INT( amount, bufsize ); // or max xfer size
 
   local_push_amount = amount;
 
