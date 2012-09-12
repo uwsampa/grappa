@@ -392,6 +392,9 @@ static void reduce_stats_and_dump() {
   STAT_FORK_AND_DUMP(incoherentacq_func, IAStatistics)
   STAT_FORK_AND_DUMP(incoherentrel_func, IRStatistics)
   STAT_FORK_AND_DUMP(globalqueuestat_func, GlobalQueueStatistics)
+
+  // also print the SoftXMT stats that don't needed merging
+  std::cout << "SoftXMTStats { tick_rate: " << tick_rate << " }" << std::endl;
 }
 
 void SoftXMT_merge_and_dump_stats() {

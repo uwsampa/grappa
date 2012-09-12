@@ -233,7 +233,7 @@ class TaskingScheduler : public Scheduler {
                 }
                 void dump() {
                   if (merged==1) { // state_timers_d invalid
-                    std::cout << "TaskStats { "
+                    std::cout << "TaskingSchedulerStatistics { "
                         << "max_active: " << max_active << ", "
                         << "avg_active: " << avg_active << ", " 
                         << "avg_ready: " << avg_ready
@@ -244,7 +244,7 @@ class TaskingScheduler : public Scheduler {
 			      << " }" << std::endl;
                   } else {
                     CHECK( merged > 1 );
-                    std::cout << "TaskStats { "
+                    std::cout << "TaskingSchedulerStatistics { "
                         << "max_active: " << max_active << ", "
                         << "avg_active: " << avg_active << ", " 
                         << "avg_ready: " << avg_ready
