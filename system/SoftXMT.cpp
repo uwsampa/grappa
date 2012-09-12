@@ -26,9 +26,6 @@
 #endif
 
 // command line arguments
-DEFINE_bool( steal, true, "Allow work-stealing between public task queues");
-DEFINE_int32( chunk_size, 10, "Amount of work to publish or steal in multiples of" );
-DEFINE_int32( cancel_interval, 1, "Interval for notifying others of new work" );
 DEFINE_uint64( num_starting_workers, 4, "Number of starting workers in task-executer pool" );
 
 DECLARE_bool( global_queue );
@@ -196,11 +193,8 @@ void SoftXMT_init( int * argc_p, char ** argv_p[], size_t global_memory_size_byt
   // start threading layer
   master_thread = thread_init();
   VLOG(1) << "Initializing tasking layer."
-           << " steal=" << FLAGS_steal
-           << " num_starting_workers=" << FLAGS_num_starting_workers
-           << " chunk_size=" << FLAGS_chunk_size
-           << " cbint=" << FLAGS_cancel_interval;
-  global_task_manager.init( FLAGS_steal, SoftXMT_mynode(), node_neighbors, SoftXMT_nodes(), FLAGS_chunk_size, FLAGS_cancel_interval ); //TODO: options for local stealing
+           << " num_starting_workers=" << FLAGS_num_starting_workers;
+  global_task_manager.init( SoftXMT_mynode(), node_neighbors, SoftXMT_nodes() ); //TODO: options for local stealing
   global_scheduler.init( master_thread, &global_task_manager );
   global_scheduler.periodic( thread_spawn( master_thread, &global_scheduler, &poller, NULL ) );
 

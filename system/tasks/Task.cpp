@@ -5,6 +5,8 @@
 #include "common.hpp"
 #include "GlobalQueue.hpp"
 
+DEFINE_int32( chunk_size, 10, "Max amount of work transfered per load balance" );
+DEFINE_bool( steal, true, "Load balance with work-stealing between public task queues");
 DEFINE_bool( work_share, false, "Load balance with work-sharing between public task queues" );
 DEFINE_bool( global_queue, false, "Load balance with a global queue" );
 DEFINE_uint64( global_queue_threshold, 1024, "Threshold to trigger release of tasks to global queue" );
@@ -33,13 +35,13 @@ TaskManager::TaskManager ( )
 }
 
 
-void TaskManager::init (bool doSteal_arg, Node localId_arg, Node * neighbors_arg, Node numLocalNodes_arg, int chunkSize_arg, int cbint_arg) {
-  CHECK( !(doSteal_arg && FLAGS_work_share) &&
-         !(doSteal_arg && FLAGS_global_queue) &&
+void TaskManager::init ( Node localId_arg, Node * neighbors_arg, Node numLocalNodes_arg ) {
+  CHECK( !(FLAGS_steal && FLAGS_work_share) &&
+         !(FLAGS_steal && FLAGS_global_queue) &&
          !(FLAGS_work_share && FLAGS_global_queue) ) << "cannot use more than one load balancing mechanism";
   fast_srand(0);
 
-  doSteal = doSteal_arg;
+  doSteal = FLAGS_steal;
   doShare = FLAGS_work_share;
   doGQ = FLAGS_global_queue;
 
@@ -49,8 +51,7 @@ void TaskManager::init (bool doSteal_arg, Node localId_arg, Node * neighbors_arg
   localId = localId_arg;
   neighbors = neighbors_arg;
   numLocalNodes = numLocalNodes_arg;
-  chunkSize = chunkSize_arg;
-  cbint = cbint_arg;
+  chunkSize = FLAGS_chunk_size;
 
   // initialize neighbors to steal permutation
   srandom(0);
