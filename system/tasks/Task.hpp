@@ -277,7 +277,7 @@ class TaskManager {
   
         //TaskManager (bool doSteal, Node localId, Node* neighbors, Node numLocalNodes, int chunkSize, int cbint);
         TaskManager();
-        void init (bool doSteal, Node localId, Node* neighbors, Node numLocalNodes, int chunkSize, int cbint);
+        void init (Node localId, Node* neighbors, Node numLocalNodes);
 
         bool isWorkDone() {
             return workDone;
