@@ -353,4 +353,61 @@ void SoftXMT_memset_local(GlobalAddress<T> base, T value, size_t count) {
   }
 }
 
+#include "AsyncParallelFor.hpp"
+
+extern LocalTaskJoiner ljoin;
+
+template< typename S, void (*F)(int64_t,int64_t,S), int64_t Threshold >
+void spawn_private_task(int64_t a, int64_t b, S c);
+
+template< typename S, void (*F)(int64_t,int64_t,S), int64_t Threshold >
+void apfor_with_local_join(int64_t a, int64_t b, S c) {
+  async_parallel_for<S, F, spawn_private_task<S,F,Threshold>, Threshold>(a, b, c);
+  ljoin.signal();
+}
+
+template< typename S, void (*F)(int64_t,int64_t,S), int64_t Threshold >
+void spawn_private_task(int64_t a, int64_t b, S c) {
+  ljoin.registerTask();
+  SoftXMT_privateTask( &apfor_with_local_join<S, F, Threshold>, a, b, c );
+}
+
+template< typename S, void (*F)(int64_t,int64_t,S), int64_t Threshold >
+void async_parallel_for_private(int64_t start, int64_t iters, S shared_arg) {
+  ljoin.reset();
+  async_parallel_for< S, F, spawn_private_task<S,F,Threshold>, Threshold>(start, iters, shared_arg);
+  ljoin.wait();
+}
+
+template< typename T, void F(T*) >
+void for_iterations_task(int64_t start, int64_t niters, T * base) {
+  //VLOG(1) << "for_local @ " << base << " ^ " << start << " # " << niters;
+  for (int64_t i=start; i<start+niters; i++) {
+    F(&base[i]);
+  }
+}
+
+template< typename T, void F(T*), int64_t Threshold >
+struct for_local_func : ForkJoinIteration {
+  GlobalAddress<T> base;
+  size_t nelems;
+  void operator()(int64_t nid) const {
+    T * local_base = base.localize(), * local_end = (base+nelems).localize();
+    async_parallel_for_private< T*, for_iterations_task<T,F>, Threshold >(0, local_end-local_base, local_base);
+  }
+};
+
+template< typename T, void F(T*), int64_t Threshold >
+void forall_local(GlobalAddress<T> base, size_t nelems) {
+  for_local_func<T,F,Threshold> f;
+  f.base = base;
+  f.nelems = nelems;
+  fork_join_custom(&f);
+}
+// duplicated to handle default template args (unnecessary with c++11)
+template< typename T, void F(T*) >
+void forall_local(GlobalAddress<T> base, size_t nelems) {
+  forall_local<T,F,ASYNC_PAR_FOR_DEFAULT>(base, nelems);
+}
+
 #endif /* define __FORK_JOIN_HPP__ */
