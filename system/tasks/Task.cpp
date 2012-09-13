@@ -26,7 +26,8 @@ TaskManager::TaskManager ( )
   , doGQ( false )
   , stealLock( true )
   , wshareLock( true )
-  , gqLock( true )
+  , gqPushLock( true )
+  , gqPullLock( true )
   , nextVictimIndex( 0 )
   , stats( this )
 {
@@ -68,7 +69,7 @@ void TaskManager::init ( Node localId_arg, Node * neighbors_arg, Node numLocalNo
      
 
 // GlobalQueue instantiations
-template bool global_queue_pull<Task>( ChunkInfo<Task> * result );
+template void global_queue_pull<Task>( ChunkInfo<Task> * result );
 template bool global_queue_push<Task>( GlobalAddress<Task> chunk_base, uint64_t chunk_amount );
 
 // StealQueue instantiations
@@ -77,15 +78,17 @@ template GlobalQueue<Task> GlobalQueue<Task>::global_queue;
 
 inline void TaskManager::tryPushToGlobal() {
   // push to global queue if local queue has grown large
-  if ( doGQ && SoftXMT_global_queue_isInit() && gqLock ) {
-    gqLock = false;
+  if ( doGQ && SoftXMT_global_queue_isInit() && gqPushLock ) {
+    gqPushLock = false;
     uint64_t local_size = publicQ.depth();
+    DVLOG(1) << "Allowed to push gq: local size " << local_size;
     if ( local_size >= FLAGS_global_queue_threshold ) {
+      DVLOG(1) << "Decided to push gq";
       uint64_t push_amount = MIN_INT( local_size/2, chunkSize );
       bool push_success = publicQ.push_global( push_amount );
       stats.record_globalq_push( push_amount, push_success );
     }
-    gqLock = true;
+    gqPushLock = true;
   }
 }
 
@@ -212,13 +215,17 @@ inline void TaskManager::checkPull() {
       GRAPPA_PROFILE_STOP( prof );
     }
   } else if ( doGQ && SoftXMT_global_queue_isInit() ) {
-    if ( gqLock ) {
-      gqLock = false;
+    if ( gqPullLock ) { 
+      // artificially limiting to 1 outstanding pull; for
+      // now we do want a small limit since pulls are
+      // blocking
+      gqPullLock = false;
 
+      stats.record_globalq_pull_start( );  // record the start separately because pull_global() may block CURRENT_THREAD indefinitely
       uint64_t num_received = publicQ.pull_global(); 
       stats.record_globalq_pull( num_received ); 
 
-      gqLock = true;
+      gqPullLock = true;
     }
   }
 }

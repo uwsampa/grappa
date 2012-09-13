@@ -26,12 +26,12 @@ void GlobalQueueStatistics::reset() {
     globalq_push_reserve_reply_messages = 0;
     globalq_push_reserve_reply_total_bytes = 0;
 
-    globalq_pull_request_granted = 0;
-    globalq_pull_request_denied = 0;
     globalq_pull_entry_request_messages = 0;
     globalq_pull_entry_request_total_bytes = 0;
     globalq_pull_entry_reply_messages = 0;
     globalq_pull_entry_reply_total_bytes = 0;
+    globalq_pull_reserve_hadConsumer = 0;
+    globalq_pull_reserve_noConsumer = 0;
     
     globalq_push_request_accepted = 0;
     globalq_push_request_rejected = 0;
@@ -57,12 +57,12 @@ void GlobalQueueStatistics::dump() {
   DICT_ADD( dout, globalq_push_reserve_reply_messages );
   DICT_ADD( dout, globalq_push_reserve_reply_total_bytes );
 
-  DICT_ADD( dout, globalq_pull_request_granted );
-  DICT_ADD( dout, globalq_pull_request_denied );
   DICT_ADD( dout, globalq_pull_entry_request_messages );
   DICT_ADD( dout, globalq_pull_entry_request_total_bytes );
   DICT_ADD( dout, globalq_pull_entry_reply_messages );
   DICT_ADD( dout, globalq_pull_entry_reply_total_bytes );
+  DICT_ADD( dout, globalq_pull_reserve_hadConsumer );
+  DICT_ADD( dout, globalq_pull_reserve_noConsumer );
   
   DICT_ADD( dout, globalq_push_request_accepted );
   DICT_ADD( dout, globalq_push_request_rejected );
@@ -88,12 +88,12 @@ void GlobalQueueStatistics::merge( const GlobalQueueStatistics * other ) {
     globalq_push_reserve_reply_messages += other->globalq_push_reserve_reply_messages;
     globalq_push_reserve_reply_total_bytes += other->globalq_push_reserve_reply_total_bytes;
 
-    globalq_pull_request_granted += other->globalq_pull_request_granted;
-    globalq_pull_request_denied += other->globalq_pull_request_denied;
     globalq_pull_entry_request_messages += other->globalq_pull_entry_request_messages; 
     globalq_pull_entry_request_total_bytes += other->globalq_pull_entry_request_total_bytes;
     globalq_pull_entry_reply_messages += other->globalq_pull_entry_reply_messages;
     globalq_pull_entry_reply_total_bytes += other->globalq_pull_entry_reply_total_bytes;
+    globalq_pull_reserve_hadConsumer += other->globalq_pull_reserve_hadConsumer;
+    globalq_pull_reserve_noConsumer += other->globalq_pull_reserve_noConsumer;
                                                                               
     globalq_push_request_accepted += other->globalq_push_request_accepted;
     globalq_push_request_rejected += other->globalq_push_request_rejected;
@@ -101,15 +101,9 @@ void GlobalQueueStatistics::merge( const GlobalQueueStatistics * other ) {
     globalq_push_entry_noConsumer += other->globalq_push_entry_noConsumer;
 } 
 
-void GlobalQueueStatistics::record_pull_reserve_request( size_t msg_bytes, bool granted ) {
+void GlobalQueueStatistics::record_pull_reserve_request( size_t msg_bytes ) {
   globalq_pull_reserve_request_messages += 1;
   globalq_pull_reserve_request_total_bytes += msg_bytes;
-
-  if ( granted ) {
-    globalq_pull_request_granted += 1;
-  } else {
-    globalq_pull_request_denied += 1;
-  }
 }
 
 void GlobalQueueStatistics::record_push_entry_request( size_t msg_bytes, bool had_consumer ) {
@@ -144,9 +138,15 @@ void GlobalQueueStatistics::record_push_reserve_reply( size_t msg_bytes ) {
   globalq_push_reserve_reply_total_bytes += msg_bytes;
 }
 
-void GlobalQueueStatistics::record_pull_reserve_reply( size_t msg_bytes ) {
+void GlobalQueueStatistics::record_pull_reserve_reply( size_t msg_bytes, bool consumer_waited ) {
   globalq_pull_reserve_reply_messages += 1;
   globalq_pull_reserve_reply_total_bytes += msg_bytes;
+
+  if ( consumer_waited ) {
+    globalq_pull_reserve_hadConsumer += 1;
+  } else {
+    globalq_pull_reserve_noConsumer += 1;
+  }
 }
     
 void GlobalQueueStatistics::record_pull_entry_reply( size_t msg_bytes ) {

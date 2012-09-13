@@ -2,6 +2,7 @@
 #define __GLOBAL_QUEUE_HPP__
 
 //TODO clean these up
+#include <queue>
 #include "../Addressing.hpp" 
 #include "../GlobalAllocator.hpp"
 #include "../Delegate.hpp"
@@ -11,6 +12,11 @@
 
 #define CAPACITY_PER_NODE (1L<<19)
 #define HOME_NODE 0
+
+// convenience macros for scary templating
+#define A_Entry GlobalAddress< QueueEntry<T> >
+#define D_A_Entry Descriptor< GlobalAddress< QueueEntry<T> > > 
+#define A_D_A_Entry GlobalAddress< Descriptor< GlobalAddress< QueueEntry<T> > > >
 
 class GlobalQueueStatistics {
   private:
@@ -31,12 +37,12 @@ class GlobalQueueStatistics {
     uint64_t globalq_push_reserve_reply_total_bytes;
 
     // pull
-    uint64_t globalq_pull_request_granted;
-    uint64_t globalq_pull_request_denied;
     uint64_t globalq_pull_entry_request_messages;
     uint64_t globalq_pull_entry_request_total_bytes;
     uint64_t globalq_pull_entry_reply_messages;
     uint64_t globalq_pull_entry_reply_total_bytes;
+    uint64_t globalq_pull_reserve_hadConsumer;
+    uint64_t globalq_pull_reserve_noConsumer;
     
     // push
     uint64_t globalq_push_request_accepted;
@@ -54,10 +60,10 @@ class GlobalQueueStatistics {
 
     void record_push_reserve_request( size_t msg_bytes, bool accepted );
     void record_push_entry_request( size_t msg_bytes, bool had_consumer );
-    void record_pull_reserve_request( size_t msg_bytes, bool granted );
+    void record_pull_reserve_request( size_t msg_bytes );
     void record_pull_entry_request( size_t msg_bytes );
     void record_push_reserve_reply( size_t msg_bytes );
-    void record_pull_reserve_reply( size_t msg_bytes );
+    void record_pull_reserve_reply( size_t msg_bytes, bool consumer_waited );
     void record_pull_entry_reply( size_t msg_bytes );
 };
 
@@ -95,8 +101,10 @@ class GlobalQueue {
   private:
     uint64_t head;
     uint64_t tail;
-    GlobalAddress< QueueEntry<T> > queueBase;
+    A_Entry queueBase;
     uint64_t capacity;
+
+    std::queue< A_Entry > pullReserveWaiters;
 
     bool initialized;
 
@@ -105,14 +113,18 @@ class GlobalQueue {
     }
 
     
-    GlobalAddress< QueueEntry<T> > push_reserve ( bool ignore );
-    GlobalAddress< QueueEntry<T> > pull_reserve ( bool ignore );
+    A_Entry push_reserve ( bool ignore );
+    void pull_reserve ( A_D_A_Entry requestor );
     void pull_entry_sendreply( GlobalAddress< Descriptor< ChunkInfo<T> > > desc, QueueEntry<T> * e );
     bool push_entry ( push_entry_args<T> args );
     void pull_entry_request( pull_entry_args<T> * args );
 
-    static GlobalAddress< QueueEntry<T> > push_reserve_g ( bool ignore );
-    static GlobalAddress< QueueEntry<T> > pull_reserve_g ( bool ignore );
+    void pull_reserve_sendreply( A_D_A_Entry requestor, 
+                              A_Entry * granted_index,
+                              bool requestor_waited );
+
+    static A_Entry push_reserve_g ( bool ignore );
+    static void pull_reserve_am_g ( A_D_A_Entry * arg, size_t arg_size, void * payload, size_t payload_size );
     static bool push_entry_g ( push_entry_args<T> args );
     static void pull_entry_request_g_am( pull_entry_args<T> * args, size_t args_size, void * payload, size_t payload_size );
     
@@ -134,10 +146,11 @@ class GlobalQueue {
         : head ( 0 )
         , tail ( 0 )
         , capacity ( 0 ) 
+        , pullReserveWaiters ( )
         , initialized( false ) {}
 
     
-    bool pull( ChunkInfo<T> * result );
+    void pull( ChunkInfo<T> * result );
     bool push( GlobalAddress<T> chunk_base, uint64_t chunk_amount );
 
 };
@@ -186,49 +199,56 @@ bool GlobalQueue<T>::push( GlobalAddress<T> chunk_base, uint64_t chunk_amount ) 
 
 /**
  * Get info to pull a chunk of data from the global queue.
- * If it returns true, then we've been granted a chunk that
- * can be pulled.
- *
- * \return true if pull succeeds.
+ * Blocks until a chunk is available.
+ * 
+ * @param result contains valid chunk info upon return
  */
 template <typename T>
-bool GlobalQueue<T>::pull( ChunkInfo<T> * result ) {
+void GlobalQueue<T>::pull( ChunkInfo<T> * result ) {
   CHECK( initialized );
   DVLOG(5) << "pull";
   
-  GlobalAddress< QueueEntry<T> > loc = SoftXMT_delegate_func< bool,
-                                                GlobalAddress< QueueEntry<T> >,
-                                                GlobalQueue<T>::pull_reserve_g >
-                                            ( false, HOME_NODE );
-  size_t resv_msg_bytes = SoftXMT_sizeof_delegate_func_request< bool, GlobalAddress< QueueEntry<T> > >( );
+  // blocking request for an address of an entry in the global queue
+  A_Entry loc;
+  D_A_Entry qdesc( &loc );
+  A_D_A_Entry desc_addr = make_global( &qdesc );
+  SoftXMT_call_on( HOME_NODE, GlobalQueue<T>::pull_reserve_am_g, &desc_addr );
+  size_t resv_msg_bytes = SoftXMT_sizeof_message( &desc_addr );
+  /* wait for element: this is designed to block forever if there are no more items shared in this queue
+   * for the rest of the program. */
+  qdesc.wait();
 
-  if ( loc.pointer() == NULL ) {
-    global_queue_stats.record_pull_reserve_request( resv_msg_bytes, false );
-    return false; // no space in global queue; push failed
-  }
+  CHECK( loc.pointer() != NULL ) << "Invalid global address. Pull is always blocking";
  
-  global_queue_stats.record_pull_reserve_request( resv_msg_bytes, true );
+  global_queue_stats.record_pull_reserve_request( resv_msg_bytes );
 
   // get the element of the queue, which will point to data
-  Descriptor< ChunkInfo<T> > desc( result );
+  Descriptor< ChunkInfo<T> > cdesc( result );
 
   pull_entry_args<T> entry_args;
   entry_args.target = loc;
-  entry_args.descriptor = make_global( &desc );
+  entry_args.descriptor = make_global( &cdesc );
   SoftXMT_call_on( loc.node(), pull_entry_request_g_am, &entry_args );
   size_t entry_msg_bytes = SoftXMT_sizeof_message( &entry_args );
   global_queue_stats.record_pull_entry_request( entry_msg_bytes );
-
-  desc.wait();
-
-  return true;
+  cdesc.wait();
+}
+      
+/// send reservation to puller
+template <typename T>
+void GlobalQueue<T>::pull_reserve_sendreply( A_D_A_Entry requestor, 
+                              A_Entry * granted_index,
+                              bool requestor_waited ) {
+  descriptor_reply_one( requestor, granted_index  );
+  size_t msg_bytes = SoftXMT_sizeof_descriptor_reply_one( requestor, granted_index );
+  global_queue_stats.record_pull_reserve_reply( msg_bytes, requestor_waited );
 }
 
 template <typename T>
-GlobalAddress< QueueEntry<T> > GlobalQueue<T>::push_reserve ( bool ignore ) {
+A_Entry GlobalQueue<T>::push_reserve ( bool ignore ) {
   CHECK( isMaster() );
 
-  global_queue_stats.record_push_reserve_reply( SoftXMT_sizeof_delegate_func_reply< bool, GlobalAddress< QueueEntry<T> > >() );
+  global_queue_stats.record_push_reserve_reply( SoftXMT_sizeof_delegate_func_reply< bool, A_Entry >() );
   
   DVLOG(5) << "push_reserve";
 
@@ -236,27 +256,44 @@ GlobalAddress< QueueEntry<T> > GlobalQueue<T>::push_reserve ( bool ignore ) {
   if ( (tail % capacity == head % capacity) && (tail != head) ) {
     return make_global( static_cast< QueueEntry<T> * >( NULL ) ); // no room
   } else {
-    GlobalAddress< QueueEntry<T> > assigned = queueBase + (tail % capacity); 
+    A_Entry assigned = queueBase + (tail % capacity); 
     tail++;
+
+    // if there are any consumers, wake oldest and give the address just produced
+    if ( pullReserveWaiters.size() > 0 ) {
+      CHECK( head == tail-1 ) << "Size should be exactly one, since there are waiters and one value was just produced";
+      DVLOG(5) << "push_reserve: found waiters";
+
+      A_Entry granted = assigned;
+      head++;
+
+      A_D_A_Entry w = pullReserveWaiters.front();
+      pullReserveWaiters.pop();
+
+      pull_reserve_sendreply( w, &granted, true );
+    }
+
     return assigned;
   }
 }
 
 template <typename T>
-GlobalAddress< QueueEntry<T> > GlobalQueue<T>::pull_reserve ( bool ignore ) {
+void GlobalQueue<T>::pull_reserve ( A_D_A_Entry requestor ) {
   CHECK( isMaster() );
   DVLOG(5) << "pull_reserve";
 
-  global_queue_stats.record_pull_reserve_reply( SoftXMT_sizeof_delegate_func_reply< bool, GlobalAddress< QueueEntry<T> > > () );
-  
   if ( tail == head ) {
-    return make_global( static_cast<QueueEntry<T> * >( NULL ) ); // empty
+    pullReserveWaiters.push( requestor );
+    DVLOG(5) << "empty, must sleep. waiters queue now has " << pullReserveWaiters.size() << " elements";
   } else {
-    GlobalAddress< QueueEntry<T> > granted = queueBase + (head % capacity);
+    A_Entry granted = queueBase + (head % capacity);
     head++;
-    return granted;
+    
+    pull_reserve_sendreply( requestor, &granted, false );
   }
 }
+
+
 
 template <typename T>
 void GlobalQueue<T>::pull_entry_sendreply( GlobalAddress< Descriptor< ChunkInfo<T> > > desc, QueueEntry<T> * e ) {
@@ -306,13 +343,13 @@ void GlobalQueue<T>::pull_entry_request( pull_entry_args<T> * args ) {
 
 // routines for calling the global GlobalQueue on each Node
 template <typename T>
-GlobalAddress< QueueEntry<T> > GlobalQueue<T>::push_reserve_g ( bool ignore ) {
+A_Entry GlobalQueue<T>::push_reserve_g ( bool ignore ) {
   return global_queue.push_reserve( ignore );
 }
 
 template <typename T>
-GlobalAddress< QueueEntry<T> > GlobalQueue<T>::pull_reserve_g ( bool ignore ) {
-  return global_queue.pull_reserve( ignore );
+void GlobalQueue<T>::pull_reserve_am_g ( A_D_A_Entry * arg, size_t arg_size, void * payload, size_t payload_size ) {
+  global_queue.pull_reserve( *arg );
 }
 
 template <typename T>
@@ -328,12 +365,12 @@ void GlobalQueue<T>::pull_entry_request_g_am( pull_entry_args<T> * args, size_t 
 
 // global object GlobalQueue<T>::global_queue convenience methods
 template <typename T>
-bool global_queue_pull( ChunkInfo<T> * result ) {
+void global_queue_pull( ChunkInfo<T> * result ) {
   GlobalQueue<T>::global_queue.pull( result );
 }
 template <typename T>
 bool global_queue_push( GlobalAddress<T> chunk_base, uint64_t chunk_amount ) {
-  GlobalQueue<T>::global_queue.push( chunk_base, chunk_amount );
+  return GlobalQueue<T>::global_queue.push( chunk_base, chunk_amount );
 }
 
 // allocation of global_queue instance
