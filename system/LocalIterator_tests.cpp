@@ -18,65 +18,37 @@ BOOST_AUTO_TEST_SUITE( LocalIterator_tests );
 GlobalAddress<int64_t> array;
 int64_t * local_base;
 
-#define N 32
+const size_t N = (1L<<24);
+const size_t nbuf = 1L<<22;
 
-LOOP_FUNCTOR(find_local_frontier, nid, ((GlobalAddress<int64_t>,array_))) {
-  array = array_;
-  int64_t block_elems = block_size / sizeof(int64_t);
-  VLOG(1) << "block_elems = " << block_elems; // 8
-  
-  GlobalAddress<int64_t> base = array;
-  int64_t * block_base = base.block_min().pointer();
-  VLOG(1) << "base.node() == " << base.node() << ", block_base = " << block_base;
-  if (nid < base.node()) {
-    local_base = block_base+block_elems;
-  } else if (nid > base.node()) {
-    local_base = block_base;
-  } else {
-    local_base = base.pointer();
-  }
-  GlobalAddress<int64_t> max = array+N;
-  block_base = max.block_min().pointer();
-  VLOG(1) << "max.node() == " << max.node() << ", block: " << block_base << " -> " << block_base+block_elems;
-  int64_t * local_max;
-  if (nid < max.node()) {
-    local_max = block_base+block_elems;
-  } else if (nid > max.node()) {
-    local_max = block_base;
-  } else {
-    local_max = max.pointer();
-  }
-
-  int64_t nlocal = local_max - local_base;
-  if (local_max < local_base) {
-    nlocal = 0;
-  }
-
-  VLOG(1) << "local_base = " << local_base << ", local_max = " << local_max << ", nlocal = " << nlocal;
-
-  for (size_t i=0; i<nlocal; i++) {
-    local_base[i] = 1;
-  }
-
-}
-
-inline void log_array(const char * name, GlobalAddress<int64_t> array) {
-  std::stringstream ss; ss << name << ": [";
-  for (size_t i=0; i<N; i++) {
-    ss << " " << read(array+i);
-  }
-  ss << " ]";
-  VLOG(1) << ss.str();
-}
+inline void set_0(uint64_t * a) { *a = 0; }
 
 void user_main( void * ignore ) {
   array = SoftXMT_typed_malloc<int64_t>(N);
+  int64_t * buf = new int64_t[nbuf];
+  
+  double t, comm_time, local_time;
 
-  SoftXMT_memset(array, 0L, N);
-  log_array("array", array);
+  SOFTXMT_TIME(comm_time, {
+    SoftXMT_memset(array, 0L, N);
+  });
 
-  { find_local_frontier f(array); fork_join_custom(&f); }
-  log_array("array", array);
+  BOOST_MESSAGE("checking local memset works");
+  SOFTXMT_TIME(local_time, {
+    // local memset uses 'localize'
+    SoftXMT_memset_local(array, 1L, N);
+  });
+  //log_array("array", array);
+
+  const size_t nbuf = 1L<<22;
+  int64_t * buf = new int64_t[nbuf];
+  for (size_t i=0; i<N; i+=nbuf) {
+    size_t n = MIN(N-i, nbuf);
+    Incoherent<int64_t>::RO c(array+i, n, buf);
+    for (size_t j=0; j<n; j++) {
+      BOOST_CHECK_EQUAL(c[j], 1);
+    }
+  }
 }
 
 BOOST_AUTO_TEST_CASE( test1 ) {
@@ -93,4 +65,5 @@ BOOST_AUTO_TEST_CASE( test1 ) {
 }
 
 BOOST_AUTO_TEST_SUITE_END();
+
 

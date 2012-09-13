@@ -192,7 +192,9 @@ public:
   void record_message( size_t bytes ) {
     messages_++;
     bytes_ += bytes;
+#ifdef GASNET_CONDUIT_IBV
     histogram_[ (bytes >> 8) & 0xf ]++;
+#endif
   }
 
   void profiling_sample() {

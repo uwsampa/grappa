@@ -102,6 +102,53 @@ NNODE=1
 PPN?=2
 endif
 
+# check if we're running on ec2
+# TODO: can we make this more robust?
+ifeq ($(shell if [ -e /etc/ec2_version ]; then echo yes; fi), yes)
+MPITYPE=SRUN
+SHMMAX=$(shell sysctl kernel.shmmax | cut -d' ' -f3)
+
+BOOST=/usr/local
+TEST_LIBS=-lboost_unit_test_framework
+
+SRUN_PARTITION=compute
+SRUN_BUILD_PARTITION=compute
+SRUN_HOST=--partition $(SRUN_PARTITION)
+SRUN_BUILD_CMD=
+SRUN_CC=$(CC)
+SRUN_CXX=$(CXX)
+SRUN_LD=$(LD)
+SRUN_AR=$(AR)
+
+CFLAGS+=-DUSE_HUGEPAGES_DEFAULT=false
+
+# 
+#EC2_UDP=true
+
+ifdef EC2_UDP
+
+GASNET_CONDUIT=udp
+SRUN_MPIRUN?=srun --exclusive --label --kill-on-bad-exit $(SRUN_FLAGS)
+SRUN_RUN=
+
+# unfortunately running the epilog will require more configuration.
+SRUN_EXPORT_ENV_VARIABLES=--task-prolog=$(SRUN_ENVVAR_TEMP)
+
+GASNET_SETTINGS+=GASNET_SPAWNFN='C'
+GASNET_SETTINGS+=GASNET_CSPAWN_CMD="$(SRUN_MPIRUN) $($(MPITYPE)_EXPORT_ENV_VARIABLES) $($(MPITYPE)_HOST) $($(MPITYPE)_NPROC) -- $(MY_TAU_RUN) \$$( echo '%C' | tr \\\" ' ' | cut -d' ' -f4,5,6 ) $(GARGS)"
+
+# only defined for UDP spawners
+SRUN_UDPTASKS=$(NPROC)
+
+else
+
+GASNET_CONDUIT=mpi
+SRUN_RUN=salloc --exclusive $(SRUN_FLAGS) $($(MPITYPE)_HOST) $($(MPITYPE)_NPROC) $($(MPITYPE)_BATCH_TEMP)
+
+endif
+
+endif
+
 PLATFORM_SPECIFIC_LIBS?=-lrt
 TEST_LIBS?=-lboost_unit_test_framework
 
@@ -131,6 +178,9 @@ GASNET_LIBS+= -libverbs
 endif
 ifeq ($(GASNET_CONDUIT_NS),mpi)
 GASNET_LIBS+= -lammpi
+endif
+ifeq ($(GASNET_CONDUIT_NS),udp)
+GASNET_LIBS+= -lamudp
 endif
 GASNET_FLAGS+= -DGASNET_$(shell echo $(GASNET_THREAD_NS) | tr a-z A-Z) -DGASNET_CONDUIT_$(shell echo $(GASNET_CONDUIT_NS) | tr a-z A-Z)
 CFLAGS+= -I$(GASNET)/include -I$(GASNET)/include/$(GASNET_CONDUIT_NS)-conduit
@@ -183,7 +233,7 @@ SRUN_EPILOG_TEMP:=$(shell mktemp -utp $(PWD) .srunrc_epilog.XXXXXXXX )
 SRUN_BATCH_TEMP:=$(shell mktemp -utp $(PWD) .sbatch.XXXXXXXX )
 
 # command fragment to use environment variables
-SRUN_EXPORT_ENV_VARIABLES=--task-prolog=$(SRUN_ENVVAR_TEMP) --task-epilog=$(SRUN_EPILOG_TEMP)
+SRUN_EXPORT_ENV_VARIABLES?=--task-prolog=$(SRUN_ENVVAR_TEMP) --task-epilog=$(SRUN_EPILOG_TEMP)
 
 # create an environment variable file when needed
 .srunrc.%:
@@ -208,12 +258,13 @@ SBATCH_MPIRUN_EXPORT_ENV_VARIABLES=$(patsubst %,-x %,$(patsubst DELETEME:%,,$(su
 .sbatch.%:
 	@echo '#!/bin/bash' > $@
 	@for i in $(ENV_VARIABLES); do echo "export $$i" >> $@; done
+ifdef PAL	
 	@echo '# Make scratch directory'  >> $@
 	@echo 'mkdir -p $(SBATCH_SCRATCH_DIR)' >> $@
 	@echo 'srun --ntasks-per-node=1 --ntasks=$(NNODE) mkdir -p $(SBATCH_SCRATCH_DIR)' >> $@
 #	@echo 'srun bash -c "hostname; ls -ld $(SBATCH_SCRATCH_DIR)"' >> $@
 	@echo '# Copy libraries to scratch directory' >> $@
-	@echo 'LIBS_TO_COPY=$$( ldd $$1 | egrep -v linux-vdso\.so\|ld-linux\|"> /lib64" | sed "s/.*> \(.*\) (.*/\1/" )' >> $@
+	@echo 'LIBS_TO_COPY=$$( ldd $$1 | egrep -v linux-vdso\.so\|ld-linux\|"> /lib64" | sed "s/.*> \(.*\) (.*/\\1/" )' >> $@
 	@echo 'for i in $$LIBS_TO_COPY; do sbcast $(SBATCH_FORCE_COPY_LIBS) $${i} $(SBATCH_SCRATCH_DIR)/$${i/*\//}; done' >> $@
 	@echo 'for i in $$LIBS_TO_COPY; do cp $${i} $(SBATCH_SCRATCH_DIR)/$${i/*\//}; done' >> $@
 	@echo 'export LD_LIBRARY_PATH=$(SBATCH_SCRATCH_DIR)' >> $@
@@ -233,6 +284,12 @@ SBATCH_MPIRUN_EXPORT_ENV_VARIABLES=$(patsubst %,-x %,$(patsubst DELETEME:%,,$(su
 #	@echo mpirun $(SBATCH_MPIRUN_EXPORT_ENV_VARIABLES) -bind-to-core -report-bindings -tag-output -- $(MY_TAU_RUN) \$$* >> $@
 	@echo '# Run!' >> $@
 	@echo '$(SBATCH_SCRATCH_DIR)/mpirun $(SBATCH_MPIRUN_EXPORT_ENV_VARIABLES) -bind-to-core -tag-output -- $(MY_TAU_RUN) $$CMD' >> $@
+else
+	@echo '# Run!' >> $@
+	@echo 'mpirun -npernode 1 bash -c "ipcs -m | grep $(USER) | cut -d\  -f1 | xargs -n1 -r ipcrm -M"' >> $@
+	@echo 'mpirun $(SBATCH_MPIRUN_EXPORT_ENV_VARIABLES) -bind-to-core -tag-output -- $(MY_TAU_RUN) $$*' >> $@
+	@echo 'mpirun -npernode 1 bash -c "ipcs -m | grep $(USER) | cut -d\  -f1 | xargs -n1 -r ipcrm -M"' >> $@
+endif
 	@echo '# Clean up any leftover shared memory regions' >> $@
 	@echo 'for i in `ipcs -m | grep $(USER) | cut -d" " -f1`; do ipcrm -M $$i; done' >> $@
 	@chmod +x $@
@@ -243,9 +300,9 @@ SBATCH_MPIRUN_EXPORT_ENV_VARIABLES=$(patsubst %,-x %,$(patsubst DELETEME:%,,$(su
 NNODE?=2
 PPN?=1
 NTPN?=$(PPN)
-NPROC=$(shell echo ${NNODE}*${PPN} | bc)
+NPROC=$(shell echo $$(( $(NNODE)*$(PPN) )) )
 
-SRUN_HOST?=--partition grappa
+SRUN_HOST?=--partition $(SRUN_PARTITION)
 SRUN_NPROC=--nodes=$(NNODE) --ntasks-per-node=$(PPN)
 
 SRUN_MPIRUN?=srun --resv-ports --cpu_bind=verbose,rank --exclusive --label --kill-on-bad-exit $(SRUN_FLAGS)

@@ -13,7 +13,9 @@ extern "C" {
 #define SHM_HUGETLB 0
 #define USE_HUGEPAGES_DEFAULT false
 #else
+#ifndef USE_HUGEPAGES_DEFAULT
 #define USE_HUGEPAGES_DEFAULT true
+#endif
 #endif
 
 #include "Communicator.hpp"
@@ -70,7 +72,7 @@ GlobalMemoryChunk::GlobalMemoryChunk( size_t size )
 
   shm_id_ = shmget( shm_key_, size_, IPC_CREAT | SHM_R | SHM_W | 
                     (FLAGS_global_memory_use_hugepages ? SHM_HUGETLB : 0) );
-  PCHECK( shm_id_ != -1 ) << "Failed to get shared memory region for shared heap";
+  PCHECK( shm_id_ != -1 ) << "Failed to get shared memory region for shared heap of size " << size_;
   
   // map memory
   memory_ = shmat( shm_id_, base_, 0 );
