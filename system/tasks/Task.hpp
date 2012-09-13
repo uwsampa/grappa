@@ -75,7 +75,8 @@ class TaskManager {
         bool doGQ;       // global queue on/off
         bool stealLock;  // steal lock
         bool wshareLock; // work share lock
-        bool gqLock;     // global queue lock
+        bool gqPushLock;     // global queue push lock
+        bool gqPullLock;     // global queue pull lock
 
         // to support hierarchical dynamic load balancing
         Node localId;
@@ -247,8 +248,11 @@ class TaskManager {
                   }
                 }
 
-                void record_globalq_pull( uint64_t amount ) {
+                void record_globalq_pull_start( ) {
                   globalq_pull_attempts_ += 1;
+                }
+
+                void record_globalq_pull( uint64_t amount ) {
                   if ( amount > 0 ) {
                     globalq_elements_pulled_.update(amount);
                     globalq_pulls_ += 1;
@@ -322,7 +326,7 @@ inline bool TaskManager::available( ) const {
            || publicHasEle()
            || (doSteal && stealLock )
            || (doShare && wshareLock )
-           || (doGQ    && gqLock );
+           || (doGQ    && gqPullLock );
 }
 
 inline bool TaskManager::local_available( ) const {

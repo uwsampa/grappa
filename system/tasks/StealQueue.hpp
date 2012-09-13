@@ -25,7 +25,7 @@ template <typename T>
 struct ChunkInfo;
 
 template <typename T>
-bool global_queue_pull( ChunkInfo<T> * result );
+void global_queue_pull( ChunkInfo<T> * result );
 template <typename T>
 bool global_queue_push( GlobalAddress<T> chunk_base, uint64_t chunk_amount );
 
@@ -744,21 +744,18 @@ class Signaler;
 template <typename T>
 uint64_t StealQueue<T>::pull_global() {
   ChunkInfo<T> data_ptr;
-  if ( global_queue_pull<T>( &data_ptr ) ) {
+  global_queue_pull<T>( &data_ptr );
 
-    Signaler signal;
-    pull_global_data_args<T> args;
-    args.signal = make_global( &signal );
-    args.chunk = data_ptr;
-    SoftXMT_call_on( data_ptr.base.node(), pull_global_data_request_g_am, &args );
-    size_t msg_size = SoftXMT_sizeof_message( &args );
-    steal_queue_stats.record_globalq_data_pull_request( msg_size, data_ptr.amount );
-    signal.wait();
+  Signaler signal;
+  pull_global_data_args<T> args;
+  args.signal = make_global( &signal );
+  args.chunk = data_ptr;
+  SoftXMT_call_on( data_ptr.base.node(), pull_global_data_request_g_am, &args );
+  size_t msg_size = SoftXMT_sizeof_message( &args );
+  steal_queue_stats.record_globalq_data_pull_request( msg_size, data_ptr.amount );
+  signal.wait();
 
-    return data_ptr.amount;
-  } else {
-    return 0;
-  }
+  return data_ptr.amount;
 }
 
 template <typename T>
