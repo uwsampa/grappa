@@ -21,7 +21,7 @@ CFLAGS += -w
 CFLAGS += -I$(SOFTXMT_HOME)/system
 CFLAGS += -g -Wall -Drestrict=__restrict__ -ffast-math
 
-LDFLAGS = -g
+LDFLAGS = -g -lboost_filesystem
 
 SOURCES = main.o
 HEADERS = 
