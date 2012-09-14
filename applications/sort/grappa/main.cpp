@@ -14,6 +14,7 @@
 #endif
 
 #include <stdio.h>
+#include <sys/stat.h>
 #include <math.h>
 #include <boost/random/mersenne_twister.hpp>
 #include <boost/random/uniform_int.hpp>
@@ -30,8 +31,13 @@
 
 #include "npb_intsort.h"
 
-#define read SoftXMT_delegate_read_word
-#define write SoftXMT_delegate_write_word
+namespace grappa {
+  inline int64_t read(GlobalAddress<int64_t> addr) { return SoftXMT_delegate_read_word(addr); }
+  inline void write(GlobalAddress<int64_t> addr, int64_t val) { return SoftXMT_delegate_write_word(addr, val); }
+  inline bool cmp_swap(GlobalAddress<int64_t> address, int64_t cmpval, int64_t newval) {
+    return SoftXMT_delegate_compare_and_swap_word(address, cmpval, newval);
+  }
+}
 
 static void printHelp(const char * exe);
 static void parseOptions(int argc, char ** argv);
@@ -43,7 +49,7 @@ typedef boost::variate_generator<engine_t&,dist_t> gen_t;
 
 struct bucket_t {
   std::vector<uint64_t> b;
-  char pad[block_size-sizeof(b)];
+  char pad[block_size-sizeof(std::vector<uint64_t>)];
 };
 
 ////////////
@@ -59,6 +65,8 @@ std::vector<size_t> counts;
 std::vector<size_t> offsets;
 GlobalAddress<bucket_t> bucketlist;
 GlobalAddress<uint64_t> array;
+bool read_from_disk;
+bool generate_and_save;
 
 #define LOBITS (log2maxkey - log2buckets)
 
@@ -66,7 +74,7 @@ inline void set_random(uint64_t * v) {
   // continue using same generator with multiple calls (to not repeat numbers)
   // but start at different seed on each node so we don't get overlap
   static engine_t engine(12345L*SoftXMT_mynode());
-  static gen_t gen(engine, dist_t(0, maxkey));
+  static gen_t gen(engine, dist_t(0, maxkey-1));
   
   *v = gen();
 }
@@ -97,7 +105,7 @@ inline void print_array(const char * name, std::vector<T> v) {
 template< typename T >
 inline void print_array(const char * name, GlobalAddress<T> base, size_t nelem) {
   std::stringstream ss; ss << name << ": [";
-  for (size_t i=0; i<nelem; i++) ss << " " << read(base+i);
+  for (size_t i=0; i<nelem; i++) ss << " " << grappa::read(base+i);
   ss << " ]"; VLOG(1) << ss.str();
 }
 
@@ -126,6 +134,7 @@ void ff_append(bucket_t& bucket, const uint64_t& val) {
 
 inline void scatter(uint64_t * v) {
   size_t b = (*v) >> LOBITS;
+  CHECK( b < nbuckets ) << "bucket id = " << b << ", nbuckets = " << nbuckets;
   ff_delegate<bucket_t,uint64_t,ff_append>(bucketlist+b, *v);
 }
 
@@ -147,28 +156,13 @@ inline void put_back_bucket(bucket_t * bucket) {
 }
 
 
-void user_main(void* ignore) {
-  double t, rand_time, sort_time, histogram_time, allreduce_time, scatter_time, local_sort_scatter_time, put_back_time;
+void bucket_sort(GlobalAddress<uint64_t> array, size_t nelems, size_t nbuckets) {
 
-  LOG(INFO) << "### Sort ###";
-  LOG(INFO) << "nelems = (1 << " << scale << ") = " << nelems << " (" << ((double)nelems)*sizeof(uint64_t)/(1L<<30) << " GB)";
-  LOG(INFO) << "nbuckets = (1 << " << log2buckets << ") = " << nbuckets;
-  LOG(INFO) << "maxkey = (1 << " << log2maxkey << ") = " << maxkey;
+  double t, sort_time, histogram_time, allreduce_time, scatter_time, local_sort_scatter_time, put_back_time;
 
-  GlobalAddress<uint64_t> array = SoftXMT_typed_malloc<uint64_t>(nelems);
   GlobalAddress<bucket_t> bucketlist = SoftXMT_typed_malloc<bucket_t>(nbuckets);
+  SoftXMT_memset_local(bucketlist, bucket_t(), nbuckets);
 
-      t = SoftXMT_walltime();
-
-  // fill vector with random 64-bit integers
-  forall_local<uint64_t,set_random>(array, nelems);
-
-      rand_time = SoftXMT_walltime() - t;
-      LOG(INFO) << "fill_random_time: " << rand_time;
-
-  /////////
-  // sort
-  /////////
       sort_time = SoftXMT_walltime();
 
   // initialize globals and histogram counts
@@ -191,8 +185,10 @@ void user_main(void* ignore) {
       LOG(INFO) << "allreduce_time: " << allreduce_time;
 
   // allocate space in buckets
+  VLOG(3) << "allocating space...";
   forall_local<bucket_t,resize_bucket>(bucketlist, nbuckets);
-    
+  
+  VLOG(3) << "scattering...";
       t = SoftXMT_walltime();
 
   // scatter into buckets
@@ -221,6 +217,175 @@ void user_main(void* ignore) {
       LOG(INFO) << "total_sort_time: " << sort_time;
 
   //print_array("array (sorted)", array, nelems);
+}
+
+class BlockRecord {
+  size_t start_index;
+  size_t num_bytes;
+  char * data;
+  void save(std::fstream& f) {
+    f.write((char*)&start_index, sizeof(size_t));
+    f.write((char*)&num_bytes, sizeof(size_t));
+    f.write(data, num_bytes);
+  }
+};
+
+static const size_t BUFSIZE = 1L<<16;
+
+// little helper for iterating over things numerous enough to need to be buffered
+#define for_buffered(i, n, start, end, nbuf) \
+  for (size_t i=start, n=nbuf; i<end && (n = MIN(nbuf, end-i)); i+=nbuf)
+
+/// Save 'records' of the form:
+/// { <start_index>, <num_elements>, <data...> }
+template < typename T >
+struct save_array_func : ForkJoinIteration {
+  GlobalAddress<T> array; size_t nelems; char dirname[256];
+  save_array_func() {}
+  save_array_func( const char dirname[256], GlobalAddress<T> array, size_t nelems):
+    array(array), nelems(nelems) { memcpy(this->dirname, dirname, 256); }
+  void operator()(int64_t nid) const {
+    range_t r = blockDist(0, nelems, SoftXMT_mynode(), SoftXMT_nodes());
+    char fname[256]; sprintf(fname, "%s/block.%ld.%ld.gblk", dirname, r.start, r.end);
+    std::fstream fo(fname, std::ios::out | std::ios::binary);
+    
+    const size_t NBUF = BUFSIZE/sizeof(T); 
+    T * buf = new T[NBUF];
+    for_buffered (i, n, r.start, r.end, NBUF) {
+      typename Incoherent<T>::RO c(array+i, n, buf);
+      c.block_until_acquired();
+      fo.write((char*)buf, sizeof(T)*n);
+    }
+    delete [] buf;
+
+    fo.close();
+  }
+};
+
+template < typename T >
+void save_array(const char (&dirname)[256], GlobalAddress<T> array, size_t nelems) {
+  // make directory with mode 777
+  if ( mkdir((const char *)dirname, 0777) != 0) {
+    switch (errno) { // error occurred
+      case EEXIST: LOG(INFO) << "files already exist, skipping write..."; return;
+      default: fprintf(stderr, "Error with `mkdir`!\n"); break;
+    }
+  }
+
+  double t = SoftXMT_walltime();
+
+  { save_array_func<T> f(dirname, array, nelems); fork_join_custom(&f); }
+  
+  t = SoftXMT_walltime() - t;
+  LOG(INFO) << "save_array_time: " << t;
+  LOG(INFO) << "save_rate_mbps: " << ((double)nelems * sizeof(T) / (1L<<20)) / t;
+}
+
+#include <iterator>
+#include <boost/filesystem.hpp>
+namespace fs = boost::filesystem;
+
+template < typename T >
+struct read_array_func : ForkJoinIteration {
+  GlobalAddress<T> array; size_t nelems; char dirname[256]; GlobalAddress<int64_t> locks;
+  read_array_func() {}
+  read_array_func( const char dirname[256], GlobalAddress<T> array, size_t nelems, GlobalAddress<int64_t> locks):
+    array(array), nelems(nelems), locks(locks) { memcpy(this->dirname, dirname, 256); }
+  void operator()(int64_t nid) const {
+    range_t r = blockDist(0, nelems, SoftXMT_mynode(), SoftXMT_nodes());
+
+    const size_t NBUF = BUFSIZE/sizeof(T);
+    T * buf = new T[NBUF];
+
+    size_t i = 0;
+    fs::directory_iterator d(dirname);
+    for (size_t i = 0; d != fs::directory_iterator(); i++, d++) {
+      // to save time in common case, the first files go to the first nodes
+      if (i < SoftXMT_mynode()) continue;
+
+      // take assigned file, otherwise check if anyone else is reading this already
+      if (i == SoftXMT_mynode() || grappa::cmp_swap(locks+i, 0, 1)) {
+        const char * fname = d->path().stem().string().c_str();
+        int64_t start, end;
+        sscanf(fname, "block.%ld.%ld.gblk", &start, &end);
+        
+        std::fstream f(d->path().string().c_str(), std::ios::in | std::ios::binary);
+
+        // read array
+        for_buffered (i, n, start, end, NBUF) {
+          f.read((char*)buf, sizeof(T)*n);
+          typename Incoherent<T>::WO c(array+i, n, buf);
+        }
+      }
+    }
+
+    delete [] buf;
+  }
+};
+template < typename T >
+void read_array(const char (&dirname)[256], GlobalAddress<T> array, size_t nelems) {
+  double t = SoftXMT_walltime();
+  
+  size_t nfiles = std::distance(fs::directory_iterator(dirname), fs::directory_iterator());
+  GlobalAddress<int64_t> file_taken = SoftXMT_typed_malloc<int64_t>(nfiles);
+  SoftXMT_memset_local(file_taken, (int64_t)0, nfiles);
+
+  { read_array_func<T> f(dirname, array, nelems, file_taken); fork_join_custom(&f); }
+  
+  t = SoftXMT_walltime() - t;
+  LOG(INFO) << "read_array_time: " << t;
+  LOG(INFO) << "read_rate_mbps: " << ((double)nelems * sizeof(T) / (1L<<20)) / t;
+
+  SoftXMT_free(file_taken);
+  //const size_t hdfs_block_size = 128 * (1L<<20);
+
+  //for (fs::director_iterator d(dirname); d != director_iterator(); d++) {
+    //size_t sz = fs::file_size(d->path());
+
+  //}
+}
+
+void user_main(void* ignore) {
+  double t, rand_time;
+
+  LOG(INFO) << "### Sort Benchmark ###";
+  LOG(INFO) << "nelems = (1 << " << scale << ") = " << nelems << " (" << ((double)nelems)*sizeof(uint64_t)/(1L<<30) << " GB)";
+  LOG(INFO) << "nbuckets = (1 << " << log2buckets << ") = " << nbuckets;
+  LOG(INFO) << "maxkey = (1 << " << log2maxkey << ") = " << maxkey;
+
+  GlobalAddress<uint64_t> array = SoftXMT_typed_malloc<uint64_t>(nelems);
+
+  char dirname[256]; sprintf(dirname, "/scratch/hdfs/sort/uniform.%ld.%ld", scale, log2maxkey);
+
+  if (!read_from_disk || (read_from_disk && !fs::exists(dirname))) {
+    LOG(INFO) << "generating...";
+      t = SoftXMT_walltime();
+
+    // fill vector with random 64-bit integers
+    forall_local<uint64_t,set_random>(array, nelems);
+
+      rand_time = SoftXMT_walltime() - t;
+      LOG(INFO) << "fill_random_time: " << rand_time;
+  }
+
+  if (generate_and_save || (read_from_disk && !fs::exists(dirname))) {
+    if (fs::exists(dirname)) fs::remove_all(dirname);
+
+    save_array(dirname, array, nelems);
+
+    // if just --gen specified, then we're done here...
+    if (generate_and_save && !read_from_disk) return;
+  }
+
+  if (read_from_disk) {
+    SoftXMT_memset_local(array, (uint64_t)0, nelems);
+    read_array(dirname, array, nelems);
+  }
+
+  /////////
+  // sort
+  /////////
+  bucket_sort(array, nelems, nbuckets);
 
   // verify
   size_t jump = nelems/17;
@@ -228,7 +393,7 @@ void user_main(void* ignore) {
   for (size_t i=0; i<nelems; i+=jump) {
     prev = 0;
     for (size_t j=1; j<64 && (i+j)<nelems; j++) {
-      uint64_t curr = read(array+i+j);
+      uint64_t curr = grappa::read(array+i+j);
       CHECK( curr >= prev ) << "verify failed: prev = " << prev << ", curr = " << curr;
       prev = curr;
     }
@@ -254,6 +419,8 @@ static void printHelp(const char * exe) {
   printf("  --log2buckets,b  Number of buckets will be 2^log2buckets.\n");
   printf("  --log2maxkey,k   Maximum value of random numbers, range will be [0,2^log2maxkey)");
   printf("  --class,c   NAS Parallel Benchmark Class (problem size) (W, S, A, B, C, or D)");
+  printf("  --gen_and_save,g   Generate random numbers and save to file only (no sort).\n");
+  printf("  --read,r  Read from file rather than generating.\n");
   exit(0);
 }
 
@@ -263,10 +430,14 @@ static void parseOptions(int argc, char ** argv) {
     {"scale", required_argument, 0, 's'},
     {"log2buckets", required_argument, 0, 'b'},
     {"log2maxkey", required_argument, 0, 'k'},
-    {"class", required_argument, 0, 'c'}
+    {"class", required_argument, 0, 'c'},
+    {"gen_and_save", no_argument, 0, 'g'},
+    {"read", no_argument, 0, 'r'},
   };
   
   // defaults
+  generate_and_save = false;
+  read_from_disk = false;
   scale = 8;
 
   // at least 2*num_nodes buckets by default
@@ -281,7 +452,7 @@ static void parseOptions(int argc, char ** argv) {
   int c = 0;
   while (c != -1) {
     int option_index = 0;
-    
+    npb_class cls;
     c = getopt_long(argc, argv, "hs:b:", long_opts, &option_index);
     switch (c) {
       case 'h':
@@ -297,10 +468,16 @@ static void parseOptions(int argc, char ** argv) {
         log2maxkey = atoi(optarg);
         break;
       case 'c':
-        npb_class cls = get_npb_class(optarg[0]);
+        cls = get_npb_class(optarg[0]);
         log2maxkey = MAX_KEY_LOG2[cls];
         log2buckets = NBUCKET_LOG2[cls];
         scale = NKEY_LOG2[cls];
+        break;
+      case 'g':
+        generate_and_save = true;
+        break;
+      case 'r':
+        read_from_disk = true;
         break;
     }
   }
