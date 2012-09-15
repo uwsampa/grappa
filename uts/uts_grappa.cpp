@@ -18,6 +18,11 @@ DEFINE_int64( num_places, 2, "Number of locality domains this is running on (e.g
 DEFINE_int64( vertices_size, 1<<20, "Upper bound count of vertices" );
 DEFINE_bool( verify_tree, true, "Verify the generated tree" );
 
+// Whether to use local data optimizations for simple iterations over global arrays
+// 0: use asyncparfor and global memory ops
+// 1: use localized fork join and local memory ops
+#define LOCAL_OPTIMIZED 1
+
 #define VERIFY_THRESHOLD ((int64_t) 4)
 #define CREATE_THRESHOLD ((int64_t) 1)
 #define SEARCH_THRESHOLD ((int64_t) 8) //8
@@ -629,6 +634,20 @@ DEFINE_bool( verify_tree, true, "Verify the generated tree" );
   // Tree generation verification
   ///////////////////////////////////////////////////////////////
 
+#if LOCAL_OPTIMIZED
+  void verify_child_func( int64_t * c ) {
+      CHECK( *c > 0 ) << "Child[" << "?" << "] = " << *c << ";; Turn off LOCAL_OPTIMIZED to see '?'"; // > 0 because root is never child
+  }
+
+  void verify_vertex_func( vertex_t * v ) {
+      CHECK( v->numChildren >= 0 ) << "Vertex[" << "?" << "].numChildren = " << v->numChildren << ";; Turn off LOCAL_OPTIMIZED to see '?'"; // >= 0 because must be initialized
+      CHECK( v->childIndex >= 0 )  << "Vertex[" << "?" << "].childIndex = "  << v->childIndex  << ";; Turn off LOCAL_OPTIMIZED to see '?'"; // >= 0 because must be initialized
+      
+      local_verify_children_count += v->numChildren;
+  }
+
+#else
+
   void verifyChild(int64_t start, int64_t num) {
     int64_t c_stor[num];
     Incoherent<int64_t>::RO c( Child + start, num, c_stor );
@@ -663,11 +682,17 @@ DEFINE_bool( verify_tree, true, "Verify the generated tree" );
     }
     global_joiner.wait();
   }
+#endif // LOCAL_OPTIMIZED
       
   void verify_generation( uint64_t num_vert ) {
+#if LOCAL_OPTIMIZED
+    forall_local<int64_t,verify_child_func>(Child, num_vert-1);
+    forall_local<vertex_t,verify_vertex_func>(Vertex, num_vert);
+#else
     verify_f verf;
     verf.num_vertices_gen = num_vert;
     fork_join_custom(&verf);
+#endif // LOCAL_OPTIMIZED
      
     uint64_t total_numChildren = 0;
     // count numChildren entries
@@ -680,6 +705,9 @@ DEFINE_bool( verify_tree, true, "Verify the generated tree" );
     CHECK( total_numChildren == num_vert-1 ) << "verify got " << total_numChildren <<", expected " << num_vert-1;
   }
 
+#if LOCAL_OPTIMIZED
+// just use memset_local
+#else
   void safeinitChild( int64_t start, int64_t num ) {
     int64_t c_stor[num];
     VLOG(5) << "initializing Child[ " << start << " , " << start+(num-1) << " ]";
@@ -699,6 +727,7 @@ DEFINE_bool( verify_tree, true, "Verify the generated tree" );
     }
   }
 
+
   LOOP_FUNCTION(safe_init_f,nid) {
     // init Child[]
     global_joiner.reset();
@@ -714,10 +743,19 @@ DEFINE_bool( verify_tree, true, "Verify the generated tree" );
   }
   global_joiner.wait();
 }
+#endif // LOCAL_OPTIMIZED
 
 void safe_initialize_data() {
+#if LOCAL_OPTIMIZED
+  vertex_t reset_vertex;
+  reset_vertex.numChildren = -2;
+  reset_vertex.childIndex  = -3;
+  SoftXMT_memset_local( Child, -1L, FLAGS_vertices_size );
+  SoftXMT_memset_local( Vertex, reset_vertex, FLAGS_vertices_size );
+#else
   safe_init_f sf;
   fork_join_custom(&sf);
+#endif // LOCAL_OPTIMIZED
 }
 
 
@@ -788,7 +826,6 @@ void user_main ( user_main_args * args ) {
     infu.Tree_Nodes_addr = Tree_Nodes;
     fork_join_custom(&infu);
     
-
     if ( FLAGS_verify_tree ) {
       LOG(INFO) << "initializing arrays to support verification";
       safe_initialize_data();
