@@ -48,8 +48,22 @@ typedef boost::uniform_int<uint64_t> dist_t;
 typedef boost::variate_generator<engine_t&,dist_t> gen_t;
 
 struct bucket_t {
-  std::vector<uint64_t> b;
-  char pad[block_size-sizeof(std::vector<uint64_t>)];
+  uint64_t * v;
+  size_t sz;
+  char pad[block_size-sizeof(uint64_t)-sizeof(size_t)];
+  bucket_t(): v(NULL), sz(0) { memset(pad, 0x55, sizeof(pad)); }
+  ~bucket_t() { delete [] v; }
+  void reserve(size_t nelems) {
+    if (v != NULL) delete [] v;
+    v = (uint64_t*)malloc(sizeof(uint64_t)*nelems);
+  }
+  const uint64_t& operator[](size_t i) const { return v[i]; }
+  uint64_t& operator[](size_t i) { return v[i]; }
+  void append(uint64_t val) {
+    v[sz] = val;
+    sz++;
+  }
+  size_t size() { return sz; }
 };
 
 ////////////
@@ -125,11 +139,12 @@ inline size_t calc_bucket_id(bucket_t * bucket) {
 
 inline void resize_bucket(bucket_t * bucket) {
   size_t id = calc_bucket_id(bucket);
-  bucket->b.reserve(counts[id]);
+  *bucket = bucket_t();
+  bucket->reserve(counts[id]);
 }
 
 void ff_append(bucket_t& bucket, const uint64_t& val) {
-  bucket.b.push_back(val);
+  bucket.append(val);
 }
 
 inline void scatter(uint64_t * v) {
@@ -147,21 +162,19 @@ int ui64cmp(const void * a, const void * b) {
 }
 
 inline void sort_bucket(bucket_t * bucket) {
-  qsort(&bucket->b[0], bucket->b.size(), sizeof(uint64_t), &ui64cmp);
+  qsort(&(*bucket)[0], bucket->size(), sizeof(uint64_t), &ui64cmp);
 }
 
 inline void put_back_bucket(bucket_t * bucket) {
   size_t b = calc_bucket_id(bucket);
-  Incoherent<uint64_t>::WO c(array+offsets[b], bucket->b.size(), &bucket->b[0]);
+  Incoherent<uint64_t>::WO c(array+offsets[b], bucket->size(), &(*bucket)[0]);
 }
-
 
 void bucket_sort(GlobalAddress<uint64_t> array, size_t nelems, size_t nbuckets) {
 
   double t, sort_time, histogram_time, allreduce_time, scatter_time, local_sort_scatter_time, put_back_time;
 
   GlobalAddress<bucket_t> bucketlist = SoftXMT_typed_malloc<bucket_t>(nbuckets);
-  SoftXMT_memset_local(bucketlist, bucket_t(), nbuckets);
 
       sort_time = SoftXMT_walltime();
 
@@ -230,7 +243,7 @@ class BlockRecord {
   }
 };
 
-static const size_t BUFSIZE = 1L<<16;
+static const size_t BUFSIZE = 1L<<22;
 
 // little helper for iterating over things numerous enough to need to be buffered
 #define for_buffered(i, n, start, end, nbuf) \
@@ -307,12 +320,15 @@ struct read_array_func : ForkJoinIteration {
       if (i == SoftXMT_mynode() || grappa::cmp_swap(locks+i, 0, 1)) {
         const char * fname = d->path().stem().string().c_str();
         int64_t start, end;
-        sscanf(fname, "block.%ld.%ld.gblk", &start, &end);
+        sscanf(fname, "block.%ld.%ld", &start, &end);
+        //VLOG(1) << "reading " << start << ", " << end;
+        CHECK( start < end && start < nelems && end <= nelems) << "nelems = " << nelems << ", start = " << start << ", end = " << end;
         
         std::fstream f(d->path().string().c_str(), std::ios::in | std::ios::binary);
 
         // read array
         for_buffered (i, n, start, end, NBUF) {
+          CHECK( i+n <= nelems) << "nelems = " << nelems << ", i+n = " << i+n;
           f.read((char*)buf, sizeof(T)*n);
           typename Incoherent<T>::WO c(array+i, n, buf);
         }
