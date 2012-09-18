@@ -132,7 +132,9 @@ DOWNLOAD_KEYS = True
 
 [plugin pkginstaller]
 SETUP_CLASS = starcluster.plugins.pkginstaller.PackageInstaller
-packages = libboost-all-dev
+# boost is necessary for grappa
+# ruby, etc is necessary for experiment runner script
+packages = libboost-all-dev, ruby1.9, sqlite3
 
 [plugin hadoop]
 SETUP_CLASS = starcluster.plugins.hadoop.Hadoop
