@@ -55,7 +55,10 @@ struct bucket_t {
   ~bucket_t() { delete [] v; }
   void reserve(size_t nelems) {
     if (v != NULL) delete [] v;
-    v = (uint64_t*)malloc(sizeof(uint64_t)*nelems);
+    v = new uint64_t[nelems];
+    if (!v) {
+      LOG(ERROR) << "Unable to allocate bucket of " << nelems << " elements."; exit(1);
+    }
   }
   const uint64_t& operator[](size_t i) const { return v[i]; }
   uint64_t& operator[](size_t i) { return v[i]; }
@@ -171,7 +174,6 @@ inline void put_back_bucket(bucket_t * bucket) {
 }
 
 void bucket_sort(GlobalAddress<uint64_t> array, size_t nelems, size_t nbuckets) {
-
   double t, sort_time, histogram_time, allreduce_time, scatter_time, local_sort_scatter_time, put_back_time;
 
   GlobalAddress<bucket_t> bucketlist = SoftXMT_typed_malloc<bucket_t>(nbuckets);
@@ -228,8 +230,6 @@ void bucket_sort(GlobalAddress<uint64_t> array, size_t nelems, size_t nbuckets) 
   
       sort_time = SoftXMT_walltime() - sort_time;
       LOG(INFO) << "total_sort_time: " << sort_time;
-
-  //print_array("array (sorted)", array, nelems);
 }
 
 class BlockRecord {
@@ -338,6 +338,7 @@ struct read_array_func : ForkJoinIteration {
     delete [] buf;
   }
 };
+
 template < typename T >
 void read_array(const char (&dirname)[256], GlobalAddress<T> array, size_t nelems) {
   double t = SoftXMT_walltime();
@@ -369,7 +370,9 @@ void user_main(void* ignore) {
   LOG(INFO) << "### Sort Benchmark ###";
   LOG(INFO) << "nelems = (1 << " << scale << ") = " << nelems << " (" << ((double)nelems)*sizeof(uint64_t)/(1L<<30) << " GB)";
   LOG(INFO) << "nbuckets = (1 << " << log2buckets << ") = " << nbuckets;
-  LOG(INFO) << "maxkey = (1 << " << log2maxkey << ") = " << maxkey;
+  LOG(INFO) << "maxkey = (1 << " << log2maxkey << ") - 1 = " << maxkey;
+
+  LOG(INFO) << "iobufsize_mb: " << (double)BUFSIZE/(1L<<20);
 
   GlobalAddress<uint64_t> array = SoftXMT_typed_malloc<uint64_t>(nelems);
 
