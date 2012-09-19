@@ -253,7 +253,7 @@ static const size_t BUFSIZE = 1L<<22;
 /// { <start_index>, <num_elements>, <data...> }
 template < typename T >
 struct save_array_func : ForkJoinIteration {
-  GlobalAddress<T> array; size_t nelems; char dirname[256];
+    GlobalAddress<T> array; size_t nelems; char dirname[256];
   save_array_func() {}
   save_array_func( const char dirname[256], GlobalAddress<T> array, size_t nelems):
     array(array), nelems(nelems) { memcpy(this->dirname, dirname, 256); }
@@ -362,6 +362,8 @@ void read_array(const char (&dirname)[256], GlobalAddress<T> array, size_t nelem
 }
 
 void user_main(void* ignore) {
+  SoftXMT_reset_stats();
+
   double t, rand_time;
 
   LOG(INFO) << "### Sort Benchmark ###";
@@ -414,6 +416,8 @@ void user_main(void* ignore) {
       prev = curr;
     }
   }
+
+  SoftXMT_merge_and_dump_stats();
 }
 
 int main(int argc, char* argv[]) {
