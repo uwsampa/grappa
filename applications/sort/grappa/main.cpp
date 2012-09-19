@@ -91,7 +91,7 @@ inline void set_random(uint64_t * v) {
   // continue using same generator with multiple calls (to not repeat numbers)
   // but start at different seed on each node so we don't get overlap
   static engine_t engine(12345L*SoftXMT_mynode());
-  static gen_t gen(engine, dist_t(0, maxkey-1));
+  static gen_t gen(engine, dist_t(0, maxkey));
   
   *v = gen();
 }
@@ -506,6 +506,6 @@ static void parseOptions(int argc, char ** argv) {
   }
   nelems = 1L << scale;
   nbuckets = 1L << log2buckets;
-  maxkey = 1L << log2maxkey;
+  maxkey = (log2maxkey == 64) ? (std::numeric_limits<uint64_t>::max()) : (1ul << log2maxkey) - 1;
 }
 
