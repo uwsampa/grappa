@@ -338,10 +338,10 @@ define btc
   backtrace
   grappa_restore_state
 end
-document btcf
+document btc
 Print backtrace of Grappa coroutine.
 Syntax:
-   (gdb) btcf <coroutine pointer>
+   (gdb) btc <coroutine pointer>
 end
 
 define btcf
