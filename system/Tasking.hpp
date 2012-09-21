@@ -75,9 +75,11 @@ void SoftXMT_publicTask( void (*fn_p)(T), T arg) {
 }
 
 // wrapper to make user_main terminate the tasking layer
+void SoftXMT_global_queue_initialize();
 void SoftXMT_end_tasks();
 template < typename T >
 void user_main_wrapper( void (*fp)(T), T args ) {
+    SoftXMT_global_queue_initialize();
     fp( args );
     SoftXMT_end_tasks();
 }

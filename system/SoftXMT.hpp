@@ -173,8 +173,7 @@ void SoftXMT_signal_done( );
 /// User main signal tasks done
 void SoftXMT_end_tasks( );
 
-/// Initialize global queue
-void SoftXMT_global_queue_initialize( );
+/// Check initialized global queue
 bool SoftXMT_global_queue_isInit( );
 
 void SoftXMT_dump_stats();
