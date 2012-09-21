@@ -239,6 +239,8 @@ SRUN_EXPORT_ENV_VARIABLES?=--task-prolog=$(SRUN_ENVVAR_TEMP) --task-epilog=$(SRU
 .srunrc.%:
 	@echo \#!/bin/bash > $@
 	@for i in $(ENV_VARIABLES); do echo echo export $$i >> $@; done
+	@echo '# Clean up any leftover shared memory regions' >> $@
+	@echo 'for i in `ipcs -m | grep $(USER) | cut -d" " -f1`; do ipcrm -M $$i; done' >> $@
 	@chmod +x $@
 
 .srunrc_epilog.%:
