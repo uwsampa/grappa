@@ -722,6 +722,7 @@ void StealQueue<T>::workShareRequest( uint64_t remoteSize, Node from, T * data, 
     DVLOG(5) << "from=" << from << ", size=" << mySize << " vs " << remoteSize << ", received " << num << ", taking " << amountToTake;
 
     // TODO consider below bottom
+    CHECK( top + amountToTake < stackSize );
     memcpy(&stack[top], data, amountToTake * sizeof(T) );
     top += amountToTake;
 
