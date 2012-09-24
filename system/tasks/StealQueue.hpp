@@ -4,6 +4,7 @@
 
 #include <iostream>
 #include <glog/logging.h>   
+#include <gflags/gflags.h>
 #include <stdlib.h>
 
 #include <sstream>
@@ -666,6 +667,7 @@ void StealQueue<T>::workShareRequest_am ( workShareRequest_args * args, size_t a
   steal_queue.workShareRequest( args->queueSize, args->from, static_cast<T*>( payload ), args->amountPushed );
 }
 
+DECLARE_int32( chunk_size );
 template <typename T>
 void StealQueue<T>::workShareRequest( uint64_t remoteSize, Node from, T * data, int num ) {
   uint64_t mySize = depth();
@@ -688,7 +690,7 @@ void StealQueue<T>::workShareRequest( uint64_t remoteSize, Node from, T * data, 
 
     // no pendingWorkShare, so proceed
     uint64_t balanceAmount = ((mySize+remoteSize)/2) - remoteSize;
-    int amountToSend = MIN_INT( balanceAmount, bufsize ); // XXX: restricting to one medium AM
+    int amountToSend = MIN_INT( balanceAmount, FLAGS_chunk_size ); // restrict to chunk size; TODO: don't use flag
     CHECK( amountToSend >= 0 ) << "amountToSend = " << amountToSend;
     
     uint64_t origBottom = bottom;
