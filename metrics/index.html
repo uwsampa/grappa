@@ -114,7 +114,7 @@ header {
 var metrics = cubism.options("metrics", []);
 
 // location of stats bloc
-var stats_url = cubism.option("source", "data3.json");
+var stats_url = cubism.option("source", "stats.json");
 
 // storage for current value of stats blob
 var stats = null;
@@ -144,11 +144,21 @@ setInterval(function() {
 // set up metrics
 if( metrics.length != 0 ) {
     // defaults specified, so just use them
+    metrics = metrics.map( function(i) {
+	s = i.split(".");
+	kv = { group:s[0], stat:s[1] };
+	return kv;
+    });
     setup_metrics( metrics );
 } else {
     // no defaults specified, so read from stats
     d3.json( stats_url, function(data) {
-	metrics = d3.keys(data);
+	for( var i in data ) {
+	    for( var j in data[i] ) {
+		metrics.push( { group:i, stat:j } );
+	    }
+	}
+	//metrics = d3.keys(data);
 	setup_metrics( metrics );
     });
 }
@@ -211,7 +221,7 @@ function getmetric(name) {
 	var difference = Math.round( (stop - start)/step );
 
 	// get current value
-	if( stats ) value = parseFloat( stats[name] );
+	if( stats ) value = parseFloat( stats[name.group][name.stat] );
 
 	// generate points to return
 	var retvals = [];
@@ -221,7 +231,7 @@ function getmetric(name) {
 
 	// pass values back 
 	callback(null, retvals);
-    }, name);
+    }, name.group + "." + name.stat );
 }
 
 </script>
