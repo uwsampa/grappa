@@ -153,9 +153,10 @@ inline size_t calc_bucket_id(bucket_t * bucket) {
   return make_linear(bucket) - bucketlist;
 }
 
-inline void resize_bucket(bucket_t * bucket) {
+inline void init_buckets(bucket_t * bucket) {
   size_t id = calc_bucket_id(bucket);
-  *bucket = bucket_t();
+  bucket_t * bcheck = new (bucket) bucket_t();
+  CHECK( bcheck == bucket );
   bucket->reserve(counts[id]);
 }
 
@@ -184,7 +185,7 @@ inline void sort_bucket(bucket_t * bucket) {
 inline void put_back_bucket(bucket_t * bucket) {
   const size_t NBUF = BUFSIZE / sizeof(uint64_t);
   size_t b = calc_bucket_id(bucket);
-  CHECK( b < nbuckets);
+  CHECK( b < nbuckets );
 
   for_buffered(i, n, 0, bucket->size(), NBUF) {
     Incoherent<uint64_t>::WO c(array+offsets[b]+i, n, &(*bucket)[i]);
@@ -228,7 +229,7 @@ void bucket_sort(GlobalAddress<uint64_t> array, size_t nelems, size_t nbuckets) 
 
   // allocate space in buckets
   VLOG(3) << "allocating space...";
-  forall_local<bucket_t,resize_bucket>(bucketlist, nbuckets);
+  forall_local<bucket_t,init_buckets>(bucketlist, nbuckets);
   
   VLOG(3) << "scattering...";
       t = SoftXMT_walltime();
