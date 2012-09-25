@@ -153,8 +153,8 @@ public:
     }
   }
 
-  inline T * localize() const {
-    Node nid = global_communicator.mynode();
+  inline T * localize(Node nid = -1) const {
+	if (nid == -1) nid = global_communicator.mynode();
     T * local_base;
     size_t block_elems = block_size / sizeof(T);
     T * block_base = block_min().pointer();
