@@ -164,9 +164,15 @@ CFLAGS+= -I$(BOOST)/include
 LDFLAGS+= -L$(BOOST)/lib64 -L$(BOOST)/lib
 LD_LIBRARY_PATH:=$(LD_LIBRARY_PATH):$(BOOST)/lib
 
+ifdef GASNET_TRACING
+GASNET:=/sampa/share/gasnet-1.18.2-tracing
+GASNET_SETTINGS+=GASNET_TRACEFILE="/scratch/gasnet_trace_%"
+GASNET_SETTINGS+=GASNET_TRACEMASK=I
+#GASNET_SETTINGS+=GASNET_TRACENODES=2-4
+endif
+
 # gasnet
 GASNET=$(SOFTXMT_HOME)/tools/built_deps
-#GASNET?=/sampa/share/gasnet-1.18.2-openmpi-4kbuf-symbols
 GASNET_CONDUIT?=ibv #values:ibv,mpi
 GASNET_THREAD=seq #values:seq,par,parsync -- seq recommended
 

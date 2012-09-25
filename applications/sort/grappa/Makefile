@@ -10,7 +10,7 @@ BOOST?=/sampa/share/boost_1_50_0
 #include common SoftXMT definitions
 include $(SOFTXMT_HOME)/include.mk
 
-SRUN_FLAGS:=--time=00:05:00
+SRUN_FLAGS?=--time=00:05:00
 
 TARGET:= sort.exe
 
