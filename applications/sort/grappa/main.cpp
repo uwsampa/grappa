@@ -39,6 +39,13 @@ namespace grappa {
   }
 }
 
+static const size_t BUFSIZE = 1L<<22;
+
+// little helper for iterating over things numerous enough to need to be buffered
+#define for_buffered(i, n, start, end, nbuf) \
+  for (size_t i=start, n=nbuf; i<end && (n = MIN(nbuf, end-i)); i+=nbuf)
+
+
 static void printHelp(const char * exe);
 static void parseOptions(int argc, char ** argv);
 
@@ -49,11 +56,13 @@ typedef boost::variate_generator<engine_t&,dist_t> gen_t;
 
 struct bucket_t {
   uint64_t * v;
-  size_t sz;
-  char pad[block_size-sizeof(uint64_t)-sizeof(size_t)];
-  bucket_t(): v(NULL), sz(0) { memset(pad, 0x55, sizeof(pad)); }
+  size_t nelems;
+  size_t maxelems;
+  char pad[block_size-sizeof(uint64_t*)-sizeof(size_t)*2];
+  bucket_t(): v(NULL), nelems(0) { memset(pad, 0x55, sizeof(pad)); }
   ~bucket_t() { delete [] v; }
   void reserve(size_t nelems) {
+    maxelems = nelems;
     if (v != NULL) delete [] v;
     v = new uint64_t[nelems];
     if (!v) {
@@ -61,12 +70,16 @@ struct bucket_t {
     }
   }
   const uint64_t& operator[](size_t i) const { return v[i]; }
-  uint64_t& operator[](size_t i) { return v[i]; }
-  void append(uint64_t val) {
-    v[sz] = val;
-    sz++;
+  uint64_t& operator[](size_t i) {
+    CHECK( i < maxelems );
+    return v[i];
   }
-  size_t size() { return sz; }
+  void append(uint64_t val) {
+    v[nelems] = val;
+    nelems++;
+    CHECK(nelems <= maxelems);
+  }
+  size_t size() { return nelems; }
 };
 
 ////////////
@@ -169,14 +182,28 @@ inline void sort_bucket(bucket_t * bucket) {
 }
 
 inline void put_back_bucket(bucket_t * bucket) {
+  const size_t NBUF = BUFSIZE / sizeof(uint64_t);
   size_t b = calc_bucket_id(bucket);
-  Incoherent<uint64_t>::WO c(array+offsets[b], bucket->size(), &(*bucket)[0]);
+  CHECK( b < nbuckets);
+
+  for_buffered(i, n, 0, bucket->size(), NBUF) {
+    Incoherent<uint64_t>::WO c(array+offsets[b]+i, n, &(*bucket)[i]);
+    c.block_until_released();
+  }
+  //Incoherent<uint64_t>::WO c(array+offsets[b], bucket->size(), &(*bucket)[0]);
+  //c.block_until_released();
+  VLOG(1) << "bucket[" << b << "] release successful";
 }
 
 void bucket_sort(GlobalAddress<uint64_t> array, size_t nelems, size_t nbuckets) {
   double t, sort_time, histogram_time, allreduce_time, scatter_time, local_sort_scatter_time, put_back_time;
 
   GlobalAddress<bucket_t> bucketlist = SoftXMT_typed_malloc<bucket_t>(nbuckets);
+
+  for (size_t i=0; i<nbuckets; i++) {
+    GlobalAddress<bucket_t> bi = bucketlist+i;
+    VLOG(1) << "bucket[" << i << "] on Node " << bi.node() << ", offset = " << bi.pointer() - bucketlist.localize(bi.node()) << ", ptr = " << bi.pointer();
+  }
 
       sort_time = SoftXMT_walltime();
 
@@ -242,12 +269,6 @@ class BlockRecord {
     f.write(data, num_bytes);
   }
 };
-
-static const size_t BUFSIZE = 1L<<22;
-
-// little helper for iterating over things numerous enough to need to be buffered
-#define for_buffered(i, n, start, end, nbuf) \
-  for (size_t i=start, n=nbuf; i<end && (n = MIN(nbuf, end-i)); i+=nbuf)
 
 /// Save 'records' of the form:
 /// { <start_index>, <num_elements>, <data...> }
@@ -373,6 +394,7 @@ void user_main(void* ignore) {
   LOG(INFO) << "maxkey = (1 << " << log2maxkey << ") - 1 = " << maxkey;
 
   LOG(INFO) << "iobufsize_mb: " << (double)BUFSIZE/(1L<<20);
+  LOG(INFO) << "block_size: " << block_size;
 
   GlobalAddress<uint64_t> array = SoftXMT_typed_malloc<uint64_t>(nelems);
 
