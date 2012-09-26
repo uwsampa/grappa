@@ -44,6 +44,8 @@ These are the Grappa gdb macros.
   grappa_save_state                         save real $rip and $rsp
   grappa_restore_state                      restore real $rip and $rsp
 
+  dumpstack <coroutine pointer>             dump the stack (as raw int64_t's)
+
 Type "help <macro>" for more specific help on a particular macro.
 Type "show user <macro>" to see what the macro is really doing.
 end
@@ -353,5 +355,14 @@ document btcf
 Print backtrace of Grappa coroutine with locals.
 Syntax:
    (gdb) btcf <coroutine pointer>
+end
+
+define dumpstack
+  p ((int64_t*)((coro*)$arg0)->stack) @ (((coro*)$arg0)->base+((coro*)$arg0)->ssize+4096-((coro*)$arg0)->stack)/sizeof(int64_t)
+end
+document dumpstack
+Dump stack (as int64_t's).
+Syntax:
+   (gdb) dumpstack <coroutine pointer>
 end
 
