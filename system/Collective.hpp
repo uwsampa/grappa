@@ -142,7 +142,9 @@ T SoftXMT_allreduce(T myval) {
 }
 
 template< typename T, T (*Reducer)(const T&, const T&), T BaseVal>
-void SoftXMT_allreduce(T * array, size_t nelem, T * result = NULL) {
+void allreduce_one_message(T * array, size_t nelem, T * result = NULL) {
+  const size_t maxn = 2048 / sizeof(T);
+  CHECK( nelem <= maxn );
   // default is to overwrite original array
   if (!result) result = array;
   Reductions<T*>::final_reduction_result = result;
@@ -151,8 +153,17 @@ void SoftXMT_allreduce(T * array, size_t nelem, T * result = NULL) {
   reducing_thread = CURRENT_THREAD;
   
   SoftXMT_call_on(0, &am_reduce_array<T,Reducer,BaseVal>, array, sizeof(T)*nelem);
-  
   SoftXMT_suspend();
+}
+
+template< typename T, T (*Reducer)(const T&, const T&), T BaseVal>
+void SoftXMT_allreduce(T * array, size_t nelem, T * result = NULL) {
+  const size_t maxn = 2048 / sizeof(T);
+
+  for (size_t i=0; i<nelem; i+=maxn) {
+    size_t n = MIN(maxn, nelem-i);
+    allreduce_one_message<T,Reducer,BaseVal>(array+i, n, result);
+  }
 }
 
 template< typename T, T (*Reducer)(const T&, const T&) >
