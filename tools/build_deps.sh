@@ -2,7 +2,7 @@
 
 cd GASNet-1.18.2
 #make distclean
-./configure --prefix=`pwd`/../built_deps --enable-segment-everything CC='cc -g '
+./configure --prefix=`pwd`/../built_deps --enable-segment-everything CC='gcc -g '
 make -j
 make install
 cd ..
