@@ -380,7 +380,7 @@ endif
 	objdump -S $< > $@
 
 # build documentation
-doc:: 
+doc docs doxygen::
 	doxygen Doxyfile
 
 
