@@ -32,6 +32,9 @@ protected:
   Thread * sleeper;
 public:
   Semaphore(int total, int starting): total(total), count(starting), sleeper(NULL) {}
+
+  /// Suspend and wait for all tokens to be released.
+  /// TODO: support multiple sleepers.
   void acquire_all(Thread * me) {
     while (count < total) {
       VLOG(3) << "Semaphore.count = " << count << " of " << total << ", suspending...";
@@ -39,6 +42,11 @@ public:
       SoftXMT_suspend();
     }
   }
+  
+  /// Release a number of tokens to Semaphore. If after this, all the tokens have been released,
+  /// wake the sleeper.
+  ///
+  /// @param n Number of tokens to release.
   void release(int n=1) {
     count += n;
     if (count >= total && sleeper) {
@@ -53,6 +61,16 @@ public:
     VLOG(3) << "am_release n=" << n;
     gaddr->pointer()->release((int)n);
   }
+
+  /// Call release on remote semaphore. Sends an active message and potentially wakes the (remote) sleeper.
+  ///
+  /// Example usage:
+  /// @code
+  /// void task1(GlobalAddress<Semaphore> remote_sem) {
+  ///   // do some work
+  ///   Semaphore::release(&remote_sem, 1);
+  /// }
+  /// @endcode
   static void release(const GlobalAddress<Semaphore>* gaddr, int n) {
     VLOG(3) << "about to call on " << gaddr->node();
     SoftXMT_call_on(gaddr->node(), &Semaphore::am_release, gaddr, sizeof(GlobalAddress<Semaphore>), &n, sizeof(int64_t));
@@ -75,9 +93,14 @@ struct LocalTaskJoiner {
     outstanding = 0;
     while (!wakelist.empty()) SoftXMT_wake(wakelist.dequeue());
   }
+
+  /// Tell joiner that there is one more task outstanding.
   void registerTask() {
     outstanding++;
   }
+
+  /// Signal completion of a task. If it was the last outstanding task, then wake all tasks that
+  /// have called wait().
   void signal() {
     if (outstanding == 0) {
       LOG(ERROR) << "too many calls to signal()";
@@ -91,6 +114,9 @@ struct LocalTaskJoiner {
       }
     }
   }
+
+  /// Suspend task until all tasks have been completed. If no tasks have been registered or all have
+  /// completed before wait is called, this will fall through and not suspend the calling task.
   void wait() {
     if (outstanding > 0) {
       wakelist.enqueue(CURRENT_THREAD);
@@ -101,6 +127,15 @@ struct LocalTaskJoiner {
     CHECK(joinAddr->node() == SoftXMT_mynode());
     joinAddr->pointer()->signal();
   }
+
+  /// Call signal on task joiner that may be on another node.
+  ///
+  /// Usage:
+  /// @code
+  /// void task1(GlobalAddress<LocalTaskJoiner> rem_joiner) {
+  ///   LocalTaskJoiner::remoteSignal(rem_joiner);
+  /// }
+  /// @endcode
   static void remoteSignal(GlobalAddress<LocalTaskJoiner> joinAddr) {
     if (joinAddr.node() == SoftXMT_mynode()) {
       joinAddr.pointer()->signal();
@@ -414,6 +449,7 @@ void SoftXMT_memset_local(GlobalAddress<T> base, T value, size_t count) {
 
 #include "AsyncParallelFor.hpp"
 
+/// Task joiner used internally by forall_local to join private tasks on all the nodes.
 extern LocalTaskJoiner ljoin;
 
 template< typename S, void (*F)(int64_t,int64_t,S), int64_t Threshold >
@@ -431,6 +467,7 @@ void spawn_private_task(int64_t a, int64_t b, S c) {
   SoftXMT_privateTask( &apfor_with_local_join<S, F, Threshold>, a, b, c );
 }
 
+/// Version of AsyncParallelFor that spawns private tasks and joins all of them.
 template< typename S, void (*F)(int64_t,int64_t,S), int64_t Threshold >
 void async_parallel_for_private(int64_t start, int64_t iters, S shared_arg) {
   ljoin.reset();
