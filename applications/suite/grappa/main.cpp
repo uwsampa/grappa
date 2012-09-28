@@ -1,10 +1,3 @@
-//
-//  main.c
-//  AppSuite
-//
-//  Created by Brandon Holt on 12/13/11.
-//  Copyright 2011 University of Washington. All rights reserved.
-//
 #if HAVE_UNISTD_H
 #include <unistd.h>
 #else
@@ -12,6 +5,8 @@
 #include <getopt.h>
 #endif
 #endif
+
+/// A suite of graph-related kernels based on GraphCT/SSCA#2 that use the Graph500 Kronecker graphs.
 
 #include <stdio.h>
 #include <math.h>

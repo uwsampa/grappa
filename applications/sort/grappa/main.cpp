@@ -1,10 +1,3 @@
-//
-//  main.c
-//  AppSuite
-//
-//  Created by Brandon Holt on 12/13/11.
-//  Copyright 2011 University of Washington. All rights reserved.
-//
 #if HAVE_UNISTD_H
 #include <unistd.h>
 #else
@@ -31,6 +24,9 @@
 
 #include "npb_intsort.h"
 
+/// Grappa implementation of a paper and pencil sorting benchmark.
+/// Does a bucket sort of a bunch of 64-bit integers, beginning and ending in a Grappa global array.
+
 namespace grappa {
   inline int64_t read(GlobalAddress<int64_t> addr) { return SoftXMT_delegate_read_word(addr); }
   inline void write(GlobalAddress<int64_t> addr, int64_t val) { return SoftXMT_delegate_write_word(addr, val); }
@@ -39,6 +35,7 @@ namespace grappa {
   }
 }
 
+/// Parameter for how large the file I/O buffer is
 static const size_t BUFSIZE = 1L<<22;
 
 // little helper for iterating over things numerous enough to need to be buffered
@@ -54,6 +51,9 @@ typedef boost::mt19937_64 engine_t;
 typedef boost::uniform_int<uint64_t> dist_t;
 typedef boost::variate_generator<engine_t&,dist_t> gen_t;
 
+/// Quick and dirty growable bucket that is padded to take up a full Grappa block so 
+/// that malloc'ing a global array round-robins buckets to nodes to keep it as even
+/// as possible (for small numbers of buckets this is especially important)
 struct bucket_t {
   uint64_t * v;
   size_t nelems;
@@ -109,6 +109,7 @@ inline void set_random(uint64_t * v) {
   *v = gen();
 }
 
+/// Inititialize global variables on all nodes
 LOOP_FUNCTOR(setup_counts, nid, ((GlobalAddress<uint64_t>,_array)) ((size_t,_nbuckets)) ((GlobalAddress<bucket_t>,_buckets)) ) {
   array = _array;
   nbuckets = _nbuckets;
@@ -121,6 +122,7 @@ LOOP_FUNCTOR(setup_counts, nid, ((GlobalAddress<uint64_t>,_array)) ((size_t,_nbu
   }
 }
 
+/// Count the number of elements that will fall in each bucket
 inline void histogram(uint64_t * v) {
   size_t b = (*v) >> LOBITS;
   counts[b]++;
@@ -139,10 +141,12 @@ inline void print_array(const char * name, GlobalAddress<T> base, size_t nelem) 
   ss << " ]"; VLOG(1) << ss.str();
 }
 
+/// Get total bucket counts on all nodes
 LOOP_FUNCTION(aggregate_counts, nid ) {
-  
+  // all nodes get total counts put into their counts array
   SoftXMT_allreduce<size_t,coll_add<size_t>,0>(&counts[0], nbuckets);
 
+  // prefix sum
   offsets[0] = 0;
   for (size_t i=1; i<nbuckets; i++) {
     offsets[i] = offsets[i-1] + counts[i-1];
@@ -153,6 +157,7 @@ inline size_t calc_bucket_id(bucket_t * bucket) {
   return make_linear(bucket) - bucketlist;
 }
 
+/// Allocate space for buckets
 inline void init_buckets(bucket_t * bucket) {
   size_t id = calc_bucket_id(bucket);
   bucket_t * bcheck = new (bucket) bucket_t();
@@ -160,10 +165,12 @@ inline void init_buckets(bucket_t * bucket) {
   bucket->reserve(counts[id]);
 }
 
+/// Feed-forward (split-phase) delegate
 void ff_append(bucket_t& bucket, const uint64_t& val) {
   bucket.append(val);
 }
 
+/// Distribute ints into buckets
 inline void scatter(uint64_t * v) {
   size_t b = (*v) >> LOBITS;
   CHECK( b < nbuckets ) << "bucket id = " << b << ", nbuckets = " << nbuckets;
@@ -178,15 +185,18 @@ int ui64cmp(const void * a, const void * b) {
   else return 0;
 }
 
+/// Do some kind of local serial sort of a bucket
 inline void sort_bucket(bucket_t * bucket) {
   qsort(&(*bucket)[0], bucket->size(), sizeof(uint64_t), &ui64cmp);
 }
 
+/// Redistribute sorted buckets back into global array
 inline void put_back_bucket(bucket_t * bucket) {
   const size_t NBUF = BUFSIZE / sizeof(uint64_t);
   size_t b = calc_bucket_id(bucket);
   CHECK( b < nbuckets );
 
+  // TODO: shouldn't need to buffer this, but a bug of some sort is currently forcing us to limit the number of outstanding messages
   for_buffered(i, n, 0, bucket->size(), NBUF) {
     Incoherent<uint64_t>::WO c(array+offsets[b]+i, n, &(*bucket)[i]);
     c.block_until_released();
@@ -201,10 +211,12 @@ void bucket_sort(GlobalAddress<uint64_t> array, size_t nelems, size_t nbuckets) 
 
   GlobalAddress<bucket_t> bucketlist = SoftXMT_typed_malloc<bucket_t>(nbuckets);
 
+#ifdef DEBUG
   for (size_t i=0; i<nbuckets; i++) {
     GlobalAddress<bucket_t> bi = bucketlist+i;
     VLOG(1) << "bucket[" << i << "] on Node " << bi.node() << ", offset = " << bi.pointer() - bucketlist.localize(bi.node()) << ", ptr = " << bi.pointer();
   }
+#endif
 
       sort_time = SoftXMT_walltime();
 
@@ -260,6 +272,8 @@ void bucket_sort(GlobalAddress<uint64_t> array, size_t nelems, size_t nbuckets) 
       LOG(INFO) << "total_sort_time: " << sort_time;
 }
 
+// Just put this here to start brainstorming ways to store records
+#if 0
 class BlockRecord {
   size_t start_index;
   size_t num_bytes;
@@ -270,6 +284,7 @@ class BlockRecord {
     f.write(data, num_bytes);
   }
 };
+#endif
 
 /// Save 'records' of the form:
 /// { <start_index>, <num_elements>, <data...> }
@@ -297,6 +312,7 @@ struct save_array_func : ForkJoinIteration {
   }
 };
 
+/// Assuming HDFS, so write array to different files in a directory because otherwise we can't write in parallel
 template < typename T >
 void save_array(const char (&dirname)[256], GlobalAddress<T> array, size_t nelems) {
   // make directory with mode 777
@@ -320,6 +336,8 @@ void save_array(const char (&dirname)[256], GlobalAddress<T> array, size_t nelem
 #include <boost/filesystem.hpp>
 namespace fs = boost::filesystem;
 
+/// Currently reads in files in blocks of 128 MB because that's the block size of HDFS.
+/// Performance is terrible, need to do async. file io so we don't block Grappa communication.
 template < typename T >
 struct read_array_func : ForkJoinIteration {
   GlobalAddress<T> array; size_t nelems; char dirname[256]; GlobalAddress<int64_t> locks;

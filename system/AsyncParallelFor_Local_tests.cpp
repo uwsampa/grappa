@@ -30,10 +30,14 @@ void spawn_private_task(int64_t a, int64_t b) {
 }
 
 void user_main( void * args ) {
+  // create a semaphore to synchronize tasks on a single node (could also use LocalTaskJoiner)
+  // able to use semaphore to tell it how many to wait on
   sem = new Semaphore(size, 0);
 
+  // recursive decomposition that spawns private tasks (not stealable)
   async_parallel_for<&loop_body, &spawn_private_task, ASYNC_PAR_FOR_DEFAULT >( 0, size );
 
+  // wait on all tasks finishing
   sem->acquire_all( CURRENT_THREAD );
 
   for (int i=0; i<size; i++) {

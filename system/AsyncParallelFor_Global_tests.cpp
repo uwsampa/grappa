@@ -68,6 +68,7 @@ LOOP_FUNCTION(check_count2, nid) {
 }
 
 struct parallel_func2 : public ForkJoinIteration {
+  // called on all nodes in parallel by "fork_join_custom"
   void operator()(int64_t nid) const {
     local_count = 0;
 
@@ -80,8 +81,14 @@ struct parallel_func2 : public ForkJoinIteration {
     int64_t shared_arg = SoftXMT_mynode(); 
     GlobalAddress<dummy_t> shared_arg_packed = make_global( reinterpret_cast<dummy_t*>(shared_arg) );
 
+    // get ready for parallel phase
     global_joiner.reset();
+
+    // do loop in parallel with recursive decomposition
+    // creates publicly stealable tasks
     async_parallel_for<dummy_t,loop_body2,joinerSpawn_hack<dummy_t,loop_body2,ASYNC_PAR_FOR_DEFAULT>,ASYNC_PAR_FOR_DEFAULT >(start,iters,shared_arg_packed);
+
+    // wait for all of the loop iterations to complete on all nodes
     global_joiner.wait();
   }
 };
@@ -117,6 +124,7 @@ void signaling_task( int64_t * arg ) {
   global_joiner.signal();
 }
 
+/// Test one task doing work
 LOOP_FUNCTION( one_work_func, nid ) {
     global_joiner.reset();
     global_joiner.registerTask();
@@ -125,6 +133,7 @@ LOOP_FUNCTION( one_work_func, nid ) {
     global_joiner.wait();
 }
 
+/// Verify global joiner doesn't wait if all the work is done when it's called
 LOOP_FUNCTION( one_self_work_func, nid ) {
     global_joiner.reset();
 
