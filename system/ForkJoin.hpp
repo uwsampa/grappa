@@ -507,7 +507,8 @@ struct for_local_func : ForkJoinIteration {
 /// @param base Base address (linear) of global array to iterate over.
 /// @param nelems Number of elements to iterate over.
 /// @tparam T Type of the elements of the array
-/// @tparam F A function that takes a T* which will be called with a pointer for each element of the array (on all nodes). This value can be assumed to be local and can be safely modified.
+/// @tparam F A function that takes a T* which will be called with a pointer for each element of the 
+///           array (on all nodes). This value can be assumed to be local and can be safely modified.
 /// @tparam Threshold Same as async_parallel_for threshold.
 template< typename T, void F(T*), int64_t Threshold >
 void forall_local(GlobalAddress<T> base, size_t nelems) {
