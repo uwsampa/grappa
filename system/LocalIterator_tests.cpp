@@ -21,8 +21,6 @@ int64_t * local_base;
 const size_t N = (1L<<24);
 const size_t nbuf = 1L<<22;
 
-inline void set_0(uint64_t * a) { *a = 0; }
-
 void user_main( void * ignore ) {
   array = SoftXMT_typed_malloc<int64_t>(N);
   int64_t * buf = new int64_t[nbuf];
@@ -35,12 +33,12 @@ void user_main( void * ignore ) {
 
   BOOST_MESSAGE("checking local memset works");
   SOFTXMT_TIME(local_time, {
-    // local memset uses 'localize'
+    // local memset uses 'localize' to have each node do all only the elements local to it
     SoftXMT_memset_local(array, 1L, N);
   });
   //log_array("array", array);
 
-  const size_t nbuf = 1L<<22;
+  // verify that memset got everything
   int64_t * buf = new int64_t[nbuf];
   for (size_t i=0; i<N; i+=nbuf) {
     size_t n = MIN(N-i, nbuf);

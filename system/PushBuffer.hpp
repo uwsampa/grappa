@@ -4,6 +4,14 @@
 
 #define fetch_add SoftXMT_delegate_fetch_and_add_word
 
+/// A simple class for staging appends to a global array. Created for use in adding things 
+/// to the frontier in BFS. The idea is to have a PushBuffer local to each node (in a 
+/// global variable) that can be appended to. Once the buffer reaches capacity, a single 
+/// fetch_add is used to allocate space in the global array, and a large Cache 
+/// Incoherent::WO release is used to save everything into the global array.
+///
+/// @tparam NBUFS Supports having multiple outstanding buffers to prevent having to wait 
+///               for release to finish.
 template<typename T, size_t BUFSIZE=(1L<<14), size_t NBUFS=4 >
 struct PushBuffer {
   GlobalAddress<T> target_array;
