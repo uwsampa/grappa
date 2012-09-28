@@ -517,7 +517,8 @@ void forall_local(GlobalAddress<T> base, size_t nelems) {
   f.nelems = nelems;
   fork_join_custom(&f);
 }
-// duplicated to handle default template args (unnecessary with c++11)
+/// Duplicate of forall_local with default Threshold template arg. @see forall_local()
+/// (duplication unnecessary with c++11)
 template< typename T, void F(T*) >
 void forall_local(GlobalAddress<T> base, size_t nelems) {
   forall_local<T,F,ASYNC_PAR_FOR_DEFAULT>(base, nelems);
