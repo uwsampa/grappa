@@ -23,6 +23,8 @@
 
 DECLARE_int64(max_forkjoin_threads_per_node);
 
+/// Synchronization primitive that has similar semantics to a semaphore, where you start 
+/// it with a certain number of tokens and can suspend waiting to acquire all of the tokens.
 class Semaphore {
 protected:
   int total;
@@ -57,6 +59,14 @@ public:
   }
 };
 
+/// A "joiner" is a synchronization primitive similar to a Semaphore, but with an unbounded 
+/// number of potential tokens, meant to be used to join a number of tasks that isn't known 
+/// from the start. In order to count as having outstanding work, a task must "register" itself.
+/// A task that has called wait() will be woken when all "registered" calls have been matched by 
+/// a "signal" call (so the number of outstanding tasks == 0).
+///
+/// This joiner is considered "Local" because it can only reside on a single node. However,
+/// remoteSignal() can be used to send a signal to a LocalTaskJoiner on a different node.
 struct LocalTaskJoiner {
   ThreadQueue wakelist;
   int64_t outstanding;
@@ -101,8 +111,10 @@ struct LocalTaskJoiner {
   }
 };
 
+/// Base class for iteration functors. Functors passed to ForkJoin should override operator()
+/// in the way indicated in this struct.
 struct ForkJoinIteration {
-  void operator()(int64_t index);
+  void operator()(int64_t index) const;
 };
 
 template<typename T>
@@ -154,7 +166,17 @@ void task_iters(iters_args * arg) {
   }
 }
 
-
+/// Parallel loop on a single node using private tasks and *not* recursive decomposition.
+/// Iterations get split evenly among tasks created by this function, the calling task is 
+/// suspended until those tasks complete.
+///
+/// Uses gflag: `max_forkjoin_threads_per_node` to determine the number of tasks to spawn.
+/// 
+/// TODO: update for new Grappa
+///
+/// @param func Pointer to a functor object that extends ForkJoinIteration. This will be shared by all tasks created by this fork/join.
+/// @param start Starting iteration number, will be the first task's first iteration.
+/// @param end Ending iteration number.
 template<typename T>
 void fork_join_onenode(const T* func, int64_t start, int64_t end) {
   size_t finished = 0;
@@ -173,6 +195,7 @@ void fork_join_onenode(const T* func, int64_t start, int64_t end) {
   
 }
 
+/// Internal: Task for doing fork_join_onenode on a node.
 template<typename T>
 void th_node_fork_join(const NodeForkJoinArgs<T>* a) {
   range_t myblock = blockDist(a->start, a->end, SoftXMT_mynode(), SoftXMT_nodes());
@@ -183,6 +206,12 @@ void th_node_fork_join(const NodeForkJoinArgs<T>* a) {
   Semaphore::release(&a->sem, 1);
 }
 
+/// Essentially a parallel for loop that spawns many private tasks across nodes in the 
+/// system and has each task execute a chunk of iterations of the loop. It is essentially
+/// 'fork_join_onenode' inside a 'fork_join_custom'.
+///
+/// TODO: update this for new Grappa (still works, but is definitely suboptimal, 
+/// in particular, does too much copying and uses an old tasking interface.
 template<typename T>
 void fork_join(T* func, int64_t start, int64_t end) {
   Semaphore sem(SoftXMT_nodes(), 0);
@@ -232,18 +261,26 @@ void fork_join_custom(T* func) {
   VLOG(2) << "fork_join done";
 }
 
-/// Create a functor for iterations of a loop. This automatically creates a struct which is a subtype of ForkJoinIteration, with the given "state" arguments as fields and a constructor with the fields enumerated in the given order.
+/// Create a functor for iterations of a loop. This automatically creates a struct which is a
+/// subtype of ForkJoinIteration, with the given "state" arguments as fields and a constructor
+/// with the fields enumerated in the given order.
 /// 
-/// Arguments:
-///   name: struct which is created
-///   index: name of variable used for loop iteration
-///   state: seq of type/name pairs for functor state, of the form:
+/// @param name Struct which is created
+/// @param index Name of variable used for loop iteration
+/// @param state Seq of type/name pairs for functor state, of the form:
 ///     ((type1,name1)) ((type2,name2)) ...
 ///
 /// Example:
-///   LOOP_FUNCTOR(set_all, i, ((GlobalAddress<int64_t>,array)) ((int64_t,value)) ) {
-///     SoftXMT_delegate_write_word(array+i, value);
-///   }
+/// \code
+///    LOOP_FUNCTOR(set_all, i, ((GlobalAddress<int64_t>,array)) ((int64_t,value)) ) {
+///      SoftXMT_delegate_write_word(array+i, value);
+///    }
+///    ...
+///    void user_main() {
+///      set_all mysetfunc(array, 2);
+///      fork_join(&array, 0, array_size);
+///    }
+/// \endcode
 #define LOOP_FUNCTOR(name, index_var, members) \
 struct name : ForkJoinIteration { \
 AUTO_DECLS(members) \
@@ -253,6 +290,8 @@ inline void operator()(int64_t) const; \
 }; \
 inline void name::operator()(int64_t index_var) const
 
+/// Like LOOP_FUNCTOR but with allowing an additional template parameter.
+/// @see LOOP_FUNCTOR()
 #define LOOP_FUNCTOR_TEMPLATED(T, name, index_var, members) \
 template< typename T > \
 struct name : ForkJoinIteration { \
@@ -264,12 +303,14 @@ inline void operator()(int64_t) const; \
 template< typename T > \
 inline void name<T>::operator()(int64_t index_var) const
 
+/// Like LOOP_FUNCTOR but with no arguments passed and saved in functor (must have different
+/// name because of limitations of C macros)
+/// @see LOOP_FUNCTOR
 #define LOOP_FUNCTION(name, index_var) \
 struct name : ForkJoinIteration { \
 inline void operator()(int64_t) const; \
 }; \
 inline void name::operator()(int64_t index_var) const
-
 
 struct ConstReplyArgs {
   int64_t replies_left;
@@ -303,6 +344,15 @@ static void memset_request_am(ConstRequestArgs<T> * args, size_t sz, void* paylo
   SoftXMT_call_on(args->reply.node(), &memset_reply_am, &args->reply);
 }
 
+/// Initialize an array of elements of generic type with a given value.
+/// 
+/// This version sends a large number of active messages, the same way as the Incoherent
+/// releaser, to set each part of a global array. In theory, this version should be able
+/// to be called from multiple locations at the same time (to initialize different regions of global memory).
+/// 
+/// @param base Base address of the array to be set.
+/// @param value Value to set every element of array to (will be copied to all the nodes)
+/// @param count Number of elements to set, starting at the base address.
 template< typename T >
 static void SoftXMT_memset(GlobalAddress<T> request_address, T value, size_t count) {
   size_t offset = 0;
@@ -345,6 +395,15 @@ LOOP_FUNCTOR_TEMPLATED(T, memset_func, nid, ((GlobalAddress<T>,base)) ((T,value)
 /// Does memset across a global array using a single task on each node and doing local assignments
 /// Uses 'GlobalAddress::localize()' to determine the range of actual memory from the global array
 /// on a particular node.
+/// 
+/// Must be called by itself (preferably from the user_main task) because it contains a call to
+/// fork_join_custom().
+///
+/// @see SoftXMT_memset()
+///
+/// @param base Base address of the array to be set.
+/// @param value Value to set every element of array to (will be copied to all the nodes)
+/// @param count Number of elements to set, starting at the base address.
 template< typename T >
 void SoftXMT_memset_local(GlobalAddress<T> base, T value, size_t count) {
   {
@@ -392,11 +451,27 @@ struct for_local_func : ForkJoinIteration {
   GlobalAddress<T> base;
   size_t nelems;
   void operator()(int64_t nid) const {
-    T * local_base = base.localize(), * local_end = (base+nelems).localize();
+    T * local_base = base.localize(),
+	  * local_end = (base+nelems).localize();
     async_parallel_for_private< T*, for_iterations_task<T,F>, Threshold >(0, local_end-local_base, local_base);
   }
 };
 
+/// Iterator over a global array where each node does only the iterations corresponding to elements
+/// local to it. Each node does a parallel recursive decomposition over its local elements. Most 
+/// communication operations, including delegate ops should be able to be used, with the exception
+/// of stop-the-world sync ops that assume they're being called from user_main or a SIMD context.
+///
+/// Limitations:
+///  - the element type must be evenly divisible by the block_size, otherwise some elements may
+///    span node boundaries, causing them to not be completely local to any node.
+///  - To be called from user_main task because only one can be in flight at a time.
+///
+/// @param base Base address (linear) of global array to iterate over.
+/// @param nelems Number of elements to iterate over.
+/// @tparam T Type of the elements of the array
+/// @tparam F A function that takes a T* which will be called with a pointer for each element of the array (on all nodes). This value can be assumed to be local and can be safely modified.
+/// @tparam Threshold Same as async_parallel_for threshold.
 template< typename T, void F(T*), int64_t Threshold >
 void forall_local(GlobalAddress<T> base, size_t nelems) {
   for_local_func<T,F,Threshold> f;
