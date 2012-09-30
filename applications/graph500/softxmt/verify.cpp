@@ -207,7 +207,7 @@ LOOP_FUNCTOR(node_verify_func, nid,  ((GlobalAddress<int64_t>,_bfs_tree)) ((Glob
 
   global_async_parallel_for(verify_edges, 0, nedge);
 
-  nedge_traversed = SoftXMT_allreduce<int64_t,coll_add<int64_t>,0>(nedge_traversed);
+  nedge_traversed = SoftXMT_allreduce<int64_t,collective_add<int64_t>,0>(nedge_traversed);
 }
 
 LOOP_FUNCTOR(final_verify_func, k, ((GlobalAddress<int64_t>,bfs_tree)) ((GlobalAddress<int64_t>,seen_edge)) ((GlobalAddress<int64_t>,err)) ((int64_t,root))) {
