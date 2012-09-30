@@ -1,6 +1,12 @@
+// Copyright 2010-2012 University of Washington. All Rights Reserved.
+// LICENSE_PLACEHOLDER
+// This software was created with Government support under DE
+// AC05-76RL01830 awarded by the United States Department of
+// Energy. The Government has certain rights in the software.
 
-#ifndef __PARALLEL_LOOP_SINGLE_HPP__
-#define __PARALLEL_LOOP_SINGLE_HPP__
+
+#ifndef PARALLEL_LOOP_SINGLE_HPP
+#define PARALLEL_LOOP_SINGLE_HPP
 
 #include "SoftXMT.hpp"
 #include "ForkJoin.hpp"
@@ -113,4 +119,4 @@ void parallel_loop_implSingle(int64_t start_index, int64_t iterations, void (*lo
 //      - need to allocate extra space pessimistically because of load imbalance (could do optimistic allocation size and then just double size on overflow)
 
 
-#endif
+#endif // PARALLEL_LOOP_SINGLE_HPP

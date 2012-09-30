@@ -72,14 +72,8 @@ static inline void SoftXMT_suspend_wake( Thread * t )
   global_scheduler.thread_suspend_wake( t );
 }
 
-/// Join on Thread t
-static inline void SoftXMT_join( Thread * t )
-{
-  DVLOG(5) << "Thread " << global_scheduler.get_current_thread() << " joining on thread " << t;
-  global_scheduler.thread_join( t );
-}
-
-/// Place thread on queue to be reused by tasking layer
+/// Place current thread on queue to be reused by tasking layer as a worker.
+/// @deprecated should not be in the public API because it is a Thread-level not Task-level routine
 static inline bool SoftXMT_thread_idle( )
 {
   DVLOG(5) << "Thread " << global_scheduler.get_current_thread()->id << " going idle";

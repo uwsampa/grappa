@@ -1,21 +1,27 @@
+// Copyright 2010-2012 University of Washington. All Rights Reserved.
+// LICENSE_PLACEHOLDER
+// This software was created with Government support under DE
+// AC05-76RL01830 awarded by the United States Department of
+// Energy. The Government has certain rights in the software.
+
 #include "Task.hpp"
 #include "../SoftXMT.hpp"
 #include "../PerformanceTools.hpp"
 #include "TaskingScheduler.hpp"
 
-//#define MAXQUEUEDEPTH 500000
-#define MAXQUEUEDEPTH (1L<<26)
+#define MAXQUEUEDEPTH (1L<<26)   // previous values: 500000
 
 TaskManager global_task_manager;
 
 GRAPPA_DEFINE_EVENT_GROUP(task_manager);
 //DEFINE_bool(TaskManager_events, true, "Enable tracing of events in TaskManager.");
 
+/// Create an uninitialized TaskManager
+/// init() must subsequently be called before fully initialized.
 TaskManager::TaskManager ( ) 
   : privateQ( )
   , publicQ( MAXQUEUEDEPTH ) 
   , workDone( false )
-  , all_terminate( false )
   , doSteal( false )
   , stealLock( true )
   , nextVictimIndex( 0 )
@@ -24,14 +30,13 @@ TaskManager::TaskManager ( )
   StealQueue<Task>::registerAddress( &publicQ );
 }
 
-
-void TaskManager::init (bool doSteal_arg, Node localId_arg, Node * neighbors_arg, Node numLocalNodes_arg, int chunkSize_arg, int cbint_arg) {
+/// Initialize the task manager with runtime parameters.
+void TaskManager::init (bool doSteal_arg, Node localId_arg, Node * neighbors_arg, Node numLocalNodes_arg, int chunkSize_arg) {
   doSteal = doSteal_arg;
   localId = localId_arg;
   neighbors = neighbors_arg;
   numLocalNodes = numLocalNodes_arg;
   chunkSize = chunkSize_arg;
-  cbint = cbint_arg;
 
   // initialize neighbors to steal permutation
   srandom(0);
@@ -43,7 +48,11 @@ void TaskManager::init (bool doSteal_arg, Node localId_arg, Node * neighbors_arg
   }
 }
         
-
+/// Find an unstarted Task to execute.
+/// 
+/// @param result buffer for the returned Task
+/// 
+/// @return true if result is valid, otherwise there are no more Tasks
 bool TaskManager::getWork( Task * result ) {
     GRAPPA_FUNCTION_PROFILE( GRAPPA_TASK_GROUP );
 
@@ -58,11 +67,13 @@ bool TaskManager::getWork( Task * result ) {
     }
 
     return false;
-
 }
 
-
-/// "work queue" operations
+/// Dequeue local unstarted Task if any exist.
+///
+/// @param result buffer for the returned Task
+///
+/// @return true if returning valid Task, false if no local Task exists.
 bool TaskManager::tryConsumeLocal( Task * result ) {
     if ( privateHasEle() ) {
         *result = privateQ.front();
@@ -80,8 +91,14 @@ bool TaskManager::tryConsumeLocal( Task * result ) {
     }
 }
 
+/// Blocking dequeue of any Task from the global Task pool.
 /// Only returns when there is work or when
 /// the system has no more work.
+///
+/// @param result buffer for the returned Task
+///
+/// @return true if returning valid Task, false means no more work exists
+///         in the system
 bool TaskManager::waitConsumeAny( Task * result ) {
     if ( doSteal ) {
         if ( stealLock ) {
@@ -143,7 +160,7 @@ bool TaskManager::waitConsumeAny( Task * result ) {
     if ( !local_available() ) {
         GRAPPA_PROFILE_CREATE( prof, "worker idle", "(suspended)", GRAPPA_SUSPEND_GROUP ); 
         GRAPPA_PROFILE_START( prof );
-        if ( !SoftXMT_thread_idle() ) {
+        if ( !SoftXMT_thread_idle() ) { // TODO: change to directly use scheduler thread idle
             SoftXMT_yield();
         } else {
             DVLOG(5) << CURRENT_THREAD << " un-idled";
@@ -154,16 +171,26 @@ bool TaskManager::waitConsumeAny( Task * result ) {
     return false;
 }
 
-
+/// Print stream output of TaskManager
+/// 
+/// @param o output stream to append to
+/// @param tm TaskManager to print
+///
+/// @return new output stream
 std::ostream& operator<<( std::ostream& o, const TaskManager& tm ) {
     return tm.dump( o );
 }
 
+/// Tell the TaskManager that it should terminate.
+/// Any tasks that are still in the queues are
+/// not guarenteed to be executed after this returns.
 void TaskManager::signal_termination( ) {
     workDone = true;
     SoftXMT_signal_done();
 }
 
+/// Teardown.
+/// Currently does nothing.
 void TaskManager::finish() {
 }
 
@@ -171,10 +198,13 @@ void TaskManager::finish() {
 /// Stats
 ///
 
+/// Print statistics.
 void TaskManager::dump_stats() {
     stats.dump();
 }
 
+/// Print statistics in dictionary format.
+/// { name1:value1, name2:value2, ... }
 #include "DictOut.hpp"
 void TaskManager::TaskStatistics::dump() {
     double stddev_steal_amount = stddev_steal_amt_.value();
@@ -217,6 +247,7 @@ void TaskManager::TaskStatistics::sample() {
 //#endif
 }
 
+/// Take a sample of statistics and other state.
 void TaskManager::TaskStatistics::profiling_sample() {
 #ifdef VTRACE_SAMPLED
   VT_COUNT_UNSIGNED_VAL( privateQ_size_vt_ev, tm->privateQ.size() );

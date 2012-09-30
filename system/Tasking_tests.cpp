@@ -1,3 +1,8 @@
+// Copyright 2010-2012 University of Washington. All Rights Reserved.
+// LICENSE_PLACEHOLDER
+// This software was created with Government support under DE
+// AC05-76RL01830 awarded by the United States Department of
+// Energy. The Government has certain rights in the software.
 
 
 #include <boost/test/unit_test.hpp>
@@ -7,6 +12,11 @@
 #include "ForkJoin.hpp"
 
 BOOST_AUTO_TEST_SUITE( Tasking_tests );
+
+//
+// Basic test of Grappa running on two Nodes: run user main, and spawning local tasks, local task joiner
+//
+// This test spawns a few private tasks that do delegate operations to Node 1
 
 int num_tasks = 8;
 int64_t num_finished=0;
@@ -27,6 +37,7 @@ void task1_f( task1_arg * arg ) {
     SoftXMT_yield( );
     BOOST_MESSAGE( CURRENT_THREAD << " with task " << mynum << " is done" );
 
+    // int fetch add to address on Node1
     int64_t result = SoftXMT_delegate_fetch_and_add_word( nf_addr, 1 );
     BOOST_MESSAGE( CURRENT_THREAD << " with task " << mynum << " result=" << result );
     if ( result == num_tasks-1 ) {
@@ -68,6 +79,7 @@ void user_main( void* args )
   }
 
   SoftXMT_suspend(); // no wakeup race because tasks wont run until this yield occurs
+                     // normally a higher level robust synchronization object should be used
 
   BOOST_MESSAGE( "testing shared args" );
   int64_t array[num_tasks];

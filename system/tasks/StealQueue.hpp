@@ -1,6 +1,12 @@
+// Copyright 2010-2012 University of Washington. All Rights Reserved.
+// LICENSE_PLACEHOLDER
+// This software was created with Government support under DE
+// AC05-76RL01830 awarded by the United States Department of
+// Energy. The Government has certain rights in the software.
 
-#ifndef STEAL_QUEUE_HPP
-#define STEAL_QUEUE_HPP
+
+#ifndef STEALQUEUE_HPP
+#define STEALQUEUE_HPP
 
 #include <iostream>
 #include <glog/logging.h>   
@@ -29,7 +35,10 @@ typedef int16_t Node;
 /// Forward declare for steal_locally
 class Thread;
 
-
+/// Bounded queue that knows how to share elements
+/// with other queues by work stealing.
+///
+/// @tparam T type of elements
 template <typename T>
 class StealQueue {
     private:
@@ -66,6 +75,7 @@ class StealQueue {
         static void workStealReply_am( workStealReply_args * args,  size_t size, void * payload, size_t payload_size );
         static void workStealRequest_am( workStealRequest_args * args, size_t size, void * payload, size_t payload_size );
         
+        /// Output stream of queue state
         std::ostream& dump ( std::ostream& o ) const {
             return o << "StealQueue[depth=" << depth()
                      << "; indices(top= " << top 
@@ -74,6 +84,7 @@ class StealQueue {
         }
     
     public:
+        /// Constructor allocates empty queue of capacity numEle
         StealQueue( uint64_t numEle ) 
             : stackSize( numEle )
             , maxStackDepth( 0 )
@@ -108,8 +119,9 @@ class StealQueue {
         void release( int k ); 
         int acquire( int k ); 
         int steal_locally( Node victim, int chunkSize ); 
-        void setState( int state );
         
+        /// Get number of elements that have been
+        /// pushed into this queue
         uint64_t get_nNodes( ) {
             return nNodes;
         }
@@ -158,22 +170,18 @@ inline void StealQueue<T>::pop( ) {
   nVisited++;
 }
 
-
-/// depth
+/// number of elements in the queue
 template <typename T>
 inline uint64_t StealQueue<T>::depth() const {
   return (top - bottom);
 }
 
-
-template <typename T>
-void StealQueue<T>::setState( int state ) { return; }
-
-
 /// Initialize the dedicated queue for T
 template <typename T>
 StealQueue<T>* StealQueue<T>::staticQueueAddress = NULL;
 
+/// Register address of this Node's StealQueue<T>
+/// TODO: class variable instance
 template <typename T>
 void StealQueue<T>::registerAddress( StealQueue<T> * addr ) {
     staticQueueAddress = addr;
@@ -208,11 +216,13 @@ extern TaskingScheduler global_scheduler;
 // void SoftXMT_wake( Thread * );
 // Node SoftXMT_mynode();
 
+/// Arguments for a work steal request from thief
 struct workStealRequest_args {
     int k;
     Node from;
 };
 
+/// Arguments for a work steal reply from victim
 struct workStealReply_args {
     int stealAmt;
     int total;
@@ -222,6 +232,8 @@ static int64_t local_steal_amount;
 static uint64_t received_tasks;
 static Thread * steal_waiter = NULL;
 
+/// Reply to steal operation that takes place on the thief's Node
+/// Copies the received elements into the local queue
 template <typename T>
 void StealQueue<T>::steal_reply( uint64_t amt, uint64_t total, T * stolen_work, size_t stolen_size_bytes ) {
     if (amt > 0) {
@@ -269,6 +281,7 @@ void StealQueue<T>::steal_reply( uint64_t amt, uint64_t total, T * stolen_work, 
     }
 }
 
+/// Steal reply Grappa active message
 template <typename T>
 void StealQueue<T>::workStealReply_am( workStealReply_args * args,  size_t size, void * payload, size_t payload_size ) {
     CHECK ( local_steal_amount == -1 ) << "local_steal_amount=" << local_steal_amount << " when steal reply arrives";
@@ -281,6 +294,7 @@ void StealQueue<T>::workStealReply_am( workStealReply_args * args,  size_t size,
 }
 
 
+/// Steal request Grappa active message
 template <typename T>
 void StealQueue<T>::workStealRequest_am(workStealRequest_args * args, size_t size, void * payload, size_t payload_size) {
     int k = args->k;
@@ -337,6 +351,11 @@ void StealQueue<T>::workStealRequest_am(workStealRequest_args * args, size_t siz
 }
 
 #include "Thread.hpp"
+
+/// Steal elements from the StealQueue<T> located at the victim Node.
+/// @tparam T type of the queue elements
+/// @param victim target Node to steal from
+/// @param op max steal amount
 template <typename T>
 int StealQueue<T>::steal_locally( Node victim, int op ) {
 
@@ -371,9 +390,10 @@ int StealQueue<T>::steal_locally( Node victim, int op ) {
 }
 /////////////////////////////////////////////////////////
 
+/// Output stream for state of the StealQueue
 template <typename T>
 std::ostream& operator<<( std::ostream& o, const StealQueue<T>& sq ) {
     return sq.dump( o );
 }
 
-#endif
+#endif // STEALQUEUE_HPP

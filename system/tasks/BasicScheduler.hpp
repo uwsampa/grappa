@@ -1,14 +1,20 @@
-#ifndef _BASIC_SCHEDULER_HPP_
-#define _BASIC_SCHEDULER_HPP_
+// Copyright 2010-2012 University of Washington. All Rights Reserved.
+// LICENSE_PLACEHOLDER
+// This software was created with Government support under DE
+// AC05-76RL01830 awarded by the United States Department of
+// Energy. The Government has certain rights in the software.
+
+#ifndef BASIC_SCHEDULER_HPP
+#define BASIC_SCHEDULER_HPP
 
 #include "Scheduler.hpp"
 #include <Timestamp.hpp>
 #include <glog/logging.h>
 
-/// A basic scheduler with just a readyQ and periodicQ
 
 DECLARE_int64( periodic_poll_ticks );
 
+/// A basic Thread Scheduler with just a readyQ and periodicQ
 class BasicScheduler : public Scheduler {
     private:
         ThreadQueue readyQ;
@@ -190,5 +196,5 @@ inline void BasicScheduler::thread_on_exit( ) {
 
 
 
-#endif
+#endif // BASIC_SCHEDULER_HPP
 

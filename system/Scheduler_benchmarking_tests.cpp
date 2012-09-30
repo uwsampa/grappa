@@ -1,8 +1,19 @@
+// Copyright 2010-2012 University of Washington. All Rights Reserved.
+// LICENSE_PLACEHOLDER
+// This software was created with Government support under DE
+// AC05-76RL01830 awarded by the United States Department of
+// Energy. The Government has certain rights in the software.
+
 
 #include <boost/test/unit_test.hpp>
 
 #include "SoftXMT.hpp"
 #include "DictOut.hpp"
+
+//
+// Benchmarking scheduler performance.
+// Currently calculates average context switch time when there are no other user threads.
+//
 
 #define BILLION 1000000000
 
@@ -22,11 +33,13 @@ void user_main( void* args )
 {
 
   double start, end;
-  
+
+  // warmup context switches  
   for (int64_t i=0; i<warmup_iters; i++) {
     SoftXMT_yield();
   }
 
+  // time many context switches
   start = wctime();
   for (int64_t i=0; i<iters; i++) {
     SoftXMT_yield();
@@ -40,6 +53,7 @@ void user_main( void* args )
   d.add( "runtime", runtime ); 
   BOOST_MESSAGE( d.toString() );
 
+  // average time per context switch
   BOOST_MESSAGE( (runtime / iters) * BILLION << " ns / switch" );
 
   BOOST_MESSAGE( "user main is exiting" );
