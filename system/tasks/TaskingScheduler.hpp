@@ -1,5 +1,11 @@
-#ifndef _TASKING_SCHEDULER_HPP_
-#define _TASKING_SCHEDULER_HPP_
+// Copyright 2010-2012 University of Washington. All Rights Reserved.
+// LICENSE_PLACEHOLDER
+// This software was created with Government support under DE
+// AC05-76RL01830 awarded by the United States Department of
+// Energy. The Government has certain rights in the software.
+
+#ifndef TASKING_SCHEDULER_HPP
+#define TASKING_SCHEDULER_HPP
 
 #include "Scheduler.hpp"
 #include "Communicator.hpp"
@@ -18,7 +24,6 @@
 #include "StateTimer.hpp"
 
 
-// maybe sample
 extern bool take_profiling_sample;
 void SoftXMT_take_profiling_sample();
 
@@ -29,21 +34,40 @@ DECLARE_bool(flush_on_idle);
 class TaskManager;
 struct task_worker_args;
 
+/// Thread scheduler that knows about Tasks.
+/// Intended to schedule from a pool of worker threads that execute Tasks.
 class TaskingScheduler : public Scheduler {
     private:  
+        /// Queue for Threads that are ready to run
         ThreadQueue readyQ;
+
+        /// Queue for Threads that are to run periodically
         ThreadQueue periodicQ;
+
+        /// Pool of idle workers that are not assigned to Tasks
         ThreadQueue unassignedQ;
 
+        /// Master Thread that represents the main program thread
         Thread * master;
+
+        /// Always points the the Thread that is currently running
         Thread * current_thread; 
         threadid_t nextId;
         
+        /// number of idle workers
         uint64_t num_idle;
+
+        /// number of workers assigned to Tasks
         uint64_t num_active_tasks;
+
+        /// Reference to Task manager that is used by the scheduler
+        /// for finding Tasks to assign to workers
         TaskManager * task_manager;
+
+        /// total number of worker Threads
         uint64_t num_workers;
         
+        /// Return an idle worker Thread
         Thread * getWorker ();
 
         task_worker_args * work_args;
@@ -142,6 +166,7 @@ class TaskingScheduler : public Scheduler {
             return NULL;
         }
 
+        /// Append a representation of the state of the scheduler to an output stream
         std::ostream& dump( std::ostream& o ) const {
             return o << "TaskingScheduler {" << std::endl
                 << "  readyQ: " << readyQ << std::endl
@@ -153,6 +178,7 @@ class TaskingScheduler : public Scheduler {
         }
 
     public:
+        /// Stats for the scheduler
         class TaskingSchedulerStatistics {
             private:
                 int64_t task_calls;
@@ -180,6 +206,7 @@ class TaskingScheduler : public Scheduler {
 	  State prev_state;
 	  int64_t scheduler_count;
 
+    /// Create new statistics tracking for scheduler
 	  TaskingSchedulerStatistics( TaskingScheduler * scheduler )
                     : sched( scheduler ) 
 #ifdef VTRACE_SAMPLED
@@ -249,10 +276,12 @@ class TaskingScheduler : public Scheduler {
        TaskingScheduler ( );
        void init ( Thread * master, TaskManager * taskman );
 
+       /// Get the currently running Thread.
        Thread * get_current_thread() {
            return current_thread;
        }
        
+       /// Assign the Thread a unique id for this scheduler
        void assignTid( Thread * thr ) {
            thr->id = nextId++;
        }
@@ -261,26 +290,31 @@ class TaskingScheduler : public Scheduler {
       Thread* maybeSpawnCoroutines( );
       void onWorkerStart( );
 
+       /// Mark the Thread as an idle worker
        void unassigned( Thread * thr ) {
            unassignedQ.enqueue( thr );
        }
 
+       /// Mark the Thread as ready to run
        void ready( Thread * thr ) {
             readyQ.enqueue( thr );
        }
 
+       /// Put the Thread into the periodic queue
        void periodic( Thread * thr ) {
            periodicQ.enqueue( thr );
            SoftXMT_tick();
            previous_periodic_ts = SoftXMT_get_timestamp();
        }
   
+       /// Print scheduler statistics
        void dump_stats() {
            stats.dump();
        }
   
        void merge_stats();
   
+       /// Reset scheduler statistics
        void reset_stats() {
          stats.reset();
        }
@@ -298,10 +332,6 @@ class TaskingScheduler : public Scheduler {
        bool thread_idle( );
        void thread_join( Thread* wait_on );
 
-       // Start running threads from <scheduler> until one dies.  Return that Thread
-       // (which can't be restarted--it's trash.)  If <result> non-NULL,
-       // store the Thread's exit value there.
-       // If no threads to run, returns NULL.
        Thread * thread_wait( void **result );
 
 
@@ -311,6 +341,7 @@ class TaskingScheduler : public Scheduler {
        friend void workerLoop ( Thread *, void * );
 };  
 
+/// Arguments to workerLoop() worker Thread routine
 struct task_worker_args {
     TaskManager *const tasks;
     TaskingScheduler *const scheduler;
@@ -321,8 +352,8 @@ struct task_worker_args {
 };
        
 
-/// Yield the CPU to the next Thread on your scheduler.  Doesn't ever touch
-/// the master Thread.
+/// Yield the CPU to the next Thread on this scheduler. 
+/// Cannot be called during the master Thread.
 inline bool TaskingScheduler::thread_yield( ) {
     CHECK( current_thread != master ) << "can't yield on a system Thread";
     StateTimer::enterState_scheduler();
@@ -341,8 +372,8 @@ inline bool TaskingScheduler::thread_yield( ) {
     return gotRescheduled; // 0=another ran; 1=me got rescheduled immediately
 }
 
-/// For periodic threads: yield the CPU to the next Thread on your scheduler.  Doesn't ever touch
-/// the master Thread.
+/// For periodic threads: yield the CPU to the next Thread on this scheduler.  
+/// Cannot be called during the master Thread.
 inline bool TaskingScheduler::thread_yield_periodic( ) {
     CHECK( current_thread != master ) << "can't yield on a system Thread";
     StateTimer::enterState_scheduler();
@@ -362,6 +393,7 @@ inline bool TaskingScheduler::thread_yield_periodic( ) {
 }
 
 /// Suspend the current Thread. Thread is not placed on any queue.
+/// Cannot be called during the master Thread.
 inline void TaskingScheduler::thread_suspend( ) {
     CHECK( current_thread != master ) << "can't yield on a system Thread";
     CHECK( thread_is_running(current_thread) ) << "may only suspend a running coroutine";
@@ -433,6 +465,7 @@ inline void TaskingScheduler::thread_suspend_wake( Thread *next ) {
 /// Make the current Thread idle.
 /// Like suspend except the Thread is not blocking on a
 /// particular resource, just waiting to be woken.
+/// @param total_idle the total number of possible idle threads
 inline bool TaskingScheduler::thread_idle( uint64_t total_idle ) {
     CHECK( num_idle+1 <= total_idle ) << "number of idle threads should not be more than total"
                                       << " (" << num_idle+1 << " / " << total_idle << ")";
@@ -454,10 +487,13 @@ inline bool TaskingScheduler::thread_idle( uint64_t total_idle ) {
     }
 }
 
+/// See bool TaskingScheduler::thread_idle(uint64_t), defaults
+/// to total being the number of scheduler workers.
 inline bool TaskingScheduler::thread_idle( ) {
     return thread_idle( num_workers );
 }
 
+/// Callback for the end of a Thread
 inline void TaskingScheduler::thread_on_exit( ) {
   Thread * exitedThr = current_thread;
   current_thread = master;
@@ -465,5 +501,4 @@ inline void TaskingScheduler::thread_on_exit( ) {
   thread_context_switch( exitedThr, master, (void *)exitedThr);
 }
 
-#endif
-
+#endif // TASKING_SCHEDULER_HPP

@@ -1,3 +1,9 @@
+// Copyright 2010-2012 University of Washington. All Rights Reserved.
+// LICENSE_PLACEHOLDER
+// This software was created with Government support under DE
+// AC05-76RL01830 awarded by the United States Department of
+// Energy. The Government has certain rights in the software.
+
 
 #include <boost/test/unit_test.hpp>
 
@@ -5,9 +11,16 @@
 #include "Delegate.hpp"
 #include "Tasking.hpp"
 
-/// tasks_per_node*nodes tasks are spawned; all but 4 meant to be stolen,
-/// chunksize is 4 to ensure every node gets copy of indices 0,1,2,3.
-/// A index task on each node must enter the multibarrier to continue
+// This is a deprecated test.
+// - Currently is not updated to latest user_main interface
+// - hard to force particular stealing behavior makes the test unreliable
+// May be able to be turned into a robust test with more thought.
+// One thing is that FLAGS_num_starting_workers should be CHECK'ed to ensure
+// stealing will occur.
+
+// tasks_per_node*nodes tasks are spawned; all but 4 meant to be stolen,
+// chunksize is 4 to ensure every node gets copy of indices 0,1,2,3.
+// A index task on each node must enter the multibarrier to continue
 BOOST_AUTO_TEST_SUITE( Stealing_tests );
 
 int tasks_per_node = 4;

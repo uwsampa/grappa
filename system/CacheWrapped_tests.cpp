@@ -1,3 +1,9 @@
+// Copyright 2010-2012 University of Washington. All Rights Reserved.
+// LICENSE_PLACEHOLDER
+// This software was created with Government support under DE
+// AC05-76RL01830 awarded by the United States Department of
+// Energy. The Government has certain rights in the software.
+
 
 
 #include <boost/test/unit_test.hpp>
@@ -5,6 +11,12 @@
 #include "SoftXMT.hpp"
 #include "Cache.hpp"
 #include "ForkJoin.hpp"
+
+/// This test suite tests the task cache wrappers defined in Cache.hpp.
+/// These functions wrap a task function pointer to take care of caching
+/// arguments from the original Node.
+/// There are two variations, declare the wrapped function or pass it in inline.
+
 
 //RESUME!
 //all variations and declare and wrap
@@ -17,6 +29,7 @@ struct task_arg {
     GlobalAddress<Semaphore> sem;
 };
 
+// test when arg is pointer
 void pointer_task_f( task_arg * arg ) {
     CHECK( arg->num == 1 ) << "num=" << arg->num;
     arg->num++;
@@ -24,6 +37,7 @@ void pointer_task_f( task_arg * arg ) {
 }
 DECLARE_CACHE_WRAPPED(pointer_task_f_CW, &pointer_task_f, task_arg)
 
+// test when arg is reference
 void ref_task_f( task_arg& arg ) {
     CHECK( arg.num == 1 ) << "num=" << arg.num;
     arg.num++;
@@ -31,6 +45,7 @@ void ref_task_f( task_arg& arg ) {
 }
 DECLARE_CACHE_WRAPPED(ref_task_f_CW, &ref_task_f, task_arg)
 
+// test when arg is pointer to const
 void c_pointer_task_f( const task_arg * arg ) {
     CHECK( arg->num == 1 ) << "num=" << arg->num ;
     GlobalAddress<Semaphore> * sa = (GlobalAddress<Semaphore>*) &arg->sem;
@@ -38,6 +53,7 @@ void c_pointer_task_f( const task_arg * arg ) {
 }
 DECLARE_CACHE_WRAPPED(c_pointer_task_f_CW, &c_pointer_task_f, task_arg)
 
+// test when arg is reference of const
 void c_ref_task_f( const task_arg& arg ) {
     CHECK( arg.num == 1 ) << "num=" << arg.num ;
     GlobalAddress<Semaphore> * sa = (GlobalAddress<Semaphore>*) &arg.sem;

@@ -1,10 +1,21 @@
+// Copyright 2010-2012 University of Washington. All Rights Reserved.
+// LICENSE_PLACEHOLDER
+// This software was created with Government support under DE
+// AC05-76RL01830 awarded by the United States Department of
+// Energy. The Government has certain rights in the software.
+
 #include <boost/test/unit_test.hpp>
 
-#include "Thread.hpp"
-#include "BasicScheduler.hpp"
+#include "tasks/Thread.hpp"
+#include "tasks/BasicScheduler.hpp"
 #include <glog/logging.h>
 
 #include <time.h>
+
+// FIXME: Thread_tests depends on Thread->PerformanceTools->StateTimer->SoftXMT
+//        Thread_tests is supposed to be independent of a Grappa runtime
+//        To fix this spurious dependence with minimal changes, there could be
+//        a compiled-with-grappa macro variable that wraps usage of StateTimer in Thread.*pp
 
 BOOST_AUTO_TEST_SUITE( Thread_tests );
 

@@ -1,3 +1,9 @@
+// Copyright 2010-2012 University of Washington. All Rights Reserved.
+// LICENSE_PLACEHOLDER
+// This software was created with Government support under DE
+// AC05-76RL01830 awarded by the United States Department of
+// Energy. The Government has certain rights in the software.
+
 #include <boost/test/unit_test.hpp>
 
 #include "tasks/DictOut.hpp"
@@ -7,6 +13,11 @@
 #include "Delegate.hpp"
 #include "ForkJoin.hpp"
 #include "common.hpp"
+
+// Tests to measure the delegate op rates
+// - Single location: every Node reads a single location on a single other Node on another machine
+// - Stream location: every Node reads contiguous locations on a single other Node on another machine
+// Must set the --num_places value to the number of network interfaces to ensure all ops use the network
 
 #define BILLION 1000000000
 #define MILLION 1000000

@@ -1,3 +1,9 @@
+// Copyright 2010-2012 University of Washington. All Rights Reserved.
+// LICENSE_PLACEHOLDER
+// This software was created with Government support under DE
+// AC05-76RL01830 awarded by the United States Department of
+// Energy. The Government has certain rights in the software.
+
 #include <cassert>
 #include "Collective.hpp"
 #include "Delegate.hpp"
@@ -20,6 +26,9 @@ Node reduction_reported_in = 0;
 /// Reduction involving all SoftXMT Nodes.
 /// For now involves a barrier, so only one
 /// collective op is allowed at a time.
+///
+/// @deprecated, replace with 
+/// void SoftXMT_allreduce(T*,size_t,T*)
 int64_t SoftXMT_collective_reduce( int64_t (*commutative_func)(int64_t, int64_t), Node home_node, int64_t myValue, int64_t initial ) {
     assert(_col_allowed);
     _col_allowed = false;

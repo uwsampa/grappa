@@ -1,5 +1,11 @@
-#ifndef __FUTURE_HPP__
-#define __FUTURE_HPP__
+// Copyright 2010-2012 University of Washington. All Rights Reserved.
+// LICENSE_PLACEHOLDER
+// This software was created with Government support under DE
+// AC05-76RL01830 awarded by the United States Department of
+// Energy. The Government has certain rights in the software.
+
+#ifndef FUTURE_HPP
+#define FUTURE_HPP
 
 #include "SoftXMT.hpp"
 #include "Delegate.hpp"
@@ -43,7 +49,11 @@ extern uint64_t global_futures_num_remote_started;
 extern uint64_t global_futures_num_local_dq;
 extern uint64_t global_futures_num_remote_dq;
 
-
+/// A Future is a task that can be tested for completion or
+/// executed directly if still local.
+///
+/// @tparam UserArg type of task argument
+/// @tparam F type of task function
 template < typename UserArg, void (*F)(UserArg) >
 class Future {
     
@@ -217,6 +227,8 @@ class Future {
             } 
         }
 
+        /// The id of this Future.
+        /// The value returned is only valid during DEBUG
         int64_t getId() {
 #if DEBUG
             return id;
@@ -230,6 +242,7 @@ class Future {
         int64_t id;
 #endif
 
+        /// Construct new Future with the argument
         Future ( UserArg userArg )
             : started( 0 )
               , waiter( NULL )
@@ -243,6 +256,11 @@ class Future {
         }
 
 
+        /// If the Future is still local then execute it directly,
+        /// otherwise block until completion.
+        ///
+        /// TODO: ways of providing an actual touch that executes
+        /// the Future as long as no one has started it
         void touch( ) {
             DVLOG(4) << "Future(touch) FID "<< this->getId() << " address:"<< (void*)this;
             
@@ -273,6 +291,7 @@ class Future {
             }
         }
 
+        /// Spawn the Future as a task in the global task pool
         void addAsPublicTask( ) {
             DVLOG(4) << "Future(spawn) " << this->getId() << " address:"<< (void*)this;
             SoftXMT_publicTask( &call_as_future, make_global(this) );
@@ -283,4 +302,4 @@ class Future {
 void futures_dump_stats();
 void futures_reset_stats();
 
-#endif
+#endif // FUTURE_HPP
