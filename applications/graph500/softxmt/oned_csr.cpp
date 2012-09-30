@@ -59,7 +59,7 @@ LOOP_FUNCTOR( node_max_func, mynode,
   f.max = &max;
   fork_join_onenode(&f, myblock.start, myblock.end);
     
-  maxvtx = SoftXMT_collective_reduce(&collective_max, 0, max, -1);
+  maxvtx = SoftXMT_allreduce<int64_t, collective_max, 0>( max );
   nv = maxvtx+1;
 }
 
