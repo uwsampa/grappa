@@ -6,15 +6,15 @@
 # Energy. The Government has certain rights in the software.
 
 #############################################################################
-# common variables for softxmt project
+# common variables for grappa project
 #
 # many are defined with ?=, so they can be overridden at the top.
 #############################################################################
 
-# check if autodetect SOFTXMT_HOME is consistent
+# check if autodetect GRAPPA_HOME is consistent
 AUTO_HOME=$(shell git rev-parse --show-toplevel)
-ifneq ($(SOFTXMT_HOME), $(AUTO_HOME))
-warning "Environment variable SOFTXMT_HOME was set but doesn't match the autodetected home. $(SOFTXMT_HOME), $(AUTO_HOME)"
+ifneq ($(GRAPPA_HOME), $(AUTO_HOME))
+warning "Environment variable GRAPPA_HOME was set but doesn't match the autodetected home. $(GRAPPA_HOME), $(AUTO_HOME)"
 endif
 
 #
@@ -179,7 +179,7 @@ GASNET_SETTINGS+=GASNET_TRACEMASK=I
 endif
 
 # gasnet
-GASNET=$(SOFTXMT_HOME)/tools/built_deps
+GASNET=$(GRAPPA_HOME)/tools/built_deps
 GASNET_CONDUIT?=ibv #values:ibv,mpi
 GASNET_THREAD=seq #values:seq,par,parsync -- seq recommended
 
@@ -204,24 +204,24 @@ HUGETLBFS?=/usr
 CFLAGS+= -I$(HUGETLBFS)/include
 LDFLAGS+= -L$(HUGETLBFS)/lib64
 
-GFLAGS=$(SOFTXMT_HOME)/tools/built_deps
+GFLAGS=$(GRAPPA_HOME)/tools/built_deps
 CFLAGS+= -I$(GFLAGS)/include
 LDFLAGS+= -L$(GFLAGS)/lib
 LD_LIBRARY_PATH:=$(LD_LIBRARY_PATH):$(GFLAGS)/lib
 
-GLOG=$(SOFTXMT_HOME)/tools/built_deps
+GLOG=$(GRAPPA_HOME)/tools/built_deps
 CFLAGS+= -I$(GLOG)/include
 LDFLAGS+= -L$(GLOG)/lib
 LD_LIBRARY_PATH:=$(LD_LIBRARY_PATH):$(GLOG)/lib
 
-GPERFTOOLS=$(SOFTXMT_HOME)/tools/built_deps
+GPERFTOOLS=$(GRAPPA_HOME)/tools/built_deps
 #GPERFTOOLS?=/sampa/share/gperftools-2.0-nolibunwind
 CFLAGS+= -I$(GPERFTOOLS)/include
 LDFLAGS+= -L$(GPERFTOOLS)/lib
 LD_LIBRARY_PATH:=$(LD_LIBRARY_PATH):$(GPERFTOOLS)/lib
 
 
-VAMPIRTRACE?=$(SOFTXMT_HOME)/tools/built_deps
+VAMPIRTRACE?=$(GRAPPA_HOME)/tools/built_deps
 CFLAGS+= -I$(VAMPIRTRACE)/include
 LDFLAGS+= -L$(VAMPIRTRACE)/lib
 LD_LIBRARY_PATH:=$(VAMPIRTRACE)/lib:$(LD_LIBRARY_PATH)

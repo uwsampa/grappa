@@ -8,7 +8,7 @@
 #ifndef __ADDRESSING_HPP__
 #define __ADDRESSING_HPP__
 
-/// Global Addresses for SoftXMT
+/// Global Addresses for Grappa
 ///
 ///
 /// We support two types of global addresses:

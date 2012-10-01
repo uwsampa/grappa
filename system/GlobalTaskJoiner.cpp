@@ -10,7 +10,7 @@
 GlobalTaskJoiner global_joiner;
 
 
-/// Reset all of the settings for the task joiner. Does a SoftXMT_barrier, so this must be called
+/// Reset all of the settings for the task joiner. Does a Grappa_barrier, so this must be called
 /// by all nodes in order for any to finish.
 /// ALLNODES
 void GlobalTaskJoiner::reset() {
@@ -26,7 +26,7 @@ void GlobalTaskJoiner::reset() {
   cancel_in_flight = false;
   enter_called = false;
 
-  SoftXMT_barrier_suspending();
+  Grappa_barrier_suspending();
   VLOG(2) << "barrier_done = " << barrier_done;
 }
 
@@ -64,7 +64,7 @@ void GlobalTaskJoiner::wake() {
   global_done = true;
   
   if ( waiter != NULL ) {
-    SoftXMT_wake(waiter);
+    Grappa_wake(waiter);
     waiter = NULL;
   }
 }
@@ -85,7 +85,7 @@ void GlobalTaskJoiner::wait() {
       send_enter();
     }
     waiter = CURRENT_THREAD;
-    SoftXMT_suspend();
+    Grappa_suspend();
     CHECK(global_done);
     CHECK(!cancel_in_flight);
     CHECK(outstanding == 0);
@@ -93,7 +93,7 @@ void GlobalTaskJoiner::wait() {
 }
 
 void GlobalTaskJoiner::am_remoteSignal(GlobalAddress<GlobalTaskJoiner>* joiner, size_t sz, void* payload, size_t psz) {
-  CHECK(joiner->node() == SoftXMT_mynode());
+  CHECK(joiner->node() == Grappa_mynode());
   //joiner->pointer()->signal();
   global_joiner.signal(); // equivalent to above, right now
 }
@@ -105,12 +105,12 @@ void GlobalTaskJoiner::am_remoteSignal(GlobalAddress<GlobalTaskJoiner>* joiner, 
 ///               target node is called, rather than relying on the pointer() part of 
 ///               the address).
 void GlobalTaskJoiner::remoteSignal(GlobalAddress<GlobalTaskJoiner> joiner) {
-  if (joiner.node() == SoftXMT_mynode()) {
+  if (joiner.node() == Grappa_mynode()) {
     //joiner.pointer()->signal();
     global_joiner.signal(); // equivalent to above, right now
   } else {
     VLOG(2) << "remoteSignal -> " << joiner.node();
-    SoftXMT_call_on(joiner.node(), &GlobalTaskJoiner::am_remoteSignal, &joiner);
+    Grappa_call_on(joiner.node(), &GlobalTaskJoiner::am_remoteSignal, &joiner);
   }
 }
 
@@ -125,12 +125,12 @@ void GlobalTaskJoiner::am_remoteSignalNode(int* dummy_arg, size_t sz, void* payl
 /// @param joiner The node where the joiner to signal lives. The single instance of
 ///               the joiner will be found.
 void GlobalTaskJoiner::remoteSignalNode(Node joiner_node) {
-  if (joiner_node == SoftXMT_mynode()) {
+  if (joiner_node == Grappa_mynode()) {
     global_joiner.signal(); 
   } else {
     VLOG(2) << "remoteSignalNode -> " << joiner_node;
     int dummy_arg = -1;
-    SoftXMT_call_on(joiner_node, &GlobalTaskJoiner::am_remoteSignalNode, &dummy_arg);
+    Grappa_call_on(joiner_node, &GlobalTaskJoiner::am_remoteSignalNode, &dummy_arg);
   }
 }
 
@@ -139,17 +139,17 @@ void GlobalTaskJoiner::am_wake(bool * ignore, size_t sz, void * p, size_t psz) {
 }
 
 void GlobalTaskJoiner::am_enter(bool * ignore, size_t sz, void * p, size_t psz) {
-  CHECK(SoftXMT_mynode() == 0); // Node 0 is Master
+  CHECK(Grappa_mynode() == 0); // Node 0 is Master
 
   global_joiner.nodes_in++;
   VLOG(2) << "(completed) nodes_in: " << global_joiner.nodes_in;
   
-  if (global_joiner.nodes_in == SoftXMT_nodes()) {
+  if (global_joiner.nodes_in == Grappa_nodes()) {
     global_joiner.barrier_done = true;
     VLOG(2) << "### done! ### nodes_in: " << global_joiner.nodes_in;
-    for (Node n=0; n<SoftXMT_nodes(); n++) {
+    for (Node n=0; n<Grappa_nodes(); n++) {
       bool ignore = false;
-      SoftXMT_call_on(n, &GlobalTaskJoiner::am_wake, &ignore);
+      Grappa_call_on(n, &GlobalTaskJoiner::am_wake, &ignore);
     }
   }
 }
@@ -160,7 +160,7 @@ void GlobalTaskJoiner::send_enter() {
   if (!cancel_in_flight) {
     VLOG(2) << "notify_completed";
     bool ignore = false;
-    SoftXMT_call_on(target, &GlobalTaskJoiner::am_enter, &ignore);
+    Grappa_call_on(target, &GlobalTaskJoiner::am_enter, &ignore);
   }
 }
 
@@ -173,7 +173,7 @@ void GlobalTaskJoiner::send_cancel() {
 
     GlobalAddress<GlobalTaskJoiner> global_joiner_addr = make_global(&global_joiner, target);
     GlobalAddress<int64_t> global_nodes_in_addr = global_pointer_to_member(global_joiner_addr, &GlobalTaskJoiner::nodes_in);
-    int64_t result = SoftXMT_delegate_fetch_and_add_word(global_nodes_in_addr, -1);
+    int64_t result = Grappa_delegate_fetch_and_add_word(global_nodes_in_addr, -1);
     VLOG(2) << "(cancelled) nodes_in: " << result-1;
 
     cancel_in_flight = false;

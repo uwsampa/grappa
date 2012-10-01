@@ -5,7 +5,7 @@
 // Energy. The Government has certain rights in the software.
 
 #include "CurrentThread.hpp"
-#include "SoftXMT.hpp"
+#include "Grappa.hpp"
 
 Thread * Grappa_current_thread() {
     return CURRENT_THREAD;

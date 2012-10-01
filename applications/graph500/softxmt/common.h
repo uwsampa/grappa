@@ -14,7 +14,7 @@
 #include <stddef.h>
 #include "../generator/graph_generator.h"
 #include "../compat.h"
-#include "SoftXMT.hpp"
+#include "Grappa.hpp"
 #include "Addressing.hpp"
 
 #define SIZE_MUST_BE_A_POWER_OF_TWO

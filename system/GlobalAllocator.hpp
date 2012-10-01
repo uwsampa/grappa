@@ -14,7 +14,7 @@
 #include <boost/scoped_ptr.hpp>
 
 
-#include "SoftXMT.hpp"
+#include "Grappa.hpp"
 #include "Allocator.hpp"
 
 
@@ -41,12 +41,12 @@ private:
 
   static void wait_on( Descriptor * d ) {
     while( !d->done ) {
-      SoftXMT_suspend();
+      Grappa_suspend();
     }
   }
 
   static void wake( Descriptor * d ) {
-    SoftXMT_wake( d->t );
+    Grappa_wake( d->t );
   }
 
   // Handler for remote malloc reply
@@ -64,7 +64,7 @@ private:
     DVLOG(5) << "got malloc request for descriptor " << d_p->pointer() << " size " << *size_p;
     GlobalAddress< void > a = global_allocator->local_malloc( *size_p );
     DVLOG(5) << "malloc returning pointer " << a.pointer();
-    SoftXMT_call_on_x( d_p->node(), &malloc_reply_am, 
+    Grappa_call_on_x( d_p->node(), &malloc_reply_am, 
                        d_p, size,
                        &a, sizeof( a ) );
   }
@@ -81,7 +81,7 @@ private:
                                GlobalAddress< void > * address_p, size_t payload_size ) {
     DVLOG(5) << "got free request for descriptor " << d_p->pointer();
     global_allocator->local_free( *address_p );
-    SoftXMT_call_on_x( d_p->node(), &free_reply_am, d_p );
+    Grappa_call_on_x( d_p->node(), &free_reply_am, d_p );
   }
 
 
@@ -115,7 +115,7 @@ public:
   ///   @param base base address of region to allocate from
   ///   @param size number of bytes available for allocation
   GlobalAllocator( GlobalAddress< void > base, size_t size )
-    : a_p_( 0 == SoftXMT_mynode()  // node 0 does all allocation for now
+    : a_p_( 0 == Grappa_mynode()  // node 0 does all allocation for now
             ? new Allocator( base, size )
             : NULL )
   { 
@@ -135,7 +135,7 @@ public:
     descriptor.t = CURRENT_THREAD;
     descriptor.done = false;
     GlobalAddress< Descriptor > global_descriptor = make_global( &descriptor );
-    SoftXMT_call_on_x( 0, &malloc_request_am, 
+    Grappa_call_on_x( 0, &malloc_request_am, 
                        &global_descriptor, sizeof( global_descriptor ),
                        &size_bytes, sizeof(size_bytes) );
     wait_on( &descriptor );
@@ -150,7 +150,7 @@ public:
     descriptor.t = CURRENT_THREAD;
     descriptor.done = false;
     GlobalAddress< Descriptor > global_descriptor = make_global( &descriptor );
-    SoftXMT_call_on_x( 0, &free_request_am, 
+    Grappa_call_on_x( 0, &free_request_am, 
                        &global_descriptor, sizeof( global_descriptor ),
                        &address, sizeof( address ) );
     wait_on( &descriptor );
@@ -181,14 +181,14 @@ std::ostream& operator<<( std::ostream& o, const GlobalAllocator& a );
 
 extern GlobalAllocator * global_allocator;
 
-GlobalAddress< void > SoftXMT_malloc( size_t size_bytes );
+GlobalAddress< void > Grappa_malloc( size_t size_bytes );
 
-void SoftXMT_free( GlobalAddress< void > address );
+void Grappa_free( GlobalAddress< void > address );
 
 /// Allocate count T's worth of bytes from global heap.
 template< typename T >
-GlobalAddress< T > SoftXMT_typed_malloc( size_t count ) {
-  return SoftXMT_malloc( sizeof( T ) * count );
+GlobalAddress< T > Grappa_typed_malloc( size_t count ) {
+  return Grappa_malloc( sizeof( T ) * count );
 }
 
 

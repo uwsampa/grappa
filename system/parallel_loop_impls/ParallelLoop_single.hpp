@@ -8,7 +8,7 @@
 #ifndef PARALLEL_LOOP_SINGLE_HPP
 #define PARALLEL_LOOP_SINGLE_HPP
 
-#include "SoftXMT.hpp"
+#include "Grappa.hpp"
 #include "ForkJoin.hpp"
 #include "Cache.hpp"
 
@@ -62,7 +62,7 @@ static void parallel_loop_helper(int64_t start_index, int64_t iterations, void (
                             sem,
                             args }; // copy the loop body args
 
-           SoftXMT_publicTask( &parallel_loop_task_wrap_CachedArgs<UserArg>, make_global(&right_args) );
+           Grappa_publicTask( &parallel_loop_task_wrap_CachedArgs<UserArg>, make_global(&right_args) );
 
 
            // do left half
@@ -91,7 +91,7 @@ void parallel_loop_implSingle(int64_t start_index, int64_t iterations, void (*lo
     
     size_t args_count = getSizeLoopTree(iterations, FLAGS_parallel_loop_threshold);
     
-    GlobalAddress< parloop_args<UserArg> > args_array = SoftXMT_typed_malloc<parloop_args<UserArg> >( args_count );
+    GlobalAddress< parloop_args<UserArg> > args_array = Grappa_typed_malloc<parloop_args<UserArg> >( args_count );
 
     Semaphore single_synch(iterations, 0);
     parallel_loop_helper( start_index, iterations, loop_body, make_global(&single_synch), args );
@@ -104,7 +104,7 @@ void parallel_loop_implSingle(int64_t start_index, int64_t iterations, void (*lo
 //      + simple
 //      + trivial deallocation
 //      - hotspot origin
-/// 2. SoftXMT_malloc; above but spread over Nodes
+/// 2. Grappa_malloc; above but spread over Nodes
 //      + same advantages as above
 //      + no hotspot origin
 //      - pay the penalty to get args from a different node when a task dequeues locally

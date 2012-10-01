@@ -5,7 +5,7 @@
 // AC05-76RL01830 awarded by the United States Department of
 // Energy. The Government has certain rights in the software.
 
-#include <SoftXMT.hpp>
+#include <Grappa.hpp>
 #include "ForkJoin.hpp"
 
 #include <boost/test/unit_test.hpp>
@@ -48,60 +48,60 @@ void gasnet_ping_am( gasnet_token_t token, void * buf, size_t size ) {
 
 
 LOOP_FUNCTION( func_start_profiling, index ) {
-  SoftXMT_start_profiling();
+  Grappa_start_profiling();
 }
 
 LOOP_FUNCTION( func_stop_profiling, index ) {
-  SoftXMT_stop_profiling();
+  Grappa_stop_profiling();
 }
 
 char payload[4096];
 
 LOOP_FUNCTOR( func_ping, index, ((int64_t, count)) ((int64_t, payload_size)) ) {
-  if( SoftXMT_mynode() < SoftXMT_nodes() / 2 ) {
+  if( Grappa_mynode() < Grappa_nodes() / 2 ) {
     // senders
-    Node target = SoftXMT_mynode() + SoftXMT_nodes() / 2;
-    LOG(INFO) << "Node " << SoftXMT_mynode() << " sending " << count << " messages to " << target;
+    Node target = Grappa_mynode() + Grappa_nodes() / 2;
+    LOG(INFO) << "Node " << Grappa_mynode() << " sending " << count << " messages to " << target;
     for( int i = 0; i < count; ++i ) {
-      SoftXMT_call_on( target, &receive, payload, payload_size );
+      Grappa_call_on( target, &receive, payload, payload_size );
       if( FLAGS_rotate ) {
 	++target;
-	if( target == SoftXMT_nodes() ) target = SoftXMT_nodes() / 2;
+	if( target == Grappa_nodes() ) target = Grappa_nodes() / 2;
       }
-      if( (i & FLAGS_yield_mask) == 0 ) SoftXMT_yield();
+      if( (i & FLAGS_yield_mask) == 0 ) Grappa_yield();
     }
-    // for( int i = SoftXMT_nodes() / 2; i < SoftXMT_nodes(); ++i ) {
-    //   SoftXMT_flush( i );
+    // for( int i = Grappa_nodes() / 2; i < Grappa_nodes(); ++i ) {
+    //   Grappa_flush( i );
     // }
     value = count;
-    LOG(INFO) << "Node " << SoftXMT_mynode() << " sent " << count << " messages to " << target;
+    LOG(INFO) << "Node " << Grappa_mynode() << " sent " << count << " messages to " << target;
   } else {
     // receivers
-    while( value != count ) SoftXMT_yield();
-    LOG(INFO) << "Node " << SoftXMT_mynode() << " received " << value << " messages";
+    while( value != count ) Grappa_yield();
+    LOG(INFO) << "Node " << Grappa_mynode() << " received " << value << " messages";
   }
   BOOST_CHECK( value == count );
 }
 
 LOOP_FUNCTOR( func_gasnet_ping, index, ((int64_t, count)) ((int64_t, payload_size)) ) {
-  if( SoftXMT_mynode() < SoftXMT_nodes() / 2 ) {
+  if( Grappa_mynode() < Grappa_nodes() / 2 ) {
     // senders
-    Node target = SoftXMT_mynode() + SoftXMT_nodes() / 2;
-    LOG(INFO) << "Node " << SoftXMT_mynode() << " sending " << count << " messages to " << target;
+    Node target = Grappa_mynode() + Grappa_nodes() / 2;
+    LOG(INFO) << "Node " << Grappa_mynode() << " sending " << count << " messages to " << target;
     for( int i = 0; i < count; ++i ) {
       GASNET_CHECK( gasnet_AMRequestMedium0( target, gasnet_ping_handle_, payload, payload_size ) );
       if( FLAGS_rotate ) {
 	++target;
-	if( target == SoftXMT_nodes() ) target = SoftXMT_nodes() / 2;
+	if( target == Grappa_nodes() ) target = Grappa_nodes() / 2;
       }
-      if( (i & FLAGS_yield_mask) == 0 ) SoftXMT_yield();
+      if( (i & FLAGS_yield_mask) == 0 ) Grappa_yield();
     }
     value = count;
-    LOG(INFO) << "Node " << SoftXMT_mynode() << " sent " << count << " messages to " << target;
+    LOG(INFO) << "Node " << Grappa_mynode() << " sent " << count << " messages to " << target;
   } else {
     // receivers
-    while( value != count ) SoftXMT_yield();
-    LOG(INFO) << "Node " << SoftXMT_mynode() << " received " << value << " messages";
+    while( value != count ) Grappa_yield();
+    LOG(INFO) << "Node " << Grappa_mynode() << " received " << value << " messages";
   }
   BOOST_CHECK( value == count );
 }
@@ -110,54 +110,54 @@ LOOP_FUNCTOR( func_bidir_ping, index, ((int64_t, count)) ((int64_t, payload_size
   // senders
   Node target = 0;
   if( FLAGS_rotate )
-    target = SoftXMT_mynode();
+    target = Grappa_mynode();
   else 
-    target = (SoftXMT_nodes() - 1) - SoftXMT_mynode();
+    target = (Grappa_nodes() - 1) - Grappa_mynode();
   
-  //LOG(INFO) << "Node " << SoftXMT_mynode() << " sending " << count << " messages to " << target;
+  //LOG(INFO) << "Node " << Grappa_mynode() << " sending " << count << " messages to " << target;
 
   for( int i = 0; i < count; ++i ) {
-    SoftXMT_call_on( target, &receive, (char*)0, 0 );
+    Grappa_call_on( target, &receive, (char*)0, 0 );
     if( FLAGS_rotate ) {
       target = target + 1;
-      if( target >= SoftXMT_nodes() ) target = 0;
+      if( target >= Grappa_nodes() ) target = 0;
     }
-    if( (i & FLAGS_yield_mask) == 0 ) SoftXMT_yield();
+    if( (i & FLAGS_yield_mask) == 0 ) Grappa_yield();
   }
-  //SoftXMT_flush( target );  
+  //Grappa_flush( target );  
   LOG(INFO) << "Sent " << count << " messages";
 
   // receivers
-  while( value != count ) SoftXMT_yield();
+  while( value != count ) Grappa_yield();
 
-  LOG(INFO) << "Node " << SoftXMT_mynode() << " received " << value << " messages";
+  LOG(INFO) << "Node " << Grappa_mynode() << " received " << value << " messages";
 
   BOOST_CHECK( value == count );
 }
 
 LOOP_FUNCTOR( func_delegate_half, index, ((int64_t, count)) ((int64_t, payload_size)) ) {
-  if( SoftXMT_mynode() < SoftXMT_nodes() / 2 ) {
+  if( Grappa_mynode() < Grappa_nodes() / 2 ) {
     // senders
-    Node target = SoftXMT_mynode() + SoftXMT_nodes() / 2;
-    LOG(INFO) << "Node " << SoftXMT_mynode() << " sending " << count << " messages to " << target;
+    Node target = Grappa_mynode() + Grappa_nodes() / 2;
+    LOG(INFO) << "Node " << Grappa_mynode() << " sending " << count << " messages to " << target;
     for( int i = 0; i < count; ++i ) {
       GlobalAddress< int64_t > global_value = make_global( &value, target );
-      SoftXMT_delegate_fetch_and_add_word( global_value, 1 );
+      Grappa_delegate_fetch_and_add_word( global_value, 1 );
       if( FLAGS_rotate ) {
 	++target;
-	if( target == SoftXMT_nodes() ) target = SoftXMT_nodes() / 2;
+	if( target == Grappa_nodes() ) target = Grappa_nodes() / 2;
       }
-      if( (i & FLAGS_yield_mask) == 0 ) SoftXMT_yield();
+      if( (i & FLAGS_yield_mask) == 0 ) Grappa_yield();
     }
-    // for( int i = SoftXMT_nodes() / 2; i < SoftXMT_nodes(); ++i ) {
-    //   SoftXMT_flush( i );
+    // for( int i = Grappa_nodes() / 2; i < Grappa_nodes(); ++i ) {
+    //   Grappa_flush( i );
     // }
     value = count;
-    LOG(INFO) << "Node " << SoftXMT_mynode() << " sent " << count << " messages to " << target;
+    LOG(INFO) << "Node " << Grappa_mynode() << " sent " << count << " messages to " << target;
   } else {
     // receivers
-    while( value != count ) SoftXMT_yield();
-    LOG(INFO) << "Node " << SoftXMT_mynode() << " received " << value << " messages";
+    while( value != count ) Grappa_yield();
+    LOG(INFO) << "Node " << Grappa_mynode() << " received " << value << " messages";
   }
   BOOST_CHECK( value == count );
 }
@@ -165,13 +165,13 @@ LOOP_FUNCTOR( func_delegate_half, index, ((int64_t, count)) ((int64_t, payload_s
 LOOP_FUNCTOR( func_delegate, index, ((int64_t, payload_size)) ) {
   Node target = 0;
   if( FLAGS_rotate )
-    target = index % SoftXMT_nodes();
+    target = index % Grappa_nodes();
   else 
-    target = (SoftXMT_nodes() - 1) - SoftXMT_mynode();
+    target = (Grappa_nodes() - 1) - Grappa_mynode();
   GlobalAddress< int64_t > global_value = make_global( &value, target );
-  //SoftXMT_call_on( target, &receive, payload, payload_size );
-  SoftXMT_delegate_fetch_and_add_word( global_value, 1 );
-  if( (index & FLAGS_yield_mask) == 0 ) SoftXMT_yield();
+  //Grappa_call_on( target, &receive, payload, payload_size );
+  Grappa_delegate_fetch_and_add_word( global_value, 1 );
+  if( (index & FLAGS_yield_mask) == 0 ) Grappa_yield();
 }
 
 void user_main( int * args ) {
@@ -183,9 +183,9 @@ void user_main( int * args ) {
 
   int nnode = atoi(getenv("SLURM_NNODES"));
   int cores_per_node = atoi(getenv("SLURM_NTASKS")) / nnode;
-  int active_cores = SoftXMT_nodes();
+  int active_cores = Grappa_nodes();
 
-  int64_t iterations = FLAGS_strong ? FLAGS_iterations : FLAGS_iterations / SoftXMT_nodes();
+  int64_t iterations = FLAGS_strong ? FLAGS_iterations : FLAGS_iterations / Grappa_nodes();
 
   // one-sided ops, single destination
   // one-sided ops, random destinations
@@ -201,25 +201,25 @@ void user_main( int * args ) {
   } else {
     if( FLAGS_delegate ) {
       if( FLAGS_bidir ) {
-	iterations = FLAGS_strong ? FLAGS_iterations : FLAGS_iterations / (SoftXMT_nodes() / 2);
-	active_cores = SoftXMT_nodes() / 2;
+	iterations = FLAGS_strong ? FLAGS_iterations : FLAGS_iterations / (Grappa_nodes() / 2);
+	active_cores = Grappa_nodes() / 2;
 	func_delegate_half delegate_half( iterations, FLAGS_payload_size );
 	fork_join_custom( &delegate_half );
       } else {
-	iterations = FLAGS_strong ? FLAGS_iterations * SoftXMT_nodes() : FLAGS_iterations;
-	active_cores = SoftXMT_nodes();
+	iterations = FLAGS_strong ? FLAGS_iterations * Grappa_nodes() : FLAGS_iterations;
+	active_cores = Grappa_nodes();
 	func_delegate delegate( FLAGS_payload_size );
 	fork_join( &delegate, 0, iterations );
       }
     } else {
       if( FLAGS_bidir ) {
-	iterations = FLAGS_strong ? FLAGS_iterations : FLAGS_iterations / SoftXMT_nodes();
-	active_cores = SoftXMT_nodes();
+	iterations = FLAGS_strong ? FLAGS_iterations : FLAGS_iterations / Grappa_nodes();
+	active_cores = Grappa_nodes();
 	func_bidir_ping bidir_ping( iterations, FLAGS_payload_size );
 	fork_join_custom( &bidir_ping );
       } else {
-	iterations = FLAGS_strong ? FLAGS_iterations : FLAGS_iterations / (SoftXMT_nodes() / 2);
-	active_cores = SoftXMT_nodes() / 2;
+	iterations = FLAGS_strong ? FLAGS_iterations : FLAGS_iterations / (Grappa_nodes() / 2);
+	active_cores = Grappa_nodes() / 2;
 	func_ping ping( iterations, FLAGS_payload_size );
 	fork_join_custom( &ping );
       }
@@ -228,11 +228,11 @@ void user_main( int * args ) {
   double end = wall_clock_time();
   fork_join_custom( &stop_profiling );
 
-  SoftXMT_merge_and_dump_stats();
-  //SoftXMT_dump_stats_all_nodes();
+  Grappa_merge_and_dump_stats();
+  //Grappa_dump_stats_all_nodes();
 
   double runtime = end - start;
-  double throughput = FLAGS_strong ? SoftXMT_nodes() * FLAGS_iterations / runtime : FLAGS_iterations / runtime;
+  double throughput = FLAGS_strong ? Grappa_nodes() * FLAGS_iterations / runtime : FLAGS_iterations / runtime;
   double throughput_per_node = throughput / (active_cores / cores_per_node);
   double bandwidth = FLAGS_payload_size * throughput;
   double bandwidth_per_node = bandwidth / (active_cores / cores_per_node);
@@ -262,15 +262,15 @@ void user_main( int * args ) {
 
 
 BOOST_AUTO_TEST_CASE( test1 ) {
-    SoftXMT_init( &(boost::unit_test::framework::master_test_suite().argc),
+    Grappa_init( &(boost::unit_test::framework::master_test_suite().argc),
 		  &(boost::unit_test::framework::master_test_suite().argv),
 		  (1 << 22) );
     gasnet_ping_handle_ = global_communicator.register_active_message_handler( &gasnet_ping_am );
-    SoftXMT_activate();
+    Grappa_activate();
 
-    SoftXMT_run_user_main( &user_main, (int*)NULL );
+    Grappa_run_user_main( &user_main, (int*)NULL );
 
-    SoftXMT_finish( 0 );
+    Grappa_finish( 0 );
 }
 
 BOOST_AUTO_TEST_SUITE_END();

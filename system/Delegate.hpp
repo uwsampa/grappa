@@ -8,7 +8,7 @@
 #ifndef __DELEGATE_HPP__
 #define __DELEGATE_HPP__
 
-#include "SoftXMT.hpp"
+#include "Grappa.hpp"
 
 /// Stats for delegate operations
 class DelegateStatistics {
@@ -91,7 +91,7 @@ public:
 
   inline void record_wakeup_latency( int64_t start_time, int64_t network_time ) { 
     ops_blocked++; 
-    int64_t current_time = SoftXMT_get_timestamp();
+    int64_t current_time = Grappa_get_timestamp();
     int64_t blocked_latency = current_time - start_time;
     int64_t wakeup_latency = current_time - network_time;
     ops_blocked_ticks_total += blocked_latency;
@@ -107,7 +107,7 @@ public:
   }
 
   inline void record_network_latency( int64_t start_time ) { 
-    int64_t current_time = SoftXMT_get_timestamp();
+    int64_t current_time = Grappa_get_timestamp();
     int64_t latency = current_time - start_time;
     ops_network_ticks_total += latency;
     if( latency > ops_network_ticks_max )
@@ -127,16 +127,16 @@ extern DelegateStatistics delegate_stats;
 
 
 /// Delegate word write
-void SoftXMT_delegate_write_word( GlobalAddress<int64_t> address, int64_t data );
+void Grappa_delegate_write_word( GlobalAddress<int64_t> address, int64_t data );
 
 /// Delegate word read
-int64_t SoftXMT_delegate_read_word( GlobalAddress<int64_t> address );
+int64_t Grappa_delegate_read_word( GlobalAddress<int64_t> address );
 
 /// Delegate word fetch and add
-int64_t SoftXMT_delegate_fetch_and_add_word( GlobalAddress<int64_t> address, int64_t data );
+int64_t Grappa_delegate_fetch_and_add_word( GlobalAddress<int64_t> address, int64_t data );
 
 /// Delegate word compare and swap
-bool SoftXMT_delegate_compare_and_swap_word(GlobalAddress<int64_t> address, int64_t cmpval, int64_t newval);
+bool Grappa_delegate_compare_and_swap_word(GlobalAddress<int64_t> address, int64_t cmpval, int64_t newval);
 
 template< typename T >
 struct memory_desc;
@@ -154,10 +154,10 @@ static void read_reply_am( read_reply_args<T> * args, size_t size, void * payloa
   *(args->descriptor.pointer()->data) = *(static_cast<T*>(payload));
   args->descriptor.pointer()->done = true;
   if( args->descriptor.pointer()->t != NULL ) {
-    SoftXMT_wake( args->descriptor.pointer()->t );
+    Grappa_wake( args->descriptor.pointer()->t );
   }
   if( args->descriptor.pointer()->start_time != 0 ) {
-    args->descriptor.pointer()->network_time = SoftXMT_get_timestamp();
+    args->descriptor.pointer()->network_time = Grappa_get_timestamp();
     delegate_stats.record_network_latency( args->descriptor.pointer()->start_time );
   }
 }
@@ -188,10 +188,10 @@ static void read_request_am( read_request_args<T> * args, size_t size, void * pa
   T data = *(args->address.pointer());
   read_reply_args<T> reply_args;
   reply_args.descriptor = args->descriptor;
-  if( args->descriptor.node() == SoftXMT_mynode() ) {
+  if( args->descriptor.node() == Grappa_mynode() ) {
     read_reply_am( &reply_args, sizeof( reply_args ), &data, sizeof(data) );
   } else {
-    SoftXMT_call_on( args->descriptor.node(), &read_reply_am<T>, 
+    Grappa_call_on( args->descriptor.node(), &read_reply_am<T>, 
 		     &reply_args, sizeof(reply_args), 
 		     &data, sizeof(data) );
   }
@@ -199,7 +199,7 @@ static void read_request_am( read_request_args<T> * args, size_t size, void * pa
 
 /// Delegate generic read
 template< typename T >
-void SoftXMT_delegate_read( GlobalAddress<T> address, T * buf) {
+void Grappa_delegate_read( GlobalAddress<T> address, T * buf) {
   delegate_stats.count_op();
   delegate_stats.count_T_read();
   memory_desc<T> md;
@@ -212,16 +212,16 @@ void SoftXMT_delegate_read( GlobalAddress<T> address, T * buf) {
   read_request_args<T> args;
   args.descriptor = make_global(&md);
   args.address = address;
-  if( address.node() == SoftXMT_mynode() ) {
+  if( address.node() == Grappa_mynode() ) {
     read_request_am( &args, sizeof( args ), NULL, 0 );
   } else {
-    SoftXMT_call_on( address.node(), &read_request_am<T>, &args );
+    Grappa_call_on( address.node(), &read_request_am<T>, &args );
   }
   if( !md.done ) {
-    md.start_time = SoftXMT_get_timestamp();
+    md.start_time = Grappa_get_timestamp();
     while (!md.done) {
       md.t = CURRENT_THREAD;
-      SoftXMT_suspend();
+      Grappa_suspend();
       md.t = NULL;
     }
     delegate_stats.record_wakeup_latency( md.start_time, md.network_time );
@@ -246,7 +246,7 @@ static void am_delegate_wake(GlobalAddress<DelegateCallbackArgs> * callback, siz
   memcpy(args->forig, p, psz);
  
   if ( args->sleeper != NULL ) { 
-    SoftXMT_wake(args->sleeper);
+    Grappa_wake(args->sleeper);
     args->sleeper = NULL;
   }
   
@@ -260,7 +260,7 @@ static void am_delegate(GlobalAddress<DelegateCallbackArgs> * callback, size_t c
   delegate_stats.count_generic_op_am();
   Func * f = static_cast<Func*>(p);
   (*f)();
-  SoftXMT_call_on(callback->node(), &am_delegate_wake, callback, sizeof(*callback), p, fsz);
+  Grappa_call_on(callback->node(), &am_delegate_wake, callback, sizeof(*callback), p, fsz);
 }
 
 /// Supports more generic delegate operations in the form of functors. The given 
@@ -271,19 +271,19 @@ static void am_delegate(GlobalAddress<DelegateCallbackArgs> * callback, size_t c
 /// or suspending)
 /// TODO: it would be better to not do the extra copying associated with sending the "return" value back and forth
 template<typename Func>
-void SoftXMT_delegate_func(Func * f, Node target) {
+void Grappa_delegate_func(Func * f, Node target) {
   delegate_stats.count_op();
   delegate_stats.count_generic_op();
-  if (target == SoftXMT_mynode()) {
+  if (target == Grappa_mynode()) {
     (*f)();
   } else {
     DelegateCallbackArgs callbackArgs = { NULL, (void*)f, false };
     GlobalAddress<DelegateCallbackArgs> args_address = make_global( &callbackArgs );
-    SoftXMT_call_on(target, &am_delegate<Func>, &args_address, sizeof(args_address), (void*)f, sizeof(*f));
+    Grappa_call_on(target, &am_delegate<Func>, &args_address, sizeof(args_address), (void*)f, sizeof(*f));
     
     if ( !callbackArgs.done ) {
         callbackArgs.sleeper = CURRENT_THREAD;
-        SoftXMT_suspend();
+        Grappa_suspend();
     }
   }
 }
@@ -321,14 +321,14 @@ void generic_delegate_reply_am( generic_delegate_reply_args<ReturnType> * args, 
   *(md->data) = args->retVal;
 
   if ( md->t != NULL ) {
-    SoftXMT_wake( md->t );
+    Grappa_wake( md->t );
     md->t = NULL;
   }
 
   md->done = true;
   
   if( md->start_time != 0 ) {
-    md->network_time = SoftXMT_get_timestamp();
+    md->network_time = Grappa_get_timestamp();
     delegate_stats.record_network_latency( md->start_time );
   }
 }
@@ -345,7 +345,7 @@ void generic_delegate_request_am( generic_delegate_request_args<ArgType,ReturnTy
   reply_args.retVal = r;
   reply_args.descriptor = args->descriptor;
   
-  SoftXMT_call_on( args->descriptor.node(), &generic_delegate_reply_am<ArgType, ReturnType, F>, &reply_args );
+  Grappa_call_on( args->descriptor.node(), &generic_delegate_reply_am<ArgType, ReturnType, F>, &reply_args );
 }
 
 ///
@@ -353,11 +353,11 @@ void generic_delegate_request_am( generic_delegate_request_args<ArgType,ReturnTy
 /// Blocking operation.
 ///
 template < typename ArgType, typename ReturnType, ReturnType (*F)(ArgType) >
-ReturnType SoftXMT_delegate_func( ArgType arg, Node target ) {
+ReturnType Grappa_delegate_func( ArgType arg, Node target ) {
   delegate_stats.count_op();
   delegate_stats.count_generic_op();
   
-  if (target == SoftXMT_mynode() ) {
+  if (target == Grappa_mynode() ) {
     return F(arg);
   } else {
     memory_desc<ReturnType> md;
@@ -373,12 +373,12 @@ ReturnType SoftXMT_delegate_func( ArgType arg, Node target ) {
     del_args.argument = arg;
     del_args.descriptor = make_global(&md);
 
-    SoftXMT_call_on( target, &generic_delegate_request_am<ArgType,ReturnType,F>, &del_args );
+    Grappa_call_on( target, &generic_delegate_request_am<ArgType,ReturnType,F>, &del_args );
 
     if ( !md.done ) {
-      md.start_time = SoftXMT_get_timestamp();
+      md.start_time = Grappa_get_timestamp();
       md.t = CURRENT_THREAD;
-      SoftXMT_suspend();
+      Grappa_suspend();
       CHECK( md.done );
       delegate_stats.record_wakeup_latency( md.start_time, md.network_time );
     }

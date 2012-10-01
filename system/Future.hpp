@@ -7,7 +7,7 @@
 #ifndef FUTURE_HPP
 #define FUTURE_HPP
 
-#include "SoftXMT.hpp"
+#include "Grappa.hpp"
 #include "Delegate.hpp"
 #include "Cache.hpp"
 
@@ -73,7 +73,7 @@ class Future {
         static void future_done_am( future_done_args * args, size_t args_size, void * payload, size_t payload_size ) {
             args->futurePtr->done = true;
             if ( args->futurePtr->waiter != NULL ) {
-                SoftXMT_wake( args->futurePtr->waiter );
+                Grappa_wake( args->futurePtr->waiter );
                 args->futurePtr->waiter = NULL;
             }
         }
@@ -103,7 +103,7 @@ class Future {
             }
             
             args->descriptor.pointer()->done = true;
-            SoftXMT_wake( args->descriptor.pointer()->t );
+            Grappa_wake( args->descriptor.pointer()->t );
         }
         
         struct started_request_args {
@@ -122,7 +122,7 @@ class Future {
                     DVLOG(5) << "need to wake:(id:"<<f->getId();
                     CHECK ( f->waiter!=NULL ) << "future ptr:" << (void*)f <<"\n done="<<f->done<<" (id:"<<f->getId()<<") st="<<st;//<< " (AM from "<<args->descriptor.node();
                     
-                    SoftXMT_wake( f->waiter );
+                    Grappa_wake( f->waiter );
                     f->waiter = NULL;
                 } else {
                     DVLOG(5) << "not need to wake:(id:"<<f->getId();
@@ -163,13 +163,13 @@ class Future {
             reply_args.descriptor = args->descriptor;
             reply_args.started = alreadyStarted;
            
-            SoftXMT_call_on( args->descriptor.node(), &started_reply_am, 
+            Grappa_call_on( args->descriptor.node(), &started_reply_am, 
                     &reply_args, sizeof(reply_args),
                     reply_payload, reply_payload_size );
         }
 
         static bool future_delegate_started( FutureAddress_t address, UserArg * arg ) {
-            if ( address.node() == SoftXMT_mynode() ) {
+            if ( address.node() == Grappa_mynode() ) {
                 // local shortcut
                 bool started = started_request_helper(address.pointer());
                 if ( !started ) {
@@ -186,10 +186,10 @@ class Future {
                 started_request_args args;
                 args.descriptor = make_global(&md);
                 args.address = address;
-                SoftXMT_call_on( address.node(), &started_request_am, &args );
+                Grappa_call_on( address.node(), &started_request_am, &args );
 
                 while( !md.done ) {
-                    SoftXMT_suspend();
+                    Grappa_suspend();
                 }
                 *arg = md.result;
                 return md.futureStarted;
@@ -202,7 +202,7 @@ class Future {
             DVLOG(4) << "Future(other) "<< futureAddr;
             DVLOG(5) << CURRENT_THREAD->id << "will call started am " << futureAddr.pointer();
 
-            if (futureAddr.node() == SoftXMT_mynode()) {
+            if (futureAddr.node() == Grappa_mynode()) {
                 global_futures_num_local_dq++;
             } else {
                 global_futures_num_remote_dq++;
@@ -215,7 +215,7 @@ class Future {
                 // call user task 
                 F(arg);
                
-                if (futureAddr.node() == SoftXMT_mynode()) {
+                if (futureAddr.node() == Grappa_mynode()) {
                     global_futures_num_local_started++;
                 } else {
                     global_futures_num_remote_started++;
@@ -223,7 +223,7 @@ class Future {
                 
                 // call wake up AM on Node that has the Future
                 future_done_args done_args = { futureAddr.pointer() };
-                SoftXMT_call_on( futureAddr.node(), &future_done_am, &done_args );
+                Grappa_call_on( futureAddr.node(), &future_done_am, &done_args );
             } 
         }
 
@@ -249,7 +249,7 @@ class Future {
               , done( false )
               , userArg( userArg )
 #if DEBUG
-              , id( SoftXMT_mynode() + ((count_++)*SoftXMT_nodes() ) )
+              , id( Grappa_mynode() + ((count_++)*Grappa_nodes() ) )
 #endif
             { 
            DVLOG(5) << CURRENT_THREAD->id << " creates Future:"<< (void*)this << " id:"<< getId();
@@ -265,7 +265,7 @@ class Future {
             DVLOG(4) << "Future(touch) FID "<< this->getId() << " address:"<< (void*)this;
             
             // start if not started
-            if ( SoftXMT_delegate_fetch_and_add_word( make_global(&started), 1 )==0 ) {
+            if ( Grappa_delegate_fetch_and_add_word( make_global(&started), 1 )==0 ) {
                 DVLOG(5) << CURRENT_THREAD->id << " gets to touch-go " << getId();
            
                 // call the user task
@@ -279,14 +279,14 @@ class Future {
                 while ( started < 2 ) { // wait until dequeued
                     DVLOG(5) << CURRENT_THREAD->id << " has to wait on dequeue " << getId();
                     waiter = CURRENT_THREAD;
-                    SoftXMT_suspend( );
+                    Grappa_suspend( );
                     DVLOG(5) << CURRENT_THREAD->id << " has woke on dequeue " << getId();
                 }
             } else  {
                 // otherwise block on done event
                 while ( !done ) {
                     waiter = CURRENT_THREAD;
-                    SoftXMT_suspend( );
+                    Grappa_suspend( );
                 }
             }
         }
@@ -294,7 +294,7 @@ class Future {
         /// Spawn the Future as a task in the global task pool
         void addAsPublicTask( ) {
             DVLOG(4) << "Future(spawn) " << this->getId() << " address:"<< (void*)this;
-            SoftXMT_publicTask( &call_as_future, make_global(this) );
+            Grappa_publicTask( &call_as_future, make_global(this) );
         }
 
 };

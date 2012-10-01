@@ -8,7 +8,7 @@
 #ifndef __COMMUNICATOR_HPP__
 #define __COMMUNICATOR_HPP__
 
-/// Definition of SoftXMT communication layer wrapper class.  This
+/// Definition of Grappa communication layer wrapper class.  This
 /// class' functionality is implemented using the GASNet library.
 ///
 /// There are three phases in this class' lifetime. 
@@ -131,7 +131,7 @@ private:
   }
   
   double time() {
-    double end = SoftXMT_walltime();
+    double end = Grappa_walltime();
     return end-start_;
   }
 
@@ -185,14 +185,14 @@ public:
   void reset() {
     messages_ = 0;
     bytes_ = 0;
-    start_ = SoftXMT_walltime();
+    start_ = Grappa_walltime();
     for( int i = 0; i < 16; ++i ) {
       histogram_[i] = 0;
     }
   }
 
   void reset_clock() {
-    start_ = SoftXMT_walltime();
+    start_ = Grappa_walltime();
   }
 
   void record_message( size_t bytes ) {

@@ -38,8 +38,8 @@ TaskingScheduler::TaskingScheduler ( )
   , prev_ts( 0 )
     , stats( this )
 { 
-  SoftXMT_tick();
-  prev_ts = SoftXMT_get_timestamp();
+  Grappa_tick();
+  prev_ts = Grappa_get_timestamp();
 }
 
 /// Initialize with references to master Thread and a TaskManager.

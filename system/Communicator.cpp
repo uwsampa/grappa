@@ -9,7 +9,7 @@
 
 #ifdef HEAPCHECK
 #include <gperftools/heap-checker.h>
-extern HeapLeakChecker * SoftXMT_heapchecker;
+extern HeapLeakChecker * Grappa_heapchecker;
 #endif
 
 #include "Communicator.hpp"

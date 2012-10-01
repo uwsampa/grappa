@@ -25,7 +25,7 @@
 #define MILLION 1000000
 
 /// "Universal" wallclock time (works at least for Mac, MTA, and most Linux)
-inline double SoftXMT_walltime(void) {
+inline double Grappa_walltime(void) {
 #if defined(__MTA__)
 	return((double)mta_get_clock(0) / mta_clock_freq());
 #elif defined(__MACH__)
@@ -47,11 +47,11 @@ inline double SoftXMT_walltime(void) {
 #endif
 }
 
-#define SOFTXMT_TIME(var, block) \
+#define GRAPPA_TIME(var, block) \
    	do { \
-		double _tmptime = SoftXMT_walltime(); \
+		double _tmptime = Grappa_walltime(); \
 		block \
-		var = SoftXMT_walltime()-_tmptime; \
+		var = Grappa_walltime()-_tmptime; \
 	} while(0)
 
 /// Compute ratio of doubles, returning 0 when divisor is 0
@@ -105,10 +105,10 @@ static inline unsigned long long rdtsc() {
   return val;
 }
 
-/// OMGWTFBBQ SoftXMT magic identity function
+/// OMGWTFBBQ Grappa magic identity function
 /// Use this to get a pointer to a template function inside a template function, etc.
 template< typename T >
-T * SoftXMT_magic_identity_function(T * t) {
+T * Grappa_magic_identity_function(T * t) {
   return t;
 }
 

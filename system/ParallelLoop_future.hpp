@@ -7,7 +7,7 @@
 #ifndef PARALLEL_LOOP_FUTURE_HPP
 #define PARALLEL_LOOP_FUTURE_HPP
 
-#include "SoftXMT.hpp"
+#include "Grappa.hpp"
 #include "Future.hpp"
 #include "Cache.hpp"
 

@@ -10,7 +10,7 @@
 #ifndef __CACHE_HPP__
 #define __CACHE_HPP__
 
-#include "SoftXMT.hpp"
+#include "Grappa.hpp"
 #include "Addressing.hpp"
 #include "common.hpp"
 
@@ -117,7 +117,7 @@ public:
     if( count == 0 ) {
       DVLOG(5) << "Zero-length acquire";
       *pointer_ = NULL;
-    } else if( request_address_->is_2D() && request_address_->node() == SoftXMT_mynode() ) {
+    } else if( request_address_->is_2D() && request_address_->node() == Grappa_mynode() ) {
       DVLOG(5) << "Short-circuiting to address " << request_address_->pointer();
       *pointer_ = request_address_->pointer();
     }

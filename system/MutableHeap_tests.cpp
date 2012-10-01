@@ -43,14 +43,14 @@ BOOST_AUTO_TEST_SUITE( MutableHeap_tests );
 //     for(  std::vector< int >::iterator i = v.begin(); i != v.end(); ++i, ++n ) { std::cout << n << ":" << *i << " "; }
 //     std::cout << "]" << std::endl;
 
-//     softxmt::make_heap( v.begin(), v.end() );
+//     grappa::make_heap( v.begin(), v.end() );
 
 //     n = 0;
 //     std::cout << "[ ";
 //     for(  std::vector< int >::iterator i = v.begin(); i != v.end(); ++i, ++n ) { std::cout << n << ":" << *i << " "; }
 //     std::cout << "]" << std::endl;
 
-//     v.push_back( 44 ); softxmt::push_heap( v.begin(), v.end() );
+//     v.push_back( 44 ); grappa::push_heap( v.begin(), v.end() );
 //     n = 0;
 //     std::cout << "[ ";
 //     for(  std::vector< int >::iterator i = v.begin(); i != v.end(); ++i, ++n ) { std::cout << n << ":" << *i << " "; }

@@ -5,7 +5,7 @@
 // AC05-76RL01830 awarded by the United States Department of
 // Energy. The Government has certain rights in the software.
 
-#include "SoftXMT.hpp"
+#include "Grappa.hpp"
 #include "Tasking.hpp"
 #include "Delegate.hpp"
 #include "Addressing.hpp"
@@ -101,7 +101,7 @@ template < void (*LoopBody)(int64_t,int64_t),
 void joinerSpawn( int64_t s, int64_t n ) {
   global_joiner.registerTask();
   DVLOG(5) << "registered " << s << " " << n;
-  SoftXMT_publicTask(&asyncFor_with_globalTaskJoiner<LoopBody,Threshold>, s, n, make_global( &global_joiner ) );
+  Grappa_publicTask(&asyncFor_with_globalTaskJoiner<LoopBody,Threshold>, s, n, make_global( &global_joiner ) );
 }
 
 
@@ -128,7 +128,7 @@ void joinerSpawn_hack( int64_t s, int64_t n, GlobalAddress<Arg> shared_arg ) {
 
   // copy the shared_arg data into a global address that corresponds to this Node
   GlobalAddress<Arg> packed = make_global( reinterpret_cast<Arg*>(shared_arg.pointer()) );
-  SoftXMT_publicTask( &asyncFor_with_globalTaskJoiner_hack<Arg,LoopBody,Threshold>, s, n, packed );
+  Grappa_publicTask( &asyncFor_with_globalTaskJoiner_hack<Arg,LoopBody,Threshold>, s, n, packed );
 }
 
 /// Does a global join phase with starting iterations of the for loop split in blocks
@@ -136,7 +136,7 @@ void joinerSpawn_hack( int64_t s, int64_t n, GlobalAddress<Arg> shared_arg ) {
 /// ALLNODES (to be called from within a fork_join_custom setting by all nodes)
 #define global_async_parallel_for(f, g_start, g_iters) \
 { \
-  range_t r = blockDist(g_start, g_start+g_iters, SoftXMT_mynode(), SoftXMT_nodes()); \
+  range_t r = blockDist(g_start, g_start+g_iters, Grappa_mynode(), Grappa_nodes()); \
   global_joiner.reset(); \
   async_parallel_for<f, joinerSpawn<f,ASYNC_PAR_FOR_DEFAULT>, ASYNC_PAR_FOR_DEFAULT >(r.start, r.end-r.start); \
   global_joiner.wait(); \
@@ -147,7 +147,7 @@ void joinerSpawn_hack( int64_t s, int64_t n, GlobalAddress<Arg> shared_arg ) {
 /// @see global_async_parallel_for 
 #define global_async_parallel_for_thresh(f, g_start, g_iters, static_threshold) \
 { \
-  range_t r = blockDist(g_start, g_start+g_iters, SoftXMT_mynode(), SoftXMT_nodes()); \
+  range_t r = blockDist(g_start, g_start+g_iters, Grappa_mynode(), Grappa_nodes()); \
   global_joiner.reset(); \
   async_parallel_for<f, joinerSpawn<f,static_threshold>,static_threshold>(r.start, r.end-r.start); \
   global_joiner.wait(); \
@@ -188,14 +188,14 @@ static void am_ff_delegate(GlobalAddress<S>* target_back, size_t tsz, void* payl
 /// @param val Value to be used to do the delegate computation.
 template< typename S, typename T, void (*BinOp)(S&, const T&) >
 void ff_delegate(GlobalAddress<S> target, const T& val) {
-  if (target.node() == SoftXMT_mynode()) {
+  if (target.node() == Grappa_mynode()) {
     BinOp(*target.pointer(), val);
   } else {
     global_joiner.registerTask();
 
     // store return node & remote pointer in the GlobalAddress
     GlobalAddress<S> back = make_global(target.pointer());
-    SoftXMT_call_on(target.node(), &am_ff_delegate<S,T,BinOp>, &back, sizeof(GlobalAddress<S>), &val, sizeof(T));
+    Grappa_call_on(target.node(), &am_ff_delegate<S,T,BinOp>, &back, sizeof(GlobalAddress<S>), &val, sizeof(T));
   }
 }
 /// Overload of ff_delegate with same target type and value type. @see ff_delegate()

@@ -1,5 +1,5 @@
 #include "common.h"
-#include "SoftXMT.hpp"
+#include "Grappa.hpp"
 #include "ForkJoin.hpp"
 #include "Cache.hpp"
 #include "Delegate.hpp"
@@ -13,10 +13,10 @@
 GRAPPA_DEFINE_EVENT_GROUP(bfs);
 
 
-#define read      SoftXMT_delegate_read_word
-#define write     SoftXMT_delegate_write_word
-#define cmp_swap  SoftXMT_delegate_compare_and_swap_word
-#define fetch_add SoftXMT_delegate_fetch_and_add_word
+#define read      Grappa_delegate_read_word
+#define write     Grappa_delegate_write_word
+#define cmp_swap  Grappa_delegate_compare_and_swap_word
+#define fetch_add Grappa_delegate_fetch_and_add_word
 
 static PushBuffer<int64_t> vlist_buf;
 
@@ -84,7 +84,7 @@ static unsigned marker = -1;
 void bfs_level(Node nid, int64_t start, int64_t end) {
 #ifdef VTRACE
   VT_TRACER("bfs_level");
-  if (SoftXMT_mynode() == 0) {
+  if (Grappa_mynode() == 0) {
     char s[256];
     sprintf(s, "<%ld>", end-start);
     VT_MARKER(marker, s);
@@ -97,7 +97,7 @@ void bfs_level(Node nid, int64_t start, int64_t end) {
   
   vlist_buf.flush();
     
-  SoftXMT_barrier_suspending();
+  Grappa_barrier_suspending();
 
   VLOG(2) << "phase complete";
 }
@@ -106,8 +106,8 @@ LOOP_FUNCTOR(bfs_node, nid, GA64(_vlist)GA64(_xoff)GA64(_xadj)GA64(_bfs_tree)GA6
   
   if ( !bfs_counters_added ) {
     bfs_counters_added = true;
-    SoftXMT_add_profiling_counter( &bfs_neighbors_visited, "bfs_neighbors_visited", "bfsneigh", true, 0 );
-    SoftXMT_add_profiling_counter( &bfs_vertex_visited, "bfs_vertex_visited", "bfsverts", true, 0 );
+    Grappa_add_profiling_counter( &bfs_neighbors_visited, "bfs_neighbors_visited", "bfsneigh", true, 0 );
+    Grappa_add_profiling_counter( &bfs_vertex_visited, "bfs_vertex_visited", "bfsverts", true, 0 );
   }
 
   // setup globals
@@ -124,7 +124,7 @@ LOOP_FUNCTOR(bfs_node, nid, GA64(_vlist)GA64(_xoff)GA64(_xadj)GA64(_bfs_tree)GA6
     VLOG(2) << "k1=" << k1 << ", k2=" << _k2;
     const int64_t oldk2 = _k2;
     
-    bfs_level(SoftXMT_mynode(), k1, oldk2);
+    bfs_level(Grappa_mynode(), k1, oldk2);
 
     k1 = oldk2;
     _k2 = read(k2);
@@ -133,7 +133,7 @@ LOOP_FUNCTOR(bfs_node, nid, GA64(_vlist)GA64(_xoff)GA64(_xadj)GA64(_bfs_tree)GA6
 
 double make_bfs_tree(csr_graph * g, GlobalAddress<int64_t> bfs_tree, int64_t root) {
   int64_t NV = g->nv;
-  GlobalAddress<int64_t> vlist = SoftXMT_typed_malloc<int64_t>(NV);
+  GlobalAddress<int64_t> vlist = Grappa_typed_malloc<int64_t>(NV);
  
 #ifdef VTRACE 
   if (marker == -1) marker = VT_MARKER_DEF("bfs_level", VT_MARKER_TYPE_HINT);
@@ -149,7 +149,7 @@ double make_bfs_tree(csr_graph * g, GlobalAddress<int64_t> bfs_tree, int64_t roo
   GlobalAddress<int64_t> k2addr = make_global(&k2);
   
   // initialize bfs_tree to -1
-  SoftXMT_memset(bfs_tree, (int64_t)-1,  NV);
+  Grappa_memset(bfs_tree, (int64_t)-1,  NV);
   
   write(bfs_tree+root, root); // parent of root is self
   
@@ -157,7 +157,7 @@ double make_bfs_tree(csr_graph * g, GlobalAddress<int64_t> bfs_tree, int64_t roo
     
   t = timer() - t;
   
-  SoftXMT_free(vlist);
+  Grappa_free(vlist);
   
   return t;
 }

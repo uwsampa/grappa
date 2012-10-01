@@ -8,7 +8,7 @@
 #ifndef __FORK_JOIN_HPP__
 #define __FORK_JOIN_HPP__
 
-#include "SoftXMT.hpp"
+#include "Grappa.hpp"
 #include "Addressing.hpp"
 #include "tasks/Thread.hpp"
 #include "Delegate.hpp"
@@ -46,7 +46,7 @@ public:
     while (count < total) {
       VLOG(3) << "Semaphore.count = " << count << " of " << total << ", suspending...";
       sleeper = me;
-      SoftXMT_suspend();
+      Grappa_suspend();
     }
   }
   
@@ -57,13 +57,13 @@ public:
   void release(int n=1) {
     count += n;
     if (count >= total && sleeper) {
-      SoftXMT_wake(sleeper);
+      Grappa_wake(sleeper);
       sleeper = NULL;
     }
   }
   static void am_release(GlobalAddress<Semaphore>* gaddr, size_t sz, void* payload, size_t psz) {
     VLOG(3) << "in am_release()";
-    assert(gaddr->node() == SoftXMT_mynode());
+    assert(gaddr->node() == Grappa_mynode());
     int n = (int)*((int64_t*)payload);
     VLOG(3) << "am_release n=" << n;
     gaddr->pointer()->release((int)n);
@@ -80,7 +80,7 @@ public:
   /// @endcode
   static void release(const GlobalAddress<Semaphore>* gaddr, int n) {
     VLOG(3) << "about to call on " << gaddr->node();
-    SoftXMT_call_on(gaddr->node(), &Semaphore::am_release, gaddr, sizeof(GlobalAddress<Semaphore>), &n, sizeof(int64_t));
+    Grappa_call_on(gaddr->node(), &Semaphore::am_release, gaddr, sizeof(GlobalAddress<Semaphore>), &n, sizeof(int64_t));
   }
 };
 
@@ -98,7 +98,7 @@ struct LocalTaskJoiner {
   LocalTaskJoiner(): outstanding(0) {}
   void reset() {
     outstanding = 0;
-    while (!wakelist.empty()) SoftXMT_wake(wakelist.dequeue());
+    while (!wakelist.empty()) Grappa_wake(wakelist.dequeue());
   }
 
   /// Tell joiner that there is one more task outstanding.
@@ -117,7 +117,7 @@ struct LocalTaskJoiner {
     VLOG(3) << "barrier(outstanding=" << outstanding << ")";
     if (outstanding == 0) {
       while (!wakelist.empty()) {
-        SoftXMT_wake(wakelist.dequeue());
+        Grappa_wake(wakelist.dequeue());
       }
     }
   }
@@ -127,11 +127,11 @@ struct LocalTaskJoiner {
   void wait() {
     if (outstanding > 0) {
       wakelist.enqueue(CURRENT_THREAD);
-      while (outstanding > 0) SoftXMT_suspend();
+      while (outstanding > 0) Grappa_suspend();
     }
   }
   static void am_remoteSignal(GlobalAddress<LocalTaskJoiner>* joinAddr, size_t sz, void* payload, size_t psz) {
-    CHECK(joinAddr->node() == SoftXMT_mynode());
+    CHECK(joinAddr->node() == Grappa_mynode());
     joinAddr->pointer()->signal();
   }
 
@@ -144,11 +144,11 @@ struct LocalTaskJoiner {
   /// }
   /// @endcode
   static void remoteSignal(GlobalAddress<LocalTaskJoiner> joinAddr) {
-    if (joinAddr.node() == SoftXMT_mynode()) {
+    if (joinAddr.node() == Grappa_mynode()) {
       joinAddr.pointer()->signal();
     } else {
       //VLOG(1) << "remoteSignal -> " << joinAddr.node();
-      SoftXMT_call_on(joinAddr.node(), &LocalTaskJoiner::am_remoteSignal, &joinAddr);
+      Grappa_call_on(joinAddr.node(), &LocalTaskJoiner::am_remoteSignal, &joinAddr);
     }
   }
 };
@@ -204,7 +204,7 @@ void task_iters(iters_args * arg) {
   }
   (*fj->finished)++;
   if (*fj->finished == fj->nthreads) {
-    SoftXMT_wake(fj->node_th);
+    Grappa_wake(fj->node_th);
   }
 }
 
@@ -231,16 +231,16 @@ void fork_join_onenode(const T* func, int64_t start, int64_t end) {
     args[i].fjdata = &fj;
     args[i].rank = i;
     
-    SoftXMT_privateTask(task_iters<T>, &args[i]);
+    Grappa_privateTask(task_iters<T>, &args[i]);
   }
-  while (*fj.finished < fj.nthreads) SoftXMT_suspend();
+  while (*fj.finished < fj.nthreads) Grappa_suspend();
   
 }
 
 /// Internal: Task for doing fork_join_onenode on a node.
 template<typename T>
 void th_node_fork_join(const NodeForkJoinArgs<T>* a) {
-  range_t myblock = blockDist(a->start, a->end, SoftXMT_mynode(), SoftXMT_nodes());
+  range_t myblock = blockDist(a->start, a->end, Grappa_mynode(), Grappa_nodes());
   VLOG(2) << "myblock: " << myblock.start << " - " << myblock.end;
   fork_join_onenode(&a->func, myblock.start, myblock.end);
   
@@ -256,7 +256,7 @@ void th_node_fork_join(const NodeForkJoinArgs<T>* a) {
 /// in particular, does too much copying and uses an old tasking interface.
 template<typename T>
 void fork_join(T* func, int64_t start, int64_t end) {
-  Semaphore sem(SoftXMT_nodes(), 0);
+  Semaphore sem(Grappa_nodes(), 0);
   
   NodeForkJoinArgs<T> fj;
   fj.start = start;
@@ -264,10 +264,10 @@ void fork_join(T* func, int64_t start, int64_t end) {
   fj.func = *func;
   fj.sem = make_global(&sem);
   
-  for (Node i=0; i < SoftXMT_nodes(); i++) {
-    SoftXMT_remote_privateTask(CACHE_WRAP(th_node_fork_join, &fj), i);
+  for (Node i=0; i < Grappa_nodes(); i++) {
+    Grappa_remote_privateTask(CACHE_WRAP(th_node_fork_join, &fj), i);
     
-    SoftXMT_flush(i); // TODO: remove this?
+    Grappa_flush(i); // TODO: remove this?
   }
   VLOG(2) << "waiting to acquire all";
   sem.acquire_all(CURRENT_THREAD);
@@ -277,7 +277,7 @@ void fork_join(T* func, int64_t start, int64_t end) {
 
 template<typename T>
 void th_node_fork_join_custom(const NodeForkJoinArgs<T>* a) {
-  a->func(SoftXMT_mynode());
+  a->func(Grappa_mynode());
   
   VLOG(2) << "about to update sem on " << a->sem.node();
   Semaphore::release(&a->sem, 1);
@@ -285,7 +285,7 @@ void th_node_fork_join_custom(const NodeForkJoinArgs<T>* a) {
 
 template<typename T>
 void fork_join_custom(T* func) {
-  Semaphore sem(SoftXMT_nodes(), 0);
+  Semaphore sem(Grappa_nodes(), 0);
   
   NodeForkJoinArgs<T> fj;
   fj.start = 0;
@@ -293,9 +293,9 @@ void fork_join_custom(T* func) {
   fj.func = *func;
   fj.sem = make_global(&sem);
   
-  for (Node i=0; i < SoftXMT_nodes(); i++) {
-    SoftXMT_remote_privateTask(CACHE_WRAP(th_node_fork_join_custom, &fj), i);
-    SoftXMT_flush(i); // TODO: remove this?
+  for (Node i=0; i < Grappa_nodes(); i++) {
+    Grappa_remote_privateTask(CACHE_WRAP(th_node_fork_join_custom, &fj), i);
+    Grappa_flush(i); // TODO: remove this?
   }
   VLOG(2) << "waiting to acquire all";
   sem.acquire_all(CURRENT_THREAD);
@@ -315,7 +315,7 @@ void fork_join_custom(T* func) {
 /// Example:
 /// \code
 ///    LOOP_FUNCTOR(set_all, i, ((GlobalAddress<int64_t>,array)) ((int64_t,value)) ) {
-///      SoftXMT_delegate_write_word(array+i, value);
+///      Grappa_delegate_write_word(array+i, value);
 ///    }
 ///    ...
 ///    void user_main() {
@@ -368,22 +368,22 @@ struct ConstRequestArgs {
 };
 
 static void memset_reply_am(GlobalAddress<ConstReplyArgs> * reply, size_t sz, void * payload, size_t psz) {
-  CHECK(reply->node() == SoftXMT_mynode());
+  CHECK(reply->node() == Grappa_mynode());
   ConstReplyArgs * r = reply->pointer();
   (r->replies_left)--;
   if (r->replies_left == 0) {
-    SoftXMT_wake(r->sleeper);
+    Grappa_wake(r->sleeper);
   }
 }
 
 template< typename T >
 static void memset_request_am(ConstRequestArgs<T> * args, size_t sz, void* payload, size_t psz) {
-  CHECK(args->addr.node() == SoftXMT_mynode()) << "args->addr.node() = " << args->addr.node();
+  CHECK(args->addr.node() == Grappa_mynode()) << "args->addr.node() = " << args->addr.node();
   T * ptr = args->addr.pointer();
   for (size_t i=0; i<args->count; i++) {
     ptr[i] = args->value;
   }
-  SoftXMT_call_on(args->reply.node(), &memset_reply_am, &args->reply);
+  Grappa_call_on(args->reply.node(), &memset_reply_am, &args->reply);
 }
 
 /// Initialize an array of elements of generic type with a given value.
@@ -396,7 +396,7 @@ static void memset_request_am(ConstRequestArgs<T> * args, size_t sz, void* paylo
 /// @param value Value to set every element of array to (will be copied to all the nodes)
 /// @param count Number of elements to set, starting at the base address.
 template< typename T >
-static void SoftXMT_memset(GlobalAddress<T> request_address, T value, size_t count) {
+static void Grappa_memset(GlobalAddress<T> request_address, T value, size_t count) {
   size_t offset = 0;
   size_t request_bytes = 0;
   
@@ -419,12 +419,12 @@ static void SoftXMT_memset(GlobalAddress<T> request_address, T value, size_t cou
     args.count = request_bytes / sizeof(T);
     
     reply.replies_left++;
-    SoftXMT_call_on(args.addr.node(), &memset_request_am, &args);
+    Grappa_call_on(args.addr.node(), &memset_request_am, &args);
     
     args.addr += args.count;
   }
   
-  while (reply.replies_left > 0) SoftXMT_suspend();
+  while (reply.replies_left > 0) Grappa_suspend();
 }
 
 LOOP_FUNCTOR_TEMPLATED(T, memset_func, nid, ((GlobalAddress<T>,base)) ((T,value)) ((size_t,count))) {
@@ -441,13 +441,13 @@ LOOP_FUNCTOR_TEMPLATED(T, memset_func, nid, ((GlobalAddress<T>,base)) ((T,value)
 /// Must be called by itself (preferably from the user_main task) because it contains a call to
 /// fork_join_custom().
 ///
-/// @see SoftXMT_memset()
+/// @see Grappa_memset()
 ///
 /// @param base Base address of the array to be set.
 /// @param value Value to set every element of array to (will be copied to all the nodes)
 /// @param count Number of elements to set, starting at the base address.
 template< typename T >
-void SoftXMT_memset_local(GlobalAddress<T> base, T value, size_t count) {
+void Grappa_memset_local(GlobalAddress<T> base, T value, size_t count) {
   {
     memset_func<T> f(base, value, count);
     fork_join_custom(&f);
@@ -471,7 +471,7 @@ void apfor_with_local_join(int64_t a, int64_t b, S c) {
 template< typename S, void (*F)(int64_t,int64_t,S), int64_t Threshold >
 void spawn_private_task(int64_t a, int64_t b, S c) {
   ljoin.registerTask();
-  SoftXMT_privateTask( &apfor_with_local_join<S, F, Threshold>, a, b, c );
+  Grappa_privateTask( &apfor_with_local_join<S, F, Threshold>, a, b, c );
 }
 
 /// Version of AsyncParallelFor that spawns private tasks and joins all of them.

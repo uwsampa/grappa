@@ -40,12 +40,12 @@ uint64_t UIDManager::getUID() {
       randomStealId();
       stealLock = true;
       while ( !waiters->empty() ) {
-        SoftXMT_wake( waiters->front() ); 
+        Grappa_wake( waiters->front() ); 
         waiters->pop();
       }
     } else {
       waiters->push( CURRENT_THREAD );
-      SoftXMT_suspend();
+      Grappa_suspend();
     }
   }
   return result;
@@ -86,13 +86,13 @@ void UIDManager::randomStealId( ) {
   CHECK( neighbors != NULL );
   while (true) {
     int vicId = neighbors[nextVictim];
-    nextVictim = (nextVictim+1) % SoftXMT_nodes();
+    nextVictim = (nextVictim+1) % Grappa_nodes();
 
-    if (vicId==SoftXMT_mynode()) continue; // don't steal from myself
+    if (vicId==Grappa_mynode()) continue; // don't steal from myself
 
     RemoteIdSteal func;
     func.object_id = obj_id;
-    SoftXMT_delegate_func( &func, vicId );
+    Grappa_delegate_func( &func, vicId );
     if ( func.success ) {
       start = func.r_start;
       end = func.r_end;

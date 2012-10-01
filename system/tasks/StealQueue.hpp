@@ -207,14 +207,14 @@ uint64_t StealQueue<T>::topPosn() const
 // Work stealing
 /////////////////////////////////////////////////
 
-//#include "../SoftXMT.hpp" 
+//#include "../Grappa.hpp" 
 #include <Communicator.hpp>
 #include <tasks/TaskingScheduler.hpp>
 
 extern TaskingScheduler global_scheduler;
-// void SoftXMT_suspend();
-// void SoftXMT_wake( Thread * );
-// Node SoftXMT_mynode();
+// void Grappa_suspend();
+// void Grappa_wake( Thread * );
+// Node Grappa_mynode();
 
 /// Arguments for a work steal request from thief
 struct workStealRequest_args {
@@ -263,7 +263,7 @@ void StealQueue<T>::steal_reply( uint64_t amt, uint64_t total, T * stolen_work, 
         VLOG(5) << "Last packet; will wake steal_waiter=" << steal_waiter;
         local_steal_amount = total;
         if ( steal_waiter != NULL ) {
-          //SoftXMT_wake( steal_waiter );
+          //Grappa_wake( steal_waiter );
           global_scheduler.thread_wake( steal_waiter );
           steal_waiter = NULL;
         }
@@ -274,7 +274,7 @@ void StealQueue<T>::steal_reply( uint64_t amt, uint64_t total, T * stolen_work, 
       nFail++;
       
       if ( steal_waiter != NULL ) {
-        //SoftXMT_wake( steal_waiter );
+        //Grappa_wake( steal_waiter );
         global_scheduler.thread_wake( steal_waiter );
         steal_waiter = NULL;
       }
@@ -331,7 +331,7 @@ void StealQueue<T>::workStealRequest_am(workStealRequest_args * args, size_t siz
         VLOG(5) << "sending steal packet of transfer_amt=" << transfer_amt << " remain=" << remain << " / stealAmt=" << stealAmt;
         remain -= transfer_amt;
         workStealReply_args reply_args = { transfer_amt, stealAmt };
-        SoftXMT_call_on( args->from, &StealQueue<T>::workStealReply_am, 
+        Grappa_call_on( args->from, &StealQueue<T>::workStealReply_am, 
             &reply_args, sizeof(workStealReply_args), 
             victimStealStart + offset, transfer_amt*sizeof( T ));
 
@@ -345,7 +345,7 @@ void StealQueue<T>::workStealRequest_am(workStealRequest_args * args, size_t siz
 
     } else {
       workStealReply_args reply_args = { 0, 0 };
-      SoftXMT_call_on( args->from, &StealQueue<T>::workStealReply_am, &reply_args );
+      Grappa_call_on( args->from, &StealQueue<T>::workStealReply_am, &reply_args );
     }
 
 }
@@ -364,7 +364,7 @@ int StealQueue<T>::steal_locally( Node victim, int op ) {
     received_tasks = 0;
 
     workStealRequest_args req_args = { op, global_communicator.mynode() };
-    SoftXMT_call_on( victim, &StealQueue<T>::workStealRequest_am, &req_args );
+    Grappa_call_on( victim, &StealQueue<T>::workStealRequest_am, &req_args );
 
     GRAPPA_PROFILE_CREATE( stealprof, "steal_locally", "(suspended)", GRAPPA_SUSPEND_GROUP );
         
@@ -381,7 +381,7 @@ int StealQueue<T>::steal_locally( Node victim, int op ) {
         GRAPPA_PROFILE_THREAD_START( stealprof, global_scheduler.get_current_thread() );
 	    
         global_scheduler.thread_suspend();
-        //SoftXMT_suspend();
+        //Grappa_suspend();
         
         GRAPPA_PROFILE_THREAD_STOP( stealprof, global_scheduler.get_current_thread() );
     }

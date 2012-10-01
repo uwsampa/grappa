@@ -9,7 +9,7 @@
 
 #include <boost/test/unit_test.hpp>
 
-#include "SoftXMT.hpp"
+#include "Grappa.hpp"
 #include "Addressing.hpp"
 
 
@@ -49,13 +49,13 @@ struct BrandonM64 {
 
 BOOST_AUTO_TEST_CASE( test1 ) {
 
-  SoftXMT_init( &(boost::unit_test::framework::master_test_suite().argc),
+  Grappa_init( &(boost::unit_test::framework::master_test_suite().argc),
                 &(boost::unit_test::framework::master_test_suite().argv) );
 
-  SoftXMT_activate();
+  Grappa_activate();
 
 
-  if( 0 == SoftXMT_mynode() ) {
+  if( 0 == Grappa_mynode() ) {
     int foo;
     int bar;
     GlobalAddress< int > foop = GlobalAddress< int >::TwoDimensional( &foo );
@@ -74,28 +74,28 @@ BOOST_AUTO_TEST_CASE( test1 ) {
     const int array_size = 12;
     
     // array for comparison
-    array_element array[ array_size * SoftXMT_nodes()];
+    array_element array[ array_size * Grappa_nodes()];
     
     // distribute elements to node arrays in round robin fashion. 
-    array_element node_array[ SoftXMT_nodes() ][ array_size ];
+    array_element node_array[ Grappa_nodes() ][ array_size ];
     // these are the indices for each node
-    int node_i[ SoftXMT_nodes() ];
-    for( int i = 0; i < SoftXMT_nodes(); ++i ) {
+    int node_i[ Grappa_nodes() ];
+    for( int i = 0; i < Grappa_nodes(); ++i ) {
       node_i[i] = 0;
     }
 
-    for( int i = 0; i < array_size * SoftXMT_nodes(); ++i ) {
+    for( int i = 0; i < array_size * Grappa_nodes(); ++i ) {
       intptr_t byte_address = i * sizeof( array_element );
 
       intptr_t block_index = byte_address / block_size;
       intptr_t offset_in_block = byte_address % block_size;
 
-      Node node = block_index % SoftXMT_nodes();
-      intptr_t node_block_index = block_index / SoftXMT_nodes();
+      Node node = block_index % Grappa_nodes();
+      intptr_t node_block_index = block_index / Grappa_nodes();
 
-      array[ i ].block = node_block_index; //( (i * sizeof(array_element)) / block_size ) / SoftXMT_nodes();
+      array[ i ].block = node_block_index; //( (i * sizeof(array_element)) / block_size ) / Grappa_nodes();
       array[ i ].offset = offset_in_block; //(i * sizeof(array_element)) % block_size;
-      array[ i ].node = node; //( (i * sizeof(array_element)) / block_size ) % SoftXMT_nodes();
+      array[ i ].node = node; //( (i * sizeof(array_element)) / block_size ) % Grappa_nodes();
       //array[ i ].address = array[i].block * block_size + array[i].offset;
       array[ i ].index = i;
       //node_array[ array[i].node ][ node_i[i]++ ] = array[i];
@@ -110,7 +110,7 @@ BOOST_AUTO_TEST_CASE( test1 ) {
               << " offset " << array[i].offset;
     }
 
-    for( int node = 0; node < SoftXMT_nodes(); ++node ) {
+    for( int node = 0; node < Grappa_nodes(); ++node ) {
       VLOG(1) << "Contents of node " << node << " memory";
       for( int i = 0; i < array_size; ++i ) {
         VLOG(1) << "   " << i << ":"
@@ -131,7 +131,7 @@ BOOST_AUTO_TEST_CASE( test1 ) {
     
     ptrdiff_t offset = &array[0] - (array_element *)NULL;
     int j = 0;
-    for( int i = 0; i < array_size * SoftXMT_nodes(); ++i ) {
+    for( int i = 0; i < array_size * Grappa_nodes(); ++i ) {
       GlobalAddress< array_element > gap = l1 + i;
       ptrdiff_t node_base_address = &node_array[ array[i].node ][0] - (array_element *)NULL;
       BOOST_CHECK_EQUAL( array[i].node, gap.node() );
@@ -322,7 +322,7 @@ BOOST_AUTO_TEST_CASE( test1 ) {
     }
   }
 
-  SoftXMT_finish( 0 );
+  Grappa_finish( 0 );
 }
 
 BOOST_AUTO_TEST_SUITE_END();

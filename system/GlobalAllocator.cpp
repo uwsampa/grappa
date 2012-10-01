@@ -28,12 +28,12 @@ std::ostream& operator<<( std::ostream& o, const GlobalAllocator& a ) {
 
 // static void GlobalAllocator_wait_on( GlobalAllocator_descriptor * descriptor ) {
 //   while( !descriptor->done ) {
-//     SoftXMT_suspend();
+//     Grappa_suspend();
 //   }
 // }
 
 // static void GlobalAllocator_wake( GlobalAllocator_descriptor * descriptor ) {
-//   SoftXMT_wake( descriptor->t );
+//   Grappa_wake( descriptor->t );
 // }
 
 
@@ -61,17 +61,17 @@ std::ostream& operator<<( std::ostream& o, const GlobalAllocator& a ) {
 //   GlobalAllocator_malloc_reply_args reply_args;
 //   reply_args.descriptor = args->descriptor;
 //   reply_args.address = global_memory->get_allocator()->malloc( args->size_bytes );
-//   SoftXMT_call_on( args->descriptor.node(), &GlobalAllocator_malloc_reply_am, &reply_args );
+//   Grappa_call_on( args->descriptor.node(), &GlobalAllocator_malloc_reply_am, &reply_args );
 // }
 
 /// Allocate size_bytes bytes from global heap.
-GlobalAddress< void > SoftXMT_malloc( size_t size_bytes ) {
+GlobalAddress< void > Grappa_malloc( size_t size_bytes ) {
   // // ask node 0 to allocate memory
   // malloc_descriptor descriptor;
   // malloc_request_args args;
   // args.descriptor = make_global( &descriptor );
   // args.size_bytes = size_bytes;
-  // SoftXMT_call_on( 0, &malloc_request_am, &args );
+  // Grappa_call_on( 0, &malloc_request_am, &args );
   // GlobalAllocator_wait_on( &descriptor );
   // return descriptor.address;
   return GlobalAllocator::remote_malloc( size_bytes );
@@ -101,18 +101,18 @@ GlobalAddress< void > SoftXMT_malloc( size_t size_bytes ) {
 //   GlobalAllocator_free_reply_args reply_args;
 //   reply_args.descriptor = args->descriptor;
 //   global_allocator->free( args->address );
-//   SoftXMT_call_on( args->descriptor.node(), &GlobalAllocator_free_reply_am, &reply_args );
+//   Grappa_call_on( args->descriptor.node(), &GlobalAllocator_free_reply_am, &reply_args );
 // }
 
 
 /// Frees memory in global heap
-void SoftXMT_free( GlobalAddress< void > address ) {
+void Grappa_free( GlobalAddress< void > address ) {
   // // ask node 0 to free memory
   // malloc_descriptor descriptor;
   // malloc_request_args args;
   // args.descriptor = make_global( &descriptor );
   // args.address = address;
-  // SoftXMT_call_on( 0, &GlobalAllocator_free_request_am, &args );
+  // Grappa_call_on( 0, &GlobalAllocator_free_request_am, &args );
   // GlobalAllocator_wait_on( &descriptor );
   GlobalAllocator::remote_free( address );
 }

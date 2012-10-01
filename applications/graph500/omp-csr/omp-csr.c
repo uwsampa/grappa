@@ -35,7 +35,7 @@ bool checkpoint_in(int SCALE, int edgefactor, struct packed_edge * restrict IJ, 
 void checkpoint_out(int64_t SCALE, int64_t edgefactor, const struct packed_edge * restrict edges, const int64_t nedge, const int64_t * restrict bfs_roots, const int64_t nbfs) {
   fprintf(stderr, "starting checkpoint...\n");
   char fname[256];
-  sprintf(fname, "softxmt/ckpts/graph500.%lld.%lld.omp.ckpt", SCALE, edgefactor);
+  sprintf(fname, "grappa/ckpts/graph500.%lld.%lld.omp.ckpt", SCALE, edgefactor);
   FILE * fout = fopen(fname, "w");
   if (!fout) {
     fprintf(stderr,"Unable to open file for writing: %s\n", fname);

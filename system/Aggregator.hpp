@@ -272,7 +272,7 @@ private:
   
   /// number of ticks since start_
   double time() {
-    double end = SoftXMT_walltime();
+    double end = Grappa_walltime();
     return end-start_;
   }
 
@@ -349,7 +349,7 @@ public:
     timeouts_ = 0;
     idle_flushes_ = 0;
     capacity_flushes_ = 0;
-    start_ = SoftXMT_walltime();
+    start_ = Grappa_walltime();
     for( int i = 0; i < 16; ++i ) {
       histogram_[i] = 0;
     }
@@ -359,8 +359,8 @@ public:
     polls_++;
   }
 
-  void record_flush( SoftXMT_Timestamp oldest_ts, SoftXMT_Timestamp newest_ts ) {
-    SoftXMT_Timestamp ts = SoftXMT_get_timestamp();
+  void record_flush( Grappa_Timestamp oldest_ts, Grappa_Timestamp newest_ts ) {
+    Grappa_Timestamp ts = Grappa_get_timestamp();
     oldest_wait_ticks_ += ts - oldest_ts;
     newest_wait_ticks_ += ts - newest_ts;
     flushes_++;
@@ -504,8 +504,8 @@ template< const int max_size_ >
 class AggregatorBuffer {
 private:
 public:
-  SoftXMT_Timestamp oldest_ts_;
-  SoftXMT_Timestamp newest_ts_;
+  Grappa_Timestamp oldest_ts_;
+  Grappa_Timestamp newest_ts_;
   int current_position_;
   char buffer_[ max_size_ ];
 
@@ -520,7 +520,7 @@ public:
 
   /// insert data into buffer. assumes it fits.
   inline void insert( const void * data, size_t size ) {
-    newest_ts_ = SoftXMT_get_timestamp();
+    newest_ts_ = Grappa_get_timestamp();
     if( current_position_ == 0 ) oldest_ts_ = newest_ts_;
     DCHECK ( fits( size ) );
     memcpy( &buffer_[ current_position_ ], data, size );
@@ -675,8 +675,8 @@ public:
   /// get timestamp. we avoid calling rdtsc for performance
   inline uint64_t get_timestamp() {
     //return previous_timestamp_ + 1;
-    SoftXMT_tick();
-    return SoftXMT_get_timestamp();
+    Grappa_tick();
+    return Grappa_get_timestamp();
    }
 
   /// get delayed timestamp. 
@@ -723,7 +723,7 @@ public:
   }
 
   /// Aggregate a message. Do not call this directly; instead, call
-  /// SoftXMT_call_on().
+  /// Grappa_call_on().
   ///
   ///  @param destination core that will receive this message
   ///  @param fn_p function pointer of handler to run on reception
@@ -837,7 +837,7 @@ extern Aggregator global_aggregator;
 ///  @param payload pointer to payload buffer
 ///  @param payload_size size in bytes of payload buffer
 template< typename ArgsStruct >
-inline void SoftXMT_call_on( Node destination, void (* fn_p)(ArgsStruct *, size_t, void *, size_t), 
+inline void Grappa_call_on( Node destination, void (* fn_p)(ArgsStruct *, size_t, void *, size_t), 
                              const ArgsStruct * args, const size_t args_size = sizeof( ArgsStruct ),
                              const void * payload = NULL, const size_t payload_size = 0)
 {
@@ -849,11 +849,11 @@ inline void SoftXMT_call_on( Node destination, void (* fn_p)(ArgsStruct *, size_
   StateTimer::stop_communication();
 }
 
-/// Aggregate a message. Same as SoftXMT_call_on(), but with a
+/// Aggregate a message. Same as Grappa_call_on(), but with a
 /// different payload type.
 /// TODO: deprecated. remove this.
 template< typename ArgsStruct, typename PayloadType >
-inline void SoftXMT_call_on_x( Node destination, void (* fn_p)(ArgsStruct *, size_t, PayloadType *, size_t), 
+inline void Grappa_call_on_x( Node destination, void (* fn_p)(ArgsStruct *, size_t, PayloadType *, size_t), 
                                const ArgsStruct * args, const size_t args_size = sizeof( ArgsStruct ),
                                const PayloadType * payload = NULL, const size_t payload_size = 0)
 {

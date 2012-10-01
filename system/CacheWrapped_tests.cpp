@@ -8,7 +8,7 @@
 
 #include <boost/test/unit_test.hpp>
 
-#include "SoftXMT.hpp"
+#include "Grappa.hpp"
 #include "Cache.hpp"
 #include "ForkJoin.hpp"
 
@@ -72,7 +72,7 @@ void user_main( user_main_args * args )
         for ( Node i=0; i<2; i++ ) {
             Semaphore sem( 1, 0 );
             task_arg args = { 1, make_global( &sem ) };
-            SoftXMT_remote_privateTask( &pointer_task_f_CW, make_global( &args ), i );
+            Grappa_remote_privateTask( &pointer_task_f_CW, make_global( &args ), i );
             sem.acquire_all( CURRENT_THREAD );
             // User sync will not guarentee this
             //CHECK( args.num == 2 ) << "num=" << args.num << " i=" << i; 
@@ -84,7 +84,7 @@ void user_main( user_main_args * args )
 //        for ( Node i=0; i<2; i++ ) {
 //            phore sem( 1, 0 );
 //            task_arg args = { 1, make_global( &sem ) };
-//            SoftXMT_remote_privateTask( CACHE_WRAP( &pointer_task_f, &args ), i );
+//            Grappa_remote_privateTask( CACHE_WRAP( &pointer_task_f, &args ), i );
 //            sem.acquire_all( CURRENT_THREAD );
 //            BOOST_CHECK( args.num == 2 );
 //        }
@@ -95,7 +95,7 @@ void user_main( user_main_args * args )
         for ( Node i=0; i<2; i++ ) {
             Semaphore sem( 1, 0 );
             task_arg args = { 1, make_global( &sem ) };
-            SoftXMT_remote_privateTask( &ref_task_f_CW, make_global( &args ), i );
+            Grappa_remote_privateTask( &ref_task_f_CW, make_global( &args ), i );
             sem.acquire_all( CURRENT_THREAD );
             // User sync will not guarentee this
             //CHECK( args.num == 2 ) << "num=" << args.num << " i=" << i; 
@@ -107,7 +107,7 @@ void user_main( user_main_args * args )
 //        for ( Node i=0; i<2; i++ ) {
 //            Semaphore sem( 1, 0 );
 //            task_arg args = { 1, make_global( &sem ) };
-//            SoftXMT_remote_privateTask( CACHE_WRAP( &ref_task_f, &args ), i );
+//            Grappa_remote_privateTask( CACHE_WRAP( &ref_task_f, &args ), i );
 //            sem.acquire_all( CURRENT_THREAD );
 //            BOOST_CHECK( args.num == 1 );
 //        }
@@ -118,7 +118,7 @@ void user_main( user_main_args * args )
         for ( Node i=0; i<2; i++ ) {
             Semaphore sem( 1, 0 );
             task_arg args = { 1, make_global( &sem ) };
-            SoftXMT_remote_privateTask( &c_pointer_task_f_CW, make_global( &args ), i );
+            Grappa_remote_privateTask( &c_pointer_task_f_CW, make_global( &args ), i );
             sem.acquire_all( CURRENT_THREAD );
             CHECK( args.num == 1 ) << "num=" << args.num << " i=" << i; 
         }
@@ -129,7 +129,7 @@ void user_main( user_main_args * args )
         for ( Node i=0; i<2; i++ ) {
             Semaphore sem( 1, 0 );
             task_arg args = { 1, make_global( &sem ) };
-            SoftXMT_remote_privateTask( &c_ref_task_f_CW, make_global( &args ), i );
+            Grappa_remote_privateTask( &c_ref_task_f_CW, make_global( &args ), i );
             sem.acquire_all( CURRENT_THREAD );
             CHECK( args.num == 1 ) << "num=" << args.num << " i=" << i; 
         }
@@ -140,19 +140,19 @@ void user_main( user_main_args * args )
 
 BOOST_AUTO_TEST_CASE( test1 ) {
 
-  SoftXMT_init( &(boost::unit_test::framework::master_test_suite().argc),
+  Grappa_init( &(boost::unit_test::framework::master_test_suite().argc),
                 &(boost::unit_test::framework::master_test_suite().argv) );
 
-  SoftXMT_activate();
+  Grappa_activate();
 
   user_main_args uargs;
 
   DVLOG(1) << "Spawning user main Thread....";
-  SoftXMT_run_user_main( &user_main, &uargs );
+  Grappa_run_user_main( &user_main, &uargs );
   VLOG(5) << "run_user_main returned";
-  CHECK( SoftXMT_done() );
+  CHECK( Grappa_done() );
 
-  SoftXMT_finish( 0 );
+  Grappa_finish( 0 );
 }
 
 BOOST_AUTO_TEST_SUITE_END();

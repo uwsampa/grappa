@@ -31,11 +31,11 @@ size_t round_up_page_size( size_t s ) {
 
 /// Construct local aspect of global memory
 GlobalMemory::GlobalMemory( size_t total_size_bytes )
-  : size_per_node_( round_up_page_size( total_size_bytes / SoftXMT_nodes() ) )
+  : size_per_node_( round_up_page_size( total_size_bytes / Grappa_nodes() ) )
   , chunk_( size_per_node_ )
-  , allocator_( chunk_.global_pointer(), size_per_node_ * SoftXMT_nodes() )
+  , allocator_( chunk_.global_pointer(), size_per_node_ * Grappa_nodes() )
 { 
   assert( !global_memory );
   global_memory = this;
-  DVLOG(1) << "Initialized GlobalMemory with " << size_per_node_ * SoftXMT_nodes() << " bytes of shared heap.";
+  DVLOG(1) << "Initialized GlobalMemory with " << size_per_node_ * Grappa_nodes() << " bytes of shared heap.";
 }

@@ -16,20 +16,20 @@
 /// Timestamps are 64-bit signed integers. Theoretically this should
 /// allow us to do overflow detection, but we ignore it for now. This
 /// will still allow many years of operation.
-typedef int64_t SoftXMT_Timestamp;
-extern SoftXMT_Timestamp SoftXMT_current_timestamp;
+typedef int64_t Grappa_Timestamp;
+extern Grappa_Timestamp Grappa_current_timestamp;
 
 /// Grab a snapshot of the current value of the timestamp counter.
-static inline SoftXMT_Timestamp SoftXMT_tick() {
-  SoftXMT_Timestamp old_timestamp = SoftXMT_current_timestamp; 
-  SoftXMT_current_timestamp = rdtsc();
+static inline Grappa_Timestamp Grappa_tick() {
+  Grappa_Timestamp old_timestamp = Grappa_current_timestamp; 
+  Grappa_current_timestamp = rdtsc();
   return old_timestamp;
 }
   
 /// Return the current snapshot of the timestamp counter.
-static inline SoftXMT_Timestamp SoftXMT_get_timestamp() { 
-  //SoftXMT_tick();
-  return SoftXMT_current_timestamp;
+static inline Grappa_Timestamp Grappa_get_timestamp() { 
+  //Grappa_tick();
+  return Grappa_current_timestamp;
 }
 
 #endif
