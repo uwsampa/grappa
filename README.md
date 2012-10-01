@@ -41,7 +41,7 @@ This guide will try to outline the key features of Grappa from an application's 
 ## Setup in main()
 Everything that goes in `main` is boiler-plate code. In a future version of the runtime/language this will probably be completely hidden from the programmer, but for now it is necessary for setup in all Grappa programs.
 
-We fire up Grappa programs similarly to how MPI works. Each node must call `SoftXMT_init`, `SoftXMT_activate` to configure the system, set up the communication layers, global memory, etc. Then by calling `SoftXMT_run_user_main`, the first task in the system, "user_main", is created and started on Node 0. Finally, `SoftXMT_finish` will tear down the system.
+We fire up Grappa programs similarly to how MPI works. Each node must call `Grappa_init`, `Grappa_activate` to configure the system, set up the communication layers, global memory, etc. Then by calling `Grappa_run_user_main`, the first task in the system, "user_main", is created and started on Node 0. Finally, `Grappa_finish` will tear down the system.
 
 ## User main
 Everything in the `user_main` function is run by the "main" task. There is actually nothing special about this task except that when it returns, the program terminates.
@@ -65,19 +65,19 @@ These addresses can be easily constructed from pointers with:
 
 Global allocator calls. For best results, probably should be called from in `user_main` only.
 
-* `SoftXMT_malloc`, `SoftXMT_typed_malloc`: allocate global memory, will be allocated in a round-robin fashion across all nodes in the system.
-* `SoftXMT_free`: free global memory allocated with the given global base address.
+* `Grappa_malloc`, `Grappa_typed_malloc`: allocate global memory, will be allocated in a round-robin fashion across all nodes in the system.
+* `Grappa_free`: free global memory allocated with the given global base address.
 
 ### Basic communication
-* `SoftXMT_call_on`: The most basic communication primitive we have. This sends an active message to a particular node to execute, using the Aggregator to make larger messages. This means that it could take a significant amount of time for a message to come back, and they will come back in an arbitrary order.
+* `Grappa_call_on`: The most basic communication primitive we have. This sends an active message to a particular node to execute, using the Aggregator to make larger messages. This means that it could take a significant amount of time for a message to come back, and they will come back in an arbitrary order.
 
 ### Delegates
-Can be called from anywhere except in an active message (so anything given to `SoftXMT_call_on` or at the target side of a generic delegate operation). These delegate operations suspend the calling task until the result comes back, so sequential consistency can be assumed within a task.
+Can be called from anywhere except in an active message (so anything given to `Grappa_call_on` or at the target side of a generic delegate operation). These delegate operations suspend the calling task until the result comes back, so sequential consistency can be assumed within a task.
 
-* `SoftXMT_delegate_read_word`: Read a 64-bit integer from another node.
-* `SoftXMT_delegate_write_word`: Write a 64-bit value on another node.
-* `SoftXMT_delegate_fetch_and_add_word`: Atomic fetch and add, useful for synchronization.
-* `SoftXMT_delegate_compare_and_swap_word`: Atomic compare and swap.
+* `Grappa_delegate_read_word`: Read a 64-bit integer from another node.
+* `Grappa_delegate_write_word`: Write a 64-bit value on another node.
+* `Grappa_delegate_fetch_and_add_word`: Atomic fetch and add, useful for synchronization.
+* `Grappa_delegate_compare_and_swap_word`: Atomic compare and swap.
 * Generic delegates which can run anything that doesn't involve suspending on another node.
 
 ### Feed-forward delegates
@@ -92,15 +92,15 @@ Explicitly managed caches allow us to gather a larger chunk of global memory at 
 
 ### Loop constructs/fork-join parallelism.
 
-* `fork_join_custom`: Primary method for running code on all nodes in the system. Launches a private task on each node to execute the given functor. Functions marked `ALLNODES`, such as `SoftXMT_barrier`'s should be called from in a `fork_join_custom` call.
+* `fork_join_custom`: Primary method for running code on all nodes in the system. Launches a private task on each node to execute the given functor. Functions marked `ALLNODES`, such as `Grappa_barrier`'s should be called from in a `fork_join_custom` call.
 * `async_parallel_for`: Recursive loop decomposition. Comes in several flavors, including:
 	- `global_async_parallel_for`: call in SIMD context, splits up array among nodes (evenly-sized blocks of the array are done by each node), and does stealing to load balance, uses GlobalTaskJoiner to do a complete phase.
 	- `async_parallel_for_private`: does recursive decomposition with all private tasks.
 * `forall_local`: Has each node iterate over the part of a global array that is allocated local to them. On each node, a recursive decomposition is done, so it is alright to call arbitrary delegate operations, etc.
 
 ### Collectives/barriers
-* `SoftXMT_allreduce`: called from SIMD context, arbitrary reduction operators can be specified. Can do an allreduce of an array, as well.
-* `SoftXMT_barrier_suspending`: called from SIMD context, has calling task suspend until one task from each node has entered the barrier. Note: this is the most reliable kind of barrier because it does not interrupt the polling thread so that other tasks can still execute delegate operations on nodes that have entered the barrier.
+* `Grappa_allreduce`: called from SIMD context, arbitrary reduction operators can be specified. Can do an allreduce of an array, as well.
+* `Grappa_barrier_suspending`: called from SIMD context, has calling task suspend until one task from each node has entered the barrier. Note: this is the most reliable kind of barrier because it does not interrupt the polling thread so that other tasks can still execute delegate operations on nodes that have entered the barrier.
 
 ## Example programs
 Some suggestions for places to find examples of how to use these features:
