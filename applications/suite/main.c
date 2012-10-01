@@ -31,7 +31,7 @@
 #endif
 
 // includes XMT version of fread & fwrite which flip endianness
-#include "../graph500/compatio.h"
+#include "compatio.h"
 
 #include <stdbool.h>
 #include <assert.h>
