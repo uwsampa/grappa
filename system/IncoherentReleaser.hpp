@@ -1,4 +1,10 @@
 
+// Copyright 2010-2012 University of Washington. All Rights Reserved.
+// LICENSE_PLACEHOLDER
+// This software was created with Government support under DE
+// AC05-76RL01830 awarded by the United States Department of
+// Energy. The Government has certain rights in the software.
+
 #ifndef __INCOHERENT_RELEASER_HPP__
 #define __INCOHERENT_RELEASER_HPP__
 
@@ -23,7 +29,7 @@ static void incoherent_release_request_am( typename IncoherentReleaser< T >::Req
                                            size_t size, 
                                            void * payload, size_t payload_size );
 
-
+/// Stats for IncoherentReleaser
 class IRStatistics {
   private:
     uint64_t release_ams;
@@ -52,6 +58,7 @@ class IRStatistics {
 extern IRStatistics incoherent_releaser_stats;
 
 
+/// IncoherentReleaser behavior for cache.
 template< typename T >
 class IncoherentReleaser {
 private:

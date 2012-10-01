@@ -1,4 +1,10 @@
 
+// Copyright 2010-2012 University of Washington. All Rights Reserved.
+// LICENSE_PLACEHOLDER
+// This software was created with Government support under DE
+// AC05-76RL01830 awarded by the United States Department of
+// Energy. The Government has certain rights in the software.
+
 #include <glog/logging.h>
 #include <gflags/gflags.h>
 
@@ -25,6 +31,7 @@ extern "C" {
 DEFINE_bool( global_memory_use_hugepages, USE_HUGEPAGES_DEFAULT, "use 1GB huge pages for global heap" );
 DEFINE_int64( global_memory_per_node_base_address, 0x0000123400000000L, "global memory base address");
 
+/// Round up to gigabyte page size
 static const size_t round_to_gb_huge_page( size_t size ) {
   const size_t half_gb_huge_page = (1L << 30) - 1;
   // make sure we use at least one gb huge page
@@ -34,6 +41,7 @@ static const size_t round_to_gb_huge_page( size_t size ) {
   return size;
 }
 
+/// Round up to 4KB page size
 static const size_t round_to_4kb_page( size_t size ) {
   const size_t half_4kb_page = (1L << 12) - 1;
   // make sure we use at least one page
@@ -43,11 +51,13 @@ static const size_t round_to_4kb_page( size_t size ) {
   return size;
 }
 
+/// Tear down GlobalMemoryChunk, removing shm region if possible
 GlobalMemoryChunk::~GlobalMemoryChunk() {
   PCHECK( -1 != shmdt( memory_ ) ) << "GlobalMemoryChunk destructor failed to detach from shared memory region";
   PCHECK( -1 != shmctl(shm_id_, IPC_RMID, NULL ) ) << "GlobalMemoryChunk destructor failed to deallocate shared memory region id";
 }
 
+/// Construct GlobalMemoryChunk.
 GlobalMemoryChunk::GlobalMemoryChunk( size_t size )
   : shm_key_( -1 )
   , shm_id_( -1 )

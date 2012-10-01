@@ -1,10 +1,17 @@
 
+// Copyright 2010-2012 University of Washington. All Rights Reserved.
+// LICENSE_PLACEHOLDER
+// This software was created with Government support under DE
+// AC05-76RL01830 awarded by the United States Department of
+// Energy. The Government has certain rights in the software.
+
 #include "GlobalAllocator.hpp"
 
 
-// global GlobalAllocator pointer
+/// global GlobalAllocator pointer
 GlobalAllocator * global_allocator = NULL;
 
+/// dump 
 std::ostream& operator<<( std::ostream& o, const GlobalAllocator& a ) {
   return a.dump( o );
 }
@@ -57,7 +64,7 @@ std::ostream& operator<<( std::ostream& o, const GlobalAllocator& a ) {
 //   SoftXMT_call_on( args->descriptor.node(), &GlobalAllocator_malloc_reply_am, &reply_args );
 // }
 
-
+/// Allocate size_bytes bytes from global heap.
 GlobalAddress< void > SoftXMT_malloc( size_t size_bytes ) {
   // // ask node 0 to allocate memory
   // malloc_descriptor descriptor;
@@ -98,7 +105,7 @@ GlobalAddress< void > SoftXMT_malloc( size_t size_bytes ) {
 // }
 
 
-// TODO: should free block?
+/// Frees memory in global heap
 void SoftXMT_free( GlobalAddress< void > address ) {
   // // ask node 0 to free memory
   // malloc_descriptor descriptor;

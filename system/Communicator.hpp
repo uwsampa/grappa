@@ -1,4 +1,10 @@
 
+// Copyright 2010-2012 University of Washington. All Rights Reserved.
+// LICENSE_PLACEHOLDER
+// This software was created with Government support under DE
+// AC05-76RL01830 awarded by the United States Department of
+// Energy. The Government has certain rights in the software.
+
 #ifndef __COMMUNICATOR_HPP__
 #define __COMMUNICATOR_HPP__
 
@@ -292,9 +298,12 @@ public:
     gasnet_AMMaxMedium() +                  // worst-case maximum, plus
     sizeof( int32_t ) * gasnet_AMMaxArgs(); // the space that would be used for arguments
 
-  /// construct
+  /// Construct communicator. Must call init() and activate() before
+  /// most methods may be called.
   Communicator( );
 
+  /// Begin setting up communicator. Must activate() before most
+  /// methods can be called.
   void init( int * argc_p, char ** argv_p[] );
 
   /// Register an active message handler with the communication
@@ -314,7 +323,10 @@ public:
     return current_handler_index;
   }
 
+  /// Finish setting up communicator. After this, all communicator
+  /// methods can be called.
   void activate();
+
   void finish( int retval = 0 );
 
   void dump_stats() { stats.dump(); }
@@ -333,20 +345,20 @@ public:
     return gasnet_nodes(); 
   }
 
-  /// Global (anonymous) barrier
+  /// Global (anonymous) barrier (ALLNODES)
   inline void barrier() {
     assert( communication_is_allowed_ );
     gasnet_barrier_notify( 0, GASNET_BARRIERFLAG_ANONYMOUS );
     GASNET_CHECK( gasnet_barrier_wait( 0, GASNET_BARRIERFLAG_ANONYMOUS ) );
   }
 
-  /// Global (anonymous) two-phase barrier notify
+  /// Global (anonymous) two-phase barrier notify (ALLNODES)
   inline void barrier_notify() {
     assert( communication_is_allowed_ );
     gasnet_barrier_notify( 0, GASNET_BARRIERFLAG_ANONYMOUS );
   }
   
-  /// Global (anonymous) two-phase barrier try
+  /// Global (anonymous) two-phase barrier try (ALLNODES)
   inline bool barrier_try() {
     return GASNET_OK == gasnet_barrier_try( 0, GASNET_BARRIERFLAG_ANONYMOUS );
   }

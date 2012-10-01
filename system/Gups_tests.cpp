@@ -1,3 +1,13 @@
+
+// Copyright 2010-2012 University of Washington. All Rights Reserved.
+// LICENSE_PLACEHOLDER
+// This software was created with Government support under DE
+// AC05-76RL01830 awarded by the United States Department of
+// Energy. The Government has certain rights in the software.
+
+/// One implementation of GUPS. This does no load-balancing, and may
+/// suffer from some load imbalance.
+
 #include <SoftXMT.hpp>
 #include "ForkJoin.hpp"
 #include "GlobalAllocator.hpp"
@@ -25,6 +35,7 @@ LOOP_FUNCTION( func_stop_profiling, index ) {
   SoftXMT_stop_profiling();
 }
 
+/// Functor to execute one GUP.
 LOOP_FUNCTOR( func_gups, index, ((GlobalAddress<int64_t>, Array)) ) {
   const uint64_t LARGE_PRIME = 18446744073709551557UL;
   uint64_t b = (index*LARGE_PRIME) % FLAGS_sizeA;

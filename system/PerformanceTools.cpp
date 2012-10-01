@@ -1,3 +1,10 @@
+
+// Copyright 2010-2012 University of Washington. All Rights Reserved.
+// LICENSE_PLACEHOLDER
+// This software was created with Government support under DE
+// AC05-76RL01830 awarded by the United States Department of
+// Energy. The Government has certain rights in the software.
+
 #include "PerformanceTools.hpp"
 
 #include <cstdio>
@@ -41,11 +48,13 @@ static char profiler_filename[PROFILER_FILENAME_LENGTH] = {0};
 // which profiling phase are we in? 
 static int profiler_phase = 0;
 
+/// Record binary name for use in construcing profiler filenames
 void SoftXMT_set_profiler_argv0( char * argv0 ) {
   argv0_for_profiler = argv0;
   time_for_profiler = time(NULL);
 }
 
+/// Get next filename for profiler files
 char * SoftXMT_get_next_profiler_filename( ) {
   // use Slurm environment variables if we can
   char * jobname = getenv("SLURM_JOB_NAME");
@@ -110,6 +119,7 @@ uint64_t app_counter_reset_vals[MAX_APP_COUNTERS];
 bool app_counter_doReset[MAX_APP_COUNTERS];
 int ae_next_id = 0;
 
+/// Take sample of user trace counters
 void SoftXMT_profiling_sample_user() {
 #ifdef VTRACE_SAMPLED
   for (int i=0; i<ae_next_id; i++) {
@@ -118,6 +128,7 @@ void SoftXMT_profiling_sample_user() {
 #endif
 }
 
+/// Add a new user trace counter
 void SoftXMT_add_profiling_counter(uint64_t * counter, std::string name, std::string abbrev, bool reset, uint64_t resetVal  ) {
 #ifdef VTRACE_SAMPLED
   if ( app_grp_vt == -1 ) app_grp_vt = VT_COUNT_GROUP_DEF( "App" );
@@ -132,6 +143,7 @@ void SoftXMT_add_profiling_counter(uint64_t * counter, std::string name, std::st
 #endif
 }
 
+/// Reset user trace counters
 void SoftXMT_reset_user_stats() {
 #ifdef VTRACE_SAMPLED
   for (int i=0; i<ae_next_id; i++) {

@@ -1,10 +1,16 @@
 
+// Copyright 2010-2012 University of Washington. All Rights Reserved.
+// LICENSE_PLACEHOLDER
+// This software was created with Government support under DE
+// AC05-76RL01830 awarded by the United States Department of
+// Energy. The Government has certain rights in the software.
+
 #ifndef __DELEGATE_HPP__
 #define __DELEGATE_HPP__
 
 #include "SoftXMT.hpp"
 
-
+/// Stats for delegate operations
 class DelegateStatistics {
 private:
   uint64_t ops;
@@ -120,22 +126,28 @@ public:
 extern DelegateStatistics delegate_stats;
 
 
+/// Delegate word write
 void SoftXMT_delegate_write_word( GlobalAddress<int64_t> address, int64_t data );
 
+/// Delegate word read
 int64_t SoftXMT_delegate_read_word( GlobalAddress<int64_t> address );
 
+/// Delegate word fetch and add
 int64_t SoftXMT_delegate_fetch_and_add_word( GlobalAddress<int64_t> address, int64_t data );
 
+/// Delegate word compare and swap
 bool SoftXMT_delegate_compare_and_swap_word(GlobalAddress<int64_t> address, int64_t cmpval, int64_t newval);
 
 template< typename T >
 struct memory_desc;
 
+/// Args for delegate generic read reply
 template< typename T >
 struct read_reply_args {
   GlobalAddress< memory_desc<T> > descriptor;
 };
 
+/// Handler for delegate generic read reply
 template< typename T >
 static void read_reply_am( read_reply_args<T> * args, size_t size, void * payload, size_t payload_size ) {
   DCHECK( payload_size == sizeof(T) );
@@ -150,6 +162,7 @@ static void read_reply_am( read_reply_args<T> * args, size_t size, void * payloa
   }
 }
 
+/// Descriptor for delegate generic read
 template< typename T >
 struct memory_desc {
   Thread * t;
@@ -160,12 +173,14 @@ struct memory_desc {
   int64_t network_time;
 };
 
+/// Args for delegate generic read request
 template< typename T >
 struct read_request_args {
   GlobalAddress< memory_desc<T> > descriptor;
   GlobalAddress<T> address;
 };
 
+/// Handler for delegate generic read request
 template< typename T >
 static void read_request_am( read_request_args<T> * args, size_t size, void * payload, size_t payload_size ) {
   delegate_stats.count_op_am();
@@ -182,6 +197,7 @@ static void read_request_am( read_request_args<T> * args, size_t size, void * pa
   }
 }
 
+/// Delegate generic read
 template< typename T >
 void SoftXMT_delegate_read( GlobalAddress<T> address, T * buf) {
   delegate_stats.count_op();
@@ -214,12 +230,14 @@ void SoftXMT_delegate_read( GlobalAddress<T> address, T * buf) {
   }
 }
 
+/// Generic delegate functor descriptor
 struct DelegateCallbackArgs {
   Thread * sleeper;
   void* forig; // pointer to original functor
   bool done;
 };
 
+/// Handler for generic delegate functor reply
 static void am_delegate_wake(GlobalAddress<DelegateCallbackArgs> * callback, size_t csz, void * p, size_t psz) {
   // copy possibly-modified functor back 
   // (allows user to modify func to effectively pass a return value back)
@@ -235,6 +253,7 @@ static void am_delegate_wake(GlobalAddress<DelegateCallbackArgs> * callback, siz
   args->done = true;
 }
 
+/// Handler for generic delegate functor request
 template<typename Func>
 static void am_delegate(GlobalAddress<DelegateCallbackArgs> * callback, size_t csz, void* p, size_t fsz) {
   delegate_stats.count_op_am();
@@ -275,26 +294,26 @@ void SoftXMT_delegate_func(Func * f, Node target) {
 /// Generic delegate operations, with templated argument, return type, function pointer
 ///
 
-/* TODO alternative is to take a GlobalAddress, which we can get
- * the target from, but then F will take the pointer part as an argument 
- */
+/// TODO: alternative is to take a GlobalAddress, which we can get the
+/// target from, but then F will take the pointer part as an argument
 
-// wrapper for the user's delegated function arguments
-// to include a pointer to the memory descriptor
+/// wrapper for the user's delegated function arguments
+/// to include a pointer to the memory descriptor
 template < typename ArgType, typename T > 
 struct generic_delegate_request_args {
   ArgType argument;
   GlobalAddress< memory_desc<T> > descriptor;
 };
 
+/// Args for generic delegate reply
 template < typename T > 
 struct generic_delegate_reply_args {
   T retVal;
   GlobalAddress< memory_desc<T> > descriptor;
 };
 
-// generic delegate reply active message
-// Fill the return value, wake the sleeping thread, mark operation as done
+/// Generic delegate reply active message
+/// Fill the return value, wake the sleeping thread, mark operation as done
 template < typename ArgType, typename ReturnType, ReturnType (*F)(ArgType) >
 void generic_delegate_reply_am( generic_delegate_reply_args<ReturnType> * args, size_t arg_size, void * payload, size_t payload_size ) {
   memory_desc<ReturnType> * md = args->descriptor.pointer();
@@ -314,8 +333,8 @@ void generic_delegate_reply_am( generic_delegate_reply_args<ReturnType> * args, 
   }
 }
 
-// generic delegate request active message
-// Call the delegated function, reply with the return value
+/// Generic delegate request active message
+/// Call the delegated function, reply with the return value
 template < typename ArgType, typename ReturnType, ReturnType (*F)(ArgType) >
 void generic_delegate_request_am( generic_delegate_request_args<ArgType,ReturnType> * args, size_t arg_size, void * payload, size_t payload_size ) {
   delegate_stats.count_op_am();

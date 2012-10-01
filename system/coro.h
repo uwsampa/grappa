@@ -1,3 +1,10 @@
+
+// Copyright 2010-2012 University of Washington. All Rights Reserved.
+// LICENSE_PLACEHOLDER
+// This software was created with Government support under DE
+// AC05-76RL01830 awarded by the United States Department of
+// Energy. The Government has certain rights in the software.
+
 #ifndef CORO_H
 #define CORO_H
 #ifdef __cplusplus
@@ -10,7 +17,11 @@ extern "C" {
 #include <stdint.h>
 #include "stack.h"
 #include <stdio.h>
-/* might add more fields later */
+
+/// worker/coroutine implementation
+/// TODO: merge threads and coroutines to make "workers"
+
+/// Coroutine struct
 typedef struct coro {
   int running;
   int suspended;
@@ -29,18 +40,16 @@ typedef struct coro {
   struct coro * next;
 } coro;
 
-/* Turns the current thread into a coro. */
+/// Turn the currently-running pthread into a "special" coroutine.
+/// This coroutine is used only to execute spawned coroutines.
 coro *coro_init();
 
-/*
-  allocates <ssize> bytes for stack.
-  If <ssize> = 0, allocate default (16k).
-  Does not run result, but when invoked, calls <f>.
-*/
+/// spawn a new coroutine, creating a stack and everything, but
+/// doesn't run until scheduled
 coro *coro_spawn(coro *me, coro_func f, size_t ssize);
 
-/* pass control to <to> (giving it <val>, either as an argument for a
- * new coro or the return value of its last invoke.) */
+/// pass control to <to> (giving it <val>, either as an argument for a
+/// new coro or the return value of its last invoke.)
 static inline void *coro_invoke(coro *me, coro *to, void *val) {
 #ifdef CORO_PROTECT_UNUSED_STACK
   if( to->base != NULL ) assert( 0 == mprotect( (void*)((intptr_t)to->base + 4096), to->ssize, PROT_READ | PROT_WRITE ) );
@@ -73,6 +82,7 @@ static inline void *coro_invoke(coro *me, coro *to, void *val) {
   return val;
 }
 
+/// Tear down a coroutine
 void destroy_coro(coro *c);
 
 #ifdef __cplusplus
