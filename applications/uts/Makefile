@@ -1,6 +1,22 @@
+# Copyright 2010-2012 University of Washington. All Rights Reserved.
+# LICENSE_PLACEHOLDER
+# This software was created with Government support under DE
+# AC05-76RL01830 awarded by the United States Department of
+# Energy. The Government has certain rights in the software.
+
+#
+# Compile and run the Grappa implementation of UTS-mem
+# uts_grappa.cpp -> uts_grappa.exe
+#
+
+
+#
+# see Makefile.uts for modification of original uts/Makefile
+#
+
 # include common variable definitions
 
-SOFTXMT_SYS=../system
+SOFTXMT_SYS=../../system
 
 include $(SOFTXMT_SYS)/Makefile
 

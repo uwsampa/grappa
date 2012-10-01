@@ -31,7 +31,6 @@
 
 
 // UTS-mem Grappa implementation specific command line parameters (using gflags instead of UTS impl_params)
-DEFINE_int64( num_places, 2, "Number of locality domains this is running on (e.g., machines, 'locales')" );
 DEFINE_int64( vertices_size, 1<<20, "Upper bound count of vertices" );
 DEFINE_bool( verify_tree, true, "Verify the generated tree" );
 
@@ -55,7 +54,6 @@ int    impl_paramsToStr(char * strBuf, int ind) {
 
   ind += sprintf(strBuf+ind, "Parallel search using %d processes\n", SoftXMT_nodes());
   ind += sprintf(strBuf+ind, "   up to %d threads per core\n", FLAGS_num_starting_workers );
-  ind += sprintf(strBuf+ind, "%d places\n", FLAGS_num_places);
 
   if (FLAGS_steal) {
     ind += sprintf(strBuf+ind, "    Dynamic load balance by work stealing, chunk size = %d nodes\n", FLAGS_chunk_size);
