@@ -486,7 +486,7 @@ int main(int argc, char* argv[]) {
 static void printHelp(const char * exe) {
   printf("Usage: %s [options]\nOptions:\n", exe);
   printf("  --help,h   Prints this help message displaying command-line options\n");
-  printf("  --scale,s  Scale of the graph: 2^SCALE vertices.\n");
+  printf("  --scale,s  Number of keys to be sorted: 2^SCALE keys.\n");
   printf("  --log2buckets,b  Number of buckets will be 2^log2buckets.\n");
   printf("  --log2maxkey,k   Maximum value of random numbers, range will be [0,2^log2maxkey)");
   printf("  --class,c   NAS Parallel Benchmark Class (problem size) (W, S, A, B, C, or D)");
