@@ -1,3 +1,10 @@
+
+// Copyright 2010-2012 University of Washington. All Rights Reserved.
+// LICENSE_PLACEHOLDER
+// This software was created with Government support under DE
+// AC05-76RL01830 awarded by the United States Department of
+// Energy. The Government has certain rights in the software.
+
 #ifndef STACK_H
 #define STACK_H
 
@@ -7,7 +14,8 @@ struct coro;
 
 typedef void (*coro_func)(struct coro *, void *arg);
 
-// move stacks from <old> to <new> and return <ret> (to new guy)
+/// Swap stacks. Save context to <old>, restore context from <new> and
+/// pass value <ret> to swapped-in stack.
 void* swapstacks(void **olds, void **news, void *ret)
   asm ("_swapstacks");
 
@@ -32,9 +40,9 @@ static inline void* swapstacks_inline(void **olds, void **news, void *ret) {
   return swapstacks( olds, news, ret );
 }
 
-// Given memory going DOWN FROM <stack>, create a basic stack we can swap to
-// (using swapstack) that will call <f>. (using <it> as its <me>).
-// <me> is a location we can store the current stack.
+/// Given memory going DOWN FROM <stack>, create a basic stack we can swap to
+/// (using swapstack) that will call <f>. (using <it> as its <me>).
+/// <me> is a location we can store the current stack.
 void makestack(void **me, void **stack, coro_func f, struct coro *it)
   asm ("_makestack");
 

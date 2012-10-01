@@ -1,3 +1,13 @@
+
+// Copyright 2010-2012 University of Washington. All Rights Reserved.
+// LICENSE_PLACEHOLDER
+// This software was created with Government support under DE
+// AC05-76RL01830 awarded by the United States Department of
+// Energy. The Government has certain rights in the software.
+
+/// worker/coroutine implementation
+/// TODO: merge threads and coroutines to make "workers"
+
 #include "coro.h"
 #include "stack.h"
 #include <assert.h>
@@ -7,13 +17,13 @@
 
 #include <stdio.h>
 
-// list of all coroutines
-// (used only for debugging)
+/// list of all coroutines (used only for debugging)
 coro * all_coros = NULL;
+/// total number of coroutines (used only for debugging)
 size_t total_coros = 0;
 
-// insert a coroutine into the list of all coroutines
-// (used only for debugging)
+/// insert a coroutine into the list of all coroutines
+/// (used only for debugging)
 void insert_coro( coro * c ) {
   // try to insert us in list going left
   if( all_coros ) {
@@ -26,8 +36,8 @@ void insert_coro( coro * c ) {
   all_coros = c;
 }
 
-// remove a coroutine from the list of all coroutines
-// (used only for debugging)
+/// remove a coroutine from the list of all coroutines
+/// (used only for debugging)
 void remove_coro( coro * c ) {
   // is there something to our left?
   if( c->prev ) {
@@ -41,6 +51,8 @@ void remove_coro( coro * c ) {
   }
 }
 
+/// spawn a new coroutine, creating a stack and everything, but
+/// doesn't run until scheduled
 coro *coro_spawn(coro *me, coro_func f, size_t ssize) {
   coro *c = (coro*)malloc(sizeof(coro));
   assert(c != NULL);
@@ -77,6 +89,8 @@ coro *coro_spawn(coro *me, coro_func f, size_t ssize) {
   return c;
 }
 
+/// Turn the currently-running pthread into a "special" coroutine.
+/// This coroutine is used only to execute spawned coroutines.
 coro *coro_init() {
   coro *me = (coro*)malloc(sizeof(coro));
   me->running = 1;
@@ -95,6 +109,7 @@ coro *coro_init() {
   return me;
 }
 
+/// Tear down a coroutine
 void destroy_coro(coro *c) {
   total_coros++;
   remove_coro(c); // remove from debugging list of coros

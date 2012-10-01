@@ -1,9 +1,11 @@
 
-/* for now, only support amd64 */
-/* inspired by:
- * http://charm.cs.uiuc.edu/papers/migThreads.www/node24.html#fig:fastswitch
- * and hacked up substantially
- */
+// Copyright 2010-2012 University of Washington. All Rights Reserved.
+// LICENSE_PLACEHOLDER
+// This software was created with Government support under DE
+// AC05-76RL01830 awarded by the United States Department of
+// Energy. The Government has certain rights in the software.
+
+/// NOTE: x86_64 only
 
 // define this only when we're using the minimal save context switcher
 // if you switch this off, you must update the swapstacks_inline settings in stack.h
@@ -137,6 +139,7 @@
         mov  0(%rsp), %r15; \
         add $56, %rsp;
 
+/// here's where we actually do the stack swapping
 .globl _swapstacks
 _swapstacks:
         SAVE_REGISTERS
@@ -147,7 +150,9 @@ _swapstacks:
         mov %rdx, %rax
         ret
 
-
+/// Given memory going DOWN FROM <stack>, create a basic stack we can swap to
+/// (using swapstack) that will call <f>. (using <it> as its <me>).
+/// <me> is a location we can store the current stack.
 .globl _makestack
 _makestack:
         /* save the needed arguments */

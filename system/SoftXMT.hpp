@@ -1,4 +1,10 @@
 
+// Copyright 2010-2012 University of Washington. All Rights Reserved.
+// LICENSE_PLACEHOLDER
+// This software was created with Government support under DE
+// AC05-76RL01830 awarded by the United States Department of
+// Energy. The Government has certain rights in the software.
+
 #ifndef __SOFTXMT_HPP__
 #define __SOFTXMT_HPP__
 
@@ -13,8 +19,14 @@
 //#include <typeinfo>
 //#include <cxxabi.h>
 
+/// global scheduler instance
 extern TaskingScheduler global_scheduler;
+
+/// pointer to parent pthread
 extern Thread * master_thread;
+
+/// for convenience/brevity, define macro to get current thread/worker
+/// pointer
 #define CURRENT_THREAD global_scheduler.get_current_thread()
 
 extern Node * node_neighbors;
@@ -167,27 +179,24 @@ void SoftXMT_signal_done( );
 /// User main signal tasks done
 void SoftXMT_end_tasks( );
 
+/// dump stats for this node
 void SoftXMT_dump_stats();
+/// dump stats for all nodes
 void SoftXMT_dump_stats_all_nodes();
 
+/// reset stats on this node
 void SoftXMT_reset_stats();
+/// reset stats on all nodes
 void SoftXMT_reset_stats_all_nodes();
 
+/// merge stats from all other nodes with this one and dump this node's stats
 void SoftXMT_merge_and_dump_stats();
 
 void SoftXMT_dump_task_series();
 
-/// Memory management routines.
 
-// // allocate a block of memory from generic pool
-// GlobalAddress< void > SoftXMT_malloc( size_t size_bytes );
 
-// // free a block of memory from generic pool
-// void SoftXMT_free( GlobalAddress< void > pointer );
 
-// /// allocate some number of some type of object
-// template< typename T >
-// GlobalAddress< T > SoftXMT_typed_malloc( size_t count );
 
 #include "Aggregator.hpp"
 

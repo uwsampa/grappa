@@ -1,4 +1,10 @@
 
+// Copyright 2010-2012 University of Washington. All Rights Reserved.
+// LICENSE_PLACEHOLDER
+// This software was created with Government support under DE
+// AC05-76RL01830 awarded by the United States Department of
+// Energy. The Government has certain rights in the software.
+
 #ifndef __AGGREGATOR_HPP__
 #define __AGGREGATOR_HPP__
 
@@ -36,7 +42,7 @@
 #endif
 #include "PerformanceTools.hpp"
 
-// function to compute a mpi-like tag for communication tracing
+/// macro to compute a mpi-like tag for communication tracing
 //#define aggregator_trace_tag(data) (int) (0x7FFF & reinterpret_cast<intptr_t>(data))
 #define aggregator_trace_tag(data) (0xffffffff & reinterpret_cast<intptr_t>(data))
 
@@ -48,11 +54,11 @@ DECLARE_bool( aggregator_enable );
 /// Type of aggregated active message handler
 typedef void (* AggregatorAMHandler)( void *, size_t, void *, size_t );
 
-/// Active message handler called to deaggregate aggregated messages.
 extern void Aggregator_deaggregate_am( gasnet_token_t token, void * buf, size_t size );
 
 extern bool aggregator_access_control_active;
 
+/// Least recently used queue for tracking when to send buffered active messages
 class LRQueue {
 private:
   struct LREntry {
@@ -154,7 +160,7 @@ public:
 };
 
 
-
+/// stats class for aggregator
 class AggregatorStatistics {
 private:
   uint64_t messages_aggregated_;
@@ -212,12 +218,16 @@ private:
 
   std::string hist_labels[16];
   
+  /// dump csv stats header 
+  /// TODO: remove. unused
   std::ostream& header( std::ostream& o ) {
     o << "AggregatorStatistics, header, time, messages_aggregated, bytes_aggregated, messages_aggregated_per_second, bytes_aggregated_per_second, flushes, timeouts";
     for (int i=0; i<16; i++) o << ", " << hist_labels[i];
     return o;
   }
 
+  /// dump csv stats data
+  /// TODO: remove. unused
   std::ostream& data( std::ostream& o, double time) {
     o << "AggregatorStatistics, data, " << time << ", ";
     double messages_aggregated_per_second = messages_aggregated_ / time;
@@ -233,6 +243,7 @@ private:
     return o;
   }
   
+  /// dump stats as a ruby map
   std::ostream& as_map( std::ostream& o, double time) {
     double messages_aggregated_per_second = messages_aggregated_ / time;
     double bytes_aggregated_per_second = bytes_aggregated_ / time;
@@ -259,6 +270,7 @@ private:
     return o;
   }
   
+  /// number of ticks since start_
   double time() {
     double end = SoftXMT_walltime();
     return end-start_;
@@ -476,6 +488,7 @@ struct AggregatorGenericCallHeader {
 #endif
 };
 
+/// dump human-readable aggregated active message header
 static std::ostream& operator<<( std::ostream& o, const AggregatorGenericCallHeader& h ) {
   return o << "[f="           << (void*) h.function_pointer 
            << ",d=" << h.destination
@@ -486,6 +499,7 @@ static std::ostream& operator<<( std::ostream& o, const AggregatorGenericCallHea
 }
 
 /// Active message aggregation per-destination storage class.
+  /// use default copy constructor and assignment operator
 template< const int max_size_ >
 class AggregatorBuffer {
 private:
@@ -499,12 +513,12 @@ public:
     : current_position_( 0 )
   { }
 
-  /// use default copy constructor and assignment operator
-
+  /// does a message of size fit in this buffer?
   inline bool fits( size_t size ) const { 
     return (current_position_ + size) < max_size_; 
   }
 
+  /// insert data into buffer. assumes it fits.
   inline void insert( const void * data, size_t size ) {
     newest_ts_ = SoftXMT_get_timestamp();
     if( current_position_ == 0 ) oldest_ts_ = newest_ts_;
@@ -513,6 +527,7 @@ public:
     current_position_ += size;
   }
 
+  // reset buffer
   inline void flush() {
     current_position_ = 0;
   }
@@ -526,17 +541,21 @@ private:
   /// max node count. used to allocate buffers.
   int max_nodes_;
 
+#ifdef GASNET_CONDUIT_IBV
   /// number of bytes in each aggregation buffer
   /// TODO: this should track the IB MTU
-#ifdef GASNET_CONDUIT_IBV
   static const unsigned int buffer_size_ = 4096 - 72;
 #endif
 #ifdef GASNET_CONDUIT_UDP
+  /// number of bytes in each aggregation buffer
   static const unsigned int buffer_size_ = 512 - 72;
 #endif
 #ifdef GASNET_CONDUIT_MPI
+  /// number of bytes in each aggregation buffer
   static const unsigned int buffer_size_ = 65000 - 72;
 #endif
+
+  /// buffer for sending non-aggregated messages
   char raw_send_buffer_[ buffer_size_ ];
 
   /// buffers holding aggregated messages. 
@@ -555,7 +574,9 @@ private:
   std::vector< Node > route_map_;
 
 #ifdef VTRACE_FULL
+  /// Vampir trace message metadata
   uint64_t tag_;
+  /// Vampir trace message metadata
   unsigned vt_agg_commid_;
 #endif
 
@@ -573,11 +594,14 @@ private:
   };
 
 #ifdef STL_DEBUG_ALLOCATOR
+  /// Storage for received pre-deaggregation GASNet active messages
   std::queue< ReceivedAM, std::deque< ReceivedAM, STLMemDebug::Allocator< ReceivedAM > > > received_AM_queue_;
 #else
+  /// Storage for received pre-deaggregation GASNet active messages
   std::queue< ReceivedAM > received_AM_queue_;
 #endif
 
+  /// Deaggregated buffered active messages
   void deaggregate( );
   friend void Aggregator_deaggregate_am( gasnet_token_t token, void * buf, size_t size );
 
@@ -588,14 +612,20 @@ public:
   /// Construct Aggregator.
   Aggregator( );
 
+  /// Initialize aggregator. 
   void init();
 
+  /// Tear down aggegator.
   ~Aggregator();
 
+  /// Clean up aggregator before destruction.
   void finish();
 
+  /// Dump aggregator stats
   void dump_stats() { stats.dump_as_map(); }
+  /// Merge aggregator stats with stats from another core
   void merge_stats();
+  /// Reset aggregator stats
   void reset_stats() { stats.reset(); }
 
   /// route map lookup for hierarchical aggregation
@@ -624,6 +654,7 @@ public:
     //DVLOG(5) << "heap after flush:\n" << least_recently_sent_.toString( );
   }
   
+  /// poll and optionally flush on idle
   inline void idle_flush_poll() {
     GRAPPA_FUNCTION_PROFILE( GRAPPA_COMM_GROUP );
 #ifdef VTRACE_FULL
@@ -648,11 +679,13 @@ public:
     return SoftXMT_get_timestamp();
    }
 
+  /// get delayed timestamp. 
+  /// TODO: remove. unused.
   inline uint64_t get_previous_timestamp() {
     return previous_timestamp_;
   }
 
-  /// poll communicator. send any aggregated messages that have been sitting for too long
+  /// poll communicator. send any aggregated messages that have been sitting for too long.
   inline void poll() {
     GRAPPA_FUNCTION_PROFILE( GRAPPA_COMM_GROUP );
 #ifdef VTRACE_FULL
@@ -680,13 +713,25 @@ public:
     previous_timestamp_ = ts;
   }
 
+  /// what's the largest message we can aggregate?
   inline const size_t max_size() const { return buffer_size_; }
+
+  /// how much space is available for aggregation to this destination?
   inline const size_t remaining_size( Node destination ) const { 
     Node target = get_target_for_node( destination );
     return buffer_size_ - buffers_[ target ].current_position_; 
   }
 
-inline void aggregate( Node destination, AggregatorAMHandler fn_p,
+  /// Aggregate a message. Do not call this directly; instead, call
+  /// SoftXMT_call_on().
+  ///
+  ///  @param destination core that will receive this message
+  ///  @param fn_p function pointer of handler to run on reception
+  ///  @param args pointer to arg struct
+  ///  @param args_size size in bytes of arg struct
+  ///  @param payload pointer to payload buffer
+  ///  @param payload_size size in bytes of payload buffer
+  inline void aggregate( Node destination, AggregatorAMHandler fn_p,
                          const void * args, const size_t args_size,
                          const void * payload, const size_t payload_size ) {
     GRAPPA_FUNCTION_PROFILE( GRAPPA_COMM_GROUP );
@@ -783,7 +828,14 @@ inline void aggregate( Node destination, AggregatorAMHandler fn_p,
 extern Aggregator global_aggregator;
 
 
-
+/// Aggregate a message.
+///
+///  @param destination core that will receive this message
+///  @param fn_p function pointer of handler to run on reception
+///  @param args pointer to arg struct
+///  @param args_size size in bytes of arg struct
+///  @param payload pointer to payload buffer
+///  @param payload_size size in bytes of payload buffer
 template< typename ArgsStruct >
 inline void SoftXMT_call_on( Node destination, void (* fn_p)(ArgsStruct *, size_t, void *, size_t), 
                              const ArgsStruct * args, const size_t args_size = sizeof( ArgsStruct ),
@@ -797,7 +849,9 @@ inline void SoftXMT_call_on( Node destination, void (* fn_p)(ArgsStruct *, size_
   StateTimer::stop_communication();
 }
 
-
+/// Aggregate a message. Same as SoftXMT_call_on(), but with a
+/// different payload type.
+/// TODO: deprecated. remove this.
 template< typename ArgsStruct, typename PayloadType >
 inline void SoftXMT_call_on_x( Node destination, void (* fn_p)(ArgsStruct *, size_t, PayloadType *, size_t), 
                                const ArgsStruct * args, const size_t args_size = sizeof( ArgsStruct ),

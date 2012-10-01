@@ -1,4 +1,10 @@
 
+// Copyright 2010-2012 University of Washington. All Rights Reserved.
+// LICENSE_PLACEHOLDER
+// This software was created with Government support under DE
+// AC05-76RL01830 awarded by the United States Department of
+// Energy. The Government has certain rights in the software.
+
 #ifndef __INCOHERENT_ACQUIRER_HPP__
 #define __INCOHERENT_ACQUIRER_HPP__
 
@@ -23,7 +29,7 @@ template< typename T >
 static void incoherent_acquire_request_am( typename IncoherentAcquirer< T >::RequestArgs * args, 
                                            size_t size, 
                                            void * payload, size_t payload_size );
-
+/// IncoherentAcquirer statistics
 class IAStatistics {
   private:
   uint64_t acquire_ams;
@@ -101,6 +107,7 @@ class IAStatistics {
 
 extern IAStatistics incoherent_acquirer_stats;
 
+/// IncoherentAcquirer behavior for Cache.
 template< typename T >
 class IncoherentAcquirer {
 private:
@@ -282,14 +289,16 @@ public:
     }
   }
 
+  /// Has acquire completed?
   bool acquired() const { return acquired_; }
 
-
+  /// Args for incoherent acquire reply
   struct ReplyArgs {
     GlobalAddress< IncoherentAcquirer > reply_address;
     int offset;
   };
 
+  /// Args for incoherent acquire request 
   struct RequestArgs {
     GlobalAddress< T > request_address;
     size_t request_bytes;
@@ -300,6 +309,7 @@ public:
 
 };
 
+/// Handler for incoherent acquire reply
 template< typename T >
 static void incoherent_acquire_reply_am( typename IncoherentAcquirer< T >::ReplyArgs * args, 
                                          size_t size, 
@@ -311,6 +321,7 @@ static void incoherent_acquire_reply_am( typename IncoherentAcquirer< T >::Reply
   args->reply_address.pointer()->acquire_reply( args->offset, payload, payload_size );
 }
 
+/// Handler for incoherent acquire request 
 template< typename T >
 static void incoherent_acquire_request_am( typename IncoherentAcquirer< T >::RequestArgs * args, 
                                     size_t size, 

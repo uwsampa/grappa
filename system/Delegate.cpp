@@ -1,4 +1,9 @@
 
+// Copyright 2010-2012 University of Washington. All Rights Reserved.
+// LICENSE_PLACEHOLDER
+// This software was created with Government support under DE
+// AC05-76RL01830 awarded by the United States Department of
+// Energy. The Government has certain rights in the software.
 
 #include "Delegate.hpp"
 #include "Timestamp.hpp"
@@ -11,7 +16,8 @@
 #include <gflags/gflags.h>
 #include <glog/logging.h>
 
-
+/// Descriptor for delegate operation.
+/// Used to hold state while waiting for reply.
 struct memory_descriptor {
   Thread * t;
   GlobalAddress<int64_t> address;
@@ -23,6 +29,7 @@ struct memory_descriptor {
 
 /////////////////////////////////////////////////////////////////////////////
 
+/// Wait for a delegate operation reply
 static inline void Delegate_wait( memory_descriptor * md ) {
   if( !md->done ) {
     md->start_time = SoftXMT_get_timestamp();
@@ -37,6 +44,7 @@ static inline void Delegate_wait( memory_descriptor * md ) {
   }
 }
 
+/// Wake a thread waiting on a delegate operation
 static inline void Delegate_wakeup( memory_descriptor * md ) {
   if( md->t != NULL ) {
     SoftXMT_wake( md->t );
@@ -49,21 +57,24 @@ static inline void Delegate_wakeup( memory_descriptor * md ) {
 
 /////////////////////////////////////////////////////////////////////////////
 
+/// Args for delegate word write reply
 struct memory_write_reply_args {
   GlobalAddress<memory_descriptor> descriptor;
 };
 
+/// Handler for delegate word write reply
 static void memory_write_reply_am( memory_write_reply_args * args, size_t size, void * payload, size_t payload_size ) {
   (args->descriptor.pointer())->done = true;
   Delegate_wakeup( args->descriptor.pointer() );
 }
 
+/// Args for delegate word write request
 struct memory_write_request_args {
   GlobalAddress<memory_descriptor> descriptor;
   GlobalAddress<int64_t> address;
 };
 
-
+/// Handler for delegate word write request
 static void memory_write_request_am( memory_write_request_args * args, size_t size, void * payload, size_t payload_size ) {
   delegate_stats.count_op_am();
   delegate_stats.count_word_write_am();
@@ -84,6 +95,7 @@ static void memory_write_request_am( memory_write_request_args * args, size_t si
   }
 }
 
+/// Delegate word write
 void SoftXMT_delegate_write_word( GlobalAddress<int64_t> address, int64_t data ) {
   delegate_stats.count_op();
   delegate_stats.count_word_write();
@@ -111,10 +123,12 @@ void SoftXMT_delegate_write_word( GlobalAddress<int64_t> address, int64_t data )
 
 /////////////////////////////////////////////////////////////////////////////
 
+/// Args for delegate word read reply
 struct memory_read_reply_args {
   GlobalAddress<memory_descriptor> descriptor;
 };
 
+/// Handler for delegate word read reply
 static void memory_read_reply_am( memory_read_reply_args * args, size_t size, void * payload, size_t payload_size ) {
   DCHECK_EQ( payload_size, sizeof(int64_t ) );
   args->descriptor.pointer()->data = *(static_cast<int64_t*>(payload));
@@ -122,12 +136,13 @@ static void memory_read_reply_am( memory_read_reply_args * args, size_t size, vo
   Delegate_wakeup( args->descriptor.pointer() );
 }
 
+/// Args for delegate word read request
 struct memory_read_request_args {
   GlobalAddress<memory_descriptor> descriptor;
   GlobalAddress<int64_t> address;
 };
 
-
+/// Handler for delegate word read request
 static void memory_read_request_am( memory_read_request_args * args, size_t size, void * payload, size_t payload_size ) {
   delegate_stats.count_op_am();
   delegate_stats.count_word_read_am();
@@ -147,6 +162,7 @@ static void memory_read_request_am( memory_read_request_args * args, size_t size
   }
 }
 
+/// Delegate word read
 int64_t SoftXMT_delegate_read_word( GlobalAddress<int64_t> address ) {
   delegate_stats.count_op();
   delegate_stats.count_word_read();
@@ -175,15 +191,18 @@ int64_t SoftXMT_delegate_read_word( GlobalAddress<int64_t> address ) {
 /////////////////////////////////////////////////////////////////////////////
 
 
+/// Args for delegate word fetch and add reply
 struct memory_fetch_add_reply_args {
   GlobalAddress<memory_descriptor> descriptor;
 };
 
+/// Args for delegate word fetch and add request
 struct memory_fetch_add_request_args {
   GlobalAddress<memory_descriptor> descriptor;
   GlobalAddress<int64_t> address;
 };
 
+/// Handler for delegate word fetch and add reply
 static void memory_fetch_add_reply_am( memory_fetch_add_reply_args * args, size_t size, void * payload, size_t payload_size ) {
   DCHECK_EQ( payload_size, sizeof(int64_t) );
   args->descriptor.pointer()->data = *(static_cast<int64_t*>(payload));
@@ -191,6 +210,7 @@ static void memory_fetch_add_reply_am( memory_fetch_add_reply_args * args, size_
   Delegate_wakeup( args->descriptor.pointer() );
 }
 
+/// Handler for delegate word fetch and add request.
 /// runs on server side to fetch data 
 static void memory_fetch_add_request_am( memory_fetch_add_request_args * args, size_t size, void * payload, size_t payload_size ) {
   delegate_stats.count_op_am();
@@ -212,6 +232,7 @@ static void memory_fetch_add_request_am( memory_fetch_add_request_args * args, s
   }
 }
 
+/// Delegate word fetch and add
 int64_t SoftXMT_delegate_fetch_and_add_word( GlobalAddress<int64_t> address, int64_t data ) {
   delegate_stats.count_op();
   delegate_stats.count_word_fetch_add();
@@ -246,16 +267,20 @@ int64_t SoftXMT_delegate_fetch_and_add_word( GlobalAddress<int64_t> address, int
   return md.data;
 }
 
+/// Args for delegate word compare and swap request
 struct cmp_swap_request_args {
   GlobalAddress<memory_descriptor> descriptor;
   GlobalAddress<int64_t> address;
   int64_t newval;
   int64_t cmpval;
 };
+
+/// Args for delegate word compare and swap reply
 struct cmp_swap_reply_args {
   GlobalAddress<memory_descriptor> descriptor;
 };
 
+/// Handler for delegate word compare and swap reply
 static void cmp_swap_reply_am(cmp_swap_reply_args * args, size_t size, void * payload, size_t payload_size) {
   DCHECK_EQ( payload_size, sizeof(int64_t) );
   args->descriptor.pointer()->data = *(static_cast<int64_t*>(payload));
@@ -263,6 +288,7 @@ static void cmp_swap_reply_am(cmp_swap_reply_args * args, size_t size, void * pa
   Delegate_wakeup( args->descriptor.pointer() );
 }
 
+/// Handler for delegate word compare and swap request
 static void cmp_swap_request_am(cmp_swap_request_args * args, size_t sz, void * p, size_t psz) {
   delegate_stats.count_op_am();
   delegate_stats.count_word_compare_swap_am();
@@ -285,6 +311,7 @@ static void cmp_swap_request_am(cmp_swap_request_args * args, size_t sz, void * 
   }
 }
 
+/// Delegate word compare and swap
 bool SoftXMT_delegate_compare_and_swap_word(GlobalAddress<int64_t> address, int64_t cmpval, int64_t newval) {
   delegate_stats.count_op();
   delegate_stats.count_word_compare_swap();

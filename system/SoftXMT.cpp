@@ -1,4 +1,10 @@
 
+// Copyright 2010-2012 University of Washington. All Rights Reserved.
+// LICENSE_PLACEHOLDER
+// This software was created with Government support under DE
+// AC05-76RL01830 awarded by the United States Department of
+// Energy. The Government has certain rights in the software.
+
 #include <signal.h>
 
 #ifdef HEAPCHECK
@@ -42,6 +48,7 @@ Node * node_neighbors;
 HeapLeakChecker * SoftXMT_heapchecker = 0;
 #endif
 
+/// Sample all stats for VampirTrace
 void SoftXMT_take_profiling_sample() {
   global_aggregator.stats.profiling_sample();
   global_communicator.stats.profiling_sample();
@@ -54,6 +61,7 @@ void SoftXMT_take_profiling_sample() {
   SoftXMT_profiling_sample_user();
 }
 
+/// Body of the polling thread.
 static void poller( Thread * me, void * args ) {
   StateTimer::setThreadState( StateTimer::COMMUNICATION );
   StateTimer::enterState_communication();
@@ -73,7 +81,7 @@ static void poller( Thread * me, void * args ) {
   VLOG(5) << "polling Thread exiting";
 }
 
-// handler for dumping stats on a signal
+/// handler for dumping stats on a signal
 static int stats_dump_signal = SIGUSR2;
 static void stats_dump_sighandler( int signum ) {
   // TODO: make this set a flag and have scheduler check and dump.
@@ -84,7 +92,7 @@ static void stats_dump_sighandler( int signum ) {
   LOG(INFO) << global_task_manager;
 }
 
-// handler for SIGABRT override
+/// handler to redirect SIGABRT override to activate a GASNet backtrace
 static void sigabrt_sighandler( int signum ) {
   raise( SIGUSR1 );
 }
@@ -233,6 +241,7 @@ void SoftXMT_activate()
   SoftXMT_barrier();
 }
 
+/// Split-phase barrier. (ALLNODES)
 void SoftXMT_barrier_suspending() {
   global_communicator.barrier_notify();
   barrier_thread = CURRENT_THREAD;
@@ -290,13 +299,14 @@ void SoftXMT_end_tasks() {
 //  SoftXMT_done_flag = true;
 //}
 
-/// Tell all nodes that we are ready to exit
+/// Tell all nodes that we are ready to exit.
 /// This will terminate the automatic portions of the communication layer
 void SoftXMT_signal_done ( ) { 
     VLOG(5) << "mark done";
     SoftXMT_done_flag = true;
 }
 
+/// Reset stats son this node
 void SoftXMT_reset_stats() {
   global_aggregator.reset_stats();
   global_communicator.reset_stats();
@@ -308,9 +318,11 @@ void SoftXMT_reset_stats() {
   SoftXMT_reset_user_stats(); 
 }
 
+/// Functor to reset stats on all nodes
 LOOP_FUNCTION(reset_stats_func,nid) {
   SoftXMT_reset_stats();
 }
+/// Reset stats on all nodes
 void SoftXMT_reset_stats_all_nodes() {
   reset_stats_func f;
   fork_join_custom(&f);
@@ -328,15 +340,19 @@ void SoftXMT_dump_stats() {
   cache_stats.dump();
 }
 
+/// Functor to dump stats on all nodes
 LOOP_FUNCTION(dump_stats_func,nid) {
   SoftXMT_dump_stats();
 }
+/// Dump stats on all nodes
 void SoftXMT_dump_stats_all_nodes() {
   dump_stats_func f;
   fork_join_custom(&f);
 }
 
-// XXX: yield based synchro
+
+
+/// Merge this node's stats with another node
 uint64_t merge_reply_count;
 #define NUM_STATS_MERGE 6
 static void merge_stats_task(int64_t target) {
@@ -350,10 +366,12 @@ static void merge_stats_task(int64_t target) {
   }
 }
 
+/// Functor to merge this node's stats with another node
 LOOP_FUNCTOR(merge_stats_task_func,nid, ((Node,target)) ) {
   merge_stats_task( target );
 }
 
+/// XXX: yield based synchro
 void SoftXMT_merge_and_dump_stats() {
   merge_reply_count = 0;
   merge_stats_task_func f;

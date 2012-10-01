@@ -1,19 +1,30 @@
 
+// Copyright 2010-2012 University of Washington. All Rights Reserved.
+// LICENSE_PLACEHOLDER
+// This software was created with Government support under DE
+// AC05-76RL01830 awarded by the United States Department of
+// Energy. The Government has certain rights in the software.
+
 #ifndef __ADDRESSING_HPP__
 #define __ADDRESSING_HPP__
 
 /// Global Addresses for SoftXMT
 ///
 ///
-/// 
-///
 /// We support two types of global addresses:
 /// -# 2D addresses
 /// -# Linear addresses 
 ///
-/// 2D addresses are node, address on node
+/// 2D addresses are a PGAS-style tuple of ( core, address on core )
 ///
-/// linear addresses are block cyclic
+/// Linear addresses are block cyclic across all the cores in the system.
+///
+/// TODO: update "node" to mean "core" in all the right places.  
+///
+/// TODO:Some of this code implies that linear addresses have a "pool"
+/// field. This is not how it works right now; instead, all non-tag
+/// bits store core id and address on core encoded in a way that makes
+/// incrementing by blocks work.
 
 #include "Communicator.hpp"
 
@@ -21,11 +32,16 @@ typedef int Pool;
 
 /// assumes user data will have the top 16 bits all 0.
 
+/// Number of bytes in each block 
 static const int block_size = sizeof(int64_t) * 8;
 
+/// How many address type bits?
 static const int tag_bits = 1;
+/// How many address bits?
 static const int pointer_bits = 48;
+/// How many 
 static const int node_bits = 64 - pointer_bits - tag_bits;
+/// How many bits of memory poll tag? TODO: not currently used.
 static const int pool_bits = 64 - pointer_bits - tag_bits;
 
 static const int tag_shift_val = 64 - tag_bits;
@@ -38,16 +54,27 @@ static const intptr_t node_mask = (1L << node_bits) - 1;
 static const intptr_t pool_mask = (1L << pool_bits) - 1;
 static const intptr_t pointer_mask = (1L << pointer_bits) - 1;
 
+/// Global address class
+///
+/// We support two types of global addresses:
+/// -# 2D addresses
+/// -# Linear addresses 
+///
+/// 2D addresses are a PGAS-style tuple of ( core, address on core )
+///
+/// Linear addresses are block cyclic across all the cores in the system.
 template< typename T >
 class GlobalAddress {
 private:
+
+  /// Storage for address
   intptr_t storage_;
   //DISALLOW_COPY_AND_ASSIGN( GlobalAddress );
   template< typename U > friend std::ostream& operator<<( std::ostream& o, const GlobalAddress< U >& ga );
   //friend template< typename U > GlobalAddress< U > operator+( const GlobalAddress< U >& t, ptrdiff_t i );
   template< typename U > friend ptrdiff_t operator-( const GlobalAddress< U >& t, const GlobalAddress< U >& u );
 
-
+  /// Output global address in human-readable form
   std::ostream& dump( std::ostream& o ) const {
     if( is_2D() ) {
       return o << "<GA 2D " << (void*)storage_ 
@@ -74,9 +101,10 @@ private:
 
 public:
 
+  /// Construct a global address, initialized to a null pointer
   GlobalAddress( ) : storage_( 0 ) { }
 
-  /// construct a 2D global address
+  /// Construct a 2D global address with an initial pointer and node.
   static GlobalAddress TwoDimensional( T * t, Node n = global_communicator.mynode() )
   {
     GlobalAddress g;
@@ -88,7 +116,8 @@ public:
     return g;
   }
 
-  /// construct a linear global address
+  /// Construct a linear global address from a local pointer.
+  /// TODO: the pool argument is currenly unused
   static GlobalAddress Linear( T * t, Pool p = 0 )
   {
     intptr_t tt = reinterpret_cast< intptr_t >( t );
@@ -112,7 +141,7 @@ public:
     return g;
   }
 
-  /// construct a global address from raw bits
+  /// Construct a global address from raw bits
   static GlobalAddress Raw( intptr_t t )
   {
     GlobalAddress g;
@@ -120,10 +149,12 @@ public:
     return g;
   }
 
+  /// Return the raw bits of a global address
   inline intptr_t raw_bits() const {
     return storage_;
   }
 
+  /// Return the home node of a global address
   inline Node node() const {
     if( is_2D() ) {
       return (storage_ >> node_shift_val) & node_mask;
@@ -134,12 +165,15 @@ public:
       return node;
     }
   }
-    
+
+  /// Return the home node of a global address
+  /// TODO: implement this.
   inline Pool pool() const {
+    CHECK( false ) << "Not implemented.";
     return (storage_ >> pool_shift_val) & pool_mask;
   }
     
-
+  /// Return the local pointer from a global address
   inline T * pointer() const { 
     if( is_2D() ) {
       intptr_t signextended = (storage_ << pointer_shift_val) >> pointer_shift_val;
@@ -153,6 +187,8 @@ public:
     }
   }
 
+  /// Find lowest local address of the object at this address.  Used
+  /// for PGAS-style local iteration.
   inline T * localize(Node nid = -1) const {
 	if (nid == -1) nid = global_communicator.mynode();
     T * local_base;
@@ -168,7 +204,7 @@ public:
     return local_base;
   }
 
-  // base address of block containing this byte
+  /// Find base address of block containing this byte.
   inline GlobalAddress< T > block_min() const { 
     if( is_2D() ) {
       //intptr_t signextended = (storage_ << pointer_shift_val) >> pointer_shift_val;
@@ -183,10 +219,12 @@ public:
     }
   }
 
+  /// find global byte address of first byte of block
   inline GlobalAddress< char > first_byte() const { 
     return GlobalAddress< char >::Raw( this->raw_bits() );
   }
 
+  /// find global byte address of last byte of block
   inline GlobalAddress< char > last_byte() const { 
     return GlobalAddress< char >::Raw( this->raw_bits() + sizeof(T) - 1 );
   }
@@ -208,10 +246,12 @@ public:
     }
   }
 
+  /// is this a 2D address?
   inline bool is_2D() const {
     return storage_ & tag_mask; 
   }
 
+  /// is this a linear address?
   inline bool is_linear() const {
     return !( storage_ & tag_mask );
   }
@@ -220,62 +260,72 @@ public:
   //   return block_size_;
   // }
 
+  /// increment address by one T
   inline GlobalAddress< T >& operator++() {
     storage_ += sizeof(T); 
     return *this;
   }
   
+  /// increment address by one T
   inline GlobalAddress< T > operator++(int) {
     GlobalAddress<T> result = *this;
     storage_ += sizeof(T);
     return result;
   }
 
-  //inline GlobalAddress< T > operator++(int i) { return storage_ ++ i; }
-
+  /// decrement address by one T
   inline GlobalAddress< T >& operator--() { 
     storage_ -= sizeof(T); 
     return *this; 
   }
   
   //inline GlobalAddress< T > operator--(int i) { return storage_ ++ i; }
-
+  /// increment address by i T's
   inline GlobalAddress< T >& operator+=(ptrdiff_t i) { 
     storage_ += i * sizeof(T); 
     return *this; 
   }
 
+  /// decrement address by i T's
   inline GlobalAddress< T >& operator-=(ptrdiff_t i) { 
     storage_ -= i * sizeof(T); 
     return *this; 
   }
 
+  /// test for equality
+  /// TODO: get rid of this
   bool equals( const GlobalAddress< T >& t ) const {
     return raw_bits() == t.raw_bits();
   }
 
+  /// test for equality
+  /// TODO: get rid of this
   bool operator==( const GlobalAddress< T >& t ) const {
     return raw_bits() == t.raw_bits();
   }
 
+  /// test for equality
   template< typename U >
   bool operator==( const GlobalAddress< U >& u ) const {
     return raw_bits() == u.raw_bits();
   }
   
+  /// compare addresses
   bool operator<(const GlobalAddress<T>& t) const {
     return raw_bits() < t.raw_bits();
   }
 
   //T& operator[]( ptrdiff_t index ) { return 
 
-  //TODO: do we really need this? leads to unneccessary type errors...
+  /// generic cast operator
+  /// TODO: do we really need this? leads to unneccessary type errors...
   template< typename U >
   operator GlobalAddress< U >( ) {
     GlobalAddress< U > u = GlobalAddress< U >::Raw( storage_ );
     return u;
   }
 
+  /// cast to void *.
   operator void * ( ) {
     void * u = reinterpret_cast< void * >( storage_ );
     return u;
@@ -284,7 +334,7 @@ public:
 };
 
 
-
+/// return an address that's i T's more than t.
 template< typename T >
 GlobalAddress< T > operator+( const GlobalAddress< T >& t, ptrdiff_t i ) {
   GlobalAddress< T > tt(t);
@@ -296,6 +346,7 @@ GlobalAddress< T > operator+( const GlobalAddress< T >& t, ptrdiff_t i ) {
 //   return t += i;
 // }
 
+/// return an address that's i T's less than t.
 template< typename T >
 GlobalAddress< T > operator-( const GlobalAddress< T >& t, ptrdiff_t i ) {
   GlobalAddress< T > tt(t);
@@ -307,6 +358,7 @@ GlobalAddress< T > operator-( const GlobalAddress< T >& t, ptrdiff_t i ) {
 //   return t -= i;
 // }
 
+/// how many T's different are t and u?
 template< typename T >
 inline ptrdiff_t operator-( const GlobalAddress< T >& t, const GlobalAddress< T >& u ) {
   //LOG(WARNING) << "Danger! You probably don't want to call this function. " 
@@ -314,16 +366,19 @@ inline ptrdiff_t operator-( const GlobalAddress< T >& t, const GlobalAddress< T 
   return (t.raw_bits() - u.raw_bits())/sizeof(T);
 }
 
+/// how many bytes different are t and u?
 template<  >
 inline ptrdiff_t operator-<char>( const GlobalAddress< char >& t, const GlobalAddress< char >& u ) {
   return t.raw_bits() - u.raw_bits();
 }
 
+/// return a 2d global pointer to a local pointer
 template< typename T >
 GlobalAddress< T > localToGlobal( T * t ) {
   return GlobalAddress< T >::TwoDimensional( t, global_communicator.mynode() );
 }
 
+/// return a 2d global pointer to a local pointer on a particular node
 template< typename T >
 GlobalAddress< T > make_global( T * t, Node n = global_communicator.mynode() ) {
   return GlobalAddress< T >::TwoDimensional( t, n );
@@ -337,7 +392,7 @@ GlobalAddress< T > make_linear( T * t ) {
   return GlobalAddress< T >::Linear( t );
 }
 
-
+/// output human-readable version of global address
 template< typename T >
 std::ostream& operator<<( std::ostream& o, const GlobalAddress< T >& ga ) {
   return ga.dump( o );

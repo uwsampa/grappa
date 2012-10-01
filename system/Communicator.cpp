@@ -1,4 +1,10 @@
 
+// Copyright 2010-2012 University of Washington. All Rights Reserved.
+// LICENSE_PLACEHOLDER
+// This software was created with Government support under DE
+// AC05-76RL01830 awarded by the United States Department of
+// Energy. The Government has certain rights in the software.
+
 #include <cassert>
 
 #ifdef HEAPCHECK
@@ -8,10 +14,10 @@ extern HeapLeakChecker * SoftXMT_heapchecker;
 
 #include "Communicator.hpp"
 
-// global communicator instance
+/// Global communicator instance
 Communicator global_communicator;
 
-///construct
+/// Construct communicator
 Communicator::Communicator( )
   : handlers_()
   , registration_is_allowed_( false )
