@@ -7,7 +7,7 @@
 
 #include <boost/test/unit_test.hpp>
 
-#include "SoftXMT.hpp"
+#include "Grappa.hpp"
 
 
 BOOST_AUTO_TEST_SUITE( Thread_tests );
@@ -20,7 +20,7 @@ void child1( thread * me, th_args * args )
  BOOST_MESSAGE( "Spawning child1 thread " << (void *) current_thread <<
                  " " << me <<
                  " " << args->str <<
-                 " on node " << SoftXMT_mynode() );
+                 " on node " << Grappa_mynode() );
 }
 
 void user_main( thread * me, void * args ) 
@@ -29,34 +29,34 @@ void user_main( thread * me, void * args )
   BOOST_MESSAGE( "Spawning user main thread " << (void *) current_thread <<
                  " " << me <<
                  " " << str <<
-                 " on node " << SoftXMT_mynode() );
+                 " on node " << Grappa_mynode() );
   //char str1[] = "hello from child1-1";
   th_args a = { "hello from child1-1" };
-  SoftXMT_remote_spawn( &child1, &a, 1);
+  Grappa_remote_spawn( &child1, &a, 1);
   BOOST_MESSAGE( "user main after spawn child1 thread " << (void *) current_thread <<
                  " " << me <<
                  " " << str <<
-                 " on node " << SoftXMT_mynode() );
+                 " on node " << Grappa_mynode() );
 
-  SoftXMT_signal_done();
+  Grappa_signal_done();
 }
 
 BOOST_AUTO_TEST_CASE( test1 ) {
 
-  SoftXMT_init( &(boost::unit_test::framework::master_test_suite().argc),
+  Grappa_init( &(boost::unit_test::framework::master_test_suite().argc),
                 &(boost::unit_test::framework::master_test_suite().argv) );
 
-  SoftXMT_activate();
+  Grappa_activate();
 
   BOOST_MESSAGE( "main before user main thread " << (void *) current_thread <<
-                 " on node " << SoftXMT_mynode() );
+                 " on node " << Grappa_mynode() );
   char str[] = "user main";
-  SoftXMT_run_user_main( &user_main, str );
-  BOOST_CHECK( SoftXMT_done() == true );
+  Grappa_run_user_main( &user_main, str );
+  BOOST_CHECK( Grappa_done() == true );
   BOOST_MESSAGE( "main after user main thread " << (void *) current_thread <<
-                 " on node " << SoftXMT_mynode() );
+                 " on node " << Grappa_mynode() );
 
-  SoftXMT_finish( 0 );
+  Grappa_finish( 0 );
 }
 
 BOOST_AUTO_TEST_SUITE_END();

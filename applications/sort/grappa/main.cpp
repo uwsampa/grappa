@@ -21,7 +21,7 @@
 #include <boost/random/variate_generator.hpp>
 #include <limits>
 
-#include <SoftXMT.hpp>
+#include <Grappa.hpp>
 #include <GlobalAllocator.hpp>
 #include <Cache.hpp>
 #include <ForkJoin.hpp>
@@ -35,10 +35,10 @@
 /// Does a bucket sort of a bunch of 64-bit integers, beginning and ending in a Grappa global array.
 
 namespace grappa {
-  inline int64_t read(GlobalAddress<int64_t> addr) { return SoftXMT_delegate_read_word(addr); }
-  inline void write(GlobalAddress<int64_t> addr, int64_t val) { return SoftXMT_delegate_write_word(addr, val); }
+  inline int64_t read(GlobalAddress<int64_t> addr) { return Grappa_delegate_read_word(addr); }
+  inline void write(GlobalAddress<int64_t> addr, int64_t val) { return Grappa_delegate_write_word(addr, val); }
   inline bool cmp_swap(GlobalAddress<int64_t> address, int64_t cmpval, int64_t newval) {
-    return SoftXMT_delegate_compare_and_swap_word(address, cmpval, newval);
+    return Grappa_delegate_compare_and_swap_word(address, cmpval, newval);
   }
 }
 
@@ -110,7 +110,7 @@ bool generate_and_save;
 inline void set_random(uint64_t * v) {
   // continue using same generator with multiple calls (to not repeat numbers)
   // but start at different seed on each node so we don't get overlap
-  static engine_t engine(12345L*SoftXMT_mynode());
+  static engine_t engine(12345L*Grappa_mynode());
   static gen_t gen(engine, dist_t(0, maxkey));
   
   *v = gen();
@@ -151,7 +151,7 @@ inline void print_array(const char * name, GlobalAddress<T> base, size_t nelem) 
 /// Get total bucket counts on all nodes
 LOOP_FUNCTION(aggregate_counts, nid ) {
   // all nodes get total counts put into their counts array
-  SoftXMT_allreduce<size_t,coll_add<size_t>,0>(&counts[0], nbuckets);
+  Grappa_allreduce<size_t,coll_add<size_t>,0>(&counts[0], nbuckets);
 
   // prefix sum
   offsets[0] = 0;
@@ -216,7 +216,7 @@ inline void put_back_bucket(bucket_t * bucket) {
 void bucket_sort(GlobalAddress<uint64_t> array, size_t nelems, size_t nbuckets) {
   double t, sort_time, histogram_time, allreduce_time, scatter_time, local_sort_scatter_time, put_back_time;
 
-  GlobalAddress<bucket_t> bucketlist = SoftXMT_typed_malloc<bucket_t>(nbuckets);
+  GlobalAddress<bucket_t> bucketlist = Grappa_typed_malloc<bucket_t>(nbuckets);
 
 #ifdef DEBUG
   for (size_t i=0; i<nbuckets; i++) {
@@ -225,25 +225,25 @@ void bucket_sort(GlobalAddress<uint64_t> array, size_t nelems, size_t nbuckets) 
   }
 #endif
 
-      sort_time = SoftXMT_walltime();
+      sort_time = Grappa_walltime();
 
   // initialize globals and histogram counts
   { setup_counts f(array, nbuckets, bucketlist); fork_join_custom(&f); }
 
-      t = SoftXMT_walltime();
+      t = Grappa_walltime();
 
   // do local bucket counts
   forall_local<uint64_t,histogram>(array, nelems);
 
-      histogram_time = SoftXMT_walltime() - t;
+      histogram_time = Grappa_walltime() - t;
       LOG(INFO) << "histogram_time: " << histogram_time;
     
-      t = SoftXMT_walltime();
+      t = Grappa_walltime();
 
   // allreduce everyone's counts & compute global offsets (prefix sum)
   { aggregate_counts f; fork_join_custom(&f); }
     
-      allreduce_time = SoftXMT_walltime() - t;
+      allreduce_time = Grappa_walltime() - t;
       LOG(INFO) << "allreduce_time: " << allreduce_time;
 
   // allocate space in buckets
@@ -251,31 +251,31 @@ void bucket_sort(GlobalAddress<uint64_t> array, size_t nelems, size_t nbuckets) 
   forall_local<bucket_t,init_buckets>(bucketlist, nbuckets);
   
   VLOG(3) << "scattering...";
-      t = SoftXMT_walltime();
+      t = Grappa_walltime();
 
   // scatter into buckets
   forall_local<uint64_t,scatter>(array, nelems);
     
-      scatter_time = SoftXMT_walltime() - t;
+      scatter_time = Grappa_walltime() - t;
       LOG(INFO) << "scatter_time: " << scatter_time;
 
-      t = SoftXMT_walltime();
+      t = Grappa_walltime();
 
   // sort buckets locally
   forall_local<bucket_t,sort_bucket>(bucketlist, nbuckets);
 
-      local_sort_scatter_time = SoftXMT_walltime() - t;
+      local_sort_scatter_time = Grappa_walltime() - t;
       LOG(INFO) << "local_sort_time: " << local_sort_scatter_time;
   
-      t = SoftXMT_walltime(); 
+      t = Grappa_walltime(); 
   
   // redistribute buckets back into global array  
   forall_local<bucket_t,put_back_bucket>(bucketlist, nbuckets);
     
-      put_back_time = SoftXMT_walltime() - t;
+      put_back_time = Grappa_walltime() - t;
       LOG(INFO) << "put_back_time: " << put_back_time;
   
-      sort_time = SoftXMT_walltime() - sort_time;
+      sort_time = Grappa_walltime() - sort_time;
       LOG(INFO) << "total_sort_time: " << sort_time;
 }
 
@@ -302,7 +302,7 @@ struct save_array_func : ForkJoinIteration {
   save_array_func( const char dirname[256], GlobalAddress<T> array, size_t nelems):
     array(array), nelems(nelems) { memcpy(this->dirname, dirname, 256); }
   void operator()(int64_t nid) const {
-    range_t r = blockDist(0, nelems, SoftXMT_mynode(), SoftXMT_nodes());
+    range_t r = blockDist(0, nelems, Grappa_mynode(), Grappa_nodes());
     char fname[256]; sprintf(fname, "%s/block.%ld.%ld.gblk", dirname, r.start, r.end);
     std::fstream fo(fname, std::ios::out | std::ios::binary);
     
@@ -330,11 +330,11 @@ void save_array(const char (&dirname)[256], GlobalAddress<T> array, size_t nelem
     }
   }
 
-  double t = SoftXMT_walltime();
+  double t = Grappa_walltime();
 
   { save_array_func<T> f(dirname, array, nelems); fork_join_custom(&f); }
   
-  t = SoftXMT_walltime() - t;
+  t = Grappa_walltime() - t;
   LOG(INFO) << "save_array_time: " << t;
   LOG(INFO) << "save_rate_mbps: " << ((double)nelems * sizeof(T) / (1L<<20)) / t;
 }
@@ -352,7 +352,7 @@ struct read_array_func : ForkJoinIteration {
   read_array_func( const char dirname[256], GlobalAddress<T> array, size_t nelems, GlobalAddress<int64_t> locks):
     array(array), nelems(nelems), locks(locks) { memcpy(this->dirname, dirname, 256); }
   void operator()(int64_t nid) const {
-    range_t r = blockDist(0, nelems, SoftXMT_mynode(), SoftXMT_nodes());
+    range_t r = blockDist(0, nelems, Grappa_mynode(), Grappa_nodes());
 
     const size_t NBUF = BUFSIZE/sizeof(T);
     T * buf = new T[NBUF];
@@ -361,10 +361,10 @@ struct read_array_func : ForkJoinIteration {
     fs::directory_iterator d(dirname);
     for (size_t i = 0; d != fs::directory_iterator(); i++, d++) {
       // to save time in common case, the first files go to the first nodes
-      if (i < SoftXMT_mynode()) continue;
+      if (i < Grappa_mynode()) continue;
 
       // take assigned file, otherwise check if anyone else is reading this already
-      if (i == SoftXMT_mynode() || grappa::cmp_swap(locks+i, 0, 1)) {
+      if (i == Grappa_mynode() || grappa::cmp_swap(locks+i, 0, 1)) {
         const char * fname = d->path().stem().string().c_str();
         int64_t start, end;
         sscanf(fname, "block.%ld.%ld", &start, &end);
@@ -388,19 +388,19 @@ struct read_array_func : ForkJoinIteration {
 
 template < typename T >
 void read_array(const char (&dirname)[256], GlobalAddress<T> array, size_t nelems) {
-  double t = SoftXMT_walltime();
+  double t = Grappa_walltime();
   
   size_t nfiles = std::distance(fs::directory_iterator(dirname), fs::directory_iterator());
-  GlobalAddress<int64_t> file_taken = SoftXMT_typed_malloc<int64_t>(nfiles);
-  SoftXMT_memset_local(file_taken, (int64_t)0, nfiles);
+  GlobalAddress<int64_t> file_taken = Grappa_typed_malloc<int64_t>(nfiles);
+  Grappa_memset_local(file_taken, (int64_t)0, nfiles);
 
   { read_array_func<T> f(dirname, array, nelems, file_taken); fork_join_custom(&f); }
   
-  t = SoftXMT_walltime() - t;
+  t = Grappa_walltime() - t;
   LOG(INFO) << "read_array_time: " << t;
   LOG(INFO) << "read_rate_mbps: " << ((double)nelems * sizeof(T) / (1L<<20)) / t;
 
-  SoftXMT_free(file_taken);
+  Grappa_free(file_taken);
   //const size_t hdfs_block_size = 128 * (1L<<20);
 
   //for (fs::director_iterator d(dirname); d != director_iterator(); d++) {
@@ -410,7 +410,7 @@ void read_array(const char (&dirname)[256], GlobalAddress<T> array, size_t nelem
 }
 
 void user_main(void* ignore) {
-  SoftXMT_reset_stats();
+  Grappa_reset_stats();
 
   double t, rand_time;
 
@@ -422,18 +422,18 @@ void user_main(void* ignore) {
   LOG(INFO) << "iobufsize_mb: " << (double)BUFSIZE/(1L<<20);
   LOG(INFO) << "block_size: " << block_size;
 
-  GlobalAddress<uint64_t> array = SoftXMT_typed_malloc<uint64_t>(nelems);
+  GlobalAddress<uint64_t> array = Grappa_typed_malloc<uint64_t>(nelems);
 
   char dirname[256]; sprintf(dirname, "/scratch/hdfs/sort/uniform.%ld.%ld", scale, log2maxkey);
 
   if (!read_from_disk || (read_from_disk && !fs::exists(dirname))) {
     LOG(INFO) << "generating...";
-      t = SoftXMT_walltime();
+      t = Grappa_walltime();
 
     // fill vector with random 64-bit integers
     forall_local<uint64_t,set_random>(array, nelems);
 
-      rand_time = SoftXMT_walltime() - t;
+      rand_time = Grappa_walltime() - t;
       LOG(INFO) << "fill_random_time: " << rand_time;
   }
 
@@ -447,7 +447,7 @@ void user_main(void* ignore) {
   }
 
   if (read_from_disk) {
-    SoftXMT_memset_local(array, (uint64_t)0, nelems);
+    Grappa_memset_local(array, (uint64_t)0, nelems);
     read_array(dirname, array, nelems);
   }
 
@@ -468,18 +468,18 @@ void user_main(void* ignore) {
     }
   }
 
-  SoftXMT_merge_and_dump_stats();
+  Grappa_merge_and_dump_stats();
 }
 
 int main(int argc, char* argv[]) {
-  SoftXMT_init(&argc, &argv);
-  SoftXMT_activate();
+  Grappa_init(&argc, &argv);
+  Grappa_activate();
   
   parseOptions(argc, argv);
   
-  SoftXMT_run_user_main(&user_main, (void*)NULL);
+  Grappa_run_user_main(&user_main, (void*)NULL);
   
-  SoftXMT_finish(0);
+  Grappa_finish(0);
   return 0;
 }
 
@@ -514,7 +514,7 @@ static void parseOptions(int argc, char ** argv) {
   // at least 2*num_nodes buckets by default
   nbuckets = 2;
   log2buckets = 1;
-  Node nodes = SoftXMT_nodes();
+  Node nodes = Grappa_nodes();
   while (nbuckets < nodes) {
     nbuckets <<= 1;
     log2buckets++;

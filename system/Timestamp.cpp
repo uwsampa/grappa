@@ -8,5 +8,5 @@
 #include "Timestamp.hpp"
 
 /// Holds snapshot of current timestamp returned when get_timestamp() is called
-SoftXMT_Timestamp SoftXMT_current_timestamp = 0;
+Grappa_Timestamp Grappa_current_timestamp = 0;
 

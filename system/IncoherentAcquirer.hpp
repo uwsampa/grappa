@@ -8,7 +8,7 @@
 #ifndef __INCOHERENT_ACQUIRER_HPP__
 #define __INCOHERENT_ACQUIRER_HPP__
 
-#include "SoftXMT.hpp"
+#include "Grappa.hpp"
 #include "Addressing.hpp"
 
 
@@ -74,7 +74,7 @@ class IAStatistics {
 
   inline void record_wakeup_latency( int64_t start_time, int64_t network_time ) { 
     acquire_blocked++; 
-    int64_t current_time = SoftXMT_get_timestamp();
+    int64_t current_time = Grappa_get_timestamp();
     int64_t blocked_latency = current_time - start_time;
     int64_t wakeup_latency = current_time - network_time;
     acquire_blocked_ticks_total += blocked_latency;
@@ -90,7 +90,7 @@ class IAStatistics {
   }
 
   inline void record_network_latency( int64_t start_time ) { 
-    int64_t current_time = SoftXMT_get_timestamp();
+    int64_t current_time = Grappa_get_timestamp();
     int64_t latency = current_time - start_time;
     acquire_network_ticks_total += latency;
     if( latency > acquire_network_ticks_max )
@@ -161,7 +161,7 @@ public:
       acquired_ = true;
     } else if( request_address_->is_2D() ) {
       num_messages_ = 1;
-      if( request_address_->node() == SoftXMT_mynode() ) {
+      if( request_address_->node() == Grappa_mynode() ) {
         DVLOG(5) << "Short-circuiting to address " << request_address_->pointer();
         *pointer_ = request_address_->pointer();
         acquire_started_ = true;
@@ -226,7 +226,7 @@ public:
                  << " of total bytes = " << *count_ * sizeof(T)
                  << " from " << args.request_address;
 
-        SoftXMT_call_on( args.request_address.node(), &incoherent_acquire_request_am<T>, &args );
+        Grappa_call_on( args.request_address.node(), &incoherent_acquire_request_am<T>, &args );
 
 	// TODO: change type so we don't screw with pointer like this
         args.request_address = GlobalAddress<T>::Raw( args.request_address.raw_bits() + args.request_bytes );
@@ -245,7 +245,7 @@ public:
               << " ready to block on " << *request_address_ 
               << " * " << *count_ ;
       if( !acquired_ ) {
-	start_time_ = SoftXMT_get_timestamp();
+	start_time_ = Grappa_get_timestamp();
       } else {
 	start_time_ = 0;
       }
@@ -255,7 +255,7 @@ public:
               << " * " << *count_ ;
         if( !acquired_ ) {
           thread_ = CURRENT_THREAD;
-          SoftXMT_suspend();
+          Grappa_suspend();
           thread_ = NULL;
         }
         DVLOG(5) << "Thread " << CURRENT_THREAD 
@@ -280,10 +280,10 @@ public:
                                                                  << " and count = " << *count_;
       acquired_ = true;
       if( thread_ != NULL ) {
-        SoftXMT_wake( thread_ );
+        Grappa_wake( thread_ );
       }
       if( start_time_ != 0 ) {
-	network_time_ = SoftXMT_get_timestamp();
+	network_time_ = Grappa_get_timestamp();
 	incoherent_acquirer_stats.record_network_latency( start_time_ );
       }
     }
@@ -341,7 +341,7 @@ static void incoherent_acquire_request_am( typename IncoherentAcquirer< T >::Req
            << " request address " << args->request_address
            << " payload address " << args->request_address.pointer()
            << " payload size " << args->request_bytes;
-  SoftXMT_call_on( args->reply_address.node(), incoherent_acquire_reply_am<T>,
+  Grappa_call_on( args->reply_address.node(), incoherent_acquire_reply_am<T>,
                    &reply_args, sizeof( reply_args ),  
                    args->request_address.pointer(), args->request_bytes );
   DVLOG(5) << "Thread " << CURRENT_THREAD 

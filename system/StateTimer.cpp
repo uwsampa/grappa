@@ -5,7 +5,7 @@
 // Energy. The Government has certain rights in the software.
 
 #include "StateTimer.hpp"
-#include "SoftXMT.hpp"
+#include "Grappa.hpp"
 
 StateTimer * state_timer;
 

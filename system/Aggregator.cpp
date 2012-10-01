@@ -8,7 +8,7 @@
 #include <gflags/gflags.h>
 
 #include "Aggregator.hpp"
-#include "SoftXMT.hpp"
+#include "Grappa.hpp"
 #include <csignal>
 
 #include "PerformanceTools.hpp"
@@ -144,7 +144,7 @@ void Aggregator::deaggregate( ) {
                 << " with args " << args
                 << " and payload " << payload;
 	stats.record_forward( sizeof( AggregatorGenericCallHeader ) + header->args_size + header->payload_size );
-        SoftXMT_call_on( header->destination, fp, args, header->args_size, payload, header->payload_size );
+        Grappa_call_on( header->destination, fp, args, header->args_size, payload, header->payload_size );
       }
       i += sizeof( AggregatorGenericCallHeader ) + header->args_size + header->payload_size;
       msg_base += sizeof( AggregatorGenericCallHeader ) + header->args_size + header->payload_size;

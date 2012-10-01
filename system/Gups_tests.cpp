@@ -8,7 +8,7 @@
 /// One implementation of GUPS. This does no load-balancing, and may
 /// suffer from some load imbalance.
 
-#include <SoftXMT.hpp>
+#include <Grappa.hpp>
 #include "ForkJoin.hpp"
 #include "GlobalAllocator.hpp"
 
@@ -28,18 +28,18 @@ double wall_clock_time() {
 BOOST_AUTO_TEST_SUITE( Gups_tests );
 
 LOOP_FUNCTION( func_start_profiling, index ) {
-  SoftXMT_start_profiling();
+  Grappa_start_profiling();
 }
 
 LOOP_FUNCTION( func_stop_profiling, index ) {
-  SoftXMT_stop_profiling();
+  Grappa_stop_profiling();
 }
 
 /// Functor to execute one GUP.
 LOOP_FUNCTOR( func_gups, index, ((GlobalAddress<int64_t>, Array)) ) {
   const uint64_t LARGE_PRIME = 18446744073709551557UL;
   uint64_t b = (index*LARGE_PRIME) % FLAGS_sizeA;
-  SoftXMT_delegate_fetch_and_add_word( Array + b, 1 );
+  Grappa_delegate_fetch_and_add_word( Array + b, 1 );
 }
 
 void user_main( int * args ) {
@@ -47,7 +47,7 @@ void user_main( int * args ) {
   func_start_profiling start_profiling;
   func_stop_profiling stop_profiling;
 
-  GlobalAddress<int64_t> A = SoftXMT_typed_malloc<int64_t>(FLAGS_sizeA);
+  GlobalAddress<int64_t> A = Grappa_typed_malloc<int64_t>(FLAGS_sizeA);
 
   func_gups gups( A );
 
@@ -59,7 +59,7 @@ void user_main( int * args ) {
 
   fork_join_custom( &stop_profiling );
 
-  SoftXMT_merge_and_dump_stats();
+  Grappa_merge_and_dump_stats();
 
   double runtime = end - start;
   double throughput = FLAGS_iterations / runtime;
@@ -82,13 +82,13 @@ void user_main( int * args ) {
 
 
 BOOST_AUTO_TEST_CASE( test1 ) {
-    SoftXMT_init( &(boost::unit_test::framework::master_test_suite().argc),
+    Grappa_init( &(boost::unit_test::framework::master_test_suite().argc),
 		  &(boost::unit_test::framework::master_test_suite().argv) );
-    SoftXMT_activate();
+    Grappa_activate();
 
-    SoftXMT_run_user_main( &user_main, (int*)NULL );
+    Grappa_run_user_main( &user_main, (int*)NULL );
 
-    SoftXMT_finish( 0 );
+    Grappa_finish( 0 );
 }
 
 BOOST_AUTO_TEST_SUITE_END();

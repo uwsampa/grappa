@@ -8,7 +8,7 @@
 #ifndef PARALLEL_LOOP_SINGLE_SERIAL_HPP
 #define PARALLEL_LOOP_SINGLE_SERIAL_HPP
 
-#include "SoftXMT.hpp"
+#include "Grappa.hpp"
 #include "ForkJoin.hpp"
 #include "Cache.hpp"
 
@@ -73,7 +73,7 @@ void parallel_loop_implSingleSerial(int64_t start_index, int64_t iterations, voi
         iter_args[i].loop_body = loop_body;
         iter_args[i].global_sem = sem_addr;
         iter_args[i].args = args;
-        SoftXMT_publicTask( &parallel_loop_task_wrap_CachedArgs<UserArg>, make_global(&iter_args[i]) ); 
+        Grappa_publicTask( &parallel_loop_task_wrap_CachedArgs<UserArg>, make_global(&iter_args[i]) ); 
         //XXX cannot guarentee safety for very large number of iteration due to capacity; solution include make the publicQ circular (and limit number of pushes until suspend for awhile)
     }
 

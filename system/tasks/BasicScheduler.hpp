@@ -25,12 +25,12 @@ class BasicScheduler : public Scheduler {
         threadid_t nextId;
         
         // STUB: replace with real periodic threads
-        SoftXMT_Timestamp previous_periodic_ts;
+        Grappa_Timestamp previous_periodic_ts;
         int periodctr;
         Thread * periodicDequeue() {
 	    // tick the timestap counter
-	    SoftXMT_tick();
-	    SoftXMT_Timestamp current_ts = SoftXMT_get_timestamp();
+	    Grappa_tick();
+	    Grappa_Timestamp current_ts = Grappa_get_timestamp();
 
 	    if( current_ts - previous_periodic_ts > FLAGS_periodic_poll_ticks ) {
                 return periodicQ.dequeue();

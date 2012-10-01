@@ -49,13 +49,13 @@ static char profiler_filename[PROFILER_FILENAME_LENGTH] = {0};
 static int profiler_phase = 0;
 
 /// Record binary name for use in construcing profiler filenames
-void SoftXMT_set_profiler_argv0( char * argv0 ) {
+void Grappa_set_profiler_argv0( char * argv0 ) {
   argv0_for_profiler = argv0;
   time_for_profiler = time(NULL);
 }
 
 /// Get next filename for profiler files
-char * SoftXMT_get_next_profiler_filename( ) {
+char * Grappa_get_next_profiler_filename( ) {
   // use Slurm environment variables if we can
   char * jobname = getenv("SLURM_JOB_NAME");
   char * jobid = getenv("SLURM_JOB_ID");
@@ -71,41 +71,41 @@ char * SoftXMT_get_next_profiler_filename( ) {
 
 /// callback for sampling at profiler signals
 /// runs in signal handler, so should be async-signal-safe
-int SoftXMT_profile_handler( void * arg ) {
+int Grappa_profile_handler( void * arg ) {
   take_profiling_sample = true;
   return 1; // tell profiler to profile at this tick
 }
 
-void SoftXMT_reset_stats();
+void Grappa_reset_stats();
 
-void SoftXMT_start_profiling() {
+void Grappa_start_profiling() {
 #ifdef GOOGLE_PROFILER
   ProfilerOptions po;
-  po.filter_in_thread = &SoftXMT_profile_handler;
+  po.filter_in_thread = &Grappa_profile_handler;
   po.filter_in_thread_arg = NULL;
-  ProfilerStartWithOptions( SoftXMT_get_next_profiler_filename(), &po );
-  //ProfilerStart( SoftXMT_get_profiler_filename() );
+  ProfilerStartWithOptions( Grappa_get_next_profiler_filename(), &po );
+  //ProfilerStart( Grappa_get_profiler_filename() );
 #ifdef VTRACE_SAMPLED
   VT_USER_START("sampling");
-  SoftXMT_reset_stats();
-  void SoftXMT_take_profiling_sample();
-  SoftXMT_take_profiling_sample();
+  Grappa_reset_stats();
+  void Grappa_take_profiling_sample();
+  Grappa_take_profiling_sample();
 #endif
 #endif
 }
 
-void SoftXMT_stop_profiling() {
+void Grappa_stop_profiling() {
 #ifdef GOOGLE_PROFILER
     ProfilerStop( );
-    SoftXMT_profile_handler(NULL);
+    Grappa_profile_handler(NULL);
 #ifdef VTRACE_SAMPLED
   VT_USER_END("sampling");
-  void SoftXMT_dump_stats();
-  SoftXMT_dump_stats();
+  void Grappa_dump_stats();
+  Grappa_dump_stats();
 
-  SoftXMT_reset_stats();
-  void SoftXMT_take_profiling_sample();
-  SoftXMT_take_profiling_sample();
+  Grappa_reset_stats();
+  void Grappa_take_profiling_sample();
+  Grappa_take_profiling_sample();
 #endif
 #endif
 }
@@ -120,7 +120,7 @@ bool app_counter_doReset[MAX_APP_COUNTERS];
 int ae_next_id = 0;
 
 /// Take sample of user trace counters
-void SoftXMT_profiling_sample_user() {
+void Grappa_profiling_sample_user() {
 #ifdef VTRACE_SAMPLED
   for (int i=0; i<ae_next_id; i++) {
     VT_COUNT_UNSIGNED_VAL( app_counters[i], *(app_counter_addrs[i]) );
@@ -129,7 +129,7 @@ void SoftXMT_profiling_sample_user() {
 }
 
 /// Add a new user trace counter
-void SoftXMT_add_profiling_counter(uint64_t * counter, std::string name, std::string abbrev, bool reset, uint64_t resetVal  ) {
+void Grappa_add_profiling_counter(uint64_t * counter, std::string name, std::string abbrev, bool reset, uint64_t resetVal  ) {
 #ifdef VTRACE_SAMPLED
   if ( app_grp_vt == -1 ) app_grp_vt = VT_COUNT_GROUP_DEF( "App" );
 
@@ -144,7 +144,7 @@ void SoftXMT_add_profiling_counter(uint64_t * counter, std::string name, std::st
 }
 
 /// Reset user trace counters
-void SoftXMT_reset_user_stats() {
+void Grappa_reset_user_stats() {
 #ifdef VTRACE_SAMPLED
   for (int i=0; i<ae_next_id; i++) {
     if ( app_counter_doReset[i] ) {

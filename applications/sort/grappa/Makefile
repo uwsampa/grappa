@@ -5,17 +5,17 @@
 # AC05-76RL01830 awarded by the United States Department of
 # Energy. The Government has certain rights in the software.
 
-SOFTXMT_HOME?=$(shell git rev-parse --show-toplevel)
-# check if autodetect SOFTXMT_HOME is consistent
+GRAPPA_HOME?=$(shell git rev-parse --show-toplevel)
+# check if autodetect GRAPPA_HOME is consistent
 AUTO_HOME=$(shell git rev-parse --show-toplevel)
-ifneq ($(SOFTXMT_HOME), $(AUTO_HOME))
-$(warning warning: Environment variable SOFTXMT_HOME was set but doesn't match the autodetected home: env=$(SOFTXMT_HOME), auto=$(AUTO_HOME))
+ifneq ($(GRAPPA_HOME), $(AUTO_HOME))
+$(warning warning: Environment variable GRAPPA_HOME was set but doesn't match the autodetected home: env=$(GRAPPA_HOME), auto=$(AUTO_HOME))
 endif
 
 BOOST?=/sampa/share/boost_1_50_0
 
-#include common SoftXMT definitions
-include $(SOFTXMT_HOME)/include.mk
+#include common Grappa definitions
+include $(GRAPPA_HOME)/include.mk
 
 SRUN_FLAGS?=--time=00:05:00
 
@@ -25,7 +25,7 @@ TARGET:= sort.exe
 $(TARGET):
 
 CFLAGS += -w
-CFLAGS += -I$(SOFTXMT_HOME)/system
+CFLAGS += -I$(GRAPPA_HOME)/system
 CFLAGS += -g -Wall -Drestrict=__restrict__ -ffast-math
 
 LDFLAGS = -g -lboost_filesystem
@@ -33,16 +33,16 @@ LDFLAGS = -g -lboost_filesystem
 SOURCES = main.o
 HEADERS = 
 
-include $(SOFTXMT_HOME)/system/Makefile
+include $(GRAPPA_HOME)/system/Makefile
 
-sort.exe: $(SOURCES) $(HEADERS) $(SOFTXMT_HOME)/system/libSoftXMT.a
-	$(ENV_VARIABLES) $($(MPITYPE)_LD) $(LDFLAGS) $(SOURCES) $(SOFTXMT_HOME)/system/libSoftXMT.a $(LIBRARIES) -o $@ $(LIBS)
+sort.exe: $(SOURCES) $(HEADERS) $(GRAPPA_HOME)/system/libGrappa.a
+	$(ENV_VARIABLES) $($(MPITYPE)_LD) $(LDFLAGS) $(SOURCES) $(GRAPPA_HOME)/system/libGrappa.a $(LIBRARIES) -o $@ $(LIBS)
 
-$(SOFTXMT_HOME)/system/libSoftXMT.a: force
-	cd $(SOFTXMT_HOME)/system; $(MAKE) lib
+$(GRAPPA_HOME)/system/libGrappa.a: force
+	cd $(GRAPPA_HOME)/system; $(MAKE) lib
 
 force: ;
 
 allclean: clean
-	pushd $(SOFTXMT_HOME)/system; $(MAKE) clean; popd
+	pushd $(GRAPPA_HOME)/system; $(MAKE) clean; popd
 

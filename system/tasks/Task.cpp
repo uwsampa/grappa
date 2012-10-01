@@ -5,7 +5,7 @@
 // Energy. The Government has certain rights in the software.
 
 #include "Task.hpp"
-#include "../SoftXMT.hpp"
+#include "../Grappa.hpp"
 #include "../PerformanceTools.hpp"
 #include "TaskingScheduler.hpp"
 
@@ -121,7 +121,7 @@ bool TaskManager::waitConsumeAny( Task * result ) {
                 victimId = v;
                 nextVictimIndex = (nextVictimIndex+1) % numLocalNodes;
                 
-                if ( v == SoftXMT_mynode() ) continue; // don't steal from myself
+                if ( v == Grappa_mynode() ) continue; // don't steal from myself
                 
                 goodSteal = publicQ.steal_locally(v, chunkSize);
                 
@@ -160,8 +160,8 @@ bool TaskManager::waitConsumeAny( Task * result ) {
     if ( !local_available() ) {
         GRAPPA_PROFILE_CREATE( prof, "worker idle", "(suspended)", GRAPPA_SUSPEND_GROUP ); 
         GRAPPA_PROFILE_START( prof );
-        if ( !SoftXMT_thread_idle() ) { // TODO: change to directly use scheduler thread idle
-            SoftXMT_yield();
+        if ( !Grappa_thread_idle() ) { // TODO: change to directly use scheduler thread idle
+            Grappa_yield();
         } else {
             DVLOG(5) << CURRENT_THREAD << " un-idled";
         }
@@ -186,7 +186,7 @@ std::ostream& operator<<( std::ostream& o, const TaskManager& tm ) {
 /// not guarenteed to be executed after this returns.
 void TaskManager::signal_termination( ) {
     workDone = true;
-    SoftXMT_signal_done();
+    Grappa_signal_done();
 }
 
 /// Teardown.

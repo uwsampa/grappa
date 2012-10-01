@@ -1,8 +1,8 @@
 # include common variable definitions
 
-SOFTXMT_SYS=../system
+GRAPPA_SYS=../system
 
-include $(SOFTXMT_SYS)/Makefile
+include $(GRAPPA_SYS)/Makefile
 
 # ------------------------------------- #
 # Set Random Number Generator sources:
@@ -35,7 +35,7 @@ endif
 
 CFLAGS_COMMON= -fomit-frame-pointer
 CFLAGS+= $(CFLAGS_COMMON) $(RNG_DEF) -I./rng
-CFLAGS+= -I$(SOFTXMT_SYS)
+CFLAGS+= -I$(GRAPPA_SYS)
 CFLAGS+= -I.. 
 
 # supress c char* warnings
@@ -46,9 +46,9 @@ CFLAGS+= -I$(EXPERIMENTS)/lib
 
 LIB=-lm 
 
-LDFLAGS+= $(CFLAGS_COMMON) -L$(SOFTXMT_SYS)
+LDFLAGS+= $(CFLAGS_COMMON) -L$(GRAPPA_SYS)
 
-LIBRARIES:= -lgflags -lglog -lgasnet-ibv-seq -libverbs -lrt -lboost_unit_test_framework -lSoftXMT
+LIBRARIES:= -lgflags -lglog -lgasnet-ibv-seq -libverbs -lrt -lboost_unit_test_framework -lGrappa
 
 #
 # set LD_LIBRARY_PATH
@@ -61,7 +61,7 @@ ENV_VARIABLES+= GLOG_logtostderr=1
 #ENV_VARIABLES+= GLOG_vmodule=uts_grappa=5,Aggregator=5,Incoh*=5
 ENV_VARIABLES+= GLOG_v=1
 
-uts_grappa.exe: uts_grappa.o $(RNG_OBJ) uts.o $(SOFTXMT_SYS)/libSoftXMT.a
+uts_grappa.exe: uts_grappa.o $(RNG_OBJ) uts.o $(GRAPPA_SYS)/libGrappa.a
 	$(ENV_VARIABLES) \
 	$($(MPITYPE)_LD) $(CFLAGS) $(CXXFLAGS) $(LDFLAGS) $^ $(LIBRARIES) -o $@ $(LIBS)
 

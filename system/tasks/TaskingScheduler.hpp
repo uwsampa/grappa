@@ -25,7 +25,7 @@
 
 
 extern bool take_profiling_sample;
-void SoftXMT_take_profiling_sample();
+void Grappa_take_profiling_sample();
 
 DECLARE_int64( periodic_poll_ticks );
 DECLARE_bool(flush_on_idle);
@@ -73,11 +73,11 @@ class TaskingScheduler : public Scheduler {
         task_worker_args * work_args;
 
         // STUB: replace with real periodic threads
-        SoftXMT_Timestamp previous_periodic_ts;
-        Thread * periodicDequeue(SoftXMT_Timestamp current_ts) {
+        Grappa_Timestamp previous_periodic_ts;
+        Thread * periodicDequeue(Grappa_Timestamp current_ts) {
             // // tick the timestap counter
-            // SoftXMT_tick();
-            // SoftXMT_Timestamp current_ts = SoftXMT_get_timestamp();
+            // Grappa_tick();
+            // Grappa_Timestamp current_ts = Grappa_get_timestamp();
 
             if( current_ts - previous_periodic_ts > FLAGS_periodic_poll_ticks ) {
                 return periodicQ.dequeue();
@@ -89,11 +89,11 @@ class TaskingScheduler : public Scheduler {
 
         bool queuesFinished();
   
-  SoftXMT_Timestamp prev_ts;
+  Grappa_Timestamp prev_ts;
   static const int tick_scale = 1; //(1L << 30);
 
         Thread * nextCoroutine ( bool isBlocking=true ) {
-	  SoftXMT_Timestamp current_ts = 0;
+	  Grappa_Timestamp current_ts = 0;
 #ifdef VTRACE_FULL
 	  VT_TRACER("nextCoroutine");
 #endif
@@ -102,13 +102,13 @@ class TaskingScheduler : public Scheduler {
 		++stats.scheduler_count;
 
 		// tick the timestap counter
-		SoftXMT_tick();
-		current_ts = SoftXMT_get_timestamp();
+		Grappa_tick();
+		current_ts = Grappa_get_timestamp();
 
 		// maybe sample
 		if( take_profiling_sample ) {
 		  take_profiling_sample = false;
-		  SoftXMT_take_profiling_sample();
+		  Grappa_take_profiling_sample();
 		}
 
                 // check for periodic tasks
@@ -303,8 +303,8 @@ class TaskingScheduler : public Scheduler {
        /// Put the Thread into the periodic queue
        void periodic( Thread * thr ) {
            periodicQ.enqueue( thr );
-           SoftXMT_tick();
-           previous_periodic_ts = SoftXMT_get_timestamp();
+           Grappa_tick();
+           previous_periodic_ts = Grappa_get_timestamp();
        }
   
        /// Print scheduler statistics

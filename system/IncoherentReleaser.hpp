@@ -8,7 +8,7 @@
 #ifndef __INCOHERENT_RELEASER_HPP__
 #define __INCOHERENT_RELEASER_HPP__
 
-#include "SoftXMT.hpp"
+#include "Grappa.hpp"
 
 #ifdef VTRACE
 #include <vt_user.h>
@@ -100,7 +100,7 @@ public:
       released_ = true;
     } else if( request_address_->is_2D() ) {
       num_messages_ = 1;
-      if( request_address_->node() == SoftXMT_mynode() ) {
+      if( request_address_->node() == Grappa_mynode() ) {
         release_started_ = true;
         released_ = true;
       }
@@ -165,7 +165,7 @@ public:
                  << " of total bytes = " << *count_ * sizeof(T)
                  << " to " << args.request_address;
 
-        SoftXMT_call_on( args.request_address.node(), &incoherent_release_request_am<T>, 
+        Grappa_call_on( args.request_address.node(), &incoherent_release_request_am<T>, 
                          &args, sizeof( args ),
                          ((char*)(*pointer_)) + offset, request_bytes);
 
@@ -191,7 +191,7 @@ public:
                 << " * " << *count_ ;
         if( !released_ ) {
           thread_ = CURRENT_THREAD;
-          SoftXMT_suspend();
+          Grappa_suspend();
           thread_ = NULL;
         }
         DVLOG(5) << "Thread " << CURRENT_THREAD 
@@ -210,7 +210,7 @@ public:
       if( thread_ != NULL ) {
         DVLOG(5) << "Thread " << CURRENT_THREAD 
                  << " waking Thread " << thread_;
-        SoftXMT_wake( thread_ );
+        Grappa_wake( thread_ );
       }
     }
   }
@@ -248,7 +248,7 @@ static void incoherent_release_request_am( typename IncoherentReleaser< T >::Req
   memcpy( args->request_address.pointer(), payload, payload_size );
   typename IncoherentReleaser<T>::ReplyArgs reply_args;
   reply_args.reply_address = args->reply_address;
-  SoftXMT_call_on( args->reply_address.node(), incoherent_release_reply_am<T>,
+  Grappa_call_on( args->reply_address.node(), incoherent_release_reply_am<T>,
                    &reply_args, sizeof( reply_args ), 
                    NULL, 0 );
   DVLOG(5) << "Thread " << CURRENT_THREAD 

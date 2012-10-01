@@ -15,7 +15,7 @@ TAUDIR=/sampa/share/tau-perf/tau
 
 TAU_BIN=$(TAUDIR)/x86_64/bin
 
-UTILS=$(SOFTXMT_HOME)/system/utils
+UTILS=$(GRAPPA_HOME)/system/utils
 
 #
 # Main targets

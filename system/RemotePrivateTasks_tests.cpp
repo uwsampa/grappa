@@ -6,7 +6,7 @@
 
 #include <boost/test/unit_test.hpp>
 
-#include "SoftXMT.hpp"
+#include "Grappa.hpp"
 #include "ForkJoin.hpp"
 #include "Delegate.hpp"
 
@@ -29,8 +29,8 @@ void task1_f( const task1_arg * args ) {
     BLOG( CURRENT_THREAD << " task runs i=" << args->i );
 
     // yield a couple times to simulate work
-    SoftXMT_yield();
-    SoftXMT_yield();
+    Grappa_yield();
+    Grappa_yield();
 
     // tell parent we are done
     Semaphore::release( &args->sem, 1 ); 
@@ -54,7 +54,7 @@ void user_main( user_main_args * args )
         BLOG( "remote-spawn " << i );
 
         // spawn the task on Node 1
-        SoftXMT_remote_privateTask( &task1_f_CA, make_global( &t1_arg ), 1 );
+        Grappa_remote_privateTask( &task1_f_CA, make_global( &t1_arg ), 1 );
 
         // block until task is finished
         sem.acquire_all( CURRENT_THREAD );
@@ -67,19 +67,19 @@ void user_main( user_main_args * args )
 
 BOOST_AUTO_TEST_CASE( test1 ) {
 
-    SoftXMT_init( &(boost::unit_test::framework::master_test_suite().argc),
+    Grappa_init( &(boost::unit_test::framework::master_test_suite().argc),
             &(boost::unit_test::framework::master_test_suite().argv) );
 
-    SoftXMT_activate();
+    Grappa_activate();
 
     user_main_args uargs;
 
     DVLOG(1) << "Spawning user main Thread....";
-    SoftXMT_run_user_main( &user_main, &uargs );
+    Grappa_run_user_main( &user_main, &uargs );
     VLOG(5) << "run_user_main returned";
-    CHECK( SoftXMT_done() );
+    CHECK( Grappa_done() );
 
-    SoftXMT_finish( 0 );
+    Grappa_finish( 0 );
 }
 
 BOOST_AUTO_TEST_SUITE_END();

@@ -22,7 +22,7 @@ void* swapstacks(void **olds, void **news, void *ret)
 // for now, put this here
 // define this only when we're using the minimal save context switcher
 // if you switch this off, you must update the save/restore settings in stack.S
-//#define SOFTXMT_SAVE_REGISTERS_LITE
+//#define GRAPPA_SAVE_REGISTERS_LITE
 
 // depend on compiler to save and restore callee-saved registers
 static inline void* swapstacks_inline(void **olds, void **news, void *ret) {
@@ -30,7 +30,7 @@ static inline void* swapstacks_inline(void **olds, void **news, void *ret) {
                  : "+a" (ret), "+D" (olds), "+S" (news) // add some dependences for ordering
                  : "D" (olds), "S" (news), "d" (ret)    // add some dependences for ordering
                  : "cc", "flags", 
-#ifdef SOFTXMT_SAVE_REGISTERS_LITE
+#ifdef GRAPPA_SAVE_REGISTERS_LITE
                    "rbp", // doesn't work if we need a frame pointer
                    "rbx", "r12", "r13", "r14", "r15", "fpcr",
 #endif

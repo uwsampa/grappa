@@ -6,7 +6,7 @@
 # Energy. The Government has certain rights in the software.
 
 #
-# Makefile for SoftXMT V0
+# Makefile for Grappa V0
 #
 # This provides automatic header dependence discovery, 
 # as well as an easiery way to run tests
@@ -37,15 +37,15 @@
 #    To build and run an executable, say "make TARGET=<name>.test run". 
 #
 
-SOFTXMT_HOME?=$(shell git rev-parse --show-toplevel)
-# check if autodetect SOFTXMT_HOME is consistent
+GRAPPA_HOME?=$(shell git rev-parse --show-toplevel)
+# check if autodetect GRAPPA_HOME is consistent
 AUTO_HOME=$(shell git rev-parse --show-toplevel)
-ifneq ($(SOFTXMT_HOME), $(AUTO_HOME))
-$(warning warning: Environment variable SOFTXMT_HOME was set but doesn't match the autodetected home: env=$(SOFTXMT_HOME), auto=$(AUTO_HOME))
+ifneq ($(GRAPPA_HOME), $(AUTO_HOME))
+$(warning warning: Environment variable GRAPPA_HOME was set but doesn't match the autodetected home: env=$(GRAPPA_HOME), auto=$(AUTO_HOME))
 endif
 
 # include common variable definitions
-include $(SOFTXMT_HOME)/include.mk
+include $(GRAPPA_HOME)/include.mk
 
 #
 # Define DEBUG to build debug versions of binaries/tests
@@ -61,9 +61,9 @@ $(TARGET):
 
 # library build rule
 ifdef DYNAMIC_LIB
-LIBRARY=libSoftXMT.so
+LIBRARY=libGrappa.so
 else
-LIBRARY=libSoftXMT.a
+LIBRARY=libGrappa.a
 endif
 lib: $(LIBRARY)
 
@@ -225,15 +225,15 @@ CFLAGS+= -fPIC -DDYNAMIC_LIB
 endif
 
 #
-# Build SoftXMT static library
+# Build Grappa static library
 #
-LIBRARY_CONTENTS+= SoftXMT.o GlobalAllocator.o GlobalMemory.o GlobalMemoryChunk.o Communicator.o Aggregator.o Timestamp.o Allocator.o Cache.o Delegate.o Collective.o ForkJoin.o tasks/TaskingScheduler.o tasks/Task.o tasks/Thread.o stack.o coro.o StateTimer.o PerformanceTools.o Future.o CurrentThread.o ProfilerGroups.o AsyncParallelFor.o GlobalTaskJoiner.o IncoherentAcquirer.o IncoherentReleaser.o Uid.o
+LIBRARY_CONTENTS+= Grappa.o GlobalAllocator.o GlobalMemory.o GlobalMemoryChunk.o Communicator.o Aggregator.o Timestamp.o Allocator.o Cache.o Delegate.o Collective.o ForkJoin.o tasks/TaskingScheduler.o tasks/Task.o tasks/Thread.o stack.o coro.o StateTimer.o PerformanceTools.o Future.o CurrentThread.o ProfilerGroups.o AsyncParallelFor.o GlobalTaskJoiner.o IncoherentAcquirer.o IncoherentReleaser.o Uid.o
 
-libSoftXMT.a: $(LIBRARY_CONTENTS)
+libGrappa.a: $(LIBRARY_CONTENTS)
 	$($(MPITYPE)_AR) rv $@ $^
 
 ifdef DYNAMIC_LIB
-libSoftXMT.so: $(LIBRARY_CONTENTS)
+libGrappa.so: $(LIBRARY_CONTENTS)
 	$($(MPITYPE)_LD) -shared -Wl,-soname,$@.1 -o $@.1.0 $^
 	ln -sf $@.1.0 $@
 	ln -sf $@.1.0 $@.1
@@ -377,7 +377,7 @@ endif
 #
 # set LD_LIBRARY_PATH
 #
-#LD_LIBRARY_PATH:=$(LD_LIBRARY_PATH):$(GFLAGS)/lib:$(SOFTXMT_HOME)/system
+#LD_LIBRARY_PATH:=$(LD_LIBRARY_PATH):$(GFLAGS)/lib:$(GRAPPA_HOME)/system
 
 # build an executable
 # add an additional rule if you need to include multiple components
@@ -447,7 +447,7 @@ stack.o: stack.S
 	$($(MPITYPE)_CC) -c $(CFLAGS) $< -o $*.o
 
 
-CLEAN_FILES+= *.exe *.o *.pch *.d *.test *.preproc *.dis libSoftXMT.a libSoftXMT.so* ./tasks/*.o ./tasks/*.preproc $(LIBRARY_CONTENTS) $($(MPITYPE)_CLEAN_FILES)
+CLEAN_FILES+= *.exe *.o *.pch *.d *.test *.preproc *.dis libGrappa.a libGrappa.so* ./tasks/*.o ./tasks/*.preproc $(LIBRARY_CONTENTS) $($(MPITYPE)_CLEAN_FILES)
 clean:
 	rm -f $(CLEAN_FILES)
 

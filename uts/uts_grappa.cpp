@@ -1,6 +1,6 @@
 #include "uts.h"
 
-#include <SoftXMT.hpp>
+#include <Grappa.hpp>
 #include <Cache.hpp>
 #include <ParallelLoop.hpp>
 #include <ForkJoin.hpp>
@@ -32,7 +32,7 @@ DEFINE_bool( verify_tree, true, "Verify the generated tree" );
   int    impl_paramsToStr(char * strBuf, int ind) {
       ind += sprintf(strBuf+ind, "Execution strategy:  ");
       
-      ind += sprintf(strBuf+ind, "Parallel search using %d processes\n", SoftXMT_nodes());
+      ind += sprintf(strBuf+ind, "Parallel search using %d processes\n", Grappa_nodes());
       ind += sprintf(strBuf+ind, "   up to %d threads per core\n", FLAGS_num_starting_workers );
       ind += sprintf(strBuf+ind, "%d places\n", FLAGS_num_places);
       
@@ -63,7 +63,7 @@ DEFINE_bool( verify_tree, true, "Verify the generated tree" );
 
   void impl_abort(int err) {
       exit(err);
-      //SoftXMT_finish( err );//TODO KILL ALL NODES
+      //Grappa_finish( err );//TODO KILL ALL NODES
   } 
 
   int global_argc;
@@ -130,8 +130,8 @@ DEFINE_bool( verify_tree, true, "Verify the generated tree" );
       uts_parseParams(global_argc, global_argv);
 
       // initialize counters with profiler
-      SoftXMT_add_profiling_counter( &tj_num_gen_nodes, "uts_num_gen_nodes", "utsgennodes", false, 0 );
-      SoftXMT_add_profiling_counter( &tj_num_searched_nodes, "uts_num_searched_nodes", "utssearchnodes", false, 0 );
+      Grappa_add_profiling_counter( &tj_num_gen_nodes, "uts_num_gen_nodes", "utsgennodes", false, 0 );
+      Grappa_add_profiling_counter( &tj_num_searched_nodes, "uts_num_searched_nodes", "utssearchnodes", false, 0 );
   }
 
   // initialize payload info on each node
@@ -176,7 +176,7 @@ DEFINE_bool( verify_tree, true, "Verify the generated tree" );
 
   void atomic_max( GlobalAddress<Result> addr, int64_t value ) {
       atomic_max_args args = { addr, value };
-      SoftXMT_call_on( addr.node(), &atomic_max_am, &args );
+      Grappa_call_on( addr.node(), &atomic_max_am, &args );
   }
   ////////////////////
 
@@ -196,8 +196,8 @@ DEFINE_bool( verify_tree, true, "Verify the generated tree" );
     atomic_max( s->r, c.maxdepth ); 
 
     // update the size and leaves
-    SoftXMT_delegate_fetch_and_add_word( global_pointer_to_member( s->r, &Result::size ), c.size );
-    SoftXMT_delegate_fetch_and_add_word( global_pointer_to_member(s->r, &Result::leaves), c.leaves );
+    Grappa_delegate_fetch_and_add_word( global_pointer_to_member( s->r, &Result::size ), c.size );
+    Grappa_delegate_fetch_and_add_word( global_pointer_to_member(s->r, &Result::leaves), c.leaves );
   }
 
 
@@ -254,7 +254,7 @@ DEFINE_bool( verify_tree, true, "Verify the generated tree" );
   void no_join_parallel_loop( int64_t start, int64_t iters, int64_t startId ) {
       for (int64_t i = start; i<iters; i++) {
           // uses 8-byte arg field only
-          SoftXMT_publicTask( &no_join_explore_child, startId + i );
+          Grappa_publicTask( &no_join_explore_child, startId + i );
       }
   }
 
@@ -264,10 +264,10 @@ DEFINE_bool( verify_tree, true, "Verify the generated tree" );
 
   void release_vertex_semaphore( Node n ) {
       int64_t ignore = 0;
-      if ( SoftXMT_mynode() == n ) {
+      if ( Grappa_mynode() == n ) {
           node_private_vertex_sem->release( 1 );
       } else {
-          SoftXMT_call_on( n, &release_vertex_semaphore_am, &ignore);
+          Grappa_call_on( n, &release_vertex_semaphore_am, &ignore);
       }
   }
 
@@ -322,7 +322,7 @@ DEFINE_bool( verify_tree, true, "Verify the generated tree" );
     assert( payload_size == sizeof( struct state_t ) );
     args->descriptor.pointer()->data = *(static_cast<struct state_t *>(payload));
     args->descriptor.pointer()->done = true;
-    SoftXMT_wake( args->descriptor.pointer()->t );
+    Grappa_wake( args->descriptor.pointer()->t );
   }
 
   struct spawn_rng_request_args {
@@ -339,7 +339,7 @@ DEFINE_bool( verify_tree, true, "Verify the generated tree" );
       }
      
       spawn_rng_reply_args reply_args = { args->descriptor }; 
-      SoftXMT_call_on( args->descriptor.node(), &spawn_rng_reply_am, 
+      Grappa_call_on( args->descriptor.node(), &spawn_rng_reply_am, 
                      &reply_args, sizeof(reply_args), 
                      &data, sizeof(data) );
   }
@@ -354,10 +354,10 @@ DEFINE_bool( verify_tree, true, "Verify the generated tree" );
     args.descriptor = make_global(&md);
     args.address = parentAddress;
     args.i = child_num;
-    SoftXMT_call_on( parentAddress.node(), &spawn_rng_request_am, &args );
+    Grappa_call_on( parentAddress.node(), &spawn_rng_request_am, &args );
     
     while( !md.done ) {
-      SoftXMT_suspend();
+      Grappa_suspend();
     }
     
     return md.data;
@@ -375,7 +375,7 @@ DEFINE_bool( verify_tree, true, "Verify the generated tree" );
 
       // count this vertex
       // TODO could do this offline in streaming order
-      SoftXMT_delegate_fetch_and_add_word( make_global( &node_private_num_vertices, (Vertex+child.id).node()), 1 );
+      Grappa_delegate_fetch_and_add_word( make_global( &node_private_num_vertices, (Vertex+child.id).node()), 1 );
       
       
       child.state = spawn_rng_remote( s->parent, i );
@@ -398,8 +398,8 @@ DEFINE_bool( verify_tree, true, "Verify the generated tree" );
       atomic_max( s->r, c.maxdepth ); 
 
       // update the size and leaves
-      int64_t size_result = SoftXMT_delegate_fetch_and_add_word( global_pointer_to_member(s->r, &Result::size), c.size );
-      int64_t leaves_result = SoftXMT_delegate_fetch_and_add_word( global_pointer_to_member(s->r, &Result::leaves), c.leaves );
+      int64_t size_result = Grappa_delegate_fetch_and_add_word( global_pointer_to_member(s->r, &Result::size), c.size );
+      int64_t leaves_result = Grappa_delegate_fetch_and_add_word( global_pointer_to_member(s->r, &Result::leaves), c.leaves );
       VLOG(4) << "added c.size=" << c.size << " to s->r->size=" << size_result;
       VLOG(4) << "added c.leaves=" << c.size << " to s->r->leaves=" << leaves_result;
   }
@@ -415,10 +415,10 @@ DEFINE_bool( verify_tree, true, "Verify the generated tree" );
       /*** Added for the sake of remembering the tree created: ***/
       int64_t id = uts_nodeId(parent);
       /* Assign fresh unique ids for the children: */
-      int64_t childid0 = SoftXMT_delegate_fetch_and_add_word( global_id_ga, numChildren );
+      int64_t childid0 = Grappa_delegate_fetch_and_add_word( global_id_ga, numChildren );
       VLOG_EVERY_N(2, 250000) << "new childids: [" << childid0 << ", " << (childid0 + numChildren - 1) << "]";
       /* Record ids and indices of the children: */ 
-      int64_t index = SoftXMT_delegate_fetch_and_add_word( global_child_index_ga, numChildren );
+      int64_t index = Grappa_delegate_fetch_and_add_word( global_child_index_ga, numChildren );
 
       /* Record the number and index of children: */
       VLOG(5) << "record vertex: " << (vertex_t){ numChildren, index } << "\n\t\tfor parent=" << *parent << "\n\t\tat " << make_global(parent);
@@ -427,8 +427,8 @@ DEFINE_bool( verify_tree, true, "Verify the generated tree" );
       (*childVertex).numChildren = numChildren;
       (*childVertex).childIndex  = index;
       childVertex.block_until_released();
-      //SoftXMT_delegate_write_word( NumChildren + id, numChildren );
-      //SoftXMT_delegate_write_word( ChildIndex + id, index );
+      //Grappa_delegate_write_word( NumChildren + id, numChildren );
+      //Grappa_delegate_write_word( ChildIndex + id, index );
      
 
       if ( numChildren > 0 ) { 
@@ -476,8 +476,8 @@ DEFINE_bool( verify_tree, true, "Verify the generated tree" );
     Incoherent<uts::Node>::RO parentc( Tree_Nodes + unpacked_parent_id, 1, &parent_storage);
    
     // TODO: this is a lot of extra reads just to obtain childid0; easier to have args but ff
-    int64_t p_childIndex = SoftXMT_delegate_read_word( global_pointer_to_member( Vertex+unpacked_parent_id, &vertex_t::childIndex) );
-    int64_t p_childid0 = SoftXMT_delegate_read_word( Child + p_childIndex );
+    int64_t p_childIndex = Grappa_delegate_read_word( global_pointer_to_member( Vertex+unpacked_parent_id, &vertex_t::childIndex) );
+    int64_t p_childid0 = Grappa_delegate_read_word( Child + p_childIndex );
     
     parentc.block_until_acquired();
     int64_t childType = uts_childType(&parent_storage);// need to pass in normal pointer
@@ -514,14 +514,14 @@ DEFINE_bool( verify_tree, true, "Verify the generated tree" );
 
     /* Assign fresh unique ids for the children: */
     /* TODO: make global_id_ga not a hotspot */
-    int64_t childid0 = SoftXMT_delegate_fetch_and_add_word( global_id_ga, numChildren );
+    int64_t childid0 = Grappa_delegate_fetch_and_add_word( global_id_ga, numChildren );
     VLOG_EVERY_N(2, 250000) << "new childids: [" << childid0 
       << ", " << (childid0 + numChildren - 1) 
       << "]";
 
     /* Record ids and indices of the children: */ 
     /* TODO: make global_child_index_ga not a hotspot */
-    int64_t index = SoftXMT_delegate_fetch_and_add_word( global_child_index_ga, numChildren );
+    int64_t index = Grappa_delegate_fetch_and_add_word( global_child_index_ga, numChildren );
 
     /* store parts of parent that will be read in tree search */
     vertex_t vvert_storage;
@@ -610,7 +610,7 @@ DEFINE_bool( verify_tree, true, "Verify the generated tree" );
     // spawning tasks serially since iters<thr
     for ( int64_t i=0; i<iters; i++ ) {
       global_joiner.registerTask();
-      SoftXMT_publicTask( &wrapped_search_vertex, childids[i], (int64_t)1, make_global( &global_joiner) );
+      Grappa_publicTask( &wrapped_search_vertex, childids[i], (int64_t)1, make_global( &global_joiner) );
     }
   }
 
@@ -673,8 +673,8 @@ DEFINE_bool( verify_tree, true, "Verify the generated tree" );
      
     uint64_t total_numChildren = 0;
     // count numChildren entries
-    for (Node n=0; n<SoftXMT_nodes(); n++) {
-      uint64_t nc = SoftXMT_delegate_read_word( make_global( &local_verify_children_count, n ) );
+    for (Node n=0; n<Grappa_nodes(); n++) {
+      uint64_t nc = Grappa_delegate_read_word( make_global( &local_verify_children_count, n ) );
       //VLOG(5) << "Node " << n << " counted " << nc << " children";
       total_numChildren += nc;
     }
@@ -739,11 +739,11 @@ LOOP_FUNCTION(initialize_tss_func, nid) {
 }
 
 LOOP_FUNCTION(start_prof,nid) {
-  SoftXMT_start_profiling();
+  Grappa_start_profiling();
 }
 
 LOOP_FUNCTION(stop_prof,nid) {
-  SoftXMT_stop_profiling();
+  Grappa_stop_profiling();
 }
 void start_profiling() {
   start_prof f;
@@ -772,13 +772,13 @@ void user_main ( user_main_args * args ) {
                                   +(sizeof(int64_t)*FLAGS_vertices_size)
                                   +(sizeof(uts::Node)*FLAGS_vertices_size)))/BILLION;
 
-    Vertex = SoftXMT_typed_malloc<vertex_t>( FLAGS_vertices_size); 
-    Child =  SoftXMT_typed_malloc<int64_t>( FLAGS_vertices_size);
+    Vertex = Grappa_typed_malloc<vertex_t>( FLAGS_vertices_size); 
+    Child =  Grappa_typed_malloc<int64_t>( FLAGS_vertices_size);
     VLOG(2) << "Vertex = " << Vertex;
     VLOG(2) << "Child = " << Child;
 
     if ( opt_ff ) {
-      Tree_Nodes = SoftXMT_typed_malloc<uts::Node>( FLAGS_vertices_size );
+      Tree_Nodes = Grappa_typed_malloc<uts::Node>( FLAGS_vertices_size );
       VLOG(2) << "Tree_Nodes = " << Tree_Nodes;
     }
 
@@ -808,7 +808,7 @@ void user_main ( user_main_args * args ) {
     // run times
     double t1=0.0, t2=0.0;
 
-    SoftXMT_reset_stats_all_nodes();
+    Grappa_reset_stats_all_nodes();
 
     // start tree generation (traditional UTS, plus saving the tree)
     LOG(INFO) << "starting tree generation";
@@ -830,18 +830,18 @@ void user_main ( user_main_args * args ) {
     if ( opt_ff ) { 
       // count nodes generated
       r_gen.size = 0;
-      for (Node n=0; n<SoftXMT_nodes(); n++) {
-        uint64_t this_size = SoftXMT_delegate_read_word( make_global( &tj_num_gen_nodes, n ) );  
+      for (Node n=0; n<Grappa_nodes(); n++) {
+        uint64_t this_size = Grappa_delegate_read_word( make_global( &tj_num_gen_nodes, n ) );  
         LOG(INFO) << "Node " << n << " generated " << this_size;
         r_gen.size += this_size;
       }
 
       // only needed for generation
-      SoftXMT_free( Tree_Nodes );
+      Grappa_free( Tree_Nodes );
     }
 
 
-    //SoftXMT_dump_task_series();
+    //Grappa_dump_task_series();
 
     // show tree stats 
     counter_t maxTreeDepth = r_gen.maxdepth;
@@ -850,7 +850,7 @@ void user_main ( user_main_args * args ) {
 
     double gen_runtime = t2-t1;
 
-    uts_showStats(SoftXMT_nodes(), FLAGS_chunk_size, gen_runtime, nNodes, nLeaves, maxTreeDepth);
+    uts_showStats(Grappa_nodes(), FLAGS_chunk_size, gen_runtime, nNodes, nLeaves, maxTreeDepth);
     
     
     // verify generated tree
@@ -867,7 +867,7 @@ void user_main ( user_main_args * args ) {
 
 
 
-    // TODO Payload =  SoftXMT_typed_malloc<int64_t>( FLAGS_vertices_size );
+    // TODO Payload =  Grappa_typed_malloc<int64_t>( FLAGS_vertices_size );
     // payload initialization on each node
     //payinit_f pfu;
     //pfu.Payload_ = Payload;
@@ -877,7 +877,7 @@ void user_main ( user_main_args * args ) {
     LOG(INFO) << "starting tree search";
     Result r_search;
     start_profiling();
-    SoftXMT_reset_stats_all_nodes();
+    Grappa_reset_stats_all_nodes();
     t1 = uts_wctime();
     if ( opt_ff ) {
       search_func sfu;
@@ -891,19 +891,19 @@ void user_main ( user_main_args * args ) {
     }
     t2 = uts_wctime();
     stop_profiling();
-    SoftXMT_merge_and_dump_stats();
+    Grappa_merge_and_dump_stats();
 
     if ( opt_ff ) { 
       // count nodes searched
       r_search.size = 0;
-      for (Node n=0; n<SoftXMT_nodes(); n++) {
-        uint64_t this_size = SoftXMT_delegate_read_word( make_global( &tj_num_searched_nodes, n ) );  
+      for (Node n=0; n<Grappa_nodes(); n++) {
+        uint64_t this_size = Grappa_delegate_read_word( make_global( &tj_num_searched_nodes, n ) );  
         LOG(INFO) << "Node " << n << " searched " << this_size;
         r_search.size += this_size;
       }
     }
 
-    //SoftXMT_dump_task_series();
+    //Grappa_dump_task_series();
 
     double search_runtime = t2-t1;
 
@@ -915,7 +915,7 @@ void user_main ( user_main_args * args ) {
       initialize_tss_func itss_f;
       fork_join_custom( &itss_f );
 
-      SoftXMT_reset_stats_all_nodes();
+      Grappa_reset_stats_all_nodes();
 
       start_profiling();
       t1 = uts_wctime();
@@ -930,13 +930,13 @@ void user_main ( user_main_args * args ) {
       t2 = uts_wctime();
       stop_profiling();
 
-      //SoftXMT_dump_task_series();
+      //Grappa_dump_task_series();
     }
     double noJoin_runtime = t2-t1;
 
-    SoftXMT_free( Vertex );
-    SoftXMT_free( Child );
-    //TODO SoftXMT_free( Payload );
+    Grappa_free( Vertex );
+    Grappa_free( Child );
+    //TODO Grappa_free( Payload );
 
 
     LOG(INFO) << "generated size=" << r_gen.size << ", searched size=" << r_search.size;
@@ -961,8 +961,8 @@ void user_main ( user_main_args * args ) {
 
 /// Main() entry
 int main (int argc, char** argv) {
-    SoftXMT_init( &argc, &argv ); 
-    SoftXMT_activate();
+    Grappa_init( &argc, &argv ); 
+    Grappa_activate();
 
     // TODO: would be good to give user interface to get the args as pass to this Node; to avoid this
     // (sometimes all nodes parse their own args instead of passing variable size argv)
@@ -971,7 +971,7 @@ int main (int argc, char** argv) {
 
     user_main_args uargs = { argc, argv };
 
-    SoftXMT_run_user_main( &user_main, &uargs );
-    CHECK( SoftXMT_done() == true ) << "SoftXMT not done before scheduler exit";
-    SoftXMT_finish( 0 );
+    Grappa_run_user_main( &user_main, &uargs );
+    CHECK( Grappa_done() == true ) << "Grappa not done before scheduler exit";
+    Grappa_finish( 0 );
 }

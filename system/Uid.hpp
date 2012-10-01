@@ -7,7 +7,7 @@
 #ifndef UID_HPP
 #define UID_HPP
 
-#include "SoftXMT.hpp"
+#include "Grappa.hpp"
 #include <queue>
 
 /// Distributed allocator of a range of contiguous IDs.

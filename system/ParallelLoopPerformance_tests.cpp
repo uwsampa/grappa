@@ -6,7 +6,7 @@
 
 #include <boost/test/unit_test.hpp>
 
-#include "SoftXMT.hpp"
+#include "Grappa.hpp"
 #include "Delegate.hpp"
 #include "Tasking.hpp"
 #include "ParallelLoop.hpp"
@@ -52,29 +52,29 @@ void simple_iter( int64_t i, array_args * a ) {
 }
 
 void mod_iter( int64_t i, int64_t * ignore ) {
-    ind_local_count+= i % SoftXMT_nodes();
+    ind_local_count+= i % Grappa_nodes();
 }
 
 void delegate_iter( int64_t i, int64_t * ignore ) {
-    SoftXMT_delegate_write_word( make_global( &update_me, i % SoftXMT_nodes() ), i );
+    Grappa_delegate_write_word( make_global( &update_me, i % Grappa_nodes() ), i );
 }
 
 void half_iter( int64_t i, int64_t * ignore ) {
     if (i % 2 == 0) {
         ind_local_count+=i;
     } else {
-        SoftXMT_delegate_write_word( make_global( &update_me, (i/2) % SoftXMT_nodes() ), i );
+        Grappa_delegate_write_word( make_global( &update_me, (i/2) % Grappa_nodes() ), i );
     }
 }
 
 void yield_iter( int64_t i, int64_t * ignore ) {
     ind_local_count+=i;
-    SoftXMT_yield();
+    Grappa_yield();
 }
 
 //void yield_next_iter( int64_t i, int64_t * ignore ) {
 //    ind_local_count+=i;
-//    SoftXMT_yield_next();
+//    Grappa_yield_next();
 //}
 
 ///
@@ -90,14 +90,14 @@ struct func_simple : public ForkJoinIteration {
 struct func_mod : public ForkJoinIteration {
     int64_t * ignore;
     void operator()(int64_t i) const {
-        ind_local_count+= i % SoftXMT_nodes();
+        ind_local_count+= i % Grappa_nodes();
     }
 };
 
 struct func_delegate : public ForkJoinIteration {
     int64_t * ignore;
     void operator()(int64_t i) const {
-        SoftXMT_delegate_write_word( make_global( &update_me, i % SoftXMT_nodes() ), i );
+        Grappa_delegate_write_word( make_global( &update_me, i % Grappa_nodes() ), i );
     }
 };
 
@@ -107,7 +107,7 @@ struct func_half : public ForkJoinIteration {
         if (i % 2 == 0) {
             ind_local_count+=i;
         } else {
-            SoftXMT_delegate_write_word( make_global( &update_me, (i/2) % SoftXMT_nodes() ), i );
+            Grappa_delegate_write_word( make_global( &update_me, (i/2) % Grappa_nodes() ), i );
         }
     }
 };
@@ -116,14 +116,14 @@ struct func_yield : public ForkJoinIteration {
     int64_t * ignore;
     void operator()(int64_t i) const {
         ind_local_count+=i;
-        SoftXMT_yield();
+        Grappa_yield();
     }
 };
 //struct func_yield_next : public ForkJoinIteration {
 //    int64_t * ignore;
 //    void operator()(int64_t i) const {
 //        ind_local_count+=i;
-//        SoftXMT_yield_next();
+//        Grappa_yield_next();
 //    }
 //};
 
@@ -263,7 +263,7 @@ void user_main( user_main_args * args )
     BOOST_MESSAGE( "Running futures -- delegate iter" );
     {
         futures_reset_stats_all_nodes();
-        SoftXMT_reset_stats();
+        Grappa_reset_stats();
 
         // a[i] = i
         double start, end;
@@ -280,7 +280,7 @@ void user_main( user_main_args * args )
         double runtime = end - start;
         BOOST_MESSAGE( "fd{runtime: " << runtime << ", rate: " << ((double)iters)/runtime << ", iterations: " << iters << "}" );
         FUTURE_DUMP;
-        SoftXMT_dump_task_series();
+        Grappa_dump_task_series();
 
         d.add("runtime_delegateIter", runtime);
     }
@@ -534,7 +534,7 @@ void user_main( user_main_args * args )
 //
 //    }
 
-    SoftXMT_dump_stats_all_nodes();
+    Grappa_dump_stats_all_nodes();
     BOOST_MESSAGE( "user main is exiting" );
 }
 
@@ -542,23 +542,23 @@ void user_main( user_main_args * args )
 
 BOOST_AUTO_TEST_CASE( test1 ) {
 
-    SoftXMT_init( &(boost::unit_test::framework::master_test_suite().argc),
+    Grappa_init( &(boost::unit_test::framework::master_test_suite().argc),
             &(boost::unit_test::framework::master_test_suite().argv) );
 
-    SoftXMT_activate();
+    Grappa_activate();
 
     user_main_args uargs;
 
     //TAU_DISABLE_INSTRUMENTATION();
     
     DVLOG(1) << "Spawning user main Thread....";
-    SoftXMT_run_user_main( &user_main, &uargs );
+    Grappa_run_user_main( &user_main, &uargs );
     VLOG(5) << "run_user_main returned";
-    CHECK( SoftXMT_done() );
+    CHECK( Grappa_done() );
     
     //TAU_ENABLE_INSTRUMENTATION();
 
-    SoftXMT_finish( 0 );
+    Grappa_finish( 0 );
 }
 
 BOOST_AUTO_TEST_SUITE_END();

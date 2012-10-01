@@ -9,7 +9,7 @@
 
 // This file contains the Grappa task spawning API
 
-//#include "SoftXMT.hpp"
+//#include "Grappa.hpp"
 #include "tasks/Task.hpp"
 #include "StateTimer.hpp"
 
@@ -31,7 +31,7 @@ extern TaskManager global_task_manager;
 
 DECLARE_uint64( num_starting_workers );
 
-void SoftXMT_take_profiling_sample();
+void Grappa_take_profiling_sample();
 
 
 ///
@@ -49,7 +49,7 @@ void SoftXMT_take_profiling_sample();
 /// @param arg1 second task argument
 /// @param arg2 third task argument
 template < typename A0, typename A1, typename A2 >
-void SoftXMT_privateTask( void (*fn_p)(A0,A1,A2), A0 arg0, A1 arg1, A2 arg2 ) {
+void Grappa_privateTask( void (*fn_p)(A0,A1,A2), A0 arg0, A1 arg1, A2 arg2 ) {
   STATIC_ASSERT_SIZE_8( A0 );
   STATIC_ASSERT_SIZE_8( A1 );
   STATIC_ASSERT_SIZE_8( A2 );
@@ -66,9 +66,9 @@ void SoftXMT_privateTask( void (*fn_p)(A0,A1,A2), A0 arg0, A1 arg1, A2 arg2 ) {
 /// @param arg0 first task argument
 /// @param arg1 second task argument
 template < typename A0, typename A1 >
-void SoftXMT_privateTask( void (*fn_p)(A0, A1), A0 arg, A1 shared_arg) 
+void Grappa_privateTask( void (*fn_p)(A0, A1), A0 arg, A1 shared_arg) 
 {
-  SoftXMT_privateTask(reinterpret_cast<void (*)(A0,A1,void*)>(fn_p), arg, shared_arg, (void*)NULL);
+  Grappa_privateTask(reinterpret_cast<void (*)(A0,A1,void*)>(fn_p), arg, shared_arg, (void*)NULL);
 }
 
 /// Spawn a task visible to this Node only
@@ -78,8 +78,8 @@ void SoftXMT_privateTask( void (*fn_p)(A0, A1), A0 arg, A1 shared_arg)
 /// @param fn_p function pointer for the new task
 /// @param arg0 first task argument
 template < typename T >
-inline void SoftXMT_privateTask( void (*fn_p)(T), T arg) {
-  SoftXMT_privateTask(reinterpret_cast<void (*)(T,void*)>(fn_p), arg, (void*)NULL);
+inline void Grappa_privateTask( void (*fn_p)(T), T arg) {
+  Grappa_privateTask(reinterpret_cast<void (*)(T,void*)>(fn_p), arg, (void*)NULL);
 }
 
 /// Spawn a task to the global task pool.
@@ -94,7 +94,7 @@ inline void SoftXMT_privateTask( void (*fn_p)(T), T arg) {
 /// @param arg1 second task argument
 /// @param arg2 third task argument
 template < typename A0, typename A1, typename A2 >
-void SoftXMT_publicTask( void (*fn_p)(A0, A1, A2), A0 arg0, A1 arg1, A2 arg2) 
+void Grappa_publicTask( void (*fn_p)(A0, A1, A2), A0 arg0, A1 arg1, A2 arg2) 
 {
   STATIC_ASSERT_SIZE_8( A0 );
   STATIC_ASSERT_SIZE_8( A1 );
@@ -113,9 +113,9 @@ void SoftXMT_publicTask( void (*fn_p)(A0, A1, A2), A0 arg0, A1 arg1, A2 arg2)
 /// @param arg0 first task argument
 /// @param arg1 second task argument
 template < typename A0, typename A1 >
-void SoftXMT_publicTask( void (*fn_p)(A0, A1), A0 arg, A1 shared_arg) 
+void Grappa_publicTask( void (*fn_p)(A0, A1), A0 arg, A1 shared_arg) 
 {
-  SoftXMT_publicTask(reinterpret_cast<void (*)(A0,A1,void*)>(fn_p), arg, shared_arg, (void*)NULL);
+  Grappa_publicTask(reinterpret_cast<void (*)(A0,A1,void*)>(fn_p), arg, shared_arg, (void*)NULL);
 }
 
 /// Spawn a task to the global task pool.
@@ -126,19 +126,19 @@ void SoftXMT_publicTask( void (*fn_p)(A0, A1), A0 arg, A1 shared_arg)
 /// @param fn_p function pointer for the new task
 /// @param arg0 first task argument
 template < typename A0 >
-void SoftXMT_publicTask( void (*fn_p)(A0), A0 arg) {
-  SoftXMT_publicTask(reinterpret_cast<void (*)(A0,void*)>(fn_p), arg, (void*)NULL);
+void Grappa_publicTask( void (*fn_p)(A0), A0 arg) {
+  Grappa_publicTask(reinterpret_cast<void (*)(A0,void*)>(fn_p), arg, (void*)NULL);
 }
 
 // forward declaration needed for below wrapper
-void SoftXMT_end_tasks();
+void Grappa_end_tasks();
 
 /// Wrapper to make user_main terminate the tasking layer
 /// after it is done
 template < typename T >
 static void user_main_wrapper( void (*fp)(T), T args ) {
     fp( args );
-    SoftXMT_end_tasks();
+    Grappa_end_tasks();
 }
 
 /// Spawn and run user main function on node 0. Other nodes just run
@@ -155,7 +155,7 @@ static void user_main_wrapper( void (*fp)(T), T args ) {
 /// @return 0 if completed without errors
 /// TODO: error return values?
 template < typename A >
-int SoftXMT_run_user_main( void (*fp)(A), A args )
+int Grappa_run_user_main( void (*fp)(A), A args )
 {
   STATIC_ASSERT_SIZE_8( A );
   
@@ -167,14 +167,14 @@ int SoftXMT_run_user_main( void (*fp)(A), A args )
 #endif
 #ifdef VTRACE_SAMPLED
   // this doesn't really add anything to the profiled trace
-  //SoftXMT_take_profiling_sample();
+  //Grappa_take_profiling_sample();
 #endif
 
-  if( SoftXMT_mynode() == 0 ) {
+  if( Grappa_mynode() == 0 ) {
     CHECK_EQ( CURRENT_THREAD, master_thread ); // this should only be run at the toplevel
 
     // create user_main as a private task
-    SoftXMT_privateTask( &user_main_wrapper<A>, fp, args );
+    Grappa_privateTask( &user_main_wrapper<A>, fp, args );
     DVLOG(5) << "Spawned user_main";
     
     // spawn 1 extra worker that will take user_main
@@ -191,7 +191,7 @@ int SoftXMT_run_user_main( void (*fp)(A), A args )
 
 #ifdef VTRACE_SAMPLED
   // this doesn't really add anything to the profiled trace
-  //SoftXMT_take_profiling_sample();
+  //Grappa_take_profiling_sample();
 #endif
 
   return 0;
@@ -208,7 +208,7 @@ struct remote_task_spawn_args {
 };
 
 /// Grappa Active message for 
-/// void SoftXMT_remote_privateTask( void (*fn_p)(A0,A1,A2), A0, A1, A2, Node)
+/// void Grappa_remote_privateTask( void (*fn_p)(A0,A1,A2), A0, A1, A2, Node)
 ///
 /// @tparam A0 type of first task argument
 /// @tparam A1 type of second task argument
@@ -230,13 +230,13 @@ static void remote_task_spawn_am( remote_task_spawn_args<A0,A1,A2> * args, size_
 /// @param arg2 third task argument
 /// @param target Node to spawn the task on
 template< typename A0, typename A1, typename A2 >
-void SoftXMT_remote_privateTask( void (*fn_p)(A0,A1,A2), A0 arg0, A1 arg1, A2 arg2, Node target) {
+void Grappa_remote_privateTask( void (*fn_p)(A0,A1,A2), A0 arg0, A1 arg1, A2 arg2, Node target) {
   STATIC_ASSERT_SIZE_8( A0 );
   STATIC_ASSERT_SIZE_8( A1 );
   STATIC_ASSERT_SIZE_8( A2 );
 
   remote_task_spawn_args<A0,A1,A2> spawn_args = { fn_p, arg0, arg1, arg2 };
-  SoftXMT_call_on( target, SoftXMT_magic_identity_function(&remote_task_spawn_am<A0,A1,A2>), &spawn_args );
+  Grappa_call_on( target, Grappa_magic_identity_function(&remote_task_spawn_am<A0,A1,A2>), &spawn_args );
   DVLOG(5) << "Sent AM to spawn private task on Node " << target;
 }
 
@@ -250,8 +250,8 @@ void SoftXMT_remote_privateTask( void (*fn_p)(A0,A1,A2), A0 arg0, A1 arg1, A2 ar
 /// @param shared_arg second task argument
 /// @param target Node to spawn the task on
 template< typename A0, typename A1 >
-void SoftXMT_remote_privateTask( void (*fn_p)(A0,A1), A0 args, A1 shared_arg, Node target) {
-  SoftXMT_remote_privateTask(reinterpret_cast<void (*)(A0,A1,void*)>(fn_p), args, shared_arg, (void*)NULL, target);
+void Grappa_remote_privateTask( void (*fn_p)(A0,A1), A0 args, A1 shared_arg, Node target) {
+  Grappa_remote_privateTask(reinterpret_cast<void (*)(A0,A1,void*)>(fn_p), args, shared_arg, (void*)NULL, target);
 }
 
 /// Spawn a private task on another Node
@@ -262,8 +262,8 @@ void SoftXMT_remote_privateTask( void (*fn_p)(A0,A1), A0 args, A1 shared_arg, No
 /// @param args first task argument
 /// @param target Node to spawn the task on
 template< typename A >
-void SoftXMT_remote_privateTask( void (*fn_p)(A), A args, Node target) {
-  SoftXMT_remote_privateTask(reinterpret_cast<void (*)(A,void*)>(fn_p), args, (void*)NULL, target);
+void Grappa_remote_privateTask( void (*fn_p)(A), A args, Node target) {
+  Grappa_remote_privateTask(reinterpret_cast<void (*)(A,void*)>(fn_p), args, (void*)NULL, target);
 }
 
 #endif // TASKING_HPP

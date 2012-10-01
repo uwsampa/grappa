@@ -12,7 +12,7 @@
 #include <math.h>
 
 #include "defs.hpp"
-#include <SoftXMT.hpp>
+#include <Grappa.hpp>
 #include <GlobalAllocator.hpp>
 #include <Cache.hpp>
 #include <ForkJoin.hpp>
@@ -20,8 +20,8 @@
 #include <Collective.hpp>
 #include <Delegate.hpp>
 
-#define read SoftXMT_delegate_read_word
-#define write SoftXMT_delegate_write_word
+#define read Grappa_delegate_read_word
+#define write Grappa_delegate_write_word
 
 static void printHelp(const char * exe);
 static void parseOptions(int argc, char ** argv);
@@ -142,7 +142,7 @@ LOOP_FUNCTOR(func_actual_nadj, nid, ((GlobalAddress<int64_t>,_xoff)) ((int64_t,n
 
   global_async_parallel_for(calc_actual_nadj, 0, nv);
   
-  actual_nadj = SoftXMT_allreduce<int64_t,coll_add<int64_t>,0>(actual_nadj);
+  actual_nadj = Grappa_allreduce<int64_t,coll_add<int64_t>,0>(actual_nadj);
 }
 
 void set_startVertex(int64_t s, int64_t n) {
@@ -151,7 +151,7 @@ void set_startVertex(int64_t s, int64_t n) {
   for (int64_t i=0; i<n; i++) {
     int64_t v = s+i;
     int64_t d = cstarts[i+1]-cstarts[i];
-    SoftXMT_memset(g.startVertex+cstarts[i], v, d);
+    Grappa_memset(g.startVertex+cstarts[i], v, d);
   }
 }
 LOOP_FUNCTION(func_startVertex, nid) {
@@ -201,7 +201,7 @@ bool checkpoint_in(graphedges * ge, graph * g) {
   fprintf(stderr, "warning: skipping edgelist\n");
   fseek(fin, nedge * 2*sizeof(int64_t), SEEK_CUR);
 
-  GlobalAddress<int64_t> xoff = SoftXMT_typed_malloc<int64_t>(2*nv+2);
+  GlobalAddress<int64_t> xoff = Grappa_typed_malloc<int64_t>(2*nv+2);
 
   double tt = timer();
   read_array(xoff, 2*nv, fin, wbuf, NBUF);
@@ -237,7 +237,7 @@ bool checkpoint_in(graphedges * ge, graph * g) {
       deg += d;
     }
   }
-  SoftXMT_delegate_write_word(g->edgeStart+nv, deg);
+  Grappa_delegate_write_word(g->edgeStart+nv, deg);
   tt = timer() - tt; VLOG(1) << "edgeStart time: " << tt;
   //printf("edgeStart: [ ");
   //for (int64_t i=0; i<(1<<10); i++) {
@@ -271,7 +271,7 @@ bool checkpoint_in(graphedges * ge, graph * g) {
       //}
     //}
   //}
-  SoftXMT_free(xoff);
+  Grappa_free(xoff);
   tt = timer() - tt; VLOG(1) << "endVertex time: " << tt;
 
   tt = timer();
@@ -346,7 +346,7 @@ static void user_main(void* ignore) {
     printf("compute_graph_time: %g\n", t);
   }
   
-  SoftXMT_reset_stats();
+  Grappa_reset_stats();
   
   //###############################################
   // Kernel: Connected Components
@@ -397,14 +397,14 @@ static void user_main(void* ignore) {
     printf("triangles_time: %g\n", t); fflush(stdout);
   }
   
-  SoftXMT_reset_stats_all_nodes();
+  Grappa_reset_stats_all_nodes();
 
   //###############################################
   // Kernel: Betweenness Centrality
   if (do_centrality) {
     printf("Kernel - Betweenness Centrality beginning execution...\n"); fflush(stdout);
     
-    GlobalAddress<double> bc = SoftXMT_typed_malloc<double>(numVertices);
+    GlobalAddress<double> bc = Grappa_typed_malloc<double>(numVertices);
     
     double avgbc;
     int64_t total_nedge;
@@ -436,8 +436,8 @@ static void user_main(void* ignore) {
   //###################
   // Kernels complete!
   
-  SoftXMT_merge_and_dump_stats();
-  //SoftXMT_dump_stats_all_nodes();
+  Grappa_merge_and_dump_stats();
+  //Grappa_dump_stats_all_nodes();
 
   VLOG(1) << "freeing graphs";
   //free_graph(dirg);
@@ -446,16 +446,16 @@ static void user_main(void* ignore) {
 }
 
 int main(int argc, char* argv[]) {
-  SoftXMT_init(&argc, &argv);
-  SoftXMT_activate();
+  Grappa_init(&argc, &argv);
+  Grappa_activate();
   
   parseOptions(argc, argv);
   setupParams(SCALE, 8);
   
-  SoftXMT_run_user_main(&user_main, (void*)NULL);
+  Grappa_run_user_main(&user_main, (void*)NULL);
   
   VLOG(1) << "finishing...";
-  SoftXMT_finish(0);
+  Grappa_finish(0);
   return 0;
 }
 

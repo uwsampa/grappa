@@ -29,7 +29,7 @@
 #include <stdint.h>
 #include <inttypes.h>
 
-#include "SoftXMT.hpp"
+#include "Grappa.hpp"
 #include "GlobalAllocator.hpp"
 #include "ForkJoin.hpp"
 #include "Cache.hpp"
@@ -67,7 +67,7 @@ static int64_t bfs_nedge[NBFS_max];
 #define XOFF(k) (xoff+2*(k))
 #define XENDOFF(k) (xoff+2*(k)+1)
 
-#define read SoftXMT_delegate_read_word
+#define read Grappa_delegate_read_word
 
 inline bool has_adj(GlobalAddress<int64_t> xoff, int64_t i) {
   int64_t xoi = read(XOFF(i));
@@ -100,7 +100,7 @@ LOOP_FUNCTION(func_enable_tau, nid) {
   FLAGS_record_grappa_events = true;
 }
 LOOP_FUNCTION(func_enable_google_profiler, nid) {
-  SoftXMT_start_profiling();
+  Grappa_start_profiling();
 }
 static void enable_tau() {
 #ifdef GRAPPA_TRACE
@@ -117,7 +117,7 @@ LOOP_FUNCTION(func_disable_tau, nid) {
   FLAGS_record_grappa_events = false;
 }
 LOOP_FUNCTION(func_disable_google_profiler, nid) {
-  SoftXMT_stop_profiling();
+  Grappa_stop_profiling();
 }
 static void disable_tau() {
 #ifdef GRAPPA_TRACE
@@ -129,8 +129,8 @@ static void disable_tau() {
   func_disable_google_profiler g;
   fork_join_custom(&g);
 #else
-  SoftXMT_merge_and_dump_stats();
-  SoftXMT_reset_stats_all_nodes();
+  Grappa_merge_and_dump_stats();
+  Grappa_reset_stats_all_nodes();
 #endif
 }
 
@@ -139,11 +139,11 @@ static void run_bfs(tuple_graph * tg, csr_graph * g, int64_t * bfs_roots) {
   
   // build bfs tree for each root
   for (int64_t i=0; i < NBFS; i++) {
-    GlobalAddress<int64_t> bfs_tree = SoftXMT_typed_malloc<int64_t>(g->nv);
+    GlobalAddress<int64_t> bfs_tree = Grappa_typed_malloc<int64_t>(g->nv);
     GlobalAddress<int64_t> max_bfsvtx;
     
     VLOG(1) << "Running bfs on root " << i << "(" << bfs_roots[i] << ")...";
-    SoftXMT_reset_stats_all_nodes();
+    Grappa_reset_stats_all_nodes();
     
     enable_tau();
 
@@ -168,14 +168,14 @@ static void run_bfs(tuple_graph * tg, csr_graph * g, int64_t * bfs_roots) {
       VLOG(1) << "bfs_time[" << i << "] = " << bfs_time[i];
     }
     
-    TIME(t, SoftXMT_free(bfs_tree));
+    TIME(t, Grappa_free(bfs_tree));
     VLOG(1) << "Free bfs_tree time: " << t;
   }
 }
 
 template <typename T>
 inline void read_my_chunk(GlobalAddress<T> base_addr, int64_t n, FILE * fin) {
-  range_t r = blockDist(0, n, SoftXMT_mynode(), SoftXMT_nodes());
+  range_t r = blockDist(0, n, Grappa_mynode(), Grappa_nodes());
   fseek(fin, r.start*sizeof(T), SEEK_CUR);
   read_array(base_addr+r.start, r.end-r.start, fin);
   fseek(fin, (n-r.end)*sizeof(T), SEEK_CUR);
@@ -227,9 +227,9 @@ static void checkpoint_in(tuple_graph * tg, csr_graph * g, int64_t * bfs_roots) 
   fread(&ckpt_nbfs, sizeof(ckpt_nbfs), 1, fin);
   CHECK(ckpt_nbfs <= NBFS_max);
 
-  tg->edges = SoftXMT_typed_malloc<packed_edge>(tg->nedge);
-  g->xoff = SoftXMT_typed_malloc<int64_t>(2*g->nv+2);
-  g->xadjstore = SoftXMT_typed_malloc<int64_t>(g->nadj);
+  tg->edges = Grappa_typed_malloc<packed_edge>(tg->nedge);
+  g->xoff = Grappa_typed_malloc<int64_t>(2*g->nv+2);
+  g->xadjstore = Grappa_typed_malloc<int64_t>(g->nadj);
   g->xadj = g->xadjstore+2;
   
   //read_array(tg->edges, tg->nedge, fin);
@@ -337,7 +337,7 @@ static void user_main(int * args) {
   if (!load_checkpoint) {
     
     tg.nedge = (int64_t)(edgefactor) << SCALE;
-    tg.edges = SoftXMT_typed_malloc<packed_edge>(tg.nedge);
+    tg.edges = Grappa_typed_malloc<packed_edge>(tg.nedge);
     
     /* Make the raw graph edges. */
     /* Get roots for BFS runs, plus maximum vertex with non-zero degree (used by
@@ -387,13 +387,13 @@ static void user_main(int * args) {
     if (write_checkpoint) checkpoint_out(&tg, &g, bfs_roots);
   }
   
-  SoftXMT_reset_stats();
+  Grappa_reset_stats();
   
   run_bfs(&tg, &g, bfs_roots);
   
 //  free_graph_data_structure();
   
-  SoftXMT_free(tg.edges);
+  Grappa_free(tg.edges);
   
   /* Print results. */
   output_results(SCALE, 1<<SCALE, edgefactor, A, B, C, D, generation_time, construction_time, NBFS, bfs_time, bfs_nedge);
@@ -404,17 +404,17 @@ static void user_main(int * args) {
 }
 
 int main(int argc, char** argv) {
-  SoftXMT_init(&argc, &argv);
-  SoftXMT_activate();
+  Grappa_init(&argc, &argv);
+  Grappa_activate();
 
   /* Parse arguments. */
   get_options(argc, argv);
 
-  SoftXMT_run_user_main(&user_main, (int*)NULL);
+  Grappa_run_user_main(&user_main, (int*)NULL);
 
   DVLOG(1) << "waiting to finish";
   
-  SoftXMT_finish(0);
+  Grappa_finish(0);
   return 0;
 }
 

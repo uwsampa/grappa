@@ -9,7 +9,7 @@
 #include "Cache.hpp"
 #include "Delegate.hpp"
 
-#define fetch_add SoftXMT_delegate_fetch_and_add_word
+#define fetch_add Grappa_delegate_fetch_and_add_word
 
 /// A simple class for staging appends to a global array. Created for use in adding things 
 /// to the frontier in BFS. The idea is to have a PushBuffer local to each node (in a 

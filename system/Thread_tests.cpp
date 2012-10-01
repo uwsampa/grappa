@@ -12,7 +12,7 @@
 
 #include <time.h>
 
-// FIXME: Thread_tests depends on Thread->PerformanceTools->StateTimer->SoftXMT
+// FIXME: Thread_tests depends on Thread->PerformanceTools->StateTimer->Grappa
 //        Thread_tests is supposed to be independent of a Grappa runtime
 //        To fix this spurious dependence with minimal changes, there could be
 //        a compiled-with-grappa macro variable that wraps usage of StateTimer in Thread.*pp
