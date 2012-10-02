@@ -57,9 +57,6 @@ CFLAGS+= -I..
 # supress c char* warnings
 CFLAGS+= -Wno-write-strings 
 
-EXPERIMENTS=/sampa/home/bdmyers/experiments
-CFLAGS+= -I$(EXPERIMENTS)/lib
-
 LIB=-lm 
 
 LDFLAGS+= $(CFLAGS_COMMON) -L$(GRAPPA_SYS)
