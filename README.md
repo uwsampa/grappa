@@ -23,6 +23,15 @@ cd $GRAPPA_HOME/system
 make
 ```
 
+## Documentation
+The Grappa system directory is documented with Doxygen comments. To generate the documentation, you must first ensure you have doxygen installed, then:
+
+```bash
+cd $GRAPPA_HOME/system
+doxygen
+# for HTML, open: $GRAPPA_HOME/system/doxygen/html/index.html
+```
+
 # Running Grappa programs
 The easiest way to run a Grappa program is to use the `mpi_run` build target that is included in each of the existing applications' directories.
 
