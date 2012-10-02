@@ -43,13 +43,10 @@ PAL=true
 endif
 
 ifdef PAL
-BDMYERS=/pic/people/bdmyers
 NELSON=/pic/people/nels707
 
 #GASNET=$(NELSON)/gasnet
 HUGETLBFS=/usr
-#GFLAGS=$(BDMYERS)/local
-#GLOG=$(BDMYERS)/local
 BOOST=$(NELSON)/boost
 GPERFTOOLS=$(NELSON)/gperftools
 VAMPIRTRACE=$(NELSON)/vampirtrace
