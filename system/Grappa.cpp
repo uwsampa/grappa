@@ -18,6 +18,8 @@
 #include "Cache.hpp"
 #include "PerformanceTools.hpp"
 
+#include <fstream>
+
 #ifndef SHMMAX
 #error "no SHMMAX defined for this system -- look it up with the command: `sysctl -A | grep shm`"
 #endif
@@ -31,6 +33,7 @@ DEFINE_bool( steal, true, "Allow work-stealing between public task queues");
 DEFINE_int32( chunk_size, 10, "Amount of work to publish or steal in multiples of" );
 DEFINE_uint64( num_starting_workers, 4, "Number of starting workers in task-executer pool" );
 DEFINE_bool( set_affinity, false, "Set processor affinity based on local rank" );
+DEFINE_string( stats_blob_filename, "stats.json", "Stats blob filename" );
 
 static Thread * barrier_thread = NULL;
 
@@ -330,15 +333,27 @@ void Grappa_reset_stats_all_nodes() {
 
 
 /// Dump statistics
-void Grappa_dump_stats() {
-  std::cout << "GrappaStats { tick_rate: " << tick_rate << " }" << std::endl;
-  global_aggregator.dump_stats();
-  global_communicator.dump_stats();
-  global_task_manager.dump_stats();
-  global_scheduler.dump_stats();
-  delegate_stats.dump();
-  cache_stats.dump();
+void Grappa_dump_stats( std::ostream& oo ) {
+  std::ostringstream o;
+  o << "{\n";
+  o << "   \"GrappaStats\": { \"tick_rate\": " << tick_rate << " },\n";
+  global_aggregator.dump_stats( o, "," );
+  global_communicator.dump_stats( o, "," );
+  global_task_manager.dump_stats( o, "," );
+  global_scheduler.dump_stats( o, "," );
+  delegate_stats.dump( o, "," );
+  cache_stats.dump( o, "," );
+  Grappa_dump_user_stats( o, "" );
+  o << "}";
+  oo << o.str();
 }
+
+/// Dump stats blob
+void Grappa_dump_stats_blob() {
+  std::ofstream o( FLAGS_stats_blob_filename.c_str(), std::ios::out );
+  Grappa_dump_stats( o );
+}
+ 
 
 /// Functor to dump stats on all nodes
 LOOP_FUNCTION(dump_stats_func,nid) {

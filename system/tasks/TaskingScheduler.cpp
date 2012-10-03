@@ -17,25 +17,28 @@ DEFINE_int64( periodic_poll_ticks, 500, "number of ticks to wait before polling 
 
 DEFINE_bool(flush_on_idle, true, "have tasking layer flush all aggregations if it has nothing better to do");
 
+DEFINE_int64( stats_blob_ticks, 3000000000L, "number of ticks to wait before dumping stats blob");
+
 /// global TaskingScheduler for this Node
 TaskingScheduler global_scheduler;
 
 /// Create uninitialized TaskingScheduler.
 /// init() must subsequently be called before fully initialized.
 TaskingScheduler::TaskingScheduler ( )
-  : readyQ ( )
-  , periodicQ ( )
-  , unassignedQ ( )
-  , master ( NULL )
-  , current_thread ( NULL )
-  , nextId ( 1 )
-  , num_idle ( 0 )
-  , num_active_tasks( 0 )
-  , task_manager ( NULL )
-  , num_workers ( 0 )
-  , work_args( NULL )
-  , previous_periodic_ts( 0 ) 
-  , prev_ts( 0 )
+    : readyQ ( )
+    , periodicQ ( )
+    , unassignedQ ( )
+    , master ( NULL )
+    , current_thread ( NULL )
+    , nextId ( 1 )
+    , num_idle ( 0 )
+    , num_active_tasks( 0 )
+    , task_manager ( NULL )
+    , num_workers ( 0 )
+    , work_args( NULL )
+    , previous_periodic_ts( 0 ) 
+    , prev_ts( 0 )
+    , prev_stats_blob_ts( 0 )
     , stats( this )
 { 
   Grappa_tick();

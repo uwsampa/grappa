@@ -26,9 +26,11 @@
 
 extern bool take_profiling_sample;
 void Grappa_take_profiling_sample();
+void Grappa_dump_stats_blob();
 
 DECLARE_int64( periodic_poll_ticks );
 DECLARE_bool(flush_on_idle);
+DECLARE_int64( stats_blob_ticks );
 
 
 class TaskManager;
@@ -90,6 +92,7 @@ class TaskingScheduler : public Scheduler {
         bool queuesFinished();
   
   Grappa_Timestamp prev_ts;
+  Grappa_Timestamp prev_stats_blob_ts;
   static const int tick_scale = 1; //(1L << 30);
 
         Thread * nextCoroutine ( bool isBlocking=true ) {
@@ -109,6 +112,12 @@ class TaskingScheduler : public Scheduler {
 		if( take_profiling_sample ) {
 		  take_profiling_sample = false;
 		  Grappa_take_profiling_sample();
+		}
+
+		if( ( global_communicator.mynode() == 0 ) &&
+		    ( current_ts - prev_stats_blob_ts > FLAGS_stats_blob_ticks)  ) {
+		  prev_stats_blob_ts = current_ts;
+		  Grappa_dump_stats_blob();
 		}
 
                 // check for periodic tasks

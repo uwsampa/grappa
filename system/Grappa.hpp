@@ -180,7 +180,7 @@ void Grappa_signal_done( );
 void Grappa_end_tasks( );
 
 /// dump stats for this node
-void Grappa_dump_stats();
+void Grappa_dump_stats( std::ostream& oo = std::cout );
 /// dump stats for all nodes
 void Grappa_dump_stats_all_nodes();
 
@@ -194,7 +194,7 @@ void Grappa_merge_and_dump_stats();
 
 void Grappa_dump_task_series();
 
-
+void Grappa_dump_stats_blob();
 
 
 
