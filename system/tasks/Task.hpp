@@ -140,16 +140,15 @@ class TaskManager {
     /// 
     /// @return new output stream 
     std::ostream& dump( std::ostream& o = std::cout, const char * terminator = "" ) const {
-        return o << "\"TaskManager\": {" << std::endl
-                 << "  \"publicQ\": " << publicQ.depth( ) << std::endl
-                 << "  \"privateQ\": " << privateQ.size() << std::endl
-                 << "  \"work-may-be-available?\" " << available() << std::endl
-                 << "  \"sharedMayHaveWork\": " << sharedMayHaveWork << std::endl
-                 << "  \"workDone\": " << workDone << std::endl
-                 << "  \"stealLock\": " << stealLock << std::endl
-                 << "}";
+      return o << "\"TaskManager\": {" << std::endl
+               << "  \"publicQ\": " << publicQ.depth( ) << std::endl
+               << "  \"privateQ\": " << privateQ.size() << std::endl
+               << "  \"work-may-be-available?\" " << available() << std::endl
+               << "  \"sharedMayHaveWork\": " << sharedMayHaveWork << std::endl
+               << "  \"workDone\": " << workDone << std::endl
+               << "  \"stealLock\": " << stealLock << std::endl
+               << "}";
     }
-
 
   public:
     /// Collects statistics on task execution and load balancing.

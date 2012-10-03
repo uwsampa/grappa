@@ -56,11 +56,11 @@ void user_main( int * args ) {
   int nnodes = atoi(getenv("SLURM_NNODES"));
   double throughput_per_node = 0.0;
 
-  SoftXMT_add_profiling_value( &runtime, "runtime", "s", false, 0.0 );
-  SoftXMT_add_profiling_integer( &FLAGS_iterations, "iterations", "it", false, 0 );
-  SoftXMT_add_profiling_integer( &FLAGS_sizeA, "sizeA", "entries", false, 0 );
-  SoftXMT_add_profiling_value( &throughput, "updates_per_s", "up/s", false, 0.0 );
-  SoftXMT_add_profiling_value( &throughput_per_node, "updates_per_s_per_node", "up/s", false, 0.0 );
+  Grappa_add_profiling_value( &runtime, "runtime", "s", false, 0.0 );
+  Grappa_add_profiling_integer( &FLAGS_iterations, "iterations", "it", false, 0 );
+  Grappa_add_profiling_integer( &FLAGS_sizeA, "sizeA", "entries", false, 0 );
+  Grappa_add_profiling_value( &throughput, "updates_per_s", "up/s", false, 0.0 );
+  Grappa_add_profiling_value( &throughput_per_node, "updates_per_s_per_node", "up/s", false, 0.0 );
 
   fork_join_custom( &start_profiling );
 
