@@ -130,6 +130,10 @@ SETUP_CLASS = starcluster.plugins.users.CreateUsers
 usernames = ec2-user, root, nelson, skahan, bholt, bdmyers, claram2, oskin
 DOWNLOAD_KEYS = True
 
+[plugin package_commands]
+setup_class = package_commands.PackageCommands
+commands = update
+
 [plugin pkginstaller]
 SETUP_CLASS = starcluster.plugins.pkginstaller.PackageInstaller
 # boost is necessary for grappa
@@ -174,7 +178,15 @@ NODE_INSTANCE_TYPE = cc1.4xlarge
 AWS_REGION_NAME = us-east-1
 AWS_REGION_HOST = ec2.us-east-1.amazonaws.com
 VOLUMES = grappa_home
-PLUGINS = config_grappa, hadoop, pkginstaller, createusers, slurm
+PLUGINS = config_grappa, hadoop, package_commands, pkginstaller, createusers, slurm
+
+[cluster grappa_nohome]
+EXTENDS=smallcluster
+NODE_IMAGE_ID = ami-4583572c
+NODE_INSTANCE_TYPE = cc1.4xlarge
+AWS_REGION_NAME = us-east-1
+AWS_REGION_HOST = ec2.us-east-1.amazonaws.com
+PLUGINS = config_grappa, hadoop, package_commands, pkginstaller, createusers, slurm
 
 #############################
 ## Configuring EBS Volumes ##
