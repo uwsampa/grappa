@@ -46,7 +46,7 @@ class DictOut {
 
         const std::string entryString( Entry* e ) {
             std::stringstream ss;
-            ss << e->name() 
+            ss << "\"" << e->name() << "\""
                << sym_mapsto 
                << e->value();
             return ss.str();
@@ -96,11 +96,12 @@ class DictOut {
 
             ss << "{";
 
-            while (!outputs.empty()) {
+            int size = outputs.size();
+	    for( int i = 0; i != size; ++i ) {
                 Entry* e = outputs.front();
                 outputs.pop();
                 ss << entryString( e );
-                ss << ", ";
+                if( i != outputs.size()-1 ) ss << ", ";
             }
             
             ss << "}";
