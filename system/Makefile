@@ -194,6 +194,13 @@ CFLAGS+= -fno-omit-frame-pointer -DGOOGLE_PROFILER
 LIBS+= -lprofiler
 endif
 
+ifdef STATS_BLOB
+# how often should we sample? (interrupts/sec)
+ENV_VARIABLES+= CPUPROFILE_FREQUENCY=10
+CFLAGS+= -DSTATS_BLOB
+LIBS+= -lprofiler
+endif
+
 # activate this for sampled traces
 ifdef VTRACE_SAMPLED
 #ENV_VARIABLES+= VT_VERBOSE=10
