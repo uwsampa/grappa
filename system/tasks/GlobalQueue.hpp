@@ -49,6 +49,14 @@ class GlobalQueueStatistics {
     uint64_t globalq_push_request_rejected;
     uint64_t globalq_push_entry_hadConsumer;
     uint64_t globalq_push_entry_noConsumer;
+
+#ifdef VTRACE_SAMPLED
+    unsigned globalq_grp_vt;
+    unsigned globalq_push_reserve_request_messages_ev_vt;
+    unsigned globalq_pull_reserve_request_messages_ev_vt;
+    unsigned globalq_push_entry_request_messages_ev_vt;
+    unsigned globalq_pull_entry_request_messages_ev_vt;
+#endif
   
   
   public:

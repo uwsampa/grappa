@@ -81,9 +81,9 @@ inline void TaskManager::tryPushToGlobal() {
   if ( doGQ && SoftXMT_global_queue_isInit() && gqPushLock ) {
     gqPushLock = false;
     uint64_t local_size = publicQ.depth();
-    DVLOG(1) << "Allowed to push gq: local size " << local_size;
+    DVLOG(3) << "Allowed to push gq: local size " << local_size;
     if ( local_size >= FLAGS_global_queue_threshold ) {
-      DVLOG(1) << "Decided to push gq";
+      DVLOG(3) << "Decided to push gq";
       uint64_t push_amount = MIN_INT( local_size/2, chunkSize );
       bool push_success = publicQ.push_global( push_amount );
       stats.record_globalq_push( push_amount, push_success );
@@ -333,16 +333,26 @@ void TaskManager::TaskStatistics::profiling_sample() {
   VT_COUNT_UNSIGNED_VAL( session_steal_successes_vt_ev, session_steal_successes_);
   VT_COUNT_UNSIGNED_VAL( session_steal_fails_vt_ev, session_steal_fails_);
   VT_COUNT_UNSIGNED_VAL( single_steal_successes_vt_ev, single_steal_successes_);
-  VT_COUNT_UNSIGNED_VAL( total_steal_tasks_vt_ev, total_steal_tasks_);
+  VT_COUNT_UNSIGNED_VAL( total_steal_tasks_vt_ev, steal_amt_.getTotal());
   VT_COUNT_UNSIGNED_VAL( single_steal_fails_vt_ev, single_steal_fails_);
   VT_COUNT_UNSIGNED_VAL( acquire_successes_vt_ev, acquire_successes_);
   VT_COUNT_UNSIGNED_VAL( acquire_fails_vt_ev, acquire_fails_);
   VT_COUNT_UNSIGNED_VAL( releases_vt_ev, releases_);
   VT_COUNT_UNSIGNED_VAL( public_tasks_dequeued_vt_ev, public_tasks_dequeued_);
   VT_COUNT_UNSIGNED_VAL( private_tasks_dequeued_vt_ev, private_tasks_dequeued_);
-#endif
-}
 
+  VT_COUNT_UNSIGNED_VAL( globalq_pushes_vt_ev, globalq_pushes_ );
+  VT_COUNT_UNSIGNED_VAL( globalq_push_attempts_vt_ev, globalq_push_attempts_ );
+  VT_COUNT_UNSIGNED_VAL( globalq_elements_pushed_vt_ev, globalq_elements_pushed_.getTotal() );
+  VT_COUNT_UNSIGNED_VAL( globalq_pulls_vt_ev, globalq_pulls_ );
+  VT_COUNT_UNSIGNED_VAL( globalq_pull_attempts_vt_ev, globalq_pull_attempts_ );
+  VT_COUNT_UNSIGNED_VAL( globalq_elements_pulled_vt_ev, globalq_elements_pulled_.getTotal() );
+  
+  VT_COUNT_UNSIGNED_VAL( shares_initiated_vt_ev, workshares_initiated_ );
+  VT_COUNT_UNSIGNED_VAL( shares_received_elements_vt_ev, workshares_initiated_received_elements_.getTotal() );
+  VT_COUNT_UNSIGNED_VAL( shares_pushed_elements_vt_ev, workshares_initiated_pushed_elements_.getTotal() );
+#endif
+    }
 
 void TaskManager::TaskStatistics::merge(const TaskManager::TaskStatistics * other) {
   session_steal_successes_ += other->session_steal_successes_;

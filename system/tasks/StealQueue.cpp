@@ -4,7 +4,18 @@
 StealStatistics steal_queue_stats;
 
 StealStatistics::StealStatistics() {
-  reset();
+#ifdef VTRACE
+          steal_queue_grp_vt = VT_COUNT_GROUP_DEF( "Steal queue" );
+          
+          share_request_ev_vt = VT_COUNT_DEF( "Share requests", "shares", VT_COUNT_TYPE_UNSIGNED, steal_queue_grp_vt );
+          share_reply_ev_vt = VT_COUNT_DEF( "Share reply", "shares", VT_COUNT_TYPE_UNSIGNED, steal_queue_grp_vt );
+
+          globalq_data_pull_request_ev_vt = VT_COUNT_DEF( "Globalq data pulls reqs", "gq", VT_COUNT_TYPE_UNSIGNED, steal_queue_grp_vt );
+          globalq_data_pull_reply_ev_vt = VT_COUNT_DEF( "Globalq data pull repls", "gq", VT_COUNT_TYPE_UNSIGNED, steal_queue_grp_vt );
+          globalq_data_pull_reply_num_elements_ev_vt = VT_COUNT_DEF( "Globalq data pull elements", "gq", VT_COUNT_TYPE_UNSIGNED, steal_queue_grp_vt );
+#endif
+
+   reset();
 }
 
 void StealStatistics::reset() {
@@ -144,4 +155,12 @@ void StealStatistics::merge( const StealStatistics * other ) {
 }
 
 void StealStatistics::profiling_sample() {
+#ifdef VTRACE
+  VT_COUNT_UNSIGNED_VAL( share_request_ev_vt, workshare_request_messages );
+  VT_COUNT_UNSIGNED_VAL( share_reply_ev_vt, workshare_reply_messages );
+  
+  VT_COUNT_UNSIGNED_VAL( globalq_data_pull_request_ev_vt, globalq_data_pull_request_messages );
+  VT_COUNT_UNSIGNED_VAL( globalq_data_pull_reply_ev_vt, globalq_data_pull_reply_messages );
+  VT_COUNT_UNSIGNED_VAL( globalq_data_pull_reply_num_elements_ev_vt, globalq_data_pull_reply_num_elements.getTotal() );
+#endif
 }
