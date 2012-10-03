@@ -59,25 +59,29 @@ void user_main( int * args ) {
 
   fork_join_custom( &stop_profiling );
 
+<<<<<<< HEAD
   Grappa_merge_and_dump_stats();
 
+=======
+>>>>>>> change stats to dump a single JSON blob
   double runtime = end - start;
   double throughput = FLAGS_iterations / runtime;
 
   int nnodes = atoi(getenv("SLURM_NNODES"));
+  double throughput_per_node = throughput/nnodes;
+
+  SoftXMT_add_profiling_value( &runtime, "runtime", "s", false, 0.0 );
+  SoftXMT_add_profiling_integer( &FLAGS_iterations, "iterations", "it", false, 0 );
+  SoftXMT_add_profiling_integer( &FLAGS_sizeA, "sizeA", "entries", false, 0 );
+  SoftXMT_add_profiling_value( &throughput, "updates_per_s", "up/s", false, 0.0 );
+  SoftXMT_add_profiling_value( &throughput_per_node, "updates_per_s_per_node", "up/s", false, 0.0 );
+
+  SoftXMT_merge_and_dump_stats();
 
   LOG(INFO) << "GUPS: "
             << FLAGS_iterations << " updates at "
             << throughput << "updates/s ("
             << throughput/nnodes << " updates/s/node).";
-
-  std::cout << "GUPS { "
-	    << "runtime:" << runtime << ", "
-            << "iterations:" << FLAGS_iterations << ", "
-            << "sizeA:" << FLAGS_sizeA << ", "
-            << "updates_per_s:" << throughput << ", "
-            << "updates_per_s_per_node:" << throughput/nnodes << ", "
-	    << "}" << std::endl;
 }
 
 

@@ -49,7 +49,7 @@ class IRStatistics {
       release_ams_bytes+=bytes;
     }
 
-    void dump();
+    void dump( std::ostream& o, const char * terminator );
     void sample();
     void profiling_sample();
     void merge(IRStatistics * other);

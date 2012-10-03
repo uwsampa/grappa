@@ -175,16 +175,18 @@ class TaskingScheduler : public Scheduler {
             return NULL;
         }
 
-        /// Append a representation of the state of the scheduler to an output stream
-        std::ostream& dump( std::ostream& o ) const {
-            return o << "TaskingScheduler {" << std::endl
-                << "  readyQ: " << readyQ << std::endl
-                << "  periodicQ: " << periodicQ << std::endl
-                << "  num_workers: " << num_workers << std::endl
-                << "  num_idle: " << num_idle << std::endl
-                << "  unassignedQ: " << unassignedQ << std::endl
-                << "}";
-        }
+  /// Append a representation of the state of the scheduler to an output stream
+  std::ostream& dump( std::ostream& o = std::cout, const char * terminator = "" ) const {
+    return o << "\"TaskingScheduler\": {" << std::endl
+      //<< "  \"hostname\": \"" << global_communicator.hostname() << "\"" << std::endl
+             << "  \"pid\": " << getpid() << std::endl
+             << "  \"readyQ\": " << readyQ << std::endl
+             << "  \"periodicQ\": " << periodicQ << std::endl
+             << "  \"num_workers\": " << num_workers << std::endl
+	     << "  \"num_idle\": " << num_idle << std::endl
+	     << "  \"unassignedQ\": " << unassignedQ << std::endl
+	     << "}";
+  }
 
     public:
         /// Stats for the scheduler
@@ -262,17 +264,17 @@ class TaskingScheduler : public Scheduler {
                     LOG(INFO) << "Active tasks log: " << ss.str();
 #endif
                 }
-                void dump() {
-                    std::cout << "TaskStats { "
-                        << "max_active: " << max_active << ", "
-                        << "avg_active: " << avg_active << ", " 
-                        << "avg_ready: " << avg_ready
-			      << ", scheduler_polling_thread_ticks: " << state_timers[ StatePoll ]
-			      << ", scheduler_ready_thread_ticks: " << state_timers[ StateReady ]
-			      << ", scheduler_idle_thread_ticks: " << state_timers[ StateIdle ]
-			      << ", scheduler_count: " << scheduler_count
-			      << " }" << std::endl;
-                }
+	  void dump( std::ostream& o = std::cout, const char * terminator = "" ) {
+	    o << "   \"SchedulerStats\": { "
+	      << "\"max_active\": " << max_active << ", "
+	      << "\"avg_active\": " << avg_active << ", " 
+	      << "\"avg_ready\": " << avg_ready
+	      << ", \"scheduler_polling_thread_ticks\": " << state_timers[ StatePoll ]
+	      << ", \"scheduler_ready_thread_ticks\": " << state_timers[ StateReady ]
+	      << ", \"scheduler_idle_thread_ticks\": " << state_timers[ StateIdle ]
+	      << ", \"scheduler_count\": " << scheduler_count
+	      << " }" << terminator << std::endl;
+	  }
                 void sample();
 	        void profiling_sample();
                 void merge(TaskingSchedulerStatistics * other); 
@@ -317,8 +319,8 @@ class TaskingScheduler : public Scheduler {
        }
   
        /// Print scheduler statistics
-       void dump_stats() {
-           stats.dump();
+       void dump_stats( std::ostream& o = std::cout, const char * terminator = "" ) {
+	 stats.dump( o, terminator );
        }
   
        void merge_stats();

@@ -27,11 +27,11 @@ void IRStatistics::reset() {
   release_ams_bytes = 0;
 }
 
-void IRStatistics::dump() {
-  std::cout << "IncoherentReleaserStatistics { "
-	    << "release_ams: " << release_ams << ", "
-	    << "release_ams_bytes: " << release_ams_bytes << ", "
-    << " }" << std::endl;
+void IRStatistics::dump( std::ostream& o = std::cout, const char * terminator = "" ) {
+  o << "   \"IncoherentReleaserStatistics\": { "
+    << "\"release_ams\": " << release_ams << ", "
+    << "\"release_ams_bytes\": " << release_ams_bytes
+    << " }" << terminator << std::endl;
 }
 
 void IRStatistics::sample() {

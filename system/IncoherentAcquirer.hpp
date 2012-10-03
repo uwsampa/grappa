@@ -99,7 +99,7 @@ class IAStatistics {
       acquire_network_ticks_min = latency;
   }
 
-    void dump();
+    void dump( std::ostream& o, const char * terminator );
     void sample();
     void profiling_sample();
     void merge(IAStatistics * other);

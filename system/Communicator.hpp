@@ -119,12 +119,12 @@ private:
   std::ostream& as_map( std::ostream& o, double time) {
     double messages_per_second = messages_ / time;
     double bytes_per_second = bytes_ / time;
-    o << "CommunicatorStatistics {"
-      << "comm_time: " << time
-      << ", messages: " << messages_
-      << ", bytes: " << bytes_
-      << ", messages_per_second: " << messages_per_second
-      << ", bytes_per_second: " << bytes_per_second;
+    o << "   \"CommunicatorStatistics\": {"
+      << "\"comm_time\": " << time
+      << ", \"messages\": " << messages_
+      << ", \"bytes\": " << bytes_
+      << ", \"messages_per_second\": " << messages_per_second
+      << ", \"bytes_per_second\": " << bytes_per_second;
     for (int i=0; i<16; i++) o << ", " << hist_labels[i] << ": " << histogram_[i];
     o << " }";
     return o;
@@ -164,22 +164,22 @@ public:
 #endif
   { 
     reset();
-    hist_labels[ 0] = "comm_0_to_255_bytes";
-    hist_labels[ 1] = "comm_256_to_511_bytes";
-    hist_labels[ 2] = "comm_512_to_767_bytes";
-    hist_labels[ 3] = "comm_768_to_1023_bytes";
-    hist_labels[ 4] = "comm_1024_to_1279_bytes";
-    hist_labels[ 5] = "comm_1280_to_1535_bytes";
-    hist_labels[ 6] = "comm_1536_to_1791_bytes";
-    hist_labels[ 7] = "comm_1792_to_2047_bytes";
-    hist_labels[ 8] = "comm_2048_to_2303_bytes";
-    hist_labels[ 9] = "comm_2304_to_2559_bytes";
-    hist_labels[10] = "comm_2560_to_2815_bytes";
-    hist_labels[11] = "comm_2816_to_3071_bytes";
-    hist_labels[12] = "comm_3072_to_3327_bytes";
-    hist_labels[13] = "comm_3328_to_3583_bytes";
-    hist_labels[14] = "comm_3584_to_3839_bytes";
-    hist_labels[15] = "comm_3840_to_4095_bytes";
+    hist_labels[ 0] = "\"comm_0_to_255_bytes\"";
+    hist_labels[ 1] = "\"comm_256_to_511_bytes\"";
+    hist_labels[ 2] = "\"comm_512_to_767_bytes\"";
+    hist_labels[ 3] = "\"comm_768_to_1023_bytes\"";
+    hist_labels[ 4] = "\"comm_1024_to_1279_bytes\"";
+    hist_labels[ 5] = "\"comm_1280_to_1535_bytes\"";
+    hist_labels[ 6] = "\"comm_1536_to_1791_bytes\"";
+    hist_labels[ 7] = "\"comm_1792_to_2047_bytes\"";
+    hist_labels[ 8] = "\"comm_2048_to_2303_bytes\"";
+    hist_labels[ 9] = "\"comm_2304_to_2559_bytes\"";
+    hist_labels[10] = "\"comm_2560_to_2815_bytes\"";
+    hist_labels[11] = "\"comm_2816_to_3071_bytes\"";
+    hist_labels[12] = "\"comm_3072_to_3327_bytes\"";
+    hist_labels[13] = "\"comm_3328_to_3583_bytes\"";
+    hist_labels[14] = "\"comm_3584_to_3839_bytes\"";
+    hist_labels[15] = "\"comm_3840_to_4095_bytes\"";
   }
   
   void reset() {
@@ -233,9 +233,9 @@ public:
     data(LOG(INFO), time());
   }
   
-  void dump() {
-    as_map(std::cout, time());
-    std::cout << std::endl;
+  void dump( std::ostream& o = std::cout, const char * terminator = "" ) {
+    as_map(o, time());
+    o << terminator << std::endl;
   }
   
   void merge(CommunicatorStatistics * other) {
@@ -329,7 +329,9 @@ public:
 
   void finish( int retval = 0 );
 
-  void dump_stats() { stats.dump(); }
+  void dump_stats( std::ostream& o = std::cout, const char * terminator = "" ) { 
+    stats.dump( o, terminator );
+  }
   void merge_stats();
   void reset_stats() { stats.reset(); }
 

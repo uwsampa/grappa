@@ -91,7 +91,7 @@ class TaskManager {
     /// indicates that all tasks *should* be finished
     /// and termination can occur
     bool workDone;
-
+        
     /// stealing on/off
     bool doSteal;   
 
@@ -139,15 +139,15 @@ class TaskManager {
     /// @param o existing output stream to append to
     /// 
     /// @return new output stream 
-    std::ostream& dump( std::ostream& o ) const {
-      return o << "TaskManager {" << std::endl
-        << "  publicQ: " << publicQ.depth( ) << std::endl
-        << "  privateQ: " << privateQ.size() << std::endl
-        << "  work-may-be-available? " << available() << std::endl
-        << "  sharedMayHaveWork: " << sharedMayHaveWork << std::endl
-        << "  workDone: " << workDone << std::endl
-        << "  stealLock: " << stealLock << std::endl
-        << "}";
+    std::ostream& dump( std::ostream& o = std::cout, const char * terminator = "" ) const {
+        return o << "\"TaskManager\": {" << std::endl
+                 << "  \"publicQ\": " << publicQ.depth( ) << std::endl
+                 << "  \"privateQ\": " << privateQ.size() << std::endl
+                 << "  \"work-may-be-available?\" " << available() << std::endl
+                 << "  \"sharedMayHaveWork\": " << sharedMayHaveWork << std::endl
+                 << "  \"workDone\": " << workDone << std::endl
+                 << "  \"stealLock\": " << stealLock << std::endl
+                 << "}";
     }
 
 
@@ -267,7 +267,7 @@ class TaskManager {
           private_tasks_dequeued_++;
         }
 
-        void dump();
+        void dump( std::ostream& o, const char * terminator );
         void merge(TaskStatistics * other);
         void reset();
 
