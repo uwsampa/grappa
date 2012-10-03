@@ -169,6 +169,17 @@ class TaskManager {
 	  unsigned releases_vt_ev;
 	  unsigned public_tasks_dequeued_vt_ev;
 	  unsigned private_tasks_dequeued_vt_ev;
+
+    unsigned globalq_pushes_vt_ev;
+    unsigned globalq_push_attempts_vt_ev;
+    unsigned globalq_elements_pushed_vt_ev;
+    unsigned globalq_pulls_vt_ev;
+    unsigned globalq_pull_attempts_vt_ev;
+    unsigned globalq_elements_pulled_vt_ev;
+
+    unsigned shares_initiated_vt_ev;
+    unsigned shares_received_elements_vt_ev;
+    unsigned shares_pushed_elements_vt_ev;
 #endif
 
                 TaskManager * tm;
@@ -195,6 +206,17 @@ class TaskManager {
 		    , releases_vt_ev( VT_COUNT_DEF( "releases", "acquires", VT_COUNT_TYPE_UNSIGNED, task_manager_vt_grp ) )
 		    , public_tasks_dequeued_vt_ev( VT_COUNT_DEF( "public_tasks_dequeued", "tasks", VT_COUNT_TYPE_UNSIGNED, task_manager_vt_grp ) )
 		    , private_tasks_dequeued_vt_ev( VT_COUNT_DEF( "private_tasks_dequeued", "tasks", VT_COUNT_TYPE_UNSIGNED, task_manager_vt_grp ) )
+       
+        , globalq_pushes_vt_ev( VT_COUNT_DEF( "globalq pushes", "tasks", VT_COUNT_TYPE_UNSIGNED, task_manager_vt_grp ) )
+        , globalq_push_attempts_vt_ev( VT_COUNT_DEF( "globalq push attempts", "tasks", VT_COUNT_TYPE_UNSIGNED, task_manager_vt_grp ) )
+        , globalq_elements_pushed_vt_ev( VT_COUNT_DEF( "globalq elements pushed", "tasks", VT_COUNT_TYPE_UNSIGNED, task_manager_vt_grp ) )
+        , globalq_pulls_vt_ev( VT_COUNT_DEF( "globalq pulls", "tasks", VT_COUNT_TYPE_UNSIGNED, task_manager_vt_grp ) )
+        , globalq_pull_attempts_vt_ev( VT_COUNT_DEF( "globalq pull attempts", "tasks", VT_COUNT_TYPE_UNSIGNED, task_manager_vt_grp ) )
+        , globalq_elements_pulled_vt_ev( VT_COUNT_DEF( "globalq elements pulled", "tasks", VT_COUNT_TYPE_UNSIGNED, task_manager_vt_grp ) )
+        
+        , shares_initiated_vt_ev( VT_COUNT_DEF( "workshares initiated", "tasks", VT_COUNT_TYPE_UNSIGNED, task_manager_vt_grp ) )
+        , shares_received_elements_vt_ev( VT_COUNT_DEF( "workshares received elements", "tasks", VT_COUNT_TYPE_UNSIGNED, task_manager_vt_grp ) )
+        , shares_pushed_elements_vt_ev( VT_COUNT_DEF( "workshares pushed elements", "tasks", VT_COUNT_TYPE_UNSIGNED, task_manager_vt_grp ) )
 #endif
 
                       , tm( task_manager )

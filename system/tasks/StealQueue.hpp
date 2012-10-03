@@ -90,6 +90,16 @@ class StealStatistics {
     TotalStatistic globalq_data_pull_request_num_elements;
     TotalStatistic globalq_data_pull_reply_num_elements;
     
+#ifdef VTRACE
+    unsigned steal_queue_grp_vt;
+
+    unsigned share_request_ev_vt;
+    unsigned share_reply_ev_vt;
+
+    unsigned globalq_data_pull_request_ev_vt;
+    unsigned globalq_data_pull_reply_ev_vt;
+    unsigned globalq_data_pull_reply_num_elements_ev_vt;
+#endif
 
   public:
     StealStatistics();
@@ -121,11 +131,6 @@ class StealQueue {
         uint64_t nAcquire, nRelease, nStealPackets, nFail;  /* steal stats */
         uint64_t wakeups, falseWakeups, nNodes_last;
   
-#ifdef VTRACE
-  unsigned steal_queue_grp_vt;
-  unsigned steal_success_ev_vt;
-  unsigned steal_victim_ev_vt;
-#endif
 
         double time[SS_NSTATES], timeLast;
         /* perf measurements */ 
@@ -207,11 +212,6 @@ class StealQueue {
 
           mkEmpty();
 
-#ifdef VTRACE
-          steal_queue_grp_vt = VT_COUNT_GROUP_DEF( "Steal queue" );
-          steal_success_ev_vt = VT_COUNT_DEF( "Steal success", "tasks", VT_COUNT_TYPE_UNSIGNED, steal_queue_grp_vt );
-          steal_victim_ev_vt = VT_COUNT_DEF( "Steal victim", "tasks", VT_COUNT_TYPE_UNSIGNED, steal_queue_grp_vt );
-#endif
         }
 
         StealQueue( ) 

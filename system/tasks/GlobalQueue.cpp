@@ -2,12 +2,25 @@
 
 GlobalQueueStatistics global_queue_stats;
 
-GlobalQueueStatistics::GlobalQueueStatistics() {
+GlobalQueueStatistics::GlobalQueueStatistics() 
+#ifdef VTRACE_SAMPLED
+    : globalq_grp_vt( VT_COUNT_GROUP_DEF( "GlobalQueue" ) )
+    , globalq_push_reserve_request_messages_ev_vt ( VT_COUNT_DEF("GQ push reserve requests", "reqs", VT_COUNT_TYPE_UNSIGNED, globalq_grp_vt ) )
+    , globalq_pull_reserve_request_messages_ev_vt( VT_COUNT_DEF("GQ pull reserve requests", "reqs", VT_COUNT_TYPE_UNSIGNED, globalq_grp_vt ) )
+    , globalq_push_entry_request_messages_ev_vt( VT_COUNT_DEF("GQ push entry requests", "reqs", VT_COUNT_TYPE_UNSIGNED, globalq_grp_vt ) )
+    , globalq_pull_entry_request_messages_ev_vt( VT_COUNT_DEF("GQ pull entry requests", "reqs", VT_COUNT_TYPE_UNSIGNED, globalq_grp_vt ) )
+#endif
+{
   reset();
 }
 
 void GlobalQueueStatistics::profiling_sample() {
-  // TODO
+#ifdef VTRACE_SAMPLED
+    VT_COUNT_UNSIGNED_VAL( globalq_push_reserve_request_messages_ev_vt, globalq_push_reserve_request_messages );
+    VT_COUNT_UNSIGNED_VAL( globalq_pull_reserve_request_messages_ev_vt, globalq_pull_reserve_request_messages );
+    VT_COUNT_UNSIGNED_VAL( globalq_push_entry_request_messages_ev_vt, globalq_push_entry_request_messages );
+    VT_COUNT_UNSIGNED_VAL( globalq_pull_entry_request_messages_ev_vt, globalq_pull_entry_request_messages );
+#endif
 }
 
 void GlobalQueueStatistics::reset() {
