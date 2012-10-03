@@ -12,9 +12,9 @@
 #############################################################################
 
 # check if autodetect GRAPPA_HOME is consistent
-AUTO_HOME=$(shell (while [[ ! -e include.mk && "`pwd`" != '/' ]]; do cd ..; done; pwd ))
+AUTO_HOME=$(shell /bin/bash -c '(while [[ ! -e include.mk && "`pwd`" != "/" ]]; do cd ..; done; pwd )')
 ifneq ($(GRAPPA_HOME), $(AUTO_HOME))
-warning "Environment variable GRAPPA_HOME was set but doesn't match the autodetected home. $(GRAPPA_HOME), $(AUTO_HOME)"
+$(warning Environment variable GRAPPA_HOME was set but does not match the autodetected home. $(GRAPPA_HOME), $(AUTO_HOME))
 endif
 
 #

@@ -1,8 +1,8 @@
-GRAPPA_HOME?=$(shell (while [[ ! -e include.mk && "`pwd`" != '/' ]]; do cd ..; done; pwd ))
+GRAPPA_HOME?=$(shell /bin/bash -c '(while [[ ! -e include.mk && "`pwd`" != "/" ]]; do cd ..; done; pwd )')
 # check if autodetect GRAPPA_HOME is consistent
-AUTO_HOME=$(shell (while [[ ! -e include.mk && "`pwd`" != '/' ]]; do cd ..; done; pwd ))
+AUTO_HOME=$(shell /bin/bash -c '(while [[ ! -e include.mk && "`pwd`" != "/" ]]; do cd ..; done; pwd )')
 ifneq ($(GRAPPA_HOME), $(AUTO_HOME))
-$(warning warning: Environment variable GRAPPA_HOME was set but doesn't match the autodetected home: env=$(GRAPPA_HOME), auto=$(AUTO_HOME))
+$(warning warning: Environment variable GRAPPA_HOME was set but does not match the autodetected home: env=$(GRAPPA_HOME), auto=$(AUTO_HOME))
 endif
 
 #include common Grappa definitions
@@ -10,7 +10,7 @@ include $(GRAPPA_HOME)/include.mk
 
 #default target: graph500 executable
 TARGET:= graph.exe
-	
+
 #default rule: just build TARGET
 $(TARGET):
 
@@ -41,7 +41,7 @@ $(GRAPPA_HOME)/system/libGrappa.a: force
 generator.a: ../generator/graph_generator.c ../generator/make_graph.c ../generator/splittable_mrg.c ../generator/utils.c
 	cd ../generator; $(MAKE) -f Makefile.grappa lib
 	cd ../grappa; cp ../generator/generator.a generator.a
-	
+
 force: ;
 
 allclean: clean

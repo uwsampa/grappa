@@ -1,8 +1,8 @@
-GRAPPA_HOME?=$(shell (while [[ ! -e include.mk && "`pwd`" != '/' ]]; do cd ..; done; pwd ))
+GRAPPA_HOME?=$(shell /bin/bash -c '(while [[ ! -e include.mk && "`pwd`" != "/" ]]; do cd ..; done; pwd )')
 # check if autodetect GRAPPA_HOME is consistent
-AUTO_HOME=$(shell (while [[ ! -e include.mk && "`pwd`" != '/' ]]; do cd ..; done; pwd ))
+AUTO_HOME=$(shell /bin/bash -c '(while [[ ! -e include.mk && "`pwd`" != "/" ]]; do cd ..; done; pwd )')
 ifneq ($(GRAPPA_HOME), $(AUTO_HOME))
-$(warning warning: Environment variable GRAPPA_HOME was set but doesn't match the autodetected home: env=$(GRAPPA_HOME), auto=$(AUTO_HOME))
+$(warning warning: Environment variable GRAPPA_HOME was set but does not match the autodetected home: env=$(GRAPPA_HOME), auto=$(AUTO_HOME))
 endif
 
 #include common Grappa definitions
