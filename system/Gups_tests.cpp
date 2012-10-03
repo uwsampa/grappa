@@ -51,6 +51,17 @@ void user_main( int * args ) {
 
   func_gups gups( A );
 
+  double runtime = 0.0;
+  double throughput = 0.0;
+  int nnodes = atoi(getenv("SLURM_NNODES"));
+  double throughput_per_node = 0.0;
+
+  SoftXMT_add_profiling_value( &runtime, "runtime", "s", false, 0.0 );
+  SoftXMT_add_profiling_integer( &FLAGS_iterations, "iterations", "it", false, 0 );
+  SoftXMT_add_profiling_integer( &FLAGS_sizeA, "sizeA", "entries", false, 0 );
+  SoftXMT_add_profiling_value( &throughput, "updates_per_s", "up/s", false, 0.0 );
+  SoftXMT_add_profiling_value( &throughput_per_node, "updates_per_s_per_node", "up/s", false, 0.0 );
+
   fork_join_custom( &start_profiling );
 
   double start = wall_clock_time();
@@ -59,22 +70,11 @@ void user_main( int * args ) {
 
   fork_join_custom( &stop_profiling );
 
-<<<<<<< HEAD
-  Grappa_merge_and_dump_stats();
+  runtime = end - start;
+  throughput = FLAGS_iterations / runtime;
 
-=======
->>>>>>> change stats to dump a single JSON blob
-  double runtime = end - start;
-  double throughput = FLAGS_iterations / runtime;
+  throughput_per_node = throughput/nnodes;
 
-  int nnodes = atoi(getenv("SLURM_NNODES"));
-  double throughput_per_node = throughput/nnodes;
-
-  SoftXMT_add_profiling_value( &runtime, "runtime", "s", false, 0.0 );
-  SoftXMT_add_profiling_integer( &FLAGS_iterations, "iterations", "it", false, 0 );
-  SoftXMT_add_profiling_integer( &FLAGS_sizeA, "sizeA", "entries", false, 0 );
-  SoftXMT_add_profiling_value( &throughput, "updates_per_s", "up/s", false, 0.0 );
-  SoftXMT_add_profiling_value( &throughput_per_node, "updates_per_s_per_node", "up/s", false, 0.0 );
 
   SoftXMT_merge_and_dump_stats();
 
