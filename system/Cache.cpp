@@ -76,18 +76,18 @@ void CacheStatistics::reset() {
   incoherent_releaser_stats.reset();
 }
 
-void CacheStatistics::dump() {
-  std::cout << "CacheStats { "
-	    << "ro_acquires: " << ro_acquires << ", "
-	    << "wo_releases: " << wo_releases << ", "
-	    << "rw_acquires: " << rw_acquires << ", "
-	    << "rw_releases: " << rw_releases << ", "
-	    << "bytes_acquired: " << bytes_acquired << ", "
-	    << "bytes_released: " << bytes_released << ", "
-    << " }" << std::endl;
+void CacheStatistics::dump( std::ostream& o = std::cout, const char * terminator = "" ) {
+  o << "   \"CacheStats\": { "
+    << "\"ro_acquires\": " << ro_acquires << ", "
+    << "\"wo_releases\": " << wo_releases << ", "
+    << "\"rw_acquires\": " << rw_acquires << ", "
+    << "\"rw_releases\": " << rw_releases << ", "
+    << "\"bytes_acquired\": " << bytes_acquired << ", "
+    << "\"bytes_released\": " << bytes_released
+    << " }" << "," << std::endl;
   
-  incoherent_acquirer_stats.dump();
-  incoherent_releaser_stats.dump();
+  incoherent_acquirer_stats.dump( o, ",");
+  incoherent_releaser_stats.dump( o, terminator );
 }
 
 void CacheStatistics::sample() {

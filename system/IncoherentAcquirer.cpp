@@ -51,24 +51,24 @@ void IAStatistics::reset() {
   acquire_wakeup_ticks_min = std::numeric_limits<uint64_t>::max();
 }
 
-void IAStatistics::dump() {
-  std::cout << "IncoherentAcquirerStatistics { "
-	    << "acquire_ams: " << acquire_ams << ", "
-	    << "acquire_ams_bytes: " << acquire_ams_bytes << ", "
-	    << "acquire_blocked: " << acquire_blocked  << ", "
-	    << "acquire_blocked_ticks_total: " << acquire_blocked_ticks_total  << ", "
-	    << "acquire_blocked_ticks_min: " << acquire_blocked_ticks_min  << ", "
-	    << "acquire_blocked_ticks_max: " << acquire_blocked_ticks_max  << ", "
-	    << "acquire_average_latency: " << nanless_double_ratio( acquire_blocked_ticks_total, acquire_blocked ) << ", "
-	    << "acquire_network_ticks_total: " << acquire_network_ticks_total  << ", "
-	    << "acquire_network_ticks_min: " << acquire_network_ticks_min  << ", "
-	    << "acquire_network_ticks_max: " << acquire_network_ticks_max  << ", "
-	    << "acquire_average_network_latency: " << nanless_double_ratio( acquire_network_ticks_total, acquire_blocked ) << ", "
-	    << "acquire_wakeup_ticks_total: " << acquire_wakeup_ticks_total  << ", "
-	    << "acquire_wakeup_ticks_min: " << acquire_wakeup_ticks_min  << ", "
-	    << "acquire_wakeup_ticks_max: " << acquire_wakeup_ticks_max  << ", "
-	    << "acquire_average_wakeup_latency: " << nanless_double_ratio( acquire_wakeup_ticks_total, acquire_blocked ) << ", "
-    << " }" << std::endl;
+void IAStatistics::dump( std::ostream& o = std::cout, const char * terminator = "" ) {
+  o << "   \"IncoherentAcquirerStatistics\": { "
+    << "\"acquire_ams\": " << acquire_ams << ", "
+    << "\"acquire_ams_bytes\": " << acquire_ams_bytes << ", "
+    << "\"acquire_blocked\": " << acquire_blocked  << ", "
+    << "\"acquire_blocked_ticks_total\": " << acquire_blocked_ticks_total  << ", "
+    << "\"acquire_blocked_ticks_min\": " << acquire_blocked_ticks_min  << ", "
+    << "\"acquire_blocked_ticks_max\": " << acquire_blocked_ticks_max  << ", "
+    << "\"acquire_average_latency\": " << nanless_double_ratio( acquire_blocked_ticks_total, acquire_blocked ) << ", "
+    << "\"acquire_network_ticks_total\": " << acquire_network_ticks_total  << ", "
+    << "\"acquire_network_ticks_min\": " << acquire_network_ticks_min  << ", "
+    << "\"acquire_network_ticks_max\": " << acquire_network_ticks_max  << ", "
+    << "\"acquire_average_network_latency\": " << nanless_double_ratio( acquire_network_ticks_total, acquire_blocked ) << ", "
+    << "\"acquire_wakeup_ticks_total\": " << acquire_wakeup_ticks_total  << ", "
+    << "\"acquire_wakeup_ticks_min\": " << acquire_wakeup_ticks_min  << ", "
+    << "\"acquire_wakeup_ticks_max\": " << acquire_wakeup_ticks_max  << ", "
+    << "\"acquire_average_wakeup_latency\": " << nanless_double_ratio( acquire_wakeup_ticks_total, acquire_blocked )
+    << " }" << terminator << std::endl;
 }
 
 void IAStatistics::sample() {

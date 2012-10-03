@@ -248,21 +248,21 @@ private:
     double messages_aggregated_per_second = messages_aggregated_ / time;
     double bytes_aggregated_per_second = bytes_aggregated_ / time;
     
-    o << "AggregatorStatistics {" ;
-    o << "time_aggregated: " << time << ", "
-      << "messages_aggregated: " << messages_aggregated_ << ", "
-      << "bytes_aggregated: " << bytes_aggregated_ << ", "
-      << "messages_aggregated_per_second: " << messages_aggregated_per_second << ", "
-      << "bytes_aggregated_per_second: " << bytes_aggregated_per_second << ", "
-      << "newest_wait_ticks: " << newest_wait_ticks_ << ", "
-      << "oldest_wait_ticks: " << oldest_wait_ticks_ << ", "
-      << "average_wait_time: " << (double) (oldest_wait_ticks_ + newest_wait_ticks_) / (2 * flushes_) << ", "
-      << "polls: " << polls_ << ", "
-      << "flushes: " << flushes_ << ", "
-      << "multiflushes: " << multiflushes_ << ", "
-      << "timeouts: " << timeouts_ << ", "
-      << "idle_flushes: " << idle_flushes_ << ", "
-      << "capacity_flushes: " << capacity_flushes_;
+    o << "   \"AggregatorStatistics\": {" ;
+    o << "\"time_aggregated\": " << time << ", "
+      << "\"messages_aggregated\": " << messages_aggregated_ << ", "
+      << "\"bytes_aggregated\": " << bytes_aggregated_ << ", "
+      << "\"messages_aggregated_per_second\": " << messages_aggregated_per_second << ", "
+      << "\"bytes_aggregated_per_second\": " << bytes_aggregated_per_second << ", "
+      << "\"newest_wait_ticks\": " << newest_wait_ticks_ << ", "
+      << "\"oldest_wait_ticks\": " << oldest_wait_ticks_ << ", "
+      << "\"average_wait_time\": " << (double) (oldest_wait_ticks_ + newest_wait_ticks_) / (2 * flushes_) << ", "
+      << "\"polls\": " << polls_ << ", "
+      << "\"flushes\": " << flushes_ << ", "
+      << "\"multiflushes\": " << multiflushes_ << ", "
+      << "\"timeouts\": " << timeouts_ << ", "
+      << "\"idle_flushes\": " << idle_flushes_ << ", "
+      << "\"capacity_flushes\": " << capacity_flushes_;
     for (int i=0; i<16; i++) {
       o << ", " << hist_labels[i] << ": " << histogram_[i];
     }
@@ -316,22 +316,22 @@ public:
 #endif
   {
     reset();
-    hist_labels[ 0] = "aggregator_0_to_255_bytes";
-    hist_labels[ 1] = "aggregator_256_to_511_bytes";
-    hist_labels[ 2] = "aggregator_512_to_767_bytes";
-    hist_labels[ 3] = "aggregator_768_to_1023_bytes";
-    hist_labels[ 4] = "aggregator_1024_to_1279_bytes";
-    hist_labels[ 5] = "aggregator_1280_to_1535_bytes";
-    hist_labels[ 6] = "aggregator_1536_to_1791_bytes";
-    hist_labels[ 7] = "aggregator_1792_to_2047_bytes";
-    hist_labels[ 8] = "aggregator_2048_to_2303_bytes";
-    hist_labels[ 9] = "aggregator_2304_to_2559_bytes";
-    hist_labels[10] = "aggregator_2560_to_2815_bytes";
-    hist_labels[11] = "aggregator_2816_to_3071_bytes";
-    hist_labels[12] = "aggregator_3072_to_3327_bytes";
-    hist_labels[13] = "aggregator_3328_to_3583_bytes";
-    hist_labels[14] = "aggregator_3584_to_3839_bytes";
-    hist_labels[15] = "aggregator_3840_to_4095_bytes";
+    hist_labels[ 0] = "\"aggregator_0_to_255_bytes\"";
+    hist_labels[ 1] = "\"aggregator_256_to_511_bytes\"";
+    hist_labels[ 2] = "\"aggregator_512_to_767_bytes\"";
+    hist_labels[ 3] = "\"aggregator_768_to_1023_bytes\"";
+    hist_labels[ 4] = "\"aggregator_1024_to_1279_bytes\"";
+    hist_labels[ 5] = "\"aggregator_1280_to_1535_bytes\"";
+    hist_labels[ 6] = "\"aggregator_1536_to_1791_bytes\"";
+    hist_labels[ 7] = "\"aggregator_1792_to_2047_bytes\"";
+    hist_labels[ 8] = "\"aggregator_2048_to_2303_bytes\"";
+    hist_labels[ 9] = "\"aggregator_2304_to_2559_bytes\"";
+    hist_labels[10] = "\"aggregator_2560_to_2815_bytes\"";
+    hist_labels[11] = "\"aggregator_2816_to_3071_bytes\"";
+    hist_labels[12] = "\"aggregator_3072_to_3327_bytes\"";
+    hist_labels[13] = "\"aggregator_3328_to_3583_bytes\"";
+    hist_labels[14] = "\"aggregator_3584_to_3839_bytes\"";
+    hist_labels[15] = "\"aggregator_3840_to_4095_bytes\"";
   }
   
   void reset() {
@@ -444,9 +444,9 @@ public:
     header( LOG(INFO) );
     data( LOG(INFO), time() );
   }
-  void dump_as_map() {
-    as_map( std::cout, time() );
-    std::cout << std::endl;
+  void dump_as_map( std::ostream& o = std::cout, const char * terminator = "" ) {
+    as_map( o, time() );
+    o << terminator << std::endl;
   }
   
   void merge(AggregatorStatistics * other) {
@@ -622,7 +622,10 @@ public:
   void finish();
 
   /// Dump aggregator stats
-  void dump_stats() { stats.dump_as_map(); }
+  void dump_stats( std::ostream& o = std::cout, const char * terminator = "" ) {
+    stats.dump_as_map( o, terminator );
+  }
+
   /// Merge aggregator stats with stats from another core
   void merge_stats();
   /// Reset aggregator stats

@@ -59,7 +59,7 @@ class CacheStatistics {
       bytes_released+=bytes;
     }
 
-    void dump();
+    void dump( std::ostream& o, const char * terminator );
     void sample();
     void profiling_sample();
     void merge(CacheStatistics * other);

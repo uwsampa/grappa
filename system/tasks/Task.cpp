@@ -199,14 +199,14 @@ void TaskManager::finish() {
 ///
 
 /// Print statistics.
-void TaskManager::dump_stats() {
-    stats.dump();
+void TaskManager::dump_stats( std::ostream& o = std::cout, const char * terminator = "" ) {
+  stats.dump( o, terminator );
 }
 
 /// Print statistics in dictionary format.
 /// { name1:value1, name2:value2, ... }
 #include "DictOut.hpp"
-void TaskManager::TaskStatistics::dump() {
+void TaskManager::TaskStatistics::dump( std::ostream& o = std::cout, const char * terminator = "" ) {
     double stddev_steal_amount = stddev_steal_amt_.value();
     DictOut dout;
     DICT_ADD(dout, session_steal_successes_);
@@ -222,7 +222,7 @@ void TaskManager::TaskStatistics::dump() {
     DICT_ADD(dout, public_tasks_dequeued_);
     DICT_ADD(dout, private_tasks_dequeued_);
 
-    std::cout << "TaskStatistics " << dout.toString() << std::endl;
+    o << "   \"TaskStatistics\": " << dout.toString() << terminator << std::endl;
 }
 
 void TaskManager::TaskStatistics::sample() {
