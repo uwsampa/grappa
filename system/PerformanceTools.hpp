@@ -128,8 +128,11 @@ extern bool take_profiling_sample;
 #include <string>
 /// User-registered sampled counters
 void Grappa_add_profiling_counter( uint64_t * counter, std::string name, std::string abbrev, bool reset, uint64_t resetVal );
+void Grappa_add_profiling_integer(int64_t * counter, std::string name, std::string abbrev, bool reset, int64_t resetVal  );
+void Grappa_add_profiling_value( double * counter, std::string name, std::string abbrev, bool reset, double resetVal );
 void Grappa_profiling_sample_user();
 
+void Grappa_dump_user_stats( std::ostream& o, const char * terminator );
 void Grappa_reset_user_stats();
 
 
