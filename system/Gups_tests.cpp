@@ -76,7 +76,7 @@ void user_main( int * args ) {
   throughput_per_node = throughput/nnodes;
 
 
-  SoftXMT_merge_and_dump_stats();
+  Grappa_merge_and_dump_stats();
 
   LOG(INFO) << "GUPS: "
             << FLAGS_iterations << " updates at "

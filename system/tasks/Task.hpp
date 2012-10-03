@@ -303,6 +303,7 @@ class TaskManager {
     bool available ( ) const;
     bool local_available ( ) const;
 
+    void dump_stats( std::ostream& o, const char * terminator );
     void dump_stats();
     void merge_stats();
     void reset_stats();
