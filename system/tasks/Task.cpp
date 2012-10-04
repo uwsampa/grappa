@@ -111,13 +111,16 @@ bool TaskManager::getWork( Task * result ) {
   return false;
 }
 
+DEFINE_double( ws_coeff, 1.0f, "bias on work sharing probability" );
 inline void TaskManager::checkWorkShare() {
   // initiate load balancing with prob=1/publicQ.depth
   if ( doShare && wshareLock ) {
     wshareLock = false;
     stats.record_workshare_test( );
     uint64_t local_size = publicQ.depth();
-    if ( local_size == 0 || ((fast_rand()%(1<<16)) < ((1<<16)/local_size)) ) {
+    double divisor = local_size/FLAGS_ws_coeff;
+    if (divisor==0) divisor = 1.0;
+    if ( local_size == 0 || ((fast_rand()%(1<<16)) < ((1<<16)/divisor)) ) {
       Node target = fast_rand()%SoftXMT_nodes();
       if ( target == SoftXMT_mynode() ) target = (target+1)%SoftXMT_nodes(); // don't share with ourself
       DVLOG(5) << "before share: " << publicQ;
