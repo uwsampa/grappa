@@ -138,7 +138,7 @@ commands = update
 SETUP_CLASS = starcluster.plugins.pkginstaller.PackageInstaller
 # boost is necessary for grappa
 # ruby, etc is necessary for experiment runner script
-packages = libboost-all-dev, ruby1.9, sqlite3
+packages = libboost-all-dev, gdb, ruby1.9, sqlite3
 
 [plugin hadoop]
 SETUP_CLASS = starcluster.plugins.hadoop.Hadoop
@@ -180,7 +180,7 @@ AWS_REGION_HOST = ec2.us-east-1.amazonaws.com
 VOLUMES = grappa_home
 PLUGINS = config_grappa, hadoop, package_commands, pkginstaller, createusers, slurm
 
-[cluster grappa_nohome]
+[cluster grappa_demo]
 EXTENDS=smallcluster
 NODE_IMAGE_ID = ami-4583572c
 NODE_INSTANCE_TYPE = cc1.4xlarge
