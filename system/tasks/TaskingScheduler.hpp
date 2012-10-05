@@ -120,8 +120,12 @@ class TaskingScheduler : public Scheduler {
 
                 if (FLAGS_flush_on_idle) {
 		  stats.state_timers[ stats.prev_state ] += (current_ts - prev_ts) / tick_scale;
-		  stats.prev_state = TaskingSchedulerStatistics::StateIdle;
-                  global_aggregator.idle_flush_poll();
+                  if ( global_aggregator.idle_flush_poll() ) {
+		                stats.prev_state = TaskingSchedulerStatistics::StateIdleUseful;
+                  } else {
+                    stats.prev_state = TaskingSchedulerStatistics::StateIdle;
+                  }
+                  
                   StateTimer::enterState_scheduler();
                 } else {
 		  stats.state_timers[ stats.prev_state ] += (current_ts - prev_ts) / tick_scale;
@@ -175,7 +179,7 @@ class TaskingScheduler : public Scheduler {
                 
                 unsigned merged;
             public:
-	  enum State { StatePoll=0, StateReady=1, StateIdle=2, StateLast=3 };
+	  enum State { StatePoll=0, StateReady=1, StateIdle=2, StateIdleUseful=3, StateLast=4 };
 	  int64_t state_timers[ StateLast ];
     double state_timers_d[ StateLast ];
 	  State prev_state;
@@ -240,6 +244,7 @@ class TaskingScheduler : public Scheduler {
 			      << ", scheduler_polling_thread_ticks: " << state_timers[ StatePoll ]
 			      << ", scheduler_ready_thread_ticks: " << state_timers[ StateReady ]
 			      << ", scheduler_idle_thread_ticks: " << state_timers[ StateIdle ]
+			      << ", scheduler_idle_useful_thread_ticks: " << state_timers[ StateIdleUseful ]
 			      << ", scheduler_count: " << scheduler_count
 			      << " }" << std::endl;
                   } else {
@@ -251,6 +256,7 @@ class TaskingScheduler : public Scheduler {
 			      << ", scheduler_polling_thread_ticks: " << state_timers_d[ StatePoll ]
 			      << ", scheduler_ready_thread_ticks: " << state_timers_d[ StateReady ]
 			      << ", scheduler_idle_thread_ticks: " << state_timers_d[ StateIdle ]
+			      << ", scheduler_idle_useful_thread_ticks: " << state_timers_d[ StateIdleUseful ]
 			      << ", scheduler_count: " << scheduler_count
 			      << " }" << std::endl;
                   }
