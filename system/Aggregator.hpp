@@ -29,6 +29,7 @@
 
 #include "StateTimer.hpp"
 #include "PerformanceTools.hpp"
+#include "StatisticsTools.hpp"
 
 
 #ifdef VTRACE
@@ -159,7 +160,6 @@ class AggregatorStatistics {
 private:
   uint64_t messages_aggregated_;
   uint64_t bytes_aggregated_;
-  uint64_t messages_deaggregated_;
   uint64_t bytes_deaggregated_;
   uint64_t messages_forwarded_;
   uint64_t bytes_forwarded_;
@@ -173,7 +173,9 @@ private:
   uint64_t capacity_flushes_;
   uint64_t histogram_[16];
   double start_;
-
+  uint64_t idle_poll_;
+  uint64_t idle_poll_useful_;
+    
 #ifdef VTRACE_SAMPLED
   unsigned aggregator_vt_grp;
   unsigned messages_aggregated_vt_ev;
@@ -190,6 +192,8 @@ private:
   unsigned multiflushes_vt_ev;
   unsigned timeouts_vt_ev;
   unsigned idle_flushes_vt_ev;
+  unsigned idle_poll_vt_ev;
+  unsigned idle_poll_useful_vt_ev;
   unsigned capacity_flushes_vt_ev;
   unsigned aggregator_0_to_255_bytes_vt_ev;
   unsigned aggregator_256_to_511_bytes_vt_ev;
@@ -251,6 +255,8 @@ private:
       << "multiflushes: " << multiflushes_ << ", "
       << "timeouts: " << timeouts_ << ", "
       << "idle_flushes: " << idle_flushes_ << ", "
+      << "idle_poll: " << idle_poll_ << ", "
+      << "idle_poll_useful: " << idle_poll_useful_ << ", "
       << "capacity_flushes: " << capacity_flushes_;
     for (int i=0; i<16; i++) {
       o << ", " << hist_labels[i] << ": " << histogram_[i];
@@ -265,6 +271,12 @@ private:
   }
 
 public:
+  // TODO these two are not yet implementing full interface
+  // and are public
+  uint64_t bundles_received_;
+  TotalStatistic bundle_bytes_received_;
+  uint64_t messages_deaggregated_;
+
   AggregatorStatistics()
     : histogram_()
     , start_()
@@ -284,6 +296,8 @@ public:
     , multiflushes_vt_ev( VT_COUNT_DEF( "Nonzero timeout loops", "multiflushes", VT_COUNT_TYPE_UNSIGNED, aggregator_vt_grp ) )
     , timeouts_vt_ev( VT_COUNT_DEF( "Timeouts", "timeouts", VT_COUNT_TYPE_UNSIGNED, aggregator_vt_grp ) )
     , idle_flushes_vt_ev( VT_COUNT_DEF( "Idle flushes", "flushes", VT_COUNT_TYPE_UNSIGNED, aggregator_vt_grp ) )
+    , idle_poll_vt_ev( VT_COUNT_DEF( "Idle poll", "poll", VT_COUNT_TYPE_UNSIGNED, aggregator_vt_grp ) )
+    , idle_poll_useful_vt_ev( VT_COUNT_DEF( "Idle poll_useful", "poll_useful", VT_COUNT_TYPE_UNSIGNED, aggregator_vt_grp ) )
     , capacity_flushes_vt_ev( VT_COUNT_DEF( "Capacity flushes", "flushes", VT_COUNT_TYPE_UNSIGNED, aggregator_vt_grp ) )
     , aggregator_0_to_255_bytes_vt_ev(     VT_COUNT_DEF(     "Aggregated 0 to 255 bytes", "messages", VT_COUNT_TYPE_DOUBLE, aggregator_vt_grp ) )
     , aggregator_256_to_511_bytes_vt_ev(   VT_COUNT_DEF(   "Aggregated 256 to 511 bytes", "messages", VT_COUNT_TYPE_DOUBLE, aggregator_vt_grp ) )
@@ -328,6 +342,8 @@ public:
     messages_deaggregated_ = 0;
     bytes_deaggregated_ = 0;
     messages_forwarded_ = 0;
+    bundles_received_ = 0;
+    bundle_bytes_received_.reset();
     bytes_forwarded_ = 0;
     newest_wait_ticks_ = 0;
     oldest_wait_ticks_ = 0;
@@ -336,6 +352,8 @@ public:
     multiflushes_ = 0;
     timeouts_ = 0;
     idle_flushes_ = 0;
+    idle_poll_ = 0;
+    idle_poll_useful_ = 0;
     capacity_flushes_ = 0;
     start_ = SoftXMT_walltime();
     for( int i = 0; i < 16; ++i ) {
@@ -362,8 +380,9 @@ public:
     timeouts_++;
   }
 
-  void record_idle_flush() {
-    idle_flushes_++;
+  void record_idle_poll( bool useful ) {
+    if ( useful ) idle_poll_useful_++;
+    else idle_poll_++;
   }
   
   void record_capacity_flush() {
@@ -388,6 +407,12 @@ public:
     bytes_forwarded_ += bytes;
   }
 
+  void record_receive_bundle( size_t bytes ) {
+    ++bundles_received_;
+    bundle_bytes_received_.update( bytes );
+  } 
+
+
   void profiling_sample() {
 #ifdef VTRACE_SAMPLED
     VT_COUNT_UNSIGNED_VAL( messages_aggregated_vt_ev, messages_aggregated_ );
@@ -404,6 +429,8 @@ public:
     VT_COUNT_UNSIGNED_VAL( multiflushes_vt_ev, multiflushes_ );
     VT_COUNT_UNSIGNED_VAL( timeouts_vt_ev, timeouts_ );
     VT_COUNT_UNSIGNED_VAL( idle_flushes_vt_ev, idle_flushes_ );
+    VT_COUNT_UNSIGNED_VAL( idle_poll_vt_ev, idle_poll_ );
+    VT_COUNT_UNSIGNED_VAL( idle_poll_useful_vt_ev, idle_poll_useful_ );
     VT_COUNT_UNSIGNED_VAL( capacity_flushes_vt_ev, capacity_flushes_ );
     
 #define calc_hist(bin,total) (total == 0) ? 0.0 : (double)bin/total
@@ -452,6 +479,8 @@ public:
     multiflushes_ += other->multiflushes_;
     timeouts_ += other->timeouts_;
     idle_flushes_ += other->idle_flushes_;
+    idle_poll_ += other->idle_poll_;
+    idle_poll_useful_ += other->idle_poll_useful_;
     capacity_flushes_ += other->capacity_flushes_;
     for( int i = 0; i < 16; ++i ) {
       histogram_[i] += other->histogram_[i];
@@ -630,7 +659,7 @@ public:
     //DVLOG(5) << "heap after flush:\n" << least_recently_sent_.toString( );
   }
   
-  inline void idle_flush_poll() {
+  inline bool idle_flush_poll() {
     GRAPPA_FUNCTION_PROFILE( GRAPPA_COMM_GROUP );
 #ifdef VTRACE_FULL
     VT_TRACER("idle_flush_poll");
@@ -643,7 +672,9 @@ public:
       //flush(least_recently_sent_.top_key());
     //}
     //deaggregate();
-    poll();
+    bool useful = poll(); 
+    stats.record_idle_poll(useful);
+    return useful;
   }
   
 
@@ -659,15 +690,26 @@ public:
   }
 
   /// poll communicator. send any aggregated messages that have been sitting for too long
-  inline void poll() {
+  inline bool poll() {
     GRAPPA_FUNCTION_PROFILE( GRAPPA_COMM_GROUP );
 #ifdef VTRACE_FULL
     VT_TRACER("poll");
 #endif
     stats.record_poll();
+
+    uint64_t beforePoll = stats.bundles_received_; 
     global_communicator.poll();
+    uint64_t afterPoll = stats.bundles_received_;
+    bool pollUseful = afterPoll > beforePoll;
+
+
     uint64_t ts = get_timestamp();
+
+    uint64_t beforeDeaggregate = stats.messages_deaggregated_;
     deaggregate();
+    uint64_t afterDeaggregate = stats.messages_deaggregated_;
+    bool deagUseful = afterDeaggregate > beforeDeaggregate;
+    
     // timestamp overflows are silently ignored. 
     // since it would take many many years to see one, I think that's okay for now.
     int num_flushes = 0;
@@ -683,7 +725,10 @@ public:
       ++num_flushes;
     }
     if( num_flushes > 0 ) stats.record_multiflush();
+    bool flushUseful = num_flushes > 0;
     previous_timestamp_ = ts;
+
+    return flushUseful || deagUseful || pollUseful;
   }
 
   inline const size_t max_size() const { return buffer_size_; }

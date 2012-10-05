@@ -158,6 +158,7 @@ void Aggregator_deaggregate_am( gasnet_token_t token, void * buf, size_t size ) 
   DVLOG(5) << "received message with size " << size;
   // TODO: too much copying
   Aggregator::ReceivedAM am( size, buf );
+  global_aggregator.stats.record_receive_bundle( size );
 #ifdef STL_DEBUG_ALLOCATOR
   if( aggregator_access_control_active ) STLMemDebug::BaseAllocator::getMemMgr().setAccessMode(STLMemDebug::memReadWrite);
 #endif
