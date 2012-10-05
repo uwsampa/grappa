@@ -33,6 +33,7 @@
 #include "common.hpp"
 
 #include <gasnet.h>
+#include <gasnet_tools.h>
 #include "gasnet_helpers.h"
 
 #include "PerformanceTools.hpp"
@@ -381,6 +382,10 @@ public:
     GRAPPA_FUNCTION_PROFILE( GRAPPA_COMM_GROUP );
     assert( communication_is_allowed_ );
     GASNET_CHECK( gasnet_AMPoll() ); 
+  }
+
+  inline const char * hostname() {
+    return gasnett_gethostname();
   }
       
 };
