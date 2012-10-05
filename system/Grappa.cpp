@@ -309,6 +309,21 @@ void Grappa_signal_done ( ) {
     Grappa_done_flag = true;
 }
 
+
+/// Dump the state of all flags
+void dump_flags( std::ostream& o, const char * delimiter ) {
+  typedef std::vector< google::CommandLineFlagInfo > FlagVec;
+  FlagVec flags;
+  google::GetAllFlags( &flags );
+  o << "  \"Flags\": { ";
+  for( FlagVec::iterator i = flags.begin(); i != flags.end(); ++i ) {
+    o << "\"FLAGS_" << i->name << "\": " << i->current_value;
+    if( i+1 != flags.end() ) o << ", ";
+  }
+  o << " }" << delimiter << std::endl;
+}
+
+
 /// Reset stats son this node
 void Grappa_reset_stats() {
   global_aggregator.reset_stats();
@@ -343,6 +358,7 @@ void Grappa_dump_stats( std::ostream& oo ) {
   global_scheduler.dump_stats( o, "," );
   delegate_stats.dump( o, "," );
   cache_stats.dump( o, "," );
+  dump_flags( o, "," );
   Grappa_dump_user_stats( o, "" );
   o << "}";
   oo << o.str();
