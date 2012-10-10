@@ -167,17 +167,57 @@ class StateTimer {
     static void init() { state_timer = new StateTimer(); }
     static void finish() { delete state_timer; }
 
-    static void enterState_user() { state_timer->enterState_user_(); }
-    static void enterState_system() { state_timer->enterState_system_(); }
-    static void enterState_communication() { state_timer->enterState_communication_(); }
-    static void enterState_deaggregation() { state_timer->enterState_deaggregation_(); }
-    static void enterState_scheduler() { state_timer->enterState_scheduler_(); }
-    static void enterState_findwork() { state_timer->enterState_findwork_(); }
-    static void enterState_thread() { state_timer->enterState_thread_(); }
-    static void setThreadState(int state) { state_timer->setThreadState_( state ); }
+    static void enterState_user() {
+#if STATE_TIMER_ON
+      state_timer->enterState_user_();
+#endif
+    }
+    static void enterState_system() {
+#if STATE_TIMER_ON
+      state_timer->enterState_system_();
+#endif
+    }
+    static void enterState_communication() {
+#if STATE_TIMER_ON
+      state_timer->enterState_communication_();
+#endif
+    }
+    static void enterState_deaggregation() {
+#if STATE_TIMER_ON
+      state_timer->enterState_deaggregation_();
+#endif
+    }
+    static void enterState_scheduler() {
+#if STATE_TIMER_ON
+      state_timer->enterState_scheduler_();
+#endif
+    }
+    static void enterState_findwork() {
+#if STATE_TIMER_ON
+      state_timer->enterState_findwork_();
+#endif
+    }
+    static void enterState_thread() {
+#if STATE_TIMER_ON
+      state_timer->enterState_thread_();
+#endif
+    }
+    static void setThreadState(int state) {
+#if STATE_TIMER_ON
+      state_timer->setThreadState_( state );
+#endif
+    }
 
-    static void start_communication() { state_timer->start_communication_(); }
-    static void stop_communication() { state_timer->stop_communication_(); }
+    static void start_communication() {
+#if STATE_TIMER_ON
+      state_timer->start_communication_();
+#endif
+    }
+    static void stop_communication() {
+#if STATE_TIMER_ON
+      state_timer->stop_communication_();
+#endif
+    }
 };
 
 
