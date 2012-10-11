@@ -80,7 +80,7 @@ coro *coro_spawn(coro *me, coro_func f, size_t ssize) {
 
   // arm guard page
   assert( 0 == mprotect( c->base, 4096, PROT_NONE ) );  
-  assert( 0 == mprotect( c->base + ssize + 4096, 4096, PROT_NONE ) );  
+  assert( 0 == mprotect( (char*)c->base + ssize + 4096, 4096, PROT_NONE ) );  
 
   // set up coroutine to be able to run next time we're switched in
   makestack(&me->stack, &c->stack, f, c);
@@ -122,7 +122,7 @@ void destroy_coro(coro *c) {
   if( c->base != NULL ) {
     // disarm guard page
     assert( 0 == mprotect( c->base, 4096, PROT_READ | PROT_WRITE ) );
-    assert( 0 == mprotect( c->base + c->ssize + 4096, 4096, PROT_READ | PROT_WRITE ) );
+    assert( 0 == mprotect( (char*)c->base + c->ssize + 4096, 4096, PROT_READ | PROT_WRITE ) );
 #ifdef CORO_PROTECT_UNUSED_STACK
     // enable writes to stack so we can deallocate
     assert( 0 == mprotect( (void*)((intptr_t)c->base + 4096), c->ssize, PROT_READ | PROT_WRITE ) );
