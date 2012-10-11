@@ -68,7 +68,10 @@ class TaskingScheduler : public Scheduler {
 
         /// total number of worker Threads
         uint64_t num_workers;
-        
+
+        /// remember to wake worker at poll time to see if there's new work
+        bool wake_worker_at_poll;
+
         /// Return an idle worker Thread
         Thread * getWorker ();
 
@@ -341,6 +344,7 @@ class TaskingScheduler : public Scheduler {
        void thread_suspend_wake( Thread * next );
        bool thread_idle( uint64_t total_idle ); 
        bool thread_idle( );
+       void maybe_wake_worker();
        void thread_join( Thread* wait_on );
 
        Thread * thread_wait( void **result );
@@ -482,26 +486,38 @@ inline bool TaskingScheduler::thread_idle( uint64_t total_idle ) {
                                       << " (" << num_idle+1 << " / " << total_idle << ")";
     if (num_idle+1 == total_idle) {
         DVLOG(5) << "going idle and is last";
-        return false;
+	wake_worker_at_poll = true;
     } else {
         DVLOG(5) << "going idle and is " << num_idle+1 << " of " << total_idle;
-        num_idle++;
-        
-        unassigned( current_thread );
-        
-        thread_suspend( );
-        
-        // woke so decrement idle counter
-        num_idle--;
-
-        return true;
     }
+
+    num_idle++;
+
+    unassigned( current_thread );
+
+    thread_suspend( );
+
+    // woke so decrement idle counter
+    num_idle--;
+
+    return true;
 }
 
 /// See bool TaskingScheduler::thread_idle(uint64_t), defaults
 /// to total being the number of scheduler workers.
 inline bool TaskingScheduler::thread_idle( ) {
     return thread_idle( num_workers );
+}
+
+/// if all our workers are idle, wake one to see if there are more tasks
+inline void TaskingScheduler::maybe_wake_worker() {
+  if( wake_worker_at_poll ) {
+    wake_worker_at_poll = false;
+    Thread * worker = getWorker();
+    if( worker ) {
+      thread_wake( worker );
+    }
+  }
 }
 
 /// Callback for the end of a Thread

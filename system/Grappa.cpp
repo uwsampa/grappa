@@ -79,6 +79,10 @@ static void poller( Thread * me, void * args ) {
         barrier_thread = NULL;
       }
     }
+
+    // if all our workers are idle, wake one to see if there are more tasks
+    global_scheduler.maybe_wake_worker();
+	
     Grappa_yield_periodic();
   }
   VLOG(5) << "polling Thread exiting";
