@@ -125,6 +125,10 @@ Uid_rate_tests.o Uid_rate_tests.test: $(LIBRARY)
 
 NetworkPerformance_tests.test NetworkPerformance_tests.o: $(LIBRARY)
 Gups_tests.o Gups_tests.test: $(LIBRARY)
+
+FileIO_tests.o FileIO_tests.test: $(LIBRARY)
+FileIO_tests.test: LIBRARIES+='-lboost_filesystem'
+
 #
 # environment variables for run
 # remember to include environment's $LD_LIBRARY_PATH, since MPI libs may be there
@@ -306,7 +310,7 @@ cleanup_shm:
 #
 # What libraries do we need?
 #
-LIBRARIES+= -lgflags -lglog $(PLATFORM_SPECIFIC_LIBS) $(GASNET_LIBS)
+LIBRARIES+= -lgflags -lglog $(PLATFORM_SPECIFIC_LIBS) $(GASNET_LIBS) -lboost_filesystem
 
 #
 # set compiler flags
