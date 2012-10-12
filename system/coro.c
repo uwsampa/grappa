@@ -8,6 +8,8 @@
 /// worker/coroutine implementation
 /// TODO: merge threads and coroutines to make "workers"
 
+#include <gflags/gflags.h>
+
 #include "coro.h"
 #include "stack.h"
 #include <assert.h>
@@ -21,6 +23,9 @@
 coro * all_coros = NULL;
 /// total number of coroutines (used only for debugging)
 size_t total_coros = 0;
+
+DEFINE_int32( stack_offset, 64, "offset between coroutine stacks" );
+size_t current_stack_offset = 0;
 
 /// insert a coroutine into the list of all coroutines
 /// (used only for debugging)
@@ -67,7 +72,8 @@ coro *coro_spawn(coro *me, coro_func f, size_t ssize) {
   assert(c->base != NULL);
 
   // set stack pointer
-  c->stack = (char*) c->base + ssize + 4096;
+  c->stack = (char*) c->base + ssize + 4096 - current_stack_offset;
+  current_stack_offset += FLAGS_stack_offset;
 
   // clear stack
   memset(c->base, 0, ssize);
