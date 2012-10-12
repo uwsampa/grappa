@@ -50,6 +50,7 @@
 DECLARE_int64( aggregator_autoflush_ticks );
 DECLARE_int64( aggregator_max_flush );
 DECLARE_bool( aggregator_enable );
+DECLARE_bool(flush_on_idle );
 
 /// Type of aggregated active message handler
 typedef void (* AggregatorAMHandler)( void *, size_t, void *, size_t );
@@ -664,13 +665,13 @@ public:
     VT_TRACER("idle_flush_poll");
 #endif
     StateTimer::enterState_communication();
-    //global_communicator.poll();
-    //while ( !least_recently_sent_.empty() ) {
-      //stats.record_idle_flush();
-      //DVLOG(5) << "idle flush Node " << least_recently_sent_.top_key();
-      //flush(least_recently_sent_.top_key());
-    //}
-    //deaggregate();
+    if( FLAGS_flush_on_idle ) {
+      while ( !least_recently_sent_.empty() ) {
+        stats.record_idle_flush();
+        DVLOG(5) << "idle flush Node " << least_recently_sent_.top_key();
+        flush(least_recently_sent_.top_key());
+      }
+    }
     poll();
   }
   

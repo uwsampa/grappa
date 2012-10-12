@@ -15,7 +15,7 @@ GRAPPA_DEFINE_EVENT_GROUP(scheduler);
 /// TODO: this should be based on some actual time-related metric so behavior is predictable across machines
 DEFINE_int64( periodic_poll_ticks, 500, "number of ticks to wait before polling periodic queue");
 
-DEFINE_bool(flush_on_idle, true, "have tasking layer flush all aggregations if it has nothing better to do");
+DEFINE_bool(poll_on_idle, true, "have tasking layer poll aggregator if it has nothing better to do");
 
 DEFINE_int64( stats_blob_ticks, 3000000000L, "number of ticks to wait before dumping stats blob");
 
