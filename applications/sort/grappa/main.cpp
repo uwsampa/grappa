@@ -78,7 +78,7 @@ struct bucket_t {
   }
   const uint64_t& operator[](size_t i) const { return v[i]; }
   uint64_t& operator[](size_t i) {
-    CHECK( i < maxelems );
+    CHECK( i < maxelems ) << "i = " << i << ", maxelems: " << maxelems;
     return v[i];
   }
   void append(uint64_t val) {
@@ -194,6 +194,7 @@ int ui64cmp(const void * a, const void * b) {
 
 /// Do some kind of local serial sort of a bucket
 inline void sort_bucket(bucket_t * bucket) {
+  if (bucket->size() == 0) return;
   qsort(&(*bucket)[0], bucket->size(), sizeof(uint64_t), &ui64cmp);
 }
 
@@ -519,6 +520,8 @@ static void parseOptions(int argc, char ** argv) {
     nbuckets <<= 1;
     log2buckets++;
   }
+
+  log2maxkey = 64;
 
   int c = 0;
   while (c != -1) {
