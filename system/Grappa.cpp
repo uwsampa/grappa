@@ -415,7 +415,7 @@ LOOP_FUNCTOR(merge_stats_task_func,nid, ((Node,target)) ) {
 }
 
 /// XXX: yield based synchro
-void Grappa_merge_and_dump_stats() {
+void Grappa_merge_and_dump_stats( std::ostream& oo ) {
   merge_reply_count = 0;
   merge_stats_task_func f;
   f.target = Grappa_mynode();
@@ -426,7 +426,7 @@ void Grappa_merge_and_dump_stats() {
     Grappa_yield();
   }
   
-  Grappa_dump_stats();
+  Grappa_dump_stats( oo );
 }
 
 void Grappa_dump_task_series() {
