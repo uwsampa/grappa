@@ -44,6 +44,8 @@ static Thread * user_main_thr;
 bool Grappa_done_flag;
 
 double tick_rate = 0.0;
+static int jobid = 0;
+static const char * nodelist_str = NULL;
 
 Node * node_neighbors;
 
@@ -228,10 +230,16 @@ void Grappa_init( int * argc_p, char ** argv_p[], size_t global_memory_size_byte
   global_scheduler.init( master_thread, &global_task_manager );
   global_scheduler.periodic( thread_spawn( master_thread, &global_scheduler, &poller, NULL ) );
 
+  // collect some stats on this job
   Grappa_tick();
   Grappa_Timestamp end_ts = Grappa_get_timestamp();
   double end = Grappa_walltime();
   tick_rate = (double) (end_ts - start_ts) / (end-start);
+
+  char * jobid_str = getenv("SLURM_JOB_ID");
+  jobid = jobid_str ? atoi(jobid_str) : 0;
+  nodelist_str = getenv("SLURM_NODELIST");
+  if( NULL == nodelist_str ) nodelist_str = "undefined";
 }
 
 
@@ -349,9 +357,13 @@ void Grappa_reset_stats_all_nodes() {
 
 /// Dump statistics
 void Grappa_dump_stats( std::ostream& oo ) {
+
   std::ostringstream o;
   o << "{\n";
-  o << "   \"GrappaStats\": { \"tick_rate\": " << tick_rate << " },\n";
+  o << "   \"GrappaStats\": { \"tick_rate\": " << tick_rate
+    << ", \"job_id\": " << jobid
+    << ", \"nodelist\": \"" << nodelist_str << "\""
+    << " },\n";
   global_aggregator.dump_stats( o, "," );
   global_communicator.dump_stats( o, "," );
   global_task_manager.dump_stats( o, "," );
