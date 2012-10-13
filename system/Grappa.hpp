@@ -190,7 +190,7 @@ void Grappa_reset_stats();
 void Grappa_reset_stats_all_nodes();
 
 /// merge stats from all other nodes with this one and dump this node's stats
-void Grappa_merge_and_dump_stats();
+void Grappa_merge_and_dump_stats( std::ostream& oo = std::cout );
 
 void Grappa_dump_task_series();
 
