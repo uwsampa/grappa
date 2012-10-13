@@ -101,7 +101,7 @@ class DictOut {
                 Entry* e = outputs.front();
                 outputs.pop();
                 ss << entryString( e );
-                if( i != outputs.size()-1 ) ss << ", ";
+                if( i != size-1 ) ss << ", ";
             }
             
             ss << "}";
