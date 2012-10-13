@@ -325,7 +325,7 @@ void dump_flags( std::ostream& o, const char * delimiter ) {
   google::GetAllFlags( &flags );
   o << "  \"Flags\": { ";
   for( FlagVec::iterator i = flags.begin(); i != flags.end(); ++i ) {
-    o << "\"FLAGS_" << i->name << "\": " << i->current_value;
+    o << "\"FLAGS_" << i->name << "\": \"" << i->current_value << "\"";
     if( i+1 != flags.end() ) o << ", ";
   }
   o << " }" << delimiter << std::endl;
