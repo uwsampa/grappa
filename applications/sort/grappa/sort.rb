@@ -13,7 +13,7 @@ $dbpath = File.expand_path("~/exp/grappa-sort.db")
 $table = :intsort
 
 # command that will be excuted on the command line, with variables in %{} substituted
-$cmd = %Q[ make mpi_run TARGET=sort.exe NNODE=%{nnode} PPN=%{ppn}
+$cmd = %Q[ make -j mpi_run TARGET=sort.exe NNODE=%{nnode} PPN=%{ppn}
   SRUN_FLAGS='--time=10:00'
   GARGS='
     --aggregator_autoflush_ticks=%{flushticks}
