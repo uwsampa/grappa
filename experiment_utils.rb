@@ -17,6 +17,8 @@ class Hash
 end
 
 def clean_json(str)
+  str.gsub!(/\n/m) { '' } # remove newlines inside JSON blob in case things got split up by GLOG/MPI
+
   str.scan(/:.*?,/m) {|m| puts m}
   return str.gsub(/:(?<empty>\s+),/m) do m = $~
     case
