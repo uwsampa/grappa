@@ -6,7 +6,7 @@
 # AC05-76RL01830 awarded by the United States Department of
 # Energy. The Government has certain rights in the software.
 
-require "experiments"
+require ["experiments", "../../../tools/experiment_utils"]
 
 $dbpath = File.expand_path("~/exp/grappa-sort.db")
 $table = :intsort
@@ -41,30 +41,4 @@ $params = {
   machine: [machinename],
 }
 
-$parser = lambda {|cmdout|
-  h = {}
-  c = Hash.new(0)
-  cmdout.each_line do |line|
-    m = line.chomp.match(/(?<key>[\w_]+):\ (?<value>#{REG_NUM})$/)
-    if m then
-      h[m[:key].downcase.to_sym] = m[:value].to_f
-    else
-      # match statistics
-      puts "trying to match statistics...\n#{line.chomp}"
-      m = line.chomp.match(/(?<obj>[\w_]+)\ +(?<data>{.*})/m)
-      if m then
-        obj = m[:obj]
-        data = eval(m[:data])
-        # puts "#{ap obj}: #{ap data}"
-        # sum the fields
-        h.merge!(data) {|key,v1,v2| v1+v2 }
-      end
-    end
-  end
-  if h.keys.length == 0 then
-    puts "Error: didn't find any fields."
-  end
-  h
-}
-
-run_experiments($cmd, $params, $dbpath, $table, &$parser)
+run_experiments($cmd, $params, $dbpath, $table, &$json_plus_fields_parser)
