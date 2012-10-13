@@ -1,4 +1,6 @@
-require ["experiments", "json", "enumerator"]
+require "experiments"
+require "json"
+require "enumerator"
 
 # monkeypatching
 class Hash
