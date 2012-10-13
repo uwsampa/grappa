@@ -6,7 +6,8 @@
 # AC05-76RL01830 awarded by the United States Department of
 # Energy. The Government has certain rights in the software.
 
-require ["experiments", "../../../tools/experiment_utils"]
+require "experiments"
+require "../../../experiment_utils"
 
 $dbpath = File.expand_path("~/exp/grappa-sort.db")
 $table = :intsort
@@ -19,7 +20,7 @@ $cmd = %Q[ make mpi_run TARGET=sort.exe NNODE=%{nnode} PPN=%{ppn}
     --periodic_poll_ticks=%{pollticks}
     --num_starting_workers=%{nworkers}
     --async_par_for_threshold=%{threshold}
-    --v=0
+    --v=1
     -- -s %{scale} -b %{log2buckets}
   '
 ].gsub(/[\n\r\ ]+/," ")
@@ -28,10 +29,10 @@ machinename = "pal" if `hostname` =~ /pal/
 
 # map of parameters; key is the name used in command substitution
 $params = {
-  scale: [30],
-  log2buckets: [7],
-  nnode: [2, 4, 8, 16],
-  ppn: [4, 6, 8],
+  scale: [16],
+  log2buckets: [6],
+  nnode: [2],
+  ppn: [4],
   nworkers: [4096],
   flushticks: [2000000],
   pollticks: [20000],
