@@ -17,6 +17,7 @@ class Hash
 end
 
 def clean_json(str)
+  str.gsub!(/STATS/m) { '' } # remove tag
   str.gsub!(/\n/m) { '' } # remove newlines inside JSON blob in case things got split up by GLOG/MPI
 
   str.scan(/:.*?,/m) {|m| puts m}
@@ -35,7 +36,7 @@ $json_plus_fields_parser = lambda {|cmdout|
   cmdout.gsub!(/^\d+: (.*?\] )?/m){ '' }
   
   # scan, parse and filter JSON blocks
-  cmdout.gsub!(/^{.*?^}/m) {|m|
+  cmdout.gsub!(/^STATS{.*?^}STATS/m) {|m|
     blob = JSON.parse(clean_json(m))
     blob.to_enum(:flat_each).each {|k,v| h[k.intern] = v }
     ''
