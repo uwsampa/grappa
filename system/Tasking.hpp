@@ -183,6 +183,7 @@ int Grappa_run_user_main( void (*fp)(A), A args )
 
   // spawn starting number of worker coroutines
   global_scheduler.createWorkers( FLAGS_num_starting_workers );
+  global_scheduler.allow_active_workers(-1); // allow all workers to be active
   
   StateTimer::init();
 

@@ -62,6 +62,9 @@ class TaskingScheduler : public Scheduler {
         /// number of workers assigned to Tasks
         uint64_t num_active_tasks;
 
+        /// Max allowed active workers
+        uint64_t max_allowed_active_workers;
+
         /// Reference to Task manager that is used by the scheduler
         /// for finding Tasks to assign to workers
         TaskManager * task_manager;
@@ -141,14 +144,17 @@ class TaskingScheduler : public Scheduler {
                     return result;
                 }
 
-                // check for new workers
-                result = getWorker();
-                if (result != NULL) {
-                  //  DVLOG(5) << current_thread->id << " scheduler: pick task worker";
-		  stats.state_timers[ stats.prev_state ] += (current_ts - prev_ts) / tick_scale;
-		  stats.prev_state = TaskingSchedulerStatistics::StateReady;
-		  prev_ts = current_ts;
-                    return result;
+                // check if scheduler is allowed to have more active workers
+                if (num_active_tasks < max_allowed_active_workers) {
+                  // check for new workers
+                  result = getWorker();
+                  if (result != NULL) {
+                    //  DVLOG(5) << current_thread->id << " scheduler: pick task worker";
+        stats.state_timers[ stats.prev_state ] += (current_ts - prev_ts) / tick_scale;
+        stats.prev_state = TaskingSchedulerStatistics::StateReady;
+        prev_ts = current_ts;
+                      return result;
+                  }
                 }
 
                 if (FLAGS_poll_on_idle) {
@@ -291,7 +297,25 @@ class TaskingScheduler : public Scheduler {
        Thread * get_current_thread() {
            return current_thread;
        }
-       
+    
+       int64_t active_worker_count() {
+         return this->num_active_tasks;
+       }
+
+       /// Set allowed active workers to allow `n` more workers than are active now, or if '-1'
+       /// is specified, allow all workers to be active.
+       /// (this is mostly to make Node 0 with user_main not get forced to have fewer active)
+       void allow_active_workers(int64_t n) {
+         if (n == -1) {
+           max_allowed_active_workers = num_workers;
+         } else {
+           //VLOG(1) << "mynode = " << global_communicator.mynode();
+           max_allowed_active_workers = n + ((global_communicator.mynode() == 0) ? 1 : 0);
+         }
+       }
+
+       int64_t max_allowed_active() { return max_allowed_active_workers; }
+
        /// Assign the Thread a unique id for this scheduler
        void assignTid( Thread * thr ) {
            thr->id = nextId++;
