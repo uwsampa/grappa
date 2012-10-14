@@ -359,7 +359,7 @@ void Grappa_reset_stats_all_nodes() {
 void Grappa_dump_stats( std::ostream& oo ) {
 
   std::ostringstream o;
-  o << "{\n";
+  o << "STATS{\n";
   o << "   \"GrappaStats\": { \"tick_rate\": " << tick_rate
     << ", \"job_id\": " << jobid
     << ", \"nodelist\": \"" << nodelist_str << "\""
@@ -372,7 +372,7 @@ void Grappa_dump_stats( std::ostream& oo ) {
   cache_stats.dump( o, "," );
   dump_flags( o, "," );
   Grappa_dump_user_stats( o, "" );
-  o << "}";
+  o << "}STATS";
   oo << o.str();
 }
 
