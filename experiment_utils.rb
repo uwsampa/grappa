@@ -33,8 +33,10 @@ $json_plus_fields_parser = lambda {|cmdout|
   h = {}
 
   # remove leading MPI/GLOG line prefixes
-  cmdout.gsub!(/^\d+: (.*?\] )?/m){ '' }
-  
+  cmdout.gsub!(/^\[[\d,]+\]\<stderr\>:/m){ '' } # remove pal header
+  cmdout.gsub!(/^\d+: /m){ '' }                 # remove sampa header
+  cmdout.gsub!(/^I\d+ .*\d+] /m){ '' }          # remove glog header
+
   # scan, parse and filter JSON blocks
   cmdout.gsub!(/^STATS{.*?^}STATS/m) {|m|
     blob = JSON.parse(clean_json(m))
