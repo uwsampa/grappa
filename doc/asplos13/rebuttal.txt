@@ -1,25 +1,28 @@
 
 We thank our reviewers for their thoughtful comments.
 
-Some reviewers (1, 4, 5) did not see a novel contribution in our
-work. We believe that our system is the first runtime designed
-specifically to tolerate latency by switching between thousands of
-concurrent tasks per core. We are able to keep cores busy while
-performing remote memory, synchronization, and work-stealing
-operations. While the individual ideas used to build Grappa are
-generally well-known, we know of no other runtime that combines these
-ideas to trade latency for throughput.
+Some reviewers (1, 4, 5) did not see a novel contribution in our work. We
+believe that our system is the first runtime designed specifically to tolerate
+latency by switching between thousands of concurrent tasks per core. We are
+able to keep cores busy while performing remote memory, synchronization, and
+work-stealing operations. We aggregate small shared memory references into
+larger network messages to better utilize the network. While the individual
+ideas used to build Grappa are generally well-known, we know of no other
+runtime that combines these ideas to trade latency for throughput.
 
-Reviewer 3 takes issue with our characterization of our performance as
-"on par" with that of the XMT. We are able to provide a simple,
-general programming model similar to that of the XMT on
-already-installed commodity clusters with at most a 2.5x slowdown,
-even though the XMT has a 10x faster network injection rate and 20x
-faster context switches than we do. We believe this slowdown is within
-the realm of optimization---improvements to our network layer should
-allow us to double the number of cores per node we use, and
-improvements to our scheduler should allow us to increase the rate at
-which each core injects messages into the network by ~30 percent.
+Reviewer 3 takes issue with our characterization of our performance as "on
+par" with that of the XMT. We are able to provide a simple, general
+programming model similar to that of the XMT on already-installed commodity
+clusters with at most a 2.5x slowdown, even though the XMT has a 10x faster
+network injection rate and 20x faster context switches than we do. We believe
+this slowdown is within the realm of optimization of the runtime features
+already covered in the paper---improvements to our
+network layer should allow us to double the number of cores per node we use,
+and improvements to our scheduler should allow us to increase the rate at
+which each core injects messages into the network by ~30 percent.  [We should
+be precise about "similar programming model" to avoid more overstated claims,
+because in Grappa's current form it is not quite the same. The main difference
+is not a difficult one but it exists: in our benchmarks we take some locality into account: e.g. caching edgelist chunks]
 
 Reviewer 2 asks about algorithmic modifications such as Beamer's BFS
 transformation. Both the XMT and Grappa can benefit from such
@@ -44,9 +47,11 @@ relative to distributed memory machines. We will explore programmer
 productivity and compare against other commodity-cluster-based
 implementations in future work.
 
-Our evaluation was written in haste; in a final version we would
-discuss key metrics including scheduling overhead and aggregator
-performance limitations <Reviwer 2>.
+Our evaluation was written in haste; in a final version we would discuss key
+metrics including scheduling overhead and aggregator performance limitations
+<Reviwer 2>. The evaluation of the scheduler would break down scheduling
+overhead into checking the polling thread, checking other
+queues, doing load balancing, and context switch time, and compare the average overhead to the time a task executes between yields.
 
 We thank Reviewer 4 for expanding our understanding of the related
 work. We will incorporate the suggestions.
