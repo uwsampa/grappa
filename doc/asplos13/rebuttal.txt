@@ -52,6 +52,13 @@ metrics including scheduling overhead and aggregator performance limitations
 <Reviwer 2>. The evaluation of the scheduler would break down scheduling
 overhead into checking the polling thread, checking other
 queues, doing load balancing, and context switch time, and compare the average overhead to the time a task executes between yields.
+[TODO: what we can say in rebuttal without more data:
+1. Why BC and BFS are worse while UTS is better than XMT. I think the story is
+that our injection rate is not as good and UTS wins because of XMT not scaling
+2. Why scaling of apps is BC < BFS < UTS.]
+[TODO: Mention that we already have the means to give a more explanatory
+evaluation: Grappa is instrumented and we have a lightweight tracing
+infrastructure.]
 
 We thank Reviewer 4 for expanding our understanding of the related
 work. We will incorporate the suggestions.
