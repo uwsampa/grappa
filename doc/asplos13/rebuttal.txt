@@ -1,67 +1,77 @@
+We thank the reviewers for their thoughtful comments.
 
-We thank our reviewers for their thoughtful comments.
+>>> What is the novelty of the work? (Reviewers 1, 4, 5) 
 
-Some reviewers (1, 4, 5) did not see a novel contribution in our work. We
-believe that our system is the first runtime designed specifically to tolerate
-latency by switching between thousands of concurrent tasks per core. We are
-able to keep cores busy while performing remote memory, synchronization, and
-work-stealing operations. We aggregate messages from unrelated threads into
-larger network messages to better utilize the network. While the individual
-ideas used to build Grappa are generally well-known, we know of no other
-runtime that combines these ideas to trade latency for throughput.
+We believe that our system is the first runtime designed specifically to
+tolerate latency by switching between thousands of concurrent tasks per core.
+We are able to keep cores busy while performing remote memory,
+synchronization, and work-stealing operations. We aggregate messages from
+unrelated threads into larger network messages to better utilize the network.
+While the individual ideas used to build Grappa are generally well-known, we
+know of no other runtime that combines these ideas to trade latency for
+throughput to build a general-purposed parallel runtime for large-scale applications. 
 
-Reviewer 3 takes issue with our characterization of our performance as "on
-par" with that of the XMT. We are able to provide a simple, general
-programming model similar to that of the XMT on already-installed commodity
-clusters with at most a 2.5x slowdown, even though the XMT has a 10x faster
-network injection rate and 20x faster context switches than we do. We believe
-this slowdown is within the realm of optimization of the runtime features
-already covered in the paper---improvements to our
-network layer should allow us to double the number of cores per node we use,
-and improvements to our scheduler should allow us to increase the rate at
-which each core injects messages into the network by ~30 percent.  [We should
-be precise about "similar programming model" to avoid more overstated claims,
+>>> Why a performance comparison with XMT? (Reviewer 3)
+
+We are able to provide a simple, general programming model similar to that of
+the XMT on ubiquitous commodity clusters with at most a 2.5x slowdown (and at
+best TODO faster), even though the XMT has a 10x faster network injection rate
+and 20x faster context switches than we do. We believe this slowdown is within
+the realm of optimization of the runtime features already covered in the
+paper---improvements to our network layer should allow us to double the number
+of cores per node we use, and improvements to our scheduler should allow us to
+increase the rate at which each core injects messages into the network by ~30
+percent. 
+
+[This would just complicate things. I would leave it out... We should be
+precise about "similar programming model" to avoid more overstated claims,
 because in Grappa's current form it is not quite the same. The main difference
-is not a difficult one but it exists: in our benchmarks we take some locality into account: e.g. caching edgelist chunks]
+is not a difficult one but it exists: in our benchmarks we take some locality
+into account: e.g. caching edgelist chunks]
 
-Reviewer 2 asks about algorithmic modifications such as Beamer's BFS
-transformation. Both the XMT and Grappa can benefit from such
-transformations. Beamer's transformation increases BFS performance in
-two ways: first, by reducing the number of edges traversed, and
-second, by reducing the number of synchronizing operations
-executed. Both the XMT and Grappa would benefit from the reduction in
-edges traversed, but since Grappa's remote references are relatively
-more costly than the XMT's, we would expect Grappa to benefit
-more. Atomic operations on both platforms are no more expensive than
-normal memory operations, so we would expect no significant benefit
-from the reduction in synchronizing operations. Many transformations
-also benefit by exploiting locality: Grappa provides mechanisms to do
-so easily, while the hashed addressing of the XMT makes exploiting
-locality difficult.
+>>> Why not compare with other benchmarks that running commodity clusters?
+(Reviewer 1)
 
-Reviewer 1 suggests comparing Grappa against other benchmark
-implementations on commodity clusters in order to evaluate the benefit
-of the programming model. In this work, we focused on providing a
-similar programming model to the XMT, which is known to be simple
-relative to distributed memory machines. We will explore programmer
-productivity and compare against other commodity-cluster-based
-implementations in future work.
+In this work, we focused on providing a similar programming model to the XMT,
+which is known to be simple relative to distributed memory machines. We will
+explore programmer productivity and compare against other
+commodity-cluster-based implementations in future work.
 
-Our evaluation was written in haste; in a final version we would discuss key
-metrics including scheduling overhead and aggregator performance limitations
-<Reviwer 2>. The evaluation of the scheduler would break down scheduling
-overhead into checking the polling thread, checking other
-queues, doing load balancing, and context switch time, and compare the average overhead to the time a task executes between yields.
-[TODO: what we can say in rebuttal without more data:
-1. Why BC and BFS are worse while UTS is better than XMT. I think the story is
-that our injection rate is not as good and UTS wins because of XMT not scaling
-2. Why scaling of apps is BC < BFS < UTS.]
-[TODO: Mention that we already have the means to give a more explanatory
-evaluation: Grappa is instrumented and we have a lightweight tracing
-infrastructure.]
+[Can we say something more about how we would compare based on published results?]
 
-We thank Reviewer 4 for expanding our understanding of the related
-work. We will incorporate the suggestions.
+>>> Evaluation section is unpolished and incomplete. (Reviewer 2)
+
+We will cleanup and expand our evaluation. In the final version we will
+discuss key metrics including scheduling overhead and aggregator performance
+limitations. The evaluation of the scheduler would break down scheduling
+overhead into checking the polling thread, checking other queues, doing load
+balancing, and context switch time, and compare the average overhead to the
+time a task executes between yields. We will expand the evaluation with a detailed study of where time goes, since Grappa has a lightweight tracing infrastructure --- we did not add this to the evaluation due to lack of time.
+
+[You can explain all these points in the rebuttal. You just can't add more benchamrks or major results. TODO: what we can say in rebuttal without more data: 1. Why BC and BFS are
+worse while UTS is better than XMT. I think the story is that our injection
+rate is not as good and UTS wins because of XMT not scaling 2. Why scaling of
+apps is BC < BFS < UTS.] 
+
+
+>>> What would be the impact of better algorithms (e.g., Beamer's BFS) in the
+performance comparisons? (Reviewer 2)
+
+Both the XMT and Grappa can benefit from such transformations. Beamer's
+transformation increases BFS performance in two ways: first, by reducing the
+number of edges traversed, and second, by reducing the number of synchronizing
+operations executed. Both the XMT and Grappa would benefit from the reduction
+in edges traversed, but since Grappa's remote references are relatively more
+costly than the XMT's, we would expect Grappa to benefit more. Atomic
+operations on both platforms are no more expensive than normal memory
+operations, so we would expect no significant benefit from the reduction in
+synchronizing operations. Many transformations also benefit by exploiting
+locality: Grappa provides mechanisms to do so easily, while the hashed
+addressing of the XMT makes exploiting locality difficult.
+
+>>> Missing related work. (Reviewer 4)
+
+Thanks for pointing to extra related work, we will add these to the final version. 
 
 [scalability?]
 
