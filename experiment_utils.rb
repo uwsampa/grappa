@@ -20,7 +20,7 @@ def clean_json(str)
   str.gsub!(/STATS/m) { '' } # remove tag
   str.gsub!(/\n/m) { '' } # remove newlines inside JSON blob in case things got split up by GLOG/MPI
 
-  str.scan(/:.*?,/m) {|m| puts m}
+  #str.scan(/:.*?,/m) {|m| puts m}
   return str.gsub(/:(?<empty>\s+),/m) do m = $~
     case
     when m[:empty] then ": null,"
