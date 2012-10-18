@@ -49,6 +49,7 @@ We will also cite “Improving Memory Hierarchy Performance of Irregular Applica
 Unsubmitted additional material for future use:
 
 
+--Comparing to XMT
 
 Finally, whether or not a purely software-based solution for commodity systems can offer customers of the Cray XMT a cost-effective alternative has been a long-standing question for those customers.  The answer has been anything but obvious:  that is why they have been eager to support this work.  The lack of immediacy in verdict is attributed to four technical challenges.
 
@@ -63,4 +64,34 @@ Fourth was the question of global memory model.  The Cray XMT guarantees sequent
 In summary, while there may well be no novelty in any one technique, we believe there is novelty in the fact that Grappa works as well as it does, likely offering a satisfactory commodity-based alternative to Cray XMT customers, even though we still have a great deal of work ahead.
 
 
+--Programming model 
+As an example, we discuss what a UPC implementation of our
+simplest benchmark, UTS-mem, (which only performs remote reads) would look
+like. UTS-mem is a parallel search of an unbalanced tree in memory, assuming
+no prior knowledge of the tree structure. UTS implementations use a work
+stack, containing addresses of nodes to visit. The UPC Thread would deqeue the
+global address and perform a high-latency remote read to get the node. With
+the node information, it then performs another remote read to get the node's
+edge list. The elements in the edge list can be added to the work stack. This
+simple solution will spend most of the cpu's time waiting for remote reads. An
+aggressive and fair implementation would need to overlap multiple reads for
+vertices and edge lists.** This would involve a scheduling loop that manages
+three structures: the work stack of unstarted vertices, the pool of
+outstanding reads, and the pool of received vertices and edge lists.  The
+Thread initiates nonblocking gets, polls for received messages (try_sync), and
+executes received vertices and edge lists.  The need of the extra data
+structures indicates that this level of communication overlap is too complex
+to be extracted from the simple version by UPC's compiler optimizations. The
+solution is further complicated by very large edge lists, which need to broken
+down into constant size chunks to prevent serialization.  These optimizations
+diverge from the UPC shared memory programming model.  
 
+There is also a
+performance concern: the UPC solution is that just using nonblocking reads is
+not sufficient. Commodity networks do not get good bandwidth for small
+messages, and there is a limit to the number of outstanding RDMA operations.
+The UPC solution could address this by aggregating reads to the same node
+using active messages, but then you are building a general aggregation
+mechanism that Grappa provides in the network layer.
+
+**It might actually be possible to try manually unrolling the main loop of dequeue,read vertex,read edgelist,enqueue edges. By putting all the reads together in the unroll, the UPC compiler might be able to convert this gather into nonblocking ops. If so then it could be efficient in terms of the individual dependence from vertex to its edges. But all the work in one iteration may have to finish before the next iteration, in which case performance degradation is determined by the variability of non-uniform access times in the gather ops (dataflow within iteration, but synchronized iterations). Aggregation could be added by increasing the amount of unrolling in the loop.
