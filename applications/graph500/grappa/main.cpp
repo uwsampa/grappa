@@ -29,18 +29,20 @@
 #include <stdint.h>
 #include <inttypes.h>
 
-#include "Grappa.hpp"
-#include "GlobalAllocator.hpp"
-#include "ForkJoin.hpp"
-#include "Cache.hpp"
-#include "Delegate.hpp"
+#include <Grappa.hpp>
+#include <GlobalAllocator.hpp>
+#include <ForkJoin.hpp>
+#include <Cache.hpp>
+#include <Delegate.hpp>
+#include <PerformanceTools.hpp>
+#include <FileIO.hpp>
+
 #include "timer.h"
 #include "rmat.h"
 #include "oned_csr.h"
 #include "verify.hpp"
 #include "options.h"
 
-#include "PerformanceTools.hpp"
 
 static int compare_doubles(const void* a, const void* b) {
   double aa = *(const double*)a;
@@ -174,33 +176,34 @@ static void run_bfs(tuple_graph * tg, csr_graph * g, int64_t * bfs_roots) {
   }
 }
 
-template <typename T>
-inline void read_my_chunk(GlobalAddress<T> base_addr, int64_t n, FILE * fin) {
-  range_t r = blockDist(0, n, Grappa_mynode(), Grappa_nodes());
-  fseek(fin, r.start*sizeof(T), SEEK_CUR);
-  read_array(base_addr+r.start, r.end-r.start, fin);
-  fseek(fin, (n-r.end)*sizeof(T), SEEK_CUR);
-}
+//template <typename T>
+//inline void read_my_chunk(GlobalAddress<T> base_addr, int64_t n, GrappaFile& fin) {
+  //range_t r = blockDist(0, n, Grappa_mynode(), Grappa_nodes());
+  //fin.offset += r.start*sizeof(T);
+  //Grappa_read_array(base_addr+r.start, r.end-r.start, fin);
+  //fin.offset += (n-r.end)*sizeof(T);
+//}
 
-LOOP_FUNCTOR( checkpoint_in_func, nid, ((tuple_graph,tg)) ((csr_graph,g)) ((int64_t*,bfs_roots)) ((int64_t, ckpt_nbfs)) ) {
-  char fname[256];
-  sprintf(fname, "ckpts/graph500.%lld.%lld.xmt.w.ckpt", SCALE, edgefactor);
-  FILE * fin = fopen(fname, "r");
+//LOOP_FUNCTOR( checkpoint_in_func, nid, ((tuple_graph,tg)) ((csr_graph,g)) ((int64_t*,bfs_roots)) ((int64_t, ckpt_nbfs)) ) {
+  //char fname[256];
+  //sprintf(fname, "ckpts/graph500.%lld.%lld.xmt.w.ckpt", SCALE, edgefactor);
+  ////FILE * fin = fopen(fname, "r");
+  //GrappaFile fin(fname, false);
   
-  fseek(fin, 4*sizeof(int64_t), SEEK_CUR);
+  //fin.offset = 4*sizeof(int64_t);
 
-  read_my_chunk(tg.edges, tg.nedge, fin);
+  //read_my_chunk(tg.edges, tg.nedge, fin);
   
-  read_my_chunk(g.xoff, 2*g.nv+2, fin);
+  //read_my_chunk(g.xoff, 2*g.nv+2, fin);
 
-  read_my_chunk(g.xadjstore, g.nadj, fin);
+  //read_my_chunk(g.xadjstore, g.nadj, fin);
   
-  if (nid == 0) {
-    fread(bfs_roots, sizeof(int64_t), ckpt_nbfs, fin);
-  }
-
-  fclose(fin);
-}
+  //if (nid == 0) {
+    //FILE * fin = fopen(fname, "r");
+    //fread(bfs_roots, sizeof(int64_t), ckpt_nbfs, fin);
+		//fclose(fin);
+  //}
+//}
 
 static void checkpoint_in(tuple_graph * tg, csr_graph * g, int64_t * bfs_roots) {
   //TAU_PHASE("checkpoint_in","void (tuple_graph*,csr_graph*,int64_t*)", TAU_USER);
@@ -237,17 +240,30 @@ static void checkpoint_in(tuple_graph * tg, csr_graph * g, int64_t * bfs_roots) 
   //read_array(g->xoff, 2*g->nv+2, fin);
   //read_array(g->xadjstore, g->nadj, fin);
   //fread(bfs_roots, sizeof(int64_t), ckpt_nbfs, fin);
+  //fclose(fin);
+  //{ checkpoint_in_func f(*tg, *g, bfs_roots, ckpt_nbfs); fork_join_custom(&f); }
+  GrappaFile gfin(fname, false);
+  gfin.offset = 4*sizeof(int64_t);
+
+  Grappa_read_array(gfin, tg->edges, tg->nedge);
+  
+  Grappa_read_array(gfin, g->xoff, 2*g->nv+2);
+
+  Grappa_read_array(gfin, g->xadjstore, g->nadj);
+  
+  fseek(fin, gfin.offset, SEEK_SET);
+  fread(bfs_roots, sizeof(int64_t), ckpt_nbfs, fin);
   fclose(fin);
-  { checkpoint_in_func f(*tg, *g, bfs_roots, ckpt_nbfs); fork_join_custom(&f); }
  
   if (ckpt_nbfs < NBFS) {
     fprintf(stderr, "only %ld bfs roots found\n", ckpt_nbfs);
     NBFS = ckpt_nbfs;
   }
 
-  
+  int64_t total_size = (2*g->nv+2 + tg->nedge + g->nadj)*sizeof(int64_t);
   t = timer() - t;
   VLOG(1) << "checkpoint_read_time: " << t;
+  VLOG(1) << "checkpoint_read_rate: " << total_size / t / (1L<<20);
   FLAGS_aggregator_enable = agg_enable;
 }
 
