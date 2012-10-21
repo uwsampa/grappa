@@ -15,6 +15,11 @@ class Hash
     end
   end
 end
+class Array
+  def all_numbers?
+	reduce(true) {|total,v| total &&= v.respond_to? :/ }
+  end
+end
 
 def clean_json(str)
   str.gsub!(/STATS/m) { '' } # remove tag
@@ -37,11 +42,30 @@ $json_plus_fields_parser = lambda {|cmdout|
   cmdout.gsub!(/^\d+: /m){ '' }                 # remove sampa header
   cmdout.gsub!(/^I\d+ .*?\d+\] /m){ '' }          # remove glog header
 
+  stats = []
+
   # scan, parse and filter JSON blocks
   cmdout.gsub!(/^STATS{.*?^}STATS/m) {|m|
     blob = JSON.parse(clean_json(m))
-    blob.to_enum(:flat_each).each {|k,v| h[k.intern] = v }
+	flat = {}
+    blob.to_enum(:flat_each).each {|k,v| flat[k.intern] = v }
+	stats << flat
     ''
+  }
+
+  # transpose to dict of arrays rather than array of dicts
+  combined = {}
+  stats.each {|s| s.each_pair{|k,v| (combined[k] ||= []) << v }}
+
+  # aggregate each and merge into h
+  combined.each {|k,a|
+	if a.all_numbers?
+	  # compute average of stats from multiple runs
+	  h[k] = a.reduce(:+).to_f/a.size
+	else
+	  # concat into a single string (collapse to single value if all the same)
+	  h[k] = (a.uniq.size == 1) ? a.uniq[0].to_s : a.join(",")
+	end
   }
 
   # parse out traditional fields (name: number)
