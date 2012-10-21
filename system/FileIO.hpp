@@ -190,8 +190,8 @@ struct read_array_args {
 
     T* buf = new T[nelem];
     
-    int64_t offset = a.file_offset + index - a.start;
-    Grappa_fread_suspending(buf, sizeof(T)*nelem, sizeof(T)*offset, fdesc);
+    int64_t offset = index - a.start;
+    Grappa_fread_suspending(buf, sizeof(T)*nelem, sizeof(T)*offset+a.file_offset, fdesc);
     //for (int i=0; i<nelem; i++) {
       //VLOG(1) << buf[i];
     //}
@@ -212,7 +212,7 @@ LOOP_FUNCTOR( set_allow_active, nid, ((int64_t,n)) ) {
 }
 
 template < typename T >
-void _read_array_file(const GrappaFile& f, GlobalAddress<T> array, size_t nelem) {
+void _read_array_file(GrappaFile& f, GlobalAddress<T> array, size_t nelem) {
   double t = Grappa_walltime();
 
   { set_allow_active f(FLAGS_io_blocks_per_node); fork_join_custom(&f); }
@@ -237,13 +237,14 @@ void _read_array_file(const GrappaFile& f, GlobalAddress<T> array, size_t nelem)
   
   { set_allow_active f(-1); fork_join_custom(&f); }
 
+  f.offset += nelem * sizeof(T);
   t = Grappa_walltime() - t;
   VLOG(1) << "read_array_time: " << t;
   VLOG(1) << "read_rate_mbps: " << ((double)nelem * sizeof(T) / (1L<<20)) / t;
 }
 
 template < typename T >
-void _read_array_dir(const GrappaFile& f, GlobalAddress<T> array, size_t nelem) {
+void _read_array_dir(GrappaFile& f, GlobalAddress<T> array, size_t nelem) {
   const char * dirname = f.fname;
   double t = Grappa_walltime();
 
@@ -289,9 +290,9 @@ void _read_array_dir(const GrappaFile& f, GlobalAddress<T> array, size_t nelem) 
 template < typename T >
 void Grappa_read_array(GrappaFile& f, GlobalAddress<T> array, size_t nelem) {
   if (f.isDirectory) {
-    _read_array_dir(f.fname, array, nelem);
+    _read_array_dir(f, array, nelem);
   } else {
-    _read_array_file(f.fname, array, nelem);
+    _read_array_file(f, array, nelem);
   }
 }
 
