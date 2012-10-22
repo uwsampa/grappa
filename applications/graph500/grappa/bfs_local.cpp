@@ -42,13 +42,18 @@ static bool bfs_counters_added = false;
 // count number of vertex visited
 static uint64_t bfs_vertex_visited = 0;
 
-void visit_neighbor(int64_t i, int64_t * neighbor_base, int64_t v) {
+void visit_neighbor(int64_t i, int64_t * neighbor_base, const int64_t& v) {
   ++bfs_neighbors_visited;
 
-  CHECK( v < nv ) << "v = " << v << ", nv = " << nv;
+  CHECK( v < nv ) << "| v = " << v << ", nv = " << nv;
+  CHECK( i < nv ) << "| i = " << i << " (nv = " << nv << ")";
 
   const int64_t j = neighbor_base[i];
+  
+  //if (v == 33707) { VLOG(1) << "neighbor_base = " << neighbor_base; }
 
+  CHECK( j < nv ) << "| v[" << v << "].neighbors[" << i << "] = " << j << " (nv = " << nv << ") \n neighbor_base = " << neighbor_base;
+  
   if (cmp_swap(bfs_tree+j, -1, v)) {
     vlist_buf.push(j);
   }
@@ -63,8 +68,16 @@ void visit_frontier(int64_t * va) {
   int64_t buf[2];
   Incoherent<int64_t>::RO cxoff(xoff+2*v, 2, buf);
   const int64_t vstart = cxoff[0], vend = cxoff[1];
-  
-  forall_local_async<int64_t,int64_t,visit_neighbor>(xadj+vstart, vend-vstart, v);
+
+  //if (v == 33707) {
+    ////std::stringstream ss; ss << "neighbors: ";
+    ////for (int64_t i=vstart; i<vend; i++) { ss << read(xadj+i) << " "; }
+    ////VLOG(1) << ss.str();
+    //VLOG(1) << "vstart: " << vstart << ", vend-vstart = " << vend-vstart;
+    //VLOG(1) << "start node: " << (xadj+vstart).node();
+  //}
+
+  forall_local_async<int64_t,int64_t,visit_neighbor>(xadj+vstart, vend-vstart, make_linear(va));
 }
 
 static unsigned marker = -1;
