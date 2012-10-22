@@ -455,31 +455,31 @@ void Grappa_memset_local(GlobalAddress<T> base, T value, size_t count) {
 }
 
 #include "AsyncParallelFor.hpp"
+#include "GlobalTaskJoiner.hpp"
 
 /// Task joiner used internally by forall_local to join private tasks on all the nodes.
 extern LocalTaskJoiner ljoin;
 
-template< typename S, void (*F)(int64_t,int64_t,S), int64_t Threshold >
+template< typename S, void (*F)(int64_t,int64_t,S), int64_t Threshold, bool UseGlobalJoin >
 void spawn_private_task(int64_t a, int64_t b, S c);
 
-template< typename S, void (*F)(int64_t,int64_t,S), int64_t Threshold >
+template< typename S, void (*F)(int64_t,int64_t,S), int64_t Threshold, bool UseGlobalJoin >
 void apfor_with_local_join(int64_t a, int64_t b, S c) {
-  async_parallel_for<S, F, spawn_private_task<S,F,Threshold>, Threshold>(a, b, c);
-  ljoin.signal();
+  async_parallel_for<S, F, spawn_private_task<S,F,Threshold,UseGlobalJoin>, Threshold>(a, b, c);
+  if (UseGlobalJoin) global_joiner.signal(); else ljoin.signal();
 }
 
-template< typename S, void (*F)(int64_t,int64_t,S), int64_t Threshold >
+template< typename S, void (*F)(int64_t,int64_t,S), int64_t Threshold, bool UseGlobalJoin >
 void spawn_private_task(int64_t a, int64_t b, S c) {
-  ljoin.registerTask();
-  Grappa_privateTask( &apfor_with_local_join<S, F, Threshold>, a, b, c );
+  if (UseGlobalJoin) global_joiner.registerTask(); else ljoin.registerTask();
+  Grappa_privateTask( &apfor_with_local_join<S, F, Threshold, UseGlobalJoin>, a, b, c );
 }
+
 
 /// Version of AsyncParallelFor that spawns private tasks and joins all of them.
-template< typename S, void (*F)(int64_t,int64_t,S), int64_t Threshold >
+template< typename S, void (*F)(int64_t,int64_t,S), int64_t Threshold, bool UseGlobalJoin >
 void async_parallel_for_private(int64_t start, int64_t iters, S shared_arg) {
-  ljoin.reset();
-  async_parallel_for< S, F, spawn_private_task<S,F,Threshold>, Threshold>(start, iters, shared_arg);
-  ljoin.wait();
+  async_parallel_for< S, F, spawn_private_task<S,F,Threshold,UseGlobalJoin>, Threshold>(start, iters, shared_arg);
 }
 
 template< typename T, void F(T*) >
@@ -490,14 +490,16 @@ void for_iterations_task(int64_t start, int64_t niters, T * base) {
   }
 }
 
-template< typename T, void F(T*), int64_t Threshold >
+template< typename T, void F(T*), int64_t Threshold, bool UseGlobalJoin >
 struct for_local_func : ForkJoinIteration {
   GlobalAddress<T> base;
   size_t nelems;
   void operator()(int64_t nid) const {
     T * local_base = base.localize(),
 	  * local_end = (base+nelems).localize();
-    async_parallel_for_private< T*, for_iterations_task<T,F>, Threshold >(0, local_end-local_base, local_base);
+    if (UseGlobalJoin) global_joiner.reset(); else ljoin.reset();
+    async_parallel_for_private< T*, for_iterations_task<T,F>, Threshold, UseGlobalJoin >(0, local_end-local_base, local_base);
+    if (UseGlobalJoin) global_joiner.wait(); else ljoin.wait();
   }
 };
 
@@ -517,12 +519,18 @@ struct for_local_func : ForkJoinIteration {
 /// @tparam F A function that takes a T* which will be called with a pointer for each element of the 
 ///           array (on all nodes). This value can be assumed to be local and can be safely modified.
 /// @tparam Threshold Same as async_parallel_for threshold.
-template< typename T, void F(T*), int64_t Threshold >
+template< typename T, void F(T*), int64_t Threshold, bool UseGlobalJoin >
 void forall_local(GlobalAddress<T> base, size_t nelems) {
-  for_local_func<T,F,Threshold> f;
+  for_local_func<T,F,Threshold,UseGlobalJoin> f;
   f.base = base;
   f.nelems = nelems;
   fork_join_custom(&f);
+}
+/// Duplicate of forall_local with default Threshold template arg. @see forall_local()
+/// (duplication unnecessary with c++11)
+template< typename T, void F(T*), int64_t Threshold >
+void forall_local(GlobalAddress<T> base, size_t nelems) {
+  forall_local<T,F,Threshold,true>(base, nelems);
 }
 /// Duplicate of forall_local with default Threshold template arg. @see forall_local()
 /// (duplication unnecessary with c++11)
