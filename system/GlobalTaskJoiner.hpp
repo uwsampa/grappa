@@ -1,3 +1,5 @@
+#ifndef _GLOBAL_TASK_JOINER_HPP
+#define _GLOBAL_TASK_JOINER_HPP
 
 // Copyright 2010-2012 University of Washington. All Rights Reserved.
 // LICENSE_PLACEHOLDER
@@ -229,4 +231,6 @@ template< typename T >
 inline void ff_delegate_write(GlobalAddress<T> target, const T& val) {
   ff_delegate<T, ff_write<T> >(target, val);
 }
+
+#endif /*_GLOBAL_TASK_JOINER_HPP*/
 
