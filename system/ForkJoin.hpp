@@ -494,6 +494,8 @@ template< typename T, void F(T*), int64_t Threshold, bool UseGlobalJoin >
 struct for_local_func : ForkJoinIteration {
   GlobalAddress<T> base;
   size_t nelems;
+  for_local_func() {}
+  for_local_func(GlobalAddress<T> base, size_t nelems): base(base), nelems(nelems) {}
   void operator()(int64_t nid) const {
     T * local_base = base.localize(),
 	  * local_end = (base+nelems).localize();
@@ -521,9 +523,7 @@ struct for_local_func : ForkJoinIteration {
 /// @tparam Threshold Same as async_parallel_for threshold.
 template< typename T, void F(T*), int64_t Threshold, bool UseGlobalJoin >
 void forall_local(GlobalAddress<T> base, size_t nelems) {
-  for_local_func<T,F,Threshold,UseGlobalJoin> f;
-  f.base = base;
-  f.nelems = nelems;
+  for_local_func<T,F,Threshold,UseGlobalJoin> f(base, nelems);
   fork_join_custom(&f);
 }
 /// Duplicate of forall_local with default Threshold template arg. @see forall_local()
@@ -539,4 +539,181 @@ void forall_local(GlobalAddress<T> base, size_t nelems) {
   forall_local<T,F,ASYNC_PAR_FOR_DEFAULT>(base, nelems);
 }
 
+//#include <map>
+//#include <utility>
+
+//typedef std::pair<intptr_t,intptr_t> packed_pair;
+//extern std::map<uint64_t,packed_pair> unpacking_map;
+
+//inline uint64_t packing_hash(const packed_pair& p) {
+  //return p.first + p.second * 8;
+//}
+template< typename S, void (*F)(int64_t,int64_t,S*), int64_t Threshold, bool UseGlobalJoin >
+void spawn_local_task(int64_t a, int64_t b, S* c);
+
+template< typename S, void (*F)(int64_t,int64_t,S*), int64_t Threshold, bool UseGlobalJoin >
+void apfor_local(int64_t a, int64_t b, S* c) {
+  async_parallel_for<S*, F, spawn_local_task<S,F,Threshold,UseGlobalJoin>, Threshold>(a, b, c);
+  if (UseGlobalJoin) global_joiner.signal(); else ljoin.signal();
+}
+
+template< typename S, void (*F)(int64_t,int64_t,S*), int64_t Threshold, bool UseGlobalJoin >
+void spawn_local_task(int64_t a, int64_t b, S* c) {
+  if (UseGlobalJoin) global_joiner.registerTask(); else ljoin.registerTask();
+  c->incrRefs();
+  Grappa_privateTask( &apfor_local<S, F, Threshold, UseGlobalJoin>, a, b, c );
+}
+
+
+/// Version of AsyncParallelFor that spawns private tasks and joins all of them.
+template< typename S, void (*F)(int64_t,int64_t,S*), int64_t Threshold, bool UseGlobalJoin >
+void async_parallel_for_local(int64_t start, int64_t iters, S* shared_arg) {
+  async_parallel_for<S*, F, spawn_local_task<S,F,Threshold,UseGlobalJoin>, Threshold>(start, iters, shared_arg);
+}
+
+template< typename T, typename P >
+struct LocalForArgs {
+  int64_t refs;
+  T * base;
+  P extra;
+  GlobalAddress<T> base_addr;
+  LocalForArgs(T* base, P extra): base(base), extra(extra), refs(0) {}
+  void incrRefs() { refs++; /*if (extra == 13701) VLOG(1) << "++ " << refs;*/ }
+  void decrRefs() { refs--; /*if (extra == 13701) VLOG(1) << "-- " << refs;*/ /*if (refs == 0) delete this;*/ }
+};
+
+/// Note: this allows being cast to (void*), but requires that the void* is only used once after being cast back to a SharedArgsPtr.
+//template< typename T, typename P >
+//struct SharedArgsPtr {
+  //LocalForArgs<T,P> * ptr;
+  //SharedArgsPtr(LocalForArgs<T,P> * ptr): ptr(ptr) { ptr->incrRefs(); }
+  //SharedArgsPtr(const SharedArgsPtr<T,P>& a): ptr(a.ptr) { ptr->incrRefs(); }
+
+  //// incremented when cast as void*, so don't increment when casting back
+  //SharedArgsPtr(void * ptr): ptr((LocalForArgs<T,P>*)ptr) { }
+
+  //~SharedArgsPtr() { ptr->decrRefs(); }
+
+  //LocalForArgs<T,P>* operator->() const { return ptr; }
+  //LocalForArgs<T,P>* operator*() const { return ptr; }
+
+  //// increment before passing around as void*
+  //operator void*() { this->ptr->incrRefs(); return (void*)ptr; }
+//};
+
+template< typename T, typename P, void F(int64_t,T*,const P&) >
+void for_async_iterations_task(int64_t start, int64_t niters, LocalForArgs<T,P> * args) {
+  //SharedArgsPtr<T,P> args(v_args);
+  //VLOG(1) << "for_local @ " << base << " ^ " << start << " # " << niters;
+  CHECK( args->base_addr.localize() == args->base );
+
+  T * base = args->base;
+
+  //if (args->extra == 13701) {
+    //std::stringstream ss; ss << "neighbors[" << start << "::" << niters << "] =";
+    //for (int64_t i=start; i<start+niters; i++) { ss << " " << args->base[i]; }
+    //VLOG(1) << ss.str();
+    //VLOG(1) << "args->base = " << args->base << ", base = " << base;
+  //}
+
+  for (int64_t i=start; i<start+niters; i++) {
+    F(i, base, args->extra);
+  }
+  args->decrRefs();
+}
+
+/// Does same as `for_local_func`, but for use with `forall_local_async`
+template< typename T, typename P, void F(int64_t,T*,const P&), int64_t Threshold >
+void forall_local_async_task(GlobalAddress<T> base, size_t nelems, GlobalAddress<P> extra) {
+  Node spawner = extra.node();
+  P extra_buf; typename Incoherent<P>::RO extra_c(extra, 1, &extra_buf);
+
+  T * local_base = base.localize();
+  T * local_end = (base+nelems).localize();
+  
+  if (local_end > local_base) {
+    //packed_pair p = std::make_pair((intptr_t)local_base, extra);
+    //uint64_t code = packing_hash(p);
+    //CHECK( unpacking_map.count(code) == 0 );
+    //unpacking_map[code] = p;
+
+    LocalForArgs<T,P> * args = new LocalForArgs<T,P>(local_base, *extra_c);
+    //SharedArgsPtr<T,P> args( new LocalForArgs<T,P>(local_base, *extra_c) );
+    args->base_addr = base;
+    args->incrRefs();
+
+    //if (*extra_c == 33707) { VLOG(1) << "local_base: " << local_base << " .. " << local_end-local_base; }
+
+    async_parallel_for_local<LocalForArgs<T,P>, for_async_iterations_task<T,P,F>, Threshold, true>
+                              (0, local_end-local_base, args);
+  }
+  global_joiner.remoteSignalNode(spawner);
+}
+
+/// Asyncronously spawn remote tasks on nodes that *may contain elements*.
+/// @param extra GlobalAddress of an extra argument that will be cached by each remote task.
+///              *Must be an address **on the current node** because it uses this address to
+///              know where it was spawned from(where to send global_joiner signal back to).*
+template< typename T, typename P, void F(int64_t,T*,const P&), int64_t Threshold >
+void forall_local_async(GlobalAddress<T> base, size_t nelems, GlobalAddress<P> extra) {
+  // FIXME: currently sends tasks to all nodes
+  STATIC_ASSERT_SIZE_8(T);
+
+  Node nnode = Grappa_nodes();
+
+  Node fnodes;
+  
+  int64_t nbytes = nelems*sizeof(T);
+  GlobalAddress<int64_t> end = base+nelems;
+  
+  if (nelems > 0) {
+    fnodes = 1;
+  }
+
+  size_t block_elems = block_size / sizeof(T);
+  int64_t nfirstnode = base.block_max() - base;
+  
+  int64_t n = nelems - nfirstnode;
+  
+  if (n > 0) {
+    int64_t nrest = n / block_elems;
+    if (nrest >= nnode-1) {
+      fnodes = nnode;
+    } else {
+      fnodes += nrest;
+      if ((end - end.block_min()) && end.node() != base.node()) {
+        fnodes += 1;
+      }
+    }
+  }
+
+  //int64_t nn = block_size / nbytes
+             //+ ((base.pointer() - base.localize(base.node())) ? 1 : 0) 
+             //+ (( end.pointer() -  end.localize( end.node())) ? 1 : 0);
+  //nn = MIN( nnode, nn );
+
+  //int64_t nn = MIN( nnode, block_size / nbytes + 2 );
+
+  //int64_t nn = (int64_t)ceil( (double)block_size / (nelems*sizeof(T)) );
+  //nn = MIN( nn, nnode);
+  Node start_node = base.node();
+
+  //GlobalAddress<P> packed = make_global((void*)extra);
+
+  //VLOG(1) << "nelems = " << nelems << ", fnodes = " << fnodes << ", start_extra: " << nfirstnode << ", end_extra: " << end.localize(end.node()) - end.block_min().pointer() << ", base.localize: " << base.localize(base.node()) << ", base.block_max: " << base.block_max().pointer();
+  for (Node i=0; i<fnodes; i++) {
+  //for (Node i=0; i<nnode; i++) {
+    global_joiner.registerTask();
+    Grappa_remote_privateTask(forall_local_async_task<T,P,F,Threshold>, base, nelems, extra,
+        (start_node+i)%nnode);
+        //i);
+  }
+}
+/// Duplicate for lack of default template arg.
+template< typename T, typename P, void F(int64_t,T*,const P&) >
+void forall_local_async(GlobalAddress<T> base, size_t nelems, GlobalAddress<P> extra) {
+  forall_local_async<T,P,F,ASYNC_PAR_FOR_DEFAULT>(base, nelems, extra);
+}
+
 #endif /* define __FORK_JOIN_HPP__ */
+
