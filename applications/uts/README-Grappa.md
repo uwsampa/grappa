@@ -36,7 +36,7 @@ Example usage:
 The following command runs uts_grappa.exe on 8 cluster nodes, with 4 cores per node, on asmall tree, with reasonable runtime parameters.
 
 source sample_trees.sh
-make mpi_run TARGET=uts_grappa.exe PPN=4 NPROC=8 GARGS='--num_starting_workers=1024 --steal=1 --async_par_for_threshold=8 --chunk_size=100 --vertices_size=$(SIZE0) --aggregator_autoflush_ticks=2000000 --periodic_poll_ticks=10000 -- $(T1) -v 2'
+make mpi_run TARGET=uts_grappa.exe PPN=4 NNODE=8 GARGS='--num_starting_workers=1024 --steal=1 --async_par_for_threshold=8 --chunk_size=100 --vertices_size=$(SIZE0) --aggregator_autoflush_ticks=2000000 --periodic_poll_ticks=10000 -- $(T1) -v 2'
 
 
 
