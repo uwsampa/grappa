@@ -166,6 +166,7 @@ class TaskManager {
         uint64_t releases_;
         uint64_t public_tasks_dequeued_;
         uint64_t private_tasks_dequeued_;
+        uint64_t remote_private_tasks_spawned_;
 
         /// number of calls to sample() 
         uint64_t sample_calls;
@@ -184,6 +185,7 @@ class TaskManager {
         unsigned releases_vt_ev;
         unsigned public_tasks_dequeued_vt_ev;
         unsigned private_tasks_dequeued_vt_ev;
+        unsigned remote_private_tasks_spawned_vt_ev;
 #endif
 
         TaskManager * tm;
@@ -203,6 +205,7 @@ class TaskManager {
             , releases_ (0)
             , public_tasks_dequeued_ (0)
             , private_tasks_dequeued_ (0)
+            , remote_private_tasks_spawned_ (0)
 
             , sample_calls (0)
 #ifdef VTRACE_SAMPLED
@@ -219,6 +222,7 @@ class TaskManager {
               , releases_vt_ev( VT_COUNT_DEF( "releases", "acquires", VT_COUNT_TYPE_UNSIGNED, task_manager_vt_grp ) )
               , public_tasks_dequeued_vt_ev( VT_COUNT_DEF( "public_tasks_dequeued", "tasks", VT_COUNT_TYPE_UNSIGNED, task_manager_vt_grp ) )
               , private_tasks_dequeued_vt_ev( VT_COUNT_DEF( "private_tasks_dequeued", "tasks", VT_COUNT_TYPE_UNSIGNED, task_manager_vt_grp ) )
+              , remote_private_tasks_spawned_vt_ev ( VT_COUNT_DEF( "remote_private_tasks_spawned", "tasks", VT_COUNT_TYPE_UNSIGNED, task_manager_vt_grp ) )
 #endif
 
               , tm( task_manager )
@@ -264,6 +268,10 @@ class TaskManager {
 
         void record_private_task_dequeue() {
           private_tasks_dequeued_++;
+        }
+
+        void record_remote_private_task_spawn() {
+          remote_private_tasks_spawned_++;
         }
 
         void dump( std::ostream& o, const char * terminator );
@@ -385,7 +393,7 @@ template < typename A0, typename A1, typename A2 >
 inline void TaskManager::spawnRemotePrivate( void (*f)(A0, A1, A2), A0 arg0, A1 arg1, A2 arg2 ) {
   Task newtask = createTask( f, arg0, arg1, arg2 );
   privateQ.push_front( newtask );
-
+  stats.record_remote_private_task_spawn();
   /// note from cbarrier implementation
   /*
    * local cancel cbarrier
