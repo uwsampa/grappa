@@ -128,6 +128,7 @@ static void disable_tau() {
   fork_join_custom(&f);
 #endif
 #ifdef GOOGLE_PROFILER
+  Grappa_merge_and_dump_stats(std::cerr);
   func_disable_google_profiler g;
   fork_join_custom(&g);
 #else
