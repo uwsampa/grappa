@@ -11,12 +11,16 @@
 #include <PushBuffer.hpp>
 #include <Collective.hpp>
 
+//#include <boost/hash.hpp>
+//#include <boost/unordered_set.hpp>
+#include <boost/dynamic_bitset.hpp>
+
 GRAPPA_DEFINE_EVENT_GROUP(bfs);
 
 
 #define read      Grappa_delegate_read_word
 #define write     Grappa_delegate_write_word
-#define cmp_swap  Grappa_delegate_compare_and_swap_word
+//#define cmp_swap  Grappa_delegate_compare_and_swap_word
 #define fetch_add Grappa_delegate_fetch_and_add_word
 #define allreduce_add Grappa_allreduce<int64_t,coll_add<int64_t>,0>
 
@@ -42,6 +46,64 @@ static bool bfs_counters_added = false;
 // count number of vertex visited
 static uint64_t bfs_vertex_visited = 0;
 
+//template< typename T >
+//std::size_t hash_value(GlobalAddress<T> const& a) {
+  //boost::hash<int64_t> h;
+  //return h((int64_t)a.raw_bits());
+//}
+//static boost::unordered_set< GlobalAddress<int64_t> > parent_set;
+
+DEFINE_int64(cas_flattener_size, 20, "log2 of the number of unique elements in the hash set used to short-circuit compare and swaps");
+
+int64_t cmp_swaps_total;
+int64_t cmp_swaps_shorted;
+
+class CmpSwapCombiner {
+  size_t log2n;
+  intptr_t * in_set;
+public:
+  CmpSwapCombiner() {
+    log2n = FLAGS_cas_flattener_size;
+    in_set = new intptr_t[1L << log2n];
+    clear();
+  }
+  ~CmpSwapCombiner() { delete in_set; }
+
+  void clear() {
+    cmp_swaps_total = cmp_swaps_shorted = 0;
+    memset(in_set, 0, sizeof(intptr_t)*(1L<<log2n));
+  }
+
+  bool flat_cas(GlobalAddress<int64_t> target, int64_t cmp_val, int64_t set_val) {
+    cmp_swaps_total++;
+    intptr_t t = target.raw_bits();
+    uint64_t h = ((uint64_t)t) % (1L << log2n);
+
+    if (in_set[h] == t) {
+      cmp_swaps_shorted++;
+      return false;
+    } else {
+      if (in_set[h] == 0) {
+        in_set[h] = t;
+      }
+      return Grappa_delegate_compare_and_swap_word(target, cmp_val, set_val);
+    }
+  }
+};
+
+static CmpSwapCombiner * combiner = NULL;
+
+//inline bool cmp_swap_short(GlobalAddress<int64_t> target, int64_t cmp_val, int64_t set_val) {
+  //cmp_swaps_total++;
+  //if (parent_set.count(target)) {
+    //cmp_swaps_shorted++;
+    //return false;
+  //} else {
+    //parent_set.insert(target);
+    //return Grappa_delegate_compare_and_swap_word(target, cmp_val, set_val);
+  //}
+//}
+
 void visit_neighbor(int64_t i, int64_t * neighbor_base, const int64_t& v) {
   ++bfs_neighbors_visited;
 
@@ -54,7 +116,7 @@ void visit_neighbor(int64_t i, int64_t * neighbor_base, const int64_t& v) {
 
   CHECK( j < nv ) << "| v[" << v << "].neighbors[" << i << "] = " << j << " (nv = " << nv << ") \n neighbor_base = " << neighbor_base;
   
-  if (cmp_swap(bfs_tree+j, -1, v)) {
+  if (combiner->flat_cas(bfs_tree+j, -1, v)) {
     vlist_buf.push(j);
   }
 }
@@ -102,6 +164,12 @@ LOOP_FUNCTOR(setup_bfs, nid, GA64(_vlist)GA64(_xoff)GA64(_xadj)GA64(_bfs_tree)GA
   
   // initialize push buffer (so it knows where to push to)
   vlist_buf.setup(vlist, k2);
+
+  // initialize cmp_swap flat combiner
+  //cmp_swaps_total = cmp_swaps_shorted = 0;
+  //parent_set.clear();
+  if (combiner == NULL) { combiner = new CmpSwapCombiner(); }
+  combiner->clear();
 }
 
 LOOP_FUNCTION( bfs_finish_level, nid ) {  
@@ -112,6 +180,8 @@ LOOP_FUNCTION( bfs_finish_level, nid ) {
 LOOP_FUNCTION( bfs_finish, nid ) {
   bfs_neighbors_visited = allreduce_add(bfs_neighbors_visited);
   bfs_vertex_visited = allreduce_add(bfs_vertex_visited);
+  cmp_swaps_shorted = allreduce_add(cmp_swaps_shorted);
+  cmp_swaps_total = allreduce_add(cmp_swaps_total);
 }
 
 double make_bfs_tree(csr_graph * g, GlobalAddress<int64_t> bfs_tree, int64_t root) {
@@ -155,6 +225,8 @@ double make_bfs_tree(csr_graph * g, GlobalAddress<int64_t> bfs_tree, int64_t roo
   { bfs_finish f; fork_join_custom(&f); }
   VLOG(1) << "bfs_vertex_visited = " << bfs_vertex_visited;
   VLOG(1) << "bfs_neighbors_visited = " << bfs_neighbors_visited;
+  VLOG(1) << "cmp_swaps_shorted: " << cmp_swaps_shorted;
+  VLOG(1) << "cmp_swaps_total: " << cmp_swaps_total;
 
   Grappa_free(vlist);
   

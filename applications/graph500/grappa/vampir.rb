@@ -25,8 +25,8 @@ $cmd = %Q[ VT_FILE_PREFIX='vtbfs' make -j mpi_run TARGET=graph.exe NNODE=%{nnode
     --v=1
     -- -s %{scale} -e %{edgefactor} -p -%{generator} -f %{nbfs}
   ;
-  mkdir -p prof/%{bfs}.%{scale};
-  mv vtbfs.* prof/%{bfs}.%{scale};
+  mkdir -p prof/%{bfs}.%{scale}.%{name};
+  mv vtbfs.* prof/%{bfs}.%{scale}.%{name};
   rm graph.exe.* 
   '
 ].gsub(/[\n\r\ ]+/," ")
@@ -36,6 +36,7 @@ $machinename = "pal" if `hostname` =~ /pal/
 # map of parameters; key is the name used in command substitution
 $params = {
   bfs: "bfs_local",
+  name: "flat_cas",
   scale: [23],
   edgefactor: [16],
   generator: "K",
