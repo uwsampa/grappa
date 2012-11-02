@@ -388,18 +388,18 @@ ReturnType Grappa_delegate_func( ArgType arg, Node target ) {
 
 /// Return the size of the request message for this delegate function.
 template < typename ArgType, typename ReturnType >
-size_t SoftXMT_sizeof_delegate_func_request( ) {
+size_t Grappa_sizeof_delegate_func_request( ) {
   generic_delegate_request_args< ArgType, ReturnType > del_args; 
-  // must be called the same way as call_on in SoftXMT_delegate_func()
-  return SoftXMT_sizeof_message( &del_args );
+  // must be called the same way as call_on in Grappa_delegate_func()
+  return Grappa_sizeof_message( &del_args );
 }
 
 /// Return the size of the reply message for this delegate function.
 template < typename ArgType, typename ReturnType >
-size_t SoftXMT_sizeof_delegate_func_reply( ) {
+size_t Grappa_sizeof_delegate_func_reply( ) {
   generic_delegate_reply_args< ReturnType > reply_args;
   // must be called the same way as call_on in generic_delegate_request_am()
-  return SoftXMT_sizeof_message( &reply_args );
+  return Grappa_sizeof_message( &reply_args );
 }
 
 

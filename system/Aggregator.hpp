@@ -385,6 +385,10 @@ public:
     flushes_++;
   }
 
+  void record_idle_flush() {
+    idle_flushes_++;
+  }
+
   void record_multiflush() {
     multiflushes_++;
   }
@@ -468,8 +472,8 @@ public:
 #endif
   }
 
-  void dump() {
-    dump_as_map();
+  void dump( std::ostream& o = std::cout, const char * terminator = "" ) {
+    dump_as_map( o, terminator );
 //    header( LOG(INFO) );
 //    data( LOG(INFO), time() );
   }
@@ -563,7 +567,7 @@ public:
 };
 
 template <typename ArgStruct>
-size_t SoftXMT_sizeof_message( const ArgStruct * args, const size_t args_size = sizeof( ArgStruct ),
+size_t Grappa_sizeof_message( const ArgStruct * args, const size_t args_size = sizeof( ArgStruct ),
                              const void * payload = NULL, const size_t payload_size = 0) {
   return payload_size + args_size + sizeof( AggregatorGenericCallHeader );
 }
@@ -800,7 +804,7 @@ public:
     // make sure arg struct and payload aren't too big.
     // in the future, this would lead us down a separate code path for large messages.
     // for now, fail.
-    size_t total_call_size = SoftXMT_sizeof_message( args, args_size, payload, payload_size );
+    size_t total_call_size = Grappa_sizeof_message( args, args_size, payload, payload_size );
     DVLOG(5) << "aggregating " << total_call_size << " bytes to " 
              << destination << "(target " << target << ")";
     CHECK( total_call_size < buffer_size_ ) << "payload_size( " << payload_size << " )"

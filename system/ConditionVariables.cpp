@@ -1,5 +1,5 @@
 #include "ConditionVariables.hpp"
-#include "SoftXMT.hpp"
+#include "Grappa.hpp"
   
 Signaler::Signaler()
   : waiter ( NULL )
@@ -9,7 +9,7 @@ Signaler::Signaler()
 void Signaler::wait() {
   if ( !done ) {
     waiter = CURRENT_THREAD;
-    SoftXMT_suspend();
+    Grappa_suspend();
     CHECK( done );
   }
 }
@@ -17,7 +17,7 @@ void Signaler::wait() {
 void Signaler::signal() {
   done = true;
   if ( waiter != NULL ) {
-    SoftXMT_wake(waiter);
+    Grappa_wake(waiter);
     waiter = NULL;
   }
 }
@@ -29,12 +29,12 @@ ConditionVariable::ConditionVariable()
 
 void ConditionVariable::wait() {
   waiter = CURRENT_THREAD;
-  SoftXMT_suspend();
+  Grappa_suspend();
 }
 
 void ConditionVariable::notify() {
   if ( waiter != NULL ) {
-    SoftXMT_wake(waiter);
+    Grappa_wake(waiter);
     waiter = NULL;
   }
 }

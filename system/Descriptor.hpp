@@ -2,7 +2,7 @@
 #define DESCRIPTOR_HPP
 
 #include "ConditionVariables.hpp"
-#include "SoftXMT.hpp"
+#include "Grappa.hpp"
 
 
 /**
@@ -55,13 +55,13 @@ template < typename T >
 void descriptor_reply_one ( GlobalAddress< Descriptor<T> > desc, T * data ) {
   size_t data_size = sizeof(T); // 1 element of data allowed
 
-  SoftXMT_call_on_x( desc.node(), descriptor_reply_am<T>, &desc, sizeof(GlobalAddress< Descriptor<T> >), data, data_size );
+  Grappa_call_on_x( desc.node(), descriptor_reply_am<T>, &desc, sizeof(GlobalAddress< Descriptor<T> >), data, data_size );
 }
 
 template < typename T >
-size_t SoftXMT_sizeof_descriptor_reply_one( GlobalAddress< Descriptor<T> > desc, T * data ) {
+size_t Grappa_sizeof_descriptor_reply_one( GlobalAddress< Descriptor<T> > desc, T * data ) {
   size_t data_size = sizeof(T); // 1 element of data allowed
-  return SoftXMT_sizeof_message( &desc, sizeof(GlobalAddress< Descriptor<T> >), data, data_size );
+  return Grappa_sizeof_message( &desc, sizeof(GlobalAddress< Descriptor<T> >), data, data_size );
 }
 
 
