@@ -1,4 +1,12 @@
 
+// Copyright 2010-2012 University of Washington. All Rights Reserved.
+// LICENSE_PLACEHOLDER
+// This software was created with Government support under DE
+// AC05-76RL01830 awarded by the United States Department of
+// Energy. The Government has certain rights in the software.
+
+/// useful utilities
+
 #ifndef __COMMON_HPP__
 #define __COMMON_HPP__
 
@@ -13,11 +21,11 @@
 #include <time.h>
 #endif
 
-/// "Universal" wallclock time (works at least for Mac, MTA, and most Linux)
 #define BILLION 1000000000
 #define MILLION 1000000
 
-inline double SoftXMT_walltime(void) {
+/// "Universal" wallclock time (works at least for Mac, MTA, and most Linux)
+inline double Grappa_walltime(void) {
 #if defined(__MTA__)
 	return((double)mta_get_clock(0) / mta_clock_freq());
 #elif defined(__MACH__)
@@ -39,13 +47,14 @@ inline double SoftXMT_walltime(void) {
 #endif
 }
 
-#define SOFTXMT_TIME(var, block) \
+#define GRAPPA_TIME(var, block) \
    	do { \
-		double _tmptime = SoftXMT_walltime(); \
+		double _tmptime = Grappa_walltime(); \
 		block \
-		var = SoftXMT_walltime()-_tmptime; \
+		var = Grappa_walltime()-_tmptime; \
 	} while(0)
 
+/// Compute ratio of doubles, returning 0 when divisor is 0
 template< typename T, typename U >
 static inline double nanless_double_ratio( T x, U y ) {
   return y == 0 ? 0.0 : static_cast<double>(x) / static_cast<double>(y);
@@ -89,19 +98,21 @@ inline unsigned int log2( unsigned int v ) {
     (val) = ((unsigned long)__a) | (((unsigned long)__d)<<32);	\
   } while(0)
 
+/// Read 64-bit timestamp counter.
 static inline unsigned long long rdtsc() {
   unsigned long long val;
   rdtscll(val);
   return val;
 }
 
-/// OMGWTFBBQ SoftXMT magic identity function
+/// OMGWTFBBQ Grappa magic identity function
 /// Use this to get a pointer to a template function inside a template function, etc.
 template< typename T >
-T * SoftXMT_magic_identity_function(T * t) {
+T * Grappa_magic_identity_function(T * t) {
   return t;
 }
 
+/// range for block distribution
 struct range_t { int64_t start, end; };
 
 inline range_t blockDist(int64_t start, int64_t end, int64_t rank, int64_t numBlocks) {

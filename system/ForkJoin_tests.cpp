@@ -1,5 +1,12 @@
+
+// Copyright 2010-2012 University of Washington. All Rights Reserved.
+// LICENSE_PLACEHOLDER
+// This software was created with Government support under DE
+// AC05-76RL01830 awarded by the United States Department of
+// Energy. The Government has certain rights in the software.
+
 #include <boost/test/unit_test.hpp>
-#include "SoftXMT.hpp"
+#include "Grappa.hpp"
 #include "Addressing.hpp"
 #include "Cache.hpp"
 #include "ForkJoin.hpp"
@@ -21,15 +28,15 @@ LOOP_FUNCTION( func_hello, index ) {
 }
 
 static void test_global_join_task_single(GlobalAddress<int64_t> addr) {
-  SoftXMT_delegate_fetch_and_add_word(addr, 1);
+  Grappa_delegate_fetch_and_add_word(addr, 1);
   GlobalTaskJoiner::remoteSignal(global_joiner.addr());
 }
 static void test_global_join_task(GlobalAddress<int64_t> addr) {
-  SoftXMT_delegate_fetch_and_add_word(addr, 1);
+  Grappa_delegate_fetch_and_add_word(addr, 1);
 
   for (int64_t i=0; i<3; i++) {
     global_joiner.registerTask();
-    SoftXMT_publicTask(&test_global_join_task_single, addr);
+    Grappa_publicTask(&test_global_join_task_single, addr);
   }
 
   GlobalTaskJoiner::remoteSignal(global_joiner.addr());
@@ -38,7 +45,7 @@ static void test_global_join_task(GlobalAddress<int64_t> addr) {
 LOOP_FUNCTOR( func_test_global_join, nid, ((GlobalAddress<int64_t>, addr)) ) {
   for (int64_t i=0; i<10; i++) {
     global_joiner.registerTask();
-    SoftXMT_publicTask(&test_global_join_task, addr);
+    Grappa_publicTask(&test_global_join_task, addr);
   }
   global_joiner.wait();
 }
@@ -52,11 +59,11 @@ static void set_to_one(int64_t * x) {
 
 static void user_main(int * args) {
   
-  LOG(INFO) << "beginning user main.... (" << SoftXMT_mynode() << ")";
+  LOG(INFO) << "beginning user main.... (" << Grappa_mynode() << ")";
   
   {
     size_t N = 128;
-    GlobalAddress<int64_t> data = SoftXMT_typed_malloc<int64_t>(N);
+    GlobalAddress<int64_t> data = Grappa_typed_malloc<int64_t>(N);
     
     func_initialize a(data, 0);
     fork_join(&a, 0, N);
@@ -66,11 +73,11 @@ static void user_main(int * args) {
       VLOG(2) << i << " == " << *c;
       BOOST_CHECK_EQUAL(i, *c);
     }
-    SoftXMT_free(data);
+    Grappa_free(data);
   }
   {
     size_t N = 101;
-    GlobalAddress<int64_t> data = SoftXMT_typed_malloc<int64_t>(N);
+    GlobalAddress<int64_t> data = Grappa_typed_malloc<int64_t>(N);
     
     func_initialize a(data, 0);
     fork_join(&a, 0, N);
@@ -80,7 +87,7 @@ static void user_main(int * args) {
       VLOG(2) << i << " == " << *c;
       BOOST_CHECK_EQUAL(i, *c);
     }
-    SoftXMT_free(data);
+    Grappa_free(data);
   }
   {
     func_hello f;
@@ -88,7 +95,7 @@ static void user_main(int * args) {
   }
   {
     size_t N = 128 + 13;
-    GlobalAddress<int64_t> data = SoftXMT_typed_malloc<int64_t>(N);
+    GlobalAddress<int64_t> data = Grappa_typed_malloc<int64_t>(N);
     
     func_initialize a(data, 0);
     fork_join(&a, 0, N);
@@ -101,14 +108,14 @@ static void user_main(int * args) {
       BOOST_CHECK_EQUAL(i, *c);
     }
     
-    SoftXMT_memset(data, (int64_t)1, N);
+    Grappa_memset(data, (int64_t)1, N);
     
     Incoherent<int64_t>::RO c(data, N);
     for (size_t i=0; i<N; i++) {
       BOOST_CHECK_EQUAL(1, c[i]);
     }
     
-    SoftXMT_free(data);
+    Grappa_free(data);
   }
   
   { // Test LocalTaskJoiner
@@ -120,10 +127,10 @@ static void user_main(int * args) {
     int64_t x = 0, y = 0;
     
     joiner.registerTask();
-    SoftXMT_privateTask(&set_to_one, &x);
+    Grappa_privateTask(&set_to_one, &x);
     
     joiner.registerTask();
-    SoftXMT_privateTask(&set_to_one, &y);
+    Grappa_privateTask(&set_to_one, &y);
     
     BOOST_CHECK_EQUAL(x, 0);
     BOOST_CHECK_EQUAL(y, 0);
@@ -141,19 +148,19 @@ static void user_main(int * args) {
     int64_t x = 0;
     { func_test_global_join f(make_global(&x)); fork_join_custom(&f); }
     
-    BOOST_CHECK_EQUAL(x, SoftXMT_nodes()*10*4);
+    BOOST_CHECK_EQUAL(x, Grappa_nodes()*10*4);
   }
 }
 
 BOOST_AUTO_TEST_CASE( test1 ) {
-  SoftXMT_init( &(boost::unit_test::framework::master_test_suite().argc),
+  Grappa_init( &(boost::unit_test::framework::master_test_suite().argc),
                &(boost::unit_test::framework::master_test_suite().argv), 1<<20);
-  SoftXMT_activate();
+  Grappa_activate();
   
-  SoftXMT_run_user_main(&user_main, (int*)NULL);
+  Grappa_run_user_main(&user_main, (int*)NULL);
   
   LOG(INFO) << "finishing...";
-	SoftXMT_finish( 0 );
+	Grappa_finish( 0 );
 }
 
 BOOST_AUTO_TEST_SUITE_END();

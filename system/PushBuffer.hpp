@@ -1,9 +1,24 @@
+
+// Copyright 2010-2012 University of Washington. All Rights Reserved.
+// LICENSE_PLACEHOLDER
+// This software was created with Government support under DE
+// AC05-76RL01830 awarded by the United States Department of
+// Energy. The Government has certain rights in the software.
+
 #include "Addressing.hpp"
 #include "Cache.hpp"
 #include "Delegate.hpp"
 
-#define fetch_add SoftXMT_delegate_fetch_and_add_word
+#define fetch_add Grappa_delegate_fetch_and_add_word
 
+/// A simple class for staging appends to a global array. Created for use in adding things 
+/// to the frontier in BFS. The idea is to have a PushBuffer local to each node (in a 
+/// global variable) that can be appended to. Once the buffer reaches capacity, a single 
+/// fetch_add is used to allocate space in the global array, and a large Cache 
+/// Incoherent::WO release is used to save everything into the global array.
+///
+/// @tparam NBUFS Supports having multiple outstanding buffers to prevent having to wait 
+///               for release to finish.
 template<typename T, size_t BUFSIZE=(1L<<14), size_t NBUFS=4 >
 struct PushBuffer {
   GlobalAddress<T> target_array;

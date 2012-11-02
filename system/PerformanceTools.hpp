@@ -1,3 +1,12 @@
+
+// Copyright 2010-2012 University of Washington. All Rights Reserved.
+// LICENSE_PLACEHOLDER
+// This software was created with Government support under DE
+// AC05-76RL01830 awarded by the United States Department of
+// Energy. The Government has certain rights in the software.
+
+/// Collection of utilities for monitoring performance
+
 #ifndef PERFORMANCE_TOOLS_HPP
 #define PERFORMANCE_TOOLS_HPP
 
@@ -18,6 +27,8 @@
 #endif
 
 DECLARE_bool(record_grappa_events);
+
+/// Macros to trace events with Tau
 
 #define SAMPLE_RATE (1<<4)
 
@@ -106,20 +117,23 @@ void dump_all_task_profiles();
 #include "ProfilerGroups.hpp"
 
 
-void SoftXMT_set_profiler_argv0( char * argv0 );
+void Grappa_set_profiler_argv0( char * argv0 );
 
-void SoftXMT_start_profiling();
-void SoftXMT_stop_profiling();
+void Grappa_start_profiling();
+void Grappa_stop_profiling();
 
 extern bool take_profiling_sample;
 
 
 #include <string>
 /// User-registered sampled counters
-void SoftXMT_add_profiling_counter( uint64_t * counter, std::string name, std::string abbrev, bool reset, uint64_t resetVal );
-void SoftXMT_profiling_sample_user();
+void Grappa_add_profiling_counter( uint64_t * counter, std::string name, std::string abbrev, bool reset, uint64_t resetVal );
+void Grappa_add_profiling_integer(int64_t * counter, std::string name, std::string abbrev, bool reset, int64_t resetVal  );
+void Grappa_add_profiling_value( double * counter, std::string name, std::string abbrev, bool reset, double resetVal );
+void Grappa_profiling_sample_user();
 
-void SoftXMT_reset_user_stats();
+void Grappa_dump_user_stats( std::ostream& o, const char * terminator );
+void Grappa_reset_user_stats();
 
 
 #endif // PERFORMANCE_TOOLS_HPP

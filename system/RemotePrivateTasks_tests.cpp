@@ -1,10 +1,18 @@
-
+// Copyright 2010-2012 University of Washington. All Rights Reserved.
+// LICENSE_PLACEHOLDER
+// This software was created with Government support under DE
+// AC05-76RL01830 awarded by the United States Department of
+// Energy. The Government has certain rights in the software.
 
 #include <boost/test/unit_test.hpp>
 
-#include "SoftXMT.hpp"
+#include "Grappa.hpp"
 #include "ForkJoin.hpp"
 #include "Delegate.hpp"
+
+//
+// Test spawning private tasks on a specific remote node
+//
 
 //#define BLOG(msg) BOOST_MESSAGE(msg)
 #define BLOG(msg) VLOG(1) << msg
@@ -19,9 +27,12 @@ struct task1_arg {
 void task1_f( const task1_arg * args ) {
     
     BLOG( CURRENT_THREAD << " task runs i=" << args->i );
-    SoftXMT_yield();
-    SoftXMT_yield();
 
+    // yield a couple times to simulate work
+    Grappa_yield();
+    Grappa_yield();
+
+    // tell parent we are done
     Semaphore::release( &args->sem, 1 ); 
 }
 
@@ -35,34 +46,40 @@ void user_main( user_main_args * args )
 
     // do several rounds of private spawns
     for (int i=0; i<500; i++) {
+        // producer-consumer synch object
         Semaphore sem(1, 0);
+
+        // task arguments: synch object and iteration
         task1_arg t1_arg = { make_global( &sem ), i };
         BLOG( "remote-spawn " << i );
-        SoftXMT_remote_privateTask( &task1_f_CA, make_global( &t1_arg ), 1 );
+
+        // spawn the task on Node 1
+        Grappa_remote_privateTask( &task1_f_CA, make_global( &t1_arg ), 1 );
+
+        // block until task is finished
         sem.acquire_all( CURRENT_THREAD );
         BLOG( "phase " << i << " done" );
     }
 
     BLOG( "user main is exiting" );
   
-    SoftXMT_end_tasks();
 }
 
 BOOST_AUTO_TEST_CASE( test1 ) {
 
-    SoftXMT_init( &(boost::unit_test::framework::master_test_suite().argc),
+    Grappa_init( &(boost::unit_test::framework::master_test_suite().argc),
             &(boost::unit_test::framework::master_test_suite().argv) );
 
-    SoftXMT_activate();
+    Grappa_activate();
 
     user_main_args uargs;
 
     DVLOG(1) << "Spawning user main Thread....";
-    SoftXMT_run_user_main( &user_main, &uargs );
+    Grappa_run_user_main( &user_main, &uargs );
     VLOG(5) << "run_user_main returned";
-    CHECK( SoftXMT_done() );
+    CHECK( Grappa_done() );
 
-    SoftXMT_finish( 0 );
+    Grappa_finish( 0 );
 }
 
 BOOST_AUTO_TEST_SUITE_END();

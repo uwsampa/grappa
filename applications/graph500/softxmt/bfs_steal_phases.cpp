@@ -1,5 +1,5 @@
 #include "common.h"
-#include "SoftXMT.hpp"
+#include "Grappa.hpp"
 #include "ForkJoin.hpp"
 #include "Cache.hpp"
 #include "Delegate.hpp"
@@ -9,10 +9,10 @@
 
 GRAPPA_DEFINE_EVENT_GROUP(bfs);
 
-#define read      SoftXMT_delegate_read_word
-#define write     SoftXMT_delegate_write_word
-#define cmp_swap  SoftXMT_delegate_compare_and_swap_word
-#define fetch_add SoftXMT_delegate_fetch_and_add_word
+#define read      Grappa_delegate_read_word
+#define write     Grappa_delegate_write_word
+#define cmp_swap  Grappa_delegate_compare_and_swap_word
+#define fetch_add Grappa_delegate_fetch_and_add_word
 
 #define BUF_LEN 16384
 static int64_t buf[BUF_LEN];
@@ -48,11 +48,11 @@ static void bfs_visit_neighbor(uint64_t packed, GlobalAddress<LocalTaskJoiner> r
   GRAPPA_EVENT(visit_neighbor_ev, "visit neighbor of vertex", 1, bfs, v);
   
   GlobalAddress<int64_t> xv = xadj+vo;
-  CHECK(xv.node() < SoftXMT_nodes()) << " [" << xv.node() << " < " << SoftXMT_nodes() << "]";
+  CHECK(xv.node() < Grappa_nodes()) << " [" << xv.node() << " < " << Grappa_nodes() << "]";
   
   const int64_t j = read(xv);
   if (cmp_swap(bfs_tree+j, -1, v)) {
-    while (kbuf == -1) { SoftXMT_yield(); }
+    while (kbuf == -1) { Grappa_yield(); }
     if (kbuf < BUF_LEN) {
       buf[kbuf] = j;
       (kbuf)++;
@@ -72,7 +72,7 @@ static void bfs_visit_neighbor(uint64_t packed, GlobalAddress<LocalTaskJoiner> r
 
 static void bfs_visit_vertex(int64_t k, GlobalAddress<LocalTaskJoiner> rjoiner) {
   GlobalAddress<int64_t> vk = vlist+k;
-  CHECK(vk.node() < SoftXMT_nodes()) << " [" << vk.node() << " < " << SoftXMT_nodes() << "]";
+  CHECK(vk.node() < Grappa_nodes()) << " [" << vk.node() << " < " << Grappa_nodes() << "]";
   const int64_t v = read(vk);
   
   // TODO: do these two together (cache)
@@ -91,14 +91,14 @@ static void bfs_visit_vertex(int64_t k, GlobalAddress<LocalTaskJoiner> rjoiner) 
   for (int64_t vo = vstart; vo < vend; vo++) {
     uint64_t packed = (((uint64_t)v) << 32) | vo;
     myjoiner.registerTask(); // register these new tasks on *this task*'s joiner
-    SoftXMT_publicTask(&bfs_visit_neighbor, packed, myjoiner_addr);
+    Grappa_publicTask(&bfs_visit_neighbor, packed, myjoiner_addr);
   }
   myjoiner.wait();
   LocalTaskJoiner::remoteSignal(rjoiner);
 }
 
 LOOP_FUNCTOR(bfs_node, nid, ((int64_t,start)) ((int64_t,end))) {
-  range_t r = blockDist(start, end, nid, SoftXMT_nodes());
+  range_t r = blockDist(start, end, nid, Grappa_nodes());
   
   kbuf = 0;
   
@@ -107,7 +107,7 @@ LOOP_FUNCTOR(bfs_node, nid, ((int64_t,start)) ((int64_t,end))) {
 
   for (int64_t i = r.start; i < r.end; i++) {
     nodejoiner.registerTask();
-    SoftXMT_publicTask(&bfs_visit_vertex, i, nodejoiner_addr);
+    Grappa_publicTask(&bfs_visit_vertex, i, nodejoiner_addr);
   }
   
   VLOG(1) << "node joiner (" << nodejoiner.outstanding << ") before wait";
@@ -130,7 +130,7 @@ LOOP_FUNCTION(clear_buffers, nid) {
 
 double make_bfs_tree(csr_graph * g, GlobalAddress<int64_t> bfs_tree, int64_t root) {
   int64_t NV = g->nv;
-  GlobalAddress<int64_t> vlist = SoftXMT_typed_malloc<int64_t>(NV);
+  GlobalAddress<int64_t> vlist = Grappa_typed_malloc<int64_t>(NV);
   
   double t;
   t = timer();
@@ -142,7 +142,7 @@ double make_bfs_tree(csr_graph * g, GlobalAddress<int64_t> bfs_tree, int64_t roo
   GlobalAddress<int64_t> k2addr = make_global(&k2);
   
   // initialize bfs_tree to -1
-  SoftXMT_memset(bfs_tree, (int64_t)-1,  NV);
+  Grappa_memset(bfs_tree, (int64_t)-1,  NV);
   
   write(bfs_tree+root, root); // parent of root is self
   
@@ -163,9 +163,9 @@ double make_bfs_tree(csr_graph * g, GlobalAddress<int64_t> bfs_tree, int64_t roo
   
   t = timer() - t;
   
-  SoftXMT_free(vlist);
+  Grappa_free(vlist);
   
-  SoftXMT_merge_and_dump_stats();
+  Grappa_merge_and_dump_stats();
   
   return t;
 }

@@ -2,7 +2,7 @@
 // License: GeorgiaTech
 
 #include "defs.hpp"
-#include <SoftXMT.hpp>
+#include <Grappa.hpp>
 
 void computeGraph(graphedges * ge, graph * dirg) {
   

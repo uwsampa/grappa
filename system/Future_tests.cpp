@@ -1,11 +1,19 @@
+// Copyright 2010-2012 University of Washington. All Rights Reserved.
+// LICENSE_PLACEHOLDER
+// This software was created with Government support under DE
+// AC05-76RL01830 awarded by the United States Department of
+// Energy. The Government has certain rights in the software.
+
 
 #include <boost/test/unit_test.hpp>
 
-#include "SoftXMT.hpp"
+#include "Grappa.hpp"
 #include "Delegate.hpp"
 #include "Tasking.hpp"
 #include "Future.hpp"
 #include "Cache.hpp"
+
+// Test Futures implemented in Future.hpp
 
 BOOST_AUTO_TEST_SUITE( Future_tests );
 
@@ -23,7 +31,7 @@ void sumArray( const sumArray_args * args ) {
     // do some work (in-place linear-time prefix sum)
     int64_t sum = 0;
     for (int i=0; i<args->len; i++) {
-        int64_t value = SoftXMT_delegate_fetch_and_add_word(args->array + i, sum);
+        int64_t value = Grappa_delegate_fetch_and_add_word(args->array + i, sum);
         sum+=value;
     }
 
@@ -75,7 +83,7 @@ void user_main( user_main_args * args )
    
     // do a operation that will yield to make it very likely another
     // thread will execute d2
-    SoftXMT_delegate_write_word( make_global(&dummy_int, 1), 0xBEEF );
+    Grappa_delegate_write_word( make_global(&dummy_int, 1), 0xBEEF );
 
     // likely wait
     d2.touch( );
@@ -91,19 +99,19 @@ void user_main( user_main_args * args )
 
 BOOST_AUTO_TEST_CASE( test1 ) {
 
-    SoftXMT_init( &(boost::unit_test::framework::master_test_suite().argc),
+    Grappa_init( &(boost::unit_test::framework::master_test_suite().argc),
             &(boost::unit_test::framework::master_test_suite().argv) );
 
-    SoftXMT_activate();
+    Grappa_activate();
 
     user_main_args uargs;
 
     DVLOG(1) << "Spawning user main Thread....";
-    SoftXMT_run_user_main( &user_main, &uargs );
+    Grappa_run_user_main( &user_main, &uargs );
     VLOG(5) << "run_user_main returned";
-    CHECK( SoftXMT_done() );
+    CHECK( Grappa_done() );
 
-    SoftXMT_finish( 0 );
+    Grappa_finish( 0 );
 }
 
 BOOST_AUTO_TEST_SUITE_END();

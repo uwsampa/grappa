@@ -1,11 +1,17 @@
 
+// Copyright 2010-2012 University of Washington. All Rights Reserved.
+// LICENSE_PLACEHOLDER
+// This software was created with Government support under DE
+// AC05-76RL01830 awarded by the United States Department of
+// Energy. The Government has certain rights in the software.
+
 #include <signal.h>
 
 #ifdef HEAPCHECK
 #include <gperftools/heap-checker.h>
 #endif
 
-#include "SoftXMT.hpp"
+#include "Grappa.hpp"
 #include "GlobalMemory.hpp"
 #include "tasks/Task.hpp"
 #include "ForkJoin.hpp"
@@ -16,6 +22,8 @@
 #include "StatisticsTools.hpp"
 #include "tasks/StealQueue.hpp"
 #include "tasks/GlobalQueue.hpp"
+
+#include <fstream>
 
 #ifndef SHMMAX
 #error "no SHMMAX defined for this system -- look it up with the command: `sysctl -A | grep shm`"
@@ -28,6 +36,7 @@
 // command line arguments
 DEFINE_uint64( num_starting_workers, 4, "Number of starting workers in task-executer pool" );
 DEFINE_bool( set_affinity, false, "Set processor affinity based on local rank" );
+DEFINE_string( stats_blob_filename, "stats.json", "Stats blob filename" );
 
 DECLARE_bool( global_queue );
 
@@ -37,17 +46,20 @@ Thread * master_thread;
 static Thread * user_main_thr;
 
 /// Flag to tell this node it's okay to exit.
-bool SoftXMT_done_flag;
+bool Grappa_done_flag;
 
 double tick_rate = 0.0;
+static int jobid = 0;
+static const char * nodelist_str = NULL;
 
 Node * node_neighbors;
 
 #ifdef HEAPCHECK
-HeapLeakChecker * SoftXMT_heapchecker = 0;
+HeapLeakChecker * Grappa_heapchecker = 0;
 #endif
 
-void SoftXMT_take_profiling_sample() {
+/// Sample all stats for VampirTrace
+void Grappa_take_profiling_sample() {
   global_aggregator.stats.profiling_sample();
   global_communicator.stats.profiling_sample();
   global_task_manager.stats.profiling_sample();
@@ -60,56 +72,57 @@ void SoftXMT_take_profiling_sample() {
   global_queue_stats.profiling_sample();
 
   // print user-registered stats
-  SoftXMT_profiling_sample_user();
+  Grappa_profiling_sample_user();
 }
 
+/// Body of the polling thread.
 static void poller( Thread * me, void * args ) {
   StateTimer::setThreadState( StateTimer::COMMUNICATION );
   StateTimer::enterState_communication();
-  while( !SoftXMT_done() ) {
+  while( !Grappa_done() ) {
     global_scheduler.stats.sample();
     global_task_manager.stats.sample();
 
-    SoftXMT_poll();
+    Grappa_poll();
     if (barrier_thread) {
       if (global_communicator.barrier_try()) {
-        SoftXMT_wake(barrier_thread);
+        Grappa_wake(barrier_thread);
         barrier_thread = NULL;
       }
     }
-    SoftXMT_yield_periodic();
+    Grappa_yield_periodic();
   }
   VLOG(5) << "polling Thread exiting";
 }
 
-// handler for dumping stats on a signal
+/// handler for dumping stats on a signal
 static int stats_dump_signal = SIGUSR2;
 static void stats_dump_sighandler( int signum ) {
   // TODO: make this set a flag and have scheduler check and dump.
-  SoftXMT_dump_stats();
+  Grappa_dump_stats();
 
   // instantaneous state
   LOG(INFO) << global_scheduler;
   LOG(INFO) << global_task_manager;
 }
 
-// handler for SIGABRT override
+/// handler to redirect SIGABRT override to activate a GASNet backtrace
 static void sigabrt_sighandler( int signum ) {
   raise( SIGUSR1 );
 }
 
 DECLARE_bool( global_memory_use_hugepages );
 
-/// Initialize SoftXMT components. We are not ready to run until the
-/// user calls SoftXMT_activate().
-void SoftXMT_init( int * argc_p, char ** argv_p[], size_t global_memory_size_bytes)
+/// Initialize Grappa components. We are not ready to run until the
+/// user calls Grappa_activate().
+void Grappa_init( int * argc_p, char ** argv_p[], size_t global_memory_size_bytes)
 {
   // std::cerr << "Argc is " << *argc_p << std::endl;
   // for( int i = 0; i < *argc_p; ++i ) {
   //   std::cerr << "Arg " << i << ": " << (*argv_p)[i] << std::endl;
   // }
   // help generate unique profile filename
-  SoftXMT_set_profiler_argv0( (*argv_p)[0] );
+  Grappa_set_profiler_argv0( (*argv_p)[0] );
 
   // parse command line flags
   google::ParseCommandLineFlags(argc_p, argv_p, true);
@@ -118,16 +131,16 @@ void SoftXMT_init( int * argc_p, char ** argv_p[], size_t global_memory_size_byt
   google::InitGoogleLogging( *argv_p[0] );
   google::InstallFailureSignalHandler( );
 
-  DVLOG(1) << "Initializing SoftXMT library....";
+  DVLOG(1) << "Initializing Grappa library....";
 #ifdef HEAPCHECK
-  SoftXMT_heapchecker = new HeapLeakChecker("SoftXMT");
+  Grappa_heapchecker = new HeapLeakChecker("Grappa");
 #endif
 
   // how fast do we tick?
-  SoftXMT_tick();
-  SoftXMT_tick();
-  SoftXMT_Timestamp start_ts = SoftXMT_get_timestamp();
-  double start = SoftXMT_walltime();
+  Grappa_tick();
+  Grappa_tick();
+  Grappa_Timestamp start_ts = Grappa_get_timestamp();
+  double start = Grappa_walltime();
   // now go do other stuff for a while
   
   // set up stats dump signal handler
@@ -202,17 +215,17 @@ void SoftXMT_init( int * argc_p, char ** argv_p[], size_t global_memory_size_byt
   // initializes system_wide global_memory pointer
   global_memory = new GlobalMemory( global_memory_size_bytes );
 
-  SoftXMT_done_flag = false;
+  Grappa_done_flag = false;
 
   // process command line args for Tau
   //TAU_INIT( argc_p, argv_p );
 #ifdef GRAPPA_TRACE
-  TAU_PROFILE_SET_NODE(SoftXMT_mynode());
+  TAU_PROFILE_SET_NODE(Grappa_mynode());
 #endif
 
   //TODO: options for local stealing
-  node_neighbors = new Node[SoftXMT_nodes()];
-  for ( Node nod=0; nod < SoftXMT_nodes(); nod++ ) {
+  node_neighbors = new Node[Grappa_nodes()];
+  for ( Node nod=0; nod < Grappa_nodes(); nod++ ) {
     node_neighbors[nod] = nod;
   }
 
@@ -220,30 +233,37 @@ void SoftXMT_init( int * argc_p, char ** argv_p[], size_t global_memory_size_byt
   master_thread = thread_init();
   VLOG(1) << "Initializing tasking layer."
            << " num_starting_workers=" << FLAGS_num_starting_workers;
-  global_task_manager.init( SoftXMT_mynode(), node_neighbors, SoftXMT_nodes() ); //TODO: options for local stealing
+  global_task_manager.init( Grappa_mynode(), node_neighbors, Grappa_nodes() ); //TODO: options for local stealing
   global_scheduler.init( master_thread, &global_task_manager );
   global_scheduler.periodic( thread_spawn( master_thread, &global_scheduler, &poller, NULL ) );
 
-  SoftXMT_tick();
-  SoftXMT_Timestamp end_ts = SoftXMT_get_timestamp();
-  double end = SoftXMT_walltime();
+  // collect some stats on this job
+  Grappa_tick();
+  Grappa_Timestamp end_ts = Grappa_get_timestamp();
+  double end = Grappa_walltime();
   tick_rate = (double) (end_ts - start_ts) / (end-start);
+
+  char * jobid_str = getenv("SLURM_JOB_ID");
+  jobid = jobid_str ? atoi(jobid_str) : 0;
+  nodelist_str = getenv("SLURM_NODELIST");
+  if( NULL == nodelist_str ) nodelist_str = "undefined";
 }
 
 
-/// Activate SoftXMT network layer and enter barrier. After this,
+/// Activate Grappa network layer and enter barrier. After this,
 /// arbitrary communication is allowed.
-void SoftXMT_activate() 
+void Grappa_activate() 
 {
-  DVLOG(1) << "Activating SoftXMT library....";
+  DVLOG(1) << "Activating Grappa library....";
   global_communicator.activate();
-  SoftXMT_barrier();
+  Grappa_barrier();
 }
 
-void SoftXMT_barrier_suspending() {
+/// Split-phase barrier. (ALLNODES)
+void Grappa_barrier_suspending() {
   global_communicator.barrier_notify();
   barrier_thread = CURRENT_THREAD;
-  SoftXMT_suspend();
+  Grappa_suspend();
 }
 
 
@@ -253,7 +273,7 @@ void SoftXMT_barrier_suspending() {
 
 /// Spawn a user function. TODO: get return values working
 /// TODO: remove Thread * arg
-inline Thread * SoftXMT_spawn( void (* fn_p)(Thread *, void *), void * args )
+inline Thread * Grappa_spawn( void (* fn_p)(Thread *, void *), void * args )
 {
   Thread * th = thread_spawn( global_scheduler.get_current_thread(), &global_scheduler, fn_p, args );
   global_scheduler.ready( th );
@@ -263,7 +283,7 @@ inline Thread * SoftXMT_spawn( void (* fn_p)(Thread *, void *), void * args )
 
 
 static bool global_queue_initialized = false;
-// fork-join function for SoftXMT_initialize_global_queue
+// fork-join function for Grappa_initialize_global_queue
 LOOP_FUNCTION( initialize_global_queue_func, nid ) {
   GlobalQueue<Task>::global_queue.init();
   global_queue_initialized = true;
@@ -271,14 +291,14 @@ LOOP_FUNCTION( initialize_global_queue_func, nid ) {
 
 /// Initialize global queue for load balancing.
 /// Must be called in user_main
-void SoftXMT_global_queue_initialize() {
+void Grappa_global_queue_initialize() {
   if ( global_task_manager.global_queue_on() ) {
     initialize_global_queue_func f;
     fork_join_custom( &f );
   }
 }
 
-bool SoftXMT_global_queue_isInit() {
+bool Grappa_global_queue_isInit() {
   return global_queue_initialized;
 }
 
@@ -288,8 +308,8 @@ bool SoftXMT_global_queue_isInit() {
 ///
 
 /// Check whether we are ready to exit.
-bool SoftXMT_done() {
-  return SoftXMT_done_flag;
+bool Grappa_done() {
+  return Grappa_done_flag;
 }
 
 //// termination fork join declaration
@@ -301,32 +321,48 @@ static void signal_task_termination_am( int * ignore, size_t isize, void * paylo
 }
 
 /// User main done
-void SoftXMT_end_tasks() {
+void Grappa_end_tasks() {
   // send task termination signal
-  CHECK( SoftXMT_mynode() == 0 );
-  for ( Node n = 1; n < SoftXMT_nodes(); n++ ) {
+  CHECK( Grappa_mynode() == 0 );
+  for ( Node n = 1; n < Grappa_nodes(); n++ ) {
       int ignore = 0;
-      SoftXMT_call_on( n, &signal_task_termination_am, &ignore );
-      SoftXMT_flush( n );
+      Grappa_call_on( n, &signal_task_termination_am, &ignore );
+      Grappa_flush( n );
   }
   signal_task_termination_am( NULL, 0, NULL, 0 );
 }
 
 
 ///// Active message to tell this node it's okay to exit.
-//static void SoftXMT_mark_done_am( void * args, size_t args_size, void * payload, size_t payload_size ) {
+//static void Grappa_mark_done_am( void * args, size_t args_size, void * payload, size_t payload_size ) {
 //  VLOG(5) << "mark done";
-//  SoftXMT_done_flag = true;
+//  Grappa_done_flag = true;
 //}
 
-/// Tell all nodes that we are ready to exit
+/// Tell all nodes that we are ready to exit.
 /// This will terminate the automatic portions of the communication layer
-void SoftXMT_signal_done ( ) { 
+void Grappa_signal_done ( ) { 
     VLOG(5) << "mark done";
-    SoftXMT_done_flag = true;
+    Grappa_done_flag = true;
 }
 
-void SoftXMT_reset_stats() {
+
+/// Dump the state of all flags
+void dump_flags( std::ostream& o, const char * delimiter ) {
+  typedef std::vector< google::CommandLineFlagInfo > FlagVec;
+  FlagVec flags;
+  google::GetAllFlags( &flags );
+  o << "  \"Flags\": { ";
+  for( FlagVec::iterator i = flags.begin(); i != flags.end(); ++i ) {
+    o << "\"FLAGS_" << i->name << "\": \"" << i->current_value << "\"";
+    if( i+1 != flags.end() ) o << ", ";
+  }
+  o << " }" << delimiter << std::endl;
+}
+
+
+/// Reset stats son this node
+void Grappa_reset_stats() {
   global_aggregator.reset_stats();
   global_communicator.reset_stats();
   global_scheduler.reset_stats();
@@ -338,37 +374,57 @@ void SoftXMT_reset_stats() {
   steal_queue_stats.reset();
   global_queue_stats.reset();
  
-  SoftXMT_reset_user_stats(); 
+  Grappa_reset_user_stats(); 
 }
 
+/// Functor to reset stats on all nodes
 LOOP_FUNCTION(reset_stats_func,nid) {
-  SoftXMT_reset_stats();
+  Grappa_reset_stats();
 }
-void SoftXMT_reset_stats_all_nodes() {
+/// Reset stats on all nodes
+void Grappa_reset_stats_all_nodes() {
   reset_stats_func f;
   fork_join_custom(&f);
 }
 
 
 /// Dump statistics
-void SoftXMT_dump_stats() {
-  std::cout << "SoftXMTStats { tick_rate: " << tick_rate << " }" << std::endl;
-  global_aggregator.dump_stats();
-  global_communicator.dump_stats();
-  global_task_manager.dump_stats();
-  global_scheduler.dump_stats();
-  delegate_stats.dump();
-  cache_stats.dump();
-  incoherent_acquirer_stats.dump();
-  incoherent_releaser_stats.dump();
-  steal_queue_stats.dump();
-  global_queue_stats.dump();
+void Grappa_dump_stats( std::ostream& oo ) {
+  std::ostringstream o;
+  o << "STATS{\n";
+  o << "   \"GrappaStats\": { \"tick_rate\": " << tick_rate
+    << ", \"job_id\": " << jobid
+    << ", \"nodelist\": \"" << nodelist_str << "\""
+    << " },\n";
+  global_aggregator.dump_stats( o, "," );
+  global_communicator.dump_stats( o, "," );
+  global_task_manager.dump_stats( o, "," );
+  global_scheduler.dump_stats( o, "," );
+  delegate_stats.dump( o, "," );
+  cache_stats.dump( o, "," );
+  incoherent_acquirer_stats.dump( o, "," );
+  incoherent_releaser_stats.dump( o, "," );
+  steal_queue_stats.dump( o, "," );
+  global_queue_stats.dump( o, "," );
+  dump_flags( o, "," );
+  Grappa_dump_user_stats( o, "" );
+  o << "}STATS";
+  oo << o.str();
 }
 
-LOOP_FUNCTION(dump_stats_func,nid) {
-  SoftXMT_dump_stats();
+/// Dump stats blob
+void Grappa_dump_stats_blob() {
+  std::ofstream o( FLAGS_stats_blob_filename.c_str(), std::ios::out );
+  Grappa_dump_stats( o );
 }
-void SoftXMT_dump_stats_all_nodes() {
+ 
+
+/// Functor to dump stats on all nodes
+LOOP_FUNCTION(dump_stats_func,nid) {
+  Grappa_dump_stats();
+}
+/// Dump stats on all nodes
+void Grappa_dump_stats_all_nodes() {
   dump_stats_func f;
   fork_join_custom(&f);
 }
@@ -377,7 +433,7 @@ void SoftXMT_dump_stats_all_nodes() {
 ///
 /// Statistics reduction
 ///
-#define STAT_REDUCE(statType, stat) (statType) SoftXMT_allreduce_noinit<statType, stat_reduce<statType> >( (stat) )
+#define STAT_REDUCE(statType, stat) (statType) Grappa_allreduce_noinit<statType, stat_reduce<statType> >( (stat) )
 #define STAT_FUNC( name, statType, stat ) \
   LOOP_FUNCTOR( name, nid, ((statType*, resultAddress)) ) { \
     statType result = STAT_REDUCE( statType, (stat) ); \
@@ -393,7 +449,7 @@ void SoftXMT_dump_stats_all_nodes() {
   result.dump(); \
 }
 
-// define the forkjoin calls to SoftXMT_allreduce
+// define the forkjoin calls to Grappa_allreduce
 STAT_FUNC(schedulerstat_func, TaskingScheduler::TaskingSchedulerStatistics, global_scheduler.stats );
 STAT_FUNC(aggregatorstat_func, AggregatorStatistics, global_aggregator.stats );
 STAT_FUNC(commstat_func, CommunicatorStatistics, global_communicator.stats );
@@ -407,7 +463,7 @@ STAT_FUNC(globalqueuestat_func, GlobalQueueStatistics, global_queue_stats );
 
 // call the forkjoin functions to reduce and print each statistic object
 static void reduce_stats_and_dump() {
-  CHECK( SoftXMT_mynode() == 0 );
+  CHECK( Grappa_mynode() == 0 );
   STAT_FORK_AND_DUMP(aggregatorstat_func, AggregatorStatistics)
   STAT_FORK_AND_DUMP(commstat_func, CommunicatorStatistics)
   STAT_FORK_AND_DUMP(taskmanagerstat_func, TaskManager::TaskStatistics)
@@ -419,18 +475,18 @@ static void reduce_stats_and_dump() {
   STAT_FORK_AND_DUMP(incoherentrel_func, IRStatistics)
   STAT_FORK_AND_DUMP(globalqueuestat_func, GlobalQueueStatistics)
 
-  // also print the SoftXMT stats that don't needed merging
-  std::cout << "SoftXMTStats { tick_rate: " << tick_rate << " }" << std::endl;
+  // also print the Grappa stats that don't needed merging
+  std::cout << "GrappaStats { tick_rate: " << tick_rate << " }" << std::endl;
 }
 
-void SoftXMT_merge_and_dump_stats() {
+void Grappa_merge_and_dump_stats() {
   reduce_stats_and_dump();
 }
 
 
 
 
-void SoftXMT_dump_task_series() {
+void Grappa_dump_task_series() {
 	global_scheduler.stats.print_active_task_log();
 }
 
@@ -440,14 +496,14 @@ void SoftXMT_dump_task_series() {
 /// If we've already been notified that we can exit, enter global
 /// barrier and then clean up. If we have not been notified, then
 /// notify everyone else, enter the barrier, and then clean up.
-void SoftXMT_finish( int retval )
+void Grappa_finish( int retval )
 {
-  SoftXMT_signal_done(); // this may be overkill (just set done bit?)
+  Grappa_signal_done(); // this may be overkill (just set done bit?)
 
   //TAU_PROFILE_EXIT("Tau_profile_exit called");
-  SoftXMT_barrier();
+  Grappa_barrier();
 
-  DVLOG(1) << "Cleaning up SoftXMT library....";
+  DVLOG(1) << "Cleaning up Grappa library....";
 
   StateTimer::finish();
 
@@ -455,7 +511,7 @@ void SoftXMT_finish( int retval )
   global_aggregator.finish();
   global_communicator.finish( retval );
  
-//  SoftXMT_dump_stats();
+//  Grappa_dump_stats();
 
   // probably never get here (depending on communication layer)
 
@@ -464,7 +520,7 @@ void SoftXMT_finish( int retval )
   if (global_memory) delete global_memory;
 
 #ifdef HEAPCHECK
-  assert( SoftXMT_heapchecker->NoLeaks() );
+  assert( Grappa_heapchecker->NoLeaks() );
 #endif
   
 }

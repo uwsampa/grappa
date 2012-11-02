@@ -1,3 +1,10 @@
+
+// Copyright 2010-2012 University of Washington. All Rights Reserved.
+// LICENSE_PLACEHOLDER
+// This software was created with Government support under DE
+// AC05-76RL01830 awarded by the United States Department of
+// Energy. The Government has certain rights in the software.
+
 #ifndef __ASYNC_PARALLEL_FOR__
 #define __ASYNC_PARALLEL_FOR__
 
@@ -9,6 +16,8 @@
 #define ASYNC_PAR_FOR_DEFAULT -1
 DECLARE_int64( async_par_for_threshold );
 
+/// Version of async_parallel_for that doesn't take a shared argument. @see async_parallel_for()
+/// TODO: just call the async_parallel_for below rather than duplicating code
 template < void (*LoopBody)(int64_t,int64_t),
            void (*Spawn)(int64_t,int64_t),
            int64_t Threshold >
@@ -37,6 +46,7 @@ void async_parallel_for( int64_t start, int64_t iterations ) {
 
 #include "Addressing.hpp"
 
+/// Parallel recursive loop decomposition similar to the Cilk_for approach to loops.
 template < typename Arg,
            void (*LoopBody)(int64_t,int64_t,Arg),
            void (*Spawn)(int64_t,int64_t,Arg),

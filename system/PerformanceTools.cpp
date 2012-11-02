@@ -1,3 +1,10 @@
+
+// Copyright 2010-2012 University of Washington. All Rights Reserved.
+// LICENSE_PLACEHOLDER
+// This software was created with Government support under DE
+// AC05-76RL01830 awarded by the United States Department of
+// Energy. The Government has certain rights in the software.
+
 #include "PerformanceTools.hpp"
 
 #include <cstdio>
@@ -41,12 +48,14 @@ static char profiler_filename[PROFILER_FILENAME_LENGTH] = {0};
 // which profiling phase are we in? 
 static int profiler_phase = 0;
 
-void SoftXMT_set_profiler_argv0( char * argv0 ) {
+/// Record binary name for use in construcing profiler filenames
+void Grappa_set_profiler_argv0( char * argv0 ) {
   argv0_for_profiler = argv0;
   time_for_profiler = time(NULL);
 }
 
-char * SoftXMT_get_next_profiler_filename( ) {
+/// Get next filename for profiler files
+char * Grappa_get_next_profiler_filename( ) {
   // use Slurm environment variables if we can
   char * jobname = getenv("SLURM_JOB_NAME");
   char * jobid = getenv("SLURM_JOB_ID");
@@ -62,83 +71,152 @@ char * SoftXMT_get_next_profiler_filename( ) {
 
 /// callback for sampling at profiler signals
 /// runs in signal handler, so should be async-signal-safe
-int SoftXMT_profile_handler( void * arg ) {
+int Grappa_profile_handler( void * arg ) {
   take_profiling_sample = true;
+#ifdef GOOGLE_PROFILER
   return 1; // tell profiler to profile at this tick
+#endif
+#ifdef STATS_BLOB
+  return 0; // don't take profiling sample
+#endif
 }
 
-void SoftXMT_reset_stats();
+void Grappa_reset_stats();
 
-void SoftXMT_start_profiling() {
+void Grappa_start_profiling() {
 #ifdef GOOGLE_PROFILER
   ProfilerOptions po;
-  po.filter_in_thread = &SoftXMT_profile_handler;
+  po.filter_in_thread = &Grappa_profile_handler;
   po.filter_in_thread_arg = NULL;
-  ProfilerStartWithOptions( SoftXMT_get_next_profiler_filename(), &po );
-  //ProfilerStart( SoftXMT_get_profiler_filename() );
+  ProfilerStartWithOptions( Grappa_get_next_profiler_filename(), &po );
+  //ProfilerStart( Grappa_get_profiler_filename() );
 #ifdef VTRACE_SAMPLED
   VT_USER_START("sampling");
-  SoftXMT_reset_stats();
-  void SoftXMT_take_profiling_sample();
-  SoftXMT_take_profiling_sample();
+  Grappa_reset_stats();
+  void Grappa_take_profiling_sample();
+  Grappa_take_profiling_sample();
 #endif
 #endif
 }
 
-void SoftXMT_stop_profiling() {
+void Grappa_stop_profiling() {
 #ifdef GOOGLE_PROFILER
     ProfilerStop( );
-    SoftXMT_profile_handler(NULL);
+    Grappa_profile_handler(NULL);
 #ifdef VTRACE_SAMPLED
   VT_USER_END("sampling");
-  void SoftXMT_dump_stats();
-  SoftXMT_dump_stats();
+  void Grappa_dump_stats();
+  Grappa_dump_stats();
 
-  SoftXMT_reset_stats();
-  void SoftXMT_take_profiling_sample();
-  SoftXMT_take_profiling_sample();
+  Grappa_reset_stats();
+  void Grappa_take_profiling_sample();
+  Grappa_take_profiling_sample();
 #endif
 #endif
 }
 
 /// User-registered sampled counters
 #define MAX_APP_COUNTERS 32
-unsigned app_counters[MAX_APP_COUNTERS];
+unsigned app_counters[MAX_APP_COUNTERS] = { 0 };
+std::string app_counter_names[MAX_APP_COUNTERS];
 unsigned app_grp_vt = -1;
-uint64_t * app_counter_addrs[MAX_APP_COUNTERS];
-uint64_t app_counter_reset_vals[MAX_APP_COUNTERS];
-bool app_counter_doReset[MAX_APP_COUNTERS];
+uint64_t * app_counter_addrs[MAX_APP_COUNTERS] = { NULL };
+uint64_t app_counter_reset_vals[MAX_APP_COUNTERS] = { 0 };
+bool app_counter_doReset[MAX_APP_COUNTERS] = { false };
+bool app_counter_isInteger[MAX_APP_COUNTERS] = { false };
+bool app_counter_isDouble[MAX_APP_COUNTERS] = { false };
 int ae_next_id = 0;
 
-void SoftXMT_profiling_sample_user() {
+/// Take sample of user trace counters
+void Grappa_profiling_sample_user() {
 #ifdef VTRACE_SAMPLED
   for (int i=0; i<ae_next_id; i++) {
-    VT_COUNT_UNSIGNED_VAL( app_counters[i], *(app_counter_addrs[i]) );
+    if( app_counter_isInteger[i] ) {
+      VT_COUNT_INTEGER_VAL( app_counters[i], *((int64_t*)app_counter_addrs[i]) );
+    } else if( app_counter_isDouble[i] ) {
+      VT_COUNT_DOUBLE_VAL( app_counters[i], *((double*)app_counter_addrs[i]) );
+    } else {
+      VT_COUNT_UNSIGNED_VAL( app_counters[i], *(app_counter_addrs[i]) );
+    }
   }
 #endif
 }
 
-void SoftXMT_add_profiling_counter(uint64_t * counter, std::string name, std::string abbrev, bool reset, uint64_t resetVal  ) {
+void Grappa_dump_user_stats( std::ostream& o = std::cout, const char * terminator = "" ) {
+  o << "   \"UserStats\": { ";
+  for (int i=0; i<ae_next_id; i++) {
+    if( app_counter_isInteger[i] ) {
+      o << "\"" << app_counter_names[i] << "\": " << *((int64_t*)app_counter_addrs[i]);
+    } else if( app_counter_isDouble[i] ) {
+      o << "\"" << app_counter_names[i] << "\": " << *((double*)app_counter_addrs[i]);
+    } else {
+      o << "\"" << app_counter_names[i] << "\": " << *(app_counter_addrs[i]);
+    }
+    if( i != ae_next_id-1 ) o << ", ";
+  }
+  o << "}" << terminator << std::endl;
+}
+
+/// Add a new user trace counter
+void Grappa_add_profiling_counter(uint64_t * counter, std::string name, std::string abbrev, bool reset, uint64_t resetVal  ) {
+  CHECK( ae_next_id < MAX_APP_COUNTERS );
 #ifdef VTRACE_SAMPLED
   if ( app_grp_vt == -1 ) app_grp_vt = VT_COUNT_GROUP_DEF( "App" );
-
-  CHECK( ae_next_id < MAX_APP_COUNTERS );
   app_counters[ae_next_id] = VT_COUNT_DEF( name.c_str(), abbrev.c_str(), VT_COUNT_TYPE_UNSIGNED, app_grp_vt );
+#endif
+
+  app_counter_names[ae_next_id] = name;
   app_counter_addrs[ae_next_id] = counter;
   app_counter_doReset[ae_next_id] = reset;
+  app_counter_isInteger[ae_next_id] = false;
+  app_counter_isDouble[ae_next_id] = false;
   app_counter_reset_vals[ae_next_id] = resetVal;
 
   ++ae_next_id;
-#endif
 }
 
-void SoftXMT_reset_user_stats() {
+void Grappa_add_profiling_integer(int64_t * counter, std::string name, std::string abbrev, bool reset, int64_t resetVal  ) {
+  CHECK( ae_next_id < MAX_APP_COUNTERS );
 #ifdef VTRACE_SAMPLED
+  if ( app_grp_vt == -1 ) app_grp_vt = VT_COUNT_GROUP_DEF( "App" );
+  app_counters[ae_next_id] = VT_COUNT_DEF( name.c_str(), abbrev.c_str(), VT_COUNT_TYPE_INTEGER, app_grp_vt );
+#endif
+
+  app_counter_names[ae_next_id] = name;
+  app_counter_addrs[ae_next_id] = (uint64_t*) counter;
+  app_counter_doReset[ae_next_id] = reset;
+  app_counter_isInteger[ae_next_id] = true;
+  app_counter_isDouble[ae_next_id] = false;
+  app_counter_reset_vals[ae_next_id] = resetVal;
+
+  ++ae_next_id;
+}
+
+void Grappa_add_profiling_value(double * counter, std::string name, std::string abbrev, bool reset, double resetVal  ) {
+  CHECK( ae_next_id < MAX_APP_COUNTERS );
+#ifdef VTRACE_SAMPLED
+  if ( app_grp_vt == -1 ) app_grp_vt = VT_COUNT_GROUP_DEF( "App" );
+  app_counters[ae_next_id] = VT_COUNT_DEF( name.c_str(), abbrev.c_str(), VT_COUNT_TYPE_DOUBLE, app_grp_vt );
+#endif
+
+  app_counter_names[ae_next_id] = name;
+  app_counter_addrs[ae_next_id] = (uint64_t*) counter;
+  app_counter_doReset[ae_next_id] = reset;
+  app_counter_isInteger[ae_next_id] = false;
+  app_counter_isDouble[ae_next_id] = true;
+  app_counter_reset_vals[ae_next_id] = resetVal;
+
+  ++ae_next_id;
+}
+
+/// Reset user trace counters
+void Grappa_reset_user_stats() {
+#ifdef VTRACE_SAMPLED
+#endif
   for (int i=0; i<ae_next_id; i++) {
     if ( app_counter_doReset[i] ) {
       *(app_counter_addrs[i]) = app_counter_reset_vals[i];
     }
   }
-#endif
 }
 

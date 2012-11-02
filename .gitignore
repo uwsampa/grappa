@@ -118,3 +118,6 @@ config.cache
 /tools/VampirTrace-5.12.2/
 
 /tools/built_deps
+/tools*
+^tools*
+^/tools*

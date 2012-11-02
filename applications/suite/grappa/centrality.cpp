@@ -2,7 +2,7 @@
 // License: GeorgiaTech
 
 #include "defs.hpp"
-#include <SoftXMT.hpp>
+#include <Grappa.hpp>
 #include <ForkJoin.hpp>
 #include <GlobalAllocator.hpp>
 #include <Delegate.hpp>
@@ -14,13 +14,13 @@
 
 #include "../compat/mersenne.h"
 
-#define read      SoftXMT_delegate_read_word
-#define write     SoftXMT_delegate_write_word
-#define cmp_swap  SoftXMT_delegate_compare_and_swap_word
-#define fetch_add SoftXMT_delegate_fetch_and_add_word
+#define read      Grappa_delegate_read_word
+#define write     Grappa_delegate_write_word
+#define cmp_swap  Grappa_delegate_compare_and_swap_word
+#define fetch_add Grappa_delegate_fetch_and_add_word
 
 static inline double read_double(GlobalAddress<double> addr) {
-  int64_t temp = SoftXMT_delegate_read_word(addr);
+  int64_t temp = Grappa_delegate_read_word(addr);
   return *reinterpret_cast<double*>(&temp);
 }
 
@@ -179,7 +179,7 @@ LOOP_FUNCTOR( totalCentrality, v, ((GlobalAddress<double>,total)) ) {
 }
 
 LOOP_FUNCTION( totalNedgeFunc, n ) {
-  nedge_traversed = SoftXMT_allreduce<int64_t,coll_add<int64_t>,0>(nedge_traversed);
+  nedge_traversed = Grappa_allreduce<int64_t,coll_add<int64_t>,0>(nedge_traversed);
 }
 
 //////////////////////
@@ -189,7 +189,7 @@ LOOP_FUNCTION(func_enable_tau, nid) {
   FLAGS_record_grappa_events = true;
 }
 LOOP_FUNCTION(func_enable_google_profiler, nid) {
-  SoftXMT_start_profiling();
+  Grappa_start_profiling();
 }
 static void enable_tau() {
 #ifdef GRAPPA_TRACE
@@ -201,14 +201,14 @@ static void enable_tau() {
   func_enable_google_profiler g;
   fork_join_custom(&g);
 #else
-  SoftXMT_reset_stats_all_nodes();
+  Grappa_reset_stats_all_nodes();
 #endif
 }
 LOOP_FUNCTION(func_disable_tau, nid) {
   FLAGS_record_grappa_events = false;
 }
 LOOP_FUNCTION(func_disable_google_profiler, nid) {
-  SoftXMT_stop_profiling();
+  Grappa_stop_profiling();
 }
 static void disable_tau() {
 #ifdef GRAPPA_TRACE
@@ -220,8 +220,8 @@ static void disable_tau() {
   func_disable_google_profiler g;
   fork_join_custom(&g);
 #else
-  SoftXMT_merge_and_dump_stats();
-  SoftXMT_reset_stats_all_nodes();
+  Grappa_merge_and_dump_stats();
+  Grappa_reset_stats_all_nodes();
 #endif
 }
 ///////////////////////
@@ -236,14 +236,14 @@ double centrality(graph *g, GlobalAddress<double> bc, graphint Vs,
   
   graphint QHead[100 * SCALE];
   
-  c.delta       = SoftXMT_typed_malloc<double>  (g->numVertices);
-  c.dist        = SoftXMT_typed_malloc<graphint>(g->numVertices);
-  c.Q           = SoftXMT_typed_malloc<graphint>(g->numVertices);
-  c.sigma       = SoftXMT_typed_malloc<graphint>(g->numVertices);
-  c.marks       = SoftXMT_typed_malloc<graphint>(g->numVertices+2);
-  c.child       = SoftXMT_typed_malloc<graphint>(g->numEdges);
-  c.child_count = SoftXMT_typed_malloc<graphint>(g->numVertices);
-  if (!computeAllVertices) c.explored = SoftXMT_typed_malloc<graphint>(g->numVertices);
+  c.delta       = Grappa_typed_malloc<double>  (g->numVertices);
+  c.dist        = Grappa_typed_malloc<graphint>(g->numVertices);
+  c.Q           = Grappa_typed_malloc<graphint>(g->numVertices);
+  c.sigma       = Grappa_typed_malloc<graphint>(g->numVertices);
+  c.marks       = Grappa_typed_malloc<graphint>(g->numVertices+2);
+  c.child       = Grappa_typed_malloc<graphint>(g->numEdges);
+  c.child_count = Grappa_typed_malloc<graphint>(g->numVertices);
+  if (!computeAllVertices) c.explored = Grappa_typed_malloc<graphint>(g->numVertices);
   c.Qnext       = make_global(&Qnext);
   
   double t; t = timer();
@@ -255,8 +255,8 @@ double centrality(graph *g, GlobalAddress<double> bc, graphint Vs,
     initCentrality f(*g, c, bc); fork_join_custom(&f);
   }
   
-  SoftXMT_memset(bc, 0.0, g->numVertices);
-  if (!computeAllVertices) SoftXMT_memset(c.explored, (graphint)0L, g->numVertices);
+  Grappa_memset(bc, 0.0, g->numVertices);
+  if (!computeAllVertices) Grappa_memset(c.explored, (graphint)0L, g->numVertices);
   
   //srand(12345);
   mersenne_seed(12345);
@@ -290,11 +290,11 @@ double centrality(graph *g, GlobalAddress<double> bc, graphint Vs,
     
     VLOG(3) << "s = " << s;
     
-    SoftXMT_memset(c.dist,       (graphint)-1, g->numVertices);
-    SoftXMT_memset(c.sigma,      (graphint) 0, g->numVertices);
-    SoftXMT_memset(c.marks,      (graphint) 0, g->numVertices);
-    SoftXMT_memset(c.child_count,(graphint) 0, g->numVertices);
-    SoftXMT_memset(c.delta,        (double) 0, g->numVertices);
+    Grappa_memset(c.dist,       (graphint)-1, g->numVertices);
+    Grappa_memset(c.sigma,      (graphint) 0, g->numVertices);
+    Grappa_memset(c.marks,      (graphint) 0, g->numVertices);
+    Grappa_memset(c.child_count,(graphint) 0, g->numVertices);
+    Grappa_memset(c.delta,        (double) 0, g->numVertices);
     
     // Push node i onto Q and set bounds for first Q sublist
     write(c.Q+0, s);
@@ -336,7 +336,7 @@ double centrality(graph *g, GlobalAddress<double> bc, graphint Vs,
 //      ss << " ]";
 //      VLOG(1) << ss.str();
 //    } 
-    SoftXMT_memset(c.delta, 0.0, g->numVertices);
+    Grappa_memset(c.delta, 0.0, g->numVertices);
     
     // Pop nodes off of Q in the reverse order they were pushed on
     for ( ; nQ > 1; nQ--) {
@@ -366,14 +366,14 @@ double centrality(graph *g, GlobalAddress<double> bc, graphint Vs,
 
   VLOG(1) << "centrality rngtime = " << rngtime;
 
-  SoftXMT_free(c.delta);
-  SoftXMT_free(c.dist);
-  SoftXMT_free(c.Q);
-  SoftXMT_free(c.sigma);
-  SoftXMT_free(c.marks);
-  SoftXMT_free(c.child);
-  SoftXMT_free(c.child_count);
-  SoftXMT_free(c.explored);
+  Grappa_free(c.delta);
+  Grappa_free(c.dist);
+  Grappa_free(c.Q);
+  Grappa_free(c.sigma);
+  Grappa_free(c.marks);
+  Grappa_free(c.child);
+  Grappa_free(c.child_count);
+  Grappa_free(c.explored);
 
   double bc_total = 0;
   {

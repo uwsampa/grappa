@@ -1,3 +1,10 @@
+
+// Copyright 2010-2012 University of Washington. All Rights Reserved.
+// LICENSE_PLACEHOLDER
+// This software was created with Government support under DE
+// AC05-76RL01830 awarded by the United States Department of
+// Energy. The Government has certain rights in the software.
+
 #include "IncoherentReleaser.hpp"
 
 
@@ -20,11 +27,11 @@ void IRStatistics::reset() {
   release_ams_bytes = 0;
 }
 
-void IRStatistics::dump() {
-  std::cout << "IncoherentReleaserStatistics { "
-	    << "release_ams: " << release_ams << ", "
-	    << "release_ams_bytes: " << release_ams_bytes << ", "
-    << " }" << std::endl;
+void IRStatistics::dump( std::ostream& o = std::cout, const char * terminator = "" ) {
+  o << "   \"IncoherentReleaserStatistics\": { "
+    << "\"release_ams\": " << release_ams << ", "
+    << "\"release_ams_bytes\": " << release_ams_bytes
+    << " }" << terminator << std::endl;
 }
 
 void IRStatistics::sample() {
