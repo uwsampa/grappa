@@ -22,6 +22,7 @@ $cmd = %Q[ make -j mpi_run TARGET=graph.exe NNODE=%{nnode} PPN=%{ppn} BFS=%{bfs}
     --async_par_for_threshold=%{threshold}
     --io_blocks_per_node=%{io_blocks_per_node}
     --io_blocksize_mb=%{io_blocksize_mb}
+    --cas_flattener_size=%{cas_flattener_size}
     --v=1
     -- -s %{scale} -e %{edgefactor} -pn -%{generator} -f %{nbfs}
   '
@@ -32,21 +33,22 @@ $machinename = "pal" if `hostname` =~ /pal/
 # map of parameters; key is the name used in command substitution
 $params = {
   bfs: "bfs_local",
-  scale: [23],
+  scale: [23, 26],
   edgefactor: [16],
   generator: "K",
   nbfs: [1],
-  nnode: [8],
+  nnode: [12],
   ppn: [4],
   nworkers: [1024],
-  flushticks: [1000000],
-  pollticks:    [10000],
+  flushticks: [500000, 1000000],
+  pollticks:   [100000],
   chunksize: [64],
-  threshold: [128],
+  threshold: [32, 128],
   io_blocks_per_node: [1],
   io_blocksize_mb: [512],
   nproc: expr('nnode*ppn'),
   machine: [$machinename],
+  cas_flattener_size: [24],
 }
 
 if __FILE__ == $PROGRAM_NAME
