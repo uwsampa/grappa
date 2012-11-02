@@ -407,7 +407,7 @@ void Grappa_dump_stats( std::ostream& oo ) {
   steal_queue_stats.dump( o, "," );
   global_queue_stats.dump( o, "," );
   dump_flags( o, "," );
-  Grappa_dump_user_stats( o, "" );
+  Grappa_dump_user_stats( o, "" ); // TODO: user stats are NOT merged
   o << "}STATS";
   oo << o.str();
 }
@@ -441,12 +441,12 @@ void Grappa_dump_stats_all_nodes() {
       *resultAddress = result; \
     } \
   }
-#define STAT_FORK_AND_DUMP(name, statType) { \
+#define STAT_FORK_AND_DUMP(name, statType, o) { \
   statType result; \
   name f; \
   f.resultAddress = &result; \
   fork_join_custom(&f); \
-  result.dump(); \
+  result.dump( (o), "," ); \
 }
 
 // define the forkjoin calls to Grappa_allreduce
@@ -462,25 +462,33 @@ STAT_FUNC(incoherentrel_func, IRStatistics, incoherent_releaser_stats );
 STAT_FUNC(globalqueuestat_func, GlobalQueueStatistics, global_queue_stats );
 
 // call the forkjoin functions to reduce and print each statistic object
-static void reduce_stats_and_dump() {
+static void reduce_stats_and_dump( std::ostream& oo ) {
   CHECK( Grappa_mynode() == 0 );
-  STAT_FORK_AND_DUMP(aggregatorstat_func, AggregatorStatistics)
-  STAT_FORK_AND_DUMP(commstat_func, CommunicatorStatistics)
-  STAT_FORK_AND_DUMP(taskmanagerstat_func, TaskManager::TaskStatistics)
-  STAT_FORK_AND_DUMP(schedulerstat_func, TaskingScheduler::TaskingSchedulerStatistics)
-  STAT_FORK_AND_DUMP(stealstat_func, StealStatistics)
-  STAT_FORK_AND_DUMP(delegatestat_func, DelegateStatistics) 
-  STAT_FORK_AND_DUMP(cachestat_func, CacheStatistics)
-  STAT_FORK_AND_DUMP(incoherentacq_func, IAStatistics)
-  STAT_FORK_AND_DUMP(incoherentrel_func, IRStatistics)
-  STAT_FORK_AND_DUMP(globalqueuestat_func, GlobalQueueStatistics)
-
-  // also print the Grappa stats that don't needed merging
-  std::cout << "GrappaStats { tick_rate: " << tick_rate << " }" << std::endl;
+ 
+  std::ostringstream o;
+  o << "STATS{\n";
+  o << "   \"GrappaStats\": { \"tick_rate\": " << tick_rate
+    << ", \"job_id\": " << jobid
+    << ", \"nodelist\": \"" << nodelist_str << "\""
+    << " },\n";
+  STAT_FORK_AND_DUMP(aggregatorstat_func, AggregatorStatistics, o)
+  STAT_FORK_AND_DUMP(commstat_func, CommunicatorStatistics, o)
+  STAT_FORK_AND_DUMP(taskmanagerstat_func, TaskManager::TaskStatistics, o)
+  STAT_FORK_AND_DUMP(schedulerstat_func, TaskingScheduler::TaskingSchedulerStatistics, o)
+  STAT_FORK_AND_DUMP(stealstat_func, StealStatistics, o)
+  STAT_FORK_AND_DUMP(delegatestat_func, DelegateStatistics, o) 
+  STAT_FORK_AND_DUMP(cachestat_func, CacheStatistics, o)
+  STAT_FORK_AND_DUMP(incoherentacq_func, IAStatistics, o)
+  STAT_FORK_AND_DUMP(incoherentrel_func, IRStatistics, o)
+  STAT_FORK_AND_DUMP(globalqueuestat_func, GlobalQueueStatistics, o)
+  dump_flags( o, "," );
+  Grappa_dump_user_stats( o, "" );  // TODO: user stats are NOT merged
+  o << "}STATS";
+  oo << o.str();
 }
 
-void Grappa_merge_and_dump_stats() {
-  reduce_stats_and_dump();
+void Grappa_merge_and_dump_stats( std::ostream& oo ) {
+  reduce_stats_and_dump( oo );
 }
 
 
