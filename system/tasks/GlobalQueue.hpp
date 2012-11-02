@@ -62,7 +62,7 @@ class GlobalQueueStatistics {
   public:
     GlobalQueueStatistics();
     void reset();
-    void dump(); 
+    void dump( std::ostream& o, const char * terminator );
     void merge( const GlobalQueueStatistics * other );
     void profiling_sample();
 

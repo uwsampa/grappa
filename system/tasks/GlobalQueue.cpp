@@ -53,7 +53,7 @@ void GlobalQueueStatistics::reset() {
 }
 
 #include "DictOut.hpp"
-void GlobalQueueStatistics::dump() {
+void GlobalQueueStatistics::dump(std::ostream& o = std::cout, const char * terminator = "") {
   DictOut dout;
   DICT_ADD( dout, globalq_pull_reserve_request_messages );
   DICT_ADD( dout, globalq_pull_reserve_request_total_bytes );
@@ -82,7 +82,7 @@ void GlobalQueueStatistics::dump() {
   DICT_ADD( dout, globalq_push_entry_hadConsumer );
   DICT_ADD( dout, globalq_push_entry_noConsumer );
 
-  std::cout << "GlobalQueueStatistics " << dout.toString() << std::endl;
+  o << "   \"GlobalQueueStatistics\": " << dout.toString() << terminator << std::endl;
 }
 
 void GlobalQueueStatistics::merge( const GlobalQueueStatistics * other ) {
