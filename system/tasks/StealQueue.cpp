@@ -96,8 +96,7 @@ void StealStatistics::record_globalq_data_pull_reply( size_t msg_bytes, uint64_t
   globalq_data_pull_reply_num_elements.update( amount );
 }
   
-
-void StealStatistics::dump() {
+void StealStatistics::dump( std::ostream& o, const char * terminator ) {
   DictOut dout;
   DICT_ADD( dout, stealq_reply_messages );
   DICT_ADD( dout, stealq_reply_total_bytes );
@@ -124,7 +123,7 @@ void StealStatistics::dump() {
   DICT_ADD_STAT_TOTAL( dout, globalq_data_pull_request_num_elements );
   DICT_ADD_STAT_TOTAL( dout, globalq_data_pull_reply_num_elements );   
 
-  std::cout << "StealStatistics " << dout.toString() << std::endl;
+  o << "   \"StealStatistics\": " << dout.toString() << terminator << std::endl;
 }
 
 void StealStatistics::merge( const StealStatistics * other ) {
