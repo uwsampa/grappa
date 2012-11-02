@@ -395,8 +395,8 @@ static void memset_request_am(ConstRequestArgs<T> * args, size_t sz, void* paylo
 /// @param base Base address of the array to be set.
 /// @param value Value to set every element of array to (will be copied to all the nodes)
 /// @param count Number of elements to set, starting at the base address.
-template< typename T >
-static void Grappa_memset(GlobalAddress<T> request_address, T value, size_t count) {
+template< typename T , typename S >
+static void Grappa_memset(GlobalAddress<T> request_address, S value, size_t count) {
   size_t offset = 0;
   size_t request_bytes = 0;
   
@@ -406,7 +406,7 @@ static void Grappa_memset(GlobalAddress<T> request_address, T value, size_t coun
   
   ConstRequestArgs<T> args;
   args.addr = request_address;
-  args.value = value;
+  args.value = (T)value;
   args.reply = make_global(&reply);
   
   for (size_t total_bytes = count*sizeof(T); offset < total_bytes; offset += request_bytes) {
@@ -446,10 +446,10 @@ LOOP_FUNCTOR_TEMPLATED(T, memset_func, nid, ((GlobalAddress<T>,base)) ((T,value)
 /// @param base Base address of the array to be set.
 /// @param value Value to set every element of array to (will be copied to all the nodes)
 /// @param count Number of elements to set, starting at the base address.
-template< typename T >
-void Grappa_memset_local(GlobalAddress<T> base, T value, size_t count) {
+template< typename T, typename S >
+void Grappa_memset_local(GlobalAddress<T> base, S value, size_t count) {
   {
-    memset_func<T> f(base, value, count);
+    memset_func<T> f(base, (T)value, count);
     fork_join_custom(&f);
   }
 }
