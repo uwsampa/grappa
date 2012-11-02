@@ -19,6 +19,7 @@
 #include <iostream>
 
 #include <stdlib.h> // for memset
+#include <stdio.h>
 
 /* *******************************************************************************************
  * Unbalanced Tree Search in-memory (UTS-mem). This is an extension of the UTS benchmark, where
@@ -45,7 +46,7 @@ DEFINE_bool( verify_tree, true, "Verify the generated tree" );
 // threshold for tree search is specified by Grappa option --async_par_for_threshold
 
 // declare Grappa stealing parameters
-DECLARE_bool( steal );
+DECLARE_string( load_balance );
 DECLARE_int32( chunk_size );
 
 
@@ -60,8 +61,8 @@ int    impl_paramsToStr(char * strBuf, int ind) {
   ind += sprintf(strBuf+ind, "Parallel search using %d processes\n", Grappa_nodes());
   ind += sprintf(strBuf+ind, "   up to %d threads per core\n", FLAGS_num_starting_workers );
 
-  if (FLAGS_steal) {
-    ind += sprintf(strBuf+ind, "    Dynamic load balance by work stealing, chunk size = %d nodes\n", FLAGS_chunk_size);
+  if ( FLAGS_load_balance.compare(        "none" ) != 0 ) {
+    ind += sprintf(strBuf+ind, "    Dynamic load balance with chunk size = %d nodes\n", FLAGS_chunk_size);
   } else {
     ind += sprintf(strBuf+ind, "   No dynamic load balancing.\n");
   }
@@ -385,8 +386,8 @@ void verify_child_func( int64_t * c ) {
 }
 
 void verify_vertex_func( vertex_t * v ) {
-  CHECK( v->numChildren >= 0 ) << "Vertex[" << "?" << "].numChildren = " << v->numChildren << ";; Turn off LOCAL_OPTIMIZED to se
-    CHECK( v->childIndex >= 0 )  << "Vertex[" << "?" << "].childIndex = "  << v->childIndex  << ";; Turn off LOCAL_OPTIMIZED to se
+  CHECK( v->numChildren >= 0 ) << "Vertex[" << "?" << "].numChildren = " << v->numChildren << ";; Turn off LOCAL_OPTIMIZED to see index";
+    CHECK( v->childIndex >= 0 )  << "Vertex[" << "?" << "].childIndex = "  << v->childIndex  << ";; Turn off LOCAL_OPTIMIZED to see index";
 
     local_verify_children_count += v->numChildren;
 }
@@ -1050,7 +1051,7 @@ void user_main ( user_main_args * args ) {
   }
   t2 = uts_wctime();
   stop_profiling();
-  Grappa_merge_and_dump_stats();
+  Grappa_merge_and_dump_stats( LOG(INFO) );
 
   if ( opt_ff ) { 
     // count nodes searched
