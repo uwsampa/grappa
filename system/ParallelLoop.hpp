@@ -1,5 +1,15 @@
-#ifndef __PARALLEL_LOOP_HPP__
-#define __PARALLEL_LOOP_HPP__
+// Copyright 2010-2012 University of Washington. All Rights Reserved.
+// LICENSE_PLACEHOLDER
+// This software was created with Government support under DE
+// AC05-76RL01830 awarded by the United States Department of
+// Energy. The Government has certain rights in the software.
+
+#ifndef PARALLEL_LOOP_HPP
+#define PARALLEL_LOOP_HPP
+
+// TODO: NOTE! These are still fairly experimental. Currently the parallel loop implementation you probably want
+//       is AsynParallelFor, along with a synchronization mechanism like
+//       GlobalTaskJoiner. That is what is used in current benchmarks.
 
 DEFINE_int64( parallel_loop_threshold, 1, "threshold for how small a group of iterations should be to perform them serially" );
 

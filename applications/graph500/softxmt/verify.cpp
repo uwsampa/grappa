@@ -1,4 +1,4 @@
-#include "SoftXMT.hpp"
+#include "Grappa.hpp"
 #include "Addressing.hpp"
 #include "Cache.hpp"
 #include "Delegate.hpp"
@@ -14,9 +14,9 @@
 #include "timer.h"
 #include "options.h"
 
-#define read SoftXMT_delegate_read_word
-#define write SoftXMT_delegate_write_word
-#define fetch_add SoftXMT_delegate_fetch_and_add_word
+#define read Grappa_delegate_read_word
+#define write Grappa_delegate_write_word
+#define fetch_add Grappa_delegate_fetch_and_add_word
 
 LOOP_FUNCTOR(compute_levels_func, k, ((GlobalAddress<int64_t>,bfs_tree))((GlobalAddress<int64_t>,level))((int64_t,nv))((int64_t,root)) ) {
   int64_t level_k = read(level+k);
@@ -69,7 +69,7 @@ LOOP_FUNCTOR(compute_levels_func, k, ((GlobalAddress<int64_t>,bfs_tree))((Global
 
 void compute_levels(GlobalAddress<int64_t> level, int64_t nv, GlobalAddress<int64_t> bfs_tree, int64_t root) {
   
-  SoftXMT_memset(level, (int64_t)-1, nv);
+  Grappa_memset(level, (int64_t)-1, nv);
 
   write(level+root, 0);
   
@@ -116,7 +116,7 @@ void compute_levels(GlobalAddress<int64_t> level, int64_t nv, GlobalAddress<int6
    //NOTE: This counts self-edges and repeated edges.  They're
    //part of the input data.
    //*/
-  //SoftXMT_delegate_fetch_and_add_word(nedge_traversed, 1);
+  //Grappa_delegate_fetch_and_add_word(nedge_traversed, 1);
   //// Mark seen tree edges.
   //if (i != j) {
     //if (ti == j)
@@ -207,7 +207,7 @@ LOOP_FUNCTOR(node_verify_func, nid,  ((GlobalAddress<int64_t>,_bfs_tree)) ((Glob
 
   global_async_parallel_for(verify_edges, 0, nedge);
 
-  nedge_traversed = SoftXMT_allreduce<int64_t,collective_add<int64_t>,0>(nedge_traversed);
+  nedge_traversed = Grappa_allreduce<int64_t,collective_add<int64_t>,0>(nedge_traversed);
 }
 
 LOOP_FUNCTOR(final_verify_func, k, ((GlobalAddress<int64_t>,bfs_tree)) ((GlobalAddress<int64_t>,seen_edge)) ((GlobalAddress<int64_t>,err)) ((int64_t,root))) {
@@ -270,15 +270,15 @@ int64_t verify_bfs_tree(GlobalAddress<int64_t> bfs_tree, int64_t max_bfsvtx, int
   
   int64_t err = 0;
   
-  GlobalAddress<int64_t> seen_edge = SoftXMT_typed_malloc<int64_t>(nv);
-  GlobalAddress<int64_t> level = SoftXMT_typed_malloc<int64_t>(nv);
+  GlobalAddress<int64_t> seen_edge = Grappa_typed_malloc<int64_t>(nv);
+  GlobalAddress<int64_t> level = Grappa_typed_malloc<int64_t>(nv);
   
   double t;
   TIME(t, compute_levels(level, nv, bfs_tree, root));
   VLOG(1) << "compute_levels time: " << t;
   
   t = timer();
-  SoftXMT_memset(seen_edge, (int64_t)0, nv);
+  Grappa_memset(seen_edge, (int64_t)0, nv);
   t = timer() - t;
   VLOG(1) << "set_const time: " << t;
   
@@ -309,8 +309,8 @@ int64_t verify_bfs_tree(GlobalAddress<int64_t> bfs_tree, int64_t max_bfsvtx, int
     VLOG(1) << "final_verify_func time: " << t;
   }
   
-  SoftXMT_free(seen_edge);
-  SoftXMT_free(level);
+  Grappa_free(seen_edge);
+  Grappa_free(level);
   
   if (err) {
     return err;

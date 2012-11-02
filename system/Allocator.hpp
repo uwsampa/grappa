@@ -1,4 +1,17 @@
 
+// Copyright 2010-2012 University of Washington. All Rights Reserved.
+// LICENSE_PLACEHOLDER
+// This software was created with Government support under DE
+// AC05-76RL01830 awarded by the United States Department of
+// Energy. The Government has certain rights in the software.
+
+/// Generic buddy allocator. Used by GlobalAllocator to implement
+/// global heap. 
+///
+/// If there's an error, it's probably because you are asking for more
+/// memory than is available for allocation.
+/// TODO: better error messages....
+
 #ifndef __ALLOCATOR_HPP__
 #define __ALLOCATOR_HPP__
 
@@ -22,7 +35,7 @@ typedef std::map< AllocatorAddress, AllocatorChunk > ChunkMap;
 typedef std::list< ChunkMap::iterator > FreeList;
 typedef std::map< size_t, FreeList > FreeListMap;
 
-
+/// Private struct used in allocator
 struct AllocatorChunk {
   bool in_use;
   AllocatorAddress address;
@@ -48,6 +61,8 @@ struct AllocatorChunk {
 // overload output operator for debugging
 std::ostream& operator<<( std::ostream& o, const AllocatorChunk& chunk );
 
+/// Generic buddy allocator. Used by GlobalAllocator to implement
+/// global heap.
 class Allocator {
 private:
   const AllocatorAddress base_;
@@ -156,6 +171,7 @@ public:
     }
   }
 
+  /// Free a previously-allocated chunk.
   void free( void * void_address ) {
     intptr_t address = reinterpret_cast< intptr_t >( void_address ) - base_;
     ChunkMap::iterator block_to_free_iterator = chunks_.find( address );
@@ -165,7 +181,8 @@ public:
 
     try_merge_buddy_recursive( block_to_free_iterator );
   }
-  
+
+  /// Allocate size bytes
   void * malloc( size_t size ) {
     int64_t allocation_size = next_largest_power_of_2( size );
 
@@ -243,7 +260,7 @@ public:
     return total;
   }
 
-  /// 
+  /// output human-readable state
   std::ostream & dump( std::ostream& o = std::cout ) const {
     o << "all chunks = {" << std::endl;
     for( ChunkMap::const_iterator i = chunks_.begin(); i != chunks_.end(); ++i ) {

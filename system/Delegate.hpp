@@ -1,10 +1,16 @@
 
+// Copyright 2010-2012 University of Washington. All Rights Reserved.
+// LICENSE_PLACEHOLDER
+// This software was created with Government support under DE
+// AC05-76RL01830 awarded by the United States Department of
+// Energy. The Government has certain rights in the software.
+
 #ifndef __DELEGATE_HPP__
 #define __DELEGATE_HPP__
 
-#include "SoftXMT.hpp"
+#include "Grappa.hpp"
 
-
+/// Stats for delegate operations
 class DelegateStatistics {
 private:
   uint64_t ops;
@@ -85,7 +91,7 @@ public:
 
   inline void record_wakeup_latency( int64_t start_time, int64_t network_time ) { 
     ops_blocked++; 
-    int64_t current_time = SoftXMT_get_timestamp();
+    int64_t current_time = Grappa_get_timestamp();
     int64_t blocked_latency = current_time - start_time;
     int64_t wakeup_latency = current_time - network_time;
     ops_blocked_ticks_total += blocked_latency;
@@ -101,7 +107,7 @@ public:
   }
 
   inline void record_network_latency( int64_t start_time ) { 
-    int64_t current_time = SoftXMT_get_timestamp();
+    int64_t current_time = Grappa_get_timestamp();
     int64_t latency = current_time - start_time;
     ops_network_ticks_total += latency;
     if( latency > ops_network_ticks_max )
@@ -110,7 +116,7 @@ public:
       ops_network_ticks_min = latency;
   }
 
-  void dump();
+  void dump( std::ostream& o, const char * terminator );
   void sample();
   void profiling_sample();
   void merge(const DelegateStatistics * other);
@@ -119,36 +125,43 @@ public:
 extern DelegateStatistics delegate_stats;
 
 
-void SoftXMT_delegate_write_word( GlobalAddress<int64_t> address, int64_t data );
+/// Delegate word write
+void Grappa_delegate_write_word( GlobalAddress<int64_t> address, int64_t data );
 
-int64_t SoftXMT_delegate_read_word( GlobalAddress<int64_t> address );
+/// Delegate word read
+int64_t Grappa_delegate_read_word( GlobalAddress<int64_t> address );
 
-int64_t SoftXMT_delegate_fetch_and_add_word( GlobalAddress<int64_t> address, int64_t data );
+/// Delegate word fetch and add
+int64_t Grappa_delegate_fetch_and_add_word( GlobalAddress<int64_t> address, int64_t data );
 
-bool SoftXMT_delegate_compare_and_swap_word(GlobalAddress<int64_t> address, int64_t cmpval, int64_t newval);
+/// Delegate word compare and swap
+bool Grappa_delegate_compare_and_swap_word(GlobalAddress<int64_t> address, int64_t cmpval, int64_t newval);
 
 template< typename T >
 struct memory_desc;
 
+/// Args for delegate generic read reply
 template< typename T >
 struct read_reply_args {
   GlobalAddress< memory_desc<T> > descriptor;
 };
 
+/// Handler for delegate generic read reply
 template< typename T >
 static void read_reply_am( read_reply_args<T> * args, size_t size, void * payload, size_t payload_size ) {
   DCHECK( payload_size == sizeof(T) );
   *(args->descriptor.pointer()->data) = *(static_cast<T*>(payload));
   args->descriptor.pointer()->done = true;
   if( args->descriptor.pointer()->t != NULL ) {
-    SoftXMT_wake( args->descriptor.pointer()->t );
+    Grappa_wake( args->descriptor.pointer()->t );
   }
   if( args->descriptor.pointer()->start_time != 0 ) {
-    args->descriptor.pointer()->network_time = SoftXMT_get_timestamp();
+    args->descriptor.pointer()->network_time = Grappa_get_timestamp();
     delegate_stats.record_network_latency( args->descriptor.pointer()->start_time );
   }
 }
 
+/// Descriptor for delegate generic read
 template< typename T >
 struct memory_desc {
   Thread * t;
@@ -159,12 +172,14 @@ struct memory_desc {
   int64_t network_time;
 };
 
+/// Args for delegate generic read request
 template< typename T >
 struct read_request_args {
   GlobalAddress< memory_desc<T> > descriptor;
   GlobalAddress<T> address;
 };
 
+/// Handler for delegate generic read request
 template< typename T >
 static void read_request_am( read_request_args<T> * args, size_t size, void * payload, size_t payload_size ) {
   delegate_stats.count_op_am();
@@ -172,17 +187,18 @@ static void read_request_am( read_request_args<T> * args, size_t size, void * pa
   T data = *(args->address.pointer());
   read_reply_args<T> reply_args;
   reply_args.descriptor = args->descriptor;
-  if( args->descriptor.node() == SoftXMT_mynode() ) {
+  if( args->descriptor.node() == Grappa_mynode() ) {
     read_reply_am( &reply_args, sizeof( reply_args ), &data, sizeof(data) );
   } else {
-    SoftXMT_call_on( args->descriptor.node(), &read_reply_am<T>, 
+    Grappa_call_on( args->descriptor.node(), &read_reply_am<T>, 
 		     &reply_args, sizeof(reply_args), 
 		     &data, sizeof(data) );
   }
 }
 
+/// Delegate generic read
 template< typename T >
-void SoftXMT_delegate_read( GlobalAddress<T> address, T * buf) {
+void Grappa_delegate_read( GlobalAddress<T> address, T * buf) {
   delegate_stats.count_op();
   delegate_stats.count_T_read();
   memory_desc<T> md;
@@ -195,16 +211,16 @@ void SoftXMT_delegate_read( GlobalAddress<T> address, T * buf) {
   read_request_args<T> args;
   args.descriptor = make_global(&md);
   args.address = address;
-  if( address.node() == SoftXMT_mynode() ) {
+  if( address.node() == Grappa_mynode() ) {
     read_request_am( &args, sizeof( args ), NULL, 0 );
   } else {
-    SoftXMT_call_on( address.node(), &read_request_am<T>, &args );
+    Grappa_call_on( address.node(), &read_request_am<T>, &args );
   }
   if( !md.done ) {
-    md.start_time = SoftXMT_get_timestamp();
+    md.start_time = Grappa_get_timestamp();
     while (!md.done) {
       md.t = CURRENT_THREAD;
-      SoftXMT_suspend();
+      Grappa_suspend();
       md.t = NULL;
     }
     delegate_stats.record_wakeup_latency( md.start_time, md.network_time );
@@ -213,12 +229,14 @@ void SoftXMT_delegate_read( GlobalAddress<T> address, T * buf) {
   }
 }
 
+/// Generic delegate functor descriptor
 struct DelegateCallbackArgs {
   Thread * sleeper;
   void* forig; // pointer to original functor
   bool done;
 };
 
+/// Handler for generic delegate functor reply
 static void am_delegate_wake(GlobalAddress<DelegateCallbackArgs> * callback, size_t csz, void * p, size_t psz) {
   // copy possibly-modified functor back 
   // (allows user to modify func to effectively pass a return value back)
@@ -227,20 +245,21 @@ static void am_delegate_wake(GlobalAddress<DelegateCallbackArgs> * callback, siz
   memcpy(args->forig, p, psz);
  
   if ( args->sleeper != NULL ) { 
-    SoftXMT_wake(args->sleeper);
+    Grappa_wake(args->sleeper);
     args->sleeper = NULL;
   }
   
   args->done = true;
 }
 
+/// Handler for generic delegate functor request
 template<typename Func>
 static void am_delegate(GlobalAddress<DelegateCallbackArgs> * callback, size_t csz, void* p, size_t fsz) {
   delegate_stats.count_op_am();
   delegate_stats.count_generic_op_am();
   Func * f = static_cast<Func*>(p);
   (*f)();
-  SoftXMT_call_on(callback->node(), &am_delegate_wake, callback, sizeof(*callback), p, fsz);
+  Grappa_call_on(callback->node(), &am_delegate_wake, callback, sizeof(*callback), p, fsz);
 }
 
 /// Supports more generic delegate operations in the form of functors. The given 
@@ -251,19 +270,19 @@ static void am_delegate(GlobalAddress<DelegateCallbackArgs> * callback, size_t c
 /// or suspending)
 /// TODO: it would be better to not do the extra copying associated with sending the "return" value back and forth
 template<typename Func>
-void SoftXMT_delegate_func(Func * f, Node target) {
+void Grappa_delegate_func(Func * f, Node target) {
   delegate_stats.count_op();
   delegate_stats.count_generic_op();
-  if (target == SoftXMT_mynode()) {
+  if (target == Grappa_mynode()) {
     (*f)();
   } else {
     DelegateCallbackArgs callbackArgs = { NULL, (void*)f, false };
     GlobalAddress<DelegateCallbackArgs> args_address = make_global( &callbackArgs );
-    SoftXMT_call_on(target, &am_delegate<Func>, &args_address, sizeof(args_address), (void*)f, sizeof(*f));
+    Grappa_call_on(target, &am_delegate<Func>, &args_address, sizeof(args_address), (void*)f, sizeof(*f));
     
     if ( !callbackArgs.done ) {
         callbackArgs.sleeper = CURRENT_THREAD;
-        SoftXMT_suspend();
+        Grappa_suspend();
     }
   }
 }
@@ -274,26 +293,26 @@ void SoftXMT_delegate_func(Func * f, Node target) {
 /// Generic delegate operations, with templated argument, return type, function pointer
 ///
 
-/* TODO alternative is to take a GlobalAddress, which we can get
- * the target from, but then F will take the pointer part as an argument 
- */
+/// TODO: alternative is to take a GlobalAddress, which we can get the
+/// target from, but then F will take the pointer part as an argument
 
-// wrapper for the user's delegated function arguments
-// to include a pointer to the memory descriptor
+/// wrapper for the user's delegated function arguments
+/// to include a pointer to the memory descriptor
 template < typename ArgType, typename T > 
 struct generic_delegate_request_args {
   ArgType argument;
   GlobalAddress< memory_desc<T> > descriptor;
 };
 
+/// Args for generic delegate reply
 template < typename T > 
 struct generic_delegate_reply_args {
   T retVal;
   GlobalAddress< memory_desc<T> > descriptor;
 };
 
-// generic delegate reply active message
-// Fill the return value, wake the sleeping thread, mark operation as done
+/// Generic delegate reply active message
+/// Fill the return value, wake the sleeping thread, mark operation as done
 template < typename ArgType, typename ReturnType, ReturnType (*F)(ArgType) >
 void generic_delegate_reply_am( generic_delegate_reply_args<ReturnType> * args, size_t arg_size, void * payload, size_t payload_size ) {
   memory_desc<ReturnType> * md = args->descriptor.pointer();
@@ -301,20 +320,20 @@ void generic_delegate_reply_am( generic_delegate_reply_args<ReturnType> * args, 
   *(md->data) = args->retVal;
 
   if ( md->t != NULL ) {
-    SoftXMT_wake( md->t );
+    Grappa_wake( md->t );
     md->t = NULL;
   }
 
   md->done = true;
   
   if( md->start_time != 0 ) {
-    md->network_time = SoftXMT_get_timestamp();
+    md->network_time = Grappa_get_timestamp();
     delegate_stats.record_network_latency( md->start_time );
   }
 }
 
-// generic delegate request active message
-// Call the delegated function, reply with the return value
+/// Generic delegate request active message
+/// Call the delegated function, reply with the return value
 template < typename ArgType, typename ReturnType, ReturnType (*F)(ArgType) >
 void generic_delegate_request_am( generic_delegate_request_args<ArgType,ReturnType> * args, size_t arg_size, void * payload, size_t payload_size ) {
   delegate_stats.count_op_am();
@@ -325,7 +344,7 @@ void generic_delegate_request_am( generic_delegate_request_args<ArgType,ReturnTy
   reply_args.retVal = r;
   reply_args.descriptor = args->descriptor;
   
-  SoftXMT_call_on( args->descriptor.node(), &generic_delegate_reply_am<ArgType, ReturnType, F>, &reply_args );
+  Grappa_call_on( args->descriptor.node(), &generic_delegate_reply_am<ArgType, ReturnType, F>, &reply_args );
 }
 
 ///
@@ -333,11 +352,11 @@ void generic_delegate_request_am( generic_delegate_request_args<ArgType,ReturnTy
 /// Blocking operation.
 ///
 template < typename ArgType, typename ReturnType, ReturnType (*F)(ArgType) >
-ReturnType SoftXMT_delegate_func( ArgType arg, Node target ) {
+ReturnType Grappa_delegate_func( ArgType arg, Node target ) {
   delegate_stats.count_op();
   delegate_stats.count_generic_op();
   
-  if (target == SoftXMT_mynode() ) {
+  if (target == Grappa_mynode() ) {
     return F(arg);
   } else {
     memory_desc<ReturnType> md;
@@ -353,12 +372,12 @@ ReturnType SoftXMT_delegate_func( ArgType arg, Node target ) {
     del_args.argument = arg;
     del_args.descriptor = make_global(&md);
 
-    SoftXMT_call_on( target, &generic_delegate_request_am<ArgType,ReturnType,F>, &del_args );
+    Grappa_call_on( target, &generic_delegate_request_am<ArgType,ReturnType,F>, &del_args );
 
     if ( !md.done ) {
-      md.start_time = SoftXMT_get_timestamp();
+      md.start_time = Grappa_get_timestamp();
       md.t = CURRENT_THREAD;
-      SoftXMT_suspend();
+      Grappa_suspend();
       CHECK( md.done );
       delegate_stats.record_wakeup_latency( md.start_time, md.network_time );
     }

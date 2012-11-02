@@ -1,10 +1,15 @@
-#ifndef TASK_HPP_
-#define TASK_HPP_
+// Copyright 2010-2012 University of Washington. All Rights Reserved.
+// LICENSE_PLACEHOLDER
+// This software was created with Government support under DE
+// AC05-76RL01830 awarded by the United States Department of
+// Energy. The Government has certain rights in the software.
+
+#ifndef TASK_HPP
+#define TASK_HPP
 
 #include <iostream>
 #include <deque>
 #include "StealQueue.hpp"
-#include "cbarrier.hpp"
 #include "Thread.hpp"
 #include "StatisticsTools.hpp"
 
@@ -17,14 +22,19 @@
 
 #define publicQ StealQueue<Task>::steal_queue
 
+// forward declaration of Grappa Node
 typedef int16_t Node;
 
-/// Task is a function pointer and pointer to arguments
-/// Ideally Task would be interface that just declares execute and makeGlobal
+/// Represents work to be done. 
+/// A function pointer and 3 64-bit arguments.
 class Task {
 
   private:
+    // function pointer that takes three arbitrary 64-bit (ptr-size) arguments
     void (* fn_p)(void*,void*,void*);
+    
+    // 3 64-bit arguments
+    // This fixed number of arguments is useful for common uses
     void* arg0;
     void* arg1;
     void* arg2;
@@ -39,13 +49,23 @@ class Task {
     }
 
   public:
+    /// Default constructor; only used for making space for copying
     Task () {}
+
+    /// New task creation constructor.
+    /// 
+    /// @param fn_p function pointer taking three 64-bit arguments, no return value
+    /// @param arg0 first task argument
+    /// @param arg1 second task argument
+    /// @param arg2 third task argument
     Task (void (* fn_p)(void*, void*, void*), void* arg0, void* arg1, void* arg2) 
       : fn_p ( fn_p )
         , arg0 ( arg0 )
         , arg1 ( arg1 )
         , arg2 ( arg2 ) { }
 
+    /// Execute the task.
+    /// Calls the function pointer on the provided arguments.
     void execute( ) {
       CHECK( fn_p!=NULL ) << "fn_p=" << (void*)fn_p << "\narg0=" << (void*)arg0 << "\narg1=" << (void*)arg1 << "\narg2=" << (void*)arg2;
       fn_p( arg0, arg1, arg2 );  // NOTE: this executes 1-parameter function's with 3 args
@@ -54,76 +74,115 @@ class Task {
     friend std::ostream& operator<<( std::ostream& o, const Task& t );
 };
 
-template < typename T, typename S, typename R >
-static Task createTask( void (*fn_p)(T, S, R), T arg0, S arg1, R arg2 ) {
+/// Convenience function for creating a new task.
+/// This function is callable as type-safe but creates an anonymous task object.
+/// 
+/// @tparam A0 first argument type
+/// @tparam A1 second argument type
+/// @tparam A2 third argument type
+/// 
+/// @param arg0 first task argument
+/// @param arg1 second task argument
+/// @param arg2 third task argument
+///
+/// @return a new anonymous-type task
+template < typename A0, typename A1, typename A2 >
+static Task createTask( void (*fn_p)(A0, A1, A2), A0 arg0, A1 arg1, A2 arg2 ) {
   Task t( reinterpret_cast< void (*) (void*, void*, void*) >( fn_p ), (void*)arg0, (void*)arg1, (void*)arg2 );
   return t;
 }
 
- 
+/// Keeps track of tasks, pairing workers with tasks, and load balancing.
 class TaskManager {
-    private:
-        std::deque<Task> privateQ; 
-        /* global steal_queue StealQueue<Task> publicQ; */
+  private:
+    /// queue for tasks assigned specifically to this Node
+    std::deque<Task> privateQ; 
 
-        bool workDone;
-       
-        bool all_terminate;
+    /// local queue for being part of global task pool
+    StealQueue<Task> publicQ;
 
-        bool doSteal;    // stealing on/off
-        bool doShare;    // sharing on/off
-        bool doGQ;       // global queue on/off
-        bool stealLock;  // steal lock
-        bool wshareLock; // work share lock
-        bool gqPushLock;     // global queue push lock
-        bool gqPullLock;     // global queue pull lock
+    /// indicates that all tasks *should* be finished
+    /// and termination can occur
+    bool workDone;
 
-        // to support hierarchical dynamic load balancing
-        Node localId;
-        Node* neighbors;
-        Node numLocalNodes;
-        int64_t nextVictimIndex;
 
-        // steal parameters
-        int chunkSize;
-        
-        /// Flags to save whether a worker thinks there
-        /// could be work or if other workers should not
-        /// also try.
-        bool sharedMayHaveWork;
-       
-        bool publicHasEle() const {
-            return publicQ.depth() > 0;
-        }
+    /// machine-local id (to support hierarchical dynamic load balancing)
+    Node localId;
 
-        bool privateHasEle() const {
-            return !privateQ.empty();
-        }
-        
-        // "queue" operations
-        bool tryConsumeLocal( Task * result );
-        bool tryConsumeShared( Task * result );
-        bool waitConsumeAny( Task * result );
+    bool all_terminate;
+    
+    /// stealing on/off
+    bool doSteal;   
+    
+    /// steal lock
+    bool stealLock;
 
-        // helper operations; called each in once place
-        // for sampling profiler to distinguish code by function
-        void checkPull();
-        void tryPushToGlobal();
-        void checkWorkShare();
-        
-        
-        std::ostream& dump( std::ostream& o ) const {
-            return o << "TaskManager {" << std::endl
-                << "  publicQ: " << publicQ.depth( ) << std::endl
-                << "  privateQ: " << privateQ.size() << std::endl
-                << "  work-may-be-available? " << available() << std::endl
-                << "  sharedMayHaveWork: " << sharedMayHaveWork << std::endl
-                << "  workDone: " << workDone << std::endl
-                << "  stealLock: " << stealLock << std::endl
-                << "  wshareLock: " << wshareLock << std::endl
-                << "}";
-        }
+    /// sharing on/off
+    bool doShare;    
+    
+    /// work share lock
+    bool wshareLock; 
 
+    /// global queue on/off
+    bool doGQ;      
+    bool gqPushLock;     // global queue push lock
+    bool gqPullLock;     // global queue pull lock
+
+    /// local neighbors (to support hierarchical dynamic load balancing)
+    Node* neighbors;
+
+    /// number of Nodes on local machine (to support hierarchical dynamic load balancing)
+    Node numLocalNodes;
+
+    /// next victim to steal from (for selection by pseudo-random permutation)
+    int64_t nextVictimIndex;
+
+    /// load balancing batch size
+    int chunkSize;
+
+    /// Flags to save whether a worker thinks there
+    /// could be work or if other workers should not
+    /// also try.
+    bool sharedMayHaveWork;
+
+    /// @return true if local shared queue has elements
+    bool publicHasEle() const {
+      return publicQ.depth() > 0;
+    }
+
+    /// @return true if Node-private queue has elements
+    bool privateHasEle() const {
+      return !privateQ.empty();
+    }
+
+    // "queue" operations
+    bool tryConsumeLocal( Task * result );
+    bool tryConsumeShared( Task * result );
+    bool waitConsumeAny( Task * result );
+
+    // helper operations; called each in once place
+    // for sampling profiler to distinguish code by function
+    void checkPull();
+    void tryPushToGlobal();
+    void checkWorkShare();
+
+
+    /// Output internal state.
+    /// 
+    /// @param o existing output stream to append to
+    /// 
+    /// @return new output stream 
+    std::ostream& dump( std::ostream& o = std::cout, const char * terminator = "" ) const {
+      return o << "\"TaskManager\": {" << std::endl
+               << "  \"publicQ\": " << publicQ.depth( ) << std::endl
+               << "  \"privateQ\": " << privateQ.size() << std::endl
+               << "  \"work-may-be-available?\" " << available() << std::endl
+               << "  \"sharedMayHaveWork\": " << sharedMayHaveWork << std::endl
+               << "  \"workDone\": " << workDone << std::endl
+               << "  \"stealLock\": " << stealLock << std::endl
+               << "  \"wshareLock\": " << wshareLock << std::endl
+               << "}" << terminator << std::endl;
+    }
 
 
     public:
@@ -222,45 +281,45 @@ class TaskManager {
                       , tm( task_manager )
                           { reset(); }
 
-                void sample();
-                void profiling_sample();
+        void sample();
+        void profiling_sample();
 
-                void record_successful_steal_session() {
-                    session_steal_successes_++;
-                }
+        void record_successful_steal_session() {
+          session_steal_successes_++;
+        }
 
-                void record_failed_steal_session() {
-                    session_steal_fails_++;
-                }
+        void record_failed_steal_session() {
+          session_steal_fails_++;
+        }
 
                 void record_successful_steal( int64_t amount ) {
                     single_steal_successes_++;
                     steal_amt_.update( amount );
                 }
 
-                void record_failed_steal() {
-                    single_steal_fails_++;
-                }
+        void record_failed_steal() {
+          single_steal_fails_++;
+        }
 
-                void record_successful_acquire() {
-                    acquire_successes_++;
-                }
+        void record_successful_acquire() {
+          acquire_successes_++;
+        }
 
-                void record_failed_acquire() {
-                    acquire_fails_++;
-                }
+        void record_failed_acquire() {
+          acquire_fails_++;
+        }
 
-                void record_release() {
-                    releases_++;
-                }
+        void record_release() {
+          releases_++;
+        }
 
-                void record_public_task_dequeue() {
-                    public_tasks_dequeued_++;
-                }
+        void record_public_task_dequeue() {
+          public_tasks_dequeued_++;
+        }
 
-                void record_private_task_dequeue() {
-                    private_tasks_dequeued_++;
-                }
+        void record_private_task_dequeue() {
+          private_tasks_dequeued_++;
+        }
 
                 void record_globalq_push( uint64_t amount, bool success ) {
                   globalq_push_attempts_ += 1;
@@ -293,54 +352,58 @@ class TaskManager {
                     workshares_initiated_received_elements_.update( change );
                   }
                 }
-
-                void dump();
+        
+                void dump( std::ostream& o, const char * terminator );
                 void merge(const TaskStatistics * other);
                 void reset();
         };
         
-        TaskStatistics stats;
-  
-        //TaskManager (bool doSteal, Node localId, Node* neighbors, Node numLocalNodes, int chunkSize, int cbint);
-        TaskManager();
-        void init (Node localId, Node* neighbors, Node numLocalNodes);
+    /// task statistics object
+    TaskStatistics stats;
 
-        bool isWorkDone() {
-            return workDone;
-        }
+    //TaskManager (bool doSteal, Node localId, Node* neighbors, Node numLocalNodes, int chunkSize, int cbint);
+    TaskManager();
+    void init (Node localId, Node* neighbors, Node numLocalNodes);
 
-        bool global_queue_on() {
-          return doGQ;
-        }
+    /// @return true if work is considered finished and
+    ///         the task system is terminating
+    bool isWorkDone() {
+      return workDone;
+    }
+
+    bool global_queue_on() {
+      return doGQ;
+    }
         
     /*TODO return value?*/
-    template < typename T, typename S, typename R > 
-      void spawnPublic( void (*f)(T, S, R), T arg0, S arg1, R arg2 );
+    template < typename A0, typename A1, typename A2 > 
+      void spawnPublic( void (*f)(A0, A1, A2), A0 arg0, A1 arg1, A2 arg2 );
 
     /*TODO return value?*/ 
-    template < typename T, typename S, typename R > 
-      void spawnLocalPrivate( void (*f)(T, S, R), T arg0, S arg1, R arg2 );
+    template < typename A0, typename A1, typename A2 > 
+      void spawnLocalPrivate( void (*f)(A0, A1, A2), A0 arg0, A1 arg1, A2 arg2 );
 
     /*TODO return value?*/ 
-    template < typename T, typename S, typename R > 
-      void spawnRemotePrivate( void (*f)(T, S, R), T arg0, S arg1, R arg2 );
+    template < typename A0, typename A1, typename A2 > 
+      void spawnRemotePrivate( void (*f)(A0, A1, A2), A0 arg0, A1 arg1, A2 arg2 );
 
-        bool getWork ( Task * result );
+    bool getWork ( Task * result );
 
-        bool available ( ) const;
-        bool local_available ( ) const;
-        
-        void dump_stats();
-        void merge_stats();
-        void reset_stats();
-        void finish();
-    
-        friend std::ostream& operator<<( std::ostream& o, const TaskManager& tm );
+    bool available ( ) const;
+    bool local_available ( ) const;
 
-     void signal_termination( );
+    void dump_stats( std::ostream& o, const char * terminator );
+    void dump_stats();
+    void merge_stats();
+    void reset_stats();
+    void finish();
+
+    friend std::ostream& operator<<( std::ostream& o, const TaskManager& tm );
+
+    void signal_termination( );
 };
 
-
+/// Whether work possibly exists locally or globally
 inline bool TaskManager::available( ) const {
     VLOG(6) << " publicHasEle()=" << publicHasEle()
             << " privateHasEle()=" << privateHasEle();
@@ -351,6 +414,7 @@ inline bool TaskManager::available( ) const {
            || (doGQ    && gqPullLock );
 }
 
+/// Whether work exists locally
 inline bool TaskManager::local_available( ) const {
     VLOG(6) << " publicHasEle()=" << publicHasEle()
             << " privateHasEle()=" << privateHasEle();
@@ -358,18 +422,37 @@ inline bool TaskManager::local_available( ) const {
            || publicHasEle();
 }
 
-
-template < typename T, typename S, typename R > 
-inline void TaskManager::spawnPublic( void (*f)(T, S, R), T arg0, S arg1, R arg2 ) {
+/// Create a task in the global task pool.
+/// Will start out in local partition of global task pool.
+///
+/// @tparam A0 type of first task argument
+/// @tparam A1 type of second task argument
+/// @tparam A2 type of third task argument
+///
+/// @param f function pointer for the new task
+/// @param arg0 first task argument
+/// @param arg1 second task argument
+/// @param arg2 third task argument
+template < typename A0, typename A1, typename A2 > 
+inline void TaskManager::spawnPublic( void (*f)(A0, A1, A2), A0 arg0, A1 arg1, A2 arg2 ) {
   Task newtask = createTask(f, arg0, arg1, arg2 );
   publicQ.push( newtask );
 
 }
 
-/// Should NOT be called from the context of
-/// an AM handler
-template < typename T, typename S, typename R >
-inline void TaskManager::spawnLocalPrivate( void (*f)(T, S, R), T arg0, S arg1, R arg2 ) {
+/// Create a task in the local private task pool.
+/// Should NOT be called from the context of an AM handler.
+///
+/// @tparam A0 type of first task argument
+/// @tparam A1 type of second task argument
+/// @tparam A2 type of third task argument
+///
+/// @param f function pointer for the new task
+/// @param arg0 first task argument
+/// @param arg1 second task argument
+/// @param arg2 third task argument
+template < typename A0, typename A1, typename A2 >
+inline void TaskManager::spawnLocalPrivate( void (*f)(A0, A1, A2), A0 arg0, A1 arg1, A2 arg2 ) {
   Task newtask = createTask( f, arg0, arg1, arg2 );
   privateQ.push_back( newtask );
 
@@ -379,10 +462,19 @@ inline void TaskManager::spawnLocalPrivate( void (*f)(T, S, R), T arg0, S arg1, 
      * we are not in the cbarrier */
 }
 
-/// Should ONLY be called from the context of
-/// an AM handler
-template < typename T, typename S, typename R > 
-inline void TaskManager::spawnRemotePrivate( void (*f)(T, S, R), T arg0, S arg1, R arg2 ) {
+/// Create a task in the local private task pool.
+/// Should ONLY be called from the context of an AM handler
+///
+/// @tparam A0 type of first task argument
+/// @tparam A1 type of second task argument
+/// @tparam A2 type of third task argument
+///
+/// @param f function pointer for the new task
+/// @param arg0 first task argument
+/// @param arg1 second task argument
+/// @param arg2 third task argument
+template < typename A0, typename A1, typename A2 > 
+inline void TaskManager::spawnRemotePrivate( void (*f)(A0, A1, A2), A0 arg0, A1 arg1, A2 arg2 ) {
   Task newtask = createTask( f, arg0, arg1, arg2 );
   privateQ.push_front( newtask );
 
@@ -392,6 +484,7 @@ inline void TaskManager::spawnRemotePrivate( void (*f)(T, S, R), T arg0, S arg1,
    */
 }
 
+/// system task manager
 extern TaskManager global_task_manager;
 
-#endif
+#endif // TASK_HPP

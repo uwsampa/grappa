@@ -1,16 +1,23 @@
 
+// Copyright 2010-2012 University of Washington. All Rights Reserved.
+// LICENSE_PLACEHOLDER
+// This software was created with Government support under DE
+// AC05-76RL01830 awarded by the United States Department of
+// Energy. The Government has certain rights in the software.
+
 #include <gflags/gflags.h>
 
 #include "Aggregator.hpp"
-#include "SoftXMT.hpp"
+#include "Grappa.hpp"
 #include <csignal>
 
 #include "PerformanceTools.hpp"
 
-/// command line options for Aggregator
+// command line options for Aggregator
 DEFINE_int64( aggregator_autoflush_ticks, 1000, "number of ticks to wait before autoflushing aggregated active messages");
 DEFINE_int64( aggregator_max_flush, 0, "flush no more than this many buffers per poll (0 for unlimited)");
 DEFINE_bool( aggregator_enable, true, "should we aggregate packets or just send them?");
+DEFINE_bool( flush_on_idle, false, "flush all aggregated messages there's nothing better to do");
 
 /// global Aggregator instance
 Aggregator global_aggregator;
@@ -24,7 +31,7 @@ static void aggregator_toggle_access_control_sighandler( int signum ) {
 
 #endif
 
-// Construct Aggregator.
+/// Construct Aggregator
 Aggregator::Aggregator( ) 
   : max_nodes_( -1 )
   , buffers_( )
@@ -51,6 +58,7 @@ Aggregator::Aggregator( )
 
 void Aggregator_deaggregate_am( gasnet_token_t token, void * buf, size_t size );
 
+/// Initialize aggregator
 void Aggregator::init() {
   max_nodes_ = global_communicator.nodes();
   least_recently_sent_.resize( global_communicator.nodes() );
@@ -66,12 +74,16 @@ void Aggregator::init() {
 #endif
 }
 
+/// Tear down aggregator
 Aggregator::~Aggregator() {
 #ifdef STL_DEBUG_ALLOCATOR
   STLMemDebug::BaseAllocator::getMemMgr().setAccessMode(STLMemDebug::memReadWrite);
 #endif
 }
 
+/// After GASNet deaggregate handler is called to buffer an aggregated
+/// message bundle, this method unpacks the bundle and executes the
+/// Grappa-level active message handlers.
 void Aggregator::deaggregate( ) {
   GRAPPA_FUNCTION_PROFILE( GRAPPA_COMM_GROUP );
 #ifdef VTRACE_FULL
@@ -133,7 +145,7 @@ void Aggregator::deaggregate( ) {
                 << " with args " << args
                 << " and payload " << payload;
 	stats.record_forward( sizeof( AggregatorGenericCallHeader ) + header->args_size + header->payload_size );
-        SoftXMT_call_on( header->destination, fp, args, header->args_size, payload, header->payload_size );
+        Grappa_call_on( header->destination, fp, args, header->args_size, payload, header->payload_size );
       }
       i += sizeof( AggregatorGenericCallHeader ) + header->args_size + header->payload_size;
       msg_base += sizeof( AggregatorGenericCallHeader ) + header->args_size + header->payload_size;
@@ -141,7 +153,7 @@ void Aggregator::deaggregate( ) {
   }
 }
   
-  
+/// clean up aggregator before destruction
 void Aggregator::finish() {
 #ifdef STL_DEBUG_ALLOCATOR
   LOG(INFO) << "Cleaning up access control....";
@@ -149,6 +161,8 @@ void Aggregator::finish() {
 #endif
 }
 
+/// Deaggration GASNet active message handler. This receives an
+/// aggregated message bundle and buffers it for later deaggregation.
 void Aggregator_deaggregate_am( gasnet_token_t token, void * buf, size_t size ) {
   GRAPPA_FUNCTION_PROFILE( GRAPPA_COMM_GROUP );
 #ifdef VTRACE_FULL

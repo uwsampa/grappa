@@ -1,4 +1,10 @@
 
+// Copyright 2010-2012 University of Washington. All Rights Reserved.
+// LICENSE_PLACEHOLDER
+// This software was created with Government support under DE
+// AC05-76RL01830 awarded by the United States Department of
+// Energy. The Government has certain rights in the software.
+
 #ifndef __AGGREGATOR_HPP__
 #define __AGGREGATOR_HPP__
 
@@ -37,7 +43,7 @@
 #endif
 #include "PerformanceTools.hpp"
 
-// function to compute a mpi-like tag for communication tracing
+/// macro to compute a mpi-like tag for communication tracing
 //#define aggregator_trace_tag(data) (int) (0x7FFF & reinterpret_cast<intptr_t>(data))
 #define aggregator_trace_tag(data) (0xffffffff & reinterpret_cast<intptr_t>(data))
 
@@ -45,15 +51,16 @@
 DECLARE_int64( aggregator_autoflush_ticks );
 DECLARE_int64( aggregator_max_flush );
 DECLARE_bool( aggregator_enable );
+DECLARE_bool(flush_on_idle );
 
 /// Type of aggregated active message handler
 typedef void (* AggregatorAMHandler)( void *, size_t, void *, size_t );
 
-/// Active message handler called to deaggregate aggregated messages.
 extern void Aggregator_deaggregate_am( gasnet_token_t token, void * buf, size_t size );
 
 extern bool aggregator_access_control_active;
 
+/// Least recently used queue for tracking when to send buffered active messages
 class LRQueue {
 private:
   struct LREntry {
@@ -155,7 +162,7 @@ public:
 };
 
 
-
+/// stats class for aggregator
 class AggregatorStatistics {
 private:
   uint64_t messages_aggregated_;
@@ -216,12 +223,16 @@ private:
 
   std::string hist_labels[16];
   
+  /// dump csv stats header 
+  /// TODO: remove. unused
   std::ostream& header( std::ostream& o ) {
     o << "AggregatorStatistics, header, time, messages_aggregated, bytes_aggregated, messages_aggregated_per_second, bytes_aggregated_per_second, flushes, timeouts";
     for (int i=0; i<16; i++) o << ", " << hist_labels[i];
     return o;
   }
 
+  /// dump csv stats data
+  /// TODO: remove. unused
   std::ostream& data( std::ostream& o, double time) {
     o << "AggregatorStatistics, data, " << time << ", ";
     double messages_aggregated_per_second = messages_aggregated_ / time;
@@ -237,27 +248,28 @@ private:
     return o;
   }
   
+  /// dump stats as a ruby map
   std::ostream& as_map( std::ostream& o, double time) {
     double messages_aggregated_per_second = messages_aggregated_ / time;
     double bytes_aggregated_per_second = bytes_aggregated_ / time;
     
-    o << "AggregatorStatistics {" ;
-    o << "time_aggregated: " << time << ", "
-      << "messages_aggregated: " << messages_aggregated_ << ", "
-      << "bytes_aggregated: " << bytes_aggregated_ << ", "
-      << "messages_aggregated_per_second: " << messages_aggregated_per_second << ", "
-      << "bytes_aggregated_per_second: " << bytes_aggregated_per_second << ", "
-      << "newest_wait_ticks: " << newest_wait_ticks_ << ", "
-      << "oldest_wait_ticks: " << oldest_wait_ticks_ << ", "
-      << "average_wait_time: " << (double) (oldest_wait_ticks_ + newest_wait_ticks_) / (2 * flushes_) << ", "
-      << "polls: " << polls_ << ", "
-      << "flushes: " << flushes_ << ", "
-      << "multiflushes: " << multiflushes_ << ", "
-      << "timeouts: " << timeouts_ << ", "
-      << "idle_flushes: " << idle_flushes_ << ", "
-      << "idle_poll: " << idle_poll_ << ", "
-      << "idle_poll_useful: " << idle_poll_useful_ << ", "
-      << "capacity_flushes: " << capacity_flushes_;
+    o << "   \"AggregatorStatistics\": {" ;
+    o << "\"time_aggregated\": " << time << ", "
+      << "\"messages_aggregated\": " << messages_aggregated_ << ", "
+      << "\"bytes_aggregated\": " << bytes_aggregated_ << ", "
+      << "\"messages_aggregated_per_second\": " << messages_aggregated_per_second << ", "
+      << "\"bytes_aggregated_per_second\": " << bytes_aggregated_per_second << ", "
+      << "\"newest_wait_ticks\": " << newest_wait_ticks_ << ", "
+      << "\"oldest_wait_ticks\": " << oldest_wait_ticks_ << ", "
+      << "\"average_wait_time\": " << (double) (oldest_wait_ticks_ + newest_wait_ticks_) / (2 * flushes_) << ", "
+      << "\"polls\": " << polls_ << ", "
+      << "\"flushes\": " << flushes_ << ", "
+      << "\"multiflushes\": " << multiflushes_ << ", "
+      << "\"timeouts\": " << timeouts_ << ", "
+      << "\"idle_flushes\": " << idle_flushes_ << ", "
+      << "\"idle_poll:\": " << idle_poll_ << ", "
+      << "\"idle_poll_useful\": " << idle_poll_useful_ << ", "
+      << "\"capacity_flushes\": " << capacity_flushes_;
     for (int i=0; i<16; i++) {
       o << ", " << hist_labels[i] << ": " << histogram_[i];
     }
@@ -265,8 +277,9 @@ private:
     return o;
   }
   
+  /// number of ticks since start_
   double time() {
-    double end = SoftXMT_walltime();
+    double end = Grappa_walltime();
     return end-start_;
   }
 
@@ -318,22 +331,22 @@ public:
 #endif
   {
     reset();
-    hist_labels[ 0] = "aggregator_0_to_255_bytes";
-    hist_labels[ 1] = "aggregator_256_to_511_bytes";
-    hist_labels[ 2] = "aggregator_512_to_767_bytes";
-    hist_labels[ 3] = "aggregator_768_to_1023_bytes";
-    hist_labels[ 4] = "aggregator_1024_to_1279_bytes";
-    hist_labels[ 5] = "aggregator_1280_to_1535_bytes";
-    hist_labels[ 6] = "aggregator_1536_to_1791_bytes";
-    hist_labels[ 7] = "aggregator_1792_to_2047_bytes";
-    hist_labels[ 8] = "aggregator_2048_to_2303_bytes";
-    hist_labels[ 9] = "aggregator_2304_to_2559_bytes";
-    hist_labels[10] = "aggregator_2560_to_2815_bytes";
-    hist_labels[11] = "aggregator_2816_to_3071_bytes";
-    hist_labels[12] = "aggregator_3072_to_3327_bytes";
-    hist_labels[13] = "aggregator_3328_to_3583_bytes";
-    hist_labels[14] = "aggregator_3584_to_3839_bytes";
-    hist_labels[15] = "aggregator_3840_to_4095_bytes";
+    hist_labels[ 0] = "\"aggregator_0_to_255_bytes\"";
+    hist_labels[ 1] = "\"aggregator_256_to_511_bytes\"";
+    hist_labels[ 2] = "\"aggregator_512_to_767_bytes\"";
+    hist_labels[ 3] = "\"aggregator_768_to_1023_bytes\"";
+    hist_labels[ 4] = "\"aggregator_1024_to_1279_bytes\"";
+    hist_labels[ 5] = "\"aggregator_1280_to_1535_bytes\"";
+    hist_labels[ 6] = "\"aggregator_1536_to_1791_bytes\"";
+    hist_labels[ 7] = "\"aggregator_1792_to_2047_bytes\"";
+    hist_labels[ 8] = "\"aggregator_2048_to_2303_bytes\"";
+    hist_labels[ 9] = "\"aggregator_2304_to_2559_bytes\"";
+    hist_labels[10] = "\"aggregator_2560_to_2815_bytes\"";
+    hist_labels[11] = "\"aggregator_2816_to_3071_bytes\"";
+    hist_labels[12] = "\"aggregator_3072_to_3327_bytes\"";
+    hist_labels[13] = "\"aggregator_3328_to_3583_bytes\"";
+    hist_labels[14] = "\"aggregator_3584_to_3839_bytes\"";
+    hist_labels[15] = "\"aggregator_3840_to_4095_bytes\"";
   }
   
   void reset() {
@@ -355,7 +368,7 @@ public:
     idle_poll_ = 0;
     idle_poll_useful_ = 0;
     capacity_flushes_ = 0;
-    start_ = SoftXMT_walltime();
+    start_ = Grappa_walltime();
     for( int i = 0; i < 16; ++i ) {
       histogram_[i] = 0;
     }
@@ -365,8 +378,8 @@ public:
     polls_++;
   }
 
-  void record_flush( SoftXMT_Timestamp oldest_ts, SoftXMT_Timestamp newest_ts ) {
-    SoftXMT_Timestamp ts = SoftXMT_get_timestamp();
+  void record_flush( Grappa_Timestamp oldest_ts, Grappa_Timestamp newest_ts ) {
+    Grappa_Timestamp ts = Grappa_get_timestamp();
     oldest_wait_ticks_ += ts - oldest_ts;
     newest_wait_ticks_ += ts - newest_ts;
     flushes_++;
@@ -460,9 +473,9 @@ public:
 //    header( LOG(INFO) );
 //    data( LOG(INFO), time() );
   }
-  void dump_as_map() {
-    as_map( std::cout, time() );
-    std::cout << std::endl;
+  void dump_as_map( std::ostream& o = std::cout, const char * terminator = "" ) {
+    as_map( o, time() );
+    o << terminator << std::endl;
   }
   
   void merge(const AggregatorStatistics * other) {
@@ -504,6 +517,7 @@ struct AggregatorGenericCallHeader {
 #endif
 };
 
+/// dump human-readable aggregated active message header
 static std::ostream& operator<<( std::ostream& o, const AggregatorGenericCallHeader& h ) {
   return o << "[f="           << (void*) h.function_pointer 
            << ",d=" << h.destination
@@ -514,12 +528,13 @@ static std::ostream& operator<<( std::ostream& o, const AggregatorGenericCallHea
 }
 
 /// Active message aggregation per-destination storage class.
+  /// use default copy constructor and assignment operator
 template< const int max_size_ >
 class AggregatorBuffer {
 private:
 public:
-  SoftXMT_Timestamp oldest_ts_;
-  SoftXMT_Timestamp newest_ts_;
+  Grappa_Timestamp oldest_ts_;
+  Grappa_Timestamp newest_ts_;
   int current_position_;
   char buffer_[ max_size_ ];
 
@@ -527,20 +542,21 @@ public:
     : current_position_( 0 )
   { }
 
-  /// use default copy constructor and assignment operator
-
+  /// does a message of size fit in this buffer?
   inline bool fits( size_t size ) const { 
     return (current_position_ + size) < max_size_; 
   }
 
+  /// insert data into buffer. assumes it fits.
   inline void insert( const void * data, size_t size ) {
-    newest_ts_ = SoftXMT_get_timestamp();
+    newest_ts_ = Grappa_get_timestamp();
     if( current_position_ == 0 ) oldest_ts_ = newest_ts_;
     DCHECK ( fits( size ) );
     memcpy( &buffer_[ current_position_ ], data, size );
     current_position_ += size;
   }
 
+  // reset buffer
   inline void flush() {
     current_position_ = 0;
   }
@@ -561,17 +577,21 @@ private:
   /// max node count. used to allocate buffers.
   int max_nodes_;
 
+#ifdef GASNET_CONDUIT_IBV
   /// number of bytes in each aggregation buffer
   /// TODO: this should track the IB MTU
-#ifdef GASNET_CONDUIT_IBV
   static const unsigned int buffer_size_ = 4096 - 72;
 #endif
 #ifdef GASNET_CONDUIT_UDP
+  /// number of bytes in each aggregation buffer
   static const unsigned int buffer_size_ = 512 - 72;
 #endif
 #ifdef GASNET_CONDUIT_MPI
+  /// number of bytes in each aggregation buffer
   static const unsigned int buffer_size_ = 65000 - 72;
 #endif
+
+  /// buffer for sending non-aggregated messages
   char raw_send_buffer_[ buffer_size_ ];
 
   /// buffers holding aggregated messages. 
@@ -590,7 +610,9 @@ private:
   std::vector< Node > route_map_;
 
 #ifdef VTRACE_FULL
+  /// Vampir trace message metadata
   uint64_t tag_;
+  /// Vampir trace message metadata
   unsigned vt_agg_commid_;
 #endif
 
@@ -608,11 +630,14 @@ private:
   };
 
 #ifdef STL_DEBUG_ALLOCATOR
+  /// Storage for received pre-deaggregation GASNet active messages
   std::queue< ReceivedAM, std::deque< ReceivedAM, STLMemDebug::Allocator< ReceivedAM > > > received_AM_queue_;
 #else
+  /// Storage for received pre-deaggregation GASNet active messages
   std::queue< ReceivedAM > received_AM_queue_;
 #endif
 
+  /// Deaggregated buffered active messages
   void deaggregate( );
   friend void Aggregator_deaggregate_am( gasnet_token_t token, void * buf, size_t size );
 
@@ -623,14 +648,23 @@ public:
   /// Construct Aggregator.
   Aggregator( );
 
+  /// Initialize aggregator. 
   void init();
 
+  /// Tear down aggegator.
   ~Aggregator();
 
+  /// Clean up aggregator before destruction.
   void finish();
 
-  void dump_stats() { stats.dump_as_map(); }
+  /// Dump aggregator stats
+  void dump_stats( std::ostream& o = std::cout, const char * terminator = "" ) {
+    stats.dump_as_map( o, terminator );
+  }
+
+  /// Merge aggregator stats with stats from another core
   void merge_stats();
+  /// Reset aggregator stats
   void reset_stats() { stats.reset(); }
 
   /// route map lookup for hierarchical aggregation
@@ -659,19 +693,20 @@ public:
     //DVLOG(5) << "heap after flush:\n" << least_recently_sent_.toString( );
   }
   
+  /// poll and optionally flush on idle
   inline bool idle_flush_poll() {
     GRAPPA_FUNCTION_PROFILE( GRAPPA_COMM_GROUP );
 #ifdef VTRACE_FULL
     VT_TRACER("idle_flush_poll");
 #endif
     StateTimer::enterState_communication();
-    //global_communicator.poll();
-    //while ( !least_recently_sent_.empty() ) {
-      //stats.record_idle_flush();
-      //DVLOG(5) << "idle flush Node " << least_recently_sent_.top_key();
-      //flush(least_recently_sent_.top_key());
-    //}
-    //deaggregate();
+    if( FLAGS_flush_on_idle ) {
+      while ( !least_recently_sent_.empty() ) {
+        stats.record_idle_flush();
+        DVLOG(5) << "idle flush Node " << least_recently_sent_.top_key();
+        flush(least_recently_sent_.top_key());
+      }
+    }
     bool useful = poll(); 
     stats.record_idle_poll(useful);
     return useful;
@@ -681,10 +716,12 @@ public:
   /// get timestamp. we avoid calling rdtsc for performance
   inline uint64_t get_timestamp() {
     //return previous_timestamp_ + 1;
-    SoftXMT_tick();
-    return SoftXMT_get_timestamp();
+    Grappa_tick();
+    return Grappa_get_timestamp();
    }
 
+  /// get delayed timestamp. 
+  /// TODO: remove. unused.
   inline uint64_t get_previous_timestamp() {
     return previous_timestamp_;
   }
@@ -731,13 +768,25 @@ public:
     return flushUseful || deagUseful || pollUseful;
   }
 
+  /// what's the largest message we can aggregate?
   inline const size_t max_size() const { return buffer_size_; }
+
+  /// how much space is available for aggregation to this destination?
   inline const size_t remaining_size( Node destination ) const { 
     Node target = get_target_for_node( destination );
     return buffer_size_ - buffers_[ target ].current_position_; 
   }
 
-inline void aggregate( Node destination, AggregatorAMHandler fn_p,
+  /// Aggregate a message. Do not call this directly; instead, call
+  /// Grappa_call_on().
+  ///
+  ///  @param destination core that will receive this message
+  ///  @param fn_p function pointer of handler to run on reception
+  ///  @param args pointer to arg struct
+  ///  @param args_size size in bytes of arg struct
+  ///  @param payload pointer to payload buffer
+  ///  @param payload_size size in bytes of payload buffer
+  inline void aggregate( Node destination, AggregatorAMHandler fn_p,
                          const void * args, const size_t args_size,
                          const void * payload, const size_t payload_size ) {
     GRAPPA_FUNCTION_PROFILE( GRAPPA_COMM_GROUP );
@@ -834,9 +883,16 @@ inline void aggregate( Node destination, AggregatorAMHandler fn_p,
 extern Aggregator global_aggregator;
 
 
-
+/// Aggregate a message.
+///
+///  @param destination core that will receive this message
+///  @param fn_p function pointer of handler to run on reception
+///  @param args pointer to arg struct
+///  @param args_size size in bytes of arg struct
+///  @param payload pointer to payload buffer
+///  @param payload_size size in bytes of payload buffer
 template< typename ArgsStruct >
-inline void SoftXMT_call_on( Node destination, void (* fn_p)(ArgsStruct *, size_t, void *, size_t), 
+inline void Grappa_call_on( Node destination, void (* fn_p)(ArgsStruct *, size_t, void *, size_t), 
                              const ArgsStruct * args, const size_t args_size = sizeof( ArgsStruct ),
                              const void * payload = NULL, const size_t payload_size = 0)
 {
@@ -848,9 +904,11 @@ inline void SoftXMT_call_on( Node destination, void (* fn_p)(ArgsStruct *, size_
   StateTimer::stop_communication();
 }
 
-
+/// Aggregate a message. Same as Grappa_call_on(), but with a
+/// different payload type.
+/// TODO: deprecated. remove this.
 template< typename ArgsStruct, typename PayloadType >
-inline size_t SoftXMT_call_on_x( Node destination, void (* fn_p)(ArgsStruct *, size_t, PayloadType *, size_t), 
+inline void Grappa_call_on_x( Node destination, void (* fn_p)(ArgsStruct *, size_t, PayloadType *, size_t), 
                                const ArgsStruct * args, const size_t args_size = sizeof( ArgsStruct ),
                                const PayloadType * payload = NULL, const size_t payload_size = 0)
 {

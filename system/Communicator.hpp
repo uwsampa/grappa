@@ -1,8 +1,14 @@
 
+// Copyright 2010-2012 University of Washington. All Rights Reserved.
+// LICENSE_PLACEHOLDER
+// This software was created with Government support under DE
+// AC05-76RL01830 awarded by the United States Department of
+// Energy. The Government has certain rights in the software.
+
 #ifndef __COMMUNICATOR_HPP__
 #define __COMMUNICATOR_HPP__
 
-/// Definition of SoftXMT communication layer wrapper class.  This
+/// Definition of Grappa communication layer wrapper class.  This
 /// class' functionality is implemented using the GASNet library.
 ///
 /// There are three phases in this class' lifetime. 
@@ -27,6 +33,7 @@
 #include "common.hpp"
 
 #include <gasnet.h>
+#include <gasnet_tools.h>
 #include "gasnet_helpers.h"
 
 #include "PerformanceTools.hpp"
@@ -113,19 +120,19 @@ private:
   std::ostream& as_map( std::ostream& o, double time) {
     double messages_per_second = messages_ / time;
     double bytes_per_second = bytes_ / time;
-    o << "CommunicatorStatistics {"
-      << "comm_time: " << time
-      << ", messages: " << messages_
-      << ", bytes: " << bytes_
-      << ", messages_per_second: " << messages_per_second
-      << ", bytes_per_second: " << bytes_per_second;
+    o << "   \"CommunicatorStatistics\": {"
+      << "\"comm_time\": " << time
+      << ", \"messages\": " << messages_
+      << ", \"bytes\": " << bytes_
+      << ", \"messages_per_second\": " << messages_per_second
+      << ", \"bytes_per_second\": " << bytes_per_second;
     for (int i=0; i<16; i++) o << ", " << hist_labels[i] << ": " << histogram_[i];
     o << " }";
     return o;
   }
   
   double time() {
-    double end = SoftXMT_walltime();
+    double end = Grappa_walltime();
     return end-start_;
   }
 
@@ -158,35 +165,35 @@ public:
 #endif
   { 
     reset();
-    hist_labels[ 0] = "comm_0_to_255_bytes";
-    hist_labels[ 1] = "comm_256_to_511_bytes";
-    hist_labels[ 2] = "comm_512_to_767_bytes";
-    hist_labels[ 3] = "comm_768_to_1023_bytes";
-    hist_labels[ 4] = "comm_1024_to_1279_bytes";
-    hist_labels[ 5] = "comm_1280_to_1535_bytes";
-    hist_labels[ 6] = "comm_1536_to_1791_bytes";
-    hist_labels[ 7] = "comm_1792_to_2047_bytes";
-    hist_labels[ 8] = "comm_2048_to_2303_bytes";
-    hist_labels[ 9] = "comm_2304_to_2559_bytes";
-    hist_labels[10] = "comm_2560_to_2815_bytes";
-    hist_labels[11] = "comm_2816_to_3071_bytes";
-    hist_labels[12] = "comm_3072_to_3327_bytes";
-    hist_labels[13] = "comm_3328_to_3583_bytes";
-    hist_labels[14] = "comm_3584_to_3839_bytes";
-    hist_labels[15] = "comm_3840_to_4095_bytes";
+    hist_labels[ 0] = "\"comm_0_to_255_bytes\"";
+    hist_labels[ 1] = "\"comm_256_to_511_bytes\"";
+    hist_labels[ 2] = "\"comm_512_to_767_bytes\"";
+    hist_labels[ 3] = "\"comm_768_to_1023_bytes\"";
+    hist_labels[ 4] = "\"comm_1024_to_1279_bytes\"";
+    hist_labels[ 5] = "\"comm_1280_to_1535_bytes\"";
+    hist_labels[ 6] = "\"comm_1536_to_1791_bytes\"";
+    hist_labels[ 7] = "\"comm_1792_to_2047_bytes\"";
+    hist_labels[ 8] = "\"comm_2048_to_2303_bytes\"";
+    hist_labels[ 9] = "\"comm_2304_to_2559_bytes\"";
+    hist_labels[10] = "\"comm_2560_to_2815_bytes\"";
+    hist_labels[11] = "\"comm_2816_to_3071_bytes\"";
+    hist_labels[12] = "\"comm_3072_to_3327_bytes\"";
+    hist_labels[13] = "\"comm_3328_to_3583_bytes\"";
+    hist_labels[14] = "\"comm_3584_to_3839_bytes\"";
+    hist_labels[15] = "\"comm_3840_to_4095_bytes\"";
   }
   
   void reset() {
     messages_ = 0;
     bytes_ = 0;
-    start_ = SoftXMT_walltime();
+    start_ = Grappa_walltime();
     for( int i = 0; i < 16; ++i ) {
       histogram_[i] = 0;
     }
   }
 
   void reset_clock() {
-    start_ = SoftXMT_walltime();
+    start_ = Grappa_walltime();
   }
 
   void record_message( size_t bytes ) {
@@ -227,9 +234,9 @@ public:
     data(LOG(INFO), time());
   }
   
-  void dump() {
-    as_map(std::cout, time());
-    std::cout << std::endl;
+  void dump( std::ostream& o = std::cout, const char * terminator = "" ) {
+    as_map(o, time());
+    o << terminator << std::endl;
   }
   
   void merge(const CommunicatorStatistics * other) {
@@ -290,9 +297,12 @@ public:
     gasnet_AMMaxMedium() +                  // worst-case maximum, plus
     sizeof( int32_t ) * gasnet_AMMaxArgs(); // the space that would be used for arguments
 
-  /// construct
+  /// Construct communicator. Must call init() and activate() before
+  /// most methods may be called.
   Communicator( );
 
+  /// Begin setting up communicator. Must activate() before most
+  /// methods can be called.
   void init( int * argc_p, char ** argv_p[] );
 
   /// Register an active message handler with the communication
@@ -312,10 +322,15 @@ public:
     return current_handler_index;
   }
 
+  /// Finish setting up communicator. After this, all communicator
+  /// methods can be called.
   void activate();
+
   void finish( int retval = 0 );
 
-  void dump_stats() { stats.dump(); }
+  void dump_stats( std::ostream& o = std::cout, const char * terminator = "" ) { 
+    stats.dump( o, terminator );
+  }
   void merge_stats();
   void reset_stats() { stats.reset(); }
 
@@ -331,20 +346,20 @@ public:
     return gasnet_nodes(); 
   }
 
-  /// Global (anonymous) barrier
+  /// Global (anonymous) barrier (ALLNODES)
   inline void barrier() {
     assert( communication_is_allowed_ );
     gasnet_barrier_notify( 0, GASNET_BARRIERFLAG_ANONYMOUS );
     GASNET_CHECK( gasnet_barrier_wait( 0, GASNET_BARRIERFLAG_ANONYMOUS ) );
   }
 
-  /// Global (anonymous) two-phase barrier notify
+  /// Global (anonymous) two-phase barrier notify (ALLNODES)
   inline void barrier_notify() {
     assert( communication_is_allowed_ );
     gasnet_barrier_notify( 0, GASNET_BARRIERFLAG_ANONYMOUS );
   }
   
-  /// Global (anonymous) two-phase barrier try
+  /// Global (anonymous) two-phase barrier try (ALLNODES)
   inline bool barrier_try() {
     return GASNET_OK == gasnet_barrier_try( 0, GASNET_BARRIERFLAG_ANONYMOUS );
   }
@@ -365,6 +380,10 @@ public:
     GRAPPA_FUNCTION_PROFILE( GRAPPA_COMM_GROUP );
     assert( communication_is_allowed_ );
     GASNET_CHECK( gasnet_AMPoll() ); 
+  }
+
+  inline const char * hostname() {
+    return gasnett_gethostname();
   }
       
 };

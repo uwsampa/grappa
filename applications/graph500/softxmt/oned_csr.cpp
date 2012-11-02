@@ -17,7 +17,7 @@
 #include <stdio.h>
 #include <assert.h>
 
-#include "SoftXMT.hpp"
+#include "Grappa.hpp"
 #include "GlobalAllocator.hpp"
 #include "ForkJoin.hpp"
 #include "Cache.hpp"
@@ -53,13 +53,13 @@ LOOP_FUNCTOR( node_max_func, mynode,
   ((int64_t,start)) (( int64_t,end )) ((int64_t,init_max)) )
 {
   int64_t max = init_max;
-  range_t myblock = blockDist(start, end, mynode, SoftXMT_nodes());
+  range_t myblock = blockDist(start, end, mynode, Grappa_nodes());
   max_func f;
   f.edges = edges;
   f.max = &max;
   fork_join_onenode(&f, myblock.start, myblock.end);
     
-  maxvtx = SoftXMT_allreduce<int64_t, collective_max, 0>( max );
+  maxvtx = Grappa_allreduce<int64_t, collective_max, 0>( max );
   nv = maxvtx+1;
 }
 
@@ -75,15 +75,15 @@ LOOP_FUNCTOR( degree_func, index, (( GlobalAddress<packed_edge>, edges )) ((Glob
   int64_t i = cedge[0].v0;
   int64_t j = cedge[0].v1;
   if (i != j) { //skip self-edges
-    SoftXMT_delegate_fetch_and_add_word(XOFF(i), 1);
-    SoftXMT_delegate_fetch_and_add_word(XOFF(j), 1);
+    Grappa_delegate_fetch_and_add_word(XOFF(i), 1);
+    Grappa_delegate_fetch_and_add_word(XOFF(j), 1);
   }
 }
 
 LOOP_FUNCTOR( local_reduce_sum, index,
     (( GlobalAddress<int64_t>, xoff )) (( int64_t *, sum )) )
 {
-  int64_t v = SoftXMT_delegate_read_word(XOFF(index));
+  int64_t v = Grappa_delegate_read_word(XOFF(index));
   *sum += v;
 }
 
@@ -91,7 +91,7 @@ LOOP_FUNCTOR( prefix_sum_node, nid,
     ((GlobalAddress<int64_t>,xoff))
     ((GlobalAddress<int64_t>,buf)) // one per node, used to store local total
     ((int64_t,nv)) ) {
-  range_t myblock = blockDist(0, nv, nid, SoftXMT_nodes());
+  range_t myblock = blockDist(0, nv, nid, Grappa_nodes());
   
   int64_t mysum = 0;
   local_reduce_sum fr;
@@ -101,17 +101,17 @@ LOOP_FUNCTOR( prefix_sum_node, nid,
   
   // add my sum to every buf count following this node
   // TODO: do this in a tree rather than brute-force push-to-all
-  for (int64_t i=nid; i<SoftXMT_nodes(); i++) {
-    SoftXMT_delegate_fetch_and_add_word(buf+i, mysum);
+  for (int64_t i=nid; i<Grappa_nodes(); i++) {
+    Grappa_delegate_fetch_and_add_word(buf+i, mysum);
   }
   
-  SoftXMT_barrier_commsafe();
+  Grappa_barrier_commsafe();
   
-  int64_t prev_sum = (nid > 0) ? SoftXMT_delegate_read_word(buf+nid-1) : 0;
+  int64_t prev_sum = (nid > 0) ? Grappa_delegate_read_word(buf+nid-1) : 0;
   
   for (int64_t i=myblock.start; i<myblock.end; i++) {
-    int64_t tmp = SoftXMT_delegate_read_word(XOFF(i));
-    SoftXMT_delegate_write_word(XOFF(i), prev_sum);
+    int64_t tmp = Grappa_delegate_read_word(XOFF(i));
+    Grappa_delegate_write_word(XOFF(i), prev_sum);
     prev_sum += tmp;
   }
 }
@@ -119,32 +119,32 @@ LOOP_FUNCTOR( prefix_sum_node, nid,
 static int64_t prefix_sum(GlobalAddress<int64_t> xoff, int64_t nv) {
   prefix_sum_node fps;
   fps.xoff = xoff;
-  fps.buf = SoftXMT_typed_malloc<int64_t>(SoftXMT_nodes());
+  fps.buf = Grappa_typed_malloc<int64_t>(Grappa_nodes());
   fps.nv = nv;
   fork_join_custom(&fps);
   
-  return SoftXMT_delegate_read_word(fps.buf+SoftXMT_nodes()-1);
+  return Grappa_delegate_read_word(fps.buf+Grappa_nodes()-1);
 }
 
 LOOP_FUNCTOR( minvect_func, index,
           (( GlobalAddress<int64_t>,xoff )) )
 {
-  int64_t v = SoftXMT_delegate_read_word(XOFF(index));
+  int64_t v = Grappa_delegate_read_word(XOFF(index));
   if (v < MINVECT_SIZE) {
-    SoftXMT_delegate_write_word(XOFF(index), MINVECT_SIZE);
+    Grappa_delegate_write_word(XOFF(index), MINVECT_SIZE);
   }
 }
 
 LOOP_FUNCTOR( init_xendoff_func, index,
              (( GlobalAddress<int64_t>, xoff )) )
 {
-  SoftXMT_delegate_write_word(XENDOFF(index), SoftXMT_delegate_read_word(XOFF(index)));
+  Grappa_delegate_write_word(XENDOFF(index), Grappa_delegate_read_word(XOFF(index)));
 }
 
 static void setup_deg_off(const tuple_graph * const tg, csr_graph * g) {
   GlobalAddress<int64_t> xoff = g->xoff;
   // initialize xoff to 0
-  SoftXMT_memset(g->xoff, (int64_t)0, 2*g->nv+2);
+  Grappa_memset(g->xoff, (int64_t)0, 2*g->nv+2);
 
   // count occurrences of each vertex in edges
   degree_func fd; fd.edges = tg->edges; fd.xoff = g->xoff;
@@ -152,10 +152,10 @@ static void setup_deg_off(const tuple_graph * const tg, csr_graph * g) {
   
 //  for (int64_t i=0; i<g->nv; i++) {
 //    std::stringstream ss;
-//    int64_t xoi = SoftXMT_delegate_read_word(XOFF(i)), xei = SoftXMT_delegate_read_word(XENDOFF(i));
+//    int64_t xoi = Grappa_delegate_read_word(XOFF(i)), xei = Grappa_delegate_read_word(XENDOFF(i));
 //    ss << "degree[" << i << "] = " << xoi << " : (";
 ////    for (int64_t j=xoi; j<xei; j++) {
-////      ss << SoftXMT_delegate_read_word(g->xadj+j) << ", ";
+////      ss << Grappa_delegate_read_word(g->xadj+j) << ", ";
 ////    }
 //    ss << ")";
 //    VLOG(1) << ss.str();
@@ -170,25 +170,25 @@ static void setup_deg_off(const tuple_graph * const tg, csr_graph * g) {
     
   VLOG(1) << "accum = " << accum;
 //  for (int64_t i=0; i<g->nv; i++) {
-//    VLOG(1) << "offset[" << i << "] = " << SoftXMT_delegate_read_word(XOFF(i));
+//    VLOG(1) << "offset[" << i << "] = " << Grappa_delegate_read_word(XOFF(i));
 //  }
   
   //initialize XENDOFF to be the same as XOFF
   init_xendoff_func fe; fe.xoff = g->xoff;
   fork_join(&fe, 0, g->nv);
   
-  SoftXMT_delegate_write_word(XOFF(g->nv), accum);
+  Grappa_delegate_write_word(XOFF(g->nv), accum);
   g->nadj = accum+MINVECT_SIZE;
   
-  g->xadjstore = SoftXMT_typed_malloc<int64_t>(accum + MINVECT_SIZE);
+  g->xadjstore = Grappa_typed_malloc<int64_t>(accum + MINVECT_SIZE);
   g->xadj = g->xadjstore+MINVECT_SIZE; // cheat and permit xadj[-1] to work
   
-  SoftXMT_memset(g->xadjstore, (int64_t)0, accum+MINVECT_SIZE);
+  Grappa_memset(g->xadjstore, (int64_t)0, accum+MINVECT_SIZE);
 }
 
 inline void scatter_edge(GlobalAddress<int64_t> xoff, GlobalAddress<int64_t> xadj, const int64_t i, const int64_t j) {
-  int64_t where = SoftXMT_delegate_fetch_and_add_word(XENDOFF(i), 1);
-  SoftXMT_delegate_write_word(xadj+where, j);
+  int64_t where = Grappa_delegate_fetch_and_add_word(XENDOFF(i), 1);
+  Grappa_delegate_write_word(xadj+where, j);
 }
 
 LOOP_FUNCTOR( scatter_func, k, 
@@ -222,8 +222,8 @@ LOOP_FUNCTOR( pack_vtx_edges_func, i,
   int64_t kcur;
 //    Incoherent<int64_t>::RO xoi(XOFF(i), 1);
 //    Incoherent<int64_t>::RO xei(XENDOFF(i), 1);
-  int64_t xoi = SoftXMT_delegate_read_word(XOFF(i));
-  int64_t xei = SoftXMT_delegate_read_word(XENDOFF(i));
+  int64_t xoi = Grappa_delegate_read_word(XOFF(i));
+  int64_t xei = Grappa_delegate_read_word(XENDOFF(i));
   if (xoi+1 >= xei) return;
   
   int64_t * buf = (int64_t*)alloca((xei-xoi)*sizeof(int64_t));
@@ -231,7 +231,7 @@ LOOP_FUNCTOR( pack_vtx_edges_func, i,
   //    cadj.block_until_acquired();
   // poor man's larger cache buffer, TODO: use cache as above once multi-node acquires are implemented...
   for (int64_t i=0; i<xei-xoi; i++) {
-    buf[i] = SoftXMT_delegate_read_word(xadj+xoi+i);
+    buf[i] = Grappa_delegate_read_word(xadj+xoi+i);
   }
   
   qsort(buf, xei-xoi, sizeof(int64_t), i64cmp);
@@ -245,11 +245,11 @@ LOOP_FUNCTOR( pack_vtx_edges_func, i,
   for (int64_t k = kcur; k < xei-xoi; k++) {
     buf[k] = -1;
   }
-  SoftXMT_delegate_write_word(XENDOFF(i), xoi+kcur);
+  Grappa_delegate_write_word(XENDOFF(i), xoi+kcur);
   
   // poor man's cache release, TODO: let RW cache just release it (once implemented)
   for (int64_t i=0; i<xei-xoi; i++) {
-    SoftXMT_delegate_write_word(xadj+xoi+i, buf[i]);
+    Grappa_delegate_write_word(xadj+xoi+i, buf[i]);
   }
 }
 
@@ -271,10 +271,10 @@ static void gather_edges(const tuple_graph * const tg, csr_graph * g) {
 //  GlobalAddress<int64_t> xoff = g->xoff;  
 //  for (int64_t i=0; i<g->nv; i++) {
 //    std::stringstream ss;
-//    int64_t xoi = SoftXMT_delegate_read_word(XOFF(i)), xei = SoftXMT_delegate_read_word(XENDOFF(i));
+//    int64_t xoi = Grappa_delegate_read_word(XOFF(i)), xei = Grappa_delegate_read_word(XENDOFF(i));
 //    ss << "scat_xoff[" << i << "] = " << xoi << " : (";
 //    for (int64_t j=xoi; j<xei; j++) {
-//      ss << SoftXMT_delegate_read_word(g->xadj+j) << ",";
+//      ss << Grappa_delegate_read_word(g->xadj+j) << ",";
 //    }
 //    ss << ")";
 //    VLOG(1) << ss.str();
@@ -294,7 +294,7 @@ void create_graph_from_edgelist(const tuple_graph* const tg, csr_graph* const g)
   VLOG(2) << "nv = " << nv;
   
   g->nv = nv;
-  g->xoff = SoftXMT_typed_malloc<int64_t>(2*nv+2);
+  g->xoff = Grappa_typed_malloc<int64_t>(2*nv+2);
   
   double time;
   TIME(time, setup_deg_off(tg, g));
@@ -305,7 +305,7 @@ void create_graph_from_edgelist(const tuple_graph* const tg, csr_graph* const g)
 }
 
 void free_oned_csr_graph(csr_graph* const g) {
-  SoftXMT_free(g->xoff);
-  SoftXMT_free(g->xadjstore);
+  Grappa_free(g->xoff);
+  Grappa_free(g->xadjstore);
 }
 

@@ -1,7 +1,7 @@
 // Inspired by Ullman (1976) Subgraph-isomorphism algorithm
 // Brandon Holt
 #include "defs.hpp"
-#include <SoftXMT.hpp>
+#include <Grappa.hpp>
 #include <ForkJoin.hpp>
 #include <Collective.hpp>
 
@@ -32,7 +32,7 @@ static void checkEdgesRecursiveTask(uint64_t packed) {
   Incoherent<graphint>::RO ceV(g.endVertex+edgeRange[0], nedges, eVbuf_);
   
   for (graphint j = 0; j < nedges; j++) {
-    if (SoftXMT_delegate_read_word(g.marks+ceV[j]) == pattern[poff]) {
+    if (Grappa_delegate_read_word(g.marks+ceV[j]) == pattern[poff]) {
       VLOG(5) << v << " -> " << ceV[j] << " " << poff << "(" << pattern[poff] << ")";
 
       if (poff == npattern-1) {
@@ -41,7 +41,7 @@ static void checkEdgesRecursiveTask(uint64_t packed) {
         CHECK(ceV[j] < (1L<<32)) << "v = " << ceV[j];
         packed = (((uint64_t)poff+1) << 32) | ceV[j];
         joiner.registerTask();
-        SoftXMT_privateTask(&checkEdgesRecursiveTask, packed);
+        Grappa_privateTask(&checkEdgesRecursiveTask, packed);
       }
     }
   }
@@ -71,16 +71,16 @@ LOOP_FUNCTOR( pathIsomorphismFunc, nid, ((graph,g_)) ((GlobalAddress<color_t>,pa
   pattern = &(*cpattern);
   
   joiner.reset();
-  range_t vr = blockDist(0, g.numVertices, SoftXMT_mynode(), SoftXMT_nodes());
+  range_t vr = blockDist(0, g.numVertices, Grappa_mynode(), Grappa_nodes());
   for (graphint i=vr.start; i<vr.end; i++) {
     joiner.registerTask();
-    SoftXMT_privateTask(&pathIsoTask, i);
+    Grappa_privateTask(&pathIsoTask, i);
   }
   joiner.wait();
   
   VLOG(5) << "nmatches = " << nmatches;
   
-  nmatches = SoftXMT_collective_reduce(&collective_add, 0, nmatches, 0);
+  nmatches = Grappa_collective_reduce(&collective_add, 0, nmatches, 0);
 }
 
 /* @param g: (directed) graph to search in
@@ -116,13 +116,13 @@ LOOP_FUNCTOR( markColorsFunc, nid, ((graph,g_)) ((color_t,minc_)) ((color_t,maxc
   minc = minc_;
   maxc = maxc_;
   
-  range_t vr = blockDist(0, g.numVertices, SoftXMT_mynode(), SoftXMT_nodes());
+  range_t vr = blockDist(0, g.numVertices, Grappa_mynode(), Grappa_nodes());
   
   joiner.reset();
   
   for (graphint i=vr.start; i<vr.end; i++) {
     joiner.registerTask();
-    SoftXMT_privateTask(&markColorsTask, i);
+    Grappa_privateTask(&markColorsTask, i);
   }
   joiner.wait();
 }

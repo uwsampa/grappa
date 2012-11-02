@@ -1,4 +1,12 @@
 
+// Copyright 2010-2012 University of Washington. All Rights Reserved.
+// LICENSE_PLACEHOLDER
+// This software was created with Government support under DE
+// AC05-76RL01830 awarded by the United States Department of
+// Energy. The Government has certain rights in the software.
+
+/// Tests for Explicit Caches
+
 #include "Cache.hpp"
 
 #include "GlobalAllocator.hpp"
@@ -39,17 +47,17 @@ void user_main( int * args )
   { // remote. no short-circuit.
     {
       Incoherent<int64_t>::RW buf( GlobalAddress< int64_t >::TwoDimensional( &foo, 1 ), 1 );
-      int64_t foo1 = SoftXMT_delegate_read_word( GlobalAddress< int64_t >::TwoDimensional( &foo, 1 ) );
+      int64_t foo1 = Grappa_delegate_read_word( GlobalAddress< int64_t >::TwoDimensional( &foo, 1 ) );
       BOOST_CHECK_EQUAL( *buf, foo1 );
-      SoftXMT_delegate_write_word( GlobalAddress< int64_t >::TwoDimensional( &foo, 1 ), 1235 );
-      foo1 = SoftXMT_delegate_read_word( GlobalAddress< int64_t >::TwoDimensional( &foo, 1 ) );
+      Grappa_delegate_write_word( GlobalAddress< int64_t >::TwoDimensional( &foo, 1 ), 1235 );
+      foo1 = Grappa_delegate_read_word( GlobalAddress< int64_t >::TwoDimensional( &foo, 1 ) );
       BOOST_CHECK( *buf != foo1 );
       BOOST_CHECK_EQUAL( foo1, 1235 );
       *buf = 1235;
       BOOST_CHECK_EQUAL( *buf, foo1 );
       *buf = 1236;
     }
-    int64_t foo1 = SoftXMT_delegate_read_word( GlobalAddress< int64_t >::TwoDimensional( &foo, 1 ) );
+    int64_t foo1 = Grappa_delegate_read_word( GlobalAddress< int64_t >::TwoDimensional( &foo, 1 ) );
     BOOST_CHECK_EQUAL( foo1, 1236 );
   }
 
@@ -76,13 +84,13 @@ void user_main( int * args )
     Incoherent<int64_t>::RW buf4( GlobalAddress< int64_t >::TwoDimensional( bar, 1 ), 1);
     buf4.start_acquire( );
     for (int i=0; i<2000; i++) {
-        SoftXMT_yield(); // spin to let reply come back
+        Grappa_yield(); // spin to let reply come back
     }
     buf4.block_until_acquired( );
 
     buf4.start_release( );
     for (int i=0; i<2000; i++) {
-        SoftXMT_yield(); // spin to let reply come back
+        Grappa_yield(); // spin to let reply come back
     }
     buf4.block_until_released( );
   }
@@ -91,12 +99,12 @@ void user_main( int * args )
   {
     const size_t array_size = 128;
     LOG(INFO) << "Mallocing " << array_size << " words";
-    GlobalAddress< int64_t > array = SoftXMT_typed_malloc< int64_t >( array_size );
+    GlobalAddress< int64_t > array = Grappa_typed_malloc< int64_t >( array_size );
     
     // write indices properly
     LOG(INFO) << "writing indices";
     for( int i = 0; i < array_size; ++i ) {
-      SoftXMT_delegate_write_word( array + i, i );
+      Grappa_delegate_write_word( array + i, i );
     }
 
     // check that we can read a word at a time
@@ -105,7 +113,7 @@ void user_main( int * args )
       LOG(INFO) << "checking element " << i;
       Incoherent<int64_t>::RO d( array + i, 1 );
       BOOST_CHECK_EQUAL( i, *d );
-      int64_t dd = SoftXMT_delegate_read_word( array + i );
+      int64_t dd = Grappa_delegate_read_word( array + i );
       BOOST_CHECK_EQUAL( i, dd );
       BOOST_CHECK_EQUAL( dd, *d );
     }
@@ -132,10 +140,10 @@ void user_main( int * args )
 	DVLOG(5) << "*****************************************************************************";
 	//start:2 size:4 actual_size:4 i:2
 	if( start == 2 && size == 4 ) {
-	  BOOST_CHECK_EQUAL( 2, SoftXMT_delegate_read_word( array + start + 0 ) );
-	  BOOST_CHECK_EQUAL( 3, SoftXMT_delegate_read_word( array + start + 1 ) );
-	  BOOST_CHECK_EQUAL( 4, SoftXMT_delegate_read_word( array + start + 2 ) );
-	  BOOST_CHECK_EQUAL( 5, SoftXMT_delegate_read_word( array + start + 3 ) );
+	  BOOST_CHECK_EQUAL( 2, Grappa_delegate_read_word( array + start + 0 ) );
+	  BOOST_CHECK_EQUAL( 3, Grappa_delegate_read_word( array + start + 1 ) );
+	  BOOST_CHECK_EQUAL( 4, Grappa_delegate_read_word( array + start + 2 ) );
+	  BOOST_CHECK_EQUAL( 5, Grappa_delegate_read_word( array + start + 3 ) );
 	}
 	DVLOG(5) << "*****************************************************************************";
 	
@@ -165,7 +173,7 @@ void user_main( int * args )
       LOG(INFO) << "checking element " << i;
       //Incoherent<int64_t>::RO d( array + i, 1 );
       //BOOST_CHECK_EQUAL( i, *d );
-      int64_t dd = SoftXMT_delegate_read_word( array + i );
+      int64_t dd = Grappa_delegate_read_word( array + i );
       BOOST_CHECK_EQUAL( i, dd );
       //BOOST_CHECK_EQUAL( dd, *d );
     }
@@ -180,7 +188,7 @@ void user_main( int * args )
         }
       }
       for (int64_t i=0; i<array_size; i++) {
-        int64_t v = SoftXMT_delegate_read_word(array+i);
+        int64_t v = Grappa_delegate_read_word(array+i);
         BOOST_CHECK_EQUAL(v, 1234+i);
       }
       
@@ -263,7 +271,7 @@ void user_main( int * args )
     // make sure non-word-multiple cache objects don't fail
     BOOST_MESSAGE( "brandonm bug direct tests" );
     LOG(INFO) << "brandonm bug direct tests";
-    GlobalAddress< BrandonM > brandonmx_addr = SoftXMT_typed_malloc< BrandonM >( 5 );
+    GlobalAddress< BrandonM > brandonmx_addr = Grappa_typed_malloc< BrandonM >( 5 );
     // BOOST_MESSAGE( "brandonmx address is " << brandonmx_addr );
     // LOG(INFO) << "brandonmx address is " << brandonmx_addr;
 
@@ -291,9 +299,9 @@ void user_main( int * args )
     brandonmx3.block_until_acquired();
     brandonmx3.block_until_released();
 
-    SoftXMT_free( brandonmx_addr );
+    Grappa_free( brandonmx_addr );
 
-    SoftXMT_free( array );
+    Grappa_free( array );
   }
 
   {
@@ -311,25 +319,25 @@ void user_main( int * args )
     LOG(INFO) << "empty RW...";
     { Incoherent<int64_t>::RW c(xa, 1, &buf); c[0] = c[0]+1; }
   }
-  //SoftXMT_waitForTasks();
-  //SoftXMT_signal_done();
+  //Grappa_waitForTasks();
+  //Grappa_signal_done();
 
-  SoftXMT_dump_stats_all_nodes();
+  Grappa_dump_stats_all_nodes();
 }
 
 BOOST_AUTO_TEST_CASE( test1 ) {
 
-  SoftXMT_init( &(boost::unit_test::framework::master_test_suite().argc),
+  Grappa_init( &(boost::unit_test::framework::master_test_suite().argc),
                 &(boost::unit_test::framework::master_test_suite().argv),
                 1 << 23);
 
-  SoftXMT_activate();
+  Grappa_activate();
 
-  BOOST_CHECK_EQUAL( SoftXMT_nodes(), 2 );
-  SoftXMT_run_user_main( &user_main, (int*)NULL );
-  BOOST_CHECK( SoftXMT_done() == true );
+  BOOST_CHECK_EQUAL( Grappa_nodes(), 2 );
+  Grappa_run_user_main( &user_main, (int*)NULL );
+  BOOST_CHECK( Grappa_done() == true );
 
-  SoftXMT_finish( 0 );
+  Grappa_finish( 0 );
 }
 
 BOOST_AUTO_TEST_SUITE_END();

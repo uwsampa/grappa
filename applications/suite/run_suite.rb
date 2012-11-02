@@ -4,7 +4,7 @@ require "experiments"
 db = "#{ENV['HOME']}/exp/grappa.db"
 table = :suite
 
-# select between running on XMT or SoftXMT by if it's on cougar
+# select between running on XMT or Grappa by if it's on cougar
 if `hostname`.match /cougar/ then
   cmd = "mtarun -m %{nproc} suite.exe --scale=%{scale} -e %{edgefactor} --ckpt --kcent=%{kcent} --centrality"
   machinename = "cougarxmt"
@@ -20,7 +20,7 @@ else
       --time=00:10:00
       --task-prolog=/sampa/home/bholt/srunrc.all 
       --task-epilog=/sampa/home/bholt/srunrc_epilog.all
-      --partition softxmt
+      --partition grappa
       --nodes=%{nnode}
       --ntasks-per-node=%{ppn} -- 
     ./suite.exe --aggregator_autoflush_ticks=%{flushticks}

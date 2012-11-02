@@ -2,7 +2,7 @@
 #include "common.h"
 #include <math.h>
 
-#include "SoftXMT.hpp"
+#include "Grappa.hpp"
 #include "GlobalAllocator.hpp"
 #include "ForkJoin.hpp"
 #include "Cache.hpp"
@@ -77,22 +77,22 @@ struct swap_desc {
 
 /// Note: do not call in am handler.
 inline void wait_for_full(int64_t * fullptr) {
-  while (*fullptr == 0) SoftXMT_yield(); // wait for other swapper to finish
+  while (*fullptr == 0) Grappa_yield(); // wait for other swapper to finish
   CHECK(*fullptr == 1) << "*fullptr == " << *fullptr;
 }
 
 static void am_swap_done(GlobalAddress<bool>* done, size_t sz, GlobalAddress<Thread>* caller, size_t psz) {
-  CHECK(done->node() == SoftXMT_mynode());
-  CHECK(caller->node() == SoftXMT_mynode());
+  CHECK(done->node() == Grappa_mynode());
+  CHECK(caller->node() == Grappa_mynode());
   
   *done->pointer() = true;
-  SoftXMT_wake(caller->pointer());
+  Grappa_wake(caller->pointer());
 }
 
 //template< typename T >
 //static void am_swap_3(swap_desc<T> * desc, size_t sz, T* payload, size_t psz) {
-////  assert(desc->addr1.node() == SoftXMT_mynode());
-//  assert(desc->fb1.node() == SoftXMT_mynode());
+////  assert(desc->addr1.node() == Grappa_mynode());
+//  assert(desc->fb1.node() == Grappa_mynode());
 ////  assert(psz == sizeof(T));
 //  assert(*desc->fb1.pointer() == 0); // should still be empty from am_swap_1
 //  
@@ -101,7 +101,7 @@ static void am_swap_done(GlobalAddress<bool>* done, size_t sz, GlobalAddress<Thr
 //  *desc->fb1.pointer() = 1;
 //  
 //  VLOG(2) << "about to call am_swap_done";
-//  SoftXMT_call_on_x(desc->done.node(), &am_swap_done, &desc->done, sizeof(desc->done), &desc->caller, sizeof(desc->caller));
+//  Grappa_call_on_x(desc->done.node(), &am_swap_done, &desc->done, sizeof(desc->done), &desc->caller, sizeof(desc->caller));
 //}
 //
 //template< typename T >
@@ -122,13 +122,13 @@ static void am_swap_done(GlobalAddress<bool>* done, size_t sz, GlobalAddress<Thr
 //  *val2 = s->val1;
 //  
 //  VLOG(2) << "about to call am_swap_3";
-//  SoftXMT_call_on_x(s->desc->addr1.node(), &am_swap_3<T>, s->desc, sizeof(*s->desc), &tmp, sizeof(tmp));
+//  Grappa_call_on_x(s->desc->addr1.node(), &am_swap_3<T>, s->desc, sizeof(*s->desc), &tmp, sizeof(tmp));
 //}
 
 template< typename T >
 static void swap_task_2(swap_desc<T> * desc) {
-//  assert(desc->addr2.node() == SoftXMT_mynode());
-  CHECK(desc->fb2.node() == SoftXMT_mynode()) << "<" << desc->k << "> fb2.node() = " << desc->fb2.node();
+//  assert(desc->addr2.node() == Grappa_mynode());
+  CHECK(desc->fb2.node() == Grappa_mynode()) << "<" << desc->k << "> fb2.node() = " << desc->fb2.node();
   
   int64_t * fb2 = desc->fb2.pointer();
   VLOG(2) << "<" << desc->k << "> about to wait for addr2: " << fb2;
@@ -148,13 +148,13 @@ static void swap_task_2(swap_desc<T> * desc) {
   cval1.block_until_released();
   cval2.block_until_released();
   
-  SoftXMT_delegate_write_word(desc->fb1, 1);
+  Grappa_delegate_write_word(desc->fb1, 1);
   *fb2 = 1;
   
 //  VLOG(2) << "about to call am_swap_3";
-//  SoftXMT_call_on_x(desc->fb1.node(), &am_swap_3<T>, desc);
+//  Grappa_call_on_x(desc->fb1.node(), &am_swap_3<T>, desc);
   VLOG(2) << "<" << desc->k << "> about to call am_swap_done";
-  SoftXMT_call_on_x(desc->done.node(), &am_swap_done, &desc->done, sizeof(desc->done), &desc->caller, sizeof(desc->caller));
+  Grappa_call_on_x(desc->done.node(), &am_swap_done, &desc->done, sizeof(desc->done), &desc->caller, sizeof(desc->caller));
 }
 
 /// Sketching a wrapper function?
@@ -181,8 +181,8 @@ static void swap_task_2(swap_desc<T> * desc) {
 template< typename T >
 static void swap_task_1(swap_desc<T>* desc) {
   
-//  assert(desc->addr1.node() == SoftXMT_mynode());
-  CHECK(desc->fb1.node() == SoftXMT_mynode()) << "<" << desc->k << "> fb1.node() = " << desc->fb1.node();
+//  assert(desc->addr1.node() == Grappa_mynode());
+  CHECK(desc->fb1.node() == Grappa_mynode()) << "<" << desc->k << "> fb1.node() = " << desc->fb1.node();
   
   VLOG(2) << "<" << desc-> k << "> about to wait for addr1: " << desc->fb1.pointer();
   wait_for_full(desc->fb1.pointer());
@@ -190,7 +190,7 @@ static void swap_task_1(swap_desc<T>* desc) {
 //  T * val = desc->addr1.pointer();
   
   VLOG(2) << "<" << desc->k << "> calling am_swap_2";
-  SoftXMT_remote_privateTask(&swap_task_2<T>, desc, desc->fb2.node());
+  Grappa_remote_privateTask(&swap_task_2<T>, desc, desc->fb2.node());
 }
 
 template< typename T >
@@ -218,9 +218,9 @@ static void swap_globals(GlobalAddress<T> array, GlobalAddress<int64_t> fullbits
   VLOG(2) << "<" << desc.k << "> swapping " << index1 << " & " << index2;
   
   GlobalAddress< swap_desc<T> > ptr = make_global(&desc);
-  SoftXMT_remote_privateTask(&swap_task_1<T>, reinterpret_cast< swap_desc<T>* >(ptr), desc.fb1.node());
+  Grappa_remote_privateTask(&swap_task_1<T>, reinterpret_cast< swap_desc<T>* >(ptr), desc.fb1.node());
   
-  while (!done) SoftXMT_suspend();
+  while (!done) Grappa_suspend();
   VLOG(2) << "<" << desc.k << "> DONE";
 }
 
@@ -231,7 +231,7 @@ LOOP_FUNCTOR_TEMPLATED(T, rand_permute, k,
   (( int64_t, nelem )) )
 {
   mrg_state new_st = st;
-  int64_t which = k % SoftXMT_nodes();
+  int64_t which = k % Grappa_nodes();
   mrg_skip(&new_st, 1, k*(which+1), 0);
   int64_t place = k + (int64_t)floor( mrg_get_double_orig(&new_st) * (nelem - k) );
     
@@ -242,14 +242,14 @@ LOOP_FUNCTOR_TEMPLATED(T, rand_permute, k,
 template<typename T>
 static void randpermute(GlobalAddress<T> array, int64_t nelem, mrg_state * restrict st) {
   //  typename Incoherent<T>::RW carray(array, nelem);
-  GlobalAddress<int64_t> fullbits = SoftXMT_typed_malloc<int64_t>(nelem);
+  GlobalAddress<int64_t> fullbits = Grappa_typed_malloc<int64_t>(nelem);
   func_set_const fc(fullbits, 1);
   fork_join(&fc, 0, nelem);
 
   rand_permute<T> f;
   f.array = array; f.fullbits = fullbits; f.st = *st; f.nelem = nelem;
   fork_join(&f, 0, nelem);
-  SoftXMT_free(fullbits);
+  Grappa_free(fullbits);
 }
 #endif /* /disabled parallel randpermute for faster builds */
 
@@ -260,7 +260,7 @@ static void randpermute(GlobalAddress<T> array, int64_t nelem, mrg_state * restr
   
   for (int64_t k=0; k < nelem; k++) {
     mrg_state new_st = *st;
-    int64_t which = k % SoftXMT_nodes();
+    int64_t which = k % Grappa_nodes();
     mrg_skip(&new_st, 1, k*(which+1), 0);
     int64_t place = k + (int64_t)floor( mrg_get_double_orig(&new_st) * (nelem - k) );
     
@@ -286,8 +286,8 @@ LOOP_FUNCTOR( write_edge_func, index,
   int64_t v0 = (*edge).v0;
   int64_t v1 = (*edge).v1;
   packed_edge new_edge;
-  new_edge.v0 = SoftXMT_delegate_read_word(newlabel+v0);
-  new_edge.v1 = SoftXMT_delegate_read_word(newlabel+v1);
+  new_edge.v0 = Grappa_delegate_read_word(newlabel+v0);
+  new_edge.v1 = Grappa_delegate_read_word(newlabel+v1);
   *edge = new_edge;
 }
 
@@ -401,7 +401,7 @@ LOOP_FUNCTOR( random_edges_node_work, mynode,
   ((int, SCALE)) )
 {
   mrg_state mrg_here = local_prng_state;
-  range_t myblock = blockDist(0, nedge, mynode, SoftXMT_nodes());
+  range_t myblock = blockDist(0, nedge, mynode, Grappa_nodes());
   random_edges_functor f;
   f.ij = edges;
   f.iwork = iwork;
@@ -422,7 +422,7 @@ void rmat_edgelist(tuple_graph* grin, int64_t SCALE) {
   prng_state = &prng_state_store;
   
   int64_t NV = 1L<<SCALE;
-  GlobalAddress<int64_t> iwork = SoftXMT_typed_malloc<int64_t>(NV);
+  GlobalAddress<int64_t> iwork = Grappa_typed_malloc<int64_t>(NV);
   
   double t;
   t = timer();

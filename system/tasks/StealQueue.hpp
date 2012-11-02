@@ -1,6 +1,12 @@
+// Copyright 2010-2012 University of Washington. All Rights Reserved.
+// LICENSE_PLACEHOLDER
+// This software was created with Government support under DE
+// AC05-76RL01830 awarded by the United States Department of
+// Energy. The Government has certain rights in the software.
 
-#ifndef STEAL_QUEUE_HPP
-#define STEAL_QUEUE_HPP
+
+#ifndef STEALQUEUE_HPP
+#define STEALQUEUE_HPP
 
 #include <iostream>
 #include <glog/logging.h>   
@@ -118,7 +124,10 @@ class StealStatistics {
 
 extern StealStatistics steal_queue_stats;
 
-
+/// Bounded queue that knows how to share elements
+/// with other queues by work stealing.
+///
+/// @tparam T type of elements
 template <typename T>
 class StealQueue {
     private:
@@ -182,6 +191,7 @@ class StealQueue {
         static void pull_global_data_request_g_am( pull_global_data_args<T> * args, size_t args_size, void * payload, size_t payload_size );
         static void pull_global_data_reply_g_am( GlobalAddress< Signaler > * signal, size_t arg_size, T * payload, size_t payload_size );
         
+        /// Output stream of queue state
         std::ostream& dump ( std::ostream& o ) const {
           std::stringstream ss;
           for ( uint64_t i = top; i>bottom; i-- ) {
@@ -214,6 +224,7 @@ class StealQueue {
 
         }
 
+        /// Constructor allocates uninitialized queue
         StealQueue( ) 
             : stackSize( -1 )
             , maxStackDepth( 0 )
@@ -221,9 +232,7 @@ class StealQueue {
             , nAcquire( 0 ), nRelease( 0 ), nStealPackets( 0 ), nFail( 0 )
             , wakeups( 0 ), falseWakeups( 0 ), nNodes_last( 0 ) 
             , numPendingElements( 0 )
-{
-
-            }
+            { }
         
         void mkEmpty(); 
         void push( T c); 
@@ -233,8 +242,9 @@ class StealQueue {
         uint64_t depth( ) const; 
         void release( int k ); 
         int acquire( int k ); 
-        void setState( int state );
         
+        /// Get number of elements that have been
+        /// pushed into this queue
         uint64_t get_nNodes( ) {
             return nNodes;
         }
@@ -300,16 +310,11 @@ inline void StealQueue<T>::pop( ) {
   DVLOG(5) << "after pop:" << *this;
 }
 
-
-/// depth
+/// number of elements in the queue
 template <typename T>
 inline uint64_t StealQueue<T>::depth() const {
   return (top - bottom);
 }
-
-
-template <typename T>
-void StealQueue<T>::setState( int state ) { return; }
 
 /// set queue to empty
 template <typename T>
@@ -331,20 +336,22 @@ uint64_t StealQueue<T>::topPosn() const
 // Work stealing
 /////////////////////////////////////////////////
 
-//#include "../SoftXMT.hpp" 
+//#include "../Grappa.hpp" 
 #include <Communicator.hpp>
 #include <tasks/TaskingScheduler.hpp>
 
 extern TaskingScheduler global_scheduler;
-// void SoftXMT_suspend();
-// void SoftXMT_wake( Thread * );
-// Node SoftXMT_mynode();
+// void Grappa_suspend();
+// void Grappa_wake( Thread * );
+// Node Grappa_mynode();
 
+/// Arguments for a work steal request from thief
 struct workStealRequest_args {
     int k;
     Node from;
 };
 
+/// Arguments for a work steal reply from victim
 struct workStealReply_args {
     int stealAmt;
     int total;
@@ -363,6 +370,8 @@ static bool pendingWorkShare = false;
 
 static bool pendingGlobalPush = false;
 
+/// Reply to steal operation that takes place on the thief's Node
+/// Copies the received elements into the local queue
 template <typename T>
 void StealQueue<T>::steal_reply( uint64_t amt, uint64_t total, T * stolen_work, size_t stolen_size_bytes ) {
     if (amt > 0) {
@@ -389,7 +398,7 @@ void StealQueue<T>::steal_reply( uint64_t amt, uint64_t total, T * stolen_work, 
         VLOG(5) << "Last packet; will wake steal_waiter=" << steal_waiter;
         local_steal_amount = total;
         if ( steal_waiter != NULL ) {
-          //SoftXMT_wake( steal_waiter );
+          //Grappa_wake( steal_waiter );
           global_scheduler.thread_wake( steal_waiter );
           steal_waiter = NULL;
         }
@@ -400,13 +409,14 @@ void StealQueue<T>::steal_reply( uint64_t amt, uint64_t total, T * stolen_work, 
       nFail++;
       
       if ( steal_waiter != NULL ) {
-        //SoftXMT_wake( steal_waiter );
+        //Grappa_wake( steal_waiter );
         global_scheduler.thread_wake( steal_waiter );
         steal_waiter = NULL;
       }
     }
 }
 
+/// Steal reply Grappa active message
 template <typename T>
 void StealQueue<T>::workStealReply_am( workStealReply_args * args,  size_t size, void * payload, size_t payload_size ) {
     CHECK ( local_steal_amount == -1 ) << "local_steal_amount=" << local_steal_amount << " when steal reply arrives";
@@ -417,6 +427,7 @@ void StealQueue<T>::workStealReply_am( workStealReply_args * args,  size_t size,
     steal_queue.steal_reply( args->stealAmt, args->total, stolen_work, payload_size );
 }
 
+/// Steal request Grappa active message
 template <typename T>
 void StealQueue<T>::steal_request( int k, Node from ) {
     int victimBottom = this->bottom;
@@ -447,7 +458,8 @@ void StealQueue<T>::steal_request( int k, Node from ) {
         VLOG(5) << "sending steal packet of transfer_amt=" << transfer_amt << " remain=" << remain << " / stealAmt=" << stealAmt;
         remain -= transfer_amt;
         workStealReply_args reply_args = { transfer_amt, stealAmt };
-        SoftXMT_call_on( from, &StealQueue<T>::workStealReply_am, 
+        
+        Grappa_call_on( from, &StealQueue<T>::workStealReply_am, 
             &reply_args, sizeof(workStealReply_args), 
             victimStealStart + offset, transfer_amt*sizeof( T ));
         size_t msg_size = SoftXMT_sizeof_message( &reply_args, sizeof(workStealReply_args), victimStealStart + offset, transfer_amt*sizeof(T));
@@ -463,7 +475,7 @@ void StealQueue<T>::steal_request( int k, Node from ) {
 
     } else {
       workStealReply_args reply_args = { 0, 0 };
-      SoftXMT_call_on( from, &StealQueue<T>::workStealReply_am, &reply_args );
+      Grappa_call_on( from, &StealQueue<T>::workStealReply_am, &reply_args );
       size_t msg_size = SoftXMT_sizeof_message( &reply_args );
       steal_queue_stats.record_steal_reply( msg_size );
     }
@@ -478,6 +490,11 @@ void StealQueue<T>::workStealRequest_am(workStealRequest_args * args, size_t siz
 }
 
 #include "Thread.hpp"
+
+/// Steal elements from the StealQueue<T> located at the victim Node.
+/// @tparam T type of the queue elements
+/// @param victim target Node to steal from
+/// @param op max steal amount
 template <typename T>
 int StealQueue<T>::steal_locally( Node victim, int op ) {
 
@@ -486,7 +503,7 @@ int StealQueue<T>::steal_locally( Node victim, int op ) {
     received_tasks = 0;
 
     workStealRequest_args req_args = { op, global_communicator.mynode() };
-    SoftXMT_call_on( victim, &StealQueue<T>::workStealRequest_am, &req_args );
+    Grappa_call_on( victim, &StealQueue<T>::workStealRequest_am, &req_args );
     size_t msg_size = SoftXMT_sizeof_message( &req_args );
     steal_queue_stats.record_steal_request( msg_size );
 
@@ -502,7 +519,7 @@ int StealQueue<T>::steal_locally( Node victim, int op ) {
         GRAPPA_PROFILE_THREAD_START( stealprof, global_scheduler.get_current_thread() );
 	    
         global_scheduler.thread_suspend();
-        //SoftXMT_suspend();
+        //Grappa_suspend();
         
         GRAPPA_PROFILE_THREAD_STOP( stealprof, global_scheduler.get_current_thread() );
     }
@@ -841,9 +858,10 @@ bool StealQueue<T>::push_global( uint64_t amount ) {
 template <typename T>
 StealQueue<T> StealQueue<T>::steal_queue;
 
+/// Output stream for state of the StealQueue
 template <typename T>
 std::ostream& operator<<( std::ostream& o, const StealQueue<T>& sq ) {
     return sq.dump( o );
 }
 
-#endif
+#endif // STEALQUEUE_HPP

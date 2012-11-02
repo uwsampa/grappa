@@ -1,15 +1,27 @@
+// Copyright 2010-2012 University of Washington. All Rights Reserved.
+// LICENSE_PLACEHOLDER
+// This software was created with Government support under DE
+// AC05-76RL01830 awarded by the United States Department of
+// Energy. The Government has certain rights in the software.
+
 #include <cstdlib>
 #include <cassert>
 #include "Thread.hpp"
 #include "Scheduler.hpp"
 #include "PerformanceTools.hpp"
 
+/// Size in bytes of the stack allocated for every Thread
 #define STACK_SIZE 2<<18
 
+/// ThreadQueue output stream
 std::ostream& operator<< ( std::ostream& o, const ThreadQueue& tq ) {
     return tq.dump( o );
 }
 
+/// Turns the current (system) thread into a Grappa Thread.
+/// This is simply necessary so that a Scheduler can
+/// cause a context switch back to the system thread when
+/// the Scheduler is done
 Thread * thread_init() {
   coro* me = coro_init();
   Thread * master = (Thread *)malloc(sizeof(Thread));
@@ -32,6 +44,7 @@ Thread * thread_init() {
 int thread_last_tau_taskid=0;
 #endif
 
+/// Trampoline for spawning a new thread.
 static void tramp(struct coro * me, void * arg) {
   // Pass control back and forth a few times to get the info we need.
   coro* master = (coro *)arg;
@@ -88,6 +101,9 @@ Thread * thread_spawn(Thread * me, Scheduler * sched,
   return thr;
 }
 
+/// Called when a Thread completes its function.
+/// Thread->next will contain retval.
+/// This function does not return to the caller.
 void thread_exit(Thread * me, void * retval) {
 
   // Reuse the queue field for a return value.
@@ -108,6 +124,7 @@ void thread_exit(Thread * me, void * retval) {
   exit(EXIT_FAILURE);
 }
 
+/// Delete the thread.
 void destroy_thread(Thread * thr) {
   destroy_coro(thr->co);
   free (thr);

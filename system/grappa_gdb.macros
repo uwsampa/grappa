@@ -1,5 +1,14 @@
+
+# Copyright 2010-2012 University of Washington. All Rights Reserved.
+# LICENSE_PLACEHOLDER
+# This software was created with Government support under DE
+# AC05-76RL01830 awarded by the United States Department of
+# Energy. The Government has certain rights in the software.
+
 #
 # Grappa gdb macros
+#
+# load by telling GDB "source grappa_gdb.macros"
 #
 
 set print pretty on
@@ -43,6 +52,8 @@ These are the Grappa gdb macros.
                                             DO NOT CONTINUE UNTIL RESTORE
   grappa_save_state                         save real $rip and $rsp
   grappa_restore_state                      restore real $rip and $rsp
+
+  dumpstack <coroutine pointer>             dump the stack (as raw int64_t's)
 
 Type "help <macro>" for more specific help on a particular macro.
 Type "show user <macro>" to see what the macro is really doing.
@@ -338,10 +349,10 @@ define btc
   backtrace
   grappa_restore_state
 end
-document btcf
+document btc
 Print backtrace of Grappa coroutine.
 Syntax:
-   (gdb) btcf <coroutine pointer>
+   (gdb) btc <coroutine pointer>
 end
 
 define btcf
@@ -353,5 +364,14 @@ document btcf
 Print backtrace of Grappa coroutine with locals.
 Syntax:
    (gdb) btcf <coroutine pointer>
+end
+
+define dumpstack
+  p ((int64_t*)((coro*)$arg0)->stack) @ (((coro*)$arg0)->base+((coro*)$arg0)->ssize+4096-((coro*)$arg0)->stack)/sizeof(int64_t)
+end
+document dumpstack
+Dump stack (as int64_t's).
+Syntax:
+   (gdb) dumpstack <coroutine pointer>
 end
 

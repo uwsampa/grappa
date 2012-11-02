@@ -1,13 +1,20 @@
+
+# Copyright 2010-2012 University of Washington. All Rights Reserved.
+# LICENSE_PLACEHOLDER
+# This software was created with Government support under DE
+# AC05-76RL01830 awarded by the United States Department of
+# Energy. The Government has certain rights in the software.
+
 #############################################################################
-# common variables for softxmt project
+# common variables for grappa project
 #
 # many are defined with ?=, so they can be overridden at the top.
 #############################################################################
 
-# check if autodetect SOFTXMT_HOME is consistent
-AUTO_HOME=$(shell git rev-parse --show-toplevel)
-ifneq ($(SOFTXMT_HOME), $(AUTO_HOME))
-warning "Environment variable SOFTXMT_HOME was set but doesn't match the autodetected home. $(SOFTXMT_HOME), $(AUTO_HOME)"
+# check if autodetect GRAPPA_HOME is consistent
+AUTO_HOME=$(shell /bin/bash -c '(while [[ ! -e include.mk && "`pwd`" != "/" ]]; do cd ..; done; pwd )')
+ifneq ($(GRAPPA_HOME), $(AUTO_HOME))
+$(warning Environment variable GRAPPA_HOME was set but does not match the autodetected home. $(GRAPPA_HOME), $(AUTO_HOME))
 endif
 
 #
@@ -36,13 +43,10 @@ PAL=true
 endif
 
 ifdef PAL
-BDMYERS=/pic/people/bdmyers
 NELSON=/pic/people/nels707
 
 #GASNET=$(NELSON)/gasnet
 HUGETLBFS=/usr
-#GFLAGS=$(BDMYERS)/local
-#GLOG=$(BDMYERS)/local
 BOOST=$(NELSON)/boost
 GPERFTOOLS=$(NELSON)/gperftools
 VAMPIRTRACE=$(NELSON)/vampirtrace
@@ -164,9 +168,15 @@ CFLAGS+= -I$(BOOST)/include
 LDFLAGS+= -L$(BOOST)/lib64 -L$(BOOST)/lib
 LD_LIBRARY_PATH:=$(LD_LIBRARY_PATH):$(BOOST)/lib
 
+ifdef GASNET_TRACING
+GASNET:=/sampa/share/gasnet-1.18.2-tracing
+GASNET_SETTINGS+=GASNET_TRACEFILE="/scratch/gasnet_trace_%"
+GASNET_SETTINGS+=GASNET_TRACEMASK=I
+#GASNET_SETTINGS+=GASNET_TRACENODES=2-4
+endif
+
 # gasnet
-GASNET=$(SOFTXMT_HOME)/tools/built_deps
-#GASNET?=/sampa/share/gasnet-1.18.2-openmpi-4kbuf-symbols
+GASNET=$(GRAPPA_HOME)/tools/built_deps
 GASNET_CONDUIT?=ibv #values:ibv,mpi
 GASNET_THREAD=seq #values:seq,par,parsync -- seq recommended
 
@@ -191,24 +201,24 @@ HUGETLBFS?=/usr
 CFLAGS+= -I$(HUGETLBFS)/include
 LDFLAGS+= -L$(HUGETLBFS)/lib64
 
-GFLAGS=$(SOFTXMT_HOME)/tools/built_deps
+GFLAGS=$(GRAPPA_HOME)/tools/built_deps
 CFLAGS+= -I$(GFLAGS)/include
 LDFLAGS+= -L$(GFLAGS)/lib
 LD_LIBRARY_PATH:=$(LD_LIBRARY_PATH):$(GFLAGS)/lib
 
-GLOG=$(SOFTXMT_HOME)/tools/built_deps
+GLOG=$(GRAPPA_HOME)/tools/built_deps
 CFLAGS+= -I$(GLOG)/include
 LDFLAGS+= -L$(GLOG)/lib
 LD_LIBRARY_PATH:=$(LD_LIBRARY_PATH):$(GLOG)/lib
 
-GPERFTOOLS=$(SOFTXMT_HOME)/tools/built_deps
+GPERFTOOLS=$(GRAPPA_HOME)/tools/built_deps
 #GPERFTOOLS?=/sampa/share/gperftools-2.0-nolibunwind
 CFLAGS+= -I$(GPERFTOOLS)/include
 LDFLAGS+= -L$(GPERFTOOLS)/lib
 LD_LIBRARY_PATH:=$(LD_LIBRARY_PATH):$(GPERFTOOLS)/lib
 
 
-VAMPIRTRACE?=$(SOFTXMT_HOME)/tools/built_deps
+VAMPIRTRACE?=$(GRAPPA_HOME)/tools/built_deps
 CFLAGS+= -I$(VAMPIRTRACE)/include
 LDFLAGS+= -L$(VAMPIRTRACE)/lib
 LD_LIBRARY_PATH:=$(VAMPIRTRACE)/lib:$(LD_LIBRARY_PATH)
@@ -239,6 +249,8 @@ SRUN_EXPORT_ENV_VARIABLES?=--task-prolog=$(SRUN_ENVVAR_TEMP) --task-epilog=$(SRU
 .srunrc.%:
 	@echo \#!/bin/bash > $@
 	@for i in $(ENV_VARIABLES); do echo echo export $$i >> $@; done
+	@echo '# Clean up any leftover shared memory regions' >> $@
+	@echo 'for i in `ipcs -m | grep $(USER) | cut -d" " -f1`; do ipcrm -M $$i; done' >> $@
 	@chmod +x $@
 
 .srunrc_epilog.%:

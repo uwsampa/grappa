@@ -20,6 +20,7 @@ optionally:
     shmmaxkB = 123456789
 
     """
+    shiftval = 14
     def __init__(self, shmmaxkB=0):
         super(SetShmmax, self).__init__()
         self.shmmaxkB = shmmaxkB
@@ -31,8 +32,8 @@ optionally:
                 self.pool.simple_job(node.ssh.execute, ('sysctl -w kernel.shmmax=%d' %shmmax), jobid=node.alias)
                 self.pool.simple_job(node.ssh.execute, ('sysctl -w kernel.shmall=%d' %shmmax/4096), jobid=node.alias)
             else:
-                self.pool.simple_job(node.ssh.execute, ("sysctl -w kernel.shmmax=`grep MemTotal /proc/meminfo | awk '{print rshift($2*1024,1)}'`"), jobid=node.alias)
-                self.pool.simple_job(node.ssh.execute, ("sysctl -w kernel.shmall=`grep MemTotal /proc/meminfo | awk '{print rshift($2*1024,13)}'`"), jobid=node.alias)
+                self.pool.simple_job(node.ssh.execute, ("sysctl -w kernel.shmmax=`grep MemTotal /proc/meminfo | awk '{print lshift(rshift($2*1024,%d),12)}'`" % self.shiftval), jobid=node.alias)
+                self.pool.simple_job(node.ssh.execute, ("sysctl -w kernel.shmall=`grep MemTotal /proc/meminfo | awk '{print rshift($2*1024,%d)}'`" % self.shiftval), jobid=node.alias)
 
         self.pool.wait(len(nodes))
 
@@ -42,8 +43,8 @@ optionally:
             self.pool.simple_job(new_node.ssh.execute, ('sysctl -w kernel.shmmax=%d' %shmmax), jobid=node.alias)           
             self.pool.simple_job(new_node.ssh.execute, ('sysctl -w kernel.shmall=%d' %shmmax/4096), jobid=node.alias)
         else:
-            self.pool.simple_job(new_node.ssh.execute, ("sysctl -w kernel.shmmax=`grep MemTotal /proc/meminfo | awk '{print rshift($2*1024,1)}'`"), jobid=node.alias)
-            self.pool.simple_job(new_node.ssh.execute, ("sysctl -w kernel.shmall=`grep MemTotal /proc/meminfo | awk '{print rshift($2*1024,13)}'`"), jobid=node.alias)
+            self.pool.simple_job(new_node.ssh.execute, ("sysctl -w kernel.shmmax=`grep MemTotal /proc/meminfo | awk '{print lshift(rshift($2*1024,%d),12)}'`" % self.shiftval), jobid=node.alias)
+            self.pool.simple_job(new_node.ssh.execute, ("sysctl -w kernel.shmall=`grep MemTotal /proc/meminfo | awk '{print rshift($2*1024,%d)}'`" % self.shfitval), jobid=node.alias)
 
     def on_remove_node(self, node, nodes, master, user, user_shell, volumes):
         pass

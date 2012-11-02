@@ -1,5 +1,11 @@
+// Copyright 2010-2012 University of Washington. All Rights Reserved.
+// LICENSE_PLACEHOLDER
+// This software was created with Government support under DE
+// AC05-76RL01830 awarded by the United States Department of
+// Energy. The Government has certain rights in the software.
+
 #include "Task.hpp"
-#include "../SoftXMT.hpp"
+#include "../Grappa.hpp"
 #include "../PerformanceTools.hpp"
 #include "TaskingScheduler.hpp"
 #include "common.hpp"
@@ -9,18 +15,18 @@ DEFINE_int32( chunk_size, 10, "Max amount of work transfered per load balance" )
 DEFINE_string( load_balance, "steal", "Type of dynamic load balancing {none, steal (default), share, gq}" );
 DEFINE_uint64( global_queue_threshold, 1024, "Threshold to trigger release of tasks to global queue" );
 
-//#define MAXQUEUEDEPTH 500000
-#define MAXQUEUEDEPTH (1L<<26)
+#define MAXQUEUEDEPTH (1L<<26)   // previous values: 500000
 
 TaskManager global_task_manager;
 
 GRAPPA_DEFINE_EVENT_GROUP(task_manager);
 //DEFINE_bool(TaskManager_events, true, "Enable tracing of events in TaskManager.");
 
+/// Create an uninitialized TaskManager
+/// init() must subsequently be called before fully initialized.
 TaskManager::TaskManager ( ) 
   : privateQ( )
   , workDone( false )
-  , all_terminate( false )
   , doSteal( false )
   , doShare( false )
   , doGQ( false )
@@ -34,6 +40,7 @@ TaskManager::TaskManager ( )
 }
 
 
+/// Initialize the task manager with runtime parameters.
 void TaskManager::init ( Node localId_arg, Node * neighbors_arg, Node numLocalNodes_arg ) {
   if ( FLAGS_load_balance.compare(        "none" ) == 0 ) {
     doSteal = false; doShare = false; doGQ = false;
@@ -66,7 +73,6 @@ void TaskManager::init ( Node localId_arg, Node * neighbors_arg, Node numLocalNo
     neighbors[i-1] = temp;
   }
 }
-     
 
 // GlobalQueue instantiations
 template void global_queue_pull<Task>( ChunkInfo<Task> * result );
@@ -78,7 +84,7 @@ template GlobalQueue<Task> GlobalQueue<Task>::global_queue;
 
 inline void TaskManager::tryPushToGlobal() {
   // push to global queue if local queue has grown large
-  if ( doGQ && SoftXMT_global_queue_isInit() && gqPushLock ) {
+  if ( doGQ && Grappa_global_queue_isInit() && gqPushLock ) {
     gqPushLock = false;
     uint64_t local_size = publicQ.depth();
     DVLOG(3) << "Allowed to push gq: local size " << local_size;
@@ -92,6 +98,11 @@ inline void TaskManager::tryPushToGlobal() {
   }
 }
 
+/// Find an unstarted Task to execute.
+/// 
+/// @param result buffer for the returned Task
+/// 
+/// @return true if result is valid, otherwise there are no more Tasks
 bool TaskManager::getWork( Task * result ) {
   GRAPPA_FUNCTION_PROFILE( GRAPPA_TASK_GROUP );
 
@@ -121,8 +132,8 @@ inline void TaskManager::checkWorkShare() {
     double divisor = local_size/FLAGS_ws_coeff;
     if (divisor==0) divisor = 1.0;
     if ( local_size == 0 || ((fast_rand()%(1<<16)) < ((1<<16)/divisor)) ) {
-      Node target = fast_rand()%SoftXMT_nodes();
-      if ( target == SoftXMT_mynode() ) target = (target+1)%SoftXMT_nodes(); // don't share with ourself
+      Node target = fast_rand()%Grappa_nodes();
+      if ( target == Grappa_mynode() ) target = (target+1)%Grappa_nodes(); // don't share with ourself
       DVLOG(5) << "before share: " << publicQ;
       uint64_t amount = MIN_INT( local_size/2, chunkSize );  // offer half or limit
       int64_t numChange = publicQ.workShare( target, amount );
@@ -133,8 +144,11 @@ inline void TaskManager::checkWorkShare() {
   }
 }
 
-
-/// "work queue" operations
+/// Dequeue local unstarted Task if any exist.
+///
+/// @param result buffer for the returned Task
+///
+/// @return true if returning valid Task, false if no local Task exists.
 bool TaskManager::tryConsumeLocal( Task * result ) {
   if ( privateHasEle() ) {
     *result = privateQ.front();
@@ -156,14 +170,9 @@ bool TaskManager::tryConsumeLocal( Task * result ) {
   }
 }
 
-DEFINE_bool( steal_idle_only, false, "Only steal when the core has no active tasks" );
-static bool stealOk() {
-  return (!FLAGS_steal_idle_only) || global_scheduler.active_task_count() < 4; // allow some for FJ private tasks
-}
-
 inline void TaskManager::checkPull() {
   if ( doSteal ) {
-    if ( stealLock && stealOk() ) {
+    if ( stealLock ) {
 
       GRAPPA_PROFILE_CREATE( prof, "stealing", "(session)", GRAPPA_TASK_GROUP );
       GRAPPA_PROFILE_START( prof );
@@ -183,7 +192,7 @@ inline void TaskManager::checkPull() {
         victimId = v;
         nextVictimIndex = (nextVictimIndex+1) % numLocalNodes;
 
-        if ( v == SoftXMT_mynode() ) continue; // don't steal from myself
+        if ( v == Grappa_mynode() ) continue; // don't steal from myself
 
         goodSteal = publicQ.steal_locally(v, chunkSize);
 
@@ -217,7 +226,7 @@ inline void TaskManager::checkPull() {
 
       GRAPPA_PROFILE_STOP( prof );
     }
-  } else if ( doGQ && SoftXMT_global_queue_isInit() ) {
+  } else if ( doGQ && Grappa_global_queue_isInit() ) {
     if ( gqPullLock ) { 
       // artificially limiting to 1 outstanding pull; for
       // now we do want a small limit since pulls are
@@ -234,16 +243,22 @@ inline void TaskManager::checkPull() {
 }
 
 
+/// Blocking dequeue of any Task from the global Task pool.
 /// Only returns when there is work or when
 /// the system has no more work.
+///
+/// @param result buffer for the returned Task
+///
+/// @return true if returning valid Task, false means no more work exists
+///         in the system
 bool TaskManager::waitConsumeAny( Task * result ) {
     checkPull();
 
     if ( !local_available() ) {
         GRAPPA_PROFILE_CREATE( prof, "worker idle", "(suspended)", GRAPPA_SUSPEND_GROUP ); 
         GRAPPA_PROFILE_START( prof );
-        if ( !SoftXMT_thread_idle() ) {
-            SoftXMT_yield(); // allow polling thread to run
+        if ( !Grappa_thread_idle() ) { // TODO: change to directly use scheduler thread idle
+            Grappa_yield(); // TODO: remove this, since thread_idle now suspends always
         } else {
             DVLOG(5) << CURRENT_THREAD << " un-idled";
         }
@@ -253,7 +268,12 @@ bool TaskManager::waitConsumeAny( Task * result ) {
     return false;
 }
 
-
+/// Print stream output of TaskManager
+/// 
+/// @param o output stream to append to
+/// @param tm TaskManager to print
+///
+/// @return new output stream
 std::ostream& operator<<( std::ostream& o, const TaskManager& tm ) {
     return tm.dump( o );
 }
@@ -262,11 +282,16 @@ std::ostream& operator<<( std::ostream& o, const Task& t ) {
     return t.dump( o );
 }
 
+/// Tell the TaskManager that it should terminate.
+/// Any tasks that are still in the queues are
+/// not guarenteed to be executed after this returns.
 void TaskManager::signal_termination( ) {
     workDone = true;
-    SoftXMT_signal_done();
+    Grappa_signal_done();
 }
 
+/// Teardown.
+/// Currently does nothing.
 void TaskManager::finish() {
 }
 
@@ -274,12 +299,16 @@ void TaskManager::finish() {
 /// Stats
 ///
 
-void TaskManager::dump_stats() {
-    stats.dump();
+/// Print statistics.
+void TaskManager::dump_stats( std::ostream& o = std::cout, const char * terminator = "" ) {
+  stats.dump( o, terminator );
 }
 
+/// Print statistics in dictionary format.
+/// { name1:value1, name2:value2, ... }
 #include "DictOut.hpp"
-void TaskManager::TaskStatistics::dump() {
+void TaskManager::TaskStatistics::dump( std::ostream& o = std::cout, const char * terminator = "" ) {
+    double stddev_steal_amount = stddev_steal_amt_.value();
     DictOut dout;
     DICT_ADD(dout, session_steal_successes_);
     DICT_ADD(dout, session_steal_fails_);
@@ -304,7 +333,7 @@ void TaskManager::TaskStatistics::dump() {
     DICT_ADD_STAT_TOTAL( dout, workshares_initiated_received_elements_ );
     DICT_ADD_STAT_TOTAL( dout, workshares_initiated_pushed_elements_ );
 
-    std::cout << "TaskStatistics " << dout.toString() << std::endl;
+    o << "   \"TaskStatistics\": " << dout.toString() << terminator << std::endl;
 }
 
 void TaskManager::TaskStatistics::sample() {
@@ -329,6 +358,7 @@ void TaskManager::TaskStatistics::sample() {
 //#endif
 }
 
+/// Take a sample of statistics and other state.
 void TaskManager::TaskStatistics::profiling_sample() {
 #ifdef VTRACE_SAMPLED
   VT_COUNT_UNSIGNED_VAL( privateQ_size_vt_ev, tm->privateQ.size() );

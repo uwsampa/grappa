@@ -1,9 +1,16 @@
-#ifndef _UID_HPP_
-#define _UID_HPP_
+// Copyright 2010-2012 University of Washington. All Rights Reserved.
+// LICENSE_PLACEHOLDER
+// This software was created with Government support under DE
+// AC05-76RL01830 awarded by the United States Department of
+// Energy. The Government has certain rights in the software.
 
-#include "SoftXMT.hpp"
+#ifndef UID_HPP
+#define UID_HPP
+
+#include "Grappa.hpp"
 #include <queue>
 
+/// Distributed allocator of a range of contiguous IDs.
 class UIDManager {
   private:
     uint64_t start;
@@ -41,4 +48,4 @@ class UIDManager {
     uint64_t getUID();
 };
 
-#endif // _UID_HPP_
+#endif // UID_HPP

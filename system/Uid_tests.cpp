@@ -1,6 +1,12 @@
+// Copyright 2010-2012 University of Washington. All Rights Reserved.
+// LICENSE_PLACEHOLDER
+// This software was created with Government support under DE
+// AC05-76RL01830 awarded by the United States Department of
+// Energy. The Government has certain rights in the software.
+
 #include <boost/test/unit_test.hpp>
 
-#include "SoftXMT.hpp"
+#include "Grappa.hpp"
 #include "Uid.hpp"
 #include "Collective.hpp"
 #include "common.hpp"
@@ -20,13 +26,13 @@ uint64_t all_total1;
 uint64_t all_total2;
 
 LOOP_FUNCTOR( init_uid1_f, nid, ((int64_t,start)) ((int64_t,end)) ) {
-  range_t myrange = blockDist(start, end, SoftXMT_mynode(), SoftXMT_nodes());
+  range_t myrange = blockDist(start, end, Grappa_mynode(), Grappa_nodes());
   uid1 = new UIDManager();
   uid1->init( myrange.start, myrange.end, node_neighbors );
 }
 
 LOOP_FUNCTOR( init_uid2_f, nid, ((int64_t,start)) ((int64_t,end)) ) {
-  range_t myrange = blockDist(start, end, SoftXMT_mynode(), SoftXMT_nodes());
+  range_t myrange = blockDist(start, end, Grappa_mynode(), Grappa_nodes());
   uid2 = new UIDManager();
   uid2->init( myrange.start, myrange.end, node_neighbors );
 }
@@ -52,7 +58,7 @@ LOOP_FUNCTOR( test_f, nid, ((int64_t,numiters)) ) {
 
 LOOP_FUNCTOR( reduce_f, nid, ((uint64_t*,valaddr)) ((uint64_t*,all_total_addr)) ) {
   int64_t total_cast = *valaddr;
-  *all_total_addr = SoftXMT_allreduce<int64_t,COLL_ADD,0>(total_cast);
+  *all_total_addr = Grappa_allreduce<int64_t,COLL_ADD,0>(total_cast);
 }
 
 
@@ -106,17 +112,17 @@ void user_main( void * args ) {
 
 BOOST_AUTO_TEST_CASE( test1 ) {
 
-  SoftXMT_init( &(boost::unit_test::framework::master_test_suite().argc),
+  Grappa_init( &(boost::unit_test::framework::master_test_suite().argc),
                 &(boost::unit_test::framework::master_test_suite().argv) );
 
-  SoftXMT_activate();
+  Grappa_activate();
 
   DVLOG(1) << "Spawning user main Thread....";
-  SoftXMT_run_user_main( &user_main, (void*)NULL );
+  Grappa_run_user_main( &user_main, (void*)NULL );
   VLOG(5) << "run_user_main returned";
-  CHECK( SoftXMT_done() );
+  CHECK( Grappa_done() );
 
-  SoftXMT_finish( 0 );
+  Grappa_finish( 0 );
 }
 
 

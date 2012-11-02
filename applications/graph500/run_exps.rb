@@ -1,17 +1,17 @@
 #!/usr/bin/env ruby
 require "experiments"
 
-db = "#{ENV['HOME']}/exp/softxmt.db"
+db = "#{ENV['HOME']}/exp/grappa.db"
 table = :graph500
 
-# select between running on XMT or SoftXMT by if it's on cougar
+# select between running on XMT or Grappa by if it's on cougar
 if `hostname`.match /cougar/ then
   cmd = "mtarun -m %{nproc} xmt-csr-local/xmt-csr-local -s %{scale} -e %{edgefactor}"
   machinename = "cougarxmt"
 else
   # command that will be excuted on the command line, with variables in %{} substituted
-  cmd = %Q[cd softxmt && GLOG_logtostderr=1 LD_LIBRARY_PATH="\$LD_LIBRARY_PATH:/usr/local/lib:/sampa/home/bholt/opt/lib:/usr/lib64/openmpi-psm/lib:/sampa/home/bholt/opt/lib:/sampa/share/gflags/lib:/sampa/share/glog/lib:/usr/lib:/usr/lib:/sampa/share/gperftools-2.0/lib" GASNET_NUM_QPS=3 \
-    srun --resv-ports --cpu_bind=verbose,rank --exclusive --label --kill-on-bad-exit --task-prolog ~/srunrc.all --partition softxmt 
+  cmd = %Q[cd grappa && GLOG_logtostderr=1 LD_LIBRARY_PATH="\$LD_LIBRARY_PATH:/usr/local/lib:/sampa/home/bholt/opt/lib:/usr/lib64/openmpi-psm/lib:/sampa/home/bholt/opt/lib:/sampa/share/gflags/lib:/sampa/share/glog/lib:/usr/lib:/usr/lib:/sampa/share/gperftools-2.0/lib" GASNET_NUM_QPS=3 \
+    srun --resv-ports --cpu_bind=verbose,rank --exclusive --label --kill-on-bad-exit --task-prolog ~/srunrc.all --partition grappa 
       --nodes=%{nnode}
       --ntasks-per-node=%{ppn}
 	  --time=00:15:00 

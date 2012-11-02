@@ -1,8 +1,16 @@
 
+// Copyright 2010-2012 University of Washington. All Rights Reserved.
+// LICENSE_PLACEHOLDER
+// This software was created with Government support under DE
+// AC05-76RL01830 awarded by the United States Department of
+// Energy. The Government has certain rights in the software.
+
+/// Main Explicit Cache API
+
 #ifndef __CACHE_HPP__
 #define __CACHE_HPP__
 
-#include "SoftXMT.hpp"
+#include "Grappa.hpp"
 #include "Addressing.hpp"
 #include "common.hpp"
 
@@ -11,6 +19,7 @@
 #include "IncoherentAcquirer.hpp"
 #include "IncoherentReleaser.hpp"
 
+/// stats for caches
 class CacheStatistics {
   private:
     uint64_t ro_acquires;
@@ -50,7 +59,7 @@ class CacheStatistics {
       bytes_released+=bytes;
     }
 
-    void dump();
+    void dump( std::ostream& o, const char * terminator );
     void sample();
     void profiling_sample();
     void merge(const CacheStatistics * other);
@@ -59,6 +68,9 @@ class CacheStatistics {
 extern CacheStatistics cache_stats;
     
 
+/// Allocator for cache local storage. If you pass in a pointer to a
+/// buffer you've allocated, it uses that. Otherwise, it allocates a
+/// buffer.
 template< typename T >
 class CacheAllocator {
 public:
@@ -89,6 +101,7 @@ public:
   }
 };
 
+/// No-op cache acquire behavior
 template< typename T >
 class NullAcquirer {
 private:
@@ -103,7 +116,7 @@ public:
     if( count == 0 ) {
       DVLOG(5) << "Zero-length acquire";
       *pointer_ = NULL;
-    } else if( request_address_->is_2D() && request_address_->node() == SoftXMT_mynode() ) {
+    } else if( request_address_->is_2D() && request_address_->node() == Grappa_mynode() ) {
       DVLOG(5) << "Short-circuiting to address " << request_address_->pointer();
       *pointer_ = request_address_->pointer();
     }
@@ -115,7 +128,7 @@ public:
   bool acquired() const { return true; }
 };
 
-
+/// No-op cache release behavior
 template< typename T >
 class NullReleaser {
 private:
@@ -140,6 +153,8 @@ public:
 };
 
 
+/// Read-only cache object. This is parameterize so it can implement
+/// coherent or incoherent read-only caches.
 template< typename T, 
           template< typename TT > class Allocator, 
           template< typename TT > class Acquirer, 
@@ -154,6 +169,9 @@ protected:
   Releaser< T > releaser_;
 
 public:
+  /// Create a cache object. Call with a global address, a number of
+  /// elements to fetch, and optionally a local buffer to store the
+  /// cached copy.
   explicit CacheRO( GlobalAddress< T > address, size_t count, T * buffer = NULL )
     : address_( address )
     , count_( count )
@@ -163,21 +181,29 @@ public:
     , releaser_( &address_, &count_, &pointer_ )
   { }
 
+  /// send acquire message
   void start_acquire( ) { 
     cache_stats.count_ro_acquire( sizeof(T)*count_ );
     acquirer_.start_acquire( );
   }
+
+  /// block until acquire is completed
   void block_until_acquired() {
     cache_stats.count_ro_acquire( sizeof(T)*count_ );
     acquirer_.block_until_acquired();
   }
+  
+  /// send release message
   void start_release() { 
     releaser_.start_release( );
   }
+
+  /// block until release is completed
   void block_until_released() {
     releaser_.block_until_released( );
   }
 
+  /// reassign cache to point at a different block
   void reset( GlobalAddress< T > address, size_t count ) {
     block_until_acquired();
     block_until_released();
@@ -189,11 +215,14 @@ public:
 
   GlobalAddress< T > address() { return address_; }
 
+  /// Dereference cache
   operator const T*() { 
     block_until_acquired();
     DVLOG(5) << "Const dereference of " << address_ << " * " << count_;
     return pointer_;
   } 
+
+  /// Dereference cache
   operator const void*() { 
     block_until_acquired();
     DVLOG(5) << "Const void * dereference of " << address_ << " * " << count_;
@@ -201,6 +230,8 @@ public:
   } 
 };
 
+/// Read-write cache object. This is parameterize so it can implement
+/// coherent or incoherent read-write caches.
 template< typename T, 
           template< typename TT > class Allocator, 
           template< typename TT > class Acquirer, 
@@ -215,6 +246,9 @@ protected:
   Releaser< T > releaser_;
 
 public:
+  /// Create a cache object. Call with a global address, a number of
+  /// elements to fetch, and optionally a local buffer to store the
+  /// cached copy.
   explicit CacheRW( GlobalAddress< T > address, size_t count, T * buffer = NULL )
     : address_( address )
     , count_( count )
@@ -228,23 +262,31 @@ public:
     block_until_released();
   }
 
+  /// send acquire message
   void start_acquire( ) { 
     cache_stats.count_rw_acquire( sizeof(T)*count_ );
     acquirer_.start_acquire( );
   }
+
+  /// block until acquire is completed
   void block_until_acquired() {
     cache_stats.count_rw_acquire( sizeof(T)*count_ );
     acquirer_.block_until_acquired();
   }
+  
+  /// send release message
   void start_release() { 
     cache_stats.count_rw_release( sizeof(T)*count_ );
     releaser_.start_release( );
   }
+
+  /// block until release is completed
   void block_until_released() {
     cache_stats.count_rw_release( sizeof(T)*count_ );
     releaser_.block_until_released( );
   }
 
+  /// reassign cache to point at a different block
   void reset( GlobalAddress< T > address, size_t count ) {
     block_until_acquired();
     block_until_released();
@@ -256,11 +298,13 @@ public:
 
   GlobalAddress< T > address() { return address_; }
 
+  /// Dereference cache
   operator T*() { 
     block_until_acquired();
     DVLOG(5) << "RW dereference of " << address_ << " * " << count_;
     return pointer_;
   } 
+  /// Dereference cache
   operator void*() { 
     block_until_acquired();
     DVLOG(5) << "RW dereference of " << address_ << " * " << count_;
@@ -268,6 +312,9 @@ public:
   } 
 };
 
+/// Write-only cache object. This is parameterize so it can implement
+/// coherent or incoherent write-only caches. This is used to do bulk
+/// writes into arrays.
 template< typename T, 
 template< typename TT > class Allocator, 
 template< typename TT > class Acquirer, 
@@ -282,6 +329,9 @@ protected:
   Releaser< T > releaser_;
   
 public:
+  /// Create a cache object. Call with a global address, a number of
+  /// elements to fetch, and optionally a local buffer to store the
+  /// cached copy.
   explicit CacheWO( GlobalAddress< T > address, size_t count, T * buffer = NULL )
   : address_( address )
   , count_( count )
@@ -297,21 +347,29 @@ public:
     block_until_released();
   }
   
+  /// send acquire message
   void start_acquire( ) {
     acquirer_.start_acquire( );
   }
+
+  /// block until acquire is completed
   void block_until_acquired() {
     acquirer_.block_until_acquired();
   }
+
+  /// block until release is completed
   void start_release() { 
     cache_stats.count_wo_release( sizeof(T)*count_ );
     releaser_.start_release( );
   }
+
+  /// block until release is completed
   void block_until_released() {
     cache_stats.count_wo_release( sizeof(T)*count_ );
     releaser_.block_until_released( );
   }
 
+  /// reassign cache to point at a different block
   void reset( GlobalAddress< T > address, size_t count ) {
     block_until_acquired();
     block_until_released();
@@ -323,19 +381,22 @@ public:
 
   GlobalAddress< T > address() { return address_; }
 
+  /// Dereference cache
   operator T*() { 
     block_until_acquired();
     DVLOG(5) << "WO dereference of " << address_ << " * " << count_;
     VLOG(6) << "pointer_ = " << pointer_;
     return pointer_;
   } 
+  /// Dereference cache
   operator void*() { 
     block_until_acquired();
     DVLOG(5) << "WO dereference of " << address_ << " * " << count_;
     return pointer_;
   }
 };
-    
+
+/// All the incoherent caches with the right fields filled in.
 template< typename T >
 struct Incoherent {
   typedef CacheRO< T, CacheAllocator, IncoherentAcquirer, NullReleaser > RO;

@@ -1,6 +1,13 @@
+
+// Copyright 2010-2012 University of Washington. All Rights Reserved.
+// LICENSE_PLACEHOLDER
+// This software was created with Government support under DE
+// AC05-76RL01830 awarded by the United States Department of
+// Energy. The Government has certain rights in the software.
+
 #include <boost/test/unit_test.hpp>
 
-#include "SoftXMT.hpp"
+#include "Grappa.hpp"
 #include "GlobalTaskJoiner.hpp"
 #include "ForkJoin.hpp"
 #include "AsyncParallelFor.hpp"
@@ -27,10 +34,10 @@ void loop_body(int64_t start, int64_t num ) {
             << start+num << ") with thread " << CURRENT_THREAD->id );*/
   BOOST_CHECK( num <= FLAGS_async_par_for_threshold );
   for (int i=start; i<start+num; i++) {
-    int64_t marked = SoftXMT_delegate_fetch_and_add_word( make_global( &done[i], 0 ), 1 );
+    int64_t marked = Grappa_delegate_fetch_and_add_word( make_global( &done[i], 0 ), 1 );
     BOOST_CHECK( marked == 0 );
 
-    SoftXMT_delegate_fetch_and_add_word( make_global( &global_count, 0 ), 1 ); 
+    Grappa_delegate_fetch_and_add_word( make_global( &global_count, 0 ), 1 ); 
     local_count++;
   }
 }
@@ -56,9 +63,9 @@ void loop_body2(int64_t start, int64_t num, GlobalAddress<dummy_t> shared_arg_pa
   BOOST_CHECK( num <= FLAGS_async_par_for_threshold );
   int64_t origin = reinterpret_cast<int64_t>(shared_arg_packed.pointer());
   for (int i=start; i<start+num; i++) {
-    SoftXMT_delegate_fetch_and_add_word( make_global( &count2, origin ), 1 );
+    Grappa_delegate_fetch_and_add_word( make_global( &count2, origin ), 1 );
 
-    SoftXMT_delegate_fetch_and_add_word( make_global( &global_count, 0 ), 1 ); 
+    Grappa_delegate_fetch_and_add_word( make_global( &global_count, 0 ), 1 ); 
     local_count++;
   }
 }
@@ -68,6 +75,7 @@ LOOP_FUNCTION(check_count2, nid) {
 }
 
 struct parallel_func2 : public ForkJoinIteration {
+  // called on all nodes in parallel by "fork_join_custom"
   void operator()(int64_t nid) const {
     local_count = 0;
 
@@ -77,11 +85,17 @@ struct parallel_func2 : public ForkJoinIteration {
     // pack an argument into the global address (hack).
     // This is useful if we need just the node() from the global address and want to use the other
     // bits for something else.
-    int64_t shared_arg = SoftXMT_mynode(); 
+    int64_t shared_arg = Grappa_mynode(); 
     GlobalAddress<dummy_t> shared_arg_packed = make_global( reinterpret_cast<dummy_t*>(shared_arg) );
 
+    // get ready for parallel phase
     global_joiner.reset();
+
+    // do loop in parallel with recursive decomposition
+    // creates publicly stealable tasks
     async_parallel_for<dummy_t,loop_body2,joinerSpawn_hack<dummy_t,loop_body2,ASYNC_PAR_FOR_DEFAULT>,ASYNC_PAR_FOR_DEFAULT >(start,iters,shared_arg_packed);
+
+    // wait for all of the loop iterations to complete on all nodes
     global_joiner.wait();
   }
 };
@@ -89,7 +103,7 @@ struct parallel_func2 : public ForkJoinIteration {
 
   
 LOOP_FUNCTION(func_enable_google_profiler, nid) {
-  SoftXMT_start_profiling();
+  Grappa_start_profiling();
 }
 void profile_start() {
 #ifdef GOOGLE_PROFILER
@@ -98,7 +112,7 @@ void profile_start() {
 #endif
 }
 LOOP_FUNCTION(func_disable_google_profiler, nid) {
-  SoftXMT_stop_profiling();
+  Grappa_stop_profiling();
 }
 void profile_stop() {
 #ifdef GOOGLE_PROFILER
@@ -117,14 +131,16 @@ void signaling_task( int64_t * arg ) {
   global_joiner.signal();
 }
 
+/// Test one task doing work
 LOOP_FUNCTION( one_work_func, nid ) {
     global_joiner.reset();
     global_joiner.registerTask();
     int64_t ignore;
-    SoftXMT_privateTask( &signaling_task, &ignore );
+    Grappa_privateTask( &signaling_task, &ignore );
     global_joiner.wait();
 }
 
+/// Verify global joiner doesn't wait if all the work is done when it's called
 LOOP_FUNCTION( one_self_work_func, nid ) {
     global_joiner.reset();
 
@@ -138,7 +154,7 @@ LOOP_FUNCTION( one_self_work_func, nid ) {
 LOOP_FUNCTOR( ff_test_func, nid, ((GlobalAddress<double>,array)) ) {
   global_joiner.reset();
 
-  range_t r = blockDist(0, N, nid, SoftXMT_nodes());
+  range_t r = blockDist(0, N, nid, Grappa_nodes());
 
   for (int64_t i=r.start; i<r.end; i++) {
     ff_delegate_write(array+i, (double)i);
@@ -148,21 +164,21 @@ LOOP_FUNCTOR( ff_test_func, nid, ((GlobalAddress<double>,array)) ) {
 }
 
 void user_main( void * args ) {
-  BOOST_CHECK( SoftXMT_nodes() <= MAX_NODES );
+  BOOST_CHECK( Grappa_nodes() <= MAX_NODES );
   
-  int64_t total_iters = SoftXMT_nodes() * SIZE;
+  int64_t total_iters = Grappa_nodes() * SIZE;
   BOOST_MESSAGE( total_iters << " iterations over " <<
-                 SoftXMT_nodes() << " nodes" );
+                 Grappa_nodes() << " nodes" );
 
   BOOST_MESSAGE( "Test default" );
   {
 
   // add sampling of global_count
-  SoftXMT_add_profiling_counter( (uint64_t*)&global_count, "global count", "globcnt", false, 0 );
+  Grappa_add_profiling_counter( (uint64_t*)&global_count, "global count", "globcnt", false, 0 );
   
   parallel_func f;
   
-  SoftXMT_reset_stats_all_nodes();
+  Grappa_reset_stats_all_nodes();
   profile_start();
   fork_join_custom(&f);
   profile_stop();
@@ -173,8 +189,8 @@ void user_main( void * args ) {
   BOOST_CHECK( global_count == total_iters );
 
   // print out individual participations 
-  for (Node n=0; n<SoftXMT_nodes(); n++) {
-    int64_t n_count = SoftXMT_delegate_read_word( make_global( &local_count, n ) );
+  for (Node n=0; n<Grappa_nodes(); n++) {
+    int64_t n_count = Grappa_delegate_read_word( make_global( &local_count, n ) );
     BOOST_MESSAGE( n << " did " << n_count << " iterations" );
   }
   }
@@ -215,43 +231,43 @@ void user_main( void * args ) {
   fork_join_custom(&ff);
 
   // print out individual participations 
-  for (Node n=0; n<SoftXMT_nodes(); n++) {
-    int64_t n_count = SoftXMT_delegate_read_word( make_global( &local_count, n ) );
+  for (Node n=0; n<Grappa_nodes(); n++) {
+    int64_t n_count = Grappa_delegate_read_word( make_global( &local_count, n ) );
     BOOST_MESSAGE( n << " did " << n_count << " iterations" );
   }
   }
 
   BOOST_MESSAGE("testing feed-forward delegates");
   {
-    GlobalAddress<double> array = SoftXMT_typed_malloc<double>(N);
+    GlobalAddress<double> array = Grappa_typed_malloc<double>(N);
     { ff_test_func f(array); fork_join_custom(&f); }
     
     for (int64_t i=0; i<N; i++) {
       double d;
-      SoftXMT_delegate_read(array+i, &d);
+      Grappa_delegate_read(array+i, &d);
       BOOST_CHECK( d == (double)i );
     }
   }
 
   BOOST_MESSAGE( "user main is exiting" );
-  SoftXMT_dump_stats_all_nodes();
+  Grappa_dump_stats_all_nodes();
 }
 
 
 
 BOOST_AUTO_TEST_CASE( test1 ) {
 
-  SoftXMT_init( &(boost::unit_test::framework::master_test_suite().argc),
+  Grappa_init( &(boost::unit_test::framework::master_test_suite().argc),
                 &(boost::unit_test::framework::master_test_suite().argv) );
 
-  SoftXMT_activate();
+  Grappa_activate();
 
   DVLOG(1) << "Spawning user main Thread....";
-  SoftXMT_run_user_main( &user_main, (void*)NULL );
+  Grappa_run_user_main( &user_main, (void*)NULL );
   VLOG(5) << "run_user_main returned";
-  CHECK( SoftXMT_done() );
+  CHECK( Grappa_done() );
 
-  SoftXMT_finish( 0 );
+  Grappa_finish( 0 );
 }
 
 BOOST_AUTO_TEST_SUITE_END();
