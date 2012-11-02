@@ -20,6 +20,8 @@
 #include <vt_user.h>
 #endif
 
+    
+/// local queue for being part of global task pool
 #define publicQ StealQueue<Task>::steal_queue
 
 // forward declaration of Grappa Node
@@ -97,9 +99,6 @@ class TaskManager {
   private:
     /// queue for tasks assigned specifically to this Node
     std::deque<Task> privateQ; 
-
-    /// local queue for being part of global task pool
-    StealQueue<Task> publicQ;
 
     /// indicates that all tasks *should* be finished
     /// and termination can occur

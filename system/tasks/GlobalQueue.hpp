@@ -117,7 +117,7 @@ class GlobalQueue {
     bool initialized;
 
     static bool isMaster() {
-      return SoftXMT_mynode() == HOME_NODE;
+      return Grappa_mynode() == HOME_NODE;
     }
 
     
@@ -141,9 +141,9 @@ class GlobalQueue {
 
     void init() {
       if ( isMaster() ) {
-        capacity = (CAPACITY_PER_NODE) * SoftXMT_nodes();
+        capacity = (CAPACITY_PER_NODE) * Grappa_nodes();
         DVLOG(5) << "GlobalQueue capacity: " << capacity;
-        queueBase = SoftXMT_typed_malloc< QueueEntry<T> > ( capacity );
+        queueBase = Grappa_typed_malloc< QueueEntry<T> > ( capacity );
           // TODO could give option just to malloc here, but would be
           // bad for HOME_NODE's memory usage unless chunksize is very large
       }
@@ -177,8 +177,8 @@ bool GlobalQueue<T>::push( GlobalAddress<T> chunk_base, uint64_t chunk_amount ) 
   CHECK( initialized );
   DVLOG(5) << "push() base:" << chunk_base << " amount:" << chunk_amount;
 
-  GlobalAddress< QueueEntry<T> > loc = SoftXMT_delegate_func< bool, GlobalAddress< QueueEntry<T> >, GlobalQueue<T>::push_reserve_g > ( false, HOME_NODE );
-  size_t msg_bytes = SoftXMT_sizeof_delegate_func_request< bool, GlobalAddress< QueueEntry<T> > >( );
+  GlobalAddress< QueueEntry<T> > loc = Grappa_delegate_func< bool, GlobalAddress< QueueEntry<T> >, GlobalQueue<T>::push_reserve_g > ( false, HOME_NODE );
+  size_t msg_bytes = Grappa_sizeof_delegate_func_request< bool, GlobalAddress< QueueEntry<T> > >( );
   
   DVLOG(5) << "push() reserve done -- loc:" << loc;
   
@@ -198,8 +198,8 @@ bool GlobalQueue<T>::push( GlobalAddress<T> chunk_base, uint64_t chunk_amount ) 
   entry_args.target = loc;
   entry_args.chunk = c;
   DVLOG(5) << "push() sending entry to " << loc;
-  bool had_sleeper = SoftXMT_delegate_func< push_entry_args<T>, bool, GlobalQueue<T>::push_entry_g > ( entry_args, loc.node() ); 
-  size_t entry_msg_bytes = SoftXMT_sizeof_delegate_func_request< push_entry_args<T>, bool >( );
+  bool had_sleeper = Grappa_delegate_func< push_entry_args<T>, bool, GlobalQueue<T>::push_entry_g > ( entry_args, loc.node() ); 
+  size_t entry_msg_bytes = Grappa_sizeof_delegate_func_request< push_entry_args<T>, bool >( );
   global_queue_stats.record_push_entry_request( entry_msg_bytes, had_sleeper );
 
   return true;
@@ -220,8 +220,8 @@ void GlobalQueue<T>::pull( ChunkInfo<T> * result ) {
   A_Entry loc;
   D_A_Entry qdesc( &loc );
   A_D_A_Entry desc_addr = make_global( &qdesc );
-  SoftXMT_call_on( HOME_NODE, GlobalQueue<T>::pull_reserve_am_g, &desc_addr );
-  size_t resv_msg_bytes = SoftXMT_sizeof_message( &desc_addr );
+  Grappa_call_on( HOME_NODE, GlobalQueue<T>::pull_reserve_am_g, &desc_addr );
+  size_t resv_msg_bytes = Grappa_sizeof_message( &desc_addr );
   /* wait for element: this is designed to block forever if there are no more items shared in this queue
    * for the rest of the program. */
   qdesc.wait();
@@ -236,8 +236,8 @@ void GlobalQueue<T>::pull( ChunkInfo<T> * result ) {
   pull_entry_args<T> entry_args;
   entry_args.target = loc;
   entry_args.descriptor = make_global( &cdesc );
-  SoftXMT_call_on( loc.node(), pull_entry_request_g_am, &entry_args );
-  size_t entry_msg_bytes = SoftXMT_sizeof_message( &entry_args );
+  Grappa_call_on( loc.node(), pull_entry_request_g_am, &entry_args );
+  size_t entry_msg_bytes = Grappa_sizeof_message( &entry_args );
   global_queue_stats.record_pull_entry_request( entry_msg_bytes );
   cdesc.wait();
 }
@@ -248,7 +248,7 @@ void GlobalQueue<T>::pull_reserve_sendreply( A_D_A_Entry requestor,
                               A_Entry * granted_index,
                               bool requestor_waited ) {
   descriptor_reply_one( requestor, granted_index  );
-  size_t msg_bytes = SoftXMT_sizeof_descriptor_reply_one( requestor, granted_index );
+  size_t msg_bytes = Grappa_sizeof_descriptor_reply_one( requestor, granted_index );
   global_queue_stats.record_pull_reserve_reply( msg_bytes, requestor_waited );
 }
 
@@ -256,7 +256,7 @@ template <typename T>
 A_Entry GlobalQueue<T>::push_reserve ( bool ignore ) {
   CHECK( isMaster() );
 
-  global_queue_stats.record_push_reserve_reply( SoftXMT_sizeof_delegate_func_reply< bool, A_Entry >() );
+  global_queue_stats.record_push_reserve_reply( Grappa_sizeof_delegate_func_reply< bool, A_Entry >() );
   
   DVLOG(5) << "push_reserve";
 
@@ -310,7 +310,7 @@ void GlobalQueue<T>::pull_entry_sendreply( GlobalAddress< Descriptor< ChunkInfo<
 
   // send data to puller
   descriptor_reply_one( desc, &(e->chunk) );
-  size_t msg_bytes = SoftXMT_sizeof_descriptor_reply_one( desc, &(e->chunk) );
+  size_t msg_bytes = Grappa_sizeof_descriptor_reply_one( desc, &(e->chunk) );
   global_queue_stats.record_pull_entry_reply( msg_bytes );
 }
 

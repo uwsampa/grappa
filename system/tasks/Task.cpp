@@ -308,7 +308,6 @@ void TaskManager::dump_stats( std::ostream& o = std::cout, const char * terminat
 /// { name1:value1, name2:value2, ... }
 #include "DictOut.hpp"
 void TaskManager::TaskStatistics::dump( std::ostream& o = std::cout, const char * terminator = "" ) {
-    double stddev_steal_amount = stddev_steal_amt_.value();
     DictOut dout;
     DICT_ADD(dout, session_steal_successes_);
     DICT_ADD(dout, session_steal_fails_);
