@@ -22,6 +22,8 @@ $cmd = %Q[ VT_FILE_PREFIX='vtbfs' make -j mpi_run TARGET=graph.exe NNODE=%{nnode
     --async_par_for_threshold=%{threshold}
     --io_blocks_per_node=%{io_blocks_per_node}
     --io_blocksize_mb=%{io_blocksize_mb}
+    --beamer_alpha=%{beamer_alpha}
+    --beamer_beta=%{beamer_beta}
     --v=1
     -- -s %{scale} -e %{edgefactor} -p -%{generator} -f %{nbfs}
   ;
@@ -35,19 +37,21 @@ $machinename = "pal" if `hostname` =~ /pal/
 
 # map of parameters; key is the name used in command substitution
 $params = {
-  bfs: "bfs_local",
-  name: "flat_cas",
+  bfs: "bfs_beamer",
+  beamer_alpha: 20,
+  beamer_beta: 20,
+  name: "beamer",
   scale: [23],
   edgefactor: [16],
   generator: "K",
-  nbfs: [1],
-  nnode: [4],
+  nbfs: [2],
+  nnode: [12],
   ppn: [4],
   nworkers: [1024],
-  flushticks: [2000000],
+  flushticks: [3000000],
   pollticks: [80000],
   chunksize: [64],
-  threshold: [128],
+  threshold: [8],
   io_blocks_per_node: [1],
   io_blocksize_mb: [512],
   nproc: expr('nnode*ppn'),
