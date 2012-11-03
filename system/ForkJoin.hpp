@@ -632,6 +632,7 @@ void forall_local_async_task(GlobalAddress<T> base, size_t nelems, GlobalAddress
   T * local_end = (base+nelems).localize();
   
   if (local_end > local_base) {
+    //CHECK( local_end - local_base < nelems ) << "local_base: " << local_base << ", local_end: " << local_end << ", base+nelems: " << base+nelems;
     //packed_pair p = std::make_pair((intptr_t)local_base, extra);
     //uint64_t code = packing_hash(p);
     //CHECK( unpacking_map.count(code) == 0 );

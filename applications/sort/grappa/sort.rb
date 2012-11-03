@@ -23,7 +23,7 @@ $cmd = %Q[ make -j mpi_run TARGET=sort.exe NNODE=%{nnode} PPN=%{ppn}
     --io_blocks_per_node=%{io_blocks_per_node}
     --io_blocksize_mb=%{io_blocksize_mb}
     --v=1
-    -- -s %{scale} --log2buckets=%{log2buckets} --log2maxkey=%{log2maxkey} --read --nosort
+    -- -s %{scale} --log2buckets=%{log2buckets} --log2maxkey=%{log2maxkey} 
   '
 ].gsub(/[\n\r\ ]+/," ")
 $machinename = "sampa"
@@ -31,7 +31,7 @@ $machinename = "pal" if `hostname` =~ /pal/
 
 # map of parameters; key is the name used in command substitution
 $params = {
-  scale: [34],
+  scale: [20],
   log2buckets: [7],
   log2maxkey: [10],
   nnode: [12],
@@ -41,8 +41,8 @@ $params = {
   pollticks: [20000],
   chunksize: [64],
   threshold: [64],
-  io_blocks_per_node: [1, 2],
-  io_blocksize_mb: [64, 128, 512, 1024],
+  io_blocks_per_node: [1],
+  io_blocksize_mb: [512],
   nproc: expr('nnode*ppn'),
   machine: [$machinename],
 }

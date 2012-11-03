@@ -7,7 +7,8 @@
 # Energy. The Government has certain rights in the software.
 require "./bfs.rb"
 
-$cmd = %Q[ make -j mpi_run TARGET=graph.exe NNODE=%{nnode} PPN=%{ppn} BFS=%{bfs} DEBUG=1
+# command that will be excuted on the command line, with variables in %{} substituted
+$cmd = %Q[ make -j mpi_run TARGET=graph.exe NNODE=%{nnode} PPN=%{ppn} BFS=%{bfs}
   SRUN_FLAGS='--time=30:00'
   GARGS='
     --aggregator_autoflush_ticks=%{flushticks}
@@ -18,34 +19,20 @@ $cmd = %Q[ make -j mpi_run TARGET=graph.exe NNODE=%{nnode} PPN=%{ppn} BFS=%{bfs}
     --io_blocksize_mb=%{io_blocksize_mb}
     --beamer_alpha=%{beamer_alpha}
     --beamer_beta=%{beamer_beta}
-    --v=1 --vmodule bfs_beamer=2
-    -- -s %{scale} -e %{edgefactor} -p -%{generator} -f %{nbfs}
+    --v=1
+    -- -s %{scale} -e %{edgefactor} -pn -%{generator} -f %{nbfs}
   '
 ].gsub(/[\n\r\ ]+/," ")
 
-$params = {
-  bfs: "bfs_beamer",
-  beamer_alpha: 20.0,
-  beamer_beta: 20.0,
-  scale: [16],
-  edgefactor: [16],
-  generator: "K",
-  nbfs: [4],
-  nnode: [8],
-  ppn: [4],
-  nworkers: [2048],
-  flushticks: [4000000],
-  pollticks: [80000],
-  chunksize: [64],
-  threshold: [128],
-  io_blocks_per_node: [1],
-  io_blocksize_mb: [512],
-  nproc: expr('nnode*ppn'),
-  machine: [$machinename],
-  tag: "test"
-}
-parse_cmdline_options()
-$opt_force = true
+$params[:scale]        = 26
+$params[:bfs] = "bfs_beamer"
+$params[:beamer_alpha] = 30
+$params[:beamer_beta]  = 20
+$params[:nworkers]     = 1024
+$params[:flushticks]   = 3000000
+$params[:pollticks]    =  100000
+$params[:chunksize]    = 64
+$params[:threshold]    = 8
 
 if __FILE__ == $PROGRAM_NAME
   run_experiments($cmd, $params, $dbpath, $table, &$json_plus_fields_parser)
