@@ -22,6 +22,9 @@ class Scheduler;
 typedef uint32_t threadid_t; 
 struct Thread;
 
+/// Size in bytes of the stack allocated for every Thread
+const size_t STACK_SIZE = 1L<<19;
+
 /// A queue of threads
 class ThreadQueue {
     private:

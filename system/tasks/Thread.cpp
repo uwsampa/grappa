@@ -10,8 +10,6 @@
 #include "Scheduler.hpp"
 #include "PerformanceTools.hpp"
 
-/// Size in bytes of the stack allocated for every Thread
-#define STACK_SIZE 2<<18
 
 /// ThreadQueue output stream
 std::ostream& operator<< ( std::ostream& o, const ThreadQueue& tq ) {
