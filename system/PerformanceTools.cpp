@@ -105,7 +105,7 @@ void Grappa_stop_profiling() {
     Grappa_profile_handler(NULL);
 #ifdef VTRACE_SAMPLED
   VT_USER_END("sampling");
-  void Grappa_dump_stats();
+  void Grappa_dump_stats(std::ostream& oo);
   Grappa_dump_stats();
 
   Grappa_reset_stats();
