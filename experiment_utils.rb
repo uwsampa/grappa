@@ -38,7 +38,7 @@ $json_plus_fields_parser = lambda {|cmdout|
   h = {}
 
   # remove leading MPI/GLOG line prefixes
-  cmdout.gsub!(/^\[[\d,]+\]\<stderr\>:/m){ '' } # remove pal header
+  cmdout.gsub!(/^\[[\d,]+\]\<\w+\>:/m){ '' } # remove pal header
   cmdout.gsub!(/^\d+: /m){ '' }                 # remove sampa header
   cmdout.gsub!(/^I\d+ .*?\d+\] /m){ '' }          # remove glog header
 

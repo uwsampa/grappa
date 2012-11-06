@@ -18,32 +18,22 @@ $cmd = %Q[ make -j mpi_run TARGET=graph.exe NNODE=%{nnode} PPN=%{ppn} BFS=%{bfs}
     --io_blocksize_mb=%{io_blocksize_mb}
     --beamer_alpha=%{beamer_alpha}
     --beamer_beta=%{beamer_beta}
+    --global_memory_use_hugepages=%{global_memory_use_hugepages}
     --v=1 --vmodule bfs_beamer=2
     -- -s %{scale} -e %{edgefactor} -p -%{generator} -f %{nbfs}
   '
 ].gsub(/[\n\r\ ]+/," ")
 
-$params = {
-  bfs: "bfs_beamer",
-  beamer_alpha: 20.0,
-  beamer_beta: 20.0,
-  scale: [16],
-  edgefactor: [16],
-  generator: "K",
-  nbfs: [4],
-  nnode: [8],
-  ppn: [4],
-  nworkers: [2048],
-  flushticks: [4000000],
-  pollticks: [80000],
-  chunksize: [64],
-  threshold: [128],
-  io_blocks_per_node: [1],
-  io_blocksize_mb: [512],
-  nproc: expr('nnode*ppn'),
-  machine: [$machinename],
-  tag: "test"
-}
+$params[         :bfs] = "bfs_beamer"
+$params[:beamer_alpha] = 20.0
+$params[ :beamer_beta] = 20.0
+$params[       :scale] = 16
+$params[        :nbfs] = 4
+$params[       :nnode] = 4
+$params[         :ppn] = 4
+$params[   :threshold] = 8
+$params[         :tag] = "test"
+
 parse_cmdline_options()
 $opt_force = true
 
