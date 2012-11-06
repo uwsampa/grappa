@@ -1,20 +1,47 @@
+# Copyright 2010-2012 University of Washington. All Rights Reserved.
+# LICENSE_PLACEHOLDER
+# This software was created with Government support under DE
+# AC05-76RL01830 awarded by the United States Department of
+# Energy. The Government has certain rights in the software.
+
+# This makefile has various operations to transform the files
+# from a Tau trace for viewing
+# Example usage:
+# env var TRACEDIR should be set to the location of trace files
+# > make -f Makefile.tau otf
+# > vampir $TRACEDIR/app.otf
+
 TAUDIR=/sampa/share/tau-perf/tau
 
-# TODO consolidate into same build of tau
 TAU_BIN=$(TAUDIR)/x86_64/bin
 
-# TODO 
-TRANSLATE_UTILS=$(SOFTXMT_HOME)/system/translate_tags
+UTILS=$(GRAPPA_HOME)/system/utils
 
-merge: $(TRACEDIR)/tau.trc $(TRACEDIR)/tau.edf
+#
+# Main targets
+#
+
+# generate otf file
 otf: $(TRACEDIR)/app.otf
+
+# generate file that contains mappings of "MPI message tag" to Grappa active message
+# TODO: get Vampir/other trace viewer to display AM string instead of MPI tag
 fm: $(TRACEDIR)/fn_mappings
+
+# merge all output files of the trace into a single trace file and event definition file
+merge: $(TRACEDIR)/tau.trc $(TRACEDIR)/tau.edf
+
+##
 
 TRACE_BACKUP_DIR=$(TRACEDIR)/../profiles_backup
 backup:
 	mkdir -p $(TRACE_BACKUP_DIR)
 	mv $(TRACEDIR) $(shell echo $(TRACE_BACKUP_DIR)/$(TARGET)-$(shell git rev-parse --short HEAD))-$(shell date | awk '{gsub(/ +/, "_");print}')
 	mkdir -p $(TRACEDIR)
+
+# fix GRAPPA tau profiling group names
+fixg:
+	cd $(TRACEDIR); cat ../ProfilerConfig.hpp | cut -d ' ' -f2,3 | $(UTILS)/rename_groups.sh
 
 # merge trace files; also creates tau.edf
 $(TRACEDIR)/tau.trc: $(TRACEDIR)/tautrace.*
@@ -40,7 +67,7 @@ $(TARGET).d: $(TARGET)
 
 # generate mapping from trace message tags to function names
 $(TRACEDIR)/fn_mappings: $(TRACEDIR)/reader.out $(TARGET).d
-	grep Message $< | cut -d , -f5 | cut -d ' ' -f3 | sort | uniq | $(TRANSLATE_UTILS)/obj_grep.rb $(TARGET).d > $@
+	grep Message $< | cut -d , -f5 | cut -d ' ' -f3 | sort | uniq | $(UTILS)/obj_grep.rb $(TARGET).d > $@
 
 # remove pre-merged trace files
 clean_orig: $(TRACEDIR)/tau.trc $(TRACEDIR)/tau.edf

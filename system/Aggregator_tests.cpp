@@ -1,4 +1,13 @@
 
+// Copyright 2010-2012 University of Washington. All Rights Reserved.
+// LICENSE_PLACEHOLDER
+// This software was created with Government support under DE
+// AC05-76RL01830 awarded by the United States Department of
+// Energy. The Government has certain rights in the software.
+
+/// Tests for Aggregator. This is a bit brittle due to testing
+/// timeouts.
+
 #include "Aggregator.hpp"
 
 // reuse flag from Aggregator.cpp
@@ -87,7 +96,7 @@ BOOST_AUTO_TEST_CASE( test1 ) {
   first_call_args first_args = { 1, 2.3 };
 
   // try with automagic arg size discovery
-  SoftXMT_call_on( 0, &first_call, &first_args );
+  Grappa_call_on( 0, &first_call, &first_args );
 
   a.flush( 0 );
   a.poll( );
@@ -96,10 +105,10 @@ BOOST_AUTO_TEST_CASE( test1 ) {
   // make sure things get sent only after flushing
   second_call_args second_args = { "Foo", 1 };
   // try with manual arg size discovery
-  SoftXMT_call_on( 0, &second_call, &second_args, sizeof(second_args) );
+  Grappa_call_on( 0, &second_call, &second_args, sizeof(second_args) );
 
   // try with null payload 
-  SoftXMT_call_on( 0, &second_call, &second_args, sizeof(second_args), NULL, 0 );
+  Grappa_call_on( 0, &second_call, &second_args, sizeof(second_args), NULL, 0 );
 
   // nothing has been sent yet
   BOOST_CHECK_EQUAL( 0, second_int );
@@ -110,7 +119,7 @@ BOOST_AUTO_TEST_CASE( test1 ) {
   BOOST_CHECK_EQUAL( 2, second_int );
 
   // try with non-null payload 
-  SoftXMT_call_on( 0, &second_call, &second_args, sizeof(second_args), &second_args, sizeof(second_args) );
+  Grappa_call_on( 0, &second_call, &second_args, sizeof(second_args), &second_args, sizeof(second_args) );
   a.flush( 0 );
   a.poll( );
   BOOST_CHECK_EQUAL( 3, second_int );
@@ -121,9 +130,9 @@ BOOST_AUTO_TEST_CASE( test1 ) {
   for( int i = 0; i < global_aggregator.max_size() - second_message_size; i += second_message_size) {
     BOOST_MESSAGE( "sending " << second_args.i << " with sum " << j << " second_int " << second_int );
     //BOOST_CHECK_EQUAL( 3, second_int );
-    //SoftXMT_call_on( 0, &second_call, &second_args );
+    //Grappa_call_on( 0, &second_call, &second_args );
     second_args.i = i;
-    SoftXMT_call_on( 0, &second_call, &second_args, sizeof(second_args), NULL, 0 );
+    Grappa_call_on( 0, &second_call, &second_args, sizeof(second_args), NULL, 0 );
     BOOST_CHECK_EQUAL( 3, second_int ); 
     a.poll( );
     BOOST_CHECK_EQUAL( 3, second_int ); 
@@ -134,7 +143,7 @@ BOOST_AUTO_TEST_CASE( test1 ) {
   a.poll( );
   BOOST_CHECK_EQUAL( 3, second_int ); 
   second_args.i = 1;
-  SoftXMT_call_on( 0, &second_call, &second_args, sizeof(second_args), NULL, 0 );
+  Grappa_call_on( 0, &second_call, &second_args, sizeof(second_args), NULL, 0 );
   a.poll( );
   BOOST_CHECK_EQUAL( j + 3, second_int );
   a.flush( 0 );
@@ -142,30 +151,30 @@ BOOST_AUTO_TEST_CASE( test1 ) {
   BOOST_CHECK_EQUAL( j + 3 + 1, second_int );
 
   BOOST_MESSAGE("make sure the timer works");
-  SoftXMT_call_on( 0, &first_call, &first_args);
-  //SoftXMT_call_on( 0, &first_call, &first_args, NULL, 0 );
+  Grappa_call_on( 0, &first_call, &first_args);
+  //Grappa_call_on( 0, &first_call, &first_args, NULL, 0 );
   BOOST_CHECK_EQUAL( 1, first_int );
   int64_t initial_ts, ts;
-  SoftXMT_tick();
-  for( initial_ts = ts = SoftXMT_get_timestamp(); ts - initial_ts < FLAGS_aggregator_autoflush_ticks - FLAGS_aggregator_autoflush_ticks/2; ) {
+  Grappa_tick();
+  for( initial_ts = ts = Grappa_get_timestamp(); ts - initial_ts < FLAGS_aggregator_autoflush_ticks - FLAGS_aggregator_autoflush_ticks/2; ) {
     a.poll();
     // watch out---the debug allocator slows things way down and makes this fail
 #ifndef STL_DEBUG_ALLOCATOR
     BOOST_CHECK_EQUAL( 1, first_int );
 #endif
     BOOST_MESSAGE( "initial " << initial_ts << " current " << ts );
-    SoftXMT_tick();
-    ts = SoftXMT_get_timestamp();
+    Grappa_tick();
+    ts = Grappa_get_timestamp();
   }
 
   // watch out---the debug allocator slows things way down and makes this fail
 #ifndef STL_DEBUG_ALLOCATOR
   BOOST_CHECK_EQUAL( 1, first_int );
 #endif
-  SoftXMT_tick();
-  for( initial_ts = ts = SoftXMT_get_timestamp(); ts - initial_ts < FLAGS_aggregator_autoflush_ticks; ) {
-    SoftXMT_tick();
-    ts = SoftXMT_get_timestamp();
+  Grappa_tick();
+  for( initial_ts = ts = Grappa_get_timestamp(); ts - initial_ts < FLAGS_aggregator_autoflush_ticks; ) {
+    Grappa_tick();
+    ts = Grappa_get_timestamp();
   }
   a.poll();
   BOOST_CHECK_EQUAL( 2, first_int );
@@ -178,13 +187,13 @@ BOOST_AUTO_TEST_CASE( test1 ) {
 
   // send to node 1
   second_args.i = 5;
-  SoftXMT_call_on( 1, &second_call, &second_args, sizeof(second_args), NULL, 0 );
+  Grappa_call_on( 1, &second_call, &second_args, sizeof(second_args), NULL, 0 );
   BOOST_CHECK_EQUAL( j + 3 + 1, second_int );
   BOOST_CHECK_EQUAL( a.remaining_size( 1 ), a.max_size() - second_message_size );
 
   // send to node 0
   second_args.i = 1;
-  SoftXMT_call_on( 0, &second_call, &second_args, sizeof(second_args), NULL, 0 );
+  Grappa_call_on( 0, &second_call, &second_args, sizeof(second_args), NULL, 0 );
   BOOST_CHECK_EQUAL( j + 3 + 1, second_int );
   BOOST_CHECK_EQUAL( a.remaining_size( 0 ), a.max_size() - second_message_size );
   BOOST_CHECK_EQUAL( a.remaining_size( 1 ), a.max_size() - second_message_size );
@@ -193,24 +202,24 @@ BOOST_AUTO_TEST_CASE( test1 ) {
   // for( int i = 0; i < FLAGS_aggregator_autoflush_ticks - 1; ++i ) {
   //   a.poll();
   // }
-  SoftXMT_tick();
-  for( initial_ts = ts = SoftXMT_get_timestamp(); ts - initial_ts < FLAGS_aggregator_autoflush_ticks - 100000; ) {
+  Grappa_tick();
+  for( initial_ts = ts = Grappa_get_timestamp(); ts - initial_ts < FLAGS_aggregator_autoflush_ticks - 100000; ) {
     BOOST_MESSAGE( "initial " << initial_ts << " current " << ts);
     // nothing has flushed yet
     BOOST_CHECK_EQUAL( j + 3 + 1, second_int );
     BOOST_CHECK_EQUAL( a.remaining_size( 0 ), a.max_size() - second_message_size );
     BOOST_CHECK_EQUAL( a.remaining_size( 1 ), a.max_size() - second_message_size );
     a.poll();
-    SoftXMT_tick();
-    ts = SoftXMT_get_timestamp();
+    Grappa_tick();
+    ts = Grappa_get_timestamp();
   }
 
   BOOST_CHECK_EQUAL( a.remaining_size( 1 ), a.max_size() - second_message_size );
   // one more tick! node 1 flushes
-  SoftXMT_tick();
-  for( initial_ts = ts = SoftXMT_get_timestamp(); ts - initial_ts < FLAGS_aggregator_autoflush_ticks - 1000; ) {
-    SoftXMT_tick();
-    ts = SoftXMT_get_timestamp();
+  Grappa_tick();
+  for( initial_ts = ts = Grappa_get_timestamp(); ts - initial_ts < FLAGS_aggregator_autoflush_ticks - 1000; ) {
+    Grappa_tick();
+    ts = Grappa_get_timestamp();
   }
   a.poll();
   BOOST_CHECK_EQUAL( j + 3 + 1, second_int );

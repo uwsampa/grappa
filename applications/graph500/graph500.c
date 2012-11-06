@@ -19,6 +19,8 @@
 #include <getopt.h>
 #endif
 
+#include <stdbool.h>
+
 #include "graph500.h"
 #include "rmat.h"
 #include "kronecker.h"
@@ -32,6 +34,8 @@
 #include "generator/make_graph.h"
 
 static int64_t nvtx_scale;
+
+static bool generate_ckpt = true;
 
 static int64_t bfs_root[NBFS_max];
 
@@ -53,6 +57,8 @@ static void output_results (const int64_t SCALE, int64_t nvtx_scale,
 							const int NBFS,
 							const double *bfs_time, const int64_t *bfs_nedge);
 
+
+bool checkpoint_in(int SCALE, int edgefactor, struct packed_edge *restrict * IJ, int64_t * nedge, int64_t * bfs_roots, int * nbfs);
 void checkpoint_out(int64_t SCALE, int64_t edgefactor, const struct packed_edge * restrict edges, const int64_t nedge, const int64_t * restrict bfs_roots, const int64_t nbfs);
 
 int main (int argc, char **argv) {
@@ -73,40 +79,47 @@ int main (int argc, char **argv) {
 	/* Catch a few possible overflows. */
 	assert (desired_nedge >= nvtx_scale);
 	assert (desired_nedge >= edgefactor);
-	
-	/*
-	 If running the benchmark under an architecture simulator, replace
-	 the following if () {} else {} with a statement pointing IJ
-	 to wherever the edge list is mapped into the simulator's memory.
-	 */
-	if (!dumpname) {
-		if (VERBOSE) fprintf (stderr, "Generating edge list...");
-		if (use_RMAT) {
-			nedge = desired_nedge;
-			IJ = xmalloc_large_ext (nedge * sizeof (*IJ));
-			TIME(generation_time, rmat_edgelist (IJ, nedge, SCALE, A, B, C));
-		} else {
-			TIME(generation_time, make_graph (SCALE, desired_nedge, userseed, userseed, &nedge, (packed_edge**)(&IJ)));
-		}
-		if (VERBOSE) fprintf (stderr, " done.\n");
-	} else {
-		int fd;
-		ssize_t sz;
-		if ((fd = open (dumpname, O_RDONLY)) < 0) {
-			perror ("Cannot open input graph file");
-			return EXIT_FAILURE;
-		}
-		sz = nedge * sizeof (*IJ);
-		if (sz != read (fd, IJ, sz)) {
-			perror ("Error reading input graph file");
-			return EXIT_FAILURE;
-		}
-		close (fd);
-	}
-	
+
+
+  if (load_checkpoint) {
+    generate_ckpt = !checkpoint_in(SCALE, edgefactor, &IJ, &nedge, bfs_root, &NBFS);
+  }
+
+  if (generate_ckpt) {
+    /*
+     If running the benchmark under an architecture simulator, replace
+     the following if () {} else {} with a statement pointing IJ
+     to wherever the edge list is mapped into the simulator's memory.
+     */
+    if (!dumpname) {
+      if (VERBOSE) fprintf (stderr, "Generating edge list...");
+      if (use_RMAT) {
+        nedge = desired_nedge;
+        IJ = xmalloc_large_ext (nedge * sizeof (*IJ));
+        TIME(generation_time, rmat_edgelist (IJ, nedge, SCALE, A, B, C));
+      } else {
+        TIME(generation_time, make_graph (SCALE, desired_nedge, userseed, userseed, &nedge, (packed_edge**)(&IJ)));
+      }
+      if (VERBOSE) fprintf (stderr, " done.\n");
+    } else {
+      int fd;
+      ssize_t sz;
+      if ((fd = open (dumpname, O_RDONLY)) < 0) {
+        perror ("Cannot open input graph file");
+        return EXIT_FAILURE;
+      }
+      sz = nedge * sizeof (*IJ);
+      if (sz != read (fd, IJ, sz)) {
+        perror ("Error reading input graph file");
+        return EXIT_FAILURE;
+      }
+      close (fd);
+    }
+  }
+
 	run_bfs ();
 	
-  checkpoint_out(SCALE, edgefactor, IJ, nedge, bfs_root, NBFS);
+  if (generate_ckpt) checkpoint_out(SCALE, edgefactor, IJ, nedge, bfs_root, NBFS);
   
   destroy_graph();
 	xfree_large (IJ);
@@ -121,12 +134,15 @@ void
 run_bfs (void)
 {
 	int * restrict has_adj;
-	int m, err;
+	int m, err = 0;
 	int64_t k, t;
 	
-	if (VERBOSE) fprintf (stderr, "Creating graph...");
-	TIME(construction_time, err = create_graph_from_edgelist (IJ, nedge));
-	if (VERBOSE) fprintf (stderr, "done.\n");
+  if (generate_ckpt) {
+    fprintf(stderr, "create graph bfs\n");
+    if (VERBOSE) fprintf (stderr, "Creating graph...");
+    TIME(construction_time, err = create_graph_from_edgelist (IJ, nedge));
+    if (VERBOSE) fprintf (stderr, "done.\n");
+  }
 	if (err) {
 		fprintf (stderr, "Failure creating graph.\n");
 		exit (EXIT_FAILURE);
@@ -137,55 +153,57 @@ run_bfs (void)
 	 the following if () {} else {} with a statement pointing bfs_root
 	 to wherever the BFS roots are mapped into the simulator's memory.
 	 */
-	if (!rootname) {
-		has_adj = xmalloc_large (nvtx_scale * sizeof (*has_adj));
-		OMP("omp parallel") {
-			OMP("omp for")
-			for (k = 0; k < nvtx_scale; ++k)
-				has_adj[k] = 0;
-			MTA("mta assert nodep") OMP("omp for")
-			for (k = 0; k < nedge; ++k) {
-				const int64_t i = get_v0_from_edge(&IJ[k]);
-				const int64_t j = get_v1_from_edge(&IJ[k]);
-				if (i != j)
-					has_adj[i] = has_adj[j] = 1;
-			}
-		}
-		
-		/* Sample from {0, ..., nvtx_scale-1} without replacement. */
-		m = 0;
-		t = 0;
-		while (m < NBFS && t < nvtx_scale) {
-			double R = mrg_get_double_orig (prng_state);
-			if (!has_adj[t] || (nvtx_scale - t)*R > NBFS - m) ++t;
-			else bfs_root[m++] = t++;
-		}
-		if (t >= nvtx_scale && m < NBFS) {
-			if (m > 0) {
-				fprintf (stderr, "Cannot find %d sample roots of non-self degree > 0, using %d.\n",
-						 NBFS, m);
-				NBFS = m;
-			} else {
-				fprintf (stderr, "Cannot find any sample roots of non-self degree > 0.\n");
-				exit (EXIT_FAILURE);
-			}
-		}
-		
-		xfree_large (has_adj);
-	} else {
-		int fd;
-		ssize_t sz;
-		if ((fd = open (rootname, O_RDONLY)) < 0) {
-			perror ("Cannot open input BFS root file");
-			exit (EXIT_FAILURE);
-		}
-		sz = NBFS * sizeof (*bfs_root);
-		if (sz != read (fd, bfs_root, sz)) {
-			perror ("Error reading input BFS root file");
-			exit (EXIT_FAILURE);
-		}
-		close (fd);
-	}
+  if (generate_ckpt) {
+    if (!rootname) {
+      has_adj = xmalloc_large (nvtx_scale * sizeof (*has_adj));
+      OMP("omp parallel") {
+        OMP("omp for")
+        for (k = 0; k < nvtx_scale; ++k)
+          has_adj[k] = 0;
+        MTA("mta assert nodep") OMP("omp for")
+        for (k = 0; k < nedge; ++k) {
+          const int64_t i = get_v0_from_edge(&IJ[k]);
+          const int64_t j = get_v1_from_edge(&IJ[k]);
+          if (i != j)
+            has_adj[i] = has_adj[j] = 1;
+        }
+      }
+      
+      /* Sample from {0, ..., nvtx_scale-1} without replacement. */
+      m = 0;
+      t = 0;
+      while (m < NBFS && t < nvtx_scale) {
+        double R = mrg_get_double_orig (prng_state);
+        if (!has_adj[t] || (nvtx_scale - t)*R > NBFS - m) ++t;
+        else bfs_root[m++] = t++;
+      }
+      if (t >= nvtx_scale && m < NBFS) {
+        if (m > 0) {
+          fprintf (stderr, "Cannot find %d sample roots of non-self degree > 0, using %d.\n",
+               NBFS, m);
+          NBFS = m;
+        } else {
+          fprintf (stderr, "Cannot find any sample roots of non-self degree > 0.\n");
+          exit (EXIT_FAILURE);
+        }
+      }
+      
+      xfree_large (has_adj);
+    } else {
+      int fd;
+      ssize_t sz;
+      if ((fd = open (rootname, O_RDONLY)) < 0) {
+        perror ("Cannot open input BFS root file");
+        exit (EXIT_FAILURE);
+      }
+      sz = NBFS * sizeof (*bfs_root);
+      if (sz != read (fd, bfs_root, sz)) {
+        perror ("Error reading input BFS root file");
+        exit (EXIT_FAILURE);
+      }
+      close (fd);
+    }
+  }
 	
 	for (m = 0; m < NBFS; ++m) {
 		int64_t *bfs_tree, max_bfsvtx;
@@ -194,7 +212,7 @@ run_bfs (void)
 		bfs_tree = xmalloc_large (nvtx_scale * sizeof (*bfs_tree));
 		assert (bfs_root[m] < nvtx_scale);
 		
-		if (VERBOSE) fprintf (stderr, "Running bfs %d...", m);
+		if (VERBOSE) fprintf (stderr, "Running bfs %d (%ld)...", m, bfs_root[m]);
 		TIME(bfs_time[m], err = make_bfs_tree (bfs_tree, &max_bfsvtx, bfs_root[m]));
 		if (VERBOSE) fprintf (stderr, "done\n");
 		
@@ -203,7 +221,7 @@ run_bfs (void)
 			abort ();
 		}
 		
-		if (VERBOSE) fprintf (stderr, "Verifying bfs %d...", m);
+		if (VERBOSE) fprintf (stderr, "Verifying bfs %d...\n", m);
 		bfs_nedge[m] = verify_bfs_tree (bfs_tree, max_bfsvtx, bfs_root[m], IJ, nedge);
 		if (VERBOSE) fprintf (stderr, "done\n");
 		if (bfs_nedge[m] < 0) {
@@ -325,8 +343,8 @@ output_results (const int64_t SCALE, int64_t nvtx_scale, int64_t edgefactor,
 	double *tm;
 	double *stats;
 	
-	tm = alloca (NBFS * sizeof (*tm));
-	stats = alloca (NSTAT * sizeof (*stats));
+	tm = alloca(NBFS_max * sizeof (*tm));
+	stats = alloca(NSTAT * sizeof (*stats));
 	if (!tm || !stats) {
 		perror ("Error allocating within final statistics calculation.");
 		abort ();

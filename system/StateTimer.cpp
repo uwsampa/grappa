@@ -1,10 +1,17 @@
+// Copyright 2010-2012 University of Washington. All Rights Reserved.
+// LICENSE_PLACEHOLDER
+// This software was created with Government support under DE
+// AC05-76RL01830 awarded by the United States Department of
+// Energy. The Government has certain rights in the software.
+
 #include "StateTimer.hpp"
-#include "SoftXMT.hpp"
+#include "Grappa.hpp"
 
 StateTimer * state_timer;
 
+/// Put the state of the timer into state of the current thread
 void StateTimer::enterState_thread_( ) {
-#ifdef GRAPPA_TRACE
+#if STATE_TIMER_ON
     switch ( CURRENT_THREAD->state ) {
         case USER:
             enterState_user_();
@@ -30,8 +37,9 @@ void StateTimer::enterState_thread_( ) {
 #endif
 }
 
+/// Set the StateTimer state of the Thread
 void StateTimer::setThreadState_( int state ) {
-#ifdef GRAPPA_TRACE
+#if STATE_TIMER_ON
     CURRENT_THREAD->state = state;
 #endif
 }

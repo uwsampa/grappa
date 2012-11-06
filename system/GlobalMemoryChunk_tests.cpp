@@ -1,10 +1,16 @@
 
+// Copyright 2010-2012 University of Washington. All Rights Reserved.
+// LICENSE_PLACEHOLDER
+// This software was created with Government support under DE
+// AC05-76RL01830 awarded by the United States Department of
+// Energy. The Government has certain rights in the software.
+
 #include <gflags/gflags.h>
 #include <sys/mman.h>
 
 #include <boost/test/unit_test.hpp>
 
-#include "SoftXMT.hpp"
+#include "Grappa.hpp"
 #include "Delegate.hpp"
 
 DECLARE_int64( global_memory_per_node_base_address );
@@ -19,11 +25,11 @@ void user_main( void * args )
 {
   for( int i = 0; i < size; ++i ) {
     BOOST_MESSAGE( "Writing to " << base + i );
-    SoftXMT_delegate_write_word( base + i, i );
+    Grappa_delegate_write_word( base + i, i );
   }
 
   for( int i = 0; i < size; ++i ) {
-    int64_t remote_data = SoftXMT_delegate_read_word( base + i );
+    int64_t remote_data = Grappa_delegate_read_word( base + i );
     BOOST_CHECK_EQUAL( remote_data, i );
   }
 
@@ -66,25 +72,25 @@ void user_main( void * args )
 
 BOOST_AUTO_TEST_CASE( test1 ) {
 
-  SoftXMT_init( &(boost::unit_test::framework::master_test_suite().argc),
+  Grappa_init( &(boost::unit_test::framework::master_test_suite().argc),
                 &(boost::unit_test::framework::master_test_suite().argv) );
 
-  SoftXMT_activate();
+  Grappa_activate();
 
   size_t local_size_bytes = 1 << 8;
   // cheat. we know this 
   base = make_linear( (void*) FLAGS_global_memory_per_node_base_address );
   BOOST_MESSAGE( "Base pointer is " << base );
 
-  size = local_size_bytes * SoftXMT_nodes() / sizeof(int64_t);
+  size = local_size_bytes * Grappa_nodes() / sizeof(int64_t);
 
-  BOOST_CHECK_EQUAL( SoftXMT_nodes(), 2 );
+  BOOST_CHECK_EQUAL( Grappa_nodes(), 2 );
 
   DVLOG(1) << "Spawning user main Thread....";
-  SoftXMT_run_user_main( &user_main, (void*) NULL );
-  BOOST_CHECK( SoftXMT_done() == true );
+  Grappa_run_user_main( &user_main, (void*) NULL );
+  BOOST_CHECK( Grappa_done() == true );
 
-  SoftXMT_finish( 0 );
+  Grappa_finish( 0 );
 }
 
 BOOST_AUTO_TEST_SUITE_END();

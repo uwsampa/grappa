@@ -1,8 +1,14 @@
 
+// Copyright 2010-2012 University of Washington. All Rights Reserved.
+// LICENSE_PLACEHOLDER
+// This software was created with Government support under DE
+// AC05-76RL01830 awarded by the United States Department of
+// Energy. The Government has certain rights in the software.
+
 #ifndef __INCOHERENT_RELEASER_HPP__
 #define __INCOHERENT_RELEASER_HPP__
 
-#include "SoftXMT.hpp"
+#include "Grappa.hpp"
 
 #ifdef VTRACE
 #include <vt_user.h>
@@ -23,6 +29,36 @@ static void incoherent_release_request_am( typename IncoherentReleaser< T >::Req
                                            size_t size, 
                                            void * payload, size_t payload_size );
 
+/// Stats for IncoherentReleaser
+class IRStatistics {
+  private:
+    uint64_t release_ams;
+    uint64_t release_ams_bytes;
+#ifdef VTRACE_SAMPLED
+    unsigned ir_grp_vt;
+    unsigned release_ams_ev_vt;
+    unsigned release_ams_bytes_ev_vt;
+#endif
+
+  public:
+    IRStatistics();
+    void reset();
+
+    inline void count_release_ams( uint64_t bytes ) {
+      release_ams++;
+      release_ams_bytes+=bytes;
+    }
+
+    void dump( std::ostream& o, const char * terminator );
+    void sample();
+    void profiling_sample();
+    void merge(IRStatistics * other);
+};
+
+extern IRStatistics incoherent_releaser_stats;
+
+
+/// IncoherentReleaser behavior for cache.
 template< typename T >
 class IncoherentReleaser {
 private:
@@ -58,15 +94,15 @@ public:
     thread_ = NULL;
     num_messages_ = 0;
     response_count_ = 0;
-    if( count_ == 0 ) {
+    if( *count_ == 0 ) {
       DVLOG(5) << "Zero-length release";
       release_started_ = true;
       released_ = true;
     } else if( request_address_->is_2D() ) {
       num_messages_ = 1;
-      if( request_address_->node() == SoftXMT_mynode() ) {
-	release_started_ = true;
-	released_ = true;
+      if( request_address_->node() == Grappa_mynode() ) {
+        release_started_ = true;
+        released_ = true;
       }
     } else {
       DVLOG(5) << "Straddle: block_max is " << (*request_address_ + *count_).block_max() ;
@@ -78,13 +114,18 @@ public:
 
       DVLOG(5) << "Straddle: address is " << *request_address_ ;
       DVLOG(5) << ", address + count is " << *request_address_ + *count_;
-      ptrdiff_t byte_diff = ( (*request_address_ + *count_ - 1).block_max() - request_address_->block_min() ) * sizeof(T);
-      ptrdiff_t block_diff = byte_diff / block_size;
+
+      ptrdiff_t byte_diff = ( (*request_address_ + *count_ - 1).last_byte().block_max() - 
+                               request_address_->first_byte().block_min() );
+
       DVLOG(5) << "Straddle: address block max is " << request_address_->block_max();
       DVLOG(5) << " address + count block max is " << (*request_address_ + *count_).block_max();
+      DVLOG(5) << " address + count -1 block max is " << (*request_address_ + *count_ - 1).block_max();
+      DVLOG(5) << " difference is " << ( (*request_address_ + *count_ - 1).block_max() - request_address_->block_min() );
+      DVLOG(5) << " multiplied difference is " << ( (*request_address_ + *count_ - 1).block_max() - request_address_->block_min() ) * sizeof(T);
       DVLOG(5) << " address block min " << request_address_->block_min();
-      DVLOG(5) << "Straddle: diff is " << byte_diff << " div " << block_diff << " bs " << block_size;
-      num_messages_ = block_diff;
+      DVLOG(5) << "Straddle: diff is " << byte_diff << " bs " << block_size;
+      num_messages_ = byte_diff / block_size;
     }
 
     if( num_messages_ > 1 ) DVLOG(5) << "****************************** MULTI BLOCK CACHE REQUEST ******************************";
@@ -97,7 +138,7 @@ public:
 
   void start_release() { 
     if( !release_started_ ) {
-#ifdef VTRACE
+#ifdef VTRACE_FULL
       VT_TRACER("incoherent start_release");
 #endif
             DVLOG(5) << "Thread " << CURRENT_THREAD 
@@ -106,7 +147,7 @@ public:
       release_started_ = true;
       RequestArgs args;
       args.request_address = *request_address_;
-      DVLOG(5) << "Computing request_bytes from block_max " << request_address_->block_max() << " and " << *request_address_;
+      DVLOG(5) << "Computing request_bytes from block_max " << request_address_->first_byte().block_max() << " and " << *request_address_;
       args.reply_address = make_global( this );
       size_t offset = 0;  
       size_t request_bytes = 0;
@@ -114,7 +155,8 @@ public:
            offset < total_bytes; 
            offset += request_bytes) {
 
-        request_bytes = (args.request_address.block_max() - args.request_address) * sizeof(T);
+        request_bytes = args.request_address.first_byte().block_max() - args.request_address.first_byte();
+
         if( request_bytes > total_bytes - offset ) {
           request_bytes = total_bytes - offset;
         }
@@ -123,11 +165,12 @@ public:
                  << " of total bytes = " << *count_ * sizeof(T)
                  << " to " << args.request_address;
 
-        SoftXMT_call_on( args.request_address.node(), &incoherent_release_request_am<T>, 
-			 &args, sizeof( args ),
-			 ((char*)(*pointer_)) + offset, request_bytes);
+        Grappa_call_on( args.request_address.node(), &incoherent_release_request_am<T>, 
+                         &args, sizeof( args ),
+                         ((char*)(*pointer_)) + offset, request_bytes);
 
-        args.request_address += request_bytes / sizeof(T);
+	// TODO: change type so we don't screw with pointer like this
+        args.request_address = GlobalAddress<T>::Raw( args.request_address.raw_bits() + request_bytes );
       }
       DVLOG(5) << "release started for " << args.request_address;
     }
@@ -136,7 +179,7 @@ public:
   void block_until_released() {
     if( !released_ ) {
       start_release();
-#ifdef VTRACE
+#ifdef VTRACE_FULL
       VT_TRACER("incoherent block_until_released");
 #endif
       DVLOG(5) << "Thread " << CURRENT_THREAD 
@@ -148,7 +191,7 @@ public:
                 << " * " << *count_ ;
         if( !released_ ) {
           thread_ = CURRENT_THREAD;
-          SoftXMT_suspend();
+          Grappa_suspend();
           thread_ = NULL;
         }
         DVLOG(5) << "Thread " << CURRENT_THREAD 
@@ -165,9 +208,9 @@ public:
     if ( response_count_ == num_messages_ ) {
       released_ = true;
       if( thread_ != NULL ) {
-	DVLOG(5) << "Thread " << CURRENT_THREAD 
-		 << " waking Thread " << thread_;
-        SoftXMT_wake( thread_ );
+        DVLOG(5) << "Thread " << CURRENT_THREAD 
+                 << " waking Thread " << thread_;
+        Grappa_wake( thread_ );
       }
     }
   }
@@ -198,13 +241,14 @@ template< typename T >
 static void incoherent_release_request_am( typename IncoherentReleaser< T >::RequestArgs * args, 
                                     size_t size, 
                                     void * payload, size_t payload_size ) {
+  incoherent_releaser_stats.count_release_ams( payload_size );
   DVLOG(5) << "Thread " << CURRENT_THREAD 
            << " received release request to " << args->request_address 
            << " reply to " << args->reply_address;
   memcpy( args->request_address.pointer(), payload, payload_size );
   typename IncoherentReleaser<T>::ReplyArgs reply_args;
   reply_args.reply_address = args->reply_address;
-  SoftXMT_call_on( args->reply_address.node(), incoherent_release_reply_am<T>,
+  Grappa_call_on( args->reply_address.node(), incoherent_release_reply_am<T>,
                    &reply_args, sizeof( reply_args ), 
                    NULL, 0 );
   DVLOG(5) << "Thread " << CURRENT_THREAD 

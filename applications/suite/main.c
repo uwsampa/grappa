@@ -6,14 +6,32 @@
 //  Copyright 2011 University of Washington. All rights reserved.
 //
 #include <stdio.h>
+#ifndef __MTA__
+#include <sys/param.h>
+#else
+#define MIN(a,b) ((a)<(b))?(a):(b)
+#endif
 
 #if HAVE_UNISTD_H
 #include <unistd.h>
 #else
 #if !defined(__MTA__)
 #include <getopt.h>
+#else
+#include "compat/getopt.h"
 #endif
 #endif
+
+#if defined(__MTA__)
+#include <sys/types.h>
+#include <sys/mman.h>
+
+/*#include <luc/common.h>*/
+#include <snapshot/client.h>
+#endif
+
+// includes XMT version of fread & fwrite which flip endianness
+#include "compatio.h"
 
 #include <stdbool.h>
 #include <assert.h>
@@ -26,81 +44,241 @@ static void parseOptions(int argc, char ** argv);
 
 static char* graphfile;
 static graphint kcent;
+static bool do_components = false,
+            do_pathiso = false,
+            do_triangles = false,
+            do_centrality = false;
 
-static void graph_in(graph * g, FILE * fin) {
-  fread(&g->numVertices, sizeof(graphint), 1, fin);
-  fread(&g->numEdges, sizeof(graphint), 1, fin);
+//static void graph_in(graph * g, FILE * fin) {
+//  fread(&g->numVertices, sizeof(graphint), 1, fin);
+//  fread(&g->numEdges, sizeof(graphint), 1, fin);
+//  
+//  graphint NV = g->numVertices;
+//  graphint NE = g->numEdges;
+//  
+//  alloc_graph(g, NV, NE);
+//  
+//  /* now read in contents... */
+//  fread(g->startVertex, sizeof(graphint), NE, fin);
+//  fread(g->endVertex, sizeof(graphint), NE, fin);
+//  fread(g->edgeStart, sizeof(graphint), NV+2, fin);
+//  fread(g->intWeight, sizeof(graphint), NE, fin);
+//  fread(g->marks, sizeof(color_t), NV, fin);
+//}
+//
+//static void graph_out(graph * g, FILE * fin) {
+//  fwrite(&g->numVertices, sizeof(graphint), 1, fin);
+//  fwrite(&g->numEdges, sizeof(graphint), 1, fin);
+//  
+//  graphint NV = g->numVertices;
+//  graphint NE = g->numEdges;
+//  
+//  /* now read in contents... */
+//  fwrite(g->startVertex, sizeof(graphint), NE, fin);
+//  fwrite(g->endVertex, sizeof(graphint), NE, fin);
+//  fwrite(g->edgeStart, sizeof(graphint), NV+2, fin);
+//  fwrite(g->intWeight, sizeof(graphint), NE, fin);
+//  fwrite(g->marks, sizeof(color_t), NV, fin);
+//}
+//
+//static bool checkpoint_in(graph * dirg, graph * g) {
+//  fprintf(stderr,"start reading checkpoint\n");
+//  double t = timer();
+//  
+//  char fname[256];
+//  sprintf(fname, "ckpts/suite.%d.ckpt", SCALE);
+//  FILE * fin = fopen(fname, "r");
+//  if (!fin) {
+//    fprintf(stderr, "Unable to open file: %s, will generate graph and write checkpoint.\n", fname);
+//    return false;
+//  }
+//  
+//  graph_in(dirg, fin);
+//  graph_in(g, fin);
+//  
+//  fclose(fin);
+//  
+//  t = timer() - t;
+//  fprintf(stderr, "done reading in checkpoint (time = %g)\n", t);
+//
+//  return true;
+//}
+
+#define NBUF (1L<<12)
+
+static void read_endVertex(int64_t * endVertex, int64_t nadj, FILE * fin, int64_t * xoff, int64_t * edgeStart, int64_t nv) {
+#ifdef __MTA__
+  double tt = timer();
+  int64_t * buf = (int64_t*)xmmap(NULL, sizeof(int64_t)*nadj, PROT_READ | PROT_WRITE, MAP_PRIVATE | MAP_ANON, 0,0);
   
-  graphint NV = g->numVertices;
-  graphint NE = g->numEdges;
-  
-  alloc_graph(g, NV, NE);
-  
-  /* now read in contents... */
-  fread(g->startVertex, sizeof(graphint), NE, fin);
-  fread(g->endVertex, sizeof(graphint), NE, fin);
-  fread(g->edgeStart, sizeof(graphint), NV+2, fin);
-  fread(g->intWeight, sizeof(graphint), NE, fin);
-  fread(g->marks, sizeof(color_t), NV, fin);
+  fread_plus(buf, sizeof(int64_t), nadj, fin, "xadj", SCALE, 16);
+
+  int64_t * xadj = buf+2; // remember we skip over the first two elements...
+
+  MTA("mta assert nodep")
+  for (int64_t i=0; i<nv; i++) {
+    int64_t d = xoff[2*i+1] - xoff[2*i];
+    MTA("mta assert nodep")
+    for (int64_t j=0; j<d; j++) {
+      int64_t v = xadj[xoff[2*i]+j];
+      CHECK(v != -1) { fprintf(stderr, "Bad vertex id! v = %ld, j = %ld, xoff[%ld] = %ld -> %ld\n", v, j, i, xoff[2*i], xoff[2*i+1]); }
+      endVertex[edgeStart[i]+j] = v;
+    }
+  }
+
+  munmap((caddr_t)buf, sizeof(int64_t)*nadj);
+#else
+  int64_t * buf = (int64_t*)xmalloc(NBUF*sizeof(int64_t));
+  int64_t pos = 0;
+  /*printf("endVertex: [ ");*/
+  for (int64_t i=0; i<nadj; i+=NBUF) {
+    int64_t n = MIN(nadj-i, NBUF);
+    fread(buf, sizeof(int64_t), n, fin);
+    for (int64_t j=0; j<n; j++) {
+      if (buf[j] != -1) {
+        endVertex[pos] = buf[j];
+        /*printf("%ld ", endVertex[pos]);*/
+        pos++;
+      }
+    }
+  }
+  /*printf("]\n");*/
+  /*printf("pos = %ld\n", pos); fflush(stdout);*/
+  free(buf);
+#endif
 }
 
-static void graph_out(graph * g, FILE * fin) {
-  fwrite(&g->numVertices, sizeof(graphint), 1, fin);
-  fwrite(&g->numEdges, sizeof(graphint), 1, fin);
-  
-  graphint NV = g->numVertices;
-  graphint NE = g->numEdges;
-  
-  /* now read in contents... */
-  fwrite(g->startVertex, sizeof(graphint), NE, fin);
-  fwrite(g->endVertex, sizeof(graphint), NE, fin);
-  fwrite(g->edgeStart, sizeof(graphint), NV+2, fin);
-  fwrite(g->intWeight, sizeof(graphint), NE, fin);
-  fwrite(g->marks, sizeof(color_t), NV, fin);
-}
+bool checkpoint_in(graphedges * ge, graph * g) {
+#ifdef __MTA__
+  snap_init();
+#endif
+  int64_t buf[NBUF];
 
-static void checkpoint_in(graph * dirg, graph * g) {
-  fprintf(stderr,"start reading checkpoint\n");
+  fprintf(stderr, "starting to read ckpt...\n");
   double t = timer();
-  
+
   char fname[256];
-  sprintf(fname, "ckpts/suite.%d.ckpt", SCALE);
+  
+
+  sprintf(fname, "ckpts/graph500.%lld.%lld.xmt.w.ckpt", SCALE, 16);
   FILE * fin = fopen(fname, "r");
   if (!fin) {
-    fprintf(stderr, "Unable to open file: %s, will generate graph and write checkpoint.\n", fname);
-    checkpointing = false;
-    return;
-  }
-  
-  graph_in(dirg, fin);
-  graph_in(g, fin);
-  
-  fclose(fin);
-  
-  t = timer() - t;
-  fprintf(stderr, "done reading in checkpoint (time = %g)\n", t);
-}
-
-static void checkpoint_out(graph * dirg, graph * undirg) {
-  fprintf(stderr, "starting checkpoint output\n");
-  double t = timer();
-  
-  char fname[256];
-  sprintf(fname, "ckpts/suite.%d.ckpt", SCALE);
-  FILE * fout = fopen(fname, "w");
-  if (!fout) {
-    fprintf(stderr, "Unable to open file for writing: %s.\n", fname);
+    fprintf(stderr, "Unable to open file - %s.\n", fname);
     exit(1);
   }
+
+  int64_t nedge, nv, nadj, nbfs;
+  fread(&nedge, sizeof(nedge), 1, fin);
+  fread(&nv,    sizeof(nv),    1, fin);
+  fread(&nadj,  sizeof(nadj),  1, fin);
+  fread(&nbfs,  sizeof(nbfs),  1, fin);
+  fprintf(stderr, "nedge=%ld, nv=%ld, nadj=%ld, nbfs=%ld\n", nedge, nv, nadj, nbfs);
+
+  double tt = timer();
+  //alloc_edgelist(ge, nedge);
+  //for (size_t i=0; i<nedge; i+=NBUF/2) {
+  //  int64_t n = MIN(NBUF/2, nedge-i);
+  //  fread(buf, sizeof(int64_t), 2*n, fin);
+  //  //for (size_t j=0; j<n; j++) {
+  //  //  ge->startVertex[i+j] = buf[2*j];
+  //  //  ge->endVertex[i+j] = buf[2*j+1];
+  //  //}
+  //}
+  fseek(fin, nedge * 2*sizeof(int64_t), SEEK_CUR);
+  printf("edgelist read time: %g\n", timer()-tt);
+
+  tt = timer();
+  int64_t * xoff = xmalloc((2*nv+2)*sizeof(int64_t));
   
-  graph_out(dirg, fout);
-  graph_out(undirg, fout);
+  fread_plus(xoff, sizeof(int64_t), 2*nv+2, fin, "xoff", SCALE, 16);
+
+  /*for (int64_t i=0; i<(1L<<10); i++) {*/
+  /*int64_t target = 5436636;*/
+  /*for (int64_t i=-10; i<10; i++) {*/
+    /*printf("xoff[%ld] = < %ld, %ld >\n", i, xoff[2*(target+i)], xoff[2*(target+i)+1]);*/
+  /*}*/
+
+  tt = timer();
+  int64_t actual_nadj = 0;
+  for (size_t i=0; i<nv; i++) { actual_nadj += xoff[2*i+1] - xoff[2*i]; }
+  printf("actual_nadj compute time: %g\n", timer()-tt);
+
+  alloc_graph(g, nv, actual_nadj);
   
-  fclose(fout);
+  // xoff/edgeStart
+  tt = timer();
+ 
+  graphint * eS = g->edgeStart;
+  eS[0] = 0;
   
-  t = timer() - t;
-  fprintf(stderr, "done writing checkpoint (time = %g)\n", t);
+  MTA("mta noalias *eS *xoff") 
+  for (size_t i=0; i<nv; i++) {
+    eS[i+1] = eS[i] + (xoff[2*i+1]-xoff[2*i]);
+  }
+  printf("edgeStart compute time: %g\n", timer()-tt);
+  /*printf("edgeStart: [ ");*/
+  /*for (int64_t i=-10; i<10; i++) {*/
+    /*printf((i==0)?"(%ld) " : "%ld ", eS[target+i]);*/
+  /*}*/
+  /*printf("]\n");*/
+
+  // xadj/endVertex
+  tt = timer();
+  fread(buf, sizeof(int64_t), 2, fin); nadj -= 2;
+  read_endVertex(g->endVertex, nadj, fin, xoff, g->edgeStart, nv);
+  printf("endVertex read time: %g\n", timer()-tt);
+  
+  free(xoff);
+
+  // startVertex
+  tt = timer();
+  MTA("mta assert nodep")
+  for (int64_t v=0; v<nv; v++) {
+    MTA("mta assert nodep")
+    for (int64_t j=g->edgeStart[v]; j<g->edgeStart[v+1]; j++) {
+      g->startVertex[j] = v;
+    }
+  }
+  printf("startVertex time: %g\n", timer()-tt);
+
+  // bfs roots (don't need 'em)
+  CHECK(NBUF > nbfs) { fprintf(stderr, "too many bfs\n"); }
+  fread(buf, sizeof(int64_t), nbfs, fin);
+
+  // int weights
+  tt = timer();
+  int64_t nw;
+  fread(&nw, sizeof(int64_t), 1, fin);
+  CHECK(nw == actual_nadj) { fprintf(stderr, "nw = %ld, actual_nadj = %ld\n", nw, actual_nadj); }
+  fprintf(stderr, "warning: skipping intWeight\n");
+  /*fread(g->intWeight, sizeof(int64_t), nw, fin);*/
+  /*printf("intWeight read time: %g\n", timer()-tt);*/
+  /*for (int64_t i=0; i<nw; i++) { fprintf(stdout, "%ld ", g->intWeight[i]); } fprintf(stdout, "\n"); fflush(stdout);*/
+
+  fprintf(stderr, "checkpoint_read_time: %g\n", timer()-t);
+  return true;
 }
+
+//static void checkpoint_out(graph * dirg, graph * undirg) {
+//  fprintf(stderr, "starting checkpoint output\n");
+//  double t = timer();
+//  
+//  char fname[256];
+//  sprintf(fname, "ckpts/suite.%d.ckpt", SCALE);
+//  FILE * fout = fopen(fname, "w");
+//  if (!fout) {
+//    fprintf(stderr, "Unable to open file for writing: %s.\n", fname);
+//    exit(1);
+//  }
+//  
+//  graph_out(dirg, fout);
+//  graph_out(undirg, fout);
+//  
+//  fclose(fout);
+//  
+//  t = timer() - t;
+//  fprintf(stderr, "done writing checkpoint (time = %g)\n", t);
+//}
 
 int main(int argc, char* argv[]) {	
   parseOptions(argc, argv);
@@ -110,39 +288,37 @@ int main(int argc, char* argv[]) {
   graph _dirg;
   graph _g;
   
-  double time;
+  double t;
   
   printf("[[ Graph Application Suite ]]\n"); fflush(stdout);
   
   graph * dirg = &_dirg;
   graph * g = &_g;
+  graphedges * ge = &_ge;
   
+  bool generate_checkpoint = false;
+
   if (checkpointing) {
-    checkpoint_in(dirg, g);
+    generate_checkpoint = !checkpoint_in(ge, g);
   }
   
-  if (!checkpointing) {
-    graphedges * ge = &_ge;
-    
+  if (!checkpointing || generate_checkpoint) {
     printf("\nScalable Data Generator - genScalData() randomly generating edgelist...\n"); fflush(stdout);
-    //	MTA("mta trace \"begin genScalData\"")
-    time = timer();
-    
+    t = timer();
     
     genScalData(ge, A, B, C, D);
     
-    time = timer() - time;
-    printf("Time taken for Scalable Data Generation is %9.6lf sec.\n", time);
+    t = timer() - t;
+    printf("edge_generation_time: %g\n", t);
     if (graphfile) print_edgelist_dot(ge, graphfile);
     
     //###############################################
     // Kernel: Compute Graph
     
     /* From the input edges, construct the graph 'G'.  */
-    printf("\nKernel - Compute Graph beginning execution...\n"); fflush(stdout);
-    //	MTA("mta trace \"begin computeGraph\"")
+    printf("Kernel - Compute Graph beginning execution...\n"); fflush(stdout);
     
-    time = timer();
+    t = timer();
     
     // directed graph
     computeGraph(ge, dirg);
@@ -151,74 +327,75 @@ int main(int argc, char* argv[]) {
     // undirected graph
     makeUndirected(dirg, g);
     
-    time = timer() - time;
-    printf("Time taken for computeGraph is %9.6lf sec.\n", time);
+    t = timer() - t;
+    printf("compute_graph_time: %g\n", t);
     if (graphfile) print_graph_dot(g, graphfile);
     
-    checkpoint_out(dirg, g);
+    /*if (generate_checkpoint) checkpoint_out(dirg, g);*/
   }
   
   //###############################################
   // Kernel: Connected Components
-  printf("\nKernel - Connected Components beginning execution...\n"); fflush(stdout);
-  MTA("mta trace \"begin connectedComponents\"")
-  time = timer();
-  
-  graphint connected = connectedComponents(g);
-  
-  time = timer() - time;
-  printf("Number of connected components: %"DFMT"\n", connected);
-  printf("Time taken for connectedComponents is %9.6lf sec.\n", time);
-  
-  
+  if (do_components) {
+    printf("Kernel - Connected Components beginning execution...\n"); fflush(stdout);
+    t = timer();
+    
+    graphint connected = connectedComponents(g);
+    
+    t = timer() - t;
+    printf("ncomponents: %"DFMT"\n", connected);
+    printf("components_time: %g\n", t); fflush(stdout);
+  }
+
   //###############################################
   // Kernel: Path Isomorphism
-  
-  // assign random colors to vertices in the range: [0,10)
-  //	MTA("mta trace \"begin markColors\"")
-  markColors(dirg, 0, 10);
-  
-  // path to find (sequence of specifically colored vertices)
-  color_t pattern[] = {2, 5, 9, END};
-  
-  color_t *c = pattern;
-  printf("\nKernel - Path Isomorphism beginning execution...\nfinding path: %"DFMT"", *c);
-  c++; while (*c != END) { printf(" -> %"DFMT"", *c); c++; } printf("\n"); fflush(stdout);
-  //	MTA("mta trace \"begin pathIsomorphism\"")
-  time = timer();
-  
-  graphint num_matches = pathIsomorphismPar(dirg, pattern);
-  
-  time = timer() - time;
-  
-  printf("Number of matches: %"DFMT"\n", num_matches);
-  printf("Time taken for pathIsomorphismPar is %9.6lf sec.\n", time);
+  if (do_pathiso) {
+    // assign random colors to vertices in the range: [0,10)
+    markColors(g, 0, 10);
+    
+    // path to find (sequence of specifically colored vertices)
+    color_t pattern[] = {2, 5, 9, END};
+    
+    color_t *c = pattern;
+    printf("Kernel - Path Isomorphism beginning execution...\nfinding path: %"DFMT"", *c);
+    c++; while (*c != END) { printf(" -> %"DFMT"", *c); c++; } printf("\n"); fflush(stdout);
+    t = timer();
+    
+    graphint num_matches = pathIsomorphismPar(g, pattern);
+    
+    t = timer() - t;
+    printf("path_iso_matches: %"DFMT"\n", num_matches);
+    printf("path_isomorphism_time: %g\n", t); fflush(stdout);
+  }
   
   //###############################################
   // Kernel: Triangles
-  printf("\nKernel - Triangles beginning execution...\n"); fflush(stdout);
-  //	MTA("mta trace \"begin triangles\"")
-  time = timer();
-  
-  graphint num_triangles = triangles(g);
-  
-  time = timer() - time;
-  printf("Number of triangles: %"DFMT"\n", num_triangles);
-  printf("Time taken for triangles is %9.6lf sec.\n", time);
-  
+  if (do_triangles) {
+    printf("Kernel - Triangles beginning execution...\n"); fflush(stdout);
+    t = timer();
+    
+    graphint num_triangles = triangles(g);
+    
+    t = timer() - t;
+    printf("ntriangles: %"DFMT"\n", num_triangles);
+    printf("triangles_time: %g\n", t); fflush(stdout);
+  } 
   
   //###############################################
   // Kernel: Betweenness Centrality
-  printf("\nKernel - Betweenness Centrality beginning execution...\n"); fflush(stdout);
-  //	MTA("mta trace \"begin centrality\"")
-  time = timer();
-  
-  double *bc = xmalloc(numVertices*sizeof(double));
-  double avgbc = centrality(g, bc, kcent);
-  
-  time = timer() - time;
-  printf("Betweenness Centrality: (avg) = %lf\n", avgbc);
-  printf("Time taken for betweenness centrality is %9.6lf sec.\n", time);
+  if (do_centrality) {
+    printf("Kernel - Betweenness Centrality (kcent = %ld) beginning execution...\n", kcent); fflush(stdout);
+    t = timer();
+    
+    double *bc = xmalloc(numVertices*sizeof(double));
+    int64_t total_nedge;
+    double avgbc = centrality(g, bc, kcent, &total_nedge);
+    
+    t = timer() - t;
+    printf("avg_centrality: %12.10g\n", avgbc);
+    printf("centrality_time: %g\n", t); fflush(stdout);
+    printf("centrality_teps: %g\n", total_nedge / t);
+  }
   
   //###################
   // Kernels complete!
@@ -239,23 +416,29 @@ static void printHelp(const char * exe) {
 }
 
 static void parseOptions(int argc, char ** argv) {
+  enum GraphKernel { KERNEL_COMPONENTS, KERNEL_PATHISO, KERNEL_TRIANGLES, KERNEL_CENTRALITY };
   struct option long_opts[] = {
     {"help", no_argument, 0, 'h'},
     {"scale", required_argument, 0, 's'},
     {"dot", required_argument, 0, 'd'},
     {"ckpt", no_argument, 0, 'p'},
-    {"kcent", required_argument, 0, 'c'}
+    {"kcent", required_argument, 0, 'c'},
+    {"components", no_argument, 0, KERNEL_COMPONENTS},
+    {"pathiso",    no_argument, 0, KERNEL_PATHISO},
+    {"triangles",  no_argument, 0, KERNEL_TRIANGLES},
+    {"centrality", no_argument, 0, KERNEL_CENTRALITY}
   };
   
   SCALE = 8; //default value
   graphfile = NULL;
   kcent = 1L << SCALE;
-  
+  checkpointing = false;
+
   int c = 0;
   while (c != -1) {
     int option_index = 0;
     
-    c = getopt_long(argc, argv, "hsdpc", long_opts, &option_index);
+    c = getopt_long(argc, argv, "hs:d:pc:", long_opts, &option_index);
     switch (c) {
       case 'h':
         printHelp(argv[0]);
@@ -272,7 +455,24 @@ static void parseOptions(int argc, char ** argv) {
       case 'p':
         checkpointing = true;
         break;
+      case KERNEL_COMPONENTS:
+        do_components = true;
+        break;
+      case KERNEL_PATHISO:
+        do_pathiso = true;
+        break;
+      case KERNEL_TRIANGLES:
+        do_triangles = true;
+        break;
+      case KERNEL_CENTRALITY:
+        do_centrality = true;
+        break;
     }
+  }
+
+  // if no flags set, default to doing all
+  if (!(do_components || do_pathiso || do_triangles || do_centrality)) {
+    do_components = do_pathiso = do_triangles = do_centrality = true;
   }
 }
 

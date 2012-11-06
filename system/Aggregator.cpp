@@ -1,14 +1,23 @@
 
+// Copyright 2010-2012 University of Washington. All Rights Reserved.
+// LICENSE_PLACEHOLDER
+// This software was created with Government support under DE
+// AC05-76RL01830 awarded by the United States Department of
+// Energy. The Government has certain rights in the software.
+
 #include <gflags/gflags.h>
 
 #include "Aggregator.hpp"
-#include "SoftXMT.hpp"
+#include "Grappa.hpp"
 #include <csignal>
 
 #include "PerformanceTools.hpp"
 
-/// command line options for Aggregator
+// command line options for Aggregator
 DEFINE_int64( aggregator_autoflush_ticks, 1000, "number of ticks to wait before autoflushing aggregated active messages");
+DEFINE_int64( aggregator_max_flush, 0, "flush no more than this many buffers per poll (0 for unlimited)");
+DEFINE_bool( aggregator_enable, true, "should we aggregate packets or just send them?");
+DEFINE_bool( flush_on_idle, false, "flush all aggregated messages there's nothing better to do");
 
 /// global Aggregator instance
 Aggregator global_aggregator;
@@ -22,15 +31,15 @@ static void aggregator_toggle_access_control_sighandler( int signum ) {
 
 #endif
 
-// Construct Aggregator.
+/// Construct Aggregator
 Aggregator::Aggregator( ) 
   : max_nodes_( -1 )
   , buffers_( )
-  , route_map_( )
   , previous_timestamp_( 0L )
   , least_recently_sent_( )
   , aggregator_deaggregate_am_handle_( -1 )
-#ifdef VTRACE
+  , route_map_( )
+#ifdef VTRACE_FULL
   , tag_( -1 )
   , vt_agg_commid_( VT_COMM_DEF( "Aggregator" ) )
 #endif
@@ -49,8 +58,10 @@ Aggregator::Aggregator( )
 
 void Aggregator_deaggregate_am( gasnet_token_t token, void * buf, size_t size );
 
+/// Initialize aggregator
 void Aggregator::init() {
   max_nodes_ = global_communicator.nodes();
+  least_recently_sent_.resize( global_communicator.nodes() );
   aggregator_deaggregate_am_handle_ = global_communicator.register_active_message_handler( &Aggregator_deaggregate_am );
   buffers_.resize( max_nodes_ - buffers_.size() );
   route_map_.resize( max_nodes_ - route_map_.size() );
@@ -58,19 +69,24 @@ void Aggregator::init() {
   for( Node i = 0; i < max_nodes_; ++i ) {
     route_map_[i] = i;
   }
-#ifdef VTRACE
+#ifdef VTRACE_FULL
   tag_ = global_communicator.mynode();
 #endif
 }
 
+/// Tear down aggregator
 Aggregator::~Aggregator() {
 #ifdef STL_DEBUG_ALLOCATOR
   STLMemDebug::BaseAllocator::getMemMgr().setAccessMode(STLMemDebug::memReadWrite);
 #endif
 }
 
+/// After GASNet deaggregate handler is called to buffer an aggregated
+/// message bundle, this method unpacks the bundle and executes the
+/// Grappa-level active message handlers.
 void Aggregator::deaggregate( ) {
-#ifdef VTRACE
+  GRAPPA_FUNCTION_PROFILE( GRAPPA_COMM_GROUP );
+#ifdef VTRACE_FULL
   VT_TRACER("deaggregate");
 #endif
   StateTimer::enterState_deaggregation();
@@ -89,7 +105,7 @@ void Aggregator::deaggregate( ) {
 
     DVLOG(5) << "deaggregating message of size " << amp.size_;
     uintptr_t msg_base = reinterpret_cast< uintptr_t >( amp.buf_ );
-    for( int i = 0; i < amp.size_; ) {
+    for( unsigned int i = 0; i < amp.size_; ) {
       AggregatorGenericCallHeader * header = reinterpret_cast< AggregatorGenericCallHeader * >( msg_base );
       AggregatorAMHandler fp = reinterpret_cast< AggregatorAMHandler >( header->function_pointer );
       void * args = reinterpret_cast< void * >( msg_base + 
@@ -97,9 +113,9 @@ void Aggregator::deaggregate( ) {
       void * payload = reinterpret_cast< void * >( msg_base +
                                                    sizeof( AggregatorGenericCallHeader ) +
                                                    header->args_size );
-      
       if( header->destination == gasnet_mynode() ) { // for us?
           
+	stats.record_deaggregation( sizeof( AggregatorGenericCallHeader ) + header->args_size + header->payload_size );
           // trace fine-grain communication
 #ifdef GRAPPA_TRACE
           if (FLAGS_record_grappa_events) {
@@ -109,7 +125,7 @@ void Aggregator::deaggregate( ) {
           }
 #endif
 
-#ifdef VTRACE
+#ifdef VTRACE_FULL
 	  {
 	    VT_RECV( vt_agg_commid_, header->tag, sizeof( AggregatorGenericCallHeader ) + header->args_size + header->payload_size );
 	  }
@@ -119,12 +135,17 @@ void Aggregator::deaggregate( ) {
         DVLOG(5) << "calling " << *header 
                 << " with args " << args
                 << " and payload " << payload;
-        fp( args, header->args_size, payload, header->payload_size ); // execute
+      
+        {   
+            GRAPPA_PROFILE( deag_func_timer, "deaggregate execution", "", GRAPPA_USERAM_GROUP );
+            fp( args, header->args_size, payload, header->payload_size ); // execute
+        } 
       } else { // not for us, so forward towards destination
         DVLOG(5) << "forwarding " << *header
                 << " with args " << args
                 << " and payload " << payload;
-        SoftXMT_call_on( header->destination, fp, args, header->args_size, payload, header->payload_size );
+	stats.record_forward( sizeof( AggregatorGenericCallHeader ) + header->args_size + header->payload_size );
+        Grappa_call_on( header->destination, fp, args, header->args_size, payload, header->payload_size );
       }
       i += sizeof( AggregatorGenericCallHeader ) + header->args_size + header->payload_size;
       msg_base += sizeof( AggregatorGenericCallHeader ) + header->args_size + header->payload_size;
@@ -132,7 +153,7 @@ void Aggregator::deaggregate( ) {
   }
 }
   
-  
+/// clean up aggregator before destruction
 void Aggregator::finish() {
 #ifdef STL_DEBUG_ALLOCATOR
   LOG(INFO) << "Cleaning up access control....";
@@ -140,8 +161,11 @@ void Aggregator::finish() {
 #endif
 }
 
+/// Deaggration GASNet active message handler. This receives an
+/// aggregated message bundle and buffers it for later deaggregation.
 void Aggregator_deaggregate_am( gasnet_token_t token, void * buf, size_t size ) {
-#ifdef VTRACE
+  GRAPPA_FUNCTION_PROFILE( GRAPPA_COMM_GROUP );
+#ifdef VTRACE_FULL
   VT_TRACER("deaggregate AM");
 #endif
 
@@ -158,6 +182,10 @@ void Aggregator_deaggregate_am( gasnet_token_t token, void * buf, size_t size ) 
 
 }
 
+extern uint64_t merge_reply_count;
+
+/// Merge stats from a remote aggregator with the local one.
 void AggregatorStatistics::merge_am(AggregatorStatistics * other, size_t sz, void* payload, size_t psz) {
   global_aggregator.stats.merge(other);
+  merge_reply_count++;
 }

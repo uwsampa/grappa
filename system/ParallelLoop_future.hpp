@@ -1,13 +1,19 @@
-#ifndef __PARALLEL_LOOP_FUTURE_HPP__
-#define __PARALLEL_LOOP_FUTURE_HPP__
+// Copyright 2010-2012 University of Washington. All Rights Reserved.
+// LICENSE_PLACEHOLDER
+// This software was created with Government support under DE
+// AC05-76RL01830 awarded by the United States Department of
+// Energy. The Government has certain rights in the software.
 
-#include "SoftXMT.hpp"
+#ifndef PARALLEL_LOOP_FUTURE_HPP
+#define PARALLEL_LOOP_FUTURE_HPP
+
+#include "Grappa.hpp"
 #include "Future.hpp"
 #include "Cache.hpp"
 
 DECLARE_int64( parallel_loop_threshold );
 
-/// private args will be copied to every Future
+/// Private args will be copied to every Future
 
 namespace pl_future {
 
@@ -66,6 +72,18 @@ static void parallel_loop_helper(int64_t start_index, int64_t iterations, void (
 
 } // end namespace
 
+/// Parallel loop with indices start_index to iterations. Iterations may
+/// execute in any order, and this call will block until all iterations are completed.
+/// This parallel loop is implemented with recursive decomposition ala Cilk_for, and it
+/// uses Future for the join at each split. (currently touch will occur when the iterations are still local)
+///
+/// @tparam UserArg type of the user args
+/// @param start_index starting index
+/// @param iterations number of iterations
+/// @param loop_body function pointer representing the loop body for iteration i, also gets copy of user arguments
+///
+/// Note: currently this parallel loop implementation is known to be less performant than the
+///       AsyncParallelFor + GlobalTaskJoiner used in current benchmarks
 template < typename UserArg >
 void parallel_loop_implFuture(int64_t start_index, int64_t iterations, void (*loop_body)(int64_t, UserArg *), UserArg args) {
     using namespace pl_future;
@@ -73,4 +91,4 @@ void parallel_loop_implFuture(int64_t start_index, int64_t iterations, void (*lo
 }
 
 
-#endif
+#endif // PARALLEL_LOOP_FUTURE_HPP

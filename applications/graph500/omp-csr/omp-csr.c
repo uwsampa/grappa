@@ -6,7 +6,7 @@
 #include <stdio.h>
 #include <string.h>
 #include <math.h>
-
+#include <stdbool.h>
 #include <assert.h>
 
 #include <alloca.h>
@@ -26,17 +26,23 @@ static int64_t * restrict xoff; /* Length 2*nv+2 */
 static int64_t * restrict xadjstore; /* Length MINVECT_SIZE + (xoff[nv] == nedge) */
 static int64_t * restrict xadj;
 
+
+bool checkpoint_in(int SCALE, int edgefactor, struct packed_edge * restrict IJ, int64_t * nedge, int64_t * bfs_roots, int * nbfs) {
+  fprintf(stderr, "Checkpoint in not implemented yet...");
+  return false;
+}
+
 void checkpoint_out(int64_t SCALE, int64_t edgefactor, const struct packed_edge * restrict edges, const int64_t nedge, const int64_t * restrict bfs_roots, const int64_t nbfs) {
   fprintf(stderr, "starting checkpoint...\n");
   char fname[256];
-  sprintf(fname, "softxmt/ckpts/graph500.%lld.%lld.omp.ckpt", SCALE, edgefactor);
+  sprintf(fname, "grappa/ckpts/graph500.%lld.%lld.omp.ckpt", SCALE, edgefactor);
   FILE * fout = fopen(fname, "w");
   if (!fout) {
     fprintf(stderr,"Unable to open file for writing: %s\n", fname);
     exit(1);
   }
   
-  fprintf(stderr, "%lld %lld %lld %lld\n", nedge, nv, nadj, nbfs);
+  fprintf(stderr, "nedge=%lld, nv=%lld, nadj=%lld, nbfs=%lld\n", nedge, nv, nadj, nbfs);
   
   fwrite(&nedge, sizeof(nedge), 1, fout);
   fwrite(&nv, sizeof(nv), 1, fout);
@@ -84,7 +90,7 @@ static int
 alloc_graph (int64_t nedge)
 {
   OMP("omp parallel") {
-    printf("omp_num_threads: %d\n", omp_get_num_threads());
+    OMP("omp single") printf("omp_num_threads: %d\n", omp_get_num_threads());
   }
 	sz = (2*nv+2) * sizeof (*xoff);
 	xoff = xmalloc_large_ext (sz);

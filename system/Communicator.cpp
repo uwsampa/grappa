@@ -1,22 +1,28 @@
 
+// Copyright 2010-2012 University of Washington. All Rights Reserved.
+// LICENSE_PLACEHOLDER
+// This software was created with Government support under DE
+// AC05-76RL01830 awarded by the United States Department of
+// Energy. The Government has certain rights in the software.
+
 #include <cassert>
 
 #ifdef HEAPCHECK
 #include <gperftools/heap-checker.h>
-extern HeapLeakChecker * SoftXMT_heapchecker;
+extern HeapLeakChecker * Grappa_heapchecker;
 #endif
 
 #include "Communicator.hpp"
 
-// global communicator instance
+/// Global communicator instance
 Communicator global_communicator;
 
-///construct
+/// Construct communicator
 Communicator::Communicator( )
   : handlers_()
   , registration_is_allowed_( false )
   , communication_is_allowed_( false )
-#ifdef VTRACE
+#ifdef VTRACE_FULL
   , communicator_grp_vt( VT_COUNT_GROUP_DEF( "Communicator" ) )
   , send_ev_vt( VT_COUNT_DEF( "Sends", "bytes", VT_COUNT_TYPE_UNSIGNED, communicator_grp_vt ) )
 #endif
@@ -65,6 +71,8 @@ void Communicator::finish(int retval) {
   //gasnet_exit( retval );
 }
 
+extern uint64_t merge_reply_count;
 void CommunicatorStatistics::merge_am(CommunicatorStatistics * other, size_t sz, void* payload, size_t psz) {
   global_communicator.stats.merge(other);
+  merge_reply_count++; 
 }

@@ -1,5 +1,14 @@
+
+# Copyright 2010-2012 University of Washington. All Rights Reserved.
+# LICENSE_PLACEHOLDER
+# This software was created with Government support under DE
+# AC05-76RL01830 awarded by the United States Department of
+# Energy. The Government has certain rights in the software.
+
 #
 # Grappa gdb macros
+#
+# load by telling GDB "source grappa_gdb.macros"
 #
 
 set print pretty on
@@ -36,10 +45,15 @@ These are the Grappa gdb macros.
   backtrace_coroutine <coroutine pointer>   backtrace for specific coroutine
   btc <coroutine pointer>                   backtrace for specific coroutine
 
+  backtrace_coroutine_full <coroutine pointer> backtrace for specific coroutine with locals
+  btcf <coroutine pointer>                  backtrace for specific coroutine with locals
+
   switch_to_coroutine <coroutine pointer>   change $rip and $rsp to coroutine's. 
                                             DO NOT CONTINUE UNTIL RESTORE
   grappa_save_state                         save real $rip and $rsp
   grappa_restore_state                      restore real $rip and $rsp
+
+  dumpstack <coroutine pointer>             dump the stack (as raw int64_t's)
 
 Type "help <macro>" for more specific help on a particular macro.
 Type "show user <macro>" to see what the macro is really doing.
@@ -157,7 +171,7 @@ end
 
 
 define periodic_queue
-  grappa_queue_print "Periodic" &my_global_scheduler->periodicQ
+  grappa_queue_print "Periodic" &global_scheduler.periodicQ
 end
 document periodic_queue
 Prints contents of Grappa periodic queue.
@@ -166,7 +180,7 @@ Syntax:
 end
 
 define ready_queue
-  grappa_queue_print "Ready" &my_global_scheduler->readyQ
+  grappa_queue_print "Ready" &global_scheduler.readyQ
 end
 document ready_queue
 Prints contents of Grappa ready queue.
@@ -175,7 +189,7 @@ Syntax:
 end
 
 define unassigned_queue
-  grappa_queue_print "Unassigned" &my_global_scheduler->unassignedQ
+  grappa_queue_print "Unassigned" &global_scheduler.unassignedQ
 end
 document unassigned_queue
 Prints contents of Grappa unassigned queue.
@@ -184,7 +198,7 @@ Syntax:
 end
 
 define unassigned_queue_length
-  grappa_queue_length "Unassigned" &my_global_scheduler->unassignedQ
+  grappa_queue_length "Unassigned" &global_scheduler.unassignedQ
 end
 document unassigned_queue_length
 Prints length of Grappa unassigned queue.
@@ -210,7 +224,7 @@ end
 
 define current_coroutine
   printf "Current coroutine:\n"
-  grappa_coroutine_print my_global_scheduler->current_thread->co
+  grappa_coroutine_print global_scheduler.current_thread->co
 end
 document current_coroutine
 Prints currently scheduled Grappa coroutine.
@@ -236,7 +250,7 @@ end
 
 define private_tasks
   printf "Private tasks (newest at top): "
-  output/a my_global_scheduler->task_manager->privateQ
+  output/a global_scheduler.task_manager->privateQ
   printf "\n"
 end
 document private_tasks
@@ -246,34 +260,27 @@ Syntax:
 end
 
 define public_tasks
-  set $grappa_publicQ = my_global_scheduler->task_manager->publicQ
-  set $grappa_local_tasks = $grappa_publicQ->top - $grappa_publicQ->local
-  set $grappa_shared_tasks = $grappa_publicQ->local - $grappa_publicQ->sharedStart
+  set $grappa_publicQ = global_scheduler.task_manager->publicQ
+  set $grappa_shared_tasks = $grappa_publicQ->top - $grappa_publicQ->bottom
   printf "Shared public tasks (newest at bottom) (%d shared):\n", $grappa_shared_tasks
-  set $grappa_task_index = $grappa_publicQ->sharedStart
-  while $grappa_task_index != $grappa_publicQ->local
-    printf "  Task function: "
-    output $grappa_publicQ->stack[ $grappa_task_index ].fn_p 
-    printf "   argument: "
-    output $grappa_publicQ->stack[ $grappa_task_index ].arg
-    printf "\n"
-    set $grappa_task_index++
-  end
-  printf "Local public tasks (newest at bottom) (%d local):\n", $grappa_local_tasks
-  set $grappa_task_index = $grappa_publicQ->local
+  set $grappa_task_index = $grappa_publicQ->bottom
   while $grappa_task_index != $grappa_publicQ->top
     printf "  Task function: "
     output $grappa_publicQ->stack[ $grappa_task_index ].fn_p 
-    printf "   argument: "
-    output $grappa_publicQ->stack[ $grappa_task_index ].arg
+    printf "   args: "
+    output $grappa_publicQ->stack[ $grappa_task_index ].arg0
+    printf ", "
+    output $grappa_publicQ->stack[ $grappa_task_index ].arg1
+    printf ", "
+    output $grappa_publicQ->stack[ $grappa_task_index ].arg2
     printf "\n"
     set $grappa_task_index++
   end
 end
 document public_tasks
-Prints contents of Grappa public task queue.
-Syntax:
-   (gdb) public_tasks
+  Prints contents of Grappa public task queue.
+  Syntax:
+  (gdb) public_tasks
 end
 
 define tasks
@@ -326,6 +333,17 @@ Syntax:
    (gdb) backtrace_coroutine <coroutine pointer>
 end
 
+define backtrace_coroutine_full
+  switch_to_coroutine $arg0
+  backtrace full
+  grappa_restore_state
+end
+document backtrace_coroutine_full
+Print backtrace of Grappa coroutine with locals.
+Syntax:
+   (gdb) backtrace_coroutine_full <coroutine pointer>
+end
+
 define btc
   switch_to_coroutine $arg0
   backtrace
@@ -334,5 +352,26 @@ end
 document btc
 Print backtrace of Grappa coroutine.
 Syntax:
-   (gdb) btc <coroutine pointer> [full] [+/-count]
+   (gdb) btc <coroutine pointer>
 end
+
+define btcf
+  switch_to_coroutine $arg0
+  backtrace full
+  grappa_restore_state
+end
+document btcf
+Print backtrace of Grappa coroutine with locals.
+Syntax:
+   (gdb) btcf <coroutine pointer>
+end
+
+define dumpstack
+  p ((int64_t*)((coro*)$arg0)->stack) @ (((coro*)$arg0)->base+((coro*)$arg0)->ssize+4096-((coro*)$arg0)->stack)/sizeof(int64_t)
+end
+document dumpstack
+Dump stack (as int64_t's).
+Syntax:
+   (gdb) dumpstack <coroutine pointer>
+end
+

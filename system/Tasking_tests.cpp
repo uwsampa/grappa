@@ -1,12 +1,22 @@
+// Copyright 2010-2012 University of Washington. All Rights Reserved.
+// LICENSE_PLACEHOLDER
+// This software was created with Government support under DE
+// AC05-76RL01830 awarded by the United States Department of
+// Energy. The Government has certain rights in the software.
 
 
 #include <boost/test/unit_test.hpp>
 
-#include "SoftXMT.hpp"
+#include "Grappa.hpp"
 #include "Delegate.hpp"
 #include "ForkJoin.hpp"
 
 BOOST_AUTO_TEST_SUITE( Tasking_tests );
+
+//
+// Basic test of Grappa running on two Nodes: run user main, and spawning local tasks, local task joiner
+//
+// This test spawns a few private tasks that do delegate operations to Node 1
 
 int num_tasks = 8;
 int64_t num_finished=0;
@@ -22,15 +32,16 @@ void task1_f( task1_arg * arg ) {
     Thread * parent = arg->parent;
 
     BOOST_MESSAGE( CURRENT_THREAD << " with task " << mynum << " about to yield 1" );
-    SoftXMT_yield( );
+    Grappa_yield( );
     BOOST_MESSAGE( CURRENT_THREAD << " with task " << mynum << " about to yield 2" );
-    SoftXMT_yield( );
+    Grappa_yield( );
     BOOST_MESSAGE( CURRENT_THREAD << " with task " << mynum << " is done" );
 
-    int64_t result = SoftXMT_delegate_fetch_and_add_word( nf_addr, 1 );
+    // int fetch add to address on Node1
+    int64_t result = Grappa_delegate_fetch_and_add_word( nf_addr, 1 );
     BOOST_MESSAGE( CURRENT_THREAD << " with task " << mynum << " result=" << result );
     if ( result == num_tasks-1 ) {
-        SoftXMT_wake( parent );
+        Grappa_wake( parent );
     }
 }
 
@@ -45,11 +56,11 @@ void task2_f(int64_t index, task2_shared * sa) {
   
   BOOST_MESSAGE( CURRENT_THREAD << " with task " << index << ", sa = " << sa);
 
-  int64_t result = SoftXMT_delegate_fetch_and_add_word( sa->nf, 1 );
+  int64_t result = Grappa_delegate_fetch_and_add_word( sa->nf, 1 );
   sa->array[index] = result;
 
   BOOST_MESSAGE( CURRENT_THREAD << " with task " << index << " about to yield" );
-  SoftXMT_yield( );
+  Grappa_yield( );
   BOOST_MESSAGE( CURRENT_THREAD << " with task " << index << " is done" );
 
   BOOST_MESSAGE( CURRENT_THREAD << " with task " << index << " result=" << result );
@@ -64,10 +75,11 @@ void user_main( void* args )
   task1_arg argss[num_tasks];
   for (int ta = 0; ta<num_tasks; ta++) {
     argss[ta].num = ta; argss[ta].parent = CURRENT_THREAD;
-    SoftXMT_privateTask( &task1_f, &argss[ta] );
+    Grappa_privateTask( &task1_f, &argss[ta] );
   }
 
-  SoftXMT_suspend(); // no wakeup race because tasks wont run until this yield occurs
+  Grappa_suspend(); // no wakeup race because tasks wont run until this yield occurs
+                     // normally a higher level robust synchronization object should be used
 
   BOOST_MESSAGE( "testing shared args" );
   int64_t array[num_tasks];
@@ -82,7 +94,7 @@ void user_main( void* args )
 
   for (int64_t i=0; i<num_tasks; i++) {
     joiner.registerTask();
-    SoftXMT_privateTask(&task2_f, i, &sa);
+    Grappa_privateTask(&task2_f, i, &sa);
   }
   joiner.wait();
 
@@ -91,17 +103,17 @@ void user_main( void* args )
 
 BOOST_AUTO_TEST_CASE( test1 ) {
 
-  SoftXMT_init( &(boost::unit_test::framework::master_test_suite().argc),
+  Grappa_init( &(boost::unit_test::framework::master_test_suite().argc),
                 &(boost::unit_test::framework::master_test_suite().argv) );
 
-  SoftXMT_activate();
+  Grappa_activate();
 
   DVLOG(1) << "Spawning user main Thread....";
-  SoftXMT_run_user_main( &user_main, (void*)NULL );
+  Grappa_run_user_main( &user_main, (void*)NULL );
   VLOG(5) << "run_user_main returned";
-  CHECK( SoftXMT_done() );
+  CHECK( Grappa_done() );
 
-  SoftXMT_finish( 0 );
+  Grappa_finish( 0 );
 }
 
 BOOST_AUTO_TEST_SUITE_END();

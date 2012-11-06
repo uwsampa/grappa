@@ -12,6 +12,8 @@
 #include <assert.h>
 
 #include "xalloc.h"
+#include "options.h"
+#include "compatio.h"
 
 static int
 compute_levels (int64_t * level,
@@ -75,6 +77,34 @@ compute_levels (int64_t * level,
 	return err;
 }
 
+static int64_t load_nedge(int64_t root, int64_t * bfs_tree) {
+  char fname[256];
+  sprintf(fname, "ckpts/graph500.%lld.%lld.%lld%s.nedge", SCALE, edgefactor, root, (use_RMAT)?".rmat":"");
+  FILE * fin = fopen(fname, "r");
+  if (!fin) {
+    fprintf(stderr, "Unable to open file: %s, will do verify manually and save checkpoint.\n", fname);
+    return -1;
+  }
+  
+  int64_t nedge_traversed;
+  fread(&nedge_traversed, sizeof(nedge_traversed), 1, fin);
+  return nedge_traversed;
+}
+
+static void save_nedge(int64_t root, int64_t nedge_traversed, int64_t * bfs_tree) {
+  char fname[256];
+  sprintf(fname, "ckpts/graph500.%lld.%lld.%lld%s.nedge", SCALE, edgefactor, root, (use_RMAT)?".rmat":"");
+  FILE * fout = fopen(fname, "w");
+  if (!fout) {
+    fprintf(stderr, "Unable to open file for writing: %s.\n", fname);
+    exit(1);
+  }
+  
+  fwrite(&nedge_traversed, sizeof(nedge_traversed), 1, fout);
+  
+  fclose(fout);
+}
+
 int64_t
 verify_bfs_tree (int64_t *bfs_tree_in, int64_t max_bfsvtx,
 				 int64_t root,
@@ -87,7 +117,16 @@ verify_bfs_tree (int64_t *bfs_tree_in, int64_t max_bfsvtx,
 	int64_t * restrict seen_edge, * restrict level;
 	
 	const int64_t nv = max_bfsvtx+1;
-	
+
+  if (!verify) {
+    fprintf(stderr, "warning: skipping verification!\n");
+    nedge_traversed = load_nedge(root, bfs_tree);
+
+    if (nedge_traversed != -1) {
+      return nedge_traversed;
+    }
+  }
+
 	/*
 	 This code is horrifically contorted because many compilers
 	 complain about continue, return, etc. in parallel sections.
@@ -172,6 +211,10 @@ verify_bfs_tree (int64_t *bfs_tree_in, int64_t max_bfsvtx,
 done:
 	
 	xfree_large (seen_edge);
-	if (err) return err;
-	return nedge_traversed;
+	if (err) {
+    return err;
+  } else {
+    save_nedge(root, nedge_traversed, bfs_tree);
+    return nedge_traversed;
+  }
 }

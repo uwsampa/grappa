@@ -1,14 +1,25 @@
+// Copyright 2010-2012 University of Washington. All Rights Reserved.
+// LICENSE_PLACEHOLDER
+// This software was created with Government support under DE
+// AC05-76RL01830 awarded by the United States Department of
+// Energy. The Government has certain rights in the software.
+
 #include <cstdlib>
 #include <cassert>
 #include "Thread.hpp"
 #include "Scheduler.hpp"
+#include "PerformanceTools.hpp"
 
-#define STACK_SIZE 2<<18
 
+/// ThreadQueue output stream
 std::ostream& operator<< ( std::ostream& o, const ThreadQueue& tq ) {
-    tq.dump( o );
+    return tq.dump( o );
 }
 
+/// Turns the current (system) thread into a Grappa Thread.
+/// This is simply necessary so that a Scheduler can
+/// cause a context switch back to the system thread when
+/// the Scheduler is done
 Thread * thread_init() {
   coro* me = coro_init();
   Thread * master = (Thread *)malloc(sizeof(Thread));
@@ -18,10 +29,20 @@ Thread * thread_init() {
   master->next = NULL;
   master->id = 0; // master always id 0
   master->done = 0;
-  
+ 
+#ifdef GRAPPA_TRACE 
+  master->tau_taskid=0;
+#endif
+
   return master;
 }
 
+#ifdef GRAPPA_TRACE
+// keeps track of last id assigned
+int thread_last_tau_taskid=0;
+#endif
+
+/// Trampoline for spawning a new thread.
 static void tramp(struct coro * me, void * arg) {
   // Pass control back and forth a few times to get the info we need.
   coro* master = (coro *)arg;
@@ -33,7 +54,22 @@ static void tramp(struct coro * me, void * arg) {
 
   StateTimer::setThreadState( StateTimer::SYSTEM );
   StateTimer::enterState_system();
+  
+  // create new Tau task, and top level timer for the task
+#ifdef GRAPPA_TRACE
+  int new_taskid;
+  TAU_CREATE_TASK(new_taskid);
+  my_thr->tau_taskid = new_taskid;
+  thread_last_tau_taskid = new_taskid;
+  GRAPPA_PROFILE_CREATE( mainprof, "start_thread", "()", TAU_DEFAULT );
+  GRAPPA_PROFILE_THREAD_START( mainprof, my_thr );
+#endif
+
+  // call thread target function
   f(my_thr, f_arg);
+
+  // stop top level Tau task timer
+  GRAPPA_PROFILE_THREAD_STOP( mainprof, my_thr );
 
   // We shouldn't return, but if we do, kill the Thread.
   thread_exit(my_thr, NULL);
@@ -63,6 +99,9 @@ Thread * thread_spawn(Thread * me, Scheduler * sched,
   return thr;
 }
 
+/// Called when a Thread completes its function.
+/// Thread->next will contain retval.
+/// This function does not return to the caller.
 void thread_exit(Thread * me, void * retval) {
 
   // Reuse the queue field for a return value.
@@ -83,6 +122,7 @@ void thread_exit(Thread * me, void * retval) {
   exit(EXIT_FAILURE);
 }
 
+/// Delete the thread.
 void destroy_thread(Thread * thr) {
   destroy_coro(thr->co);
   free (thr);

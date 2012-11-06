@@ -1,57 +1,94 @@
 #!/usr/bin/env ruby
-EXP_HOME = ENV["EXP_HOME"]
-require "optparse"
-require "sequel"
-require "#{EXP_HOME}/util.rb"
+require "experiments"
 
-loadConfigs()
-$exp_table = :suite
+db = "#{ENV['HOME']}/exp/grappa.db"
+table = :suite
 
-# parse: string -> hash
-# Extracts data from program output and returns a hash of values for the new row
-def parse(cmdout)
-  # puts cmdout
-  pattern = /computeGraph[\w\s\(\)]+(\d+\.\d+) \s sec\.$
-            .*connected \s components\: \s (\d+)$.*
-            connectedComponents[\w\s\(\)]+(\d+\.\d+) \s sec\.$
-            .*
-            matches: \s (\d+)$
-            .*pathIsomorphism[\w\s()]+(\d+\.\d+) \s sec.$
-            .*
-            triangles: \s (\d+)
-            .*triangles[\w\s()]+(\d+\.\d+) \s sec.$
-            .*Betweenness \s Centrality[A-Za-z\s:()=]+(\d+\.\d+)
-            .*(\d+\.\d+) \s sec./mx
-  data = {}
-  m = cmdout.match(pattern)
-  if m then
-    data[:compute_graph_time] = m[1].to_f
-    data[:connected_components] = m[2].to_i
-    data[:connected_components_time] = m[3].to_f
-    data[:path_matches] = m[4].to_i
-    data[:path_isomorphism_time] = m[5].to_f
-    data[:triangles] = m[6].to_i
-    data[:triangles_time] = m[7].to_f
-    data[:centrality] = m[8].to_f
-    data[:centrality_time] = m[9].to_f
-  end
-  # p data
-  data
+# select between running on XMT or Grappa by if it's on cougar
+if `hostname`.match /cougar/ then
+  cmd = "mtarun -m %{nproc} suite.exe --scale=%{scale} -e %{edgefactor} --ckpt --kcent=%{kcent} --centrality"
+  machinename = "cougarxmt"
+else
+  # command that will be excuted on the command line, with variables in %{} substituted
+  cmd = %Q[
+    cd /sampa/home/bholt/grappa-timing/applications/suite/grappa;
+    GLOG_logtostderr=1 LD_LIBRARY_PATH="\$LD_LIBRARY_PATH:/usr/local/lib:/usr/lib64:/sampa/share/gflags/lib:/sampa/share/glog/lib:/usr/lib:/sampa/share/gperftools-2.0/lib:/sampa/home/bholt/grappa-timing/system"
+    GASNET_PHYSMEM_MAX=217M
+    GASNET_BACKTRACE=1
+    GASNET_NUM_QPS=3
+    srun --resv-ports --cpu_bind=verbose,rank --exclusive --label --kill-on-bad-exit
+      --time=00:10:00
+      --task-prolog=/sampa/home/bholt/srunrc.all 
+      --task-epilog=/sampa/home/bholt/srunrc_epilog.all
+      --partition grappa
+      --nodes=%{nnode}
+      --ntasks-per-node=%{ppn} -- 
+    ./suite.exe --aggregator_autoflush_ticks=%{flushticks}
+      --periodic_poll_ticks=%{pollticks}
+      --num_starting_workers=%{nworkers}
+      --flush_on_idle=%{flush_on_idle}
+      --steal=0
+      --v=0
+      -- --scale %{scale} --ckpt --kcent=%{kcent} --centrality
+  ].gsub(/[\n\r\ ]+/," ")
+  machinename = "sampa"
 end
 
-$testing = true
+# map of parameters; key is the name used in command substitution
+params = {
+  scale: [16, 20, 21], #22, 23, 24],
+  edgefactor: [16],
+  #nworkers: [1024, 2048, 3072, 4096],
+  nnode: [4, 8, 12, 16, 32, 64],
+  ppn: [1],
+  #flushticks: [2000000, 4000000],
+  #pollticks: [5000],
+  #flush_on_idle: [1],
+  nproc: expr('nnode*ppn'),
+  machine: [machinename],
+  kcent: [4]
+}
 
-['./graphb'].each { |exe|
-[1, 2, 4, 8].each { |max_procs|
-[4, 5, 6, 7].each { |scale|
-  params = {:max_procs=>max_procs, :scale=>scale}
-  if run_already?(params) then
-    puts "#{params} -- skipping..."
-  else
-    # puts "#{pp params}"
-    data = runExperiment("mtarun -m #{max_procs} #{exe} #{scale}", $exp_table) do |cmdout|
-      params.merge(parse(cmdout))
+def inc_avg(avg, count, val)
+  return avg + (val-avg)/count
+end
+
+# Block that takes the stdout of the shell command and parses it into a Hash
+# which will be incorporated into the record inserted into the database.
+# If multiple records are desired, an array of Hashes can be returned as well.
+# Note: the 'dictionize' method used here is defined by the 'experiments' library 
+# and turns the output of named capture groups into a suitable Hash return value.
+parser = lambda {|cmdout|
+  # /(?<ao>\d+)\s+(?<bo>\d+)\s+(?<co>\w+)/.match(cmdout).dictionize
+  h = {}
+  c = Hash.new(0)
+  cmdout.each_line do |line|
+    m = line.chomp.match(/(?<key>[\w_]+):\ (?<value>#{REG_NUM})$/)
+    if m then
+      h[m[:key].downcase.to_sym] = m[:value].to_f
+    else
+      # match statistics
+      puts "#{line.chomp}"
+      m = line.chomp.match(/(?<obj>[\w_]+)\ +(?<data>{.*})/m)
+      if m then
+        obj = m[:obj]
+        data = eval(m[:data])
+        # puts "#{ap obj}: #{ap data}"
+        # sum the fields
+        h.merge!(data) {|key,v1,v2| v1+v2 }
+      end
     end
-    puts "#{data}"
   end
-}}}
+  if h.keys.length == 0 then
+    puts "Error: didn't find any fields."
+  end
+  h
+}
+
+# function that runs all the experiments
+# (note: instead of passing a lambda, an explicit block can be used as well)
+# this command also parses the following command-line options if passed to this script:
+#  -f,--force      forces experiments to be re-run even if their parameters appear in DB
+#  -n,--no-insert  suppresses insertion of records into database
+run_experiments(cmd, params, db, table, &parser)
+

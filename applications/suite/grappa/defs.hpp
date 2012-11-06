@@ -8,7 +8,7 @@
 #include <stdint.h>
 #include <stdio.h>
 
-#include "SoftXMT.hpp"
+#include "Grappa.hpp"
 
 /*### Macros ###*/
 #define DFMT "lld"
@@ -85,6 +85,6 @@ void print_match(graph *dirg, color_t *pattern, graphint startVertex);
 graphint triangles(graph *g);
 
 /* centrality.cpp */
-double centrality(graph *g, GlobalAddress<double> bc, graphint vs);
+double centrality(graph *g, GlobalAddress<double> bc, graphint vs, double*, int64_t*);
 
 #endif

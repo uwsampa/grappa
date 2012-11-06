@@ -1,4 +1,10 @@
 
+// Copyright 2010-2012 University of Washington. All Rights Reserved.
+// LICENSE_PLACEHOLDER
+// This software was created with Government support under DE
+// AC05-76RL01830 awarded by the United States Department of
+// Energy. The Government has certain rights in the software.
+
 #include <glog/logging.h>
 #include <gflags/gflags.h>
 
@@ -9,14 +15,23 @@ extern "C" {
 #include <sys/ipc.h>
 #include <sys/shm.h>
 }
+#ifndef SHM_HUGETLB
+#define SHM_HUGETLB 0
+#define USE_HUGEPAGES_DEFAULT false
+#else
+#ifndef USE_HUGEPAGES_DEFAULT
+#define USE_HUGEPAGES_DEFAULT true
+#endif
+#endif
 
 #include "Communicator.hpp"
 
 #include "GlobalMemoryChunk.hpp"
 
-DEFINE_bool( global_memory_use_hugepages, true, "use 1GB huge pages for global heap" );
+DEFINE_bool( global_memory_use_hugepages, USE_HUGEPAGES_DEFAULT, "use 1GB huge pages for global heap" );
 DEFINE_int64( global_memory_per_node_base_address, 0x0000123400000000L, "global memory base address");
 
+/// Round up to gigabyte page size
 static const size_t round_to_gb_huge_page( size_t size ) {
   const size_t half_gb_huge_page = (1L << 30) - 1;
   // make sure we use at least one gb huge page
@@ -26,6 +41,7 @@ static const size_t round_to_gb_huge_page( size_t size ) {
   return size;
 }
 
+/// Round up to 4KB page size
 static const size_t round_to_4kb_page( size_t size ) {
   const size_t half_4kb_page = (1L << 12) - 1;
   // make sure we use at least one page
@@ -35,11 +51,13 @@ static const size_t round_to_4kb_page( size_t size ) {
   return size;
 }
 
+/// Tear down GlobalMemoryChunk, removing shm region if possible
 GlobalMemoryChunk::~GlobalMemoryChunk() {
-  PCHECK( 0 == shmdt( memory_ ) ) << "GlobalMemoryChunk destructor failed to detach from shared memory region";
-  PCHECK( 0 == shmctl(shm_id_, IPC_RMID, NULL ) ) << "GlobalMemoryChunk destructor failed to deallocate shared memory region id";
+  PCHECK( -1 != shmdt( memory_ ) ) << "GlobalMemoryChunk destructor failed to detach from shared memory region";
+  PCHECK( -1 != shmctl(shm_id_, IPC_RMID, NULL ) ) << "GlobalMemoryChunk destructor failed to deallocate shared memory region id";
 }
 
+/// Construct GlobalMemoryChunk.
 GlobalMemoryChunk::GlobalMemoryChunk( size_t size )
   : shm_key_( -1 )
   , shm_id_( -1 )
@@ -58,11 +76,13 @@ GlobalMemoryChunk::GlobalMemoryChunk( size_t size )
     job_id = getpid();
   }
   shm_key_ = job_id * global_communicator.nodes() + global_communicator.mynode();
-  LOG(INFO) << size << " rounded to " << size_;
+  DVLOG(2) << size << " rounded to " << size_;
   // get shared memory region id
+  VLOG(1) << "shm_size_: " << size_ << ", use_hugepages? " << FLAGS_global_memory_use_hugepages;
+
   shm_id_ = shmget( shm_key_, size_, IPC_CREAT | SHM_R | SHM_W | 
                     (FLAGS_global_memory_use_hugepages ? SHM_HUGETLB : 0) );
-  PCHECK( shm_id_ != -1 ) << "Failed to get shared memory region for shared heap";
+  PCHECK( shm_id_ != -1 ) << "Failed to get shared memory region for shared heap of size " << size_;
   
   // map memory
   memory_ = shmat( shm_id_, base_, 0 );

@@ -1,6 +1,12 @@
+// Copyright 2010-2012 University of Washington. All Rights Reserved.
+// LICENSE_PLACEHOLDER
+// This software was created with Government support under DE
+// AC05-76RL01830 awarded by the United States Department of
+// Energy. The Government has certain rights in the software.
+
 #include <boost/test/unit_test.hpp>
 
-#include "SoftXMT.hpp"
+#include "Grappa.hpp"
 #include "Delegate.hpp"
 #include "Tasking.hpp"
 #include "ParallelLoop.hpp"
@@ -8,7 +14,14 @@
 #include "Future.hpp"
 #include "ForkJoin.hpp"
 
+#ifdef GRAPPA_TRACE
 #include <TAU.h>
+#endif
+
+//
+// Tests the performance of the various recursive decomposition 
+// parallel loop implementations defined in ParallelLoop.hpp
+//
 
 #include <sys/time.h>
 double wctime() {
@@ -39,29 +52,29 @@ void simple_iter( int64_t i, array_args * a ) {
 }
 
 void mod_iter( int64_t i, int64_t * ignore ) {
-    ind_local_count+= i % SoftXMT_nodes();
+    ind_local_count+= i % Grappa_nodes();
 }
 
 void delegate_iter( int64_t i, int64_t * ignore ) {
-    SoftXMT_delegate_write_word( make_global( &update_me, i % SoftXMT_nodes() ), i );
+    Grappa_delegate_write_word( make_global( &update_me, i % Grappa_nodes() ), i );
 }
 
 void half_iter( int64_t i, int64_t * ignore ) {
     if (i % 2 == 0) {
         ind_local_count+=i;
     } else {
-        SoftXMT_delegate_write_word( make_global( &update_me, (i/2) % SoftXMT_nodes() ), i );
+        Grappa_delegate_write_word( make_global( &update_me, (i/2) % Grappa_nodes() ), i );
     }
 }
 
 void yield_iter( int64_t i, int64_t * ignore ) {
     ind_local_count+=i;
-    SoftXMT_yield();
+    Grappa_yield();
 }
 
 //void yield_next_iter( int64_t i, int64_t * ignore ) {
 //    ind_local_count+=i;
-//    SoftXMT_yield_next();
+//    Grappa_yield_next();
 //}
 
 ///
@@ -77,14 +90,14 @@ struct func_simple : public ForkJoinIteration {
 struct func_mod : public ForkJoinIteration {
     int64_t * ignore;
     void operator()(int64_t i) const {
-        ind_local_count+= i % SoftXMT_nodes();
+        ind_local_count+= i % Grappa_nodes();
     }
 };
 
 struct func_delegate : public ForkJoinIteration {
     int64_t * ignore;
     void operator()(int64_t i) const {
-        SoftXMT_delegate_write_word( make_global( &update_me, i % SoftXMT_nodes() ), i );
+        Grappa_delegate_write_word( make_global( &update_me, i % Grappa_nodes() ), i );
     }
 };
 
@@ -94,7 +107,7 @@ struct func_half : public ForkJoinIteration {
         if (i % 2 == 0) {
             ind_local_count+=i;
         } else {
-            SoftXMT_delegate_write_word( make_global( &update_me, (i/2) % SoftXMT_nodes() ), i );
+            Grappa_delegate_write_word( make_global( &update_me, (i/2) % Grappa_nodes() ), i );
         }
     }
 };
@@ -103,14 +116,14 @@ struct func_yield : public ForkJoinIteration {
     int64_t * ignore;
     void operator()(int64_t i) const {
         ind_local_count+=i;
-        SoftXMT_yield();
+        Grappa_yield();
     }
 };
 //struct func_yield_next : public ForkJoinIteration {
 //    int64_t * ignore;
 //    void operator()(int64_t i) const {
 //        ind_local_count+=i;
-//        SoftXMT_yield_next();
+//        Grappa_yield_next();
 //    }
 //};
 
@@ -132,6 +145,44 @@ void futures_reset_stats_all_nodes() {
   fork_join_custom(&f);
 }
 
+LOOP_FUNCTION(tau_disable_func,nid) {
+#ifdef GRAPPA_TRACE
+  TAU_DISABLE_INSTRUMENTATION();
+#endif
+}
+LOOP_FUNCTION(tau_enable_func,nid) {
+#ifdef GRAPPA_TRACE
+  TAU_ENABLE_INSTRUMENTATION();
+#endif
+}
+void tau_enable_instrumentation_all() {
+    tau_enable_func f;
+    fork_join_custom(&f);
+}
+void tau_disable_instrumentation_all() {
+    tau_disable_func f;
+    fork_join_custom(&f);
+}
+
+LOOP_FUNCTION(tau_db_dump_func,nid) {
+  //TAU_DB_DUMP();
+  dump_all_task_profiles();
+}
+LOOP_FUNCTION(tau_db_purge_func,nid) {
+#ifdef GRAPPA_TRACE
+  TAU_DB_PURGE();
+#endif
+}
+void tau_db_dump_all() {
+    tau_db_dump_func f;
+    fork_join_custom(&f);
+}
+void tau_db_purge_all() {
+    tau_db_purge_func f;
+    fork_join_custom(&f);
+}
+
+
 #define FUTURE_DUMP_ON 0
 #if FUTURE_DUMP_ON
 #define FUTURE_DUMP future_dump_stats_all_nodes()
@@ -148,6 +199,8 @@ struct user_main_args {
 
 void user_main( user_main_args * args ) 
 {
+    //tau_disable_instrumentation_all();
+    
     int64_t iters = 1 << FLAGS_iters;
     
     DictOut d;
@@ -210,17 +263,24 @@ void user_main( user_main_args * args )
     BOOST_MESSAGE( "Running futures -- delegate iter" );
     {
         futures_reset_stats_all_nodes();
-        SoftXMT_reset_stats();
+        Grappa_reset_stats();
 
         // a[i] = i
-        double start = wctime(); 
+        double start, end;
+        {
+        //tau_enable_instrumentation_all();
+        tau_db_purge_all();
+        start = wctime(); 
         parallel_loop_implFuture( 0, iters, &delegate_iter, (int64_t)0 );
-        double end = wctime();
+        end = wctime();
+        //tau_disable_instrumentation_all();
+        tau_db_dump_all();
+        }
 
         double runtime = end - start;
         BOOST_MESSAGE( "fd{runtime: " << runtime << ", rate: " << ((double)iters)/runtime << ", iterations: " << iters << "}" );
         FUTURE_DUMP;
-        SoftXMT_dump_task_series();
+        Grappa_dump_task_series();
 
         d.add("runtime_delegateIter", runtime);
     }
@@ -474,7 +534,7 @@ void user_main( user_main_args * args )
 //
 //    }
 
-    SoftXMT_dump_stats_all_nodes();
+    Grappa_dump_stats_all_nodes();
     BOOST_MESSAGE( "user main is exiting" );
 }
 
@@ -482,19 +542,23 @@ void user_main( user_main_args * args )
 
 BOOST_AUTO_TEST_CASE( test1 ) {
 
-    SoftXMT_init( &(boost::unit_test::framework::master_test_suite().argc),
+    Grappa_init( &(boost::unit_test::framework::master_test_suite().argc),
             &(boost::unit_test::framework::master_test_suite().argv) );
 
-    SoftXMT_activate();
+    Grappa_activate();
 
     user_main_args uargs;
 
+    //TAU_DISABLE_INSTRUMENTATION();
+    
     DVLOG(1) << "Spawning user main Thread....";
-    SoftXMT_run_user_main( &user_main, &uargs );
+    Grappa_run_user_main( &user_main, &uargs );
     VLOG(5) << "run_user_main returned";
-    CHECK( SoftXMT_done() );
+    CHECK( Grappa_done() );
+    
+    //TAU_ENABLE_INSTRUMENTATION();
 
-    SoftXMT_finish( 0 );
+    Grappa_finish( 0 );
 }
 
 BOOST_AUTO_TEST_SUITE_END();
