@@ -23,12 +23,15 @@ $cmd = %Q[ make -j mpi_run TARGET=graph.exe NNODE=%{nnode} PPN=%{ppn} BFS=%{bfs}
     --io_blocks_per_node=%{io_blocks_per_node}
     --io_blocksize_mb=%{io_blocksize_mb}
     --cas_flattener_size=%{cas_flattener_size}
+    --global_memory_use_hugepages=%{global_memory_use_hugepages}
     --v=1
     -- -s %{scale} -e %{edgefactor} -pn -%{generator} -f %{nbfs}
   '
 ].gsub(/[\n\r\ ]+/," ")
 $machinename = "sampa"
 $machinename = "pal" if `hostname` =~ /pal/
+
+huge_pages = ($machinename == "pal") ? false : true
 
 # map of parameters; key is the name used in command substitution
 $params = {
@@ -49,6 +52,7 @@ $params = {
   nproc: expr('nnode*ppn'),
   machine: [$machinename],
   cas_flattener_size: [24],
+  global_memory_use_hugepages: [huge_pages],
 }
 
 if __FILE__ == $PROGRAM_NAME
