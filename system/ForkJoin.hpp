@@ -561,7 +561,7 @@ template< typename S, void (*F)(int64_t,int64_t,S*), int64_t Threshold, bool Use
 void spawn_local_task(int64_t a, int64_t b, S* c) {
   if (UseGlobalJoin) global_joiner.registerTask(); else ljoin.registerTask();
   c->incrRefs();
-  Grappa_privateTask( &apfor_local<S, F, Threshold, UseGlobalJoin>, a, b, c );
+  Grappa_publicTask( &apfor_local<S, F, Threshold, UseGlobalJoin>, a, b, c );
 }
 
 
@@ -605,16 +605,13 @@ template< typename T, typename P, void F(int64_t,T*,const P&) >
 void for_async_iterations_task(int64_t start, int64_t niters, LocalForArgs<T,P> * args) {
   //SharedArgsPtr<T,P> args(v_args);
   //VLOG(1) << "for_local @ " << base << " ^ " << start << " # " << niters;
-  CHECK( args->base_addr.localize() == args->base );
-
-  T * base = args->base;
-
-  //if (args->extra == 13701) {
-    //std::stringstream ss; ss << "neighbors[" << start << "::" << niters << "] =";
-    //for (int64_t i=start; i<start+niters; i++) { ss << " " << args->base[i]; }
-    //VLOG(1) << ss.str();
-    //VLOG(1) << "args->base = " << args->base << ", base = " << base;
-  //}
+  T * base;
+  if ( args->base_addr.localize() == args->base ) {
+    // not stolen
+    base; = args->base;
+  } else {
+    // TODO: cache it instead
+  }
 
   for (int64_t i=start; i<start+niters; i++) {
     F(i, base, args->extra);
