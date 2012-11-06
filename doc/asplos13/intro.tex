@@ -1,0 +1,139 @@
+\section{Introduction} \label{sec:intro}
+
+Irregular applications generate tasks with work, interdependences, or memory
+accesses that are highly sensitive to input. Classic examples of irregular
+applications include branch and bound optimization, SPICE circuit simulation,
+contact algorithms in car crash analysis, and network flow. Important
+contemporary examples include processing large graphs in the business,
+national security, machine learning, data-driven science, and social network
+computing domains. For these emerging applications, fast response -- given the
+sheer amount of data -- requires multinode systems. The most broadly available
+multinode systems are those built from x86 commodity computing nodes
+interconnected via ethernet or infiniband. Our goal is to enable scalable
+performance of irregular applications on these mass market systems.
+
+Our goal is challenging for two key reasons: 
+
+\noindent{\bf Irregular applications exhibit little spatial locality.}
+It is not atypical for any given task's data references to be spread
+randomly across the entire memory of the system. This makes current
+memory hierarchy features ineffective. Caches are of little assistance
+with such low data re-use and spatial locality. Commodity prefetching
+hardware is effective only when addresses are known many cycles before
+the data is consumed or the accesses follow a predictable pattern,
+neither of which occurs in irregular applications. As a consequence,
+commodity microprocessors stall often when executing irregular
+applications.
+
+\noindent{\bf Irregular applications frequently request small amounts of off-node data.} On multinode systems, the challenges presented by low
+locality are analogous, and exacerbated by the increased latency of going
+off-node. Irregular applications also present a challenge to mass market
+network technology, which is designed to transfer large blocks of data, not
+the word-sized references emitted by irregular application tasks. Injection
+rate into the network is insufficient to utilize wire bandwidth when blocks
+are below about two-kilobytes, so any straightforward communication strategy
+severely under-utilizes the network. 
+
+While some irregular applications can be restructured to better exploit
+locality, aggregating requests to increase message size, and manage the
+additional challenges of load balance and synchronization across multinode
+systems, the work to do so is formidable and requires knowledge and skills
+pertaining to distributed systems far beyond those of most application
+programmers.
+
+Luckily, many of the important irregular applications (e.g., graph
+processing, our focus in this paper) naturally offer large amounts of
+concurrency. This immediately suggests taking advantage of concurrency
+to tolerate the latency of data movement. The fully custom Tera
+MTA-2~\cite{tera:mta1} system is a classic example of supporting irregular
+applications by using concurrency to hide latencies. It had a large
+distributed shared memory with no caches.  On every clock cycle, each
+processor would execute a ready instruction chosen from one of its 128
+hardware thread contexts, a sufficient number to fully hide memory
+access latency.  The network was designed with a single word injection
+rate that matched the processor clock frequency and sufficient bandwidth
+to sustain a reference from every processor on every clock cycle.
+Unfortunately, while an excellent match to extremely irregular
+applications, the MTA was not cost-effective on applications that could
+exploit locality and had very poor single-thread performance, making
+it a commercial failure. The Cray XMT approximates the Tera MTA-2,
+substantially reducing its cost but not overcoming its narrow range of
+applicability.
+
+% Two opportunities help overcome these challenges without putting more burden on the programmer: (1) Many interesting irregular applications (e.g., graph processing, our focus on this paper) naturally observe large amounts of concurrency; (2) 
+
+% In addition to large amounts of concurrency in irregular applications, 
+% 
+% Commodity systems offer a large number of cores with good single-thread performance. Concurrency can be used to hide network latencies involved in fetching data from remote notes, mitigating the lack of locality. 
+% 
+% 
+% ; (3) Commodity networks improved significantly and offer high bandwidth at a relatively low cost
+
+In the twenty years that have elapsed since the Tera MTA, commodity
+microprocessors have become much faster and multicore has driven down the
+absolute price of computation; commodity network price-performance has
+improved as well. This shift has afforded us the opportunity to attack the
+challenges posed by irregular applications by emulating in software and
+inexpensive mass market hardware, the approach taken by Tera. We exploit the
+increased aggregate instruction rate per socket relative to chip bandwidth,
+using what would otherwise be wasted instructions to manage the multiplexing
+of as many as several thousand tasks per core, thus tolerating memory latency,
+reducing stalls, and making better use of available bandwidth. Ultimately, the
+opportunity is to cover the spectrum of irregular to regular computation:
+where tasks exhibit locality, multiplex fewer tasks and expend fewer
+instructions on context switching; where locality is lacking, multiplex more
+tasks at a higher rate to tolerate latency. Thus we make the best use of task
+parallelism -- either to scale to more cores or to tolerate latency -- and of
+caches -- either to exploit application locality or to house more task
+contexts.
+
+In this paper we introduce Grappa, a software runtime system that allows
+a commodity x86 distributed-memory HPC cluster to be programmed as if it
+were a single large shared-memory machine and provides scalable
+performance for irregular applications. Grappa is designed to smooth
+over some of the performance discontinuities in commodity hardware,
+giving good performance when there is little locality to be exploited
+while allowing the programmer to exploit it when it is available. 
+
+Grappa leverages as much freely available and commodity infrastructure as
+possible. We use unmodified Linux for the operating system and an
+off-the-shelf user-mode infiniband device driver stack~\cite{OFED}. MPI is
+used for process setup and tear down. GASnet~\cite{gasnet} is used as the
+underlying mechanism for remote memory reads and writes using active message
+invocations. To this commodity hardware and software mix Grappa adds three
+main software components: (1) a \emph{lightweight tasking\/} layer that supports
+a context switch in as few as 38ns and distributed global load balancing; (2)
+a \emph{distributed shared memory\/} layer that supports normal access operations
+such as \emph{read\/} and \emph{write\/} as well as synchronizing operations such as \emph{fetch-and-add\/}~\cite{fetchandadd}; and (3) a \emph{message aggregation\/} layer
+that combines short messages to mitigate the aforementioned problem that
+commodity networks are designed to achieve peak bandwidth only on large packet
+sizes, yet irregular applications tend to fetch only a handful of bytes at a
+time. As we will show later, Grappa can tolerate latencies way beyond that of
+the network. Therefore, Grappa can afford to \emph{trade latency for
+throughput\/}: by {\em increasing\/} latency in key components of the system we
+are able to increase our effective random access memory bandwidth (by delaying and aggregating messages), our synchronization bandwidth (by delegating operations
+to remote nodes), and our ability to improve load imbalance (work stealing
+increases latency).
+
+% 
+% Each of these components will be described in more detail in Section~\ref{sec:grappa}.
+% 
+% {\em Provide evidence we have succeeded -- will rewrite as necessary based on final results:}
+
+Our evaluation of Grappa shows that it runs several graph-crunching
+applications (classic examples of irregular behavior) very efficiently
+on a commodity cluster. Our yardstick for comparison is the XMT hardware
+itself. Using the same number of network interfaces, Grappa is in the
+same ballpark as the XMT: For unbalanced tree search, Grappa is over 3X
+faster and shows greatly improved scalability; conversely, for breadth
+first search and betweenness centrality Grappa is 2.5X slower.  In
+Section~\ref{sec:evaluation} we explore the factors that underpin this
+performance. Most importantly, however, for significantly less real
+world cost, users can \emph{add\/} significantly more processors to a
+commodity cluster than an XMT machine and use Grappa to achieve scalable
+performance.
+
+% 
+% \TODO{Add roadmap here. Luis: do we really want a roadmap here? We have enough about what we have done I think, so we might not need to sell things we plan to do.}
+
+

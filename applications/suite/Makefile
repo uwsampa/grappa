@@ -2,7 +2,7 @@ include Make.inc
 
 EXE = suite.exe
 
-OBJS = 	computeGraph.o \
+OBJS += 	computeGraph.o \
 		connectedComponents.o \
 		genScalData.o \
 		globals.o \
@@ -12,13 +12,18 @@ OBJS = 	computeGraph.o \
 		triangles.o \
 		util.o \
 		xmalloc.o \
-		centrality.o
+		centrality.o \
+		compat/mersenne.o
 
-all: $(EXE)
+all: $(EXE) make_snaps.exe
 	
 $(EXE): main.o $(OBJS) $(COMPATLIB) $(IOLIB)
 	$(LD) $(LDFLAGS) -o $@ $^ $(LIBS)
 
+make_snaps.exe: make_snaps.c
+	gcc -std=c99 -o $@ $^
+
+main.o: defs.h ../graph500/compatio.h
 computeGraph.o: computeGraph.c defs.h
 connectedComponents.o: connectedComponents.c defs.h
 genScalData.o: genScalData.c defs.h
@@ -29,8 +34,8 @@ timer.o: timer.c defs.h
 triangles.o: triangles.c defs.h
 util.o: util.c defs.h
 xmalloc.o: xmalloc.c defs.h
-centrality.o: centrality.c defs.h
-
+centrality.o: centrality.c defs.h compat/mersenne.c
+compat/mersenne.o: compat/mersenne.c compat/mersenne.h
 
 $(IOLIB) $(COMPATLIB):
 	$(MAKE) -C $(IOLIB_DIR)

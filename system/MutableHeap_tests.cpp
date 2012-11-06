@@ -1,4 +1,13 @@
 
+// Copyright 2010-2012 University of Washington. All Rights Reserved.
+// LICENSE_PLACEHOLDER
+// This software was created with Government support under DE
+// AC05-76RL01830 awarded by the United States Department of
+// Energy. The Government has certain rights in the software.
+
+/// MutableHeap tests. 
+/// TODO: remove. unused.
+
 #include <vector>
 #include <algorithm>
 #include <iostream>
@@ -34,14 +43,14 @@ BOOST_AUTO_TEST_SUITE( MutableHeap_tests );
 //     for(  std::vector< int >::iterator i = v.begin(); i != v.end(); ++i, ++n ) { std::cout << n << ":" << *i << " "; }
 //     std::cout << "]" << std::endl;
 
-//     softxmt::make_heap( v.begin(), v.end() );
+//     grappa::make_heap( v.begin(), v.end() );
 
 //     n = 0;
 //     std::cout << "[ ";
 //     for(  std::vector< int >::iterator i = v.begin(); i != v.end(); ++i, ++n ) { std::cout << n << ":" << *i << " "; }
 //     std::cout << "]" << std::endl;
 
-//     v.push_back( 44 ); softxmt::push_heap( v.begin(), v.end() );
+//     v.push_back( 44 ); grappa::push_heap( v.begin(), v.end() );
 //     n = 0;
 //     std::cout << "[ ";
 //     for(  std::vector< int >::iterator i = v.begin(); i != v.end(); ++i, ++n ) { std::cout << n << ":" << *i << " "; }

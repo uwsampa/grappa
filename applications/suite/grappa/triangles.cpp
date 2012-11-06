@@ -2,14 +2,14 @@
 // License: (created for Cray?)
 
 #include "defs.hpp"
-#include <SoftXMT.hpp>
+#include <Grappa.hpp>
 #include <ForkJoin.hpp>
 #include <Collective.hpp>
 #include <iomanip>
 
 typedef GlobalAddress<graphint> Addr;
-#define read SoftXMT_delegate_read_word
-#define write SoftXMT_delegate_write_word
+#define read Grappa_delegate_read_word
+#define write Grappa_delegate_write_word
 
 static Addr edge;
 static Addr eV;
@@ -85,7 +85,7 @@ inline void checkAndMoveCache(graphint& index, graphint& currStart, graphint& cu
   if (index >= currLimit) {
     GlobalAddress<graphint> newAddr = cache.address() + currLimit;
     currStart += currLimit;
-    currLimit = min(BUFSIZE, globalLimit-currStart);
+    currLimit = MIN(BUFSIZE, globalLimit-currStart);
     if (currLimit > 0) {
       index = 0;
       cache.reset(newAddr, currLimit);
@@ -109,7 +109,7 @@ static void search_children(uint64_t packed) {
   
   graphint Alimit = rangeA[1] - Astart;
   graphint astart = 0;
-  graphint alim = min(BUFSIZE, Alimit); // A current limit
+  graphint alim = MIN(BUFSIZE, Alimit); // A current limit
   
 //  CHECK(Astart + alim-1 < NE) << Astart << " + " << alim << " < " << NE;
   
@@ -121,7 +121,7 @@ static void search_children(uint64_t packed) {
   Incoherent<graphint>::RO rangeB(edge+B, 2, bufRangeB);
   graphint Blimit = rangeB[1] - rangeB[0];
   graphint bstart = 0;
-  graphint blim = min(BUFSIZE, Blimit); // B current limit
+  graphint blim = MIN(BUFSIZE, Blimit); // B current limit
   
 //  CHECK(rangeB[0] + blim-1 < NE) << rangeB[0] << " + " << blim << " < " << NE;
   
@@ -172,7 +172,7 @@ static void gen_tasks(graphint A) {
   while (Astart < Alimit) {
     uint64_t packed = (Astart << 32) + A;
     joiner.registerTask();
-    SoftXMT_privateTask(&search_children, packed);
+    Grappa_privateTask(&search_children, packed);
     
     temp = read(eV+Astart);
     Astart++;
@@ -190,19 +190,19 @@ LOOP_FUNCTOR( trianglesFunc, nid, ((graphint,NV)) ((Addr,edge_)) ((Addr,eV_)) ) 
 //  NV = NV_;
 //  NE = NE_;
   
-  range_t r = blockDist(0, NV, SoftXMT_mynode(), SoftXMT_nodes());
+  range_t r = blockDist(0, NV, Grappa_mynode(), Grappa_nodes());
   joiner.reset();
   
   for (graphint i=r.start; i<r.end; i++) {
     joiner.registerTask();
-    SoftXMT_privateTask(&gen_tasks, i);
-//    SoftXMT_privateTask(&trianglesTask, i);
+    Grappa_privateTask(&gen_tasks, i);
+//    Grappa_privateTask(&trianglesTask, i);
   }
   joiner.wait();
   VLOG(3) << "ntriangles (local) = " << ntriangles;
   
-//  ntriangles = SoftXMT_collective_reduce(&collective_add, 0, ntriangles, 0);
-  ntriangles = SoftXMT_allreduce<graphint,coll_add<graphint>,0>(ntriangles);
+//  ntriangles = Grappa_collective_reduce(&collective_add, 0, ntriangles, 0);
+  ntriangles = Grappa_allreduce<graphint,coll_add<graphint>,0>(ntriangles);
 }
 
 /*	Finds the number of _unique_ triangles in an undirected graph.

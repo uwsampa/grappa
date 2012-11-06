@@ -1,3 +1,9 @@
+// Copyright 2010-2012 University of Washington. All Rights Reserved.
+// LICENSE_PLACEHOLDER
+// This software was created with Government support under DE
+// AC05-76RL01830 awarded by the United States Department of
+// Energy. The Government has certain rights in the software.
+
 #include <cassert>
 #include "Collective.hpp"
 #include "Delegate.hpp"
@@ -17,29 +23,32 @@ int64_t reduction_result;
 int64_t final_reduction_result;
 Node reduction_reported_in = 0;
 
-/// Reduction involving all SoftXMT Nodes.
+/// Reduction involving all Grappa Nodes.
 /// For now involves a barrier, so only one
 /// collective op is allowed at a time.
-int64_t SoftXMT_collective_reduce( int64_t (*commutative_func)(int64_t, int64_t), Node home_node, int64_t myValue, int64_t initial ) {
+///
+/// @deprecated, replace with 
+/// void Grappa_allreduce(T*,size_t,T*)
+int64_t Grappa_collective_reduce( int64_t (*commutative_func)(int64_t, int64_t), Node home_node, int64_t myValue, int64_t initial ) {
     assert(_col_allowed);
     _col_allowed = false;
 
-    Node myNode = SoftXMT_mynode();
+    Node myNode = Grappa_mynode();
     if (myNode == home_node) {
-        const uint64_t num_nodes = SoftXMT_nodes();
+        const uint64_t num_nodes = Grappa_nodes();
         assert( num_nodes <= _MAX_PROC_NODES );
 
         _col_done_count = 0;  
 
         // TODO method without barrier (or reducer thread-only barrier)
         VLOG(5) << "home enters collective barrier";
-        SoftXMT_barrier_commsafe();
-        VLOG(5) << SoftXMT_mynode() << " exits collective barrier";
+        Grappa_barrier_commsafe();
+        VLOG(5) << Grappa_mynode() << " exits collective barrier";
 
         _col_values[home_node] = myValue;
         VLOG(5) << "home enters collective waiting";
         while (true) {
-            SoftXMT_yield();
+            Grappa_yield();
             if (_col_done_count==num_nodes-1) {
                 break;
             }
@@ -58,13 +67,13 @@ int64_t SoftXMT_collective_reduce( int64_t (*commutative_func)(int64_t, int64_t)
         GlobalAddress<int64_t> value_adr = GlobalAddress<int64_t>::TwoDimensional(&_col_values[myNode], home_node);
 
         // TODO no barrier
-        VLOG(5) << SoftXMT_mynode() << " enters collective barrier";
-        SoftXMT_barrier_commsafe();
-        VLOG(5) << SoftXMT_mynode() << " exits collective barrier";
+        VLOG(5) << Grappa_mynode() << " enters collective barrier";
+        Grappa_barrier_commsafe();
+        VLOG(5) << Grappa_mynode() << " exits collective barrier";
 
-        SoftXMT_delegate_write_word( value_adr, myValue );
+        Grappa_delegate_write_word( value_adr, myValue );
         /* implicit fence since write is blocking */
-        SoftXMT_delegate_fetch_and_add_word( done_adr, 1);
+        Grappa_delegate_fetch_and_add_word( done_adr, 1);
         
         _col_allowed = true;
         return 0;

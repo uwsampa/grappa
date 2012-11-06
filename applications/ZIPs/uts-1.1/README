@@ -1,0 +1,193 @@
+.----------------------------------------------------------------------------.
+|                      UTS - Unbalanced Tree Search                          |
+|  ______________________________________________________________________    |
+|                                                                            |
+|     C.-W. Tseng                       - University of Maryland             |
+|     J. Prins, S. Olivier, J. Liu      - UNC Chapel Hill                    |
+|     J. Dinan, G. Sabin, P. Sadayappan - The Ohio State University          |
+|     D. Pryor                          - Supercomputing Research Center     |
+'----------------------------------------------------------------------------'
+
+INTRODUCTION
+===============
+
+The UTS benchmark performs an exhaustive search on an unbalanced tree.  The
+tree is generated on the fly using a splittable random number generator (RNG)
+that allows the random stream to be split and processed in parallel while still
+producing a deterministic tree.  The splittable RNG has been constructed using
+the SHA1 secure hash algorithm.  Thus, generating a node's children requires
+multiple applications of the SHA1 hash algorithm to generate splittable hashes
+for each child.
+
+For more information on UTS, see [REFERENCES] below.
+
+
+CONFIGURING UTS
+===============
+
+Select a configuration file for your system from the 'config/' directory using
+the 'configure.sh' script.  After running the configure script, edit
+'config.in' to review the build parameters.
+
+BUILDING UTS
+==============
+
+The Makefiles provided with UTS require GNU Make.  To build UTS:
+
+  $ gmake [targets]
+
+The following targets are available:
+   uts-seq     - Sequential implementation
+   uts-stat    - Sequential implementation for gathering tree statistics
+		 (statistics output in file stat.txt)
+   uts-upc     - UPC with workstealing distributed load balancing
+   uts-upc-enhanced - UPC with improved performance on distributed memory systems
+   uts-upc-dcq - UPC shared global work queue load balancer
+   uts-omp     - OpenMP workstealing
+   uts-shmem   - Shmem workstealing
+   uts-pthread - Pthread workstealing 
+   uts-mta     - MTA-2 futures-parallel recursive implementation
+   uts-dfs     - Sequential recursive implementation (built from from uts-mta)
+   uts-mpi-wm  - MPI with work manager centralized load balancing
+   uts-mpi-ws  - MPI with workstealing distributed load balancing
+   time_rng    - Microbenchmark to measure peak RNG spawn time
+
+
+RUNNING UTS
+==============
+
+Sample workloads are provided in the sample_trees files.  These files are
+scriptable and are meant to be used as in:
+
+  $ source sample_trees.sh
+  $ ./uts-seq $T1
+
+Or if using csh:
+
+  $ source sample_trees.csh
+  $ ./uts-seq $T1
+
+Depending on the number and speed of processors used, we suggest
+measuring performance for the following trees:
+
+  T3L   (~100 million nodes) for 1-8 processors 
+  T3XXL (~3 billion nodes)   for 8-128 processors
+  T2WL  (~300 billion nodes) for 128-1024+ processors
+
+More and less verbose output can be gathered using the '-v #' flag.  '-v 0'
+provides concise data suitable for graphing, '-v 1' is the normal output, level
+2 provides additional load balancing statistics, and higher levels provide
+greater detail.
+
+In addition to this, extra parameters are available for different
+implementations that can be used to fine-tune load balancing or get more
+verbose output.  These parameters can be viewed by running one of the uts
+targets with the '-h' flag.
+
+The chunk size parameter '-c' is the main knob used to tune load balancing.  It
+is available on most parallel builds of UTS and it controls the granularity
+with which load balancing is performed.  Specifically, it controls how many
+nodes are transferred from one process to another as a result of a load
+balancing operation.  Smaller chunk sizes allow for more fine-grained load
+balancing but cost more in overhead.  Larger chunk sizes have lower overhead
+but can result in load imbalance.  In practice, the best chunk size will vary
+for a given system and parallel implementation and will also vary slightly over
+different workloads.  Finding a single chunk size that performs well on all
+workloads can be achieved through experimentation.  By default, UTS uses a
+chunk size that gives reasonable performance across a range of systems.
+
+For example, to perform a parallel search on T3 using 4 Pthreads with a chunk
+size of 20:
+
+ $ ./uts-pthread -T 4 -c 20 $T3
+
+
+THE OUTPUT
+==============
+
+The benchmark's result is to print out the total number of nodes explored 
+in the tree.  An execution run is valid if the number of nodes explored
+matches the number of nodes given in the sample_trees script.  The benchmark 
+also outputs the performance that was achieved in nodes explored per second.  
+The peak performance for a system can be calculated using the time_rng 
+microbenchmark.  In practice, actual performance will be less than the 
+value given by the microbenchmark because of additional search operations, 
+load imbalance, and load balancing overhead.
+
+
+UTS FILES
+===============
+
+Random Number Generators (RNG):
+   rng/               - Location of random number generators
+   alfg.c             - Additive lagged fibonacci generator
+   alfg.h
+   brg_sha1.c         - Dr. Brian R. Gladman's SHA-1 implementation
+   brg_...
+
+Configuration Files:
+   configure.sh       - Configure UTS (generates config.in)
+   config/            - Location where configuration files are stored
+   config.in          - Symlink to your configuration file in config/
+   Makefile           - GNU Makefile, reads config.in to build UTS
+
+Core Files:
+   dequeue.c          - Double-ended queue data structure
+   dequeue.h
+   dlist.c            - Doubly linked list data structure
+   dlist.h
+   shared_dequeue.c   - UPC shared double-ended queue
+   shared_dequeue.h
+   shared_dlist.c     - UPC shared doubly linked list
+   shared_dlist.h
+
+   uts.c,h            - UTS tree generation library 
+   uts_dm.c,h         - Base for distributed memory/PGAS implementations 
+			(MPI, UPC-DCQ)
+   uts_shm.c          - Base for shared memory implementations 
+			(UPC, OpenMP, Shmem, Serial, and Stats)
+   uts_upc_enhanced.c - UPC implementation with improved performance on 
+			distributed memory systems
+   uts_dfs.c          - Base for MTA-2 and serial uts-dfs.  This code 
+			performs a recursive search.
+   mpi_worksharing.c  - Work-Manager implementation using MPI
+   mpi_workstealing.c - WorkStealing implementation using MPI
+   upc_worksharing.c  - Distributed global queue using UPC
+   
+   time_rng.c         - RNG timing program
+
+Debugging Files:
+   stats.c            - Tracing and additional statistics generation code
+   check_ctrk.pl      - Chunk tracker debugging tool
+   ctrk.h
+
+Documentation:
+   LICENSE            - The license that UTS is distributed under
+   AUTHORS            - Contributors to UTS
+   README             - This file
+   sample_trees.sh    - Sample inputs to UTS (sh shell script)
+   sample_trees.csh   - Sample inputs to UTS (csh shell script)
+
+
+REFERENCES
+===============
+
+For more information, please refer to the following publications:
+
+S. Olivier, J. Prins, "Scalable Dynamic Load Balancing Using UPC", Proc. of 
+37th International Conference on Parallel Processing (ICPP-08), Portland, OR, 
+September 2008.
+
+J. Dinan, S. Olivier, J. Prins, G. Sabin, P. Sadayappan, C.-W. Tseng, "Dynamic
+Load Balancing of Unbalanced Computations Using Message Passing", Proc. of 6th
+Intl. Workshop on Performance Modeling, Evaluation, and Optimization of
+Parallel and Distributed Systems (PMEO-PDS 2007), Long Beach, CA, 2007. 
+
+S. Olivier, J. Huan, J. Liu, J. Prins, J. Dinan, P. Sadayappan, C.-W. Tseng,
+"UTS: An Unbalanced Tree Search Benchmark", 19th International Workshop on
+Languages and Compilers for Parallel Computing (LCPC 2006), 2006. 
+
+J. Prins, J. Huan, W. Pugh, C.-W. Tseng, P. Sadayappan, "UPC Implementation of
+an Unbalanced Tree Search Benchmark", UNC Dept. of Computer Science Technical
+Report 03-034, Oct 2003 
+

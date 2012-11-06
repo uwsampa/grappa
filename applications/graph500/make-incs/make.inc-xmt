@@ -12,3 +12,5 @@ CFLAGS_OPENMP =
 
 BUILD_XMT = Yes
 
+CLEANS:= xmt-csr/*.pl xmt-csr-local/*.pl *.o
+

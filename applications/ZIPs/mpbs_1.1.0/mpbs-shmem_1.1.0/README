@@ -1,0 +1,176 @@
+SUMMARY
+-------
+
+       This MPBS benchmark produces a large number of files,
+       and then performs a two-stage sort on the contents of
+       those files so that a single, large sorted file is
+       produced.  The benchmark will be executed in two phases:
+       1) file production, and 2) file content sort.  Each file
+       is structured as a fixed, numbered sequence of buckets
+       where each bucket consists of a fixed number of records. In
+       Phase 1, each file is be produced by sequentially filling
+       each bucket by with integer records.  The integer is set
+       so that the most significant bits reflect the bucket
+       number.  A file is complete when all buckets have been
+       filled and written to disk.  In Phase 2, the records are
+       sorted for a given bucket number across all of the generated
+       files, and then written to a single file. This is done
+       for each bucket.  This single file will contain all of
+       the data from the Phase 1 files, completely sorted.
+
+       NOTE: In cases where the number of PEs is not a power of 2 the
+       benchmark will correctly sort the input files, but you will see a
+       performance penalty from load imbalance due to how the buckets are
+       distributed to the PEs.  This imbalance will be worse if using the
+       -ss radix option for doing the data bucketing and final serial sort.
+
+       We recommend setting the value of XT_SYMMETRIC_HEAP_SIZE to at
+       least 1/2 of the value output by MPBS for "Memory usage per PE" plus an
+       additional 10%.
+
+       Use of OpenMP with SHMEM is supported when compiled with gcc.  Set the 
+       value of OMP_NUM_THREADS as appropriate and launch with the flags 
+       appropriate for your system (e.g. -d if using aprun on Cray). 
+
+
+
+COMPILATION
+-----------
+       You may need to modify the Makefile to add the appropriate include and
+       library paths.  Documentation for which variables to modify is located
+       in the Makefile.  
+
+       To compile, execute 'make'. 
+
+EXECUTION
+---------
+
+    Command line syntax to execute MPBS system is:
+
+    $ <execution command> ./mpbs-shmem
+                                       [-i] [-v] [-h] [-dr]
+                                       [-nf num_files]
+                                       [-nb num_buckets]
+                                       [-rb rec_per_bucket]
+                                       [-rm read_method]
+                                       [-ss serial_sort]
+                                       [-id input_dir]
+                                       [-od output_dir]
+                                       [-df delete_files]
+                                       [-sfs sorted_file_size]
+                                       [-pm memory_per_pe]
+                                       [-tilt niter]
+                                       [-n  out_file_name]
+                                       [-bmm niter]
+                                       [-gmp niter]
+                                       [-k niter]
+                                       [-kbuf n]
+                                       [-popcnt niter]
+				       [-mmbs2 niter]
+
+      PARAMETERS:
+
+      -nf   Number of files to produce.
+            Defaults to number of processes.
+
+      -nb   Number of buckets per file.
+            The number of buckets have to be one of the following values:
+            1, 2, 4, 8, 16, 32, 64, 128, 256, 512, 1024, 2048
+            Default is 4.
+
+      -rb   Number of records per bucket.
+            Default is 64.
+
+      -rm   Method by which the file data, by bucket, will
+            be read into memory for parallel sorting.
+            There are two methods:
+            stripe - each process reads in a stripe of records
+                     across all files.
+            files (default)  - each process reads in data from a set of
+                     files it has exclusive access to.
+
+      -ss   Serial sort method:
+            select - selection sort
+            insert - insertion sort
+            bubble - bubble sort
+            radix  - high performance radix sort
+            qsort  - quicksort(default)
+
+      -id   Input  bucket  file  directory.   This is the location where the
+            individual files of phase 1 will be written.
+            Give relative or absolute path.  Default is cwd.
+
+      -od   Output file directory.  This is the location  where  the  single
+            sorted  output  file will be written.  Give relative or absolute
+            path.  Default is cwd.
+
+      -sfs  Sorted file size in integral GiB.  If this option is
+	    specified, the default values for all parameters are used
+	    and the number of records per bucket is set to create an
+	    output file of the specified size.  Use of this flag
+	    overrides the -rb flag and the -pm flag.
+
+      -df   Delete the created intput files and sorted output file
+	    on program completion.  Default is off.
+ 
+      -dr   Dry run.  Display the header information only then exit.
+
+      -pm   Use specified GiB of memory per PE.  May be a real number.  This 
+      	    option will set the number of records per bucket required to fill
+	    the specified size.  Do not use with the -sfs flag.  Use of
+            this flag overrides the -rb flag.
+ 
+      -tilt Execute niter iterations of the tilt kernel from CPU suite.
+
+    -popcnt Execute niter iterations of a popcount kernel on random data.
+
+      -bmm  Execute niter iterations of the BMM kernel from CPU suite.
+
+      -gmp  Execute niter iterations of the GMP kernel from CPU suite.
+
+      -k    Execute niter iterations of a collective communications kernel. 
+            Specify the buffer size with -kbuf.  If a buffer size is specified
+            but no number of iterations is specified, then the default is 1.
+ 
+      -kbuf Use two buffers of size 2^n to do the collective communications
+            kernel.  If -k is specified but -kbuf is not then the default size
+            is 1 MiB per buffer.
+
+     -mmbs2 Execute niter iterations of the mmbs2 kernel.  This kernel uses
+            the SSE2 intrinsics and is not supported by the Cray compiler;
+            an error will be displayed if this is attempted.
+
+      -n    Name of sorted output file.  Default is "sorted".
+
+      -i    Output system information.
+
+      -v    Output version information.
+
+      -h    Help menu.
+
+
+READING OUTPUT
+--------------
+
+A convenient way to verify that the sorted output is correct for a very small
+problem size is to use the od tool.  Assuming the sorted file is called 'sorted':
+
+> od -v --format=u8 --width=8 sorted | more
+
+This assumes the default standard record size of 64 bits.  
+
+To do a verification of a large final sorted file you should use mpbs-verify.
+Enter the mpbs-common/verify subdirectory and do:
+
+mpicc -o mpbs-verify verify64.c
+
+mpbs-verify takes two arguments:
+$ mpirun -np N ./mpbs-verify <sorted_file> <input files>
+
+It uses N PEs to calculate a parity checksum on the input files and sorted
+file to make sure they match.  It also does a sort verification on the large
+file.
+
+
+
+

@@ -1,0 +1,18 @@
+To compile everything, type "make all"
+To clean up everything, type "make clean"
+To run everything using cpurun/mpirun, type "make run"
+
+By default, "make run" only runs on 1 node.  To specify more than 1 node, 
+use the NODES option to "make run".  For example, to run on 128 nodes,
+you would type
+
+make run NODES=128
+
+To change the compiler or flags for a particular test, change the Makefile in
+this directory.  You can now mix and match compilers on different tests
+without any problems.  (It remakes the support files every time you compile 
+a test.)
+
+If you use something else than mpirun to submit a job, you will have to change
+the appropriate line in the Makefile in order to run the benchmarks.
+

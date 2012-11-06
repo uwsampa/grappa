@@ -1,0 +1,9 @@
+# Get the comma separated output for the testing summary spreadsheet.
+# Columns:
+#               Name:   CPUSuite
+#               Day:    Date of qb_run.out file
+#               Run:    Always "1"
+#               Score:  Taken from "CPU Score" line of CPURun output.
+#
+echo "Guppie-pthreads, $(stat -c %y $1/qb_run.out | cut -d" " -f1), 1, $(echo "scale=5;$(cat $1/qb_run.out | grep "avg:" | cut -d" " -f6) / 1000" | bc)"
+

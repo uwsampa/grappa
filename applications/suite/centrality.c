@@ -14,10 +14,16 @@
 #endif
 #include "stinger-atomics.h"
 
+#include "compat/mersenne.h"
 
-double centrality(graph *g, double *bc, graphint Vs) {
+static int64_t nedge_traversed;
+
+/// Computes the approximate vertex betweenness centrality on an unweighted
+/// graph using 'Vs' source vertices. Returns the average centrality.
+double centrality(graph *g, double *bc, graphint Vs, int64_t* total_nedge) {
   graphint num_srcs = 0;
-  
+  nedge_traversed = 0;
+
   graphint NE      = g->numEdges;
   graphint NV      = g->numVertices;
   graphint *eV     = g->endVertex;
@@ -41,7 +47,8 @@ double centrality(graph *g, double *bc, graphint Vs) {
   /* Reuse the dist memory in the accumulation phase */
   double *delta = (double *) dist;
   
-  srand(12345);
+  /*srand(12345);*/
+  mersenne_seed(12345);
   
   OMP("omp parallel for")
   for (j = 0; j < NV; j++) {
@@ -59,13 +66,16 @@ double centrality(graph *g, double *bc, graphint Vs) {
     if (computeAllVertices) {
       s = x;
     } else {
-      s = rand() % NV;
-      while(explored[s]) {
-        s = rand() % NV;
-      }
+      double d;
+      do {
+        s = (graphint)(mersenne_rand() % NV);
+        deprint("s (%ld)\n", s);
+      } while (explored[s]);
       explored[s] = 1;
     }
     
+    deprint("degree (%ld)\n", start[s+1]-start[s]);
+
     if (start[s+1] == start[s]) {
       continue; 
     } else {
@@ -73,7 +83,7 @@ double centrality(graph *g, double *bc, graphint Vs) {
     }
     num_srcs++;
     
-//    deprint("s = %lld\n", s);
+    deprint("s = %lld\n", s);
       
     OMP("omp parallel for")
     MTA("mta assert nodep")
@@ -112,10 +122,11 @@ double centrality(graph *g, double *bc, graphint Vs) {
       graphint myEnd   = start[v+1];
       graphint ccount = 0;
       
+      nedge_traversed += myEnd - myStart;
       for (k = myStart; k < myEnd; k++) {
         graphint d, w, l;
-        w = eV[k];                    
-        d = dist[w];             
+        w = eV[k];
+        d = dist[w];
         /* If node has not been visited, set distance and push on Q (but only once) */
         
         if (d < 0) {
@@ -156,6 +167,8 @@ double centrality(graph *g, double *bc, graphint Vs) {
     for ( ; nQ > 1; nQ --) {
       Qstart = QHead[nQ-1];
       Qend   = QHead[nQ];
+
+      nedge_traversed += Qend - Qstart;
       /* For each v in the sublist AND for each w on v's list */
       MTA("mta assert parallel")
       MTA("mta block dynamic schedule")
@@ -191,6 +204,8 @@ double centrality(graph *g, double *bc, graphint Vs) {
   
   double bc_total = 0;
   for (graphint i=0; i<NV; i++) { bc_total += bc[i]; }
-  
+ 
+  *total_nedge = nedge_traversed;
+
   return bc_total/NV;
 }

@@ -1,4 +1,14 @@
 
+// Copyright 2010-2012 University of Washington. All Rights Reserved.
+// LICENSE_PLACEHOLDER
+// This software was created with Government support under DE
+// AC05-76RL01830 awarded by the United States Department of
+// Energy. The Government has certain rights in the software.
+
+
+/// MutableHeap. 
+/// TODO: remove. unused.
+
 #ifndef __MUTABLE_HEAP_HPP__
 #define __MUTABLE_HEAP_HPP__
 
@@ -191,6 +201,8 @@ public:
   }
 
   void remove_key( Key key ) {
+    GRAPPA_FUNCTION_PROFILE( GRAPPA_COMM_GROUP );
+   
     // find entry for key
     if( index_map.find( key ) != index_map.end() ) {
       HeapIndex location = index_map[ key ];
@@ -213,6 +225,8 @@ public:
 
 
   void update_or_insert( Key key, Priority priority ) {
+    GRAPPA_FUNCTION_PROFILE( GRAPPA_COMM_GROUP );
+    
     if( index_map.find( key ) == index_map.end() ) {
       insert( key, priority );
     } else if( priority >= heap[ index_map[ key ] ].priority ) {

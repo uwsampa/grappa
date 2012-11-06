@@ -1,0 +1,5 @@
+bench8sc is the scalar executable for machines like eastwood.
+To change the problem size, change MATRIXSIZE in s8s.h and
+do a "make bench8sc".
+
+The files with names ending in "out" show correct output.

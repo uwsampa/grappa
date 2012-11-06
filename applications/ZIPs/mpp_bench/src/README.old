@@ -1,0 +1,185 @@
+Classification: UNCLASSIFIED//FOR OFFICIAL USE ONLY
+
+#
+# $Id: README,v 1.3 2008/08/28 21:08:04 
+#
+
+README for UPC/SHMEM benchmarks for MPP
+
+I. General info
+
+The current suite of MPP benchmarks using UPC and SHMEM consist of
+five tests:
+
+1. all2all - PEs dynamically allocate a shared buffer, fill it with
+random data, then transpose the data amongst themselves using
+transfers (puts) of a given size.  Bandwidth (bytes per second) per PE
+is reported, as well as cpu (user+system) and wall time.
+
+2. pingpong - Random pairs of PEs perform some number of ping-pong
+operations (PE B waits, PE A puts a word to B then waits, B puts a
+word to A).  Half the average latency (in seconds) for ping-pong
+operations are reported.
+
+3. barrier - All PEs participate in barriers. Average cpu and wall
+time (in secs) per barrier are reported.
+
+4. broadcast - All PEs participate in broadcasts of buffers of varying
+size (powers-of-two word buffers up to some maximum size). Average
+wall time (in secs), per PE bandwidth, and aggregate (per job)
+bandwidth are reported. Optionally, a fixed root PE can be specified
+(the default is for roots to be chosen randomly).
+
+5. reduce - All PEs participate in reductions (adds). Average cpu and
+wall time (in secs) per barrier are reported.
+
+II. Compile
+
+The benchmarks may be compiled using:
+
+1. HP XC/Quadrics SHMEM
+2. HP XC/Quadrics UPC
+3. HP Superdome (SMP) SHMEM
+4. HP Superdome (SMP) UPC
+
+To compile for the desired platform, uncomment the appropriately
+marked portion for LFLAGS, CC and CFLAGS in the makefile.
+
+Note that each benchmark dynamically allocates 2^LG_NWRDS 64-bit
+integers. The preprocessor value of LG_NWRDS can be adjusted in the
+CFLAGS line by using, for example, -DLG_NWRDS=24. See Section III and
+V. for known limitations on LG_NWRDS on HP XC systems.
+
+III. Run
+
+Each benchmark dynamically allocates 2^(LG_NWRDS+3) bytes of shared
+memory. For HP XC/Quadrics systems, the RMS_MEMLIMIT,
+LIBELAN_GALLOC_SIZE and SHMEM_SYMMETRIC_HEAP_SIZE environment
+variables must be set accordingly. For LG_NWRDS=24 (2^27 bytes), the
+following are sufficient.
+
+export RMS_MEMLIMIT=200
+export LIBELAN_GALLOC_SIZE=1500000000
+export SHMEM_SYMMETRIC_HEAP_SIZE=150m
+
+For either SHMEM or UPC on XC/Quadrics systems, prun the executable
+with your desired prun options. For SMPs use upcrun. Usage statements
+for the benchmarks are below.
+
+Usage:  ./all2all seed msg_size(B) table_size(MB) rep_cnt [ms2 ts2 rc2 ..]
+Usage:  ./barrier niters
+Usage:  ./pingpong seed npairs niters
+Usage:  ./bcast seed msize(B) niters [root]
+Usage:  ./reduce niters
+
+IV. Sample output
+
+[110]> prun -n 2048 -P diag ./all2all 0 4096 128 8
+base seed is 0
+tsize = 128MB  msize =  4096B
+cksum is 48ede52f7d25d280
+wall reports    0.848 secs  cpus report    0.848 secs
+  75.502 MB/sec with 4096 bytes transfers
+cksum is 7eba65a8b423b9d8
+wall reports    0.851 secs  cpus report    0.851 secs
+  75.241 MB/sec with 4096 bytes transfers
+cksum is 4a886b4b7f052968
+wall reports    0.847 secs  cpus report    0.847 secs
+  75.584 MB/sec with 4096 bytes transfers
+cksum is df91eb6c66ba6548
+wall reports    0.841 secs  cpus report    0.840 secs
+  76.143 MB/sec with 4096 bytes transfers
+cksum is 2617b8a12f9b8ee8
+wall reports    0.843 secs  cpus report    0.843 secs
+  75.877 MB/sec with 4096 bytes transfers
+cksum is e4390b941cc95cd0
+wall reports    0.843 secs  cpus report    0.844 secs
+  75.852 MB/sec with 4096 bytes transfers
+cksum is 823d480bf75bee10
+wall reports    0.838 secs  cpus report    0.839 secs
+  76.293 MB/sec with 4096 bytes transfers
+cksum is c8903f7cf9557f78
+wall reports    0.844 secs  cpus report    0.845 secs
+  75.764 MB/sec with 4096 bytes transfers
+
+[159]> upcrun -n 64 ./barrier 100000
+base seed is 1216845430
+performed     100000 barriers in 6.238e+01 cpu  secs (6.238e-04 /barrier)
+performed     100000 barriers in 3.777e+02 wall secs (3.777e-03 /barrier)
+
+[130]> prun -n 128 -P dev ./bcast 0 100000 1000
+base seed is 0
+msize = 97.66 KiB
+randomizing root PEs (-1)
+performed 1000   8   B bcasts in 2.671e-02 wall secs (2.671e-05 /bcast)
+  8   B bcasts yield 292.49 KiB/sec (/PE),  36.28 MiB/sec (aggregate)
+performed 1000  16   B bcasts in 1.574e-02 wall secs (1.574e-05 /bcast)
+ 16   B bcasts yield 992.58 KiB/sec (/PE), 123.10 MiB/sec (aggregate)
+performed 1000  32   B bcasts in 1.534e-02 wall secs (1.534e-05 /bcast)
+ 32   B bcasts yield   1.99 MiB/sec (/PE), 252.60 MiB/sec (aggregate)
+performed 1000  64   B bcasts in 1.697e-02 wall secs (1.697e-05 /bcast)
+ 64   B bcasts yield   3.60 MiB/sec (/PE), 456.89 MiB/sec (aggregate)
+performed 1000 128   B bcasts in 1.654e-02 wall secs (1.654e-05 /bcast)
+128   B bcasts yield   7.38 MiB/sec (/PE), 937.47 MiB/sec (aggregate)
+performed 1000 256   B bcasts in 1.910e-02 wall secs (1.910e-05 /bcast)
+256   B bcasts yield  12.78 MiB/sec (/PE),   1.58 GiB/sec (aggregate)
+performed 1000 512   B bcasts in 1.890e-02 wall secs (1.890e-05 /bcast)
+512   B bcasts yield  25.83 MiB/sec (/PE),   3.20 GiB/sec (aggregate)
+performed 1000   1 KiB bcasts in 2.079e-02 wall secs (2.079e-05 /bcast)
+  1 KiB bcasts yield  46.98 MiB/sec (/PE),   5.83 GiB/sec (aggregate)
+performed 1000   2 KiB bcasts in 2.262e-02 wall secs (2.262e-05 /bcast)
+  2 KiB bcasts yield  86.35 MiB/sec (/PE),  10.71 GiB/sec (aggregate)
+performed 1000   4 KiB bcasts in 2.832e-02 wall secs (2.832e-05 /bcast)
+  4 KiB bcasts yield 137.95 MiB/sec (/PE),  17.11 GiB/sec (aggregate)
+performed 1000   8 KiB bcasts in 4.095e-02 wall secs (4.095e-05 /bcast)
+  8 KiB bcasts yield 190.80 MiB/sec (/PE),  23.66 GiB/sec (aggregate)
+performed 1000  16 KiB bcasts in 6.871e-02 wall secs (6.871e-05 /bcast)
+ 16 KiB bcasts yield 227.41 MiB/sec (/PE),  28.20 GiB/sec (aggregate)
+performed 1000  32 KiB bcasts in 1.207e-01 wall secs (1.207e-04 /bcast)
+ 32 KiB bcasts yield 258.93 MiB/sec (/PE),  32.11 GiB/sec (aggregate)
+performed 1000  64 KiB bcasts in 2.307e-01 wall secs (2.307e-04 /bcast)
+ 64 KiB bcasts yield 270.96 MiB/sec (/PE),  33.61 GiB/sec (aggregate)
+performed 1000  98 KiB bcasts in 3.759e-01 wall secs (3.759e-04 /bcast)
+ 98 KiB bcasts yield 253.73 MiB/sec (/PE),  31.47 GiB/sec (aggregate)
+cksum is 2d039d0aca388780
+
+[120]> prun -n 2048 -P diag ./pingpong 0 4 16 |sort -n
+base seed is 0
+pair       0:1785 ->1081:       1 iters in 1.410e-04 wall secs (1.410e-04 /iter)
+pair       0:1785 ->1081:       2 iters in 5.960e-06 wall secs (2.980e-06 /iter)
+pair       0:1785 ->1081:       4 iters in 7.987e-06 wall secs (1.997e-06 /iter)
+pair       0:1785 ->1081:       8 iters in 1.502e-05 wall secs (1.878e-06 /iter)
+pair       0:1785 ->1081:      16 iters in 2.897e-05 wall secs (1.810e-06 /iter)
+pair       1:1083 ->1814:       1 iters in 1.371e-04 wall secs (1.371e-04 /iter)
+pair       1:1083 ->1814:       2 iters in 5.960e-06 wall secs (2.980e-06 /iter)
+pair       1:1083 ->1814:       4 iters in 7.987e-06 wall secs (1.997e-06 /iter)
+pair       1:1083 ->1814:       8 iters in 1.454e-05 wall secs (1.818e-06 /iter)
+pair       1:1083 ->1814:      16 iters in 2.897e-05 wall secs (1.810e-06 /iter)
+pair       2: 135 ->  62:       1 iters in 1.379e-04 wall secs (1.379e-04 /iter)
+pair       2: 135 ->  62:       2 iters in 5.960e-06 wall secs (2.980e-06 /iter)
+pair       2: 135 ->  62:       4 iters in 8.464e-06 wall secs (2.116e-06 /iter)
+pair       2: 135 ->  62:       8 iters in 1.359e-05 wall secs (1.699e-06 /iter)
+pair       2: 135 ->  62:      16 iters in 2.706e-05 wall secs (1.691e-06 /iter)
+pair       3:1791 -> 929:       1 iters in 1.410e-04 wall secs (1.410e-04 /iter)
+pair       3:1791 -> 929:       2 iters in 5.960e-06 wall secs (2.980e-06 /iter)
+pair       3:1791 -> 929:       4 iters in 7.987e-06 wall secs (1.997e-06 /iter)
+pair       3:1791 -> 929:       8 iters in 1.550e-05 wall secs (1.937e-06 /iter)
+pair       3:1791 -> 929:      16 iters in 3.052e-05 wall secs (1.907e-06 /iter)
+
+[113]> upcrun -n 16 reduce 100000
+base seed is 1219950982
+performed 100000 reductions in 8.443e+01 cpu  secs (8.443e-04 /reduce)
+performed 100000 reductions in 1.418e+02 wall secs (1.418e-03 /reduce)
+ans = 1600104
+
+V. Known limitations
+
+As of 26 Aug 2008, for the UPC versions of the benchmarks
+(on both XC/Quadrics and Superdomes), LG_NWRDS must be <= 24. Word
+regarding this limitation is pending from HP.
+
+As of 26 Aug 2008, there is an apparent bug in HP SHMEM implementation
+of shmem_broadcast which results in PEs receiving incorrect data. HP
+has been notified of this issue and a solution should be forthcoming.
+
+Classification: UNCLASSIFIED//FOR OFFICIAL USE ONLY

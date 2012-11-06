@@ -91,36 +91,29 @@ int64_t k; \
 \
 OMP("omp for") MTA("mta assert nodep") \
 for (k = 0; k < nelem; ++k) { \
-int64_t place; \
-elt_type Ak, Aplace; \
-\
-Ak = take (&A[k]); \
-\
-mrg_skip (st, 1, k, 0); \
-place = k + (int64_t)floor (mrg_get_double_orig (st) * (nelem - k)); \
-if (k != place) { \
-assert (place > k); \
-assert (place < nelem); \
-\
-Aplace = take (&A[place]); \
-\
-{ \
-elt_type t; \
-t = A[place]; \
-A[place] = A[k]; \
-A[k] = t; \
-} \
-\
-{ \
-elt_type t; \
-t = Aplace; \
-Aplace = Ak; \
-Ak = t; \
-} \
-\
-release (&A[place], Aplace); \
-} \
-release (&A[k], Ak); \
+  int64_t place; \
+  elt_type Ak, Aplace; \
+  \
+  Ak = take (&A[k]); \
+  \
+  mrg_skip (st, 1, k, 0); \
+  place = k + (int64_t)floor (mrg_get_double_orig (st) * (nelem - k)); \
+  if (k != place) { \
+    assert (place > k); \
+    assert (place < nelem); \
+    \
+    Aplace = take (&A[place]); \
+    \
+    { \
+      elt_type t; \
+      t = Aplace; \
+      Aplace = Ak; \
+      Ak = t; \
+    } \
+    \
+    release (&A[place], Aplace); \
+  } \
+  release (&A[k], Ak); \
 } \
 }
 #else

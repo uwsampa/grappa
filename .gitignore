@@ -29,6 +29,7 @@ ckpts
 *.WARNING
 .fuse_hidden*
 .srunrc*
+.sbatch.*
 *.d.tmp
 
 # Tau/profiling
@@ -36,8 +37,8 @@ tau*.trc
 *.edf
 profile.*.*.*
 app*.def
-app.otf
-app.vsettings
+*.otf
+*.vsettings
 app*.events
 fn_mappings
 reader.out
@@ -47,3 +48,76 @@ reader.out
 
 core.*
 *.prof
+*.z
+
+doc/asplos13/paper.pdf
+
+.svn
+
+# autoconf
+autom4te.cache
+config.status
+
+# google testing stuff
+*_unittest[0123456789]
+*_unittest
+*_unittest.sh
+*_test
+*_test.sh
+stamp-h1
+config.h
+
+# google-glog
+.libs
+.deps
+tools/google-glog/Makefile
+*.lo
+*.la
+*.pc
+tools/google-glog/libtool
+tools/google-glog/logging_striptest*
+tools/google-glog/src/glog/*.h
+
+# gflags
+tools/gflags/Makefile
+tools/gflags/libtool
+tools/gflags/gflags_strip_flags_test
+tools/gflags/logging_striptest*
+tools/gflags/src/gflags/*.h
+tools/gflags/src/gflags_unittest-main.cc
+tools/gflags/src/gflags_unittest_main.cc
+
+# gasnet
+*.mak
+config.cache
+/tools/GASNet-1.18.2/Makefile
+/tools/GASNet-1.18.2/*/Makefile
+/tools/GASNet-1.18.2/*/*/Makefile
+/tools/GASNet-1.18.2/configure-gasnet.sh
+/tools/GASNet-1.18.2/dcmf-conduit/contrib/gasnetrun_dcmf
+/tools/GASNet-1.18.2/gasnet_config.h
+/tools/GASNet-1.18.2/gm-conduit/contrib/gasnetrun_gm
+/tools/GASNet-1.18.2/ibv-conduit/contrib/gasnetrun_ibv
+/tools/GASNet-1.18.2/mpi-conduit/contrib/gasnetrun_mpi
+/tools/GASNet-1.18.2/other/amudp/amudprun
+/tools/GASNet-1.18.2/other/contrib/gasnet_trace
+/tools/GASNet-1.18.2/other/perlstart
+/tools/GASNet-1.18.2/pami-conduit/contrib/gasnetrun_pami
+/tools/GASNet-1.18.2/sci-conduit/contrib/gasnetrun_sci
+/tools/GASNet-1.18.2/vapi-conduit/contrib/gasnetrun_vapi
+/tools/GASNet-1.18.2/build
+
+# gperftools
+/tools/gperftools-2.0/Makefile
+/tools/gperftools-2.0/src/config.h
+/tools/gperftools-2.0/src/gperftools/*.h
+/tools/gperftools-2.0/libtool
+
+# VampirTrace
+# (hack to ignore all autogen'd files)
+/tools/VampirTrace-5.12.2/
+
+/tools/built_deps
+/tools*
+^tools*
+^/tools*

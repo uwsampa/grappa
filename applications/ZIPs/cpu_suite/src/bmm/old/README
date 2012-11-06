@@ -1,0 +1,37 @@
+   The makefile requires values for two macros FARM_ROOT and IO_DIR .
+
+FARM_ROOT is the path to the farm_cpusuite directory
+IO_DIR    is the path to the directory in which the IO test files will
+          be read and/or written
+
+The makefile contains two lines that can be added to set these macros
+
+#FARM_ROOT	= ~/your path goes here or set FARM_ROOT in environment
+
+and
+
+#IO_DIR		= ~/your path goes here or set IO_DIR in environment
+
+The macros can also be set in the environment
+
+For esxample in the C shell
+
+setenv FARM_ROOT /users/jadoe/benchmarks
+setenv IO_DIR    /data/stageA/bmarks/iodir
+
+
+  The Perl script `bconfig` (in the parent directory farm_cpusuite) reads file makefile_template.mk
+and writes a configured makefile. The contents of Perl varables $cc, $cflags, $f90 and $fflags
+are used to alter the makefile macros CC, CFLAGS, F90 and FFLAGS.
+
+  Most of the makefiles have one or more `check` targets that can be invoked to run a benchmark
+with specific parametes. The resulting output is compared to a known good output by `diff`ing.
+If the run was valid, the diff files should just contain header and footer differences. Not
+any difference in the data.
+  In most cases `  egrep -v "END|INFO|INIT|---"  ` is then run on the diff output to further remove
+more remaining extranious text. This output is found in the files prefixed with `tiny_`.
+
+Remember that normally the `clean` target is preferred over `clobber` because the former does not
+remove the constructed makefile.
+
+

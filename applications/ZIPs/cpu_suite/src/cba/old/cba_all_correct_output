@@ -1,0 +1,114 @@
+
+===================================================
+
+INFO> Benchmark Version iobmversion 4.0
+INFO> _XOPEN_VERSION
+INFO> system name:
+INFO> node name:
+INFO> release:
+INFO> version:
+INFO> machine:
+INFO> cc
+INFO> launched at epoch            then slept 0 sec
+
+INIT> ./cba started at:
+INIT> host machine is
+INIT> program built on
+INIT> seed is 401   niters is 7173289
+INIT> other args:  64 64
+
+
+last 64 results:
+
+      2065      2059      2084      2043      2058      2054      2064      2010
+      2045      2038      2034      2015      2053      2104      2038      2080
+      2046      2081      2068      1994      2051      2022      2028      2134
+      2048      2052      1994      2050      1993      2010      2079      2090
+      2083      2079      2038      2042      2061      2006      2011      2045
+      2069      2025      2034      2048      2109      2057      2043      1992
+      2082      2012      1967      2079      2069      2112      2054      2004
+      2022      2054      2060      2072      2021      2077      2071      2029
+there were 0 failures
+there were 0 failures
+
+END> ended at:
+END> elapsed time is     seconds
+END>         secs of wall time             % of value reported by time()
+END>         secs of cpu+sys time   utilization =       %
+END>          M 64-bit counts per second
+
+===================================================
+
+INFO> Benchmark Version iobmversion 4.0
+INFO> _XOPEN_VERSION
+INFO> system name:
+INFO> node name:
+INFO> release:
+INFO> version:
+INFO> machine:
+INFO> cc
+INFO> launched at epoch 1226003693 then slept 0 sec
+
+INIT> ./cba started at:
+INIT> host machine is
+INIT> program built on
+INIT> seed is 501   niters is 202323
+INIT> other args:  145 2368
+
+
+last 64 results:
+
+     76052     75858     75430     75957     75865     75672     75783     75755
+     75941     75807     75689     75771     75822     75617     76030     75886
+     75808     75405     75810     75813     75847     76008     75900     75843
+     75815     75844     75834     76007     76259     75459     75913     75574
+     75913     76105     75950     75782     76085     75615     75884     75882
+     75705     75929     75750     75785     76079     75677     75847     75610
+     75836     76012     76069     75481     75928     75616     76058     76084
+     75764     75958     75662     75916     75780     75713     75998     75776
+there were 0 failures
+there were 0 failures
+
+END> ended at:
+END> elapsed time is     seconds
+END>         secs of wall time             % of value reported by time()
+END>         secs of cpu+sys time   utilization =       %
+END>          M 64-bit counts per second
+
+===================================================
+
+INFO> Benchmark Version iobmversion 4.0
+INFO> _XOPEN_VERSION
+INFO> system name:
+INFO> node name:
+INFO> release:
+INFO> version:
+INFO> machine:
+INFO> cc
+INFO> launched at epoch 1226003813 then slept 0 sec
+
+INIT> ./cba started at:
+INIT> host machine is
+INIT> program built on
+INIT> seed is 601   niters is 3400
+INIT> other args:  231 128000
+
+
+last 64 results:
+
+   4096650   4096803   4095133   4095899   4095710   4095470   4094929   4096455
+   4097324   4093649   4094427   4096599   4094915   4097446   4096769   4095991
+   4095564   4096583   4094464   4095128   4100036   4095670   4094547   4095958
+   4096508   4097142   4096276   4095415   4095274   4095502   4095902   4097479
+   4098320   4097761   4094263   4096112   4094659   4094108   4096140   4095524
+   4096914   4096142   4096412   4096531   4096266   4094312   4095438   4097742
+   4097643   4097778   4094801   4096810   4095645   4094427   4095703   4094912
+   4094296   4096953   4097338   4094528   4094811   4096196   4098345   4098843
+there were 0 failures
+there were 0 failures
+
+END> ended at:
+END> elapsed time is     seconds
+END>         secs of wall time             % of value reported by time()
+END>         secs of cpu+sys time   utilization =       %
+END>          M 64-bit counts per second

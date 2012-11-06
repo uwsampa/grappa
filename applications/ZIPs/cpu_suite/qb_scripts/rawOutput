@@ -1,0 +1,5 @@
+#!/bin/bash
+if [ -f $1/qb_run.out ]
+then
+        cat $1/qb_run.out
+fi

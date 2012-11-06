@@ -1,0 +1,7 @@
+#! /bin/bash
+#
+# Gets the main data (human readable) for reporting.
+# Benchmark:  Confidence
+# 
+#
+cat $1/qb_run.out | gawk '{if ($1=="Processing") {x=1};if (x==1){print $0}}' 

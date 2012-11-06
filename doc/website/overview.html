@@ -28,23 +28,32 @@
     <div class="span5">
 
       <h2>What is Grappa?</h2>
-      <p>Many emerging problems are irregular, with little locality and
-	imbalanced work, leading to inefficient execution at scale. Social
-	networks are one example.</p>
-      
-      <p>Performance on these problems is artificially limited by
-	processors' dependence on locality for performance. There are two main
-	challenges:
+
+      <p>Mass-market computer systems are designed to exploit spatial
+	locality via cache and local memory to achieve high
+	efficiency. Unfortunately, when processing graphs spatial locality is
+	often difficult, if not impossible, to express.</p>
+
+      <p>As system size grows,
+	edges in a graph distributed across its nodes' memories become
+	increasingly likely to join vertices that are far apart. The rate of
+	traversal slows. Consequently, even though parallelism and hardware
+	resources increase, performance degrades.</p>
+
+      <p>Grappa is a latency-tolerant runtime for mass-market clusters
+	that mitigates this degradation, allowing graph processing to scale up
+	even in the presence of diminishing locality and increasing
+	latency. Grappa works by: 
 	<ul>
-	  <li>Latency in chasing down low-locality data</li>
-	  <li>Load imbalance due to irregularity</li>
+	  <li>exploiting fine-grained task parallelism to
+	    tolerate the increasing latency, and</li>
+	  <li>aggregating remote references
+	    from disparate tasks to make better use of diminishing bandwidth at
+	    scale.</li>
 	</ul>
-      </p>
-      
-      <p>Grappa is a parallel runtime system that leverages the parallelism
-	inherent in these applications to get faster performance on
-	mass-market clusters.</p>
-	
+	The application developer need only express parallelism, not
+	decide when and how to exploit it.
+
       <h2>Key idea: Trade latency for throughput</h2>
       <p>Grappa’s core component is a lightweight cooperative threading system. We tolerate latency by context-switching to other work.
 	Given this ability, we can increase throughput by increasing the latency of key operations:

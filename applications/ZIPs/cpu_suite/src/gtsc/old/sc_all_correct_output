@@ -1,0 +1,87 @@
+
+===================================================
+
+INFO> Benchmark Version iobmversion 4.0
+INFO> _XOPEN_VERSION = 500
+INFO> system name: Linux
+INFO> node name:   selenium.d.ces.nsa
+INFO> release:     2.6.9-22.EL
+INFO> version:     #1 Mon Sep 19 17:49:49 EDT 2005
+INFO> machine:     x86_64
+INFO> icc -O3 -std=c99 -DRESTRICT=restrict -DUSE_POP3 -DB_S_X2=b_s_x2_ -ansi_alias -I. -I../support 
+INFO> launched at epoch 1226070170 then slept 0 sec
+
+INIT> ./sc started at:  Fri Nov  7 10:02:50 2008
+INIT> host machine is selenium.d.ces.nsa
+INIT> program built on Nov  7 2008 @ 09:59:29
+INIT> seed is 1801   niters is 75412
+INIT> other args:  8
+
+Checksum = 0xcd79149264f9b980
+Checksum = 0x5a805fad3a3c09e6
+
+data array is 2^8 = (256) words long
+
+END> ended at:  Fri Nov  7 10:02:58 2008
+END> elapsed time is 8 seconds
+END>   7.953 secs of wall time       99.411% of value reported by time()
+END>   7.896 secs of cpu+sys time   utilization = 99.282%
+END>  13.8902 G Bytes per second
+
+===================================================
+
+INFO> Benchmark Version iobmversion 4.0
+INFO> _XOPEN_VERSION = 500
+INFO> system name: Linux
+INFO> node name:   selenium.d.ces.nsa
+INFO> release:     2.6.9-22.EL
+INFO> version:     #1 Mon Sep 19 17:49:49 EDT 2005
+INFO> machine:     x86_64
+INFO> icc -O3 -std=c99 -DRESTRICT=restrict -DUSE_POP3 -DB_S_X2=b_s_x2_ -ansi_alias -I. -I../support 
+INFO> launched at epoch 1226070178 then slept 0 sec
+
+INIT> ./sc started at:  Fri Nov  7 10:02:58 2008
+INIT> host machine is selenium.d.ces.nsa
+INIT> program built on Nov  7 2008 @ 09:59:29
+INIT> seed is 1901   niters is 147
+INIT> other args:  16
+
+Checksum = 0x8f7077efd04b1bcc
+Checksum = 0xaf095db2ea3da7c1
+
+data array is 2^16 = (65536) words long
+
+END> ended at:  Fri Nov  7 10:03:03 2008
+END> elapsed time is 5 seconds
+END>   3.986 secs of wall time       79.726% of value reported by time()
+END>   3.984 secs of cpu+sys time   utilization = 99.952%
+END>   1.7286 G Bytes per second
+
+===================================================
+
+INFO> Benchmark Version iobmversion 4.0
+INFO> _XOPEN_VERSION = 500
+INFO> system name: Linux
+INFO> node name:   selenium.d.ces.nsa
+INFO> release:     2.6.9-22.EL
+INFO> version:     #1 Mon Sep 19 17:49:49 EDT 2005
+INFO> machine:     x86_64
+INFO> icc -O3 -std=c99 -DRESTRICT=restrict -DUSE_POP3 -DB_S_X2=b_s_x2_ -ansi_alias -I. -I../support 
+INFO> launched at epoch 1226070183 then slept 0 sec
+
+INIT> ./sc started at:  Fri Nov  7 10:03:03 2008
+INIT> host machine is selenium.d.ces.nsa
+INIT> program built on Nov  7 2008 @ 09:59:29
+INIT> seed is 2001   niters is 11
+INIT> other args:  25
+
+Checksum = 0xc7e13098dae05da8
+Checksum = 0xbaf1c6a18eaa75a8
+
+data array is 2^25 = (33554432) words long
+
+END> ended at:  Fri Nov  7 10:03:07 2008
+END> elapsed time is 4 seconds
+END>   3.267 secs of wall time       81.667% of value reported by time()
+END>   3.264 secs of cpu+sys time   utilization = 99.903%
+END> 161.6321 M Bytes per second

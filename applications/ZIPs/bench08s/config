@@ -1,0 +1,202 @@
+#!/usr/local/bin/perl
+
+use strict;		#safer mode of programming
+
+use vars	'$name',	#system name
+		'$recursive',	#indicates if function is recursive
+		'$top_dir',	#top directory of recursion
+		'$current_dir',	#current directory
+		'@names',	#list of system names
+	 	'@cc',		#the CC definition
+	 	'@fc',		#the fc definition
+	 	'@cflags',	#the c flags
+		'@fflags',	#the f flags
+	 	'@ldflags',	#the linker directives
+		'$line',	#the file read in
+		'$newfile',	#the new makefile
+		'@words';	#array to hold split words of a line
+
+my ($i, $j);			#for loop counters
+my ($pwd, $break);
+
+
+$top_dir = `pwd`;
+chomp $top_dir;
+
+#read file in for config information
+while(! open (FILE, "config.txt")){
+	chdir "..";
+	$pwd = `pwd`;
+	chomp $pwd;
+	if($pwd eq "/"){
+		print "Could not find config.txt\n";
+		exit(1);
+	}
+}
+
+chdir "$top_dir";
+	
+
+#get configuration information for each system from file
+$i = -1;
+while($line = <FILE>){
+	
+	#split each line into words
+	@words = split /\s+/, $line;
+
+	#get name
+	if($words[0] eq "NAME:"){
+		$i++;
+		$names[$i] = $words[1];
+	}
+
+	#get CC
+	elsif($words[0] eq "CC:"){
+		$cc[$i] = $words[1];
+	}
+
+	#get cflags
+	elsif($words[0] eq "CFLAGS:"){
+	   for($j = 1; $j < @words; $j++){
+		$cflags[$i] .= " $words[$j]";
+	   }
+	}
+	
+	#get fc
+	elsif($words[0] eq "FC:"){
+		$fc[$i] = $words[1];
+	}
+
+	#get fflags
+	elsif($words[0] eq "FFLAGS:"){
+	   for($j = 1; $j < @words; $j++){
+		$fflags[$i] .= " $words[$j]";
+	   }
+	}
+
+	#get ldflags
+	elsif($words[0] eq "LDFLAGS:"){
+	   for($j = 1; $j < @words; $j++){
+		$ldflags[$i] .= " $words[$j]";
+	   }
+	}
+}
+
+close (FILE);
+
+#get arguments
+$recursive = $ARGV[0];
+if($recursive eq "-r"){
+	$name = $ARGV[1];
+}
+
+else{
+	$name = $ARGV[0];
+	$recursive = "";
+}
+
+
+#search for name from the filed list of names
+my $match = -1;
+for($i=0; $i<@names; $i++){
+	if($names[$i] =~ /$name/i){
+		$match = $i;	
+	}
+}
+	
+#if there is not a name match, print error information
+if(($name eq "") || ($match == -1)){
+	print "Please specify a system name.\n";
+	print "Choose from:\n"; 
+	for($i=0; $i<@names; $i++){
+		print "    $names[$i]\n";
+	}
+}
+
+#otherwise, print information about chosen system
+else{ 
+	print "You have chosen system $names[$match]\n";
+	print "CC: $cc[$match]\n";
+	print "CFLAGS: $cflags[$match]\n";
+	print "FC: $fc[$match]\n";
+	print "FFLAGS: $fflags[$match]\n";
+	print "LDFLAGS: $ldflags[$match]\n";
+}
+
+print_makefile($top_dir, $recursive);
+
+#reprint makefile
+sub print_makefile{
+
+	my($top, $recursive) = @_;
+	my(@sub_dirs);
+
+	if($recursive){
+		@sub_dirs = `ls`;
+	}
+
+	foreach $current_dir (@sub_dirs){
+		chomp $current_dir;
+
+		#change to next directory
+		if(chdir $current_dir){
+			print_makefile($current_dir, "-r");
+		}
+		
+	}
+	
+	#begin printing makefile
+	if(open (MAKE, "Makefile")){
+
+		$line = <MAKE>;
+		$newfile .= "# This makefile is configured to run "
+		    	."on $names[$match]. \n" ;
+		$line = <MAKE>;
+		$newfile .= "# To configure for another sysem, please "
+		    	."run ./config <system-name>\n";
+	
+		#if a line begins with modifiable information, change it
+		#othewise, just reprint it the same as before
+		while($line = <MAKE>){
+	
+			if ($line =~ /^\s*CC\s*=/) {
+      				$newfile .= "CC \t\t= $cc[$match]\n";
+      				next;
+    			}
+    			if ($line =~ /^\s*CFLAGS\s*=/) {
+      				$newfile .= "CFLAGS \t\t= $cflags[$match]\n";
+      				next;
+    			}
+    			if ($line =~ /^\s*FC\s*=/) {
+      				$newfile .= "FC \t\t= $fc[$match]\n";
+      				next;
+    			}
+    			if ($line =~ /^\s*FFLAGS\s*=/) {
+      				$newfile .= "FFLAGS \t\t= $fflags[$match]\n";
+      				next;
+    			}
+    			if ($line =~ /^\s*LDFLAGS\s*=/) {
+      				$newfile .= "LDFLAGS \t= $ldflags[$match]\n";
+      				next;
+    			}
+		
+			$newfile .= $line;
+		}
+		
+		close MAKE;
+
+		`mv Makefile Makefile.old`;
+	
+		open MAKEFILE, ">Makefile";
+	
+		print MAKEFILE $newfile;
+		close MAKEFILE;
+	}
+	
+	#reset line for next use
+	$newfile = "";
+
+	chdir "..";
+
+}
+

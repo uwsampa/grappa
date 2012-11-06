@@ -123,7 +123,7 @@ void print_match(graph *dirg, color_t *pattern, graphint startVertex);
 graphint triangles(graph *g);
 
 /* centrality.c */
-double centrality(graph *g, double *bc, graphint vs);
+double centrality(graph *g, double *bc, graphint vs, int64_t* total_nedge);
 
 /* util.c */
 void printArray(const char * const title, const graphint * const array, graphint size);

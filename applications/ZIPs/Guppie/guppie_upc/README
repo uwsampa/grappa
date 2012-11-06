@@ -1,0 +1,57 @@
+################################################################################
+# Name          : Guppie UPC
+# Description   : A GUPS benchmark written in UPC.
+# Compile	: ./src/make
+# Run		: ./bin/guppie
+# Origin	: 
+#
+#
+################################################################################
+# Revisions     : CPD   10 August 2011    : Original version
+#
+################################################################################
+
+This is a GUPS benchmark which begins with a pre-defined large fixed size 
+table which occupies a substantial portion of available memory. 
+Select an address (64-bit word address) in that table in a uniformly random 
+fashion (perhaps via a random number generator). An Update is a read-modify-write 
+operation at such a table location. Updates per second is the number of these 
+which can be executed in a second, aggregately, by all CPUs in the system. 
+Each CPU operates on its own address stream, 
+but tables may be shared among CPUs, if desired. No sorting of the address 
+stream is allowed. A small (less than 1%) percentage of missed updates is 
+allowed. GUPS stands for Giga Updates Per Second. 
+
+	1. ./bin/guppie
+	   Binary executable for Guppie upc 
+
+################################################################################
+# Usage		:
+#
+	./bin/guppie
+	
+################################################################################
+# Parameters		:
+#
+# All of the following parameters are optional:
+#
+################################################################################
+# Compile 		:
+#
+ upc version of guppie.c
+ 001222 mhm
+
+ to compile:
+ upc -O2 -fshared -fthreads-16 -X16 -o guppie.upc guppie.upc.c
+ upc -O2 -fstrength-reduce -funroll-loops -fshared -fthreads-16 -X16 -o guppie.upc guppie.upc.c
+ upc -O2 -fstrength-reduce -funroll-all--loops -fshared -fthreads-16 -X16 -o guppie.upc guppie.upc.c
+
+ upc -O2 -fstrength-reduce -funroll-loops -fshared -fthreads-128 -X128 -o guppie.upc guppie.upc.c
+ setlabel -l Hbigdev guppie.upc
+ pagesize -p 8M guppie.upc
+ ./guppie.upc
+
+################################################################################
+# Sample Output
+#
+

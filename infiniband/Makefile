@@ -51,7 +51,7 @@ psmtest: CFLAGS+= -I$(PSM_INSTALL)/usr/include -lpsm_infinipath -luuid
 psmtest: psmtest.o options.o
 	${LD} -o $@ $^ ${LDFLAGS}
 
-GASNET=/sampa/share/gasnet18-rhel6
+GASNET=/sampa/share/gasnet-1.18.2-openmpi-4kbuf-symbols
 GASNET_COMMON_CFLAGS=-I$(GASNET)/include
 GASNET_COMMON_LDFLAGS=-L$(GASNET)/lib
 

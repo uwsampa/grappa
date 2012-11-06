@@ -1,0 +1,158 @@
+
+===================================================
+
+INFO> Benchmark Version iobmversion 4.0
+INFO> _XOPEN_VERSION = 500
+INFO> system name:
+INFO> node name:
+INFO> release:
+INFO> version:
+INFO> machine:
+INFO> cc
+INFO> f90
+INFO> launched at epoch 1225989907 then slept 0 sec
+
+INIT> ./tilt started at:
+INIT> host machine is selenium.d.ces.nsa
+INIT> program built on Nov
+INIT> seed is 101   niters is 119554831
+
+input matrix:
+
+arr[ 0] = 3eafe54090d9a5d5
+arr[ 1] = 230e427f3dbc4e69
+arr[ 2] = 289f76bb6e7fb511
+arr[ 3] = ceeed1ed9fe3203a
+arr[ 4] = 3fd717990f693aca
+arr[ 5] = 7dc20d394b14a60a
+arr[ 6] = 4f09d480b3daafc9
+arr[ 7] = d44a9a2cea7c64a2
+arr[ 8] = b614a441d4e41223
+arr[ 9] = be948659c9899991
+arr[10] = 6754921515705576
+arr[11] = 95ef75368071ec2c
+arr[12] = 3ba508b8878dc108
+arr[13] = 4927b5a26b583140
+arr[14] = 02fa1e43dea5a688
+arr[15] = c94da43893f1e23b
+arr[16] = f1c1b7f6d7722d9e
+arr[17] = c8d0e4fbef4ab384
+arr[18] = 4c5106e714c4484b
+arr[19] = 4605e4cb0ddb7eab
+arr[20] = b11350c99de62f6d
+arr[21] = 98649f3349a22c2a
+arr[22] = 2e801db06bad25c1
+arr[23] = a59dace813206c9d
+arr[24] = 090d3e738c80cff3
+arr[25] = 67c91cf1a1f007dd
+arr[26] = 5c2fdcd64e2cbf7c
+arr[27] = 8ae2a7479556a676
+arr[28] = eb4ca60c2293856d
+arr[29] = c8ffb689b130f2df
+arr[30] = ea947868a0fac354
+arr[31] = bdafd44f64fa36bd
+arr[32] = d4d02f885f4a8149
+arr[33] = aadeba250dcf720b
+arr[34] = be35676a55fc156b
+arr[35] = 8f474369c74fbf6f
+arr[36] = de57722c782cac0a
+arr[37] = 776d706ae01f2ca2
+arr[38] = 65815d230fad9e2e
+arr[39] = 19fbceeaf699fba4
+arr[40] = 81ebe1cba84e6078
+arr[41] = 064219f2b6ecaf2a
+arr[42] = 7b2dc6696ab17a3b
+arr[43] = cdf4fb1a90c8c139
+arr[44] = d94ababea2dcbe48
+arr[45] = 3114c15957c49cb6
+arr[46] = 86f55d88c7cf7a5a
+arr[47] = 86289e242200b276
+arr[48] = bfd1ad4fbb953452
+arr[49] = 747d5299cc8de738
+arr[50] = 0bfa258bdca18700
+arr[51] = cda13c1921d7eaad
+arr[52] = 75d74883dc83da3a
+arr[53] = 37c06aa084ce9fe8
+arr[54] = b163501cfdccfa81
+arr[55] = 73f26218d360852b
+arr[56] = eac721dbc184c4bd
+arr[57] = df1e37a82c3c1747
+arr[58] = db152bcd31b0b7c4
+arr[59] = 04c6d3ece5828a9d
+arr[60] = 0aa7e17eaa9062fa
+arr[61] = c8979c01a8447298
+arr[62] = 9a70218ee26573cf
+arr[63] = 572ee0664798a14d
+
+output matrix:
+
+arr[ 0] = 11d1cd1ff89b92e6
+arr[ 1] = 1725f06e8e3859e5
+arr[ 2] = ece88b4b6624cf80
+arr[ 3] = 8dd88c21ad2ccf63
+arr[ 4] = be4d66bf7938b0ee
+arr[ 5] = 9ff03361be53dc51
+arr[ 6] = daea125a7c63a5eb
+arr[ 7] = 4e3d89c917bcbf61
+arr[ 8] = bc5ac357c392bd9c
+arr[ 9] = 1d33e45cdddaef92
+arr[10] = 901e043525b3730b
+arr[11] = 28e26906e916e966
+arr[12] = f31301ed45a96041
+arr[13] = f8fd15af7c3648fd
+arr[14] = fd16083559c82bdd
+arr[15] = aa1db9e53fa2daac
+arr[16] = 93e5d53d41bd801d
+arr[17] = f21058233fb64f19
+arr[18] = a095d19eec98b5eb
+arr[19] = 3b368ee74e5b5254
+arr[20] = 050a07e2c35b9c24
+arr[21] = aed7f7fda323b044
+arr[22] = 6962a49cf9394570
+arr[23] = 9c148610b2d6a0fa
+arr[24] = 3a0cfb6481ca6cf2
+arr[25] = d0c2f9f335e480b9
+arr[26] = 751de7c27f690459
+arr[27] = 6c79c6e0005c5388
+arr[28] = 7d49590fbdbef3fa
+arr[29] = 5130a0394809823b
+arr[30] = 6016f4b127d8a88b
+arr[31] = 7ce27cd552a4f8a4
+arr[32] = 93dbc8d615daef9e
+arr[33] = 25c6c621bd266b93
+arr[34] = 6304424f0de9927e
+arr[35] = d2a3a914a954ab20
+arr[36] = 7d465ea0caa0ea4c
+arr[37] = 78aaf8b1f3466e51
+arr[38] = 3f0fc328936f810b
+arr[39] = 5e6ddf54f20693b1
+arr[40] = d2cb3ecb637efeb9
+arr[41] = bbb5f853f0de1706
+arr[42] = 79b38f672a602162
+arr[43] = e735905f25289069
+arr[44] = eb4c5223ffda4641
+arr[45] = 658a2a307eced6c6
+arr[46] = 3200dc1bd4821c10
+arr[47] = b85b12085722f802
+arr[48] = a65b40be9b5d7fb1
+arr[49] = 4139318641b25a8e
+arr[50] = bf17df355debd22f
+arr[51] = 28e45025732f8e66
+arr[52] = 4a50bda01f6e1e10
+arr[53] = e7329ff93e4ce5e0
+arr[54] = 4e8358f7536b7e7e
+arr[55] = a26ccaeab1506563
+arr[56] = 8b42d3c5050416be
+arr[57] = ca242afeb08b846b
+arr[58] = 51b11cb937f55d88
+arr[59] = b06181f700b7c89c
+arr[60] = 5e1bbd6dfafa5d9f
+arr[61] = 8030c97f130510f3
+arr[62] = 1da1b4947e67894a
+arr[63] = e2c13bcdf03013d3
+
+END> ended at:
+END> elapsed time is    seconds
+END>         secs of wall time             % of value reported by time()
+END>         secs of cpu+sys time   utilization =       %
+END>          M tilts per second

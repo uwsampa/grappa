@@ -1,5 +1,5 @@
 #include "defs.hpp"
-#include "SoftXMT.hpp"
+#include "Grappa.hpp"
 #include "GlobalAllocator.hpp"
 #include "ForkJoin.hpp"
 
@@ -25,8 +25,8 @@ static void prand(int64_t n, double * v) {
 }
 
 double genScalData(graphedges * ge, double a, double b, double c, double d) {
-  GlobalAddress<double> rn = SoftXMT_typed_malloc<double>(2*numVertices);
-  GlobalAddress<graphint> permV = SoftXMT_typed_malloc<graphint>(numVertices);
+  GlobalAddress<double> rn = Grappa_typed_malloc<double>(2*numVertices);
+  GlobalAddress<graphint> permV = Grappa_typed_malloc<graphint>(numVertices);
   
   double t = timer();
   
@@ -40,7 +40,7 @@ double genScalData(graphedges * ge, double a, double b, double c, double d) {
 	/* Perform in sets of NV permutations to save space */
   for (int j = 0; j < SCALE; j++) {
     graphint n = 2 * numVertices;
-    prand(n, rn);
+    //prand(n, rn);
   }
   
   t = timer() - t;

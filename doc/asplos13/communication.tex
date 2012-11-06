@@ -1,0 +1,71 @@
+\section{Communication}\label{sec:communication}
+
+In order to mitigate the low message injection rate limits of commodity
+networks, Grappa's communication stack has two layers: one for
+user-level messages and one for network-level messages. 
+
+At the upper layer, Grappa implements asynchronous active messages
+\cite{vonEicken92}. Each message consists of a function pointer, an
+optional argument payload, and an optional data payload. When a task
+sends a message, the message is copied to a send queue associated with
+the message's destination and the task continues execution.
+
+Grappa's lower networking layer aggregates the upper layer's messages
+to improve performance. Commodity networks including infiniband
+achieves their peak bisection bandwidth \emph{only} when the packet
+sizes are relatively large---on the order of multiple kilobytes. The
+reason for this discrepancy is the combination of overheads associated
+with handling each packet (in terms of bytes that form the actual
+packet, processing time at the card and processing on the
+CPU within the driver stack). Our measurements confirm manufacturers
+published data~\cite{infinibandbandwidth}, that with this packet size
+the bisection bandwidth is only a small fraction, less than
+3\% of the peak bisection bandwidth.
+
+In our experiments the vast majority of requests were smaller than
+44 bytes, far too small to make
+efficient use of the network. To make the best use of the network, we
+must convert our small messages into large ones.
+When a task sends a message,
+it is not immediately sent, but rather placed in a queue specific to the
+destination.
+
+There are three situations in which a queue of aggregated messages is
+sent. First, each queue has a message size threshold of 4096 bytes, chosen to give reasonable network performance. If the size in
+bytes of a queue is above the threshold, the contents of the queue are
+sent immediately. Second, each queue has a wait time threshold
+($\approx${1ms}). If the oldest message in a queue has been waiting
+longer than this threshold, the contents of the queue are sent
+immediately, even if the queue size is lower than the message size
+threshold.  Third, queues may be explicitly flushed in situations where
+the programmer wants to minimize the latency of a message at the cost of
+bandwidth utilization.
+
+The network layer is serviced by polling. Periodically when a context
+switch occurs, the Grappa scheduler switches to the network polling
+thread. This thread has three responsibilities. First, it polls the
+lower-level network layer to ensure it makes progress. Second, it
+deaggregates received messages and executes active message
+handlers. Third, it checks to see if any aggregation queues have
+messages that have been waiting longer than the threshold; if so, it
+sends them.
+
+Underneath the aggregation layer, Grappa uses the \gasnet~communication
+library~\cite{gasnet} to actually move data. All interprocess
+communication, whether on or off a cluster node, is handled by the
+\gasnet~library. \gasnet~is able to take advantage of many communication
+mechanisms, including ethernet and infiniband between nodes, as well as
+shared memory within a node.
+
+Some networks provide access to a remote machine's memory directly. This
+would seem to be a good fit for a programming model focused on global
+shared memory, but in fact we do not use it. In our experiments, we
+found that RDMA operations are subject to the same message rate
+limitations as all other messages on these cards, and thus using raw
+RDMA operations for our small messages would make inefficient use of
+bandwidth. Instead, we implement remote memory operations with active
+messages. A byproduct of this design decision is that Grappa is not
+limited to RDMA-capable networks.
+
+
+

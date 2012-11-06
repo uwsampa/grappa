@@ -1,0 +1,17 @@
+mm_ops.h defines several operations on vector units. The macro VEC_WIDTH
+must be defined to the vector width (in bits), and support operations
+must be defined for the particular vector width / architecture / compiler
+the mmbs2 and cksum benchmarks are being run on. Currently, mm_bs2.h
+includes support for:
+
+- 32-bit "vectors" (just normal uint32s)
+- 64-bit vectors (including intrinsics/assembly for Itanium)
+- 128-bit vectors (intrinsics for SSE2)
+
+mmbs2 is a direct port of the bs2 benchmark to the vector case. It requires
+VEC_WIDTH >= 64.
+
+cksum is a checksum that operates on 32-bit words. See REAMDE.cksum for more
+information.
+
+Both benchmarks use the datatype typedefs and timing functions from bench.h.

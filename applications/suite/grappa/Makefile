@@ -1,8 +1,14 @@
+GRAPPA_HOME?=$(shell /bin/bash -c '(while [[ ! -e include.mk && "`pwd`" != "/" ]]; do cd ..; done; pwd )')
+# check if autodetect GRAPPA_HOME is consistent
+AUTO_HOME=$(shell /bin/bash -c '(while [[ ! -e include.mk && "`pwd`" != "/" ]]; do cd ..; done; pwd )')
+ifneq ($(GRAPPA_HOME), $(AUTO_HOME))
+$(warning warning: Environment variable GRAPPA_HOME was set but does not match the autodetected home: env=$(GRAPPA_HOME), auto=$(AUTO_HOME))
+endif
 
-#include common SoftXMT definitions
-include $(SOFTXMT_HOME)/include.mk
+#include common Grappa definitions
+include $(GRAPPA_HOME)/include.mk
 
-#SRUN_FLAGS:=--time=00:40:00
+SRUN_FLAGS:=--time=00:05:00
 
 TARGET:= suite.exe
 
@@ -10,20 +16,20 @@ TARGET:= suite.exe
 $(TARGET):
 
 CFLAGS += -w
-CFLAGS += -I$(SOFTXMT_HOME)/system
+CFLAGS += -I$(GRAPPA_HOME)/system
 CFLAGS += -g -Wall -Drestrict=__restrict__ -ffast-math
 
 LDFLAGS = -g
 
-SOURCES = main.o centrality.o computeGraph.o connectedComponents.o genScalData.o graphManip.o pathIsomorphism.o timer.o triangles.o
+SOURCES = main.o centrality.o computeGraph.o connectedComponents.o genScalData.o graphManip.o pathIsomorphism.o timer.o triangles.o ../compat/mersenne.o
 HEADERS = defs.hpp
 
-include $(SOFTXMT_HOME)/system/Makefile
+include $(GRAPPA_HOME)/system/Makefile
 
-suite.exe: $(SOURCES) $(HEADERS) $(SOFTXMT_HOME)/system/libSoftXMT.a
-	$(ENV_VARIABLES) $($(MPITYPE)_LD) $(LDFLAGS) $(SOURCES) $(SOFTXMT_HOME)/system/libSoftXMT.a $(LIBRARIES) -o $@ $(LIBS)
+suite.exe: $(SOURCES) $(HEADERS) $(GRAPPA_HOME)/system/libGrappa.a
+	$(ENV_VARIABLES) $($(MPITYPE)_LD) $(LDFLAGS) $(SOURCES) $(GRAPPA_HOME)/system/libGrappa.a $(LIBRARIES) -o $@ $(LIBS)
 
-$(SOFTXMT_HOME)/system/libSoftXMT.a: force
+$(GRAPPA_HOME)/system/libGrappa.a: force
 	cd ../../../system; $(MAKE) lib
 
 force: ;

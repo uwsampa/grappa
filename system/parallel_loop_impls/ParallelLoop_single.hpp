@@ -1,8 +1,14 @@
+// Copyright 2010-2012 University of Washington. All Rights Reserved.
+// LICENSE_PLACEHOLDER
+// This software was created with Government support under DE
+// AC05-76RL01830 awarded by the United States Department of
+// Energy. The Government has certain rights in the software.
 
-#ifndef __PARALLEL_LOOP_SINGLE_HPP__
-#define __PARALLEL_LOOP_SINGLE_HPP__
 
-#include "SoftXMT.hpp"
+#ifndef PARALLEL_LOOP_SINGLE_HPP
+#define PARALLEL_LOOP_SINGLE_HPP
+
+#include "Grappa.hpp"
 #include "ForkJoin.hpp"
 #include "Cache.hpp"
 
@@ -56,7 +62,7 @@ static void parallel_loop_helper(int64_t start_index, int64_t iterations, void (
                             sem,
                             args }; // copy the loop body args
 
-           SoftXMT_publicTask( &parallel_loop_task_wrap_CachedArgs<UserArg>, make_global(&right_args) );
+           Grappa_publicTask( &parallel_loop_task_wrap_CachedArgs<UserArg>, make_global(&right_args) );
 
 
            // do left half
@@ -85,7 +91,7 @@ void parallel_loop_implSingle(int64_t start_index, int64_t iterations, void (*lo
     
     size_t args_count = getSizeLoopTree(iterations, FLAGS_parallel_loop_threshold);
     
-    GlobalAddress< parloop_args<UserArg> > args_array = SoftXMT_typed_malloc<parloop_args<UserArg> >( args_count );
+    GlobalAddress< parloop_args<UserArg> > args_array = Grappa_typed_malloc<parloop_args<UserArg> >( args_count );
 
     Semaphore single_synch(iterations, 0);
     parallel_loop_helper( start_index, iterations, loop_body, make_global(&single_synch), args );
@@ -98,7 +104,7 @@ void parallel_loop_implSingle(int64_t start_index, int64_t iterations, void (*lo
 //      + simple
 //      + trivial deallocation
 //      - hotspot origin
-/// 2. SoftXMT_malloc; above but spread over Nodes
+/// 2. Grappa_malloc; above but spread over Nodes
 //      + same advantages as above
 //      + no hotspot origin
 //      - pay the penalty to get args from a different node when a task dequeues locally
@@ -113,4 +119,4 @@ void parallel_loop_implSingle(int64_t start_index, int64_t iterations, void (*lo
 //      - need to allocate extra space pessimistically because of load imbalance (could do optimistic allocation size and then just double size on overflow)
 
 
-#endif
+#endif // PARALLEL_LOOP_SINGLE_HPP

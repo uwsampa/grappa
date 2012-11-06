@@ -35,20 +35,21 @@
       <img src="images/grappa-performance.png" />
 
       <p>We ran a modified version of the Unbalanced Tree Search (UTS)
-	benchmark in order to evaluate random access bandwidth and load
-	balancing.</p>
+	benchmark [Olivier et al. '06] to evaluate random access
+	bandwidth and load balancing. We used the T1L tree, with a
+	geometric distribution and 100 million nodes </p>
 
       <p>Grappa & the Cray XMT are both traversing a tree dispersed
 	randomly through global shared memory using a parallel loop
-	decomposition.</p>
+	decomposition, with no random number generator calls.</p>
 
-      <p>The MPI execution uses out-of-box UTS & traverses the tree
-	implicitly, so there are RNG calls and work-stealing, but not
-	remote references at every node.</p>
+      <p>The MPI execution uses out-of-box UTS and traverses the tree
+	implicitly, so there are random number generator calls and
+	work-stealing, but no remote references.</p>
       
       <p>The Grappa and MPI runs used our 12-node 144-core 2.66 GHz
-	Intel Westmere system with Mellanox QDR Infiniband. The XMT run
-	used on PNNL’s 128-processsor Cray XMT-I.</p>
+	Intel Westmere Xeon system with Mellanox QDR Infiniband. The
+	XMT run used PNNL's 128-processsor Cray XMT-I.</p>
 
     </div>
   </div>

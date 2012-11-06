@@ -1,7 +1,13 @@
-#ifndef __PARALLEL_LOOP_SEMAPHORE_HPP__
-#define __PARALLEL_LOOP_SEMAPHORE_HPP__
+// Copyright 2010-2012 University of Washington. All Rights Reserved.
+// LICENSE_PLACEHOLDER
+// This software was created with Government support under DE
+// AC05-76RL01830 awarded by the United States Department of
+// Energy. The Government has certain rights in the software.
 
-#include "SoftXMT.hpp"
+#ifndef PARALLEL_LOOP_SEMAPHORE_HPP
+#define PARALLEL_LOOP_SEMAPHORE_HPP
+
+#include "Grappa.hpp"
 #include "ForkJoin.hpp"
 #include "Cache.hpp"
 
@@ -56,7 +62,7 @@ static void parallel_loop_helper(int64_t start_index, int64_t iterations, void (
                             gs,
                             args
                            }; // copy the loop body args
-           SoftXMT_publicTask( SoftXMT_magic_identity_function(&parallel_loop_task_wrap_CachedArgs<UserArg>), make_global( &right_args ));
+           Grappa_publicTask( Grappa_magic_identity_function(&parallel_loop_task_wrap_CachedArgs<UserArg>), make_global( &right_args ));
            
            // spawn left half
            parloop_args< UserArg > left_args = { start_index,
@@ -65,7 +71,7 @@ static void parallel_loop_helper(int64_t start_index, int64_t iterations, void (
                             gs,
                             args
                            }; // copy the loop body args
-           SoftXMT_publicTask( SoftXMT_magic_identity_function(&parallel_loop_task_wrap_CachedArgs<UserArg>), make_global( &left_args ));
+           Grappa_publicTask( Grappa_magic_identity_function(&parallel_loop_task_wrap_CachedArgs<UserArg>), make_global( &left_args ));
            
            VLOG(3) << "doing left: " << left_args.start_index << " iters " << left_args.iterations <<
                         "\n  and right: " << right_args.start_index << " iters " << right_args.iterations;
@@ -93,4 +99,4 @@ void parallel_loop_implSemaphore(int64_t start_index, int64_t iterations, void (
 }
 
 
-#endif
+#endif // PARALLEL_LOOP_SEMAPHORE_HPP

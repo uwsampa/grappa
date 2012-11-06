@@ -1,0 +1,59 @@
+BMM
+
+The benchmark performs 64x64 bit-matrix multiplies with a fixed set of
+2**17 random input vectors and varying random matrices.  Each result
+is reduced and accumulated into a 512-long table.
+
+TILT
+
+This benchmark repeatedly tranposes a 64x64 bit matrix.  tilt is a C
+implementation, ftilt is a F90 implementation.
+
+BS2
+
+This benchmark computes the square of X MOD (2**16-1) for a series of
+random X values.  The computation is performed using a bit-serial
+representation.
+
+CBA
+
+This benchmark modifies a 2D bit matrix by accumlating mod-2 random
+rows into row 0.  For each iteration the number of ones in the
+modified row is computed.
+
+GMP
+
+This benchmarks tests the speed of the mpz_powm() routine in the open
+source GNU multiprecision arithmetic library.  This test primarily
+tests the speed of integer multiplies and adds for a processor.
+
+XOR
+
+Tests stride 1 memory accesses. The program reads two 32768 long
+streams of 64-bit integers,  exclusive ORs the values, and stores the
+results in a third stream. This is the public McCalpin's triad streams
+benchmark with integers replacing floating point numbers and 
+exclusive OR replacing the ADD.
+
+GT/SC
+
+This benchmark tests memory bandwidth for random loads(gathers) and
+stores (scatters). The data addresses have a flat random distribution
+in the ranges 0-2**8, 0-2**16, and 0-2**25.
+
+
+SORT
+
+This benchmark does sorts on 64-bit integer data sets in two
+ranges. One  range is around 2**16 and the other is around 2**25. The
+sort starts with an in-place bucket sort and finishes with a
+Shellsort.
+
+
+XBA
+
+This benchmark tests the ability of the processor to conditionally
+add (mod-2) words based on flat random bits.  Two equivalent constructs
+are used within the loop to check the ability of the compiler to
+recognize this idiom.
+

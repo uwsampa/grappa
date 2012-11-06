@@ -1,8 +1,14 @@
+// Copyright 2010-2012 University of Washington. All Rights Reserved.
+// LICENSE_PLACEHOLDER
+// This software was created with Government support under DE
+// AC05-76RL01830 awarded by the United States Department of
+// Energy. The Government has certain rights in the software.
 
-#ifndef __PARALLEL_LOOP_SINGLE_SERIAL_HPP__
-#define __PARALLEL_LOOP_SINGLE_SERIAL_HPP__
 
-#include "SoftXMT.hpp"
+#ifndef PARALLEL_LOOP_SINGLE_SERIAL_HPP
+#define PARALLEL_LOOP_SINGLE_SERIAL_HPP
+
+#include "Grappa.hpp"
 #include "ForkJoin.hpp"
 #include "Cache.hpp"
 
@@ -67,11 +73,11 @@ void parallel_loop_implSingleSerial(int64_t start_index, int64_t iterations, voi
         iter_args[i].loop_body = loop_body;
         iter_args[i].global_sem = sem_addr;
         iter_args[i].args = args;
-        SoftXMT_publicTask( &parallel_loop_task_wrap_CachedArgs<UserArg>, make_global(&iter_args[i]) ); 
+        Grappa_publicTask( &parallel_loop_task_wrap_CachedArgs<UserArg>, make_global(&iter_args[i]) ); 
         //XXX cannot guarentee safety for very large number of iteration due to capacity; solution include make the publicQ circular (and limit number of pushes until suspend for awhile)
     }
 
     single_synch.acquire_all( CURRENT_THREAD );
 }
 
-#endif
+#endif // PARALLEL_LOOP_SINGLE_SERIAL_HPP

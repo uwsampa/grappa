@@ -1,0 +1,36 @@
+
+===================================================
+
+INFO> Benchmark Version iobmversion 4.0
+INFO> _XOPEN_VERSION = 500
+INFO> system name: Linux
+INFO> node name:
+INFO> release:
+INFO> version:
+INFO> machine:     x86_64
+INFO> pathcc -O3 -std=c99 -DRESTRICT=restrict -DUSE_POP3 -DB_S_X2=b_s_x2_ -I. -I../support -I. -I../support 
+INFO> started on cnode at 1266608865  -  launched at epoch 1266608865 = diff 0: Sleep  0 - diff  0 = 0
+
+INIT> ./cba started at:  Fri Feb 19 19:47:45 2010
+INIT> host machine is 
+INIT> program built on 
+INIT> seed is 401   niters is 7173289
+INIT> other args:  64 64
+
+
+last 64 results:
+
+      2065      2059      2084      2043      2058      2054      2064      2010
+      2045      2038      2034      2015      2053      2104      2038      2080
+      2046      2081      2068      1994      2051      2022      2028      2134
+      2048      2052      1994      2050      1993      2010      2079      2090
+      2083      2079      2038      2042      2061      2006      2011      2045
+      2069      2025      2034      2048      2109      2057      2043      1992
+      2082      2012      1967      2079      2069      2112      2054      2004
+      2022      2054      2060      2072      2021      2077      2071      2029
+
+END> ended at:  
+END> elapsed time is  seconds
+END>           secs of wall time       85.964% of value reported by time()
+END>         secs of cpu+sys time   utilization = 99.527%
+END>          M 64-bit counts per second

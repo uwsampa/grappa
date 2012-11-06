@@ -1,0 +1,152 @@
+\section{Methodology} \label{sec:method}
+
+To explore the performance of the Grappa runtime we have implemented
+three algorithms: breadth first search, betweenness centrality, and
+unbalanced tree search.  These algorithms were implemented for the
+Cray XMT (our baseline) and for Grappa.  The metric we use is
+algorithmic time, which means startup and loading of the data
+structure (from disk) is not included in the measurement.  Data is
+collected on real systems, which means minor variations in runtime
+exist from run to run.  The average of multiple runs are used, and
+where appropriate, confidence in the result is reported.
+
+One question that must be answered when making a comparison between the
+Cray XMT and a typical HPC cluster is what is a fair comparison -- these
+systems are quite different.  Three options immediately come to mind:
+equal number of processing cores, equal number of network interfaces,
+and equal dollars.  We discounted the last option fairly quickly,
+because it isn't a lasting data-point -- the cost of hardware shifts
+over time, skewing the interpretation of results.  The first option,
+cores, has some merit, but Grappa is designed for applications that have
+no locality in their computation.  This means almost all of their memory
+accesses are remote.  The factor that limits their performance is not
+processing, but communicating.  Hence, we have chosen the middle option,
+network interfaces as the way to normalize across the XMT and our
+cluster.  Each processor in the XMT system has its own network interface
+to access shared memory.  In the HPC cluster we use, each processor
+(which contains up to 32~cores, although we only use 6 in our
+experiments), has a single infiniband interface.  Hence, for our results
+we scale up XMT processors one for one with full system nodes.
+
+
+\subsection{Systems}
+
+For measurements, we run Grappa on a 144-node cluster of AMD Interlagos
+processors. Nodes have 32-core (every pair share a floating-point unit)
+2.1-GHz processors, 64GB of memory, and 40Gb Mellanox ConnectX-2
+infiniband network card.   The cluster uses a QLogic infiniband switch.
+We configure the nodes to have 32 1-GB hugepages to minimize TLB misses
+for the random access patterns we expect from irregular applications.
+
+We compare to the MTA using a 128-node Cray XMT (3rd generation MTA).
+Each node consists of a 500-MHz MTA Threadstorm multithreaded processor
+that supports 128~streams. The machine uses Cray's proprietary SeaStar2
+interconnection network.
+
+\subsection{Applications}
+
+We have used three benchmarks to explore the performance of Grappa:
+
+\paragraph{Unbalanced tree search in-memory (UTS-Mem)} Unbalanced Tree
+Search (UTS) is a benchmark for evaluating the programmability and
+performance of systems for parallel applications that require dynamic
+load balancing~\cite{UTS}. It involves traversing an
+unbalanced implicit tree: at each vertex, its number of children is
+sampled from some probability distribution, and this number of new nodes
+are added to a work queue to be visited. While this benchmark captures
+irregular, dynamic \emph{computation}, we actually want to evaluate
+performance of algorithms with irregular \emph{memory} access patterns.
+Thus we augment UTS by using the existing traversal code to create a
+large tree in memory, and then we traverse the in-memory tree. We call
+this benchmark UTS-Mem, and the timed portion is this traversal of the
+in-memory tree. This in-memory traversal has no knowledge of the
+tree structure beforehand.  The Grappa version of the in-memory tree
+search uses the asynchronous parallel for loop over a visited vertex's
+children list.
+
+\comment{The Grappa version of tree search UTS-mem
+
+\lstset{language=C++,
+       basicstyle=\footnotesize,
+       tabsize=2}
+\begin{lstlisting}
+// base of shared vertex_t[]
+GlobalAddress<vertex_t> Vertices;        
+
+// base of shared int64_t[]
+GlobalAddress<int64_t> ChildrenPointers;  
+
+void search_vertex( id ) {
+  GlobalAddress<vertex_t> v_addr = Vertices + id;
+  Incoherent<vertex_t>::RO v( v_add, 1 );
+
+  // start index of my children pointers
+  childIndex = v->childIndex;    
+
+  // how many children I have
+  numChildren = v->numChildren;  
+
+  // parallel loop over the child list for this vertex
+  parallel_for(fn=&search_children, start=childIndex, iters=numChildren);
+}
+
+void search_children( start, iters ) {
+  // take advantage of spatial locality in the array of children
+  GlobalAddress<int64_t> child_base_addr = ChildrenPointers + start;
+  Incoherent<int64_t>::RO childIds( child_base_addr, iters );
+
+  // spawn a task to visit each child
+  for (i = 0..iters) {
+    SoftXMT_publicTask( fn=&search_vertex, id=childIds[i] );
+  }
+}
+\end{lstlisting}
+}
+
+\paragraph{Breadth-first-search (BFS)}
+This is the primary kernel for the Graph500 benchmark and is what
+currently determines the ranking of machines on the Graph500
+list~\cite{graph500list}. As a whole, the Graph500 benchmark suite is
+designed to bring the focus of system design on data-intensive
+workloads, particularly large-scale graph analysis problems, that are
+important among cybersecurity, informatics, and network understanding
+workloads. The BFS benchmark builds a search tree containing parent
+nodes for each traversed vertex during the search.  While this is a
+relatively simple problem to solve, it exercises the random-access and
+fine-grained synchronization capabilities of a system as well as being
+a primitive in many other graph algorithms. Performance is measured in
+\emph{traversed edges per second} (TEPS), where the number of edges is
+the edges making up the generated BFS tree. One of the reference
+implementations of Graph500 BFS is for the XMT; this code fails to
+scale past 16 XMT processors because it does not expose enough
+parallelism, so we modified the code to use a recursive loop
+decomposition similar to Grappa's. We compare this modified version
+against a straightforward Grappa implementation. We do not employ
+algorithmic improvements, though there are
+many~\cite{Beamer:Graph500,Yoo:FixedPointGraph500}.
+
+\paragraph{Betweenness Centrality}
+An important measure of the importance of particular vertices in a
+network is betweenness centrality
+(BC)~\cite{freeman1979centrality}. By this measure, the ``importance''
+of each vertex is computed by finding the fraction of shortest paths
+that pass through it, which can optionally be approximated by only
+computing shortest paths using a subset of the vertices as starting
+points. BC can be useful for understanding which vertices may have the
+greatest impact, so in social networks this could be the primary
+person linking two communities. Because it requires multiple
+breadth-first traversals across the entire graph and in reverse, on
+power-law degree graphs, this algorithm exercises random accesses
+rate, and load balancing. It also requires fine-grained
+synchronization on updates to vertex centrality values because
+multiple paths will update the same vertex. BC is a kernel in the
+DARPA High Performance Computing Systems (HPCS) Scalable Synthetic
+Compact Applications graph analysis (SSCA\#2)
+benchmark~\cite{ssca2}. Performance for BC is also measured in TEPS,
+where the number of traversed edges is the total number of edges in
+the graph multiplied by the number of random starting vertices used in
+the approximate computation. We use the XMT implementation of BC
+implemented as part of the GraphCT~\cite{GraphCT} library and a
+comparable Grappa implementation, both of which use the parallel BC
+algorithm developed by Bader et al.~\cite{bader:bc}.
+

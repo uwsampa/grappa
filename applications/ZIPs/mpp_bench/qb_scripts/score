@@ -1,0 +1,53 @@
+#! /bin/bash
+# Get the comma separated output for the testing summary spreadsheet.
+# Columns:
+#		Name:   mpp_bench	
+#		Day:	Date of qb_run.out file
+#		Run:	Always "1"
+#		Score:	all2all, barrier, bcast, pingpong, reduce
+#
+
+all2all=`egrep "cpus report" $1/qb_run.out | wc -l`
+barrier=`egrep "barrier" $1/qb_run.out | wc -l`
+bcast=`egrep "bcast" $1/qb_run.out | wc -l`
+pingpong=`egrep "16 iters in" $1/qb_run.out | wc -l`
+reduce=`egrep "reduce" $1/qb_run.out | wc -l`
+fileDate=$(stat -c %y $1/qb_run.out | cut -d" " -f1)
+if [ $all2all -gt 0 ]; then
+	cat $1/qb_run.out | egrep -i " with " | tail -1 | { 
+  		read colOne colTwo; 
+  		echo "all2all, $fileDate, 1, $colOne"; 
+	}
+fi
+
+if [ $barrier -gt 0 ]; then
+	cat $1/qb_run.out | egrep -i " wall " | { 
+  		read col1 col2 col3 col4 col5 col6; 
+  		printf 'barrier, %s, 1, %10.10f\n' $fileDate $col5;
+	}
+fi
+
+if [ $bcast -gt 0 ]; then
+	tail -2 $1/qb_run.out | egrep -i " bcasts yield " | {
+  		read col1 col2 col3 col4 col5 col6 col7; 
+  		echo "bcast, $fileDate, 1, $col5"; 
+	}
+fi
+
+if [ $pingpong -gt 0 ]; then
+	resultValue=$(egrep -i "16 iters in" $1/qb_run.out | { 
+    		while read c1 c2 c3 c4 c5 c6 c7 c8 c9 c10 c11 c12 c13; do 
+      			echo ${c12:1}; 
+    		done; 
+	} | tail -1)
+
+	printf 'pingpong, %s, 1, %10.10f\n' $fileDate $resultValue;
+fi
+
+if [ $reduce -gt 0 ]; then
+	resultValue=$(egrep -i "wall secs" $1/qb_run.out | { 
+		read c1 c2 c3 c4 c5 c6 
+		echo "$c5" 
+	})
+	printf 'reduce, %s, 1, %10.10f\n' $fileDate $resultValue;
+fi
