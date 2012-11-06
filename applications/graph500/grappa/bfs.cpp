@@ -74,7 +74,7 @@ void bfs_visit_vertex(int64_t kstart, int64_t kiters) {
     
     int64_t buf[2];
     Incoherent<int64_t>::RO cxoff(xoff+2*v, 2, buf);
-    const int64_t vstart = cxoff[0], vend = cxoff[1];
+    const int64_t vstart = cxoff[0], vend = cxoff[1]; // [xoff[2v], xoff[2v+1])
     
     async_parallel_for_hack(bfs_visit_neighbor, vstart, vend-vstart, v);
   }
