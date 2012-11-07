@@ -15,10 +15,10 @@ TARGET:= graph.exe
 $(TARGET):
 
 CFLAGS += -w
-CFLAGS += -I$(GRAPPA_HOME)/system
+CFLAGS += -I$(GRAPPA_HOME)/system -I.. 
 CFLAGS += -g -Wall -Drestrict=__restrict__ -ffast-math -DGRAPH_GENERATOR_GRAPPA
 
-LDFLAGS = -g
+LDFLAGS += -g 
 
 # can be set to one of:
 # * bfs (public tasks, barriers rather than full join)
@@ -27,7 +27,7 @@ LDFLAGS = -g
 BFS = bfs
 
 GENERATOR_SOURCES = graph_generator.o make_graph.o splittable_mrg.o utils.o
-SOURCES = main.o oned_csr.o rmat.o verify.o options.o $(BFS).o
+SOURCES = main.o oned_csr.o verify.o options.o $(BFS).o ../prng.o
 HEADERS = common.h oned_csr.h verify.hpp
 
 include $(GRAPPA_HOME)/system/Makefile
@@ -39,7 +39,7 @@ $(GRAPPA_HOME)/system/libGrappa.a: force
 	cd $(GRAPPA_HOME)/system; $(MAKE) lib
 
 generator.a: ../generator/graph_generator.c ../generator/make_graph.c ../generator/splittable_mrg.c ../generator/utils.c
-	cd ../generator; $(MAKE) -f Makefile.grappa lib
+	cd ../generator; $(MAKE) -f Makefile.grappa genlib
 	cd ../grappa; cp ../generator/generator.a generator.a
 
 force: ;

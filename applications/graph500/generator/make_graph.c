@@ -40,11 +40,12 @@ static void compute_edge_range(int rank, int size, int64_t M, int64_t* start_idx
 #ifndef GRAPH_GENERATOR_MPI
 
 #ifdef _GRAPPA
+#include <GlobalAllocator.hpp> // Grappa_typed_malloc
 void make_graph(int log_numverts, int64_t M, uint64_t userseed1, uint64_t userseed2, int64_t* nedges_ptr_in, GlobalAddress<packed_edge> * result_ptr_in) {
 	/* Add restrict to input pointers. */
-	int64_t* restrict nedges_ptr = nedges_ptr_in;
+	int64_t* /*restrict*/ nedges_ptr = nedges_ptr_in;   // XXX: restrict keyword causing 'unexpected initilizer'
   /*no restrict support for GlobalAddress*/
-	GlobalAddress<packed_edge> * restrict result_ptr = result_ptr_in;
+	GlobalAddress<packed_edge> * /*restrict*/ result_ptr = result_ptr_in;
 	
 	/* Spread the two 64-bit numbers into five nonzero values in the correct
 	 * range. */
