@@ -157,6 +157,7 @@ void make_one_edge(int64_t nverts, int level, int lgN, mrg_state* st, packed_edg
 }
 
 #ifdef _GRAPPA
+#include <ForkJoin.hpp>
 struct make_edges_local_func : ForkJoinIteration {
   int64_t nverts;
   int level;
@@ -168,42 +169,40 @@ struct make_edges_local_func : ForkJoinIteration {
   uint64_t val1;
 
   make_edges_local_func( int64_t nverts, int level, int lgN,
-                         mrg_state state, GlobalAddress<packed_edge> base,
-                         int64_t nelems, uint64_t val0, uint64_t val1 ) 
+      mrg_state state, GlobalAddress<packed_edge> base,
+      int64_t nelems, uint64_t val0, uint64_t val1 ) 
     : nverts ( nverts )
-    , level ( level )
-    , lgN ( lgN )
-    , mrg_state ( state )
-    , base ( base )
-    , nelems ( nelems )
-    , val0 ( val0 )
-    , val1 ( val1 )
+      , level ( level )
+      , lgN ( lgN )
+      , state ( state )
+      , base ( base )
+      , nelems ( nelems )
+      , val0 ( val0 )
+      , val1 ( val1 )
   {}
 
-  void operator()(int64_t nid) const {
-    packed_edge * local_base = base.localize();
-    packed_edge * local_end = (base+nelems).localize();
+  make_edges_local_func() {}
 
-    int64_t num_iters = local_end - local_base;
+  inline void operator()(int64_t) const;
+};
+inline void make_edges_local_func::operator()(int64_t nid) const {
+  packed_edge * local_base = base.localize();
+  packed_edge * local_end = (base+nelems).localize();
 
-    for (int64_t i=0; i<num_iters; i++) {
-      // get the global array index of this local location
-      int64_t ei = make_linear(local_base+i) - base; // This is likely compute-expensive for an inner loop
+  int64_t num_iters = local_end - local_base;
 
-      // copy the random generator state and seek
-		  mrg_state new_state = state;
-		  mrg_skip(&new_state, 0, ei, 0); 
+  for (int64_t i=0; i<num_iters; i++) {
+    // get the global array index of this local location
+    int64_t ei = make_linear(local_base+i) - base; // This is likely compute-expensive for an inner loop
 
-      make_one_edge(nverts, level, lgN, &new_state, local_base + i, val0, val1);
-    }
+    // copy the random generator state and seek
+    mrg_state new_state = state;
+    mrg_skip(&new_state, 0, ei, 0); 
+
+    make_one_edge(nverts, level, lgN, &new_state, local_base + i, val0, val1);
+  }
 }
 #endif // _GRAPPA
-
-#ifdef _GRAPPA
-typedef GlobalAddress<packed_edge> edges_ptr_t;
-#else
-typedef packed_edge* edges_ptr_t;
-#endif
 
 /* Generate a range of edges (from start_edge to end_edge of the total graph),
  * writing into elements [0, end_edge - start_edge) of the edges array.  This
@@ -253,7 +252,7 @@ void generate_kronecker_range(
   // Two possibilies here:
   // 1. split across nodes by ei; this means write_edge will involve a remote operation
   // 2. forall_local-style over 'edges', but this requires knowing which global indices you are working on to calc ei
-  { make_edges_local_func f( nverts, 0, lgN, state, edges, end_edge-start_edge, val0, val1 ); fork_join_custom( &f ); }
+  { make_edges_local_func f( nverts, 0, logN, state, edges, end_edge-start_edge, val0, val1 ); fork_join_custom( &f ); }
 
 #endif // _GRAPPA
 }
