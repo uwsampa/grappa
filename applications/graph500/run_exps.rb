@@ -6,7 +6,7 @@ table = :graph500
 
 # select between running on XMT or Grappa by if it's on cougar
 if `hostname`.match /cougar/ then
-  cmd = "mtarun -m %{nproc} xmt-csr-local/xmt-csr-local -s %{scale} -e %{edgefactor}"
+  cmd = "mtarun -m %{nproc} xmt-csr/xmt-csr -s %{scale} -e %{edgefactor} -p"
   machinename = "cougarxmt"
 else
   # command that will be excuted on the command line, with variables in %{} substituted
