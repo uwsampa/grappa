@@ -129,6 +129,8 @@ Gups_tests.o Gups_tests.test: $(LIBRARY)
 FileIO_tests.o FileIO_tests.test: $(LIBRARY)
 FileIO_tests.test: LIBRARIES+='-lboost_filesystem'
 
+Array_tests.o Array_tests.test: $(LIBRARY)
+
 #
 # environment variables for run
 # remember to include environment's $LD_LIBRARY_PATH, since MPI libs may be there

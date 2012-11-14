@@ -12,6 +12,7 @@
 #include "ForkJoin.hpp"
 #include "GlobalAllocator.hpp"
 #include "GlobalTaskJoiner.hpp"
+#include "Array.hpp"
 
 BOOST_AUTO_TEST_SUITE( ForkJoin_tests );
 

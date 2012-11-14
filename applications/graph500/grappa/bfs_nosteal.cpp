@@ -6,6 +6,7 @@
 #include "PerformanceTools.hpp"
 #include "GlobalAllocator.hpp"
 #include "timer.h"
+#include <Array.hpp>
 
 GRAPPA_DEFINE_EVENT_GROUP(bfs);
 
