@@ -651,13 +651,16 @@ void forall_local_async_task(GlobalAddress<T> base, size_t nelems, GlobalAddress
   global_joiner.remoteSignalNode(spawner);
 }
 
+LOOP_FUNCTION(func_global_barrier, nid) {
+  global_joiner.wait();
+}
+
 /// Asyncronously spawn remote tasks on nodes that *may contain elements*.
 /// @param extra GlobalAddress of an extra argument that will be cached by each remote task.
 ///              *Must be an address **on the current node** because it uses this address to
 ///              know where it was spawned from(where to send global_joiner signal back to).*
-template< typename T, typename P, void F(int64_t,T*,const P&), int64_t Threshold >
+template< typename T, typename P, void F(int64_t,T*,const P&), int64_t Threshold, bool Blocking >
 void forall_local_async(GlobalAddress<T> base, size_t nelems, GlobalAddress<P> extra) {
-  // FIXME: currently sends tasks to all nodes
   STATIC_ASSERT_SIZE_8(T);
 
   Node nnode = Grappa_nodes();
@@ -688,33 +691,36 @@ void forall_local_async(GlobalAddress<T> base, size_t nelems, GlobalAddress<P> e
     }
   }
 
-  //int64_t nn = block_size / nbytes
-             //+ ((base.pointer() - base.localize(base.node())) ? 1 : 0) 
-             //+ (( end.pointer() -  end.localize( end.node())) ? 1 : 0);
-  //nn = MIN( nnode, nn );
-
-  //int64_t nn = MIN( nnode, block_size / nbytes + 2 );
-
-  //int64_t nn = (int64_t)ceil( (double)block_size / (nelems*sizeof(T)) );
-  //nn = MIN( nn, nnode);
   Node start_node = base.node();
 
-  //GlobalAddress<P> packed = make_global((void*)extra);
-
-  //VLOG(1) << "nelems = " << nelems << ", fnodes = " << fnodes << ", start_extra: " << nfirstnode << ", end_extra: " << end.localize(end.node()) - end.block_min().pointer() << ", base.localize: " << base.localize(base.node()) << ", base.block_max: " << base.block_max().pointer();
   for (Node i=0; i<fnodes; i++) {
-  //for (Node i=0; i<nnode; i++) {
     global_joiner.registerTask();
     Grappa_remote_privateTask(forall_local_async_task<T,P,F,Threshold>, base, nelems, extra,
         (start_node+i)%nnode);
-        //i);
   }
+  if (Blocking) { func_global_barrier f; fork_join_custom(&f); }
 }
+
+/// Duplicate for lack of default template arg.
+template< typename T, typename P, void F(int64_t,T*,const P&), int64_t Threshold >
+void forall_local_async(GlobalAddress<T> base, size_t nelems, GlobalAddress<P> extra) {
+  forall_local_async<T,P,F,Threshold,false>(base, nelems, extra);
+}
+
 /// Duplicate for lack of default template arg.
 template< typename T, typename P, void F(int64_t,T*,const P&) >
 void forall_local_async(GlobalAddress<T> base, size_t nelems, GlobalAddress<P> extra) {
   forall_local_async<T,P,F,ASYNC_PAR_FOR_DEFAULT>(base, nelems, extra);
 }
 
+
+template< typename T, typename P, void F(int64_t,T*,const P&),int64_t Threshold>
+void forall_local_blocking(GlobalAddress<T> base, size_t nelems, GlobalAddress<P> extra) {
+  forall_local_async<T,P,F,Threshold,true>(base, nelems, extra);
+}
+template< typename T, typename P, void F(int64_t,T*,const P&)>
+void forall_local_blocking(GlobalAddress<T> base, size_t nelems, GlobalAddress<P> extra) {
+  forall_local_blocking<T,P,F,ASYNC_PAR_FOR_DEFAULT>(base, nelems, extra);
+}
 #endif /* define __FORK_JOIN_HPP__ */
 
