@@ -29,7 +29,9 @@ CFLAGS += -g -Wall -ffast-math
 
 LDFLAGS = -g -lboost_filesystem -lm
 
-SOURCES = main.o
+FFT = fft
+
+SOURCES = main.o $(FFT).o
 HEADERS = 
 
 include $(GRAPPA_HOME)/system/Makefile
