@@ -13,11 +13,13 @@ using std::complex;
 
 #include <ForkJoin.hpp>
 #include <Delegate.hpp>
+#include <GlobalAllocator.hpp>
+#include <Array.hpp>
 
 typedef GlobalAddress< complex<double> > complex_addr;
 
 complex<double> omega(int64_t n) {
-  return std::exp(complex<double>(-2*PI)/n);
+  return std::exp(complex<double>(0.0,-2*PI/n));
 }
 
 static int64_t N;
@@ -33,9 +35,13 @@ void fft_elt_iter(int64_t li, complex<double> * vbase, const int64_t& m) {
   const complex<double> v = vbase[li];
   const int64_t i = make_linear(vbase+li)-vA;
 
-  const int64_t rm = log2N-m,
+  const int64_t rm = log2N-m-1,
                 j = i & ~(1L<<rm),
                 k = i |  (1L<<rm);
+  
+  CHECK(i < N) << "i = " << i << ", m = " << m << ", rm = " << rm;
+  CHECK(j < N) << "j = " << j << ", m = " << m << ", rm = " << rm;
+  CHECK(k < N) << "k = " << k << ", m = " << m << ", rm = " << rm;
 
   complex<double> _buf[2];
   Incoherent< complex<double> >::RO Aj(vA+j, 1, _buf+0);
@@ -46,7 +52,7 @@ void fft_elt_iter(int64_t li, complex<double> * vbase, const int64_t& m) {
   { Incoherent< complex<double> >::WO resultC(vB+i, 1, &result); }
 }
 
-LOOP_FUNCTOR( setup_globals, ((int64_t,_log2N)) ((complex_addr,_vorig)) ((complex_addr,_vtemp)) ) {
+LOOP_FUNCTOR( setup_globals, nid, ((int64_t,_log2N)) ((complex_addr,_vorig)) ((complex_addr,_vtemp)) ) {
   log2N = _log2N;
   N = 1L<<log2N;
   vA = _vorig;
@@ -68,11 +74,12 @@ void fft(complex_addr vec, int64_t log2N) {
   { setup_globals f(log2N, vec, vtemp); fork_join_custom(&f); }
 
   for (int m=0; m < log2N; m++) {
-    forall_local_blocking<complex<double>,fft_elt_iter>(vec, N, m);
+    int64_t mm = m;
+    forall_local_blocking<complex<double>,int64_t,fft_elt_iter>(vec, N, make_global(&mm));
   }
   
   if (vB != vec) {
+    Grappa_memcpy(vec, vB, N);
   }
-
   Grappa_free(vtemp);
 }

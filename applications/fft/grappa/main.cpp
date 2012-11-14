@@ -78,7 +78,7 @@ void fft(GlobalAddress< complex<double> > v, int64_t nelem);
 
 void user_main(void* ignore) {
   Grappa_reset_stats();
-  double t, rand_time;
+  double t, rand_time, fft_time;
 
   LOG(INFO) << "### FFT Benchmark ###";
   LOG(INFO) << "nelem = (1 << " << scale << ") = " << nelem << " (" << ((double)nelem)*sizeof(uint64_t)/(1L<<30) << " GB)";
@@ -97,7 +97,15 @@ void user_main(void* ignore) {
 
     //print_array("generated array", array, nelem);
 
-  Grappa_merge_and_dump_stats();
+    t = Grappa_walltime();
+
+  fft(array, scale);
+
+    fft_time = Grappa_walltime() - t;
+    LOG(INFO) << "fft_time: " << fft_time;
+    LOG(INFO) << "fft_rate: " << nelem / fft_time;
+
+  Grappa_merge_and_dump_stats(std::cerr);
 }
 
 int main(int argc, char* argv[]) {
