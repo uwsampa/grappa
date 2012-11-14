@@ -59,7 +59,7 @@ LOOP_FUNCTOR( node_max_func, mynode,
   f.edges = edges;
   f.max = &max;
   fork_join_onenode(&f, myblock.start, myblock.end);
-    
+  
   maxvtx = Grappa_collective_reduce(&collective_max, 0, max, -1);
   nv = maxvtx+1;
 }
@@ -76,6 +76,7 @@ LOOP_FUNCTOR( degree_func, index, (( GlobalAddress<packed_edge>, edges )) ((Glob
   int64_t i = cedge[0].v0;
   int64_t j = cedge[0].v1;
   if (i != j) { //skip self-edges
+    // TODO: these should be overlapping
     Grappa_delegate_fetch_and_add_word(XOFF(i), 1);
     Grappa_delegate_fetch_and_add_word(XOFF(j), 1);
   }
@@ -167,6 +168,7 @@ static void setup_deg_off(const tuple_graph * const tg, csr_graph * g) {
   Grappa_memset(g->xoff, (int64_t)0, 2*g->nv+2);
 
   // count occurrences of each vertex in edges
+  VLOG(2) << "degree func";
   degree_func fd; fd.edges = tg->edges; fd.xoff = g->xoff;
   fork_join(&fd, 0, tg->nedge);
   
@@ -182,13 +184,15 @@ static void setup_deg_off(const tuple_graph * const tg, csr_graph * g) {
 //  }
   
   // make sure every degree is at least MINVECT_SIZE (don't know why yet...)
+  VLOG(2) << "minvect func";
   minvect_func fm; fm.xoff = g->xoff;
   fork_join(&fm, 0, g->nv);
   
   // simple parallel prefix sum to compute offsets from degrees
+  VLOG(2) << "prefix sum";
   int64_t accum = prefix_sum(g->xoff, g->nv);
     
-  VLOG(1) << "accum = " << accum;
+  VLOG(2) << "accum = " << accum;
 //  for (int64_t i=0; i<g->nv; i++) {
 //    VLOG(1) << "offset[" << i << "] = " << Grappa_delegate_read_word(XOFF(i));
 //  }
@@ -317,9 +321,11 @@ void create_graph_from_edgelist(const tuple_graph* const tg, csr_graph* const g)
   g->xoff = Grappa_typed_malloc<int64_t>(2*nv+2);
   
   double time;
+  VLOG(2) << "setup_deg_off...";
   TIME(time, setup_deg_off(tg, g));
   LOG(INFO) << "setup_deg_off time: " << time;
   
+  VLOG(2) << "gather_edges...";
   TIME(time, gather_edges(tg, g));
   LOG(INFO) << "gather_edges time: " << time;
 }
