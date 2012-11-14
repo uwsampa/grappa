@@ -23,6 +23,7 @@
 #include "Cache.hpp"
 #include "Collective.hpp"
 #include "Delegate.hpp"
+#include <Array.hpp>
 
 #include "timer.h"
 

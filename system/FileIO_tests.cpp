@@ -9,6 +9,7 @@
 #include "Grappa.hpp"
 #include "Tasking.hpp"
 #include "FileIO.hpp"
+#include "Array.hpp"
 
 BOOST_AUTO_TEST_SUITE( FileIO_tests );
 

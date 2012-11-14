@@ -19,6 +19,7 @@
 #include <GlobalTaskJoiner.hpp>
 #include <Collective.hpp>
 #include <Delegate.hpp>
+#include <Array.hpp>
 
 #define read Grappa_delegate_read_word
 #define write Grappa_delegate_write_word
