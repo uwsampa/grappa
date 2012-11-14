@@ -7,6 +7,7 @@
 #include "Collective.hpp"
 #include "GlobalTaskJoiner.hpp"
 #include "PerformanceTools.hpp"
+#include <Array.hpp>
 
 #include "verify.hpp"
 

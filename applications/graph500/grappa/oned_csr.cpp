@@ -24,6 +24,7 @@
 #include "Collective.hpp"
 #include "Delegate.hpp"
 #include "GlobalTaskJoiner.hpp"
+#include <Array.hpp>
 
 #include "timer.h"
 
