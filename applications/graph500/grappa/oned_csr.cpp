@@ -23,6 +23,7 @@
 #include "Cache.hpp"
 #include "Collective.hpp"
 #include "Delegate.hpp"
+#include "GlobalTaskJoiner.hpp"
 
 #include "timer.h"
 
@@ -87,43 +88,62 @@ LOOP_FUNCTOR( local_reduce_sum, index,
   *sum += v;
 }
 
+#define minint(A,B) ((A)<(B)) ? (A) : (B)
+int64_t local_prefix;
+// ideally this would be forall local with contiguous addresses
 LOOP_FUNCTOR( prefix_sum_node, nid,
     ((GlobalAddress<int64_t>,xoff))
-    ((GlobalAddress<int64_t>,buf)) // one per node, used to store local total
     ((int64_t,nv)) ) {
   range_t myblock = blockDist(0, nv, nid, Grappa_nodes());
   
-  int64_t mysum = 0;
+  local_prefix = 0;
   local_reduce_sum fr;
   fr.xoff = xoff;
-  fr.sum = &mysum;
+  fr.sum = &local_prefix;
   fork_join_onenode(&fr, myblock.start, myblock.end);
   
-  // add my sum to every buf count following this node
-  // TODO: do this in a tree rather than brute-force push-to-all
-  for (int64_t i=nid; i<Grappa_nodes(); i++) {
-    Grappa_delegate_fetch_and_add_word(buf+i, mysum);
+  Grappa_barrier_commsafe(); // TODO: replace with fjs
+
+  // node 0 sets buf[i] to prefix sum
+  // TODO: do this as parallel prefix
+  if (nid == 0) {
+    int64_t total = local_prefix;
+    for (int64_t i=1; i<Grappa_nodes(); i++) {
+      //LOG(INFO) << "will add total=" << total << " to node " << i;
+      total += Grappa_delegate_fetch_and_add_word(make_global(&local_prefix,i), total);
+    }
   }
   
   Grappa_barrier_commsafe();
   
-  int64_t prev_sum = (nid > 0) ? Grappa_delegate_read_word(buf+nid-1) : 0;
-  
-  for (int64_t i=myblock.start; i<myblock.end; i++) {
-    int64_t tmp = Grappa_delegate_read_word(XOFF(i));
-    Grappa_delegate_write_word(XOFF(i), prev_sum);
-    prev_sum += tmp;
+  int64_t prev_sum = (nid > 0) ? Grappa_delegate_read_word(make_global(&local_prefix,nid-1)) : 0;
+  //LOG(INFO) << "prev_sum= " << prev_sum;
+ 
+  // do prefix sum within the slice 
+  // Cache a part at a time, doing the sum locally and writing back
+  size_t bufsize = 1024;
+  int64_t * buf = new int64_t[2*bufsize];
+  for (int64_t i=myblock.start; i<myblock.end; i+=bufsize) {
+    size_t end = minint(myblock.end, i+bufsize);
+    int64_t len = end - i;
+    Incoherent<int64_t>::RW cv(XOFF(i), XOFF(end)-XOFF(i), buf);
+    for (int64_t j = 0; j<len; j++) {
+      int64_t tmp = cv[2*j]; // 2*j because XOFF entries are even
+      cv[2*j] = prev_sum;
+      prev_sum += tmp;
+    } 
   }
+  delete buf;
 }
 
 static int64_t prefix_sum(GlobalAddress<int64_t> xoff, int64_t nv) {
   prefix_sum_node fps;
   fps.xoff = xoff;
-  fps.buf = Grappa_typed_malloc<int64_t>(Grappa_nodes());
   fps.nv = nv;
   fork_join_custom(&fps);
-  
-  return Grappa_delegate_read_word(fps.buf+Grappa_nodes()-1);
+ 
+  // return total sum 
+  return Grappa_delegate_read_word(make_global(&local_prefix, Grappa_nodes()-1));
 }
 
 LOOP_FUNCTOR( minvect_func, index,
