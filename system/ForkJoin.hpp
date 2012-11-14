@@ -657,7 +657,6 @@ void forall_local_async_task(GlobalAddress<T> base, size_t nelems, GlobalAddress
 ///              know where it was spawned from(where to send global_joiner signal back to).*
 template< typename T, typename P, void F(int64_t,T*,const P&), int64_t Threshold >
 void forall_local_async(GlobalAddress<T> base, size_t nelems, GlobalAddress<P> extra) {
-  // FIXME: currently sends tasks to all nodes
   STATIC_ASSERT_SIZE_8(T);
 
   Node nnode = Grappa_nodes();
@@ -688,28 +687,15 @@ void forall_local_async(GlobalAddress<T> base, size_t nelems, GlobalAddress<P> e
     }
   }
 
-  //int64_t nn = block_size / nbytes
-             //+ ((base.pointer() - base.localize(base.node())) ? 1 : 0) 
-             //+ (( end.pointer() -  end.localize( end.node())) ? 1 : 0);
-  //nn = MIN( nnode, nn );
-
-  //int64_t nn = MIN( nnode, block_size / nbytes + 2 );
-
-  //int64_t nn = (int64_t)ceil( (double)block_size / (nelems*sizeof(T)) );
-  //nn = MIN( nn, nnode);
   Node start_node = base.node();
 
-  //GlobalAddress<P> packed = make_global((void*)extra);
-
-  //VLOG(1) << "nelems = " << nelems << ", fnodes = " << fnodes << ", start_extra: " << nfirstnode << ", end_extra: " << end.localize(end.node()) - end.block_min().pointer() << ", base.localize: " << base.localize(base.node()) << ", base.block_max: " << base.block_max().pointer();
   for (Node i=0; i<fnodes; i++) {
-  //for (Node i=0; i<nnode; i++) {
     global_joiner.registerTask();
     Grappa_remote_privateTask(forall_local_async_task<T,P,F,Threshold>, base, nelems, extra,
         (start_node+i)%nnode);
-        //i);
   }
 }
+
 /// Duplicate for lack of default template arg.
 template< typename T, typename P, void F(int64_t,T*,const P&) >
 void forall_local_async(GlobalAddress<T> base, size_t nelems, GlobalAddress<P> extra) {
