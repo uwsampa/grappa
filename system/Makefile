@@ -409,11 +409,13 @@ doc docs doxygen::
 # autodependency stuff
 #
 
+# find all directories and
 # pull in dependency info for *existing* .o files
-OBJECTS:=$(wildcard *.o)
+DIRECTORIES:=$(shell find . -type d)
+OBJECTS:=$(foreach dir,$(DIRECTORIES),$(wildcard $(dir)/*.o))
 -include $(OBJECTS:.o=.d)
 
-TESTS:=$(wildcard *.test)
+TESTS:=$(foreach dir,$(DIRECTORIES),$(wildcard $(dir)/*.test))
 -include $(TESTS:.test=.d)
 
 # build an object
