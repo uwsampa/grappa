@@ -562,14 +562,12 @@ LOOP_FUNCTION(func_global_barrier, nid) {
 ///              know where it was spawned from(where to send global_joiner signal back to).*
 template< typename T, typename P, void F(int64_t,T*,const P&), int64_t Threshold, bool Blocking >
 void forall_local_async(GlobalAddress<T> base, size_t nelems, GlobalAddress<P> extra) {
-  STATIC_ASSERT_SIZE_8(T);
-
   Node nnode = Grappa_nodes();
 
   Node fnodes;
   
   int64_t nbytes = nelems*sizeof(T);
-  GlobalAddress<int64_t> end = base+nelems;
+  GlobalAddress<T> end = base+nelems;
   
   if (nelems > 0) {
     fnodes = 1;
