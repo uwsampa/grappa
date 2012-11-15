@@ -22,6 +22,7 @@ static int64_t * restrict xoff; /* Length 2*nv+2 */
 static int64_t * restrict xadjstore; /* Length MINVECT_SIZE + (xoff[nv] == nedge) */
 static int64_t * restrict xadj;
 
+// go through all vertices and find the one with max id
 static void
 find_nv (const struct packed_edge * restrict IJ, const int64_t nedge)
 {
@@ -61,8 +62,8 @@ setup_deg_off (const struct packed_edge * restrict IJ, int64_t nedge)
 {
 	int64_t k, accum;
 	for (k = 0; k < 2*nv+2; ++k)
-		xoff[k] = 0;
-	for (k = 0; k < nedge; ++k) {
+		xoff[k] = 0; // initialize
+	for (k = 0; k < nedge; ++k) { // for all edges, count degree for each vertex
 		int64_t i = get_v0_from_edge(&IJ[k]);
 		int64_t j = get_v1_from_edge(&IJ[k]);
 		if (i != j) { /* Skip self-edges. */
@@ -71,19 +72,20 @@ setup_deg_off (const struct packed_edge * restrict IJ, int64_t nedge)
 		}
 	}
 	accum = 0;
-	for (k = 0; k < nv; ++k) {
+	for (k = 0; k < nv; ++k) { // for each vertex get start index of its neighbors
 		int64_t tmp = XOFF(k);
 		if (tmp < MINVECT_SIZE) tmp = MINVECT_SIZE;
 		XOFF(k) = accum;
 		accum += tmp;
 	}
-	XOFF(nv) = accum;
-	for (k = 0; k < nv; ++k)
+	XOFF(nv) = accum; // last element is nedges
+	for (k = 0; k < nv; ++k) // for each vertex, initialize end-ptr to start-ptr
 		XENDOFF(k) = XOFF(k);
+  // malloc the space for all edgelists
 	if (!(xadjstore = xmalloc_large_ext ((accum + MINVECT_SIZE) * sizeof (*xadjstore))))
 		return -1;
 	xadj = &xadjstore[MINVECT_SIZE]; /* Cheat and permit xadj[-1] to work. */
-	for (k = 0; k < accum + MINVECT_SIZE; ++k)
+	for (k = 0; k < accum + MINVECT_SIZE; ++k) // for all xadhstore initialize to -1
 		xadjstore[k] = -1;
 	return 0;
 }
@@ -92,8 +94,8 @@ static void
 scatter_edge (const int64_t i, const int64_t j)
 {
 	int64_t where;
-	where = XENDOFF(i)++;
-	xadj[where] = j;
+	where = XENDOFF(i)++; // next edge index in xoff, increment bound
+	xadj[where] = j;   // ?
 }
 
 static int
@@ -136,7 +138,7 @@ gather_edges (const struct packed_edge * restrict IJ, int64_t nedge)
 {
 	int64_t k;
 	
-	for (k = 0; k < nedge; ++k) {
+	for (k = 0; k < nedge; ++k) {      // for all edges, scatter oth directions
 		int64_t i = get_v0_from_edge(&IJ[k]);
 		int64_t j = get_v1_from_edge(&IJ[k]);
 		if (i >= 0 && j >= 0 && i != j) {
@@ -152,12 +154,12 @@ int
 create_graph_from_edgelist (struct packed_edge *IJ, int64_t nedge)
 {
 	find_nv (IJ, nedge);
-	if (alloc_graph (nedge)) return -1;
-	if (setup_deg_off (IJ, nedge)) {
-		xfree_large (xoff);
+	if (alloc_graph (nedge)) return -1; // allocate
+	if (setup_deg_off (IJ, nedge)) {   // get degrees to setup edgelist offsets
+		xfree_large (xoff); 
 		return -1;
 	}
-	gather_edges (IJ, nedge);
+	gather_edges (IJ, nedge); // fill in xadj
 	return 0;
 }
 
