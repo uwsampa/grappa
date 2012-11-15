@@ -72,6 +72,7 @@ void row_loop( int64_t start, int64_t iters ) {
 // With current low level programming model, the choice to parallelize a loop involves different code
 
 
+DEFINE_bool(row_distribute, true, "nodes begin with equal number of row tasks");
 
 LOOP_FUNCTOR( matrix_mult_f, nid, ((csr_graph,matrix)) ((vector,src)) ((vector,targ)) ) {
   m = matrix;
@@ -79,11 +80,15 @@ LOOP_FUNCTOR( matrix_mult_f, nid, ((csr_graph,matrix)) ((vector,src)) ((vector,t
   y = targ;
 
   global_joiner.reset();
-  if ( nid == 0 ) {
+  if ( FLAGS_row_distribute ) {
+    range_t r = blockDist(0, m.nv, Grappa_mynode(), Grappa_nodes());
+    async_parallel_for<row_loop, joinerSpawn<row_loop,ASYNC_PAR_FOR_DEFAULT>,ASYNC_PAR_FOR_DEFAULT>(r.start, r.end-r.start);
+  } else {
+    if ( nid == 0 ) {
     async_parallel_for<row_loop, joinerSpawn<row_loop,ASYNC_PAR_FOR_DEFAULT>,ASYNC_PAR_FOR_DEFAULT>(0, m.nv);
+    }
   }
   global_joiner.wait();
-
 }
 
 // only good for small matrices; write out in dense format
