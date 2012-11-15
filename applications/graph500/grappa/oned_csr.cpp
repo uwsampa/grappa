@@ -102,8 +102,8 @@ LOOP_FUNCTOR( prefix_sum_node, nid,
   fr.xoff = xoff;
   fr.sum = &local_prefix;
   fork_join_onenode(&fr, myblock.start, myblock.end);
-  
-  Grappa_barrier_commsafe(); // TODO: replace with fjs
+ 
+  Grappa_barrier_suspending(); // "phaser style", alternative is replace with forjoins 
 
   // node 0 sets buf[i] to prefix sum
   // TODO: do this as parallel prefix
@@ -115,7 +115,7 @@ LOOP_FUNCTOR( prefix_sum_node, nid,
     }
   }
   
-  Grappa_barrier_commsafe();
+  Grappa_barrier_suspending(); // alternative: replace with forkjoins
   
   int64_t prev_sum = (nid > 0) ? Grappa_delegate_read_word(make_global(&local_prefix,nid-1)) : 0;
   //LOG(INFO) << "prev_sum= " << prev_sum;
