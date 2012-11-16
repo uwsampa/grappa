@@ -7,12 +7,13 @@
 # Energy. The Government has certain rights in the software.
 require "./fft_common.rb"
 $params[:debug] = "DEBUG=1"
+$params[:verify] = "--verify"
 
-$params[  :fft] = "fft"
-$params[:scale] = 16
-$params[:nnode] = 4
-$params[  :ppn] = 4
-$params[  :tag] = "test"
+$params[:fft] = "fft"
+$params[:scale] = 3
+$params[:nnode] = 2
+$params[:ppn] = 2
+$params[:tag] = "test"
 
 parse_cmdline_options()
 $opt_force = true

@@ -67,45 +67,75 @@ inline void print_array(const char * name, std::vector<T> v) {
 template< typename T >
 inline void print_array(const char * name, GlobalAddress<T> base, size_t nelem) {
   std::stringstream ss; ss << name << ": [";
-  for (size_t i=0; i<nelem; i++) ss << " " << grappa::read(base+i);
+  //for (size_t i=0; i<nelem; i++) ss << " " << grappa::read(base+i);
+  T _buf;
+  for (size_t i=0; i<nelem; i++) {
+    typename Incoherent<T>::RO c(base+i, 1, &_buf);
+    ss << " " << *c;
+  }
   ss << " ]"; VLOG(1) << ss.str();
 }
 
 
 static int64_t scale, nelem;
+static bool do_verify;
 
+///////////////
+// Prototypes
+///////////////
 void fft(GlobalAddress< complex<double> > v, int64_t nelem);
+void verify(complex<double> * sig, complex<double> * result, size_t nelem);
 
 void user_main(void* ignore) {
   Grappa_reset_stats();
   double t, rand_time, fft_time;
+
 
   LOG(INFO) << "### FFT Benchmark ###";
   LOG(INFO) << "nelem = (1 << " << scale << ") = " << nelem << " (" << ((double)nelem)*sizeof(uint64_t)/(1L<<30) << " GB)";
   
   LOG(INFO) << "block_size = " << block_size;
 
-  GlobalAddress< complex<double> > array = Grappa_typed_malloc< complex<double> >(nelem);
+  GlobalAddress< complex<double> > sig = Grappa_typed_malloc< complex<double> >(nelem);
 
     t = Grappa_walltime();
 
   // fill vector with random 64-bit integers
-  forall_local<complex<double>,set_random>(array, nelem);
+  forall_local<complex<double>,set_random>(sig, nelem);
 
     rand_time = Grappa_walltime() - t;
     LOG(INFO) << "fill_random_time: " << rand_time;
 
-    //print_array("generated array", array, nelem);
+  print_array("signal", sig, nelem);
+
+    //print_sig("generated sig", sig, nelem);
+  complex<double> * sig_local;
+  if (do_verify) {
+    sig_local = new complex<double>[nelem];
+    Incoherent< complex<double> >::RO c(sig, nelem, sig_local);
+    c.block_until_acquired();
+  }
 
     t = Grappa_walltime();
 
-  fft(array, scale);
+  fft(sig, scale);
 
     fft_time = Grappa_walltime() - t;
     LOG(INFO) << "fft_time: " << fft_time;
     LOG(INFO) << "fft_rate: " << nelem / fft_time;
 
   Grappa_merge_and_dump_stats(std::cerr);
+
+  if (do_verify) {
+    complex<double> * result = new complex<double>[nelem];
+    Incoherent< complex<double> >::RO c(sig, nelem, result);
+    c.block_until_acquired();
+    
+    verify(sig_local, result, nelem);
+    delete [] result;
+    delete [] sig_local;
+  }
+
 }
 
 int main(int argc, char* argv[]) {
@@ -124,6 +154,7 @@ static void printHelp(const char * exe) {
   printf("Usage: %s [options]\nOptions:\n", exe);
   printf("  --help,h   Prints this help message displaying command-line options\n");
   printf("  --scale,s  Number of keys to be sorted: 2^SCALE keys.\n");
+  printf("  --verify,e  Fully verify FFT result with what FFTW generates.\n");
   exit(0);
 }
 
@@ -131,21 +162,26 @@ static void parseOptions(int argc, char ** argv) {
   struct option long_opts[] = {
     {"help", no_argument, 0, 'h'},
     {"scale", required_argument, 0, 's'},
+    {"verify", no_argument, 0, 'e'},
   };
   
   // defaults
   scale = 8;
+  do_verify = false;
 
   int c = 0;
   while (c != -1) {
     int option_index = 0;
-    c = getopt_long(argc, argv, "hs:", long_opts, &option_index);
+    c = getopt_long(argc, argv, "hs:e", long_opts, &option_index);
     switch (c) {
       case 'h':
         printHelp(argv[0]);
         exit(0);
       case 's':
         scale = atoi(optarg);
+        break;
+      case 'e':
+        do_verify = true;
         break;
     }
   }

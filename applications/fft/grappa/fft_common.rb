@@ -24,7 +24,7 @@ $cmd = %Q[ make -j mpi_run TARGET=fft.exe NNODE=%{nnode} PPN=%{ppn} FFT=%{fft} %
     --io_blocksize_mb=%{io_blocksize_mb}
     --global_memory_use_hugepages=%{global_memory_use_hugepages}
     --v=1
-    -- --scale %{scale}
+    -- --scale %{scale} %{verify}
   '
 ].gsub(/[\n\r\ ]+/," ")
 $machinename = "sampa"
@@ -48,6 +48,7 @@ $params = {
   global_memory_use_hugepages: [huge_pages],
   debug: "",
   fft: "fft",
+  verify: "",
 }
 
 if __FILE__ == $PROGRAM_NAME

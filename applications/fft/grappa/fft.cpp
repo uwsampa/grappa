@@ -16,11 +16,19 @@ using std::complex;
 #include <GlobalAllocator.hpp>
 #include <Array.hpp>
 
-typedef GlobalAddress< complex<double> > complex_addr;
-
-complex<double> omega(int64_t n) {
-  return std::exp(complex<double>(0.0,-2*PI/n));
+template< typename T >
+inline void print_array(const char * name, GlobalAddress<T> base, size_t nelem) {
+  std::stringstream ss; ss << name << ": [";
+  T _buf;
+  for (size_t i=0; i<nelem; i++) {
+    typename Incoherent<T>::RO c(base+i, 1, &_buf);
+    ss << " " << *c;
+  }
+  ss << " ]"; VLOG(1) << ss.str();
 }
+
+typedef GlobalAddress< complex<double> > complex_addr;
+#define print_complex(v) v.node() << ":" << v.pointer()
 
 static int64_t N;
 static int64_t log2N;
@@ -29,6 +37,9 @@ static complex<double> omega_n;
 static complex_addr vA;
 static complex_addr vB;
 
+complex<double> omega(int64_t n) {
+  return std::exp(complex<double>(0.0,-2*PI/n));
+}
 
 // single iteration, for single element
 void fft_elt_iter(int64_t li, complex<double> * vbase, const int64_t& m) {
@@ -39,7 +50,7 @@ void fft_elt_iter(int64_t li, complex<double> * vbase, const int64_t& m) {
                 j = i & ~(1L<<rm),
                 k = i |  (1L<<rm);
   
-  CHECK(i < N) << "i = " << i << ", m = " << m << ", rm = " << rm;
+  CHECK(i < N) << "i = " << i << ", m = " << m << ", rm = " << rm << ", vA = " << print_complex(vA) << ", vB = " << print_complex(vB);
   CHECK(j < N) << "j = " << j << ", m = " << m << ", rm = " << rm;
   CHECK(k < N) << "k = " << k << ", m = " << m << ", rm = " << rm;
 
@@ -70,12 +81,17 @@ LOOP_FUNCTION( swap_ptrs, nid ) {
 void fft(complex_addr vec, int64_t log2N) {
   N = 1L<<log2N;
   complex_addr vtemp = Grappa_typed_malloc< complex<double> >(N);
+  VLOG(1) << "vec = " << print_complex(vec) << ", vtemp = " << print_complex(vtemp);
+
 
   { setup_globals f(log2N, vec, vtemp); fork_join_custom(&f); }
 
-  for (int m=0; m < log2N; m++) {
-    int64_t mm = m;
-    forall_local_blocking<complex<double>,int64_t,fft_elt_iter>(vec, N, make_global(&mm));
+  for (int64_t m=0; m < log2N; m++) {
+    VLOG(1) << "vA = " << print_complex(vA) << ", vB = " << print_complex(vB);
+    { char st[256]; sprintf(st,"vec  m = %d",m); print_array(st, vec, N); }
+    { char st[256]; sprintf(st,"temp m = %d",m); print_array(st, vtemp, N); }
+    forall_local_blocking<complex<double>,int64_t,fft_elt_iter>(vA, N, make_global(&m));
+    { swap_ptrs f; fork_join_custom(&f); }
   }
   
   if (vB != vec) {
