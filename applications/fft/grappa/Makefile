@@ -24,14 +24,16 @@ TARGET:= fft.exe
 $(TARGET):
 
 CFLAGS += -w
-CFLAGS += -I$(GRAPPA_HOME)/system
+CFLAGS += -I$(GRAPPA_HOME)/system -I$(GRAPPA_HOME)/applications/fft/fftw/include
 CFLAGS += -g -Wall -ffast-math
 
-LDFLAGS = -g -lboost_filesystem -lm
+LDFLAGS = -L$(GRAPPA_HOME)/applications/fft/fftw/lib -g
+
+LIBS += -lfftw3 -lm
 
 FFT = fft
 
-SOURCES = main.o $(FFT).o
+SOURCES = main.o $(FFT).o verify.o
 HEADERS = 
 
 include $(GRAPPA_HOME)/system/Makefile
