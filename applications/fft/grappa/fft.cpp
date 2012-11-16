@@ -11,6 +11,8 @@ const double PI = boost::math::constants::pi<double>();
 #include <complex>
 using std::complex;
 
+#include <bitset>
+
 #include <ForkJoin.hpp>
 #include <Delegate.hpp>
 #include <GlobalAllocator.hpp>
@@ -41,6 +43,12 @@ complex<double> omega(int64_t n) {
   return std::exp(complex<double>(0.0,-2*PI/n));
 }
 
+inline int64_t bitrev(int64_t x, char m, char r) {
+  std::bitset<64> a, b(x);
+  for (char i=0; i<=m; i++) { a[(r-1)-i] = b[(r-1-m)+i]; }
+  return a.to_ulong();
+}  
+
 // single iteration, for single element
 void fft_elt_iter(int64_t li, complex<double> * vbase, const int64_t& m) {
   const complex<double> v = vbase[li];
@@ -54,13 +62,21 @@ void fft_elt_iter(int64_t li, complex<double> * vbase, const int64_t& m) {
   CHECK(j < N) << "j = " << j << ", m = " << m << ", rm = " << rm;
   CHECK(k < N) << "k = " << k << ", m = " << m << ", rm = " << rm;
 
+  VLOG(3) << "i = " << i << ", j = " << j << ", k = " << k;
+
   complex<double> _buf[2];
   Incoherent< complex<double> >::RO Aj(vA+j, 1, _buf+0);
   Incoherent< complex<double> >::RO Ak(vA+k, 1, _buf+1);
   Aj.start_acquire(); Ak.start_acquire();
 
-  complex<double> result = *Aj + *Ak * std::pow(omega_n, 1L<<m);
-  { Incoherent< complex<double> >::WO resultC(vB+i, 1, &result); }
+  complex<double> result = *Aj + *Ak * std::pow(omega_n, bitrev(i,m,log2N));
+
+  //VLOG(1) << "i " << i << ": Aj+Ak = " << *Aj+*Ak << ", omega*2^m = " << std::pow(omega_n, 1L<<m) << ", result = " << result;
+  
+  int64_t index = i;
+  // in last step, do bit reversal indexing to write rather than writing local
+  if (m == log2N-1) { index = bitrev(i,log2N-1,log2N); }
+  { Incoherent< complex<double> >::WO resultC(vB+index, 1, &result); }
 }
 
 LOOP_FUNCTOR( setup_globals, nid, ((int64_t,_log2N)) ((complex_addr,_vorig)) ((complex_addr,_vtemp)) ) {
@@ -81,21 +97,22 @@ LOOP_FUNCTION( swap_ptrs, nid ) {
 void fft(complex_addr vec, int64_t log2N) {
   N = 1L<<log2N;
   complex_addr vtemp = Grappa_typed_malloc< complex<double> >(N);
-  VLOG(1) << "vec = " << print_complex(vec) << ", vtemp = " << print_complex(vtemp);
-
+  VLOG(2) << "vec = " << print_complex(vec) << ", vtemp = " << print_complex(vtemp);
 
   { setup_globals f(log2N, vec, vtemp); fork_join_custom(&f); }
+  VLOG(2) << "omega_n = " << omega_n;
 
   for (int64_t m=0; m < log2N; m++) {
-    VLOG(1) << "vA = " << print_complex(vA) << ", vB = " << print_complex(vB);
-    { char st[256]; sprintf(st,"vec  m = %d",m); print_array(st, vec, N); }
-    { char st[256]; sprintf(st,"temp m = %d",m); print_array(st, vtemp, N); }
+    VLOG(3) << "vA = " << print_complex(vA) << ", vB = " << print_complex(vB);
+
+    // TODO: roll these two fork_joins into one
     forall_local_blocking<complex<double>,int64_t,fft_elt_iter>(vA, N, make_global(&m));
     { swap_ptrs f; fork_join_custom(&f); }
   }
   
-  if (vB != vec) {
-    Grappa_memcpy(vec, vB, N);
+  if (vA != vec) {
+    Grappa_memcpy(vec, vA, N);
   }
+
   Grappa_free(vtemp);
 }
