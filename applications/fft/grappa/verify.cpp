@@ -10,7 +10,9 @@
 ///   --scale,-s  log2(nelem)
 
 #include <unistd.h>
-#include <math.h>
+#include <cmath>
+using std::abs;
+
 #include <complex>
 using std::complex;
 
@@ -24,12 +26,14 @@ void verify(complex<double> * orig, complex<double> * result, size_t nelem) {
   fftw_plan p = fftw_plan_dft_1d(nelem, sig, wout, FFTW_FORWARD, FFTW_ESTIMATE);
   
   fftw_execute(p);
+  
+  double epsilon = 1.0e-6;
 
-  //complex<double> * wresult = reinterpret_cast<fftw_complex*>(wout);
   complex<double> * wresult = reinterpret_cast<complex<double>*>(wout);
   for (size_t i=0; i<nelem; i++) {
-    //CHECK( wresult[i] == result[i] ) << "[" << i << "]: fftw = " << wresult[i] << ", grappa = " << result[i];
-    VLOG(1) << "[" << i << "]: fftw = " << wresult[i] << ", grappa = " << result[i];
+    CHECK( abs(wresult[i].real() - result[i].real()) < epsilon ) << "[" << i << "]: fftw = " << wresult[i] << ", grappa = " << result[i];
+    CHECK( abs(wresult[i].imag() - result[i].imag()) < epsilon ) << "[" << i << "]: fftw = " << wresult[i] << ", grappa = " << result[i];
+    //VLOG(1) << "[" << i << "]: fftw = " << wresult[i] << ", grappa = " << result[i];
   }
 
   LOG(INFO) << "Verification successful!";
