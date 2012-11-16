@@ -106,7 +106,7 @@ void user_main(void* ignore) {
     rand_time = Grappa_walltime() - t;
     LOG(INFO) << "fill_random_time: " << rand_time;
 
-  print_array("signal", sig, nelem);
+  //print_array("signal", sig, nelem);
 
     //print_sig("generated sig", sig, nelem);
   complex<double> * sig_local;
