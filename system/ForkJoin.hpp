@@ -552,6 +552,9 @@ void forall_local_async_task(GlobalAddress<T> base, size_t nelems, GlobalAddress
   global_joiner.remoteSignalNode(spawner);
 }
 
+LOOP_FUNCTION(func_reset_global_joiner, nid) {
+  global_joiner.reset();
+}
 LOOP_FUNCTION(func_global_barrier, nid) {
   global_joiner.wait();
 }
@@ -591,6 +594,8 @@ void forall_local_async(GlobalAddress<T> base, size_t nelems, GlobalAddress<P> e
   }
 
   Node start_node = base.node();
+  
+  if (Blocking) { func_reset_global_joiner f; fork_join_custom(&f); }
 
   for (Node i=0; i<fnodes; i++) {
     global_joiner.registerTask();
