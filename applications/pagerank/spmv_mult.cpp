@@ -33,35 +33,31 @@ csr_graph m;
 vector v;
 vector y;
 
+void inner_loop( int64_t start, int64_t iters, GlobalAddress<double> targetAddress ) {
+  int64_t yaccum = 0;
+  int64_t j[iters];
+  Incoherent<int64_t>::RO cj( m.xadj + start, iters, j );
+  for( int64_t k = 0; k<iters; k++ ) {
+    double vj;
+    Grappa_delegate_read(v.a + cj[k], &vj);
+    yaccum += 1.0f * vj; 
+  }
+
+  ff_delegate_add<double>( targetAddress, yaccum );
+}
+
 void row_loop( int64_t start, int64_t iters ) {
   //VLOG(1) << "rows [" << start << ", " << start+iters << ")";
   
-  double y_stor[iters];
-  Incoherent<double>::WO cy( y.a+start, iters, y_stor );
   for ( int64_t i=start; i<start+iters; i++ ) {
-    // y[i] = 0
-    cy[i-start] = 0;
-
     // kstart = row_ptr[i], kend = row_ptr[i+1]
     int64_t kbounds[2];
     Incoherent<int64_t>::RO cxoff( XOFF(m.xoff, i), 2, kbounds );
-    const int64_t kstart = cxoff[0];
-    const int64_t kend = cxoff[1];
+    int64_t kstart = cxoff[0];
+    int64_t kend = cxoff[1];
 
-    // Column loop
-    // TODO parallel for, but will have different guarentees on y released
-    for ( int64_t k = kstart; k<kend; k++ ) {
-      int64_t j, mv;
-      // TODO: hoist cache
-      Incoherent<int64_t>::RO cj( m.xadj + k, 1, &j );
-      // TODO: currently assumes nonzeroes are 1's
-      //Incoherent<int64_t>::RO vals_k( m.val + k, 1, &mv );
-      //yi += *vals_k * x[j];
-      double vj;
-      Grappa_delegate_read(v.a + *cj, &vj);   
-      //VLOG(1) << "v[*cj]=v[" << *cj << "]="<<vj;
-      cy[i-start] += 1.0f * vj;
-    } 
+    async_parallel_for<double,inner_loop, joinerSpawn_hack<double,inner_loop,ASYNC_PAR_FOR_DEFAULT>,ASYNC_PAR_FOR_DEFAULT>(kstart, kend-kstart, y.a+i);
+    
                                // TODO: if yi.start_release() could guarentee the storage is no longer used
                                //       then this would be nice for no block until all y[start,start+iters) need to be written, although that pressures the network side
                                // Y could actually be like a feed forward delegate that syncs at global join end
