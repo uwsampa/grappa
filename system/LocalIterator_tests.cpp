@@ -18,6 +18,7 @@
 
 #include <GlobalAllocator.hpp>
 #include <PerformanceTools.hpp>
+#include <Array.hpp>
 
 
 BOOST_AUTO_TEST_SUITE( LocalIterator_tests );

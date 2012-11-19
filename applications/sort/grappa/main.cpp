@@ -29,6 +29,7 @@
 #include <Collective.hpp>
 #include <Delegate.hpp>
 #include <FileIO.hpp>
+#include <Array.hpp>
 
 #include "npb_intsort.h"
 
