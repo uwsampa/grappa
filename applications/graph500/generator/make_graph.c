@@ -38,6 +38,27 @@ static void compute_edge_range(int rank, int size, int64_t M, int64_t* start_idx
 #endif
 
 #ifndef GRAPH_GENERATOR_MPI
+
+#ifdef _GRAPPA
+#include <GlobalAllocator.hpp> // Grappa_typed_malloc
+void make_graph(int log_numverts, int64_t M, uint64_t userseed1, uint64_t userseed2, int64_t* nedges_ptr_in, GlobalAddress<packed_edge> * result_ptr_in) {
+	/* Add restrict to input pointers. */
+	int64_t* /*restrict*/ nedges_ptr = nedges_ptr_in;   // XXX: restrict keyword causing 'unexpected initilizer'
+  /*no restrict support for GlobalAddress*/
+	GlobalAddress<packed_edge> * /*restrict*/ result_ptr = result_ptr_in;
+	
+	/* Spread the two 64-bit numbers into five nonzero values in the correct
+	 * range. */
+	uint_fast32_t seed[5];
+	make_mrg_seed(userseed1, userseed2, seed);
+	
+	*nedges_ptr = M;
+  GlobalAddress<packed_edge> edges = Grappa_typed_malloc<packed_edge>( M );
+	*result_ptr = edges;
+	
+	generate_kronecker_range(seed, log_numverts, 0, M, edges);
+}
+#else
 void make_graph(int log_numverts, int64_t M, uint64_t userseed1, uint64_t userseed2, int64_t* nedges_ptr_in, packed_edge** result_ptr_in) {
 	/* Add restrict to input pointers. */
 	int64_t* restrict nedges_ptr = nedges_ptr_in;
@@ -56,6 +77,8 @@ void make_graph(int log_numverts, int64_t M, uint64_t userseed1, uint64_t userse
 	 * parallel.  */
 	generate_kronecker_range(seed, log_numverts, 0, M, edges);
 }
+#endif /* _GRAPPA */
+
 #endif /* !GRAPH_GENERATOR_MPI */
 
 #ifdef GRAPH_GENERATOR_MPI

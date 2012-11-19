@@ -117,30 +117,30 @@ prefix_sum (int64_t *buf)
 	nt = omp_get_num_threads ();
 	tid = omp_get_thread_num ();
 	
-	t1 = nv / nt;
-	t2 = nv % nt;
-	slice_begin = t1 * tid + (tid < t2? tid : t2);
+	t1 = nv / nt; // vert/thread     
+	t2 = nv % nt; // remainder       
+	slice_begin = t1 * tid + (tid < t2? tid : t2); // add remainder to last
 	slice_end = t1 * (tid+1) + ((tid+1) < t2? (tid+1) : t2);
 	
 	buf[tid] = 0;
 	for (k = slice_begin; k < slice_end; ++k)
-		buf[tid] += XOFF(k);
-	OMP("omp barrier");
+		buf[tid] += XOFF(k); // sum of my edgelists sizes
+	OMP("omp barrier");   // all sums done
 	OMP("omp single")
-  for (k = 1; k < nt; ++k)
+  for (k = 1; k < nt; ++k)  // one thread applies prefix sums sequentially
 		buf[k] += buf[k-1];
 	if (tid)
-		t1 = buf[tid-1];
+		t1 = buf[tid-1];       // t1 = previous bucket, used next in offsets
 	else
 		t1 = 0;
 	for (k = slice_begin; k < slice_end; ++k) {
-		int64_t tmp = XOFF(k);
-		XOFF(k) = t1;
-		t1 += tmp;
+		int64_t tmp = XOFF(k);  // set new xoffs to the actual offset
+		XOFF(k) = t1;          
+		t1 += tmp;             // previously held size, use this to add next one
 	}
 	OMP("omp flush (xoff)");
 	OMP("omp barrier");
-	return buf[nt-1];
+	return buf[nt-1]; // return total sum
 }
 
 static int
@@ -157,10 +157,10 @@ setup_deg_off (const struct packed_edge * restrict IJ, int64_t nedge)
 		OMP("omp for")
 		for (k = 0; k < nedge; ++k) {
 			int64_t i = get_v0_from_edge(&IJ[k]);
-			int64_t j = get_v1_from_edge(&IJ[k]);
+			int64_t j = get_v1_from_edge(&IJ[k]);  
 			if (i != j) { /* Skip self-edges. */
 				if (i >= 0)
-					OMP("omp atomic")
+					OMP("omp atomic")          // xoff starts by containing sizes
 					++XOFF(i);
 				if (j >= 0)
 					OMP("omp atomic")
@@ -175,7 +175,7 @@ setup_deg_off (const struct packed_edge * restrict IJ, int64_t nedge)
 			}
 		}
 		OMP("omp for")
-		for (k = 0; k < nv; ++k)
+		for (k = 0; k < nv; ++k)           // make sure all xoff are a min size
 			if (XOFF(k) < MINVECT_SIZE) XOFF(k) = MINVECT_SIZE;
 		
 		accum = prefix_sum (buf);

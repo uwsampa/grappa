@@ -13,7 +13,7 @@
 
 
 static mrg_state prng_state_store;
-mrg_state * prng_state;
+//mrg_state * prng_state;
 
 #define NRAND(ne) (5 * SCALE * (ne))
 

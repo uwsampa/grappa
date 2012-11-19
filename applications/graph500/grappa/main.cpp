@@ -18,6 +18,7 @@
 
 #include "../generator/make_graph.h"
 #include "../generator/utils.h"
+#include "../prng.h"
 #include "common.h"
 #include <math.h>
 #include <assert.h>
@@ -38,7 +39,7 @@
 #include <FileIO.hpp>
 
 #include "timer.h"
-#include "rmat.h"
+//#include "rmat.h"
 #include "oned_csr.h"
 #include "verify.hpp"
 #include "options.h"
@@ -60,6 +61,7 @@ void output_results (const int64_t SCALE, int64_t nvtx_scale, int64_t edgefactor
                 const int NBFS, const double *bfs_time, const int64_t *bfs_nedge);
 
 //### Globals ###
+static int64_t nvtx_scale;
 
 //static int64_t bfs_root[NBFS_max];
 
@@ -84,7 +86,7 @@ static void choose_bfs_roots(GlobalAddress<int64_t> xoff, int64_t nvtx, int * NB
   // sample from 0..nvtx-1 without replacement
   int64_t m = 0, t = 0;
   while (m < *NBFS && t < nvtx) {
-    double R = mrg_get_double_orig(prng_state);
+    double R = mrg_get_double_orig((mrg_state*)prng_state);
     if (!has_adj(xoff, t) || (nvtx - t)*R > *NBFS - m) ++t;
     else bfs_roots[m++] = t++;
   }
@@ -348,15 +350,18 @@ static void user_main(int * args) {
   csr_graph g;
   int64_t bfs_roots[NBFS_max];
 
-
+	nvtx_scale = ((int64_t)1)<<SCALE;
+	int64_t desired_nedge = desired_nedge = nvtx_scale * edgefactor;
+	/* Catch a few possible overflows. */
+	assert (desired_nedge >= nvtx_scale);
+	assert (desired_nedge >= edgefactor);
 
   if (load_checkpoint) {
     checkpoint_in(&tg, &g, bfs_roots);
   } // checkpoint_in may change 'load_checkpoint' to false if unable to read in file correctly
   
   if (!load_checkpoint) {
-    
-    tg.nedge = (int64_t)(edgefactor) << SCALE;
+   
     tg.edges = Grappa_typed_malloc<packed_edge>(tg.nedge);
     
     /* Make the raw graph edges. */
@@ -372,35 +377,41 @@ static void user_main(int * args) {
        * row), and then do an allreduce at the end.  This scheme is used to avoid
        * non-local communication and reading the file separately just to find BFS
        * roots. */
-      
-      rmat_edgelist(&tg, SCALE);
-      
-      //debug: verify that rmat edgelist is valid
-  //    for (int64_t i=0; i<tg.nedge; i++) {
-  //      Incoherent<packed_edge>::RO e(tg.edges+i, 1);
-  //      VLOG(1) << "edge[" << i << "] = " << (*e).v0 << " -> " << (*e).v1;
-  //    }
-  //    
-  //    int64_t NV = 1<<SCALE;
-  //    int64_t degree[NV];
-  //    for (int64_t i=0; i<NV; i++) degree[i] = 0;
-  //    
-  //    for (int64_t i=0; i<tg.nedge; i++) {
-  //      Incoherent<packed_edge>::RO e(tg.edges+i, 1);
-  //      assert(e[0].v0 < NV);
-  //      assert(e[0].v1 < NV);
-  //      if (e[0].v0 != e[0].v1) {
-  //        degree[e[0].v0]++;
-  //        degree[e[0].v1]++;
-  //      }
-  //    }
-  //    for (int64_t i=0; i<NV; i++) {
-  //      VLOG(1) << "degree[" << i << "] = " << degree[i];
-  //    }
+     
+      if (use_RMAT) { 
+        tg.nedge = (int64_t)(edgefactor) << SCALE;
+        CHECK( false ) << "RMAT not currently supported";
+       // rmat_edgelist(&tg, SCALE);
+        //debug: verify that rmat edgelist is valid
+        //    for (int64_t i=0; i<tg.nedge; i++) {
+        //      Incoherent<packed_edge>::RO e(tg.edges+i, 1);
+        //      VLOG(1) << "edge[" << i << "] = " << (*e).v0 << " -> " << (*e).v1;
+        //    }
+        //    
+        //    int64_t NV = 1<<SCALE;
+        //    int64_t degree[NV];
+        //    for (int64_t i=0; i<NV; i++) degree[i] = 0;
+        //    
+        //    for (int64_t i=0; i<tg.nedge; i++) {
+        //      Incoherent<packed_edge>::RO e(tg.edges+i, 1);
+        //      assert(e[0].v0 < NV);
+        //      assert(e[0].v1 < NV);
+        //      if (e[0].v0 != e[0].v1) {
+        //        degree[e[0].v0]++;
+        //        degree[e[0].v1]++;
+        //      }
+        //    }
+        //    for (int64_t i=0; i<NV; i++) {
+        //      VLOG(1) << "degree[" << i << "] = " << degree[i];
+        //    }
+      } else {
+        make_graph( SCALE, desired_nedge, userseed, userseed, &tg.nedge, &tg.edges );
+      }
+
     }
     stop = timer();
     generation_time = stop - start;
-    VLOG(1) << "graph_generation: " << generation_time;
+    LOG(INFO) << "graph_generation: " << generation_time;
     
     setup_bfs(&tg, &g, bfs_roots);
     
