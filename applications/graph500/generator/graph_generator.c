@@ -156,6 +156,54 @@ void make_one_edge(int64_t nverts, int level, int lgN, mrg_state* st, packed_edg
 			   scramble(base_tgt, lgN, val0, val1));
 }
 
+#ifdef _GRAPPA
+#include <ForkJoin.hpp>
+struct make_edges_local_func : ForkJoinIteration {
+  int64_t nverts;
+  int level;
+  int lgN;
+  mrg_state state;
+  GlobalAddress<packed_edge> base;
+  int64_t nelems;
+  uint64_t val0;
+  uint64_t val1;
+
+  make_edges_local_func( int64_t nverts, int level, int lgN,
+      mrg_state state, GlobalAddress<packed_edge> base,
+      int64_t nelems, uint64_t val0, uint64_t val1 ) 
+    : nverts ( nverts )
+      , level ( level )
+      , lgN ( lgN )
+      , state ( state )
+      , base ( base )
+      , nelems ( nelems )
+      , val0 ( val0 )
+      , val1 ( val1 )
+  {}
+
+  make_edges_local_func() {}
+
+  inline void operator()(int64_t) const;
+};
+inline void make_edges_local_func::operator()(int64_t nid) const {
+  packed_edge * local_base = base.localize();
+  packed_edge * local_end = (base+nelems).localize();
+
+  int64_t num_iters = local_end - local_base;
+
+  for (int64_t i=0; i<num_iters; i++) {
+    // get the global array index of this local location
+    int64_t ei = make_linear(local_base+i) - base; // This is likely compute-expensive for an inner loop
+
+    // copy the random generator state and seek
+    mrg_state new_state = state;
+    mrg_skip(&new_state, 0, ei, 0); 
+
+    make_one_edge(nverts, level, lgN, &new_state, local_base + i, val0, val1);
+  }
+}
+#endif // _GRAPPA
+
 /* Generate a range of edges (from start_edge to end_edge of the total graph),
  * writing into elements [0, end_edge - start_edge) of the edges array.  This
  * code is parallel on OpenMP and XMT; it must be used with
@@ -164,7 +212,8 @@ void generate_kronecker_range(
 							  const uint_fast32_t seed[5] /* All values in [0, 2^31 - 1), not all zero */,
 							  int logN /* In base 2 */,
 							  int64_t start_edge, int64_t end_edge,
-							  packed_edge* edges) {
+                edges_ptr_t edges) {
+
 	mrg_state state;
 	int64_t nverts = (int64_t)1 << logN;
 	int64_t ei;
@@ -183,6 +232,8 @@ void generate_kronecker_range(
 		val1 += mrg_get_uint_orig(&new_state);
 	}
 	
+#ifndef _GRAPPA  
+
 #ifdef _OPENMP
 #pragma omp parallel for
 #endif
@@ -195,5 +246,14 @@ void generate_kronecker_range(
 		mrg_skip(&new_state, 0, ei, 0);
 		make_one_edge(nverts, 0, logN, &new_state, edges + (ei - start_edge), val0, val1);
 	}
+
+#else // _GRAPPA
+
+  // Two possibilies here:
+  // 1. split across nodes by ei; this means write_edge will involve a remote operation
+  // 2. forall_local-style over 'edges', but this requires knowing which global indices you are working on to calc ei
+  { make_edges_local_func f( nverts, 0, logN, state, edges, end_edge-start_edge, val0, val1 ); fork_join_custom( &f ); }
+
+#endif // _GRAPPA
 }
 
