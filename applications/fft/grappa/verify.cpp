@@ -27,7 +27,7 @@ void verify(complex<double> * orig, complex<double> * result, size_t nelem) {
   
   fftw_execute(p);
   
-  double epsilon = 1.0e-6;
+  double epsilon = 1.0e-4;
 
   complex<double> * wresult = reinterpret_cast<complex<double>*>(wout);
   for (size_t i=0; i<nelem; i++) {
