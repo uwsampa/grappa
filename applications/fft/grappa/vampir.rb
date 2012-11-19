@@ -6,14 +6,14 @@
 # AC05-76RL01830 awarded by the United States Department of
 # Energy. The Government has certain rights in the software.
 require "./fft_common.rb"
-$params[:debug] = ""
-$params[:glog_args] = " --vmodule GlobalTaskJoiner=0 "
-$params[:fft_args] = "--verify"
+$params[:debug] = "VTRACE=1 VTRACE_SAMPLED=1 GOOGLE_PROFILER=1 CPUPROFILE_FREQUENCY=20 CPUPROFILE=gperf.fft.\$$SLURM_PROCID"
+$params[:glog_args] = ""
+$params[:fft_args] = ""
 
 $params[:fft] = "fft"
-$params[:scale] = 22
-$params[:nnode] = [4, 8, 12]
-$params[:ppn] = [3, 4]
+$params[:scale] = [28]
+$params[:nnode] = 12
+$params[:ppn] = 2
 $params[:tag] = "test"
 
 parse_cmdline_options()

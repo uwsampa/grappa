@@ -7,13 +7,13 @@
 # Energy. The Government has certain rights in the software.
 require "./fft_common.rb"
 $params[:debug] = ""
-$params[:glog_args] = " --vmodule GlobalTaskJoiner=0 "
-$params[:fft_args] = "--verify"
+$params[:glog_args] = ""
+$params[:fft_args] = ""
 
 $params[:fft] = "fft"
-$params[:scale] = 22
-$params[:nnode] = [4, 8, 12]
-$params[:ppn] = [3, 4]
+$params[:scale] = [20, 24, 26, 30]
+$params[:nnode] = 12
+$params[:ppn] = 2
 $params[:tag] = "test"
 
 parse_cmdline_options()
