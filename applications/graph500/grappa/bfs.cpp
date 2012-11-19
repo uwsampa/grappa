@@ -10,6 +10,7 @@
 #include "AsyncParallelFor.hpp"
 #include "PushBuffer.hpp"
 #include <Collective.hpp>
+#include <Array.hpp>
 
 GRAPPA_DEFINE_EVENT_GROUP(bfs);
 

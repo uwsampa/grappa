@@ -124,3 +124,17 @@ config.cache
 
 # documentation
 /system/doxygen/*
+
+# fftw
+/applications/fft/fftw
+/applications/fft/fftw-3.3.2/Makefile
+/applications/fft/fftw-3.3.2/*/Makefile
+/applications/fft/fftw-3.3.2/*/*/Makefile
+/applications/fft/fftw-3.3.2/*/*/*/Makefile
+/applications/fft/fftw-3.3.2/*/*/*/*/Makefile
+*.f03
+libtool
+/applications/fft/fftw-3.3.2/tests/bench
+applications/fft/fftw-3.3.2/tools/fftw-wisdom-to-conf
+applications/fft/fftw-3.3.2/tools/fftw_wisdom.1
+
