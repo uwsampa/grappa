@@ -92,7 +92,7 @@ void user_main(void* ignore) {
 
 
   LOG(INFO) << "### FFT Benchmark ###";
-  LOG(INFO) << "nelem = (1 << " << scale << ") = " << nelem << " (" << ((double)nelem)*sizeof(uint64_t)/(1L<<30) << " GB)";
+  LOG(INFO) << "nelem = (1 << " << scale << ") = " << nelem << " (" << ((double)nelem)*sizeof(complex<double>)/(1L<<30) << " GB)";
   
   LOG(INFO) << "block_size = " << block_size;
 
