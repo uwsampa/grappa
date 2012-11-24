@@ -122,7 +122,7 @@ void user_main(void* ignore) {
 
     fft_time = Grappa_walltime() - t;
     LOG(INFO) << "fft_time: " << fft_time;
-    LOG(INFO) << "fft_rate: " << nelem / fft_time;
+    LOG(INFO) << "fft_performance: " << (double)(nelem * scale) / fft_time;
 
   Grappa_merge_and_dump_stats(std::cerr);
 
