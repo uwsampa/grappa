@@ -17,6 +17,7 @@
 #include "ForkJoin.hpp"
 
 #include <sys/stat.h>
+#include <fcntl.h>
 #include <iterator>
 #include <boost/filesystem.hpp>
 namespace fs = boost::filesystem;
@@ -154,6 +155,7 @@ inline GrappaFileDesc Grappa_fopen(const char *const fname, const char *const mo
     return (GrappaFileDesc)fdesc;
   } else {
     fprintf(stderr, "File operation not implemented yet.\n");
+    exit(1);
   }
 }
 
