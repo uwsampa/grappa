@@ -23,9 +23,9 @@ huge_pages = ($machinename == "pal") ? false : true
 
 # map of parameters; key is the name used in command substitution
 $params = {
-  scale: [20],
-  nnode: [12],
-  ppn: [4],
+  scale: [22, 24, 30],
+  nnode: [4, 8, 12],
+  ppn: [1, 2, 4, 8, 12],
   nproc: expr('nnode*ppn'),
   machine: [$machinename],
   fft: "mpi",
