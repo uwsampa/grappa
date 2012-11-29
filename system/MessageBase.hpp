@@ -95,6 +95,13 @@ namespace Grappa {
 	  buffer = fp( buffer + sizeof( Deserializer ) );
 	}
       }
+
+      /// Active message to walk a buffer of received deserializers/functors and call them.
+      typedef int gasnet_token_t;
+      static void deserialize_buffer_am( gasnet_token_t token, void * buf, size_t size ) {
+	deserialize_buffer( static_cast< char * >( buf ), size );
+      }
+      static int deserialize_buffer_handle_ = -1;
     };
     
     /// @}
