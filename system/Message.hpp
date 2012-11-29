@@ -58,23 +58,32 @@ namespace Grappa {
     }
 
     /// Copy this message into a buffer.
-    char * serialize_to( char * p ) {
+    char * serialize_to( char * p, size_t max_size ) {
       // copy deserialization function pointer
       auto fp = &deserialize_and_call;
-      // // turn into 2D pointer
-      // auto gfp = make_global( fp, destination_ );
-      // // write to buffer
-      // *(reinterpret_cast< intptr_t* >(p)) = reinterpret_cast< intptr_t >( gfp );
-      *(reinterpret_cast< intptr_t* >(p)) = reinterpret_cast< intptr_t >( fp );
-      p += sizeof( fp );
+      if( sizeof( fp ) + sizeof( T ) > max_size ) {
+	std::cout << "break" << std::endl;
+	return p;
+      } else {
+	// // turn into 2D pointer
+	// auto gfp = make_global( fp, destination_ );
+	// // write to buffer
+	// *(reinterpret_cast< intptr_t* >(p)) = reinterpret_cast< intptr_t >( gfp );
+	*(reinterpret_cast< intptr_t* >(p)) = reinterpret_cast< intptr_t >( fp );
+	p += sizeof( fp );
+	
+	// copy payload
+	std::memcpy( p, &payload_, sizeof(payload_) );
+	
+	//DVLOG(5) << "serialized message of size " << sizeof(fp) + sizeof(T);
+	
+	// return pointer following message
+	return p + sizeof( T );
+      }
+    }
 
-      // copy payload
-      std::memcpy( p, &payload_, sizeof(payload_) );
-
-      //DVLOG(5) << "serialized message of size " << sizeof(fp) + sizeof(T);
-
-      // return pointer following message
-      return p + sizeof( T );
+    size_t size( ) {
+      return sizeof( &deserialize_and_call ) + sizeof( T );
     }
 
   };
