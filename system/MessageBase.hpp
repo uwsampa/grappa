@@ -53,7 +53,7 @@ namespace Grappa {
       ///       deserialize and execute the message functor/payload
       ///    -# the message functor/payload
       /// @return address of the byte following the serialized message in the buffer
-      virtual char * serialize_to( char * p ) = 0;
+      virtual char * serialize_to( char * p, size_t max_size = -1 ) = 0;
 
       /// Add a message to this message's list
       inline void stitch( MessageBase * m ) {
@@ -62,18 +62,27 @@ namespace Grappa {
       }
 
       /// Chase a list of messages and serialize them into a buffer.
-      static char * serialize_to_buffer( char * buffer, Grappa::impl::MessageBase * message ) {
+      /// Modifies pointer to list to support size-limited-ish aggregation
+      /// TODO: make this a hard limit?
+      static char * serialize_to_buffer( char * buffer, Grappa::impl::MessageBase ** message_ptr, size_t max = -1 ) {
+	size_t size = 0;
+	Grappa::impl::MessageBase * message = *message_ptr;
 	while( message ) {
-	  std::cout << "Serializing message...." << std::endl;
 	  // add message to buffer
-	  buffer = message->serialize_to( buffer );
-	  // mark as sent
-	  message->is_sent_ = true;
-	  // go to next messsage
-	  Grappa::impl::MessageBase * next = message->next_;
-	  message->next_ = NULL;
-	  message = next;
+	  char * new_buffer = message->serialize_to( buffer, max - size );
+	  if( new_buffer == buffer ) { // if it was too big
+	    break;                     // quit
+	  } else {
+	    // mark as sent
+	    message->is_sent_ = true;
+	    // go to next messsage and track total size
+	    Grappa::impl::MessageBase * next = message->next_;
+	    message->next_ = NULL;
+	    size += next - message;
+	    message = next;
+	  }
 	}
+	*message_ptr = message;
 	return buffer;
       }
       

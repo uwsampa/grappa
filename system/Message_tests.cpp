@@ -164,7 +164,8 @@ int main() {
   char buf[4096] = {0};
   
   std::cout << "Serializing" << std::endl;
-  char * end = Grappa::impl::MessageBase::serialize_to_buffer( buf, &m1 );
+  Grappa::impl::MessageBase * mb = &m1;
+  char * end = Grappa::impl::MessageBase::serialize_to_buffer( buf, &mb );
   x++;  
   // for( intptr_t * i = (intptr_t*)buf; i < (intptr_t*)end; ++i ) {
   //   std::cout << i << ": " << (void*) *i << std::endl;
