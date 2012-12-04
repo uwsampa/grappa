@@ -77,13 +77,24 @@ namespace Grappa {
 	GASNET_CHECK( gasnet_AMRequestMedium0( node, deserialize_buffer_handle_, buf, end - buf ) );
       }
 
-      /// send a message
-      void send_rdma( MessageBase * ) {
-	// compute node from offset in array
-	Node node = &core - &cores_[0];
+      void enqueue( MessageBase * m ) {
+	Core * c = &cores_[ m->destination_ ];
+	m->next_ = c->messages_;
+	c->messages_ = m;
+      }
+
+      void flush( Node n ) {
+	Core * c = &cores_[ n ];
+	send_medium( c );
+      }
+
+      // /// send a message
+      // void send_rdma( MessageBase * ) {
+      // 	// compute node from offset in array
+      // 	Node node = &core - &cores_[0];
 
 	
-      }
+      // }
 
       /// task that is run to allocate space to receive a message
       static void deaggregation_task( int64_t size, GlobalAddress< int64_t > response_address, void * unused ) {
