@@ -759,8 +759,8 @@ public:
 
     AggregatorGenericCallHeader header = { reinterpret_cast< intptr_t >( fn_p ),
 					   destination,
-					   args_size,
-					   payload_size
+					   static_cast<uint16_t>(args_size),
+					   static_cast<uint16_t>(payload_size)
 #ifdef GRAPPA_TRACE
 					   , global_communicator.mynode()
 #endif
