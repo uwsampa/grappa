@@ -69,7 +69,8 @@ namespace Grappa {
       /// send a message that will be run in active message context. This requires very limited messages.
       void send_medium( Core * core ) {
 	// compute node from offset in array
-	Node node = core - cores_[0];
+	Node node = &core - &cores_[0];
+
 	size_t max_size = gasnet_AMMaxMedium();
 	char buf[ max_size ];
 	char * end = Grappa::impl::MessageBase::serialize_to_buffer( buf, &(core->messages_) );
@@ -78,6 +79,10 @@ namespace Grappa {
 
       /// send a message
       void send_rdma( MessageBase * ) {
+	// compute node from offset in array
+	Node node = &core - &cores_[0];
+
+	
       }
 
       /// task that is run to allocate space to receive a message
