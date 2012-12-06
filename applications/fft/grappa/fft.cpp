@@ -105,6 +105,8 @@ void fft(complex_addr vec, int64_t log2N) {
   for (int64_t m=0; m < log2N; m++) {
     VLOG(3) << "vA = " << print_complex(vA) << ", vB = " << print_complex(vB);
 
+    print_array("vA", vA, N);
+    
     // TODO: roll these two fork_joins into one
     forall_local_blocking<complex<double>,int64_t,fft_elt_iter>(vA, N, make_global(&m));
     { swap_ptrs f; fork_join_custom(&f); }

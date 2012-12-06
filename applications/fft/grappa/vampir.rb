@@ -11,7 +11,7 @@ $params[:glog_args] = ""
 $params[:fft_args] = ""
 
 $params[:fft] = "fft"
-$params[:scale] = [28]
+$params[:scale] = [20]
 $params[:nnode] = 12
 $params[:ppn] = 2
 $params[:tag] = "test"
