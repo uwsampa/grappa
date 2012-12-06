@@ -7,10 +7,24 @@
 
 #include "RDMAAggregator.hpp"
 
-/// global RDMAAggregator instance
-RDMAAggregator global_rdma_aggregator;
+namespace Grappa {
 
-// /// Construct RDMA Aggregator
-// RDMAAggregator::RDMAAggregator( ) 
-//   :
-// { }
+  /// Internal messaging functions
+  namespace impl {
+
+    /// @addtogroup Communication
+    /// @{
+
+
+    /// global RDMAAggregator instance
+    Grappa::impl::RDMAAggregator global_rdma_aggregator;
+
+    // /// Construct RDMA Aggregator
+    // RDMAAggregator::RDMAAggregator( ) 
+    //   :
+    // { }
+
+    /// @}
+
+  };
+};

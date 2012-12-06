@@ -4,7 +4,7 @@
 
 #include <cstring>
 
-//#include "ConditionVariable.hpp"
+#include "ConditionVariable.hpp"
 
 typedef int16_t Core;
 
@@ -26,10 +26,11 @@ namespace Grappa {
       MessageBase * next_; ///< what's the next message in the list of messages to be sent? 
       bool is_enqueued_;   ///< Have we been added to the send queue?
       bool is_sent_;       ///< Is our payload no longer needed?
-
       Core destination_;   ///< What core is this message aimed at?
 
       //      ConditionVariable cv_; ///< condition variable for sleep/wake
+      
+      friend class RDMAAggregator;
 
     public:
       MessageBase( Core dest )
@@ -95,13 +96,6 @@ namespace Grappa {
 	  buffer = fp( buffer + sizeof( Deserializer ) );
 	}
       }
-
-      /// Active message to walk a buffer of received deserializers/functors and call them.
-      typedef int gasnet_token_t;
-      static void deserialize_buffer_am( gasnet_token_t token, void * buf, size_t size ) {
-	deserialize_buffer( static_cast< char * >( buf ), size );
-      }
-      static int deserialize_buffer_handle_ = -1;
     };
     
     /// @}

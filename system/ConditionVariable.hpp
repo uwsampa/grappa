@@ -6,7 +6,7 @@
 
 namespace Grappa {
   
-  struct Worker;
+  typedef Thread Worker;
 
   /// @addtogroup Synchronization
   /// @{
@@ -20,7 +20,7 @@ namespace Grappa {
     { }
 
     inline void wait() {
-      CURRENT_THREAD->next = waiters;
+      CURRENT_THREAD->next = waiters_;
       waiters_ = CURRENT_THREAD;
       global_scheduler.thread_suspend();
     }
