@@ -1,0 +1,19 @@
+# HugePages_Total:    4096
+
+
+./ft 20 true -procs 32768 2>&1 | tee -a log.ft.32768
+./ft 20 true -procs 16384 2>&1 | tee -a log.ft.16384
+./ft 19 true -procs 8192  2>&1 | tee -a log.ft.08192
+./ft 19 true -procs 4096  2>&1 | tee -a log.ft.04096
+./ft 18 true -procs 2048  2>&1 | tee -a log.ft.02048
+./ft 18 true -procs 1024  2>&1 | tee -a log.ft.01024
+./ft 17 true -procs 512   2>&1 | tee -a log.ft.00512
+./ft 17 true -procs 256   2>&1 | tee -a log.ft.00256
+./ft 16 true -procs 128   2>&1 | tee -a log.ft.00128
+./ft 16 true -procs 64    2>&1 | tee -a log.ft.00064
+./ft 15 true -procs 32    2>&1 | tee -a log.ft.00032
+./ft 15 true -procs 16    2>&1 | tee -a log.ft.00016
+./ft 14 true -procs 8     2>&1 | tee -a log.ft.00008
+./ft 14 true -procs 4     2>&1 | tee -a log.ft.00004
+./ft 13 true -procs 2     2>&1 | tee -a log.ft.00002
+./ft 13 true -procs 1     2>&1 | tee -a log.ft.00001
