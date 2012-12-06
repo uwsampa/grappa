@@ -16,8 +16,9 @@ BOOST_AUTO_TEST_SUITE( RDMAAggregator_tests );
 void user_main( void * args ) 
 {
   auto m = Grappa::scopedMessage( 0, []{ std::cout << "Test message" << std::endl; } );
-  global_rdma_aggregator.enqueue( &m );
-  global_rdma_aggregator.flush( 0 );
+
+  Grappa::impl::global_rdma_aggregator.enqueue( &m );
+  Grappa::impl::global_rdma_aggregator.flush( 0 );
 }
 
 BOOST_AUTO_TEST_CASE( test1 ) {
@@ -26,6 +27,7 @@ BOOST_AUTO_TEST_CASE( test1 ) {
 	       &(boost::unit_test::framework::master_test_suite().argv),
 	       (1L << 20) );
 
+  Grappa::impl::global_rdma_aggregator.init();
   Grappa_activate();
 
   Grappa_run_user_main( &user_main, (void*)NULL );
