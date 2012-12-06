@@ -163,10 +163,10 @@ SHMMAX?=12884901888
 # defaults are for sampa cluster
 
 # include this first to override system default if necessary
-BOOST?=/sampa/share/boost_1_51_0
-CFLAGS+= -I$(BOOST)/include
-LDFLAGS+= -L$(BOOST)/lib64 -L$(BOOST)/lib
-LD_LIBRARY_PATH:=$(LD_LIBRARY_PATH):$(BOOST)/lib
+BOOST?=/sampa/share/gcc-4.7.2/src/boost_1_51_0
+CFLAGS+= -I$(BOOST)/boost
+LDFLAGS+= -L$(BOOST)/stage/lib
+LD_LIBRARY_PATH:=$(LD_LIBRARY_PATH):$(BOOST)/stage/lib
 
 ifdef GASNET_TRACING
 GASNET:=/sampa/share/gasnet-1.18.2-tracing
