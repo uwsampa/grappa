@@ -21,7 +21,7 @@ endif
 # common across machines
 #
 COMMON=../common
-CFLAGS+= -I$(COMMON)
+CFLAGS+= -I$(COMMON) -std=c++0x
 
 
 CC=gcc
