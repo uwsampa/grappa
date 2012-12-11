@@ -2,7 +2,7 @@
 \usepackage{microtype}
 \begin{document}
 
-\title{Pomace: a Solid-State Grappa}
+\title{Pomace: a Grappa for Non-Volatile Memory}
 \authorinfo{Jacob Nelson$^{\dagger}$,
   Brandon Holt$^{\dagger}$,
   Brandon Myers$^{\dagger}$,
@@ -15,19 +15,15 @@
 
 
 \maketitle
-%\begin{abstract}
-%\input{abstract}
-%\end{abstract}
-
-We would like to present our software system Grappa, designed to scale
-up emerging irregular applications such as graph analytics on
-commodity clusters, and ask this community: What would be required to
-adapt Grappa to exploit SSD, and how would doing so benefit this
-application space?
+\begin{abstract}
+We revisit Grappa, our software platform that scales in-memory irregular
+applications on commodity clusters.
+We contemplate options for adapting Grappa to use non-volatile memory technologies.
+\end{abstract}
 
 \section{What is Grappa?}
 Grappa is a latency tolerant runtime system for off-the-shelf clusters
-that targets irregular applications, such as graph analytics.  These
+that targets in-memory irregular applications, such as interactive graph analytics.  These
 applications are notoriously difficult to scale-up due to
 data-dependent execution and memory access behaviors. The resulting
 irregularity in computational demands hinders efforts to balance load
@@ -35,32 +31,52 @@ and to maintain spatial and temporal locality.  Resulting
 inefficiencies are exacerbated at scale, as wasted energy rises with
 the number of idling nodes, undersized network packets, and cache
 misses.  Consequently, few irregular applications today make good use
-of high-performance computers.  Those that do use complex, application
-specific techniques to overlap computation with communication and were
-developed by expert programmers who are in short supply.
+of high-performance computers.  Those that do, use complex, application-specific techniques to overlap computation with communication and are
+developed by expert programmers, who are in short supply.
 
-Yet there is increasing demand for irregular applications.  Evidence
+Yet, there is increasing demand for irregular applications. Evidence
 is the growing number of publications, conferences, and companies
 focused on graph benchmarks, semantic databases, machine learning, and
-“big data” discovery.
+“big data” discovery. Grappa aims to mitigate the inefficiencies plaguing development and execution of these important applications. The system (Figure~\ref{fig:grappa}) has three main software components:
 
-Grappa aims to mitigate the inefficiencies plaguing development and
-execution of these important applications.  Grappa facilitates
+\begin{figure}[t]
+\begin{center}
+  \includegraphics[width=0.95\columnwidth]{../asplos13/figs/system-overview}
+\begin{minipage}{0.95\columnwidth}
+  \caption{\label{fig:grappa} Grappa system overview}
+\end{minipage}
+\vspace{-3ex}
+\end{center}
+\end{figure}
+
+
+\begin{description}
+
+\item [Tasking system.] Our tasking system supports lightweight
+multithreading to tolerate communication latency and global distributed
+workstealing (i.e., tasks can be stolen from any node in the system), which
+provides automated load balancing.  Grappa thus tolerates many
+microseconds of latency by multiplexing thousands of tasks per x86 core.
+
+\item[Distributed shared memory.] Our DSM system provides support for
+fine-grain access to data anywhere in the system. It supports synchronization
+operations on global data, explicit local caching of any memory in the system,
+and support for operations on remote data (delegating operations to home node).
+By tight integration with the tasking system and the
+communication layer, our DSM system offers high aggregate random
+access bandwidth to remote data.
+
+\item[Communication layer.] Modern commodity networks
+support high bandwidth only for large messages and irregular applications
+frequently issue small requests.   Our communication layer aggregates these small requests into larger messages to better exploit network bandwidth, targeting 100 million remote references per second per node.  Aggregation is largely invisible to the application programmer.
+
+% software developer but helps to improve network performance when applications read and write only small pieces of data.
+
+\end{description}
+
+Grappa thus facilitates
 expression of fine-grained task parallelism at the application
-programming level.  Programmers attend only to expressing the
-parallelism in their program, not to scheduling it.  At execution
-time, Grappa’s task scheduler dynamically maps these tasks to x86
-processor cores using work stealing heuristics similar to those
-described in the literature.  What distinguishes Grappa from other
-such runtime systems is that tasks implicitly yield at every long
-latency operation, resulting in a context switch to another task.  In
-this way, processors remain well-utilized even in the presence of
-frequent references to remote memory.  Grappa thus tolerates many
-microseconds of latency by multiplexing thousands of tasks per core.
-In addition, Grappa aggregates references into packets destined for
-common remote node locations.  In this way, Grappa’s design provides
-for up to approximately 100 million remote references per second per
-node using today’s commodity network hardware.  While similar latency
+programming level, employing that concurrency as needed to sustain throughput in the presence of long latency operations and to better utilize commodity networks.  Programmers attend only to expressing the parallelism in their program, not to scheduling it.  While similar latency
 tolerance and aggregation techniques can be manually coded into some
 applications, Grappa relieves the programmer of this burden.  In
 addition, Grappa provides an API for reader-writer semantics for the
@@ -71,7 +87,7 @@ these features, we have demonstrated performance on commodity systems
 for highly irregular applications approaching that of the Cray XMT, a
 fully custom system.
 
-\subsection{What is the potential we imagine?}
+\subsection{What's the problem?}
 
 While Grappa’s current design scales to the limit of available network
 bandwidth, it does so only for applications whose working set resides
@@ -81,8 +97,8 @@ for and recover from faults.
 
 Emerging non-volatile memory technologies offer hope for an
 alternative.  We imagine placing the entire data set on SSD or PCM and
-either using Grappa directly to tolerate the latency much in the same
-way as it is used now to tolerate network latency or to stage blocks
+either using Grappa directly to tolerate the latency, much in the same
+way as it is used now to tolerate network latency, or to stage blocks
 of data into RAM, using Grappa to tolerate the latency incurred by the
 transfers.  We imagine the energy per available byte being much lower.
 We imagine recovery from faults with most of the data residing in
@@ -94,7 +110,7 @@ irregular application space, structuring the data on secondary storage
 to support filling RAM with multiple interrelated subblocks sufficient
 for each of a series of phases of computation.  Such approaches are
 algorithmically efficient only when each successive phase requires
-access to the entire data set.  MAGT addresses this limitation
+access to the entire data set.  MAGT addresses this limitation by
 introducing support for asynchronous computation on graphs under the
 assumption that RAM is sized to accommodate data structures
 proportional to vertex-count, still leaving edges on non-volatile
@@ -186,8 +202,7 @@ second. This could be satisfied with only 20 20$\mu$s Flash chips.
 
 There are two problems with this design. First, while each node
 requires fewer chips, the overall cluster performance goal, and thus
-chip requirement, is the same. Second, 
-
+chip requirement, is the same. Second, low single-threaded performance is detrimental to performance during periods of diminished application concurrency.
 
 \paragraph{Buffering requests to increase locality.}
 Grappa trades latency for better throughput by aggregating network
