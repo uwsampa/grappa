@@ -104,13 +104,13 @@ transfers.  We imagine the energy per available byte being much lower.
 We imagine recovery from faults with most of the data residing in
 non-volatile memory being faster.
 
-Prior work only partially explores this potentiality. GraphChi
+Prior work only partially explores this potentiality. GraphChi~\cite{graphchi:osdi12}
 represents a class of approaches that use windowing methods in the
 irregular application space, structuring the data on secondary storage
 to support filling RAM with multiple interrelated subblocks sufficient
 for each of a series of phases of computation.  Such approaches are
 algorithmically efficient only when each successive phase requires
-access to the entire data set.  MAGT addresses this limitation by
+access to the entire data set.  MAGT~\cite{magt:2010} addresses this limitation by
 introducing support for asynchronous computation on graphs under the
 assumption that RAM is sized to accommodate data structures
 proportional to vertex-count, still leaving edges on non-volatile
@@ -220,7 +220,7 @@ density to each block to get a benefit. As datasets scale up, the
 request density may decrease and the benefit of this technique may
 decrease.
 
-v\subsubsection{Using future memory technologies}
+\subsubsection{Using future memory technologies}
 
 While Grappa's goal so far has been to leverage commodity hardware, it
 is worth exploring the potential benefit of emerging non-volatile
