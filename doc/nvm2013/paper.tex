@@ -89,7 +89,7 @@ fully custom system.
 
 \subsection{What's the problem?}
 
-While Grappa’s current design scales to the limit of available network
+While Grappa's current design scales to the limit of available network
 bandwidth, it does so only for applications whose working set resides
 in RAM.  Unfortunately, provisioning systems with petabytes of RAM is
 costly, energy inefficient, and likely to increase the time to prepare
@@ -132,7 +132,7 @@ Grappa would initiate the request and context-switch to other work
 until the request had completed.
 
 \subsection{Challenges in using commodity SSDs}
-Grappa’s goal is to provide good irregular application performance on
+Grappa's goal is to provide good irregular application performance on
 commodity hardware. Unfortunately, commodity non-volatile memories are
 difficult to use in this way for three reasons:
 
@@ -220,7 +220,7 @@ density to each block to get a benefit. As datasets scale up, the
 request density may decrease and the benefit of this technique may
 decrease.
 
-\subsubsection{Using future memory technologies}
+v\subsubsection{Using future memory technologies}
 
 While Grappa's goal so far has been to leverage commodity hardware, it
 is worth exploring the potential benefit of emerging non-volatile
@@ -268,7 +268,7 @@ growing importance.  Grappa promises to address this need on mass
 market clusters.  Addition of non-volatile storage is a natural
 extension of such systems.  We ask, what would developing a Pomace for
 Grappa -- a Grappa system exploiting non-volatile memory -- entail and
-what capability and efficiency improvements might it bring to Grappa’s
+what capability and efficiency improvements might it bring to Grappa's
 application space.  Answering this question is an opportunity for
 collaboration between our group and the NVMW community.
 
