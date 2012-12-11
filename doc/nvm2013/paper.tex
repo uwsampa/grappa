@@ -140,18 +140,16 @@ difficult to use in this way for three reasons:
 less than 64 bytes. Today's SSDs are optimized for reads in the
 kilobyte range.  
 
-\paragraph{SSDs have a low request rate.} The fastest (cite) can
+\paragraph{SSDs have a low request rate.} The fastest~\cite{fusionio} can
 perform on the order of 1 million random reads per second, and many
 are limited to less than 100K/s. In contrast, cores may be idle in
 Grappa if each node cannot make 100 million random reads per second of
-the global heap. Even the individual flash chips are slow: 50K/s (cite
-micron).  
+the global heap. Even the individual flash chips are slow, on the order of 40K/s~\cite{micronFlash}.
 
 \paragraph{SSDs have high overhead.} Commodity SSDs are usually treated
 as normal disks---accesses must occur through the kernel, incurring a
 high context switch overhead. Grappa depends on user-mode access to
-the network layer. This capability has been explored in NVM research
-(cite Moneta).  
+the network layer. This capability has been explored in NVM research~\cite{caulfield:2012}.
 
 \subsection{Exploring the design space}
 
@@ -200,7 +198,7 @@ could be scaled down to match the flash request rate. A low-power
 processor with few cores might generate only 1 million references per
 second. This could be satisfied with only 20 20$\mu$s Flash chips.
 
-There are two problems with this design. First, while each node
+There are two problems with this design for our purpose. First, while each node
 requires fewer chips, the overall cluster performance goal, and thus
 chip requirement, is the same. Second, low single-threaded performance is detrimental to performance during periods of diminished application concurrency.
 
@@ -215,7 +213,7 @@ or when requests timed out, the requests would be issued to the Flash
 layer.
 
 While similar techniques have provided benefit in prior work in
-restricted situations (cite), they depend on a sufficient request
+restricted situations~\cite{magt:2010,graphchi:osdi2012}, they depend on a sufficient request
 density to each block to get a benefit. As datasets scale up, the
 request density may decrease and the benefit of this technique may
 decrease.
@@ -233,14 +231,14 @@ Much recent research has explored the use of PCM as a main memory
 replacement. Grappa would easily be able to take advantage of such a
 development. When a Grappa program references a low-locality program,
 a prefetch request is issued for that data a few cycles before the
-thread is context-switched in\cite{Nelson:hotpar2011}. A PCM-based
+thread is context-switched in~\cite{Nelson:hotpar2011}. A PCM-based
 Grappa would do the same, but would issue the prefetches earlier to
 cover the longer latency of PCM.
 
 \paragraph{PCM as attached storage}
 
 Grappa could also support a PCM array in a separate address space (for
-instance, on the PCIe bus). PCM chips available today (cite) support a
+instance, on the PCIe bus). PCM chips available today~\cite{micronPCM} support a
 64-bit read in 200 ns; this means that 20 chips acting independently
 would be sufficient to reach our target request rate.
 
@@ -254,8 +252,8 @@ amount have completed, the PCM array would write the results to DRAM,
 and one core would deliver the results to the requesting threads,
 waking them.
 
-An ideal array would support limited atomic operations on 64-bit
-words, including increment and compare-and-swap.
+%An ideal array would support limited atomic operations on 64-bit
+%words, including increment and compare-and-swap.
 
 This system could be built today, with the only downside being
 density---currently available PCM chips are significantly less dense
