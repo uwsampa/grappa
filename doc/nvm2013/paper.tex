@@ -123,7 +123,7 @@ is to store the global heap in nonvolatile memory, since the heap
 usually contains data that is infrequently modified. All accesses to
 this shared heap in Grappa programs are done through an API. If the
 access is to local memory, Grappa issues a prefetch for the address
-and context-switches to other work while the prefetch is executing. If
+and context-switches to other work while the prefetch is executing~\cite{Nelson:hotpar2011}. If
 the access is to memory stored on another node, Grappa issues a
 message to that node requesting the data and context-switches to other
 work until the reply arrives. Non-volatile memory would be accessed in
@@ -149,7 +149,7 @@ the global heap. Even the individual flash chips are slow, on the order of 40K/s
 \paragraph{SSDs have high overhead.} Commodity SSDs are usually treated
 as normal disks---accesses must occur through the kernel, incurring a
 high context switch overhead. Grappa depends on user-mode access to
-the network layer. This capability has been explored in NVM research~\cite{caulfield:2012}.
+the network layer. This capability has been explored in recent research~\cite{caulfield:2012}.
 
 \subsection{Exploring the design space}
 
@@ -162,7 +162,7 @@ tradeoffs, which we briefly discuss.
 For simplicity, we omit discussion of write and erase operations. We
 assume a non-volatile Grappa would store frequently-written temporary
 data in DRAM and would use its standard latency-tolerance techniques
-to cover the cost of infrequent NVM writes.
+to cover the cost of infrequent writes.
 
 \subsubsection{Tolerating Flash-based SSD latency} 
 A natural first step would be to add one or more SSDs to each Grappa
@@ -213,7 +213,7 @@ or when requests timed out, the requests would be issued to the Flash
 layer.
 
 While similar techniques have provided benefit in prior work in
-restricted situations~\cite{magt:2010,graphchi:osdi2012}, they depend on a sufficient request
+restricted situations~\cite{magt:2010,graphchi:osdi12}, they depend on a sufficient request
 density to each block to get a benefit. As datasets scale up, the
 request density may decrease and the benefit of this technique may
 decrease.
@@ -231,7 +231,7 @@ Much recent research has explored the use of PCM as a main memory
 replacement. Grappa would easily be able to take advantage of such a
 development. When a Grappa program references a low-locality program,
 a prefetch request is issued for that data a few cycles before the
-thread is context-switched in~\cite{Nelson:hotpar2011}. A PCM-based
+thread is context-switched in. A PCM-based
 Grappa would do the same, but would issue the prefetches earlier to
 cover the longer latency of PCM.
 
