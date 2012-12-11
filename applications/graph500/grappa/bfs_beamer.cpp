@@ -10,6 +10,7 @@
 #include <AsyncParallelFor.hpp>
 #include <PushBuffer.hpp>
 #include <Collective.hpp>
+#include <Array.hpp>
 
 //#include <boost/hash.hpp>
 //#include <boost/unordered_set.hpp>

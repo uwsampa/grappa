@@ -29,6 +29,7 @@
 #include <Collective.hpp>
 #include <Delegate.hpp>
 #include <FileIO.hpp>
+#include <Array.hpp>
 
 #include "npb_intsort.h"
 
@@ -93,16 +94,24 @@ struct bucket_t {
 ////////////
 // Globals
 ////////////
+
+// global const for one sort
 int scale;
 int log2buckets;
 int log2maxkey;
 size_t nelems;
 size_t nbuckets;
-uint64_t maxkey;
+
+// local version on each node, which then gets local copy of global state
 std::vector<size_t> counts;
 std::vector<size_t> offsets;
+
+// globally distributed
 GlobalAddress<bucket_t> bucketlist;
 GlobalAddress<uint64_t> array;
+
+// not for sort itself
+uint64_t maxkey;
 bool read_from_disk;
 bool generate;
 bool write_to_disk;

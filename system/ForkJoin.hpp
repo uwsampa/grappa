@@ -354,105 +354,6 @@ inline void operator()(int64_t) const; \
 }; \
 inline void name::operator()(int64_t index_var) const
 
-struct ConstReplyArgs {
-  int64_t replies_left;
-  Thread * sleeper;
-};
-
-template< typename T >
-struct ConstRequestArgs {
-  GlobalAddress<T> addr;
-  size_t count;
-  T value;
-  GlobalAddress<ConstReplyArgs> reply;
-};
-
-static void memset_reply_am(GlobalAddress<ConstReplyArgs> * reply, size_t sz, void * payload, size_t psz) {
-  CHECK(reply->node() == Grappa_mynode());
-  ConstReplyArgs * r = reply->pointer();
-  (r->replies_left)--;
-  if (r->replies_left == 0) {
-    Grappa_wake(r->sleeper);
-  }
-}
-
-template< typename T >
-static void memset_request_am(ConstRequestArgs<T> * args, size_t sz, void* payload, size_t psz) {
-  CHECK(args->addr.node() == Grappa_mynode()) << "args->addr.node() = " << args->addr.node();
-  T * ptr = args->addr.pointer();
-  for (size_t i=0; i<args->count; i++) {
-    ptr[i] = args->value;
-  }
-  Grappa_call_on(args->reply.node(), &memset_reply_am, &args->reply);
-}
-
-/// Initialize an array of elements of generic type with a given value.
-/// 
-/// This version sends a large number of active messages, the same way as the Incoherent
-/// releaser, to set each part of a global array. In theory, this version should be able
-/// to be called from multiple locations at the same time (to initialize different regions of global memory).
-/// 
-/// @param base Base address of the array to be set.
-/// @param value Value to set every element of array to (will be copied to all the nodes)
-/// @param count Number of elements to set, starting at the base address.
-template< typename T , typename S >
-static void Grappa_memset(GlobalAddress<T> request_address, S value, size_t count) {
-  size_t offset = 0;
-  size_t request_bytes = 0;
-  
-  ConstReplyArgs reply;
-  reply.replies_left = 0;
-  reply.sleeper = CURRENT_THREAD;
-  
-  ConstRequestArgs<T> args;
-  args.addr = request_address;
-  args.value = (T)value;
-  args.reply = make_global(&reply);
-  
-  for (size_t total_bytes = count*sizeof(T); offset < total_bytes; offset += request_bytes) {
-    // compute number of bytes remaining in the block containing args.addr
-    request_bytes = (args.addr.first_byte().block_max() - args.addr.first_byte());
-    if (request_bytes > total_bytes - offset) {
-      request_bytes = total_bytes - offset;
-    }
-    CHECK(request_bytes % sizeof(T) == 0);
-    args.count = request_bytes / sizeof(T);
-    
-    reply.replies_left++;
-    Grappa_call_on(args.addr.node(), &memset_request_am, &args);
-    
-    args.addr += args.count;
-  }
-  
-  while (reply.replies_left > 0) Grappa_suspend();
-}
-
-LOOP_FUNCTOR_TEMPLATED(T, memset_func, nid, ((GlobalAddress<T>,base)) ((T,value)) ((size_t,count))) {
-  T * local_base = base.localize(), * local_end = (base+count).localize();
-  for (size_t i=0; i<local_end-local_base; i++) {
-    local_base[i] = value;
-  }
-}
-
-/// Does memset across a global array using a single task on each node and doing local assignments
-/// Uses 'GlobalAddress::localize()' to determine the range of actual memory from the global array
-/// on a particular node.
-/// 
-/// Must be called by itself (preferably from the user_main task) because it contains a call to
-/// fork_join_custom().
-///
-/// @see Grappa_memset()
-///
-/// @param base Base address of the array to be set.
-/// @param value Value to set every element of array to (will be copied to all the nodes)
-/// @param count Number of elements to set, starting at the base address.
-template< typename T, typename S >
-void Grappa_memset_local(GlobalAddress<T> base, S value, size_t count) {
-  {
-    memset_func<T> f(base, (T)value, count);
-    fork_join_custom(&f);
-  }
-}
 
 #include "AsyncParallelFor.hpp"
 #include "GlobalTaskJoiner.hpp"
@@ -651,13 +552,16 @@ void forall_local_async_task(GlobalAddress<T> base, size_t nelems, GlobalAddress
   global_joiner.remoteSignalNode(spawner);
 }
 
+LOOP_FUNCTION(func_global_barrier, nid) {
+  global_joiner.wait();
+}
+
 /// Asyncronously spawn remote tasks on nodes that *may contain elements*.
 /// @param extra GlobalAddress of an extra argument that will be cached by each remote task.
 ///              *Must be an address **on the current node** because it uses this address to
 ///              know where it was spawned from(where to send global_joiner signal back to).*
-template< typename T, typename P, void F(int64_t,T*,const P&), int64_t Threshold >
+template< typename T, typename P, void F(int64_t,T*,const P&), int64_t Threshold, bool Blocking >
 void forall_local_async(GlobalAddress<T> base, size_t nelems, GlobalAddress<P> extra) {
-  // FIXME: currently sends tasks to all nodes
   STATIC_ASSERT_SIZE_8(T);
 
   Node nnode = Grappa_nodes();
@@ -688,33 +592,36 @@ void forall_local_async(GlobalAddress<T> base, size_t nelems, GlobalAddress<P> e
     }
   }
 
-  //int64_t nn = block_size / nbytes
-             //+ ((base.pointer() - base.localize(base.node())) ? 1 : 0) 
-             //+ (( end.pointer() -  end.localize( end.node())) ? 1 : 0);
-  //nn = MIN( nnode, nn );
-
-  //int64_t nn = MIN( nnode, block_size / nbytes + 2 );
-
-  //int64_t nn = (int64_t)ceil( (double)block_size / (nelems*sizeof(T)) );
-  //nn = MIN( nn, nnode);
   Node start_node = base.node();
 
-  //GlobalAddress<P> packed = make_global((void*)extra);
-
-  //VLOG(1) << "nelems = " << nelems << ", fnodes = " << fnodes << ", start_extra: " << nfirstnode << ", end_extra: " << end.localize(end.node()) - end.block_min().pointer() << ", base.localize: " << base.localize(base.node()) << ", base.block_max: " << base.block_max().pointer();
   for (Node i=0; i<fnodes; i++) {
-  //for (Node i=0; i<nnode; i++) {
     global_joiner.registerTask();
     Grappa_remote_privateTask(forall_local_async_task<T,P,F,Threshold>, base, nelems, extra,
         (start_node+i)%nnode);
-        //i);
   }
+  if (Blocking) { func_global_barrier f; fork_join_custom(&f); }
 }
+
+/// Duplicate for lack of default template arg.
+template< typename T, typename P, void F(int64_t,T*,const P&), int64_t Threshold >
+void forall_local_async(GlobalAddress<T> base, size_t nelems, GlobalAddress<P> extra) {
+  forall_local_async<T,P,F,Threshold,false>(base, nelems, extra);
+}
+
 /// Duplicate for lack of default template arg.
 template< typename T, typename P, void F(int64_t,T*,const P&) >
 void forall_local_async(GlobalAddress<T> base, size_t nelems, GlobalAddress<P> extra) {
   forall_local_async<T,P,F,ASYNC_PAR_FOR_DEFAULT>(base, nelems, extra);
 }
 
+
+template< typename T, typename P, void F(int64_t,T*,const P&),int64_t Threshold>
+void forall_local_blocking(GlobalAddress<T> base, size_t nelems, GlobalAddress<P> extra) {
+  forall_local_async<T,P,F,Threshold,true>(base, nelems, extra);
+}
+template< typename T, typename P, void F(int64_t,T*,const P&)>
+void forall_local_blocking(GlobalAddress<T> base, size_t nelems, GlobalAddress<P> extra) {
+  forall_local_blocking<T,P,F,ASYNC_PAR_FOR_DEFAULT>(base, nelems, extra);
+}
 #endif /* define __FORK_JOIN_HPP__ */
 
