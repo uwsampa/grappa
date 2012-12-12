@@ -127,7 +127,7 @@ Grappa provides a global view of memory on multinode systems.
 The natural point of integration for non-volatile memories in Grappa
 is to store the global heap in nonvolatile memory, since the heap
 usually contains data that is infrequently modified. All accesses to
-this shared heap in Grappa programs are done through an \textls*{\small API}\@. If the
+this shared heap in Grappa programs are done through an \textls*{\small API}, so this change could be made transparent to the programmer. If the
 access is to local memory, Grappa issues a prefetch for the address
 and context switches to other work while the prefetch is executing~\cite{Nelson:hotpar2011}. If
 the access is to memory stored on another node, Grappa issues a
@@ -195,10 +195,10 @@ high-bandwidth bus, a Grappa \textls*{\small SSD} would try to maximize parallel
 putting each chip on its own bus. Serial Flash might be used to
 minimize pin count requirements, at the cost of some additional
 latency. This design could scale to request rates, but the challenge
-would be chip count: To support 100M reads/second, an array of
+would be chip count: to support 100M reads per second, an array of
 20$\mu$s flash would require 2000 chips. This is possible, but expensive.
 
-\paragraph{Scaling down the processors}
+\paragraph{Scaling down the processors.}
 Alternatively, rather than scaling up the flash array, processors
 could be scaled down to match the flash request rate. A low-power
 processor with few cores might generate only 1 million references per
@@ -213,16 +213,23 @@ Grappa trades latency for better throughput by aggregating network
 communications for better utilization and by migrating synchronization
 operations for reduced contention. The same idea could be applied to
 increase locality and amortize the cost of Flash accesses. Requests
-to common flash blocks would be bucketed by flash block address for a
-limited time. When a sufficient number of requests arrived for a block
-or when requests timed out, the requests would be issued to the Flash
-layer.
+to common flash pages would be bucketed by flash page address for a
+limited time. When a sufficient number of requests have arrived for a page
+or when the requests time out, a single page request would be issued to the Flash
+layer; its result would be used to satisfy the individual requests.
 
-While similar techniques have provided benefit in prior work in
-restricted situations~\cite{magt:2010,graphchi:osdi12}, they depend on a sufficient request
-density to each block to get a benefit. As datasets scale up, the
-request density may decrease and the benefit of this technique may
-decrease.
+While similar techniques have provided benefit for traversal-oriented applications in
+restricted situations~\cite{magt:2010}, they depend on a sufficient request
+density to each flash page to get a benefit. As datasets scale up, this
+density may decrease, limiting the benefit of this technique.
+
+For iterative applications where the entire graph is regularily
+visited, an windowed approach similar to~\cite{graphchi:osdi12} may
+provide more benefit. In this approach, graph data is constantly
+streamed between SSD and DRAM. Requests wait to execute until the
+relevant fragment of the graph is in memory. Request density is not a
+concern for these applications; instead, bandwidth between the SSD and
+DRAM is the limiting factor.
 
 \subsubsection{Using future memory technologies}
 
@@ -235,7 +242,7 @@ second, \textls*{\small PCM} supports finer-grained accesses.
 \paragraph{\textls*{\small PCM} as Main Memory}
 Much recent research has explored the use of \textls*{\small PCM} as a main memory
 replacement. Grappa would easily be able to take advantage of such a
-development. When a Grappa program references a low-locality program,
+development. When a Grappa program references low-locality data,
 a prefetch request is issued for that data a few cycles before the
 thread is context switched in. A \textls*{\small PCM}-based
 Grappa would do the same, but would issue the prefetches earlier to
@@ -262,7 +269,7 @@ waking them.
 %words, including increment and compare-and-swap.
 
 This system could be built today, with the only downside being
-density---currently available \textls*{\small PCM} chips are significantly less dense
+density: currently available \textls*{\small PCM} chips are significantly less dense
 than Flash or even \textls*{\small DRAM}\@. \textls*{\small PCM}'s technology scaling curve suggests that
 this will be an ideal solution in the future.
 
