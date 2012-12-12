@@ -136,25 +136,25 @@ the same way: If a request is to memory stored in non-volatile memory,
 Grappa would initiate the request and context switch to other work
 until the request had completed.
 
-\subsection{Challenges in using commodity \textls*{\small SSD}s}
+\subsection{Challenges in using commodity \textls*{\small SSD}\hspace{0.5pt}s}
 Grappa's goal is to provide good irregular application performance on
 commodity hardware. Unfortunately, commodity non-volatile memories are
 difficult to use in this way for three reasons:
 
-\paragraph{\textls*{\small SSD}s assume locality.} In our benchmarks, we find the average request size to be
-%\noindent{\bf \textls*{\small SSD}s assume locality.} In our benchmarks, we find the average request size to be
-less than 64 bytes. Today's \textls*{\small SSD}s are optimized for reads in the
+%\paragraph{\textls*{\small SSD}\hspace{0.5pt}s assume locality.} In our benchmarks, we find the average request size to be
+\noindent{\bf \textls*{\small SSD}\hspace{0.5pt}s assume locality.} In our benchmarks, we find the average request size to be
+less than 64 bytes. Today's \textls*{\small SSD}\hspace{0.5pt}s are optimized for reads in the
 kilobyte range.  
 
-\paragraph{\textls*{\small SSD}s have a low request rate.} The fastest~\cite{fusionio} can
-%\noindent{\bf \textls*{\small SSD}s have a low request rate.} The fastest~\cite{fusionio} can
+%\paragraph{\textls*{\small SSD}\hspace{0.5pt}s have a low request rate.} The fastest~\cite{fusionio} can
+\noindent{\bf \textls*{\small SSD}\hspace{0.5pt}s have a low request rate.} The fastest~\cite{fusionio} can
 perform on the order of 1 million random reads per second, and many
 are limited to less than 100K/s. In contrast, cores may be idle in
 Grappa if each node cannot make 100 million random reads per second of
 the global heap. Even the individual flash chips are slow, on the order of 40K/s~\cite{micronFlash}.
 
-\paragraph{\textls*{\small SSD}s have high overhead.} Commodity \textls*{\small SSD}s are usually treated
-%\noindent{\bf \textls*{\small SSD}s have high overhead.} Commodity \textls*{\small SSD}s are usually treated
+%\paragraph{\textls*{\small SSD}\hspace{0.5pt}s have high overhead.} Commodity \textls*{\small SSD}\hspace{0.5pt}s are usually treated
+\noindent{\bf \textls*{\small SSD}\hspace{0.5pt}s have high overhead.} Commodity \textls*{\small SSD}\hspace{0.5pt}s are usually treated
 as normal disks: accesses must occur through the kernel, incurring a
 high context-switch overhead. Grappa depends on user-mode access to
 the network layer. This capability has been explored in recent research~\cite{caulfield:2012}.
@@ -173,25 +173,25 @@ data in \textls*{\small DRAM} and would use its standard latency-tolerance techn
 to cover the cost of infrequent writes.
 
 \subsubsection{Tolerating Flash-based \textls*{\small SSD} latency} 
-A natural first step would be to add one or more \textls*{\small SSD}s to each Grappa
+A natural first step would be to add one or more \textls*{\small SSD}\hspace{0.5pt}s to each Grappa
 cluster node, and use Grappa's global memory \textls*{\small API} to expose concurrent
 accesses and context switch to tolerate the latency of \textls*{\small SSD}
 access. Unfortunately this is unlikely to work well, for two
 reasons. First, the \textls*{\small SSD} must accept requests at a rate sufficient to
 keep the cores busy. Grappa's target is for each cluster node to
-generate 100 million random 8-byte requests per second, but most \textls*{\small SSD}s
+generate 100 million random 8-byte requests per second, but most \textls*{\small SSD}\hspace{0.5pt}s
 can accept requests at a rate two to four orders of magnitude slower.
 Second, the \textls*{\small SSD} must be able to support many requests operating in
 parallel. Little's Law suggests that if requests take 20 $\mu$s for
 the \textls*{\small SSD} to service, and if the node generates requests at a rate of
-100 million per second, the \textls*{\small SSD}s must support 2000 concurrent
-requests. Again, existing \textls*{\small SSD}s support orders of magnitude less request concurrency.
+100 million per second, the \textls*{\small SSD}\hspace{0.5pt}s must support 2000 concurrent
+requests. Again, existing \textls*{\small SSD}\hspace{0.5pt}s support orders of magnitude less request concurrency.
 
 We see three ways to address this disparity.
 
-\paragraph{Scaling up the Flash array.}
-%\noindent{\bf Scaling up the Flash array.}
-Existing Flash-based \textls*{\small SSD}s are designed for large block requests. An
+%\paragraph{Scaling up the Flash array}
+\noindent{\bf Scaling up the Flash array}
+Existing Flash-based \textls*{\small SSD}\hspace{0.5pt}s are designed for large block requests. An
 \textls*{\small SSD} for Grappa could be designed to support high concurrency, small
 requests. Where a traditional \textls*{\small SSD} might put multiple Flash chips on
 the same bus, or use Flash chips in parallel to build a wider,
