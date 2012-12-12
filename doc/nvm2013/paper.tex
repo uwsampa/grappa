@@ -101,14 +101,12 @@ in \textls*{\small RAM}\@.  Unfortunately, provisioning systems with petabytes o
 costly, energy inefficient, and likely to increase the time to prepare
 for and recover from faults.
 
-Emerging non-volatile memory technologies offer hope for an
-alternative.  We imagine placing the entire data set on \textls*{\small SSD} or \textls*{\small PCM} and
-either using Grappa directly to tolerate the latency, much in the same
-way as it is used now to tolerate network latency, or to stage blocks
-of data into \textls*{\small RAM}, using Grappa to tolerate the latency incurred by the
-transfers.  We imagine the energy per available byte being much lower.
-We imagine recovery from faults with most of the data residing in
-non-volatile memory being faster.
+Emerging non-volatile memory technologies offer an alternative strategy:
+place the entire data set on \textls*{\small SSD} or \textls*{\small PCM};
+use Grappa to tolerate the latency directly, much in the same
+way as it is used now to tolerate network latency, or indirectly when transferring blocks of working-set
+data into \textls*{\small RAM}; save energy per available byte;
+recover from faults faster with most of the data preserved in non-volatile memory.
 
 Prior work only partially explores this potentiality. GraphChi~\cite{graphchi:osdi12}
 represents a class of approaches that use windowing methods in the
