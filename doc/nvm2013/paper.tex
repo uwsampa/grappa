@@ -2,11 +2,12 @@
 \usepackage{microtype}
 \usepackage{placeins}
 \begin{document}
-\addtolength{\topmargin}{-.7in}
+\addtolength{\topmargin}{-.5in}
 \addtolength{\textheight}{.7in}
 \addtolength{\oddsidemargin}{-.25in}
 \addtolength{\evensidemargin}{-.25in}
 \addtolength{\textwidth}{.5in}
+\addtolength{\topsep}{-3pt}
 \linespread{.94}
 
 \title{Pomace: A Grappa for Non-Volatile Memory \vspace{-.2in}}
@@ -54,7 +55,7 @@ focused on graph benchmarks, semantic databases, machine learning, and
 \begin{minipage}{0.95\columnwidth}
   \caption{\label{fig:grappa} Grappa system overview}
 \end{minipage}
-\vspace{-6ex}
+%\vspace{-6ex}
 \end{center}
 \end{figure}
 
@@ -140,20 +141,20 @@ Grappa's goal is to provide good irregular application performance on
 commodity hardware. Unfortunately, commodity non-volatile memories are
 difficult to use in this way for three reasons:
 
-%\paragraph{\textls*{\small SSD}s assume locality.} In our benchmarks, we find the average request size to be
-\noindent{\bf \textls*{\small SSD}s assume locality.} In our benchmarks, we find the average request size to be
+\paragraph{\textls*{\small SSD}s assume locality.} In our benchmarks, we find the average request size to be
+%\noindent{\bf \textls*{\small SSD}s assume locality.} In our benchmarks, we find the average request size to be
 less than 64 bytes. Today's \textls*{\small SSD}s are optimized for reads in the
 kilobyte range.  
 
-%\paragraph{\textls*{\small SSD}s have a low request rate.} The fastest~\cite{fusionio} can
-\noindent{\bf \textls*{\small SSD}s have a low request rate.} The fastest~\cite{fusionio} can
+\paragraph{\textls*{\small SSD}s have a low request rate.} The fastest~\cite{fusionio} can
+%\noindent{\bf \textls*{\small SSD}s have a low request rate.} The fastest~\cite{fusionio} can
 perform on the order of 1 million random reads per second, and many
 are limited to less than 100K/s. In contrast, cores may be idle in
 Grappa if each node cannot make 100 million random reads per second of
 the global heap. Even the individual flash chips are slow, on the order of 40K/s~\cite{micronFlash}.
 
-%\paragraph{\textls*{\small SSD}s have high overhead.} Commodity \textls*{\small SSD}s are usually treated
-\noindent{\bf \textls*{\small SSD}s have high overhead.} Commodity \textls*{\small SSD}s are usually treated
+\paragraph{\textls*{\small SSD}s have high overhead.} Commodity \textls*{\small SSD}s are usually treated
+%\noindent{\bf \textls*{\small SSD}s have high overhead.} Commodity \textls*{\small SSD}s are usually treated
 as normal disks: accesses must occur through the kernel, incurring a
 high context-switch overhead. Grappa depends on user-mode access to
 the network layer. This capability has been explored in recent research~\cite{caulfield:2012}.
@@ -188,8 +189,8 @@ requests. Again, existing \textls*{\small SSD}s support orders of magnitude less
 
 We see three ways to address this disparity.
 
-%\paragraph{Scaling up the Flash array}
-\noindent{\bf Scaling up the Flash array}
+\paragraph{Scaling up the Flash array.}
+%\noindent{\bf Scaling up the Flash array.}
 Existing Flash-based \textls*{\small SSD}s are designed for large block requests. An
 \textls*{\small SSD} for Grappa could be designed to support high concurrency, small
 requests. Where a traditional \textls*{\small SSD} might put multiple Flash chips on
@@ -201,8 +202,8 @@ latency. This design could scale to request rates, but the challenge
 would be chip count: to support 100M reads per second, an array of
 20$\mu$s flash would require 2000 chips. This is possible, but expensive.
 
-%\paragraph{Scaling down the processors.}
-\noindent{\bf Scaling down the processors.}
+\paragraph{Scaling down the processors.}
+%\noindent{\bf Scaling down the processors.}
 Alternatively, rather than scaling up the flash array, processors
 could be scaled down to match the flash request rate. A low-power
 processor with few cores might generate only 1 million references per
@@ -212,8 +213,8 @@ There are two problems with this design for our purpose. First, while each node
 requires fewer chips, the overall cluster performance goal, and thus
 chip requirement, is the same. Second, low single-threaded performance is detrimental to performance during periods of diminished application concurrency~\cite{feo:xmt}.
 
-%\paragraph{Buffering requests to increase locality.}
-\noindent{\bf Buffering requests to increase locality.}
+\paragraph{Buffering requests to increase locality.}
+%\noindent{\bf Buffering requests to increase locality.}
 Grappa trades latency for better throughput by aggregating network
 communications for better utilization and by migrating synchronization
 operations for reduced contention. The same idea could be applied to
@@ -244,8 +245,8 @@ memory technologies like Phase-Change Memory. The advantages of \textls*{\small 
 are twofold: first, read latency is much closer to that of \textls*{\small DRAM}, and
 second, \textls*{\small PCM} supports finer-grained accesses.
 
-%\paragraph{\textls*{\small PCM} as Main Memory}
-\noindent{\bf \textls*{\small PCM} as Main Memory}
+\paragraph{\textls*{\small PCM} as Main Memory.}
+%\noindent{\bf \textls*{\small PCM} as Main Memory.}
 Much recent research has explored the use of \textls*{\small PCM} as a main memory
 replacement. Grappa would easily be able to take advantage of such a
 development. When a Grappa program references low-locality data,
@@ -254,8 +255,8 @@ thread is context switched in. A \textls*{\small PCM}-based
 Grappa would do the same, but would issue the prefetches earlier to
 cover the longer latency of \textls*{\small PCM}.
 
-%\paragraph{\textls*{\small PCM} as attached storage}
-\noindent{\bf \textls*{\small PCM} as attached storage}
+\paragraph{\textls*{\small PCM} as attached storage.}
+%\noindent{\bf \textls*{\small PCM} as attached storage.}
 Grappa could also support a \textls*{\small PCM} array in a separate address space (for
 instance, on the \textls*{\small PCIe} bus). \textls*{\small PCM} chips available today~\cite{micronPCM} support a
 64-bit read in 200 ns; this means that 20 chips acting independently
