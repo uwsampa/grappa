@@ -64,7 +64,7 @@ focused on graph benchmarks, semantic databases, machine learning, and
 
 \item [Tasking system.] Our tasking system supports lightweight
 multithreading to tolerate communication latency; it also supports global distributed
-workstealing (i.e., tasks can be stolen from any node in the system), which
+work stealing (i.e., tasks can be stolen from any node in the system), which
 provides automated load balancing.  Grappa thus tolerates many
 microseconds of latency by multiplexing thousands of tasks per x86 core.
 
@@ -126,7 +126,7 @@ Grappa provides a global view of memory on multinode systems.
 
 \section{Applying non-volatile memory to Grappa}
 The natural point of integration for non-volatile memories in Grappa
-is to store the global distributed shared heap in nonvolatile memory, since for irregular applications the heap
+is to store the global distributed shared heap in non-volatile memory, since for irregular applications the heap
 often holds data that is infrequently modified. All accesses to
 this shared heap in Grappa programs are done through an \textls*{\small API}, so this change could be made transparent to the programmer. 
 If an 
@@ -230,7 +230,7 @@ restricted situations~\cite{magt:2010}, they depend on a sufficient request
 density to each flash page to get a benefit. As datasets scale up and machines scale out, this
 density may decrease, limiting the benefit of this technique.
 
-For iterative applications where the entire graph is regularily
+For iterative applications where the entire graph is regularly
 visited, an windowed approach similar to~\cite{graphchi:osdi12} may
 provide more benefit. In this approach, graph data is constantly
 streamed between \textls*{\small SSD} and \textls*{\small DRAM}. Requests wait to execute until the
