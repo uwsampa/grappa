@@ -53,9 +53,9 @@ focused on graph benchmarks, semantic databases, machine learning, and
 \begin{center}
   \includegraphics[width=0.95\columnwidth]{../asplos13/figs/system-overview}
 \begin{minipage}{0.95\columnwidth}
-  \caption{\label{fig:grappa} Grappa system overview}
+  \nocaptionrule\caption{\label{fig:grappa} Grappa system overview}
 \end{minipage}
-%\vspace{-6ex}
+\vspace{-5ex}
 \end{center}
 \end{figure}
 
@@ -63,19 +63,19 @@ focused on graph benchmarks, semantic databases, machine learning, and
 \begin{description}
 
 \item [Tasking system.] Our tasking system supports lightweight
-multithreading to tolerate communication latency and global distributed
+multithreading to tolerate communication latency; it also supports global distributed
 workstealing (i.e., tasks can be stolen from any node in the system), which
 provides automated load balancing.  Grappa thus tolerates many
 microseconds of latency by multiplexing thousands of tasks per x86 core.
 
 \item[Communication layer.] Modern commodity networks
-support high bandwidth only for large messages and irregular applications
-frequently issue small requests.   Our communication layer aggregates these small requests into larger messages to better exploit network bandwidth, targeting 100 million remote references per second per node.  Aggregation is largely invisible to the application programmer.
+support high bandwidth only for large messages, but irregular applications
+frequently issue small requests.   Our communication layer aggregates these small requests into larger messages to better exploit network bandwidth, targeting 100 million 8-byte remote references per second per node.  Aggregation is largely invisible to the application programmer.
 
 \item[Distributed shared memory.] Our \textls*{\small DSM} system provides support for
 fine-grain access to data anywhere in the system. It supports synchronization
 operations on global data, explicit local caching of any memory in the system,
-and support for operations on remote data (delegating operations to owner node).
+and support for operations on remote data (delegating operations to the data's owner node).
 By tight integration with the tasking system and the
 communication layer, our \textls*{\small DSM} system offers high aggregate random-access bandwidth to remote data.
 
@@ -103,11 +103,13 @@ costly, energy inefficient, and likely to increase the time to prepare
 for and recover from faults.
 
 Emerging non-volatile memory technologies offer an alternative strategy:
-place the entire data set on \textls*{\small SSD} or \textls*{\small PCM};
-use Grappa to tolerate the latency directly, much in the same
-way as it is used now to tolerate network latency, or indirectly when transferring blocks of working-set
-data into \textls*{\small RAM}; save energy per available byte;
-recover from faults faster with most of the data preserved in non-volatile memory.
+place the entire data set on Flash or \textls*{\small PCM}, and
+%% use Grappa to tolerate the latency either directly, much in the same
+%% way as it is used now to tolerate network latency, or indirectly when transferring blocks of working-set
+%% data into \textls*{\small RAM}. This could save energy per available byte and allow
+%% faster fault recovery with most of the data preserved in non-volatile memory.
+use Grappa to tolerate the access latency. This could save energy per available byte and allow
+faster fault recovery with most of the data preserved in non-volatile memory.
 
 Prior work only partially explores this potentiality. GraphChi~\cite{graphchi:osdi12}
 represents a class of approaches that use windowing methods in the
@@ -124,10 +126,11 @@ Grappa provides a global view of memory on multinode systems.
 
 \section{Applying non-volatile memory to Grappa}
 The natural point of integration for non-volatile memories in Grappa
-is to store the global heap in nonvolatile memory, since the heap
-usually contains data that is infrequently modified. All accesses to
-this shared heap in Grappa programs are done through an \textls*{\small API}, so this change could be made transparent to the programmer. If the
-access is to local memory, Grappa issues a prefetch for the address
+is to store the global distributed shared heap in nonvolatile memory, since for irregular applications the heap
+often holds data that is infrequently modified. All accesses to
+this shared heap in Grappa programs are done through an \textls*{\small API}, so this change could be made transparent to the programmer. 
+If an 
+access is to a chunk of the heap stored in a node's local memory, Grappa issues a prefetch for the address
 and context switches to other work while the prefetch is executing~\cite{Nelson:hotpar2011}. If
 the access is to memory stored on another node, Grappa issues a
 message to that node requesting the data and context switches to other
@@ -138,7 +141,7 @@ until the request had completed.
 
 \subsection{Challenges in using commodity \textls*{\small SSD}\hspace{0.75pt}s}
 Grappa's goal is to provide good irregular application performance on
-commodity hardware. Unfortunately, commodity non-volatile memories are
+mass market hardware. Unfortunately, commodity \textls*{\small SSD}\hspace{0.75pt}s are
 difficult to use in this way for three reasons:
 
 %\paragraph{\textls*{\small SSD}\hspace{0.75pt}s assume locality.} In our benchmarks, we find the average request size to be
@@ -149,15 +152,15 @@ kilobyte range.
 %\paragraph{\textls*{\small SSD}\hspace{0.75pt}s have a low request rate.} The fastest~\cite{fusionio} can
 \noindent{\bf \textls*{\small SSD}\hspace{0.75pt}s have a low request rate.} The fastest~\cite{fusionio} can
 perform on the order of 1 million random reads per second, and many
-are limited to less than 100K/s. In contrast, cores may be idle in
+are limited to less than 100K/s. Even the individual flash chips are slow, on the order of 40K/s~\cite{micronFlash}. In contrast, cores may be idle in
 Grappa if each node cannot make 100 million random reads per second of
-the global heap. Even the individual flash chips are slow, on the order of 40K/s~\cite{micronFlash}.
+the global heap. 
 
 %\paragraph{\textls*{\small SSD}\hspace{0.75pt}s have high overhead.} Commodity \textls*{\small SSD}\hspace{0.75pt}s are usually treated
 \noindent{\bf \textls*{\small SSD}\hspace{0.75pt}s have high overhead.} Commodity \textls*{\small SSD}\hspace{0.75pt}s are usually treated
 as normal disks: accesses must occur through the kernel, incurring a
 high context-switch overhead. Grappa depends on user-mode access to
-the network layer. This capability has been explored in recent research~\cite{caulfield:2012}.
+the network layer. This approach has been applied to \textls*{\small SSD}\hspace{0.75pt}s in recent research~\cite{caulfield:2012}.
 
 \subsection{Exploring the design space}
 
@@ -170,27 +173,26 @@ tradeoffs, which we briefly discuss.
 For simplicity, we omit discussion of write and erase operations. We
 assume a non-volatile Grappa would store frequently written temporary
 data in \textls*{\small DRAM} and would use its standard latency-tolerance techniques
-to cover the cost of infrequent writes.
+to cover the cost of infrequent writes to non-volatile memory.
 
 \subsubsection{Tolerating Flash-based \textls*{\small SSD} latency} 
-A natural first step would be to add one or more \textls*{\small SSD}\hspace{0.75pt}s to each Grappa
+A natural first step would be to add one or more mass market \textls*{\small SSD}\hspace{0.75pt}s to each Grappa
 cluster node, and use Grappa's global memory \textls*{\small API} to expose concurrent
 accesses and context switch to tolerate the latency of \textls*{\small SSD}
 access. Unfortunately this is unlikely to work well, for two
-reasons. First, the \textls*{\small SSD} must accept requests at a rate sufficient to
-keep the cores busy. Grappa's target is for each cluster node to
-generate 100 million random 8-byte requests per second, but most \textls*{\small SSD}\hspace{0.75pt}s
-can accept requests at a rate two to four orders of magnitude slower.
+reasons. First, as discussed earlier, the \textls*{\small SSD} must accept requests at a rate sufficient to
+keep the cores busy; most \textls*{\small SSD}\hspace{0.75pt}s
+can accept requests at a rate two to four orders of magnitude slower than required.
 Second, the \textls*{\small SSD} must be able to support many requests operating in
-parallel. Little's Law suggests that if requests take 20 $\mu$s for
+parallel. Little's Law suggests that if requests take 25 $\mu$s for
 the \textls*{\small SSD} to service, and if the node generates requests at a rate of
-100 million per second, the \textls*{\small SSD}\hspace{0.75pt}s must support 2000 concurrent
+100 million per second, the \textls*{\small SSD}\hspace{0.75pt}s must support 2500 concurrent
 requests. Again, existing \textls*{\small SSD}\hspace{0.75pt}s support orders of magnitude less request concurrency.
 
 We see three ways to address this disparity.
 
-%\paragraph{Scaling up the Flash array}
-\noindent{\bf Scaling up the Flash array}
+\paragraph{Scaling up the Flash array.}
+%\noindent{\bf Scaling up the Flash array}
 Existing Flash-based \textls*{\small SSD}\hspace{0.75pt}s are designed for large block requests. An
 \textls*{\small SSD} for Grappa could be designed to support high concurrency, small
 requests. Where a traditional \textls*{\small SSD} might put multiple Flash chips on
@@ -199,19 +201,18 @@ high-bandwidth bus, a Grappa \textls*{\small SSD} would try to maximize parallel
 putting each chip on its own bus. Serial Flash might be used to
 minimize pin count requirements, at the cost of some additional
 latency. This design could scale to request rates, but the challenge
-would be chip count: to support 100M reads per second, an array of
-20$\mu$s flash would require 2000 chips. This is possible, but expensive.
+would be chip count: to support 100 million reads per second, an array of
+25$\mu$s flash would require 2500 chips. This is possible, but expensive.
 
 \paragraph{Scaling down the processors.}
 %\noindent{\bf Scaling down the processors.}
 Alternatively, rather than scaling up the flash array, processors
 could be scaled down to match the flash request rate. A low-power
 processor with few cores might generate only 1 million references per
-second. This could be satisfied with only 20\,x\,20$\mu$s Flash chips.
-
+second. This could be satisfied with only 25\,x\,25$\mu$s Flash chips.
 There are two problems with this design for our purpose. First, while each node
 requires fewer chips, the overall cluster performance goal, and thus
-chip requirement, is the same. Second, low single-threaded performance is detrimental to performance during periods of diminished application concurrency~\cite{feo:xmt}.
+chip requirement, is the same. Second, low single-threaded performance is detrimental to performance during periods of diminished application concurrency.
 
 \paragraph{Buffering requests to increase locality.}
 %\noindent{\bf Buffering requests to increase locality.}
@@ -224,18 +225,18 @@ limited time. When a sufficient number of requests have arrived for a page
 or when the requests time out, a single page request would be issued to the Flash
 layer; its result would be used to satisfy the individual requests.
 
-While similar techniques have provided benefit for traversal-oriented applications in
+While similar techniques have provided benefit for graph traversal applications in
 restricted situations~\cite{magt:2010}, they depend on a sufficient request
-density to each flash page to get a benefit. As datasets scale up, this
+density to each flash page to get a benefit. As datasets scale up and machines scale out, this
 density may decrease, limiting the benefit of this technique.
 
 For iterative applications where the entire graph is regularily
 visited, an windowed approach similar to~\cite{graphchi:osdi12} may
 provide more benefit. In this approach, graph data is constantly
-streamed between SSD and DRAM. Requests wait to execute until the
+streamed between \textls*{\small SSD} and \textls*{\small DRAM}. Requests wait to execute until the
 relevant fragment of the graph is in memory. Request density is not a
-concern for these applications; instead, bandwidth between the SSD and
-DRAM is the limiting factor.
+concern for these applications; instead, bandwidth between the \textls*{\small SSD} and \textls*{\small DRAM}
+is the limiting factor.
 
 \subsubsection{Using future memory technologies}
 
@@ -247,8 +248,8 @@ second, \textls*{\small PCM} supports finer-grained accesses.
 
 \paragraph{\textls*{\small PCM} as Main Memory.}
 %\noindent{\bf \textls*{\small PCM} as Main Memory.}
-Much recent research has explored the use of \textls*{\small PCM} as a main memory
-replacement. Grappa would easily be able to take advantage of such a
+Recent research has explored the use of \textls*{\small PCM} as a main memory
+replacement~\cite{pcm:isca09}. Grappa would easily be able to take advantage of such a
 development. When a Grappa program references low-locality data,
 a prefetch request is issued for that data a few cycles before the
 thread is context switched in. A \textls*{\small PCM}-based
@@ -257,7 +258,7 @@ cover the longer latency of \textls*{\small PCM}.
 
 \paragraph{\textls*{\small PCM} as attached storage.}
 %\noindent{\bf \textls*{\small PCM} as attached storage.}
-Grappa could also support a \textls*{\small PCM} array in a separate address space (for
+Grappa could also transparently support a \textls*{\small PCM} array in a separate address space (for
 instance, on the \textls*{\small PCIe} bus). \textls*{\small PCM} chips available today~\cite{micronPCM} support a
 64-bit read in 200 ns; this means that 20 chips acting independently
 would be sufficient to reach our target request rate.
@@ -268,7 +269,7 @@ reasonable request rate.  Instead, Grappa would delay threads
 performing operations in the \textls*{\small PCM} array until it could send a buffer
 with enough requests to amortize the overhead. The \textls*{\small PCM} array would
 perform the operations and buffer the results. When a sufficient
-amount have completed, the \textls*{\small PCM} array would write the results to \textls*{\small DRAM}\@,
+number have completed, the \textls*{\small PCM} array would write the results to \textls*{\small DRAM}\@,
 and one core would deliver the results to the requesting threads,
 waking them.
 
