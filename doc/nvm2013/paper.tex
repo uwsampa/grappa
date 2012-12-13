@@ -25,7 +25,7 @@
 \maketitle
 \begin{abstract}
 We revisit Grappa, our software platform that scales in-memory irregular
-applications on commodity clusters.
+applications on mass market clusters.
 We contemplate options for adapting Grappa to use non-volatile memory technologies.
 \end{abstract}
 \vspace{-.1in}
@@ -68,7 +68,7 @@ work stealing (i.e., tasks can be stolen from any node in the system), which
 provides automated load balancing.  Grappa thus tolerates many
 microseconds of latency by multiplexing thousands of tasks per x86 core.
 
-\item[Communication layer.] Modern commodity networks
+\item[Communication layer.] Modern mass market networks
 support high bandwidth only for large messages, but irregular applications
 frequently issue small requests.   Our communication layer aggregates these small requests into larger messages to better exploit network bandwidth, targeting 100 million 8-byte remote references per second per node.  Aggregation is largely invisible to the application programmer.
 
@@ -84,13 +84,13 @@ communication layer, our \textls*{\small DSM} system offers high aggregate rando
 \end{description}
 Grappa thus facilitates
 expression of fine-grained task parallelism at the application
-programming level, employing that concurrency as needed to sustain throughput in the presence of long latency operations and to better utilize commodity networks.  Programmers attend only to expressing the parallelism in their program, not to scheduling it.  While similar latency-tolerance and aggregation techniques can be manually coded into some
+programming level, employing that concurrency as needed to sustain throughput in the presence of long latency operations and to better utilize mass market networks.  Programmers attend only to expressing the parallelism in their program, not to scheduling it.  While similar latency-tolerance and aggregation techniques can be manually coded into some
 applications, Grappa relieves the programmer of this burden.  In
 addition, Grappa provides an \textls*{\small API} for reader-writer lock semantics for the
 purpose of manipulating a local copy of any contiguous portion of the
 shared address space, enabling programmers to exploit spatial and
 temporal locality while maintaining a consistent global view.  With
-these features, we have demonstrated performance on commodity systems
+these features, we have demonstrated performance on mass market systems
 for highly irregular applications approaching that of the Cray \textls*{\small XMT}~\cite{feo:xmt}, a
 fully custom system.
 
@@ -129,38 +129,39 @@ The natural point of integration for non-volatile memories in Grappa
 is to store the global distributed shared heap in non-volatile memory, since for irregular applications the heap
 often holds data that is infrequently modified. All accesses to
 this shared heap in Grappa programs are done through an \textls*{\small API}, so this change could be made transparent to the programmer. 
+
 If an 
 access is to a chunk of the heap stored in a node's local memory, Grappa issues a prefetch for the address
 and context switches to other work while the prefetch is executing~\cite{Nelson:hotpar2011}. If
 the access is to memory stored on another node, Grappa issues a
-message to that node requesting the data and context switches to other
+message to that node to request the data and context switches to other
 work until the reply arrives. Non-volatile memory would be accessed in
 the same way: If a request is to memory stored in non-volatile memory,
 Grappa would initiate the request and context switch to other work
 until the request had completed.
 
-\subsection{Challenges in using commodity \textls*{\small SSD}\hspace{0.75pt}s}
+\subsection{Challenges in using mass market \textls*{\small SSD}\hspace{0.75pt}s}
 Grappa's goal is to provide good irregular application performance on
-mass market hardware. Unfortunately, commodity \textls*{\small SSD}\hspace{0.75pt}s are
-difficult to use in this way for three reasons:
+mass market hardware. Unfortunately, mass market \textls*{\small SSD}\hspace{0.75pt}s are
+difficult to use directly for three reasons:
 
 %\paragraph{\textls*{\small SSD}\hspace{0.75pt}s assume locality.} In our benchmarks, we find the average request size to be
 \noindent{\bf \textls*{\small SSD}\hspace{0.75pt}s assume locality.} In our benchmarks, we find the average request size to be
 less than 64 bytes. Today's \textls*{\small SSD}\hspace{0.75pt}s are optimized for reads in the
-kilobyte range.  
+multi-kilobyte range.  
 
 %\paragraph{\textls*{\small SSD}\hspace{0.75pt}s have a low request rate.} The fastest~\cite{fusionio} can
 \noindent{\bf \textls*{\small SSD}\hspace{0.75pt}s have a low request rate.} The fastest~\cite{fusionio} can
 perform on the order of 1 million random reads per second, and many
 are limited to less than 100K/s. Even the individual flash chips are slow, on the order of 40K/s~\cite{micronFlash}. In contrast, cores may be idle in
-Grappa if each node cannot make 100 million random reads per second of
+Grappa if each node cannot perform 100 million random reads per second of
 the global heap. 
 
-%\paragraph{\textls*{\small SSD}\hspace{0.75pt}s have high overhead.} Commodity \textls*{\small SSD}\hspace{0.75pt}s are usually treated
-\noindent{\bf \textls*{\small SSD}\hspace{0.75pt}s have high overhead.} Commodity \textls*{\small SSD}\hspace{0.75pt}s are usually treated
+%\paragraph{\textls*{\small SSD}\hspace{0.75pt}s have high overhead.} Mass market \textls*{\small SSD}\hspace{0.75pt}s are usually treated
+\noindent{\bf \textls*{\small SSD}\hspace{0.75pt}s have high overhead.} Mass market \textls*{\small SSD}\hspace{0.75pt}s are usually treated
 as normal disks: accesses must occur through the kernel, incurring a
 high context-switch overhead. Grappa depends on user-mode access to
-the network layer. This approach has been applied to \textls*{\small SSD}\hspace{0.75pt}s in recent research~\cite{caulfield:2012}.
+the network layer to avoid this overhead; a similar approach has been applied to \textls*{\small SSD}\hspace{0.75pt}s in recent research~\cite{caulfield:2012}.
 
 \subsection{Exploring the design space}
 
@@ -181,7 +182,7 @@ cluster node, and use Grappa's global memory \textls*{\small API} to expose conc
 accesses and context switch to tolerate the latency of \textls*{\small SSD}
 access. Unfortunately this is unlikely to work well, for two
 reasons. First, as discussed earlier, the \textls*{\small SSD} must accept requests at a rate sufficient to
-keep the cores busy; most \textls*{\small SSD}\hspace{0.75pt}s
+keep the cores busy; current \textls*{\small SSD}\hspace{0.75pt}s
 can accept requests at a rate two to four orders of magnitude slower than required.
 Second, the \textls*{\small SSD} must be able to support many requests operating in
 parallel. Little's Law suggests that if requests take 25 $\mu$s for
@@ -209,10 +210,12 @@ would be chip count: to support 100 million reads per second, an array of
 Alternatively, rather than scaling up the flash array, processors
 could be scaled down to match the flash request rate. A low-power
 processor with few cores might generate only 1 million references per
-second. This could be satisfied with only 25\,x\,25$\mu$s Flash chips.
+%second. This could be satisfied with only 25\,x\,25$\mu$s Flash chips.
+second. This could be satisfied with only $25\times 25\mu$s Flash chips. 
+%Similar have demonstrated energy-efficient operation in recent research~\cite{gordon:2009}.
 There are two problems with this design for our purpose. First, while each node
 requires fewer chips, the overall cluster performance goal, and thus
-chip requirement, is the same. Second, low single-threaded performance is detrimental to performance during periods of diminished application concurrency.
+chip count requirement, is the same. Second, low single-threaded performance is detrimental to performance during periods of diminished application concurrency.
 
 \paragraph{Buffering requests to increase locality.}
 %\noindent{\bf Buffering requests to increase locality.}
@@ -220,7 +223,7 @@ Grappa trades latency for better throughput by aggregating network
 communications for better utilization and by migrating synchronization
 operations for reduced contention. The same idea could be applied to
 increase locality and amortize the cost of Flash accesses. Requests
-to common flash pages would be bucketed by flash page address for a
+to nearby flash locations would be bucketed by flash page address for a
 limited time. When a sufficient number of requests have arrived for a page
 or when the requests time out, a single page request would be issued to the Flash
 layer; its result would be used to satisfy the individual requests.
@@ -233,21 +236,21 @@ density may decrease, limiting the benefit of this technique.
 For iterative applications where the entire graph is regularly
 visited, an windowed approach similar to~\cite{graphchi:osdi12} may
 provide more benefit. In this approach, graph data is constantly
-streamed between \textls*{\small SSD} and \textls*{\small DRAM}. Requests wait to execute until the
+streamed between \textls*{\small SSD} and \textls*{\small DRAM}. Requests would wait to execute until the
 relevant fragment of the graph is in memory. Request density is not a
 concern for these applications; instead, bandwidth between the \textls*{\small SSD} and \textls*{\small DRAM}
 is the limiting factor.
 
 \subsubsection{Using future memory technologies}
 
-While Grappa's goal so far has been to leverage commodity hardware, it
+While Grappa's goal so far has been to leverage mass market hardware, it
 is worth exploring the potential benefit of emerging non-volatile
 memory technologies like Phase-Change Memory. The advantages of \textls*{\small PCM}
 are twofold: first, read latency is much closer to that of \textls*{\small DRAM}, and
 second, \textls*{\small PCM} supports finer-grained accesses.
 
-\paragraph{\textls*{\small PCM} as Main Memory.}
-%\noindent{\bf \textls*{\small PCM} as Main Memory.}
+\paragraph{\textls*{\small PCM} as main memory.}
+%\noindent{\bf \textls*{\small PCM} as main memory.}
 Recent research has explored the use of \textls*{\small PCM} as a main memory
 replacement~\cite{pcm:isca09}. Grappa would easily be able to take advantage of such a
 development. When a Grappa program references low-locality data,
