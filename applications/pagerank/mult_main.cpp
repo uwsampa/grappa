@@ -9,6 +9,7 @@
 #include "Grappa.hpp"
 #include "GlobalAllocator.hpp"
 #include "ForkJoin.hpp"
+#include "Array.hpp"
 #include "tasks/DictOut.hpp"
 #include <iostream>
 #include <fstream>
