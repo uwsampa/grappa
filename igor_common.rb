@@ -1,6 +1,22 @@
+
+# Copyright 2010-2012 University of Washington. All Rights Reserved.
+# LICENSE_PLACEHOLDER
+# This software was created with Government support under DE
+# AC05-76RL01830 awarded by the United States Department of
+# Energy. The Government has certain rights in the software.
+
 require 'igor'
 
+$GLOG_FLAGS = "GLOG_logtostderr=1 GLOG_v=1"
+
+$GRAPPA_LIBPATH = "/sampa/home/bholt/grappa-beta/tools/built_deps/lib:/usr/lib64/openmpi/lib:/sampa/share/boost_1_51_0/lib"
+
+$GASNET_FLAGS = "GASNET_BACKTRACE=1 GASNET_FREEZE_SIGNAL=SIGUSR1 GASNET_FREEZE_ON_ERROR=1 GASNET_FREEZE=0 GASNET_NETWORKDEPTH_PP=96 GASNET_NETWORKDEPTH_TOTAL=1024 GASNET_AMCREDITS_PP=48 GASNET_PHYSMEM_MAX=1024M"
+
+
 Igor do
+  params { machine "sampa" }
+  
   sbatch_flags "--time=30:00 #{
       (`hostname` =~ /pal/) \
         ? '--account=pal --partition=pal' \
@@ -9,12 +25,7 @@ Igor do
       
   # parses JSON stats and colon-delimited fields
   parser {|cmdout|
-    def clean_json(str)
-      str.gsub!(/STATS/m) { '' } # remove tag
-      str.gsub!(/\n/m) { '' } # remove newlines inside JSON blob in case things got split up by GLOG/MPI
-      str.gsub!(/:\s+,/m) { ': null,' }
-      return str
-    end
+    require 'json'
 
     h = {}
 
@@ -27,10 +38,15 @@ Igor do
 
     # scan, parse and filter JSON blocks
     cmdout.gsub!(/^STATS{.*?^}STATS/m) {|m|
-      blob = JSON.parse(clean_json(m))
-    	flat = {}
+
+      m.gsub!(/STATS/m){''} # remove tag
+      m.gsub!('\n'){''} # remove newlines
+      m.gsub!(/:(\s+),/m) {": null,"}
+
+      blob = JSON.parse(m)
+      flat = {}
       blob.to_enum(:flat_each).each {|k,v| flat[k.intern] = v }
-    	stats << flat
+      stats << flat
       ''
     }
 
@@ -40,6 +56,7 @@ Igor do
 
     # aggregate each and merge into h
     combined.each {|k,a|
+
   	if a.all_numbers?
   	  # compute average of stats from multiple runs
   	  h[k] = a.reduce(:+).to_f/a.size
@@ -61,4 +78,5 @@ Igor do
 
     h # return hash
   }
+
 end
