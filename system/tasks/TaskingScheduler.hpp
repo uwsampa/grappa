@@ -7,6 +7,7 @@
 #ifndef TASKING_SCHEDULER_HPP
 #define TASKING_SCHEDULER_HPP
 
+#include "Thread.hpp"
 #include "Scheduler.hpp"
 #include "Communicator.hpp"
 #include "Aggregator.hpp"
@@ -535,5 +536,8 @@ inline void TaskingScheduler::thread_on_exit( ) {
 
   thread_context_switch( exitedThr, master, (void *)exitedThr);
 }
+
+/// instance
+extern TaskingScheduler global_scheduler;
 
 #endif // TASKING_SCHEDULER_HPP
