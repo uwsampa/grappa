@@ -139,24 +139,24 @@ int main() {
   
   //GCM( m5, []{ std::cout << "Foo" << std::endl; } );
 
-  auto m5 = Grappa::scopedMessage( 0, []{ std::cout << "Foo" << std::endl; } );
+  auto m5 = Grappa::message( 0, []{ std::cout << "Foo" << std::endl; } );
   m4.stitch( &m5 );
 
-  auto m6 = Grappa::scopedMessage( 0, [=]{ std::cout << "Haha x = " << x << std::endl; } );
+  auto m6 = Grappa::message( 0, [=]{ std::cout << "Haha x = " << x << std::endl; } );
   m5.stitch( &m6 );
   
-  auto m7 = Grappa::scopedMessage( 0, fooc );
+  auto m7 = Grappa::message( 0, fooc );
   m6.stitch( &m7 );
   
-  auto m8 = Grappa::scopedMessage( 0, [] { foo(); } );
+  auto m8 = Grappa::message( 0, [] { foo(); } );
   m7.stitch( &m8 );
   
   exec( std::bind( splat, x ) );
-  auto m9 = Grappa::scopedMessage( 0, std::bind( splat, x ) );
+  auto m9 = Grappa::message( 0, std::bind( splat, x ) );
   m8.stitch( &m9 );
   
   exec( [=] { splat(x); } );
-  auto m10 = Grappa::scopedMessage( 0, [=] { splat(x); } );
+  auto m10 = Grappa::message( 0, [=] { splat(x); } );
   m9.stitch( &m10 );
   
   exec( [=] { 
@@ -164,15 +164,22 @@ int main() {
   	splat(xx); 
       }(x);
     } );
-  auto m11 = Grappa::scopedMessage( 0, [=] { [] (int xx) { splat(xx); } (x); } );
+  auto m11 = Grappa::message( 0, [=] { [] (int xx) { splat(xx); } (x); } );
   m10.stitch( &m11 );
   
+  int arr[] = { 1, 2, 3, 4, 5 };
+  auto m12 = Grappa::message( 0, [](void * a, size_t size) { int * ai = reinterpret_cast<int*>(a); std::cout << "arr[3] = " << ai[3] << std::endl; }, 
+			      arr, sizeof(int) * 5 );
+  arr[3] = 9;// is fine
+  m11.stitch( &m12 );
+
   char buf[4096] = {0};
   
   std::cout << "Serializing" << std::endl;
   Grappa::impl::MessageBase * mb = &m1;
   char * end = Grappa::impl::MessageBase::serialize_to_buffer( buf, &mb );
   x++;  
+  arr[3] = -1;
   // for( intptr_t * i = (intptr_t*)buf; i < (intptr_t*)end; ++i ) {
   //   std::cout << i << ": " << (void*) *i << std::endl;
   // }
