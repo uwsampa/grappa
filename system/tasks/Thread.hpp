@@ -22,6 +22,11 @@ class Scheduler;
 typedef uint32_t threadid_t; 
 struct Thread;
 
+/// @TODO: s/Thread/Worker/g someday
+namespace Grappa {
+  typedef Thread Worker;
+}
+
 /// Size in bytes of the stack allocated for every Thread
 const size_t STACK_SIZE = 1L<<19;
 
