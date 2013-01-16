@@ -5,187 +5,122 @@
 // AC05-76RL01830 awarded by the United States Department of
 // Energy. The Government has certain rights in the software.
 
-#include <cxxabi.h>
-#include <iostream>
+#include <boost/test/unit_test.hpp>
 
-#include <functional>
+#include "Grappa.hpp"
 #include "Message.hpp"
 
-// template< typename T >
-// class FPFunctor {
-// private:
-//   T * fp_;
-// public:
-//   FPFunctor( T t )
-//     : fp_( t )
-//   { }
-//   void operator()() {
-//     fp_();
-//   }
-// };
-
-// template< typename T >
-// void makeFPFunctor( T t ) {
-//   return FPFunctor<T>( t );
-// }
-
-void foo() {
-  std::cout << "foo" << std::endl;
-}
-
-void splat( int x ) {
-  std::cout << "splat x = " << x << std::endl;
-}
-
-// template< typename T >
-// void argh( T t ) {
-//   t();
-// }
+BOOST_AUTO_TEST_SUITE( Message2_tests );
 
 
-template< typename T >
-class FPFunctor {
-private:
-  T fp_;
-public:
-  FPFunctor( T t )
-    : fp_( t )
-  { }
-  void operator()() {
-    fp_();
-  }
+struct Check {
+  bool x;
+  Check() : x( false ) {}
+  void operator()() { BOOST_CHECK_EQUAL( x, true ); }
 };
 
-template< typename T >
-FPFunctor<T> wrapItUp( T t ) {
-  return FPFunctor<T>(t);
-}
+void user_main( void * args ) 
+{
 
-template< typename T >
-void exec( T t ) {
-  char * name = abi::__cxa_demangle( typeid( t ).name(), NULL, NULL, NULL );
-  std::cout << "Calling operator() on type " << name << " of size " << sizeof(t) << std::endl;
-  t();
-}
-
-class Foo {
-public:
-  void operator()() {
-    std::cout << "Class foo" << std::endl;
+  {
+    bool x0 = false;
+    {
+      // must run on this node
+      auto f0 = [&x0]{ BOOST_CHECK_EQUAL( x0, true ); };
+      Grappa::Message< decltype(f0) > m0( 0, f0 );
+      //auto m1 = Grappa::message( 0, [&]{ x1 = true; } );
+      m0.send();
+      x0 = true;
+      Grappa_flush( 0 );
+    }
   }
-};
 
-#define GCM( n, d, f ) auto n ## _lambda = f; Grappa::Message< decltype( n ## _lambda ) > n( d, n ## _lambda )
+  {
+    bool x1 = false;
+    {
+      // must run on this node
+      auto f1 = [&x1]{ x1 = true; };
+      Grappa::Message< decltype(f1) > m1( 0, f1 );
+      //auto m1 = Grappa::message( 0, [&]{ x1 = true; } );
+      m1.send();
+      Grappa_flush( 0 );
+      Grappa_yield();
+    }
+    BOOST_CHECK_EQUAL( x1, true );
+  }
 
-int main() {
+  {
+    // must run on this node
+    Grappa::Message< Check > m2( 0, Check() );
+    //auto m2 = Grappa::message( 0, Check() );
+    m2->x = true;
+    m2.send();
+    Grappa_flush( 0 );
+    Grappa_yield();
+  }
 
-  int x = 0;
-  int y = 0;
+  {
+    Check x3;
+    //auto m3 = Grappa::message( 0, &x3 );
+    // must run on this node
+    Grappa::ExternalMessage< Check > m3( 0, &x3 );
+    m3->x = true;
+    m3.send();
+    Grappa_flush( 0 );
+    Grappa_yield();
+  }
 
-  auto noArg = wrapItUp( []{ std::cout << "bar" << std::endl; } );
-  auto foop = wrapItUp( foo );
-  auto fooc = wrapItUp( Foo() );
-  auto oneArg = wrapItUp( [=]{ std::cout << "bar with x = " << x << std::endl; } );
-  auto twoArg = wrapItUp( [=]{ std::cout << "bar with x = " << x << " and y = " << y << std::endl; } );
-  x = 100;
-  y = 200;
+  {
+    bool x4 = false;
+    {
+      //auto m4 = Grappa::send_message( 0, [&]{ x4 = true; } );
+      // must run on this node
+      auto f4 = [&]{ x4 = true; };
+      Grappa::SendMessage< decltype(f4) > m4( 0, f4 );
+    }
+    Grappa_flush( 0 );
+    Grappa_yield();
+    BOOST_CHECK_EQUAL( x4, true );
+  }
 
-  std::cout << "x is " << x << ", y is " << y << std::endl;
+  {
+    bool x5 = false;
+    // must run on this node
+    auto f5 = [&x5] (void * payload, size_t payload_size) { 
+      bool * b = reinterpret_cast< bool * >( payload );
+      BOOST_CHECK_EQUAL( *b, x5 );
+    };
 
-  exec( noArg );
-  exec( foop );
-  exec( fooc );
-  exec( oneArg );
-  exec( twoArg );
+    {
+      Grappa::SendPayloadMessage< decltype(f5) > m5( 0, f5, &x5, sizeof(x5) );
+    }
+    Grappa_flush( 0 );
+    Grappa_yield();
 
-  exec( std::bind( foo ) );
-  exec( [] { foo(); } );
+    {
+      x5 = true;
+      Grappa::SendPayloadMessage< decltype(f5) > m5a( 0, f5, &x5, sizeof(x5) );
+    }
+    Grappa_flush( 0 );
+    Grappa_yield();
+  }
 
-  auto f = [] ( int a, double b ) { std::cout << "a is " << a << " b is " << b << std::endl; };
-  exec( std::bind( f, 1, 2.3 ) );
-
-  auto g = [] { std::cout << "bind" << std::endl; };
-  exec( std::bind( g ) );
-
-  auto gx = [=] { std::cout << "bind with x = " << x << std::endl; };
-  exec( std::bind( gx ) );
-
-  auto gxy = [=] { std::cout << "bind with x = " << x << " and y = " << y << std::endl; };
-  exec( std::bind( gxy ) );
-
-
-  exec( std::bind( [] (int a, double b) {
-	std::cout << "a is " << a << " b is " << b << std::endl;
-      }, 4, 5.6 ) );
-
-
-
-  // Grappa::Message< FPFunctor<void(void)> > m( wrapItUp( [] {
-  // 	std::cout << "Hello!" << std::endl;
-  //     } ) );
-  Grappa::Message< std::function<void(void)> > m1( 0, std::function<void(void)>( [] {
-	std::cout << "Hello!" << std::endl;
-      } ) );
-  Grappa::Message< std::function<void(void)> > m2( 0, std::function<void(void)>( [] {
-  	std::cout << "Goodbye!" << std::endl;
-      } ) );
-  m1.stitch( &m2 );
-
-  GCM( m3, 0, foop );
-  m2.stitch( &m3 );
-
-  GCM( m4, 0, fooc );
-  m3.stitch( &m4 );
-  
-  //GCM( m5, []{ std::cout << "Foo" << std::endl; } );
-
-  auto m5 = Grappa::message( 0, []{ std::cout << "Foo" << std::endl; } );
-  m4.stitch( &m5 );
-
-  auto m6 = Grappa::message( 0, [=]{ std::cout << "Haha x = " << x << std::endl; } );
-  m5.stitch( &m6 );
-  
-  auto m7 = Grappa::message( 0, fooc );
-  m6.stitch( &m7 );
-  
-  auto m8 = Grappa::message( 0, [] { foo(); } );
-  m7.stitch( &m8 );
-  
-  exec( std::bind( splat, x ) );
-  auto m9 = Grappa::message( 0, std::bind( splat, x ) );
-  m8.stitch( &m9 );
-  
-  exec( [=] { splat(x); } );
-  auto m10 = Grappa::message( 0, [=] { splat(x); } );
-  m9.stitch( &m10 );
-  
-  exec( [=] { 
-      [] (int xx) {
-  	splat(xx); 
-      }(x);
-    } );
-  auto m11 = Grappa::message( 0, [=] { [] (int xx) { splat(xx); } (x); } );
-  m10.stitch( &m11 );
-  
-  int arr[] = { 1, 2, 3, 4, 5 };
-  auto m12 = Grappa::message( 0, [](void * a, size_t size) { int * ai = reinterpret_cast<int*>(a); std::cout << "arr[3] = " << ai[3] << std::endl; }, 
-			      arr, sizeof(int) * 5 );
-  arr[3] = 9;// is fine
-  m11.stitch( &m12 );
-
-  char buf[4096] = {0};
-  
-  std::cout << "Serializing" << std::endl;
-  Grappa::impl::MessageBase * mb = &m1;
-  char * end = Grappa::impl::MessageBase::serialize_to_buffer( buf, &mb );
-  x++;  
-  arr[3] = -1;
-  // for( intptr_t * i = (intptr_t*)buf; i < (intptr_t*)end; ++i ) {
-  //   std::cout << i << ": " << (void*) *i << std::endl;
-  // }
-
-  std::cout << "Deserializing" << std::endl;
-  Grappa::impl::MessageBase::deserialize_buffer( buf, end - buf );
-
-  std::cout << "End x = " << x << std::endl;
+  //Grappa_merge_and_dump_stats();
 }
+
+BOOST_AUTO_TEST_CASE( test1 ) {
+
+  Grappa_init( &(boost::unit_test::framework::master_test_suite().argc),
+	       &(boost::unit_test::framework::master_test_suite().argv),
+	       (1L << 20) );
+
+  //Grappa::impl::global_rdma_aggregator.init();
+  Grappa_activate();
+
+  Grappa_run_user_main( &user_main, (void*)NULL );
+
+  Grappa_finish( 0 );
+}
+
+BOOST_AUTO_TEST_SUITE_END();
+
