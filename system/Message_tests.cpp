@@ -10,7 +10,7 @@
 #include "Grappa.hpp"
 #include "Message.hpp"
 
-BOOST_AUTO_TEST_SUITE( Message2_tests );
+BOOST_AUTO_TEST_SUITE( Message_tests );
 
 
 struct Check {
