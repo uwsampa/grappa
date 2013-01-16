@@ -21,12 +21,24 @@ endif
 # common across machines
 #
 COMMON=../common
-CFLAGS+= -I$(COMMON) -std=c++0x
+CFLAGS+= -I$(COMMON) -std=c++11 -Winline -Wno-inline
+
+# TODO: verify that this is not a problem and remove:
+CFLAGS+= -mno-red-zone
 
 
-CC=gcc
-CXX=g++
-LD=mpiCC
+LD_LIBRARY_PATH:=$(LD_LIBRARY_PATH):$(BOOST)/stage/lib
+
+# CC=gcc
+# CXX=g++
+# LD=mpiCC
+
+GCC472=/sampa/share/gcc-4.7.2/rtf
+CC=$(GCC472)/bin/gcc
+CXX=$(GCC472)/bin/g++
+LD=$(GCC472)/bin/g++ -I/usr/include/openmpi-x86_64 -pthread -m64 -L/usr/lib64/openmpi/lib -lmpi_cxx -lmpi -ldl
+LD_LIBRARY_PATH:=$(GCC472)/lib64:$(LD_LIBRARY_PATH)
+
 NONE_CC=$(CC)
 NONE_CXX=$(CXX)
 NONE_LD=$(LD)
