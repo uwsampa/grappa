@@ -77,7 +77,7 @@ Thread_tests.test: coro.o stack.o tasks/Thread.o tasks/BasicScheduler.o
 Communicator_tests.o Communicator_tests.test: Communicator.o
 
 Aggregator_tests.o Aggregator_tests.test: $(LIBRARY)
-RDMAAggregator_tests.o RDMAAggregator_tests.test: $(LIBRARY)
+RDMAAggregator_tests.o RDMAAggregator_tests.test: $(LIBRARY) RDMAAggregator.o
 Message_tests.o Message_tests.test: $(LIBRARY)
 MutableHeap_tests.o MutableHeap_tests.test:  $(LIBRARY)
 
