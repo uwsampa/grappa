@@ -92,6 +92,11 @@ QueueDebug_tests.o QueueDebug_tests.exe: ../tools/stl-debug-allocator/archive/So
 
 Collective_tests.o Collective_tests.test: $(LIBRARY)
 
+Mutex_tests.o Mutex_tests.test: $(LIBRARY)
+ConditionVariable_tests.o ConditionVariable_tests.test: $(LIBRARY)
+FullEmpty_tests.o FullEmpty_tests.test: $(LIBRARY)
+
+
 #thread_tests.test: thread.o stack.o coro.o
 thread2_tests.o thread2_tests.test: $(LIBRARY)
 thread3_tests.o thread3_tests.test: $(LIBRARY)
