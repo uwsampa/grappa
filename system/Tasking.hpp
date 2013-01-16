@@ -40,6 +40,74 @@ void Grappa_take_profiling_sample();
 /// Task routines
 ///
 
+
+
+namespace Grappa {
+
+  /// @addtogroup Tasking
+  /// @{
+
+  namespace impl {
+
+    /// Helper function to insert lambdas and functors in our task queues.
+    template< typename T >
+    static void task_functor_proxy( uint64_t a0, uint64_t a1, uint64_t a2 ) {
+      uint64_t functor_storage[3] = { a0, a1, a2 };
+      T * tp = reinterpret_cast< T * >( &functor_storage[0] );
+      (*tp)();
+    }
+
+    /// Helper function to insert lambdas and functors in our task
+    /// queues when they are larger than 24 bytes. This function takes
+    /// ownership of the heap-allocated functor and deallocates it
+    /// after it has run.
+    template< typename T >
+    static void task_heapfunctor_proxy( T * tp, T * unused1, T * unused2 ) {
+      (*tp)();
+      delete tp;
+    }
+
+  }
+
+  /// Spawn a task visible to this Node only. The task is specified as
+  /// a functor or lambda. If it is 24 bytes or less, it is copied
+  /// directly into the task queue. If it is larger, a copy is
+  /// allocated on the heap. This copy will be deallocated after the
+  /// task completes.
+  ///
+  /// @tparam TF type of task functor
+  ///
+  /// @param func functor the new task.
+  ///
+  /// Example:
+  /// @code
+  ///   int data = 0;
+  ///   Grappa::privateTask( [&data] { data++; } );
+  /// @endcode
+  template < typename TF >
+  void privateTask( TF tf ) {
+    if( sizeof( tf ) > 24 ) { // if it's too big to fit in a task queue entry
+      // heap-allocate copy of functor, passing ownership to spawned task
+      TF * tp = new TF(tf);
+      global_task_manager.spawnLocalPrivate( Grappa::impl::task_heapfunctor_proxy<TF>, tp, tp, tp );
+    } else {
+      /// Shove copy of functor into space used for task arguments.
+      /// @TODO: misusing argument list. Is this okay?
+      uint64_t * args = reinterpret_cast< uint64_t * >( &tf );
+      /// // if not, substitute this:
+      // uint64_t args[3] = { 0 };
+      // TF * tfargs = reinterpret_cast< TF * >( &args[0] );
+      // *tfargs = tf;
+      DVLOG(5) << "Thread " << global_scheduler.get_current_thread() << " spawns private";
+      global_task_manager.spawnLocalPrivate( Grappa::impl::task_functor_proxy<TF>, args[0], args[1], args[2] );
+    }
+  }
+
+  /// @}
+
+}
+
+
 /// Spawn a task visible to this Node only
 ///
 /// @tparam A0 type of first task argument
