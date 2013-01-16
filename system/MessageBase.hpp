@@ -133,6 +133,8 @@ namespace Grappa {
 
       inline void send() {
         //Grappa::impl::global_rdma_aggregator.send( this );
+        is_enqueued_ = true;
+        legacy_send();
       }
 
       /// Block until message can be deallocated.
