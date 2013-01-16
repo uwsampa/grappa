@@ -11,7 +11,9 @@
 
 //#include "Grappa.hpp"
 #include "tasks/Task.hpp"
+#include "tasks/TaskingScheduler.hpp"
 #include "StateTimer.hpp"
+#include "Communicator.hpp"
 
 #include <boost/type_traits/remove_pointer.hpp>
 #include <boost/typeof/typeof.hpp>
@@ -154,6 +156,7 @@ static void user_main_wrapper( void (*fp)(T), T args ) {
 ///
 /// @return 0 if completed without errors
 /// TODO: error return values?
+extern Thread * master_thread;
 template < typename A >
 int Grappa_run_user_main( void (*fp)(A), A args )
 {
@@ -170,8 +173,8 @@ int Grappa_run_user_main( void (*fp)(A), A args )
   //Grappa_take_profiling_sample();
 #endif
 
-  if( Grappa_mynode() == 0 ) {
-    CHECK_EQ( CURRENT_THREAD, master_thread ); // this should only be run at the toplevel
+  if( global_communicator.mynode() == 0 ) {
+    CHECK_EQ( global_scheduler.get_current_thread(), master_thread ); // this should only be run at the toplevel
 
     // create user_main as a private task
     Grappa_privateTask( &user_main_wrapper<A>, fp, args );
