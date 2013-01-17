@@ -109,7 +109,7 @@ int rng_nextrand(RNG_state *mystate){
 
 /* condense state into string to display during debugging */
 char * rng_showstate(RNG_state *state, char *s){
-  sprintf(s,"%.2X%.2X...", state[0],state[1]);
+  sprintf(s,"%.2X%.2X%.2X%.2x...", state[0],state[1],state[2],state[3]);
   return s;
 }
 
@@ -133,6 +133,12 @@ int rng_showtype(char *strBuf, int ind) {
 #define rotl32(x,n)   (((x) << n) | ((x) >> (32 - n)))
 #define rotr32(x,n)   (((x) >> n) | ((x) << (32 - n)))
 #endif
+
+/* BUPC upcc doesn't support asm so just use emulated bswap_32  */
+#if defined(__UPC__)
+#undef bswap_32
+#endif
+/* */
 
 #if !defined(bswap_32)
 #define bswap_32(x) ((rotr32((x), 24) & 0x00ff00ff) | (rotr32((x), 8) & 0xff00ff00))
