@@ -300,6 +300,7 @@ int uts_childType(Node *parent) {
       uts_error("uts_get_childtype(): Unknown tree type");
       return -1;
   }
+  return -1; // shut gcc up
 }
 
 int64_t uts_nodeId(Node *parent) {
