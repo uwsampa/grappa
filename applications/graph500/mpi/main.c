@@ -102,7 +102,8 @@ int main(int argc, char** argv) {
   /* Make the raw graph edges. */
   /* Get roots for BFS runs, plus maximum vertex with non-zero degree (used by
    * validator). */
-  int num_bfs_roots = 64;
+  /*int num_bfs_roots = 64;*/
+  int num_bfs_roots = 8;
   int64_t* bfs_roots = (int64_t*)xmalloc(num_bfs_roots * sizeof(int64_t));
   int64_t max_used_vertex = 0;
 
@@ -315,22 +316,24 @@ int main(int argc, char** argv) {
     bfs_times[bfs_root_idx] = bfs_stop - bfs_start;
     if (rank == 0) fprintf(stderr, "Time for BFS %d is %f\n", bfs_root_idx, bfs_times[bfs_root_idx]);
 
-    /* Validate result. */
-    if (rank == 0) fprintf(stderr, "Validating BFS %d\n", bfs_root_idx);
+    if (bfs_root_idx == 0) {
+      /* Validate result. */
+      if (rank == 0) fprintf(stderr, "Validating BFS %d\n", bfs_root_idx);
 
-    double validate_start = MPI_Wtime();
-    int64_t edge_visit_count;
-    int validation_passed_one = validate_bfs_result(&tg, max_used_vertex + 1, nlocalverts, root, pred, &edge_visit_count);
-    double validate_stop = MPI_Wtime();
-    validate_times[bfs_root_idx] = validate_stop - validate_start;
-    if (rank == 0) fprintf(stderr, "Validate time for BFS %d is %f\n", bfs_root_idx, validate_times[bfs_root_idx]);
-    edge_counts[bfs_root_idx] = (double)edge_visit_count;
-    if (rank == 0) fprintf(stderr, "TEPS for BFS %d is %g\n", bfs_root_idx, edge_visit_count / bfs_times[bfs_root_idx]);
+      double validate_start = MPI_Wtime();
+      int64_t edge_visit_count;
+      int validation_passed_one = validate_bfs_result(&tg, max_used_vertex + 1, nlocalverts, root, pred, &edge_visit_count);
+      double validate_stop = MPI_Wtime();
+      validate_times[bfs_root_idx] = validate_stop - validate_start;
+      if (rank == 0) fprintf(stderr, "Validate time for BFS %d is %f\n", bfs_root_idx, validate_times[bfs_root_idx]);
+      edge_counts[bfs_root_idx] = (double)edge_visit_count;
+      if (rank == 0) fprintf(stderr, "TEPS for BFS %d is %g\n", bfs_root_idx, edge_visit_count / bfs_times[bfs_root_idx]);
 
-    if (!validation_passed_one) {
-      validation_passed = 0;
-      if (rank == 0) fprintf(stderr, "Validation failed for this BFS root; skipping rest.\n");
-      break;
+      if (!validation_passed_one) {
+        validation_passed = 0;
+        if (rank == 0) fprintf(stderr, "Validation failed for this BFS root; skipping rest.\n");
+        break;
+      }
     }
   }
 
