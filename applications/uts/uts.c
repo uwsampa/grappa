@@ -32,11 +32,10 @@
 
 #include "uts.h"
 
-// xmt version requires gcc
-#ifdef __MTA__
-#else
+// C++ UTS implementations will use namespaced Node
+#ifdef __cplusplus
 using namespace uts;
-#endif /* __MTA__ */
+#endif /* __cplusplus */
 
 /***********************************************************
  *  tree generation and search parameters                  *
