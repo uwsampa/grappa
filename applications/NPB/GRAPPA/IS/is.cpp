@@ -111,7 +111,7 @@
 #define  MAX_KEY_LOG_2       27
 #define  NUM_BUCKETS_LOG_2   10
 #undef   MIN_PROCS
-#define  MIN_PROCS           4
+#define  MIN_PROCS           1
 #endif
 
 
@@ -171,7 +171,8 @@
 #define T_VERIFY 3
 #define T_LAST   3
 #endif
-int timeron;
+
+bool timeron = true;
 
 
 /*************************************/
@@ -183,14 +184,10 @@ typedef  int  INT_TYPE;
 typedef  long INT_TYPE2;
 #define MP_KEY_TYPE MPI_INT
 
+#include <Grappa.hpp>
+#include <ForkJoin.hpp>
 
-
-/********************/
-/* MPI properties:  */
-/********************/
-int      my_rank,
-         comm_size;
-
+Node comm_size;
 
 /********************/
 /* Some global info */
@@ -208,16 +205,19 @@ int      passed_verification;
 /* These are the three main arrays. */
 /* See SIZE_OF_BUFFERS def above    */
 /************************************/
-INT_TYPE key_array[SIZE_OF_BUFFERS],    
-         key_buff1[SIZE_OF_BUFFERS],    
-         key_buff2[SIZE_OF_BUFFERS],
-         bucket_size[NUM_BUCKETS+TEST_ARRAY_SIZE],     /* Top 5 elements for */
-         bucket_size_totals[NUM_BUCKETS+TEST_ARRAY_SIZE], /* part. ver. vals */
-         bucket_ptrs[NUM_BUCKETS],
-         process_bucket_distrib_ptr1[NUM_BUCKETS+TEST_ARRAY_SIZE],   
-         process_bucket_distrib_ptr2[NUM_BUCKETS+TEST_ARRAY_SIZE];   
-int      send_count[MAX_PROCS], recv_count[MAX_PROCS],
-         send_displ[MAX_PROCS], recv_displ[MAX_PROCS];
+
+GlobalAddress<int> key_array;
+
+// INT_TYPE key_array[SIZE_OF_BUFFERS],    
+//          key_buff1[SIZE_OF_BUFFERS],    
+//          key_buff2[SIZE_OF_BUFFERS],
+//          bucket_size[NUM_BUCKETS+TEST_ARRAY_SIZE],     /* Top 5 elements for */
+//          bucket_size_totals[NUM_BUCKETS+TEST_ARRAY_SIZE], /* part. ver. vals */
+//          bucket_ptrs[NUM_BUCKETS],
+//          process_bucket_distrib_ptr1[NUM_BUCKETS+TEST_ARRAY_SIZE],   
+//          process_bucket_distrib_ptr2[NUM_BUCKETS+TEST_ARRAY_SIZE];   
+// int      send_count[MAX_PROCS], recv_count[MAX_PROCS],
+//          send_displ[MAX_PROCS], recv_displ[MAX_PROCS];
 
 
 /**********************/
@@ -261,7 +261,7 @@ INT_TYPE2 test_index_array[TEST_ARRAY_SIZE],
 /***********************/
 /* function prototypes */
 /***********************/
-double	randlc( double *X, double *A );
+double  randlc( double *X, double *A );
 
 void full_verify( void );
 
@@ -275,7 +275,7 @@ void c_print_results( char   *name,
                       int    nprocs_total,
                       double t,
                       double mops,
-		      char   *optype,
+              char   *optype,
                       int    passed_verification,
                       char   *npbversion,
                       char   *compiletime,
@@ -332,17 +332,17 @@ double  timer_read( int n );
 /*************    portable random number generator    ************/
 /*****************************************************************/
 
-double	randlc( double *X, double *A )
+double  randlc( double *X, double *A )
 {
       static int        KS=0;
-      static double	R23, R46, T23, T46;
-      double		T1, T2, T3, T4;
-      double		A1;
-      double		A2;
-      double		X1;
-      double		X2;
-      double		Z;
-      int     		i, j;
+      static double R23, R46, T23, T46;
+      double        T1, T2, T3, T4;
+      double        A1;
+      double        A2;
+      double        X1;
+      double        X2;
+      double        Z;
+      int           i, j;
 
       if (KS == 0) 
       {
@@ -453,29 +453,31 @@ double   find_my_seed( int  kn,       /* my processor rank, 0<=kn<=num procs */
 }
 
 
-
-
 /*****************************************************************/
 /*************      C  R  E  A  T  E  _  S  E  Q      ************/
 /*****************************************************************/
+double my_seed;
 
-void	create_seq( double seed, double a )
-{
-	double x;
-	int    i, k;
-
-        k = MAX_KEY/4;
-
-	for (i=0; i<NUM_KEYS; i++)
-	{
-	    x = randlc(&seed, &a);
-	    x += randlc(&seed, &a);
-    	    x += randlc(&seed, &a);
-	    x += randlc(&seed, &a);  
-
-            key_array[i] = k*x;
-	}
+LOOP_FUNCTION(set_seed, nid) {
+    my_seed = find_my_seed(  Grappa_mynode(), 
+                          comm_size, 
+                          4*(long)TOTAL_KEYS*MIN_PROCS,
+                          314159265.00,      /* Random number gen seed */
+                          1220703125.00 );   /* Random number gen mult */
 }
+
+inline void seq_element(int * v) {
+    double a = 1220703125.00; /* Random number gen mult */
+    int k = MAX_KEY/4;
+
+    x = randlc(&my_seed, &a);
+    x += randlc(&my_seed, &a);
+    x += randlc(&my_seed, &a);
+    x += randlc(&my_seed, &a);  
+
+    (*v) = k*x;
+}
+
 
 
 
@@ -808,12 +810,12 @@ void rank( int iteration )
                     break;
                 case 'A':
                     if( i <= 2 )
-        	    {
+                {
                         if( key_rank != test_rank_array[i]+(iteration-1) )
                             failed = 1;
                         else
                             passed_verification++;
-        	    }
+                }
                     else
                     {
                         if( key_rank != test_rank_array[i]-(iteration-1) )
@@ -824,12 +826,12 @@ void rank( int iteration )
                     break;
                 case 'B':
                     if( i == 1 || i == 2 || i == 4 )
-        	    {
+                {
                         if( key_rank != test_rank_array[i]+iteration )
                             failed = 1;
                         else
                             passed_verification++;
-        	    }
+                }
                     else
                     {
                         if( key_rank != test_rank_array[i]-iteration )
@@ -840,12 +842,12 @@ void rank( int iteration )
                     break;
                 case 'C':
                     if( i <= 2 )
-        	    {
+                {
                         if( key_rank != test_rank_array[i]+iteration )
                             failed = 1;
                         else
                             passed_verification++;
-        	    }
+                }
                     else
                     {
                         if( key_rank != test_rank_array[i]-iteration )
@@ -856,12 +858,12 @@ void rank( int iteration )
                     break;
                 case 'D':
                     if( i < 2 )
-        	    {
+                {
                         if( key_rank != test_rank_array[i]+iteration )
                             failed = 1;
                         else
                             passed_verification++;
-        	    }
+                }
                     else
                     {
                         if( key_rank != test_rank_array[i]-iteration )
@@ -899,23 +901,16 @@ void rank( int iteration )
 /*****************************************************************/
 /*************             M  A  I  N             ****************/
 /*****************************************************************/
+void user_main(void * ignore);
 
 int main( int argc, char **argv )
 {
+    /* Initialize Grappa */
+    Grappa_init(&argc, &argv);
+    Grappa_activate();
 
-    int             i, iteration, itemp;
-
-    double          timecounter, maxtime;
-
-
-/*  Initialize MPI */
-    MPI_Init( &argc, &argv );
-    MPI_Comm_rank( MPI_COMM_WORLD, &my_rank );
-    MPI_Comm_size( MPI_COMM_WORLD, &comm_size );
-
-
-/*  Initialize the verification arrays if a valid class */
-    for( i=0; i<TEST_ARRAY_SIZE; i++ )
+    /* Initialize the verification arrays if a valid class */
+    for(int i=0; i<TEST_ARRAY_SIZE; i++ )
         switch( CLASS )
         {
             case 'S':
@@ -944,71 +939,61 @@ int main( int argc, char **argv )
                 break;
         };
 
-        
+    comm_size = Grappa_nodes();
 
-/*  Printout initial NPB info */
-    if( my_rank == 0 )
-    {
-        FILE *fp;
-        printf( "\n\n NAS Parallel Benchmarks 3.3 -- IS Benchmark\n\n" );
-        printf( " Size:  %ld  (class %c)\n", (long)TOTAL_KEYS*MIN_PROCS, CLASS );
-        printf( " Iterations:   %d\n", MAX_ITERATIONS );
-        printf( " Number of processes:     %d\n", comm_size );
+    Grappa_run_user_main(&user_main, (void*)NULL);
+    Grappa_finish(0);
+    return 0;
+}
 
-        fp = fopen("timer.flag", "r");
-        timeron = 0;
-        if (fp) {
-            timeron = 1;
-            fclose(fp);
-        }
-    }
+void user_main(void * ignore)
+{
+    int             i, iteration, itemp;
+    double          timecounter, maxtime;
 
-/*  Check that actual and compiled number of processors agree */
+    /*  Printout initial NPB info */
+    printf( "\n\n NAS Parallel Benchmarks 3.3 -- IS Benchmark for Grappa\n\n" );
+    printf( " Size:  %ld  (class %c)\n", (long)TOTAL_KEYS*MIN_PROCS, CLASS );
+    printf( " Iterations:   %d\n", MAX_ITERATIONS );
+    printf( " Number of processes:     %d\n", comm_size );
+
+    /*  Check that actual and compiled number of processors agree */
     if( comm_size != NUM_PROCS )
     {
-        if( my_rank == 0 )
-            printf( "\n ERROR: compiled for %d processes\n"
-                    " Number of active processes: %d\n"
-                    " Exiting program!\n\n", NUM_PROCS, comm_size );
-        MPI_Finalize();
-        exit( 1 );
+        printf( "\n ERROR: compiled for %d processes\n"
+                " Number of active processes: %d\n"
+                " Exiting program!\n\n", NUM_PROCS, comm_size );
+        return;
     }
 
-/*  Check to see whether total number of processes is within bounds.
-    This could in principle be checked in setparams.c, but it is more
-    convenient to do it here                                               */
+    /*  Check to see whether total number of processes is within bounds.
+        This could in principle be checked in setparams.c, but it is more
+        convenient to do it here                                               */
     if( comm_size < MIN_PROCS || comm_size > MAX_PROCS)
     {
-       if( my_rank == 0 )
-           printf( "\n ERROR: number of processes %d not within range %d-%d"
-                   "\n Exiting program!\n\n", comm_size, MIN_PROCS, MAX_PROCS);
-       MPI_Finalize();
-       exit( 1 );
+        printf( "\n ERROR: number of processes %d not within range %d-%d"
+               "\n Exiting program!\n\n", comm_size, MIN_PROCS, MAX_PROCS);
+        return;
     }
 
-    MPI_Bcast(&timeron, 1, MPI_INT, 0, MPI_COMM_WORLD);
+    key_array = Grappa_typed_malloc<int>(TOTAL_KEYS);
 
 #ifdef  TIMING_ENABLED 
     for( i=1; i<=T_LAST; i++ ) timer_clear( i );
 #endif
 
 /*  Generate random number sequence and subsequent keys on all procs */
-    create_seq( find_my_seed( my_rank, 
-                              comm_size, 
-                              4*(long)TOTAL_KEYS*MIN_PROCS,
-                              314159265.00,      /* Random number gen seed */
-                              1220703125.00 ),   /* Random number gen mult */
-                1220703125.00 );                 /* Random number gen mult */
-
+    { set_seed f; fork_join_custom(&f); }
+    forall_local<int, seq_element>(key_array, TOTAL_KEYS);
 
 /*  Do one interation for free (i.e., untimed) to guarantee initialization of  
     all data and code pages and respective tables */
-    rank( 1 );  
+    rank( 1 );
 
 /*  Start verification counter */
     passed_verification = 0;
 
-    if( my_rank == 0 && CLASS != 'S' ) printf( "\n   iteration\n" );
+    if( CLASS != 'S' ) printf( "\n   iteration\n" );
 
 /*  Initialize timer  */             
     timer_clear( 0 );
