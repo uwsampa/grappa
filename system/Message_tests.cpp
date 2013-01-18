@@ -22,6 +22,7 @@ struct Check {
 void user_main( void * args ) 
 {
 
+  LOG(INFO) << "Test -2";
   {
     bool x0 = false;
     {
@@ -31,10 +32,41 @@ void user_main( void * args )
       //auto m1 = Grappa::message( 0, [&]{ x1 = true; } );
       m0.send();
       x0 = true;
-      Grappa_flush( 0 );
     }
+    Grappa_flush( 0 );
+    Grappa_poll( );
+
+    LOG(INFO) << "Test -1";
+    x0 = false;
+    {
+      // must run on this node
+      auto m0 = Grappa::message( 0, [&x0]{ BOOST_CHECK_EQUAL( x0, true ); } );
+      m0.send();
+      x0 = true;
+    }
+    Grappa_flush( 0 );
+    Grappa_poll( );
+
+    LOG(INFO) << "Test 0";
+    x0 = false;
+    {
+      // must run on this node
+      auto m0 = Grappa::send_message( 0, [&x0]{ BOOST_CHECK_EQUAL( x0, true ); } );
+
+      // //auto l0 = [&x0]{ BOOST_CHECK_EQUAL( x0, true ); };
+      // // Grappa::SendMessage< decltype(l0) > m0( 0, l0 );
+      
+      // auto l0a = [&x0](void * useless, size_t nothing){ BOOST_CHECK_EQUAL( x0, true ); };
+      // int foo[10];
+      // auto m0 = Grappa::send_message( 0, l0a, foo, sizeof(foo) );
+
+      x0 = true;
+    }
+    Grappa_flush( 0 );
+    Grappa_poll( );
   }
 
+  LOG(INFO) << "Test 1";
   {
     bool x1 = false;
     {
@@ -43,12 +75,13 @@ void user_main( void * args )
       Grappa::Message< decltype(f1) > m1( 0, f1 );
       //auto m1 = Grappa::message( 0, [&]{ x1 = true; } );
       m1.send();
-      Grappa_flush( 0 );
-      Grappa_yield();
     }
+    Grappa_flush( 0 );
+    Grappa_poll();
     BOOST_CHECK_EQUAL( x1, true );
   }
 
+  LOG(INFO) << "Test 2";
   {
     // must run on this node
     Grappa::Message< Check > m2( 0, Check() );
@@ -56,9 +89,10 @@ void user_main( void * args )
     m2->x = true;
     m2.send();
     Grappa_flush( 0 );
-    Grappa_yield();
+    Grappa_poll();
   }
 
+  LOG(INFO) << "Test 3";
   {
     Check x3;
     //auto m3 = Grappa::message( 0, &x3 );
@@ -67,9 +101,10 @@ void user_main( void * args )
     m3->x = true;
     m3.send();
     Grappa_flush( 0 );
-    Grappa_yield();
+    Grappa_poll();
   }
 
+  LOG(INFO) << "Test 4";
   {
     bool x4 = false;
     {
@@ -79,10 +114,11 @@ void user_main( void * args )
       Grappa::SendMessage< decltype(f4) > m4( 0, f4 );
     }
     Grappa_flush( 0 );
-    Grappa_yield();
+    Grappa_poll();
     BOOST_CHECK_EQUAL( x4, true );
   }
 
+  LOG(INFO) << "Test 5";
   {
     bool x5 = false;
     // must run on this node
@@ -92,17 +128,18 @@ void user_main( void * args )
     };
 
     {
-      Grappa::SendPayloadMessage< decltype(f5) > m5( 0, f5, &x5, sizeof(x5) );
+      //Grappa::SendPayloadMessage< decltype(f5) > m5( 0, f5, &x5, sizeof(x5) );
+      auto m5 = Grappa::send_message( 0, f5, &x5, sizeof(x5) );
     }
     Grappa_flush( 0 );
-    Grappa_yield();
+    Grappa_poll();
 
     {
       x5 = true;
       Grappa::SendPayloadMessage< decltype(f5) > m5a( 0, f5, &x5, sizeof(x5) );
     }
     Grappa_flush( 0 );
-    Grappa_yield();
+    Grappa_poll();
   }
 
   //Grappa_merge_and_dump_stats();
