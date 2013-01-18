@@ -32,6 +32,8 @@ namespace Grappa {
       bool is_sent_;           ///< Is our payload no longer needed?
       ConditionVariable cv_;   ///< condition variable for sleep/wake
       
+      bool is_moved_;           ///< HACK: make sure we don't try to send ourselves if we're just a temporary
+
       friend class RDMAAggregator;
 
 
@@ -112,7 +114,8 @@ namespace Grappa {
         , is_sent_( false )
         , destination_( -1 )
         , cv_()
-      { }
+	, is_moved_( false )
+      { LOG(INFO) << "construct " << this; }
 
       MessageBase( Core dest )
         : next_( NULL )
@@ -120,11 +123,32 @@ namespace Grappa {
         , is_sent_( false )
         , destination_( dest )
         , cv_()
-      { }
+	, is_moved_( false )
+      { LOG(INFO) << "construct " << this; }
 
       // Ensure we are sent before leaving scope
       inline virtual ~MessageBase() {
         block_until_sent();
+      }
+
+      MessageBase( const MessageBase& ) = delete;
+      MessageBase& operator=( const MessageBase& ) = delete;
+      MessageBase& operator=( MessageBase&& ) = delete;
+
+      /// Move constructor throws an error if the message has already been enqueue to be sent.
+      /// This is intended to allow use of temporary message objects for initialization as long ast 
+      MessageBase( MessageBase&& m ) 
+        : next_( m.next_ )
+        , is_enqueued_( m.is_enqueued_ )
+        , is_sent_( m.is_sent_ )
+        , destination_( m.destination_ )
+        , cv_( m.cv_ )
+	, is_moved_( false ) // this only tells us if the current message has been moved
+      {
+	LOG(INFO) << "move " << this; 
+	CHECK_EQ( is_enqueued_, false ) << "Shouldn't be moving a message that has been enqueued to be sent!"
+					<< " Your compiler's return value optimization failed you here.";
+	m.is_moved_ = true; // mark message as having been moved so sending will fail
       }
 
       /// Make sure we know how big this message is
@@ -132,6 +156,8 @@ namespace Grappa {
 
 
       inline void send() {
+	CHECK( !is_moved_ ) << "Shouldn't be sending a message that has been moved!"
+			    << " Your compiler's return value optimization failed you here.";
         //Grappa::impl::global_rdma_aggregator.send( this );
         is_enqueued_ = true;
         legacy_send();

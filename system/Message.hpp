@@ -39,9 +39,11 @@ namespace Grappa {
       , storage_( t )
     { }
 
-    /// Default copy constructor is fine.
     Message( const Message& m ) = delete; ///< Not allowed.
-    Message operator=( const Message& m ) = delete;         ///< Not allowed.
+    Message& operator=( const Message& m ) = delete;         ///< Not allowed.
+    Message& operator=( Message&& m ) = delete;
+
+    Message( Message&& m ) = default;
 
     ///
     /// for Messages with modifiable contents. Don't use with lambdas.
@@ -137,21 +139,12 @@ namespace Grappa {
       , payload_size_( payload_size )
     { }
 
-    // /// Construct a message and enqueue to be sent immediately.
-    // /// @param dest ID of destination core.
-    // /// @param t Contents of message to send.
-    // inline PayloadMessage Send( Core dest, T t )
-    //   : MessageBase( dest )
-    //   , storage_( t )
-    // { 
-    //   LOG(FAIL) << "Probably doesn't work properly yet.";
-    //   send();
-    // }
+    PayloadMessage( const PayloadMessage& m ) = delete; ///< Not allowed.
+    PayloadMessage& operator=( const PayloadMessage& m ) = delete;         ///< Not allowed.
+    PayloadMessage& operator=( PayloadMessage&& m ) = delete;         ///< Not allowed.
 
-    /// Default copy constructor is fine.
-    //PayloadMessage( const PayloadMessage& m ) = delete; ///< Not allowed.
-    PayloadMessage operator=( const PayloadMessage& m ) = delete;         ///< Not allowed.
-
+    PayloadMessage( PayloadMessage&& m ) = default;
+    
     ///
     /// for Messages with modifiable contents. Don't use with lambdas.
     ///
@@ -249,20 +242,11 @@ namespace Grappa {
       , pointer_( t )
     { }
 
-    // /// Construct a message and enqueue to be sent immediately.
-    // /// @param dest ID of destination core.
-    // /// @param t Contents of message to send.
-    // inline ExternalMessage Send( Core dest, T * t )
-    //   : MessageBase( dest )
-    //   , pointer_( t )
-    // { 
-    //   LOG(FAIL) << "Probably doesn't work properly yet.";
-    //   send();
-    // }
+    ExternalMessage( const ExternalMessage& m ) = delete; ///< Not allowed.
+    ExternalMessage& operator=( const ExternalMessage& m ) = delete;         ///< Not allowed.
+    ExternalMessage& operator=( ExternalMessage&& m ) = delete;         ///< Not allowed.
 
-    /// Default copy constructor is fine.
-    //ExternalMessage( const ExternalMessage& m ) = delete; ///< Not allowed.
-    ExternalMessage operator=( const ExternalMessage& m ) = delete;         ///< Not allowed.
+    ExternalMessage( ExternalMessage&& m ) = default; ///< Not allowed.
 
     ///
     /// for Messages with modifiable contents. Don't use with lambdas.
@@ -360,20 +344,11 @@ namespace Grappa {
       , payload_size_( payload_size )
     { }
 
-    // /// Construct a message and enqueue to be sent immediately.
-    // /// @param dest ID of destination core.
-    // /// @param t Contents of message to send.
-    // inline PayloadMessage Send( Core dest, T t )
-    //   : MessageBase( dest )
-    //   , storage_( t )
-    // { 
-    //   LOG(FAIL) << "Probably doesn't work properly yet.";
-    //   send();
-    // }
+    ExternalPayloadMessage( const ExternalPayloadMessage& m ) = delete; ///< Not allowed.
+    ExternalPayloadMessage& operator=( const ExternalPayloadMessage& m ) = delete;         ///< Not allowed.
+    ExternalPayloadMessage& operator=( ExternalPayloadMessage&& m ) = delete;         ///< Not allowed.
 
-    /// Default copy constructor is fine.
-    //ExternalPayloadMessage( const ExternalPayloadMessage& m ) = delete; ///< Not allowed.
-    ExternalPayloadMessage operator=( const ExternalPayloadMessage& m ) = delete;         ///< Not allowed.
+    ExternalPayloadMessage( ExternalPayloadMessage&& m ) = default;
 
     ///
     /// for Messages with modifiable contents. Don't use with lambdas.
@@ -503,19 +478,29 @@ namespace Grappa {
   template< typename T >
   class SendMessage : public Message<T> {
   public:
+    SendMessage( const SendMessage& ) = delete;
+    SendMessage( SendMessage&& ) = default;
+    SendMessage& operator=( const SendMessage& ) = delete;
+    SendMessage& operator=( SendMessage&& ) = delete;
+
     /// Construct a message and enqueue to be sent immediately.
     /// @param dest ID of destination core.
     /// @param t Contents of message to send.
     inline SendMessage( Core dest, T t )
       : Message<T>( dest, t )
     { 
-      Message<T>::send();
+      this->send();
     }
   };
 
   template< typename T >
   class SendPayloadMessage : public PayloadMessage<T> {
   public:
+    SendPayloadMessage( const SendPayloadMessage& ) = delete;
+    SendPayloadMessage( SendPayloadMessage&& ) = default;
+    SendPayloadMessage& operator=( const SendPayloadMessage& ) = delete;
+    SendPayloadMessage& operator=( SendPayloadMessage&& ) = delete;
+
     /// Construct a message and enqueue to be sent immediately.
     /// @param dest ID of destination core.
     /// @param t Contents of message to send.
@@ -524,26 +509,36 @@ namespace Grappa {
     inline SendPayloadMessage( Core dest, T t, void * payload, size_t payload_size )
       : PayloadMessage<T>( dest, t, payload, payload_size )
     { 
-      PayloadMessage<T>::send();
+      this->send();
     }
   };
 
   template< typename T >
   class SendExternalMessage : public ExternalMessage<T> {
   public:
+    SendExternalMessage( const SendExternalMessage& ) = delete;
+    SendExternalMessage( SendExternalMessage&& ) = default;
+    SendExternalMessage& operator=( const SendExternalMessage& ) = delete;
+    SendExternalMessage& operator=( SendExternalMessage&& ) = delete;
+
     /// Construct a message and enqueue to be sent immediately.
     /// @param dest ID of destination core.
     /// @param t Pointer to contents of message to send.
     inline SendExternalMessage( Core dest, T * t )
       : ExternalMessage<T>( dest, t )
     { 
-      ExternalMessage<T>::send();
+      this->send();
     }
   };
 
   template< typename T >
   class SendExternalPayloadMessage : public ExternalPayloadMessage<T> {
   public:
+    SendExternalPayloadMessage( const SendExternalPayloadMessage& ) = delete;
+    SendExternalPayloadMessage( SendExternalPayloadMessage&& ) = default;
+    SendExternalPayloadMessage& operator=( const SendExternalPayloadMessage& ) = delete;
+    SendExternalPayloadMessage& operator=( SendExternalPayloadMessage&& ) = delete;
+
     /// Construct a message and enqueue to be sent immediately.
     /// @param dest ID of destination core.
     /// @param t Pointer to contents of message to send.
@@ -552,36 +547,32 @@ namespace Grappa {
     inline SendExternalPayloadMessage( Core dest, T * t, void * payload, size_t payload_size )
       : ExternalPayloadMessage<T>( dest, t, payload, payload_size )
     { 
-      ExternalPayloadMessage<T>::send();
+      this->send();
     }
   };
 
 
   /// Same as message, but immediately enqueued to be sent.
   template< typename T >
-  inline Message<T> send_message( Core dest, T t ) {
-    LOG(ERROR) << "Probably doesn't work properly yet.";
+  inline SendMessage<T> send_message( Core dest, T t ) {
     return SendMessage<T>( dest, t );
   }
 
   /// Message with payload, immediately enqueued to be sent.
   template< typename T >
-  inline PayloadMessage<T> send_message( Core dest, T t, void * payload, size_t payload_size ) {
-    LOG(ERROR) << "Probably doesn't work properly yet.";
-    return SendPayloadMessage<T>( dest, t );
+  inline SendPayloadMessage<T> send_message( Core dest, T t, void * payload, size_t payload_size ) {
+    return SendPayloadMessage<T>( dest, t, payload, payload_size );
   }
 
   /// Message with contents stored outside object, immediately enqueued to be sent.
   template< typename T >
-  inline ExternalMessage<T> send_message( Core dest, T * t ) {
-    LOG(ERROR) << "Probably doesn't work properly yet.";
+  inline SendExternalMessage<T> send_message( Core dest, T * t ) {
     return SendExternalMessage<T>( dest, t );
   }
 
   /// Message with contents stored outside object as well as payload, immediately enqueued to be sent.
   template< typename T >
-  inline ExternalPayloadMessage<T> send_message( Core dest, T * t, void * payload, size_t payload_size ) {
-    LOG(ERROR) << "Probably doesn't work properly yet.";
+  inline SendExternalPayloadMessage<T> send_message( Core dest, T * t, void * payload, size_t payload_size ) {
     return SendExternalPayloadMessage<T>( dest, t, payload, payload_size );
   }
 
