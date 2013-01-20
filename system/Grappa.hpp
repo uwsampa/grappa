@@ -220,6 +220,11 @@ static inline void Grappa_idle_flush_poll() {
 
 void Grappa_take_profiling_sample();
 
+namespace Grappa {
+  inline Node nodes() { return Grappa_nodes(); }
+  inline Node mynode() { return Grappa_mynode(); }
+}
+
 #include "Addressing.hpp"
 #include "Tasking.hpp"
 #include "StateTimer.hpp"
