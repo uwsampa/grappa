@@ -4,7 +4,7 @@
 
 #include <cstring>
 
-#include "ConditionVariable.hpp"
+#include "ConditionVariableLocal.hpp"
 
 typedef int16_t Core;
 
