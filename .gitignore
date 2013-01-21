@@ -124,3 +124,6 @@ config.cache
 
 # documentation
 /system/doxygen/*
+
+# CMake
+/build
