@@ -127,3 +127,7 @@ config.cache
 
 # stats output
 *stats.json
+
+# CMake
+/build
+
