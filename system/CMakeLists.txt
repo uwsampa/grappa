@@ -98,18 +98,42 @@ set(SYSTEM_SOURCES
 
 message("source dir: ${CMAKE_CURRENT_SOURCE_DIR}")
 
-include_directories(
-  "${CMAKE_CURRENT_SOURCE_DIR}"
-  "${CMAKE_CURRENT_SOURCE_DIR}/tasks"
+######################################
+# Gasnet
+######################################
+set(GASNET_CONDUIT "ibv") # values: ibv,mpi
+set(GASNET_THREAD "seq")  # values: seq,par,parsync -- seq recommended
+list(APPEND GRAPPA_LIBS "gasnet-${GASNET_CONDUIT}-${GASNET_THREAD}")
+
+if( ${GASNET_CONDUIT} MATCHES "ibv")
+  list(APPEND GRAPPA_LIBS "ibverbs")
+endif()
+if( ${GASNET_CONDUIT} MATCHES "mpi")
+  list(APPEND GRAPPA_LIBS "ammpi")
+endif()
+if( ${GASNET_CONDUIT} MATCHES "udp")
+  list(APPEND GRAPPA_LIBS "amudp")
+endif()
+
+string(TOUPPER ${GASNET_CONDUIT} GASNET_CONDUIT_UP)
+string(TOUPPER ${GASNET_THREAD} GASNET_THREAD_UP)
+
+add_definitions(
+  "-DGASNET_${GASNET_THREAD_UP}"
+  "-DGASNET_${GASNET_CONDUIT_UP}"
+  "-DGASNET_CONDUIT_${GASNET_CONDUIT_UP}"
 )
+include_directories("${GRAPPA_DEPENDENCY_DIR}/include/${GASNET_CONDUIT}-conduit")
+
+if( GOOGLE_PROFILER )
+  list(APPEND GRAPPA_LIBS "profiler")
+endif()
 
 add_library(Grappa
   ${SYSTEM_SOURCES}
   ${SYSTEM_HEADERS}
 )
-if( GOOGLE_PROFILER )
-  target_link_libraries(Grappa profiler)
-endif()
+target_link_libraries(Grappa ${GRAPPA_LIBS})
 
 set(ENV_VARIABLES "")
 set(TEST_LOG_LEVEL "nothing")
@@ -122,11 +146,10 @@ foreach(test_cpp ${TEST_SOURCES})
 
   add_executable("${test_name}.test" EXCLUDE_FROM_ALL ${test_cpp})
   target_link_libraries(${test} Grappa)
-  set_property(TARGET "${test_name}.test" PROPERTY FOLDER "Tests")
+  set_property(TARGET "${test_name}.test" PROPERTY FOLDER "Tests") # For organization in Xcode project
 
   # TODO: use "ctest" to make whole regression test suite
   add_custom_target("check-${test_name}"
-    OUTPUT ""
     COMMAND ${ENV_VARIABLES} ${MPIRUN} "${test_name}.test" --log_level=${TEST_LOG_LEVEL} --report_level=${TEST_REPORT_LEVEL} --run_test="${test_name}.test"
     DEPENDS Grappa "${test_name}.test"
   )
