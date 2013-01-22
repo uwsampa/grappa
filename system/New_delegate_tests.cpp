@@ -19,24 +19,23 @@ using namespace Grappa;
 
 int64_t delegate_read(GlobalAddress<int64_t> target) {
   FullEmpty<int64_t> result;
-  auto result_addr = &result;
   Node origin = Grappa_mynode();
   
   VLOG(1) << "issuer Worker*: " << global_scheduler.get_current_thread();
   
   {
-    send_message(target.node(), [=]() mutable {
+    send_message(target.node(), [=,&result] {
       CHECK(target.node() == Grappa_mynode());
       int64_t val = *target.pointer();
       VLOG(1) << "val = " << val << "\n";
       
-      send_message(origin, [=]{
+      send_message(origin, [=,&result] {
         VLOG(1) << "val = " << val << " (back on origin)\n";
-        result_addr->writeEF(val);
+        result.writeEF(val);
       });
     });
-  }
-  
+  } // send messages
+  // ... and wait for the result
   int64_t r = result.readFE();
   VLOG(1) << "read full: " << r;
   return r;
