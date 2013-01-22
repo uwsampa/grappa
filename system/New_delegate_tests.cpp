@@ -6,10 +6,12 @@
 // Energy. The Government has certain rights in the software.
 
 #include <boost/test/unit_test.hpp>
-#include <Grappa.hpp>
-#include <Message.hpp>
-#include <FullEmpty.hpp>
-#include <Message.hpp>
+#include "Grappa.hpp"
+#include "Message.hpp"
+#include "FullEmpty.hpp"
+#include "Message.hpp"
+#include "ConditionVariable.hpp"
+#include "tasks/TaskingScheduler.hpp"
 
 BOOST_AUTO_TEST_SUITE( New_delegate_tests );
 
@@ -18,19 +20,26 @@ using namespace Grappa;
 int64_t delegate_read(GlobalAddress<int64_t> target) {
   FullEmpty<int64_t> result;
   Node origin = Grappa_mynode();
-
-  send_message(target.node(), [=]{
-    CHECK(target.node() == Grappa_mynode());
-    int64_t val = *target.pointer();
-    std::cout << "val = " << val << "\n";
-
-    send_message(origin, [=]{
-      std::cout << "val = " << val << " (back on origin)\n";
-      result.writeEF(val);
+  
+  VLOG(1) << "issuer Worker*: " << global_scheduler.get_current_thread();
+  
+  {
+    send_message(target.node(), [=]() mutable {
+      CHECK(target.node() == Grappa_mynode());
+      int64_t val = *target.pointer();
+      std::cout << "val = " << val << "\n";
+      auto r = &result;
+      
+      send_message(origin, [=]{
+        std::cout << "val = " << val << " (back on origin)\n";
+        r->writeEF(val);
+      });
     });
-  });
-
-  return result.readFE();
+  }
+  
+  int64_t r = result.readFE();
+  VLOG(1) << "read full: " << r;
+  return r;
 }
 
 void user_main(void * args) {
@@ -39,17 +48,20 @@ void user_main(void * args) {
   int64_t seed = 12345;
   GlobalAddress<int64_t> seed_addr = make_global(&seed);
 
+  ConditionVariable waiter;
+  auto waiter_addr = make_global(&waiter);
+  
   send_message(1, [=]{
     // on node 1
     privateTask([=]{
       int64_t vseed = delegate_read(seed_addr);
 
       std::cout << "delegate_read(seed) = " << vseed << "\n";
+      signal(waiter_addr);
     });
-  }]);
-
-
-  std::cout << "d = " << d.readFE() << std::endl;
+  });
+  Grappa::wait(&waiter);
+  std::cout << "done waiting\n";
 }
 
 BOOST_AUTO_TEST_CASE( test1 ) {
