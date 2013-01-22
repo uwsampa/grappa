@@ -77,6 +77,8 @@ Thread_tests.test: coro.o stack.o tasks/Thread.o tasks/BasicScheduler.o
 Communicator_tests.o Communicator_tests.test: Communicator.o
 
 Aggregator_tests.o Aggregator_tests.test: $(LIBRARY)
+RDMAAggregator_tests.o RDMAAggregator_tests.test: $(LIBRARY) RDMAAggregator.o
+Message_tests.o Message_tests.test: $(LIBRARY)
 MutableHeap_tests.o MutableHeap_tests.test:  $(LIBRARY)
 
 
@@ -90,6 +92,11 @@ Allocator_tests.o Allocator_tests.test: Allocator.o
 QueueDebug_tests.o QueueDebug_tests.exe: ../tools/stl-debug-allocator/archive/Source/allocator.o
 
 Collective_tests.o Collective_tests.test: $(LIBRARY)
+
+Mutex_tests.o Mutex_tests.test: $(LIBRARY)
+ConditionVariable_tests.o ConditionVariable_tests.test: $(LIBRARY)
+FullEmpty_tests.o FullEmpty_tests.test: $(LIBRARY)
+
 
 #thread_tests.test: thread.o stack.o coro.o
 thread2_tests.o thread2_tests.test: $(LIBRARY)
