@@ -19,6 +19,7 @@ using namespace Grappa;
 
 int64_t delegate_read(GlobalAddress<int64_t> target) {
   FullEmpty<int64_t> result;
+  auto result_addr = &result;
   Node origin = Grappa_mynode();
   
   VLOG(1) << "issuer Worker*: " << global_scheduler.get_current_thread();
@@ -27,12 +28,11 @@ int64_t delegate_read(GlobalAddress<int64_t> target) {
     send_message(target.node(), [=]() mutable {
       CHECK(target.node() == Grappa_mynode());
       int64_t val = *target.pointer();
-      std::cout << "val = " << val << "\n";
-      auto r = &result;
+      VLOG(1) << "val = " << val << "\n";
       
       send_message(origin, [=]{
-        std::cout << "val = " << val << " (back on origin)\n";
-        r->writeEF(val);
+        VLOG(1) << "val = " << val << " (back on origin)\n";
+        result_addr->writeEF(val);
       });
     });
   }
@@ -56,12 +56,12 @@ void user_main(void * args) {
     privateTask([=]{
       int64_t vseed = delegate_read(seed_addr);
 
-      std::cout << "delegate_read(seed) = " << vseed << "\n";
+      VLOG(1) << "delegate_read(seed) = " << vseed << "\n";
       signal(waiter_addr);
     });
   });
   Grappa::wait(&waiter);
-  std::cout << "done waiting\n";
+  VLOG(1) << "done waiting\n";
 }
 
 BOOST_AUTO_TEST_CASE( test1 ) {
