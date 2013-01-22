@@ -757,10 +757,10 @@ public:
                                            << "+header_size( " << sizeof( AggregatorGenericCallHeader ) << " )"
                                            << "= " << total_call_size << " of max( " << buffer_size_ << " )";
 
-    AggregatorGenericCallHeader header = { reinterpret_cast< intptr_t >( fn_p ),
+    AggregatorGenericCallHeader header = { reinterpret_cast< uintptr_t >( fn_p ),
 					   destination,
-					   args_size,
-					   payload_size
+					   static_cast<uint16_t>(args_size),
+					   static_cast<uint16_t>(payload_size)
 #ifdef GRAPPA_TRACE
 					   , global_communicator.mynode()
 #endif

@@ -31,7 +31,7 @@ inline void array_dir_fname(char * result, const char * dirname, int64_t start, 
 }
 inline void array_dir_scan(const fs::path& p, int64_t * start, int64_t * end) {
   //VLOG(1) << p.stem().string();
-  sscanf(p.stem().string().c_str(), "block.%ld.%ld", start, end);
+  sscanf(p.stem().c_str(), "block.%ld.%ld", start, end);
 }
 
 #define AIO_SIGNAL SIGRTMIN+1
