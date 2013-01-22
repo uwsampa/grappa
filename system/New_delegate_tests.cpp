@@ -17,6 +17,37 @@ BOOST_AUTO_TEST_SUITE( New_delegate_tests );
 
 using namespace Grappa;
 
+template <typename F>
+inline auto delegate_call(Core dest, F func) -> decltype(func()) {
+  using R = decltype(func());
+  FullEmpty<R> result;
+  Node origin = Grappa_mynode();
+  
+  VLOG(1) << "issuer Worker*: " << global_scheduler.get_current_thread();
+  
+  {
+    send_message(dest, [&result, origin, func] {
+      R val = func();
+      VLOG(1) << "val = " << val << "\n";
+      
+      send_message(origin, [&result, val] {
+        VLOG(1) << "val = " << val << " (back on origin)";
+        result.writeXF(val);
+      });
+    });
+  } // send messages
+  // ... and wait for the result
+  R r = result.readFE();
+  VLOG(1) << "read full: " << r;
+  return r;
+}
+
+int64_t d_read(GlobalAddress<int64_t> target) {
+  return delegate_call(target.node(), [target]()->int64_t {
+    return *target.pointer();
+  });
+}
+
 int64_t delegate_read(GlobalAddress<int64_t> target) {
   FullEmpty<int64_t> result;
   Node origin = Grappa_mynode();
@@ -27,11 +58,11 @@ int64_t delegate_read(GlobalAddress<int64_t> target) {
     send_message(target.node(), [=,&result] {
       CHECK(target.node() == Grappa_mynode());
       int64_t val = *target.pointer();
-      VLOG(1) << "val = " << val << "\n";
+      VLOG(1) << "val = " << val;
       
       send_message(origin, [=,&result] {
-        VLOG(1) << "val = " << val << " (back on origin)\n";
-        result.writeEF(val);
+        VLOG(1) << "val = " << val << " (back on origin)";
+        result.writeXF(val);
       });
     });
   } // send messages
@@ -53,14 +84,14 @@ void user_main(void * args) {
   send_message(1, [=]{
     // on node 1
     privateTask([=]{
-      int64_t vseed = delegate_read(seed_addr);
+      int64_t vseed = d_read(seed_addr);
 
-      VLOG(1) << "delegate_read(seed) = " << vseed << "\n";
+      VLOG(1) << "delegate_read(seed) = " << vseed;
       signal(waiter_addr);
     });
   });
   Grappa::wait(&waiter);
-  VLOG(1) << "done waiting\n";
+  VLOG(1) << "done waiting";
 }
 
 BOOST_AUTO_TEST_CASE( test1 ) {
