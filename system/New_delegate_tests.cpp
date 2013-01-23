@@ -23,53 +23,26 @@ inline auto delegate_call(Core dest, F func) -> decltype(func()) {
   FullEmpty<R> result;
   Node origin = Grappa_mynode();
   
-  VLOG(1) << "issuer Worker*: " << global_scheduler.get_current_thread();
-  
-  {
-    send_message(dest, [&result, origin, func] {
-      R val = func();
-      VLOG(1) << "val = " << val << "\n";
-      
-      send_message(origin, [&result, val] {
-        VLOG(1) << "val = " << val << " (back on origin)";
-        result.writeXF(val);
-      });
+  send_message(dest, [&result, origin, func] {
+    R val = func();
+    VLOG(3) << "rpc result = " << val << " (at destination)";
+    
+    send_message(origin, [&result, val] {
+      VLOG(3) << "rpc result = " << val << " (back on origin)";
+      result.writeXF(val); // can't block in message, assumption is that result is already empty
     });
-  } // send messages
+  }); // send message
   // ... and wait for the result
   R r = result.readFE();
-  VLOG(1) << "read full: " << r;
+  VLOG(3) << "" << r;
   return r;
 }
 
-int64_t d_read(GlobalAddress<int64_t> target) {
-  return delegate_call(target.node(), [target]()->int64_t {
+template< typename T >
+T delegate_read(GlobalAddress<T> target) {
+  return delegate_call(target.node(), [target]() -> T {
     return *target.pointer();
   });
-}
-
-int64_t delegate_read(GlobalAddress<int64_t> target) {
-  FullEmpty<int64_t> result;
-  Node origin = Grappa_mynode();
-  
-  VLOG(1) << "issuer Worker*: " << global_scheduler.get_current_thread();
-  
-  {
-    send_message(target.node(), [=,&result] {
-      CHECK(target.node() == Grappa_mynode());
-      int64_t val = *target.pointer();
-      VLOG(1) << "val = " << val;
-      
-      send_message(origin, [=,&result] {
-        VLOG(1) << "val = " << val << " (back on origin)";
-        result.writeXF(val);
-      });
-    });
-  } // send messages
-  // ... and wait for the result
-  int64_t r = result.readFE();
-  VLOG(1) << "read full: " << r;
-  return r;
 }
 
 void user_main(void * args) {
@@ -81,10 +54,10 @@ void user_main(void * args) {
   ConditionVariable waiter;
   auto waiter_addr = make_global(&waiter);
   
-  send_message(1, [=]{
+  send_message(1, [seed_addr, waiter_addr] {
     // on node 1
-    privateTask([=]{
-      int64_t vseed = d_read(seed_addr);
+    privateTask([seed_addr, waiter_addr] {
+      int64_t vseed = delegate_read(seed_addr);
 
       VLOG(1) << "delegate_read(seed) = " << vseed;
       signal(waiter_addr);
