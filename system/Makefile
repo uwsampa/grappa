@@ -475,7 +475,7 @@ TESTS:=$(foreach dir,$(DIRECTORIES),$(wildcard $(dir)/*.test))
 # Temporary special handling for thread library
 #
 
-coro.o: coro.c
+coro.o: coro.cpp
 	$(ENV_VARIABLES) \
 	$($(MPITYPE)_CXX) -MMD -MF $*.d.tmp -c $(CFLAGS) $< -o $*.o
 	@sed -e 's|.*:|$*.o:|' < $*.d.tmp > $*.d
