@@ -4,14 +4,16 @@ project(Grappa)
 cmake_minimum_required(VERSION 2.8)
 set_property(GLOBAL PROPERTY USE_FOLDERS ON)
 
+set(CMAKE_BUILD_TYPE RelWithDebInfo)
+
 site_name(MACHINENAME)
 
 # global C++ flags
-list(APPEND CMAKE_CXX_FLAGS "-std=c++11 -Winline -Wno-inline")
+list(APPEND CMAKE_CXX_FLAGS "-std=c++11 -Winline -Wno-inline -mno-red-zone")
 # TODO: use -stdlib=libc++ too?
 
 # TODO: verify that this is not a problem and remove
-list(APPEND CMAKE_C_FLAGS "-mno-red-zone")
+# list(APPEND CMAKE_CXX_FLAGS "-mno-red-zone")
 
 set(MPIRUN srun)
 
@@ -25,6 +27,8 @@ set(GASNET_SETTINGS
   GASNET_AMCREDITS_PP=48
   GASNET_PHYSMEM_MAX=1024M
 )
+
+add_definitions("-DSHMMAX=12884901888")
 
 if( GOOGLE_PROFILER )
   list(APPEND ENV_VARIABLES "CPUPROFILE_FREQUENCY=100")
@@ -57,5 +61,6 @@ list(APPEND GRAPPA_LIBS
 # put Grappa system directory on include path for everything following this
 # include_directories("${CMAKE_CURRENT_SOURCE_DIR}/system")
 include_directories(system)
+include_directories(system/tasks)
 
 add_subdirectory(system)

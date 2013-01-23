@@ -66,8 +66,6 @@ set(SYSTEM_SOURCES
   ProfilerGroups.cpp
   ProfilerGroups.hpp
   PushBuffer.hpp
-  RDMAAggregator.cpp
-  RDMAAggregator.hpp
   StateTimer.cpp
   StateTimer.hpp
   StatisticsTools.hpp
@@ -79,7 +77,7 @@ set(SYSTEM_SOURCES
   Uid.hpp
   boost_helpers.hpp
   common.hpp
-  coro.c
+  coro.cpp
   coro.h
   stack.S
   stack.h
