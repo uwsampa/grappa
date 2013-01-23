@@ -395,7 +395,12 @@ ReturnType Grappa_delegate_func( ArgType arg, Node target ) {
     
 namespace Grappa {
   namespace delegate {
+    /// @addtogroup Delegates
+    /// @{
     
+    /// Implements essentially a blocking remote procedure call. Callable object (lambda,
+    /// function pointer, or functor object) is called from the `dest` core and the return
+    /// value is sent back to the calling task.
     template <typename F>
     inline auto call(Core dest, F func) -> decltype(func()) {
       using R = decltype(func());
@@ -421,6 +426,9 @@ namespace Grappa {
       }
     }
     
+    /// Read the value (potentially remote) at the given GlobalAddress, blocks the calling task until
+    /// round-trip communication is complete.
+    /// @warning { Target object must lie on a single node (not span blocks in global address space). }
     template< typename T >
     T read(GlobalAddress<T> target) {
       return call(target.node(), [target]() -> T {
@@ -428,15 +436,20 @@ namespace Grappa {
       });
     }
     
-    // TODO: don't return any val, requires changes to `delegate::call()`.
+    /// Blocking remote write.
+    /// @warning { Target object must lie on a single node (not span blocks in global address space). }
     template< typename T, typename U >
     bool write(GlobalAddress<T> target, U value) {
+      // TODO: don't return any val, requires changes to `delegate::call()`.
       return call(target.node(), [target, value]() -> bool {
         *target.pointer() = (T)value;
         return true;
       });
     }
     
+    /// Fetch the value at `target`, increment the value stored there with `inc` and return the
+    /// original value to blocking thread.
+    /// @warning { Target object must lie on a single node (not span blocks in global address space). }
     template< typename T, typename U >
     T fetch_and_add(GlobalAddress<T> target, U inc) {
       T * p = target.pointer();
@@ -447,6 +460,9 @@ namespace Grappa {
       });
     }
     
+    /// If value at `target` equals `cmp_val`, set the value to `new_val` and return `true`,
+    /// otherwise do nothing and return `false`.
+    /// @warning { Target object must lie on a single node (not span blocks in global address space). }
     template< typename T, typename U, typename V >
     bool compare_and_swap(GlobalAddress<T> target, U cmp_val, V new_val) {
       T * p = target.pointer();
@@ -460,6 +476,7 @@ namespace Grappa {
       });
     }
     
+    /// @}
   } // namespace delegate
 } // namespace Grappa
 
