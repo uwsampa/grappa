@@ -9,23 +9,53 @@
 
 #include "Grappa.hpp"
 #include "RDMAAggregator.hpp"
+#include "Message.hpp"
 
 BOOST_AUTO_TEST_SUITE( RDMAAggregator_tests );
 
 
-void user_main( void * args ) 
-{
-  auto m = Grappa::scopedMessage( 0, []{ LOG(INFO) << "Test message 1"; } );
-  auto n = Grappa::scopedMessage( 0, []{ LOG(INFO) << "Test message 2"; } );
-  auto o = Grappa::scopedMessage( 1, []{ LOG(INFO) << "Test message 3"; } );
-  auto p = Grappa::scopedMessage( 1, []{ LOG(INFO) << "Test message 4"; } );
+int count = 0;
 
-  Grappa::impl::global_rdma_aggregator.enqueue( &m );
-  Grappa::impl::global_rdma_aggregator.enqueue( &n );
-  Grappa::impl::global_rdma_aggregator.enqueue( &o );
-  Grappa::impl::global_rdma_aggregator.enqueue( &p );
-  Grappa::impl::global_rdma_aggregator.flush( 0 );
-  Grappa::impl::global_rdma_aggregator.flush( 1 );
+void user_main( void * args ) {
+  if (true) {
+    auto m = Grappa::message( 0, []{ LOG(INFO) << "Test message 1a: count = " << count++; } );
+    auto n = Grappa::message( 0, []{ LOG(INFO) << "Test message 2a: count = " << count++; } );
+    auto o = Grappa::message( 1, []{ LOG(INFO) << "Test message 3a: count = " << count++; } );
+    auto p = Grappa::message( 1, []{ LOG(INFO) << "Test message 4a: count = " << count++; } );
+
+    LOG(INFO) << "Sending m";
+    m.send_immediate();
+    LOG(INFO) << "Sending n";
+    n.send_immediate();
+    o.send_immediate();
+    p.send_immediate();
+  }
+
+  if (true) {
+    auto o = Grappa::message( 1, []{ LOG(INFO) << "Test message 1b: count = " << count++; } );
+    auto p = Grappa::message( 1, []{ LOG(INFO) << "Test message 2b: count = " << count++; } );
+    count += 2;
+  
+    o.enqueue();
+    p.enqueue();
+
+    LOG(INFO) << "Flushing 1";
+    Grappa::impl::global_rdma_aggregator.flush( 1 );
+  }
+
+  if (true) {
+    auto m = Grappa::send_message( 0, []{ LOG(INFO) << "Test message 1c: count = " << count++; } );
+    auto n = Grappa::send_message( 0, []{ LOG(INFO) << "Test message 2c: count = " << count++; } );
+    auto o = Grappa::send_message( 1, []{ LOG(INFO) << "Test message 3c: count = " << count++; } );
+    auto p = Grappa::send_message( 1, []{ LOG(INFO) << "Test message 4c: count = " << count++; } );
+
+    LOG(INFO) << "Flushing 0";
+    Grappa::impl::global_rdma_aggregator.flush( 0 );
+
+    LOG(INFO) << "Flushing 1";
+    Grappa::impl::global_rdma_aggregator.flush( 1 );
+  }
+
 
   Grappa_merge_and_dump_stats();
 }
@@ -40,6 +70,8 @@ BOOST_AUTO_TEST_CASE( test1 ) {
   Grappa_activate();
 
   Grappa_run_user_main( &user_main, (void*)NULL );
+
+  BOOST_CHECK_EQUAL( count, 6 );
 
   Grappa_finish( 0 );
 }
