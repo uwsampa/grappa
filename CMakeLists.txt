@@ -15,7 +15,31 @@ list(APPEND CMAKE_CXX_FLAGS "-std=c++11 -Winline -Wno-inline -mno-red-zone")
 # TODO: verify that this is not a problem and remove
 # list(APPEND CMAKE_CXX_FLAGS "-mno-red-zone")
 
-set(MPIRUN srun)
+# use, i.e. don't skip the full RPATH for the build tree
+set(CMAKE_SKIP_BUILD_RPATH  FALSE)
+# when building, don't use the install RPATH already
+# (but later on when installing)
+set(CMAKE_BUILD_WITH_INSTALL_RPATH FALSE) 
+set(CMAKE_INSTALL_RPATH "${CMAKE_INSTALL_PREFIX}/lib")
+# add the automatically determined parts of the RPATH
+# which point to directories outside the build tree to the install RPATH
+set(CMAKE_INSTALL_RPATH_USE_LINK_PATH TRUE)
+# the RPATH to be used when installing, but only if it's not a system directory
+list(FIND CMAKE_PLATFORM_IMPLICIT_LINK_DIRECTORIES "${CMAKE_INSTALL_PREFIX}/lib" isSystemDir)
+if("${isSystemDir}" STREQUAL "-1")
+   set(CMAKE_INSTALL_RPATH "${CMAKE_INSTALL_PREFIX}/lib")
+endif("${isSystemDir}" STREQUAL "-1")
+
+
+set(RUN_CMD srun)
+set(RUN_FLAGS "")
+list(APPEND RUN_FLAGS
+  --partition=grappa
+  --nodes=2
+  --ntasks-per-node=1
+)
+
+set(ENV_VARIABLES "")
 
 set(GASNET_SETTINGS
   GASNET_BACKTRACE=1
