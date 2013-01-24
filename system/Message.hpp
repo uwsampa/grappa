@@ -9,6 +9,7 @@
 #define __MESSAGE_HPP__
 
 #include "MessageBase.hpp"
+#include "MessageBaseImpl.hpp"
 
 #include <glog/logging.h>
 
