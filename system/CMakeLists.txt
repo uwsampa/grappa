@@ -130,6 +130,10 @@ if( GOOGLE_PROFILER )
   list(APPEND GRAPPA_LIBS "profiler")
 endif()
 
+# (a bit of a hack) without this, stack.o isn't generated
+# ... could also add custom command, but this seems easier
+set_source_files_properties( stack.S PROPERTIES LANGUAGE C )
+
 add_library(Grappa
   ${SYSTEM_SOURCES}
   ${SYSTEM_HEADERS}
@@ -142,16 +146,23 @@ set(TEST_REPORT_LEVEL "no")
 
 # create targets for each test
 foreach(test_cpp ${TEST_SOURCES})
-  # string(REPLACE ".cpp" "" test_name ${test_cpp})
-  get_filename_component(test_name ${test_cpp} NAME)
+  get_filename_component(test_name ${test_cpp} NAME_WE) # name without extension
+  set(test "${test_name}.test")
 
-  add_executable("${test_name}.test" EXCLUDE_FROM_ALL ${test_cpp})
+  # include Boost test automagic main() generation
+  # add an additional rule if you need to include multiple components
+
+  add_executable(${test} EXCLUDE_FROM_ALL ${test_cpp})
   target_link_libraries(${test} Grappa)
-  set_property(TARGET "${test_name}.test" PROPERTY FOLDER "Tests") # For organization in Xcode project
+  set_property(TARGET ${test} PROPERTY FOLDER "Tests") # For organization in Xcode project
+  set_target_properties(${test} PROPERTIES
+    COMPILE_FLAGS "-DBOOST_TEST_DYN_LINK -DBOOST_TEST_MODULE=${test_name}"
+    LINK_FLAGS "-DBOOST_TEST_DYN_LINK -DBOOST_TEST_MODULE=${test_name}"
+  )
 
   # TODO: use "ctest" to make whole regression test suite
   add_custom_target("check-${test_name}"
-    COMMAND ${ENV_VARIABLES} ${MPIRUN} "${test_name}.test" --log_level=${TEST_LOG_LEVEL} --report_level=${TEST_REPORT_LEVEL} --run_test="${test_name}.test"
+    COMMAND ${ENV_VARIABLES} ${MPIRUN} "${test_name}.test" --log_level=${TEST_LOG_LEVEL} --report_level=${TEST_REPORT_LEVEL} --run_test="${test_name}"
     DEPENDS Grappa "${test_name}.test"
   )
   set_property(TARGET "check-${test_name}" PROPERTY FOLDER "Tests")
