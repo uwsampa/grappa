@@ -123,9 +123,9 @@ namespace Grappa {
 	, is_moved_( false ) // this only tells us if the current message has been moved
       {
 	DVLOG(9) << "move " << this;
-	CHECK_EQ( is_enqueued_, false ) << "Shouldn't be moving a message that has been enqueued to be sent!"
-					<< " Your compiler's return value optimization failed you here.";
-	m.is_moved_ = true; // mark message as having been moved so sending will fail
+        CHECK_EQ( is_enqueued_, false ) << "Shouldn't be moving a message that has been enqueued to be sent!"
+                                        << " Your compiler's return value optimization failed you here.";
+        m.is_moved_ = true; // mark message as having been moved so sending will fail
       }
 
 

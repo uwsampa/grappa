@@ -87,23 +87,23 @@ namespace Grappa {
       // copy deserialization function pointer
       auto fp = &deserialize_and_call;
       if( sizeof( fp ) + sizeof( T ) > max_size ) {
-	std::cout << "break" << std::endl;
-	return p;
+        std::cout << "break" << std::endl;
+        return p;
       } else {
-	// // turn into 2D pointer
-	// auto gfp = make_global( fp, destination_ );
-	// // write to buffer
-	// *(reinterpret_cast< intptr_t* >(p)) = reinterpret_cast< intptr_t >( gfp );
-	*(reinterpret_cast< intptr_t* >(p)) = reinterpret_cast< intptr_t >( fp );
-	p += sizeof( fp );
-	
-	// copy contents
-	std::memcpy( p, &storage_, sizeof(storage_) );
-	
-	//DVLOG(5) << "serialized message of size " << sizeof(fp) + sizeof(T);
-	
-	// return pointer following message
-	return p + sizeof( T );
+        // // turn into 2D pointer
+        // auto gfp = make_global( fp, destination_ );
+        // // write to buffer
+        // *(reinterpret_cast< intptr_t* >(p)) = reinterpret_cast< intptr_t >( gfp );
+        *(reinterpret_cast< intptr_t* >(p)) = reinterpret_cast< intptr_t >( fp );
+        p += sizeof( fp );
+        
+        // copy contents
+        std::memcpy( p, &storage_, sizeof(storage_) );
+        
+        //DVLOG(5) << "serialized message of size " << sizeof(fp) + sizeof(T);
+        
+        // return pointer following message
+        return p + sizeof( T );
       }
     }
 
@@ -195,27 +195,27 @@ namespace Grappa {
       // copy deserialization function pointer
       auto fp = &deserialize_and_call;
       if( sizeof( fp ) + sizeof( T ) > max_size ) {
-	std::cout << "break" << std::endl;
-	return p;
+        std::cout << "break" << std::endl;
+        return p;
       } else {
-	// // turn into 2D pointer
-	// auto gfp = make_global( fp, destination_ );
-	// // write to buffer
-	// *(reinterpret_cast< intptr_t* >(p)) = reinterpret_cast< intptr_t >( gfp );
-	*(reinterpret_cast< intptr_t* >(p)) = reinterpret_cast< intptr_t >( fp );
-	p += sizeof( fp );
-	
-	// copy contents
-	std::memcpy( p, &storage_, sizeof(storage_) );
-	p += sizeof( storage_ );
+        // // turn into 2D pointer
+        // auto gfp = make_global( fp, destination_ );
+        // // write to buffer
+        // *(reinterpret_cast< intptr_t* >(p)) = reinterpret_cast< intptr_t >( gfp );
+        *(reinterpret_cast< intptr_t* >(p)) = reinterpret_cast< intptr_t >( fp );
+        p += sizeof( fp );
+        
+        // copy contents
+        std::memcpy( p, &storage_, sizeof(storage_) );
+        p += sizeof( storage_ );
 
-	*(reinterpret_cast< int16_t* >(p)) = static_cast< int16_t >( payload_size_ );
-	p += sizeof( int16_t );
+        *(reinterpret_cast< int16_t* >(p)) = static_cast< int16_t >( payload_size_ );
+        p += sizeof( int16_t );
 
-	std::memcpy( p, payload_, payload_size_);
+        std::memcpy( p, payload_, payload_size_);
 
-	// return pointer following message
-	return p + payload_size_;
+        // return pointer following message
+        return p + payload_size_;
       }
     }
 
