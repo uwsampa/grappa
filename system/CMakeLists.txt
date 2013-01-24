@@ -94,12 +94,15 @@ set(SYSTEM_SOURCES
   tasks/Thread.hpp
 )
 
-message("source dir: ${CMAKE_CURRENT_SOURCE_DIR}")
-
 ######################################
 # Gasnet
 ######################################
-set(GASNET_CONDUIT "ibv") # values: ibv,mpi
+if(DEFINED APPLE)
+  set(GASNET_CONDUIT "udp")
+else()
+  set(GASNET_CONDUIT "ibv") # values: ibv,mpi
+endif()
+
 set(GASNET_THREAD "seq")  # values: seq,par,parsync -- seq recommended
 list(APPEND GRAPPA_LIBS "gasnet-${GASNET_CONDUIT}-${GASNET_THREAD}")
 
