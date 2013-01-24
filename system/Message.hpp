@@ -490,7 +490,7 @@ namespace Grappa {
     inline SendMessage( Core dest, T t )
       : Message<T>( dest, t )
     { 
-      this->send();
+      this->enqueue();
     }
   };
 
@@ -510,7 +510,7 @@ namespace Grappa {
     inline SendPayloadMessage( Core dest, T t, void * payload, size_t payload_size )
       : PayloadMessage<T>( dest, t, payload, payload_size )
     { 
-      this->send();
+      this->enqueue();
     }
   };
 
@@ -528,7 +528,7 @@ namespace Grappa {
     inline SendExternalMessage( Core dest, T * t )
       : ExternalMessage<T>( dest, t )
     { 
-      this->send();
+      this->enqueue();
     }
   };
 
@@ -548,7 +548,7 @@ namespace Grappa {
     inline SendExternalPayloadMessage( Core dest, T * t, void * payload, size_t payload_size )
       : ExternalPayloadMessage<T>( dest, t, payload, payload_size )
     { 
-      this->send();
+      this->enqueue();
     }
   };
 
