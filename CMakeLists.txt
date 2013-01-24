@@ -38,6 +38,10 @@ endif()
 
 set(GRAPPA_LIBS)
 
+get_filename_component(CC_PATH ${CMAKE_C_COMPILER} PATH)
+link_directories("${CC_PATH}/../lib64")
+list(APPEND GRAPPA_LIBS pthread rt)
+
 # pre-compiled external dependencies
 # TODO: make CMake build these (see GraphLab's CMake)
 set(GRAPPA_DEPENDENCY_DIR "${CMAKE_SOURCE_DIR}/tools/built_deps")
@@ -56,7 +60,13 @@ list(APPEND GRAPPA_LIBS
   boost_unit_test_framework
   boost_filesystem
 )
-# find_library(BOOST boost PATHS ${BOOST_BASE} )
+# TODO: find_library(BOOST boost PATHS ${BOOST_BASE} )
+
+# MPI (for booting only)
+# TODO: discover with find_library()
+include_directories("/usr/include/openmpi-x86_64")
+link_directories("/usr/lib64/openmpi/lib")
+list(APPEND GRAPPA_LIBS mpi_cxx mpi dl)
 
 # put Grappa system directory on include path for everything following this
 # include_directories("${CMAKE_CURRENT_SOURCE_DIR}/system")
