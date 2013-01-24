@@ -46,6 +46,8 @@ namespace Grappa {
 
     Message( Message&& m ) = default;
 
+    virtual ~Message() { block_until_sent(); }
+
     ///
     /// for Messages with modifiable contents. Don't use with lambdas.
     ///
@@ -146,6 +148,8 @@ namespace Grappa {
 
     PayloadMessage( PayloadMessage&& m ) = default;
     
+    virtual ~PayloadMessage() { block_until_sent(); }
+
     ///
     /// for Messages with modifiable contents. Don't use with lambdas.
     ///
@@ -249,6 +253,8 @@ namespace Grappa {
 
     ExternalMessage( ExternalMessage&& m ) = default; ///< Not allowed.
 
+    virtual ~ExternalMessage() { block_until_sent(); }
+
     ///
     /// for Messages with modifiable contents. Don't use with lambdas.
     ///
@@ -350,6 +356,8 @@ namespace Grappa {
     ExternalPayloadMessage& operator=( ExternalPayloadMessage&& m ) = delete;         ///< Not allowed.
 
     ExternalPayloadMessage( ExternalPayloadMessage&& m ) = default;
+
+    virtual ~ExternalPayloadMessage() { block_until_sent(); }
 
     ///
     /// for Messages with modifiable contents. Don't use with lambdas.
