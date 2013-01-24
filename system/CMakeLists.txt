@@ -157,12 +157,11 @@ foreach(test_cpp ${TEST_SOURCES})
   set_property(TARGET ${test} PROPERTY FOLDER "Tests") # For organization in Xcode project
   set_target_properties(${test} PROPERTIES
     COMPILE_FLAGS "-DBOOST_TEST_DYN_LINK -DBOOST_TEST_MODULE=${test_name}"
-    LINK_FLAGS "-DBOOST_TEST_DYN_LINK -DBOOST_TEST_MODULE=${test_name}"
   )
 
   # TODO: use "ctest" to make whole regression test suite
   add_custom_target("check-${test_name}"
-    COMMAND ${ENV_VARIABLES} ${MPIRUN} "${test_name}.test" --log_level=${TEST_LOG_LEVEL} --report_level=${TEST_REPORT_LEVEL} --run_test="${test_name}"
+    COMMAND ${ENV_VARIABLES} ${RUN_CMD} ${RUN_FLAGS} "${test_name}.test" --log_level=${TEST_LOG_LEVEL} --report_level=${TEST_REPORT_LEVEL} --run_test="${test_name}"
     DEPENDS Grappa "${test_name}.test"
   )
   set_property(TARGET "check-${test_name}" PROPERTY FOLDER "Tests")
