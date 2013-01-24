@@ -19,7 +19,7 @@ namespace Grappa {
 
   /// TODO: implement
   inline void signal( const GlobalAddress<ConditionVariable> m ) {
-    if (m.node() == Grappa::mynode()) {
+    if (m.node() == Grappa::mycore()) {
       // if local, just signal
       Grappa::signal(m.pointer());
     } else {
