@@ -162,12 +162,15 @@ namespace Grappa {
         is_enqueued_ = true;
         legacy_send();
       }
+      /// Implemented in MessageBaseImpl.hpp
+      inline void enqueue();
+      inline void send_immediate();
 
       /// Block until message can be deallocated.
       inline void block_until_sent() {
         // if message has not been enqueued to be sent, do so.
         if( !is_enqueued_ ) {
-          send();
+          enqueue();
         }
         // now block until message is sent
         while( !is_sent_ ) {
