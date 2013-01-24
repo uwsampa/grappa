@@ -42,21 +42,21 @@ namespace Grappa {
 
     struct MessageList {
       union {
-	struct {
-	  unsigned count_ : 16;
-	  intptr_t pointer_ : 48;
-	};
-	intptr_t raw_; // unnecessary; just to ensure alignment
+        struct {
+          unsigned count_ : 16;
+          intptr_t pointer_ : 48;
+        };
+        intptr_t raw_; // unnecessary; just to ensure alignment
       };
     };
     
     struct PrefetchEntry {
       union {
-	struct {
-	  unsigned size_ : 16;
-	  intptr_t pointer_ : 48;
-	};
-	intptr_t raw_; // unnecessary; just to ensure alignment
+        struct {
+          unsigned size_ : 16;
+          intptr_t pointer_ : 48;
+        };
+        intptr_t raw_; // unnecessary; just to ensure alignment
       };
     };
 
@@ -116,10 +116,10 @@ namespace Grappa {
 
       
       CoreData() 
-	: messages_()
-	, prefetch_queue_() 
-	, remote_buffer_info_()
-	, received_messages_(NULL)
+        : messages_()
+        , prefetch_queue_() 
+        , remote_buffer_info_()
+        , received_messages_(NULL)
       { }
     } __attribute__ ((aligned(64)));
 
@@ -166,11 +166,11 @@ namespace Grappa {
     public:
 
       RDMAAggregator()
-	: mycore_( -1 )
-	, mynode_( -1 )
-	, cores_per_node_( -1 )
-	, deserialize_buffer_handle_( -1 )
-	, deserialize_first_handle_( -1 )
+        : mycore_( -1 )
+        , mynode_( -1 )
+        , cores_per_node_( -1 )
+        , deserialize_buffer_handle_( -1 )
+        , deserialize_first_handle_( -1 )
       {
       }
 
@@ -178,8 +178,8 @@ namespace Grappa {
       void init() {
         cores_.resize( global_communicator.nodes() );
         mycore_ = global_communicator.mynode();
-	deserialize_buffer_handle_ = global_communicator.register_active_message_handler( &deserialize_buffer_am );
-	deserialize_first_handle_ = global_communicator.register_active_message_handler( &deserialize_first_am );
+        deserialize_buffer_handle_ = global_communicator.register_active_message_handler( &deserialize_buffer_am );
+        deserialize_first_handle_ = global_communicator.register_active_message_handler( &deserialize_first_am );
       }
 
       // void poll( ) {
@@ -194,59 +194,59 @@ namespace Grappa {
 
       /// Enqueue message to be sent
       inline void enqueue( Grappa::impl::MessageBase * m ) {
-	// get destination pointer
-	CoreData * dest = &cores_[ m->destination_ ];
-	//Grappa::impl::MessageBase ** dest_ptr = &dest->messages_;
-	Grappa::impl::MessageList * dest_ptr = &(dest->messages_);
-	Grappa::impl::MessageList old_ml, new_ml;
-	int count;
+        // get destination pointer
+        CoreData * dest = &cores_[ m->destination_ ];
+        //Grappa::impl::MessageBase ** dest_ptr = &dest->messages_;
+        Grappa::impl::MessageList * dest_ptr = &(dest->messages_);
+        Grappa::impl::MessageList old_ml, new_ml;
+        int count;
 
-	// stitch in message
-	do {
-	  // set pointer in new value to current message
-	  set_pointer( &new_ml, m );
+        // stitch in message
+        do {
+          // set pointer in new value to current message
+          set_pointer( &new_ml, m );
 
-	  // read previous value
-	  old_ml = *dest_ptr;
+          // read previous value
+          old_ml = *dest_ptr;
 
-	  // count this message
-	  new_ml.count_ = count = old_ml.count_ + 1;
+          // count this message
+          new_ml.count_ = count = old_ml.count_ + 1;
 
-	  // insert current message
-	} while( !__sync_bool_compare_and_swap( &(dest_ptr->raw_), old_ml.raw_, new_ml.raw_ ) );
+          // insert current message
+        } while( !__sync_bool_compare_and_swap( &(dest_ptr->raw_), old_ml.raw_, new_ml.raw_ ) );
 
-	// append previous list to current message
-	m->next_ = get_pointer( &old_ml );
-	m->prefetch_ = get_pointer( &(dest->prefetch_queue_[ (count + 1 ) % prefetch_dist ]) );
+        // append previous list to current message
+        m->next_ = get_pointer( &old_ml );
+        m->prefetch_ = get_pointer( &(dest->prefetch_queue_[ (count + 1 ) % prefetch_dist ]) );
 
-	// now compute prefetch
-	PrefetchEntry new_pe;
-	set_pointer( &(dest->prefetch_queue_[ count % prefetch_dist ]), m );
-	dest->prefetch_queue_[ count % prefetch_dist ].size_ = dest->prefetch_queue_[ ( count - 1 ) % prefetch_dist ].size_ + m->size();
+        // now compute prefetch
+        PrefetchEntry new_pe;
+        set_pointer( &(dest->prefetch_queue_[ count % prefetch_dist ]), m );
+        dest->prefetch_queue_[ count % prefetch_dist ].size_ = dest->prefetch_queue_[ ( count - 1 ) % prefetch_dist ].size_ + m->size();
       }
 
 
       /// send a message that will be run in active message context. This requires very limited messages.
       void send_immediate( Grappa::impl::MessageBase * m ) {
-	// create temporary buffer
-	const size_t size = m->size();
-	char buf[ size ] __attribute__ ((aligned (16)));
+        // create temporary buffer
+        const size_t size = m->size();
+        char buf[ size ] __attribute__ ((aligned (16)));
 
-	// serialize to buffer
-	Grappa::impl::MessageBase * tmp = m;
-	DVLOG(5) << "Serializing message from " << tmp;
-	char * end = aggregate_to_buffer( &buf[0], &tmp, size );
-	DVLOG(5) << "After serializing, pointer was " << tmp;
-	DCHECK_EQ( end - buf, size );
+        // serialize to buffer
+        Grappa::impl::MessageBase * tmp = m;
+        DVLOG(5) << "Serializing message from " << tmp;
+        char * end = aggregate_to_buffer( &buf[0], &tmp, size );
+        DVLOG(5) << "After serializing, pointer was " << tmp;
+        DCHECK_EQ( end - buf, size );
 
-	// send
-	GASNET_CHECK( gasnet_AMRequestMedium0( m->destination_, deserialize_buffer_handle_, buf, size ) );
+        // send
+        GASNET_CHECK( gasnet_AMRequestMedium0( m->destination_, deserialize_buffer_handle_, buf, size ) );
       }
 
       void flush( Core c ) {
-	LOG(INFO) << "Flushing";
-      	send_rdma( c );
-	LOG(INFO) << "Flush complete.";
+        LOG(INFO) << "Flushing";
+        send_rdma( c );
+        LOG(INFO) << "Flush complete.";
       }
 
     };

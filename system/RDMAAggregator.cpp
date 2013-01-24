@@ -37,32 +37,32 @@ namespace Grappa {
       Grappa::impl::MessageBase * message = *message_ptr;
       DVLOG(5) << "Serializing messages from " << message;
       while( message ) {
-	DVLOG(5) << "Serializing message " << message;
-	
-	// issue prefetch for next message
-	__builtin_prefetch( message->prefetch_, 1, 3 );
+        DVLOG(5) << "Serializing message " << message;
+        
+        // issue prefetch for next message
+        __builtin_prefetch( message->prefetch_, 1, 3 );
 
-	// add message to buffer
-	char * new_buffer = message->serialize_to( buffer, max - size );
-	if( new_buffer == buffer ) { // if it was too big
-	  DVLOG(5) << "Message too big: aborting serialization";
-	  break;                     // quit
-	} else {
-	  DVLOG(5) << "Serialized message " << message << " with size " << new_buffer - buffer;
+        // add message to buffer
+        char * new_buffer = message->serialize_to( buffer, max - size );
+        if( new_buffer == buffer ) { // if it was too big
+          DVLOG(5) << "Message too big: aborting serialization";
+          break;                     // quit
+        } else {
+          DVLOG(5) << "Serialized message " << message << " with size " << new_buffer - buffer;
 
-	  // track total size
-	  size += new_buffer - buffer;
+          // track total size
+          size += new_buffer - buffer;
 
-	  // go to next messsage 
-	  Grappa::impl::MessageBase * next = message->next_;
-	  message->next_ = NULL;
+          // go to next messsage 
+          Grappa::impl::MessageBase * next = message->next_;
+          message->next_ = NULL;
 
-	  // mark as sent
-	  message->mark_sent();
+          // mark as sent
+          message->mark_sent();
 
-	  message = next;
-	}
-	buffer = new_buffer;
+          message = next;
+        }
+        buffer = new_buffer;
       }
       *message_ptr = message;
       return buffer;
@@ -72,10 +72,10 @@ namespace Grappa {
       DVLOG(5) << "Deaggregating buffer at " << (void*) buffer << " of size " << size;
       char * end = buffer + size;
       while( buffer < end ) {
-	DVLOG(5) << "Deserializing and calling at " << (void*) buffer;
-	char * next = Grappa::impl::MessageBase::deserialize_and_call( buffer );
-	DVLOG(5) << "Deserializing and called at " << (void*) buffer << " with next " << (void*) next;
-	buffer = next;
+        DVLOG(5) << "Deserializing and calling at " << (void*) buffer;
+        char * next = Grappa::impl::MessageBase::deserialize_and_call( buffer );
+        DVLOG(5) << "Deserializing and called at " << (void*) buffer << " with next " << (void*) next;
+        buffer = next;
       }
       DVLOG(5) << "Done deaggregating buffer";
       return buffer; /// how far did we get before we had to stop?
@@ -99,8 +99,8 @@ namespace Grappa {
       // tell sending node about it
       DVLOG(5) << "Sending buffer into to " << callback_ptr.node();
       auto m = Grappa::message( callback_ptr.node(), [callback_ptr, buffer_ptr, info_ptr] {
-	  callback_ptr.pointer()->writeXF( { buffer_ptr, info_ptr } );
-	} );
+          callback_ptr.pointer()->writeXF( { buffer_ptr, info_ptr } );
+        } );
       m.send_immediate(); // must bypass aggregator since we're implementing it
 
       // now the sending node RDMA-writes our buffer and signals our CV.
@@ -126,27 +126,27 @@ namespace Grappa {
 
       // do we have a buffer already?
       if( !destbuf.full() ) {
-	// no, so go request one
-	// BUG: this pointer is not required here.
-	DVLOG(5) << "Requesting buffer from " << core;
-	auto request = Grappa::message( core, [&, global_destbuf] {
-	    DVLOG(5) << "Spawning deaggregation task";
-	    Grappa::privateTask( [&, global_destbuf] {
-		RDMAAggregator::deaggregation_task( global_destbuf );
-		//DVLOG(5) << global_destbuf;
-	      } );
-	  } );
-	request.send_immediate();  // must bypass aggregator since we're implementing it
+        // no, so go request one
+        // BUG: this pointer is not required here.
+        DVLOG(5) << "Requesting buffer from " << core;
+        auto request = Grappa::message( core, [&, global_destbuf] {
+            DVLOG(5) << "Spawning deaggregation task";
+            Grappa::privateTask( [&, global_destbuf] {
+                RDMAAggregator::deaggregation_task( global_destbuf );
+                //DVLOG(5) << global_destbuf;
+              } );
+          } );
+        request.send_immediate();  // must bypass aggregator since we're implementing it
       }
 
       // prepare message to wake remote thread
       struct Response {
-	FullEmpty< SendBufferInfo > * info_ptr;
-	int8_t offset;
-	int32_t actual_size; 
-	void operator()() {
-	  info_ptr->writeXF( { offset, actual_size } );
-	};
+        FullEmpty< SendBufferInfo > * info_ptr;
+        int8_t offset;
+        int32_t actual_size; 
+        void operator()() {
+          info_ptr->writeXF( { offset, actual_size } );
+        };
       } response_functor;
       Grappa::ExternalMessage< Response > response( core, &response_functor );
 
@@ -159,8 +159,8 @@ namespace Grappa {
       DVLOG(5) << "Grabbing messages for " << core;
       Grappa::impl::MessageList old_ml, new_ml;
       do {
-	old_ml = cores_[core].messages_;
-	new_ml.raw_ = 0;
+        old_ml = cores_[core].messages_;
+        new_ml.raw_ = 0;
       } while( !__sync_bool_compare_and_swap( &(cores_[core].messages_.raw_), old_ml.raw_, new_ml.raw_ ) );
       Grappa::impl::MessageBase * messages_to_send = get_pointer( &old_ml );
 
@@ -190,7 +190,7 @@ namespace Grappa {
       // send buffer to other side and run the first message in the buffer
       DVLOG(5) << "Sending aggregated messages to " << core;
       GASNET_CHECK( gasnet_AMRequestLong0( core, deserialize_first_handle_, 
-					   buf, end - buf, dest.buffer ) );
+                                           buf, end - buf, dest.buffer ) );
 
       // maybe wait for ack, with potential payload
 
