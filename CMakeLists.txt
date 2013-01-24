@@ -37,9 +37,14 @@ list(APPEND RUN_FLAGS
   --partition=grappa
   --nodes=2
   --ntasks-per-node=1
+  --resv-ports
+  --cpu_bind=verbose,rank
+  --exclusive
+  --label
+  --kill-on-bad-exit
 )
 
-set(ENV_VARIABLES "")
+set(GRAPPA_ENV "")
 
 set(GASNET_SETTINGS
   GASNET_BACKTRACE=1
@@ -51,7 +56,12 @@ set(GASNET_SETTINGS
   GASNET_AMCREDITS_PP=48
   GASNET_PHYSMEM_MAX=1024M
 )
-list(APPEND ENV_VARIABLES ${GASNET_SETTINGS})
+list(APPEND GRAPPA_ENV ${GASNET_SETTINGS})
+
+list(APPEND GRAPPA_ENV
+  GLOG_logtostderr=1
+  GLOG_v=1
+)
 
 add_definitions("-DSHMMAX=12884901888")
 

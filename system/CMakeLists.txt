@@ -140,10 +140,6 @@ add_library(Grappa
 )
 target_link_libraries(Grappa ${GRAPPA_LIBS})
 
-set(ENV_VARIABLES "")
-set(TEST_LOG_LEVEL "nothing")
-set(TEST_REPORT_LEVEL "no")
-
 # create targets for each test
 foreach(test_cpp ${TEST_SOURCES})
   get_filename_component(test_name ${test_cpp} NAME_WE) # name without extension
@@ -161,7 +157,7 @@ foreach(test_cpp ${TEST_SOURCES})
 
   # TODO: use "ctest" to make whole regression test suite
   add_custom_target("check-${test_name}"
-    COMMAND ${ENV_VARIABLES} ${RUN_CMD} ${RUN_FLAGS} "${test_name}.test" --log_level=${TEST_LOG_LEVEL} --report_level=${TEST_REPORT_LEVEL} --run_test="${test_name}"
+    COMMAND ${GRAPPA_ENV} ${RUN_CMD} ${RUN_FLAGS} "${test_name}.test" --log_level=nothing --report_level=no --run_test="${test_name}"
     DEPENDS Grappa "${test_name}.test"
   )
   set_property(TARGET "check-${test_name}" PROPERTY FOLDER "Tests")
