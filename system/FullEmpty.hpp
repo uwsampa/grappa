@@ -38,7 +38,7 @@ namespace Grappa {
 
     void block_until( State desired_state ) {
       while( state_ != desired_state ) {
-	Grappa::wait( this );
+        Grappa::wait( this );
       }
     }
     

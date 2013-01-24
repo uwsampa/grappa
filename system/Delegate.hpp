@@ -387,4 +387,97 @@ ReturnType Grappa_delegate_func( ArgType arg, Node target ) {
   }
 }
 
+#include "Grappa.hpp"
+#include "Message.hpp"
+#include "FullEmpty.hpp"
+#include "Message.hpp"
+#include "ConditionVariable.hpp"
+    
+namespace Grappa {
+  namespace delegate {
+    /// @addtogroup Delegates
+    /// @{
+    
+    /// Implements essentially a blocking remote procedure call. Callable object (lambda,
+    /// function pointer, or functor object) is called from the `dest` core and the return
+    /// value is sent back to the calling task.
+    template <typename F>
+    inline auto call(Core dest, F func) -> decltype(func()) {
+      using R = decltype(func());
+      Node origin = Grappa_mynode();
+      
+      if (dest == origin) {
+        // short-circuit if local
+        return func();
+      } else {
+        FullEmpty<R> result;
+        
+        send_message(dest, [&result, origin, func] {
+          R val = func();
+          
+          // TODO: replace with handler-safe send_message
+          send_message(origin, [&result, val] {
+            result.writeXF(val); // can't block in message, assumption is that result is already empty
+          });
+        }); // send message
+        // ... and wait for the result
+        R r = result.readFE();
+        return r;
+      }
+    }
+    
+    /// Read the value (potentially remote) at the given GlobalAddress, blocks the calling task until
+    /// round-trip communication is complete.
+    /// @warning { Target object must lie on a single node (not span blocks in global address space). }
+    template< typename T >
+    T read(GlobalAddress<T> target) {
+      return call(target.node(), [target]() -> T {
+        return *target.pointer();
+      });
+    }
+    
+    /// Blocking remote write.
+    /// @warning { Target object must lie on a single node (not span blocks in global address space). }
+    template< typename T, typename U >
+    bool write(GlobalAddress<T> target, U value) {
+      // TODO: don't return any val, requires changes to `delegate::call()`.
+      return call(target.node(), [target, value]() -> bool {
+        *target.pointer() = (T)value;
+        return true;
+      });
+    }
+    
+    /// Fetch the value at `target`, increment the value stored there with `inc` and return the
+    /// original value to blocking thread.
+    /// @warning { Target object must lie on a single node (not span blocks in global address space). }
+    template< typename T, typename U >
+    T fetch_and_add(GlobalAddress<T> target, U inc) {
+      T * p = target.pointer();
+      return call(target.node(), [p, inc]() -> T {
+        T r = *p;
+        *p += inc;
+        return r;
+      });
+    }
+    
+    /// If value at `target` equals `cmp_val`, set the value to `new_val` and return `true`,
+    /// otherwise do nothing and return `false`.
+    /// @warning { Target object must lie on a single node (not span blocks in global address space). }
+    template< typename T, typename U, typename V >
+    bool compare_and_swap(GlobalAddress<T> target, U cmp_val, V new_val) {
+      T * p = target.pointer();
+      return call(target.node(), [p, cmp_val, new_val]() -> bool {
+        if (cmp_val == *p) {
+          *p = new_val;
+          return true;
+        } else {
+          return false;
+        }
+      });
+    }
+    
+    /// @}
+  } // namespace delegate
+} // namespace Grappa
+
 #endif
