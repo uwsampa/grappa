@@ -157,7 +157,7 @@ foreach(test_cpp ${TEST_SOURCES})
 
   # TODO: use "ctest" to make whole regression test suite
   add_custom_target("check-${test_name}"
-    COMMAND ${GRAPPA_ENV} ${RUN_CMD} ${RUN_FLAGS} "${test_name}.test" --log_level=nothing --report_level=no --run_test="${test_name}"
+    COMMAND ${CMAKE_SOURCE_DIR}/bin/grappa_srun.sh -- "${test_name}.test" --log_level=nothing --report_level=no --run_test="${test_name}"
     DEPENDS Grappa "${test_name}.test"
   )
   set_property(TARGET "check-${test_name}" PROPERTY FOLDER "Tests")
