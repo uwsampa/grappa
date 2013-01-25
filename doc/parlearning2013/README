@@ -1,11 +1,34 @@
-Source of data suggested by Yucheng: http://www.kddcup2012.org/c/kddcup2012-track2
+Source of data suggested by Yucheng:
+http://www.kddcup2012.org/c/kddcup2012-track2
 
-Parallelized Stochastic Gradient Descent paper:  http://www.research.rutgers.edu/~lihong/pub/Zinkevich11Parallelized.pdf
+Parallelized Stochastic Gradient Descent paper:
+http://www.research.rutgers.edu/~lihong/pub/Zinkevich11Parallelized.pdf
 
-Yucheng's claim (validated by the paper above) is that state-of-the-art implementations of parallel stochastic gradient rely on distributed calculation of weight vectors that are averaged periodically into one weight vector and redistributed.  That is, each processor maintains its own weight vector, updating it based on a subset of the training data;  from time to time, all processors combine their partial results; the process repeats until the weight vector converges.
+Yucheng's claim (validated by the paper above) is that
+state-of-the-art implementations of parallel stochastic gradient rely
+on distributed calculation of weight vectors that are averaged
+periodically into one weight vector and redistributed.  That is, each
+processor maintains its own weight vector, updating it based on a
+subset of the training data; from time to time, all processors combine
+their partial results; the process repeats until the weight vector
+converges.
 
-The research question is whether or not grappa can accelerate convergence of parallel stocahstic gradient by virtue of higher throughput updates to a shared vector of weights.
+The research question is whether or not grappa can accelerate
+convergence of parallel stocahstic gradient by virtue of higher
+throughput updates to a shared vector of weights.
 
-Prerequisite to answering this question affirmatively is to determine that increasing the rate at which the distributed weights are combined does in fact increase the rate of convergence as a function of the amount of data processed -- even on a sequential system.  To determine this, we can maintain P copies of the weight vector, initialized to zero, updating each once for each datum examined during the learning process, in round-robin fashion.  After every K updates, we replace every weight vector with the average.  We then study the convergence rate as a function of K.  If the rate is sensitive to K, dropping significantly as K increases, then we have evidence a parallel implementation might benefit from more frequent communication amongst the processors.
+Prerequisite to answering this question affirmatively is to determine
+that increasing the rate at which the distributed weights are combined
+does in fact increase the rate of convergence as a function of the
+amount of data processed -- even on a sequential system.  To determine
+this, we can maintain P copies of the weight vector, initialized to
+zero, updating each once for each datum examined during the learning
+process, in round-robin fashion.  After every K updates, we replace
+every weight vector with the average.  We then study the convergence
+rate as a function of K.  If the rate is sensitive to K, dropping
+significantly as K increases, then we have evidence a parallel
+implementation might benefit from more frequent communication amongst
+the processors.
 
-Given this evidence, we would then implement parallel stochastic gradient in grappa.  There are many ways to do this...  
+Given this evidence, we would then implement parallel stochastic
+gradient in grappa.  There are many ways to do this...
