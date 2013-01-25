@@ -30,6 +30,8 @@ if("${isSystemDir}" STREQUAL "-1")
    set(CMAKE_INSTALL_RPATH "${CMAKE_INSTALL_PREFIX}/lib")
 endif("${isSystemDir}" STREQUAL "-1")
 
+# set runpath, too
+set(CMAKE_EXE_LINKER_FLAGS "-Wl,--enable-new-dtags")
 
 set(RUN_CMD srun)
 set(RUN_FLAGS "")
@@ -94,6 +96,7 @@ link_directories("${BOOST_BASE}/stage/lib")
 list(APPEND GRAPPA_LIBS
   boost_unit_test_framework
   boost_filesystem
+  boost_system
 )
 # TODO: find_library(BOOST boost PATHS ${BOOST_BASE} )
 
