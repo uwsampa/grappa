@@ -60,6 +60,50 @@ set(GASNET_SETTINGS
 )
 list(APPEND GRAPPA_ENV ${GASNET_SETTINGS})
 
+
+# pre-compiled external dependencies
+# TODO: make CMake build these (see GraphLab's CMake)
+set(GRAPPA_DEPENDENCY_DIR "${CMAKE_SOURCE_DIR}/tools/built_deps")
+include_directories("${GRAPPA_DEPENDENCY_DIR}/include")
+link_directories("${GRAPPA_DEPENDENCY_DIR}/lib")
+list(APPEND GRAPPA_LIBS
+  gflags
+  glog
+)
+
+
+######################################
+# Gasnet
+######################################
+if(DEFINED APPLE)
+  set(GASNET_CONDUIT "udp")
+else()
+  set(GASNET_CONDUIT "ibv") # values: ibv,mpi
+endif()
+
+set(GASNET_THREAD "seq")  # values: seq,par,parsync -- seq recommended
+list(APPEND GRAPPA_LIBS "gasnet-${GASNET_CONDUIT}-${GASNET_THREAD}")
+
+if( ${GASNET_CONDUIT} MATCHES "ibv")
+  list(APPEND GRAPPA_LIBS "ibverbs")
+endif()
+if( ${GASNET_CONDUIT} MATCHES "mpi")
+  list(APPEND GRAPPA_LIBS "ammpi")
+endif()
+if( ${GASNET_CONDUIT} MATCHES "udp")
+  list(APPEND GRAPPA_LIBS "amudp")
+endif()
+
+string(TOUPPER ${GASNET_CONDUIT} GASNET_CONDUIT_UP)
+string(TOUPPER ${GASNET_THREAD} GASNET_THREAD_UP)
+
+add_definitions(
+  "-DGASNET_${GASNET_THREAD_UP}"
+  "-DGASNET_${GASNET_CONDUIT_UP}"
+  "-DGASNET_CONDUIT_${GASNET_CONDUIT_UP}"
+)
+include_directories("${GRAPPA_DEPENDENCY_DIR}/include/${GASNET_CONDUIT}-conduit")
+
 list(APPEND GRAPPA_ENV
   GLOG_logtostderr=1
   GLOG_v=1
@@ -78,16 +122,6 @@ set(GRAPPA_LIBS)
 get_filename_component(CC_PATH ${CMAKE_C_COMPILER} PATH)
 link_directories("${CC_PATH}/../lib64")
 list(APPEND GRAPPA_LIBS pthread rt)
-
-# pre-compiled external dependencies
-# TODO: make CMake build these (see GraphLab's CMake)
-set(GRAPPA_DEPENDENCY_DIR "${CMAKE_SOURCE_DIR}/tools/built_deps")
-include_directories("${GRAPPA_DEPENDENCY_DIR}/include")
-link_directories("${GRAPPA_DEPENDENCY_DIR}/lib")
-list(APPEND GRAPPA_LIBS
-  gflags
-  glog
-)
 
 # boost is separate
 set(BOOST_BASE "/sampa/share/gcc-4.7.2/src/boost_1_51_0")
@@ -112,3 +146,4 @@ include_directories(system)
 include_directories(system/tasks)
 
 add_subdirectory(system)
+add_subdirectory(applications)
