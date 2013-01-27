@@ -1,6 +1,6 @@
 include ../../../system/Makefile
 
-CFLAGS += -O3 -DGRAPH_GENERATOR_GRAPPA -DGRAPHGEN_DISTRIBUTED_MEMORY -DNDEBUG # -g -pg
+CFLAGS += -O3 -DGRAPH_GENERATOR_GRAPPA -D_GRAPPA -DGRAPHGEN_DISTRIBUTED_MEMORY -DNDEBUG # -g -pg
 CFLAGS += -I$(GRAPPA_HOME)/system
 # CFLAGS = -std=c99 -DGRAPH_GENERATOR_MPI -DGRAPHGEN_DISTRIBUTED_MEMORY -g
 
@@ -24,3 +24,6 @@ generator_test_mpi: generator_test_mpi.c $(GENERATOR_SOURCES) $(GENERATOR_HEADER
 clean:
 	rm -f generator_test_mpi
 	rm -f $(GENERATOR_OBJS) generator.a
+
+# %.o: %.c
+	# /sampa/share/gcc-4.7.2/rtf/bin/gcc $(CFLAGS) -c -o $@ $<
