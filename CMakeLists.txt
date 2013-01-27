@@ -110,7 +110,8 @@ list(APPEND GRAPPA_ENV
   GLOG_v=1
 )
 
-add_definitions("-DSHMMAX=12884901888")
+# add_definitions(-DSHMMAX=12884901888) # 12 GB
+add_definitions(-DSHMMAX=6442450944) # 6 GB
 
 if( GOOGLE_PROFILER )
   list(APPEND ENV_VARIABLES "CPUPROFILE_FREQUENCY=100")
@@ -147,3 +148,4 @@ include_directories(system/tasks)
 
 add_subdirectory(system)
 add_subdirectory(applications)
+add_subdirectory(bin)
