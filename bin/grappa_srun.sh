@@ -33,5 +33,7 @@ CORES_PER_NODE=${CORES_PER_NODE-1}
 GRAPPA_SRUN_FLAGS="--cpu_bind=verbose,rank --exclusive --label --kill-on-bad-exit --task-prolog=$DIR/grappa_srun_prolog.sh --task-epilog=$DIR/grappa_srun_epilog.sh"
 SAMPA_FLAGS="--resv-ports --partition=grappa"
 
+source "$DIR/grappa_srun_prolog.sh"
+
 # echo srun --nodes=$NODES --ntasks-per-node=$CORES_PER_NODE $GRAPPA_SRUN_FLAGS $SAMPA_FLAGS -- "$@"
 eval srun --nodes=$NODES --ntasks-per-node=$CORES_PER_NODE $GRAPPA_SRUN_FLAGS $SAMPA_FLAGS -- $@
