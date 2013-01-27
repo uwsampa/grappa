@@ -338,7 +338,7 @@ cleanup_shm:
 #
 # What libraries do we need?
 #
-LIBRARIES+= -lgflags -lglog $(PLATFORM_SPECIFIC_LIBS) $(GASNET_LIBS) -lboost_system -lboost_filesystem
+LIBRARIES+= -lgflags -lglog $(PLATFORM_SPECIFIC_LIBS) $(GASNET_LIBS) -lboost_filesystem -lboost_system
 
 #
 # set compiler flags

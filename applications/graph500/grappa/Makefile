@@ -48,6 +48,7 @@ allclean: clean
 	pushd $(GRAPPA_HOME)/system; $(MAKE) clean; popd
 
 clean:
+	pushd ../generator; $(MAKE) clean; popd
 	rm -f main.o oned_csr.o verify.o options.o $(BFS).o graph.exe
 
 otf: force
