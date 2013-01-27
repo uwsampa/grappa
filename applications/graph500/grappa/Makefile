@@ -15,7 +15,7 @@ TARGET:= graph.exe
 $(TARGET):
 
 CFLAGS += -w
-CFLAGS += -I$(GRAPPA_HOME)/system -I.. 
+CFLAGS += -I$(GRAPPA_HOME)/system -I$(GRAPPA_HOME)/system/tasks -I.. 
 CFLAGS += -g -Wall -Drestrict=__restrict__ -ffast-math -DGRAPH_GENERATOR_GRAPPA
 
 LDFLAGS += -g 

@@ -357,14 +357,13 @@ static void user_main(int * args) {
 	/* Catch a few possible overflows. */
 	assert (desired_nedge >= nvtx_scale);
 	assert (desired_nedge >= edgefactor);
-
+  
   if (load_checkpoint) {
     checkpoint_in(&tg, &g, bfs_roots);
   } // checkpoint_in may change 'load_checkpoint' to false if unable to read in file correctly
   
   if (!load_checkpoint) {
-   
-    tg.edges = Grappa_typed_malloc<packed_edge>(tg.nedge);
+//    tg.edges = Grappa_typed_malloc<packed_edge>(tg.nedge);
     
     /* Make the raw graph edges. */
     /* Get roots for BFS runs, plus maximum vertex with non-zero degree (used by
