@@ -46,6 +46,7 @@ list(APPEND RUN_FLAGS
   --kill-on-bad-exit
 )
 
+set(GRAPPA_LIBS)
 set(GRAPPA_ENV "")
 
 set(GASNET_SETTINGS
@@ -117,7 +118,6 @@ if( GOOGLE_PROFILER )
   add_definitions( -DGOOGLE_PROFILER )
 endif()
 
-set(GRAPPA_LIBS)
 
 get_filename_component(CC_PATH ${CMAKE_C_COMPILER} PATH)
 link_directories("${CC_PATH}/../lib64")
@@ -125,7 +125,7 @@ list(APPEND GRAPPA_LIBS pthread rt)
 
 # boost is separate
 set(BOOST_BASE "/sampa/share/gcc-4.7.2/src/boost_1_51_0")
-include_directories("${BOOST_BASE}/boost")
+include_directories("${BOOST_BASE}")
 link_directories("${BOOST_BASE}/stage/lib")
 list(APPEND GRAPPA_LIBS
   boost_unit_test_framework

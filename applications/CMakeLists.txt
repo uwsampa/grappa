@@ -1,1 +1,1 @@
-add_subdirectory(graph500/grappa)
+add_subdirectory(graph500)
