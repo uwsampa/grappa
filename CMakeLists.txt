@@ -4,6 +4,8 @@ project(Grappa)
 cmake_minimum_required(VERSION 2.8)
 set_property(GLOBAL PROPERTY USE_FOLDERS ON)
 
+enable_testing()
+
 set(CMAKE_BUILD_TYPE RelWithDebInfo)
 
 site_name(MACHINENAME)
