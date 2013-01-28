@@ -3,7 +3,17 @@
 # directory of current file
 DIR=$PWD/`dirname $BASH_SOURCE[0]`
 
-set -- $(getopt -o n:c:h -l help,nodes:,cores-per-node: -- "$@")
+# pull out args up to separator ('--') to parse with `getopt`
+toparse=()
+while [ $# -gt 0 ]; do
+  case $1 in
+    (--) echo $1; shift; break;;
+    (*) toparse+=($1); shift;;
+  esac
+done
+remaining=$* # save rest of args to pass to `srun` as the actual command
+opts=$(getopt -o n:c:h -l help,nodes:,cores-per-node: -- "$toparse")
+set -- $opts # put $opts back into bash builtin args (accessible by $@, $1, shift, etc)
 
 function print_usage {
   echo "Script to run Grappa applications."
@@ -13,9 +23,10 @@ function print_usage {
   echo "  -h, --help            Print this help message"
 }
 
-while [ $# -gt 0 ]
-do
-  case "$1" in
+while [ $# -gt 0 ]; do
+# for i in ${opts[@]}; do
+  # case $i in
+  case $1 in
     (-n | --nodes) NODES=$2; shift;;
     (-c | --cores-per-node) CORES_PER_NODE=$2; shift;;
     (-h | --help) print_usage; exit;;
@@ -35,5 +46,5 @@ SAMPA_FLAGS="--resv-ports --partition=grappa"
 
 source "$DIR/grappa_srun_prolog.sh"
 
-# echo srun --nodes=$NODES --ntasks-per-node=$CORES_PER_NODE $GRAPPA_SRUN_FLAGS $SAMPA_FLAGS -- "$@"
-eval srun --nodes=$NODES --ntasks-per-node=$CORES_PER_NODE $GRAPPA_SRUN_FLAGS $SAMPA_FLAGS -- $@
+# echo srun --nodes=$NODES --ntasks-per-node=$CORES_PER_NODE $GRAPPA_SRUN_FLAGS $SAMPA_FLAGS -- $remaining
+eval srun --nodes=$NODES --ntasks-per-node=$CORES_PER_NODE $GRAPPA_SRUN_FLAGS $SAMPA_FLAGS -- $remaining
