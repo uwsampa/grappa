@@ -141,6 +141,12 @@ include_directories("/usr/include/openmpi-x86_64")
 link_directories("/usr/lib64/openmpi/lib")
 list(APPEND GRAPPA_LIBS mpi_cxx mpi dl)
 
+macro(add_grappa_application name)
+    add_executable(${name} EXCLUDE_FROM_ALL ${ARGN})
+    target_link_libraries(${name} Grappa)
+    set_property(TARGET ${name} PROPERTY FOLDER "Applications") # For organization in Xcode project
+endmacro(add_grappa_application)
+
 # put Grappa system directory on include path for everything following this
 # include_directories("${CMAKE_CURRENT_SOURCE_DIR}/system")
 include_directories(system)

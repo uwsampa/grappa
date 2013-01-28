@@ -27,7 +27,6 @@ set(BFS_VARIANTS
 
 # make separate build targets for each BFS variant
 foreach(bfs ${BFS_VARIANTS})
-  add_executable(${bfs}.exe EXCLUDE_FROM_ALL ${SOURCES} ${bfs}.cpp)
-  target_link_libraries(${bfs}.exe Grappa generator)
-  set_property(TARGET ${bfs}.exe PROPERTY FOLDER "Applications") # For organization in Xcode project
+  add_grappa_application(${bfs}.exe ${SOURCES} ${bfs}.cpp)
+  target_link_libraries(${bfs}.exe generator)
 endforeach()
