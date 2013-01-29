@@ -576,6 +576,10 @@ namespace Grappa {
     return SendExternalPayloadMessage<T>( dest, t, payload, payload_size );
   }
 
+  // FIXME: temporary way to distinguish messages that should be heap-allocated (i.e. reply messages)
+  // Should replace with call to new heap-allocated message send/enqueue calls when we have those.
+  #define send_heap_message send_message
+  
   /// @}
 
 }
