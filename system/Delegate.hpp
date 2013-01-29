@@ -403,6 +403,7 @@ namespace Grappa {
     /// value is sent back to the calling task.
     template <typename F>
     inline auto call(Core dest, F func) -> decltype(func()) {
+      delegate_stats.count_op();
       using R = decltype(func());
       Node origin = Grappa_mynode();
       
@@ -413,6 +414,7 @@ namespace Grappa {
         FullEmpty<R> result;
         
         send_message(dest, [&result, origin, func] {
+          delegate_stats.count_op_am();
           R val = func();
           
           // TODO: replace with handler-safe send_message
@@ -431,7 +433,9 @@ namespace Grappa {
     /// @warning { Target object must lie on a single node (not span blocks in global address space). }
     template< typename T >
     T read(GlobalAddress<T> target) {
+      delegate_stats.count_word_read();
       return call(target.node(), [target]() -> T {
+        delegate_stats.count_word_read_am();
         return *target.pointer();
       });
     }
@@ -440,8 +444,10 @@ namespace Grappa {
     /// @warning { Target object must lie on a single node (not span blocks in global address space). }
     template< typename T, typename U >
     bool write(GlobalAddress<T> target, U value) {
+      delegate_stats.count_word_write();
       // TODO: don't return any val, requires changes to `delegate::call()`.
       return call(target.node(), [target, value]() -> bool {
+        delegate_stats.count_word_write_am();
         *target.pointer() = value;
         return true;
       });
@@ -452,8 +458,10 @@ namespace Grappa {
     /// @warning { Target object must lie on a single node (not span blocks in global address space). }
     template< typename T, typename U >
     T fetch_and_add(GlobalAddress<T> target, U inc) {
+      delegate_stats.count_word_fetch_add();
       T * p = target.pointer();
       return call(target.node(), [p, inc]() -> T {
+        delegate_stats.count_word_fetch_add_am();
         T r = *p;
         *p += inc;
         return r;
@@ -465,8 +473,10 @@ namespace Grappa {
     /// @warning { Target object must lie on a single node (not span blocks in global address space). }
     template< typename T, typename U, typename V >
     bool compare_and_swap(GlobalAddress<T> target, U cmp_val, V new_val) {
+      delegate_stats.count_word_compare_swap();
       T * p = target.pointer();
       return call(target.node(), [p, cmp_val, new_val]() -> bool {
+        delegate_stats.count_word_compare_swap_am();
         if (cmp_val == *p) {
           *p = new_val;
           return true;
