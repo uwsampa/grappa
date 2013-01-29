@@ -46,7 +46,9 @@
 typedef void (*HandlerPointer)();    
 
 /// Type for Node ID. 
-typedef int16_t Node;
+typedef int16_t Core;
+/// @legacy
+typedef Core Node;
 
 /// Maximum size of GASNet medium active message payload. 
 ///
