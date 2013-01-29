@@ -442,7 +442,7 @@ namespace Grappa {
     bool write(GlobalAddress<T> target, U value) {
       // TODO: don't return any val, requires changes to `delegate::call()`.
       return call(target.node(), [target, value]() -> bool {
-        *target.pointer() = (T)value;
+        *target.pointer() = value;
         return true;
       });
     }
