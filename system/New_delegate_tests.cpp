@@ -135,6 +135,8 @@ void user_main(void * args) {
   });
   Grappa::wait(&waiter);
   BOOST_CHECK_EQUAL(seed, 222);
+  
+  Grappa_dump_stats_all_nodes();
 }
 
 BOOST_AUTO_TEST_CASE( test1 ) {
