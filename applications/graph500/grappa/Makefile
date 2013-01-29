@@ -15,7 +15,7 @@ TARGET:= graph.exe
 $(TARGET):
 
 CFLAGS += -w
-CFLAGS += -I$(GRAPPA_HOME)/system -I.. 
+CFLAGS += -I$(GRAPPA_HOME)/system -I$(GRAPPA_HOME)/system/tasks -I.. 
 CFLAGS += -g -Wall -Drestrict=__restrict__ -ffast-math -DGRAPH_GENERATOR_GRAPPA
 
 LDFLAGS += -g 
@@ -48,6 +48,7 @@ allclean: clean
 	pushd $(GRAPPA_HOME)/system; $(MAKE) clean; popd
 
 clean:
+	pushd ../generator; $(MAKE) clean; popd
 	rm -f main.o oned_csr.o verify.o options.o $(BFS).o graph.exe
 
 otf: force

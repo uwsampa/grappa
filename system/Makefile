@@ -247,7 +247,7 @@ endif
 #
 # Build Grappa static library
 #
-LIBRARY_CONTENTS+= Grappa.o GlobalAllocator.o GlobalMemory.o GlobalMemoryChunk.o Communicator.o Aggregator.o Timestamp.o Allocator.o Cache.o Delegate.o Collective.o ForkJoin.o tasks/TaskingScheduler.o tasks/Task.o tasks/Thread.o stack.o coro.o StateTimer.o PerformanceTools.o Future.o CurrentThread.o ProfilerGroups.o AsyncParallelFor.o GlobalTaskJoiner.o IncoherentAcquirer.o IncoherentReleaser.o Uid.o
+LIBRARY_CONTENTS+= Grappa.o GlobalAllocator.o GlobalMemory.o GlobalMemoryChunk.o Communicator.o Aggregator.o Timestamp.o Allocator.o Cache.o Delegate.o Collective.o ForkJoin.o tasks/BasicScheduler.o tasks/TaskingScheduler.o tasks/Task.o tasks/Thread.o stack.o coro.o StateTimer.o PerformanceTools.o Future.o CurrentThread.o ProfilerGroups.o AsyncParallelFor.o GlobalTaskJoiner.o IncoherentAcquirer.o IncoherentReleaser.o Uid.o
 
 libGrappa.a: $(LIBRARY_CONTENTS)
 	$($(MPITYPE)_AR) rv $@ $^
@@ -319,7 +319,7 @@ cleanup_shm:
 #
 # What libraries do we need?
 #
-LIBRARIES+= -lgflags -lglog $(PLATFORM_SPECIFIC_LIBS) $(GASNET_LIBS) -lboost_filesystem
+LIBRARIES+= -lgflags -lglog $(PLATFORM_SPECIFIC_LIBS) $(GASNET_LIBS) -lboost_filesystem -lboost_system
 
 #
 # set compiler flags
@@ -456,7 +456,7 @@ TESTS:=$(foreach dir,$(DIRECTORIES),$(wildcard $(dir)/*.test))
 # Temporary special handling for thread library
 #
 
-coro.o: coro.c
+coro.o: coro.cpp
 	$(ENV_VARIABLES) \
 	$($(MPITYPE)_CXX) -MMD -MF $*.d.tmp -c $(CFLAGS) $< -o $*.o
 	@sed -e 's|.*:|$*.o:|' < $*.d.tmp > $*.d

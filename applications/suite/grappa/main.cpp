@@ -358,7 +358,7 @@ static void user_main(void* ignore) {
     graphint connected = connectedComponents(g);
     
     t = timer() - t;
-    printf("ncomponents: %"DFMT"\n", connected);
+    printf("ncomponents: %" DFMT "\n", connected);
     printf("components_time: %g\n", t); fflush(stdout);
   }  
   
@@ -374,14 +374,14 @@ static void user_main(void* ignore) {
     size_t npattern = 3;
     
     color_t *c = pattern;
-    printf("Kernel - Path Isomorphism beginning execution...\nfinding path: %"DFMT"", *c);
-    for (color_t * c = pattern+1; c < pattern+npattern; c++) { printf(" -> %"DFMT"", *c); } printf("\n"); fflush(stdout);
+    printf("Kernel - Path Isomorphism beginning execution...\nfinding path: %" DFMT "", *c);
+    for (color_t * c = pattern+1; c < pattern+npattern; c++) { printf(" -> %" DFMT "", *c); } printf("\n"); fflush(stdout);
     t = timer();
     
     graphint num_matches = pathIsomorphism(dirg, pattern, npattern);
     
     t = timer() - t;
-    printf("path_iso_matches: %"DFMT"\n", num_matches);
+    printf("path_iso_matches: %" DFMT "\n", num_matches);
     printf("path_isomorphism_time: %g\n", t); fflush(stdout);
   }
     
@@ -394,7 +394,7 @@ static void user_main(void* ignore) {
     graphint num_triangles = triangles(g);
     
     t = timer() - t;
-    printf("ntriangles: %"DFMT"\n", num_triangles);
+    printf("ntriangles: %" DFMT "\n", num_triangles);
     printf("triangles_time: %g\n", t); fflush(stdout);
   }
   
