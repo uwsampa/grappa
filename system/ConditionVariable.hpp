@@ -18,14 +18,14 @@ namespace Grappa {
   }
 
   /// TODO: implement
-  inline void signal( GlobalAddress<ConditionVariable> m ) {
-    if (m.node() == Grappa::mynode()) {
+  inline void signal( const GlobalAddress<ConditionVariable> m ) {
+    if (m.node() == Grappa::mycore()) {
       // if local, just signal
       Grappa::signal(m.pointer());
     } else {
       // if remote, signal via active message
-      auto m = Grappa::send_message(0, [m]{
-	Grappa::signal(m.pointer());
+      auto _ = Grappa::send_message(m.node(), [=]{
+        Grappa::signal(m.pointer());
       });
     }
   }
