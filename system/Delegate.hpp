@@ -416,7 +416,7 @@ namespace Grappa {
           R val = func();
           
           // TODO: replace with handler-safe send_message
-          send_message(origin, [&result, val] {
+          send_heap_message(origin, [&result, val] {
             result.writeXF(val); // can't block in message, assumption is that result is already empty
           });
         }); // send message
