@@ -131,7 +131,9 @@ namespace Grappa {
 
       /// Implemented in MessageBaseImpl.hpp
       inline void enqueue();
+      inline void enqueue( Core c );
       inline void send_immediate();
+      inline void send_immediate( Core c );
 
       /// Block until message can be deallocated.
       inline void block_until_sent() {
