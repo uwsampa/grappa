@@ -415,12 +415,12 @@ namespace Grappa {
         int64_t network_time = 0;
         int64_t start_time = Grappa_get_timestamp();
         
-        send_message(dest, [&result, origin, func, &network_time] {
+        send_message(dest, [&result, origin, func, &network_time, start_time] {
           delegate_stats.count_op_am();
           R val = func();
           
           // TODO: replace with handler-safe send_message
-          send_heap_message(origin, [&result, val, &network_time] {
+          send_heap_message(origin, [&result, val, &network_time, start_time] {
             network_time = Grappa_get_timestamp();
             delegate_stats.record_network_latency(start_time);
             result.writeXF(val); // can't block in message, assumption is that result is already empty
