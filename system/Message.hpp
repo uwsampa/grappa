@@ -150,6 +150,15 @@ namespace Grappa {
     
     virtual ~PayloadMessage() { block_until_sent(); }
 
+    inline void set_payload( void * payload, size_t size ) { payload_ = payload; payload_size_ = size; }
+
+    virtual void reset() {
+      payload_ = nullptr;
+      payload_size_ = 0;
+      Grappa::impl::MessageBase::reset();
+    }
+
+
     ///
     /// for Messages with modifiable contents. Don't use with lambdas.
     ///
@@ -255,6 +264,13 @@ namespace Grappa {
 
     virtual ~ExternalMessage() { block_until_sent(); }
 
+    virtual void reset() {
+      pointer_ = nullptr;
+      Grappa::impl::MessageBase::reset();
+    }
+
+
+
     ///
     /// for Messages with modifiable contents. Don't use with lambdas.
     ///
@@ -359,6 +375,14 @@ namespace Grappa {
 
     virtual ~ExternalPayloadMessage() { block_until_sent(); }
 
+    inline void set_payload( void * payload, size_t size ) { payload_ = payload; payload_size_ = size; }
+
+    virtual void reset() {
+      pointer_ = nullptr;
+      payload_ = nullptr;
+      payload_size_ = 0;
+      Grappa::impl::MessageBase::reset();
+    }
     ///
     /// for Messages with modifiable contents. Don't use with lambdas.
     ///

@@ -145,7 +145,14 @@ namespace Grappa {
         // now block until message is sent
         while( !is_sent_ ) {
           Grappa::wait( &cv_ );
+      virtual void reset() {
+        if( is_enqueued_ ) {
+          block_until_sent();
         }
+        next_ = NULL;
+        is_enqueued_ = false;
+        is_sent_ = false;
+        destination_ =  -1;
       }
       
     };
