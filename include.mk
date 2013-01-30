@@ -26,6 +26,12 @@ CFLAGS+= -I$(COMMON) -std=c++11 -Winline -Wno-inline
 # TODO: verify that this is not a problem and remove:
 CFLAGS+= -mno-red-zone
 
+# TODO: see if we can make this apply to just our files, not user files or libraries
+#CFLAGS+= -Wconversion
+
+# TODO: clean up LD_LIBRARY_PATH to make this work better
+CFLAGS+= -Wl,-rpath,$(LD_LIBRARY_PATH),--enable-new-dtags
+
 
 LD_LIBRARY_PATH:=$(LD_LIBRARY_PATH):$(BOOST)/stage/lib
 
