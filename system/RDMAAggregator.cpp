@@ -167,8 +167,8 @@ namespace Grappa {
 
       // issue initial prefetches
       for( int i = 0; i < prefetch_dist; ++i ) {
-	Grappa::impl::MessageBase * pre = get_pointer( &cores_[core].prefetch_queue_[i] );
-	__builtin_prefetch( pre, 0, prefetch_type ); // prefetch for read
+        Grappa::impl::MessageBase * pre = get_pointer( &cores_[core].prefetch_queue_[i] );
+        __builtin_prefetch( pre, 0, prefetch_type ); // prefetch for read
         cores_[core].prefetch_queue_[i].raw_ = 0;    // clear out for next time around
       }
 
@@ -205,11 +205,6 @@ namespace Grappa {
 
       DVLOG(5) << "Sent buffer of size " << end - buf << " through RDMA";
     }
-
-    // /// Construct RDMA Aggregator
-    // RDMAAggregator::RDMAAggregator( ) 
-    //   :
-    // { }
 
     /// @}
 

@@ -9,7 +9,7 @@
 typedef int16_t Core;
 
 namespace Grappa {
-
+  
   /// Internal messaging functions
   namespace impl {
 
@@ -47,8 +47,8 @@ namespace Grappa {
 
       /// Mark message as sent
       inline void mark_sent() {
-	is_sent_ = true;
-	Grappa::signal( &cv_ );
+        is_sent_ = true;
+        Grappa::signal( &cv_ );
         if( delete_after_send_ ) deallocate();
       }
 
@@ -79,11 +79,11 @@ namespace Grappa {
 
       /// Walk a buffer of received deserializers/functors and call them.
       static inline char * deserialize_and_call( char * buffer ) {
-	DVLOG(5) << "Deserializing message from " << (void*) buffer;
-	typedef char * (*Deserializer)(char *);       // generic deserializer type
-	Deserializer fp = *(reinterpret_cast< Deserializer* >( buffer ));
-	buffer = fp( buffer + sizeof( Deserializer ) );
-	return buffer;
+        DVLOG(5) << "Deserializing message from " << (void*) buffer;
+        typedef char * (*Deserializer)(char *);       // generic deserializer type
+        Deserializer fp = *(reinterpret_cast< Deserializer* >( buffer ));
+        buffer = fp( buffer + sizeof( Deserializer ) );
+        return buffer;
       }
 
 
@@ -95,7 +95,7 @@ namespace Grappa {
         , is_sent_( false )
         , destination_( -1 )
         , cv_()
-	, is_moved_( false )
+        , is_moved_( false )
         , delete_after_send_( false ) 
       { DVLOG(5) << "construct " << this; }
 
@@ -105,13 +105,13 @@ namespace Grappa {
         , is_sent_( false )
         , destination_( dest )
         , cv_()
-	, is_moved_( false )
+        , is_moved_( false )
         , delete_after_send_( false ) 
       { DVLOG(5) << "construct " << this; }
 
       // Ensure we are sent before leaving scope
       virtual ~MessageBase() {
-	DVLOG(5) << "destruct " << this;
+        DVLOG(5) << "destruct " << this;
       }
 
       MessageBase( const MessageBase& ) = delete;
@@ -126,10 +126,10 @@ namespace Grappa {
         , is_sent_( m.is_sent_ )
         , destination_( m.destination_ )
         , cv_( m.cv_ )
-	, is_moved_( false ) // this only tells us if the current message has been moved
+        , is_moved_( false ) // this only tells us if the current message has been moved
         , delete_after_send_( false ) 
       {
-	DVLOG(9) << "move " << this;
+        DVLOG(9) << "move " << this;
         CHECK_EQ( is_enqueued_, false ) << "Shouldn't be moving a message that has been enqueued to be sent!"
                                         << " Your compiler's return value optimization failed you here.";
         m.is_moved_ = true; // mark message as having been moved so sending will fail

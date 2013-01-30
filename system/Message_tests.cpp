@@ -170,8 +170,8 @@ void user_main( void * args )
 BOOST_AUTO_TEST_CASE( test1 ) {
 
   Grappa_init( &(boost::unit_test::framework::master_test_suite().argc),
-	       &(boost::unit_test::framework::master_test_suite().argv),
-	       (1L << 20) );
+               &(boost::unit_test::framework::master_test_suite().argv),
+               (1L << 20) );
 
   //Grappa::impl::global_rdma_aggregator.init();
   Grappa_activate();

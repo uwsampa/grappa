@@ -218,23 +218,23 @@ namespace Grappa {
 
         // append previous list to current message
         m->next_ = get_pointer( &old_ml );
-	// set prefetch to the oldest pointer we remember
+        // set prefetch to the oldest pointer we remember
         m->prefetch_ = get_pointer( &(dest->prefetch_queue_[ (count + 1 ) % prefetch_dist ]) );
 
         // now compute prefetch
         PrefetchEntry new_pe;
         set_pointer( &(dest->prefetch_queue_[ count % prefetch_dist ]), m );
 
-	// and size
-	size_t size = dest->prefetch_queue_[ ( count - 1 ) % prefetch_dist ].size_ + m->size();
+        // and size
+        size_t size = dest->prefetch_queue_[ ( count - 1 ) % prefetch_dist ].size_ + m->size();
         dest->prefetch_queue_[ count % prefetch_dist ].size_ = size;
 
-	if( size > (1 << 17) ) {
-	  Core c = m->destination_;
-	  Grappa::privateTask( [ this, c ] {
-	      send_rdma( c );
-	    });
-	}
+        if( size > (1 << 17) ) {
+          Core c = m->destination_;
+          Grappa::privateTask( [ this, c ] {
+              send_rdma( c );
+            });
+        }
       }
 
 
@@ -256,13 +256,13 @@ namespace Grappa {
       }
 
       void flush( Core c ) {
-	Grappa::ConditionVariable cv;
-	// run on its own task so it has a full stack
-	Grappa::privateTask( [&cv, c, this ] {
-	    send_rdma( c );
-	    Grappa::signal( &cv );
-	  } );
-	Grappa::wait( &cv );
+        Grappa::ConditionVariable cv;
+        // run on its own task so it has a full stack
+        Grappa::privateTask( [&cv, c, this ] {
+            send_rdma( c );
+            Grappa::signal( &cv );
+          } );
+        Grappa::wait( &cv );
       }
 
     };

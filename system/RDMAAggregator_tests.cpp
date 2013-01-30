@@ -76,23 +76,23 @@ void user_main( void * args ) {
       size_t total;
       //       void operator()() {
       // Grappa::ConditionVariable * cvpp = cvp;
-      // 	++count2;
-      // 	if( count2 == total ) {
-      // 	  auto reply = Grappa::message( 0, [cvpp] {
-      // 	      Grappa::signal( cvpp );
-      // 	    });
-      // 	  reply.send_immediate();
-      // 	}
+      //        ++count2;
+      //        if( count2 == total ) {
+      //          auto reply = Grappa::message( 0, [cvpp] {
+      //              Grappa::signal( cvpp );
+      //            });
+      //          reply.send_immediate();
+      //        }
       //       }
       void operator()( void * payload, size_t size ) {
         Grappa::ConditionVariable * cvpp = cvp;
-	++count2;
-	if( count2 == total ) {
-	  auto reply = Grappa::message( 0, [cvpp] {
-	      Grappa::signal( cvpp );
-	    });
-	  reply.send_immediate();
-	}
+        ++count2;
+        if( count2 == total ) {
+          auto reply = Grappa::message( 0, [cvpp] {
+              Grappa::signal( cvpp );
+            });
+          reply.send_immediate();
+        }
       }
     };
 
@@ -105,9 +105,9 @@ void user_main( void * args ) {
       for( int i = 0; i < msgs; ++i ) {
         m[i].reset();
         m[i].set_payload( &payload[0], payload_size );
-	m[i]->total = iters * msgs;
-	m[i]->cvp = &cv;
-	m[i].enqueue( 1 );
+        m[i]->total = iters * msgs;
+        m[i]->cvp = &cv;
+        m[i].enqueue( 1 );
       }
       
       Grappa::impl::global_rdma_aggregator.flush( 1 );
@@ -119,7 +119,7 @@ void user_main( void * args ) {
     double time = Grappa_walltime() - start;
     size_t size = m[0].size();
     LOG(INFO) << time << " seconds, message size " << size << "; Throughput: " 
-	      << (double) iters * msgs / time << " iters/s, "
+              << (double) iters * msgs / time << " iters/s, "
               << (double) size * iters * msgs / time << " bytes/s, "
               << (double) payload_size * iters * msgs / time << " payload bytes/s, ";
   }
