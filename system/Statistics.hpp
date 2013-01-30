@@ -25,6 +25,8 @@ namespace Grappa {
     virtual void sample() const = 0;
   };
   
+  using StatisticList = std::vector<const StatisticBase*>;
+  
   template<typename T>
   class Statistic : public StatisticBase {
   public:
@@ -87,10 +89,18 @@ namespace Grappa {
   template <typename T> void Statistic<T>::sample() const {}
 #endif
 
-  void PrintStatistics(std::ostream& out = std::cerr);
+  
+  namespace Statistics {
+    // singleton list
+    StatisticList& registered_stats();
+    
+    void print(std::ostream& out = std::cerr, StatisticList& stats = registered_stats());
+    void merge(StatisticList& result);
+  }
   
 } // namespace Grappa
 
+/// make statistics printable
 inline std::ostream& operator<<(std::ostream& o, const Grappa::StatisticBase& stat) {
   return stat.json(o);
 }

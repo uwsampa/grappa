@@ -34,27 +34,37 @@ namespace Grappa {
   template <> const int Statistic<float>::vt_type = VT_COUNT_TYPE_FLOAT;
 #endif
   
-  std::vector<const StatisticBase *>& registered_stats() {
-    static std::vector<const StatisticBase *> r;
-    return r;
-  }
   
   StatisticBase::StatisticBase(const char * name): name(name) {
     registered_stats().push_back(this);
     VLOG(1) << "registered <" << this->name << ">";
   }
   
-  void PrintStatistics(std::ostream& out) {
-    std::ostringstream o;
-    o << "STATS{\n";
-    for (const StatisticBase*& s : registered_stats()) {
-      // skip printing "," before first one
-      if (&s-&registered_stats()[0] != 0) { o << ",\n"; }
-      
-      o << "  " << *s;
+  namespace Statistics {
+    
+    StatisticList& registered_stats() {
+      static StatisticList r;
+      return r;
     }
-    o << "\n}STATS";
-    out << o.str() << std::endl;
+    
+    void merge(StatisticList& result) {
+      if (result != registered_stats()) {
+        result.insert(result.end(), registered_stats().begin(), registered_stats().end());
+      }
+      // TODO: issue a bunch of delegate requests in parallel
+    }
+    
+    void print(std::ostream& out, StatisticList& stats) {
+      std::ostringstream o;
+      o << "STATS{\n";
+      for (const StatisticBase*& s : stats) {
+        // skip printing "," before first one
+        if (&s-&stats[0] != 0) { o << ",\n"; }
+        
+        o << "  " << *s;
+      }
+      o << "\n}STATS";
+      out << o.str() << std::endl;
+    }
   }
-  
 } // namespace Grappa
