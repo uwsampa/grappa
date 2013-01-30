@@ -86,7 +86,8 @@ namespace Grappa {
       ml->pointer_ = reinterpret_cast< intptr_t >( m ); 
     }
 
-    static const int prefetch_dist = 4;
+    static const int prefetch_dist = 5;
+    static const int prefetch_type = 0; // 0 (non-temporal) or 3 (L1) are probably the best choice
 
     struct CoreData {
       // things that must be included per core:
@@ -217,12 +218,17 @@ namespace Grappa {
 
         // append previous list to current message
         m->next_ = get_pointer( &old_ml );
+	// set prefetch to the oldest pointer we remember
         m->prefetch_ = get_pointer( &(dest->prefetch_queue_[ (count + 1 ) % prefetch_dist ]) );
 
         // now compute prefetch
         PrefetchEntry new_pe;
         set_pointer( &(dest->prefetch_queue_[ count % prefetch_dist ]), m );
-        dest->prefetch_queue_[ count % prefetch_dist ].size_ = dest->prefetch_queue_[ ( count - 1 ) % prefetch_dist ].size_ + m->size();
+
+	// and size
+	size_t size = dest->prefetch_queue_[ ( count - 1 ) % prefetch_dist ].size_ + m->size();
+        dest->prefetch_queue_[ count % prefetch_dist ].size_ = size;
+
       }
 
 

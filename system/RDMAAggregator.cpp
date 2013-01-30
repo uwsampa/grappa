@@ -36,11 +36,12 @@ namespace Grappa {
       size_t size = 0;
       Grappa::impl::MessageBase * message = *message_ptr;
       DVLOG(5) << "Serializing messages from " << message;
+
       while( message ) {
         DVLOG(5) << "Serializing message " << message;
         
         // issue prefetch for next message
-        __builtin_prefetch( message->prefetch_, 1, 3 );
+        __builtin_prefetch( message->prefetch_, 0, prefetch_type );
 
         // add message to buffer
         char * new_buffer = message->serialize_to( buffer, max - size );
@@ -164,6 +165,12 @@ namespace Grappa {
       } while( !__sync_bool_compare_and_swap( &(cores_[core].messages_.raw_), old_ml.raw_, new_ml.raw_ ) );
       Grappa::impl::MessageBase * messages_to_send = get_pointer( &old_ml );
 
+      // issue initial prefetches
+      for( int i = 0; i < prefetch_dist; ++i ) {
+	Grappa::impl::MessageBase * pre = get_pointer( &cores_[core].prefetch_queue_[i] );
+	__builtin_prefetch( pre, 0, prefetch_type ); // prefetch for read
+        cores_[core].prefetch_queue_[i].raw_ = 0;    // clear out for next time around
+      }
 
       // serialize into buffer
       // TODO: support larger than buffer
