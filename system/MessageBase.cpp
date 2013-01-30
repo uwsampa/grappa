@@ -10,7 +10,7 @@ namespace Grappa {
     /// @addtogroup Communication
     /// @{
 
-    void legacy_send_message_am( char * buf, size_t size, void * payload, size_t payload_size ) {
+    void Grappa::impl::MessageBase::legacy_send_message_am( char * buf, size_t size, void * payload, size_t payload_size ) {
       Grappa::impl::MessageBase::deserialize_and_call( static_cast< char * >( buf ) );
     }
 
