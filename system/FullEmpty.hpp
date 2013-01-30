@@ -45,6 +45,8 @@ namespace Grappa {
   public:
     FullEmpty( ) : state_( State::EMPTY ), waiters_( 0 ), t_() {}
 
+    FullEmpty( T t ) : state_( State::FULL ), waiters_( 0 ), t_(t) {}
+
     inline bool full() { return state_ == State::FULL; }
 
     T writeXF( T t ) {
