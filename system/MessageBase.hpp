@@ -34,6 +34,8 @@ namespace Grappa {
       
       bool is_moved_;           ///< HACK: make sure we don't try to send ourselves if we're just a temporary
 
+      bool delete_after_send_;  ///< Is this a heap message? Should it be deleted after it's sent?
+
       friend class RDMAAggregator;
 
 
@@ -41,12 +43,14 @@ namespace Grappa {
       /// Make sure we know how big this message is
       virtual const size_t size() const = 0;
 
+      virtual void deallocate() = 0;
+
       /// Mark message as sent
-      virtual void mark_sent() {
+      inline void mark_sent() {
 	is_sent_ = true;
 	Grappa::signal( &cv_ );
+        if( delete_after_send_ ) deallocate();
       }
-
 
 
 
@@ -92,7 +96,8 @@ namespace Grappa {
         , destination_( -1 )
         , cv_()
 	, is_moved_( false )
-      { DVLOG(9) << "construct " << this; }
+        , delete_after_send_( false ) 
+      { DVLOG(5) << "construct " << this; }
 
       MessageBase( Core dest )
         : next_( NULL )
@@ -101,11 +106,12 @@ namespace Grappa {
         , destination_( dest )
         , cv_()
 	, is_moved_( false )
-      { DVLOG(9) << "construct " << this; }
+        , delete_after_send_( false ) 
+      { DVLOG(5) << "construct " << this; }
 
       // Ensure we are sent before leaving scope
-      inline virtual ~MessageBase() {
-        block_until_sent();
+      virtual ~MessageBase() {
+	DVLOG(5) << "destruct " << this;
       }
 
       MessageBase( const MessageBase& ) = delete;
@@ -121,6 +127,7 @@ namespace Grappa {
         , destination_( m.destination_ )
         , cv_( m.cv_ )
 	, is_moved_( false ) // this only tells us if the current message has been moved
+        , delete_after_send_( false ) 
       {
 	DVLOG(9) << "move " << this;
         CHECK_EQ( is_enqueued_, false ) << "Shouldn't be moving a message that has been enqueued to be sent!"
@@ -135,16 +142,11 @@ namespace Grappa {
       inline void send_immediate();
       inline void send_immediate( Core c );
 
-      /// Block until message can be deallocated.
-      inline void block_until_sent() {
-        // if message has not been enqueued to be sent, do so.
-	// if it has already been sent somehow, then don't worry about it.
-        if( !is_sent_ && !is_enqueued_ ) {
-          enqueue();
-        }
-        // now block until message is sent
-        while( !is_sent_ ) {
-          Grappa::wait( &cv_ );
+      inline void delete_after_send() { 
+        delete_after_send_ = true;
+      }
+
+
       virtual void reset() {
         if( is_enqueued_ ) {
           block_until_sent();
@@ -154,7 +156,9 @@ namespace Grappa {
         is_sent_ = false;
         destination_ =  -1;
       }
-      
+
+      /// Block until message can be deallocated.
+      void block_until_sent();
     };
     
     /// @}

@@ -67,6 +67,10 @@ namespace Grappa {
       return sizeof( &deserialize_and_call ) + sizeof( T );
     }
 
+    // called after being sent when allocated as a heap message owned by the aggregator
+    virtual void deallocate() {
+      delete this;
+    }
 
     ///
     /// These are used by the aggregator to send and receive messages.
@@ -110,7 +114,6 @@ namespace Grappa {
     }
 
   };
-
 
   /// A message with dynamic payload. Storage for message contents is
   /// internal, but payload is stored externally. Destructor blocks
@@ -158,6 +161,10 @@ namespace Grappa {
       Grappa::impl::MessageBase::reset();
     }
 
+    // called after being sent when allocated as a heap message owned by the aggregator
+    virtual void deallocate() {
+      delete this;
+    }
 
     ///
     /// for Messages with modifiable contents. Don't use with lambdas.
@@ -269,6 +276,11 @@ namespace Grappa {
       Grappa::impl::MessageBase::reset();
     }
 
+    // called after being sent when allocated as a heap message owned by the aggregator
+    virtual void deallocate() {
+      delete pointer_;
+      delete this;
+    }
 
 
     ///
@@ -383,6 +395,13 @@ namespace Grappa {
       payload_size_ = 0;
       Grappa::impl::MessageBase::reset();
     }
+
+    // called after being sent when allocated as a heap message owned by the aggregator
+    virtual void deallocate() {
+      delete pointer_;
+      delete this;
+    }
+
     ///
     /// for Messages with modifiable contents. Don't use with lambdas.
     ///
@@ -507,108 +526,104 @@ namespace Grappa {
 
 
 
-
+  // Same as message, but allocated on heap
   template< typename T >
-  class SendMessage : public Message<T> {
-  public:
-    SendMessage( const SendMessage& ) = delete;
-    SendMessage( SendMessage&& ) = default;
-    SendMessage& operator=( const SendMessage& ) = delete;
-    SendMessage& operator=( SendMessage&& ) = delete;
+  inline Message<T> * heap_message( Core dest, T t ) {
+    return new Message<T>( dest, t );
+  }
 
-    /// Construct a message and enqueue to be sent immediately.
-    /// @param dest ID of destination core.
-    /// @param t Contents of message to send.
-    inline SendMessage( Core dest, T t )
-      : Message<T>( dest, t )
-    { 
-      this->enqueue();
-    }
-  };
-
+  /// Message with payload, allocated on heap
   template< typename T >
-  class SendPayloadMessage : public PayloadMessage<T> {
-  public:
-    SendPayloadMessage( const SendPayloadMessage& ) = delete;
-    SendPayloadMessage( SendPayloadMessage&& ) = default;
-    SendPayloadMessage& operator=( const SendPayloadMessage& ) = delete;
-    SendPayloadMessage& operator=( SendPayloadMessage&& ) = delete;
+  inline PayloadMessage<T> * heap_message( Core dest, T t, void * payload, size_t payload_size ) {
+    return new PayloadMessage<T>( dest, t, payload, payload_size );
+  }
 
-    /// Construct a message and enqueue to be sent immediately.
-    /// @param dest ID of destination core.
-    /// @param t Contents of message to send.
-    /// @param payload Pointer to payload
-    /// @param payload_size Size of payload
-    inline SendPayloadMessage( Core dest, T t, void * payload, size_t payload_size )
-      : PayloadMessage<T>( dest, t, payload, payload_size )
-    { 
-      this->enqueue();
-    }
-  };
-
+  /// Message with contents stored outside object, allocated on heap
   template< typename T >
-  class SendExternalMessage : public ExternalMessage<T> {
-  public:
-    SendExternalMessage( const SendExternalMessage& ) = delete;
-    SendExternalMessage( SendExternalMessage&& ) = default;
-    SendExternalMessage& operator=( const SendExternalMessage& ) = delete;
-    SendExternalMessage& operator=( SendExternalMessage&& ) = delete;
+  inline ExternalMessage<T> * heap_message( Core dest, T * t ) {
+    return new ExternalMessage<T>( dest, t );
+  }
 
-    /// Construct a message and enqueue to be sent immediately.
-    /// @param dest ID of destination core.
-    /// @param t Pointer to contents of message to send.
-    inline SendExternalMessage( Core dest, T * t )
-      : ExternalMessage<T>( dest, t )
-    { 
-      this->enqueue();
-    }
-  };
-
+  /// Message with contents stored outside object as well as payload
   template< typename T >
-  class SendExternalPayloadMessage : public ExternalPayloadMessage<T> {
-  public:
-    SendExternalPayloadMessage( const SendExternalPayloadMessage& ) = delete;
-    SendExternalPayloadMessage( SendExternalPayloadMessage&& ) = default;
-    SendExternalPayloadMessage& operator=( const SendExternalPayloadMessage& ) = delete;
-    SendExternalPayloadMessage& operator=( SendExternalPayloadMessage&& ) = delete;
+  inline ExternalPayloadMessage<T> * heap_message( Core dest, T * t, void * payload, size_t payload_size ) {
+    return new ExternalPayloadMessage<T>( dest, t, payload, payload_size );
+  }
 
-    /// Construct a message and enqueue to be sent immediately.
-    /// @param dest ID of destination core.
-    /// @param t Pointer to contents of message to send.
-    /// @param payload Pointer to payload
-    /// @param payload_size Size of payload
-    inline SendExternalPayloadMessage( Core dest, T * t, void * payload, size_t payload_size )
-      : ExternalPayloadMessage<T>( dest, t, payload, payload_size )
-    { 
-      this->enqueue();
-    }
-  };
+
 
 
   /// Same as message, but immediately enqueued to be sent.
   template< typename T >
-  inline SendMessage<T> send_message( Core dest, T t ) {
-    return SendMessage<T>( dest, t );
+  inline Message<T> send_message( Core dest, T t ) {
+    Message<T> m( dest, t );
+    m.enqueue();
+    return m;
   }
-
+  
   /// Message with payload, immediately enqueued to be sent.
   template< typename T >
-  inline SendPayloadMessage<T> send_message( Core dest, T t, void * payload, size_t payload_size ) {
-    return SendPayloadMessage<T>( dest, t, payload, payload_size );
+  inline PayloadMessage<T> send_message( Core dest, T t, void * payload, size_t payload_size ) {
+    PayloadMessage<T> m( dest, t, payload, payload_size );
+    m.enqueue();
+    return m;
   }
 
   /// Message with contents stored outside object, immediately enqueued to be sent.
   template< typename T >
-  inline SendExternalMessage<T> send_message( Core dest, T * t ) {
-    return SendExternalMessage<T>( dest, t );
+  inline ExternalMessage<T> send_message( Core dest, T * t ) {
+    ExternalMessage<T> m( dest, t );
+    m.enqueue();
+    return m;
   }
 
   /// Message with contents stored outside object as well as payload, immediately enqueued to be sent.
   template< typename T >
-  inline SendExternalPayloadMessage<T> send_message( Core dest, T * t, void * payload, size_t payload_size ) {
-    return SendExternalPayloadMessage<T>( dest, t, payload, payload_size );
+  inline ExternalPayloadMessage<T> send_message( Core dest, T * t, void * payload, size_t payload_size ) {
+    ExternalPayloadMessage<T> m( dest, t, payload, payload_size );
+    m.enqueue();
+    return m;
   }
 
+
+
+
+
+  /// Same as message, but allocated on heap and immediately enqueued to be sent.
+  template< typename T >
+  inline Message<T> * send_heap_message( Core dest, T t ) {
+    auto m = new Message<T>( dest, t );
+    m->delete_after_send();
+    m->enqueue();
+    return m;
+  }
+
+  /// Message with payload, allocated on heap and immediately enqueued to be sent.
+  template< typename T >
+  inline PayloadMessage<T> * send_heap_message( Core dest, T t, void * payload, size_t payload_size ) {
+    auto m = new PayloadMessage<T>( dest, t, payload, payload_size );
+    m->delete_after_send();
+    m->enqueue();
+    return m;
+  }
+
+  /// Message with contents stored outside object, allocated on heap and immediately enqueued to be sent.
+  template< typename T >
+  inline ExternalMessage<T> * send_heap_message( Core dest, T * t ) {
+    auto m = new ExternalMessage<T>( dest, t );
+    m->delete_after_send();
+    m->enqueue();
+    return m;
+  }
+
+  /// Message with contents stored outside object as well as payload, allocated on heap and immediately enqueued to be sent.
+  template< typename T >
+  inline ExternalPayloadMessage<T> * send_heap_message( Core dest, T * t, void * payload, size_t payload_size ) {
+    auto m = new ExternalPayloadMessage<T>( dest, t, payload, payload_size );
+    m->delete_after_send();
+    m->enqueue();
+    return m;
+  }
   /// @}
 
 }
