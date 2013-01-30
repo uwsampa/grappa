@@ -14,10 +14,10 @@ BOOST_AUTO_TEST_SUITE( Statistics_tests );
 using namespace Grappa;
 
 //equivalent to: static Statistic<int> foo("foo", 0);
-defineGrappaStat(foo, int, 0);
+GRAPPA_DEFINE_STAT(foo, int, 0);
 
 //equivalent to: static Statistic<double> bar("bar", 0);
-defineGrappaStat(bar, double, 0);
+GRAPPA_DEFINE_STAT(bar, double, 0);
 
 void user_main(void * args) {
   CHECK(Grappa_nodes() >= 2); // at least 2 nodes for these tests...

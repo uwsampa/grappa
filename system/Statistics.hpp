@@ -97,8 +97,8 @@ inline std::ostream& operator<<(std::ostream& o, const Grappa::StatisticBase& st
 
 /// Define a new Grappa Statistic
 /// @param type: supported types include: int, unsigned int, int64_t, uint64_t, float, and double
-#define defineGrappaStat(name, type, initial_value) \
+#define GRAPPA_DEFINE_STAT(name, type, initial_value) \
   static Grappa::Statistic<type> name(#name, initial_value)
 
-#define declareGrappaStat(name, type) \
+#define GRAPPA_DEFINE_STAT(name, type) \
   extern Grappa::Statistic<type> name;
