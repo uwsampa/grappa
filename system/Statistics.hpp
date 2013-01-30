@@ -32,14 +32,19 @@ namespace Grappa {
 
 #ifdef VTRACE_SAMPLED
     unsigned vt_counter;
+    static const int vt_type;
 #endif
     
     Statistic(const char * name, T initial_value):
-      value(initial_value),
+        value(initial_value), StatisticBase(name) {
 #ifdef VTRACE_SAMPLED
-      vt_counter(-1),
+        if (Statistic::vt_type == -1) {
+          LOG(ERROR) << "warning: VTrace sampling unsupported for this type of Statistic.";
+        } else {
+          vt_counter = VT_COUNT_DEF(name, name, Statistic::vt_type, VT_COUNT_DEFGROUP);
+        }
 #endif
-      StatisticBase(name) {}
+    }
     
     virtual std::ostream& json(std::ostream& o) const {
       o << '"' << name << "\": \"" << value << '"';
@@ -77,10 +82,7 @@ namespace Grappa {
   };
 
 #ifdef VTRACE_SAMPLED
-  // specialize for supported tracing types
-  template <typename T> void Statistic<T>::sample() const {
-    LOG(ERROR) << "Sampling unsupported for this type of Statistic.";
-  }
+  // sample() specialized for supported tracing types in Statistics.cpp
 #else
   template <typename T> void Statistic<T>::sample() const {}
 #endif
@@ -89,12 +91,14 @@ namespace Grappa {
   
 } // namespace Grappa
 
+inline std::ostream& operator<<(std::ostream& o, const Grappa::StatisticBase& stat) {
+  return stat.json(o);
+}
+
+/// Define a new Grappa Statistic
+/// @param type: supported types include: int, unsigned int, int64_t, uint64_t, float, and double
 #define defineGrappaStat(name, type, initial_value) \
   static Grappa::Statistic<type> name(#name, initial_value)
 
 #define declareGrappaStat(name, type) \
   extern Grappa::Statistic<type> name;
-
-inline std::ostream& operator<<(std::ostream& o, const Grappa::StatisticBase& stat) {
-  return stat.json(o);
-}
