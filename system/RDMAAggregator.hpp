@@ -229,6 +229,12 @@ namespace Grappa {
 	size_t size = dest->prefetch_queue_[ ( count - 1 ) % prefetch_dist ].size_ + m->size();
         dest->prefetch_queue_[ count % prefetch_dist ].size_ = size;
 
+	if( size > (1 << 17) ) {
+	  Core c = m->destination_;
+	  Grappa::privateTask( [ this, c ] {
+	      send_rdma( c );
+	    });
+	}
       }
 
 
@@ -250,9 +256,13 @@ namespace Grappa {
       }
 
       void flush( Core c ) {
-        LOG(INFO) << "Flushing";
-        send_rdma( c );
-        LOG(INFO) << "Flush complete.";
+	Grappa::ConditionVariable cv;
+	// run on its own task so it has a full stack
+	Grappa::privateTask( [&cv, c, this ] {
+	    send_rdma( c );
+	    Grappa::signal( &cv );
+	  } );
+	Grappa::wait( &cv );
       }
 
     };
