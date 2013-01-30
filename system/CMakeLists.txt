@@ -68,6 +68,8 @@ set(SYSTEM_SOURCES
   PushBuffer.hpp
   StateTimer.cpp
   StateTimer.hpp
+  Statistics.hpp
+  Statistics.cpp
   StatisticsTools.hpp
   Synchronization.hpp
   Tasking.hpp
