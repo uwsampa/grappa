@@ -75,6 +75,7 @@ namespace Grappa {
     Worker * to_wake = Grappa::impl::get_waiters( cv );
     if( to_wake != NULL ) {
       Grappa::impl::set_waiters( cv, to_wake->next );
+      to_wake->next = NULL;
       global_scheduler.thread_wake( to_wake );
     }
   }
@@ -85,6 +86,7 @@ namespace Grappa {
     Worker * to_wake = NULL;
     while( ( to_wake = Grappa::impl::get_waiters( cv ) ) != NULL ) {
       Grappa::impl::set_waiters( cv, to_wake->next );
+      to_wake->next = NULL;
       global_scheduler.thread_wake( to_wake );
     }
   }
