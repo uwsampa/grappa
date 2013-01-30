@@ -256,9 +256,9 @@ public:
               << " ready to block on " << *request_address_ 
               << " * " << *count_ ;
       if( !acquired_ ) {
-	start_time_ = Grappa_get_timestamp();
+        start_time_ = Grappa_get_timestamp();
       } else {
-	start_time_ = 0;
+        start_time_ = 0;
       }
       while( !acquired_ ) {
       DVLOG(5) << "Thread " << CURRENT_THREAD 
@@ -294,8 +294,8 @@ public:
         Grappa_wake( thread_ );
       }
       if( start_time_ != 0 ) {
-	network_time_ = Grappa_get_timestamp();
-	incoherent_acquirer_stats.record_network_latency( start_time_ );
+        network_time_ = Grappa_get_timestamp();
+        incoherent_acquirer_stats.record_network_latency( start_time_ );
       }
     }
   }

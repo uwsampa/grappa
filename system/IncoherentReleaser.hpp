@@ -142,9 +142,10 @@ public:
 #ifdef VTRACE_FULL
       VT_TRACER("incoherent start_release");
 #endif
-            DVLOG(5) << "Thread " << CURRENT_THREAD 
-              << " issuing release for " << *request_address_ 
-              << " * " << *count_ ;
+      DVLOG(5) << "Thread " << CURRENT_THREAD
+               << " issuing release for " << *request_address_
+               << " * " << *count_ ;
+      
       release_started_ = true;
       RequestArgs args;
       args.request_address = *request_address_;
