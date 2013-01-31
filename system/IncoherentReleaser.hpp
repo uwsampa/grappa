@@ -142,10 +142,9 @@ public:
 #ifdef VTRACE_FULL
       VT_TRACER("incoherent start_release");
 #endif
-      DVLOG(5) << "Thread " << CURRENT_THREAD
-               << " issuing release for " << *request_address_
-               << " * " << *count_ ;
-      
+            DVLOG(5) << "Thread " << CURRENT_THREAD 
+              << " issuing release for " << *request_address_ 
+              << " * " << *count_ ;
       release_started_ = true;
       RequestArgs args;
       args.request_address = *request_address_;
@@ -253,7 +252,7 @@ public:
       ReplyArgs reply_args;
       reply_args.reply_address = reply_address;
       
-      Grappa::send_message(reply_address.node(), &reply_args);
+      Grappa::send_heap_message(reply_address.node(), &reply_args);
       
       DVLOG(5) << "Thread " << CURRENT_THREAD
       << " sent release reply to " << reply_address;
