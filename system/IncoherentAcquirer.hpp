@@ -210,10 +210,17 @@ public:
       DVLOG(5) << "Computing request_bytes from block_max " << request_address_->first_byte().block_max() << " and " << *request_address_;
       args.reply_address = make_global( this );
       args.offset = 0;  
-
-      for( size_t total_bytes = *count_ * sizeof(T);
+      size_t total_bytes = *count_ * sizeof(T);
+      
+      
+      // allocate enough requests/messages that we don't run out
+      size_t nmsg = total_bytes / block_size + 2;
+      RequestArgs arg_array[nmsg];
+      Grappa::ExternalMessage<RequestArgs> msg_array[nmsg];
+      
+      for(size_t i = 0;
            args.offset < total_bytes; 
-           args.offset += args.request_bytes) {
+           args.offset += args.request_bytes, i++) {
 
         args.request_bytes = args.request_address.first_byte().block_max() - args.request_address.first_byte();
 
@@ -226,12 +233,16 @@ public:
                  << " of total bytes = " << *count_ * sizeof(T)
                  << " from " << args.request_address;
 
-        Grappa::send_message(args.request_address.node(), &args);
+        arg_array[i] = args;
+        new (msg_array+i) Grappa::ExternalMessage<RequestArgs>(arg_array[i].request_address.node(), &arg_array[i]);
+        msg_array[i].send();
 
         // TODO: change type so we don't screw with pointer like this
         args.request_address = GlobalAddress<T>::Raw( args.request_address.raw_bits() + args.request_bytes );
       }
       DVLOG(5) << "acquire started for " << args.request_address;
+      
+      // blocks here waiting for messages to be sent
     }
   }
 
