@@ -5,6 +5,8 @@
 // AC05-76RL01830 awarded by the United States Department of
 // Energy. The Government has certain rights in the software.
 
+#define LEGACY_SEND
+
 #include <boost/test/unit_test.hpp>
 
 #include "Grappa.hpp"
@@ -173,7 +175,6 @@ BOOST_AUTO_TEST_CASE( test1 ) {
                &(boost::unit_test::framework::master_test_suite().argv),
                (1L << 20) );
 
-  //Grappa::impl::global_rdma_aggregator.init();
   Grappa_activate();
 
   Grappa_run_user_main( &user_main, (void*)NULL );
