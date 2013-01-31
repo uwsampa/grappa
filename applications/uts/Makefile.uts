@@ -15,6 +15,7 @@ TARGETS     = uts-seq uts-dfs uts-stat          \
               uts-omp uts-pthread               \
               uts-upc uts-upc-dcq               \
 	      uts-upc-enhanced                  \
+		  uts-mem-upc                       \
               uts-shmem uts-gpshmem             \
               uts-mpi-wm uts-mpi-wm-nb          \
 	      uts-mpi-ws uts-mpi-hws            \
@@ -139,6 +140,16 @@ uts-shmem: $(SHM_SRCS) $(RNG_SRC) $(COMMON_SRCS)
 
 uts-gpshmem: uts_gpshmem.c $(RNG_SRC) $(COMMON_SRCS)
 	$(GPSHMCC) $(GPSHMCC_OPTS) $(GPSHMLD_OPTS) $(RNG_DEF) -D_GPSHMEM -o $@ $+
+
+
+######### UPC in-memory Shared Memory Model Implementations #########
+
+# See ./Makefile for Grappa implementation
+
+# TODO could add targets for non UPC as well (except maybe pthreads until we modify pthreads_main)
+uts-mem-upc: uts_mem_shm.c $(RNG_SRC) $(COMMON_SRCS)
+	$(UPCC) $(UPCC_OPTS) $(UPCLD_OPTS) $(RNG_DEF) $(FLAGS) -o $@ $+
+
 
 
 clean: config
