@@ -128,7 +128,9 @@ namespace Grappa {
 
       // Ensure we are sent before leaving scope
       inline virtual ~MessageBase() {
-        block_until_sent();
+        if (is_enqueued_) {
+          block_until_sent();
+        }
       }
 
       MessageBase( const MessageBase& ) = delete;
@@ -165,13 +167,8 @@ namespace Grappa {
 
       /// Block until message can be deallocated.
       inline void block_until_sent() {
-        // if message has not been enqueued to be sent, do so.
-        if( !is_enqueued_ ) {
-          send();
-        }
-        // now block until message is sent
+        // block until message is sent
         while( !is_sent_ ) {
-          //global_scheduler.thread_suspend();
           Grappa::wait( &cv_ );
         }
       }
