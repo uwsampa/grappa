@@ -36,7 +36,7 @@ namespace Grappa {
   
   
   StatisticBase::StatisticBase(const char * name): name(name) {
-    registered_stats().push_back(this);
+    Statistics::registered_stats().push_back(this);
     VLOG(1) << "registered <" << this->name << ">";
   }
   

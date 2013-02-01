@@ -110,5 +110,5 @@ inline std::ostream& operator<<(std::ostream& o, const Grappa::StatisticBase& st
 #define GRAPPA_DEFINE_STAT(name, type, initial_value) \
   static Grappa::Statistic<type> name(#name, initial_value)
 
-#define GRAPPA_DEFINE_STAT(name, type) \
+#define GRAPPA_DECLARE_STAT(name, type) \
   extern Grappa::Statistic<type> name;
