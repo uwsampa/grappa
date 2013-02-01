@@ -5,14 +5,17 @@ Enabling high-throughput graph processing on commodity clusters.
 We currently use Make to build the components of Grappa into a static (or dynamic) library.
 
 ## Dependences
+* Compiler
+  * GCC >= 4.6.2 (not strict, but this is what we use/test with)
 * External:
-    * Boost
+  * Boost
 * Slightly modified versions distributed with Grappa:
-    * GASNet (preferably compiled with the Infiniband conduit, but any conduit will do)
-    * gflags
-    * glog
+  * GASNet (preferably compiled with the Infiniband conduit, but any conduit will do)
+  * gflags
+  * glog
 
 Build Grappa:
+
 
 ```bash
     # build packaged dependences

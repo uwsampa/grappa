@@ -1,5 +1,7 @@
 # Graph500 for Grappa
 
+Another straightforward change.
+
 Graph500 is a fairly new benchmark/competition aimed at encouraging better irregular application performance. Right now, it consists of a single benchmark: breadth-first traversal of a graph structure to create a BFS tree (really just an array `numVertices` long where each element holds the parent of that node). (The next specification will include a Single-Source Shortest Path kernel as well). [Official specification](http://www.graph500.org/specifications)
 
 

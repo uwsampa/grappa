@@ -105,7 +105,7 @@ void Grappa_stop_profiling() {
     Grappa_profile_handler(NULL);
 #ifdef VTRACE_SAMPLED
   VT_USER_END("sampling");
-  void Grappa_dump_stats();
+  void Grappa_dump_stats( std::ostream& oo = std::cout );
   Grappa_dump_stats();
 
   Grappa_reset_stats();
@@ -132,7 +132,7 @@ void Grappa_profiling_sample_user() {
 #ifdef VTRACE_SAMPLED
   for (int i=0; i<ae_next_id; i++) {
     if( app_counter_isInteger[i] ) {
-      VT_COUNT_INTEGER_VAL( app_counters[i], *((int64_t*)app_counter_addrs[i]) );
+      VT_COUNT_SIGNED_VAL( app_counters[i], *((int64_t*)app_counter_addrs[i]) );
     } else if( app_counter_isDouble[i] ) {
       VT_COUNT_DOUBLE_VAL( app_counters[i], *((double*)app_counter_addrs[i]) );
     } else {

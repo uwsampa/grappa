@@ -319,6 +319,7 @@ void TaskManager::TaskStatistics::dump( std::ostream& o = std::cout, const char 
     DICT_ADD(dout, releases_);
     DICT_ADD(dout, public_tasks_dequeued_);
     DICT_ADD(dout, private_tasks_dequeued_);
+    DICT_ADD(dout, remote_private_tasks_spawned_);
     
     DICT_ADD( dout, globalq_pushes_ );
     DICT_ADD( dout, globalq_push_attempts_ );
@@ -372,6 +373,7 @@ void TaskManager::TaskStatistics::profiling_sample() {
   VT_COUNT_UNSIGNED_VAL( releases_vt_ev, releases_);
   VT_COUNT_UNSIGNED_VAL( public_tasks_dequeued_vt_ev, public_tasks_dequeued_);
   VT_COUNT_UNSIGNED_VAL( private_tasks_dequeued_vt_ev, private_tasks_dequeued_);
+  VT_COUNT_UNSIGNED_VAL( remote_private_tasks_spawned_vt_ev, remote_private_tasks_spawned_);
 
   VT_COUNT_UNSIGNED_VAL( globalq_pushes_vt_ev, globalq_pushes_ );
   VT_COUNT_UNSIGNED_VAL( globalq_push_attempts_vt_ev, globalq_push_attempts_ );
@@ -397,6 +399,7 @@ void TaskManager::TaskStatistics::merge(const TaskManager::TaskStatistics * othe
   releases_ += other->releases_;
   public_tasks_dequeued_ += other->public_tasks_dequeued_;
   private_tasks_dequeued_ += other->private_tasks_dequeued_;
+  remote_private_tasks_spawned_ += other->remote_private_tasks_spawned_;
                 
   globalq_pushes_                        += other->globalq_pushes_;
   globalq_push_attempts_                 += other->globalq_push_attempts_;
@@ -411,6 +414,7 @@ void TaskManager::TaskStatistics::merge(const TaskManager::TaskStatistics * othe
 
   MERGE_STAT_TOTAL( workshares_initiated_pushed_elements_, other );  
 }
+
 
 void TaskManager::reset_stats() {
   stats.reset();
@@ -427,6 +431,7 @@ void TaskManager::TaskStatistics::reset() {
     releases_ =0;
     public_tasks_dequeued_ =0;
     private_tasks_dequeued_ =0;
+    remote_private_tasks_spawned_ =0;
                 
     globalq_pushes_ = 0;
     globalq_push_attempts_ = 0;

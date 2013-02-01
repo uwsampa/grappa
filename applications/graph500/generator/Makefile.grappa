@@ -1,0 +1,26 @@
+include ../../../system/Makefile
+
+CFLAGS += -O3 -DGRAPH_GENERATOR_GRAPPA -DGRAPHGEN_DISTRIBUTED_MEMORY -DNDEBUG # -g -pg
+CFLAGS += -I$(GRAPPA_HOME)/system
+# CFLAGS = -std=c99 -DGRAPH_GENERATOR_MPI -DGRAPHGEN_DISTRIBUTED_MEMORY -g
+
+# force cplusplus on .c
+CC= $(CXX)
+
+GENERATOR_OBJS = graph_generator.o make_graph.o splittable_mrg.o utils.o
+GENERATOR_HEADERS = graph_generator.h make_graph.h mod_arith_32bit.h mod_arith_64bit.h mod_arith.h mod_arith_xmt.h splittable_mrg.h utils.h user_settings.h mrg_transitions.c
+
+all: generator_test_mpi
+	
+splittable_mrg.o: splittable_mrg.c
+	make -f Makefile.seq $@
+
+genlib: $(GENERATOR_OBJS) $(GENERATOR_HEADERS)
+	ar rcs generator.a $(GENERATOR_OBJS)
+
+generator_test_mpi: generator_test_mpi.c $(GENERATOR_SOURCES) $(GENERATOR_HEADERS)
+	$(MPICC) $(CFLAGS) $(LDFLAGS) -o generator_test_mpi generator_test_mpi.c $(GENERATOR_SOURCES) -lm
+
+clean:
+	rm -f generator_test_mpi
+	rm -f $(GENERATOR_OBJS) generator.a

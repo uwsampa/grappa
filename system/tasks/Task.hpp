@@ -183,7 +183,6 @@ class TaskManager {
                << "}" << terminator << std::endl;
     }
 
-
     public:
         class TaskStatistics {
             private:
@@ -197,6 +196,7 @@ class TaskManager {
                 uint64_t releases_;
                 uint64_t public_tasks_dequeued_;
                 uint64_t private_tasks_dequeued_;
+                uint64_t remote_private_tasks_spawned_;
 
                 uint64_t globalq_pushes_;
                 uint64_t globalq_push_attempts_;
@@ -227,6 +227,7 @@ class TaskManager {
 	  unsigned releases_vt_ev;
 	  unsigned public_tasks_dequeued_vt_ev;
 	  unsigned private_tasks_dequeued_vt_ev;
+    unsigned remote_private_tasks_spawned_vt_ev;
 
     unsigned globalq_pushes_vt_ev;
     unsigned globalq_push_attempts_vt_ev;
@@ -264,6 +265,7 @@ class TaskManager {
 		    , releases_vt_ev( VT_COUNT_DEF( "releases", "acquires", VT_COUNT_TYPE_UNSIGNED, task_manager_vt_grp ) )
 		    , public_tasks_dequeued_vt_ev( VT_COUNT_DEF( "public_tasks_dequeued", "tasks", VT_COUNT_TYPE_UNSIGNED, task_manager_vt_grp ) )
 		    , private_tasks_dequeued_vt_ev( VT_COUNT_DEF( "private_tasks_dequeued", "tasks", VT_COUNT_TYPE_UNSIGNED, task_manager_vt_grp ) )
+        , remote_private_tasks_spawned_vt_ev ( VT_COUNT_DEF( "remote_private_tasks_spawned", "tasks", VT_COUNT_TYPE_UNSIGNED, task_manager_vt_grp ) )
        
         , globalq_pushes_vt_ev( VT_COUNT_DEF( "globalq pushes", "tasks", VT_COUNT_TYPE_UNSIGNED, task_manager_vt_grp ) )
         , globalq_push_attempts_vt_ev( VT_COUNT_DEF( "globalq push attempts", "tasks", VT_COUNT_TYPE_UNSIGNED, task_manager_vt_grp ) )
@@ -277,8 +279,8 @@ class TaskManager {
         , shares_pushed_elements_vt_ev( VT_COUNT_DEF( "workshares pushed elements", "tasks", VT_COUNT_TYPE_UNSIGNED, task_manager_vt_grp ) )
 #endif
 
-                      , tm( task_manager )
-                          { reset(); }
+        , tm( task_manager )
+        { reset(); }
 
         void sample();
         void profiling_sample();
@@ -341,6 +343,10 @@ class TaskManager {
 
                 void record_workshare_test() {
                   workshare_tests_++;
+                }
+        
+                void record_remote_private_task_spawn() {
+                  remote_private_tasks_spawned_++;
                 }
 
                 void record_workshare( int64_t change ) {
@@ -476,7 +482,7 @@ template < typename A0, typename A1, typename A2 >
 inline void TaskManager::spawnRemotePrivate( void (*f)(A0, A1, A2), A0 arg0, A1 arg1, A2 arg2 ) {
   Task newtask = createTask( f, arg0, arg1, arg2 );
   privateQ.push_front( newtask );
-
+  stats.record_remote_private_task_spawn();
   /// note from cbarrier implementation
   /*
    * local cancel cbarrier

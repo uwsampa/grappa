@@ -28,6 +28,8 @@
 #include <GlobalTaskJoiner.hpp>
 #include <Collective.hpp>
 #include <Delegate.hpp>
+#include <FileIO.hpp>
+#include <Array.hpp>
 
 #include "npb_intsort.h"
 
@@ -92,18 +94,28 @@ struct bucket_t {
 ////////////
 // Globals
 ////////////
+
+// global const for one sort
 int scale;
 int log2buckets;
 int log2maxkey;
 size_t nelems;
 size_t nbuckets;
-uint64_t maxkey;
+
+// local version on each node, which then gets local copy of global state
 std::vector<size_t> counts;
 std::vector<size_t> offsets;
+
+// globally distributed
 GlobalAddress<bucket_t> bucketlist;
 GlobalAddress<uint64_t> array;
+
+// not for sort itself
+uint64_t maxkey;
 bool read_from_disk;
-bool generate_and_save;
+bool generate;
+bool write_to_disk;
+bool do_sort;
 
 #define LOBITS (log2maxkey - log2buckets)
 
@@ -211,7 +223,7 @@ inline void put_back_bucket(bucket_t * bucket) {
   }
   //Incoherent<uint64_t>::WO c(array+offsets[b], bucket->size(), &(*bucket)[0]);
   //c.block_until_released();
-  VLOG(1) << "bucket[" << b << "] release successful";
+  VLOG(3) << "bucket[" << b << "] release successful";
 }
 
 void bucket_sort(GlobalAddress<uint64_t> array, size_t nelems, size_t nbuckets) {
@@ -280,136 +292,6 @@ void bucket_sort(GlobalAddress<uint64_t> array, size_t nelems, size_t nbuckets) 
       LOG(INFO) << "total_sort_time: " << sort_time;
 }
 
-// Just put this here to start brainstorming ways to store records
-#if 0
-class BlockRecord {
-  size_t start_index;
-  size_t num_bytes;
-  char * data;
-  void save(std::fstream& f) {
-    f.write((char*)&start_index, sizeof(size_t));
-    f.write((char*)&num_bytes, sizeof(size_t));
-    f.write(data, num_bytes);
-  }
-};
-#endif
-
-/// Save 'records' of the form:
-/// { <start_index>, <num_elements>, <data...> }
-template < typename T >
-struct save_array_func : ForkJoinIteration {
-    GlobalAddress<T> array; size_t nelems; char dirname[256];
-  save_array_func() {}
-  save_array_func( const char dirname[256], GlobalAddress<T> array, size_t nelems):
-    array(array), nelems(nelems) { memcpy(this->dirname, dirname, 256); }
-  void operator()(int64_t nid) const {
-    range_t r = blockDist(0, nelems, Grappa_mynode(), Grappa_nodes());
-    char fname[256]; sprintf(fname, "%s/block.%ld.%ld.gblk", dirname, r.start, r.end);
-    std::fstream fo(fname, std::ios::out | std::ios::binary);
-    
-    const size_t NBUF = BUFSIZE/sizeof(T); 
-    T * buf = new T[NBUF];
-    for_buffered (i, n, r.start, r.end, NBUF) {
-      typename Incoherent<T>::RO c(array+i, n, buf);
-      c.block_until_acquired();
-      fo.write((char*)buf, sizeof(T)*n);
-    }
-    delete [] buf;
-
-    fo.close();
-  }
-};
-
-/// Assuming HDFS, so write array to different files in a directory because otherwise we can't write in parallel
-template < typename T >
-void save_array(const char (&dirname)[256], GlobalAddress<T> array, size_t nelems) {
-  // make directory with mode 777
-  if ( mkdir((const char *)dirname, 0777) != 0) {
-    switch (errno) { // error occurred
-      case EEXIST: LOG(INFO) << "files already exist, skipping write..."; return;
-      default: fprintf(stderr, "Error with `mkdir`!\n"); break;
-    }
-  }
-
-  double t = Grappa_walltime();
-
-  { save_array_func<T> f(dirname, array, nelems); fork_join_custom(&f); }
-  
-  t = Grappa_walltime() - t;
-  LOG(INFO) << "save_array_time: " << t;
-  LOG(INFO) << "save_rate_mbps: " << ((double)nelems * sizeof(T) / (1L<<20)) / t;
-}
-
-#include <iterator>
-#include <boost/filesystem.hpp>
-namespace fs = boost::filesystem;
-
-/// Currently reads in files in blocks of 128 MB because that's the block size of HDFS.
-/// Performance is terrible, need to do async. file io so we don't block Grappa communication.
-template < typename T >
-struct read_array_func : ForkJoinIteration {
-  GlobalAddress<T> array; size_t nelems; char dirname[256]; GlobalAddress<int64_t> locks;
-  read_array_func() {}
-  read_array_func( const char dirname[256], GlobalAddress<T> array, size_t nelems, GlobalAddress<int64_t> locks):
-    array(array), nelems(nelems), locks(locks) { memcpy(this->dirname, dirname, 256); }
-  void operator()(int64_t nid) const {
-    range_t r = blockDist(0, nelems, Grappa_mynode(), Grappa_nodes());
-
-    const size_t NBUF = BUFSIZE/sizeof(T);
-    T * buf = new T[NBUF];
-
-    size_t i = 0;
-    fs::directory_iterator d(dirname);
-    for (size_t i = 0; d != fs::directory_iterator(); i++, d++) {
-      // to save time in common case, the first files go to the first nodes
-      if (i < Grappa_mynode()) continue;
-
-      // take assigned file, otherwise check if anyone else is reading this already
-      if (i == Grappa_mynode() || grappa::cmp_swap(locks+i, 0, 1)) {
-        const char * fname = d->path().stem().string().c_str();
-        int64_t start, end;
-        sscanf(fname, "block.%ld.%ld", &start, &end);
-        //VLOG(1) << "reading " << start << ", " << end;
-        CHECK( start < end && start < nelems && end <= nelems) << "nelems = " << nelems << ", start = " << start << ", end = " << end;
-        
-        std::fstream f(d->path().string().c_str(), std::ios::in | std::ios::binary);
-
-        // read array
-        for_buffered (i, n, start, end, NBUF) {
-          CHECK( i+n <= nelems) << "nelems = " << nelems << ", i+n = " << i+n;
-          f.read((char*)buf, sizeof(T)*n);
-          typename Incoherent<T>::WO c(array+i, n, buf);
-        }
-      }
-    }
-
-    delete [] buf;
-  }
-};
-
-template < typename T >
-void read_array(const char (&dirname)[256], GlobalAddress<T> array, size_t nelems) {
-  double t = Grappa_walltime();
-  
-  size_t nfiles = std::distance(fs::directory_iterator(dirname), fs::directory_iterator());
-  GlobalAddress<int64_t> file_taken = Grappa_typed_malloc<int64_t>(nfiles);
-  Grappa_memset_local(file_taken, (int64_t)0, nfiles);
-
-  { read_array_func<T> f(dirname, array, nelems, file_taken); fork_join_custom(&f); }
-  
-  t = Grappa_walltime() - t;
-  LOG(INFO) << "read_array_time: " << t;
-  LOG(INFO) << "read_rate_mbps: " << ((double)nelems * sizeof(T) / (1L<<20)) / t;
-
-  Grappa_free(file_taken);
-  //const size_t hdfs_block_size = 128 * (1L<<20);
-
-  //for (fs::director_iterator d(dirname); d != director_iterator(); d++) {
-    //size_t sz = fs::file_size(d->path());
-
-  //}
-}
-
 void user_main(void* ignore) {
   Grappa_reset_stats();
 
@@ -420,14 +302,15 @@ void user_main(void* ignore) {
   LOG(INFO) << "nbuckets = (1 << " << log2buckets << ") = " << nbuckets;
   LOG(INFO) << "maxkey = (1 << " << log2maxkey << ") - 1 = " << maxkey;
 
-  LOG(INFO) << "iobufsize_mb: " << (double)BUFSIZE/(1L<<20);
-  LOG(INFO) << "block_size: " << block_size;
+  //LOG(INFO) << "iobufsize_mb = " << (double)BUFSIZE/(1L<<20);
+  LOG(INFO) << "block_size = " << block_size;
 
   GlobalAddress<uint64_t> array = Grappa_typed_malloc<uint64_t>(nelems);
 
   char dirname[256]; sprintf(dirname, "/scratch/hdfs/sort/uniform.%ld.%ld", scale, log2maxkey);
+  GrappaFile f(dirname, true);
 
-  if (!read_from_disk || (read_from_disk && !fs::exists(dirname))) {
+  if (generate || write_to_disk || (read_from_disk && !fs::exists(dirname))) {
     LOG(INFO) << "generating...";
       t = Grappa_walltime();
 
@@ -436,36 +319,38 @@ void user_main(void* ignore) {
 
       rand_time = Grappa_walltime() - t;
       LOG(INFO) << "fill_random_time: " << rand_time;
+
+    //print_array("generated array", array, nelems);
   }
 
-  if (generate_and_save || (read_from_disk && !fs::exists(dirname))) {
+  if (write_to_disk || (read_from_disk && !fs::exists(dirname))) {
     if (fs::exists(dirname)) fs::remove_all(dirname);
 
-    save_array(dirname, array, nelems);
-
-    // if just --gen specified, then we're done here...
-    if (generate_and_save && !read_from_disk) return;
+    Grappa_save_array(f, true, array, nelems);
   }
 
   if (read_from_disk) {
     Grappa_memset_local(array, (uint64_t)0, nelems);
-    read_array(dirname, array, nelems);
+    Grappa_read_array(f, array, nelems);
+    //print_array("read array", array, nelems);
   }
 
   /////////
   // sort
   /////////
-  bucket_sort(array, nelems, nbuckets);
+  if (do_sort) {
+    bucket_sort(array, nelems, nbuckets);
 
-  // verify
-  size_t jump = nelems/17;
-  uint64_t prev;
-  for (size_t i=0; i<nelems; i+=jump) {
-    prev = 0;
-    for (size_t j=1; j<64 && (i+j)<nelems; j++) {
-      uint64_t curr = grappa::read(array+i+j);
-      CHECK( curr >= prev ) << "verify failed: prev = " << prev << ", curr = " << curr;
-      prev = curr;
+    // verify
+    size_t jump = nelems/17;
+    uint64_t prev;
+    for (size_t i=0; i<nelems; i+=jump) {
+      prev = 0;
+      for (size_t j=1; j<64 && (i+j)<nelems; j++) {
+        uint64_t curr = grappa::read(array+i+j);
+        CHECK( curr >= prev ) << "verify failed: prev = " << prev << ", curr = " << curr;
+        prev = curr;
+      }
     }
   }
 
@@ -491,8 +376,10 @@ static void printHelp(const char * exe) {
   printf("  --log2buckets,b  Number of buckets will be 2^log2buckets.\n");
   printf("  --log2maxkey,k   Maximum value of random numbers, range will be [0,2^log2maxkey)");
   printf("  --class,c   NAS Parallel Benchmark Class (problem size) (W, S, A, B, C, or D)");
-  printf("  --gen_and_save,g   Generate random numbers and save to file only (no sort).\n");
+  printf("  --gen,g   Generate random numbers and save to file only (no sort).\n");
+  printf("  --write,w   Save array to file.\n");
   printf("  --read,r  Read from file rather than generating.\n");
+  printf("  --nosort  Skip sort.\n");
   exit(0);
 }
 
@@ -503,13 +390,17 @@ static void parseOptions(int argc, char ** argv) {
     {"log2buckets", required_argument, 0, 'b'},
     {"log2maxkey", required_argument, 0, 'k'},
     {"class", required_argument, 0, 'c'},
-    {"gen_and_save", no_argument, 0, 'g'},
+    {"gen", no_argument, 0, 'g'},
     {"read", no_argument, 0, 'r'},
+    {"write", no_argument, 0, 'w'},
+    {"nosort", no_argument, 0, 'n'}
   };
   
   // defaults
-  generate_and_save = false;
+  generate = true;
   read_from_disk = false;
+  write_to_disk = false;
+  do_sort = true;
   scale = 8;
 
   // at least 2*num_nodes buckets by default
@@ -548,11 +439,16 @@ static void parseOptions(int argc, char ** argv) {
         scale = NKEY_LOG2[cls];
         break;
       case 'g':
-        generate_and_save = true;
+        generate = true;
+        break;
+      case 'w':
+        write_to_disk = true;
         break;
       case 'r':
         read_from_disk = true;
         break;
+      case 'n':
+        do_sort = false;
     }
   }
   nelems = 1L << scale;

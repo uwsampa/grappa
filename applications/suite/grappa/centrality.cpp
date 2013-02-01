@@ -11,6 +11,7 @@
 #include <Cache.hpp>
 #include <GlobalTaskJoiner.hpp>
 #include <PushBuffer.hpp>
+#include <Array.hpp>
 
 #include "../compat/mersenne.h"
 

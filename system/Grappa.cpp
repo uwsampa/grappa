@@ -17,11 +17,14 @@
 #include "ForkJoin.hpp"
 #include "Cache.hpp"
 #include "PerformanceTools.hpp"
+
 #include "tasks/GlobalQueue.hpp"
 #include "Collective.hpp"
 #include "StatisticsTools.hpp"
 #include "tasks/StealQueue.hpp"
 #include "tasks/GlobalQueue.hpp"
+
+//#include "FileIO.hpp"
 
 #include <fstream>
 
@@ -38,12 +41,15 @@ DEFINE_uint64( num_starting_workers, 4, "Number of starting workers in task-exec
 DEFINE_bool( set_affinity, false, "Set processor affinity based on local rank" );
 DEFINE_string( stats_blob_filename, "stats.json", "Stats blob filename" );
 
-DECLARE_bool( global_queue );
+DEFINE_uint64( io_blocks_per_node, 4, "Maximum number of asynchronous IO operations to issue concurrently per node.");
+DEFINE_uint64( io_blocksize_mb, 4, "Size of each asynchronous IO operation's buffer." );
 
 static Thread * barrier_thread = NULL;
 
 Thread * master_thread;
 static Thread * user_main_thr;
+
+// IODescriptor * aio_completed_stack;
 
 /// Flag to tell this node it's okay to exit.
 bool Grappa_done_flag;
@@ -84,12 +90,28 @@ static void poller( Thread * me, void * args ) {
     global_task_manager.stats.sample();
 
     Grappa_poll();
+    
+    // poll global barrier
     if (barrier_thread) {
       if (global_communicator.barrier_try()) {
         Grappa_wake(barrier_thread);
         barrier_thread = NULL;
       }
     }
+
+    // // check async. io completions
+    // if (aio_completed_stack) {
+    //   // atomically grab the stack, replacing it with an empty stack again
+    //   IODescriptor * desc = __sync_lock_test_and_set(&aio_completed_stack, NULL);
+
+    //   while (desc != NULL) {
+    //     desc->handle_completion();
+    //     IODescriptor * temp = desc->nextCompleted;
+    //     desc->nextCompleted = NULL;
+    //     desc = temp;
+    //   }
+    // }
+
     Grappa_yield_periodic();
   }
   VLOG(5) << "polling Thread exiting";
@@ -154,6 +176,19 @@ void Grappa_init( int * argc_p, char ** argv_p[], size_t global_memory_size_byte
   sigabrt_sa.sa_flags = 0;
   sigabrt_sa.sa_handler = &sigabrt_sighandler;
   CHECK_EQ( 0, sigaction( SIGABRT, &sigabrt_sa, 0 ) ) << "SIGABRT signal handler installation failed.";
+
+  // // Asynchronous IO
+  // // initialize completed stack
+  // aio_completed_stack = NULL;
+
+  // // handler
+  // struct sigaction aio_sa;
+  // aio_sa.sa_flags = SA_RESTART | SA_SIGINFO;
+  // aio_sa.sa_sigaction = Grappa_handle_aio;
+  // if (sigaction(AIO_SIGNAL, &aio_sa, NULL) == -1) {
+  //   fprintf(stderr, "Error setting up async io signal handler.\n");
+  //   exit(1);
+  // }
 
   // initialize Tau profiling groups
   generate_profile_groups();
