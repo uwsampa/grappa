@@ -34,22 +34,13 @@ namespace Grappa {
       
       bool is_moved_;           ///< HACK: make sure we don't try to send ourselves if we're just a temporary
 
-      bool delete_after_send_;  ///< Is this a heap message? Should it be deleted after it's sent?
-
       friend class RDMAAggregator;
-
-
-
-      /// Make sure we know how big this message is
-      virtual const size_t size() const = 0;
-
-      virtual void deallocate() = 0;
 
       /// Mark message as sent
       inline void mark_sent() {
         is_sent_ = true;
         Grappa::signal( &cv_ );
-        if( delete_after_send_ ) deallocate();
+        if( delete_after_send_ ) delete this;
       }
 
 
@@ -86,7 +77,8 @@ namespace Grappa {
         return buffer;
       }
 
-
+    protected:
+      bool delete_after_send_;  ///< Is this a heap message? Should it be deleted after it's sent?
 
     public:
       MessageBase( )
@@ -156,6 +148,9 @@ namespace Grappa {
         is_sent_ = false;
         destination_ =  -1;
       }
+
+      /// Make sure we know how big this message is
+      virtual const size_t size() const = 0;
 
       /// Block until message can be deallocated.
       void block_until_sent();
