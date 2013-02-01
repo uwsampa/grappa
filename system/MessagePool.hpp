@@ -1,50 +1,18 @@
 #include "Grappa.hpp"
+#include "PoolAllocator.hpp"
 #include "Message.hpp"
 
 namespace Grappa {
-
-  template<size_t Bytes, typename Base>
-  class Pool {
-    char buffer[Bytes];
-    size_t allocated;
-  protected:
-    Base* allocate(size_t sz) {
-      LOG(ERROR) << "allocating " << sz;
-      Base* p = reinterpret_cast<Base*>(buffer+allocated);
-      allocated += sz;
-      
-      // TODO: implement heap allocation fallback
-      if (allocated > Bytes) { LOG(ERROR) << "MessagePool overflow!"; exit(1); }
-      return p;
-    }
-    
-  public:
-    Pool(): allocated(0) {}
-    
-    virtual ~Pool() {
-      // call destructors of everything in Pool
-      iterate([](Base* bp){ bp->~Base(); });
-    }
-    
-    /// Takes a lambda (or really any callable) that is called repeated for
-    /// each allocated Base*
-    template<typename F>
-    void iterate(F f) {
-      char * p = buffer;
-      while (p < buffer+allocated) {
-        Base* bp = reinterpret_cast<Base*>(p);
-        p += bp->size();
-        f(bp);
-      }
-    }
-    
-    template<size_t OtherBytes, typename OtherBase>
-    friend void* ::operator new(size_t, Grappa::Pool<OtherBytes,OtherBase>&);
-  };
   
   template<size_t Bytes>
-  class MessagePool : public Pool<Bytes, impl::MessageBase> {
+  class MessagePool : public PoolAllocator<Bytes, impl::MessageBase> {
   public:
+    
+    
+    
+    ///
+    /// Templated message creating functions, all taken straight from Message.hpp
+    ///
     
     template<typename T>
     inline Message<T>* message(Core dest, T t) {
@@ -95,9 +63,4 @@ namespace Grappa {
  
   };
 
-}
-
-template<size_t Bytes,typename Base>
-void* operator new(size_t size, Grappa::Pool<Bytes,Base>& a) {
-  return a.allocate(size);
 }
