@@ -9,6 +9,8 @@
 #include "GlobalTaskJoiner.hpp"
 #include "AsyncParallelFor.hpp"
 #include "PushBuffer.hpp"
+#include <Collective.hpp>
+#include <Array.hpp>
 
 GRAPPA_DEFINE_EVENT_GROUP(bfs);
 
@@ -73,7 +75,7 @@ void bfs_visit_vertex(int64_t kstart, int64_t kiters) {
     
     int64_t buf[2];
     Incoherent<int64_t>::RO cxoff(xoff+2*v, 2, buf);
-    const int64_t vstart = cxoff[0], vend = cxoff[1];
+    const int64_t vstart = cxoff[0], vend = cxoff[1]; // [xoff[2v], xoff[2v+1])
     
     async_parallel_for_hack(bfs_visit_neighbor, vstart, vend-vstart, v);
   }
@@ -128,7 +130,14 @@ LOOP_FUNCTOR(bfs_node, nid, GA64(_vlist)GA64(_xoff)GA64(_xadj)GA64(_bfs_tree)GA6
 
     k1 = oldk2;
     _k2 = read(k2);
-  }  
+  }
+}
+
+#define allreduce_add Grappa_allreduce<int64_t,coll_add<int64_t>,0>
+
+LOOP_FUNCTION( bfs_finish, nid ) {
+  bfs_neighbors_visited = allreduce_add(bfs_neighbors_visited);
+  bfs_vertex_visited = allreduce_add(bfs_vertex_visited);
 }
 
 double make_bfs_tree(csr_graph * g, GlobalAddress<int64_t> bfs_tree, int64_t root) {
@@ -154,9 +163,13 @@ double make_bfs_tree(csr_graph * g, GlobalAddress<int64_t> bfs_tree, int64_t roo
   write(bfs_tree+root, root); // parent of root is self
   
   { bfs_node f(vlist, g->xoff, g->xadj, bfs_tree, k2addr, g->nadj); fork_join_custom(&f); }
-    
-  t = timer() - t;
   
+  t = timer() - t;
+
+  { bfs_finish f; fork_join_custom(&f); }
+  VLOG(1) << "bfs_vertex_visited = " << bfs_vertex_visited;
+  VLOG(1) << "bfs_neighbors_visited = " << bfs_neighbors_visited;
+
   Grappa_free(vlist);
   
   return t;

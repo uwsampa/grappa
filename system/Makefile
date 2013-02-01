@@ -77,6 +77,8 @@ Thread_tests.test: coro.o stack.o tasks/Thread.o tasks/BasicScheduler.o
 Communicator_tests.o Communicator_tests.test: Communicator.o
 
 Aggregator_tests.o Aggregator_tests.test: $(LIBRARY)
+RDMAAggregator_tests.o RDMAAggregator_tests.test: $(LIBRARY) RDMAAggregator.o
+Message_tests.o Message_tests.test: $(LIBRARY)
 MutableHeap_tests.o MutableHeap_tests.test:  $(LIBRARY)
 
 
@@ -90,6 +92,11 @@ Allocator_tests.o Allocator_tests.test: Allocator.o
 QueueDebug_tests.o QueueDebug_tests.exe: ../tools/stl-debug-allocator/archive/Source/allocator.o
 
 Collective_tests.o Collective_tests.test: $(LIBRARY)
+
+Mutex_tests.o Mutex_tests.test: $(LIBRARY)
+ConditionVariable_tests.o ConditionVariable_tests.test: $(LIBRARY)
+FullEmpty_tests.o FullEmpty_tests.test: $(LIBRARY)
+
 
 #thread_tests.test: thread.o stack.o coro.o
 thread2_tests.o thread2_tests.test: $(LIBRARY)
@@ -128,6 +135,14 @@ Uid_rate_tests.o Uid_rate_tests.test: $(LIBRARY)
 
 NetworkPerformance_tests.test NetworkPerformance_tests.o: $(LIBRARY)
 Gups_tests.o Gups_tests.test: $(LIBRARY)
+
+FileIO_tests.o FileIO_tests.test: $(LIBRARY)
+FileIO_tests.test: LIBRARIES+='-lboost_filesystem'
+
+Array_tests.o Array_tests.test: $(LIBRARY)
+
+New_delegate_tests.test: $(LIBRARY)
+
 #
 # environment variables for run
 # remember to include environment's $LD_LIBRARY_PATH, since MPI libs may be there
@@ -212,9 +227,9 @@ ENV_VARIABLES+= VT_MAX_FLUSHES=0
 ENV_VARIABLES+= VT_PFORM_GDIR=.
 ENV_VARIABLES+= VT_PFORM_LDIR=/scratch
 VAMPIRTRACE_COMMON_ARGS= -vt:inst manual
-CXX=$(VAMPIRTRACE)/bin/vtcxx -vt:cxx g++ $(VAMPIRTRACE_COMMON_ARGS)
-CC=$(VAMPIRTRACE)/bin/vtcc -vt:cc gcc $(VAMPIRTRACE_COMMON_ARGS)
-LD=$(VAMPIRTRACE)/bin/vtcxx -vt:cxx mpicxx $(VAMPIRTRACE_COMMON_ARGS)
+CXX=$(VAMPIRTRACE)/bin/vtcxx -vt:cxx $(GCC472)/bin/g++ $(VAMPIRTRACE_COMMON_ARGS)
+CC=$(VAMPIRTRACE)/bin/vtcc -vt:cc $(GCC472)/bin/gcc $(VAMPIRTRACE_COMMON_ARGS)
+LD=$(VAMPIRTRACE)/bin/vtcxx -vt:cxx "$(GCC472_LD)" $(VAMPIRTRACE_COMMON_ARGS)
 CFLAGS+= -DVTRACE -DVTRACE_SAMPLED
 endif
 
@@ -237,7 +252,7 @@ endif
 #
 # Build Grappa static library
 #
-LIBRARY_CONTENTS+= Grappa.o GlobalAllocator.o GlobalMemory.o GlobalMemoryChunk.o Communicator.o Aggregator.o Timestamp.o Allocator.o Cache.o Delegate.o Collective.o ForkJoin.o tasks/TaskingScheduler.o tasks/Task.o tasks/Thread.o stack.o coro.o StateTimer.o PerformanceTools.o Future.o CurrentThread.o ProfilerGroups.o AsyncParallelFor.o GlobalTaskJoiner.o IncoherentAcquirer.o IncoherentReleaser.o Uid.o tasks/StealQueue.o tasks/GlobalQueue.o ConditionVariables.o 
+LIBRARY_CONTENTS+= Grappa.o GlobalAllocator.o GlobalMemory.o GlobalMemoryChunk.o Communicator.o Aggregator.o Timestamp.o Allocator.o Cache.o Delegate.o Collective.o ForkJoin.o tasks/BasicScheduler.o tasks/TaskingScheduler.o tasks/Task.o tasks/Thread.o stack.o coro.o StateTimer.o PerformanceTools.o Future.o CurrentThread.o ProfilerGroups.o AsyncParallelFor.o GlobalTaskJoiner.o IncoherentAcquirer.o IncoherentReleaser.o Uid.o tasks/StealQueue.o tasks/GlobalQueue.o ConditionVariables.o 
 
 libGrappa.a: $(LIBRARY_CONTENTS)
 	$($(MPITYPE)_AR) rv $@ $^
@@ -309,7 +324,7 @@ cleanup_shm:
 #
 # What libraries do we need?
 #
-LIBRARIES+= -lgflags -lglog $(PLATFORM_SPECIFIC_LIBS) $(GASNET_LIBS)
+LIBRARIES+= -lgflags -lglog $(PLATFORM_SPECIFIC_LIBS) $(GASNET_LIBS) -lboost_filesystem
 
 #
 # set compiler flags
@@ -408,11 +423,13 @@ doc docs doxygen::
 # autodependency stuff
 #
 
+# find all directories and
 # pull in dependency info for *existing* .o files
-OBJECTS:=$(wildcard *.o)
+DIRECTORIES:=$(shell find . -type d)
+OBJECTS:=$(foreach dir,$(DIRECTORIES),$(wildcard $(dir)/*.o))
 -include $(OBJECTS:.o=.d)
 
-TESTS:=$(wildcard *.test)
+TESTS:=$(foreach dir,$(DIRECTORIES),$(wildcard $(dir)/*.test))
 -include $(TESTS:.test=.d)
 
 # build an object

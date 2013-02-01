@@ -16,8 +16,11 @@
 #define __STDC_FORMAT_MACROS
 #endif
 
+#define _GRAPPA 1
+
 #include "../generator/make_graph.h"
 #include "../generator/utils.h"
+#include "../prng.h"
 #include "common.h"
 #include <math.h>
 #include <assert.h>
@@ -29,18 +32,22 @@
 #include <stdint.h>
 #include <inttypes.h>
 
-#include "Grappa.hpp"
-#include "GlobalAllocator.hpp"
-#include "ForkJoin.hpp"
-#include "Cache.hpp"
-#include "Delegate.hpp"
+#include <Grappa.hpp>
+#include <GlobalAllocator.hpp>
+#include <ForkJoin.hpp>
+#include <Cache.hpp>
+#include <Delegate.hpp>
+#include <PerformanceTools.hpp>
+#include <FileIO.hpp>
+
 #include "timer.h"
-#include "rmat.h"
+//#include "rmat.h"
 #include "oned_csr.h"
 #include "verify.hpp"
 #include "options.h"
 
-#include "PerformanceTools.hpp"
+
+// test change
 
 static int compare_doubles(const void* a, const void* b) {
   double aa = *(const double*)a;
@@ -56,6 +63,7 @@ void output_results (const int64_t SCALE, int64_t nvtx_scale, int64_t edgefactor
                 const int NBFS, const double *bfs_time, const int64_t *bfs_nedge);
 
 //### Globals ###
+static int64_t nvtx_scale;
 
 //static int64_t bfs_root[NBFS_max];
 
@@ -80,7 +88,7 @@ static void choose_bfs_roots(GlobalAddress<int64_t> xoff, int64_t nvtx, int * NB
   // sample from 0..nvtx-1 without replacement
   int64_t m = 0, t = 0;
   while (m < *NBFS && t < nvtx) {
-    double R = mrg_get_double_orig(prng_state);
+    double R = mrg_get_double_orig((mrg_state*)prng_state);
     if (!has_adj(xoff, t) || (nvtx - t)*R > *NBFS - m) ++t;
     else bfs_roots[m++] = t++;
   }
@@ -126,10 +134,12 @@ static void disable_tau() {
   fork_join_custom(&f);
 #endif
 #ifdef GOOGLE_PROFILER
+  Grappa_merge_and_dump_stats(std::cerr);
   func_disable_google_profiler g;
   fork_join_custom(&g);
 #else
-  Grappa_merge_and_dump_stats();
+  Grappa_merge_and_dump_stats(std::cerr);
+  std::cerr << std::flush;
   Grappa_reset_stats_all_nodes();
 #endif
 }
@@ -173,33 +183,34 @@ static void run_bfs(tuple_graph * tg, csr_graph * g, int64_t * bfs_roots) {
   }
 }
 
-template <typename T>
-inline void read_my_chunk(GlobalAddress<T> base_addr, int64_t n, FILE * fin) {
-  range_t r = blockDist(0, n, Grappa_mynode(), Grappa_nodes());
-  fseek(fin, r.start*sizeof(T), SEEK_CUR);
-  read_array(base_addr+r.start, r.end-r.start, fin);
-  fseek(fin, (n-r.end)*sizeof(T), SEEK_CUR);
-}
+//template <typename T>
+//inline void read_my_chunk(GlobalAddress<T> base_addr, int64_t n, GrappaFile& fin) {
+  //range_t r = blockDist(0, n, Grappa_mynode(), Grappa_nodes());
+  //fin.offset += r.start*sizeof(T);
+  //Grappa_read_array(base_addr+r.start, r.end-r.start, fin);
+  //fin.offset += (n-r.end)*sizeof(T);
+//}
 
-LOOP_FUNCTOR( checkpoint_in_func, nid, ((tuple_graph,tg)) ((csr_graph,g)) ((int64_t*,bfs_roots)) ((int64_t, ckpt_nbfs)) ) {
-  char fname[256];
-  sprintf(fname, "ckpts/graph500.%lld.%lld.xmt.w.ckpt", SCALE, edgefactor);
-  FILE * fin = fopen(fname, "r");
+//LOOP_FUNCTOR( checkpoint_in_func, nid, ((tuple_graph,tg)) ((csr_graph,g)) ((int64_t*,bfs_roots)) ((int64_t, ckpt_nbfs)) ) {
+  //char fname[256];
+  //sprintf(fname, "ckpts/graph500.%lld.%lld.xmt.w.ckpt", SCALE, edgefactor);
+  ////FILE * fin = fopen(fname, "r");
+  //GrappaFile fin(fname, false);
   
-  fseek(fin, 4*sizeof(int64_t), SEEK_CUR);
+  //fin.offset = 4*sizeof(int64_t);
 
-  read_my_chunk(tg.edges, tg.nedge, fin);
+  //read_my_chunk(tg.edges, tg.nedge, fin);
   
-  read_my_chunk(g.xoff, 2*g.nv+2, fin);
+  //read_my_chunk(g.xoff, 2*g.nv+2, fin);
 
-  read_my_chunk(g.xadjstore, g.nadj, fin);
+  //read_my_chunk(g.xadjstore, g.nadj, fin);
   
-  if (nid == 0) {
-    fread(bfs_roots, sizeof(int64_t), ckpt_nbfs, fin);
-  }
-
-  fclose(fin);
-}
+  //if (nid == 0) {
+    //FILE * fin = fopen(fname, "r");
+    //fread(bfs_roots, sizeof(int64_t), ckpt_nbfs, fin);
+		//fclose(fin);
+  //}
+//}
 
 static void checkpoint_in(tuple_graph * tg, csr_graph * g, int64_t * bfs_roots) {
   //TAU_PHASE("checkpoint_in","void (tuple_graph*,csr_graph*,int64_t*)", TAU_USER);
@@ -236,17 +247,30 @@ static void checkpoint_in(tuple_graph * tg, csr_graph * g, int64_t * bfs_roots) 
   //read_array(g->xoff, 2*g->nv+2, fin);
   //read_array(g->xadjstore, g->nadj, fin);
   //fread(bfs_roots, sizeof(int64_t), ckpt_nbfs, fin);
+  //fclose(fin);
+  //{ checkpoint_in_func f(*tg, *g, bfs_roots, ckpt_nbfs); fork_join_custom(&f); }
+  GrappaFile gfin(fname, false);
+  gfin.offset = 4*sizeof(int64_t);
+
+  Grappa_read_array(gfin, tg->edges, tg->nedge);
+  
+  Grappa_read_array(gfin, g->xoff, 2*g->nv+2);
+
+  Grappa_read_array(gfin, g->xadjstore, g->nadj);
+  
+  fseek(fin, gfin.offset, SEEK_SET);
+  fread(bfs_roots, sizeof(int64_t), ckpt_nbfs, fin);
   fclose(fin);
-  { checkpoint_in_func f(*tg, *g, bfs_roots, ckpt_nbfs); fork_join_custom(&f); }
  
   if (ckpt_nbfs < NBFS) {
     fprintf(stderr, "only %ld bfs roots found\n", ckpt_nbfs);
     NBFS = ckpt_nbfs;
   }
 
-  
+  int64_t total_size = (2*g->nv+2 + tg->nedge + g->nadj)*sizeof(int64_t);
   t = timer() - t;
   VLOG(1) << "checkpoint_read_time: " << t;
+  VLOG(1) << "checkpoint_read_rate: " << total_size / t / (1L<<20);
   FLAGS_aggregator_enable = agg_enable;
 }
 
@@ -328,15 +352,18 @@ static void user_main(int * args) {
   csr_graph g;
   int64_t bfs_roots[NBFS_max];
 
-
+	nvtx_scale = ((int64_t)1)<<SCALE;
+	int64_t desired_nedge = desired_nedge = nvtx_scale * edgefactor;
+	/* Catch a few possible overflows. */
+	assert (desired_nedge >= nvtx_scale);
+	assert (desired_nedge >= edgefactor);
 
   if (load_checkpoint) {
     checkpoint_in(&tg, &g, bfs_roots);
   } // checkpoint_in may change 'load_checkpoint' to false if unable to read in file correctly
   
   if (!load_checkpoint) {
-    
-    tg.nedge = (int64_t)(edgefactor) << SCALE;
+   
     tg.edges = Grappa_typed_malloc<packed_edge>(tg.nedge);
     
     /* Make the raw graph edges. */
@@ -352,35 +379,41 @@ static void user_main(int * args) {
        * row), and then do an allreduce at the end.  This scheme is used to avoid
        * non-local communication and reading the file separately just to find BFS
        * roots. */
-      
-      rmat_edgelist(&tg, SCALE);
-      
-      //debug: verify that rmat edgelist is valid
-  //    for (int64_t i=0; i<tg.nedge; i++) {
-  //      Incoherent<packed_edge>::RO e(tg.edges+i, 1);
-  //      VLOG(1) << "edge[" << i << "] = " << (*e).v0 << " -> " << (*e).v1;
-  //    }
-  //    
-  //    int64_t NV = 1<<SCALE;
-  //    int64_t degree[NV];
-  //    for (int64_t i=0; i<NV; i++) degree[i] = 0;
-  //    
-  //    for (int64_t i=0; i<tg.nedge; i++) {
-  //      Incoherent<packed_edge>::RO e(tg.edges+i, 1);
-  //      assert(e[0].v0 < NV);
-  //      assert(e[0].v1 < NV);
-  //      if (e[0].v0 != e[0].v1) {
-  //        degree[e[0].v0]++;
-  //        degree[e[0].v1]++;
-  //      }
-  //    }
-  //    for (int64_t i=0; i<NV; i++) {
-  //      VLOG(1) << "degree[" << i << "] = " << degree[i];
-  //    }
+     
+      if (use_RMAT) { 
+        tg.nedge = (int64_t)(edgefactor) << SCALE;
+        CHECK( false ) << "RMAT not currently supported";
+       // rmat_edgelist(&tg, SCALE);
+        //debug: verify that rmat edgelist is valid
+        //    for (int64_t i=0; i<tg.nedge; i++) {
+        //      Incoherent<packed_edge>::RO e(tg.edges+i, 1);
+        //      VLOG(1) << "edge[" << i << "] = " << (*e).v0 << " -> " << (*e).v1;
+        //    }
+        //    
+        //    int64_t NV = 1<<SCALE;
+        //    int64_t degree[NV];
+        //    for (int64_t i=0; i<NV; i++) degree[i] = 0;
+        //    
+        //    for (int64_t i=0; i<tg.nedge; i++) {
+        //      Incoherent<packed_edge>::RO e(tg.edges+i, 1);
+        //      assert(e[0].v0 < NV);
+        //      assert(e[0].v1 < NV);
+        //      if (e[0].v0 != e[0].v1) {
+        //        degree[e[0].v0]++;
+        //        degree[e[0].v1]++;
+        //      }
+        //    }
+        //    for (int64_t i=0; i<NV; i++) {
+        //      VLOG(1) << "degree[" << i << "] = " << degree[i];
+        //    }
+      } else {
+        make_graph( SCALE, desired_nedge, userseed, userseed, &tg.nedge, &tg.edges );
+      }
+
     }
     stop = timer();
     generation_time = stop - start;
-    VLOG(1) << "graph_generation: " << generation_time;
+    LOG(INFO) << "graph_generation: " << generation_time;
     
     setup_bfs(&tg, &g, bfs_roots);
     

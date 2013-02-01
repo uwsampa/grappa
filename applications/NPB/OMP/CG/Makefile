@@ -15,6 +15,9 @@ ${PROGRAM}: config ${OBJS}
 cg.o:		cg.f  globals.h npbparams.h
 	${FCOMPILE} cg.f
 
+run:
+	OMP_NUM_THREADS=$(OMP_NUM_THREADS) ../bin/cg.${PROBLEM}.x
+
 clean:
 	- rm -f *.o *~ 
 	- rm -f npbparams.h core

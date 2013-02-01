@@ -6,6 +6,7 @@
 #include "PerformanceTools.hpp"
 #include "GlobalAllocator.hpp"
 #include "timer.h"
+#include <Array.hpp>
 
 GRAPPA_DEFINE_EVENT_GROUP(bfs);
 
@@ -24,6 +25,8 @@ static GlobalAddress<int64_t> bfs_tree;
 static GlobalAddress<int64_t> k2;
 static int64_t nadj;
 
+static LocalTaskJoiner joiner;
+
 #define XOFF(k) (xoff+2*(k))
 #define XENDOFF(k) (xoff+2*(k)+1)
 
@@ -39,7 +42,7 @@ LOOP_FUNCTOR(bfs_setup, nid, GA64(_vlist)GA64(_xoff)GA64(_xadj)GA64(_bfs_tree)GA
   nadj = _nadj;
 }
 
-static void bfs_visit_neighbor(uint64_t packed, GlobalAddress<LocalTaskJoiner> rjoiner) {
+static void bfs_visit_neighbor(uint64_t packed) {
   int64_t vo = packed & 0xFFFFFFFF;
   int64_t v = packed >> 32;
   CHECK(vo < nadj) << "unpacking 'vo' unsuccessful (" << vo << " < " << nadj << ")";
@@ -50,15 +53,15 @@ static void bfs_visit_neighbor(uint64_t packed, GlobalAddress<LocalTaskJoiner> r
   GlobalAddress<int64_t> xv = xadj+vo;
   CHECK(xv.node() < Grappa_nodes()) << " [" << xv.node() << " < " << Grappa_nodes() << "]";
   
-  const int64_t j = read(xv);
-  if (cmp_swap(bfs_tree+j, -1, v)) {
+  const int64_t j = Grappa_delegate_read_word(xv);
+  if (Grappa_delegate_compare_and_swap_word(bfs_tree+j, -1, v)) {
     while (kbuf == -1) { Grappa_yield(); }
     if (kbuf < BUF_LEN) {
       buf[kbuf] = j;
       (kbuf)++;
     } else {
       kbuf = -1; // lock other threads out temporarily
-      int64_t voff = fetch_add(k2, BUF_LEN);
+      int64_t voff = Grappa_delegate_fetch_and_add_word(k2, BUF_LEN);
       Incoherent<int64_t>::RW cvlist(vlist+voff, BUF_LEN);
       for (int64_t vk=0; vk < BUF_LEN; vk++) {
         cvlist[vk] = buf[vk];
@@ -67,17 +70,17 @@ static void bfs_visit_neighbor(uint64_t packed, GlobalAddress<LocalTaskJoiner> r
       kbuf = 1;
     }
   }
-  LocalTaskJoiner::remoteSignal(rjoiner);
+  joiner.signal();
 }
 
-static void bfs_visit_vertex(int64_t k, GlobalAddress<LocalTaskJoiner> rjoiner) {
+static void bfs_visit_vertex(int64_t k) {
   GlobalAddress<int64_t> vk = vlist+k;
   CHECK(vk.node() < Grappa_nodes()) << " [" << vk.node() << " < " << Grappa_nodes() << "]";
-  const int64_t v = read(vk);
+  const int64_t v = Grappa_delegate_read_word(vk);
   
   // TODO: do these two together (cache)
-  const int64_t vstart = read(XOFF(v));
-  const int64_t vend = read(XENDOFF(v));
+  const int64_t vstart = Grappa_delegate_read_word(XOFF(v));
+  const int64_t vend = Grappa_delegate_read_word(XENDOFF(v));
   CHECK(vstart < nadj) << vstart << " < " << nadj;
   CHECK(vend < nadj) << vend << " < " << nadj;
   CHECK(v < (1L<<32)) << "can't pack 'v' into 32-bit value! have to get more creative";
@@ -85,16 +88,12 @@ static void bfs_visit_vertex(int64_t k, GlobalAddress<LocalTaskJoiner> rjoiner) 
   
   GRAPPA_EVENT(visit_vertex_ev, "visit vertex: num neighbors", 1, bfs, vend-vstart);
 
-  LocalTaskJoiner myjoiner;
-  GlobalAddress<LocalTaskJoiner> myjoiner_addr = make_global(&myjoiner);
-
   for (int64_t vo = vstart; vo < vend; vo++) {
     uint64_t packed = (((uint64_t)v) << 32) | vo;
-    myjoiner.registerTask(); // register these new tasks on *this task*'s joiner
-    Grappa_publicTask(&bfs_visit_neighbor, packed, myjoiner_addr);
+    joiner.registerTask();
+    Grappa_privateTask(&bfs_visit_neighbor, packed);
   }
-  myjoiner.wait();
-  LocalTaskJoiner::remoteSignal(rjoiner);
+  joiner.signal();
 }
 
 LOOP_FUNCTOR(bfs_node, nid, ((int64_t,start)) ((int64_t,end))) {
@@ -102,23 +101,16 @@ LOOP_FUNCTOR(bfs_node, nid, ((int64_t,start)) ((int64_t,end))) {
   
   kbuf = 0;
   
-  LocalTaskJoiner nodejoiner;
-  GlobalAddress<LocalTaskJoiner> nodejoiner_addr = make_global(&nodejoiner);
-
   for (int64_t i = r.start; i < r.end; i++) {
-    nodejoiner.registerTask();
-    Grappa_publicTask(&bfs_visit_vertex, i, nodejoiner_addr);
+    joiner.registerTask();
+    Grappa_privateTask(&bfs_visit_vertex, i);
   }
-  
-  VLOG(1) << "node joiner (" << nodejoiner.outstanding << ") before wait";
-  nodejoiner.wait();
-  VLOG(1) << "node joiner (" << nodejoiner.outstanding << ")";
-  
-}
 
-LOOP_FUNCTION(clear_buffers, nid) {
+  joiner.wait();
+  
+  // make sure to commit what's left in the buffer at the end
   if (kbuf) {
-    int64_t voff = fetch_add(k2, kbuf);
+    int64_t voff = Grappa_delegate_fetch_and_add_word(k2, kbuf);
     VLOG(2) << "flushing vlist buffer (kbuf=" << kbuf << ", k2=" << voff << ")";
     Incoherent<int64_t>::RW cvlist(vlist+voff, kbuf);
     for (int64_t vk=0; vk < kbuf; vk++) {
@@ -136,7 +128,7 @@ double make_bfs_tree(csr_graph * g, GlobalAddress<int64_t> bfs_tree, int64_t roo
   t = timer();
   
   // start with root as only thing in vlist
-  write(vlist, root);
+  Grappa_delegate_write_word(vlist, root);
   
   int64_t k1 = 0, k2 = 1;
   GlobalAddress<int64_t> k2addr = make_global(&k2);
@@ -144,7 +136,7 @@ double make_bfs_tree(csr_graph * g, GlobalAddress<int64_t> bfs_tree, int64_t roo
   // initialize bfs_tree to -1
   Grappa_memset(bfs_tree, (int64_t)-1,  NV);
   
-  write(bfs_tree+root, root); // parent of root is self
+  Grappa_delegate_write_word(bfs_tree+root, root); // parent of root is self
   
   bfs_setup fsetup(vlist, g->xoff, g->xadj, bfs_tree, k2addr, g->nadj);
   fork_join_custom(&fsetup);
@@ -156,15 +148,13 @@ double make_bfs_tree(csr_graph * g, GlobalAddress<int64_t> bfs_tree, int64_t roo
     bfs_node fbfs(k1, oldk2);
     fork_join_custom(&fbfs);
 
-    { clear_buffers f; fork_join_custom(&f); }
-
     k1 = oldk2;
   }
   
   t = timer() - t;
   
   Grappa_free(vlist);
-  
+
   Grappa_merge_and_dump_stats();
   
   return t;
