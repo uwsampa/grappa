@@ -131,3 +131,5 @@ config.cache
 # CMake
 /build
 
+/scratch/*.cpp
+

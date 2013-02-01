@@ -166,3 +166,6 @@ include_directories(system/tasks)
 add_subdirectory(system)
 add_subdirectory(applications)
 add_subdirectory(bin)
+
+add_subdirectory(scratch)
+
