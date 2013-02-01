@@ -4,7 +4,11 @@
 #include <Grappa.hpp>
 #include "ForkJoin.hpp"
 
+#include "Message.hpp"
+
 #include <boost/test/unit_test.hpp>
+
+DEFINE_bool( rdma, false, "New messages/aggregator" );
 
 DEFINE_bool( rotate, false, "Iterate through senders" );
 DEFINE_bool( strong, false, "Strong scaling (iters per cores) or weak scaling (iters / core per core)?" );
@@ -76,19 +80,83 @@ LOOP_FUNCTION( func_print, index ) {
 
 char payload[ 1 << 26 ];
 
+
 LOOP_FUNCTOR( func_ping, index, ((int64_t, count)) ((int64_t, payload_size)) ) {
   if( Grappa_mynode() < Grappa_nodes() / 2 ) {
     // senders
     Node target = Grappa_mynode() + Grappa_nodes() / 2;
     LOG(INFO) << "Node " << Grappa_mynode() << " sending " << count << " messages to " << target;
+
     for( int i = 0; i < count; ++i ) {
       Grappa_call_on( target, &receive, payload, payload_size );
       if( FLAGS_rotate ) {
 	++target;
 	if( target == Grappa_nodes() ) target = Grappa_nodes() / 2;
       }
-      if( (i & FLAGS_yield_mask) == 0 ) Grappa_yield();
+      //if( (i & FLAGS_yield_mask) == 0 ) Grappa_yield();
     }
+
+    // for( int i = Grappa_nodes() / 2; i < Grappa_nodes(); ++i ) {
+    //   Grappa_flush( i );
+    // }
+
+    value = count;
+    LOG(INFO) << "Node " << Grappa_mynode() << " sent " << count << " messages to " << target;
+  } else {
+    // receivers
+    while( value != count ) Grappa_yield();
+    LOG(INFO) << "Node " << Grappa_mynode() << " received " << value << " messages";
+  }
+  BOOST_CHECK( value == count );
+}
+
+Grappa::ConditionVariable rdma_ping_cv;
+int64_t rdma_count;
+
+LOOP_FUNCTOR( func_rdma_ping, index, ((int64_t, count)) ((int64_t, payload_size)) ) {
+  rdma_count = count;
+  if( Grappa_mynode() < Grappa_nodes() / 2 ) {
+    // senders
+    Node target = Grappa_mynode() + Grappa_nodes() / 2;
+    LOG(INFO) << "Node " << Grappa_mynode() << " sending " << count << " messages to " << target;
+
+
+    struct M {
+      void operator()(void * payload, size_t payload_size) {
+        ++value;
+        if( value == rdma_count ) {
+          Grappa::signal( &rdma_ping_cv );
+        }
+      }
+    } m;
+    
+    //auto msgs = new Grappa::PayloadMessage<M>[ count ];
+    const int msg_count = 2048;
+    Grappa::PayloadMessage<M> msgs[ msg_count ];
+
+    for( int i = 0; i < count; ++i ) {
+      //Grappa_call_on( target, &receive, payload, payload_size );
+      //auto x = Grappa::message( target, &m, payload, payload_size );
+      //x.block_until_sent();
+      msgs[i%msg_count].reset();
+      msgs[i%msg_count].set_payload( &payload[0], payload_size );
+      msgs[i%msg_count].enqueue( target );
+      //auto x = Grappa::send_heap_message( target, &m, payload, payload_size );
+      if( FLAGS_rotate ) {
+	++target;
+	if( target == Grappa_nodes() ) target = Grappa_nodes() / 2;
+      }
+      //if( (i & FLAGS_yield_mask) == 0 ) Grappa_yield();
+    }
+
+    if( FLAGS_rotate ) {
+       for( int i = Grappa_nodes() / 2; i < Grappa_nodes(); ++i ) {
+         Grappa::impl::global_rdma_aggregator.flush( i );
+       }
+    } else {
+      Grappa::impl::global_rdma_aggregator.flush( target );
+    }
+
     // for( int i = Grappa_nodes() / 2; i < Grappa_nodes(); ++i ) {
     //   Grappa_flush( i );
     // }
@@ -96,7 +164,10 @@ LOOP_FUNCTOR( func_ping, index, ((int64_t, count)) ((int64_t, payload_size)) ) {
     LOG(INFO) << "Node " << Grappa_mynode() << " sent " << count << " messages to " << target;
   } else {
     // receivers
-    while( value != count ) Grappa_yield();
+    //while( value != count ) Grappa_yield();
+    while( value != count ) {
+      Grappa::wait( &rdma_ping_cv );
+    }
     LOG(INFO) << "Node " << Grappa_mynode() << " received " << value << " messages";
   }
   BOOST_CHECK( value == count );
@@ -165,13 +236,67 @@ LOOP_FUNCTOR( func_bidir_ping, index, ((int64_t, count)) ((int64_t, payload_size
       target = target + 1;
       if( target >= Grappa_nodes() ) target = 0;
     }
-    if( (i & FLAGS_yield_mask) == 0 ) Grappa_yield();
+    //if( (i & FLAGS_yield_mask) == 0 ) Grappa_yield();
   }
-  //Grappa_flush( target );  
+  for( int i = 0; i < Grappa_nodes(); ++i ) {
+    Grappa_flush( i ); 
+  }
+ 
   LOG(INFO) << "Sent " << count << " messages";
 
   // receivers
   while( value != count ) Grappa_yield();
+
+  LOG(INFO) << "Node " << Grappa_mynode() << " received " << value << " messages";
+
+  BOOST_CHECK( value == count );
+}
+
+LOOP_FUNCTOR( func_rdma_bidir_ping, index, ((int64_t, count)) ((int64_t, payload_size)) ) {
+  // senders
+  Node target = 0;
+  if( FLAGS_rotate )
+    target = Grappa_mynode();
+  else 
+    target = (Grappa_nodes() - 1) - Grappa_mynode();
+  
+  //LOG(INFO) << "Node " << Grappa_mynode() << " sending " << count << " messages to " << target;
+
+  struct M {
+    void operator()(void * payload, size_t payload_size) {
+      ++value;
+      if( value >= rdma_count ) {
+        Grappa::signal( &rdma_ping_cv );
+      }
+    }
+  } m;
+  
+    const int msg_count = 2048;
+    Grappa::PayloadMessage<M> msgs[ msg_count ];
+
+  for( int i = 0; i < count; ++i ) {
+    msgs[i%msg_count].reset();
+    msgs[i%msg_count].set_payload( &payload[0], payload_size );
+    msgs[i%msg_count].enqueue( target );
+    if( FLAGS_rotate ) {
+      target = target + 1;
+      if( target >= Grappa_nodes() ) target = 0;
+    }
+    //if( (i & FLAGS_yield_mask) == 0 ) Grappa_yield();
+  }
+
+  for( int i = 0; i < Grappa_nodes(); ++i ) {
+    Grappa::impl::global_rdma_aggregator.flush( i );
+  }
+
+  //Grappa_flush( target );  
+  LOG(INFO) << "Sent " << count << " messages";
+
+  // receivers
+  //while( value != count ) Grappa_yield();
+    while( value < count ) {
+      Grappa::wait( &rdma_ping_cv );
+    }
 
   LOG(INFO) << "Node " << Grappa_mynode() << " received " << value << " messages";
 
@@ -394,16 +519,30 @@ void user_main( int * args ) {
 	  func_print print;
 	  fork_join_custom( &print );
 	} else {
-	  iterations = FLAGS_strong ? FLAGS_iterations : FLAGS_iterations / Grappa_nodes();
-	  active_cores = Grappa_nodes();
-	  func_bidir_ping bidir_ping( iterations, FLAGS_payload_size );
-	  fork_join_custom( &bidir_ping );
+          if( FLAGS_rdma ) {
+            iterations = FLAGS_strong ? FLAGS_iterations : FLAGS_iterations / Grappa_nodes();
+            active_cores = Grappa_nodes();
+            func_rdma_bidir_ping rdma_bidir_ping( iterations, FLAGS_payload_size );
+            fork_join_custom( &rdma_bidir_ping );
+          } else {
+            iterations = FLAGS_strong ? FLAGS_iterations : FLAGS_iterations / Grappa_nodes();
+            active_cores = Grappa_nodes();
+            func_bidir_ping bidir_ping( iterations, FLAGS_payload_size );
+            fork_join_custom( &bidir_ping );
+          }
 	}
       } else {
-	iterations = FLAGS_strong ? FLAGS_iterations : FLAGS_iterations / (Grappa_nodes() / 2);
-	active_cores = Grappa_nodes() / 2;
-	func_ping ping( iterations, FLAGS_payload_size );
-	fork_join_custom( &ping );
+        if( FLAGS_rdma ) {
+          iterations = FLAGS_strong ? FLAGS_iterations : FLAGS_iterations / (Grappa_nodes() / 2);
+          active_cores = Grappa_nodes() / 2;
+          func_rdma_ping rdma_ping( iterations, FLAGS_payload_size );
+          fork_join_custom( &rdma_ping );
+        } else {
+          iterations = FLAGS_strong ? FLAGS_iterations : FLAGS_iterations / (Grappa_nodes() / 2);
+          active_cores = Grappa_nodes() / 2;
+          func_ping ping( iterations, FLAGS_payload_size );
+          fork_join_custom( &ping );
+        }
       }
     }
   }
