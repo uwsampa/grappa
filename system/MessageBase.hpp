@@ -44,7 +44,7 @@ namespace Grappa {
 
       /// Send message through old aggregator
       void legacy_send() {
-        const size_t message_size = this->size();
+        const size_t message_size = this->serialized_size();
         char buf[ message_size ];
         this->serialize_to( buf, message_size );
         Grappa_call_on( destination_, legacy_send_message_am, buf, message_size );
@@ -154,8 +154,11 @@ namespace Grappa {
       }
 
       /// Make sure we know how big this message is
+      virtual const size_t serialized_size() const = 0;
+      
+      /// Unserialized message size
       virtual const size_t size() const = 0;
-
+      
 
       inline void send() {
 	CHECK( !is_moved_ ) << "Shouldn't be sending a message that has been moved!"
