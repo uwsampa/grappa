@@ -3,12 +3,15 @@ project(Grappa)
 # (2.8 has ExternalProject support)
 cmake_minimum_required(VERSION 2.8)
 set_property(GLOBAL PROPERTY USE_FOLDERS ON)
-
 enable_testing()
-
 set(CMAKE_BUILD_TYPE RelWithDebInfo)
-
 site_name(MACHINENAME)
+
+
+option(TRACING "Sample statistics with VTrace at regular intervals." OFF)
+if(TRACING)
+  add_definitions(-DVTRACE_SAMPLED -DVTRACE -DGOOGLE_PROFILER)
+endif()
 
 # global C++ flags
 list(APPEND CMAKE_CXX_FLAGS "-std=c++11 -Winline -Wno-inline -mno-red-zone")
@@ -62,7 +65,6 @@ set(GASNET_SETTINGS
   GASNET_PHYSMEM_MAX=1024M
 )
 list(APPEND GRAPPA_ENV ${GASNET_SETTINGS})
-
 
 # pre-compiled external dependencies
 # TODO: make CMake build these (see GraphLab's CMake)
