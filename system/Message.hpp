@@ -46,7 +46,9 @@ namespace Grappa {
 
     Message( Message&& m ) = default;
 
-    virtual ~Message() { block_until_sent(); }
+    virtual ~Message() {
+      block_until_sent();
+    }
 
     ///
     /// for Messages with modifiable contents. Don't use with lambdas.
@@ -65,11 +67,6 @@ namespace Grappa {
     /// How much storage do we need to send this message?
     const size_t size( ) const {
       return sizeof( &deserialize_and_call ) + sizeof( T );
-    }
-
-    // called after being sent when allocated as a heap message owned by the aggregator
-    virtual void deallocate() {
-      delete this;
     }
 
     ///
@@ -151,19 +148,16 @@ namespace Grappa {
 
     PayloadMessage( PayloadMessage&& m ) = default;
     
-    virtual ~PayloadMessage() { block_until_sent(); }
+    virtual ~PayloadMessage() {
+      block_until_sent();
+    }
 
     inline void set_payload( void * payload, size_t size ) { payload_ = payload; payload_size_ = size; }
 
     virtual void reset() {
+      Grappa::impl::MessageBase::reset();
       payload_ = nullptr;
       payload_size_ = 0;
-      Grappa::impl::MessageBase::reset();
-    }
-
-    // called after being sent when allocated as a heap message owned by the aggregator
-    virtual void deallocate() {
-      delete this;
     }
 
     ///
@@ -269,19 +263,17 @@ namespace Grappa {
 
     ExternalMessage( ExternalMessage&& m ) = default; ///< Not allowed.
 
-    virtual ~ExternalMessage() { block_until_sent(); }
+    virtual ~ExternalMessage() { 
+      block_until_sent();
+      if( delete_after_send_ ) {
+        delete pointer_;
+      }
+    }
 
     virtual void reset() {
-      pointer_ = nullptr;
       Grappa::impl::MessageBase::reset();
+      pointer_ = nullptr;
     }
-
-    // called after being sent when allocated as a heap message owned by the aggregator
-    virtual void deallocate() {
-      delete pointer_;
-      delete this;
-    }
-
 
     ///
     /// for Messages with modifiable contents. Don't use with lambdas.
@@ -385,21 +377,20 @@ namespace Grappa {
 
     ExternalPayloadMessage( ExternalPayloadMessage&& m ) = default;
 
-    virtual ~ExternalPayloadMessage() { block_until_sent(); }
+    virtual ~ExternalPayloadMessage() { 
+      block_until_sent();
+      if( delete_after_send_ ) {
+        delete pointer_;
+      }
+    }
 
     inline void set_payload( void * payload, size_t size ) { payload_ = payload; payload_size_ = size; }
 
     virtual void reset() {
+      Grappa::impl::MessageBase::reset();
       pointer_ = nullptr;
       payload_ = nullptr;
       payload_size_ = 0;
-      Grappa::impl::MessageBase::reset();
-    }
-
-    // called after being sent when allocated as a heap message owned by the aggregator
-    virtual void deallocate() {
-      delete pointer_;
-      delete this;
     }
 
     ///
