@@ -7,7 +7,7 @@ namespace Grappa {
   class MessagePool {
     char buffer[Bytes];
     size_t allocated;
-    
+  protected:
     impl::MessageBase* allocate(size_t sz) {
       LOG(ERROR) << "allocating " << sz;
       impl::MessageBase* p = reinterpret_cast<impl::MessageBase*>(buffer+allocated);
@@ -22,15 +22,19 @@ namespace Grappa {
     MessagePool(): allocated(0) {}
     
     ~MessagePool() {
+      // call destructors of everything in MessagePool
+      iterate([](impl::MessageBase* bp){ bp->~MessageBase(); });
+    }
+    
+    /// Takes a lambda (or really any callable) that is called repeated for
+    /// each allocated impl::MessageBase*
+    template<typename F>
+    void iterate(F f) {
       char * p = buffer;
       while (p < buffer+allocated) {
         impl::MessageBase* bp = reinterpret_cast<impl::MessageBase*>(p);
-        size_t sz = bp->message_size();
-        
-        bp->~MessageBase(); // calls derived Message's destructor
-        
-        VLOG(3) << "cleanup " << sz;
-        p += sz;
+        p += bp->size();
+        f(bp);
       }
     }
     
@@ -47,7 +51,6 @@ namespace Grappa {
       return new (*this) SendMessage<T>(dest, t);
     }
   };
-
 
 }
 
