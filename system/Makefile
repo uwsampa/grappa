@@ -77,8 +77,8 @@ Thread_tests.test: coro.o stack.o tasks/Thread.o tasks/BasicScheduler.o
 Communicator_tests.o Communicator_tests.test: Communicator.o
 
 Aggregator_tests.o Aggregator_tests.test: $(LIBRARY)
-RDMAAggregator_tests.o RDMAAggregator_tests.test: $(LIBRARY) RDMAAggregator.o
-Message_tests.o Message_tests.test: $(LIBRARY) MessageBase.o
+RDMAAggregator_tests.o RDMAAggregator_tests.test: $(LIBRARY) 
+Message_tests.o Message_tests.test: $(LIBRARY) 
 MutableHeap_tests.o MutableHeap_tests.test:  $(LIBRARY)
 
 
@@ -247,7 +247,7 @@ endif
 #
 # Build Grappa static library
 #
-LIBRARY_CONTENTS+= Grappa.o GlobalAllocator.o GlobalMemory.o GlobalMemoryChunk.o Communicator.o Aggregator.o Timestamp.o Allocator.o Cache.o Delegate.o Collective.o ForkJoin.o tasks/TaskingScheduler.o tasks/Task.o tasks/Thread.o stack.o coro.o StateTimer.o PerformanceTools.o Future.o CurrentThread.o ProfilerGroups.o AsyncParallelFor.o GlobalTaskJoiner.o IncoherentAcquirer.o IncoherentReleaser.o Uid.o
+LIBRARY_CONTENTS+= Grappa.o GlobalAllocator.o GlobalMemory.o GlobalMemoryChunk.o Communicator.o Aggregator.o Timestamp.o Allocator.o Cache.o Delegate.o Collective.o ForkJoin.o tasks/TaskingScheduler.o tasks/Task.o tasks/Thread.o stack.o coro.o StateTimer.o PerformanceTools.o Future.o CurrentThread.o ProfilerGroups.o AsyncParallelFor.o GlobalTaskJoiner.o IncoherentAcquirer.o IncoherentReleaser.o Uid.o MessageBase.o RDMAAggregator.o
 
 libGrappa.a: $(LIBRARY_CONTENTS)
 	$($(MPITYPE)_AR) rv $@ $^

@@ -132,6 +132,9 @@ namespace Grappa {
       Core mycore_;
       Node mynode_;
       Core cores_per_node_;
+      Core total_cores_;
+
+      bool flushing_;
 
       /// actual aggregation buffers
       /// TODO: one process allocate on shared pages
@@ -170,6 +173,8 @@ namespace Grappa {
         : mycore_( -1 )
         , mynode_( -1 )
         , cores_per_node_( -1 )
+        , total_cores_( -1 )
+        , flushing_( false )
         , deserialize_buffer_handle_( -1 )
         , deserialize_first_handle_( -1 )
       {
@@ -179,6 +184,7 @@ namespace Grappa {
       void init() {
         cores_.resize( global_communicator.nodes() );
         mycore_ = global_communicator.mynode();
+        total_cores_ = global_communicator.nodes();
         deserialize_buffer_handle_ = global_communicator.register_active_message_handler( &deserialize_buffer_am );
         deserialize_first_handle_ = global_communicator.register_active_message_handler( &deserialize_first_am );
       }
@@ -263,6 +269,20 @@ namespace Grappa {
             Grappa::signal( &cv );
           } );
         Grappa::wait( &cv );
+      }
+
+      void idle_flush() {
+        if( !flushing_ ) {
+          flushing_ = true;
+          Grappa::privateTask( [this] {
+              for( int i = 0; i < total_cores_; ++i ) {
+                if( cores_[i].messages_.raw_ != 0 ) {
+                  send_rdma( i );
+                }
+              }
+              flushing_ = false;
+            } );
+        }
       }
 
     };

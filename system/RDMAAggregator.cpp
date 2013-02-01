@@ -20,6 +20,9 @@ namespace Grappa {
     /// global RDMAAggregator instance
     Grappa::impl::RDMAAggregator global_rdma_aggregator;
 
+    void idle_flush_rdma_aggregator() {
+      global_rdma_aggregator.idle_flush();
+    }
 
     void RDMAAggregator::deserialize_buffer_am( gasnet_token_t token, void * buf, size_t size ) {
       DVLOG(5) << "Receiving buffer of size " << size << " through gasnet";
