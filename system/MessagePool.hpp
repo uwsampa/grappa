@@ -8,7 +8,13 @@ namespace Grappa {
   class MessagePool : public PoolAllocator<Bytes, impl::MessageBase> {
   public:
     
-    
+    /// Just calls `block_until_sent` on each message in the pool
+    /// TODO: don't wake until all have been sent
+    void block_until_all_sent() {
+      iterate([](impl::MessageBase* msg){
+        msg->block_until_sent();
+      });
+    }
     
     ///
     /// Templated message creating functions, all taken straight from Message.hpp
