@@ -19,6 +19,8 @@
 #include "PerformanceTools.hpp"
 //#include "FileIO.hpp"
 
+#include "RDMAAggregator.hpp"
+
 #include <fstream>
 
 #ifndef SHMMAX
@@ -189,6 +191,8 @@ void Grappa_init( int * argc_p, char ** argv_p[], size_t global_memory_size_byte
 
   //  initializes system_wide global_aggregator
   global_aggregator.init();
+
+  Grappa::impl::global_rdma_aggregator.init();
 
   // set CPU affinity if requested
   if( FLAGS_set_affinity ) {
