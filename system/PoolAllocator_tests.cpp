@@ -9,7 +9,7 @@ using namespace Grappa;
 
 BOOST_AUTO_TEST_SUITE( PoolAllocator_tests );
 
-void user_main(void* ignore) {
+void test_pool1() {
   LocalTaskJoiner joiner;
   
   int x[10];
@@ -20,9 +20,9 @@ void user_main(void* ignore) {
     for (int i=0; i<10; i++) {
       joiner.registerTask();
       auto* f = pool.message(1, [i,&x,&joiner]{
-        VLOG(1) << "I'm message " << i << "!";
+        BOOST_MESSAGE("I'm message " << i << "!");
         send_heap_message(0, [i,&x, &joiner]{
-          VLOG(1) << "Message " << i << " signalling";
+          BOOST_MESSAGE("Message " << i << " signalling");
           x[i] = i;
           joiner.signal();
         });
@@ -35,7 +35,37 @@ void user_main(void* ignore) {
   for (int i=0; i<10; i++) {
     BOOST_CHECK_EQUAL(i, x[i]);
   }
-  VLOG(1) << "done";
+}
+
+void test_pool2() {
+  LocalTaskJoiner joiner;
+  
+  int x[10];
+  MessagePool<2048> pool;
+
+  for (int i=0; i<10; i++) {
+    joiner.registerTask();
+    auto f = pool.send_message(1, [i,&x,&joiner]{
+      BOOST_MESSAGE("I'm message " << i << "!");
+      send_heap_message(0, [i,&x, &joiner]{
+        BOOST_MESSAGE("Message " << i << " signalling");
+        x[i] = i;
+        joiner.signal();
+      });
+    });
+  }
+  pool.block_until_all_sent();
+
+  joiner.wait();
+  
+  for (int i=0; i<10; i++) {
+    BOOST_CHECK_EQUAL(i, x[i]);
+  }
+}
+
+void user_main(void* ignore) {
+  test_pool1();
+  // test_pool2();
 }
 
 BOOST_AUTO_TEST_CASE( test1 ) {
