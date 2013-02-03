@@ -1,3 +1,5 @@
+#pragma once
+
 #include "PoolAllocator.hpp"
 #include "Grappa.hpp"
 #include "FullEmpty.hpp"
@@ -22,9 +24,11 @@ namespace Grappa {
       inline void fill_result(const R& r) {
         _result.writeXF(r);
       }
+      
+      /// Block on result being returned.
       inline const R& get_result() {
         // ... and wait for the result
-        const R& r = _result.readFE();
+        const R& r = _result.readFF();
         delegate_stats.record_wakeup_latency(start_time, network_time);
         return r;
       }
@@ -32,7 +36,7 @@ namespace Grappa {
       template <typename F, size_t PoolBytes>
       void call_async(MessagePool<PoolBytes>& pool, Core dest, F func) {
         static_assert(std::is_same<R, decltype(func())>::value, "return type of callable must match the type of this AsyncHandle");
-        
+        _result.reset();
         delegate_stats.count_op();
         Core origin = Grappa::mycore();
         
@@ -50,7 +54,7 @@ namespace Grappa {
             send_heap_message(origin, [val, this] {
               this->network_time = Grappa_get_timestamp();
               delegate_stats.record_network_latency(this->start_time);
-              this->fill_result(val); // can't block in message, assumption is that result is already empty
+              this->fill_result(val);
             });
           }); // send message
         }
