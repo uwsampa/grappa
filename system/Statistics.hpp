@@ -7,6 +7,7 @@
 #include <iostream>
 
 #include "Grappa.hpp"
+#include "Addressing.hpp"
 
 #ifdef VTRACE_SAMPLED
 #include <vt_user.h>
@@ -27,7 +28,9 @@ namespace Grappa {
     /// periodic sample (VTrace sampling triggered by GPerf stuff)
     virtual void sample() const = 0;
     
-    virtual void merge(StatisticBase*& other_ptr);
+    virtual void merge_all(StatisticBase* static_stat_ptr) = 0;
+    
+    virtual StatisticBase* clone() const = 0;
   };
   
   using StatisticList = std::vector<StatisticBase const*>;
@@ -65,17 +68,39 @@ namespace Grappa {
 #endif
     }
     
-    virtual void merge(StatisticBase*& other_ptr) {
-      if (other_ptr == NULL) {
-        // first one needs to allocate space, then initializes with its own value
-        // (note: must do `reg_new`=false so we don't re-register this stat)
-        other_ptr = new Statistic(name, value, false);
-      } else {
-        // everyone else merges themselves in
-        // for this simple statistic, it's as simple as accumulating
-        Statistic* o = reinterpret_cast<Statistic*>(other_ptr);
-        o->value += value;
+    virtual Statistic<T>* clone() const {
+      // (note: must do `reg_new`=false so we don't re-register this stat)
+      return new Statistic<T>(name, value, false);
+    }
+    
+    virtual void merge_all(StatisticBase* static_stat_ptr) {
+      this->value = 0;
+      
+      // TODO: use more generalized `reduce` operation to merge all
+      Statistic<T>* this_static = reinterpret_cast<Statistic<T>*>(static_stat_ptr);
+      
+      GlobalAddress<Statistic<T>> combined_addr = make_global(this);
+      
+      for (Core c = 0; c < Grappa::cores(); c++) {
+        // we can compute the GlobalAddress here because we have pointers to globals,
+        // which are guaranteed to be the same on all nodes
+        GlobalAddress<Statistic<T>> remote_stat = make_global(this_static, c);
+        
+        send_heap_message(c, [remote_stat, combined_addr] {
+          Statistic<T>* s = remote_stat.pointer();
+          T s_value = s->value;
+          
+          send_heap_message(combined_addr.node(), [combined_addr, s_value] {
+            // for this simple statistic, merging is as simple as accumulating the value
+            Statistic<T>* combined_ptr = combined_addr.pointer();
+            combined_ptr->value += s_value;
+            
+            // FIXME: synchronize!!
+          });
+        });
       }
+
+      
     }
     
     inline const Statistic<T>& count() { return (*this)++; }
