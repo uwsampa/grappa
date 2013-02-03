@@ -3,26 +3,27 @@
 #include <vector>
 #include <iostream>
 #include <sstream>
+#include <cstdint>
 
 namespace Grappa {
 
 #ifdef VTRACE_SAMPLED
-  template <> void Statistic<int>::sample() const {
+  template <> inline void Statistic<int>::vt_sample() const {
     VT_COUNT_SIGNED_VAL(vt_counter, value);
   }
-  template <> void Statistic<int64_t>::sample() const {
+  template <> inline void Statistic<int64_t>::vt_sample() const {
     VT_COUNT_SIGNED_VAL(vt_counter, value);
   }
-  template <> void Statistic<unsigned>::sample() const {
+  template <> inline void Statistic<unsigned>::vt_sample() const {
     VT_COUNT_UNSIGNED_VAL(vt_counter, value);
   }
-  template <> void Statistic<uint64_t>::sample() const {
+  template <> inline void Statistic<uint64_t>::vt_sample() const {
     VT_COUNT_UNSIGNED_VAL(vt_counter, value);
   }
-  template <> void Statistic<double>::sample() const {
+  template <> inline void Statistic<double>::vt_sample() const {
     VT_COUNT_DOUBLE_VAL(vt_counter, value);
   }
-  template <> void Statistic<float>::sample() const {
+  template <> inline void Statistic<float>::vt_sample() const {
     VT_COUNT_DOUBLE_VAL(vt_counter, value);
   }
   

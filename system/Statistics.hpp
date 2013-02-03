@@ -17,11 +17,14 @@ namespace Grappa {
   class StatisticBase {
   protected:
     const char * name;
-    void init();
   public:
+    /// registers stat with global stats vector
     StatisticBase(const char * name);
     
+    /// prints as a JSON entry
     virtual std::ostream& json(std::ostream&) const = 0;
+    
+    /// periodic sample (VTrace sampling triggered by GPerf stuff)
     virtual void sample() const = 0;
   };
   
@@ -53,7 +56,12 @@ namespace Grappa {
       return o;
     }
     
-    virtual void sample() const;
+    virtual void sample() const {
+#ifdef VTRACE_SAMPLED
+      // vt_sample() specialized for supported tracing types in Statistics.cpp
+      vt_sample();
+#endif
+    }
     
     inline const Statistic<T>& count() { return (*this)++; }
     
@@ -83,11 +91,6 @@ namespace Grappa {
     // </sugar>
   };
 
-#ifdef VTRACE_SAMPLED
-  // sample() specialized for supported tracing types in Statistics.cpp
-#else
-  template <typename T> void Statistic<T>::sample() const {}
-#endif
 
   
   namespace Statistics {
@@ -110,5 +113,6 @@ inline std::ostream& operator<<(std::ostream& o, const Grappa::StatisticBase& st
 #define GRAPPA_DEFINE_STAT(name, type, initial_value) \
   static Grappa::Statistic<type> name(#name, initial_value)
 
+/// Declare a stat (defined in a separate .cpp file) so it can be used
 #define GRAPPA_DECLARE_STAT(name, type) \
   extern Grappa::Statistic<type> name;
