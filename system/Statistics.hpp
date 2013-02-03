@@ -18,17 +18,19 @@ namespace Grappa {
   protected:
     const char * name;
   public:
-    /// registers stat with global stats vector
-    StatisticBase(const char * name);
+    /// registers stat with global stats vector by default (reg_new=false to disable)
+    StatisticBase(const char * name, bool reg_new = true);
     
     /// prints as a JSON entry
     virtual std::ostream& json(std::ostream&) const = 0;
     
     /// periodic sample (VTrace sampling triggered by GPerf stuff)
     virtual void sample() const = 0;
+    
+    virtual void merge(StatisticBase*& other_ptr);
   };
   
-  using StatisticList = std::vector<const StatisticBase*>;
+  using StatisticList = std::vector<StatisticBase const*>;
   
   template<typename T>
   class Statistic : public StatisticBase {
@@ -40,8 +42,8 @@ namespace Grappa {
     static const int vt_type;
 #endif
     
-    Statistic(const char * name, T initial_value):
-        value(initial_value), StatisticBase(name) {
+    Statistic(const char * name, T initial_value, bool reg_new = true):
+        value(initial_value), StatisticBase(name, reg_new) {
 #ifdef VTRACE_SAMPLED
         if (Statistic::vt_type == -1) {
           LOG(ERROR) << "warning: VTrace sampling unsupported for this type of Statistic.";
@@ -61,6 +63,19 @@ namespace Grappa {
       // vt_sample() specialized for supported tracing types in Statistics.cpp
       vt_sample();
 #endif
+    }
+    
+    virtual void merge(StatisticBase*& other_ptr) {
+      if (other_ptr == NULL) {
+        // first one needs to allocate space, then initializes with its own value
+        // (note: must do `reg_new`=false so we don't re-register this stat)
+        other_ptr = new Statistic(name, value, false);
+      } else {
+        // everyone else merges themselves in
+        // for this simple statistic, it's as simple as accumulating
+        Statistic* o = reinterpret_cast<Statistic*>(other_ptr);
+        o->value += value;
+      }
     }
     
     inline const Statistic<T>& count() { return (*this)++; }
@@ -98,7 +113,7 @@ namespace Grappa {
     StatisticList& registered_stats();
     
     void print(std::ostream& out = std::cerr, StatisticList& stats = registered_stats());
-    void merge(StatisticList& result);
+    void merge(std::vector<StatisticBase*>& result);
   }
   
 } // namespace Grappa

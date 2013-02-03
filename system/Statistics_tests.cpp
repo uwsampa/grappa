@@ -25,7 +25,7 @@ void user_main(void * args) {
   foo++;
   bar = 3.14;
   
-  PrintStatistics();
+  Statistics::print();
 }
 
 BOOST_AUTO_TEST_CASE( test1 ) {
