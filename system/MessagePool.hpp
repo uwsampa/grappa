@@ -1,3 +1,5 @@
+#pragma once
+
 #include "Grappa.hpp"
 #include "PoolAllocator.hpp"
 #include "Message.hpp"
