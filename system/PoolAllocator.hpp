@@ -1,3 +1,5 @@
+#pragma once
+
 #include <glog/logging.h>
 
 namespace Grappa {
