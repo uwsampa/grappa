@@ -55,17 +55,9 @@ namespace Grappa {
       result.clear(); // ensure it's empty
       
       for (StatisticBase const* local_stat : registered_stats()) {
-        result.push_back(NULL); // slot for merged stat
-        StatisticBase*& summed_stat = result.back();
-        
-        for (Core c = 0; c < Grappa::cores(); c++) {
-          // this only works because we have pointers to globals, which are guaranteed
-          // to be the same on all nodes
-          GlobalAddress<StatisticBase*> target_stat = make_global(local_stat, c);
-          send_heap_message(c, []{
-            
-          });
-        }
+        StatisticBase* merge_target = local_stat.clone();
+        result.push_back(merge_target); // slot for merged stat
+        merge_target->merge_all(local_stat);
       }
     }
     
