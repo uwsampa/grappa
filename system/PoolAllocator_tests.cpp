@@ -1,7 +1,10 @@
 #include <Grappa.hpp>
+#include <Addressing.hpp>
 #include <Message.hpp>
 #include <MessagePool.hpp>
 #include <ForkJoin.hpp>
+#include <Delegate.hpp>
+#include <AsyncDelegate.hpp>
 
 #include <boost/test/unit_test.hpp>
 
@@ -62,6 +65,23 @@ void test_pool2() {
     BOOST_CHECK_EQUAL(i, x[i]);
   }
 }
+
+static int test_async_x;
+
+void test_async_delegate() {
+  MessagePool<2048> pool;
+  
+  delegate::AsyncHandle<bool> a;
+  a.call_async(pool, 1, []()->bool {
+    test_async_x = 7;
+    BOOST_MESSAGE( "x = " << test_async_x );
+    return true;
+  });
+  
+  BOOST_CHECK_EQUAL(a.get_result(), true);
+  BOOST_CHECK_EQUAL(delegate::read(make_global(&test_async_x, 1)), 7);
+}
+
 
 void user_main(void* ignore) {
   test_pool1();
