@@ -15,11 +15,11 @@ BOOST_AUTO_TEST_SUITE( Statistics_tests );
 
 using namespace Grappa;
 
-//equivalent to: static Statistic<int> foo("foo", 0);
-GRAPPA_DEFINE_STAT(foo, int, 0);
+//equivalent to: static SimpleStatistic<int> foo("foo", 0);
+GRAPPA_DEFINE_STAT(SimpleStatistic<int>, foo, 0);
 
-//equivalent to: static Statistic<double> bar("bar", 0);
-GRAPPA_DEFINE_STAT(bar, double, 0);
+//equivalent to: static SimpleStatistic<double> bar("bar", 0);
+GRAPPA_DEFINE_STAT(SimpleStatistic<double>, bar, 0);
 
 void user_main(void * args) {
   CHECK(Grappa::cores() >= 2); // at least 2 nodes for these tests...

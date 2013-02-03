@@ -4,7 +4,10 @@
 #include <iostream>
 #include <sstream>
 #include <cstdint>
-#include "Message.hpp"
+
+#ifdef VTRACE_SAMPLED
+#include <vt_user.h>
+#endif
 
 namespace Grappa {
 
@@ -35,7 +38,6 @@ namespace Grappa {
   template <> const int Statistic<double>::vt_type = VT_COUNT_TYPE_DOUBLE;
   template <> const int Statistic<float>::vt_type = VT_COUNT_TYPE_FLOAT;
 #endif
-  
   
   StatisticBase::StatisticBase(const char * name, bool reg_new): name(name) {
     if (reg_new) {
