@@ -9,6 +9,7 @@
 #include "Grappa.hpp"
 #include "Addressing.hpp"
 #include "Message.hpp"
+#include "CountConditionVariable.hpp"
 
 #ifdef VTRACE_SAMPLED
 #include <vt_user.h>
@@ -82,26 +83,27 @@ namespace Grappa {
       
       GlobalAddress<Statistic<T>> combined_addr = make_global(this);
       
+      CountConditionVariable ccv(Grappa::cores());
+      
       for (Core c = 0; c < Grappa::cores(); c++) {
         // we can compute the GlobalAddress here because we have pointers to globals,
         // which are guaranteed to be the same on all nodes
         GlobalAddress<Statistic<T>> remote_stat = make_global(this_static, c);
         
-        send_heap_message(c, [remote_stat, combined_addr] {
+        send_heap_message(c, [remote_stat, combined_addr, &ccv] {
           Statistic<T>* s = remote_stat.pointer();
           T s_value = s->value;
           
-          send_heap_message(combined_addr.node(), [combined_addr, s_value] {
+          send_heap_message(combined_addr.node(), [combined_addr, s_value, &ccv] {
             // for this simple statistic, merging is as simple as accumulating the value
             Statistic<T>* combined_ptr = combined_addr.pointer();
             combined_ptr->value += s_value;
             
-            // FIXME: synchronize!!
+            signal(&ccv);
           });
         });
       }
-
-      
+      wait(&ccv);
     }
     
     inline const Statistic<T>& count() { return (*this)++; }
