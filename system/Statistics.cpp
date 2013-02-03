@@ -4,6 +4,7 @@
 #include <iostream>
 #include <sstream>
 #include <cstdint>
+#include "Message.hpp"
 
 namespace Grappa {
 
@@ -36,9 +37,11 @@ namespace Grappa {
 #endif
   
   
-  StatisticBase::StatisticBase(const char * name): name(name) {
-    Statistics::registered_stats().push_back(this);
-    VLOG(1) << "registered <" << this->name << ">";
+  StatisticBase::StatisticBase(const char * name, bool reg_new): name(name) {
+    if (reg_new) {
+      Statistics::registered_stats().push_back(this);
+      VLOG(1) << "registered <" << this->name << ">";
+    }
   }
   
   namespace Statistics {
@@ -48,11 +51,22 @@ namespace Grappa {
       return r;
     }
     
-    void merge(StatisticList& result) {
-      if (result != registered_stats()) {
-        result.insert(result.end(), registered_stats().begin(), registered_stats().end());
+    void merge(std::vector<StatisticBase*>& result) {
+      result.clear(); // ensure it's empty
+      
+      for (StatisticBase const* local_stat : registered_stats()) {
+        result.push_back(NULL); // slot for merged stat
+        StatisticBase*& summed_stat = result.back();
+        
+        for (Core c = 0; c < Grappa::cores(); c++) {
+          // this only works because we have pointers to globals, which are guaranteed
+          // to be the same on all nodes
+          GlobalAddress<StatisticBase*> target_stat = make_global(local_stat, c);
+          send_heap_message(c, []{
+            
+          });
+        }
       }
-      // TODO: issue a bunch of delegate requests in parallel
     }
     
     void print(std::ostream& out, StatisticList& stats) {
