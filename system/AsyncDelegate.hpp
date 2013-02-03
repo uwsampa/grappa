@@ -3,7 +3,7 @@
 #include "PoolAllocator.hpp"
 #include "Grappa.hpp"
 #include "FullEmpty.hpp"
-#include "Delegate.hpp"
+#include "LegacyDelegate.hpp"
 #include <type_traits>
 
 namespace Grappa {
