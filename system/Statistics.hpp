@@ -8,6 +8,7 @@
 
 #include "Grappa.hpp"
 #include "Addressing.hpp"
+#include "Message.hpp"
 
 #ifdef VTRACE_SAMPLED
 #include <vt_user.h>
@@ -33,7 +34,7 @@ namespace Grappa {
     virtual StatisticBase* clone() const = 0;
   };
   
-  using StatisticList = std::vector<StatisticBase const*>;
+  using StatisticList = std::vector<StatisticBase*>;
   
   template<typename T>
   class Statistic : public StatisticBase {
@@ -138,7 +139,7 @@ namespace Grappa {
     StatisticList& registered_stats();
     
     void print(std::ostream& out = std::cerr, StatisticList& stats = registered_stats());
-    void merge(std::vector<StatisticBase*>& result);
+    void merge(StatisticList& result);
   }
   
 } // namespace Grappa
