@@ -5,9 +5,11 @@
 // AC05-76RL01830 awarded by the United States Department of
 // Energy. The Government has certain rights in the software.
 
+#include <iostream>
 #include <boost/test/unit_test.hpp>
 #include "Grappa.hpp"
 #include "Statistics.hpp"
+#include "Delegate.hpp"
 
 BOOST_AUTO_TEST_SUITE( Statistics_tests );
 
@@ -20,12 +22,21 @@ GRAPPA_DEFINE_STAT(foo, int, 0);
 GRAPPA_DEFINE_STAT(bar, double, 0);
 
 void user_main(void * args) {
-  CHECK(Grappa_nodes() >= 2); // at least 2 nodes for these tests...
+  CHECK(Grappa::cores() >= 2); // at least 2 nodes for these tests...
 
   foo++;
   bar = 3.14;
   
-  Statistics::print();
+  delegate::call(1, []() -> bool {
+    foo++;
+    foo++;
+    bar = 5.41;
+    return true;
+  });
+  
+  StatisticList all;
+  Statistics::merge(all);
+  Statistics::print(std::cerr, all);
 }
 
 BOOST_AUTO_TEST_CASE( test1 ) {

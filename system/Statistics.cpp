@@ -51,11 +51,11 @@ namespace Grappa {
       return r;
     }
     
-    void merge(std::vector<StatisticBase*>& result) {
+    void merge(StatisticList& result) {
       result.clear(); // ensure it's empty
       
-      for (StatisticBase const* local_stat : registered_stats()) {
-        StatisticBase* merge_target = local_stat.clone();
+      for (StatisticBase * local_stat : registered_stats()) {
+        StatisticBase* merge_target = local_stat->clone();
         result.push_back(merge_target); // slot for merged stat
         merge_target->merge_all(local_stat);
       }
@@ -64,7 +64,7 @@ namespace Grappa {
     void print(std::ostream& out, StatisticList& stats) {
       std::ostringstream o;
       o << "STATS{\n";
-      for (const StatisticBase*& s : stats) {
+      for (StatisticBase*& s : stats) {
         // skip printing "," before first one
         if (&s-&stats[0] != 0) { o << ",\n"; }
         
