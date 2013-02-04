@@ -20,6 +20,7 @@ namespace Grappa {
   }
 
   /// TODO: implement
+  template<typename ConditionVariable>
   inline void signal( const GlobalAddress<ConditionVariable> m ) {
     if (m.node() == Grappa::mycore()) {
       // if local, just signal
