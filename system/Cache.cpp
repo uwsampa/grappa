@@ -14,40 +14,6 @@ Node address2node( void * ) {
   return 0;
 }
 
-
-
-// void incoherent_release_request_am( memory_write_reply_args * args, size_t size, void * payload, size_t payload_size ) {
-//   args->descriptor->done = true;
-//   Delegate_wakeup( args->descriptor );
-// }
-
-// void incoherent_release_reply_am( memory_write_reply_args * args, size_t size, void * payload, size_t payload_size ) {
-//   args->descriptor->done = true;
-//   Delegate_wakeup( args->descriptor );
-// }
-
-// template< typename T >
-// void IncoherentReleaser::start_release() { 
-//   if( !release_started_ ) {
-//     release_started_ = true;
-//     ;
-//   }
-// }
-
-// template< typename T >
-// void IncoherentReleaser::block_until_released() {
-//     if( !released_ ) {
-//       ;
-//       released_ = true;
-//     }
-//   }
-
-// template< typename T >
-// bool IncoherentReleaser::released() {
-//   return released_;
-// }
-
-
 CacheStatistics cache_stats;
 
 CacheStatistics::CacheStatistics()
@@ -118,10 +84,6 @@ void CacheStatistics::merge(CacheStatistics * other) {
   rw_releases += other->rw_releases;
   bytes_acquired += other->bytes_acquired;
   bytes_released += other->bytes_released;
-  
-  // cant call from here, need other
-  //incoherent_acquirer_stats.merge(?);
-  //incoherent_releaser_stats.merge(?);
 }
 
 extern uint64_t merge_reply_count;
