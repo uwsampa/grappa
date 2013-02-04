@@ -1,6 +1,8 @@
 #include "StealQueue.hpp"
 #include "DictOut.hpp"
 
+using namespace Grappa::impl;
+
 StealStatistics steal_queue_stats;
 
 StealStatistics::StealStatistics() {
