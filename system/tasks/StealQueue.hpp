@@ -9,23 +9,26 @@
 #define STEALQUEUE_HPP
 
 #include <iostream>
+#include <sstream>
 #include <glog/logging.h>   
 #include <gflags/gflags.h>
-#include <stdlib.h>
-
-#include <sstream>
-
-// profiling/tracing
-#include "../PerformanceTools.hpp"
-#include "../StatisticsTools.hpp"
 
 #ifdef VTRACE
 #include <vt_user.h>
 #endif
 
+// Grappa profiling/tracing
+#include "../PerformanceTools.hpp"
+#include "../StatisticsTools.hpp"
 
+// Grappa
 #include "../Addressing.hpp"
 #include "../LegacySignaler.hpp"
+#include "../FullEmpty.hpp"
+
+#include <Communicator.hpp>
+#include <tasks/TaskingScheduler.hpp>
+#include "Thread.hpp"
 
 // global queue forward declarations
 template <typename T>
@@ -37,23 +40,11 @@ template <typename T>
 bool global_queue_push( GlobalAddress<T> chunk_base, uint64_t chunk_amount );
 
 
-
 #define MIN_INT(a, b) ( (a) < (b) ) ? (a) : (b)
 
 GRAPPA_DECLARE_EVENT_GROUP(scheduler);
 
 #define SS_NSTATES 1
-
-struct workStealRequest_args;
-struct workStealReply_args;
-struct workShareRequest_args;
-struct workShareReply_args;
-
-template <typename T>
-struct pull_global_data_args {
-  GlobalAddress<Signaler> signal;
-  ChunkInfo<T> chunk;
-};
 
 
 /// Type for Node ID. 
@@ -63,6 +54,23 @@ typedef int16_t Node;
 /// Forward declare for steal_locally
 class Thread;
 
+/// Forward declare for global queue
+class Signaler;
+
+   
+namespace Grappa {
+  namespace impl {
+
+    struct workStealRequest_args;
+    struct workStealReply_args;
+    struct workShareRequest_args;
+    struct workShareReply_args;
+
+    template <typename T>
+    struct pull_global_data_args {
+      GlobalAddress<Signaler> signal;
+      ChunkInfo<T> chunk;
+    };
 
 class StealStatistics {
   private:
@@ -130,143 +138,144 @@ extern StealStatistics steal_queue_stats;
 /// @tparam T type of elements
 template <typename T>
 class StealQueue {
-  private:
-    uint64_t stackSize;     /* total space avail (in number of elements) */
-    uint64_t workAvail;     /* elements available for stealing */
-    uint64_t bottom;   /* index of start of shared portion of stack */
-    uint64_t top;           /* index of stack top */
-    uint64_t maxStackDepth;                      /* stack stats */ 
-    uint64_t nNodes, maxTreeDepth, nVisited, nLeaves;        /* tree stats: (num pushed, max depth, num popped, leaves)  */
-    uint64_t nAcquire, nRelease, nStealPackets, nFail;  /* steal stats */
-    uint64_t wakeups, falseWakeups, nNodes_last;
+    private:
+        uint64_t stackSize;     /* total space avail (in number of elements) */
+        uint64_t workAvail;     /* elements available for stealing */
+        uint64_t bottom;   /* index of start of shared portion of stack */
+        uint64_t top;           /* index of stack top */
+        uint64_t maxStackDepth;                      /* stack stats */ 
+        uint64_t nNodes, maxTreeDepth, nVisited, nLeaves;        /* tree stats: (num pushed, max depth, num popped, leaves)  */
+        uint64_t nAcquire, nRelease, nStealPackets, nFail;  /* steal stats */
+        uint64_t wakeups, falseWakeups, nNodes_last;
+  
 
+        double time[SS_NSTATES], timeLast;
+        /* perf measurements */ 
+        int entries[SS_NSTATES], curState; 
+        
+        
+        T* stack;       /* addr of actual
+                                  stack of nodes
+                                  in local addr
+                                  space */
+        T* stack_g; /* addr of same
+                              stack in global
+                              addr space */
 
-    double time[SS_NSTATES], timeLast;
-    /* perf measurements */ 
-    int entries[SS_NSTATES], curState; 
-    /* lock for manipulation of shared portion */ 
-    T* stack;       /* addr of actual
-                       stack of nodes
-                       in local addr
-                       space */
-    T* stack_g; /* addr of same
-                   stack in global
-                   addr space */
+        // work stealing 
+        void steal_reply( uint64_t amt, uint64_t total, T * stolen_work, size_t stolen_size_bytes );
+        void steal_request( int k, Node from );
+       
+        // work sharing
+        void workShareRequest( uint64_t remoteSize, Node from, T * data, int num );
+        void workShareReplyFewer( int amountDenied );
+        void workShareReplyGreater( int amountGiven, T * data );
 
-    // work stealing 
-    void steal_reply( uint64_t amt, uint64_t total, T * stolen_work, size_t stolen_size_bytes );
-    void steal_request( int k, Node from );
+        // global queue
+        void pull_global_data_request( pull_global_data_args<T> * args );
+        void pull_global_data_reply( GlobalAddress< Signaler > * signal, T * received_elements, size_t elements_size );
 
-    // work sharing
-    void workShareRequest( uint64_t remoteSize, Node from, T * data, int num );
-    void workShareReplyFewer( int amountDenied );
-    void workShareReplyGreater( int amountGiven, T * data );
+        /* The number of elements that have been released
+         * below <bottom> but not yet copied out. Reclaiming
+         * array space is only allowed if this is zero 
+         */
+        uint64_t numPendingElements;
+  
+        /* The stack is a non-circular array. This routine
+         * reclaims empty space without copying elements
+         * if it is safe.
+         */
+        void reclaimSpace();
+       
+        // work stealing dispatch
+        static void workStealReply_am( workStealReply_args * args,  size_t size, void * payload, size_t payload_size );
+        static void workStealRequest_am( workStealRequest_args * args, size_t size, void * payload, size_t payload_size );
 
-    // global queue
-    void pull_global_data_request( pull_global_data_args<T> * args );
-    void pull_global_data_reply( GlobalAddress< Signaler > * signal, T * received_elements, size_t elements_size );
+        // work sharing dispatch
+        static void workShareRequest_am ( workShareRequest_args * args, size_t args_size, void * payload, size_t payload_size );
+        static void workShareReplyFewer_am ( workShareReply_args * args, size_t args_size, void * payload, size_t payload_size );
+        static void workShareReplyGreater_am ( workShareReply_args * args, size_t args_size, void * payload, size_t payload_size );
 
-    /* The number of elements that have been released
-     * below <bottom> but not yet copied out. Reclaiming
-     * array space is only allowed if this is zero 
-     */
-    uint64_t numPendingElements;
+        // global queue dispatch
+        static void pull_global_data_request_g_am( pull_global_data_args<T> * args, size_t args_size, void * payload, size_t payload_size );
+        static void pull_global_data_reply_g_am( GlobalAddress< Signaler > * signal, size_t arg_size, T * payload, size_t payload_size );
+        
+        /// Output stream of queue state
+        std::ostream& dump ( std::ostream& o ) const {
+          std::stringstream ss;
+          for ( uint64_t i = top; i>bottom; i-- ) {
+            ss << stack[i-1];
+            ss << ",\n";
+          }
+          return o << "StealQueue[depth=" << depth()
+            << "; indices(top= " << top 
+            << " bottom=" << bottom << ")"
+            << "; stackSize=" << stackSize 
+            << "; contents=\n" << ss.str() << "]";
+        }
+    
+    public:
+        static StealQueue<T> steal_queue;
+       
+        void init( uint64_t numEle ) {
+          stackSize = numEle;
+          
+          uint64_t nbytes = numEle * sizeof(T);
 
-    /* The stack is a non-circular array. This routine
-     * reclaims empty space without copying elements
-     * if it is safe.
-     */
-    void reclaimSpace();
+          // allocate stack in shared addr space with affinity to calling thread
+          // and record local addr for efficient access in sequel
+          stack_g = static_cast<T*>( malloc( nbytes ) );
+          stack = stack_g;
 
-    // work stealing dispatch
-    static void workStealReply_am( workStealReply_args * args,  size_t size, void * payload, size_t payload_size );
-    static void workStealRequest_am( workStealRequest_args * args, size_t size, void * payload, size_t payload_size );
+          CHECK( stack!= NULL ) << "Request for " << nbytes << " bytes for stealStack failed";
 
-    // work sharing dispatch
-    static void workShareRequest_am ( workShareRequest_args * args, size_t args_size, void * payload, size_t payload_size );
-    static void workShareReplyFewer_am ( workShareReply_args * args, size_t args_size, void * payload, size_t payload_size );
-    static void workShareReplyGreater_am ( workShareReply_args * args, size_t args_size, void * payload, size_t payload_size );
+          mkEmpty();
 
-    // global queue dispatch
-    static void pull_global_data_request_g_am( pull_global_data_args<T> * args, size_t args_size, void * payload, size_t payload_size );
-    static void pull_global_data_reply_g_am( GlobalAddress< Signaler > * signal, size_t arg_size, T * payload, size_t payload_size );
+        }
 
-    /// Output stream of queue state
-    std::ostream& dump ( std::ostream& o ) const {
-      std::stringstream ss;
-      for ( uint64_t i = top; i>bottom; i-- ) {
-        ss << stack[i-1];
-        ss << ",\n";
-      }
-      return o << "StealQueue[depth=" << depth()
-        << "; indices(top= " << top 
-        << " bottom=" << bottom << ")"
-        << "; stackSize=" << stackSize 
-        << "; contents=\n" << ss.str() << "]";
-    }
+        /// Constructor allocates uninitialized queue
+        StealQueue( ) 
+            : stackSize( -1 )
+            , maxStackDepth( 0 )
+            , nNodes( 0 ), maxTreeDepth( 0 ), nVisited( 0 ), nLeaves( 0 )
+            , nAcquire( 0 ), nRelease( 0 ), nStealPackets( 0 ), nFail( 0 )
+            , wakeups( 0 ), falseWakeups( 0 ), nNodes_last( 0 ) 
+            , numPendingElements( 0 )
+            { }
+        
+        void mkEmpty(); 
+        void push( T c); 
+        T peek( ); 
+        void pop( ); 
+        uint64_t topPosn( ) const;
+        uint64_t depth( ) const; 
+        void release( int k ); 
+        int acquire( int k ); 
+        
+        /// Get number of elements that have been
+        /// pushed into this queue
+        uint64_t get_nNodes( ) {
+            return nNodes;
+        }
+        
+        /// register local address of remote steal queues
+        static void registerAddress( StealQueue<T> * addr );
 
-  public:
-    static StealQueue<T> steal_queue;
+        template< typename U >
+        friend std::ostream& operator<<( std::ostream& o, const StealQueue<U>& sq );
+      
+        static const int bufsize = 110; // TODO: I know 32B*110 < aggreg bufsize-header size
+                                        // but do this precisely
+        
+        // work stealing API
+        int64_t steal_locally( Core victim, int64_t max_steal );
 
-    void init( uint64_t numEle ) {
-      stackSize = numEle;
-
-      uint64_t nbytes = numEle * sizeof(T);
-
-      // allocate stack in shared addr space with affinity to calling thread
-      // and record local addr for efficient access in sequel
-      stack_g = static_cast<T*>( malloc( nbytes ) );
-      stack = stack_g;
-
-      CHECK( stack!= NULL ) << "Request for " << nbytes << " bytes for stealStack failed";
-
-      mkEmpty();
-
-    }
-
-    /// Constructor allocates uninitialized queue
-    StealQueue( ) 
-      : stackSize( -1 )
-        , maxStackDepth( 0 )
-        , nNodes( 0 ), maxTreeDepth( 0 ), nVisited( 0 ), nLeaves( 0 )
-        , nAcquire( 0 ), nRelease( 0 ), nStealPackets( 0 ), nFail( 0 )
-        , wakeups( 0 ), falseWakeups( 0 ), nNodes_last( 0 ) 
-        , numPendingElements( 0 )
-  { }
-
-    void mkEmpty(); 
-    void push( T c); 
-    T peek( ); 
-    void pop( ); 
-    uint64_t topPosn( ) const;
-    uint64_t depth( ) const; 
-    void release( int k ); 
-    int acquire( int k ); 
-
-    /// Get number of elements that have been
-    /// pushed into this queue
-    uint64_t get_nNodes( ) {
-      return nNodes;
-    }
-
-    /// register local address of remote steal queues
-    static void registerAddress( StealQueue<T> * addr );
-
-    template< typename U >
-      friend std::ostream& operator<<( std::ostream& o, const StealQueue<U>& sq );
-
-    static const int bufsize = 110; // TODO: I know 32B*110 < aggreg bufsize-header size
-    // but do this precisely
-
-    // work stealing API
-    int steal_locally( Node victim, int chunkSize ); 
-
-    // work sharing API
-    int64_t workShare( Node target, uint64_t amount );
-
-    // global queue API
-    uint64_t pull_global();
-    bool push_global( uint64_t amount );
+        // work sharing API
+        int64_t workShare( Node target, uint64_t amount );
+        
+        // global queue API
+        uint64_t pull_global();
+        bool push_global( uint64_t amount );
 
 };
 
@@ -336,30 +345,10 @@ uint64_t StealQueue<T>::topPosn() const
 // Work stealing
 /////////////////////////////////////////////////
 
-//#include "../Grappa.hpp" 
-#include <Communicator.hpp>
-#include <tasks/TaskingScheduler.hpp>
-
 extern TaskingScheduler global_scheduler;
 // void Grappa_suspend();
 // void Grappa_wake( Thread * );
 // Node Grappa_mynode();
-
-/// Arguments for a work steal request from thief
-struct workStealRequest_args {
-  int k;
-  Node from;
-};
-
-/// Arguments for a work steal reply from victim
-struct workStealReply_args {
-  int stealAmt;
-  int total;
-};
-
-static int64_t local_steal_amount;
-static uint64_t received_tasks;
-static Thread * steal_waiter = NULL;
 
 static int64_t local_push_retVal = -1;
 static int64_t local_push_amount = 0;
@@ -370,162 +359,98 @@ static bool pendingWorkShare = false;
 
 static bool pendingGlobalPush = false;
 
-/// Reply to steal operation that takes place on the thief's Node
-/// Copies the received elements into the local queue
-template <typename T>
-void StealQueue<T>::steal_reply( uint64_t amt, uint64_t total, T * stolen_work, size_t stolen_size_bytes ) {
-  if (amt > 0) {
-    GRAPPA_EVENT(steal_packet_ev, "Steal packet", 1, scheduler, amt);
-
-#ifdef VTRACE
-    //VT_COUNT_UNSIGNED_VAL( thiefStack->steal_success_ev_vt, k );
-#endif
-
-    reclaimSpace();
-
-    CHECK( top + amt < stackSize ) << "steal reply: overflow (top:" << top << " stackSize:" << stackSize << " amt:" << amt << ")";
-    memcpy(&stack[top], stolen_work, stolen_size_bytes);
-
-    received_tasks += amt;
-    VLOG(5) << "Steal packet returns with amt=" << amt << ", received=" << received_tasks << " / total=" << total;
-    top += amt;
-    nStealPackets++;
-
-    /// The steal requestor stays asleep until all received, but other threads can take advantage
-    /// of the tasks that have been copied in
-    if ( received_tasks == total ) { 
-      GRAPPA_EVENT(steal_success_ev, "Steal success", 1, scheduler, total);
-      VLOG(5) << "Last packet; will wake steal_waiter=" << steal_waiter;
-      local_steal_amount = total;
-      if ( steal_waiter != NULL ) {
-        //Grappa_wake( steal_waiter );
-        global_scheduler.thread_wake( steal_waiter );
-        steal_waiter = NULL;
-      }
-    }
-
-  } else {
-    local_steal_amount = 0;
-    nFail++;
-
-    if ( steal_waiter != NULL ) {
-      //Grappa_wake( steal_waiter );
-      global_scheduler.thread_wake( steal_waiter );
-      steal_waiter = NULL;
-    }
-  }
-}
-
-/// Steal reply Grappa active message
-template <typename T>
-void StealQueue<T>::workStealReply_am( workStealReply_args * args,  size_t size, void * payload, size_t payload_size ) {
-  CHECK ( local_steal_amount == -1 ) << "local_steal_amount=" << local_steal_amount << " when steal reply arrives";
-  CHECK( args->stealAmt * sizeof(T) == payload_size ) << "steal amount in bytes != payload size";
-
-  T * stolen_work = static_cast<T*>( payload );
-
-  steal_queue.steal_reply( args->stealAmt, args->total, stolen_work, payload_size );
-}
-
-/// Steal request Grappa active message
-template <typename T>
-void StealQueue<T>::steal_request( int k, Node from ) {
-  int victimBottom = this->bottom;
-  int victimTop = this->top;
-
-  const int victimHalfWorkAvail = (victimTop - victimBottom) / 2;
-  const int stealAmt = MIN_INT( victimHalfWorkAvail, k );
-  bool ok = stealAmt > 0;
-
-  VLOG(4) << "Victim of thief=" << from << " victimHalfWorkAvail=" << victimHalfWorkAvail;
-  if (ok) {
-
-    /* reserve a chunk */
-    this->bottom = victimBottom + stealAmt;
-
-
-    GRAPPA_EVENT(steal_victim_ev, "Steal victim", 1, scheduler, stealAmt);
-#ifdef VTRACE
-    //VT_COUNT_UNSIGNED_VAL( steal_victim_ev_vt, k );
-#endif
-
-    T* victimStackBase = this->stack;
-    T* victimStealStart = victimStackBase + victimBottom;
-
-    int offset = 0;
-    for ( int remain = stealAmt; remain > 0; ) {
-      int transfer_amt = (remain < bufsize) ? remain : bufsize;
-      VLOG(5) << "sending steal packet of transfer_amt=" << transfer_amt << " remain=" << remain << " / stealAmt=" << stealAmt;
-      remain -= transfer_amt;
-      workStealReply_args reply_args = { transfer_amt, stealAmt };
-
-      Grappa_call_on( from, &StealQueue<T>::workStealReply_am, 
-          &reply_args, sizeof(workStealReply_args), 
-          victimStealStart + offset, transfer_amt*sizeof( T ));
-      size_t msg_size = Grappa_sizeof_message( &reply_args, sizeof(workStealReply_args), victimStealStart + offset, transfer_amt*sizeof(T));
-      steal_queue_stats.record_steal_reply( msg_size );
-
-      offset += transfer_amt;
-    }
-
-#if DEBUG
-    // 0 out the stolen stuff (to detect errors)
-    memset( victimStealStart, 0, stealAmt*sizeof( T ) );
-#endif
-
-  } else {
-    workStealReply_args reply_args = { 0, 0 };
-    Grappa_call_on( from, &StealQueue<T>::workStealReply_am, &reply_args );
-    size_t msg_size = Grappa_sizeof_message( &reply_args );
-    steal_queue_stats.record_steal_reply( msg_size );
-  }
-}
-
-template <typename T>
-void StealQueue<T>::workStealRequest_am(workStealRequest_args * args, size_t size, void * payload, size_t payload_size) {
-  int k = args->k;
-  Node from = args->from;
-
-  steal_queue.steal_request( k, from );
-}
-
-#include "Thread.hpp"
-
 /// Steal elements from the StealQueue<T> located at the victim Node.
 /// @tparam T type of the queue elements
 /// @param victim target Node to steal from
-/// @param op max steal amount
+/// @param max_steal max steal amount
+/// 
+/// @return amount stolen
 template <typename T>
-int StealQueue<T>::steal_locally( Node victim, int op ) {
-
-  // initialize stealing state
-  local_steal_amount = -1;
-  received_tasks = 0;
-
-  workStealRequest_args req_args = { op, global_communicator.mynode() };
-  Grappa_call_on( victim, &StealQueue<T>::workStealRequest_am, &req_args );
-  size_t msg_size = Grappa_sizeof_message( &req_args );
-  steal_queue_stats.record_steal_request( msg_size );
-
-  GRAPPA_PROFILE_CREATE( stealprof, "steal_locally", "(suspended)", GRAPPA_SUSPEND_GROUP );
-
+int64_t StealQueue<T>::steal_locally( Core victim, int64_t max_steal ) {
+  Core origin = global_communicator.mynode();
+  CHECK( victim != origin ) << "Cannot steal from self";
+    
+  // try to reclaim space in the steal queue
   reclaimSpace(); 
+  
+  FullEmpty<int64_t> result;
+//  int64_t network_time = 0;
+//  int64_t start_time = Grappa_get_timestamp();
 
-  // steal is blocking
-  // TODO: use suspend-wake mechanism
-  while ( local_steal_amount == -1 ) {
-    steal_waiter = global_scheduler.get_current_thread();
+  /* Send steal request */
+  send_message( victim, [ &result, origin, max_steal ] {
+      /* ON VICTIM */
+      int victimBottom = steal_queue.bottom;
+      int victimTop = steal_queue.top;
 
-    GRAPPA_PROFILE_THREAD_START( stealprof, global_scheduler.get_current_thread() );
+      const int victimHalfWorkAvail = (victimTop - victimBottom) / 2;
+      const int stealAmt = MIN_INT( victimHalfWorkAvail, max_steal );
+      bool ok = stealAmt > 0;
 
-    global_scheduler.thread_suspend();
-    //Grappa_suspend();
+      VLOG(4) << "Victim of thief=" << origin << " victimHalfWorkAvail=" << victimHalfWorkAvail;
+      if (ok) {
 
-    GRAPPA_PROFILE_THREAD_STOP( stealprof, global_scheduler.get_current_thread() );
-  }
+        /* reserve a chunk */
+        steal_queue.bottom = victimBottom + stealAmt;
 
-  return local_steal_amount;
+
+        GRAPPA_EVENT(steal_victim_ev, "Steal victim", 1, scheduler, stealAmt);
+        #ifdef VTRACE
+        //VT_COUNT_UNSIGNED_VAL( steal_victim_ev_vt, k );
+        #endif
+
+        T* victimStackBase = steal_queue.stack;
+        T* victimStealStart = victimStackBase + victimBottom;
+
+
+        /* Send successful steal reply */
+        auto reply = send_heap_message( origin, [&result, stealAmt] ( void * payload, size_t payload_size) {
+            /* ON ORIGIN */
+
+            // PERFORMANCE TODO: could omit stealAmt to save on bandwidth
+            CHECK( stealAmt * sizeof(T) == payload_size ) << "steal amount in bytes != payload size";
+            T * stolen_work = static_cast<T*>( payload );
+           
+              GRAPPA_EVENT(steal_packet_ev, "Steal packet", 1, scheduler, stealAmt);
+
+              #ifdef VTRACE
+              //VT_COUNT_UNSIGNED_VAL( thiefStack->steal_success_ev_vt, k );
+              #endif
+             
+              // reclaim again before we copy
+              steal_queue.reclaimSpace();
+
+              CHECK( steal_queue.top + stealAmt < steal_queue.stackSize ) << "steal reply: overflow (top:" << steal_queue.top << " stackSize:" << steal_queue.stackSize << " amt:" << stealAmt << ")";
+              std::memcpy(&steal_queue.stack[steal_queue.top], stolen_work, payload_size);
+
+              VLOG(5) << "Steal packet returns with amt=" << stealAmt;
+              steal_queue.top += stealAmt;
+
+              result.writeEF( stealAmt );
+        }, victimStealStart, stealAmt*sizeof(T)); // success reply
+
+#if DEBUG
+        // wait for send then 0 out the stolen stuff (to detect errors)
+        reply.block_until_sent();
+        std::memset( victimStealStart, 0, stealAmt*sizeof( T ) );
+#endif
+      } else {
+        /* Send failed steal reply */
+        send_heap_message( origin, [&result] { 
+            /* ON ORIGIN */
+            steal_queue.nFail++;
+            result.writeEF( 0 );
+            }); // failure reply
+      }
+      }); // request
+
+  // wait for result
+  GRAPPA_PROFILE_THREAD_START( stealprof, global_scheduler.get_current_thread() );
+  int64_t steal_amount = result.readFE();
+  GRAPPA_PROFILE_THREAD_STOP( stealprof, global_scheduler.get_current_thread() );
 }
+
+
 /////////////////////////////////////////////////////////
 
 struct workShareRequest_args {
@@ -759,8 +684,6 @@ void StealQueue<T>::workShareRequest( uint64_t remoteSize, Node from, T * data, 
 // Global queue interaction
 ///////////////////////////
 
-class Signaler;
-
 template <typename T>
 uint64_t StealQueue<T>::pull_global() {
   ChunkInfo<T> data_ptr;
@@ -864,5 +787,8 @@ template <typename T>
 std::ostream& operator<<( std::ostream& o, const StealQueue<T>& sq ) {
   return sq.dump( o );
 }
+
+} // impl
+} // Grappa
 
 #endif // STEALQUEUE_HPP
