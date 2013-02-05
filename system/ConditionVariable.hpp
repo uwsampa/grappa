@@ -5,7 +5,9 @@
 #include "Message.hpp"
 #include "Communicator.hpp"
 #include "Addressing.hpp"
+#include "Grappa.hpp"
 #include "ConditionVariableLocal.hpp"
+#include "Message.hpp"
 
 namespace Grappa {
 
