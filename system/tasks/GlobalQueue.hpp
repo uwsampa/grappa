@@ -23,16 +23,16 @@ class GlobalQueueStatistics {
     // network usage
     uint64_t globalq_pull_reserve_request_messages;
     uint64_t globalq_pull_reserve_request_total_bytes;
-    
+
     uint64_t globalq_pull_reserve_reply_messages;
     uint64_t globalq_pull_reserve_reply_total_bytes;
-    
+
     uint64_t globalq_push_reserve_request_messages;
     uint64_t globalq_push_reserve_request_total_bytes;
-    
+
     uint64_t globalq_push_entry_request_messages;
     uint64_t globalq_push_entry_request_total_bytes;
-    
+
     uint64_t globalq_push_reserve_reply_messages;
     uint64_t globalq_push_reserve_reply_total_bytes;
 
@@ -43,7 +43,7 @@ class GlobalQueueStatistics {
     uint64_t globalq_pull_entry_reply_total_bytes;
     uint64_t globalq_pull_reserve_hadConsumer;
     uint64_t globalq_pull_reserve_noConsumer;
-    
+
     // push
     uint64_t globalq_push_request_accepted;
     uint64_t globalq_push_request_rejected;
@@ -57,8 +57,8 @@ class GlobalQueueStatistics {
     unsigned globalq_push_entry_request_messages_ev_vt;
     unsigned globalq_pull_entry_request_messages_ev_vt;
 #endif
-  
-  
+
+
   public:
     GlobalQueueStatistics();
     void reset();
@@ -120,7 +120,7 @@ class GlobalQueue {
       return Grappa_mynode() == HOME_NODE;
     }
 
-    
+
     A_Entry push_reserve ( bool ignore );
     void pull_reserve ( A_D_A_Entry requestor );
     void pull_entry_sendreply( GlobalAddress< Descriptor< ChunkInfo<T> > > desc, QueueEntry<T> * e );
@@ -128,14 +128,14 @@ class GlobalQueue {
     void pull_entry_request( pull_entry_args<T> * args );
 
     void pull_reserve_sendreply( A_D_A_Entry requestor, 
-                              A_Entry * granted_index,
-                              bool requestor_waited );
+        A_Entry * granted_index,
+        bool requestor_waited );
 
     static A_Entry push_reserve_g ( bool ignore );
     static void pull_reserve_am_g ( A_D_A_Entry * arg, size_t arg_size, void * payload, size_t payload_size );
     static bool push_entry_g ( push_entry_args<T> args );
     static void pull_entry_request_g_am( pull_entry_args<T> * args, size_t args_size, void * payload, size_t payload_size );
-    
+
   public:
     static GlobalQueue<T> global_queue;
 
@@ -144,20 +144,20 @@ class GlobalQueue {
         capacity = (CAPACITY_PER_NODE) * Grappa_nodes();
         DVLOG(5) << "GlobalQueue capacity: " << capacity;
         queueBase = Grappa_typed_malloc< QueueEntry<T> > ( capacity );
-          // TODO could give option just to malloc here, but would be
-          // bad for HOME_NODE's memory usage unless chunksize is very large
+        // TODO could give option just to malloc here, but would be
+        // bad for HOME_NODE's memory usage unless chunksize is very large
       }
       initialized = true;
     }
 
     GlobalQueue() 
-        : head ( 0 )
+      : head ( 0 )
         , tail ( 0 )
         , capacity ( 0 ) 
         , pullReserveWaiters ( )
         , initialized( false ) {}
 
-    
+
     void pull( ChunkInfo<T> * result );
     bool push( GlobalAddress<T> chunk_base, uint64_t chunk_amount );
 
@@ -179,15 +179,15 @@ bool GlobalQueue<T>::push( GlobalAddress<T> chunk_base, uint64_t chunk_amount ) 
 
   GlobalAddress< QueueEntry<T> > loc = Grappa_delegate_func< bool, GlobalAddress< QueueEntry<T> >, GlobalQueue<T>::push_reserve_g > ( false, HOME_NODE );
   size_t msg_bytes = Grappa_sizeof_delegate_func_request< bool, GlobalAddress< QueueEntry<T> > >( );
-  
+
   DVLOG(5) << "push() reserve done -- loc:" << loc;
-  
+
   if ( loc.pointer() == NULL ) {
     global_queue_stats.record_push_reserve_request( msg_bytes, false );
     // no space in global queue; push failed
     return false;
   }
-    
+
   global_queue_stats.record_push_reserve_request( msg_bytes, true );
 
   // push the queue entry that points to my chunk 
@@ -215,7 +215,7 @@ template <typename T>
 void GlobalQueue<T>::pull( ChunkInfo<T> * result ) {
   CHECK( initialized );
   DVLOG(5) << "pull";
-  
+
   // blocking request for an address of an entry in the global queue
   A_Entry loc;
   D_A_Entry qdesc( &loc );
@@ -227,7 +227,7 @@ void GlobalQueue<T>::pull( ChunkInfo<T> * result ) {
   qdesc.wait();
 
   CHECK( loc.pointer() != NULL ) << "Invalid global address. Pull is always blocking";
- 
+
   global_queue_stats.record_pull_reserve_request( resv_msg_bytes );
 
   // get the element of the queue, which will point to data
@@ -241,12 +241,12 @@ void GlobalQueue<T>::pull( ChunkInfo<T> * result ) {
   global_queue_stats.record_pull_entry_request( entry_msg_bytes );
   cdesc.wait();
 }
-      
+
 /// send reservation to puller
 template <typename T>
 void GlobalQueue<T>::pull_reserve_sendreply( A_D_A_Entry requestor, 
-                              A_Entry * granted_index,
-                              bool requestor_waited ) {
+    A_Entry * granted_index,
+    bool requestor_waited ) {
   descriptor_reply_one( requestor, granted_index  );
   size_t msg_bytes = Grappa_sizeof_descriptor_reply_one( requestor, granted_index );
   global_queue_stats.record_pull_reserve_reply( msg_bytes, requestor_waited );
@@ -257,7 +257,7 @@ A_Entry GlobalQueue<T>::push_reserve ( bool ignore ) {
   CHECK( isMaster() );
 
   global_queue_stats.record_push_reserve_reply( Grappa_sizeof_delegate_func_reply< bool, A_Entry >() );
-  
+
   DVLOG(5) << "push_reserve";
 
   CHECK( capacity > 0 );
@@ -296,7 +296,7 @@ void GlobalQueue<T>::pull_reserve ( A_D_A_Entry requestor ) {
   } else {
     A_Entry granted = queueBase + (head % capacity);
     head++;
-    
+
     pull_reserve_sendreply( requestor, &granted, false );
   }
 }
@@ -317,10 +317,10 @@ void GlobalQueue<T>::pull_entry_sendreply( GlobalAddress< Descriptor< ChunkInfo<
 template <typename T>
 bool GlobalQueue<T>::push_entry ( push_entry_args<T> args ) {
   QueueEntry<T> * e = args.target.pointer();
-    
+
   e->chunk = args.chunk;
   e->valid = true;
-  
+
   // if a consumer is waiting then send a wake message
   if ( e->sleeper.pointer() != NULL ) {
     DVLOG(5) << "push_entry: was sleeping consumer " << e->sleeper;
@@ -347,7 +347,7 @@ void GlobalQueue<T>::pull_entry_request( pull_entry_args<T> * args ) {
     pull_entry_sendreply( args->descriptor, e );
   }
 }
-    
+
 
 // routines for calling the global GlobalQueue on each Node
 template <typename T>
