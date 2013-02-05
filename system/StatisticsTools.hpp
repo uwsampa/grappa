@@ -133,8 +133,8 @@ class TotalStatistic {
 
 #define STRINGIFY(s) #s
 #define DICT_ADD_STAT_TOTAL( d, name ) (d).add(#name, name.getTotal() ); \
-  (d).add(STRINGIFY(max_##name), name.getMax() ); \
-(d).add(STRINGIFY(stddev_##name), name.getStddev() );
+  (d).add(STRINGIFY(name##_max), name.getMax() ); \
+(d).add(STRINGIFY(name##_stddev), name.getStddev() );
 
 #endif // STATISTICS_TOOLS_HPP_
 
