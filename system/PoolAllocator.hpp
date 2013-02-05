@@ -4,9 +4,10 @@
 
 namespace Grappa {
 
-  template<size_t Bytes, typename Base>
+  template<typename Base>
   class PoolAllocator {
-    char buffer[Bytes];
+    char * buffer;
+    size_t buffer_size;
     size_t allocated;
   protected:
     Base* allocate(size_t sz) {
@@ -15,12 +16,12 @@ namespace Grappa {
       allocated += sz;
       
       // TODO: implement heap allocation fallback
-      if (allocated > Bytes) { LOG(ERROR) << "PoolAllocator overflow!"; exit(1); }
+      CHECK(allocated <= buffer_size) << "PoolAllocator overflow: tried allocating " << sz << ", already allocated " << allocated << " of " << buffer_size;
       return p;
     }
     
   public:
-    PoolAllocator(): allocated(0) {}
+    PoolAllocator(char * buffer, size_t buffer_size): buffer(buffer), buffer_size(buffer_size), allocated(0) {}
     
     virtual ~PoolAllocator() {
       // call destructors of everything in PoolAllocator
@@ -39,14 +40,21 @@ namespace Grappa {
       }
     }
     
-    template<size_t OtherBytes, typename OtherBase>
-    friend void* ::operator new(size_t, Grappa::PoolAllocator<OtherBytes,OtherBase>&);
+    template<typename OtherBase>
+    friend void* ::operator new(size_t, Grappa::PoolAllocator<OtherBase>&);
   };
 
+  template<size_t Bytes, typename Base>
+  class PoolAllocatorInternal: public PoolAllocator<Base> {
+    char _buffer[Bytes];
+  public:
+    PoolAllocatorInternal(): PoolAllocator<Base>(_buffer, Bytes) {}
+  };
+  
 } // namespace Grappa
 
 
-template<size_t Bytes,typename Base>
-void* operator new(size_t size, Grappa::PoolAllocator<Bytes,Base>& a) {
+template<typename Base>
+void* operator new(size_t size, Grappa::PoolAllocator<Base>& a) {
   return a.allocate(size);
 }

@@ -6,9 +6,9 @@
 
 namespace Grappa {
   
-  template<size_t Bytes>
-  class MessagePool : public PoolAllocator<Bytes, impl::MessageBase> {
+  class MessagePoolExternal: public PoolAllocator<impl::MessageBase> {
   public:
+    MessagePoolExternal(char * buffer, size_t sz): PoolAllocator<impl::MessageBase>(buffer, sz) {}
     
     /// Just calls `block_until_sent` on each message in the pool
     /// TODO: don't wake until all have been sent
@@ -71,4 +71,11 @@ namespace Grappa {
  
   };
 
+  
+  template<size_t Bytes>
+  class MessagePool : public MessagePoolExternal {
+    char _buffer[Bytes];
+  public:
+    MessagePool(): MessagePoolExternal(_buffer, Bytes) {}
+  };
 }
