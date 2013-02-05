@@ -14,7 +14,7 @@ namespace Grappa {
       count += inc;
     }
     
-    /// Increment count once, if count == 0, wake all waiters.
+    /// Decrement count once, if count == 0, wake all waiters.
     void signal() {
       if (count == 0) {
         LOG(ERROR) << "too many calls to signal()";
