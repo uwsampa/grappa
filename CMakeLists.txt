@@ -1,25 +1,47 @@
-project(Grappa)
 
 # (2.8 has ExternalProject support)
 cmake_minimum_required(VERSION 2.8)
+
+
+option(TRACING "Sample statistics with VTrace at regular intervals." OFF)
+
+if( NOT DEFINED ENV{CXX} )
+  set(GCC_BASE /sampa/share/gcc-4.7.2/rtf)
+  set(CMAKE_C_COMPILER ${GCC_BASE}/bin/gcc)
+  set(CMAKE_CXX_COMPILER ${GCC_BASE}/bin/g++)
+  set(CMAKE_C_FLAGS_RELWITHDEBINFO "-O3 -g")
+  set(CMAKE_CXX_FLAGS_RELWITHDEBINFO "-O3 -g")
+endif()
+
+project(Grappa)
+
 set_property(GLOBAL PROPERTY USE_FOLDERS ON)
 enable_testing()
 set(CMAKE_BUILD_TYPE RelWithDebInfo)
 site_name(MACHINENAME)
 
+set(GRAPPA_DEPENDENCY_DIR "${CMAKE_SOURCE_DIR}/tools/built_deps")
 
-option(TRACING "Sample statistics with VTrace at regular intervals." OFF)
 if(TRACING)
+  set(GOOGLE_PROFILER ON)
+
   add_definitions(-DVTRACE_SAMPLED -DVTRACE -DGOOGLE_PROFILER)
+
+  # set(CMAKE_C_COMPILER "${GRAPPA_DEPENDENCY_DIR}/bin/vtcc")
+  include_directories("${GRAPPA_DEPENDENCY_DIR}/include/vampirtrace")
+  set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -pthread")
+  set(CMAKE_EXE_LINKER_FLAGS "${CMAKE_EXE_LINKER_FLAGS} -lvt -lotf -lz -lpapi -ldl -lm")
 endif()
 
 # global C++ flags
-list(APPEND CMAKE_CXX_FLAGS "-std=c++11 -Winline -Wno-inline -mno-red-zone")
+set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -std=c++11 -Winline -Wno-inline -mno-red-zone")
 # TODO: use -stdlib=libc++ too?
 
 # TODO: verify that this is not a problem and remove
 # list(APPEND CMAKE_CXX_FLAGS "-mno-red-zone")
 
+###########################
+# Use RUNPATH if available
 # use, i.e. don't skip the full RPATH for the build tree
 set(CMAKE_SKIP_BUILD_RPATH  FALSE)
 # when building, don't use the install RPATH already
@@ -37,45 +59,31 @@ endif("${isSystemDir}" STREQUAL "-1")
 
 # set runpath, too
 set(CMAKE_EXE_LINKER_FLAGS "-Wl,--enable-new-dtags")
+##### </RUNPATH> ########
 
-set(RUN_CMD srun)
-set(RUN_FLAGS "")
-list(APPEND RUN_FLAGS
-  --partition=grappa
-  --nodes=2
-  --ntasks-per-node=1
-  --resv-ports
-  --cpu_bind=verbose,rank
-  --exclusive
-  --label
-  --kill-on-bad-exit
-)
 
-set(GRAPPA_LIBS)
-set(GRAPPA_ENV "")
-
-set(GASNET_SETTINGS
-  GASNET_BACKTRACE=1
-  GASNET_FREEZE_SIGNAL=SIGUSR1
-  GASNET_FREEZE_ON_ERROR=1
-  GASNET_FREEZE=0
-  GASNET_NETWORKDEPTH_PP=96
-  GASNET_NETWORKDEPTH_TOTAL=1024
-  GASNET_AMCREDITS_PP=48
-  GASNET_PHYSMEM_MAX=1024M
-)
-list(APPEND GRAPPA_ENV ${GASNET_SETTINGS})
+set(GRAPPA_DEPENDENCY_DIR "${CMAKE_SOURCE_DIR}/tools/built_deps")
 
 # pre-compiled external dependencies
 # TODO: make CMake build these (see GraphLab's CMake)
-set(GRAPPA_DEPENDENCY_DIR "${CMAKE_SOURCE_DIR}/tools/built_deps")
 include_directories("${GRAPPA_DEPENDENCY_DIR}/include")
 link_directories("${GRAPPA_DEPENDENCY_DIR}/lib")
 list(APPEND GRAPPA_LIBS
   gflags
   glog
 )
+if(TRACING)
+  set(GOOGLE_PROFILER ON)
 
+  list(APPEND GRAPPA_LIBS vt otf z papi dl m)
+
+  add_definitions(-DVTRACE_SAMPLED -DVTRACE -DGOOGLE_PROFILER)
+
+  # set(CMAKE_C_COMPILER "${GRAPPA_DEPENDENCY_DIR}/bin/vtcc")
+  include_directories("${GRAPPA_DEPENDENCY_DIR}/include/vampirtrace")
+  set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -pthread")
+  set(CMAKE_EXE_LINKER_FLAGS "${CMAKE_EXE_LINKER_FLAGS} -lvt -lotf -lz -lpapi -ldl -lm")
+endif()
 
 ######################################
 # Gasnet
@@ -118,8 +126,7 @@ list(APPEND GRAPPA_ENV
 add_definitions(-DSHMMAX=6442450944) # 6 GB
 
 if( GOOGLE_PROFILER )
-  list(APPEND ENV_VARIABLES "CPUPROFILE_FREQUENCY=100")
-  list(APPEND CMAKE_CXX_FLAGS -fno-omit-frame-pointer)
+  set(CMAKE_C_FLAGS "${CMAKE_CXX_FLAGS} -fno-omit-frame-pointer")
   add_definitions( -DGOOGLE_PROFILER )
 endif()
 

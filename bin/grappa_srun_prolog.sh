@@ -9,5 +9,7 @@ export GASNET_NETWORKDEPTH_PP=96
 export GASNET_NETWORKDEPTH_TOTAL=1024
 export GASNET_AMCREDITS_PP=48
 export GASNET_PHYSMEM_MAX=1024M
+export CPUPROFILE_FREQUENCY=100
+
 # Clean up any leftover shared memory regions
 for i in `ipcs -m | grep bholt | cut -d" " -f1`; do ipcrm -M $i; done
