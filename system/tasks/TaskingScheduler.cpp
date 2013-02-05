@@ -24,21 +24,21 @@ TaskingScheduler global_scheduler;
 
 /// Create uninitialized TaskingScheduler.
 /// init() must subsequently be called before fully initialized.
-TaskingScheduler::TaskingScheduler ( )
-    : readyQ ( )
-    , periodicQ ( )
-    , unassignedQ ( )
-    , master ( NULL )
-    , current_thread ( NULL )
-    , nextId ( 1 )
-    , num_idle ( 0 )
-    , num_active_tasks( 0 )
-    , task_manager ( NULL )
-    , num_workers ( 0 )
-    , work_args( NULL )
-    , previous_periodic_ts( 0 ) 
-    , prev_ts( 0 )
-    , prev_stats_blob_ts( 0 )
+  TaskingScheduler::TaskingScheduler ( )
+  : readyQ ( )
+  , periodicQ ( )
+  , unassignedQ ( )
+  , master ( NULL )
+  , current_thread ( NULL )
+  , nextId ( 1 )
+  , num_idle ( 0 )
+  , num_active_tasks( 0 )
+  , task_manager ( NULL )
+  , num_workers ( 0 )
+  , work_args( NULL )
+  , previous_periodic_ts( 0 ) 
+  , prev_ts( 0 )
+  , prev_stats_blob_ts( 0 )
     , stats( this )
 { 
   Grappa_tick();
@@ -259,7 +259,7 @@ void TaskingScheduler::TaskingSchedulerStatistics::merge(const TaskingSchedulerS
   } else {
     for (int i=StatePoll; i<StateLast; i++) state_timers_d[i] += other->state_timers_d[i];
   }
-	scheduler_count += other->scheduler_count;
+  scheduler_count += other->scheduler_count;
 
   merged+=other->merged;
   max_active = (int64_t)inc_avg((double)max_active, merged, (double)other->max_active);

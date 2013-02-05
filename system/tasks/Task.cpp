@@ -24,7 +24,7 @@ GRAPPA_DEFINE_EVENT_GROUP(task_manager);
 
 /// Create an uninitialized TaskManager
 /// init() must subsequently be called before fully initialized.
-TaskManager::TaskManager ( ) 
+  TaskManager::TaskManager ( ) 
   : privateQ( )
   , workDone( false )
   , doSteal( false )
@@ -35,7 +35,7 @@ TaskManager::TaskManager ( )
   , gqPushLock( true )
   , gqPullLock( true )
   , nextVictimIndex( 0 )
-  , stats( this )
+    , stats( this )
 {
 }
 
@@ -252,20 +252,20 @@ inline void TaskManager::checkPull() {
 /// @return true if returning valid Task, false means no more work exists
 ///         in the system
 bool TaskManager::waitConsumeAny( Task * result ) {
-    checkPull();
+  checkPull();
 
-    if ( !local_available() ) {
-        GRAPPA_PROFILE_CREATE( prof, "worker idle", "(suspended)", GRAPPA_SUSPEND_GROUP ); 
-        GRAPPA_PROFILE_START( prof );
-        if ( !Grappa_thread_idle() ) { // TODO: change to directly use scheduler thread idle
-            Grappa_yield(); // TODO: remove this, since thread_idle now suspends always
-        } else {
-            DVLOG(5) << CURRENT_THREAD << " un-idled";
-        }
-        GRAPPA_PROFILE_STOP( prof );
+  if ( !local_available() ) {
+    GRAPPA_PROFILE_CREATE( prof, "worker idle", "(suspended)", GRAPPA_SUSPEND_GROUP ); 
+    GRAPPA_PROFILE_START( prof );
+    if ( !Grappa_thread_idle() ) { // TODO: change to directly use scheduler thread idle
+      Grappa_yield(); // TODO: remove this, since thread_idle now suspends always
+    } else {
+      DVLOG(5) << CURRENT_THREAD << " un-idled";
     }
-    
-    return false;
+    GRAPPA_PROFILE_STOP( prof );
+  }
+
+  return false;
 }
 
 /// Print stream output of TaskManager
@@ -275,19 +275,19 @@ bool TaskManager::waitConsumeAny( Task * result ) {
 ///
 /// @return new output stream
 std::ostream& operator<<( std::ostream& o, const TaskManager& tm ) {
-    return tm.dump( o );
+  return tm.dump( o );
 }
 
 std::ostream& operator<<( std::ostream& o, const Task& t ) {
-    return t.dump( o );
+  return t.dump( o );
 }
 
 /// Tell the TaskManager that it should terminate.
 /// Any tasks that are still in the queues are
 /// not guarenteed to be executed after this returns.
 void TaskManager::signal_termination( ) {
-    workDone = true;
-    Grappa_signal_done();
+  workDone = true;
+  Grappa_signal_done();
 }
 
 /// Teardown.
@@ -308,32 +308,32 @@ void TaskManager::dump_stats( std::ostream& o = std::cout, const char * terminat
 /// { name1:value1, name2:value2, ... }
 #include "DictOut.hpp"
 void TaskManager::TaskStatistics::dump( std::ostream& o = std::cout, const char * terminator = "" ) {
-    DictOut dout;
-    DICT_ADD(dout, session_steal_successes_);
-    DICT_ADD(dout, session_steal_fails_);
-    DICT_ADD(dout, single_steal_successes_);
-    DICT_ADD_STAT_TOTAL(dout, steal_amt_);
-    DICT_ADD(dout, single_steal_fails_);
-    DICT_ADD(dout, acquire_successes_);
-    DICT_ADD(dout, acquire_fails_);
-    DICT_ADD(dout, releases_);
-    DICT_ADD(dout, public_tasks_dequeued_);
-    DICT_ADD(dout, private_tasks_dequeued_);
-    DICT_ADD(dout, remote_private_tasks_spawned_);
-    
-    DICT_ADD( dout, globalq_pushes_ );
-    DICT_ADD( dout, globalq_push_attempts_ );
-    DICT_ADD_STAT_TOTAL( dout, globalq_elements_pushed_ );
-    DICT_ADD( dout, globalq_pulls_ );
-    DICT_ADD( dout, globalq_pull_attempts_ );
-    DICT_ADD_STAT_TOTAL( dout, globalq_elements_pulled_ );
+  DictOut dout;
+  DICT_ADD(dout, session_steal_successes_);
+  DICT_ADD(dout, session_steal_fails_);
+  DICT_ADD(dout, single_steal_successes_);
+  DICT_ADD_STAT_TOTAL(dout, steal_amt_);
+  DICT_ADD(dout, single_steal_fails_);
+  DICT_ADD(dout, acquire_successes_);
+  DICT_ADD(dout, acquire_fails_);
+  DICT_ADD(dout, releases_);
+  DICT_ADD(dout, public_tasks_dequeued_);
+  DICT_ADD(dout, private_tasks_dequeued_);
+  DICT_ADD(dout, remote_private_tasks_spawned_);
 
-    DICT_ADD( dout, workshare_tests_ );
-    DICT_ADD( dout, workshares_initiated_ );
-    DICT_ADD_STAT_TOTAL( dout, workshares_initiated_received_elements_ );
-    DICT_ADD_STAT_TOTAL( dout, workshares_initiated_pushed_elements_ );
+  DICT_ADD( dout, globalq_pushes_ );
+  DICT_ADD( dout, globalq_push_attempts_ );
+  DICT_ADD_STAT_TOTAL( dout, globalq_elements_pushed_ );
+  DICT_ADD( dout, globalq_pulls_ );
+  DICT_ADD( dout, globalq_pull_attempts_ );
+  DICT_ADD_STAT_TOTAL( dout, globalq_elements_pulled_ );
 
-    o << "   \"TaskStatistics\": " << dout.toString() << terminator << std::endl;
+  DICT_ADD( dout, workshare_tests_ );
+  DICT_ADD( dout, workshares_initiated_ );
+  DICT_ADD_STAT_TOTAL( dout, workshares_initiated_received_elements_ );
+  DICT_ADD_STAT_TOTAL( dout, workshares_initiated_pushed_elements_ );
+
+  o << "   \"TaskStatistics\": " << dout.toString() << terminator << std::endl;
 }
 
 void TaskManager::TaskStatistics::sample() {
@@ -344,18 +344,18 @@ void TaskManager::TaskStatistics::sample() {
   //VT_COUNT_UNSIGNED_VAL( privateQ_size_vt_ev, tm->privateQ.size() );
   //VT_COUNT_UNSIGNED_VAL( publicQ_size_vt_ev, tm->publicQ.depth() );
 #endif
-//    sample_calls++;
-//    /* todo: avgs */
-//
-//#ifdef GRAPPA_TRACE
-//    if ((sample_calls % 1) == 0) {
-//      TAU_REGISTER_EVENT(privateQ_size_ev, "privateQ size sample");
-//      TAU_REGISTER_EVENT(publicQ_size_ev, "publicQ size sample");
-//      
-//      TAU_EVENT(privateQ_size_ev, tm->privateQ.size());
-//      TAU_EVENT(publicQ_size_ev, tm->publicQ size);
-//    }
-//#endif
+  //    sample_calls++;
+  //    /* todo: avgs */
+  //
+  //#ifdef GRAPPA_TRACE
+  //    if ((sample_calls % 1) == 0) {
+  //      TAU_REGISTER_EVENT(privateQ_size_ev, "privateQ size sample");
+  //      TAU_REGISTER_EVENT(publicQ_size_ev, "publicQ size sample");
+  //      
+  //      TAU_EVENT(privateQ_size_ev, tm->privateQ.size());
+  //      TAU_EVENT(publicQ_size_ev, tm->publicQ size);
+  //    }
+  //#endif
 }
 
 /// Take a sample of statistics and other state.
@@ -381,12 +381,12 @@ void TaskManager::TaskStatistics::profiling_sample() {
   VT_COUNT_UNSIGNED_VAL( globalq_pulls_vt_ev, globalq_pulls_ );
   VT_COUNT_UNSIGNED_VAL( globalq_pull_attempts_vt_ev, globalq_pull_attempts_ );
   VT_COUNT_UNSIGNED_VAL( globalq_elements_pulled_vt_ev, globalq_elements_pulled_.getTotal() );
-  
+
   VT_COUNT_UNSIGNED_VAL( shares_initiated_vt_ev, workshares_initiated_ );
   VT_COUNT_UNSIGNED_VAL( shares_received_elements_vt_ev, workshares_initiated_received_elements_.getTotal() );
   VT_COUNT_UNSIGNED_VAL( shares_pushed_elements_vt_ev, workshares_initiated_pushed_elements_.getTotal() );
 #endif
-    }
+}
 
 void TaskManager::TaskStatistics::merge(const TaskManager::TaskStatistics * other) {
   session_steal_successes_ += other->session_steal_successes_;
@@ -400,14 +400,14 @@ void TaskManager::TaskStatistics::merge(const TaskManager::TaskStatistics * othe
   public_tasks_dequeued_ += other->public_tasks_dequeued_;
   private_tasks_dequeued_ += other->private_tasks_dequeued_;
   remote_private_tasks_spawned_ += other->remote_private_tasks_spawned_;
-                
+
   globalq_pushes_                        += other->globalq_pushes_;
   globalq_push_attempts_                 += other->globalq_push_attempts_;
   MERGE_STAT_TOTAL( globalq_elements_pushed_, other );
   globalq_pulls_                        += other->globalq_pulls_;
   globalq_pull_attempts_                 += other->globalq_pull_attempts_;
   MERGE_STAT_TOTAL( globalq_elements_pulled_, other );
-  
+
   workshare_tests_ += other->workshare_tests_;
   workshares_initiated_ += other->workshares_initiated_;
   MERGE_STAT_TOTAL( workshares_initiated_received_elements_, other );
@@ -422,28 +422,28 @@ void TaskManager::reset_stats() {
 
 void TaskManager::TaskStatistics::reset() {
   single_steal_successes_ =0;
-    steal_amt_.reset();
-    single_steal_fails_ =0;
-    session_steal_successes_ =0;
-    session_steal_fails_ =0;
-    acquire_successes_ =0;
-    acquire_fails_ =0;
-    releases_ =0;
-    public_tasks_dequeued_ =0;
-    private_tasks_dequeued_ =0;
-    remote_private_tasks_spawned_ =0;
-                
-    globalq_pushes_ = 0;
-    globalq_push_attempts_ = 0;
-    globalq_elements_pushed_.reset();
-    globalq_pulls_ = 0;
-    globalq_pull_attempts_ = 0;
-    globalq_elements_pulled_.reset();
+  steal_amt_.reset();
+  single_steal_fails_ =0;
+  session_steal_successes_ =0;
+  session_steal_fails_ =0;
+  acquire_successes_ =0;
+  acquire_fails_ =0;
+  releases_ =0;
+  public_tasks_dequeued_ =0;
+  private_tasks_dequeued_ =0;
+  remote_private_tasks_spawned_ =0;
 
-    workshare_tests_ = 0;
-    workshares_initiated_ = 0;
-    workshares_initiated_received_elements_.reset();
-    workshares_initiated_pushed_elements_.reset();
+  globalq_pushes_ = 0;
+  globalq_push_attempts_ = 0;
+  globalq_elements_pushed_.reset();
+  globalq_pulls_ = 0;
+  globalq_pull_attempts_ = 0;
+  globalq_elements_pulled_.reset();
 
-    sample_calls =0;
+  workshare_tests_ = 0;
+  workshares_initiated_ = 0;
+  workshares_initiated_received_elements_.reset();
+  workshares_initiated_pushed_elements_.reset();
+
+  sample_calls =0;
 }

@@ -19,7 +19,7 @@
 /// @param val the new value to include in the average
 /// @return the new running average
 inline double inc_avg(double curr_avg, uint64_t count, double val) {
-	return curr_avg + (val-curr_avg)/(count);
+  return curr_avg + (val-curr_avg)/(count);
 }
 
 /// Max of two unsigned integers
@@ -43,18 +43,18 @@ class RunningStandardDeviation {
 
     /// reset to 0 samples
     void reset() {
-        s0 = 0.0;
-        s1 = 0.0;
-        s2 = 0.0;
+      s0 = 0.0;
+      s1 = 0.0;
+      s2 = 0.0;
     }
 
     /// Add a new sample
     void addSample( uint64_t value ) {
-        s0 += 1;
-        s1 += value;
-        s2 += pow(value, 2);
+      s0 += 1;
+      s1 += value;
+      s2 += pow(value, 2);
     }
-   
+
     /// Get the current standard deviation of all added samples 
     double value() {
       double sq = s0*s2 - pow(s1, 2);
@@ -133,8 +133,8 @@ class TotalStatistic {
 
 #define STRINGIFY(s) #s
 #define DICT_ADD_STAT_TOTAL( d, name ) (d).add(#name, name.getTotal() ); \
-                                       (d).add(STRINGIFY(max_##name), name.getMax() ); \
-                                       (d).add(STRINGIFY(stddev_##name), name.getStddev() );
+  (d).add(STRINGIFY(max_##name), name.getMax() ); \
+(d).add(STRINGIFY(stddev_##name), name.getStddev() );
 
 #endif // STATISTICS_TOOLS_HPP_
 
