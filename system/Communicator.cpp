@@ -7,7 +7,7 @@
 
 #include <cassert>
 
-#ifdef HEAPCHECK
+#ifdef HEAPCHECK_ENABLE
 #include <gperftools/heap-checker.h>
 extern HeapLeakChecker * Grappa_heapchecker;
 #endif
@@ -34,12 +34,12 @@ Communicator::Communicator( )
 /// may be queried and handlers may be registered, but no
 /// communication is allowed.
 void Communicator::init( int * argc_p, char ** argv_p[] ) {
-#ifdef HEAPCHECK
+#ifdef HEAPCHECK_ENABLE
   {
     HeapLeakChecker::Disabler disable_leak_checks_here;
 #endif
   GASNET_CHECK( gasnet_init( argc_p, argv_p ) ); 
-#ifdef HEAPCHECK
+#ifdef HEAPCHECK_ENABLE
   }
 #endif
   // make sure the Node type is big enough for our system
