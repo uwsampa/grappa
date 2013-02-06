@@ -1,5 +1,5 @@
-#ifndef __CONDITION_VARIABLES_HPP__
-#define __CONDITION_VARIABLES_HPP__
+#ifndef __LEGACY_SIGNALER_HPP__
+#define __LEGACY_SIGNALER_HPP__
 
 struct Thread;
 
@@ -51,4 +51,4 @@ class ConditionVariable {
     void notify();
 };
 
-#endif // __CONDITION_VARIABLES_HPP__
+#endif // __LEGACY_SIGNALER_HPP__

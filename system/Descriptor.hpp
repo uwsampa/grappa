@@ -1,7 +1,7 @@
 #ifndef DESCRIPTOR_HPP
 #define DESCRIPTOR_HPP
 
-#include "ConditionVariables.hpp"
+#include "LegacySignaler.hpp"
 #include "Grappa.hpp"
 
 
