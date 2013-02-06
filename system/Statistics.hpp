@@ -17,8 +17,9 @@ namespace Grappa {
   namespace Statistics {
     // singleton list
     
-    void print(std::ostream& out = std::cerr, StatisticList& stats = Grappa::impl::registered_stats());
+    void print(std::ostream& out = std::cerr, StatisticList& stats = Grappa::impl::registered_stats(), const std::string& legacy_stats = "");
     void merge(StatisticList& result);
+    void merge_and_print(std::ostream& out = std::cerr);
   }
   
 } // namespace Grappa
