@@ -8,6 +8,7 @@ namespace Grappa {
   class StatisticBase {
   protected:
     const char * name;
+    
   public:
     /// registers stat with global stats vector by default (reg_new=false to disable)
     StatisticBase(const char * name, bool reg_new = true);
