@@ -49,7 +49,12 @@ namespace Grappa {
     FullEmpty( ) : state_( State::EMPTY ), waiters_( 0 ), t_() {}
 
     inline bool full() { return state_ == State::FULL; }
-
+    
+    inline void reset() {
+      CHECK(waiters_ == 0);
+      state_ = State::EMPTY;
+    }
+    
     T writeXF( T t ) {
       t_ = t; 
       state_ = State::FULL; 
