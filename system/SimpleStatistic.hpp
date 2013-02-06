@@ -12,13 +12,18 @@ namespace Grappa {
 
   template<typename T>
   class SimpleStatistic : public StatisticBase {
-  public:
+  protected:
+    
     T value;
-
+    
 #ifdef VTRACE_SAMPLED
     unsigned vt_counter;
     static const int vt_type;
+    
+    inline void vt_sample() const;
 #endif
+    
+  public:
     
     SimpleStatistic(const char * name, T initial_value, bool reg_new = true):
         value(initial_value), StatisticBase(name, reg_new) {
