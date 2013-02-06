@@ -7,7 +7,7 @@
 
 #include <signal.h>
 
-#ifdef HEAPCHECK
+#ifdef HEAPCHECK_ENABLE
 #include <gperftools/heap-checker.h>
 #endif
 
@@ -57,7 +57,7 @@ static const char * nodelist_str = NULL;
 
 Node * node_neighbors;
 
-#ifdef HEAPCHECK
+#ifdef HEAPCHECK_ENABLE
 HeapLeakChecker * Grappa_heapchecker = 0;
 #endif
 
@@ -147,7 +147,7 @@ void Grappa_init( int * argc_p, char ** argv_p[], size_t global_memory_size_byte
   google::InstallFailureSignalHandler( );
 
   DVLOG(1) << "Initializing Grappa library....";
-#ifdef HEAPCHECK
+#ifdef HEAPCHECK_ENABLE
   Grappa_heapchecker = new HeapLeakChecker("Grappa");
 #endif
 
@@ -501,7 +501,7 @@ void Grappa_finish( int retval )
 
   if (global_memory) delete global_memory;
 
-#ifdef HEAPCHECK
+#ifdef HEAPCHECK_ENABLE
   assert( Grappa_heapchecker->NoLeaks() );
 #endif
   

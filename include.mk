@@ -32,6 +32,8 @@ CFLAGS+= -mno-red-zone
 # TODO: clean up LD_LIBRARY_PATH to make this work better
 CFLAGS+= -Wl,-rpath,$(LD_LIBRARY_PATH),--enable-new-dtags
 
+# Enable tcmalloc by default, since we've already built its package for profiling
+LIBRARIES+= -ltcmalloc
 
 LD_LIBRARY_PATH:=$(LD_LIBRARY_PATH):$(BOOST)/stage/lib
 
