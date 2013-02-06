@@ -16,14 +16,8 @@ namespace Grappa {
 
     /// Block until message can be deallocated.
     void Grappa::impl::MessageBase::block_until_sent() {
-      // if message has not been enqueued to be sent, do so.
-      // if it has already been sent somehow, then don't worry about it.
-      if( !is_sent_ && !is_enqueued_ ) {
-        DVLOG(5) << this << " not sent, so enqueuing";
-        enqueue();
-      }
-      // now block until message is sent
-      while( !is_sent_ ) {
+      // if enqueued, block until message is sent
+      while( is_enqueued_ && !is_sent_ ) {
         DVLOG(5) << this << " blocking until sent";
         Grappa::wait( &cv_ );
         DVLOG(5) << this << " woken";
