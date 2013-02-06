@@ -5,15 +5,18 @@ cmake_minimum_required(VERSION 2.8)
 
 option(TRACING "Sample statistics with VTrace at regular intervals." OFF)
 
+set(GCC_BASE /sampa/share/gcc-4.7.2/rtf)
+
 if( NOT DEFINED ENV{CXX} )
-  set(GCC_BASE /sampa/share/gcc-4.7.2/rtf)
+  message("defaulting to GCC 4.7.2")
   set(CMAKE_C_COMPILER ${GCC_BASE}/bin/gcc)
   set(CMAKE_CXX_COMPILER ${GCC_BASE}/bin/g++)
-  set(CMAKE_C_FLAGS_RELWITHDEBINFO "-O3 -g")
-  set(CMAKE_CXX_FLAGS_RELWITHDEBINFO "-O3 -g")
 endif()
 
 project(Grappa)
+
+set(CMAKE_C_FLAGS_RELWITHDEBINFO "-O3 -g")
+set(CMAKE_CXX_FLAGS_RELWITHDEBINFO "-O3 -g")
 
 set_property(GLOBAL PROPERTY USE_FOLDERS ON)
 enable_testing()
@@ -27,18 +30,15 @@ if(TRACING)
 
   add_definitions(-DVTRACE_SAMPLED -DVTRACE -DGOOGLE_PROFILER)
 
-  # set(CMAKE_C_COMPILER "${GRAPPA_DEPENDENCY_DIR}/bin/vtcc")
   include_directories("${GRAPPA_DEPENDENCY_DIR}/include/vampirtrace")
-  set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -pthread")
+  set(CMAKE_C_FLAGS "-vt:cc ${GCC_BASE}/bin/gcc ${CMAKE_C_FLAGS} -pthread")
+  set(CMAKE_CXX_FLAGS "-vt:cxx ${GCC_BASE}/bin/g++ ${CMAKE_CXX_FLAGS}")
   set(CMAKE_EXE_LINKER_FLAGS "${CMAKE_EXE_LINKER_FLAGS} -lvt -lotf -lz -lpapi -ldl -lm")
 endif()
 
 # global C++ flags
 set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -std=c++11 -Winline -Wno-inline -mno-red-zone")
 # TODO: use -stdlib=libc++ too?
-
-# TODO: verify that this is not a problem and remove
-# list(APPEND CMAKE_CXX_FLAGS "-mno-red-zone")
 
 ###########################
 # Use RUNPATH if available
@@ -72,17 +72,23 @@ list(APPEND GRAPPA_LIBS
   gflags
   glog
 )
+
 if(TRACING)
   set(GOOGLE_PROFILER ON)
 
   list(APPEND GRAPPA_LIBS vt otf z papi dl m)
 
-  add_definitions(-DVTRACE_SAMPLED -DVTRACE -DGOOGLE_PROFILER)
+  add_definitions(-DVTRACE_SAMPLED -DVTRACE)
 
   # set(CMAKE_C_COMPILER "${GRAPPA_DEPENDENCY_DIR}/bin/vtcc")
   include_directories("${GRAPPA_DEPENDENCY_DIR}/include/vampirtrace")
   set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -pthread")
   set(CMAKE_EXE_LINKER_FLAGS "${CMAKE_EXE_LINKER_FLAGS} -lvt -lotf -lz -lpapi -ldl -lm")
+endif()
+
+if( GOOGLE_PROFILER )
+  set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -fno-omit-frame-pointer")
+  add_definitions( -DGOOGLE_PROFILER )
 endif()
 
 ######################################
@@ -125,14 +131,12 @@ list(APPEND GRAPPA_ENV
 # add_definitions(-DSHMMAX=12884901888) # 12 GB
 add_definitions(-DSHMMAX=6442450944) # 6 GB
 
-if( GOOGLE_PROFILER )
-  set(CMAKE_C_FLAGS "${CMAKE_CXX_FLAGS} -fno-omit-frame-pointer")
-  add_definitions( -DGOOGLE_PROFILER )
-endif()
-
-
 get_filename_component(CC_PATH ${CMAKE_C_COMPILER} PATH)
-link_directories("${CC_PATH}/../lib64")
+#link_directories("${CC_PATH}/../lib64")
+
+# make sure we use the correct libstdc++
+link_directories("${GCC_BASE}/bin/../lib64")
+
 list(APPEND GRAPPA_LIBS pthread rt)
 
 # boost is separate

@@ -24,7 +24,7 @@ TARGET:= sort.exe
 $(TARGET):
 
 CFLAGS += -w
-CFLAGS += -I$(GRAPPA_HOME)/system
+CFLAGS += -I$(GRAPPA_HOME)/system -I$(GRAPPA_HOME)/system/tasks
 CFLAGS += -g -Wall -Drestrict=__restrict__ -ffast-math
 
 LDFLAGS = -g -lboost_filesystem
