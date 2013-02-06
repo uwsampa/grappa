@@ -32,9 +32,11 @@ CFLAGS+= -mno-red-zone
 # TODO: clean up LD_LIBRARY_PATH to make this work better
 CFLAGS+= -Wl,-rpath,$(LD_LIBRARY_PATH),--enable-new-dtags
 
-# Enable tcmalloc by default, since we've already built its package for profiling
+# tcmalloc is disabled because it seems to slow message throughput down by 10% or so.
+#### Enable tcmalloc by default, since we've already built its package for profiling
 ifndef VALGRIND
-LIBRARIES+= -ltcmalloc
+#CFLAGS+=  -fno-builtin-malloc -fno-builtin-calloc -fno-builtin-realloc -fno-builtin-free
+#LIBRARIES+= -ltcmalloc
 endif
 
 LD_LIBRARY_PATH:=$(LD_LIBRARY_PATH):$(BOOST)/stage/lib
