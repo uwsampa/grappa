@@ -101,5 +101,12 @@ namespace Grappa {
 
       print(std::cerr, all, legacy_stats.str());
     }
+
+    void sample_all() {
+      for (auto* stat : Grappa::impl::registered_stats()) {
+        stat->sample();
+      }
+      legacy_profiling_sample();
+    }
   }
 } // namespace Grappa
