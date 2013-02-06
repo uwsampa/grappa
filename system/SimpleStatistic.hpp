@@ -11,7 +11,7 @@
 namespace Grappa {
 
   template<typename T>
-  class SimpleStatistic : public StatisticBase {
+  class SimpleStatistic : public impl::StatisticBase {
   protected:
     
     T value;
@@ -26,7 +26,7 @@ namespace Grappa {
   public:
     
     SimpleStatistic(const char * name, T initial_value, bool reg_new = true):
-        value(initial_value), StatisticBase(name, reg_new) {
+        value(initial_value), impl::StatisticBase(name, reg_new) {
 #ifdef VTRACE_SAMPLED
         if (SimpleStatistic::vt_type == -1) {
           LOG(ERROR) << "warning: VTrace sampling unsupported for this type of SimpleStatistic.";
@@ -53,7 +53,7 @@ namespace Grappa {
       return new SimpleStatistic<T>(name, value, false);
     }
     
-    virtual void merge_all(StatisticBase* static_stat_ptr) {
+    virtual void merge_all(impl::StatisticBase* static_stat_ptr) {
       this->value = 0;
       
       // TODO: use more generalized `reduce` operation to merge all

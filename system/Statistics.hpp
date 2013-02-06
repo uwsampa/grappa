@@ -8,20 +8,23 @@
 
 namespace Grappa {
   
-  using StatisticList = std::vector<StatisticBase*>;
+  using StatisticList = std::vector<impl::StatisticBase*>;
+  
+  namespace impl {
+    StatisticList& registered_stats();
+  }
   
   namespace Statistics {
     // singleton list
-    StatisticList& registered_stats();
     
-    void print(std::ostream& out = std::cerr, StatisticList& stats = registered_stats());
+    void print(std::ostream& out = std::cerr, StatisticList& stats = Grappa::impl::registered_stats());
     void merge(StatisticList& result);
   }
   
 } // namespace Grappa
 
 /// make statistics printable
-inline std::ostream& operator<<(std::ostream& o, const Grappa::StatisticBase& stat) {
+inline std::ostream& operator<<(std::ostream& o, const Grappa::impl::StatisticBase& stat) {
   return stat.json(o);
 }
 
