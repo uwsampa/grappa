@@ -19,6 +19,7 @@
 #include <iostream>
 
 #include <stdlib.h> // for memset
+#include <stdio.h>
 
 /* *******************************************************************************************
  * Unbalanced Tree Search in-memory (UTS-mem). This is an extension of the UTS benchmark, where
@@ -34,13 +35,18 @@
 DEFINE_int64( vertices_size, 1<<20, "Upper bound count of vertices" );
 DEFINE_bool( verify_tree, true, "Verify the generated tree" );
 
+// Whether to use local data optimizations for simple iterations over global arrays
+// 0: use asyncparfor and global memory ops
+// 1: use localized fork join and local memory ops
+#define LOCAL_OPTIMIZED 1
+
 // Parallel granularities for important parallel for-loops
 #define VERIFY_THRESHOLD ((int64_t) 4)
 #define CREATE_THRESHOLD ((int64_t) 1)
 // threshold for tree search is specified by Grappa option --async_par_for_threshold
 
 // declare Grappa stealing parameters
-DECLARE_bool( steal );
+DECLARE_string( load_balance );
 DECLARE_int32( chunk_size );
 
 
@@ -55,8 +61,8 @@ int    impl_paramsToStr(char * strBuf, int ind) {
   ind += sprintf(strBuf+ind, "Parallel search using %d processes\n", Grappa_nodes());
   ind += sprintf(strBuf+ind, "   up to %d threads per core\n", FLAGS_num_starting_workers );
 
-  if (FLAGS_steal) {
-    ind += sprintf(strBuf+ind, "    Dynamic load balance by work stealing, chunk size = %d nodes\n", FLAGS_chunk_size);
+  if ( FLAGS_load_balance.compare(        "none" ) != 0 ) {
+    ind += sprintf(strBuf+ind, "    Dynamic load balance with chunk size = %d nodes\n", FLAGS_chunk_size);
   } else {
     ind += sprintf(strBuf+ind, "   No dynamic load balancing.\n");
   }
@@ -374,6 +380,21 @@ LOOP_FUNCTOR(search_func, nid, ((int64_t, root)) ) {
 // Tree generation verification
 ///////////////////////////////////////////////////////////////
 
+#if LOCAL_OPTIMIZED
+void verify_child_func( int64_t * c ) {
+  CHECK( *c > 0 ) << "Child[" << "?" << "] = " << *c << ";; Turn off LOCAL_OPTIMIZED to see '?'"; // > 0 because root is never c
+}
+
+void verify_vertex_func( vertex_t * v ) {
+  CHECK( v->numChildren >= 0 ) << "Vertex[" << "?" << "].numChildren = " << v->numChildren << ";; Turn off LOCAL_OPTIMIZED to see index";
+    CHECK( v->childIndex >= 0 )  << "Vertex[" << "?" << "].childIndex = "  << v->childIndex  << ";; Turn off LOCAL_OPTIMIZED to see index";
+
+    local_verify_children_count += v->numChildren;
+}
+
+#else
+
+
 void verifyChild(int64_t start, int64_t num) {
   int64_t c_stor[num];
   Incoherent<int64_t>::RO c( Child + start, num, c_stor );
@@ -408,11 +429,17 @@ LOOP_FUNCTOR(verify_f,nid, ((uint64_t, num_vertices_gen)) ) {
   }
   global_joiner.wait();
 }
+#endif // LOCAL_OPTIMIZED
 
 void verify_generation( uint64_t num_vert ) {
+#if LOCAL_OPTIMIZED
+  forall_local<int64_t,verify_child_func>(Child, num_vert-1);
+  forall_local<vertex_t,verify_vertex_func>(Vertex, num_vert);
+#else
   verify_f verf;
   verf.num_vertices_gen = num_vert;
   fork_join_custom(&verf);
+#endif // LOCAL_OPTIMIZED
 
   uint64_t total_numChildren = 0;
   // count numChildren entries
@@ -425,6 +452,9 @@ void verify_generation( uint64_t num_vert ) {
   CHECK( total_numChildren == num_vert-1 ) << "verify got " << total_numChildren <<", expected " << num_vert-1;
 }
 
+#if LOCAL_OPTIMIZED
+// just use memset_local
+#else
 void safeinitChild( int64_t start, int64_t num ) {
   int64_t c_stor[num];
   VLOG(5) << "initializing Child[ " << start << " , " << start+(num-1) << " ]";
@@ -459,10 +489,19 @@ LOOP_FUNCTION(safe_init_f,nid) {
   }
   global_joiner.wait();
 }
+#endif // LOCAL_OPTIMIZED
 
 void safe_initialize_data() {
+#if LOCAL_OPTIMIZED
+  vertex_t reset_vertex;
+  reset_vertex.numChildren = -2;
+  reset_vertex.childIndex  = -3;
+  Grappa_memset_local( Child, -1L, FLAGS_vertices_size );
+  Grappa_memset_local( Vertex, reset_vertex, FLAGS_vertices_size );
+#else
   safe_init_f sf;
   fork_join_custom(&sf);
+#endif // LOCAL_OPTIMIZED
 }
 
 
@@ -1012,7 +1051,7 @@ void user_main ( user_main_args * args ) {
   }
   t2 = uts_wctime();
   stop_profiling();
-  Grappa_merge_and_dump_stats();
+  Grappa_merge_and_dump_stats( LOG(INFO) );
 
   if ( opt_ff ) { 
     // count nodes searched

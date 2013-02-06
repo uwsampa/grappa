@@ -71,8 +71,3 @@ void Communicator::finish(int retval) {
   //gasnet_exit( retval );
 }
 
-extern uint64_t merge_reply_count;
-void CommunicatorStatistics::merge_am(CommunicatorStatistics * other, size_t sz, void* payload, size_t psz) {
-  global_communicator.stats.merge(other);
-  merge_reply_count++; 
-}

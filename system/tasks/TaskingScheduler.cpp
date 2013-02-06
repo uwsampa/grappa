@@ -24,21 +24,21 @@ TaskingScheduler global_scheduler;
 
 /// Create uninitialized TaskingScheduler.
 /// init() must subsequently be called before fully initialized.
-TaskingScheduler::TaskingScheduler ( )
-    : readyQ ( )
-    , periodicQ ( )
-    , unassignedQ ( )
-    , master ( NULL )
-    , current_thread ( NULL )
-    , nextId ( 1 )
-    , num_idle ( 0 )
-    , num_active_tasks( 0 )
-    , task_manager ( NULL )
-    , num_workers ( 0 )
-    , work_args( NULL )
-    , previous_periodic_ts( 0 ) 
-    , prev_ts( 0 )
-    , prev_stats_blob_ts( 0 )
+  TaskingScheduler::TaskingScheduler ( )
+  : readyQ ( )
+  , periodicQ ( )
+  , unassignedQ ( )
+  , master ( NULL )
+  , current_thread ( NULL )
+  , nextId ( 1 )
+  , num_idle ( 0 )
+  , num_active_tasks( 0 )
+  , task_manager ( NULL )
+  , num_workers ( 0 )
+  , work_args( NULL )
+  , previous_periodic_ts( 0 ) 
+  , prev_ts( 0 )
+  , prev_stats_blob_ts( 0 )
     , stats( this )
 { 
   Grappa_tick();
@@ -246,22 +246,23 @@ void TaskingScheduler::TaskingSchedulerStatistics::profiling_sample() {
 }
 
 /// Merge other statistics into this one.
-void TaskingScheduler::TaskingSchedulerStatistics::merge(TaskingSchedulerStatistics * other) {
+void TaskingScheduler::TaskingSchedulerStatistics::merge(const TaskingSchedulerStatistics * other) {
   task_calls += other->task_calls;
-  for (int i=StatePoll; i<StateLast; i++) state_timers[i] += other->state_timers[i];
+  // if *this has not been merged with others, then copy int timers to double timers
+  if (merged==1) {
+    for (int i=StatePoll; i<StateLast; i++) state_timers_d[i] = state_timers[i];
+  }
+  // if *other has not been merged with others, then use its int timers (double are invalid);
+  // otherwise use its double timers (int are unmerged)
+  if ( other->merged == 1 ) {
+    for (int i=StatePoll; i<StateLast; i++) state_timers_d[i] += other->state_timers[i];
+  } else {
+    for (int i=StatePoll; i<StateLast; i++) state_timers_d[i] += other->state_timers_d[i];
+  }
   scheduler_count += other->scheduler_count;
 
-  merged++;
+  merged+=other->merged;
   max_active = (int64_t)inc_avg((double)max_active, merged, (double)other->max_active);
   avg_active = inc_avg(avg_active, merged, other->avg_active);
   avg_ready = inc_avg(avg_ready, merged, other->avg_ready);
 }
-
-extern uint64_t merge_reply_count;
-void TaskingScheduler::TaskingSchedulerStatistics::merge_am(TaskingScheduler::TaskingSchedulerStatistics * other, size_t sz, void* payload, size_t psz) {
-  global_scheduler.stats.merge(other);
-  merge_reply_count++;
-}
-
-
-

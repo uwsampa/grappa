@@ -12,23 +12,26 @@
 #include "ForkJoin.hpp"
 #include "common.hpp"
 
-int64_t collective_max(int64_t a, int64_t b);
-int64_t collective_min(int64_t a, int64_t b);
-int64_t collective_add(int64_t a, int64_t b);
-int64_t collective_mult(int64_t a, int64_t b);
-
 #define COLL_MAX &collective_max
 #define COLL_MIN &collective_min
 #define COLL_ADD &collective_add
 #define COLL_MULT &collective_mult
 
-/// @deprecated, replace with 
-/// void Grappa_allreduce(T*,size_t,T*)
-int64_t Grappa_collective_reduce( int64_t (*commutative_func)(int64_t, int64_t), Node home_node, int64_t myValue, int64_t initialValue );
-
 template< typename T >
-inline T coll_add(const T& a, const T& b) {
+T collective_add(const T& a, const T& b) {
   return a+b;
+}
+template< typename T >
+T collective_max(const T& a, const T& b) {
+  return (a>b) ? a : b;
+}
+template< typename T >
+T collective_min(const T& a, const T& b) {
+  return (a>b) ? a : b;
+}
+template< typename T >
+T collective_mult(const T& a, const T& b) {
+  return a*b;
 }
 
 #define HOME_NODE 0
@@ -152,7 +155,7 @@ T Grappa_allreduce(T myval) {
   // TODO: do tree reduction to reduce amount of serialization at Node 0
   reducing_thread = CURRENT_THREAD;
   
-  Grappa_call_on(0, &am_reduce<T,Reducer,BaseVal>, &myval);
+  Grappa_call_on(HOME_NODE, &am_reduce<T,Reducer,BaseVal>, &myval);
   
   Grappa_suspend();
   
@@ -206,7 +209,7 @@ T Grappa_allreduce_noinit(T myval) {
   // TODO: do tree reduction to reduce amount of serialization at Node 0
   reducing_thread = CURRENT_THREAD;
   
-  Grappa_call_on(0, &am_reduce_noinit<T,Reducer>, &myval);
+  Grappa_call_on(HOME_NODE, &am_reduce_noinit<T,Reducer>, &myval);
   
   Grappa_suspend();
   
