@@ -18,6 +18,10 @@ extern "C" {
 #include "stack.h"
 #include <stdio.h>
 
+#ifdef ENABLE_VALGRIND
+#include <valgrind/valgrind.h>
+#endif
+
 /// worker/coroutine implementation
 /// TODO: merge threads and coroutines to make "workers"
 
@@ -34,6 +38,11 @@ typedef struct coro {
   // current stack pointer.  Since stack grows down in x86,
   // stack >= base (hopefully!)
   void *stack;
+
+#ifdef ENABLE_VALGRIND
+  // valgrind
+  unsigned valgrind_stack_id;
+#endif
 
   // pointers for tracking all coroutines
   struct coro * prev;
