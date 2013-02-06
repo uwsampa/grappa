@@ -2,6 +2,7 @@
 
 #include "ConditionVariableLocal.hpp"
 #include "Message.hpp"
+#include "Tasking.hpp"
 
 namespace Grappa {
 
@@ -52,6 +53,15 @@ namespace Grappa {
         ce.pointer()->complete();
       });
     }
+  }
+  
+  template<typename TF>
+  void privateTask(CompletionEvent * ce, TF tf) {
+    ce->enroll();
+    privateTask([ce,tf] {
+      tf();
+      ce->complete();
+    });
   }
   
 } // namespace Grappa

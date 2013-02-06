@@ -87,6 +87,7 @@ namespace Grappa {
   template < typename TF >
   void privateTask( TF tf ) {
     if( sizeof( tf ) > 24 ) { // if it's too big to fit in a task queue entry
+      DVLOG(4) << "Heap allocated task of size " << sizeof(tf);
       // heap-allocate copy of functor, passing ownership to spawned task
       TF * tp = new TF(tf);
       global_task_manager.spawnLocalPrivate( Grappa::impl::task_heapfunctor_proxy<TF>, tp, tp, tp );
