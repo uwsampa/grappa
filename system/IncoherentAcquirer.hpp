@@ -10,7 +10,7 @@
 
 #include "Grappa.hpp"
 #include "Addressing.hpp"
-
+#include "Message.hpp"
 
 #ifdef VTRACE
 #include <vt_user.h>
@@ -210,10 +210,17 @@ public:
       DVLOG(5) << "Computing request_bytes from block_max " << request_address_->first_byte().block_max() << " and " << *request_address_;
       args.reply_address = make_global( this );
       args.offset = 0;  
-
-      for( size_t total_bytes = *count_ * sizeof(T);
+      size_t total_bytes = *count_ * sizeof(T);
+      
+      
+      // allocate enough requests/messages that we don't run out
+      size_t nmsg = total_bytes / block_size + 2;
+      RequestArgs arg_array[nmsg];
+      Grappa::ExternalMessage<RequestArgs> msg_array[nmsg];
+      
+      for(size_t i = 0;
            args.offset < total_bytes; 
-           args.offset += args.request_bytes) {
+           args.offset += args.request_bytes, i++) {
 
         args.request_bytes = args.request_address.first_byte().block_max() - args.request_address.first_byte();
 
@@ -226,12 +233,16 @@ public:
                  << " of total bytes = " << *count_ * sizeof(T)
                  << " from " << args.request_address;
 
-        Grappa_call_on( args.request_address.node(), &incoherent_acquire_request_am<T>, &args );
+        arg_array[i] = args;
+        new (msg_array+i) Grappa::ExternalMessage<RequestArgs>(arg_array[i].request_address.node(), &arg_array[i]);
+        msg_array[i].send();
 
-	// TODO: change type so we don't screw with pointer like this
+        // TODO: change type so we don't screw with pointer like this
         args.request_address = GlobalAddress<T>::Raw( args.request_address.raw_bits() + args.request_bytes );
       }
       DVLOG(5) << "acquire started for " << args.request_address;
+      
+      // blocks here waiting for messages to be sent
     }
   }
 
@@ -245,9 +256,9 @@ public:
               << " ready to block on " << *request_address_ 
               << " * " << *count_ ;
       if( !acquired_ ) {
-	start_time_ = Grappa_get_timestamp();
+        start_time_ = Grappa_get_timestamp();
       } else {
-	start_time_ = 0;
+        start_time_ = 0;
       }
       while( !acquired_ ) {
       DVLOG(5) << "Thread " << CURRENT_THREAD 
@@ -283,8 +294,8 @@ public:
         Grappa_wake( thread_ );
       }
       if( start_time_ != 0 ) {
-	network_time_ = Grappa_get_timestamp();
-	incoherent_acquirer_stats.record_network_latency( start_time_ );
+        network_time_ = Grappa_get_timestamp();
+        incoherent_acquirer_stats.record_network_latency( start_time_ );
       }
     }
   }
@@ -296,6 +307,14 @@ public:
   struct ReplyArgs {
     GlobalAddress< IncoherentAcquirer > reply_address;
     int offset;
+    
+    void operator()(void * payload, size_t payload_size) {
+      DVLOG(5) << "Thread " << CURRENT_THREAD
+               << " received acquire reply to " << this->reply_address
+               << " offset " << this->offset
+               << " payload size " << payload_size;
+      this->reply_address.pointer()->acquire_reply( this->offset, payload, payload_size );
+    }
   };
 
   /// Args for incoherent acquire request 
@@ -304,53 +323,37 @@ public:
     size_t request_bytes;
     GlobalAddress< IncoherentAcquirer > reply_address;
     int offset;
+
+    void operator()() {
+      incoherent_acquirer_stats.count_acquire_ams( this->request_bytes );
+      DVLOG(5) << "Thread " << CURRENT_THREAD 
+               << " received acquire request to " << this->request_address
+               << " size " << this->request_bytes
+               << " offset " << this->offset
+               << " reply to " << this->reply_address;
+      typename IncoherentAcquirer<T>::ReplyArgs reply_args;
+      reply_args.reply_address = this->reply_address;
+      reply_args.offset = this->offset;
+      DVLOG(5) << "Thread " << CURRENT_THREAD 
+               << " sending acquire reply to " << this->reply_address
+               << " offset " << this->offset
+               << " request address " << this->request_address
+               << " payload address " << this->request_address.pointer()
+               << " payload size " << this->request_bytes;
+      
+      Grappa::send_heap_message(this->reply_address.node(), &reply_args,
+                       this->request_address.pointer(), this->request_bytes );
+      DVLOG(5) << "Thread " << CURRENT_THREAD 
+               << " sent acquire reply to " << this->reply_address
+               << " offset " << this->offset
+               << " request address " << this->request_address
+               << " payload address " << this->request_address.pointer()
+               << " payload size " << this->request_bytes;
+    }
   };
 
 
 };
-
-/// Handler for incoherent acquire reply
-template< typename T >
-static void incoherent_acquire_reply_am( typename IncoherentAcquirer< T >::ReplyArgs * args, 
-                                         size_t size, 
-                                         void * payload, size_t payload_size ) {
-  DVLOG(5) << "Thread " << CURRENT_THREAD 
-           << " received acquire reply to " << args->reply_address
-           << " offset " << args->offset
-           << " payload size " << payload_size;
-  args->reply_address.pointer()->acquire_reply( args->offset, payload, payload_size );
-}
-
-/// Handler for incoherent acquire request 
-template< typename T >
-static void incoherent_acquire_request_am( typename IncoherentAcquirer< T >::RequestArgs * args, 
-                                    size_t size, 
-                                    void * payload, size_t payload_size ) {
-  incoherent_acquirer_stats.count_acquire_ams( args->request_bytes );
-  DVLOG(5) << "Thread " << CURRENT_THREAD 
-           << " received acquire request to " << args->request_address
-           << " size " << args->request_bytes
-           << " offset " << args->offset
-           << " reply to " << args->reply_address;
-  typename IncoherentAcquirer<T>::ReplyArgs reply_args;
-  reply_args.reply_address = args->reply_address;
-  reply_args.offset = args->offset;
-  DVLOG(5) << "Thread " << CURRENT_THREAD 
-           << " sending acquire reply to " << args->reply_address
-           << " offset " << args->offset
-           << " request address " << args->request_address
-           << " payload address " << args->request_address.pointer()
-           << " payload size " << args->request_bytes;
-  Grappa_call_on( args->reply_address.node(), incoherent_acquire_reply_am<T>,
-                   &reply_args, sizeof( reply_args ),  
-                   args->request_address.pointer(), args->request_bytes );
-  DVLOG(5) << "Thread " << CURRENT_THREAD 
-           << " sent acquire reply to " << args->reply_address
-           << " offset " << args->offset
-           << " request address " << args->request_address
-           << " payload address " << args->request_address.pointer()
-           << " payload size " << args->request_bytes;
-}
 
 
 #endif
