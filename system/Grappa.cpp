@@ -65,7 +65,7 @@ HeapLeakChecker * Grappa_heapchecker = 0;
 #endif
 
 /// Sample all stats for VampirTrace
-void Grappa_take_profiling_sample() {
+void legacy_profiling_sample() {
   global_aggregator.stats.profiling_sample();
   global_communicator.stats.profiling_sample();
   global_task_manager.stats.profiling_sample();

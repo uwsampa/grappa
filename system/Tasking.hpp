@@ -33,8 +33,6 @@ extern TaskManager global_task_manager;
 
 DECLARE_uint64( num_starting_workers );
 
-void Grappa_take_profiling_sample();
-
 
 ///
 /// Task routines

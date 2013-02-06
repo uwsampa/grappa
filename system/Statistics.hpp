@@ -20,6 +20,8 @@ namespace Grappa {
     void print(std::ostream& out = std::cerr, StatisticList& stats = Grappa::impl::registered_stats(), const std::string& legacy_stats = "");
     void merge(StatisticList& result);
     void merge_and_print(std::ostream& out = std::cerr);
+
+    void sample_all();
   }
   
 } // namespace Grappa
