@@ -268,12 +268,12 @@ SRUN_EXPORT_ENV_VARIABLES?=--task-prolog=$(SRUN_ENVVAR_TEMP) --task-epilog=$(SRU
 	@echo \#!/bin/bash > $@
 	@for i in $(ENV_VARIABLES); do echo echo export $$i >> $@; done
 	@echo '# Clean up any leftover shared memory regions' >> $@
-	@echo 'for i in `ipcs -m | grep $(USER) | cut -d" " -f1`; do ipcrm -M $$i; done' >> $@
+	@echo 'for i in `ipcs -m | grep $(USER) | cut -d" " -f1 | grep -v 0x00000000`; do ipcrm -M $$i; done' >> $@
 	@chmod +x $@
 
 .srunrc_epilog.%:
 	@echo \#!/bin/bash > $@
-	@echo 'for i in `ipcs -m | grep $(USER) | cut -d" " -f1`; do ipcrm -M $$i; done' >> $@
+	@echo 'for i in `ipcs -m | grep $(USER) | cut -d" " -f1 | grep -v 0x00000000`; do ipcrm -M $$i; done' >> $@
 	@chmod +x $@
 
 # set to force libs to be recopied to scratch disks
