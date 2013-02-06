@@ -45,7 +45,7 @@ void IRStatistics::profiling_sample() {
 #endif
 }
 
-void IRStatistics::merge(IRStatistics * other) {
+void IRStatistics::merge(const IRStatistics * other) {
   release_ams += other->release_ams;
   release_ams_bytes += other->release_ams_bytes;
 }
