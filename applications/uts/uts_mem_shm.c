@@ -72,7 +72,7 @@ omp_lock_t * omp_global_lock_alloc() {
 #define LOCK_T           upc_lock_t
 #define GET_NUM_THREADS  (THREADS)
 #define GET_THREAD_NUM   (MYTHREAD)
-#define SET_LOCK(zlk)    printf("lock %d\n", zlk); upc_lock(zlk)
+#define SET_LOCK(zlk)    /*printf("lock %d\n", zlk);*/ upc_lock(zlk)
 #define UNSET_LOCK(zlk)  upc_unlock(zlk)
 #define INIT_LOCK(zlk)   zlk=upc_global_lock_alloc()
 #define INIT_SINGLE_LOCK(zlk) zlk=upc_all_lock_alloc()
@@ -1064,7 +1064,7 @@ void genChildren(Node * parent, Node * child, StealStack * ss) {
   /*** Store the tree into memory ***/
   int64_t id = uts_nodeId(parent);
   /* Record the number of children: */
-  printf("vertex %ld gets nc: %lu\n", id, numChildren);
+  //printf("vertex %ld gets nc: %lu\n", id, numChildren);
   parentStored.numChildren = numChildren;
 
   int64_t childid0 = 0;
@@ -1121,7 +1121,7 @@ void genChildren(Node * parent, Node * child, StealStack * ss) {
       
       // set the id
       child->id = childid0 + i;
-      printf("THREAD %d pushing a child with id: %ld\n", GET_THREAD_NUM, child->id);
+      //printf("THREAD %d pushing a child with id: %ld\n", GET_THREAD_NUM, child->id);
 
       ss_push(ss, child);
       releaseNodes(ss);
@@ -1397,8 +1397,8 @@ void parTreeSearch(StealStack *ss) {
         /* Random access: get the vertex */
         vertex_t parentStored = Vertex[parentOnlyId->id];
 
-        printf("found parent nc: %lu, ci: %lu\n", parentStored.numChildren,
-                                                  parentStored.childIndex);
+       // printf("found parent nc: %lu, ci: %lu\n", parentStored.numChildren,
+       //                                                   parentStored.childIndex);
         searchChildren(&parentStored,ss);
 
         parentOnlyId->id = VERTEX_FINISHED;
@@ -1871,6 +1871,10 @@ int main(int argc, char *argv[]) {
       }
     }
 #endif
+    /* display results */
+    if (GET_THREAD_NUM == 0) {
+      showStats(et);
+    } 
 
   }
 /********** End Parallel Region **********/
