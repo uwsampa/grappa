@@ -60,8 +60,9 @@ LOOP_FUNCTOR( node_max_func, mynode,
   f.edges = edges;
   f.max = &max;
   fork_join_onenode(&f, myblock.start, myblock.end);
+    
+  maxvtx = Grappa_allreduce<int64_t, collective_max, 0>( max );
   
-  maxvtx = Grappa_collective_reduce(&collective_max, 0, max, -1);
   nv = maxvtx+1;
 }
 

@@ -111,8 +111,7 @@ public:
   void dump( std::ostream& o, const char * terminator );
   void sample();
   void profiling_sample();
-  void merge(DelegateStatistics * other);
-  static void merge_am(DelegateStatistics * other, size_t sz, void* payload, size_t psz);
+  void merge(const DelegateStatistics * other);
 };
 
 extern DelegateStatistics delegate_stats;
@@ -378,3 +377,21 @@ ReturnType Grappa_delegate_func( ArgType arg, Node target ) {
     return result;
   }
 }
+
+
+/// Return the size of the request message for this delegate function.
+template < typename ArgType, typename ReturnType >
+size_t Grappa_sizeof_delegate_func_request( ) {
+  generic_delegate_request_args< ArgType, ReturnType > del_args; 
+  // must be called the same way as call_on in Grappa_delegate_func()
+  return Grappa_sizeof_message( &del_args );
+}
+
+/// Return the size of the reply message for this delegate function.
+template < typename ArgType, typename ReturnType >
+size_t Grappa_sizeof_delegate_func_reply( ) {
+  generic_delegate_reply_args< ReturnType > reply_args;
+  // must be called the same way as call_on in generic_delegate_request_am()
+  return Grappa_sizeof_message( &reply_args );
+}
+

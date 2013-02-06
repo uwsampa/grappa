@@ -179,6 +179,9 @@ void Grappa_signal_done( );
 /// User main signal tasks done
 void Grappa_end_tasks( );
 
+/// Check initialized global queue
+bool Grappa_global_queue_isInit( );
+
 /// dump stats for this node
 void Grappa_dump_stats( std::ostream& oo = std::cout );
 /// dump stats for all nodes
