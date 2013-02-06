@@ -115,7 +115,7 @@ namespace Grappa {
         , destination_( -1 )
         , cv_()
 	, is_moved_( false )
-      { LOG(INFO) << "construct " << this; }
+      { DVLOG(5) << "construct " << this; }
 
       MessageBase( Core dest )
         : next_( NULL )
@@ -124,7 +124,7 @@ namespace Grappa {
         , destination_( dest )
         , cv_()
 	, is_moved_( false )
-      { LOG(INFO) << "construct " << this; }
+      { DVLOG(5) << "construct " << this; }
 
       // Ensure we are sent before leaving scope
       inline virtual ~MessageBase() {
