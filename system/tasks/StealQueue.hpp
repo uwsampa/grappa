@@ -25,7 +25,7 @@
 
 
 #include "../Addressing.hpp"
-#include "../ConditionVariables.hpp"
+#include "../LegacySignaler.hpp"
 
 // global queue forward declarations
 template <typename T>
