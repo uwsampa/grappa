@@ -37,28 +37,29 @@ namespace Grappa {
   template <> const int SimpleStatistic<uint64_t>::vt_type = VT_COUNT_TYPE_UNSIGNED;
   template <> const int SimpleStatistic<double>::vt_type = VT_COUNT_TYPE_DOUBLE;
   template <> const int SimpleStatistic<float>::vt_type = VT_COUNT_TYPE_FLOAT;
-//  template <typename T> const int SimpleStatistic<T>::vt_type = 0;
 #endif
   
-  StatisticBase::StatisticBase(const char * name, bool reg_new): name(name) {
+  impl::StatisticBase::StatisticBase(const char * name, bool reg_new): name(name) {
     if (reg_new) {
-      Statistics::registered_stats().push_back(this);
+      Grappa::impl::registered_stats().push_back(this);
       VLOG(1) << "registered <" << this->name << ">";
+    }
+  }
+  
+  namespace impl {
+    StatisticList& registered_stats() {
+      static StatisticList r;
+      return r;
     }
   }
   
   namespace Statistics {
     
-    StatisticList& registered_stats() {
-      static StatisticList r;
-      return r;
-    }
-    
     void merge(StatisticList& result) {
       result.clear(); // ensure it's empty
       
-      for (StatisticBase * local_stat : registered_stats()) {
-        StatisticBase* merge_target = local_stat->clone();
+      for (Grappa::impl::StatisticBase * local_stat : Grappa::impl::registered_stats()) {
+        Grappa::impl::StatisticBase* merge_target = local_stat->clone();
         result.push_back(merge_target); // slot for merged stat
         merge_target->merge_all(local_stat);
       }
@@ -67,7 +68,7 @@ namespace Grappa {
     void print(std::ostream& out, StatisticList& stats) {
       std::ostringstream o;
       o << "STATS{\n";
-      for (StatisticBase*& s : stats) {
+      for (Grappa::impl::StatisticBase*& s : stats) {
         // skip printing "," before first one
         if (&s-&stats[0] != 0) { o << ",\n"; }
         
