@@ -62,8 +62,7 @@ class CacheStatistics {
     void dump( std::ostream& o, const char * terminator );
     void sample();
     void profiling_sample();
-    void merge(CacheStatistics * other);
-    static void merge_am(CacheStatistics * other, size_t sz, void* payload, size_t psz);
+    void merge(const CacheStatistics * other);
 };
 
 extern CacheStatistics cache_stats;

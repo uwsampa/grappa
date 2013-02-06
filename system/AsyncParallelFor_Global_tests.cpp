@@ -164,7 +164,6 @@ LOOP_FUNCTOR( ff_test_func, nid, ((GlobalAddress<double>,array)) ) {
 }
 
 void user_main( void * args ) {
-  
   BOOST_CHECK( Grappa_nodes() <= MAX_NODES );
   
   int64_t total_iters = Grappa_nodes() * SIZE;

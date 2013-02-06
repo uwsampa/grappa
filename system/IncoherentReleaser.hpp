@@ -53,7 +53,7 @@ class IRStatistics {
     void dump( std::ostream& o, const char * terminator );
     void sample();
     void profiling_sample();
-    void merge(IRStatistics * other);
+    void merge(const IRStatistics * other);
 };
 
 extern IRStatistics incoherent_releaser_stats;
