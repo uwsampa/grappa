@@ -111,8 +111,7 @@ public:
   void dump( std::ostream& o, const char * terminator );
   void sample();
   void profiling_sample();
-  void merge(DelegateStatistics * other);
-  static void merge_am(DelegateStatistics * other, size_t sz, void* payload, size_t psz);
+  void merge(const DelegateStatistics * other);
 };
 
 extern DelegateStatistics delegate_stats;
