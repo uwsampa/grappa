@@ -33,7 +33,9 @@ CFLAGS+= -mno-red-zone
 CFLAGS+= -Wl,-rpath,$(LD_LIBRARY_PATH),--enable-new-dtags
 
 # Enable tcmalloc by default, since we've already built its package for profiling
+ifndef VALGRIND
 LIBRARIES+= -ltcmalloc
+endif
 
 LD_LIBRARY_PATH:=$(LD_LIBRARY_PATH):$(BOOST)/stage/lib
 
@@ -242,6 +244,11 @@ VAMPIRTRACE?=$(GRAPPA_HOME)/tools/built_deps
 CFLAGS+= -I$(VAMPIRTRACE)/include
 LDFLAGS+= -L$(VAMPIRTRACE)/lib
 LD_LIBRARY_PATH:=$(VAMPIRTRACE)/lib:$(LD_LIBRARY_PATH)
+
+VALGRIND_PATH?=/sampa/share/valgrind-3.8.1-cluster
+CFLAGS+= -I$(VAMPIRTRACE)/include
+LDFLAGS+= -L$(VAMPIRTRACE)/lib/valgrind
+LD_LIBRARY_PATH:=$(VAMPIRTRACE)/lib/valgrind:$(LD_LIBRARY_PATH)
 
 
 MPITYPE?=SRUN
