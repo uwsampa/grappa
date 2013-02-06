@@ -200,6 +200,9 @@ void Grappa_publicTask( void (*fn_p)(A0), A0 arg) {
   Grappa_publicTask(reinterpret_cast<void (*)(A0,void*)>(fn_p), arg, (void*)NULL);
 }
 
+// initialize global queue if used
+void Grappa_global_queue_initialize();
+  
 // forward declaration needed for below wrapper
 void Grappa_end_tasks();
 
@@ -207,6 +210,7 @@ void Grappa_end_tasks();
 /// after it is done
 template < typename T >
 static void user_main_wrapper( void (*fp)(T), T args ) {
+    Grappa_global_queue_initialize();
     fp( args );
     Grappa_end_tasks();
 }
