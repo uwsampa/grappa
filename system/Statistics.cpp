@@ -1,9 +1,11 @@
 #include "StatisticBase.hpp"
 #include "Statistics.hpp"
+#include "Grappa.hpp"
 #include <vector>
 #include <iostream>
 #include <sstream>
 #include <cstdint>
+
 
 #ifdef VTRACE_SAMPLED
 #include <vt_user.h>
@@ -54,7 +56,19 @@ namespace Grappa {
   }
   
   namespace Statistics {
-    
+    namespace impl {
+      void stat_list_json(std::ostream& out, StatisticList& stats) {
+        std::ostringstream o;
+        for (Grappa::impl::StatisticBase*& s : stats) {
+          // skip printing "," before first one
+          if (&s-&stats[0] != 0) { o << ",\n"; }
+          
+          o << "  " << *s;
+        }
+        out << o.str();
+      }
+    }
+
     void merge(StatisticList& result) {
       result.clear(); // ensure it's empty
       
@@ -64,18 +78,28 @@ namespace Grappa {
         merge_target->merge_all(local_stat);
       }
     }
-    
-    void print(std::ostream& out, StatisticList& stats) {
+
+    void print(std::ostream& out, StatisticList& stats, const std::string& legacy_stats) {
       std::ostringstream o;
       o << "STATS{\n";
-      for (Grappa::impl::StatisticBase*& s : stats) {
-        // skip printing "," before first one
-        if (&s-&stats[0] != 0) { o << ",\n"; }
-        
-        o << "  " << *s;
-      }
+
+      impl::stat_list_json(o, stats);
+      o << ",\n";
+
+      o << legacy_stats;
+
       o << "\n}STATS";
       out << o.str() << std::endl;
+    }
+
+    void merge_and_print(std::ostream& out) {
+      StatisticList all;
+      merge(all);
+
+      std::ostringstream legacy_stats;
+      legacy_reduce_stats_and_dump(legacy_stats);
+
+      print(std::cerr, all, legacy_stats.str());
     }
   }
 } // namespace Grappa

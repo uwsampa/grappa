@@ -199,7 +199,8 @@ void Grappa_dump_task_series();
 
 void Grappa_dump_stats_blob();
 
-
+void legacy_dump_stats( std::ostream& oo );
+void legacy_reduce_stats_and_dump( std::ostream& oo );
 
 #include "Aggregator.hpp"
 

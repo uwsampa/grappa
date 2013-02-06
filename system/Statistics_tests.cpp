@@ -34,9 +34,7 @@ void user_main(void * args) {
     return true;
   });
   
-  StatisticList all;
-  Statistics::merge(all);
-  Statistics::print(std::cerr, all);
+  Statistics::merge_and_print();
 }
 
 BOOST_AUTO_TEST_CASE( test1 ) {
