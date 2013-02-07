@@ -35,6 +35,7 @@ void user_main(void * args) {
   });
   
   Statistics::merge_and_print();
+  Statistics::dump_stats_blob();
 }
 
 BOOST_AUTO_TEST_CASE( test1 ) {

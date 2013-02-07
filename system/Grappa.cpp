@@ -426,7 +426,6 @@ void Grappa_reset_stats_all_nodes() {
 /// Dump statistics
 void legacy_dump_stats( std::ostream& oo ) {
   std::ostringstream o;
-  o << "STATS{\n";
   o << "   \"GrappaStats\": { \"tick_rate\": " << tick_rate
     << ", \"job_id\": " << jobid
     << ", \"nodelist\": \"" << nodelist_str << "\""
@@ -443,7 +442,6 @@ void legacy_dump_stats( std::ostream& oo ) {
   global_queue_stats.dump( o, "," );
   dump_flags( o, "," );
   Grappa_dump_user_stats( o, "" ); // TODO: user stats are NOT merged
-  o << "}STATS";
   oo << o.str();
 }
 

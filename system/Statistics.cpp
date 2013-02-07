@@ -3,9 +3,11 @@
 #include "Grappa.hpp"
 #include <vector>
 #include <iostream>
+#include <fstream>
 #include <sstream>
 #include <cstdint>
 
+DECLARE_string(stats_blob_filename);
 
 #ifdef VTRACE_SAMPLED
 #include <vt_user.h>
@@ -99,7 +101,15 @@ namespace Grappa {
       std::ostringstream legacy_stats;
       legacy_reduce_stats_and_dump(legacy_stats);
 
-      print(std::cerr, all, legacy_stats.str());
+      print(out, all, legacy_stats.str());
+    }
+
+    void dump_stats_blob() {
+      std::ostringstream legacy_stats;
+      legacy_dump_stats(legacy_stats);
+
+      std::ofstream o( FLAGS_stats_blob_filename.c_str(), std::ios::out );
+      print( o, Grappa::impl::registered_stats(), legacy_stats.str());
     }
 
     void sample_all() {
