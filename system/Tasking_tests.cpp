@@ -99,6 +99,9 @@ void user_main( void* args )
   joiner.wait();
 
   BOOST_MESSAGE( "user main is exiting" );
+  SoftXMT_merge_and_dump_stats();
+  BOOST_MESSAGE( "-- ALL NODES --" );
+  SoftXMT_dump_stats_all_nodes();
 }
 
 BOOST_AUTO_TEST_CASE( test1 ) {

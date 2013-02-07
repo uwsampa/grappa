@@ -83,8 +83,8 @@ private:
                << ">";
     } else {
         return o << "<GA Linear " << (void*)storage_ 
-                 << ": pool " << pool() 
-                 << " node " << node() 
+//                 << ": pool " << pool() 
+                 << " node " << node()
                  << " pointer " << static_cast<void *>( pointer()  )
                  << ">";
     }

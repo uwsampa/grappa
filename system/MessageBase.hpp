@@ -4,7 +4,7 @@
 
 #include <cstring>
 
-#include "ConditionVariable.hpp"
+#include "ConditionVariableLocal.hpp"
 
 typedef int16_t Core;
 
@@ -49,8 +49,8 @@ namespace Grappa {
       static void legacy_send_message_am( char * buf, size_t size, void * payload, size_t payload_size );
 
       /// Send message through old aggregator
-      inline void legacy_send() {
-        const size_t message_size = this->size();
+      void legacy_send() {
+        const size_t message_size = this->serialized_size();
         char buf[ message_size ];
         this->serialize_to( buf, message_size );
         Grappa_call_on( destination_, legacy_send_message_am, buf, message_size );
@@ -99,11 +99,17 @@ namespace Grappa {
         , cv_()
         , is_moved_( false )
         , delete_after_send_( false ) 
-      { DVLOG(5) << "construct " << this; }
+      { DVLOG(9) << "construct " << this; }
 
       // Ensure we are sent before leaving scope
       virtual ~MessageBase() {
         DVLOG(9) << "destruct " << this;
+
+      // Ensure we are sent before leaving scope
+      inline virtual ~MessageBase() {
+        if (is_enqueued_) {
+          block_until_sent();
+        }
       }
 
       MessageBase( const MessageBase& ) = delete;
@@ -131,8 +137,12 @@ namespace Grappa {
         return is_enqueued_ && !is_sent_;
       }
 
-
-
+      /// Make sure we know how big this message is
+      virtual const size_t serialized_size() const = 0;
+      
+      /// Unserialized message size
+      virtual const size_t size() const = 0;
+      
       /// Implemented in MessageBaseImpl.hpp
       inline void enqueue();
       inline void enqueue( Core c );

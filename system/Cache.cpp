@@ -14,40 +14,6 @@ Node address2node( void * ) {
   return 0;
 }
 
-
-
-// void incoherent_release_request_am( memory_write_reply_args * args, size_t size, void * payload, size_t payload_size ) {
-//   args->descriptor->done = true;
-//   Delegate_wakeup( args->descriptor );
-// }
-
-// void incoherent_release_reply_am( memory_write_reply_args * args, size_t size, void * payload, size_t payload_size ) {
-//   args->descriptor->done = true;
-//   Delegate_wakeup( args->descriptor );
-// }
-
-// template< typename T >
-// void IncoherentReleaser::start_release() { 
-//   if( !release_started_ ) {
-//     release_started_ = true;
-//     ;
-//   }
-// }
-
-// template< typename T >
-// void IncoherentReleaser::block_until_released() {
-//     if( !released_ ) {
-//       ;
-//       released_ = true;
-//     }
-//   }
-
-// template< typename T >
-// bool IncoherentReleaser::released() {
-//   return released_;
-// }
-
-
 CacheStatistics cache_stats;
 
 CacheStatistics::CacheStatistics()
@@ -71,9 +37,6 @@ void CacheStatistics::reset() {
   rw_releases = 0;
   bytes_acquired = 0;
   bytes_released = 0;
-
-  incoherent_acquirer_stats.reset();
-  incoherent_releaser_stats.reset();
 }
 
 void CacheStatistics::dump( std::ostream& o = std::cout, const char * terminator = "" ) {
@@ -84,17 +47,11 @@ void CacheStatistics::dump( std::ostream& o = std::cout, const char * terminator
     << "\"rw_releases\": " << rw_releases << ", "
     << "\"bytes_acquired\": " << bytes_acquired << ", "
     << "\"bytes_released\": " << bytes_released
-    << " }" << "," << std::endl;
-  
-  incoherent_acquirer_stats.dump( o, ",");
-  incoherent_releaser_stats.dump( o, terminator );
+    << " }" << terminator << std::endl;
 }
 
 void CacheStatistics::sample() {
   ;
-
-  incoherent_acquirer_stats.sample();
-  incoherent_releaser_stats.sample();
 }
 
 void CacheStatistics::profiling_sample() {
@@ -106,26 +63,14 @@ void CacheStatistics::profiling_sample() {
   VT_COUNT_UNSIGNED_VAL( bytes_acquired_ev_vt, bytes_acquired );
   VT_COUNT_UNSIGNED_VAL( bytes_released_ev_vt, bytes_released );
 #endif
-
-  incoherent_acquirer_stats.profiling_sample();
-  incoherent_releaser_stats.profiling_sample();
 }
 
-void CacheStatistics::merge(CacheStatistics * other) {
+void CacheStatistics::merge(const CacheStatistics * other) {
   ro_acquires += other->ro_acquires;
   wo_releases += other->wo_releases;
   rw_acquires += other->rw_acquires;
   rw_releases += other->rw_releases;
   bytes_acquired += other->bytes_acquired;
   bytes_released += other->bytes_released;
-  
-  // cant call from here, need other
-  //incoherent_acquirer_stats.merge(?);
-  //incoherent_releaser_stats.merge(?);
 }
 
-extern uint64_t merge_reply_count;
-void CacheStatistics::merge_am(CacheStatistics * other, size_t sz, void* payload, size_t psz) {
-  cache_stats.merge( other );
-  merge_reply_count++;
-}

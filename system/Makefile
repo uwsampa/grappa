@@ -125,6 +125,9 @@ AsyncParallelFor_Local_tests.o AsyncParallelFor_Local_tests.test: $(LIBRARY)
 AsyncParallelFor_Global_tests.o AsyncParallelFor_Global_tests.test: $(LIBRARY)
 AsyncParallelFor_Rate.o AsyncParallelFor_Rate.exe: $(LIBRARY)
 
+Uid_tests.o Uid_tests.test: $(LIBRARY)
+Uid_rate_tests.o Uid_rate_tests.test: $(LIBRARY)
+
 LocalIterator_tests.o LocalIterator_tests.test: $(LIBRARY)
 
 Uid_tests.o Uid_tests.test: $(LIBRARY)
@@ -137,6 +140,9 @@ FileIO_tests.o FileIO_tests.test: $(LIBRARY)
 FileIO_tests.test: LIBRARIES+='-lboost_filesystem'
 
 Array_tests.o Array_tests.test: $(LIBRARY)
+
+New_delegate_tests.test: $(LIBRARY)
+Statistics_tests.test: $(LIBRARY)
 
 #
 # environment variables for run
@@ -229,9 +235,9 @@ ENV_VARIABLES+= VT_MAX_FLUSHES=0
 ENV_VARIABLES+= VT_PFORM_GDIR=.
 ENV_VARIABLES+= VT_PFORM_LDIR=/scratch
 VAMPIRTRACE_COMMON_ARGS= -vt:inst manual
-CXX=$(VAMPIRTRACE)/bin/vtcxx -vt:cxx g++ $(VAMPIRTRACE_COMMON_ARGS)
-CC=$(VAMPIRTRACE)/bin/vtcc -vt:cc gcc $(VAMPIRTRACE_COMMON_ARGS)
-LD=$(VAMPIRTRACE)/bin/vtcxx -vt:cxx mpicxx $(VAMPIRTRACE_COMMON_ARGS)
+CXX=$(VAMPIRTRACE)/bin/vtcxx -vt:cxx $(GCC472)/bin/g++ $(VAMPIRTRACE_COMMON_ARGS)
+CC=$(VAMPIRTRACE)/bin/vtcc -vt:cc $(GCC472)/bin/gcc $(VAMPIRTRACE_COMMON_ARGS)
+LD=$(VAMPIRTRACE)/bin/vtcxx -vt:cxx "$(GCC472_LD)" $(VAMPIRTRACE_COMMON_ARGS)
 CFLAGS+= -DVTRACE -DVTRACE_SAMPLED
 endif
 
@@ -254,7 +260,7 @@ endif
 #
 # Build Grappa static library
 #
-LIBRARY_CONTENTS+= Grappa.o GlobalAllocator.o GlobalMemory.o GlobalMemoryChunk.o Communicator.o Aggregator.o Timestamp.o Allocator.o Cache.o Delegate.o Collective.o ForkJoin.o tasks/TaskingScheduler.o tasks/Task.o tasks/Thread.o stack.o coro.o StateTimer.o PerformanceTools.o Future.o CurrentThread.o ProfilerGroups.o AsyncParallelFor.o GlobalTaskJoiner.o IncoherentAcquirer.o IncoherentReleaser.o Uid.o MessageBase.o RDMAAggregator.o
+LIBRARY_CONTENTS+= Grappa.o GlobalAllocator.o GlobalMemory.o GlobalMemoryChunk.o Communicator.o Aggregator.o Timestamp.o Allocator.o Cache.o Delegate.o Collective.o ForkJoin.o tasks/BasicScheduler.o tasks/TaskingScheduler.o tasks/Task.o tasks/Thread.o stack.o coro.o StateTimer.o PerformanceTools.o Future.o CurrentThread.o ProfilerGroups.o AsyncParallelFor.o GlobalTaskJoiner.o IncoherentAcquirer.o IncoherentReleaser.o Uid.o tasks/StealQueue.o tasks/GlobalQueue.o LegacySignaler.o Statistics.o MessageBase.o RDMAAggregator.o
 
 libGrappa.a: $(LIBRARY_CONTENTS)
 	$($(MPITYPE)_AR) rv $@ $^
