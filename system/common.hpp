@@ -166,4 +166,44 @@ inline void operator()() const; \
 }; \
 inline void name::operator()() const
 
+
+
+namespace Grappa {
+  
+  /// @addtogroup Utility
+  /// @{
+  
+  /// Get string containing name of type.
+  template< typename T >
+  const char * typename_of( ) { 
+    // how big is the name of the type of this function?
+    static const int size = sizeof(__PRETTY_FUNCTION__);
+    
+    // make a modifiable copy that's that big
+    static char fn_name[ size ] = { '\0' };
+    
+    // copy the name into the modifiable copy
+    static const char * strcpy_retval = strncpy( fn_name, __PRETTY_FUNCTION__, size );
+    
+    // find the start of the type name
+    static const char with[] = "[with T = ";
+    static const char * name = strstr( fn_name, with ) + sizeof( with ) - 1;
+    
+    // erase the bracket at the end of the string
+    static const char erase_bracket = fn_name[size-2] = '\0';
+    
+    // whew. return the string we built.
+    return name;
+  }
+  
+  /// Get string containing name of type
+  template< typename T >
+  const char * typename_of( const T& unused ) { 
+    return typename_of<T>();
+  }
+  
+  /// @}
+
+}
+
 #endif

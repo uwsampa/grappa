@@ -318,7 +318,7 @@ public:
     assert( registration_is_allowed_ );
     int current_handler_index = initial_handler_index + handlers_.size();
     assert( current_handler_index < maximum_handler_index );
-    gasnet_handlerentry_t handler = { current_handler_index, 
+    gasnet_handlerentry_t handler = { static_cast< gasnet_handler_t >( current_handler_index ),
                                       reinterpret_cast< HandlerPointer >( hp ) };
     handlers_.push_back( handler );
     return current_handler_index;

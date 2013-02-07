@@ -7,6 +7,7 @@
 #ifndef TASKING_SCHEDULER_HPP
 #define TASKING_SCHEDULER_HPP
 
+#include "Thread.hpp"
 #include "Scheduler.hpp"
 #include "Communicator.hpp"
 #include "Aggregator.hpp"
@@ -22,6 +23,13 @@
 #endif
 
 #include "StateTimer.hpp"
+
+// forward-declare aggregator flush
+namespace Grappa {
+  namespace impl {
+    void idle_flush_rdma_aggregator();
+  }
+}
 
 
 extern bool take_profiling_sample;
@@ -161,6 +169,7 @@ class TaskingScheduler : public Scheduler {
 		  stats.state_timers[ stats.prev_state ] += (current_ts - prev_ts) / tick_scale;
 		  stats.prev_state = TaskingSchedulerStatistics::StateIdle;
                   global_aggregator.idle_flush_poll();
+                  Grappa::impl::idle_flush_rdma_aggregator();
                   StateTimer::enterState_scheduler();
                 } else {
 		  stats.state_timers[ stats.prev_state ] += (current_ts - prev_ts) / tick_scale;
@@ -535,5 +544,8 @@ inline void TaskingScheduler::thread_on_exit( ) {
 
   thread_context_switch( exitedThr, master, (void *)exitedThr);
 }
+
+/// instance
+extern TaskingScheduler global_scheduler;
 
 #endif // TASKING_SCHEDULER_HPP

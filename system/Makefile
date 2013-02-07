@@ -77,6 +77,8 @@ Thread_tests.test: coro.o stack.o tasks/Thread.o tasks/BasicScheduler.o
 Communicator_tests.o Communicator_tests.test: Communicator.o
 
 Aggregator_tests.o Aggregator_tests.test: $(LIBRARY)
+RDMAAggregator_tests.o RDMAAggregator_tests.test: $(LIBRARY) 
+Message_tests.o Message_tests.test: $(LIBRARY) 
 MutableHeap_tests.o MutableHeap_tests.test:  $(LIBRARY)
 
 
@@ -90,6 +92,11 @@ Allocator_tests.o Allocator_tests.test: Allocator.o
 QueueDebug_tests.o QueueDebug_tests.exe: ../tools/stl-debug-allocator/archive/Source/allocator.o
 
 Collective_tests.o Collective_tests.test: $(LIBRARY)
+
+Mutex_tests.o Mutex_tests.test: $(LIBRARY)
+ConditionVariable_tests.o ConditionVariable_tests.test: $(LIBRARY)
+FullEmpty_tests.o FullEmpty_tests.test: $(LIBRARY)
+
 
 #thread_tests.test: thread.o stack.o coro.o
 thread2_tests.o thread2_tests.test: $(LIBRARY)
@@ -172,9 +179,10 @@ GASNET_SETTINGS+= GASNET_FREEZE_SIGNAL=SIGUSR1
 GASNET_SETTINGS+= GASNET_FREEZE_ON_ERROR=1
 GASNET_SETTINGS+= GASNET_FREEZE=0
 GASNET_SETTINGS+= GASNET_NETWORKDEPTH_PP=96
-GASNET_SETTINGS+= GASNET_NETWORKDEPTH_TOTAL=1024
+GASNET_SETTINGS+= GASNET_NETWORKDEPTH_TOTAL=2048
 GASNET_SETTINGS+= GASNET_AMCREDITS_PP=48
 GASNET_SETTINGS+= GASNET_PHYSMEM_MAX=1024M
+GASNET_SETTINGS+= GASNET_USE_SRQ=2
 endif
 ENV_VARIABLES+= $(GASNET_SETTINGS)
 
@@ -186,8 +194,14 @@ ENV_VARIABLES+= $(GASNET_SETTINGS)
 ifdef HEAPCHECK
 ENV_VARIABLES+= HEAPCHECK=local
 ENV_VARIABLES+= HEAP_CHECK_DUMP_DIRECTORY=.
-CFLAGS+= -DHEAPCHECK
+ENV_VARIABLES+= PPROF_PATH=../tools/built_deps/bin
+CFLAGS+= -DHEAPCHECK_ENABLE
 LIBRARIES+= -ltcmalloc
+endif
+
+ifdef VALGRIND
+CFLAGS+= -DENABLE_VALGRIND
+LIBRARIES+= $(VALGRIND_PATH)/lib/valgrind/libmpiwrap-amd64-linux.so
 endif
 
 # activate this to enable profiling
@@ -240,7 +254,7 @@ endif
 #
 # Build Grappa static library
 #
-LIBRARY_CONTENTS+= Grappa.o GlobalAllocator.o GlobalMemory.o GlobalMemoryChunk.o Communicator.o Aggregator.o Timestamp.o Allocator.o Cache.o Delegate.o Collective.o ForkJoin.o tasks/TaskingScheduler.o tasks/Task.o tasks/Thread.o stack.o coro.o StateTimer.o PerformanceTools.o Future.o CurrentThread.o ProfilerGroups.o AsyncParallelFor.o GlobalTaskJoiner.o IncoherentAcquirer.o IncoherentReleaser.o Uid.o
+LIBRARY_CONTENTS+= Grappa.o GlobalAllocator.o GlobalMemory.o GlobalMemoryChunk.o Communicator.o Aggregator.o Timestamp.o Allocator.o Cache.o Delegate.o Collective.o ForkJoin.o tasks/TaskingScheduler.o tasks/Task.o tasks/Thread.o stack.o coro.o StateTimer.o PerformanceTools.o Future.o CurrentThread.o ProfilerGroups.o AsyncParallelFor.o GlobalTaskJoiner.o IncoherentAcquirer.o IncoherentReleaser.o Uid.o MessageBase.o RDMAAggregator.o
 
 libGrappa.a: $(LIBRARY_CONTENTS)
 	$($(MPITYPE)_AR) rv $@ $^
@@ -281,6 +295,12 @@ mpi_test: $(TARGET) $($(MPITYPE)_ENVVAR_TEMP) $($(MPITYPE)_EPILOG_TEMP) $($(MPIT
 	$(ENV_VARIABLES) \
 	$($(MPITYPE)_RUN) ./$< $($(MPITYPE)_UDPTASKS) --log_level=$(TEST_LOG_LEVEL) --report_level=$(TEST_REPORT_LEVEL) --run_test=$(TARGET:.test=) $(GARGS)
 
+valgrind_mpi_test: $(TARGET) $($(MPITYPE)_ENVVAR_TEMP) $($(MPITYPE)_EPILOG_TEMP) $($(MPITYPE)_BATCH_TEMP)
+	$(ENV_VARIABLES) \
+	MPIWRAP_DEBUG=warn \
+#	$($(MPITYPE)_RUN) $(VALGRIND_PATH)/bin/valgrind --leak-check=yes --suppressions=./grappa-valgrind.supp --dsymutil=yes ./$< $($(MPITYPE)_UDPTASKS) --log_level=$(TEST_LOG_LEVEL) --report_level=$(TEST_REPORT_LEVEL) --run_test=$(TARGET:.test=) $(GARGS)
+	$($(MPITYPE)_RUN) $(VALGRIND_PATH)/bin/valgrind --leak-check=yes --suppressions=./grappa-valgrind.supp --leak-check=full --show-reachable=yes --dsymutil=yes ./$< $($(MPITYPE)_UDPTASKS) --log_level=$(TEST_LOG_LEVEL) --report_level=$(TEST_REPORT_LEVEL) --run_test=$(TARGET:.test=) $(GARGS)
+
 test: $(TARGET)
 	-killall $<
 	$(ENV_VARIABLES) \
@@ -312,7 +332,7 @@ cleanup_shm:
 #
 # What libraries do we need?
 #
-LIBRARIES+= -lgflags -lglog $(PLATFORM_SPECIFIC_LIBS) $(GASNET_LIBS) -lboost_filesystem
+LIBRARIES+= -lgflags -lglog $(PLATFORM_SPECIFIC_LIBS) $(GASNET_LIBS) -lboost_system -lboost_filesystem
 
 #
 # set compiler flags

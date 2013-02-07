@@ -21,12 +21,36 @@ endif
 # common across machines
 #
 COMMON=../common
-CFLAGS+= -I$(COMMON)
+CFLAGS+= -I$(COMMON) -std=c++11 -Winline -Wno-inline
 
+# TODO: verify that this is not a problem and remove:
+CFLAGS+= -mno-red-zone
 
-CC=gcc
-CXX=g++
-LD=mpiCC
+# TODO: see if we can make this apply to just our files, not user files or libraries
+#CFLAGS+= -Wconversion
+
+# TODO: clean up LD_LIBRARY_PATH to make this work better
+CFLAGS+= -Wl,-rpath,$(LD_LIBRARY_PATH),--enable-new-dtags
+
+# tcmalloc is disabled because it seems to slow message throughput down by 10% or so.
+#### Enable tcmalloc by default, since we've already built its package for profiling
+ifndef VALGRIND
+#CFLAGS+=  -fno-builtin-malloc -fno-builtin-calloc -fno-builtin-realloc -fno-builtin-free
+#LIBRARIES+= -ltcmalloc
+endif
+
+LD_LIBRARY_PATH:=$(LD_LIBRARY_PATH):$(BOOST)/stage/lib
+
+# CC=gcc
+# CXX=g++
+# LD=mpiCC
+
+GCC472=/sampa/share/gcc-4.7.2/rtf
+CC=$(GCC472)/bin/gcc
+CXX=$(GCC472)/bin/g++
+LD=$(GCC472)/bin/g++ -I/usr/include/openmpi-x86_64 -pthread -m64 -L/usr/lib64/openmpi/lib -lmpi_cxx -lmpi -ldl
+LD_LIBRARY_PATH:=$(GCC472)/lib64:$(LD_LIBRARY_PATH)
+
 NONE_CC=$(CC)
 NONE_CXX=$(CXX)
 NONE_LD=$(LD)
@@ -163,10 +187,10 @@ SHMMAX?=12884901888
 # defaults are for sampa cluster
 
 # include this first to override system default if necessary
-BOOST?=/sampa/share/boost_1_51_0
-CFLAGS+= -I$(BOOST)/include
-LDFLAGS+= -L$(BOOST)/lib64 -L$(BOOST)/lib
-LD_LIBRARY_PATH:=$(LD_LIBRARY_PATH):$(BOOST)/lib
+BOOST?=/sampa/share/gcc-4.7.2/src/boost_1_51_0
+CFLAGS+= -I$(BOOST)/boost
+LDFLAGS+= -L$(BOOST)/stage/lib
+LD_LIBRARY_PATH:=$(LD_LIBRARY_PATH):$(BOOST)/stage/lib
 
 ifdef GASNET_TRACING
 GASNET:=/sampa/share/gasnet-1.18.2-tracing
@@ -223,6 +247,11 @@ CFLAGS+= -I$(VAMPIRTRACE)/include
 LDFLAGS+= -L$(VAMPIRTRACE)/lib
 LD_LIBRARY_PATH:=$(VAMPIRTRACE)/lib:$(LD_LIBRARY_PATH)
 
+VALGRIND_PATH?=/sampa/share/valgrind-3.8.1-cluster
+CFLAGS+= -I$(VAMPIRTRACE)/include
+LDFLAGS+= -L$(VAMPIRTRACE)/lib/valgrind
+LD_LIBRARY_PATH:=$(VAMPIRTRACE)/lib/valgrind:$(LD_LIBRARY_PATH)
+
 
 MPITYPE?=SRUN
 
@@ -250,12 +279,12 @@ SRUN_EXPORT_ENV_VARIABLES?=--task-prolog=$(SRUN_ENVVAR_TEMP) --task-epilog=$(SRU
 	@echo \#!/bin/bash > $@
 	@for i in $(ENV_VARIABLES); do echo echo export $$i >> $@; done
 	@echo '# Clean up any leftover shared memory regions' >> $@
-	@echo 'for i in `ipcs -m | grep $(USER) | cut -d" " -f1`; do ipcrm -M $$i; done' >> $@
+	@echo 'for i in `ipcs -m | grep $(USER) | cut -d" " -f1 | grep -v 0x00000000`; do ipcrm -M $$i; done' >> $@
 	@chmod +x $@
 
 .srunrc_epilog.%:
 	@echo \#!/bin/bash > $@
-	@echo 'for i in `ipcs -m | grep $(USER) | cut -d" " -f1`; do ipcrm -M $$i; done' >> $@
+	@echo 'for i in `ipcs -m | grep $(USER) | cut -d" " -f1 | grep -v 0x00000000`; do ipcrm -M $$i; done' >> $@
 	@chmod +x $@
 
 # set to force libs to be recopied to scratch disks
