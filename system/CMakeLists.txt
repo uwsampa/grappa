@@ -56,6 +56,7 @@ set(SYSTEM_SOURCES
   IncoherentReleaser.hpp
   Message.hpp
   MessageBase.hpp
+  MessageBase.cpp
   MutableHeap.hpp
   Mutex.hpp
   ParallelLoop.hpp
@@ -66,6 +67,8 @@ set(SYSTEM_SOURCES
   ProfilerGroups.cpp
   ProfilerGroups.hpp
   PushBuffer.hpp
+  RDMAAggregator.hpp
+  RDMAAggregator.cpp
   StateTimer.cpp
   StateTimer.hpp
   Statistics.hpp
