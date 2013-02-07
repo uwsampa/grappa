@@ -127,6 +127,11 @@ namespace Grappa {
         m.is_moved_ = true; // mark message as having been moved so sending will fail
       }
 
+      inline bool waiting_to_send() {
+        return is_enqueued_ && !is_sent_;
+      }
+
+
 
       /// Implemented in MessageBaseImpl.hpp
       inline void enqueue();
