@@ -19,9 +19,9 @@
 #include "Addressing.hpp"
 //#include "PerformanceTools.hpp"
 
-#include "ConditionVariable.hpp"
-#include "FullEmpty.hpp"
 #include "MessageBase.hpp"
+#include "ConditionVariableLocal.hpp"
+#include "FullEmpty.hpp"
 
 namespace Grappa {
 

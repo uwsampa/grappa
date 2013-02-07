@@ -13,7 +13,7 @@
 #include <gflags/gflags.h>
 #include <glog/logging.h>
 
-#include "ConditionVariable.hpp"
+#include "ConditionVariableLocal.hpp"
 
 namespace Grappa {
   

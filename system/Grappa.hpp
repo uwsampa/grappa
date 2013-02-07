@@ -223,11 +223,6 @@ static inline void Grappa_idle_flush_poll() {
   global_aggregator.idle_flush_poll();
 }
 
-namespace Grappa {
-  inline Core cores() { return Grappa_nodes(); }
-  inline Core mycore() { return Grappa_mynode(); }
-}
-
 #include "Addressing.hpp"
 #include "Tasking.hpp"
 #include "StateTimer.hpp"

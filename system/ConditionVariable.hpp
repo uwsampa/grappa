@@ -3,6 +3,7 @@
 #define __CONDITION_VARIABLE_HPP__
 
 #include "Message.hpp"
+#include "Communicator.hpp"
 #include "Addressing.hpp"
 #include "ConditionVariableLocal.hpp"
 
@@ -20,7 +21,7 @@ namespace Grappa {
 
   /// TODO: implement
   inline void signal( const GlobalAddress<ConditionVariable> m ) {
-    if (m.node() == global_communicator.mynode()) {
+    if (m.node() == Grappa::mycore()) {
       // if local, just signal
       Grappa::signal(m.pointer());
     } else {
