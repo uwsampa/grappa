@@ -266,9 +266,9 @@ namespace Grappa {
 
     virtual ~ExternalMessage() { 
       block_until_sent();
-      if( delete_after_send_ ) {
-        delete pointer_;
-      }
+      // if( delete_after_send_ ) {
+      //   delete pointer_;
+      // }
     }
 
     virtual void reset() {
@@ -380,9 +380,9 @@ namespace Grappa {
 
     virtual ~ExternalPayloadMessage() { 
       block_until_sent();
-      if( delete_after_send_ ) {
-        delete pointer_;
-      }
+      // if( delete_after_send_ ) {
+      //   delete pointer_;
+      // }
     }
 
     inline void set_payload( void * payload, size_t size ) { payload_ = payload; payload_size_ = size; }

@@ -5,7 +5,6 @@
 #include "TaskingScheduler.hpp"
 #include "Synchronization.hpp"
 #include "Mutex.hpp"
-#include "Message.hpp"
 
 namespace Grappa {
 

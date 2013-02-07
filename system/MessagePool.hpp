@@ -47,26 +47,34 @@ namespace Grappa {
     
     /// Same as message, but immediately enqueued to be sent.
     template< typename T >
-    inline SendMessage<T>* send_message( Core dest, T t ) {
-      return new (*this) SendMessage<T>( dest, t );
+    inline Message<T> * send_message( Core dest, T t ) {
+      Message<T> * m = new (*this) Message<T>( dest, t );
+      m->enqueue();
+      return m;
     }
     
     /// Message with payload, immediately enqueued to be sent.
     template< typename T >
-    inline SendPayloadMessage<T>* send_message( Core dest, T t, void * payload, size_t payload_size ) {
-      return new (*this) SendPayloadMessage<T>( dest, t, payload, payload_size );
+    inline PayloadMessage<T> * send_message( Core dest, T t, void * payload, size_t payload_size ) {
+      PayloadMessage<T> * m = new (*this) PayloadMessage<T>( dest, t, payload, payload_size );
+      m->enqueue();
+      return m;
     }
     
     /// Message with contents stored outside object, immediately enqueued to be sent.
     template< typename T >
-    inline SendExternalMessage<T>* send_message( Core dest, T * t ) {
-      return new (*this) SendExternalMessage<T>( dest, t );
+    inline ExternalMessage<T> * send_message( Core dest, T * t ) {
+      ExternalMessage<T> * m = new (*this) ExternalMessage<T>( dest, t );
+      m->enqueue();
+      return m;
     }
     
-    /// 
+    /// Message with contents stored outside object as well as payload, immediately enqueued to be sent.
     template< typename T >
-    inline SendExternalPayloadMessage<T>* send_message( Core dest, T * t, void * payload, size_t payload_size ) {
-      return new (*this) SendExternalPayloadMessage<T>( dest, t, payload, payload_size );
+    inline ExternalPayloadMessage<T> * send_message( Core dest, T * t, void * payload, size_t payload_size ) {
+      ExternalPayloadMessage<T> * m = new (*this) ExternalPayloadMessage<T>( dest, t, payload, payload_size );
+      m->enqueue();
+      return m;
     }
  
   };

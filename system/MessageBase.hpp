@@ -104,9 +104,6 @@ namespace Grappa {
       // Ensure we are sent before leaving scope
       virtual ~MessageBase() {
         DVLOG(9) << "destruct " << this;
-
-      // Ensure we are sent before leaving scope
-      inline virtual ~MessageBase() {
         if (is_enqueued_) {
           block_until_sent();
         }
@@ -136,7 +133,7 @@ namespace Grappa {
       inline bool waiting_to_send() {
         return is_enqueued_ && !is_sent_;
       }
-
+      
       /// Make sure we know how big this message is
       virtual const size_t serialized_size() const = 0;
       
@@ -163,12 +160,10 @@ namespace Grappa {
         is_sent_ = false;
         destination_ =  -1;
       }
-
-      /// Make sure we know how big this message is
-      virtual const size_t size() const = 0;
-
+      
       /// Block until message can be deallocated.
       void block_until_sent();
+
     };
     
     /// @}

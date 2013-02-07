@@ -30,7 +30,7 @@ void test_pool1() {
           joiner.signal();
         });
       });
-      f->send();
+      f->enqueue();
     }
   }
   joiner.wait();

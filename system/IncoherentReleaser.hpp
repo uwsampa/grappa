@@ -175,7 +175,7 @@ public:
 
         arg_array[i] = args;
         new (msg_array+i) Grappa::ExternalPayloadMessage<RequestArgs>(arg_array[i].request_address.node(), &arg_array[i], ((char*)(*pointer_)) + offset, request_bytes);
-        msg_array[i].send();
+        msg_array[i].enqueue();
 //        Grappa_call_on( args.request_address.node(), &incoherent_release_request_am<T>,
 //                         &args, sizeof( args ),
 //                         ((char*)(*pointer_)) + offset, request_bytes);
