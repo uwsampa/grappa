@@ -49,6 +49,36 @@ namespace Grappa {
     ce.wait();
   }
   
+  namespace impl {
+    
+    const int64_t STATIC_LOOP_THRESHOLD = 0;
+    
+    template< int64_t Threshold, typename F >
+    void loop_decomposition(int64_t start, int64_t iterations, F loop_body) {
+      VLOG(1) << "< " << start << " : " << iterations << ">";
+      
+      if (iterations == 0) {
+        return;
+      } else if ((Threshold == STATIC_LOOP_THRESHOLD && iterations <= FLAGS_loop_threshold)
+                 || iterations <= Threshold) {
+        loop_body(start, iterations);
+        return;
+      } else {
+        // spawn right half
+        privateTask([start, iterations, loop_body] {
+          loop_decomposition<Threshold,F>(start+(iterations+1)/2, iterations/2, loop_body);
+        });
+        
+        // left side here
+        loop_decomposition<Threshold,F>(start, (iterations+1)/2, loop_body);
+      }
+    }
+    
+    template<typename F>
+    inline void loop_decomposition(int64_t start, int64_t iters, F loop_body) {
+      loop_decomposition<STATIC_LOOP_THRESHOLD,F>(start, iters, loop_body);
+    }
+  }
   
 } // namespace Grappa
 
