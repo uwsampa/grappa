@@ -199,7 +199,9 @@ void Grappa_dump_task_series();
 
 void Grappa_dump_stats_blob();
 
-
+void legacy_dump_stats( std::ostream& oo );
+void legacy_reduce_stats_and_dump( std::ostream& oo );
+void legacy_profiling_sample();
 
 #include "Aggregator.hpp"
 
@@ -220,8 +222,6 @@ static inline void Grappa_flush( Node n )
 static inline void Grappa_idle_flush_poll() {
   global_aggregator.idle_flush_poll();
 }
-
-void Grappa_take_profiling_sample();
 
 namespace Grappa {
   inline Core cores() { return Grappa_nodes(); }
