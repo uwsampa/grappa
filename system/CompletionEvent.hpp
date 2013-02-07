@@ -46,13 +46,20 @@ namespace Grappa {
   }
   
   /// Overload to work on GlobalAddresses.
-  inline void complete( GlobalAddress<CompletionEvent> ce ) {
+  inline void complete(GlobalAddress<CompletionEvent> ce, int64_t decr = 1) {
     if (ce.node() == mycore()) {
-      ce.pointer()->complete();
+      ce.pointer()->complete(decr);
     } else {
-      send_message(ce.node(), [ce] {
-        ce.pointer()->complete();
-      });
+      if (decr == 1) {
+        // (common case) don't send full 8 bytes just to decrement by 1
+        send_message(ce.node(), [ce] {
+          ce.pointer()->complete();
+        });
+      } else {
+        send_message(ce.node(), [ce,decr] {
+          ce.pointer()->complete(decr);
+        });
+      }
     }
   }
   
