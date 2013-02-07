@@ -160,11 +160,21 @@ namespace Grappa {
       static char * deaggregate_buffer( char * buffer, size_t size );
 
 
+      void send_medium( Core core );
+
       /// Sender size of RDMA transmission.
       void send_rdma( Core core );
 
       /// task that is run to allocate space to receive a message      
       static void deaggregation_task( GlobalAddress< FullEmpty < ReceiveBufferInfo > > callback_ptr );
+
+
+      int64_t receive_start_, receive_end_
+        , send_start_
+        , send_end_
+        , messages_serialized_
+        , messages_deserialized_
+  , current_dest_  , current_src_;
 
 
     public:
@@ -177,6 +187,14 @@ namespace Grappa {
         , flushing_( false )
         , deserialize_buffer_handle_( -1 )
         , deserialize_first_handle_( -1 )
+        , receive_start_( 0 )
+        , receive_end_( 0 )
+        , send_start_( 0 )
+        , send_end_( 0 )
+        , messages_serialized_( 0 )
+        , messages_deserialized_( 0 )
+        , current_dest_( -1 )
+        , current_src_( -1 )
       {
       }
 
@@ -236,10 +254,7 @@ namespace Grappa {
         dest->prefetch_queue_[ count % prefetch_dist ].size_ = size;
 
         if( size > (1 << 17) ) {
-          Core c = m->destination_;
-          Grappa::privateTask( [ this, c ] {
-              send_rdma( c );
-            });
+          flush( m->destination_ );
         }
       }
 
@@ -252,13 +267,15 @@ namespace Grappa {
 
         // serialize to buffer
         Grappa::impl::MessageBase * tmp = m;
-        DVLOG(5) << "Serializing message from " << tmp;
-        char * end = aggregate_to_buffer( &buf[0], &tmp, size );
-        DVLOG(5) << "After serializing, pointer was " << tmp;
-        DCHECK_EQ( end - buf, size );
-
-        // send
-        GASNET_CHECK( gasnet_AMRequestMedium0( m->destination_, deserialize_buffer_handle_, buf, size ) );
+        while( tmp != nullptr ) {
+          DVLOG(5) << "Serializing message from " << tmp;
+          char * end = aggregate_to_buffer( &buf[0], &tmp, size );
+          DVLOG(5) << "After serializing, pointer was " << tmp;
+          DCHECK_EQ( end - buf, size );
+          
+          // send
+          GASNET_CHECK( gasnet_AMRequestMedium0( m->destination_, deserialize_buffer_handle_, buf, size ) );
+        }
       }
 
       void flush( Core c ) {
