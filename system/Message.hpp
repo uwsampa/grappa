@@ -79,7 +79,7 @@ namespace Grappa {
     /// @param t address of message functor/contents in buffer
     /// @return address of byte following message functor/contents in buffer
     static char * deserialize_and_call( char * t ) {
-      DVLOG(5) << "Deserializing message";
+      DVLOG(5) << "In " << __PRETTY_FUNCTION__;
       T * obj = reinterpret_cast< T * >( t );
       (*obj)();
       return t + sizeof( T );
@@ -90,7 +90,6 @@ namespace Grappa {
       // copy deserialization function pointer
       auto fp = &deserialize_and_call;
       if( sizeof( fp ) + sizeof( T ) > max_size ) {
-        std::cout << "break" << std::endl;
         return p;
       } else {
         // // turn into 2D pointer
@@ -192,7 +191,7 @@ namespace Grappa {
     /// @param t address of message functor/contents in buffer
     /// @return address of byte following message functor/contents in buffer
     static char * deserialize_and_call( char * t ) {
-      // DVLOG(5) << "Deserializing message";
+      DVLOG(5) << "In " << __PRETTY_FUNCTION__;
       T * obj = reinterpret_cast< T * >( t );
       t += sizeof( T );
 
@@ -209,7 +208,6 @@ namespace Grappa {
       // copy deserialization function pointer
       auto fp = &deserialize_and_call;
       if( sizeof( fp ) + sizeof( T ) > max_size ) {
-        std::cout << "break" << std::endl;
         return p;
       } else {
         // // turn into 2D pointer
@@ -307,7 +305,7 @@ namespace Grappa {
     /// @param t address of message functor/contents in buffer
     /// @return address of byte following message functor/contents in buffer
     static char * deserialize_and_call( char * t ) {
-      // DVLOG(5) << "Deserializing message";
+      DVLOG(5) << "In " << __PRETTY_FUNCTION__;
       T * obj = reinterpret_cast< T * >( t );
       (*obj)();
       return t + sizeof( T );
@@ -318,7 +316,6 @@ namespace Grappa {
       // copy deserialization function pointer
       auto fp = &deserialize_and_call;
       if( sizeof( fp ) + sizeof( T ) > max_size ) {
-        std::cout << "break" << std::endl;
         return p;
       } else {
         // // turn into 2D pointer
@@ -426,6 +423,8 @@ namespace Grappa {
     /// @param t address of message functor/contents in buffer
     /// @return address of byte following message functor/contents in buffer
     static char * deserialize_and_call( char * t ) {
+      DVLOG(5) << "In " << __PRETTY_FUNCTION__;
+
       T * obj = reinterpret_cast< T * >( t );
       t += sizeof( T );
 
@@ -442,7 +441,6 @@ namespace Grappa {
       // copy deserialization function pointer
       auto fp = &deserialize_and_call;
       if( sizeof( fp ) + sizeof( T ) > max_size ) {
-        std::cout << "break" << std::endl;
         return p;
       } else {
         // // turn into 2D pointer
