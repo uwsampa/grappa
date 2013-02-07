@@ -52,8 +52,12 @@ namespace Grappa {
   namespace impl {
     
     const int64_t STATIC_LOOP_THRESHOLD = 0;
+    enum class SpawnType: short {
+      PRIVATE,
+      PUBLIC
+    };
     
-    template< int64_t Threshold, typename F >
+    template< int64_t Threshold, SpawnType ST, typename F>
     void loop_decomposition(int64_t start, int64_t iterations, F loop_body) {
       VLOG(1) << "< " << start << " : " << iterations << ">";
       
@@ -65,19 +69,36 @@ namespace Grappa {
         return;
       } else {
         // spawn right half
-        privateTask([start, iterations, loop_body] {
-          loop_decomposition<Threshold,F>(start+(iterations+1)/2, iterations/2, loop_body);
-        });
+        int64_t rstart = start+(iterations+1)/2, riters = iterations/2;
+        
+        // Ugly, but switch should be compiled away and this is easier than
+        // templating on a templated function
+        switch(ST) {
+          case SpawnType::PRIVATE:
+            privateTask([rstart, riters, loop_body] {
+              loop_decomposition<Threshold,ST,F>(rstart, riters, loop_body);
+            }); break;
+          case SpawnType::PUBLIC:
+            publicTask([rstart, riters, loop_body] {
+              loop_decomposition<Threshold,ST,F>(rstart, riters, loop_body);
+            }); break;
+        }
         
         // left side here
-        loop_decomposition<Threshold,F>(start, (iterations+1)/2, loop_body);
+        loop_decomposition<Threshold,ST,F>(start, (iterations+1)/2, loop_body);
       }
     }
     
-    template<typename F>
+    template<SpawnType ST, typename F>
     inline void loop_decomposition(int64_t start, int64_t iters, F loop_body) {
-      loop_decomposition<STATIC_LOOP_THRESHOLD,F>(start, iters, loop_body);
+      loop_decomposition<STATIC_LOOP_THRESHOLD,ST,F>(start, iters, loop_body);
     }
+    
+    template<int64_t Threshold, typename F>
+    inline void loop_decomposition(int64_t start, int64_t iters, F loop_body) {
+      loop_decomposition<Threshold,SpawnType::PRIVATE,F>(start, iters, loop_body);
+    }
+
   }
   
 } // namespace Grappa
