@@ -89,7 +89,7 @@ namespace Grappa {
         , cv_()
         , is_moved_( false )
         , delete_after_send_( false ) 
-      { DVLOG(5) << "construct " << this; }
+      { DVLOG(9) << "construct " << this; }
 
       MessageBase( Core dest )
         : next_( NULL )
@@ -103,7 +103,7 @@ namespace Grappa {
 
       // Ensure we are sent before leaving scope
       virtual ~MessageBase() {
-        DVLOG(5) << "destruct " << this;
+        DVLOG(9) << "destruct " << this;
       }
 
       MessageBase( const MessageBase& ) = delete;

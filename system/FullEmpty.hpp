@@ -38,6 +38,8 @@ namespace Grappa {
 
     void block_until( State desired_state ) {
       while( state_ != desired_state ) {
+        DVLOG(5) << "In " << __PRETTY_FUNCTION__ 
+                 << ", blocking until " << (desired_state == State::FULL ? "full" : "empty");
 	Grappa::wait( this );
       }
     }
