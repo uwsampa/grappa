@@ -197,11 +197,146 @@ The final challenge is that atomic operations via RDMA do not interact atomicall
 
 \subsection{SSD-only data structures}
 
-\comment{mostly a copy and paste of the pomace?}
+Grappa applications are likely to use large amounts of data, 100s of terabytes
+to petabytes. Keeping all these data in DRAM only is unlikely to be cost
+effective. We will explore mechanisms that allow data to reside in solid-state
+storage {\em only}.
+
+Grappa is very effective in hiding latencies of network communication. In
+fact, our measurements and estimates show that we might be able to tolerate
+even more latencies, on the order of milliseconds per request. Therefore, this
+suggests that we might be able to keep data in SSD only and service data
+access requests directly from that, without leaving copies in DRAM.
+
+The natural point of integration for non-volatile memories in Grappa is to
+store the global distributed shared heap in non-volatile memory, since for
+irregular applications the heap often holds data that is infrequently
+modified. All accesses to this shared heap in Grappa programs are done through
+an \textls*{\small API}, so this change could be made transparent to the
+programmer.
+
+If an access is to a chunk of the heap stored in a node's local memory, Grappa
+issues a prefetch for the address and context switches to other work while the
+prefetch is executing~\cite{Nelson:hotpar2011}. If the access is to memory
+stored on another node, Grappa issues a message to that node to request the
+data and context switches to other work until the reply arrives. Non-volatile
+memory would be accessed in the same way: If a request is to memory stored in
+non-volatile memory, Grappa would initiate the request and context switch to
+other work until the request had completed.
+
+This is not straightforward for three reasons: (1) {\bf \textls*{\small
+SSD}\hspace{0.75pt}s assume locality.} In our benchmarks, we find the average
+request size to be less than 64 bytes. Today's \textls*{\small
+SSD}\hspace{0.75pt}s are optimized for reads in the multi-kilobyte range. (2)
+{\bf \textls*{\small SSD}\hspace{0.75pt}s have a low request rate.} The
+fastest~\cite{fusionio} can perform on the order of 1 million random reads per
+second, and many are limited to less than 100K/s. Even the individual flash
+chips are slow, on the order of 40K/s~\cite{micronFlash}. In contrast, cores
+may be idle in Grappa if each node cannot perform 100 million random reads per
+second of the global heap. And (3) {\bf \textls*{\small SSD}\hspace{0.75pt}s
+have high overhead.} Mass market \textls*{\small SSD}\hspace{0.75pt}s are
+usually treated as normal disks: accesses must occur through the kernel,
+incurring a high context-switch overhead. Grappa depends on user-mode access
+to the network layer to avoid this overhead; a similar approach has been
+applied to \textls*{\small SSD}\hspace{0.75pt}s in recent
+research~\cite{caulfield:2012}.
+
+We see several ways to address these challenges: \noindent{\bf Scaling up the
+Flash array} Existing Flash-based \textls*{\small SSD}\hspace{0.75pt}s are
+designed for large block requests. An \textls*{\small SSD} for Grappa could be
+designed to support high concurrency, small requests. Where a traditional
+\textls*{\small SSD} might put multiple Flash chips on the same bus, or use
+Flash chips in parallel to build a wider, high-bandwidth bus, a Grappa
+\textls*{\small SSD} would try to maximize parallelism by putting each chip on
+its own bus. Serial Flash might be used to minimize pin count requirements, at
+the cost of some additional latency. This design could scale to request rates,
+but the challenge would be chip count: to support 100 million reads per
+second, an array of 25$\mu$s flash would require 2500 chips. This is possible,
+but expensive.
+
+\noindent{\bf Scaling down the processors.} Alternatively, rather than scaling
+up the flash array, processors could be scaled down to match the flash request
+rate. A low-power processor with few cores might generate only 1 million
+references per second. This could be satisfied with only $25\times 25\mu$s
+Flash chips. There are two problems with this design for our purpose. First,
+while each node requires fewer chips, the overall cluster performance goal,
+and thus chip count requirement, is the same. Second, low single-threaded
+performance is detrimental to performance during periods of diminished
+application concurrency.
+
+\noindent{\bf Buffering requests to increase locality.} Grappa trades latency
+for better throughput by aggregating network communications for better
+utilization and by migrating synchronization operations for reduced
+contention. The same idea could be applied to increase locality and amortize
+the cost of Flash accesses. Requests to nearby flash locations would be
+bucketed by flash page address for a limited time. When a sufficient number of
+requests have arrived for a page or when the requests time out, a single page
+request would be issued to the Flash layer; its result would be used to
+satisfy the individual requests.
 
 \subsection{Compiler and language support}
 
+Language and compiler support are instrumental in making Grappa more usable.
+We envision language and compiler support for three main aspects: (1) specify
+the memory model and semantics of global memory accesses; (2) automatic
+insertion of calls to the runtime, to avoid having the end programmer insert
+explicit calls; and (3) performing code optimizations specific for Grappa as
+well as traditional optimizations in ways that will not break program
+semantics.
+
+Specifying the memory model and access semantics of the Grappa runtime is very
+important for several reasons. The programmer needs to know the behavior of
+accesses to the global heap. The compiler needs to know that too so that code
+optimizations can be performed without breaking program semantics. And the
+model has to be relaxed enough to enable efficient implementations. We opted
+for a sequential consistency for data-race-free programs, similarly to the
+C++0x memory model (something programmers and system software designers are already used to).
+
+We will develop type qualifiers to let programmers declare shared data, e.g.,
+\texttt{shared int}. This will enable the compiler to automatically insert
+runtime calls for accesses to global heap data as well some forms of
+synchronized operations (e.g. atomic fetch-and-add) to global variables. This
+will also enable new analyses and optimizations, for example, the compiler
+could perform spatial and temporal locality analysis to improve request
+aggregation when it can proved that several accesses go to the same
+destination.
+
+
 \subsection{Graph benchmark suite}
+
+In order to facilitate the development and evaluation of Grappa, we will
+develop a comprehensive benchmark suite for graph analytics applications. This
+will not only be useful for us, but the whole community at large, since there
+is a lack of benchmarks in this application space.
+
+
+This benchmark suite will consist of application kernels, reference
+implementations, data-sets, data-set generators, documentation, specifications
+for generating standardized performance results, and a hosting service
+(http://graphbench.org) to provide public access to the benchmark and datasets
+as well as aggregate and publish results by all users of the benchmark suite.
+
+This benchmark suite will be a tremendous value to the research community. Not
+only will it enable researchers to evaluate ideas on graph processing system
+techniques, but it will also enable fair comparisons of ideas in a depth not
+currently available from other graph related benchmark suites. The benchmark
+will be released in a completely open fashion, so anyone will be able to use
+it (and contribute to it), there will be no licensing issues even if companies
+(such as Oracle) want to use it. The goal is to get something out relatively
+early in the hope of (i) getting others to cluster around this work rather
+than develop alternatives, and (ii) help establish some of the metrics about
+how to present performance results.
+
+We will build a collection of key computational kernels from graph and
+irregular applications. The benchmark suite will consist of both documentation
+on the actual kernel (ideally a research paper or book reference sourced from
+the community), and a reference implementation. The benchmark suite will also include sample data collected from existing sources, and synthetic
+workload generators. The collected data provides a grounding for performance
+analysis on real-world problems. The workload generators provide cleaner,
+easier to reason about randomly generated data-sets at a programmable scale.
+
+
+
 
 \input{footer}
 
