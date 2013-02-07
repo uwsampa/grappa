@@ -65,7 +65,7 @@ HeapLeakChecker * Grappa_heapchecker = 0;
 #endif
 
 /// Sample all stats for VampirTrace
-void Grappa_take_profiling_sample() {
+void legacy_profiling_sample() {
   global_aggregator.stats.profiling_sample();
   global_communicator.stats.profiling_sample();
   global_task_manager.stats.profiling_sample();
@@ -424,9 +424,8 @@ void Grappa_reset_stats_all_nodes() {
 
 
 /// Dump statistics
-void Grappa_dump_stats( std::ostream& oo ) {
+void legacy_dump_stats( std::ostream& oo ) {
   std::ostringstream o;
-  o << "STATS{\n";
   o << "   \"GrappaStats\": { \"tick_rate\": " << tick_rate
     << ", \"job_id\": " << jobid
     << ", \"nodelist\": \"" << nodelist_str << "\""
@@ -443,6 +442,15 @@ void Grappa_dump_stats( std::ostream& oo ) {
   global_queue_stats.dump( o, "," );
   dump_flags( o, "," );
   Grappa_dump_user_stats( o, "" ); // TODO: user stats are NOT merged
+  oo << o.str();
+}
+
+void Grappa_dump_stats( std::ostream& oo ) {
+  std::ostringstream o;
+  o << "STATS{\n";
+
+  legacy_dump_stats(o);
+
   o << "}STATS";
   oo << o.str();
 }
@@ -469,6 +477,7 @@ void Grappa_dump_stats_all_nodes() {
 /// Statistics reduction
 ///
 #define STAT_REDUCE(statType, stat) (statType) Grappa_allreduce_noinit<statType, stat_reduce<statType> >( (stat) )
+
 #define STAT_FUNC( name, statType, stat ) \
   LOOP_FUNCTOR( name, nid, ((statType*, resultAddress)) ) { \
     statType result = STAT_REDUCE( statType, (stat) ); \
@@ -497,11 +506,10 @@ STAT_FUNC(incoherentrel_func, IRStatistics, incoherent_releaser_stats );
 STAT_FUNC(globalqueuestat_func, GlobalQueueStatistics, global_queue_stats );
 
 // call the forkjoin functions to reduce and print each statistic object
-static void reduce_stats_and_dump( std::ostream& oo ) {
+void legacy_reduce_stats_and_dump( std::ostream& oo ) {
   CHECK( Grappa_mynode() == 0 );
  
   std::ostringstream o;
-  o << "STATS{\n";
   o << "   \"GrappaStats\": { \"tick_rate\": " << tick_rate
     << ", \"job_id\": " << jobid
     << ", \"nodelist\": \"" << nodelist_str << "\""
@@ -518,6 +526,16 @@ static void reduce_stats_and_dump( std::ostream& oo ) {
   STAT_FORK_AND_DUMP(globalqueuestat_func, GlobalQueueStatistics, o)
   dump_flags( o, "," );
   Grappa_dump_user_stats( o, "" );  // TODO: user stats are NOT merged
+  oo << o.str();
+}
+
+// call the forkjoin functions to reduce and print each statistic object
+static void reduce_stats_and_dump( std::ostream& oo ) {
+  CHECK( Grappa_mynode() == 0 );
+ 
+  std::ostringstream o;
+  o << "STATS{\n";
+  legacy_reduce_stats_and_dump(o);
   o << "}STATS";
   oo << o.str();
 }
