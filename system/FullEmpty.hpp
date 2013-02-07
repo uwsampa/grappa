@@ -26,16 +26,18 @@ namespace Grappa {
   private:
     enum class State : bool { EMPTY = false, FULL = true };
 
+  public:
     union {
       struct {
-	State state_ : 1;
-	intptr_t waiters_ : 63; // can't include pointers in bitfield, so use intptr_t
+        State state_ : 1;
+        intptr_t waiters_ : 63; // can't include pointers in bitfield, so use intptr_t
       };
       intptr_t raw_; // unnecessary; just to ensure alignment
     };
-
+    
+  private:
     T t_;
-
+    
     void block_until( State desired_state ) {
       while( state_ != desired_state ) {
         DVLOG(5) << "In " << __PRETTY_FUNCTION__ 
@@ -45,12 +47,18 @@ namespace Grappa {
     }
     
   public:
+    
     FullEmpty( ) : state_( State::EMPTY ), waiters_( 0 ), t_() {}
 
     FullEmpty( T t ) : state_( State::FULL ), waiters_( 0 ), t_(t) {}
 
     inline bool full() { return state_ == State::FULL; }
-
+    
+    inline void reset() {
+      CHECK(waiters_ == 0);
+      state_ = State::EMPTY;
+    }
+    
     T writeXF( T t ) {
       t_ = t; 
       state_ = State::FULL; 

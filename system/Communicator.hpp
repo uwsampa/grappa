@@ -46,7 +46,9 @@
 typedef void (*HandlerPointer)();    
 
 /// Type for Node ID. 
-typedef int16_t Node;
+typedef int16_t Core;
+/// @legacy
+typedef Core Node;
 
 /// Maximum size of GASNet medium active message payload. 
 ///
@@ -239,15 +241,13 @@ public:
     o << terminator << std::endl;
   }
   
-  void merge(CommunicatorStatistics * other) {
+  void merge(const CommunicatorStatistics * other) {
     messages_ += other->messages_;
     bytes_ += other->bytes_;
     for (int i=0; i<16; i++) histogram_[i] += other->histogram_[i];
     // pick earlier start time of the two
     start_ = MIN(start_, other->start_);
   }
-
-  static void merge_am(CommunicatorStatistics * other, size_t sz, void* payload, size_t psz);
 };
 
 /// Communication layer wrapper class.

@@ -83,6 +83,8 @@ int Grappa_profile_handler( void * arg ) {
 
 void Grappa_reset_stats();
 
+#include "Statistics.hpp"
+
 void Grappa_start_profiling() {
 #ifdef GOOGLE_PROFILER
   ProfilerOptions po;
@@ -93,8 +95,7 @@ void Grappa_start_profiling() {
 #ifdef VTRACE_SAMPLED
   VT_USER_START("sampling");
   Grappa_reset_stats();
-  void Grappa_take_profiling_sample();
-  Grappa_take_profiling_sample();
+  Grappa::Statistics::sample_all();
 #endif
 #endif
 }
@@ -109,8 +110,7 @@ void Grappa_stop_profiling() {
   Grappa_dump_stats();
 
   Grappa_reset_stats();
-  void Grappa_take_profiling_sample();
-  Grappa_take_profiling_sample();
+  Grappa::Statistics::sample_all();
 #endif
 #endif
 }

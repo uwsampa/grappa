@@ -10,15 +10,14 @@
 namespace Grappa {
   
   class Mutex {
-  private:
+  public:
     union {
       struct {
-	bool lock_ : 1;
-	intptr_t waiters_ : 63;
+        bool lock_ : 1;
+        intptr_t waiters_ : 63;
       };
       intptr_t raw_; // unnecessary; just to ensure alignment
     };
-  public:
     Mutex()
       : lock_( false )
       , waiters_( 0 )

@@ -33,8 +33,6 @@ extern TaskManager global_task_manager;
 
 DECLARE_uint64( num_starting_workers );
 
-void Grappa_take_profiling_sample();
-
 
 ///
 /// Task routines
@@ -87,6 +85,7 @@ namespace Grappa {
   template < typename TF >
   void privateTask( TF tf ) {
     if( sizeof( tf ) > 24 ) { // if it's too big to fit in a task queue entry
+      DVLOG(4) << "Heap allocated task of size " << sizeof(tf);
       // heap-allocate copy of functor, passing ownership to spawned task
       TF * tp = new TF(tf);
       global_task_manager.spawnLocalPrivate( Grappa::impl::task_heapfunctor_proxy<TF>, tp, tp, tp );
@@ -200,6 +199,9 @@ void Grappa_publicTask( void (*fn_p)(A0), A0 arg) {
   Grappa_publicTask(reinterpret_cast<void (*)(A0,void*)>(fn_p), arg, (void*)NULL);
 }
 
+// initialize global queue if used
+void Grappa_global_queue_initialize();
+  
 // forward declaration needed for below wrapper
 void Grappa_end_tasks();
 
@@ -207,6 +209,7 @@ void Grappa_end_tasks();
 /// after it is done
 template < typename T >
 static void user_main_wrapper( void (*fp)(T), T args ) {
+    Grappa_global_queue_initialize();
     fp( args );
     Grappa_end_tasks();
 }

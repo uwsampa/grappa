@@ -65,9 +65,11 @@ namespace Grappa {
     }
     
     /// How much storage do we need to send this message?
-    const size_t size( ) const {
+    virtual const size_t serialized_size( ) const {
       return sizeof( &deserialize_and_call ) + sizeof( T );
     }
+    
+    virtual const size_t size() const { return sizeof(*this); }
 
     ///
     /// These are used by the aggregator to send and receive messages.
@@ -176,11 +178,12 @@ namespace Grappa {
 
 
     /// How much storage do we need to send this message?
-    const size_t size( ) const {
+    virtual const size_t serialized_size( ) const {
       return sizeof( &deserialize_and_call ) + sizeof( T ) + sizeof( int16_t ) + payload_size_;
     }
 
-
+    virtual const size_t size() const { return sizeof(*this); }
+    
     ///
     /// These are used by the aggregator to send and receive messages.
     ///
@@ -290,11 +293,12 @@ namespace Grappa {
 
 
     /// How much storage do we need to send this message?
-    const size_t size( ) const {
+    virtual const size_t serialized_size( ) const {
       return sizeof( &deserialize_and_call ) + sizeof( T );
     }
 
-
+    virtual const size_t size() const { return sizeof(*this); }
+    
     ///
     /// These are used by the aggregator to send and receive messages.
     ///
@@ -407,11 +411,12 @@ namespace Grappa {
 
 
     /// How much storage do we need to send this message?
-    virtual const size_t size( ) const {
+    virtual const size_t serialized_size( ) const {
       return sizeof( &deserialize_and_call ) + sizeof( T ) + sizeof( int16_t ) + payload_size_;
     }
 
-
+    virtual const size_t size() const { return sizeof(*this); }
+    
 
     ///
     /// These are used by the aggregator to send and receive messages.
@@ -613,6 +618,7 @@ namespace Grappa {
     m->enqueue();
     return m;
   }
+
   /// @}
 
 }

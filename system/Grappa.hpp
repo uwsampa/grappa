@@ -179,6 +179,9 @@ void Grappa_signal_done( );
 /// User main signal tasks done
 void Grappa_end_tasks( );
 
+/// Check initialized global queue
+bool Grappa_global_queue_isInit( );
+
 /// dump stats for this node
 void Grappa_dump_stats( std::ostream& oo = std::cout );
 /// dump stats for all nodes
@@ -196,7 +199,9 @@ void Grappa_dump_task_series();
 
 void Grappa_dump_stats_blob();
 
-
+void legacy_dump_stats( std::ostream& oo );
+void legacy_reduce_stats_and_dump( std::ostream& oo );
+void legacy_profiling_sample();
 
 #include "Aggregator.hpp"
 
@@ -218,7 +223,10 @@ static inline void Grappa_idle_flush_poll() {
   global_aggregator.idle_flush_poll();
 }
 
-void Grappa_take_profiling_sample();
+namespace Grappa {
+  inline Core cores() { return Grappa_nodes(); }
+  inline Core mycore() { return Grappa_mynode(); }
+}
 
 #include "Addressing.hpp"
 #include "Tasking.hpp"
