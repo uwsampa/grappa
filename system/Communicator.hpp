@@ -392,4 +392,9 @@ public:
 
 extern Communicator global_communicator;
 
+namespace Grappa {
+  inline Core cores() { return global_communicator.nodes(); }
+  inline Core mycore() { return global_communicator.mynode(); }
+}
+
 #endif

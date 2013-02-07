@@ -3,9 +3,9 @@
 
 #define LEGACY_SEND
 
-#ifndef LEGACY_SEND
+//#ifndef LEGACY_SEND
 #include "RDMAAggregator.hpp"
-#endif
+//#endif
 
 namespace Grappa {
   

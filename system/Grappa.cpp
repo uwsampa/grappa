@@ -18,7 +18,6 @@
 #include "Cache.hpp"
 #include "PerformanceTools.hpp"
 
-#include "tasks/GlobalQueue.hpp"
 #include "Collective.hpp"
 #include "StatisticsTools.hpp"
 #include "tasks/StealQueue.hpp"
