@@ -1,5 +1,6 @@
 #pragma once
 
+#include "Grappa.hpp"
 #include "ConditionVariableLocal.hpp"
 #include "Message.hpp"
 #include "Tasking.hpp"
@@ -22,11 +23,11 @@ namespace Grappa {
     }
     
     /// Decrement count once, if count == 0, wake all waiters.
-    void complete() {
-      if (count == 0) {
+    void complete(int64_t decr = 1) {
+      if (count-decr < 0) {
         LOG(ERROR) << "too many calls to signal()";
       }
-      count--;
+      count -= decr;
       if (count == 0) {
         broadcast(&cv);
       }
