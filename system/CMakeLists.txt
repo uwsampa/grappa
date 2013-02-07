@@ -94,6 +94,12 @@ set(SYSTEM_SOURCES
   tasks/TaskingScheduler.hpp
   tasks/Thread.cpp
   tasks/Thread.hpp
+  tasks/StealQueue.hpp
+  tasks/StealQueue.cpp
+  tasks/GlobalQueue.hpp
+  tasks/GlobalQueue.cpp
+  LegacySignaler.hpp
+  LegacySignaler.cpp
 )
 
 
