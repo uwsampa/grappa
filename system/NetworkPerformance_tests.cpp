@@ -21,6 +21,7 @@ DEFINE_bool( gasnet, false, "Do gasnet ping test" );
 DEFINE_bool( large, false, "Do gasnet large ping test" );
 
 DEFINE_int64( iterations, 1 << 26, "Iterations" );
+DEFINE_int64( log_outstanding, 18, "2**messages" );
 DEFINE_int64( payload_size, 0, "Payload size" );
 DEFINE_int64( yield_mask, 0, "Yield mask" );
 
@@ -51,7 +52,9 @@ static int64_t value = 0;
 
 
 void receive( char* arg, size_t size, void * payload, size_t payload_size ) {
+  int64_t old = value;
   ++value;
+  DVLOG(5) << "incrementing value from " << old << " to " << value;
 }
 
 int gasnet_ping_handle_ = -1;
@@ -66,11 +69,13 @@ void gasnet_ping1_am( gasnet_token_t token, void * buf, size_t size, gasnet_hand
 
 
 LOOP_FUNCTION( func_start_profiling, index ) {
+  value = 0;
   Grappa_start_profiling();
 }
 
 LOOP_FUNCTION( func_stop_profiling, index ) {
   Grappa_stop_profiling();
+  value = 0;
 }
 
 LOOP_FUNCTION( func_print, index ) {
@@ -96,9 +101,9 @@ LOOP_FUNCTOR( func_ping, index, ((int64_t, count)) ((int64_t, payload_size)) ) {
       //if( (i & FLAGS_yield_mask) == 0 ) Grappa_yield();
     }
 
-    // for( int i = Grappa_nodes() / 2; i < Grappa_nodes(); ++i ) {
-    //   Grappa_flush( i );
-    // }
+    for( int i = Grappa_nodes() / 2; i < Grappa_nodes(); ++i ) {
+      Grappa_flush( i );
+    }
 
     value = count;
     LOG(INFO) << "Node " << Grappa_mynode() << " sent " << count << " messages to " << target;
@@ -114,6 +119,7 @@ Grappa::ConditionVariable rdma_ping_cv;
 int64_t rdma_count;
 
 LOOP_FUNCTOR( func_rdma_ping, index, ((int64_t, count)) ((int64_t, payload_size)) ) {
+  rdma_ping_cv.waiters_ = 0;
   rdma_count = count;
   if( Grappa_mynode() < Grappa_nodes() / 2 ) {
     // senders
@@ -146,7 +152,7 @@ LOOP_FUNCTOR( func_rdma_ping, index, ((int64_t, count)) ((int64_t, payload_size)
 	++target;
 	if( target == Grappa_nodes() ) target = Grappa_nodes() / 2;
       }
-      //if( (i & FLAGS_yield_mask) == 0 ) Grappa_yield();
+      if( (i & FLAGS_yield_mask) == 0 ) Grappa_yield();
     }
 
     if( FLAGS_rotate ) {
@@ -231,23 +237,24 @@ LOOP_FUNCTOR( func_bidir_ping, index, ((int64_t, count)) ((int64_t, payload_size
   //LOG(INFO) << "Node " << Grappa_mynode() << " sending " << count << " messages to " << target;
 
   for( int i = 0; i < count; ++i ) {
-    Grappa_call_on( target, &receive, (char*)0, 0 );
+    //Grappa_call_on( target, &receive, (char*)0, 0 );
+    Grappa_call_on( target, &receive, payload, payload_size );
     if( FLAGS_rotate ) {
       target = target + 1;
       if( target >= Grappa_nodes() ) target = 0;
     }
-    //if( (i & FLAGS_yield_mask) == 0 ) Grappa_yield();
+    if( (i & FLAGS_yield_mask) == 0 ) Grappa_yield();
   }
   for( int i = 0; i < Grappa_nodes(); ++i ) {
     Grappa_flush( i ); 
   }
  
-  LOG(INFO) << "Sent " << count << " messages";
+  DVLOG(1) << "Sent " << count << " messages";
 
   // receivers
-  while( value != count ) Grappa_yield();
+  while( value < count ) {Grappa_yield();}
 
-  LOG(INFO) << "Node " << Grappa_mynode() << " received " << value << " messages";
+  DVLOG(1) << "Node " << Grappa_mynode() << " received " << value << " messages";
 
   BOOST_CHECK( value == count );
 }
@@ -265,16 +272,20 @@ LOOP_FUNCTOR( func_rdma_bidir_ping, index, ((int64_t, count)) ((int64_t, payload
   struct M {
     void operator()(void * payload, size_t payload_size) {
       ++value;
-      if( value >= rdma_count ) {
-        Grappa::signal( &rdma_ping_cv );
-      }
+      // if( value >= rdma_count ) {
+      //   Grappa::signal( &rdma_ping_cv );
+      // }
     }
   } m;
   
-    const int msg_count = 2048;
-    Grappa::PayloadMessage<M> msgs[ msg_count ];
+  //const int msg_count = 4096;
+    // Grappa::PayloadMessage<M> msgs[ msg_count ];
+
+  const int msg_count = 1 << FLAGS_log_outstanding;
+  Grappa::PayloadMessage<M> * msgs = new Grappa::PayloadMessage<M>[ msg_count ];
 
   for( int i = 0; i < count; ++i ) {
+    //if( msgs[i%msg_count].waiting_to_send() ) Grappa::impl::global_rdma_aggregator.idle_flush();
     msgs[i%msg_count].reset();
     msgs[i%msg_count].set_payload( &payload[0], payload_size );
     msgs[i%msg_count].enqueue( target );
@@ -282,7 +293,8 @@ LOOP_FUNCTOR( func_rdma_bidir_ping, index, ((int64_t, count)) ((int64_t, payload
       target = target + 1;
       if( target >= Grappa_nodes() ) target = 0;
     }
-    //if( (i & FLAGS_yield_mask) == 0 ) Grappa_yield();
+    if( (i & FLAGS_yield_mask) == 0 ) Grappa_yield();
+    //if( (i & FLAGS_yield_mask) == 0 ) Grappa_poll();
   }
 
   for( int i = 0; i < Grappa_nodes(); ++i ) {
@@ -290,15 +302,19 @@ LOOP_FUNCTOR( func_rdma_bidir_ping, index, ((int64_t, count)) ((int64_t, payload
   }
 
   //Grappa_flush( target );  
-  LOG(INFO) << "Sent " << count << " messages";
+  DVLOG(1) << "Sent " << count << " messages";
 
   // receivers
-  //while( value != count ) Grappa_yield();
-    while( value < count ) {
-      Grappa::wait( &rdma_ping_cv );
-    }
+  while( value != count ) Grappa_yield();
+  // bool seen = false;
+  //   while( value < count ) {
+  //     if( !seen ) { seen=true; LOG(INFO) << "Node " << Grappa_mynode() << " waiting to finish receiving with " << value; }
+  //     Grappa::wait( &rdma_ping_cv );
+  //   }
 
-  LOG(INFO) << "Node " << Grappa_mynode() << " received " << value << " messages";
+  DVLOG(1) << "Node " << Grappa_mynode() << " received " << value << " messages";
+
+  delete [] msgs;
 
   BOOST_CHECK( value == count );
 }
@@ -477,7 +493,7 @@ void user_main( int * args ) {
   // delegate ops, random destinations
 
   for( i = 0; i < FLAGS_trials; ++i ) {
-    value = 0;
+    value = -1; // NOTE: make sure you overwrite this in functors
     alarm( FLAGS_debug_alarm );
 
   fork_join_custom( &start_profiling );
@@ -576,16 +592,18 @@ BOOST_AUTO_TEST_CASE( test1 ) {
   sigalrm_sa.sa_handler = &sigalrm_sighandler;
   CHECK_EQ( 0, sigaction( SIGALRM, &sigalrm_sa, 0 ) ) << "SIGALRM signal handler installation failed.";
 
-    Grappa_init( &(boost::unit_test::framework::master_test_suite().argc),
+  Grappa_init( &(boost::unit_test::framework::master_test_suite().argc),
 		  &(boost::unit_test::framework::master_test_suite().argv),
 		  (1 << 22) );
     gasnet_ping_handle_ = global_communicator.register_active_message_handler( &gasnet_ping_am );
     gasnet_ping1_handle_ = global_communicator.register_active_message_handler( &gasnet_ping1_am );
+
     Grappa_activate();
 
     Grappa_run_user_main( &user_main, (int*)NULL );
 
     Grappa_finish( 0 );
+
 }
 
 BOOST_AUTO_TEST_SUITE_END();
