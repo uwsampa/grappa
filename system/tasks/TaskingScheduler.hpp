@@ -24,9 +24,11 @@
 
 #include "StateTimer.hpp"
 
+//#include "Statistics.hpp"
+namespace Grappa { namespace Statistics { void sample_all(); } }
+
 
 extern bool take_profiling_sample;
-void Grappa_take_profiling_sample();
 void Grappa_dump_stats_blob();
 
 DECLARE_int64( periodic_poll_ticks );
@@ -115,7 +117,7 @@ class TaskingScheduler : public Scheduler {
         // maybe sample
         if( take_profiling_sample ) {
           take_profiling_sample = false;
-          Grappa_take_profiling_sample();
+          Grappa::Statistics::sample_all();
         }
 
         if( ( global_communicator.mynode() == 0 ) &&
