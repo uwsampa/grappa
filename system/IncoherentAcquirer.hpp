@@ -235,7 +235,7 @@ public:
 
         arg_array[i] = args;
         new (msg_array+i) Grappa::ExternalMessage<RequestArgs>(arg_array[i].request_address.node(), &arg_array[i]);
-        msg_array[i].send();
+        msg_array[i].enqueue();
 
         // TODO: change type so we don't screw with pointer like this
         args.request_address = GlobalAddress<T>::Raw( args.request_address.raw_bits() + args.request_bytes );

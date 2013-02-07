@@ -46,7 +46,7 @@ void check_remote() {
   int a = 0;
   auto ga = make_global(&a);
   
-  ConditionVariable w;
+  Grappa::ConditionVariable w;
   auto gw = make_global(&w);
   
   send_message(1, [ga, gw] {
@@ -120,7 +120,7 @@ void user_main(void * args) {
   int64_t seed = 111;
   GlobalAddress<int64_t> seed_addr = make_global(&seed);
 
-  ConditionVariable waiter;
+  Grappa::ConditionVariable waiter;
   auto waiter_addr = make_global(&waiter);
   
   send_message(1, [seed_addr, waiter_addr] {

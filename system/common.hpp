@@ -216,4 +216,6 @@ namespace Grappa {
   
   /// @}
 
+}
+
 #endif
