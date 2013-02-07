@@ -101,6 +101,17 @@ namespace Grappa {
       global_task_manager.spawnLocalPrivate( Grappa::impl::task_functor_proxy<TF>, args[0], args[1], args[2] );
     }
   }
+  
+  template < typename TF >
+  void publicTask( TF tf ) {
+    // TODO: implement automatic heap allocation and caching to handle larget functors
+    static_assert(sizeof(tf) <= 24, "Functor argument to publicTask too large to be automatically coerced.");
+    
+    DVLOG(5) << "Thread " << global_scheduler.get_current_thread() << " spawns public";
+    
+    uint64_t * args = reinterpret_cast< uint64_t * >( &tf );
+    global_task_manager.spawnPublic(Grappa::impl::task_functor_proxy<TF>, args[0], args[1], args[2]);
+  }
 
   /// @}
 
