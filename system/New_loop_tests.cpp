@@ -49,12 +49,26 @@ void test_loop_decomposition() {
   ce.wait();
 }
 
+void test_loop_decomposition_global() {
+  int N = 16;
+  
+  CompletionEvent ce(N);
+  auto ce_addr = make_global(&ce);
+  
+  impl::loop_decomposition<Grappa::impl::SpawnType::PUBLIC>(0, N, [ce_addr](int64_t start, int64_t iters) {
+    VLOG(1) << "loop(" << start << ", " << iters << ")";
+    complete(ce_addr,iters);
+  });
+  ce.wait();
+}
+
 void user_main(void * args) {
   CHECK(Grappa::cores() >= 2); // at least 2 nodes for these tests...
 
   test_forall_cores();
   
   test_loop_decomposition();
+  test_loop_decomposition_global();
 }
 
 BOOST_AUTO_TEST_CASE( test1 ) {
