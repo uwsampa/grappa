@@ -7,7 +7,7 @@
 #ifndef PARALLEL_LOOP_HPP
 #define PARALLEL_LOOP_HPP
 
-#include "CountConditionVariable.hpp"
+#include "CompletionEvent.hpp"
 #include "ConditionVariable.hpp"
 #include "Grappa.hpp"
 #include "Message.hpp"
@@ -19,7 +19,7 @@
 //       is AsynParallelFor, along with a synchronization mechanism like
 //       GlobalTaskJoiner. That is what is used in current benchmarks.
 
-DEFINE_int64( parallel_loop_threshold, 1, "threshold for how small a group of iterations should be to perform them serially" );
+DEFINE_int64( loop_threshold, 1, "threshold for how small a group of iterations should be to perform them serially" );
 
 //// implementations
 //#include "ParallelLoop_future.hpp"
@@ -34,18 +34,19 @@ namespace Grappa {
   template<typename F>
   void forall_cores(F simd_work) {
     MessagePool<(1<<16)> pool;
-    CountConditionVariable ccv(Grappa::cores());
-    auto ccv_addr = make_global(&ccv);
+
+    CompletionEvent ce(Grappa::cores());
+    auto ce_addr = make_global(&ce);
     
     for (Core c = 0; c < Grappa::cores(); c++) {
-      pool.send_message(c, [ccv_addr, simd_work] {
-        privateTask([ccv_addr, simd_work] {
+      pool.send_message(c, [ce_addr, simd_work] {
+        privateTask([ce_addr, simd_work] {
           simd_work();
-          signal(ccv_addr);
+          complete(ce_addr);
         });
       });
     }
-    wait(&ccv);
+    ce.wait();
   }
   
   
