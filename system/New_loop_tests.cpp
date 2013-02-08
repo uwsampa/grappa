@@ -42,7 +42,7 @@ void test_loop_decomposition() {
   
   CompletionEvent ce(N);
   
-  impl::loop_decomposition<2>(0, N, [&ce](int64_t start, int64_t iters) {
+  impl::loop_decomposition_private<2>(0, N, [&ce](int64_t start, int64_t iters) {
     VLOG(1) << "loop(" << start << ", " << iters << ")";
     ce.complete(iters);
   });
@@ -55,11 +55,59 @@ void test_loop_decomposition_global() {
   CompletionEvent ce(N);
   auto ce_addr = make_global(&ce);
   
-  impl::loop_decomposition<Grappa::impl::SpawnType::PUBLIC>(0, N, [ce_addr](int64_t start, int64_t iters) {
+  impl::loop_decomposition_public(0, N, [ce_addr](int64_t start, int64_t iters) {
     VLOG(1) << "loop(" << start << ", " << iters << ")";
     complete(ce_addr,iters);
   });
   ce.wait();
+}
+
+CompletionEvent my_ce;
+
+void test_forall_here() {
+  BOOST_MESSAGE("Testing forall_here...");
+  const int N = 15;
+  
+  {
+    int x = 0;
+    forall_here(0, N, [&x](int64_t start, int64_t iters) {
+      CHECK(mycore() == 0);
+      x++;
+    });
+    BOOST_CHECK_EQUAL(x, N);
+  }
+  
+  {
+    int x = 0;
+    forall_here<&my_ce>(0, N, [&x](int64_t start, int64_t iters) {
+      CHECK(mycore() == 0);
+      x++;
+    });
+    BOOST_CHECK_EQUAL(x, N);
+  }
+  
+}
+
+static int test_global = 0;
+CompletionEvent test_global_ce;
+
+void test_forall_global() {
+  BOOST_MESSAGE("Testing forall_global...");
+  const int64_t N = 1 << 8;
+  
+  forall_global_nosteal(0, N, [](int64_t start, int64_t iters) {
+    test_global++;
+  });
+  
+  forall_cores([]{
+    BOOST_CHECK_EQUAL(test_global, N/cores());
+    test_global = 0;
+  });
+  
+  forall_global_nosteal<&test_global_ce>(0, N, [](int64_t start, int64_t iters) {
+    test_global++;
+  });
+  
 }
 
 void user_main(void * args) {
@@ -69,6 +117,9 @@ void user_main(void * args) {
   
   test_loop_decomposition();
   test_loop_decomposition_global();
+  
+  test_forall_here();
+  test_forall_global();
 }
 
 BOOST_AUTO_TEST_CASE( test1 ) {
