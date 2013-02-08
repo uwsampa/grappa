@@ -60,6 +60,7 @@ set(SYSTEM_SOURCES
   MutableHeap.hpp
   Mutex.hpp
   ParallelLoop.hpp
+  ParallelLoop.cpp
   ParallelLoop_future.hpp
   PerformanceTools.cpp
   PerformanceTools.hpp
