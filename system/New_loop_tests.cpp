@@ -16,7 +16,7 @@
 #include "ConditionVariable.hpp"
 #include "Delegate.hpp"
 #include "Tasking.hpp"
-
+#include "GlobalAllocator.hpp"
 
 BOOST_AUTO_TEST_SUITE( New_loop_tests );
 
@@ -72,16 +72,20 @@ void test_forall_here() {
     int x = 0;
     forall_here(0, N, [&x](int64_t start, int64_t iters) {
       CHECK(mycore() == 0);
-      x++;
+      for (int64_t i=0; i<iters; i++) {
+        x++;
+      }
     });
     BOOST_CHECK_EQUAL(x, N);
   }
   
   {
     int x = 0;
-    forall_here<&my_ce>(0, N, [&x](int64_t start, int64_t iters) {
+    forall_here<&my_ce,2>(0, N, [&x](int64_t start, int64_t iters) {
       CHECK(mycore() == 0);
-      x++;
+      for (int64_t i=0; i<iters; i++) {
+        x++;
+      }
     });
     BOOST_CHECK_EQUAL(x, N);
   }
@@ -110,6 +114,22 @@ void test_forall_global() {
   
 }
 
+
+void test_forall_localized() {
+  BOOST_MESSAGE("Testing forall_localized...");
+  const int64_t N = 1 << 8;
+  
+  auto array = Grappa_typed_malloc<int64_t>(N);
+  
+  forall_localized(array, N, [](int64_t& e){
+    e = 1;
+  });
+  
+  forall_here(0, N, [array](int64_t s, int64_t n) {
+    for (int i=s; i<s+n; i++) { BOOST_CHECK_EQUAL(delegate::read(array+i), 1); }
+  });
+}
+
 void user_main(void * args) {
   CHECK(Grappa::cores() >= 2); // at least 2 nodes for these tests...
 
@@ -120,6 +140,8 @@ void user_main(void * args) {
   
   test_forall_here();
   test_forall_global();
+  
+  test_forall_localized();
 }
 
 BOOST_AUTO_TEST_CASE( test1 ) {
