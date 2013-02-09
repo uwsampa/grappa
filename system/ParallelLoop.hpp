@@ -58,7 +58,7 @@ namespace Grappa {
     
     template<int64_t Threshold = STATIC_LOOP_THRESHOLD, typename F = decltype(nullptr) >
     void loop_decomposition_private(int64_t start, int64_t iterations, F loop_body) {
-      VLOG(1) << "< " << start << " : " << iterations << ">";
+      DVLOG(4) << "< " << start << " : " << iterations << ">";
       
       if (iterations == 0) {
         return;
@@ -125,10 +125,10 @@ namespace Grappa {
   /// either a given static CompletionEvent (template param) or the local builtin one.
   /// @warning { All calls to forall_here will share the same CompletionEvent by default,
   ///            so only one should be called at once per core. }
-  template<CompletionEvent * CE = &local_ce, typename F = decltype(nullptr) >
+  template<CompletionEvent * CE = &local_ce, int64_t Threshold = impl::STATIC_LOOP_THRESHOLD, typename F = decltype(nullptr) >
   void forall_here(int64_t start, int64_t iters, F loop_body) {
     CE->enroll(iters);
-    impl::loop_decomposition_private(start, iters,
+    impl::loop_decomposition_private<Threshold>(start, iters,
       [loop_body](int64_t s, int64_t i) {
         loop_body(s, i);
         CE->complete(i);
@@ -139,11 +139,44 @@ namespace Grappa {
   /// Spread iterations evenly (block-distributed) across all the cores, using recursive
   /// decomposition with private tasks. Blocks until all iterations on all cores complete.
   /// @warning { Same caveat as `forall_here`. }
-  template<CompletionEvent * CE = &local_ce, typename F = decltype(nullptr)>
+  template<CompletionEvent * CE = &local_ce, int64_t Threshold = impl::STATIC_LOOP_THRESHOLD, typename F = decltype(nullptr)>
   void forall_global_nosteal(int64_t start, int64_t iters, F loop_body) {
     forall_cores([start,iters,loop_body]{
       range_t r = blockDist(start, start+iters, mycore(), cores());
-      forall_here<CE>(r.start, r.end-r.start, loop_body);
+      forall_here<CE,Threshold>(r.start, r.end-r.start, loop_body);
+    });
+  }
+  
+  
+  template< typename T,
+            CompletionEvent * CE = &local_ce,
+            int64_t Threshold = impl::STATIC_LOOP_THRESHOLD,
+            typename F = decltype(nullptr) >
+  void forall_localized(GlobalAddress<T> base, int64_t nelems, F loop_body) {
+    forall_cores([base, nelems, loop_body]{
+      struct {
+        GlobalAddress<T> base;
+        T* local_base;
+        T* local_end;
+        const F& loop_body;
+      } info = {
+        base,
+        base.localize(),
+        (base+nelems).localize(),
+        loop_body
+      };
+      
+      forall_here<CE,Threshold>(0, info.local_end-info.local_base,
+        // TODO: find way to do privateTasks with shared arg struct/lambda by reference
+        // (passing reference to `info` struct here because we only have room for one
+        // more 8-byte word available before `privateTask` will heap-allocate (>24B)
+        [&info](int64_t start, int64_t iters) {
+          for (int64_t i=start; i<start+iters; i++) {
+            // TODO: get this to be inlined (because it probably won't be in this case)
+            info.loop_body(info.local_base[i]);
+          }
+        }
+      );
     });
   }
   
