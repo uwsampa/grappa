@@ -19,9 +19,9 @@ national security, machine learning, data-driven science, and social network
 computing domains. For these emerging applications, fast response -- given the
 sheer amount of data -- requires multinode systems. The most broadly available
 multinode systems are those built from x86 commodity computing nodes
-interconnected via ethernet or infiniband. Our goal is to enable scalable
-performance of irregular applications on these mass market systems. Our goal
-is challenging for two key reasons:
+interconnected via ethernet or infiniband. Our current work enables scalable
+performance of irregular applications on these mass market systems,
+addressing two key challenges:
 
 \paragraph{Irregular applications exhibit little spatial locality.} It is not atypical for any given task's data references to be spread randomly across the entire memory of the system. This makes current memory hierarchy features ineffective. Caches are of little assistance with such low data re-use and spatial locality. Commodity prefetching hardware is effective only when addresses are known many cycles before the data is consumed or the accesses follow a predictable pattern, neither of which occurs in irregular applications. As a consequence, commodity microprocessors stall often when executing irregular applications.
 
@@ -31,18 +31,18 @@ While some irregular applications can be restructured to better exploit locality
 
 Luckily, many of the important irregular applications naturally offer large amounts of concurrency. This immediately suggests taking advantage of concurrency to tolerate the latency of data movement. The fully custom Tera MTA-2~\cite{tera:mta1} system is a classic example of supporting irregular applications by using concurrency to hide latencies.  It had a large distributed shared memory with no caches.  On every clock cycle, each processor would execute a ready instruction chosen from one of its 128 hardware thread contexts, a sufficient number to fully hide memory access latency.  The network was designed with a single word injection rate that matched the processor clock frequency and sufficient bandwidth to sustain a reference from every processor on every clock cycle. Unfortunately, while an excellent match to extremely irregular applications, the MTA was not cost-effective on applications that could exploit locality and had very poor single-thread performance, making it a commercial failure. The Cray XMT approximates the Tera MTA-2, substantially reducing its cost but not overcoming its narrow range of applicability.
 
-In this proposal we describe a body of research that extends an early
-prototype of Grappa~\cite{grappa}, a runtime system for irregular
+In this proposal we first describe our early
+Grappa~\cite{grappa} prototype, a runtime system for irregular
 applications. It provides several facilities: a global shared memory
 abstraction, user-level threading support, and communication and
 synchronization primitives. Applications targeted for Grappa are not expected
 to have \emph{any} locality (although what locality that exists is favorably
 exploited), but are expected to provide many thousands of concurrent threads.
 
-Our preliminary work on Grappa shows that it runs several graph-crunching applications (classic examples of irregular behavior) efficiently on a commodity cluster.  For unbalanced tree search, Grappa is over 3X faster and shows greatly improved scalability compared to the Cray XMT; conversely, for breadth first search Grappa is 2.5X slower -- fast compared to implementations without Grappa, but obviously there is room for improvement.  Most importantly, however, for significantly less real world cost, users can \emph{add} significantly more processors to a commodity cluster than an XMT machine and use Grappa to achieve scalable performance.
+Next, we present some preliminary results.  Even as an early prototype, Grappa runs several graph-crunching applications (classic examples of irregular behavior) efficiently on a commodity cluster.  For unbalanced tree search, Grappa is over 3X faster and shows greatly improved scalability compared to the Cray XMT; conversely, for breadth first search Grappa is 2.5X slower -- fast compared to implementations without Grappa, but obviously there is room for improvement.  Most importantly, however, for significantly less real world cost, users can \emph{add} significantly more processors to a commodity cluster than an XMT machine and use Grappa to achieve scalable performance.
 
-The work on Grappa is still in its infancy, however. This research proposal
-seeks funding to extend Grappa in the following directions:
+Given these very positive early results,
+we next propose to extend Grappa in the following directions:
 
 \begin{itemize}
 
@@ -58,6 +58,12 @@ hardware/software interactions of remote direct memory access (RDMA).
 
 \item \textbf{Comprehensive benchmark suite:} Presently there does not exist a comprehensive benchmark suite of irregular and graph applications.  We also seeking funding through this proposal to put together just such a benchmark suite.  This suite will include benchmarks, reference implementations, and input data-sets.  In addition a website will be created \texttt{graphbench.org} to distribute the benchmark suite and publish results.
 
+\end{itemize}
+
+Finally, we propose to explore how the lessons learned performing this research -- specifically knowledge of what ultimately limits Grappa's performance for irregular applications using x86 processors and commodity networks with modified communication protocols -- can be applied to the design of future architectures.  Doing so will include studying the following research questions:
+
+\being{itemize}
+\item \textbf{TBD}
 \end{itemize}
 
 %% Roadmap
