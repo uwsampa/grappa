@@ -10,7 +10,18 @@
 
 \section{Introduction}
 
-Irregular applications generate tasks with work, interdependences, and memory accesses that are highly sensitive to input. Classic examples of irregular applications include branch and bound optimization, SPICE circuit simulation, contact algorithms in car crash analysis, and network flow. Important contemporary examples include processing large graphs in the business, national security, machine learning, data-driven science, and social network computing domains. For these emerging applications, fast response -- given the sheer amount of data -- requires multinode systems. The most broadly available multinode systems are those built from x86 commodity computing nodes interconnected via ethernet or infiniband. Our goal is to enable scalable performance of irregular applications on these mass market systems.  Our goal is challenging for two key reasons:
+Irregular applications generate tasks with work, dependences, and memory
+accesses that are highly sensitive to input. Classic examples of irregular
+applications include branch and bound optimization, SPICE circuit simulation,
+contact algorithms in car crash analysis, and network flow. Important
+contemporary examples include processing large graphs in the business,
+national security, machine learning, data-driven science, and social network
+computing domains. For these emerging applications, fast response -- given the
+sheer amount of data -- requires multinode systems. The most broadly available
+multinode systems are those built from x86 commodity computing nodes
+interconnected via ethernet or infiniband. Our goal is to enable scalable
+performance of irregular applications on these mass market systems. Our goal
+is challenging for two key reasons:
 
 \paragraph{Irregular applications exhibit little spatial locality.} It is not atypical for any given task's data references to be spread randomly across the entire memory of the system. This makes current memory hierarchy features ineffective. Caches are of little assistance with such low data re-use and spatial locality. Commodity prefetching hardware is effective only when addresses are known many cycles before the data is consumed or the accesses follow a predictable pattern, neither of which occurs in irregular applications. As a consequence, commodity microprocessors stall often when executing irregular applications.
 
@@ -20,17 +31,28 @@ While some irregular applications can be restructured to better exploit locality
 
 Luckily, many of the important irregular applications naturally offer large amounts of concurrency. This immediately suggests taking advantage of concurrency to tolerate the latency of data movement. The fully custom Tera MTA-2~\cite{tera:mta1} system is a classic example of supporting irregular applications by using concurrency to hide latencies.  It had a large distributed shared memory with no caches.  On every clock cycle, each processor would execute a ready instruction chosen from one of its 128 hardware thread contexts, a sufficient number to fully hide memory access latency.  The network was designed with a single word injection rate that matched the processor clock frequency and sufficient bandwidth to sustain a reference from every processor on every clock cycle. Unfortunately, while an excellent match to extremely irregular applications, the MTA was not cost-effective on applications that could exploit locality and had very poor single-thread performance, making it a commercial failure. The Cray XMT approximates the Tera MTA-2, substantially reducing its cost but not overcoming its narrow range of applicability.
 
-In this proposal we describe a body of research that extends the Grappa~\cite{grappa} runtime system.  Grappa is a runtime system that compilers target irregular applications to.  It provides several facilities: a global shared memory abstraction, user-level threading support, and communication and synchronization primitives.  Applications targeted for Grappa are not expected to have \emph{any} locality (although what locality that exists is favorably exploited), but are expected to provide many thousands of concurrent threads.  
+In this proposal we describe a body of research that extends an early
+prototype of Grappa~\cite{grappa}, a runtime system for irregular
+applications. It provides several facilities: a global shared memory
+abstraction, user-level threading support, and communication and
+synchronization primitives. Applications targeted for Grappa are not expected
+to have \emph{any} locality (although what locality that exists is favorably
+exploited), but are expected to provide many thousands of concurrent threads.
 
 Our preliminary work on Grappa shows that it runs several graph-crunching applications (classic examples of irregular behavior) efficiently on a commodity cluster.  For unbalanced tree search, Grappa is over 3X faster and shows greatly improved scalability compared to the Cray XMT; conversely, for breadth first search Grappa is 2.5X slower -- fast compared to implementations without Grappa, but obviously there is room for improvement.  Most importantly, however, for significantly less real world cost, users can \emph{add} significantly more processors to a commodity cluster than an XMT machine and use Grappa to achieve scalable performance.
 
-Grappa work is still in its infancy, however.  This research proposal seeks funding to extend Grappa in the following directions:
+The work on Grappa is still in its infancy, however. This research proposal
+seeks funding to extend Grappa in the following directions:
 
 \begin{itemize}
 
-\item \textbf{Improved network communication:} Our preliminary work has also revealed limitations of the current Grappa runtime system with regards to network scaling.  This proposal seeks funding to enhance the network layer and explore the hardware/software interactions of remote direct memory access (RDMA).
+\item \textbf{Reinvent network communication:} Our preliminary work has
+revealed limitations of the current Grappa runtime system with regards to
+network scaling. This proposal plans to enhance the network layer with new
+forms of communication scheduling and aggregation, and explore new forms of
+hardware/software interactions of remote direct memory access (RDMA).
 
-\item \textbf{Support for \ssd\ only memory systems:} The size of data being processed by large systems today (hundreds of terabytes) dwarfs what can fit into a single system. Multiple system nodes are required to maintain and access all of this data efficiently.  However, even with hundreds of channels to persistent storage, loading this data into DRAM can prove a bottleneck.  The Grappa runtime is designed to make applications tolerate extremely high memory latency, thus an idea we wish to explore is using solid state disks as main memory. 
+\item \textbf{Support for \ssd\ only memory systems:} The size of data being processed by large systems today (hundreds of terabytes) dwarfs what can fit into a single system. Multiple system nodes are required to maintain and access all of this data efficiently.  However, even with hundreds of channels to persistent storage, loading this data into DRAM can prove a bottleneck.  The Grappa runtime is designed to make applications tolerate extremely high memory latency, thus we will explore using solid state disks as main memory, since and further take advantage of Grappa's latency tolerance properties. 
 
 \item \textbf{Language and compiler support:} Presently, applications are hand-coded to the Grappa interface.  A significant research thrust of the proposed work is to ease this programming burden by language and compilation support.
 
@@ -100,7 +122,8 @@ Under the hood, Grappa performs the mechanics of gathering chunks of data from m
 
 Delegate operations are always executed at the home core of their address, and while arbitrary memory operations can be delegated, we restrict the use of delegate operations in three ways to make them more useful for synchronization. First, we limit each task to one outstanding delegate operation to avoid the possibility of reordering in the network. Second, we limit delegate operations to operate on objects in the 2D address space or objects that fit in a single block of the linear address space so they can be satisfied with a single network request. Finally, no context switches are allowed while the data is being modified. Given these restrictions, we can ensure that delegate operations for the same address from multiple requesters are always serialized through a single core in the system, providing atomic semantics without using atomic operations. 
 
-\subsection{Communication}\label{sec:communication}
+\subsection{Communication}
+\label{sec:communication}
 
 In order to mitigate the low message injection rate limits of commodity networks, Grappa's communication stack has two layers: one for user-level messages and one for network-level messages.
 
@@ -160,8 +183,9 @@ Our efforts are built on many existing ideas in programming languages, systems a
 
 \section{Proposed Research}
 
-\comment{I think we should pitch what have been done so far as essays and a bit part of the research effort is putting everything together. -Luis}
+As described earlier, our work on Grappa so far has focused on building an initial prototype so we have a baseline system to build upon. This early prototype has lead us to think of many research opportunities, from new ways to improve network communication scheduling, to new data storage management ideas to compiler and language support. Below we detail our research plans in each of these thrusts. 
 
+%I think we should pitch what have been done so far as essays and a %bit part of the research effort is putting everything together. -Luis
 
 \subsection{Networking}
 
@@ -176,20 +200,35 @@ doing aggrregation hierarchically, choosing representative end-points along
 the way to increase agggregation opporunitites at the cost of more
 communucation hops (making an analogy with changing trains here). -Luis}
 
-\paragraph{Virtual topology:} Currently Grappa uses a flat network topology where each processing core in the system is individually addressed. As more nodes are added to the system, a quadratic increase in the number of threads (in aggregate across all nodes) is required in order to compensate for the \emph{same} network delay.  This is due to the fact that the aggregator treats each of these end-points individually. This design choice is simple but does not scale.
+\paragraph{Virtual topology:} Currently Grappa uses a flat network topology where each processing core in the system is individually addressed. As more nodes are added to the system, a quadratic increase in the number of threads (in aggregate across all nodes) is required in order to compensate for the \emph{same} network delay.  This is because the current aggregator treats each of these end-points individually, i.e., it only aggregates messages that go to the same exact end-points. This does not scale as the number of nodes go up because the probability of messages going to the same destination goes down (assuming a somewhat uniform communication distribution). In summary, this past design choice is simple but does not scale.
 
 We need to rewrite the aggregator to build in a hierarchical virtual network layer.  The first layer of this hierarchy is to treat all processors at a given system node as a single destination. We intend to continue to use the lock-free single-threaded \gasnet communication layer that we have been using, as we have found the lock-based one to incur too high of an overhead for our purposes.  Thus the aggregator will need to very carefully utilize lock-free data-structures.
 
 The second, and upper layers of the virtual topology are built from clustering system nodes into groups.  Instead of aggregating for all end-points, aggregation will occur for system nodes within a group.  A designated (and dedicated) node will act as a router, processing incoming and outgoing traffic to system nodes within the group and other groups.
 
-Hierarchy will reduce scaling requirements from \BigO{n^2} threads to \BigO{n \times log(n)}.  Of course, it takes what used to be a single network hop for communication and turns it into \BigO{log(n)} hops.  More threads will be required to overcome this increased latency, but we believe only \BigO{log(n)} more, hence a real \BigO{n / log(n)^2} scaling benefit is achievable with the a virtual hierarchical network topology.
+We expect this hierarchical organization will reduce scaling requirements from
+\BigO{n^2} threads to \BigO{n \times log(n)}. Of course, it takes what used to
+be a single network hop for communication and turns it into \BigO{log(n)}
+hops. More threads will be required to overcome this increased latency, but we
+believe only \BigO{log(n)} more, hence a real \BigO{n / log(n)^2} scaling
+benefit is achievable with the a virtual hierarchical network topology.
 
-\paragraph{User-level RDMA:} Certain commodity networking hardware today supports remote direct memory access (RDMA).  Unfortunately, \emph{how} it is implemented is so crude that it is difficult or impossible to efficiently use in practice.  We start with a short description of the current semantics of RDMA implementations.  Next we describe the research we wish to undertake to make RDMA more useful.
+% Should we discuss doing HW support for aggregation? Using NetFPGAs?
 
-Networking gear supports remote read and write operations.  Read operations take a source address and key (on a remote node), a destination address and key (on the local node), and a length.  Cards support address translation for regions of memory that are registered with them.  These translations, indexed by the supplied key, are used to perform virtual to physical address translation.  The physical address of the destination address is similarly translated using the translation table at the local node.  Cards also support remote write operations with a similar set of semantics, where addresses are translated on cards using the cards local translation table.  Both read and write operations are asynchronous.  The requesting processor initiates the operation and then can check for completion by querying a completion queue at the local card.  \emph{Notably}, the processor(s) on the remote node are provided a polling interface whereby they can learn if a remote write operation occurred.  No such interface exists to learn about remote read or atomic operations.
+\paragraph{User-level RDMA:} Certain commodity networking hardware today
+supports remote direct memory access (RDMA). Unfortunately, \emph{how} it is
+implemented is so primitive and low-level that it is difficult or impossible
+to efficiently use in practice. We start with a short description of the
+current semantics of RDMA implementations. Next we describe the research we
+wish to undertake to make RDMA more useful.
 
-This interface suffers from multiple shortcomings.  The biggest of which is that ultimately, moving data to and from a remote node constructively requires higher level semantic operations than simple reads and writes.  These higher level semantics can, of course, be synthesized from the underlying read and write primitives, but it wastes round trips and synchronization time.  One possible alternative solution is to borrow ideas from Active Messages~\cite{active-messages} and enable remote nodes to dispatch, essentially, user-level function calls.  The challenge here is to make those calls interoperate securely with a modern operating system, and a user-level runtime system.  \comment{This seems weak.  Need some more ideas here.  -Mark. Luis: Isn't the problem that the app runtime should be able to determine how the RDMA ops should be done? Maybe add examples here like accessing a hash-table, doing collective operations on remote data etc (min, max, avg)? How about delegating simple operations to the network card? Maybe argue that getting the attention of the remote processor for these operations is too costly?} 
+Networking infrastructure supports remote read and write operations.  Read operations take a source address and key (on a remote node), a destination address and key (on the local node), and a length.  Cards support address translation for regions of memory that are registered with them.  These translations, indexed by the supplied key, are used to perform virtual to physical address translation.  The physical address of the destination address is similarly translated using the translation table at the local node.  Cards also support remote write operations with a similar set of semantics, where addresses are translated on cards using the cards local translation table.  Both read and write operations are asynchronous.  The requesting processor initiates the operation and then can check for completion by querying a completion queue at the local card.  \emph{Notably}, the processor(s) on the remote node are provided a polling interface whereby they can learn if a remote write operation occurred.  No such interface exists to learn about remote read or atomic operations.
 
+This interface suffers from multiple shortcomings.  The biggest of which is that ultimately, moving data to and from a remote node constructively requires higher level semantic operations than simple reads and writes.  These higher level semantics can, of course, be synthesized from the underlying read and write primitives, but it wastes round trips and synchronization time.  One possible alternative solution is to borrow ideas from Active Messages~\cite{active-messages} and enable remote nodes to dispatch, essentially, user-level function calls.  The challenge here is to make those calls interoperate securely with a modern operating system, and a user-level runtime system. Additionally, the application runtime should be able to control how RDMA operations are carried out and make then semantically richer, e.g., do collective operations (min, max, average) on remote data, or hash-table gets and inserts.
+
+% \comment{This seems weak.  Need some more ideas here.  -Mark. Luis: Isn't the problem that the app runtime should be able to determine how the RDMA ops should be done? Maybe add examples here like accessing a hash-table, doing collective operations on remote data etc (min, max, avg)? How about delegating simple operations to the network card? Maybe argue that getting the attention of the remote processor for these operations is too costly?} 
+
+%% The second half of this paragraph is really confusing, I have just a minimal clue of what it is talking about. And the little I understand sounds a bit vague and not directly related to grappa.
 The second challenge is the virtual to physical address translation on the cards requires the operating system to pin translations.  This removes paging flexibility from the operating system because runtime systems are (rationally) built to expect data structures to be in memory capable of RDMA or not.  Those in RDMA memory must be pinned.  In the long run, the solution here likely lays at the intersection of what progress is occurring in virtual memory translation for I/O within virtual machines.  Our goal will be to carefully study the I/O virtualization proposals put forth by major processor manufactures and devise solutions that enable RDMA to capitalize on these developments.
 
 \comment{I really don't know if this is true or if we will be able to to know that is true any time soon -Mark
@@ -211,13 +250,15 @@ This is not straightforward, however, for three reasons: (1) \ssds\ assume spati
 
 \paragraph{Buffering requests to increase locality:} Grappa trades latency for throughput by aggregating network communication. The same idea could be applied to increase locality and amortize the cost of Flash accesses. Requests to nearby flash locations would be bucketed by flash page address for a limited time. When a sufficient number of requests have arrived for a page or when the requests time out, a single page request would be issued to the Flash layer; its result would be used to satisfy the individual requests.  The challenge with this approach is as storage size grows, the effectiveness of aggregation correspondingly decreases.  On the other hand, aggregation occurs for all global memory requests generated by any node in the system, so as aggregate system performance increases, aggregation performance actually \emph{increases} (up to the point that the network is saturated).
 
-\paragraph{Rearchitecting flash:} Clearly the best solution here lays in re-architecting the flash chip itself.  We will explore new flash microarchitetures that optimize for message rate as well as bandwidth.  Such chips have value far beyond Grappa.  Research into persistent key/value stores, and really any persistent high-throughput data-structure will benefit from a redesigned flash chip that can sustain dramatically increased message rates.
+%% Sorry Mark, while the item below is clearly rich and juicy, we can't leave it bhere because it is huuuuge, it does not match the scope of the grant, and we dont have the expertive --- e.g., are you sure nobody is working on it? 
+
+% \paragraph{Rearchitecting flash:} Clearly the best solution here lays in re-architecting the flash chip itself.  We will explore new flash microarchitectures that optimize for message rate as well as bandwidth.  Such chips have value far beyond Grappa.  Research into persistent key/value stores, and really any persistent high-throughput data-structure will benefit from a redesigned flash chip that can sustain dramatically increased message rates.
 
 \subsection{Compiler and language support}
 
 Language and compiler support are instrumental in making Grappa usable to a wide audience of software developers. We envision language and compiler support can tackle a wide variety of challenges:
 
-\paragraph{Relaxed consistency:} Presently Grappa uses a consistency model that is sequentially consistent for data-race free programs.  Underlying hooks are available to build even more relaxed consistency models, although we don't expect programmers themselves will want to use them.  A compiler, however, can see a performance boost by analyzing code and exploiting alias knowledge to program to this underlying Grappa \api, potentially gaining a performance boost by exposing more memory concurrency.
+\paragraph{Relaxed consistency:} Presently Grappa uses a consistency model that is sequentially consistent for data-race free programs.  Underlying hooks are available to build even more relaxed consistency models, although we don't expect programmers themselves will want to use them.  A compiler, however, can see a performance boost by analyzing code and exploiting alias knowledge to program to this underlying Grappa \api, potentially gaining a performance boost by exposing more memory concurrency and hiding more latency.
 
 \paragraph{Language support for synchronization operations: } At the moment, runtime library support is provided in Grappa for basic synchronization primitives (lock, barrier, etc).  Building synchronization directly into the language has the advantage that the compiler can understand and optimize it.  Several optimizations are possible in the Grappa framework, including exploiting the scheduler and work stealer to elide certain lock operations (scheduling is co-operative on a per-CPU basis), converting synchronization primitives into remote delegate operations, and exploiting the check-in / check-out nature of global memory in Grappa to coalesce multiple synchronization operations together.
 
@@ -227,7 +268,7 @@ Language and compiler support are instrumental in making Grappa usable to a wide
 
 \paragraph{Automatic delegate synthesis: } Delegates are a technique in Grappa where one thread can request a small computation to be carried out on a remote node.  For instance, an increment on a memory location is dispatched to the system node that manages that memory operation and carried out there.  Currently the decision of what is a delegate is left to the programmer.  But this is an area rich for compiler optimization.  We will explore techniques to automatically synthesize delegates from code, potentially leading to more complex delegates and more efficient code.
 
-\paragraph{Compile for a continuations model: } Presently, whenever a task is active it is allocated a complete stack.  Since several thousand tasks are active per processor at any one time, these stacks occupy a large footprint in memory.  We wish to explore compiling tasks to a continuation model, whereby when a task dispatches a remote memory operation and is to be contextd out, another task can utilize that stack.  Combined with the delegate synthesis ideas described above, we will also explore runtime and compiler suppor to convert remote memory operations into thread migrations; instead of moving the data to the system node that has the task, we will move the task to the data in cases where that would be more efficient.
+\paragraph{Compile for a continuation model: } Presently, whenever a task is active it is allocated a complete stack.  Since several thousand tasks are active per processor at any one time, these stacks occupy a large footprint in memory.  We wish to explore compiling tasks to a continuation model, whereby when a task dispatches a remote memory operation and is to be context-switched out, another task can utilize that stack.  Combined with the delegate synthesis ideas described above, we will also explore runtime and compiler support to convert remote memory operations into thread migrations; instead of moving the data to the system node that has the task, we will move the task to the data in cases where that would be more efficient.
 
 \paragraph{Task-weaving: } Much of the time the same task code is executing for hundreds of thousands of tasks in the Grappa runtime system.  For example, each task may be processing a loop body for a parallel for loop.  This is not always the most efficient approach to execution, and we already manually do recursive decomposition of parallel loops with a cut-off to group a collection of loop bodies together into a single task.  The task then executes each of these loop bodies sequentially.  This is not the most efficient approach, however.  An even more efficient technique is for the compiler to unroll and schedule all loop bodies simultaneously within the same task, thereby ``weaving'' these independent tasks together more efficiently to exploit computation / communication overlap.
 
@@ -240,6 +281,7 @@ We will develop type qualifiers to let programmers declare shared data, e.g., \t
 }
 
 \comment{Luis, don't rant.    -mark
+Luis: Ehm, gup you! It wasnt a rant, we are not even sure what our model is and this will take work... and before we know it, we cant cleanly do optimization. As you wish, leave it out, the current state is pretty sloppy... so if we get a comment on this, you will buy beers. 
 
 Specifying the memory model and access semantics of the Grappa runtime is very important for several reasons. The programmer needs to know the behavior of accesses to the global heap. The compiler also must rely on the precise access semantics so that optimizations can be performed without breaking program semantics. We opted for a sequential consistency for data-race-free programs, similarly to the C++0x memory model (something programmers and system software designers are already used to).
 }
