@@ -25,10 +25,10 @@ using Grappa::wait;
 
 static bool touched = false;
 
-void test_forall_cores() {
-  BOOST_MESSAGE("Testing forall_cores...");
+void test_on_all_cores() {
+  BOOST_MESSAGE("Testing on_all_cores...");
   
-  forall_cores([] {
+  on_all_cores([] {
     BOOST_MESSAGE("hello world from " << mycore() << "!");
     touched = true;
   });
@@ -103,7 +103,7 @@ void test_forall_global() {
     test_global++;
   });
   
-  forall_cores([]{
+  on_all_cores([]{
     BOOST_CHECK_EQUAL(test_global, N/cores());
     test_global = 0;
   });
@@ -121,7 +121,7 @@ void test_forall_localized() {
   
   auto array = Grappa_typed_malloc<int64_t>(N);
   
-  forall_localized(array, N, [](int64_t& e){
+  forall_localized(array, N, [](int64_t i, int64_t& e){
     e = 1;
   });
   
@@ -133,7 +133,7 @@ void test_forall_localized() {
 void user_main(void * args) {
   CHECK(Grappa::cores() >= 2); // at least 2 nodes for these tests...
 
-  test_forall_cores();
+  test_on_all_cores();
   
   test_loop_decomposition();
   test_loop_decomposition_global();

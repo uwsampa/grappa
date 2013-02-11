@@ -32,16 +32,16 @@ namespace Grappa {
   
   /// spawn a private task on all cores, block until all complete
   template<typename F>
-  void forall_cores(F simd_work) {
+  void on_all_cores(F work) {
     MessagePool<(1<<16)> pool;
 
     CompletionEvent ce(Grappa::cores());
     auto ce_addr = make_global(&ce);
     
     for (Core c = 0; c < Grappa::cores(); c++) {
-      pool.send_message(c, [ce_addr, simd_work] {
-        privateTask([ce_addr, simd_work] {
-          simd_work();
+      pool.send_message(c, [ce_addr, work] {
+        privateTask([ce_addr, work] {
+          work();
           complete(ce_addr);
         });
       });
@@ -148,7 +148,7 @@ namespace Grappa {
   /// @warning { Same caveat as `forall_here`. }
   template<CompletionEvent * CE = &local_ce, int64_t Threshold = impl::STATIC_LOOP_THRESHOLD, typename F = decltype(nullptr)>
   void forall_global_nosteal(int64_t start, int64_t iters, F loop_body) {
-    forall_cores([start,iters,loop_body]{
+    on_all_cores([start,iters,loop_body]{
       range_t r = blockDist(start, start+iters, mycore(), cores());
       forall_here<CE,Threshold>(r.start, r.end-r.start, loop_body);
     });
@@ -160,16 +160,18 @@ namespace Grappa {
             int64_t Threshold = impl::STATIC_LOOP_THRESHOLD,
             typename F = decltype(nullptr) >
   void forall_localized(GlobalAddress<T> base, int64_t nelems, F loop_body) {
-    forall_cores([base, nelems, loop_body]{
+    on_all_cores([base, nelems, loop_body]{
       T* local_base = base.localize();
       T* local_end = (base+nelems).localize();
       
       forall_here<CE,Threshold>(0, local_end-local_base,
         // note: this functor will be passed by ref in `forall_here` so should be okay if >24B
-        [loop_body, local_base](int64_t start, int64_t iters) {
+        [loop_body, local_base, base](int64_t start, int64_t iters) {
+          auto laddr = make_linear(local_base+start);
+          
           for (int64_t i=start; i<start+iters; i++) {
-            // TODO: check if this is inlined and if this loop can be automatically unrolled
-            loop_body(local_base[i]);
+            // TODO: check if this is inlined and if this loop is unrollable
+            loop_body(laddr-base, local_base[i]);
           }
         }
       );
