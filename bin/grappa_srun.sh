@@ -12,7 +12,7 @@ while [ $# -gt 0 ]; do
   esac
 done
 remaining=$* # save rest of args to pass to `srun` as the actual command
-opts=$(getopt -o n:c:h -l help,nodes:,cores-per-node: -- "$toparse")
+opts=$(getopt -o n:c:ht: -l help,nodes:,cores-per-node:,test: -- "$toparse")
 set -- $opts # put $opts back into bash builtin args (accessible by $@, $1, shift, etc)
 
 function print_usage {
@@ -21,6 +21,7 @@ function print_usage {
   echo "  -n, --nodes           Number of nodes to run the Grappa job with"
   echo "  -c, --cores-per-node  Number of cores per node"
   echo "  -h, --help            Print this help message"
+  echo "  -t, --test            Run boost unit test program with given name (e.g. Aggregator_tests)"
 }
 
 while [ $# -gt 0 ]; do
@@ -30,6 +31,7 @@ while [ $# -gt 0 ]; do
     (-n | --nodes) NODES=$2; shift;;
     (-c | --cores-per-node) CORES_PER_NODE=$2; shift;;
     (-h | --help) print_usage; exit;;
+    (-t | --test) TEST_ARGS="system/$2.test --log_level=test_suite --report_level=confirm --run_test=$2"; shift;;
     (--) shift; break;;
     (-*) echo "$0: error - unrecognized option $1" 1>&2; exit 1;;
     (*)  break;;
@@ -47,4 +49,4 @@ SAMPA_FLAGS="--resv-ports --partition=grappa"
 source "$DIR/grappa_srun_prolog.sh"
 
 # echo srun --nodes=$NODES --ntasks-per-node=$CORES_PER_NODE $GRAPPA_SRUN_FLAGS $SAMPA_FLAGS -- $remaining
-eval srun --nodes=$NODES --ntasks-per-node=$CORES_PER_NODE $GRAPPA_SRUN_FLAGS $SAMPA_FLAGS -- $remaining
+eval srun --nodes=$NODES --ntasks-per-node=$CORES_PER_NODE $GRAPPA_SRUN_FLAGS $SAMPA_FLAGS -- $TEST_ARGS $remaining
