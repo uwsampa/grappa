@@ -59,6 +59,7 @@ namespace Grappa {
     template<int64_t Threshold = STATIC_LOOP_THRESHOLD, typename F = decltype(nullptr) >
     void loop_decomposition_private(int64_t start, int64_t iterations, F loop_body) {
       DVLOG(4) << "< " << start << " : " << iterations << ">";
+      DVLOG(4) << "sizeof(loop_body) = " << sizeof(loop_body);
       
       if (iterations == 0) {
         return;
@@ -114,7 +115,7 @@ namespace Grappa {
   template<typename F>
   void forall_here_async(int64_t start, int64_t iters, F loop_body) {
     impl::loop_decomposition_private(start, iters,
-      [loop_body](int64_t start, int64_t iters) {
+      [&loop_body](int64_t start, int64_t iters) {
         loop_body(start, iters);
       });
   }
@@ -125,11 +126,17 @@ namespace Grappa {
   /// either a given static CompletionEvent (template param) or the local builtin one.
   /// @warning { All calls to forall_here will share the same CompletionEvent by default,
   ///            so only one should be called at once per core. }
+  ///
+  /// Also note: a single copy of `loop_body` is passed by reference to all of the child
+  /// tasks, so be sure not to modify anything in the functor
+  /// (TODO: figure out how to enforce this for all kinds of functors)
   template<CompletionEvent * CE = &local_ce, int64_t Threshold = impl::STATIC_LOOP_THRESHOLD, typename F = decltype(nullptr) >
   void forall_here(int64_t start, int64_t iters, F loop_body) {
     CE->enroll(iters);
     impl::loop_decomposition_private<Threshold>(start, iters,
-      [loop_body](int64_t s, int64_t i) {
+      // passing loop_body by ref to avoid copying potentially large functors many times in decomposition
+      // also keeps task args < 24 bytes, preventing it from being needing to be heap-allocated
+      [&loop_body](int64_t s, int64_t i) {
         loop_body(s, i);
         CE->complete(i);
       });
@@ -154,26 +161,15 @@ namespace Grappa {
             typename F = decltype(nullptr) >
   void forall_localized(GlobalAddress<T> base, int64_t nelems, F loop_body) {
     forall_cores([base, nelems, loop_body]{
-      struct {
-        GlobalAddress<T> base;
-        T* local_base;
-        T* local_end;
-        const F& loop_body;
-      } info = {
-        base,
-        base.localize(),
-        (base+nelems).localize(),
-        loop_body
-      };
+      T* local_base = base.localize();
+      T* local_end = (base+nelems).localize();
       
-      forall_here<CE,Threshold>(0, info.local_end-info.local_base,
-        // TODO: find way to do privateTasks with shared arg struct/lambda by reference
-        // (passing reference to `info` struct here because we only have room for one
-        // more 8-byte word available before `privateTask` will heap-allocate (>24B)
-        [&info](int64_t start, int64_t iters) {
+      forall_here<CE,Threshold>(0, local_end-local_base,
+        // note: this functor will be passed by ref in `forall_here` so should be okay if >24B
+        [loop_body, local_base](int64_t start, int64_t iters) {
           for (int64_t i=start; i<start+iters; i++) {
-            // TODO: get this to be inlined (because it probably won't be in this case)
-            info.loop_body(info.local_base[i]);
+            // TODO: check if this is inlined and if this loop can be automatically unrolled
+            loop_body(local_base[i]);
           }
         }
       );
