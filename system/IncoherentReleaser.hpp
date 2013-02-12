@@ -252,7 +252,7 @@ public:
       ReplyArgs reply_args;
       reply_args.reply_address = reply_address;
       
-      Grappa::send_heap_message(reply_address.node(), &reply_args);
+      Grappa::send_heap_message(reply_address.node(), reply_args);
       
       DVLOG(5) << "Thread " << CURRENT_THREAD
       << " sent release reply to " << reply_address;
