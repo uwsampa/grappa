@@ -107,7 +107,7 @@ namespace Grappa {
   
   template < typename TF >
   void publicTask( TF tf ) {
-    // TODO: implement automatic heap allocation and caching to handle larget functors
+    // TODO: implement automatic heap allocation and caching to handle larger functors
     static_assert(sizeof(tf) <= 24,
         "Functor argument to publicTask too large to be automatically coerced.");
     
