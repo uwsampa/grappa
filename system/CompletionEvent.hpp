@@ -1,6 +1,6 @@
 #pragma once
 
-#include "Grappa.hpp"
+#include "Communicator.hpp"
 #include "ConditionVariableLocal.hpp"
 #include "Message.hpp"
 #include "Tasking.hpp"
