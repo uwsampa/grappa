@@ -17,16 +17,11 @@
 
 DECLARE_int64(loop_threshold);
 
-//// implementations
-//#include "ParallelLoop_future.hpp"
-////#include "ParallelLoop_single.hpp"
-//#include "parallel_loop_impls/ParallelLoop_singleSerial.hpp"
-//
-//#include "parallel_loop_impls/ParallelLoop_semaphore.hpp"
-
 namespace Grappa {
   
-  /// spawn a private task on all cores, block until all complete
+  /// Spawn a private task on each core, block until all complete.
+  /// To be used for any SPMD-style work (e.g. initializing globals).
+  /// Also used as a primitive in Grappa system code where anything is done on all cores.
   template<typename F>
   void on_all_cores(F work) {
     MessagePool<(1<<16)> pool;
@@ -46,20 +41,25 @@ namespace Grappa {
   }
   
   namespace impl {
-    
-    const int64_t STATIC_LOOP_THRESHOLD = 0;
+    /// Declares that the loop threshold should be determined by the `loop_threshold` command-line flag.
+    /// (default for loop decompositions)
+    const int64_t USE_LOOP_THRESHOLD_FLAG = 0;
     
     // TODO: figure out way to put these different kinds of loop_decomposition
     // Need to template on the now-templated task spawn function.
     
-    template<int64_t Threshold = STATIC_LOOP_THRESHOLD, typename F = decltype(nullptr) >
+    /// Does recursive loop decomposition, subdividing iterations by 2 until reaching
+    /// the threshold and serializing the remaining iterations at each leaf.
+    ///
+    /// This version spawns *private* tasks all the way down.
+    template<int64_t Threshold = USE_LOOP_THRESHOLD_FLAG, typename F = decltype(nullptr) >
     void loop_decomposition_private(int64_t start, int64_t iterations, F loop_body) {
       DVLOG(4) << "< " << start << " : " << iterations << ">";
       DVLOG(4) << "sizeof(loop_body) = " << sizeof(loop_body);
       
       if (iterations == 0) {
         return;
-      } else if ((Threshold == STATIC_LOOP_THRESHOLD && iterations <= FLAGS_loop_threshold)
+      } else if ((Threshold == USE_LOOP_THRESHOLD_FLAG && iterations <= FLAGS_loop_threshold)
                  || iterations <= Threshold) {
         loop_body(start, iterations);
         return;
@@ -79,13 +79,17 @@ namespace Grappa {
       }
     }
     
-    template<int64_t Threshold = STATIC_LOOP_THRESHOLD, typename F = decltype(nullptr) >
+    /// Does recursive loop decomposition, subdividing iterations by 2 until reaching
+    /// the threshold and serializing the remaining iterations at each leaf.
+    ///
+    /// This version spawns *public* tasks all the way down.
+    template<int64_t Threshold = USE_LOOP_THRESHOLD_FLAG, typename F = decltype(nullptr) >
     void loop_decomposition_public(int64_t start, int64_t iterations, F loop_body) {
       VLOG(1) << "< " << start << " : " << iterations << ">";
       
       if (iterations == 0) {
         return;
-      } else if ((Threshold == STATIC_LOOP_THRESHOLD && iterations <= FLAGS_loop_threshold)
+      } else if ((Threshold == USE_LOOP_THRESHOLD_FLAG && iterations <= FLAGS_loop_threshold)
                  || iterations <= Threshold) {
         loop_body(start, iterations);
         return;
@@ -107,26 +111,21 @@ namespace Grappa {
 
   }
   
-  /// Does recursive decomposition of loop, but synchronization is up to you.
-  template<typename F>
-  void forall_here_async(int64_t start, int64_t iters, F loop_body) {
-    impl::loop_decomposition_private(start, iters,
-      [&loop_body](int64_t start, int64_t iters) {
-        loop_body(start, iters);
-      });
-  }
-  
   extern CompletionEvent local_ce;
   
   /// Blocking parallel for loop, spawns only private tasks. Synchronizes itself with
   /// either a given static CompletionEvent (template param) or the local builtin one.
+  ///
+  /// Intended to be used for a loop of local tasks, often used as a primitive (along
+  /// with `on_all_cores`) in global loops.
+  ///
   /// @warning { All calls to forall_here will share the same CompletionEvent by default,
   ///            so only one should be called at once per core. }
   ///
   /// Also note: a single copy of `loop_body` is passed by reference to all of the child
   /// tasks, so be sure not to modify anything in the functor
   /// (TODO: figure out how to enforce this for all kinds of functors)
-  template<CompletionEvent * CE = &local_ce, int64_t Threshold = impl::STATIC_LOOP_THRESHOLD, typename F = decltype(nullptr) >
+  template<CompletionEvent * CE = &local_ce, int64_t Threshold = impl::USE_LOOP_THRESHOLD_FLAG, typename F = decltype(nullptr) >
   void forall_here(int64_t start, int64_t iters, F loop_body) {
     CE->enroll(iters);
     impl::loop_decomposition_private<Threshold>(start, iters,
@@ -139,10 +138,23 @@ namespace Grappa {
     CE->wait();
   }
   
+  /// Non-blocking version of `forall_here`, does recursive decomposition of loop locally,
+  /// but synchronization is up to you.
+  ///
+  /// Note: this also cannot guarantee that `loop_body` will be in scope, so it passes it
+  /// by copy to spawned tasks.
+  template<typename F>
+  void forall_here_async(int64_t start, int64_t iters, F loop_body) {
+    impl::loop_decomposition_private(start, iters,
+      [loop_body](int64_t start, int64_t iters) {
+        loop_body(start, iters);
+      });
+  }
+  
   /// Spread iterations evenly (block-distributed) across all the cores, using recursive
   /// decomposition with private tasks. Blocks until all iterations on all cores complete.
   /// @warning { Same caveat as `forall_here`. }
-  template<CompletionEvent * CE = &local_ce, int64_t Threshold = impl::STATIC_LOOP_THRESHOLD, typename F = decltype(nullptr)>
+  template<CompletionEvent * CE = &local_ce, int64_t Threshold = impl::USE_LOOP_THRESHOLD_FLAG, typename F = decltype(nullptr)>
   void forall_global_nosteal(int64_t start, int64_t iters, F loop_body) {
     on_all_cores([start,iters,loop_body]{
       range_t r = blockDist(start, start+iters, mycore(), cores());
@@ -151,9 +163,17 @@ namespace Grappa {
   }
   
   
+  /// Parallel loop over a global array. Spawned from a single core, fans out and runs
+  /// tasks on elements that are local to each core.
+  ///
+  /// Takes an optional pointer to a global static `CompletionEvent` as a template
+  /// parameter to allow for programmer-specified task joining (to potentially allow
+  /// more than one in flight simultaneously, though this call is itself blocking.
+  ///
+  /// TODO: asynchronous version that supports many outstanding calls to `forall_localized` (to be used in BFS)
   template< typename T,
             CompletionEvent * CE = &local_ce,
-            int64_t Threshold = impl::STATIC_LOOP_THRESHOLD,
+            int64_t Threshold = impl::USE_LOOP_THRESHOLD_FLAG,
             typename F = decltype(nullptr) >
   void forall_localized(GlobalAddress<T> base, int64_t nelems, F loop_body) {
     on_all_cores([base, nelems, loop_body]{
