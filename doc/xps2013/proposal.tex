@@ -19,7 +19,7 @@ national security, machine learning, data-driven science, and social network
 computing domains. For these emerging applications, fast response -- given the
 sheer amount of data -- requires multinode systems. The most broadly available
 multinode systems are those built from x86 commodity computing nodes
-interconnected via ethernet or infiniband. Our current work enables scalable
+interconnected via ethernet or infiniband. Our focus is to enable scalable
 performance of irregular applications on these mass market systems,
 addressing two key challenges:
 
@@ -108,10 +108,18 @@ and further take advantage of Grappa's latency tolerance properties.
 Finally, we propose to explore how the lessons learned performing this research -- specifically knowledge of what ultimately limits Grappa's performance for irregular applications using x86 processors and commodity networks with modified communication protocols -- can be applied to the design of future architectures.  Doing so will include studying the following research questions:
 
 \begin{itemize}
-\item \textbf What is the right system architecture support for irregular applications, including architecture, communication and storage?
-\item \textbf What are the necessary language and compiler support for large-scale, data-intensive irregular applications?
-\item \textbf How do we comprehensively evaluate performance of graph analytics systems?
+\item \textbf{What is the right system architecture support for irregular applications, including architecture, communication and storage?}
+\item \textbf{What are the necessary language and compiler support for large-scale, data-intensive irregular applications?}
+\item \textbf{How do we comprehensively evaluate performance of graph analytics systems?}
 \end{itemize}
+
+\paragraph{Intellectual Merit:}
+
+Efficiently executing irregular computations on commodity hardware is \emph{hard}.  Much about commodity hardware is seemingly designed for the opposite application characteristics: caches assume applications have locality; networks are built with low injection rates but high bandwidth, assuming large packet sizes; even the runtimes and operating system is built assuming relatively infrequent communication and synchronization compared to computation.  This proposal rests on the seemingly outlandish claim that this commodity hardware / software stack can be convinced, through another layer of software, into efficiently executing irregular applications that lack locality, and communicate frequently with small amounts of data.  A folksy way of saying it is we think we can jam a square peg through a round hole.  Fortunately we have some preliminary evidence we won't get wedged along the way.  This is an intellectually challenging endeavor, and one square in the middle of the NSF XPS program: using and exploiting parallelism from irregular computations to efficiently execute them at scale.
+
+\paragraph{Broader Impact:}
+
+Irregular computations are of increasing economic importance.  Moreover, they are key to several national security applications.  If commodity hardware can be cajoled into executing such applications efficiently it will open the door for new and rich applications.  Graph queries, machine-learning and data-driven science will be enabled by the technology we aim to create from the ideas in this grant proposal.  In addition our work will include the construction of a comprehensive irregular benchmark suite, something to help guide our own and the field's research.
 
 %% Roadmap
 
