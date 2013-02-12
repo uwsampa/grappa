@@ -27,9 +27,30 @@ addressing two key challenges:
 
 \paragraph{Irregular applications frequently request small amounts of off-node data.} On multinode systems, the challenges presented by low locality are analogous, and exacerbated by the increased latency of going off-node. Irregular applications also present a challenge to mass market network technology, which is designed to transfer large blocks of data, not the word-sized references emitted by irregular application tasks. Injection rate into the network is insufficient to utilize wire bandwidth when blocks are below about two-kilobytes, so any straightforward communication strategy severely under-utilizes the network.
 
-While some irregular applications can be restructured to better exploit locality, aggregating requests to increase message size, and manage the additional challenges of load balance and synchronization across multinode systems, the work to do so is formidable and requires knowledge and skills pertaining to distributed systems far beyond those of most application programmers.
+%% I don't think we need the parahraph below. 
+% While some irregular applications can be restructured to better exploit
+% locality, aggregating requests to increase message size, and manage the
+% additional challenges of load balance and synchronization across multinode
+% systems, the work to do so is formidable and requires knowledge and skills
+% pertaining to distributed systems far beyond those of most application
+% programmers.
 
-Luckily, many of the important irregular applications naturally offer large amounts of concurrency. This immediately suggests taking advantage of concurrency to tolerate the latency of data movement. The fully custom Tera MTA-2~\cite{tera:mta1} system is a classic example of supporting irregular applications by using concurrency to hide latencies.  It had a large distributed shared memory with no caches.  On every clock cycle, each processor would execute a ready instruction chosen from one of its 128 hardware thread contexts, a sufficient number to fully hide memory access latency.  The network was designed with a single word injection rate that matched the processor clock frequency and sufficient bandwidth to sustain a reference from every processor on every clock cycle. Unfortunately, while an excellent match to extremely irregular applications, the MTA was not cost-effective on applications that could exploit locality and had very poor single-thread performance, making it a commercial failure. The Cray XMT approximates the Tera MTA-2, substantially reducing its cost but not overcoming its narrow range of applicability.
+Luckily, many of the important irregular applications naturally offer large
+amounts of concurrency. This immediately suggests taking advantage of
+concurrency to tolerate the latency of data movement. The fully custom Tera
+MTA-2~\cite{tera:mta1} system is a classic example of supporting irregular
+applications by using concurrency to hide latencies. It had a large
+distributed shared memory with no caches. On every clock cycle, each processor
+would execute a ready instruction chosen from one of its 128 hardware thread
+contexts, a sufficient number to fully hide memory access latency. The network
+was designed with a single word injection rate that matched the processor
+clock frequency and sufficient bandwidth to sustain a reference from every
+processor on every clock cycle. Unfortunately, while an excellent match to
+extremely irregular applications, the MTA was not cost-effective on
+applications that could exploit locality and had very poor single-thread
+performance, making it a commercial failure. The Cray XMT approximates the
+Tera MTA-2, substantially reducing its cost but not overcoming its narrow
+range of applicability.
 
 In this proposal we first describe our early
 Grappa~\cite{grappa} prototype, a runtime system for irregular
@@ -39,7 +60,15 @@ synchronization primitives. Applications targeted for Grappa are not expected
 to have \emph{any} locality (although what locality that exists is favorably
 exploited), but are expected to provide many thousands of concurrent threads.
 
-Next, we present some preliminary results.  Even as an early prototype, Grappa runs several graph-crunching applications (classic examples of irregular behavior) efficiently on a commodity cluster.  For unbalanced tree search, Grappa is over 3X faster and shows greatly improved scalability compared to the Cray XMT; conversely, for breadth first search Grappa is 2.5X slower -- fast compared to implementations without Grappa, but obviously there is room for improvement.  Most importantly, however, for significantly less real world cost, users can \emph{add} significantly more processors to a commodity cluster than an XMT machine and use Grappa to achieve scalable performance.
+Next, we present some preliminary results. Even as an early prototype, Grappa
+runs several graph-crunching applications (classic examples of irregular
+behavior) efficiently on a commodity cluster. For unbalanced tree search,
+Grappa is over 3X faster and shows greatly improved scalability compared to
+the Cray XMT; conversely, for breadth first search Grappa is 2.5X slower --
+fast compared to implementations without Grappa, but obviously there is room
+for improvement. Most importantly, however, for significantly less real world
+cost, users can \emph{add} significantly more processors to a commodity
+cluster than an XMT machine and use Grappa to achieve scalable performance.
 
 Given these very positive early results,
 we next propose to extend Grappa in the following directions:
@@ -52,18 +81,36 @@ network scaling. This proposal plans to enhance the network layer with new
 forms of communication scheduling and aggregation, and explore new forms of
 hardware/software interactions of remote direct memory access (RDMA).
 
-\item \textbf{Support for \ssd\ only memory systems:} The size of data being processed by large systems today (hundreds of terabytes) dwarfs what can fit into a single system. Multiple system nodes are required to maintain and access all of this data efficiently.  However, even with hundreds of channels to persistent storage, loading this data into DRAM can prove a bottleneck.  The Grappa runtime is designed to make applications tolerate extremely high memory latency, thus we will explore using solid state disks as main memory, since and further take advantage of Grappa's latency tolerance properties. 
+\item \textbf{Language and compiler support:} Presently, applications are
+hand-coded to the Grappa interface. A significant research thrust of the
+proposed work is to ease this programming burden by language and compilation
+support.
 
-\item \textbf{Language and compiler support:} Presently, applications are hand-coded to the Grappa interface.  A significant research thrust of the proposed work is to ease this programming burden by language and compilation support.
+\item \textbf{Comprehensive benchmark suite:} Presently there does not exist a
+comprehensive benchmark suite of irregular and graph applications. We also
+seeking funding through this proposal to put together just such a benchmark
+suite. This suite will include benchmarks, reference implementations, and
+input data-sets. In addition a website will be created \texttt{graphbench.org}
+to distribute the benchmark suite and publish results.
 
-\item \textbf{Comprehensive benchmark suite:} Presently there does not exist a comprehensive benchmark suite of irregular and graph applications.  We also seeking funding through this proposal to put together just such a benchmark suite.  This suite will include benchmarks, reference implementations, and input data-sets.  In addition a website will be created \texttt{graphbench.org} to distribute the benchmark suite and publish results.
+\item \textbf{Support for \ssd\ only memory systems:} The size of data being
+processed by large systems today (hundreds of terabytes) dwarfs what can fit
+into a single system. Multiple system nodes are required to maintain and
+access all of this data efficiently. However, even with hundreds of channels
+to persistent storage, loading this data into DRAM can prove a bottleneck. The
+Grappa runtime is designed to make applications tolerate extremely high memory
+latency, thus we will explore using solid state disks as main memory, since
+and further take advantage of Grappa's latency tolerance properties.
+
 
 \end{itemize}
 
 Finally, we propose to explore how the lessons learned performing this research -- specifically knowledge of what ultimately limits Grappa's performance for irregular applications using x86 processors and commodity networks with modified communication protocols -- can be applied to the design of future architectures.  Doing so will include studying the following research questions:
 
-\being{itemize}
-\item \textbf{TBD}
+\begin{itemize}
+\item \textbf What is the right system architecture support for irregular applications, including architecture, communication and storage?
+\item \textbf What are the necessary language and compiler support for large-scale, data-intensive irregular applications?
+\item \textbf How do we comprehensively evaluate performance of graph analytics systems?
 \end{itemize}
 
 %% Roadmap
@@ -86,7 +133,7 @@ Grappa leverages as much freely available and commodity infrastructure as possib
 \end{center}
 \end{figure}
 
-Grappa (Figure~\ref{fig:grappa}) has three main software components: \begin{description}
+The current Grappa prototype (Figure~\ref{fig:grappa}) has three main software components: \begin{description}
 
 \item [Tasking system.] Our tasking system supports lightweight multithreading to tolerate communication latency and global distributed workstealing (i.e., tasks can be stolen from any node in the system), which provides automated load balancing.
 
@@ -287,7 +334,7 @@ We will develop type qualifiers to let programmers declare shared data, e.g., \t
 }
 
 \comment{Luis, don't rant.    -mark
-Luis: Ehm, gup you! It wasnt a rant, we are not even sure what our model is and this will take work... and before we know it, we cant cleanly do optimization. As you wish, leave it out, the current state is pretty sloppy... so if we get a comment on this, you will buy beers. 
+Luis: Ehm, it wasnt a rant, we are not even sure what our model is and this will take work... and before we know it, we cant cleanly do optimization. As you wish, leave it out, the current state is pretty sloppy... so if we get a comment on this, you will buy beers. 
 
 Specifying the memory model and access semantics of the Grappa runtime is very important for several reasons. The programmer needs to know the behavior of accesses to the global heap. The compiler also must rely on the precise access semantics so that optimizations can be performed without breaking program semantics. We opted for a sequential consistency for data-race-free programs, similarly to the C++0x memory model (something programmers and system software designers are already used to).
 }
@@ -322,6 +369,28 @@ We will build a collection of key computational kernels from graph and irregular
 \paragraph{Kahan:} Dr. Kahan's research has focused on irregular parallel computation.  Over the course of twelve years, he developed the Tera MTA's multithreaded runtime system and memory allocator still in use today in the Cray XMT, exploring applicability of the system to production codes and benchmarks in the engineering, science, and government domains.  His has been driven by application needs.  The research described herein relies heavily on the experience gained, the innovation being not only to reapply it to mass market technology but also to explore .  He is presently an employee of the Department of Energy.  He has no past or current NSF support.
 
 \paragraph{Oskin:} Prof. Oskin's prior research has focused on architectures and systems for scalable computing.  With support from NSF he has carried out a variety of research activities, leading to over 50 scholarly publications, three PhD students graduated, four masters students graduated, and a company spin-off.  The past NSF-supported work (WaveScalar) heavily influences the ideas described here. In some sense, the work here is a culmination in thought processes about why WaveScalar did not achieve as much ILP as earlier limit studies in ILP suggested were possible.  NSF support for the PI's work, {\em ITR: WaveScalar, A New Approach to Scalable System Design} (CCF-0325635, 2003-07, \$1.3M), {\em CAREER: Soft-Instruction Set Computing} (CCF-0133188, 2002-05, \$443K), helped to develop WaveScalar.  He has also spent over a decade exploring architectural implications of quantum computing technologies, with support from NSF {\em NER: Computer Aided Design of Silicon-based Quantum Computers} (CCF-0210373, 2002-04, \$90K), {\em EMT: Microarchitectures for Quantum Computers} (CCF-0523359, 2006-10, \$275K), {\em EMT: Self-Correcting Fault-Tolerant Quantum Computers} (CCF-0523359, 2005-08, \$406K) DARPA {\em QuIST: Architectures and Applications for Scalable Quantum Information Systems}.  He is currently exploring runtime systems for irregular parallel applications, which is the subject of this proposal and is partially funded by the Department of Energy.
+
+\section{Work Plan}
+\label{sec:plan}
+
+Our research plan can be divided horizontally into three core areas:
+programming languages/compilers; communication and storage; and benchmarking. Below we outline how we
+plan to advance these fronts over the next four years.
+
+\vspace{2ex}
+
+%% TODO: need to expand below. 
+
+\noindent\textbf{Year 1:} Benchmarks. Crude language support.
+
+\vspace{1ex}
+\noindent\textbf{Year 2:} Benchmarks. Hierarchical aggregation. Compiler optimizations.
+
+\vspace{1ex}
+\noindent\textbf{Year 3:} Hierarchical aggregation. SSD-only data structures.
+
+\vspace{1ex}
+\noindent\textbf{Year 4:} SSD-only data structures. Detailed system evaluation. 
 
 \section{Summary}
 
