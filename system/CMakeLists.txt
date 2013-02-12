@@ -74,6 +74,7 @@ set(SYSTEM_SOURCES
   StateTimer.hpp
   Statistics.hpp
   Statistics.cpp
+  SimpleStatistic.hpp
   StatisticsTools.hpp
   Synchronization.hpp
   Tasking.hpp
