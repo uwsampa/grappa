@@ -5,9 +5,7 @@
 #include "Message.hpp"
 #include "Communicator.hpp"
 #include "Addressing.hpp"
-#include "Grappa.hpp"
 #include "ConditionVariableLocal.hpp"
-#include "Message.hpp"
 
 namespace Grappa {
 
@@ -21,7 +19,6 @@ namespace Grappa {
     // if remote, spawn a task on the home node to wait
   }
 
-  /// TODO: implement
   template<typename ConditionVariable>
   inline void signal( const GlobalAddress<ConditionVariable> m ) {
     if (m.node() == Grappa::mycore()) {

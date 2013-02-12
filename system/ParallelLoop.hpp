@@ -9,15 +9,11 @@
 
 #include "CompletionEvent.hpp"
 #include "ConditionVariable.hpp"
-#include "Grappa.hpp"
 #include "Message.hpp"
 #include "MessagePool.hpp"
 #include "Tasking.hpp"
 #include "Addressing.hpp"
-
-// TODO: NOTE! These are still fairly experimental. Currently the parallel loop implementation you probably want
-//       is AsynParallelFor, along with a synchronization mechanism like
-//       GlobalTaskJoiner. That is what is used in current benchmarks.
+#include "Communicator.hpp"
 
 DECLARE_int64(loop_threshold);
 
