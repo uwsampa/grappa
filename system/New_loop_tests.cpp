@@ -99,7 +99,7 @@ void test_forall_global() {
   BOOST_MESSAGE("Testing forall_global...");
   const int64_t N = 1 << 8;
   
-  forall_global_nosteal(0, N, [](int64_t start, int64_t iters) {
+  forall_global_private(0, N, [](int64_t start, int64_t iters) {
     for (int i=0; i<iters; i++) {
       test_global++;
     }
@@ -110,7 +110,7 @@ void test_forall_global() {
     test_global = 0;
   });
   
-  forall_global_nosteal<&test_global_ce>(0, N, [](int64_t start, int64_t iters) {
+  forall_global_private<&test_global_ce>(0, N, [](int64_t start, int64_t iters) {
     for (int i=0; i<iters; i++) {
       test_global++;
     }

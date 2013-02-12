@@ -50,6 +50,7 @@ namespace Grappa {
     
     /// Does recursive loop decomposition, subdividing iterations by 2 until reaching
     /// the threshold and serializing the remaining iterations at each leaf.
+    /// Note: this is an internal primitive for spawning tasks and does not synchronize on spawned tasks.
     ///
     /// This version spawns *private* tasks all the way down.
     template<int64_t Threshold = USE_LOOP_THRESHOLD_FLAG, typename F = decltype(nullptr) >
@@ -81,6 +82,7 @@ namespace Grappa {
     
     /// Does recursive loop decomposition, subdividing iterations by 2 until reaching
     /// the threshold and serializing the remaining iterations at each leaf.
+    /// Note: this is an internal primitive for spawning tasks and does not synchronize on spawned tasks.
     ///
     /// This version spawns *public* tasks all the way down.
     template<int64_t Threshold = USE_LOOP_THRESHOLD_FLAG, typename F = decltype(nullptr) >
@@ -152,10 +154,12 @@ namespace Grappa {
   }
   
   /// Spread iterations evenly (block-distributed) across all the cores, using recursive
-  /// decomposition with private tasks. Blocks until all iterations on all cores complete.
-  /// @warning { Same caveat as `forall_here`. }
+  /// decomposition with private tasks (so will not be load-balanced). Blocks until all
+  /// iterations on all cores complete.
+  ///
+  /// @warning { Same caveat as `forall_here` about sharing a CompletionEvent. }
   template<CompletionEvent * CE = &local_ce, int64_t Threshold = impl::USE_LOOP_THRESHOLD_FLAG, typename F = decltype(nullptr)>
-  void forall_global_nosteal(int64_t start, int64_t iters, F loop_body) {
+  void forall_global_private(int64_t start, int64_t iters, F loop_body) {
     on_all_cores([start,iters,loop_body]{
       range_t r = blockDist(start, start+iters, mycore(), cores());
       forall_here<CE,Threshold>(r.start, r.end-r.start, loop_body);
