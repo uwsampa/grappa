@@ -53,7 +53,7 @@ Tera MTA-2, substantially reducing its cost but not overcoming its narrow
 range of applicability.
 
 In this proposal we first describe our early
-Grappa~\cite{grappa} prototype, a runtime system for irregular
+Grappa prototype, a runtime system for irregular
 applications. It provides several facilities: a global shared memory
 abstraction, user-level threading support, and communication and
 synchronization primitives. Applications targeted for Grappa are not expected
@@ -167,7 +167,7 @@ Grappa provides four methods for expressing parallelism. First, when the program
 
 Applications written for Grappa utilize two forms of memory: local and global.  Local memory is local to a single core in the system.  Accesses occur through conventional pointers.  The compiler emits an access and the memory is manipulated directly.  Applications use local accesses for a number of things in Grappa: the stack associated with a task, accesses to localized global memory in caches (see below), and accesses to debugging infrastructure that is local to each system node.  Local pointers cannot access memory on other cores, and are valid only on their home core.
 
-Large data that is expected to be shared and accessed with low locality is stored in Grappa's global memory. All global data must be accessed through calls into Grappa's API, shown in Figure~\ref{fig:accessing-memory}.
+Large data that is expected to be shared and accessed with low locality is stored in Grappa's global memory. All global data must be accessed through calls into Grappa's API. %, shown in Figure~\ref{fig:accessing-memory}.
 
 \paragraph{Global memory addressing} Grappa provides two methods for storing data in the global memory. The first is a distributed heap striped across all the machines in the system in a block cyclic fashion. The \texttt{global\_malloc} and \texttt{global\_free} calls are used to allocate and deallocate memory in the global heap.  Addresses to memory in the global heap use \textbf{linear addresses}.  Choosing the block size involves trading off sequential bandwidth against aggregate random access bandwidth. Smaller block sizes help spread data across all the memory controllers in the cluster, but larger block sizes allow the locality-optimized memory controllers to provide increased sequential bandwidth. The block size, which is configurable, is typically set to 64 bytes, or the size of a single hardware cache line, in order to exploit spatial locality when available. The heap metadata is stored on a single node. Currently all heap operations serialize through this node; while this has been sufficient for our benchmarks, in the future Grappa will provide parallel performance through combining~\cite{MAMA,flatcombining}.
 
@@ -261,9 +261,15 @@ We expect this hierarchical organization will reduce scaling requirements from
 be a single network hop for communication and turns it into \BigO{log(n)}
 hops. More threads will be required to overcome this increased latency, but we
 hypothesize only \BigO{log(n)} more, hence a real \BigO{n / log(n)^2} scaling
-benefit is achievable with the a virtual hierarchical network topology.
+benefit is achievable with the a virtual hierarchical network topology. 
 
-% Should we discuss doing HW support for aggregation? Using NetFPGAs?
+\paragraph{Hardware support for aggregation:} If the increased latency caused
+by extra hops in hierarchical aggregation turns out to be a big factor, we
+will explore reducing by move some of the aggregation logic to the network
+card, either by exploiting off-the-shelf programmable network cards or
+experimental systems such ask NetFPGA~\cite{netfpga} (while we are planning to
+focus on Infiniband-based networking, if we explore the NetFPGA route we will
+be using Ethernet).
 
 \paragraph{User-level RDMA:} Certain commodity networking hardware today
 supports remote direct memory access (RDMA). Unfortunately, \emph{how} it is
@@ -279,7 +285,6 @@ This interface suffers from multiple shortcomings.  The biggest of which is that
 
 %% The second half of this paragraph is really confusing, I have just a minimal clue of what it is talking about. And the little I understand sounds a bit vague and not directly related to grappa.
 The second challenge is the virtual to physical address translation on the cards requires the operating system to pin translations.  This removes paging flexibility from the operating system because runtime systems are (rationally) built to expect data structures to be in memory capable of RDMA or not.  Those in RDMA memory must be pinned.  In the long run, the solution here likely lays at the intersection of what progress is occurring in processor support for virtual machines and virtual memory translation for I/O.  Our goal will be to carefully study the I/O virtualization proposals put forth by major processor manufactures and devise solutions that enable RDMA to capitalize on these developments.
-
 
 \subsection{SSD-only data structures}
 
@@ -337,7 +342,7 @@ We will build a collection of key computational kernels from graph and irregular
 
 \paragraph{Benchmark suite:} As previously described, we are seeking funding support to build and distribute a benchmark suite for irregular and graph applications.  This benchmark suite has the potential to have a broad impact on academia and industry.  We will distribute this benchmark through \texttt{graphbench.org} and will also collect and publish results from competing research groups.
 
-\paragraph{Technology transfer:} Bill Dally during his 2010 Eckert-Mauchly award speech said (in effect), technology transfers happen when people transfer.  Having just come back from a three year stint founding a startup company (where we transferred the Deterministic Multiprocessing technology from UW), we've seen this first hand.  The students and faculty involved in the Grappa project will spin off a company with their work.  The exact time frame is not yet known, but everyone involved in the project is excited to see the technology underpin a startup company and make this technology available to the broader commercial world.
+\paragraph{Technology transfer:} Bill Dally during his 2010 Eckert-Mauchly award speech said (in effect), technology transfers happen when people transfer.  Having just come back from a three year stint founding a startup company (where we transferred the Deterministic Multiprocessing technology from UW), we've seen this first hand.  The students and faculty involved in the Grappa project plan to spin off a company with their work.  The exact time frame is not yet known, but everyone involved in the project is excited to see the technology underpin a startup company and make this technology available to the broader commercial world.
 
 \paragraph{Curriculum development activities:} Concurrent with the execution of the research activities described in this grant we will seek to teach an advanced graduate class on advanced concurrency concepts.  We taught a similar class over six years ago and it is time to revive, update and teach it to the next generation of computer architecture graduate students.  \comment{Add more here.  This has no passion. -Mark}
 
@@ -357,9 +362,8 @@ Our research plan can be divided horizontally into three core areas: programming
 
 \vspace{2ex}
 
-%% TODO: need to expand below. 
 
-\noindent\textbf{Year 1:} The first year of this effort will focus on creating the benchmark suite and initial language and compiler support.  We aim to pull together 6-8 benchmarks, sample data sets, and scripts to measure performance results on the initial Grappa runtime, UPC~\cite{upc} implementations, and serial reference code.  For the compiler we will have the front end done enabling easy addition of keywords to annote data-types and structural elements (parallel for, etc).  The compiler will be generating in-efficient Grappa code by the end of the first year.
+\noindent\textbf{Year 1:} The first year of this effort will focus on creating the benchmark suite and initial language and compiler support.  We aim to pull together 6-8 benchmarks, sample data sets, and scripts to measure performance results on the initial Grappa runtime, UPC~\cite{upc} implementations, and serial reference code.  For the compiler we will have the front end done enabling easy addition of keywords to annotate data-types and structural elements (parallel for, etc).  The compiler will be generating in-efficient Grappa code by the end of the first year.
 
 \vspace{1ex}
 \noindent\textbf{Year 2:} The second year of effort will see the completion of the benchmark suite, a significant effort on compiler optimizations for Grappa, and the beginning of the networking layer research.  The benchmark suite will include 12-15 applications and/or kernels.  The website will be live and we will be conducting significant outreach efforts to drive adoption.  On the compiler front we will have implemented the key optimizations that provide the highest benefit for Grappa code.  In addition we will have a detailed understanding of what additional work remains to support other languages / language constructs.  In this year we will start work on rewriting the networking layer of the Grappa runtime, providing a virtual network topology.  We will also begin work on programmable RDMA by using FPGA-based networking gear.
@@ -367,6 +371,132 @@ Our research plan can be divided horizontally into three core areas: programming
 
 \vspace{1ex}
 \noindent\textbf{Year 3:} In the third and final year of this effort (supported by this grant), we will finish the networking layer rewrite.  We will also have constructed a test-bed system comprised of mainly SSD-based memory.  Grappa will be ported to this new style of memory, which we envision will largely be a tuning and not rewriting effort.  We will explore alternative SSD-memory designs largely through emulation.  Finally we will complete a detailed system evaluation using our benchmark suite.
+
+\newpage
+
+\section*{Data Management Plan}
+
+The proposed research involves developing experimental systems and
+assessing how well they work. The kinds of data we will produce
+include: characterization data of program behavior; data on system
+performance and reliability; data on how programmers use new language
+constructs and tools. As is our practice, we will regularly submit
+papers for publication detailing our findings and design of our
+systems.
+
+As we have already been doing with all our research, for every
+published paper, we make all the raw data available online. This
+allows other researchers to look at the data in different ways, and it
+enables them to reproduce results. We also often publish
+the experimental software developed, following the rules outlined by
+the University intellectual property office --- which provides ample
+rights for other researchers to build upon our experimental
+systems. We do not anticipate using privileged or confidential
+information. 
+
+\newpage
+\section*{Collaboration Plan}
+%\setcounter{page}{1} 
+
+Because the PIs already successfully collaborate and co-advise an
+active cadre of spectacular students, the necessary tools and
+coordination mechanisms are already in place for this project to
+proceed successfully.  We first describe the PIs' complementary
+backgrounds, then describe the current organization of our (amorphous)
+research group, then describe the specific technology and facilities
+that enable seamless coordination, and finally describe specific PI roles
+for the research in this proposal.
+
+\subsection*{Complementary PI Experience}
+
+PI Oskin has traditionally participated in the computer-architecture research
+community, co-PI Ceze, in addition to the architecture community also has a
+presence in the systems and programming languages community, and co-PI Kahan
+has participated mainly in the parallel and scientific computing community.
+The move toward multicore architectures has re-invigorated collaboration
+across these divides and recent joint work by Oskin, Ceze, and Kahan
+embodies this important trend. There are currently five graduate students for
+which at last two of the PIs serve as advisors. In addition to the project
+described in this proposal, they are also working together on techniques for
+detecting concurrency errors with machine learning and language
+specifications, using disciplined approximations to save energy in computing,
+and developing new operating-system abstractions for emerging non-volatile
+memory devices. What has made these collaborations so fruitful in such a short
+period of time is the PIs' complementary backgrounds. We now briefly describe
+these backgrounds.
+
+Oskin has... {\bf MARK PUT YOUR STUFF HERE.}
+
+Ceze has been conducting research on architecture support, compiler
+techniques, and programming models to improve the programmability of
+multiprocessor systems for seven years and has co-authored over thirty
+papers in these areas.  His research includes advances in
+architecture~\cite{tlsooo, bulk, bulksc, swbulk, cyclops, dmp,
+  delorean} and programming models~\cite{colorama, ipot, posh} to
+simplify exploiting concurrency in multiprocessors. Some of his recent
+results especially related to this proposal include a programming
+model based on ordered transactions and data annotations~\cite{ipot};
+improving reliability of multithreaded software with architecture
+support for bug detection and avoidance~\cite{atomaid, aatoppicks,
+  bugaboo, oshajava, cs-isca10, ce-isca10}; and deterministic
+execution of multithreaded programs~\cite{dmp, dmptoppicks,
+  asplos10coredet, dmpos}. PI Ceze recently co-organized an NSF-funded
+workshop focused specifically on deterministic multiprocessing. The
+workshop was very successful, bringing leaders in the multicore area
+from industry and academia.
+
+Kahan has tremendous experience in ... from Tera/Cray ... {\bf SIMON PUT YOUR STUFF HERE.}
+
+\subsection*{The SAMPA Research Group: Addressing the Concurrency
+  Challenge Across the Execution Stack}
+
+The PIs organize their joint research activity under the umbrella of
+the ``SAMPA group'' (SAfe MultiProcessing Architectures).  Some brief
+statistics help summarize the group's size, strength, and focus:
+\begin{itemize}
+\item There are roughly ten graduate students, most actively
+  coadvised.
+\item In the last four years, the group has produced twelve papers
+  published in ASPLOS, ISCA, PLDI, OOPSLA, MICRO, and OSDI as well as three
+  papers in the USENIX Workshop on Hot Topics in Parallelism.
+\end{itemize}
+The SAMPA group is an ideal size for collaboration across the system
+execution stack from computer architecture up through software
+engineering.  Compared to large collaborations with several faculty,
+there are no graduate students (or faculty) who specialize entirely in
+particular subtopics.  The students gain expertise across
+computer-science disciplines and use appropriate ideas from hardware,
+software, theory, etc. to solve research problems.  
+
+\subsection*{Specific Technology and Facilities}
+
+The research group that will perform the research has the facilities
+needed for successful collaboration.  There is a shared lab facility
+where weekly meetings are held.  Students in the group share computing
+infrastructure, including dedicated machines and regular use of cloud
+services such as Amazon's EC2 for scalability experiments.
+
+The PIs regularly hold joint meetings with each student that they
+co-advise.  They do not split advising duties so much as duplicate
+them.
+
+\subsection*{Specific Roles and Responsibilities}
+
+It should be clear from the preceding discussions that the PIs are
+entirely comfortable jointly managing the work in the proposal and the
+students involved.  Nonetheless, several specific pieces of the work
+more naturally align with the expertise and interests of one of the
+PIs:
+
+\begin{itemize}
+\item PI Oskin will focus on communication issues. 
+\item PI Ceze will focus on compiler and programming languages work.
+\item PI Kahan will focus on organizing benchmarks and performance evaluation efforts.
+\item All PIs expect to solicit guidance and collaboration from
+  researchers such as John Feo (PNNL), Jim Larus (Microsoft Research), Hans
+  Boehm (HP Research), and Preston Briggs,  with whom
+  they have already collaborated on other projects.
+\end{itemize}
 
 \section{Summary}
 

@@ -183,6 +183,15 @@
     year = {2006},
 }
 
+% netfpga
+
+@misc{netfpga,
+    title = {{The NetFPGA project.}},
+    url = {http://netfpga.org},
+}
+
+http://netfpga.org
+
 % Chapel
 @article{Chamberlain:2007,
     author = {Chamberlain, B.L. and Callahan, D. and Zima, H.P.},
@@ -544,7 +553,7 @@ month={November},
 year={2012}
 }
 
-@MISC{graph500list,
+@MISC{graph500,
     key={Graph500},
     title = {Graph 500},
     year = {2012},
@@ -587,4 +596,873 @@ year={2012}
     month = {July},
     howpublished={\url{http://mvapich.cse.ohio-state.edu/benchmarks/}}
     }
+
+
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+
+
+@string{toplas=" {ACM} Transactions on Programming Languages and Systems"}
+@string{tocs=" {ACM} Transactions on Computer Systems"}
+@string{pldi=" {ACM} Conference on Programming Language Design and Implementation"}
+@string{popl=" {ACM} Symposium on Principles of Programming Languages"}
+@string{oopsla= "{ACM} Conference on Object-Oriented Programming, Systems, Languages, and Applications"}
+@string{icfp= " {ACM} International Conference on Functional Programming"}
+@string{usenix=" {USENIX} Annual Technical Conference"}
+@string{esop=" European Symposium on Programming"}
+@string{eurosys=" {ACM} European Conference on Computer Systems"}
+@string{mobisys=" International Conference on Mobile Systems, Applications, and Services"}
+@string{ndss=" Network and Distributed Systems Security Symposium"}
+@string{ccs=" {ACM} Conference on Computer and Communications Security"}
+@string{cc=" International Conference on Compiler Construction"}
+@string{tldi=" {ACM} Workshop on Types in Language Design and Implementation"}
+@string{mspc=" {ACM SIGPLAN} Workshop on Memory Systems Performance \& Correctness"}
+@string{spaa= " {ACM} Symposium on Parallel Algorithms and Architectures"}
+@string{sas= " International Static Analysis Symposium"}
+@string{ppopp=" {ACM} Symposium on Principles and Practice of Parallel Programming"}
+@string{ase=" {IEEE/ACM} International Conference on Automated
+Software Engineering"}
+@string{sosp=" {ACM} Symposium on Operating Systems Principles"}
+@string{ismm=" International Symposium on Memory Management"}
+@string{concur=" International Conference on Concurrency Theory"}
+@string{fse=" International Symposium on Foundations of Software Engineering"}
+@string{icse=" International Conference on Software Engineering"}
+@string{isca=" International Symposium on Computer Architecture "}
+@string{asplos=" International Conference on
+Architectural Support for Programming Languages and Operating Systems "}
+@string{hpca=" International Symposium on High-Performance Computer Architecture "}
+@string{osdi=" {USENIX} Symposium on Operating Systems Design and Implementation"}
+@string{transact="  {ACM SIGPLAN} Workshop on Transactional Computing"}
+@string{hotpar=" {USENIX} Workshop on Hot Topics in Parallelism"}
+@string{hotos=" {USENIX} Workshop on Hot Topics in Operating Systems"}
+@string{nsdi=" {USENIX} Symposium on Networked Systems Design and Implementation"}
+@string{cav=" International Conference on Computer Aided Verification"}
+@string{issta= " {ACM SIGSOFT} International Symposium on Software Testing and Analysis"}
+@string{tacas=" Conference on Tools and Algorithms for the Construction
+and Analysis of Systems"} 
+@string{sigmod=" {ACM SIGMOD} International Conference on Management of Data"}
+@string{micro=" {IEEE/ACM} International Symposium on
+                  Microarchitecture"}
+@string{oakland=" {IEEE} Symposium on Security and Privacy"}
+
+@string{entcs=" Electronic Notes in Theoretical Computer Science"}
+@string{springer="Springer-Verlag"}
+@string{lncs=" Lecture Notes in Computer Science"}
+@string{aw="Addison-Wesley"}
+
+@inproceedings{botlab-nsdi,
+  author = "John P. John and Alexander Moshchuk and Steven D. Gribble
+                  and Arvind Krishnamurthy",
+  title = "Studying Spamming Botnets Using Botlab",
+  booktitle = nsdi,
+  year = 2009
+}
+
+@inproceedings{tripwires-nsdi,
+  author = "Charles Reis and Steven D. Gribble and Tadayoshi Kohno",
+  title = "Detecting In-Flight Page Changes with Web Tripwires",
+  booktitle = nsdi,
+  year = 2008
+}
+
+@inproceedings{dds-osdi,
+  author = "Steven D. Gribble and Eric A. Brewer and Joseph
+                  M. Hellerstein and David Culler",
+  title = "Scalable, Distributed Data Structures for Internet Service
+                  Construction",
+  booktitle = osdi,
+  year = 2000
+}
+
+@inproceedings{p2p-sosp,
+  author = "Krishna P. Gummadi and Richard J. Dunn and Stefan Saroiu
+                  and Steven D. Gribble and Henry M. Levy and John
+                  Zahorjan",
+  title = "Measurement, Modeling, and Analysis of a Peer-to-Peer
+                  File-Sharing Workload",
+  booktitle = sosp,
+  year = 2003
+}
+
+@inproceedings{spyware-nsdi,
+  author = "Stefan Saroiu and Steven D. Gribble and Henry M. Levy",
+  title = "Measurement and Analysis of Spyware in a University
+                  Environment",
+  booktitle = nsdi,
+  year = 2004
+}
+
+@inproceedings{flashproxy-mobisys,
+  author = "Alexander Moshchuk and Steven D. Gribble and Henry
+                  M. Levy",
+  title = "Flashproxy: Transparently Enabling Rich Web Content via
+                  Remote Execution",
+  booktitle = mobisys,
+  year = 2008
+}
+
+@inproceedings{spyware-ndss,
+  author = "Alexander Moshchuk and Tanya Bragin and Steven D. Gribble
+                  and Henry M. Levy",
+  title = "A Crawler-Based Study of Spyware on the Web",
+  booktitle = ndss,
+  year = 2006
+}
+
+@inproceedings{content-osdi,
+  author = "Stefan Saroiu and Krishna P. Gummadi and Richard J. Dunn
+                  and Steven D. Gribble and Henry M. Levy",
+  title = "An Analysis of Internet Content Delivery Systems",
+  booktitle = osdi,
+  year = 2002
+}
+
+@inproceedings{safeweb-hotos,
+  author = "Charles Reis and Steven D. Gribble and Henry M. Levy",
+  title = "Architectural Principles for Safe Web Programs",
+  booktitle = hotos,
+  year = 2007
+}
+
+@inproceedings{chrome-eurosys,
+  author = "Charles Reis and Steven D. Gribble",
+  title = "Isolating Web Programs in Modern Browser Architectures",
+  booktitle = eurosys,
+  year = 2009
+}
+
+@inproceedings{denali-osdi,
+  author = "Andrew Whitaker and Marianne Shaw and Steven D. Gribble",
+  title = "Scale and Performance in the Denali Isolation Kernel",
+  booktitle = osdi,
+  year = 2002
+}
+
+@inproceedings{denali-nsdi,
+  author = "Andrew Whitaker and Richard S. Cox and Marianne Shaw and
+                  Steven D. Gribble",
+  title = "Constructing Services with Interposable Virtual Hardware",
+  booktitle = nsdi,
+  year = 2004
+}
+
+@inproceedings{homograph-usenix,
+  author = "Tobias Holgers and David E. Watson and Steven D. Gribble",
+  title = "Cutting through the Confusion: A Measurement Study of
+                  Homograph Attacks",
+  booktitle = usenix,
+  year = 2006
+}
+
+@inproceedings{tahoma-oakland,
+  author = "Richard S. Cox and Jacob Gorm Hansen and Steven D. Gribble
+                  and Henry M. Levy",
+  title = "A Safety-Oriented Platform for Web Applications",
+  booktitle = oakland,
+  year = 2006
+}
+
+@inproceedings{treadmarksusenix94,
+  author = "Alan L. Cox and Sandhya Dwarkadas and Pete Keleher and
+                  Honghui Lui and Ramakrishnan Rajamony and Willy
+                  Zwaenepoel",
+  title = "Software Versus Hardware Shared-Memory Implementation: A
+                  Case Study",
+  booktitle = usenix,
+  year = 1994
+}
+
+
+
+@inproceedings{sosp09odr,
+  author = "Gautam Altekar and Ion Stoica",
+  title = "{ODR}: Output-Deterministic Replay for Multicore Debugging",
+  booktitle = sosp,
+  year = 2009
+}
+
+@inproceedings{sosp09pres,
+  author="Soyeon Park and Yuanyuan Zhou and Weiwei Xiong and Zuoning Yin and Rini Kaushik and Kyu H. Lee and Shan Lu",
+  title = "{PRES}: Probabilistic Replay with Execution Sketching on Multiprocessors",
+  booktitle = sosp,
+  year = 2009
+}
+@inproceedings{osdi08chess,
+  author = "Madanlal Musuvathi and Shaz Qadeer and Thomas Ball and Gerard Basler and Piramanayagam Arumuga Nainar and Iulian Neamtiu",
+  title = "Finding and Reproducing Heisenbugs in Concurrent Programs",
+  booktitle = osdi,
+  year = 2008
+}
+
+@article{tocs89coherence,
+  author = "Kai Li and Paul Hudak",
+  title = "Memory Coherence in Shared Virtual Memory Systems",
+  journal = tocs,
+  volume = 7,
+  number = 4,
+  year = 1989
+}
+
+@article{tocs99recplay,
+  author = "Michiel Ronsse and Koen De Bosschere",
+  title = "{RecPlay}: A Fully Integrated Practical Record/Replay System",
+  journal = tocs,
+  volume = 17,
+  number = 2,
+  year = 1999
+}
+
+@article{acm90schneider,
+  author = "Fred B. Schneider",
+  title = "Implementing Fault-Tolerant Services Using the State Machine Approach: A Tutorial",
+  journal = "{ACM} Comput. Surv.",
+  volume = 22,
+  number = 4,
+  year = 1990
+}
+
+@misc{cra,
+title = "{CRA} Grand Research Challenges",
+howpublished = {\url{http://www.cra.org/Activities/grand.challenges/architecture/home.html}}
+}
+
+@inproceedings{delorean,
+  author = "Pablo Montesinos and Luis Ceze and Josep Torrellas",
+  title = "{DeLorean}: Recording and Deterministically Replaying Shared-Memory Multiprocessor Execution Efficiently",
+  booktitle = isca,
+  year = 2008
+}
+
+@inproceedings{strata,
+  author = "Satish Narayanasamy and Cristiano Pereira and Brad Calder",
+  title = "Recording Shared Memory Dependencies Using {S}trata",
+  booktitle = asplos,
+  year = 2006
+}
+
+@inproceedings{atomaid,
+  author = "Brandon Lucia and Joseph Devietti and Karin Strauss and Luis Ceze",
+  title = "{Atom-Aid}: Detecting and Surviving Atomicity Violations",
+  booktitle = isca,
+  year = 2008
+}
+
+@inproceedings{fdr,
+   author = {Min Xu and Rastislav Bodik and Mark D. Hill},
+   booktitle = isca,
+   title = {{A "Flight Data Recorder" for Enabling Full-System Multiprocessor Deterministic Replay}},
+   year = 2003
+}
+@inproceedings{fdr2,
+   author = {Min Xu and Mark D. Hill and Rastislav Bodik},
+   title = "A Regulated Transitive Reduction ({RTR}) for Longer Memory Race Recording",
+   booktitle=asplos,
+   year=2006
+}
+
+@inproceedings{streamit,
+  author = "William Thies and Michal Karczmarek and Saman P. Amarasinghe",
+  title = "{StreamIt}: A Language for Streaming Applications",
+  booktitle = cc,
+  year = 2002
+}
+
+@article{jade,
+  author = "Martin Rinard and Monica Lam",
+  title = "The Design, Implementation, and Evaluation of {J}ade",
+  journal = toplas,
+  volume=20,
+  number=3,
+  year=1998
+}
+
+@inproceedings{bulk,
+  author = "Luis Ceze and James Tuck and Calin Cascaval and Josep Torrellas",
+  title = "Bulk Disambiguation of Speculative Threads in Multiprocessors",
+  booktitle = isca,
+  year = 2006
+}
+
+@inproceedings{bulksc,
+  author = "Luis Ceze and  James Tuck and Pablo Montesinos and Josep Torrellas",
+  booktitle = isca,
+  title = "{BulkSC}: Bulk Enforcement of Sequential Consistency",
+  year = 2007
+}
+
+@inproceedings{colorama,
+  author= "Luis Ceze and Pablo Montesinos and Christop von Praun and Josep Torrellas",
+  title="Colorama: Architectural Support for Data-Centric Synchronization",
+  booktitle = hpca,
+  year=2007
+}
+
+
+@inproceedings{swbulk,
+  author = "James Tuck and Wonsun Ahn and Luis Ceze and Josep Torrellas",
+  title = "{SoftSig}: Software-Exposed Hardware Signatures for Memory Disambiguation",
+  booktitle = asplos,
+  year = 2008
+}
+
+@inproceedings{rerun,
+  author = "Derek Hower and Mark D. Hill",
+  title = "Rerun: Exploiting Episodes for Lightweight Memory Race Recording",
+  booktitle = isca,
+  year = 2008
+}
+
+@article{rx,
+  author = "Feng Qin and Joseph Tucek and Yuanyuan Zhou and Jagadeesan Sundaresan",
+  title = "Rx: Treating Bugs as Allergies---A Safe Method to Survive Software Failures",
+  journal=tocs,
+  volume=25,
+  number=3,
+  year = 2007
+}
+
+@inproceedings{xupldi05,
+  author = "Min Xu and Rastislav Bodik and Mark D. Hill",
+  title = "A Serializability Violation Detector for Shared-Memory Server Programs",
+  booktitle = pldi, 
+  year = 2005
+}
+
+@inproceedings{rinard-failure,
+ author = "Martin Rinard and Cristian Cadar and Daniel Dumitran and Daniel M. Roy and Tudor Leu and William S. {Beebee Jr.}",
+ title = "Enhancing Server Availability and Security Through Failure-Oblivious Computing",
+ booktitle = osdi,
+ year = 2004
+ }
+
+@inproceedings{dmp,
+  author = "Joseph Devietti and Brandon Lucia and Luis Ceze and Mark Oskin",
+  booktitle = asplos,
+  title = "{DMP}: Deterministic Shared Memory Multiprocessing",
+  year = 2009
+}
+@inproceedings{asplos10coredet,
+  author = "Tom Bergan and Owen Anderson and Joseph Devietti and Luis Ceze and Dan Grossman",
+  title = "{CoreDet}: A Compiler and Runtime System for Deterministic Multithreaded Execution",
+  booktitle = asplos,
+  year = 2010
+}
+@inproceedings{dmpos,
+  author = "Tom Bergan and Nick Hunt and Luis Ceze and Steven Gribble",
+  title = "Deterministic Process Groups in {dOS}",
+  booktitle = osdi,
+  year = 2010
+}
+
+@inproceedings{grace,
+  author = "Emery D. Berger and Ting Yang and Tongping Liu and Gene Novark",
+  title = "Grace: Safe Multithreaded Programming for {C/C++}",
+  booktitle = oopsla,
+  year = 2009
+}
+
+@inproceedings{kendo,
+  author = "Marek Olszewski and Jason Ansel and Saman Amarasinghe",
+  title = "Kendo: Efficient Deterministic Multithreading in Software",
+  booktitle = asplos,
+  year = 2009
+}
+
+@techreport{nesl,
+  author = "Guy Blelloch",
+  institution = {CMU},
+  title = {{NESL: A Nested Data-Parallel Language (Version 3.1)}},
+  url = {http://www.cs.cmu.edu/afs/cs.cmu.edu/project/scandal/public/papers/CMU-CS-95-170.html}
+}
+
+@inproceedings{dpj,
+  author = "Robert Bocchino and Vikram Adve and Danny Dig and Sartia Adve and Stephen Heumann and Rakesh Komuravelli and Jeffrey Overbey and Patrick Simmons and Hyojin Sung and Mohsen Vakilian",
+  title = "A Type and Effect System for Deterministic Parallel {J}ava",
+  booktitle = oopsla,
+  year = 2009,
+}
+
+@inproceedings{cpp-memmodel,
+  author = "Hans-J. Boehm and Sarita Adve",
+  title = "Foundations of the {C++} Concurrency Memory Model",
+  booktitle = pldi,
+  year = 2008
+}
+
+@inproceedings{jmm-memmodel,
+  author = "Jeremy Manson and William Pugh and Sarita Adve",
+  title = "The {J}ava Memory Model",
+  booktitle = popl,
+  year = 2005
+}
+
+@inproceedings{weak-ordering,
+  author = "Sarita Adve and Mark D. Hill",
+  title = "Weak Ordering -- A New Definition",
+  booktitle = isca,
+  year = 1990
+}
+
+@inproceedings{ieee96nondetfault,
+  author = "J. H. Slye and E. N. Elnozahy",
+  title = "Supporting Nondeterministic Execution in Fault-Tolerant Systems",
+  booktitle = " International Symposium on Fault-Tolerant Computing",
+  year = 1996
+}
+
+@inproceedings{hotdep03nondet,
+  author = "Joseph G. Slember and Priya Narasimhan",
+  title = "Static Analysis Meets Distributed Fault-Tolerance: Enabling State-Machine
+            Replication With Nondeterminism",
+  booktitle = " Workshop on Hot Topics in System Dependability",
+  year = 2006
+}
+
+@article{ieee06activerep,
+  author = "Claudio Basile and Zbigniew Kalbarczyk and Ravishankar K. Iyer",
+  title = "Active Replication of Multithreaded Applications",
+  journal = " {IEEE} Transactions on Parallel and Distributed Systems",
+  volume = 17,
+  number = 5,
+  year = 2006
+}
+
+@inproceedings{pldi05dart,
+  author = "Patrice Godefroid and Nils Klarlund and Koushik Sen",
+  title = "{DART}: Directed Automated Random Testing",
+  booktitle = pldi,
+  year = 2005
+}
+
+@inproceedings{emsoft05shim,
+   author = "Stephen A. Edwards and Olivier Tardieu",
+   title = "{SHIM}: A Deterministic Model for Heterogeneous Embedded Systems",
+   booktitle = " {ACM} International Conference on Embedded Software",
+   year = 2005
+}
+
+@misc{determinizer-model,
+  author = {Amittai Aviram and Bryan Ford},
+  title = "Deterministic Consistency: A Programming Model for Shared Memory Parallelism",
+  year = 2010,
+  howpublished = {\url{http://arxiv.org/abs/0912.0926}}
+}
+
+@inproceedings{determinizer-osdi,
+  author = "Amittai Aviram and Shu-Chun Weng and Sen Hu and Bryan Ford",
+  title = "Efficient System-Enforced Deterministic Parallelism",
+  booktitle = osdi,
+  year = 2010,
+}
+
+@inproceedings{netzer,
+  author = "Robert H. B. Netzer",
+  title = "Optimal Tracing and Replay for Debugging Shared-Memory Parallel Programs",
+  booktitle = " {ACM/ONR} Workshop on Parallel and Distributed Debugging",
+  year = 1993
+}
+
+@inproceedings{ieee99corba,
+  author = "P. Narasimhan and L. Moser and P. M. Melliar-Smith",
+  title = "Enforcing Determinism for the Consistent Replication of Multithreaded
+            {CORBA} Applications",
+  booktitle = " {IEEE} Symposium on Reliable Distributed Systems",
+  year = 1999
+}
+
+@inproceedings{ieee03preemptive,
+  author = "Claudio Basile and Zbigniew Kalbarczyk and Ravi Iyer",
+  title = "A Preemptive Deterministic Scheduling Algorithm for Multithreaded Replicas",
+  booktitle = "International Conference on Dependable Systems and Networks",
+  year = 2003
+}
+
+@article{cacm96horus,
+  author = {R. {Van Renesse} and K. Birman and S. Maffeis},
+  title = {{Horus: A Flexible Group Communication System}},
+  journal = {Communications of the {ACM}},
+  volume = {39},
+  number = {4},
+  month = {April},
+  year = {1996}
+}
+
+@article{cacm93isis,
+  author = {K. P. Birman},
+  title = {{The Process Group Approach to Reliable Distributed Computing}},
+  journal = {Communications of the {ACM}},
+  volume = {36},
+  number = {12},
+  month = {December},
+  year = {1993}
+}
+
+@article{paxos,
+  author = {Leslie Lamport},
+  title = {{The Part-Time Parliament}},
+  journal = tocs,
+  volume = {16},
+  number = {2},
+  month = {May},
+  year = {1998}
+}
+
+@inproceedings{hotos07replicant,
+  author = "Jesse Pool and Ian Sin Kwok Wong and David Lie",
+  title = "Relaxed Determinism: Making Redundant Execution on Multiprocessors Practical",
+  booktitle = hotos,
+  year = 2007
+}
+
+@inproceedings{asplos10respec,
+  author = "Dongyoon Lee and Benjamin Wester and Kaushik Veeraraghavan and Satish Narayanasamy and Peter M. Chen and Jason Flinn",
+  title = "Respec: Efficient Online Multiprocessor Replay via Speculation and External Determinism",
+  booktitle = asplos,
+  year = 2010
+}
+
+@inproceedings{tlsooo,
+  author = "Jose Renau and James Tuck and Wei Liu and Luis Ceze and Karin Strauss and Josep Torrellas",
+  title = "Tasking with Out-of-Order Spawn in {TLS} Chip Multiprocessors: Microarchitecture and Compilation",
+  booktitle = "International Conference on Supercomputing",
+  year  = 2005
+}
+
+@inproceedings{cyclops,
+ author = "Calin Cascaval and Jose G. Castanos and Luis Ceze and Monty Denneau and Manish Gupta and Derek Lieber and Jose E. Moreira and Karin Strauss and Henry S. {Warren Jr.}",
+ title = "Evaluation of a Multithreaded Architecture for Cellular Computing",
+ booktitle = hpca,
+ year = 2002
+}
+
+@inproceedings{ipot,
+  author = "Christoph von Praun and Luis Ceze and Calin Cascaval",
+  title = "Implicit Parallelism with Ordered Transactions",
+  booktitle = ppopp,
+  year = 2007
+}
+
+@inproceedings{posh,
+  author = "Wei Liu and James Tuck and Luis Ceze and Wonsun Ahn and Karin Strauss and Jose Renau and Josep Torrellas",
+  title = "{POSH}: A {TLS} Compiler that Exploits Program Structure",
+  booktitle = ppopp,
+  year = 2006
+}
+
+@article{aatoppicks,
+  author = "Brandon Lucia and Joseph Devietti and Karin Strauss and Luis Ceze",
+  title = "{Atom-Aid}: Detecting and Surviving Atomicity Violations",
+  journal = "IEEE Micro Top Picks in Computer Architecture",
+  year = 2009
+}
+
+@inproceedings{bugaboo,
+  author = "Brandon Lucia and Luis Ceze",
+  title = "Finding Concurrency Bugs with Context-Aware Communication Graphs",
+  booktitle = micro,
+  year = 2009
+}
+
+@inproceedings{ce-isca10,
+  author = "Brandon Lucia and Luis Ceze and Karin Strauss and Shaz Qadeer and Hans-J. Boehm",
+  title = "Conflict Exceptions: Providing Simple Concurrent Language Semantics with Precise Hardware Exceptions for Data Races",
+  booktitle = isca,
+  year = 2010
+}
+
+@inproceedings{cs-isca10,
+  author = "Brandon Lucia and Luis Ceze and Karin Strauss",
+  title = "{ColorSafe}: Architectural Support for Debugging and Dynamically Avoiding Multi-variable Atomicity Violations",
+  booktitle = isca,
+  year = 2010
+}
+
+@article{dmptoppicks,
+ author = "Joseph Devietti and Brandon Lucia and Luis Ceze and Mark Oskin",
+ title = "{DMP}: Deterministic Shared Memory Multiprocessing",
+ journal = "{IEEE} Micro Top Picks in Computer Architecture",
+ year = 2010
+}
+
+@article{myers-sabelfeld,
+  author="Andrei Sabelfeld and Andrew C. Myers",
+  title="Language-based information-flow security",
+  journal="{IEEE} Journal on Selected Areas in Communications, special issue on Formal Methods for Security",
+  volume=21,
+  number=5,
+  month=jan,
+  year=2003
+}
+
+@inproceedings{oshajava,
+  author="Benjamin P. Wood and Adrian Sampson and Luis Ceze and Dan Grossman",
+  title="Composable Specifications for Structured Shared-Memory Communication",
+  booktitle=oopsla,
+  year=2010
+}
+
+@inproceedings{atomsfamily,
+  author="Katherine F. Moore and Dan Grossman",
+  title="High-Level Small-Step Operational Semantics for Transactions",
+  booktitle= popl,
+  year=2008,
+}
+@inproceedings{analogy,
+  author="Dan Grossman",
+  title="The Transactional Memory / Garbage Collection Analogy",
+  year=2007,
+  booktitle="{ACM} Conference on Object-Oriented Programming Systems,
+  Languages, and Applications (Essays Track)",
+}
+@inproceedings{pldi-stm07,
+  author="Tatiana Shpeisman and Vijay Menon and Ali-Reza Adl-Tabatabai and Steve Balensiefer and Dan Grossman and Richard Hudson and Katherine F. Moore and Bratin Saha",
+  title="Enforcing Isolation and Ordering in {STM}",
+  booktitle=pldi,
+  year=2007,
+}
+@inproceedings{atomcaml,
+  author = "Michael F. Ringenburg and Dan Grossman",
+  title = "{AtomCaml}: First-Class Atomicity via Rollback",
+  booktitle = icfp,
+  year=2005,
+}
+@inproceedings{cyclone-threads,
+  author = "Dan Grossman",
+  title = "Type-Safe Multithreading in {C}yclone",
+  booktitle = tldi,
+  year = 2003,
+}
+@inproceedings{tpdlls,
+  author="Marius Nita and Dan Grossman and Craig Chambers",
+  title="A Theory of Platform-Dependent Low-Level Software",
+  booktitle= popl,
+  year=2008,
+}
+@article{qtil,
+  author = "Dan Grossman",
+  title = "Quantified Types in Imperative Languages",
+  journal = toplas,
+  volume = 28,
+  number = 3,
+  year = 2006
+}
+@inproceedings{cyclone-regions,
+  author = "Dan Grossman and Greg Morrisett and Trevor Jim and Michael Hicks and Yanling Wang and James Cheney",
+  title = "Region-Based Memory Management in {C}yclone",
+  booktitle = pldi,
+  year = 2002
+}
+@inproceedings{transactions-continuations,
+  author="Aaron Kimball and Dan Grossman",
+  title="Software Transactions Meet First-Class Continuations",
+  booktitle=" Annual Workshop on Scheme and Functional Programming",
+  year=2007
+}
+@inproceedings{atomjava-mspc,
+  author="Benjamin Hindman and Dan Grossman",
+  title="Atomicity via Source-to-Source Translation",
+  year=2006,
+  booktitle=mspc,
+}
+@inproceedings{memmodel-mspc,
+  author="Dan Grossman and Jeremy Manson and William Pugh",
+  title="What Do High-Level Memory Models Mean for Transactions?",
+  year=2006,
+  booktitle=mspc,
+}
+@inproceedings{endianness,
+  author="Marius Nita and Dan Grossman",
+  title="Automatic Transformation of Bit-Level {C} Code
+to Support Multiple Equivalent Data Layouts",
+  booktitle=cc,
+  year=2008
+}
+@inproceedings{format-string,
+  author = "Michael F. Ringenburg and Dan Grossman",
+  title = "Preventing Format-String Attacks via Automatic and Efficient Dynamic Checking",
+  booktitle=ccs,
+  year=2005,
+}
+@article{cyclone-safemm-experience-scp,
+ title = "Safe Manual Memory Management in {C}yclone",
+ author = "Nikhil Swamy and Michael Hicks and Greg Morrisett and Dan Grossman and Trevor Jim",
+ journal = scp # ", Special Issue: Five perspectives on modern memory management -- Systems, hardware and theory",
+ year = 2006,
+ volume = 62,
+ number = 2,
+}
+@inproceedings{cyclone-usenix,
+author="Trevor Jim and Greg Morrisett and Dan Grossman and Michael Hicks and James Cheney and Yanling Wang",
+title="{C}yclone: A Safe Dialect of {C}",
+booktitle=usenix,
+year=2002,
+}
+@inproceedings{exists-imp,
+  author="Dan Grossman",
+  title="Existential Types for Imperative Languages",
+  booktitle= esop,
+  year=2002,
+  volume = 2305,
+  series = lncs,
+  publisher = springer
+}
+@inproceedings{lockprediction,
+  author="Brandon Lucia and Joseph Devietti and Tom Bergan and Luis Ceze and Dan Grossman",
+  title="Lock Prediction",
+  booktitle= hotpar,
+  year=2010
+}
+@inproceedings{sigmod2010,
+  author="Kristi Morton and Magdalena Balazinska and Dan Grossman",
+  title="{ParaTimer}: A Progress Indicator for MapReduce {DAGs}",
+  booktitle=sigmod,
+  year=2010,
+ }
+@inproceedings{pldi-seminal07,
+  author="Benjamin Lerner and Matthew Flower and Dan Grossman and Craig Chambers",
+  title="Searching for Type-Error Messages",
+  booktitle=pldi,
+  year=2007,
+}
+
+@misc{amdasf,
+  author = {AMD},
+  title = {{Advanced Synchronization Facility: Proposed Architectural Specification}},
+  howpublished = "\url{http://developer.amd.com/cpu/ASF/Pages/default.aspx}",
+  year = {2009}
+}
+
+@InProceedings{logtm,
+  author = {Kevin Moore and Jayaram Bobba and Michelle J. Moravam and Mark Hill and David Wood},
+  title = {{LogTM: Log-Based Transactional Memory}},
+  booktitle = hpca,
+  year = {2006},
+}
+
+@InProceedings{vtm,
+  author = {Ravi Rajwar and Maurice Herlihy and Konrad Lai},
+  title = {{Virtualizing Transactional Memory}},
+  booktitle = isca,
+  year = {2005}
+}
+
+@misc{sunrock,
+	Howpublished = {\url{http://www.theregister.co.uk/2007/08/21/sun_transactional_memory_rock/}},
+	Title = {{Sun slots transactional memory into Rock}}}
+
+@inproceedings{tcc,
+	Author = {Lance Hammond and Vicky Wong and Mike Chen and Brian D. Carlstrom and John D. Davis and Ben Hertzberg and Manohar K. Prabhu and Honggo Wijaya and Christos Kozyrakis and Kunle Olukotun},
+        Title = {{Transactional Memory Coherence and Consistency}}, 
+	Booktitle = isca,
+	Year = {2004}
+}
+
+@inproceedings{koushik-concolic, 
+author = {Koushi Sen and Darko Marinov and Gul Agha},
+Title = {{CUTE: A Concolic Unit Testing Engine for C}},
+booktitle = fse,
+Year = 2005
+}
+
+@inproceedings{exe-ccs06,
+  author = "Cristian Cadar  and Vijay Ganesh  and Peter M. Pawlowski  and David L. Dill  and
+Dawson R. Engler",
+  title = {{Preventing Format-String Attacks via Automatic and Efficient Dynamic Checking}},
+  booktitle=ccs,
+  year=2006,
+}
+
+@inproceedings{fdrtg-icse07,
+  author = "Carlos Pacheco and Shuvendu K. Lahiri and Michael D. Ernst and Thomas Ball",
+  title = {{Feedback-Directed Random Test Generation}},
+  booktitle=icse,
+  year=2007,
+}
+
+@inproceedings{koushik-detcheck1,
+  author = "J. Burnim and K. Sen",
+  title = {{Asserting and Checking Determinism for Multithreaded Programs}},
+  booktitle=fse,
+  year=2009,
+}
+
+@inproceedings{koushik-detcheck2,
+  author = "J. Burnim and K. Sen",
+  title = {{DETERMIN: Inferring Likely Deterministic Specifications of Multithreaded Programs}},
+  booktitle=ICSE,
+  year=2010,
+}
+
+@inproceedings{josep-detcheck,
+  author = "Adrian Nistor and Darko Marinov and Josep Torrellas",
+  title = {{InstantCheck: Checking the Determinism of Parallel Programs Using On-the-fly Incremental Hashing}},
+  booktitle=micro,
+  year=2010,
+}
+
+@inproceedings{shcmp08,
+  author="Joseph Devietti and Brandon Lucia and Luis Ceze and Mark Oskin",
+  title="Explicitly Parallel Programming with Shared-Memory is Insane: At Least Make it Deterministic!",
+  booktitle="Workshop on Software and Hardware Challenges of Manycore Platforms",
+  year=2008
+}
+@inproceedings{wodet11,
+  author="Tom Bergan and Joseph Devietti and Nicholas Hunt and Luis Ceze",
+  title="The Deterministic Execution Hammer: How Well Does it Actually Pound Nails?",
+  booktitle="Workshop on Determinism and Correctness in Parallel Programming",
+  year=2011
+}
+@inproceedings{asplos11rcdc,
+  author="Joseph Devietti and Jacob Nelson and Tom Bergan and Luis Ceze and Dan Grossman",
+  title="{RCDC}: A Relaxed-Consistency Deterministic Computer",
+  booktitle=asplos,
+  year=2011
+}
+@inproceedings{dpj-popl,
+  author="Robert Bocchino and Stephen Heumann and Nima Honarmand and Sarita V. Adve and Vikram S. Adve and Adam Welc and Tatiana Shpeisman",
+  title="Safe Nondeterminism in a Deterministic-by-Default Parallel Language",
+  booktitle=popl,
+  year=2011
+}
+@inproceedings{haskell-dynsep,
+  author="Laura Effinger-Dean and Dan Grossman",
+  title="Region-Based Dynamic Separation for {STM} {H}askell",
+  booktitle = transact,
+  year=2011
+}
+@inproceedings{dre-benefits,
+  author="Benjamin P. Wood and Luis Ceze and Dan Grossman",
+  title="Data-Race Exceptions Have Benefits Beyond the Memory Model",
+  booktitle=mspc,
+  year=2011
+}
+@inproceedings{enerj,
+  author="Adrian Sampson and Werner Dietl and Emily Fortuna and Danushen Gnanapragasam and Luis Ceze and Dan Grossman",
+  title="{EnerJ}: Approximate Data Types for Safe and General Low-Power Computation",
+  booktitle=pldi,
+  year=2011
+}
+
+@InProceedings{userace-mspc11,
+  author = 	 {Benjamin Wood and Luis Ceze and Dan Grossman},
+  title = 	 {{Data-Race Exceptions Have Benefits Beyond the Memory Model}},
+  booktitle =    {Workshop on Memory System Performance and Correctness w/ Conference on Programming Language Design and Implementation (MSPC w/ PLDI)},
+  year = 	 {2011},
+  url  =         {}
+}
+
+@InProceedings{racedet-europar,
+  author = 	 {Rodrigo Gonzalez-Alberquilla and Karin Strauss and Luis Pinuel and Luis Ceze},
+  title = 	 {{Accelerating Data Race Detection with Minimal Hardware Support}},
+  booktitle =    {EuroPar},
+  year = 	 {2011},
+  url  =         {}
+}
+
+@InProceedings{tern,
+  author = 	 {Heming Cui and Jingyue Wu and Chia-Che Tsai and Junfeng Yang},
+  title = 	 {{Stable Deterministic Multithreading through Schedule Memoization}},
+  booktitle =    osdi,
+  year = 2010
+}
+
 
