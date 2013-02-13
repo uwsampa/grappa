@@ -8,6 +8,8 @@
 #include <vector>
 
 DEFINE_uint64( numTuples, 32, "Number of tuples to generate" );
+DEFINE_string( in, "", "Input file relation" );
+DEFINE_bool( print, false, "Print results" );
 
 
 std::vector<std::string> &split(const std::string &s, char delim, std::vector<std::string> &elems) {
@@ -25,7 +27,7 @@ std::vector<std::string> split(const std::string &s, char delim) {
   return split(s, delim, elems);
 }
 
-#define TUPLE_LEN 3
+#define TUPLE_LEN 2
 struct Tuple {
   int64_t columns[TUPLE_LEN];
 };
@@ -57,7 +59,7 @@ Column local_joinIndex1, local_joinIndex2, local_joinIndex3;
 void tuple_gen( Tuple * slot ) {
   Tuple r;
   for ( uint64_t i=0; i<TUPLE_LEN; i++ ) {
-    r.columns[i] = rand()%10; 
+    r.columns[i] = rand()%FLAGS_numTuples; 
   }
   *slot = r;
 }
@@ -66,6 +68,7 @@ void scanAndHash( Tuple * t ) {
   int64_t key = t->columns[local_joinIndex1];
   Tuple val = *t;
 
+  VLOG(2) << "insert " << key << " | " << val;
   joinTable.insert( key, val );
 }
 
@@ -103,8 +106,10 @@ void secondJoin( GlobalAddress<Tuple> start, int64_t iters ) {
     GlobalAddress<Tuple> results;
     size_t num_results = joinTable.lookup( key, &results );
 
-    VLOG(1) << "results key " << key << " (n=" << num_results;
-    printAll( results, num_results );
+    if (FLAGS_print) {
+      VLOG(1) << "results key " << key << " (n=" << num_results;
+      printAll( results, num_results );
+    }
   }
 }
   
@@ -132,9 +137,14 @@ void join2( GlobalAddress<Tuple> tuples, Column ji1, Column ji2, Column ji3 ) {
   
   // scan tuples and hash join col 1
   VLOG(1) << "Scan tuples, creating index on subject";
+  double start = Grappa_walltime();
   forall_local<Tuple, scanAndHash>( tuples, FLAGS_numTuples );
+  double end = Grappa_walltime();
+  VLOG(1) << "insertions: " << (end-start)/FLAGS_numTuples << " per sec";
 
+#if DEBUG
   printAll(tuples, FLAGS_numTuples);
+#endif
 
   // tell the DHT we are done with inserts
   VLOG(1) << "DHT setting to RO";
@@ -144,33 +154,38 @@ void join2( GlobalAddress<Tuple> tuples, Column ji1, Column ji2, Column ji3 ) {
   // this surrounding join
   
   // FIXME: this synchronization is overly complicated
+  start = Grappa_walltime();
   { global_joiner_reset f; fork_join_custom(&f); }
   VLOG(1) << "Starting 1st join";
   forall_local<Tuple, firstJoin>( tuples, FLAGS_numTuples );
   { global_joiner_wait f; fork_join_custom(&f); }
+  end = Grappa_walltime();
+  VLOG(1) << "joins: " << (end-start) << " seconds";
 }
 
 void user_main( int * ignore ) {
 
   GlobalAddress<Tuple> tuples = Grappa_typed_malloc<Tuple>( FLAGS_numTuples );
 
-  VLOG(1) << "Generating some data";
-  //forall_local<Tuple, tuple_gen>( tuples, FLAGS_numTuples );
-  std::ifstream testfile("testcase.txt");
-  std::string line;
-  int fin = 0;
-  if (testfile.is_open()) {
-    while (testfile.good() && (fin++)<FLAGS_numTuples) {
-      std::getline( testfile, line );
-      std::cout<< "L " << line << std::endl;
-      Incoherent<Tuple>::WO lr(tuples, 1);
-      std::vector<std::string> tokens = split( line, ' ' );
-     std::cout<< tokens[0] << " " << tokens[1] << std::endl;
-      (*lr).columns[0] = std::stoi(tokens[0]);
-      (*lr).columns[1] = 0; 
-      (*lr).columns[2] = stoi(tokens[1]);
+  if ( FLAGS_in == "" ) {
+    VLOG(1) << "Generating some data";
+    forall_local<Tuple, tuple_gen>( tuples, FLAGS_numTuples );
+  } else {
+    VLOG(1) << "Reading data from " << FLAGS_in;
+    std::ifstream testfile(FLAGS_in);
+    std::string line;
+    int fin = 0;
+    if (testfile.is_open()) {
+      while (testfile.good() && fin<FLAGS_numTuples) {
+        std::getline( testfile, line );
+        Incoherent<Tuple>::WO lr(tuples+fin, 1);
+        std::vector<std::string> tokens = split( line, ' ' );
+        (*lr).columns[0] = std::stoi(tokens[0]);
+        (*lr).columns[1] = stoi(tokens[1]);
+        fin++;
+      }
+      testfile.close();
     }
-    testfile.close();
   }
 
   
@@ -180,11 +195,10 @@ void user_main( int * ignore ) {
   DHT_type::init_global_DHT( &joinTable, 64 );
 
   Column joinIndex1 = 0; // subject
-  Column joinIndex2 = 2; // object
-  Column joinIndex3 = 2; // object
+  Column joinIndex2 = 1; // object
 
   // double join case (assuming one index to build)
-  join2( tuples, joinIndex1, joinIndex2, joinIndex3 ); 
+  join2( tuples, joinIndex1, joinIndex2, joinIndex2 ); 
 
 }
 
