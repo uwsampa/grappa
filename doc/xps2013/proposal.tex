@@ -53,7 +53,7 @@ Tera MTA-2, substantially reducing its cost but not overcoming its narrow
 range of applicability.
 
 In this proposal we first describe our early
-Grappa~\cite{grappa} prototype, a runtime system for irregular
+Grappa prototype, a runtime system for irregular
 applications. It provides several facilities: a global shared memory
 abstraction, user-level threading support, and communication and
 synchronization primitives. Applications targeted for Grappa are not expected
@@ -87,7 +87,7 @@ proposed work is to ease this programming burden by language and compilation
 support.
 
 \item \textbf{Comprehensive benchmark suite:} Presently there does not exist a
-comprehensive benchmark suite of irregular and graph applications. We also
+comprehensive benchmark suite of irregular and graph applications. We are also
 seeking funding through this proposal to put together just such a benchmark
 suite. This suite will include benchmarks, reference implementations, and
 input data-sets. In addition a website will be created \texttt{graphbench.org}
@@ -99,8 +99,8 @@ into a single system. Multiple system nodes are required to maintain and
 access all of this data efficiently. However, even with hundreds of channels
 to persistent storage, loading this data into DRAM can prove a bottleneck. The
 Grappa runtime is designed to make applications tolerate extremely high memory
-latency, thus we will explore using solid state disks as main memory, since
-and further take advantage of Grappa's latency tolerance properties.
+latency, thus we will explore using solid state disks as main memory, 
+further taking advantage of Grappa's latency tolerance properties.
 
 
 \end{itemize}
@@ -115,7 +115,7 @@ Finally, we propose to explore how the lessons learned performing this research 
 
 \paragraph{Intellectual Merit:}
 
-Efficiently executing irregular computations on commodity hardware is \emph{hard}.  Much about commodity hardware is seemingly designed for the opposite application characteristics: caches assume applications have locality; networks are built with low injection rates but high bandwidth, assuming large packet sizes; even the runtimes and operating system is built assuming relatively infrequent communication and synchronization compared to computation.  This proposal rests on the seemingly outlandish claim that this commodity hardware / software stack can be convinced, through another layer of software, into efficiently executing irregular applications that lack locality, and communicate frequently with small amounts of data.  A folksy way of saying it is we think we can jam a square peg through a round hole.  Fortunately we have some preliminary evidence we won't get wedged along the way.  This is an intellectually challenging endeavor, and one square in the middle of the NSF XPS program: using and exploiting parallelism from irregular computations to efficiently execute them at scale.
+Efficiently executing irregular computations on commodity hardware is \emph{hard}.  Much about commodity hardware is seemingly designed for the opposite application characteristics: caches assume applications have locality; networks are built with low injection rates but high bandwidth, assuming large packet sizes; even runtimes and operating systems are built assuming relatively infrequent communication and synchronization compared to computation.  This proposal rests on the seemingly outlandish claim that this commodity hardware / software stack can be coerced, through another layer of software, into efficiently executing irregular applications that both lack locality and communicate frequently with small amounts of data.  A folksy way of saying it is we think we can jam a square peg through a round hole.  Fortunately we have some preliminary evidence we won't get wedged along the way.  This is an intellectually challenging endeavor, landing squarely in the middle of the NSF XPS program: using and exploiting parallelism from irregular computations to efficiently execute them at scale.
 
 \paragraph{Broader Impact:}
 
@@ -161,13 +161,13 @@ During execution, a task yields control of its core whenever it performs a long-
 
 Grappa programmers focus on expressing as much parallelism as possible without concern for where it will execute. Grappa then chooses where and when to exploit this parallelism, scheduling as much work as is necessary on each core to keep it busy in the presence of system latencies and task dependences.
 
-Grappa provides four methods for expressing parallelism. First, when the programmer identifies work that can be done in parallel, the work may be wrapped up in a function and queued with its arguments for later execution using a \texttt{spawn}. Second, a programmer can use \texttt{spawn\_on} to spawn a task on a specific core in the system or at the home core of a particular memory location. Third, the programmer can invoke a parallel for loop, provided that the trip count is known at loop entry. The programmer specifies a function pointer along with start and end indices and an optional threshold to control parallel overhead. Grappa does {\em recursive decomposition} of iterations, similar to Cilk's cilk\_for construct~\cite {cilkforimplementation} and TBB's {\tt parallel\_for}~\cite{intel_tbb}.  It generates a logarithmically-deep tree of tasks, stopping to execute the loop body when the number of iterations is below the required threshold. Fourth, a programmer may want to execute an active message; that is, to run a small piece of code on a particular core in the system without waiting for execution resources to be available.  For example, custom synchronization primitives execute this way, as a function executed on the core where the data lives.
+Grappa provides four methods for expressing parallelism. First, when the programmer identifies work that can be done in parallel, the work may be wrapped up in a function and queued with its arguments for later execution using a \texttt{spawn}. Second, a programmer can use \texttt{spawn\_on} to spawn a task on a specific core in the system or at the home core of a particular memory location. Third, the programmer can invoke a parallel for loop, provided that the trip count is known at loop entry. The programmer specifies a function pointer along with start and end indices and an optional threshold to control parallel overhead. Grappa does {\em recursive decomposition} of iterations, similar to Cilk's cilk\_for construct~\cite {cilkforimplementation} and TBB's {\tt parallel\_for}~\cite{intel_tbb}.  It generates a logarithmically-deep tree of tasks, stopping to execute the loop body when the number of iterations is below a specified threshold. Fourth, a programmer may want to execute an active message; that is, to run a small piece of code on a particular core in the system without waiting for execution resources to be available.  For example, custom synchronization primitives execute this way, as a function executed on the core where the data lives.
 
 \subsection{Memory}
 
 Applications written for Grappa utilize two forms of memory: local and global.  Local memory is local to a single core in the system.  Accesses occur through conventional pointers.  The compiler emits an access and the memory is manipulated directly.  Applications use local accesses for a number of things in Grappa: the stack associated with a task, accesses to localized global memory in caches (see below), and accesses to debugging infrastructure that is local to each system node.  Local pointers cannot access memory on other cores, and are valid only on their home core.
 
-Large data that is expected to be shared and accessed with low locality is stored in Grappa's global memory. All global data must be accessed through calls into Grappa's API, shown in Figure~\ref{fig:accessing-memory}.
+Large data that is expected to be shared and accessed with low locality is stored in Grappa's global memory. All global data must be accessed through calls into Grappa's API. %, shown in Figure~\ref{fig:accessing-memory}.
 
 \paragraph{Global memory addressing} Grappa provides two methods for storing data in the global memory. The first is a distributed heap striped across all the machines in the system in a block cyclic fashion. The \texttt{global\_malloc} and \texttt{global\_free} calls are used to allocate and deallocate memory in the global heap.  Addresses to memory in the global heap use \textbf{linear addresses}.  Choosing the block size involves trading off sequential bandwidth against aggregate random access bandwidth. Smaller block sizes help spread data across all the memory controllers in the cluster, but larger block sizes allow the locality-optimized memory controllers to provide increased sequential bandwidth. The block size, which is configurable, is typically set to 64 bytes, or the size of a single hardware cache line, in order to exploit spatial locality when available. The heap metadata is stored on a single node. Currently all heap operations serialize through this node; while this has been sufficient for our benchmarks, in the future Grappa will provide parallel performance through combining~\cite{MAMA,flatcombining}.
 
@@ -181,7 +181,7 @@ Under the hood, Grappa performs the mechanics of gathering chunks of data from m
 
 \textbf{Delegate operations.} When the access pattern has low-locality, it is more efficient to modify the data on its home core rather than bringing a copy to the requesting core and returning it after modification. Delegate operations provide this capability. Applications can dispatch computation to be performed on individual machine-word sized chunks of global memory to the memory system itself (e.g., \emph{fetch-and-add}).  Delegate operations, proposed in \cite{Nelson:hotpar11} and \cite{delegated:oopsla11}, are also the primary synchronization method in Grappa.
 
-Delegate operations are always executed at the home core of their address, and while arbitrary memory operations can be delegated, we restrict the use of delegate operations in three ways to make them more useful for synchronization. First, we limit each task to one outstanding delegate operation to avoid the possibility of reordering in the network. Second, we limit delegate operations to operate on objects in the 2D address space or objects that fit in a single block of the linear address space so they can be satisfied with a single network request. Finally, no context switches are allowed while the data is being modified. Given these restrictions, we can ensure that delegate operations for the same address from multiple requesters are always serialized through a single core in the system, providing atomic semantics without using atomic operations. 
+Delegate operations are always executed at the home core of their address, and while arbitrary memory operations can be delegated, we restrict the use of delegate operations in three ways to make them more useful for synchronization. First, we limit each task to one outstanding delegate operation to avoid the possibility of reordering in the network. Second, we limit delegate operations to operate on objects in the 2D address space or objects that fit in a single block of the linear address space, so they can be satisfied with a single network request. Finally, no context switches are allowed while the data is being modified. Given these restrictions, we can ensure that delegate operations for the same address from multiple requesters are always serialized through a single core in the system, providing atomic semantics without using atomic operations. 
 
 \subsection{Communication}
 \label{sec:communication}
@@ -190,7 +190,7 @@ In order to mitigate the low message injection rate limits of commodity networks
 
 At the upper layer, Grappa implements asynchronous active messages \cite{vonEicken92}. Each message consists of a function pointer, an optional argument payload, and an optional data payload. When a task sends a message, the message is copied to a send queue associated with the message's destination and the task continues execution.
 
-Grappa's lower networking layer aggregates the upper layer's messages to improve performance. Commodity networks including infiniband achieves their peak bisection bandwidth \emph{only} when the packet sizes are relatively large---on the order of multiple kilobytes. The reason for this discrepancy is the combination of overheads associated with handling each packet (in terms of bytes that form the actual packet, processing time at the card and processing on the CPU within the driver stack). Our measurements confirm manufacturers published data~\cite{infinibandbandwidth}, that with this packet size the bisection bandwidth is only a small fraction, less than 3\% of the peak bisection bandwidth.
+Grappa's lower networking layer aggregates the upper layer's messages to improve performance. Commodity networks including infiniband achieve their peak bisection bandwidth \emph{only} when the packet sizes are relatively large---on the order of multiple kilobytes. The reason for this discrepancy is the combination of overheads associated with handling each packet (in terms of bytes that form the actual packet, processing time at the card and processing on the CPU within the driver stack). Our measurements confirm manufacturers published data~\cite{infinibandbandwidth}, that with this packet size the bisection bandwidth is only a small fraction, less than 3\% of the peak bisection bandwidth.
 
 In our experiments the vast majority of requests were smaller than 44 bytes, far too small to make efficient use of the network. To make the best use of the network, we must convert our small messages into large ones. When a task sends a message, it is not immediately sent, but rather placed in a queue specific to the destination.
 
@@ -252,7 +252,7 @@ Since Grappa is designed for applications that have no or low locality, nearly \
 
 \paragraph{Virtual topology:} Currently Grappa uses a flat network topology where each processing core in the system is individually addressed. As more nodes are added to the system, a quadratic increase in the number of threads (in aggregate across all nodes) is required in order to compensate for the \emph{same} network delay.  This is because the current aggregator treats each of these end-points individually, i.e., it only aggregates messages that go to the same exact end-points. This does not scale as the number of nodes increases because the probability of messages going to the same destination goes down (assuming a somewhat uniform communication distribution). In summary, this past design choice is simple but does not scale.
 
-We need to rewrite the aggregator to build in a hierarchical virtual network layer.  The first layer of this hierarchy is to treat all processors at a given system node as a single destination. We intend to continue to use the lock-free single-threaded \gasnet communication layer that we have been using, as we have found the lock-based one to incur too high of an overhead for our purposes.  Thus the aggregator will need to very carefully utilize lock-free data-structures and interact with \gasnet carefully.
+We need to rewrite the aggregator to build in a hierarchical virtual network layer.  The first layer of this hierarchy is to treat all processors at a given system node as a single destination. We intend to continue to use the lock-free single-threaded \gasnet~communication layer that we have been using, as we have found the lock-based one to incur too high of an overhead for our purposes.  Thus the aggregator will need to very carefully utilize lock-free data-structures and interact with \gasnet~carefully.
 
 The second, and upper layers of the virtual topology are built from clustering system nodes into groups.  Instead of aggregating for all end-points, aggregation will occur for system nodes within a group.  A designated (and dedicated) node will act as a router, processing incoming and outgoing traffic to system nodes within the group and other groups.
 
@@ -261,9 +261,15 @@ We expect this hierarchical organization will reduce scaling requirements from
 be a single network hop for communication and turns it into \BigO{log(n)}
 hops. More threads will be required to overcome this increased latency, but we
 hypothesize only \BigO{log(n)} more, hence a real \BigO{n / log(n)^2} scaling
-benefit is achievable with the a virtual hierarchical network topology.
+benefit is achievable with a virtual hierarchical network topology. 
 
-% Should we discuss doing HW support for aggregation? Using NetFPGAs?
+\paragraph{Hardware support for aggregation:} If the increased latency caused
+by extra hops in hierarchical aggregation turns out to be detrimental, we
+will explore mitigation by moving some of the aggregation logic to the network
+card, either by exploiting off-the-shelf programmable network cards or
+experimental systems such ask NetFPGA~\cite{netfpga} (while we are planning to
+focus on Infiniband-based networking, if we explore the NetFPGA route we will
+be using Ethernet).
 
 \paragraph{User-level RDMA:} Certain commodity networking hardware today
 supports remote direct memory access (RDMA). Unfortunately, \emph{how} it is
@@ -272,18 +278,17 @@ to efficiently use in practice. We start with a short description of the
 current semantics of RDMA implementations. Next we describe the research we
 wish to undertake to make RDMA more useful.
 
-Networking infrastructure supports remote read and write operations.  Read operations take a source address and key (on a remote node), a destination address and key (on the local node), and a length.  Cards support address translation for regions of memory that are registered with them.  These translations, indexed by the supplied key, are used to perform virtual to physical address translation.  The physical address of the destination address is similarly translated using the translation table at the local node.  Cards also support remote write operations with a similar set of semantics, where addresses are translated on cards using the cards local translation table.  Both read and write operations are asynchronous.  The requesting processor initiates the operation and then can check for completion by querying a completion queue at the local card.  \emph{Notably}, the processor(s) on the remote node are provided a polling interface whereby they can learn if a remote write operation occurred.  No such interface exists to learn about remote read or atomic operations.
+Networking infrastructure supports remote read and write operations.  Read operations take a source address and key (on a remote node), a destination address and key (on the local node), and a length.  Cards support address translation for regions of memory that are registered with them.  These translations, indexed by the supplied key, are used to perform virtual to physical address translation.  The physical address of the destination address is similarly translated using the translation table at the local node.  Cards also support remote write operations with a similar set of semantics, where addresses are translated on a card using the card's local translation table.  Both read and write operations are asynchronous.  The requesting processor initiates the operation and then can check for completion by querying a completion queue at the local card.  \emph{Notably}, the processor(s) on the remote node are provided a polling interface whereby they can learn if a remote write operation occurred.  No such interface exists to learn about remote read or atomic operations.
 
 This interface suffers from multiple shortcomings.  The biggest of which is that ultimately, moving data to and from a remote node constructively requires higher level semantic operations than simple reads and writes.  These higher level semantics can, of course, be synthesized from the underlying read and write primitives, but it wastes round trips and synchronization time.  One possible alternative solution is to enable remote nodes to dispatch high-level data-structure manipulation requests (e.g. insert this item into a queue, remove an item from a set).  The challenge here is to make those calls programmable and interoperate securely with a modern operating system, and a user-level runtime system.  Additionally there are questions about \emph{who} should carry out the computation.  Classic RDMA does not interrupt the host processor, but these richer programmable semantics will require either a processor in the network interface (necessitating issues such as coherence be managed) or complex RDMA tasks need a mechanism to interrupt the host processor \emph{without leaving user space}. 
 
 
 %% The second half of this paragraph is really confusing, I have just a minimal clue of what it is talking about. And the little I understand sounds a bit vague and not directly related to grappa.
-The second challenge is the virtual to physical address translation on the cards requires the operating system to pin translations.  This removes paging flexibility from the operating system because runtime systems are (rationally) built to expect data structures to be in memory capable of RDMA or not.  Those in RDMA memory must be pinned.  In the long run, the solution here likely lays at the intersection of what progress is occurring in processor support for virtual machines and virtual memory translation for I/O.  Our goal will be to carefully study the I/O virtualization proposals put forth by major processor manufactures and devise solutions that enable RDMA to capitalize on these developments.
-
+The second challenge is that the virtual to physical address translation on the cards requires the operating system to pin translations.  This removes paging flexibility from the operating system, because runtime systems are (rationally) built to expect data structures to be in memory capable of RDMA or not.  Those in RDMA memory must be pinned.  In the long run, the solution here likely lies at the intersection of what progress is occurring in processor support for virtual machines and virtual memory translation for I/O.  Our goal will be to study carefully the I/O virtualization proposals put forth by major processor manufactures and devise solutions that enable RDMA to capitalize on these developments.
 
 \subsection{SSD-only data structures}
 
-Grappa applications are likely to use large amounts of data, 100s of terabytes to petabytes. Keeping all these data in DRAM only is unlikely to be cost effective. We will explore mechanisms that allow data to reside in solid-state storage {\em only}.
+Grappa applications are likely to use large amounts of data, 100s of terabytes to petabytes. Keeping all these data in DRAM only is unlikely to be cost effective. We will explore mechanisms that use solid-state storage as primary memory, greatly expanding the directly addressible storage at low cost.
 
 Grappa is very effective in hiding latencies of network communication.  If an access is to a chunk of the heap stored in a node's local memory, Grappa issues a prefetch for the address and context switches to other work while the prefetch is executing~\cite{Nelson:hotpar2011}. If the access is to memory stored on another node, Grappa issues a message to that node to request the data and context switches to other work until the reply arrives.  In fact, our measurements and estimates show that we might be able to tolerate even greater latency -- on the order of milliseconds per request.  This provides the tantalizing possibility that we will be able to keep data in \ssd\ drives only and service data access requests directly from them, without leaving copies in DRAM.  The natural point of integration for non-volatile memories in Grappa is to store the global distributed shared heap in non-volatile memory. All accesses to this shared heap are done through an \api, so this switch would be transparent to the programmer.
 
@@ -318,6 +323,8 @@ Language and compiler support are instrumental in making Grappa usable to a wide
 
 \paragraph{Task-weaving: } Much of the time the same task code is executing for hundreds of thousands of tasks in the Grappa runtime system.  For example, each task may be processing a loop body for a parallel for loop.  This is not always the most efficient approach to execution, and we already manually do recursive decomposition of parallel loops with a cut-off to group a collection of loop bodies together into a single task.  The task then executes each of these loop bodies sequentially.  This is not the most efficient approach, however.  An even more efficient technique is for the compiler to unroll and schedule all loop bodies simultaneously within the same task, thereby ``weaving'' these independent tasks together more efficiently to exploit computation / communication overlap.
 
+\paragraph{Concurrency Control: } Having too few tasks multiplexed per core fails to tolerate fully the latency; having too many increases memory and cache footprints, resulting in excess cache misses or exhausting physical memory unnecessarily.  Currently, we choose a number at program instantiation:  experiments so far have shown evidence of a broad sweet-spot, though it is of course varies as a function of application behavior.  At compile-time, we could estimate the number of tasks required based on the density of remote operations and hard-coded measurements of system characteristics; at runtime we can adjust the number of tasks dynamically based on real-time measurement of processor counters.  Exploring these directions may lead to even more robust performance.
+
 Presently we are starting work on this language and compiler support.  We are basing our effort on the LLVM~\cite{llvm} infrastructure.
 
 
@@ -337,7 +344,7 @@ We will build a collection of key computational kernels from graph and irregular
 
 \paragraph{Benchmark suite:} As previously described, we are seeking funding support to build and distribute a benchmark suite for irregular and graph applications.  This benchmark suite has the potential to have a broad impact on academia and industry.  We will distribute this benchmark through \texttt{graphbench.org} and will also collect and publish results from competing research groups.
 
-\paragraph{Technology transfer:} Bill Dally during his 2010 Eckert-Mauchly award speech said (in effect), technology transfers happen when people transfer.  Having just come back from a three year stint founding a startup company (where we transferred the Deterministic Multiprocessing technology from UW), we've seen this first hand.  The students and faculty involved in the Grappa project will spin off a company with their work.  The exact time frame is not yet known, but everyone involved in the project is excited to see the technology underpin a startup company and make this technology available to the broader commercial world.
+\paragraph{Technology transfer:} Bill Dally during his 2010 Eckert-Mauchly award speech said (in effect), technology transfers happen when people transfer.  Having just come back from a three year stint founding a startup company (where we transferred the Deterministic Multiprocessing technology from UW), we've seen this first hand.  The students and faculty involved in the Grappa project plan to spin off a company with their work.  The exact time frame is not yet known, but everyone involved in the project is excited to see the technology underpin a startup company and make this technology available to the broader commercial world.
 
 \paragraph{Curriculum development activities:} Concurrent with the execution of the research activities described in this grant we will seek to teach an advanced graduate class on advanced concurrency concepts.  We taught a similar class over six years ago and it is time to revive, update and teach it to the next generation of computer architecture graduate students.  \comment{Add more here.  This has no passion. -Mark}
 
@@ -346,7 +353,7 @@ We will build a collection of key computational kernels from graph and irregular
 
 \paragraph{Ceze:} Prof. Ceze's research is on computer architecture, programming languages and operating systems. His primary focus has been on improving programmability, reliability and energy efficiency of multiprocessor computer systems. His research is funded primarily by NSF, PNNL and industry. His CAREER award {\em Deterministic Shared Memory Multiprocessing: Vision, Architecture and Impact on Programmability} (CCF-0846004, 2008-13, \$559K) demonstrated that it is possible to provide deterministic execution of arbitrary multithreaded programs without sacrificing performance significantly. The results include innovation in architecture, compiler, and operating-systems. Two other NSF grants, {\em Code-Centric Approach to Specifying, Checking, and Discovering Shared-Memory Communication} (CCF-1064497, 2011-2014, \$901K) and {\em Precise Concurrency Exceptions: Architecture Support, Semantics and System Implications} (CCF-1016495, 2010-2013, \$500K), are leading to significant results in dealing with concurrency errors and concurrent programming language semantics. His work on large-scale graph processing is being funded by the Pacific Northwest Laboratory. His work on energy-aware programming models and approximate computing has been primarily funded by a seed NSF grant {\em Disciplined Approximate Programming for Energy-Efficient Computing} (CCF-1216611, 2012-2015, \$300K) and industry, including Microsoft, Google and Qualcomm.
 
-\paragraph{Kahan:} Dr. Kahan's research has focused on irregular parallel computation.  Over the course of twelve years, he developed the Tera MTA's multithreaded runtime system and memory allocator still in use today in the Cray XMT, exploring applicability of the system to production codes and benchmarks in the engineering, science, and government domains.  His has been driven by application needs.  The research described herein relies heavily on the experience gained, the innovation being not only to reapply it to mass market technology but also to explore .  He is presently an employee of the Department of Energy.  He has no past or current NSF support.
+\paragraph{Kahan:} Dr. Kahan's research has focused on irregular parallel computation.  Over the course of twelve years, he developed the Tera MTA's multithreaded runtime system and memory allocator still in use today in the Cray XMT, exploring applicability of the system to production codes and benchmarks in the engineering, science, and government domains.  His research has been driven by real-world application needs, resulting in new algorithms and systems to address concurrency bottlenecks.  He is presently an employee of the Pacific Northwest National Laboratory and an affiliate faculty member of the Computer Science and Engineering Department at the University of Washington.  He has no past or current NSF support.
 
 \paragraph{Oskin:} Prof. Oskin's prior research has focused on architectures and systems for scalable computing.  With support from NSF he has carried out a variety of research activities, leading to over 50 scholarly publications, three PhD students graduated, four masters students graduated, and a company spin-off.  The past NSF-supported work (WaveScalar) heavily influences the ideas described here. In some sense, the work here is a culmination in thought processes about why WaveScalar did not achieve as much ILP as earlier limit studies in ILP suggested were possible.  NSF support for the PI's work, {\em ITR: WaveScalar, A New Approach to Scalable System Design} (CCF-0325635, 2003-07, \$1.3M), {\em CAREER: Soft-Instruction Set Computing} (CCF-0133188, 2002-05, \$443K), helped to develop WaveScalar.  He has also spent over a decade exploring architectural implications of quantum computing technologies, with support from NSF {\em NER: Computer Aided Design of Silicon-based Quantum Computers} (CCF-0210373, 2002-04, \$90K), {\em EMT: Microarchitectures for Quantum Computers} (CCF-0523359, 2006-10, \$275K), {\em EMT: Self-Correcting Fault-Tolerant Quantum Computers} (CCF-0523359, 2005-08, \$406K) DARPA {\em QuIST: Architectures and Applications for Scalable Quantum Information Systems}.  He is currently exploring runtime systems for irregular parallel applications, which is the subject of this proposal and is partially funded by the Department of Energy.
 
@@ -357,9 +364,8 @@ Our research plan can be divided horizontally into three core areas: programming
 
 \vspace{2ex}
 
-%% TODO: need to expand below. 
 
-\noindent\textbf{Year 1:} The first year of this effort will focus on creating the benchmark suite and initial language and compiler support.  We aim to pull together 6-8 benchmarks, sample data sets, and scripts to measure performance results on the initial Grappa runtime, UPC~\cite{upc} implementations, and serial reference code.  For the compiler we will have the front end done enabling easy addition of keywords to annote data-types and structural elements (parallel for, etc).  The compiler will be generating in-efficient Grappa code by the end of the first year.
+\noindent\textbf{Year 1:} The first year of this effort will focus on creating the benchmark suite and initial language and compiler support.  We aim to pull together 6-8 benchmarks, sample data sets, and scripts to measure performance results on the initial Grappa runtime, UPC~\cite{upc:2005} implementations, and serial reference code.  For the compiler we will have the front end done enabling easy addition of keywords to annotate data-types and structural elements (parallel for, etc).  The compiler will be generating in-efficient Grappa code by the end of the first year.
 
 \vspace{1ex}
 \noindent\textbf{Year 2:} The second year of effort will see the completion of the benchmark suite, a significant effort on compiler optimizations for Grappa, and the beginning of the networking layer research.  The benchmark suite will include 12-15 applications and/or kernels.  The website will be live and we will be conducting significant outreach efforts to drive adoption.  On the compiler front we will have implemented the key optimizations that provide the highest benefit for Grappa code.  In addition we will have a detailed understanding of what additional work remains to support other languages / language constructs.  In this year we will start work on rewriting the networking layer of the Grappa runtime, providing a virtual network topology.  We will also begin work on programmable RDMA by using FPGA-based networking gear.
@@ -368,11 +374,144 @@ Our research plan can be divided horizontally into three core areas: programming
 \vspace{1ex}
 \noindent\textbf{Year 3:} In the third and final year of this effort (supported by this grant), we will finish the networking layer rewrite.  We will also have constructed a test-bed system comprised of mainly SSD-based memory.  Grappa will be ported to this new style of memory, which we envision will largely be a tuning and not rewriting effort.  We will explore alternative SSD-memory designs largely through emulation.  Finally we will complete a detailed system evaluation using our benchmark suite.
 
+\newpage
+
+\section*{Data Management Plan}
+
+The proposed research involves developing experimental systems and
+assessing how well they work. The kinds of data we will produce
+include: characterization data of program behavior; data on system
+performance and reliability; data on how programmers use new language
+constructs and tools. As is our practice, we will regularly submit
+papers for publication detailing our findings and design of our
+systems.
+
+As we have already been doing with all our research, for every
+published paper, we make all the raw data available online. This
+allows other researchers to look at the data in different ways, and it
+enables them to reproduce results. We also often publish
+the experimental software developed, following the rules outlined by
+the University intellectual property office --- which provides ample
+rights for other researchers to build upon our experimental
+systems. We do not anticipate using privileged or confidential
+information. 
+
+\newpage
+\section*{Collaboration Plan}
+%\setcounter{page}{1} 
+
+Because the PIs already successfully collaborate and co-advise an
+active cadre of spectacular students, the necessary tools and
+coordination mechanisms are already in place for this project to
+proceed successfully.  We first describe the PIs' complementary
+backgrounds, then describe the current organization of our (amorphous)
+research group, then describe the specific technology and facilities
+that enable seamless coordination, and finally describe specific PI roles
+for the research in this proposal.
+
+\subsection*{Complementary PI Experience}
+
+PI Oskin has traditionally participated in the computer-architecture research
+community, co-PI Ceze, in addition to the architecture community also has a
+presence in the systems and programming languages community, and co-PI Kahan
+has participated mainly in the parallel and scientific computing community.
+The move toward multicore architectures has re-invigorated collaboration
+across these divides and recent joint work by Oskin, Ceze, and Kahan
+embodies this important trend. There are currently five graduate students for
+which last two of the PIs serve as advisors. In addition to the project
+described in this proposal, they are working together on techniques for
+detecting concurrency errors with machine learning and language
+specifications, using disciplined approximations to save energy in computing,
+and developing new operating-system abstractions for emerging non-volatile
+memory devices. What has made these collaborations so fruitful in such a short
+period of time is the PIs' complementary backgrounds. We now briefly describe
+these backgrounds.
+
+Oskin has... {\bf MARK PUT YOUR STUFF HERE.}
+
+Ceze has been conducting research on architecture support, compiler
+techniques, and programming models to improve the programmability of
+multiprocessor systems for seven years and has co-authored over thirty
+papers in these areas.  His research includes advances in
+architecture~\cite{tlsooo, bulk, bulksc, swbulk, cyclops, dmp,
+  delorean} and programming models~\cite{colorama, ipot, posh} to
+simplify exploiting concurrency in multiprocessors. Some of his recent
+results especially related to this proposal include a programming
+model based on ordered transactions and data annotations~\cite{ipot};
+improving reliability of multithreaded software with architecture
+support for bug detection and avoidance~\cite{atomaid, aatoppicks,
+  bugaboo, oshajava, cs-isca10, ce-isca10}; and deterministic
+execution of multithreaded programs~\cite{dmp, dmptoppicks,
+  asplos10coredet, dmpos}. PI Ceze recently co-organized an NSF-funded
+workshop focused specifically on deterministic multiprocessing. The
+workshop was very successful, bringing leaders in the multicore area
+from industry and academia.
+
+Kahan has been working in the area of parallel computing for irregular
+applications for twenty years, largely in industry.  At Cray (previously Tera
+Computer) he developed the runtime system~\cite{Alverson95schedulingon,Alverson97terahardware-software} and combining memory allocator~\cite{MAMA} still in production use on
+Cray's XMT system in which over 50,000 threads execute concurrently sharing one
+global address space.  He has co-authored patents and publications for both of these
+systems as well as for a scalable connected components graph algorithm that bears
+his name~\cite{Underwood07analyzingthe}.
+Kahan originated and for three years has been co-PI for the Grappa project.
+
+\subsection*{The SAMPA Research Group: Addressing the Concurrency
+  Challenge Across the Execution Stack}
+
+The PIs organize their joint research activity under the umbrella of
+the ``SAMPA group'' (SAfe MultiProcessing Architectures).  Some brief
+statistics help summarize the group's size, strength, and focus:
+\begin{itemize}
+\item There are roughly ten graduate students, most actively
+  coadvised.
+\item In the last four years, the group has produced twelve papers
+  published in ASPLOS, ISCA, PLDI, OOPSLA, MICRO, and OSDI as well as three
+  papers in the USENIX Workshop on Hot Topics in Parallelism.
+\end{itemize}
+The SAMPA group is an ideal size for collaboration across the system
+execution stack from computer architecture up through software
+engineering.  Compared to large collaborations with several faculty,
+there are no graduate students (or faculty) who specialize entirely in
+particular subtopics.  The students gain expertise across
+computer-science disciplines and use appropriate ideas from hardware,
+software, theory, etc. to solve research problems.  
+
+\subsection*{Specific Technology and Facilities}
+
+The research group that will perform the research has the facilities
+needed for successful collaboration.  There is a shared lab facility
+where weekly meetings are held.  Students in the group share computing
+infrastructure, including dedicated machines and regular use of cloud
+services such as Amazon's EC2 for scalability experiments.
+
+The PIs regularly hold joint meetings with each student that they
+co-advise.  They do not split advising duties so much as duplicate
+them.
+
+\subsection*{Specific Roles and Responsibilities}
+
+It should be clear from the preceding discussions that the PIs are
+entirely comfortable jointly managing the work in the proposal and the
+students involved.  Nonetheless, several specific pieces of the work
+more naturally align with the expertise and interests of one of the
+PIs:
+
+\begin{itemize}
+\item PI Oskin will focus on communication issues. 
+\item PI Ceze will focus on compiler and programming languages work.
+\item PI Kahan will focus on organizing benchmarks and performance evaluation efforts.
+\item All PIs expect to solicit guidance and collaboration from
+  researchers such as John Feo (PNNL), Jim Larus (Microsoft Research), Hans
+  Boehm (HP Research), and Preston Briggs,  with whom
+  they have already collaborated on other projects.
+\end{itemize}
+
 \section{Summary}
 
-Irregular applications are increasing in importance to the computing industry.  For a long time they have underpinned computations of interest to the national security arm of the federal government.  But now, they underpin such questions as ad placement in social networks, and analysis of complex data-sets in medicine and science.  The defining characteristic of these applications is poor locality and massive available parallelism.  Our effort is focused on making these applications perform well and scale on commodity hardware.  The ``secret sauce'' that makes this work is to essentially build a software XMT~\cite{xmt}.  Instead of relying on locality (which doesn't exist for these applications) we rely on threading to tolerate memory latency.  Unlike the XMT, however, we must contend with commodity networking hardware, and here we again rely on threading to provide a sufficient number of requests that we can buffer them prior to dispatching on the physical wire.
+Irregular applications are increasing in importance to the computing industry.  For a long time they have underpinned computations of interest to the national security arm of the federal government.  But now, they underpin such questions as ad placement in social networks, and analysis of complex data-sets in medicine and science.  The defining characteristic of these applications is poor locality and massive available parallelism.  Our effort is focused on making these applications perform well and scale on commodity hardware.  The ``secret sauce'' that makes this work is to essentially build a software XMT~\cite{feo:xmt}.  Instead of relying on locality (which doesn't exist for these applications) we rely on threading to tolerate memory latency.  Unlike the XMT, however, we must contend with commodity networking hardware, and here we again rely on threading to provide a sufficient number of requests that we can buffer them prior to dispatching on the physical wire.
 
-Our past effort has shown a workable proof of concept of all this runtime smoke and mirrors: a commodity cluster can out due the XMT at its own game, by emulating its key features in software.  What is needed now is additional effort to improve the underlying performance of this runtime and make it usable to a broad base of developers.  We will be focusing our efforts in the next three years on the key performance component, the networking layer, and the key programmer efficiency linchpin, high level language support.  In addition we need a useful mechanism for handling data-sets in the petabyte range, and here we imagine building a cluster of machines that relies primarily on SSD's and not DRAM for data-set storage.
+Our past effort has shown a workable proof of concept of all this runtime smoke and mirrors: a commodity cluster can out do the XMT at its own game, by emulating its key features in software.  What is needed now is additional effort to improve the underlying performance of this runtime and make it usable to a broad base of developers.  We will be focusing our efforts in the next three years on the key performance component, the networking layer, and the key programmer efficiency linchpin, high level language support.  In addition we need a useful mechanism for handling data-sets in the petabyte range, and here we imagine building a cluster of machines that relies primarily on SSD's and not DRAM for data-set storage.
 
 If successful, the Grappa runtime will have a transformative impact on the computing industry.  Irregular applications are hugely important, and if off the shelf hardware can be efficient with them a new class of questions can be asked of computing systems.  Additionally our benchmark suite development will further drive innovation among researchers in this space.
 
