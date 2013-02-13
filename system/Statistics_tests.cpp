@@ -1,4 +1,3 @@
-
 // Copyright 2010-2012 University of Washington. All Rights Reserved.
 // LICENSE_PLACEHOLDER
 // This software was created with Government support under DE
@@ -51,7 +50,7 @@ void user_main(void * args) {
       return true;
     });
   Statistics::merge_and_print();
-  //Statistics::dump_stats_blob();
+  Statistics::dump_stats_blob();
 }
 
 BOOST_AUTO_TEST_CASE( test1 ) {
