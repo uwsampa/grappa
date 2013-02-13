@@ -3,7 +3,7 @@
 \input{header}
 
 \begin{center}
-  \textbf{\Large XPS: Towards an Architecture for Large-Scale, Irregular and Low-Locality Applications}\\ \vspace{5mm}
+  \textbf{\Large XPS-CLCCA: Scalable Parallelism for Irregular and Graph Applications}\\ \vspace{5mm}
   \textbf{Luis Ceze ~~~~~ Simon Kahan ~~~~~ Mark Oskin (PI)}\\
   \textbf{University of Washington}
 \end{center}
@@ -246,24 +246,13 @@ Our efforts are built on many existing ideas in programming languages, systems a
 
 As described earlier, our work on Grappa so far has focused on building an initial prototype so we have a baseline system to build upon. This early prototype has lead us to think of many research opportunities, from new ways to improve network communication scheduling, to new data storage management ideas to compiler and language support. Below we detail our research plans in each of these thrusts. 
 
-%I think we should pitch what have been done so far as essays and a %bit part of the research effort is putting everything together. -Luis
-
 \subsection{Networking}
 
-\comment{This research item	is important but right now it sounds really really
-specific. You almost need to know the current code to understand it. -Luis}
+Since Grappa is designed for applications that have no or low locality, nearly \emph{every} memory reference is to a remote system node.  This makes the networking layer key to overall system performance.  In this section we outline the key directions we wish to take in enhancing the networking layer of the Grappa runtime system.
 
+\paragraph{Virtual topology:} Currently Grappa uses a flat network topology where each processing core in the system is individually addressed. As more nodes are added to the system, a quadratic increase in the number of threads (in aggregate across all nodes) is required in order to compensate for the \emph{same} network delay.  This is because the current aggregator treats each of these end-points individually, i.e., it only aggregates messages that go to the same exact end-points. This does not scale as the number of nodes increases because the probability of messages going to the same destination goes down (assuming a somewhat uniform communication distribution). In summary, this past design choice is simple but does not scale.
 
-\comment{Ins't the argument here something like: If we did aggregation on a
-per-destination basis only, as the number of nodes scales, it takes more
-concurrency (or more time) to aggregate messages. We will address this by
-doing aggrregation hierarchically, choosing representative end-points along
-the way to increase agggregation opporunitites at the cost of more
-communucation hops (making an analogy with changing trains here). -Luis}
-
-\paragraph{Virtual topology:} Currently Grappa uses a flat network topology where each processing core in the system is individually addressed. As more nodes are added to the system, a quadratic increase in the number of threads (in aggregate across all nodes) is required in order to compensate for the \emph{same} network delay.  This is because the current aggregator treats each of these end-points individually, i.e., it only aggregates messages that go to the same exact end-points. This does not scale as the number of nodes go up because the probability of messages going to the same destination goes down (assuming a somewhat uniform communication distribution). In summary, this past design choice is simple but does not scale.
-
-We need to rewrite the aggregator to build in a hierarchical virtual network layer.  The first layer of this hierarchy is to treat all processors at a given system node as a single destination. We intend to continue to use the lock-free single-threaded \gasnet communication layer that we have been using, as we have found the lock-based one to incur too high of an overhead for our purposes.  Thus the aggregator will need to very carefully utilize lock-free data-structures.
+We need to rewrite the aggregator to build in a hierarchical virtual network layer.  The first layer of this hierarchy is to treat all processors at a given system node as a single destination. We intend to continue to use the lock-free single-threaded \gasnet communication layer that we have been using, as we have found the lock-based one to incur too high of an overhead for our purposes.  Thus the aggregator will need to very carefully utilize lock-free data-structures and interact with \gasnet carefully.
 
 The second, and upper layers of the virtual topology are built from clustering system nodes into groups.  Instead of aggregating for all end-points, aggregation will occur for system nodes within a group.  A designated (and dedicated) node will act as a router, processing incoming and outgoing traffic to system nodes within the group and other groups.
 
@@ -271,7 +260,7 @@ We expect this hierarchical organization will reduce scaling requirements from
 \BigO{n^2} threads to \BigO{n \times log(n)}. Of course, it takes what used to
 be a single network hop for communication and turns it into \BigO{log(n)}
 hops. More threads will be required to overcome this increased latency, but we
-believe only \BigO{log(n)} more, hence a real \BigO{n / log(n)^2} scaling
+hypothesize only \BigO{log(n)} more, hence a real \BigO{n / log(n)^2} scaling
 benefit is achievable with the a virtual hierarchical network topology.
 
 % Should we discuss doing HW support for aggregation? Using NetFPGAs?
@@ -285,17 +274,12 @@ wish to undertake to make RDMA more useful.
 
 Networking infrastructure supports remote read and write operations.  Read operations take a source address and key (on a remote node), a destination address and key (on the local node), and a length.  Cards support address translation for regions of memory that are registered with them.  These translations, indexed by the supplied key, are used to perform virtual to physical address translation.  The physical address of the destination address is similarly translated using the translation table at the local node.  Cards also support remote write operations with a similar set of semantics, where addresses are translated on cards using the cards local translation table.  Both read and write operations are asynchronous.  The requesting processor initiates the operation and then can check for completion by querying a completion queue at the local card.  \emph{Notably}, the processor(s) on the remote node are provided a polling interface whereby they can learn if a remote write operation occurred.  No such interface exists to learn about remote read or atomic operations.
 
-This interface suffers from multiple shortcomings.  The biggest of which is that ultimately, moving data to and from a remote node constructively requires higher level semantic operations than simple reads and writes.  These higher level semantics can, of course, be synthesized from the underlying read and write primitives, but it wastes round trips and synchronization time.  One possible alternative solution is to borrow ideas from Active Messages~\cite{active-messages} and enable remote nodes to dispatch, essentially, user-level function calls.  The challenge here is to make those calls interoperate securely with a modern operating system, and a user-level runtime system. Additionally, the application runtime should be able to control how RDMA operations are carried out and make then semantically richer, e.g., do collective operations (min, max, average) on remote data, or hash-table gets and inserts.
+This interface suffers from multiple shortcomings.  The biggest of which is that ultimately, moving data to and from a remote node constructively requires higher level semantic operations than simple reads and writes.  These higher level semantics can, of course, be synthesized from the underlying read and write primitives, but it wastes round trips and synchronization time.  One possible alternative solution is to enable remote nodes to dispatch high-level data-structure manipulation requests (e.g. insert this item into a queue, remove an item from a set).  The challenge here is to make those calls programmable and interoperate securely with a modern operating system, and a user-level runtime system.  Additionally there are questions about \emph{who} should carry out the computation.  Classic RDMA does not interrupt the host processor, but these richer programmable semantics will require either a processor in the network interface (necessitating issues such as coherence be managed) or complex RDMA tasks need a mechanism to interrupt the host processor \emph{without leaving user space}. 
 
-% \comment{This seems weak.  Need some more ideas here.  -Mark. Luis: Isn't the problem that the app runtime should be able to determine how the RDMA ops should be done? Maybe add examples here like accessing a hash-table, doing collective operations on remote data etc (min, max, avg)? How about delegating simple operations to the network card? Maybe argue that getting the attention of the remote processor for these operations is too costly?} 
 
 %% The second half of this paragraph is really confusing, I have just a minimal clue of what it is talking about. And the little I understand sounds a bit vague and not directly related to grappa.
-The second challenge is the virtual to physical address translation on the cards requires the operating system to pin translations.  This removes paging flexibility from the operating system because runtime systems are (rationally) built to expect data structures to be in memory capable of RDMA or not.  Those in RDMA memory must be pinned.  In the long run, the solution here likely lays at the intersection of what progress is occurring in virtual memory translation for I/O within virtual machines.  Our goal will be to carefully study the I/O virtualization proposals put forth by major processor manufactures and devise solutions that enable RDMA to capitalize on these developments.
+The second challenge is the virtual to physical address translation on the cards requires the operating system to pin translations.  This removes paging flexibility from the operating system because runtime systems are (rationally) built to expect data structures to be in memory capable of RDMA or not.  Those in RDMA memory must be pinned.  In the long run, the solution here likely lays at the intersection of what progress is occurring in processor support for virtual machines and virtual memory translation for I/O.  Our goal will be to carefully study the I/O virtualization proposals put forth by major processor manufactures and devise solutions that enable RDMA to capitalize on these developments.
 
-\comment{I really don't know if this is true or if we will be able to to know that is true any time soon -Mark
-
-The final challenge is that atomic operations via RDMA do not interact atomically with processors in a system.  Semantically it is not entirely clear what happens if a processor issues an atomic operation on a memory address at the same time the network card is attempting to service a remote atomic access.
-}
 
 \subsection{SSD-only data structures}
 
@@ -313,6 +297,7 @@ This is not straightforward, however, for three reasons: (1) \ssds\ assume spati
 
 %% Sorry Mark, while the item below is clearly rich and juicy, we can't leave it bhere because it is huuuuge, it does not match the scope of the grant, and we dont have the expertive --- e.g., are you sure nobody is working on it? 
 
+%% I think this is the only idea that is going to work... maybe we should delete the above three and make this one good.  Seriously, the ideas up there are bunk.  -ark
 % \paragraph{Rearchitecting flash:} Clearly the best solution here lays in re-architecting the flash chip itself.  We will explore new flash microarchitectures that optimize for message rate as well as bandwidth.  Such chips have value far beyond Grappa.  Research into persistent key/value stores, and really any persistent high-throughput data-structure will benefit from a redesigned flash chip that can sustain dramatically increased message rates.
 
 \subsection{Compiler and language support}
@@ -335,27 +320,14 @@ Language and compiler support are instrumental in making Grappa usable to a wide
 
 Presently we are starting work on this language and compiler support.  We are basing our effort on the LLVM~\cite{llvm} infrastructure.
 
-\comment{ three main aspects: (1) easing the interface to the Grappa memory model which is sequentially consistent for data-race free programs; (2) automatic insertion of calls to the runtime to minimize the complexity of accessing globally shared memory; and (3) performing code optimizations specific for Grappa as well as traditional optimizations in ways that will not break program semantics.
-
-We will develop type qualifiers to let programmers declare shared data, e.g., \texttt{shared int}. This will enable the compiler to automatically insert runtime calls for accesses to global heap data as well synchronized operations (e.g. atomic fetch-and-add) to global variables. This will also enable new analyses and optimizations, for example, the compiler could perform spatial and temporal locality analysis to improve request aggregation when it can prove that several accesses go to the same destination.
-
-}
-
-\comment{Luis, don't rant.    -mark
-Luis: Ehm, it wasnt a rant, we are not even sure what our model is and this will take work... and before we know it, we cant cleanly do optimization. As you wish, leave it out, the current state is pretty sloppy... so if we get a comment on this, you will buy beers. 
-
-Specifying the memory model and access semantics of the Grappa runtime is very important for several reasons. The programmer needs to know the behavior of accesses to the global heap. The compiler also must rely on the precise access semantics so that optimizations can be performed without breaking program semantics. We opted for a sequential consistency for data-race-free programs, similarly to the C++0x memory model (something programmers and system software designers are already used to).
-}
-
-
 
 \subsection{Graph benchmark suite}
 
-In order to facilitate the development and evaluation of Grappa, we will develop a comprehensive benchmark suite for graph analytics applications. This will not only be useful for us, but the whole community at large, since there is a lack of benchmarks in this application space.
+In order to facilitate the development and evaluation of Grappa, we will develop a comprehensive benchmark suite for graph analytics applications. This will not only be useful for us, but the whole community at large, since there are few benchmarks in this application space.
 
 This benchmark suite will consist of application kernels, reference implementations, data-sets, data-set generators, documentation, specifications for generating standardized performance results, and a hosting service (http://graphbench.org) to provide public access to the benchmark and datasets as well as aggregate and publish results by all users of the benchmark suite.
 
-This benchmark suite will be a tremendous value to the research community. Not only will it enable researchers to evaluate ideas on graph processing system techniques, but it will also enable fair comparisons of ideas in a depth not currently available from other graph related benchmark suites. The benchmark will be released in a completely open fashion, so anyone will be able to use it (and contribute to it).  All code will be distributed into the public domain (BSD style licensing) so companies can use it. The goal is to get something out relatively early in the hope of (i) getting others to cluster around this work rather than develop alternatives, and (ii) help establish consistent metrics for performance results.
+This benchmark suite will be a tremendous value to the research community. Not only will it enable researchers to evaluate ideas on graph processing system techniques, but it will also enable fair comparisons of ideas in a depth not currently available from other graph related benchmark suites~\cite{graph500}. The benchmark suite will be released in a completely open fashion, so anyone will be able to use it (and contribute to it).  All code will be distributed into the public domain (BSD style licensing) so companies can use it. The goal is to get something out relatively early in the hope of (i) getting others to cluster around this work rather than develop a plethora of overlapping alternatives, and (ii) help establish consistent metrics for performance results.
 
 We will build a collection of key computational kernels from graph and irregular applications. The benchmark suite will consist of both documentation on the actual kernel (ideally a research paper or book reference sourced from the community), and a reference implementation. The benchmark suite will also include sample data collected from existing sources, and synthetic workload generators. The collected data provides a grounding for performance analysis on real-world problems. The workload generators provide cleaner, easier to reason about randomly generated data-sets at a programmable scale.
 
@@ -381,28 +353,29 @@ We will build a collection of key computational kernels from graph and irregular
 \section{Work Plan}
 \label{sec:plan}
 
-Our research plan can be divided horizontally into three core areas:
-programming languages/compilers; communication and storage; and benchmarking. Below we outline how we
-plan to advance these fronts over the next four years.
+Our research plan can be divided horizontally into three core areas: programming languages/compilers; communication and storage; and benchmarking. Below we outline how we plan to advance these fronts over the next four years.
 
 \vspace{2ex}
 
 %% TODO: need to expand below. 
 
-\noindent\textbf{Year 1:} Benchmarks. Crude language support.
+\noindent\textbf{Year 1:} The first year of this effort will focus on creating the benchmark suite and initial language and compiler support.  We aim to pull together 6-8 benchmarks, sample data sets, and scripts to measure performance results on the initial Grappa runtime, UPC~\cite{upc} implementations, and serial reference code.  For the compiler we will have the front end done enabling easy addition of keywords to annote data-types and structural elements (parallel for, etc).  The compiler will be generating in-efficient Grappa code by the end of the first year.
 
 \vspace{1ex}
-\noindent\textbf{Year 2:} Benchmarks. Hierarchical aggregation. Compiler optimizations.
+\noindent\textbf{Year 2:} The second year of effort will see the completion of the benchmark suite, a significant effort on compiler optimizations for Grappa, and the beginning of the networking layer research.  The benchmark suite will include 12-15 applications and/or kernels.  The website will be live and we will be conducting significant outreach efforts to drive adoption.  On the compiler front we will have implemented the key optimizations that provide the highest benefit for Grappa code.  In addition we will have a detailed understanding of what additional work remains to support other languages / language constructs.  In this year we will start work on rewriting the networking layer of the Grappa runtime, providing a virtual network topology.  We will also begin work on programmable RDMA by using FPGA-based networking gear.
+
 
 \vspace{1ex}
-\noindent\textbf{Year 3:} Hierarchical aggregation. SSD-only data structures.
-
-\vspace{1ex}
-\noindent\textbf{Year 4:} SSD-only data structures. Detailed system evaluation. 
+\noindent\textbf{Year 3:} In the third and final year of this effort (supported by this grant), we will finish the networking layer rewrite.  We will also have constructed a test-bed system comprised of mainly SSD-based memory.  Grappa will be ported to this new style of memory, which we envision will largely be a tuning and not rewriting effort.  We will explore alternative SSD-memory designs largely through emulation.  Finally we will complete a detailed system evaluation using our benchmark suite.
 
 \section{Summary}
 
-We are awesome.  Give us money.
+Irregular applications are increasing in importance to the computing industry.  For a long time they have underpinned computations of interest to the national security arm of the federal government.  But now, they underpin such questions as ad placement in social networks, and analysis of complex data-sets in medicine and science.  The defining characteristic of these applications is poor locality and massive available parallelism.  Our effort is focused on making these applications perform well and scale on commodity hardware.  The ``secret sauce'' that makes this work is to essentially build a software XMT~\cite{xmt}.  Instead of relying on locality (which doesn't exist for these applications) we rely on threading to tolerate memory latency.  Unlike the XMT, however, we must contend with commodity networking hardware, and here we again rely on threading to provide a sufficient number of requests that we can buffer them prior to dispatching on the physical wire.
+
+Our past effort has shown a workable proof of concept of all this runtime smoke and mirrors: a commodity cluster can out due the XMT at its own game, by emulating its key features in software.  What is needed now is additional effort to improve the underlying performance of this runtime and make it usable to a broad base of developers.  We will be focusing our efforts in the next three years on the key performance component, the networking layer, and the key programmer efficiency linchpin, high level language support.  In addition we need a useful mechanism for handling data-sets in the petabyte range, and here we imagine building a cluster of machines that relies primarily on SSD's and not DRAM for data-set storage.
+
+If successful, the Grappa runtime will have a transformative impact on the computing industry.  Irregular applications are hugely important, and if off the shelf hardware can be efficient with them a new class of questions can be asked of computing systems.  Additionally our benchmark suite development will further drive innovation among researchers in this space.
+
 
 \input{footer}
 
