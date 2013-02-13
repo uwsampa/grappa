@@ -106,6 +106,33 @@ void joinerSpawn( int64_t s, int64_t n ) {
   Grappa_publicTask(&asyncFor_with_globalTaskJoiner<LoopBody,Threshold>, s, n, make_global( &global_joiner ) );
 }
 
+// Same as above, with start as GlobalAddress
+template < typename T,
+           void (*LoopBody)(GlobalAddress<T>,int64_t),
+           int64_t Threshold >
+void joinerSpawn( GlobalAddress<T> s, int64_t n );
+
+/// task wrapper: signal upon user task completion
+template < typename T,
+           void (*LoopBody)(GlobalAddress<T>,int64_t),
+           int64_t Threshold >
+void asyncFor_with_globalTaskJoiner(GlobalAddress<T> s, int64_t n, GlobalAddress<GlobalTaskJoiner> joiner) {
+  //NOTE: really we just need the joiner Node because of the static global_joiner
+  async_parallel_for<T, LoopBody, &joinerSpawn<T, LoopBody,Threshold>, Threshold > (s, n);
+  DVLOG(5) << "signaling " << s << " " << n;
+  global_joiner.remoteSignal( joiner );
+}
+
+/// spawn wrapper: register new task before spawned
+template < typename T,
+           void (*LoopBody)(GlobalAddress<T>,int64_t),
+           int64_t Threshold >
+void joinerSpawn( GlobalAddress<T> s, int64_t n ) {
+  global_joiner.registerTask();
+  DVLOG(5) << "registered " << s << " " << n;
+  Grappa_publicTask(&asyncFor_with_globalTaskJoiner<T,LoopBody,Threshold>, s, n, make_global( &global_joiner ) );
+}
+
 
 
 template < typename Arg,
