@@ -15,19 +15,6 @@
 #include <iostream>
 
 
-// TODO move to fork join
-#define __cat2(x,y) x##y
-#define __cat(x,y) __cat2(x,y)
-#define on_all_nodes_helper_(func, name, args...) \
-  func name(args); \
-  fork_join_custom(&name)
-#define on_all_nodes_helper_1_(func, name) \
-  func name; \
-  fork_join_custom(&name)
-#define on_all_nodes(func, args...) \
-  on_all_nodes_helper_(func, __cat(_on_all_nodes_func_, __COUNTER__), args)
-#define on_all_nodes_1(func) \
-  on_all_nodes_helper_1_(func, __cat(_on_all_nodes_func_, __COUNTER__))
 
 
 
