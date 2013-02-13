@@ -261,7 +261,7 @@ We expect this hierarchical organization will reduce scaling requirements from
 be a single network hop for communication and turns it into \BigO{log(n)}
 hops. More threads will be required to overcome this increased latency, but we
 hypothesize only \BigO{log(n)} more, hence a real \BigO{n / log(n)^2} scaling
-benefit is achievable with the a virtual hierarchical network topology. 
+benefit is achievable with a virtual hierarchical network topology. 
 
 \paragraph{Hardware support for aggregation:} If the increased latency caused
 by extra hops in hierarchical aggregation turns out to be a big factor, we
@@ -445,7 +445,14 @@ workshop focused specifically on deterministic multiprocessing. The
 workshop was very successful, bringing leaders in the multicore area
 from industry and academia.
 
-Kahan has tremendous experience in ... from Tera/Cray ... {\bf SIMON PUT YOUR STUFF HERE.}
+Kahan has been working in the area of parallel computing for irregular
+applications for twenty years, largely in industry.  At Cray (previously Tera
+Computer) he developed the runtime system~\cite{Alverson95schedulingon,Alverson97terahardware-software} and combining memory allocator~\cite{MAMA} still in production use on
+Cray's XMT system in which over 50,000 threads execute concurrently sharing one
+global address space.  He has co-authored patents and publications for both of these
+systems as well as for a scalable connected components graph algorithm that bears
+his name~\cite{Underwood07analyzingthe}.
+Kahan originated and for three years has been co-PI for the Grappa project.
 
 \subsection*{The SAMPA Research Group: Addressing the Concurrency
   Challenge Across the Execution Stack}
