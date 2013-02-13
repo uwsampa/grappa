@@ -416,8 +416,8 @@ has participated mainly in the parallel and scientific computing community.
 The move toward multicore architectures has re-invigorated collaboration
 across these divides and recent joint work by Oskin, Ceze, and Kahan
 embodies this important trend. There are currently five graduate students for
-which at last two of the PIs serve as advisors. In addition to the project
-described in this proposal, they are also working together on techniques for
+which last two of the PIs serve as advisors. In addition to the project
+described in this proposal, they are working together on techniques for
 detecting concurrency errors with machine learning and language
 specifications, using disciplined approximations to save energy in computing,
 and developing new operating-system abstractions for emerging non-volatile
@@ -507,7 +507,7 @@ PIs:
 
 \section{Summary}
 
-Irregular applications are increasing in importance to the computing industry.  For a long time they have underpinned computations of interest to the national security arm of the federal government.  But now, they underpin such questions as ad placement in social networks, and analysis of complex data-sets in medicine and science.  The defining characteristic of these applications is poor locality and massive available parallelism.  Our effort is focused on making these applications perform well and scale on commodity hardware.  The ``secret sauce'' that makes this work is to essentially build a software XMT~\cite{xmt}.  Instead of relying on locality (which doesn't exist for these applications) we rely on threading to tolerate memory latency.  Unlike the XMT, however, we must contend with commodity networking hardware, and here we again rely on threading to provide a sufficient number of requests that we can buffer them prior to dispatching on the physical wire.
+Irregular applications are increasing in importance to the computing industry.  For a long time they have underpinned computations of interest to the national security arm of the federal government.  But now, they underpin such questions as ad placement in social networks, and analysis of complex data-sets in medicine and science.  The defining characteristic of these applications is poor locality and massive available parallelism.  Our effort is focused on making these applications perform well and scale on commodity hardware.  The ``secret sauce'' that makes this work is to essentially build a software XMT~\cite{feo:xmt}.  Instead of relying on locality (which doesn't exist for these applications) we rely on threading to tolerate memory latency.  Unlike the XMT, however, we must contend with commodity networking hardware, and here we again rely on threading to provide a sufficient number of requests that we can buffer them prior to dispatching on the physical wire.
 
 Our past effort has shown a workable proof of concept of all this runtime smoke and mirrors: a commodity cluster can out due the XMT at its own game, by emulating its key features in software.  What is needed now is additional effort to improve the underlying performance of this runtime and make it usable to a broad base of developers.  We will be focusing our efforts in the next three years on the key performance component, the networking layer, and the key programmer efficiency linchpin, high level language support.  In addition we need a useful mechanism for handling data-sets in the petabyte range, and here we imagine building a cluster of machines that relies primarily on SSD's and not DRAM for data-set storage.
 
