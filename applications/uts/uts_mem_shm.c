@@ -15,11 +15,14 @@
 
 #include <stdlib.h>
 #include <stdio.h>
+#include <stdint.h>
 #include <string.h>
 #include <math.h>
 
 #include "uts.h"
 
+// FIXME into makefile
+#define PROTECT_STACK 0
 
 /***********************************************************
  *                                                         *
@@ -49,7 +52,13 @@
 #define INIT_LOCK(zlk)   zlk=omp_global_lock_alloc()
 #define INIT_SINGLE_LOCK(zlk) zlk=omp_global_lock_alloc()
 #define SMEMCPY          memcpy
-#define ALLOC            malloc
+#if PROTECT_STACK
+  #define ALLOC valloc
+#else
+  #define ALLOC            malloc
+#endif // PROTECT_STACK
+#define ALL_ALLOC(nbl,nby) malloc((nby))
+#define FREE               free
 #define BARRIER          
 // OpenMP helper function to match UPC lock allocation semantics
 omp_lock_t * omp_global_lock_alloc() {
@@ -78,6 +87,8 @@ omp_lock_t * omp_global_lock_alloc() {
 #define INIT_SINGLE_LOCK(zlk) zlk=upc_all_lock_alloc()
 #define SMEMCPY          upc_memget
 #define ALLOC            upc_alloc
+#define ALL_ALLOC(nbl,nby) upc_all_alloc((nbl), (nby))
+#define FREE             upc_free
 #define BARRIER          upc_barrier;
 
 
@@ -170,7 +181,14 @@ LOCK_T * pthread_global_lock_alloc() {
 #define INIT_LOCK(zlk) 
 #define INIT_SINGLE_LOCK(zlk) 
 #define SMEMCPY          memcpy
-#define ALLOC            malloc
+#if PROTECT_STACK
+  #define ALLOC valloc
+#else
+  #define ALLOC            malloc
+#endif // PROTECT_STACK
+#define ALL_ALLOC(nbl,nby) malloc((nby))
+#define FREE               free
+
 #define BARRIER           
 
 #endif /* END Par. Model Definitions */
@@ -276,6 +294,11 @@ char debug_str[1000];
 struct stealStack_t
 {
   int stackSize;     /* total space avail (in number of elements) */
+
+#if PROTECT_STACK
+  char padding[8182];
+#endif // PROTECT_STACK
+
   int workAvail;     /* elements available for stealing */
   int sharedStart;   /* index of start of shared portion of stack */
   int local;         /* index of start of local portion */
@@ -1681,6 +1704,8 @@ int pthread_main(int argc, char *argv[]) {
 #endif /* __PTHREADS__ */
 
 
+#include <sys/mman.h>
+#include <assert.h>
 StealStack * initialize_steal_stacks( ) {
   Node root;
 
@@ -1711,6 +1736,12 @@ StealStack * initialize_steal_stacks( ) {
     stealStack[GET_THREAD_NUM] = (SHARED StealStack *) ALLOC (sizeof(StealStack));
     ss = (StealStack *) stealStack[GET_THREAD_NUM];	
     ss_init(ss, MAXSTACKDEPTH);
+
+#if PROTECT_STACK
+    printf("protecting memory\n");
+    assert( 0==mprotect( &ss->stackSize, sizeof(int), PROT_READ ) );
+#endif // PROTECT_STACK
+
 #endif /* _SHMEM */
     
     /* initialize root node and push on thread 0 stack */
