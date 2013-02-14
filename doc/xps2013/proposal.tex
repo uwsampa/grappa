@@ -27,14 +27,6 @@ addressing two key challenges:
 
 \paragraph{Irregular applications frequently request small amounts of off-node data.} On multinode systems, the challenges presented by low locality are analogous, and exacerbated by the increased latency of going off-node. Irregular applications also present a challenge to mass market network technology, which is designed to transfer large blocks of data, not the word-sized references emitted by irregular application tasks. Injection rate into the network is insufficient to utilize wire bandwidth when blocks are below about two-kilobytes, so any straightforward communication strategy severely under-utilizes the network.
 
-%% I don't think we need the parahraph below. 
-% While some irregular applications can be restructured to better exploit
-% locality, aggregating requests to increase message size, and manage the
-% additional challenges of load balance and synchronization across multinode
-% systems, the work to do so is formidable and requires knowledge and skills
-% pertaining to distributed systems far beyond those of most application
-% programmers.
-
 Luckily, many of the important irregular applications naturally offer large
 amounts of concurrency. This immediately suggests taking advantage of
 concurrency to tolerate the latency of data movement. The fully custom Tera
@@ -117,7 +109,7 @@ Finally, we propose to explore how the lessons learned performing this research 
 
 \paragraph{Intellectual Merit:}
 
-Efficiently executing irregular computations on commodity hardware is \emph{hard}.  Much about commodity hardware is seemingly designed for the opposite application characteristics: caches assume applications have locality; networks are built with low injection rates but high bandwidth, assuming large packet sizes; even runtimes and operating systems are built assuming relatively infrequent communication and synchronization compared to computation.  This proposal rests on the seemingly outlandish claim that this commodity hardware / software stack can be coerced, through another layer of software, into efficiently executing irregular applications that both lack locality and communicate frequently with small amounts of data.  A folksy way of saying it is we think we can jam a square peg through a round hole.  Fortunately we have some preliminary evidence we won't get wedged along the way.  This is an intellectually challenging endeavor, landing squarely in the middle of the NSF XPS program: using and exploiting parallelism from irregular computations to efficiently execute them at scale.
+Efficiently executing irregular computations on commodity hardware is \emph{hard}.  Much about commodity hardware is seemingly designed for the opposite application characteristics: caches assume applications have locality; networks are built with low injection rates but high bandwidth, assuming large packet sizes; even runtimes and operating systems are built assuming relatively infrequent communication and synchronization compared to computation.  This proposal rests on the seemingly outlandish claim that this commodity hardware / software stack can be coerced, through another layer of software, into efficiently executing irregular applications that both lack locality and communicate frequently with small amounts of data.  A folksy way of saying it is we think we can jam a square peg through a round hole.  Fortunately we have some preliminary evidence we won't get wedged along the way.  This is an intellectually challenging endeavor, that we believe is well suited for the NSF XPS program.  In summary, our goal is to exploit parallelism from irregular computations to efficiently execute them at scale.
 
 \paragraph{Broader Impact:}
 
