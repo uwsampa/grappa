@@ -1,1 +1,6 @@
 uts-mem-upc
+uts-mem-omp
+uts-upc
+out.txt
+config.in
+config/linux-cluster
