@@ -311,7 +311,7 @@ Since Grappa is designed for applications that have no or little locality, nearl
 
 \paragraph{Virtual topology:} Currently Grappa uses a flat network topology where each processing core in the system is individually addressed. As more nodes are added to the system, a quadratic increase in the number of threads (in aggregate across all nodes) is required in order to compensate for the \emph{same} network delay.  This is because the current aggregator treats each of these end-points individually, i.e., it only aggregates messages that go to the same exact end-points. This does not scale as the number of nodes increases because the probability of messages going to the same destination goes down (assuming a somewhat uniform communication distribution). In summary, this past design choice is simple but does not scale.
 
-We need to rewrite the aggregator to build in a hierarchical virtual network layer.  The first layer of this hierarchy is to treat all processors at a given system node as a single destination. We intend to continue to use the lock-free single-threaded \gasnet~communication layer that we have been using, as we have found the lock-based one to incur too high of an overhead for our purposes.  Thus the aggregator will need to very carefully utilize lock-free data-structures and interact with \gasnet~carefully.
+We need to redesign the aggregator to build in a hierarchical virtual network layer.  The first layer of this hierarchy is to treat all processors at a given system node as a single destination. We intend to continue to use the lock-free single-threaded \gasnet~communication layer that we have been using, as we have found the lock-based one to incur too high of an overhead for our purposes.  Thus the aggregator will need to very carefully utilize lock-free data-structures and interact with \gasnet~carefully.
 %%Didn't understand Myers suggestion here.
 
 The second, and upper layers of the virtual topology are built from clustering system nodes into groups.  Instead of aggregating for all end-points, aggregation will occur for system nodes within a group.  A designated (and dedicated) node will act as a router, processing incoming and outgoing traffic to system nodes within the group and other groups.
@@ -334,17 +334,55 @@ be using Ethernet).
 \paragraph{User-level RDMA:} Certain commodity networking hardware today
 supports remote direct memory access (RDMA). Unfortunately, \emph{how} it is
 implemented is so primitive and low-level that it is difficult or impossible
-to efficiently use in practice. We start with a short description of the
+to efficiently use in practice. Below we start with a short description of the
 current semantics of RDMA implementations. Next we describe the research we
 wish to undertake to make RDMA more useful.
 
-Networking infrastructure supports remote read and write operations.  Read operations take a source address and key (on a remote node), a destination address and key (on the local node), and a length.  Cards support address translation for regions of memory that are registered with them.  These translations, indexed by the supplied key, are used to perform virtual to physical address translation.  The physical address of the destination address is similarly translated using the translation table at the local node.  Cards also support remote write operations with a similar set of semantics, where addresses are translated on a card using the card's local translation table.  Both read and write operations are asynchronous.  The requesting processor initiates the operation and then can check for completion by querying a completion queue at the local card.  \emph{Notably}, the processor(s) on the remote node are provided a polling interface whereby they can learn if a remote write operation occurred.  No such interface exists to learn about remote read or atomic operations.
+Networking infrastructure supports remote read and write operations. Read
+operations take a source address and key (on a remote node), a destination
+address and key (on the local node), and a length. Cards support address
+translation for regions of memory that are registered with them. These
+translations, indexed by the supplied key, are used to perform virtual to
+physical address translation. The physical address of the destination address
+is similarly translated using the translation table at the local node. Cards
+also support remote write operations with a similar set of semantics, where
+addresses are translated on a card using the card's local translation table.
+Both read and write operations are asynchronous. The requesting processor
+initiates the operation and then can check for completion by querying a
+completion queue at the local card. \emph{Notably}, the processor(s) on the
+remote node are provided a polling interface whereby they can learn if a
+remote write operation occurred. No such interface exists to learn about
+remote read or atomic operations.
 
-This interface suffers from multiple shortcomings.  The biggest of which is that ultimately, moving data to and from a remote node constructively requires higher level semantic operations than simple reads and writes.  These higher level semantics can, of course, be synthesized from the underlying read and write primitives, but it wastes round trips and synchronization time.  One possible alternative solution is to enable remote nodes to dispatch high-level data-structure manipulation requests (e.g. insert this item into a queue, remove an item from a set).  The challenge here is to make those calls programmable and interoperate securely with a modern operating system, and a user-level runtime system.  Additionally there are questions about \emph{who} should carry out the computation.  Classic RDMA does not interrupt the host processor, but these richer programmable semantics will require either a processor in the network interface (necessitating issues such as coherence be managed) or complex RDMA tasks need a mechanism to interrupt the host processor \emph{without leaving user space}. 
+This interface suffers from multiple shortcomings. The biggest of which is
+that ultimately, moving data to and from a remote node constructively requires
+higher level semantic operations than simple reads and writes. These higher
+level semantics can, of course, be synthesized from the underlying read and
+write primitives, but it wastes round trips and synchronization time. One
+possible alternative solution is to enable remote nodes to dispatch high-level
+data-structure manipulation requests (e.g. insert this item into a queue,
+remove an item from a set). The challenge here is to make those calls
+programmable and interoperate securely with a modern operating system, and a
+user-level runtime system. Additionally there are questions about \emph{who}
+should carry out the computation. Classic RDMA does not interrupt the host
+processor, but these richer programmable semantics will require either a
+processor in the network interface (necessitating issues such as coherence be
+managed) or complex RDMA tasks need a mechanism to interrupt the host
+processor \emph{without leaving user space}.
 
-
-%% The second half of this paragraph is really confusing, I have just a minimal clue of what it is talking about. And the little I understand sounds a bit vague and not directly related to grappa.
-The second challenge is that the virtual to physical address translation on the cards requires the operating system to pin translations.  This removes paging flexibility from the operating system, because runtime systems are (rationally) built to expect data structures to be in memory capable of RDMA or not.  Those in RDMA memory must be pinned.  In the long run, the solution here likely lies at the intersection of what progress is occurring in processor support for virtual machines and virtual memory translation for I/O.  Our goal will be to study carefully the I/O virtualization proposals put forth by major processor manufactures and devise solutions that enable RDMA to capitalize on these developments.
+The second challenge is that the virtual to physical address translation is
+necessary for RDMA operations to be meaningful. Current systems require the OS
+to pin translations so cards can operate directly on physical addresses. This
+removes paging flexibility from the operating system and requires runtime
+systems to be aware that this is happening, which limits overall usability.
+We will explore recent advances in supporting direct memory access with address translation (e.g., AMD IOMMU) to support flexible RDMA operation that go through full physical address translation without having to interrupt a general-purpose core.  
+ 
+% In the long run, the solution here likely
+% lies at the intersection of what progress is occurring in processor support
+% for virtual machines and virtual memory translation for I/O. Our goal will
+% be to study carefully the I/O virtualization proposals put forth by major
+% processor manufactures and devise solutions that enable RDMA to capitalize
+% on these developments.
 
 \subsection{SSD-only data structures}
 
