@@ -352,42 +352,9 @@ Grappa applications are likely to use large amounts of data, 100s of terabytes t
 
 Grappa is very effective in hiding latencies of network communication.  If an access is to a chunk of the heap stored in a node's local memory, Grappa issues a prefetch for the address and context switches to other work while the prefetch is executing~\cite{Nelson:hotpar2011}. If the access is to memory stored on another node, Grappa issues a message to that node to request the data and context switches to other work until the reply arrives.  In fact, our measurements and estimates show that we might be able to tolerate even greater latency -- on the order of milliseconds per request.  This provides the tantalizing possibility that we will be able to keep data in \ssd\ drives only and service data access requests directly from them, without leaving copies in DRAM.  The natural point of integration for non-volatile memories in Grappa is to store the global distributed shared heap in non-volatile memory. All accesses to this shared heap are done through an \api, so this switch would be transparent to the programmer.
 
-This is not straightforward, however, for three reasons: (1) \ssds\ assume spatial locality. In our benchmarks, we find the average request size to be less than 64 bytes. Today's \ssds\ are optimized for reads in the multi-kilobyte range. (2) \ssds\ have a low request rate. The fastest~\cite{fusionio} can perform on the order of 1 million random reads per second, and many are limited to less than 100K/s. Even the underlying flash chips are slow, on the order of 40K/s~\cite{micronFlash}. In contrast, our measurements suggest cores may be idle in Grappa if each node cannot perform 100 million random reads per second of the global heap. And (3) \ssds\ have high overhead. Mass market \ssds\ are usually treated as normal disks: accesses must occur through the kernel, incurring a high context-switch overhead. Grappa depends on user-mode access to the network layer to avoid this overhead; a similar approach has been applied to \ssds\ in recent research~\cite{caulfield:2012}, however.  We see several ways to address these challenges:
+This is not straightforward, however, for three reasons: (1) \ssds\ assume spatial locality. In our benchmarks, we find the average request size to be less than 64 bytes. Today's \ssds\ are optimized for reads in the multi-kilobyte range. (2) \ssds\ have a low request rate. The fastest~\cite{fusionio} can perform on the order of 1 million random reads per second, and many are limited to less than 100K/s. Even the underlying flash chips are slow, on the order of 40K/s~\cite{micronFlash}. In contrast, our measurements suggest cores may be idle in Grappa if each node cannot perform 100 million random reads per second of the global heap. And (3) \ssds\ have high overhead. Mass market \ssds\ are usually treated as normal disks: accesses must occur through the kernel, incurring a high context-switch overhead. Grappa depends on user-mode access to the network layer to avoid this overhead; a similar approach has been applied to \ssds\ in recent research~\cite{caulfield:2012}, however.
 
-\paragraph{Scaling up the Flash array:} Existing Flash-based \ssds\ are
-designed for large block requests. An \ssd\ for Grappa could be designed to
-support high concurrency, small requests. Where a traditional \ssd\ might put
-multiple Flash chips on the same bus, or use Flash chips in parallel to build
-a wider, high-bandwidth bus, a Grappa \ssd\ would try to maximize message rate
-by putting each chip on its own bus. Serial Flash might be used to minimize
-pin count requirements, at the cost of some additional latency. This design
-could scale to our necessary request rates, but only at an enormously high
-chip count: to support 100 million reads per second, an array of 25$\mu$s
-flash would require 2500 chips.
-
-\paragraph{Scaling down the processors:} Alternatively, rather than scaling up
-the flash array, processors could be scaled down to match the flash request
-rate. A low-power processor with few cores might generate only 1 million
-references per second. This could be satisfied with only $25\times 25\mu$s
-Flash chips. There are two problems with this design for our purposes,
-however. First, while each node requires fewer chips, the overall cluster
-performance goal, and thus chip count requirement, is the same. More system
-nodes are thus required to achieve the same level of performance. Second, low
-single-threaded performance is detrimental to performance during periods of
-diminished application concurrency.
-
-% \paragraph{Buffering requests to increase locality:} Grappa trades latency for
-% throughput by aggregating network communication. The same idea could be
-% applied to increase locality and amortize the cost of Flash accesses. Requests
-% to nearby flash locations would be bucketed by flash page address for a
-% limited time. When a sufficient number of requests have arrived for a page or
-% when the requests time out, a single page request would be issued to the Flash
-% layer; its result would be used to satisfy the individual requests. The
-% challenge with this approach is as storage size grows, the effectiveness of
-% aggregation correspondingly decreases. On the other hand, aggregation occurs
-% for all global memory requests generated by any node in the system, so as
-% aggregate system performance increases, aggregation performance actually
-% \emph{increases} (up to the point that the network is saturated).
+To address this challenge we will explore building a flash array consisting of several ten's to a hundred disks \emph{per node}.  This will enable us to increase random accesses to our target 100 million references per second. But it will require several active disk controllers per system.  We do not expect any existing device driver stack will work at this scale.  Hence we will need to write a custom disk controller device driver and file system that supports such a high degree of concurrent requests across so many parallel channels.
 
 %% Sorry Mark, while the item below is clearly rich and juicy, we can't leave it bhere because it is huuuuge, it does not match the scope of the grant, and we dont have the expertive --- e.g., are you sure nobody is working on it? 
 
