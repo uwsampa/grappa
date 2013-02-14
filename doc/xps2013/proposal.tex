@@ -23,9 +23,25 @@ interconnected via ethernet or infiniband. Our focus is to enable scalable
 performance of irregular applications on these mass market systems,
 addressing two key challenges:
 
-\paragraph{Irregular applications exhibit little spatial locality.} It is not atypical for any given task's data references to be spread randomly across the entire memory of the system. This makes current memory hierarchy features ineffective. Caches are of little assistance with such low data re-use and spatial locality. Commodity prefetching hardware is effective only when addresses are known many cycles before the data is consumed or the accesses follow a predictable pattern, neither of which occurs in irregular applications. As a consequence, commodity microprocessors stall often when executing irregular applications.
+\paragraph{Irregular applications exhibit little spatial locality.} It is not
+atypical for any given task's data references to be spread randomly across the
+entire memory of the system. This makes current memory hierarchy features
+ineffective. Caches are of little assistance with such low data re-use and
+spatial locality. Commodity prefetching hardware is effective only when
+addresses are known many cycles before the data is consumed or the accesses
+follow a predictable pattern, neither of which occurs in irregular
+applications. As a consequence, commodity microprocessors stall often when
+executing irregular applications.
 
-\paragraph{Irregular applications frequently request small amounts of off-node data.} On multinode systems, the challenges presented by low locality are analogous, and exacerbated by the increased latency of going off-node. Irregular applications also present a challenge to mass market network technology, which is designed to transfer large blocks of data, not the word-sized references emitted by irregular application tasks. Injection rate into the network is insufficient to utilize wire bandwidth when blocks are below about two-kilobytes, so any straightforward communication strategy severely under-utilizes the network.
+\paragraph{Irregular applications frequently request small amounts of off-node
+data.} On multinode systems (e.g., clusters of computers), the challenges
+presented by low locality are analogous, and exacerbated by the increased
+latency of going off-node. Irregular applications also present a challenge to
+commodity network technology, which is designed to transfer large blocks of
+data, not the word-sized references emitted by irregular application tasks.
+Injection rate into the network is insufficient to utilize wire bandwidth when
+blocks are below about two-kilobytes, so any straightforward communication
+strategy severely under-utilizes the network.
 
 Luckily, many of the important irregular applications naturally offer large
 amounts of concurrency. This immediately suggests taking advantage of
@@ -67,15 +83,16 @@ in the following directions:
 
 \item \textbf{Reinvent network communication:} Our preliminary work has
 revealed limitations of the current Grappa runtime system with regards to
-network scaling. This proposal plans to enhance the network layer with new
-forms of communication scheduling and aggregation, and explore new forms of
-hardware/software interactions of remote direct memory access (RDMA).
+network scaling. This proposal plans to enhance the network layer with whole
+new forms of communication scheduling and aggregation, and explore new forms
+of hardware/software interactions of remote direct memory access (RDMA).
 
 \item \textbf{Language and compiler support:} Presently, Grappa is implemented
-strictly as a library.  Programmers must express remote operations explicitly as function calls.
-This adds burden high-level language programmers do not usually face and obfuscates opportunities
-for compiler optimizations. A significant research thrust of the proposed work is to use
-language and compilation support to provide a cleaner programming model and use
+strictly as a library. Programmers must express remote operations explicitly
+as function calls. This adds burden high-level language programmers do not
+usually face and obfuscates opportunities for compiler optimizations. A
+significant research thrust of the proposed work is to use language and
+compilation support to provide a cleaner programming model and use
 statically-available knowledge to lessen the runtime overhead automatically.
 
 \item \textbf{Comprehensive benchmark suite:} Presently there does not exist a
@@ -85,15 +102,12 @@ such a benchmark suite. This suite will include benchmarks, reference
 implementations, and input data-sets. In addition a website will be
 created to distribute freely the benchmark suite and publish results.
 
-\item \textbf{Support for \ssd\ only memory systems:} The size of data being
+\item \textbf{Support for \ssd\ only data structures:} The size of data being
 processed by large systems today (hundreds of terabytes) dwarfs what can fit
 into a single system. Multiple system nodes are required to maintain and
-access all of this data efficiently. However, even with hundreds of channels
-to persistent storage, loading this data into DRAM can prove a bottleneck. The
+access all of this data efficiently. However, given the lack of locality in the application, loading this data into DRAM is wasteful, in addition to adding overheads. The
 Grappa runtime is designed to make applications tolerate extremely high memory
-latency, thus we will explore using solid state disks as main memory, 
-further taking advantage of Grappa's latency tolerance properties.
-
+latency, thus we will explore having program data structures reside in solid state disks only. This further takes advantage of Grappa's latency tolerance properties to deal with larger data sets and reduce system cost.
 
 \end{itemize}
 
@@ -111,11 +125,25 @@ Finally, we propose to explore how the lessons learned performing this research 
 
 \paragraph{Intellectual Merit:}
 
-Efficiently executing irregular computations on commodity hardware is \emph{hard}.  Much about commodity hardware is seemingly designed for the opposite application characteristics: caches assume applications have locality; networks are built with low injection rates but high bandwidth, assuming large packet sizes; even runtimes and operating systems are built assuming relatively infrequent communication and synchronization compared to computation.  This proposal rests on the seemingly outlandish claim that this commodity hardware / software stack can be coerced, through another layer of software, into efficiently executing irregular applications that both lack locality and communicate frequently with small amounts of data.  A folksy way of saying it is we think we can jam a square peg through a round hole.  Fortunately we have some preliminary evidence we won't get wedged along the way.  This is an intellectually challenging endeavor, that we believe is well suited for the NSF XPS program.  In summary, our goal is to exploit parallelism from irregular computations to efficiently execute them at scale.
+Efficiently executing irregular computations on commodity hardware is a
+\emph{difficult} problem. Much about commodity hardware is seemingly designed
+for the opposite application characteristics: caches assume applications have
+locality; networks are built with low injection rates but high bandwidth,
+assuming large packet sizes; even runtimes and operating systems are built
+assuming relatively infrequent communication and synchronization compared to
+computation. This proposal rests on the seemingly outlandish claim that this
+commodity hardware / software stack can be coerced, through another layer of
+software, into efficiently executing irregular applications that both lack
+locality and communicate frequently with small amounts of data. A folksy way
+of saying it is we think we can jam a square peg through a round hole.
+Fortunately we have some preliminary evidence we won't get wedged along the
+way. This is an intellectually challenging endeavor, that we believe is well
+suited for the NSF XPS program. In summary, our goal is to exploit parallelism
+from irregular computations to efficiently execute them at scale.
 
 \paragraph{Broader Impact:}
 
-Irregular computations are of increasing economic importance.  Moreover, they are key to several national security applications.  If commodity hardware can be cajoled into executing such applications efficiently it will open the door for new and rich applications.  Furthermore, irregular applications will then reap the benefits of advances in commodity processors and networks, rather than requiring custom hardware that advances only at much higher cost.  Graph queries, machine-learning and data-driven science will be enabled by the technology we aim to create from the ideas in this grant proposal.  In addition our work will include the construction of a comprehensive irregular benchmark suite, something to help guide our own and the field's research.
+Irregular computations are of increasing economic importance.  Moreover, they are key to several national security applications.  If commodity hardware can be cajoled into executing such applications efficiently it will open the door for new and rich applications.  Furthermore, irregular applications will then reap the benefits of advances in commodity processors and networks, rather than requiring custom hardware that advances only at much higher cost.  Graph queries, machine-learning and data-driven science will significantly benefit from the technology we aim to create from the ideas in this grant proposal.  In addition our work will include the construction of a comprehensive irregular benchmark suite, something to help guide our own and the field's research.
 
 %% Roadmap
 
