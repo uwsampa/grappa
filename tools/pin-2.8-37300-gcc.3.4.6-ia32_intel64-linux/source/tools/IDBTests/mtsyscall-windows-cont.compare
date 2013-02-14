@@ -1,3 +1,0 @@
-Breakpoint 1,\s*Breakpoint.*at.*mt-utility-windows.cpp:90
-Continuing.
-Program exited normally.

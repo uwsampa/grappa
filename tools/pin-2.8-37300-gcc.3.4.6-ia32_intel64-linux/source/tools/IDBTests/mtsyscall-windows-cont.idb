@@ -1,4 +1,0 @@
-break Breakpoint
-run block-syscall
-cont
-quit
