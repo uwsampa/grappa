@@ -1,10 +1,25 @@
 \paragraph{Summary}
 
-Irregular applications are increasing in importance to the computing industry. For a long time they have underpinned computations of interest to the national security arm of the federal government. But now, they underpin such questions as ad placement in social networks, and analysis of complex data-sets in medicine and science. The defining characteristic of these applications is poor locality and massive available parallelism. Our effort is focused on making these applications perform well and scale on commodity hardware. The key idea that makes this work is to rely on massive concurrency to tolerate memory latency, instead of relying on locality (which doesn't exist for these applications). This core idea underpinned the XMT system, a fully-custom hardware system. We plan to explore that idea in software only, running on commodity processors. And unlike the XMT, however, we must also contend with commodity networking hardware, and here we again rely on threading to provide a sufficient number of requests that we can buffer them prior to dispatching on the network, to overcome bandwidth limitations when operating with small messages.
+Irregular applications are increasing in importance to the computing industry.
+For a long time they have underpinned computations of interest to the national
+security arm of the federal government. But now, they underpin such questions
+as ad placement in social networks, and analysis of complex data-sets in
+medicine and science. The defining characteristic of these applications is
+poor locality and massive available parallelism. Our effort is focused on
+making these applications perform well and scale on commodity hardware. The
+key idea that makes this work is to rely on massive concurrency to tolerate
+memory latency, instead of relying on locality (which doesn't exist for these
+applications). This core idea underpinned the XMT system, a fully-custom
+hardware system. We plan to explore that idea in software only, running on
+commodity processors. And unlike the XMT, however, we must also contend with
+commodity networking hardware, and here we again rely on threading to provide
+a sufficient number of requests that we can buffer them prior to dispatching
+on the network, to overcome bandwidth limitations when operating with small
+messages.
 
-Our preliminary effort has shown a workable proof of concept of this approach: a commodity cluster can out do the XMT at its own game, by emulating its key features in software. What is needed now is additional effort to improve the underlying performance of this runtime and make it usable to a broad base of users. We will be focusing our efforts in the next three years on the key performance component, the networking layer, and the key programmer efficiency linchpin, high level language support. In addition we need a useful mechanism for handling data-sets in the petabyte range, and here we imagine building a cluster of machines that relies primarily on SSD's and not DRAM as main memory data-set storage.
+Our preliminary effort has shown a workable proof of concept of this approach: a commodity cluster can out do the XMT at its own game, by emulating its key features in software. What is needed now is additional effort to improve the underlying performance of this runtime and make it usable to a broad base of users. We will be focusing our efforts in the next three years on the key performance component, the networking layer, and the key programmer efficiency linchpin, high level language support. In addition we need a useful mechanism for handling data-sets in the petabyte range, and here we imagine building a cluster of machines that relies primarily on SSD's and not DRAM as main  data-set storage.
 
-If successful, the Grappa runtime will have a transformative impact on the computing industry. Irregular applications are hugely important, and if off the shelf hardware can be efficient with them a new class of questions can be asked of computing systems. Additionally our benchmark suite development will further drive innovation among researchers in this space.
+If successful, the Grappa runtime will have a transformative impact on the computing industry. Irregular applications are hugely important, and if off-the-shelf hardware can be efficient with them a new class of questions can be asked of computing systems. Additionally our benchmark suite development will further drive innovation among researchers in this space.
 
 \paragraph{Intellectual Merit:}
 
