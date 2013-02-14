@@ -316,74 +316,18 @@ We need to redesign the aggregator to build in a hierarchical virtual network la
 
 The second, and upper layers of the virtual topology are built from clustering system nodes into groups.  Instead of aggregating for all end-points, aggregation will occur for system nodes within a group.  A designated (and dedicated) node will act as a router, processing incoming and outgoing traffic to system nodes within the group and other groups.
 
-We expect this hierarchical organization will reduce scaling requirements from
-\BigO{n^2} threads to \BigO{n \times log(n)}. Of course, it takes what used to
-be a single network hop for communication and turns it into \BigO{log(n)}
-hops. More threads will be required to overcome this increased latency, but we
-hypothesize only \BigO{log(n)} more, hence a real \BigO{n / log(n)^2} scaling
-benefit is achievable with a virtual hierarchical network topology. 
+We expect this hierarchical organization will reduce scaling requirements from \BigO{n^2} threads to \BigO{n \times log(n)}. Of course, it takes what used to be a single network hop for communication and turns it into \BigO{log(n)} hops. More threads will be required to overcome this increased latency, but we hypothesize only \BigO{log(n)} more, hence a real \BigO{n / log(n)^2} scaling benefit is achievable with a virtual hierarchical network topology.
 
-\paragraph{Hardware support for aggregation:} If the increased latency caused
-by extra hops in hierarchical aggregation turns out to be detrimental, we
-will explore mitigation by moving some of the aggregation logic to the network
-card, either by exploiting off-the-shelf programmable network cards or
-experimental systems such ask NetFPGA~\cite{netfpga} (while we are planning to
-focus on Infiniband-based networking, if we explore the NetFPGA route we will
-be using Ethernet).
+\paragraph{Hardware support for aggregation:} If the increased latency caused by extra hops in hierarchical aggregation turns out to be detrimental, we will explore moving some of the aggregation logic to the network card, either by exploiting off-the-shelf programmable network cards or experimental systems such as NetFPGA~\cite{netfpga} (while we are planning to focus on infiniband-based networking, if we use the NetFPGA route we will be using Ethernet as a test-bed).
 
-\paragraph{User-level RDMA:} Certain commodity networking hardware today
-supports remote direct memory access (RDMA). Unfortunately, \emph{how} it is
-implemented is so primitive and low-level that it is difficult or impossible
-to efficiently use in practice. Below we start with a short description of the
-current semantics of RDMA implementations. Next we describe the research we
-wish to undertake to make RDMA more useful.
+\paragraph{User-level RDMA:} Certain commodity networking hardware today supports remote direct memory access (RDMA). Unfortunately, \emph{how} it is implemented is so primitive and low-level that it is difficult or impossible to efficiently use in practice. Below we start with a short description of the current semantics of RDMA implementations. Next we describe the research we wish to undertake to make RDMA more useful.
 
-Networking infrastructure supports remote read and write operations. Read
-operations take a source address and key (on a remote node), a destination
-address and key (on the local node), and a length. Cards support address
-translation for regions of memory that are registered with them. These
-translations, indexed by the supplied key, are used to perform virtual to
-physical address translation. The physical address of the destination address
-is similarly translated using the translation table at the local node. Cards
-also support remote write operations with a similar set of semantics, where
-addresses are translated on a card using the card's local translation table.
-Both read and write operations are asynchronous. The requesting processor
-initiates the operation and then can check for completion by querying a
-completion queue at the local card. \emph{Notably}, the processor(s) on the
-remote node are provided a polling interface whereby they can learn if a
-remote write operation occurred. No such interface exists to learn about
-remote read or atomic operations.
+Networking infrastructure supports remote read and write operations. Read operations take a source address and key (on a remote node), a destination address and key (on the local node), and a length. Cards support address translation for regions of memory that are registered with them. These translations, indexed by the supplied key, are used to perform virtual to physical address translation. The physical address of the destination address is similarly translated using the translation table at the local node. Cards also support remote write operations with a similar set of semantics, where addresses are translated on a card using the card's local translation table. Both read and write operations are asynchronous. The requesting processor initiates the operation and then can check for completion by querying a completion queue at the local card. \emph{Notably}, the processor(s) on the remote node are provided a polling interface whereby they can learn if a remote write operation occurred. No such interface exists to learn about remote read or atomic operations.
 
-This interface suffers from multiple shortcomings. The biggest of which is
-that ultimately, moving data to and from a remote node constructively requires
-higher level semantic operations than simple reads and writes. These higher
-level semantics can, of course, be synthesized from the underlying read and
-write primitives, but it wastes round trips and synchronization time. One
-possible alternative solution is to enable remote nodes to dispatch high-level
-data-structure manipulation requests (e.g. insert this item into a queue,
-remove an item from a set). The challenge here is to make those calls
-programmable and interoperate securely with a modern operating system, and a
-user-level runtime system. Additionally there are questions about \emph{who}
-should carry out the computation. Classic RDMA does not interrupt the host
-processor, but these richer programmable semantics will require either a
-processor in the network interface (necessitating issues such as coherence be
-managed) or complex RDMA tasks need a mechanism to interrupt the host
-processor \emph{without leaving user space}.
+This interface suffers from multiple shortcomings. The biggest of which is that ultimately, moving data to and from a remote node constructively requires higher level semantic operations than simple reads and writes. These higher level semantics can, of course, be synthesized from the underlying read and write primitives, but it wastes round trips and synchronization time. One possible alternative solution is to enable remote nodes to dispatch high-level data-structure manipulation requests (e.g. insert this item into a queue, remove an item from a set). Past work on Active Messages~\cite{vonEicken92} provides the foundation on which to build these primitives.  The challenge here is to make those calls programmable and interoperate securely with a modern operating system, and a user-level runtime system. Additionally there are questions about \emph{who} should carry out the computation. Classic RDMA does not interrupt the host processor, but these richer programmable semantics will require either a processor in the network interface or complex RDMA tasks need a mechanism to interrupt the host processor \emph{without leaving user space}.
 
-The second challenge is that the virtual to physical address translation is
-necessary for RDMA operations to be meaningful. Current systems require the OS
-to pin translations so cards can operate directly on physical addresses. This
-removes paging flexibility from the operating system and requires runtime
-systems to be aware that this is happening, which limits overall usability.
-We will explore recent advances in supporting direct memory access with address translation (e.g., AMD IOMMU) to support flexible RDMA operation that go through full physical address translation without having to interrupt a general-purpose core.  
+The second challenge is that the virtual to physical address translation is necessary for RDMA operations to be meaningful. Current systems require the OS to pin translations so cards can operate directly on physical addresses. This removes paging flexibility from the operating system and requires runtime systems to be aware that this is happening, which limits overall usability. We will explore recent advances in supporting direct memory access with address translation (e.g., AMD IOMMU) to support flexible RDMA operation that go through full physical address translation without having to interrupt a general-purpose core.
  
-% In the long run, the solution here likely
-% lies at the intersection of what progress is occurring in processor support
-% for virtual machines and virtual memory translation for I/O. Our goal will
-% be to study carefully the I/O virtualization proposals put forth by major
-% processor manufactures and devise solutions that enable RDMA to capitalize
-% on these developments.
-
 \subsection{SSD-only data structures}
 
 Grappa applications are likely to use large amounts of data, 100s of terabytes to petabytes. Keeping all these data in DRAM only is unlikely to be cost effective. We will explore mechanisms that use solid-state storage as primary memory for program data, greatly expanding the directly addressable storage at low cost.
@@ -394,17 +338,11 @@ This is not straightforward, however, for three reasons: (1) \ssds\ assume spati
 
 To address this challenge we will explore building a flash array consisting of several ten's to a hundred disks \emph{per node}.  This will enable us to increase random accesses to our target 100 million references per second. But it will require several active disk controllers per system.  We do not expect any existing device driver stack will work at this scale.  Hence we will need to write a custom disk controller device driver and file system that supports such a high degree of concurrent requests across so many parallel channels.
 
-%% Sorry Mark, while the item below is clearly rich and juicy, we can't leave it bhere because it is huuuuge, it does not match the scope of the grant, and we dont have the expertive --- e.g., are you sure nobody is working on it? 
-
-%% I think this is the only idea that is going to work... maybe we should delete the above three and make this one good.  Seriously, the ideas up there are bunk.  -ark
-% \paragraph{Rearchitecting flash:} Clearly the best solution here lays in re-architecting the flash chip itself.  We will explore new flash microarchitectures that optimize for message rate as well as bandwidth.  Such chips have value far beyond Grappa.  Research into persistent key/value stores, and really any persistent high-throughput data-structure will benefit from a redesigned flash chip that can sustain dramatically increased message rates.
-
 \subsection{Compiler and language support}
 
 Language and compiler support are instrumental in making Grappa usable to a
 wide audience of application developers. We plan to use the LLVM~\cite{llvm}
 infrastructure. Below we describe the specific aspects we plan to tackle.
-
 
 \paragraph{Relaxed consistency:} Presently Grappa uses a consistency model that is sequentially consistent for data-race free programs.  Underlying hooks are available to build even more relaxed consistency models, although we don't expect programmers themselves will want to use them.  A compiler, however, can see a performance boost by analyzing code and exploiting alias knowledge to program to this underlying Grappa \api, potentially gaining a performance boost by exposing more memory concurrency and hiding more latency.
 
@@ -419,30 +357,17 @@ infrastructure. Below we describe the specific aspects we plan to tackle.
 
 \paragraph{Compile for a continuation model: } Presently, whenever a task is active it is allocated a complete stack.  Since several thousand tasks are active per processor at any one time, these stacks occupy a large footprint in memory.  We wish to explore compiling tasks to a continuation model, whereby when a task dispatches a remote memory operation and is to be context-switched out, another task can utilize that stack.  Combined with the delegate synthesis ideas described above, we will also explore runtime and compiler support to convert remote memory operations into thread migrations; instead of moving the data to the system node that has the task, we will move the task to the data in cases where that would be more efficient.
 
-\paragraph{Task-weaving: } Much of the time the same task code is executing for hundreds of thousands of tasks in the Grappa runtime system.  For example, each task may be processing a loop body for a parallel for loop.  However, tasks introduce overhead, so we already manually impose a cutoff on recursive decomposition of parallel loops.  This way, multiple loop bodies are collected into a single task and executed serially.  However, this limits the amount of parallelism available for latency tolerance. A mmore efficient technique is to allow the compiler to unroll and schedule all loop bodies simultaneously within the same task, including overlapping remote memory operations, thereby ``weaving'' these independent tasks together to overlap computation with communication with minimal task overhead.  Further, a set of ``woven tasks'' may be amenable to vector execution, allowing even more parallelism to be exploited.
+\paragraph{Task-weaving: } Much of the time the same task code is executing for hundreds of thousands of tasks in the Grappa runtime system.  For example, each task may be processing a loop body for a parallel for loop.  However, tasks introduce overhead, so we already manually impose a cutoff on recursive decomposition of parallel loops.  This way, multiple loop bodies are collected into a single task and executed serially.  However, this limits the amount of parallelism available for latency tolerance. A more efficient technique is to allow the compiler to unroll and schedule all loop bodies simultaneously within the same task, including overlapping remote memory operations, thereby ``weaving'' these independent tasks together to overlap computation with communication with minimal task overhead.  Further, a set of ``woven tasks'' may be amenable to vector execution, allowing even more parallelism to be exploited.
 
-
-\paragraph{Task load control:} Having too few tasks per core fails to tolerate
-fully the latency; having too many increases overheads unnecessarily.
-Currently, we choose a number at program instantiation: experiments so far
-have shown evidence of a broad sweet-spot, though it is of course varies as a
-function of application behavior and input data. At compile-time, we might be
-able to estimate the number of tasks required based on the density of remote
-operations and system parameters (e.g., memory size, network latency, etc.);
-at runtime we can adjust the number of tasks dynamically based on periodic
-performance assessments.
-
-% Presently we are starting work on this language and compiler support.  We are basing our effort on the LLVM~\cite{llvm} infrastructure.
+\paragraph{Task load control:} Having too few tasks per core fails to fully tolerate remote memory latency; having too many increases overheads unnecessarily. Currently, we choose a fixed number at program instantiation.  This approach is sufficient as a first step, but isn't a workable long term option.  Our goal will be to develop as part of the runtime, auto-tuning technology that dynamically controls the number of spawned tasks.
 
 \subsection{Graph benchmark suite}
 
 In order to facilitate the development and evaluation of Grappa, we will develop a comprehensive benchmark suite for graph analytics applications. This will not only be useful for us, but the whole community at large, since there are few benchmarks in this application space.
 
-This benchmark suite will consist of application kernels, reference implementations, data-sets, data-set generators, documentation, specifications for generating standardized performance results, and a hosting service (http://graphbench.org) to provide public access to the benchmark and datasets as well as aggregate and publish results by all users of the benchmark suite.  Specifically, we aim to provide transparency and an opportunity to build off of others' discoveries by requiring source code be provided with any submission.
+This benchmark suite will consist of application kernels, reference implementations, data-sets, data-set generators, documentation, specifications for generating standardized performance results, and a hosting service (http://graphbench.org) to provide public access to the benchmark and datasets as well as aggregate and publish results by all users of the benchmark suite.  We will start by adapting and building a collection of key computational kernels from graph and irregular applications.  We will collect sample data from existing sources, and produce synthetic workload generators. The collected data provides a grounding for performance analysis on real-world problems. The workload generators provide cleaner, easier to reason about randomly generated data-sets at a programmable scale.
 
 This benchmark suite will be a tremendous value to the research community. Not only will it enable researchers to evaluate ideas on graph processing system techniques, but it will also enable fair comparisons of ideas in a depth not currently available from other graph related benchmark suites~\cite{graph500}. The benchmark suite will be released in a completely open fashion, so anyone will be able to use it (and contribute to it).  All code will be distributed into the public domain (BSD style licensing) so companies can use it. The goal is to get something out relatively early in the hope of (i) getting others to cluster around this work rather than develop a plethora of overlapping alternatives, and (ii) help establish consistent metrics for performance results.
-
-We will build a collection of key computational kernels from graph and irregular applications. The benchmark suite will consist of both documentation on the actual kernel (ideally a research paper or book reference sourced from the community), and a reference implementation. The benchmark suite will also include sample data collected from existing sources, and synthetic workload generators. The collected data provides a grounding for performance analysis on real-world problems. The workload generators provide cleaner, easier to reason about randomly generated data-sets at a programmable scale.
 
 \section{Broader impacts}
 
