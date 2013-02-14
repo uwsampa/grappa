@@ -244,9 +244,20 @@ important than bandwidth.
 % aggregation queues have messages that have been waiting longer than the
 % threshold; if so, it sends them.
 
-Underneath the aggregation layer, Grappa uses the \gasnet~communication library~\cite{gasnet} to actually move data. All interprocess communication, whether on or off a cluster node, is handled by the \gasnet~library. \gasnet~is able to take advantage of many communication mechanisms, including ethernet and infiniband between nodes, as well as shared memory within a node.
+Underneath the aggregation layer, Grappa uses the \gasnet~communication
+library~\cite{gasnet} to actually move data. All interprocess communication,
+whether on or off a cluster node, is handled by the \gasnet~library.
+\gasnet~is able to take advantage of many communication mechanisms, including
+ethernet and infiniband between nodes, as well as shared memory within a node.
 
-Some networks provide access to a remote machine's memory directly. This would seem to be a good fit for a programming model focused on global shared memory, but in fact we do not use it. In our experiments, we found that RDMA operations are subject to the same message rate limitations as all other messages on these cards, and thus using raw RDMA operations for our small messages would make inefficient use of bandwidth. Instead, we implement remote memory operations with active messages. A byproduct of this design decision is that Grappa is not limited to RDMA-capable networks.
+Some networks provide access to a remote machine's memory directly. This would
+seem to be a good fit for a programming model focused on global shared memory,
+but in fact we do not use it. In our experiments, we found that RDMA
+operations are subject to the same message rate limitations as all other
+messages on these cards, and thus using raw RDMA operations for our small
+messages would make inefficient use of bandwidth. Instead, we implement remote
+memory operations with active messages. A byproduct of this design decision is
+that Grappa is not limited to RDMA-capable networks.
 
 \subsection{Performance}
 
@@ -259,24 +270,31 @@ omitted.
 \begin{figure}
 \begin{center}
 
-\hspace{-1in}\begin{minipage}{0.2\textwidth}
+\hspace{-1in}\begin{minipage}{0.3\textwidth}
 \begin{center}
-\includegraphics[width=2.75in]{figs/uts_performance.pdf}
+\includegraphics[width=2.5in]{figs/uts_performance.pdf}
 \caption{\label{fig:uts_compare} Performance of in-memory unbalanced tree search.}
 \end{center}
 \end{minipage}
 \hspace{1.25in}\
 \begin{minipage}{0.3\textwidth}
 \begin{center}
-\includegraphics[width=2.75in]{figs/bfs_performance}
-\caption{\label{fig:bfs-performance} Performance of breadth-first searcch.}
+\includegraphics[width=2.5in]{figs/bfs_performance}
+\caption{\label{fig:bfs-performance} Performance of breadth-first search.}
 \end{center}
 \end{minipage}
 
 \end{center}
 \end{figure}
 
-\paragraph{Unbalanced tree search} We ran UTS-mem with a geometric 100M-vertex tree (T1L). Figure~\ref{fig:uts_compare} shows the performance in terms of number of vertices visited per second versus number of compute nodes. Grappa is 3.2 times faster than the XMT at 16 nodes.  As we will show later, the performance advantage Grappa has over XMT increases as more nodes are added.  The main reason Grappa performs better is the software-based delegate synchronization obviates the need for the retry-based synchronization that XMT uses.
+\paragraph{Unbalanced tree search} We ran UTS-mem with a geometric 100M-vertex
+tree (T1L). Figure~\ref{fig:uts_compare} shows the performance in terms of
+number of vertices visited per second versus number of compute nodes. Grappa
+is 3.2 times faster than the XMT at 16 nodes. As we will show later, the
+performance advantage Grappa has over XMT increases as more nodes are added.
+The main reason Grappa performs better is the software-based delegate
+synchronization obviates the need for the retry-based synchronization that XMT
+uses.
 
 
 \paragraph{BFS} We ran BFS on a synthetic Kronecker graph with $2^{25}$ vertices and $2^{29}$ edges (25 GB of data). Figure~\ref{fig:bfs-performance} shows our performance in terms of graph edges traversed per second. The XMT is 2.5 times faster than Grappa at 16 nodes.  Performance does scale at a constant rate for Grappa, suggesting that adding more nodes will increase performance.
