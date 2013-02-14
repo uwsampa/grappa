@@ -511,34 +511,11 @@ memory devices. What has made these collaborations so fruitful in such a short
 period of time is the PIs' complementary backgrounds. We now briefly describe
 these backgrounds.
 
-Oskin has... {\bf MARK PUT YOUR STUFF HERE.}
+Oskin has explored a wide variety of architectural mechanisms for improving application performance, most notably intelligent memory~\cite{activepages} and dataflow computing~\cite{wavescalar-micro, wavescalar-isca}.  He has developed novel evaluation techniques~\cite{hls} that enable efficient design space exploration of complex superscalar processors.  His past work has included runtime systems for GPU-based computing~\cite{oskin-gpu}, application specific processor design~\cite{sherpa} and polymorphic on-chip networks~\cite{polynetworks}.  He has also explored several architectural design options for quantum computers~\cite{quantum-isca03, quantum-isca05, quantum-isca08}.  Finally he developed mechanisms to make parallel systems more deterministic and easier to program~\cite{dmp}.  His most recent work is focused on the work described in this proposal~\cite{Nelson:hotpar2011}, which is to make irregular computations efficient on commodity hardware.
 
-Ceze has been conducting research on architecture support, compiler
-techniques, and programming models to improve the programmability of
-multiprocessor systems for seven years and has co-authored over thirty
-papers in these areas.  His research includes advances in
-architecture~\cite{tlsooo, bulk, bulksc, swbulk, cyclops, dmp,
-  delorean} and programming models~\cite{colorama, ipot, posh} to
-simplify exploiting concurrency in multiprocessors. Some of his recent
-results especially related to this proposal include a programming
-model based on ordered transactions and data annotations~\cite{ipot};
-improving reliability of multithreaded software with architecture
-support for bug detection and avoidance~\cite{atomaid, aatoppicks,
-  bugaboo, oshajava, cs-isca10, ce-isca10}; and deterministic
-execution of multithreaded programs~\cite{dmp, dmptoppicks,
-  asplos10coredet, dmpos}. PI Ceze recently co-organized an NSF-funded
-workshop focused specifically on deterministic multiprocessing. The
-workshop was very successful, bringing leaders in the multicore area
-from industry and academia.
+Ceze has been conducting research on architecture support, compiler techniques, and programming models to improve the programmability of multiprocessor systems for seven years and has co-authored over thirty papers in these areas.  His research includes advances in architecture~\cite{tlsooo, bulk, bulksc, swbulk, cyclops, dmp, delorean} and programming models~\cite{colorama, ipot, posh} to simplify exploiting concurrency in multiprocessors. Some of his recent results especially related to this proposal include a programming model based on ordered transactions and data annotations~\cite{ipot}; improving reliability of multithreaded software with architecture support for bug detection and avoidance~\cite{atomaid, aatoppicks, bugaboo, oshajava, cs-isca10, ce-isca10}; and deterministic execution of multithreaded programs~\cite{dmp, dmptoppicks, asplos10coredet, dmpos}. PI Ceze recently co-organized an NSF-funded workshop focused specifically on deterministic multiprocessing. The workshop was very successful, bringing leaders in the multicore area from industry and academia.
 
-Kahan has been working in the area of parallel computing for irregular
-applications for twenty years, largely in industry.  At Cray (previously Tera
-Computer) he developed the runtime system~\cite{Alverson95schedulingon,Alverson97terahardware-software} and combining memory allocator~\cite{MAMA} still in production use on
-Cray's XMT system in which over 50,000 threads execute concurrently sharing one
-global address space.  He has co-authored patents and publications for both of these
-systems as well as for a scalable connected components graph algorithm that bears
-his name~\cite{Underwood07analyzingthe}.
-Kahan originated and for three years has been co-PI for the Grappa project.
+Kahan has been working in the area of parallel computing for irregular applications for twenty years, largely in industry.  At Cray (previously Tera Computer) he developed the runtime system~\cite{Alverson95schedulingon,Alverson97terahardware-software} and combining memory allocator~\cite{MAMA} still in production use on Cray's XMT system in which over 50,000 threads execute concurrently sharing one global address space.  He has co-authored patents and publications for both of these systems as well as for a scalable connected components graph algorithm that bears his name~\cite{Underwood07analyzingthe}. Kahan originated and for three years has been co-PI for the Grappa project.
 
 \subsection*{The SAMPA Research Group: Addressing the Concurrency
   Challenge Across the Execution Stack}
