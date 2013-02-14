@@ -81,7 +81,7 @@ in the following directions:
 
 \begin{itemize}
 
-\item \textbf{Reinvent network communication:} Our preliminary work has
+\item \textbf{Accelerated network communication:} Our preliminary work has
 revealed limitations of the current Grappa runtime system with regards to
 network scaling. This proposal plans to enhance the network layer with whole
 new forms of communication scheduling and aggregation, and explore new forms
@@ -89,11 +89,11 @@ of hardware/software interactions of remote direct memory access (RDMA).
 
 \item \textbf{Language and compiler support:} Presently, Grappa is implemented
 strictly as a library. Programmers must express remote operations explicitly
-as function calls. This adds burden high-level language programmers do not
+as function calls. This adds a burden high-level language programmers do not
 usually face and obfuscates opportunities for compiler optimizations. A
 significant research thrust of the proposed work is to use language and
 compilation support to provide a cleaner programming model and use
-statically-available knowledge to lessen the runtime overhead automatically.
+statically-available knowledge to lessen the runtime overhead.
 
 \item \textbf{Comprehensive benchmark suite:} Presently there does not exist a
 comprehensive benchmark suite of irregular and graph applications. We
@@ -143,7 +143,7 @@ from irregular computations to efficiently execute them at scale.
 
 \paragraph{Broader Impact:}
 
-Irregular computations are of increasing economic importance.  Moreover, they are key to several national security applications.  If commodity hardware can be cajoled into executing such applications efficiently it will open the door for new and rich applications.  Furthermore, irregular applications will then reap the benefits of advances in commodity processors and networks, rather than requiring custom hardware that advances only at much higher cost.  Graph queries, machine-learning and data-driven science will significantly benefit from the technology we aim to create from the ideas in this grant proposal.  In addition our work will include the construction of a comprehensive irregular benchmark suite, something to help guide our own and the field's research.
+Irregular computations are of increasing economic importance.  Moreover, they are key to several national security applications.  If commodity hardware can be cajoled into executing such applications efficiently it will open the door for new and rich applications.  Furthermore, irregular applications will then reap the benefits of advances in commodity processors and networks, rather than requiring custom hardware that advances only at much higher cost.  Graph queries, machine-learning and data-driven science will significantly benefit from the technology we aim to create from the ideas in this grant proposal.  In addition our work will include the construction of a comprehensive irregular benchmark suite to help guide our own and the field's research.
 
 %% Roadmap
 
