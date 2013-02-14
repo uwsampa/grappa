@@ -149,9 +149,31 @@ Irregular computations are of increasing economic importance.  Moreover, they ar
 
 \section{Description of the Current Grappa System}
 
-In the twenty years that have elapsed since the Tera MTA, commodity microprocessors have become much faster and multicore has driven down the absolute price of computation; commodity network price-performance has improved as well. This shift has afforded us the opportunity to attack the challenges posed by irregular applications by emulating in software and inexpensive mass market hardware, the approach taken by Tera. We exploit the increased aggregate instruction rate per socket relative to chip bandwidth, using what would otherwise be wasted instructions to manage the multiplexing of as many as several thousand tasks per core, thus tolerating memory latency, reducing stalls, and making better use of available bandwidth. Ultimately, the opportunity is to cover the spectrum of irregular to regular computation: where tasks exhibit locality, multiplex fewer tasks and expend fewer instructions on context switching; where locality is lacking, multiplex more tasks at a higher rate to tolerate latency. Thus we make the best use of task parallelism -- either to scale to more cores or to tolerate latency -- and of caches -- either to exploit application locality or to house more task contexts.
+In the twenty years that have elapsed since the Tera MTA, commodity
+microprocessors have become much faster and multicore has driven down the
+absolute price of computation; commodity network price-performance has
+improved as well. This shift has afforded us the opportunity to attack the
+challenges posed by irregular applications by emulating in software and
+inexpensive mass market hardware, the approach taken by Tera. We exploit the
+increased aggregate instruction rate per socket relative to chip bandwidth,
+using what would otherwise be wasted instructions to manage the multiplexing
+of as many as several thousand tasks per core, thus tolerating memory latency,
+reducing stalls, and making better use of available bandwidth. Ultimately, the
+opportunity is to cover the spectrum of irregular to regular computation:
+where tasks exhibit locality, multiplex fewer tasks and expend fewer
+instructions on context switching; where locality is lacking, multiplex more
+tasks at a higher rate to tolerate latency. Thus we make the best use of task
+parallelism -- either to scale to more cores or to tolerate latency -- and of
+caches -- either to exploit application locality or to house more task
+contexts.
 
-Grappa is a software runtime system that allows a commodity x86 distributed-memory HPC cluster to be programmed as if it were a single large shared-memory machine and provides scalable performance for irregular applications. Grappa is designed to smooth over some of the performance discontinuities in commodity hardware, giving good performance when there is little locality to be exploited while allowing the programmer to exploit it when it is available.
+Grappa is a software runtime system that allows a commodity x86
+distributed-memory HPC cluster to be programmed as if it were a single large
+shared-memory machine and provides scalable performance for irregular
+applications. Grappa is designed to smooth over some of the performance
+discontinuities in commodity hardware, giving good performance when there is
+little locality to be exploited while allowing the programmer to exploit it
+when it is available.
 
 Grappa leverages as much freely available and commodity infrastructure as possible. We use unmodified Linux for the operating system and an off-the-shelf user-mode infiniband device driver stack~\cite{OFED}. MPI is used for process setup and tear down. GASnet~\cite{gasnet} is used as the underlying mechanism for remote memory reads and writes using active message invocations. To this commodity hardware and software mix Grappa adds three main software components: (1) a \emph{lightweight tasking\/} layer that supports a context switch in as few as 38ns and distributed global load balancing; (2) a \emph{distributed shared memory\/} layer that supports normal access operations such as \emph{read\/} and \emph{write\/} and synchronizing operations including \emph{fetch-and-add\/}~\cite{fetchandadd} as well as user-defined atomic methods; and (3) a \emph{message aggregation\/} layer that combines short messages to mitigate the aforementioned problem that commodity networks are designed to achieve peak bandwidth only on large packet sizes, yet irregular applications tend to fetch only a handful of bytes at a time. As we will show later, Grappa can tolerate latencies way beyond that of the network. Therefore, Grappa can afford to \emph{trade latency for throughput\/}: by {\em increasing\/} latency in key components of the system we are able to increase our effective random access memory bandwidth, our synchronization bandwidth, and our ability to improve load imbalance.
 
@@ -165,7 +187,8 @@ Grappa leverages as much freely available and commodity infrastructure as possib
 \end{center}
 \end{figure}
 
-The current Grappa prototype (Figure~\ref{fig:grappa}) has three main software components: \begin{description}
+The current Grappa prototype (Figure~\ref{fig:grappa}) has three main software components: 
+\begin{description}
 
 \item [Tasking system.] Our tasking system supports lightweight multithreading to tolerate communication latency and global distributed workstealing (i.e., tasks can be stolen from any node in the system), which provides automated load balancing.
 
@@ -446,14 +469,13 @@ We will build a collection of key computational kernels from graph and irregular
 
 \section{Broader impacts}
 
-\paragraph{Increasing involvement of underrepresented groups:} Computer science as a whole has a significant problem attracting women and minorities to the field.  Computer architecture has an even more extreme problem with diversity (in the PI's view).  This is a problem the PIs have taken quite seriously since entering the field, and we are quite proud of our PhD students, both female who have gone on to faculty positions in top academic institutions, and male who appreciate the gender and ethnic disparity and who work hard at their own institutions to correct it.  We continue to recruit a diverse graduate student mix and we continue to include undergraduate students in our research.  At the moment we are mentoring two women undergraduates involved in the Grappa project, and if this proposal is funded will apply for REU funds to continue their involvement.
-
 \paragraph{Benchmark suite:} As previously described, we are seeking funding support to build and distribute a benchmark suite for irregular and graph applications.  This benchmark suite has the potential to have a broad impact on academia and industry.  We will distribute this benchmark through \texttt{graphbench.org} and will also collect and publish results from competing research groups.
 
 \paragraph{Technology transfer:} Bill Dally during his 2010 Eckert-Mauchly award speech said (in effect), technology transfers happen when people transfer.  Having just come back from a three year stint founding a startup company (where we transferred the Deterministic Multiprocessing technology from UW), we've seen this first hand.  The students and faculty involved in the Grappa project plan to spin off a company with their work.  The exact time frame is not yet known, but everyone involved in the project is excited to see the technology underpin a startup company and make this technology available to the broader commercial world.
 
-\paragraph{Curriculum development activities:} Concurrent with the execution of the research activities described in this grant we will seek to teach an advanced graduate class on advanced concurrency concepts.  We taught a similar class over six years ago and it is time to revive, update and teach it to the next generation of computer architecture graduate students.  \comment{Add more here.  This has no passion. -Mark}
+\paragraph{Curriculum development activities:} Concurrent with the execution of the research activities described in this grant we will seek to teach an advanced graduate class on advanced concurrency concepts.  We taught a similar class over six years ago and it is time to revive, update and teach it to the next generation of computer architecture graduate students. We will also reach out to instructors of classes that relate to large-scale irregular computation, e.g., machine learning and computer vision, in order to expose students to parallel programming concepts as well as the Grappa framework. 
 
+\paragraph{Increasing involvement of underrepresented groups:} Computer science as a whole has a significant problem attracting women and minorities to the field.  Computer architecture has an even more extreme problem with diversity (in the PI's view).  This is a problem the PIs have taken quite seriously since entering the field, and we are quite proud of our PhD students, both female who have gone on to faculty positions in top academic institutions, and male who appreciate the gender and ethnic disparity and who work hard at their own institutions to correct it.  We continue to recruit a diverse graduate student mix and we continue to include undergraduate students in our research.  At the moment we are mentoring two women undergraduates involved in the Grappa project, and if this proposal is funded will apply for REU funds to continue their involvement.
 
 \section{Results from Prior NSF Support}
 
@@ -477,8 +499,14 @@ Our research plan can be divided horizontally into three core areas: programming
 \noindent\textbf{Year 2:} The second year of effort will see the completion of the benchmark suite, a significant effort on compiler optimizations for Grappa, and the beginning of the networking layer research.  The benchmark suite will include 12-15 applications and/or kernels.  The website will be live and we will be conducting significant outreach efforts to drive adoption.  On the compiler front we will have implemented the key optimizations that provide the highest benefit for Grappa code.  In addition we will have a detailed understanding of what additional work remains to support other languages / language constructs.  In this year we will start work on rewriting the networking layer of the Grappa runtime, providing a virtual network topology.  We will also begin work on programmable RDMA by using FPGA-based networking gear.
 
 
-\vspace{1ex}
-\noindent\textbf{Year 3:} In the third and final year of this effort (supported by this grant), we will finish the networking layer rewrite.  We will also have constructed a test-bed system comprised of mainly SSD-based memory.  Grappa will be ported to this new style of memory, which we envision will largely be a tuning and not rewriting effort.  We will explore alternative SSD-memory designs largely through emulation.  Finally we will complete a detailed system evaluation using our benchmark suite.
+\vspace{1ex} 
+\noindent\textbf{Year 3:} In the third and final year of this
+effort (supported by this grant), we will finish the networking layer rewrite.
+We will also have constructed a test-bed system for the SSD-only data
+structure research. Grappa will be ported to this new style of memory
+hierarchy, which we envision will largely be a tuning and not rewriting
+effort. Finally we will complete a detailed system evaluation using our
+benchmark suite.
 
 \section{Summary}
 
@@ -593,7 +621,7 @@ statistics help summarize the group's size, strength, and focus:
 \begin{itemize}
 \item There are roughly ten graduate students, most actively
   coadvised.
-\item In the last four years, the group has produced twelve papers
+\item In the last five years, the group has produced fifteen papers
   published in ASPLOS, ISCA, PLDI, OOPSLA, MICRO, and OSDI as well as three
   papers in the USENIX Workshop on Hot Topics in Parallelism.
 \end{itemize}
