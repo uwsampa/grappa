@@ -35,18 +35,20 @@
 \pagestyle{plain}
 
 \makeatletter
+
 \renewcommand{\paragraph}{%
   \@startsection{paragraph}{4}%
   {\z@}{1.0ex \@plus 1ex \@minus 1ex}{-1em}%
   {\normalfont\normalsize\bfseries}%
 }
 
+\comment{
 \renewcommand\section{\@startsection{section}{1}{\z@}{-10\p@ \@plus -4\p@ \@minus -4\p@}{5\p@ \@plus 4\p@ \@minus 4\p@}{\normalfont\Large\bfseries\boldmath\rightskip=\z@ \@plus 8em\pretolerance=10000 }}
 
 \renewcommand\subsection{\@startsection{subsection}{2}{\z@}{-10\p@ \@plus -4\p@ \@minus -4\p@}{5\p@ \@plus 4\p@ \@minus 4\p@}{\normalfont\large\bfseries\boldmath\rightskip=\z@ \@plus 8em\pretolerance=10000 }}
 
 \renewcommand\subsubsection{\@startsection{subsubsection}{3}{\z@}{-10\p@ \@plus -4\p@ \@minus -4\p@}{5\p@ \@plus 4\p@ \@minus 4\p@}{\normalfont\normalsize\bfseries\boldmath\rightskip=\z@ \@plus 8em\pretolerance=10000 }}
-
+}
 
 \makeatother
 
