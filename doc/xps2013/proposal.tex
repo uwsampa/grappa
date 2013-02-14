@@ -375,7 +375,10 @@ This is not straightforward, however, for three reasons: (1) \ssds\ assume spati
 
 \subsection{Compiler and language support}
 
-Language and compiler support are instrumental in making Grappa usable to a wide audience of software developers. We envision language and compiler support can tackle a wide variety of challenges:
+Language and compiler support are instrumental in making Grappa usable to a
+wide audience of application developers. We plan to use the LLVM~\cite{llvm}
+infrastructure. Below we describe the specific aspects we plan to tackle.
+
 
 \paragraph{Relaxed consistency:} Presently Grappa uses a consistency model that is sequentially consistent for data-race free programs.  Underlying hooks are available to build even more relaxed consistency models, although we don't expect programmers themselves will want to use them.  A compiler, however, can see a performance boost by analyzing code and exploiting alias knowledge to program to this underlying Grappa \api, potentially gaining a performance boost by exposing more memory concurrency and hiding more latency.
 
@@ -391,10 +394,18 @@ Language and compiler support are instrumental in making Grappa usable to a wide
 
 \paragraph{Task-weaving: } Much of the time the same task code is executing for hundreds of thousands of tasks in the Grappa runtime system.  For example, each task may be processing a loop body for a parallel for loop.  However, tasks introduce overhead, so we already manually impose a cutoff on recursive decomposition of parallel loops.  This way, multiple loop bodies are collected into a single task and executed serially.  However, this limits the amount of parallelism available for latency tolerance. A mmore efficient technique is to allow the compiler to unroll and schedule all loop bodies simultaneously within the same task, including overlapping remote memory operations, thereby ``weaving'' these independent tasks together to overlap computation with communication with minimal task overhead.  Further, a set of ``woven tasks'' may be amenable to vector execution, allowing even more parallelism to be exploited.
 
-\paragraph{Concurrency Control: } Having too few tasks multiplexed per core fails to tolerate fully the latency; having too many increases memory and cache footprints, resulting in excess cache misses or exhausting physical memory unnecessarily.  Currently, we choose a number at program instantiation:  experiments so far have shown evidence of a broad sweet-spot, though it is of course varies as a function of application behavior.  At compile-time, we could estimate the number of tasks required based on the density of remote operations and hard-coded measurements of system characteristics; at runtime we can adjust the number of tasks dynamically based on real-time measurement of processor counters.  Exploring these directions may lead to even more robust performance.
 
-Presently we are starting work on this language and compiler support.  We are basing our effort on the LLVM~\cite{llvm} infrastructure.
+\paragraph{Task load control:} Having too few tasks per core fails to tolerate
+fully the latency; having too many increases overheads unnecessarily.
+Currently, we choose a number at program instantiation: experiments so far
+have shown evidence of a broad sweet-spot, though it is of course varies as a
+function of application behavior and input data. At compile-time, we might be
+able to estimate the number of tasks required based on the density of remote
+operations and system parameters (e.g., memory size, network latency, etc.);
+at runtime we can adjust the number of tasks dynamically based on periodic
+performance assessments.
 
+% Presently we are starting work on this language and compiler support.  We are basing our effort on the LLVM~\cite{llvm} infrastructure.
 
 \subsection{Graph benchmark suite}
 
