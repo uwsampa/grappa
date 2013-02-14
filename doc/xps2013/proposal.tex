@@ -66,12 +66,14 @@ behavior) efficiently on a commodity cluster. For unbalanced tree search,
 Grappa is over 3X faster and shows greatly improved scalability compared to
 the Cray XMT; conversely, for breadth first search Grappa is 2.5X slower --
 fast compared to implementations without Grappa, but obviously there is room
-for improvement. Most importantly, however, for significantly less real world
-cost, users can \emph{add} significantly more processors to a commodity
-cluster than an XMT machine and use Grappa to achieve scalable performance.
+for improvement. 
 
-Given these very positive early results,
-we next propose to extend Grappa in the following directions:
+% Most importantly, however, for a much lower real world cost,
+% users can \emph{add} significantly more processors to a commodity cluster than
+% an XMT machine and use Grappa to achieve scalable performance.
+
+Given these very positive early results, this proposal plans to extend Grappa
+in the following directions:
 
 \begin{itemize}
 
@@ -129,7 +131,7 @@ In the twenty years that have elapsed since the Tera MTA, commodity microprocess
 
 Grappa is a software runtime system that allows a commodity x86 distributed-memory HPC cluster to be programmed as if it were a single large shared-memory machine and provides scalable performance for irregular applications. Grappa is designed to smooth over some of the performance discontinuities in commodity hardware, giving good performance when there is little locality to be exploited while allowing the programmer to exploit it when it is available.
 
-Grappa leverages as much freely available and commodity infrastructure as possible. We use unmodified Linux for the operating system and an off-the-shelf user-mode infiniband device driver stack~\cite{OFED}. MPI is used for process setup and tear down. GASnet~\cite{gasnet} is used as the underlying mechanism for remote memory reads and writes using active message invocations. To this commodity hardware and software mix Grappa adds three main software components: (1) a \emph{lightweight tasking\/} layer that supports a context switch in as few as 38ns and distributed global load balancing; (2) a \emph{distributed shared memory\/} layer that supports normal access operations such as \emph{read\/} and \emph{write\/} as well as synchronizing operations such as \emph{fetch-and-add\/}~\cite{fetchandadd}; and (3) a \emph{message aggregation\/} layer that combines short messages to mitigate the aforementioned problem that commodity networks are designed to achieve peak bandwidth only on large packet sizes, yet irregular applications tend to fetch only a handful of bytes at a time. As we will show later, Grappa can tolerate latencies way beyond that of the network. Therefore, Grappa can afford to \emph{trade latency for throughput\/}: by {\em increasing\/} latency in key components of the system we are able to increase our effective random access memory bandwidth (by delaying and aggregating messages), our synchronization bandwidth (by delegating operations to remote nodes), and our ability to improve load imbalance (work stealing increases latency).
+Grappa leverages as much freely available and commodity infrastructure as possible. We use unmodified Linux for the operating system and an off-the-shelf user-mode infiniband device driver stack~\cite{OFED}. MPI is used for process setup and tear down. GASnet~\cite{gasnet} is used as the underlying mechanism for remote memory reads and writes using active message invocations. To this commodity hardware and software mix Grappa adds three main software components: (1) a \emph{lightweight tasking\/} layer that supports a context switch in as few as 38ns and distributed global load balancing; (2) a \emph{distributed shared memory\/} layer that supports normal access operations such as \emph{read\/} and \emph{write\/} as well as synchronizing operations such as \emph{fetch-and-add\/}~\cite{fetchandadd}; and (3) a \emph{message aggregation\/} layer that combines short messages to mitigate the aforementioned problem that commodity networks are designed to achieve peak bandwidth only on large packet sizes, yet irregular applications tend to fetch only a handful of bytes at a time. As we will show later, Grappa can tolerate latencies way beyond that of the network. Therefore, Grappa can afford to \emph{trade latency for throughput\/}: by {\em increasing\/} latency in key components of the system we are able to increase our effective random access memory bandwidth, our synchronization bandwidth, and our ability to improve load imbalance.
 
 \begin{figure}[t]
 \begin{center}     
@@ -165,23 +167,42 @@ Grappa provides two methods for expressing parallelism. First, when the programm
 
 \subsection{Memory}
 
-Applications written for Grappa utilize two forms of memory: local and global.  Local memory is local to a single core in the system.  Accesses occur through conventional pointers.  The compiler emits an access and the memory is manipulated directly.  Applications use local accesses for a number of things in Grappa: the stack associated with a task, accesses to localized global memory in caches (see below), and accesses to debugging infrastructure that is local to each system node.  Local pointers cannot access memory on other cores, and are valid only on their home core.
+Applications written for Grappa utilize two forms of memory: local and global.  Local memory is local to a single core in the system.  Accesses occur through conventional pointers.  The compiler emits an access and the memory is manipulated directly.  Applications use local accesses for the stack associated with a task, accesses to localized global memory in caches (see below), and accesses to debugging infrastructure that is local to each system node.  Local pointers cannot access memory on other cores, and are valid only on their home core.
 
-Large data that is expected to be shared and accessed with low locality is stored in Grappa's global memory. All global data must be accessed through calls into Grappa's API. %, shown in Figure~\ref{fig:accessing-memory}.
+Large data that is expected to be shared and accessed with low locality is stored in global memory. All global data must be accessed through calls into Grappa's API. %, shown in Figure~\ref{fig:accessing-memory}.
 
 \paragraph{Global memory addressing} Grappa provides two methods for storing data in the global memory. The first is a distributed heap striped across all the machines in the system in a block cyclic fashion. The \texttt{global\_malloc} and \texttt{global\_free} calls are used to allocate and deallocate memory in the global heap.  Addresses to memory in the global heap use \textbf{linear addresses}.  Choosing the block size involves trading off sequential bandwidth against aggregate random access bandwidth. Smaller block sizes help spread data across all the memory controllers in the cluster, but larger block sizes allow the locality-optimized memory controllers to provide increased sequential bandwidth. The block size, which is configurable, is typically set to 64 bytes, or the size of a single hardware cache line, in order to exploit spatial locality when available. The heap metadata is stored on a single node. Currently all heap operations serialize through this node; while this has been sufficient for our benchmarks, in the future Grappa will provide parallel performance through combining~\cite{MAMA,flatcombining}.
 
-Grappa also allows any local data on a core's stacks or heap to be exported to the global address space to be made accessible to other cores across the system. Addresses to global memory allocated in this way use \textbf{2D global addresses}.  This uses a traditional PGAS addressing model, where each address is a tuple of a rank in the job (or global process ID) and an address in that process. The lower 48 bits of the address hold a virtual address in the process. The top bit is set to indicates that the reference is a 2D address (as opposed to linear address). This leaves 15 bits for network endpoint ID, which limits our scalability to $2^{15}$ endpoints. Any node-local data can be made accessible by other nodes in the system by wrapping the address and node ID into a 2D global address. This address can then be accessed with a delegate and can also be cached by other nodes. At the destination the address is converted into a canonical x86 address by replacing the upper bits with the sign-extended upper bit of the virtual address. 2D addresses may refer to memory allocated from a single processes' heap or from a task's stack.
+Grappa also allows any local data on a core's stacks or heap to be exported to the global address space to be made accessible to other cores across the system. Addresses to global memory allocated in this way use \textbf{2D global addresses}.  This uses a traditional PGAS addressing model, where each address is a tuple of a rank in the job (or global process ID) and an address in that process. The lower 48 bits of the address hold a virtual address in the process. The top bit is set to indicates that the reference is a 2D address (as opposed to linear address). This leaves 15 bits for network endpoint ID, which limits our scalability to $2^{15}$ endpoints. Any node-local data can be made accessible by other nodes in the system by wrapping the address and node ID into a 2D global address. This address can then be accessed with a delegate.
+% and can also be cached by other nodes. 
+At the destination the address is converted into a canonical x86 address by replacing the upper bits with the sign-extended upper bit of the virtual address. 2D addresses may refer to memory allocated from a single processes' heap or from a task's stack.
 
-\paragraph{Global memory access} There are two general approaches Grappa applications use to {\emph access} global memory. When the programmer expects a computation on shared data to have spatial locality to exploit, {\em cache} operations may be used. When there is no locality to exploit, {\em delegate} operations are used.
+\paragraph{Global memory access} There are two general approaches Grappa applications use to {\emph access} global memory. When the programmer expects a computation on shared data to have spatial locality to exploit, explicit {\em cache} operations may be used. When there is no locality to exploit, remote {\em delegate} operations are used.
 
-\textbf{Explicit caching.} Grappa provides an API to fetch a global pointer of any length and return a local pointer to a cached copy of the global memory.  Grappa cache operations have the usual read-only and read-write variants, along with a write-only variant used to initialize data structures. Languages for distributed shared memory systems have done optimizations to achieve a similar goal. For example, the UPC compiler coalesces struct and array accesses into remote get/put \cite{Chen:2005}, and Fortran D compiler's message vectorization hoists small messages out of a loop \cite{FortranD:1992}. Caching in Grappa additionally provides a mechanism for exploiting temporal locality by operating on the data locally.
+\textbf{Explicit caching.} Grappa provides an API to fetch a global pointer of any length and return a local pointer to a cached copy of the global memory.  Grappa cache operations have the usual read-only and read-write variants, along with a write-only variant used to initialize data structures. Languages for distributed shared memory systems have done optimizations to achieve a similar goal. For example, the UPC compiler coalesces struct and array accesses into remote get/put \cite{Chen:2005}, and Fortran D compiler's message vectorization hoists small messages out of a loop \cite{FortranD:1992}. 
 
-Under the hood, Grappa performs the mechanics of gathering chunks of data from multiple system nodes and presenting a conventional appearing linear block of memory as a local pointer into a cache. The strategy employed is to issue all the constituent requests of a cache access request  (as Active Messages) and then yield until all responses have occurred.  Currently, Grappa caches are \emph{not} coherent, requiring the programmer to maintain consistent access to data.  Future work will develop a software directory based coherence scheme to simplify consistent access to global data.
+Caching in Grappa additionally provides a mechanism for exploiting temporal locality by operating on the data locally --- even though we aim Grappa at applications with low locality, we want to be able to exploit it when available. 
+% Under the hood, Grappa performs the mechanics of gathering chunks of data
+% from multiple system nodes and presenting a conventional appearing linear
+% block of memory as a local pointer into a cache. The strategy employed is to
+% issue all the constituent requests of a cache access request	(as Active
+% Messages) and then yield until all responses have occurred.	
+Currently, Grappa caches are \emph{not} coherent, requiring the programmer to maintain consistent access to data.  Future work will develop a software directory based coherence scheme to simplify consistent access to global data.
 
 \textbf{Delegate operations.} When the access pattern has low-locality, it is more efficient to modify the data on its home core rather than bringing a copy to the requesting core and returning it after modification. Delegate operations provide this capability. Applications can dispatch computation to be performed on individual machine-word sized chunks of global memory to the memory system itself (e.g., \emph{fetch-and-add}).  Delegate operations, proposed in \cite{Nelson:hotpar11} and \cite{delegated:oopsla11}, are also the primary synchronization method in Grappa.
 
-Delegate operations are always executed at the home core of their address, and while arbitrary memory operations can be delegated, we restrict the use of delegate operations in three ways to make them more useful for synchronization. First, we limit each task to one outstanding delegate operation to avoid the possibility of reordering in the network. Second, we limit delegate operations to operate on objects in the 2D address space or objects that fit in a single block of the linear address space, so they can be satisfied with a single network request. Finally, no context switches are allowed while the data is being modified. Given these restrictions, we can ensure that delegate operations for the same address from multiple requesters are always serialized through a single core in the system, providing atomic semantics without using atomic operations. 
+% Delegate operations are always executed at the home core of their address, and
+% while arbitrary memory operations can be delegated, we restrict the use of
+% delegate operations in three ways to make them more useful for
+% synchronization. First, we limit each task to one outstanding delegate
+% operation to avoid the possibility of reordering in the network. Second, we
+% limit delegate operations to operate on objects in the 2D address space or
+% objects that fit in a single block of the linear address space, so they can be
+% satisfied with a single network request. Finally, no context switches are
+% allowed while the data is being modified. Given these restrictions, we can
+% ensure that delegate operations for the same address from multiple requesters
+% are always serialized through a single core in the system, providing atomic
+% semantics without using atomic operations.
 
 \subsection{Communication}
 \label{sec:communication}
@@ -190,13 +211,38 @@ In order to mitigate the low message injection rate limits of commodity networks
 
 At the upper layer, Grappa implements asynchronous active messages \cite{vonEicken92}. Each message consists of a function pointer, an optional argument payload, and an optional data payload. When a task sends a message, the message is copied to a send queue associated with the message's destination and the task continues execution.
 
-Grappa's lower networking layer aggregates the upper layer's messages to improve performance. Commodity networks including infiniband achieve their peak bisection bandwidth \emph{only} when the packet sizes are relatively large---on the order of multiple kilobytes. The reason for this discrepancy is the combination of overheads associated with handling each packet (in terms of bytes that form the actual packet, processing time at the card and processing on the CPU within the driver stack). Our measurements confirm manufacturers published data~\cite{infinibandbandwidth}, that with this packet size the bisection bandwidth is only a small fraction, less than 3\% of the peak bisection bandwidth.
+Grappa's lower networking layer aggregates the upper layer's messages to
+improve performance. Commodity networks including
+Infiniband~\cite{infinibandbandwidth} achieve their peak bisection bandwidth
+\emph{only} when the packet sizes are relatively large---on the order of
+multiple kilobytes. The reason for this discrepancy is the combination of
+overheads associated with handling each packet (in terms of bytes that form
+the actual packet, processing time at the card and processing on the CPU
+within the driver stack). Our measurements confirm manufacturers published
+data~\cite{infinibandbandwidth}, that with this packet size the bisection
+bandwidth is only a small fraction, less than 3\% of the peak bisection
+bandwidth.
 
-In our experiments the vast majority of requests were smaller than 44 bytes, far too small to make efficient use of the network. To make the best use of the network, we must convert our small messages into large ones. When a task sends a message, it is not immediately sent, but rather placed in a queue specific to the destination.
+In our early experiments the vast majority of requests were smaller than 44
+bytes, far too small to make efficient use of the network. To make the best
+use of the network, we must convert our small messages into large ones. When a
+task sends a message, it is not immediately sent, but rather placed in a queue
+specific to the destination. If the size in bytes of a queue is above a
+threshold (e.g., 4096, typically large enough for good bandwidth), the
+contents of the queue are sent immediately. Also, each queue has a wait time
+threshold ($\approx${1ms}). If the oldest message in a queue has been waiting
+longer than this threshold, the contents of the queue are sent immediately,
+even if the queue size is lower than the message size threshold. Finally,
+queues may be explicitly flushed, for situations when latency is more
+important than bandwidth.
 
-There are three situations in which a queue of aggregated messages is sent. First, each queue has a message size threshold of 4096 bytes, chosen to give reasonable network performance. If the size in bytes of a queue is above the threshold, the contents of the queue are sent immediately. Second, each queue has a wait time threshold ($\approx${1ms}). If the oldest message in a queue has been waiting longer than this threshold, the contents of the queue are sent immediately, even if the queue size is lower than the message size threshold.  Third, queues may be explicitly flushed in situations where the programmer wants to minimize the latency of a message at the cost of bandwidth utilization.
-
-The network layer is serviced by polling. Periodically when a context switch occurs, the Grappa scheduler switches to the network polling thread. This thread has three responsibilities. First, it polls the lower-level network layer to ensure it makes progress. Second, it deaggregates received messages and executes active message handlers. Third, it checks to see if any aggregation queues have messages that have been waiting longer than the threshold; if so, it sends them.
+% The network layer is serviced by polling. Periodically when a context switch
+% occurs, the Grappa scheduler switches to the network polling thread. This
+% thread has three responsibilities. First, it polls the lower-level network
+% layer to ensure it makes progress. Second, it deaggregates received messages
+% and executes active message handlers. Third, it checks to see if any
+% aggregation queues have messages that have been waiting longer than the
+% threshold; if so, it sends them.
 
 Underneath the aggregation layer, Grappa uses the \gasnet~communication library~\cite{gasnet} to actually move data. All interprocess communication, whether on or off a cluster node, is handled by the \gasnet~library. \gasnet~is able to take advantage of many communication mechanisms, including ethernet and infiniband between nodes, as well as shared memory within a node.
 
@@ -204,21 +250,25 @@ Some networks provide access to a remote machine's memory directly. This would s
 
 \subsection{Performance}
 
-To evaluate Grappa's performance with respect to the XMT, we ran each of our three benchmarks on up to 16 nodes of each machine. Grappa used 6 cores per node, with the best parameters chosen for each point. In some cases, the XMT could not run the benchmark with 2 nodes, so the point is omitted.
+To evaluate the performance of our current prototype with respect to the XMT,
+we ran each of our three benchmarks on up to 16 nodes of each machine. Grappa
+used 6 cores per node, with the best parameters chosen for each point. In some
+cases, the XMT could not run the benchmark with 2 nodes, so the point is
+omitted.
 
 \begin{figure}
 \begin{center}
 
-\hspace{-1in}\begin{minipage}{0.3\textwidth}
+\hspace{-1in}\begin{minipage}{0.2\textwidth}
 \begin{center}
-\includegraphics[width=3in]{figs/uts_performance.pdf}
+\includegraphics[width=2.75in]{figs/uts_performance.pdf}
 \caption{\label{fig:uts_compare} Performance of in-memory unbalanced tree search.}
 \end{center}
 \end{minipage}
 \hspace{1.25in}\
 \begin{minipage}{0.3\textwidth}
 \begin{center}
-\includegraphics[width=3in]{figs/bfs_performance}
+\includegraphics[width=2.75in]{figs/bfs_performance}
 \caption{\label{fig:bfs-performance} Performance of breadth-first searcch.}
 \end{center}
 \end{minipage}
