@@ -149,31 +149,9 @@ Irregular computations are of increasing economic importance.  Moreover, they ar
 
 \section{Description of the Current Grappa System}
 
-In the twenty years that have elapsed since the Tera MTA, commodity
-microprocessors have become much faster and multicore has driven down the
-absolute price of computation; commodity network price-performance has
-improved as well. This shift has afforded us the opportunity to attack the
-challenges posed by irregular applications by emulating in software and
-inexpensive mass market hardware, the approach taken by Tera. We exploit the
-increased aggregate instruction rate per socket relative to chip bandwidth,
-using what would otherwise be wasted instructions to manage the multiplexing
-of as many as several thousand tasks per core, thus tolerating memory latency,
-reducing stalls, and making better use of available bandwidth. Ultimately, the
-opportunity is to cover the spectrum of irregular to regular computation:
-where tasks exhibit locality, multiplex fewer tasks and expend fewer
-instructions on context switching; where locality is lacking, multiplex more
-tasks at a higher rate to tolerate latency. Thus we make the best use of task
-parallelism -- either to scale to more cores or to tolerate latency -- and of
-caches -- either to exploit application locality or to house more task
-contexts.
+In the twenty years that have elapsed since the Tera MTA, commodity microprocessors have become much faster and multicore has driven down the absolute price of computation; commodity network price-performance has improved as well. This shift has afforded us the opportunity to attack the challenges posed by irregular applications by emulating in software and inexpensive mass market hardware, the approach taken by Tera. We exploit the increased aggregate instruction rate per socket relative to chip bandwidth, using what would otherwise be wasted instructions to manage the multiplexing of as many as several thousand tasks per core, thus tolerating memory latency, reducing stalls, and making better use of available bandwidth. Ultimately, the opportunity is to cover the spectrum of irregular to regular computation: where tasks exhibit locality, multiplex fewer tasks and expend fewer instructions on context switching; where locality is lacking, multiplex more tasks at a higher rate to tolerate latency. Thus we make the best use of task parallelism -- either to scale to more cores or to tolerate latency -- and of caches -- either to exploit application locality or to house more task contexts.
 
-Grappa is a software runtime system that allows a commodity x86
-distributed-memory HPC cluster to be programmed as if it were a single large
-shared-memory machine and provides scalable performance for irregular
-applications. Grappa is designed to smooth over some of the performance
-discontinuities in commodity hardware, giving good performance when there is
-little locality to be exploited while allowing the programmer to exploit it
-when it is available.
+Grappa is a software runtime system that allows a commodity x86 distributed-memory HPC cluster to be programmed as if it were a single large shared-memory machine and provides scalable performance for irregular applications. Grappa is designed to smooth over some of the performance discontinuities in commodity hardware, giving good performance when there is little locality to be exploited while allowing the programmer to exploit it when it is available.
 
 Grappa leverages as much freely available and commodity infrastructure as possible. We use unmodified Linux for the operating system and an off-the-shelf user-mode infiniband device driver stack~\cite{OFED}. MPI is used for process setup and tear down. GASnet~\cite{gasnet} is used as the underlying mechanism for remote memory reads and writes using active message invocations. To this commodity hardware and software mix Grappa adds three main software components: (1) a \emph{lightweight tasking\/} layer that supports a context switch in as few as 38ns and distributed global load balancing; (2) a \emph{distributed shared memory\/} layer that supports normal access operations such as \emph{read\/} and \emph{write\/} and synchronizing operations including \emph{fetch-and-add\/}~\cite{fetchandadd} as well as user-defined atomic methods; and (3) a \emph{message aggregation\/} layer that combines short messages to mitigate the aforementioned problem that commodity networks are designed to achieve peak bandwidth only on large packet sizes, yet irregular applications tend to fetch only a handful of bytes at a time. As we will show later, Grappa can tolerate latencies way beyond that of the network. Therefore, Grappa can afford to \emph{trade latency for throughput\/}: by {\em increasing\/} latency in key components of the system we are able to increase our effective random access memory bandwidth, our synchronization bandwidth, and our ability to improve load imbalance.
 
@@ -188,6 +166,7 @@ Grappa leverages as much freely available and commodity infrastructure as possib
 \end{figure}
 
 The current Grappa prototype (Figure~\ref{fig:grappa}) has three main software components: 
+
 \begin{description}
 
 \item [Tasking system.] Our tasking system supports lightweight multithreading to tolerate communication latency and global distributed workstealing (i.e., tasks can be stolen from any node in the system), which provides automated load balancing.
@@ -236,46 +215,17 @@ In order to mitigate the low message injection rate limits of commodity networks
 
 At the upper layer, Grappa implements asynchronous active messages \cite{vonEicken92}. Each message consists of a function pointer, an optional argument payload, and an optional data payload. When a task sends a message, the message is copied to a send queue associated with the message's destination and the task continues execution.
 
-Grappa's lower networking layer aggregates the upper layer's messages to
-improve performance. Commodity networks including
-Infiniband~\cite{infinibandbandwidth} achieve their peak bisection bandwidth
-\emph{only} when the packet sizes are relatively large---on the order of
-multiple kilobytes. The reason for this discrepancy is the combination of
-overheads associated with handling each packet (in terms of bytes that form
-the actual packet, processing time at the card and processing on the CPU
-within the driver stack). Our measurements confirm manufacturers published
-data~\cite{infinibandbandwidth}, that with this packet size the bisection
-bandwidth is only a small fraction, less than 3\% of the peak bisection
-bandwidth.
+Grappa's lower networking layer aggregates the upper layer's messages to improve performance. Commodity networks including Infiniband~\cite{infinibandbandwidth} achieve their peak bisection bandwidth \emph{only} when the packet sizes are relatively large---on the order of multiple kilobytes. The reason for this discrepancy is the combination of overheads associated with handling each packet (in terms of bytes that form the actual packet, processing time at the card and processing on the CPU within the driver stack). Our measurements confirm manufacturers published data~\cite{infinibandbandwidth}, that with this packet size the bisection bandwidth is only a small fraction, less than 3\% of the peak bisection bandwidth.
 
-In our early experiments the vast majority of requests were smaller than 44
-bytes, far too small to make efficient use of the network. To make the best
-use of the network, we must convert our small messages into large ones. When a
-task sends a message, it is not immediately sent, but rather placed in a queue
-specific to the destination. If the size in bytes of a queue is above a
-threshold (e.g., 4096, typically large enough for good bandwidth), the
-contents of the queue are sent immediately. Also, each queue has a wait time
-threshold ($\approx${1ms}). If the oldest message in a queue has been waiting
-longer than this threshold, the contents of the queue are sent immediately,
-even if the queue size is lower than the message size threshold. Finally,
-queues may be explicitly flushed, for situations when latency is more
-important than bandwidth.
+In our early experiments the vast majority of requests were smaller than 44 bytes, far too small to make efficient use of the network. To make the best use of the network, we must convert our small messages into large ones. When a task sends a message, it is not immediately sent, but rather placed in a queue specific to the destination. If the size in bytes of a queue is above a threshold (e.g., 4096, typically large enough for good bandwidth), the contents of the queue are sent immediately. Also, each queue has a wait time threshold ($\approx${1ms}). If the oldest message in a queue has been waiting longer than this threshold, the contents of the queue are sent immediately, even if the queue size is lower than the message size threshold. Finally, queues may be explicitly flushed, for situations when latency is more important than bandwidth.
 
-Underneath the aggregation layer, Grappa uses the \gasnet~communication
-library~\cite{gasnet} to actually move data. All interprocess communication,
-whether on or off a cluster node, is handled by the \gasnet~library.
-\gasnet~is able to take advantage of many communication mechanisms, including
-ethernet and infiniband between nodes, as well as shared memory within a node.
+Underneath the aggregation layer, Grappa uses the \gasnet~communication library~\cite{gasnet} to actually move data. All interprocess communication, whether on or off a cluster node, is handled by the \gasnet~library. \gasnet~is able to take advantage of many communication mechanisms, including ethernet and infiniband between nodes, as well as shared memory within a node.
 
 Some networks provide access to a remote machine's memory directly. This would seem to be a good fit for a programming model focused on global shared memory, however, we do not currently use it. In our experiments, we found that RDMA operations are subject to the same message rate limitations as all other messages on these cards, and thus using raw RDMA operations does not measurably increase achieved bandwidth (i.e., we are limited by injection rate not peak bandwidth).  At the moment, we implement remote memory operations with active messages in conjunction with aggregation, providing an order of magnitude or more increase in throughput compared to straightforward RDMA. As we describe later, however, we wish to explore richer semantics for RDMA communication that will make it integrate better with user level runtime systems such as Grappa.
 
 \subsection{Performance}
 
-To evaluate the performance of our current prototype with respect to the XMT,
-we ran each of our three benchmarks on up to 16 nodes of each machine. Grappa
-used 6 cores per node, with the best parameters chosen for each point. In some
-cases, the XMT could not run the benchmark with 2 nodes, so the point is
-omitted.
+To evaluate the performance of our current prototype with respect to the XMT, we ran each of our three benchmarks on up to 16 nodes of each machine. Grappa used 6 cores per node, with the best parameters chosen for each point. In some cases, the XMT could not run the benchmark with 2 nodes, so the point is omitted.
 
 \begin{figure}
 \begin{center}
@@ -298,13 +248,7 @@ omitted.
 \end{figure}
 
 \paragraph{Unbalanced tree search} We ran UTS-mem with a geometric 100M-vertex
-tree (T1L). Figure~\ref{fig:uts_compare} shows the performance in terms of
-number of vertices visited per second versus number of compute nodes. Grappa
-is 3.2 times faster than the XMT at 16 nodes. As we will show later, the
-performance advantage Grappa has over XMT increases as more nodes are added.
-The main reason Grappa performs better is the software-based delegate
-synchronization obviates the need for the retry-based synchronization that XMT
-uses.
+tree (T1L). Figure~\ref{fig:uts_compare} shows the performance in terms of number of vertices visited per second versus number of compute nodes. Grappa is 3.2 times faster than the XMT at 16 nodes. The main reason Grappa performs better is the software-based delegate synchronization obviates the need for the retry-based synchronization that XMT uses.
 
 
 \paragraph{BFS} We ran BFS on a synthetic Kronecker graph with $2^{25}$ vertices and $2^{29}$ edges (25 GB of data). Figure~\ref{fig:bfs-performance} shows our performance in terms of graph edges traversed per second. The XMT is 2.5 times faster than Grappa at 16 nodes.  Performance has not peaked for Grappa, suggesting that adding more nodes will increase performance.
