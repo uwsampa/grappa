@@ -348,7 +348,7 @@ The second challenge is that the virtual to physical address translation on the 
 
 \subsection{SSD-only data structures}
 
-Grappa applications are likely to use large amounts of data, 100s of terabytes to petabytes. Keeping all these data in DRAM only is unlikely to be cost effective. We will explore mechanisms that use solid-state storage as primary memory, greatly expanding the directly addressible storage at low cost.
+Grappa applications are likely to use large amounts of data, 100s of terabytes to petabytes. Keeping all these data in DRAM only is unlikely to be cost effective. We will explore mechanisms that use solid-state storage as primary memory, greatly expanding the directly addressable storage at low cost.
 
 Grappa is very effective in hiding latencies of network communication.  If an access is to a chunk of the heap stored in a node's local memory, Grappa issues a prefetch for the address and context switches to other work while the prefetch is executing~\cite{Nelson:hotpar2011}. If the access is to memory stored on another node, Grappa issues a message to that node to request the data and context switches to other work until the reply arrives.  In fact, our measurements and estimates show that we might be able to tolerate even greater latency -- on the order of milliseconds per request.  This provides the tantalizing possibility that we will be able to keep data in \ssd\ drives only and service data access requests directly from them, without leaving copies in DRAM.  The natural point of integration for non-volatile memories in Grappa is to store the global distributed shared heap in non-volatile memory. All accesses to this shared heap are done through an \api, so this switch would be transparent to the programmer.
 
@@ -476,11 +476,39 @@ Our research plan can be divided horizontally into three core areas: programming
 
 \section{Summary}
 
-Irregular applications are increasing in importance to the computing industry.  For a long time they have underpinned computations of interest to the national security arm of the federal government.  But now, they underpin such questions as ad placement in social networks, and analysis of complex data-sets in medicine and science.  The defining characteristic of these applications is poor locality and massive available parallelism.  Our effort is focused on making these applications perform well and scale on commodity hardware.  The ``secret sauce'' that makes this work is to essentially build a software XMT~\cite{feo:xmt}.  Instead of relying on locality (which doesn't exist for these applications) we rely on threading to tolerate memory latency.  Unlike the XMT, however, we must contend with commodity networking hardware, and here we again rely on threading to provide a sufficient number of requests that we can buffer them prior to dispatching on the physical wire.
+Irregular applications are increasing in importance to the computing industry.
+For a long time they have underpinned computations of interest to the national
+security arm of the federal government. But now, they underpin such questions
+as ad placement in social networks, and analysis of complex data-sets in
+medicine and science. The defining characteristic of these applications is
+poor locality and massive available parallelism. Our effort is focused on
+making these applications perform well and scale on commodity hardware. The
+key idea that makes this work is to rely on massive concurrency to tolerate
+memory latency, instead of relying on locality (which doesn't exist for these
+applications). This core idea underpinned the XMT~\cite{feo:xmt} system, a
+fully-custom hardware system. We plan to explore that idea in software only,
+running on commodity processors. And unlike the XMT, however, we must also
+contend with commodity networking hardware, and here we again rely on
+threading to provide a sufficient number of requests that we can buffer them
+prior to dispatching on the network, to overcome bandwidth limitations when
+operating with small messages.
 
-Our past effort has shown a workable proof of concept of all this runtime smoke and mirrors: a commodity cluster can out do the XMT at its own game, by emulating its key features in software.  What is needed now is additional effort to improve the underlying performance of this runtime and make it usable to a broad base of developers.  We will be focusing our efforts in the next three years on the key performance component, the networking layer, and the key programmer efficiency linchpin, high level language support.  In addition we need a useful mechanism for handling data-sets in the petabyte range, and here we imagine building a cluster of machines that relies primarily on SSD's and not DRAM for data-set storage.
+Our preliminary effort has shown a workable proof of concept of all this
+runtime smoke and mirrors: a commodity cluster can out do the XMT at its own
+game, by emulating its key features in software. What is needed now is
+additional effort to improve the underlying performance of this runtime and
+make it usable to a broad base of users. We will be focusing our efforts
+in the next three years on the key performance component, the networking
+layer, and the key programmer efficiency linchpin, high level language
+support. In addition we need a useful mechanism for handling data-sets in the
+petabyte range, and here we imagine building a cluster of machines that relies
+primarily on SSD's and not DRAM as main memory data-set storage.
 
-If successful, the Grappa runtime will have a transformative impact on the computing industry.  Irregular applications are hugely important, and if off the shelf hardware can be efficient with them a new class of questions can be asked of computing systems.  Additionally our benchmark suite development will further drive innovation among researchers in this space.
+If successful, the Grappa runtime will have a transformative impact on the
+computing industry. Irregular applications are hugely important, and if off
+the shelf hardware can be efficient with them a new class of questions can be
+asked of computing systems. Additionally our benchmark suite development will
+further drive innovation among researchers in this space.
 
 
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
