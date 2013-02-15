@@ -1,11 +1,11 @@
 
 #include "MessageBase.hpp"
 
-#define LEGACY_SEND
+#ifndef ENABLE_RDMA_AGGREGATOR
+//#define LEGACY_SEND
+#endif
 
-//#ifndef LEGACY_SEND
 #include "RDMAAggregator.hpp"
-//#endif
 
 namespace Grappa {
   
