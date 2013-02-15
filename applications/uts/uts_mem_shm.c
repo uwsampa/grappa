@@ -354,12 +354,14 @@ LOCK_T * global_id_lock;
 LOCK_T * global_child_index_lock;
       
 // accumulation slots
+#if defined(__UPC__)
 SHARED [1] uint64_t local_counts[GET_NUM_THREADS];
+#endif //__UPC__
 SHARED uint64_t total_generated_count;
 SHARED uint64_t total_searched_count;
 
 // configuration parameters
-uint64_t vertices_size = 1800;  // only used to size the in-memory tree arrays
+uint64_t vertices_size = 4500000;  // only used to size the in-memory tree arrays
 
 // process local
 uint64_t my_generated_count = 0;
@@ -529,13 +531,24 @@ void ss_error(char *str) {
   exit(4);
 }
 
+void ss_destroy_contents( StealStack *s ) {
+  FREE(s->stack_g);
+#if defined(__UPC__)
+  upc_lock_free(s->stackLock);
+#endif
+
+#ifdef TRACE
+  FREE(s->md);
+#endif
+}
+
 /* initialize the stack */
 void ss_init(StealStack *s, int nelts) {
   int nbytes = nelts * sizeof(Node);
 
   if (debug & 1)
-    printf("Thread %d intializing stealStack %p, sizeof(Node) = %X\n", 
-           GET_THREAD_NUM, s, (int)(sizeof(Node)));
+    printf("Thread %d intializing stealStack %p, sizeof(Node) = %X\n, nelts=%d", 
+           GET_THREAD_NUM, s, (int)(sizeof(Node)), nelts);
 
   // allocate stack in shared addr space with affinity to calling thread
   // and record local addr for efficient access in sequel
@@ -572,14 +585,17 @@ void ss_init(StealStack *s, int nelts) {
 
 /* local push */
 void ss_push(StealStack *s, Node *c) {
-  if (s->top >= s->stackSize)
+  if (s->top >= s->stackSize) {
+    printf("overflow top=%d ssize=%d\n", s->top, s->stackSize);
     ss_error("ss_push: overflow");
+  }
   if (debug & 1)
-    printf("ss_push: Thread %d, posn %d: node %s [%d]\n",
-           GET_THREAD_NUM, s->top, rng_showstate(c->state.state, debug_str), c->height);
+    printf("ss_push: Thread %d, posn %d / %d: node %s [%d]\n",
+           GET_THREAD_NUM, s->top, s->stackSize, rng_showstate(c->state.state, debug_str), c->height);
   memcpy(&(s->stack[s->top]), c, sizeof(Node));
   s->top++;
   s->nNodes++;
+  //if (s->nNodes%512==0) printf("Pushes %d while top=%d\n", s->nNodes, s->top);
   s->maxStackDepth = max(s->top, s->maxStackDepth);
   s->maxTreeDepth = max(s->maxTreeDepth, c->height);
 }
@@ -605,8 +621,8 @@ void ss_pop(StealStack *s) {
   s->top--;
   r = &(s->stack[s->top]);
   if (debug & 1)
-    printf("ss_pop: Thread %d, posn %d: node %s [%d] nchild = %d\n",
-           GET_THREAD_NUM, s->top, rng_showstate(r->state.state, debug_str), 
+    printf("ss_pop: Thread %d, posn %d / %d: node %s [%d] nchild = %d\n",
+           GET_THREAD_NUM, s->top, s->stackSize, rng_showstate(r->state.state, debug_str), 
            r->height, r->numChildren);
 }
   
@@ -1086,6 +1102,8 @@ void genChildren(Node * parent, Node * child, StealStack * ss) {
 
   /*** Store the tree into memory ***/
   int64_t id = uts_nodeId(parent);
+  //printf("%d parent id = %ld Vertex=%p\n", GET_THREAD_NUM, id, Vertex);
+  
   /* Record the number of children: */
   //printf("vertex %ld gets nc: %lu\n", id, numChildren);
   parentStored.numChildren = numChildren;
@@ -1372,8 +1390,10 @@ void parTreeGeneration(StealStack *ss) {
 	if (!goodSteal)
 	  victimId = findwork(chunkSize);
       }
-      if (goodSteal)
-	  continue;
+      if (goodSteal) {
+        //printf("Good steal of %d\n", goodSteal);
+        continue;
+      }
     }
 	
     /* unable to steal work from shared portion of other stacks -
@@ -1413,29 +1433,16 @@ void parTreeSearch(StealStack *ss) {
 
       /* examine node at stack top */
       Node * parentOnlyId = ss_top(ss);
+      ss_pop(ss);
+      my_searched_count++;
+      /* Random access: get the vertex */
+      vertex_t parentStored = Vertex[parentOnlyId->id];
 
-      if (parentOnlyId->id != VERTEX_FINISHED) {
-        // first time visited, get vertex and find the children
+      // printf("found parent nc: %lu, ci: %lu\n", parentStored.numChildren,
+      //                                                   parentStored.childIndex);
+      searchChildren(&parentStored,ss);
 
-        /* Random access: get the vertex */
-        vertex_t parentStored = Vertex[parentOnlyId->id];
 
-       // printf("found parent nc: %lu, ci: %lu\n", parentStored.numChildren,
-       //                                                   parentStored.childIndex);
-        searchChildren(&parentStored,ss);
-
-        parentOnlyId->id = VERTEX_FINISHED;
-      }
-      else {
-        // second time visit, process accumulated statistics and pop
-        //#ifdef UTS_STAT
-        //        if (stats)
-        //          updateParStat(parent);
-        //#endif
-        ss_pop(ss);
-        my_searched_count++;
-      }
-      
       // release some nodes for stealing, if enough are available
       // and wake up quiescent threads
       releaseNodes(ss);
@@ -1787,6 +1794,11 @@ int main(int argc, char *argv[]) {
   INIT_SINGLE_LOCK( global_id_lock );
   INIT_SINGLE_LOCK( global_child_index_lock );
 
+  /* initialize tree data structures */
+  printf("allocating %lu of space\n", vertices_size);
+  Vertex = (SHARED vertex_t *) ALL_ALLOC( GET_NUM_THREADS, sizeof(vertex_t) * vertices_size );
+  Child =  (SHARED uint64_t *) ALL_ALLOC( GET_NUM_THREADS, sizeof(uint64_t) * vertices_size );
+
 
 /********** SPMD Parallel Region **********/
 #pragma omp parallel
@@ -1799,10 +1811,6 @@ int main(int argc, char *argv[]) {
       uts_printParams();
     }
     
-    /* initialize tree data structures */
-    Vertex = (SHARED vertex_t *) ALLOC( sizeof(vertex_t) * vertices_size );
-    Child =  (SHARED uint64_t *) ALLOC( sizeof(uint64_t) * vertices_size );
-
     /*
      * Run Tree Generation
      */
@@ -1857,9 +1865,15 @@ int main(int argc, char *argv[]) {
   }
 /********** End Parallel Region **********/
 
-
+  BARRIER; 
+  ss_destroy_contents((StealStack *) stealStack[GET_THREAD_NUM]);
+  FREE( stealStack[GET_THREAD_NUM] );
 
   /* cancellable barrier re-initialization (single threaded under OMP) */
+#if defined(__UPC__)
+  if (GET_THREAD_NUM==0) upc_lock_free( cb_lock );
+#endif // UPC
+  BARRIER;
   cb_init();
 
   /********** SPMD Parallel Region **********/

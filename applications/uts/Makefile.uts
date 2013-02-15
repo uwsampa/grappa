@@ -15,7 +15,7 @@ TARGETS     = uts-seq uts-dfs uts-stat          \
               uts-omp uts-pthread               \
               uts-upc uts-upc-dcq               \
 	      uts-upc-enhanced                  \
-		  uts-mem-upc                       \
+		  uts-mem-upc uts-mem-shm            \
               uts-shmem uts-gpshmem             \
               uts-mpi-wm uts-mpi-wm-nb          \
 	      uts-mpi-ws uts-mpi-hws            \
@@ -146,9 +146,18 @@ uts-gpshmem: uts_gpshmem.c $(RNG_SRC) $(COMMON_SRCS)
 
 # See ./Makefile for Grappa implementation
 
+MEM_SHM_SRCS    = uts_mem_shm.c
+
 # TODO could add targets for non UPC as well (except maybe pthreads until we modify pthreads_main)
-uts-mem-upc: uts_mem_shm.c $(RNG_SRC) $(COMMON_SRCS)
+uts-mem-upc: $(MEM_SHM_SRCS) $(RNG_SRC) $(COMMON_SRCS)
 	$(UPCC) $(UPCC_OPTS) $(UPCLD_OPTS) $(RNG_DEF) $(FLAGS) -o $@ $+
+
+CFLAGS_MEM=-std=gnu99
+uts-mem-shm: $(MEM_SHM_SRCS) $(RNG_SRC) $(COMMON_SRCS)
+	$(CC) $(CFLAGS) $(CFLAGS_MEM) $(LD_OPTS) $(RNG_DEF) $(FLAGS) -o $@ $+
+
+uts-mem-omp: $(MEM_SHM_SRCS) $(RNG_SRC) $(COMMON_SRCS)
+	$(OMPCC) $(OMPCC_OPTS) $(CFLAGS_MEM) $(OMPLD_OPTS) $(RNG_DEF) $(FLAGS) -o $@ $+
 
 
 
