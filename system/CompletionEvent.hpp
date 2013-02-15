@@ -23,7 +23,7 @@ namespace Grappa {
     
     /// Decrement count once, if count == 0, wake all waiters.
     void complete() {
-      if (count == 0) {
+      if (count <= 0) {
         LOG(ERROR) << "too many calls to signal()";
       }
       count--;
@@ -49,9 +49,9 @@ namespace Grappa {
     if (ce.node() == mycore()) {
       ce.pointer()->complete();
     } else {
-      send_message(ce.node(), [ce] {
-        ce.pointer()->complete();
-      });
+      Grappa::send_heap_message(ce.node(), [ce] {
+          ce.pointer()->complete();
+        });
     }
   }
   
