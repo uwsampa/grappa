@@ -331,9 +331,11 @@ public:
                << " size " << this->request_bytes
                << " offset " << this->offset
                << " reply to " << this->reply_address;
+      
       typename IncoherentAcquirer<T>::ReplyArgs reply_args;
       reply_args.reply_address = this->reply_address;
       reply_args.offset = this->offset;
+      
       DVLOG(5) << "Thread " << CURRENT_THREAD 
                << " sending acquire reply to " << this->reply_address
                << " offset " << this->offset
@@ -341,9 +343,12 @@ public:
                << " payload address " << this->request_address.pointer()
                << " payload size " << this->request_bytes;
       
-      Grappa::send_heap_message(this->reply_address.node(), &reply_args,
+      // note: this will read the payload *later* when the message is copied into the actual send buffer,
+      // should be okay because we're already assuming DRF, but something to watch out for
+      Grappa::send_heap_message(this->reply_address.node(), reply_args,
                        this->request_address.pointer(), this->request_bytes );
-      DVLOG(5) << "Thread " << CURRENT_THREAD 
+      
+      DVLOG(5) << "Thread " << CURRENT_THREAD
                << " sent acquire reply to " << this->reply_address
                << " offset " << this->offset
                << " request address " << this->request_address

@@ -1,5 +1,6 @@
 #pragma once
 
+#include "Communicator.hpp"
 #include "ConditionVariableLocal.hpp"
 #include "Message.hpp"
 #include "Tasking.hpp"
@@ -22,11 +23,11 @@ namespace Grappa {
     }
     
     /// Decrement count once, if count == 0, wake all waiters.
-    void complete() {
-      if (count <= 0) {
+    void complete(int64_t decr = 1) {
+      if (count-decr < 0) {
         LOG(ERROR) << "too many calls to signal()";
       }
-      count--;
+      count -= decr;
       if (count == 0) {
         broadcast(&cv);
       }
@@ -45,13 +46,20 @@ namespace Grappa {
   }
   
   /// Overload to work on GlobalAddresses.
-  inline void complete( GlobalAddress<CompletionEvent> ce ) {
+  inline void complete(GlobalAddress<CompletionEvent> ce, int64_t decr = 1) {
     if (ce.node() == mycore()) {
-      ce.pointer()->complete();
+      ce.pointer()->complete(decr);
     } else {
-      Grappa::send_heap_message(ce.node(), [ce] {
+      if (decr == 1) {
+        // (common case) don't send full 8 bytes just to decrement by 1
+        send_message(ce.node(), [ce] {
           ce.pointer()->complete();
         });
+      } else {
+        send_message(ce.node(), [ce,decr] {
+          ce.pointer()->complete(decr);
+        });
+      }
     }
   }
   
