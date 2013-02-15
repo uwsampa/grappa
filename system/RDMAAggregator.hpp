@@ -23,6 +23,29 @@
 #include "ConditionVariableLocal.hpp"
 #include "FullEmpty.hpp"
 
+#include "Statistics.hpp"
+
+DECLARE_int64( target_size );
+DECLARE_int64( flush_interval );
+
+/// stats for application messages
+GRAPPA_DECLARE_STAT( SimpleStatistic<int64_t>, app_messages_enqueue );
+GRAPPA_DECLARE_STAT( SimpleStatistic<int64_t>, app_messages_enqueue_cas );
+GRAPPA_DECLARE_STAT( SimpleStatistic<int64_t>, app_messages_immediate );
+
+/// stats for aggregated messages
+GRAPPA_DECLARE_STAT( SummarizingStatistic<int64_t>, rdma_message_bytes );
+
+/// stats for RDMA Aggregator events
+GRAPPA_DECLARE_STAT( SimpleStatistic<int64_t>, rdma_receive_start );
+GRAPPA_DECLARE_STAT( SimpleStatistic<int64_t>, rdma_receive_end );
+GRAPPA_DECLARE_STAT( SimpleStatistic<int64_t>, rdma_send_start );
+GRAPPA_DECLARE_STAT( SimpleStatistic<int64_t>, rdma_send_end );
+GRAPPA_DECLARE_STAT( SimpleStatistic<int64_t>, rdma_capacity_flushes );
+GRAPPA_DECLARE_STAT( SimpleStatistic<int64_t>, rdma_timeout_flushes );
+GRAPPA_DECLARE_STAT( SimpleStatistic<int64_t>, rdma_requested_flushes );
+
+
 namespace Grappa {
 
   typedef Node Core;
@@ -110,7 +133,7 @@ namespace Grappa {
 
       // lowest-numbered core that is on a node
       Core representative_core_;
-
+      
       Grappa::FullEmpty< ReceiveBufferInfo > remote_buffer_info_;
 
       Grappa::impl::MessageBase * received_messages_;
@@ -127,7 +150,8 @@ namespace Grappa {
 
     /// New aggregator design
     class RDMAAggregator {
-    private:
+      //private:
+    public:
       
       Core mycore_;
       Node mynode_;
@@ -154,28 +178,19 @@ namespace Grappa {
       /// Chase a list of messages and serialize them into a buffer.
       /// Modifies pointer to list to support size-limited-ish aggregation
       /// TODO: make this a hard limit?
-      char * aggregate_to_buffer( char * buffer, Grappa::impl::MessageBase ** message_ptr, size_t max = -1 );
+      char * aggregate_to_buffer( char * buffer, Grappa::impl::MessageBase ** message_ptr, size_t max = -1, size_t * count = NULL );
       
       // Deserialize and call a buffer of messages
       static char * deaggregate_buffer( char * buffer, size_t size );
 
 
-      void send_medium( Core core );
 
       /// Sender size of RDMA transmission.
-      void send_rdma( Core core );
+      void send_rdma( Core core, Grappa::impl::MessageList ml );
+      void send_medium( Core core, Grappa::impl::MessageList ml );
 
       /// task that is run to allocate space to receive a message      
       static void deaggregation_task( GlobalAddress< FullEmpty < ReceiveBufferInfo > > callback_ptr );
-
-
-      int64_t receive_start_, receive_end_
-        , send_start_
-        , send_end_
-        , messages_serialized_
-        , messages_deserialized_
-  , current_dest_  , current_src_;
-
 
     public:
 
@@ -187,14 +202,6 @@ namespace Grappa {
         , flushing_( false )
         , deserialize_buffer_handle_( -1 )
         , deserialize_first_handle_( -1 )
-        , receive_start_( 0 )
-        , receive_end_( 0 )
-        , send_start_( 0 )
-        , send_end_( 0 )
-        , messages_serialized_( 0 )
-        , messages_deserialized_( 0 )
-        , current_dest_( -1 )
-        , current_src_( -1 )
       {
       }
 
@@ -219,50 +226,87 @@ namespace Grappa {
 
       /// Enqueue message to be sent
       inline void enqueue( Grappa::impl::MessageBase * m ) {
+        app_messages_enqueue++;
+        DVLOG(4) << "Enqueued message " << m << ": " << m->typestr();
+
         // get destination pointer
-        CoreData * dest = &cores_[ m->destination_ ];
+        Core core = m->destination_;
+        CoreData * dest = &cores_[ core ];
         //Grappa::impl::MessageBase ** dest_ptr = &dest->messages_;
         Grappa::impl::MessageList * dest_ptr = &(dest->messages_);
-        Grappa::impl::MessageList old_ml, new_ml;
-        int count;
+        Grappa::impl::MessageList old_ml, new_ml, swap_ml;
+
+        // new values computed from previous totals
+        int count = 0;
+        size_t size = 0;
+        swap_ml.raw_ = 0;
+
+        bool spawn_send = false;
+
+        // prepare to stitch in message
+        set_pointer( &new_ml, m );
 
         // stitch in message
         do {
-          // set pointer in new value to current message
-          set_pointer( &new_ml, m );
-
           // read previous value
           old_ml = *dest_ptr;
 
-          // count this message
-          new_ml.count_ = count = old_ml.count_ + 1;
+          // add previous count/estimated size
+          count = 1 + old_ml.count_;
+          size = m->serialized_size();
+          if( count > 1 ) {
+            size += dest->prefetch_queue_[ ( old_ml.count_ ) % prefetch_dist ].size_;
+          }
 
-          // insert current message
-        } while( !__sync_bool_compare_and_swap( &(dest_ptr->raw_), old_ml.raw_, new_ml.raw_ ) );
+          new_ml.count_ = count; 
 
-        // append previous list to current message
-        m->next_ = get_pointer( &old_ml );
-        // set prefetch to the oldest pointer we remember
-        m->prefetch_ = get_pointer( &(dest->prefetch_queue_[ (count + 1 ) % prefetch_dist ]) );
+          // append previous list to current message
+          m->next_ = get_pointer( &old_ml );
+          // set prefetch to the oldest pointer we remember
+          // index prefetch queue by count since we haven't overwritten it in yet.
+          m->prefetch_ = get_pointer( &(dest->prefetch_queue_[ count % prefetch_dist ]) );
 
-        // now compute prefetch
-        PrefetchEntry new_pe;
-        set_pointer( &(dest->prefetch_queue_[ count % prefetch_dist ]), m );
+          spawn_send = size > FLAGS_target_size;
 
-        // and size
-        size_t size = dest->prefetch_queue_[ ( count - 1 ) % prefetch_dist ].size_ + m->size();
-        dest->prefetch_queue_[ count % prefetch_dist ].size_ = size;
+          // if it looks like we should send
+          if( spawn_send ) {
+            swap_ml.raw_ = 0; // leave the list empty
+          } else {
+            // stitch in this message
+            swap_ml = new_ml;
+          }
 
-        if( size > (1 << 17) ) {
-          flush( m->destination_ );
+          // now try to insert current message (and count attempt)
+          app_messages_enqueue_cas++;
+        } while( !__sync_bool_compare_and_swap( &(dest_ptr->raw_), old_ml.raw_, swap_ml.raw_ ) );
+
+        CHECK_NE( m, get_pointer( &old_ml ) ) << "Message already enqueued!";
+        //dump_ml( new_ml );
+
+        if( !spawn_send ) {
+          // now fill in prefetch pointer and size
+          dest->prefetch_queue_[ count % prefetch_dist ].size_ = size;
+          set_pointer( &(dest->prefetch_queue_[ count % prefetch_dist ]), m );
+        } else {
+          rdma_capacity_flushes++;
+          //Grappa::ConditionVariable cv;
+          //Grappa::privateTask( [core,new_ml,&cv] {
+          Grappa::privateTask( [core,new_ml] {
+              global_rdma_aggregator.send_rdma( core, new_ml );
+              //global_rdma_aggregator.send_medium( core, new_ml );
+              //Grappa::signal( &cv );
+            });
+          //Grappa::wait( &cv );
         }
       }
 
 
       /// send a message that will be run in active message context. This requires very limited messages.
       void send_immediate( Grappa::impl::MessageBase * m ) {
+        app_messages_immediate++;
+
         // create temporary buffer
-        const size_t size = m->size();
+        const size_t size = m->serialized_size();
         char buf[ size ] __attribute__ ((aligned (16)));
 
         // serialize to buffer
@@ -278,34 +322,69 @@ namespace Grappa {
         }
       }
 
+      void dump_ml( Grappa::impl::MessageList ml ) {
+        return;
+        Grappa::impl::MessageBase * m = get_pointer( &ml );
+        while( m ) {
+          LOG(INFO) << "Grabbed message " << m;
+          m = m->next_;
+        }
+      }
+
+      Grappa::impl::MessageList grab_messages( Core c ) {
+        Grappa::impl::MessageList * dest_ptr = &cores_[ c ].messages_;
+        Grappa::impl::MessageList old_ml, new_ml;
+
+        do {
+          // read previous value
+          old_ml = *dest_ptr;
+          new_ml.raw_ = 0;
+          // insert current message
+        } while( !__sync_bool_compare_and_swap( &(dest_ptr->raw_), old_ml.raw_, new_ml.raw_ ) );
+        //dump_ml( old_ml );
+        return old_ml;
+      }
+
       void flush( Core c ) {
-        Grappa::ConditionVariable cv;
-        // run on its own task so it has a full stack
-        Grappa::privateTask( [&cv, c, this ] {
-            send_rdma( c );
-            Grappa::signal( &cv );
-          } );
-        Grappa::wait( &cv );
+        rdma_requested_flushes++;
+
+        Grappa::impl::MessageList ml = grab_messages( c );
+        if( ml.raw_ != 0 ) {
+          Grappa::ConditionVariable cv;
+          // run on its own task so it has a full stack
+          Grappa::privateTask( [&cv, c, ml] {
+              global_rdma_aggregator.send_rdma( c, ml );
+              //global_rdma_aggregator.send_medium( c, ml );
+              Grappa::signal( &cv );
+            } );
+          Grappa::wait( &cv );
+        } 
       }
 
       void idle_flush() {
-        if( !flushing_ ) {
+        static Grappa_Timestamp last = 0;
+        Grappa_Timestamp current = Grappa_get_timestamp();
+        if( (current - last) > FLAGS_flush_interval ) {
           flushing_ = true;
-          Grappa::privateTask( [this] {
-              for( int i = 0; i < total_cores_; ++i ) {
-                if( cores_[i].messages_.raw_ != 0 ) {
-                  send_rdma( i );
-                }
-              }
-              flushing_ = false;
-            } );
+          last = current;
+          rdma_timeout_flushes++;
+          for( int i = 0; i < total_cores_; ++i ) {
+            Grappa::impl::MessageList ml = grab_messages( i );
+            if( ml.raw_ != 0 ) {
+              // run on its own task so it has a full stack
+              Grappa::privateTask( [ i, ml ] {
+                  global_rdma_aggregator.send_rdma( i, ml );
+                  //global_rdma_aggregator.send_medium( i, ml );
+                });
+            }
+          }
         }
       }
 
     };
 
     /// @}
-  };
-};
+  }
+}
 
 #endif

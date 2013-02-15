@@ -12,6 +12,8 @@
 
 #include <stdint.h>
 
+#include <glog/logging.h>
+
 #if defined(__MTA__)
 #include <sys/mta_task.h>
 #include <machine/runtime.h>
@@ -213,6 +215,21 @@ namespace Grappa {
   const char * typename_of( const T& unused ) { 
     return typename_of<T>();
   }
+
+  namespace impl {
+    // A small helper for Google logging CHECK_NULL().
+    template <typename T>
+    T* CheckNull(const char *file, int line, const char *names, T* t) {
+      if (t != NULL) {
+        google::LogMessageFatal(file, line, new std::string(names));
+      }
+      return t;
+    }
+  }
+
+#define CHECK_NULL(val)                                              \
+  Grappa::impl::CheckNull(__FILE__, __LINE__, "'" #val "' Must be non NULL", (val))
+
   
   /// @}
 
