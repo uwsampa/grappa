@@ -886,6 +886,9 @@ public:
 
 extern Aggregator global_aggregator;
 
+#ifdef ENABLE_RDMA_AGGREGATOR
+#include "Message.hpp"
+#endif
 
 /// Aggregate a message.
 ///
@@ -901,10 +904,34 @@ inline void Grappa_call_on( Node destination, void (* fn_p)(ArgsStruct *, size_t
                              const void * payload = NULL, const size_t payload_size = 0)
 {
   StateTimer::start_communication();
+// #ifdef ENABLE_RDMA_AGGREGATOR
+//   CHECK_EQ( sizeof(ArgsStruct), args_size ) << "must add special-case for nonstandard ArgsStruct usage";
+//   if( NULL == payload ) {
+//     struct Msg {
+//       ArgsStruct a_;
+//       Msg( ArgsStruct * a ) : a_( *a ) { } // copy ArgsStruct in constructor
+//       void operator()() {
+//         fn_p( &a_, sizeof(a_), NULL, 0 );
+//       }
+//     }
+//     auto m = send_heap_message( destination, Msg(args) );
+//   } else {
+//     struct Msg {
+//       ArgsStruct a_;
+//       Msg( ArgsStruct * a,  ) : a_( *a ) { } // copy ArgsStruct in constructor
+//       void operator()(void * payload, size_t size) {
+//         fn_p( &a_, sizeof(a_), payload, size );
+//       }
+//     }
+//     auto m = send_heap_message( destination, Msg(args), payload, payload_size );
+//     m->delete_payload_after_send();
+//   }
+// #else
   global_aggregator.aggregate( destination,
                                reinterpret_cast< AggregatorAMHandler >( fn_p ),
                                static_cast< const void * >( args ), args_size,
                                static_cast< const void * >( payload ), payload_size );
+// #endif
   StateTimer::stop_communication();
 }
 
@@ -917,12 +944,35 @@ inline void Grappa_call_on_x( Node destination, void (* fn_p)(ArgsStruct *, size
                                const PayloadType * payload = NULL, const size_t payload_size = 0)
 {
   StateTimer::start_communication();
+// #ifdef ENABLE_RDMA_AGGREGATOR
+//   CHECK_EQ( sizeof(ArgsStruct), args_size ) << "must add special-case for nonstandard ArgsStruct usage";
+//   if( NULL == payload ) {
+//     struct Msg {
+//       ArgsStruct a_;
+//       Msg( ArgsStruct * a ) : a_( *a ) { } // copy ArgsStruct in constructor
+//       void operator()() {
+//         fn_p( &a_, sizeof(a_), NULL, 0 );
+//       }
+//     }
+//     auto m = send_heap_message( destination, Msg(args) );
+//   } else {
+//     struct Msg {
+//       ArgsStruct a_;
+//       Msg( ArgsStruct * a,  ) : a_( *a ) { } // copy ArgsStruct in constructor
+//       void operator()( PayloadType * payload, size_t size ) {
+//         fn_p( &a_, sizeof(a_), payload, size );
+//       }
+//     }
+//     auto m = send_heap_message( destination, Msg(args), payload, payload_size );
+//     m->delete_payload_after_send();
+//   }
+// #else
   global_aggregator.aggregate( destination,
                                reinterpret_cast< AggregatorAMHandler >( fn_p ),
                                static_cast< const void * >( args ), args_size,
                                static_cast< const void * >( payload ), payload_size );
+// #endif
   StateTimer::stop_communication();
 }
-
 
 #endif
