@@ -59,10 +59,12 @@ void remove_coro( coro * c ) {
 /// spawn a new coroutine, creating a stack and everything, but
 /// doesn't run until scheduled
 coro *coro_spawn(coro *me, coro_func f, size_t ssize) {
-  coro *c = (coro*)malloc(sizeof(coro));
+  //coro *c = (coro*)malloc(sizeof(coro));
+  coro *c = (coro*)valloc(sizeof(coro));
   assert(c != NULL);
   c->running = 0;
   c->suspended = 0;
+  c->idle = false;
   c->prev = NULL;
   c->next = NULL;
 
@@ -89,22 +91,26 @@ coro *coro_spawn(coro *me, coro_func f, size_t ssize) {
   // set up coroutine to be able to run next time we're switched in
   makestack(&me->stack, &c->stack, f, c);
 
+  insert_coro( c ); // insert into debugging list of coros
+
 #ifdef CORO_PROTECT_UNUSED_STACK
   // disable writes to stack until we're swtiched in again.
   assert( 0 == mprotect( (void*)((intptr_t)c->base + 4096), ssize, PROT_READ ) );
+  assert( 0 == mprotect( (void*)(c), 4096, PROT_READ ) );
 #endif
 
   total_coros++;
-  insert_coro( c ); // insert into debugging list of coros
   return c;
 }
 
 /// Turn the currently-running pthread into a "special" coroutine.
 /// This coroutine is used only to execute spawned coroutines.
 coro *coro_init() {
-  coro *me = (coro*)malloc(sizeof(coro));
+  //coro *me = (coro*)malloc(sizeof(coro));
+  coro *me = (coro*)valloc(sizeof(coro));
   me->running = 1;
   me->suspended = 0;
+  me->idle = false;
   me->prev = NULL;
   me->next = NULL;
 
@@ -120,13 +126,19 @@ coro *coro_init() {
 
   total_coros++;
   insert_coro( me ); // insert into debugging list of coros
+
+#ifdef CORO_PROTECT_UNUSED_STACK
+  // disable writes to stack until we're swtiched in again.
+  //assert( 0 == mprotect( (void*)((intptr_t)me->base + 4096), ssize, PROT_READ ) );
+  assert( 0 == mprotect( (void*)(me), 4096, PROT_READ ) );
+#endif
+
   return me;
 }
 
 /// Tear down a coroutine
 void destroy_coro(coro *c) {
-  total_coros++;
-  remove_coro(c); // remove from debugging list of coros
+  total_coros--;
 #ifdef ENABLE_VALGRIND
   if( c->valgrind_stack_id != -1 ) {
     VALGRIND_STACK_DEREGISTER( c->valgrind_stack_id );
@@ -139,7 +151,9 @@ void destroy_coro(coro *c) {
 #ifdef CORO_PROTECT_UNUSED_STACK
     // enable writes to stack so we can deallocate
     assert( 0 == mprotect( (void*)((intptr_t)c->base + 4096), c->ssize, PROT_READ | PROT_WRITE ) );
+    assert( 0 == mprotect( (void*)(c), 4096, PROT_READ | PROT_WRITE ) );
 #endif
+    remove_coro(c); // remove from debugging list of coros
     free(c->base);
   }
   free(c);

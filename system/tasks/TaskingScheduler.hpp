@@ -552,6 +552,7 @@ inline bool TaskingScheduler::thread_idle( uint64_t total_idle ) {
   }
 
   num_idle++;
+  current_thread->co->idle = true;
 
   unassigned( current_thread );
 
@@ -559,6 +560,7 @@ inline bool TaskingScheduler::thread_idle( uint64_t total_idle ) {
 
   // woke so decrement idle counter
   num_idle--;
+  current_thread->co->idle = false;
 
   return true;
 }
