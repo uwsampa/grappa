@@ -5,7 +5,7 @@ require '../../experiment_utils'
 db = "uts-compare-test.db"
 table = :uts_mem_compare
 
-cmd = "GASNET_PHYSMEM_MAX=1024M srun --resv-ports --partition=grappa --cpu_bind=verbose --task-prolog=.srunrc.upc \
+cmd = "GASNET_PHYSMEM_MAX=1024M srun --resv-ports --partition=grappa --cpu_bind=verbose --task-prolog=srunrc.upc \
 -N%{nnode} \
 -n%{nproc} \
 ./%{uts_upc_version} \
