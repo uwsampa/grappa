@@ -143,17 +143,6 @@ class TaskingScheduler : public Scheduler {
           return result;
         }
 
-        // check ready tasks
-        result = readyQ.dequeue();
-        if (result != NULL) {
-          readyQ.prefetch();
-          //    DVLOG(5) << current_thread->id << " scheduler: pick ready";
-          stats.state_timers[ stats.prev_state ] += (current_ts - prev_ts) / tick_scale;
-          stats.prev_state = TaskingSchedulerStatistics::StateReady;
-          prev_ts = current_ts;
-          return result;
-        }
-
         // check if scheduler is allowed to have more active workers
         if (num_active_tasks < max_allowed_active_workers) {
           // check for new workers
@@ -167,8 +156,20 @@ class TaskingScheduler : public Scheduler {
           }
         }
 
+        // check ready tasks
+        result = readyQ.dequeue();
+        if (result != NULL) {
+          readyQ.prefetch();
+          //    DVLOG(5) << current_thread->id << " scheduler: pick ready";
+          stats.state_timers[ stats.prev_state ] += (current_ts - prev_ts) / tick_scale;
+          stats.prev_state = TaskingSchedulerStatistics::StateReady;
+          prev_ts = current_ts;
+          return result;
+        }
+
         if (FLAGS_poll_on_idle) {
           stats.state_timers[ stats.prev_state ] += (current_ts - prev_ts) / tick_scale;
+          Grappa::impl::idle_flush_rdma_aggregator();
           if ( global_aggregator.idle_flush_poll() ) {
             stats.prev_state = TaskingSchedulerStatistics::StateIdleUseful;
           } else {
