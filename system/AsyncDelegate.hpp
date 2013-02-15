@@ -1,7 +1,7 @@
 #pragma once
 
+#include "Communicator.hpp"
 #include "PoolAllocator.hpp"
-#include "Grappa.hpp"
 #include "FullEmpty.hpp"
 #include "LegacyDelegate.hpp"
 #include <type_traits>

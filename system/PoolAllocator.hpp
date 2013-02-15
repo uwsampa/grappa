@@ -11,7 +11,7 @@ namespace Grappa {
     size_t allocated;
   protected:
     Base* allocate(size_t sz) {
-      LOG(ERROR) << "allocating " << sz;
+      DVLOG(4) << "allocating " << sz;
       Base* p = reinterpret_cast<Base*>(buffer+allocated);
       allocated += sz;
       
