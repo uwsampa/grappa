@@ -2,6 +2,8 @@
 #include "MessageBase.hpp"
 #include "MessageBaseImpl.hpp"
 
+#include "ConditionVariable.hpp"
+
 namespace Grappa {
 
   /// Internal messaging functions
@@ -19,8 +21,16 @@ namespace Grappa {
       // if enqueued, block until message is sent
       while( is_enqueued_ && !is_sent_ ) {
         DVLOG(5) << this << " blocking until sent";
+        // LOG(INFO) << this << " on " << global_scheduler.get_current_thread()
+        //           << " blocking until sent with is_enqueued_=" << is_enqueued_ << " and is_sent_=" << is_sent_
+        //           << "; existing: " << (void*) cv_.waiters_;
+        //Grappa::wait( &cv_, &mutex_ );
         Grappa::wait( &cv_ );
+        // LOG(INFO) << this << " on " << global_scheduler.get_current_thread()
+        //           << " woke with is_enqueued_=" << is_enqueued_ << " and is_sent_=" << is_sent_
+        //           << "; existing: " << (void*) cv_.waiters_;
         DVLOG(5) << this << " woken";
+        if( last_woken_ == global_scheduler.get_current_thread() ) last_woken_ = NULL;
       }
     }
 
