@@ -15,10 +15,6 @@
 #include "StateTimer.hpp"
 #include "Communicator.hpp"
 
-#include <boost/type_traits/remove_pointer.hpp>
-#include <boost/typeof/typeof.hpp>
-#include <boost/static_assert.hpp>
-
 #ifdef GRAPPA_TRACE
 #include <TAU.h>
 #endif
@@ -26,8 +22,6 @@
 #ifdef VTRACE
 #include <vt_user.h>
 #endif
-
-#define STATIC_ASSERT_SIZE_8( type ) BOOST_STATIC_ASSERT( sizeof(type) == 8 )
 
 extern TaskManager global_task_manager;
 
@@ -134,9 +128,9 @@ namespace Grappa {
 /// @param arg2 third task argument
 template < typename A0, typename A1, typename A2 >
 void Grappa_privateTask( void (*fn_p)(A0,A1,A2), A0 arg0, A1 arg1, A2 arg2 ) {
-  STATIC_ASSERT_SIZE_8( A0 );
-  STATIC_ASSERT_SIZE_8( A1 );
-  STATIC_ASSERT_SIZE_8( A2 );
+  static_assert(sizeof(A0) <= 8, "argument larger than 8 bytes");
+  static_assert(sizeof(A1) <= 8, "argument larger than 8 bytes");
+  static_assert(sizeof(A2) <= 8, "argument larger than 8 bytes");
   DVLOG(5) << "Thread " << global_scheduler.get_current_thread() << " spawns private";
   global_task_manager.spawnLocalPrivate( fn_p, arg0, arg1, arg2 );
 }
@@ -180,9 +174,9 @@ inline void Grappa_privateTask( void (*fn_p)(T), T arg) {
 template < typename A0, typename A1, typename A2 >
 void Grappa_publicTask( void (*fn_p)(A0, A1, A2), A0 arg0, A1 arg1, A2 arg2) 
 {
-  STATIC_ASSERT_SIZE_8( A0 );
-  STATIC_ASSERT_SIZE_8( A1 );
-  STATIC_ASSERT_SIZE_8( A2 );
+  static_assert(sizeof(A0) <= 8, "argument larger than 8 bytes");
+  static_assert(sizeof(A1) <= 8, "argument larger than 8 bytes");
+  static_assert(sizeof(A2) <= 8, "argument larger than 8 bytes");
   DVLOG(5) << "Thread " << global_scheduler.get_current_thread() << " spawns public";
   global_task_manager.spawnPublic( fn_p, arg0, arg1, arg2 );
 }
@@ -246,7 +240,7 @@ extern Thread * master_thread;
 template < typename A >
 int Grappa_run_user_main( void (*fp)(A), A args )
 {
-  STATIC_ASSERT_SIZE_8( A );
+  static_assert(sizeof(A) <= 8, "argument larger than 8 bytes");
   
 #ifdef GRAPPA_TRACE  
   TAU_PROFILE("run_user_main()", "(user code entry)", TAU_USER);
@@ -321,9 +315,9 @@ static void remote_task_spawn_am( remote_task_spawn_args<A0,A1,A2> * args, size_
 /// @param target Node to spawn the task on
 template< typename A0, typename A1, typename A2 >
 void Grappa_remote_privateTask( void (*fn_p)(A0,A1,A2), A0 arg0, A1 arg1, A2 arg2, Node target) {
-  STATIC_ASSERT_SIZE_8( A0 );
-  STATIC_ASSERT_SIZE_8( A1 );
-  STATIC_ASSERT_SIZE_8( A2 );
+  static_assert(sizeof(A0) <= 8, "argument larger than 8 bytes");
+  static_assert(sizeof(A1) <= 8, "argument larger than 8 bytes");
+  static_assert(sizeof(A2) <= 8, "argument larger than 8 bytes");
 
   remote_task_spawn_args<A0,A1,A2> spawn_args = { fn_p, arg0, arg1, arg2 };
   Grappa_call_on( target, Grappa_magic_identity_function(&remote_task_spawn_am<A0,A1,A2>), &spawn_args );

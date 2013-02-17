@@ -21,6 +21,8 @@
 
 #include <boost/static_assert.hpp>
 #include <boost/type_traits/is_base_of.hpp>
+#include <boost/type_traits/remove_pointer.hpp>
+#include <boost/typeof/typeof.hpp>
 #include <boost/preprocessor/seq/enum.hpp>
 #include <boost/preprocessor/empty.hpp>
 #include <boost/preprocessor/seq/transform.hpp>
