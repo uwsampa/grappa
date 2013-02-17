@@ -23,9 +23,6 @@ endif
 COMMON=../common
 CFLAGS+= -I$(COMMON) -std=c++11 -Winline -Wno-inline
 
-# TODO: verify that this is not a problem and remove:
-CFLAGS+= -mno-red-zone
-
 # TODO: see if we can make this apply to just our files, not user files or libraries
 #CFLAGS+= -Wconversion
 
@@ -45,6 +42,36 @@ LD_LIBRARY_PATH:=$(LD_LIBRARY_PATH):$(BOOST)/stage/lib
 # CXX=g++
 # LD=mpiCC
 
+# define to build on PAL cluster
+# should load modules:
+#   module unload pathscale openmpi
+#   module load git gcc/4.6.2 openmpi
+
+MACHINENAME:=$(shell hostname)
+ifeq ($(MACHINENAME), pal.local)
+PAL=true
+endif
+
+CC=gcc
+CXX=g++
+LD=g++
+
+
+# TODO: verify that this is not a problem and remove:
+ifndef PAL
+CFLAGS+= -mno-red-zone
+endif
+
+ifdef CLANG
+CLANG_HOME=/sampa/home/bholt/grappac/deps
+CC=$(CLANG_HOME)/bin/clang
+CXX=$(CLANG_HOME)/bin/clang++
+LD=$(CLANG_HOME)/bin/clang++ -I/usr/include/openmpi-x86_64 -pthread -m64 -L/usr/lib64/openmpi/lib -lmpi_cxx -lmpi -ldl
+LD_LIBRARY_PATH:=$(CLANG_HOME)/lib64:$(LD_LIBRARY_PATH)
+
+else
+ifndef PAL
+
 GCC472=/sampa/share/gcc-4.7.2/rtf
 CC=$(GCC472)/bin/gcc
 CXX=$(GCC472)/bin/g++
@@ -56,16 +83,9 @@ NONE_CC=$(CC)
 NONE_CXX=$(CXX)
 NONE_LD=$(LD)
 
+endif # PAL
+endif # CLANG
 
-# define to build on PAL cluster
-# should load modules:
-#   module unload pathscale openmpi
-#   module load git gcc/4.6.2 openmpi
-
-MACHINENAME:=$(shell hostname)
-ifeq ($(MACHINENAME), pal.local)
-PAL=true
-endif
 
 ifdef PAL
 NELSON=/pic/people/nels707
@@ -188,10 +208,17 @@ SHMMAX?=12884901888
 # defaults are for sampa cluster
 
 # include this first to override system default if necessary
-BOOST?=/sampa/share/gcc-4.7.2/src/boost_1_51_0
-CFLAGS+= -I$(BOOST)/boost
+
+ifndef PAL
+BOOST=/sampa/share/gcc-4.7.2/src/boost_1_51_0
+CFLAGS+= -I$(BOOST)
 LDFLAGS+= -L$(BOOST)/stage/lib
 LD_LIBRARY_PATH:=$(LD_LIBRARY_PATH):$(BOOST)/stage/lib
+else
+CFLAGS+= -I$(BOOST)/include
+LDFLAGS+= -L$(BOOST)/lib
+LD_LIBRARY_PATH:=$(LD_LIBRARY_PATH):$(BOOST)/lib
+endif	
 
 ifdef GASNET_TRACING
 GASNET:=/sampa/share/gasnet-1.18.2-tracing
@@ -300,38 +327,41 @@ SBATCH_MPIRUN_EXPORT_ENV_VARIABLES=$(patsubst %,-x %,$(patsubst DELETEME:%,,$(su
 .sbatch.%:
 	@echo '#!/bin/bash' > $@
 	@for i in $(ENV_VARIABLES); do echo "export $$i" >> $@; done
-ifdef PAL	
-	@echo '# Make scratch directory'  >> $@
-	@echo 'mkdir -p $(SBATCH_SCRATCH_DIR)' >> $@
-	@echo 'srun --ntasks-per-node=1 --ntasks=$(NNODE) mkdir -p $(SBATCH_SCRATCH_DIR)' >> $@
-#	@echo 'srun bash -c "hostname; ls -ld $(SBATCH_SCRATCH_DIR)"' >> $@
-	@echo '# Copy libraries to scratch directory' >> $@
-	@echo 'LIBS_TO_COPY=$$( ldd $$1 | egrep -v linux-vdso\.so\|ld-linux\|"> /lib64" | sed "s/.*> \(.*\) (.*/\\1/" )' >> $@
-	@echo 'for i in $$LIBS_TO_COPY; do sbcast $(SBATCH_FORCE_COPY_LIBS) $${i} $(SBATCH_SCRATCH_DIR)/$${i/*\//}; done' >> $@
-	@echo 'for i in $$LIBS_TO_COPY; do cp $${i} $(SBATCH_SCRATCH_DIR)/$${i/*\//}; done' >> $@
-	@echo 'export LD_LIBRARY_PATH=$(SBATCH_SCRATCH_DIR)' >> $@
-	@echo '# Reformat command and (force) copy binary to scratch directory' >> $@
-	@echo 'export CMD=$${*/.\//$(SBATCH_SCRATCH_DIR)\/}' >> $@
-	@echo 'export BINARY=$${1/.\//$(SBATCH_SCRATCH_DIR)\/}' >> $@
-	@echo 'sbcast -f $(SBATCH_FORCE_COPY_LIBS) $$1 $$BINARY' >> $@
-	@echo 'cp -f $(SBATCH_FORCE_COPY_LIBS) $$1 $$BINARY' >> $@
-	@echo '# Copy mpirun to scratch directory' >> $@
-	@echo 'export SYSTEM_MPIRUN=`which mpirun`' >> $@
-	@echo 'export MPIRUN=$${SYSTEM_MPIRUN/*\//$(SBATCH_SCRATCH_DIR)\/}' >> $@
-	@echo 'sbcast $(SBATCH_FORCE_COPY_LIBS) $$SYSTEM_MPIRUN $$MPIRUN' >> $@
-	@echo 'cp $(SBATCH_FORCE_COPY_LIBS) $$SYSTEM_MPIRUN $$MPIRUN' >> $@
-#	@echo 'echo $$CMD' >> $@
-#	@echo 'ldd $$1' >> $@
-#	@echo 'ldd `which mpirun`' >> $@
-#	@echo mpirun $(SBATCH_MPIRUN_EXPORT_ENV_VARIABLES) -bind-to-core -report-bindings -tag-output -- $(MY_TAU_RUN) \$$* >> $@
-	@echo '# Run!' >> $@
-	@echo '$(SBATCH_SCRATCH_DIR)/mpirun $(SBATCH_MPIRUN_EXPORT_ENV_VARIABLES) -bind-to-core -tag-output -- $(MY_TAU_RUN) $$CMD' >> $@
-else
+# ifdef PAL	
+# 	@echo '# Make scratch directory'  >> $@
+# 	@echo 'mkdir -p $(SBATCH_SCRATCH_DIR)' >> $@
+# 	@echo 'srun --ntasks-per-node=1 --ntasks=$(NNODE) mkdir -p $(SBATCH_SCRATCH_DIR)' >> $@
+# #	@echo 'srun bash -c "hostname; ls -ld $(SBATCH_SCRATCH_DIR)"' >> $@
+# 	@echo '# Copy libraries to scratch directory' >> $@
+# 	@echo 'LIBS_TO_COPY=$$( ldd $$1 | egrep -v linux-vdso\.so\|ld-linux\|"> /lib64" | sed "s/.*> \(.*\) (.*/\\1/" )' >> $@
+# 	@echo 'for i in $$LIBS_TO_COPY; do sbcast $(SBATCH_FORCE_COPY_LIBS) $${i} $(SBATCH_SCRATCH_DIR)/$${i/*\//}; done' >> $@
+# 	@echo 'for i in $$LIBS_TO_COPY; do cp $${i} $(SBATCH_SCRATCH_DIR)/$${i/*\//}; done' >> $@
+# 	@echo 'export LD_LIBRARY_PATH=$(SBATCH_SCRATCH_DIR)' >> $@
+# 	@echo '# Reformat command and (force) copy binary to scratch directory' >> $@
+# 	@echo 'export CMD=$${*/.\//$(SBATCH_SCRATCH_DIR)\/}' >> $@
+# 	@echo 'export BINARY=$${1/.\//$(SBATCH_SCRATCH_DIR)\/}' >> $@
+# 	@echo 'sbcast -f $(SBATCH_FORCE_COPY_LIBS) $$1 $$BINARY' >> $@
+# 	@echo 'cp -f $(SBATCH_FORCE_COPY_LIBS) $$1 $$BINARY' >> $@
+# 	@echo '# Copy mpirun to scratch directory' >> $@
+# 	@echo 'export SYSTEM_MPIRUN=`which mpirun`' >> $@
+# 	@echo 'export MPIRUN=$${SYSTEM_MPIRUN/*\//$(SBATCH_SCRATCH_DIR)\/}' >> $@
+# 	@echo 'sbcast $(SBATCH_FORCE_COPY_LIBS) $$SYSTEM_MPIRUN $$MPIRUN' >> $@
+# 	@echo 'cp $(SBATCH_FORCE_COPY_LIBS) $$SYSTEM_MPIRUN $$MPIRUN' >> $@
+# #	@echo 'echo $$CMD' >> $@
+# #	@echo 'ldd $$1' >> $@
+# #	@echo 'ldd `which mpirun`' >> $@
+# #	@echo mpirun $(SBATCH_MPIRUN_EXPORT_ENV_VARIABLES) -bind-to-core -report-bindings -tag-output -- $(MY_TAU_RUN) \$$* >> $@
+# 	@echo '# Run!' >> $@
+# 	# @echo 'export GASNET_IBV_SPAWNER=mpi' >> $@
+# 	# @echo 'echo srun $(MY_TAU_RUN) $$CMD' >> $@
+# 	@echo 'echo mpirun -bind-to-core -tag-output -- $(MY_TAU_RUN) $$CMD' >> $@
+# 	@echo 'srun $(MY_TAU_RUN) $$CMD' >> $@
+# else
 	@echo '# Run!' >> $@
 	@echo 'mpirun -npernode 1 bash -c "ipcs -m | grep $(USER) | cut -d\  -f1 | xargs -n1 -r ipcrm -M"' >> $@
-	@echo 'mpirun $(SBATCH_MPIRUN_EXPORT_ENV_VARIABLES) -bind-to-core -tag-output -- $(MY_TAU_RUN) $$*' >> $@
+	@echo 'mpirun $(SBATCH_MPIRUN_EXPORT_ENV_VARIABLES) -bind-to-core -report-bindings -tag-output -- $(MY_TAU_RUN) $$*' >> $@
 	@echo 'mpirun -npernode 1 bash -c "ipcs -m | grep $(USER) | cut -d\  -f1 | xargs -n1 -r ipcrm -M"' >> $@
-endif
+# endif
 	@echo '# Clean up any leftover shared memory regions' >> $@
 	@echo 'for i in `ipcs -m | grep $(USER) | cut -d" " -f1`; do ipcrm -M $$i; done' >> $@
 	@chmod +x $@

@@ -38,7 +38,7 @@ make install
 cd ..
 
 cd VampirTrace-5.12.2
-./configure --prefix=`pwd`/../built_deps
+./configure --prefix=`pwd`/../built_deps --disable-cudawrap
 make clean
 make -j
 make install
