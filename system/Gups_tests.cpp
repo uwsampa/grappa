@@ -25,11 +25,8 @@ DEFINE_int64( sizeA, 1024, "Size of array that gups increments" );
 DEFINE_bool( rdma, false, "Use RDMA aggregator" );
 
 
-GRAPPA_DECLARE_STAT( SimpleStatistic<int64_t>, rdma_messages_sent );
-GRAPPA_DECLARE_STAT( SimpleStatistic<int64_t>, rdma_bytes_sent );
-GRAPPA_DECLARE_STAT( SimpleStatistic<double>, rdma_average_message_size );
-
 const int outstanding = 1 << 4;
+//const int outstanding = 1 << 10;
 
 struct C {
   GlobalAddress< Grappa::CompletionEvent > ce;
@@ -41,7 +38,7 @@ struct C {
   }
 };
 size_t current_completion = 0;
-int completion_counts[ outstanding ] = { 0 };
+int64_t completion_counts[ outstanding ] = { 0 };
 Grappa::Mutex completion_locks[ outstanding ];
 Grappa::Message< C > completions[ outstanding ];
 
@@ -63,12 +60,20 @@ struct M {
       } else {
         CHECK_LT( current_completion, FLAGS_iterations ) << "index exploded!";
         //Grappa::lock( &completion_locks[ current_completion % outstanding ] );
-        completions[ current_completion % outstanding ].reset();
-        completions[ current_completion % outstanding ]->ce = ce;
-        completions[ current_completion % outstanding ].enqueue( ce.node() );
-        //Grappa::unlock( &completion_locks[ current_completion % outstanding ] );
+
+        // grab this guy's message
+        Grappa::Message<C> * c = &completions[ current_completion % outstanding ];
+        int64_t * count = &completion_counts[ current_completion % outstanding ];
         current_completion++;
-        completion_counts[ current_completion % outstanding ]++;
+
+        // fill it in
+        c->reset();
+        (*c)->ce = ce;
+        c->enqueue( ce.node() );
+
+        // count it
+        (*count)++;
+        //Grappa::unlock( &completion_locks[ current_completion % outstanding ] );
         //GlobalAddress< Grappa::CompletionEvent > ce2 = ce;
         // auto m = Grappa::send_heap_message(ce.node(), [ce2] {
         //     ce2.pointer()->complete();
@@ -157,14 +162,6 @@ LOOP_FUNCTION( func_gups_rdma, index ) {
   LOG(INFO) << "Initializing....";
   ce.enroll( each_iters );
     
-  for( Grappa::Message<M> & m : msgs ) {
-    m.reset();
-  }
-
-  for( Grappa::Message<C> & m : completions ) {
-    m.reset();
-  }
-
     //Grappa::Message<M> msgs[ outstanding ];
     
     LOG(INFO) << "Starting RDMA GUPS";
@@ -172,10 +169,13 @@ LOOP_FUNCTION( func_gups_rdma, index ) {
       CHECK_LT( index, FLAGS_iterations ) << "index exploded!";
       uint64_t b = (index * LARGE_PRIME) % 1023; //FLAGS_sizeA;
       auto a = Array + b;
-      msgs[ index % outstanding ].reset();
-      msgs[ index % outstanding ]->addr = a;
-      msgs[ index % outstanding ]->ce = make_global( &ce );
-      msgs[ index % outstanding ].enqueue( a.node() );
+
+      Grappa::Message<M> * m = &msgs[ index % outstanding ];
+
+      m->reset();
+      (*m)->addr = a;
+      (*m)->ce = make_global( &ce );
+      m->enqueue( a.node() );
     }
 
   }
