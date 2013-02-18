@@ -136,6 +136,7 @@ static void sigabrt_sighandler( int signum ) {
 
 // function to call when google logging library detect a failure
 static void failure_function() {
+  google::FlushLogFiles(google::GLOG_INFO);
   gasnett_print_backtrace_ifenabled(STDERR_FILENO);
   gasnett_freezeForDebuggerErr();
   gasnet_exit(1);
