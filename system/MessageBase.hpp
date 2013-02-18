@@ -190,8 +190,15 @@ namespace Grappa {
 
 
       virtual void reset() {
+        if( reset_count_ > 0 ) {
+          DCHECK_EQ( is_enqueued_, true ) << this << " on " << global_scheduler.get_current_thread()
+                                          << " how did we end up with is_enqueued_=" << is_enqueued_ << " and is_sent_= " << is_sent_
+                                          << " without a reset call?";
+        }
         reset_count_++;
         //Grappa::lock( &mutex_ );
+        DVLOG(5) << this << " on " << global_scheduler.get_current_thread()
+                 << " entering reset with is_enqueued_=" << is_enqueued_ << " and is_sent_= " << is_sent_;
         if( interesting() ) {
           LOG(INFO) << this << " on " << global_scheduler.get_current_thread()
                     << " reset with is_enqueued_=" << is_enqueued_ << " and is_sent_= " << is_sent_
@@ -200,6 +207,8 @@ namespace Grappa {
         if( is_enqueued_ ) {
           block_until_sent();
         }
+        DVLOG(5) << this << " on " << global_scheduler.get_current_thread()
+                 << " doing reset with is_enqueued_=" << is_enqueued_ << " and is_sent_= " << is_sent_;
         next_ = NULL;
         prefetch_ = NULL;
         destination_ =  -1;
