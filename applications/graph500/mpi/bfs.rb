@@ -10,18 +10,20 @@ Igor do
   database '~/exp/sosp-test.db', :bfs
 
   # isolate everything needed for the executable so we can sbcast them for local execution
-  isolate("graph500_mpi_simple", File.dirname(__FILE__))
+  isolate(%w[simple replicated replicated_csc].map{|v| "graph500_mpi_#{v}"},
+          File.dirname(__FILE__))
   
-  command "#{$srun} %{tdir}/graph500_mpi_simple %{scale} %{edgefactor}"
+  command "#{$srun} %{tdir}/graph500_mpi_%{mpibfs} %{scale} %{edgefactor}"
   
   params {
+    mpibfs      'simple'
     nnode       2
     ppn         1
-    scale       16
+    scale       20
     edgefactor  16
   }
-  
-  
+    
   $filtered = results{|t| t.select(:id, :mpibfs, :scale, :nnode, :ppn, :run_at, :min_time, :max_teps) }
+  
   interact # enter interactive mode
 end
