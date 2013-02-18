@@ -7,12 +7,63 @@
 
 require 'igor'
 
-$GLOG_FLAGS = "GLOG_logtostderr=1 GLOG_v=1"
+module Isolatable
+  extend self # (so all methods become class methods, like Igor module)
+  
+  def self.included(base) # do stuff when 'include Isolate' is called
+    base.extend(self) # add all of this module's definitions to base module
+  end
+  
+  def isolate(exes, shared_dir=nil)
+    @isolate_called = true
+    
+    # set aside copy of executable and its libraries
+    # ldir = "/scratch/#{ENV['USER']}/igor/#{Process.pid}"
+    @ldir = "#{File.expand_path File.dirname(__FILE__)}/.igor/#{Process.pid}"
+    FileUtils.mkdir_p(@ldir)
+    
+    exes = [exes] unless exes.is_a? Array
+    exes.each do |exe|
+      FileUtils.cp(exe, @ldir)
+      libs = `bash -c "LD_LIBRARY_PATH=#{$GRAPPA_LIBPATH} ldd #{exe}"`
+                .split(/\n/)
+                .map{|s| s[/.*> (.*) \(.*/,1] }
+                .select{|s| s != nil and s != "" and
+                  not(s[/linux-vdso\.so|ld-linux|^\/lib64/]) }
+                .each {|l| FileUtils.cp(l, @ldir) }
+    end
+    # copy system mpirun
+    # FileUtils.cp(`which mpirun`, "#{ldir}/mpirun")
+    `cp $(which mpirun) #{@ldir}/mpirun`
+    puts 'done with setup'
+  end
 
-$GRAPPA_LIBPATH = "/sampa/home/bholt/grappa-beta/tools/built_deps/lib:/usr/lib64/openmpi/lib:/sampa/share/boost_1_51_0/lib"
+  def run(&blk)
+    if not @isolate_called
+      raise "Error: included Isolatable, but didn't call isolate()."
+    end
+    
+    super(&blk)
+  end
 
-$GASNET_FLAGS = "GASNET_BACKTRACE=1 GASNET_FREEZE_SIGNAL=SIGUSR1 GASNET_FREEZE_ON_ERROR=1 GASNET_FREEZE=0 GASNET_NETWORKDEPTH_PP=96 GASNET_NETWORKDEPTH_TOTAL=1024 GASNET_AMCREDITS_PP=48 GASNET_PHYSMEM_MAX=1024M"
-
+  # redefine commmand to sbcast things over and call from isolated directory
+  def command(c=nil)
+    tdir = "/scratch/#{ENV['USER']}/igor/#{Process.pid}"
+  
+    return super(%Q[
+        if [[ ! -d "#{tdir}" ]]; then 
+          srun mkdir -p #{tdir};
+          ls #{tdir};
+          echo $(hostname);
+          for l in $(ls #{@ldir}); do
+            echo $l; sbcast #{@ldir}/$l #{tdir}/${l};
+          done;
+        fi;
+        cd #{tdir};
+        #{c}
+      ].tr("\n"," "))
+  end
+end
 
 Igor do
   params { machine "sampa" }
