@@ -28,6 +28,8 @@ namespace Grappa {
       CHECK_EQ( is_enqueued_, false ) << "Why are we enqueuing a message that's already enqueued?";
       CHECK_EQ( is_sent_, false ) << "Why are we enqueuing a message that's already sent?";
       is_enqueued_ = true;
+      DVLOG(5) << this << " on " << global_scheduler.get_current_thread()
+               << " enqueuing with is_enqueued_=" << is_enqueued_ << " and is_sent_= " << is_sent_;
       if( interesting() ) {
         LOG(INFO) << this << " on " << global_scheduler.get_current_thread()
                   << " enqueued";
