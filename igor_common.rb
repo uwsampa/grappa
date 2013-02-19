@@ -38,19 +38,20 @@ module Isolatable
     puts 'done with setup'
   end
 
-  def run(&blk)
+  def run(opts={}, &blk)
     if not @isolate_called
       raise "Error: included Isolatable, but didn't call isolate()."
     end
     
-    super(&blk)
+    super(opts, &blk)
   end
 
   # redefine commmand to sbcast things over and call from isolated directory
   def command(c=nil)
-    tdir = "/scratch/#{ENV['USER']}/igor/#{Process.pid}"
-  
-    return super(%Q[
+    if c
+      tdir = "/scratch/#{ENV['USER']}/igor/#{Process.pid}"
+      @params[:tdir] = tdir
+      c = %Q[
         if [[ ! -d "#{tdir}" ]]; then 
           srun mkdir -p #{tdir};
           ls #{tdir};
@@ -59,9 +60,10 @@ module Isolatable
             echo $l; sbcast #{@ldir}/$l #{tdir}/${l};
           done;
         fi;
-        cd #{tdir};
         #{c}
-      ].tr("\n"," "))
+      ].tr("\n "," ")
+    end
+    return super(c)
   end
 end
 
