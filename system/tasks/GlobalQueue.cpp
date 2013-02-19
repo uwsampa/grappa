@@ -2,7 +2,7 @@
 
 using namespace Grappa::Statistics;
 
-GlobalQueueStatistics global_queue_stats;
+GlobalQueueStatistics Grappa::Statistics::global_queue_stats;
 
 GlobalQueueStatistics::GlobalQueueStatistics() 
 #ifdef VTRACE_SAMPLED

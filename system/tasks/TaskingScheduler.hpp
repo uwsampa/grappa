@@ -31,6 +31,7 @@ DECLARE_int64( stats_blob_ticks );
 
 
 //#include "Statistics.hpp"
+void Grappa_dump_stats_blob();
 
 // forward-declare aggregator flush
 namespace Grappa {
@@ -42,7 +43,6 @@ namespace Grappa {
   namespace Statistics { 
     void sample_all(); 
     extern bool take_profiling_sample;
-    void Grappa_dump_stats_blob();
   } // namespace Statistics
 
   namespace impl {
@@ -134,7 +134,7 @@ class TaskingScheduler : public Scheduler {
         if( ( global_communicator.mynode() == 0 ) &&
             ( current_ts - prev_stats_blob_ts > FLAGS_stats_blob_ticks)  ) {
           prev_stats_blob_ts = current_ts;
-          Grappa::Statistics::Grappa_dump_stats_blob();
+          Grappa_dump_stats_blob();
         }
 
         // check for periodic tasks

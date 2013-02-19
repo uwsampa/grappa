@@ -37,6 +37,9 @@
 
 GRAPPA_DECLARE_EVENT_GROUP(scheduler);
 
+// Load balancing parameter
+DECLARE_int32( chunk_size );
+
 #define SS_NSTATES 1
 
 
@@ -615,7 +618,6 @@ void StealQueue<T>::workShareRequest_am ( workShareRequest_args * args, size_t a
   steal_queue.workShareRequest( args->queueSize, args->from, static_cast<T*>( payload ), args->amountPushed );
 }
 
-DECLARE_int32( chunk_size );
 template <typename T>
 void StealQueue<T>::workShareRequest( uint64_t remoteSize, Node from, T * data, int num ) {
   uint64_t mySize = depth();
