@@ -530,7 +530,7 @@ int StealQueue<T>::steal_locally( Node victim, int op ) {
 
 struct workShareRequest_args {
   uint64_t queueSize;
-  int amountPushed;
+  uint64_t amountPushed;
   Node from;
 };
 
