@@ -9,7 +9,6 @@
 
 #include <iostream>
 #include <deque>
-#include "StealQueue.hpp"
 #include "Thread.hpp"
 #include "StatisticsTools.hpp"
 
@@ -19,10 +18,6 @@
 #ifdef VTRACE_SAMPLED
 #include <vt_user.h>
 #endif
-
-
-/// local queue for being part of global task pool
-#define publicQ StealQueue<Task>::steal_queue
 
 
 namespace Grappa {
@@ -148,10 +143,11 @@ class TaskManager {
     /// also try.
     bool sharedMayHaveWork;
 
+    /// Push public task
+    void push_public_task( Task t );
+
     /// @return true if local shared queue has elements
-    bool publicHasEle() const {
-      return publicQ.depth() > 0;
-    }
+    bool publicHasEle() const;
 
     /// @return true if Node-private queue has elements
     bool privateHasEle() const {
@@ -175,17 +171,7 @@ class TaskManager {
     /// @param o existing output stream to append to
     /// 
     /// @return new output stream 
-    std::ostream& dump( std::ostream& o = std::cout, const char * terminator = "" ) const {
-      return o << "\"TaskManager\": {" << std::endl
-        << "  \"publicQ\": " << publicQ.depth( ) << std::endl
-        << "  \"privateQ\": " << privateQ.size() << std::endl
-        << "  \"work-may-be-available?\" " << available() << std::endl
-        << "  \"sharedMayHaveWork\": " << sharedMayHaveWork << std::endl
-        << "  \"workDone\": " << workDone << std::endl
-        << "  \"stealLock\": " << stealLock << std::endl
-        << "  \"wshareLock\": " << wshareLock << std::endl
-        << "}" << terminator << std::endl;
-    }
+    std::ostream& dump( std::ostream& o = std::cout, const char * terminator = "" ) const;
 
   public:
     class TaskStatistics {
@@ -445,9 +431,9 @@ inline bool TaskManager::local_available( ) const {
 template < typename A0, typename A1, typename A2 > 
 inline void TaskManager::spawnPublic( void (*f)(A0, A1, A2), A0 arg0, A1 arg1, A2 arg2 ) {
   Task newtask = createTask(f, arg0, arg1, arg2 );
-  publicQ.push( newtask );
-
+  push_public_task( newtask );
 }
+
 
 /// Create a task in the local private task pool.
 /// Should NOT be called from the context of an AM handler.
