@@ -45,6 +45,9 @@ DEFINE_string( stats_blob_filename, "stats.json", "Stats blob filename" );
 DEFINE_uint64( io_blocks_per_node, 4, "Maximum number of asynchronous IO operations to issue concurrently per node.");
 DEFINE_uint64( io_blocksize_mb, 4, "Size of each asynchronous IO operation's buffer." );
 
+using namespace Grappa::impl;
+using namespace Grappa::Statistics;
+
 static Thread * barrier_thread = NULL;
 
 Thread * master_thread;
@@ -75,8 +78,8 @@ void legacy_profiling_sample() {
   cache_stats.profiling_sample();
   incoherent_acquirer_stats.profiling_sample();
   incoherent_releaser_stats.profiling_sample();
-  steal_queue_stats.profiling_sample();
-  global_queue_stats.profiling_sample();
+  Grappa::Statistics::steal_queue_stats.profiling_sample();
+  Grappa::Statistics::global_queue_stats.profiling_sample();
 
   // print user-registered stats
   Grappa_profiling_sample_user();
@@ -409,8 +412,8 @@ void Grappa_reset_stats() {
   cache_stats.reset();
   incoherent_acquirer_stats.reset();
   incoherent_releaser_stats.reset();
-  steal_queue_stats.reset();
-  global_queue_stats.reset();
+  Grappa::Statistics::steal_queue_stats.reset();
+  Grappa::Statistics::global_queue_stats.reset();
  
   Grappa_reset_user_stats(); 
 }
@@ -521,7 +524,7 @@ void legacy_reduce_stats_and_dump( std::ostream& oo ) {
   STAT_FORK_AND_DUMP(commstat_func, CommunicatorStatistics, o)
   STAT_FORK_AND_DUMP(taskmanagerstat_func, TaskManager::TaskStatistics, o)
   STAT_FORK_AND_DUMP(schedulerstat_func, TaskingScheduler::TaskingSchedulerStatistics, o)
-  STAT_FORK_AND_DUMP(stealstat_func, StealStatistics, o)
+  STAT_FORK_AND_DUMP(stealstat_func, Grappa::Statistics::StealStatistics, o)
   STAT_FORK_AND_DUMP(delegatestat_func, DelegateStatistics, o) 
   STAT_FORK_AND_DUMP(cachestat_func, CacheStatistics, o)
   STAT_FORK_AND_DUMP(incoherentacq_func, IAStatistics, o)
