@@ -31,6 +31,7 @@ ckpts
 .srunrc*
 .sbatch.*
 *.d.tmp
+*.preproc
 
 # Tau/profiling
 tau*.trc
