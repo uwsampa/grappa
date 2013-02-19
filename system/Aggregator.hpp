@@ -267,7 +267,7 @@ private:
       << "\"multiflushes\": " << multiflushes_ << ", "
       << "\"timeouts\": " << timeouts_ << ", "
       << "\"idle_flushes\": " << idle_flushes_ << ", "
-      << "\"idle_poll:\": " << idle_poll_ << ", "
+      << "\"idle_poll\": " << idle_poll_ << ", "
       << "\"idle_poll_useful\": " << idle_poll_useful_ << ", "
       << "\"capacity_flushes\": " << capacity_flushes_;
     for (int i=0; i<16; i++) {
