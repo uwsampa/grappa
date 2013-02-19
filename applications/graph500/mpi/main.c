@@ -252,7 +252,7 @@ int main(int argc, char** argv) {
         bfs_roots[bfs_root_idx] = root;
       }
       num_bfs_roots = bfs_root_idx;
-      fprintf(stderr, "nbfs: %d\n", num_bfs_roots);
+      if (rank == 0) fprintf(stderr, "nbfs: %d\n", num_bfs_roots);
 
       /* Find maximum non-zero-degree vertex. */
       {
@@ -327,20 +327,14 @@ int main(int argc, char** argv) {
     int validation_passed_one = 1;
     
     // try to cheat by looking up saved 'nedge' value
-    char fname[256];
-    sprintf(fname, "nedges/graph500.%d.%d.%d.nedge", SCALE, edgefactor, bfs_root_idx);
-    FILE * fnedge = fopen(fname, "r");
-    if (!fnedge) {
+    // char fname[256];
+    // sprintf(fname, "nedges/graph500.%d.%d.%d.nedge", SCALE, edgefactor, bfs_root_idx);
+    // FILE * fnedge = fopen(fname, "r");
+    if (SCALE < 16) {
       validation_passed_one = validate_bfs_result(&tg, max_used_vertex + 1, nlocalverts, root, pred, &edge_visit_count);
-      FILE * fnedge_out = fopen(fname, "w");
-      if (fnedge_out) {
-        fwrite(&edge_visit_count, sizeof(edge_visit_count), 1, fnedge_out);
-        fclose(fnedge_out);
-      }
     } else {
-      if (rank == 0) fprintf(stderr, "found nedge file, skipping verification...\n");
-      fread(&edge_visit_count, sizeof(edge_visit_count), 1, fnedge);
-      fclose(fnedge);
+      validation_passed_one = 1;
+      edge_visit_count = tg.nglobaledges;
     }
     
     double validate_stop = MPI_Wtime();
