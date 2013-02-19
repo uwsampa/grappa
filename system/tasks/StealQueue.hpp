@@ -32,7 +32,6 @@
 #include "Thread.hpp"
 #include <Message.hpp>
 
-
 #define MIN_INT(a, b) ( (a) < (b) ) ? (a) : (b)
 
 GRAPPA_DECLARE_EVENT_GROUP(scheduler);
@@ -52,7 +51,6 @@ class Thread;
 
 /// Forward declare for global queue
 class Signaler;
-
    
 namespace Grappa {
   namespace impl {
