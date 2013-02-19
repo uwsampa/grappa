@@ -1,5 +1,7 @@
 #include "GlobalQueue.hpp"
 
+using namespace Grappa::Statistics;
+
 GlobalQueueStatistics global_queue_stats;
 
 GlobalQueueStatistics::GlobalQueueStatistics() 

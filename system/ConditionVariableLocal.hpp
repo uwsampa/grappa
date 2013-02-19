@@ -52,21 +52,21 @@ namespace Grappa {
   /// thread continues.
   template< typename ConditionVariable, typename Mutex >
   inline void wait( ConditionVariable * cv, Mutex * m ) {
-    Worker * current = global_scheduler.get_current_thread();
+    Worker * current = impl::global_scheduler.get_current_thread();
     current->next = Grappa::impl::get_waiters( cv );
     Grappa::impl::set_waiters( cv, current );
     Grappa::unlock( m );
-    global_scheduler.thread_suspend();
+    impl::global_scheduler.thread_suspend();
     Grappa::lock( m );
   }
     
   /// Wait on a condition variable (no mutex).
   template< typename ConditionVariable >
   inline void wait( ConditionVariable * cv ) {
-    Worker * current = global_scheduler.get_current_thread();
+    Worker * current = impl::global_scheduler.get_current_thread();
     current->next = Grappa::impl::get_waiters( cv );
     Grappa::impl::set_waiters( cv, current );
-    global_scheduler.thread_suspend();
+    impl::global_scheduler.thread_suspend();
   }
 
   /// Wake one waiter on a condition variable.
@@ -76,7 +76,7 @@ namespace Grappa {
     if( to_wake != NULL ) {
       Grappa::impl::set_waiters( cv, to_wake->next );
       to_wake->next = NULL;
-      global_scheduler.thread_wake( to_wake );
+      impl::global_scheduler.thread_wake( to_wake );
     }
   }
     
@@ -87,7 +87,7 @@ namespace Grappa {
     while( ( to_wake = Grappa::impl::get_waiters( cv ) ) != NULL ) {
       Grappa::impl::set_waiters( cv, to_wake->next );
       to_wake->next = NULL;
-      global_scheduler.thread_wake( to_wake );
+      impl::global_scheduler.thread_wake( to_wake );
     }
   }
   
