@@ -19,6 +19,11 @@ DEFINE_bool(poll_on_idle, true, "have tasking layer poll aggregator if it has no
 
 DEFINE_int64( stats_blob_ticks, 3000000000L, "number of ticks to wait before dumping stats blob");
 
+
+namespace Grappa {
+
+  namespace impl {
+
 /// global TaskingScheduler for this Node
 TaskingScheduler global_scheduler;
 
@@ -266,3 +271,6 @@ void TaskingScheduler::TaskingSchedulerStatistics::merge(const TaskingSchedulerS
   avg_active = inc_avg(avg_active, merged, other->avg_active);
   avg_ready = inc_avg(avg_ready, merged, other->avg_ready);
 }
+
+} // impl
+} // Grappa
