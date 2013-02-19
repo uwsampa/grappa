@@ -338,9 +338,9 @@ int main(int argc, char** argv) {
         fclose(fnedge_out);
       }
     } else {
-      if (rank == 0) fprintf(stderr, "found nedge file, skipping verification...\n");
       fread(&edge_visit_count, sizeof(edge_visit_count), 1, fnedge);
       fclose(fnedge);
+      if (rank == 0) fprintf(stderr, "found nedge file (%ld), skipping verification\n", edge_visit_count);
     }
     
     double validate_stop = MPI_Wtime();
