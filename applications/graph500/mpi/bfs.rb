@@ -22,5 +22,6 @@ Igor do
   }
   
   
+  $filtered = results{|t| t.select(:id, :mpibfs, :scale, :nnode, :ppn, :run_at, :min_time, :max_teps) }
   interact # enter interactive mode
 end
