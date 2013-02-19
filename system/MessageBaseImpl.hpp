@@ -1,4 +1,7 @@
 
+#ifndef __MESSAGE_BASE_IMPL_HPP__
+#define __MESSAGE_BASE_IMPL_HPP__
+
 #include "MessageBase.hpp"
 
 #define LEGACY_SEND
@@ -68,3 +71,5 @@ namespace Grappa {
     /// @}
   }
 }
+
+#endif // __MESSAGE_BASE_IMPL_HPP__
