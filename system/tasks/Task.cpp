@@ -17,6 +17,9 @@ DEFINE_uint64( global_queue_threshold, 1024, "Threshold to trigger release of ta
 
 #define MAXQUEUEDEPTH (1L<<26)   // previous values: 500000
 
+namespace Grappa {
+  namespace impl {
+
 TaskManager global_task_manager;
 
 GRAPPA_DEFINE_EVENT_GROUP(task_manager);
@@ -447,3 +450,6 @@ void TaskManager::TaskStatistics::reset() {
 
   sample_calls =0;
 }
+
+} // impl
+} // Grappa

@@ -24,6 +24,10 @@
 /// local queue for being part of global task pool
 #define publicQ StealQueue<Task>::steal_queue
 
+
+namespace Grappa {
+  namespace impl {
+
 // forward declaration of Grappa Node
 typedef int16_t Node;
 
@@ -491,5 +495,8 @@ inline void TaskManager::spawnRemotePrivate( void (*f)(A0, A1, A2), A0 arg0, A1 
 
 /// system task manager
 extern TaskManager global_task_manager;
+
+} // namespace impl
+} // namespace Grappa
 
 #endif // TASK_HPP
