@@ -12,7 +12,7 @@ Igor do
   # isolate everything needed for the executable so we can sbcast them for local execution
   isolate("graph500_mpi_simple", File.dirname(__FILE__))
   
-  command "srun graph500_mpi_simple %{scale} %{edgefactor}"
+  command "#{$srun} %{tdir}/graph500_mpi_simple %{scale} %{edgefactor}"
   
   params {
     nnode       2
@@ -21,7 +21,6 @@ Igor do
     edgefactor  16
   }
   
-  run
   
   interact # enter interactive mode
 end
