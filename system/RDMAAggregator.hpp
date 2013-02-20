@@ -26,23 +26,14 @@
 #include "Statistics.hpp"
 
 DECLARE_int64( target_size );
-DECLARE_int64( flush_interval );
 
 /// stats for application messages
 GRAPPA_DECLARE_STAT( SimpleStatistic<int64_t>, app_messages_enqueue );
 GRAPPA_DECLARE_STAT( SimpleStatistic<int64_t>, app_messages_enqueue_cas );
 GRAPPA_DECLARE_STAT( SimpleStatistic<int64_t>, app_messages_immediate );
 
-/// stats for aggregated messages
-GRAPPA_DECLARE_STAT( SummarizingStatistic<int64_t>, rdma_message_bytes );
-
 /// stats for RDMA Aggregator events
-GRAPPA_DECLARE_STAT( SimpleStatistic<int64_t>, rdma_receive_start );
-GRAPPA_DECLARE_STAT( SimpleStatistic<int64_t>, rdma_receive_end );
-GRAPPA_DECLARE_STAT( SimpleStatistic<int64_t>, rdma_send_start );
-GRAPPA_DECLARE_STAT( SimpleStatistic<int64_t>, rdma_send_end );
 GRAPPA_DECLARE_STAT( SimpleStatistic<int64_t>, rdma_capacity_flushes );
-GRAPPA_DECLARE_STAT( SimpleStatistic<int64_t>, rdma_timeout_flushes );
 GRAPPA_DECLARE_STAT( SimpleStatistic<int64_t>, rdma_requested_flushes );
 
 
@@ -192,6 +183,21 @@ namespace Grappa {
       /// task that is run to allocate space to receive a message      
       static void deaggregation_task( GlobalAddress< FullEmpty < ReceiveBufferInfo > > callback_ptr );
 
+      /// flush one destination
+      void flush_one( Core c ) {
+        if( cores_[c].messages_.raw_ != 0 ) {
+          Grappa::impl::MessageList ml = grab_messages( c );
+          global_rdma_aggregator.send_rdma( c, ml );
+        }
+      }
+
+      /// Task that is constantly waiting to do idle flushes. This
+      /// ensures we always have some sending resource available.
+      void idle_flush_task();
+
+      /// Condition variable used to signal flushing task.
+      Grappa::ConditionVariable flush_cv_;
+
     public:
 
       RDMAAggregator()
@@ -200,19 +206,15 @@ namespace Grappa {
         , cores_per_node_( -1 )
         , total_cores_( -1 )
         , flushing_( false )
+        , cores_()
         , deserialize_buffer_handle_( -1 )
         , deserialize_first_handle_( -1 )
+        , flush_cv_()
       {
       }
 
-      // initialize and register with communicator
-      void init() {
-        cores_.resize( global_communicator.nodes() );
-        mycore_ = global_communicator.mynode();
-        total_cores_ = global_communicator.nodes();
-        deserialize_buffer_handle_ = global_communicator.register_active_message_handler( &deserialize_buffer_am );
-        deserialize_first_handle_ = global_communicator.register_active_message_handler( &deserialize_first_am );
-      }
+      /// initialize and register with communicator
+      void init();
 
       // void poll( ) {
       //   // there are two places 
@@ -291,11 +293,11 @@ namespace Grappa {
           rdma_capacity_flushes++;
           //Grappa::ConditionVariable cv;
           //Grappa::privateTask( [core,new_ml,&cv] {
-          Grappa::privateTask( [core,new_ml] {
+          //Grappa::privateTask( [core,new_ml] {
               global_rdma_aggregator.send_rdma( core, new_ml );
               //global_rdma_aggregator.send_medium( core, new_ml );
               //Grappa::signal( &cv );
-            });
+              //});
           //Grappa::wait( &cv );
         }
       }
@@ -345,40 +347,15 @@ namespace Grappa {
         return old_ml;
       }
 
+      /// Flush one destination.
       void flush( Core c ) {
         rdma_requested_flushes++;
-
-        Grappa::impl::MessageList ml = grab_messages( c );
-        if( ml.raw_ != 0 ) {
-          Grappa::ConditionVariable cv;
-          // run on its own task so it has a full stack
-          Grappa::privateTask( [&cv, c, ml] {
-              global_rdma_aggregator.send_rdma( c, ml );
-              //global_rdma_aggregator.send_medium( c, ml );
-              Grappa::signal( &cv );
-            } );
-          Grappa::wait( &cv );
-        } 
+        flush_one( c );
       }
 
+      /// Initiate an idle flush.
       void idle_flush() {
-        static Grappa_Timestamp last = 0;
-        Grappa_Timestamp current = Grappa_get_timestamp();
-        if( (current - last) > FLAGS_flush_interval ) {
-          flushing_ = true;
-          last = current;
-          rdma_timeout_flushes++;
-          for( int i = 0; i < total_cores_; ++i ) {
-            Grappa::impl::MessageList ml = grab_messages( i );
-            if( ml.raw_ != 0 ) {
-              // run on its own task so it has a full stack
-              Grappa::privateTask( [ i, ml ] {
-                  global_rdma_aggregator.send_rdma( i, ml );
-                  //global_rdma_aggregator.send_medium( i, ml );
-                });
-            }
-          }
-        }
+        Grappa::signal( &flush_cv_ );
       }
 
     };
