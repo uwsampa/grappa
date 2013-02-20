@@ -1,3 +1,10 @@
+/*
+ * Example of:
+ *
+ * A(z,t) :- R(x,y), R(y,z), R(z,t)
+ */
+
+
 // util includes
 #include "Tuple.hpp"
 #include "relation_IO.hpp"
