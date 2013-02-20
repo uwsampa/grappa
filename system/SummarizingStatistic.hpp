@@ -1,6 +1,8 @@
 
 #pragma once
 
+#include <cmath>
+
 #include "StatisticBase.hpp"
 
 namespace Grappa {
@@ -25,11 +27,15 @@ namespace Grappa {
       return M2 / (n - 1);
     }
 
+    double stddev() const {
+      return sqrt( variance() );
+    }
+
 #ifdef VTRACE_SAMPLED
     unsigned vt_counter_value;
     unsigned vt_counter_count;
     unsigned vt_counter_mean;
-    unsigned vt_counter_variance;
+    unsigned vt_counter_stddev;
     static const int vt_type;
     
     inline void vt_sample() const;
@@ -67,7 +73,7 @@ namespace Grappa {
       o << '"' << name << "\": \"" << value << "\", ";
       o << '"' << name << "_count\": \"" << n << "\", ";
       o << '"' << name << "_mean\": \"" << mean << "\", ";
-      o << '"' << name << "_variance\": \"" << variance() << "\"";
+      o << '"' << name << "_stddev\": \"" << stddev() << "\"";
       return o;
     }
     
