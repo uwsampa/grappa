@@ -18,7 +18,7 @@ CFLAGS += -g -Drestrict=__restrict__ #-Wall
 
 SOURCES = 
 
-join.exe: join.o DHT.hpp $(GRAPPA_SYS)/libGrappa.a
+join.exe: join.o DHT.hpp relation_IO.hpp Tuple.hpp $(GRAPPA_SYS)/libGrappa.a
 	$(ENV_VARIABLES) $($(MPITYPE)_LD) $(LDFLAGS) join.o $(SOURCES) $(GRAPPA_SYS)/libGrappa.a $(LIBRARIES) -o $@ $(LIBS)
 
 clean:

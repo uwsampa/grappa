@@ -1,36 +1,20 @@
+// util includes
+#include "Tuple.hpp"
+#include "relation_IO.hpp"
+
+
+// Grappa includes
 #include <Grappa.hpp>
 #include "MatchesDHT.hpp"
 #include <Cache.hpp>
 #include <AsyncParallelFor.hpp>
 
-#include <string>
-#include <fstream>
-#include <vector>
-
+// command line parameters
 DEFINE_uint64( numTuples, 32, "Number of tuples to generate" );
 DEFINE_string( in, "", "Input file relation" );
 DEFINE_bool( print, false, "Print results" );
 
 
-std::vector<std::string> &split(const std::string &s, char delim, std::vector<std::string> &elems) {
-  std::stringstream ss(s);
-  std::string item;
-  while(std::getline(ss, item, delim)) {
-    elems.push_back(item);
-  }
-  return elems;
-}
-
-
-std::vector<std::string> split(const std::string &s, char delim) {
-  std::vector<std::string> elems;
-  return split(s, delim, elems);
-}
-
-#define TUPLE_LEN 2
-struct Tuple {
-  int64_t columns[TUPLE_LEN];
-};
 
 std::ostream& operator<<( std::ostream& o, const Tuple& t ) {
   o << "T( ";
@@ -172,25 +156,8 @@ void user_main( int * ignore ) {
     forall_local<Tuple, tuple_gen>( tuples, FLAGS_numTuples );
   } else {
     VLOG(1) << "Reading data from " << FLAGS_in;
-    std::ifstream testfile(FLAGS_in);
-    std::string line;
-    int fin = 0;
-    if (testfile.is_open()) {
-      while (testfile.good() && fin<FLAGS_numTuples) {
-        std::getline( testfile, line );
-        Incoherent<Tuple>::WO lr(tuples+fin, 1);
-        std::vector<std::string> tokens = split( line, ' ' );
-        (*lr).columns[0] = std::stoi(tokens[0]);
-        (*lr).columns[1] = stoi(tokens[1]);
-        fin++;
-      }
-      testfile.close();
-    }
+    readTuples( FLAGS_in, tuples, FLAGS_numTuples );
   }
-
-  
-  Incoherent<Tuple>::WO r(tuples, 6);
-  
 
   DHT_type::init_global_DHT( &joinTable, 64 );
 
