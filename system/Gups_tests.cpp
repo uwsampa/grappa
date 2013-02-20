@@ -8,6 +8,8 @@
 /// One implementation of GUPS. This does no load-balancing, and may
 /// suffer from some load imbalance.
 
+#include <memory>
+
 #include <Grappa.hpp>
 #include "ForkJoin.hpp"
 #include "GlobalAllocator.hpp"
@@ -22,11 +24,15 @@
 DEFINE_int64( repeats, 1, "Repeats" );
 DEFINE_int64( iterations, 1 << 30, "Iterations" );
 DEFINE_int64( sizeA, 1024, "Size of array that gups increments" );
+DEFINE_int64( outstanding, 1 << 10, "Number of outstanding requests" );
+DEFINE_bool( validate, true, "Validate result" );
 DEFINE_bool( rdma, false, "Use RDMA aggregator" );
 
+DECLARE_string( load_balance );
 
-const int outstanding = 1 << 4;
-//const int outstanding = 1 << 10;
+
+//const int outstanding = 1 << 4;
+//const int outstanding = 1 << 13;
 
 struct C {
   GlobalAddress< Grappa::CompletionEvent > ce;
@@ -38,9 +44,9 @@ struct C {
   }
 };
 size_t current_completion = 0;
-int64_t completion_counts[ outstanding ] = { 0 };
-Grappa::Mutex completion_locks[ outstanding ];
-Grappa::Message< C > completions[ outstanding ];
+// int64_t completion_counts[ outstanding ] = { 0 };
+//Grappa::Message< C > completions[ outstanding ];
+std::unique_ptr< Grappa::Message<C>[] > completions;
 
 struct M {
   GlobalAddress< int64_t > addr;
@@ -62,8 +68,8 @@ struct M {
         //Grappa::lock( &completion_locks[ current_completion % outstanding ] );
 
         // grab this guy's message
-        Grappa::Message<C> * c = &completions[ current_completion % outstanding ];
-        int64_t * count = &completion_counts[ current_completion % outstanding ];
+        Grappa::Message<C> * c = &completions[ current_completion % FLAGS_outstanding ];
+        // int64_t * count = &completion_counts[ current_completion % outstanding ];
         current_completion++;
 
         // fill it in
@@ -71,8 +77,8 @@ struct M {
         (*c)->ce = ce;
         c->enqueue( ce.node() );
 
-        // count it
-        (*count)++;
+        // // count it
+        // (*count)++;
         //Grappa::unlock( &completion_locks[ current_completion % outstanding ] );
         //GlobalAddress< Grappa::CompletionEvent > ce2 = ce;
         // auto m = Grappa::send_heap_message(ce.node(), [ce2] {
@@ -83,7 +89,8 @@ struct M {
   }
 };
 
-Grappa::Message<M> msgs[ outstanding ];
+//Grappa::Message<M> msgs[ outstanding ];
+std::unique_ptr< Grappa::Message<M>[] > msgs;
 
 Grappa::CompletionEvent ce;
 
@@ -120,8 +127,11 @@ void func_gups_x(int64_t * p) {
   ** must be encounted exactly once */
   //uint64_t index = random() + Grappa_mynode();//(p - base) * Grappa_nodes() + Grappa_mynode();
   //uint64_t b = (index*LARGE_PRIME) % FLAGS_sizeA;
+
   static uint64_t index = 1;
-  uint64_t b = ((Grappa_mynode() + index++) *LARGE_PRIME) & 1023;
+  //uint64_t b = ((Grappa_mynode() + index++) *LARGE_PRIME) & 1023;
+  uint64_t b = ((Grappa_mynode() + index++) *LARGE_PRIME) % FLAGS_sizeA;
+
   //fprintf(stderr, "%d ", b);
   ff_delegate_add( Array + b, (const int64_t &) 1 );
 }
@@ -150,8 +160,6 @@ LOOP_FUNCTION( func_gups_rdma, index ) {
   //uint64_t b = (index*LARGE_PRIME) % FLAGS_sizeA;
   //static uint64_t index = 1;
 
-  CHECK_EQ( FLAGS_sizeA, 1024 ) << "sizeA must be 1024 unless you switch back to mods";
-  
   DVLOG(5) << "Created GUPS completion event " << &ce << " with " << each_iters << " iters";
   // const int outstanding = 512;
   // //Grappa::Message<M> msgs[ outstanding ];
@@ -159,18 +167,19 @@ LOOP_FUNCTION( func_gups_rdma, index ) {
 
   {
 
-  LOG(INFO) << "Initializing....";
+  DVLOG(1) << "Initializing....";
   ce.enroll( each_iters );
     
     //Grappa::Message<M> msgs[ outstanding ];
     
-    LOG(INFO) << "Starting RDMA GUPS";
+    DVLOG(1) << "Starting RDMA GUPS";
     for( uint64_t index = my_start; index < my_start + each_iters; ++index ) {
-      CHECK_LT( index, FLAGS_iterations ) << "index exploded!";
-      uint64_t b = (index * LARGE_PRIME) % 1023; //FLAGS_sizeA;
+      DCHECK_LT( index, FLAGS_iterations ) << "index exploded!";
+      //uint64_t b = (index * LARGE_PRIME) % 1023; //FLAGS_sizeA;
+      uint64_t b = (index * LARGE_PRIME) % FLAGS_sizeA;
       auto a = Array + b;
 
-      Grappa::Message<M> * m = &msgs[ index % outstanding ];
+      Grappa::Message<M> * m = &msgs[ (index - my_start) % FLAGS_outstanding ];
 
       m->reset();
       (*m)->addr = a;
@@ -194,9 +203,9 @@ LOOP_FUNCTION( func_gups_rdma, index ) {
   //   m.block_until_sent();
   // }
 
-  LOG(INFO) << "Waiting for replies";
+  DVLOG(1) << "Waiting for replies";
   ce.wait();
-  LOG(INFO) << "Got all replies";
+  DVLOG(1) << "Got all replies";
 }
 
 
@@ -205,6 +214,9 @@ void user_main( int * args ) {
   //fprintf(stderr, "Entering user_main\n");
   func_start_profiling start_profiling;
   func_stop_profiling stop_profiling;
+
+  //CHECK_EQ( FLAGS_sizeA, 1024 ) << "sizeA must be 1024 unless you switch back to mods";
+  CHECK_EQ( FLAGS_load_balance, "none" ) << "load balancing must be disabled unless you change the iteration approach";
 
   GlobalAddress<int64_t> A = Grappa_typed_malloc<int64_t>(FLAGS_sizeA);
 
@@ -251,11 +263,13 @@ void user_main( int * args ) {
     throughput = FLAGS_iterations / runtime;
 
     throughput_per_node = throughput/nnodes;
-
-    validate(A, FLAGS_sizeA);
-
     Grappa::Statistics::merge_and_print();
- 
+
+    if( FLAGS_validate ) {
+      LOG(INFO) << "Validating....";
+      validate(A, FLAGS_sizeA);
+    }
+
     // LOG(INFO) << "GUPS: "
     //         << FLAGS_iterations << " updates at "
     //         << throughput << "updates/s ("
@@ -268,6 +282,9 @@ BOOST_AUTO_TEST_CASE( test1 ) {
     Grappa_init( &(boost::unit_test::framework::master_test_suite().argc),
 		  &(boost::unit_test::framework::master_test_suite().argv) );
     Grappa_activate();
+
+    msgs.reset( new Grappa::Message<M>[ FLAGS_outstanding ] );
+    completions.reset( new Grappa::Message<C>[ FLAGS_outstanding ] );
 
     Grappa_run_user_main( &user_main, (int*)NULL );
 
