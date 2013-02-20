@@ -10,6 +10,7 @@
 #ifndef ENABLE_RDMA_AGGREGATOR
 //#define LEGACY_SEND
 #endif
+//#define LEGACY_SEND
 
 #include "RDMAAggregator.hpp"
 
@@ -63,10 +64,10 @@ namespace Grappa {
 #endif
     }
 
-      inline void Grappa::impl::MessageBase::send_immediate( Core c ) {
-        destination_ = c;
-        send_immediate();
-      }
+    inline void Grappa::impl::MessageBase::send_immediate( Core c ) {
+      destination_ = c;
+      send_immediate();
+    }
 
     /// @}
   }

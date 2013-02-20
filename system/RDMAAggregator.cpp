@@ -9,7 +9,6 @@
 #include "Message.hpp"
 
 DEFINE_int64( target_size, 1 << 12, "Target size for aggregated messages" );
-DEFINE_int64( flush_interval, 20000, "Ticks to wait before flushing again" );
 
 /// stats for application messages
 GRAPPA_DEFINE_STAT( SimpleStatistic<int64_t>, app_messages_enqueue, 0 );
@@ -27,8 +26,12 @@ GRAPPA_DEFINE_STAT( SimpleStatistic<int64_t>, rdma_receive_end, 0 );
 GRAPPA_DEFINE_STAT( SimpleStatistic<int64_t>, rdma_send_start, 0 );
 GRAPPA_DEFINE_STAT( SimpleStatistic<int64_t>, rdma_send_end, 0 );
 GRAPPA_DEFINE_STAT( SimpleStatistic<int64_t>, rdma_capacity_flushes, 0 );
-GRAPPA_DEFINE_STAT( SimpleStatistic<int64_t>, rdma_timeout_flushes, 0 );
+GRAPPA_DEFINE_STAT( SimpleStatistic<int64_t>, rdma_idle_flushes, 0 );
 GRAPPA_DEFINE_STAT( SimpleStatistic<int64_t>, rdma_requested_flushes, 0 );
+
+
+// defined in Grappa.cpp
+extern bool Grappa_done_flag;
 
 
 namespace Grappa {
@@ -39,13 +42,42 @@ namespace Grappa {
     /// @addtogroup Communication
     /// @{
 
-
     /// global RDMAAggregator instance
     Grappa::impl::RDMAAggregator global_rdma_aggregator;
 
+    /// proxy call to make it easier to integrate with scheduler
     void idle_flush_rdma_aggregator() {
       global_rdma_aggregator.idle_flush();
     }
+
+    /// Task that is constantly waiting to do idle flushes. This
+    /// ensures we always have some sending resource available.
+    void RDMAAggregator::idle_flush_task() {
+      while( !Grappa_done_flag ) {
+        Grappa::wait( &flush_cv_ );
+        rdma_idle_flushes++;
+        for( int i = 0; i < total_cores_; ++i ) {
+          flush_one( i );
+        }
+      }
+    }
+
+    void RDMAAggregator::init() {
+#ifdef LEGACY_SEND
+#warning RDMA Aggregator is bypassed!
+#endif
+      cores_.resize( global_communicator.nodes() );
+      mycore_ = global_communicator.mynode();
+      total_cores_ = global_communicator.nodes();
+      deserialize_buffer_handle_ = global_communicator.register_active_message_handler( &deserialize_buffer_am );
+      deserialize_first_handle_ = global_communicator.register_active_message_handler( &deserialize_first_am );
+
+      // spawn flusher
+      Grappa::privateTask( [this] {
+          idle_flush_task();
+        });
+    }
+
 
     void RDMAAggregator::deserialize_buffer_am( gasnet_token_t token, void * buf, size_t size ) {
 #ifdef DEBUG
@@ -129,7 +161,7 @@ namespace Grappa {
       rdma_receive_start++;
 
       // allocate buffer for received messages
-      size_t max_size = STACK_SIZE / 2;
+      size_t max_size = FLAGS_target_size + 1024;
       char buf[ max_size ]  __attribute__ ((aligned (16)));
       char * buffer_ptr = &buf[0];
       buf[0] = 'x';
@@ -204,7 +236,7 @@ namespace Grappa {
       rdma_send_start++;
       Grappa::impl::MessageBase * messages_to_send = get_pointer( &ml );
 
-
+#ifdef DEBUG
       Grappa::impl::MessageBase * debug_ptr = get_pointer( &ml );
       int64_t debug_count = grabbed_count;
       while( debug_count > 0 ) {
@@ -229,7 +261,7 @@ namespace Grappa {
                                                                            << " debug_ptr->next=" << debug_ptr->next_
                                                                            << " count=" << grabbed_count;
 
-
+#endif
 
     DVLOG(5) << __func__ << ": " << "Sending messages via RDMA from " << (void*)cores_[core].messages_.raw_ << " to " << core << " using buffer " << (void*) buf;
       
@@ -262,7 +294,8 @@ namespace Grappa {
         Grappa::ExternalMessage< Response > response( core, &response_functor );
         
         // allocate local buffer
-        size_t max_size = STACK_SIZE / 2;
+        //size_t max_size = STACK_SIZE / 4;
+        size_t max_size = FLAGS_target_size + 1024;
         char bufarr[ max_size ]  __attribute__ ((aligned (16)));
         buf = &bufarr[0];
         char * payload = buf + response.serialized_size();
@@ -310,13 +343,13 @@ namespace Grappa {
         DVLOG(5) << __func__ << ": " << "Sent buffer of size " << end - buf << " through RDMA to " << core;
       } while( messages_to_send != static_cast<Grappa::impl::MessageBase*>(nullptr) );
         // potentially loop
-        
-      CHECK_EQ( grabbed_count, serialized_count ) << "Did we not serialize everything?" 
-                                                  << " ml=" << ml.count_ << "/" << get_pointer( &ml )
-                                                  << " buffers_sent=" << buffers_sent
-                                                  << " messages_to_send=" << messages_to_send
-                                                  << " serialize_calls=" << serialize_calls
-                                                  << " serialize_null_returns=" << serialize_null_returns;
+      
+      DCHECK_EQ( grabbed_count, serialized_count ) << "Did we not serialize everything?" 
+                                                   << " ml=" << ml.count_ << "/" << get_pointer( &ml )
+                                                   << " buffers_sent=" << buffers_sent
+                                                   << " messages_to_send=" << messages_to_send
+                                                   << " serialize_calls=" << serialize_calls
+                                                   << " serialize_null_returns=" << serialize_null_returns;
       rdma_send_end++;
     }
 
