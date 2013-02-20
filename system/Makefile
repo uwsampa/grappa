@@ -96,6 +96,7 @@ Collective_tests.o Collective_tests.test: $(LIBRARY)
 Mutex_tests.o Mutex_tests.test: $(LIBRARY)
 ConditionVariable_tests.o ConditionVariable_tests.test: $(LIBRARY)
 FullEmpty_tests.o FullEmpty_tests.test: $(LIBRARY)
+Semaphore_tests.o Semaphore_tests.test: $(LIBRARY)
 
 
 #thread_tests.test: thread.o stack.o coro.o
