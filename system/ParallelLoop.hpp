@@ -14,6 +14,7 @@
 #include "Tasking.hpp"
 #include "Addressing.hpp"
 #include "Communicator.hpp"
+#include "GlobalCompletionEvent.hpp"
 
 DECLARE_int64(loop_threshold);
 
@@ -114,6 +115,7 @@ namespace Grappa {
   }
   
   extern CompletionEvent local_ce;
+  extern GlobalCompletionEvent local_gce;
   
   /// Blocking parallel for loop, spawns only private tasks. Synchronizes itself with
   /// either a given static CompletionEvent (template param) or the local builtin one.
@@ -145,9 +147,9 @@ namespace Grappa {
   ///
   /// Note: this also cannot guarantee that `loop_body` will be in scope, so it passes it
   /// by copy to spawned tasks.
-  template<typename F>
-  void forall_here_async(int64_t start, int64_t iters, F loop_body) {
-    impl::loop_decomposition_private(start, iters,
+  template<int64_t Threshold = impl::USE_LOOP_THRESHOLD_FLAG, typename F = decltype(nullptr) >
+  void forall_here_async_public(int64_t start, int64_t iters, F loop_body) {
+    impl::loop_decomposition_public<Threshold>(start, iters,
       [loop_body](int64_t start, int64_t iters) {
         loop_body(start, iters);
       });
@@ -156,8 +158,6 @@ namespace Grappa {
   /// Spread iterations evenly (block-distributed) across all the cores, using recursive
   /// decomposition with private tasks (so will not be load-balanced). Blocks until all
   /// iterations on all cores complete.
-  ///
-  /// @warning { Same caveat as `forall_here` about sharing a CompletionEvent. }
   template<CompletionEvent * CE = &local_ce, int64_t Threshold = impl::USE_LOOP_THRESHOLD_FLAG, typename F = decltype(nullptr)>
   void forall_global_private(int64_t start, int64_t iters, F loop_body) {
     on_all_cores([start,iters,loop_body]{
@@ -166,6 +166,24 @@ namespace Grappa {
     });
   }
   
+  /// Spread iterations evenly (block-distributed) across all the cores, using recursive
+  /// decomposition with private tasks (so will not be load-balanced). Blocks until all
+  /// iterations on all cores complete.
+  template<GlobalCompletionEvent * GCE = &local_gce, int64_t Threshold = impl::USE_LOOP_THRESHOLD_FLAG, typename F = decltype(nullptr)>
+  void forall_global_public(int64_t start, int64_t iters, F loop_body) {
+    GCE.reset_all();
+    on_all_cores([start,iters,loop_body]{
+      range_t r = blockDist(start, start+iters, mycore(), cores());
+      GCE.enroll(r.end-r.start);
+      impl::loop_decomposition_public<Threshold>(r.start, r.end-r.start,
+        [origin, loop_body](int64_t s, int64_t n) {
+          loop_body(s,n);
+          complete(make_global(GCE,origin), n);
+        }
+      );
+      GCE.wait();
+    });
+  }
   
   /// Parallel loop over a global array. Spawned from a single core, fans out and runs
   /// tasks on elements that are local to each core.

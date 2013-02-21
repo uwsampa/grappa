@@ -10,6 +10,7 @@
 #include "Grappa.hpp"
 #include "Delegate.hpp"
 #include "CompletionEvent.hpp"
+#include "GlobalCompletionEvent.hpp"
 #include "ParallelLoop.hpp"
 
 BOOST_AUTO_TEST_SUITE( CompletionEvent_tests );
@@ -65,6 +66,7 @@ void try_global_ce() {
   auto xa = make_global(&x);
   
   BOOST_MESSAGE("  block on user_main only");
+  gce.reset_all();
   on_all_cores([xa]{
     Core origin = mycore();
     gce.enroll(N+1);
@@ -86,8 +88,8 @@ void try_global_ce() {
   on_all_cores([]{  gce.reset();  });
   
   x = 0;
+  gce.reset_all();
   on_all_cores([xa]{
-    gce.reset();
     int y = 0;
     auto ya = make_global(&y);
     
@@ -126,8 +128,7 @@ void try_global_ce_recursive() {
   auto xa = make_global(&x);
   
   BOOST_MESSAGE("  block on user_main only");
-  on_all_cores([]{  gce.reset();  });
-  
+  gce.reset_all();
   on_all_cores([xa]{
     gce.enroll();
     Core origin = mycore();
@@ -153,8 +154,8 @@ void try_global_ce_recursive() {
   on_all_cores([]{  gce.reset();  });
   
   x = 0;
+  gce.reset_all();
   on_all_cores([xa]{
-    gce.reset();
     int y = 0;
     auto ya = make_global(&y);
     
