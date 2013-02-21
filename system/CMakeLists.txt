@@ -33,6 +33,7 @@ set(SYSTEM_SOURCES
   CurrentThread.hpp
   Delegate.cpp
   Delegate.hpp
+  AsyncDelegate.hpp
   Doxyfile
   FileIO.hpp
   ForkJoin.cpp
@@ -105,6 +106,8 @@ set(SYSTEM_SOURCES
   tasks/GlobalQueue.cpp
   LegacySignaler.hpp
   LegacySignaler.cpp
+  CompletionEvent.hpp
+  GlobalCompletionEvent.hpp
 )
 
 
