@@ -111,11 +111,10 @@ namespace Grappa {
       }
     }
 
-
+    
+    extern CompletionEvent local_ce;
+    extern GlobalCompletionEvent local_gce;
   }
-  
-  extern CompletionEvent local_ce;
-  extern GlobalCompletionEvent local_gce;
   
   /// Blocking parallel for loop, spawns only private tasks. Synchronizes itself with
   /// either a given static CompletionEvent (template param) or the local builtin one.
@@ -129,7 +128,7 @@ namespace Grappa {
   /// Also note: a single copy of `loop_body` is passed by reference to all of the child
   /// tasks, so be sure not to modify anything in the functor
   /// (TODO: figure out how to enforce this for all kinds of functors)
-  template<CompletionEvent * CE = &local_ce, int64_t Threshold = impl::USE_LOOP_THRESHOLD_FLAG, typename F = decltype(nullptr) >
+  template<CompletionEvent * CE = &impl::local_ce, int64_t Threshold = impl::USE_LOOP_THRESHOLD_FLAG, typename F = decltype(nullptr) >
   void forall_here(int64_t start, int64_t iters, F loop_body) {
     CE->enroll(iters);
     impl::loop_decomposition_private<Threshold>(start, iters,
@@ -158,7 +157,7 @@ namespace Grappa {
   /// Spread iterations evenly (block-distributed) across all the cores, using recursive
   /// decomposition with private tasks (so will not be load-balanced). Blocks until all
   /// iterations on all cores complete.
-  template<CompletionEvent * CE = &local_ce, int64_t Threshold = impl::USE_LOOP_THRESHOLD_FLAG, typename F = decltype(nullptr)>
+  template<CompletionEvent * CE = &impl::local_ce, int64_t Threshold = impl::USE_LOOP_THRESHOLD_FLAG, typename F = decltype(nullptr)>
   void forall_global_private(int64_t start, int64_t iters, F loop_body) {
     on_all_cores([start,iters,loop_body]{
       range_t r = blockDist(start, start+iters, mycore(), cores());
@@ -169,7 +168,7 @@ namespace Grappa {
   /// Spread iterations evenly (block-distributed) across all the cores, using recursive
   /// decomposition with private tasks (so will not be load-balanced). Blocks until all
   /// iterations on all cores complete.
-  template<GlobalCompletionEvent * GCE = &local_gce, int64_t Threshold = impl::USE_LOOP_THRESHOLD_FLAG, typename F = decltype(nullptr)>
+  template<GlobalCompletionEvent * GCE = &impl::local_gce, int64_t Threshold = impl::USE_LOOP_THRESHOLD_FLAG, typename F = decltype(nullptr)>
   void forall_global_public(int64_t start, int64_t iters, F loop_body) {
     GCE.reset_all();
     on_all_cores([start,iters,loop_body]{
@@ -194,7 +193,7 @@ namespace Grappa {
   ///
   /// TODO: asynchronous version that supports many outstanding calls to `forall_localized` (to be used in BFS)
   template< typename T,
-            CompletionEvent * CE = &local_ce,
+            CompletionEvent * CE = &impl::local_ce,
             int64_t Threshold = impl::USE_LOOP_THRESHOLD_FLAG,
             typename F = decltype(nullptr) >
   void forall_localized(GlobalAddress<T> base, int64_t nelems, F loop_body) {
