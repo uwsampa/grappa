@@ -17,6 +17,7 @@
 #include "Grappa.hpp"
 #include "Allocator.hpp"
 
+#include "Delegate.hpp"
 
 class GlobalAllocator;
 extern GlobalAllocator * global_allocator;
@@ -25,65 +26,6 @@ extern GlobalAllocator * global_allocator;
 class GlobalAllocator {
 private:
   boost::scoped_ptr< Allocator > a_p_;
-
-
-
-  //
-  // communication
-  // 
-
-  struct Descriptor {
-    Thread * t;
-    GlobalAddress< void > address;
-    size_t size;
-    bool done;
-  };
-
-  static void wait_on( Descriptor * d ) {
-    while( !d->done ) {
-      Grappa_suspend();
-    }
-  }
-
-  static void wake( Descriptor * d ) {
-    Grappa_wake( d->t );
-  }
-
-  // Handler for remote malloc reply
-  static void malloc_reply_am( GlobalAddress< Descriptor > * d_p, size_t size, 
-                        GlobalAddress< void > * address_p, size_t payload_size ) {
-    DVLOG(5) << "got malloc response with descriptor " << d_p->pointer() << " pointer " << address_p->pointer();
-    d_p->pointer()->address = *address_p;
-    d_p->pointer()->done = true;
-    wake( d_p->pointer() );
-  }
-
-  /// Handler for remote malloc request
-  static void malloc_request_am( GlobalAddress< Descriptor > * d_p, size_t size, 
-                                 size_t * size_p, size_t payload_size ) {
-    DVLOG(5) << "got malloc request for descriptor " << d_p->pointer() << " size " << *size_p;
-    GlobalAddress< void > a = global_allocator->local_malloc( *size_p );
-    DVLOG(5) << "malloc returning pointer " << a.pointer();
-    Grappa_call_on_x( d_p->node(), &malloc_reply_am, 
-                       d_p, size,
-                       &a, sizeof( a ) );
-  }
-
-  // Handler for remote free reply
-  static void free_reply_am( GlobalAddress< Descriptor > * d_p, size_t size, 
-                             void * payload, size_t payload_size ) {
-    d_p->pointer()->done = true;
-    wake( d_p->pointer() );
-  }
-
-  // Handler for remote free request
-  static void free_request_am( GlobalAddress< Descriptor > * d_p, size_t size, 
-                               GlobalAddress< void > * address_p, size_t payload_size ) {
-    DVLOG(5) << "got free request for descriptor " << d_p->pointer();
-    global_allocator->local_free( *address_p );
-    Grappa_call_on_x( d_p->node(), &free_reply_am, d_p );
-  }
-
 
   /// allocate some number of bytes from local heap
   /// (should be called only on node responsible for allocator)
@@ -131,29 +73,24 @@ public:
   /// delegate malloc
   static GlobalAddress< void > remote_malloc( size_t size_bytes ) {
     // ask node 0 to allocate memory
-    Descriptor descriptor;
-    descriptor.t = CURRENT_THREAD;
-    descriptor.done = false;
-    GlobalAddress< Descriptor > global_descriptor = make_global( &descriptor );
-    Grappa_call_on_x( 0, &malloc_request_am, 
-                       &global_descriptor, sizeof( global_descriptor ),
-                       &size_bytes, sizeof(size_bytes) );
-    wait_on( &descriptor );
-    return descriptor.address;
+    auto allocated_address = Grappa::delegate::call( 0, [size_bytes] {
+        DVLOG(5) << "got malloc request for size " << size_bytes;
+        GlobalAddress< void > a = global_allocator->local_malloc( size_bytes );
+        DVLOG(5) << "malloc returning pointer " << a.pointer();
+        return a;
+      });
+    return allocated_address;
   }
 
   /// delegate free
   /// TODO: should free block?
   static void remote_free( GlobalAddress< void > address ) {
     // ask node 0 to free memory
-    Descriptor descriptor;
-    descriptor.t = CURRENT_THREAD;
-    descriptor.done = false;
-    GlobalAddress< Descriptor > global_descriptor = make_global( &descriptor );
-    Grappa_call_on_x( 0, &free_request_am, 
-                       &global_descriptor, sizeof( global_descriptor ),
-                       &address, sizeof( address ) );
-    wait_on( &descriptor );
+    auto allocated_address = Grappa::delegate::call( 0, [address] {
+        DVLOG(5) << "got free request for descriptor " << address;
+        global_allocator->local_free( address );
+        return true;
+      });
   }
 
   //
