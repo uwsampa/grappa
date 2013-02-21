@@ -180,6 +180,59 @@ void try_global_ce_recursive() {
   BOOST_CHECK_EQUAL(x, N*cores()+N*2);
 }
 
+static int global_x;
+
+void try_synchronizing_spawns() {
+  BOOST_MESSAGE("Testing synchronizing spawns");
+  const int N = 1<<8;
+  
+  BOOST_MESSAGE("  private,local");
+  CompletionEvent ce;
+  int x = 0;
+  for (int i=0; i<N; i++) {
+    privateTask(&ce, [&x]{
+      x++;
+    });
+  }
+  ce.wait();
+  BOOST_CHECK_EQUAL(x, N);
+  
+  BOOST_MESSAGE("  private,global");
+  on_all_cores([]{
+    gce.reset();
+    barrier();
+    
+    int x = 0;
+    
+    for (int i=0; i<N; i++) {
+      privateTask(&gce, [&x] {
+        x++;
+      });
+    }
+    
+    gce.wait();
+    BOOST_CHECK_EQUAL(x, N);
+  });
+  
+  BOOST_MESSAGE("  public,global");
+  on_all_cores([]{ global_x = 0; });
+  
+  gce.reset_all();
+  for (int i=0; i<N; i++) {
+    publicTask<&gce>([]{
+      global_x++;
+    });
+  }
+  gce.wait();
+  
+  int total = 0;
+  auto total_addr = make_global(&total);
+  on_all_cores([total_addr]{
+    BOOST_MESSAGE("global_x on " << mycore() << ": " << global_x);
+    delegate::fetch_and_add(total_addr, global_x);
+  });
+  BOOST_CHECK_EQUAL(total, N);
+}
 
 void user_main(void * args) {
   CHECK(cores() >= 2); // at least 2 nodes for these tests...
