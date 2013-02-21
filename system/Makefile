@@ -351,7 +351,7 @@ CFLAGS+= -D_GNU_SOURCE
 # not sure if this is a good idea
 CFLAGS+= -Wno-inline
 #CFLAGS+= -Wall -Wextra
-CFLAGS+= -I. -I./tasks
+CFLAGS+= -I$(GRAPPA_HOME)/system -I$(GRAPPA_HOME)/system/tasks
 
 #
 # set debug flags
