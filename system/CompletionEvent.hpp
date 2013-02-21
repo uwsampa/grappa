@@ -74,8 +74,10 @@ namespace Grappa {
     }
   }
   
-  template<typename TF>
-  void privateTask(CompletionEvent * ce, TF tf) {
+  template<typename CompletionType, typename TF>
+  void privateTask(CompletionType * ce, TF tf) {
+    static_assert(std::is_base_of<CompletionEvent,CompletionType>::value,
+                  "Synchronizing privateTask spawn must take subclass of CompletionEvent as argument");
     ce->enroll();
     privateTask([ce,tf] {
       tf();

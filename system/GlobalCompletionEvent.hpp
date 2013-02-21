@@ -145,4 +145,24 @@ public:
   }
 };
 
+  
+template<typename TF>
+void privateTask(GlobalCompletionEvent * gce, TF tf) {
+  gce->enroll();
+  privateTask([gce,tf] {
+    tf();
+    gce->complete();
+  });
+}
+
+template<GlobalCompletionEvent * GCE, typename TF>
+void publicTask(TF tf) {
+  GCE->enroll();
+  Core origin = mycore();
+  publicTask([origin,tf] {
+    tf();
+    complete(make_global(GCE,origin));
+  });
+}
+  
 }
