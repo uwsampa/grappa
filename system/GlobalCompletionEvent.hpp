@@ -22,7 +22,7 @@ class GlobalCompletionEvent : public CompletionEvent {
   bool barrier_done; // only for verification
   
   /// pointer to shared arg for loops that use a GCE
-  void * shared_arg;
+  const void * shared_arg;
   
   /// Notify the master joiner that this joiner doesn't have any work to do for now.
   void send_enter() {
@@ -77,7 +77,14 @@ class GlobalCompletionEvent : public CompletionEvent {
     broadcast(&cv);
   }
   
-  /// Called from `reset_all`, not sufficient unless done on all cores before new completions are started
+public:
+  
+  inline void set_shared_ptr(const void* p) { shared_arg = p; }
+  template<typename T> inline const T* get_shared_ptr() { return reinterpret_cast<const T*>(shared_arg); }
+  
+  /// Must be called on all cores and finished before beginning any stealable work that syncs with this.
+  /// Either call in SPMD (`on_all_cores()`) followed by `barrier()` or call `reset_all` from `user_main`
+  /// or an equivalent task.
   void reset() {
     CHECK(cv.waiters_ == 0) << "resetting when tasks are still waiting";
     cores_in = 0;
@@ -86,8 +93,6 @@ class GlobalCompletionEvent : public CompletionEvent {
     enter_called = false;
     barrier_done = false;
   }
-  
-public:
   
   /// Called from user_main (or equivalent single controlling task). Trying to
   /// avoid having an explicit barrier in reset(), but still must guarantee that
