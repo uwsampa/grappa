@@ -24,24 +24,28 @@
 
 #include "StateTimer.hpp"
 
-// forward-declare aggregator flush
-namespace Grappa {
-  namespace impl {
-    void idle_flush_rdma_aggregator();
-  }
-}
-
-//#include "Statistics.hpp"
-namespace Grappa { namespace Statistics { void sample_all(); } }
-
-
-extern bool take_profiling_sample;
-void Grappa_dump_stats_blob();
 
 DECLARE_int64( periodic_poll_ticks );
 DECLARE_bool(poll_on_idle);
 DECLARE_int64( stats_blob_ticks );
 
+
+//#include "Statistics.hpp"
+void Grappa_dump_stats_blob();
+
+// forward-declare aggregator flush
+namespace Grappa {
+
+  namespace impl {
+    void idle_flush_rdma_aggregator();
+  }
+
+  namespace Statistics { 
+    void sample_all(); 
+    extern bool take_profiling_sample;
+  } // namespace Statistics
+
+  namespace impl {
 
 class TaskManager;
 struct task_worker_args;
@@ -578,5 +582,8 @@ inline void TaskingScheduler::thread_on_exit( ) {
 
 /// instance
 extern TaskingScheduler global_scheduler;
+
+} // namespace impl
+} // namespace Grappa
 
 #endif // TASKING_SCHEDULER_HPP
