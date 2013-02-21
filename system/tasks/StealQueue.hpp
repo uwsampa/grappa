@@ -52,7 +52,6 @@ class Thread;
 
 /// Forward declare for global queue
 class Signaler;
-
    
 namespace Grappa {
   namespace impl {

@@ -5,6 +5,7 @@
 namespace Grappa {
 
   namespace Statistics {
+
 StealStatistics steal_queue_stats;
 
 StealStatistics::StealStatistics() {
