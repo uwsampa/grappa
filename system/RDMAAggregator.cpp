@@ -27,6 +27,7 @@ GRAPPA_DEFINE_STAT( SimpleStatistic<int64_t>, rdma_send_start, 0 );
 GRAPPA_DEFINE_STAT( SimpleStatistic<int64_t>, rdma_send_end, 0 );
 GRAPPA_DEFINE_STAT( SimpleStatistic<int64_t>, rdma_capacity_flushes, 0 );
 GRAPPA_DEFINE_STAT( SimpleStatistic<int64_t>, rdma_idle_flushes, 0 );
+GRAPPA_DEFINE_STAT( SimpleStatistic<int64_t>, rdma_core_idle_flushes, 0 );
 GRAPPA_DEFINE_STAT( SimpleStatistic<int64_t>, rdma_requested_flushes, 0 );
 
 
@@ -57,7 +58,9 @@ namespace Grappa {
         Grappa::wait( &flush_cv_ );
         rdma_idle_flushes++;
         for( int i = 0; i < total_cores_; ++i ) {
-          flush_one( i );
+          if( flush_one( i ) ) {
+            rdma_core_idle_flushes++;
+          }
         }
       }
     }
@@ -164,7 +167,6 @@ namespace Grappa {
       size_t max_size = FLAGS_target_size + 1024;
       char buf[ max_size ]  __attribute__ ((aligned (16)));
       char * buffer_ptr = &buf[0];
-      buf[0] = 'x';
 
       // allocate response full bit
       FullEmpty< SendBufferInfo > info_fe;
@@ -190,35 +192,6 @@ namespace Grappa {
       // done
       rdma_receive_end++;
     }
-
-      
-
-    // void RDMAAggregator::send_rdma( Core core ) {
-    //   char * buf = 0;
-
-    //   DVLOG(5) << __func__ << ": " << "Sending messages via RDMA from " << (void*)cores_[core].messages_.raw_ << " to " << core << " using buffer " << (void*) buf;
-    //   rdma_send_start++;
-
-    //   // don't bother continuing if we have nothing to send.
-    //   if( 0 == cores_[core].messages_.raw_ ) {
-    //     DVLOG(5) << __func__ << ": " << "Aborting send to " << core << " since there's nothing to do";
-    //     return;
-    //   }
-
-    //   // grab list of messages
-    //   DVLOG(5) << __func__ << ": " << "Grabbing messages for " << core << " later buffer " << (void*) buf;
-    //   Grappa::impl::MessageList old_ml, new_ml;
-    //   do {
-    //     old_ml = cores_[core].messages_;
-    //     new_ml.raw_ = 0;
-    //   } while( !__sync_bool_compare_and_swap( &(cores_[core].messages_.raw_), old_ml.raw_, new_ml.raw_ ) );
-    //   // old_ml = cores_[core].messages_;
-    //   // cores_[core].messages_.raw_ = new_ml.raw_ = 0;
-    //   Grappa::impl::MessageBase * messages_to_send = get_pointer( &old_ml );
-
-    //   DVLOG(5) << __func__ << ": " << "Grabbing messages for " << core << " got " << (void*) old_ml.raw_ << " later buffer " << (void*) buf;
-    //   send_rdma( ml );
-    // }
 
     void RDMAAggregator::send_rdma( Core core, Grappa::impl::MessageList ml ) {
       char * buf = nullptr;
@@ -263,8 +236,9 @@ namespace Grappa {
 
 #endif
 
-    DVLOG(5) << __func__ << ": " << "Sending messages via RDMA from " << (void*)cores_[core].messages_.raw_ << " to " << core << " using buffer " << (void*) buf;
+      DVLOG(5) << __func__ << ": " << "Sending messages via RDMA from " << (void*)cores_[core].messages_.raw_ << " to " << core << " using buffer " << (void*) buf;
       
+      // send as many buffers as we need for this message list
       do {
         FullEmpty< ReceiveBufferInfo > destbuf;
         GlobalAddress< FullEmpty< ReceiveBufferInfo > > global_destbuf = make_global( &destbuf );
@@ -336,13 +310,12 @@ namespace Grappa {
         GASNET_CHECK( gasnet_AMRequestLong0( core, deserialize_first_handle_, 
                                              buf, end - buf, dest.buffer ) );
         
-        // maybe wait for ack, with potential payload
+        // TODO: maybe wait for ack, with potential payload
 
         rdma_message_bytes += end - buf;
         buffers_sent++;
         DVLOG(5) << __func__ << ": " << "Sent buffer of size " << end - buf << " through RDMA to " << core;
       } while( messages_to_send != static_cast<Grappa::impl::MessageBase*>(nullptr) );
-        // potentially loop
       
       DCHECK_EQ( grabbed_count, serialized_count ) << "Did we not serialize everything?" 
                                                    << " ml=" << ml.count_ << "/" << get_pointer( &ml )
@@ -387,8 +360,6 @@ namespace Grappa {
         GASNET_CHECK( gasnet_AMRequestMedium0( core, deserialize_buffer_handle_, &buf[0], aggregated_size ) );
       }
     }
-
-
 
     /// @}
   };

@@ -174,7 +174,20 @@ namespace Grappa {
       // Deserialize and call a buffer of messages
       static char * deaggregate_buffer( char * buffer, size_t size );
 
+      /// Grab a list of messages to send
+      inline Grappa::impl::MessageList grab_messages( Core c ) {
+        Grappa::impl::MessageList * dest_ptr = &cores_[ c ].messages_;
+        Grappa::impl::MessageList old_ml, new_ml;
 
+        do {
+          // read previous value
+          old_ml = *dest_ptr;
+          new_ml.raw_ = 0;
+          // insert current message
+        } while( !__sync_bool_compare_and_swap( &(dest_ptr->raw_), old_ml.raw_, new_ml.raw_ ) );
+
+        return old_ml;
+      }
 
       /// Sender size of RDMA transmission.
       void send_rdma( Core core, Grappa::impl::MessageList ml );
@@ -184,10 +197,13 @@ namespace Grappa {
       static void deaggregation_task( GlobalAddress< FullEmpty < ReceiveBufferInfo > > callback_ptr );
 
       /// flush one destination
-      void flush_one( Core c ) {
+      bool flush_one( Core c ) {
         if( cores_[c].messages_.raw_ != 0 ) {
           Grappa::impl::MessageList ml = grab_messages( c );
           global_rdma_aggregator.send_rdma( c, ml );
+          return true;
+        } else {
+          return false;
         }
       }
 
@@ -282,23 +298,14 @@ namespace Grappa {
           app_messages_enqueue_cas++;
         } while( !__sync_bool_compare_and_swap( &(dest_ptr->raw_), old_ml.raw_, swap_ml.raw_ ) );
 
-        CHECK_NE( m, get_pointer( &old_ml ) ) << "Message already enqueued!";
-        //dump_ml( new_ml );
-
-        if( !spawn_send ) {
+        /// is it time to flush?
+        if( !spawn_send ) { // no
           // now fill in prefetch pointer and size
           dest->prefetch_queue_[ count % prefetch_dist ].size_ = size;
           set_pointer( &(dest->prefetch_queue_[ count % prefetch_dist ]), m );
-        } else {
+        } else {            // yes
           rdma_capacity_flushes++;
-          //Grappa::ConditionVariable cv;
-          //Grappa::privateTask( [core,new_ml,&cv] {
-          //Grappa::privateTask( [core,new_ml] {
-              global_rdma_aggregator.send_rdma( core, new_ml );
-              //global_rdma_aggregator.send_medium( core, new_ml );
-              //Grappa::signal( &cv );
-              //});
-          //Grappa::wait( &cv );
+          global_rdma_aggregator.send_rdma( core, new_ml );
         }
       }
 
@@ -322,29 +329,6 @@ namespace Grappa {
           // send
           GASNET_CHECK( gasnet_AMRequestMedium0( m->destination_, deserialize_buffer_handle_, buf, size ) );
         }
-      }
-
-      void dump_ml( Grappa::impl::MessageList ml ) {
-        return;
-        Grappa::impl::MessageBase * m = get_pointer( &ml );
-        while( m ) {
-          LOG(INFO) << "Grabbed message " << m;
-          m = m->next_;
-        }
-      }
-
-      Grappa::impl::MessageList grab_messages( Core c ) {
-        Grappa::impl::MessageList * dest_ptr = &cores_[ c ].messages_;
-        Grappa::impl::MessageList old_ml, new_ml;
-
-        do {
-          // read previous value
-          old_ml = *dest_ptr;
-          new_ml.raw_ = 0;
-          // insert current message
-        } while( !__sync_bool_compare_and_swap( &(dest_ptr->raw_), old_ml.raw_, new_ml.raw_ ) );
-        //dump_ml( old_ml );
-        return old_ml;
       }
 
       /// Flush one destination.

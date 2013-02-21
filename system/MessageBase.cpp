@@ -22,19 +22,11 @@ namespace Grappa {
                << " maybe blocking until sent";
       // if enqueued, block until message is sent
       while( is_enqueued_ && !is_sent_ ) {
-        // LOG(INFO) << this << " on " << global_scheduler.get_current_thread()
-        //           << " blocking until sent with is_enqueued_=" << is_enqueued_ << " and is_sent_=" << is_sent_
-        //           << "; existing: " << (void*) cv_.waiters_;
-        //Grappa::wait( &cv_, &mutex_ );
         DVLOG(5) << this << " on " << global_scheduler.get_current_thread()
                  << " actually blocking until sent";
         Grappa::wait( &cv_ );
-        // LOG(INFO) << this << " on " << global_scheduler.get_current_thread()
-        //           << " woke with is_enqueued_=" << is_enqueued_ << " and is_sent_=" << is_sent_
-        //           << "; existing: " << (void*) cv_.waiters_;
         DVLOG(5) << this << " on " << global_scheduler.get_current_thread()
                  << " woken after blocking until sent";
-        if( last_woken_ == global_scheduler.get_current_thread() ) last_woken_ = NULL;
       }
       DVLOG(5) << this << " on " << global_scheduler.get_current_thread()
                << " continuing after blocking until sent";

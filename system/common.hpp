@@ -230,6 +230,13 @@ namespace Grappa {
 #define CHECK_NULL(val)                                              \
   Grappa::impl::CheckNull(__FILE__, __LINE__, "'" #val "' Must be non NULL", (val))
 
+#ifdef NDEBUG
+#define DCHECK_NULL(val)                                              \
+  Grappa::impl::CheckNull(__FILE__, __LINE__, "'" #val "' Must be non NULL", (val))
+#else
+#define DCHECK_NULL(val)                        \
+  ;
+#endif
   
   /// @}
 

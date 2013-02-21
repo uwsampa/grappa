@@ -37,36 +37,19 @@ namespace Grappa {
       
       bool is_moved_;           ///< HACK: make sure we don't try to send ourselves if we're just a temporary
 
-      Worker * last_woken_;
-      uint64_t reset_count_;
-
-      inline bool interesting() {
-        return false; (NULL != last_woken_) && (last_woken_ != global_scheduler.get_current_thread()); 
-      }
+      uint64_t reset_count_;    ///< How many times have we been reset? (for debugging only)
 
       friend class RDMAAggregator;
 
       /// Mark message as sent
       inline void mark_sent() {
-        //Grappa::lock( &mutex_ );
-        if( interesting() ) {
-          LOG(INFO) << this << " on " << global_scheduler.get_current_thread()
-                    << " marked sent";
-        }
         is_sent_ = true;
         next_ = NULL;
         prefetch_ = NULL;
         ConditionVariable old = cv_;
         if( 0 != cv_.waiters_ ) {
           Grappa::broadcast( &cv_ );
-          last_woken_ = get_waiters( &old );
-          // LOG(INFO) << this << " on " << global_scheduler.get_current_thread()
-          //           << " mark_sent woke " << (void*) old.waiters_ 
-          //           << " with is_enqueued_=" << is_enqueued_ << " and is_sent_=" << is_sent_
-          //           << " remaining " << (void*) cv_.waiters_;
         }
-        //Grappa::broadcast( &cv_ );
-        //Grappa::unlock( &mutex_ );
         if( delete_after_send_ ) delete this;
       }
 
@@ -118,7 +101,6 @@ namespace Grappa {
         , mutex_()
         , cv_()
         , is_moved_( false )
-        , last_woken_( NULL )
         , reset_count_(0)
         , delete_after_send_( false ) 
       { DVLOG(9) << "construct " << this; }
@@ -131,7 +113,6 @@ namespace Grappa {
         , mutex_()
         , cv_()
         , is_moved_( false )
-        , last_woken_( NULL )
         , reset_count_(0)
         , delete_after_send_( false ) 
       { DVLOG(9) << "construct " << this; }
@@ -158,7 +139,6 @@ namespace Grappa {
         , mutex_( m.mutex_ )
         , cv_( m.cv_ )
         , is_moved_( false ) // this only tells us if the current message has been moved
-        , last_woken_( m.last_woken_ )
         , reset_count_(0)
         , delete_after_send_( m.delete_after_send_ ) 
       {
@@ -196,14 +176,8 @@ namespace Grappa {
                                           << " without a reset call?";
         }
         reset_count_++;
-        //Grappa::lock( &mutex_ );
         DVLOG(5) << this << " on " << global_scheduler.get_current_thread()
                  << " entering reset with is_enqueued_=" << is_enqueued_ << " and is_sent_= " << is_sent_;
-        if( interesting() ) {
-          LOG(INFO) << this << " on " << global_scheduler.get_current_thread()
-                    << " reset with is_enqueued_=" << is_enqueued_ << " and is_sent_= " << is_sent_
-                    << " remaining " << (void*) cv_.waiters_;
-        }
         if( is_enqueued_ ) {
           block_until_sent();
         }
@@ -213,19 +187,11 @@ namespace Grappa {
         prefetch_ = NULL;
         destination_ =  -1;
         is_enqueued_ = false;
-        // if( 0 != cv_.waiters_ ) {
-        //   LOG(INFO) << this << " on " << global_scheduler.get_current_thread()
-        //             << " reset with is_enqueued_=" << is_enqueued_ << " and is_sent_= " << is_sent_ << "->0"
-        //             << " remaining " << (void*) cv_.waiters_;
-        // }
         is_sent_ = false;
-        //Grappa::unlock( &mutex_ );
       }
       
       /// Block until message can be deallocated.
       void block_until_sent();
-
-      inline void check_ready() { CHECK_EQ( is_enqueued_, false ); CHECK_EQ( is_sent_, false ); }
 
     };
     
