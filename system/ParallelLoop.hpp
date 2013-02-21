@@ -115,9 +115,9 @@ namespace Grappa {
     impl::loop_decomposition_private<Threshold>(start, iters,
       // passing loop_body by ref to avoid copying potentially large functors many times in decomposition
       // also keeps task args < 24 bytes, preventing it from being needing to be heap-allocated
-      [&loop_body](int64_t s, int64_t i) {
-        loop_body(s, i);
-        CE->complete(i);
+      [&loop_body](int64_t s, int64_t n) {
+        loop_body(s, n);
+        CE->complete(n);
       });
     CE->wait();
   }
@@ -152,18 +152,20 @@ namespace Grappa {
   template<GlobalCompletionEvent * GCE = &impl::local_gce, int64_t Threshold = impl::USE_LOOP_THRESHOLD_FLAG, typename F = decltype(nullptr)>
   void forall_global_public(int64_t start, int64_t iters, F loop_body) {
     on_all_cores([start,iters,loop_body]{
-      GCE.reset();
-      GCE.shared_arg = &loop_body; // need to initialize this on all nodes before any tasks start
+      GCE->reset();
+      GCE->set_shared_ptr(&loop_body); // need to initialize this on all nodes before any tasks start
       
       // may as well do this before the barrier too, but it shouldn't matter
       range_t r = blockDist(start, start+iters, mycore(), cores());
-      GCE.enroll(r.end-r.start);
+      GCE->enroll(r.end-r.start);
       
       barrier();
       
+      Core origin = mycore();
+      
       impl::loop_decomposition_public<Threshold>(r.start, r.end-r.start,
         [origin](int64_t s, int64_t n) {
-          auto& loop_body = *reinterpret_cast<F>(GCE.shared_arg);
+          auto& loop_body = *GCE->get_shared_ptr<F>();
           loop_body(s,n);
           complete(make_global(GCE,origin),n);
         }
