@@ -21,6 +21,9 @@ class GlobalCompletionEvent : public CompletionEvent {
   Core cores_in;
   bool barrier_done; // only for verification
   
+  /// pointer to shared arg for loops that use a GCE
+  void * shared_arg;
+  
   /// Notify the master joiner that this joiner doesn't have any work to do for now.
   void send_enter() {
     enter_called = true;
