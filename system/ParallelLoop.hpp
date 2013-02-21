@@ -15,6 +15,7 @@
 #include "Addressing.hpp"
 #include "Communicator.hpp"
 #include "GlobalCompletionEvent.hpp"
+#include "Barrier.hpp"
 
 DECLARE_int64(loop_threshold);
 
@@ -170,17 +171,24 @@ namespace Grappa {
   /// iterations on all cores complete.
   template<GlobalCompletionEvent * GCE = &impl::local_gce, int64_t Threshold = impl::USE_LOOP_THRESHOLD_FLAG, typename F = decltype(nullptr)>
   void forall_global_public(int64_t start, int64_t iters, F loop_body) {
-    GCE.reset_all();
     on_all_cores([start,iters,loop_body]{
+      GCE.reset();
+      GCE.shared_arg = &loop_body; // need to initialize this on all nodes before any tasks start
+      
+      // may as well do this before the barrier too, but it shouldn't matter
       range_t r = blockDist(start, start+iters, mycore(), cores());
       GCE.enroll(r.end-r.start);
+      
+      barrier();
+      
       impl::loop_decomposition_public<Threshold>(r.start, r.end-r.start,
-        [origin, loop_body](int64_t s, int64_t n) {
+        [origin](int64_t s, int64_t n) {
+          auto& loop_body = *reinterpret_cast<F>(GCE.shared_arg);
           loop_body(s,n);
-          complete(make_global(GCE,origin), n);
+          send_message(origin, [n]{ GCE.complete(n) });
         }
       );
-      GCE.wait();
+      GCE.wait(); // keeps captured `loop_body` around for child tasks from any core to use
     });
   }
   
