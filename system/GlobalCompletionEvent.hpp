@@ -1,3 +1,5 @@
+#pragma once
+
 #include "Communicator.hpp"
 #include "CompletionEvent.hpp"
 #include "Tasking.hpp"
