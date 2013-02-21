@@ -387,70 +387,70 @@ int64_t StealQueue<T>::steal_locally( Core victim, int64_t max_steal ) {
 
   /* Send steal request */
   Grappa::send_message( victim, [ &result, origin, max_steal ] {
-      /* ON VICTIM */
-      int victimBottom = steal_queue.bottom;
-      int victimTop = steal_queue.top;
+    /* ON VICTIM */
+    int victimBottom = steal_queue.bottom;
+    int victimTop = steal_queue.top;
 
-      const int victimHalfWorkAvail = (victimTop - victimBottom) / 2;
-      const int stealAmt = MIN_INT( victimHalfWorkAvail, max_steal );
-      bool ok = stealAmt > 0;
+    const int victimHalfWorkAvail = (victimTop - victimBottom) / 2;
+    const int stealAmt = MIN_INT( victimHalfWorkAvail, max_steal );
+    bool ok = stealAmt > 0;
 
-      VLOG(4) << "Victim of thief=" << origin << " victimHalfWorkAvail=" << victimHalfWorkAvail;
-      if (ok) {
+    VLOG(4) << "Victim of thief=" << origin << " victimHalfWorkAvail=" << victimHalfWorkAvail;
+    if (ok) {
 
-        /* reserve a chunk */
-        steal_queue.bottom = victimBottom + stealAmt;
-
-
-        GRAPPA_EVENT(steal_victim_ev, "Steal victim", 1, scheduler, stealAmt);
-        #ifdef VTRACE
-        //VT_COUNT_UNSIGNED_VAL( steal_victim_ev_vt, k );
-        #endif
-
-        T* victimStackBase = steal_queue.stack;
-        T* victimStealStart = victimStackBase + victimBottom;
+    /* reserve a chunk */
+    steal_queue.bottom = victimBottom + stealAmt;
 
 
-        /* Send successful steal reply */
-        auto reply = Grappa::send_heap_message( origin, [&result, stealAmt] ( void * payload, size_t payload_size) {
-          /* ON ORIGIN */
+    GRAPPA_EVENT(steal_victim_ev, "Steal victim", 1, scheduler, stealAmt);
+#ifdef VTRACE
+    //VT_COUNT_UNSIGNED_VAL( steal_victim_ev_vt, k );
+#endif
 
-          // PERFORMANCE TODO: could omit stealAmt to save on bandwidth
-          CHECK( stealAmt * sizeof(T) == payload_size ) << "steal amount in bytes != payload size";
-          T * stolen_work = static_cast<T*>( payload );
+    T* victimStackBase = steal_queue.stack;
+    T* victimStealStart = victimStackBase + victimBottom;
 
-          GRAPPA_EVENT(steal_packet_ev, "Steal packet", 1, scheduler, stealAmt);
+
+    /* Send successful steal reply */
+    auto reply = Grappa::send_heap_message( origin, [&result, stealAmt] ( void * payload, size_t payload_size) {
+      /* ON ORIGIN */
+
+      // PERFORMANCE TODO: could omit stealAmt to save on bandwidth
+      CHECK( stealAmt * sizeof(T) == payload_size ) << "steal amount in bytes != payload size";
+      T * stolen_work = static_cast<T*>( payload );
+
+      GRAPPA_EVENT(steal_packet_ev, "Steal packet", 1, scheduler, stealAmt);
 
 #ifdef VTRACE
-          //VT_COUNT_UNSIGNED_VAL( thiefStack->steal_success_ev_vt, k );
+      //VT_COUNT_UNSIGNED_VAL( thiefStack->steal_success_ev_vt, k );
 #endif
 
-          // reclaim again before we copy
-          steal_queue.reclaimSpace();
+      // reclaim again before we copy
+      steal_queue.reclaimSpace();
 
-          CHECK( steal_queue.top + stealAmt < steal_queue.stackSize ) << "steal reply: overflow (top:" << steal_queue.top << " stackSize:" << steal_queue.stackSize << " amt:" << stealAmt << ")";
-          std::memcpy(&steal_queue.stack[steal_queue.top], stolen_work, payload_size);
+      CHECK( steal_queue.top + stealAmt < steal_queue.stackSize ) << "steal reply: overflow (top:" << steal_queue.top << " stackSize:" << steal_queue.stackSize << " amt:" << stealAmt << ")";
+      std::memcpy(&steal_queue.stack[steal_queue.top], stolen_work, payload_size);
 
-          VLOG(5) << "Steal packet returns with amt=" << stealAmt;
-          steal_queue.top += stealAmt;
+      VLOG(5) << "Steal packet returns with amt=" << stealAmt;
+      steal_queue.top += stealAmt;
 
-          result.writeEF( stealAmt );
-        }, victimStealStart, stealAmt*sizeof(T)); // success reply
+      result.writeEF( stealAmt );
+    }, victimStealStart, stealAmt*sizeof(T)); // success reply
 
 #if DEBUG
-        // wait for send then 0 out the stolen stuff (to detect errors)
-        reply.block_until_sent();
-        std::memset( victimStealStart, 0, stealAmt*sizeof( T ) );
+    // wait for send then 0 out the stolen stuff (to detect errors)
+    reply.block_until_sent();
+    std::memset( victimStealStart, 0, stealAmt*sizeof( T ) );
 #endif
-      } else {
-        /* Send failed steal reply */
-        send_heap_message( origin, [&result] { 
-            /* ON ORIGIN */
-            steal_queue.nFail++;
-            result.writeEF( 0 );
-            }); // failure reply
-      }
-      }); // request
+    } else {
+      /* Send failed steal reply */
+      send_heap_message( origin, [&result] { 
+        /* ON ORIGIN */
+        steal_queue.nFail++;
+        result.writeEF( 0 );
+        }); // failure reply
+    }
+  }); // request
 
   // wait for result
   GRAPPA_PROFILE_THREAD_START( stealprof, global_scheduler.get_current_thread() );
