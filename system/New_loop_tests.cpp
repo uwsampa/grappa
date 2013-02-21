@@ -94,11 +94,13 @@ void test_forall_here() {
 
 static int test_global = 0;
 CompletionEvent test_global_ce;
+GlobalCompletionEvent my_gce;
 
-void test_forall_global() {
+void test_forall_global_private() {
   BOOST_MESSAGE("Testing forall_global...");
   const int64_t N = 1 << 8;
   
+  BOOST_MESSAGE("  private");
   forall_global_private(0, N, [](int64_t start, int64_t iters) {
     for (int i=0; i<iters; i++) {
       test_global++;
@@ -116,8 +118,29 @@ void test_forall_global() {
     }
   });
   
+  on_all_cores([]{
+    BOOST_CHECK_EQUAL(test_global, N/cores());
+    test_global = 0;
+  });
+  
 }
 
+void test_forall_global_public() {
+  BOOST_MESSAGE("Testing forall_global_public...");
+  const int64_t N = 1 << 8;
+  
+  on_all_cores([]{ test_global = 0; });
+  
+  forall_global_public(0, N, [](int64_t s, int64_t n) {
+    test_global += n;
+  });
+  
+  int total = 0;
+  for (Core c = 0; c < cores(); c++) {
+    total += delegate::read(make_global(&test_global, c));
+  }
+  BOOST_CHECK_EQUAL(total, N);
+}
 
 void test_forall_localized() {
   BOOST_MESSAGE("Testing forall_localized...");
@@ -143,7 +166,8 @@ void user_main(void * args) {
   test_loop_decomposition_global();
   
   test_forall_here();
-  test_forall_global();
+  test_forall_global_private();
+  test_forall_global_public();
   
   test_forall_localized();
 }
