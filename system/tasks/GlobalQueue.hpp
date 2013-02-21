@@ -226,7 +226,7 @@ void GlobalQueue<T>::pull( ChunkInfo<T> * result ) {
   A_Entry loc;
   D_A_Entry qdesc( &loc );
   A_D_A_Entry desc_addr = make_global( &qdesc );
-  Grappa_call_on( HOME_NODE, GlobalQueue<T>::pull_reserve_am_g, &desc_addr );
+  Grappa_call_on( HOME_NODE, GlobalQueue<T>::pull_reserve_am_g, &desc_addr ); // FIXME: call_on deprecated
   size_t resv_msg_bytes = Grappa_sizeof_message( &desc_addr );
   /* wait for element: this is designed to block forever if there are no more items shared in this queue
    * for the rest of the program. */
@@ -242,7 +242,8 @@ void GlobalQueue<T>::pull( ChunkInfo<T> * result ) {
   pull_entry_args<T> entry_args;
   entry_args.target = loc;
   entry_args.descriptor = make_global( &cdesc );
-  Grappa_call_on( loc.node(), pull_entry_request_g_am, &entry_args );
+  Grappa_call_on( loc.node(), pull_entry_request_g_am, &entry_args );  // FIXME: call_on deprecated
+
   size_t entry_msg_bytes = Grappa_sizeof_message( &entry_args );
   Grappa::Statistics::global_queue_stats.record_pull_entry_request( entry_msg_bytes );
   cdesc.wait();
