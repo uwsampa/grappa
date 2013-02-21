@@ -21,6 +21,7 @@ set(SYSTEM_SOURCES
   Array.hpp
   AsyncParallelFor.cpp
   AsyncParallelFor.hpp
+  Barrier.hpp Barrier.cpp
   Cache.cpp
   Cache.hpp
   Collective.cpp
