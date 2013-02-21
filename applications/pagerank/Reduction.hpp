@@ -31,7 +31,7 @@ class Reduction {
         /* T must have operator+ defined */
         //localSum = Grappa_allreduce<T,coll_add<T>,init>(localSum);
         //TODO init version and specialized version for non-template allowed
-        localSum = Grappa_allreduce_noinit<T,coll_add<T> > (localSum);
+        localSum = Grappa_allreduce_noinit<T,collective_add<T> > (localSum);
       }
       return localSum;
     }
