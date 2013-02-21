@@ -18,6 +18,10 @@
 #define D_A_Entry Descriptor< GlobalAddress< QueueEntry<T> > > 
 #define A_D_A_Entry GlobalAddress< Descriptor< GlobalAddress< QueueEntry<T> > > >
 
+namespace Grappa {
+
+  namespace Statistics {
+
 class GlobalQueueStatistics {
   private:
     // network usage
@@ -76,7 +80,9 @@ class GlobalQueueStatistics {
 };
 
 extern GlobalQueueStatistics global_queue_stats;
+} // namespace Statistics
 
+namespace impl {
 
 template <typename T>
 struct ChunkInfo {
@@ -183,12 +189,12 @@ bool GlobalQueue<T>::push( GlobalAddress<T> chunk_base, uint64_t chunk_amount ) 
   DVLOG(5) << "push() reserve done -- loc:" << loc;
 
   if ( loc.pointer() == NULL ) {
-    global_queue_stats.record_push_reserve_request( msg_bytes, false );
+    Grappa::Statistics::global_queue_stats.record_push_reserve_request( msg_bytes, false );
     // no space in global queue; push failed
     return false;
   }
 
-  global_queue_stats.record_push_reserve_request( msg_bytes, true );
+  Grappa::Statistics::global_queue_stats.record_push_reserve_request( msg_bytes, true );
 
   // push the queue entry that points to my chunk 
   ChunkInfo<T> c;
@@ -200,7 +206,7 @@ bool GlobalQueue<T>::push( GlobalAddress<T> chunk_base, uint64_t chunk_amount ) 
   DVLOG(5) << "push() sending entry to " << loc;
   bool had_sleeper = Grappa_delegate_func< push_entry_args<T>, bool, GlobalQueue<T>::push_entry_g > ( entry_args, loc.node() ); 
   size_t entry_msg_bytes = Grappa_sizeof_delegate_func_request< push_entry_args<T>, bool >( );
-  global_queue_stats.record_push_entry_request( entry_msg_bytes, had_sleeper );
+  Grappa::Statistics::global_queue_stats.record_push_entry_request( entry_msg_bytes, had_sleeper );
 
   return true;
 }
@@ -220,7 +226,7 @@ void GlobalQueue<T>::pull( ChunkInfo<T> * result ) {
   A_Entry loc;
   D_A_Entry qdesc( &loc );
   A_D_A_Entry desc_addr = make_global( &qdesc );
-  Grappa_call_on( HOME_NODE, GlobalQueue<T>::pull_reserve_am_g, &desc_addr );
+  Grappa_call_on( HOME_NODE, GlobalQueue<T>::pull_reserve_am_g, &desc_addr ); // FIXME: call_on deprecated
   size_t resv_msg_bytes = Grappa_sizeof_message( &desc_addr );
   /* wait for element: this is designed to block forever if there are no more items shared in this queue
    * for the rest of the program. */
@@ -228,7 +234,7 @@ void GlobalQueue<T>::pull( ChunkInfo<T> * result ) {
 
   CHECK( loc.pointer() != NULL ) << "Invalid global address. Pull is always blocking";
 
-  global_queue_stats.record_pull_reserve_request( resv_msg_bytes );
+  Grappa::Statistics::global_queue_stats.record_pull_reserve_request( resv_msg_bytes );
 
   // get the element of the queue, which will point to data
   Descriptor< ChunkInfo<T> > cdesc( result );
@@ -236,9 +242,10 @@ void GlobalQueue<T>::pull( ChunkInfo<T> * result ) {
   pull_entry_args<T> entry_args;
   entry_args.target = loc;
   entry_args.descriptor = make_global( &cdesc );
-  Grappa_call_on( loc.node(), pull_entry_request_g_am, &entry_args );
+  Grappa_call_on( loc.node(), pull_entry_request_g_am, &entry_args );  // FIXME: call_on deprecated
+
   size_t entry_msg_bytes = Grappa_sizeof_message( &entry_args );
-  global_queue_stats.record_pull_entry_request( entry_msg_bytes );
+  Grappa::Statistics::global_queue_stats.record_pull_entry_request( entry_msg_bytes );
   cdesc.wait();
 }
 
@@ -249,14 +256,14 @@ void GlobalQueue<T>::pull_reserve_sendreply( A_D_A_Entry requestor,
     bool requestor_waited ) {
   descriptor_reply_one( requestor, granted_index  );
   size_t msg_bytes = Grappa_sizeof_descriptor_reply_one( requestor, granted_index );
-  global_queue_stats.record_pull_reserve_reply( msg_bytes, requestor_waited );
+  Grappa::Statistics::global_queue_stats.record_pull_reserve_reply( msg_bytes, requestor_waited );
 }
 
 template <typename T>
 A_Entry GlobalQueue<T>::push_reserve ( bool ignore ) {
   CHECK( isMaster() );
 
-  global_queue_stats.record_push_reserve_reply( Grappa_sizeof_delegate_func_reply< bool, A_Entry >() );
+  Grappa::Statistics::global_queue_stats.record_push_reserve_reply( Grappa_sizeof_delegate_func_reply< bool, A_Entry >() );
 
   DVLOG(5) << "push_reserve";
 
@@ -311,7 +318,7 @@ void GlobalQueue<T>::pull_entry_sendreply( GlobalAddress< Descriptor< ChunkInfo<
   // send data to puller
   descriptor_reply_one( desc, &(e->chunk) );
   size_t msg_bytes = Grappa_sizeof_descriptor_reply_one( desc, &(e->chunk) );
-  global_queue_stats.record_pull_entry_reply( msg_bytes );
+  Grappa::Statistics::global_queue_stats.record_pull_entry_reply( msg_bytes );
 }
 
 template <typename T>
@@ -371,6 +378,7 @@ void GlobalQueue<T>::pull_entry_request_g_am( pull_entry_args<T> * args, size_t 
 } 
 
 
+
 // global object GlobalQueue<T>::global_queue convenience methods
 template <typename T>
 void global_queue_pull( ChunkInfo<T> * result ) {
@@ -384,6 +392,10 @@ bool global_queue_push( GlobalAddress<T> chunk_base, uint64_t chunk_amount ) {
 // allocation of global_queue instance
 template <typename T>
 GlobalQueue<T> GlobalQueue<T>::global_queue;
+
+} // namespace impl
+} // namespace Grappa
+
 
 
 #endif //__GLOBAL_QUEUE_HPP__
