@@ -78,14 +78,12 @@ void try_global_ce() {
     }
     
     gce.complete();
+    gce.wait();
   });
-  
-  gce.wait();
   BOOST_CHECK_EQUAL(x, N*cores());
   
   
   BOOST_MESSAGE("  block in SPMD tasks");
-  on_all_cores([]{  gce.reset();  });
   
   x = 0;
   gce.reset_all();
@@ -146,7 +144,7 @@ void try_global_ce_recursive() {
   // overload Core0 with extra work
   rec_spawn(xa, N*2);
   
-  gce.wait();
+  on_all_cores([]{ gce.wait(); });
   BOOST_CHECK_EQUAL(x, N*cores()+N*2);
   
   
@@ -223,7 +221,7 @@ void try_synchronizing_spawns() {
       global_x++;
     });
   }
-  gce.wait();
+  on_all_cores([]{ gce.wait(); });
   
   int total = 0;
   auto total_addr = make_global(&total);
@@ -242,6 +240,7 @@ void user_main(void * args) {
   try_many_tasks();
   try_global_ce();
   try_global_ce_recursive();
+  try_synchronizing_spawns();
 }
 
 BOOST_AUTO_TEST_CASE( test1 ) {
