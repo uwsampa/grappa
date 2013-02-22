@@ -128,7 +128,7 @@ public:
     }
   }
   
-  /// SPMD or from user_main (maybe from some other task, but will sync globally so user_main makes the most sense)
+  /// SPMD 
   void wait() {
     if (!global_done) {
       if (!cancel_in_flight && count == 0 && !enter_called) {
@@ -143,6 +143,7 @@ public:
       CHECK(count == 0);
     }
   }
+  
 };
 
   
