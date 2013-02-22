@@ -8,9 +8,14 @@
 #ifndef COLLECTIVE_HPP
 #define COLLECTIVE_HPP
 
-#include "Grappa.hpp"
-#include "ForkJoin.hpp"
+//#include "Grappa.hpp"
+//#include "ForkJoin.hpp"
 #include "common.hpp"
+#include "CompletionEvent.hpp"
+#include "Message.hpp"
+#include "MessagePool.hpp"
+#include "Tasking.hpp"
+#include "FullEmpty.hpp"
 
 #define COLL_MAX &collective_max
 #define COLL_MIN &collective_min
@@ -214,6 +219,97 @@ T Grappa_allreduce_noinit(T myval) {
   Grappa_suspend();
   
   return Reductions<T>::final_reduction_result;
+}
+
+namespace Grappa {
+  
+  // Call message (work that cannot block) on all cores, block until ack received from all.
+  template<typename F>
+  void call_on_all_cores(F work) {
+    MessagePool<(1<<16)> pool;
+    
+    CompletionEvent ce(Grappa::cores());
+    auto ce_addr = make_global(&ce);
+    
+    for (Core c = 0; c < Grappa::cores(); c++) {
+      pool.send_message(c, [ce_addr, work] {
+        work();
+        complete(ce_addr);
+      });
+    }
+    ce.wait();
+  }
+  
+  /// Spawn a private task on each core, block until all complete.
+  /// To be used for any SPMD-style work (e.g. initializing globals).
+  /// Also used as a primitive in Grappa system code where anything is done on all cores.
+  template<typename F>
+  void on_all_cores(F work) {
+    MessagePool<(1<<16)> pool;
+    
+    CompletionEvent ce(Grappa::cores());
+    auto ce_addr = make_global(&ce);
+    
+    for (Core c = 0; c < Grappa::cores(); c++) {
+      pool.send_message(c, [ce_addr, work] {
+        privateTask([ce_addr, work] {
+          work();
+          complete(ce_addr);
+        });
+      });
+    }
+    ce.wait();
+  }
+  
+  
+  namespace impl {
+    
+    template<typename T>
+    struct Reduction {
+      static FullEmpty<T> result;
+    };
+    template<typename T> FullEmpty<T> Reduction<T>::result;
+    
+    template< typename T, T (*ReduceOp)(const T&, const T&) >
+    void collect_reduction(const T& val) {
+      static T total;
+      static Core cores_in = 0;
+      
+      CHECK(mycore() == HOME_NODE);
+      
+      if (cores_in == 0) {
+        total = val;
+      } else {
+        total = ReduceOp(total, val);
+      }
+      
+      cores_in++;
+      DVLOG(4) << "cores_in: " << cores_in;
+      
+      if (cores_in == cores()) {
+        cores_in = 0;
+        T tmp_total = total;
+        for (Core c = 0; c < cores(); c++) {
+          send_heap_message(c, [tmp_total] {
+            Reduction<T>::result.writeXF(tmp_total);
+          });
+        }
+      }
+    }
+    
+  }
+  
+  template< typename T, T (*ReduceOp)(const T&, const T&) >
+  T allreduce(T myval) {
+    impl::Reduction<T>::result.reset();
+    
+    send_message(HOME_NODE, [myval]{
+      impl::collect_reduction<T,ReduceOp>(myval);
+    });
+    
+    return impl::Reduction<T>::result.readFF();
+  }
+  
 }
 
 #endif // COLLECTIVE_HPP

@@ -16,31 +16,11 @@
 #include "Communicator.hpp"
 #include "GlobalCompletionEvent.hpp"
 #include "Barrier.hpp"
+#include "Collective.hpp"
 
 DECLARE_int64(loop_threshold);
 
 namespace Grappa {
-  
-  /// Spawn a private task on each core, block until all complete.
-  /// To be used for any SPMD-style work (e.g. initializing globals).
-  /// Also used as a primitive in Grappa system code where anything is done on all cores.
-  template<typename F>
-  void on_all_cores(F work) {
-    MessagePool<(1<<16)> pool;
-
-    CompletionEvent ce(Grappa::cores());
-    auto ce_addr = make_global(&ce);
-    
-    for (Core c = 0; c < Grappa::cores(); c++) {
-      pool.send_message(c, [ce_addr, work] {
-        privateTask([ce_addr, work] {
-          work();
-          complete(ce_addr);
-        });
-      });
-    }
-    ce.wait();
-  }
   
   namespace impl {
     /// Declares that the loop threshold should be determined by the `loop_threshold` command-line flag.
