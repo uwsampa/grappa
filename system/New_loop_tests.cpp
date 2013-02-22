@@ -56,7 +56,7 @@ void test_loop_decomposition_global() {
   auto ce_addr = make_global(&ce);
   
   impl::loop_decomposition_public(0, N, [ce_addr](int64_t start, int64_t iters) {
-    VLOG(1) << "loop(" << start << ", " << iters << ")";
+    BOOST_MESSAGE("loop(" << start << ", " << iters << ")");
     complete(ce_addr,iters);
   });
   ce.wait();
@@ -136,6 +136,24 @@ void test_forall_global_public() {
   });
   
   int total = 0;
+  for (Core c = 0; c < cores(); c++) {
+    total += delegate::read(make_global(&test_global, c));
+  }
+  BOOST_CHECK_EQUAL(total, N);
+  
+  BOOST_MESSAGE("  with nested spawns");
+  on_all_cores([]{ test_global = 0; });
+  
+  forall_global_public<&my_gce>(0, N, [](int64_t s, int64_t n){
+    for (int i=s; i<s+n; i++) {
+      publicTask<&my_gce>([]{
+        test_global++;
+      });
+    }
+  });
+  
+  // TODO: use reduction
+  total = 0;
   for (Core c = 0; c < cores(); c++) {
     total += delegate::read(make_global(&test_global, c));
   }
