@@ -89,7 +89,7 @@ namespace Grappa {
     /// This version spawns *public* tasks all the way down.
     template<int64_t Threshold = USE_LOOP_THRESHOLD_FLAG, typename F = decltype(nullptr) >
     void loop_decomposition_public(int64_t start, int64_t iterations, F loop_body) {
-      VLOG(1) << "< " << start << " : " << iterations << ">";
+      DVLOG(4) << "< " << start << " : " << iterations << ">";
       
       if (iterations == 0) {
         return;
@@ -185,10 +185,12 @@ namespace Grappa {
         [origin](int64_t s, int64_t n) {
           auto& loop_body = *reinterpret_cast<F>(GCE.shared_arg);
           loop_body(s,n);
-          send_message(origin, [n]{ GCE.complete(n) });
+          complete(make_global(GCE,origin),n);
         }
       );
-      GCE.wait(); // keeps captured `loop_body` around for child tasks from any core to use
+      
+      GCE->wait(); // keeps captured `loop_body` around for child tasks from any core to use
+      GCE->set_shared_ptr(nullptr);
     });
   }
   
