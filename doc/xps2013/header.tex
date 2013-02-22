@@ -1,0 +1,59 @@
+\documentclass[11pt]{article}
+
+\usepackage{times}
+\usepackage{fullpage}
+\usepackage[override]{cmtt}
+\usepackage{sectsty}
+\usepackage{graphicx}
+\usepackage{color}
+\usepackage{xspace}
+\usepackage[lmargin=1in, rmargin=1in,tmargin=1in,bmargin=1in]{geometry}
+\usepackage{url}
+\usepackage{cite}
+\usepackage{microtype}
+\usepackage{listings}
+\usepackage{subfig}
+
+\newcommand{\TODO}[1]{\textcolor{red}{{\bf TODO:} #1}}
+\newcommand{\ie}{{\em i.e.}}
+\newcommand{\eg}{{\em e.g.}}
+\newcommand{\benchmark}[1]{{\small\texttt{#1}}}
+\newcommand{\ilcode}[1]{\texttt{#1}}
+\newcommand{\comment}[1]{}
+
+\newcommand{\gasnet}{GASNet}
+
+\newcommand{\BigO}[1]{$O(#1)$}
+
+\newcommand{\api}{\textls*{\small API}}
+\newcommand{\apis}{\textls*{\small API}\hspace{0.75pt}s}
+\newcommand{\ssd}{\textls*{\small SSD}}
+\newcommand{\ssds}{\textls*{\small SSD}\hspace{0.75pt}s}
+
+\setlength{\parskip}{6pt}
+
+\pagestyle{plain}
+
+\makeatletter
+
+\renewcommand{\paragraph}{%
+  \@startsection{paragraph}{4}%
+  {\z@}{1.0ex \@plus 1ex \@minus 1ex}{-1em}%
+  {\normalfont\normalsize\bfseries}%
+}
+
+\comment{
+\renewcommand\section{\@startsection{section}{1}{\z@}{-10\p@ \@plus -4\p@ \@minus -4\p@}{5\p@ \@plus 4\p@ \@minus 4\p@}{\normalfont\Large\bfseries\boldmath\rightskip=\z@ \@plus 8em\pretolerance=10000 }}
+
+\renewcommand\subsection{\@startsection{subsection}{2}{\z@}{-10\p@ \@plus -4\p@ \@minus -4\p@}{5\p@ \@plus 4\p@ \@minus 4\p@}{\normalfont\large\bfseries\boldmath\rightskip=\z@ \@plus 8em\pretolerance=10000 }}
+
+\renewcommand\subsubsection{\@startsection{subsubsection}{3}{\z@}{-10\p@ \@plus -4\p@ \@minus -4\p@}{5\p@ \@plus 4\p@ \@minus 4\p@}{\normalfont\normalsize\bfseries\boldmath\rightskip=\z@ \@plus 8em\pretolerance=10000 }}
+}
+
+\makeatother
+
+
+
+
+\begin{document}
+

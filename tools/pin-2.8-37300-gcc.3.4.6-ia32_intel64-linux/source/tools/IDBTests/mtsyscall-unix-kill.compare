@@ -1,2 +1,0 @@
-Breakpoint 1,\s*Breakpoint.*at.*mt-syscall-unix.cpp:50
-Program exited normally.
