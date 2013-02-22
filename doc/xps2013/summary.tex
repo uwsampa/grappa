@@ -1,0 +1,30 @@
+\paragraph{Summary}
+
+Irregular applications are increasing in importance to the computing industry.
+For a long time they have underpinned computations of interest to the national
+security arm of the federal government. But now, they underpin such questions
+as ad placement in social networks, and analysis of complex data-sets in
+medicine and science. The defining characteristic of these applications is
+poor locality and massive available parallelism. Our effort is focused on
+making these applications perform well and scale on commodity hardware. The
+key idea that makes this work is to rely on massive concurrency to tolerate
+memory latency, instead of relying on locality (which doesn't exist for these
+applications). This core idea underpinned the XMT system, a fully-custom
+hardware system. We plan to explore that idea in software only, running on
+commodity processors. And unlike the XMT, however, we must also contend with
+commodity networking hardware, and here we again rely on threading to provide
+a sufficient number of requests that we can buffer them prior to dispatching
+on the network, to overcome bandwidth limitations when operating with small
+messages.
+
+Our preliminary effort has shown a workable proof of concept of this approach: a commodity cluster can out do the XMT at its own game, by emulating its key features in software. What is needed now is additional effort to improve the underlying performance of this runtime and make it usable to a broad base of users. We will be focusing our efforts in the next three years on the key performance component, the networking layer, and the key programmer efficiency linchpin, high level language support. In addition we need a useful mechanism for handling data-sets in the petabyte range, and here we imagine building a cluster of machines that relies primarily on SSD's and not DRAM as main  data-set storage.
+
+If successful, the Grappa runtime will have a transformative impact on the computing industry. Irregular applications are hugely important, and if off-the-shelf hardware can be efficient with them a new class of questions can be asked of computing systems. Additionally our benchmark suite development will further drive innovation among researchers in this space.
+
+\paragraph{Intellectual Merit:}
+
+Efficiently executing irregular computations on commodity hardware is challenging.  Much about commodity hardware is seemingly designed for the opposite application characteristics: caches assume applications have locality; networks are built with low injection rates but high bandwidth, assuming large packet sizes; even runtimes and operating systems are built assuming relatively infrequent communication and synchronization compared to computation.  This proposal rests on the seemingly outlandish claim that this commodity hardware / software stack can be coerced, through another layer of software, into efficiently executing irregular applications that both lack locality and communicate frequently with small amounts of data.  A folksy way of saying it is we think we can jam a square peg through a round hole.  Fortunately we have some preliminary evidence we won't get wedged along the way.  This is an intellectually challenging endeavor, that we believe is well suited for the NSF XPS program.  In summary, our goal is to exploit parallelism from irregular computations to efficiently execute them at scale.
+
+\paragraph{Broader Impact:}
+
+Irregular computations are of increasing economic importance.  Moreover, they are key to several national security applications.  If commodity hardware can be cajoled into executing such applications efficiently it will open the door for new and rich applications.  Furthermore, irregular applications will then reap the benefits of advances in commodity processors and networks, rather than requiring custom hardware that advances only at much higher cost.  Graph queries, machine-learning and data-driven science will be enabled by the technology we aim to create from the ideas in this grant proposal.  Thus a broad impact of our work will be the transformative effect on the types of scientific and computing questions that commodity hardware can efficiently answer. In addition our work will include the construction of a comprehensive irregular benchmark suite to help guide our own and the field's research.
