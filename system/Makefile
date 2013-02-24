@@ -320,7 +320,7 @@ cleanup_shm:
 	echo "State before cleanup:"
 	for i in `sinfo -h -p grappa -o '%n'`; do ssh $$i bash -c "echo;hostname; ipcs -m; grep Huge /proc/meminfo"; done
 	echo "Cleaning up...."
-	for i in `sinfo -h -p grappa -o '%n'`; do ssh $$i bash -c "ipcs -m | grep $(USER) | cut -d' ' -f1 | xargs -n1 -r ipcrm -M"; done
+	for i in `sinfo -h -p grappa -o '%n'`; do ssh $$i bash -c "ipcs -m | grep $(USER) | cut -d' ' -f2 | xargs -n1 -r ipcrm -m"; done
 	echo "State after cleanup:"
 	for i in `sinfo -h -p grappa -o '%n'`; do ssh $$i bash -c "echo; hostname; ipcs -m; grep Huge /proc/meminfo"; done
 
