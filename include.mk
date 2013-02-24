@@ -280,12 +280,12 @@ SRUN_EXPORT_ENV_VARIABLES?=--task-prolog=$(SRUN_ENVVAR_TEMP) --task-epilog=$(SRU
 	@echo \#!/bin/bash > $@
 	@for i in $(ENV_VARIABLES); do echo echo export $$i >> $@; done
 	@echo '# Clean up any leftover shared memory regions' >> $@
-	@echo 'for i in `ipcs -m | grep $(USER) | cut -d" " -f1 | grep -v 0x00000000`; do ipcrm -M $$i; done' >> $@
+	@echo 'for i in `ipcs -m | grep $(USER) | cut -d" " -f2`; do ipcrm -m $$i; done' >> $@
 	@chmod +x $@
 
 .srunrc_epilog.%:
 	@echo \#!/bin/bash > $@
-	@echo 'for i in `ipcs -m | grep $(USER) | cut -d" " -f1 | grep -v 0x00000000`; do ipcrm -M $$i; done' >> $@
+	@echo 'for i in `ipcs -m | grep $(USER) | cut -d" " -f2`; do ipcrm -m $$i; done' >> $@
 	@chmod +x $@
 
 # set to force libs to be recopied to scratch disks
@@ -328,12 +328,12 @@ ifdef PAL
 	@echo '$(SBATCH_SCRATCH_DIR)/mpirun $(SBATCH_MPIRUN_EXPORT_ENV_VARIABLES) -bind-to-core -tag-output -- $(MY_TAU_RUN) $$CMD' >> $@
 else
 	@echo '# Run!' >> $@
-	@echo 'mpirun -npernode 1 bash -c "ipcs -m | grep $(USER) | cut -d\  -f1 | xargs -n1 -r ipcrm -M"' >> $@
+	@echo 'mpirun -npernode 1 bash -c "ipcs -m | grep $(USER) | cut -d\  -f2 | xargs -n1 -r ipcrm -m"' >> $@
 	@echo 'mpirun $(SBATCH_MPIRUN_EXPORT_ENV_VARIABLES) -bind-to-core -tag-output -- $(MY_TAU_RUN) $$*' >> $@
-	@echo 'mpirun -npernode 1 bash -c "ipcs -m | grep $(USER) | cut -d\  -f1 | xargs -n1 -r ipcrm -M"' >> $@
+	@echo 'mpirun -npernode 1 bash -c "ipcs -m | grep $(USER) | cut -d\  -f2 | xargs -n1 -r ipcrm -m"' >> $@
 endif
 	@echo '# Clean up any leftover shared memory regions' >> $@
-	@echo 'for i in `ipcs -m | grep $(USER) | cut -d" " -f1`; do ipcrm -M $$i; done' >> $@
+	@echo 'for i in `ipcs -m | grep $(USER) | cut -d" " -f2`; do ipcrm -m $$i; done' >> $@
 	@chmod +x $@
 
 # delete when done
