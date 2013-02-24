@@ -1,0 +1,41 @@
+################################################################
+
+Steve Gribble's feedback.
+
+I took a quick read through the paper.  First off -- cool!  I think you're within striking distance of a very nice SOSP submission.
+
+Here's a a dumb very high-level question:  what is the overall goal of grappa?  Is it to maximize throughput (e.g., vertices processed per second) given a certain class of applications and hardware?  Or, is it to maximize scalability (e.g., vertices processed per second per node) on commodity hardware?  Or, is it to find a design that maximize cost-efficiency (e.g., vertices processed per dollar), and you end up with the grappa software on commodity hardware?
+
+I couldn't quite tell, and therefore couldn't tell if the evaluation section demonstrates you hit your goal.
+
+My guess as to the answer is that you're trying to maximize throughput and achieve reasonable scalability;  and, that you want to do it on commodity hardware with a commodity OS and networking stack; and, therefore you are forced into a latency-tolerant design.  But, that's just a guess.  :)
+
+>  - Do you have questions about or issues with the overall design?
+
+I had a few.  First, I wondered what the difference between your threading implementation, and typical user-level threads packages, is in practice.  One premise of the paper is that your threading system is lighter-weight, i.e., that it can handle more thread contexts and has cheaper context switching than typical.  Why is that, exactly?  It would be nice to quantify in the results section, e.g., compare against a modern scheduler-activation-based system that combines kernel threads (for multicore) and user-level threading (for efficiency).
+
+Second, the distributed shared memory part of the design felt pretty scruffy.  One major problem is the lack of cache coherence; you're potentially putting a big burden on the programmer.  Has this been an issue for you in practice as you ported the various apps?  How have you handled the lack of coherence?  How does the resulting model compare to other packages like graphlab?   A second problem is that the global memory is not well-integrated with virtual memory -- i.e., global addresses are not just pointers, and therefore the programmer has a lot of hassles (I assume) integrating global addresses into data structures.
+
+Third, I wondered a little about the message aggregation.  The premise is of course correct: small messages have greater per-byte overhead than large messages, detracting from bandwidth.  This has been hammered hard in a number of messaging systems over the decades; I was a little surprised that you ended up implementing your own.   Why not use myrinet and zero-copy networking stacks to allow for smaller messages?  i suppose your point is that you can afford off-the-shelf network stacks by adding more threads to compensate for the latency introduced by aggregation.  But, there's a cost to that -- extra latency, the overhead of managing aggregation, and presumably other issues.
+
+>  - Do you think we can get away just comparing against the XMT, or should we compare against other mass-market-cluster approaches? Since our programming model is more general, this gets a little tricky. We've had undergrads do some work with the Parallel Boost Graph Library, and they're starting on GraphLab and Pregel (Giraph) now. Should we make this a priority?
+
+*yes*.  Definitely make this a priority.  The biggest issue with the paper for me, by far, is that it was incredibly difficult to understand the comparison between XMT and Grappa, because you're varying two variables:  (1) the hardware, and (2) the software, simultaneously.  I couldn't actually tell which was better, or how to decide, or even what better means -- because perhaps the hardware is balanced differently, so you're hitting different bottlenecks at different costs.  I also couldn't easily tell what caused the differences between the two; the paper makes a few conjectures here and there, but doesn't actually provide data and analysis to back it up.
+
+I think you should keep the XMT comparison.  But, I think you desperately also need to compare grappa on the x86 cluster with *something else* on the same x86 cluster.
+
+>  - What about benchmarks? We've added in-memory sort, PageRank, and a couple other microbenchmarks. Do we need larger/more application-y benchmarks?
+
+I don't think you need more higher-level benchmarks, no.  With these new ones, you'll have plenty (IMHO).
+
+>  - What other measurements would you like to see in the evaluation?
+
+A few thoughts here:
+
+(1) I was interested in seeing more low-level micro benchmarks to actually dig into the benefits of the various parts of your design.  e.g., substitute linux threads, or some other efficient thread package, for your threads and show the impact.  or, substitute some zero-copy networking stack for your networking stack and show the impact.
+
+(2) I wanted to better understand what the bottlenecks in the system are, and why.  I couldn't tell if you're CPU-bound, network-bound, memory-bound, or something else.
+
+(3) A major premise of the paper is that high concurrency gives you latency tolerance, which  in turn lets you get away with a bunch of things that would otherwise be problematic.  But, I didn't have a sense of just how much latency you're introducing, and whether that's problematic in any way.  Is there some way to measure this?
+
+#############################################################
