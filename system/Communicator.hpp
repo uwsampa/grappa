@@ -65,6 +65,12 @@ typedef Core Node;
 /// is true even if the network is configured with a smaller MTU.
 //#define GASNET_NOARG_MAX_MEDIUM (GASNETC_MAX_MEDIUM + sizeof( int32_t ) * 16)
 
+
+/// some variables from gasnet
+namespace {
+  extern size_t gasnetc_inline_limit;
+}
+
 class Communicator;
 
 /// Class for recording Communicator stats
@@ -263,6 +269,9 @@ private:
   /// used as intermediate storage for active message handlers during the registration process.
   std::vector< gasnet_handlerentry_t > handlers_;
 
+  /// store data about gasnet segments on all nodes
+  std::vector< gasnet_seginfo_t > segments_;
+
   /// Are we in the phase that allows handler registration?
   bool registration_is_allowed_;
 
@@ -348,6 +357,10 @@ public:
     return gasnet_nodes(); 
   }
 
+  inline size_t inline_limit() const {
+    return gasnetc_inline_limit;
+  }
+
   /// Global (anonymous) barrier (ALLNODES)
   inline void barrier() {
     assert( communication_is_allowed_ );
@@ -377,6 +390,39 @@ public:
     GASNET_CHECK( gasnet_AMRequestMedium0( node, handler, buf, size ) );
   }
 
+  /// Send no-argment active message with payload. This only allows
+  /// messages will be immediately copied to the HCA.
+  /// TODO: can we avoid the copy onto gasnet's buffer? This is so small it probably doesn't matter.
+  inline void send_immediate( Node node, int handler, void * buf, size_t size ) { 
+    DCHECK_EQ( communication_is_allowed_, true );
+    CHECK_LT( size, gasnetc_inline_limit ); // make sure payload isn't too big
+    stats.record_message( size );
+#ifdef VTRACE_FULL
+    VT_COUNT_UNSIGNED_VAL( send_ev_vt, size );
+#endif
+    GASNET_CHECK( gasnet_AMRequestMedium0( node, handler, buf, size ) );
+  }
+
+  /// Send no-argment active message with payload via RDMA, blocking until sent.
+  inline void send( Node node, int handler, void * buf, size_t size, void * dest_buf ) { 
+    DCHECK_EQ( communication_is_allowed_, true );
+    stats.record_message( size );
+#ifdef VTRACE_FULL
+    VT_COUNT_UNSIGNED_VAL( send_ev_vt, size );
+#endif
+    GASNET_CHECK( gasnet_AMRequestLong0( node, handler, buf, size, dest_buf ) );
+  }
+
+  /// Send no-argment active message with payload via RDMA asynchronously.
+  inline void send_async( Node node, int handler, void * buf, size_t size, void * dest_buf ) { 
+    DCHECK_EQ( communication_is_allowed_, true );
+    stats.record_message( size );
+#ifdef VTRACE_FULL
+    VT_COUNT_UNSIGNED_VAL( send_ev_vt, size );
+#endif
+    GASNET_CHECK( gasnet_AMRequestLongAsync0( node, handler, buf, size, dest_buf ) );
+  }
+
   /// poll messaging layer
   inline void poll() { 
     GRAPPA_FUNCTION_PROFILE( GRAPPA_COMM_GROUP );
@@ -399,6 +445,7 @@ namespace Grappa {
 
   inline Core cores() { return global_communicator.nodes(); }
   inline Core mycore() { return global_communicator.mynode(); }
+  inline size_t inline_limit() { return global_communicator.inline_limit(); }
 
   /// @}
 
