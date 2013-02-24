@@ -1,0 +1,97 @@
+
+Submitted:
+
+We thank the reviewers for their thoughtful comments.
+
+>>> What is the novelty of the work? (Reviewers 1, 3, 4, 5) 
+
+Conventional wisdom holds that to obtain performance on irregular applications one should minimize latency of individual memory and scheduling operations. In contrast, our approach delays and bundles these operations, exploiting the wealth of concurrency in the problem domain to overlap this additional latency with other computation and consequently achieve high overall throughput. We use this idea to obtain high throughput not only on remote memory operations, but also on remote synchronization and distributed work-stealing operations. We believe that our system is the first runtime designed specifically to tolerate multi-millisecond latencies by switching between millions of threads on hundreds to thousands of cores. 
+
+While the individual ideas used to build Grappa are generally well-known, we know of no other runtime that combines these ideas with this goal. We combine ideas from: (1) distributed shared memory, but we use it for applications with little locality, i.e., caches are not necessarily valuable; (2) network message aggregation, but we use it for unrelated remote memory accesses instead of explicit messages, as in prior work; and (3) distributed work stealing, but with asynchronous steals that are overlapped with other computation via multithreading.
+
+The original goal of the project was to mimic the Cray XMT with commodity processors using a combination of hardware and software support. We thought hardware support would be necessary due to the vast difference in hardware capability. Each Cray XMT processor supports 1024 outstanding memory operations, while the processors in our cluster support a few dozen. The XMT processors have dedicated storage for thread contexts, whereas ours must share the data cache. The XMT includes extensive support for fine-grained synchronization, including full-bits and the ability to atomically increment a word anywhere in the system with a single instruction, while our cluster’s atomic operations are limited to a single node’s shared memory domain and may stall the pipeline to enforce the memory consistency model. We find it encouraging that Grappa performs as well as it does compared to the XMT without depending on specialized hardware.
+
+>>> Why a performance comparison with XMT? (Reviewers 1, 3, 4)
+
+In this work, we focused on providing a programming model similar to that of the XMT, which is known to be simple relative to that of distributed memory machines. We are able to provide this programming model on ubiquitous commodity clusters with at worst a 2.5x slowdown (and at best 3.2x speedup) on 16 nodes, even though the XMT has a 10x faster network injection rate and zero-cost context switches. By comparing against the XMT, we can hold the programming model constant and evaluate the performance difference between custom and commodity hardware under that model. Future work will compare Grappa against other commodity solutions in terms of performance as well as ease of programming.
+
+>>> Is a 2.5x performance gap good or bad? What optimization opportunities exist? (Reviewers 1, 3)
+
+We believe our slowdown with respect to the XMT is within the realm of optimization of the runtime features discussed in the paper. We were limited to less than half of the available cores in our system by contention in our network layer; improving that should allow us to double our network injection rate per node. Experiments with our context switch code suggest we can obtain a further ~30 percent increase in network injection rate per core. 
+
+Automatically tuning the runtime parameters is an interesting area of future work. We believe we can use core idleness and aggregated message sizes as signals to tune the worker count and aggregator delay, but it is not straightforward---low-work phases of execution as well as synchronization events may require temporary changes to these parameters to ensure rapid progress. A similar flavor of parameter exploration has been studied in previous work in task parallelism: e.g., parallel for-loops use granularity to trade off overhead of spawns, and adaptive work stealing schedulers switch between “work-first” and “help-first” policies.
+
+>>> Evaluation section is unpolished and incomplete. What about efficiency, scheduling overhead, and aggregator performance limitations? (Reviewers 1, 2, 3, 4)
+
+We will clean up and expand our evaluation. Grappa includes support for lightweight tracing and statistics collection, which was invaluable for debugging the performance of the runtime and benchmarks. We will use this to provide a detailed study of where time goes. An expanded evaluation will include analysis of scheduler overheads and execution efficiency, global memory and synchronization performance, and scaling challenges. We did not include this previously due to lack of time.
+
+>>> What would be the impact of better algorithms (e.g., Beamer's BFS) in the performance comparisons? (Reviewer 2)
+
+Since both the XMT and Grappa support a general programming model, both can benefit from such algorithmic modifications. Beamer's transformation increases BFS performance in two ways: first, by reducing the number of edges traversed, and second, by reducing the number of synchronizing operations executed. Both the XMT and Grappa would benefit from the reduction in edges traversed, but since Grappa's remote references are relatively more costly than the XMT's, we would expect Grappa to benefit more. Atomic operations on both platforms are no more expensive than normal memory operations, so we would expect no significant benefit from the reduction in synchronizing operations. Many transformations also benefit by exploiting locality: Grappa provides mechanisms to do so easily, while the hashed addressing of the XMT makes exploiting locality difficult.
+
+We will consider implementing Beamer’s approach for the final version.
+
+>>> Synchronization support (Reviewer 1)
+
+Grappa does have a synchronization construct like Cilk_sync which blocks a task until all its subtasks have completed. This is used to implement Grappa's parallel loop support. Grappa also supports fine-grained synchronization primitives, such as condition variables, via delegate operations, without memory fences or expensive retries as in the XMT.
+
+>>> Missing related work; reference for memory hierarchy challenges (Reviewers 4, 5)
+
+Thanks for pointing to extra related work; we will add these to the final version. 
+
+We will also cite “Improving Memory Hierarchy Performance of Irregular Applications Using Data and Computation Reorderings” by Mellor-Crummey, Whalley, and Kennedy from IJPP 2001, which discusses the challenges of mapping irregular computation to commodity memory hierarchies.
+
+
+
+
+
+
+Unsubmitted additional material for future use:
+
+
+--Comparing to XMT
+
+Finally, whether or not a purely software-based solution for commodity systems can offer customers of the Cray XMT a cost-effective alternative has been a long-standing question for those customers.  The answer has been anything but obvious:  that is why they have been eager to support this work.  The lack of immediacy in verdict is attributed to four technical challenges.
+
+First was the question of whether or not a commodity processor could tolerate the latency of large systems without additional hardware support.  The obvious answer is “No:  each core is capable of issuing at most 10 memory operations before it stalls;  furthermore, each Nehalem memory controller can execute at most 32 memory operations (including software prefetches) before it stalls;  a Cray XMT processor with a network latency of only 2us and running at only 500MHz can issue up to 1024 memory references and still sometimes stalls;  clearly a 3GHz processor will need more than 32 outstanding memory references to tolerate the much greater latency of commodity networks.”  For quite some time, this response stood as the rationale for requesting that Intel processors be redesigned to get more references in flight.  Indeed, there have been proposals to use FPGAs as surrogate memory controllers as a means of increasing memory concurrency to remote memory locations.  Apparently -- surprisingly to some -- Grappa demonstrates that it is possible to effect the needed concurrency (several thousand remote memory references in flight) with sufficiently low overhead that a commodity system might in fact serve those customers’ purposes.
+
+Second was the question of whether or not those thousands of threads’ contexts would “blow out cache”, defeating the purpose of latency tolerance.  Considering that a thousand threads might each execute many instructions each before any given thread that has yielded regains control of a core, one can imagine that both local and remote state that it had depended upon finding in cache to sustain performance might by then have been evicted.  Again, it is surprising that this is not the case:  that while there is some performance degradation due to such evictions, degradation does not sufficiently degrade overall performance to negate the gains of latency tolerance.
+
+Third was the question of synchronization.  The Cray XMT architecture includes several instructions each of which perform some form of full-bit synchronization and an int_fetch_add operation.  With just one instruction, the XMT can increment a word of memory anywhere in the system.  Hardware supports retry operations when full-bit operations find a word in the “wrong” state.  Again, it is not obvious how to compete against this with a software-only system relying on processors whose atomic operations not only are limited in functionality but also induce fences, stalling the cpu pipelines until all outstanding stores are flushed.  And, again, some folks have proposed FPGA solutions.  Indeed, synchronization operations are dense in high-concurrency programs. We realized we could not use the x86 built-ins even for node-local data with any frequency without interfering with the very pipeline throughput we were aiming to improve through the use of concurrency.  But, somewhat surprisingly considering all the additional operations involved, our software-only solution in which every synchronizing and every global reference passes through a Grappa delegate appears sufficiently efficient to compete.
+
+Fourth was the question of global memory model.  The Cray XMT guarantees sequential consistency for race free programs.  There are no caches so there are no coherency concerns.  The compiler injects a “lookahead” number into every memory operation that expresses how many more operations from that thread the pipeline may execute before it must wait for the memory operation to complete.  x86 processors have caches.  There is no hardware support for lookahead numbers.  We interweave threads outside the view of the compiler.  What the x86 does provide is total store order.  Putting all this together, it is not immediately clear what we get in the way of a consistency model.  However, what we believe we have is the same sequential consistency for race free programs as is offered by the Cray XMT, using off the shelf compilers and no hardware support specific to multiprocessor systems.  We believe without proof, yet, that we get this as a result of the total store order of individual processors combined with our delegation scheme that serializes all synchronizing and global requests.
+
+In summary, while there may well be no novelty in any one technique, we believe there is novelty in the fact that Grappa works as well as it does, likely offering a satisfactory commodity-based alternative to Cray XMT customers, even though we still have a great deal of work ahead.
+
+
+--Programming model 
+As an example, we discuss what a UPC implementation of our
+simplest benchmark, UTS-mem, (which only performs remote reads) would look
+like. UTS-mem is a parallel search of an unbalanced tree in memory, assuming
+no prior knowledge of the tree structure. UTS implementations use a work
+stack, containing addresses of nodes to visit. The UPC Thread would deqeue the
+global address and perform a high-latency remote read to get the node. With
+the node information, it then performs another remote read to get the node's
+edge list. The elements in the edge list can be added to the work stack. This
+simple solution will spend most of the cpu's time waiting for remote reads. An
+aggressive and fair implementation would need to overlap multiple reads for
+vertices and edge lists.** This would involve a scheduling loop that manages
+three structures: the work stack of unstarted vertices, the pool of
+outstanding reads, and the pool of received vertices and edge lists.  The
+Thread initiates nonblocking gets, polls for received messages (try_sync), and
+executes received vertices and edge lists.  The need of the extra data
+structures indicates that this level of communication overlap is too complex
+to be extracted from the simple version by UPC's compiler optimizations. The
+solution is further complicated by very large edge lists, which need to broken
+down into constant size chunks to prevent serialization.  These optimizations
+diverge from the UPC shared memory programming model.  
+
+There is also a
+performance concern: the UPC solution is that just using nonblocking reads is
+not sufficient. Commodity networks do not get good bandwidth for small
+messages, and there is a limit to the number of outstanding RDMA operations.
+The UPC solution could address this by aggregating reads to the same node
+using active messages, but then you are building a general aggregation
+mechanism that Grappa provides in the network layer.
+
+**It might actually be possible to try manually unrolling the main loop of dequeue,read vertex,read edgelist,enqueue edges. By putting all the reads together in the unroll, the UPC compiler might be able to convert this gather into nonblocking ops. If so then it could be efficient in terms of the individual dependence from vertex to its edges. But all the work in one iteration may have to finish before the next iteration, in which case performance degradation is determined by the variability of non-uniform access times in the gather ops (dataflow within iteration, but synchronized iterations). Aggregation could be added by increasing the amount of unrolling in the loop.

@@ -1,0 +1,64 @@
+\section{Background}
+
+Grappa is built on many existing ideas in programming languages, systems and
+architecture. In this section we discuss related frameworks and key enabling
+technologies that Grappa builds upon.
+
+\paragraph{Comparable frameworks} Distributed graph processing
+frameworks like Pregel~\cite{pregel:2010} and Distributed
+GraphLab~\cite{distgraphlab:vldb12} share similar goals as
+Grappa. Pregel adopts a bulk-synchronous parallel (BSP) execution
+model, which makes it inefficient on workloads that could prioritize
+vertices. GraphLab, on the other hand, schedules vertex computations
+individually, allowing prioritization, which gives faster convergence
+in a variety of iterative algorithms.  GraphLab, however, imposes a
+rigid computation model where programmers must express computation as
+transformations on a vertex and its edge list only, with information only
+from adjacent vertexes. Pregel is only slightly less
+restrictive, as the input data can be any vertex in the graph.  Grappa
+also supports dynamic parallelism with asynchronous execution, but
+parallelism is expressed as tasks or loop iterations, which is a far
+more general programming model for irregular computation tasks.
+
+\paragraph{Global memory} Grappa includes a custom implementation of a
+software distributed shared memory (DSM) system. Many traditional
+software DSM systems are page based~\cite{Treadmarks,munin} and aim to
+hide the fact that they are built in software from applications by
+exploiting the processor's paging mechanisms, therefore relying
+heavily on locality. Instead, Grappa, like other partitioned global
+address space (PGAS) models, implements its DSM at the language,
+rather than system level. Languages such as
+Chapel~\cite{Chamberlain:2007}, X10~\cite{X10:2005}, and
+UPC~\cite{upc:2005} make accesses to shared structures look like
+normal memory references. As we describe later, Grappa chooses a
+middle ground, where global addresses are explicit in the API and
+local accesses are emitted conventionally by the compiler.  While
+Grappa's DSM system is conceptually similar to prior work, its
+implementation is tuned for irregular computations.  Past DSM work,
+being page-based, could exploit the RDMA capabilities of network
+hardware to move large page-sized blocks of data from node to node.
+In our experience, when these networks move small blocks of data (a
+few bytes), only a fraction of the available bandwidth is achieved.
+In addition, the DSM system in Grappa ends up being tightly coupled to
+the task scheduler in order to overlap long latency memory operations
+with useful computation.  For these two reasons it became necessary to
+build a new DSM system specifically for Grappa.
+
+
+%% We could be stronger here on why Grappa's task library is different,
+%% but we are running out of time.  -Mark
+
+\paragraph{Multithreading} Grappa uses multithreading to tolerate
+memory latency. This is a well known technique. Hardware
+implementations include the Tera MTA~\cite{tera:mta1}, Cray
+XMT~\cite{feo:xmt}, Simultaneous multithreading~\cite{tullsen:smt},
+MIT Alewife~\cite{agarwal:alewife}, Cyclops~\cite{almasi:cyclops}, and
+even GPUs~\cite{gpus}. As we describe in this paper, Grappa use a
+lightweight user-mode task scheduler to multiplex \emph{thousands\/} of
+tasks on a single processing core. The large number of tasks is
+required because of the extremely high internode latency Grappa is
+mitigating.  Grappa's task library employs several optimizations: an
+extremely fast task switch, a small task size, and judicious use of
+hardware prefetching to bring task state into the cache long before
+that task is actually scheduled.
+

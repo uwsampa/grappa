@@ -1,0 +1,213 @@
+\section{Tasks}
+
+The basic unit of execution in Grappa is a {\em task}. Each task is
+represented by a function pointer and its arguments. A new task is enqueued at
+spawn time; when resources are free, it is allocated a stack, bound to a core,
+and executed.
+
+During execution, a task yields control of its core whenever it performs
+a long-latency operation, allowing the processor to remain busy while
+waiting for the operation to complete.  In addition,  a programmer can
+direct scheduling explicitly via the Grappa API calls shown
+in Figure~\ref{fig:scheduling}.
+To minimize yield overhead, the Grappa scheduler operates entirely in
+user-space and does little more than store register state of one task and load
+that of another. Context switch times are as low as 38ns even when switching
+amongst thousands of tasks.
+
+\comment{
+Delete the spin and move the 2us and ms thing to results if we have data to show it. -Mark
+
+Fast context switching amongst many tasks is
+crucial to Grappa for two reasons. First, only when the net cost of context
+switching is dominated by the loss incurred by stalling does a latency
+tolerant approach work to increase throughput on computations with intense
+random access. Random access latencies to node local memory are on the order
+of 100ns. Were the scheduler to add more overhead than this, it would actually
+slow down rather than speed up computations that randomly access node local
+data. Second, because we can switch amongst so many tasks without dramatically
+increasing scheduling overhead, Grappa can tolerate system latencies many
+orders of magnitude greater than that of local memory. Network ping latency
+alone is approximately 2us, but our data suggests we can tolerate latencies in the millisecond
+scale. Furthermore, by over-provisioning task parallelism, Grappa promises to
+provide robust throughput that is relatively insensitive to variations in
+latencies within and across our target systems.
+}
+
+\begin{figure}[htbp]
+  \begin{center}
+    \begin{description}\small
+    \item[ \texttt{ yield() } ] \hfill \\
+      Yields core to scheduler, enqueuing caller to be scheduled again soon
+    \item[ \texttt{ suspend() } ] \hfill \\
+      Yields core to scheduler, enqueuing caller only once another task calls wake
+    \item[ \texttt{ wake( task * $t$ ) } ] \hfill \\
+      Enqueues some other task $t$ to be scheduled again soon
+    \end{description}
+    \begin{minipage}{0.95\columnwidth}
+      \caption{\label{fig:scheduling} Grappa API: scheduling} %{-4ex}}
+    \end{minipage}
+    %\vspace{-3ex}
+  \end{center}
+\end{figure}
+
+
+\subsection{Expressing parallelism}
+
+Grappa programmers focus on expressing as much
+parallelism as possible without concern for where it will execute.
+Grappa then chooses where and when to exploit this parallelism,
+scheduling as much work as is necessary on each core to keep it busy
+in the presence of system latencies and task dependences.
+
+Grappa provides four methods for expressing parallelism, shown in
+Figure~\ref{fig:expressing-parallelism}:
+
+First, when the programmer identifies work
+that can be done in parallel, the work may be wrapped up in a function
+and queued with its arguments for later execution using a
+\texttt{spawn}.
+
+Second, a programmer can use \texttt{spawn\_on} to spawn a task on a
+specific core in the system or at the home core of a particular memory
+location.
+
+Third, the programmer can invoke a parallel for loop, provided that
+the trip count is known at loop entry. The programmer
+specifies a function pointer along with start and end indices and an
+optional threshold to control parallel overhead. Grappa does {\em
+recursive decomposition} of iterations, similar to Cilk's cilk\_for
+construct~\cite {cilkforimplementation}.\comment{could only find slides
+page6 of
+http://www.clear.rice.edu/comp422/lecture-notes/comp422-2012-Lecture5-
+Cilk++.pdf    ---- Good enough.  Cite it.  -Mark} and TBB's {\tt parallel\_for}~\cite{intel_tbb}.  It generates a
+logarithmically-deep tree of tasks, stopping to execute the loop body
+when the number of iterations is below the required threshold.
+
+Fourth, a programmer may want to execute an active message; that is,
+to run a small piece of code on a particular core in the system
+without waiting for execution resources to be available.  For example,
+custom synchronization primitives execute this way, as a function
+executed on the core where the data lives.  Grappa provides the
+\texttt{call\_on} call for this purpose.
+
+\begin{figure}[htbp]
+  \begin{center}
+    \begin{description}\small
+    \item[ \texttt{spawn( void (*fp)(args) )} ] \hfill \\
+      Creates a new stealable task
+    \item[ \texttt{spawn\_on( core, (*fp)(args) )} ] \hfill \\
+      Creates a new private task that will run on a specific core 
+    \item[ \texttt{parallel\_for( (*fp)(args), start, end )} ] \hfill \\
+      Executes iterations of a loop as stealable tasks 
+    \item[ \texttt{call\_on( core, (*fp)(args) )} ] \hfill \\ 
+      Runs a limited function on a specific core without consuming
+      Grappa execution resources 
+    \end{description}
+    \begin{minipage}{0.95\columnwidth}
+      \caption{\label{fig:expressing-parallelism} Grappa API: expressing parallelism} % \vspace{-4ex}}
+    \end{minipage}
+    %\vspace{-3ex}
+  \end{center}
+\end{figure}
+
+\subsection{Implementation tasks}
+
+\paragraph{Tasks and workers} Grappa tasks are 32-byte entities: a
+64-bit function pointer plus three 64-bit arguments. We use three
+arguments because tasks are often generated via a parallel loop
+decomposition, in which each task needs three kinds of data.
+\begin{description}
+\item[Function pointer] addresses the routine to run. We configure the system nodes to disable address randomization, so that function pointers are valid across process images.
+\item[Private argument] often a loop index.
+\item[Shared argument] typically data shared amongst a group of tasks, or the number of loop iterations to be performed by this task
+\item[Synchronization argument] often used to determine
+  when all tasks that are part of a loop have finished; a global pointer to a synchronization object allocated at the core that spawned a group of tasks.
+\end{description}
+While these are the most common uses of the three task arguments, they
+are treated as arbitrary 64-bit values in the runtime, and can be used
+for any purpose.
+
+Tasks are not allocated any execution resources until the scheduler
+decides to run them; when this occurs, tasks are matched with {\em
+  worker} threads. Each worker is simply a collection of status bits and a
+stack, allocated at a particular core.
+
+\paragraph{Context switching} Grappa context switches between tasks
+non-preemptively. As with other cooperative multithreading systems, we
+treat context switches as function calls, saving and restoring only the
+callee-saved state as specified in the x86-64 ABI \cite{amd64:abi:2012}. This
+involves saving six general-purpose 64-bit registers and the stack
+pointer, as well as the 16-bit x87 floating point control word and the
+SSE context/status register. Thus, the minimum amount of state a
+cooperative context switch routine must save according to the ABI is 62
+bytes.
+
+Since the compiler sees all calls to the context switch routine, we
+can save even less state. Our context switch routine appears to the
+compiler as inline assembly; we declare all the registers we need
+to save as ``clobbered'' by the inline assembly routine, and the
+compiler will issue its own save and restore code as needed. This allows the
+compiler to avoid saving any registers that are not used, or are used
+for temporary values that are not needed after the context switch.
+
+\paragraph{Scheduling} Each core in the Grappa system has its own
+independent scheduler. Each scheduler has three main tasks to perform:
+servicing communication requests as described in
+Section~\ref{sec:communication}; rescheduling tasks that have been
+waiting on long-latency operations; and assigning ready tasks to
+worker resources that have become idle.
+
+Each scheduler has three queues:
+\begin{description}
+\item{\bf Ready worker queue} This is a FIFO queue of tasks that are
+  matched with workers and are ready to execute.
+\item{\bf Private task queue} This is a FIFO queue of tasks that must run on this core.
+\item{\bf Public task queue} This is a LIFO queue of tasks that are
+  waiting to be matched with workers. It is a local partition of a shared
+  task pool.
+\end{description}
+
+
+Whenever a task yields or suspends, the scheduler makes a decision
+about what to do next. Servicing communication requests is given priority
+to ensure responsiveness, but to minimize overhead should context switches be frequent, servicing is performed only if sufficient time has elapsed.
+Second, the scheduler determines if any workers with running tasks are
+ready to execute; if so, one is scheduled. Finally, if there are no
+workers ready to run, but there are tasks waiting to be matched with
+workers, an idle worker is woken (or a new worker is spawned), matched
+with a task, and scheduled.
+
+\paragraph{Work stealing} 
+When the scheduler finds no work to assign to its workers, it
+commences to steal work from other cores using an asynchronous
+\texttt{call\_on} active message.  It chooses a victim at random until it
+finds one with a non-zero amount of work in its public task queue.  The scheduler steals half of the tasks it finds at the victim.
+Work stealing is particularly interesting in Grappa since performance depends
+on having many active worker threads on each core. Even if there are many
+active threads, if they are all suspended on long-latency operations,
+then the core is underutilized. We choose to initiate one outstanding
+steal whenever the ready queue is empty there are idle worker threads.
+
+\comment{Commenting out.  Simon things it doesn't add much I worried about its usefulness too.  -M
+
+\TODO{Anything after this I'm not sure adds to the paper -- if it does, please edit -Simon}
+The
+core would be fully-utilized if there is always something on the ready
+queue. Even if there are many active tasks, if they are all suspended
+for long-latency network requests, then the core is underutilized. So,
+there is a choice: should the core use some of this idle time to perform
+work stealing or should it just wait as it is possible that local tasks
+will create more work. We choose to have a core initiate a steal when
+all of the following conditions hold: no workers are ready to run, the
+unstarted task queues are empty, and there are no outstanding steal
+requests. Having only one outstanding steal request throttles steals to
+prevent flooding the network, but other scalable quieting mechanisms
+would be possible, such as a voting
+tree\cite{scalableWorkStealingOrCilk98} or lifelines \cite{lifelines}.
+Termination detection is not built into the Grappa task scheduler,
+rather, it is considered a programming error for the program to exit
+without syncing all tasks.
+}
+
+
