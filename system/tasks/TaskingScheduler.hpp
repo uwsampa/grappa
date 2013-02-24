@@ -10,7 +10,6 @@
 #include "Thread.hpp"
 #include "Scheduler.hpp"
 #include "Communicator.hpp"
-#include "Aggregator.hpp"
 #include <Timestamp.hpp>
 #include <glog/logging.h>
 #include <sstream>
@@ -30,6 +29,10 @@ namespace Grappa {
     void idle_flush_rdma_aggregator();
   }
 }
+
+// forward-declare old aggregator flush
+bool idle_flush_aggregator();
+
 
 //#include "Statistics.hpp"
 namespace Grappa { namespace Statistics { void sample_all(); } }
@@ -170,7 +173,7 @@ class TaskingScheduler : public Scheduler {
         if (FLAGS_poll_on_idle) {
           stats.state_timers[ stats.prev_state ] += (current_ts - prev_ts) / tick_scale;
           Grappa::impl::idle_flush_rdma_aggregator();
-          if ( global_aggregator.idle_flush_poll() ) {
+          if ( idle_flush_aggregator() ) {
             stats.prev_state = TaskingSchedulerStatistics::StateIdleUseful;
           } else {
             stats.prev_state = TaskingSchedulerStatistics::StateIdle;

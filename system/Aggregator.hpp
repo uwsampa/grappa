@@ -21,6 +21,8 @@
 #include <iostream>
 #include <cassert>
 
+#include <type_traits>
+
 #include <gflags/gflags.h>
 #include <glog/logging.h>
 
@@ -36,7 +38,6 @@
 #include "StateTimer.hpp"
 #include "PerformanceTools.hpp"
 #include "StatisticsTools.hpp"
-
 
 #ifdef VTRACE
 #include <vt_user.h>
@@ -886,9 +887,26 @@ public:
 
 extern Aggregator global_aggregator;
 
-#ifdef ENABLE_RDMA_AGGREGATOR
+// TODO: fix this so it works
+// log deprecated call sites 
+#define Grappa_call_onx( ... )                                           \
+  do {                                                                  \
+    LOG(WARNING) << "Using old aggregator bypass, which adds additional blocking"; \
+    Grappa_call_on_m( __VA_ARGS__ );                                    \
+  } while(0)
+
+#define Grappa_call_on_xx( ... )                                         \
+  do {                                                                  \
+    LOG(WARNING) << "Using old aggregator bypass, which adds additional blocking"; \
+    Grappa_call_on_x_m( __VA_ARGS__ );                                  \
+  } while(0)
+
+
+#ifndef DISABLE_RDMA_AGGREGATOR
 #include "Message.hpp"
 #endif
+
+
 
 /// Aggregate a message.
 ///
@@ -900,40 +918,32 @@ extern Aggregator global_aggregator;
 ///  @param payload_size size in bytes of payload buffer
 template< typename ArgsStruct >
 inline void Grappa_call_on( Node destination, void (* fn_p)(ArgsStruct *, size_t, void *, size_t), 
-                             const ArgsStruct * args, const size_t args_size = sizeof( ArgsStruct ),
-                             const void * payload = NULL, const size_t payload_size = 0)
+                              const ArgsStruct * args, const size_t args_size = sizeof( ArgsStruct ),
+                              const void * payload = NULL, const size_t payload_size = 0)
 {
   StateTimer::start_communication();
-// #ifdef ENABLE_RDMA_AGGREGATOR
-//   CHECK_EQ( sizeof(ArgsStruct), args_size ) << "must add special-case for nonstandard ArgsStruct usage";
-//   if( NULL == payload ) {
-//     struct Msg {
-//       ArgsStruct a_;
-//       Msg( ArgsStruct * a ) : a_( *a ) { } // copy ArgsStruct in constructor
-//       void operator()() {
-//         fn_p( &a_, sizeof(a_), NULL, 0 );
-//       }
-//     }
-//     auto m = send_heap_message( destination, Msg(args) );
-//   } else {
-//     struct Msg {
-//       ArgsStruct a_;
-//       Msg( ArgsStruct * a,  ) : a_( *a ) { } // copy ArgsStruct in constructor
-//       void operator()(void * payload, size_t size) {
-//         fn_p( &a_, sizeof(a_), payload, size );
-//       }
-//     }
-//     auto m = send_heap_message( destination, Msg(args), payload, payload_size );
-//     m->delete_payload_after_send();
-//   }
-// #else
+#ifdef DISABLE_RDMA_AGGREGATOR
   global_aggregator.aggregate( destination,
                                reinterpret_cast< AggregatorAMHandler >( fn_p ),
                                static_cast< const void * >( args ), args_size,
                                static_cast< const void * >( payload ), payload_size );
-// #endif
+#else
+  CHECK_EQ( sizeof(ArgsStruct), args_size ) << "must add special-case for nonstandard ArgsStruct usage";
+  typedef typename std::remove_const<ArgsStruct>::type NonConstArgsStruct;
+  ArgsStruct& a = *(const_cast<NonConstArgsStruct*>(args)); // HACK to work around some const disagreements at call sites
+  if( NULL == payload ) {
+    auto m = Grappa::send_message( destination, [a,fn_p] () mutable {
+        fn_p( &a, sizeof(a), NULL, 0 );
+      });
+  } else {
+    auto m = Grappa::send_message( destination, [a,fn_p] (void * payload, size_t size) mutable {
+        fn_p( &a, sizeof(a), payload, size );
+      }, const_cast<void*>(payload), payload_size );
+  }
+#endif
   StateTimer::stop_communication();
 }
+
 
 /// Aggregate a message. Same as Grappa_call_on(), but with a
 /// different payload type.
@@ -944,34 +954,27 @@ inline void Grappa_call_on_x( Node destination, void (* fn_p)(ArgsStruct *, size
                                const PayloadType * payload = NULL, const size_t payload_size = 0)
 {
   StateTimer::start_communication();
-// #ifdef ENABLE_RDMA_AGGREGATOR
-//   CHECK_EQ( sizeof(ArgsStruct), args_size ) << "must add special-case for nonstandard ArgsStruct usage";
-//   if( NULL == payload ) {
-//     struct Msg {
-//       ArgsStruct a_;
-//       Msg( ArgsStruct * a ) : a_( *a ) { } // copy ArgsStruct in constructor
-//       void operator()() {
-//         fn_p( &a_, sizeof(a_), NULL, 0 );
-//       }
-//     }
-//     auto m = send_heap_message( destination, Msg(args) );
-//   } else {
-//     struct Msg {
-//       ArgsStruct a_;
-//       Msg( ArgsStruct * a,  ) : a_( *a ) { } // copy ArgsStruct in constructor
-//       void operator()( PayloadType * payload, size_t size ) {
-//         fn_p( &a_, sizeof(a_), payload, size );
-//       }
-//     }
-//     auto m = send_heap_message( destination, Msg(args), payload, payload_size );
-//     m->delete_payload_after_send();
-//   }
-// #else
+#ifndef DISABLE_RDMA_AGGREGATOR
   global_aggregator.aggregate( destination,
                                reinterpret_cast< AggregatorAMHandler >( fn_p ),
                                static_cast< const void * >( args ), args_size,
                                static_cast< const void * >( payload ), payload_size );
-// #endif
+#else
+  LOG(WARNING) << "Using old aggregator bypass, which adds additional blocking";
+  CHECK_EQ( sizeof(ArgsStruct), args_size ) << "must add special-case for nonstandard ArgsStruct usage";
+  ArgsStruct& a = *(std::remove_const<ArgsStruct>(args));
+  if( NULL == payload ) {
+    auto m = Grappa::send_message( destination, [a,fn_p] {
+        fn_p( &a, sizeof(a), NULL, 0 );
+      });
+  } else {
+    auto m = Grappa::send_message( destination, [a,fn_p] (void * void_payload, size_t size) {
+        PayloadType * p = reinterpret_cast< PayloadType * >( void_payload );
+        size_t psize = size / sizeof(PayloadType);
+        fn_p( &a, sizeof(a), p, psize );
+      }, static_cast< void * >( payload ), payload_size );
+  }
+#endif
   StateTimer::stop_communication();
 }
 
