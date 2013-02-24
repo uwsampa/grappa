@@ -139,7 +139,8 @@ void validate(GlobalAddress<uint64_t> A, size_t n) {
   int total = 0, max = 0, min = INT_MAX;
   double sum_sqr = 0.0;
   for (int i = 0; i < n; i++) {
-    int tmp = Grappa_delegate_read_word(A+i);
+    //int tmp = Grappa_delegate_read_word(A+i);
+    int tmp = Grappa::delegate::read(A+i);
     total += tmp;
     sum_sqr += tmp*tmp;
     max = tmp > max ? tmp : max;
@@ -275,6 +276,7 @@ void user_main( int * args ) {
     //         << throughput << "updates/s ("
     //         << throughput/nnodes << " updates/s/node).";
    } while (FLAGS_repeats-- > 1);
+  LOG(INFO) << "Done. ";
 }
 
 
