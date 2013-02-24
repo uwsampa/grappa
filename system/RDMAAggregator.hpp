@@ -327,7 +327,7 @@ namespace Grappa {
           DCHECK_EQ( end - buf, size );
           
           // send
-          GASNET_CHECK( gasnet_AMRequestMedium0( m->destination_, deserialize_buffer_handle_, buf, size ) );
+          global_communicator.send(  m->destination_, deserialize_buffer_handle_, buf, size );
         }
       }
 

@@ -253,6 +253,8 @@ namespace Grappa {
                   RDMAAggregator::deaggregation_task( global_destbuf );
                 } );
             } );
+          DCHECK_LE( request.serialized_size(), global_communicator.inline_limit() ) 
+            << "Ideally, message would be small enough to be immediately copied to the HCA.";
           request.send_immediate();  // must bypass aggregator since we're implementing it
         }
         
@@ -307,8 +309,10 @@ namespace Grappa {
         
         // send buffer to other side and run the first message in the buffer
         DVLOG(5) << __func__ << ": " << "Sending " << end - buf << " bytes of aggregated messages to " << core << " address " << (void*)dest.buffer << " from buffer " << (void*) buf;
-        GASNET_CHECK( gasnet_AMRequestLong0( core, deserialize_first_handle_, 
-                                             buf, end - buf, dest.buffer ) );
+        global_communicator.send( core, deserialize_first_handle_, 
+                                  buf, end - buf, dest.buffer );
+        // global_communicator.send_async( core, deserialize_first_handle_, 
+        //                                 buf, end - buf, dest.buffer );
         
         // TODO: maybe wait for ack, with potential payload
 
@@ -357,7 +361,7 @@ namespace Grappa {
         size_t aggregated_size = end - &buf[0];
         
         // send
-        GASNET_CHECK( gasnet_AMRequestMedium0( core, deserialize_buffer_handle_, &buf[0], aggregated_size ) );
+        global_communicator.send( core, deserialize_buffer_handle_, &buf[0], aggregated_size );
       }
     }
 
