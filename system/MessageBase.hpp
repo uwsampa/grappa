@@ -1,8 +1,18 @@
 
+// Copyright 2010-2012 University of Washington. All Rights Reserved.
+// LICENSE_PLACEHOLDER
+// This software was created with Government support under DE
+// AC05-76RL01830 awarded by the United States Department of
+// Energy. The Government has certain rights in the software.
+
 #ifndef __MESSAGEBASE_HPP__
 #define __MESSAGEBASE_HPP__
 
 #include <cstring>
+
+#include <gflags/gflags.h>
+#include <glog/logging.h>
+
 #include "common.hpp"
 #include "ConditionVariableLocal.hpp"
 #include "Mutex.hpp"
@@ -60,11 +70,15 @@ namespace Grappa {
 
       /// Send message through old aggregator
       void legacy_send() {
+#ifdef DISABLE_RDMA_AGGREGATOR
         const size_t message_size = this->serialized_size();
         char buf[ message_size ];
         this->serialize_to( buf, message_size );
         Grappa_call_on( destination_, legacy_send_message_am, buf, message_size );
         mark_sent();
+#else
+        LOG(ERROR) << "Shouldn't be calling this without DISABLE_RDMA_AGGREGATOR set.";
+#endif
       }
 
 

@@ -145,7 +145,7 @@ void Aggregator::deaggregate( ) {
                 << " with args " << args
                 << " and payload " << payload;
 	stats.record_forward( sizeof( AggregatorGenericCallHeader ) + header->args_size + header->payload_size );
-        Grappa_call_on( header->destination, fp, args, header->args_size, payload, header->payload_size );
+        aggregate( header->destination, fp, args, header->args_size, payload, header->payload_size );
       }
       i += sizeof( AggregatorGenericCallHeader ) + header->args_size + header->payload_size;
       msg_base += sizeof( AggregatorGenericCallHeader ) + header->args_size + header->payload_size;
@@ -183,3 +183,12 @@ void Aggregator_deaggregate_am( gasnet_token_t token, void * buf, size_t size ) 
 
 }
 
+/// proxy call to make it easier to integrate with scheduler
+bool idle_flush_aggregator() {
+  return global_aggregator.idle_flush_poll();
+}
+
+/// proxy call to make it easier to integrate with scheduler
+size_t Grappa_sizeof_header() {
+  return sizeof( AggregatorGenericCallHeader );
+}
