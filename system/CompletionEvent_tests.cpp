@@ -78,8 +78,9 @@ void try_global_ce() {
     }
     
     gce.complete();
-    gce.wait();
   });
+  
+  gce.wait();
   BOOST_CHECK_EQUAL(x, N*cores());
   
   
@@ -144,7 +145,7 @@ void try_global_ce_recursive() {
   // overload Core0 with extra work
   rec_spawn(xa, N*2);
   
-  on_all_cores([]{ gce.wait(); });
+  gce.wait();
   BOOST_CHECK_EQUAL(x, N*cores()+N*2);
   
   
@@ -221,7 +222,7 @@ void try_synchronizing_spawns() {
       global_x++;
     });
   }
-  on_all_cores([]{ gce.wait(); });
+  gce.wait();
   
   int total = 0;
   auto total_addr = make_global(&total);
