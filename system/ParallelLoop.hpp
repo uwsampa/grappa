@@ -18,7 +18,16 @@
 #include "Barrier.hpp"
 #include "Collective.hpp"
 
+/// Flag: loop_threshold
+///
+/// Iterations of `forall` loops *may* be run in parallel. A complete loop is decomposed into
+/// separate (parallel) tasks by recursively splitting the number of iterations in half. This
+/// parameter specifies the threshold where the decomposition ends, and the remaining iterations
+/// are run serially in a single task. This global threshold is used by all parallel loops by
+/// default, unless overridden statically as the `Threshold` template parameter in any of the
+/// parallel loop functions.
 DECLARE_int64(loop_threshold);
+
 
 namespace Grappa {
   
@@ -103,6 +112,8 @@ namespace Grappa {
   /// Intended to be used for a loop of local tasks, often used as a primitive (along
   /// with `on_all_cores`) in global loops.
   ///
+  /// Subject to "may-parallelism", @see `loop_threshold`.
+  ///
   /// @warning { All calls to forall_here will share the same CompletionEvent by default,
   ///            so only one should be called at once per core. }
   ///
@@ -125,6 +136,8 @@ namespace Grappa {
   /// Non-blocking version of `forall_here`, does recursive decomposition of loop locally,
   /// but synchronization is up to you.
   ///
+  /// Subject to "may-parallelism", @see `loop_threshold`.
+  ///
   /// Note: this also cannot guarantee that `loop_body` will be in scope, so it passes it
   /// by copy to spawned tasks.
   template<int64_t Threshold = impl::USE_LOOP_THRESHOLD_FLAG, typename F = decltype(nullptr) >
@@ -138,6 +151,8 @@ namespace Grappa {
   /// Spread iterations evenly (block-distributed) across all the cores, using recursive
   /// decomposition with private tasks (so will not be load-balanced). Blocks until all
   /// iterations on all cores complete.
+  ///
+  /// Subject to "may-parallelism", @see `loop_threshold`.
   template<CompletionEvent * CE = &impl::local_ce, int64_t Threshold = impl::USE_LOOP_THRESHOLD_FLAG, typename F = decltype(nullptr)>
   void forall_global_private(int64_t start, int64_t iters, F loop_body) {
     on_all_cores([start,iters,loop_body]{
@@ -147,8 +162,10 @@ namespace Grappa {
   }
   
   /// Spread iterations evenly (block-distributed) across all the cores, using recursive
-  /// decomposition with private tasks (so will not be load-balanced). Blocks until all
-  /// iterations on all cores complete.
+  /// decomposition with public tasks (that may moved to a different core for load-balancing).
+  /// Blocks until all iterations on all cores complete.
+  ///
+  /// Subject to "may-parallelism", @see `loop_threshold`.
   template<GlobalCompletionEvent * GCE = &impl::local_gce, int64_t Threshold = impl::USE_LOOP_THRESHOLD_FLAG, typename F = decltype(nullptr)>
   void forall_global_public(int64_t start, int64_t iters, F loop_body) {
     on_all_cores([start,iters,loop_body]{
@@ -178,6 +195,8 @@ namespace Grappa {
   
   /// Parallel loop over a global array. Spawned from a single core, fans out and runs
   /// tasks on elements that are local to each core.
+  ///
+  /// Subject to "may-parallelism", @see `loop_threshold`.
   ///
   /// Takes an optional pointer to a global static `CompletionEvent` as a template
   /// parameter to allow for programmer-specified task joining (to potentially allow
