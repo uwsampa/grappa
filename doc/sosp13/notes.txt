@@ -1,3 +1,11 @@
+user-level threading. we have latency tolerance. won't fit in cache assumption. 
+
+pgas+sdsm 
+
+
+latency tolerance and communication 
+
+
 ################################################################
 
 Steve Gribble's feedback.
