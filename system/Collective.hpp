@@ -229,12 +229,12 @@ namespace Grappa {
     MessagePool<(1<<16)> pool;
     
     CompletionEvent ce(Grappa::cores());
-    auto ce_addr = make_global(&ce);
+    Core origin = mycore();
     
     for (Core c = 0; c < Grappa::cores(); c++) {
-      pool.send_message(c, [ce_addr, work] {
+      pool.send_message(c, [&ce, origin, work] {
         work();
-        complete(ce_addr);
+        send_heap_message(origin, [&ce]{ ce.complete(); });
       });
     }
     ce.wait();
