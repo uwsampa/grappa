@@ -42,6 +42,9 @@ $json_plus_fields_parser = lambda {|cmdout|
   cmdout.gsub!(/^\d+: /m){ '' }                 # remove sampa header
   cmdout.gsub!(/^I\d+ .*?\d+\] /m){ '' }          # remove glog header
 
+  # get rid of double underscores, since sequel/sqlite3 don't like them
+  cmdout.gsub!(/__/m){ "_" }
+
   stats = []
 
   # scan, parse and filter JSON blocks

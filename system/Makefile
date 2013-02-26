@@ -96,6 +96,7 @@ Collective_tests.o Collective_tests.test: $(LIBRARY)
 Mutex_tests.o Mutex_tests.test: $(LIBRARY)
 ConditionVariable_tests.o ConditionVariable_tests.test: $(LIBRARY)
 FullEmpty_tests.o FullEmpty_tests.test: $(LIBRARY)
+Semaphore_tests.o Semaphore_tests.test: $(LIBRARY)
 
 
 #thread_tests.test: thread.o stack.o coro.o
@@ -261,7 +262,7 @@ endif
 #
 # Build Grappa static library
 #
-LIBRARY_CONTENTS+= Grappa.o GlobalAllocator.o GlobalMemory.o GlobalMemoryChunk.o Communicator.o Aggregator.o Timestamp.o Allocator.o Cache.o Delegate.o Collective.o ForkJoin.o tasks/BasicScheduler.o tasks/TaskingScheduler.o tasks/Task.o tasks/Thread.o stack.o coro.o StateTimer.o PerformanceTools.o Future.o CurrentThread.o ProfilerGroups.o AsyncParallelFor.o GlobalTaskJoiner.o IncoherentAcquirer.o IncoherentReleaser.o Uid.o tasks/StealQueue.o tasks/GlobalQueue.o LegacySignaler.o Statistics.o MessageBase.o RDMAAggregator.o ParallelLoop.o
+LIBRARY_CONTENTS+= Grappa.o GlobalAllocator.o GlobalMemory.o GlobalMemoryChunk.o Communicator.o Aggregator.o Timestamp.o Allocator.o Cache.o Delegate.o Collective.o ForkJoin.o tasks/BasicScheduler.o tasks/TaskingScheduler.o tasks/Task.o tasks/Thread.o stack.o coro.o StateTimer.o PerformanceTools.o Future.o CurrentThread.o ProfilerGroups.o AsyncParallelFor.o GlobalTaskJoiner.o IncoherentAcquirer.o IncoherentReleaser.o Uid.o tasks/StealQueue.o tasks/GlobalQueue.o LegacySignaler.o Statistics.o SimpleStatistic.o SummarizingStatistic.o MessageBase.o RDMAAggregator.o ParallelLoop.o
 
 libGrappa.a: $(LIBRARY_CONTENTS)
 	$($(MPITYPE)_AR) rv $@ $^

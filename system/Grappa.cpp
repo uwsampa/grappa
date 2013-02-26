@@ -137,6 +137,14 @@ static void sigabrt_sighandler( int signum ) {
   raise( SIGUSR1 );
 }
 
+// function to call when google logging library detect a failure
+static void failure_function() {
+  google::FlushLogFiles(google::GLOG_INFO);
+  gasnett_print_backtrace_ifenabled(STDERR_FILENO);
+  gasnett_freezeForDebuggerErr();
+  gasnet_exit(1);
+}
+
 DECLARE_bool( global_memory_use_hugepages );
 
 /// Initialize Grappa components. We are not ready to run until the
@@ -147,6 +155,10 @@ void Grappa_init( int * argc_p, char ** argv_p[], size_t global_memory_size_byte
   // for( int i = 0; i < *argc_p; ++i ) {
   //   std::cerr << "Arg " << i << ": " << (*argv_p)[i] << std::endl;
   // }
+
+  // make sure gasnet is ready to backtrace
+  gasnett_backtrace_init( (*argv_p)[0] );
+
   // help generate unique profile filename
   Grappa_set_profiler_argv0( (*argv_p)[0] );
 
@@ -155,7 +167,7 @@ void Grappa_init( int * argc_p, char ** argv_p[], size_t global_memory_size_byte
 
   // activate logging
   google::InitGoogleLogging( *argv_p[0] );
-  google::InstallFailureSignalHandler( );
+  google::InstallFailureFunction( &failure_function );
 
   DVLOG(1) << "Initializing Grappa library....";
 #ifdef HEAPCHECK_ENABLE
