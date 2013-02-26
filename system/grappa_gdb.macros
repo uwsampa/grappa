@@ -61,6 +61,7 @@ end
 
 
 set $grappa_stack_offset = 0x40
+#set $grappa_stack_offset = 0x48
 
 set $grappa_saved_rip = 0
 set $grappa_saved_rsp = 0
@@ -80,14 +81,15 @@ end
 
 define grappa_restore_state
   if $grappa_saved_rip != 0
-    set $rip = $grappa_saved_rip
-    set $rsp = $grappa_saved_rsp
+#    set $rip = $grappa_saved_rip
+#    set $rsp = $grappa_saved_rsp
+     select-frame $grappa_saved_rsp
     set $grappa_saved_rip = 0
   end
 end
 document grappa_restore_state
 Restore saved coroutine $rip and $rsp.
-Syntax:
+p $Syntax:
    (gdb) grappa_restore_state
 end
 
@@ -207,11 +209,13 @@ Syntax:
 end
 
 define suspended_coroutines
-  printf "Suspended coroutines:\n"
+  printf "Suspended non-idle coroutines:\n"
   set $grappa_suspended_coros_elem = all_coros
   while $grappa_suspended_coros_elem != 0
     if $grappa_suspended_coros_elem->suspended
-      grappa_coroutine_print $grappa_suspended_coros_elem
+      if !($grappa_suspended_coros_elem->idle)
+        grappa_coroutine_print $grappa_suspended_coros_elem
+      end
     end
     set $grappa_suspended_coros_elem = $grappa_suspended_coros_elem->next
   end
@@ -312,8 +316,10 @@ end
 define switch_to_coroutine
   grappa_save_state
   set $grappa_coro = (coro*) $arg0
-  set $rsp = $grappa_coro->stack + $grappa_stack_offset
-  set $rip = *(int*)$rsp
+#  set $rsp = $grappa_coro->stack + $grappa_stack_offset
+  select-frame ($grappa_coro->stack + $grappa_stack_offset)
+#  set $rip = *(int*)$rsp
+#  set $rip = *(int*)($grappa_coro->stack + $grappa_stack_offset)
 end
 document switch_to_coroutine
 Switch to a Grappa coroutine for backtracing. Do not continue or bad things will happen.

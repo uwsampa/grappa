@@ -21,21 +21,37 @@ GRAPPA_DEFINE_STAT(SimpleStatistic<int>, foo, 0);
 //equivalent to: static SimpleStatistic<double> bar("bar", 0);
 GRAPPA_DEFINE_STAT(SimpleStatistic<double>, bar, 0);
 
+GRAPPA_DEFINE_STAT(SummarizingStatistic<int>, baz, 0);
+
+
 void user_main(void * args) {
   CHECK(Grappa::cores() >= 2); // at least 2 nodes for these tests...
 
   foo++;
   bar = 3.14;
-  
+
+  baz += 1;
+  baz += 4;
+  baz += 9;
+
   delegate::call(1, []() -> bool {
     foo++;
     foo++;
     bar = 5.41;
+    baz += 16;
+    baz += 25;
+    baz += 36;
     return true;
   });
   
+  Statistics::print();
+
+  delegate::call(1, []() -> bool {
+      Statistics::print();
+      return true;
+    });
   Statistics::merge_and_print();
-  Statistics::dump_stats_blob();
+  //Statistics::dump_stats_blob();
 }
 
 BOOST_AUTO_TEST_CASE( test1 ) {

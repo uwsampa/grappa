@@ -1,14 +1,18 @@
-
+#pragma once
 #ifndef __MESSAGE_BASE_IMPL_HPP__
 #define __MESSAGE_BASE_IMPL_HPP__
 
+#include <glog/logging.h>
+#include "common.hpp"
+
 #include "MessageBase.hpp"
 
-#define LEGACY_SEND
+#ifndef ENABLE_RDMA_AGGREGATOR
+//#define LEGACY_SEND
+#endif
+//#define LEGACY_SEND
 
-//#ifndef LEGACY_SEND
 #include "RDMAAggregator.hpp"
-//#endif
 
 namespace Grappa {
   
@@ -21,28 +25,25 @@ namespace Grappa {
     inline void Grappa::impl::MessageBase::enqueue() {
       CHECK( !is_moved_ ) << "Shouldn't be sending a message that has been moved!"
                           << " Your compiler's return value optimization failed you here.";
+      DCHECK_NULL( next_ );
+      DCHECK_EQ( is_enqueued_, false ) << "Why are we enqueuing a message that's already enqueued?";
+      DCHECK_EQ( is_sent_, false ) << "Why are we enqueuing a message that's already sent?";
+      is_enqueued_ = true;
+      DVLOG(5) << this << " on " << global_scheduler.get_current_thread()
+               << " enqueuing with is_enqueued_=" << is_enqueued_ << " and is_sent_= " << is_sent_;
 #ifndef LEGACY_SEND
       Grappa::impl::global_rdma_aggregator.enqueue( this );
 #endif
-      is_enqueued_ = true;
 #ifdef LEGACY_SEND
       legacy_send();
 #endif
     }
 
-      inline void Grappa::impl::MessageBase::enqueue( Core c ) {
-      CHECK( !is_moved_ ) << "Shouldn't be sending a message that has been moved!"
-                          << " Your compiler's return value optimization failed you here.";
+    inline void Grappa::impl::MessageBase::enqueue( Core c ) {
       destination_ = c;
-#ifndef LEGACY_SEND
-      Grappa::impl::global_rdma_aggregator.enqueue( this );
-#endif
-      is_enqueued_ = true;
-#ifdef LEGACY_SEND
-      legacy_send();
-#endif
+      enqueue();
     }
-
+    
     inline void Grappa::impl::MessageBase::send_immediate() {
       CHECK( !is_moved_ ) << "Shouldn't be sending a message that has been moved!"
                           << " Your compiler's return value optimization failed you here.";
@@ -55,17 +56,9 @@ namespace Grappa {
 #endif
     }
 
-      inline void Grappa::impl::MessageBase::send_immediate( Core c ) {
-      CHECK( !is_moved_ ) << "Shouldn't be sending a message that has been moved!"
-                          << " Your compiler's return value optimization failed you here.";
+    inline void Grappa::impl::MessageBase::send_immediate( Core c ) {
       destination_ = c;
-      is_enqueued_ = true;
-#ifndef LEGACY_SEND
-      Grappa::impl::global_rdma_aggregator.send_immediate( this );
-#endif
-#ifdef LEGACY_SEND
-      legacy_send();
-#endif
+      send_immediate();
     }
 
     /// @}
