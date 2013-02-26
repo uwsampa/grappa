@@ -20,7 +20,7 @@ void test_pool1() {
   int x[10];
 
   {
-    MessagePool<2048> pool;
+    MessagePoolStatic<2048> pool;
     
     for (int i=0; i<10; i++) {
       joiner.registerTask();
@@ -45,7 +45,7 @@ void test_pool2() {
   LocalTaskJoiner joiner;
   
   int x[10];
-  MessagePool<2048> pool;
+  MessagePoolStatic<2048> pool;
 
   for (int i=0; i<10; i++) {
     joiner.registerTask();
@@ -72,7 +72,7 @@ void test_pool_external() {
   
   {
     char buffer[1024];
-    MessagePoolExternal pool(buffer, 1<<16);
+    MessagePoolBase pool(buffer, 1<<16);
     
     ConditionVariable cv;
     auto cv_addr = make_global(&cv);
@@ -95,8 +95,7 @@ void test_pool_external() {
       }
     };
     
-    char buf[sizeof(Message<Foo>)];
-    MessagePoolExternal pool(buf,sizeof(buf));
+    MessagePool pool(sizeof(Message<Foo>));
     ConditionVariable cv;
     auto cv_addr = make_global(&cv);
     
@@ -111,7 +110,7 @@ static int test_async_x;
 
 void test_async_delegate() {
   BOOST_MESSAGE("Test Async delegates");
-  MessagePool<2048> pool;
+  MessagePool pool(2048);
   
   delegate::AsyncHandle<bool> a;
   a.call_async(pool, 1, []()->bool {

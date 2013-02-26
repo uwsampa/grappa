@@ -16,6 +16,7 @@
 #include "MessagePool.hpp"
 #include "Tasking.hpp"
 #include "FullEmpty.hpp"
+#include <functional>
 
 #define COLL_MAX &collective_max
 #define COLL_MIN &collective_min
@@ -231,12 +232,11 @@ namespace Grappa {
   // Call message (work that cannot block) on all cores, block until ack received from all.
   template<typename F>
   void call_on_all_cores(F work) {
-    MessagePool<(1<<16)> pool;
-    
-    CompletionEvent ce(Grappa::cores());
     Core origin = mycore();
+    CompletionEvent ce(cores());
+    MessagePool pool(cores() * sizeof(Message<std::function<void(F,Core,decltype(&ce))>>));
     
-    for (Core c = 0; c < Grappa::cores(); c++) {
+    for (Core c = 0; c < cores(); c++) {
       pool.send_message(c, [&ce, origin, work] {
         work();
         send_heap_message(origin, [&ce]{ ce.complete(); });
@@ -250,12 +250,12 @@ namespace Grappa {
   /// Also used as a primitive in Grappa system code where anything is done on all cores.
   template<typename F>
   void on_all_cores(F work) {
-    MessagePool<(1<<16)> pool;
     
-    CompletionEvent ce(Grappa::cores());
+    CompletionEvent ce(cores());
     auto ce_addr = make_global(&ce);
+    MessagePool pool(cores()*sizeof(Message<std::function<void(F,decltype(ce_addr))>>));
     
-    for (Core c = 0; c < Grappa::cores(); c++) {
+    for (Core c = 0; c < cores(); c++) {
       pool.send_message(c, [ce_addr, work] {
         privateTask([ce_addr, work] {
           work();
