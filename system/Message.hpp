@@ -50,6 +50,10 @@ namespace Grappa {
       block_until_sent();
     }
 
+    virtual const char * typestr() {
+      return typename_of(*this);
+    }
+
     ///
     /// for Messages with modifiable contents. Don't use with lambdas.
     ///
@@ -89,6 +93,7 @@ namespace Grappa {
 
     /// Copy this message into a buffer.
     virtual char * serialize_to( char * p, size_t max_size ) {
+      Grappa::impl::MessageBase::serialize_to( p, max_size );
       // copy deserialization function pointer
       auto fp = &deserialize_and_call;
       if( sizeof( fp ) + sizeof( T ) > max_size ) {
@@ -124,6 +129,8 @@ namespace Grappa {
     void * payload_;
     size_t payload_size_;
 
+    bool delete_payload_after_send_;
+
   public:
     /// Construct a message.
     inline PayloadMessage( )
@@ -131,6 +138,7 @@ namespace Grappa {
       , storage_()
       , payload_( nullptr )
       , payload_size_( 0 )
+      , delete_payload_after_send_( false )
     { }
     
     /// Construct a message.
@@ -141,6 +149,7 @@ namespace Grappa {
       , storage_( t )
       , payload_( payload )
       , payload_size_( payload_size )
+      , delete_payload_after_send_( false )
     { }
 
     PayloadMessage( const PayloadMessage& m ) = delete; ///< Not allowed.
@@ -151,14 +160,22 @@ namespace Grappa {
     
     virtual ~PayloadMessage() {
       block_until_sent();
+      //if( delete_payload_after_send_ ) delete payload_;
     }
 
     inline void set_payload( void * payload, size_t size ) { payload_ = payload; payload_size_ = size; }
+
+    inline void delete_payload_after_send() { delete_payload_after_send_ = true; }
 
     virtual void reset() {
       Grappa::impl::MessageBase::reset();
       payload_ = nullptr;
       payload_size_ = 0;
+      delete_payload_after_send_ = false;
+    }
+
+    virtual const char * typestr() {
+      return typename_of(*this);
     }
 
     ///
@@ -208,6 +225,7 @@ namespace Grappa {
 
     /// Copy this message into a buffer.
     virtual char * serialize_to( char * p, size_t max_size ) {
+      Grappa::impl::MessageBase::serialize_to( p, max_size );
       // copy deserialization function pointer
       auto fp = &deserialize_and_call;
       if( sizeof( fp ) + sizeof( T ) > max_size ) {
@@ -243,11 +261,14 @@ namespace Grappa {
   private:
     T * pointer_;                ///< Pointer to message contents.
 
+    bool delete_external_after_send_;
+
   public:
     /// Construct a message.
     inline ExternalMessage( )
       : MessageBase()
       , pointer_( nullptr )
+      , delete_external_after_send_( false )
     { }
     
     /// Construct a message.
@@ -256,6 +277,7 @@ namespace Grappa {
     inline ExternalMessage( Core dest, T * t )
       : MessageBase( dest )
       , pointer_( t )
+      , delete_external_after_send_( false )
     { }
 
     ExternalMessage( const ExternalMessage& m ) = delete; ///< Not allowed.
@@ -266,14 +288,19 @@ namespace Grappa {
 
     virtual ~ExternalMessage() { 
       block_until_sent();
-      // if( delete_after_send_ ) {
-      //   delete pointer_;
-      // }
+      if( delete_external_after_send_ ) delete pointer_;
     }
+
+    inline void delete_external_after_send() { delete_external_after_send_ = true; }
 
     virtual void reset() {
       Grappa::impl::MessageBase::reset();
       pointer_ = nullptr;
+      delete_external_after_send_ = false;
+    }
+
+    virtual const char * typestr() {
+      return typename_of(*this);
     }
 
     ///
@@ -317,6 +344,7 @@ namespace Grappa {
 
     /// Copy this message into a buffer.
     virtual char * serialize_to( char * p, size_t max_size ) {
+      Grappa::impl::MessageBase::serialize_to( p, max_size );
       // copy deserialization function pointer
       auto fp = &deserialize_and_call;
       if( sizeof( fp ) + sizeof( T ) > max_size ) {
@@ -349,9 +377,12 @@ namespace Grappa {
   class ExternalPayloadMessage : public Grappa::impl::MessageBase {
   private:
     T * pointer_;                  ///< Pointer to message contents.
-    
+
     void * payload_;
     size_t payload_size_;
+
+    bool delete_payload_after_send_;
+    bool delete_external_after_send_;
 
   public:
     /// Construct a message.
@@ -360,6 +391,8 @@ namespace Grappa {
       , pointer_( nullptr )
       , payload_( nullptr )
       , payload_size_( 0 )
+      , delete_external_after_send_( false )
+      , delete_payload_after_send_( false )
     { }
     
     /// Construct a message.
@@ -370,6 +403,8 @@ namespace Grappa {
       , pointer_( t )
       , payload_( payload )
       , payload_size_( payload_size )
+      , delete_external_after_send_( false )
+      , delete_payload_after_send_( false )
     { }
 
     ExternalPayloadMessage( const ExternalPayloadMessage& m ) = delete; ///< Not allowed.
@@ -380,18 +415,26 @@ namespace Grappa {
 
     virtual ~ExternalPayloadMessage() { 
       block_until_sent();
-      // if( delete_after_send_ ) {
-      //   delete pointer_;
-      // }
+      if( delete_external_after_send_ ) delete pointer_;
+      //if( delete_payload_after_send_ ) delete payload_;
     }
 
     inline void set_payload( void * payload, size_t size ) { payload_ = payload; payload_size_ = size; }
+
+    inline void delete_external_after_send() { delete_external_after_send_ = true; }
+    inline void delete_payload_after_send() { delete_payload_after_send_ = true; }
 
     virtual void reset() {
       Grappa::impl::MessageBase::reset();
       pointer_ = nullptr;
       payload_ = nullptr;
       payload_size_ = 0;
+      delete_external_after_send_ = false;
+      delete_payload_after_send_ = false;
+    }
+
+    virtual const char * typestr() {
+      return typename_of(*this);
     }
 
     ///
@@ -443,6 +486,7 @@ namespace Grappa {
 
     /// Copy this message into a buffer.
     virtual char * serialize_to( char * p, size_t max_size ) {
+      Grappa::impl::MessageBase::serialize_to( p, max_size );
       // copy deserialization function pointer
       auto fp = &deserialize_and_call;
       if( sizeof( fp ) + sizeof( T ) > max_size ) {

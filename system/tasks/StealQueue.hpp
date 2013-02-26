@@ -439,7 +439,7 @@ int64_t StealQueue<T>::steal_locally( Core victim, int64_t max_steal ) {
 
 #if DEBUG
     // wait for send then 0 out the stolen stuff (to detect errors)
-    reply.block_until_sent();
+    reply->block_until_sent();
     std::memset( victimStealStart, 0, stealAmt*sizeof( T ) );
 #endif
     } else {
