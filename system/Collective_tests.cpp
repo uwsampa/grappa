@@ -55,6 +55,9 @@ BOOST_AUTO_TEST_SUITE( Collective_tests );
 //  BOOST_CHECK_EQUAL(sum, 123*Grappa_nodes());
 //}
 
+static int global_x;
+
+
 void user_main( int * ignore ) {
 //  all_reduce_test_func f;
 //  fork_join_custom(&f);
@@ -63,8 +66,13 @@ void user_main( int * ignore ) {
     int x = 7;
     int total_x = Grappa::allreduce<int,collective_add>(x);
     BOOST_CHECK_EQUAL(total_x, 7*Grappa::cores());
+    
+    global_x = Grappa::mycore() + 1;
   });
-  
+
+  int total_x = Grappa::reduce<int,collective_add>(&global_x);
+  Core n = Grappa::cores();
+  BOOST_CHECK_EQUAL(total_x, n*(n+1)/2);
 }
 
 BOOST_AUTO_TEST_CASE( test1 ) {
