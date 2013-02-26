@@ -8,6 +8,33 @@
 #include "RDMAAggregator.hpp"
 #include "Message.hpp"
 
+DEFINE_int64( target_size, 1 << 12, "Target size for aggregated messages" );
+
+/// stats for application messages
+GRAPPA_DEFINE_STAT( SimpleStatistic<int64_t>, app_messages_enqueue, 0 );
+GRAPPA_DEFINE_STAT( SimpleStatistic<int64_t>, app_messages_enqueue_cas, 0 );
+GRAPPA_DEFINE_STAT( SimpleStatistic<int64_t>, app_messages_serialized, 0 );
+GRAPPA_DEFINE_STAT( SimpleStatistic<int64_t>, app_messages_deserialized, 0 );
+GRAPPA_DEFINE_STAT( SimpleStatistic<int64_t>, app_messages_immediate, 0 );
+
+/// stats for aggregated messages
+GRAPPA_DEFINE_STAT( SummarizingStatistic<int64_t>, rdma_message_bytes, 0 );
+
+/// stats for RDMA Aggregator events
+GRAPPA_DEFINE_STAT( SimpleStatistic<int64_t>, rdma_receive_start, 0 );
+GRAPPA_DEFINE_STAT( SimpleStatistic<int64_t>, rdma_receive_end, 0 );
+GRAPPA_DEFINE_STAT( SimpleStatistic<int64_t>, rdma_send_start, 0 );
+GRAPPA_DEFINE_STAT( SimpleStatistic<int64_t>, rdma_send_end, 0 );
+GRAPPA_DEFINE_STAT( SimpleStatistic<int64_t>, rdma_capacity_flushes, 0 );
+GRAPPA_DEFINE_STAT( SimpleStatistic<int64_t>, rdma_idle_flushes, 0 );
+GRAPPA_DEFINE_STAT( SimpleStatistic<int64_t>, rdma_core_idle_flushes, 0 );
+GRAPPA_DEFINE_STAT( SimpleStatistic<int64_t>, rdma_requested_flushes, 0 );
+
+
+// defined in Grappa.cpp
+extern bool Grappa_done_flag;
+
+
 namespace Grappa {
 
   /// Internal messaging functions
@@ -16,13 +43,44 @@ namespace Grappa {
     /// @addtogroup Communication
     /// @{
 
-
     /// global RDMAAggregator instance
     Grappa::impl::RDMAAggregator global_rdma_aggregator;
 
+    /// proxy call to make it easier to integrate with scheduler
     void idle_flush_rdma_aggregator() {
       global_rdma_aggregator.idle_flush();
     }
+
+    /// Task that is constantly waiting to do idle flushes. This
+    /// ensures we always have some sending resource available.
+    void RDMAAggregator::idle_flush_task() {
+      while( !Grappa_done_flag ) {
+        Grappa::wait( &flush_cv_ );
+        rdma_idle_flushes++;
+        for( int i = 0; i < total_cores_; ++i ) {
+          if( flush_one( i ) ) {
+            rdma_core_idle_flushes++;
+          }
+        }
+      }
+    }
+
+    void RDMAAggregator::init() {
+#ifdef LEGACY_SEND
+#warning RDMA Aggregator is bypassed!
+#endif
+      cores_.resize( global_communicator.nodes() );
+      mycore_ = global_communicator.mynode();
+      total_cores_ = global_communicator.nodes();
+      deserialize_buffer_handle_ = global_communicator.register_active_message_handler( &deserialize_buffer_am );
+      deserialize_first_handle_ = global_communicator.register_active_message_handler( &deserialize_first_am );
+
+      // spawn flusher
+      Grappa::privateTask( [this] {
+          idle_flush_task();
+        });
+    }
+
 
     void RDMAAggregator::deserialize_buffer_am( gasnet_token_t token, void * buf, size_t size ) {
 #ifdef DEBUG
@@ -39,18 +97,19 @@ namespace Grappa {
       gasnet_AMGetMsgSource(token,&src);
       DVLOG(5) << "Receiving buffer of size " << size << " from " << src << " through gasnet; deserializing first entry";
 #endif
+      app_messages_deserialized++;
       Grappa::impl::MessageBase::deserialize_and_call( static_cast< char * >( buf ) );
     }
 
 
-    char * RDMAAggregator::aggregate_to_buffer( char * buffer, Grappa::impl::MessageBase ** message_ptr, size_t max ) {
+    char * RDMAAggregator::aggregate_to_buffer( char * buffer, Grappa::impl::MessageBase ** message_ptr, size_t max, size_t * count ) {
       size_t size = 0;
       Grappa::impl::MessageBase * message = *message_ptr;
       DVLOG(5) << "Serializing messages from " << message;
 
       while( message ) {
         DVLOG(5) << "Serializing message " << message;
-        messages_serialized_++;
+        DVLOG(4) << "Serializing message " << message << ": " << message->typestr();
 
         // issue prefetch for next message
         __builtin_prefetch( message->prefetch_, 0, prefetch_type );
@@ -61,6 +120,9 @@ namespace Grappa {
           DVLOG(5) << "Message too big: aborting serialization";
           break;                     // quit
         } else {
+          app_messages_serialized++;
+          if( count != NULL ) (*count)++;
+
           DVLOG(5) << "Serialized message " << message << " with size " << new_buffer - buffer;
 
           // track total size
@@ -68,7 +130,6 @@ namespace Grappa {
 
           // go to next messsage 
           Grappa::impl::MessageBase * next = message->next_;
-          message->next_ = NULL;
 
           // mark as sent
           message->mark_sent();
@@ -85,7 +146,7 @@ namespace Grappa {
       DVLOG(5) << "Deaggregating buffer at " << (void*) buffer << " of size " << size;
       char * end = buffer + size;
       while( buffer < end ) {
-        global_rdma_aggregator.messages_deserialized_++;
+        app_messages_deserialized++;
         DVLOG(5) << "Deserializing and calling at " << (void*) buffer;
         char * next = Grappa::impl::MessageBase::deserialize_and_call( buffer );
         DVLOG(5) << "Deserializing and called at " << (void*) buffer << " with next " << (void*) next;
@@ -100,14 +161,12 @@ namespace Grappa {
 
     void RDMAAggregator::deaggregation_task( GlobalAddress< FullEmpty < ReceiveBufferInfo > > callback_ptr ) {
       DVLOG(5) << __func__ << ": " << "Deaggregation task running to receive from " << callback_ptr.node();
-      global_rdma_aggregator.receive_start_++;
-      global_rdma_aggregator.current_src_ = callback_ptr.node();
+      rdma_receive_start++;
 
       // allocate buffer for received messages
-      size_t max_size = STACK_SIZE / 2;
+      size_t max_size = FLAGS_target_size + 1024;
       char buf[ max_size ]  __attribute__ ((aligned (16)));
       char * buffer_ptr = &buf[0];
-      buf[0] = 'x';
 
       // allocate response full bit
       FullEmpty< SendBufferInfo > info_fe;
@@ -131,38 +190,55 @@ namespace Grappa {
       DVLOG(5) << __func__ << ": " << "Deaggregated " << info.actual_size << " bytes from buffer " << (void*)(buf) << " offset " << (int) info.offset << " from node " << callback_ptr.node();
 
       // done
-      global_rdma_aggregator.current_src_ = -1;
-      global_rdma_aggregator.receive_end_++;
+      rdma_receive_end++;
     }
 
-      
+    void RDMAAggregator::send_rdma( Core core, Grappa::impl::MessageList ml ) {
+      char * buf = nullptr;
+      size_t grabbed_count = ml.count_;
+      size_t serialized_count = 0;
+      size_t buffers_sent = 0;
+      size_t serialize_calls = 0;
+      size_t serialize_null_returns = 0;
 
-    void RDMAAggregator::send_rdma( Core core ) {
-      char * buf = 0;
-
-      DVLOG(5) << __func__ << ": " << "Sending messages via RDMA from " << (void*)cores_[core].messages_.raw_ << " to " << core << " using buffer " << (void*) buf;
-      send_start_++;
-      current_dest_ = core;
-
-      // don't bother continuing if we have nothing to send.
-      if( 0 == cores_[core].messages_.raw_ ) {
+      if( 0 == ml.raw_ ) {
         DVLOG(5) << __func__ << ": " << "Aborting send to " << core << " since there's nothing to do";
         return;
       }
 
-      // grab list of messages
-      DVLOG(5) << __func__ << ": " << "Grabbing messages for " << core << " later buffer " << (void*) buf;
-      Grappa::impl::MessageList old_ml, new_ml;
-      do {
-        old_ml = cores_[core].messages_;
-        new_ml.raw_ = 0;
-      } while( !__sync_bool_compare_and_swap( &(cores_[core].messages_.raw_), old_ml.raw_, new_ml.raw_ ) );
-      // old_ml = cores_[core].messages_;
-      // cores_[core].messages_.raw_ = new_ml.raw_ = 0;
-      Grappa::impl::MessageBase * messages_to_send = get_pointer( &old_ml );
+      rdma_send_start++;
+      Grappa::impl::MessageBase * messages_to_send = get_pointer( &ml );
 
-      DVLOG(5) << __func__ << ": " << "Grabbing messages for " << core << " got " << (void*) old_ml.raw_ << " later buffer " << (void*) buf;
+#ifdef DEBUG
+      Grappa::impl::MessageBase * debug_ptr = get_pointer( &ml );
+      int64_t debug_count = grabbed_count;
+      while( debug_count > 0 ) {
+        debug_ptr = debug_ptr->next_;
+        debug_count--;
+      }
+      if( debug_ptr != NULL ) {
+        Grappa::impl::MessageBase * ptr = get_pointer( &ml );
+        int64_t main_count = grabbed_count;
+        int64_t longer_count = grabbed_count+10;
+        LOG(INFO) << "Too-long message list:";
+        while( longer_count > 0 ) {
+          LOG(INFO) << "message " << ptr;
+          ptr = ptr->next_;
+          if( main_count == 0 ) LOG(INFO) << "---supposed end---";
+          main_count--;
+          longer_count--;
+        }
+      }
+      CHECK_EQ( debug_ptr, static_cast<Grappa::impl::MessageBase*>(NULL) ) << "Count didn't match message list length."
+                                                                           << " debug_ptr=" << debug_ptr
+                                                                           << " debug_ptr->next=" << debug_ptr->next_
+                                                                           << " count=" << grabbed_count;
 
+#endif
+
+      DVLOG(5) << __func__ << ": " << "Sending messages via RDMA from " << (void*)cores_[core].messages_.raw_ << " to " << core << " using buffer " << (void*) buf;
+      
+      // send as many buffers as we need for this message list
       do {
         FullEmpty< ReceiveBufferInfo > destbuf;
         GlobalAddress< FullEmpty< ReceiveBufferInfo > > global_destbuf = make_global( &destbuf );
@@ -192,23 +268,25 @@ namespace Grappa {
         Grappa::ExternalMessage< Response > response( core, &response_functor );
         
         // allocate local buffer
-        size_t max_size = STACK_SIZE / 2;
+        //size_t max_size = STACK_SIZE / 4;
+        size_t max_size = FLAGS_target_size + 1024;
         char bufarr[ max_size ]  __attribute__ ((aligned (16)));
         buf = &bufarr[0];
-        char * payload = buf + response.size();
+        char * payload = buf + response.serialized_size();
         
         
         // issue initial prefetches
+        // (these may have been overwritten by another sender, so hope for the best.)
         for( int i = 0; i < prefetch_dist; ++i ) {
           Grappa::impl::MessageBase * pre = get_pointer( &cores_[core].prefetch_queue_[i] );
           __builtin_prefetch( pre, 0, prefetch_type ); // prefetch for read
-          cores_[core].prefetch_queue_[i].raw_ = 0;    // clear out for next time around
         }
         
         // serialize into buffer
-        // TODO: support larger than buffer
         DVLOG(5) << __func__ << ": " << "Serializing messages for " << core << " into buffer " << (void*) buf;
-        char * end = aggregate_to_buffer( payload, &messages_to_send, max_size - response.size() );
+        serialize_calls++;
+        char * end = aggregate_to_buffer( payload, &messages_to_send, max_size - response.serialized_size(), &serialized_count );
+        if( messages_to_send == NULL ) serialize_null_returns++;
         DVLOG(5) << __func__ << ": " << "Wrote " << end - payload << " bytes into buffer " << (void*) buf << " for " << core;
         
         // wait until we have a buffer
@@ -218,12 +296,12 @@ namespace Grappa {
         
         // Fill in response message fields
         response_functor.info_ptr = dest.info_ptr;
-        response_functor.offset = response.size();
+        response_functor.offset = response.serialized_size();
         response_functor.actual_size = end - payload;
         
         // Serialize message into head of buffer
         Grappa::impl::MessageBase * response_ptr = &response;
-        char * other_end = response.serialize_to( buf, response.size() );
+        char * other_end = response.serialize_to( buf, response.serialized_size() );
         response.mark_sent();
         DVLOG(5) << __func__ << ": " << "Wrote " << other_end - buf << " additional bytes into buffer " << (void*) buf << " for " << core;
         
@@ -232,38 +310,36 @@ namespace Grappa {
         GASNET_CHECK( gasnet_AMRequestLong0( core, deserialize_first_handle_, 
                                              buf, end - buf, dest.buffer ) );
         
-        // maybe wait for ack, with potential payload
+        // TODO: maybe wait for ack, with potential payload
 
+        rdma_message_bytes += end - buf;
+        buffers_sent++;
         DVLOG(5) << __func__ << ": " << "Sent buffer of size " << end - buf << " through RDMA to " << core;
       } while( messages_to_send != static_cast<Grappa::impl::MessageBase*>(nullptr) );
-        // potentially loop
-        
-      current_dest_ = -1;
-      send_end_++;
+      
+      DCHECK_EQ( grabbed_count, serialized_count ) << "Did we not serialize everything?" 
+                                                   << " ml=" << ml.count_ << "/" << get_pointer( &ml )
+                                                   << " buffers_sent=" << buffers_sent
+                                                   << " messages_to_send=" << messages_to_send
+                                                   << " serialize_calls=" << serialize_calls
+                                                   << " serialize_null_returns=" << serialize_null_returns;
+      rdma_send_end++;
     }
 
 
 
 
     // performance sucks
-    void RDMAAggregator::send_medium( Core core ) {
-      DVLOG(5) << "Sending messages from " << cores_[core].messages_.pointer_;
+    void RDMAAggregator::send_medium( Core core, Grappa::impl::MessageList ml ) {
 
-      if( cores_[core].messages_.pointer_ == 0 )
+      if( cores_[core].messages_.raw_ == 0 )
         return;
       
       // create temporary buffer
       const size_t size = 4024;
       char buf[ size ] __attribute__ ((aligned (16)));
       
-      // grab list of messages
-      DVLOG(5) << "Grabbing messages for " << core;
-      Grappa::impl::MessageList old_ml, new_ml;
-      do {
-        old_ml = cores_[core].messages_;
-        new_ml.raw_ = 0;
-      } while( !__sync_bool_compare_and_swap( &(cores_[core].messages_.raw_), old_ml.raw_, new_ml.raw_ ) );
-      Grappa::impl::MessageBase * messages_to_send = get_pointer( &old_ml );
+      Grappa::impl::MessageBase * messages_to_send = get_pointer( &ml );
 
       // issue initial prefetches
       for( int i = 0; i < prefetch_dist; ++i ) {
@@ -284,8 +360,6 @@ namespace Grappa {
         GASNET_CHECK( gasnet_AMRequestMedium0( core, deserialize_buffer_handle_, &buf[0], aggregated_size ) );
       }
     }
-
-
 
     /// @}
   };

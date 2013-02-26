@@ -2,9 +2,11 @@
 #pragma once
 
 #include <iostream>
+#include <vector>
 
 #include "StatisticBase.hpp"
 #include "SimpleStatistic.hpp"
+#include "SummarizingStatistic.hpp"
 
 namespace Grappa {
   
@@ -35,7 +37,7 @@ inline std::ostream& operator<<(std::ostream& o, const Grappa::impl::StatisticBa
 /// Define a new Grappa Statistic
 /// @param type: supported types include: int, unsigned int, int64_t, uint64_t, float, and double
 #define GRAPPA_DEFINE_STAT(type, name, initial_value) \
-  static Grappa::type name(#name, initial_value)
+  Grappa::type name(#name, initial_value)
 
 /// Declare a stat (defined in a separate .cpp file) so it can be used
 #define GRAPPA_DECLARE_STAT(type, name) \
