@@ -153,6 +153,8 @@ Scratch_tests.test: $(LIBRARY)
 ContextSwitchRate_tests.test: $(LIBRARY)
 ContextSwitchLatency_tests.test: $(LIBRARY)
 
+ContextSwitchRate_tests.test: $(LIBRARY)
+
 #
 # environment variables for run
 # remember to include environment's $LD_LIBRARY_PATH, since MPI libs may be there
