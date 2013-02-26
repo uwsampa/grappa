@@ -33,8 +33,8 @@ namespace Grappa {
         return r;
       }
       
-      template <typename F, size_t PoolBytes>
-      void call_async(MessagePool<PoolBytes>& pool, Core dest, F func) {
+      template <typename F>
+      void call_async(MessagePoolBase& pool, Core dest, F func) {
         static_assert(std::is_same<R, decltype(func())>::value, "return type of callable must match the type of this AsyncHandle");
         _result.reset();
         delegate_stats.count_op();
