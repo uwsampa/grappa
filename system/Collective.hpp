@@ -304,6 +304,8 @@ namespace Grappa {
     
   }
   
+  /// Called from SPMD context, reduces values from all cores calling `allreduce` and returns reduced
+  /// values to everyone. Blocks until reduction is complete, so suffices as a global barrier.
   template< typename T, T (*ReduceOp)(const T&, const T&) >
   T allreduce(T myval) {
     impl::Reduction<T>::result.reset();
@@ -313,6 +315,31 @@ namespace Grappa {
     });
     
     return impl::Reduction<T>::result.readFF();
+  }
+  
+  /// Called from a single task (usually user_main), reduces values from all cores and returns reduced
+  /// values to everyone. Blocks until reduction is complete.
+  template< typename T, T (*ReduceOp)(const T&, const T&) >
+  T reduce(T * global_ptr) {
+    CompletionEvent ce(cores()-1);
+    MessagePool pool(cores() * sizeof(Message<std::function<void(T*)>>));
+  
+    T total = *global_ptr;
+    Core origin = mycore();
+    
+    for (Core c=0; c<cores(); c++) {
+      if (c != origin) {
+        pool.send_message(c, [global_ptr, &ce, &total, origin]{
+          T val = *global_ptr;
+          send_heap_message(origin, [val,&ce,&total] {
+            total = ReduceOp(total, val);
+            ce.complete();
+          });
+        });
+      }
+    }
+    ce.wait();
+    return total;
   }
   
 }
