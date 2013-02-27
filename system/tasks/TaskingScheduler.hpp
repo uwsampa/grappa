@@ -107,6 +107,9 @@ class TaskingScheduler : public Scheduler {
 
     bool queuesFinished();
 
+    /// make sure we don't context switch when we don't want to
+    bool in_no_switch_region_;
+
     Grappa_Timestamp prev_ts;
     Grappa_Timestamp prev_stats_blob_ts;
     static const int64_t tick_scale = 1L; //(1L << 30);
@@ -116,6 +119,8 @@ class TaskingScheduler : public Scheduler {
 #ifdef VTRACE_FULL
       VT_TRACER("nextCoroutine");
 #endif
+      CHECK_EQ( in_no_switch_region_, false ) << "Trying to context switch in no-switch region";
+
       do {
         Thread * result;
         ++stats.scheduler_count;
@@ -332,6 +337,9 @@ class TaskingScheduler : public Scheduler {
 
     TaskingScheduler ( );
     void init ( Thread * master, TaskManager * taskman );
+
+    void set_no_switch_region( bool val ) { in_no_switch_region_ = val; }
+    bool in_no_switch_region() { return in_no_switch_region_; }
 
     /// Get the currently running Thread.
     Thread * get_current_thread() {
