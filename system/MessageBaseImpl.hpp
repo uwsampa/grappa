@@ -7,7 +7,7 @@
 
 #include "MessageBase.hpp"
 
-#ifdef DISABLE_RDMA_AGGREGATOR
+#ifndef ENABLE_RDMA_AGGREGATOR
 #define LEGACY_SEND
 #endif
 
