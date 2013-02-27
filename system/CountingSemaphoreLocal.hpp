@@ -6,16 +6,17 @@
 // AC05-76RL01830 awarded by the United States Department of
 // Energy. The Government has certain rights in the software.
 
+#include <limits>
+
 #include "TaskingScheduler.hpp"
 #include "Synchronization.hpp"
-#include "Mutex.hpp"
 
 namespace Grappa {
 
   /// @addtogroup Synchronization
   /// @{
   
-  // Counting semaphore. Maximum count is 2^15.
+  /// Counting semaphore. Maximum count is 2^15 - 1.
   class CountingSemaphore {
   private:
     inline void check( int64_t new_count ) const {
@@ -31,6 +32,8 @@ namespace Grappa {
       };
       intptr_t raw_; // unnecessary; just to ensure alignment
     };
+
+    static const size_t max_value = (1 << 15) - 1;
 
     CountingSemaphore()
       : count_( 0 )
@@ -87,10 +90,10 @@ namespace Grappa {
     inline int16_t get_value() const {
       return count_;
     }
-    
+
   };
     
-  /// Verify that MutexConditionVariable is only one word
+  /// Verify that CountingSemaphore is only one word
   static_assert( sizeof( CountingSemaphore ) == 8, "CountingSemaphore is not 64 bits for some reason.");
 
   /// @}
