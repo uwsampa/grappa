@@ -19,7 +19,8 @@ namespace Grappa {
   impl::StatisticBase::StatisticBase(const char * name, bool reg_new): name(name) {
     if (reg_new) {
       Grappa::impl::registered_stats().push_back(this);
-      VLOG(1) << "registered <" << this->name << ">";
+      // commented out because this gets called before GLOG is intialized
+      //VLOG(1) << "registered <" << this->name << ">";
     }
   }
   
