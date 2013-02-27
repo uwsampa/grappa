@@ -67,9 +67,7 @@ typedef Core Node;
 
 
 /// some variables from gasnet
-namespace {
-  extern size_t gasnetc_inline_limit;
-}
+extern size_t gasnetc_inline_limit;
 
 class Communicator;
 

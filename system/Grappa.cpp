@@ -212,8 +212,6 @@ void Grappa_init( int * argc_p, char ** argv_p[], size_t global_memory_size_byte
   //  initializes system_wide global_aggregator
   global_aggregator.init();
 
-  Grappa::impl::global_rdma_aggregator.init();
-
   // set CPU affinity if requested
   if( FLAGS_set_affinity ) {
     char * localid_str = getenv("SLURM_LOCALID");
@@ -287,6 +285,9 @@ void Grappa_init( int * argc_p, char ** argv_p[], size_t global_memory_size_byte
   global_scheduler.init( master_thread, &global_task_manager );
   global_scheduler.periodic( thread_spawn( master_thread, &global_scheduler, &poller, NULL ) );
 
+  // start RDMA Aggregator *after* threading layer
+  Grappa::impl::global_rdma_aggregator.init();
+
   // collect some stats on this job
   Grappa_tick();
   Grappa_Timestamp end_ts = Grappa_get_timestamp();
@@ -306,6 +307,8 @@ void Grappa_activate()
 {
   DVLOG(1) << "Activating Grappa library....";
   global_communicator.activate();
+  Grappa_barrier();
+  Grappa::impl::global_rdma_aggregator.activate();
   Grappa_barrier();
 }
 
