@@ -52,7 +52,7 @@ namespace Grappa {
       friend class RDMAAggregator;
 
       /// Mark message as sent
-      inline void mark_sent() {
+      virtual void mark_sent() {
         is_sent_ = true;
         next_ = NULL;
         prefetch_ = NULL;
