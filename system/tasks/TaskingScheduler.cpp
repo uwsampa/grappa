@@ -37,6 +37,7 @@ TaskingScheduler global_scheduler;
   , num_workers ( 0 )
   , work_args( NULL )
   , previous_periodic_ts( 0 ) 
+  , in_no_switch_region_( false )
   , prev_ts( 0 )
   , prev_stats_blob_ts( 0 )
     , stats( this )
