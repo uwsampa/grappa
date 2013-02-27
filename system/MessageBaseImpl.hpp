@@ -7,10 +7,8 @@
 
 #include "MessageBase.hpp"
 
-#ifndef ENABLE_RDMA_AGGREGATOR
-//#define LEGACY_SEND
-#endif
-//#define LEGACY_SEND
+// Remove this to use new aggregator.
+#define LEGACY_SEND
 
 #include "RDMAAggregator.hpp"
 
