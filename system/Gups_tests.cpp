@@ -9,6 +9,7 @@
 /// suffer from some load imbalance.
 
 #include <memory>
+#include <algorithm>
 
 #include <Grappa.hpp>
 #include "ForkJoin.hpp"
@@ -34,6 +35,24 @@ DECLARE_string( load_balance );
 //const int outstanding = 1 << 4;
 //const int outstanding = 1 << 13;
 
+template< typename T >
+class ReuseMessage : public Grappa::Message<T> {
+public:
+  Grappa::impl::ReuseList< ReuseMessage > * list_;
+  virtual ReuseMessage * get_next() { 
+    // we know this is safe since the list only holds this message type.
+    return static_cast<ReuseMessage*>(this->next_); 
+  }
+  virtual void set_next( ReuseMessage * next ) { this->next_ = next; }
+protected:
+  virtual void mark_sent() {
+    Grappa::Message<T>::mark_sent();
+    list_->push(this);
+  }
+};
+
+
+// completion message handler
 struct C {
   GlobalAddress< Grappa::CompletionEvent > ce;
   void operator()() {
@@ -43,56 +62,71 @@ struct C {
     ce.pointer()->complete();
   }
 };
-size_t current_completion = 0;
-// int64_t completion_counts[ outstanding ] = { 0 };
-//Grappa::Message< C > completions[ outstanding ];
-std::unique_ptr< Grappa::Message<C>[] > completions;
 
+// list of free completion messages
+Grappa::impl::ReuseList< ReuseMessage<C> > completion_list;
+void completion_list_push( ReuseMessage<C> * c ) {
+  completion_list.push(c);
+}
+
+// GUPS request message handler
 struct M {
+  // address to increment
   GlobalAddress< int64_t > addr;
+  // address of completion counter
   GlobalAddress< Grappa::CompletionEvent > ce;
+
+  // once we have a message to use, do this
+  static void complete( ReuseMessage<C> * message, GlobalAddress< Grappa::CompletionEvent > event ) {
+    message->reset();
+    (*message)->ce = event;
+    message->enqueue( event.node() );
+  }
+
   void operator()() {
     DVLOG(5) << "Received GUP at node " << Grappa::mycore()
              << " with target " << addr.node()
              << " address " << addr.pointer()
              << " reply to " << ce.node()
              << " with address " << ce.pointer();
+
+    // increment address
     int64_t * ptr = addr.pointer();
     *ptr++;
-    //Grappa::complete( ce );
-    {
-      if (ce.node() == Grappa::mycore()) {
-        ce.pointer()->complete();
+
+    // now send completion
+    // is the completion local?
+    if (ce.node() == Grappa::mycore()) {
+      // yes, so just do it.
+      ce.pointer()->complete();
+    } else {
+      // we need to send a message
+      // try to grab a message
+      ReuseMessage<C> * c = NULL;
+      if( (c = completion_list.try_pop()) != NULL ) {
+        // got one; send completion
+        M::complete( c, ce );
       } else {
-        CHECK_LT( current_completion, FLAGS_iterations ) << "index exploded!";
-        //Grappa::lock( &completion_locks[ current_completion % outstanding ] );
-
-        // grab this guy's message
-        Grappa::Message<C> * c = &completions[ current_completion % FLAGS_outstanding ];
-        // int64_t * count = &completion_counts[ current_completion % outstanding ];
-        current_completion++;
-
-        // fill it in
-        c->reset();
-        (*c)->ce = ce;
-        c->enqueue( ce.node() );
-
-        // // count it
-        // (*count)++;
-        //Grappa::unlock( &completion_locks[ current_completion % outstanding ] );
-        //GlobalAddress< Grappa::CompletionEvent > ce2 = ce;
-        // auto m = Grappa::send_heap_message(ce.node(), [ce2] {
-        //     ce2.pointer()->complete();
-        //   });
+        // we need to block, so spawn a task
+        auto my_ce = ce;
+        Grappa::privateTask( [this, my_ce] { // this actually unused
+            ReuseMessage<C> * c = completion_list.block_until_pop();
+            M::complete( c, my_ce );
+          });
       }
     }
   }
 };
 
-//Grappa::Message<M> msgs[ outstanding ];
-std::unique_ptr< Grappa::Message<M>[] > msgs;
+// list of free request messages
+Grappa::impl::ReuseList< ReuseMessage<M> > message_list;
+void message_list_push( ReuseMessage<M> * m ) {
+  message_list.push(m);
+}
 
+// keep track of this core's completions
 Grappa::CompletionEvent ce;
+
 
 
 double wall_clock_time() {
@@ -155,57 +189,33 @@ LOOP_FUNCTION( func_gups_rdma, index ) {
   const uint64_t LARGE_PRIME = 18446744073709551557UL;
   const uint64_t each_iters = FLAGS_iterations / Grappa::cores();
   const uint64_t my_start = each_iters * Grappa::mycore();
-  /* across all nodes and all calls, each instance of index in [0.. iterations)
-  ** must be encounted exactly once */
-  //uint64_t index = random() + Grappa_mynode();//(p - base) * Grappa_nodes() + Grappa_mynode();
-  //uint64_t b = (index*LARGE_PRIME) % FLAGS_sizeA;
-  //static uint64_t index = 1;
 
-  DVLOG(5) << "Created GUPS completion event " << &ce << " with " << each_iters << " iters";
-  // const int outstanding = 512;
-  // //Grappa::Message<M> msgs[ outstanding ];
-  // auto msgs = new Grappa::Message<M>[ outstanding ];
+  DVLOG(1) << "Initializing RDMA GUPS....";
 
-  {
-
-  DVLOG(1) << "Initializing....";
+  // record how many messages we plan to send
   ce.enroll( each_iters );
     
-    //Grappa::Message<M> msgs[ outstanding ];
+  DVLOG(1) << "Starting RDMA GUPS";
+  for( uint64_t index = my_start; index < my_start + each_iters; ++index ) {
+    DCHECK_LT( index, FLAGS_iterations ) << "index exploded!";
     
-    DVLOG(1) << "Starting RDMA GUPS";
-    for( uint64_t index = my_start; index < my_start + each_iters; ++index ) {
-      DCHECK_LT( index, FLAGS_iterations ) << "index exploded!";
-      //uint64_t b = (index * LARGE_PRIME) % 1023; //FLAGS_sizeA;
-      uint64_t b = (index * LARGE_PRIME) % FLAGS_sizeA;
-      auto a = Array + b;
+    // compute address to increment
+    uint64_t b = (index * LARGE_PRIME) % FLAGS_sizeA;
+    auto a = Array + b;
 
-      Grappa::Message<M> * m = &msgs[ (index - my_start) % FLAGS_outstanding ];
+    // get a message to use to send
+    ReuseMessage<M> * m = message_list.block_until_pop();
 
-      m->reset();
-      (*m)->addr = a;
-      (*m)->ce = make_global( &ce );
-      m->enqueue( a.node() );
-    }
-
+    // send
+    m->reset();
+    (*m)->addr = a;
+    (*m)->ce = make_global( &ce );
+    m->enqueue( a.node() );
   }
 
-  // LOG(INFO) << "Flushing";
-  // for( int i = 0; i < Grappa::cores(); ++i ) {
-  //   Grappa::impl::global_rdma_aggregator.flush( i );
-  // }
-
-  // LOG(INFO) << "Blocking until sent";
-  // for( Grappa::Message<M> & m : msgs ) {
-  //   m.block_until_sent();
-  // }
-
-  // for( Grappa::Message<C> & m : completions ) {
-  //   m.block_until_sent();
-  // }
-
-  DVLOG(1) << "Waiting for replies";
+  DVLOG(1) << "Done sending; now waiting for replies";
   ce.wait();
+
   DVLOG(1) << "Got all replies";
 }
 
@@ -285,8 +295,15 @@ BOOST_AUTO_TEST_CASE( test1 ) {
 		  &(boost::unit_test::framework::master_test_suite().argv) );
     Grappa_activate();
 
-    msgs.reset( new Grappa::Message<M>[ FLAGS_outstanding ] );
-    completions.reset( new Grappa::Message<C>[ FLAGS_outstanding ] );
+    // prepare pools of messages
+    auto msgs = new ReuseMessage<M>[ FLAGS_outstanding ];
+    auto completions = new ReuseMessage<C>[ FLAGS_outstanding ];
+    for( int i; i < FLAGS_outstanding; ++i ) {
+      msgs[i].list_ = &message_list;
+      message_list.push( &msgs[i] );
+      completions[i].list_ = &completion_list;
+      completion_list.push( &completions[i] );
+    }
 
     Grappa_run_user_main( &user_main, (int*)NULL );
 
