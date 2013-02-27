@@ -193,6 +193,9 @@ namespace Grappa {
       void send_rdma( Core core, Grappa::impl::MessageList ml );
       void send_medium( Core core, Grappa::impl::MessageList ml );
 
+      void deliver_locally( Core core,
+                            MessageBase * messages_to_send );
+
       /// task that is run to allocate space to receive a message      
       static void deaggregation_task( GlobalAddress< FullEmpty < ReceiveBufferInfo > > callback_ptr );
 

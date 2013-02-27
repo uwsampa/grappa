@@ -159,6 +159,30 @@ namespace Grappa {
 
 
 
+    void RDMAAggregator::deliver_locally( Core core,
+                                          MessageBase * messages_to_send ) {
+      CoreData * dest = &cores_[ core ];
+
+      //
+      // serialize
+      //
+      
+      // issue initial prefetches
+      // (these may have been overwritten by another sender, so hope for the best.)
+      for( int i = 0; i < prefetch_dist; ++i ) {
+        Grappa::impl::MessageBase * pre = get_pointer( &dest->prefetch_queue_[i] );
+        __builtin_prefetch( pre, 0, prefetch_type ); // prefetch for read
+      }
+
+      while( messages_to_send != NULL ) {
+        MessageBase * next = messages_to_send->next_;
+        __builtin_prefetch( messages_to_send->prefetch_, 0, prefetch_type );
+        messages_to_send->deliver_locally();
+        messages_to_send->mark_sent();
+        messages_to_send = next;
+      }
+    }
+
     void RDMAAggregator::deaggregation_task( GlobalAddress< FullEmpty < ReceiveBufferInfo > > callback_ptr ) {
       DVLOG(5) << __func__ << ": " << "Deaggregation task running to receive from " << callback_ptr.node();
       rdma_receive_start++;

@@ -91,6 +91,11 @@ namespace Grappa {
       return t + sizeof( T );
     }
 
+    virtual void deliver_locally() {
+      storage_();
+      this->mark_sent();
+    }
+
     /// Copy this message into a buffer.
     virtual char * serialize_to( char * p, size_t max_size ) {
       Grappa::impl::MessageBase::serialize_to( p, max_size );
@@ -223,6 +228,11 @@ namespace Grappa {
       return t + payload_size;
     }
 
+    virtual void deliver_locally() {
+      storage_( payload_, payload_size_ );
+      this->mark_sent();
+    }
+
     /// Copy this message into a buffer.
     virtual char * serialize_to( char * p, size_t max_size ) {
       Grappa::impl::MessageBase::serialize_to( p, max_size );
@@ -340,6 +350,11 @@ namespace Grappa {
       T * obj = reinterpret_cast< T * >( t );
       (*obj)();
       return t + sizeof( T );
+    }
+
+    virtual void deliver_locally() {
+      (*pointer_)();
+      this->mark_sent();
     }
 
     /// Copy this message into a buffer.
@@ -482,6 +497,11 @@ namespace Grappa {
       (*obj)( t, payload_size );
 
       return t + payload_size;
+    }
+
+    virtual void deliver_locally() {
+      (*pointer_)( payload_, payload_size_ );
+      this->mark_sent();
     }
 
     /// Copy this message into a buffer.

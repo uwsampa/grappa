@@ -178,6 +178,8 @@ namespace Grappa {
       inline void send_immediate();
       inline void send_immediate( Core c );
 
+      virtual void deliver_locally() = 0;
+
       inline void delete_after_send() { 
         delete_after_send_ = true;
       }
