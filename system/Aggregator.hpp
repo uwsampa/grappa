@@ -922,12 +922,8 @@ inline void Grappa_call_on( Node destination, void (* fn_p)(ArgsStruct *, size_t
                               const void * payload = NULL, const size_t payload_size = 0)
 {
   StateTimer::start_communication();
-#ifdef DISABLE_RDMA_AGGREGATOR
-  global_aggregator.aggregate( destination,
-                               reinterpret_cast< AggregatorAMHandler >( fn_p ),
-                               static_cast< const void * >( args ), args_size,
-                               static_cast< const void * >( payload ), payload_size );
-#else
+#if defined(OLD_MESSAGES_NEW_AGGREGATOR) && defined(ENABLE_RDMA_AGGREGATOR)
+  struct __attribute__((deprecated("Using old aggregator bypass"))) Warning {};
   CHECK_EQ( sizeof(ArgsStruct), args_size ) << "must add special-case for nonstandard ArgsStruct usage";
   typedef typename std::remove_const<ArgsStruct>::type NonConstArgsStruct;
   ArgsStruct& a = *(const_cast<NonConstArgsStruct*>(args)); // HACK to work around some const disagreements at call sites
@@ -940,6 +936,11 @@ inline void Grappa_call_on( Node destination, void (* fn_p)(ArgsStruct *, size_t
         fn_p( &a, sizeof(a), payload, size );
       }, const_cast<void*>(payload), payload_size );
   }
+#else
+  global_aggregator.aggregate( destination,
+                               reinterpret_cast< AggregatorAMHandler >( fn_p ),
+                               static_cast< const void * >( args ), args_size,
+                               static_cast< const void * >( payload ), payload_size );
 #endif
   StateTimer::stop_communication();
 }
@@ -954,13 +955,9 @@ inline void Grappa_call_on_x( Node destination, void (* fn_p)(ArgsStruct *, size
                                const PayloadType * payload = NULL, const size_t payload_size = 0)
 {
   StateTimer::start_communication();
-#ifndef DISABLE_RDMA_AGGREGATOR
-  global_aggregator.aggregate( destination,
-                               reinterpret_cast< AggregatorAMHandler >( fn_p ),
-                               static_cast< const void * >( args ), args_size,
-                               static_cast< const void * >( payload ), payload_size );
-#else
-  LOG(WARNING) << "Using old aggregator bypass, which adds additional blocking";
+#if defined(OLD_MESSAGES_NEW_AGGREGATOR) && defined(ENABLE_RDMA_AGGREGATOR)
+  struct __attribute__((deprecated("Using old aggregator bypass, which adds additional blocking"))) Warning {};
+  //LOG(WARNING) << "Using old aggregator bypass, which adds additional blocking";
   CHECK_EQ( sizeof(ArgsStruct), args_size ) << "must add special-case for nonstandard ArgsStruct usage";
   ArgsStruct& a = *(std::remove_const<ArgsStruct>(args));
   if( NULL == payload ) {
@@ -974,6 +971,11 @@ inline void Grappa_call_on_x( Node destination, void (* fn_p)(ArgsStruct *, size
         fn_p( &a, sizeof(a), p, psize );
       }, static_cast< void * >( payload ), payload_size );
   }
+#else
+  global_aggregator.aggregate( destination,
+                               reinterpret_cast< AggregatorAMHandler >( fn_p ),
+                               static_cast< const void * >( args ), args_size,
+                               static_cast< const void * >( payload ), payload_size );
 #endif
   StateTimer::stop_communication();
 }
