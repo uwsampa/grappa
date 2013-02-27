@@ -52,7 +52,8 @@ namespace Grappa {
 
     FullEmpty( T t ) : state_( State::FULL ), waiters_( 0 ), t_(t) {}
 
-    inline bool full() { return state_ == State::FULL; }
+    inline bool full() const { return state_ == State::FULL; }
+    inline bool empty() const { return state_ == State::EMPTY; }
     
     inline void reset() {
       CHECK(waiters_ == 0);
