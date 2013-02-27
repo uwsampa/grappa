@@ -127,3 +127,6 @@ config.cache
 
 # stats output
 *stats.json
+
+# scratch files
+/system/scratch/*
