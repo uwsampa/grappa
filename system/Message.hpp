@@ -93,7 +93,6 @@ namespace Grappa {
 
     virtual void deliver_locally() {
       storage_();
-      this->mark_sent();
     }
 
     /// Copy this message into a buffer.
@@ -230,7 +229,6 @@ namespace Grappa {
 
     virtual void deliver_locally() {
       storage_( payload_, payload_size_ );
-      this->mark_sent();
     }
 
     /// Copy this message into a buffer.
@@ -354,7 +352,6 @@ namespace Grappa {
 
     virtual void deliver_locally() {
       (*pointer_)();
-      this->mark_sent();
     }
 
     /// Copy this message into a buffer.
@@ -501,7 +498,6 @@ namespace Grappa {
 
     virtual void deliver_locally() {
       (*pointer_)( payload_, payload_size_ );
-      this->mark_sent();
     }
 
     /// Copy this message into a buffer.
