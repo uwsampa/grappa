@@ -17,7 +17,7 @@ Grappa (Figure~\ref{fig:grappa}) has three main software components:
 \item [Tasking system.] Our tasking system supports lightweight
 multithreading to tolerate communication latency and global distributed
 workstealing (i.e., tasks can be stolen from any node in the system), which
-provides automated load balancing.
+provides automated load balancing. \TODO{say why we built our own: need to support large number of contexts and just the contexts themselves wont fit in the cache, so being able to prefetch task contexts is very important.}
 
 \item[Distributed shared memory.] Our DSM system provides support for
 fine-grain access to data anywhere in the system. It supports synchronization

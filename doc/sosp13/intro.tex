@@ -31,7 +31,7 @@ off-node. Irregular applications also present a challenge to mass market
 network technology, which is designed to transfer large blocks of data, not
 the word-sized references emitted by irregular application tasks. Injection
 rate into the network is insufficient to utilize wire bandwidth when blocks
-are below about two-kilobytes, so any straightforward communication strategy
+are below about two-kilobytes, so any naive communication strategy
 severely under-utilizes the network. 
 
 While some irregular applications can be restructured to better exploit
@@ -121,7 +121,7 @@ increases latency).
 % {\em Provide evidence we have succeeded -- will rewrite as necessary based on final results:}
 
 Our evaluation of Grappa shows that it runs several graph-crunching
-applications (classic examples of irregular behavior) very efficiently
+applications very efficiently
 on a commodity cluster. Our yardstick for comparison is the XMT hardware
 itself. Using the same number of network interfaces, Grappa is in the
 same ballpark as the XMT: For unbalanced tree search, Grappa is over 3X
