@@ -148,6 +148,7 @@ New_loop_tests.test: $(LIBRARY)
 CompletionEvent_tests.test: $(LIBRARY)
 
 ContextSwitchRate_tests.test: $(LIBRARY)
+ContextSwitchLatency_tests.test: $(LIBRARY)
 
 #
 # environment variables for run
