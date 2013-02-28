@@ -73,8 +73,10 @@ namespace Grappa {
     /// the threshold and serializing the remaining iterations at each leaf.
     /// Note: this is an internal primitive for spawning tasks and does not synchronize on spawned tasks.
     ///
+    /// Optionally enrolls/completes spawned tasks with a GlobalCompletionEvent if specified.
+    ///
     /// This version spawns *public* tasks all the way down.
-    template<int64_t Threshold = USE_LOOP_THRESHOLD_FLAG, typename F = decltype(nullptr) >
+    template<GlobalCompletionEvent * GCE = nullptr, int64_t Threshold = USE_LOOP_THRESHOLD_FLAG, typename F = decltype(nullptr) >
     void loop_decomposition_public(int64_t start, int64_t iterations, F loop_body) {
       DVLOG(4) << "< " << start << " : " << iterations << ">";
       
@@ -87,13 +89,20 @@ namespace Grappa {
       } else {
         // spawn right half
         int64_t rstart = start+(iterations+1)/2, riters = iterations/2;
+        Core origin = mycore();
         
-        publicTask([rstart, riters, loop_body] {
-          loop_decomposition_public<Threshold,F>(rstart, riters, loop_body);
+        // pack these 3 into 14 bytes so we still have room for a full 8-byte word from user
+        // (also need to count 2 bytes from lambda overhead)
+        struct { long rstart:48, riters:48, origin:16; } packed = { rstart, riters, origin };
+        
+        if (GCE) GCE->enroll();
+        publicTask([packed, loop_body] {
+          loop_decomposition_public<GCE,Threshold,F>(packed.rstart, packed.riters, loop_body);
+          if (GCE) complete(make_global(GCE,packed.origin));
         });
         
         // left side here
-        loop_decomposition_public<Threshold,F>(start, (iterations+1)/2, loop_body);
+        loop_decomposition_public<GCE,Threshold,F>(start, (iterations+1)/2, loop_body);
       }
     }
 
@@ -136,12 +145,14 @@ namespace Grappa {
   ///
   /// Note: this also cannot guarantee that `loop_body` will be in scope, so it passes it
   /// by copy to spawned tasks.
-  template<int64_t Threshold = impl::USE_LOOP_THRESHOLD_FLAG, typename F = decltype(nullptr) >
+  template< GlobalCompletionEvent * GCE = nullptr, int64_t Threshold = impl::USE_LOOP_THRESHOLD_FLAG, typename F = decltype(nullptr) >
   void forall_here_async_public(int64_t start, int64_t iters, F loop_body) {
-    impl::loop_decomposition_public<Threshold>(start, iters,
+    if (GCE) GCE->enroll();
+    impl::loop_decomposition_public<GCE,Threshold>(start, iters,
       [loop_body](int64_t start, int64_t iters) {
         loop_body(start, iters);
       });
+    if (GCE) GCE->complete();
   }
   
   /// Spread iterations evenly (block-distributed) across all the cores, using recursive
@@ -175,17 +186,15 @@ namespace Grappa {
       
       // may as well do this before the barrier too, but it shouldn't matter
       range_t r = blockDist(start, start+iters, mycore(), cores());
-      GCE->enroll(r.end-r.start);
       
       barrier();
       
       Core origin = mycore();
       
-      impl::loop_decomposition_public<Threshold>(r.start, r.end-r.start,
-        [origin](int64_t s, int64_t n) {
+      forall_here_async_public<GCE,Threshold>(r.start, r.end-r.start,
+        [](int64_t s, int64_t n) {
           auto& loop_body = *GCE->get_shared_ptr<F>();
           loop_body(s,n);
-          complete(make_global(GCE,origin),n);
         }
       );
       
