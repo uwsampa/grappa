@@ -73,9 +73,15 @@ namespace Grappa {
     /// the threshold and serializing the remaining iterations at each leaf.
     /// Note: this is an internal primitive for spawning tasks and does not synchronize on spawned tasks.
     ///
+    /// This version spawns *public* tasks all the way down.
+    ///
     /// Optionally enrolls/completes spawned tasks with a GlobalCompletionEvent if specified.
     ///
-    /// This version spawns *public* tasks all the way down.
+    /// Note: this will add 16 bytes to the loop_body functor for loop decomposition (start
+    /// niters) and synchronization, allowing the `loop_body` to have 8 bytes of
+    /// user-defined storage.
+    ///
+    /// warning: truncates int64_t's to 48 bits--should be enough for most problem sizes.
     template<GlobalCompletionEvent * GCE = nullptr, int64_t Threshold = USE_LOOP_THRESHOLD_FLAG, typename F = decltype(nullptr) >
     void loop_decomposition_public(int64_t start, int64_t iterations, F loop_body) {
       DVLOG(4) << "< " << start << " : " << iterations << ">";
@@ -92,7 +98,7 @@ namespace Grappa {
         Core origin = mycore();
         
         // pack these 3 into 14 bytes so we still have room for a full 8-byte word from user
-        // (also need to count 2 bytes from lambda overhead)
+        // (also need to count 2 bytes from lambda overhead or something)
         struct { long rstart:48, riters:48, origin:16; } packed = { rstart, riters, origin };
         
         if (GCE) GCE->enroll();
@@ -145,6 +151,8 @@ namespace Grappa {
   ///
   /// Note: this also cannot guarantee that `loop_body` will be in scope, so it passes it
   /// by copy to spawned tasks.
+  /// Also uses impl::loop_decomposition_public, which adds 16 bytes to functor, so `loop_body`
+  /// should be kept to 8 bytes for performance.
   template< GlobalCompletionEvent * GCE = nullptr, int64_t Threshold = impl::USE_LOOP_THRESHOLD_FLAG, typename F = decltype(nullptr) >
   void forall_here_async_public(int64_t start, int64_t iters, F loop_body) {
     if (GCE) GCE->enroll();
@@ -172,6 +180,9 @@ namespace Grappa {
   /// decomposition with public tasks (that may moved to a different core for load-balancing).
   /// Blocks until all iterations on all cores complete.
   ///
+  /// Note: `loop_body` will be copied to each core and that single copied is shared by all
+  /// public tasks under this GlobalCompletionEvent.
+  ///
   /// Subject to "may-parallelism", @see `loop_threshold`.
   template<GlobalCompletionEvent * GCE = &impl::local_gce, int64_t Threshold = impl::USE_LOOP_THRESHOLD_FLAG, typename F = decltype(nullptr)>
   void forall_global_public(int64_t start, int64_t iters, F loop_body) {
@@ -188,8 +199,6 @@ namespace Grappa {
       range_t r = blockDist(start, start+iters, mycore(), cores());
       
       barrier();
-      
-      Core origin = mycore();
       
       forall_here_async_public<GCE,Threshold>(r.start, r.end-r.start,
         [](int64_t s, int64_t n) {
@@ -223,7 +232,7 @@ namespace Grappa {
       T* local_end = (base+nelems).localize();
       
       forall_here<CE,Threshold>(0, local_end-local_base,
-        // note: this functor will be passed by ref in `forall_here` so should be okay if >24B
+        // note: this functor will be passed by ref to child tasks spawned by `forall_here` so should be okay if >24B
         [loop_body, local_base, base](int64_t start, int64_t iters) {
           auto laddr = make_linear(local_base+start);
           
