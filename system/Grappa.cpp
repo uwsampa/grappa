@@ -59,7 +59,7 @@ static Thread * user_main_thr;
 /// Flag to tell this node it's okay to exit.
 bool Grappa_done_flag;
 
-double tick_rate = 0.0;
+double Grappa::tick_rate = 0.0;
 static int jobid = 0;
 static const char * nodelist_str = NULL;
 
@@ -290,7 +290,7 @@ void Grappa_init( int * argc_p, char ** argv_p[], size_t global_memory_size_byte
   Grappa_tick();
   Grappa_Timestamp end_ts = Grappa_get_timestamp();
   double end = Grappa_walltime();
-  tick_rate = (double) (end_ts - start_ts) / (end-start);
+  Grappa::tick_rate = (double) (end_ts - start_ts) / (end-start);
 
   char * jobid_str = getenv("SLURM_JOB_ID");
   jobid = jobid_str ? atoi(jobid_str) : 0;
@@ -438,7 +438,7 @@ void Grappa_reset_stats_all_nodes() {
 /// Dump statistics
 void legacy_dump_stats( std::ostream& oo ) {
   std::ostringstream o;
-  o << "   \"GrappaStats\": { \"tick_rate\": " << tick_rate
+  o << "   \"GrappaStats\": { \"tick_rate\": " << Grappa::tick_rate
     << ", \"job_id\": " << jobid
     << ", \"nodelist\": \"" << nodelist_str << "\""
     << " },\n";
@@ -522,7 +522,7 @@ void legacy_reduce_stats_and_dump( std::ostream& oo ) {
   CHECK( Grappa_mynode() == 0 );
  
   std::ostringstream o;
-  o << "   \"GrappaStats\": { \"tick_rate\": " << tick_rate
+  o << "   \"GrappaStats\": { \"tick_rate\": " << Grappa::tick_rate
     << ", \"job_id\": " << jobid
     << ", \"nodelist\": \"" << nodelist_str << "\""
     << " },\n";

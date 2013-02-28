@@ -20,6 +20,8 @@
 //#include <cxxabi.h>
 
 namespace Grappa {
+  extern double tick_rate;
+
   namespace impl {
 
 /// global scheduler instance
