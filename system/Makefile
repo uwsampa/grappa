@@ -151,6 +151,7 @@ Reducer_tests.test: $(LIBRARY)
 Scratch_tests.test: $(LIBRARY)
 
 ContextSwitchRate_tests.test: $(LIBRARY)
+ContextSwitchLatency_tests.test: $(LIBRARY)
 
 #
 # environment variables for run
