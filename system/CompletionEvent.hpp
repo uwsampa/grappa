@@ -32,6 +32,7 @@ namespace Grappa {
         LOG(ERROR) << "too many calls to signal()";
       }
       count -= decr;
+      DVLOG(4) << "completed (" << count << ")";
       if (count == 0) {
         broadcast(&cv);
       }

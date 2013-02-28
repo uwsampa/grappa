@@ -5,10 +5,8 @@
 // AC05-76RL01830 awarded by the United States Department of
 // Energy. The Government has certain rights in the software.
 
-#include "ParallelLoop.hpp"
 
 #include <boost/test/unit_test.hpp>
-
 #include "Grappa.hpp"
 #include "Message.hpp"
 #include "MessagePool.hpp"
@@ -17,6 +15,7 @@
 #include "Delegate.hpp"
 #include "Tasking.hpp"
 #include "GlobalAllocator.hpp"
+#include "ParallelLoop.hpp"
 
 BOOST_AUTO_TEST_SUITE( New_loop_tests );
 

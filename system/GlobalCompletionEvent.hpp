@@ -149,6 +149,8 @@ public:
 };
 
   
+/// Synchronizing private task spawn. Automatically enrolls task with GlobalCompletionEvent and
+/// does local `complete` when done (if GCE is non-null).
 template<typename TF>
 void privateTask(GlobalCompletionEvent * gce, TF tf) {
   gce->enroll();
@@ -158,13 +160,15 @@ void privateTask(GlobalCompletionEvent * gce, TF tf) {
   });
 }
 
+/// Synchronizing public task spawn. Automatically enrolls task with GlobalCompletionEvent and
+/// sends `complete`  message when done (if GCE is non-null).
 template<GlobalCompletionEvent * GCE, typename TF>
-void publicTask(TF tf) {
-  GCE->enroll();
+inline void publicTask(TF tf) {
+  if (GCE) GCE->enroll();
   Core origin = mycore();
   publicTask([origin,tf] {
     tf();
-    complete(make_global(GCE,origin));
+    if (GCE) complete(make_global(GCE,origin));
   });
 }
   
