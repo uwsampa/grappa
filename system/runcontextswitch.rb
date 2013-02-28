@@ -9,19 +9,22 @@ cmd = "make mpi_test TARGET=ContextSwitchRate_tests.test \
 NNODE=%{nnode} \
 PPN=%{ppn} \
 VERBOSE_TESTS=1 \
+SRUN_FLAGS=--time=5 \
 GARGS=' \
 --num_starting_workers=%{num_workers} \
+--num_test_workers=%{num_test_workers} \
 --test_type=%{problem} \
 --private_array_size=%{private_array_size} \
---iters_per_task=%{iters_per_task}'"
+--iters_per_task=%{iters_per_task}' 2>&1 |tee out.txt"
 
 
 params = {
     trial: [1,2,3],
     nnode: [1],
-    ppn: [1],
+    ppn: [6,7,8],
     #total_iterations: [51200000],
-    num_workers: [12000, 40000, 128000],#[2,4,5,6,8,16,24,32,48,64,96,128,200,256,300, 512, 600,700,800,900,1024,1200,1500,1800,2048,4096,5000,6000,7000],
+    num_workers: [3,200,1024,4096,5000,6000,7000,8000],#[2,4,5,6,8,16,24,32,48,64,96,128,200,256,300, 512, 600,700,800,900,1024,1200,1500,1800,2048,4096,5000,6000,7000],
+    num_test_workers: expr('num_workers-2'),
     iters_per_task: [7000],#expr('total_iterations/num_workers'),
     actual_total_iterations: expr('iters_per_task*num_workers'),
     machine: ['cluster'],
