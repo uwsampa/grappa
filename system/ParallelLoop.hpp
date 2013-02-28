@@ -59,8 +59,6 @@ namespace Grappa {
         // spawn right half
         int64_t rstart = start+(iterations+1)/2, riters = iterations/2;
         
-        // Ugly, but switch should be compiled away and this is easier than
-        // templating on a templated function
         auto t = [rstart, riters, loop_body] {
           loop_decomposition_private<Threshold,F>(rstart, riters, loop_body);
         };
@@ -90,8 +88,6 @@ namespace Grappa {
         // spawn right half
         int64_t rstart = start+(iterations+1)/2, riters = iterations/2;
         
-        // Ugly, but switch should be compiled away and this is easier than
-        // templating on a templated function
         publicTask([rstart, riters, loop_body] {
           loop_decomposition_public<Threshold,F>(rstart, riters, loop_body);
         });
