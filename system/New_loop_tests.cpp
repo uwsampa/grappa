@@ -161,15 +161,37 @@ void test_forall_global_public() {
 
 void test_forall_localized() {
   BOOST_MESSAGE("Testing forall_localized...");
-  const int64_t N = 1 << 8;
+  const int64_t N = 100;
   
   auto array = Grappa_typed_malloc<int64_t>(N);
   
-  forall_localized(array, N, [](int64_t i, int64_t& e){
+  forall_localized(array, N, [](int64_t i, int64_t& e) {
     e = 1;
   });
   for (int i=0; i<N; i++) {
     BOOST_CHECK_EQUAL(delegate::read(array+i), 1);
+  }
+  
+  BOOST_MESSAGE("Testing forall_localized_async...");
+  
+  my_gce.reset_all();
+  
+  VLOG(1) << "start spawning";
+  forall_localized_async<&my_gce>(array+ 0, 25, [](int64_t i, int64_t& e) { e = 2; });
+  VLOG(1) << "after async";
+  forall_localized_async<&my_gce>(array+25, 25, [](int64_t i, int64_t& e) { e = 2; });
+  VLOG(1) << "after async";
+  forall_localized_async<&my_gce>(array+50, 25, [](int64_t i, int64_t& e) { e = 2; });
+  VLOG(1) << "after async";
+  forall_localized_async<&my_gce>(array+75, 25, [](int64_t i, int64_t& e) { e = 2; });
+  VLOG(1) << "done spawning";
+  
+  my_gce.wait();
+  
+  int npb = block_size / sizeof(int64_t);
+  for (int i=0; i<N; i+=npb*cores()) {
+    BOOST_CHECK_EQUAL((array+i).node(), mycore());
+    BOOST_CHECK_EQUAL(delegate::read(array+i), 2);
   }
 }
 
