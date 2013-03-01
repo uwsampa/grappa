@@ -62,6 +62,7 @@ namespace Grappa {
         auto t = [rstart, riters, loop_body] {
           loop_decomposition_private<Threshold,F>(rstart, riters, loop_body);
         };
+//        static_assert(sizeof(t)<=24,"privateTask too big");
         privateTask(t);
         
         // left side here
@@ -146,14 +147,23 @@ namespace Grappa {
     CE->wait();
   }
   
+  /// Non-blocking parallel loop with privateTasks. Takes pointer to a functor which
+  /// is shared by all child tasks. Enrolls tasks with specified GlobalCompletionEvent.
+  ///
+  /// Intended for spawning local tasks from within another GCE synchronization scheme
+  /// (another parallel loop or otherwise).
+  ///
+  /// Subject to "may-parallelism", @see `loop_threshold`.
   template<GlobalCompletionEvent * GCE = &impl::local_gce, int64_t Threshold = impl::USE_LOOP_THRESHOLD_FLAG, typename F = decltype(nullptr) >
-  void forall_here_async(int64_t start, int64_t iters, F loop_body) {
+  void forall_here_async(int64_t start, int64_t iters, const F * loop_ptr) {
     GCE->enroll(iters);
+    
+//    static_assert(sizeof(loop_body) <= 8, "too big");
     impl::loop_decomposition_private<Threshold>(start, iters,
       // passing loop_body by ref to avoid copying potentially large functors many times in decomposition
       // also keeps task args < 24 bytes, preventing it from needing to be heap-allocated
-      [loop_body](int64_t s, int64_t n) {
-        loop_body(s, n);
+      [loop_ptr](int64_t s, int64_t n) {
+        (*loop_ptr)(s, n);
         GCE->complete(n);
       });
   }
@@ -245,18 +255,17 @@ namespace Grappa {
       
       T* local_base = base.localize();
       T* local_end = (base+nelems).localize();
+      auto n = local_end - local_base;
       
-      forall_here_async<GCE,Threshold>(0, local_end-local_base,
-        // note: this functor will be passed by ref to child tasks spawned by `forall_here` so should be okay if >24B
-        [loop_body, local_base, base](int64_t start, int64_t iters) {
-          auto laddr = make_linear(local_base+start);
-          
-          for (int64_t i=start; i<start+iters; i++) {
-            // TODO: check if this is inlined and if this loop is unrollable
-            loop_body(laddr-base, local_base[i]);
-          }
+      auto f = [loop_body, local_base, base](int64_t start, int64_t iters) {
+        auto laddr = make_linear(local_base+start);
+        
+        for (int64_t i=start; i<start+iters; i++) {
+          // TODO: check if this is inlined and if this loop is unrollable
+          loop_body(laddr-base, local_base[i]);
         }
-      );
+      };
+      forall_here_async<GCE,Threshold>(0, n, &f);
       
       GCE->wait();
     });
@@ -266,6 +275,8 @@ namespace Grappa {
   ///
   /// Spawns tasks to on cores that *may contain elements* of the part of a linear array
   /// from base[0]-base[nelems].
+  ///
+  /// 
   template< GlobalCompletionEvent * GCE = &impl::local_gce,
             typename T = decltype(nullptr),
             int64_t Threshold = impl::USE_LOOP_THRESHOLD_FLAG,
@@ -300,22 +311,22 @@ namespace Grappa {
     GCE->enroll(fc);
     for (Core i=0; i<fc; i++) {
       pool.send_message((start_core+i)%nc, [base,nelems,loop_body,origin] {
+        // TODO: make this not heap-allocate the task.
         privateTask([base,nelems,loop_body,origin] {
           T* local_base = base.localize();
           T* local_end = (base+nelems).localize();
           size_t n = local_end - local_base;
           
-          forall_here_async<GCE,Threshold>(0, n,
-            [base,loop_body](int64_t start, int64_t iters) {
-              T* local_base = base.localize();
-              auto laddr = make_linear(local_base+start);
-              
-              for (int64_t i=start; i<start+iters; i++) {
-                // TODO: check if this is inlined and if this loop is unrollable
-                loop_body(laddr-base, local_base[i]);
-              }
+          auto f = [base,loop_body](int64_t start, int64_t iters) {
+            T* local_base = base.localize();
+            auto laddr = make_linear(local_base+start);
+            
+            for (int64_t i=start; i<start+iters; i++) {
+              // TODO: check if this is inlined and if this loop is unrollable
+              loop_body(laddr-base, local_base[i]);
             }
-          );
+          };
+          forall_here_async<GCE,Threshold>(0, n, &f);
           
           complete(make_global(GCE,origin));
         });
