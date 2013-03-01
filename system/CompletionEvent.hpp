@@ -64,11 +64,11 @@ namespace Grappa {
     } else {
       if (decr == 1) {
         // (common case) don't send full 8 bytes just to decrement by 1
-        send_message(ce.node(), [ce] {
+        send_heap_message(ce.node(), [ce] {
           ce.pointer()->complete();
         });
       } else {
-        send_message(ce.node(), [ce,decr] {
+        send_heap_message(ce.node(), [ce,decr] {
           ce.pointer()->complete(decr);
         });
       }
