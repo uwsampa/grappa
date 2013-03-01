@@ -7,6 +7,8 @@
 #include "MessagePool.hpp"
 #include "Delegate.hpp"
 #include "Collective.hpp"
+#include "Timestamp.hpp"
+#include <type_traits>
 
 namespace Grappa {
 
@@ -31,7 +33,7 @@ class GlobalCompletionEvent : public CompletionEvent {
     enter_called = true;
     if (!cancel_in_flight) { // will get called by `send_cancel` once cancel has completed
       auto* gce = this; // assume an identical GlobalCompletionEvent on each node (static globals)
-      send_message(master_core, [gce]() {
+      send_heap_message(master_core, [gce]() {
         CHECK(mycore() == 0); // Core 0 is Master
         
         gce->cores_in++;
@@ -171,5 +173,5 @@ inline void publicTask(TF tf) {
     if (GCE) complete(make_global(GCE,origin));
   });
 }
-  
-}
+
+} // namespace Grappa

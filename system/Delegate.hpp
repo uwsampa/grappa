@@ -14,9 +14,8 @@
 #include "FullEmpty.hpp"
 #include "Message.hpp"
 #include "ConditionVariable.hpp"
-
+#include "LegacyDelegate.hpp"
 #include "MessagePool.hpp"
-#include "AsyncDelegate.hpp"
 
 namespace Grappa {
   namespace delegate {
