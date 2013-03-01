@@ -168,10 +168,9 @@ void test_forall_localized() {
   forall_localized(array, N, [](int64_t i, int64_t& e){
     e = 1;
   });
-  
-  forall_here(0, N, [array](int64_t s, int64_t n) {
-    for (int i=s; i<s+n; i++) { BOOST_CHECK_EQUAL(delegate::read(array+i), 1); }
-  });
+  for (int i=0; i<N; i++) {
+    BOOST_CHECK_EQUAL(delegate::read(array+i), 1);
+  }
 }
 
 void user_main(void * args) {

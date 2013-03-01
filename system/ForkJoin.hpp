@@ -303,6 +303,19 @@ void fork_join_custom(T* func) {
   VLOG(2) << "fork_join done";
 }
 
+#define __FJcat2(x,y) x##y
+#define __FJcat(x,y) __FJcat2(x,y)
+#define on_all_nodes_helper_(func, name, args...) \
+  func name(args); \
+  fork_join_custom(&name)
+#define on_all_nodes_helper_1_(func, name) \
+  func name; \
+  fork_join_custom(&name)
+#define on_all_nodes(func, args...) \
+  on_all_nodes_helper_(func, __FJcat(_on_all_nodes_func_, __COUNTER__), args)
+#define on_all_nodes_1(func) \
+  on_all_nodes_helper_1_(func, __FJcat(_on_all_nodes_func_, __COUNTER__))
+
 /// Create a functor for iterations of a loop. This automatically creates a struct which is a
 /// subtype of ForkJoinIteration, with the given "state" arguments as fields and a constructor
 /// with the fields enumerated in the given order.
