@@ -124,6 +124,18 @@ void check_async_delegates() {
   BOOST_MESSAGE("  feed forward...");
   const int N = 1 << 8;
   
+  MessagePool pool(N*(1<<8));
+
+  delegate::write(make_global(&global_x,1), 0);
+  
+  mygce.reset_all();
+  for (int i=0; i<N; i++) {
+    delegate::call_async<&mygce>(pool, 1, []{ global_x++; });
+  }
+  mygce.wait();
+  
+  BOOST_CHECK_EQUAL(delegate::read(make_global(&global_x,1)), N);
+  
   delegate::call(1, []{
     global_x = global_y = 0;
   });

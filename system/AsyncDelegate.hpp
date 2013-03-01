@@ -12,6 +12,26 @@ namespace Grappa {
   
   namespace delegate {
     
+    template<GlobalCompletionEvent * GCE = &Grappa::impl::local_gce, typename F = decltype(nullptr)>
+    inline auto call_async(MessagePoolBase& pool, Core dest, F remote_work) -> decltype(remote_work()) {
+      static_assert(std::is_same< decltype(remote_work()), void >::value, "return type of callable must be void when not associated with Promise.");
+      delegate_stats.count_op();
+      Core origin = Grappa::mycore();
+      
+      if (dest == origin) {
+        // short-circuit if local
+        remote_work();
+      } else {
+        delegate_stats.count_op_am();
+        if (GCE) GCE->enroll();
+        
+        pool.send_message(dest, [origin, remote_work] {
+          remote_work();
+          if (GCE) complete(make_global(GCE,origin));
+        });
+      }
+    }
+    
     template<typename R>
     class Promise {
       
