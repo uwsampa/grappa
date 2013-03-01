@@ -372,6 +372,14 @@ endif #PROFILE
 endif #DEBUG
 
 
+# 
+# Prefetching
+#
+ifdef READYQ_PREFETCH
+CFLAGS+= -DREADYQ_PREFETCH
+endif
+
+
 #
 # set Tau performance profiling instrumentation flags
 #

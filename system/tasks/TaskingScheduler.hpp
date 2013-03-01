@@ -163,7 +163,9 @@ class TaskingScheduler : public Scheduler {
         // check ready tasks
         result = readyQ.dequeue();
         if (result != NULL) {
+#ifdef READYQ_PREFETCH
           readyQ.prefetch();
+#endif
           //    DVLOG(5) << current_thread->id << " scheduler: pick ready";
           stats.state_timers[ stats.prev_state ] += (current_ts - prev_ts) / tick_scale;
           stats.prev_state = TaskingSchedulerStatistics::StateReady;
