@@ -231,21 +231,22 @@ namespace Grappa {
   ///
   /// Subject to "may-parallelism", @see `loop_threshold`.
   ///
-  /// Takes an optional pointer to a global static `CompletionEvent` as a template
+  /// Takes an optional pointer to a global static `GlobalCompletionEvent` as a template
   /// parameter to allow for programmer-specified task joining (to potentially allow
   /// more than one in flight simultaneously, though this call is itself blocking.
-  ///
-  /// TODO: asynchronous version that supports many outstanding calls to `forall_localized` (to be used in BFS)
   template< typename T,
-            CompletionEvent * CE = &impl::local_ce,
+            GlobalCompletionEvent * GCE = &impl::local_gce,
             int64_t Threshold = impl::USE_LOOP_THRESHOLD_FLAG,
             typename F = decltype(nullptr) >
   void forall_localized(GlobalAddress<T> base, int64_t nelems, F loop_body) {
     on_all_cores([base, nelems, loop_body]{
+      GCE->reset();
+      barrier();
+      
       T* local_base = base.localize();
       T* local_end = (base+nelems).localize();
       
-      forall_here<CE,Threshold>(0, local_end-local_base,
+      forall_here_async<GCE,Threshold>(0, local_end-local_base,
         // note: this functor will be passed by ref to child tasks spawned by `forall_here` so should be okay if >24B
         [loop_body, local_base, base](int64_t start, int64_t iters) {
           auto laddr = make_linear(local_base+start);
@@ -256,9 +257,15 @@ namespace Grappa {
           }
         }
       );
+      
+      GCE->wait();
     });
   }
   
+  /// Asynchronous version of Grappa::forall_localized (enrolls with GCE, does not block).
+  ///
+  /// Spawns tasks to on cores that *may contain elements* of the part of a linear array
+  /// from base[0]-base[nelems].
   template< GlobalCompletionEvent * GCE = &impl::local_gce,
             typename T = decltype(nullptr),
             int64_t Threshold = impl::USE_LOOP_THRESHOLD_FLAG,
