@@ -112,14 +112,14 @@ void test_async_delegate() {
   BOOST_MESSAGE("Test Async delegates");
   MessagePool pool(2048);
   
-  delegate::AsyncHandle<bool> a;
+  delegate::Promise<bool> a;
   a.call_async(pool, 1, []()->bool {
     test_async_x = 7;
     BOOST_MESSAGE( "x = " << test_async_x );
     return true;
   });
   
-  BOOST_CHECK_EQUAL(a.get_result(), true);
+  BOOST_CHECK_EQUAL(a.get(), true);
   BOOST_CHECK_EQUAL(delegate::read(make_global(&test_async_x, 1)), 7);
 }
 

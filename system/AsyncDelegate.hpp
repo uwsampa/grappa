@@ -4,6 +4,8 @@
 #include "PoolAllocator.hpp"
 #include "FullEmpty.hpp"
 #include "LegacyDelegate.hpp"
+#include "GlobalCompletionEvent.hpp"
+#include "ParallelLoop.hpp"
 #include <type_traits>
 
 namespace Grappa {
@@ -11,7 +13,7 @@ namespace Grappa {
   namespace delegate {
     
     template<typename R>
-    class AsyncHandle {
+    class Promise {
       
       FullEmpty<R> _result;
       
@@ -19,14 +21,14 @@ namespace Grappa {
       int64_t network_time;
       
     public:
-      AsyncHandle(): _result(), network_time(0), start_time(0) {}
+      Promise(): _result(), network_time(0), start_time(0) {}
       
-      inline void fill_result(const R& r) {
+      inline void fill(const R& r) {
         _result.writeXF(r);
       }
       
       /// Block on result being returned.
-      inline const R& get_result() {
+      inline const R& get() {
         // ... and wait for the result
         const R& r = _result.readFF();
         delegate_stats.record_wakeup_latency(start_time, network_time);
@@ -35,14 +37,14 @@ namespace Grappa {
       
       template <typename F>
       void call_async(MessagePoolBase& pool, Core dest, F func) {
-        static_assert(std::is_same<R, decltype(func())>::value, "return type of callable must match the type of this AsyncHandle");
+        static_assert(std::is_same<R, decltype(func())>::value, "return type of callable must match the type of this Promise");
         _result.reset();
         delegate_stats.count_op();
         Core origin = Grappa::mycore();
         
         if (dest == origin) {
           // short-circuit if local
-          fill_result(func());
+          fill(func());
         } else {
           delegate_stats.count_op_am();
           start_time = Grappa_get_timestamp();
@@ -54,7 +56,7 @@ namespace Grappa {
             send_heap_message(origin, [val, this] {
               this->network_time = Grappa_get_timestamp();
               delegate_stats.record_network_latency(this->start_time);
-              this->fill_result(val);
+              this->fill(val);
             });
           }); // send message
         }
