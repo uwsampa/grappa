@@ -16,7 +16,7 @@ namespace Grappa {
     /// the message. Enrolls with GCE so you can guarantee all have completed after a global
     /// GlobalCompletionEvent::wait() call.
     template<GlobalCompletionEvent * GCE = &Grappa::impl::local_gce, typename F = decltype(nullptr)>
-    inline auto call_async(MessagePoolBase& pool, Core dest, F remote_work) -> decltype(remote_work()) {
+    inline void call_async(MessagePoolBase& pool, Core dest, F remote_work) {
       static_assert(std::is_same< decltype(remote_work()), void >::value, "return type of callable must be void when not associated with Promise.");
       delegate_stats.count_op();
       Core origin = Grappa::mycore();
