@@ -25,6 +25,8 @@ namespace Grappa {
     void dump_stats_blob();
 
     void sample_all();
+    /// Reset all local registered stats
+    void reset();
   }
   
 } // namespace Grappa
