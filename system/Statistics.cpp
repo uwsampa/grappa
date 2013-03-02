@@ -93,8 +93,7 @@ namespace Grappa {
       Grappa_reset_stats();
     }
     
-
-    void sample_all() {
+    void sample() {
       for (auto* stat : Grappa::impl::registered_stats()) {
         stat->sample();
       }

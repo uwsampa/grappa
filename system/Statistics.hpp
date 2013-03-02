@@ -19,12 +19,23 @@ namespace Grappa {
   namespace Statistics {
     // singleton list
     
+    /// Print all registered stats in JSON format. Takes another argument for including
+    /// legacy stats in output (inside "STATS{  }STATS" bookends)
     void print(std::ostream& out = std::cerr, StatisticList& stats = Grappa::impl::registered_stats(), const std::string& legacy_stats = "");
+    
+    /// Merge registered stats from all cores into `result` list.
+    /// @param result   must be a clone of a core's impl::registered_stats().
     void merge(StatisticList& result);
+    
+    /// Create clone of stats list, merge all stats into it, and print them.
     void merge_and_print(std::ostream& out = std::cerr);
+    
+    /// Dump local registered stats to file.
     void dump_stats_blob();
-
-    void sample_all();
+    
+    /// Sample all local registered stats
+    void sample();
+    
     /// Reset all local registered stats
     void reset();
   }
