@@ -153,12 +153,15 @@ namespace Grappa {
   /// Intended for spawning local tasks from within another GCE synchronization scheme
   /// (another parallel loop or otherwise).
   ///
+  /// Note: this now takes a pointer to a functor so we can pass a pointer to the one
+  /// functor to all child tasks rather than making lots of copies. Therefore, it
+  /// should be alright to make the functor as large as desired.
+  ///
   /// Subject to "may-parallelism", @see `loop_threshold`.
   template<GlobalCompletionEvent * GCE = &impl::local_gce, int64_t Threshold = impl::USE_LOOP_THRESHOLD_FLAG, typename F = decltype(nullptr) >
   void forall_here_async(int64_t start, int64_t iters, const F * loop_ptr) {
     GCE->enroll(iters);
     
-//    static_assert(sizeof(loop_body) <= 8, "too big");
     impl::loop_decomposition_private<Threshold>(start, iters,
       // passing loop_body by ref to avoid copying potentially large functors many times in decomposition
       // also keeps task args < 24 bytes, preventing it from needing to be heap-allocated
