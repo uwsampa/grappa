@@ -7,7 +7,7 @@
 #ifndef TASKING_SCHEDULER_HPP
 #define TASKING_SCHEDULER_HPP
 
-#include "Thread.hpp"
+#include "Worker.hpp"
 #include "Scheduler.hpp"
 #include "Communicator.hpp"
 #include "Aggregator.hpp"
@@ -408,7 +408,6 @@ class TaskingScheduler : public Scheduler {
     void thread_suspend_wake( Thread * next );
     bool thread_idle( uint64_t total_idle ); 
     bool thread_idle( );
-    void thread_join( Thread* wait_on );
 
     Thread * thread_wait( void **result );
 
@@ -478,8 +477,8 @@ inline void TaskingScheduler::thread_suspend( ) {
   StateTimer::enterState_scheduler();
 
   Thread * yieldedThr = current_thread;
-  yieldedThr->co->running = 0; // XXX: hack; really want to know at a user Thread level that it isn't running
-  yieldedThr->co->suspended = 1;
+  yieldedThr->running = 0; // XXX: hack; really want to know at a user Thread level that it isn't running
+  yieldedThr->suspended = 1;
   Thread * next = nextCoroutine( );
 
   current_thread = next;
@@ -495,7 +494,7 @@ inline void TaskingScheduler::thread_wake( Thread * next ) {
   CHECK( next->next == NULL ) << "woken Thread should not be on any queue";
   CHECK( !thread_is_running( next ) ) << "woken Thread should not be running";
 
-  next->co->suspended = 0;
+  next->suspended = 0;
 
   DVLOG(5) << "Thread " << current_thread->id << " wakes thread " << next->id;
 
@@ -512,7 +511,7 @@ inline void TaskingScheduler::thread_yield_wake( Thread * next ) {
   CHECK( !thread_is_running( next ) ) << "woken Thread should not be running";
   StateTimer::enterState_scheduler();
 
-  next->co->suspended = 0;
+  next->suspended = 0;
 
   Thread * yieldedThr = current_thread;
   ready( yieldedThr );
@@ -530,10 +529,10 @@ inline void TaskingScheduler::thread_suspend_wake( Thread *next ) {
   CHECK( !thread_is_running( next ) ) << "woken Thread should not be running";
   StateTimer::enterState_scheduler();
 
-  next->co->suspended = 0;
+  next->suspended = 0;
 
   Thread * yieldedThr = current_thread;
-  yieldedThr->co->suspended = 1;
+  yieldedThr->suspended = 1;
 
   current_thread = next;
   thread_context_switch( yieldedThr, next, NULL);

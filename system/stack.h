@@ -10,9 +10,9 @@
 
 
 
-struct coro;
+class Worker;
 
-typedef void (*coro_func)(struct coro *, void *arg);
+typedef void (*coro_func)(Worker *, void *arg);
 
 /// Swap stacks. Save context to <old>, restore context from <new> and
 /// pass value <ret> to swapped-in stack.
@@ -43,7 +43,7 @@ static inline void* swapstacks_inline(void **olds, void **news, void *ret) {
 /// Given memory going DOWN FROM <stack>, create a basic stack we can swap to
 /// (using swapstack) that will call <f>. (using <it> as its <me>).
 /// <me> is a location we can store the current stack.
-void makestack(void **me, void **stack, coro_func f, struct coro *it)
+void makestack(void **me, void **stack, coro_func f, Worker * it)
   asm ("_makestack");
 
 #endif

@@ -66,19 +66,10 @@ void TaskingScheduler::run ( ) {
   while (thread_wait( NULL ) != NULL) { } // nothing
 }
 
-/// Join on a Thread. 
-/// This is a low level synchronization mechanism specifically for Threads
-void TaskingScheduler::thread_join( Thread * wait_on ) {
-  while ( !wait_on->done ) {
-    wait_on->joinqueue.enqueue( current_thread );
-    thread_suspend( );
-  }
-}
-
 /// Schedule Threads from the scheduler until one e
 /// If <result> non-NULL, store the Thread's exit value there.
 /// This routine is only to be called if the current Thread
-/// is the master Thread (the one returned by thread_init()).
+/// is the master Thread (the one returned by convert_to_master()).
 /// @return the exited Thread, or NULL if scheduler is done
 Thread * TaskingScheduler::thread_wait( void **result ) {
   CHECK( current_thread == master ) << "only meant to be called by system Thread";
@@ -165,9 +156,9 @@ void TaskingScheduler::createWorkers( uint64_t num ) {
   VLOG(5) << "spawning " << num << " workers; now there are " << num_workers;
   for (uint64_t i=0; i<num; i++) {
     // spawn a new worker Thread
-    Thread * t = thread_spawn( current_thread, this, workerLoop, work_args);
+    Thread * t = worker_spawn( current_thread, this, workerLoop, work_args);
 
-    // place the Thread in the pool of idle workers
+    // place the Worker in the pool of idle workers
     unassigned( t );
   }
   num_idle += num;
@@ -181,7 +172,7 @@ Thread * TaskingScheduler::maybeSpawnCoroutines( ) {
   if ( num_workers < BASIC_MAX_WORKERS ) {
     num_workers += 1;
     VLOG(5) << "spawning another worker; now there are " << num_workers;
-    return thread_spawn( current_thread, this, workerLoop, work_args ); // current Thread will be coro parent; is this okay?
+    return worker_spawn( current_thread, this, workerLoop, work_args ); // current Thread will be coro parent; is this okay?
   } else {
     // might have another way to spawn
     return NULL;

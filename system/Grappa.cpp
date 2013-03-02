@@ -279,12 +279,12 @@ void Grappa_init( int * argc_p, char ** argv_p[], size_t global_memory_size_byte
   }
 
   // start threading layer
-  master_thread = thread_init();
+  master_thread = convert_to_master();
   VLOG(1) << "Initializing tasking layer."
            << " num_starting_workers=" << FLAGS_num_starting_workers;
   global_task_manager.init( Grappa_mynode(), node_neighbors, Grappa_nodes() ); //TODO: options for local stealing
   global_scheduler.init( master_thread, &global_task_manager );
-  global_scheduler.periodic( thread_spawn( master_thread, &global_scheduler, &poller, NULL ) );
+  global_scheduler.periodic( worker_spawn( master_thread, &global_scheduler, &poller, NULL ) );
 
   // collect some stats on this job
   Grappa_tick();
@@ -319,12 +319,11 @@ void Grappa_barrier_suspending() {
 ///
 
 /// Spawn a user function. TODO: get return values working
-/// TODO: remove Thread * arg
-inline Thread * Grappa_spawn( void (* fn_p)(Thread *, void *), void * args )
+inline Worker * Grappa_spawn( void (* fn_p)(Worker *, void *), void * args )
 {
-  Thread * th = thread_spawn( global_scheduler.get_current_thread(), &global_scheduler, fn_p, args );
+  Worker * th = worker_spawn( global_scheduler.get_current_thread(), &global_scheduler, fn_p, args );
   global_scheduler.ready( th );
-  DVLOG(5) << "Spawned Thread " << th;
+  DVLOG(5) << "Spawned Worker " << th;
   return th;
 }
 

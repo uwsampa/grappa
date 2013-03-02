@@ -72,7 +72,8 @@ lib: $(LIBRARY)
 #
 Demo.o Demo.exe: $(LIBRARY)
 
-Thread_tests.test: coro.o stack.o tasks/Thread.o tasks/BasicScheduler.o
+#FIXME: UPDATE not to ref coro
+#Thread_tests.test: coro.o stack.o tasks/Thread.o tasks/BasicScheduler.o
 
 Communicator_tests.o Communicator_tests.test: Communicator.o
 
@@ -102,7 +103,7 @@ Semaphore_tests.o Semaphore_tests.test: $(LIBRARY)
 #thread_tests.test: thread.o stack.o coro.o
 thread2_tests.o thread2_tests.test: $(LIBRARY)
 thread3_tests.o thread3_tests.test: $(LIBRARY)
-tasks/Thread_tests.o tasks/Thread_tests.test: tasks/Thread.o coro.o stack.o tasks/BasicScheduler.o Timestamp.o
+tasks/Thread_tests.o tasks/Thread_tests.test: Worker.o stack.o tasks/BasicScheduler.o Timestamp.o
 
 Scheduler_benchmarking_tests.o Scheduler_benchmarking_tests.test: $(LIBRARY)
 
@@ -272,7 +273,7 @@ endif
 #
 # Build Grappa static library
 #
-LIBRARY_CONTENTS+= Grappa.o GlobalAllocator.o GlobalMemory.o GlobalMemoryChunk.o Communicator.o Aggregator.o Timestamp.o Allocator.o Cache.o Delegate.o Collective.o ForkJoin.o tasks/BasicScheduler.o tasks/TaskingScheduler.o tasks/Task.o tasks/Thread.o stack.o coro.o StateTimer.o PerformanceTools.o Future.o CurrentThread.o ProfilerGroups.o AsyncParallelFor.o GlobalTaskJoiner.o IncoherentAcquirer.o IncoherentReleaser.o Uid.o tasks/StealQueue.o tasks/GlobalQueue.o LegacySignaler.o Statistics.o SimpleStatistic.o SummarizingStatistic.o MessageBase.o RDMAAggregator.o ParallelLoop.o Barrier.o MessagePool.o
+LIBRARY_CONTENTS+= Grappa.o GlobalAllocator.o GlobalMemory.o GlobalMemoryChunk.o Communicator.o Aggregator.o Timestamp.o Allocator.o Cache.o Delegate.o Collective.o ForkJoin.o tasks/BasicScheduler.o tasks/TaskingScheduler.o tasks/Task.o Worker.o stack.o StateTimer.o PerformanceTools.o Future.o CurrentThread.o ProfilerGroups.o AsyncParallelFor.o GlobalTaskJoiner.o IncoherentAcquirer.o IncoherentReleaser.o Uid.o tasks/StealQueue.o tasks/GlobalQueue.o LegacySignaler.o Statistics.o SimpleStatistic.o SummarizingStatistic.o MessageBase.o RDMAAggregator.o ParallelLoop.o Barrier.o MessagePool.o
 
 libGrappa.a: $(LIBRARY_CONTENTS)
 	$($(MPITYPE)_AR) rv $@ $^
@@ -487,18 +488,6 @@ TESTS:=$(foreach dir,$(DIRECTORIES),$(wildcard $(dir)/*.test))
 	$(ENV_VARIABLES) \
 	$($(MPITYPE)_CXX) -MMD -MF $*.d.tmp -c $(CFLAGS) $(CXXFLAGS) $< -o $*.pch
 	@sed -e 's|.*:|$*.pch:|' < $*.d.tmp > $*.d
-	@sed -e 's/.*://' -e 's/\\$$//' < $*.d.tmp | fmt -1 | \
-	  sed -e 's/^ *//' -e 's/$$/:/' >> $*.d
-	@rm -f $*.d.tmp
-
-#
-# Temporary special handling for thread library
-#
-
-coro.o: coro.c
-	$(ENV_VARIABLES) \
-	$($(MPITYPE)_CXX) -MMD -MF $*.d.tmp -c $(CFLAGS) $< -o $*.o
-	@sed -e 's|.*:|$*.o:|' < $*.d.tmp > $*.d
 	@sed -e 's/.*://' -e 's/\\$$//' < $*.d.tmp | fmt -1 | \
 	  sed -e 's/^ *//' -e 's/$$/:/' >> $*.d
 	@rm -f $*.d.tmp

@@ -12,7 +12,7 @@
 #include <glog/logging.h>
 
 #include "Communicator.hpp"
-#include "tasks/Thread.hpp"
+#include "Worker.hpp"
 #include "tasks/TaskingScheduler.hpp"
 #include "PerformanceTools.hpp"
 
