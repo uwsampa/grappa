@@ -10,9 +10,9 @@ using std::complex;
 
 #include <boost/test/unit_test.hpp>
 #include "Grappa.hpp"
-#include "Tasking.hpp"
-#include "FileIO.hpp"
 #include "Array.hpp"
+#include "ParallelLoop.hpp"
+#include "GlobalAllocator.hpp"
 
 BOOST_AUTO_TEST_SUITE( Array_tests );
 
@@ -20,40 +20,39 @@ static const size_t N = (1L<<10);
 static const size_t NN = (1L<<10);
 
 template<typename T, T Val>
-void check_value(T * v) {
-  BOOST_CHECK_EQUAL(*v, Val);
-}
-
-template<typename T, T Val>
 void test_memset_memcpy() {
   GlobalAddress<T> xs = Grappa_typed_malloc<T>(NN);
   GlobalAddress<T> ys = Grappa_typed_malloc<T>(NN);
 
-  Grappa_memset_local(xs, Val, NN);
-  forall_local< T, check_value<T,Val> >(xs, NN);
+  Grappa::memset(xs, Val, NN);
+  Grappa::forall_localized(xs, NN, [](int64_t i, T& v) {
+    BOOST_CHECK_EQUAL(v, Val);
+  });
 
-  Grappa_memcpy(ys, xs, NN);
+  Grappa::memcpy(ys, xs, NN);
 
-  forall_local< T, check_value<T,Val> >(ys, NN);
+  Grappa::forall_localized(ys, NN, [](int64_t i, T& v) {
+    BOOST_CHECK_EQUAL(v, Val);
+  });
 
   Grappa_free(xs);
   Grappa_free(ys);
-}
-
-void check_complex(complex<double> * v) {
-  BOOST_CHECK_EQUAL(*v, complex<double>(7.0,1.0));
 }
 
 void test_complex() {
   GlobalAddress< complex<double> > xs = Grappa_typed_malloc< complex<double> >(NN);
   GlobalAddress< complex<double> > ys = Grappa_typed_malloc< complex<double> >(NN);
 
-  Grappa_memset_local(xs, complex<double>(7.0,1.0), NN);
-  forall_local<complex<double>,check_complex>(xs, NN);
+  Grappa::memset(xs, complex<double>(7.0,1.0), NN);
+  Grappa::forall_localized(xs, NN, [](int64_t i, complex<double>& v) {
+    BOOST_CHECK_EQUAL(v, complex<double>(7.0,1.0));
+  });
 
-  Grappa_memcpy(ys, xs, NN);
+  Grappa::memcpy(ys, xs, NN);
 
-  forall_local< complex<double>, check_complex >(ys, NN);
+  Grappa::forall_localized(ys, NN, [](int64_t i, complex<double>& v) {
+    BOOST_CHECK_EQUAL(v, complex<double>(7.0,1.0));
+  });
 
   Grappa_free(xs);
   Grappa_free(ys);
