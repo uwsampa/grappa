@@ -1,4 +1,3 @@
-
 // Copyright 2010-2012 University of Washington. All Rights Reserved.
 // LICENSE_PLACEHOLDER
 // This software was created with Government support under DE
@@ -44,6 +43,8 @@ void user_main(void * args) {
     return true;
   });
   
+  // we need a way to check if the statistics values are correct. I'm printing them so I can verify the values visually.
+  // TODO:  add hooks to read count, mean, variance, etc.
   Statistics::print();
 
   delegate::call(1, []() -> bool {
@@ -51,7 +52,7 @@ void user_main(void * args) {
       return true;
     });
   Statistics::merge_and_print();
-  //Statistics::dump_stats_blob();
+  Statistics::dump_stats_blob();
 }
 
 BOOST_AUTO_TEST_CASE( test1 ) {
