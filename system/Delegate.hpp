@@ -14,20 +14,52 @@
 #include "FullEmpty.hpp"
 #include "Message.hpp"
 #include "ConditionVariable.hpp"
-
+#include "LegacyDelegate.hpp"
 #include "MessagePool.hpp"
-#include "AsyncDelegate.hpp"
+#include <type_traits>
 
 namespace Grappa {
   namespace delegate {
     /// @addtogroup Delegates
     /// @{
     
+    template <typename F>
+    inline auto call(Core dest, F func)
+        -> typename std::enable_if<std::is_void<decltype(func())>::value, void>::type {
+      delegate_stats.count_op();
+      Core origin = Grappa::mycore();
+      
+      if (dest == origin) {
+        // short-circuit if local
+        return func();
+      } else {
+        int64_t network_time = 0;
+        int64_t start_time = Grappa_get_timestamp();
+        ConditionVariable cv;
+        send_message(dest, [&cv, origin, func, &network_time, start_time] {
+          delegate_stats.count_op_am();
+          
+          // TODO: replace with handler-safe send_message
+          send_heap_message(origin, [&cv, &network_time, start_time] {
+            network_time = Grappa_get_timestamp();
+            delegate_stats.record_network_latency(start_time);
+            signal(&cv);
+          });
+        }); // send message
+        
+        // ... and wait for the call to complete
+        wait(&cv);
+        delegate_stats.record_wakeup_latency(start_time, network_time);
+        return;
+      }
+    }
+    
     /// Implements essentially a blocking remote procedure call. Callable object (lambda,
     /// function pointer, or functor object) is called from the `dest` core and the return
     /// value is sent back to the calling task.
     template <typename F>
-    inline auto call(Core dest, F func) -> decltype(func()) {
+    inline auto call(Core dest, F func)
+      -> typename std::enable_if<!std::is_void<decltype(func())>::value, decltype(func())>::type {
       // Note: code below (calling call_async) could be used to avoid duplication of code,
       // but call_async adds some overhead (object creation overhead, especially for short
       // -circuit case and extra work in MessagePool)
@@ -39,7 +71,7 @@ namespace Grappa {
       
       delegate_stats.count_op();
       using R = decltype(func());
-      Node origin = Grappa_mynode();
+      Core origin = Grappa::mycore();
       
       if (dest == origin) {
         // short-circuit if local

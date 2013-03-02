@@ -5,10 +5,8 @@
 // AC05-76RL01830 awarded by the United States Department of
 // Energy. The Government has certain rights in the software.
 
-#include "ParallelLoop.hpp"
 
 #include <boost/test/unit_test.hpp>
-
 #include "Grappa.hpp"
 #include "Message.hpp"
 #include "MessagePool.hpp"
@@ -17,6 +15,7 @@
 #include "Delegate.hpp"
 #include "Tasking.hpp"
 #include "GlobalAllocator.hpp"
+#include "ParallelLoop.hpp"
 
 BOOST_AUTO_TEST_SUITE( New_loop_tests );
 
@@ -56,7 +55,7 @@ void test_loop_decomposition_global() {
   auto ce_addr = make_global(&ce);
   
   impl::loop_decomposition_public(0, N, [ce_addr](int64_t start, int64_t iters) {
-    VLOG(1) << "loop(" << start << ", " << iters << ")";
+    BOOST_MESSAGE("loop(" << start << ", " << iters << ")");
     complete(ce_addr,iters);
   });
   ce.wait();
@@ -94,11 +93,13 @@ void test_forall_here() {
 
 static int test_global = 0;
 CompletionEvent test_global_ce;
+GlobalCompletionEvent my_gce;
 
-void test_forall_global() {
+void test_forall_global_private() {
   BOOST_MESSAGE("Testing forall_global...");
   const int64_t N = 1 << 8;
   
+  BOOST_MESSAGE("  private");
   forall_global_private(0, N, [](int64_t start, int64_t iters) {
     for (int i=0; i<iters; i++) {
       test_global++;
@@ -116,20 +117,81 @@ void test_forall_global() {
     }
   });
   
+  on_all_cores([]{
+    BOOST_CHECK_EQUAL(test_global, N/cores());
+    test_global = 0;
+  });
+  
 }
 
+void test_forall_global_public() {
+  BOOST_MESSAGE("Testing forall_global_public...");
+  const int64_t N = 1 << 8;
+  
+  on_all_cores([]{ test_global = 0; });
+  
+  forall_global_public(0, N, [](int64_t s, int64_t n) {
+    test_global += n;
+  });
+  
+  int total = 0;
+  for (Core c = 0; c < cores(); c++) {
+    total += delegate::read(make_global(&test_global, c));
+  }
+  BOOST_CHECK_EQUAL(total, N);
+  
+  BOOST_MESSAGE("  with nested spawns");
+  on_all_cores([]{ test_global = 0; });
+  
+  forall_global_public<&my_gce>(0, N, [](int64_t s, int64_t n){
+    for (int i=s; i<s+n; i++) {
+      publicTask<&my_gce>([]{
+        test_global++;
+      });
+    }
+  });
+  
+  // TODO: use reduction
+  total = 0;
+  for (Core c = 0; c < cores(); c++) {
+    total += delegate::read(make_global(&test_global, c));
+  }
+  BOOST_CHECK_EQUAL(total, N);
+}
 
 void test_forall_localized() {
   BOOST_MESSAGE("Testing forall_localized...");
-  const int64_t N = 1 << 8;
+  const int64_t N = 100;
   
   auto array = Grappa_typed_malloc<int64_t>(N);
   
-  forall_localized(array, N, [](int64_t i, int64_t& e){
+  forall_localized(array, N, [](int64_t i, int64_t& e) {
     e = 1;
   });
   for (int i=0; i<N; i++) {
     BOOST_CHECK_EQUAL(delegate::read(array+i), 1);
+  }
+  
+  BOOST_MESSAGE("Testing forall_localized_async...");
+  
+  my_gce.reset_all();
+  
+  VLOG(1) << "start spawning";
+  forall_localized_async<&my_gce>(array+ 0, 25, [](int64_t i, int64_t& e) { e = 2; });
+  VLOG(1) << "after async";
+  forall_localized_async<&my_gce>(array+25, 25, [](int64_t i, int64_t& e) { e = 2; });
+  VLOG(1) << "after async";
+  forall_localized_async<&my_gce>(array+50, 25, [](int64_t i, int64_t& e) { e = 2; });
+  VLOG(1) << "after async";
+  forall_localized_async<&my_gce>(array+75, 25, [](int64_t i, int64_t& e) { e = 2; });
+  VLOG(1) << "done spawning";
+  
+  my_gce.wait();
+  
+  int npb = block_size / sizeof(int64_t);
+  for (int i=0; i<N; i+=npb*cores()) {
+    BOOST_CHECK_EQUAL((array+i).node(), mycore());
+    BOOST_CHECK_EQUAL(delegate::read(array+i), 2);
   }
 }
 
@@ -142,7 +204,8 @@ void user_main(void * args) {
   test_loop_decomposition_global();
   
   test_forall_here();
-  test_forall_global();
+  test_forall_global_private();
+  test_forall_global_public();
   
   test_forall_localized();
 }
