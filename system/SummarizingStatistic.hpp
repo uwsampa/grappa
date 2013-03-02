@@ -41,6 +41,9 @@ namespace Grappa {
     unsigned vt_counter_count;
     unsigned vt_counter_mean;
     unsigned vt_counter_stddev;
+    using SimpleStatistic<T>::vt_sample;
+    using SimpleStatistic<T>::vt_type;
+    using SimpleStatistic<T>::vt_counter;
 #endif
     
   public:
