@@ -12,6 +12,9 @@ namespace Grappa {
   
   namespace delegate {
     
+    /// Do asynchronous generic delegate with `void` return type. Uses message pool to allocate
+    /// the message. Enrolls with GCE so you can guarantee all have completed after a global
+    /// GlobalCompletionEvent::wait() call.
     template<GlobalCompletionEvent * GCE = &Grappa::impl::local_gce, typename F = decltype(nullptr)>
     inline auto call_async(MessagePoolBase& pool, Core dest, F remote_work) -> decltype(remote_work()) {
       static_assert(std::is_same< decltype(remote_work()), void >::value, "return type of callable must be void when not associated with Promise.");
@@ -32,6 +35,20 @@ namespace Grappa {
       }
     }
     
+    /// A 'Promise' is a wrapper around a FullEmpty for async delegates with return values.
+    /// The idea is to allocate storage for the result, issue the delegate request, and then
+    /// block on waiting for the value when it's needed.
+    ///
+    /// Usage example: @code {
+    ///   delegate::Promise<int> x;
+    ///   x.call_async(1, []()->int { return value; });
+    ///   // other work
+    ///   myvalue += x.get();
+    /// }
+    ///
+    /// TODO: make this so you you can issue a call_async() directly and get a
+    /// delegate::Promise back. This should be able to be done using the same mechanism for
+    /// creating Messages (compiler-optimized-away move).
     template<typename R>
     class Promise {
       

@@ -317,8 +317,8 @@ namespace Grappa {
     return impl::Reduction<T>::result.readFF();
   }
   
-  /// Called from a single task (usually user_main), reduces values from all cores and returns reduced
-  /// values to everyone. Blocks until reduction is complete.
+  /// Called from a single task (usually user_main), reduces values from all cores onto the calling node.
+  /// Blocks until reduction is complete.
   template< typename T, T (*ReduceOp)(const T&, const T&) >
   T reduce(T * global_ptr) {
     CompletionEvent ce(cores()-1);
