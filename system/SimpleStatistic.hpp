@@ -8,7 +8,7 @@ namespace Grappa {
   template<typename T>
   class SimpleStatistic : public impl::StatisticBase {
   protected:
-    
+    T initial_value;
     T value;
     
 #ifdef VTRACE_SAMPLED
@@ -21,7 +21,7 @@ namespace Grappa {
   public:
     
     SimpleStatistic(const char * name, T initial_value, bool reg_new = true):
-        value(initial_value), impl::StatisticBase(name, reg_new) {
+        initial_value(initial_value), value(initial_value), impl::StatisticBase(name, reg_new) {
 #ifdef VTRACE_SAMPLED
         if (SimpleStatistic::vt_type == -1) {
           LOG(ERROR) << "warning: VTrace sampling unsupported for this type of SimpleStatistic.";
@@ -34,6 +34,10 @@ namespace Grappa {
     virtual std::ostream& json(std::ostream& o) const {
       o << '"' << name << "\": \"" << value << '"';
       return o;
+    }
+    
+    virtual void reset() {
+      value = initial_value;
     }
     
     virtual void sample() const {

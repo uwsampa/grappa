@@ -86,6 +86,14 @@ namespace Grappa {
       print( o, Grappa::impl::registered_stats(), legacy_stats.str());
     }
 
+    void reset() {
+      for (auto* stat : Grappa::impl::registered_stats()) {
+        stat->reset();
+      }
+      Grappa_reset_stats();
+    }
+    
+
     void sample_all() {
       for (auto* stat : Grappa::impl::registered_stats()) {
         stat->sample();
