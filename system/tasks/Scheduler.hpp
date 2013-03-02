@@ -7,7 +7,7 @@
 #ifndef _SCHEDULER_HPP_
 #define _SCHEDULER_HPP_
 
-#include "Thread.hpp"
+#include "Worker.hpp"
 
 class Scheduler {
     private:
@@ -25,7 +25,6 @@ class Scheduler {
        virtual void thread_wake( Thread * next ) = 0;
        virtual void thread_yield_wake( Thread * next ) = 0;
        virtual void thread_suspend_wake( Thread * next ) = 0;
-       virtual void thread_join( Thread * wait_on ) = 0;
 
        virtual Thread * thread_wait( void **result ) = 0;
        virtual void thread_on_exit( ) = 0;

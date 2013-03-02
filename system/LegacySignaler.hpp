@@ -1,7 +1,7 @@
 #ifndef __LEGACY_SIGNALER_HPP__
 #define __LEGACY_SIGNALER_HPP__
 
-struct Thread;
+struct Worker;
 
 /**
  * Signaler
@@ -15,7 +15,7 @@ struct Thread;
  */
 class Signaler {
   private:
-    Thread * waiter;
+    Worker * waiter;
     bool done;
 
   public:
@@ -43,7 +43,7 @@ class Signaler {
  */
 class ConditionVariable {
   private:
-    Thread * waiter;
+    Worker * waiter;
 
   public:
     ConditionVariable();

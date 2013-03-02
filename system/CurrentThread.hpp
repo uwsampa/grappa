@@ -8,8 +8,8 @@
 #ifndef CURRENT_THREAD_HPP
 #define CURRENT_THREAD_HPP
 
-class Thread;
-Thread * Grappa_current_thread();
-int Grappa_tau_id( Thread * );
+class Worker;
+Worker * Grappa_current_thread();
+int Grappa_tau_id( Worker * );
 
 #endif // CURRENT_THREAD_HPP

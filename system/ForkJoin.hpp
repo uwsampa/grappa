@@ -10,7 +10,7 @@
 
 #include "Grappa.hpp"
 #include "Addressing.hpp"
-#include "tasks/Thread.hpp"
+#include "Worker.hpp"
 #include "Delegate.hpp"
 #include "Tasking.hpp"
 #include "Cache.hpp"

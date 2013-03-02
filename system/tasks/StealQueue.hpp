@@ -29,7 +29,7 @@
 
 #include <Communicator.hpp>
 #include <tasks/TaskingScheduler.hpp>
-#include "Thread.hpp"
+#include "Worker.hpp"
 #include <Message.hpp>
 
 
@@ -48,7 +48,7 @@ DECLARE_int32( chunk_size );
 typedef int16_t Node;
 
 /// Forward declare for steal_locally
-class Thread;
+class Worker;
 
 /// Forward declare for global queue
 class Signaler;
@@ -362,7 +362,7 @@ static int64_t local_push_retVal = -1;
 static int64_t local_push_amount = 0;
 static bool local_push_replyfewer;
 static uint64_t local_push_old_bottom;
-static Thread * push_waiter = NULL;
+static Worker * push_waiter = NULL;
 static bool pendingWorkShare = false;
 
 static bool pendingGlobalPush = false;
