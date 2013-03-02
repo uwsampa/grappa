@@ -26,6 +26,7 @@
 //#include "FileIO.hpp"
 
 #include "RDMAAggregator.hpp"
+#include "Barrier.hpp"
 
 #include <fstream>
 
@@ -96,12 +97,7 @@ static void poller( Thread * me, void * args ) {
     Grappa_poll();
     
     // poll global barrier
-    if (barrier_thread) {
-      if (global_communicator.barrier_try()) {
-        Grappa_wake(barrier_thread);
-        barrier_thread = NULL;
-      }
-    }
+    Grappa::barrier_poll();
 
     // // check async. io completions
     // if (aio_completed_stack) {
@@ -314,9 +310,7 @@ void Grappa_activate()
 
 /// Split-phase barrier. (ALLNODES)
 void Grappa_barrier_suspending() {
-  global_communicator.barrier_notify();
-  barrier_thread = CURRENT_THREAD;
-  Grappa_suspend();
+  Grappa::barrier();
 }
 
 

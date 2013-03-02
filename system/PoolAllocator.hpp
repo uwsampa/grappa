@@ -6,10 +6,12 @@ namespace Grappa {
 
   template<typename Base>
   class PoolAllocator {
+  protected:
     char * buffer;
     size_t buffer_size;
     size_t allocated;
-  protected:
+    bool owns_buffer;
+    
     Base* allocate(size_t sz) {
       DVLOG(4) << "allocating " << sz;
       Base* p = reinterpret_cast<Base*>(buffer+allocated);
@@ -21,11 +23,14 @@ namespace Grappa {
     }
     
   public:
-    PoolAllocator(char * buffer, size_t buffer_size): buffer(buffer), buffer_size(buffer_size), allocated(0) {}
+    PoolAllocator(char * buffer, size_t buffer_size, bool owns_buffer): buffer(buffer), buffer_size(buffer_size), allocated(0), owns_buffer(owns_buffer) {}
     
     virtual ~PoolAllocator() {
       // call destructors of everything in PoolAllocator
       iterate([](Base* bp){ bp->~Base(); });
+      if (owns_buffer) {
+        delete [] buffer;
+      }
     }
     
     /// Takes a lambda (or really any callable) that is called repeated for

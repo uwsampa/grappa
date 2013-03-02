@@ -1,9 +1,12 @@
 #pragma once
 
+#include <type_traits>
 #include "Communicator.hpp"
 #include "ConditionVariableLocal.hpp"
 #include "Message.hpp"
 #include "Tasking.hpp"
+#include "MessagePool.hpp"
+#include "Delegate.hpp"
 
 namespace Grappa {
 
@@ -13,6 +16,7 @@ namespace Grappa {
   ///
   /// Fulfills the ConditionVariable type_trait.
   class CompletionEvent {
+  protected:
     ConditionVariable cv;
     int64_t count;
   public:
@@ -28,6 +32,7 @@ namespace Grappa {
         LOG(ERROR) << "too many calls to signal()";
       }
       count -= decr;
+      DVLOG(4) << "completed (" << count << ")";
       if (count == 0) {
         broadcast(&cv);
       }
@@ -41,35 +46,46 @@ namespace Grappa {
   };
 
   /// Match ConditionVariable-style function call.
-  inline void complete( CompletionEvent * ce ) {
+  template<typename CompletionType>
+  inline void complete( CompletionType * ce ) {
+    static_assert(std::is_base_of<CompletionEvent,CompletionType>::value,
+                  "complete() can only be called on subclasses of CompletionEvent");
     ce->complete();
   }
   
   /// Overload to work on GlobalAddresses.
-  inline void complete(GlobalAddress<CompletionEvent> ce, int64_t decr = 1) {
+  template<typename CompletionType>
+  inline void complete(GlobalAddress<CompletionType> ce, int64_t decr = 1) {
+    static_assert(std::is_base_of<CompletionEvent,CompletionType>::value,
+                  "complete() can only be called on subclasses of CompletionEvent");
+    
     if (ce.node() == mycore()) {
       ce.pointer()->complete(decr);
     } else {
       if (decr == 1) {
         // (common case) don't send full 8 bytes just to decrement by 1
-        send_message(ce.node(), [ce] {
+        send_heap_message(ce.node(), [ce] {
           ce.pointer()->complete();
         });
       } else {
-        send_message(ce.node(), [ce,decr] {
+        send_heap_message(ce.node(), [ce,decr] {
           ce.pointer()->complete(decr);
         });
       }
     }
   }
   
-  template<typename TF>
-  void privateTask(CompletionEvent * ce, TF tf) {
+  template<typename CompletionType, typename TF>
+  void privateTask(CompletionType * ce, TF tf) {
+    static_assert(std::is_base_of<CompletionEvent,CompletionType>::value,
+                  "Synchronizing privateTask spawn must take subclass of CompletionEvent as argument");
     ce->enroll();
     privateTask([ce,tf] {
       tf();
       ce->complete();
     });
   }
+  
+  
   
 } // namespace Grappa
