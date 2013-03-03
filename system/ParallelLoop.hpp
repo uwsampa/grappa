@@ -259,6 +259,8 @@ namespace Grappa {
   typename std::enable_if< function_traits<F>::arity == 3,
     void >::type
   forall_localized(GlobalAddress<T> base, int64_t nelems, F loop_body) {
+    static_assert(block_size % sizeof(T) == 0,
+                  "forall_localized requires size of objects to evenly divide into block_size");
     on_all_cores([base, nelems, loop_body]{
       GCE->reset();
       barrier();
@@ -294,9 +296,19 @@ namespace Grappa {
   typename std::enable_if< function_traits<F>::arity == 2,
     void >::type
   forall_localized(GlobalAddress<T> base, int64_t nelems, F loop_body) {
-    forall_localized(base, nelems, [loop_body](int64_t start, int64_t niters, T * first) {
-      for (int64_t i=0; i<niters; i++) {
-        loop_body(start+i, first[i]);
+    
+    forall_localized(base, nelems, [loop_body,base](int64_t start, int64_t niters, T * first) {
+      auto block_elems = block_size / sizeof(T);
+      auto a = make_linear(first);
+      auto n_to_boundary = a.block_max() - a;
+      auto index = start;
+      
+      for (int64_t i=0; i<niters; i++,index++,n_to_boundary--) {
+        if (n_to_boundary == 0) {
+          index += block_elems * (cores()-1);
+          n_to_boundary = block_elems;
+        }
+        loop_body(index, first[i]);
       }
     });
   }
