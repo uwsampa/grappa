@@ -52,7 +52,12 @@ void memcpy(GlobalAddress<T> dst, GlobalAddress<T> src, size_t nelem) {
     delete [] putters;
   });
 }
+
+template< typename T >
+void prefix_sum(GlobalAddress<T> array, size_t nelem) {
   
+}
+
 } // namespace Grappa
 
 /// Legacy: @see { Grappa::memset() }
