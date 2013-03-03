@@ -13,6 +13,7 @@ using std::complex;
 #include "Array.hpp"
 #include "ParallelLoop.hpp"
 #include "GlobalAllocator.hpp"
+#include "Delegate.hpp"
 
 BOOST_AUTO_TEST_SUITE( Array_tests );
 
@@ -58,10 +59,27 @@ void test_complex() {
   Grappa_free(ys);
 }
 
+void test_prefix_sum() {
+  BOOST_MESSAGE("prefix_sum");
+  auto xs = Grappa_typed_malloc<int64_t>(N);
+  Grappa::memset(xs, 1, N);
+  
+  // prefix-sum
+//  for (int64_t i=0; i<N; i++) {
+//    Grappa::delegate::write(xs+i, i);
+//  }
+  Grappa::prefix_sum(xs, N);
+  
+  Grappa::forall_localized(xs, N, [](int64_t i, int64_t& v){
+    BOOST_CHECK_EQUAL(v, i);
+  });
+}
+
 void user_main( void * ignore ) {
   test_memset_memcpy<int64_t,7>();
   //test_memset_memcpy<double,7.0>();
   test_complex();
+  test_prefix_sum();
 }
 
 BOOST_AUTO_TEST_CASE( test1 ) {
