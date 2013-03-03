@@ -35,6 +35,13 @@ namespace Grappa {
       }
     }
     
+    template<typename T, typename U, GlobalCompletionEvent * GCE = &Grappa::impl::local_gce >
+    inline void increment_async(MessagePoolBase& pool, GlobalAddress<T> target, U increment) {
+      delegate::call_async(target.core(), [increment]{
+        (target.pointer()) += increment;
+      });
+    }
+    
     /// A 'Promise' is a wrapper around a FullEmpty for async delegates with return values.
     /// The idea is to allocate storage for the result, issue the delegate request, and then
     /// block on waiting for the value when it's needed.
