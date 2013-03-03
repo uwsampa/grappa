@@ -23,8 +23,12 @@
 #include "Cache.hpp"
 #include "Collective.hpp"
 #include "Delegate.hpp"
+#include "AsyncDelegate.hpp"
 #include "GlobalTaskJoiner.hpp"
 #include <Array.hpp>
+#include "GlobalCompletionEvent.hpp"
+
+using namespace Grappa;
 
 #include "timer.h"
 
@@ -34,6 +38,8 @@
 
 #define XOFF(k) (xoff+2*(k))
 #define XENDOFF(k) (xoff+1+2*(k))
+
+GlobalAddress<int64_t> xoff;
 
 static int64_t maxvtx, nv;
 
@@ -165,30 +171,33 @@ LOOP_FUNCTOR( init_xendoff_func, index,
 }
 
 static void setup_deg_off(const tuple_graph * const tg, csr_graph * g) {
-  GlobalAddress<int64_t> xoff = g->xoff;
+  // note: this corresponds to how Graph500 counts 'degree' (both in- and outgoing edges to each vertex)
+  auto _xoff = g->xoff;
+  call_on_all_cores([_xoff]{ xoff = _xoff; });
+  
   // initialize xoff to 0
-  Grappa_memset(g->xoff, (int64_t)0, 2*g->nv+2);
+  Grappa::memset(g->xoff, (int64_t)0, 2*g->nv+2);
 
   // count occurrences of each vertex in edges
   VLOG(2) << "degree func";
-  degree_func fd; fd.edges = tg->edges; fd.xoff = g->xoff;
-  fork_join(&fd, 0, tg->nedge);
+  forall_localized(tg->edges, tg->nedge, [](int64_t s, int64_t n, packed_edge * edge) {
+    char _poolbuf[2*sizeof(Message<64>)];
+    MessagePoolBase pool(_poolbuf, sizeof(_poolbuf));
+    
+    for (int64_t i=0; i<n; i++) {
+      packed_edge& cedge = edge[i];
+      if (cedge.v0 != cedge.v1) { //skip self-edges
+        delegate::increment_async(pool, XOFF(cedge.v0), 1);
+        delegate::increment_async(pool, XOFF(cedge.v1), 1);
+      }
+    }
+  });
   
-//  for (int64_t i=0; i<g->nv; i++) {
-//    std::stringstream ss;
-//    int64_t xoi = Grappa_delegate_read_word(XOFF(i)), xei = Grappa_delegate_read_word(XENDOFF(i));
-//    ss << "degree[" << i << "] = " << xoi << " : (";
-////    for (int64_t j=xoi; j<xei; j++) {
-////      ss << Grappa_delegate_read_word(g->xadj+j) << ", ";
-////    }
-//    ss << ")";
-//    VLOG(1) << ss.str();
-//  }
-  
-  // make sure every degree is at least MINVECT_SIZE (don't know why yet...)
   VLOG(2) << "minvect func";
-  minvect_func fm; fm.xoff = g->xoff;
-  fork_join(&fm, 0, g->nv);
+  // make sure every degree is at least MINVECT_SIZE (don't know why yet...)
+  forall_localized(xoff, g->nv, [](int64_t i, int64_t& vo) {
+    if (vo < MINVECT_SIZE) { vo = MINVECT_SIZE); }
+  });
   
   // simple parallel prefix sum to compute offsets from degrees
   VLOG(2) << "prefix sum";
