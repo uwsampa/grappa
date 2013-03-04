@@ -146,6 +146,7 @@ New_delegate_tests.test: $(LIBRARY)
 Statistics_tests.test: $(LIBRARY)
 New_loop_tests.test: $(LIBRARY)
 CompletionEvent_tests.test: $(LIBRARY)
+Scratch_tests.test: $(LIBRARY)
 
 #
 # environment variables for run
