@@ -181,7 +181,7 @@ namespace Grappa {
   /// by copy to spawned tasks.
   /// Also uses impl::loop_decomposition_public, which adds 16 bytes to functor, so `loop_body`
   /// should be kept to 8 bytes for performance.
-  template< GlobalCompletionEvent * GCE = nullptr, int64_t Threshold = impl::USE_LOOP_THRESHOLD_FLAG, typename F = decltype(nullptr) >
+  template< GlobalCompletionEvent * GCE = &impl::local_gce, int64_t Threshold = impl::USE_LOOP_THRESHOLD_FLAG, typename F = decltype(nullptr) >
   void forall_here_async_public(int64_t start, int64_t iters, F loop_body) {
     if (GCE) GCE->enroll();
     impl::loop_decomposition_public<GCE,Threshold>(start, iters,
@@ -318,7 +318,8 @@ namespace Grappa {
   /// Spawns tasks to on cores that *may contain elements* of the part of a linear array
   /// from base[0]-base[nelems].
   ///
-  /// 
+  /// loop_body functor should be of the form:
+  ///   void(int64_t index, T& element)
   template< GlobalCompletionEvent * GCE = &impl::local_gce,
             typename T = decltype(nullptr),
             int64_t Threshold = impl::USE_LOOP_THRESHOLD_FLAG,
