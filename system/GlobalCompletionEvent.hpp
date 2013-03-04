@@ -12,40 +12,105 @@
 
 namespace Grappa {
 
+/// GlobalCompletionEvent (GCE):
+/// Synchronization construct for determining when a global phase of asynchronous tasks have all completed.
+/// For example, can be used to ensure that all tasks of a parallel loop have completed, including tasks or asynchronous delegates spawned during execution of the parallel loop.
+///
+/// A GlobalCompletionEvent must be replicated at the same address on all cores (the easiest way is to declare it as file-global or static storage).
+///
+/// Anyone calling "wait" after at least some work has been "enrolled" globally will block. When *all* work has been completed on all cores, all tasks waiting on the GCE will be woken.
+///
+/// To ensure consistent behavior and guarantee deadlock freedom, every "enroll" must be causally followed by "complete", so either must be completed from the same task that called "enroll" or from a task spawned (transitively) from the enrolling task.
 class GlobalCompletionEvent : public CompletionEvent {
   // All nodes
-  bool global_done;
-  bool cancel_in_flight;
-  bool enter_called;
-  
+  // (count)
+  // (cv)
+  bool event_in_progress;
   Core master_core;
   
   // Master barrier only
-  Core cores_in;
-//  bool barrier_done; // only for verification
+  Core cores_out;
   
   /// pointer to shared arg for loops that use a GCE
-  const void * shared_arg;
+  const void * shared_ptr;
   
-  /// Notify the master joiner that this joiner doesn't have any work to do for now.
-  void send_enter() {
-    CHECK(!enter_called) << "double entering";
-    enter_called = true;
-    if (!cancel_in_flight) { // will get called by `send_cancel` once cancel has completed
-      auto* gce = this; // assume an identical GlobalCompletionEvent on each node (static globals)
-      send_heap_message(master_core, [gce]() {
-        CHECK(mycore() == 0); // Core 0 is Master
+public:
+  
+  GlobalCompletionEvent(): master_core(0) { reset(); }
+  
+  inline void set_shared_ptr(const void* p) { shared_ptr = p; }
+  template<typename T> inline const T* get_shared_ptr() { return reinterpret_cast<const T*>(shared_ptr); }
+  
+  /// SPMD (either all cores call this following a barrier, or use `reset_all` from one task,
+  /// then spawn parallel work)
+  void reset() {
+    count = 0;
+    cv.waiters_ = 0;
+    cores_out = 0;
+    event_in_progress = false;
+  }
+  
+  /// Called from single task (probably `user_main`).
+  void reset_all() {
+    call_on_all_cores([this]{ reset(); });
+  }
+  
+  /// Enroll more things that need to be completed before the global completion is, well, complete.
+  /// This will send a cancel to the master if this core previously entered the cancellable barrier.
+  ///
+  /// Blocks until cancel completes (if it must cancel) to ensure correct ordering, therefore
+  /// cannot be called from message handler (but I don't think we ever do).
+  void enroll(int64_t inc = 1) {
+    if (inc == 0) return;
+    
+    CHECK_GE(inc, 1);
+    count += inc;
+    
+    // first one to have work here
+    if (count == inc) { // count[0 -> inc]
+      event_in_progress = true; // optimization to save checking in wait()
+      // cancel barrier
+      Core co = delegate::call(master_core, [this] {
+        cores_out++;
+        return cores_out;
+      });
+      // first one to cancel barrier should make sure other cores are ready to wait
+      if (co == 1) { // cores_out[0 -> 1]
+        event_in_progress = true;
+        call_on_all_cores([this] {
+          event_in_progress = true;
+        });
+        CHECK(event_in_progress);
+      }
+      // block until cancelled
+      CHECK_GT(count, 0);
+      VLOG(2) << "cores_out: " << co << ", count: " << count;
+    }
+  }
+  
+  /// Mark a certain number of things completed. When the global count on all cores goes to 0, all
+  /// tasks waiting on the GCE will be woken.
+  ///
+  /// Note: this can be called in a message handler (e.g. remote completes from stolen tasks).
+  void complete(int64_t dec = 1) {
+    count -= dec;
+    VLOG(4) << "complete (" << count << ")";
+    
+    // out of work here
+    if (count == 0) { // count[dec -> 0]
+      // enter cancellable barrier
+      send_heap_message(master_core, [this] {
+        cores_out--;
         
-        gce->cores_in++;
-        VLOG(2) << "(completed) cores_in: " << gce->cores_in;
-        
-        if (gce->cores_in == cores()) {
-//          gce->barrier_done = true;
-          VLOG(2) << "### done! ### cores_in: " << gce->cores_in;
-          
-          for (Core c=0; c<cores(); c++) {
-            send_heap_message(c, [gce]() {
-              gce->wake();
+        // if all are in
+        if (cores_out == 0) { // cores_out[1 -> 0]
+          CHECK_EQ(count, 0);
+          // notify everyone to wake
+          for (Core c = 0; c < cores(); c++) {
+            send_heap_message(c, [this] {
+              CHECK_EQ(count, 0);
+              broadcast(&cv); // wake anyone who was waiting here
+              reset(); // reset, now anyone else calling `wait` should fall through
             });
           }
         }
@@ -53,125 +118,49 @@ class GlobalCompletionEvent : public CompletionEvent {
     }
   }
   
-  void send_cancel() {
-    if (!cancel_in_flight && enter_called) {
-      cancel_in_flight = true;
-      enter_called = false;
-      
-      auto master_ce = make_global(this, master_core);
-      auto master_cores_in = global_pointer_to_member(master_ce, &GlobalCompletionEvent::cores_in);
-      int64_t result = delegate::fetch_and_add(master_cores_in, -1);
-      VLOG(2) << "(cancelled) cores_in: " << result-1;
-      
-      cancel_in_flight = false;
-      if (enter_called) { send_enter(); }
-      else { CHECK(count > 0) << "count is " << count; }
-    }
-  }
-  
-  /// Wake this node's suspended task and set joiner to the completed state to ensure that
-  /// any subsequent calls to wait() will fall through (until reset() is called of course).
-  void wake() {
-    VLOG(2) << "wake called";
-    CHECK(!global_done);
-    CHECK(count == 0) << "count == " << count;
-    global_done = true;
-    cores_in = cores();
-    broadcast(&cv);
-  }
-  
-public:
-  
-  GlobalCompletionEvent(): master_core(0) {}
-  
-  inline void set_shared_ptr(const void* p) { shared_arg = p; }
-  template<typename T> inline const T* get_shared_ptr() { return reinterpret_cast<const T*>(shared_arg); }
-  
-  /// Must be called on all cores and finished before beginning any stealable work that syncs with this.
-  /// Either call in SPMD (`on_all_cores()`) followed by `barrier()` or call `reset_all` from `user_main`
-  /// or an equivalent task.
-  void reset() {
-    CHECK(cv.waiters_ == 0) << "resetting when tasks are still waiting";
-    cores_in = cores();
-    global_done = false;
-    cancel_in_flight = false;
-    enter_called = true;
-//    barrier_done = false;
-  }
-  
-  /// Called from user_main (or equivalent single controlling task). Trying to
-  /// avoid having an explicit barrier in reset(), but still must guarantee that
-  /// all cores have finished resetting before starting any public tasks that
-  /// use the GCE to sync.
-  void reset_all() {
-    auto* gce = this;
-    call_on_all_cores([gce]{
-      gce->reset();
-    });
-  }
-  
-  /// Enroll more things that need to be completed before the global completion is, well, complete.
-  /// This will send a cancel to the master if this core previously entered the cancellable barrier.
-  void enroll(int64_t inc = 1) {
-    count += inc;
-    if (count == inc) { // 0 -> >=1
-      send_cancel();
-    }
-  }
-  
-  /// Mark a certain number of things completed. When the global count on all cores goes to 0, all
-  /// tasks waiting on the GCE will be woken.
-  void complete(int64_t dec = 1) {
-    CHECK(count >= dec) << "too many calls to complete(), count == " << count;
-    
-    count -= dec;
-    VLOG(4) << "complete => " << count;
-    
-    if (count == 0) { // 1(+) -> 0
-      send_enter();
-    }
-  }
-  
-  /// SPMD 
   void wait() {
-    if (!global_done) {
-      if (!cancel_in_flight && count == 0 && !enter_called) {
-        // TODO: doing extra 'cancel_in_flight' check (?)
-        send_enter();
-      }
+    VLOG(3) << "wait(): event_in_progress: " << event_in_progress << ", count: " << count;
+    if (event_in_progress) {
       Grappa::wait(&cv);
-      
-      // verify things on finally waking
-      CHECK(global_done);
-      CHECK(!cancel_in_flight);
-      CHECK(count == 0);
+    } else {
+      // conservative check, in case we're calling `wait` without calling `enroll`
+      if (delegate::call(master_core, [this]{ return cores_out; }) > 0) {
+//      if (delegate::call(master_core, [this]{ return event_in_progress; })) {
+        Grappa::wait(&cv);
+        VLOG(3) << "woke from conservative check";
+      }
+      VLOG(3) << "fell thru conservative check";
     }
+    CHECK(!event_in_progress);
+    CHECK_EQ(count, 0);
   }
   
 };
 
-  
-/// Synchronizing private task spawn. Automatically enrolls task with GlobalCompletionEvent and
-/// does local `complete` when done (if GCE is non-null).
-template<typename TF>
-void privateTask(GlobalCompletionEvent * gce, TF tf) {
-  gce->enroll();
-  privateTask([gce,tf] {
-    tf();
-    gce->complete();
-  });
-}
+} // namespace Grappa
 
-/// Synchronizing public task spawn. Automatically enrolls task with GlobalCompletionEvent and
-/// sends `complete`  message when done (if GCE is non-null).
-template<GlobalCompletionEvent * GCE, typename TF>
-inline void publicTask(TF tf) {
-  if (GCE) GCE->enroll();
-  Core origin = mycore();
-  publicTask([origin,tf] {
-    tf();
-    if (GCE) complete(make_global(GCE,origin));
-  });
-}
+/// Synchronizing delegates
+namespace Grappa {
+  /// Synchronizing private task spawn. Automatically enrolls task with GlobalCompletionEvent and
+  /// does local `complete` when done (if GCE is non-null).
+  template<typename TF>
+  void privateTask(GlobalCompletionEvent * gce, TF tf) {
+    gce->enroll();
+    privateTask([gce,tf] {
+      tf();
+      gce->complete();
+    });
+  }
 
+  /// Synchronizing public task spawn. Automatically enrolls task with GlobalCompletionEvent and
+  /// sends `complete`  message when done (if GCE is non-null).
+  template<GlobalCompletionEvent * GCE, typename TF>
+  inline void publicTask(TF tf) {
+    if (GCE) GCE->enroll();
+    Core origin = mycore();
+    publicTask([origin,tf] {
+      tf();
+      if (GCE) complete(make_global(GCE,origin));
+    });
+  }
 } // namespace Grappa
