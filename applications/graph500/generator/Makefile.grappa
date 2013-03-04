@@ -1,7 +1,8 @@
 include ../../../system/Makefile
 
 CFLAGS += -O3 -DGRAPH_GENERATOR_GRAPPA -DGRAPHGEN_DISTRIBUTED_MEMORY -DNDEBUG # -g -pg
-CFLAGS += -I$(GRAPPA_HOME)/system
+CFLAGS += -I$(GRAPPA_HOME)/system -I$(GRAPPA_HOME)/system/tasks
+CFLAGS += -D_GRAPPA
 # CFLAGS = -std=c99 -DGRAPH_GENERATOR_MPI -DGRAPHGEN_DISTRIBUTED_MEMORY -g
 
 # force cplusplus on .c
