@@ -316,9 +316,9 @@ end
 define switch_to_coroutine
   grappa_save_state
   set $grappa_coro = (coro*) $arg0
-#  set $rsp = $grappa_coro->stack + $grappa_stack_offset
-  select-frame ($grappa_coro->stack + $grappa_stack_offset)
-#  set $rip = *(int*)$rsp
+  set $rsp = $grappa_coro->stack + $grappa_stack_offset
+  #select-frame ($grappa_coro->stack + $grappa_stack_offset)
+  set $rip = *(int*)$rsp
 #  set $rip = *(int*)($grappa_coro->stack + $grappa_stack_offset)
 end
 document switch_to_coroutine
