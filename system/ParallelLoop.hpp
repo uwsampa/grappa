@@ -220,7 +220,7 @@ namespace Grappa {
     // can look it up when run, wherever it is.
     
     on_all_cores([start,iters,loop_body]{
-      GCE->reset();
+//      GCE->reset();
       GCE->set_shared_ptr(&loop_body); // need to initialize this on all nodes before any tasks start
       
       // may as well do this before the barrier too, but it shouldn't matter
@@ -262,8 +262,8 @@ namespace Grappa {
     static_assert(block_size % sizeof(T) == 0,
                   "forall_localized requires size of objects to evenly divide into block_size");
     on_all_cores([base, nelems, loop_body]{
-      GCE->reset();
-      barrier();
+//      GCE->reset();
+//      barrier();
       
       T* local_base = base.localize();
       T* local_end = (base+nelems).localize();
