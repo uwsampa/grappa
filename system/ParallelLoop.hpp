@@ -360,7 +360,8 @@ namespace Grappa {
           T* local_end = (base+nelems).localize();
           size_t n = local_end - local_base;
           
-          auto f = [base,loop_body](int64_t start, int64_t iters) {
+          CompletionEvent ce(n);
+          auto f = [base,loop_body, &ce](int64_t start, int64_t iters) {
             T* local_base = base.localize();
             auto laddr = make_linear(local_base+start);
             
@@ -368,9 +369,11 @@ namespace Grappa {
               // TODO: check if this is inlined and if this loop is unrollable
               loop_body(laddr-base, local_base[i]);
             }
+            ce.complete(iters);
           };
           forall_here_async<GCE,Threshold>(0, n, &f);
           
+          ce.wait();
           complete(make_global(GCE,origin));
         });
       });
