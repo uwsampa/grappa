@@ -114,13 +114,12 @@ namespace Grappa {
     /// Blocking remote write.
     /// @warning { Target object must lie on a single node (not span blocks in global address space). }
     template< typename T, typename U >
-    bool write(GlobalAddress<T> target, U value) {
+    void write(GlobalAddress<T> target, U value) {
       delegate_stats.count_word_write();
       // TODO: don't return any val, requires changes to `delegate::call()`.
-      return call(target.node(), [target, value]() -> bool {
+      return call(target.node(), [target, value] {
         delegate_stats.count_word_write_am();
         *target.pointer() = value;
-        return true;
       });
     }
     
