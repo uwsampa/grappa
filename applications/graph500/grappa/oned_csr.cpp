@@ -33,6 +33,7 @@ using namespace Grappa;
 #include "timer.h"
 
 #include <sstream>
+#include <functional>
 
 #define MINVECT_SIZE 2
 
@@ -181,7 +182,7 @@ static void setup_deg_off(const tuple_graph * const tg, csr_graph * g) {
   // count occurrences of each vertex in edges
   VLOG(2) << "degree func";
   forall_localized(tg->edges, tg->nedge, [](int64_t s, int64_t n, packed_edge * edge) {
-    char _poolbuf[2*sizeof(Message<64>)];
+    char _poolbuf[2*n*128];
     MessagePoolBase pool(_poolbuf, sizeof(_poolbuf));
     
     for (int64_t i=0; i<n; i++) {
@@ -196,7 +197,7 @@ static void setup_deg_off(const tuple_graph * const tg, csr_graph * g) {
   VLOG(2) << "minvect func";
   // make sure every degree is at least MINVECT_SIZE (don't know why yet...)
   forall_localized(xoff, g->nv, [](int64_t i, int64_t& vo) {
-    if (vo < MINVECT_SIZE) { vo = MINVECT_SIZE); }
+    if (vo < MINVECT_SIZE) { vo = MINVECT_SIZE; }
   });
   
   // simple parallel prefix sum to compute offsets from degrees
