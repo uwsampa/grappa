@@ -38,6 +38,7 @@ static GlobalAddress<int64_t> bfs_tree;
 static GlobalAddress<int64_t> k2;
 static int64_t nadj;
 static int64_t nv;
+static int64_t current_root;
 
 #define XOFF(k) (xoff+2*(k))
 #define XENDOFF(k) (xoff+2*(k)+1)
@@ -114,7 +115,7 @@ static unsigned marker = -1;
 double make_bfs_tree(csr_graph * g, GlobalAddress<int64_t> _bfs_tree, int64_t root) {
   int64_t NV = g->nv;
   GlobalAddress<int64_t> _vlist = Grappa_typed_malloc<int64_t>(NV);
- 
+  DVLOG(1) << "make_bfs_tree(" << root << ")";
 #ifdef VTRACE 
   if (marker == -1) marker = VT_MARKER_DEF("bfs_level", VT_MARKER_TYPE_HINT);
 #endif
@@ -133,7 +134,7 @@ double make_bfs_tree(csr_graph * g, GlobalAddress<int64_t> _bfs_tree, int64_t ro
 //  { setup_bfs f(vlist, g->xoff, g->xadj, bfs_tree, k2addr, g->nadj, g->nv); fork_join_custom(&f); }
   auto& graph = *g;
   
-  on_all_cores([_vlist,graph,_bfs_tree,k2addr]{
+  on_all_cores([_vlist,graph,_bfs_tree,k2addr,root]{
     if ( !bfs_counters_added ) {
       bfs_counters_added = true;
       Grappa_add_profiling_counter( &bfs_neighbors_visited, "bfs_neighbors_visited", "bfsneigh", true, 0 );
@@ -148,6 +149,7 @@ double make_bfs_tree(csr_graph * g, GlobalAddress<int64_t> _bfs_tree, int64_t ro
     k2 = k2addr;
     nadj = graph.nadj;
     nv = graph.nv;
+    current_root = root;
     
     // initialize push buffer (so it knows where to push to)
     vlist_buf.setup(vlist, k2);
@@ -164,11 +166,14 @@ double make_bfs_tree(csr_graph * g, GlobalAddress<int64_t> _bfs_tree, int64_t ro
   
   delegate::write(_bfs_tree+root, root); // parent of root is self
   
+  CHECK_EQ(delegate::read(_bfs_tree+root), root);
+  
   while (k1 != _k2) {
     VLOG(2) << "k1=" << k1 << ", k2=" << _k2;
     const int64_t oldk2 = _k2;
     
     forall_localized(_vlist+k1, _k2-k1, [](int64_t index, int64_t& source_v) {
+      DVLOG(4) << "[" << index << "] source_v = " << source_v;
       ++bfs_vertex_visited;
       
       int64_t buf[2];
@@ -184,20 +189,21 @@ double make_bfs_tree(csr_graph * g, GlobalAddress<int64_t> _bfs_tree, int64_t ro
       //}
       
       //  forall_local_async<int64_t,int64_t,visit_neighbor>(xadj+vstart, vend-vstart, make_linear(va));
-      forall_localized_async(xadj+vstart, vend-vstart, [source_v](int64_t index, int64_t& edge){
+      forall_localized_async(xadj+vstart, vend-vstart, [source_v](int64_t index, int64_t& ev){
         ++bfs_neighbors_visited;
         
         DCHECK( source_v < nv ) << "| v = " << source_v << ", nv = " << nv;
         DCHECK( index < nv ) << "| i = " << index << " (nv = " << nv << ")";
         
-        const int64_t j = edge;
+        const int64_t j = ev;
         
         //if (v == 33707) { VLOG(1) << "neighbor_base = " << neighbor_base; }
         
-        DCHECK( j < nv ) << "| v[" << source_v << "].neighbors[" << index << "] = " << j << " (nv = " << nv << ") \n &edge = " << &edge;
+        DCHECK( j < nv ) << "| v[" << source_v << "].neighbors[" << index << "] = " << j << " (nv = " << nv << ") \n &edge = " << &ev;
         
         //  if (combiner->flat_cas(bfs_tree+j, -1, v)) {
         if (delegate::compare_and_swap(bfs_tree+j, -1, source_v)) {
+          DCHECK_NE(j, current_root);
           vlist_buf.push(j);
         }
       });

@@ -347,6 +347,8 @@ static void user_main(int * args) {
 	/* Catch a few possible overflows. */
 	assert (desired_nedge >= nvtx_scale);
 	assert (desired_nedge >= edgefactor);
+  
+  LOG(INFO) << "scale = " << SCALE << ", nv = " << nvtx_scale << ", edgefactor = " << edgefactor << ", nedge = " << desired_nedge;
 
   if (load_checkpoint) {
     checkpoint_in(&tg, &g, bfs_roots);
