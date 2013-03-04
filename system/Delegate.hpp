@@ -39,6 +39,8 @@ namespace Grappa {
         send_message(dest, [&cv, origin, func, &network_time, start_time] {
           delegate_stats.count_op_am();
           
+          func();
+          
           // TODO: replace with handler-safe send_message
           send_heap_message(origin, [&cv, &network_time, start_time] {
             network_time = Grappa_get_timestamp();
