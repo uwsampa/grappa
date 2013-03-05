@@ -120,7 +120,7 @@ static void enable_tau() {
 }
 
 static void disable_tau() {
-  Statistics::merge_and_print();
+  // Statistics::merge_and_print();
   call_on_all_cores([]{
 #ifdef GRAPPA_TRACE
     VLOG(1) << "Disabling TAU recording.";
@@ -173,35 +173,6 @@ static void run_bfs(tuple_graph * tg, csr_graph * g, int64_t * bfs_roots) {
   }
 }
 
-//template <typename T>
-//inline void read_my_chunk(GlobalAddress<T> base_addr, int64_t n, GrappaFile& fin) {
-  //range_t r = blockDist(0, n, Grappa_mynode(), Grappa_nodes());
-  //fin.offset += r.start*sizeof(T);
-  //Grappa_read_array(base_addr+r.start, r.end-r.start, fin);
-  //fin.offset += (n-r.end)*sizeof(T);
-//}
-
-//LOOP_FUNCTOR( checkpoint_in_func, nid, ((tuple_graph,tg)) ((csr_graph,g)) ((int64_t*,bfs_roots)) ((int64_t, ckpt_nbfs)) ) {
-  //char fname[256];
-  //sprintf(fname, "ckpts/graph500.%lld.%lld.xmt.w.ckpt", SCALE, edgefactor);
-  ////FILE * fin = fopen(fname, "r");
-  //GrappaFile fin(fname, false);
-  
-  //fin.offset = 4*sizeof(int64_t);
-
-  //read_my_chunk(tg.edges, tg.nedge, fin);
-  
-  //read_my_chunk(g.xoff, 2*g.nv+2, fin);
-
-  //read_my_chunk(g.xadjstore, g.nadj, fin);
-  
-  //if (nid == 0) {
-    //FILE * fin = fopen(fname, "r");
-    //fread(bfs_roots, sizeof(int64_t), ckpt_nbfs, fin);
-		//fclose(fin);
-  //}
-//}
-
 static void checkpoint_in(tuple_graph * tg, csr_graph * g, int64_t * bfs_roots) {
   //TAU_PHASE("checkpoint_in","void (tuple_graph*,csr_graph*,int64_t*)", TAU_USER);
   bool agg_enable = FLAGS_aggregator_enable;
@@ -233,12 +204,6 @@ static void checkpoint_in(tuple_graph * tg, csr_graph * g, int64_t * bfs_roots) 
   g->xadjstore = Grappa_typed_malloc<int64_t>(g->nadj);
   g->xadj = g->xadjstore+2;
   
-  //read_array(tg->edges, tg->nedge, fin);
-  //read_array(g->xoff, 2*g->nv+2, fin);
-  //read_array(g->xadjstore, g->nadj, fin);
-  //fread(bfs_roots, sizeof(int64_t), ckpt_nbfs, fin);
-  //fclose(fin);
-  //{ checkpoint_in_func f(*tg, *g, bfs_roots, ckpt_nbfs); fork_join_custom(&f); }
   GrappaFile gfin(fname, false);
   gfin.offset = 4*sizeof(int64_t);
 

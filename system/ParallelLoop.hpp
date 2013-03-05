@@ -251,6 +251,9 @@ namespace Grappa {
   ///
   /// takes a lambda/functor that operates on a range of iterations:
   ///   void(int64_t first_index, int64_t niters, T * first_element)
+  ///
+  /// Warning: you cannot simply increment `first_index` `niters` times and get the
+  /// correct global index because a single task may span more than one block.
   template< typename T,
             GlobalCompletionEvent * GCE = &impl::local_gce,
             int64_t Threshold = impl::USE_LOOP_THRESHOLD_FLAG,
