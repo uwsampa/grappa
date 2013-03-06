@@ -35,6 +35,28 @@ namespace Grappa {
       }
     }
     
+    /// Uses `call_async()` to write a value asynchronously.
+    template<GlobalCompletionEvent * GCE = &Grappa::impl::local_gce, typename T = decltype(nullptr), typename U = decltype(nullptr) >
+    inline void write_async(MessagePoolBase& pool, GlobalAddress<T> target, U value) {
+      delegate::call_async(pool, target.core(), [target,value]{
+        (*target.pointer()) = value;
+      });
+    }
+    
+    /// To help calculate pool sizes
+    /// TODO: refactor call_async so it actually uses this struct so we don't have to maintain two
+    template<typename T>
+    struct write_msg_proxy {
+      struct func {
+        Core origin;
+        GlobalAddress<T> target;
+        T value;
+        void operator()() {}
+      };
+      Message<func> msg;
+    };
+    
+    /// Uses `call_async()` to atomically increment a value asynchronously.
     template<typename T, typename U, GlobalCompletionEvent * GCE = &Grappa::impl::local_gce >
     inline void increment_async(MessagePoolBase& pool, GlobalAddress<T> target, U increment) {
       delegate::call_async(pool, target.core(), [target,increment]{
