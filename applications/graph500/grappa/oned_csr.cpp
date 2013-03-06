@@ -188,7 +188,9 @@ static int64_t prefix_sum(GlobalAddress<int64_t> xoff, int64_t nv) {
       delegate::fetch_and_add(make_global(&prefix_count,c), local_sum);
     }
 
-    barrier();
+    impl::local_gce.enroll(); // make sure it doesn't dip down to 0 early
+
+    barrier();    
     
     if (mycore() == cores()-1) {
       auto accum = prefix_count + local_sum;
@@ -214,6 +216,7 @@ static int64_t prefix_sum(GlobalAddress<int64_t> xoff, int64_t nv) {
         delegate::write_async(pool, xoff+2*(r.start+i), prefix_temp_base[i]);
       }
     });
+    impl::local_gce.complete();
     impl::local_gce.wait();
   });
 
