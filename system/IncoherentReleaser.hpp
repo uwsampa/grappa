@@ -10,6 +10,7 @@
 
 #include "Grappa.hpp"
 #include "Message.hpp"
+#include "MessagePool.hpp"
 
 #ifdef VTRACE
 #include <vt_user.h>
@@ -156,8 +157,8 @@ public:
 
       // allocate enough requests/messages that we don't run out
       size_t nmsg = total_bytes / block_size + 2;
-      RequestArgs arg_array[nmsg];
-      Grappa::ExternalPayloadMessage<RequestArgs> msg_array[nmsg];
+
+      Grappa::MessagePoolStatic<STACK_SIZE/2> pool;
       
       for( size_t i = 0;
            offset < total_bytes; 
@@ -173,14 +174,27 @@ public:
                  << " of total bytes = " << *count_ * sizeof(T)
                  << " to " << args.request_address;
 
-        arg_array[i] = args;
-        new (msg_array+i) Grappa::ExternalPayloadMessage<RequestArgs>(arg_array[i].request_address.node(), &arg_array[i], ((char*)(*pointer_)) + offset, request_bytes);
-        msg_array[i].enqueue();
-//        Grappa_call_on( args.request_address.node(), &incoherent_release_request_am<T>,
-//                         &args, sizeof( args ),
-//                         ((char*)(*pointer_)) + offset, request_bytes);
+        pool.send_message(args.request_address.core(),
+          [args](void * payload, size_t payload_size) {
+            incoherent_releaser_stats.count_release_ams( payload_size );
+            DVLOG(5) << "Thread " << CURRENT_THREAD
+            << " received release request to " << args.request_address
+            << " reply to " << args.reply_address;
+            memcpy( args.request_address.pointer(), payload, payload_size );
+      
+            auto reply_address = args.reply_address;
+            Grappa::send_heap_message(args.reply_address.core(), [reply_address]{
+              DVLOG(5) << "Thread " << CURRENT_THREAD << " received release reply to " << reply_address;
+              reply_address.pointer()->release_reply();
+            });
+      
+            DVLOG(5) << "Thread " << CURRENT_THREAD
+            << " sent release reply to " << reply_address;
+          },
+          (char*)(*pointer_) + offset, request_bytes
+        );
 
-	// TODO: change type so we don't screw with pointer like this
+      	// TODO: change type so we don't screw with pointer like this
         args.request_address = GlobalAddress<T>::Raw( args.request_address.raw_bits() + request_bytes );
       }
       DVLOG(5) << "release started for " << args.request_address;
