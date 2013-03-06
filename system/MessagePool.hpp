@@ -3,6 +3,9 @@
 #include "PoolAllocator.hpp"
 #include "Message.hpp"
 
+namespace Grappa { class MessagePoolBase; }
+void* operator new(size_t size, Grappa::MessagePoolBase& a);
+
 namespace Grappa {
   
   class MessagePoolBase: public PoolAllocator<impl::MessageBase> {
@@ -17,7 +20,7 @@ namespace Grappa {
       });
       reset();
     }
-    
+        
     ///
     /// Templated message creating functions, all taken straight from Message.hpp
     ///
@@ -77,8 +80,8 @@ namespace Grappa {
       return m;
     }
  
+    friend void* ::operator new(size_t, MessagePoolBase&);
   };
-
   
   template<size_t Bytes>
   class MessagePoolStatic : public MessagePoolBase {
@@ -92,4 +95,5 @@ namespace Grappa {
     MessagePool(size_t bytes): MessagePoolBase(new char[bytes], bytes, true) {}
   };
   
-}
+} // namespace Grappa
+
