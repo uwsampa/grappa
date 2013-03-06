@@ -1,0 +1,123 @@
+# notes for configure:
+# -fno-exceptions does not work with MPICH2
+# -fno-rtti does not work with tr1:tuples
+
+BOOST = $(HOME)/boost_1_45_0/
+# notes for configure:
+# -fno-exceptions does not work with MPICH2
+# -fno-rtti does not work with tr1:tuples
+
+GCCOPT = -DNDEBUG -O2 -DMPICH_IGNORE_CXX_SEEK -DGRAPH_GENERATOR_SEQ 
+GCCDEB = -g -fno-inline -DMPICH_IGNORE_CXX_SEEK -DGRAPH_GENERATOR_SEQ #-DDEBUG
+OPTPGI = -fast -Mipa=fast,inline -Msmartalloc --zc_eh -DMPICH_IGNORE_CXX_SEEK -DGRAPH_GENERATOR_SEQ 
+COMPILER = CC
+GCCFLAGS = $(GCCOPT) -D__STDC_CONSTANT_MACROS -D__STDC_LIMIT_MACROS  -std=c++11
+INTELFLAGS = $(GCCOPT) -w -D__STDC_CONSTANT_MACROS -D__STDC_LIMIT_MACROS -std=c++0x
+PGIFLAGS = -I$(BOOST) $(OPTPGI) -DCOMBBLAS_BOOST -DBOOST_HAS_STDINT_H
+THREADING = -fopenmp -DTHREADED
+FLAGS = $(GCCFLAGS)
+COMBBLAS = ..
+
+
+$(COMBBLAS)/graph500-1.2/generator/libgraph_generator_seq.a:
+	$(MAKE) -C $(COMBBLAS)/graph500-1.2/generator
+
+CommGrid.o:	../CommGrid.cpp ../CommGrid.h
+	$(COMPILER) $(FLAGS) -c -o CommGrid.o ../CommGrid.cpp
+
+MPIType.o:	../MPIType.cpp ../MPIType.h
+	$(COMPILER) $(FLAGS) -c -o MPIType.o ../MPIType.cpp
+
+MemoryPool.o:	../MemoryPool.cpp ../SpDefs.h
+	$(COMPILER) $(FLAGS) -c -o MemoryPool.o ../MemoryPool.cpp
+
+TransposeTest.o: TransposeTest.cpp ../SpDCCols.cpp ../dcsc.cpp ../SpHelper.h ../SpParHelper.h ../SpParMat.cpp ../Friends.h ../ParFriends.h 
+	$(COMPILER) $(FLAGS) -c -o TransposeTest.o TransposeTest.cpp
+
+FindSparse.o: FindSparse.cpp ../SpDCCols.cpp ../dcsc.cpp ../SpHelper.h ../SpParHelper.h ../SpParMat.cpp ../Friends.h ../ParFriends.h
+	$(COMPILER) $(FLAGS) -c -o FindSparse.o FindSparse.cpp
+
+MultTest.o: MultTest.cpp ../SpDCCols.cpp ../dcsc.cpp ../SpHelper.h ../SpParHelper.h ../SpParMat.cpp ../Friends.h ../ParFriends.h 
+	$(COMPILER) $(FLAGS) -c -o MultTest.o MultTest.cpp
+
+IndexingTest.o: IndexingTest.cpp ../SpDCCols.cpp ../dcsc.cpp ../SpHelper.h ../SpParHelper.h ../SpParMat.cpp ../Friends.h ../ParFriends.h ../SpParVec.cpp
+	$(COMPILER) $(FLAGS) -c -o IndexingTest.o IndexingTest.cpp
+
+SpAsgnTest.o: SpAsgnTest.cpp ../SpDCCols.cpp ../dcsc.cpp ../SpHelper.h ../SpParHelper.h ../SpParMat.cpp ../Friends.h ../ParFriends.h ../SpParVec.cpp
+	$(COMPILER) $(FLAGS) -c -o SpAsgnTest.o SpAsgnTest.cpp
+
+SpAsgnTiming.o: SpAsgnTiming.cpp ../SpDCCols.cpp ../dcsc.cpp ../SpHelper.h ../SpParHelper.h ../SpParMat.cpp ../Friends.h ../ParFriends.h ../SpParVec.cpp
+	$(COMPILER) $(FLAGS) -c -o SpAsgnTiming.o SpAsgnTiming.cpp
+
+IndexingTiming.o: IndexingTiming.cpp ../SpDCCols.cpp ../dcsc.cpp ../SpHelper.h ../SpParHelper.h ../SpParMat.cpp ../Friends.h ../ParFriends.h ../SpParVec.cpp
+	$(COMPILER) $(FLAGS) -c -o IndexingTiming.o IndexingTiming.cpp
+
+MultTiming.o: MultTiming.cpp ../SpDCCols.cpp ../dcsc.cpp ../SpHelper.h ../SpParHelper.h ../SpParMat.cpp ../Friends.h ../ParFriends.h 
+	$(COMPILER) $(FLAGS) -c -o MultTiming.o MultTiming.cpp
+
+Galerkin.o: Galerkin.cpp ../SpDCCols.cpp ../dcsc.cpp ../SpHelper.h ../SpParHelper.h ../SpParMat.cpp ../Friends.h ../ParFriends.h 
+	$(COMPILER) $(FLAGS) -c -o Galerkin.o Galerkin.cpp
+
+GalerkinNew.o: GalerkinNew.cpp ../SpDCCols.cpp ../dcsc.cpp ../SpHelper.h ../SpParHelper.h ../SpParMat.cpp ../Friends.h ../ParFriends.h 
+	$(COMPILER) $(FLAGS) -c -o GalerkinNew.o GalerkinNew.cpp
+
+ReduceTest.o: ReduceTest.cpp ../SpDCCols.cpp ../dcsc.cpp ../SpHelper.h ../SpParHelper.h ../SpParMat.cpp ../Friends.h ../ParFriends.h 
+	$(COMPILER) $(FLAGS) -c -o ReduceTest.o ReduceTest.cpp
+
+Roofline.o: Roofline.cpp ../SpDCCols.cpp ../dcsc.cpp ../SpHelper.h ../SpParHelper.h ../SpParMat.cpp ../Friends.h ../ParFriends.h 
+	$(COMPILER) $(FLAGS) -c -o Roofline.o Roofline.cpp
+
+TransposeTest: MemoryPool.o CommGrid.o MPIType.o TransposeTest.o
+	$(COMPILER) $(FLAGS) -o TransposeTest TransposeTest.o MemoryPool.o CommGrid.o MPIType.o
+
+FindSparse: MemoryPool.o CommGrid.o MPIType.o FindSparse.o
+	$(COMPILER) $(FLAGS) -o FindSparse FindSparse.o MemoryPool.o CommGrid.o MPIType.o
+
+MultTest: MemoryPool.o CommGrid.o MPIType.o MultTest.o
+	$(COMPILER) $(FLAGS) -o MultTest MultTest.o MemoryPool.o CommGrid.o MPIType.o
+
+IndexingTest: MemoryPool.o CommGrid.o MPIType.o IndexingTest.o
+	$(COMPILER) $(FLAGS) -o IndexingTest IndexingTest.o MemoryPool.o CommGrid.o MPIType.o
+
+SpAsgnTest: MemoryPool.o CommGrid.o MPIType.o SpAsgnTest.o
+	$(COMPILER) $(FLAGS) -o SpAsgnTest SpAsgnTest.o MemoryPool.o CommGrid.o MPIType.o
+
+SpAsgnTiming: MemoryPool.o CommGrid.o MPIType.o SpAsgnTiming.o $(COMBBLAS)/graph500-1.2/generator/libgraph_generator_seq.a
+	$(COMPILER) $(FLAGS) -o SpAsgnTiming SpAsgnTiming.o MemoryPool.o CommGrid.o MPIType.o -L$(COMBBLAS)/graph500-1.2/generator -lgraph_generator_seq
+
+IndexingTiming: MemoryPool.o CommGrid.o MPIType.o IndexingTiming.o $(COMBBLAS)/graph500-1.2/generator/libgraph_generator_seq.a
+	$(COMPILER) $(FLAGS) -o IndexingTiming IndexingTiming.o MemoryPool.o CommGrid.o MPIType.o -L$(COMBBLAS)/graph500-1.2/generator -lgraph_generator_seq
+
+MultTime: MemoryPool.o CommGrid.o MPIType.o MultTiming.o
+	$(COMPILER) $(FLAGS) -o MultTime MultTiming.o MemoryPool.o CommGrid.o MPIType.o $(IPM_GNU)
+
+Galerkin: MemoryPool.o CommGrid.o MPIType.o Galerkin.o
+	$(COMPILER) $(FLAGS) -o Galerkin Galerkin.o MemoryPool.o CommGrid.o MPIType.o $(IPM_GNU)
+
+GalerkinNew: MemoryPool.o CommGrid.o MPIType.o GalerkinNew.o
+	$(COMPILER) $(FLAGS) -o GalerkinNew GalerkinNew.o MemoryPool.o CommGrid.o MPIType.o
+
+ReduceTest: MemoryPool.o CommGrid.o MPIType.o ReduceTest.o
+	$(COMPILER) $(FLAGS) -o ReduceTest ReduceTest.o MemoryPool.o CommGrid.o MPIType.o
+
+Roofline: MemoryPool.o CommGrid.o MPIType.o Roofline.o
+	$(COMPILER) $(FLAGS) -o Roofline Roofline.o MemoryPool.o CommGrid.o MPIType.o
+
+clean:
+	rm -f IndexingTiming
+	rm -f IndexingTest
+	rm -f SpAsgnTest
+	rm -f FindSparse
+	rm -f TransposeTest
+	rm -f MultTest
+	rm -f MultTime
+	rm -f ReduceTest
+	rm -f Galerkin
+	rm -f Roofline
+	rm -f *.o
+	rm -f ../graph500-1.2/generator/*.o
+	rm -f ../graph500-1.2/generator/libgraph_generator_seq.a
+
+cleanout:
+	rm out.*
+	rm err.*

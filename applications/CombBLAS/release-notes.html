@@ -1,0 +1,79 @@
+<!DOCTYPE html PUBLIC "-//W3C//DTD HTML 4.01//EN" "http://www.w3.org/TR/html4/strict.dtd">
+<html>
+<head>
+  <meta http-equiv="Content-Type" content="text/html; charset=utf-8">
+  <meta http-equiv="Content-Style-Type" content="text/css">
+  <title>The Combinatorial BLAS Release Notes</title>
+  <meta name="Generator" content="Cocoa HTML Writer">
+  <meta name="CocoaVersion" content="1187.34">
+  <style type="text/css">
+    p.p2 {margin: 0.0px 0.0px 0.0px 0.0px; font: 12.0px Times}
+    p.p3 {margin: 0.0px 0.0px 0.0px 0.0px; font: 12.0px Times; min-height: 14.0px}
+    p.p4 {margin: 0.0px 0.0px 14.0px 0.0px; font: 11.0px Times}
+    p.p5 {margin: 0.0px 0.0px 0.0px 0.0px; font: 14.0px Times; min-height: 18.0px}
+    p.p9 {margin: 0.0px 0.0px 6.0px 0.0px; font: 12.0px Times; min-height: 14.0px}
+    li.li2 {margin: 0.0px 0.0px 0.0px 0.0px; font: 12.0px Times}
+    li.li8 {margin: 0.0px 0.0px 0.0px 0.0px; font: 12.0px Courier}
+    span.s1 {font: 18.0px Times}
+    span.s2 {font: 11.0px Times}
+    span.s3 {font: 12.0px Times}
+    span.s4 {font: 12.0px Courier}
+    span.s5 {text-decoration: underline ; color: #0000ee}
+    ul.ul1 {list-style-type: disc}
+    ul.ul2 {list-style-type: circle}
+  </style>
+</head>
+<body>
+<h1 style="margin: 0.0px 0.0px 16.0px 0.0px; font: 24.0px Times"><b>The Combinatorial BLAS Release Notes</b></h1>
+<p class="p2">This document describes the new features and changes in each release of the Combinatorial BLAS. The numbering is of the form Z.Y.X.</p>
+<p class="p2">X denotes bug fixes and/or minor updates for existing functionality.</p>
+<p class="p2">Y denotes new major functionality.</p>
+<p class="p2">Z denotes an overall paradigm shift in terms of abstractions.</p>
+<p class="p3"><br></p>
+<p class="p4"><span class="s1"><b>CombBLAS 1.3 </b></span>(February, 2013)</p>
+<ul class="ul1">
+  <li class="li2">MPI C++ bindings are removed since they are no longer supported my MPI-3 standard. All MPI calls are C-style.</li>
+  <li class="li2">On-the-fly filtering support illustrated through examples.</li>
+  <li class="li2">Frequently asked questions (FAQ) added.</li>
+  <li class="li2">Maximal Independent Set (MIS) application implemented in the language of linear algebra.</li>
+</ul>
+<p class="p5"><b></b><br></p>
+<h3 style="margin: 0.0px 0.0px 14.0px 0.0px; font: 14.0px Times"><b>CombBLAS 1.2.1 </b><span class="s2">(April, 2012)</span></h3>
+<ul class="ul1">
+  <li class="li2">Sparse matrix assignment is improved to cover cases where the additive inverses are not available.</li>
+  <li class="li2">Prune with row/column vector indices are supported.</li>
+  <li class="li2">New test/timing scripts for galerkin restriction.</li>
+</ul>
+<h2 style="margin: 0.0px 0.0px 14.0px 0.0px; font: 18.0px Times"><b>CombBLAS 1.2 </b><span class="s2">(March, 2012)</span></h2>
+<ul class="ul1">
+  <li class="li2">It is made possible to create matrices with globally 64-bit, locally 32-bit indices.</li>
+  <ul class="ul2">
+    <li class="li2">This is very handy because the index range for submatrices are typically addressible with 32-bit indices but the global semantics require 64-bit computation.</li>
+    <li class="li8"><span class="s3">Example: </span>SpParMat &lt;int64_t, float, SpDCCols&lt;int32_t,float&gt; &gt; A;</li>
+  </ul>
+  <li class="li2">Some primitives (Sparse SpMV, EWiseMult, Apply, Set) are hybrid multithreaded (using OpenMP) within a socket.</li>
+  <li class="li2">A new binary format is introduced that enables parallel I/O.</li>
+  <li class="li2">Filtering (in the context of semantic graphs) is supported in Sparse SpMV and SpGEMM by checking against the semiring additive identity (SAID) that is returned by the scalar semiring multiply if the edge is filtered.</li>
+</ul>
+<h3 style="margin: 0.0px 0.0px 14.0px 0.0px; font: 14.0px Times"><b>CombBLAS 1.1.1 </b><span class="s2">(August, 2011)</span></h3>
+<ul class="ul1">
+  <li class="li2">Bug fixes for the Graph500 sample script and some sample input files.</li>
+</ul>
+<p class="p3"><br></p>
+<h2 style="margin: 0.0px 0.0px 14.0px 0.0px; font: 18.0px Times"><b>CombBLAS 1.1 </b><span class="s2">(May 2011)</span></h2>
+<ul class="ul1">
+  <li class="li2">Fully distributed vectors are supported for better load balance; diagonally distributed vectors are deprecated.</li>
+  <li class="li2">Scalable Sparse SpMV (that enables breadth-first search) is exposed.</li>
+  <li class="li2">Many new functions such as Matlab equivalent <span class="s4">Sparse()</span>-like constructor and <span class="s4">Find()</span></li>
+  <li class="li2">An exact splitter is used recursively until the range is covered by at most 512 core, before PSort is called. This is because PSort needed local memory that was quadratic in the number of processors.</li>
+  <li class="li2">Sparse matrix to dense vector reduction along rows is made memory efficient for large number of cores.</li>
+</ul>
+<p class="p3"><br></p>
+<h2 style="margin: 0.0px 0.0px 14.0px 0.0px; font: 18.0px Times"><b>CombBLAS 1.0 </b><span class="s2">(May 2011)</span></h2>
+<ul class="ul1">
+  <li class="li2">Initial release of the Combinatorial BLAS.</li>
+</ul>
+<p class="p9"><br></p>
+<p class="p2">Go <a href="file:///Users/aydinbuluc/SVNLOCAL/kdt/trunk/CombBLAS/index.html"><span class="s5">back</span></a> to the the Combinatorial BLAS home page.</p>
+</body>
+</html>
