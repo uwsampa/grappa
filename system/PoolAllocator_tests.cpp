@@ -118,9 +118,25 @@ void test_async_delegate() {
     BOOST_MESSAGE( "x = " << test_async_x );
     return true;
   });
-  
+    
   BOOST_CHECK_EQUAL(a.get(), true);
   BOOST_CHECK_EQUAL(delegate::read(make_global(&test_async_x, 1)), 7);
+  
+  BOOST_MESSAGE("Testing reuse...");
+  
+  pool.block_until_all_sent();
+  
+  BOOST_CHECK_EQUAL(pool.remaining(), 2048);
+  
+  delegate::Promise<bool> b;
+  b.call_async(pool, 1, []()->bool {
+    test_async_x = 8;
+    return true;
+  });
+    
+  BOOST_CHECK_EQUAL(b.get(), true);
+  BOOST_CHECK_EQUAL(delegate::read(make_global(&test_async_x, 1)), 8);
+  
 }
 
 
