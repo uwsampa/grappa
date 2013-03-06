@@ -4,20 +4,14 @@
 #include <cmath>
 
 #include "StatisticBase.hpp"
-#include "SimpleStatistic.hpp"
 
 namespace Grappa {
 
   template<typename T>
-  class SummarizingStatistic : public SimpleStatistic<T> {
-    // apparently you need these because we're inheriting from a template class
-    // (it would also work to do this->value everywhere, but this seems better)
-    // see: http://www.parashift.com/c++-faq-lite/nondependent-name-lookup-members.html
-    using SimpleStatistic<T>::value;
-    using SimpleStatistic<T>::initial_value;
-    using impl::StatisticBase::name;
+  class SummarizingStatistic : public impl::StatisticBase {
   protected:
-
+    const T initial_value;
+    T value;
     size_t n;
     double mean;
     double M2;
@@ -38,31 +32,49 @@ namespace Grappa {
     }
 
 #ifdef VTRACE_SAMPLED
+    unsigned vt_counter_value;
     unsigned vt_counter_count;
     unsigned vt_counter_mean;
     unsigned vt_counter_stddev;
-    using SimpleStatistic<T>::vt_sample;
-    using SimpleStatistic<T>::vt_type;
-    using SimpleStatistic<T>::vt_counter;
+    static const int vt_type;
+    
+    inline void vt_sample() const;
 #endif
     
   public:
     
     SummarizingStatistic(const char * name, T initial_value, bool reg_new = true)
-    : SimpleStatistic<T>(name, initial_value, reg_new) {
-      reset();
+      : impl::StatisticBase(name, reg_new)
+      , initial_value(initial_value)
+      , value(initial_value)
+      , n(0) // TODO: this assumes initial_value is not actually a value
+      , mean(initial_value)
+      , M2(0) {
 #ifdef VTRACE_SAMPLED
-      // TODO: add traces for summary statistics
-      //vt_counter_count = VT_COUNT_DEF(name, name, , VT_COUNT_DEFGROUP);
+      if (SummarizingStatistic::vt_type == -1) {
+        LOG(ERROR) << "warning: VTrace sampling unsupported for this type of SummarizingStatistic.";
+      } else {
+        vt_counter_value = VT_COUNT_DEF(name, name, SummarizingStatistic::vt_type, VT_COUNT_DEFGROUP);
+        // TODO: add traces for summary statistics
+        //vt_counter_count = VT_COUNT_DEF(name, name, , VT_COUNT_DEFGROUP);
+      }
 #endif
     }
 
-    SummarizingStatistic(const SummarizingStatistic& s )
-      : SimpleStatistic<T>( s.name, false )
+    SummarizingStatistic(const SummarizingStatistic& s ) 
+      : impl::StatisticBase( s.name, false )
+      , initial_value(s.initial_value)
+      , value( s.value )
       , n( s.n )
       , mean( s.mean )
       , M2( s.M2 ) {
       // no vampir registration since this is for merging
+    }
+    
+    virtual void reset() {
+      value = initial_value;
+      n = 0;
+      mean = M2 = 0;
     }
     
     virtual std::ostream& json(std::ostream& o) const {
@@ -71,14 +83,6 @@ namespace Grappa {
       o << '"' << name << "_mean\": \"" << mean << "\", ";
       o << '"' << name << "_stddev\": \"" << stddev() << "\"";
       return o;
-    }
-    
-    virtual void reset() {
-      SimpleStatistic<T>::reset();
-      // TODO: this assumes initial_value is not actually a value
-      n = 0;
-      mean = initial_value;
-      M2 = 0;
     }
     
     virtual void sample() const {
