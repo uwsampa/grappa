@@ -264,7 +264,11 @@ namespace Grappa {
   forall_localized(GlobalAddress<T> base, int64_t nelems, F loop_body) {
     static_assert(block_size % sizeof(T) == 0,
                   "forall_localized requires size of objects to evenly divide into block_size");
-    on_all_cores([base, nelems, loop_body]{
+    
+    GCE->enroll(cores()); // make sure everyone has to check in, even if they don't have any work
+    Core origin = mycore();
+    
+    on_all_cores([base, nelems, loop_body, origin]{
 //      GCE->reset();
 //      barrier();
       
@@ -278,6 +282,7 @@ namespace Grappa {
       };
       forall_here_async<GCE,Threshold>(0, n, &f);
       
+      complete(make_global(GCE,origin));
       GCE->wait();
     });
   }
