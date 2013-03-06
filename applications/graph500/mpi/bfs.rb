@@ -7,7 +7,7 @@ load '../../../igor_common.rb'
 Igor do
   include Isolatable
 
-  database '~/exp/sosp-test.db', :bfs
+  database '~/exp/sosp.db', :bfs
 
   # isolate everything needed for the executable so we can sbcast them for local execution
   isolate(%w[simple replicated replicated_csc].map{|v| "graph500_mpi_#{v}"},
