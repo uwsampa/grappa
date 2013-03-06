@@ -1,0 +1,39 @@
+To Developers:
+
+Whenever you introduce a new instantiation of the existing types, such as
+SpParMat< NEWINDEXTYPE, NEWVALUETYPE, NEWLOCALMATRIX>, you should create 
+three traits:
+
+1) Inside promote.h, tell the compiler how to determine the return type of
+binop(bool,NEWVALUETYPE) where binop is usually a user defined multiplication.
+
+2) You should do a similar promotion for your NEWLOCALMATRIX, as done at the
+end of SpDCCols.h because the compiler can not deduce your NEWLOCALMATRIX's promotion
+from the promotion information of its template parameters. At this point, you
+should declare promotions for each possible instantiation of your NEWLOCALMATRIX
+object. Here is an example:
+
+template <> struct 
+promote_trait< NEWLOCALMATRIX<int64_t,double> , NEWLOCALMATRIX<int64_t,bool> >
+{
+      typedef NEWLOCALMATRIX<int64_t,double> T_promote;
+};
+
+3) You should add a mechanism for the compiler to infer the types of template
+parameters in your NEWLOCALMATRIX. This allows the compiler to instantiate a
+concrete NEWLOCALMATRIX<> object with the promoted type parameters.
+
+template <class NIT, class NNT>  struct 
+create_trait< NEWLOCALMATRIX<int64_t, bool> , NIT, NNT >
+{
+    typedef NEWLOCALMATRIX<NIT,NNT> T_inferred;
+    typedef SpTuples<NIT,NNT> TUP_inferred; // required for internals
+};
+ 
+For all three, you can use the existing traits as examples.
+
+To Users:
+
+Please avoid declaring vectors (FullyDistVec, FullyDistSpVec, etc) with NT=bool.
+Parallel vectors uses vector<NT> internally, which breaks with bool. You are
+more than welcome (and encouraged) to declare matrices (SpParMat) with NT=bool.

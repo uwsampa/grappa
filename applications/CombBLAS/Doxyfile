@@ -1,0 +1,18 @@
+PROJECT_NAME = COMBINATORIAL_BLAS
+PROJECT_NUMBER = 1.3
+OUTPUT_DIRECTORY = doc
+OUTPUT_LANGUAGE = English
+EXTRACT_ALL = YES
+FILE_PATTERNS = *.cpp *.h
+RECURSIVE = YES
+PDF_HYPERLINKS = YES
+USE_PDFLATEX   = YES
+EXCLUDE_PATTERNS = */Test/* \
+		*/BranchTrial/* \
+		*/SequenceHeaps/* \
+		*/pspectralclustering/* \
+		*/ms_inttypes/* \
+		*/ms_sys/* \	
+		*/mfiles/* \
+		*/hyperthread_finder.cpp/*
+SOURCE_BROWSER	= YES

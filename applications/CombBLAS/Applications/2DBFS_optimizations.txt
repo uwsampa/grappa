@@ -1,0 +1,29 @@
+New signature #1: 
+SpImpl:SpMXSV(...., vector< pair<IT,IT> > vec_boundaries) // default is vec_boundaries  = empty vector
+
+- This hints the parallel logic down to the sequential operation
+- Advantages:
+ a) We no longer need to repartition in the parallel function
+ b) Potentially smaller (but multiple) working sets. Any help?
+
+
+
+The original prototype was:
+void SpImpl::SpMXSpV(const Dcsc<IT,NT1> & Adcsc, 
+			IT mA, 
+			IT nA, 
+			const IT * indx, 
+			const NT2 * numx, 
+			IT veclen,
+                	vector<IT> & indy,  // becomes a vector of vectors, size = boundaries.size() = p_c
+			vector< typename promote_trait<NT1,NT2>::T_promote > & numy) // same change here
+
+
+New signature #2:
+SpImpl:SpMXSV(...., vector< pair<IT,IT> > mat_boundaries) // default is mat_boundaries = empty vector
+
+mat_boundaries.size() is ideally equal to the number of threads available.
+If not, each thread handles multiple mat_boundaries.
+
+
+How we do combine signatures #1 and #2?
