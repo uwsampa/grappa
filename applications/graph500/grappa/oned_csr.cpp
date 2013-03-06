@@ -157,7 +157,7 @@ static int64_t prefix_sum(GlobalAddress<int64_t> xoff, int64_t nv) {
   auto offsets = static_cast<GlobalAddress<XoffT>>(xoff);
   
   forall_localized(offsets, nv, [offsets,nv](int64_t s, int64_t n, XoffT * x){
-    char buf[n * delegate::write_msg_size<int64_t>()];
+    char buf[n * sizeof(delegate::write_msg_proxy<int64_t>)];
     MessagePoolBase pool(buf, sizeof(buf));
     
     for (int i=0; i<n; i++) {
@@ -208,7 +208,7 @@ static int64_t prefix_sum(GlobalAddress<int64_t> xoff, int64_t nv) {
     
     // put back into original array
     forall_here(0, nlocal, [xoff,r](int64_t s, int64_t n){
-      char buf[n * delegate::write_msg_size<int64_t>()];
+      char buf[n * sizeof(delegate::write_msg_proxy<int64_t>)];
       MessagePoolBase pool(buf, sizeof(buf));
       for (int64_t i=s; i<s+n; i++) {
         delegate::write_async(pool, xoff+2*(r.start+i), prefix_temp_base[i]);
