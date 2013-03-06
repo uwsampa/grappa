@@ -146,14 +146,79 @@ LOOP_FUNCTOR( prefix_sum_node, nid,
   delete buf;
 }
 
+int64_t * prefix_temp_base;
+int64_t prefix_count;
+
 static int64_t prefix_sum(GlobalAddress<int64_t> xoff, int64_t nv) {
-  prefix_sum_node fps;
-  fps.xoff = xoff;
-  fps.nv = nv;
-  fork_join_custom(&fps);
- 
-  // return total sum 
-  return Grappa_delegate_read_word(make_global(&local_prefix, Grappa_nodes()-1));
+  auto prefix_temp = Grappa_typed_malloc<int64_t>(nv);
+  call_on_all_cores([prefix_temp,nv]{ prefix_temp_base = prefix_temp.localize(); });
+  
+  struct XoffT { int64_t start, end; };
+  auto offsets = static_cast<GlobalAddress<XoffT>>(xoff);
+  
+  forall_localized(offsets, nv, [offsets,nv](int64_t s, int64_t n, XoffT * x){
+    char buf[n * delegate::write_msg_size<int64_t>()];
+    MessagePoolBase pool(buf, sizeof(buf));
+    
+    for (int i=0; i<n; i++) {
+      int64_t index = make_linear(x+i)-offsets;
+      block_offset_t b = indexToBlock(index, nv, cores());
+      CHECK_LT(b.block, cores());
+      delegate::write_async(pool, make_global(prefix_temp_base+b.offset, b.block), x[i].start);
+    }
+  });
+  
+  VLOG(1) << "after moving to block-distribution";
+  
+  int64_t total_sum = 0;
+  auto total_addr = make_global(&total_sum);
+  
+  on_all_cores([xoff,nv,total_addr] {
+    // compute reduction locally
+    range_t r = blockDist(0, nv, mycore(), cores());
+    auto nlocal = r.end - r.start;
+    
+    int64_t local_sum = 0;
+    for (int64_t i=0; i<nlocal; i++) { local_sum += prefix_temp_base[i]; }
+    
+    // compute global scan across cores
+    Core cafter = cores()-mycore();
+    for (Core c = mycore()+1; c < cores(); c++) {
+      // TODO: overlap delegates
+      delegate::fetch_and_add(make_global(&prefix_count,c), local_sum);
+    }
+
+    barrier();
+    
+    if (mycore() == cores()-1) {
+      auto accum = prefix_count + local_sum;
+      VLOG(1) << "nadj = " << accum + MINVECT_SIZE;
+      delegate::write(xoff+2*nv, accum);
+      delegate::write(total_addr, accum + MINVECT_SIZE);
+    }
+    
+    DVLOG(4) << "prefix_count = " << prefix_count << ", local_sum = " << local_sum;
+    // do prefix sum locally
+    local_sum = prefix_count;
+    for (int64_t i=0; i<nlocal; i++) {
+      int64_t tmp = prefix_temp_base[i];
+      prefix_temp_base[i] = local_sum;
+      local_sum += tmp;
+    }
+    
+    // put back into original array
+    forall_here(0, nlocal, [xoff,r](int64_t s, int64_t n){
+      char buf[n * delegate::write_msg_size<int64_t>()];
+      MessagePoolBase pool(buf, sizeof(buf));
+      for (int64_t i=s; i<s+n; i++) {
+        delegate::write_async(pool, xoff+2*(r.start+i), prefix_temp_base[i]);
+      }
+    });
+    impl::local_gce.wait();
+  });
+
+  // return total sum
+  return total_sum;
 }
 
 LOOP_FUNCTOR( minvect_func, index,
