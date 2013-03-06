@@ -18,27 +18,13 @@
 
 GRAPPA_DEFINE_EVENT_GROUP(bfs);
 
-
-#define read      Grappa_delegate_read_word
-#define write     Grappa_delegate_write_word
-//#define cmp_swap  Grappa_delegate_compare_and_swap_word
-#define fetch_add Grappa_delegate_fetch_and_add_word
-#define allreduce_add Grappa_allreduce<int64_t,coll_add<int64_t>,0>
-
 struct bfs_tree_entry {
-  int64_t _storage;
+  int64_t depth  : 16;
+  int64_t parent : 48;
 
-  bfs_tree_entry() { set(-1, 0); }
-  bfs_tree_entry(short depth, int64_t parent) { set(depth, parent); }
-  
-  void set(int64_t depth, int64_t parent) { _storage = (depth << 48) + parent; }
-  short depth() { return _storage >> 48; }
-  int64_t parent() { return _storage & ((1L<<48)-1); }
+  bfs_tree_entry(): depth(-1), parent(0) {}
+  bfs_tree_entry(short depth, int64_t parent): depth(depth), parent(parent) {}
 };
-
-void init_bfs_tree(bfs_tree_entry * e) {
-  new (e) bfs_tree_entry();
-}
 
 static PushBuffer<int64_t> vlist_buf;
 
@@ -82,103 +68,39 @@ static bool bfs_counters_added = false;
 // count number of vertex visited
 static uint64_t bfs_vertex_visited = 0;
 
-DEFINE_int64(cas_flattener_size, 20, "log2 of the number of unique elements in the hash set used to short-circuit compare and swaps");
+//DEFINE_int64(cas_flattener_size, 20, "log2 of the number of unique elements in the hash set used to short-circuit compare and swaps");
 DEFINE_double(beamer_alpha, 1.0, "Beamer BFS parameter for switching to bottom-up.");
 DEFINE_double(beamer_beta, 1.0, "Beamer BFS parameter for switching back to top-down.");
 
-int64_t cmp_swaps_total;
-int64_t cmp_swaps_shorted;
-
-struct claim_parenthood_args {
-  GlobalAddress<bfs_tree_entry> target;
-  int64_t parent;
-};
-
-inline bool claim_parenthood_delegate(claim_parenthood_args p) {
-  CHECK(p.target.node() == Grappa_mynode());
-  bfs_tree_entry * t = p.target.pointer();
-  if (t->depth() == -1) {
-    t->set(current_depth, p.parent);
-    return true;
-  } else {
-    return false;
-  }
-}
+//int64_t cmp_swaps_total;
+//int64_t cmp_swaps_shorted;
 
 inline bool claim_parenthood(GlobalAddress<bfs_tree_entry> target, int64_t parent) {
   cmp_swaps_total++;
-  claim_parenthood_args p; p.target = target; p.parent = parent;
-  return Grappa_delegate_func<claim_parenthood_args,bool,claim_parenthood_delegate>(p, target.node());
-}
-
-inline bool in_frontier_delegate(GlobalAddress<bfs_tree_entry> target) {
-  CHECK(target.node() == Grappa_mynode());
-  bfs_tree_entry * t = target.pointer();
-  if (t->depth() == -1) return false;
-  return t->depth() < current_depth;
+  return delegate::call(target.node(), [target,parent]{
+    bfs_tree_entry * t = target.pointer();
+    if (t->depth == -1) {
+      t->depth = current_depth;
+      t->parent = p.parent;
+      return true;
+    } else {
+      return false;
+    }
+  });
 }
 
 inline bool in_frontier(int64_t v) {
   GlobalAddress<bfs_tree_entry> target = bfs_tree+v;
-  return Grappa_delegate_func<GlobalAddress<bfs_tree_entry>,bool,in_frontier_delegate>(target, target.node());
+  return delegate::call(target.node(), [target]{
+    bfs_tree_entry * t = target.pointer();
+    if (t->depth == -1) return false;
+    return t->depth < current_depth;
+  });
 }
 
 void up_visit_parents(bfs_tree_entry * parent) {
   bfs_tree_entry& p = *parent;
   
-  if (p.depth() != -1) return;
-
-  ++bfs_vertex_visited;
-  
-  const int64_t v = make_linear(&p) - bfs_tree;
-
-  int64_t xoff_buf[2];
-  Incoherent<int64_t>::RO cxoff(xoff+2*v, 2, xoff_buf);
-  const int64_t vstart = cxoff[0], vend = cxoff[1];
-
-  for_buffered(j, nc, vstart, vend, NBUF) {
-    int64_t adj_buf[NBUF];
-    Incoherent<int64_t>::RO cadj(xadj+j, nc, adj_buf);
-    for (size_t k=0; k<nc; k++) {
-
-      ++bfs_neighbors_visited;
-      const int64_t n = cadj[k];
-
-      if (in_frontier(n)) {
-        p.set(current_depth, n);
-        vlist_buf.push(v);
-        //incr_frontier_edges(v); // not strictly necessary to keep count anymore
-        return;
-      }
-
-    }
-  }
-}
-
-
-void visit_neighbor(int64_t n, int64_t * neighbor_base, const int64_t& v) {
-  ++bfs_neighbors_visited;
-
-  const int64_t j = neighbor_base[n];
-  
-  // TODO: feed-forward-ize
-  if (claim_parenthood(bfs_tree+j, v)) {
-    vlist_buf.push(j);
-    incr_frontier_edges(j);
-  }
-}
-
-/// for use with forall_local
-/// @param v  vertex in frontier
-void visit_frontier(int64_t * va) {
-  ++bfs_vertex_visited;
-  const int64_t v = *va;
-
-  int64_t buf[2];
-  Incoherent<int64_t>::RO cxoff(xoff+2*v, 2, buf);
-  const int64_t vstart = cxoff[0], vend = cxoff[1];
-
-  forall_local_async<int64_t,int64_t,visit_neighbor>(xadj+vstart, vend-vstart, make_linear(va));
 }
 
 static unsigned mark_bfs_level = -1;
@@ -318,10 +240,58 @@ double make_bfs_tree(csr_graph * g, GlobalAddress<int64_t> in_bfs_tree, int64_t 
     if (top_down) {
       VLOG(2) << "top_down";
       // top-down level
-      forall_local<int64_t,visit_frontier>(vlist+k1, k2-k1);
+      // forall_local<int64_t,visit_frontier>(vlist+k1, k2-k1);
+      forall_localized(vlist+k1, k2-k1, [](int64_t i, int64_t& v){
+        ++bfs_vertex_visited;
+        
+        int64_t buf[2];
+        Incoherent<int64_t>::RO cxoff(xoff+2*v, 2, buf);
+        const int64_t vstart = cxoff[0], vend = cxoff[1];
+        
+        // forall_local_async<int64_t,int64_t,visit_neighbor>(xadj+vstart, vend-vstart, make_linear(va));
+        forall_localized_async(xadj+vstart, vend-vstart, [v](int64_t ji, int64_t j) {
+          ++bfs_neighbors_visited;
+          
+          // TODO: feed-forward-ize
+          if (claim_parenthood(bfs_tree+j, v)) {
+            vlist_buf.push(j);
+            incr_frontier_edges(j);
+          }
+        });
+
+      });
     } else {
       // bottom-up level
-      forall_local<bfs_tree_entry,up_visit_parents,1>(bfs_tree, NV);
+      // forall_local<bfs_tree_entry,up_visit_parents,1>(bfs_tree, NV);
+      forall_localized(bfs_tree, NV, [](int64_t ti, bfs_tree_entry& p){
+        if (p.depth() != -1) return;
+        
+        ++bfs_vertex_visited;
+        
+        const int64_t v = make_linear(&p) - bfs_tree;
+        
+        int64_t xoff_buf[2];
+        Incoherent<int64_t>::RO cxoff(xoff+2*v, 2, xoff_buf);
+        const int64_t vstart = cxoff[0], vend = cxoff[1];
+        
+        for_buffered(j, nc, vstart, vend, NBUF) {
+          int64_t adj_buf[NBUF];
+          Incoherent<int64_t>::RO cadj(xadj+j, nc, adj_buf);
+          for (size_t k=0; k<nc; k++) {
+            
+            ++bfs_neighbors_visited;
+            const int64_t n = cadj[k];
+            
+            if (in_frontier(n)) {
+              p.set(current_depth, n);
+              vlist_buf.push(v);
+              //incr_frontier_edges(v); // not strictly necessary to keep count anymore
+              return;
+            }
+            
+          }
+        }
+      });
     }
 
     { bfs_finish_level f; fork_join_custom(&f); }
