@@ -206,6 +206,7 @@ public:
     messages_++;
     bytes_ += bytes;
 #ifdef GASNET_CONDUIT_IBV
+    if( bytes > 4095 ) bytes = 4095;
     histogram_[ (bytes >> 8) & 0xf ]++;
 #endif
   }

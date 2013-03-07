@@ -902,7 +902,7 @@ extern Aggregator global_aggregator;
   } while(0)
 
 
-#ifndef DISABLE_RDMA_AGGREGATOR
+#ifdef ENABLE_RDMA_AGGREGATOR
 #include "Message.hpp"
 #endif
 
