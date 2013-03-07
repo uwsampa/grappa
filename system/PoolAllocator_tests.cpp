@@ -72,7 +72,7 @@ void test_pool_external() {
   
   {
     char buffer[1024];
-    MessagePoolBase pool(buffer, 1<<16);
+    MessagePool pool(buffer, 1<<16);
     
     ConditionVariable cv;
     auto cv_addr = make_global(&cv);
