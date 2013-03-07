@@ -289,6 +289,8 @@ void search_vertex( int64_t id ) {
     Incoherent<vertex_t>::RO v( v_addr, 1, &v_storage );
     /* (v) = Vertex[id] */
 
+    DVLOG(5) << "Search vertex " << *v << "(local count = " << tj_num_searched_nodes << ")";
+
     numChildren = (*v).numChildren;
     childIndex = (*v).childIndex;
   }
@@ -382,8 +384,11 @@ void par_create_tree() {
 
 void par_search_tree(int64_t root) {
   on_all_cores( [root] {
+    DVLOG(5) << "resetting joiner for search";
     joiner.reset();
+    DVLOG(5) << "entering barrier for search";
     barrier();
+    DVLOG(5) << "starting search";
     if ( Grappa::mycore == 0 ) {
       search_vertex( root );
     }
@@ -527,7 +532,7 @@ void user_main ( user_main_args * args ) {
   //
   LOG(INFO) << "starting tree search";
   Result r_search;
-  start_profiling();
+  //start_profiling();
   Grappa_reset_stats_all_nodes();
   t1 = uts_wctime();
  
@@ -538,7 +543,7 @@ void user_main ( user_main_args * args ) {
   r_search.size = -1; // will calculate with reduce
   
   t2 = uts_wctime();
-  stop_profiling();
+  //stop_profiling();
   Grappa_merge_and_dump_stats( LOG(INFO) );
 
 
