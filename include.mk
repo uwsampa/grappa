@@ -189,7 +189,7 @@ SHMMAX?=12884901888
 
 # include this first to override system default if necessary
 BOOST?=/sampa/share/gcc-4.7.2/src/boost_1_51_0
-CFLAGS+= -I$(BOOST)/boost
+CFLAGS+= -I$(BOOST)
 LDFLAGS+= -L$(BOOST)/stage/lib
 LD_LIBRARY_PATH:=$(LD_LIBRARY_PATH):$(BOOST)/stage/lib
 
