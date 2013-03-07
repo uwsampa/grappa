@@ -16,7 +16,7 @@ namespace Grappa {
     /// the message. Enrolls with GCE so you can guarantee all have completed after a global
     /// GlobalCompletionEvent::wait() call.
     template<GlobalCompletionEvent * GCE = &Grappa::impl::local_gce, typename F = decltype(nullptr)>
-    inline void call_async(MessagePoolBase& pool, Core dest, F remote_work) {
+    inline void call_async(impl::MessagePoolBase& pool, Core dest, F remote_work) {
       static_assert(std::is_same< decltype(remote_work()), void >::value, "return type of callable must be void when not associated with Promise.");
       delegate_stats.count_op();
       Core origin = Grappa::mycore();
@@ -37,7 +37,7 @@ namespace Grappa {
     
     /// Uses `call_async()` to write a value asynchronously.
     template<GlobalCompletionEvent * GCE = &Grappa::impl::local_gce, typename T = decltype(nullptr), typename U = decltype(nullptr) >
-    inline void write_async(MessagePoolBase& pool, GlobalAddress<T> target, U value) {
+    inline void write_async(impl::MessagePoolBase& pool, GlobalAddress<T> target, U value) {
       delegate::call_async(pool, target.core(), [target,value]{
         (*target.pointer()) = value;
       });
@@ -58,7 +58,7 @@ namespace Grappa {
     
     /// Uses `call_async()` to atomically increment a value asynchronously.
     template<typename T, typename U, GlobalCompletionEvent * GCE = &Grappa::impl::local_gce >
-    inline void increment_async(MessagePoolBase& pool, GlobalAddress<T> target, U increment) {
+    inline void increment_async(impl::MessagePoolBase& pool, GlobalAddress<T> target, U increment) {
       delegate::call_async(pool, target.core(), [target,increment]{
         (*target.pointer()) += increment;
       });
@@ -102,7 +102,7 @@ namespace Grappa {
       }
       
       template <typename F>
-      void call_async(MessagePoolBase& pool, Core dest, F func) {
+      void call_async(impl::MessagePoolBase& pool, Core dest, F func) {
         static_assert(std::is_same<R, decltype(func())>::value, "return type of callable must match the type of this Promise");
         _result.reset();
         delegate_stats.count_op();
