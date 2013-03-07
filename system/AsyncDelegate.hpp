@@ -57,7 +57,7 @@ namespace Grappa {
     };
     
     /// Uses `call_async()` to atomically increment a value asynchronously.
-    template<typename T, typename U, GlobalCompletionEvent * GCE = &Grappa::impl::local_gce >
+    template< GlobalCompletionEvent * GCE = &Grappa::impl::local_gce, typename T = void, typename U = void >
     inline void increment_async(impl::MessagePoolBase& pool, GlobalAddress<T> target, U increment) {
       delegate::call_async(pool, target.core(), [target,increment]{
         (*target.pointer()) += increment;
