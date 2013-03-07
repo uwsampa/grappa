@@ -11,6 +11,9 @@
 #include <PushBuffer.hpp>
 #include <Collective.hpp>
 #include <Array.hpp>
+#include <ParallelLoop.hpp>
+
+using namespace Grappa;
 
 //#include <boost/hash.hpp>
 //#include <boost/unordered_set.hpp>
@@ -24,6 +27,11 @@ struct bfs_tree_entry {
 
   bfs_tree_entry(): depth(-1), parent(0) {}
   bfs_tree_entry(short depth, int64_t parent): depth(depth), parent(parent) {}
+  
+  void set(short depth, int64_t parent) {
+    this->depth = depth;
+    this->parent = parent;
+  }
 };
 
 static PushBuffer<int64_t> vlist_buf;
@@ -32,7 +40,6 @@ static GlobalAddress<int64_t> vlist;
 static GlobalAddress<int64_t> xoff;
 static GlobalAddress<int64_t> xadj;
 static GlobalAddress<bfs_tree_entry> bfs_tree;
-static GlobalAddress<int64_t> k2;
 static int64_t nadj;
 static int64_t nv;
 
@@ -76,12 +83,12 @@ DEFINE_double(beamer_beta, 1.0, "Beamer BFS parameter for switching back to top-
 //int64_t cmp_swaps_shorted;
 
 inline bool claim_parenthood(GlobalAddress<bfs_tree_entry> target, int64_t parent) {
-  cmp_swaps_total++;
+//  cmp_swaps_total++;
   return delegate::call(target.node(), [target,parent]{
     bfs_tree_entry * t = target.pointer();
     if (t->depth == -1) {
       t->depth = current_depth;
-      t->parent = p.parent;
+      t->parent = parent;
       return true;
     } else {
       return false;
@@ -98,74 +105,18 @@ inline bool in_frontier(int64_t v) {
   });
 }
 
-void up_visit_parents(bfs_tree_entry * parent) {
-  bfs_tree_entry& p = *parent;
-  
-}
-
 static unsigned mark_bfs_level = -1;
 static unsigned mark_start_bottom_up = -1;
 static unsigned mark_start_top_down = -1;
 
-
-LOOP_FUNCTOR(setup_bfs, nid, GA64(_vlist)GA64(_xoff)GA64(_xadj)((GlobalAddress<bfs_tree_entry>,_bfs_tree))GA64(_k2)((int64_t,_nadj)) ((int64_t,_nv))) {
-
-  if ( !bfs_counters_added ) {
-    bfs_counters_added = true;
-    Grappa_add_profiling_counter( &bfs_neighbors_visited, "bfs_neighbors_visited", "bfsneigh", true, 0 );
-    Grappa_add_profiling_counter( &bfs_vertex_visited, "bfs_vertex_visited", "bfsverts", true, 0 );
-  }
-
-  // setup globals
-  vlist = _vlist;
-  xoff = _xoff;
-  xadj = _xadj;
-  bfs_tree = _bfs_tree;
-  k2 = _k2;
-  nadj = _nadj;
-  nv = _nv;
-  
-  // initialize push buffer (so it knows where to push to)
-  vlist_buf.setup(vlist, k2);
-
-  current_depth = 0;
-  nfrontier_edges = 0;
-  nremaining_edges = nadj;
-  delta_frontier_edges = delta_remaining_edges = 0;
-
-  // initialize cmp_swap flat combiner
-  //cmp_swaps_total = cmp_swaps_shorted = 0;
-  //parent_set.clear();
-  //if (combiner == NULL) { combiner = new CmpSwapCombiner(); }
-  //combiner->clear();
-}
-
-LOOP_FUNCTION( bfs_finish_level, nid ) {  
-  vlist_buf.flush();
-  current_depth++;
-
-  nfrontier_edges = allreduce_add(delta_frontier_edges);
-  nremaining_edges -= nfrontier_edges; // allreduce_add(delta_remaining_edges);
-  delta_frontier_edges = delta_remaining_edges = 0;
-
-  //VLOG(2) << "phase complete";
-}
-
-LOOP_FUNCTION( bfs_finish, nid ) {
-  bfs_neighbors_visited = allreduce_add(bfs_neighbors_visited);
-  bfs_vertex_visited = allreduce_add(bfs_vertex_visited);
-  cmp_swaps_shorted = allreduce_add(cmp_swaps_shorted);
-  cmp_swaps_total = allreduce_add(cmp_swaps_total);
-}
-
 void convert_tree_entry(bfs_tree_entry * e) {
   int64_t * t = reinterpret_cast<int64_t*>(e);
-  if (e->depth() == -1) {
+  if (e->depth == -1) {
     *t = -1;
   } else { 
-    *t = e->parent();
+    *t = e->parent;
   }
-  CHECK( *t < nv) << "bfs_tree[" << make_linear(e)-bfs_tree << "] = " << e->parent() << " (depth=" << e->depth() << ")";
+  CHECK( *t < nv) << "bfs_tree[" << make_linear(e)-bfs_tree << "] = " << e->parent << " (depth=" << e->depth << ")";
 }
 
 #ifdef VTRACE
@@ -185,8 +136,8 @@ void convert_tree_entry(bfs_tree_entry * e) {
 
 double make_bfs_tree(csr_graph * g, GlobalAddress<int64_t> in_bfs_tree, int64_t root) {
   int64_t NV = g->nv;
-  GlobalAddress<int64_t> vlist = Grappa_typed_malloc<int64_t>(NV);
-  GlobalAddress<bfs_tree_entry> bfs_tree = (GlobalAddress<bfs_tree_entry>)in_bfs_tree;
+  GlobalAddress<int64_t> _vlist = Grappa_typed_malloc<int64_t>(NV);
+  GlobalAddress<bfs_tree_entry> _bfs_tree = (GlobalAddress<bfs_tree_entry>)in_bfs_tree;
  
 #ifdef VTRACE 
   if (mark_bfs_level == -1) mark_bfs_level = VT_MARKER_DEF("bfs_level", VT_MARKER_TYPE_HINT);
@@ -198,20 +149,50 @@ double make_bfs_tree(csr_graph * g, GlobalAddress<int64_t> in_bfs_tree, int64_t 
   t = timer();
   
   // start with root as only thing in vlist
-  write(vlist, root);
+  delegate::write(_vlist, root);
   nfrontier_edges = 1;
   
   int64_t k1 = 0, k2 = 1;
   GlobalAddress<int64_t> k2addr = make_global(&k2);
   
   // setup globals on all nodes
-  { setup_bfs f(vlist, g->xoff, g->xadj, bfs_tree, k2addr, g->nadj, g->nv); fork_join_custom(&f); }
+  csr_graph& graph = *g;
+  on_all_cores([graph, _vlist, _bfs_tree, k2addr]{
+    if ( !bfs_counters_added ) {
+      bfs_counters_added = true;
+      Grappa_add_profiling_counter( &bfs_neighbors_visited, "bfs_neighbors_visited", "bfsneigh", true, 0 );
+      Grappa_add_profiling_counter( &bfs_vertex_visited, "bfs_vertex_visited", "bfsverts", true, 0 );
+    }
+    
+    // setup globals
+    vlist = _vlist;
+    xoff = graph.xoff;
+    xadj = graph.xadj;
+    bfs_tree = _bfs_tree;
+    nadj = graph.nadj;
+    nv = graph.nv;
+    
+    // initialize push buffer (so it knows where to push to)
+    vlist_buf.setup(vlist, k2addr);
+    
+    current_depth = 0;
+    nfrontier_edges = 0;
+    nremaining_edges = nadj;
+    delta_frontier_edges = delta_remaining_edges = 0;
+    
+    // initialize cmp_swap flat combiner
+    //cmp_swaps_total = cmp_swaps_shorted = 0;
+    //parent_set.clear();
+    //if (combiner == NULL) { combiner = new CmpSwapCombiner(); }
+    //combiner->clear();
+  });
   
   // initialize bfs_tree to -1
-  //Grappa_memset_local(bfs_tree, bfs_tree_entry(),  NV);
-  forall_local<bfs_tree_entry,init_bfs_tree>(bfs_tree, NV);
-  
-  write(bfs_tree+root, root); // parent of root is self
+  forall_localized(_bfs_tree, NV, [](int64_t i, bfs_tree_entry& b){
+    b.depth = -1;
+    b.parent = -1;
+  });
+  delegate::write(_bfs_tree+root, bfs_tree_entry(0, root)); // parent of root is self
   
   bool top_down = true;
   size_t prev_nf = -1;
@@ -263,12 +244,13 @@ double make_bfs_tree(csr_graph * g, GlobalAddress<int64_t> in_bfs_tree, int64_t 
     } else {
       // bottom-up level
       // forall_local<bfs_tree_entry,up_visit_parents,1>(bfs_tree, NV);
-      forall_localized(bfs_tree, NV, [](int64_t ti, bfs_tree_entry& p){
-        if (p.depth() != -1) return;
+      forall_localized(bfs_tree, NV, [](int64_t v, bfs_tree_entry& p){
+        if (p.depth != -1) return;
         
         ++bfs_vertex_visited;
         
-        const int64_t v = make_linear(&p) - bfs_tree;
+//        const int64_t v = make_linear(&p) - bfs_tree;
+        CHECK_LT(v, nv);
         
         int64_t xoff_buf[2];
         Incoherent<int64_t>::RO cxoff(xoff+2*v, 2, xoff_buf);
@@ -294,7 +276,15 @@ double make_bfs_tree(csr_graph * g, GlobalAddress<int64_t> in_bfs_tree, int64_t 
       });
     }
 
-    { bfs_finish_level f; fork_join_custom(&f); }
+    on_all_cores([]{
+      vlist_buf.flush();
+      current_depth++;
+      
+      nfrontier_edges = Grappa::allreduce<int64_t,collective_add>(delta_frontier_edges);
+      nremaining_edges -= nfrontier_edges; // allreduce_add(delta_remaining_edges);
+      delta_frontier_edges = delta_remaining_edges = 0;
+    });
+    
     
     prev_nf = nf;
     k1 = oldk2;
@@ -303,16 +293,21 @@ double make_bfs_tree(csr_graph * g, GlobalAddress<int64_t> in_bfs_tree, int64_t 
   t = timer() - t;
   GRAPPA_TRACE_END("top_down");
   
-  { bfs_finish f; fork_join_custom(&f); }
+//  { bfs_finish f; fork_join_custom(&f); }
+  bfs_neighbors_visited = Grappa::reduce<uint64_t,collective_add>(&bfs_neighbors_visited);
+  bfs_vertex_visited = Grappa::reduce<uint64_t,collective_add>(&bfs_vertex_visited);
+//  cmp_swaps_shorted = Grappa::reduce<uint64_t,collective_add>(cmp_swaps_shorted);
+//  cmp_swaps_total = Grappa::reduce<uint64_t,collective_add>(cmp_swaps_total);
+  
   VLOG(1) << "bfs_vertex_visited = " << bfs_vertex_visited;
   VLOG(1) << "bfs_neighbors_visited = " << bfs_neighbors_visited;
-  VLOG(1) << "cmp_swaps_shorted: " << cmp_swaps_shorted;
-  VLOG(1) << "cmp_swaps_total: " << cmp_swaps_total;
+//  VLOG(1) << "cmp_swaps_shorted: " << cmp_swaps_shorted;
+//  VLOG(1) << "cmp_swaps_total: " << cmp_swaps_total;
   
-  Grappa_free(vlist);
+  Grappa_free(_vlist);
   
   // clean up bfs_tree depths
-  forall_local<bfs_tree_entry,convert_tree_entry>(bfs_tree, NV);
+  forall_local<bfs_tree_entry,convert_tree_entry>(_bfs_tree, NV);
 
   return t;
 }
