@@ -254,9 +254,9 @@ namespace Grappa {
   ///
   /// Warning: you cannot simply increment `first_index` `niters` times and get the
   /// correct global index because a single task may span more than one block.
-  template< typename T,
-            GlobalCompletionEvent * GCE = &impl::local_gce,
+  template< GlobalCompletionEvent * GCE = &impl::local_gce,
             int64_t Threshold = impl::USE_LOOP_THRESHOLD_FLAG,
+            typename T = decltype(nullptr),
             typename F = decltype(nullptr) >
   // type_traits magic to make this verison work for 3-arg functors
   typename std::enable_if< function_traits<F>::arity == 3,
