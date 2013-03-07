@@ -583,6 +583,11 @@ inline void TaskingScheduler::thread_on_exit( ) {
 extern TaskingScheduler global_scheduler;
 
 } // namespace impl
+
+inline Worker& current_worker() {
+  return *impl::global_scheduler.get_current_thread();
+}
+
 } // namespace Grappa
 
 #endif // TASKING_SCHEDULER_HPP
