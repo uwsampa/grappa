@@ -11,6 +11,7 @@
 #include "Grappa.hpp"
 #include "Addressing.hpp"
 #include "Message.hpp"
+#include "MessagePool.hpp"
 
 #ifdef VTRACE
 #include <vt_user.h>
@@ -215,8 +216,7 @@ public:
       
       // allocate enough requests/messages that we don't run out
       size_t nmsg = total_bytes / block_size + 2;
-      RequestArgs arg_array[nmsg];
-      Grappa::ExternalMessage<RequestArgs> msg_array[nmsg];
+      Grappa::MessagePoolStatic<STACK_SIZE/2> pool;
       
       for(size_t i = 0;
            args.offset < total_bytes; 
@@ -233,9 +233,44 @@ public:
                  << " of total bytes = " << *count_ * sizeof(T)
                  << " from " << args.request_address;
 
-        arg_array[i] = args;
-        new (msg_array+i) Grappa::ExternalMessage<RequestArgs>(arg_array[i].request_address.node(), &arg_array[i]);
-        msg_array[i].enqueue();
+        pool.send_message(args.request_address.core(), [args]{
+          incoherent_acquirer_stats.count_acquire_ams( args.request_bytes );
+          DVLOG(5) << "Thread " << CURRENT_THREAD
+          << " received acquire request to " << args.request_address
+          << " size " << args.request_bytes
+          << " offset " << args.offset
+          << " reply to " << args.reply_address;
+          
+          DVLOG(5) << "Thread " << CURRENT_THREAD
+          << " sending acquire reply to " << args.reply_address
+          << " offset " << args.offset
+          << " request address " << args.request_address
+          << " payload address " << args.request_address.pointer()
+          << " payload size " << args.request_bytes;
+          
+          // note: this will read the payload *later* when the message is copied into the actual send buffer,
+          // should be okay because we're already assuming DRF, but something to watch out for
+          auto reply_address = args.reply_address;
+          auto offset = args.offset;
+          
+          Grappa::send_heap_message(args.reply_address.node(),
+            [reply_address, offset](void * payload, size_t payload_size) {
+              DVLOG(5) << "Thread " << CURRENT_THREAD
+              << " received acquire reply to " << reply_address
+              << " offset " << offset
+              << " payload size " << payload_size;
+              reply_address.pointer()->acquire_reply( offset, payload, payload_size);
+            },
+            args.request_address.pointer(), args.request_bytes
+          );
+          
+          DVLOG(5) << "Thread " << CURRENT_THREAD
+          << " sent acquire reply to " << args.reply_address
+          << " offset " << args.offset
+          << " request address " << args.request_address
+          << " payload address " << args.request_address.pointer()
+          << " payload size " << args.request_bytes;
+        });
 
         // TODO: change type so we don't screw with pointer like this
         args.request_address = GlobalAddress<T>::Raw( args.request_address.raw_bits() + args.request_bytes );
