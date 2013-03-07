@@ -296,9 +296,9 @@ namespace Grappa {
   /// anything for a single task. If you would like to do something that will be used by
   /// multiple iterations, use the other version of Grappa::forall_localized that takes a
   /// lambda that operates on a range.
-  template< typename T,
-            GlobalCompletionEvent * GCE = &impl::local_gce,
+  template< GlobalCompletionEvent * GCE = &impl::local_gce,
             int64_t Threshold = impl::USE_LOOP_THRESHOLD_FLAG,
+            typename T = decltype(nullptr),
             typename F = decltype(nullptr) >
   // type_traits magic to make this verison work for 2-arg functors
   typename std::enable_if< function_traits<F>::arity == 2,
@@ -329,8 +329,8 @@ namespace Grappa {
   /// loop_body functor should be of the form:
   ///   void(int64_t index, T& element)
   template< GlobalCompletionEvent * GCE = &impl::local_gce,
-            typename T = decltype(nullptr),
             int64_t Threshold = impl::USE_LOOP_THRESHOLD_FLAG,
+            typename T = decltype(nullptr),
             typename F = decltype(nullptr) >
   void forall_localized_async(GlobalAddress<T> base, int64_t nelems, F loop_body) {
     Core nc = cores();
