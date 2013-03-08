@@ -49,6 +49,7 @@ allclean: clean
 
 clean:
 	rm -f main.o oned_csr.o verify.o options.o $(BFS).o graph.exe
+	cd ../generator; $(MAKE) -f Makefile.grappa clean
 
 otf: force
 	make -f ../../../system/Makefile.tau otf

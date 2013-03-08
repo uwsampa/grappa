@@ -106,6 +106,15 @@ struct Thread {
     __builtin_prefetch( co->stack, 0, 3 );                           // try to keep stack in cache
     if( data_prefetch ) __builtin_prefetch( data_prefetch, 0, 0 );   // for low-locality data
   }
+  
+  inline intptr_t stack_remaining() {
+    register long rsp asm("rsp");
+    int64_t remain = static_cast<int64_t>(rsp) - reinterpret_cast<int64_t>(this->co->base) - 4096;
+    DCHECK_LT(remain, static_cast<int64_t>(STACK_SIZE)) << "rsp = " << reinterpret_cast<void*>(rsp) << ", co->base = " << co->base << ", STACK_SIZE = " << STACK_SIZE;
+    DCHECK_GE(remain, 0) << "rsp = " << reinterpret_cast<void*>(rsp) << ", co->base = " << co->base << ", STACK_SIZE = " << STACK_SIZE;
+
+    return remain;
+  }
 };
         
 /// Remove a Thread from the queue and return it

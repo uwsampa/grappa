@@ -72,7 +72,7 @@ void test_pool_external() {
   
   {
     char buffer[1024];
-    MessagePoolBase pool(buffer, 1<<16);
+    MessagePool pool(buffer, 1<<16);
     
     ConditionVariable cv;
     auto cv_addr = make_global(&cv);
@@ -118,17 +118,61 @@ void test_async_delegate() {
     BOOST_MESSAGE( "x = " << test_async_x );
     return true;
   });
-  
+    
   BOOST_CHECK_EQUAL(a.get(), true);
   BOOST_CHECK_EQUAL(delegate::read(make_global(&test_async_x, 1)), 7);
+  
+  BOOST_MESSAGE("Testing reuse...");
+  
+  pool.block_until_all_sent();
+  
+  BOOST_CHECK_EQUAL(pool.remaining(), 2048);
+  
+  delegate::Promise<bool> b;
+  b.call_async(pool, 1, []()->bool {
+    test_async_x = 8;
+    return true;
+  });
+    
+  BOOST_CHECK_EQUAL(b.get(), true);
+  BOOST_CHECK_EQUAL(delegate::read(make_global(&test_async_x, 1)), 8);
+  
 }
 
+void test_overrun() {
+  BOOST_MESSAGE("Testing overrun.");
+    
+  struct RemoteWrite {
+    GlobalAddress<FullEmpty<int64_t>> a;
+    RemoteWrite(FullEmpty<int64_t> * x): a(make_global(x)) {}
+    void operator()() {
+      auto aa = a;
+      send_heap_message(a.core(), [aa] {
+        aa.pointer()->writeXF(1);
+      });
+    }
+  };
+  
+  MessagePoolStatic<sizeof(Message<RemoteWrite>)> pool;
+  
+  FullEmpty<int64_t> x;
+  FullEmpty<int64_t> y;
+  
+  pool.send_message(1, RemoteWrite(&x));
+  
+  // should block... (use '--vmodule MessagePool=3' to verify)
+  pool.send_message(1, RemoteWrite(&y));
+  
+  BOOST_CHECK_EQUAL(x.readFF(), 1);
+  BOOST_CHECK_EQUAL(y.readFF(), 1);
+}
 
 void user_main(void* ignore) {
   test_pool1();
   test_pool2();
   test_pool_external();
   test_async_delegate();
+  test_overrun();
 }
 
 BOOST_AUTO_TEST_CASE( test1 ) {
