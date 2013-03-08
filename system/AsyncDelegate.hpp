@@ -16,7 +16,7 @@ namespace Grappa {
     /// the message. Enrolls with GCE so you can guarantee all have completed after a global
     /// GlobalCompletionEvent::wait() call.
     template<GlobalCompletionEvent * GCE = &Grappa::impl::local_gce, typename F = decltype(nullptr)>
-    inline void call_async(MessagePoolBase& pool, Core dest, F remote_work) {
+    inline void call_async(impl::MessagePoolBase& pool, Core dest, F remote_work) {
       static_assert(std::is_same< decltype(remote_work()), void >::value, "return type of callable must be void when not associated with Promise.");
       delegate_stats.count_op();
       Core origin = Grappa::mycore();
@@ -25,14 +25,43 @@ namespace Grappa {
         // short-circuit if local
         remote_work();
       } else {
-        delegate_stats.count_op_am();
         if (GCE) GCE->enroll();
         
         pool.send_message(dest, [origin, remote_work] {
+          delegate_stats.count_op_am();
           remote_work();
           if (GCE) complete(make_global(GCE,origin));
         });
       }
+    }
+    
+    /// Uses `call_async()` to write a value asynchronously.
+    template<GlobalCompletionEvent * GCE = &Grappa::impl::local_gce, typename T = decltype(nullptr), typename U = decltype(nullptr) >
+    inline void write_async(impl::MessagePoolBase& pool, GlobalAddress<T> target, U value) {
+      delegate::call_async<GCE>(pool, target.core(), [target,value]{
+        (*target.pointer()) = value;
+      });
+    }
+    
+    /// To help calculate pool sizes
+    /// TODO: refactor call_async so it actually uses this struct so we don't have to maintain two
+    template<typename T>
+    struct write_msg_proxy {
+      struct func {
+        Core origin;
+        GlobalAddress<T> target;
+        T value;
+        void operator()() {}
+      };
+      Message<func> msg;
+    };
+    
+    /// Uses `call_async()` to atomically increment a value asynchronously.
+    template< GlobalCompletionEvent * GCE = &Grappa::impl::local_gce, typename T = void, typename U = void >
+    inline void increment_async(impl::MessagePoolBase& pool, GlobalAddress<T> target, U increment) {
+      delegate::call_async<GCE>(pool, target.core(), [target,increment]{
+        (*target.pointer()) += increment;
+      });
     }
     
     /// A 'Promise' is a wrapper around a FullEmpty for async delegates with return values.
@@ -73,7 +102,7 @@ namespace Grappa {
       }
       
       template <typename F>
-      void call_async(MessagePoolBase& pool, Core dest, F func) {
+      void call_async(impl::MessagePoolBase& pool, Core dest, F func) {
         static_assert(std::is_same<R, decltype(func())>::value, "return type of callable must match the type of this Promise");
         _result.reset();
         delegate_stats.count_op();

@@ -95,7 +95,7 @@ void Grappa_start_profiling() {
 #ifdef VTRACE_SAMPLED
   VT_USER_START("sampling");
   Grappa_reset_stats();
-  Grappa::Statistics::sample_all();
+  Grappa::Statistics::sample();
 #endif
 #endif
 }
@@ -110,7 +110,7 @@ void Grappa_stop_profiling() {
   Grappa_dump_stats();
 
   Grappa_reset_stats();
-  Grappa::Statistics::sample_all();
+  Grappa::Statistics::sample();
 #endif
 #endif
 }
