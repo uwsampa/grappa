@@ -10,6 +10,8 @@
 
 #include "Grappa.hpp"
 #include "Message.hpp"
+#include "MessagePool.hpp"
+#include "tasks/TaskingScheduler.hpp"
 
 #ifdef VTRACE
 #include <vt_user.h>
@@ -18,17 +20,6 @@
 // forward declare for active message templates
 template< typename T >
 class IncoherentReleaser;
-
-
-template< typename T >
-static void incoherent_release_reply_am( typename IncoherentReleaser< T >::ReplyArgs * args, 
-                                         size_t size, 
-                                         void * payload, size_t payload_size );
-
-template< typename T >
-static void incoherent_release_request_am( typename IncoherentReleaser< T >::RequestArgs * args, 
-                                           size_t size, 
-                                           void * payload, size_t payload_size );
 
 /// Stats for IncoherentReleaser
 class IRStatistics {
@@ -146,47 +137,75 @@ public:
               << " issuing release for " << *request_address_ 
               << " * " << *count_ ;
       release_started_ = true;
-      RequestArgs args;
-      args.request_address = *request_address_;
-      DVLOG(5) << "Computing request_bytes from block_max " << request_address_->first_byte().block_max() << " and " << *request_address_;
-      args.reply_address = make_global( this );
-      size_t offset = 0;  
-      size_t request_bytes = 0;
       size_t total_bytes = *count_ * sizeof(T);
 
       // allocate enough requests/messages that we don't run out
       size_t nmsg = total_bytes / block_size + 2;
-      RequestArgs arg_array[nmsg];
-      Grappa::ExternalPayloadMessage<RequestArgs> msg_array[nmsg];
+      size_t msg_size = sizeof(Grappa::PayloadMessage<RequestArgs>);
       
-      for( size_t i = 0;
-           offset < total_bytes; 
-           offset += request_bytes, i++) {
-
-        request_bytes = args.request_address.first_byte().block_max() - args.request_address.first_byte();
-
-        if( request_bytes > total_bytes - offset ) {
-          request_bytes = total_bytes - offset;
-        }
-
-        DVLOG(5) << "sending release request with " << request_bytes
-                 << " of total bytes = " << *count_ * sizeof(T)
-                 << " to " << args.request_address;
-
-        arg_array[i] = args;
-        new (msg_array+i) Grappa::ExternalPayloadMessage<RequestArgs>(arg_array[i].request_address.node(), &arg_array[i], ((char*)(*pointer_)) + offset, request_bytes);
-        msg_array[i].enqueue();
-//        Grappa_call_on( args.request_address.node(), &incoherent_release_request_am<T>,
-//                         &args, sizeof( args ),
-//                         ((char*)(*pointer_)) + offset, request_bytes);
-
-	// TODO: change type so we don't screw with pointer like this
-        args.request_address = GlobalAddress<T>::Raw( args.request_address.raw_bits() + request_bytes );
+      if (nmsg*msg_size < Grappa::current_worker().stack_remaining()-8192) {
+        // try to put message storage on stack if there's space
+        char msg_buf[nmsg*msg_size];
+        Grappa::MessagePool pool(msg_buf, sizeof(msg_buf));
+        do_release(pool);
+      } else {
+        // fall back on heap-allocating the storage
+        Grappa::MessagePool pool(nmsg*msg_size);
+        do_release(pool);
       }
-      DVLOG(5) << "release started for " << args.request_address;
-      
-      // blocks here waiting for messages to be sent
     }
+  }
+  
+  void do_release(Grappa::impl::MessagePoolBase& pool) {
+    size_t total_bytes = *count_ * sizeof(T);
+    
+    RequestArgs args;
+    args.request_address = *request_address_;
+    DVLOG(5) << "Computing request_bytes from block_max " << request_address_->first_byte().block_max() << " and " << *request_address_;
+    args.reply_address = make_global( this );
+    size_t offset = 0;
+    size_t request_bytes = 0;
+
+    for( size_t i = 0;
+         offset < total_bytes; 
+         offset += request_bytes, i++) {
+
+      request_bytes = args.request_address.first_byte().block_max() - args.request_address.first_byte();
+
+      if( request_bytes > total_bytes - offset ) {
+        request_bytes = total_bytes - offset;
+      }
+
+      DVLOG(5) << "sending release request with " << request_bytes
+               << " of total bytes = " << *count_ * sizeof(T)
+               << " to " << args.request_address;
+
+      pool.send_message(args.request_address.core(),
+        [args](void * payload, size_t payload_size) {
+          incoherent_releaser_stats.count_release_ams( payload_size );
+          DVLOG(5) << "Thread " << CURRENT_THREAD
+          << " received release request to " << args.request_address
+          << " reply to " << args.reply_address;
+          memcpy( args.request_address.pointer(), payload, payload_size );
+    
+          auto reply_address = args.reply_address;
+          Grappa::send_heap_message(args.reply_address.core(), [reply_address]{
+            DVLOG(5) << "Thread " << CURRENT_THREAD << " received release reply to " << reply_address;
+            reply_address.pointer()->release_reply();
+          });
+    
+          DVLOG(5) << "Thread " << CURRENT_THREAD
+          << " sent release reply to " << reply_address;
+        },
+        (char*)(*pointer_) + offset, request_bytes
+      );
+
+      // TODO: change type so we don't screw with pointer like this
+      args.request_address = GlobalAddress<T>::Raw( args.request_address.raw_bits() + request_bytes );
+    }
+    DVLOG(5) << "release started for " << args.request_address;
+    
+    // blocks here waiting for messages to be sent
   }
 
   void block_until_released() {
@@ -229,34 +248,10 @@ public:
   }
 
   bool released() const { return released_; }
-
-
-  struct ReplyArgs {
-    GlobalAddress< IncoherentReleaser > reply_address;
-    void operator()() {
-      DVLOG(5) << "Thread " << CURRENT_THREAD << " received release reply to " << reply_address;
-      reply_address.pointer()->release_reply( );
-    }
-  };
   
   struct RequestArgs {
     GlobalAddress< T > request_address;
     GlobalAddress< IncoherentReleaser > reply_address;
-    
-    void operator()(void * payload, size_t payload_size) {
-      incoherent_releaser_stats.count_release_ams( payload_size );
-      DVLOG(5) << "Thread " << CURRENT_THREAD
-      << " received release request to " << request_address
-      << " reply to " << reply_address;
-      memcpy( request_address.pointer(), payload, payload_size );
-      ReplyArgs reply_args;
-      reply_args.reply_address = reply_address;
-      
-      Grappa::send_heap_message(reply_address.node(), reply_args);
-      
-      DVLOG(5) << "Thread " << CURRENT_THREAD
-      << " sent release reply to " << reply_address;
-    }
   };
 };
 
