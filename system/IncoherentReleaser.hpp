@@ -141,7 +141,7 @@ public:
 
       // allocate enough requests/messages that we don't run out
       size_t nmsg = total_bytes / block_size + 2;
-      size_t msg_size = sizeof(Grappa::Message<RequestArgs>);
+      size_t msg_size = sizeof(Grappa::PayloadMessage<RequestArgs>);
       
       if (nmsg*msg_size < Grappa::current_worker().stack_remaining()-8192) {
         // try to put message storage on stack if there's space
