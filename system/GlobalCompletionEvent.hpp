@@ -94,7 +94,7 @@ public:
   /// Note: this can be called in a message handler (e.g. remote completes from stolen tasks).
   void complete(int64_t dec = 1) {
     count -= dec;
-    VLOG(4) << "complete (" << count << ")";
+    DVLOG(4) << "complete (" << count << ") -- " << this;
     
     // out of work here
     if (count == 0) { // count[dec -> 0]
