@@ -25,10 +25,10 @@ namespace Grappa {
         // short-circuit if local
         remote_work();
       } else {
-        delegate_stats.count_op_am();
         if (GCE) GCE->enroll();
         
         pool.send_message(dest, [origin, remote_work] {
+          delegate_stats.count_op_am();
           remote_work();
           if (GCE) complete(make_global(GCE,origin));
         });
@@ -38,7 +38,7 @@ namespace Grappa {
     /// Uses `call_async()` to write a value asynchronously.
     template<GlobalCompletionEvent * GCE = &Grappa::impl::local_gce, typename T = decltype(nullptr), typename U = decltype(nullptr) >
     inline void write_async(impl::MessagePoolBase& pool, GlobalAddress<T> target, U value) {
-      delegate::call_async(pool, target.core(), [target,value]{
+      delegate::call_async<GCE>(pool, target.core(), [target,value]{
         (*target.pointer()) = value;
       });
     }
@@ -59,7 +59,7 @@ namespace Grappa {
     /// Uses `call_async()` to atomically increment a value asynchronously.
     template< GlobalCompletionEvent * GCE = &Grappa::impl::local_gce, typename T = void, typename U = void >
     inline void increment_async(impl::MessagePoolBase& pool, GlobalAddress<T> target, U increment) {
-      delegate::call_async(pool, target.core(), [target,increment]{
+      delegate::call_async<GCE>(pool, target.core(), [target,increment]{
         (*target.pointer()) += increment;
       });
     }
