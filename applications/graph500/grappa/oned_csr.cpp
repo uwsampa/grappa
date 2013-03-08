@@ -42,54 +42,21 @@ using namespace Grappa;
 
 GlobalAddress<int64_t> xoff;
 
-static int64_t maxvtx, nv;
+static int64_t maxvtx = 0, nv = 0;
 
-LOOP_FUNCTOR( max_func, index,
-             (( GlobalAddress<packed_edge>,edges))
-             ((int64_t *, max)) )
-{
-  Incoherent<packed_edge>::RO cedge(edges+index, 1);
-  if (cedge[0].v0 > *max) {
-    *max = cedge[0].v0;
-  }
-  if (cedge[0].v1 > *max) {
-    *max = cedge[0].v1;
-  }
-}
-
-LOOP_FUNCTOR( node_max_func, mynode, 
-  ((GlobalAddress<packed_edge>, edges))
-  ((int64_t,start)) (( int64_t,end )) ((int64_t,init_max)) )
-{
-  int64_t max = init_max;
-  range_t myblock = blockDist(start, end, mynode, Grappa_nodes());
-  max_func f;
-  f.edges = edges;
-  f.max = &max;
-  fork_join_onenode(&f, myblock.start, myblock.end);
-    
-  maxvtx = Grappa_allreduce<int64_t, collective_max, 0>( max );
-  
-  nv = maxvtx+1;
-}
+static GlobalCompletionEvent my_gce;
 
 static void find_nv(const tuple_graph* const tg) {
-  node_max_func f(tg->edges, 0, tg->nedge, 0);
-  fork_join_custom(&f);
+  forall_localized(tg->edges, tg->nedge, [](int64_t i, packed_edge& e){
+    if (e.v0 > maxvtx) { maxvtx = e.v0; }
+    else if (e.v1 > maxvtx) { maxvtx = e.v1; }
+  });
+  on_all_cores([]{
+    maxvtx = Grappa::allreduce<int64_t,collective_add>(maxvtx);
+    nv = maxvtx+1;
+  });
 }
 
-// note: this corresponds to how Graph500 counts 'degree' (both in- and outgoing edges to each vertex)
-LOOP_FUNCTOR( degree_func, index, (( GlobalAddress<packed_edge>, edges )) ((GlobalAddress<int64_t>,xoff)) )
-{ 
-  Incoherent<packed_edge>::RO cedge(edges+index, 1);
-  int64_t i = cedge[0].v0;
-  int64_t j = cedge[0].v1;
-  if (i != j) { //skip self-edges
-    // TODO: these should be overlapping
-    Grappa_delegate_fetch_and_add_word(XOFF(i), 1);
-    Grappa_delegate_fetch_and_add_word(XOFF(j), 1);
-  }
-}
 
 LOOP_FUNCTOR( local_reduce_sum, index,
     (( GlobalAddress<int64_t>, xoff )) (( int64_t *, sum )) )
@@ -153,18 +120,17 @@ static int64_t prefix_sum(GlobalAddress<int64_t> xoff, int64_t nv) {
   auto prefix_temp = Grappa_typed_malloc<int64_t>(nv);
   call_on_all_cores([prefix_temp,nv]{ prefix_temp_base = prefix_temp.localize(); });
   
-  struct XoffT { int64_t start, end; };
-  auto offsets = static_cast<GlobalAddress<XoffT>>(xoff);
+  auto offsets = static_cast<GlobalAddress<range_t>>(xoff);
   
-  forall_localized(offsets, nv, [offsets,nv](int64_t s, int64_t n, XoffT * x){
+  forall_localized<&my_gce>(offsets, nv, [offsets,nv](int64_t s, int64_t n, range_t * x){
     char buf[n * sizeof(delegate::write_msg_proxy<int64_t>)];
-    MessagePoolBase pool(buf, sizeof(buf));
+    MessagePool pool(buf, sizeof(buf));
     
     for (int i=0; i<n; i++) {
       int64_t index = make_linear(x+i)-offsets;
       block_offset_t b = indexToBlock(index, nv, cores());
       CHECK_LT(b.block, cores());
-      delegate::write_async(pool, make_global(prefix_temp_base+b.offset, b.block), x[i].start);
+      delegate::write_async<&my_gce>(pool, make_global(prefix_temp_base+b.offset, b.block), x[i].start);
     }
   });
   
@@ -188,14 +154,13 @@ static int64_t prefix_sum(GlobalAddress<int64_t> xoff, int64_t nv) {
       delegate::fetch_and_add(make_global(&prefix_count,c), local_sum);
     }
 
-    impl::local_gce.enroll(); // make sure it doesn't dip down to 0 early
+    my_gce.enroll(); // make sure it doesn't dip down to 0 early
 
     barrier();    
     
     if (mycore() == cores()-1) {
       auto accum = prefix_count + local_sum;
       VLOG(1) << "nadj = " << accum + MINVECT_SIZE;
-      delegate::write(xoff+2*nv, accum);
       delegate::write(total_addr, accum + MINVECT_SIZE);
     }
     
@@ -211,26 +176,17 @@ static int64_t prefix_sum(GlobalAddress<int64_t> xoff, int64_t nv) {
     // put back into original array
     forall_here(0, nlocal, [xoff,r](int64_t s, int64_t n){
       char buf[n * sizeof(delegate::write_msg_proxy<int64_t>)];
-      MessagePoolBase pool(buf, sizeof(buf));
+      MessagePool pool(buf, sizeof(buf));
       for (int64_t i=s; i<s+n; i++) {
-        delegate::write_async(pool, xoff+2*(r.start+i), prefix_temp_base[i]);
+        delegate::write_async<&my_gce>(pool, xoff+2*(r.start+i), prefix_temp_base[i]);
       }
     });
-    impl::local_gce.complete();
-    impl::local_gce.wait();
+    my_gce.complete();
+    my_gce.wait();
   });
 
   // return total sum
   return total_sum;
-}
-
-LOOP_FUNCTOR( minvect_func, index,
-          (( GlobalAddress<int64_t>,xoff )) )
-{
-  int64_t v = Grappa_delegate_read_word(XOFF(index));
-  if (v < MINVECT_SIZE) {
-    Grappa_delegate_write_word(XOFF(index), MINVECT_SIZE);
-  }
 }
 
 LOOP_FUNCTOR( init_xendoff_func, index,
@@ -249,22 +205,23 @@ static void setup_deg_off(const tuple_graph * const tg, csr_graph * g) {
 
   // count occurrences of each vertex in edges
   VLOG(2) << "degree func";
-  forall_localized(tg->edges, tg->nedge, [](int64_t s, int64_t n, packed_edge * edge) {
+  // note: this corresponds to how Graph500 counts 'degree' (both in- and outgoing edges to each vertex)
+  forall_localized<&my_gce>(tg->edges, tg->nedge, [](int64_t s, int64_t n, packed_edge * edge) {
     char _poolbuf[2*n*128];
-    MessagePoolBase pool(_poolbuf, sizeof(_poolbuf));
+    MessagePool pool(_poolbuf, sizeof(_poolbuf));
     
     for (int64_t i=0; i<n; i++) {
       packed_edge& cedge = edge[i];
       if (cedge.v0 != cedge.v1) { //skip self-edges
-        delegate::increment_async(pool, XOFF(cedge.v0), 1);
-        delegate::increment_async(pool, XOFF(cedge.v1), 1);
+        delegate::increment_async<&my_gce>(pool, XOFF(cedge.v0), 1);
+        delegate::increment_async<&my_gce>(pool, XOFF(cedge.v1), 1);
       }
     }
   });
   
   VLOG(2) << "minvect func";
   // make sure every degree is at least MINVECT_SIZE (don't know why yet...)
-  forall_localized(xoff, g->nv, [](int64_t i, int64_t& vo) {
+  forall_localized<&my_gce>(xoff, g->nv, [](int64_t i, int64_t& vo) {
     if (vo < MINVECT_SIZE) { vo = MINVECT_SIZE; }
   });
   
@@ -278,16 +235,18 @@ static void setup_deg_off(const tuple_graph * const tg, csr_graph * g) {
 //  }
   
   //initialize XENDOFF to be the same as XOFF
-  init_xendoff_func fe; fe.xoff = g->xoff;
-  fork_join(&fe, 0, g->nv);
+  auto xoffr = static_cast<GlobalAddress<range_t>>(xoff);
+  forall_localized<&my_gce>(xoffr, g->nv, [](int64_t i, range_t& o){
+    o.end = o.start;
+  });
   
-  Grappa_delegate_write_word(XOFF(g->nv), accum);
+  delegate::write(xoff+2*g->nv, accum);
   g->nadj = accum+MINVECT_SIZE;
   
   g->xadjstore = Grappa_typed_malloc<int64_t>(accum + MINVECT_SIZE);
   g->xadj = g->xadjstore+MINVECT_SIZE; // cheat and permit xadj[-1] to work
   
-  Grappa_memset(g->xadjstore, (int64_t)0, accum+MINVECT_SIZE);
+  Grappa::memset(g->xadjstore, (int64_t)0, accum+MINVECT_SIZE);
 }
 
 
