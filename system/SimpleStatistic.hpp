@@ -2,26 +2,36 @@
 #pragma once
 
 #include "StatisticBase.hpp"
+#include <glog/logging.h>
+
+#ifdef VTRACE
+#include <vt_user.h>
+#endif
+
+#ifdef GOOGLE_PROFILER
+#include <gperftools/profiler.h>
+#endif
+
 
 namespace Grappa {
 
   template<typename T>
   class SimpleStatistic : public impl::StatisticBase {
   protected:
-    
+    T initial_value;
     T value;
     
 #ifdef VTRACE_SAMPLED
     unsigned vt_counter;
     static const int vt_type;
     
-    inline void vt_sample() const;
+    void vt_sample() const;
 #endif
     
   public:
     
     SimpleStatistic(const char * name, T initial_value, bool reg_new = true):
-        value(initial_value), impl::StatisticBase(name, reg_new) {
+        initial_value(initial_value), value(initial_value), impl::StatisticBase(name, reg_new) {
 #ifdef VTRACE_SAMPLED
         if (SimpleStatistic::vt_type == -1) {
           LOG(ERROR) << "warning: VTrace sampling unsupported for this type of SimpleStatistic.";
@@ -34,6 +44,10 @@ namespace Grappa {
     virtual std::ostream& json(std::ostream& o) const {
       o << '"' << name << "\": \"" << value << '"';
       return o;
+    }
+    
+    virtual void reset() {
+      value = initial_value;
     }
     
     virtual void sample() const {

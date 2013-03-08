@@ -10,7 +10,7 @@ namespace Grappa {
   template<typename T>
   class SummarizingStatistic : public impl::StatisticBase {
   protected:
-
+    const T initial_value;
     T value;
     size_t n;
     double mean;
@@ -44,7 +44,8 @@ namespace Grappa {
   public:
     
     SummarizingStatistic(const char * name, T initial_value, bool reg_new = true)
-      : impl::StatisticBase(name, reg_new) 
+      : impl::StatisticBase(name, reg_new)
+      , initial_value(initial_value)
       , value(initial_value)
       , n(0) // TODO: this assumes initial_value is not actually a value
       , mean(initial_value)
@@ -62,11 +63,18 @@ namespace Grappa {
 
     SummarizingStatistic(const SummarizingStatistic& s ) 
       : impl::StatisticBase( s.name, false )
+      , initial_value(s.initial_value)
       , value( s.value )
       , n( s.n )
       , mean( s.mean )
       , M2( s.M2 ) {
       // no vampir registration since this is for merging
+    }
+    
+    virtual void reset() {
+      value = initial_value;
+      n = 0;
+      mean = M2 = 0;
     }
     
     virtual std::ostream& json(std::ostream& o) const {

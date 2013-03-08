@@ -17,6 +17,7 @@
 #include "GlobalCompletionEvent.hpp"
 #include "Barrier.hpp"
 #include "Collective.hpp"
+#include "function_traits.hpp"
 
 /// Flag: loop_threshold
 ///
@@ -180,7 +181,7 @@ namespace Grappa {
   /// by copy to spawned tasks.
   /// Also uses impl::loop_decomposition_public, which adds 16 bytes to functor, so `loop_body`
   /// should be kept to 8 bytes for performance.
-  template< GlobalCompletionEvent * GCE = nullptr, int64_t Threshold = impl::USE_LOOP_THRESHOLD_FLAG, typename F = decltype(nullptr) >
+  template< GlobalCompletionEvent * GCE = &impl::local_gce, int64_t Threshold = impl::USE_LOOP_THRESHOLD_FLAG, typename F = decltype(nullptr) >
   void forall_here_async_public(int64_t start, int64_t iters, F loop_body) {
     if (GCE) GCE->enroll();
     impl::loop_decomposition_public<GCE,Threshold>(start, iters,
@@ -219,7 +220,7 @@ namespace Grappa {
     // can look it up when run, wherever it is.
     
     on_all_cores([start,iters,loop_body]{
-      GCE->reset();
+//      GCE->reset();
       GCE->set_shared_ptr(&loop_body); // need to initialize this on all nodes before any tasks start
       
       // may as well do this before the barrier too, but it shouldn't matter
@@ -247,14 +248,29 @@ namespace Grappa {
   /// Takes an optional pointer to a global static `GlobalCompletionEvent` as a template
   /// parameter to allow for programmer-specified task joining (to potentially allow
   /// more than one in flight simultaneously, though this call is itself blocking.
-  template< typename T,
-            GlobalCompletionEvent * GCE = &impl::local_gce,
+  ///
+  /// takes a lambda/functor that operates on a range of iterations:
+  ///   void(int64_t first_index, int64_t niters, T * first_element)
+  ///
+  /// Warning: you cannot simply increment `first_index` `niters` times and get the
+  /// correct global index because a single task may span more than one block.
+  template< GlobalCompletionEvent * GCE = &impl::local_gce,
             int64_t Threshold = impl::USE_LOOP_THRESHOLD_FLAG,
+            typename T = decltype(nullptr),
             typename F = decltype(nullptr) >
-  void forall_localized(GlobalAddress<T> base, int64_t nelems, F loop_body) {
-    on_all_cores([base, nelems, loop_body]{
-      GCE->reset();
-      barrier();
+  // type_traits magic to make this verison work for 3-arg functors
+  typename std::enable_if< function_traits<F>::arity == 3,
+    void >::type
+  forall_localized(GlobalAddress<T> base, int64_t nelems, F loop_body) {
+    static_assert(block_size % sizeof(T) == 0,
+                  "forall_localized requires size of objects to evenly divide into block_size");
+    
+    GCE->enroll(cores()); // make sure everyone has to check in, even if they don't have any work
+    Core origin = mycore();
+    
+    on_all_cores([base, nelems, loop_body, origin]{
+//      GCE->reset();
+//      barrier();
       
       T* local_base = base.localize();
       T* local_end = (base+nelems).localize();
@@ -262,15 +278,46 @@ namespace Grappa {
       
       auto f = [loop_body, local_base, base](int64_t start, int64_t iters) {
         auto laddr = make_linear(local_base+start);
-        
-        for (int64_t i=start; i<start+iters; i++) {
-          // TODO: check if this is inlined and if this loop is unrollable
-          loop_body(laddr-base, local_base[i]);
-        }
+        loop_body(laddr-base, iters, local_base+start);
       };
       forall_here_async<GCE,Threshold>(0, n, &f);
       
+      complete(make_global(GCE,origin));
       GCE->wait();
+    });
+  }
+  
+  
+  /// Alternate version of forall_localized that takes a lambda/functor with signature:
+  ///   void(int64_t index, T& element)
+  /// (internally wraps this call in a loop and passes to the other version of forall_localized)
+  ///
+  /// This is meant to make it easy to make a loop where you don't care about amortizing
+  /// anything for a single task. If you would like to do something that will be used by
+  /// multiple iterations, use the other version of Grappa::forall_localized that takes a
+  /// lambda that operates on a range.
+  template< GlobalCompletionEvent * GCE = &impl::local_gce,
+            int64_t Threshold = impl::USE_LOOP_THRESHOLD_FLAG,
+            typename T = decltype(nullptr),
+            typename F = decltype(nullptr) >
+  // type_traits magic to make this verison work for 2-arg functors
+  typename std::enable_if< function_traits<F>::arity == 2,
+    void >::type
+  forall_localized(GlobalAddress<T> base, int64_t nelems, F loop_body) {
+    
+    forall_localized(base, nelems, [loop_body,base](int64_t start, int64_t niters, T * first) {
+      auto block_elems = block_size / sizeof(T);
+      auto a = make_linear(first);
+      auto n_to_boundary = a.block_max() - a;
+      auto index = start;
+      
+      for (int64_t i=0; i<niters; i++,index++,n_to_boundary--) {
+        if (n_to_boundary == 0) {
+          index += block_elems * (cores()-1);
+          n_to_boundary = block_elems;
+        }
+        loop_body(index, first[i]);
+      }
     });
   }
   
@@ -279,10 +326,11 @@ namespace Grappa {
   /// Spawns tasks to on cores that *may contain elements* of the part of a linear array
   /// from base[0]-base[nelems].
   ///
-  /// 
+  /// loop_body functor should be of the form:
+  ///   void(int64_t index, T& element)
   template< GlobalCompletionEvent * GCE = &impl::local_gce,
-            typename T = decltype(nullptr),
             int64_t Threshold = impl::USE_LOOP_THRESHOLD_FLAG,
+            typename T = decltype(nullptr),
             typename F = decltype(nullptr) >
   void forall_localized_async(GlobalAddress<T> base, int64_t nelems, F loop_body) {
     Core nc = cores();
@@ -320,7 +368,8 @@ namespace Grappa {
           T* local_end = (base+nelems).localize();
           size_t n = local_end - local_base;
           
-          auto f = [base,loop_body](int64_t start, int64_t iters) {
+          CompletionEvent ce(n);
+          auto f = [base,loop_body, &ce](int64_t start, int64_t iters) {
             T* local_base = base.localize();
             auto laddr = make_linear(local_base+start);
             
@@ -328,9 +377,11 @@ namespace Grappa {
               // TODO: check if this is inlined and if this loop is unrollable
               loop_body(laddr-base, local_base[i]);
             }
+            ce.complete(iters);
           };
           forall_here_async<GCE,Threshold>(0, n, &f);
           
+          ce.wait();
           complete(make_global(GCE,origin));
         });
       });

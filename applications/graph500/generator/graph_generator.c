@@ -157,52 +157,8 @@ void make_one_edge(int64_t nverts, int level, int lgN, mrg_state* st, packed_edg
 }
 
 #ifdef _GRAPPA
-#include <ForkJoin.hpp>
-struct make_edges_local_func : ForkJoinIteration {
-  int64_t nverts;
-  int level;
-  int lgN;
-  mrg_state state;
-  GlobalAddress<packed_edge> base;
-  int64_t nelems;
-  uint64_t val0;
-  uint64_t val1;
-
-  make_edges_local_func( int64_t nverts, int level, int lgN,
-      mrg_state state, GlobalAddress<packed_edge> base,
-      int64_t nelems, uint64_t val0, uint64_t val1 ) 
-    : nverts ( nverts )
-      , level ( level )
-      , lgN ( lgN )
-      , state ( state )
-      , base ( base )
-      , nelems ( nelems )
-      , val0 ( val0 )
-      , val1 ( val1 )
-  {}
-
-  make_edges_local_func() {}
-
-  inline void operator()(int64_t) const;
-};
-inline void make_edges_local_func::operator()(int64_t nid) const {
-  packed_edge * local_base = base.localize();
-  packed_edge * local_end = (base+nelems).localize();
-
-  int64_t num_iters = local_end - local_base;
-
-  for (int64_t i=0; i<num_iters; i++) {
-    // get the global array index of this local location
-    int64_t ei = make_linear(local_base+i) - base; // This is likely compute-expensive for an inner loop
-
-    // copy the random generator state and seek
-    mrg_state new_state = state;
-    mrg_skip(&new_state, 0, ei, 0); 
-
-    make_one_edge(nverts, level, lgN, &new_state, local_base + i, val0, val1);
-  }
-}
-#endif // _GRAPPA
+#include <ParallelLoop.hpp>
+#endif
 
 /* Generate a range of edges (from start_edge to end_edge of the total graph),
  * writing into elements [0, end_edge - start_edge) of the edges array.  This
@@ -249,11 +205,16 @@ void generate_kronecker_range(
 
 #else // _GRAPPA
 
-  // Two possibilies here:
-  // 1. split across nodes by ei; this means write_edge will involve a remote operation
-  // 2. forall_local-style over 'edges', but this requires knowing which global indices you are working on to calc ei
-  { make_edges_local_func f( nverts, 0, logN, state, edges, end_edge-start_edge, val0, val1 ); fork_join_custom( &f ); }
+  Grappa::forall_localized(edges+start_edge, end_edge-start_edge,
+    [nverts, logN, state, val0, val1](int64_t index, packed_edge& edge) {
+      // copy the random generator state and seek
+      mrg_state new_state = state;
+      mrg_skip(&new_state, 0, index, 0);
 
+      make_one_edge(nverts, 0, logN, &new_state, &edge, val0, val1);
+    }
+  );
+  
 #endif // _GRAPPA
 }
 
