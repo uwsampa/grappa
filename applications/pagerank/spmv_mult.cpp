@@ -62,28 +62,47 @@ void row_loop( int64_t start, int64_t iters ) {
     
 // With current low level programming model, the choice to parallelize a loop involves different code
 
-
-DEFINE_bool(row_distribute, true, "nodes begin with equal number of row tasks");
-
-LOOP_FUNCTOR( matrix_mult_f, nid, ((weighted_csr_graph,matrix)) ((vector,src)) ((vector,targ)) ) {
-  spmv::m = matrix;
-  spmv::v = src;
-  spmv::y = targ;
-
-  global_joiner.reset();
-  if ( FLAGS_row_distribute ) {
-    range_t r = blockDist(0, spmv::m.nv, Grappa_mynode(), Grappa_nodes());
-    async_parallel_for<row_loop, joinerSpawn<row_loop,ASYNC_PAR_FOR_DEFAULT>,ASYNC_PAR_FOR_DEFAULT>(r.start, r.end-r.start);
-  } else {
-    if ( nid == 0 ) {
-    async_parallel_for<row_loop, joinerSpawn<row_loop,ASYNC_PAR_FOR_DEFAULT>,ASYNC_PAR_FOR_DEFAULT>(0, spmv::m.nv);
-    }
-  }
-  global_joiner.wait();
-}
-
+GlobalCompletionEvent mmjoiner;
 void spmv_mult( weighted_csr_graph A, vector x, vector y ) {
-  matrix_mult_f f; f.matrix=A; f.src=x; f.targ=y; fork_join_custom(&f);
+  // forall rows
+  forall_global_public<&mmjoiner>( 0, A.nv, [A, x, y]( int64_t start, int64_t iters ) {
+    // serialized chunk of rows
+    DVLOG(5) << "rows [" << start << ", " << start+iters << ")";
+    for (int64_t i=start; i<start+iters; i++ ) {
+      // kstart = row_ptr[i], kend = row_ptr[i+1]
+      int64_t kbounds[2];
+      Incoherent<int64_t>::RO cxoff( XOFF(A.xoff, i), 2, kbounds );
+      int64_t kstart = cxoff[0];
+      int64_t kend = cxoff[1];
+
+      // forall non-zero columns (parallel dot product)
+      forall_here_async_public<&mmjoiner>( kstart, kend-kstart, [i]( int64_t start, int64_t iters ) {
+        double yaccum = 0;
+
+        // serialized chunk of columns
+        int64_t j[iters];
+        double weights[iters];
+        Incoherent<int64_t>::RO cj( A.xadj + start, iters, j ); cj.start_acquire();
+        Incoherent<double>::RO cw( A.adjweight + start, iters, weights ); cw.start_acquire();
+        for( int64_t k = 0; k<iters; k++ ) {
+          double vj = Grappa::delegate::read(x.a + cj[k]);
+          yaccum += cw[k] * vj; 
+          DVLOG(5) << "yaccum += w["<<start+k<<"]("<<cw[k] <<") * val["<<cj[k]<<"("<<vj<<")"; 
+        }
+
+        DVLOG(4) << "y[" << i << "] += " << yaccum; 
+
+        // TODO: trait on call_async not to use pool
+        MessagePool pool( ##sizeof del## );
+        //FIXME async write
+        call_async<&mmjoiner>( pool, ..., {});
+        ff_delegate_add<double>( y.a+i, yaccum );
+        // could force local updates and bulk communication 
+        // here instead of relying on aggregation
+        // since we have to pay the cost of many increments and replies
+      });
+    }
+  });
 }
 
 
