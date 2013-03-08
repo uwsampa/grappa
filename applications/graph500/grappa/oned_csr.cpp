@@ -57,61 +57,7 @@ static void find_nv(const tuple_graph* const tg) {
   });
 }
 
-
-LOOP_FUNCTOR( local_reduce_sum, index,
-    (( GlobalAddress<int64_t>, xoff )) (( int64_t *, sum )) )
-{
-  int64_t v = Grappa_delegate_read_word(XOFF(index));
-  *sum += v;
-}
-
 #define minint(A,B) ((A)<(B)) ? (A) : (B)
-int64_t local_prefix;
-// ideally this would be forall local with contiguous addresses
-LOOP_FUNCTOR( prefix_sum_node, nid,
-    ((GlobalAddress<int64_t>,xoff))
-    ((int64_t,nv)) ) {
-  range_t myblock = blockDist(0, nv, nid, Grappa_nodes());
-  
-  local_prefix = 0;
-  local_reduce_sum fr;
-  fr.xoff = xoff;
-  fr.sum = &local_prefix;
-  fork_join_onenode(&fr, myblock.start, myblock.end);
- 
-  Grappa_barrier_suspending(); // "phaser style", alternative is replace with forjoins 
-
-  // node 0 sets buf[i] to prefix sum
-  // TODO: do this as parallel prefix
-  if (nid == 0) {
-    int64_t total = local_prefix;
-    for (int64_t i=1; i<Grappa_nodes(); i++) {
-      //LOG(INFO) << "will add total=" << total << " to node " << i;
-      total += Grappa_delegate_fetch_and_add_word(make_global(&local_prefix,i), total);
-    }
-  }
-  
-  Grappa_barrier_suspending(); // alternative: replace with forkjoins
-  
-  int64_t prev_sum = (nid > 0) ? Grappa_delegate_read_word(make_global(&local_prefix,nid-1)) : 0;
-  //LOG(INFO) << "prev_sum= " << prev_sum;
- 
-  // do prefix sum within the slice 
-  // Cache a part at a time, doing the sum locally and writing back
-  size_t bufsize = 1024;
-  int64_t * buf = new int64_t[2*bufsize];
-  for (int64_t i=myblock.start; i<myblock.end; i+=bufsize) {
-    size_t end = minint(myblock.end, i+bufsize);
-    int64_t len = end - i;
-    Incoherent<int64_t>::RW cv(XOFF(i), XOFF(end)-XOFF(i), buf);
-    for (int64_t j = 0; j<len; j++) {
-      int64_t tmp = cv[2*j]; // 2*j because XOFF entries are even
-      cv[2*j] = prev_sum;
-      prev_sum += tmp;
-    } 
-  }
-  delete buf;
-}
 
 int64_t * prefix_temp_base;
 int64_t prefix_count;
@@ -189,12 +135,6 @@ static int64_t prefix_sum(GlobalAddress<int64_t> xoff, int64_t nv) {
   return total_sum;
 }
 
-LOOP_FUNCTOR( init_xendoff_func, index,
-             (( GlobalAddress<int64_t>, xoff )) )
-{
-  Grappa_delegate_write_word(XENDOFF(index), Grappa_delegate_read_word(XOFF(index)));
-}
-
 static void setup_deg_off(const tuple_graph * const tg, csr_graph * g) {
   // note: this corresponds to how Graph500 counts 'degree' (both in- and outgoing edges to each vertex)
   auto _xoff = g->xoff;
@@ -260,53 +200,46 @@ i64cmp (const void *a, const void *b)
 	return 0;
 }
 
-struct pack_vtx_edges_args {
-  GlobalAddress<int64_t> xoff;
-  GlobalAddress<int64_t> xadj;
-};
-pack_vtx_edges_args local_pack_vtx_edges_args;
-const int PACK_EDGES_THESHOLD = 4;
-void pack_edges_loop_body( int64_t start, int64_t iterations );
-LOOP_FUNCTOR( pack_vtx_edges_func, nid,
-    (( GlobalAddress<int64_t>, xoff ))
-    (( GlobalAddress<int64_t>, xadj ))
-    (( int64_t, numvert )) ) {
 
-  local_pack_vtx_edges_args.xoff = xoff;
-  local_pack_vtx_edges_args.xadj = xadj;
-  
-  global_joiner.reset();
-  if (nid==0) {
-    async_parallel_for< pack_edges_loop_body, joinerSpawn<pack_edges_loop_body,PACK_EDGES_THESHOLD>,PACK_EDGES_THESHOLD>(0, numvert);
-  }  
-  global_joiner.wait();
+
+inline void scatter_edge(MessagePool& pool, GlobalAddress<int64_t> xoff, GlobalAddress<int64_t> xadj, const int64_t i, const int64_t j) {
+  int64_t where = delegate::fetch_and_add(XENDOFF(i), 1);
+  delegate::write_async<&my_gce>(pool, xadj+where, j);
+  // delegate::write(xadj+where, j);
 }
 
-// TODO: with power-law graphs, this could still be a problem? (everyone waiting for one big one to finish).
-//LOOP_FUNCTOR( pack_vtx_edges_func, i,
-//  (( GlobalAddress<int64_t>, xoff ))
-//  (( GlobalAddress<int64_t>, xadj )) )
-void pack_edges_loop_body( int64_t start, int64_t iterations ) {
-  GlobalAddress<int64_t> xoff = local_pack_vtx_edges_args.xoff;
-  GlobalAddress<int64_t> xadj = local_pack_vtx_edges_args.xadj;
-
-  // TODO: try harder to hoist cache out of for loop
-  for ( int64_t i = start; i < start+iterations; i++ ) {
-    int64_t kcur;
-    int64_t xoi, xei;
-    Incoherent<int64_t>::RO cxoi(XOFF(i), 1, &xoi);
-    Incoherent<int64_t>::RO cxei(XENDOFF(i), 1, &xei);
-    cxoi.start_acquire(); cxei.start_acquire();
-    cxoi.block_until_acquired(); cxei.block_until_acquired();
-    if (xoi+1 >= xei) continue;
+static void gather_edges(const tuple_graph * const tg, csr_graph * g) {
+  VLOG(2) << "scatter edges";
+  
+  csr_graph& graph = *g;
+  forall_localized<&my_gce>(tg->edges, tg->nedge, [graph](int64_t s, int64_t n, packed_edge * e) {
+    char bp[2 * n * sizeof(delegate::write_msg_proxy<int64_t>)];
+    MessagePool pool(bp, sizeof(bp));
+    
+    for (int k = 0; k < n; k++) {
+      int64_t i = e[k].v0, j = e[k].v1;    
+      if (i >= 0 && j >= 0 && i != j) {
+        scatter_edge(pool, graph.xoff, graph.xadj, i, j);
+        scatter_edge(pool, graph.xoff, graph.xadj, j, i);
+      }
+    }
+  });
+  
+  VLOG(2) << "pack_vtx_edges";
+  auto xoffr = static_cast<GlobalAddress<range_t>>(xoff);
+  forall_localized<&my_gce>(xoffr, g->nv, [graph](int64_t i, range_t& xi) {
+    auto xoi = xi.start;
+    auto xei = xi.end;
+    
+    if (xoi+1 >= xei) return;
 
     int64_t * buf = new int64_t[xei-xoi];// (int64_t*)alloca((xei-xoi)*sizeof(int64_t));
-    Incoherent<int64_t>::RW cadj(xadj+xoi, xei-xoi, buf);
+    Incoherent<int64_t>::RW cadj(graph.xadj+xoi, xei-xoi, buf);
     cadj.block_until_acquired();
 
     // pass in the underlying buf, since qsort can't take a cache obj 
     qsort(buf, xei-xoi, sizeof(int64_t), i64cmp);
-    kcur = 0;
+    int64_t kcur = 0;
     for (int64_t k = 1; k < xei-xoi; k++) {
       if (cadj[k] != cadj[kcur]) {
         cadj[++kcur] = cadj[k];
@@ -319,6 +252,7 @@ void pack_edges_loop_body( int64_t start, int64_t iterations ) {
     cadj.start_release(); // done writing to local xadj
 
     int64_t end;
+    auto xoff = graph.xoff;
     Incoherent<int64_t>::WO cend(XENDOFF(i), 1, &end);
     *cend = xoi+kcur;
 
@@ -326,113 +260,7 @@ void pack_edges_loop_body( int64_t start, int64_t iterations ) {
     delete buf;
 
     // on scope: cend.block_until_released();
-
-  }
-}
-
-inline void scatter_edge(GlobalAddress<int64_t> xoff, GlobalAddress<int64_t> xadj, const int64_t i, const int64_t j) {
-  int64_t where = Grappa_delegate_fetch_and_add_word(XENDOFF(i), 1);
-  Grappa_delegate_write_word(xadj+where, j);
-}
-
-//scatter, private tasks version
-//
-//LOOP_FUNCTOR( scatter_func, k, 
-//  (( GlobalAddress<packed_edge>, ij ))
-//  (( GlobalAddress<int64_t>, xoff ))
-//  (( GlobalAddress<int64_t>, xadj )) )
-//{
-//  Incoherent<packed_edge>::RO cedge(ij+k, 1);
-//  int64_t i = cedge[0].v0, j = cedge[0].v1;
-//  if (i >= 0 && j >= 0 && i != j) {
-//    scatter_edge(xoff, xadj, i, j);
-//    scatter_edge(xoff, xadj, j, i);
-//  }
-//}
-
-struct scatter_args {
-  GlobalAddress<packed_edge> ij;
-  GlobalAddress<int64_t> xoff;
-  GlobalAddress<int64_t> xadj;
-};
-
-// local arg cache for scatter
-scatter_args local_scatter_args;
-
-void scatter_loop_body( int64_t start, int64_t iterations ) {
-  GlobalAddress<packed_edge> ij = local_scatter_args.ij;
-  GlobalAddress<int64_t> xoff = local_scatter_args.xoff;
-  GlobalAddress<int64_t> xadj = local_scatter_args.xadj;
-
-  Incoherent<packed_edge>::RO cedge(ij+start, iterations);
-  for ( int64_t k = 0; k < iterations; k++ ) {
-    int64_t i = cedge[k].v0, j = cedge[k].v1;
-    if (i >= 0 && j >= 0 && i != j) {
-      scatter_edge(xoff, xadj, i, j);
-      scatter_edge(xoff, xadj, j, i);
-      // TODO optimize overlap of scatters
-    }
-  }
-}
-
-
-
-LOOP_FUNCTOR( scatter_func, nid, 
-  (( GlobalAddress<packed_edge>, ij ))
-  (( GlobalAddress<int64_t>, xoff ))
-  (( GlobalAddress<int64_t>, xadj ))
-  (( int64_t, nedge )) )
-{
-  local_scatter_args.ij = ij;
-  local_scatter_args.xoff = xoff;
-  local_scatter_args.xadj = xadj; 
-
-  global_joiner.reset();
-  if (nid==0) {
-    async_parallel_for< scatter_loop_body, joinerSpawn<scatter_loop_body,ASYNC_PAR_FOR_DEFAULT>,ASYNC_PAR_FOR_DEFAULT>(0, nedge);
-  }  
-  global_joiner.wait();
-}
-
-static void gather_edges(const tuple_graph * const tg, csr_graph * g) {
-//  for (k = 0; k < nedge; ++k) {
-//    int64_t i = get_v0_from_edge(&IJ[k]);
-//    int64_t j = get_v1_from_edge(&IJ[k]);
-//    if (i >= 0 && j >= 0 && i != j) {
-//      scatter_edge (i, j);
-//      scatter_edge (j, i);
-//    }
-//  }
-  VLOG(2) << "scatter edges";
-  scatter_func sf;
-  sf.ij = tg->edges;
-  sf.xoff = g->xoff;
-  sf.xadj = g->xadj;
-  sf.nedge = tg->nedge;
-  fork_join_custom(&sf);
-
-  
-//  GlobalAddress<int64_t> xoff = g->xoff;  
-//  for (int64_t i=0; i<g->nv; i++) {
-//    std::stringstream ss;
-//    int64_t xoi = Grappa_delegate_read_word(XOFF(i)), xei = Grappa_delegate_read_word(XENDOFF(i));
-//    ss << "scat_xoff[" << i << "] = " << xoi << " : (";
-//    for (int64_t j=xoi; j<xei; j++) {
-//      ss << Grappa_delegate_read_word(g->xadj+j) << ",";
-//    }
-//    ss << ")";
-//    VLOG(1) << ss.str();
-//  }
-  
-//  pack_edges():
-//    for (v = 0; v < nv; ++v)
-//      pack_vtx_edges (v);
-  VLOG(2) << "pack_vtx_edges";
-  pack_vtx_edges_func pf;
-  pf.xoff = g->xoff;
-  pf.xadj = g->xadj;
-  pf.numvert = g->nv;
-  fork_join_custom(&pf);
+  });
 }
 
 void create_graph_from_edgelist(const tuple_graph* const tg, csr_graph* const g) {    
