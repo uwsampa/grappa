@@ -91,6 +91,7 @@ class Worker {
   //TODO State runstate;
   bool running;
   bool suspended;
+  bool idle;
 
   /* used at startup and shutdown */
   Scheduler * sched; 
