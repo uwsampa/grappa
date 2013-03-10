@@ -180,7 +180,7 @@ LOOP_FUNCTOR( totalCentrality, v, ((GlobalAddress<double>,total)) ) {
 }
 
 LOOP_FUNCTION( totalNedgeFunc, n ) {
-  nedge_traversed = Grappa_allreduce<int64_t,coll_add<int64_t>,0>(nedge_traversed);
+  nedge_traversed = Grappa_allreduce<int64_t,collective_add<int64_t>,0>(nedge_traversed);
 }
 
 //////////////////////
