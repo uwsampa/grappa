@@ -305,7 +305,7 @@ namespace Grappa {
     void >::type
   forall_localized(GlobalAddress<T> base, int64_t nelems, F loop_body) {
     
-    forall_localized(base, nelems, [loop_body,base](int64_t start, int64_t niters, T * first) {
+    forall_localized<GCE,Threshold>(base, nelems, [loop_body](int64_t start, int64_t niters, T * first) {
       auto block_elems = block_size / sizeof(T);
       auto a = make_linear(first);
       auto n_to_boundary = a.block_max() - a;
