@@ -24,6 +24,7 @@ static void prand(int64_t n, double * v) {
 	}
 }
 
+/// <incomplete>
 double genScalData(graphedges * ge, double a, double b, double c, double d) {
   GlobalAddress<double> rn = Grappa_typed_malloc<double>(2*numVertices);
   GlobalAddress<graphint> permV = Grappa_typed_malloc<graphint>(numVertices);
