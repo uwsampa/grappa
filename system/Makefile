@@ -125,6 +125,7 @@ Uid_rate_tests.o Uid_rate_tests.test: $(LIBRARY)
 
 NetworkPerformance_tests.test NetworkPerformance_tests.o: $(LIBRARY)
 Gups_tests.o Gups_tests.test: $(LIBRARY)
+Yield_tests.o Yield_tests.test: $(LIBRARY)
 
 FileIO_tests.o FileIO_tests.test: $(LIBRARY)
 FileIO_tests.test: LIBRARIES+='-lboost_filesystem'

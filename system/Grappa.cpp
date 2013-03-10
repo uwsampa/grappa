@@ -301,6 +301,7 @@ void Grappa_barrier_suspending() {
 
 /// Spawn a user function. TODO: get return values working
 /// TODO: remove Thread * arg
+__attribute__((used))
 inline Thread * Grappa_spawn( void (* fn_p)(Thread *, void *), void * args )
 {
   Thread * th = thread_spawn( global_scheduler.get_current_thread(), &global_scheduler, fn_p, args );
