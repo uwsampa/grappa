@@ -20,9 +20,10 @@
 #include <Collective.hpp>
 #include <Delegate.hpp>
 #include <Array.hpp>
+#include <FileIO.hpp>
+#include <ParallelLoop.hpp>
 
-#define read Grappa_delegate_read_word
-#define write Grappa_delegate_write_word
+using namespace Grappa;
 
 static void printHelp(const char * exe);
 static void parseOptions(int argc, char ** argv);
@@ -70,110 +71,53 @@ static void read_array(GlobalAddress<T> base_addr, size_t nelem, FILE* fin, T * 
     size_t nread = fread(buf, sizeof(T), n, fin);
     CHECK(nread == n) << nread << " : " << n;
   }
-  if (should_free) delete [] buf;
+  if (should_free) delete[] buf;
 }
 
-static void read_endVertex(GlobalAddress<int64_t> endVertex, int64_t nadj, FILE * fin, int64_t * buf, size_t bufsize) {
-  int64_t pos = 0;
-  for (int64_t i=0; i<nadj; i+=bufsize) {
-    int64_t n = MIN(nadj-i, bufsize);
-    fread(buf, sizeof(int64_t), n, fin);
-    int64_t p = 0;
-    for (int64_t j=0; j<n; j++) {
-      if (buf[j] != -1) {
-        buf[p] = buf[j];
-        p++;
-      }
-    }
-    Incoherent<int64_t>::WO cout(endVertex+pos, p, buf);
-    pos += p;
-  }
-}
-//static void graph_in(graph * g, FILE * fin) {
-//  fread(&g->numVertices, sizeof(graphint), 1, fin);
-//  fread(&g->numEdges, sizeof(graphint), 1, fin);
-//  
-//  graphint NV = g->numVertices;
-//  graphint NE = g->numEdges;
-//  
-//  alloc_graph(g, NV, NE);
-//  
-//  /* now read in contents... */
-//  read_array(g->startVertex, NE, fin);
-//  read_array(g->endVertex, NE, fin);
-//  read_array(g->edgeStart, NV+2, fin);
-//  read_array(g->intWeight, NE, fin);
-//  read_array(g->marks, NV, fin);
-//}
-//
-//static void checkpoint_in(graph * dirg, graph * g) {
-//  printf("start reading checkpoint\n"); fflush(stdout);
-//  double t = timer();
-//  
-//  char fname[256];
-//  sprintf(fname, "../ckpts/suite.%d.ckpt", SCALE);
-//  FILE * fin = fopen(fname, "r");
-//  if (!fin) {
-//    fprintf(stderr, "Unable to open file (%s), will generate graph and write checkpoint.\n", fname);
-//    checkpointing = false;
-//    return;
-//  }
-//  
-//  VLOG(1) << "about to load dirg";
-//  graph_in(dirg, fin);
-//  VLOG(1) << "about to load g";
-//  graph_in(g, fin);
-//  
-//  fclose(fin);
-//  
-//  t = timer() - t;
-//  printf("checkpoint_read_time: %g\n", t); fflush(stdout);
-//}
+GlobalCompletionEvent ckpt_gce;
 
-void calc_actual_nadj(int64_t sv, int64_t n) {
-  int64_t buf[2*n];
-  Incoherent<int64_t>::RO c(xoff+2*sv, 2*n, buf);
-  for (int64_t i=0; i<n; i++) {
-    actual_nadj += c[2*i+1] - c[2*i];
-  }
-}
-LOOP_FUNCTOR(func_actual_nadj, nid, ((GlobalAddress<int64_t>,_xoff)) ((int64_t,nv)) ) {
-  xoff = _xoff;
-  actual_nadj = 0;
-
-  global_async_parallel_for(calc_actual_nadj, 0, nv);
+static void read_endVertex(GlobalAddress<int64_t> endVertex, int64_t nadj, GrappaFile gfin, GlobalAddress<int64_t> edgeStart, GlobalAddress<range_t> xoffr, int64_t nv) {
   
-  actual_nadj = Grappa_allreduce<int64_t,coll_add<int64_t>,0>(actual_nadj);
-}
+  auto xadj = Grappa_typed_malloc<int64_t>(nadj);
+  Grappa_read_array(gfin, xadj, nadj);
+  
+  // call_on_all_cores([]{ shared_pool.reset(); });
+  
+  forall_localized<&ckpt_gce>(xoffr, nv, [xadj,endVertex,edgeStart](int64_t i, range_t& o) {
+    auto ndeg = o.end-o.start;
 
-void set_startVertex(int64_t s, int64_t n) {
-  int64_t sbuf[n];
-  Incoherent<int64_t>::RO cstarts(g.edgeStart, n+1, sbuf);
-  for (int64_t i=0; i<n; i++) {
-    int64_t v = s+i;
-    int64_t d = cstarts[i+1]-cstarts[i];
-    Grappa_memset(g.startVertex+cstarts[i], v, d);
-  }
+    // indices in endVertex    
+    int64_t _esbuf[2]; Incoherent<int64_t>::RO cedgeStart(edgeStart+i, 2, _esbuf);
+    int64_t tstart = cedgeStart[0], tend = cedgeStart[1];
+    CHECK_EQ(tend-tstart, ndeg);
+      
+    if (ndeg == 0) { // do nothing
+    } else if (ndeg <= 1<<6) {
+      int64_t _edges[ndeg];
+      Incoherent<int64_t>::RO cedges(xadj+o.start, ndeg, _edges);
+      cedges.block_until_acquired();
+      Incoherent<int64_t>::WO cev(endVertex+tstart, ndeg, _edges);
+    } else {
+      // nmemcpy++; VLOG(1) << "nmemcpy (" << nmemcpy << ")";
+      memcpy_async<&ckpt_gce>(endVertex+tstart, xadj+o.start, ndeg);
+    }
+  });
+    
+  // int64_t pos = 0;
+  // for (int64_t i=0; i<nadj; i+=bufsize) {
+  //   int64_t n = MIN(nadj-i, bufsize);
+  //   fread(buf, sizeof(int64_t), n, fin);
+  //   int64_t p = 0;
+  //   for (int64_t j=0; j<n; j++) {
+  //     if (buf[j] != -1) {
+  //       buf[p] = buf[j];
+  //       p++;
+  //     }
+  //   }
+  //   Incoherent<int64_t>::WO cout(endVertex+pos, p, buf);
+  //   pos += p;
+  // }
 }
-LOOP_FUNCTION(func_startVertex, nid) {
-  global_async_parallel_for(set_startVertex, 0, g.numVertices);
-}
-
-// TODO: need parallel prefix_sum
-//void calc_edgeStart(int64_t sv, int64_t n) {
-//  int64_t _estarts[n], _xoff[2*n];
-//  Incoherent<int64_t>::WO ces(g.edgeStart+sv, n, _estarts);
-//  Incoherent<int64_t>::RO cxoff(xoff+sv, 2*n, _xoff);
-//  
-//  for (int64_t i=0; i<n; i++) {
-//    ces[i] = cxoff[2*i+1] - cxoff[2*i];
-//  }
-//}
-//LOOP_FUNCTOR(func_edgeStart, nid, ((graph,_g))) {
-//  g = _g;
-//
-//  global_async_parallel_for(calc_edgeStart, 0, g.numVertices);
-//}
 
 bool checkpoint_in(graphedges * ge, graph * g) {
   int64_t buf[NBUF_STACK];
@@ -205,21 +149,26 @@ bool checkpoint_in(graphedges * ge, graph * g) {
   GlobalAddress<int64_t> xoff = Grappa_typed_malloc<int64_t>(2*nv+2);
 
   double tt = timer();
-  read_array(xoff, 2*nv, fin, wbuf, NBUF);
+  
+  GrappaFile gfin(fname, false);
+  gfin.offset = 4*sizeof(int64_t)+2*sizeof(int64_t)*nedge;
+  
+  Grappa_read_array(gfin, xoff, 2*nv);
   tt = timer() - tt; VLOG(1) << "xoff time: " << tt;
   VLOG(1) << "actual_nadj (read_array): " << actual_nadj;
-  //for (int64_t i=0; i<(1L<<10); i++) {
-  //int64_t target = 5436636;
-  //for (int64_t i=-10; i<10; i++) {
-    //printf("xoff[%ld] = < %ld, %ld >\n", i, read(xoff+2*(target+i)), read(xoff+2*(target+i)+1));
-  //}
 
   // burn extra two xoff's
-  fread(wbuf, sizeof(int64_t), 2, fin);
+  // fread(wbuf, sizeof(int64_t), 2, fin);
+  gfin.offset += 2*sizeof(int64_t);
 
   tt = timer();
-  { func_actual_nadj f(xoff, nv); fork_join_custom(&f); }
-  tt = timer() - tt; VLOG(1) << "actual_nadj: " << tt;
+  call_on_all_cores([]{ actual_nadj = 0; });
+  auto xoffr = static_cast<GlobalAddress<range_t>>(xoff);
+  forall_localized(xoffr, nv, [](int64_t i, range_t& o) {
+    actual_nadj += o.end - o.start;
+  });
+  on_all_cores([]{ actual_nadj = allreduce<int64_t,collective_add>(actual_nadj); });  
+  tt = timer() - tt; VLOG(1) << "actual_nadj time: " << tt;
 
   VLOG(1) << "nv: " << nv << ", actual_nadj: " << actual_nadj;
   alloc_graph(g, nv, actual_nadj);
@@ -238,7 +187,7 @@ bool checkpoint_in(graphedges * ge, graph * g) {
       deg += d;
     }
   }
-  Grappa_delegate_write_word(g->edgeStart+nv, deg);
+  delegate::write(g->edgeStart+nv, deg);
   tt = timer() - tt; VLOG(1) << "edgeStart time: " << tt;
   //printf("edgeStart: [ ");
   //for (int64_t i=0; i<(1<<10); i++) {
@@ -249,11 +198,12 @@ bool checkpoint_in(graphedges * ge, graph * g) {
 
   // xadj/endVertex
   // eat first 2 because we actually stored 'xadjstore' which has an extra 2 elements
-  fread(buf, sizeof(int64_t), 2, fin);
+  gfin.offset += 2*sizeof(int64_t);
+  // fread(buf, sizeof(int64_t), 2, fin);
 
   tt = timer();
   int64_t pos = 0; nadj -= 2;
-  read_endVertex(g->endVertex, nadj, fin, wbuf, NBUF);
+  read_endVertex(g->endVertex, nadj, gfin, g->edgeStart, xoffr, nv);
 
   //for (int64_t v=0; v<nv; v+=NBUF) {
     //int64_t nstarts = MIN(nv-v, NBUF);
@@ -276,18 +226,22 @@ bool checkpoint_in(graphedges * ge, graph * g) {
   tt = timer() - tt; VLOG(1) << "endVertex time: " << tt;
 
   tt = timer();
-  { func_startVertex f; fork_join_custom(&f); }
+  auto edgeStart = g->edgeStart;
+  auto startVertex = g->startVertex;
+  forall_localized<&ckpt_gce>(g->edgeStart, g->numVertices, [edgeStart,startVertex](int64_t v, graphint& estart) {
+    auto degree = delegate::read(edgeStart+v+1) - estart;
+    Grappa::memset(startVertex+estart, (graphint)v, degree);
+  });
   tt = timer() - tt; VLOG(1) << "startVertex time: " << tt;
 
   // bfs roots (don't need 'em)
-  CHECK(NBUF > nbfs) << "too many bfs";
-  fread(buf, sizeof(int64_t), nbfs, fin);
+  gfin.offset += nbfs * sizeof(int64_t);
 
   tt = timer();
   // int weights
   int64_t nw;
-  fread(&nw, sizeof(int64_t), 1, fin);
-  CHECK(nw == actual_nadj) << "nw = " << nw << ", actual_nadj = " << actual_nadj;
+  // fread(&nw, sizeof(int64_t), 1, fin);
+  // CHECK_EQ(nw, actual_nadj) << "nw = " << nw << ", actual_nadj = " << actual_nadj;
   fprintf(stderr, "warning: skipping intWeight\n");
   //read_array(g->intWeight, nw, fin);
   //tt = timer() - tt; VLOG(1) << "intWeight time: " << tt;
@@ -305,9 +259,9 @@ static void user_main(void* ignore) {
   
   printf("[[ Graph Application Suite ]]\n"); fflush(stdout);	
   
-  graphedges * ge = &_ge;
-  graph * dirg = &_dirg;
-  graph * g = &_g;
+  graphedges* ge = &_ge;
+  graph* dirg = &_dirg;
+  graph* g = &_g;
   
   if (checkpointing) {
     checkpoint_in(ge, g);
@@ -347,7 +301,7 @@ static void user_main(void* ignore) {
     printf("compute_graph_time: %g\n", t);
   }
   
-  Grappa_reset_stats();
+  call_on_all_cores([]{ Statistics::reset(); });
   
   //###############################################
   // Kernel: Connected Components
@@ -358,8 +312,8 @@ static void user_main(void* ignore) {
     graphint connected = connectedComponents(g);
     
     t = timer() - t;
-    printf("ncomponents: %"DFMT"\n", connected);
-    printf("components_time: %g\n", t); fflush(stdout);
+    std::cout << "ncomponents: " << connected << std::endl;
+    std::cout << "components_time: " << t << std::endl;
   }  
   
   //###############################################
@@ -374,14 +328,14 @@ static void user_main(void* ignore) {
     size_t npattern = 3;
     
     color_t *c = pattern;
-    printf("Kernel - Path Isomorphism beginning execution...\nfinding path: %"DFMT"", *c);
-    for (color_t * c = pattern+1; c < pattern+npattern; c++) { printf(" -> %"DFMT"", *c); } printf("\n"); fflush(stdout);
+    printf("Kernel - Path Isomorphism beginning execution...\nfinding path: %ld", *c);
+    for (color_t * c = pattern+1; c < pattern+npattern; c++) { printf(" -> %ld", *c); } printf("\n"); fflush(stdout);
     t = timer();
     
     graphint num_matches = pathIsomorphism(dirg, pattern, npattern);
     
     t = timer() - t;
-    printf("path_iso_matches: %"DFMT"\n", num_matches);
+    printf("path_iso_matches: %ld\n", num_matches);
     printf("path_isomorphism_time: %g\n", t); fflush(stdout);
   }
     
@@ -394,11 +348,11 @@ static void user_main(void* ignore) {
     graphint num_triangles = triangles(g);
     
     t = timer() - t;
-    printf("ntriangles: %"DFMT"\n", num_triangles);
+    printf("ntriangles: %ld\n", num_triangles);
     printf("triangles_time: %g\n", t); fflush(stdout);
   }
   
-  Grappa_reset_stats_all_nodes();
+  call_on_all_cores([]{ Statistics::reset(); });
 
   //###############################################
   // Kernel: Betweenness Centrality
@@ -455,7 +409,6 @@ int main(int argc, char* argv[]) {
   
   Grappa_run_user_main(&user_main, (void*)NULL);
   
-  VLOG(1) << "finishing...";
   Grappa_finish(0);
   return 0;
 }
