@@ -22,7 +22,7 @@ namespace Grappa {
 /// @param count Number of elements to set, starting at the base address.
 template< typename T, typename S >
 void memset(GlobalAddress<T> base, S value, size_t count) {
-  on_all_cores([base,count,value]{
+  call_on_all_cores([base,count,value]{
     T * local_base = base.localize();
     T * local_end = (base+count).localize();
     for (size_t i=0; i<local_end-local_base; i++) {
