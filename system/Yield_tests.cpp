@@ -12,11 +12,12 @@
 
 DEFINE_int64( threads, 2048, "#Threads");
 DEFINE_int64( yields, 10000, "Total #yields");
+bool not_done = 1;
 
 BOOST_AUTO_TEST_SUITE( Yield_tests );
 
 void child1( Thread * t, void * arg ) {
-  while (1) Grappa_yield();
+  while (not_done) Grappa_yield();
 }
 
 double calcInterval( struct timespec start, struct timespec end ) {
@@ -34,6 +35,7 @@ void user_main( void * args )
   for (int i = 1; i < FLAGS_threads; i++) {
     Grappa_spawn(&child1, (void*) &i);
   }
+  not_done = 0;
 
   struct timespec start, end;
   clock_gettime( CLOCK_MONOTONIC, &start);
