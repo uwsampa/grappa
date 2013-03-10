@@ -1,14 +1,13 @@
 \section{Memory}
 
-Applications written for Grappa utilize two forms of memory: local and
-global.  Local memory is local to a single core in the system.  Accesses occur
-through conventional pointers.  The compiler emits an access and the
-memory is manipulated directly.  Applications use local accesses for a
-number of things in Grappa: the stack associated with a task, accesses
-to localized global memory in caches (see below), and accesses to
-debugging infrastructure that is local to each system node.  Local
-pointers cannot access memory on other cores, and are valid only on
-their home core.
+Applications written for Grappa utilize two forms of memory: local and global.
+Local memory is local to a single core \comment{core or processor/node?} in
+the system. Accesses occur through conventional pointers. The compiler emits
+an access and the memory is manipulated directly. Applications use local
+accesses for a number of things in Grappa: the stack associated with a task,
+accesses to localized global memory in caches (see below), and accesses to
+debugging infrastructure that is local to each system node. Local pointers
+cannot access memory on other cores, and are valid only on their home core.
 
 Large data that is expected to be shared and accessed with low locality is
 stored in Grappa's global memory. All global data must be accessed through
@@ -53,28 +52,44 @@ linear addresses can refer to other cores' memory.
 
 \begin{figure}[htbp]
   \begin{center}
+    \begin{minipage}{\columnwidth}
+	\small
+	\begin{tabular}{l}
+      	\texttt{\scriptsize global\_address global\_malloc( size )} \\
+      	\texttt{\scriptsize global\_free( global\_address )} \\ \hline 
+      	Allocation in the global heap \\ \\
+      	\texttt{\scriptsize delegate\_read( global\_address, local\_var )}  \\
+      	\texttt{\scriptsize delegate\_write( global\_address, local\_var )} \\
+      	\texttt{\scriptsize delegate\_cas( global\_address, local\_var )} \\
+      	\texttt{\scriptsize delegate\_fetch\_inc( global\_address, local\_var )} \\ \hline
+      	Memory operations at the home core of a global address \\ \\
+      	\texttt{\scriptsize cache\_acquire( global\_address, local\_buf, \{RO,RW,WO\})} \\
+      	\texttt{\scriptsize cache\_release( global\_address, local\_buf )} \\ \hline
+		Perform cache operations to acquire/release global data.  \\
+		Acquire copies all data to local node and returns a pointer. \\ 	
+		Release optionally copies data back to global memory. \\
+	\end{tabular}
+      \caption{\label{fig:accessing-memory} Grappa API: accessing memory}     \end{minipage}
+  \end{center}
+\end{figure}
+
+\comment{
     \begin{description}\small
       \item[ \texttt{ global\_address global\_malloc( size )} ] \hfill \\
       \item[ \texttt{ global\_free( global\_address )} ] \hfill \\
         Allocates and frees memory in the global heap
       \item[ \texttt{ delegate\_read( global\_address, local\_var )} ] 
-      \item[ \texttt{ delegate\_write( global\_address, local\_var )} ] %\vspace{-2ex}
-      \item[ \texttt{ delegate\_cas( global\_address, local\_var )} ] %\vspace{-2ex}
-      \item[ \texttt{ delegate\_fetch\_inc( global\_address, local\_var )} ] %\vspace{-2ex} 
+      \item[ \texttt{ delegate\_write( global\_address, local\_var )} ] 
+      \item[ \texttt{ delegate\_cas( global\_address, local\_var )} ] 
+      \item[ \texttt{ delegate\_fetch\_inc( global\_address, local\_var )} ] 
 \hfill \\
         Performs a memory operation at the home core of a global address
       \item[ \texttt{ cache\_acquire( global\_address, local\_buf, \{RO,RW,WO\})} ]
-      \item[ \texttt{ cache\_release( global\_address, local\_buf )} ] %\vspace{-2ex} 
+      \item[ \texttt{ cache\_release( global\_address, local\_buf )} ] 
 \hfill \\
 Perform cache operations to acquire/release global data.  Acquire, returns a local pointer after all data has been copied to the local node.  Release, optionally writes data back to global memory and frees up management resources.
     \end{description}
-    \begin{minipage}{0.95\columnwidth}
-      \caption{\label{fig:accessing-memory} Grappa API: accessing memory} %{-4ex}}
-    \end{minipage}
-    %\vspace{-3ex}
-  \end{center}
-\end{figure}
-
+}
 
 
 \begin{figure}[t]
