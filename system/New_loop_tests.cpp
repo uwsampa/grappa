@@ -16,6 +16,7 @@
 #include "Tasking.hpp"
 #include "GlobalAllocator.hpp"
 #include "ParallelLoop.hpp"
+#include "Array.hpp"
 
 BOOST_AUTO_TEST_SUITE( New_loop_tests );
 
@@ -193,6 +194,23 @@ void test_forall_localized() {
     BOOST_CHECK_EQUAL((array+i).node(), mycore());
     BOOST_CHECK_EQUAL(delegate::read(array+i), 2);
   }
+  
+  VLOG(1) << "checking indexing...";
+  
+  Grappa::memset(array, 0, N);
+  forall_localized(array, N, [](int64_t i, int64_t& e){ e = i; });
+  for (int i=0; i<N; i++) {
+    BOOST_CHECK_EQUAL(delegate::read(array+i), i);
+  }
+  
+  Grappa::memset(array, 0, N);  
+  forall_localized_async<&my_gce>(array, N, [](int64_t i, int64_t& e){ e = i; });
+  my_gce.wait();
+  
+  for (int i=0; i<N; i++) {
+    BOOST_CHECK_EQUAL(delegate::read(array+i), i);
+  }
+  
 }
 
 void user_main(void * args) {
