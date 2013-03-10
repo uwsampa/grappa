@@ -150,8 +150,8 @@ void Grappa_init( int * argc_p, char ** argv_p[], size_t global_memory_size_byte
 #endif
 
   // how fast do we tick?
-  Grappa_tick();
-  Grappa_tick();
+  Grappa_force_tick();
+  Grappa_force_tick();
   Grappa_Timestamp start_ts = Grappa_get_timestamp();
   double start = Grappa_walltime();
   // now go do other stuff for a while
@@ -266,7 +266,8 @@ void Grappa_init( int * argc_p, char ** argv_p[], size_t global_memory_size_byte
   global_scheduler.periodic( thread_spawn( master_thread, &global_scheduler, &poller, NULL ) );
 
   // collect some stats on this job
-  Grappa_tick();
+  Grappa_force_tick();
+  Grappa_force_tick();
   Grappa_Timestamp end_ts = Grappa_get_timestamp();
   double end = Grappa_walltime();
   tick_rate = (double) (end_ts - start_ts) / (end-start);
@@ -301,7 +302,7 @@ void Grappa_barrier_suspending() {
 
 /// Spawn a user function. TODO: get return values working
 /// TODO: remove Thread * arg
-inline Thread * Grappa_spawn( void (* fn_p)(Thread *, void *), void * args )
+Thread * Grappa_spawn( void (* fn_p)(Thread *, void *), void * args )
 {
   Thread * th = thread_spawn( global_scheduler.get_current_thread(), &global_scheduler, fn_p, args );
   global_scheduler.ready( th );

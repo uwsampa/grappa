@@ -23,17 +23,20 @@ extern "C" {
 
 /// Coroutine struct
 typedef struct coro {
-  int running;
-  int suspended;
+  // current stack pointer.  Since stack grows down in x86,
+  // stack >= base (hopefully!)
+  void *stack;
+  union {
+    int running : 1;
+    int suspended : 1;
+  };
+
   // start of stack
   void *base;
   size_t ssize;
 #ifdef CORO_PROTECT_UNUSED_STACK
   void *guess;
 #endif
-  // current stack pointer.  Since stack grows down in x86,
-  // stack >= base (hopefully!)
-  void *stack;
 
   // pointers for tracking all coroutines
   struct coro * prev;
@@ -43,10 +46,12 @@ typedef struct coro {
 /// Turn the currently-running pthread into a "special" coroutine.
 /// This coroutine is used only to execute spawned coroutines.
 coro *coro_init();
+coro *coro_init_inplace(coro*);
 
 /// spawn a new coroutine, creating a stack and everything, but
 /// doesn't run until scheduled
 coro *coro_spawn(coro *me, coro_func f, size_t ssize);
+coro* coro_spawn_inplace(coro * c, coro* me, coro_func f, size_t ssize);
 
 /// pass control to <to> (giving it <val>, either as an argument for a
 /// new coro or the return value of its last invoke.)
@@ -84,6 +89,7 @@ static inline void *coro_invoke(coro *me, coro *to, void *val) {
 
 /// Tear down a coroutine
 void destroy_coro(coro *c);
+void destroy_coro_inplace(coro *c);
 
 #ifdef __cplusplus
 }

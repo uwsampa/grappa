@@ -60,6 +60,10 @@ void remove_coro( coro * c ) {
 /// doesn't run until scheduled
 coro *coro_spawn(coro *me, coro_func f, size_t ssize) {
   coro *c = (coro*)malloc(sizeof(coro));
+  return coro_spawn_inplace(c, me, f, ssize);
+}
+
+coro *coro_spawn_inplace(coro* c, coro *me, coro_func f, size_t ssize) {
   assert(c != NULL);
   c->running = 0;
   c->suspended = 0;
@@ -99,6 +103,10 @@ coro *coro_spawn(coro *me, coro_func f, size_t ssize) {
 /// This coroutine is used only to execute spawned coroutines.
 coro *coro_init() {
   coro *me = (coro*)malloc(sizeof(coro));
+  return coro_init_inplace( me );
+}
+
+coro *coro_init_inplace(coro* me) {
   me->running = 1;
   me->suspended = 0;
   me->prev = NULL;
@@ -117,7 +125,7 @@ coro *coro_init() {
 
 /// Tear down a coroutine
 void destroy_coro(coro *c) {
-  total_coros++;
+  total_coros--;
   remove_coro(c); // remove from debugging list of coros
   if( c->base != NULL ) {
     // disarm guard page
@@ -130,5 +138,20 @@ void destroy_coro(coro *c) {
     free(c->base);
   }
   free(c);
+}
+
+void destroy_coro_inplace(coro *c) {
+  total_coros++;
+  remove_coro(c); // remove from debugging list of coros
+  if( c->base != NULL ) {
+    // disarm guard page
+    assert( 0 == mprotect( c->base, 4096, PROT_READ | PROT_WRITE ) );
+    assert( 0 == mprotect( (char*)c->base + c->ssize + 4096, 4096, PROT_READ | PROT_WRITE ) );
+#ifdef CORO_PROTECT_UNUSED_STACK
+    // enable writes to stack so we can deallocate
+    assert( 0 == mprotect( (void*)((intptr_t)c->base + 4096), c->ssize, PROT_READ | PROT_WRITE ) );
+#endif
+    free(c->base);
+  }
 }
 

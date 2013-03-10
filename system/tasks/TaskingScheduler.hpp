@@ -79,7 +79,7 @@ class TaskingScheduler : public Scheduler {
 
         // STUB: replace with real periodic threads
         Grappa_Timestamp previous_periodic_ts;
-        Thread * periodicDequeue(Grappa_Timestamp current_ts) {
+        inline Thread * periodicDequeue(Grappa_Timestamp current_ts) {
             // // tick the timestap counter
             // Grappa_tick();
             // Grappa_Timestamp current_ts = Grappa_get_timestamp();
@@ -98,7 +98,25 @@ class TaskingScheduler : public Scheduler {
   Grappa_Timestamp prev_stats_blob_ts;
   static const int tick_scale = 1; //(1L << 30);
 
-        Thread * nextCoroutine ( bool isBlocking=true ) {
+  inline Thread * nextCoroutineSplitUnused ( bool isBlocking=true ) {
+    Grappa_tick();
+    stats.scheduler_count++;
+    readyQ.prefetch();
+    Grappa_Timestamp current_ts = Grappa_get_timestamp();
+    Thread * result = readyQ.dequeue();
+    //stats.state_timers[ stats.prev_state ] += (current_ts - prev_ts) / tick_scale;
+    stats.prev_state = TaskingSchedulerStatistics::StateReady;
+    prev_ts = current_ts;
+    if( result ) {
+      return result;
+    } else {
+      return nextCoroutineSplitRest( current_ts, isBlocking );
+    }
+  }
+  Thread * nextCoroutineSplitRest ( Grappa_Timestamp current_ts, bool isBlocking );
+
+
+          Thread * nextCoroutine ( bool isBlocking=true ) {
 	  Grappa_Timestamp current_ts = 0;
 #ifdef VTRACE_FULL
 	  VT_TRACER("nextCoroutine");
@@ -435,8 +453,8 @@ inline void TaskingScheduler::thread_suspend( ) {
     StateTimer::enterState_scheduler();
     
     Thread * yieldedThr = current_thread;
-    yieldedThr->co->running = 0; // XXX: hack; really want to know at a user Thread level that it isn't running
-    yieldedThr->co->suspended = 1;
+    yieldedThr->co.running = 0; // XXX: hack; really want to know at a user Thread level that it isn't running
+    yieldedThr->co.suspended = 1;
     Thread * next = nextCoroutine( );
     
     current_thread = next;
@@ -452,7 +470,7 @@ inline void TaskingScheduler::thread_wake( Thread * next ) {
   CHECK( next->next == NULL ) << "woken Thread should not be on any queue";
   CHECK( !thread_is_running( next ) ) << "woken Thread should not be running";
   
-  next->co->suspended = 0;
+  next->co.suspended = 0;
     
   DVLOG(5) << "Thread " << current_thread->id << " wakes thread " << next->id;
 
@@ -469,7 +487,7 @@ inline void TaskingScheduler::thread_yield_wake( Thread * next ) {
     CHECK( !thread_is_running( next ) ) << "woken Thread should not be running";
     StateTimer::enterState_scheduler();
     
-    next->co->suspended = 0;
+    next->co.suspended = 0;
 
     Thread * yieldedThr = current_thread;
     ready( yieldedThr );
@@ -487,10 +505,10 @@ inline void TaskingScheduler::thread_suspend_wake( Thread *next ) {
     CHECK( !thread_is_running( next ) ) << "woken Thread should not be running";
     StateTimer::enterState_scheduler();
   
-    next->co->suspended = 0;
+    next->co.suspended = 0;
   
     Thread * yieldedThr = current_thread;
-    yieldedThr->co->suspended = 1;
+    yieldedThr->co.suspended = 1;
 
     current_thread = next;
     thread_context_switch( yieldedThr, next, NULL);

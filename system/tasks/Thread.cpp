@@ -21,10 +21,9 @@ std::ostream& operator<< ( std::ostream& o, const ThreadQueue& tq ) {
 /// cause a context switch back to the system thread when
 /// the Scheduler is done
 Thread * thread_init() {
-  coro* me = coro_init();
   Thread * master = (Thread *)malloc(sizeof(Thread));
   assert(master != NULL);
-  master->co = me;
+  coro_init_inplace(&(master->co));
   master->sched = NULL;
   master->next = NULL;
   master->id = 0; // master always id 0
@@ -83,17 +82,17 @@ Thread * thread_spawn(Thread * me, Scheduler * sched,
  
   // allocate the Thread and stack
   Thread * thr = new Thread( sched );
-  thr->co = coro_spawn(me->co, tramp, STACK_SIZE);
+  coro_spawn_inplace(&(thr->co), &(me->co), tramp, STACK_SIZE);
   sched->assignTid( thr );
 
   // Pass control to the trampoline a few times quickly to set up
   // the call of <f>.  Could also create a struct with all this data?
   
   
-  coro_invoke(me->co, thr->co, (void *)me->co);
-  coro_invoke(me->co, thr->co, thr);
-  coro_invoke(me->co, thr->co, (void *)f);
-  coro_invoke(me->co, thr->co, (void *)arg);
+  coro_invoke(&(me->co), &(thr->co), (void *)(&(me->co)));
+  coro_invoke(&(me->co), &(thr->co), thr);
+  coro_invoke(&(me->co), &(thr->co), (void *)f);
+  coro_invoke(&(me->co), &(thr->co), (void *)arg);
   
   
   return thr;
@@ -124,7 +123,7 @@ void thread_exit(Thread * me, void * retval) {
 
 /// Delete the thread.
 void destroy_thread(Thread * thr) {
-  destroy_coro(thr->co);
+  destroy_coro_inplace(&(thr->co));
   free (thr);
 }
 
