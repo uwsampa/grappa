@@ -42,16 +42,17 @@ class ThreadQueue {
         ThreadQueue ( ) 
             : head ( NULL )
             , tail ( NULL )
-            , len ( 0 ) { }
+            , len ( 0 )
+        { }
 
-        void enqueue(Thread * t);
-        Thread * dequeue();
-        void prefetch();
+  inline void enqueue(Thread * t);
+  inline Thread * dequeue();
+  inline void prefetch();
         int length() { 
             return len;
         }
 
-        bool empty() {
+  inline bool empty() {
             return (head==NULL);
         }
         
@@ -66,15 +67,16 @@ extern int thread_last_tau_taskid;
 /// Grappa lightweight thread. 
 /// Includes meta data and a coroutine (stack and stack pointer)
 struct Thread {
-  coro *co;
+  Thread * next; // for queues--if we're not in one, should be NULL
+  coro co;
+  void * data_prefetch;
+  int done;
+
   // Scheduler responsible for this Thread. NULL means this is a system
   // Thread.
   Scheduler * sched;
-  Thread * next; // for queues--if we're not in one, should be NULL
-  void * data_prefetch;
   threadid_t id; 
   ThreadQueue joinqueue;
-  int done;
 #ifdef GRAPPA_TRACE
   int state;
   int tau_taskid;
@@ -84,11 +86,13 @@ struct Thread {
   /// To actually spawn the Thread * thread_spawn(Thread*,Scheduler*,thread_func,void*)
   /// must be used.
   Thread(Scheduler * sched) 
-    : sched( sched )
-    , next( NULL )
+    : next( NULL )
+    , co()
     , data_prefetch( NULL )
-    , joinqueue( ) 
     , done( 0 )
+    , sched( sched )
+    , id(-1)
+    , joinqueue( ) 
 #ifdef GRAPPA_TRACE
     , state ( 0 ) 
 #endif
@@ -98,10 +102,11 @@ struct Thread {
 
   /// prefetch the Thread execution state
   inline void prefetch() {
-    __builtin_prefetch( co->stack, 0, 3 );                           // try to keep stack in cache
-    if( data_prefetch ) __builtin_prefetch( data_prefetch, 0, 0 );   // for low-locality data
+    __builtin_prefetch( next, 1, 3 );                           // try to keep next thread in cache
+    __builtin_prefetch( co.stack, 1, 3 );                           // try to keep stack in cache
+    //if( data_prefetch ) __builtin_prefetch( data_prefetch, 0, 0 );   // for low-locality data
   }
-};
+} __attribute__((aligned(64)));
         
 /// Remove a Thread from the queue and return it
 inline Thread * ThreadQueue::dequeue() {
@@ -132,12 +137,7 @@ inline void ThreadQueue::enqueue( Thread * t) {
 /// Prefetch some Thread close to the front of the queue
 inline void ThreadQueue::prefetch() {
     Thread * result = head;
-    // try to prefetch 4 away
     if( result ) {
-      if( result->next ) result = result->next;
-      if( result->next ) result = result->next;
-      if( result->next ) result = result->next;
-      if( result->next ) result = result->next;
       result->prefetch();
     }
 }
@@ -160,14 +160,14 @@ inline void* thread_context_switch( Thread * running, Thread * next, void * val 
 #ifdef VTRACE_FULL
   VT_TRACER("context switch");
 #endif
-    void* res = coro_invoke( running->co, next->co, val );
+    void* res = coro_invoke( &(running->co), &(next->co), val );
     StateTimer::enterState_thread();
     return res; 
 }
 
 /// Return true if the thread is in the running state
 inline int thread_is_running( Thread * thr ) {
-    return thr->co->running;
+  return thr->co.running;
 }
 
 void thread_exit( Thread * me, void * retval );
