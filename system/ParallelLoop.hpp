@@ -382,7 +382,9 @@ namespace Grappa {
             int64_t Threshold = impl::USE_LOOP_THRESHOLD_FLAG,
             typename T = decltype(nullptr),
             typename F = decltype(nullptr) >
-  void forall_localized_async(GlobalAddress<T> base, int64_t nelems, F loop_body) {
+  // type_traits magic to make this verison work for 2-arg functors
+  typename std::enable_if< function_traits<F>::arity == 3, void >::type
+  forall_localized_async(GlobalAddress<T> base, int64_t nelems, F loop_body) {
     Core nc = cores();
     Core fc;
     int64_t nbytes = nelems*sizeof(T);
@@ -409,13 +411,15 @@ namespace Grappa {
     Core start_core = base.node();
     MessagePool pool(cores() * sizeof(Message<std::function<void(GlobalAddress<T>,int64_t,F)>>));
     
+    struct { int64_t nelems:48, origin:16; } pack = { nelems, mycore() };
+    
     GCE->enroll(fc);
     for (Core i=0; i<fc; i++) {
-      pool.send_message((start_core+i)%nc, [base,nelems,loop_body,origin] {
-        // TODO: make this not heap-allocate the task.
-        privateTask([base,nelems,loop_body,origin] {
+      pool.send_message((start_core+i)%nc, [base,pack,loop_body] {
+        // (should now have room for loop_body to be 8 bytes)
+        privateTask([base,pack,loop_body] {
           T* local_base = base.localize();
-          T* local_end = (base+nelems).localize();
+          T* local_end = (base+pack.nelems).localize();
           size_t n = local_end - local_base;
           
           CompletionEvent ce(n);
@@ -423,19 +427,40 @@ namespace Grappa {
             T* local_base = base.localize();
             auto laddr = make_linear(local_base+start);
             
-            for (int64_t i=start; i<start+iters; i++) {
-              // TODO: check if this is inlined and if this loop is unrollable
-              loop_body(laddr-base, local_base[i]);
-            }
+            loop_body(laddr-base, iters, local_base+start);
+            
             ce.complete(iters);
           };
           forall_here_async<GCE,Threshold>(0, n, &f);
           
           ce.wait();
-          complete(make_global(GCE,origin));
+          complete(make_global(GCE,pack.origin));
         });
       });
     }
+  }
+  
+  template< GlobalCompletionEvent * GCE = &impl::local_gce,
+            int64_t Threshold = impl::USE_LOOP_THRESHOLD_FLAG,
+            typename T = decltype(nullptr),
+            typename F = decltype(nullptr) >
+  // type_traits magic to make this verison work for 2-arg functors
+  typename std::enable_if< function_traits<F>::arity == 2, void >::type
+  forall_localized_async(GlobalAddress<T> base, int64_t nelems, F loop_body) {
+    forall_localized_async<GCE,Threshold>(base, nelems, [loop_body](int64_t start, int64_t niters, T* first){
+      auto block_elems = block_size / sizeof(T);
+      auto a = make_linear(first);
+      auto n_to_boundary = a.block_max() - a;
+      auto index = start;
+      
+      for (int64_t i=0; i<niters; i++,index++,n_to_boundary--) {
+        if (n_to_boundary == 0) {
+          index += block_elems * (cores()-1);
+          n_to_boundary = block_elems;
+        }
+        loop_body(index, first[i]);
+      }
+    });
   }
   
 } // namespace Grappa
