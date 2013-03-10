@@ -152,6 +152,16 @@ namespace Grappa {
     });
   }
 
+  template<GlobalCompletionEvent * GCE, typename TF>
+  void privateTask(TF tf) {
+    if (GCE) GCE->enroll();
+    Core origin = mycore();
+    privateTask([tf] {
+      tf();
+      if (GCE) GCE->complete();
+    });
+  }
+
   /// Synchronizing public task spawn. Automatically enrolls task with GlobalCompletionEvent and
   /// sends `complete`  message when done (if GCE is non-null).
   template<GlobalCompletionEvent * GCE, typename TF>
@@ -163,4 +173,5 @@ namespace Grappa {
       if (GCE) complete(make_global(GCE,origin));
     });
   }
+  
 } // namespace Grappa
