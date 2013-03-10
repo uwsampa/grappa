@@ -5,6 +5,7 @@
 // AC05-76RL01830 awarded by the United States Department of
 // Energy. The Government has certain rights in the software.
 
+//make -j TARGET=Yield_tests.test mpi_test VERBOSE_TESTS=1 GARGS="--yields=10000000 --threads=1 --periodic_poll_ticks=10000000 --stats_blob_ticks=3000000000" PPN=1 NNODE=1
 
 #include <boost/test/unit_test.hpp>
 
