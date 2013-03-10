@@ -13,22 +13,25 @@ Large data that is expected to be shared and accessed with low locality is
 stored in Grappa's global memory. All global data must be accessed through
 calls into Grappa's API, shown in Figure~\ref{fig:accessing-memory}.
 
-\paragraph{Global memory addressing} Grappa provides two methods for
-storing data in the global memory. The first is a distributed heap
-striped across all the machines in the system in a block cyclic fashion.
-The \texttt{global\_malloc} and \texttt{global\_free} calls are used to
-allocate and deallocate memory in the global heap.  Addresses to memory
-in the global heap use \textbf{linear addresses}.  Choosing the block
-size involves trading off sequential bandwidth against aggregate random
-access bandwidth. Smaller block sizes help spread data across all the
-memory controllers in the cluster, but larger block sizes allow the
-locality-optimized memory controllers to provide increased sequential
-bandwidth. The block size, which is configurable, is typically set to 64
-bytes, or the size of a single hardware cache line, in order to exploit
-spatial locality when available. The heap metadata is stored on a single
-node. Currently all heap operations serialize through this node; while
-this has been sufficient for our benchmarks, in the future Grappa will
-provide parallel performance through combining~\cite{MAMA,flatcombining}.
+\paragraph{Global memory addressing} Grappa provides two methods for storing
+data in the global memory. The first is a distributed heap striped across all
+the machines in the system in a block cyclic fashion. The
+\texttt{global\_malloc} and \texttt{global\_free} calls are used to allocate
+and deallocate memory in the global heap. Addresses to memory in the global
+heap use \textbf{linear addresses}. Choosing the block size involves trading
+off sequential bandwidth against aggregate random access bandwidth. Smaller
+block sizes help spread data across all the memory controllers in the cluster,
+but larger block sizes allow the locality-optimized memory controllers to
+provide increased sequential bandwidth. The block size, which is configurable,
+is typically set to 64 bytes, or the size of a single hardware cache line, in
+order to exploit spatial locality when available. 
+
+%%% is the below important? -Luis
+\comment{The heap metadata is stored on a single node. Currently all heap
+allocation and free operations are serialized through this node; while this
+has been sufficient for our benchmarks, it is easy to relax in the future
+Grappa will provide parallel performance through
+combining~\cite{MAMA,flatcombining}.}
 
 Grappa also allows any local data on a core's stacks or heap to be
 exported to the global address space to be made accessible to other
@@ -42,8 +45,8 @@ address). This leaves 15 bits for network endpoint ID, which limits our
 scalability to $2^{15}$ endpoints. Any node-local data can be made
 accessible by other nodes in the system by wrapping the address and node
 ID into a 2D global address. This address can then be accessed with a
-delegate and can also be cached by other nodes. At the destination the
-address is converted into a canonical x86 address by replacing the upper
+delegate operation and even be cached by other nodes. The
+address is converted at the destination into a canonical x86 address by replacing the upper
 bits with the sign-extended upper bit of the virtual address. 2D
 addresses may refer to memory allocated from a single processes' heap or
 from a task's stack. Figure~\ref{fig:memory-structure} shows how 2D and
@@ -72,25 +75,6 @@ linear addresses can refer to other cores' memory.
       \caption{\label{fig:accessing-memory} Grappa API: accessing memory}     \end{minipage}
   \end{center}
 \end{figure}
-
-\comment{
-    \begin{description}\small
-      \item[ \texttt{ global\_address global\_malloc( size )} ] \hfill \\
-      \item[ \texttt{ global\_free( global\_address )} ] \hfill \\
-        Allocates and frees memory in the global heap
-      \item[ \texttt{ delegate\_read( global\_address, local\_var )} ] 
-      \item[ \texttt{ delegate\_write( global\_address, local\_var )} ] 
-      \item[ \texttt{ delegate\_cas( global\_address, local\_var )} ] 
-      \item[ \texttt{ delegate\_fetch\_inc( global\_address, local\_var )} ] 
-\hfill \\
-        Performs a memory operation at the home core of a global address
-      \item[ \texttt{ cache\_acquire( global\_address, local\_buf, \{RO,RW,WO\})} ]
-      \item[ \texttt{ cache\_release( global\_address, local\_buf )} ] 
-\hfill \\
-Perform cache operations to acquire/release global data.  Acquire, returns a local pointer after all data has been copied to the local node.  Release, optionally writes data back to global memory and frees up management resources.
-    \end{description}
-}
-
 
 \begin{figure}[t]
 \begin{center}
