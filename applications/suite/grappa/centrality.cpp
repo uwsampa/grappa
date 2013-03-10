@@ -6,19 +6,18 @@
 #include <ForkJoin.hpp>
 #include <GlobalAllocator.hpp>
 #include <Delegate.hpp>
+#include <AsyncDelegate.hpp>
 #include <Collective.hpp>
 #include <common.hpp>
 #include <Cache.hpp>
 #include <GlobalTaskJoiner.hpp>
 #include <PushBuffer.hpp>
 #include <Array.hpp>
+#include <Statistics.hpp>
 
 #include "../compat/mersenne.h"
 
-#define read      Grappa_delegate_read_word
-#define write     Grappa_delegate_write_word
-#define cmp_swap  Grappa_delegate_compare_and_swap_word
-#define fetch_add Grappa_delegate_fetch_and_add_word
+using namespace Grappa;
 
 static inline double read_double(GlobalAddress<double> addr) {
   int64_t temp = Grappa_delegate_read_word(addr);
@@ -39,51 +38,20 @@ static GlobalAddress<double> bc;
 static graphint d_phase;
 static graphint local_Qnext;
 
+static double local_centrality_total;
+
 static int64_t nedge_traversed;
 
 static PushBuffer<int64_t> Qbuf;
 
-void bfs_push_visit_neighbor(int64_t kstart, int64_t kiters, GlobalAddress<void*> packed) {
-  graphint v = (graphint)packed.pointer();
-  DVLOG(3) << "neighbors " << v << ": " << kstart << " -> " << kstart+kiters;
-
-  graphint sigmav = read(c.sigma+v);
-  graphint vStart = read(g.edgeStart+v);
-
-  graphint bufEndV[kiters];
-  Incoherent<int64_t>::RO cendV(g.endVertex+kstart, kiters, bufEndV);
+void do_bfs_push(graphint d_phase_, int64_t start, int64_t end) {
   
-  graphint ccount = 0;
-  graphint bufChild[kiters];
-    
-  for (int64_t k=0; k<kiters; k++) {
-    graphint w = cendV[k];
-    graphint d = read(c.dist+w);
-    
-    /* If node has not been visited, set distance and push on Q (but only once) */
-    if (d < 0) {
-      if (cmp_swap(c.marks+w, 0, 1)) {
-        write(c.dist+w, d_phase);
-        //write(c.Q + fetch_add(c.Qnext, 1), w);
-        Qbuf.push(w);
-      }
-    }
-    if (d < 0 || d == d_phase) {
-      fetch_add(c.sigma+w, sigmav);
-      bufChild[ccount++] = w;
-    }
-  }
-  graphint l = vStart + fetch_add(c.child_count+v, ccount);
-  Incoherent<int64_t>::WO cChild(c.child+l, ccount, bufChild);
-}
+  call_on_all_cores([d_phase_]{
+    Qbuf.setup(c.Q, c.Qnext);
+    d_phase = d_phase_;
+  });
 
-void bfs_push_visit_vertex(int64_t jstart, int64_t jiters) {
-  DVLOG(3) << "visit_vertex< " << jstart << " -> " << jstart+jiters << " >";
-  int64_t bufQ[jiters];
-  Incoherent<int64_t>::RO cQ(c.Q+jstart, jiters, bufQ);
-
-  for (int64_t j=0; j<jiters; j++) {
-    const int64_t v = cQ[j];
+  forall_localized(c.Q+start, end-start, [](int64_t i, graphint& v){
     CHECK(v < g.numVertices) << v << " < " << g.numVertices;
     
     int64_t bufEdgeStart[2];
@@ -95,156 +63,144 @@ void bfs_push_visit_vertex(int64_t jstart, int64_t jiters) {
     CHECK(vend < (1L<<32)) << "can't pack 'vo' into 32-bit value! have to get more creative";
  
     nedge_traversed += vend - vstart;
-    DVLOG(3) << "visit (" << jstart+j << "): " << vstart << " -> " << vend;
-    async_parallel_for_hack(bfs_push_visit_neighbor, vstart, vend-vstart, v);
-  }
+    DVLOG(3) << "visit (" << i << "): " << vstart << " -> " << vend;
+    // async_parallel_for_hack(bfs_push_visit_neighbor, vstart, vend-vstart, v);
+    forall_localized(g.endVertex+vstart, vend-vstart,
+                    [v](int64_t kstart, int64_t kiters, int64_t * kfirst) {
+      DVLOG(3) << "neighbors " << v << ": " << kstart << " -> " << kstart+kiters;
+
+      // TODO: overlap these
+      graphint sigmav = delegate::read(c.sigma+v);
+      graphint vStart = delegate::read(g.edgeStart+v);
+  
+      graphint ccount = 0;
+      graphint bufChild[kiters];
+      
+      char pool_buf[2 * kiters * sizeof(delegate::write_msg_proxy<graphint>)];
+      MessagePool pool(pool_buf, sizeof(pool_buf));
+      
+      for (int64_t k=0; k<kiters; k++) {
+        graphint w = kfirst[k];
+        graphint d = delegate::read(c.dist+w);
+    
+        /* If node has not been visited, set distance and push on Q (but only once) */
+        if (d < 0) {
+          if (delegate::compare_and_swap(c.marks+w, 0, 1)) {
+            delegate::write_async(pool, c.dist+w, d_phase);
+            //write(c.Q + fetch_add(c.Qnext, 1), w);
+            Qbuf.push(w);
+          }
+        }
+        if (d < 0 || d == d_phase) {
+          delegate::increment_async(pool, c.sigma+w, sigmav);
+          bufChild[ccount++] = w;
+        }
+      }
+      // TODO: find out if it makes sense to buffer these
+      graphint l = vStart + delegate::fetch_and_add(c.child_count+v, ccount);
+      Incoherent<int64_t>::WO cChild(c.child+l, ccount, bufChild);
+    });
+  });
+
+  on_all_cores([] { Qbuf.flush(); });
 }
 
-LOOP_FUNCTOR(bfs_push, nid, ((graphint,d_phase_)) ((int64_t,start)) ((int64_t,end))) {
-  d_phase = d_phase_;
-
-  Qbuf.setup(c.Q, c.Qnext);
-
-  global_async_parallel_for_thresh(bfs_push_visit_vertex, start, end-start, 1);  
-
-  Qbuf.flush();
-}
-
-void bfs_pop_children(int64_t kstart, int64_t kiters, GlobalAddress<void*> packed) {
-  int64_t v = (int64_t)packed.pointer();
-  int64_t sigma_v = read(c.sigma+v);
-  
-  graphint bufChildren[kiters];
-  Incoherent<graphint>::RO cChildren(c.child+kstart, kiters, bufChildren);
-
-  double sum = 0;
-
-  for (graphint k=0; k<kiters; k++) {
-    graphint w = cChildren[k];
-    sum += ((double)sigma_v) * (1.0 + read_double(c.delta+w)) / (double)read(c.sigma+w);
-  }
-  
-  DVLOG(4) << "v(" << v << ")[" << kstart << "," << kstart+kiters << "] sum: " << sum;
-  ff_delegate_add(c.delta+v, sum);
-}
-
-
-void bfs_pop_vertex(int64_t jstart, int64_t jiters) {
-  DVLOG(3) << "pop_vertex < " << jstart << " -> " << jstart+jiters << " >";
-  int64_t bufQ[jiters];
-  Incoherent<int64_t>::RO cQ(c.Q+jstart, jiters, bufQ);
-
-  double sum = 0;
-  
-  for (int64_t j=0; j<jiters; j++) {
-    graphint v = cQ[j];
-    graphint myStart = read(g.edgeStart+v);
-    graphint myEnd   = myStart + read(c.child_count+v);
+void do_bfs_pop(graphint start, graphint end) {
+  // global_async_parallel_for_thresh(bfs_pop_vertex, start, end-start, 1);
+  forall_localized(c.Q+start, end-start, [](int64_t i, graphint& v){
+    // TODO: overlap reads
+    graphint myStart = delegate::read(g.edgeStart+v);
+    graphint myEnd   = myStart + delegate::read(c.child_count+v);
   
     nedge_traversed += myEnd-myStart;
-    DVLOG(4) << "pop " << v << " (" << jstart+j << ")";
+    DVLOG(4) << "pop " << v << " (" << i << ")";
     
-    async_parallel_for_hack(bfs_pop_children, myStart, myEnd-myStart, v);
-  }
-}
+    // pop children
+    // async_parallel_for_hack(bfs_pop_children, myStart, myEnd-myStart, v);
+    forall_localized_async(c.child+myStart, myEnd-myStart,
+        [v](int64_t kstart, int64_t kiters, graphint * kchildren){
+      char pool_buf[sizeof(delegate::write_msg_proxy<double>)];
+      MessagePool pool(pool_buf, sizeof(pool_buf));
+      
+      int64_t sigma_v = delegate::read(c.sigma+v);
 
-void bc_add_delta(int64_t jstart, int64_t jiters) {
-  int64_t bufQ[jiters];
-  Incoherent<int64_t>::RO cQ(c.Q+jstart, jiters, bufQ);
-  for (int64_t j=0; j<jiters; j++) {
-    const graphint v = cQ[j];
-    
-    double d = read_double(c.delta+v);
-    DVLOG(4) << "updating " << v << " (" << jstart+j << ") <= " << d;
+      double sum = 0;
 
-    ff_delegate_add(bc+v, d);
-  }
-}
-
-LOOP_FUNCTOR(bfs_pop, nid, ((graphint,start)) ((graphint,end)) ) {
-  //TODO: consider adjusting threshold programmatically for different kinds of apf's...
-  global_async_parallel_for_thresh(bfs_pop_vertex, start, end-start, 1);
+      for (graphint k=0; k<kiters; k++) {
+        graphint w = kchildren[k];
+        // TODO: overlap
+        sum += ((double)sigma_v) * (1.0 + delegate::read(c.delta+w)) / (double)delegate::read(c.sigma+w);
+      }
+  
+      DVLOG(4) << "v(" << v << ")[" << kstart << "," << kstart+kiters << "] sum: " << sum;
+      // TODO: maybe shared pool so we don't have to block on sending message?
+      delegate::increment_async(pool, c.delta+v, sum);
+    });
+  });
+  
   DVLOG(4) << "###################";
-  global_async_parallel_for_thresh(bc_add_delta, start, end-start, 1);
-}
+  // global_async_parallel_for_thresh(bc_add_delta, start, end-start, 1);
+  forall_localized(c.Q+start, end-start, [](int64_t jstart, int64_t jiters, graphint * cQ){
+    char pool_buf[jiters * sizeof(delegate::write_msg_proxy<graphint>)];
+    MessagePool pool(pool_buf, sizeof(pool_buf));
+    
+    for (int64_t j=0; j<jiters; j++) {
+      const graphint v = cQ[j];
+      
+      double d = delegate::read(c.delta+v);
+      DVLOG(4) << "updating " << v << " (" << jstart+j << ") <= " << d;
 
-LOOP_FUNCTOR( initCentrality, nid, ((graph,g_)) ((CentralityScratch,s_)) ((GlobalAddress<double>,bc_)) ) {
-  nedge_traversed = 0;
-  g = g_;
-  c = s_;
-  bc = bc_;
-}
-
-LOOP_FUNCTOR( totalCentrality, v, ((GlobalAddress<double>,total)) ) {
-  ff_delegate_add(total, read_double(bc+v));
-}
-
-LOOP_FUNCTION( totalNedgeFunc, n ) {
-  nedge_traversed = Grappa_allreduce<int64_t,collective_add<int64_t>,0>(nedge_traversed);
+      delegate::increment_async(pool, bc+v, d);
+    }
+  });
 }
 
 //////////////////////
 // Profiling stuff
 /////////////////////
-LOOP_FUNCTION(func_enable_tau, nid) {
-  FLAGS_record_grappa_events = true;
-}
-LOOP_FUNCTION(func_enable_google_profiler, nid) {
-  Grappa_start_profiling();
-}
 static void enable_tau() {
 #ifdef GRAPPA_TRACE
   VLOG(1) << "Enabling TAU recording.";
-  func_enable_tau f;
-  fork_join_custom(&f);
+  call_on_all_cores([]{ FLAGS_record_grappa_events = true; });
 #endif
 #ifdef GOOGLE_PROFILER
-  func_enable_google_profiler g;
-  fork_join_custom(&g);
+  call_on_all_cores([]{ Grappa_start_profiling(); });
 #else
-  Grappa_reset_stats_all_nodes();
+  call_on_all_cores([]{ Statistics::reset(); });
 #endif
-}
-LOOP_FUNCTION(func_disable_tau, nid) {
-  FLAGS_record_grappa_events = false;
-}
-LOOP_FUNCTION(func_disable_google_profiler, nid) {
-  Grappa_stop_profiling();
 }
 static void disable_tau() {
 #ifdef GRAPPA_TRACE
   VLOG(1) << "Disabling TAU recording.";
-  func_disable_tau f;
-  fork_join_custom(&f);
+  call_on_all_cores([]{ FLAGS_record_grappa_events = false; });
 #endif
 #ifdef GOOGLE_PROFILER
-  func_disable_google_profiler g;
-  fork_join_custom(&g);
+  call_on_all_cores([]{ Grappa_stop_profiling(); });
 #else
-  Grappa_merge_and_dump_stats();
-  Grappa_reset_stats_all_nodes();
+  Statistics::merge_and_print();
+  call_on_all_cores([]{ Statistics::reset(); });
 #endif
 }
 ///////////////////////
 
 /// Computes the approximate vertex betweenness centrality on an unweighted
 /// graph using 'Vs' source vertices. Returns the average centrality.
-double centrality(graph *g, GlobalAddress<double> bc, graphint Vs,
+double centrality(graph *g_in, GlobalAddress<double> bc_in, graphint Vs,
     /* outputs: */ double * avg_centrality = NULL, int64_t * total_nedge = NULL) {
   graphint Qnext;
 
-  bool computeAllVertices = (Vs == g->numVertices);
+  bool computeAllVertices = (Vs == g_in->numVertices);
   
   graphint QHead[100 * SCALE];
   
-  c.delta       = Grappa_typed_malloc<double>  (g->numVertices);
-  c.dist        = Grappa_typed_malloc<graphint>(g->numVertices);
-  c.Q           = Grappa_typed_malloc<graphint>(g->numVertices);
-  c.sigma       = Grappa_typed_malloc<graphint>(g->numVertices);
-  c.marks       = Grappa_typed_malloc<graphint>(g->numVertices+2);
-  c.child       = Grappa_typed_malloc<graphint>(g->numEdges);
-  c.child_count = Grappa_typed_malloc<graphint>(g->numVertices);
-  if (!computeAllVertices) c.explored = Grappa_typed_malloc<graphint>(g->numVertices);
+  c.delta       = Grappa_typed_malloc<double>  (g_in->numVertices);
+  c.dist        = Grappa_typed_malloc<graphint>(g_in->numVertices);
+  c.Q           = Grappa_typed_malloc<graphint>(g_in->numVertices);
+  c.sigma       = Grappa_typed_malloc<graphint>(g_in->numVertices);
+  c.marks       = Grappa_typed_malloc<graphint>(g_in->numVertices+2);
+  c.child       = Grappa_typed_malloc<graphint>(g_in->numEdges);
+  c.child_count = Grappa_typed_malloc<graphint>(g_in->numVertices);
+  if (!computeAllVertices) c.explored = Grappa_typed_malloc<graphint>(g_in->numVertices);
   c.Qnext       = make_global(&Qnext);
   
   double t; t = timer();
@@ -252,19 +208,25 @@ double centrality(graph *g, GlobalAddress<double> bc, graphint Vs,
 
   enable_tau();
 
-  {
-    initCentrality f(*g, c, bc); fork_join_custom(&f);
+  { // initialize globals on all cores
+    auto _g = *g_in;
+    auto _c = c;
+    call_on_all_cores([_g,_c,bc_in]{
+      nedge_traversed = 0;
+      g = _g;
+      c = _c;
+      bc = bc_in;
+    });
   }
   
-  Grappa_memset(bc, 0.0, g->numVertices);
-  if (!computeAllVertices) Grappa_memset(c.explored, (graphint)0L, g->numVertices);
+  Grappa::memset(bc, 0.0, g.numVertices);
+  if (!computeAllVertices) Grappa::memset(c.explored, (graphint)0L, g.numVertices);
   
-  //srand(12345);
   mersenne_seed(12345);
 
   graphint nQ, d_phase, Qstart, Qend;
   
-  for (graphint x = 0; (x < g->numVertices) && (Vs > 0); x++) {
+  for (graphint x = 0; (x < g.numVertices) && (Vs > 0); x++) {
     /// Choose vertex at random
     graphint s;
     tt = timer();
@@ -272,14 +234,14 @@ double centrality(graph *g, GlobalAddress<double> bc, graphint Vs,
       s = x;
     } else {
       do {
-        s = mersenne_rand() % g->numVertices;
+        s = mersenne_rand() % g.numVertices;
         VLOG(1) << "s (" << s << ")";
-      } while (!cmp_swap(c.explored+s, 0, 1));
+      } while (!delegate::compare_and_swap(c.explored+s, 0, 1));
     }
     rngtime += timer() - tt;
     
     graphint pair_[2];
-    Incoherent<graphint>::RO pair(g->edgeStart+s, 2, pair_);
+    Incoherent<graphint>::RO pair(g.edgeStart+s, 2, pair_);
     
     VLOG(1) << "degree (" << pair[1]-pair[0] << ")";
 
@@ -291,21 +253,21 @@ double centrality(graph *g, GlobalAddress<double> bc, graphint Vs,
     
     VLOG(3) << "s = " << s;
     
-    Grappa_memset(c.dist,       (graphint)-1, g->numVertices);
-    Grappa_memset(c.sigma,      (graphint) 0, g->numVertices);
-    Grappa_memset(c.marks,      (graphint) 0, g->numVertices);
-    Grappa_memset(c.child_count,(graphint) 0, g->numVertices);
-    Grappa_memset(c.delta,        (double) 0, g->numVertices);
+    Grappa::memset(c.dist,       (graphint)-1, g.numVertices);
+    Grappa::memset(c.sigma,      (graphint) 0, g.numVertices);
+    Grappa::memset(c.marks,      (graphint) 0, g.numVertices);
+    Grappa::memset(c.child_count,(graphint) 0, g.numVertices);
+    Grappa::memset(c.delta,        (double) 0, g.numVertices);
     
     // Push node i onto Q and set bounds for first Q sublist
-    write(c.Q+0, s);
+    delegate::write(c.Q+0, s);
     Qnext = 1;
     nQ = 1;
     QHead[0] = 0;
     QHead[1] = 1;
-    write(c.dist+s, 0);
-    write(c.marks+s, 1);
-    write(c.sigma+s, 1);
+    delegate::write(c.dist+s, 0);
+    delegate::write(c.marks+s, 1);
+    delegate::write(c.sigma+s, 1);
 
   PushOnStack: // push nodes onto Q
     
@@ -315,9 +277,7 @@ double centrality(graph *g, GlobalAddress<double> bc, graphint Vs,
     Qstart = QHead[nQ-1];
     Qend = QHead[nQ];
     DVLOG(1) << "pushing d_phase(" << d_phase << ") " << Qstart << " -> " << Qend;
-    {
-      bfs_push f(d_phase, Qstart, Qend); fork_join_custom(&f);
-    }
+    do_bfs_push(d_phase, Qstart, Qend);
     
     // If new nodes pushed onto Q
     if (Qnext != QHead[nQ]) {
@@ -337,16 +297,14 @@ double centrality(graph *g, GlobalAddress<double> bc, graphint Vs,
 //      ss << " ]";
 //      VLOG(1) << ss.str();
 //    } 
-    Grappa_memset(c.delta, 0.0, g->numVertices);
+    Grappa::memset(c.delta, 0.0, g.numVertices);
     
     // Pop nodes off of Q in the reverse order they were pushed on
     for ( ; nQ > 1; nQ--) {
       Qstart = QHead[nQ-1];
       Qend = QHead[nQ];
       
-      {
-        bfs_pop f(Qstart, Qend); fork_join_custom(&f);
-      }
+      do_bfs_pop(Qstart, Qend);
       //VLOG(1) << "-----------------------";
       //for (int64_t i=0; i<g->numVertices; i++) {
       //  VLOG(1) << "bc[" << i << "] = " << read_double(bc+i);
@@ -377,14 +335,21 @@ double centrality(graph *g, GlobalAddress<double> bc, graphint Vs,
   Grappa_free(c.explored);
 
   double bc_total = 0;
-  {
-    totalCentrality f(make_global(&bc_total)); fork_join(&f, 0, g->numVertices);
-  }
-  { totalNedgeFunc f; fork_join_custom(&f); }
+  Core origin = mycore();
+  // TODO: use array reduction op, or mutable "forall_localized"-held state
+  on_all_cores([bc, &bc_total, origin]{
+    auto b = bc.localize();
+    auto local_end  = (bc+g.numVertices).localize();
+    double sum = 0.0;
+    for (; b < local_end; b++) { sum += *b; }
+    sum = allreduce<double,collective_add>(sum);
+    if (mycore() == origin) bc_total = sum;
+  });
+  nedge_traversed = reduce<int64_t,collective_add>(&nedge_traversed);
 
   VLOG(2) << "nedge_traversed: " << nedge_traversed;
 
-  if (avg_centrality != NULL) *avg_centrality = bc_total / g->numVertices;
+  if (avg_centrality != NULL) *avg_centrality = bc_total / g.numVertices;
   if (total_nedge != NULL) *total_nedge = nedge_traversed;
   return t;
 }
