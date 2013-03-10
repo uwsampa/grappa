@@ -13,12 +13,12 @@
 
 DEFINE_int64( threads, 2048, "#Threads");
 DEFINE_int64( yields, 10000, "Total #yields");
-bool not_done = 1;
+int count = 0;
 
 BOOST_AUTO_TEST_SUITE( Yield_tests );
 
 void child1( Thread * t, void * arg ) {
-  while (not_done) Grappa_yield();
+  while (count-- > 0) Grappa_yield();
 }
 
 double calcInterval( struct timespec start, struct timespec end ) {
@@ -33,6 +33,7 @@ void user_main( void * args )
                  " " << CURRENT_THREAD <<
                  " " << str <<
                  " on node " << Grappa_mynode() );
+  count = FLAGS_yields;
   for (int i = 1; i < FLAGS_threads; i++) {
     Grappa_spawn(&child1, (void*) &i);
   }
@@ -40,17 +41,13 @@ void user_main( void * args )
   struct timespec start, end;
   clock_gettime( CLOCK_MONOTONIC, &start);
 
-  int yields_per_thread = FLAGS_yields/FLAGS_threads;
-  for (int i = 0; i < yields_per_thread; i++) {
-    Grappa_yield();
-  }
-  not_done = 0;
+  while (count-- > 0) Grappa_yield();
 
   clock_gettime( CLOCK_MONOTONIC, &end);
   double runtime_s = calcInterval( start, end );
   double ns_per_yield = (runtime_s*1000000000) / FLAGS_yields;
   BOOST_MESSAGE( FLAGS_threads << " threads." );
-  BOOST_MESSAGE( yields_per_thread << " yields per thread." );
+  BOOST_MESSAGE( FLAGS_yields << " yields in toto." );
   BOOST_MESSAGE( ns_per_yield << " ns per yield (avg)" );  
 }
 
