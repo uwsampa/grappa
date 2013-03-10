@@ -8,6 +8,8 @@
 #include "Communicator.hpp"
 #include "Collective.hpp"
 #include "Cache.hpp"
+#include "GlobalCompletionEvent.hpp"
+#include "ParallelLoop.hpp"
 
 namespace Grappa {
   
@@ -31,9 +33,9 @@ void memset(GlobalAddress<T> base, S value, size_t count) {
   });
 }
 
-template< typename T >
-void memcpy(GlobalAddress<T> dst, GlobalAddress<T> src, size_t nelem) {
-  on_all_cores([dst,src,nelem]{
+namespace impl {
+  template< typename T >
+  void do_memcpy_locally(GlobalAddress<T> dst, GlobalAddress<T> src, size_t nelem) {
     typedef typename Incoherent<T>::WO Writeback;
 
     T * local_base = src.localize(), * local_end = (src+nelem).localize();
@@ -50,6 +52,21 @@ void memcpy(GlobalAddress<T> dst, GlobalAddress<T> src, size_t nelem) {
     }
     for (size_t i=0; i < nlocalblocks; i++) { delete putters[i]; }
     delete [] putters;
+  }
+}
+
+template< typename T >
+void memcpy(GlobalAddress<T> dst, GlobalAddress<T> src, size_t nelem) {
+  on_all_cores([dst,src,nelem]{
+    impl::do_memcpy_locally(dst,src,nelem);
+  });
+}
+
+// TODO: do forall_localized_async thing and only send messages to ones with elements
+template< GlobalCompletionEvent * GCE = &impl::local_gce, typename T = void >
+void memcpy_async(GlobalAddress<T> dst, GlobalAddress<T> src, size_t nelem) {
+  on_cores_localized_async<GCE>(src, nelem, [dst,src,nelem](T* base, size_t nlocal){
+    impl::do_memcpy_locally(dst,src,nelem);
   });
 }
 
