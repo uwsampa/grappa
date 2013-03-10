@@ -321,6 +321,56 @@ namespace Grappa {
     });
   }
   
+  /// Run privateTasks on each core that contains elements of the given region of global memory.
+  /// do_on_core: void(T* local_base, size_t nlocal)
+  /// Internally creates privateTask with 2*8-byte words, so do_on_core can be 8 bytes and not cause heap allocation.
+  template< GlobalCompletionEvent * GCE = &impl::local_gce,
+            int64_t Threshold = impl::USE_LOOP_THRESHOLD_FLAG,
+            typename T = decltype(nullptr),
+            typename F = decltype(nullptr) >
+  void on_cores_localized_async(GlobalAddress<T> base, int64_t nelems, F do_on_core) {
+    Core nc = cores();
+    Core fc;
+    int64_t nbytes = nelems*sizeof(T);
+    GlobalAddress<int64_t> end = base+nelems;
+    if (nelems > 0) { fc = 1; }
+  
+    size_t block_elems = block_size / sizeof(T);
+    int64_t nfirstcore = base.block_max() - base;
+    int64_t n = nelems - nfirstcore;
+    
+    if (n > 0) {
+      int64_t nrest = n / block_elems;
+      if (nrest >= nc-1) {
+        fc = nc;
+      } else {
+        fc += nrest;
+        if ((end - end.block_min()) && end.node() != base.node()) {
+          fc += 1;
+        }
+      }
+    }
+    
+    Core origin = mycore();
+    Core start_core = base.node();
+    MessagePool pool(cores() * sizeof(Message<std::function<void(GlobalAddress<T>,int64_t,F)>>));
+    
+    GCE->enroll(fc);
+    struct { int64_t nelems : 48, origin : 16; } packed = { nelems, mycore() };
+    
+    for (Core i=0; i<fc; i++) {
+      pool.send_message((start_core+i)%nc, [base,packed,do_on_core] {
+        privateTask([base,packed,do_on_core] {
+          T* local_base = base.localize();
+          T* local_end = (base+packed.nelems).localize();
+          size_t n = local_end - local_base;
+          do_on_core(local_base, n);
+          complete(make_global(GCE,packed.origin));
+        });
+      });
+    }
+  }
+  
   /// Asynchronous version of Grappa::forall_localized (enrolls with GCE, does not block).
   ///
   /// Spawns tasks to on cores that *may contain elements* of the part of a linear array
