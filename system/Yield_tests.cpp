@@ -35,7 +35,6 @@ void user_main( void * args )
   for (int i = 1; i < FLAGS_threads; i++) {
     Grappa_spawn(&child1, (void*) &i);
   }
-  not_done = 0;
 
   struct timespec start, end;
   clock_gettime( CLOCK_MONOTONIC, &start);
@@ -44,6 +43,8 @@ void user_main( void * args )
   for (int i = 0; i < yields_per_thread; i++) {
     Grappa_yield();
   }
+  not_done = 0;
+
   clock_gettime( CLOCK_MONOTONIC, &end);
   double runtime_s = calcInterval( start, end );
   double ns_per_yield = (runtime_s*1000000000) / FLAGS_yields;
