@@ -19,6 +19,8 @@
 #include "Addressing.hpp"
 //#include "PerformanceTools.hpp"
 
+#include "NodeSharedMemory.hpp"
+
 #include "MessageBase.hpp"
 #include "RDMABuffer.hpp"
 
@@ -29,8 +31,9 @@
 #include "ReusePool.hpp"
 #include "ReuseList.hpp"
 
-
 #include "Statistics.hpp"
+
+// #include <boost/interprocess/containers/vector.hpp>
 
 DECLARE_int64( target_size );
 
@@ -143,9 +146,6 @@ namespace Grappa {
 
       /// cache buffer addresses on the remote core
       Grappa::impl::ReusePool< RDMABuffer, CountingSemaphore, remote_buffer_pool_size > remote_buffers_;
-      /// how many of our buffers does this core hold?
-      //int64_t remote_buffer_held_count_;
-      Grappa::CountingSemaphore remote_buffers_held_;
 
       ///
       /// another cache line
@@ -159,7 +159,6 @@ namespace Grappa {
         , prefetch_queue_() 
         , representative_core_(0)
         , remote_buffers_()
-        , remote_buffers_held_(0)
         , received_messages_(NULL)
       { }
     } __attribute__ ((aligned(64)));
@@ -184,7 +183,7 @@ namespace Grappa {
       Grappa::impl::ReuseList< RDMABuffer > free_buffer_list_;
 
       /// per-core storage
-      std::vector< CoreData > cores_;
+      CoreData * cores_;
 
 
       /// Active message to walk a buffer of received deserializers/functors and call them.
@@ -242,12 +241,6 @@ namespace Grappa {
       /// task that is run to allocate space to receive a message      
       static void deaggregation_task( GlobalAddress< FullEmpty < ReceiveBufferInfo > > callback_ptr );
 
-      /// handles requests for buffers from sending nodes
-      void request_buffer_for_src( Core requesting_core );
-
-      /// Respond to requestor with free buffer
-      void reply_with_free_buffer( Core destination_core, RDMABuffer * b );
-
       /// Accept an empty buffer sent by a remote host
       void cache_buffer_for_core( Core owner, RDMABuffer * b );
 
@@ -290,7 +283,7 @@ namespace Grappa {
         , flushing_( false )
         , received_buffer_list_()
         , free_buffer_list_()
-        , cores_()
+        , cores_(NULL)
         , deserialize_buffer_handle_( -1 )
         , deserialize_first_handle_( -1 )
         , enqueue_buffer_handle_( -1 )
@@ -305,6 +298,8 @@ namespace Grappa {
       /// initialize and register with communicator
       void init();
       void activate();
+      void finish();
+
 
       // void poll( ) {
       //   // there are two places 

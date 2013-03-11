@@ -79,7 +79,8 @@ namespace Grappa {
 #ifdef LEGACY_SEND
 #warning RDMA Aggregator is bypassed!
 #endif
-      cores_.resize( global_communicator.nodes() );
+#ifdef ENABLE_RDMA_AGGREGATOR
+      //cores_.resize( global_communicator.nodes() );
       mycore_ = global_communicator.mynode();
       mynode_ = -1; // gasnet supernode
       total_cores_ = global_communicator.nodes();
@@ -107,29 +108,49 @@ namespace Grappa {
       Grappa::privateTask( [this] {
           idle_flusher();
         });
-
+#endif
     }
 
     void RDMAAggregator::activate() {
+#ifdef ENABLE_RDMA_AGGREGATOR
+      // allocate core message list structs
+      if( global_communicator.locale_mycore() == 0 ) {
+        cores_ = Grappa::impl::node_shared_memory.segment.construct<CoreData>("Cores")[global_communicator.cores()]();
+      }
+      global_communicator.barrier();
+      if( global_communicator.locale_mycore() != 0 ) {
+        std::pair< CoreData *, boost::interprocess::managed_shared_memory::size_type > p;
+        p = Grappa::impl::node_shared_memory.segment.find<CoreData>("Cores");
+        CHECK_EQ( p.second, global_communicator.cores() );
+        cores_ = p.first;
+      }
+
       // precache buffers
       LOG(INFO) << "Precaching buffers";
       size_t expected_buffers = (Grappa::cores() - 1) * remote_buffer_pool_size;
-      for( int i = 0; i < Grappa::cores(); ++i ) {
-        if( i != Grappa::mycore() ) {
+      for( int i = 0; false && i < Grappa::locales(); ++i ) {
+        if( i != Grappa::mylocale() && Grappa::mycore() == global_communicator.source_core_for(i) ) {
+          Core dest = global_communicator.dest_core_for(i);
+          LOG(INFO) << "Core " << Grappa::mycore() << " precaching to " << dest;
           Core requestor = Grappa::mycore();
-          auto request = Grappa::message( i, [i, requestor, &expected_buffers] {
+          auto request = Grappa::message( dest, [dest, requestor, &expected_buffers] {
               for( int j = 0; j < remote_buffer_pool_size; ++j ) {
                 RDMABuffer * b = global_rdma_aggregator.free_buffer_list_.try_pop();
                 CHECK_NOTNULL( b );
-                global_rdma_aggregator.cores_[requestor].remote_buffers_held_.increment();
-                auto reply = Grappa::message( requestor, [i, b, &expected_buffers] {
-                    global_rdma_aggregator.cores_[i].remote_buffers_.push( b );
+                auto reply = Grappa::message( requestor, [dest, b, &expected_buffers] {
+                    global_rdma_aggregator.cores_[dest].remote_buffers_.push( b );
                     expected_buffers--;
                   });
                 reply.send_immediate();
               }
             });
           request.send_immediate();
+        }
+      }
+
+
+      for( int i = 0; i < Grappa::cores(); ++i ) {
+        if( global_communicator.locale_of(i) != Grappa::mylocale() ) {
         }  
       }
       while( expected_buffers > 0 ) global_communicator.poll();
@@ -139,6 +160,17 @@ namespace Grappa {
           CHECK_EQ( cores_[i].remote_buffers_.count(), remote_buffer_pool_size );
         }
       }
+#endif
+    }
+
+    void RDMAAggregator::finish() {
+#ifdef ENABLE_RDMA_AGGREGATOR
+      global_communicator.barrier();
+      if( global_communicator.locale_mycore() == 0 ) {
+        Grappa::impl::node_shared_memory.segment.destroy<CoreData>("Cores");
+      }
+      cores_ = NULL;
+#endif
     }
 
     void RDMAAggregator::deserialize_buffer_am( gasnet_token_t token, void * buf, size_t size ) {
@@ -253,7 +285,7 @@ namespace Grappa {
         RDMABuffer * new_receiver_buffer_for_sender = global_rdma_aggregator.free_buffer_list_.try_pop();
         if( new_receiver_buffer_for_sender == NULL ) {
           LOG(WARNING) << __func__ << "/" << global_scheduler.get_current_thread()
-                       << "No buffer available for ack to sender " << sender << " whose buffer count is " 
+                       << " No buffer available for ack to sender " << sender << " whose buffer count is " 
                        << cores_[sender].remote_buffers_.count() << " on " << receiver << "; blocking";
           new_receiver_buffer_for_sender = global_rdma_aggregator.free_buffer_list_.block_until_pop();
         }
@@ -319,60 +351,6 @@ namespace Grappa {
       }
     }
 
-    /// Handle a request for a buffer from a sender
-    void RDMAAggregator::request_buffer_for_src( Core requesting_core ) {
-      CHECK_EQ( 1, 0 );
-      RDMABuffer * b = NULL;
-      bool must_block = false;
-      // try to record that we're giving this core a buffer
-      if( cores_[requesting_core].remote_buffers_held_.try_decrement() ) {
-        // try to get a buffer for the requesting core
-        if( (b = global_rdma_aggregator.free_buffer_list_.try_pop()) ) {
-          // we got one, so reply immediately
-          reply_with_free_buffer( requesting_core, b );
-        } else {
-          // didn't get one, so reset semaphore and block
-          cores_[requesting_core].remote_buffers_held_.increment();
-          must_block = true;
-        }
-      } else {
-        must_block = true;
-      }
-
-      // uh oh, we have to block in AM context
-      if( must_block ) {
-        // spawn task to do blocking for us
-        // TODO: better solution for blocking?
-        Grappa::privateTask( [this, requesting_core] {
-            cores_[requesting_core].remote_buffers_held_.decrement();
-            RDMABuffer * b = global_rdma_aggregator.free_buffer_list_.block_until_pop();
-            reply_with_free_buffer( requesting_core, b );
-          });
-      }
-    }
-
-    /// Respond to sender with free buffer
-    void RDMAAggregator::reply_with_free_buffer( Core requesting_core, RDMABuffer * b ) {
-      CHECK_EQ( 1, 0 );
-      // // this is not used at this point, but set it to what we expect it to be anyway.
-      // b->set_core( requesting_core );
-
-      // // now construct reply
-      // Core buffer_owner = Grappa::mycore();
-      // auto reply = Grappa::message( requesting_core, [requesting_core, buffer_owner, b] {
-      //     global_rdma_aggregator.cache_buffer_for_core( requesting_core, buffer_owner, b );
-      //   });
-
-      // // now send reply
-      // // // is it practical to do an RDMA send?
-      // // if( global_rdma_aggregator.cores_[requesting_core].remote_buffers_.available() ) {
-      // //   reply.enqueue();
-      // //   flush_one( requesting_core );
-      // // } else { // nope, so send immediate reply
-      //   reply.send_immediate();
-      // // }
-    }
-  
     /// Accept an empty buffer sent by a remote host
     void RDMAAggregator::cache_buffer_for_core( Core owner, RDMABuffer * b ) {
       // try to accept this buffer
