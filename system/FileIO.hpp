@@ -180,7 +180,7 @@ struct read_array_args {
     strncpy(this->fname, fname, FNAME_LENGTH);
   }
   static void task(GlobalAddress< read_array_args<T> > args_addr, size_t index, size_t nelem) {
-    VLOG(3) << "num_active = " << global_scheduler.active_worker_count();
+    VLOG(3) << "num_active = " << Grappa::impl::global_scheduler.active_worker_count();
 
     read_array_args<T> b_args;
     typename Incoherent< read_array_args<T> >::RO args(args_addr, 1, &b_args);
@@ -208,7 +208,7 @@ struct read_array_args {
 
 LOOP_FUNCTOR( set_allow_active, nid, ((int64_t,n)) ) {
   // limit number of workers allowed to be active
-  global_scheduler.allow_active_workers(n);
+  Grappa::impl::global_scheduler.allow_active_workers(n);
 }
 
 template < typename T >
@@ -327,12 +327,13 @@ struct save_array_func : ForkJoinIteration {
 template < typename T >
 void _save_array_dir(const char * dirname, GlobalAddress<T> array, size_t nelems) {
   // make directory with mode 777
-  //fs::create_directory((const char *)dirname);
-  if ( mkdir((const char *)dirname, 0777) != 0 ) {
-    switch (errno) { // error occurred
-      case EEXIST: LOG(INFO) << "files already exist, skipping write..."; return;
-      default: fprintf(stderr, "Error with `mkdir`!\n"); break;
-    }
+  fs::path pdir(dirname);
+  
+  try {
+    fs::create_directories(pdir);
+    fs::permissions(pdir, fs::perms::all_all);
+  } catch (fs::filesystem_error& e) {
+    LOG(ERROR) << "filesystem error: " << e.what();
   }
 
   double t = Grappa_walltime();

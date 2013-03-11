@@ -22,7 +22,7 @@ using namespace Grappa;
 TEST(int_add) {
   int64_t expected = Grappa::cores(); 
   on_all_cores( [expected] {
-    Reducer<int64_t, collective_add> r( 0 );
+    AllReducer<int64_t, collective_add> r( 0 );
     r.reset();
     r.accumulate( 1 );
 
@@ -37,7 +37,7 @@ TEST(int_add_more) {
   int64_t nc = Grappa::cores();
   int64_t expected = nc*(nc+1)*(2*nc+1)/6;
   on_all_cores( [expected] {
-    Reducer<int64_t, collective_add> r( 0 );
+    AllReducer<int64_t, collective_add> r( 0 );
     r.reset();
     for (int i=0; i<Grappa::mycore()+1; i++) {
       r.accumulate( Grappa::mycore()+1 );
@@ -53,7 +53,7 @@ TEST(int_add_more) {
 TEST(int_max) {
   int64_t expected = 1; 
   on_all_cores( [expected] {
-    Reducer<int64_t, collective_max> r( 0 );
+    AllReducer<int64_t, collective_max> r( 0 );
     r.reset();
     r.accumulate( -1*Grappa::mycore() + 1  );
 

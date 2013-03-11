@@ -10,6 +10,7 @@
 #include "Grappa.hpp"
 #include "Statistics.hpp"
 #include "Delegate.hpp"
+#include "Collective.hpp"
 
 BOOST_AUTO_TEST_SUITE( Statistics_tests );
 
@@ -41,6 +42,11 @@ void user_main(void * args) {
     baz += 16;
     baz += 25;
     baz += 36;
+
+    BOOST_CHECK( baz.value() == (16+25+36) );
+    BOOST_CHECK( foo.value() == 2 );
+    BOOST_CHECK( bar.value() == 5.41 );
+
     return true;
   });
   
@@ -52,6 +58,9 @@ void user_main(void * args) {
     });
   Statistics::merge_and_print();
   //Statistics::dump_stats_blob();
+  
+  call_on_all_cores([]{ Statistics::reset(); });
+  Statistics::merge_and_print();
 }
 
 BOOST_AUTO_TEST_CASE( test1 ) {
