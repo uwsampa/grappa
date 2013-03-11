@@ -36,8 +36,6 @@ private:
   
   char data_[ BUFFER_SIZE - sizeof( raw_ ) - sizeof( ack_ ) ];
   
-  friend class RDMABufferList;
-  
 public:
   RDMABuffer()
     : core_( -1 )
