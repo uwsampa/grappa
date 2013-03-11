@@ -26,7 +26,7 @@
 //#include "FileIO.hpp"
 
 #include "RDMAAggregator.hpp"
-#include "NodeSharedMemory.hpp"
+#include "LocaleSharedMemory.hpp"
 
 #include <fstream>
 
@@ -226,7 +226,7 @@ void Grappa_init( int * argc_p, char ** argv_p[], size_t global_memory_size_byte
   }
 
   // initialize node shared memory
-  Grappa::impl::node_shared_memory.init();
+  Grappa::impl::locale_shared_memory.init();
 
   // by default, will allocate as much shared memory as it is
   // possible to evenly split among the processors on a node
@@ -310,7 +310,7 @@ void Grappa_activate()
 {
   DVLOG(1) << "Activating Grappa library....";
   global_communicator.activate();
-  Grappa::impl::node_shared_memory.activate();
+  Grappa::impl::locale_shared_memory.activate();
   Grappa_barrier();
   Grappa::impl::global_rdma_aggregator.activate();
   Grappa_barrier();
@@ -590,7 +590,7 @@ void Grappa_finish( int retval )
 
   StateTimer::finish();
 
-  Grappa::impl::node_shared_memory.finish();
+  Grappa::impl::locale_shared_memory.finish();
   global_task_manager.finish();
   global_aggregator.finish();
   global_communicator.finish( retval );

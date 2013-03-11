@@ -115,12 +115,12 @@ namespace Grappa {
 #ifdef ENABLE_RDMA_AGGREGATOR
       // allocate core message list structs
       if( global_communicator.locale_mycore() == 0 ) {
-        cores_ = Grappa::impl::node_shared_memory.segment.construct<CoreData>("Cores")[global_communicator.cores()]();
+        cores_ = Grappa::impl::locale_shared_memory.segment.construct<CoreData>("Cores")[global_communicator.cores()]();
       }
       global_communicator.barrier();
       if( global_communicator.locale_mycore() != 0 ) {
         std::pair< CoreData *, boost::interprocess::managed_shared_memory::size_type > p;
-        p = Grappa::impl::node_shared_memory.segment.find<CoreData>("Cores");
+        p = Grappa::impl::locale_shared_memory.segment.find<CoreData>("Cores");
         CHECK_EQ( p.second, global_communicator.cores() );
         cores_ = p.first;
       }
@@ -167,7 +167,7 @@ namespace Grappa {
 #ifdef ENABLE_RDMA_AGGREGATOR
       global_communicator.barrier();
       if( global_communicator.locale_mycore() == 0 ) {
-        Grappa::impl::node_shared_memory.segment.destroy<CoreData>("Cores");
+        Grappa::impl::locale_shared_memory.segment.destroy<CoreData>("Cores");
       }
       cores_ = NULL;
 #endif

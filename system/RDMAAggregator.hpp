@@ -19,7 +19,7 @@
 #include "Addressing.hpp"
 //#include "PerformanceTools.hpp"
 
-#include "NodeSharedMemory.hpp"
+#include "LocaleSharedMemory.hpp"
 
 #include "MessageBase.hpp"
 #include "RDMABuffer.hpp"
