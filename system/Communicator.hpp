@@ -308,17 +308,11 @@ private:
   /// array of core-to-locale translations
   Core * locale_of_core_;
 
-  /// array of locale-to-core translations
-  Core * source_core_for_locale_;
-  Core * dest_core_for_locale_;
-
 
 #ifdef VTRACE_FULL
   unsigned communicator_grp_vt;
   unsigned send_ev_vt;
 #endif
-
-  void draw_routing_graph();
 
 public:
 
@@ -424,14 +418,6 @@ public:
 
   inline Locale locale_of( Core c ) const { 
     return locale_of_core_[c];
-  }
-
-  inline Core source_core_for( Locale l ) const { 
-    return source_core_for_locale_[l];
-  }
-
-  inline Core dest_core_for( Locale l ) const { 
-    return dest_core_for_locale_[l];
   }
 
 
@@ -543,7 +529,6 @@ inline Core mylocale() { return global_communicator.mylocale(); }
 
 /// What shared memory domain does core c belong to?
 inline Core locale_of(Core c) { return global_communicator.locale_of(c); }
-
 
 /// how big can inline messages be?
 inline size_t inline_limit() { return global_communicator.inline_limit(); }

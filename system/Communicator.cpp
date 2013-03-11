@@ -6,8 +6,6 @@
 // Energy. The Government has certain rights in the software.
 
 #include <cassert>
-#include <sstream>
-#include <fstream>
 
 #include <gflags/gflags.h>
 
@@ -17,8 +15,6 @@ extern HeapLeakChecker * Grappa_heapchecker;
 #endif
 
 #include "Communicator.hpp"
-
-DEFINE_string( route_graph_filename, "routing.dot", "Name of file for routing graph" );
 
 /// Global communicator instance
 Communicator global_communicator;
@@ -35,8 +31,6 @@ Communicator::Communicator( )
   , locales_( -1 )
   , locale_cores_( -1 )
   , locale_of_core_(NULL)
-  , source_core_for_locale_(NULL)
-  , dest_core_for_locale_(NULL)
 #ifdef VTRACE_FULL
   , communicator_grp_vt( VT_COUNT_GROUP_DEF( "Communicator" ) )
   , send_ev_vt( VT_COUNT_DEF( "Sends", "bytes", VT_COUNT_TYPE_UNSIGNED, communicator_grp_vt ) )
@@ -76,50 +70,6 @@ void Communicator::init( int * argc_p, char ** argv_p[] ) {
     locale_of_core_[i] = gasneti_nodeinfo[i].supernode;
   }
 
-  Core locale_first_core = mylocale_ * locale_cores_;
-  Core locale_last_core = mylocale_ * locale_cores_ + locale_cores_;
-
-  // allocate and initialize locale-to-core translation
-  if( locale_mycore_ == 0 ) {
-    // how many locales should each core handle?
-    // (assume all locales have same core count)
-    int probable_locales_per_core = locales_ / locale_cores_;
-    // (make we have at least one locale per core)
-    int locales_per_core = probable_locales_per_core > 0 ? probable_locales_per_core : 1;
-    LOG(INFO) << "probable_locales_per_core " << probable_locales_per_core
-              << " locales_per_core " << locales_per_core;
-
-    // initialize source cores
-    source_core_for_locale_ = new Core[ locales_ ];
-    for( int i = 0; i < locales_; ++i ) {
-      if( i == mylocale_ ) {
-        source_core_for_locale_[i] = -1;
-      } else {
-        source_core_for_locale_[i] = mylocale_ * locale_cores_ + i / locales_per_core;
-      }
-    }
-
-    // initialize destination cores.
-    // this should match up with source assignments.
-    dest_core_for_locale_ = new Core[ locales_ ];
-    for( int i = 0; i < locales_; ++i ) {
-      if( i == mylocale_ ) {
-        dest_core_for_locale_[i] = -1;
-      } else {
-        dest_core_for_locale_[i] = i * locale_cores_ + mylocale_ / locales_per_core;
-     
-      }
-    }
-
-    for( int i = 0; i < locales_; ++i ) {
-      LOG(INFO) << "From locale " << mylocale_ << " to locale " << i 
-                << " source core " << source_core_for_locale_[i]
-                << " dest core " << dest_core_for_locale_[i];
-    }
-
-  }
-
-
   LOG(INFO) << " mycore_ " << mycore_ 
             << " cores_ " << cores_
             << " mylocale_ " << mylocale_ 
@@ -130,51 +80,6 @@ void Communicator::init( int * argc_p, char ** argv_p[] ) {
   registration_is_allowed_ = true;
 }
 
-#define DOTOUT LOG(INFO) << "DOT"
-void Communicator::draw_routing_graph() {
-  {
-    if( mycore_ == 0 ) {
-      std::ofstream o( FLAGS_route_graph_filename, std::ios::trunc );
-      o << "digraph Routing {\n";
-      o << "    node [shape=record];\n";
-      o << "    splines=true;\n";
-    }
-  }
-  barrier();
-
-  for( int n = 0; n < locales_; ++n ) {
-    if( locale_mycore_ == 0 && n == mylocale_ ) {
-      std::ofstream o( FLAGS_route_graph_filename, std::ios::app );
-
-      o << "    n" << n << " [label=\"n" << n;
-      for( int c = n * locale_cores_; c < (n+1) * locale_cores_; ++c ) {
-        o << "|";
-        if( c == n * locale_cores_ ) o << "{";
-        o << "<c" << c << "> c" << c;
-      }
-      o << "}\"];\n";
-
-      //for( int c = n * locale_cores_; c < (n+1) * locale_cores_; ++c ) {
-      for( int d = 0; d < locales_; ++d ) {
-        if( d != mylocale_ ) {
-          o << "    n" << n << ":c" << source_core_for_locale_[d] << ":e"
-            << " -> n" << d << ":c" << dest_core_for_locale_[d] << ":w"
-            << " [headlabel=\"c" << source_core_for_locale_[d] << "\"]"
-            << ";\n";
-        }
-      }
-
-    }
-    barrier();
-  }
-
-  {
-    if( mycore_ == 0 ) {
-      std::ofstream o( FLAGS_route_graph_filename, std::ios::app );
-      o << "}\n";
-    }
-  }
-}
 
 
 #define ONE_MEGA (1024 * 1024)
@@ -194,17 +99,11 @@ void Communicator::activate() {
   LOG(INFO) << "Entering activation barrier";
   barrier();
   LOG(INFO) << "Leaving activation barrier";
-  draw_routing_graph();
 }
 
 /// tear down communication layer.
 void Communicator::finish(int retval) {
   communication_is_allowed_ = false;
-
-
-  if( source_core_for_locale_ ) delete [] source_core_for_locale_;
-  if( dest_core_for_locale_ ) delete [] dest_core_for_locale_;
-
   // TODO: for now, don't call gasnet exit. should we in future?
   //gasnet_exit( retval );
 }
