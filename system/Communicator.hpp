@@ -45,8 +45,10 @@
 /// library. Actual handlers may have arguments.
 typedef void (*HandlerPointer)();    
 
-/// Type for Node ID. 
+/// Type for Core and Locale IDs. 
 typedef int16_t Core;
+typedef int16_t Locale;
+
 /// @legacy
 typedef Core Node;
 
@@ -68,6 +70,24 @@ typedef Core Node;
 
 /// some variables from gasnet
 extern size_t gasnetc_inline_limit;
+
+/* from gasnet_internal.c:
+ *   gasneti_nodemap_local_count = number of GASNet nodes collocated w/ gasneti_mynode
+ *   gasneti_nodemap_local_rank  = rank of gasneti_mynode among gasneti_nodemap_local_count
+ *   gasneti_nodemap_local[]     = array (length gasneti_nodemap_local_count) of local nodes
+ *   gasneti_nodemap_global_count = number of unique values in the nodemap
+ *   gasneti_nodemap_global_rank  = rank of gasneti_mynode among gasneti_nodemap_global_count
+ * and constructs:
+ *   gasneti_nodeinfo[] = array of length gasneti_nodes of supernode ids and mmap offsets
+ */
+extern gasnet_node_t *gasneti_nodemap;
+extern gasnet_node_t *gasneti_nodemap_local;
+extern gasnet_node_t gasneti_nodemap_local_count;
+extern gasnet_node_t gasneti_nodemap_local_rank;
+extern gasnet_node_t gasneti_nodemap_global_count;
+extern gasnet_node_t gasneti_nodemap_global_rank;
+extern gasnet_nodeinfo_t *gasneti_nodeinfo;
+
 
 class Communicator;
 
@@ -277,10 +297,28 @@ private:
   /// Are we in the phase that allows communication?
   bool communication_is_allowed_;
 
+
+  Core mycore_;
+  Core cores_;
+  Core mylocale_;
+  Core locales_;
+  Core locale_mycore_;
+  Core locale_cores_;
+  
+  /// array of core-to-locale translations
+  Core * locale_of_core_;
+
+  /// array of locale-to-core translations
+  Core * source_core_for_locale_;
+  Core * dest_core_for_locale_;
+
+
 #ifdef VTRACE_FULL
   unsigned communicator_grp_vt;
   unsigned send_ev_vt;
 #endif
+
+  void draw_routing_graph();
 
 public:
 
@@ -355,6 +393,49 @@ public:
     assert( registration_is_allowed_ || communication_is_allowed_ );
     return gasnet_nodes(); 
   }
+
+
+
+
+
+  inline Core mycore() const { 
+    return mycore_;
+  }
+  inline Core cores() const { 
+    return cores_;
+  }
+
+  inline Node mylocale() const { 
+    return mylocale_;
+  }
+
+  inline Node locales() const { 
+    return locales_;
+  }
+
+  inline Core locale_cores() const { 
+    return locale_cores_;
+  }
+
+  inline Core locale_mycore() const { 
+    return locale_mycore_;
+  }
+
+
+  inline Locale locale_of( Core c ) const { 
+    return locale_of_core_[c];
+  }
+
+  inline Core source_core_for( Locale l ) const { 
+    return source_core_for_locale_[l];
+  }
+
+  inline Core dest_core_for( Locale l ) const { 
+    return dest_core_for_locale_[l];
+  }
+
+
+
 
   inline size_t inline_limit() const {
     return gasnetc_inline_limit;
@@ -439,14 +520,42 @@ extern Communicator global_communicator;
 
 namespace Grappa {
 
-  /// @addtogroup Communication
-  /// @{
+/// @addtogroup Communication
+/// @{
 
-  inline Core cores() { return global_communicator.nodes(); }
-  inline Core mycore() { return global_communicator.mynode(); }
-  inline size_t inline_limit() { return global_communicator.inline_limit(); }
+/// How many cores are there in this job?
+inline Core cores() { return global_communicator.nodes(); }
 
-  /// @}
+/// What's my core ID in this job?
+inline Core mycore() { return global_communicator.mynode(); }
+
+/// How many cores are in my shared memory domain?
+inline Core locale_cores() { return global_communicator.locale_cores(); }
+
+/// What's my core ID within my shared memory domain?
+inline Core locale_mycore() { return global_communicator.locale_mycore(); }
+
+/// How many shared memory domains are in this job?
+inline Core locales() { return global_communicator.locales(); }
+
+/// What's my shared memory domain ID within this job?
+inline Core mylocale() { return global_communicator.mylocale(); }
+
+/// What shared memory domain does core c belong to?
+inline Core locale_of(Core c) { return global_communicator.locale_of(c); }
+
+
+/// how big can inline messages be?
+inline size_t inline_limit() { return global_communicator.inline_limit(); }
+
+// /// @deprecated How many cores are in this job?
+// inline Core nodes() { return global_communicator.supernodes(); }
+
+// /// @deprecated What's my core ID within this job?
+// inline Core mynode() { return global_communicator.mysupernode(); }
+
+
+/// @}
 
 }
 
