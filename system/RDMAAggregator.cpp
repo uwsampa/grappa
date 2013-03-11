@@ -13,7 +13,7 @@ DEFINE_int64( target_size, 1 << 12, "Target size for aggregated messages" );
 DEFINE_int64( rdma_workers_per_core, 1 << 4, "Number of RDMA deaggregation worker threads" );
 DEFINE_int64( rdma_buffers_per_core, 16, "Number of RDMA aggregated message buffers per core" );
 
-DEFINE_int64( rdma_threshold, 4024, "Threshold in bytes below which we send immediately instead of using RDMA" );
+DEFINE_int64( rdma_threshold, 64, "Threshold in bytes below which we send immediately instead of using RDMA" );
 
 
 /// stats for application messages
@@ -326,6 +326,7 @@ namespace Grappa {
         DVLOG(5) << __func__ << ": " << "Deaggregated"
                  << " from buffer " << receiver_buffer;
 
+        // done with this buffer. put it back on free list
         global_rdma_aggregator.free_buffer_list_.push( receiver_buffer );
 
         // // if we didn't get a buffer before, try now.
@@ -365,34 +366,30 @@ namespace Grappa {
       }
     }
 
+  bool RDMAAggregator::send_would_block( Core core ) {
+    CoreData * dest = &cores_[ core ];
+    return ( !dest->remote_buffers_.available() || 
+             free_buffer_list_.empty() );
+  }        
 
-  void RDMAAggregator::send_rdma( Core core, Grappa::impl::MessageList ml, size_t estimated_size ) {
+
+  void RDMAAggregator::send_rdma_old( Core core, Grappa::impl::MessageList ml, size_t estimated_size ) {
       CHECK_LT( core, Grappa::cores() ) << "WTF?";
 
+      CoreData * dest = &cores_[ core ];
 
       size_t serialized_count = 0;
       size_t buffers_sent = 0;
       size_t serialize_calls = 0;
       size_t serialize_null_returns = 0;
 
-
-
-      CoreData * dest = &cores_[ core ];
-
       size_t grabbed_count = ml.count_;
+      Grappa::impl::MessageBase * messages_to_send = get_pointer( &ml );
 
       if( 0 == ml.raw_ ) {
         DVLOG(5) << __func__ << ": " << "Aborting send to " << core << " since there's nothing to do";
         return;
       }
-
-      if( estimated_size < FLAGS_rdma_threshold ) {
-        send_medium( core, ml );
-        return;
-      }
-
-      rdma_send_start++;
-      Grappa::impl::MessageBase * messages_to_send = get_pointer( &ml );
 
       // maybe deliver locally
       if( core == Grappa::mycore() ) {
@@ -400,75 +397,34 @@ namespace Grappa {
         return;
       }
 
+      // if( estimated_size < FLAGS_rdma_threshold ) {
+      //   send_medium( core, ml );
+      //   return;
+      // }
+
+      rdma_send_start++;
+
       DVLOG(5) << __func__ << ": " << "Sending messages via RDMA from " << (void*)cores_[core].messages_.raw_ 
                << " to " << core;
       
       // send as many buffers as we need for this message list
       do {
 
-        // // wait until there's capacity to send
-        // cores_[core].remote_buffers_held_.decrement();
-
-        //
-        // Get a remote buffer
-        //
-
-        // // prepare request message just in case
-        Core local_core = Grappa::mycore();
-        // auto request_buffer_message = Grappa::message( core, [local_core] {
-        //     global_rdma_aggregator.request_buffer_for_src( local_core );
-        //   });
-
-        // // try to get a remote buffer
-        // RDMABuffer * remote_buf = dest->remote_buffers_.try_pop();
-
         // block until we have a remote buffer
         RDMABuffer * remote_buf = dest->remote_buffers_.block_until_pop();
         
-        // // if one wasn't available, send request
-        // if( NULL == remote_buf ) {
-        //   request_buffer_message.send_immediate();
-        // }
-
-        //
-        // get a local buffer
-        //
-
         // get a local buffer for aggregation
         RDMABuffer * local_buf = free_buffer_list_.block_until_pop();
 
         // mark it as being from us
-        local_buf->set_core( local_core );
+        local_buf->set_core( Grappa::mycore() );
         // local_buf->set_ack( NULL ); //local_buf );
         local_buf->set_ack( local_buf );
-
-        // // we first use the local buffer to serialize our
-        // // messages. after they're copied to the remote host, we give
-        // // the remote host ownership of the buffer. It may then use it
-        // // to reply, or simply return it as an ack. Here we build the
-        // // message delivering this buffer to the remote core.
-        // auto deliver_buffer_message = Grappa::message( core, [core, local_core, local_buf] {
-        //     global_rdma_aggregator.cache_buffer_for_core( core, local_core, local_buf );
-        //   });
-
-        // // stitch message onto head of list
-        // deliver_buffer_message.next_ = messages_to_send;
-        // deliver_buffer_message.prefetch_ = messages_to_send;
-        // messages_to_send = &deliver_buffer_message;
-        // grabbed_count++;
 
         send_with_buffers( core, &messages_to_send, local_buf, remote_buf,
                            &serialized_count, &serialize_calls, &serialize_null_returns );
         buffers_sent++;
       } while( messages_to_send != static_cast<Grappa::impl::MessageBase*>(nullptr) );
-
-
-      // this is a handy check except for when message lists get > 64K....
-      // DCHECK_EQ( grabbed_count, serialized_count ) << "Did we not serialize everything?" 
-      //                                              << " buffers_sent=" << buffers_sent
-      //                                              << " messages_to_send=" << messages_to_send
-      //                                              << " serialize_calls=" << serialize_calls
-      //                                              << " serialize_null_returns=" << serialize_null_returns;
 
       rdma_send_end++;
     }
@@ -531,14 +487,6 @@ namespace Grappa {
       //
       // send
       //
-      
-      // // if we still need to, block until we have a buffer
-      // if( remote_buf == NULL ) {
-      //   DVLOG(5) << __func__ << ": " << "Maybe blocking for response from " << core << " for buffer " << local_buf;
-      //   remote_buf = dest->remote_buffers_.block_until_pop();
-      // }
-      // DVLOG(5) << __func__ << ": " << "Got buffer info with buffer address " << remote_buf
-      //          << " from " << core << " for buffer " << local_buf;
       
       // send buffer to other side. We copy the whole buffer so the
       // right pointer ends up in the active message.
@@ -607,7 +555,7 @@ namespace Grappa {
       rdma_receive_end++;
     }
 
-    void RDMAAggregator::send_rdma_old( Core core, Grappa::impl::MessageList ml ) {
+    void RDMAAggregator::send_rdma( Core core, Grappa::impl::MessageList ml, size_t expected_size ) {
       char * buf = nullptr;
       size_t grabbed_count = ml.count_;
       size_t serialized_count = 0;
