@@ -15,12 +15,16 @@
 
 #include <iostream>
 
+using namespace Grappa;
 
 
-
-
+// input size
 DEFINE_uint64( nnz_factor, 10, "Approximate number of non-zeros per matrix row" );
 DEFINE_uint64( logN, 16, "logN dimension of square matrix" );
+
+// pagerank options
+DEFINE_double( damping, 0.8f, "Pagerank damping factor" );
+DEFINE_double( epsilon, 0.001f, "Acceptable error magnitude" );
 
 
 
@@ -195,9 +199,6 @@ pagerank_result pagerank( weighted_csr_graph m, double d, double epsilon ) {
   res.num_iters = iter;
   return res;
 }
-
-DEFINE_double( damping, 0.8f, "Pagerank damping factor" );
-DEFINE_double( epsilon, 0.001f, "Acceptable error magnitude" );
 
 void user_main( int * ignore ) {
   LOG(INFO) << "starting...";
