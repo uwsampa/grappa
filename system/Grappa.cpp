@@ -286,7 +286,6 @@ void Grappa_init( int * argc_p, char ** argv_p[], size_t global_memory_size_byte
            << " num_starting_workers=" << FLAGS_num_starting_workers;
   global_task_manager.init( Grappa_mynode(), node_neighbors, Grappa_nodes() ); //TODO: options for local stealing
   global_scheduler.init( master_thread, &global_task_manager );
-  global_scheduler.periodic( thread_spawn( master_thread, &global_scheduler, &poller, NULL ) );
 
   // start RDMA Aggregator *after* threading layer
   Grappa::impl::global_rdma_aggregator.init();
@@ -312,6 +311,11 @@ void Grappa_activate()
   global_communicator.activate();
   Grappa::impl::locale_shared_memory.activate();
   Grappa_barrier();
+
+  // fire up polling thread
+  global_scheduler.periodic( thread_spawn( master_thread, &global_scheduler, &poller, NULL ) );
+
+
   Grappa::impl::global_rdma_aggregator.activate();
   Grappa_barrier();
 }
