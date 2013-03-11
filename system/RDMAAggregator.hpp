@@ -221,9 +221,11 @@ namespace Grappa {
         return old_ml;
       }
 
+      bool send_would_block( Core core );
+
       /// Sender size of RDMA transmission.
       void send_rdma( Core core, Grappa::impl::MessageList ml, size_t estimated_size );
-      void send_rdma_old( Core core, Grappa::impl::MessageList ml );
+      void send_rdma_old( Core core, Grappa::impl::MessageList ml, size_t estimated_size );
       void send_medium( Core core, Grappa::impl::MessageList ml );
 
       void send_with_buffers( Core core,
@@ -369,12 +371,18 @@ namespace Grappa {
 
         /// is it time to flush?
         if( disable_flush_ || !spawn_send ) { // no
-          // now fill in prefetch pointer and size
+          // now fill in prefetch pointer and size (and make sure size doesn't overflow)
           dest->prefetch_queue_[ count % prefetch_dist ].size_ = size < max_size_ ? size : max_size_-1;
           set_pointer( &(dest->prefetch_queue_[ count % prefetch_dist ]), m );
         } else {            // yes
           rdma_capacity_flushes++;
-          global_rdma_aggregator.send_rdma( core, new_ml, size );
+          if( disable_flush_ && send_would_block( core ) ) {
+            Grappa::privateTask( [core, new_ml, size] {
+              global_rdma_aggregator.send_rdma( core, new_ml, size );
+              });
+          } else {
+            global_rdma_aggregator.send_rdma( core, new_ml, size );
+          }
         }
       }
 
@@ -405,7 +413,6 @@ namespace Grappa {
 
       /// Flush one destination.
       void flush( Core c ) {
-        CHECK_EQ( disable_flush_, false ) << "Uh oh! Can't explicitly flush right now!";
         rdma_requested_flushes++;
         flush_one( c );
       }
