@@ -160,15 +160,27 @@ namespace Grappa {
   ///
   /// Subject to "may-parallelism", @see `loop_threshold`.
   template<GlobalCompletionEvent * GCE = &impl::local_gce, int64_t Threshold = impl::USE_LOOP_THRESHOLD_FLAG, typename F = decltype(nullptr) >
-  void forall_here_async(int64_t start, int64_t iters, const F * loop_ptr) {
+  void forall_here_async(int64_t start, int64_t iters, F loop_body) {
     GCE->enroll(iters);
+    
+    struct HeapF {
+      const F loop_body;
+      int64_t refs;
+      HeapF(F loop_body, int64_t refs): loop_body(std::move(loop_body)), refs(refs) {}
+      void ref(int64_t delta) {
+        refs += delta;
+        if (refs == 0) delete this;
+      }
+    };
+    auto hf = new HeapF(loop_body, iters);
     
     impl::loop_decomposition_private<Threshold>(start, iters,
       // passing loop_body by ref to avoid copying potentially large functors many times in decomposition
       // also keeps task args < 24 bytes, preventing it from needing to be heap-allocated
-      [loop_ptr](int64_t s, int64_t n) {
-        (*loop_ptr)(s, n);
+      [hf](int64_t s, int64_t n) {
+        hf->loop_body(s, n);
         GCE->complete(n);
+        hf->ref(-n);
       });
   }
   
@@ -280,7 +292,7 @@ namespace Grappa {
         auto laddr = make_linear(local_base+start);
         loop_body(laddr-base, iters, local_base+start);
       };
-      forall_here_async<GCE,Threshold>(0, n, &f);
+      forall_here_async<GCE,Threshold>(0, n, f);
       
       complete(make_global(GCE,origin));
       GCE->wait();
@@ -422,18 +434,14 @@ namespace Grappa {
           T* local_end = (base+pack.nelems).localize();
           size_t n = local_end - local_base;
           
-          CompletionEvent ce(n);
-          auto f = [base,loop_body, &ce](int64_t start, int64_t iters) {
+          auto f = [base,loop_body](int64_t start, int64_t iters) {
             T* local_base = base.localize();
             auto laddr = make_linear(local_base+start);
             
             loop_body(laddr-base, iters, local_base+start);
-            
-            ce.complete(iters);
           };
-          forall_here_async<GCE,Threshold>(0, n, &f);
+          forall_here_async<GCE,Threshold>(0, n, f);
           
-          ce.wait();
           complete(make_global(GCE,pack.origin));
         });
       });
