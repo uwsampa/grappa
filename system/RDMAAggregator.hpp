@@ -174,6 +174,14 @@ namespace Grappa {
       Core cores_per_node_;
       Core total_cores_;
 
+      Core * source_core_for_locale_;
+      Core * dest_core_for_locale_;
+      Core * core_partner_locales_;
+
+      void compute_route_map();
+      void draw_routing_graph();
+
+
       bool flushing_;
 
       /// Received (filled) buffers go here.
@@ -301,7 +309,6 @@ namespace Grappa {
       void init();
       void activate();
       void finish();
-
 
       // void poll( ) {
       //   // there are two places 

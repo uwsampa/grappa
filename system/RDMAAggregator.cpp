@@ -5,6 +5,8 @@
 // AC05-76RL01830 awarded by the United States Department of
 // Energy. The Government has certain rights in the software.
 
+#include <fstream>
+
 #include "RDMAAggregator.hpp"
 #include "Message.hpp"
 
@@ -14,6 +16,8 @@ DEFINE_int64( rdma_workers_per_core, 1 << 4, "Number of RDMA deaggregation worke
 DEFINE_int64( rdma_buffers_per_core, 16, "Number of RDMA aggregated message buffers per core" );
 
 DEFINE_int64( rdma_threshold, 64, "Threshold in bytes below which we send immediately instead of using RDMA" );
+
+DEFINE_string( route_graph_filename, "routing.dot", "Name of file for routing graph" );
 
 
 /// stats for application messages
@@ -66,6 +70,7 @@ namespace Grappa {
       while( !Grappa_done_flag ) {
         Grappa::wait( &flush_cv_ );
         rdma_idle_flushes++;
+        // check the cores I'm responsible for
         for( int i = 0; i < total_cores_; ++i ) {
           if( flush_one( i ) ) {
             rdma_core_idle_flushes++;
@@ -74,7 +79,68 @@ namespace Grappa {
       }
     }
 
+  /// allocate and initialize locale-to-core translation
+  void RDMAAggregator::compute_route_map() {
 
+    Core locale_first_core = Grappa::mylocale() * Grappa::locale_cores();
+    Core locale_last_core = Grappa::mylocale() * Grappa::locale_cores() + Grappa::locale_cores();
+    
+    // how many locales should seach core handle?
+    // (assume all locales have same core count)
+    int probable_locales_per_core = Grappa::locales() / Grappa::locale_cores();
+    // (make we have at least one locale per core)
+    int locales_per_core = probable_locales_per_core > 0 ? probable_locales_per_core : 1;
+    LOG(INFO) << "probable_locales_per_core " << probable_locales_per_core
+              << " locales_per_core " << locales_per_core;
+
+
+
+
+    // initialize source cores
+    //source_core_for_locale_ = new Core[ Grappa::locales() ];
+    for( int i = 0; i < Grappa::locales(); ++i ) {
+      if( i == Grappa::mylocale() ) {
+        // locally, cores are responsible for their own messages
+        source_core_for_locale_[i] = -1;
+      } else {
+        // guess at correct source core on the node
+        Core offset = i / locales_per_core;
+        if( offset >= Grappa::locale_cores() ) { // if we guess too high
+          // give it to the core that would have been responsible for the local locale.
+          offset = Grappa::mylocale() / locales_per_core;
+        }
+        source_core_for_locale_[i] = Grappa::mylocale() * Grappa::locale_cores() + offset;
+      }
+    }
+
+    // initialize destination cores.
+    // this should match up with source assignments.
+    //dest_core_for_locale_ = new Core[ Grappa::locales() ];
+    for( int i = 0; i < Grappa::locales(); ++i ) {
+      if( i == Grappa::mylocale() ) {
+        dest_core_for_locale_[i] = -1;
+      } else {
+        // guess at correct destination core on the node
+        Core offset = Grappa::mylocale() / locales_per_core;
+        if( offset >= Grappa::locale_cores() ) { // if we guess too high
+          // give it to the core that would have been responsible for
+          // the destination's locale.
+          offset = i / locales_per_core;
+        }
+        dest_core_for_locale_[i] = i * Grappa::locale_cores() + offset;
+     
+      }
+    }
+
+    for( int i = 0; i < Grappa::locales(); ++i ) {
+      LOG(INFO) << "From locale " << Grappa::mylocale() << " to locale " << i 
+                << " source core " << source_core_for_locale_[i]
+                << " dest core " << dest_core_for_locale_[i];
+    }
+
+  }
+
+  
     void RDMAAggregator::init() {
 #ifdef LEGACY_SEND
 #warning RDMA Aggregator is bypassed!
@@ -84,9 +150,14 @@ namespace Grappa {
       mycore_ = global_communicator.mynode();
       mynode_ = -1; // gasnet supernode
       total_cores_ = global_communicator.nodes();
+
+
+      // register active messages
       deserialize_buffer_handle_ = global_communicator.register_active_message_handler( &deserialize_buffer_am );
       deserialize_first_handle_ = global_communicator.register_active_message_handler( &deserialize_first_am );
       enqueue_buffer_handle_ = global_communicator.register_active_message_handler( &enqueue_buffer_am );
+
+
 
       // fill pool of buffers
       auto new_buffers = new RDMABuffer[ FLAGS_rdma_buffers_per_core * Grappa::cores()];
@@ -113,9 +184,13 @@ namespace Grappa {
 
     void RDMAAggregator::activate() {
 #ifdef ENABLE_RDMA_AGGREGATOR
-      // allocate core message list structs
       if( global_communicator.locale_mycore() == 0 ) {
+        // allocate core message list structs
         cores_ = Grappa::impl::locale_shared_memory.segment.construct<CoreData>("Cores")[global_communicator.cores()]();
+        // allocate routing info
+        source_core_for_locale_ = Grappa::impl::locale_shared_memory.segment.construct<Core>("SourceCores")[global_communicator.locales()]();
+        dest_core_for_locale_ = Grappa::impl::locale_shared_memory.segment.construct<Core>("DestCores")[global_communicator.locales()]();
+        compute_route_map();
       }
       global_communicator.barrier();
       if( global_communicator.locale_mycore() != 0 ) {
@@ -123,14 +198,37 @@ namespace Grappa {
         p = Grappa::impl::locale_shared_memory.segment.find<CoreData>("Cores");
         CHECK_EQ( p.second, global_communicator.cores() );
         cores_ = p.first;
+
+        std::pair< Core *, boost::interprocess::managed_shared_memory::size_type > q;
+        q = Grappa::impl::locale_shared_memory.segment.find<Core>("SourceCores");
+        CHECK_EQ( q.second, global_communicator.locales() );
+        source_core_for_locale_ = q.first;
+        q = Grappa::impl::locale_shared_memory.segment.find<Core>("DestCores");
+        CHECK_EQ( q.second, global_communicator.locales() );
+        dest_core_for_locale_ = q.first;
       }
+
+      // what locales is my core responsible for?
+      Locale locales_per_core = Grappa::locales() / Grappa::locale_cores();
+      core_partner_locales_ = new Core[ locales_per_core ];
+      int partner_index = 0;
+      for( int i = 0; i < Grappa::locales(); ++i ) {
+        if( source_core_for_locale_[i] == Grappa::mycore() ) {
+          CHECK_LT( partner_index, locales_per_core ) << "this core is responsible for more locales than expected";
+          core_partner_locales_[ partner_index++ ] = i;
+          LOG(INFO) << "Core " << Grappa::mycore() << " responsible for locale " << i;
+        }
+      }
+
+      // draw route map if enabled
+      draw_routing_graph();
 
       // precache buffers
       LOG(INFO) << "Precaching buffers";
       size_t expected_buffers = (Grappa::cores() - 1) * remote_buffer_pool_size;
       for( int i = 0; false && i < Grappa::locales(); ++i ) {
-        if( i != Grappa::mylocale() && Grappa::mycore() == global_communicator.source_core_for(i) ) {
-          Core dest = global_communicator.dest_core_for(i);
+        if( i != Grappa::mylocale() && Grappa::mycore() == source_core_for_locale_[i] ) {
+          Core dest = dest_core_for_locale_[i];
           LOG(INFO) << "Core " << Grappa::mycore() << " precaching to " << dest;
           Core requestor = Grappa::mycore();
           auto request = Grappa::message( dest, [dest, requestor, &expected_buffers] {
@@ -168,8 +266,14 @@ namespace Grappa {
       global_communicator.barrier();
       if( global_communicator.locale_mycore() == 0 ) {
         Grappa::impl::locale_shared_memory.segment.destroy<CoreData>("Cores");
+        Grappa::impl::locale_shared_memory.segment.destroy<Core>("SourceCores");
+        Grappa::impl::locale_shared_memory.segment.destroy<Core>("DestCores");
       }
       cores_ = NULL;
+      source_core_for_locale_ = NULL;
+      dest_core_for_locale_ = NULL;
+
+      if( core_partner_locales_ ) delete [] core_partner_locales_;
 #endif
     }
 
@@ -200,6 +304,61 @@ namespace Grappa {
 #endif
       global_rdma_aggregator.received_buffer_list_.push( reinterpret_cast< RDMABuffer * >( buf ) );
     }
+
+
+
+
+
+
+void RDMAAggregator::draw_routing_graph() {
+  {
+    if( Grappa::mycore() == 0 ) {
+      std::ofstream o( FLAGS_route_graph_filename, std::ios::trunc );
+      o << "digraph Routing {\n";
+      o << "    node [shape=record];\n";
+      o << "    splines=true;\n";
+    }
+  }
+  global_communicator.barrier();
+
+  for( int n = 0; n < Grappa::locales(); ++n ) {
+    if( Grappa::locale_mycore() == 0 && n == Grappa::mylocale() ) {
+      std::ofstream o( FLAGS_route_graph_filename, std::ios::app );
+
+      o << "    n" << n << " [label=\"n" << n;
+      for( int c = n * Grappa::locale_cores(); c < (n+1) * Grappa::locale_cores(); ++c ) {
+        o << "|";
+        if( c == n * Grappa::locale_cores() ) o << "{";
+        o << "<c" << c << "> c" << c;
+      }
+      o << "}\"];\n";
+
+      //for( int c = n * Grappa::locale_cores(); c < (n+1) * Grappa::locale_cores(); ++c ) {
+      for( int d = 0; d < Grappa::locales(); ++d ) {
+        if( d != Grappa::mylocale() ) {
+          o << "    n" << n << ":c" << source_core_for_locale_[d] << ":e"
+            << " -> n" << d << ":c" << dest_core_for_locale_[d] << ":w"
+            << " [headlabel=\"c" << source_core_for_locale_[d] << "\"]"
+            << ";\n";
+        }
+      }
+
+    }
+    global_communicator.barrier();
+  }
+
+  {
+    if( Grappa::mycore() == 0 ) {
+      std::ofstream o( FLAGS_route_graph_filename, std::ios::app );
+      o << "}\n";
+    }
+  }
+}
+
+
+
+
+
 
 
     char * RDMAAggregator::aggregate_to_buffer( char * buffer, Grappa::impl::MessageBase ** message_ptr, size_t max, size_t * count ) {
