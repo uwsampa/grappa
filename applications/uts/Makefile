@@ -61,7 +61,7 @@ LIB=-lm
 
 LDFLAGS+= $(CFLAGS_COMMON) -L$(GRAPPA_SYS)
 
-LIBRARIES:= -lgflags -lglog -lgasnet-ibv-seq -libverbs -lrt -lboost_unit_test_framework -lGrappa
+LIBRARIES+= -lGrappa
 
 #
 # set LD_LIBRARY_PATH
