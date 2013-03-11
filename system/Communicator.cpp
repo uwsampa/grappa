@@ -83,47 +83,31 @@ void Communicator::init( int * argc_p, char ** argv_p[] ) {
   if( locale_mycore_ == 0 ) {
     // how many locales should each core handle?
     // (assume all locales have same core count)
-    //    int probable_locales_per_core = (locales_ - 1) / locale_cores_;
     int probable_locales_per_core = locales_ / locale_cores_;
+    // (make we have at least one locale per core)
     int locales_per_core = probable_locales_per_core > 0 ? probable_locales_per_core : 1;
     LOG(INFO) << "probable_locales_per_core " << probable_locales_per_core
               << " locales_per_core " << locales_per_core;
 
     // initialize source cores
-    // try to assign the same number of destinations per node
     source_core_for_locale_ = new Core[ locales_ ];
-    int current_core = mylocale_ * locale_cores_; // init to first core of locale
-    int uses = 0;
-    // for( int i = 0; i < locales_; ++i ) {
-    //   if( i == mylocale_ ) {
-    //     source_core_for_locale_[i] = -1;
-    //   } else {
-    //     source_core_for_locale_[i] = current_core;
-    //     uses++;
-    //     if( (uses == locales_per_core) && (current_core < locale_last_core - 1) ) {
-    //       current_core++;
-    //       uses = 0;
-    //     }
-    //   }
-    // }
-
     for( int i = 0; i < locales_; ++i ) {
       if( i == mylocale_ ) {
         source_core_for_locale_[i] = -1;
       } else {
-        source_core_for_locale_[i] = locale_first_core + i / locales_per_core;
+        source_core_for_locale_[i] = mylocale_ * locale_cores_ + i / locales_per_core;
       }
     }
 
+    // initialize destination cores.
+    // this should match up with source assignments.
     dest_core_for_locale_ = new Core[ locales_ ];
     for( int i = 0; i < locales_; ++i ) {
       if( i == mylocale_ ) {
         dest_core_for_locale_[i] = -1;
       } else {
-        //dest_core_for_locale_[i] = i * locales_per_core + source_core_for_locale_[i];
         dest_core_for_locale_[i] = i * locale_cores_ + mylocale_ / locales_per_core;
-        //dest_core_for_locale_[i] = i * locale_cores_ + source_core_for_locale_[i];
-        //dest_core_for_locale_[i] = i * locale_cores_ + locale_mycore_;
+     
       }
     }
 
