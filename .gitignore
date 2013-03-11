@@ -128,3 +128,6 @@ config.cache
 
 # stats output
 *stats.json
+
+/system/Scratch_tests.cpp
+

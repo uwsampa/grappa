@@ -234,7 +234,9 @@ namespace Grappa {
   void call_on_all_cores(F work) {
     Core origin = mycore();
     CompletionEvent ce(cores());
-    MessagePool pool(cores() * sizeof(Message<std::function<void(F,Core,decltype(&ce))>>));
+    
+    auto lsz = [&ce,origin,work]{};
+    MessagePool pool(cores()*(sizeof(Message<decltype(lsz)>)));
     
     for (Core c = 0; c < cores(); c++) {
       pool.send_message(c, [&ce, origin, work] {
@@ -253,7 +255,9 @@ namespace Grappa {
     
     CompletionEvent ce(cores());
     auto ce_addr = make_global(&ce);
-    MessagePool pool(cores()*sizeof(Message<std::function<void(F,decltype(ce_addr))>>));
+    
+    auto lsz = [ce_addr,work]{};
+    MessagePool pool(cores()*(sizeof(Message<decltype(lsz)>)));
     
     for (Core c = 0; c < cores(); c++) {
       pool.send_message(c, [ce_addr, work] {

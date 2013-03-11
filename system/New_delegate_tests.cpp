@@ -26,7 +26,7 @@ void check_short_circuiting() {
   
   // write
   BOOST_CHECK_EQUAL(a, 0); // value unchanged
-  BOOST_CHECK_EQUAL(delegate::write(ga, 7), true);
+  delegate::write(ga, 7);
   BOOST_CHECK_EQUAL(a, 7);
   
   // compare and swap
@@ -67,7 +67,7 @@ void check_remote() {
   // write
   send_message(1, [ga, gw] {
     privateTask([=]{
-      BOOST_CHECK_EQUAL(delegate::write(ga, 7), true);
+      delegate::write(ga, 7);
       signal(gw);
     });
   });
@@ -137,7 +137,7 @@ void check_async_delegates() {
   BOOST_CHECK_EQUAL(delegate::read(make_global(&global_x,1)), N);
   
   delegate::call(1, []{
-    global_x = global_y = 0;
+    global_y = 0;
   });
   
   BOOST_MESSAGE("  promises...");

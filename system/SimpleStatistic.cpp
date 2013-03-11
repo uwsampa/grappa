@@ -4,22 +4,22 @@
 namespace Grappa {
 
 #ifdef VTRACE_SAMPLED
-  template <> inline void SimpleStatistic<int>::vt_sample() const {
+  template <> void SimpleStatistic<int>::vt_sample() const {
     VT_COUNT_SIGNED_VAL(vt_counter, value);
   }
-  template <> inline void SimpleStatistic<int64_t>::vt_sample() const {
+  template <> void SimpleStatistic<int64_t>::vt_sample() const {
     VT_COUNT_SIGNED_VAL(vt_counter, value);
   }
-  template <> inline void SimpleStatistic<unsigned>::vt_sample() const {
+  template <> void SimpleStatistic<unsigned>::vt_sample() const {
     VT_COUNT_UNSIGNED_VAL(vt_counter, value);
   }
-  template <> inline void SimpleStatistic<uint64_t>::vt_sample() const {
+  template <> void SimpleStatistic<uint64_t>::vt_sample() const {
     VT_COUNT_UNSIGNED_VAL(vt_counter, value);
   }
-  template <> inline void SimpleStatistic<double>::vt_sample() const {
+  template <> void SimpleStatistic<double>::vt_sample() const {
     VT_COUNT_DOUBLE_VAL(vt_counter, value);
   }
-  template <> inline void SimpleStatistic<float>::vt_sample() const {
+  template <> void SimpleStatistic<float>::vt_sample() const {
     VT_COUNT_DOUBLE_VAL(vt_counter, value);
   }
   

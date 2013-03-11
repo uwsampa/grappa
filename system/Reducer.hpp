@@ -14,15 +14,19 @@
 /// A Reducer object encapsulates a reduction
 /// during the computation to a single location
 ///
+/// Warning: may only use one object of type AllReducer<T, ReduceOp>
+/// concurrently because relies on `Grappa::allreduce`,
+/// which has no way of tagging messages
+///
 template <typename T, T (*ReduceOp)(const T&, const T&)>
-class Reducer {
+class AllReducer {
   private:
     T localSum;
     bool finished;
     const T init;
 
   public:
-    Reducer(T init) : init(init) {}
+    AllReducer(T init) : init(init) {}
 
     void reset() {
       finished = false;
@@ -30,7 +34,7 @@ class Reducer {
     }
 
     void accumulate(T val) {
-      localSum += val;
+      localSum = ReduceOp(localSum, val);
     } 
 
     /// Finish the reduction and return the final value.
@@ -42,8 +46,6 @@ class Reducer {
     T finish() {
       if (!finished) {
         finished = true;
-        /* T must have operator+ defined */
-        //localSum = Grappa_allreduce<T,coll_add<T>,init>(localSum);
         //TODO init version and specialized version for non-template allowed
         localSum = Grappa::allreduce<T,ReduceOp> (localSum);
       }

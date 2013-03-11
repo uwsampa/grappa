@@ -10,8 +10,8 @@ namespace Grappa {
   template<typename T>
   class SummarizingStatistic : public impl::StatisticBase {
   protected:
-
-    T value;
+    const T initial_value;
+    T value_;
     size_t n;
     double mean;
     double M2;
@@ -44,8 +44,9 @@ namespace Grappa {
   public:
     
     SummarizingStatistic(const char * name, T initial_value, bool reg_new = true)
-      : impl::StatisticBase(name, reg_new) 
-      , value(initial_value)
+      : impl::StatisticBase(name, reg_new)
+      , initial_value(initial_value)
+      , value_(initial_value)
       , n(0) // TODO: this assumes initial_value is not actually a value
       , mean(initial_value)
       , M2(0) {
@@ -62,15 +63,22 @@ namespace Grappa {
 
     SummarizingStatistic(const SummarizingStatistic& s ) 
       : impl::StatisticBase( s.name, false )
-      , value( s.value )
+      , initial_value(s.initial_value)
+      , value_( s.value_ )
       , n( s.n )
       , mean( s.mean )
       , M2( s.M2 ) {
       // no vampir registration since this is for merging
     }
     
+    virtual void reset() {
+      value_ = initial_value;
+      n = 0;
+      mean = M2 = 0;
+    }
+    
     virtual std::ostream& json(std::ostream& o) const {
-      o << '"' << name << "\": \"" << value << "\", ";
+      o << '"' << name << "\": \"" << value_ << "\", ";
       o << '"' << name << "_count\": \"" << n << "\", ";
       o << '"' << name << "_mean\": \"" << mean << "\", ";
       o << '"' << name << "_stddev\": \"" << stddev() << "\"";
@@ -91,30 +99,33 @@ namespace Grappa {
     virtual void merge_all(impl::StatisticBase* static_stat_ptr);
 
     inline const SummarizingStatistic<T>& count() { return (*this)++; }
+
+    /// Get the current value
+    inline T value() const { return value_; }
     
     // <sugar>
     template<typename U>
     inline const SummarizingStatistic<T>& operator+=(U increment) {
-      value += increment;
+      value_ += increment;
       process( increment );
       return *this;
     }
     template<typename U>
     inline const SummarizingStatistic<T>& operator-=(U decrement) {
-      value -= decrement;
+      value_ -= decrement;
       process( decrement );
       return *this;
     }
     inline const SummarizingStatistic<T>& operator++() { return *this += 1; }
     inline const SummarizingStatistic<T>& operator--() { return *this += -1; }
-    inline T operator++(int) { *this += 1; return value; }
-    inline T operator--(int) { *this += -1; return value; }
+    inline T operator++(int) { *this += 1; return value_; }
+    inline T operator--(int) { *this += -1; return value_; }
     
     // allow casting as just the value
-    inline operator T() const { return value; }
+    inline operator T() const { return value_; }
     
     inline SummarizingStatistic& operator=( const SummarizingStatistic<T>& t ) {
-      this->value = t.value;
+      this->value_ = t.value_;
       this->n = t.n;
       this->mean = t.mean;
       this->M2 = t.M2;
@@ -122,7 +133,7 @@ namespace Grappa {
     }
 
     inline SummarizingStatistic& operator=(T value) {
-      this->value = value;
+      this->value_ = value;
       process( value );
       return *this;
     }
