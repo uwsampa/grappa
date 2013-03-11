@@ -313,10 +313,8 @@ void search_vertex( int64_t id ) {
         // spawn tasks serially for the first nc-1 chilren
         for ( int64_t i=0; i<iters-1; i++ ) {
           int64_t c = childids[i];
-          s_joiner.enroll();
-          publicTask( [c]() {
+          publicTask<&s_joiner>( [c]() {
             search_vertex( c );
-            s_joiner.complete();
           });
         }
         if (iters>0) {
