@@ -25,6 +25,10 @@ namespace Grappa {
   public:
     PoolAllocator(char * buffer, size_t buffer_size, bool owns_buffer): buffer(buffer), buffer_size(buffer_size), allocated(0), owns_buffer(owns_buffer) {}
     
+    void reset() {
+      allocated = 0;
+    }
+    
     virtual ~PoolAllocator() {
       // call destructors of everything in PoolAllocator
       iterate([](Base* bp){ bp->~Base(); });
@@ -44,6 +48,8 @@ namespace Grappa {
         f(bp);
       }
     }
+    
+    size_t remaining() { return buffer_size - allocated; }
     
     template<typename OtherBase>
     friend void* ::operator new(size_t, Grappa::PoolAllocator<OtherBase>&);

@@ -66,7 +66,7 @@ void try_global_ce() {
   auto xa = make_global(&x);
   
   BOOST_MESSAGE("  block on user_main only");
-  gce.reset_all();
+//  gce.reset_all(); (don't need to call `reset` anymore)
   on_all_cores([xa]{
     Core origin = mycore();
     gce.enroll(N+1);
@@ -87,7 +87,7 @@ void try_global_ce() {
   BOOST_MESSAGE("  block in SPMD tasks");
   
   x = 0;
-  gce.reset_all();
+//  gce.reset_all(); (don't need this anymore)
   on_all_cores([xa]{
     int y = 0;
     auto ya = make_global(&y);
@@ -127,7 +127,7 @@ void try_global_ce_recursive() {
   auto xa = make_global(&x);
   
   BOOST_MESSAGE("  block on user_main only");
-  gce.reset_all();
+//  gce.reset_all();
   on_all_cores([xa]{
     gce.enroll();
     Core origin = mycore();
@@ -150,10 +150,9 @@ void try_global_ce_recursive() {
   
   
   BOOST_MESSAGE("  block in SPMD tasks");
-  on_all_cores([]{  gce.reset();  });
   
   x = 0;
-  gce.reset_all();
+//  gce.reset_all();
   on_all_cores([xa]{
     int y = 0;
     auto ya = make_global(&y);
@@ -198,8 +197,8 @@ void try_synchronizing_spawns() {
   
   BOOST_MESSAGE("  private,global");
   on_all_cores([]{
-    gce.reset();
-    barrier();
+//    gce.reset();
+//    barrier();
     
     int x = 0;
     
@@ -216,7 +215,7 @@ void try_synchronizing_spawns() {
   BOOST_MESSAGE("  public,global");
   on_all_cores([]{ global_x = 0; });
   
-  gce.reset_all();
+//  gce.reset_all();
   for (int i=0; i<N; i++) {
     publicTask<&gce>([]{
       global_x++;
@@ -245,15 +244,10 @@ void user_main(void * args) {
 }
 
 BOOST_AUTO_TEST_CASE( test1 ) {
-  
   Grappa_init( &(boost::unit_test::framework::master_test_suite().argc),
-              &(boost::unit_test::framework::master_test_suite().argv)
-              );
-  
+              &(boost::unit_test::framework::master_test_suite().argv));
   Grappa_activate();
-  
   Grappa_run_user_main( &user_main, (void*)NULL );
-  
   Grappa_finish( 0 );
 }
 
