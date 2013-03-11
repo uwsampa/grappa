@@ -147,9 +147,9 @@ namespace Grappa {
 #endif
 #ifdef ENABLE_RDMA_AGGREGATOR
       //cores_.resize( global_communicator.nodes() );
-      mycore_ = global_communicator.mynode();
+      mycore_ = global_communicator.mycore();
       mynode_ = -1; // gasnet supernode
-      total_cores_ = global_communicator.nodes();
+      total_cores_ = global_communicator.cores();
 
 
       // register active messages
@@ -219,44 +219,39 @@ namespace Grappa {
           LOG(INFO) << "Core " << Grappa::mycore() << " responsible for locale " << i;
         }
       }
+      core_partner_locale_count_ = partner_index--;
+      LOG(INFO) << "Partner locale count is " << core_partner_locale_count_;
 
       // draw route map if enabled
       draw_routing_graph();
 
       // precache buffers
       LOG(INFO) << "Precaching buffers";
-      size_t expected_buffers = (Grappa::cores() - 1) * remote_buffer_pool_size;
-      for( int i = 0; false && i < Grappa::locales(); ++i ) {
-        if( i != Grappa::mylocale() && Grappa::mycore() == source_core_for_locale_[i] ) {
-          Core dest = dest_core_for_locale_[i];
-          LOG(INFO) << "Core " << Grappa::mycore() << " precaching to " << dest;
-          Core requestor = Grappa::mycore();
-          auto request = Grappa::message( dest, [dest, requestor, &expected_buffers] {
-              for( int j = 0; j < remote_buffer_pool_size; ++j ) {
-                RDMABuffer * b = global_rdma_aggregator.free_buffer_list_.try_pop();
-                CHECK_NOTNULL( b );
-                auto reply = Grappa::message( requestor, [dest, b, &expected_buffers] {
-                    global_rdma_aggregator.cores_[dest].remote_buffers_.push( b );
-                    expected_buffers--;
-                  });
-                reply.send_immediate();
-              }
-            });
-          request.send_immediate();
-        }
+      size_t expected_buffers = core_partner_locale_count_ * remote_buffer_pool_size;
+      for( int i = 0; i < core_partner_locale_count_; ++i ) {
+        Core dest = dest_core_for_locale_[i];
+        LOG(INFO) << "Core " << Grappa::mycore() << " precaching to " << dest;
+        Core requestor = Grappa::mycore();
+        auto request = Grappa::message( dest, [dest, requestor, &expected_buffers] {
+            for( int j = 0; j < remote_buffer_pool_size; ++j ) {
+              RDMABuffer * b = global_rdma_aggregator.free_buffer_list_.try_pop();
+              CHECK_NOTNULL( b );
+              auto reply = Grappa::message( requestor, [dest, b, &expected_buffers] {
+                  global_rdma_aggregator.cores_[dest].remote_buffers_.push( b );
+                  expected_buffers--;
+                });
+              reply.send_immediate();
+            }
+          });
+        request.send_immediate();
       }
 
-
-      for( int i = 0; i < Grappa::cores(); ++i ) {
-        if( global_communicator.locale_of(i) != Grappa::mylocale() ) {
-        }  
-      }
+      LOG(INFO) << "Waiting for responses";
       while( expected_buffers > 0 ) global_communicator.poll();
       LOG(INFO) << "Done precaching buffers";
-      for( int i = 0; i < Grappa::cores(); ++i ) {
-        if( i != Grappa::mycore() ) {
-          CHECK_EQ( cores_[i].remote_buffers_.count(), remote_buffer_pool_size );
-        }
+      for( int i = 0; i < core_partner_locale_count_; ++i ) {
+        Core partner = dest_core_for_locale_[ core_partner_locales_[i] ];
+        CHECK_EQ( cores_[partner].remote_buffers_.count(), remote_buffer_pool_size );
       }
 #endif
     }

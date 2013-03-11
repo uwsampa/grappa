@@ -177,6 +177,7 @@ namespace Grappa {
       Core * source_core_for_locale_;
       Core * dest_core_for_locale_;
       Core * core_partner_locales_;
+      int core_partner_locale_count_;
 
       void compute_route_map();
       void draw_routing_graph();
@@ -290,6 +291,10 @@ namespace Grappa {
         , mynode_( -1 )
         , cores_per_node_( -1 )
         , total_cores_( -1 )
+        , source_core_for_locale_( NULL )
+        , dest_core_for_locale_( NULL )
+        , core_partner_locales_( NULL )
+        , core_partner_locale_count_( 0 )
         , flushing_( false )
         , received_buffer_list_()
         , free_buffer_list_()
