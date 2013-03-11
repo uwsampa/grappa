@@ -84,7 +84,6 @@ public:
       }
       // block until cancelled
       CHECK_GT(count, 0);
-      CHECK_LE(cores_out, Grappa::cores()+1); // allowed one extra?
       VLOG(2) << "cores_out: " << co << ", count: " << count;
     }
   }
