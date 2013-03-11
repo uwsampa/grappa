@@ -2,11 +2,13 @@
 #include "spmv_mult.hpp"
 
 // Grappa
-#include "Grappa.hpp"
-#include "Cache.hpp"
-#include "GlobalTaskJoiner.hpp"
-#include "ForkJoin.hpp"
-#include "Delegate.hpp"
+#include <Grappa.hpp>
+#include <Cache.hpp>
+#include <GlobalCompletionEvent.hpp>
+#include <ParallelLoop.hpp>
+#include <Delegate.hpp>
+#include <AsyncDelegate.hpp>
+#include <MessagePool.hpp>
 
 
 #define XOFF(xoff, index) (xoff)+2*(index)
@@ -15,63 +17,32 @@
 namespace spmv {
   // global: local per Node
   weighted_csr_graph m;
-  vector v;
+  vector x;
   vector y;
 }
 
-void inner_loop( int64_t start, int64_t iters, GlobalAddress<int64_t> targetIndex_h ) {
-  // TODO don't use hack
-  int64_t targetIndex = reinterpret_cast<int64_t>(targetIndex_h.pointer());
+using namespace Grappa;
 
-  double yaccum = 0;
-  int64_t j[iters];
-  double weights[iters];
-  Incoherent<int64_t>::RO cj( spmv::m.xadj + start, iters, j ); cj.start_acquire();
-  Incoherent<double>::RO cw( spmv::m.adjweight + start, iters, weights ); cw.start_acquire();
-  for( int64_t k = 0; k<iters; k++ ) {
-    double vj;
-    
-    Grappa_delegate_read(spmv::v.a + cj[k], &vj);
-    yaccum += cw[k] * vj; 
-    DVLOG(5) << "yaccum += w["<<start+k<<"]("<<cw[k] <<") * val["<<cj[k]<<"("<<vj<<")"; 
-  }
-
-  DVLOG(4) << "y[" << targetIndex << "] += " << yaccum; 
-  ff_delegate_add<double>( spmv::y.a+targetIndex, yaccum );
-}
-
-void row_loop( int64_t start, int64_t iters ) {
-  //VLOG(1) << "rows [" << start << ", " << start+iters << ")";
-  
-  for ( int64_t i=start; i<start+iters; i++ ) {
-    // kstart = row_ptr[i], kend = row_ptr[i+1]
-    int64_t kbounds[2];
-    Incoherent<int64_t>::RO cxoff( XOFF(spmv::m.xoff, i), 2, kbounds );
-    int64_t kstart = cxoff[0];
-    int64_t kend = cxoff[1];
-
-    // TODO: don't use hack to wrap i
-    async_parallel_for<int64_t,inner_loop, joinerSpawn_hack<int64_t,inner_loop,ASYNC_PAR_FOR_DEFAULT>,ASYNC_PAR_FOR_DEFAULT>(kstart, kend-kstart, make_global(reinterpret_cast<int64_t*>(i)));
-    
-                               // TODO: if yi.start_release() could guarentee the storage is no longer used
-                               //       then this would be nice for no block until all y[start,start+iters) need to be written, although that pressures the network side
-                               // Y could actually be like a feed forward delegate that syncs at global join end
-  }
-}
-// In general, destination arrays that are either associatively accumulated into or written once into can often get by with very weak consistency: sync at very end once value of vector needs to be known valid result.
     
 // With current low level programming model, the choice to parallelize a loop involves different code
 
 GlobalCompletionEvent mmjoiner;
 void spmv_mult( weighted_csr_graph A, vector x, vector y ) {
+  // cannot capture in all for loops, so just set on all cores
+  on_all_cores( [A,x,y] {
+    spmv::m = A;
+    spmv::x = x;
+    spmv::y = y;
+  });
+
   // forall rows
-  forall_global_public<&mmjoiner>( 0, A.nv, [A, x, y]( int64_t start, int64_t iters ) {
+  forall_global_public<&mmjoiner>( 0, A.nv, []( int64_t start, int64_t iters ) {
     // serialized chunk of rows
     DVLOG(5) << "rows [" << start << ", " << start+iters << ")";
     for (int64_t i=start; i<start+iters; i++ ) {
       // kstart = row_ptr[i], kend = row_ptr[i+1]
       int64_t kbounds[2];
-      Incoherent<int64_t>::RO cxoff( XOFF(A.xoff, i), 2, kbounds );
+      Incoherent<int64_t>::RO cxoff( XOFF(spmv::m.xoff, i), 2, kbounds );
       int64_t kstart = cxoff[0];
       int64_t kend = cxoff[1];
 
@@ -82,21 +53,19 @@ void spmv_mult( weighted_csr_graph A, vector x, vector y ) {
         // serialized chunk of columns
         int64_t j[iters];
         double weights[iters];
-        Incoherent<int64_t>::RO cj( A.xadj + start, iters, j ); cj.start_acquire();
-        Incoherent<double>::RO cw( A.adjweight + start, iters, weights ); cw.start_acquire();
+        Incoherent<int64_t>::RO cj( spmv::m.xadj + start, iters, j ); cj.start_acquire();
+        Incoherent<double>::RO cw( spmv::m.adjweight + start, iters, weights ); cw.start_acquire();
         for( int64_t k = 0; k<iters; k++ ) {
-          double vj = Grappa::delegate::read(x.a + cj[k]);
+          double vj = Grappa::delegate::read(spmv::x.a + cj[k]);
           yaccum += cw[k] * vj; 
           DVLOG(5) << "yaccum += w["<<start+k<<"]("<<cw[k] <<") * val["<<cj[k]<<"("<<vj<<")"; 
         }
 
         DVLOG(4) << "y[" << i << "] += " << yaccum; 
 
-        // TODO: trait on call_async not to use pool
-        MessagePool pool( ##sizeof del## );
-        //FIXME async write
-        call_async<&mmjoiner>( pool, ..., {});
-        ff_delegate_add<double>( y.a+i, yaccum );
+        char pool_storage[sizeof(delegate::write_msg_proxy<double>)];  // TODO: trait on call_async not to use pool
+        MessagePool pool( pool_storage, sizeof(pool_storage) );
+        delegate::increment_async<&mmjoiner>(pool, spmv::y.a+i, yaccum);
         // could force local updates and bulk communication 
         // here instead of relying on aggregation
         // since we have to pay the cost of many increments and replies
@@ -104,6 +73,10 @@ void spmv_mult( weighted_csr_graph A, vector x, vector y ) {
     }
   });
 }
+                               // TODO: if yi.start_release() could guarentee the storage is no longer used
+                               //       then this would be nice for no block until all y[start,start+iters) need to be written, although that pressures the network side
+                               // Y could actually be like a feed forward delegate that syncs at global join end
+// In general, destination arrays that are either associatively accumulated into or written once into can often get by with very weak consistency: sync at very end once value of vector needs to be known valid result.
 
 
 // only good for small matrices; write out in dense format
