@@ -65,7 +65,7 @@ void do_bfs_push(graphint d_phase_, int64_t start, int64_t end) {
     nedge_traversed += vend - vstart;
     DVLOG(3) << "visit (" << i << "): " << vstart << " -> " << vend;
     // async_parallel_for_hack(bfs_push_visit_neighbor, vstart, vend-vstart, v);
-    forall_localized(g.endVertex+vstart, vend-vstart,
+    forall_localized_async(g.endVertex+vstart, vend-vstart,
                     [v](int64_t kstart, int64_t kiters, int64_t * kfirst) {
       DVLOG(3) << "neighbors " << v << ": " << kstart << " -> " << kstart+kiters;
 
@@ -83,11 +83,10 @@ void do_bfs_push(graphint d_phase_, int64_t start, int64_t end) {
         graphint w = kfirst[k];
         graphint d = delegate::read(c.dist+w);
     
-        /* If node has not been visited, set distance and push on Q (but only once) */
+        // If node has not been visited, set distance and push on Q (but only once)
         if (d < 0) {
           if (delegate::compare_and_swap(c.marks+w, 0, 1)) {
             delegate::write_async(pool, c.dist+w, d_phase);
-            //write(c.Q + fetch_add(c.Qnext, 1), w);
             Qbuf.push(w);
           }
         }
