@@ -281,42 +281,26 @@ double centrality(graph *g_in, GlobalAddress<double> bc_in, graphint Vs,
     // If new nodes pushed onto Q
     if (Qnext != QHead[nQ]) {
       nQ++;
-      QHead[nQ] = Qnext; 
+      QHead[nQ] = Qnext;
       goto PushOnStack;
     }
     
     // Dependence accumulation phase
     nQ--;
     VLOG(3) << "nQ = " << nQ;
-    
-//    {
-//      std::stringstream ss;
-//      ss << "sigma = [";
-//      for (graphint i=0; i<g->numVertices; i++) ss << " " << read(c.sigma+i);
-//      ss << " ]";
-//      VLOG(1) << ss.str();
-//    } 
+
     Grappa::memset(c.delta, 0.0, g.numVertices);
     
     // Pop nodes off of Q in the reverse order they were pushed on
     for ( ; nQ > 1; nQ--) {
       Qstart = QHead[nQ-1];
       Qend = QHead[nQ];
+      d_phase--;
+      DVLOG(1) << "popping d_phase(" << d_phase << ") " << Qstart << " -> " << Qend;
       
-      do_bfs_pop(Qstart, Qend);
-      //VLOG(1) << "-----------------------";
-      //for (int64_t i=0; i<g->numVertices; i++) {
-      //  VLOG(1) << "bc[" << i << "] = " << read_double(bc+i);
-      //}
+      do_bfs_pop(Qstart, Qend);      
+      
     }
-//    {
-//      std::stringstream ss;
-//      ss << "bc = [";
-//      for (graphint i=0; i<g->numVertices; i++) ss << " " << read_double(bc+i);
-//      ss << " ]";
-//      VLOG(1) << ss.str();
-//    }
-//    VLOG(1) << "bc[" << 12 << "] = " << read_double(bc+12);
   } // end for(x=0; x<NV && Vs>0)
     
   t = timer() - t;
