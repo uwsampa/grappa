@@ -250,6 +250,16 @@ bool checkpoint_in(graphedges * ge, graph * g) {
   return true;
 }
 
+int64_t calc_nnz(const graph& g) {
+  static int64_t sum;
+  call_on_all_cores([]{ sum = 0; });
+  auto es = g.edgeStart;
+  forall_localized(g.edgeStart, g.numVertices, [es](int64_t i, graphint& e){
+    sum += delegate::read(es+i+1) - e;
+  });
+  return reduce<int64_t,collective_add>(&sum);
+}
+
 static void user_main(void* ignore) {
   double t;
   
@@ -351,6 +361,8 @@ static void user_main(void* ignore) {
     printf("ntriangles: %ld\n", num_triangles);
     printf("triangles_time: %g\n", t); fflush(stdout);
   }
+
+  int64_t nnz = calc_nnz(*g);
   
   call_on_all_cores([]{ Statistics::reset(); });
 
@@ -383,15 +395,15 @@ static void user_main(void* ignore) {
       printf("warning: no reference available\n");
     }
 
-    printf("avg_centrality: %10.8g\n", avgbc);
-    printf("centrality_time: %g\n", t); fflush(stdout);
-    printf("centrality_teps: %g\n", (double)total_nedge / t);
+    fprintf(stderr, "avg_centrality: %10.8g\n", avgbc);
+    fprintf(stderr, "centrality_time: %g\n", t); fflush(stdout);
+    fprintf(stderr, "centrality_teps: %g\n", (double)nnz * kcent / t);
   }
   
   //###################
   // Kernels complete!
   
-  Grappa_merge_and_dump_stats();
+  // Grappa_merge_and_dump_stats();
   //Grappa_dump_stats_all_nodes();
 
   VLOG(1) << "freeing graphs";
