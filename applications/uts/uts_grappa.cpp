@@ -14,6 +14,7 @@
 #include <PerformanceTools.hpp>
 #include <GlobalCompletionEvent.hpp>
 #include <Array.hpp>
+#include <Statistics.hpp>
 
 
 #include <iostream>
@@ -33,6 +34,16 @@
 // UTS-mem Grappa implementation specific command line parameters (using gflags instead of UTS impl_params)
 DEFINE_int64( vertices_size, 1<<20, "Upper bound count of vertices" );
 DEFINE_bool( verify_tree, true, "Verify the generated tree" );
+
+using namespace Grappa;
+
+// UTS-mem application statistics
+GRAPPA_DEFINE_STAT(SimpleStatistic<uint64_t>, uts_num_gen_nodes, 0);
+GRAPPA_DEFINE_STAT(SimpleStatistic<uint64_t>, uts_num_searched_nodes, 0);
+// for holding their final values
+uint64_t local_searched;
+uint64_t local_generated;
+
 
 // Parallel granularities for important parallel for-loops
 #define VERIFY_THRESHOLD ((int64_t) 4)
@@ -91,7 +102,6 @@ void impl_abort(int err) {
 } 
 
 
-using namespace Grappa;
 
 /* ****************************************************************************
  * Global variables that every Node needs a local copy of
@@ -108,15 +118,12 @@ uint64_t global_child_index = 0; // only Node 0 matters
 GlobalAddress<uint64_t> global_id_ga;
 GlobalAddress<uint64_t> global_child_index_ga;
 
-// Node-local counters for asynch-for generate and search
-uint64_t tj_num_gen_nodes = 0;
-uint64_t tj_num_searched_nodes = 0;
-
 /// verification counts
 uint64_t local_verify_children_count = 0;
 
 // node-local client to loop syncrhonization
 GlobalCompletionEvent joiner;
+GlobalCompletionEvent s_joiner;  //FIXME: different joiner for debugging (use each once)
 
 /* ****************************************************************************
  * Tree
@@ -207,7 +214,7 @@ void tj_create_vertex( int64_t start, int64_t num, int64_t parent_id ) {
 ///
 /// This is a feed forward implementation of creation
 void tj_create_children( uts::Node * parent ) {
-  tj_num_gen_nodes++;
+  uts_num_gen_nodes++;
 
   DVLOG(5) << "creating children for id=" << parent->id;
   Incoherent<uts::Node>::WO v( Tree_Nodes + parent->id, 1, parent );
@@ -280,7 +287,7 @@ void tj_create_children( uts::Node * parent ) {
 /// Traverse the in-memory tree starting from Vertex[start]
 ///
 void search_vertex( int64_t id ) {
-  tj_num_searched_nodes++;
+  uts_num_searched_nodes++;
   int64_t numChildren, childIndex;
 
   GlobalAddress<vertex_t> v_addr = Vertex + id;
@@ -289,21 +296,38 @@ void search_vertex( int64_t id ) {
     Incoherent<vertex_t>::RO v( v_addr, 1, &v_storage );
     /* (v) = Vertex[id] */
 
-    DVLOG(5) << "Search vertex " << *v << "(local count = " << tj_num_searched_nodes << ")";
+    DVLOG(5) << "Search vertex " << *v << "(local count = " << uts_num_searched_nodes << ")";
 
     numChildren = (*v).numChildren;
     childIndex = (*v).childIndex;
   }
 
   // iterate over my children 
-  forall_here_async_public< &joiner >( childIndex, numChildren, []( int64_t start, int64_t iters ) {
-    // all iterations in the range share the relevant chunk of the child list
-    int64_t childid_storage[iters];
-    Incoherent<int64_t>::RO childids( Child + start, iters, childid_storage ); // this will cause O(Branching factor * depth) space
+  forall_here_async_public< &s_joiner >( childIndex, numChildren, []( int64_t start, int64_t iters ) {
+      int64_t c0;
+      {
+        // all iterations in the range share the relevant chunk of the child list
+        int64_t childid_storage[iters];
+        Incoherent<int64_t>::RO childids( Child + start, iters, childid_storage ); // this will cause O(Branching factor * depth) space
 
-    for ( int64_t i = start; i<start+iters; i++ ) {
-      search_vertex( childids[i] );
-    }
+        // spawn tasks serially for the first nc-1 chilren
+        for ( int64_t i=0; i<iters-1; i++ ) {
+          int64_t c = childids[i];
+          s_joiner.enroll();
+          publicTask( [c]() {
+            search_vertex( c );
+            s_joiner.complete();
+          });
+        }
+        if (iters>0) {
+          c0 = childids[iters-1];
+        }
+      } // release the cache object so we don't hold on to it (despite tail recursion compiler might not call destructor)
+
+      if (iters>0) {
+        // explore the nc child myself
+        search_vertex( c0 );
+      }
   });
 }
 
@@ -368,32 +392,18 @@ void stop_profiling() {
 }
 
 void par_create_tree() {
-  on_all_cores( [] {
-    joiner.reset();
-    barrier();
-    if (Grappa::mycore()==0) {
-      global_id = 0;
-      uts::Node root;
-      uts_initRoot( &root, type );
-      root.id = global_id++;
-      tj_create_children( &root );
-    }
-    joiner.wait();
-  });
+  global_id = 0;
+  uts::Node root;
+  uts_initRoot( &root, type );
+  root.id = global_id++;
+  tj_create_children( &root );
+  joiner.wait();
 }
 
 void par_search_tree(int64_t root) {
-  on_all_cores( [root] {
-    DVLOG(5) << "resetting joiner for search";
-    joiner.reset();
-    DVLOG(5) << "entering barrier for search";
-    barrier();
-    DVLOG(5) << "starting search";
-    if ( Grappa::mycore == 0 ) {
-      search_vertex( root );
-    }
-    joiner.wait();
-  });
+  DVLOG(5) << "starting search";
+  search_vertex( root );
+  s_joiner.wait();
 }
 
 
@@ -439,10 +449,6 @@ void user_main ( user_main_args * args ) {
     // initialize UTS with args
     LOG(INFO) << "Initializing UTS";
     uts_parseParams(global_argc, global_argv);
-
-    // initialize counters with profiler
-    Grappa_add_profiling_counter( &tj_num_gen_nodes, "uts_num_gen_nodes", "utsgennodes", false, 0 );
-    Grappa_add_profiling_counter( &tj_num_searched_nodes, "uts_num_searched_nodes", "utssearchnodes", false, 0 );
   });
 
   // initialization to support verification
@@ -487,9 +493,11 @@ void user_main ( user_main_args * args ) {
 
   // count nodes generated
   on_all_cores( [] {
-    LOG(INFO) << "Node " << Grappa::mycore() << " searched " << tj_num_gen_nodes;
+    local_generated = uts_num_gen_nodes.value();
+    LOG(INFO) << "Core " << Grappa::mycore() << " generated " << local_generated;
   });
-  r_gen.size = Grappa::reduce< uint64_t, collective_add<uint64_t> >( &tj_num_gen_nodes );
+  r_gen.size = Grappa::reduce< uint64_t, collective_add<uint64_t> >( &local_generated );
+  LOG(INFO) << "Total generated: " << r_gen.size;
 
   // only needed for generation
   Grappa_free( Tree_Nodes );
@@ -517,6 +525,8 @@ void user_main ( user_main_args * args ) {
     double veri_runtime = t2-t1;
 
     LOG(INFO) << "verify runtime: " << veri_runtime << " s";
+  } else {
+    LOG(INFO) <<  "WARNING: not verifying generated tree";
   }
 
 
@@ -533,7 +543,7 @@ void user_main ( user_main_args * args ) {
   LOG(INFO) << "starting tree search";
   Result r_search;
   //start_profiling();
-  Grappa_reset_stats_all_nodes();
+  on_all_cores( [] { Grappa::Statistics::reset(); } );
   t1 = uts_wctime();
  
   par_search_tree( 0 );
@@ -544,14 +554,15 @@ void user_main ( user_main_args * args ) {
   
   t2 = uts_wctime();
   //stop_profiling();
-  Grappa_merge_and_dump_stats( LOG(INFO) );
 
+  Grappa::Statistics::merge_and_print();
 
   // count nodes searched
   on_all_cores( [] {
-    LOG(INFO) << "Node " << Grappa::mycore() << " searched " << tj_num_searched_nodes;
+    local_searched = uts_num_searched_nodes.value();
+    LOG(INFO) << "Node " << Grappa::mycore() << " searched " << local_searched;
   });
-  r_search.size = Grappa::reduce< uint64_t, collective_add<uint64_t> >( &tj_num_searched_nodes );
+  r_search.size = Grappa::reduce< uint64_t, collective_add<uint64_t> >( &local_searched );
 
   double search_runtime = t2-t1;
 
@@ -566,13 +577,11 @@ void user_main ( user_main_args * args ) {
 
   LOG(INFO) << "uts: {"
     << "search_runtime: " << search_runtime << ","
-    //<< "noJoin_runtime: " << noJoin_runtime << ","
     << "nNodes: " << nNodes
     << "}";
 
   std::cout << "uts: {"
     << "search_runtime: " << search_runtime << ","
-    //<< "noJoin_runtime: " << noJoin_runtime << ","
     << "nNodes: " << nNodes
     << "}" << std::endl;
 
