@@ -19,6 +19,10 @@
 
 #include <stdio.h>
 
+#include <gflags/gflags.h>
+#include <glog/logging.h>
+#include "LocaleSharedMemory.hpp"
+
 /// list of all coroutines (used only for debugging)
 coro * all_coros = NULL;
 /// total number of coroutines (used only for debugging)
@@ -69,7 +73,8 @@ coro *coro_spawn(coro *me, coro_func f, size_t ssize) {
   c->next = NULL;
 
   // allocate stack and guard page
-  c->base = valloc(ssize+4096*2);
+  c->base = Grappa::impl::locale_shared_memory.segment.allocate_aligned( ssize+4096*2, 4096 );
+  CHECK_NOTNULL( c->base );
   c->ssize = ssize;
   assert(c->base != NULL);
 
@@ -155,7 +160,7 @@ void destroy_coro(coro *c) {
     assert( 0 == mprotect( (void*)(c), 4096, PROT_READ | PROT_WRITE ) );
 #endif
     remove_coro(c); // remove from debugging list of coros
-    free(c->base);
+    Grappa::impl::locale_shared_memory.segment.deallocate(c->base);
   }
   free(c);
 }
