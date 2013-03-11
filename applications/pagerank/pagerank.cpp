@@ -41,7 +41,7 @@ void calculate_dM( weighted_csr_graph m, double d ) {
   //  if sum == 0 { set all m[,j] to 1/N }
   //  else set m[,j] to m[,j]/sum
 
-  forall_localized( m.adjweight, m.nadj, [nv]( int64_t i, double& weight ) {
+  forall_localized( m.adjweight, m.nadj, [d]( int64_t i, double& weight ) {
     weight = weight * d;
   });
 }
@@ -55,7 +55,7 @@ void calculate_dM( weighted_csr_graph m, double d ) {
 
 
 
-Reducer<double,collective_add> diff_sum_sq(0.0f);
+AllReducer<double,collective_add> diff_sum_sq(0.0f);
 double two_norm_diff_result;
 
 double two_norm_diff(vector v2, vector v1) {
@@ -87,7 +87,7 @@ double two_norm_diff(vector v2, vector v1) {
 
 
 #include <cmath>
-Reducer<double,collective_add> sum_sq(0.0f);
+AllReducer<double,collective_add> sum_sq(0.0f);
 double sqrt_total_sum_sq; // instead of a file-global could also pass to on_all_cores but its extra bandwidth
 
 void normalize( vector v ) {
@@ -98,14 +98,15 @@ void normalize( vector v ) {
     sum_sq.accumulate(ele * ele);
   });
   on_all_cores( [] { 
-    sqrt_total_sum_sq = std::sqrt( sum_sq.finish() ); 
+    double total_sum_sq = sum_sq.finish();
+    sqrt_total_sum_sq = std::sqrt( total_sum_sq ); 
     CHECK( total_sum_sq != 0 ) << "Divide by zero will occur";
   });
-  VLOG(4) << "normalize sum total = " << total_sum_sq;
+  VLOG(4) << "normalize sum total = " << sqrt_total_sum_sq;
 
   // normalize
   forall_localized( v.a, v.length, []( int64_t i, double& ele) {
-    ele /= total_sum_sq;
+    ele /= sqrt_total_sum_sq;
   });
 }
 
@@ -140,7 +141,7 @@ pagerank_result pagerank( weighted_csr_graph m, double d, double epsilon ) {
   v.a = Grappa_typed_malloc<double>(v.length);
   on_all_cores( [] { srand(0); } );
   forall_localized( v.a, v.length, []( int64_t i, double& ele ) {
-    *ele = ((double)rand()/RAND_MAX); //[0,1]
+    ele = ((double)rand()/RAND_MAX); //[0,1]
   });
   
   if ( v.length <= 16 ) vector_out( &v, LOG(INFO) );
@@ -158,7 +159,7 @@ pagerank_result pagerank( weighted_csr_graph m, double d, double epsilon ) {
   // set the damping vector 
   auto dv = (1-d)/m.nv;
   on_all_cores( [dv] {
-    damp_vector_val = dvv;
+    damp_vector_val = dv;
   });
     
   double err;
@@ -238,7 +239,7 @@ void user_main( int * ignore ) {
   });
 
   // print the matrix if it is small 
-  if ( g.nv <= 16 ) matrix_out( &g, LOG(info), true );
+  if ( g.nv <= 16 ) matrix_out( &g, std::cout, true );
 
   Grappa_reset_stats_all_nodes();
   pagerank_result result;
