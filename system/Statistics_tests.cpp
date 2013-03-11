@@ -42,6 +42,11 @@ void user_main(void * args) {
     baz += 16;
     baz += 25;
     baz += 36;
+
+    BOOST_CHECK( baz.value() == (16+25+36) );
+    BOOST_CHECK( foo.value() == 2 );
+    BOOST_CHECK( bar.value() == 5.41 );
+
     return true;
   });
   
