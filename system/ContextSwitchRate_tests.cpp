@@ -10,6 +10,7 @@
 #include "Grappa.hpp"
 #include "CompletionEvent.hpp"
 #include "ParallelLoop.hpp"
+#include "Collective.hpp"
 
 #include <string>
 
@@ -49,18 +50,30 @@ void user_main( void * args ) {
   if (FLAGS_test_type.compare("yields")==0) {
     BOOST_MESSAGE( "Test yields" );
     {
-        
-      double start = Grappa_walltime();
+      struct runtimes_t {
+        double runtime_avg, runtime_min, runtime_max;
+      };
+      runtimes_t r;
+      
+      on_all_cores( [&r] {
+        // per core timing
+        double start, end;
+        bool started = false;
 
-      on_all_cores( [] {
         final = new CompletionEvent(FLAGS_num_test_workers);
         task_barrier = new CompletionEvent(FLAGS_num_test_workers);
 
         for ( uint64_t t=0; t<FLAGS_num_test_workers; t++ ) {
-          privateTask( [t] {
+          privateTask( [&started,&start] {
             // wait for all to start (to hack scheduler yield)
             task_barrier->complete();
             task_barrier->wait();
+
+            // first task to exit the local barrier will start the timer
+            if ( !started ) {
+              start = Grappa_walltime();
+              started = true;
+            }
 
             // do the work
             for ( uint64_t i=0; i<FLAGS_iters_per_task; i++ ) { 
@@ -70,15 +83,31 @@ void user_main( void * args ) {
             final->complete();
           });
         }
-      
+        
         BOOST_MESSAGE( "waiting" );
         final->wait();
+        end = Grappa_walltime();
+        double runtime = end-start;
+        BOOST_MESSAGE( "took time " << runtime );
+
+        Grappa::barrier();
+        BOOST_MESSAGE( "all done" );
+
+        // sort out timing 
+
+        double r_sum = Grappa::allreduce<double, collective_add>( runtime );
+        double r_min = Grappa::allreduce<double, collective_min>( runtime );
+        double r_max = Grappa::allreduce<double, collective_max>( runtime );
+        if ( Grappa::mycore()==0 ) {
+          r.runtime_avg = r_sum / Grappa::cores();
+          r.runtime_min = r_min;
+          r.runtime_max = r_max;
+        }
       });
 
-      double end = Grappa_walltime();
-
-      double runtime = end-start;
-      BOOST_MESSAGE( "time = " << runtime << ", avg_switch_time = " << runtime/(FLAGS_num_starting_workers*FLAGS_iters_per_task) );
+      BOOST_MESSAGE( "cores_time_avg = " << r.runtime_avg
+                      << ", cores_time_max = " << r.runtime_max
+                      << ", cores_time_min = " << r.runtime_min);
     }
   } else if (FLAGS_test_type.compare("sequential_updates")==0) {
     BOOST_MESSAGE( "Test sequential_updates" );
