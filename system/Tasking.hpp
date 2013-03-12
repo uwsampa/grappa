@@ -30,6 +30,8 @@
 #define STATIC_ASSERT_SIZE_8( type ) BOOST_STATIC_ASSERT( sizeof(type) == 8 )
 
 
+#define STATIC_ASSERT_SIZE_8(type) static_assert(sizeof(type) == 8, "Size of "#type" must be 8 bytes.")
+
 DECLARE_uint64( num_starting_workers );
 
 
