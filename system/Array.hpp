@@ -55,6 +55,9 @@ namespace impl {
   }
 }
 
+/// Memcpy over Grappa global arrays. Arguments `dst` and `src` must point into global arrays 
+/// (so must be linear addresses) and be non-overlapping, and both must have at least `nelem`
+/// elements.
 template< typename T >
 void memcpy(GlobalAddress<T> dst, GlobalAddress<T> src, size_t nelem) {
   on_all_cores([dst,src,nelem]{
@@ -62,7 +65,9 @@ void memcpy(GlobalAddress<T> dst, GlobalAddress<T> src, size_t nelem) {
   });
 }
 
-// TODO: do forall_localized_async thing and only send messages to ones with elements
+/// Asynchronous version of memcpy, spawns only on cores with array elements. Synchronizes
+/// with given GlobalCompletionEvent, so memcpy's are known to be complete after GCE->wait().
+/// Note: same restrictions on `dst` and `src` as Grappa::memcpy).
 template< GlobalCompletionEvent * GCE = &impl::local_gce, typename T = void >
 void memcpy_async(GlobalAddress<T> dst, GlobalAddress<T> src, size_t nelem) {
   on_cores_localized_async<GCE>(src, nelem, [dst,src,nelem](T* base, size_t nlocal){
@@ -70,9 +75,10 @@ void memcpy_async(GlobalAddress<T> dst, GlobalAddress<T> src, size_t nelem) {
   });
 }
 
+/// not implemented yet
 template< typename T >
 void prefix_sum(GlobalAddress<T> array, size_t nelem) {
-  
+  // not implemented
 }
 
 } // namespace Grappa
