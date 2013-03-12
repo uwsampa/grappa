@@ -58,6 +58,7 @@ class ThreadQueue {
 
         void enqueue(Worker * t);
         Worker * dequeue();
+        void prefetch();
         int length() { 
             return len;
         }
@@ -131,6 +132,12 @@ class Worker {
     DCHECK_GE(remain, 0) << "rsp = " << reinterpret_cast<void*>(rsp) << ", base = " << base << ", STACK_SIZE = " << STACK_SIZE;
 
     return remain;
+  }
+  
+  /// prefetch the Thread execution state
+  inline void prefetch() {
+    __builtin_prefetch( stack, 0, 3 );                           // try to keep stack in cache
+    //USUSED?if( data_prefetch ) __builtin_prefetch( data_prefetch, 0, 0 );   // for low-locality data
   }
 
 };
@@ -277,6 +284,19 @@ inline void ThreadQueue::enqueue( Worker * t) {
     tail = t;
     t->next = NULL;
     len++;
+}
+
+/// Prefetch some Thread close to the front of the queue
+inline void ThreadQueue::prefetch() {
+    Worker * result = head;
+    // try to prefetch 4 away
+    if( result ) {
+      if( result->next ) result = result->next;
+      if( result->next ) result = result->next;
+      if( result->next ) result = result->next;
+      if( result->next ) result = result->next;
+      result->prefetch();
+    }
 }
 
 typedef Worker Thread; // FIXME: remove Thread references
