@@ -219,7 +219,10 @@ void user_main( int * args )
       	Incoherent< int64_t >::WO wo( array, 1 );
       	for (int64_t i=0; i<my_array_size; i++) {
       	  *wo = 2345+i;
-      	  wo.reset( array+i+1, 1 );
+        
+          if ( i<my_array_size-1 ) { 
+            wo.reset( array+i+1, 1 );
+          }
       	}
       }
 
@@ -229,7 +232,10 @@ void user_main( int * args )
       	for (int64_t i=0; i<my_array_size; i++) {
       	  BOOST_CHECK_EQUAL( 2345+i, *rw );
       	  *rw = 3456+i;
-      	  rw.reset( array+i+1, 1 );
+      	  
+          if ( i<my_array_size-1 ) { 
+            rw.reset( array+i+1, 1 );
+          }
       	}
       }
 
@@ -238,11 +244,14 @@ void user_main( int * args )
       	Incoherent< int64_t >::RO ro( array, 1 );
       	for (int64_t i=0; i<my_array_size; i++) {
       	  BOOST_CHECK_EQUAL( 3456+i, *ro );
-      	  ro.reset( array+i+1, 1 );
+
+          if ( i<my_array_size-1 ) {
+            ro.reset( array+i+1, 1 );
+          }
       	}
 
   	// check address()
-  	BOOST_CHECK_EQUAL( ro.address(), array + my_array_size );
+  	BOOST_CHECK_EQUAL( ro.address(), array + my_array_size-1 );
       }
 
     }
