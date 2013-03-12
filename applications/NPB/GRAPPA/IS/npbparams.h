@@ -1,4 +1,3 @@
-#define CLASS 'A'
 #define NUM_PROCS 32
 /*
    This file is generated automatically by the setparams utility.
