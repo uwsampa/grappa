@@ -16,6 +16,8 @@
 #include "MessagePool.hpp"
 #include "Tasking.hpp"
 #include "FullEmpty.hpp"
+#include "Barrier.hpp"
+
 #include <functional>
 
 #define COLL_MAX &collective_max
@@ -284,7 +286,7 @@ namespace Grappa {
       static T total;
       static Core cores_in = 0;
       
-      CHECK(mycore() == HOME_CORE);
+      DCHECK(mycore() == HOME_CORE);
       
       if (cores_in == 0) {
         total = val;
@@ -306,6 +308,67 @@ namespace Grappa {
       }
     }
     
+    template<typename T, T (*ReduceOp)(const T&, const T&) >
+    class InplaceReduction {
+    protected:
+      ConditionVariable cv;
+      T * array;
+      Core cores_in = 0;
+    public:
+      
+      /// SPMD, must be called on static/file-global object on all cores
+      /// blocks until reduction is complete
+      void call_allreduce(T * in_array, size_t nelem) {
+        this->array = in_array;
+        barrier();
+        
+        if (mycore() != HOME_CORE) {
+          // everyone sends their contribution to HOME_CORE, last one wakes HOME_CORE
+          send_message(HOME_CORE, [this](void * payload, size_t payload_size) {
+            DCHECK(mycore() == HOME_CORE);
+      
+            auto in_array = static_cast<T*>(payload);
+            auto nelem = payload_size/sizeof(T);
+      
+            for (size_t i=0; i<nelem; i++) {
+              this->array[i] = ReduceOp(this->array[i], in_array[i]);
+            }
+      
+            this->cores_in++;
+            if (this->cores_in == cores()-1) {
+              // wake HOME_CORE's task and have it do the sending
+              signal(&this->cv);
+            }
+          }, (void*)in_array, sizeof(T)*nelem);
+          wait(&cv);
+          
+        } else {
+          // home core waits until woken by last received message from other cores
+          if (this->cores_in < cores()-1) wait(&cv);
+          
+          // send total to everyone else and wake them
+          char msg_buf[(cores()-1)*sizeof(PayloadMessage<decltype(this)>)];
+          MessagePool pool(msg_buf, sizeof(msg_buf));
+          for (Core c = 0; c < cores(); c++) {
+            if (c != HOME_CORE) {
+              // send totals back to all the other cores
+              pool.send_message(c, [this](void * payload, size_t psz){
+                auto total = static_cast<T*>(payload);
+                auto nelem = psz / sizeof(T);
+                for (size_t i=0; i<nelem; i++) {
+                  this->array[i] = total[i];
+                }
+                signal(&this->cv);
+              }, this->array, sizeof(T)*nelem);
+            }
+          }
+          // once all messages are sent, HOME_CORE's task continues
+        }
+        // reset reduction object in case it gets reused
+        this->cores_in = 0;
+      }
+    };
+    
   }
   
   /// Called from SPMD context, reduces values from all cores calling `allreduce` and returns reduced
@@ -319,6 +382,12 @@ namespace Grappa {
     });
     
     return impl::Reduction<T>::result.readFF();
+  }
+  
+  template< typename T, T (*ReduceOp)(const T&, const T&) >
+  void allreduce_inplace(T * array, size_t nelem = 1) {
+    static impl::InplaceReduction<T,ReduceOp> reducer;
+    reducer.call_allreduce(array, nelem);
   }
   
   /// Called from a single task (usually user_main), reduces values from all cores onto the calling node.
