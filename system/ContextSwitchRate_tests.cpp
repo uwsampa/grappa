@@ -16,7 +16,7 @@
 DECLARE_uint64( num_starting_workers );
 DEFINE_uint64( num_test_workers, 4, "Number of workers for the tests");
 DEFINE_uint64( iters_per_task, 10000, "Iterations per task" );
-DEFINE_string( test_type, "sequential_updates", "options: {yields,sequential_updates, sequential_updates16" );  
+DEFINE_string( test_type, "yields", "options: {yields,sequential_updates, sequential_updates16" );  
 DEFINE_uint64( private_array_size, 1, "Size of private array of 8-bytes for each task" );
 
 using namespace Grappa;
