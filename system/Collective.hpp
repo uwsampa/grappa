@@ -311,7 +311,7 @@ namespace Grappa {
     template<typename T, T (*ReduceOp)(const T&, const T&) >
     class InplaceReduction {
     protected:
-      ConditionVariable cv;
+      FullEmpty<bool> done;
       T * array;
       Core cores_in = 0;
     public:
@@ -319,6 +319,7 @@ namespace Grappa {
       /// SPMD, must be called on static/file-global object on all cores
       /// blocks until reduction is complete
       void call_allreduce(T * in_array, size_t nelem) {
+        done.reset();
         this->array = in_array;
         barrier();
         
@@ -337,14 +338,14 @@ namespace Grappa {
             this->cores_in++;
             if (this->cores_in == cores()-1) {
               // wake HOME_CORE's task and have it do the sending
-              signal(&this->cv);
+              this->done.writeXF(true);
             }
           }, (void*)in_array, sizeof(T)*nelem);
-          wait(&cv);
+          done.readFF();
           
         } else {
           // home core waits until woken by last received message from other cores
-          if (this->cores_in < cores()-1) wait(&cv);
+          done.readFF();
           
           // send total to everyone else and wake them
           char msg_buf[(cores()-1)*sizeof(PayloadMessage<decltype(this)>)];
@@ -358,7 +359,7 @@ namespace Grappa {
                 for (size_t i=0; i<nelem; i++) {
                   this->array[i] = total[i];
                 }
-                signal(&this->cv);
+                this->done.writeXF(true);
               }, this->array, sizeof(T)*nelem);
             }
           }
