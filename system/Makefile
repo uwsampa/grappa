@@ -382,7 +382,9 @@ endif #DEBUG
 # 
 # Prefetching
 #
-ifdef READYQ_PREFETCH
+# on by default
+READYQ_PREFETCH?=1
+ifeq ($(READYQ_PREFETCH), 1)
 CFLAGS+= -DREADYQ_PREFETCH
 endif
 
