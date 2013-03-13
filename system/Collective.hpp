@@ -21,7 +21,7 @@
 #include <functional>
 
 // TODO/FIXME: use actual max message size (have Communicator be able to tell us)
-const size_t MAX_MESSAGE_SIZE = 3192;
+const size_t MAX_MESSAGE_SIZE = 3072;
 
 #define COLL_MAX &collective_max
 #define COLL_MIN &collective_min
