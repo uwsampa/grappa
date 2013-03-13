@@ -77,8 +77,13 @@ coro *coro_spawn_inplace(coro* c, coro *me, coro_func f, size_t ssize) {
 
   // set stack pointer
   c->stack = (char*) c->base + ssize + 4096 - current_stack_offset;
+
+
+  // try to make sure we don't stuff all our stacks at the same cache index
+  const int num_offsets = 128;
+  const int cache_line_size = 64;
   current_stack_offset += FLAGS_stack_offset;
-  current_stack_offset &= ((1 << 12) - 1);
+  current_stack_offset &= ((cache_line_size * num_offsets) - 1);
 
   // clear stack
   memset(c->base, 0, ssize);
