@@ -7,6 +7,9 @@
 #ifndef THREAD_HPP
 #define THREAD_HPP
 
+#include <gflags/gflags.h>
+#include <glog/logging.h>
+
 #include <coro.h>
 #include <boost/cstdint.hpp>
 #include <iostream>
@@ -18,12 +21,15 @@
 #include "StateTimer.hpp"
 #include "PerformanceTools.hpp"
 
+DECLARE_int64( stack_size );
+
 class Scheduler;
 typedef uint32_t threadid_t; 
 struct Thread;
 
 /// Size in bytes of the stack allocated for every Thread
-const size_t STACK_SIZE = 1L<<19;
+//const size_t STACK_SIZE = 1L<<19;
+//const size_t STACK_SIZE = 1L<<14;
 
 /// A queue of threads
 class ThreadQueue {

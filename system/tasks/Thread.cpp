@@ -10,6 +10,7 @@
 #include "Scheduler.hpp"
 #include "PerformanceTools.hpp"
 
+DEFINE_int64( stack_size, 1 << 19, "Default stack size" );
 
 /// ThreadQueue output stream
 std::ostream& operator<< ( std::ostream& o, const ThreadQueue& tq ) {
@@ -82,7 +83,7 @@ Thread * thread_spawn(Thread * me, Scheduler * sched,
  
   // allocate the Thread and stack
   Thread * thr = new Thread( sched );
-  coro_spawn_inplace(&(thr->co), &(me->co), tramp, STACK_SIZE);
+  coro_spawn_inplace(&(thr->co), &(me->co), tramp, FLAGS_stack_size);
   sched->assignTid( thr );
 
   // Pass control to the trampoline a few times quickly to set up
