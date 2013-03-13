@@ -315,15 +315,12 @@ namespace Grappa {
       void activate();
       void finish();
 
-      // void poll( ) {
-      //   // there are two places 
-      //   MessageBase * received = &cores_[ mynode_ ];
-      //   if( received ) {
-      //     LOG(INFO) << "Receiving buffer through poll";
-      //     Grappa::impl::MessageBase::deserialize_buffer( static_cast< char * >( received ) );
-      //     received = NULL;
-      //   }
-      // }
+      void poll( ) {
+        if( cores_[ Grappa::mycore() ].messages_.raw_ != 0 ) {
+          Grappa::impl::MessageList ml = grab_messages( Grappa::mycore() );
+          deliver_locally( Grappa::mycore(), get_pointer( &ml ) );
+        }
+      }
 
       /// Enqueue message to be sent
       inline void enqueue( Grappa::impl::MessageBase * m ) {
@@ -431,7 +428,8 @@ namespace Grappa {
 
       /// Initiate an idle flush.
       void idle_flush() {
-        Grappa::signal( &flush_cv_ );
+        poll();
+        //Grappa::signal( &flush_cv_ );
       }
 
     };

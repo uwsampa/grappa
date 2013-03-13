@@ -16,6 +16,7 @@
 #include "common.hpp"
 #include "ConditionVariableLocal.hpp"
 #include "Mutex.hpp"
+#include "LocaleSharedMemory.hpp"
 
 typedef int16_t Core;
 
@@ -37,12 +38,13 @@ namespace Grappa {
       MessageBase * next_;     ///< what's the next message in the list of messages to be sent? 
       MessageBase * prefetch_; ///< what's the next message to prefetch?
 
+      Core source_;            ///< What core is this message coming from? (TODO: probably unneccesary)
       Core destination_;       ///< What core is this message aimed at?
 
       bool is_enqueued_;       ///< Have we been added to the send queue?
       bool is_sent_;           ///< Is our payload no longer needed?
-
-      Mutex mutex_;
+      bool is_delivered_;      ///< Are we waiting to mark the message sent?
+      
       ConditionVariable cv_;   ///< condition variable for sleep/wake
       
       bool is_moved_;           ///< HACK: make sure we don't try to send ourselves if we're just a temporary
@@ -53,14 +55,30 @@ namespace Grappa {
 
       /// Mark message as sent
       virtual void mark_sent() {
-        is_sent_ = true;
+        DVLOG(5) << __func__ << ": " << this << " Marking sent with is_enqueued_=" << is_enqueued_ 
+                 << " is_delivered_=" << is_delivered_ 
+                 << " is_sent_=" << is_sent_;
         next_ = NULL;
         prefetch_ = NULL;
-        ConditionVariable old = cv_;
-        if( 0 != cv_.waiters_ ) {
-          Grappa::broadcast( &cv_ );
+
+        if( (is_delivered_ == true) && (Grappa::mycore() != source_) ) {
+          DVLOG(5) << __func__ << ": " << this << " Re-enqueuing to " << source_;
+          DCHECK_EQ( this->is_sent_, false );
+          enqueue( source_ );
+
+        } else {
+          DVLOG(5) << __func__ << ": " << this << " Final mark_sent";
+          DCHECK_EQ( Grappa::mycore(), this->source_ );
+          is_sent_ = true;
+          ConditionVariable old = cv_;
+          if( 0 != cv_.waiters_ ) {
+            Grappa::broadcast( &cv_ );
+          }
+          if( delete_after_send_ ) {
+            this->~MessageBase();
+            Grappa::impl::locale_shared_memory.segment.deallocate( this );
+          }
         }
-        if( delete_after_send_ ) delete this;
       }
 
       virtual const char * typestr() = 0;
@@ -101,8 +119,9 @@ namespace Grappa {
         : next_( NULL )
         , is_enqueued_( false )
         , is_sent_( false )
+        , is_delivered_( false )
+        , source_( -1 )
         , destination_( -1 )
-        , mutex_()
         , cv_()
         , is_moved_( false )
         , reset_count_(0)
@@ -113,8 +132,9 @@ namespace Grappa {
         : next_( NULL )
         , is_enqueued_( false )
         , is_sent_( false )
+        , is_delivered_( false )
+        , source_( -1 )
         , destination_( dest )
-        , mutex_()
         , cv_()
         , is_moved_( false )
         , reset_count_(0)
@@ -139,8 +159,9 @@ namespace Grappa {
         : next_( m.next_ )
         , is_enqueued_( m.is_enqueued_ )
         , is_sent_( m.is_sent_ )
+        , is_delivered_( m.is_delivered_ )
+        , source_( m.source_ )
         , destination_( m.destination_ )
-        , mutex_( m.mutex_ )
         , cv_( m.cv_ )
         , is_moved_( false ) // this only tells us if the current message has been moved
         , reset_count_(0)
@@ -191,9 +212,11 @@ namespace Grappa {
                  << " doing reset with is_enqueued_=" << is_enqueued_ << " and is_sent_= " << is_sent_;
         next_ = NULL;
         prefetch_ = NULL;
+        source_ =  -1;
         destination_ =  -1;
         is_enqueued_ = false;
         is_sent_ = false;
+        is_delivered_ = false;
       }
       
       /// Block until message can be deallocated.

@@ -25,8 +25,9 @@ namespace Grappa {
       CHECK( !is_moved_ ) << "Shouldn't be sending a message that has been moved!"
                           << " Your compiler's return value optimization failed you here.";
       DCHECK_NULL( next_ );
-      DCHECK_EQ( is_enqueued_, false ) << "Why are we enqueuing a message that's already enqueued?";
-      DCHECK_EQ( is_sent_, false ) << "Why are we enqueuing a message that's already sent?";
+      DCHECK_EQ( !is_delivered_ && is_enqueued_, false ) << "Why are we enqueuing a message that's already enqueued?";
+      DCHECK_EQ( !is_delivered_ && is_sent_, false ) << "Why are we enqueuing a message that's already sent?";
+      if( !is_delivered_ ) source_ = global_communicator.mycore();
       is_enqueued_ = true;
       DVLOG(5) << this << " on " << global_scheduler.get_current_thread()
                << " enqueuing with is_enqueued_=" << is_enqueued_ << " and is_sent_= " << is_sent_;
@@ -46,6 +47,7 @@ namespace Grappa {
     inline void Grappa::impl::MessageBase::send_immediate() {
       CHECK( !is_moved_ ) << "Shouldn't be sending a message that has been moved!"
                           << " Your compiler's return value optimization failed you here.";
+      if( !is_delivered_ ) source_ = global_communicator.mycore();
       is_enqueued_ = true;
 #ifndef LEGACY_SEND
       Grappa::impl::global_rdma_aggregator.send_immediate( this );

@@ -20,6 +20,8 @@
 #include "CompletionEvent.hpp"
 #include "Statistics.hpp"
 
+#include "LocaleSharedMemory.hpp"
+
 #include <boost/test/unit_test.hpp>
 
 DEFINE_int64( repeats, 1, "Repeats" );
@@ -46,8 +48,16 @@ public:
   virtual void set_next( ReuseMessage * next ) { this->next_ = next; }
 protected:
   virtual void mark_sent() {
+    DVLOG(5) << __func__ << ": " << this << " Marking sent with is_enqueued_=" << this->is_enqueued_ 
+             << " is_delivered_=" << this->is_delivered_ 
+             << " is_sent_=" << this->is_sent_;
+
+    if( Grappa::mycore() == this->source_ ) {
+      CHECK_EQ( Grappa::mycore(), this->source_ );
+      list_->push(this);
+    }
+
     Grappa::Message<T>::mark_sent();
-    list_->push(this);
   }
 };
 
@@ -296,8 +306,8 @@ BOOST_AUTO_TEST_CASE( test1 ) {
     Grappa_activate();
 
     // prepare pools of messages
-    auto msgs = new ReuseMessage<M>[ FLAGS_outstanding ];
-    auto completions = new ReuseMessage<C>[ FLAGS_outstanding ];
+    auto msgs = Grappa::impl::locale_shared_memory.segment.construct< ReuseMessage<M> >(boost::interprocess::anonymous_instance)[ FLAGS_outstanding ]();
+    auto completions = Grappa::impl::locale_shared_memory.segment.construct< ReuseMessage<C> >(boost::interprocess::anonymous_instance)[ FLAGS_outstanding ]();
     for( int i; i < FLAGS_outstanding; ++i ) {
       msgs[i].list_ = &message_list;
       message_list.push( &msgs[i] );

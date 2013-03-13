@@ -599,10 +599,12 @@ void RDMAAggregator::draw_routing_graph() {
       }
 
       while( messages_to_send != NULL ) {
+        DVLOG(5) << __func__ << "/" << global_scheduler.get_current_thread() << ": Delivered message " << messages_to_send 
+                 << " with is_delivered_=" << messages_to_send->is_delivered_ 
+                 << ": " << messages_to_send->typestr();
         MessageBase * next = messages_to_send->next_;
         __builtin_prefetch( messages_to_send->prefetch_, 0, prefetch_type );
         messages_to_send->deliver_locally();
-        messages_to_send->mark_sent();
         messages_to_send = next;
       }
     }
