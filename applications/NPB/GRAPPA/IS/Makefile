@@ -16,7 +16,7 @@ SRUN_FLAGS?=--time=00:15:00
 #include common Grappa definitions
 include $(GRAPPA_HOME)/include.mk
 
-SOURCES = is_grappa.o randlc.o
+SOURCES = intsort.o randlc.o
 HEADERS = randlc.hpp npb_intsort.hpp
 TARGET:= intsort.exe
 
