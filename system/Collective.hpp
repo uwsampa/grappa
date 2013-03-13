@@ -15,10 +15,13 @@
 #include "Message.hpp"
 #include "MessagePool.hpp"
 #include "Tasking.hpp"
-#include "FullEmpty.hpp"
+#include "CountingSemaphoreLocal.hpp"
 #include "Barrier.hpp"
 
 #include <functional>
+
+// TODO/FIXME: use actual max message size (have Communicator be able to tell us)
+const size_t MAX_MESSAGE_SIZE = 3192;
 
 #define COLL_MAX &collective_max
 #define COLL_MIN &collective_min
@@ -311,62 +314,70 @@ namespace Grappa {
     template<typename T, T (*ReduceOp)(const T&, const T&) >
     class InplaceReduction {
     protected:
-      FullEmpty<bool> done;
+      CountingSemaphore * seminary;
       T * array;
-      Core cores_in = 0;
-    public:
-      
+      Core elems_in = 0;
+      size_t nelem;
+    public:      
       /// SPMD, must be called on static/file-global object on all cores
       /// blocks until reduction is complete
       void call_allreduce(T * in_array, size_t nelem) {
-        done.reset();
+        // setup everything (block to make sure HOME_CORE is done)
         this->array = in_array;
+        this->nelem = nelem;
+        CountingSemaphore s(0);
+        this->seminary = &s;
         barrier();
         
         if (mycore() != HOME_CORE) {
-          // everyone sends their contribution to HOME_CORE, last one wakes HOME_CORE
-          send_message(HOME_CORE, [this](void * payload, size_t payload_size) {
-            DCHECK(mycore() == HOME_CORE);
+          size_t n_per_msg = MAX_MESSAGE_SIZE / sizeof(T);
+          for (size_t k=0; k<nelem; k+=n_per_msg) {
+            size_t this_nelem = MIN(n_per_msg, nelem-k);
+            
+            // everyone sends their contribution to HOME_CORE, last one wakes HOME_CORE
+            send_message(HOME_CORE, [this,k](void * payload, size_t payload_size) {
+              DCHECK(mycore() == HOME_CORE);
       
-            auto in_array = static_cast<T*>(payload);
-            auto nelem = payload_size/sizeof(T);
+              auto in_array = static_cast<T*>(payload);
+              auto in_n = payload_size/sizeof(T);
+              auto total = this->array+k;
       
-            for (size_t i=0; i<nelem; i++) {
-              this->array[i] = ReduceOp(this->array[i], in_array[i]);
-            }
+              for (size_t i=0; i<in_n; i++) {
+                total[i] = ReduceOp(total[i], in_array[i]);
+              }
       
-            this->cores_in++;
-            if (this->cores_in == cores()-1) {
-              // wake HOME_CORE's task and have it do the sending
-              this->done.writeXF(true);
-            }
-          }, (void*)in_array, sizeof(T)*nelem);
-          done.readFF();
+              this->seminary->increment(in_n);
+            }, (void*)in_array+k, sizeof(T)*this_nelem);
+          }
+          
+          seminary->decrement(nelem);
           
         } else {
           // home core waits until woken by last received message from other cores
-          done.readFF();
+          seminary->decrement(nelem*(cores()-1));
           
           // send total to everyone else and wake them
-          char msg_buf[(cores()-1)*sizeof(PayloadMessage<decltype(this)>)];
+          char msg_buf[(cores()-1)*sizeof(PayloadMessage<std::function<void(decltype(this),size_t)>>)];
           MessagePool pool(msg_buf, sizeof(msg_buf));
           for (Core c = 0; c < cores(); c++) {
             if (c != HOME_CORE) {
               // send totals back to all the other cores
-              pool.send_message(c, [this](void * payload, size_t psz){
-                auto total = static_cast<T*>(payload);
-                auto nelem = psz / sizeof(T);
-                for (size_t i=0; i<nelem; i++) {
-                  this->array[i] = total[i];
-                }
-                this->done.writeXF(true);
-              }, this->array, sizeof(T)*nelem);
+              size_t n_per_msg = MAX_MESSAGE_SIZE / sizeof(T);
+              for (size_t k=0; k<nelem; k+=n_per_msg) {
+                size_t this_nelem = MIN(n_per_msg, nelem-k);
+                pool.send_message(c, [this,k](void * payload, size_t psz){
+                  auto total_k = static_cast<T*>(payload);
+                  auto in_n = psz / sizeof(T);
+                  for (size_t i=0; i<in_n; i++) {
+                    this->array[k+i] = total_k[i];
+                  }
+                  this->seminary->increment(in_n);
+                }, this->array+k, sizeof(T)*this_nelem);              
+              }
             }
           }
           // once all messages are sent, HOME_CORE's task continues
         }
-        // reset reduction object in case it gets reused
-        this->cores_in = 0;
       }
     };
     
