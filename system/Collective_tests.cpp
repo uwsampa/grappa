@@ -34,12 +34,13 @@ void user_main( int * ignore ) {
   
   BOOST_MESSAGE("testing allreduce_inplace");
   Grappa::on_all_cores([]{
-    int xs[10];
-    for (int i=0; i<10; i++) xs[i] = i;
+    const int N = 1024;
+    int xs[N];
+    for (int i=0; i<N; i++) xs[i] = i;
     
-    Grappa::allreduce_inplace<int,collective_add>(xs, 10);
+    Grappa::allreduce_inplace<int,collective_add>(xs, N);
     
-    for (int i=0; i<10; i++) BOOST_CHECK_EQUAL(xs[i], Grappa::cores() * i);
+    for (int i=0; i<N; i++) BOOST_CHECK_EQUAL(xs[i], Grappa::cores() * i);
   });
 }
 
