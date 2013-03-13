@@ -59,20 +59,20 @@ linear addresses can refer to other cores' memory.
 	\small
 	\begin{tabular}{l}
       	\texttt{\scriptsize global\_address global\_malloc( size )} \\
-      	\texttt{\scriptsize global\_free( global\_address )} \\ \hline 
+      	\texttt{\scriptsize global\_free( global\_address )} \\ 
       	Allocation in the global heap \\ \\
       	\texttt{\scriptsize delegate\_read( global\_address, local\_var )}  \\
       	\texttt{\scriptsize delegate\_write( global\_address, local\_var )} \\
       	\texttt{\scriptsize delegate\_cas( global\_address, local\_var )} \\
-      	\texttt{\scriptsize delegate\_fetch\_inc( global\_address, local\_var )} \\ \hline
+      	\texttt{\scriptsize delegate\_fetch\_inc( global\_address, local\_var )} \\ 
       	Memory operations at the home core of a global address \\ \\
       	\texttt{\scriptsize cache\_acquire( global\_address, local\_buf, \{RO,RW,WO\})} \\
-      	\texttt{\scriptsize cache\_release( global\_address, local\_buf )} \\ \hline
+      	\texttt{\scriptsize cache\_release( global\_address, local\_buf )} \\ 
 		Perform cache operations to acquire/release global data.  \\
 		Acquire copies all data to local node and returns a pointer. \\ 	
 		Release optionally copies data back to global memory. \\
 	\end{tabular}
-      \caption{\label{fig:accessing-memory} Grappa API: accessing memory}     \end{minipage}
+      \caption{\label{fig:accessing-memory} Grappa API for memory accesses}     \end{minipage}
   \end{center}
 \end{figure}
 
@@ -80,7 +80,7 @@ linear addresses can refer to other cores' memory.
 \begin{center}
   \includegraphics[width=0.95\columnwidth]{figs/memory-structure}
 \begin{minipage}{0.95\columnwidth}
-  \caption{\label{fig:memory-structure} Grappa memory structure}
+  \caption{\label{fig:memory-structure} Global memory referencing in Grappa}
 \end{minipage}
 \vspace{-3ex}
 \end{center}
@@ -92,29 +92,32 @@ programmer expects a computation on shared data to have spatial locality
 to exploit, {\em cache} operations may be used. When there is no
 locality to exploit, {\em delegate} operations are used.
 
-\textbf{Explicit caching.} Grappa provides an API to fetch a global
-pointer of any length and return a local pointer to a cached copy of the
-global memory.  Grappa cache operations have the usual read-only and
-read-write variants, along with a write-only variant used to initialize
-data structures. Languages for distributed shared memory systems have
-done optimizations to achieve a similar goal. For example, the UPC
-compiler coalesces struct and array accesses into remote get/put
-\cite{Chen:2005}, and Fortran D compiler's message vectorization hoists
-small messages out of a loop \cite{FortranD:1992}. Caching in Grappa
-additionally provides a mechanism for exploiting temporal locality by
-operating on the data locally.
- 
-Under the hood, Grappa performs the mechanics of gathering chunks of
-data from multiple system nodes and presenting a conventional appearing
-linear block of memory as a local pointer into a cache. The strategy
-employed is to issue all the constituent requests of a cache access
-request  (as Active Messages) and then yield until all responses have
-occurred.  Currently, Grappa caches are \emph{not} coherent, requiring
-the programmer to maintain consistent access to data.  Future work will
-develop a software directory based coherence scheme to simplify
-consistent access to global data.
+\textit{Explicit caching.} Grappa provides an API to fetch a global pointer of
+any length and return a local pointer to a cached copy of the global memory.
+Grappa cache operations have the usual read-only and read-write variants,
+along with a write-only variant used to initialize data structures. Languages
+for distributed shared memory systems have done optimizations to achieve a
+similar goal. For example, the UPC compiler coalesces struct and array
+accesses into remote get/put \cite{Chen:2005}, and Fortran D compiler's
+message vectorization hoists small messages out of a loop
+\cite{FortranD:1992}. Caching in Grappa additionally provides a mechanism for
+exploiting temporal locality when available by operating on the data locally.
 
-\textbf{Delegate operations.} When the access pattern has low-locality,
+Under the hood, Grappa performs the mechanics of gathering chunks of data from
+multiple system nodes and presenting a conventional appearing linear block of
+memory as a local pointer into a cache. The strategy employed is to issue all
+the constituent requests of the desired block (as Active Messages) and then
+yield until all responses have occurred. Currently, Grappa caches are
+\emph{not} kept coherent automatically. If that is desired, the programmer to
+is responsible for pushing the updated block back to its home node. Given that
+synchronization is explicit in Grappa, we don't expect this to be a
+significant burden (programmers can push updates before a relevant
+synchronization operation).
+
+% Future work will develop a software directory based coherence scheme to
+% simplify consistent access to global data.
+
+\textit{Delegate operations.} When the access pattern has low-locality,
 it is more efficient to modify the data on its home core rather than
 bringing a copy to the requesting core and returning it after
 modification. Delegate operations provide this capability. Applications
@@ -136,36 +139,45 @@ Finally, no context switches are allowed while the data is being
 modified. Given these restrictions, we can ensure that delegate
 operations for the same address from multiple requesters are always
 serialized through a single core in the system, providing atomic
-semantics without using atomic operations. 
+semantics without using actual atomic operations (and thus avoiding their typical high cost). 
 Figure~\ref{fig:delegate-cache} depicts an example of how delegate and
 cache operations interact.
 
-\begin{figure*}[htb]
-\begin{center}
-  \includegraphics[width=1.5\columnwidth]{figs/delegate-cache}
-\begin{minipage}{1.9\columnwidth}
-  \caption{\label{fig:delegate-cache} \textbf{Delegation and cache example:} In step 1, a core allocates an array in
-the global heap. It then spawns two tasks on remote cores to increment
-elements of the array.  The first task increments two elements of the array using cache
-operations. In step 2, the task is invoked. A cache request is issued
-for two adjacent integers starting at the second element of the
-array. Since these element are stored in the memories of two different
-cores, this requires the sending of two messages in step 3. The task
-is suspended until both responses arrive in step 4. The data carried
-in these responses is stored in the local buffer. The elements are
-then increment in the buffer. Then in step 5, the modified data is
-sent back to the home node. Acknoledgements are returned in step 6 so
-the task knows when the writes are complete. The second task increments an element of the array with a delegate
-operation. In step 7, the task is invoked. A delegate request is sent
-to the home core of the array element with the increment value. The
-task suspends until the response is received. In step 8, the increment
-is executed on the remote core. A response is returned in step 9 with
-the previous value of the array element.
-}
-\end{minipage}
-\vspace{-3ex}
-\end{center}
-\end{figure*}
+\begin{figure*}[htb] \begin{center}
+\includegraphics[width=1.5\columnwidth]{figs/delegate-cache}
+\begin{minipage}{1.9\columnwidth} \caption{\label{fig:delegate-cache}
+\textbf{Delegation and cache example:} A core allocates an array in the global
+heap (1). It then spawns two tasks on remote cores to increment elements of
+the array. The first task increments two elements of the array using cache
+operations. The first task is then invoked (2). A cache request is issued for two
+adjacent integers starting at the second element of the array. Since these
+element are stored in the memories of two different cores, this requires two messages to be sent (3). The task is suspended until both responses arrive
+(4). The data carried in these responses is stored in the local buffer. The
+elements are then incremented in the buffer. The modified data is then sent back
+to the home node (5). Acknowledgements are returned (6) so the task
+knows when the writes are complete. The second task increments an element of
+the array with a delegate operation. The task is invoked (7). A delegate
+request is sent to the home core of the array element with the increment
+value. The task suspends until the response is received. The increment
+is executed on the remote core (8). A response is returned (9) with the
+previous value of the array element. } \end{minipage} \vspace{-3ex}
+\end{center} \end{figure*}
+
+\paragraph{Memory consistency model discussion} As mentioned earlier, all
+synchronization operations are done via delegate operations. Since they all
+execute in their home node, they are guaranteed to be serialized , with their
+updates visible to all cores across the system in the same order. Also, tasks
+are restricted to a single outstanding delegate operation at a time, and
+therefore are not subject to potential request reordering. Consequently, all
+synchronization operations execute in program order and are made visible in
+the same order to all cores in the system. These properties are sufficient to
+guarantee a memory model that offers sequential consistency for data-race-free
+programs~\cite{drf} (all accesses to shared data are separated by
+synchronization). This is the memory model that underpins C/C++.
+
+Note, however, that if the application code uses explicit caching on shared
+data, all updates must be sent back to the home node before the
+synchronization operation that protects the data is performed. 
 
 
 
