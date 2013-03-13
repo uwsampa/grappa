@@ -72,7 +72,7 @@ linear addresses can refer to other cores' memory.
 		Acquire copies all data to local node and returns a pointer. \\ 	
 		Release optionally copies data back to global memory. \\
 	\end{tabular}
-      \caption{\label{fig:accessing-memory} Grappa API for memory accesses}     \end{minipage}
+      \caption{\label{fig:accessing-memory} Grappa API for memory accesses. \TODO{Update table with new calls. And async calls for delegates.}}     \end{minipage}
   \end{center}
 \end{figure}
 
@@ -124,8 +124,7 @@ modification. Delegate operations provide this capability. Applications
 can dispatch computation to be performed on individual machine-word
 sized chunks of global memory to the memory system itself (e.g.,
 \emph{fetch-and-add}).  Delegate operations, proposed in
-\cite{Nelson:hotpar11} and \cite{delegated:oopsla11}, are also the
-primary synchronization method in Grappa.
+\cite{Nelson:hotpar11} and \cite{delegated:oopsla11}, are used to implement synchronization in Grappa.
 
 Delegate operations are always executed at the home core of their
 address, and while arbitrary memory operations can be delegated, we
@@ -142,6 +141,8 @@ serialized through a single core in the system, providing atomic
 semantics without using actual atomic operations (and thus avoiding their typical high cost). 
 Figure~\ref{fig:delegate-cache} depicts an example of how delegate and
 cache operations interact.
+
+\TODO{Talk about synchronous and asynchronous delegate operations. Talk about global completion object. Should we have a whole section on synchronization?}
 
 \begin{figure*}[htb] \begin{center}
 \includegraphics[width=1.5\columnwidth]{figs/delegate-cache}
