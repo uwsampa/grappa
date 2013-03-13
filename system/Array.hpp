@@ -8,6 +8,8 @@
 #include "Communicator.hpp"
 #include "Collective.hpp"
 #include "Cache.hpp"
+#include "GlobalCompletionEvent.hpp"
+#include "ParallelLoop.hpp"
 
 namespace Grappa {
   
@@ -22,7 +24,7 @@ namespace Grappa {
 /// @param count Number of elements to set, starting at the base address.
 template< typename T, typename S >
 void memset(GlobalAddress<T> base, S value, size_t count) {
-  on_all_cores([base,count,value]{
+  call_on_all_cores([base,count,value]{
     T * local_base = base.localize();
     T * local_end = (base+count).localize();
     for (size_t i=0; i<local_end-local_base; i++) {
@@ -31,9 +33,9 @@ void memset(GlobalAddress<T> base, S value, size_t count) {
   });
 }
 
-template< typename T >
-void memcpy(GlobalAddress<T> dst, GlobalAddress<T> src, size_t nelem) {
-  on_all_cores([dst,src,nelem]{
+namespace impl {
+  template< typename T >
+  void do_memcpy_locally(GlobalAddress<T> dst, GlobalAddress<T> src, size_t nelem) {
     typedef typename Incoherent<T>::WO Writeback;
 
     T * local_base = src.localize(), * local_end = (src+nelem).localize();
@@ -50,12 +52,33 @@ void memcpy(GlobalAddress<T> dst, GlobalAddress<T> src, size_t nelem) {
     }
     for (size_t i=0; i < nlocalblocks; i++) { delete putters[i]; }
     delete [] putters;
+  }
+}
+
+/// Memcpy over Grappa global arrays. Arguments `dst` and `src` must point into global arrays 
+/// (so must be linear addresses) and be non-overlapping, and both must have at least `nelem`
+/// elements.
+template< typename T >
+void memcpy(GlobalAddress<T> dst, GlobalAddress<T> src, size_t nelem) {
+  on_all_cores([dst,src,nelem]{
+    impl::do_memcpy_locally(dst,src,nelem);
   });
 }
 
+/// Asynchronous version of memcpy, spawns only on cores with array elements. Synchronizes
+/// with given GlobalCompletionEvent, so memcpy's are known to be complete after GCE->wait().
+/// Note: same restrictions on `dst` and `src` as Grappa::memcpy).
+template< GlobalCompletionEvent * GCE = &impl::local_gce, typename T = void >
+void memcpy_async(GlobalAddress<T> dst, GlobalAddress<T> src, size_t nelem) {
+  on_cores_localized_async<GCE>(src, nelem, [dst,src,nelem](T* base, size_t nlocal){
+    impl::do_memcpy_locally(dst,src,nelem);
+  });
+}
+
+/// not implemented yet
 template< typename T >
 void prefix_sum(GlobalAddress<T> array, size_t nelem) {
-  
+  // not implemented
 }
 
 } // namespace Grappa
