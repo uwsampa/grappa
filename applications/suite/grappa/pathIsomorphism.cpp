@@ -80,7 +80,7 @@ LOOP_FUNCTOR( pathIsomorphismFunc, nid, ((graph,g_)) ((GlobalAddress<color_t>,pa
   
   VLOG(5) << "nmatches = " << nmatches;
   
-  nmatches = Grappa_collective_reduce(&collective_add, 0, nmatches, 0);
+  nmatches = Grappa::allreduce<int64_t,collective_add>(nmatches);
 }
 
 /* @param g: (directed) graph to search in
