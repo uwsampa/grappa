@@ -15,8 +15,13 @@
 #include "Message.hpp"
 #include "MessagePool.hpp"
 #include "Tasking.hpp"
-#include "FullEmpty.hpp"
+#include "CountingSemaphoreLocal.hpp"
+#include "Barrier.hpp"
+
 #include <functional>
+
+// TODO/FIXME: use actual max message size (have Communicator be able to tell us)
+const size_t MAX_MESSAGE_SIZE = 3192;
 
 #define COLL_MAX &collective_max
 #define COLL_MIN &collective_min
@@ -234,7 +239,9 @@ namespace Grappa {
   void call_on_all_cores(F work) {
     Core origin = mycore();
     CompletionEvent ce(cores());
-    MessagePool pool(cores() * sizeof(Message<std::function<void(F,Core,decltype(&ce))>>));
+    
+    auto lsz = [&ce,origin,work]{};
+    MessagePool pool(cores()*(sizeof(Message<decltype(lsz)>)));
     
     for (Core c = 0; c < cores(); c++) {
       pool.send_message(c, [&ce, origin, work] {
@@ -253,7 +260,9 @@ namespace Grappa {
     
     CompletionEvent ce(cores());
     auto ce_addr = make_global(&ce);
-    MessagePool pool(cores()*sizeof(Message<std::function<void(F,decltype(ce_addr))>>));
+    
+    auto lsz = [ce_addr,work]{};
+    MessagePool pool(cores()*(sizeof(Message<decltype(lsz)>)));
     
     for (Core c = 0; c < cores(); c++) {
       pool.send_message(c, [ce_addr, work] {
@@ -280,7 +289,7 @@ namespace Grappa {
       static T total;
       static Core cores_in = 0;
       
-      CHECK(mycore() == HOME_CORE);
+      DCHECK(mycore() == HOME_CORE);
       
       if (cores_in == 0) {
         total = val;
@@ -302,6 +311,76 @@ namespace Grappa {
       }
     }
     
+    template<typename T, T (*ReduceOp)(const T&, const T&) >
+    class InplaceReduction {
+    protected:
+      CountingSemaphore * seminary;
+      T * array;
+      Core elems_in = 0;
+      size_t nelem;
+    public:      
+      /// SPMD, must be called on static/file-global object on all cores
+      /// blocks until reduction is complete
+      void call_allreduce(T * in_array, size_t nelem) {
+        // setup everything (block to make sure HOME_CORE is done)
+        this->array = in_array;
+        this->nelem = nelem;
+        CountingSemaphore s(0);
+        this->seminary = &s;
+        barrier();
+        
+        if (mycore() != HOME_CORE) {
+          size_t n_per_msg = MAX_MESSAGE_SIZE / sizeof(T);
+          for (size_t k=0; k<nelem; k+=n_per_msg) {
+            size_t this_nelem = MIN(n_per_msg, nelem-k);
+            
+            // everyone sends their contribution to HOME_CORE, last one wakes HOME_CORE
+            send_message(HOME_CORE, [this,k](void * payload, size_t payload_size) {
+              DCHECK(mycore() == HOME_CORE);
+      
+              auto in_array = static_cast<T*>(payload);
+              auto in_n = payload_size/sizeof(T);
+              auto total = this->array+k;
+      
+              for (size_t i=0; i<in_n; i++) {
+                total[i] = ReduceOp(total[i], in_array[i]);
+              }
+      
+              this->seminary->increment(in_n);
+            }, (void*)in_array+k, sizeof(T)*this_nelem);
+          }
+          
+          seminary->decrement(nelem);
+          
+        } else {
+          // home core waits until woken by last received message from other cores
+          seminary->decrement(nelem*(cores()-1));
+          
+          // send total to everyone else and wake them
+          char msg_buf[(cores()-1)*sizeof(PayloadMessage<std::function<void(decltype(this),size_t)>>)];
+          MessagePool pool(msg_buf, sizeof(msg_buf));
+          for (Core c = 0; c < cores(); c++) {
+            if (c != HOME_CORE) {
+              // send totals back to all the other cores
+              size_t n_per_msg = MAX_MESSAGE_SIZE / sizeof(T);
+              for (size_t k=0; k<nelem; k+=n_per_msg) {
+                size_t this_nelem = MIN(n_per_msg, nelem-k);
+                pool.send_message(c, [this,k](void * payload, size_t psz){
+                  auto total_k = static_cast<T*>(payload);
+                  auto in_n = psz / sizeof(T);
+                  for (size_t i=0; i<in_n; i++) {
+                    this->array[k+i] = total_k[i];
+                  }
+                  this->seminary->increment(in_n);
+                }, this->array+k, sizeof(T)*this_nelem);              
+              }
+            }
+          }
+          // once all messages are sent, HOME_CORE's task continues
+        }
+      }
+    };
+    
   }
   
   /// Called from SPMD context, reduces values from all cores calling `allreduce` and returns reduced
@@ -317,11 +396,18 @@ namespace Grappa {
     return impl::Reduction<T>::result.readFF();
   }
   
+  template< typename T, T (*ReduceOp)(const T&, const T&) >
+  void allreduce_inplace(T * array, size_t nelem = 1) {
+    static impl::InplaceReduction<T,ReduceOp> reducer;
+    reducer.call_allreduce(array, nelem);
+  }
+  
   /// Called from a single task (usually user_main), reduces values from all cores onto the calling node.
   /// Blocks until reduction is complete.
   template< typename T, T (*ReduceOp)(const T&, const T&) >
   T reduce(T * global_ptr) {
     CompletionEvent ce(cores()-1);
+    // TODO: look into optionally stack-allocating pool storage like in IncoherentAcquirer.
     MessagePool pool(cores() * sizeof(Message<std::function<void(T*)>>));
   
     T total = *global_ptr;

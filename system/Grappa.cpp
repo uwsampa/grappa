@@ -23,7 +23,7 @@
 #include "tasks/StealQueue.hpp"
 #include "tasks/GlobalQueue.hpp"
 
-//#include "FileIO.hpp"
+#include "FileIO.hpp"
 
 #include "RDMAAggregator.hpp"
 #include "Barrier.hpp"
@@ -54,12 +54,12 @@ static Thread * barrier_thread = NULL;
 Thread * master_thread;
 static Thread * user_main_thr;
 
-// IODescriptor * aio_completed_stack;
+IODescriptor * aio_completed_stack;
 
 /// Flag to tell this node it's okay to exit.
 bool Grappa_done_flag;
 
-double tick_rate = 0.0;
+double Grappa::tick_rate = 0.0;
 static int jobid = 0;
 static const char * nodelist_str = NULL;
 
@@ -99,18 +99,18 @@ static void poller( Thread * me, void * args ) {
     // poll global barrier
     Grappa::barrier_poll();
 
-    // // check async. io completions
-    // if (aio_completed_stack) {
-    //   // atomically grab the stack, replacing it with an empty stack again
-    //   IODescriptor * desc = __sync_lock_test_and_set(&aio_completed_stack, NULL);
+    // check async. io completions
+    if (aio_completed_stack) {
+      // atomically grab the stack, replacing it with an empty stack again
+      IODescriptor * desc = __sync_lock_test_and_set(&aio_completed_stack, NULL);
 
-    //   while (desc != NULL) {
-    //     desc->handle_completion();
-    //     IODescriptor * temp = desc->nextCompleted;
-    //     desc->nextCompleted = NULL;
-    //     desc = temp;
-    //   }
-    // }
+      while (desc != NULL) {
+        desc->handle_completion();
+        IODescriptor * temp = desc->nextCompleted;
+        desc->nextCompleted = NULL;
+        desc = temp;
+      }
+    }
 
     Grappa_yield_periodic();
   }
@@ -189,18 +189,18 @@ void Grappa_init( int * argc_p, char ** argv_p[], size_t global_memory_size_byte
   sigabrt_sa.sa_handler = &sigabrt_sighandler;
   CHECK_EQ( 0, sigaction( SIGABRT, &sigabrt_sa, 0 ) ) << "SIGABRT signal handler installation failed.";
 
-  // // Asynchronous IO
-  // // initialize completed stack
-  // aio_completed_stack = NULL;
+  // Asynchronous IO
+  // initialize completed stack
+  aio_completed_stack = NULL;
 
-  // // handler
-  // struct sigaction aio_sa;
-  // aio_sa.sa_flags = SA_RESTART | SA_SIGINFO;
-  // aio_sa.sa_sigaction = Grappa_handle_aio;
-  // if (sigaction(AIO_SIGNAL, &aio_sa, NULL) == -1) {
-  //   fprintf(stderr, "Error setting up async io signal handler.\n");
-  //   exit(1);
-  // }
+  // handler
+  struct sigaction aio_sa;
+  aio_sa.sa_flags = SA_RESTART | SA_SIGINFO;
+  aio_sa.sa_sigaction = Grappa_handle_aio;
+  if (sigaction(AIO_SIGNAL, &aio_sa, NULL) == -1) {
+    fprintf(stderr, "Error setting up async io signal handler.\n");
+    exit(1);
+  }
 
   // initialize Tau profiling groups
   generate_profile_groups();
@@ -290,7 +290,7 @@ void Grappa_init( int * argc_p, char ** argv_p[], size_t global_memory_size_byte
   Grappa_tick();
   Grappa_Timestamp end_ts = Grappa_get_timestamp();
   double end = Grappa_walltime();
-  tick_rate = (double) (end_ts - start_ts) / (end-start);
+  Grappa::tick_rate = (double) (end_ts - start_ts) / (end-start);
 
   char * jobid_str = getenv("SLURM_JOB_ID");
   jobid = jobid_str ? atoi(jobid_str) : 0;
@@ -438,7 +438,7 @@ void Grappa_reset_stats_all_nodes() {
 /// Dump statistics
 void legacy_dump_stats( std::ostream& oo ) {
   std::ostringstream o;
-  o << "   \"GrappaStats\": { \"tick_rate\": " << tick_rate
+  o << "   \"GrappaStats\": { \"tick_rate\": " << Grappa::tick_rate
     << ", \"job_id\": " << jobid
     << ", \"nodelist\": \"" << nodelist_str << "\""
     << " },\n";
@@ -522,7 +522,7 @@ void legacy_reduce_stats_and_dump( std::ostream& oo ) {
   CHECK( Grappa_mynode() == 0 );
  
   std::ostringstream o;
-  o << "   \"GrappaStats\": { \"tick_rate\": " << tick_rate
+  o << "   \"GrappaStats\": { \"tick_rate\": " << Grappa::tick_rate
     << ", \"job_id\": " << jobid
     << ", \"nodelist\": \"" << nodelist_str << "\""
     << " },\n";

@@ -14,6 +14,7 @@
 #include <Timestamp.hpp>
 #include <glog/logging.h>
 #include <sstream>
+#include "Statistics.hpp"
 
 #include "Timestamp.hpp"
 #include "PerformanceTools.hpp"
@@ -39,11 +40,6 @@ namespace Grappa {
   namespace impl {
     void idle_flush_rdma_aggregator();
   }
-
-  namespace Statistics { 
-    void sample_all(); 
-    extern bool take_profiling_sample;
-  } // namespace Statistics
 
   namespace impl {
 
@@ -128,7 +124,7 @@ class TaskingScheduler : public Scheduler {
         // maybe sample
         if( take_profiling_sample ) {
           take_profiling_sample = false;
-          Grappa::Statistics::sample_all();
+          Grappa::Statistics::sample();
         }
 
         if( ( global_communicator.mynode() == 0 ) &&
@@ -587,6 +583,11 @@ inline void TaskingScheduler::thread_on_exit( ) {
 extern TaskingScheduler global_scheduler;
 
 } // namespace impl
+
+inline Worker& current_worker() {
+  return *impl::global_scheduler.get_current_thread();
+}
+
 } // namespace Grappa
 
 #endif // TASKING_SCHEDULER_HPP

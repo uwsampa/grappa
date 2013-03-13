@@ -11,7 +11,8 @@
 #include "Mutex.hpp"
 
 namespace Grappa {
-
+  using namespace impl;
+  
   /// @addtogroup Synchronization
   /// @{
   

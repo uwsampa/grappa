@@ -16,6 +16,7 @@
 #include "Tasking.hpp"
 #include "GlobalAllocator.hpp"
 #include "ParallelLoop.hpp"
+#include "Array.hpp"
 
 BOOST_AUTO_TEST_SUITE( New_loop_tests );
 
@@ -125,7 +126,7 @@ void test_forall_global_private() {
 }
 
 void test_forall_global_public() {
-  BOOST_MESSAGE("Testing forall_global_public...");
+  BOOST_MESSAGE("Testing forall_global_public..."); VLOG(1) << "forall_global_public";
   const int64_t N = 1 << 8;
   
   on_all_cores([]{ test_global = 0; });
@@ -140,7 +141,7 @@ void test_forall_global_public() {
   }
   BOOST_CHECK_EQUAL(total, N);
   
-  BOOST_MESSAGE("  with nested spawns");
+  BOOST_MESSAGE("  with nested spawns"); VLOG(1) << "nested spawns";
   on_all_cores([]{ test_global = 0; });
   
   forall_global_public<&my_gce>(0, N, [](int64_t s, int64_t n){
@@ -160,7 +161,7 @@ void test_forall_global_public() {
 }
 
 void test_forall_localized() {
-  BOOST_MESSAGE("Testing forall_localized...");
+  BOOST_MESSAGE("Testing forall_localized..."); VLOG(1) << "testing forall_localized";
   const int64_t N = 100;
   
   auto array = Grappa_typed_malloc<int64_t>(N);
@@ -172,7 +173,7 @@ void test_forall_localized() {
     BOOST_CHECK_EQUAL(delegate::read(array+i), 1);
   }
   
-  BOOST_MESSAGE("Testing forall_localized_async...");
+  BOOST_MESSAGE("Testing forall_localized_async..."); VLOG(1) << "testing forall_localized_async";
   
   my_gce.reset_all();
   
@@ -193,6 +194,23 @@ void test_forall_localized() {
     BOOST_CHECK_EQUAL((array+i).node(), mycore());
     BOOST_CHECK_EQUAL(delegate::read(array+i), 2);
   }
+  
+  VLOG(1) << "checking indexing...";
+  
+  Grappa::memset(array, 0, N);
+  forall_localized(array, N, [](int64_t i, int64_t& e){ e = i; });
+  for (int i=0; i<N; i++) {
+    BOOST_CHECK_EQUAL(delegate::read(array+i), i);
+  }
+  
+  Grappa::memset(array, 0, N);  
+  forall_localized_async<&my_gce>(array, N, [](int64_t i, int64_t& e){ e = i; });
+  my_gce.wait();
+  
+  for (int i=0; i<N; i++) {
+    BOOST_CHECK_EQUAL(delegate::read(array+i), i);
+  }
+  
 }
 
 void user_main(void * args) {
