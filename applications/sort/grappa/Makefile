@@ -11,7 +11,7 @@ ifneq ($(GRAPPA_HOME), $(AUTO_HOME))
 $(warning warning: Environment variable GRAPPA_HOME was set but does not match the autodetected home: env=$(GRAPPA_HOME), auto=$(AUTO_HOME))
 endif
 
-BOOST?=/sampa/share/boost_1_50_0
+# BOOST?=/sampa/share/boost_1_50_0
 
 #include common Grappa definitions
 include $(GRAPPA_HOME)/include.mk
@@ -27,7 +27,7 @@ CFLAGS += -w
 CFLAGS += -I$(GRAPPA_HOME)/system
 CFLAGS += -g -Wall -Drestrict=__restrict__ -ffast-math
 
-LDFLAGS = -g -lboost_filesystem
+LDFLAGS = -g
 
 SOURCES = main.o
 HEADERS = 
