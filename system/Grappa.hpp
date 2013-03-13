@@ -209,6 +209,7 @@ void legacy_profiling_sample();
 static inline void Grappa_poll()
 {
   global_aggregator.poll();
+  Grappa::impl::global_rdma_aggregator.poll();
 }
 
 /// Send waiting aggregated messages to a particular destination.
