@@ -172,8 +172,8 @@ therefore are not subject to potential request reordering. Consequently, all
 synchronization operations execute in program order and are made visible in
 the same order to all cores in the system. These properties are sufficient to
 guarantee a memory model that offers sequential consistency for data-race-free
-programs~\cite{drf} (all accesses to shared data are separated by
-synchronization). This is the memory model that underpins C/C++.
+programs~\cite{AdveHill1990} (all accesses to shared data are separated by
+synchronization). This is the memory model that underpins C/C++~\cite{N2480,N2800}.
 
 Note, however, that if the application code uses explicit caching on shared
 data, all updates must be sent back to the home node before the
