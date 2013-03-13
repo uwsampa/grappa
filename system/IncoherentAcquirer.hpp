@@ -144,6 +144,7 @@ public:
   }
 
   void reset( ) {
+    DVLOG(5) << "In " << __PRETTY_FUNCTION__;
     CHECK( !acquire_started_ || acquired_ ) << "inconsistent state for reset";
     acquire_started_ = false;
     acquired_ = false;
@@ -190,7 +191,7 @@ public:
 
     if( num_messages_ > 1 ) DVLOG(5) << "****************************** MULTI BLOCK CACHE REQUEST ******************************";
 
-    DVLOG(5) << "New IncoherentAcquirer; detecting straddle for sizeof(T):" << sizeof(T)
+    DVLOG(5) << "In " << __PRETTY_FUNCTION__ << "; detecting straddle for sizeof(T):" << sizeof(T)
              << " count:" << *count_
              << " num_messages_:" << num_messages_
              << " request_address:" << *request_address_;
@@ -240,7 +241,7 @@ public:
         // TODO: change type so we don't screw with pointer like this
         args.request_address = GlobalAddress<T>::Raw( args.request_address.raw_bits() + args.request_bytes );
       }
-      DVLOG(5) << "acquire started for " << args.request_address;
+      DVLOG(5) << CURRENT_THREAD << " acquire started for " << args.request_address;
       
       // blocks here waiting for messages to be sent
     }
