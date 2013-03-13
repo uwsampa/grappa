@@ -407,6 +407,7 @@ namespace Grappa {
   template< typename T, T (*ReduceOp)(const T&, const T&) >
   T reduce(T * global_ptr) {
     CompletionEvent ce(cores()-1);
+    // TODO: look into optionally stack-allocating pool storage like in IncoherentAcquirer.
     MessagePool pool(cores() * sizeof(Message<std::function<void(T*)>>));
   
     T total = *global_ptr;
