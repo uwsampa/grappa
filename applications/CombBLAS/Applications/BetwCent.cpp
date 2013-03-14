@@ -330,8 +330,10 @@ int main(int argc, char* argv[])
 		if( myrank == 0)
 		{
 			cout<<"Computation finished"<<endl;	
-			fprintf(stdout, "%.6lf seconds elapsed for %d starting vertices\n", t2-t1, nPasses);
-			fprintf(stdout, "TEPS score is: %.6lf\n", TEPS);
+			fprintf(stdout, "nroots: %d\n", nPasses);
+			fprintf(stdout, "centrality_time: %.6lf\n", t2-t1);
+      
+			fprintf(stdout, "centrality_teps: %.6lf\n", TEPS);
 		}
 	}	
 
