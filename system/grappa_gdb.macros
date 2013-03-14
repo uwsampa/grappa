@@ -173,7 +173,7 @@ end
 
 
 define periodic_queue
-  grappa_queue_print "Periodic" &global_scheduler.periodicQ
+  grappa_queue_print "Periodic" &Grappa::impl::global_scheduler.periodicQ
 end
 document periodic_queue
 Prints contents of Grappa periodic queue.
@@ -182,7 +182,7 @@ Syntax:
 end
 
 define ready_queue
-  grappa_queue_print "Ready" &global_scheduler.readyQ
+  grappa_queue_print "Ready" &Grappa::impl::global_scheduler.readyQ
 end
 document ready_queue
 Prints contents of Grappa ready queue.
@@ -191,7 +191,7 @@ Syntax:
 end
 
 define unassigned_queue
-  grappa_queue_print "Unassigned" &global_scheduler.unassignedQ
+  grappa_queue_print "Unassigned" &Grappa::impl::global_scheduler.unassignedQ
 end
 document unassigned_queue
 Prints contents of Grappa unassigned queue.
@@ -200,7 +200,7 @@ Syntax:
 end
 
 define unassigned_queue_length
-  grappa_queue_length "Unassigned" &global_scheduler.unassignedQ
+  grappa_queue_length "Unassigned" &Grappa::impl::global_scheduler.unassignedQ
 end
 document unassigned_queue_length
 Prints length of Grappa unassigned queue.
@@ -228,7 +228,7 @@ end
 
 define current_coroutine
   printf "Current coroutine:\n"
-  grappa_coroutine_print global_scheduler.current_thread->co
+  grappa_coroutine_print Grappa::impl::global_scheduler.current_thread->co
 end
 document current_coroutine
 Prints currently scheduled Grappa coroutine.
@@ -254,7 +254,7 @@ end
 
 define private_tasks
   printf "Private tasks (newest at top): "
-  output/a global_scheduler.task_manager->privateQ
+  output/a Grappa::impl::global_scheduler.task_manager->privateQ
   printf "\n"
 end
 document private_tasks
@@ -264,7 +264,7 @@ Syntax:
 end
 
 define public_tasks
-  set $grappa_publicQ = global_scheduler.task_manager->publicQ
+  set $grappa_publicQ = Grappa::impl::global_scheduler.task_manager->publicQ
   set $grappa_shared_tasks = $grappa_publicQ->top - $grappa_publicQ->bottom
   printf "Shared public tasks (newest at bottom) (%d shared):\n", $grappa_shared_tasks
   set $grappa_task_index = $grappa_publicQ->bottom
