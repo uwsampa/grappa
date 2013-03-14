@@ -42,7 +42,7 @@ namespace Grappa {
     }
     
     virtual std::ostream& json(std::ostream& o) const {
-      o << '"' << name << "\": \"" << value_ << '"';
+      o << '"' << name << "\": " << value_;
       return o;
     }
     
