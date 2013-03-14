@@ -39,6 +39,12 @@ uint64_t * values8;
 SixteenBytes * values16;
 
 
+// core-shared counter for counting progress
+uint64_t numst;
+uint64_t waitCount;
+bool running;
+
+
 BOOST_AUTO_TEST_SUITE( ContextSwitchRate_tests );
 
 void user_main( void * args ) {
@@ -109,6 +115,96 @@ void user_main( void * args ) {
                       << ", cores_time_max = " << r.runtime_max
                       << ", cores_time_min = " << r.runtime_min);
     }
+  } else if (FLAGS_test_type.compare("cvwakes")==0) {
+    BOOST_MESSAGE( "Test cv wakes" );
+    {
+      struct runtimes_t {
+        double runtime_avg, runtime_min, runtime_max;
+      };
+      runtimes_t r;
+
+      on_all_cores( [&r] {
+        // per core timing
+        double start, end;
+
+        ConditionVariable cvs[FLAGS_num_test_workers];
+        bool asleep[FLAGS_num_test_workers];
+        for( int i=0; i<FLAGS_num_test_workers; i++) { asleep[i] = false; }
+
+        final = new CompletionEvent(1);
+        task_barrier = new CompletionEvent(FLAGS_num_test_workers);
+
+        running = false;
+        waitCount = 0;
+        numst = 0;
+
+        for ( uint64_t t=0; t<FLAGS_num_test_workers; t++ ) {
+          privateTask( [&asleep,&start,&cvs] {
+            // wait for all to start (to hack scheduler yield)
+            task_barrier->complete();
+            task_barrier->wait();
+
+            // first task to exit the local barrier will start the timer
+            if ( !running ) {
+              start = Grappa_walltime();
+              running = true;
+            }
+
+            uint64_t tid = numst++;
+              
+            uint64_t partner = (tid + FLAGS_num_test_workers/2)%FLAGS_num_test_workers;
+            uint64_t total_iters = FLAGS_iters_per_task*FLAGS_num_test_workers; 
+
+            // do the work
+            while( waitCount++ < total_iters ) {
+              if ( asleep[partner] ) {   // TODO also test just wake up case
+                Grappa::signal( &cvs[partner] );
+              }
+              asleep[tid] = true;
+              Grappa::wait( &cvs[tid] );
+              asleep[tid] = false;
+            }
+
+            // only first 
+            if ( running ) {
+              final->complete();  // signal to finish as soon as the parent task gets scheduled 
+              running = false;
+            }
+          });
+        }
+        
+        BOOST_MESSAGE( "waiting" );
+        final->wait();
+        end = Grappa_walltime();
+        double runtime = end-start;
+        BOOST_MESSAGE( "took time " << runtime );
+
+        // wake all
+        for (int i=0; i<FLAGS_num_test_workers; i++) { Grappa::signal(&cvs[i]); }
+        BOOST_MESSAGE( "woke all" );
+
+        Grappa::barrier();
+        
+        BOOST_MESSAGE( "all done" );
+
+        // sort out timing 
+
+        double r_sum = Grappa::allreduce<double, collective_add>( runtime );
+        double r_min = Grappa::allreduce<double, collective_min>( runtime );
+        double r_max = Grappa::allreduce<double, collective_max>( runtime );
+        if ( Grappa::mycore()==0 ) {
+          r.runtime_avg = r_sum / Grappa::cores();
+          r.runtime_min = r_min;
+          r.runtime_max = r_max;
+        }
+        BOOST_MESSAGE( "done reduce" );
+      });
+
+      BOOST_MESSAGE( "cores_time_avg = " << r.runtime_avg
+                      << ", cores_time_max = " << r.runtime_max
+                      << ", cores_time_min = " << r.runtime_min);
+    }
+  
   } else if (FLAGS_test_type.compare("sequential_updates")==0) {
     BOOST_MESSAGE( "Test sequential_updates" );
     {
