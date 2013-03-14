@@ -88,6 +88,15 @@ std::vector<size_t> counts;
 std::vector<size_t> bucket_ranks;
 // std::vector<Core> bucket_cores;
 
+// only used on Core 0.
+double total_time,
+       generation_time,
+       histogram_time,
+       allreduce_time,
+       scatter_time,
+       local_rank_time,
+       full_verify_time;
+
 //////////////////////
 
 // /**********************/
@@ -145,6 +154,8 @@ inline void print_array(const char * name, GlobalAddress<T> base, size_t nelem) 
 }
 
 void rank(int iteration) {
+  double _time;
+  
   // key_array, nkeys already available on all cores
     
   // allocate space for counts, etc.
@@ -157,15 +168,17 @@ void rank(int iteration) {
     // bucket_cores.resize(nbuckets);
   });
   
-  // histogram to find out how many fall into each bucket
+  
+  _time = Grappa_walltime();
+
+  // histogram to find out how many fall into each bucket  
   forall_localized(key_array, nkeys, [](int64_t i, key_t& k){
     size_t b = k >> BSHIFT;
     counts[b]++;
   });
   
-
-  // Gonna try trusting Grappa's cyclic distribution to work on the Gaussian distribution...  
-  bucketlist = Grappa_typed_malloc<bucket_t>(nbuckets);
+  histogram_time += Grappa_walltime() - _time;
+  _time = Grappa_walltime();
   
   // allreduce everyone's counts & compute global bucket_ranks (prefix sum)
   auto bl = bucketlist;
@@ -213,6 +226,8 @@ void rank(int iteration) {
     // CHECK_EQ(bucket_sum_accumulator, nkeys);
   });
   
+  allreduce_time += Grappa_walltime() - _time;
+  
   // print_array("bucket_ranks", bucket_ranks);
   // print_array("bucket_cores", bucket_cores);
   
@@ -222,6 +237,8 @@ void rank(int iteration) {
     new (&bucket) bucket_t();
     bucket.reserve(counts[id]);
   });
+
+  _time = Grappa_walltime();
   
   // scatter into buckets
   forall_localized(key_array, nkeys, [](int64_t s, int64_t n, key_t * first){
@@ -240,6 +257,9 @@ void rank(int iteration) {
       });
     }
   });
+  
+  scatter_time += Grappa_walltime() - _time;
+  _time = Grappa_walltime();
   
   // Ranking of all keys occurs in this section
   on_all_cores([iteration]{
@@ -320,6 +340,8 @@ void rank(int iteration) {
     //   fprintf(stderr, "Passed partial verification (%d).\n", nverified);
     // }    
   });
+  
+  local_rank_time += Grappa_walltime() - _time;
 }
 
 void full_verify() {
@@ -348,7 +370,6 @@ void full_verify() {
 
 void user_main(void * ignore) {
   int             i, iteration, itemp;
-  double          total_time, generation_time;
   
   //  Printout initial NPB info 
   printf( "NAS Parallel Benchmarks 3.3 -- IS Benchmark in Grappa\n");
@@ -366,12 +387,16 @@ void user_main(void * ignore) {
 
   auto _key_array = Grappa_typed_malloc<key_t>(nkeys);
 
+  // Gonna try trusting Grappa's cyclic distribution to work on the Gaussian distribution...  
+  auto _bucketlist = Grappa_typed_malloc<bucket_t>(nbuckets);
+
   generation_time = Grappa_walltime();
 
   // initialize all cores
-  call_on_all_cores([_key_array]{
+  call_on_all_cores([_key_array, _bucketlist]{
     init_seed();
     key_array = _key_array;
+    bucketlist = _bucketlist;
   });
 
   // Generate random number sequence and subsequent keys on all procs
@@ -396,6 +421,10 @@ void user_main(void * ignore) {
   
   if( npbclass != NPBClass::S ) printf( "\n   iteration\n" );
 
+  histogram_time = allreduce_time = scatter_time = local_rank_time = 0;
+  
+  Statistics::reset_all_cores();
+  
   total_time = Grappa_walltime();
 
   // This is the main iteration
@@ -405,9 +434,19 @@ void user_main(void * ignore) {
   }
 
   total_time = Grappa_walltime() - total_time;
+  
+  Statistics::merge_and_print();
+  
   std::cerr << "total_time: " << total_time << "\n";
+  std::cerr << "histogram_time: " << histogram_time << "\n";
+  std::cerr << "allreduce_time: " << allreduce_time << "\n";
+  std::cerr << "scatter_time: " << scatter_time << "\n";
+  std::cerr << "local_rank_time: " << local_rank_time << "\n";
 
+  full_verify_time = Grappa_walltime();
   full_verify();
+  full_verify_time = Grappa_walltime() - full_verify_time;
+  std::cerr << "full_verify_time: " << full_verify_time << "\n";
 }
 
 static void parseOptions(int argc, char ** argv);
