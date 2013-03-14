@@ -7,6 +7,8 @@
 #include <fstream>
 #include <sstream>
 #include <cstdint>
+#include "Collective.hpp"
+
 
 DECLARE_string(stats_blob_filename);
 
@@ -39,7 +41,7 @@ namespace Grappa {
           // skip printing "," before first one
           if (&s-&stats[0] != 0) { o << ",\n"; }
           
-          o << "  " << *s;
+          s->json(o << "  ");
         }
         out << o.str();
       }
@@ -91,6 +93,12 @@ namespace Grappa {
         stat->reset();
       }
       Grappa_reset_stats();
+    }
+    
+    void reset_all_cores() {
+      call_on_all_cores([]{
+        reset();
+      });
     }
     
     void sample() {

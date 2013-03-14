@@ -19,7 +19,7 @@ namespace Grappa {
   class SimpleStatistic : public impl::StatisticBase {
   protected:
     T initial_value;
-    T value;
+    T value_;
     
 #ifdef VTRACE_SAMPLED
     unsigned vt_counter;
@@ -31,7 +31,7 @@ namespace Grappa {
   public:
     
     SimpleStatistic(const char * name, T initial_value, bool reg_new = true):
-        initial_value(initial_value), value(initial_value), impl::StatisticBase(name, reg_new) {
+        initial_value(initial_value), value_(initial_value), impl::StatisticBase(name, reg_new) {
 #ifdef VTRACE_SAMPLED
         if (SimpleStatistic::vt_type == -1) {
           LOG(ERROR) << "warning: VTrace sampling unsupported for this type of SimpleStatistic.";
@@ -42,12 +42,12 @@ namespace Grappa {
     }
     
     virtual std::ostream& json(std::ostream& o) const {
-      o << '"' << name << "\": \"" << value << '"';
+      o << '"' << name << "\": " << value_;
       return o;
     }
     
     virtual void reset() {
-      value = initial_value;
+      value_ = initial_value;
     }
     
     virtual void sample() const {
@@ -59,34 +59,37 @@ namespace Grappa {
     
     virtual SimpleStatistic<T>* clone() const {
       // (note: must do `reg_new`=false so we don't re-register this stat)
-      return new SimpleStatistic<T>(name, value, false);
+      return new SimpleStatistic<T>(name, value_, false);
     }
     
     virtual void merge_all(impl::StatisticBase* static_stat_ptr);
 
     inline const SimpleStatistic<T>& count() { return (*this)++; }
+
+    /// Get the current value
+    inline T value() const { return value_; }
     
     // <sugar>
     template<typename U>
     inline const SimpleStatistic<T>& operator+=(U increment) {
-      value += increment;
+      value_ += increment;
       return *this;
     }
     template<typename U>
     inline const SimpleStatistic<T>& operator-=(U decrement) {
-      value -= decrement;
+      value_ -= decrement;
       return *this;
     }
     inline const SimpleStatistic<T>& operator++() { return *this += 1; }
     inline const SimpleStatistic<T>& operator--() { return *this += -1; }
-    inline T operator++(int) { *this += 1; return value; }
-    inline T operator--(int) { *this += -1; return value; }
+    inline T operator++(int) { *this += 1; return value_; }
+    inline T operator--(int) { *this += -1; return value_; }
     
     // allow casting as just the value
-    inline operator T() const { return value; }
+    inline operator T() const { return value_; }
     
     inline SimpleStatistic& operator=(T value) {
-      this->value = value;
+      this->value_ = value;
       return *this;
     }
     // </sugar>

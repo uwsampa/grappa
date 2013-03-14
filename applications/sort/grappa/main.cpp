@@ -30,19 +30,16 @@
 #include <Delegate.hpp>
 #include <FileIO.hpp>
 #include <Array.hpp>
+#include <ParallelLoop.hpp>
+#include <Statistics.hpp>
+#include <AsyncDelegate.hpp>
 
 #include "npb_intsort.h"
 
+using namespace Grappa;
+
 /// Grappa implementation of a paper and pencil sorting benchmark.
 /// Does a bucket sort of a bunch of 64-bit integers, beginning and ending in a Grappa global array.
-
-namespace grappa {
-  inline int64_t read(GlobalAddress<int64_t> addr) { return Grappa_delegate_read_word(addr); }
-  inline void write(GlobalAddress<int64_t> addr, int64_t val) { return Grappa_delegate_write_word(addr, val); }
-  inline bool cmp_swap(GlobalAddress<int64_t> address, int64_t cmpval, int64_t newval) {
-    return Grappa_delegate_compare_and_swap_word(address, cmpval, newval);
-  }
-}
 
 /// Parameter for how large the file I/O buffer is
 static const size_t BUFSIZE = 1L<<22;
@@ -99,16 +96,12 @@ struct bucket_t {
 int scale;
 int log2buckets;
 int log2maxkey;
-size_t nelems;
-size_t nbuckets;
+int64_t nelems;
+int nbuckets;
 
 // local version on each node, which then gets local copy of global state
 std::vector<size_t> counts;
 std::vector<size_t> offsets;
-
-// globally distributed
-GlobalAddress<bucket_t> bucketlist;
-GlobalAddress<uint64_t> array;
 
 // not for sort itself
 uint64_t maxkey;
@@ -119,32 +112,12 @@ bool do_sort;
 
 #define LOBITS (log2maxkey - log2buckets)
 
-inline void set_random(uint64_t * v) {
+inline uint64_t next_random() {
   // continue using same generator with multiple calls (to not repeat numbers)
   // but start at different seed on each node so we don't get overlap
   static engine_t engine(12345L*Grappa_mynode());
   static gen_t gen(engine, dist_t(0, maxkey));
-  
-  *v = gen();
-}
-
-/// Inititialize global variables on all nodes
-LOOP_FUNCTOR(setup_counts, nid, ((GlobalAddress<uint64_t>,_array)) ((size_t,_nbuckets)) ((GlobalAddress<bucket_t>,_buckets)) ) {
-  array = _array;
-  nbuckets = _nbuckets;
-  bucketlist = _buckets;
-
-  counts.resize(nbuckets);
-  offsets.resize(nbuckets);
-  for (size_t i=0; i<nbuckets; i++) {
-    counts[i] = 0;
-  }
-}
-
-/// Count the number of elements that will fall in each bucket
-inline void histogram(uint64_t * v) {
-  size_t b = (*v) >> LOBITS;
-  counts[b]++;
+  return gen();
 }
 
 template< typename T >
@@ -156,44 +129,8 @@ inline void print_array(const char * name, std::vector<T> v) {
 template< typename T >
 inline void print_array(const char * name, GlobalAddress<T> base, size_t nelem) {
   std::stringstream ss; ss << name << ": [";
-  for (size_t i=0; i<nelem; i++) ss << " " << grappa::read(base+i);
+  for (size_t i=0; i<nelem; i++) ss << " " << delegate::read(base+i);
   ss << " ]"; VLOG(1) << ss.str();
-}
-
-/// Get total bucket counts on all nodes
-LOOP_FUNCTION(aggregate_counts, nid ) {
-  // all nodes get total counts put into their counts array
-  Grappa_allreduce<size_t,coll_add<size_t>,0>(&counts[0], nbuckets);
-
-  // prefix sum
-  offsets[0] = 0;
-  for (size_t i=1; i<nbuckets; i++) {
-    offsets[i] = offsets[i-1] + counts[i-1];
-  }
-}
-
-inline size_t calc_bucket_id(bucket_t * bucket) {
-  return make_linear(bucket) - bucketlist;
-}
-
-/// Allocate space for buckets
-inline void init_buckets(bucket_t * bucket) {
-  size_t id = calc_bucket_id(bucket);
-  bucket_t * bcheck = new (bucket) bucket_t();
-  CHECK( bcheck == bucket );
-  bucket->reserve(counts[id]);
-}
-
-/// Feed-forward (split-phase) delegate
-void ff_append(bucket_t& bucket, const uint64_t& val) {
-  bucket.append(val);
-}
-
-/// Distribute ints into buckets
-inline void scatter(uint64_t * v) {
-  size_t b = (*v) >> LOBITS;
-  CHECK( b < nbuckets ) << "bucket id = " << b << ", nbuckets = " << nbuckets;
-  ff_delegate<bucket_t,uint64_t,ff_append>(bucketlist+b, *v);
 }
 
 int ui64cmp(const void * a, const void * b) {
@@ -202,28 +139,6 @@ int ui64cmp(const void * a, const void * b) {
   if (*aa < *bb) return -1;
   else if (*aa > *bb) return 1;
   else return 0;
-}
-
-/// Do some kind of local serial sort of a bucket
-inline void sort_bucket(bucket_t * bucket) {
-  if (bucket->size() == 0) return;
-  qsort(&(*bucket)[0], bucket->size(), sizeof(uint64_t), &ui64cmp);
-}
-
-/// Redistribute sorted buckets back into global array
-inline void put_back_bucket(bucket_t * bucket) {
-  const size_t NBUF = BUFSIZE / sizeof(uint64_t);
-  size_t b = calc_bucket_id(bucket);
-  CHECK( b < nbuckets );
-
-  // TODO: shouldn't need to buffer this, but a bug of some sort is currently forcing us to limit the number of outstanding messages
-  for_buffered(i, n, 0, bucket->size(), NBUF) {
-    Incoherent<uint64_t>::WO c(array+offsets[b]+i, n, &(*bucket)[i]);
-    c.block_until_released();
-  }
-  //Incoherent<uint64_t>::WO c(array+offsets[b], bucket->size(), &(*bucket)[0]);
-  //c.block_until_released();
-  VLOG(3) << "bucket[" << b << "] release successful";
 }
 
 void bucket_sort(GlobalAddress<uint64_t> array, size_t nelems, size_t nbuckets) {
@@ -238,62 +153,120 @@ void bucket_sort(GlobalAddress<uint64_t> array, size_t nelems, size_t nbuckets) 
   }
 #endif
 
-      sort_time = Grappa_walltime();
+  sort_time = Grappa_walltime();
 
   // initialize globals and histogram counts
-  { setup_counts f(array, nbuckets, bucketlist); fork_join_custom(&f); }
+  // { setup_counts f(array, nbuckets, bucketlist); fork_join_custom(&f); }
+  on_all_cores([nbuckets]{
+    counts.resize(nbuckets);
+    offsets.resize(nbuckets);
+    for (size_t i=0; i<nbuckets; i++) {
+      counts[i] = 0;
+    }
+  });
 
-      t = Grappa_walltime();
+  t = Grappa_walltime();
 
   // do local bucket counts
-  forall_local<uint64_t,histogram>(array, nelems);
+  // forall_local<uint64_t,histogram>(array, nelems);
+  forall_localized(array, nelems, [](int64_t i, uint64_t& v){
+    size_t b = v >> LOBITS;
+    counts[b]++;
+  });
 
-      histogram_time = Grappa_walltime() - t;
-      LOG(INFO) << "histogram_time: " << histogram_time;
-    
-      t = Grappa_walltime();
+  histogram_time = Grappa_walltime() - t;
+  LOG(INFO) << "histogram_time: " << histogram_time;
+  t = Grappa_walltime();
 
   // allreduce everyone's counts & compute global offsets (prefix sum)
-  { aggregate_counts f; fork_join_custom(&f); }
-    
-      allreduce_time = Grappa_walltime() - t;
-      LOG(INFO) << "allreduce_time: " << allreduce_time;
+  // { aggregate_counts f; fork_join_custom(&f); }
+  on_all_cores([]{
+    // all nodes get total counts put into their counts array
+    allreduce_inplace<size_t,collective_add>(&counts[0], counts.size());
+
+    // everyone computes prefix sum over buckets locally
+    offsets[0] = 0;
+    for (size_t i=1; i<offsets.size(); i++) {
+      offsets[i] = offsets[i-1] + counts[i-1];
+    }
+  });
+  
+  allreduce_time = Grappa_walltime() - t;
+  LOG(INFO) << "allreduce_time: " << allreduce_time;
 
   // allocate space in buckets
   VLOG(3) << "allocating space...";
-  forall_local<bucket_t,init_buckets>(bucketlist, nbuckets);
+  // forall_local<bucket_t,init_buckets>(bucketlist, nbuckets);
+  forall_localized(bucketlist, nbuckets, [](int64_t id, bucket_t& bucket){
+    // (global malloc doesn't call constructors)
+    new (&bucket) bucket_t();
+    bucket.reserve(counts[id]);
+  });
   
   VLOG(3) << "scattering...";
       t = Grappa_walltime();
 
   // scatter into buckets
-  forall_local<uint64_t,scatter>(array, nelems);
+  // forall_local<uint64_t,scatter>(array, nelems);
+  forall_localized(array, nelems, [bucketlist](int64_t s, int64_t n, uint64_t * first){
+    size_t nbuckets = counts.size();
+    char msg_buf[sizeof(Message<std::function<void(GlobalAddress<bucket_t>,uint64_t)>>)*n];
+    MessagePool pool(msg_buf, sizeof(msg_buf));
     
-      scatter_time = Grappa_walltime() - t;
-      LOG(INFO) << "scatter_time: " << scatter_time;
-
-      t = Grappa_walltime();
+    for (int i=0; i<n; i++) {
+      auto v = first[i];
+      size_t b = v >> LOBITS;
+      CHECK( b < nbuckets ) << "bucket id = " << b << ", nbuckets = " << nbuckets;
+      // ff_delegate<bucket_t,uint64_t,ff_append>(bucketlist+b, v);
+      auto destb = bucketlist+b;
+      delegate::call_async(pool, destb.core(), [destb,v]{
+        destb.pointer()->append(v);
+      });
+    }
+  });
+    
+  scatter_time = Grappa_walltime() - t;
+  LOG(INFO) << "scatter_time: " << scatter_time;
+  t = Grappa_walltime();
 
   // sort buckets locally
-  forall_local<bucket_t,sort_bucket>(bucketlist, nbuckets);
+  // forall_local<bucket_t,sort_bucket>(bucketlist, nbuckets);
+  /// Do some kind of local serial sort of a bucket
+  forall_localized(bucketlist, nbuckets, [](int64_t bucket_id, bucket_t& bucket){
+    if (bucket.size() == 0) return;
+    qsort(&bucket[0], bucket.size(), sizeof(uint64_t), &ui64cmp);
+  });
 
-      local_sort_scatter_time = Grappa_walltime() - t;
-      LOG(INFO) << "local_sort_time: " << local_sort_scatter_time;
-  
-      t = Grappa_walltime(); 
+  local_sort_scatter_time = Grappa_walltime() - t;
+  LOG(INFO) << "local_sort_time: " << local_sort_scatter_time;  
+  t = Grappa_walltime(); 
   
   // redistribute buckets back into global array  
-  forall_local<bucket_t,put_back_bucket>(bucketlist, nbuckets);
-    
-      put_back_time = Grappa_walltime() - t;
-      LOG(INFO) << "put_back_time: " << put_back_time;
+  // forall_local<bucket_t,put_back_bucket>(bucketlist, nbuckets);
+  /// Redistribute sorted buckets back into global array
+  forall_localized(bucketlist, nbuckets, [array](int64_t b, bucket_t& bucket) {
+    const size_t NBUF = BUFSIZE / sizeof(uint64_t);
+    DCHECK( b < counts.size() );
+
+    // TODO: shouldn't need to buffer this, but a bug of some sort is currently forcing us to limit the number of outstanding messages    
+    for_buffered(i, n, 0, bucket.size(), NBUF) {
+      Incoherent<uint64_t>::WO c(array+offsets[b]+i, n, &bucket[i]);
+      c.block_until_released();
+    }
+    //Incoherent<uint64_t>::WO c(array+offsets[b], bucket->size(), &(*bucket)[0]);
+    //c.block_until_released();
+    VLOG(3) << "bucket[" << b << "] release successful";
+  });
   
-      sort_time = Grappa_walltime() - sort_time;
-      LOG(INFO) << "total_sort_time: " << sort_time;
+  put_back_time = Grappa_walltime() - t;
+  LOG(INFO) << "put_back_time: " << put_back_time;
+  
+  sort_time = Grappa_walltime() - sort_time;
+  LOG(INFO) << "total_sort_time: " << sort_time;
 }
 
 void user_main(void* ignore) {
-  Grappa_reset_stats();
+  call_on_all_cores([]{ Statistics::reset(); });
 
   double t, rand_time;
 
@@ -312,13 +285,14 @@ void user_main(void* ignore) {
 
   if (generate || write_to_disk || (read_from_disk && !fs::exists(dirname))) {
     LOG(INFO) << "generating...";
-      t = Grappa_walltime();
+    t = Grappa_walltime();
 
     // fill vector with random 64-bit integers
-    forall_local<uint64_t,set_random>(array, nelems);
+    // forall_local<uint64_t,set_random>(array, nelems);
+    forall_localized(array, nelems, [](int64_t i, uint64_t& e){ e = next_random(); });
 
-      rand_time = Grappa_walltime() - t;
-      LOG(INFO) << "fill_random_time: " << rand_time;
+    rand_time = Grappa_walltime() - t;
+    LOG(INFO) << "fill_random_time: " << rand_time;
 
     //print_array("generated array", array, nelems);
   }
@@ -330,7 +304,7 @@ void user_main(void* ignore) {
   }
 
   if (read_from_disk) {
-    Grappa_memset_local(array, (uint64_t)0, nelems);
+    Grappa::memset(array, (uint64_t)0, nelems);
     Grappa_read_array(f, array, nelems);
     //print_array("read array", array, nelems);
   }
@@ -347,14 +321,14 @@ void user_main(void* ignore) {
     for (size_t i=0; i<nelems; i+=jump) {
       prev = 0;
       for (size_t j=1; j<64 && (i+j)<nelems; j++) {
-        uint64_t curr = grappa::read(array+i+j);
+        uint64_t curr = delegate::read(array+i+j);
         CHECK( curr >= prev ) << "verify failed: prev = " << prev << ", curr = " << curr;
         prev = curr;
       }
     }
   }
 
-  Grappa_merge_and_dump_stats();
+  Statistics::merge_and_print();
 }
 
 int main(int argc, char* argv[]) {
