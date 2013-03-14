@@ -43,6 +43,13 @@ GRAPPA_DEFINE_STAT( SimpleStatistic<int64_t>, rdma_requested_flushes, 0 );
 GRAPPA_DEFINE_STAT( SummarizingStatistic<int64_t>, rdma_buffers_inuse, 0 );
 GRAPPA_DEFINE_STAT( SimpleStatistic<int64_t>, rdma_buffers_blocked, 0 );
 
+GRAPPA_DEFINE_STAT( SimpleStatistic<int64_t>, rdma_poll, 0 );
+GRAPPA_DEFINE_STAT( SimpleStatistic<int64_t>, rdma_poll_send, 0 );
+GRAPPA_DEFINE_STAT( SimpleStatistic<int64_t>, rdma_poll_receive, 0 );
+
+GRAPPA_DEFINE_STAT( SimpleStatistic<int64_t>, rdma_flush_send, 0 );
+GRAPPA_DEFINE_STAT( SimpleStatistic<int64_t>, rdma_flush_receive, 0 );
+
 
 // defined in Grappa.cpp
 extern bool Grappa_done_flag;
@@ -70,10 +77,22 @@ namespace Grappa {
       while( !Grappa_done_flag ) {
         Grappa::wait( &flush_cv_ );
         rdma_idle_flushes++;
-        // check the cores I'm responsible for
-        for( int i = 0; i < total_cores_; ++i ) {
-          if( flush_one( i ) ) {
-            rdma_core_idle_flushes++;
+
+        Core c = Grappa::mycore();
+
+        // see if we have anything to receive
+        if( cores_[ c ].messages_.raw_ != 0 ) {
+          rdma_flush_receive++;
+          Grappa::impl::MessageList ml = grab_messages( c );
+          deliver_locally( c, get_pointer( &ml ) );
+        }
+
+        // see if we have anything at all to send
+        for( int i = 0; i < core_partner_locale_count_; ++i ) {
+          Locale locale = core_partner_locales_[i];
+          if( check_for_any_work_on( locale ) ) {
+            rdma_flush_send++;
+            send_locale_medium( locale );
           }
         }
       }
@@ -138,6 +157,13 @@ namespace Grappa {
                 << " dest core " << dest_core_for_locale_[i];
     }
 
+
+    // initialize core data structures
+    for( int i = 0; i < Grappa::cores(); ++i ) {
+      Locale l = Grappa::locale_of(i);
+      cores_[ l ].mylocale_ = l;
+      cores_[ l ].representative_core_ = source_core_for_locale_[ l ];
+    }
   }
 
   
@@ -169,11 +195,11 @@ namespace Grappa {
       //global_scheduler.createWorkers( FLAGS_rdma_workers + 1 );
 
       // spawn receive workers
-      for( int i = 0; i < FLAGS_rdma_workers_per_core; ++i ) {
-        Grappa::privateTask( [this] { 
-            receive_worker();
-          });
-      }
+      // for( int i = 0; i < FLAGS_rdma_workers_per_core; ++i ) {
+      //   Grappa::privateTask( [this] { 
+      //       receive_worker();
+      //     });
+      // }
 
       // spawn flusher
       Grappa::privateTask( [this] {
@@ -184,6 +210,7 @@ namespace Grappa {
 
     void RDMAAggregator::activate() {
 #ifdef ENABLE_RDMA_AGGREGATOR
+      // initialize shared data
       if( global_communicator.locale_mycore() == 0 ) {
         // allocate core message list structs
         cores_ = Grappa::impl::locale_shared_memory.segment.construct<CoreData>("Cores")[global_communicator.cores()]();
@@ -192,7 +219,10 @@ namespace Grappa {
         dest_core_for_locale_ = Grappa::impl::locale_shared_memory.segment.construct<Core>("DestCores")[global_communicator.locales()]();
         compute_route_map();
       }
+
       global_communicator.barrier();
+
+      // attach to shared data
       if( global_communicator.locale_mycore() != 0 ) {
         std::pair< CoreData *, boost::interprocess::managed_shared_memory::size_type > p;
         p = Grappa::impl::locale_shared_memory.segment.find<CoreData>("Cores");
@@ -210,7 +240,7 @@ namespace Grappa {
 
       // what locales is my core responsible for?
       Locale locales_per_core = Grappa::locales() / Grappa::locale_cores();
-      core_partner_locales_ = new Core[ locales_per_core ];
+      core_partner_locales_ = new Locale[ locales_per_core ];
       int partner_index = 0;
       for( int i = 0; i < Grappa::locales(); ++i ) {
         if( source_core_for_locale_[i] == Grappa::mycore() ) {
@@ -225,34 +255,34 @@ namespace Grappa {
       // draw route map if enabled
       draw_routing_graph();
 
-      // precache buffers
-      LOG(INFO) << "Precaching buffers";
-      size_t expected_buffers = core_partner_locale_count_ * remote_buffer_pool_size;
-      for( int i = 0; i < core_partner_locale_count_; ++i ) {
-        Core dest = dest_core_for_locale_[i];
-        LOG(INFO) << "Core " << Grappa::mycore() << " precaching to " << dest;
-        Core requestor = Grappa::mycore();
-        auto request = Grappa::message( dest, [dest, requestor, &expected_buffers] {
-            for( int j = 0; j < remote_buffer_pool_size; ++j ) {
-              RDMABuffer * b = global_rdma_aggregator.free_buffer_list_.try_pop();
-              CHECK_NOTNULL( b );
-              auto reply = Grappa::message( requestor, [dest, b, &expected_buffers] {
-                  global_rdma_aggregator.cores_[dest].remote_buffers_.push( b );
-                  expected_buffers--;
-                });
-              reply.send_immediate();
-            }
-          });
-        request.send_immediate();
-      }
+      // // precache buffers
+      // LOG(INFO) << "Precaching buffers";
+      // size_t expected_buffers = core_partner_locale_count_ * remote_buffer_pool_size;
+      // for( int i = 0; i < core_partner_locale_count_; ++i ) {
+      //   Core dest = dest_core_for_locale_[i];
+      //   LOG(INFO) << "Core " << Grappa::mycore() << " precaching to " << dest;
+      //   Core requestor = Grappa::mycore();
+      //   auto request = Grappa::message( dest, [dest, requestor, &expected_buffers] {
+      //       for( int j = 0; j < remote_buffer_pool_size; ++j ) {
+      //         RDMABuffer * b = global_rdma_aggregator.free_buffer_list_.try_pop();
+      //         CHECK_NOTNULL( b );
+      //         auto reply = Grappa::message( requestor, [dest, b, &expected_buffers] {
+      //             global_rdma_aggregator.cores_[dest].remote_buffers_.push( b );
+      //             expected_buffers--;
+      //           });
+      //         reply.send_immediate();
+      //       }
+      //     });
+      //   request.send_immediate();
+      // }
 
-      LOG(INFO) << "Waiting for responses";
-      while( expected_buffers > 0 ) global_communicator.poll();
-      LOG(INFO) << "Done precaching buffers";
-      for( int i = 0; i < core_partner_locale_count_; ++i ) {
-        Core partner = dest_core_for_locale_[ core_partner_locales_[i] ];
-        CHECK_EQ( cores_[partner].remote_buffers_.count(), remote_buffer_pool_size );
-      }
+      // LOG(INFO) << "Waiting for responses";
+      // while( expected_buffers > 0 ) global_communicator.poll();
+      // LOG(INFO) << "Done precaching buffers";
+      // for( int i = 0; i < core_partner_locale_count_; ++i ) {
+      //   Core partner = dest_core_for_locale_[ core_partner_locales_[i] ];
+      //   CHECK_EQ( cores_[partner].remote_buffers_.count(), remote_buffer_pool_size );
+      // }
 #endif
     }
 
@@ -599,7 +629,7 @@ void RDMAAggregator::draw_routing_graph() {
       }
 
       while( messages_to_send != NULL ) {
-        DVLOG(5) << __func__ << "/" << global_scheduler.get_current_thread() << ": Delivered message " << messages_to_send 
+        DVLOG(4) << __func__ << "/" << global_scheduler.get_current_thread() << ": Delivered message " << messages_to_send 
                  << " with is_delivered_=" << messages_to_send->is_delivered_ 
                  << ": " << messages_to_send->typestr();
         MessageBase * next = messages_to_send->next_;
@@ -852,6 +882,144 @@ void RDMAAggregator::draw_routing_graph() {
 
 
 
+
+  ///
+  /// first try at multicore aggregation
+  ///
+
+
+  
+  /// See if there are messages to send
+  inline bool RDMAAggregator::maybe_has_messages( Core c ) {
+    return cores_[ c ].messages_.raw_ != 0;
+  }
+  
+  /// issue prefetches if available
+  inline void RDMAAggregator::issue_initial_prefetches( Core core ) {
+    for( int i = 0; i < prefetch_dist; ++i ) {
+      Grappa::impl::MessageBase * pre = get_pointer( &cores_[core].prefetch_queue_[i] );
+      __builtin_prefetch( pre, 0, prefetch_type ); // prefetch for read
+      cores_[core].prefetch_queue_[i].raw_ = 0;    // clear out for next time around
+    }
+  }
+
+
+
+
+  void RDMAAggregator::send_locale_medium( Locale locale ) {
+    rdma_send_start++;
+    Core source_core = source_core_for_locale_[ locale ];
+    Core dest_core = dest_core_for_locale_[ locale ];
+    Core first_core = locale * Grappa::locale_cores();
+    Core max_core = first_core + Grappa::locale_cores();
+    Core current_core = first_core;
+
+    DVLOG(4) << __func__ << ": " << "Sending for locale " << locale;
+
+    // clear out estimated size
+    cores_[ first_core ].locale_byte_count_ = 0;
+
+    // grab a temporary buffer
+    RDMABuffer * b = free_buffer_list_.try_pop();
+    CHECK_NOTNULL( b ); // for now, die if we don't get one. later, block
+    
+    // but only use enough bytes that we can fit in a medium AM.
+    const size_t max_size = 4024;
+
+    // list of messages we're working on
+    Grappa::impl::MessageBase * messages_to_send = NULL;
+
+    // send all message lists, maybe in multiple AMs
+    while( (current_core < max_core) || (messages_to_send != NULL) ) {
+        
+      char * current_buf = b->get_payload();
+      size_t remaining_size = max_size;
+      size_t aggregated_size = 0;
+      bool ready_to_send = false;
+
+      DVLOG(4) << __func__ << ": " << "Preparing an active message in buffer " << b << " for locale " << locale;
+
+      // fill a buffer
+      while( (!ready_to_send) && 
+             ( (current_core < max_core) || (messages_to_send != NULL) ) ) {
+        DVLOG(4) << __func__ << ": " << "Grabbing messages for buffer " << b 
+                 << " for locale " << locale << " from core " << current_core;
+
+
+        // if we don't have more messages, grab the next messagelist with stuff to do
+        for( ; (messages_to_send == NULL) && (current_core < max_core) ; ++current_core ) {
+          DVLOG(4) << __func__ << ": " << "Trying to grab a new message list for buffer " << b 
+                   << " for locale " << locale << " from core " << current_core;
+
+          // does the current core have any messages for us?
+          if( maybe_has_messages( current_core ) ) {
+            // sure, so grab them and move to next, since we will break later
+            Grappa::impl::MessageList ml = grab_messages( current_core );
+            if( ml.raw_ != 0 ) { // still have messages
+              DVLOG(4) << __func__ << ": " << "Grabbed messages for buffer " << b << " for locale " << locale << " from core " << current_core;
+              // prefetch and grab message list
+              issue_initial_prefetches( current_core );
+              messages_to_send = get_pointer( &ml );
+            }
+          }
+        }
+
+        DVLOG(4) << __func__ << ": " << "Got some messages at " << messages_to_send << " for buffer " << b 
+                 << " for locale " << locale << " from core " << current_core;
+
+        // serialize to buffer
+        while( (!ready_to_send) && (messages_to_send != nullptr) ) {
+          CHECK_LT( aggregated_size, max_size );
+          CHECK_GT( remaining_size, 0 );
+          DVLOG(4) << "Serializing message from " << messages_to_send << " with remaining_size=" << remaining_size;
+
+          Grappa::impl::MessageBase * prev_messages_to_send = messages_to_send;
+
+          char * end = aggregate_to_buffer( current_buf, &messages_to_send, remaining_size );
+          size_t current_aggregated_size = end - current_buf;
+
+          DVLOG(4) << "After serializing, pointer was " << messages_to_send 
+                   << " current_aggregated_size==" << current_aggregated_size
+                   << " end-start=" << end - current_buf;
+
+
+          // do we have space to aggregate more?
+          if( (current_aggregated_size > 0) && (remaining_size > 0) && (messages_to_send != NULL)) {
+            // ignore terminating byte and prepare for next aggregation
+            current_aggregated_size--;
+            current_buf = end - 1;
+            DVLOG(4) << "We have more to send; adjusting current_aggregated_size==" << current_aggregated_size
+                     << " end-start=" << end - current_buf;
+          }
+
+          aggregated_size += current_aggregated_size;
+          remaining_size -= current_aggregated_size;
+
+          // if we couldn't fit the next message, go send
+          if( current_aggregated_size == 0 ) ready_to_send = true;
+        }
+
+        DVLOG(4) << __func__ << ": " << "Serialized all we could for buffer " << b 
+                 << " for locale " << locale << " from core " << current_core;
+      }
+
+      DVLOG(4) << __func__ << ": " << "Ready to send buffer " << b << " size " << aggregated_size
+               << " to locale " << locale << " from core " << current_core;
+
+      if( aggregated_size == 0 ) break;
+
+      // we have a buffer. send.
+      global_communicator.send( dest_core, deserialize_buffer_handle_, b->get_payload(), aggregated_size );
+      rdma_message_bytes += aggregated_size;
+      DVLOG(4) << __func__ << ": " << "Sent buffer of size " << aggregated_size << " through medium to " << dest_core
+               << " with " << messages_to_send << " still to send, then check core " << current_core << " of " << max_core;
+
+    }
+
+    // return buffer
+    free_buffer_list_.push(b);
+    rdma_send_end++;
+  }
 
 
 

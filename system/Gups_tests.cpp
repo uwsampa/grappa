@@ -221,6 +221,11 @@ LOOP_FUNCTION( func_gups_rdma, index ) {
     (*m)->addr = a;
     (*m)->ce = make_global( &ce );
     m->enqueue( a.node() );
+    DVLOG(5) << "Sent GUP from node " << Grappa::mycore()
+             << " to " << a.node()
+             << " address " << a.pointer()
+             << " reply to address " << &ce;
+
   }
 
   DVLOG(1) << "Done sending; now waiting for replies";

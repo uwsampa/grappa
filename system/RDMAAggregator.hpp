@@ -46,6 +46,12 @@ GRAPPA_DECLARE_STAT( SimpleStatistic<int64_t>, app_messages_immediate );
 GRAPPA_DECLARE_STAT( SimpleStatistic<int64_t>, rdma_capacity_flushes );
 GRAPPA_DECLARE_STAT( SimpleStatistic<int64_t>, rdma_requested_flushes );
 
+GRAPPA_DECLARE_STAT( SimpleStatistic<int64_t>, rdma_poll );
+GRAPPA_DECLARE_STAT( SimpleStatistic<int64_t>, rdma_poll_send );
+GRAPPA_DECLARE_STAT( SimpleStatistic<int64_t>, rdma_poll_receive );
+
+
+
 
 namespace Grappa {
 
@@ -128,16 +134,21 @@ namespace Grappa {
       // pointer to list of messages to receive
       // 
       
-      // should we use shared memory?
 
-
+      ///
       /// all this should be on one cache line
+      ///
+
+      /// head of message list for this core
       Grappa::impl::MessageList messages_;
+      /// prefetch queue for this core
       Grappa::impl::PrefetchEntry prefetch_queue_[ prefetch_dist ];
 
-      // lowest-numbered core that is on a node
+      // lowest-numbered core that is in this core's locale
       Core representative_core_;
+      Locale mylocale_;
 
+      int32_t pad32;
       int64_t pad[2]; 
 
       ///
@@ -150,7 +161,11 @@ namespace Grappa {
       ///
       /// another cache line
       ///
-      Grappa::impl::MessageBase * received_messages_;
+
+      /// racy updates, used only in source core for locale
+      size_t locale_byte_count_;
+      Grappa_Timestamp earliest_message_for_locale_;
+
       int64_t pad2[7];
 
       
@@ -158,8 +173,10 @@ namespace Grappa {
         : messages_()
         , prefetch_queue_() 
         , representative_core_(0)
+        , mylocale_(0)
         , remote_buffers_()
-        , received_messages_(NULL)
+        , locale_byte_count_(0)
+        , earliest_message_for_locale_(0)
       { }
     } __attribute__ ((aligned(64)));
 
@@ -207,6 +224,19 @@ namespace Grappa {
       static void enqueue_buffer_am( gasnet_token_t token, void * buf, size_t size );
       int enqueue_buffer_handle_;
       
+
+
+
+      
+
+
+
+
+
+
+
+
+
       /// Chase a list of messages and serialize them into a buffer.
       /// Modifies pointer to list to support size-limited-ish aggregation
       /// TODO: make this a hard limit?
@@ -230,12 +260,17 @@ namespace Grappa {
         return old_ml;
       }
 
+
       bool send_would_block( Core core );
 
       /// Sender size of RDMA transmission.
       void send_rdma( Core core, Grappa::impl::MessageList ml, size_t estimated_size );
       void send_rdma_old( Core core, Grappa::impl::MessageList ml, size_t estimated_size );
       void send_medium( Core core, Grappa::impl::MessageList ml );
+
+      bool maybe_has_messages( Core c );
+      void issue_initial_prefetches( Core core );
+      void send_locale_medium( Locale locale );
 
       void send_with_buffers( Core core,
                               MessageBase ** messages_to_send_ptr,
@@ -266,6 +301,26 @@ namespace Grappa {
           return false;
         }
       }
+
+      /// do we have any work to do for a locale?
+      bool check_for_work_on( Locale l, size_t size) {
+        Core c = source_core_for_locale_[l];
+        size_t byte_count = cores_[c].locale_byte_count_;
+        return ( byte_count > size );
+      }
+
+      bool check_for_any_work_on( Locale l ) {
+        Core start = l * Grappa::locale_cores();
+        Core max = start + Grappa::locale_cores();
+        for( Core c = start; c < max; ++c ) {
+          if( cores_[c].messages_.raw_ != 0 ) {
+            return true;
+          }
+        }
+        return false;
+      }
+
+
 
       /// Task that is constantly waiting to do idle flushes. This
       /// ensures we always have some sending resource available.
@@ -316,20 +371,45 @@ namespace Grappa {
       void finish();
 
       void poll( ) {
-        if( cores_[ Grappa::mycore() ].messages_.raw_ != 0 ) {
-          Grappa::impl::MessageList ml = grab_messages( Grappa::mycore() );
-          deliver_locally( Grappa::mycore(), get_pointer( &ml ) );
+        rdma_poll++;
+        Core c = Grappa::mycore();
+
+        // see if we have anything to receive
+        if( cores_[ c ].messages_.raw_ != 0 ) {
+          rdma_poll_receive++;
+          Grappa::impl::MessageList ml = grab_messages( c );
+          deliver_locally( c, get_pointer( &ml ) );
+        }
+        
+        // see if we have anything to send
+        for( int i = 0; i < core_partner_locale_count_; ++i ) {
+          Locale locale = core_partner_locales_[i];
+          if( check_for_work_on( locale, FLAGS_target_size ) ) {
+            rdma_poll_send++;
+            send_locale_medium( locale );
+          }
         }
       }
 
       /// Enqueue message to be sent
       inline void enqueue( Grappa::impl::MessageBase * m ) {
         app_messages_enqueue++;
-        DVLOG(5) << __func__ << ": Enqueued message " << m << ": " << m->typestr();
+
+        // static int freq = 10;
+        // if( freq-- == 0 ) {
+        //   poll();
+        //   freq = 10;
+        // }
+
+        DVLOG(5) << __func__ << "/" << global_scheduler.get_current_thread() 
+                 << ": Enqueued message " << m 
+                 << " with is_delivered_=" << m->is_delivered_ 
+                 << ": " << m->typestr();
 
         // get destination pointer
         Core core = m->destination_;
         CoreData * dest = &cores_[ core ];
+        CoreData * sender = &cores_[ dest->representative_core_ ];
         //Grappa::impl::MessageBase ** dest_ptr = &dest->messages_;
         Grappa::impl::MessageList * dest_ptr = &(dest->messages_);
         Grappa::impl::MessageList old_ml, new_ml, swap_ml;
@@ -364,7 +444,7 @@ namespace Grappa {
           // index prefetch queue by count since we haven't overwritten it in yet.
           m->prefetch_ = get_pointer( &(dest->prefetch_queue_[ count % prefetch_dist ]) );
 
-          spawn_send = size > FLAGS_target_size;
+          spawn_send = false && size > FLAGS_target_size;
 
           // if it looks like we should send
           if( spawn_send && !disable_flush_ ) {
@@ -377,22 +457,28 @@ namespace Grappa {
           // now try to insert current message (and count attempt)
           app_messages_enqueue_cas++;
         } while( !__sync_bool_compare_and_swap( &(dest_ptr->raw_), old_ml.raw_, swap_ml.raw_ ) );
+        
+        // warning: racy
+        sender->locale_byte_count_ += size;
+          
+        dest->prefetch_queue_[ count % prefetch_dist ].size_ = size < max_size_ ? size : max_size_-1;
+        set_pointer( &(dest->prefetch_queue_[ count % prefetch_dist ]), m );
 
-        /// is it time to flush?
-        if( disable_flush_ || !spawn_send ) { // no
-          // now fill in prefetch pointer and size (and make sure size doesn't overflow)
-          dest->prefetch_queue_[ count % prefetch_dist ].size_ = size < max_size_ ? size : max_size_-1;
-          set_pointer( &(dest->prefetch_queue_[ count % prefetch_dist ]), m );
-        } else {            // yes
-          rdma_capacity_flushes++;
-          if( disable_flush_ && send_would_block( core ) ) {
-            Grappa::privateTask( [core, new_ml, size] {
-              global_rdma_aggregator.send_rdma( core, new_ml, size );
-              });
-          } else {
-            global_rdma_aggregator.send_rdma( core, new_ml, size );
-          }
-        }
+        // /// is it time to flush?
+        // if( disable_flush_ || !spawn_send ) { // no
+        //   // now fill in prefetch pointer and size (and make sure size doesn't overflow)
+        //   dest->prefetch_queue_[ count % prefetch_dist ].size_ = size < max_size_ ? size : max_size_-1;
+        //   set_pointer( &(dest->prefetch_queue_[ count % prefetch_dist ]), m );
+        // } else {            // yes
+        //   // rdma_capacity_flushes++;
+        //   // if( disable_flush_ && send_would_block( core ) ) {
+        //   //   Grappa::privateTask( [core, new_ml, size] {
+        //   //     global_rdma_aggregator.send_rdma( core, new_ml, size );
+        //   //     });
+        //   // } else {
+        //   //   global_rdma_aggregator.send_rdma( core, new_ml, size );
+        //   // }
+        // }
       }
 
 
@@ -428,8 +514,7 @@ namespace Grappa {
 
       /// Initiate an idle flush.
       void idle_flush() {
-        poll();
-        //Grappa::signal( &flush_cv_ );
+        Grappa::signal( &flush_cv_ );
       }
 
     };

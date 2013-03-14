@@ -143,10 +143,7 @@ namespace Grappa {
 
       // Ensure we are sent before leaving scope
       virtual ~MessageBase() {
-        DVLOG(9) << "destruct " << this;
-        if (is_enqueued_) {
-          block_until_sent();
-        }
+        CHECK_EQ( is_enqueued_, is_sent_ ) << "make sure if we were enqueued we were also sent";
       }
 
       MessageBase( const MessageBase& ) = delete;
