@@ -29,8 +29,8 @@ namespace Grappa {
       DCHECK_EQ( !is_delivered_ && is_sent_, false ) << "Why are we enqueuing a message that's already sent?";
       if( !is_delivered_ ) source_ = global_communicator.mycore();
       is_enqueued_ = true;
-      DVLOG(5) << this << " on " << global_scheduler.get_current_thread()
-               << " enqueuing with is_enqueued_=" << is_enqueued_ << " and is_sent_= " << is_sent_;
+      DVLOG(5) << this << " on " << global_scheduler.get_current_thread() << ": " << this->typestr()
+               << " enqueuing to " << destination_ << " with is_enqueued_=" << is_enqueued_ << " and is_sent_= " << is_sent_;
 #ifndef LEGACY_SEND
       Grappa::impl::global_rdma_aggregator.enqueue( this );
 #endif
