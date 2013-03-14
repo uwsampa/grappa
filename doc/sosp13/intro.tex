@@ -110,10 +110,15 @@ commodity networks are designed to achieve peak bandwidth only on large packet
 sizes, yet irregular applications tend to fetch only a handful of bytes at a
 time. As we will show later, Grappa can tolerate latencies way beyond that of
 the network. Therefore, Grappa can afford to \emph{trade latency for
-throughput\/}: by {\em increasing\/} latency in key components of the system we
-are able to increase our effective random access memory bandwidth (by delaying and aggregating messages), our synchronization bandwidth (by delegating operations
-to remote nodes), and our ability to improve load imbalance (work stealing
-increases latency).
+throughput\/}. By {\em increasing\/} latency in key components of the system we
+are able to: increase effective random access memory bandwidth by delaying and aggregating messages; increase synchronization rate 
+%this is kind of subtle -- do we just assert it or instead provide
+%an inadequate explanation?  
+%we delegate synchronization operations on data even when it resides on the
+%local node so as to increase the rate at which we can perform
+%read-modify-write operations in the event of a hot-spot, at the expense
+%of increased synchronization latency as seen by tasks on that node. yuck.
+by delegating atomic operations to gatekeeper cores, even when referencing node-local global data; and improve load balance by tolerating the delays incurred when work-stealing.
 
 % 
 % Each of these components will be described in more detail in Section~\ref{sec:grappa}.

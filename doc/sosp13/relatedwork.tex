@@ -22,9 +22,7 @@ supports dynamic parallelism with asynchronous execution, but parallelism is
 expressed as tasks or loop iterations, which is a far more general programming
 model for irregular computation tasks.
 
-\paragraph{Global memory} Grappa includes support for global memory namespace,
-effectively a custom implementation of a software distributed shared memory
-(DSM) system. 
+\paragraph{Global memory} Grappa supports a global memory namespace, presenting a programming abstraction similar to that of previous software distributed shared memory (DSM) systems but with differences attuned to irregular application demands.
 
 Many traditional software DSM systems are page based~\cite{Treadmarks,munin}
 and aim to hide the fact that they are built in software from applications by
@@ -66,5 +64,5 @@ on a single processing core. The large number of tasks is required because of
 the to tolerate very high inter-node communication latency. Grappa's task
 library employs several optimizations: an extremely fast task switch, a small
 task size, and judicious use of hardware prefetching to bring task state into
-the cache long before that task is actually scheduled. The main difference between Grappa's support for lightweight threads and prior work such as QThread~\cite{qt} and Capriccio~\cite{capriccion} is the pervasive use of prefetching (with a large number of active tasks, not even their contexts fit in cache!).
+the cache long before that task is actually scheduled. The main difference between Grappa's support for lightweight threads and prior work such as QThread~\cite{Wheeler08qthreads:an} and Capriccio~\cite{Behren03capriccio:scalable} is the pervasive use of prefetching (with a large number of active tasks, not even their contexts fit in cache!).
 
