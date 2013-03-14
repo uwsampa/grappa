@@ -1,0 +1,32 @@
+%\documentclass{acm_proc_article-sp}
+\documentclass[10pt,twocolumn]{article}
+
+% NOTE: SOSP submission guidelines say up to 13 pages of technical content, which is everything except references. References do NOT count towards page liites. And it is support 10 pt. SOSP is *very* picky about font size. 
+
+%%% page size formatting %%% 
+\usepackage[margin=1in]{geometry}
+
+
+%%% packages %%%
+\usepackage{color}
+\usepackage{graphicx}
+\usepackage{listings}
+\usepackage{float}
+\usepackage{url}
+\usepackage{times}
+\usepackage{xspace}
+
+
+%%% utilities %%%
+\newcommand{\TODO}[1]{\textcolor{red}{{\bf TODO:} #1}}
+\newcommand{\checkme}[1]{\textcolor{red}{\textbf{#1}}}
+\newcommand{\comment}[1]{}
+
+%%% literal terms %%%
+\newcommand{\gasnet}{GASNet}
+\newcommand{\Grappa}{Grappa\xspace}
+
+% runtime parameter names 
+\newcommand{\flushtimeout}{\emph{network\_flush\_timeout}}
+\newcommand{\asyncforthr}{\emph{async\_parallel\_for\_thresold}}
+

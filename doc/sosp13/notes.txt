@@ -1,0 +1,354 @@
+Discussion at lunch 2/25/13
+
+user-level threading. we have latency tolerance. won't fit in cache assumption. 
+
+pgas+sdsm 
+
+latency tolerance and communication 
+
+################################################################
+
+Mention Spark?
+
+http://www.cs.berkeley.edu/~matei/talks/2012/hadoop_summit_spark.pptx
+
+I see two places where it may be in-scope for citing in the SOSP paper.
+
+1) mentioning bagel (Pregel)
+2) Their argument for coarse grain over fine-grained record access.
+Is it important to go down the road of discussing why our independent tasks abstraction is important for a class of applications (ie opposed to simd and shuffle style)?
+We make up for some of the costs of fine-grained-ness with aggregation.
+
+################################################################
+
+Steve Gribble's feedback.
+
+I took a quick read through the paper.  First off -- cool!  I think you're within striking distance of a very nice SOSP submission.
+
+Here's a a dumb very high-level question:  what is the overall goal of grappa?  Is it to maximize throughput (e.g., vertices processed per second) given a certain class of applications and hardware?  Or, is it to maximize scalability (e.g., vertices processed per second per node) on commodity hardware?  Or, is it to find a design that maximize cost-efficiency (e.g., vertices processed per dollar), and you end up with the grappa software on commodity hardware?
+
+I couldn't quite tell, and therefore couldn't tell if the evaluation section demonstrates you hit your goal.
+
+My guess as to the answer is that you're trying to maximize throughput and achieve reasonable scalability;  and, that you want to do it on commodity hardware with a commodity OS and networking stack; and, therefore you are forced into a latency-tolerant design.  But, that's just a guess.  :)
+
+>  - Do you have questions about or issues with the overall design?
+
+I had a few.  First, I wondered what the difference between your threading implementation, and typical user-level threads packages, is in practice.  One premise of the paper is that your threading system is lighter-weight, i.e., that it can handle more thread contexts and has cheaper context switching than typical.  Why is that, exactly?  It would be nice to quantify in the results section, e.g., compare against a modern scheduler-activation-based system that combines kernel threads (for multicore) and user-level threading (for efficiency).
+
+Second, the distributed shared memory part of the design felt pretty scruffy.  One major problem is the lack of cache coherence; you're potentially putting a big burden on the programmer.  Has this been an issue for you in practice as you ported the various apps?  How have you handled the lack of coherence?  How does the resulting model compare to other packages like graphlab?   A second problem is that the global memory is not well-integrated with virtual memory -- i.e., global addresses are not just pointers, and therefore the programmer has a lot of hassles (I assume) integrating global addresses into data structures.
+
+Third, I wondered a little about the message aggregation.  The premise is of course correct: small messages have greater per-byte overhead than large messages, detracting from bandwidth.  This has been hammered hard in a number of messaging systems over the decades; I was a little surprised that you ended up implementing your own.   Why not use myrinet and zero-copy networking stacks to allow for smaller messages?  i suppose your point is that you can afford off-the-shelf network stacks by adding more threads to compensate for the latency introduced by aggregation.  But, there's a cost to that -- extra latency, the overhead of managing aggregation, and presumably other issues.
+
+>  - Do you think we can get away just comparing against the XMT, or should we compare against other mass-market-cluster approaches? Since our programming model is more general, this gets a little tricky. We've had undergrads do some work with the Parallel Boost Graph Library, and they're starting on GraphLab and Pregel (Giraph) now. Should we make this a priority?
+
+*yes*.  Definitely make this a priority.  The biggest issue with the paper for me, by far, is that it was incredibly difficult to understand the comparison between XMT and Grappa, because you're varying two variables:  (1) the hardware, and (2) the software, simultaneously.  I couldn't actually tell which was better, or how to decide, or even what better means -- because perhaps the hardware is balanced differently, so you're hitting different bottlenecks at different costs.  I also couldn't easily tell what caused the differences between the two; the paper makes a few conjectures here and there, but doesn't actually provide data and analysis to back it up.
+
+I think you should keep the XMT comparison.  But, I think you desperately also need to compare grappa on the x86 cluster with *something else* on the same x86 cluster.
+
+>  - What about benchmarks? We've added in-memory sort, PageRank, and a couple other microbenchmarks. Do we need larger/more application-y benchmarks?
+
+I don't think you need more higher-level benchmarks, no.  With these new ones, you'll have plenty (IMHO).
+
+>  - What other measurements would you like to see in the evaluation?
+
+A few thoughts here:
+
+(1) I was interested in seeing more low-level micro benchmarks to actually dig into the benefits of the various parts of your design.  e.g., substitute linux threads, or some other efficient thread package, for your threads and show the impact.  or, substitute some zero-copy networking stack for your networking stack and show the impact.
+
+(2) I wanted to better understand what the bottlenecks in the system are, and why.  I couldn't tell if you're CPU-bound, network-bound, memory-bound, or something else.
+
+(3) A major premise of the paper is that high concurrency gives you latency tolerance, which  in turn lets you get away with a bunch of things that would otherwise be problematic.  But, I didn't have a sense of just how much latency you're introducing, and whether that's problematic in any way.  Is there some way to measure this?
+
+#############################################################
+
+David Callahan's feebback
+
+
+
+Comments on: Grappa: Scalable Computing on Commodity Hardware for Irregular Applications
+The paper seems quite solid.  I would certainly have voted to accept it. Here are  few thoughts and questions to be answered that I think would strengthen it. 
+--david
+
+	Bandwidth
+Our goal is to enable scalable performance of irregular applications
+on these mass market systems.
+
+When we talk about scaling, it is important to separate the processors from the interconnection because they having different trends as machines get larger.  For an irregular application where a memory reference has equal likelihood of referencing any particular node, the system needs to scale its bisection bandwidth otherwise it will eventually be the rate limiting component. Sense bisection bandwidth for p processors grows at p^(3/2) it will eventually be the largest marginal system cost. Given this, I think any discussion of scalability for irregular applications should comment on bisection bandwidth. 
+
+Now I suspect that in your experiments for small p are conducted on subsets of a full system and so the bandwidth available does not vary in a meaningful way. This should be noted. Also, I understand that the current primary bottleneck might be injection rate but a discussion of peak bisection bandwidth and some evidence that it is not a concern would be valuable. 
+
+Years ago, there was a model for network performance
+LogP: a practical model of parallel computation, Culler, D. E., Karp, R. M., Patterson, D., Sahay, A., Santos, E. E., Schauser, K. E., Subramonian, R., and von Eicken, T. 1996. Commun. ACM 39, 11 (Nov. 1996), 78-85
+
+I have not followed where this framework evolved (perhaps BSP was simpler and hence more useful) but it seems like it would provide a strong baseline to model the impacts of Grappa where trade latency (L) and overhead (o) for reducing gap (g).  Building a model and then calibrating it to existing machines, including the Cray XMT, would be a stronger result.
+
+	Programming costs
+
+While some irregular applications can be restructured to better exploit locality,… and requires knowledge and skills pertaining to distributed systems far beyond those of most application programmers.
+
+While I don’t doubt this, some references to application experiments that have been hand-tuned would be valuable. 
+
+	Cray XMT
+
+by emulating in software and inexpensive mass market hardware, the approach taken by Tera.
+
+It seems expedient to use the Cray XMT as a baseline but given its very limit use, it seems difficult for the broader audience to understand it as a baseline.  Of course there is value to your presumed funding sources who have above average interest.  However, I assume there are existing implementations of the problems you examine written in MPI or maybe some PGAS language. I would think those implementations running on the same hardware would create a more equitable comparison.  (But of course that could wait for a separate, less notable, publication).
+
+	Slackness
+
+Therefore, Grappa can afford to trade latency for throughput: by increasing latency in key components of the system
+
+I have lost the defining reference but parallel slackness in essence relates the amount of work to the critical path length in the computational graph of the execution of a program. With little slack, the problem will be latency sensitive but with a lot of slack then it should be latency tolerant when suitably implemented. Your large graph problems will generally have this property particularly in a weak scaling context. Since you present strong scaling results, there must be a point of diminishing returns as you become latency sensitive as slackness declines. There is no discussion of this possibility.
+
+	Tasks (section 4
+
+Each task is represented by a function pointer and its arguments.
+
+More precise to say this is a new task descriptor. During execution of course a task has some runtime metadata and a stack and a program counter – but perhaps you choose to account for that as a worker thread.  Not something to fix here but I might treat the worker threads a top-level component of the system separate from tasks since there does appear to be some significant policy associated with worker threads.  
+The distinction between cores is not very explicit (or I missed it).  Are all cores in a socket part of a single process and so all cores can uniformly access all global memory on the socket or does each core have its own process and so even inter-core but intra-node references go through the “remote” path?  Do your systems have NUMA aspects on the nodes and if so have you experimented with its impact?
+
+If there is one process shared by multiple cores, why bind the tasks so tightly to cores instead of allowing any idle core to pick up any new or ready task on the node? I understand you want per-core scheduling to minimize inter-core synchronization but local-stealing might be treated differently from global stealing.  
+
+	Scheduling/Tasking API
+
+A key aspect of you tasking model that I did not understand from the description given was understanding how “wake” works. The text indicates that threads busy-wait (slowly via yield) rather than having a blocking synchronization mechanism.  When do they suspend and who wakes them up? In the task creating APIs, do they return some kind of handle? Is there a blocking protocol of some sort to wait for side-effects of a task? Is parallel_for synchronous from the perspective of the caller or does it asynchronously launch a set of tasks? 
+
+Fourth, a programmer may want to execute an active message; that is, to run a small piece of code on a particular core in the system without waiting for execution resources to be available.
+
+I assume the above means that the call is implemented by some kind of system-thread that is servicing message traffic, perhaps running as a interrupt handler, or simply a worker between tasks. This avoids the overhead and latency of creating a remote task but I would still say it is consuming “execution resources”.
+
+The discussion about the costs and timing of context switches are presented without any empirical data to understand how sensitive the results are. What if they doubled? Why does the reader care?
+
+	Memory API
+
+I like the mechanism of supporting both a single widely-interleaved global memory segment but also allow explicit 2D references. That provides a lot of flexibility in terms of building distributed data structures. The API in figure 4 mention only a generic “global_address” with out being clear if that is a linear or 2d address. Are there variants for both or do linear addresses get converted to 2D somewhere? 
+
+No return values are indicated for these APIs. I would prefer more detail perhaps even a concrete C interface for clarity.  Some operations look synchronous but others might be asynchronous. Which are which? Some parameters are output parameters. Which are which?  What exactly does a polling task look for to decide when to continue? In the caching APIs, is there a length field associated with the request? 
+
+When the programmer expects a computation on shared data to have spatial locality to
+exploit, cache operations may be used
+
+Did you mean temporal locality in the above sentence? 
+
+First, we limit each task to one outstanding delegate operation to avoid the possibility
+of reordering in the network. 
+
+This seems an architectural mistake, at least for the reason given. It limits ILP whether extracted by programmer or compiler. Perhaps it represents a current limitation of some other element in the system and so I would suggest you be transparent about that.
+
+delegate operations for the same address from multiple requesters are always serialized through a single core
+
+Similarly, as long as you are dealing with cache lines and a coherent MESI protocol I would not expect this to be an issue except for fetch-and-adds. If you perform delegate operations wider than the native types of the host system there would be an issue of course but even there you are no providing a stronger semantics than most programmers live with today.
+
+	Applications/Evaluation
+
+In the UTS-Mem code, how are tree nodes assigned to processors? 
+Why is scaling to 16 nodes interesting? What is the key difference between “performance” in section 8.1 and “scaling” in 8.3 given that both show timing sweeps over the same benchmarks but just over different regions of common parameter domain?
+
+The main reason Grappa performs better is the software-based delegate synchronization obviates the need for the retry-based synchronization that XMT uses.
+
+This must refer to compare-and-swap operations since the XMT also has atomic fetch-and-add that does not involve retry and is bandwidth efficient.  It is not immediately clear to me why UTS-mem would need compare-and-swap. I think it assumes a lot from the reader to them to understand the implications of the XMT retry mechanism and that it consumes network bandwidth and yield latencies too great to mask with multi-threading. Perhaps a footnote to expand on the background on this would be in order.  
+
+Figure 8 claims that performance scales “at a constant rate” for Grappa but that is not what my eye tells me looking at the figure.  Further, “scaling” is the topic of section 8.3.
+
+Figure 11 is not very informative, better to list the raw values in text.   
+
+In Figure 13, given that you are thinking of scaling on a per network connection basis, is it interesting to think of workers per core? 
+
+The axes for Figure 14 are not described. The label on the horizontal access is expressed “x/y” but is not a ratio but rather implies that “x=y” (right?).
+
+The text for Figure 14 talks about the XMT scaling a “constant factor” better than Grappa. The graph seems to indicate that Grappa for centrality is hardly improving past 64 while XMT is still improving as processors are added. For BFS, both improving but XMT appears to improve quite a bit more from 96 to 128 (and has unexplained scaling improvements at powers of 2).
+
+I don’t understand the limitation to 6 cores but accept there might be some kind of shared resource contention issue. However, it also seems that the number of cores might be related to the ratio of global addresses to local work by a thread. These graph problems are of course extreme in this regard while problems with more computation would benefit from more cores. Seems worth a comment.
+
+
+#######################################################
+
+
+ASPLOS reviews
+
+
+----------------------- REVIEW 1 ---------------------
+PAPER: 108
+TITLE: Grappa: Scalable Computing on Commodity Hardware for Irregular Applications
+AUTHORS: (anonymous)
+
+OVERALL RATING: -1 (weak reject)
+REVIEWER'S CONFIDENCE: 2 (medium)
+
+This paper describes a runtime system for executing irregular applications on a PC cluster. Grappa consists of the following three components:
+1) API for light-weight multi-threading, which is similar to Cilk,
+2) Software-based DSM system, and
+3) Communication layer for efficient exploitation of underlying network hardware.
+
+This paper attacks an important problem. The performance scalability on a large cluster of commodity PCs are becoming increasingly important.
+Although I was not able to find a new technical contribution in Grappa system, this paper shows good engineering work.
+
+I have a concern on the performance evaluation.
+The authors compare the performance of Grappa running on a PC cluster against a Cray XMT system. Although the XMT is targeting the same type of applications, I am not convinced that Grappa is an efficient system to execute irregular applications on a PC cluster. I feel that comparing the performance of Grappa against runtime systems, such as hand-coded implementation of Graph 500 benchmark, running on the same hardware makes the advantages of Grappa clearer. The advantage may include easy-of-programming for complicated parallel applications.
+
+Questions
+- When measuring the performance scalability of Grappa, the parameters are tuned for each node count. Is there a systematic way to tune the parameters?
+- Does Grappa have synchronization API calls, like _Cilk_sync of Cilk?
+
+
+----------------------- REVIEW 2 ---------------------
+PAPER: 108
+TITLE: Grappa: Scalable Computing on Commodity Hardware for Irregular Applications
+AUTHORS: (anonymous)
+
+OVERALL RATING: -2 (reject)
+REVIEWER'S CONFIDENCE: 3 (high)
+
+This paper covers an important topic and reports some results and stops there. This is the main problem that I have with the paper. It provides no additional information about the good and bad things related to Grappa. I am willing to accept a paper that has negative results if it is understood why there are negative results, but this is not the case with this paper. In the conclusion, the authors mention the current aggregator as a source of performance scaling issues, but that is not discussed in the results section. That would be a useful place to have that discussion when comparing Grappa to the Cray XMT. There is a more fundamental problem with this paper. The authors need to address the possible algorithmic modifications that can be done in this problem space [8]. What impact does it have on this problem? My reading of [8] leads me to believe that their solutions scales, so does that change anything with respect to the Grappa and XMT system performance? I think this pap
+er is incomplete without at least a qualitative discussion of the impact of algorithmic changes. I enjoyed reading the paper up to the evaluation section. It is rare to see this type of comparison on real hardware. Paper length is not an excuse for a lack of evaluation for this paper. This paper could easily provide 2 more pages of analysis and comparison between the XMT and cluster. The evaluation section has no evaluation. It presents data, but that is where things end. Finally, what is the scheduling overhead in Grappa? I think that is something that can be discussed.
+
+
+Nits:
+Please rewrite the last sentence of Section 4.1.
+In general, this paper was hard to read because figure references and figures were not on the same page. It required a lot of flipping back and forth.
+Can figure 6 be a 2 core example?. I would probably add the steps to the text of the paper and enumerate them instead of at the figure. Maybe include the high-level action in the figure.
+There is no reference or discussion of Figure 14. The x-axis doesnt make sense and data is going off the graph.
+The formatting of the graphs in this paper is very bad. Some graphs are really big and some are small.
+
+
+----------------------- REVIEW 3 ---------------------
+PAPER: 108
+TITLE: Grappa: Scalable Computing on Commodity Hardware for Irregular Applications
+AUTHORS: (anonymous)
+
+OVERALL RATING: 1 (weak accept)
+REVIEWER'S CONFIDENCE: 2 (medium)
+
+This paper describes Grappa, a runtime system that runs on commodity
+clusters and that supports fine-grained irregular computations.  Thus, the
+system is essentially a software counterpart to latency-hiding architectures
+produced by Tera/Cray.  The main components of Grappa are (1) a lightweight
+user-level tasking layer, (2) a distributed shared-memory layer, and
+(3) a message aggregation layer that combines short messages to reduce
+communication overhead.  As with the Tera/Cray machines, the key insight
+is that a system with a copious number of threads can significantly
+increase the latencies of certain system components to increase effective
+memory bandwidth, to increase synchronization bandwidth, and to improve
+load balance.  Using a set of three graph benchmarks, the paper presents
+a performance evaluation that compares Grappa running on a commodity
+AMD cluster against the latest generation of the Cray XMT.  For the UTS
+benchmark, Grappa outperforms the Cray XMT by 3.2x on 16 nodes.  For two
+other benchmarks (BFS and Betweeness Centrality), Grappa is 2.5x slower
+on 16 nodes.
+
+I think that this paper could be accepted.  It attacks an important problem,
+namely, the goal of achieving scalable performance on irregular parallel
+applications.  And although the paper does not present any particularly
+novel ideas, it represents a substantial engineering feat built on good
+insights and a good understanding of technology.  Moreover, if we believe
+that Grappa's performance results are comparable to a custom hardware
+solution with a custom interconnection network, then the engineering feat
+is not just substantial but significant.
+
+Unfortunately, the biggest weaknesses of this paper are its evaluation and
+its overstated performance claims.  The evaluation presents an apples
+to oranges comparison (Cray XMT vs. Grappa on an AMD cluster), so I
+have no idea whether the -2.5x-to-3x variance in performance should be
+considered good or bad.  On the other hand, I'm not sure what a fair and
+obtainable comparison would be.  I also found the conclusions misleading.
+The introduction says that Grappa allows users to add "significantly more
+processors to a commodity cluster than an XMT machine and use Grappa to
+achieve scalable performance;" while this statement could be considered
+technically correct, it's highly misleading, because for two of the
+three applications, we wouldn't want to add more nodes to the cluster
+because performance appears to have just about leveled off at 16 nodes.
+Similarly, the Conclusion says that "Grappa performs on-par with the far
+more expensive and custom XMT system, sometimes achieving better results
+and sometimes worse."  I don't consider a 2.5x degradation to be "on par,"
+so it's not fair to simply average out the maximum win and the maximum loss.
+
+Minor comments:
+
+- The intro claims that the Cray XMT does not overcome the Tera MTA's
+  "narrow range of applicability."  I think that it's inaccurate to claim
+  that the MTA has a narrow range of applicability since almost computation
+  will perform well on it.  I suspect that the authors are saying that
+  in terms of price/performance, the MTA only wins for a narrow range
+  of applications.
+
+- It would be interesting to see where the Cray XMT falls on the
+  graph of Figure 12.
+
+- The following is far too colloquial:  "Grappa can tolerate latencies *way*
+  beyond ..."
+
+
+----------------------- REVIEW 4 ---------------------
+PAPER: 108
+TITLE: Grappa: Scalable Computing on Commodity Hardware for Irregular Applications
+AUTHORS: (anonymous)
+
+OVERALL RATING: 1 (weak accept)
+REVIEWER'S CONFIDENCE: 4 (expert)
+
+The paper is well written, and describes a software layer to treat a
+commodity cluster as a highly threaded shared memory computer.  The
+overall goal is to make it easier to program irregular applications on
+commodity hardware.
+
+I would say the paper describes a useful software solution, but which
+is built by integrating well-known ideas.  The paper does include
+description of a large amount of related work, but misses some quite
+important related work.
+
+For example, the Threaded Abstract Machine from ASPLOS 1991, although
+designed to support a dataflow programming model, had the same basic
+idea of building a software layer on clustered commodity processors
+(SPARCs in a CM-5 in this case) to model a hardware multithreaded
+engine with shared memory (in this case, the Monsoon dataflow
+machine).  Although the submission acknowledges the active message
+work, AM was actually developed to support TAM.  TAM also had the
+notion of polling message receipt and providing local atomicity by not
+interrupting the active task, and actually provided finer-grained
+threads than the tasks in Grappa.
+
+Another important piece of missing related work is Capriccio, SOSP
+2003, which provides many lightweight threads on commodity processors
+to support distributed systems programming, including handling network
+traffic.
+
+I found the evaluation to be the weakest part of the paper.  It does
+serve to show that the system works, but does not really provide an
+indication of how efficient the design is.  The benchmarks used
+probably have already existing tuned cluster implementations
+available, and I would have liked to have seen a comparison on how
+Grappa-coded benchmarks performed compared to hand-coded cluster codes
+on the same hardware.  It would be interesting to see the
+productivity/performance tradeoffs in this comparison.
+
+On the other hand, I'm not sure there is much insight to be gained by
+comparing against XMT.  The XMT design, although expensive to
+purchase, had a tiny development effort compared to commodity
+processors, and uses very pedestrian fabrication technology.  Even so,
+it does beat Grappa quite handily on two of the chosen benchmarks and
+seems to be scaling better.
+
+Minor comments:
+
+In Section 2, I would have included the seminal HEP paper in the
+hardware multithreaded background section, as this is the first
+general-purpose hardware multithreaded machine and ancestor to XMT
+(perhaps dropping Cyclops, which is less well-known to make space).
+
+
+----------------------- REVIEW 5 ---------------------
+PAPER: 108
+TITLE: Grappa: Scalable Computing on Commodity Hardware for Irregular Applications
+AUTHORS: (anonymous)
+
+OVERALL RATING: 1 (weak accept)
+REVIEWER'S CONFIDENCE: 3 (high)
+
+The paper provides a SW only implementation of a runtime system specifically targeted for graphing algorithms (even though the paper refers to it as "irregular applications", this is really a graph algorithm oriented system). The goal is to essentially provide better performance than the Cray MTA. This is because (I think) the runtime system can take advantage of sgnificantly faster processors in commodity systems than the cray MTA did. The runtime system essentially borrows mechanisms from prior art to put them together for a graphing machine.
+
+The paper describes the system fairly well.
+
+The main issue I had with the paper is I couldn't find out if there was any new idea in it or any innovation other than a software DSM style design with ideas from different prior work. (of course there wasn't any "architecture support" in the paper either...). Otherwise the paper is fairly well written.
+
+It will be good to see a citation that shows that the current memory hierarchy is indeed ineffective for tese applications.
+
