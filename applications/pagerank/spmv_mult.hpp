@@ -3,7 +3,7 @@
 #include "../graph500/grappa/common.h"
 #include "../graph500/grappa/oned_csr.h"
 
-#include "Grappa.hpp"
+#include <Grappa.hpp>
 
 #include <iostream>
 
