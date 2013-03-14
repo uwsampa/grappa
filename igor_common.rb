@@ -15,6 +15,7 @@ module Isolatable
   end
   
   def isolate(exes, shared_dir=nil)
+    puts "########## Isolating ##########"
     @isolate_called = true
     
     # set aside copy of executable and its libraries
@@ -23,7 +24,9 @@ module Isolatable
     FileUtils.mkdir_p(@ldir)
     
     exes = [exes] unless exes.is_a? Array
+    exes << 'mpirun'    
     exes.each do |exe|
+      exe = `which #{exe}`.strip if not File.exists? exe
       FileUtils.cp(exe, @ldir)
       libs = `bash -c "LD_LIBRARY_PATH=#{$GRAPPA_LIBPATH} ldd #{exe}"`
                 .split(/\n/)
@@ -35,7 +38,7 @@ module Isolatable
     # copy system mpirun
     # FileUtils.cp(`which mpirun`, "#{ldir}/mpirun")
     `cp $(which mpirun) #{@ldir}/mpirun`
-    puts 'done with setup'
+    puts "########## Isolated  ##########"
   end
 
   def run(opts={}, &blk)
