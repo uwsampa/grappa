@@ -319,7 +319,7 @@ void Grappa_barrier_suspending() {
 ///
 
 /// Spawn a user function. TODO: get return values working
-inline Worker * Grappa_spawn( void (* fn_p)(Worker *, void *), void * args )
+Worker * Grappa_spawn( void (* fn_p)(Worker *, void *), void * args )
 {
   Worker * th = worker_spawn( global_scheduler.get_current_thread(), &global_scheduler, fn_p, args );
   global_scheduler.ready( th );
