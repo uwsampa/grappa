@@ -14,16 +14,12 @@
 #include "stack.h"
 #include "StateTimer.hpp"
 #include "PerformanceTools.hpp"
-#include <sys/mman.h> // mprotect
 
 #ifdef ENABLE_VALGRIND
 #include <valgrind/valgrind.h>
 #endif
 
-#ifdef CORO_PROTECT_UNUSED_STACK
-// for assertions: might as well not include if not using mprotect
 #include <glog/logging.h>
-#endif
 
 class Scheduler;
 typedef uint32_t threadid_t;
@@ -36,6 +32,10 @@ extern int thread_last_tau_taskid;
 const size_t STACK_SIZE = 1L<<19;
 
 class Worker;
+
+#include <sys/mman.h> // mprotect
+#include <errno.h>
+void checked_mprotect( void *addr, size_t len, int prot );
 
 /// A queue of threads
 class ThreadQueue {
@@ -136,11 +136,12 @@ class Worker {
   
   /// prefetch the Thread execution state
   inline void prefetch() {
-    __builtin_prefetch( stack, 0, 3 );                           // try to keep stack in cache
-    //USUSED?if( data_prefetch ) __builtin_prefetch( data_prefetch, 0, 0 );   // for low-locality data
-  }
+    __builtin_prefetch( stack, 1, 3 ); // try to keep stack in cache
+    __builtin_prefetch( next, 1, 3 ); // try to keep next worker in cache
 
-};
+    //if( data_prefetch ) __builtin_prefetch( data_prefetch, 0, 0 );   // for low-locality data
+  }
+} __attribute__((aligned(64)));
 
 typedef void (*thread_func)(Worker *, void *arg);
 
@@ -158,7 +159,7 @@ void coro_spawn(Worker * me, Worker * c, coro_func f, size_t ssize);
 /// new coro or the return value of its last invoke.)
 static inline void * coro_invoke(Worker * me, Worker * to, void * val) {
 #ifdef CORO_PROTECT_UNUSED_STACK
-  if( to->base != NULL ) CHECK( 0 == mprotect( (void*)((intptr_t)to->base + 4096), to->ssize, PROT_READ | PROT_WRITE ) ) << "mprotect failed; check errno";
+  if( to->base != NULL ) checked_mprotect( (void*)((intptr_t)to->base + 4096), to->ssize, PROT_READ | PROT_WRITE );
 
   // compute expected stack pointer
 
@@ -177,7 +178,7 @@ static inline void * coro_invoke(Worker * me, Worker * to, void * val) {
   if( me != to &&           // don't protect if we're switching to ourselves
       me->base != NULL &&   // don't protect if it's the native host thread
       size > 0 ) {
-    CHECK( 0 == mprotect( (void*)((intptr_t)me->base + 4096), size, PROT_READ ) ) << "mprotect failed; check errno";
+    checked_mprotect( (void*)((intptr_t)me->base + 4096), size, PROT_READ );
   }
 #endif
 
@@ -289,12 +290,11 @@ inline void ThreadQueue::enqueue( Worker * t) {
 /// Prefetch some Thread close to the front of the queue
 inline void ThreadQueue::prefetch() {
     Worker * result = head;
-    // try to prefetch 4 away
     if( result ) {
-      if( result->next ) result = result->next;
-      if( result->next ) result = result->next;
-      if( result->next ) result = result->next;
-      if( result->next ) result = result->next;
+//      if( result->next ) result = result->next;
+//      if( result->next ) result = result->next;
+//      if( result->next ) result = result->next;
+//      if( result->next ) result = result->next;
       result->prefetch();
     }
 }

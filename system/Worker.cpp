@@ -12,7 +12,8 @@
 #include "Scheduler.hpp"
 #include "PerformanceTools.hpp"
 #include <stdlib.h> // valloc
-#include <sys/mman.h> // mprotect
+
+DEFINE_int64( stack_size, 1<<19, "Default stack size" );
 
 
 /// list of all coroutines (used only for debugging)
@@ -94,7 +95,7 @@ Worker * convert_to_master( Worker * me ) {
 
   return me;
 }
-
+#include <errno.h>
 void coro_spawn(Worker * me, Worker * c, coro_func f, size_t ssize) {
   CHECK(c != NULL) << "Must provide a valid Worker";
   c->running = 0;
@@ -107,7 +108,12 @@ void coro_spawn(Worker * me, Worker * c, coro_func f, size_t ssize) {
 
   // set stack pointer
   c->stack = (char*) c->base + ssize + 4096 - current_stack_offset;
+
+  // try to make sure we don't stuff all our stacks at the same cache index
+  const int num_offsets = 128;
+  const int cache_line_size = 64;
   current_stack_offset += FLAGS_stack_offset;
+  current_stack_offset &= ((cache_line_size * num_offsets) - 1);
   
   c->tracking_prev = NULL;
   c->tracking_next = NULL;
@@ -120,14 +126,14 @@ void coro_spawn(Worker * me, Worker * c, coro_func f, size_t ssize) {
   memset(c->base, 0, ssize);
 
   // arm guard page
-  CHECK( 0 == mprotect( (char*)c->base + ssize + 4096, 4096, PROT_NONE ) ) << "mprotect failed; check errno";
+  checked_mprotect( (char*)c->base + ssize + 4096, 4096, PROT_NONE );
 
   // set up coroutine to be able to run next time we're switched in
   makestack(&me->stack, &c->stack, f, c);
 
 #ifdef CORO_PROTECT_UNUSED_STACK
   // disable writes to stack until we're swtiched in again.
-  CHECK( 0 == mprotect( (void*)((intptr_t)c->base + 4096), ssize, PROT_READ ) ) << "mprotect failed; check errno";
+  checked_mprotect( (void*)((intptr_t)c->base + 4096), ssize, PROT_READ );
 #endif
 
   total_coros++;
@@ -144,7 +150,7 @@ Worker * worker_spawn(Worker * me, Scheduler * sched,
   thr->sched = sched;
   sched->assignTid( thr );
   
-  coro_spawn(me, thr, tramp, STACK_SIZE);
+  coro_spawn(me, thr, tramp, FLAGS_stack_size);
 
 
   // Pass control to the trampoline a few times quickly to set up
@@ -160,7 +166,7 @@ Worker * worker_spawn(Worker * me, Scheduler * sched,
 }
 
 void destroy_coro(Worker * c) {
-  total_coros++;
+  total_coros--;
   remove_coro(c); // remove from debugging list of coros
 #ifdef ENABLE_VALGRIND
   if( c->valgrind_stack_id != -1 ) {
@@ -169,11 +175,11 @@ void destroy_coro(Worker * c) {
 #endif
   if( c->base != NULL ) {
     // disarm guard page
-    CHECK( 0 == mprotect( c->base, 4096, PROT_READ | PROT_WRITE ) ) << "mprotect failed; check errno";
-    CHECK( 0 == mprotect( (char*)c->base + c->ssize + 4096, 4096, PROT_READ | PROT_WRITE ) ) << "mprotect failed; check errno";
+    checked_mprotect( c->base, 4096, PROT_READ | PROT_WRITE );
+    checked_mprotect( (char*)c->base + c->ssize + 4096, 4096, PROT_READ | PROT_WRITE );
 #ifdef CORO_PROTECT_UNUSED_STACK
     // enable writes to stack so we can deallocate
-    CHECK( 0 == mprotect( (void*)((intptr_t)c->base + 4096), c->ssize, PROT_READ | PROT_WRITE ) ) << "mprotect failed; check errno";
+    checked_mprotect( (void*)((intptr_t)c->base + 4096), c->ssize, PROT_READ | PROT_WRITE );
 #endif
     free(c->base);
   }
@@ -199,4 +205,12 @@ void thread_exit(Worker * me, void * retval) {
 /// ThreadQueue output stream
 std::ostream& operator<< ( std::ostream& o, const ThreadQueue& tq ) {
     return tq.dump( o );
+}
+
+void checked_mprotect( void *addr, size_t len, int prot ) {
+  CHECK( 0 == mprotect( addr, len, prot ) )
+    << "mprotect failed; errno=" << errno << " "
+    << ((errno == EINVAL) ? "errno==EINVAL (addr not a valid pointer or not a multiple of the system page size)"
+    : (errno == ENOMEM) ? "errno==ENOMEM (internal kernel structures could not be allocated OR invalid addresses in range"
+    : "(unrecognized)");
 }
