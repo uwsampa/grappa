@@ -33,7 +33,7 @@ private:
     intptr_t raw_;
   };
   RDMABuffer * ack_;
-  
+
   char data_[ BUFFER_SIZE - sizeof( raw_ ) - sizeof( ack_ ) ];
   
 public:
@@ -46,9 +46,21 @@ public:
     static_assert( sizeof(*this) == BUFFER_SIZE, "RDMABuffer is not the size I expected for some reason." );
   }
   
-  inline size_t get_max_size() { return BUFFER_SIZE - sizeof( raw_ ) - sizeof( ack_ ); }
-  inline char * get_payload() { return &data_[0]; }
+  inline uint16_t * get_counts() { return reinterpret_cast< uint16_t* >( &data_[0] ); }
+  inline char * get_payload() { 
+    int payload_offset = Grappa::locale_cores() * sizeof( uint16_t );
+    return &data_[payload_offset]; 
+  }
+
+
   inline char * get_base() { return reinterpret_cast< char * >( this ); }
+  inline size_t get_base_size() { 
+    int payload_offset = Grappa::locale_cores() * sizeof( uint16_t );
+    return &data_[payload_offset] - reinterpret_cast< char * >( this ); 
+  }
+
+  // assumes layout makes sense
+  inline size_t get_max_size() { return BUFFER_SIZE - get_base_size(); }
 
   inline RDMABuffer * get_ack() { return ack_; }
   inline RDMABuffer * set_ack( RDMABuffer * ack ) { ack_ = ack; }

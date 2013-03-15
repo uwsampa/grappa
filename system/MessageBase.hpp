@@ -61,6 +61,7 @@ namespace Grappa {
         next_ = NULL;
         prefetch_ = NULL;
 
+        //if( Grappa::mycore() != source_ ) {
         if( (is_delivered_ == true) && (Grappa::mycore() != source_) ) {
           DVLOG(5) << __func__ << ": " << this << " Re-enqueuing to " << source_;
           DCHECK_EQ( this->is_sent_, false );
@@ -91,6 +92,14 @@ namespace Grappa {
 
 
 
+      union FPAddr {
+        struct {
+          Core dest : 16;
+          intptr_t fp : 48;
+        };
+        intptr_t raw;
+      };
+
       /// Interface for message serialization.
       ///  @param p Address in buffer at which to write:
       ///    -# A 2D global address of a function that knows how to
@@ -99,6 +108,8 @@ namespace Grappa {
       /// @return address of the byte following the serialized message in the buffer
       inline virtual char * serialize_to( char * p, size_t max_size = -1 ) {
         DCHECK_EQ( is_sent_, false ) << "Sending same message " << this << " multiple times?";
+        DCHECK_NE( destination_, Grappa::mycore() ) << "shouldn't be using this path for local delivery";
+        is_delivered_ = true;
       }
 
 
@@ -106,8 +117,24 @@ namespace Grappa {
       static inline char * deserialize_and_call( char * buffer ) {
         DVLOG(5) << "Deserializing message from " << (void*) buffer;
         typedef char * (*Deserializer)(char *);       // generic deserializer type
-        Deserializer fp = *(reinterpret_cast< Deserializer* >( buffer ));
-        buffer = fp( buffer + sizeof( Deserializer ) );
+
+        // intptr_t gfp = *(reinterpret_cast< intptr_t* >( buffer ));
+        // Core dest = gfp & ((1 << 16) - 1);
+        // Deserializer fp = *(reinterpret_cast< Deserializer* >( gfp >> 16 ));
+
+        // CHECK_EQ( dest, Grappa::mycore() ) << "Delivered to wrong node";
+
+        // buffer = fp( buffer + sizeof( Deserializer ) );
+
+        FPAddr gfp = *(reinterpret_cast< FPAddr* >(buffer));
+        Deserializer fp = reinterpret_cast< Deserializer >( gfp.fp );
+
+        DVLOG(5) << "Receiving message from " << gfp.dest << " with deserializer " << (void*) fp;
+
+        CHECK_EQ( gfp.dest, Grappa::mycore() ) << "Delivered to wrong core!";
+
+        buffer = fp( buffer + sizeof( FPAddr ) );
+
         return buffer;
       }
 
