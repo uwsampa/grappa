@@ -11,6 +11,7 @@
 #include "CompletionEvent.hpp"
 #include "ParallelLoop.hpp"
 #include "Collective.hpp"
+#include "Statistics.hpp"
 
 #include <string>
 
@@ -41,7 +42,7 @@ SixteenBytes * values16;
 
 // core-shared counter for counting progress
 uint64_t numst;
-uint64_t waitCount;
+uint64_t waitCount; // TODO: for traces, change to SimpleStatistic
 bool running;
 
 
@@ -64,21 +65,22 @@ void user_main( void * args ) {
       on_all_cores( [&r] {
         // per core timing
         double start, end;
-        bool started = false;
+        running = false;
 
         final = new CompletionEvent(FLAGS_num_test_workers);
         task_barrier = new CompletionEvent(FLAGS_num_test_workers);
 
         for ( uint64_t t=0; t<FLAGS_num_test_workers; t++ ) {
-          privateTask( [&started,&start] {
+          privateTask( [&start] {
             // wait for all to start (to hack scheduler yield)
             task_barrier->complete();
             task_barrier->wait();
 
             // first task to exit the local barrier will start the timer
-            if ( !started ) {
+            if ( !running ) {
+              Grappa::Statistics::reset();
               start = Grappa_walltime();
-              started = true;
+              running = true;
             }
 
             // do the work
@@ -110,6 +112,8 @@ void user_main( void * args ) {
           r.runtime_max = r_max;
         }
       });
+      
+      Grappa::Statistics::merge_and_print();
 
       BOOST_MESSAGE( "cores_time_avg = " << r.runtime_avg
                       << ", cores_time_max = " << r.runtime_max
@@ -127,8 +131,8 @@ void user_main( void * args ) {
         // per core timing
         double start, end;
 
-        ConditionVariable cvs[FLAGS_num_test_workers];
-        bool asleep[FLAGS_num_test_workers];
+        ConditionVariable * cvs = new ConditionVariable[FLAGS_num_test_workers];
+        bool * asleep = new bool[FLAGS_num_test_workers];
         for( int i=0; i<FLAGS_num_test_workers; i++) { asleep[i] = false; }
 
         final = new CompletionEvent(1);
@@ -139,13 +143,17 @@ void user_main( void * args ) {
         numst = 0;
 
         for ( uint64_t t=0; t<FLAGS_num_test_workers; t++ ) {
-          privateTask( [&asleep,&start,&cvs] {
+          privateTask( [asleep,&start,cvs] {
             // wait for all to start (to hack scheduler yield)
             task_barrier->complete();
             task_barrier->wait();
 
             // first task to exit the local barrier will start the timer
             if ( !running ) {
+              // can safely reset statistics here because
+              // no messages are sent between cores in the
+              // timed portion
+              Grappa::Statistics::reset();
               start = Grappa_walltime();
               running = true;
             }
@@ -197,8 +205,9 @@ void user_main( void * args ) {
           r.runtime_min = r_min;
           r.runtime_max = r_max;
         }
-        BOOST_MESSAGE( "done reduce" );
       });
+        
+      Grappa::Statistics::merge_and_print();
 
       BOOST_MESSAGE( "cores_time_avg = " << r.runtime_avg
                       << ", cores_time_max = " << r.runtime_max
