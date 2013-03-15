@@ -89,7 +89,7 @@ class TaskingScheduler : public Scheduler {
 
     // STUB: replace with real periodic threads
     Grappa_Timestamp previous_periodic_ts;
-    Thread * periodicDequeue(Grappa_Timestamp current_ts) {
+    inline Thread * periodicDequeue(Grappa_Timestamp current_ts) {
       // // tick the timestap counter
       // Grappa_tick();
       // Grappa_Timestamp current_ts = Grappa_get_timestamp();
