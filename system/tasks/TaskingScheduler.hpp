@@ -92,12 +92,16 @@ class TaskingScheduler : public Scheduler {
 
     // STUB: replace with real periodic threads
     Grappa_Timestamp previous_periodic_ts;
+  inline bool should_run_periodic( Grappa_Timestamp current_ts ) {
+    return current_ts - previous_periodic_ts > FLAGS_periodic_poll_ticks;
+  }
+
     Thread * periodicDequeue(Grappa_Timestamp current_ts) {
       // // tick the timestap counter
       // Grappa_tick();
       // Grappa_Timestamp current_ts = Grappa_get_timestamp();
 
-      if( current_ts - previous_periodic_ts > FLAGS_periodic_poll_ticks ) {
+      if( should_run_periodic( current_ts ) ) {
         return periodicQ.dequeue();
       } else {
         return NULL;
@@ -409,6 +413,7 @@ class TaskingScheduler : public Scheduler {
     /// run threads until all exit 
     void run ( );
 
+    bool thread_maybe_yield( );
     bool thread_yield( );
     bool thread_yield_periodic( );
     void thread_suspend( );
@@ -437,6 +442,23 @@ struct task_worker_args {
     : tasks( task_manager )
       , scheduler( sched ) { }
 };
+
+/// Check the timestamp counter to see if it's time to run the periodic queue
+inline bool TaskingScheduler::thread_maybe_yield( ) {
+  bool yielded = false;
+
+  // tick the timestap counter
+  Grappa_tick();
+  Grappa_Timestamp current_ts = Grappa_get_timestamp();
+
+  if( should_run_periodic( current_ts ) ) {
+    yielded = true;
+    thread_yield();
+  }
+
+  return yielded;
+}
+
 
 
 /// Yield the CPU to the next Thread on this scheduler. 

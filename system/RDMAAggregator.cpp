@@ -46,6 +46,9 @@ GRAPPA_DEFINE_STAT( SimpleStatistic<int64_t>, rdma_buffers_blocked, 0 );
 GRAPPA_DEFINE_STAT( SimpleStatistic<int64_t>, rdma_poll, 0 );
 GRAPPA_DEFINE_STAT( SimpleStatistic<int64_t>, rdma_poll_send, 0 );
 GRAPPA_DEFINE_STAT( SimpleStatistic<int64_t>, rdma_poll_receive, 0 );
+GRAPPA_DEFINE_STAT( SimpleStatistic<int64_t>, rdma_poll_send_success, 0 );
+GRAPPA_DEFINE_STAT( SimpleStatistic<int64_t>, rdma_poll_receive_success, 0 );
+GRAPPA_DEFINE_STAT( SimpleStatistic<int64_t>, rdma_poll_yields, 0 );
 
 GRAPPA_DEFINE_STAT( SimpleStatistic<int64_t>, rdma_flush_send, 0 );
 GRAPPA_DEFINE_STAT( SimpleStatistic<int64_t>, rdma_flush_receive, 0 );
