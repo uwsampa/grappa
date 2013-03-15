@@ -39,6 +39,12 @@ struct Cacheline {
 uint64_t * values8;
 SixteenBytes * values16;
 
+// Performance output of the test, not used as cumulative statistics
+// Initial value 0 should make merge just use Core 0's
+GRAPPA_DEFINE_STAT( SimpleStatistic<double>, context_switch_test_runtime_avg, 0 );
+GRAPPA_DEFINE_STAT( SimpleStatistic<double>, context_switch_test_runtime_max, 0 );
+GRAPPA_DEFINE_STAT( SimpleStatistic<double>, context_switch_test_runtime_min, 0 );
+
 
 // core-shared counter for counting progress
 uint64_t numst;
@@ -113,11 +119,15 @@ void user_main( void * args ) {
         }
       });
       
+      context_switch_test_runtime_avg = r.runtime_avg;
+      context_switch_test_runtime_max = r.runtime_max;
+      context_switch_test_runtime_min = r.runtime_min;
       Grappa::Statistics::merge_and_print();
 
-      BOOST_MESSAGE( "cores_time_avg = " << r.runtime_avg
-                      << ", cores_time_max = " << r.runtime_max
-                      << ", cores_time_min = " << r.runtime_min);
+//      Streams overlap
+//      BOOST_MESSAGE( "cores_time_avg = " << r.runtime_avg
+//                      << ", cores_time_max = " << r.runtime_max
+//                      << ", cores_time_min = " << r.runtime_min);
     }
   } else if (FLAGS_test_type.compare("cvwakes")==0) {
     BOOST_MESSAGE( "Test cv wakes" );
@@ -207,11 +217,15 @@ void user_main( void * args ) {
         }
       });
         
+      context_switch_test_runtime_avg = r.runtime_avg;
+      context_switch_test_runtime_max = r.runtime_max;
+      context_switch_test_runtime_min = r.runtime_min;
       Grappa::Statistics::merge_and_print();
 
-      BOOST_MESSAGE( "cores_time_avg = " << r.runtime_avg
-                      << ", cores_time_max = " << r.runtime_max
-                      << ", cores_time_min = " << r.runtime_min);
+//      Streams overlap
+//      BOOST_MESSAGE( "cores_time_avg = " << r.runtime_avg
+//                      << ", cores_time_max = " << r.runtime_max
+//                      << ", cores_time_min = " << r.runtime_min);
     }
   
   } else if (FLAGS_test_type.compare("sequential_updates")==0) {
