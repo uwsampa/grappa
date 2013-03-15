@@ -111,16 +111,25 @@ namespace Grappa {
         return p;
       } else {
         // // turn into 2D pointer
-        // auto gfp = make_global( fp, destination_ );
+        //auto gfp = make_global( fp, destination_ );
         // // write to buffer
-        // *(reinterpret_cast< intptr_t* >(p)) = reinterpret_cast< intptr_t >( gfp );
-        *(reinterpret_cast< intptr_t* >(p)) = reinterpret_cast< intptr_t >( fp );
-        p += sizeof( fp );
+        //*(reinterpret_cast< intptr_t* >(p)) = reinterpret_cast< intptr_t >( gfp );
+        //*(reinterpret_cast< intptr_t* >(p)) = reinterpret_cast< intptr_t >( fp );
+        //intptr_t gfp = reinterpret_cast< intptr_t >( fp ) << 16;
+        //gfp |= destination_; // TODO: watch out for sign extension
+        //*(reinterpret_cast< intptr_t* >(p)) = gfp;
+        // p += sizeof( fp );
+
+        FPAddr gfp = { destination_, reinterpret_cast< intptr_t >( fp ) };
+        *(reinterpret_cast< FPAddr* >(p)) = gfp;
+        static_assert( sizeof(gfp) == 8, "gfp wrong size?" );
+        p += sizeof( gfp );
+
         
         // copy contents
         std::memcpy( p, &storage_, sizeof(storage_) );
         
-        //DVLOG(5) << "serialized message of size " << sizeof(fp) + sizeof(T);
+        DVLOG(5) << __PRETTY_FUNCTION__ << " serialized message of size " << sizeof(fp) + sizeof(storage_) << " to " << gfp.dest << " with deserializer " << fp;
         
         // return pointer following message
         return p + sizeof( T );
@@ -254,8 +263,18 @@ namespace Grappa {
         // auto gfp = make_global( fp, destination_ );
         // // write to buffer
         // *(reinterpret_cast< intptr_t* >(p)) = reinterpret_cast< intptr_t >( gfp );
-        *(reinterpret_cast< intptr_t* >(p)) = reinterpret_cast< intptr_t >( fp );
-        p += sizeof( fp );
+        //*(reinterpret_cast< intptr_t* >(p)) = reinterpret_cast< intptr_t >( fp );
+
+        // intptr_t gfp = reinterpret_cast< intptr_t >( fp ) << 16;
+        // gfp |= destination_;
+        // *(reinterpret_cast< intptr_t* >(p)) = gfp;
+        // p += sizeof( fp );
+
+        FPAddr gfp = { destination_, reinterpret_cast< intptr_t >( fp ) };
+        *(reinterpret_cast< FPAddr* >(p)) = gfp;
+        static_assert( sizeof(gfp) == 8, "gfp wrong size?" );
+        p += sizeof( gfp );
+
         
         // copy contents
         std::memcpy( p, &storage_, sizeof(storage_) );
@@ -265,6 +284,8 @@ namespace Grappa {
         p += sizeof( int16_t );
 
         std::memcpy( p, payload_, payload_size_);
+
+        DVLOG(5) << __PRETTY_FUNCTION__ << " serialized message of size " << sizeof(fp) + sizeof(storage_) + sizeof(int16_t) + payload_size_ << " to " << gfp.dest << " with deserializer " << fp;
 
         // return pointer following message
         return p + payload_size_;
@@ -381,13 +402,24 @@ namespace Grappa {
         // auto gfp = make_global( fp, destination_ );
         // // write to buffer
         // *(reinterpret_cast< intptr_t* >(p)) = reinterpret_cast< intptr_t >( gfp );
-        *(reinterpret_cast< intptr_t* >(p)) = reinterpret_cast< intptr_t >( fp );
-        p += sizeof( fp );
+        //*(reinterpret_cast< intptr_t* >(p)) = reinterpret_cast< intptr_t >( fp );
+
+        // intptr_t gfp = reinterpret_cast< intptr_t >( fp ) << 16;
+        // gfp |= destination_;
+        // *(reinterpret_cast< intptr_t* >(p)) = gfp;
+
+        // p += sizeof( fp );
+
+        FPAddr gfp = { destination_, reinterpret_cast< intptr_t >( fp ) };
+        *(reinterpret_cast< FPAddr* >(p)) = gfp;
+        static_assert( sizeof(gfp) == 8, "gfp wrong size?" );
+        p += sizeof( gfp );
+
         
         // copy contents
         std::memcpy( p, pointer_, sizeof(T) );
         
-        //DVLOG(5) << "serialized message of size " << sizeof(fp) + sizeof(T);
+        DVLOG(5) << "serialized message of size " << sizeof(fp) + sizeof(T) << " to " << gfp.dest << " with deserializer " << fp;
         
         // return pointer following message
         return p + sizeof( T );
@@ -531,8 +563,18 @@ namespace Grappa {
         // auto gfp = make_global( fp, destination_ );
         // // write to buffer
         // *(reinterpret_cast< intptr_t* >(p)) = reinterpret_cast< intptr_t >( gfp );
-        *(reinterpret_cast< intptr_t* >(p)) = reinterpret_cast< intptr_t >( fp );
-        p += sizeof( fp );
+        //*(reinterpret_cast< intptr_t* >(p)) = reinterpret_cast< intptr_t >( fp );
+        // intptr_t gfp = reinterpret_cast< intptr_t >( fp ) << 16;
+        // gfp |= destination_ ;
+        // *(reinterpret_cast< intptr_t* >(p)) = gfp;
+
+        // p += sizeof( fp );
+
+        FPAddr gfp = { destination_, reinterpret_cast< intptr_t >( fp ) };
+        *(reinterpret_cast< FPAddr* >(p)) = gfp;
+        static_assert( sizeof(gfp) == 8, "gfp wrong size?" );
+        p += sizeof( gfp );
+
         
         // copy contents
         std::memcpy( p, pointer_, sizeof(T) );
@@ -542,6 +584,8 @@ namespace Grappa {
         p += sizeof( int16_t );
 
         std::memcpy( p, payload_, payload_size_);
+
+        DVLOG(5) << __PRETTY_FUNCTION__ << " serialized message of size " << sizeof(fp) + sizeof(T) + sizeof(int16_t) + payload_size_ << " to " << gfp.dest << " with deserializer " << fp;
 
         // return pointer following message
         return p + payload_size_;

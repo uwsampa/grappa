@@ -227,7 +227,13 @@ namespace Grappa {
       static void enqueue_buffer_am( gasnet_token_t token, void * buf, size_t size );
       int enqueue_buffer_handle_;
       
+      /// Active message to receive a medium message and enqueue a buffer to be received
+      static void copy_enqueue_buffer_am( gasnet_token_t token, void * buf, size_t size );
+      int copy_enqueue_buffer_handle_;
 
+      /// buffers for message transmission
+      RDMABuffer * rdma_buffers_;
+      
 
 
       
@@ -307,7 +313,12 @@ namespace Grappa {
 
       /// do we have any work to do for a locale?
       bool check_for_work_on( Locale l, size_t size) {
-        Core c = source_core_for_locale_[l];
+        // Core c = source_core_for_locale_[l];
+        // CHECK_NE( Grappa::mycore(), c );
+        // size_t byte_count = cores_[c].locale_byte_count_;
+        // return ( byte_count > size );
+        Core c = l * Grappa::locale_cores();
+        CHECK_NE( Grappa::mycore(), c );
         size_t byte_count = cores_[c].locale_byte_count_;
         return ( byte_count > size );
       }
@@ -333,6 +344,8 @@ namespace Grappa {
       /// deaggregate. This ensures we always have receiving resource
       /// available.
       void receive_worker();
+      void medium_receive_worker();
+      void receive_buffer( RDMABuffer * b, size_t size );
 
       /// Condition variable used to signal flushing task.
       Grappa::ConditionVariable flush_cv_;
@@ -360,6 +373,8 @@ namespace Grappa {
         , deserialize_buffer_handle_( -1 )
         , deserialize_first_handle_( -1 )
         , enqueue_buffer_handle_( -1 )
+        , copy_enqueue_buffer_handle_( -1 )
+        , rdma_buffers_( NULL )
         , flush_cv_()
         , disable_flush_(false)
         , max_size_( 1 << 16 )
@@ -373,25 +388,41 @@ namespace Grappa {
       void activate();
       void finish();
 
-      void poll( ) {
-        rdma_poll++;
+      bool receive_poll() {
+        rdma_poll_receive++;
+        bool useful = false;
         Core c = Grappa::mycore();
-
         // see if we have anything to receive
         if( cores_[ c ].messages_.raw_ != 0 ) {
-          rdma_poll_receive++;
+          rdma_poll_receive_success++;
+          useful = true;
           Grappa::impl::MessageList ml = grab_messages( c );
           deliver_locally( c, get_pointer( &ml ) );
         }
-        
+        return useful;
+      }
+
+      bool send_poll() {
+        rdma_poll_send++;
+        bool useful = false;
         // see if we have anything to send
         for( int i = 0; i < core_partner_locale_count_; ++i ) {
           Locale locale = core_partner_locales_[i];
           if( check_for_work_on( locale, FLAGS_target_size ) ) {
-            rdma_poll_send++;
+            useful = true;
             send_locale_medium( locale );
           }
         }
+        if( useful ) rdma_poll_send_success++;
+        return useful;
+      }
+
+      bool poll( ) {
+        rdma_poll++;
+
+        bool receive_success = receive_poll();
+        bool send_success = send_poll();
+        return receive_success || send_success;
       }
 
       /// Enqueue message to be sent
