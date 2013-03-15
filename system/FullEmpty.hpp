@@ -63,18 +63,23 @@ namespace Grappa {
     T writeXF( T t ) {
       t_ = t; 
       state_ = State::FULL; 
-      Grappa::broadcast( this );
+      //Grappa::broadcast( this );
+      Grappa::signal( this );
       return t_; 
     }
       
     T writeEF( T t ) { 
       block_until(State::EMPTY); 
-      return writeXF( t );
+      T tt = writeXF( t );
+      Grappa::signal( this );
+      return tt;
     }
 
     T writeFF( T t ) { 
       block_until(State::FULL); 
-      return writeXF( t );
+      T tt = writeXF( t );
+      Grappa::signal( this );
+      return tt;
     }
 
 
@@ -84,7 +89,9 @@ namespace Grappa {
       
     T readFF() { 
       block_until(State::FULL); 
-      return readXX();
+      T tt = readXX();
+      Grappa::signal( this );
+      return tt;
     }
 
     T readFE() { 
