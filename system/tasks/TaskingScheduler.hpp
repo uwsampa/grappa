@@ -473,7 +473,7 @@ inline bool TaskingScheduler::thread_yield_periodic( ) {
 /// Cannot be called during the master Thread.
 inline void TaskingScheduler::thread_suspend( ) {
   CHECK( current_thread != master ) << "can't yield on a system Thread";
-  CHECK( thread_is_running(current_thread) ) << "may only suspend a running coroutine";
+  CHECK( current_thread->running ) << "may only suspend a running coroutine";
   StateTimer::enterState_scheduler();
 
   Thread * yieldedThr = current_thread;
@@ -492,7 +492,7 @@ inline void TaskingScheduler::thread_suspend( ) {
 inline void TaskingScheduler::thread_wake( Thread * next ) {
   CHECK( next->sched == this ) << "can only wake a Thread on your scheduler (next="<<(void*) next << " next->sched="<<(void*)next->sched <<" this="<<(void*)this;
   CHECK( next->next == NULL ) << "woken Thread should not be on any queue";
-  CHECK( !thread_is_running( next ) ) << "woken Thread should not be running";
+  CHECK( !next->running ) << "woken Thread should not be running";
 
   next->suspended = 0;
 
@@ -508,7 +508,7 @@ inline void TaskingScheduler::thread_yield_wake( Thread * next ) {
   CHECK( current_thread != master ) << "can't yield on a system Thread";
   CHECK( next->sched == this ) << "can only wake a Thread on your scheduler";
   CHECK( next->next == NULL ) << "woken Thread should not be on any queue";
-  CHECK( !thread_is_running( next ) ) << "woken Thread should not be running";
+  CHECK( !next->running ) << "woken Thread should not be running";
   StateTimer::enterState_scheduler();
 
   next->suspended = 0;
@@ -526,7 +526,7 @@ inline void TaskingScheduler::thread_yield_wake( Thread * next ) {
 inline void TaskingScheduler::thread_suspend_wake( Thread *next ) {
   CHECK( current_thread != master ) << "can't yield on a system Thread";
   CHECK( next->next == NULL ) << "woken Thread should not be on any queue";
-  CHECK( !thread_is_running( next ) ) << "woken Thread should not be running";
+  CHECK( !next->running ) << "woken Thread should not be running";
   StateTimer::enterState_scheduler();
 
   next->suspended = 0;
@@ -553,7 +553,7 @@ inline bool TaskingScheduler::thread_idle( uint64_t total_idle ) {
   }
 
   num_idle++;
-  current_thread->idle = true;
+  current_thread->idle = 1;
 
   unassigned( current_thread );
 
@@ -561,7 +561,7 @@ inline bool TaskingScheduler::thread_idle( uint64_t total_idle ) {
 
   // woke so decrement idle counter
   num_idle--;
-  current_thread->idle = false;
+  current_thread->idle = 0;
 
   return true;
 }

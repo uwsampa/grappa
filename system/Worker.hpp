@@ -88,11 +88,16 @@ class Worker {
   Worker * next;
 
   /* use for just assertions? */
-  // status flag
+  // status flags; bit fields to save space
   //TODO State runstate;
-  bool running;
-  bool suspended;
-  bool idle;
+  union {
+    struct {
+      int running : 1;
+      int suspended : 1;
+      int idle : 1;
+    };
+    int8_t run_state_raw_;
+  };
 
   /* used at startup and shutdown */
   Scheduler * sched; 
@@ -255,11 +260,6 @@ inline void * thread_context_switch( Worker * running, Worker * next, void * val
     void * res = coro_invoke( running, next, val );
     StateTimer::enterState_thread();
     return res; 
-}
-
-/// Return true if the thread is in the running state
-inline int thread_is_running( Worker * thr ) {
-    return thr->running;
 }
 
 /// Remove a Thread from the queue and return it
