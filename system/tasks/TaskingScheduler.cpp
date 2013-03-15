@@ -17,7 +17,7 @@ GRAPPA_DEFINE_EVENT_GROUP(scheduler);
 
 DEFINE_bool(poll_on_idle, true, "have tasking layer poll aggregator if it has nothing better to do");
 
-DEFINE_int64( stats_blob_ticks, 3000000000L, "number of ticks to wait before dumping stats blob");
+DEFINE_int64( stats_blob_ticks, 30000000000L, "number of ticks to wait before dumping stats blob");
 
 /// global TaskingScheduler for this Node
 TaskingScheduler global_scheduler;
