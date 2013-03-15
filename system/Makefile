@@ -151,10 +151,7 @@ CompletionEvent_tests.test: $(LIBRARY)
 Reducer_tests.test: $(LIBRARY)
 Scratch_tests.test: $(LIBRARY)
 
-ContextSwitchRate_tests.test: $(LIBRARY)
-ContextSwitchLatency_tests.test: $(LIBRARY)
-
-ContextSwitchRate_tests.test: $(LIBRARY)
+ContextSwitchRate_bench.exe: $(LIBRARY)
 ContextSwitchLatency_tests.test: $(LIBRARY)
 
 #

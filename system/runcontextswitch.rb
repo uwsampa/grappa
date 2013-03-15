@@ -5,10 +5,9 @@ require '../experiment_utils'
 db = "context_switch.db"
 table = :context_switch
 
-cmd = "make mpi_test TARGET=ContextSwitchRate_tests.test \
+cmd = "make mpi_run TARGET=ContextSwitchRate_bench.exe \
 NNODE=%{nnode} \
 PPN=%{ppn} \
-VERBOSE_TESTS=1 \
 SRUN_FLAGS=--time=5 \
 GARGS=' \
 --num_starting_workers=%{num_workers} \
