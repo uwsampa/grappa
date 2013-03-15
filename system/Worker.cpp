@@ -66,6 +66,7 @@ Worker * convert_to_master( Worker * me ) {
 
   me->running = 1;
   me->suspended = 0;
+  me->idle = 0;
   
   // We don't need to free this (it's just the main stack segment)
   // so ignore it.
@@ -100,6 +101,7 @@ void coro_spawn(Worker * me, Worker * c, coro_func f, size_t ssize) {
   CHECK(c != NULL) << "Must provide a valid Worker";
   c->running = 0;
   c->suspended = 0;
+  c->idle = 0;
 
   // allocate stack and guard page
   c->base = valloc(ssize+4096*2); // TODO replace with supported function
