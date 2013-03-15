@@ -49,6 +49,9 @@ GRAPPA_DECLARE_STAT( SimpleStatistic<int64_t>, rdma_requested_flushes );
 GRAPPA_DECLARE_STAT( SimpleStatistic<int64_t>, rdma_poll );
 GRAPPA_DECLARE_STAT( SimpleStatistic<int64_t>, rdma_poll_send );
 GRAPPA_DECLARE_STAT( SimpleStatistic<int64_t>, rdma_poll_receive );
+GRAPPA_DECLARE_STAT( SimpleStatistic<int64_t>, rdma_poll_send_success );
+GRAPPA_DECLARE_STAT( SimpleStatistic<int64_t>, rdma_poll_receive_success );
+GRAPPA_DECLARE_STAT( SimpleStatistic<int64_t>, rdma_poll_yields );
 
 
 
@@ -395,6 +398,8 @@ namespace Grappa {
       inline void enqueue( Grappa::impl::MessageBase * m ) {
         app_messages_enqueue++;
 
+        bool yielded = global_scheduler.thread_maybe_yield();
+        if( yielded ) rdma_poll_yields++;
         // static int freq = 10;
         // if( freq-- == 0 ) {
         //   poll();
