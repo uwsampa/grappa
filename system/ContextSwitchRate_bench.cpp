@@ -5,7 +5,6 @@
 // AC05-76RL01830 awarded by the United States Department of
 // Energy. The Government has certain rights in the software.
 
-#include <boost/test/unit_test.hpp>
 
 #include "Grappa.hpp"
 #include "CompletionEvent.hpp"
@@ -52,16 +51,14 @@ uint64_t waitCount; // TODO: for traces, change to SimpleStatistic
 bool running;
 
 
-BOOST_AUTO_TEST_SUITE( ContextSwitchRate_tests );
-
 void user_main( void * args ) {
   srand((unsigned int)Grappa_walltime());
 
   // must have enough threads because they all join a barrier
-  BOOST_CHECK( FLAGS_num_test_workers < FLAGS_num_starting_workers );
+  CHECK( FLAGS_num_test_workers < FLAGS_num_starting_workers );
 
   if (FLAGS_test_type.compare("yields")==0) {
-    BOOST_MESSAGE( "Test yields" );
+    LOG(INFO) << ( "Test yields" );
     {
       struct runtimes_t {
         double runtime_avg, runtime_min, runtime_max;
@@ -98,14 +95,14 @@ void user_main( void * args ) {
           });
         }
         
-        BOOST_MESSAGE( "waiting" );
+        LOG(INFO) << ( "waiting" );
         final->wait();
         end = Grappa_walltime();
         double runtime = end-start;
-        BOOST_MESSAGE( "took time " << runtime );
+        LOG(INFO) << "took time " << runtime;
 
         Grappa::barrier();
-        BOOST_MESSAGE( "all done" );
+        LOG(INFO) << ( "all done" );
 
         // sort out timing 
 
@@ -130,7 +127,7 @@ void user_main( void * args ) {
 //                      << ", cores_time_min = " << r.runtime_min);
     }
   } else if (FLAGS_test_type.compare("cvwakes")==0) {
-    BOOST_MESSAGE( "Test cv wakes" );
+    LOG(INFO) << ( "Test cv wakes" );
     {
       struct runtimes_t {
         double runtime_avg, runtime_min, runtime_max;
@@ -191,19 +188,19 @@ void user_main( void * args ) {
           });
         }
         
-        BOOST_MESSAGE( "waiting" );
+        LOG(INFO) << ( "waiting" );
         final->wait();
         end = Grappa_walltime();
         double runtime = end-start;
-        BOOST_MESSAGE( "took time " << runtime );
+        LOG(INFO) << "took time " << runtime;
 
         // wake all
         for (int i=0; i<FLAGS_num_test_workers; i++) { Grappa::signal(&cvs[i]); }
-        BOOST_MESSAGE( "woke all" );
+        LOG(INFO) << ( "woke all" );
 
         Grappa::barrier();
         
-        BOOST_MESSAGE( "all done" );
+        LOG(INFO) << ( "all done" );
 
         // sort out timing 
 
@@ -229,7 +226,7 @@ void user_main( void * args ) {
     }
   
   } else if (FLAGS_test_type.compare("sequential_updates")==0) {
-    BOOST_MESSAGE( "Test sequential_updates" );
+    LOG(INFO) << ( "Test sequential_updates" );
     {
 
       final = new CompletionEvent(FLAGS_num_starting_workers);
@@ -257,11 +254,11 @@ void user_main( void * args ) {
       double end = Grappa_walltime();
 
       double runtime = end-start;
-      BOOST_MESSAGE( "time = " << runtime << ", avg_switch_time = " << runtime/(FLAGS_num_starting_workers*FLAGS_iters_per_task) );
+      LOG(INFO) << "time = " << runtime << ", avg_switch_time = " << runtime/(FLAGS_num_starting_workers*FLAGS_iters_per_task);
     }
   } else if (FLAGS_test_type.compare("sequential_updates16")==0) {
 
-    BOOST_MESSAGE( "Test sequential_updates16" );
+    LOG(INFO) << ( "Test sequential_updates16" );
     {
       final = new CompletionEvent(FLAGS_num_starting_workers);
       task_barrier = new CompletionEvent(FLAGS_num_starting_workers);
@@ -289,11 +286,11 @@ void user_main( void * args ) {
       double end = Grappa_walltime();
 
       double runtime = end-start;
-      BOOST_MESSAGE( "time = " << runtime << ", avg_switch_time = " << runtime/(FLAGS_num_starting_workers*FLAGS_iters_per_task) );
+      LOG(INFO) << "time = " << runtime << ", avg_switch_time = " << runtime/(FLAGS_num_starting_workers*FLAGS_iters_per_task);
     }
   } else if (FLAGS_test_type.compare("private_array")==0) {
 
-    BOOST_MESSAGE( "Test private_array" );
+    LOG(INFO) << ( "Test private_array" );
     {
       final = new CompletionEvent(FLAGS_num_starting_workers);
       task_barrier = new CompletionEvent(FLAGS_num_starting_workers);
@@ -324,14 +321,14 @@ void user_main( void * args ) {
       final->wait();
       double end = Grappa_walltime();
 
-      BOOST_MESSAGE( "result = " << values8[rand()%FLAGS_num_starting_workers] );
+      LOG(INFO) << "result = " << values8[rand()%FLAGS_num_starting_workers];
 
       double runtime = end-start;
-      BOOST_MESSAGE( "time = " << runtime << ", avg_switch_time = " << runtime/(FLAGS_num_starting_workers*FLAGS_iters_per_task) );
+      LOG(INFO) << "time = " << runtime << ", avg_switch_time = " << runtime/(FLAGS_num_starting_workers*FLAGS_iters_per_task);
     }
   } else if (FLAGS_test_type.compare("private_array_bycache")==0) {
 
-    BOOST_MESSAGE( "Test private_array_bycache" );
+    LOG(INFO) << ( "Test private_array_bycache" );
     {
       final = new CompletionEvent(FLAGS_num_starting_workers);
       task_barrier = new CompletionEvent(FLAGS_num_starting_workers);
@@ -362,25 +359,24 @@ void user_main( void * args ) {
       final->wait();
       double end = Grappa_walltime();
 
-      BOOST_MESSAGE( "result = " << values8[rand()%FLAGS_num_starting_workers] );
+      LOG(INFO) << "result = " << values8[rand()%FLAGS_num_starting_workers];
 
       double runtime = end-start;
-      BOOST_MESSAGE( "time = " << runtime << ", avg_switch_time = " << runtime/(FLAGS_num_starting_workers*FLAGS_iters_per_task) );
+      LOG(INFO) << "time = " << runtime << ", avg_switch_time = " << runtime/(FLAGS_num_starting_workers*FLAGS_iters_per_task);
     }
   } else {
-    BOOST_CHECK( false ); // Unrecognized test_type
+    CHECK( false ); // Unrecognized test_type
   }
 
 
-  BOOST_MESSAGE( "user main is exiting" );
+  DVLOG(5) << ( "user main is exiting" );
 }
 
 
 
-BOOST_AUTO_TEST_CASE( test1 ) {
+int main (int argc, char** argv) {
 
-  Grappa_init( &(boost::unit_test::framework::master_test_suite().argc),
-                &(boost::unit_test::framework::master_test_suite().argv) );
+  Grappa_init( &argc, &argv ); 
 
   Grappa_activate();
 
@@ -392,5 +388,4 @@ BOOST_AUTO_TEST_CASE( test1 ) {
   Grappa_finish( 0 );
 }
 
-BOOST_AUTO_TEST_SUITE_END();
 
