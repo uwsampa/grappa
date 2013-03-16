@@ -51,7 +51,7 @@ core.*
 *.prof
 *.z
 
-doc/asplos13/paper.pdf
+doc/*/paper.pdf
 
 .svn
 
