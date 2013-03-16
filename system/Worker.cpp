@@ -127,8 +127,11 @@ void coro_spawn(Worker * me, Worker * c, coro_func f, size_t ssize) {
   // clear stack
   memset(c->base, 0, ssize);
 
+#ifdef GUARD_PAGES_ON_STACK
   // arm guard page
+  checked_mprotect( c->base, 4096, PROT_NONE );
   checked_mprotect( (char*)c->base + ssize + 4096, 4096, PROT_NONE );
+#endif
 
   // set up coroutine to be able to run next time we're switched in
   makestack(&me->stack, &c->stack, f, c);
@@ -211,7 +214,10 @@ std::ostream& operator<< ( std::ostream& o, const ThreadQueue& tq ) {
 
 void checked_mprotect( void *addr, size_t len, int prot ) {
   CHECK( 0 == mprotect( addr, len, prot ) )
-    << "mprotect failed; errno=" << errno << " "
+    << "mprotect failed" 
+    << "; addr= "<< addr 
+    << "; len= " << len
+    << "; errno=" << errno << "; "
     << ((errno == EINVAL) ? "errno==EINVAL (addr not a valid pointer or not a multiple of the system page size)"
     : (errno == ENOMEM) ? "errno==ENOMEM (internal kernel structures could not be allocated OR invalid addresses in range"
     : "(unrecognized)");

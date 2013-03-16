@@ -404,6 +404,7 @@ CFLAGS+= -I$(GRAPPA_HOME)/system -I$(GRAPPA_HOME)/system/tasks
 #
 ifdef DEBUG
 CFLAGS+= -O1 -g -DDEBUG
+CFLAGS+= -DGUARD_PAGES_ON_STACK
 else
 ifdef PROFILE
 CFLAGS+= -O3 -DNDEBUG -g -pg
