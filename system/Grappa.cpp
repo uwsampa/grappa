@@ -42,6 +42,7 @@
 DEFINE_uint64( num_starting_workers, 4, "Number of starting workers in task-executer pool" );
 DEFINE_bool( set_affinity, false, "Set processor affinity based on local rank" );
 DEFINE_string( stats_blob_filename, "stats.json", "Stats blob filename" );
+DEFINE_bool( stats_blob_enable, true, "Enable stats dumping" );
 
 DEFINE_uint64( io_blocks_per_node, 4, "Maximum number of asynchronous IO operations to issue concurrently per node.");
 DEFINE_uint64( io_blocksize_mb, 4, "Size of each asynchronous IO operation's buffer." );
@@ -469,8 +470,10 @@ void Grappa_dump_stats( std::ostream& oo ) {
 
 /// Dump stats blob
 void Grappa_dump_stats_blob() {
-  std::ofstream o( FLAGS_stats_blob_filename.c_str(), std::ios::out );
-  Grappa_dump_stats( o );
+  if ( FLAGS_stats_blob_enable ) {
+    std::ofstream o( FLAGS_stats_blob_filename.c_str(), std::ios::out );
+    Grappa_dump_stats( o );
+  }
 }
  
 
