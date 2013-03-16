@@ -222,7 +222,7 @@ namespace Grappa {
 
       // what locales is my core responsible for?
       Locale locales_per_core = Grappa::locales() / Grappa::locale_cores();
-      if( locales_per_core == 0 ) locales_per_core = 1;
+      if( locales_per_core * Grappa::locale_cores() < Grappa::locales() ) locales_per_core++;
       core_partner_locales_ = new Locale[ locales_per_core ];
       int partner_index = 0;
       for( int i = 0; i < Grappa::locales(); ++i ) {
