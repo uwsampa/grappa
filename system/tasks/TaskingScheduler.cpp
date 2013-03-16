@@ -19,6 +19,8 @@ DEFINE_bool(poll_on_idle, true, "have tasking layer poll aggregator if it has no
 
 DEFINE_int64( stats_blob_ticks, 3000000000L, "number of ticks to wait before dumping stats blob");
 
+DEFINE_uint64( readyq_prefetch_distance, 4, "How far ahead in the ready queue to prefetch contexts" );
+
 
 namespace Grappa {
 
@@ -53,6 +55,7 @@ TaskingScheduler global_scheduler;
 /// Initialize with references to master Thread and a TaskManager.
 void TaskingScheduler::init ( Thread * master_arg, TaskManager * taskman ) {
   master = master_arg;
+  readyQ.init( FLAGS_readyq_prefetch_distance );
   current_thread = master;
   task_manager = taskman;
   work_args = new task_worker_args( taskman, this );

@@ -26,8 +26,9 @@ class ThreadQueue {
 
         void enqueue(Worker * t);
         Worker * dequeue();
-        void prefetch();
-        uint64_t length() { 
+        Worker * front() const;
+        void prefetch() const;
+        uint64_t length() const { 
             return len;
         }
 
@@ -73,15 +74,20 @@ class PrefetchingThreadQueue {
 
 
   public:
-    PrefetchingThreadQueue( uint64_t prefetchDistance ) 
-      : queues( new ThreadQueue[prefetchDistance] )
+    PrefetchingThreadQueue( ) 
+      : queues( NULL )
       , eq_index( 0 )
       , dq_index( 0 )
-      , num_queues( prefetchDistance )
+      , num_queues( 0 )
       , len( 0 )
   {}
+    
+    void init( uint64_t prefetchDistance ) {
+      queues = new ThreadQueue[prefetchDistance+1];
+      num_queues = prefetchDistance+1;
+    }
 
-    uint64_t length() {
+    uint64_t length() const {
       return len;
     }
 
@@ -98,15 +104,37 @@ class PrefetchingThreadQueue {
     Worker * dequeue() {
       Worker * result = queues[dq_index].dequeue();
       if ( result ) {
+        uint64_t t = dq_index;
         dq_index = ((dq_index+1) == num_queues) ? 0 : dq_index+1;
         len--;
+
+
+        // prefetch future stacks and thread objects
+        // let D = prefetch distance; N = num subqueues = D+1
+        
+        __builtin_prefetch( result->next,   // prefetch the next thread in the current subqueue (i.e. i or i+D+1 mod N)
+                               1,   // prefetch for RW
+                               3 ); // prefetch with high temporal locality
+
+        uint64_t tstack = t==0 ? num_queues-1 : t-1;
+        Worker * tstack_worker = queues[tstack].front(); 
+        if ( tstack_worker ) {
+          __builtin_prefetch( tstack_worker->stack,  // prefetch the stack that is prefetch distance away (i.e. i+D or i-1 mod N) 
+                                                 1,  // prefetch for RW
+                                                 3 ); // prefetch with high temporal locality
+          __builtin_prefetch( (char*)(tstack_worker->stack)+64, 1, 3 );
+          __builtin_prefetch( (char*)(tstack_worker->stack)+128, 1, 3 );
+          //__builtin_prefetch( (char*)(tstack_worker->stack)+128+64, 1, 3 );
+          //__builtin_prefetch( (char*)(tstack_worker->stack)+128+64+64, 1, 3 );
+        }
+
 #ifdef DEBUG
         check_invariants();
 #endif
         return result;
       } else {
-        DCHECK( dq_index == eq_index ) << "Empty queue invariant violated";
 #ifdef DEBUG
+        CHECK( dq_index == eq_index ) << "Empty queue invariant violated";
         for ( uint64_t i=0; i<num_queues; i++ ) {
           CHECK( queues[i].length() == 0 ) << "Empty queue invariant violated";
         }
@@ -115,6 +143,9 @@ class PrefetchingThreadQueue {
         return NULL;
       }
     }
+
+
+    friend std::ostream& operator<< ( std::ostream& o, const PrefetchingThreadQueue& tq );
 };
 
 
@@ -143,17 +174,9 @@ inline void ThreadQueue::enqueue( Worker * t) {
     len++;
 }
 
-//FIXME
-/// Prefetch some Thread close to the front of the queue
-inline void ThreadQueue::prefetch() {
-    Worker * result = head;
-    if( result ) {
-      if( result->next ) result = result->next;
-//      if( result->next ) result = result->next;
-//      if( result->next ) result = result->next;
-//      if( result->next ) result = result->next;
-      result->prefetch();
-    }
+/// Peek at the head of the queue
+inline Worker * ThreadQueue::front() const {
+  return head;
 }
 
 
