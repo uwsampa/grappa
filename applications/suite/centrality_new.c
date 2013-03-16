@@ -24,7 +24,6 @@ double centrality(graph *g, double *bc, graphint Vs, int64_t* total_nedge) {
   graphint num_srcs = 0;
   nedge_traversed = 0;
 
-  graphint NE      = g->numEdges;
   graphint NV      = g->numVertices;
   graphint *eV     = g->endVertex;
   graphint *start  = g->edgeStart;
@@ -33,19 +32,21 @@ double centrality(graph *g, double *bc, graphint Vs, int64_t* total_nedge) {
   
   /* Allocate memory for data structures */
   graphint *Q     = (graphint *) xmalloc(NV * sizeof(graphint));
-  graphint *dist  = (graphint *) xmalloc(NV * sizeof(double));
+  graphint *Q2    = (graphint *) xmalloc(NV * sizeof(graphint));
+  graphint *dist  = (graphint *) xmalloc(NV * sizeof(graphint));
+  double *delta  = (graphint *) xmalloc(NV * sizeof(double));
   graphint *sigma = (graphint *) xmalloc(NV * sizeof(graphint));
   graphint *marks = (graphint *) xmalloc((NV + 2) * sizeof(graphint));
   graphint *QHead = (graphint *) xmalloc(100 * SCALE * sizeof(graphint));
-  graphint *child  = (graphint *) xmalloc(NE * sizeof(graphint));
   graphint *child_count = (graphint *) xmalloc(NV * sizeof(graphint));
   graphint *explored = (graphint *) xmalloc(sizeof(graphint)*NV);
+  graphint *revisited = (graphint *) xmalloc(sizeof(graphint)*NV);
   
   graphint j, k;
   graphint nQ, Qnext, Qstart, Qend;
   
   /* Reuse the dist memory in the accumulation phase */
-  double *delta = (double *) dist;
+  //  double *delta = (double *) dist;
   
   /*srand(12345);*/
   mersenne_seed(12345);
@@ -62,6 +63,7 @@ double centrality(graph *g, double *bc, graphint Vs, int64_t* total_nedge) {
   for (x = 0; (x < NV) && (Vs > 0); x ++) {
     graphint d_phase;
     graphint s;
+    graphint leaves = 0;
     
     if (computeAllVertices) {
       s = x;
@@ -89,7 +91,7 @@ double centrality(graph *g, double *bc, graphint Vs, int64_t* total_nedge) {
     MTA("mta assert nodep")
     for (j = 0; j < NV; j++) {
       dist[j] = -1; 
-      sigma[j] = marks[j] = child_count[j] = 0;
+      sigma[j] = marks[j] = 0;
     }
     
     /* Push node i onto Q and set bounds for first Q sublist */
@@ -124,7 +126,7 @@ double centrality(graph *g, double *bc, graphint Vs, int64_t* total_nedge) {
       
       nedge_traversed += myEnd - myStart;
       for (k = myStart; k < myEnd; k++) {
-        graphint d, w, l;
+        graphint d, w;
         w = eV[k];
         d = dist[w];
         /* If node has not been visited, set distance and push on Q (but only once) */
@@ -135,17 +137,16 @@ double centrality(graph *g, double *bc, graphint Vs, int64_t* total_nedge) {
             Q[stinger_int64_fetch_add(&Qnext, 1)] = w;
           }
           stinger_int64_fetch_add(&sigma[w], sigmav);
-          l = myStart + ccount++;
-          child[l] = w;
+          ccount++;
         } else if (d == d_phase) {
           stinger_int64_fetch_add(&sigma[w], sigmav);
-          l = myStart + ccount++;
-          child[l] = w;
+          ccount++;
         }
       }
-      child_count[v] = ccount;
+      child_count[v] = ccount; //if zero, v is a digraph leaf
+      if (ccount == 0) Q2[leaves++] = v; 
     }
-    
+
     /* If new nodes pushed onto Q */
     if (Qnext != QHead[nQ]) {
       nQ++;
@@ -153,48 +154,35 @@ double centrality(graph *g, double *bc, graphint Vs, int64_t* total_nedge) {
       goto PushOnStack;
     }
 
-    fprintf(stderr, "sigma[12] = %d Qnext = %d \n", sigma[12], Qnext);    
-    /* Dependence accumulation phase */
-    nQ--;
-//    deprint("nQ = %lld\n", nQ);    
-//    deprintn("sigma = [");
-//    for (graphint i=0; i<NV; i++) deprint(" %lld", sigma[i]);
-//    deprintn(" ]\n");
-    
+    fprintf(stderr, "leaves = %d sigma[12] = %d Qnext = %d \n", leaves, sigma[12], Qnext);    
     OMP("omp parallel for")
-    for (j=0; j < NV; j++) delta[j] = 0.0;
-    
-    /* Pop nodes off of Q in the reverse order they were pushed on */
-    for ( ; nQ > 1; nQ --) {
-      Qstart = QHead[nQ-1];
-      Qend   = QHead[nQ];
-
-      nedge_traversed += Qend - Qstart; fprintf(stderr, "%d edges\n", nedge_traversed);
-      /* For each v in the sublist AND for each w on v's list */
-      MTA("mta assert parallel")
-      MTA("mta block dynamic schedule")
-      MTA("mta assert no alias *sigma *Q *bc *delta *child *start *QHead")
-      for (j = Qstart; j < Qend; j++) {
-        graphint v = Q[j]; 
-        graphint myStart = start[v];
-        graphint myEnd   = myStart + child_count[v];
-        double sum = 0;
-        double sigma_v = (double) sigma[v];
-        for (k = myStart; k < myEnd; k++) {
-          graphint w = child[k];
-	  fprintf(stderr, "%d,%d\t%g \n", v,w, sigma_v * (1.0 + delta[w]) / (double) sigma[w]);
-	  sum += sigma_v * (1.0 + delta[w]) / (double) sigma[w];
-        }
-        delta[v] = sum; 
-        MTA("mta update")
-        bc[v] += sum;
+    for (j=0; j < NV; j++) delta[j] = 0.0, revisited[j] = 0;
+    Qstart = 0;
+    Qend = leaves;
+    Qnext = Qend;
+    for (j = Qstart; j < Qend; j++) revisited[Q2[j]] = 1;
+  PushOnStack2:
+    nedge_traversed += Qend - Qstart;
+    for (j = Qstart; j < Qend; j++) {
+      graphint w = Q2[j];
+      graphint myStart = start[w];
+      graphint myEnd = start[w+1];
+      for (k = myStart; k < myEnd; k++) {
+        graphint v = eV[k];
+        if (dist[v] && dist[v] == dist[w]-1) {
+	  fprintf(stderr, "%d,%d\t%g \n", v,w, sigma[v] * (1.0 + delta[w]) / (double) sigma[w]);
+	  delta[v] += sigma[v] * (1.0 + delta[w]) / (double) sigma[w];
+	}
+        if (!revisited[v]++) Q2[Qnext++] = v;
       }
-      //      for (j = 0; j < NV; j++) fprintf(stderr, "delta[%d]=%g\n", j, delta[j]);
     }
-    
-//    deprintn("bc = [");
-//    for (graphint i=0; i<NV; i++) deprint(" %g", bc[i]);
-//    deprintn(" ]\n");
+    if (Qnext != Qend) {
+      Qstart = Qend;
+      Qend = Qnext;
+      goto PushOnStack2;
+    }
+    for (j = 0; j < NV; j++) bc[j] += delta[j];
+    //    for (j = 0; j < NV; j++) fprintf(stderr, "delta[%d]=%g\n", j, delta[j]);
   }
   
   free(Q);
@@ -202,7 +190,6 @@ double centrality(graph *g, double *bc, graphint Vs, int64_t* total_nedge) {
   free(sigma);
   free(QHead);
   free(marks);
-  free(child);
   free(child_count);
   
   double bc_total = 0;
