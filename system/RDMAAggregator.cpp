@@ -6,6 +6,7 @@
 // Energy. The Government has certain rights in the software.
 
 #include <fstream>
+#include <sstream>
 #include <algorithm>
 
 #include "RDMAAggregator.hpp"
@@ -181,6 +182,14 @@ namespace Grappa {
       mynode_ = -1; // gasnet supernode
       total_cores_ = global_communicator.cores();
 
+      enqueue_counts_ = new uint64_t[ global_communicator.cores() ];
+      aggregate_counts_ = new uint64_t[ global_communicator.cores() ];
+      deaggregate_counts_ = new uint64_t[ global_communicator.cores() ];
+      for( int i = 0; i < global_communicator.cores(); ++i ) {
+        enqueue_counts_[i] = 0;
+        aggregate_counts_[i] = 0;
+        deaggregate_counts_[i] = 0;
+      }
 
       // register active messages
       deserialize_buffer_handle_ = global_communicator.register_active_message_handler( &deserialize_buffer_am );
@@ -255,10 +264,16 @@ namespace Grappa {
         Grappa::privateTask( [this] { 
             medium_receive_worker();
           });
+        // Grappa::spawn_worker( [this] { 
+        //     medium_receive_worker();
+        //   });
       }
 
       // spawn flusher
-      Grappa::privateTask( [this] {
+      // Grappa::privateTask( [this] {
+      //     idle_flusher();
+      //   });
+      Grappa::spawn_worker( [this] {
           idle_flusher();
         });
 
@@ -445,6 +460,8 @@ void RDMAAggregator::draw_routing_graph() {
 
         // add message to buffer
         char * new_buffer = message->serialize_to( buffer, max - size);
+        CHECK_GE( new_buffer, buffer );
+
         if( new_buffer == buffer ) { // if it was too big
           DVLOG(5) << __func__ << ": Message too big: aborting serialization";
           break;                     // quit
@@ -492,6 +509,38 @@ void RDMAAggregator::draw_routing_graph() {
     }
 
 
+
+  void RDMAAggregator::dump_counts() {
+    {
+      std::stringstream ss;
+      ss << "Enqueued:";
+      for( int i = 0; i < Grappa::cores(); ++i ) {
+        ss << " " << i << ":" << enqueue_counts_[i];
+      }
+      LOG(INFO) << ss.str();
+    }
+    {
+      std::stringstream ss;
+      ss << "Aggregated:";
+      for( int i = 0; i < Grappa::cores(); ++i ) {
+        ss << " " << i << ":" << aggregate_counts_[i];
+      }
+      LOG(INFO) << ss.str();
+    }
+    {
+      std::stringstream ss;
+      ss << "Received:";
+      for( int i = 0; i < Grappa::cores(); ++i ) {
+        ss << " " << i << ":" << deaggregate_counts_[i];
+      }
+      LOG(INFO) << ss.str();
+
+      LOG(INFO) << "Free buffers: " << free_buffer_list_.count();
+      LOG(INFO) << "Received buffers: " << received_buffer_list_.count();
+      LOG(INFO) << "Active send workers: " << active_send_workers_;
+      LOG(INFO) << "Active receive workers: " << active_receive_workers_;
+    }
+  }
 
 
     ///
@@ -619,6 +668,8 @@ void RDMAAggregator::draw_routing_graph() {
           buf = received_buffer_list_.block_until_pop();
         }
 
+        active_receive_workers_++;
+
         uint64_t sequence_number = reinterpret_cast< uint64_t >( buf->get_ack() );
         
         DVLOG(4) << __func__ << "/" << sequence_number << ": Now deaggregating buffer " << buf << " sequence " << sequence_number
@@ -683,6 +734,8 @@ void RDMAAggregator::draw_routing_graph() {
 
         // done with this buffer. put it back on free list
         free_buffer_list_.push( buf );
+
+        active_receive_workers_--;
       }
     }
 
@@ -1062,6 +1115,7 @@ void RDMAAggregator::draw_routing_graph() {
 
   void RDMAAggregator::send_locale_medium( Locale locale ) {
     rdma_send_start++;
+    active_send_workers_++;
     static uint64_t sequence_number = Grappa::mycore();
 
 
@@ -1099,9 +1153,11 @@ void RDMAAggregator::draw_routing_graph() {
       b->set_core( Grappa::mycore() );
 
       char * current_buf = b->get_payload();
-      size_t remaining_size = std::min( max_size, b->get_max_size() );
+      int64_t remaining_size = std::min( max_size, b->get_max_size() );
       size_t aggregated_size = 0;
       bool ready_to_send = false;
+
+      int64_t count = 0;
 
       DVLOG(4) << __func__ << "/" << sequence_number << ": " << "Preparing an active message in buffer " << b << " for locale " << locale;
 
@@ -1125,6 +1181,7 @@ void RDMAAggregator::draw_routing_graph() {
               DVLOG(4) << __func__ << "/" << sequence_number << ": " << "Grabbed messages for buffer " << b << " for locale " << locale << " from core " << current_core;
               // prefetch and grab message list
               issue_initial_prefetches( current_core );
+              CHECK_NULL( messages_to_send ); // should be empty
               messages_to_send = get_pointer( &ml );
             }
           }
@@ -1142,8 +1199,10 @@ void RDMAAggregator::draw_routing_graph() {
 
           Grappa::impl::MessageBase * prev_messages_to_send = messages_to_send;
 
-          char * end = aggregate_to_buffer( current_buf, &messages_to_send, remaining_size );
+          char * end = aggregate_to_buffer( current_buf, &messages_to_send, remaining_size, &aggregate_counts_[current_core-1] );
           size_t current_aggregated_size = end - current_buf;
+          CHECK_LE( aggregated_size + current_aggregated_size, max_size );
+          CHECK_GE( remaining_size, 0 );
 
           DVLOG(4) << __func__ << "/" << sequence_number << ": Right after serializing, pointer was " << messages_to_send 
                    << " current_aggregated_size==" << current_aggregated_size
@@ -1218,8 +1277,12 @@ void RDMAAggregator::draw_routing_graph() {
       sequence_number += Grappa::cores();
     }
 
+    CHECK_EQ( current_core, max_core ) << "uh oh, forgot to check someone";
+    CHECK_NULL( messages_to_send );
+
     // return buffer
     free_buffer_list_.push(b);
+    active_send_workers_--;
     rdma_send_end++;
   }
 

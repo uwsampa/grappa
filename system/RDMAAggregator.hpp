@@ -355,6 +355,13 @@ namespace Grappa {
       const size_t max_size_;
       bool interesting_;
       
+      uint64_t * enqueue_counts_;
+      uint64_t * aggregate_counts_;
+      uint64_t * deaggregate_counts_;
+
+      int64_t active_receive_workers_;
+      int64_t active_send_workers_;
+
     public:
 
       RDMAAggregator()
@@ -377,8 +384,13 @@ namespace Grappa {
         , rdma_buffers_( NULL )
         , flush_cv_()
         , disable_flush_(false)
-        , max_size_( 1 << 16 )
+        , max_size_( (1 << 16) )
         , interesting_( false )
+        , enqueue_counts_( NULL )
+        , aggregate_counts_( NULL )
+        , deaggregate_counts_( NULL )
+        , active_receive_workers_(0)
+        , active_send_workers_(0)
       {
         CHECK_LE( FLAGS_target_size, max_size_ );
       }
@@ -387,6 +399,9 @@ namespace Grappa {
       void init();
       void activate();
       void finish();
+
+      void dump_counts();
+
 
       bool receive_poll() {
         rdma_poll_receive++;
@@ -428,6 +443,8 @@ namespace Grappa {
       /// Enqueue message to be sent
       inline void enqueue( Grappa::impl::MessageBase * m ) {
         app_messages_enqueue++;
+
+        enqueue_counts_[ m->destination_ ]++;
 
         bool yielded = global_scheduler.thread_maybe_yield();
         if( yielded ) rdma_poll_yields++;
