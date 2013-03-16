@@ -25,6 +25,6 @@ p <- ggplot(db("select * from bfs where scale==30 or scale==26"),
   stat_summary(fun.y="max", geom="line")+ # show line with max of each line
   facet_wrap(~scale) # make new plots for each scale
   
-# p # plot it
-ggsave("bfs_teps.pdf", plot=p) # or save it
+p # plot it
+# ggsave("bfs_teps.pdf", plot=p) # or save it
 
