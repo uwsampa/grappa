@@ -460,18 +460,72 @@ namespace Grappa {
         // prepare to stitch in message
         set_pointer( &new_ml, m );
 
-        // stitch in message
+        // // read previous value
+        // old_ml = *dest_ptr;
+
+        // // stitch in message
+        // do {
+        //   // add previous count/estimated size
+        //   count = 1 + old_ml.count_;
+        //   new_ml.count_ = count; 
+
+        //   // now try to insert current message (and count attempt)
+        //   app_messages_enqueue_cas++;
+        // } while( !__sync_bool_compare_and_swap( &(dest_ptr->raw_), old_ml.raw_, new_ml.raw_ ) );
+
+        // // append previous list to current message
+        // m->next_ = get_pointer( &old_ml );
+        
+        // // set prefetch to the oldest pointer we remember
+        // // index prefetch queue by count since we haven't overwritten it in yet.
+        // m->prefetch_ = get_pointer( &(dest->prefetch_queue_[ count % prefetch_dist ]) );
+
+        // size = m->serialized_size();
+        // if( count > 1 ) {
+        //   size += dest->prefetch_queue_[ ( old_ml.count_ ) % prefetch_dist ].size_;
+        // }
+
+
+        // do {
+        //   // read previous value
+        //   old_ml = *dest_ptr;
+
+        //   // add previous count/estimated size
+        //   count = 1 + old_ml.count_;
+        //   size = m->serialized_size();
+        //   if( count > 1 ) {
+        //     size += dest->prefetch_queue_[ ( old_ml.count_ ) % prefetch_dist ].size_;
+        //   }
+
+        //   new_ml.count_ = count; 
+
+        //   // append previous list to current message
+        //   m->next_ = get_pointer( &old_ml );
+        //   // set prefetch to the oldest pointer we remember
+        //   // index prefetch queue by count since we haven't overwritten it in yet.
+        //   m->prefetch_ = get_pointer( &(dest->prefetch_queue_[ count % prefetch_dist ]) );
+
+        //   spawn_send = false && size > FLAGS_target_size;
+
+        //   // if it looks like we should send
+        //   if( spawn_send && !disable_flush_ ) {
+        //     swap_ml.raw_ = 0; // leave the list empty
+        //   } else {
+        //     // stitch in this message
+        //     swap_ml = new_ml;
+        //   }
+
+        //   // now try to insert current message (and count attempt)
+        //   app_messages_enqueue_cas++;
+        // } while( !__sync_bool_compare_and_swap( &(dest_ptr->raw_), old_ml.raw_, swap_ml.raw_ ) );
+
+        int cas_count = 0;
         do {
           // read previous value
           old_ml = *dest_ptr;
 
           // add previous count/estimated size
           count = 1 + old_ml.count_;
-          size = m->serialized_size();
-          if( count > 1 ) {
-            size += dest->prefetch_queue_[ ( old_ml.count_ ) % prefetch_dist ].size_;
-          }
-
           new_ml.count_ = count; 
 
           // append previous list to current message
@@ -480,20 +534,12 @@ namespace Grappa {
           // index prefetch queue by count since we haven't overwritten it in yet.
           m->prefetch_ = get_pointer( &(dest->prefetch_queue_[ count % prefetch_dist ]) );
 
-          spawn_send = false && size > FLAGS_target_size;
-
-          // if it looks like we should send
-          if( spawn_send && !disable_flush_ ) {
-            swap_ml.raw_ = 0; // leave the list empty
-          } else {
-            // stitch in this message
-            swap_ml = new_ml;
-          }
-
           // now try to insert current message (and count attempt)
-          app_messages_enqueue_cas++;
-        } while( !__sync_bool_compare_and_swap( &(dest_ptr->raw_), old_ml.raw_, swap_ml.raw_ ) );
+          cas_count++;
+        } while( !__sync_bool_compare_and_swap( &(dest_ptr->raw_), old_ml.raw_, new_ml.raw_ ) );
         
+        app_messages_enqueue_cas += cas_count;
+
         // warning: racy
         sender->locale_byte_count_ += size;
           
