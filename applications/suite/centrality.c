@@ -152,8 +152,7 @@ double centrality(graph *g, double *bc, graphint Vs, int64_t* total_nedge) {
       QHead[nQ] = Qnext; 
       goto PushOnStack;
     }
-
-    fprintf(stderr, "sigma[12] = %d Qnext = %d \n", sigma[12], Qnext);    
+    
     /* Dependence accumulation phase */
     nQ--;
 //    deprint("nQ = %lld\n", nQ);    
@@ -169,7 +168,7 @@ double centrality(graph *g, double *bc, graphint Vs, int64_t* total_nedge) {
       Qstart = QHead[nQ-1];
       Qend   = QHead[nQ];
 
-      nedge_traversed += Qend - Qstart; fprintf(stderr, "%d edges\n", nedge_traversed);
+      nedge_traversed += Qend - Qstart;
       /* For each v in the sublist AND for each w on v's list */
       MTA("mta assert parallel")
       MTA("mta block dynamic schedule")
@@ -182,14 +181,12 @@ double centrality(graph *g, double *bc, graphint Vs, int64_t* total_nedge) {
         double sigma_v = (double) sigma[v];
         for (k = myStart; k < myEnd; k++) {
           graphint w = child[k];
-	  fprintf(stderr, "%d,%d\t%g \n", v,w, sigma_v * (1.0 + delta[w]) / (double) sigma[w]);
-	  sum += sigma_v * (1.0 + delta[w]) / (double) sigma[w];
+          sum += sigma_v * (1.0 + delta[w]) / (double) sigma[w];
         }
         delta[v] = sum; 
         MTA("mta update")
         bc[v] += sum;
       }
-      //      for (j = 0; j < NV; j++) fprintf(stderr, "delta[%d]=%g\n", j, delta[j]);
     }
     
 //    deprintn("bc = [");
