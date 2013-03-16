@@ -326,14 +326,15 @@ int main(int argc, char* argv[])
 		bc.Apply(bind2nd(minus<double>(), nPasses));	// Subtrack nPasses from all the bc scores (because bcu was initialized to all 1's)
 		
 		double t2=MPI_Wtime();
-		double TEPS = (nPasses * static_cast<float>(A.getnnz())) / (t2-t1);
+		double TEPS = (static_cast<double>(nPasses) * static_cast<double>(A.getnnz())) / (t2-t1);
 		if( myrank == 0)
 		{
-			cout<<"Computation finished"<<endl;	
+			cout<<"Computation finished"<<endl;
 			fprintf(stdout, "nroots: %d\n", nPasses);
-			fprintf(stdout, "centrality_time: %.6lf\n", t2-t1);
-      
-			fprintf(stdout, "centrality_teps: %.6lf\n", TEPS);
+      cout << "centrality_time: " << t2-t1;
+      // fprintf(stdout, "centrality_time: %.6lf\n", t2-t1);
+      cout << "centrality_teps: " << TEPS;
+      // fprintf(stdout, "centrality_teps: %.6lf\n", TEPS);
 		}
 	}	
 
