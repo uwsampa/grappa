@@ -156,7 +156,7 @@ cache operations interact.
     \item this allows us to free up workers/stacks (running out of stacks causes  latency-sensitivity because we can't continue until tasks complete)
     \item must guarantee all operations that were supposed to happen in the loop complete before continuing, including tasks and delegate operations
     \item \emph{motivating example:} write to array in one loop, use updated values in next loop (could also mention the ``PushBuffer'' example where we buffer queue appends because the order in the queue doesn't matter)
-    \item GlobalCompletionEvent is complicated by task-stealing and the fact that delegate operations complete on a different core than they started, forcing us to use a ``cancelable barrier''-like approach
+    \item GlobalCompletionEvent is complicated by task-stealing and the fact that delegate operations complete on a different core than they started, forcing us to use a ``cancelable barrier''-like approach (possible citation: Ravichandran, et al. ``Work stealing for multi-core HPC Clusters'')
     \item interface to GlobalCompletionEvent:
       \begin{itemize}
         \item \texttt{gce.enroll(n)}: enroll n tasks/operations to be done, when goes from 0 to 1, leave cancelable barrier
