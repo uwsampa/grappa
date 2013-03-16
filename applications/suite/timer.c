@@ -13,10 +13,6 @@ double timer(void) {
   now *= info.numer;
   now /= info.denom;
   return 1.0e-9 * (double)now;
-#elif defined(__SIMONS_MAC__)
-  struct timeval tp;
-  gettimeofday(tp, NULL);
-  return (double) tp.tv_sec + 1.0e-9 * (double)tp.tv_nsec;
 #else
   struct timespec tp;
 #if defined(CLOCK_PROCESS_CPUTIME_ID)

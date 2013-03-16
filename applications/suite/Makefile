@@ -1,7 +1,6 @@
 include Make.inc
 
 EXE = suite.exe
-EXE2 = suite_new.exe
 
 OBJS += 	computeGraph.o \
 		connectedComponents.o \
@@ -16,13 +15,9 @@ OBJS += 	computeGraph.o \
 		centrality.o \
 		compat/mersenne.o
 
-OBJS2 = $(filter-out centrality.o,$(OBJS)) centrality_new.o
-
 all: $(EXE) make_snaps.exe
 	
 $(EXE): main.o $(OBJS) $(COMPATLIB) $(IOLIB)
-	$(LD) $(LDFLAGS) -o $@ $^ $(LIBS)
-$(EXE2): main.o $(OBJS2) $(COMPATLIB) $(IOLIB)
 	$(LD) $(LDFLAGS) -o $@ $^ $(LIBS)
 
 make_snaps.exe: make_snaps.c
@@ -40,7 +35,6 @@ triangles.o: triangles.c defs.h
 util.o: util.c defs.h
 xmalloc.o: xmalloc.c defs.h
 centrality.o: centrality.c defs.h compat/mersenne.c
-centrality_new.o: centrality_new.c defs.h compat/mersenne.c
 compat/mersenne.o: compat/mersenne.c compat/mersenne.h
 
 $(IOLIB) $(COMPATLIB):
@@ -50,7 +44,7 @@ $(IOLIB) $(COMPATLIB):
 	$(CC) $(CFLAGS) -c $<
 
 clean:
-	rm -f *.o $(EXE2) $(EXE){,.pl,.ap2} profile.out trace.out
+	rm -f *.o $(EXE){,.pl,.ap2} profile.out trace.out
 	-if test -n "$(IOLIB_DIR)" ; then make -C $(IOLIB_DIR) clean; fi
 
 distclean:
