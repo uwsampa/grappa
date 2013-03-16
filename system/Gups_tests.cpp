@@ -33,6 +33,15 @@ DEFINE_bool( rdma, false, "Use RDMA aggregator" );
 
 DECLARE_string( load_balance );
 
+GRAPPA_DEFINE_STAT( SimpleStatistic<int64_t>, gups_requests_sent, 0 );
+GRAPPA_DEFINE_STAT( SimpleStatistic<int64_t>, gups_completions_sent, 0 );
+GRAPPA_DEFINE_STAT( SimpleStatistic<int64_t>, gups_requests_received, 0 );
+GRAPPA_DEFINE_STAT( SimpleStatistic<int64_t>, gups_completions_received, 0 );
+GRAPPA_DEFINE_STAT( SimpleStatistic<int64_t>, gups_completions_blocked, 0 );
+
+
+uint64_t * requests_sent = NULL;
+uint64_t * completions_sent = NULL;
 
 //const int outstanding = 1 << 4;
 //const int outstanding = 1 << 13;
@@ -70,6 +79,7 @@ struct C {
              << " with target " << ce.node()
              << " address " << ce.pointer();
     ce.pointer()->complete();
+    gups_completions_received++;
   }
 };
 
@@ -88,9 +98,11 @@ struct M {
 
   // once we have a message to use, do this
   static void complete( ReuseMessage<C> * message, GlobalAddress< Grappa::CompletionEvent > event ) {
+    gups_completions_sent++;
     message->reset();
     (*message)->ce = event;
     message->enqueue( event.node() );
+    completions_sent[ event.node() ];
   }
 
   void operator()() {
@@ -99,6 +111,7 @@ struct M {
              << " address " << addr.pointer()
              << " reply to " << ce.node()
              << " with address " << ce.pointer();
+    gups_requests_received++;
 
     // increment address
     int64_t * ptr = addr.pointer();
@@ -109,6 +122,8 @@ struct M {
     if (ce.node() == Grappa::mycore()) {
       // yes, so just do it.
       ce.pointer()->complete();
+      gups_completions_sent++;
+      completions_sent[ ce.node() ];
     } else {
       // we need to send a message
       // try to grab a message
@@ -117,6 +132,7 @@ struct M {
         // got one; send completion
         M::complete( c, ce );
       } else {
+        gups_completions_blocked++;
         // we need to block, so spawn a task
         auto my_ce = ce;
         Grappa::privateTask( [this, my_ce] { // this actually unused
@@ -200,6 +216,8 @@ LOOP_FUNCTION( func_gups_rdma, index ) {
   const uint64_t each_iters = FLAGS_iterations / Grappa::cores();
   const uint64_t my_start = each_iters * Grappa::mycore();
 
+  //exit(123);
+
   DVLOG(1) << "Initializing RDMA GUPS....";
 
   // record how many messages we plan to send
@@ -221,6 +239,8 @@ LOOP_FUNCTION( func_gups_rdma, index ) {
     (*m)->addr = a;
     (*m)->ce = make_global( &ce );
     m->enqueue( a.node() );
+    gups_requests_sent++;
+    requests_sent[a.node()]++;
     DVLOG(5) << "Sent GUP from node " << Grappa::mycore()
              << " to " << a.node()
              << " address " << a.pointer()
@@ -310,10 +330,17 @@ BOOST_AUTO_TEST_CASE( test1 ) {
 		  &(boost::unit_test::framework::master_test_suite().argv) );
     Grappa_activate();
 
+    requests_sent = new uint64_t[ Grappa::cores() ];
+    completions_sent = new uint64_t[ Grappa::cores() ];
+    for( int i = 0; i < Grappa::cores(); ++i ) {
+      requests_sent[i] = 0;
+      completions_sent[i] = 0;
+    }
+
     // prepare pools of messages
     auto msgs = Grappa::impl::locale_shared_memory.segment.construct< ReuseMessage<M> >(boost::interprocess::anonymous_instance)[ FLAGS_outstanding ]();
     auto completions = Grappa::impl::locale_shared_memory.segment.construct< ReuseMessage<C> >(boost::interprocess::anonymous_instance)[ FLAGS_outstanding ]();
-    for( int i; i < FLAGS_outstanding; ++i ) {
+    for( int i = 0; i < FLAGS_outstanding; ++i ) {
       msgs[i].list_ = &message_list;
       message_list.push( &msgs[i] );
       completions[i].list_ = &completion_list;
