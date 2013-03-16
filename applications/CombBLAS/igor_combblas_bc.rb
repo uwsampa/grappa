@@ -14,6 +14,8 @@ Igor do
   
   command "#{$srun} %{tdir}/betwcent RMAT:%{scale} %{k4approx} %{nperbatch}"
   
+  sbatch_flags << "--time=4:00:00"
+  
   params {
     nnode       2
     ppn         2
@@ -22,6 +24,8 @@ Igor do
     k4approx    6
     nperbatch   4
   }
+  
+  expect :centrality_teps
   
   $filtered = results{|t| t.select(:id, :scale, :nnode, :ppn, :run_at, :k4approx, :centrality_teps) }
   
