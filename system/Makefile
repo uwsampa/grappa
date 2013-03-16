@@ -287,6 +287,7 @@ LIBRARY_CONTENTS+= Grappa.o \
 				   tasks/Task.o \
 				   stack.o \
 				   Worker.o \
+				   ThreadQueue.o \
 				   StateTimer.o \
 				   PerformanceTools.o \
 				   Future.o \

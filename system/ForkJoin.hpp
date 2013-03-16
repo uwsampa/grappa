@@ -14,6 +14,7 @@
 #include "Delegate.hpp"
 #include "Tasking.hpp"
 #include "Cache.hpp"
+#include "ThreadQueue.hpp"
 #include "common.hpp"
 
 #include <iostream>

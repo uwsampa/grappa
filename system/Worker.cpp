@@ -207,11 +207,6 @@ void thread_exit(Worker * me, void * retval) {
   exit(EXIT_FAILURE);
 }
 
-/// ThreadQueue output stream
-std::ostream& operator<< ( std::ostream& o, const ThreadQueue& tq ) {
-    return tq.dump( o );
-}
-
 void checked_mprotect( void *addr, size_t len, int prot ) {
   CHECK( 0 == mprotect( addr, len, prot ) )
     << "mprotect failed" 

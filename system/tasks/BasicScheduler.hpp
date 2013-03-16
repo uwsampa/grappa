@@ -8,6 +8,7 @@
 #define BASIC_SCHEDULER_HPP
 
 #include "Scheduler.hpp"
+#include "ThreadQueue.hpp"
 #include <Timestamp.hpp>
 #include <glog/logging.h>
 

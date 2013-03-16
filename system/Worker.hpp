@@ -37,38 +37,6 @@ class Worker;
 #include <errno.h>
 void checked_mprotect( void *addr, size_t len, int prot );
 
-/// A queue of threads
-class ThreadQueue {
-    private:
-        Worker * head;
-        Worker * tail;
-        int len;
-        
-        std::ostream& dump( std::ostream& o ) const {
-            return o << "[length:" << len
-                     << "; head:" << (void*)head
-                     << "; tail:" << (void*)tail << "]";
-        }
-
-    public:
-        ThreadQueue ( ) 
-            : head ( NULL )
-            , tail ( NULL )
-            , len ( 0 ) { }
-
-        void enqueue(Worker * t);
-        Worker * dequeue();
-        void prefetch();
-        int length() { 
-            return len;
-        }
-
-        bool empty() {
-            return (head==NULL);
-        }
-        
-        friend std::ostream& operator<< ( std::ostream& o, const ThreadQueue& tq );
-};
 
 /// Worker/coroutine
 class Worker {
@@ -141,8 +109,8 @@ class Worker {
   
   /// prefetch the Thread execution state
   inline void prefetch() {
-    __builtin_prefetch( stack, 1, 3 ); // try to keep stack in cache
-    __builtin_prefetch( next, 1, 3 ); // try to keep next worker in cache
+    __builtin_prefetch( stack, 0, 3 ); // try to keep stack in cache
+    __builtin_prefetch( next, 0, 3 ); // try to keep next worker in cache
 
     //if( data_prefetch ) __builtin_prefetch( data_prefetch, 0, 0 );   // for low-locality data
   }
@@ -260,43 +228,6 @@ inline void * thread_context_switch( Worker * running, Worker * next, void * val
     void * res = coro_invoke( running, next, val );
     StateTimer::enterState_thread();
     return res; 
-}
-
-/// Remove a Thread from the queue and return it
-inline Worker * ThreadQueue::dequeue() {
-    Worker * result = head;
-    if (result != NULL) {
-        head = result->next;
-        result->next = NULL;
-        len--;
-    } else {
-        tail = NULL;
-    }
-    return result;
-}
-
-/// Add a Thread to the queue
-inline void ThreadQueue::enqueue( Worker * t) {
-    if (head==NULL) {
-        head = t;
-    } else {
-        tail->next = t;
-    }
-    tail = t;
-    t->next = NULL;
-    len++;
-}
-
-/// Prefetch some Thread close to the front of the queue
-inline void ThreadQueue::prefetch() {
-    Worker * result = head;
-    if( result ) {
-//      if( result->next ) result = result->next;
-//      if( result->next ) result = result->next;
-//      if( result->next ) result = result->next;
-//      if( result->next ) result = result->next;
-      result->prefetch();
-    }
 }
 
 typedef Worker Thread; // FIXME: remove Thread references

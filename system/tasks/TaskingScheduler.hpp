@@ -8,6 +8,7 @@
 #define TASKING_SCHEDULER_HPP
 
 #include "Worker.hpp"
+#include "ThreadQueue.hpp"
 #include "Scheduler.hpp"
 #include "Communicator.hpp"
 #include "Aggregator.hpp"
