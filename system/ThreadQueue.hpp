@@ -83,8 +83,8 @@ class PrefetchingThreadQueue {
   {}
     
     void init( uint64_t prefetchDistance ) {
-      queues = new ThreadQueue[prefetchDistance+1];
-      num_queues = prefetchDistance+1;
+      queues = new ThreadQueue[prefetchDistance*2];
+      num_queues = prefetchDistance*2;
     }
 
     uint64_t length() const {
@@ -110,13 +110,13 @@ class PrefetchingThreadQueue {
 
 
         // prefetch future stacks and thread objects
-        // let D = prefetch distance; N = num subqueues = D+1
+        // let D = prefetch distance; N = num subqueues = D*2
         
-        __builtin_prefetch( result->next,   // prefetch the next thread in the current subqueue (i.e. i or i+D+1 mod N)
+        __builtin_prefetch( result->next,   // prefetch the next thread in the current subqueue (i.e. i or i+D*2 mod N)
                                1,   // prefetch for RW
                                3 ); // prefetch with high temporal locality
 
-        uint64_t tstack = t==0 ? num_queues-1 : t-1;
+        uint64_t tstack = (t+(num_queues/2))%num_queues;//PERFORMANCE TODO: can optimize
         Worker * tstack_worker = queues[tstack].front(); 
         if ( tstack_worker ) {
           __builtin_prefetch( tstack_worker->stack,  // prefetch the stack that is prefetch distance away (i.e. i+D or i-1 mod N) 
