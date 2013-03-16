@@ -76,8 +76,8 @@ void user_main( void * args ) {
         for ( uint64_t t=0; t<FLAGS_num_test_workers; t++ ) {
           privateTask( [&start] {
             // wait for all to start (to hack scheduler yield)
-            task_barrier->complete();
-            task_barrier->wait();
+          //  task_barrier->complete();
+           // task_barrier->wait();
 
             // first task to exit the local barrier will start the timer
             if ( !running ) {
@@ -152,8 +152,8 @@ void user_main( void * args ) {
         for ( uint64_t t=0; t<FLAGS_num_test_workers; t++ ) {
           privateTask( [asleep,&start,cvs] {
             // wait for all to start (to hack scheduler yield)
-            task_barrier->complete();
-            task_barrier->wait();
+            //task_barrier->complete();
+            //task_barrier->wait();
 
             // first task to exit the local barrier will start the timer
             if ( !running ) {
