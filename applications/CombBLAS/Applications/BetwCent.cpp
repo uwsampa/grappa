@@ -156,7 +156,8 @@ void generateGraph500(unsigned scale, Dist<bool>::MPI_DCCols& Aeff) {
 	double t2=MPI_Wtime();
 			
 	ostringstream k1timeinfo;
-	k1timeinfo << (t2-t1) - (redtf-redts) << " seconds elapsed for Kernel #1" << endl;
+  // k1timeinfo << (t2-t1) - (redtf-redts) << " seconds elapsed for Kernel #1" << endl;
+  k1timeinfo << "construction_time: " << (t2-t1) - (redtf-redts) << endl;
 	SpParHelper::Print(k1timeinfo.str());
   
 	Aeff.PrintInfo();
@@ -329,14 +330,13 @@ int main(int argc, char* argv[])
 		double TEPS = (static_cast<double>(nPasses) * static_cast<double>(A.getnnz())) / (t2-t1);
 		if( myrank == 0)
 		{
-			cout<<"Computation finished"<<endl;
-			fprintf(stdout, "nroots: %d\n", nPasses);
-      cout << "centrality_time: " << t2-t1;
-      // fprintf(stdout, "centrality_time: %.6lf\n", t2-t1);
-      cout << "centrality_teps: " << TEPS;
-      // fprintf(stdout, "centrality_teps: %.6lf\n", TEPS);
+			cout << "Computation finished" << endl;
+			cout << "nroots: " << nPasses << endl;
+      cout << "centrality_time: " << t2-t1 << endl;
+      cout << "centrality_teps: " << TEPS << endl;
+      fflush(stdout);
 		}
-	}	
+	}
 
 	// make sure the destructors for all objects are called before MPI::Finalize()
 	MPI_Finalize();
