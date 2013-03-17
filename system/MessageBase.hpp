@@ -108,7 +108,6 @@ namespace Grappa {
       /// @return address of the byte following the serialized message in the buffer
       inline virtual char * serialize_to( char * p, size_t max_size = -1 ) {
         DCHECK_EQ( is_sent_, false ) << "Sending same message " << this << " multiple times?";
-        DCHECK_NE( destination_, Grappa::mycore() ) << "shouldn't be using this path for local delivery";
         is_delivered_ = true;
       }
 
