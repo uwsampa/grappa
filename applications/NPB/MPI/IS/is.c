@@ -115,6 +115,14 @@
 #define  MIN_PROCS           4
 #endif
 
+#if CLASS == 'E'
+#define  TOTAL_KEYS_LOG_2    34
+#define  MAX_KEY_LOG_2       30
+#define  NUM_BUCKETS_LOG_2   10
+#undef   MIN_PROCS
+#define  MIN_PROCS           4
+#endif
+
 
 #define  TOTAL_KEYS          (1L << TOTAL_KEYS_LOG_2)
 #define  MAX_KEY             (1L << MAX_KEY_LOG_2)
@@ -592,10 +600,12 @@ void rank( int iteration )
 
 /*  Determine where the partial verify test keys are, load into  */
 /*  top of array bucket_size                                     */
-    for( i=0; i<TEST_ARRAY_SIZE; i++ )
-        if( (test_index_array[i]/NUM_KEYS) == my_rank )
-            bucket_size[NUM_BUCKETS+i] = 
-                          key_array[test_index_array[i] % NUM_KEYS];
+    if (CLASS != 'E') {
+      for( i=0; i<TEST_ARRAY_SIZE; i++ )
+          if( (test_index_array[i]/NUM_KEYS) == my_rank )
+              bucket_size[NUM_BUCKETS+i] = 
+                            key_array[test_index_array[i] % NUM_KEYS];
+    }
 
 
 /*  Determine the number of keys in each bucket */
@@ -870,6 +880,9 @@ void rank( int iteration )
                         else
                             passed_verification++;
                     }
+                    break;
+                default:
+                    passed_verification++;
                     break;
             }
             if( failed == 1 )
