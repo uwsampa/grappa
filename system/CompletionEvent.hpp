@@ -17,6 +17,8 @@ namespace Grappa {
     int64_t count;
   public:
     CompletionEvent(int64_t count = 0): count(count) {}
+
+    int64_t get_count() const { return count; }
     
     void enroll(int64_t inc = 1) {
       count += inc;
