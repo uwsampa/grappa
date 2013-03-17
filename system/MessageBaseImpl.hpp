@@ -53,6 +53,7 @@ namespace Grappa {
                           << " Your compiler's return value optimization failed you here.";
       if( !is_enqueued_ ) source_ = global_communicator.mycore();
       is_enqueued_ = true;
+      is_delivered_ = true;
 #ifndef LEGACY_SEND
       Grappa::impl::global_rdma_aggregator.send_immediate( this );
 #endif
