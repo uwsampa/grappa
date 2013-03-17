@@ -7,6 +7,18 @@
 
 require 'igor'
 
+# add some Grappa-specific things to Igor so they're available at the prompt
+module Igor
+  def sq
+    case `hostname`
+    when /pal/
+      puts `squeue -ppal`
+    else
+      puts `squeue`
+    end
+  end
+end
+
 module Isolatable
   extend self # (so all methods become class methods, like Igor module)
   
