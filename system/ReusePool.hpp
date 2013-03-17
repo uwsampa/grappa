@@ -12,6 +12,7 @@
 #include <vector>
 #include "Semaphore.hpp"
 
+
 namespace Grappa {
 namespace impl {
     
@@ -27,7 +28,7 @@ private:
 public:
   ReusePool() 
     : ptrs_()
-    , s_()
+    , s_(0)
   { }
 
   bool available() {
@@ -39,27 +40,35 @@ public:
   }
 
   T * block_until_pop() {
+    DVLOG(5) << __PRETTY_FUNCTION__ << "/" << this << ": blocking until pop with " << s_.get_value() << " now";
     s_.decrement();
+    DVLOG(5) << __PRETTY_FUNCTION__ << "/" << this << ": finished blocking until pop with " << s_.get_value() << " now";
     return ptrs_[s_.get_value()];
   }
 
   T * try_pop() {
+    DVLOG(5) << __PRETTY_FUNCTION__ << "/" << this << ": trying to pop with " << s_.get_value() << " now";
     if( s_.try_decrement() ) {
-      return ptrs_[ s_.get_value() ];
+      T * t = ptrs_[ s_.get_value() ]; 
+      DVLOG(5) << __PRETTY_FUNCTION__ << "/" << this << ": succeeded; popping " << t << " with " << s_.get_value() << " now";
+      return t;
     } else {
       return NULL;
     }
   }
 
   void push( T * buf ) {
+    DVLOG(5) << __PRETTY_FUNCTION__ << "/" << this << ": pushing " << buf << " with " << s_.get_value() << " already";
     CHECK_LT( s_.get_value(), max_count ) << "Can't check in buffer; maximum is " << max_count;
     ptrs_[ s_.get_value() ] = buf;
     s_.increment();
   }
 
   bool try_push( T * buf ) {
+    DVLOG(5) << __PRETTY_FUNCTION__ << "/" << this << ": trying to push " << buf << " with " << s_.get_value() << " already";
     if( s_.get_value() < max_count ) {
       push(buf);
+      DVLOG(5) << __PRETTY_FUNCTION__ << "/" << this << ": succeeded; pushed " << buf << " with " << s_.get_value() << " now";
       return true;
     } else {
       return false;
