@@ -54,10 +54,12 @@ template <class NT>
 class Dist 
 { 
 public: 
-	typedef SpDCCols < int, NT > DCCols;
-	typedef SpParMat < int, NT, DCCols > MPI_DCCols;
+	typedef SpDCCols < int64_t, NT > DCCols;
+	typedef SpParMat < int64_t, NT, DCCols > MPI_DCCols;
 };
 #define EDGEFACTOR 16
+
+DECLARE_PROMOTE(Dist<double>::DCCols,Dist<int64_t>::DCCols,Dist<double>::DCCols);
 
 template <typename PARMAT>
 void Symmetricize(PARMAT & A)
@@ -170,7 +172,7 @@ int main(int argc, char* argv[])
 	MPI_Comm_size(MPI_COMM_WORLD,&nprocs);
 	MPI_Comm_rank(MPI_COMM_WORLD,&myrank);
 	
-	typedef PlusTimesSRing<bool, int> PTBOOLINT;	
+	typedef PlusTimesSRing<bool, int64_t> PTBOOLINT;	
 	typedef PlusTimesSRing<bool, double> PTBOOLDOUBLE;
 
 	if(argc < 4)
@@ -223,27 +225,27 @@ int main(int argc, char* argv[])
 			cout << "*** Processing "<< nPasses <<" vertices instead"<< endl;
 		}
 
-		vector<int> candidates;
+		vector<int64_t> candidates;
 		if (myrank == 0)
 			cout << "Batch processing will occur " << numBatches << " times, each processing " << nBatchSize << " vertices (overall)" << endl;
 
 		// Only consider non-isolated vertices
-		int vertices = 0;
-		int vrtxid = 0; 
-		int nlocpass = numBatches * subBatchSize;
+		int64_t vertices = 0;
+		int64_t vrtxid = 0; 
+		int64_t nlocpass = numBatches * subBatchSize;
 		while(vertices < nlocpass)
 		{
-			vector<int> single;
-			vector<int> empty;
+			vector<int64_t> single;
+			vector<int64_t> empty;
 			single.push_back(vrtxid);		// will return ERROR if vrtxid > N (the column dimension) 
-			int locnnz = ((AT.seq())(empty,single)).getnnz();
-			int totnnz;
+			int64_t locnnz = ((AT.seq())(empty,single)).getnnz();
+			int64_t totnnz;
       // cout << "locnnz = " << locnnz << endl;
 			MPI_Allreduce( &locnnz, &totnnz, 1, MPI_INT, MPI_SUM, (AT.getcommgrid())->GetColWorld());
 					
 			if(totnnz > 0)
 			{
-        if (myrank == 0) cout << "picked " << vrtxid << endl;
+        if (myrank == 0) cerr << "picked " << vrtxid << endl;
 				candidates.push_back(vrtxid);
 				++vertices;
 			}
@@ -251,80 +253,81 @@ int main(int argc, char* argv[])
 		}
 		
 		SpParHelper::Print("Candidates chosen, precomputation finished\n");
+    cerr << "precomputation finished" << endl;
 		double t1 = MPI_Wtime();
-		vector<int> batch(subBatchSize);
-		DenseParVec<int, double> bc(AT.getcommgrid(),0.0);
-
-		for(int i=0; i< numBatches; ++i)
-		{
-			for(int j=0; j< subBatchSize; ++j)
-			{
-				batch[j] = candidates[i*subBatchSize + j];
-			}
-			
-			Dist<int>::MPI_DCCols fringe = AT.SubsRefCol(batch);
-
-			// Create nsp by setting (r,i)=1 for the ith root vertex with label r
-			// Inially only the diagonal processors have any nonzeros (because we chose roots so)
-			Dist<int>::DCCols * nsploc = new Dist<int>::DCCols();
-			tuple<int, int, int> * mytuples = NULL;	
-			if(AT.getcommgrid()->GetRankInProcRow() == AT.getcommgrid()->GetRankInProcCol())
-			{
-				mytuples = new tuple<int, int, int>[subBatchSize];
-				for(int k =0; k<subBatchSize; ++k)
-				{
-					mytuples[k] = make_tuple(batch[k], k, 1);
-				}
-				nsploc->Create( subBatchSize, AT.getlocalrows(), subBatchSize, mytuples);		
-			}
-			else
-			{  
-				nsploc->Create( 0, AT.getlocalrows(), subBatchSize, mytuples);		
-			}
-		
-			Dist<int>::MPI_DCCols  nsp(nsploc, AT.getcommgrid());			
-			vector < Dist<bool>::MPI_DCCols * > bfs;		// internally keeps track of depth
-
-			SpParHelper::Print("Exploring via BFS...\n");
-			while( fringe.getnnz() > 0 )
-			{
-				nsp += fringe;Dist<bool>::MPI_DCCols * level = new Dist<bool>::MPI_DCCols( fringe ); 
-				bfs.push_back(level);
-
-				fringe = PSpGEMM<PTBOOLINT>(AT, fringe);
-				fringe = EWiseMult(fringe, nsp, true);
-			}
-
-			// Apply the unary function 1/x to every element in the matrix
-			// 1/x works because no explicit zeros are stored in the sparse matrix nsp
-			Dist<double>::MPI_DCCols nspInv = nsp;
-			nspInv.Apply(bind1st(divides<double>(), 1));
-
-			// create a dense matrix with all 1's 
-			DenseParMat<int, double> bcu(1.0, AT.getcommgrid(), fringe.getlocalrows(), fringe.getlocalcols() );
-
-			SpParHelper::Print("Tallying...\n");
-			// BC update for all vertices except the sources
-			for(int j = bfs.size()-1; j > 0; --j)
-			{
-				Dist<double>::MPI_DCCols w = EWiseMult( *bfs[j], nspInv, false);
-				w.EWiseScale(bcu);
-
-				Dist<double>::MPI_DCCols product = PSpGEMM<PTBOOLDOUBLE>(A,w);
-				product = EWiseMult(product, *bfs[j-1], false);
-				product = EWiseMult(product, nsp, false);		
-
-				bcu += product;
-			}
-			for(int j=0; j < bfs.size(); ++j)
-			{
-				delete bfs[j];
-			}
-		
-			SpParHelper::Print("Adding bc contributions...\n");			
-			bc += bcu.Reduce(Row, plus<double>(), 0.0);	// pack along rows
-		}
-		bc.Apply(bind2nd(minus<double>(), nPasses));	// Subtrack nPasses from all the bc scores (because bcu was initialized to all 1's)
+		vector<int64_t> batch(subBatchSize);
+		DenseParVec<int64_t, double> bc(AT.getcommgrid(),0.0);
+    
+    for(int64_t i=0; i< numBatches; ++i)
+    {
+      for(int64_t j=0; j< subBatchSize; ++j)
+      {
+        batch[j] = candidates[i*subBatchSize + j];
+      }
+      
+      Dist<int64_t>::MPI_DCCols fringe = AT.SubsRefCol(batch);
+    
+      // Create nsp by setting (r,i)=1 for the ith root vertex with label r
+      // Inially only the diagonal processors have any nonzeros (because we chose roots so)
+      Dist<int64_t>::DCCols * nsploc = new Dist<int64_t>::DCCols();
+      tuple<int64_t, int64_t, int64_t> * mytuples = NULL;  
+      if(AT.getcommgrid()->GetRankInProcRow() == AT.getcommgrid()->GetRankInProcCol())
+      {
+        mytuples = new tuple<int64_t, int64_t, int64_t>[subBatchSize];
+        for(int64_t k =0; k<subBatchSize; ++k)
+        {
+          mytuples[k] = make_tuple(batch[k], k, 1);
+        }
+        nsploc->Create( subBatchSize, AT.getlocalrows(), subBatchSize, mytuples);    
+      }
+      else
+      {  
+        nsploc->Create( 0, AT.getlocalrows(), subBatchSize, mytuples);    
+      }
+    
+      Dist<int64_t>::MPI_DCCols  nsp(nsploc, AT.getcommgrid());      
+      vector < Dist<bool>::MPI_DCCols * > bfs;    // internally keeps track of depth
+    
+      SpParHelper::Print("Exploring via BFS...\n");
+      while( fringe.getnnz() > 0 )
+      {
+        nsp += fringe;Dist<bool>::MPI_DCCols * level = new Dist<bool>::MPI_DCCols( fringe ); 
+        bfs.push_back(level);
+    
+        fringe = PSpGEMM<PTBOOLINT>(AT, fringe);
+        fringe = EWiseMult(fringe, nsp, true);
+      }
+    
+      // Apply the unary function 1/x to every element in the matrix
+      // 1/x works because no explicit zeros are stored in the sparse matrix nsp
+      Dist<double>::MPI_DCCols nspInv = nsp;
+      nspInv.Apply(bind1st(divides<double>(), 1));
+    
+      // create a dense matrix with all 1's 
+      DenseParMat<int64_t, double> bcu(1.0, AT.getcommgrid(), fringe.getlocalrows(), fringe.getlocalcols() );
+    
+      SpParHelper::Print("Tallying...\n");
+      // BC update for all vertices except the sources
+      for(int64_t j = bfs.size()-1; j > 0; --j)
+      {
+        Dist<double>::MPI_DCCols w = EWiseMult( *bfs[j], nspInv, false);
+        w.EWiseScale(bcu);
+    
+        Dist<double>::MPI_DCCols product = PSpGEMM<PTBOOLDOUBLE>(A,w);
+        product = EWiseMult(product, *bfs[j-1], false);
+        product = EWiseMult(product, nsp, false);    
+        
+        bcu += product;
+      }
+      for(int64_t j=0; j < bfs.size(); ++j)
+      {
+        delete bfs[j];
+      }
+    
+      SpParHelper::Print("Adding bc contributions...\n");      
+      bc += bcu.Reduce(Row, plus<double>(), 0.0);  // pack along rows
+    }
+    bc.Apply(bind2nd(minus<double>(), nPasses));  // Subtrack nPasses from all the bc scores (because bcu was initialized to all 1's)
 		
 		double t2=MPI_Wtime();
 		double TEPS = (static_cast<double>(nPasses) * static_cast<double>(A.getnnz())) / (t2-t1);
