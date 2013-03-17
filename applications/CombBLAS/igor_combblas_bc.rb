@@ -21,9 +21,15 @@ Igor do
     ppn         2
     scale       16
     edgefactor  16
-    k4approx    6
-    nperbatch   4
+    k4approx    8
+    nperbatch   128
   }
+  
+  $squares = [Params.new {nnode 16;  ppn 1,4,16},
+              Params.new {nnode 32;  ppn 2,8},
+              Params.new {nnode 64;  ppn 1,4,16},
+              Params.new {nnode 128; ppn 2,8}]
+  # $squares.each{|s| run{ merge!(s) } }
   
   expect :centrality_teps
   
