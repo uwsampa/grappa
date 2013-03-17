@@ -1,13 +1,13 @@
 \section{Memory}
 
 Applications written for Grappa utilize two forms of memory: local and global.
-Local memory is local to a single core \comment{core or processor/node?} in
-the system. Accesses occur through conventional pointers. The compiler emits
-an access and the memory is manipulated directly. Applications use local
-accesses for a number of things in Grappa: the stack associated with a task,
-accesses to localized global memory in caches (see below), and accesses to
-debugging infrastructure that is local to each system node. Local pointers
-cannot access memory on other cores, and are valid only on their home core.
+Local memory is local to a single core within a node in the system. Accesses
+occur through conventional pointers. The compiler emits an access and the
+memory is manipulated directly. Applications use local accesses for a number
+of things in Grappa: the stack associated with a task, accesses to localized
+global memory in caches (see below), and accesses to debugging infrastructure
+that is local to each system node. Local pointers cannot access memory on
+other cores, and are valid only on their home core.
 
 Large data that is expected to be shared and accessed with low locality is
 stored in Grappa's global memory. All global data must be accessed through
@@ -62,7 +62,9 @@ linear addresses can refer to other cores' memory.
       	\texttt{\scriptsize global\_free( global\_address )} \\ 
       	Allocation in the global heap \\ \\
       	\texttt{\scriptsize delegate\_read( global\_address, local\_var )}  \\
+      	\texttt{\scriptsize delegate\_read\_async( global\_address, local\_var )}  \\
       	\texttt{\scriptsize delegate\_write( global\_address, local\_var )} \\
+      	\texttt{\scriptsize delegate\_write\_async( global\_address, local\_var )} \\
       	\texttt{\scriptsize delegate\_cas( global\_address, local\_var )} \\
       	\texttt{\scriptsize delegate\_fetch\_inc( global\_address, local\_var )} \\ 
       	Memory operations at the home core of a global address \\ \\
@@ -86,12 +88,77 @@ linear addresses can refer to other cores' memory.
 \end{center}
 \end{figure}
 
-\paragraph{Global memory access} There are two general approaches
-Grappa applications use to {\emph access} global memory. When the
-programmer expects a computation on shared data to have spatial locality
-to exploit, {\em cache} operations may be used. When there is no
-locality to exploit, {\em delegate} operations are used.
+\paragraph{Global memory access} There are two general methods Grappa
+applications use to {\em access} global memory. One method is to use {\em
+delegate} operations, which are short memory accesses performed at the memory
+location's home node. This method is used when there is no locality in the
+access. The other method is to do {\em explicit caching} of memory regions,
+used when the programmer expects that the associated computation has data
+locality. Below we explain each in detail.
 
+
+\vspace{1ex} \textit{Delegate operations.} When the data access pattern has
+low-locality, it is more efficient to modify the data on its home core rather
+than bringing a copy to the requesting core and returning it after
+modification. Delegate operations~\cite{Nelson:hotpar11, delegated:oopsla11}
+provide this capability. Applications can dispatch computation to be performed
+on individual machine-word sized chunks of global memory to the memory system
+itself. Delegates are general, so we use them to perform simple
+\emph{read}/\emph{write} operations to global memory, as well as more complex \emph{read-modify-write} operations (e.g.,\emph{fetch-and-add}). 
+
+Delegate operations are \emph{always} executed at the home core of their
+address. The remote operation may not perform any operations that could cause
+a context switch; this ensures any modifications are atomic. We limit delegate
+operations to operate on objects in the 2D address space or objects that fit
+in a single block of the linear address space so they can be satisfied with a
+single network request. Given these restrictions, we can ensure that delegate
+operations for the same address from multiple requesters are always serialized
+through a single core in the system, providing atomic semantics without using
+actual atomic operations (and thus avoiding their typical high cost).
+
+% We restrict the use of delegate operations in order to make them also
+% useful for synchronization operations.
+
+Delegate operations can be either {\em synchronous} or {\em asynchronous}.
+With synchronous operations, the task issuing the delegate call blocks until
+the delegate operation completes, which is necessary, for example, to ensure
+that synchronization has finished before continuing. Synchronization in Grappa
+is implemented using synchronous delegate operations. Often remote data
+accesses do not need to be performed synchronously. In order to avoid
+unnecessary waiting, we support asynchronous delegate operations. For reads,
+we support a ``futures''-like mechanism. Tasks may issue delegate reads in
+parallel and block on the ``promises'' returned by asynchronous delegate
+invocations. Delegate write operations may also be performed asynchronously,
+and since they do not return data, they need a mechanism to detect completion.
+Grappa provides a \texttt{GlobalCompletionEvent} object, which keeps track of
+outstanding asynchronous operations of the local core. The code and can probe
+the state of this object to determine when all outstanding requests are
+complete. This is necessary to, say, make sure all outstanding operations are
+complete before executing a synchronization operation.
+
+
+% \TODO{Talk about synchronous and asynchronous delegate operations. Talk about global completion object. Should we have a whole section on synchronization?}
+% \TODO{If we do want a section on GlobalCompletionEvent:
+%   \begin{itemize}
+%     \item many tasks and operations in the applications we've implemented do not need immediate consistency
+%     \item guaranteeing ordering requires blocking a task. this is unavoidable if the task relies on the returned value, or if one task is dependent on others
+%     \item however, much of the applications we've implemented (and other big-data things) are data-parallel, so tasks within a data-parallel loop can run in any order
+%     \item in addition, often these data-parallel tasks will update values that aren't used until the next data-parallel loop
+%     \item this allows us to free up workers/stacks (running out of stacks causes  latency-sensitivity because we can't continue until tasks complete)
+%     \item must guarantee all operations that were supposed to happen in the loop complete before continuing, including tasks and delegate operations
+%     \item \emph{motivating example:} write to array in one loop, use updated values in next loop (could also mention the ``PushBuffer'' example where we buffer queue appends because the order in the queue doesn't matter)
+%     \item GlobalCompletionEvent is complicated by task-stealing and the fact that delegate operations complete on a different core than they started, forcing us to use a ``cancelable barrier''-like approach (possible citation: Ravichandran, et al. ``Work stealing for multi-core HPC Clusters'')
+%     \item interface to GlobalCompletionEvent:
+%       \begin{itemize}
+%         \item \texttt{gce.enroll(n)}: enroll n tasks/operations to be done, when goes from 0 to 1, leave cancelable barrier
+%         \item \texttt{gce.complete(n)}: complete tasks, when it goes to zero, enter global cancelable barrier
+%         \item \texttt{gce.wait()}: block until all cores have no work
+%       \end{itemize}
+%     \item to prevent early wakeups, stolen tasks must send a completion message back to the core they were started on
+%   \end{itemize}
+% }
+
+\vspace{1ex}
 \textit{Explicit caching.} Grappa provides an API to fetch a global pointer of
 any length and return a local pointer to a cached copy of the global memory.
 Grappa cache operations have the usual read-only and read-write variants,
@@ -108,64 +175,12 @@ multiple system nodes and presenting a conventional appearing linear block of
 memory as a local pointer into a cache. The strategy employed is to issue all
 the constituent requests of the desired block (as Active Messages) and then
 yield until all responses have occurred. Currently, Grappa caches are
-\emph{not} kept coherent automatically. If that is desired, the programmer
-is responsible for ensuring sufficient synchronization (via delegate
-operations) occurs before acquiring or releasing cache objects.
-% Given that synchronization is explicit in Grappa, we don't expect this to be a
-% significant burden (programmers can push updates before a relevant
-% synchronization operation).
+\emph{not} kept coherent automatically. If that is desired, the programmer is
+responsible for ensuring sufficient synchronization (via delegate operations)
+occurs before acquiring or releasing cache objects.
 
-% Future work will develop a software directory based coherence scheme to
-% simplify consistent access to global data.
-
-\textit{Delegate operations.} When the access pattern has low-locality,
-it is more efficient to modify the data on its home core rather than
-bringing a copy to the requesting core and returning it after
-modification. Delegate operations provide this capability. Applications
-can dispatch computation to be performed on individual machine-word
-sized chunks of global memory to the memory system itself (e.g.,
-\emph{fetch-and-add}).  Delegate operations, proposed in
-\cite{Nelson:hotpar11} and \cite{delegated:oopsla11}, are used to implement synchronization in Grappa.
-
-Delegate operations are always executed at the home core of their
-address, and while arbitrary memory operations can be delegated, we
-restrict the use of delegate operations in three ways to make them more
-useful for synchronization.
-First, the remote operation may not perform any operations that could cause a context switch; this ensures any modifications are atomic due to cooperative multithreading.
-Second, we limit delegate operations to operate on objects in
-the 2D address space or objects that fit in a single block of the linear
-address space so they can be satisfied with a single network request.
-Finally, the task issuing the delegate call blocks until the delegate operation
-completes to ensure that synchronization has finished before continuing.
-Using a ``futures''-like mechanism, tasks may issue delegates in parallel and block 
-on the ``promises'' returned by asynchronous delegate invocations.
-Given these restrictions, we can ensure that delegate
-operations for the same address from multiple requesters are always
-serialized through a single core in the system, providing atomic
-semantics without using actual atomic operations (and thus avoiding their typical high cost). 
-Figure~\ref{fig:delegate-cache} depicts an example of how delegate and
-cache operations interact.
-
-\TODO{Talk about synchronous and asynchronous delegate operations. Talk about global completion object. Should we have a whole section on synchronization?}
-\TODO{If we do want a section on GlobalCompletionEvent:
-  \begin{itemize}
-    \item many tasks and operations in the applications we've implemented do not need immediate consistency
-    \item guaranteeing ordering requires blocking a task. this is unavoidable if the task relies on the returned value, or if one task is dependent on others
-    \item however, much of the applications we've implemented (and other big-data things) are data-parallel, so tasks within a data-parallel loop can run in any order
-    \item in addition, often these data-parallel tasks will update values that aren't used until the next data-parallel loop
-    \item this allows us to free up workers/stacks (running out of stacks causes  latency-sensitivity because we can't continue until tasks complete)
-    \item must guarantee all operations that were supposed to happen in the loop complete before continuing, including tasks and delegate operations
-    \item \emph{motivating example:} write to array in one loop, use updated values in next loop (could also mention the ``PushBuffer'' example where we buffer queue appends because the order in the queue doesn't matter)
-    \item GlobalCompletionEvent is complicated by task-stealing and the fact that delegate operations complete on a different core than they started, forcing us to use a ``cancelable barrier''-like approach (possible citation: Ravichandran, et al. ``Work stealing for multi-core HPC Clusters'')
-    \item interface to GlobalCompletionEvent:
-      \begin{itemize}
-        \item \texttt{gce.enroll(n)}: enroll n tasks/operations to be done, when goes from 0 to 1, leave cancelable barrier
-        \item \texttt{gce.complete(n)}: complete tasks, when it goes to zero, enter global cancelable barrier
-        \item \texttt{gce.wait()}: block until all cores have no work
-      \end{itemize}
-    \item to prevent early wakeups, stolen tasks must send a completion message back to the core they were started on
-  \end{itemize}
-}
+Figure~\ref{fig:delegate-cache} depicts an example how explicit caching and
+delegate operations work and how they interact.
 
 \begin{figure*}[htb] \begin{center}
 \includegraphics[width=1.5\columnwidth]{figs/delegate-cache}
@@ -189,19 +204,29 @@ previous value of the array element. } \end{minipage} \vspace{-3ex}
 
 \paragraph{Memory consistency model discussion} As mentioned earlier, all
 synchronization operations are done via delegate operations. Since they all
-execute in their home node, they are guaranteed to be serialized , with their
+execute in their home node, they are guaranteed to be serialized, with their
 updates visible to all cores across the system in the same order. Also, tasks
-are restricted to a single outstanding delegate operation at a time, and
-therefore are not subject to potential request reordering \TODO{I think we can support multiple delegates in parallel from a task as long as we block on them before counting on them being complete. see my description above about the \emph{future/promise} delegates we have now. Not sure if there's a strong example of when this is useful for synchronization (though it's definitely useful for reads/writes), acquiring multiple locks doesn't work because we have to acquire locks in order to prevent deadlock.} Consequently, all
-synchronization operations execute in program order and are made visible in
-the same order to all cores in the system. These properties are sufficient to
-guarantee a memory model that offers sequential consistency for data-race-free
-programs~\cite{AdveHill1990} (all accesses to shared data are separated by
-synchronization). This is the memory model that underpins C/C++~\cite{N2480,N2800}.
+are restricted to a single outstanding synchronous delegate operation at a
+time, which is how synchronization is done. Therefore, synchronization operations are not subject to potential reordering. 
+% \TODO{I think we can support multiple delegates in parallel from a task as
+% long as we block on them before counting on them being complete. see my
+% description above about the \emph{future/promise} delegates we have now. Not
+% sure if there's a strong example of when this is useful for synchronization
+% (though it's definitely useful for reads/writes), acquiring multiple locks
+% doesn't work because we have to acquire locks in order to prevent deadlock.}
+Consequently, all synchronization operations execute in program order and are
+made visible in the same order to all cores in the system. These properties
+are sufficient to guarantee a memory model that offers sequential consistency
+for data-race-free programs~\cite{AdveHill1990} (all accesses to shared data
+are separated by synchronization). This is the memory model that underpins
+C/C++~\cite{N2480,N2800}.
 
-Note, however, that if the application code uses explicit caching on shared
-data, all updates must be sent back to the home node before the
-synchronization operation that protects the data is performed.\TODO{Not sure this warrants its own paragraph, seems like the explicit caches are just the same as reading and then writing using delegates.}
+Note, however, that if the application code uses explicit caching or
+asynchronous delegates to access shared data, all updates must be sent back to
+the home node before the synchronization operation that protects the data is
+performed. This is done using release operations on cached regions and using the \texttt{GlobalCompletionEvent} object to determine that asynchronous delegates have been fully executed. 
+
+% \TODO{Not sure this warrants its own paragraph, seems like the explicit caches are just the same as reading and then writing using delegates.}
 
 
 
