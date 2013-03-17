@@ -57,10 +57,10 @@ NONE_CXX=$(CXX)
 NONE_LD=$(LD)
 
 
-# define to build on PAL cluster
-# should load modules:
+# to build on PAL cluster
+# should load modules as follows:
 #   module unload pathscale openmpi
-#   module load git gcc/4.6.2 openmpi
+#   module load git gcc/4.7.2 openmpi/1.6.3
 
 MACHINENAME:=$(shell hostname)
 ifeq ($(MACHINENAME), pal.local)
@@ -70,9 +70,15 @@ endif
 ifdef PAL
 NELSON=/pic/people/nels707
 
+CC=gcc
+CXX=g++
+LD=mpiCC
+
 #GASNET=$(NELSON)/gasnet
 HUGETLBFS=/usr
-BOOST=$(NELSON)/boost
+BOOST=$(NELSON)/boost153-install
+BOOST_INCLUDE=$(BOOST)/include
+BOOST_LIB=$(BOOST)/lib
 GPERFTOOLS=$(NELSON)/gperftools
 VAMPIRTRACE=$(NELSON)/vampirtrace
 
@@ -189,9 +195,11 @@ SHMMAX?=12884901888
 
 # include this first to override system default if necessary
 BOOST?=/sampa/share/gcc-4.7.2/src/boost_1_51_0
-CFLAGS+= -I$(BOOST)
-LDFLAGS+= -L$(BOOST)/stage/lib
-LD_LIBRARY_PATH:=$(LD_LIBRARY_PATH):$(BOOST)/stage/lib
+BOOST_INCLUDE?=$(BOOST)
+BOOST_LIB?=$(BOOST)/stage/lib
+CFLAGS+= -I$(BOOST_INCLUDE)
+LDFLAGS+= -L$(BOOST_LIB)
+LD_LIBRARY_PATH:=$(LD_LIBRARY_PATH):$(BOOST_LIB)
 
 ifdef GASNET_TRACING
 GASNET:=/sampa/share/gasnet-1.18.2-tracing
