@@ -36,6 +36,7 @@
 // #include <boost/interprocess/containers/vector.hpp>
 
 DECLARE_int64( target_size );
+DECLARE_int64( aggregator_autoflush_ticks );
 
 /// stats for application messages
 GRAPPA_DECLARE_STAT( SimpleStatistic<int64_t>, app_messages_enqueue );
@@ -150,15 +151,19 @@ namespace Grappa {
       // lowest-numbered core that is in this core's locale
       Core representative_core_;
       Locale mylocale_;
-
       int32_t pad32;
-      int64_t pad[2]; 
+
+      // sending thread blocks here until it has work to do
+      ConditionVariable send_cv_;
+
+      // remember when we were last sent
+      Grappa_Timestamp last_sent_;
 
       ///
       /// another cache line
       ///
 
-      /// cache buffer addresses on the remote core
+      /// holds buffer addresses on the remote core
       Grappa::impl::ReusePool< RDMABuffer, CountingSemaphore, remote_buffer_pool_size > remote_buffers_;
 
       ///
@@ -177,6 +182,8 @@ namespace Grappa {
         , prefetch_queue_() 
         , representative_core_(0)
         , mylocale_(0)
+        , send_cv_()
+        , last_sent_(0)
         , remote_buffers_()
         , locale_byte_count_(0)
         , earliest_message_for_locale_(0)
@@ -312,19 +319,27 @@ namespace Grappa {
       }
 
       /// do we have any work to do for a locale?
-      bool check_for_work_on( Locale l, size_t size) {
-        // Core c = source_core_for_locale_[l];
+      bool check_for_work_on( Locale locale, size_t size) {
+        // Core c = source_core_for_locale_[locale];
         // CHECK_NE( Grappa::mycore(), c );
         // size_t byte_count = cores_[c].locale_byte_count_;
         // return ( byte_count > size );
-        Core c = l * Grappa::locale_cores();
+        Core c = locale * Grappa::locale_cores();
         CHECK_NE( Grappa::mycore(), c );
+
+        // have we timed out?
+        Grappa_Timestamp current_ts = Grappa_get_timestamp();
+        if( current_ts - cores_[c].last_sent_ > FLAGS_aggregator_autoflush_ticks ) {
+          return true;
+        }
+
+        // have we reached a size limit?
         size_t byte_count = cores_[c].locale_byte_count_;
         return ( byte_count > size );
       }
 
-      bool check_for_any_work_on( Locale l ) {
-        Core start = l * Grappa::locale_cores();
+      bool check_for_any_work_on( Locale locale ) {
+        Core start = locale * Grappa::locale_cores();
         Core max = start + Grappa::locale_cores();
         for( Core c = start; c < max; ++c ) {
           if( cores_[c].messages_.raw_ != 0 ) {
@@ -343,9 +358,10 @@ namespace Grappa {
       /// Task that is constantly waiting to receive and
       /// deaggregate. This ensures we always have receiving resource
       /// available.
+      void send_worker( Locale locale );
       void receive_worker();
       void medium_receive_worker();
-      void receive_buffer( RDMABuffer * b, size_t size );
+      void receive_buffer( RDMABuffer * b );
 
       /// Condition variable used to signal flushing task.
       Grappa::ConditionVariable flush_cv_;
@@ -405,6 +421,7 @@ namespace Grappa {
 
       bool receive_poll() {
         rdma_poll_receive++;
+        global_communicator.poll();
         bool useful = false;
         Core c = Grappa::mycore();
         // see if we have anything to receive
@@ -423,9 +440,11 @@ namespace Grappa {
         // see if we have anything to send
         for( int i = 0; i < core_partner_locale_count_; ++i ) {
           Locale locale = core_partner_locales_[i];
+          Core core = locale * Grappa::locale_cores();
           if( check_for_work_on( locale, FLAGS_target_size ) ) {
             useful = true;
-            send_locale_medium( locale );
+            Grappa::signal( &cores_[core].send_cv_ );
+            //send_locale_medium( locale );
           }
         }
         if( useful ) rdma_poll_send_success++;
@@ -446,8 +465,10 @@ namespace Grappa {
 
         enqueue_counts_[ m->destination_ ]++;
 
-        bool yielded = global_scheduler.thread_maybe_yield();
-        if( yielded ) rdma_poll_yields++;
+        if( !global_scheduler.in_no_switch_region() ) {
+          bool yielded = global_scheduler.thread_maybe_yield();
+          if( yielded ) rdma_poll_yields++;
+        }
         // static int freq = 10;
         // if( freq-- == 0 ) {
         //   poll();
@@ -462,7 +483,9 @@ namespace Grappa {
         // get destination pointer
         Core core = m->destination_;
         CoreData * dest = &cores_[ core ];
-        CoreData * sender = &cores_[ dest->representative_core_ ];
+        //CoreData * sender = &cores_[ dest->representative_core_ ];
+        CoreData * locale_core = &cores_[ Grappa::locale_of( m->destination_ ) * Grappa::locale_cores() ];
+
         //Grappa::impl::MessageBase ** dest_ptr = &dest->messages_;
         Grappa::impl::MessageList * dest_ptr = &(dest->messages_);
         Grappa::impl::MessageList old_ml, new_ml, swap_ml;
@@ -558,7 +581,7 @@ namespace Grappa {
         app_messages_enqueue_cas += cas_count;
 
         // warning: racy
-        sender->locale_byte_count_ += size;
+        locale_core->locale_byte_count_ += size;
           
         dest->prefetch_queue_[ count % prefetch_dist ].size_ = size < max_size_ ? size : max_size_-1;
         set_pointer( &(dest->prefetch_queue_[ count % prefetch_dist ]), m );
@@ -608,7 +631,14 @@ namespace Grappa {
       /// Flush one destination.
       void flush( Core c ) {
         rdma_requested_flushes++;
-        flush_one( c );
+        Locale locale = Grappa::locale_of(c);
+        if( source_core_for_locale_[ locale ] == Grappa::mycore() ) {
+          Grappa::signal( &cores_[ locale * Grappa::locale_cores() ].send_cv_ );
+        } else {
+          // not on our core, so we can't signal it. instead, cause
+          // polling thread to detect timeout.
+          cores_[ locale * Grappa::locale_cores() ].last_sent_ = 0;
+        }
       }
 
       /// Initiate an idle flush.
