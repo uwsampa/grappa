@@ -43,6 +43,9 @@ GRAPPA_DEFINE_STAT( SimpleStatistic<int64_t>, gups_completions_blocked, 0 );
 uint64_t * requests_sent = NULL;
 uint64_t * completions_sent = NULL;
 
+int64_t * completions_to_send = NULL;
+bool done_sending = false;
+
 //const int outstanding = 1 << 4;
 //const int outstanding = 1 << 13;
 
@@ -73,12 +76,13 @@ protected:
 
 // completion message handler
 struct C {
-  GlobalAddress< Grappa::CompletionEvent > ce;
+  GlobalAddress< Grappa::CompletionEvent > rce;
+  int64_t completions_for_here;
   void operator()() {
     DVLOG(5) << "Received completion at node " << Grappa::mycore()
-             << " with target " << ce.node()
-             << " address " << ce.pointer();
-    ce.pointer()->complete();
+             << " with target " << rce.node()
+             << " address " << rce.pointer();
+    rce.pointer()->complete( completions_for_here );
     gups_completions_received++;
   }
 };
@@ -93,52 +97,64 @@ void completion_list_push( ReuseMessage<C> * c ) {
 struct M {
   // address to increment
   GlobalAddress< int64_t > addr;
+
   // address of completion counter
-  GlobalAddress< Grappa::CompletionEvent > ce;
+  GlobalAddress< Grappa::CompletionEvent > rce;
+  
+  // number of completions for this node
+  int64_t completions_for_here;
 
   // once we have a message to use, do this
   static void complete( ReuseMessage<C> * message, GlobalAddress< Grappa::CompletionEvent > event ) {
     gups_completions_sent++;
     message->reset();
-    (*message)->ce = event;
+    (*message)->rce = event;
+    (*message)->completions_for_here = 1;
     message->enqueue( event.node() );
-    completions_sent[ event.node() ];
+    completions_sent[ event.node() ]++;
   }
 
   void operator()() {
     DVLOG(5) << "Received GUP at node " << Grappa::mycore()
              << " with target " << addr.node()
              << " address " << addr.pointer()
-             << " reply to " << ce.node()
-             << " with address " << ce.pointer();
+             << " reply to " << rce.node()
+             << " with address " << rce.pointer();
     gups_requests_received++;
 
     // increment address
     int64_t * ptr = addr.pointer();
     *ptr++;
 
-    // now send completion
-    // is the completion local?
-    if (ce.node() == Grappa::mycore()) {
-      // yes, so just do it.
-      ce.pointer()->complete();
-      gups_completions_sent++;
-      completions_sent[ ce.node() ];
+    // deliver any batched completions
+    rce.pointer()->complete( completions_for_here );
+
+    if( !done_sending ) {
+      // remember to send completion
+      completions_to_send[ rce.node() ]++;
     } else {
-      // we need to send a message
-      // try to grab a message
-      ReuseMessage<C> * c = NULL;
-      if( (c = completion_list.try_pop()) != NULL ) {
-        // got one; send completion
-        M::complete( c, ce );
+      // is the completion local?
+      if (rce.node() == Grappa::mycore()) {
+        // yes, so just do it.
+        rce.pointer()->complete();
+        gups_completions_sent++;
+        completions_sent[ rce.node() ]++;
       } else {
-        gups_completions_blocked++;
-        // we need to block, so spawn a task
-        auto my_ce = ce;
-        Grappa::privateTask( [this, my_ce] { // this actually unused
-            ReuseMessage<C> * c = completion_list.block_until_pop();
-            M::complete( c, my_ce );
-          });
+        // we need to send a message
+        // try to grab a message
+        ReuseMessage<C> * c = NULL;
+        if( (c = completion_list.try_pop()) != NULL ) {
+          // got one; send completion
+          M::complete( c, rce );
+        } else {
+          gups_completions_blocked++;
+          // we need to block, so spawn a task
+          auto my_ce = rce;
+          Grappa::privateTask( [this, my_ce] { // this actually unused
+              ReuseMessage<C> * c = completion_list.block_until_pop();
+              M::complete( c, my_ce );
+            });
+        }
       }
     }
   }
@@ -152,7 +168,6 @@ void message_list_push( ReuseMessage<M> * m ) {
 
 // keep track of this core's completions
 Grappa::CompletionEvent ce;
-
 
 
 double wall_clock_time() {
@@ -222,6 +237,7 @@ LOOP_FUNCTION( func_gups_rdma, index ) {
 
   // record how many messages we plan to send
   ce.enroll( each_iters );
+  done_sending = false;
     
   DVLOG(1) << "Starting RDMA GUPS";
   for( uint64_t index = my_start; index < my_start + each_iters; ++index ) {
@@ -236,8 +252,15 @@ LOOP_FUNCTION( func_gups_rdma, index ) {
 
     // send
     m->reset();
+
+    // address to increment
     (*m)->addr = a;
-    (*m)->ce = make_global( &ce );
+    (*m)->rce = make_global( &ce );
+
+    // send buffered completions
+    (*m)->completions_for_here = completions_to_send[ a.node() ];
+    completions_to_send[ a.node() ] = 0;
+    
     m->enqueue( a.node() );
     gups_requests_sent++;
     requests_sent[a.node()]++;
@@ -247,6 +270,27 @@ LOOP_FUNCTION( func_gups_rdma, index ) {
              << " reply to address " << &ce;
 
   }
+
+  done_sending = true;
+
+  // now flush remaining completions
+  // (any new messages that arrive now will generate their own messages)
+  for( Core core = 0; core < Grappa::cores(); ++core ) {
+    ReuseMessage<C> * c = completion_list.block_until_pop();
+
+    c->reset();
+    
+    (*c)->rce = make_global( &ce, core ); // generate address of completion event
+    (*c)->completions_for_here = completions_to_send[ core ];
+    completions_to_send[ core ] = 0;
+
+    c->enqueue( core );
+
+    gups_completions_sent++;
+    completions_sent[ core ]++;
+
+    Grappa::impl::global_rdma_aggregator.flush( core );
+  };
 
   DVLOG(1) << "Done sending; now waiting for replies";
   ce.wait();
@@ -332,9 +376,11 @@ BOOST_AUTO_TEST_CASE( test1 ) {
 
     requests_sent = new uint64_t[ Grappa::cores() ];
     completions_sent = new uint64_t[ Grappa::cores() ];
+    completions_to_send = new int64_t[ Grappa::cores() ];
     for( int i = 0; i < Grappa::cores(); ++i ) {
       requests_sent[i] = 0;
       completions_sent[i] = 0;
+      completions_to_send[i] = 0;
     }
 
     // prepare pools of messages
