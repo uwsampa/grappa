@@ -65,6 +65,16 @@ namespace Grappa {
       delete tp;
     }
 
+    /// Helper function to spawn workers with lambdas and
+    /// functors. This function takes ownership of the heap-allocated
+    /// functor and deallocates it after it has run.
+    template< typename T >
+    static void worker_heapfunctor_proxy( Thread * me, void * vp ) {
+      T * tp = reinterpret_cast< T * >( vp );
+      (*tp)();
+      delete tp;
+    }
+
   }
 
   /// Spawn a task visible to this Node only. The task is specified as
@@ -100,7 +110,7 @@ namespace Grappa {
       // uint64_t args[3] = { 0 };
       // TF * tfargs = reinterpret_cast< TF * >( &args[0] );
       // *tfargs = tf;
-      DVLOG(5) << "Thread " << global_scheduler.get_current_thread() << " spawns private";
+      DVLOG(5) << __PRETTY_FUNCTION__ << ": Thread " << global_scheduler.get_current_thread() << " spawns private";
       global_task_manager.spawnLocalPrivate( Grappa::impl::task_functor_proxy<TF>, args[0], args[1], args[2] );
     }
   }
@@ -115,6 +125,16 @@ namespace Grappa {
     
     uint64_t * args = reinterpret_cast< uint64_t * >( &tf );
     global_task_manager.spawnPublic(Grappa::impl::task_functor_proxy<TF>, args[0], args[1], args[2]);
+  }
+
+  template < typename TF >
+  void spawn_worker( TF && tf ) {
+    TF * tp = new TF(tf);
+    void * vp = reinterpret_cast< void * >( tp );
+    Thread * th = thread_spawn( global_scheduler.get_current_thread(), &global_scheduler,
+                                Grappa::impl::worker_heapfunctor_proxy<TF>, vp );
+    global_scheduler.ready( th );
+    DVLOG(5) << __PRETTY_FUNCTION__ << " spawned Worker " << th;
   }
 
   /// @}
