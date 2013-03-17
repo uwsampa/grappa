@@ -38,7 +38,7 @@ Igor do
   
   expect :mops_total
     
-  $filtered = results{|t| t.select(:id, :mpibfs, :scale, :nnode, :ppn, :run_at, :run_time, :mops_total) }
+  $filtered = results{|t| t.select(:id, :problem, :nnode, :ppn, :run_at, :run_time, :mops_total, :mops_per_process) }
   
   interact # enter interactive mode
 end
