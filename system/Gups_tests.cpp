@@ -276,20 +276,27 @@ LOOP_FUNCTION( func_gups_rdma, index ) {
   // now flush remaining completions
   // (any new messages that arrive now will generate their own messages)
   for( Core core = 0; core < Grappa::cores(); ++core ) {
-    ReuseMessage<C> * c = completion_list.block_until_pop();
+    if( completions_to_send[ core ] > 0 ) {
+      ReuseMessage<C> * c = completion_list.block_until_pop();
+      
+      if( completions_to_send[ core ] == 0 ) {
+        completion_list.push( c );
+        break;
+      }
 
-    c->reset();
-    
-    (*c)->rce = make_global( &ce, core ); // generate address of completion event
-    (*c)->completions_for_here = completions_to_send[ core ];
-    completions_to_send[ core ] = 0;
-
-    c->enqueue( core );
-
-    gups_completions_sent++;
-    completions_sent[ core ]++;
-
-    Grappa::impl::global_rdma_aggregator.flush( core );
+      c->reset();
+      
+      (*c)->rce = make_global( &ce, core ); // generate address of completion event
+      (*c)->completions_for_here = completions_to_send[ core ];
+      completions_to_send[ core ] = 0;
+      
+      c->enqueue( core );
+      
+      gups_completions_sent++;
+      completions_sent[ core ]++;
+      
+      Grappa::impl::global_rdma_aggregator.flush( core );
+    }
   };
 
   DVLOG(1) << "Done sending; now waiting for replies";
