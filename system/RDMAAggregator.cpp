@@ -410,6 +410,8 @@ namespace Grappa {
 
       // copy payload into buffer
       memcpy( b->get_base(), buf, size );
+      //CHECK_NULL( b->get_next() );
+      b->set_next( NULL );
 
       uint64_t sequence_number = reinterpret_cast< uint64_t >( b->get_ack() );
       uint64_t my_size = reinterpret_cast< uint64_t >( b->get_next() );
@@ -628,6 +630,7 @@ void RDMAAggregator::draw_routing_graph() {
       buf = NULL;
       while( buf == NULL ) {
         buf = received_buffer_list_.block_until_pop();
+        CHECK_NOTNULL( buf );
       }
       
       active_receive_workers_++;
@@ -639,7 +642,10 @@ void RDMAAggregator::draw_routing_graph() {
       
       // process buffer
       receive_buffer( buf );
-      
+
+      // done with this buffer. put it back on free list
+      free_buffer_list_.push( buf );
+
       // once we're done, send ack to give permission to send again
       RDMABuffer * b = NULL; // for now, lie; just use as token
       Core mylocale_core = Grappa::mylocale() * Grappa::locale_cores();
@@ -835,10 +841,6 @@ void RDMAAggregator::draw_routing_graph() {
       DVLOG(5) << __func__ << "/" << global_scheduler.get_current_thread() << "/" << sequence_number << ": maybe blocking until my " << outstanding << " outstanding messages are delivered";
     }
     DVLOG(5) << __func__ << "/" << sequence_number << ": continuting; my outstanding messages are all delivered";
-
-    // done with this buffer. put it back on free list
-    free_buffer_list_.push( buf );
-
   }
 
     /// Accept an empty buffer sent by a remote host
