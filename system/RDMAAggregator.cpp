@@ -85,24 +85,18 @@ namespace Grappa {
 
         Core c = Grappa::mycore();
 
-        // see if we have anything to receive
-        if( cores_[ c ].messages_.raw_ != 0 ) {
-          rdma_flush_receive++;
-          Grappa::impl::MessageList ml = grab_messages( c );
-          deliver_locally( c, get_pointer( &ml ) );
-        }
+        receive_poll();
 
         // see if we have anything at all to send
         for( int i = 0; i < core_partner_locale_count_; ++i ) {
           Locale locale = core_partner_locales_[i];
           if( check_for_any_work_on( locale ) ) {
-            rdma_flush_send++;
-            send_locale_medium( locale );
+            Grappa::signal( &cores_[ locale * Grappa::locale_cores() ].send_cv_ );
           }
         }
       }
     }
-
+  
   /// allocate and initialize locale-to-core translation
   void RDMAAggregator::compute_route_map() {
 
