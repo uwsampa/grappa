@@ -108,7 +108,7 @@
 /*  CLASS D  */
 /*************/
 #if CLASS == 'D'
-#define  TOTAL_KEYS_LOG_2    29
+#define  TOTAL_KEYS_LOG_2    31
 #define  MAX_KEY_LOG_2       27
 #define  NUM_BUCKETS_LOG_2   10
 #undef   MIN_PROCS
@@ -116,9 +116,9 @@
 #endif
 
 
-#define  TOTAL_KEYS          (1 << TOTAL_KEYS_LOG_2)
-#define  MAX_KEY             (1 << MAX_KEY_LOG_2)
-#define  NUM_BUCKETS         (1 << NUM_BUCKETS_LOG_2)
+#define  TOTAL_KEYS          (1L << TOTAL_KEYS_LOG_2)
+#define  MAX_KEY             (1L << MAX_KEY_LOG_2)
+#define  NUM_BUCKETS         (1L << NUM_BUCKETS_LOG_2)
 #define  NUM_KEYS            (TOTAL_KEYS/NUM_PROCS*MIN_PROCS)
 
 /*****************************************************************/
@@ -130,13 +130,13 @@
 /* The following values are validated for the 1024-bucket setup. */
 /*****************************************************************/
 #if   NUM_PROCS < 256
-#define  SIZE_OF_BUFFERS     3*NUM_KEYS/2
+#define  SIZE_OF_BUFFERS     3L*NUM_KEYS/2
 #elif NUM_PROCS < 512
-#define  SIZE_OF_BUFFERS     5*NUM_KEYS/2
+#define  SIZE_OF_BUFFERS     5L*NUM_KEYS/2
 #elif NUM_PROCS < 1024
-#define  SIZE_OF_BUFFERS     4*NUM_KEYS
+#define  SIZE_OF_BUFFERS     4L*NUM_KEYS
 #else
-#define  SIZE_OF_BUFFERS     13*NUM_KEYS/2
+#define  SIZE_OF_BUFFERS     13L*NUM_KEYS/2
 #endif
 
 /*****************************************************************/
