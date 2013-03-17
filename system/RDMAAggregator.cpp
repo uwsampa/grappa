@@ -1405,41 +1405,41 @@ void RDMAAggregator::draw_routing_graph() {
 
 
 
-    ///
-    /// old approach to communication
-    ///
+//     ///
+//     /// old approach to communication
+//     ///
 
-    // performance sucks
-    void RDMAAggregator::send_medium( Core core, Grappa::impl::MessageList ml ) {
+//     // performance sucks
+//     void RDMAAggregator::send_medium( Core core, Grappa::impl::MessageList ml ) {
 
-      if( cores_[core].messages_.raw_ == 0 )
-        return;
+//       if( cores_[core].messages_.raw_ == 0 )
+//         return;
       
-      // create temporary buffer
-      const size_t size = 4024;
-      char buf[ size ] __attribute__ ((aligned (16)));
+//       // create temporary buffer
+//       const size_t size = 4024;
+//       char buf[ size ] __attribute__ ((aligned (16)));
       
-      Grappa::impl::MessageBase * messages_to_send = get_pointer( &ml );
+//       Grappa::impl::MessageBase * messages_to_send = get_pointer( &ml );
 
-      // issue initial prefetches
-      for( int i = 0; i < prefetch_dist; ++i ) {
-        Grappa::impl::MessageBase * pre = get_pointer( &cores_[core].prefetch_queue_[i] );
-        __builtin_prefetch( pre, 0, prefetch_type ); // prefetch for read
-        cores_[core].prefetch_queue_[i].raw_ = 0;    // clear out for next time around
-      }
+//       // issue initial prefetches
+//       for( int i = 0; i < prefetch_dist; ++i ) {
+//         Grappa::impl::MessageBase * pre = get_pointer( &cores_[core].prefetch_queue_[i] );
+//         __builtin_prefetch( pre, 0, prefetch_type ); // prefetch for read
+//         cores_[core].prefetch_queue_[i].raw_ = 0;    // clear out for next time around
+//       }
       
 
-      // serialize to buffer
-      while( messages_to_send != nullptr ) {
-        DVLOG(5) << "Serializing message from " << messages_to_send;
-        char * end = aggregate_to_buffer( &buf[0], &messages_to_send, size );
-        DVLOG(5) << "After serializing, pointer was " << messages_to_send;
-        size_t aggregated_size = end - &buf[0];
+//       // serialize to buffer
+//       while( messages_to_send != nullptr ) {
+//         DVLOG(5) << "Serializing message from " << messages_to_send;
+//         char * end = aggregate_to_buffer( &buf[0], &messages_to_send, size );
+//         DVLOG(5) << "After serializing, pointer was " << messages_to_send;
+//         size_t aggregated_size = end - &buf[0];
         
-        // send
-        global_communicator.send( core, deserialize_buffer_handle_, &buf[0], aggregated_size );
-      }
-    }
+//         // send
+//         global_communicator.send( core, deserialize_buffer_handle_, &buf[0], aggregated_size );
+//       }
+    // }
 
     /// @}
   };
