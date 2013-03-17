@@ -43,6 +43,7 @@
 #include "npbparams.h"
 #include <stdlib.h>
 #include <stdio.h>
+#include <string.h>
 
 /******************/
 /* default values */
@@ -179,9 +180,9 @@ int timeron;
 /* size of int here by changing the  */
 /* int type to, say, long            */
 /*************************************/
-typedef  int  INT_TYPE;
+typedef  long  INT_TYPE;
 typedef  long INT_TYPE2;
-#define MP_KEY_TYPE MPI_INT
+#define MP_KEY_TYPE MPI_LONG
 
 
 
