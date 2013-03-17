@@ -142,7 +142,7 @@ Igor do
     }
 
     # parse out traditional fields (name: number)
-    cmdout.gsub!(/^(?<key>[\w_]+):\s+(?<value>#{REG_NUM})\s*$/){ m = $~
+    cmdout.gsub!(/^\s*(?<key>[\w_]+):\s+(?<value>#{REG_NUM})\s*$/){ m = $~
       h[m[:key].downcase.to_sym] = m[:value].to_f
       ''
     }
