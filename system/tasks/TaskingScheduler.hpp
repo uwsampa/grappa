@@ -155,6 +155,17 @@ class TaskingScheduler : public Scheduler {
           return result;
         }
 
+        // check ready tasks
+        result = readyQ.dequeue();
+        if (result != NULL) {
+          readyQ.prefetch();
+          //    DVLOG(5) << current_thread->id << " scheduler: pick ready";
+          stats.state_timers[ stats.prev_state ] += (current_ts - prev_ts) / tick_scale;
+          stats.prev_state = TaskingSchedulerStatistics::StateReady;
+          prev_ts = current_ts;
+          return result;
+        }
+
         // check if scheduler is allowed to have more active workers
         if (num_active_tasks < max_allowed_active_workers) {
           // check for new workers
@@ -166,17 +177,6 @@ class TaskingScheduler : public Scheduler {
             prev_ts = current_ts;
             return result;
           }
-        }
-
-        // check ready tasks
-        result = readyQ.dequeue();
-        if (result != NULL) {
-          readyQ.prefetch();
-          //    DVLOG(5) << current_thread->id << " scheduler: pick ready";
-          stats.state_timers[ stats.prev_state ] += (current_ts - prev_ts) / tick_scale;
-          stats.prev_state = TaskingSchedulerStatistics::StateReady;
-          prev_ts = current_ts;
-          return result;
         }
 
         if (FLAGS_poll_on_idle) {
