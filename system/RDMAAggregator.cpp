@@ -850,8 +850,8 @@ void RDMAAggregator::draw_routing_graph() {
                  << ": done deaggregating my own " << counts[ Grappa::locale_mycore() ] << "-byte buffer slice at " << (void*) buf;
       }
 
-      // // if we're lucky, responses are now waiting
-      // receive_poll();
+      // if we're lucky, responses are now waiting
+      receive_poll();
 
       // block here until messages are sent (i.e., delivered and deaggregated)
       DVLOG(5) << __func__ << "/" << global_scheduler.get_current_thread() << "/" << sequence_number 
