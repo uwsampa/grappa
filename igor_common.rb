@@ -108,8 +108,11 @@ Igor do
 
     # remove leading MPI/GLOG line prefixes
     cmdout.gsub!(/^\[[\d,]+\]\<\w+\>:/m){ '' } # remove pal header
-    cmdout.gsub!(/^\d+: /m){ '' }                 # remove sampa header
+    cmdout.gsub!(/^\d+:\s+/m){ '' }                 # remove sampa header
     cmdout.gsub!(/^I\d+ .*?\d+\] /m){ '' }          # remove glog header
+
+    # get rid of double underscores, since sequel/sqlite3 don't like them
+    cmdout.gsub!(/__/m){ "_" }
 
     stats = []
 
@@ -117,7 +120,7 @@ Igor do
     cmdout.gsub!(/^STATS{.*?^}STATS/m) {|m|
 
       m.gsub!(/STATS/m){''} # remove tag
-      m.gsub!('\n'){''} # remove newlines
+      m.gsub!(/\n/){''} # remove newlines
       m.gsub!(/:(\s+),/m) {": null,"}
 
       blob = JSON.parse(m)
@@ -133,14 +136,13 @@ Igor do
 
     # aggregate each and merge into h
     combined.each {|k,a|
-
-  	if a.all_numbers?
-  	  # compute average of stats from multiple runs
-  	  h[k] = a.reduce(:+).to_f/a.size
-  	else
-  	  # concat into a single string (collapse to single value if all the same)
-  	  h[k] = (a.uniq.size == 1) ? a.uniq[0].to_s : a.join(",")
-  	end
+      if a.all_numbers?
+        # compute average of stats from multiple runs
+        h[k] = a.reduce(:+).to_f/a.size
+      else
+        # concat into a single string (collapse to single value if all the same)
+        h[k] = (a.uniq.size == 1) ? a.uniq[0].to_s : a.join(",")
+      end
     }
 
     # parse out traditional fields (name: number)
