@@ -8,20 +8,6 @@ def expand_flags(*names)
   names.map{|n| "--#{n}=%{#{n}}"}.join(' ')
 end
 
-def reload_gflags
-  gflags = Params.new {
-    global_memory_use_hugepages 0
-    num_starting_workers 64
-  }
-  params.merge!(gflags)
-  
-  command %Q[ %{tdir}/grappa_srun.rb --nnode=%{nnode} --ppn=%{ppn}
-    -- %{tdir}/graph.exe
-    #{expand_flags(*gflags.keys)}
-    -- -s %{scale} -e %{edgefactor} -f %{nbfs}
-  ].gsub(/\s+/,' ')
-end
-
 Igor do
   include Isolatable
 
@@ -34,27 +20,34 @@ Igor do
     '../../../bin/grappa_srun_epilog.sh'],
     File.dirname(__FILE__))
   
-  gflags = Params.new {
+  GFLAGS = Params.new {
     global_memory_use_hugepages 0
-    num_starting_workers 64
+           num_starting_workers 64
+                 loop_threshold 16
+     aggregator_autoflush_ticks 3e6.to_i
+            periodic_poll_ticks 20000
+                     chunk_size 10
+                   load_balance 1
+                  flush_on_idle 0
+                   poll_on_idle 1
   }
-  params.merge!(gflags)
+  params.merge!(GFLAGS)
   
   command %Q[ %{tdir}/grappa_srun.rb --nnode=%{nnode} --ppn=%{ppn}
     -- %{tdir}/graph.exe
-    #{expand_flags(*gflags.keys)}
+    #{expand_flags(*GFLAGS.keys)}
     -- -s %{scale} -e %{edgefactor} -f %{nbfs}
   ].gsub(/\s+/,' ')
   
   sbatch_flags << "--time=4:00:00"
   
   params {
-    bfs         'bfs'
     nnode       2
     ppn         1
     scale       16
     edgefactor  16
     nbfs        8
+    tag         'none'
   }
   
   expect :max_teps
