@@ -448,9 +448,8 @@ inline bool TaskingScheduler::thread_maybe_yield( ) {
   bool yielded = false;
 
   // tick the timestap counter
-  Grappa_tick();
-  Grappa_Timestamp current_ts = Grappa_get_timestamp();
-
+  Grappa_Timestamp current_ts = Grappa_force_tick();
+  
   if( should_run_periodic( current_ts ) ) {
     yielded = true;
     thread_yield();
