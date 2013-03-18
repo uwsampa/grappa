@@ -156,8 +156,8 @@ public:
 
       // allocate enough requests/messages that we don't run out
       size_t nmsg = total_bytes / block_size + 2;
-      RequestArgs arg_array[nmsg];
-      Grappa::ExternalPayloadMessage<RequestArgs> msg_array[nmsg];
+      //RequestArgs arg_array[nmsg];
+      Grappa::PayloadMessage<RequestArgs> msg_array[nmsg];
       
       for( size_t i = 0;
            offset < total_bytes; 
@@ -173,9 +173,11 @@ public:
                  << " of total bytes = " << *count_ * sizeof(T)
                  << " to " << args.request_address;
 
-        arg_array[i] = args;
-        new (msg_array+i) Grappa::ExternalPayloadMessage<RequestArgs>(arg_array[i].request_address.node(), &arg_array[i], ((char*)(*pointer_)) + offset, request_bytes);
-        msg_array[i].enqueue();
+        //arg_array[i] = args;
+        //new (msg_array+i) Grappa::ExternalPayloadMessage<RequestArgs>(arg_array[i].request_address.node(), &arg_array[i], ((char*)(*pointer_)) + offset, request_bytes);
+        *(msg_array[i]) = args;
+        msg_array[i].set_payload( ((char*)(*pointer_)) + offset, request_bytes );
+        msg_array[i].enqueue( args.request_address.node() );
 //        Grappa_call_on( args.request_address.node(), &incoherent_release_request_am<T>,
 //                         &args, sizeof( args ),
 //                         ((char*)(*pointer_)) + offset, request_bytes);
