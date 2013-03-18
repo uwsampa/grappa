@@ -175,8 +175,6 @@ void test_forall_localized() {
   
   BOOST_MESSAGE("Testing forall_localized_async..."); VLOG(1) << "testing forall_localized_async";
   
-  my_gce.reset_all();
-  
   VLOG(1) << "start spawning";
   forall_localized_async<&my_gce>(array+ 0, 25, [](int64_t i, int64_t& e) { e = 2; });
   VLOG(1) << "after async";
