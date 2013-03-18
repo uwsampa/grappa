@@ -16,6 +16,7 @@
 #include "ParallelLoop.hpp"
 #include "ReuseMessage.hpp"
 #include "ReuseMessageList.hpp"
+#include "RDMABuffer.hpp"
 
 DEFINE_int64( iterations_per_core, 1 << 24, "Number of messages sent per core" );
 
@@ -31,6 +32,11 @@ size_t local_count = 0;
 GRAPPA_DEFINE_STAT( SimpleStatistic<int64_t>, local_messages_per_locale, 0 );
 GRAPPA_DEFINE_STAT( SimpleStatistic<double>, local_messages_time, 0.0 );
 GRAPPA_DEFINE_STAT( SimpleStatistic<double>, local_messages_rate_per_locale, 0.0 );
+
+GRAPPA_DEFINE_STAT( SimpleStatistic<int64_t>, remote_distributed_messages_per_locale, 0 );
+GRAPPA_DEFINE_STAT( SimpleStatistic<int64_t>, remote_distributed_buffers_per_locale, 0 );
+GRAPPA_DEFINE_STAT( SimpleStatistic<double>, remote_distributed_messages_time, 0.0 );
+GRAPPA_DEFINE_STAT( SimpleStatistic<double>, remote_distributed_messages_rate_per_locale, 0.0 );
 
 
 void user_main( void * args ) {
@@ -150,7 +156,7 @@ void user_main( void * args ) {
 
   
   // test local message delivery
-  {
+  if( false ) {
     LOG(INFO) << "Testing local message delivery";
     const int64_t expected_messages_per_core = Grappa::locale_cores() * FLAGS_iterations_per_core;
     const int64_t expected_messages_per_locale = expected_messages_per_core * Grappa::locale_cores();
@@ -172,6 +178,7 @@ void user_main( void * args ) {
         msgs.activate(); // allocate messages
 
         { 
+          local_ce.reset();
           local_ce.enroll( expected_messages_per_core );
           LOG(INFO) << "Core " << Grappa::mycore() << " waiting for " << local_ce.get_count() << " updates.";
 
@@ -209,7 +216,137 @@ void user_main( void * args ) {
 
   // test aggregation
 
+
+
+
   // test message distribution
+  if( true ) {
+    CHECK_GE( Grappa::locales(), 2 ) << "Must have at least two locales for this test";
+
+    LOG(INFO) << "Testing remote message distribtion";
+    const int64_t expected_messages_per_core = Grappa::locale_cores() * FLAGS_iterations_per_core;
+    const int64_t expected_messages_per_locale = expected_messages_per_core * Grappa::locale_cores();
+
+    double start = Grappa_walltime();
+
+    Grappa::on_all_cores( [expected_messages_per_core] {
+        
+        local_ce.reset();
+        local_ce.enroll( expected_messages_per_core );
+        LOG(INFO) << "Core " << Grappa::mycore() << " waiting for " << local_ce.get_count() << " updates.";
+
+        const Core locale_core = Grappa::mylocale() * Grappa::locale_cores();
+        const Core source_core = Grappa::mycore();
+
+        Grappa_barrier_suspending();
+
+        // if we are a communicating core
+        if( Grappa::impl::global_rdma_aggregator.core_partner_locale_count_ > 0 ) {
+
+          VLOG(5) << "Core " << Grappa::mycore() << " constructing buffers";
+
+          // track how many messages we've sent to each core
+          size_t num_sent[ Grappa::locale_cores() ];
+          for( Core c = 0; c < Grappa::locale_cores(); ++c ) {
+            num_sent[c] = 0;
+          }
+          
+          // send as many messages to each core as expected
+          bool done = false;
+          while( !done ) {
+
+            // get a buffer. we will fill this with an equal number of messages for each core
+            VLOG(5) << "Grabbing a buffer";
+            Grappa::impl::RDMABuffer * b = Grappa::impl::global_rdma_aggregator.free_buffer_list_.block_until_pop();
+            CHECK_NOTNULL( b );
+
+            // clear out buffer's count array
+            for( Core c = 0; c < Grappa::locale_cores(); ++c ) {
+              (b->get_counts())[c] = 0;
+            }
+
+            // set buffer source so we don't try to ack.
+            b->set_core( Grappa::mycore() );
+
+            // figure out how many bytes each core gets
+            const size_t available = b->get_max_size();
+            size_t available_each_core = available / Grappa::locale_cores();
+
+            // start writing at start of buffer
+            char * current = b->get_payload();
+            char * previous = current;
+
+            // write each core's contribution 
+            for( Core c = 0; c < Grappa::locale_cores(); ++c ) {
+              const Core dest_core = c + locale_core;
+
+              // write messages until we run out of space
+              size_t remaining_size = available_each_core;
+              size_t num_serialized = 0;
+              while( remaining_size > 0 && num_sent[ c ] < expected_messages_per_core ) {
+                // we will most likely break out of here before this test is false
+
+                // here's a message
+                VLOG(5) << "Sending a message to " << dest_core;
+                auto m = Grappa::message( dest_core, [] {
+                    local_count++;
+                    local_ce.complete();
+                  });
+
+                // put the message in the buffer
+                size_t remaining_size = available_each_core - (current - previous);
+                char * end = m.serialize_to( current, remaining_size );
+
+                // did it fit?
+                if( current == end ) {
+                  // nope, so break out of while loop and do next core.
+                  break;
+                } else {
+                  // yep, so update pointer and remaining size
+                  current = end;
+                  remaining_size -= end - current;
+                  num_sent[ c ]++;
+                }
+              }
+
+              // mark number of bytes for this core in the buffer
+              (b->get_counts())[c] = current - previous;
+              previous = current;
+            }
+
+            // verify we haven't overrun the buffer
+            CHECK_LE( current - b->get_payload(), available ) << "overran buffer!";
+            
+            // are we done?
+            done = true; // first, assume we are
+            for( Core c = 0; c < Grappa::locale_cores(); ++c ) {
+              // then, update if we aren't.
+              if( num_sent[ c ] < expected_messages_per_core ) done = false;
+            }
+
+            // enqueue the buffer to be processed and let a receiver do so
+            DVLOG(5) << "Pushing buffer onto received list";
+            Grappa::impl::global_rdma_aggregator.received_buffer_list_.push( b );
+            remote_distributed_buffers_per_locale++;
+            Grappa_yield();
+          }
+        }
+
+        // wait for all completions.
+        local_ce.wait();
+        
+        Grappa_barrier_suspending();
+        
+
+        BOOST_CHECK_EQUAL( local_count, expected_messages_per_core );
+        CHECK_EQ( local_count, expected_messages_per_core ) << "Remote message distribution";
+      } );
+
+    double time = Grappa_walltime() - start;
+    remote_distributed_messages_per_locale = expected_messages_per_locale;
+    remote_distributed_messages_time = time;
+    remote_distributed_messages_rate_per_locale = expected_messages_per_locale / time;
+  }
 
 
 
