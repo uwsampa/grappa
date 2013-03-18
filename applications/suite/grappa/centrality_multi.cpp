@@ -207,7 +207,7 @@ double centrality(graph *g_in, GlobalAddress<double> bc_in, graphint Vs,
   c.marks       = new graphint[g_in->numVertices+2];
   // c.child       = new graphint[g_in->numEdges];
   // c.child_count = new graphint[g_in->numVertices];
-  if (!computeAllVertices) c.explored = new graphint[g_in->numVertices];
+  if (!computeAllVertices) c.explored = Grappa_typed_malloc<graphint>g_in->numVertices);
   c.Qnext       = make_global(&Qnext);
   
   double t; t = timer();
@@ -217,7 +217,8 @@ double centrality(graph *g_in, GlobalAddress<double> bc_in, graphint Vs,
 
   { // initialize globals on all cores
     auto _g = *g_in;
-    call_on_all_cores([_g,bc_in]{
+    auto c_explored = c.explored;
+    call_on_all_cores([_g,bc_in,c_explored]{
       nedge_traversed = 0;
       g = _g;
       // c = _c;
@@ -230,32 +231,37 @@ double centrality(graph *g_in, GlobalAddress<double> bc_in, graphint Vs,
       c.marks       = new graphint[g_in->numVertices+2];
       // c.child       = new graphint[g_in->numEdges];
       // c.child_count = new graphint[g_in->numVertices];
-      if (!computeAllVertices) c.explored = new graphint[g_in->numVertices];
+      if (!computeAllVertices) c.explored = c_explored;
       c.Qnext       = make_global(&Qnext);
     });
   }
   
   Grappa::memset(bc, 0.0, g.numVertices);
-  if (!computeAllVertices) call_on_all_cores([]{ memset(c.explored, (graphint)0L, g.numVertices); });
+  if (!computeAllVertices) Grappa::memset(c.explored, (graphint)0L, g.numVertices);
   
   mersenne_seed(12345);
 
-  graphint nQ, d_phase, Qstart, Qend;
+  on_all_cores([]{
+    graphint nQ, d_phase, Qstart, Qend;
   
-  for (graphint x = 0; (x < g.numVertices) && (Vs > 0); x++) {
-    /// Choose vertex at random
-    graphint s;
-    tt = timer();
-    if (computeAllVertices) {
-      s = x;
-    } else {
-      do {
-        s = mersenne_rand() % g.numVertices;
-        VLOG(1) << "s (" << s << ")";
-      } while (!local_compare_and_swap(c.explored+s, 0L, 1L));
-    }
-    rngtime += timer() - tt;
+    for (graphint x = 0; (x < g.numVertices) && (Vs > 0); x++) {
+      /// Choose vertex at random
+      graphint s;
+      tt = timer();
+      if (computeAllVertices) {
+        s = x;
+      } else {
+        do {
+          s = mersenne_rand() % g.numVertices;
+          VLOG(1) << "s (" << s << ")";
+        } while (!local_compare_and_swap(c.explored+s, 0L, 1L));
+      }
+      rngtime += timer() - tt;
     
+      
+    
+  });
+
     graphint pair_[2];
     Incoherent<graphint>::RO pair(g.edgeStart+s, 2, pair_);
     
