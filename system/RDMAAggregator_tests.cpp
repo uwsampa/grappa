@@ -18,6 +18,8 @@
 #include "ReuseMessageList.hpp"
 #include "RDMABuffer.hpp"
 
+#include <algorithm>
+
 DEFINE_int64( iterations_per_core, 1 << 24, "Number of messages sent per core" );
 
 BOOST_AUTO_TEST_SUITE( RDMAAggregator_tests );
@@ -224,7 +226,8 @@ void user_main( void * args ) {
     CHECK_GE( Grappa::locales(), 2 ) << "Must have at least two locales for this test";
 
     LOG(INFO) << "Testing remote message distribtion";
-    const int64_t expected_messages_per_core = Grappa::locale_cores() * FLAGS_iterations_per_core;
+    size_t num_sender_cores = std::min( Grappa::locale_cores(), static_cast<Locale>( Grappa::locales() - 1 ) );
+    const int64_t expected_messages_per_core = num_sender_cores * FLAGS_iterations_per_core;
     const int64_t expected_messages_per_locale = expected_messages_per_core * Grappa::locale_cores();
 
     double start = Grappa_walltime();
@@ -283,7 +286,7 @@ void user_main( void * args ) {
               // write messages until we run out of space
               size_t remaining_size = available_each_core;
               size_t num_serialized = 0;
-              while( remaining_size > 0 && num_sent[ c ] < expected_messages_per_core ) {
+              while( remaining_size > 0 && num_sent[ c ] < FLAGS_iterations_per_core ) {
                 // we will most likely break out of here before this test is false
 
                 // here's a message
@@ -321,7 +324,7 @@ void user_main( void * args ) {
             done = true; // first, assume we are
             for( Core c = 0; c < Grappa::locale_cores(); ++c ) {
               // then, update if we aren't.
-              if( num_sent[ c ] < expected_messages_per_core ) done = false;
+              if( num_sent[ c ] < FLAGS_iterations_per_core ) done = false;
             }
 
             // enqueue the buffer to be processed and let a receiver do so
