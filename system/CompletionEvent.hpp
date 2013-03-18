@@ -38,6 +38,11 @@ namespace Grappa {
         Grappa::wait(&cv);
       }
     }
+
+    void reset() {
+      CHECK_EQ( cv.waiters_, 0 ) << "Resetting with waiters!";
+      count = 0;
+    }
   };
 
   /// Match ConditionVariable-style function call.
