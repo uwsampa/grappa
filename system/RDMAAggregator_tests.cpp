@@ -21,6 +21,11 @@
 #include <algorithm>
 
 DEFINE_int64( iterations_per_core, 1 << 24, "Number of messages sent per core" );
+DEFINE_int64( outstanding, 1 << 13, "Number of messages enqueued and unsent during aggregation test" );
+DEFINE_bool( disable_sending, false, "Disable sending during aggregation test" );
+
+DEFINE_bool( aggregate_source_multiple, false, "Aggregate from multiple source cores during aggregation test" );
+DEFINE_bool( aggregate_dest_multiple, false, "Aggregate to multiple destination cores during aggregation test" );
 
 BOOST_AUTO_TEST_SUITE( RDMAAggregator_tests );
 
@@ -39,6 +44,11 @@ GRAPPA_DEFINE_STAT( SimpleStatistic<int64_t>, remote_distributed_messages_per_lo
 GRAPPA_DEFINE_STAT( SimpleStatistic<int64_t>, remote_distributed_buffers_per_locale, 0 );
 GRAPPA_DEFINE_STAT( SimpleStatistic<double>, remote_distributed_messages_time, 0.0 );
 GRAPPA_DEFINE_STAT( SimpleStatistic<double>, remote_distributed_messages_rate_per_locale, 0.0 );
+
+GRAPPA_DEFINE_STAT( SimpleStatistic<int64_t>, aggregated_messages_per_locale, 0 );
+GRAPPA_DEFINE_STAT( SimpleStatistic<double>, aggregated_messages_time, 0.0 );
+GRAPPA_DEFINE_STAT( SimpleStatistic<double>, aggregated_messages_rate_per_locale, 0.0 );
+
 
 
 void user_main( void * args ) {
@@ -181,6 +191,7 @@ void user_main( void * args ) {
 
         { 
           local_ce.reset();
+          local_count = 0;
           local_ce.enroll( expected_messages_per_core );
           LOG(INFO) << "Core " << Grappa::mycore() << " waiting for " << local_ce.get_count() << " updates.";
 
@@ -216,14 +227,167 @@ void user_main( void * args ) {
     local_messages_rate_per_locale = expected_messages_per_locale / time;
   }
 
-  // test aggregation
 
+
+
+
+
+
+  // test aggregation
+  if( true ) {
+    CHECK_EQ( Grappa::locales(), 2 ) << "Must have exactly two locales for this test";
+
+    LOG(INFO) << "Testing aggregation and transmission";
+
+    struct AggregatedMessage {
+      Core source_core;
+      Core dest_core;
+      void operator()() { 
+        local_count++; 
+        local_ce.complete(); 
+      }
+    };
+
+
+    double start = Grappa_walltime();
+
+    // first test: single sending core, single receiving core. the sending core is responsible for aggregation.
+    Grappa::on_all_cores( [] {
+
+        const Locale source_locale = 0;
+        const Locale dest_locale = 1;
+        int64_t expected_messages_per_core = 0;
+
+        if( dest_locale == Grappa::mylocale() ) { // locale 0 sends, locale 1 receives
+          if( FLAGS_aggregate_dest_multiple ||                                       // either select all locale cores or
+              Grappa::impl::global_rdma_aggregator.core_partner_locale_count_ > 0 ) { // select only the partner cores
+
+            // if there's only one sender, this is the count
+            expected_messages_per_core = FLAGS_iterations_per_core;
+         
+            // but if there are muliple, we need to increase it.
+            if( FLAGS_aggregate_source_multiple && !FLAGS_aggregate_dest_multiple ) {
+              expected_messages_per_core *= Grappa::locale_cores();
+            }
+          }
+        }
+
+        int64_t sent_messages_per_core = FLAGS_iterations_per_core;
+        if( !FLAGS_aggregate_source_multiple && FLAGS_aggregate_dest_multiple ) {
+          sent_messages_per_core *= Grappa::locale_cores();
+        }
+
+        local_ce.reset();
+        local_count = 0;
+        local_ce.enroll( expected_messages_per_core );
+
+        Grappa_barrier_suspending();
+
+        if( FLAGS_disable_sending ) {
+          // keep aggregator from polling during sends or flushing for a bit.
+          Grappa::impl::global_rdma_aggregator.disable_everything_ = true;
+        }
+
+        // now send messages
+        // locale 0 sends, locale 1 receives
+        if( source_locale == Grappa::mylocale() ) {
+
+          if( FLAGS_aggregate_source_multiple ||                                     // either select all locale cores or
+              Grappa::impl::global_rdma_aggregator.core_partner_locale_count_ > 0 ) { // select only the partner cores
+
+            // prepare pool of messages
+            size_t message_pool_size = FLAGS_outstanding;
+            //CHECK_LT( FLAGS_iterations_per_core, message_pool_size ) << "don't try this yet";
+            Grappa::ReuseMessageList< AggregatedMessage > msgs( message_pool_size );
+            msgs.activate(); // allocate messages
+
+            {
+              const Core mycore = Grappa::mycore();
+              Core dest_core = Grappa::impl::global_rdma_aggregator.dest_core_for_locale_[ dest_locale ];
+
+              if( FLAGS_disable_sending ) {
+                // keep aggregator from polling during sends or flushing for a bit.
+                Grappa::impl::global_rdma_aggregator.disable_everything_ = true;
+
+                LOG(INFO) << "Sends disabled";
+              }
+
+              LOG(INFO) << "Now generating messages";              
+
+              // send messages
+              for( int i = 0; i < sent_messages_per_core; ++i ) {
+                if( FLAGS_aggregate_dest_multiple ) {
+                  // rotate destination on remote node
+                  dest_core = ( dest_locale * Grappa::locale_cores() + 
+                                (Grappa::locale_mycore() + i) % Grappa::locale_cores() );
+                }
+                
+                CHECK_EQ( Grappa::locale_of( dest_core ), dest_locale );
+                CHECK_NE( Grappa::locale_of( dest_core ), Grappa::mylocale() );
+
+                msgs.with_message( [mycore, dest_core] ( Grappa::ReuseMessage<AggregatedMessage> * m ) {
+                    (*m)->source_core = mycore;
+                    (*m)->dest_core = dest_core;
+                    m->enqueue( dest_core );
+                  } );
+              }
+              
+              if( FLAGS_disable_sending ) {
+                //sleep(10);
+              }
+
+              LOG(INFO) << "Now flushing";              
+              
+              // now send explicitly
+              Grappa::impl::global_rdma_aggregator.flush( dest_core );
+              Grappa_yield();
+
+              if( FLAGS_disable_sending ) {
+                //sleep(30);
+                
+                // reenable sending/flushing for this core
+                Grappa::impl::global_rdma_aggregator.disable_everything_ = false;
+              }
+            }
+
+            msgs.finish();
+          }
+        }
+
+        if( FLAGS_disable_sending ) {
+            //sleep(60);
+        }
+
+        // wait for all completions.
+        local_ce.wait();
+
+        if( FLAGS_disable_sending ) {
+          LOG(INFO) << "Now re-enabling sending for everybody";
+          // reenable sending/flushing for everyone
+          Grappa::impl::global_rdma_aggregator.disable_everything_ = false;
+        }
+        
+        Grappa_barrier_suspending();
+
+        BOOST_CHECK_EQUAL( local_count, expected_messages_per_core );
+        CHECK_EQ( local_count, expected_messages_per_core ) << "Remote message distribution";
+
+      });
+
+    double time = Grappa_walltime() - start;
+    aggregated_messages_per_locale = FLAGS_iterations_per_core;
+    aggregated_messages_time = time;
+    aggregated_messages_rate_per_locale = FLAGS_iterations_per_core / time;
+
+  }
 
 
 
   // test message distribution
-  if( true ) {
+  if( false ) {
     CHECK_GE( Grappa::locales(), 2 ) << "Must have at least two locales for this test";
+    CHECK_LE( Grappa::locale_cores(), Grappa::locales() ) 
+      << "Haven't tested this test with locales>locale_cores. You'll need to adjust the expected message counts / send count";
 
     LOG(INFO) << "Testing remote message distribtion";
     size_t num_sender_cores = std::min( Grappa::locale_cores(), static_cast<Locale>( Grappa::locales() - 1 ) );
@@ -235,6 +399,7 @@ void user_main( void * args ) {
     Grappa::on_all_cores( [expected_messages_per_core] {
         
         local_ce.reset();
+        local_count = 0;
         local_ce.enroll( expected_messages_per_core );
         LOG(INFO) << "Core " << Grappa::mycore() << " waiting for " << local_ce.get_count() << " updates.";
 
