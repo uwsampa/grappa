@@ -22,6 +22,26 @@ DEFINE_bool( flush_on_idle, false, "flush all aggregated messages there's nothin
 /// global Aggregator instance
 Aggregator global_aggregator;
 
+// declare storage for class-static histogram labels    
+std::string AggregatorStatistics::hist_labels[16] = {
+    "\"aggregator_0_to_255_bytes\""    ,   
+    "\"aggregator_256_to_511_bytes\""  ,
+    "\"aggregator_512_to_767_bytes\""  ,
+    "\"aggregator_768_to_1023_bytes\"" ,
+    "\"aggregator_1024_to_1279_bytes\"",
+    "\"aggregator_1280_to_1535_bytes\"",
+    "\"aggregator_1536_to_1791_bytes\"",
+    "\"aggregator_1792_to_2047_bytes\"",
+    "\"aggregator_2048_to_2303_bytes\"",
+    "\"aggregator_2304_to_2559_bytes\"",
+    "\"aggregator_2560_to_2815_bytes\"",
+    "\"aggregator_2816_to_3071_bytes\"",
+    "\"aggregator_3072_to_3327_bytes\"",
+    "\"aggregator_3328_to_3583_bytes\"",
+    "\"aggregator_3584_to_3839_bytes\"",
+    "\"aggregator_3840_to_4095_bytes\"" };
+
+
 #ifdef STL_DEBUG_ALLOCATOR
 DEFINE_int64( aggregator_access_control_signal, SIGUSR2, "signal used to toggle aggregator queue access control");
 bool aggregator_access_control_active = false;
