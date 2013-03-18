@@ -471,10 +471,18 @@ namespace Grappa {
 
         enqueue_counts_[ m->destination_ ]++;
 
-        if( !global_scheduler.in_no_switch_region() && !disable_everything_ ) {
-          bool yielded = global_scheduler.thread_maybe_yield();
-          if( yielded ) rdma_poll_yields++;
+        // don't yield too often.
+        static int yield_wait = 2;
+        if( !global_scheduler.in_no_switch_region() && !disable_everything_ && yield_wait-- == 0 ) {
+          bool should_yield = global_scheduler.thread_maybe_yield();
+          if( should_yield ) {
+            yield_wait = 2;
+            global_scheduler.thread_yield();
+            rdma_poll_yields++;
+          }
+            //if( yielded ) rdma_poll_yields++;
         }
+
         // static int freq = 10;
         // if( freq-- == 0 ) {
         //   poll();
@@ -583,6 +591,8 @@ namespace Grappa {
           // now try to insert current message (and count attempt)
           cas_count++;
         } while( !__sync_bool_compare_and_swap( &(dest_ptr->raw_), old_ml.raw_, new_ml.raw_ ) );
+        // } while( false );
+        // *dest_ptr = new_ml;
         
         app_messages_enqueue_cas += cas_count;
 
