@@ -27,7 +27,7 @@ $(TARGET):
 include $(GRAPPA_HOME)/system/Makefile
 
 intsort.exe: $(SOURCES) $(HEADERS) $(GRAPPA_HOME)/system/libGrappa.a
-	$($(MPITYPE)_LD) $(LDFLAGS) $(SOURCES) $(GRAPPA_HOME)/system/libGrappa.a $(LIBRARIES) -o $@ $(LIBS)
+	$($(MPITYPE)_LD) $(LDFLAGS) $(CFLAGS) $(SOURCES) $(GRAPPA_HOME)/system/libGrappa.a $(LIBRARIES) -o $@ $(LIBS)
 
 $(GRAPPA_HOME)/system/libGrappa.a: force
 	echo $(GRAPPA_HOME)
