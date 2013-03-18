@@ -16,6 +16,25 @@ extern HeapLeakChecker * Grappa_heapchecker;
 
 /// Global communicator instance
 Communicator global_communicator;
+  
+/// declare labels for histogram
+std::string CommunicatorStatistics::hist_labels[16] = {
+    "\"comm_0_to_255_bytes\"",
+    "\"comm_256_to_511_bytes\"",
+    "\"comm_512_to_767_bytes\"",
+    "\"comm_768_to_1023_bytes\"",
+    "\"comm_1024_to_1279_bytes\"",
+    "\"comm_1280_to_1535_bytes\"",
+    "\"comm_1536_to_1791_bytes\"",
+    "\"comm_1792_to_2047_bytes\"",
+    "\"comm_2048_to_2303_bytes\"",
+    "\"comm_2304_to_2559_bytes\"",
+    "\"comm_2560_to_2815_bytes\"",
+    "\"comm_2816_to_3071_bytes\"",
+    "\"comm_3072_to_3327_bytes\"",
+    "\"comm_3328_to_3583_bytes\"",
+    "\"comm_3584_to_3839_bytes\"",
+    "\"comm_3840_to_4095_bytes\"" };
 
 /// Construct communicator
 Communicator::Communicator( )
