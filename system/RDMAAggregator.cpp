@@ -255,7 +255,7 @@ namespace Grappa {
 
       // fill pool of buffers
       if( core_partner_locale_count_ > 0 ) {
-        const int num_buffers = Grappa::cores() * FLAGS_rdma_buffers_per_core;
+        const int num_buffers = core_partner_locale_count_ * FLAGS_rdma_buffers_per_core;
         LOG(INFO) << "Number of buffers: " << num_buffers;
         void * p = Grappa::impl::locale_shared_memory.segment.allocate_aligned( sizeof(RDMABuffer) * num_buffers, 8 );
         CHECK_NOTNULL( p );
@@ -1246,8 +1246,8 @@ void RDMAAggregator::draw_routing_graph() {
     cores_[ first_core ].locale_byte_count_ = 0;
 
     // grab a temporary buffer
-    RDMABuffer * b = free_buffer_list_.try_pop();
-    CHECK_NOTNULL( b ); // for now, die if we don't get one. later, block
+    RDMABuffer * b = free_buffer_list_.block_until_pop();
+    //CHECK_NOTNULL( b ); // for now, die if we don't get one. later, block
     
     // but only use enough bytes that we can fit in a medium AM.
     const size_t max_size = 4024;
