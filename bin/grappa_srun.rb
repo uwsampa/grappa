@@ -33,7 +33,7 @@ open("#{DIR}/grappa_srun_prolog.sh","r").each_line do |l|
 end
 
 case `hostname`
-when /node/
+when /pal|node\d+/
   srun_flags << "--partition=pal" << "--account=pal"
 else
   srun_flags << "--partition=grappa" << "--resv-ports"
