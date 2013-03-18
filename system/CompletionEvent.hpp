@@ -26,9 +26,7 @@ namespace Grappa {
     
     /// Decrement count once, if count == 0, wake all waiters.
     void complete(int64_t decr = 1) {
-      if (count-decr < 0) {
-        LOG(ERROR) << "too many calls to signal()";
-      }
+      CHECK_GE( count-decr, 0 ) << "too many calls to signal()";
       count -= decr;
       if (count == 0) {
         broadcast(&cv);
