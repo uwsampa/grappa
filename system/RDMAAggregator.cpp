@@ -1279,19 +1279,27 @@ void RDMAAggregator::draw_routing_graph() {
     // clear out estimated size
     cores_[ first_core ].locale_byte_count_ = 0;
 
-    // grab a temporary buffer
-    RDMABuffer * b = free_buffer_list_.block_until_pop();
-    //CHECK_NOTNULL( b ); // for now, die if we don't get one. later, block
-    
-    // but only use enough bytes that we can fit in a medium AM.
-    const size_t max_size = 4024;
-
     // list of messages we're working on
     Grappa::impl::MessageBase * messages_to_send = NULL;
 
     // send all message lists, maybe in multiple AMs
     while( (current_core < max_core) || (messages_to_send != NULL) ) {
         
+      // first, grab a token/buffer to send
+      // by doing this first, we limit the rate at which we consume buffers from the local free list
+      // as well as allowing the remote node to limit the rate we send
+      RDMABuffer * dest_buf = dest_coreinfo->remote_buffers_.block_until_pop();
+      // TODO: use buffer for RDMA send. For now, just discard
+      DVLOG(3) << __PRETTY_FUNCTION__ << "/" << global_scheduler.get_current_thread() 
+               << " got buffer/token " << dest_buf << " to send";
+
+      // now, grab a temporary buffer for local serialization
+      RDMABuffer * b = free_buffer_list_.block_until_pop();
+
+      // but only use enough bytes that we can fit in a medium AM.
+      const size_t max_size = 4024 - b->get_base_size();
+      DVLOG(5) << "Max buffer size is " << max_size;
+      
       // clear out buffer's count array
       for( Core i = first_core; i < max_core; ++i ) {
         (b->get_counts())[i - first_core] = 0;
@@ -1437,11 +1445,6 @@ void RDMAAggregator::draw_routing_graph() {
       b->set_next( reinterpret_cast<RDMABuffer*>( aggregated_size ) );
       b->set_ack( reinterpret_cast<RDMABuffer*>( sequence_number ) );
       
-      // now get a token/buffer to send
-      RDMABuffer * dest_buf = dest_coreinfo->remote_buffers_.block_until_pop();
-      // TODO: use buffer for RDMA send. For now, just discard
-      DVLOG(3) << __PRETTY_FUNCTION__ << "/" << global_scheduler.get_current_thread() << " got buffer/token " << dest_buf << " to send";
-
       // we have a buffer. send.
       global_communicator.send( dest_core, copy_enqueue_buffer_handle_, b->get_base(), aggregated_size + b->get_base_size() );
       rdma_message_bytes += aggregated_size;
@@ -1452,13 +1455,14 @@ void RDMAAggregator::draw_routing_graph() {
                << " still to send, then check core " << current_core << " of " << max_core;
 
       sequence_number += Grappa::cores();
+
+      // return buffer
+      free_buffer_list_.push(b);
     }
 
     CHECK_EQ( current_core, max_core ) << "uh oh, forgot to check someone";
     CHECK_NULL( messages_to_send );
 
-    // return buffer
-    free_buffer_list_.push(b);
     active_send_workers_--;
     rdma_send_end++;
   }
