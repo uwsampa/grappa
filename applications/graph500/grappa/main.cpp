@@ -120,7 +120,7 @@ static void enable_tau() {
 }
 
 static void disable_tau() {
-  // Statistics::merge_and_print();
+  // Statistics::merge_and_print(LOG(INFO));
   call_on_all_cores([]{
 #ifdef GRAPPA_TRACE
     VLOG(1) << "Disabling TAU recording.";
@@ -129,7 +129,7 @@ static void disable_tau() {
 #ifdef GOOGLE_PROFILER
     Grappa_stop_profiling();
 #else
-    Statistics::reset();
+    // Statistics::reset();
 #endif
   });
 }
@@ -269,7 +269,7 @@ static void setup_bfs(tuple_graph * tg, csr_graph * g, int64_t * bfs_roots) {
   TIME(construction_time,
        create_graph_from_edgelist(tg, g)
   );
-  VLOG(1) << "construction_time = " << construction_time;
+  LOG(INFO) << "construction_time: " << construction_time;
   
   GlobalAddress<int64_t> xoff = g->xoff;
 //  for (int64_t i=0; i < g.nv; i++) {
@@ -293,7 +293,7 @@ static void setup_bfs(tuple_graph * tg, csr_graph * g, int64_t * bfs_roots) {
   
   // no rootname input method, so randomly choose
   TIME(t, choose_bfs_roots(g->xoff, g->nv, &NBFS, bfs_roots));
-  VLOG(1) << "choose_bfs_roots time: " << t;
+  LOG(INFO) << "choose_bfs_roots_time: " << t;
   
 //  for (int64_t i=0; i < nbfs; i++) {
 //    VLOG(1) << "bfs_roots[" << i << "] = " << bfs_roots[i];
@@ -379,6 +379,9 @@ static void user_main(int * args) {
   Grappa::Statistics::reset();
   
   run_bfs(&tg, &g, bfs_roots);
+  
+  Grappa::Statistics::merge_and_print(std::cout);
+  fflush(stdout);
   
 //  free_graph_data_structure();
   
