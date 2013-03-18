@@ -27,6 +27,7 @@ GRAPPA_DEFINE_STAT( SimpleStatistic<int64_t>, app_messages_enqueue, 0 );
 GRAPPA_DEFINE_STAT( SimpleStatistic<int64_t>, app_messages_enqueue_cas, 0 );
 GRAPPA_DEFINE_STAT( SimpleStatistic<int64_t>, app_messages_serialized, 0 );
 GRAPPA_DEFINE_STAT( SimpleStatistic<int64_t>, app_messages_deserialized, 0 );
+GRAPPA_DEFINE_STAT( SimpleStatistic<int64_t>, app_messages_delivered_locally, 0 );
 GRAPPA_DEFINE_STAT( SimpleStatistic<int64_t>, app_messages_immediate, 0 );
 
 /// stats for aggregated messages
@@ -404,7 +405,7 @@ namespace Grappa {
 
       global_scheduler.set_no_switch_region( true );
 
-      // grab a bufer
+      // grab a buffer
       RDMABuffer * b = global_rdma_aggregator.free_buffer_list_.try_pop();
       CHECK_NOTNULL( b ); // for now, die if we don't get one. later, block
 
@@ -646,18 +647,21 @@ void RDMAAggregator::draw_routing_graph() {
       // done with this buffer. put it back on free list
       free_buffer_list_.push( buf );
 
-      // once we're done, send ack to give permission to send again
-      RDMABuffer * b = NULL; // for now, lie; just use as token
-      Core mylocale_core = Grappa::mylocale() * Grappa::locale_cores();
-      Core mycore = Grappa::mycore();
-      DVLOG(3) << __PRETTY_FUNCTION__ << "/" << global_scheduler.get_current_thread() << " finished with " << buf
-                << "; acking by pushing buffer into " << b << " for core " << mycore << " on core " << c;
-      auto request = Grappa::message( c, [mycore, b] {
-          auto p = &(global_rdma_aggregator.cores_[mycore].remote_buffers_);
-          DVLOG(3) << __PRETTY_FUNCTION__ << " acking by pushing buffer into " << p << " for " << mycore;
-          global_rdma_aggregator.cores_[mycore].remote_buffers_.push( b );
-        });
-      request.send_immediate();
+      // once we're done, send ack to give permission to send again,
+      // unless buffer is from the local core (for debugging)
+      if( c != Grappa::mycore() ) {
+        RDMABuffer * b = NULL; // for now, lie; just use as token
+        Core mylocale_core = Grappa::mylocale() * Grappa::locale_cores();
+        Core mycore = Grappa::mycore();
+        DVLOG(3) << __PRETTY_FUNCTION__ << "/" << global_scheduler.get_current_thread() << " finished with " << buf
+                 << "; acking by pushing buffer into " << b << " for core " << mycore << " on core " << c;
+        auto request = Grappa::message( c, [mycore, b] {
+            auto p = &(global_rdma_aggregator.cores_[mycore].remote_buffers_);
+            DVLOG(3) << __PRETTY_FUNCTION__ << " acking by pushing buffer into " << p << " for " << mycore;
+            global_rdma_aggregator.cores_[mycore].remote_buffers_.push( b );
+          });
+        request.send_immediate();
+      }
             
       active_receive_workers_--;
     }
@@ -812,7 +816,7 @@ void RDMAAggregator::draw_routing_graph() {
           msgs[locale_core]->buf = current_buf;
           msgs[locale_core]->size = counts[locale_core];
           // msgs[locale_core].set_payload( current_buf, counts[locale_core] );
-          // msgs[locale_core]->sequence_number = sequence_number;
+          msgs[locale_core]->sequence_number = sequence_number;
           if( locale_core != Grappa::locale_mycore() ) {
             msgs[locale_core].enqueue( locale_core + Grappa::mylocale() * Grappa::locale_cores() );
             // msgs[locale_core].send_immediate( locale_core + Grappa::mylocale() * Grappa::locale_cores() );
@@ -947,6 +951,7 @@ void RDMAAggregator::draw_routing_graph() {
 
         messages_to_send->deliver_locally();
         messages_to_send = next;
+        app_messages_delivered_locally++;
       }
     }
 
