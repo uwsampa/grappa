@@ -6,9 +6,9 @@
 
 void c_print_results( char   *name,
                       char   class,
-                      int    n1, 
-                      int    n2,
-                      int    n3,
+                      long    n1, 
+                      long    n2,
+                      long    n3,
                       int    niter,
                       int    nprocs_compiled,
                       int    nprocs_total,
@@ -36,7 +36,7 @@ void c_print_results( char   *name,
       if ( n2 != 0 ) nn *= n2;
       printf( " problem_size:             %12ld\n", nn );   /* as in IS */
   } else {
-    printf( " problem_size:             %3dx %3dx %3d\n", n1,n2,n3 );
+    printf( " problem_size:             %3ldx %3ldx %3ld\n", n1,n2,n3 );
   }
   printf( " iterations:                   %12d\n", niter );
   printf( " run_time:                     %12.2f\n", t );

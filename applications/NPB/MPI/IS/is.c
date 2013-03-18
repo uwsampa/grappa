@@ -108,7 +108,7 @@
 /*  CLASS D  */
 /*************/
 #if CLASS == 'D'
-#define  TOTAL_KEYS_LOG_2    31
+#define  TOTAL_KEYS_LOG_2    29
 #define  MAX_KEY_LOG_2       27
 #define  NUM_BUCKETS_LOG_2   10
 #undef   MIN_PROCS
@@ -116,8 +116,8 @@
 #endif
 
 #if CLASS == 'E'
-#define  TOTAL_KEYS_LOG_2    34
-#define  MAX_KEY_LOG_2       30
+#define  TOTAL_KEYS_LOG_2    31
+#define  MAX_KEY_LOG_2       27
 #define  NUM_BUCKETS_LOG_2   10
 #undef   MIN_PROCS
 #define  MIN_PROCS           4
