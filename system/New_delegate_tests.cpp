@@ -128,7 +128,6 @@ void check_async_delegates() {
 
   delegate::write(make_global(&global_x,1), 0);
   
-  mygce.reset_all();
   for (int i=0; i<N; i++) {
     delegate::call_async<&mygce>(pool, 1, []{ global_x++; });
   }
