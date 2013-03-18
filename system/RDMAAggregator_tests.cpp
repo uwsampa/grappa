@@ -11,6 +11,12 @@
 #include "Grappa.hpp"
 #include "RDMAAggregator.hpp"
 #include "Message.hpp"
+#include "CompletionEvent.hpp"
+#include "Statistics.hpp"
+#include "ParallelLoop.hpp"
+#include "ReuseMessage.hpp"
+
+DEFINE_int64( iterations_per_core, 1 << 24, "Number of messages sent per core" );
 
 BOOST_AUTO_TEST_SUITE( RDMAAggregator_tests );
 
@@ -18,7 +24,16 @@ BOOST_AUTO_TEST_SUITE( RDMAAggregator_tests );
 int count = 0;
 int count2 = 0;
 
+Grappa::CompletionEvent local_ce;
+size_t local_count = 0;
+
+GRAPPA_DEFINE_STAT( SimpleStatistic<int64_t>, local_messages_per_locale, 0 );
+GRAPPA_DEFINE_STAT( SimpleStatistic<double>, local_messages_time, 0.0 );
+GRAPPA_DEFINE_STAT( SimpleStatistic<double>, local_messages_rate_per_locale, 0.0 );
+
+
 void user_main( void * args ) {
+  if(false) {
   LOG(INFO) << "Test 1";
   if (true) {
     auto m = Grappa::message( 0, []{ LOG(INFO) << "Test message 1a: count = " << count++; } );
@@ -124,9 +139,87 @@ void user_main( void * args ) {
               << (double) payload_size * iters * msgs / time << " payload bytes/s, ";
   }
 
+  }
+  // make earlier tests shut up
+  Grappa::on_all_cores( [] { count = 6; } );
 
-  Grappa_merge_and_dump_stats();
+
+  
+  
+
+  
+  // test local message delivery
+  {
+    LOG(INFO) << "Testing local message delivery";
+    const int64_t expected_messages_per_core = Grappa::locale_cores() * FLAGS_iterations_per_core;
+    const int64_t expected_messages_per_locale = expected_messages_per_core * Grappa::locale_cores();
+
+    struct LocalDelivery {
+      Core source_core;
+      Core dest_core;
+      void operator()() { 
+        local_count++; 
+        local_ce.complete(); 
+      }
+    };
+    
+    double start = Grappa_walltime();
+
+    Grappa::on_all_cores( [expected_messages_per_core] {
+        // prepare pool of 1024 messages
+        Grappa::ReuseMessageList< LocalDelivery > msgs( 1024 );
+        msgs.activate(); // allocate messages
+
+        { 
+          local_ce.enroll( expected_messages_per_core );
+          LOG(INFO) << "Core " << Grappa::mycore() << " waiting for " << local_ce.get_count() << " updates.";
+
+          Grappa_barrier_suspending();
+
+          for( int i = 0; i < FLAGS_iterations_per_core; ++i ) {
+            for( int locale_core = 0; locale_core < Grappa::locale_cores(); ++locale_core ) {
+              Core mycore = Grappa::mycore();
+              Core dest_core = locale_core + Grappa::mylocale() * Grappa::locale_cores();
+              msgs.with_message( [mycore, dest_core] ( Grappa::ReuseMessage<LocalDelivery> * m ) {
+                  (*m)->source_core = mycore;
+                  (*m)->dest_core = dest_core;
+                  CHECK_EQ( Grappa::locale_of( mycore ), Grappa::locale_of( dest_core ) );
+                  m->enqueue( dest_core );
+                } );
+            }
+          }
+          
+          local_ce.wait();
+
+          Grappa_barrier_suspending();
+
+          BOOST_CHECK_EQUAL( local_count, expected_messages_per_core );
+          CHECK_EQ( local_count, expected_messages_per_core ) << "Local message delivery";
+        }
+        
+        msgs.finish(); // clean up messages
+      } );
+
+    double time = Grappa_walltime() - start;
+    local_messages_per_locale = expected_messages_per_locale;
+    local_messages_time = time;
+    local_messages_rate_per_locale = expected_messages_per_locale / time;
+  }
+
+  // test aggregation
+
+  // test message distribution
+
+
+
+  
+  
+
+  Grappa::Statistics::merge_and_print();
+
 }
+
+
 
 BOOST_AUTO_TEST_CASE( test1 ) {
 
