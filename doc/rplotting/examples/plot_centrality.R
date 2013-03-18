@@ -29,7 +29,7 @@ p <- ggplot(db("select * from centrality where scale >= 24"),
   facet_wrap(~scale) # make new plots for each scale
   
 p # plot it
-# ggsave("bfs_centrality.pdf", plot=p) # or save it
+ggsave("plots/centrality_teps.pdf", plot=p) # or save it
 
 # md <- melt(db("select * from centrality where scale >= 24"))
 
@@ -38,7 +38,7 @@ d$nproc <- as.numeric(d$nproc)
 d$nnode <- factor(d$nnode)
 
 p <- ggplot(d, aes(x=nproc, y=centrality_teps, color=nnode, shape=ppn))+
-  ggtitle("Centrality")+xlab("Nodes")+ylab("Time")+
+  ggtitle("Centrality")+xlab("Cores")+ylab("TEPS")+
   sosp_theme+
   coord_cartesian(xlim=c(0,1100))+ # viewing area
   scale_x_continuous(breaks=seq(0, 1024, 256))+ # axis ticks seq(from,to,by)
