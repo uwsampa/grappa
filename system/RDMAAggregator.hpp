@@ -379,6 +379,9 @@ namespace Grappa {
       int64_t active_send_workers_;
 
     public:
+      bool disable_everything_;
+
+    public:
 
       RDMAAggregator()
         : mycore_( -1 )
@@ -407,6 +410,7 @@ namespace Grappa {
         , deaggregate_counts_( NULL )
         , active_receive_workers_(0)
         , active_send_workers_(0)
+        , disable_everything_( false )
       {
         CHECK_LE( FLAGS_target_size, max_size_ );
       }
@@ -437,14 +441,16 @@ namespace Grappa {
       bool send_poll() {
         rdma_poll_send++;
         bool useful = false;
-        // see if we have anything to send
-        for( int i = 0; i < core_partner_locale_count_; ++i ) {
-          Locale locale = core_partner_locales_[i];
-          Core core = locale * Grappa::locale_cores();
-          if( check_for_work_on( locale, FLAGS_target_size ) ) {
-            useful = true;
-            Grappa::signal( &cores_[core].send_cv_ );
-            //send_locale_medium( locale );
+        if( !disable_everything_ ) {
+          // see if we have anything to send
+          for( int i = 0; i < core_partner_locale_count_; ++i ) {
+            Locale locale = core_partner_locales_[i];
+            Core core = locale * Grappa::locale_cores();
+            if( check_for_work_on( locale, FLAGS_target_size ) ) {
+              useful = true;
+              Grappa::signal( &cores_[core].send_cv_ );
+              //send_locale_medium( locale );
+            }
           }
         }
         if( useful ) rdma_poll_send_success++;
@@ -465,7 +471,7 @@ namespace Grappa {
 
         enqueue_counts_[ m->destination_ ]++;
 
-        if( !global_scheduler.in_no_switch_region() ) {
+        if( !global_scheduler.in_no_switch_region() && !disable_everything_ ) {
           bool yielded = global_scheduler.thread_maybe_yield();
           if( yielded ) rdma_poll_yields++;
         }
