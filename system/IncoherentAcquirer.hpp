@@ -216,8 +216,9 @@ public:
       
       // allocate enough requests/messages that we don't run out
       size_t nmsg = total_bytes / block_size + 2;
-      RequestArgs arg_array[nmsg];
-      Grappa::ExternalMessage<RequestArgs> msg_array[nmsg];
+      //RequestArgs arg_array[nmsg];
+      //Grappa::ExternalMessage<RequestArgs> msg_array[nmsg];
+      Grappa::Message<RequestArgs> msg_array[nmsg];
       
       for(size_t i = 0;
            args.offset < total_bytes; 
@@ -234,9 +235,10 @@ public:
                  << " of total bytes = " << *count_ * sizeof(T)
                  << " from " << args.request_address;
 
-        arg_array[i] = args;
-        new (msg_array+i) Grappa::ExternalMessage<RequestArgs>(arg_array[i].request_address.node(), &arg_array[i]);
-        msg_array[i].enqueue();
+        //arg_array[i] = args;
+        //new (msg_array+i) Grappa::ExternalMessage<RequestArgs>(arg_array[i].request_address.node(), &arg_array[i]);
+        *(msg_array[i]) = args;
+        msg_array[i].enqueue( args.request_address.node() );
 
         // TODO: change type so we don't screw with pointer like this
         args.request_address = GlobalAddress<T>::Raw( args.request_address.raw_bits() + args.request_bytes );
