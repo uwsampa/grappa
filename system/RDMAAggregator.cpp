@@ -616,7 +616,9 @@ void RDMAAggregator::draw_routing_graph() {
       if( disable_everything_ ) LOG(WARNING) << "Sending while disabled...";
 
       // send to locale
-      send_locale_medium( locale );
+      if( check_for_any_work_on( locale ) ) {
+        send_locale_medium( locale );
+      }
 
       // record when we last sent
       // TODO: should this go earlier? probably not.
