@@ -87,13 +87,17 @@ namespace Grappa {
         Core c = Grappa::mycore();
 
         receive_poll();
+        
+        if( !disable_everything_ ) {
 
-        // see if we have anything at all to send
-        for( int i = 0; i < core_partner_locale_count_; ++i ) {
-          Locale locale = core_partner_locales_[i];
-          if( check_for_any_work_on( locale ) ) {
-            Grappa::signal( &cores_[ locale * Grappa::locale_cores() ].send_cv_ );
+          // see if we have anything at all to send
+          for( int i = 0; i < core_partner_locale_count_; ++i ) {
+            Locale locale = core_partner_locales_[i];
+            if( check_for_any_work_on( locale ) ) {
+              Grappa::signal( &cores_[ locale * Grappa::locale_cores() ].send_cv_ );
+            }
           }
+
         }
       }
     }
@@ -608,6 +612,9 @@ void RDMAAggregator::draw_routing_graph() {
 
       active_send_workers_++;
       
+      //CHECK_EQ( disable_everything_, false ) << "Whoops! Why are we sending when disabled?";
+      if( disable_everything_ ) LOG(WARNING) << "Sending while disabled...";
+
       // send to locale
       send_locale_medium( locale );
 
