@@ -427,6 +427,13 @@ namespace Grappa {
                << " core1 count " << (b->get_counts())[1]
                << " from core " << b->get_core();
 
+      // check that the buffer makes sense
+      size_t claimed_size = b->get_base_size();
+      for( int i = 0; i < Grappa::locale_cores(); ++i ) {
+        claimed_size += (b->get_counts())[i];
+      }
+      CHECK_EQ( claimed_size, size ) << "Buffer claims it is a different size than what was received";
+
       // enqueue to be dequeued
       global_rdma_aggregator.received_buffer_list_.push( b );
 
@@ -1396,7 +1403,7 @@ void RDMAAggregator::draw_routing_graph() {
                    << " for core " << current_core-1
                    << " index " << index
                    << " previous value " << (b->get_counts())[index];
-          (b->get_counts())[index] = current_aggregated_size;
+          (b->get_counts())[index] += current_aggregated_size;
 
           // // do we have space to aggregate more?
           // if( (current_aggregated_size > 0) && (remaining_size > 0) && ((messages_to_send != NULL) || current_core < max_core) {
