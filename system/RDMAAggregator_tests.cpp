@@ -15,6 +15,7 @@
 #include "Statistics.hpp"
 #include "ParallelLoop.hpp"
 #include "ReuseMessage.hpp"
+#include "ReuseMessageList.hpp"
 
 DEFINE_int64( iterations_per_core, 1 << 24, "Number of messages sent per core" );
 
