@@ -25,7 +25,6 @@ namespace impl {
 template< typename T >
 class ReuseList {
 private:
-  //Grappa::FullEmpty< T * > list_;
   T * list_;
   ConditionVariable cv;
   size_t count_;
@@ -38,7 +37,6 @@ public:
   { }
 
   bool empty() const { 
-    //return list_.empty(); 
     return list_ == NULL;
   }
 
@@ -46,16 +44,8 @@ public:
     return count_;
   }
 
+  // block until we have a buffer to process
   T * block_until_pop() {
-    // // block until we have a buffer to deaggregate
-    // T * b = list_.readFE();
-
-    // // put back rest of list
-    // if( b->get_next() ) {
-    //   list_.writeEF( b->get_next() );
-    // }
-
-    // block until we have a buffer to deaggregate
     while( list_ == NULL ) {
       Grappa::wait( &cv );
     }
@@ -64,6 +54,8 @@ public:
 
     // put back rest of list
     list_ = b->get_next();
+
+    DVLOG(5) << __PRETTY_FUNCTION__ << ": popping " << b << " (count " << count_ << ")";
 
     // make sure the buffer is not part of any list
     b->set_next( NULL );
@@ -76,12 +68,7 @@ public:
   
   /// Returns NULL if no buffers are available, or a buffer otherwise.
   T * try_pop() {
-    // if( list_.full() ) {
-    //   return block_until_pop();
-    // } else {
-    //   return NULL;
-    // }
-    if( list_ != NULL ) {
+    if( !empty() ) {
       return block_until_pop();
     } else {
       return NULL;
@@ -89,16 +76,9 @@ public:
   }
   
   void push( T * b ) {
-    T * next = NULL;
-    
-    // // is there anything in the list already?
-    // if( !list_.empty() ) {
-    //   next = list_.readFE();
-    // }
-    
-    // // stitch buffer into list
-    // b->set_next( next );
-    // list_.writeEF( b );
+    CHECK_NOTNULL( b );
+
+    DVLOG(5) << __PRETTY_FUNCTION__ << ": pushing " << b << " (count " << count_ << ")";
 
     b->set_next( list_ );
     list_ = b;
