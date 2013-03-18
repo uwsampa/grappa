@@ -65,14 +65,20 @@ NONE_LD=$(LD)
 MACHINENAME:=$(shell hostname)
 ifeq ($(MACHINENAME), pal.local)
 PAL=true
+
+ifeq ($(shell module list 2>&1 | grep mvapich2 | wc -l), 1)
+PAL_MVAPICH2=true
+endif
 endif
 
 ifdef PAL
 NELSON=/pic/people/nels707
 
+# should have modules: gcc/4.7.2 mvapich2/1.9b
+
 CC=gcc
 CXX=g++
-LD=mpiCC
+LD=mpicxx
 
 #GASNET=$(NELSON)/gasnet
 HUGETLBFS=/usr
@@ -308,6 +314,12 @@ SBATCH_MPIRUN_EXPORT_ENV_VARIABLES=$(patsubst %,-x %,$(patsubst DELETEME:%,,$(su
 .sbatch.%:
 	@echo '#!/bin/bash' > $@
 	@for i in $(ENV_VARIABLES); do echo "export $$i" >> $@; done
+ifdef PAL_MVAPICH2
+	@echo '# Run!' >> $@
+	@echo 'srun --tasks-per-node 1 bash -c "ipcs -m | grep $(USER) | cut -d\  -f1 | xargs -n1 -r ipcrm -M"' >> $@
+	@echo 'srun $(SBATCH_MPIRUN_EXPORT_ENV_VARIABLES) --cpu_bind=rank --label -- $(MY_TAU_RUN) $$*' >> $@
+	@echo 'srun --tasks-per-node 1 bash -c "ipcs -m | grep $(USER) | cut -d\  -f1 | xargs -n1 -r ipcrm -M"' >> $@
+else
 ifdef PAL	
 	@echo '# Make scratch directory'  >> $@
 	@echo 'mkdir -p $(SBATCH_SCRATCH_DIR)' >> $@
@@ -339,6 +351,7 @@ else
 	@echo 'mpirun -npernode 1 bash -c "ipcs -m | grep $(USER) | cut -d\  -f1 | xargs -n1 -r ipcrm -M"' >> $@
 	@echo 'mpirun $(SBATCH_MPIRUN_EXPORT_ENV_VARIABLES) -bind-to-core -tag-output -- $(MY_TAU_RUN) $$*' >> $@
 	@echo 'mpirun -npernode 1 bash -c "ipcs -m | grep $(USER) | cut -d\  -f1 | xargs -n1 -r ipcrm -M"' >> $@
+endif
 endif
 	@echo '# Clean up any leftover shared memory regions' >> $@
 	@echo 'for i in `ipcs -m | grep $(USER) | cut -d" " -f1`; do ipcrm -M $$i; done' >> $@
