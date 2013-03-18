@@ -150,6 +150,12 @@ Igor do
       h[m[:key].downcase.to_sym] = m[:value].to_f
       ''
     }
+    
+    # parse out string fields: name: 'value'
+    cmdout.gsub!(/^\s*(?<key>[\w_]+):\s+'(?<value>.*)'\s*$/){ m = $~
+      h[m[:key].downcase.to_sym] = m[:value]
+      ''
+    }
   
     if h.keys.length == 0 then
       puts "Error: didn't find any fields."
