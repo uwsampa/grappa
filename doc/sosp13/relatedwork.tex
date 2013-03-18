@@ -60,8 +60,8 @@ multithreading~\cite{tullsen:smt}, MIT Alewife~\cite{agarwal:alewife},
 Cyclops~\cite{almasi:cyclops}, and even GPUs~\cite{gpus}. As we describe in
 this paper, Grappa implements its own software-based multithreading with a
 lightweight user-mode task scheduler to multiplex \emph{thousands\/} of tasks
-on a single processing core. The large number of tasks is required because of
-the to tolerate very high inter-node communication latency. Grappa's task
+on a single processing core. The large number of tasks is required to tolerate
+the very high inter-node communication latency of commodity networks. Grappa's task
 library employs several optimizations: an extremely fast task switch, a small
 task size, and judicious use of hardware prefetching to bring task state into
 the cache long before that task is actually scheduled. The main difference between Grappa's support for lightweight threads and prior work such as QThread~\cite{Wheeler08qthreads:an} and Capriccio~\cite{Behren03capriccio:scalable} is the pervasive use of prefetching (with a large number of active tasks, not even their contexts fit in cache!).
