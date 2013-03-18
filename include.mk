@@ -29,8 +29,6 @@ CFLAGS+= -mno-red-zone
 # TODO: see if we can make this apply to just our files, not user files or libraries
 #CFLAGS+= -Wconversion
 
-# TODO: clean up LD_LIBRARY_PATH to make this work better
-CFLAGS+= -Wl,-rpath,$(LD_LIBRARY_PATH),--enable-new-dtags
 
 # tcmalloc is disabled because it seems to slow message throughput down by 10% or so.
 #### Enable tcmalloc by default, since we've already built its package for profiling
@@ -269,6 +267,9 @@ LD_LIBRARY_PATH:=$(VAMPIRTRACE)/lib/valgrind:$(LD_LIBRARY_PATH)
 
 
 MPITYPE?=SRUN
+
+# TODO: clean up LD_LIBRARY_PATH to make this work better
+CFLAGS+= -Wl,-rpath,$(LD_LIBRARY_PATH),--enable-new-dtags
 
 CFLAGS+= -DSHMMAX=$(SHMMAX)
 
