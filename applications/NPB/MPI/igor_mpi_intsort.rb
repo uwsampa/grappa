@@ -16,7 +16,7 @@ Igor do
   sbatch_flags << "--time=4:00:00"
   
   params {
-    problem 'D'
+    problem 'E'
     nnode   8,16,32,64,128
     ppn     2,4,8,16
     nproc   expr('nnode*ppn')
