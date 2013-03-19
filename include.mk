@@ -91,6 +91,8 @@ VAMPIRTRACE=$(NELSON)/vampirtrace
 
 MPITYPE=SRUN
 
+CFLAGS+=-DUSE_HUGEPAGES_DEFAULT=false
+
 SRUN_PARTITION=pal
 SRUN_BUILD_PARTITION=pal
 #SRUN_HOST=--partition $(SRUN_PARTITION) --account pal  --reservation=pal_25
