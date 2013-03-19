@@ -15,6 +15,8 @@ Igor do
   
   command "#{$srun} %{tdir}/graph500_mpi_%{mpibfs} %{scale} %{edgefactor}"
   
+  sbatch_flags << "--time=4:00:00"
+  
   params {
     mpibfs      'simple'
     nnode       2
@@ -22,6 +24,8 @@ Igor do
     scale       20
     edgefactor  16
   }
+  
+  expect :max_teps
     
   $filtered = results{|t| t.select(:id, :mpibfs, :scale, :nnode, :ppn, :run_at, :min_time, :max_teps) }
   

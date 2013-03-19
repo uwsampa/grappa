@@ -75,11 +75,11 @@ Igor do
   case `hostname`
   when /pal/
     params { machine "pal" }
-    sbatch_flags "--time=30:00 --account=pal --partition=pal"
+    sbatch_flags << "--time=30:00" << "--account=pal" << "--partition=pal"
     $srun = "srun --cpu_bind=verbose,rank --exclusive --label --kill-on-bad-exit"
   when /n\d+/ # (sampa)
     params { machine "sampa" }
-    sbatch_flags "--partition=grappa"
+    sbatch_flags << "--partition=grappa"
     $srun = "srun --resv-ports --cpu_bind=verbose,rank --exclusive --label --kill-on-bad-exit"
   else
     params { machine `hostname` }
