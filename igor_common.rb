@@ -68,6 +68,7 @@ module Isolatable
     if c
       tdir = "/scratch/#{ENV['USER']}/igor/#{Process.pid}"
       @params[:tdir] = tdir
+      ignore :tdir
       c = %Q[
         if [[ ! -d "#{tdir}" ]]; then 
           srun mkdir -p #{tdir};

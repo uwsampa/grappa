@@ -34,7 +34,7 @@ end
 
 case `hostname`
 when /pal|node\d+/
-  srun_flags << "--partition=pal" << "--account=pal"
+  srun_flags << "--partition=pal,slurm" << "--account=pal"
 else
   srun_flags << "--partition=grappa" << "--resv-ports"
 end

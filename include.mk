@@ -60,6 +60,9 @@ NONE_LD=$(LD)
 #   module unload pathscale openmpi
 #   module load git gcc/4.7.2 openmpi/1.6.3
 
+# to run with Mvapich on Pal (required for Igor):
+# module load gcc/4.7.2 mvapich2/1.9b
+
 MACHINENAME:=$(shell hostname)
 ifeq ($(MACHINENAME), pal.local)
 PAL=true
