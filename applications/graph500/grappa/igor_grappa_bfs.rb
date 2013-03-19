@@ -26,14 +26,14 @@ Igor do
                  loop_threshold 16
      aggregator_autoflush_ticks 3e6.to_i
             periodic_poll_ticks 20000
-                     chunk_size 10
-                   load_balance 1
+                     chunk_size 100
+                   load_balance 'steal'
                   flush_on_idle 0
                    poll_on_idle 1
   }
   params.merge!(GFLAGS)
   
-  command %Q[ %{tdir}/grappa_srun.rb --nnode=%{nnode} --ppn=%{ppn}
+  command %Q[ %{tdir}/grappa_srun.rb --nnode=%{nnode} --ppn=%{ppn} --time=4:00:00
     -- %{tdir}/graph.exe
     #{expand_flags(*GFLAGS.keys)}
     -- -s %{scale} -e %{edgefactor} -f %{nbfs}
@@ -51,7 +51,7 @@ Igor do
   }
   
   expect :max_teps
-    
+  
   $filtered = results{|t| t.select(:id, :mpibfs, :scale, :nnode, :ppn, :run_at, :min_time, :max_teps) }
   
   interact # enter interactive mode
