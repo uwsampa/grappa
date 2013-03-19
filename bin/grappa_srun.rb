@@ -2,8 +2,13 @@
 require 'optparse'
 require 'ostruct'
 
-myargs = ARGV[0...ARGV.index('--')]
-remain = ARGV[ARGV.index('--')+1..ARGV.size]
+if ARGV.index('--')
+  myargs = ARGV[0...ARGV.index('--')]
+  remain = ARGV[ARGV.index('--')+1..ARGV.size]
+else
+  myargs = ARGV
+  remain = []
+end
 
 DIR = File.expand_path(File.dirname(__FILE__))
 puts "DIR = #{DIR}"
