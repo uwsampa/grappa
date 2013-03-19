@@ -26,6 +26,7 @@ class ThreadQueue {
 
         void enqueue(Worker * t);
         Worker * dequeue();
+        Worker * dequeueLazy();
         Worker * front() const;
         void prefetch() const;
         uint64_t length() const { 
@@ -102,7 +103,7 @@ class PrefetchingThreadQueue {
     }
 
     Worker * dequeue() {
-      Worker * result = queues[dq_index].dequeue();
+      Worker * result = queues[dq_index].dequeueLazy();
       if ( result ) {
         uint64_t t = dq_index;
         dq_index = ((dq_index+1) == num_queues) ? 0 : dq_index+1;
@@ -115,6 +116,10 @@ class PrefetchingThreadQueue {
         __builtin_prefetch( result->next,   // prefetch the next thread in the current subqueue (i.e. i or i+D*2 mod N)
                                1,   // prefetch for RW
                                3 ); // prefetch with high temporal locality
+        //__builtin_prefetch( ((char*)(result->next))+64, 1, 3 );
+        
+        // now safe to NULL
+        result->next = NULL;
 
         uint64_t tstack = (t+(num_queues/2))%num_queues;//PERFORMANCE TODO: can optimize
         Worker * tstack_worker = queues[tstack].front(); 
@@ -122,8 +127,8 @@ class PrefetchingThreadQueue {
           __builtin_prefetch( tstack_worker->stack,  // prefetch the stack that is prefetch distance away (i.e. i+D or i-1 mod N) 
                                                  1,  // prefetch for RW
                                                  3 ); // prefetch with high temporal locality
-          __builtin_prefetch( (char*)(tstack_worker->stack)+64, 1, 3 );
-          __builtin_prefetch( (char*)(tstack_worker->stack)+128, 1, 3 );
+          __builtin_prefetch( ((char*)(tstack_worker->stack))+64, 1, 3 );
+          __builtin_prefetch( ((char*)(tstack_worker->stack))+128, 1, 3 );
           //__builtin_prefetch( (char*)(tstack_worker->stack)+128+64, 1, 3 );
           //__builtin_prefetch( (char*)(tstack_worker->stack)+128+64+64, 1, 3 );
         }
@@ -155,7 +160,25 @@ inline Worker * ThreadQueue::dequeue() {
     if (result != NULL) {
         head = result->next;
         result->next = NULL;
-        len--;
+        len--;          
+        // lazily ignore setting the tail=NULL if now empty
+    } else {
+        tail = NULL;
+    }
+    return result;
+}
+
+/// Remove a Worker from the queue and return it.
+/// Does not change the links of the returned Worker.
+inline Worker * ThreadQueue::dequeueLazy() {
+    Worker * result = head;
+    if (result != NULL) {
+        head = result->next;
+
+        // TODO: instead just have the client call front() to get ->next
+
+        len--;          
+        // lazily ignore setting the tail=NULL if now empty
     } else {
         tail = NULL;
     }
