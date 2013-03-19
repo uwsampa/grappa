@@ -46,7 +46,7 @@ end
 
 srun_flags << "--nodes=#{opt.nnode}" << "--ntasks-per-node=#{opt.ppn}" << "--time=#{opt.time}"
 
-test = "system/#{opt.test}.test --log_level=test_suite --report_level=confirm --run_test=#{opt.test}" if opt.test
+test = "#{opt.test}.test --log_level=test_suite --report_level=confirm --run_test=#{opt.test}" if opt.test
 
 puts s = "srun #{srun_flags.join(' ')} -- #{test} #{remain.join(' ')}"
 exec s
