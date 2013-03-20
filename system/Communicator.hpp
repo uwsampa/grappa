@@ -399,11 +399,11 @@ public:
     return cores_;
   }
 
-  inline Node mylocale() const { 
+  inline Locale mylocale() const { 
     return mylocale_;
   }
 
-  inline Node locales() const { 
+  inline Locale locales() const { 
     return locales_;
   }
 
@@ -522,13 +522,13 @@ inline Core locale_cores() { return global_communicator.locale_cores(); }
 inline Core locale_mycore() { return global_communicator.locale_mycore(); }
 
 /// How many shared memory domains are in this job?
-inline Core locales() { return global_communicator.locales(); }
+inline Locale locales() { return global_communicator.locales(); }
 
 /// What's my shared memory domain ID within this job?
-inline Core mylocale() { return global_communicator.mylocale(); }
+inline Locale mylocale() { return global_communicator.mylocale(); }
 
 /// What shared memory domain does core c belong to?
-inline Core locale_of(Core c) { return global_communicator.locale_of(c); }
+inline Locale locale_of(Core c) { return global_communicator.locale_of(c); }
 
 /// how big can inline messages be?
 inline size_t inline_limit() { return global_communicator.inline_limit(); }
