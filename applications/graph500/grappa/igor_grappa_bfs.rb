@@ -10,14 +10,11 @@ end
 
 Igor do
   include Isolatable
-
+  
   database '~/exp/sosp.db', :bfs
 
   # isolate everything needed for the executable so we can sbcast them for local execution
-  isolate(['graph.exe',
-    '../../../bin/grappa_srun.rb',
-    '../../../bin/grappa_srun_prolog.sh',
-    '../../../bin/grappa_srun_epilog.sh'],
+  isolate(['graph.exe'],
     File.dirname(__FILE__))
   
   GFLAGS = Params.new {
@@ -53,6 +50,6 @@ Igor do
   expect :max_teps
   
   $filtered = results{|t| t.select(:id, :mpibfs, :scale, :nnode, :ppn, :run_at, :min_time, :max_teps) }
-  
+    
   interact # enter interactive mode
 end
