@@ -1,0 +1,135 @@
+#include <stdlib.h>
+#include <stdio.h>
+#include <malloc.h>
+#include "defs.h"
+#include "globals.h"
+#include <sys/mta_task.h>
+#include <machine/runtime.h>
+
+double centrality(graph *G, double *BC, int Vs) {
+  double timeBC, timer();
+  int NE      = G->numEdges;
+  int NV      = G->numVertices;
+  int *eV     = G->endVertex;
+  int *start  = G->edgeStart;
+  int *weight = G->intWeight;
+
+/* Allocate memory for data structures */
+  int *Q     = (int *) malloc(NV * sizeof(int));
+  int *dist  = (int *) malloc(NV * sizeof(int));
+  int *sigma = (int *) malloc(NV * sizeof(int));
+  int *marks = (int *) malloc((NV + 2) * sizeof(int));
+  int *QHead = (int *) malloc(10 * SCALE * sizeof(int));
+
+  int *Pw    = (int *) malloc(4 * NV * sizeof(int));
+  int *Pv    = (int *) malloc(4 * NV * sizeof(int));
+  int *Pw1   = (int *) malloc(4 * NV * sizeof(int));
+  int *Pv1   = (int *) malloc(4 * NV * sizeof(int));
+
+  int j, s, nQ, Pnext, Qnext;
+  double *delta = (double *) dist;
+  double avg_frac = 0.0;  
+  int num_srcs = Vs;
+
+  for (j = 0; j < NV; j++) BC[j] = 0.0;
+
+  timeBC = timer();
+
+/* Use |Vs| nodes to compute centrality values */
+  for (s = 0; (s < NV) && (Vs > 0); s ++) {
+      if (start[s+1] == start[s]) {
+          continue; 
+      } else {
+          Vs --;
+      }
+      for (j = 0; j < NV; j++) {dist[j] = -1; sigma[j] = marks[j] = 0;}
+
+/* Push node i onto Q and set bounds for first Q sublist */
+      Q[0]     = s;
+      Qnext    = 1;
+
+      nQ       = 1;
+      QHead[0] = 0;
+      QHead[1] = 1;
+
+      Pnext    = 0;
+      dist[s]  = 0;
+      marks[s] = 1;
+      sigma[s] = 1;
+PushOnStack:      /* Push nodes onto Q */
+
+/* Execute the nested loop for each node v on the Q AND
+   for each neighbor w of v whose edge weight is not divisible by 8
+*/
+#pragma mta assert nodep
+      for (j = QHead[nQ - 1]; j < QHead[nQ]; j++) {
+          int v       = Q[j];
+          int dv      = dist[v];
+          int sigmav  = sigma[v];
+          int myStart = start[v];
+          int myEnd   = start[v + 1];
+          int k;    
+#pragma mta assert nodep
+      for (k = myStart; k < myEnd; k++) {
+          int d, w, l;
+          if ((weight[k] % 8) == 0) continue;
+
+          w = eV[k];
+          d = dist[w];
+
+/* If node has not been visited, set distance and push on Q (but only once) */
+          if (d < 0) {
+             d = dv + 1;
+             if (int_fetch_add(marks + w, 1) == 0) {
+                dist[w] = d; Q[ int_fetch_add(&Qnext, 1) ] = w;
+             }
+          }
+
+/* Add v to w's list */
+          if (d == dv + 1) {
+             int_fetch_add(sigma + w, sigmav);
+             l = int_fetch_add(&Pnext, 1);
+             Pw[l] = w;
+             Pv[l] = v;
+          }
+      } }
+
+/* If new nodes pushed onto Q */
+      if (Qnext != QHead[nQ]) {nQ++; QHead[nQ] = Qnext; goto PushOnStack;}
+
+/* Sort Ps to create list for each v */
+      SortStart(NV, Pnext, Pv, Pw, Pv1, Pw1, marks);
+      //fprintf(stderr, "s: %d, child count: %d, fraction: %lf, visited: %d\n", s, Pnext,
+      //        (double)Pnext/NE, QHead[nQ]);
+      //avg_frac += (double)Pnext/NE;
+      for (j = 0; j < NV; j++) delta[j] = 0.0;
+
+      nQ--;
+/* Pop nodes off of Q in the reverse order they were pushed on */
+      for ( ; nQ > 1; nQ --) {
+
+/* For each v in the sublist AND for each w on v's list */
+#pragma mta assert nodep
+#pragma mta assert no alias *Q *BC *delta
+          for (j = QHead[nQ - 1]; j < QHead[nQ]; j++) {
+              int v = Q[j];
+              double sum = 0;
+              int myStart = marks[v];
+              int myEnd = marks[v+1];
+              double sigma_v = sigma[v];
+              int k;
+              for (k=myStart; k<myEnd; k++) {
+                int w = Pw1[k];
+                sum += (double) sigma_v * (1.0 + delta[w]) / (double) sigma[w];
+              } 
+              delta[v] = sum;
+              BC[v] += sum;
+      }   } 
+}
+
+  timeBC = timer() - timeBC;
+
+  free(Q); free(dist); free(sigma); free(QHead);
+  free(marks); free(Pw); free(Pv); free(Pw1); free(Pv1);
+  return timeBC;
+}

@@ -1,0 +1,253 @@
+#include <stdlib.h>
+#include <stdio.h>
+#include <malloc.h>
+#include "defs.h"
+#include "globals.h"
+
+/* Recursively divide a grid of N x N by four to a single point, (i, j).
+   Choose between the four quadrants with probability a, b, c, and d.
+   Create an edge between node i and j.
+*/
+#pragma mta inline
+void RMAT(int i, double *rn, int *start, int *end) {
+   double a, b, c, d, norm;
+   double prob;
+   int j;
+   int step = numVertices/2;           /* size of original quandrant     */
+
+   a = P;                              /* initial Q1 probability         */
+   // b = c = d = 0.333 * (1.0 - a);   /* initial Q2, Q3, Q4 probability */
+   b = 0.1; c = 0.1; d = 0.25;
+   prob = rn[i+4];
+
+   if      (prob <= a)         { *start = 0;   *end = 0;   }   /* Q1 */
+   else if (prob <= a + b)     { *start = 0;   *end = step; }   /* Q2 */
+   else if (prob <= a + b + c) { *start = step; *end = 0;   }   /* Q3 */
+   else                        { *start = step; *end = step; }   /* Q4 */
+
+/* Divide grid by 4 by moving bit 1 place to the right */
+   for (j = 1; j < SCALE; j++) {
+       step = step/2;
+       i += 5;
+
+/* New probability = old probability +/- at most 10% */
+       a *= 0.95 + 0.1 * rn[i  ];
+       b *= 0.95 + 0.1 * rn[i+1];
+       c *= 0.95 + 0.1 * rn[i+2];
+       d *= 0.95 + 0.1 * rn[i+3];
+
+       norm = 1.0 / (a + b + c + d);
+       a *= norm; b *= norm; c *= norm; d *= norm;
+       prob = rn[i+4];
+       if      (prob <= a)         {                            }  /* Q1 */
+       else if (prob <= a + b)     {*end   += step;             }  /* Q2 */
+       else if (prob <= a + b + c) {*start += step;             }  /* Q3 */
+       else                        {*start += step; *end += step;}  /* Q4 */
+}  }
+ 
+/* Remove self- and duplicate edges. We use a hash function and linked
+   list to store non-duplicate edges.
+*/
+int Remove(int NV, int NE, int *sV, int *eV) {
+  int i, NGE = 0;
+  int *head = (int *) malloc(NV * sizeof(int));
+  int *next = (int *) malloc(NE * sizeof(int));
+
+/* Initialize linked lists */
+  for (i = 0; i < NV; i++) head[i] = -1;
+  for (i = 0; i < NE; i++) next[i] = -2;
+
+#pragma mta assert no dependence
+  for (i = 0; i < NE; i++) {
+      int k, *ptr;
+      int sv  = sV[i];
+      int ev  = eV[i];
+      int key = sv ^ ev;               /* hash function */
+      if (key == 0) continue;          /* self-edge */
+
+      ptr = head + key;
+      k   = readfe(ptr);
+
+/* Search this key's linked list for this edge */
+      while (k != -1) {
+         if ((sV[k] == sv) & (eV[k] == ev)) break;   /* duplicate edge */
+         writeef(ptr, k);
+         ptr = next + k;
+         k   = readfe(ptr);
+      }
+
+/* Add a new edge to end of this list */
+      if (k == -1) {k = i; next[i] = -1; NGE++;}
+      writeef(ptr, k);
+  }
+
+/* Move good edges to front of sV and eV arrays */
+#pragma mta assert no dependence
+  for (i = 0; i < NGE; i++) {
+      while (next[i] == -2) {
+         int k = int_fetch_add(&NE, -1) - 1;
+         sV[i] = sV[k]; eV[i] = eV[k]; next[i] = next[k];
+  }   }
+
+  free(head); free(next);
+
+  return NGE;
+}
+
+
+void genScalData(graphSDG* SDGdataPtr)
+{ int i, j, n, mark, skip, NE, NV;
+  int *sV, *eV, *weight, *permV;
+  FILE* infile;
+  double *rn;
+  int num_edges_per_phase;
+  int num_rns;
+  int num_edges_added;
+
+/*-------------------------------------------------------------------------*/
+/* STEP 0: Create the permutations required to randomize the vertices      */
+/*-------------------------------------------------------------------------*/
+ 
+
+  NE    = numEdges;
+  NV    = numVertices;
+
+  num_edges_per_phase = 1<<18;
+  num_rns = 5 * SCALE * num_edges_per_phase;
+  
+  rn = (double *) malloc(num_rns * sizeof(double));
+
+
+  permV = (int *) malloc(NV * sizeof(int));
+  for (i = 0; i < NV; i++) permV[i] = i;
+
+/* Permute indices SCALE * NV times  */
+/* Perform in sets of num_edges_per_phase permutations to save space */
+  for (j = 0; j < SCALE; j++) {
+
+      n = 2 * NV;
+      prand_(&n, rn);
+ 
+#pragma mta assert parallel
+      for (i = 0; i < NV; i++) {
+          int n, m, t, x, y;
+          n = rn[2 * i]     * NV;
+          m = rn[2 * i + 1] * NV;
+ 
+          if (n == m) continue;
+          if (n >  m) {t = n; n = m; m = t;}
+ 
+          x = readfe(permV + n);
+          y = readfe(permV + m);
+
+          writeef(permV + n, y);
+          writeef(permV + m, x);
+  }   }
+
+      
+/*-------------------------------------------------------------------------*/
+/* STEP 1: Create the edges using the RMAT algorithm and permute labels.   */
+/*-------------------------------------------------------------------------*/
+/* Create "num_edges_per_phase" edges at a time to save space */
+
+  num_edges_per_phase = 1<<18;
+  num_rns = 5 * SCALE * num_edges_per_phase;
+  
+  rn = (double *) malloc(num_rns * sizeof(double));
+
+  sV     = (int *) malloc(numEdges * sizeof(int));
+  eV     = (int *) malloc(numEdges * sizeof(int));
+  weight = (int *) malloc(numEdges * sizeof(int));
+
+  num_edges_added = 0;
+
+  while (num_edges_added < NE) {
+
+      if (NE-num_edges_added < num_edges_per_phase)
+          num_edges_per_phase = NE-num_edges_added;
+
+      prand_(&num_rns, rn);
+
+#pragma mta assert parallel
+      for (i = 0; i < num_edges_per_phase; i++) {
+          int sv, ev;
+          int eid;
+          RMAT(i, rn, &sv, &ev);
+          if (sv != ev) {
+              eid = int_fetch_add(&num_edges_added, 1);
+              sV[eid] = permV[sv];
+              eV[eid] = permV[ev]; 
+          }
+  }   }
+
+/*-------------------------------------------------------------------------*/
+/* STEP 2: Assign weights                                                  */
+/*-------------------------------------------------------------------------*/
+
+  num_edges_per_phase = 1<<18;
+  for (j = 0; j < NE; j += num_edges_per_phase) {
+
+      num_rns = num_edges_per_phase;
+      prand_(&num_rns, rn);
+
+#pragma mta assert no dependence
+      for (i = 0; i < num_edges_per_phase; i++)
+          weight[i + j] = (int) (rn[i] * NV);
+  }
+
+/*-------------------------------------------------------------------------*/
+/* STEP 3: Remove self- and duplicate edges                                */
+/*-------------------------------------------------------------------------*/
+
+  // NE = Remove(NV, NE, sV, eV);
+  printf("Number of edges created - %9d\n", NE);
+
+  SDGdataPtr->numEdges    = NE;
+  SDGdataPtr->startVertex = sV;
+  SDGdataPtr->endVertex   = eV;
+  SDGdataPtr->intWeight   = weight;
+  int* degree = (int *) calloc(NV , sizeof(int));
+  int* degree_hist = (int *) calloc(NV, sizeof(int));
+  
+  for (i=0; i<NE; i++) {
+      degree[sV[i]]++;
+  }
+
+  for (i=0; i<NV; i++) {
+      degree_hist[degree[i]]++;
+  }
+
+  for (i=0; i<NV; i++) {
+     if (degree_hist[i] != 0) 
+        printf("[%d %d] ", i, degree_hist[i]); 
+  }
+  free(degree); free(degree_hist);
+  free(rn); free(permV);
+}
+
+
+void gen1DTorus(graphSDG* SDGdataPtr)
+{ int i, NE, NV;
+  int *sV, *eV, *weight;
+
+  NE     = numVertices;
+  NV     = numVertices;
+  sV     = (int *) malloc(numEdges * sizeof(int));
+  eV     = (int *) malloc(numEdges * sizeof(int));
+  weight = (int *) malloc(numEdges * sizeof(int));
+
+#pragma mta assert no dependence
+  for (i = 0; i < NE - 1; i ++) {sV[i] = i; eV[i] = i + 1;}
+
+  sV[NE - 1] = NV - 1;
+  eV[NE - 1] = 0;
+
+  for (i = 0; i < NE; i ++) weight[i] = i % 8;
+
+  printf("Number of edges created - %9d\n", NE);
+
+  SDGdataPtr->numEdges    = NE;
+  SDGdataPtr->startVertex = sV;
+  SDGdataPtr->endVertex   = eV;
+  SDGdataPtr->intWeight   = weight;
+}
