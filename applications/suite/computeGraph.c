@@ -27,6 +27,7 @@ static void SortStart(graphint NV, graphint NE, graphint * sv1, graphint * ev1, 
   for (i = 0; i < NE; i++) stinger_int64_fetch_add(&start[sv1[i]], 1);
   
   /* Compute start index of each bucket */
+  MTA("mta debug level none")
   for (i = 1; i < NV; i++) start[i] += start[i-1];
   
   start--;
@@ -55,6 +56,16 @@ void computeGraph(graphedges* elist, graph * g) {
   for (i = 0; i < NE; i++) NV = (NV > sv1[i]) ? NV : sv1[i];
   for (i = 0; i < NE; i++) NV = (NV > ev1[i]) ? NV : ev1[i];
   NV ++;
+
+    //checksum:
+    int sum = 0;
+    for (int i = 0; i < NE; i++) {
+      graphint s = sv1[i];
+      graphint e = ev1[i];
+      sum ^= s*e;
+    }
+    printf("computeGraph:graph checksum: %d\n", sum);
+
   
   alloc_graph(g, NV, NE);
   
@@ -146,7 +157,9 @@ static void sort_edges(graph *g) {
   swapt.target = g;
   swapt.sort_base = eV;
   swapt.swapfunc = swap_edges;
-  
+
+
+  MTA("mta assert parallel")
   for (graphint i=0; i<NV; i++) {
     graphint start = edge[i];
     graphint degree = edge[i+1] - start;
@@ -192,8 +205,11 @@ void makeUndirected(graph *g, graph * undirG) {
                           MAP_PRIVATE | MAP_ANON, 0,0);
   xadj = &xoff[NV+1];
   newoff = &xadj[2*NE];
-  
-  memset(xoff, 0, (2*(NV+1) + 2*NE) * sizeof(graphint));
+
+  for (int i = 0; i < 2*(NV+1)+2*NE; i++) {
+    xoff[i] = 0;
+  }
+  //memset(xoff, 0, (2*(NV+1) + 2*NE) * sizeof(graphint));
   
   MTA("mta assert nodep")
   for (graphint k = 0; k < NE; ++k)
