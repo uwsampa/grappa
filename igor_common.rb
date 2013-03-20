@@ -38,7 +38,10 @@ module Isolatable
     FileUtils.mkdir_p(@ldir)
     
     exes = [exes] unless exes.is_a? Array
-    exes << 'mpirun'    
+    exes << 'mpirun' << "#{File.dirname(__FILE__)}/bin/grappa_srun.rb" \
+                     << "#{File.dirname(__FILE__)}/bin/grappa_srun_prolog.sh" \
+                     << "#{File.dirname(__FILE__)}/bin/grappa_srun_epilog.sh"
+    
     exes.each do |exe|
       exe = `which #{exe}`.strip if not File.exists? exe
       FileUtils.cp(exe, @ldir)
