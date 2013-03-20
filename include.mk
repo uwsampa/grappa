@@ -29,8 +29,6 @@ CFLAGS+= -mno-red-zone
 # TODO: see if we can make this apply to just our files, not user files or libraries
 #CFLAGS+= -Wconversion
 
-# TODO: clean up LD_LIBRARY_PATH to make this work better
-CFLAGS+= -Wl,-rpath,$(LD_LIBRARY_PATH),--enable-new-dtags
 
 # tcmalloc is disabled because it seems to slow message throughput down by 10% or so.
 #### Enable tcmalloc by default, since we've already built its package for profiling
@@ -62,17 +60,26 @@ NONE_LD=$(LD)
 #   module unload pathscale openmpi
 #   module load git gcc/4.7.2 openmpi/1.6.3
 
+# to run with Mvapich on Pal (required for Igor):
+# module load gcc/4.7.2 mvapich2/1.9b
+
 MACHINENAME:=$(shell hostname)
 ifeq ($(MACHINENAME), pal.local)
 PAL=true
+
+ifeq ($(shell module list 2>&1 | grep mvapich2 | wc -l), 1)
+PAL_MVAPICH2=true
+endif
 endif
 
 ifdef PAL
 NELSON=/pic/people/nels707
 
+# should have modules: gcc/4.7.2 mvapich2/1.9b
+
 CC=gcc
 CXX=g++
-LD=mpiCC
+LD=mpicxx
 
 #GASNET=$(NELSON)/gasnet
 HUGETLBFS=/usr
@@ -83,6 +90,8 @@ GPERFTOOLS=$(NELSON)/gperftools
 VAMPIRTRACE=$(NELSON)/vampirtrace
 
 MPITYPE=SRUN
+
+CFLAGS+=-DUSE_HUGEPAGES_DEFAULT=false
 
 SRUN_PARTITION=pal
 SRUN_BUILD_PARTITION=pal
@@ -264,6 +273,9 @@ LD_LIBRARY_PATH:=$(VAMPIRTRACE)/lib/valgrind:$(LD_LIBRARY_PATH)
 
 MPITYPE?=SRUN
 
+# TODO: clean up LD_LIBRARY_PATH to make this work better
+CFLAGS+= -Wl,-rpath,$(LD_LIBRARY_PATH),--enable-new-dtags
+
 CFLAGS+= -DSHMMAX=$(SHMMAX)
 
 
@@ -308,6 +320,12 @@ SBATCH_MPIRUN_EXPORT_ENV_VARIABLES=$(patsubst %,-x %,$(patsubst DELETEME:%,,$(su
 .sbatch.%:
 	@echo '#!/bin/bash' > $@
 	@for i in $(ENV_VARIABLES); do echo "export $$i" >> $@; done
+ifdef PAL_MVAPICH2
+	@echo '# Run!' >> $@
+	@echo 'srun --tasks-per-node 1 bash -c "ipcs -m | grep $(USER) | cut -d\  -f1 | xargs -n1 -r ipcrm -M"' >> $@
+	@echo 'srun $(SBATCH_MPIRUN_EXPORT_ENV_VARIABLES) --cpu_bind=rank --label -- $(MY_TAU_RUN) $$*' >> $@
+	@echo 'srun --tasks-per-node 1 bash -c "ipcs -m | grep $(USER) | cut -d\  -f1 | xargs -n1 -r ipcrm -M"' >> $@
+else
 ifdef PAL	
 	@echo '# Make scratch directory'  >> $@
 	@echo 'mkdir -p $(SBATCH_SCRATCH_DIR)' >> $@
@@ -339,6 +357,7 @@ else
 	@echo 'mpirun -npernode 1 bash -c "ipcs -m | grep $(USER) | cut -d\  -f1 | xargs -n1 -r ipcrm -M"' >> $@
 	@echo 'mpirun $(SBATCH_MPIRUN_EXPORT_ENV_VARIABLES) -bind-to-core -tag-output -- $(MY_TAU_RUN) $$*' >> $@
 	@echo 'mpirun -npernode 1 bash -c "ipcs -m | grep $(USER) | cut -d\  -f1 | xargs -n1 -r ipcrm -M"' >> $@
+endif
 endif
 	@echo '# Clean up any leftover shared memory regions' >> $@
 	@echo 'for i in `ipcs -m | grep $(USER) | cut -d" " -f1`; do ipcrm -M $$i; done' >> $@
