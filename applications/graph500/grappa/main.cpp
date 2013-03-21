@@ -241,10 +241,12 @@ static void checkpoint_out(tuple_graph * tg, csr_graph * g, int64_t * bfs_roots)
     exit(1);
   }
   
+  VLOG(2) << "nedge: " << tg->nedge << ", nv: " << g->nv << ", nadj: " << g->nadj << ", nbfs: " << NBFS;
   fwrite(&tg->nedge, sizeof(tg->nedge), 1, fout);
   fwrite(&g->nv, sizeof(g->nv), 1, fout);
   fwrite(&g->nadj, sizeof(g->nadj), 1, fout);
-  fwrite(&NBFS, sizeof(NBFS), 1, fout);
+  int64_t nbfs_i64 = static_cast<int64_t>(NBFS);
+  fwrite(&nbfs_i64, sizeof(nbfs_i64), 1, fout);
   
   // write out edge tuples
   write_array(tg->edges, tg->nedge, fout);
