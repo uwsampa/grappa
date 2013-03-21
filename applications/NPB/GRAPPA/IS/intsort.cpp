@@ -63,6 +63,8 @@ static const int MAX_PROCS = 1024;
 static const int MAX_ITERATIONS = 10;
 static const int TEST_ARRAY_SIZE = 5;
 
+bool skip_verify;
+
 typedef int key_t;
 
 // global const for one sort
@@ -96,6 +98,8 @@ double total_time,
        scatter_time,
        local_rank_time,
        full_verify_time;
+
+GlobalCompletionEvent gce;
 
 //////////////////////
 
@@ -349,12 +353,16 @@ void full_verify() {
   auto sorted_keys = Grappa_typed_malloc<key_t>(nkeys);
   Grappa::memset(sorted_keys, -1, nkeys);
   
-  forall_localized(bucketlist, nbuckets, [sorted_keys](int64_t b_id, bucket_t& b){
+  forall_localized<&gce,1>(bucketlist, nbuckets, [sorted_keys](int64_t b_id, bucket_t& b){
     auto key_ranks = b.key_ranks - (b_id<<BSHIFT);
+    
+    char msgbuf[Grappa::current_worker().stack_remaining()-8096];
+    MessagePool pool(msgbuf, sizeof(msgbuf));
+    
     for (int i=0; i<b.size(); i++) {
       key_t k = b[i];
       CHECK_LT(key_ranks[k], nkeys);
-      delegate::write(sorted_keys+key_ranks[k], k);
+      delegate::write_async<&gce>(pool, sorted_keys+key_ranks[k], k);
       key_ranks[k]++;
     }
   });
@@ -443,10 +451,18 @@ void user_main(void * ignore) {
   std::cerr << "scatter_time: " << scatter_time << "\n";
   std::cerr << "local_rank_time: " << local_rank_time << "\n";
 
-  full_verify_time = Grappa_walltime();
-  full_verify();
-  full_verify_time = Grappa_walltime() - full_verify_time;
-  std::cerr << "full_verify_time: " << full_verify_time << "\n";
+  if (!skip_verify) {
+    full_verify_time = Grappa_walltime();
+    full_verify();
+    full_verify_time = Grappa_walltime() - full_verify_time;
+    std::cerr << "full_verify_time: " << full_verify_time << "\n";
+  }
+  
+  std::cerr << "problem_size: " << nkeys << "\n";
+  
+  double mops = static_cast<double>(MAX_ITERATIONS)*nkeys/total_time/1e6;
+  std::cerr << "mops_total: " << mops << "\n";
+  std::cerr << "mops_per_process: " << mops/cores() << "\n";
 }
 
 static void parseOptions(int argc, char ** argv);
@@ -474,6 +490,7 @@ static void printHelp(const char * exe) {
   printf("  --write,w   Save array to file.\n");
   printf("  --read,r  Read from file rather than generating.\n");
   printf("  --nosort  Skip sort.\n");
+  printf("  --skip-verify Skip verification step.\n");
   exit(0);
 }
 
@@ -484,7 +501,8 @@ static void parseOptions(int argc, char ** argv) {
     {"log2buckets", required_argument, 0, 'b'},
     {"log2maxkey", required_argument, 0, 'k'},
     {"class", required_argument, 0, 'c'},
-    {"nosort", no_argument, 0, 'n'}
+    {"nosort", no_argument, 0, 'n'},
+    {"skip-verify", no_argument, 0, 'f'}
   };
 
   ///////////////////
@@ -501,6 +519,7 @@ static void parseOptions(int argc, char ** argv) {
   }
 
   log2maxkey = 64;
+  skip_verify = false;
   ///////////////////
 
   int c = 0;
@@ -525,6 +544,9 @@ static void parseOptions(int argc, char ** argv) {
         log2maxkey = MAX_KEY_LOG2[npbclass];
         log2buckets = NBUCKET_LOG2[npbclass];
         scale = NKEY_LOG2[npbclass];
+        break;
+      case 'f':
+        skip_verify = true;
         break;
     }
   }
