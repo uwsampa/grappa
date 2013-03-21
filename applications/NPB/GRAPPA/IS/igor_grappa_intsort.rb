@@ -42,7 +42,7 @@ Igor do
     ppn     1
     problem 'A'
     verify  ''
-    tag     'none'
+    tag     'grappa'
   }
   
   expect :mops_total
