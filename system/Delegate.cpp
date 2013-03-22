@@ -16,6 +16,8 @@
 #include <gflags/gflags.h>
 #include <glog/logging.h>
 
+GRAPPA_DEFINE_STAT(SummarizingStatistic<uint64_t>, flat_combiner_fetch_and_add_amount, 0);
+
 /// Descriptor for delegate operation.
 /// Used to hold state while waiting for reply.
 struct memory_descriptor {
