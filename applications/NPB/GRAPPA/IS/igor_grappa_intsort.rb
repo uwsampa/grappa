@@ -26,6 +26,8 @@ Igor do
                    load_balance 'steal'
                   flush_on_idle 0
                    poll_on_idle 1
+                              v 1
+                        vmodule ''
   }
   params.merge!(GFLAGS)
   

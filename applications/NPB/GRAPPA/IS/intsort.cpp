@@ -172,16 +172,17 @@ void rank(int iteration) {
     // bucket_cores.resize(nbuckets);
   });
   
-  
+  VLOG(2) << "histogramming (not to be confused with 'programming')";
   _time = Grappa_walltime();
 
   // histogram to find out how many fall into each bucket  
-  forall_localized(key_array, nkeys, [](int64_t i, key_t& k){
+  forall_localized<&gce>(key_array, nkeys, [](int64_t i, key_t& k){
     size_t b = k >> BSHIFT;
     counts[b]++;
   });
   
   histogram_time += Grappa_walltime() - _time;
+  VLOG(2) << "allreduceing";
   _time = Grappa_walltime();
   
   // allreduce everyone's counts & compute global bucket_ranks (prefix sum)
@@ -236,16 +237,17 @@ void rank(int iteration) {
   // print_array("bucket_cores", bucket_cores);
   
   // allocate space in buckets
-  forall_localized(bucketlist, nbuckets, [](int64_t id, bucket_t& bucket){
+  forall_localized<&gce,1>(bucketlist, nbuckets, [](int64_t id, bucket_t& bucket){
     // (global malloc doesn't call constructors)
     new (&bucket) bucket_t();
     bucket.reserve(counts[id]);
   });
 
+  VLOG(1) << "scattering into buckets";
   _time = Grappa_walltime();
   
   // scatter into buckets
-  forall_localized(key_array, nkeys, [](int64_t s, int64_t n, key_t * first){
+  forall_localized<&gce>(key_array, nkeys, [](int64_t s, int64_t n, key_t * first){
     size_t nbuckets = counts.size();
     char msg_buf[sizeof(Message<std::function<void(GlobalAddress<bucket_t>,key_t)>>)*n];
     MessagePool pool(msg_buf, sizeof(msg_buf));
@@ -256,13 +258,14 @@ void rank(int iteration) {
       CHECK( b < nbuckets ) << "bucket id = " << b << ", nbuckets = " << nbuckets;
       // ff_delegate<bucket_t,uint64_t,ff_append>(bucketlist+b, v);
       auto destb = bucketlist+b;
-      delegate::call_async(pool, destb.core(), [destb,v]{
+      delegate::call_async<&gce>(pool, destb.core(), [destb,v]{
         destb.pointer()->append(v);
       });
     }
   });
   
   scatter_time += Grappa_walltime() - _time;
+  VLOG(1) << "ranking locally";
   _time = Grappa_walltime();
   
   // Ranking of all keys occurs in this section
