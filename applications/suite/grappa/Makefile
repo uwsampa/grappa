@@ -27,7 +27,7 @@ HEADERS = defs.hpp
 include $(GRAPPA_HOME)/system/Makefile
 
 suite.exe: $(SOURCES) $(HEADERS) $(GRAPPA_HOME)/system/libGrappa.a
-	$(ENV_VARIABLES) $($(MPITYPE)_LD) $(LDFLAGS) $(SOURCES) $(GRAPPA_HOME)/system/libGrappa.a $(LIBRARIES) -o $@ $(LIBS)
+	$(ENV_VARIABLES) $($(MPITYPE)_LD) $(LDFLAGS) $(CFLAGS) $(SOURCES) $(GRAPPA_HOME)/system/libGrappa.a $(LIBRARIES) -o $@ $(LIBS)
 
 $(GRAPPA_HOME)/system/libGrappa.a: force
 	cd ../../../system; $(MAKE) lib
