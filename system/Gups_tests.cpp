@@ -64,12 +64,12 @@ protected:
              << " is_delivered_=" << this->is_delivered_ 
              << " is_sent_=" << this->is_sent_;
 
+    Grappa::Message<T>::mark_sent();
+
     if( Grappa::mycore() == this->source_ ) {
       CHECK_EQ( Grappa::mycore(), this->source_ );
       list_->push(this);
     }
-
-    Grappa::Message<T>::mark_sent();
   }
 };
 
