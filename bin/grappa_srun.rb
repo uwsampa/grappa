@@ -40,13 +40,15 @@ end
 case `hostname`
 when /pal|node\d+/
   srun_flags << "--partition=pal,slurm" << "--account=pal"
+  setarch = "setarch x86_64 -RL `pwd`/"
 else
   srun_flags << "--partition=grappa" << "--resv-ports"
+  setarch = ""
 end
 
 srun_flags << "--nodes=#{opt.nnode}" << "--ntasks-per-node=#{opt.ppn}" << "--time=#{opt.time}"
 
 test = "#{opt.test}.test --log_level=test_suite --report_level=confirm --run_test=#{opt.test}" if opt.test
 
-puts s = "srun #{srun_flags.join(' ')} -- #{test} #{remain.join(' ')}"
+puts s = "srun #{srun_flags.join(' ')} -- #{test} #{setarch}#{remain.join(' ')}"
 exec s
