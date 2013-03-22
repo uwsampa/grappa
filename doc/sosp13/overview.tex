@@ -14,24 +14,24 @@
 Grappa (Figure~\ref{fig:grappa}) has three main software components:
 \begin{description}
 
-\item [Tasking system.] Our tasking system supports lightweight multithreading
+\item [Tasking system.] The tasking system supports lightweight multithreading
 to tolerate communication latency and global distributed work-stealing (i.e.,
 tasks can be stolen from any node in the system), which provides automated
-load balancing. As discussed earlier, the reason we built our own custom
-tasking system is because of the need for large number of active tasks and the
-resulting need for careful task context prefetching.
+load balancing. The scheduler oversubscribes to have more worker
+threads than required for latency tolerance. By having at least
+several threads ready to run at all times, the scheduler can prefetch
+a few stack frames into cache to lower the likelihood of costly main
+memory accesses on every context switch.
 
-% \TODO{say why we built our own: need to support large number of contexts and just the contexts themselves wont fit in the cache, so being able to prefetch task contexts is very important.}
-
-\item[Distributed shared memory.] Our DSM system provides support for
+\item[Distributed shared memory.] The DSM system provides
 fine-grain access to data anywhere in the system. It supports synchronization
 operations on global data, explicit local caching of any memory in the system,
-and support for operation on remote data (delegating operations to home node).
-By tight integration with the tasking system and the
-communication layer, our DSM system offers high aggregate random
+and support for operations on remote data.
+The DSM system design relies on the lightweight tasking system and
+communication layer in order to offer high aggregate random
 access bandwidth for accessing remote data.
 
-\item[Communication layer.] As discussed earlier, modern commodity networks
+\item[Communication layer.] Modern commodity networks
 support high bandwidth only for large messages. Since irregular applications
 tend to need frequent communication of small requests, the main goal of our
 communication layer is to aggregate small messages into large ones to better
