@@ -54,7 +54,9 @@ GRAPPA_DECLARE_STAT( SimpleStatistic<int64_t>, rdma_poll_send_success );
 GRAPPA_DECLARE_STAT( SimpleStatistic<int64_t>, rdma_poll_receive_success );
 GRAPPA_DECLARE_STAT( SimpleStatistic<int64_t>, rdma_poll_yields );
 
+GRAPPA_DECLARE_STAT( SummarizingStatistic<double>, rdma_local_delivery_time );
 
+extern double tick_rate;
 
 
 namespace Grappa {
@@ -121,7 +123,7 @@ namespace Grappa {
     }
 
     static const int prefetch_dist = 4;
-    static const int prefetch_type = 0; // 0 (non-temporal) or 3 (L1) are probably the best choice
+    static const int prefetch_type = 3; // 0 (non-temporal) or 3 (L1) are probably the best choice
     static const int remote_buffer_pool_size = 6;
 
     struct CoreData {
@@ -245,6 +247,18 @@ namespace Grappa {
 
       
 
+      inline CoreData * coreData( Core c ) const { 
+        return &cores_[ Grappa::locale_mycore() * Grappa::cores() + c ]; 
+      }
+
+      inline CoreData * coreData( Core destination, Core locale_core ) const { 
+        return &cores_[ locale_core * Grappa::cores() + destination ]; 
+      }
+
+      inline CoreData * localeCoreData( Core c ) const { 
+        return &cores_[ Grappa::locale_cores() * Grappa::cores() + c ]; 
+      }
+
 
 
 
@@ -262,8 +276,22 @@ namespace Grappa {
       static char * deaggregate_buffer( char * buffer, size_t size );
 
       /// Grab a list of messages to send
-      inline Grappa::impl::MessageList grab_messages( Core c ) {
-        Grappa::impl::MessageList * dest_ptr = &cores_[ c ].messages_;
+      inline Grappa::impl::MessageList grab_messages( Core c, Core sender ) {
+        Grappa::impl::MessageList * dest_ptr = &(coreData( c, sender )->messages_);
+        Grappa::impl::MessageList old_ml, new_ml;
+
+        do {
+          // read previous value
+          old_ml = *dest_ptr;
+          new_ml.raw_ = 0;
+          // insert current message
+        } while( !__sync_bool_compare_and_swap( &(dest_ptr->raw_), old_ml.raw_, new_ml.raw_ ) );
+
+        return old_ml;
+      }
+
+      inline Grappa::impl::MessageList grab_locale_messages( Core c ) {
+        Grappa::impl::MessageList * dest_ptr = &(localeCoreData( c )->messages_);
         Grappa::impl::MessageList old_ml, new_ml;
 
         do {
@@ -284,8 +312,8 @@ namespace Grappa {
       void send_rdma_old( Core core, Grappa::impl::MessageList ml, size_t estimated_size );
       void send_medium( Core core, Grappa::impl::MessageList ml );
 
-      bool maybe_has_messages( Core c );
-      void issue_initial_prefetches( Core core );
+      bool maybe_has_messages( Core c, Core locale_source );
+      void issue_initial_prefetches( Core core, Core locale_source );
       void send_locale_medium( Locale locale );
 
       void send_with_buffers( Core core,
@@ -297,8 +325,12 @@ namespace Grappa {
                               size_t * serialize_null_returns_p );
 
 
-      void deliver_locally( Core core,
-                            MessageBase * messages_to_send );
+      size_t deliver_locally( Core core,
+                              Grappa::impl::MessageList ml,
+                              CoreData * coreData );
+
+
+
 
       /// task that is run to allocate space to receive a message      
       static void deaggregation_task( GlobalAddress< FullEmpty < ReceiveBufferInfo > > callback_ptr );
@@ -306,17 +338,6 @@ namespace Grappa {
       /// Accept an empty buffer sent by a remote host
       void cache_buffer_for_core( Core owner, RDMABuffer * b );
 
-      /// flush one destination
-      bool flush_one( Core c ) {
-        if( cores_[c].messages_.raw_ != 0 ) {
-          Grappa::impl::MessageList ml = grab_messages( c );
-          size_t size = cores_[c].prefetch_queue_[ ( ml.count_ ) % prefetch_dist ].size_;
-          global_rdma_aggregator.send_rdma( c, ml, size );
-          return true;
-        } else {
-          return false;
-        }
-      }
 
       /// do we have any work to do for a locale?
       bool check_for_work_on( Locale locale, size_t size) {
@@ -325,25 +346,31 @@ namespace Grappa {
         // size_t byte_count = cores_[c].locale_byte_count_;
         // return ( byte_count > size );
         Core c = locale * Grappa::locale_cores();
+
+        // 
         CHECK_NE( Grappa::mycore(), c );
 
         // have we timed out?
         Grappa_Timestamp current_ts = Grappa_get_timestamp();
-        if( current_ts - cores_[c].last_sent_ > FLAGS_aggregator_autoflush_ticks ) {
+        if( current_ts - localeCoreData(c)->last_sent_ > FLAGS_aggregator_autoflush_ticks ) {
           return true;
         }
 
         // have we reached a size limit?
-        size_t byte_count = cores_[c].locale_byte_count_;
+        size_t byte_count = localeCoreData(c)->locale_byte_count_;
         return ( byte_count > size );
       }
 
       bool check_for_any_work_on( Locale locale ) {
         Core start = locale * Grappa::locale_cores();
         Core max = start + Grappa::locale_cores();
-        for( Core c = start; c < max; ++c ) {
-          if( cores_[c].messages_.raw_ != 0 ) {
-            return true;
+        // for all the cores for this locale,
+        for( Core locale_core = 0; locale_core < Grappa::locale_cores(); ++locale_core ) {
+          // check each of my cores' lists
+          for( Core c = start; c < max; ++c ) {
+            if( coreData(c, locale_core)->messages_.raw_ != 0 ) {
+              return true;
+            }
           }
         }
         return false;
@@ -422,19 +449,47 @@ namespace Grappa {
 
       void dump_counts();
 
-
       bool receive_poll() {
         rdma_poll_receive++;
-        global_communicator.poll();
+        //global_communicator.poll();
+        DVLOG(2) << "RDMA receive poll";
         bool useful = false;
         Core c = Grappa::mycore();
         // see if we have anything to receive
-        if( cores_[ c ].messages_.raw_ != 0 ) {
-          rdma_poll_receive_success++;
+
+        // try global queue
+        if( localeCoreData(c)->messages_.raw_ != 0 ) {
           useful = true;
-          Grappa::impl::MessageList ml = grab_messages( c );
-          deliver_locally( c, get_pointer( &ml ) );
+            
+          DVLOG(2) << "Polling found messages.raw " << (void*) localeCoreData(c)->messages_.raw_  
+                   << " count " << localeCoreData(c)->messages_.count_ ;
+            
+          //Grappa_Timestamp start = Grappa_force_tick();
+            
+          Grappa::impl::MessageList ml = grab_locale_messages( c );
+          size_t count = deliver_locally( c, ml, localeCoreData( c ) );
+
+          //Grappa_Timestamp elapsed = Grappa_force_tick() - start;
+          //rdma_local_delivery_time += (double) elapsed / tick_rate;
         }
+
+        for( Core locale_source = 0; locale_source < Grappa::locale_cores(); ++locale_source ) {
+          if( coreData(c, locale_source)->messages_.raw_ != 0 ) {
+            useful = true;
+            
+            DVLOG(2) << "Polling found messages.raw " << (void*) coreData(c,locale_source)->messages_.raw_  
+                     << " count " << coreData(c,locale_source)->messages_.count_ ;
+            
+            //Grappa_Timestamp start = Grappa_force_tick();
+            
+            Grappa::impl::MessageList ml = grab_messages( c, locale_source );
+            size_t count = deliver_locally( c, ml, coreData( c, locale_source ) );
+
+            //Grappa_Timestamp elapsed = Grappa_force_tick() - start;
+            //rdma_local_delivery_time += (double) elapsed / tick_rate;
+          }
+        }
+        if( useful ) rdma_poll_receive_success++;
         return useful;
       }
 
@@ -448,7 +503,7 @@ namespace Grappa {
             Core core = locale * Grappa::locale_cores();
             if( check_for_work_on( locale, FLAGS_target_size ) ) {
               useful = true;
-              Grappa::signal( &cores_[core].send_cv_ );
+              Grappa::signal( &(localeCoreData(core)->send_cv_)  );
               //send_locale_medium( locale );
             }
           }
@@ -459,6 +514,8 @@ namespace Grappa {
 
       bool poll( ) {
         rdma_poll++;
+
+        DVLOG(2) << "RDMA poll";
 
         bool receive_success = receive_poll();
         bool send_success = send_poll();
@@ -476,6 +533,7 @@ namespace Grappa {
         if( !global_scheduler.in_no_switch_region() && !disable_everything_ && yield_wait-- == 0 ) {
           bool should_yield = global_scheduler.thread_maybe_yield();
           if( should_yield ) {
+            DVLOG(2) << "Should yield";
             yield_wait = 2;
             global_scheduler.thread_yield();
             rdma_poll_yields++;
@@ -496,9 +554,9 @@ namespace Grappa {
 
         // get destination pointer
         Core core = m->destination_;
-        CoreData * dest = &cores_[ core ];
+        CoreData * dest = coreData(core);
         //CoreData * sender = &cores_[ dest->representative_core_ ];
-        CoreData * locale_core = &cores_[ Grappa::locale_of( m->destination_ ) * Grappa::locale_cores() ];
+        CoreData * locale_core = localeCoreData( Grappa::locale_of( m->destination_ ) * Grappa::locale_cores() );
 
         //Grappa::impl::MessageBase ** dest_ptr = &dest->messages_;
         Grappa::impl::MessageList * dest_ptr = &(dest->messages_);
@@ -587,6 +645,7 @@ namespace Grappa {
           // set prefetch to the oldest pointer we remember
           // index prefetch queue by count since we haven't overwritten it in yet.
           m->prefetch_ = get_pointer( &(dest->prefetch_queue_[ count % prefetch_dist ]) );
+          //m->prefetch_ = NULL;
 
           // now try to insert current message (and count attempt)
           cas_count++;
@@ -649,11 +708,11 @@ namespace Grappa {
         rdma_requested_flushes++;
         Locale locale = Grappa::locale_of(c);
         if( source_core_for_locale_[ locale ] == Grappa::mycore() ) {
-          Grappa::signal( &cores_[ locale * Grappa::locale_cores() ].send_cv_ );
+          Grappa::signal( &(localeCoreData( locale * Grappa::locale_cores() )->send_cv_) );
         } else {
           // not on our core, so we can't signal it. instead, cause
           // polling thread to detect timeout.
-          cores_[ locale * Grappa::locale_cores() ].last_sent_ = 0;
+          localeCoreData( locale * Grappa::locale_cores() )->last_sent_ = 0;
         }
       }
 

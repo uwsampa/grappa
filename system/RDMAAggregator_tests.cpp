@@ -23,6 +23,9 @@
 DEFINE_int64( iterations_per_core, 1 << 24, "Number of messages sent per core" );
 DEFINE_int64( outstanding, 1 << 13, "Number of messages enqueued and unsent during aggregation test" );
 DEFINE_bool( disable_sending, false, "Disable sending during aggregation test" );
+DEFINE_bool( disable_switching, false, "Disable context switching during local delivery test" );
+
+DEFINE_bool( send_to_self, false, "Send only to self during local delivery test" );
 
 DEFINE_bool( aggregate_source_multiple, false, "Aggregate from multiple source cores during aggregation test" );
 DEFINE_bool( aggregate_dest_multiple, false, "Aggregate to multiple destination cores during aggregation test" );
@@ -168,9 +171,19 @@ void user_main( void * args ) {
 
   
   // test local message delivery
-  if( false ) {
+  if( true ) {
     LOG(INFO) << "Testing local message delivery";
-    const int64_t expected_messages_per_core = Grappa::locale_cores() * FLAGS_iterations_per_core;
+    // const int64_t expected_messages_per_core = Grappa::locale_cores() * FLAGS_iterations_per_core;
+    // const int64_t expected_messages_per_locale = expected_messages_per_core * Grappa::locale_cores();
+    
+    // const int64_t sent_messages_per_core = FLAGS_iterations_per_core / Grappa::locale_cores();
+    // const int64_t expected_messages_per_core = sent_messages_per_core * Grappa::locale_cores();
+    // // const int64_t sent_messages_per_core = FLAGS_iterations_per_core;
+    // // const int64_t expected_messages_per_core = sent_messages_per_core;
+    // const int64_t expected_messages_per_locale = expected_messages_per_core * Grappa::locale_cores();
+
+    const int64_t sent_messages_per_core = FLAGS_iterations_per_core / Grappa::locale_cores() / Grappa::locale_cores();
+    const int64_t expected_messages_per_core = sent_messages_per_core * Grappa::locale_cores();
     const int64_t expected_messages_per_locale = expected_messages_per_core * Grappa::locale_cores();
 
     struct LocalDelivery {
@@ -184,9 +197,8 @@ void user_main( void * args ) {
     
     double start = Grappa_walltime();
 
-    Grappa::on_all_cores( [expected_messages_per_core] {
-        // prepare pool of 1024 messages
-        Grappa::ReuseMessageList< LocalDelivery > msgs( 1024 );
+    Grappa::on_all_cores( [expected_messages_per_core, sent_messages_per_core] {
+        Grappa::ReuseMessageList< LocalDelivery > msgs( FLAGS_outstanding );
         msgs.activate(); // allocate messages
 
         { 
@@ -197,19 +209,56 @@ void user_main( void * args ) {
 
           Grappa_barrier_suspending();
 
-          for( int i = 0; i < FLAGS_iterations_per_core; ++i ) {
+
+          if( FLAGS_disable_sending ) {
+            // keep aggregator from polling during sends or flushing for a bit.
+            Grappa::impl::global_rdma_aggregator.disable_everything_ = true;
+          }
+
+          if( FLAGS_disable_switching ) {
+            global_scheduler.set_no_switch_region( true );
+            LOG(INFO) << "switching disabled";
+          }
+
+          LOG(INFO) << "sending messages";
+
+          for( int i = 0; i < sent_messages_per_core; ++i ) {
             for( int locale_core = 0; locale_core < Grappa::locale_cores(); ++locale_core ) {
+            // Core locale_core = Grappa::locale_cores() - Grappa::mycore() - 1;
               Core mycore = Grappa::mycore();
               Core dest_core = locale_core + Grappa::mylocale() * Grappa::locale_cores();
+              if( FLAGS_send_to_self ) {
+                dest_core = mycore;
+              }
+
+              //Core dest_core = (Grappa::locale_cores() - locale_core - 1) + Grappa::mylocale() * Grappa::locale_cores();
               msgs.with_message( [mycore, dest_core] ( Grappa::ReuseMessage<LocalDelivery> * m ) {
                   (*m)->source_core = mycore;
                   (*m)->dest_core = dest_core;
                   CHECK_EQ( Grappa::locale_of( mycore ), Grappa::locale_of( dest_core ) );
                   m->enqueue( dest_core );
                 } );
-            }
+              }
           }
-          
+
+          if( FLAGS_disable_switching ) {
+            global_scheduler.set_no_switch_region( false );
+            LOG(INFO) << "switching enabled";
+          }
+
+          LOG(INFO) << "delivering messages";
+
+          for( int locale_core = 0; locale_core < Grappa::locale_cores(); ++locale_core ) {
+            Grappa::impl::global_rdma_aggregator.flush( locale_core + Grappa::mylocale() * Grappa::locale_cores() );
+          }
+
+          Grappa_yield();
+
+          if( FLAGS_disable_sending ) {
+            // keep aggregator from polling during sends or flushing for a bit.
+            Grappa::impl::global_rdma_aggregator.disable_everything_ = false;
+          }
+
           local_ce.wait();
 
           Grappa_barrier_suspending();
@@ -234,7 +283,7 @@ void user_main( void * args ) {
 
 
   // test aggregation
-  if( true ) {
+  if( false ) {
     CHECK_EQ( Grappa::locales(), 2 ) << "Must have exactly two locales for this test";
 
     LOG(INFO) << "Testing aggregation and transmission";
@@ -521,7 +570,7 @@ void user_main( void * args ) {
   
   
 
-  Grappa::Statistics::merge_and_print();
+  Grappa::Statistics::merge_and_print( std::cout );
 
 }
 
