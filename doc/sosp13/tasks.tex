@@ -90,7 +90,7 @@ Third, the programmer can invoke a parallel for loop, provided that
 the trip count is known at loop entry. The programmer
 specifies a function pointer along with start and end indices and an
 optional threshold to control parallel overhead. Grappa does {\em
-recursive decomposition} of iterations, similar to Cilk's cilk\_for
+recursive decomposition\/} of iterations, similar to Cilk's cilk\_for
 construct~\cite {cilkforimplementation}.\comment{could only find slides
 page6 of
 http://www.clear.rice.edu/comp422/lecture-notes/comp422-2012-Lecture5-
@@ -146,7 +146,7 @@ for any purpose.
 
 Tasks are not allocated any execution resources until the scheduler
 decides to run them; when this occurs, tasks are matched with {\em
-  worker} threads. Each worker is simply a collection of status bits and a
+  worker\/} threads. Each worker is simply a collection of status bits and a
 stack, allocated at a particular core.
 
 \paragraph{Context switching} Grappa context switches between tasks
@@ -156,8 +156,8 @@ callee-saved state as specified in the x86-64 ABI \cite{amd64:abi:2012}. This
 involves saving six general-purpose 64-bit registers and the stack
 pointer, as well as the 16-bit x87 floating point control word and the
 SSE context/status register. Thus, the minimum amount of state a
-cooperative context switch routine must save according to the ABI is 62
-bytes.
+cooperative context switch routine must save, according to the ABI, is
+62~bytes.
 
 Since the compiler sees all calls to the context switch routine, we
 can save even less state. Our context switch routine appears to the
