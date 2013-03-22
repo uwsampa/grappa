@@ -70,10 +70,10 @@ namespace Grappa {
     }
     
     virtual std::ostream& json(std::ostream& o) const {
-      o << '"' << name << "\": \"" << value << "\", ";
-      o << '"' << name << "_count\": \"" << n << "\", ";
-      o << '"' << name << "_mean\": \"" << mean << "\", ";
-      o << '"' << name << "_stddev\": \"" << stddev() << "\"";
+      o << '"' << name << "\": " << value << ", ";
+      o << '"' << name << "_count\": " << n << ", ";
+      o << '"' << name << "_mean\": " << mean << ", ";
+      o << '"' << name << "_stddev\": " << stddev();
       return o;
     }
     
