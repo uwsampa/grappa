@@ -46,7 +46,8 @@ public:
 
   // block until we have a buffer to process
   T * block_until_pop() {
-    while( list_ == NULL ) {
+    while( empty() ) {
+      DVLOG(5) << __PRETTY_FUNCTION__ << ": blocking";
       Grappa::wait( &cv );
     }
 
@@ -55,7 +56,7 @@ public:
     // put back rest of list
     list_ = b->get_next();
 
-    DVLOG(5) << __PRETTY_FUNCTION__ << ": popping " << b << " (count " << count_ << ")";
+    DVLOG(5) << __PRETTY_FUNCTION__ << ": popping " << b << " (count " << count_ << ") list=" << list_;
 
     // make sure the buffer is not part of any list
     b->set_next( NULL );
@@ -78,7 +79,7 @@ public:
   void push( T * b ) {
     CHECK_NOTNULL( b );
 
-    DVLOG(5) << __PRETTY_FUNCTION__ << ": pushing " << b << " (count " << count_ << ")";
+    DVLOG(5) << __PRETTY_FUNCTION__ << ": pushing " << b << " (count " << count_ << ") list=" << list_;
 
     b->set_next( list_ );
     list_ = b;

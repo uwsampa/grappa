@@ -304,6 +304,20 @@ namespace Grappa {
         return old_ml;
       }
 
+      inline Grappa::impl::MessageList grab_messages( CoreData * cd ) {
+        Grappa::impl::MessageList * dest_ptr = &(cd->messages_);
+        Grappa::impl::MessageList old_ml, new_ml;
+
+        do {
+          // read previous value
+          old_ml = *dest_ptr;
+          new_ml.raw_ = 0;
+          // insert current message
+        } while( !__sync_bool_compare_and_swap( &(dest_ptr->raw_), old_ml.raw_, new_ml.raw_ ) );
+
+        return old_ml;
+      }
+
 
       bool send_would_block( Core core );
 
@@ -314,7 +328,9 @@ namespace Grappa {
 
       bool maybe_has_messages( Core c, Core locale_source );
       void issue_initial_prefetches( Core core, Core locale_source );
+      void issue_initial_prefetches( CoreData * cd );
       void send_locale_medium( Locale locale );
+      void send_locale( Locale locale );
 
       void send_with_buffers( Core core,
                               MessageBase ** messages_to_send_ptr,
@@ -356,9 +372,10 @@ namespace Grappa {
           return true;
         }
 
-        // have we reached a size limit?
-        size_t byte_count = localeCoreData(c)->locale_byte_count_;
-        return ( byte_count > size );
+        // // have we reached a size limit?
+        // size_t byte_count = localeCoreData(c)->locale_byte_count_;
+        // return ( byte_count > size );
+        return false;
       }
 
       bool check_for_any_work_on( Locale locale ) {
@@ -451,8 +468,7 @@ namespace Grappa {
 
       bool receive_poll() {
         rdma_poll_receive++;
-        //global_communicator.poll();
-        DVLOG(2) << "RDMA receive poll";
+        //DVLOG(2) << "RDMA receive poll";
         bool useful = false;
         Core c = Grappa::mycore();
         // see if we have anything to receive
@@ -515,7 +531,7 @@ namespace Grappa {
       bool poll( ) {
         rdma_poll++;
 
-        DVLOG(2) << "RDMA poll";
+        //DVLOG(2) << "RDMA poll";
 
         bool receive_success = receive_poll();
         bool send_success = send_poll();
@@ -523,7 +539,7 @@ namespace Grappa {
       }
 
       /// Enqueue message to be sent
-      inline void enqueue( Grappa::impl::MessageBase * m ) {
+      inline void enqueue( Grappa::impl::MessageBase * m, bool locale_enqueue ) {
         app_messages_enqueue++;
 
         enqueue_counts_[ m->destination_ ]++;
@@ -533,7 +549,7 @@ namespace Grappa {
         if( !global_scheduler.in_no_switch_region() && !disable_everything_ && yield_wait-- == 0 ) {
           bool should_yield = global_scheduler.thread_maybe_yield();
           if( should_yield ) {
-            DVLOG(2) << "Should yield";
+            DVLOG(3) << "Should yield";
             yield_wait = 2;
             global_scheduler.thread_yield();
             rdma_poll_yields++;
@@ -554,7 +570,14 @@ namespace Grappa {
 
         // get destination pointer
         Core core = m->destination_;
-        CoreData * dest = coreData(core);
+        CoreData * dest = NULL;
+
+        if( locale_enqueue ) {
+          dest = localeCoreData(core);
+        } else {
+          dest = coreData(core);
+        }
+
         //CoreData * sender = &cores_[ dest->representative_core_ ];
         CoreData * locale_core = localeCoreData( Grappa::locale_of( m->destination_ ) * Grappa::locale_cores() );
 
@@ -655,8 +678,8 @@ namespace Grappa {
         
         app_messages_enqueue_cas += cas_count;
 
-        // warning: racy
-        locale_core->locale_byte_count_ += size;
+        // // warning: racy
+        // locale_core->locale_byte_count_ += size;
           
         dest->prefetch_queue_[ count % prefetch_dist ].size_ = size < max_size_ ? size : max_size_-1;
         set_pointer( &(dest->prefetch_queue_[ count % prefetch_dist ]), m );
@@ -683,8 +706,8 @@ namespace Grappa {
       void send_immediate( Grappa::impl::MessageBase * m ) {
         app_messages_immediate++;
 
-        // create temporary buffer with one extra byte for terminator
-        const size_t size = m->serialized_size() + 1;
+        // create temporary buffer
+        const size_t size = m->serialized_size();
         char buf[ size ] __attribute__ ((aligned (16)));
 
         // serialize to buffer

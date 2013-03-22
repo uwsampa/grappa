@@ -617,6 +617,7 @@ namespace Grappa {
 namespace impl {
 
 void poll() {
+  global_communicator.poll();
   global_aggregator.poll();
 }
 

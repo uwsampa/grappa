@@ -171,7 +171,7 @@ void user_main( void * args ) {
 
   
   // test local message delivery
-  if( true ) {
+  if( false ) {
     LOG(INFO) << "Testing local message delivery";
     // const int64_t expected_messages_per_core = Grappa::locale_cores() * FLAGS_iterations_per_core;
     // const int64_t expected_messages_per_locale = expected_messages_per_core * Grappa::locale_cores();
@@ -283,7 +283,7 @@ void user_main( void * args ) {
 
 
   // test aggregation
-  if( false ) {
+  if( true ) {
     CHECK_EQ( Grappa::locales(), 2 ) << "Must have exactly two locales for this test";
 
     LOG(INFO) << "Testing aggregation and transmission";
