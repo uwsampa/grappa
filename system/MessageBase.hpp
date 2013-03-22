@@ -38,20 +38,25 @@ namespace Grappa {
       MessageBase * next_;     ///< what's the next message in the list of messages to be sent? 
       MessageBase * prefetch_; ///< what's the next message to prefetch?
 
+      ConditionVariable cv_;   ///< condition variable for sleep/wake
+
       Core source_;            ///< What core is this message coming from? (TODO: probably unneccesary)
       Core destination_;       ///< What core is this message aimed at?
 
-      bool is_enqueued_;       ///< Have we been added to the send queue?
-      bool is_sent_;           ///< Is our payload no longer needed?
-      bool is_delivered_;      ///< Are we waiting to mark the message sent?
-      
-      ConditionVariable cv_;   ///< condition variable for sleep/wake
-      
-      bool is_moved_;           ///< HACK: make sure we don't try to send ourselves if we're just a temporary
+      union {
+        struct {
+          bool is_enqueued_ : 1;       ///< Have we been added to the send queue?
+          bool is_sent_ : 1;           ///< Is our payload no longer needed?
+          bool is_delivered_ : 1;      ///< Are we waiting to mark the message sent?
+          bool is_moved_ : 1;           ///< HACK: make sure we don't try to send ourselves if we're just a temporary
+        };
+        uint8_t raw_;
+      };
 
-      uint64_t reset_count_;    ///< How many times have we been reset? (for debugging only)
+      //uint64_t reset_count_;    ///< How many times have we been reset? (for debugging only)
 
       friend class RDMAAggregator;
+      friend class ReuseMessageList;
 
       /// Mark message as sent
       virtual void mark_sent() {
@@ -143,27 +148,29 @@ namespace Grappa {
     public:
       MessageBase( )
         : next_( NULL )
+        , prefetch_( NULL )
+        , cv_()
+        , source_( -1 )
+        , destination_( -1 )
         , is_enqueued_( false )
         , is_sent_( false )
         , is_delivered_( false )
-        , source_( -1 )
-        , destination_( -1 )
-        , cv_()
         , is_moved_( false )
-        , reset_count_(0)
+        // , reset_count_(0)
         , delete_after_send_( false ) 
       { DVLOG(9) << "construct " << this; }
 
       MessageBase( Core dest )
         : next_( NULL )
+        , prefetch_( NULL )
+        , cv_()
         , is_enqueued_( false )
         , is_sent_( false )
         , is_delivered_( false )
+        , is_moved_( false )
         , source_( -1 )
         , destination_( dest )
-        , cv_()
-        , is_moved_( false )
-        , reset_count_(0)
+        // , reset_count_(0)
         , delete_after_send_( false ) 
       { DVLOG(9) << "construct " << this; }
 
@@ -180,14 +187,15 @@ namespace Grappa {
       /// This is intended to allow use of temporary message objects for initialization as long ast 
       MessageBase( MessageBase&& m ) 
         : next_( m.next_ )
+        , prefetch_( m.prefetch_ )
+        , cv_( m.cv_ )
         , is_enqueued_( m.is_enqueued_ )
         , is_sent_( m.is_sent_ )
         , is_delivered_( m.is_delivered_ )
+        , is_moved_( false ) // this only tells us if the current message has been moved
         , source_( m.source_ )
         , destination_( m.destination_ )
-        , cv_( m.cv_ )
-        , is_moved_( false ) // this only tells us if the current message has been moved
-        , reset_count_(0)
+        // , reset_count_(0)
         , delete_after_send_( m.delete_after_send_ ) 
       {
         DVLOG(9) << "move " << this;
@@ -220,12 +228,12 @@ namespace Grappa {
 
 
       virtual void reset() {
-        if( reset_count_ > 0 ) {
-          DCHECK_EQ( is_enqueued_, true ) << this << " on " << global_scheduler.get_current_thread()
-                                          << " how did we end up with is_enqueued_=" << is_enqueued_ << " and is_sent_= " << is_sent_
-                                          << " without a reset call?";
-        }
-        reset_count_++;
+        // if( reset_count_ > 0 ) {
+        //   DCHECK_EQ( is_enqueued_, true ) << this << " on " << global_scheduler.get_current_thread()
+        //                                   << " how did we end up with is_enqueued_=" << is_enqueued_ << " and is_sent_= " << is_sent_
+        //                                   << " without a reset call?";
+        // }
+        // reset_count_++;
         DVLOG(5) << this << " on " << global_scheduler.get_current_thread()
                  << " entering reset with is_enqueued_=" << is_enqueued_ << " and is_sent_= " << is_sent_;
         if( is_enqueued_ ) {
