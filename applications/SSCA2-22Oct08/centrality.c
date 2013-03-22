@@ -5,6 +5,7 @@
 #include "globals.h"
 #include <sys/mta_task.h>
 #include <machine/runtime.h>
+#define MTA(x) _Pragma(x)
 
 /* Set this variable to 1 to time each iteration */
 #define TIMEBCPART 0
@@ -41,6 +42,7 @@ double centrality(graph *G, double *BC, int Vs) {
   /* Reuse the dist memory in the accumulation phase */
   double *delta = (double *) dist;
   double avg_frac = 0.0; 
+  MTA("mta use 100 streams")
   for (j = 0; j < NV; j++) BC[j] = 0.0;
 
   timeBC = timer();
@@ -62,6 +64,7 @@ double centrality(graph *G, double *BC, int Vs) {
 #endif
 
 #pragma mta assert nodep
+MTA("mta use 100 streams")
       for (j = 0; j < NV; j++) {dist[j] = -1; 
           sigma[j] = marks[j] = child_count[j] = 0; }
 
@@ -93,6 +96,7 @@ PushOnStack:    /* Push nodes onto Q */
 
 #pragma mta assert no dependence
 #pragma mta block dynamic schedule
+MTA("mta use 100 streams")
       for (j = Qstart; j < Qend; j++) {
         int v = Q[j];
         int sigmav  = sigma[v];    
@@ -149,6 +153,7 @@ PushOnStack:    /* Push nodes onto Q */
 
       /* Dependence accumulation phase */
       nQ--;
+MTA("mta use 100 streams")
       for (j=0; j<NV; j++) delta[j] = 0.0;
 
 /* Pop nodes off of Q in the reverse order they were pushed on */
@@ -159,6 +164,7 @@ PushOnStack:    /* Push nodes onto Q */
 #pragma mta assert parallel
 #pragma mta block dynamic schedule
 #pragma mta assert no alias *sigma *Q *BC *delta *child *start *QHead
+MTA("mta use 100 streams")
           for (j = Qstart; j < Qend; j++) {
               int v = Q[j]; 
               int myStart = start[v];
