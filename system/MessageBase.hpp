@@ -217,6 +217,10 @@ namespace Grappa {
       /// Implemented in MessageBaseImpl.hpp
       inline void enqueue();
       inline void enqueue( Core c );
+
+      inline void locale_enqueue();
+      inline void locale_enqueue( Core c );
+
       inline void send_immediate();
       inline void send_immediate( Core c );
 
