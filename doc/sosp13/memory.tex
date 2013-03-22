@@ -104,9 +104,9 @@ modification. Delegate operations~\cite{Nelson:hotpar11, delegated:oopsla11}
 provide this capability. Applications can dispatch computation to be performed
 on individual machine-word sized chunks of global memory to the memory system
 itself. Delegates are general, so we use them to perform simple
-\emph{read}/\emph{write} operations to global memory, as well as more complex \emph{read-modify-write} operations (e.g.,\emph{fetch-and-add}). 
+\emph{read\/}/\emph{write\/} operations to global memory, as well as more complex \emph{read-modify-write\/} operations (e.g., \emph{fetch-and-add\/}). 
 
-Delegate operations are \emph{always} executed at the home core of their
+Delegate operations are \emph{always\/} executed at the home core of their
 address. The remote operation may not perform any operations that could cause
 a context switch; this ensures any modifications are atomic. We limit delegate
 operations to operate on objects in the 2D address space or objects that fit
@@ -175,7 +175,7 @@ multiple system nodes and presenting a conventional appearing linear block of
 memory as a local pointer into a cache. The strategy employed is to issue all
 the constituent requests of the desired block (as Active Messages) and then
 yield until all responses have occurred. Currently, Grappa caches are
-\emph{not} kept coherent automatically. If that is desired, the programmer is
+\emph{not\/} kept coherent automatically. If that is desired, the programmer is
 responsible for ensuring sufficient synchronization (via delegate operations)
 occurs before acquiring or releasing cache objects.
 
