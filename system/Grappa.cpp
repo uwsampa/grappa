@@ -612,3 +612,13 @@ void Grappa_finish( int retval )
 #endif
   
 }
+
+namespace Grappa {
+namespace impl {
+
+void poll() {
+  global_aggregator.poll();
+}
+
+}
+}
