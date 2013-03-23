@@ -214,8 +214,6 @@ namespace Grappa {
 
     void RDMAAggregator::activate() {
 #ifdef ENABLE_RDMA_AGGREGATOR
-      if( Grappa::locales() > 1 ) CHECK_GT( Grappa::locale_cores(), 1 ) << "need more than one core/locale right now";
-
       // one core on each locale initializes shared data
       if( global_communicator.locale_mycore() == 0 ) {
 
