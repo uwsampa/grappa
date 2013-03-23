@@ -37,13 +37,15 @@ open("#{DIR}/grappa_srun_prolog.sh","r").each_line do |l|
   ENV[$~[1]] = $~[2] if l.match(/export\s+([\w_]+)=(.*)/)
 end
 
+setarch = ""
+
 case `hostname`
 when /pal|node\d+/
   srun_flags << "--partition=pal,slurm" << "--account=pal"
-  setarch = "setarch x86_64 -RL `pwd`/"
+  # disable address randomization (doesn't seem to actually fix pprof multi-node problems)
+  # setarch = "setarch x86_64 -RL "
 else
   srun_flags << "--partition=grappa" << "--resv-ports"
-  setarch = ""
 end
 
 srun_flags << "--nodes=#{opt.nnode}" << "--ntasks-per-node=#{opt.ppn}" << "--time=#{opt.time}"
