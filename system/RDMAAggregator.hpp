@@ -236,6 +236,10 @@ namespace Grappa {
       static void enqueue_buffer_am( gasnet_token_t token, void * buf, size_t size );
       int enqueue_buffer_handle_;
       
+      /// Active message to enqueue a buffer to be received and send a reply to meet the spec
+      static void enqueue_buffer_async_am( gasnet_token_t token, void * buf, size_t size );
+      int enqueue_buffer_async_handle_;
+
       /// Active message to receive a medium message and enqueue a buffer to be received
       static void copy_enqueue_buffer_am( gasnet_token_t token, void * buf, size_t size );
       int copy_enqueue_buffer_handle_;
@@ -442,6 +446,7 @@ namespace Grappa {
         , cores_(NULL)
         , deserialize_buffer_handle_( -1 )
         , deserialize_first_handle_( -1 )
+        , enqueue_buffer_async_handle_( -1 )
         , enqueue_buffer_handle_( -1 )
         , copy_enqueue_buffer_handle_( -1 )
         , rdma_buffers_( NULL )

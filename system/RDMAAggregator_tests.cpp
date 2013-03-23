@@ -483,7 +483,7 @@ void user_main( void * args ) {
             }
 
             // set buffer source so we don't try to ack.
-            b->set_core( Grappa::mycore() );
+            b->set_source( Grappa::mycore() );
 
             // figure out how many bytes each core gets
             const size_t available = b->get_max_size();

@@ -42,8 +42,9 @@ public:
   T * block_until_pop() {
     DVLOG(5) << __PRETTY_FUNCTION__ << "/" << this << ": blocking until pop with " << s_.get_value() << " now";
     s_.decrement();
-    DVLOG(5) << __PRETTY_FUNCTION__ << "/" << this << ": finished blocking until pop with " << s_.get_value() << " now";
-    return ptrs_[s_.get_value()];
+    T * result = ptrs_[s_.get_value()];
+    DVLOG(5) << __PRETTY_FUNCTION__ << "/" << this << ": finished blocking until pop with " << s_.get_value() << "/" << result;
+    return result;
   }
 
   T * try_pop() {
