@@ -1,1 +1,0 @@
-genScalData_old.c

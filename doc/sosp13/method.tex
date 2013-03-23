@@ -101,8 +101,8 @@ load balancing~\cite{UTS}. It involves traversing an
 unbalanced implicit tree: at each vertex, its number of children is
 sampled from some probability distribution, and this number of new nodes
 are added to a work queue to be visited. While this benchmark captures
-irregular, dynamic \emph{computation}, we actually want to evaluate
-performance of algorithms with irregular \emph{memory} access patterns.
+irregular, dynamic \emph{computation,} we actually want to evaluate
+performance of algorithms with irregular \emph{memory\/} access patterns.
 Thus we augment UTS by using the existing traversal code to create a
 large tree in memory, and then we traverse the in-memory tree. We call
 this benchmark UTS-Mem, and the timed portion is this traversal of the
@@ -162,7 +162,7 @@ nodes for each traversed vertex during the search.  While this is a
 relatively simple problem to solve, it exercises the random-access and
 fine-grained synchronization capabilities of a system as well as being
 a primitive in many other graph algorithms. Performance is measured in
-\emph{traversed edges per second} (TEPS), where the number of edges is
+\emph{traversed edges per second\/} (TEPS), where the number of edges is
 the edges making up the generated BFS tree. One of the reference
 implementations of Graph500 BFS is for the XMT; this code fails to
 scale past 16 XMT processors because it does not expose enough

@@ -1,20 +1,33 @@
 \section{Tasks}
 
-The basic unit of execution in Grappa is a {\em task}. Each task is
-represented by a function pointer and its arguments. A new task is enqueued at
-spawn time; when resources are free, it is allocated a stack, bound to a core,
-and executed.
+The basic unit of execution in \Grappa is a {\em task}. Each task is
+represented by a function pointer and its arguments. When a new task is
+spawned, it is enqueued until it is ready for execution. Each hardware core
+has a single operating system thread pinned to it. A {\em worker} is a
+user-level execution thread (stack, \TODO{what else?}) to which tasks are
+mapped onto when they are ready to execute. 
 
 
-During execution, a task yields control of the processor core whenever it
+
+Once a task is mapped to worker it stays with that worker until it completes. 
+During execution, a worker yields control of the processor core whenever it
 performs a long-latency operation, allowing the processor to remain busy while
-waiting for the operation to complete. In addition, a programmer can direct
+waiting for the operation to complete.
+In addition, a programmer can direct
 scheduling explicitly via the Grappa API calls shown in
 Figure~\ref{fig:scheduling}. To minimize yield overhead, the Grappa scheduler
 operates entirely in user-space and does little more than store register state
 of one task and load that of another. Context switch times are as low as 38ns
 even when switching amongst thousands of tasks.
+
+\Grappa keeps a large number of workers per hardware core, which is at the
+core of \Grappa's latency tolerance properties.
+
+
 \TODO{We should expand on the cleverness of our scheduler?}
+
+% talk about lifetime of a task. activating. blocking. work stealing. look at
+% Mark's email. Holt's chat.
 
 \comment{
 Delete the spin and move the 2us and ms thing to results if we have data to show it. -Mark
@@ -77,7 +90,7 @@ Third, the programmer can invoke a parallel for loop, provided that
 the trip count is known at loop entry. The programmer
 specifies a function pointer along with start and end indices and an
 optional threshold to control parallel overhead. Grappa does {\em
-recursive decomposition} of iterations, similar to Cilk's cilk\_for
+recursive decomposition\/} of iterations, similar to Cilk's cilk\_for
 construct~\cite {cilkforimplementation}.\comment{could only find slides
 page6 of
 http://www.clear.rice.edu/comp422/lecture-notes/comp422-2012-Lecture5-
@@ -133,7 +146,7 @@ for any purpose.
 
 Tasks are not allocated any execution resources until the scheduler
 decides to run them; when this occurs, tasks are matched with {\em
-  worker} threads. Each worker is simply a collection of status bits and a
+  worker\/} threads. Each worker is simply a collection of status bits and a
 stack, allocated at a particular core.
 
 \paragraph{Context switching} Grappa context switches between tasks
@@ -143,8 +156,8 @@ callee-saved state as specified in the x86-64 ABI \cite{amd64:abi:2012}. This
 involves saving six general-purpose 64-bit registers and the stack
 pointer, as well as the 16-bit x87 floating point control word and the
 SSE context/status register. Thus, the minimum amount of state a
-cooperative context switch routine must save according to the ABI is 62
-bytes.
+cooperative context switch routine must save, according to the ABI, is
+62~bytes.
 
 Since the compiler sees all calls to the context switch routine, we
 can save even less state. Our context switch routine appears to the
@@ -182,15 +195,16 @@ workers, an idle worker is woken (or a new worker is spawned), matched
 with a task, and scheduled.
 
 \paragraph{Work stealing} 
-When the scheduler finds no work to assign to its workers, it
-commences to steal work from other cores using an asynchronous
-\texttt{call\_on} active message.  It chooses a victim at random until it
-finds one with a non-zero amount of work in its public task queue.  The scheduler steals half of the tasks it finds at the victim.
-Work stealing is particularly interesting in Grappa since performance depends
-on having many active worker threads on each core. Even if there are many
-active threads, if they are all suspended on long-latency operations,
-then the core is underutilized. We choose to initiate one outstanding
-steal whenever the ready queue is empty there are idle worker threads.
+When the scheduler finds no work to assign to its workers, it commences to
+steal tasks from other cores using an asynchronous \texttt{call\_on} active
+message. It chooses a victim at random until it finds one with a non-zero
+amount of work in its public task queue. The scheduler steals half of the
+tasks it finds at the victim. Work stealing is particularly interesting in
+Grappa since performance depends on having many active worker threads on each
+core. Even if there are many active threads, if they are all suspended on
+long-latency operations, then the core is underutilized. We choose to initiate
+one outstanding steal whenever the ready queue is empty there are idle worker
+threads.
 
 \comment{Commenting out.  Simon things it doesn't add much I worried about its usefulness too.  -M
 
