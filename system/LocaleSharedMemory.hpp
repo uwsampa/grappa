@@ -48,6 +48,16 @@ public:
   // clean up before shutting down
   void finish();
 
+  // make sure an address is in the locale shared memory
+  inline void validate_address( void * addr ) {
+    //#ifndef NDEBUG
+    char * char_base = reinterpret_cast< char* >( base_address );
+    char * char_addr = reinterpret_cast< char* >( addr );
+    if( !( (char_base <= addr) && (addr < (char_base + region_size)) ) ) {
+      CHECK_EQ( false, true ) << "Address " << addr << "  out of locale shared range!";
+    }
+    //#endif
+  }
 };
 
 /// global LocaleSharedMemory instance

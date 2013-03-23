@@ -170,7 +170,9 @@ namespace Grappa {
       , payload_( payload )
       , payload_size_( payload_size )
       , delete_payload_after_send_( false )
-    { }
+    { 
+      Grappa::impl::locale_shared_memory.validate_address( payload );
+    }
 
     PayloadMessage( const PayloadMessage& m ) = delete; ///< Not allowed.
     PayloadMessage& operator=( const PayloadMessage& m ) = delete;         ///< Not allowed.
@@ -183,7 +185,11 @@ namespace Grappa {
       //if( delete_payload_after_send_ ) delete payload_;
     }
 
-    inline void set_payload( void * payload, size_t size ) { payload_ = payload; payload_size_ = size; }
+    inline void set_payload( void * payload, size_t size ) {
+      payload_ = payload;
+      payload_size_ = size;
+      Grappa::impl::locale_shared_memory.validate_address( payload );
+    }
 
     inline void delete_payload_after_send() { delete_payload_after_send_ = true; }
 
@@ -318,7 +324,9 @@ namespace Grappa {
       : MessageBase( dest )
       , pointer_( t )
       , delete_external_after_send_( false )
-    { }
+    {
+      Grappa::impl::locale_shared_memory.validate_address( t );
+    }
 
     ExternalMessage( const ExternalMessage& m ) = delete; ///< Not allowed.
     ExternalMessage& operator=( const ExternalMessage& m ) = delete;         ///< Not allowed.
@@ -464,7 +472,10 @@ namespace Grappa {
       , payload_size_( payload_size )
       , delete_external_after_send_( false )
       , delete_payload_after_send_( false )
-    { }
+    {
+      Grappa::impl::locale_shared_memory.validate_address( t );
+      Grappa::impl::locale_shared_memory.validate_address( payload );
+    }
 
     ExternalPayloadMessage( const ExternalPayloadMessage& m ) = delete; ///< Not allowed.
     ExternalPayloadMessage& operator=( const ExternalPayloadMessage& m ) = delete;         ///< Not allowed.
@@ -478,7 +489,11 @@ namespace Grappa {
       //if( delete_payload_after_send_ ) delete payload_;
     }
 
-    inline void set_payload( void * payload, size_t size ) { payload_ = payload; payload_size_ = size; }
+    inline void set_payload( void * payload, size_t size ) {
+      payload_ = payload;
+      payload_size_ = size;
+      Grappa::impl::locale_shared_memory.validate_address( payload );
+    }
 
     inline void delete_external_after_send() { delete_external_after_send_ = true; }
     inline void delete_payload_after_send() { delete_payload_after_send_ = true; }
