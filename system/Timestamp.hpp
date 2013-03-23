@@ -19,10 +19,27 @@
 typedef int64_t Grappa_Timestamp;
 extern Grappa_Timestamp Grappa_current_timestamp;
 
+/// Update timestamp from timestamp counter occasionally
+static const int freq = 32;
+
 /// Grab a snapshot of the current value of the timestamp counter.
 static inline Grappa_Timestamp Grappa_tick() {
   Grappa_Timestamp old_timestamp = Grappa_current_timestamp; 
+  static int64_t count = freq;
+  if( count-- > 0 ) {
+    Grappa_current_timestamp++;
+  } else {
+    Grappa_current_timestamp = rdtsc();
+    count = freq;
+  }
+  return old_timestamp;
+}
+  
+static inline Grappa_Timestamp Grappa_force_tick() {
+  Grappa_Timestamp old_timestamp = Grappa_current_timestamp; 
+  static int64_t count = freq;
   Grappa_current_timestamp = rdtsc();
+  count = freq;
   return old_timestamp;
 }
   

@@ -264,4 +264,86 @@ void TaskingScheduler::TaskingSchedulerStatistics::merge_am(TaskingScheduler::Ta
 }
 
 
+Thread * TaskingScheduler::nextCoroutineSplitRest ( Grappa_Timestamp current_ts, bool isBlocking ) {
+	  // Grappa_Timestamp current_ts = 0;
+#ifdef VTRACE_FULL
+	  VT_TRACER("nextCoroutine");
+#endif
+            do {
+                Thread * result;
+		++stats.scheduler_count;
+
+		// // tick the timestap counter
+		// Grappa_tick();
+		// current_ts = Grappa_get_timestamp();
+
+		// maybe sample
+		if( take_profiling_sample ) {
+		  take_profiling_sample = false;
+		  Grappa_take_profiling_sample();
+		}
+
+		if( ( global_communicator.mynode() == 0 ) &&
+		    ( current_ts - prev_stats_blob_ts > FLAGS_stats_blob_ticks)  ) {
+		  prev_stats_blob_ts = current_ts;
+		  Grappa_dump_stats_blob();
+		}
+
+                // // check ready tasks
+                // result = readyQ.dequeue();
+                // if (result != NULL) {
+                //   readyQ.prefetch();
+                // //    DVLOG(5) << current_thread->id << " scheduler: pick ready";
+		//   stats.state_timers[ stats.prev_state ] += (current_ts - prev_ts) / tick_scale;
+		//   stats.prev_state = TaskingSchedulerStatistics::StateReady;
+		// prev_ts = current_ts;
+                //     return result;
+                // }
+
+                // check for periodic tasks
+                result = periodicDequeue(current_ts);
+                if (result != NULL) {
+                 //   DVLOG(5) << current_thread->id << " scheduler: pick periodic";
+		  stats.state_timers[ stats.prev_state ] += (current_ts - prev_ts) / tick_scale;
+		  stats.prev_state = TaskingSchedulerStatistics::StatePoll;
+		prev_ts = current_ts;
+                    return result;
+                }
+
+                // check if scheduler is allowed to have more active workers
+                if (num_active_tasks < max_allowed_active_workers) {
+                  // check for new workers
+                  result = getWorker();
+                  if (result != NULL) {
+                    //  DVLOG(5) << current_thread->id << " scheduler: pick task worker";
+        stats.state_timers[ stats.prev_state ] += (current_ts - prev_ts) / tick_scale;
+        stats.prev_state = TaskingSchedulerStatistics::StateReady;
+        prev_ts = current_ts;
+                      return result;
+                  }
+                }
+
+                if (FLAGS_poll_on_idle) {
+		  stats.state_timers[ stats.prev_state ] += (current_ts - prev_ts) / tick_scale;
+		  stats.prev_state = TaskingSchedulerStatistics::StateIdle;
+                  global_aggregator.idle_flush_poll();
+                  StateTimer::enterState_scheduler();
+                } else {
+		  stats.state_timers[ stats.prev_state ] += (current_ts - prev_ts) / tick_scale;
+		  stats.prev_state = TaskingSchedulerStatistics::StateIdle;
+                  usleep(1);
+                }
+                
+		prev_ts = current_ts;
+                // no coroutines can run, so handle
+                /*DVLOG(5) << current_thread->id << " scheduler: no coroutines can run"
+                    << "[isBlocking=" << isBlocking
+                    << " periodQ=" << (periodicQ.empty() ? "empty" : "full")
+                    << " unassignedQ=" << (unassignedQ.empty() ? "empty" : "full") << "]";*/
+//                usleep(1);
+            } while ( isBlocking || !queuesFinished() );
+            // exit if all threads exited, including idle workers
+            // TODO just as use mightBeWork as shortcut, also kill all idle unassigned workers on cbarrier_exit
+            return NULL;
+        }
 
