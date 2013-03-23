@@ -7,6 +7,12 @@
 #include "GlobalCompletionEvent.hpp"
 #include "ParallelLoop.hpp"
 #include <type_traits>
+#include "Statistics.hpp"
+
+GRAPPA_DECLARE_STAT(SimpleStatistic<int64_t>, delegate_async_ops);
+GRAPPA_DECLARE_STAT(SimpleStatistic<int64_t>, delegate_async_writes);
+GRAPPA_DECLARE_STAT(SimpleStatistic<int64_t>, delegate_async_increments);
+GRAPPA_DECLARE_STAT(SimpleStatistic<uint64_t>, delegate_ops_short_circuited);
 
 namespace Grappa {
   
@@ -19,10 +25,12 @@ namespace Grappa {
     inline void call_async(impl::MessagePoolBase& pool, Core dest, F remote_work) {
       static_assert(std::is_same< decltype(remote_work()), void >::value, "return type of callable must be void when not associated with Promise.");
       delegate_stats.count_op();
+      delegate_async_ops++;
       Core origin = Grappa::mycore();
       
       if (dest == origin) {
         // short-circuit if local
+        delegate_ops_short_circuited++;
         remote_work();
       } else {
         if (GCE) GCE->enroll();
@@ -38,6 +46,7 @@ namespace Grappa {
     /// Uses `call_async()` to write a value asynchronously.
     template<GlobalCompletionEvent * GCE = &Grappa::impl::local_gce, typename T = decltype(nullptr), typename U = decltype(nullptr) >
     inline void write_async(impl::MessagePoolBase& pool, GlobalAddress<T> target, U value) {
+      delegate_async_writes++;
       delegate::call_async<GCE>(pool, target.core(), [target,value]{
         (*target.pointer()) = value;
       });
@@ -59,6 +68,7 @@ namespace Grappa {
     /// Uses `call_async()` to atomically increment a value asynchronously.
     template< GlobalCompletionEvent * GCE = &Grappa::impl::local_gce, typename T = void, typename U = void >
     inline void increment_async(impl::MessagePoolBase& pool, GlobalAddress<T> target, U increment) {
+      delegate_async_increments++;
       delegate::call_async<GCE>(pool, target.core(), [target,increment]{
         (*target.pointer()) += increment;
       });
@@ -106,16 +116,17 @@ namespace Grappa {
         static_assert(std::is_same<R, decltype(func())>::value, "return type of callable must match the type of this Promise");
         _result.reset();
         delegate_stats.count_op();
+        delegate_async_ops++;
         Core origin = Grappa::mycore();
         
         if (dest == origin) {
           // short-circuit if local
           fill(func());
         } else {
-          delegate_stats.count_op_am();
           start_time = Grappa_get_timestamp();
           
           pool.send_message(dest, [origin, func, this] {
+            delegate_stats.count_op_am();
             R val = func();
             
             // TODO: replace with handler-safe send_message
