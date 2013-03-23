@@ -14,8 +14,8 @@ DIR = File.expand_path(File.dirname(__FILE__))
 puts "DIR = #{DIR}"
 
 opt = OpenStruct.new
-opt.nnode = 2
-opt.ppn   = 1
+# opt.nnode = 2
+# opt.ppn   = 1
 opt.time  = '15:00'
 
 OptionParser.new do |p|
@@ -28,7 +28,7 @@ OptionParser.new do |p|
   
 end.parse!(myargs)
 
-srun_flags = %w[ --cpu_bind=verbose,rank --exclusive --label --kill-on-bad-exit ] \
+srun_flags = %w[ --cpu_bind=verbose,rank --label --kill-on-bad-exit ] \
           << "--task-prolog=#{DIR}/grappa_srun_prolog.sh" \
           << "--task-epilog=#{DIR}/grappa_srun_epilog.sh"
 
@@ -48,9 +48,13 @@ else
   srun_flags << "--partition=grappa" << "--resv-ports"
 end
 
-srun_flags << "--nodes=#{opt.nnode}" << "--ntasks-per-node=#{opt.ppn}" << "--time=#{opt.time}"
+srun_flags << "--nodes=#{opt.nnode}" if opt.nnode
+srun_flags << "--ntasks-per-node=#{opt.ppn}" if opt.ppn
+srun_flags << "--time=#{opt.time}" if opt.time
 
 test = "#{opt.test}.test --log_level=test_suite --report_level=confirm --run_test=#{opt.test}" if opt.test
 
-puts s = "srun #{srun_flags.join(' ')} -- #{test} #{setarch}#{remain.join(' ')}"
+s = "srun #{srun_flags.join(' ')} -- #{test} #{setarch}#{remain.join(' ')}"
+puts s
+$stdout.flush
 exec s
