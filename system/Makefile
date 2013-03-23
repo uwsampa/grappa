@@ -72,7 +72,8 @@ lib: $(LIBRARY)
 #
 Demo.o Demo.exe: $(LIBRARY)
 
-Thread_tests.test: coro.o stack.o tasks/Thread.o tasks/BasicScheduler.o
+#FIXME: UPDATE not to ref coro
+#Thread_tests.test: coro.o stack.o tasks/Thread.o tasks/BasicScheduler.o
 
 Communicator_tests.o Communicator_tests.test: Communicator.o
 
@@ -102,7 +103,7 @@ Semaphore_tests.o Semaphore_tests.test: $(LIBRARY)
 #thread_tests.test: thread.o stack.o coro.o
 thread2_tests.o thread2_tests.test: $(LIBRARY)
 thread3_tests.o thread3_tests.test: $(LIBRARY)
-tasks/Thread_tests.o tasks/Thread_tests.test: tasks/Thread.o coro.o stack.o tasks/BasicScheduler.o Timestamp.o
+tasks/Thread_tests.o tasks/Thread_tests.test: Worker.o stack.o tasks/BasicScheduler.o Timestamp.o
 
 Scheduler_benchmarking_tests.o Scheduler_benchmarking_tests.test: $(LIBRARY)
 
@@ -149,6 +150,9 @@ New_loop_tests.test: $(LIBRARY)
 CompletionEvent_tests.test: $(LIBRARY)
 Reducer_tests.test: $(LIBRARY)
 Scratch_tests.test: $(LIBRARY)
+
+ContextSwitchRate_bench.exe: $(LIBRARY)
+ContextSwitchLatency_tests.test: $(LIBRARY)
 
 #
 # environment variables for run
@@ -285,9 +289,8 @@ LIBRARY_CONTENTS+= Grappa.o \
 				   tasks/BasicScheduler.o \
 				   tasks/TaskingScheduler.o \
 				   tasks/Task.o \
-				   tasks/Thread.o \
 				   stack.o \
-				   coro.o \
+				   Worker.o \
 				   StateTimer.o \
 				   PerformanceTools.o \
 				   Future.o \
@@ -406,6 +409,7 @@ CFLAGS+= -I$(GRAPPA_HOME)/system -I$(GRAPPA_HOME)/system/tasks
 #
 ifdef DEBUG
 CFLAGS+= -O1 -g -DDEBUG
+CFLAGS+= -DGUARD_PAGES_ON_STACK
 else
 ifdef PROFILE
 CFLAGS+= -O3 -DNDEBUG -g -pg
@@ -413,6 +417,16 @@ else
 CFLAGS+= -O3 -DNDEBUG -g
 endif #PROFILE
 endif #DEBUG
+
+
+# 
+# Prefetching
+#
+# on by default
+READYQ_PREFETCH?=1
+ifeq ($(READYQ_PREFETCH), 1)
+CFLAGS+= -DREADYQ_PREFETCH
+endif
 
 
 #
@@ -516,18 +530,6 @@ TESTS:=$(foreach dir,$(DIRECTORIES),$(wildcard $(dir)/*.test))
 	$(ENV_VARIABLES) \
 	$($(MPITYPE)_CXX) -MMD -MF $*.d.tmp -c $(CFLAGS) $(CXXFLAGS) $< -o $*.pch
 	@sed -e 's|.*:|$*.pch:|' < $*.d.tmp > $*.d
-	@sed -e 's/.*://' -e 's/\\$$//' < $*.d.tmp | fmt -1 | \
-	  sed -e 's/^ *//' -e 's/$$/:/' >> $*.d
-	@rm -f $*.d.tmp
-
-#
-# Temporary special handling for thread library
-#
-
-coro.o: coro.c
-	$(ENV_VARIABLES) \
-	$($(MPITYPE)_CXX) -MMD -MF $*.d.tmp -c $(CFLAGS) $< -o $*.o
-	@sed -e 's|.*:|$*.o:|' < $*.d.tmp > $*.d
 	@sed -e 's/.*://' -e 's/\\$$//' < $*.d.tmp | fmt -1 | \
 	  sed -e 's/^ *//' -e 's/$$/:/' >> $*.d
 	@rm -f $*.d.tmp

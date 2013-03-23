@@ -13,14 +13,6 @@ void BasicScheduler::run ( ) {
     while (thread_wait( NULL ) != NULL) { } // nothing
 }
 
-void BasicScheduler::thread_join( Thread* wait_on ) {
-    while ( !wait_on->done ) {
-        wait_on->joinqueue.enqueue( current_thread );
-        thread_suspend( );
-    }
-}
-
-
 Thread * BasicScheduler::thread_wait( void **result ) {
     CHECK( current_thread == master ) << "only meant to be called by system Thread";
 

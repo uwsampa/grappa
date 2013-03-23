@@ -7,7 +7,7 @@
 #ifndef TASKING_SCHEDULER_HPP
 #define TASKING_SCHEDULER_HPP
 
-#include "Thread.hpp"
+#include "Worker.hpp"
 #include "Scheduler.hpp"
 #include "Communicator.hpp"
 #include "Aggregator.hpp"
@@ -89,7 +89,7 @@ class TaskingScheduler : public Scheduler {
 
     // STUB: replace with real periodic threads
     Grappa_Timestamp previous_periodic_ts;
-    Thread * periodicDequeue(Grappa_Timestamp current_ts) {
+    inline Thread * periodicDequeue(Grappa_Timestamp current_ts) {
       // // tick the timestap counter
       // Grappa_tick();
       // Grappa_Timestamp current_ts = Grappa_get_timestamp();
@@ -159,7 +159,9 @@ class TaskingScheduler : public Scheduler {
         // check ready tasks
         result = readyQ.dequeue();
         if (result != NULL) {
+#ifdef READYQ_PREFETCH
           readyQ.prefetch();
+#endif
           //    DVLOG(5) << current_thread->id << " scheduler: pick ready";
           stats.state_timers[ stats.prev_state ] += (current_ts - prev_ts) / tick_scale;
           stats.prev_state = TaskingSchedulerStatistics::StateReady;
@@ -406,7 +408,6 @@ class TaskingScheduler : public Scheduler {
     void thread_suspend_wake( Thread * next );
     bool thread_idle( uint64_t total_idle ); 
     bool thread_idle( );
-    void thread_join( Thread* wait_on );
 
     Thread * thread_wait( void **result );
 
@@ -472,12 +473,12 @@ inline bool TaskingScheduler::thread_yield_periodic( ) {
 /// Cannot be called during the master Thread.
 inline void TaskingScheduler::thread_suspend( ) {
   CHECK( current_thread != master ) << "can't yield on a system Thread";
-  CHECK( thread_is_running(current_thread) ) << "may only suspend a running coroutine";
+  CHECK( current_thread->running ) << "may only suspend a running coroutine";
   StateTimer::enterState_scheduler();
 
   Thread * yieldedThr = current_thread;
-  yieldedThr->co->running = 0; // XXX: hack; really want to know at a user Thread level that it isn't running
-  yieldedThr->co->suspended = 1;
+  yieldedThr->running = 0; // XXX: hack; really want to know at a user Thread level that it isn't running
+  yieldedThr->suspended = 1;
   Thread * next = nextCoroutine( );
 
   current_thread = next;
@@ -491,9 +492,9 @@ inline void TaskingScheduler::thread_suspend( ) {
 inline void TaskingScheduler::thread_wake( Thread * next ) {
   CHECK( next->sched == this ) << "can only wake a Thread on your scheduler (next="<<(void*) next << " next->sched="<<(void*)next->sched <<" this="<<(void*)this;
   CHECK( next->next == NULL ) << "woken Thread should not be on any queue";
-  CHECK( !thread_is_running( next ) ) << "woken Thread should not be running";
+  CHECK( !next->running ) << "woken Thread should not be running";
 
-  next->co->suspended = 0;
+  next->suspended = 0;
 
   DVLOG(5) << "Thread " << current_thread->id << " wakes thread " << next->id;
 
@@ -507,10 +508,10 @@ inline void TaskingScheduler::thread_yield_wake( Thread * next ) {
   CHECK( current_thread != master ) << "can't yield on a system Thread";
   CHECK( next->sched == this ) << "can only wake a Thread on your scheduler";
   CHECK( next->next == NULL ) << "woken Thread should not be on any queue";
-  CHECK( !thread_is_running( next ) ) << "woken Thread should not be running";
+  CHECK( !next->running ) << "woken Thread should not be running";
   StateTimer::enterState_scheduler();
 
-  next->co->suspended = 0;
+  next->suspended = 0;
 
   Thread * yieldedThr = current_thread;
   ready( yieldedThr );
@@ -525,13 +526,13 @@ inline void TaskingScheduler::thread_yield_wake( Thread * next ) {
 inline void TaskingScheduler::thread_suspend_wake( Thread *next ) {
   CHECK( current_thread != master ) << "can't yield on a system Thread";
   CHECK( next->next == NULL ) << "woken Thread should not be on any queue";
-  CHECK( !thread_is_running( next ) ) << "woken Thread should not be running";
+  CHECK( !next->running ) << "woken Thread should not be running";
   StateTimer::enterState_scheduler();
 
-  next->co->suspended = 0;
+  next->suspended = 0;
 
   Thread * yieldedThr = current_thread;
-  yieldedThr->co->suspended = 1;
+  yieldedThr->suspended = 1;
 
   current_thread = next;
   thread_context_switch( yieldedThr, next, NULL);
@@ -552,7 +553,7 @@ inline bool TaskingScheduler::thread_idle( uint64_t total_idle ) {
   }
 
   num_idle++;
-  current_thread->co->idle = true;
+  current_thread->idle = 1;
 
   unassigned( current_thread );
 
@@ -560,7 +561,7 @@ inline bool TaskingScheduler::thread_idle( uint64_t total_idle ) {
 
   // woke so decrement idle counter
   num_idle--;
-  current_thread->co->idle = false;
+  current_thread->idle = 0;
 
   return true;
 }

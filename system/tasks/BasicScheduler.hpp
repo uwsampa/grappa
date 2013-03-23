@@ -133,7 +133,7 @@ inline bool BasicScheduler::thread_yield( ) {
 /// Suspend the current Thread. Thread is not placed on any queue.
 inline void BasicScheduler::thread_suspend( ) {
     CHECK( current_thread != master ) << "can't yield on a system Thread";
-    CHECK( thread_is_running(current_thread) ) << "may only suspend a running coroutine";
+    CHECK( current_thread->running ) << "may only suspend a running coroutine";
     
     Thread * yieldedThr = current_thread;
     
@@ -150,7 +150,7 @@ inline void BasicScheduler::thread_suspend( ) {
 inline void BasicScheduler::thread_wake( Thread * next ) {
   CHECK( next->sched == this ) << "can only wake a Thread on your scheduler";
   CHECK( next->next == NULL ) << "woken Thread should not be on any queue";
-  CHECK( !thread_is_running( next ) ) << "woken Thread should not be running";
+  CHECK( !next->running ) << "woken Thread should not be running";
 
   ready( next );
 }
@@ -162,7 +162,7 @@ inline void BasicScheduler::thread_yield_wake( Thread * next ) {
     CHECK( current_thread != master ) << "can't yield on a system Thread";
     CHECK( next->sched == this ) << "can only wake a Thread on your scheduler";
     CHECK( next->next == NULL ) << "woken Thread should not be on any queue";
-    CHECK( !thread_is_running( next ) ) << "woken Thread should not be running";
+    CHECK( !next->running ) << "woken Thread should not be running";
   
     Thread * yieldedThr = current_thread;
     ready( yieldedThr );
@@ -177,7 +177,7 @@ inline void BasicScheduler::thread_yield_wake( Thread * next ) {
 inline void BasicScheduler::thread_suspend_wake( Thread *next ) {
     CHECK( current_thread != master ) << "can't yield on a system Thread";
     CHECK( next->next == NULL ) << "woken Thread should not be on any queue";
-    CHECK( !thread_is_running( next ) ) << "woken Thread should not be running";
+    CHECK( !next->running ) << "woken Thread should not be running";
   
     Thread * yieldedThr = current_thread;
     

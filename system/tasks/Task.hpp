@@ -9,7 +9,7 @@
 
 #include <iostream>
 #include <deque>
-#include "Thread.hpp"
+#include "Worker.hpp"
 #include "StatisticsTools.hpp"
 
 #ifdef VTRACE

@@ -42,6 +42,7 @@
 DEFINE_uint64( num_starting_workers, 4, "Number of starting workers in task-executer pool" );
 DEFINE_bool( set_affinity, false, "Set processor affinity based on local rank" );
 DEFINE_string( stats_blob_filename, "stats.json", "Stats blob filename" );
+DEFINE_bool( stats_blob_enable, true, "Enable stats dumping" );
 
 DEFINE_uint64( io_blocks_per_node, 4, "Maximum number of asynchronous IO operations to issue concurrently per node.");
 DEFINE_uint64( io_blocksize_mb, 4, "Size of each asynchronous IO operation's buffer." );
@@ -177,8 +178,8 @@ void Grappa_init( int * argc_p, char ** argv_p[], size_t global_memory_size_byte
   }
 
   // how fast do we tick?
-  Grappa_tick();
-  Grappa_tick();
+  Grappa_force_tick();
+  Grappa_force_tick();
   Grappa_Timestamp start_ts = Grappa_get_timestamp();
   double start = Grappa_walltime();
   // now go do other stuff for a while
@@ -285,15 +286,16 @@ void Grappa_init( int * argc_p, char ** argv_p[], size_t global_memory_size_byte
   }
 
   // start threading layer
-  master_thread = thread_init();
+  master_thread = convert_to_master();
   VLOG(1) << "Initializing tasking layer."
            << " num_starting_workers=" << FLAGS_num_starting_workers;
   global_task_manager.init( Grappa_mynode(), node_neighbors, Grappa_nodes() ); //TODO: options for local stealing
   global_scheduler.init( master_thread, &global_task_manager );
-  global_scheduler.periodic( thread_spawn( master_thread, &global_scheduler, &poller, NULL ) );
+  global_scheduler.periodic( worker_spawn( master_thread, &global_scheduler, &poller, NULL ) );
 
   // collect some stats on this job
-  Grappa_tick();
+  Grappa_force_tick();
+  Grappa_force_tick();
   Grappa_Timestamp end_ts = Grappa_get_timestamp();
   double end = Grappa_walltime();
   Grappa::tick_rate = (double) (end_ts - start_ts) / (end-start);
@@ -325,12 +327,11 @@ void Grappa_barrier_suspending() {
 ///
 
 /// Spawn a user function. TODO: get return values working
-/// TODO: remove Thread * arg
-inline Thread * Grappa_spawn( void (* fn_p)(Thread *, void *), void * args )
+Worker * Grappa_spawn( void (* fn_p)(Worker *, void *), void * args )
 {
-  Thread * th = thread_spawn( global_scheduler.get_current_thread(), &global_scheduler, fn_p, args );
+  Worker * th = worker_spawn( global_scheduler.get_current_thread(), &global_scheduler, fn_p, args );
   global_scheduler.ready( th );
-  DVLOG(5) << "Spawned Thread " << th;
+  DVLOG(5) << "Spawned Worker " << th;
   return th;
 }
 
@@ -475,8 +476,10 @@ void Grappa_dump_stats( std::ostream& oo ) {
 
 /// Dump stats blob
 void Grappa_dump_stats_blob() {
-  std::ofstream o( FLAGS_stats_blob_filename.c_str(), std::ios::out );
-  Grappa_dump_stats( o );
+  if ( FLAGS_stats_blob_enable ) {
+    std::ofstream o( FLAGS_stats_blob_filename.c_str(), std::ios::out );
+    Grappa_dump_stats( o );
+  }
 }
  
 
