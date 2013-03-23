@@ -158,7 +158,10 @@ namespace Grappa {
         , is_moved_( false )
         // , reset_count_(0)
         , delete_after_send_( false ) 
-      { DVLOG(9) << "construct " << this; }
+      { 
+        DVLOG(9) << "construct " << this;
+        Grappa::impl::locale_shared_memory.validate_address( this );
+      }
 
       MessageBase( Core dest )
         : next_( NULL )
@@ -172,7 +175,10 @@ namespace Grappa {
         , destination_( dest )
         // , reset_count_(0)
         , delete_after_send_( false ) 
-      { DVLOG(9) << "construct " << this; }
+      {
+        DVLOG(9) << "construct " << this;
+        Grappa::impl::locale_shared_memory.validate_address( this );
+      }
 
       // Ensure we are sent before leaving scope
       virtual ~MessageBase() {
@@ -199,9 +205,9 @@ namespace Grappa {
         , delete_after_send_( m.delete_after_send_ ) 
       {
         DVLOG(9) << "move " << this;
+        m.is_moved_ = true; // mark message as having been moved so sending will fail
         CHECK_EQ( is_enqueued_, false ) << "Shouldn't be moving a message that has been enqueued to be sent!"
                                         << " Your compiler's return value optimization failed you here.";
-        m.is_moved_ = true; // mark message as having been moved so sending will fail
       }
 
       inline bool waiting_to_send() {
