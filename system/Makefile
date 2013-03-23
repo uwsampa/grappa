@@ -308,7 +308,8 @@ LIBRARY_CONTENTS+= Grappa.o \
 				   RDMAAggregator.o \
 				   ParallelLoop.o \
 				   Barrier.o \
-				   MessagePool.o
+				   MessagePool.o \
+					 AsyncDelegate.o
 
 libGrappa.a: $(LIBRARY_CONTENTS)
 	$($(MPITYPE)_AR) rv $@ $^
