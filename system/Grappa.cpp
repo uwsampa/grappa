@@ -28,6 +28,8 @@
 #include "RDMAAggregator.hpp"
 #include "LocaleSharedMemory.hpp"
 
+#include "Statistics.hpp"
+
 #include <fstream>
 
 #ifndef SHMMAX
@@ -123,7 +125,11 @@ static void poller( Thread * me, void * args ) {
 static int stats_dump_signal = SIGUSR2;
 static void stats_dump_sighandler( int signum ) {
   // TODO: make this set a flag and have scheduler check and dump.
-  Grappa_dump_stats();
+  std::ostringstream legacy_stats;
+  legacy_dump_stats(legacy_stats);
+  Grappa::Statistics::print( LOG(INFO), Grappa::impl::registered_stats(), legacy_stats.str() );
+
+  Grappa::impl::global_rdma_aggregator.dump_counts();
 
   // instantaneous state
   LOG(INFO) << global_scheduler;
