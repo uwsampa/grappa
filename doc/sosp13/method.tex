@@ -1,16 +1,35 @@
 \section{Methodology} \label{sec:method}
+Towards evaluating how well Grappa enables scalable
+performance of irregular applications on mass market systems, our
+methodology is as follows.  For consistency in measurement, all
+results reported for mass market systems are measured on the same
+platform.  To establish the potential for Grappa performance, we
+identify small microkernel benchmarks that provide insight into the
+limitations of our system's component performance behaviors.  To
+compare meaningfully with the state-of-the-art, we compare Grappa
+performance on well known irregular application benchmarks both
+against the popular high performance programming methodologies MPI and
+UPC for distributed memory clusters, and against a custom shared memory
+architecture used exclusively for irregular computation, the Cray XMT.
+We then examine how sensitive Grappa results are to reduced
+injection rate and increased latency, as often occur when a system is
+scaled up so that nodes are further apart and the effective per
+destination packet injection rate drops.
+The three sections that follow describe this methodology in greater detail.
 
-\TODO{Need to rewrite once our evaluations story is solid. We need to talk about MPI and why that comparison makes sense.}
+\subsection{Systems}
+For commodity system measurements, we run Grappa on a 144-node cluster
+of AMD Interlagos processors. Nodes have 32-core (every pair share a
+floating-point unit) 2.1-GHz processors, 64GB of memory, and 40Gb
+Mellanox ConnectX-2 infiniband network card.  The cluster uses a
+QLogic infiniband switch.  We configure the nodes to have 32 1-GB
+hugepages to minimize TLB misses for the random access patterns we
+expect from irregular applications.
 
-To explore the performance of the Grappa runtime we have implemented
-three algorithms: breadth first search, betweenness centrality, and
-unbalanced tree search.  These algorithms were implemented for the
-Cray XMT (our baseline) and for Grappa.  The metric we use is
-algorithmic time, which means startup and loading of the data
-structure (from disk) is not included in the measurement.  Data is
-collected on real systems, which means minor variations in runtime
-exist from run to run.  The average of multiple runs are used, and
-where appropriate, confidence in the result is reported.
+We compare to the MTA using a 128-node Cray XMT (3rd generation MTA).
+Each node consists of a 500-MHz MTA Threadstorm multithreaded processor
+that supports 128~streams. The machine uses Cray's proprietary SeaStar2
+interconnection network.
 
 One question that must be answered when making a comparison between the
 Cray XMT and a typical HPC cluster is what is a fair comparison -- these
@@ -27,25 +46,51 @@ network interfaces as the way to normalize across the XMT and our
 cluster.  Each processor in the XMT system has its own network interface
 to access shared memory.  In the HPC cluster we use, each processor
 (which contains up to 32~cores, although we only use 6 in our
-experiments), has a single infiniband interface.  Hence, for our results
+experiments), has a single infiniband interface.
+\TODO{Given we're using number of network interfaces as parity measure,
+say something about the relative bandwidth of these network interfaces.}
+Hence, for our results
 we scale up XMT processors one for one with full system nodes.
 
+\subsection{Microbenchmarks}
+With microbenchmarks we aim to evaluate the intrinisc potential of
+Grappa, measured by random access bandwidth, latency tolerance,
+scheduling efficiency, and robustness.  \TODO{do we need to justify
+these are the key determinants of Grappa potential?} Random access
+bandwidth can be measured with GUPS \TODO{describe HPC Random Access}.
+Latency tolerance must be at least sufficient to tolerate the ping
+latency and is limited above by the rate at which we can switch
+context as a function of the number of contexts: were adding contexts
+to slow the context switch rate below the throughput sustainable by
+the network and memory, the processing required to tolerate latency
+would introduce more latency than is tolerated, thereby degrading
+rather than improving performance.  We wish to tolerate latency of
+aggregation and synchronization as well, increasing the number of
+contexts needed.  We measure latency tolerance via a modified GUPS in
+which each update is dependent upon the results of an earlier update,
+not unlike linked-list chasing \TODO{find references?}.  We then
+establish the efficiency of scheduling via direct tests of yield
+performance sans global memory references.  This provides us with
+reassuring insights into how far we could stretch latency tolerance
+with our current system, one aspect of robustness.  Results for these
+microbenchmarks are presented in Section~\ref{sec:evaluation}.
+After presenting application results, we show how this robustness
+in latency tolerance reduces sensitivity of Grappa performance to changes
+in parameters, particularly in the network.  We measure
+this by artificially varying the effective network injection rate by
+sweeping the timeout value in the aggregator.  Results are in Section~\ref{sec:scaling}.
 
-\subsection{Systems}
+\subsection{Application Kernel Benchmarks}
 
-For measurements, we run Grappa on a 144-node cluster of AMD Interlagos
-processors. Nodes have 32-core (every pair share a floating-point unit)
-2.1-GHz processors, 64GB of memory, and 40Gb Mellanox ConnectX-2
-infiniband network card.   The cluster uses a QLogic infiniband switch.
-We configure the nodes to have 32 1-GB hugepages to minimize TLB misses
-for the random access patterns we expect from irregular applications.
-
-We compare to the MTA using a 128-node Cray XMT (3rd generation MTA).
-Each node consists of a 500-MHz MTA Threadstorm multithreaded processor
-that supports 128~streams. The machine uses Cray's proprietary SeaStar2
-interconnection network.
-
-\subsection{Applications}
+To explore the performance of the Grappa runtime we have implemented
+three algorithms: breadth first search, betweenness centrality, and
+unbalanced tree search.  These algorithms were implemented for the
+Cray XMT (our baseline) and for Grappa.  The metric we use is
+algorithmic time, which means startup and loading of the data
+structure (from disk) is not included in the measurement.  Data is
+collected on real systems, which means minor variations in runtime
+exist from run to run.  The average of multiple runs are used, and
+where appropriate, confidence in the result is reported.
 
 We have used three benchmarks to explore the performance of Grappa:
 
