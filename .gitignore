@@ -130,3 +130,7 @@ config.cache
 
 # scratch files
 /system/scratch/*
+
+# RDMA communication routing output
+/system/routing.dot
+/system/routing.pdf
