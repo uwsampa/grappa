@@ -18,7 +18,8 @@
 #include "MessagePool.hpp"
 #include <type_traits>
 
-GRAPPA_DECLARE_STAT( SummarizingStatistic<uint64_t>, flat_combiner_fetch_and_add_amount );
+GRAPPA_DECLARE_STAT(SummarizingStatistic<uint64_t>, flat_combiner_fetch_and_add_amount);
+GRAPPA_DECLARE_STAT(SimpleStatistic<uint64_t>, delegate_ops_short_circuited);
 
 namespace Grappa {
   namespace delegate {
@@ -33,6 +34,7 @@ namespace Grappa {
       
       if (dest == origin) {
         // short-circuit if local
+        delegate_ops_short_circuited++;
         return func();
       } else {
         int64_t network_time = 0;
