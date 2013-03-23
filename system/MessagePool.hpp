@@ -94,7 +94,9 @@ namespace impl {
   
   class MessagePool : public impl::MessagePoolBase {
   public:
-    MessagePool(size_t bytes): MessagePoolBase(new char[bytes], bytes, true) {}
+    MessagePool(size_t bytes)
+      : MessagePoolBase( reinterpret_cast<char*>( Grappa::impl::locale_shared_memory.segment.allocate_aligned( bytes, 8 ) ), bytes, true) 
+    {}
     MessagePool(void * ext_buf, size_t bytes):
       MessagePoolBase(static_cast<char*>(ext_buf), bytes, false) {}
   };
