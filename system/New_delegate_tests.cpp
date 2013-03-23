@@ -128,7 +128,6 @@ void check_async_delegates() {
 
   delegate::write(make_global(&global_x,1), 0);
   
-  mygce.reset_all();
   for (int i=0; i<N; i++) {
     delegate::call_async<&mygce>(pool, 1, []{ global_x++; });
   }
@@ -154,6 +153,37 @@ void check_async_delegates() {
   BOOST_CHECK_EQUAL(delegate::read(make_global(&global_y,1)), N);
 }
 
+uint64_t fc_targ = 0;
+uint64_t non_fc_targ = 0;
+void check_flat_combining() {
+  BOOST_MESSAGE("check_flat_combining");
+  delegate::FlatCombiner<uint64_t,uint64_t> fc( make_global(&fc_targ, 1), 4, 0 );
+
+  int N = 9;
+  CompletionEvent done( N );
+  
+  uint64_t actual_total = 0;
+  for (int i=0; i<N; i++) {
+    privateTask([&fc,&actual_total,&done] {
+      fc.promise();
+      // just find a reason to suspend
+      // to make fetch_and_add likely to aggregate
+      delegate::fetch_and_add( make_global(&non_fc_targ, 1), 1 );
+
+      actual_total += fc.fetch_and_add( 1 );
+      done.complete();
+    });
+  }
+  done.wait();
+
+  BOOST_CHECK( actual_total == (N-1)*N/2 );
+  delegate::call( 1, [N] {
+    BOOST_CHECK( fc_targ == N );
+    BOOST_CHECK( non_fc_targ == N );
+  });
+}
+
+
 void user_main(void * args) {
   CHECK(Grappa_nodes() >= 2); // at least 2 nodes for these tests...
 
@@ -162,6 +192,8 @@ void user_main(void * args) {
   check_remote();
   
   check_async_delegates();
+
+  check_flat_combining();
  
   int64_t seed = 111;
   GlobalAddress<int64_t> seed_addr = make_global(&seed);

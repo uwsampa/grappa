@@ -347,7 +347,7 @@ namespace Grappa {
               }
       
               this->seminary->increment(in_n);
-            }, (void*)in_array+k, sizeof(T)*this_nelem);
+            }, (void*)(in_array+k), sizeof(T)*this_nelem);
           }
           
           seminary->decrement(nelem);

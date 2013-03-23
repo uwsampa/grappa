@@ -221,7 +221,7 @@ private:
 #endif
 
 
-  std::string hist_labels[16];
+  static std::string hist_labels[16];
   
   /// dump csv stats header 
   /// TODO: remove. unused
@@ -331,22 +331,6 @@ public:
 #endif
   {
     reset();
-    hist_labels[ 0] = "\"aggregator_0_to_255_bytes\"";
-    hist_labels[ 1] = "\"aggregator_256_to_511_bytes\"";
-    hist_labels[ 2] = "\"aggregator_512_to_767_bytes\"";
-    hist_labels[ 3] = "\"aggregator_768_to_1023_bytes\"";
-    hist_labels[ 4] = "\"aggregator_1024_to_1279_bytes\"";
-    hist_labels[ 5] = "\"aggregator_1280_to_1535_bytes\"";
-    hist_labels[ 6] = "\"aggregator_1536_to_1791_bytes\"";
-    hist_labels[ 7] = "\"aggregator_1792_to_2047_bytes\"";
-    hist_labels[ 8] = "\"aggregator_2048_to_2303_bytes\"";
-    hist_labels[ 9] = "\"aggregator_2304_to_2559_bytes\"";
-    hist_labels[10] = "\"aggregator_2560_to_2815_bytes\"";
-    hist_labels[11] = "\"aggregator_2816_to_3071_bytes\"";
-    hist_labels[12] = "\"aggregator_3072_to_3327_bytes\"";
-    hist_labels[13] = "\"aggregator_3328_to_3583_bytes\"";
-    hist_labels[14] = "\"aggregator_3584_to_3839_bytes\"";
-    hist_labels[15] = "\"aggregator_3840_to_4095_bytes\"";
   }
   
   void reset() {

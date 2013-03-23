@@ -30,7 +30,6 @@
  * This is a Grappa implementation of UTS-mem.
 ***********************************************************************************************/
 
-
 // UTS-mem Grappa implementation specific command line parameters (using gflags instead of UTS impl_params)
 DEFINE_int64( vertices_size, 1<<20, "Upper bound count of vertices" );
 DEFINE_bool( verify_tree, true, "Verify the generated tree" );
@@ -46,8 +45,8 @@ uint64_t local_generated;
 
 
 // Parallel granularities for important parallel for-loops
-#define VERIFY_THRESHOLD ((int64_t) 4)
-#define CREATE_THRESHOLD ((int64_t) 1)
+const int64_t VERIFY_THRESHOLD = 4;
+const int64_t CREATE_THRESHOLD = 1;
 // threshold for tree search is specified by Grappa option --async_par_for_threshold
 
 // turn on for initiating streaming writes instead
@@ -176,6 +175,9 @@ void tj_create_vertex( int64_t start, int64_t num, int64_t parent_id ) {
 
   uts::Node parent_storage;
   Incoherent<uts::Node>::RO parentc( Tree_Nodes + parent_id, 1, &parent_storage);
+#if TREEGEN_EAGER_RELEASE
+  parentc.start_acquire();
+#endif
 
   // TODO: this is a lot of extra reads just to obtain childid0; easier to have args but feed forward..
   int64_t p_childIndex = Grappa::delegate::read( global_pointer_to_member( Vertex+parent_id, &vertex_t::childIndex) );
@@ -274,7 +276,7 @@ void tj_create_children( uts::Node * parent ) {
   DVLOG(5) << "[done] released vertex " << vvert_storage << " id=" << parent->id;
 
   int64_t parentID = parent->id;
-  forall_here_async_public< &joiner >( 0, numChildren, [parentID]( int64_t start, int64_t iters ) {
+  forall_here_async_public< &joiner, CREATE_THRESHOLD >( 0, numChildren, [parentID]( int64_t start, int64_t iters ) {
     tj_create_vertex( start, iters, parentID );
   });   
 }
@@ -477,6 +479,7 @@ void user_main ( user_main_args * args ) {
   LOG(INFO) << "starting tree generation";
   Result r_gen;
   //    start_profiling();
+  on_all_cores( [] { Grappa::Statistics::reset(); } );
   t1 = uts_wctime();
 
   par_create_tree();
@@ -486,6 +489,7 @@ void user_main ( user_main_args * args ) {
   r_gen.size = -1; // will calculate with a reduce
 
   t2 = uts_wctime();
+  Grappa::Statistics::merge_and_print();
   //    stop_profiling();
 
 
@@ -574,7 +578,7 @@ void user_main ( user_main_args * args ) {
   CHECK(r_gen.size == r_search.size);
 
   LOG(INFO) << "uts: {"
-    << "search_runtime: " << search_runtime << ","
+    << "gen_runtime: " << gen_runtime << ","
     << "nNodes: " << nNodes
     << "}";
 
