@@ -169,6 +169,12 @@ void message_list_push( ReuseMessage<M> * m ) {
 // keep track of this core's completions
 Grappa::CompletionEvent ce;
 
+void gups_dump_counts() {
+  LOG(INFO) << "Completion count " << ce.get_count()
+            << " message_list size " << message_list.count()
+            << " completion_list size " << completion_list.count();
+}
+
 
 double wall_clock_time() {
   const double nano = 1.0e-9;
@@ -303,6 +309,7 @@ LOOP_FUNCTION( func_gups_rdma, index ) {
   ce.wait();
 
   DVLOG(1) << "Got all replies";
+  Grappa_barrier_suspending();
 }
 
 
