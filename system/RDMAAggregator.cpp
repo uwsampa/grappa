@@ -211,6 +211,7 @@ namespace Grappa {
       deserialize_buffer_handle_ = global_communicator.register_active_message_handler( &deserialize_buffer_am );
       deserialize_first_handle_ = global_communicator.register_active_message_handler( &deserialize_first_am );
       enqueue_buffer_handle_ = global_communicator.register_active_message_handler( &enqueue_buffer_am );
+      enqueue_buffer_async_handle_ = global_communicator.register_active_message_handler( &enqueue_buffer_async_am );
       copy_enqueue_buffer_handle_ = global_communicator.register_active_message_handler( &copy_enqueue_buffer_am );
 #endif
     }
@@ -327,11 +328,12 @@ namespace Grappa {
         DVLOG(3) << __PRETTY_FUNCTION__ << ": sending " << expected_buffers << " buffers to core " << dest << " on locale " << locale;
 
         // for now, just give the remote core a token
-        RDMABuffer * b = NULL;
+        RDMABuffer * b = global_rdma_aggregator.free_buffer_list_.try_pop();
+        CHECK_NOTNULL( b );
 
         auto request = Grappa::message( dest, [mycore, b] {
             auto p = global_rdma_aggregator.localeCoreData(mycore);
-            DVLOG(3) << __PRETTY_FUNCTION__ << " initializing by pushing buffer into " << p << " for " << mycore;
+            DVLOG(3) << __PRETTY_FUNCTION__ << " initializing by pushing buffer " << b << " into " << p << " for " << mycore;
             p->remote_buffers_.push( b );
           });
         request.send_immediate();
@@ -415,11 +417,35 @@ namespace Grappa {
 #ifdef DEBUG
       gasnet_node_t src = -1;
       gasnet_AMGetMsgSource(token,&src);
+#endif
+      RDMABuffer * b = reinterpret_cast< RDMABuffer * >( buf );
+      Core source = b->get_source();
+      Core dest = b->get_dest();
+      DVLOG(5) << __func__ << ": Receiving buffer of size " << size 
+               << " from " << b->get_source() << " to " << b->get_dest()
+               << " at " << buf << " with ack " << b->get_ack()
+               << " core0 count " << (b->get_counts())[0]
+               << " core1 count " << (b->get_counts())[1]
+               << "; enqueuing for deserialization";
+
+
+      global_rdma_aggregator.received_buffer_list_.push( b );
+    }
+
+    void RDMAAggregator::enqueue_buffer_async_am( gasnet_token_t token, void * buf, size_t size ) {
+#ifdef DEBUG
+      gasnet_node_t src = -1;
+      gasnet_AMGetMsgSource(token,&src);
       DVLOG(5) << __func__ << ": Receiving buffer of size " << size << " from " << src << " through gasnet; enqueuing for deserialization";
 #endif
-      global_scheduler.set_no_switch_region( true );
-      global_rdma_aggregator.received_buffer_list_.push( reinterpret_cast< RDMABuffer * >( buf ) );
-      global_scheduler.set_no_switch_region( false );
+      RDMABuffer * b = reinterpret_cast< RDMABuffer * >( buf );
+      RDMABuffer * ack = b->get_ack();
+      global_rdma_aggregator.received_buffer_list_.push( b );
+
+      // send reply as required by spec
+      auto reply = Grappa::message( b->get_source(), [ack] {
+          global_rdma_aggregator.free_buffer_list_.push( ack );
+        } );
     }
 
     void RDMAAggregator::copy_enqueue_buffer_am( gasnet_token_t token, void * buf, size_t size ) {
@@ -447,7 +473,7 @@ namespace Grappa {
                << " size " << my_size
                << " core0 count " << (b->get_counts())[0]
                << " core1 count " << (b->get_counts())[1]
-               << " from core " << b->get_core();
+               << " from core " << b->get_source();
 
       // check that the buffer makes sense
       size_t claimed_size = b->get_base_size();
@@ -670,7 +696,7 @@ void RDMAAggregator::draw_routing_graph() {
                << " serial " << reinterpret_cast<int64_t>( buf->get_ack() );
 
       // what core is buffer from?
-      Core c = buf->get_core();
+      Core c = buf->get_source();
       
       // process buffer
       receive_buffer( buf );
@@ -681,15 +707,14 @@ void RDMAAggregator::draw_routing_graph() {
       // once we're done, send ack to give permission to send again,
       // unless buffer is from the local core (for debugging)
       if( c != Grappa::mycore() ) {
-        RDMABuffer * b = NULL; // for now, lie; just use as token
         Core mylocale_core = Grappa::mylocale() * Grappa::locale_cores();
         Core mycore = Grappa::mycore();
         DVLOG(3) << __PRETTY_FUNCTION__ << "/" << global_scheduler.get_current_thread() << " finished with " << buf
-                 << "; acking by pushing buffer into " << b << " for core " << mycore << " on core " << c;
-        auto request = Grappa::message( c, [mycore, b] {
+                 << "; acking with buffer " << buf << " for core " << mycore << " on core " << c;
+        auto request = Grappa::message( c, [mycore, buf] {
             auto p = global_rdma_aggregator.localeCoreData(mycore);
-            DVLOG(3) << __PRETTY_FUNCTION__ << " acking by pushing buffer into " << p << " for " << mycore;
-            p->remote_buffers_.push( b );
+            DVLOG(3) << __PRETTY_FUNCTION__ << " acking by pushing buffer " << buf << " into " << p << " for " << mycore;
+            p->remote_buffers_.push( buf );
           });
         request.send_immediate();
       }
@@ -711,7 +736,7 @@ void RDMAAggregator::draw_routing_graph() {
     //     // block until we have a buffer to deaggregate
     //     RDMABuffer * receiver_buffer = received_buffer_list_.block_until_pop();
 
-    //     Core sender = receiver_buffer->get_core();
+    //     Core sender = receiver_buffer->get_source();
     //     RDMABuffer * sender_buffer = receiver_buffer->get_ack();
     //     Core receiver = Grappa::mycore();
 
@@ -731,7 +756,7 @@ void RDMAAggregator::draw_routing_graph() {
 
 
     //     // // record that the sender has used one of its cached buffers
-    //     // cores_[b->get_core()].remote_buffers_held_.increment();
+    //     // cores_[b->get_source()].remote_buffers_held_.increment();
 
     //     // // get a buffer to return to the other side
     //     // RDMABuffer * sender_buffer = cores_[sender].remote_buffers_.try_pop();
@@ -804,7 +829,7 @@ void RDMAAggregator::draw_routing_graph() {
     DVLOG(4) << __func__ << "/" << sequence_number << ": Now deaggregating buffer " << buf << " sequence " << sequence_number
              << " core0 count " << (buf->get_counts())[0]
              << " core1 count " << (buf->get_counts())[1]
-             << " from core " << buf->get_core();
+             << " from core " << buf->get_source();
 
     {
       // now send messages to deaggregate everybody's chunks
@@ -838,7 +863,7 @@ void RDMAAggregator::draw_routing_graph() {
       // fill and send deaggregate messages
       for( Core locale_core = 0; locale_core < Grappa::locale_cores(); ++locale_core ) {
         DVLOG(5) << __func__ << "/" << sequence_number 
-                 << ": found " << counts[ locale_core ] << " bytes for core " << locale_core << " at " << current_buf;
+                 << ": found " << counts[ locale_core ] << " bytes for core " << locale_core << " at " << (void*) current_buf;
 
         if( counts[locale_core] > 0 ) {
 
@@ -966,7 +991,7 @@ void RDMAAggregator::draw_routing_graph() {
   //       RDMABuffer * local_buf = free_buffer_list_.block_until_pop();
 
   //       // mark it as being from us
-  //       local_buf->set_core( Grappa::mycore() );
+  //       local_buf->set_source( Grappa::mycore() );
   //       // local_buf->set_ack( NULL ); //local_buf );
   //       local_buf->set_ack( local_buf );
 
@@ -1346,7 +1371,7 @@ void RDMAAggregator::draw_routing_graph() {
       }
 
       // mark as being from this core
-      b->set_core( Grappa::mycore() );
+      b->set_source( Grappa::mycore() );
 
       char * current_buf = b->get_payload();
       int64_t remaining_size = std::min( max_size, b->get_max_size() );
@@ -1623,15 +1648,13 @@ void RDMAAggregator::draw_routing_graph() {
       // by doing this first, we limit the rate at which we consume buffers from the local free list
       // as well as allowing the remote node to limit the rate we send
       RDMABuffer * dest_buf = localeCoreData( dest_core )->remote_buffers_.block_until_pop();
-      // TODO: use buffer for RDMA send. For now, just discard
-      DVLOG(3) << __PRETTY_FUNCTION__ << "/" << global_scheduler.get_current_thread() 
-               << " got buffer/token " << dest_buf << " to send";
+      CHECK_NOTNULL( dest_buf );
 
       // now, grab a temporary buffer for local serialization
       RDMABuffer * b = free_buffer_list_.block_until_pop();
 
       // but only use enough bytes that we can fit in a medium AM.
-      const size_t max_size = 4024 - b->get_base_size();
+      const size_t max_size = b->get_max_size();
       DVLOG(5) << "Max buffer size is " << max_size;
       
       // clear out buffer's count array
@@ -1640,7 +1663,7 @@ void RDMAAggregator::draw_routing_graph() {
       }
 
       // mark as being from this core
-      b->set_core( Grappa::mycore() );
+      b->set_source( Grappa::mycore() );
 
       char * current_buf = b->get_payload();
       int64_t remaining_size = std::min( max_size, b->get_max_size() );
@@ -1750,24 +1773,34 @@ void RDMAAggregator::draw_routing_graph() {
                << " core0 count " << (b->get_counts())[0]
                << " core1 count " << (b->get_counts())[1]
                << " to locale " << locale
-               << " core " << dest_core;
+               << " core " << dest_core
+               << " buf " << dest_buf;
 
       // for debugging
       b->set_next( reinterpret_cast<RDMABuffer*>( aggregated_size ) );
-      b->set_ack( reinterpret_cast<RDMABuffer*>( sequence_number ) );
+
+      b->set_source( Grappa::mycore() );
+      b->set_ack( b );
       
-      // we have a buffer. send.
-      global_communicator.send( dest_core, copy_enqueue_buffer_handle_, b->get_base(), aggregated_size + b->get_base_size() );
-      rdma_message_bytes += aggregated_size;
-      DVLOG(4) << __func__ << "/" << sequence_number 
-               << ": Sent buffer of size " << aggregated_size 
-               << " through medium to " << dest_core
-               << " with " << messages_to_send 
-               << " still to send, then check core " << current_dest_core << " of " << max_core;
+      if( aggregated_size > 0 ) {
+        // we have a buffer. send.
+        global_communicator.send( dest_core, enqueue_buffer_handle_, b->get_base(), aggregated_size + b->get_base_size(), dest_buf );
+        rdma_message_bytes += aggregated_size;
+        DVLOG(4) << __func__ << "/" << sequence_number 
+                 << ": Sent buffer of size " << aggregated_size 
+                 << " through RDMA to " << dest_core
+                 << " with " << messages_to_send 
+                 << " still to send, then check core " << current_dest_core << " of " << max_core;
+      } else {
+        DVLOG(4) << __func__ << "/" << sequence_number 
+                 << ": No message to send; returning dest buffer " << dest_buf << " to pool";
+        // return buffer to pool
+        localeCoreData( dest_core )->remote_buffers_.push( dest_buf );
+      }
 
       sequence_number += Grappa::cores();
 
-      // return buffer
+      // return buffer (only safe for non-async rdma sends)
       free_buffer_list_.push(b);
     }
 

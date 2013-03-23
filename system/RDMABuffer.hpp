@@ -27,20 +27,28 @@ class RDMABuffer {
 private:
   union {
     struct {
-      Core core_ : 16;
+      Core source_ : 16;
       intptr_t next_ : 48;
     };
     intptr_t raw_;
   };
-  RDMABuffer * ack_;
 
-  char data_[ BUFFER_SIZE - sizeof( raw_ ) - sizeof( ack_ ) ];
+  union {
+    struct {
+      Core dest_ : 16;
+      intptr_t ack_ : 48;
+    };
+    intptr_t raw2_;
+  };
+
+  char data_[ BUFFER_SIZE - sizeof( raw_ ) - sizeof( raw2_ ) ];
   
 public:
   RDMABuffer()
-    : core_( -1 )
+    : dest_( -1 )
     , next_( 0 )
-    , ack_( NULL )
+    , source_( -1 )
+    , ack_( 0 )
     , data_()
   { 
     static_assert( sizeof(*this) == BUFFER_SIZE, "RDMABuffer is not the size I expected for some reason." );
@@ -62,12 +70,16 @@ public:
   // assumes layout makes sense
   inline size_t get_max_size() { return BUFFER_SIZE - get_base_size(); }
 
-  inline RDMABuffer * get_ack() { return ack_; }
-  inline RDMABuffer * set_ack( RDMABuffer * ack ) { ack_ = ack; }
+  inline RDMABuffer * get_ack() { return reinterpret_cast< RDMABuffer * >( ack_ ); }
+  inline RDMABuffer * set_ack( RDMABuffer * ack ) { ack_ = reinterpret_cast< intptr_t >( ack ); }
   
-  inline Core get_core() { return core_; }
+  inline Core get_source() { return source_; }
   //inline void set_core( Core c ) { LOG(INFO) << this << " changed from " << core_ << " to " << c; core_ = c; }
-  inline void set_core( Core c ) { core_ = c; }
+  inline void set_source( Core c ) { source_ = c; }
+  
+  inline Core get_dest() { return dest_; }
+  //inline void set_core( Core c ) { LOG(INFO) << this << " changed from " << core_ << " to " << c; core_ = c; }
+  inline void set_dest( Core c ) { dest_ = c; }
   
   inline RDMABuffer * get_next() { return reinterpret_cast< RDMABuffer * >( next_ ); }
   inline void set_next( RDMABuffer * next ) { next_ = reinterpret_cast< intptr_t >( next ); }
