@@ -120,9 +120,23 @@ static void poller( Thread * me, void * args ) {
   VLOG(5) << "polling Thread exiting";
 }
 
+/// handler to redirect SIGABRT override to activate a GASNet backtrace
+static void gasnet_pause_sighandler( int signum ) {
+  raise( SIGUSR1 );
+}
+
+// from google
+namespace google {
+typedef void (*override_handler_t)(int);
+extern void OverrideDefaultSignalHandler( override_handler_t handler );
+extern void DumpStackTrace();
+}
+
 /// handler for dumping stats on a signal
 static int stats_dump_signal = SIGUSR2;
 static void stats_dump_sighandler( int signum ) {
+  google::DumpStackTrace();
+
   // TODO: make this set a flag and have scheduler check and dump.
   std::ostringstream legacy_stats;
   legacy_dump_stats(legacy_stats);
@@ -135,15 +149,10 @@ static void stats_dump_sighandler( int signum ) {
   LOG(INFO) << global_task_manager;
 }
 
-/// handler to redirect SIGABRT override to activate a GASNet backtrace
-static void sigabrt_sighandler( int signum ) {
-  raise( SIGUSR1 );
-}
-
 // function to call when google logging library detect a failure
 static void failure_function() {
   google::FlushLogFiles(google::GLOG_INFO);
-  gasnett_print_backtrace_ifenabled(STDERR_FILENO);
+  google::DumpStackTrace();
   gasnett_freezeForDebuggerErr();
   gasnet_exit(1);
 }
@@ -171,6 +180,7 @@ void Grappa_init( int * argc_p, char ** argv_p[], size_t global_memory_size_byte
   // activate logging
   google::InitGoogleLogging( *argv_p[0] );
   google::InstallFailureFunction( &failure_function );
+  google::OverrideDefaultSignalHandler( &gasnet_pause_sighandler );
 
   DVLOG(1) << "Initializing Grappa library....";
 #ifdef HEAPCHECK_ENABLE
@@ -199,7 +209,7 @@ void Grappa_init( int * argc_p, char ** argv_p[], size_t global_memory_size_byte
   struct sigaction sigabrt_sa;
   sigemptyset( &sigabrt_sa.sa_mask );
   sigabrt_sa.sa_flags = 0;
-  sigabrt_sa.sa_handler = &sigabrt_sighandler;
+  sigabrt_sa.sa_handler = &gasnet_pause_sighandler;
   CHECK_EQ( 0, sigaction( SIGABRT, &sigabrt_sa, 0 ) ) << "SIGABRT signal handler installation failed.";
 
   // Asynchronous IO
