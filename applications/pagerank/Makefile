@@ -17,6 +17,8 @@ APP_BFS=$(APP_GRAPH500)/grappa
 # Grappa Graph500 graph tuples generation
 GEN=$(APP_GRAPH500)/generator
 
+#ENV_VARIABLES+= GLOG_vmodule=pagerank*=5,spmv*=5,GlobalCompletionEvent*=5
+
 # for building Grappa applications
 include $(GRAPPA_SYS)/Makefile
 
@@ -24,6 +26,9 @@ TARGET:= spmv_mult.exe
 
 CFLAGS += -I$(GRAPPA_SYS) -I$(APP_GRAPH500) -I$(GEN) -I$(APP_BFS)
 CFLAGS += -g -Drestrict=__restrict__ -ffast-math -DGRAPH_GENERATOR_GRAPPA #-Wall
+
+# for make_graph.h
+CFLAGS += -D_GRAPPA
 
 SOURCES = spmv_mult.o $(APP_BFS)/oned_csr.o $(APP_GRAPH500)/prng.o
 

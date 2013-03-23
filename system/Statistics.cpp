@@ -7,6 +7,8 @@
 #include <fstream>
 #include <sstream>
 #include <cstdint>
+#include "Collective.hpp"
+
 
 DECLARE_string(stats_blob_filename);
 
@@ -19,7 +21,8 @@ namespace Grappa {
   impl::StatisticBase::StatisticBase(const char * name, bool reg_new): name(name) {
     if (reg_new) {
       Grappa::impl::registered_stats().push_back(this);
-      VLOG(1) << "registered <" << this->name << ">";
+      // commented out because this gets called before GLOG is intialized
+      //VLOG(1) << "registered <" << this->name << ">";
     }
   }
   
@@ -38,7 +41,7 @@ namespace Grappa {
           // skip printing "," before first one
           if (&s-&stats[0] != 0) { o << ",\n"; }
           
-          o << "  " << *s;
+          s->json(o << "  ");
         }
         out << o.str();
       }
@@ -85,7 +88,20 @@ namespace Grappa {
       print( o, Grappa::impl::registered_stats(), legacy_stats.str());
     }
 
-    void sample_all() {
+    void reset() {
+      for (auto* stat : Grappa::impl::registered_stats()) {
+        stat->reset();
+      }
+      Grappa_reset_stats();
+    }
+    
+    void reset_all_cores() {
+      call_on_all_cores([]{
+        reset();
+      });
+    }
+    
+    void sample() {
       for (auto* stat : Grappa::impl::registered_stats()) {
         stat->sample();
       }

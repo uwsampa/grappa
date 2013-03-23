@@ -7,6 +7,10 @@
 
 #include <boost/test/unit_test.hpp>
 #include "Delegate.hpp"
+#include "AsyncDelegate.hpp"
+#include "GlobalCompletionEvent.hpp"
+#include "MessagePool.hpp"
+#include "Collective.hpp"
 
 BOOST_AUTO_TEST_SUITE( New_delegate_tests );
 
@@ -14,6 +18,7 @@ using namespace Grappa;
 using Grappa::wait;
 
 void check_short_circuiting() {
+  BOOST_MESSAGE("check_short_circuiting");
   // read
   int a = 0;
   auto ga = make_global(&a);
@@ -21,7 +26,7 @@ void check_short_circuiting() {
   
   // write
   BOOST_CHECK_EQUAL(a, 0); // value unchanged
-  BOOST_CHECK_EQUAL(delegate::write(ga, 7), true);
+  delegate::write(ga, 7);
   BOOST_CHECK_EQUAL(a, 7);
   
   // compare and swap
@@ -42,6 +47,7 @@ void check_short_circuiting() {
 }
 
 void check_remote() {
+  BOOST_MESSAGE("check_remote");
   // read
   int a = 0;
   auto ga = make_global(&a);
@@ -61,7 +67,7 @@ void check_remote() {
   // write
   send_message(1, [ga, gw] {
     privateTask([=]{
-      BOOST_CHECK_EQUAL(delegate::write(ga, 7), true);
+      delegate::write(ga, 7);
       signal(gw);
     });
   });
@@ -109,6 +115,85 @@ void check_remote() {
   BOOST_CHECK_EQUAL(c, 0);
 }
 
+GlobalCompletionEvent mygce;
+int global_x;
+int global_y;
+
+void check_async_delegates() {
+  BOOST_MESSAGE("check_async_delegates");
+  BOOST_MESSAGE("  feed forward...");
+  const int N = 1 << 8;
+  
+  MessagePool pool(3*N*(1<<8));
+
+  delegate::write(make_global(&global_x,1), 0);
+  
+  for (int i=0; i<N; i++) {
+    delegate::call_async<&mygce>(pool, 1, []{ global_x++; });
+  }
+  mygce.wait();
+  
+  BOOST_CHECK_EQUAL(delegate::read(make_global(&global_x,1)), N);
+  
+  auto xa = make_global(&global_x,1);
+  delegate::write_async<&mygce>(pool, xa, 0);
+  mygce.wait();
+  
+  for (int i=0; i<N; i++) {
+    delegate::increment_async<&mygce>(pool, xa, 1);
+  }
+  mygce.wait();
+  
+  BOOST_CHECK_EQUAL(delegate::read(xa), N);
+  
+  delegate::call(1, []{
+    global_y = 0;
+  });
+  
+  BOOST_MESSAGE("  promises...");
+  delegate::Promise<int> a[N];
+  for (int i=0; i<N; i++) {
+    a[i].call_async(pool, 1, [i]()->int {
+      global_y++;
+      return global_x+i;
+    });
+  }
+  for (int i=0; i<N; i++) {
+    BOOST_CHECK_EQUAL(a[i].get(), N+i);
+  }
+  BOOST_CHECK_EQUAL(delegate::read(make_global(&global_y,1)), N);
+}
+
+uint64_t fc_targ = 0;
+uint64_t non_fc_targ = 0;
+void check_flat_combining() {
+  BOOST_MESSAGE("check_flat_combining");
+  delegate::FlatCombiner<uint64_t,uint64_t> fc( make_global(&fc_targ, 1), 4, 0 );
+
+  int N = 9;
+  CompletionEvent done( N );
+  
+  uint64_t actual_total = 0;
+  for (int i=0; i<N; i++) {
+    privateTask([&fc,&actual_total,&done] {
+      fc.promise();
+      // just find a reason to suspend
+      // to make fetch_and_add likely to aggregate
+      delegate::fetch_and_add( make_global(&non_fc_targ, 1), 1 );
+
+      actual_total += fc.fetch_and_add( 1 );
+      done.complete();
+    });
+  }
+  done.wait();
+
+  BOOST_CHECK( actual_total == (N-1)*N/2 );
+  delegate::call( 1, [N] {
+    BOOST_CHECK( fc_targ == N );
+    BOOST_CHECK( non_fc_targ == N );
+  });
+}
+
 
 void user_main(void * args) {
   CHECK(Grappa_nodes() >= 2); // at least 2 nodes for these tests...
@@ -116,6 +201,10 @@ void user_main(void * args) {
   check_short_circuiting();
   
   check_remote();
+  
+  check_async_delegates();
+
+  check_flat_combining();
  
   int64_t seed = 111;
   GlobalAddress<int64_t> seed_addr = make_global(&seed);
@@ -136,7 +225,7 @@ void user_main(void * args) {
   Grappa::wait(&waiter);
   BOOST_CHECK_EQUAL(seed, 222);
   
-  Grappa_dump_stats_all_nodes();
+  Grappa::Statistics::merge_and_print();
 }
 
 BOOST_AUTO_TEST_CASE( test1 ) {

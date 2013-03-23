@@ -32,11 +32,11 @@ namespace Grappa {
   inline void lock( Mutex * t ) {
     while( true == t->lock_ ) { // while lock is held,
       // add us to queue
-      Worker * current = global_scheduler.get_current_thread();
+      Worker * current = impl::global_scheduler.get_current_thread();
       current->next = Grappa::impl::get_waiters( t );
       Grappa::impl::set_waiters( t, current );
       /// and sleep
-      global_scheduler.thread_suspend();
+      impl::global_scheduler.thread_suspend();
     }
     // lock is no longer held, so acquire
     t->lock_ = true;
@@ -66,7 +66,7 @@ namespace Grappa {
       Grappa::Worker * to_wake = Grappa::impl::get_waiters( t );
       Grappa::impl::set_waiters( t, to_wake->next );
       to_wake->next = NULL;
-      global_scheduler.thread_wake( to_wake );
+      Grappa::impl::global_scheduler.thread_wake( to_wake );
     }
   }
 

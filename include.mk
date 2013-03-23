@@ -29,8 +29,6 @@ CFLAGS+= -mno-red-zone
 # TODO: see if we can make this apply to just our files, not user files or libraries
 #CFLAGS+= -Wconversion
 
-# TODO: clean up LD_LIBRARY_PATH to make this work better
-CFLAGS+= -Wl,-rpath,$(LD_LIBRARY_PATH),--enable-new-dtags
 
 # tcmalloc is disabled because it seems to slow message throughput down by 10% or so.
 #### Enable tcmalloc by default, since we've already built its package for profiling
@@ -45,38 +43,58 @@ LD_LIBRARY_PATH:=$(LD_LIBRARY_PATH):$(BOOST)/stage/lib
 # CXX=g++
 # LD=mpiCC
 
+MPI=/sampa/share/openmpi-1.6.1-debug
+
 GCC472=/sampa/share/gcc-4.7.2/rtf
 CC=$(GCC472)/bin/gcc
 CXX=$(GCC472)/bin/g++
-LD=$(GCC472)/bin/g++ -I/usr/include/openmpi-x86_64 -pthread -m64 -L/usr/lib64/openmpi/lib -lmpi_cxx -lmpi -ldl
-GCC472_LD=$(GCC472)/bin/g++ -I/usr/include/openmpi-x86_64 -pthread -m64 -L/usr/lib64/openmpi/lib -lmpi_cxx -lmpi -ldl
-LD_LIBRARY_PATH:=$(GCC472)/lib64:$(LD_LIBRARY_PATH)
+LD=$(GCC472)/bin/g++ -I$(MPI)/include -pthread -m64 -L$(MPI)/lib -lmpi_cxx -lmpi -ldl
+GCC472_LD=$(GCC472)/bin/g++ -I$(MPI)/include -pthread -m64 -L$(MPI)/lib -lmpi_cxx -lmpi -ldl
+
+LD_LIBRARY_PATH:=$(MPI)/lib:$(GCC472)/lib64:$(LD_LIBRARY_PATH)
 
 NONE_CC=$(CC)
 NONE_CXX=$(CXX)
 NONE_LD=$(LD)
 
 
-# define to build on PAL cluster
-# should load modules:
+# to build on PAL cluster
+# should load modules as follows:
 #   module unload pathscale openmpi
-#   module load git gcc/4.6.2 openmpi
+#   module load git gcc/4.7.2 openmpi/1.6.3
+
+# to run with Mvapich on Pal (required for Igor):
+# module load gcc/4.7.2 mvapich2/1.9b
 
 MACHINENAME:=$(shell hostname)
 ifeq ($(MACHINENAME), pal.local)
 PAL=true
+
+ifeq ($(shell module list 2>&1 | grep mvapich2 | wc -l), 1)
+PAL_MVAPICH2=true
+endif
 endif
 
 ifdef PAL
 NELSON=/pic/people/nels707
 
+# should have modules: gcc/4.7.2 mvapich2/1.9b
+
+CC=gcc
+CXX=g++
+LD=mpicxx
+
 #GASNET=$(NELSON)/gasnet
 HUGETLBFS=/usr
-BOOST=$(NELSON)/boost
+BOOST=$(NELSON)/boost153-install
+BOOST_INCLUDE=$(BOOST)/include
+BOOST_LIB=$(BOOST)/lib
 GPERFTOOLS=$(NELSON)/gperftools
 VAMPIRTRACE=$(NELSON)/vampirtrace
 
 MPITYPE=SRUN
+
+CFLAGS+=-DUSE_HUGEPAGES_DEFAULT=false
 
 SRUN_PARTITION=pal
 SRUN_BUILD_PARTITION=pal
@@ -189,9 +207,11 @@ SHMMAX?=12884901888
 
 # include this first to override system default if necessary
 BOOST?=/sampa/share/gcc-4.7.2/src/boost_1_51_0
-CFLAGS+= -I$(BOOST)
-LDFLAGS+= -L$(BOOST)/stage/lib
-LD_LIBRARY_PATH:=$(LD_LIBRARY_PATH):$(BOOST)/stage/lib
+BOOST_INCLUDE?=$(BOOST)
+BOOST_LIB?=$(BOOST)/stage/lib
+CFLAGS+= -I$(BOOST_INCLUDE)
+LDFLAGS+= -L$(BOOST_LIB)
+LD_LIBRARY_PATH:=$(LD_LIBRARY_PATH):$(BOOST_LIB)
 
 ifdef GASNET_TRACING
 GASNET:=/sampa/share/gasnet-1.18.2-tracing
@@ -256,6 +276,9 @@ LD_LIBRARY_PATH:=$(VAMPIRTRACE)/lib/valgrind:$(LD_LIBRARY_PATH)
 
 MPITYPE?=SRUN
 
+# TODO: clean up LD_LIBRARY_PATH to make this work better
+CFLAGS+= -Wl,-rpath,$(LD_LIBRARY_PATH),--enable-new-dtags
+
 CFLAGS+= -DSHMMAX=$(SHMMAX)
 
 
@@ -300,6 +323,12 @@ SBATCH_MPIRUN_EXPORT_ENV_VARIABLES=$(patsubst %,-x %,$(patsubst DELETEME:%,,$(su
 .sbatch.%:
 	@echo '#!/bin/bash' > $@
 	@for i in $(ENV_VARIABLES); do echo "export $$i" >> $@; done
+ifdef PAL_MVAPICH2
+	@echo '# Run!' >> $@
+	@echo 'srun --tasks-per-node 1 bash -c "ipcs -m | grep $(USER) | cut -d\  -f1 | xargs -n1 -r ipcrm -M"' >> $@
+	@echo 'srun $(SBATCH_MPIRUN_EXPORT_ENV_VARIABLES) --cpu_bind=rank --label -- $(MY_TAU_RUN) $$*' >> $@
+	@echo 'srun --tasks-per-node 1 bash -c "ipcs -m | grep $(USER) | cut -d\  -f1 | xargs -n1 -r ipcrm -M"' >> $@
+else
 ifdef PAL	
 	@echo '# Make scratch directory'  >> $@
 	@echo 'mkdir -p $(SBATCH_SCRATCH_DIR)' >> $@
@@ -328,9 +357,10 @@ ifdef PAL
 	@echo '$(SBATCH_SCRATCH_DIR)/mpirun $(SBATCH_MPIRUN_EXPORT_ENV_VARIABLES) -bind-to-core -tag-output -- $(MY_TAU_RUN) $$CMD' >> $@
 else
 	@echo '# Run!' >> $@
-	@echo 'mpirun -npernode 1 bash -c "ipcs -m | grep $(USER) | cut -d\  -f2 | xargs -n1 -r ipcrm -m"' >> $@
+	@echo 'mpirun -npernode 1 bash -c "ipcs -m | grep $(USER) | cut -d\  -f1 | xargs -n1 -r ipcrm -M"' >> $@
 	@echo 'mpirun $(SBATCH_MPIRUN_EXPORT_ENV_VARIABLES) -bind-to-core -tag-output -- $(MY_TAU_RUN) $$*' >> $@
 	@echo 'mpirun -npernode 1 bash -c "ipcs -m | grep $(USER) | cut -d\  -f2 | xargs -n1 -r ipcrm -m"' >> $@
+endif
 endif
 	@echo '# Clean up any leftover shared memory regions' >> $@
 	@echo 'for i in `ipcs -m | grep $(USER) | cut -d" " -f2`; do ipcrm -m $$i; done' >> $@

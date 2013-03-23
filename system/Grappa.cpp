@@ -23,9 +23,10 @@
 #include "tasks/StealQueue.hpp"
 #include "tasks/GlobalQueue.hpp"
 
-//#include "FileIO.hpp"
+#include "FileIO.hpp"
 
 #include "RDMAAggregator.hpp"
+#include "Barrier.hpp"
 #include "LocaleSharedMemory.hpp"
 
 #include "Statistics.hpp"
@@ -48,17 +49,20 @@ DEFINE_string( stats_blob_filename, "stats.json", "Stats blob filename" );
 DEFINE_uint64( io_blocks_per_node, 4, "Maximum number of asynchronous IO operations to issue concurrently per node.");
 DEFINE_uint64( io_blocksize_mb, 4, "Size of each asynchronous IO operation's buffer." );
 
+using namespace Grappa::impl;
+using namespace Grappa::Statistics;
+
 static Thread * barrier_thread = NULL;
 
 Thread * master_thread;
 static Thread * user_main_thr;
 
-// IODescriptor * aio_completed_stack;
+IODescriptor * aio_completed_stack;
 
 /// Flag to tell this node it's okay to exit.
 bool Grappa_done_flag;
 
-double tick_rate = 0.0;
+double Grappa::tick_rate = 0.0;
 static int jobid = 0;
 static const char * nodelist_str = NULL;
 
@@ -78,8 +82,8 @@ void legacy_profiling_sample() {
   cache_stats.profiling_sample();
   incoherent_acquirer_stats.profiling_sample();
   incoherent_releaser_stats.profiling_sample();
-  steal_queue_stats.profiling_sample();
-  global_queue_stats.profiling_sample();
+  Grappa::Statistics::steal_queue_stats.profiling_sample();
+  Grappa::Statistics::global_queue_stats.profiling_sample();
 
   // print user-registered stats
   Grappa_profiling_sample_user();
@@ -96,55 +100,59 @@ static void poller( Thread * me, void * args ) {
     Grappa_poll();
     
     // poll global barrier
-    if (barrier_thread) {
-      if (global_communicator.barrier_try()) {
-        Grappa_wake(barrier_thread);
-        barrier_thread = NULL;
+    Grappa::barrier_poll();
+
+    // check async. io completions
+    if (aio_completed_stack) {
+      // atomically grab the stack, replacing it with an empty stack again
+      IODescriptor * desc = __sync_lock_test_and_set(&aio_completed_stack, NULL);
+
+      while (desc != NULL) {
+        desc->handle_completion();
+        IODescriptor * temp = desc->nextCompleted;
+        desc->nextCompleted = NULL;
+        desc = temp;
       }
     }
-
-    // // check async. io completions
-    // if (aio_completed_stack) {
-    //   // atomically grab the stack, replacing it with an empty stack again
-    //   IODescriptor * desc = __sync_lock_test_and_set(&aio_completed_stack, NULL);
-
-    //   while (desc != NULL) {
-    //     desc->handle_completion();
-    //     IODescriptor * temp = desc->nextCompleted;
-    //     desc->nextCompleted = NULL;
-    //     desc = temp;
-    //   }
-    // }
 
     Grappa_yield_periodic();
   }
   VLOG(5) << "polling Thread exiting";
 }
 
+/// handler to redirect SIGABRT override to activate a GASNet backtrace
+static void gasnet_pause_sighandler( int signum ) {
+  raise( SIGUSR1 );
+}
+
+// from google
+namespace google {
+typedef void (*override_handler_t)(int);
+extern void OverrideDefaultSignalHandler( override_handler_t handler );
+extern void DumpStackTrace();
+}
+
 /// handler for dumping stats on a signal
 static int stats_dump_signal = SIGUSR2;
 static void stats_dump_sighandler( int signum ) {
+  google::DumpStackTrace();
+
   // TODO: make this set a flag and have scheduler check and dump.
   std::ostringstream legacy_stats;
   legacy_dump_stats(legacy_stats);
-  Grappa::Statistics::print( LOG(INFO), Grappa::impl::registered_stats(), legacy_stats.str() );
+  Grappa::Statistics::print( LOG(INFO), registered_stats(), legacy_stats.str() );
 
-  Grappa::impl::global_rdma_aggregator.dump_counts();
+  global_rdma_aggregator.dump_counts();
 
   // instantaneous state
   LOG(INFO) << global_scheduler;
   LOG(INFO) << global_task_manager;
 }
 
-/// handler to redirect SIGABRT override to activate a GASNet backtrace
-static void sigabrt_sighandler( int signum ) {
-  raise( SIGUSR1 );
-}
-
 // function to call when google logging library detect a failure
 static void failure_function() {
   google::FlushLogFiles(google::GLOG_INFO);
-  gasnett_print_backtrace_ifenabled(STDERR_FILENO);
+  google::DumpStackTrace();
   gasnett_freezeForDebuggerErr();
   gasnet_exit(1);
 }
@@ -172,11 +180,18 @@ void Grappa_init( int * argc_p, char ** argv_p[], size_t global_memory_size_byte
   // activate logging
   google::InitGoogleLogging( *argv_p[0] );
   google::InstallFailureFunction( &failure_function );
+  google::OverrideDefaultSignalHandler( &gasnet_pause_sighandler );
 
   DVLOG(1) << "Initializing Grappa library....";
 #ifdef HEAPCHECK_ENABLE
+  VLOG(1) << "heap check enabled";
   Grappa_heapchecker = new HeapLeakChecker("Grappa");
 #endif
+  
+  char * mem_reg_disabled = getenv("MV2_USE_LAZY_MEM_UNREGISTER");
+  if (mem_reg_disabled && strncmp(mem_reg_disabled,"0",1) == 0) {
+    VLOG(2) << "memory registration disabled";
+  }
 
   // how fast do we tick?
   Grappa_tick();
@@ -194,21 +209,21 @@ void Grappa_init( int * argc_p, char ** argv_p[], size_t global_memory_size_byte
   struct sigaction sigabrt_sa;
   sigemptyset( &sigabrt_sa.sa_mask );
   sigabrt_sa.sa_flags = 0;
-  sigabrt_sa.sa_handler = &sigabrt_sighandler;
+  sigabrt_sa.sa_handler = &gasnet_pause_sighandler;
   CHECK_EQ( 0, sigaction( SIGABRT, &sigabrt_sa, 0 ) ) << "SIGABRT signal handler installation failed.";
 
-  // // Asynchronous IO
-  // // initialize completed stack
-  // aio_completed_stack = NULL;
+  // Asynchronous IO
+  // initialize completed stack
+  aio_completed_stack = NULL;
 
-  // // handler
-  // struct sigaction aio_sa;
-  // aio_sa.sa_flags = SA_RESTART | SA_SIGINFO;
-  // aio_sa.sa_sigaction = Grappa_handle_aio;
-  // if (sigaction(AIO_SIGNAL, &aio_sa, NULL) == -1) {
-  //   fprintf(stderr, "Error setting up async io signal handler.\n");
-  //   exit(1);
-  // }
+  // handler
+  struct sigaction aio_sa;
+  aio_sa.sa_flags = SA_RESTART | SA_SIGINFO;
+  aio_sa.sa_sigaction = Grappa_handle_aio;
+  if (sigaction(AIO_SIGNAL, &aio_sa, NULL) == -1) {
+    fprintf(stderr, "Error setting up async io signal handler.\n");
+    exit(1);
+  }
 
   // initialize Tau profiling groups
   generate_profile_groups();
@@ -232,7 +247,7 @@ void Grappa_init( int * argc_p, char ** argv_p[], size_t global_memory_size_byte
   }
 
   // initialize node shared memory
-  Grappa::impl::locale_shared_memory.init();
+  locale_shared_memory.init();
 
   // by default, will allocate as much shared memory as it is
   // possible to evenly split among the processors on a node
@@ -294,13 +309,13 @@ void Grappa_init( int * argc_p, char ** argv_p[], size_t global_memory_size_byte
   global_scheduler.init( master_thread, &global_task_manager );
 
   // start RDMA Aggregator *after* threading layer
-  Grappa::impl::global_rdma_aggregator.init();
+  global_rdma_aggregator.init();
 
   // collect some stats on this job
   Grappa_tick();
   Grappa_Timestamp end_ts = Grappa_get_timestamp();
   double end = Grappa_walltime();
-  tick_rate = (double) (end_ts - start_ts) / (end-start);
+  Grappa::tick_rate = (double) (end_ts - start_ts) / (end-start);
 
   char * jobid_str = getenv("SLURM_JOB_ID");
   jobid = jobid_str ? atoi(jobid_str) : 0;
@@ -315,22 +330,20 @@ void Grappa_activate()
 {
   DVLOG(1) << "Activating Grappa library....";
   global_communicator.activate();
-  Grappa::impl::locale_shared_memory.activate();
+  locale_shared_memory.activate();
   Grappa_barrier();
 
   // fire up polling thread
   global_scheduler.periodic( thread_spawn( master_thread, &global_scheduler, &poller, NULL ) );
 
 
-  Grappa::impl::global_rdma_aggregator.activate();
+  global_rdma_aggregator.activate();
   Grappa_barrier();
 }
 
 /// Split-phase barrier. (ALLNODES)
 void Grappa_barrier_suspending() {
-  global_communicator.barrier_notify();
-  barrier_thread = CURRENT_THREAD;
-  Grappa_suspend();
+  Grappa::barrier();
 }
 
 
@@ -438,8 +451,8 @@ void Grappa_reset_stats() {
   cache_stats.reset();
   incoherent_acquirer_stats.reset();
   incoherent_releaser_stats.reset();
-  steal_queue_stats.reset();
-  global_queue_stats.reset();
+  Grappa::Statistics::steal_queue_stats.reset();
+  Grappa::Statistics::global_queue_stats.reset();
  
   Grappa_reset_user_stats(); 
 }
@@ -458,7 +471,7 @@ void Grappa_reset_stats_all_nodes() {
 /// Dump statistics
 void legacy_dump_stats( std::ostream& oo ) {
   std::ostringstream o;
-  o << "   \"GrappaStats\": { \"tick_rate\": " << tick_rate
+  o << "   \"GrappaStats\": { \"tick_rate\": " << Grappa::tick_rate
     << ", \"job_id\": " << jobid
     << ", \"nodelist\": \"" << nodelist_str << "\""
     << " },\n";
@@ -542,7 +555,7 @@ void legacy_reduce_stats_and_dump( std::ostream& oo ) {
   CHECK( Grappa_mynode() == 0 );
  
   std::ostringstream o;
-  o << "   \"GrappaStats\": { \"tick_rate\": " << tick_rate
+  o << "   \"GrappaStats\": { \"tick_rate\": " << Grappa::tick_rate
     << ", \"job_id\": " << jobid
     << ", \"nodelist\": \"" << nodelist_str << "\""
     << " },\n";
@@ -550,7 +563,7 @@ void legacy_reduce_stats_and_dump( std::ostream& oo ) {
   STAT_FORK_AND_DUMP(commstat_func, CommunicatorStatistics, o)
   STAT_FORK_AND_DUMP(taskmanagerstat_func, TaskManager::TaskStatistics, o)
   STAT_FORK_AND_DUMP(schedulerstat_func, TaskingScheduler::TaskingSchedulerStatistics, o)
-  STAT_FORK_AND_DUMP(stealstat_func, StealStatistics, o)
+  STAT_FORK_AND_DUMP(stealstat_func, Grappa::Statistics::StealStatistics, o)
   STAT_FORK_AND_DUMP(delegatestat_func, DelegateStatistics, o) 
   STAT_FORK_AND_DUMP(cachestat_func, CacheStatistics, o)
   STAT_FORK_AND_DUMP(incoherentacq_func, IAStatistics, o)
@@ -600,7 +613,7 @@ void Grappa_finish( int retval )
 
   StateTimer::finish();
 
-  Grappa::impl::locale_shared_memory.finish();
+  locale_shared_memory.finish();
   global_task_manager.finish();
   global_aggregator.finish();
   global_communicator.finish( retval );

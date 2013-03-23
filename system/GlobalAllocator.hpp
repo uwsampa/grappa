@@ -116,7 +116,6 @@ public:
 std::ostream& operator<<( std::ostream& o, const GlobalAllocator& a );
 
 
-extern GlobalAllocator * global_allocator;
 
 GlobalAddress< void > Grappa_malloc( size_t size_bytes );
 

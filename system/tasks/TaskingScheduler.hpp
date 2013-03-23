@@ -13,6 +13,7 @@
 #include <Timestamp.hpp>
 #include <glog/logging.h>
 #include <sstream>
+#include "Statistics.hpp"
 
 #include "Timestamp.hpp"
 #include "PerformanceTools.hpp"
@@ -23,20 +24,14 @@
 
 #include "StateTimer.hpp"
 
-// forward-declare aggregator flush
+// forward declarations
 namespace Grappa {
-  namespace impl {
-    void idle_flush_rdma_aggregator();
-  }
+namespace impl { void idle_flush_rdma_aggregator(); }
+namespace Statistics { void sample_all(); }
 }
 
 // forward-declare old aggregator flush
 bool idle_flush_aggregator();
-
-
-//#include "Statistics.hpp"
-namespace Grappa { namespace Statistics { void sample_all(); } }
-
 
 extern bool take_profiling_sample;
 void Grappa_dump_stats_blob();
@@ -45,6 +40,13 @@ DECLARE_int64( periodic_poll_ticks );
 DECLARE_bool(poll_on_idle);
 DECLARE_int64( stats_blob_ticks );
 
+
+//#include "Statistics.hpp"
+void Grappa_dump_stats_blob();
+
+namespace Grappa {
+
+  namespace impl {
 
 class TaskManager;
 struct task_worker_args;
@@ -136,7 +138,7 @@ class TaskingScheduler : public Scheduler {
         // maybe sample
         if( take_profiling_sample ) {
           take_profiling_sample = false;
-          Grappa::Statistics::sample_all();
+          Grappa::Statistics::sample();
         }
 
         if( ( global_communicator.mynode() == 0 ) &&
@@ -613,5 +615,13 @@ inline void TaskingScheduler::thread_on_exit( ) {
 
 /// instance
 extern TaskingScheduler global_scheduler;
+
+} // namespace impl
+
+inline Worker& current_worker() {
+  return *impl::global_scheduler.get_current_thread();
+}
+
+} // namespace Grappa
 
 #endif // TASKING_SCHEDULER_HPP

@@ -370,6 +370,7 @@ public:
   }
 
   /// reassign cache to point at a different block
+  /// May only take a valid address.
   void reset( GlobalAddress< T > address, size_t count ) {
     block_until_acquired();
     block_until_released();

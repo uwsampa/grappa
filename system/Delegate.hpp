@@ -14,20 +14,58 @@
 #include "FullEmpty.hpp"
 #include "Message.hpp"
 #include "ConditionVariable.hpp"
-
+#include "LegacyDelegate.hpp"
 #include "MessagePool.hpp"
-#include "AsyncDelegate.hpp"
+#include <type_traits>
+
+GRAPPA_DECLARE_STAT(SummarizingStatistic<uint64_t>, flat_combiner_fetch_and_add_amount);
+GRAPPA_DECLARE_STAT(SimpleStatistic<uint64_t>, delegate_ops_short_circuited);
 
 namespace Grappa {
   namespace delegate {
     /// @addtogroup Delegates
     /// @{
     
+    template <typename F>
+    inline auto call(Core dest, F func)
+        -> typename std::enable_if<std::is_void<decltype(func())>::value, void>::type {
+      delegate_stats.count_op();
+      Core origin = Grappa::mycore();
+      
+      if (dest == origin) {
+        // short-circuit if local
+        delegate_ops_short_circuited++;
+        return func();
+      } else {
+        int64_t network_time = 0;
+        int64_t start_time = Grappa_get_timestamp();
+        ConditionVariable cv;
+        send_message(dest, [&cv, origin, func, &network_time, start_time] {
+          delegate_stats.count_op_am();
+          
+          func();
+          
+          // TODO: replace with handler-safe send_message
+          send_heap_message(origin, [&cv, &network_time, start_time] {
+            network_time = Grappa_get_timestamp();
+            delegate_stats.record_network_latency(start_time);
+            signal(&cv);
+          });
+        }); // send message
+        
+        // ... and wait for the call to complete
+        wait(&cv);
+        delegate_stats.record_wakeup_latency(start_time, network_time);
+        return;
+      }
+    }
+    
     /// Implements essentially a blocking remote procedure call. Callable object (lambda,
     /// function pointer, or functor object) is called from the `dest` core and the return
     /// value is sent back to the calling task.
     template <typename F>
-    inline auto call(Core dest, F func) -> decltype(func()) {
+    inline auto call(Core dest, F func)
+      -> typename std::enable_if<!std::is_void<decltype(func())>::value, decltype(func())>::type {
       // Note: code below (calling call_async) could be used to avoid duplication of code,
       // but call_async adds some overhead (object creation overhead, especially for short
       // -circuit case and extra work in MessagePool)
@@ -39,7 +77,7 @@ namespace Grappa {
       
       delegate_stats.count_op();
       using R = decltype(func());
-      Node origin = Grappa_mynode();
+      Core origin = Grappa::mycore();
       
       if (dest == origin) {
         // short-circuit if local
@@ -82,13 +120,12 @@ namespace Grappa {
     /// Blocking remote write.
     /// @warning { Target object must lie on a single node (not span blocks in global address space). }
     template< typename T, typename U >
-    bool write(GlobalAddress<T> target, U value) {
+    void write(GlobalAddress<T> target, U value) {
       delegate_stats.count_word_write();
       // TODO: don't return any val, requires changes to `delegate::call()`.
-      return call(target.node(), [target, value]() -> bool {
+      return call(target.node(), [target, value] {
         delegate_stats.count_word_write_am();
         *target.pointer() = value;
-        return true;
       });
     }
     
@@ -106,6 +143,122 @@ namespace Grappa {
         return r;
       });
     }
+
+
+    /// Flat combines fetch_and_add to a single global address
+    /// @warning { Target object must lie on a single node (not span blocks in global address space). }
+    template < typename T, typename U >
+    class FlatCombiner {
+      // TODO: generalize to define other types of combiners
+      private:
+        // configuration
+        const GlobalAddress<T> target;
+        const U initVal;
+        const uint64_t flush_threshold;
+       
+        // state 
+        T result;
+        U increment;
+        uint64_t committed;
+        uint64_t participant_count;
+        uint64_t ready_waiters;
+        bool outstanding;
+        ConditionVariable untilNotOutstanding;
+        ConditionVariable untilReceived;
+
+        // wait until fetch add unit is in aggregate mode 
+        // TODO: add concurrency (multiple fetch add units)
+        void block_until_ready() {
+          while ( outstanding ) {
+            ready_waiters++;
+            Grappa::wait(&untilNotOutstanding);
+            ready_waiters--;
+          }
+        }
+
+        void set_ready() {
+          outstanding = false;
+          Grappa::broadcast(&untilNotOutstanding);
+        }
+         
+        void set_not_ready() {
+          outstanding = true;
+        }
+
+      public:
+        FlatCombiner( GlobalAddress<T> target, uint64_t flush_threshold, U initVal ) 
+         : target( target )
+         , initVal( initVal )
+         , flush_threshold( flush_threshold )
+         , result()
+         , increment( initVal )
+         , committed( 0 )
+         , participant_count( 0 )
+         , ready_waiters( 0 )
+         , outstanding( false )
+         , untilNotOutstanding()
+         , untilReceived()
+         {}
+
+        /// Promise that in the future
+        /// you will call `fetch_and_add`.
+        /// 
+        /// Must be called before a call to `fetch_and_add`
+        ///
+        /// After calling promise, this task must NOT have a dependence on any
+        /// `fetch_and_add` occurring before it calls `fetch_and_add` itself
+        /// or deadlock may occur.
+        ///
+        /// For good performance, should allow other
+        /// tasks to run before calling `fetch_and_add`
+        void promise() {
+          committed += 1;
+        }
+        // because tasks run serially, promise() replaces the flat combining tree
+
+        T fetch_and_add( U inc ) {
+
+          block_until_ready();
+
+          // fetch add unit is now aggregating so add my inc
+
+          participant_count++;
+          committed--;
+          increment += inc;
+        
+          // if I'm the last entered client and either the flush threshold
+          // is reached or there are no more committed participants then start the flush 
+          if ( ready_waiters == 0 && (participant_count >= flush_threshold || committed == 0 )) {
+            set_not_ready();
+            T * p = target.pointer();
+            uint64_t increment_total = increment;
+            flat_combiner_fetch_and_add_amount += increment_total;
+            result = call(target.node(), [p, increment_total]() -> U {
+              uint64_t r = *p;
+              *p += increment_total;
+              return r;
+            });
+            // tell the others that the result has arrived
+            Grappa::broadcast(&untilReceived);
+          } else {
+            // someone else will start the flush
+            Grappa::wait(&untilReceived);
+          }
+
+          uint64_t my_start = result;
+          result += inc;
+          participant_count--;
+          increment -= inc;   // for validation purposes (could just set to 0)
+          CHECK( increment >= 0 );
+          if ( participant_count == 0 ) {
+            CHECK( increment == 0 ) << "increment = " << increment << " even though all participants are done";
+            set_ready();
+          }
+
+          return my_start;
+        }
+    };
+
     
     /// If value at `target` equals `cmp_val`, set the value to `new_val` and return `true`,
     /// otherwise do nothing and return `false`.

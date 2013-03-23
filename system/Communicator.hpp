@@ -121,7 +121,7 @@ private:
   unsigned communicator_3840_to_4095_bytes_vt_ev;
 #endif
 
-  std::string hist_labels[16];
+  static std::string hist_labels[16];
 
   std::ostream& header( std::ostream& o ) {
     o << "CommunicatorStatistics, header, time, messages, bytes, messages_per_second, bytes_per_second";
@@ -191,22 +191,6 @@ public:
 #endif
   { 
     reset();
-    hist_labels[ 0] = "\"comm_0_to_255_bytes\"";
-    hist_labels[ 1] = "\"comm_256_to_511_bytes\"";
-    hist_labels[ 2] = "\"comm_512_to_767_bytes\"";
-    hist_labels[ 3] = "\"comm_768_to_1023_bytes\"";
-    hist_labels[ 4] = "\"comm_1024_to_1279_bytes\"";
-    hist_labels[ 5] = "\"comm_1280_to_1535_bytes\"";
-    hist_labels[ 6] = "\"comm_1536_to_1791_bytes\"";
-    hist_labels[ 7] = "\"comm_1792_to_2047_bytes\"";
-    hist_labels[ 8] = "\"comm_2048_to_2303_bytes\"";
-    hist_labels[ 9] = "\"comm_2304_to_2559_bytes\"";
-    hist_labels[10] = "\"comm_2560_to_2815_bytes\"";
-    hist_labels[11] = "\"comm_2816_to_3071_bytes\"";
-    hist_labels[12] = "\"comm_3072_to_3327_bytes\"";
-    hist_labels[13] = "\"comm_3328_to_3583_bytes\"";
-    hist_labels[14] = "\"comm_3584_to_3839_bytes\"";
-    hist_labels[15] = "\"comm_3840_to_4095_bytes\"";
   }
   
   void reset() {

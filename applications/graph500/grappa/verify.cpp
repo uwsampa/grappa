@@ -256,7 +256,7 @@ static void save_nedge(int64_t root, int64_t nedge_traversed, GlobalAddress<int6
 int64_t verify_bfs_tree(GlobalAddress<int64_t> bfs_tree, int64_t max_bfsvtx, int64_t root, tuple_graph * tg) {
   //TAU_PHASE("verify_bfs_tree", "int64_t (GlobalAddress<int64_t>,int64_t,int64_t,tuple_graph*)", TAU_USER);
   
-  assert(read(bfs_tree+root) == root);
+  CHECK_EQ(read(bfs_tree+root), root);
   
   int64_t nv = max_bfsvtx+1;
   

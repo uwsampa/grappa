@@ -1,6 +1,11 @@
 #include "StealQueue.hpp"
 #include "DictOut.hpp"
 
+
+namespace Grappa {
+
+  namespace Statistics {
+
 StealStatistics steal_queue_stats;
 
 StealStatistics::StealStatistics() {
@@ -163,3 +168,6 @@ void StealStatistics::profiling_sample() {
   VT_COUNT_UNSIGNED_VAL( globalq_data_pull_reply_num_elements_ev_vt, globalq_data_pull_reply_num_elements.getTotal() );
 #endif
 }
+
+} // namespace Statistics
+} // namespace Grappa

@@ -22,7 +22,7 @@ void user_main( void * args )
   data++;
   Grappa::unlock( &m );
 
-  Thread * t = global_scheduler.get_current_thread();
+  Thread * t = Grappa::impl::global_scheduler.get_current_thread();
 
   Grappa::privateTask( [&] { 
       Grappa::lock( &m ); 
@@ -33,7 +33,7 @@ void user_main( void * args )
       }
     } );
 
-  global_scheduler.thread_suspend();
+  Grappa::impl::global_scheduler.thread_suspend();
 
   Grappa::lock( &m );
   BOOST_CHECK_EQUAL( data, 2 );

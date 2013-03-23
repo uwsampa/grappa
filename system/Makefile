@@ -144,8 +144,12 @@ FileIO_tests.test: LIBRARIES+='-lboost_filesystem'
 Array_tests.o Array_tests.test: $(LIBRARY)
 
 New_delegate_tests.test: $(LIBRARY)
+PoolAllocator_tests.test: $(LIBRARY)
 Statistics_tests.test: $(LIBRARY)
 New_loop_tests.test: $(LIBRARY)
+CompletionEvent_tests.test: $(LIBRARY)
+Reducer_tests.test: $(LIBRARY)
+Scratch_tests.test: $(LIBRARY)
 
 #
 # environment variables for run
@@ -220,6 +224,10 @@ ENV_VARIABLES+= HEAP_CHECK_DUMP_DIRECTORY=.
 ENV_VARIABLES+= PPROF_PATH=../tools/built_deps/bin
 CFLAGS+= -DHEAPCHECK_ENABLE
 LIBRARIES+= -ltcmalloc
+else
+ifdef PAL
+	LIBRARIES+= -ltcmalloc_minimal
+endif
 endif
 
 ifdef VALGRIND
@@ -277,7 +285,47 @@ endif
 #
 # Build Grappa static library
 #
-LIBRARY_CONTENTS+= Grappa.o GlobalAllocator.o GlobalMemory.o GlobalMemoryChunk.o Communicator.o Aggregator.o Timestamp.o Allocator.o Cache.o Delegate.o Collective.o ForkJoin.o tasks/BasicScheduler.o tasks/TaskingScheduler.o tasks/Task.o tasks/Thread.o stack.o coro.o StateTimer.o PerformanceTools.o Future.o CurrentThread.o ProfilerGroups.o AsyncParallelFor.o GlobalTaskJoiner.o IncoherentAcquirer.o IncoherentReleaser.o Uid.o tasks/StealQueue.o tasks/GlobalQueue.o LegacySignaler.o Statistics.o SimpleStatistic.o SummarizingStatistic.o MessageBase.o RDMAAggregator.o ParallelLoop.o LocaleSharedMemory.o
+LIBRARY_CONTENTS+= Grappa.o \
+				   GlobalAllocator.o \
+				   GlobalMemory.o \
+				   GlobalMemoryChunk.o \
+				   Communicator.o \
+				   Aggregator.o \
+				   Timestamp.o \
+				   Allocator.o \
+				   Cache.o \
+				   Delegate.o \
+				   Collective.o \
+				   ForkJoin.o \
+				   tasks/BasicScheduler.o \
+				   tasks/TaskingScheduler.o \
+				   tasks/Task.o \
+				   tasks/Thread.o \
+				   stack.o \
+				   coro.o \
+				   StateTimer.o \
+				   PerformanceTools.o \
+				   Future.o \
+				   CurrentThread.o \
+				   ProfilerGroups.o \
+				   AsyncParallelFor.o \
+				   GlobalTaskJoiner.o \
+				   IncoherentAcquirer.o \
+				   IncoherentReleaser.o \
+				   Uid.o \
+				   tasks/StealQueue.o \
+				   tasks/GlobalQueue.o \
+				   LegacySignaler.o \
+				   Statistics.o \
+				   SimpleStatistic.o \
+				   SummarizingStatistic.o \
+				   MessageBase.o \
+				   LocaleSharedMemory.o \
+				   RDMAAggregator.o \
+				   ParallelLoop.o \
+				   Barrier.o \
+				   MessagePool.o \
+					 AsyncDelegate.o
 
 libGrappa.a: $(LIBRARY_CONTENTS)
 	$($(MPITYPE)_AR) rv $@ $^
@@ -367,7 +415,7 @@ CFLAGS+= -D_GNU_SOURCE
 # not sure if this is a good idea
 CFLAGS+= -Wno-inline
 #CFLAGS+= -Wall -Wextra
-CFLAGS+= -I. -I./tasks
+CFLAGS+= -I$(GRAPPA_HOME)/system -I$(GRAPPA_HOME)/system/tasks
 
 #
 # set debug flags

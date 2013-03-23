@@ -119,12 +119,28 @@ struct range_t { int64_t start, end; };
 
 inline range_t blockDist(int64_t start, int64_t end, int64_t rank, int64_t numBlocks) {
 	int64_t numElems = end-start;
-	int64_t each   = numElems / numBlocks,
-  remain = numElems % numBlocks;
-	int64_t mynum = (rank < remain) ? each+1 : each;
-	int64_t mystart = start + ((rank < remain) ? (each+1)*rank : (each+1)*remain + (rank-remain)*each);
+	int64_t each     = numElems / numBlocks;
+  int64_t remain   = numElems % numBlocks;
+	int64_t mynum    = (rank < remain) ? each+1 : each;
+	int64_t mystart  = start + ((rank < remain) ? (each+1)*rank : (each+1)*remain + (rank-remain)*each);
 	range_t r = { mystart, mystart+mynum };
   return r;
+}
+
+struct block_offset_t { int64_t block, offset; };
+
+inline block_offset_t indexToBlock(int64_t index, int64_t numElements, int64_t numBlocks) {
+  block_offset_t result;
+	int64_t each   = numElements / numBlocks,
+          remain = numElements % numBlocks;
+	if (index < (each+1)*remain) {
+		result = { index / (each+1), index % (each+1) };
+	} else {
+		index -= (each+1)*remain;
+		result = { remain + index/each, index % each };
+	}
+  // VLOG(1) << "result.block = " << result.block << ", remain = " << remain << ", index = " << index << ", each = " << each;
+  return result;
 }
 
 #define GET_TYPE(member) BOOST_PP_TUPLE_ELEM(2,0,member)

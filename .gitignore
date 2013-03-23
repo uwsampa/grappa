@@ -31,6 +31,7 @@ ckpts
 .srunrc*
 .sbatch.*
 *.d.tmp
+*.preproc
 
 # Tau/profiling
 tau*.trc
@@ -130,6 +131,7 @@ config.cache
 
 # scratch files
 /system/scratch/*
+/system/Scratch_tests.cpp
 
 # RDMA communication routing output
 /system/routing.dot

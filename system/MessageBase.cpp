@@ -32,17 +32,17 @@ namespace Grappa {
 
     /// Block until message can be deallocated.
     void Grappa::impl::MessageBase::block_until_sent() {
-      DVLOG(5) << this << " on " << global_scheduler.get_current_thread()
+      DVLOG(5) << this << " on " << Grappa::impl::global_scheduler.get_current_thread()
                << " maybe blocking until sent";
       // if enqueued, block until message is sent
       while( is_enqueued_ && !is_sent_ ) {
-        DVLOG(5) << this << " on " << global_scheduler.get_current_thread()
+        DVLOG(5) << this << " on " << Grappa::impl::global_scheduler.get_current_thread()
                  << " actually blocking until sent";
         Grappa::wait( &cv_ );
-        DVLOG(5) << this << " on " << global_scheduler.get_current_thread()
+        DVLOG(5) << this << " on " << Grappa::impl::global_scheduler.get_current_thread()
                  << " woken after blocking until sent";
       }
-      DVLOG(5) << this << " on " << global_scheduler.get_current_thread()
+      DVLOG(5) << this << " on " << Grappa::impl::global_scheduler.get_current_thread()
                << " continuing after blocking until sent";
     }
 

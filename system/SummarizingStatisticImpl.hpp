@@ -9,7 +9,7 @@
 namespace Grappa {
   template< typename T >
   void SummarizingStatistic<T>::merge_all(impl::StatisticBase* static_stat_ptr) {
-    this->value = 0;
+    this->value_ = 0;
     this->n = 0;
     this->mean = 0.0;
     this->M2 = 0.0;
@@ -28,7 +28,7 @@ namespace Grappa {
       
       send_heap_message(c, [remote_stat, combined_addr, &ce] {
           SummarizingStatistic<T>* s = remote_stat.pointer();
-          T s_value = s->value;
+          T s_value = s->value_;
           size_t s_n = s->n;
           double s_mean = s->mean;
           double s_M2 = s->M2;
@@ -36,7 +36,7 @@ namespace Grappa {
           send_heap_message(combined_addr.node(), [combined_addr, s_value, s_n, s_mean, s_M2, &ce] {
               SummarizingStatistic<T>* combined_ptr = combined_addr.pointer();
               if( s_n > 0 ) { // update only if we have accumulated samples
-                combined_ptr->value += s_value;
+                combined_ptr->value_ += s_value;
                 if( 0 == combined_ptr->n ) { // overwrite if we are the first samples
                   combined_ptr->n = s_n;
                   combined_ptr->mean = s_mean;

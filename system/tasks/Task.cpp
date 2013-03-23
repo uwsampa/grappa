@@ -10,12 +10,20 @@
 #include "TaskingScheduler.hpp"
 #include "common.hpp"
 #include "GlobalQueue.hpp"
+#include "StealQueue.hpp"
 
 DEFINE_int32( chunk_size, 10, "Max amount of work transfered per load balance" );
 DEFINE_string( load_balance, "steal", "Type of dynamic load balancing {none, steal (default), share, gq}" );
 DEFINE_uint64( global_queue_threshold, 1024, "Threshold to trigger release of tasks to global queue" );
 
 #define MAXQUEUEDEPTH (1L<<26)   // previous values: 500000
+
+/// local queue for being part of global task pool
+#define publicQ StealQueue<Task>::steal_queue
+
+
+namespace Grappa {
+  namespace impl {
 
 TaskManager global_task_manager;
 
@@ -81,6 +89,31 @@ template bool global_queue_push<Task>( GlobalAddress<Task> chunk_base, uint64_t 
 // StealQueue instantiations
 template StealQueue<Task> StealQueue<Task>::steal_queue;
 template GlobalQueue<Task> GlobalQueue<Task>::global_queue;
+
+
+    
+/// @return true if local shared queue has elements
+bool TaskManager::publicHasEle() const {
+  return publicQ.depth() > 0;
+}
+    
+std::ostream& TaskManager::dump( std::ostream& o, const char * terminator) const {
+  return o << "\"TaskManager\": {" << std::endl
+    << "  \"publicQ\": " << publicQ.depth( ) << std::endl
+    << "  \"privateQ\": " << privateQ.size() << std::endl
+    << "  \"work-may-be-available?\" " << available() << std::endl
+    << "  \"sharedMayHaveWork\": " << sharedMayHaveWork << std::endl
+    << "  \"workDone\": " << workDone << std::endl
+    << "  \"stealLock\": " << stealLock << std::endl
+    << "  \"wshareLock\": " << wshareLock << std::endl
+    << "}" << terminator << std::endl;
+}
+
+/// Push public task
+void TaskManager::push_public_task( Task t ) {
+  publicQ.push( t );
+}
+
 
 inline void TaskManager::tryPushToGlobal() {
   // push to global queue if local queue has grown large
@@ -447,3 +480,6 @@ void TaskManager::TaskStatistics::reset() {
 
   sample_calls =0;
 }
+
+} // impl
+} // Grappa

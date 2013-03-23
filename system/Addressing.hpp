@@ -165,6 +165,7 @@ public:
       return node;
     }
   }
+  inline Core core() const { return node(); }
 
   /// Return the home node of a global address
   /// TODO: implement this.

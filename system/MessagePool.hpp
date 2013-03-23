@@ -3,20 +3,25 @@
 #include "PoolAllocator.hpp"
 #include "Message.hpp"
 
+namespace Grappa { namespace impl { class MessagePoolBase; } }
+void* operator new(size_t size, Grappa::impl::MessagePoolBase& a);
+
 namespace Grappa {
-  
-  class MessagePoolExternal: public PoolAllocator<impl::MessageBase> {
+
+namespace impl {
+  class MessagePoolBase: public PoolAllocator<impl::MessageBase> {
   public:
-    MessagePoolExternal(char * buffer, size_t sz): PoolAllocator<impl::MessageBase>(buffer, sz) {}
+    MessagePoolBase(char * buffer, size_t sz, bool owns_buffer = false): PoolAllocator<impl::MessageBase>(buffer, sz, owns_buffer) {}
     
     /// Just calls `block_until_sent` on each message in the pool
     /// TODO: don't wake until all have been sent
     void block_until_all_sent() {
       this->iterate([](impl::MessageBase* msg){
-        msg->block_until_sent();
+        msg->~MessageBase();
       });
+      reset();
     }
-    
+        
     ///
     /// Templated message creating functions, all taken straight from Message.hpp
     ///
@@ -76,13 +81,23 @@ namespace Grappa {
       return m;
     }
  
-  };
-
-  
-  template<size_t Bytes>
-  class MessagePool : public MessagePoolExternal {
-    char _buffer[Bytes];
-  public:
-    MessagePool(): MessagePoolExternal(_buffer, Bytes) {}
+    friend void* ::operator new(size_t, MessagePoolBase&);
   };
 }
+
+  template<size_t Bytes>
+  class MessagePoolStatic : public impl::MessagePoolBase {
+    char _buffer[Bytes];
+  public:
+    MessagePoolStatic(): MessagePoolBase(_buffer, Bytes) {}
+  };
+  
+  class MessagePool : public impl::MessagePoolBase {
+  public:
+    MessagePool(size_t bytes): MessagePoolBase(new char[bytes], bytes, true) {}
+    MessagePool(void * ext_buf, size_t bytes):
+      MessagePoolBase(static_cast<char*>(ext_buf), bytes, false) {}
+  };
+  
+} // namespace Grappa
+

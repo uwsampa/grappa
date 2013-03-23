@@ -12,7 +12,8 @@
 #include "Synchronization.hpp"
 
 namespace Grappa {
-
+  using namespace impl;
+  
   /// @addtogroup Synchronization
   /// @{
   
@@ -39,7 +40,7 @@ namespace Grappa {
       : count_( 0 )
       , waiters_( 0 )
     { 
-      DVLOG(5) << this << "/" << global_scheduler.get_current_thread() << ": Created with count=" << count_;
+      DVLOG(5) << this << "/" << Grappa::impl::global_scheduler.get_current_thread() << ": Created with count=" << count_;
     }
 
     CountingSemaphore( int64_t initial_count )
@@ -47,12 +48,12 @@ namespace Grappa {
       , waiters_( 0 )
     { 
       check( initial_count );
-      DVLOG(5) << this << "/" << global_scheduler.get_current_thread() << ": Created with count=" << count_;
+      DVLOG(5) << this << "/" << Grappa::impl::global_scheduler.get_current_thread() << ": Created with count=" << count_;
     }
 
     // Increment semaphore. Wakes waiters
     void increment( int64_t incr = 1 ) {
-      DVLOG(5) << this << "/" << global_scheduler.get_current_thread() << ": Incrementing " << count_ << " by " << incr;
+      DVLOG(5) << this << "/" << Grappa::impl::global_scheduler.get_current_thread() << ": Incrementing " << count_ << " by " << incr;
       check( count_ + incr );  // verify this is possible
       count_ += incr; // 
       // TODO: is this a good choice?
@@ -64,11 +65,11 @@ namespace Grappa {
     
     // Decrement semaphore. Blocks if decrement would leave semaphore < 0.
     void decrement( int64_t decr = 1 ) {
-      DVLOG(5) << this << "/" << global_scheduler.get_current_thread() << ": Ready to decrement " << count_ << " by " << decr;
+      DVLOG(5) << this << "/" << Grappa::impl::global_scheduler.get_current_thread() << ": Ready to decrement " << count_ << " by " << decr;
       while( count_ - decr < 0 ) {
-        DVLOG(5) << this << "/" << global_scheduler.get_current_thread() << ": Blocking to decrement " << count_ << " by " << decr;
+        DVLOG(5) << this << "/" << Grappa::impl::global_scheduler.get_current_thread() << ": Blocking to decrement " << count_ << " by " << decr;
         Grappa::wait( this );
-        DVLOG(5) << this << "/" << global_scheduler.get_current_thread() << ": Woken to decrement " << count_ << " by " << decr;
+        DVLOG(5) << this << "/" << Grappa::impl::global_scheduler.get_current_thread() << ": Woken to decrement " << count_ << " by " << decr;
       }
       check( count_ - decr ); // ensure this adjustment is possible....
       count_ -= decr;
@@ -77,9 +78,9 @@ namespace Grappa {
     // Try to decrement semaphore without blocking. Returns true if it
     // succeeds; false if it would block.
     bool try_decrement( int64_t decr = 1 ) {
-      DVLOG(5) << this << "/" << global_scheduler.get_current_thread() << ": Trying to decrement " << count_ << " by " << decr;
+      DVLOG(5) << this << "/" << Grappa::impl::global_scheduler.get_current_thread() << ": Trying to decrement " << count_ << " by " << decr;
       if( count_ - decr < 0 ) {
-        DVLOG(5) << this << "/" << global_scheduler.get_current_thread() << ": Couldn't decrement " << count_ << " by " << decr;
+        DVLOG(5) << this << "/" << Grappa::impl::global_scheduler.get_current_thread() << ": Couldn't decrement " << count_ << " by " << decr;
         return false;
       }
       check( count_ - decr ); // ensure this adjustment is possible....
