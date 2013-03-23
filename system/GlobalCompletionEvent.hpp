@@ -47,9 +47,68 @@ class GlobalCompletionEvent : public CompletionEvent {
   /// pointer to shared arg for loops that use a GCE
   const void * shared_ptr;
   
+  struct DoComplete {
+    GlobalCompletionEvent * gce;
+    int64_t dec;
+    
+    DoComplete(): gce(nullptr), dec(0) {}
+    
+    void operator()() {
+      gce->complete(dec);
+    }
+  };
+  
+  class CompletionMessage: public Message<DoComplete> {    
+  protected:
+    int64_t completes_to_send;
+    
+    virtual void mark_sent() {
+      Core dest = this->destination_;
+      
+      Message<DoComplete>::mark_sent();
+      
+      if (completes_to_send > 0) {
+        VLOG(5) << "re-sending " << completes_to_send << " to Core[" << dest << "]";
+        this->dec = completes_to_send;
+        completes_to_send = 0;
+        this->enqueue(dest);
+      }
+    }
+  public:
+    CompletionMessage(): completes_to_send(0) {}
+  };
+  
+  CompletionMessage * completion_msgs;
+  
 public:
   
-  GlobalCompletionEvent(): master_core(0) { reset(); }
+  void send_completion(Core owner, int64_t dec = 1) {
+    if (owner == mycore()) {
+      VLOG(5) << "complete locally";
+      this->complete(dec);
+    } else {
+      auto& cm = completion_msgs[owner];
+      if (cm.waiting_to_send()) {
+        cm.completes_to_send++;
+        VLOG(5) << "flattening completion to Core[" << owner << "] (currently at " << cm.completes_to_send << ")";
+      } else {
+        VLOG(5) << "sending " << dec << "to Core[" << owner << "]";
+        cm->dec = dec;
+        cm.enqueue(owner);
+      }
+    }
+  }
+  
+  GlobalCompletionEvent(): master_core(0), completes_to_send(0) {
+    completion_msgs = new CompletionFlattener[cores()];
+    for (Core c=0; c<cores(); c++) {
+      completion_msgs[c]->gce = this; // (pointer must be the same on all cores)
+    }
+    reset();
+  }
+  ~GlobalCompletionEvent() {
+    delete[] completion_msgs;
+  }
   
   inline void set_shared_ptr(const void* p) { shared_ptr = p; }
   template<typename T> inline const T* get_shared_ptr() { return reinterpret_cast<const T*>(shared_ptr); }
@@ -191,6 +250,12 @@ namespace Grappa {
       tf();
       if (GCE) complete(make_global(GCE,origin));
     });
+  }
+
+  /// Allow calling send_completion using the old way (with global address)
+  /// TODO: replace all instances with gce.send_completion and remove this?
+  inline void complete(GlobalAddress<GlobalCompletionEvent> gce, int64_t decr = 1) {
+    gce.pointer()->send_completion(gce.core(), decr);
   }
   
 } // namespace Grappa

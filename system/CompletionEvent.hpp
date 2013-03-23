@@ -59,10 +59,11 @@ namespace Grappa {
   }
   
   /// Overload to work on GlobalAddresses.
-  template<typename CompletionType>
-  inline void complete(GlobalAddress<CompletionType> ce, int64_t decr = 1) {
-    static_assert(std::is_base_of<CompletionEvent,CompletionType>::value,
-                  "complete() can only be called on subclasses of CompletionEvent");
+  // template<typename CompletionType>
+  // inline void complete(GlobalAddress<CompletionType> ce, int64_t decr = 1) {
+    // static_assert(std::is_base_of<CompletionEvent,CompletionType>::value,
+    //               "complete() can only be called on subclasses of CompletionEvent");
+  inline void complete(GlobalAddress<CompletionEvent> ce, int64_t decr = 1) {
     
     if (ce.node() == mycore()) {
       ce.pointer()->complete(decr);
