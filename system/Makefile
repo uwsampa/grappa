@@ -88,6 +88,7 @@ GlobalMemoryChunk_tests.o GlobalMemoryChunk_tests.test: $(LIBRARY)
 GlobalMemory_tests.o GlobalMemory_tests.test: $(LIBRARY)
 GlobalAllocator_tests.o GlobalAllocator_tests.test: $(LIBRARY)
 Allocator_tests.o Allocator_tests.test: Allocator.o
+LocaleSharedMemory_tests.o LocaleSharedMemory_tests.test: $(LIBRARY)
 
 QueueDebug_tests.o QueueDebug_tests.exe: ../tools/stl-debug-allocator/archive/Source/allocator.o
 
@@ -193,11 +194,25 @@ GASNET_SETTINGS+= GASNET_FREEZE=0
 GASNET_SETTINGS+= GASNET_NETWORKDEPTH_PP=96
 GASNET_SETTINGS+= GASNET_NETWORKDEPTH_TOTAL=2048
 GASNET_SETTINGS+= GASNET_AMCREDITS_PP=48
+#GASNET_SETTINGS+= GASNET_AMRDMA_MAX_PEERS=0
 GASNET_SETTINGS+= GASNET_PHYSMEM_MAX=1024M
 GASNET_SETTINGS+= GASNET_USE_SRQ=2
+#GASNET_SETTINGS+= GASNET_NONBULKPUT_BOUNCE_LIMIT=0
+#GASNET_SETTINGS+= OMPI_MCA_mpi_warn_on_fork=0
 endif
 ENV_VARIABLES+= $(GASNET_SETTINGS)
 
+# enable RDMA Aggregator
+ifdef ENABLE_RDMA_AGGREGATOR
+CFLAGS+= -DENABLE_RDMA_AGGREGATOR
+# may want this eventually
+#CFLAGS+= -DOLD_MESSAGES_NEW_AGGREGATOR
+endif
+
+# make it easier to debug by stopping compilation after first error
+ifdef STOP_AFTER_FIRST_ERROR
+CFLAGS+=  -Wfatal-errors
+endif
 
 #
 # Heap Leak Checker
@@ -305,6 +320,7 @@ LIBRARY_CONTENTS+= Grappa.o \
 				   SimpleStatistic.o \
 				   SummarizingStatistic.o \
 				   MessageBase.o \
+				   LocaleSharedMemory.o \
 				   RDMAAggregator.o \
 				   ParallelLoop.o \
 				   Barrier.o \
@@ -367,7 +383,7 @@ cleanup_shm:
 	echo "State before cleanup:"
 	for i in `sinfo -h -p grappa -o '%n'`; do ssh $$i bash -c "echo;hostname; ipcs -m; grep Huge /proc/meminfo"; done
 	echo "Cleaning up...."
-	for i in `sinfo -h -p grappa -o '%n'`; do ssh $$i bash -c "ipcs -m | grep $(USER) | cut -d' ' -f1 | xargs -n1 -r ipcrm -M"; done
+	for i in `sinfo -h -p grappa -o '%n'`; do ssh $$i bash -c "ipcs -m | grep $(USER) | cut -d' ' -f2 | xargs -n1 -r ipcrm -m"; done
 	echo "State after cleanup:"
 	for i in `sinfo -h -p grappa -o '%n'`; do ssh $$i bash -c "echo; hostname; ipcs -m; grep Huge /proc/meminfo"; done
 

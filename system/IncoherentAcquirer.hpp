@@ -137,6 +137,7 @@ public:
   }
 
   void reset( ) {
+    DVLOG(5) << "In " << __PRETTY_FUNCTION__;
     CHECK( !acquire_started_ || acquired_ ) << "inconsistent state for reset";
     acquire_started_ = false;
     acquired_ = false;
@@ -183,7 +184,7 @@ public:
 
     if( num_messages_ > 1 ) DVLOG(5) << "****************************** MULTI BLOCK CACHE REQUEST ******************************";
 
-    DVLOG(5) << "New IncoherentAcquirer; detecting straddle for sizeof(T):" << sizeof(T)
+    DVLOG(5) << "In " << __PRETTY_FUNCTION__ << "; detecting straddle for sizeof(T):" << sizeof(T)
              << " count:" << *count_
              << " num_messages_:" << num_messages_
              << " request_address:" << *request_address_;
@@ -239,6 +240,7 @@ public:
 
       DVLOG(5) << "sending acquire request for " << args.request_bytes
                << " of total bytes = " << *count_ * sizeof(T)
+        *(msg_array[i]) = args;
                << " from " << args.request_address;
 
       pool.send_message(args.request_address.core(), [args]{

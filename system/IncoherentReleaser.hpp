@@ -176,6 +176,9 @@ public:
         request_bytes = total_bytes - offset;
       }
 
+        //arg_array[i] = args;
+        //new (msg_array+i) Grappa::ExternalPayloadMessage<RequestArgs>(arg_array[i].request_address.node(), &arg_array[i], ((char*)(*pointer_)) + offset, request_bytes);
+        *(msg_array[i]) = args;
       DVLOG(5) << "sending release request with " << request_bytes
                << " of total bytes = " << *count_ * sizeof(T)
                << " to " << args.request_address;
