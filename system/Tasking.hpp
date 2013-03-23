@@ -129,9 +129,9 @@ namespace Grappa {
   void spawn_worker( TF && tf ) {
     TF * tp = new TF(tf);
     void * vp = reinterpret_cast< void * >( tp );
-    Thread * th = thread_spawn( global_scheduler.get_current_thread(), &global_scheduler,
+    Thread * th = thread_spawn( Grappa::impl::global_scheduler.get_current_thread(), &Grappa::impl::global_scheduler,
                                 Grappa::impl::worker_heapfunctor_proxy<TF>, vp );
-    global_scheduler.ready( th );
+    Grappa::impl::global_scheduler.ready( th );
     DVLOG(5) << __PRETTY_FUNCTION__ << " spawned Worker " << th;
   }
 

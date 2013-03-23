@@ -216,7 +216,7 @@ void user_main( void * args ) {
           }
 
           if( FLAGS_disable_switching ) {
-            global_scheduler.set_no_switch_region( true );
+            Grappa::impl::global_scheduler.set_no_switch_region( true );
             LOG(INFO) << "switching disabled";
           }
 
@@ -242,7 +242,7 @@ void user_main( void * args ) {
           }
 
           if( FLAGS_disable_switching ) {
-            global_scheduler.set_no_switch_region( false );
+            Grappa::impl::global_scheduler.set_no_switch_region( false );
             LOG(INFO) << "switching enabled";
           }
 

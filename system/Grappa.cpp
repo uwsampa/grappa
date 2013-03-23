@@ -126,9 +126,9 @@ static void stats_dump_sighandler( int signum ) {
   // TODO: make this set a flag and have scheduler check and dump.
   std::ostringstream legacy_stats;
   legacy_dump_stats(legacy_stats);
-  Grappa::Statistics::print( LOG(INFO), Grappa::impl::registered_stats(), legacy_stats.str() );
+  Grappa::Statistics::print( LOG(INFO), registered_stats(), legacy_stats.str() );
 
-  Grappa::impl::global_rdma_aggregator.dump_counts();
+  global_rdma_aggregator.dump_counts();
 
   // instantaneous state
   LOG(INFO) << global_scheduler;
@@ -237,7 +237,7 @@ void Grappa_init( int * argc_p, char ** argv_p[], size_t global_memory_size_byte
   }
 
   // initialize node shared memory
-  Grappa::impl::locale_shared_memory.init();
+  locale_shared_memory.init();
 
   // by default, will allocate as much shared memory as it is
   // possible to evenly split among the processors on a node
@@ -299,7 +299,7 @@ void Grappa_init( int * argc_p, char ** argv_p[], size_t global_memory_size_byte
   global_scheduler.init( master_thread, &global_task_manager );
 
   // start RDMA Aggregator *after* threading layer
-  Grappa::impl::global_rdma_aggregator.init();
+  global_rdma_aggregator.init();
 
   // collect some stats on this job
   Grappa_tick();
@@ -320,14 +320,14 @@ void Grappa_activate()
 {
   DVLOG(1) << "Activating Grappa library....";
   global_communicator.activate();
-  Grappa::impl::locale_shared_memory.activate();
+  locale_shared_memory.activate();
   Grappa_barrier();
 
   // fire up polling thread
   global_scheduler.periodic( thread_spawn( master_thread, &global_scheduler, &poller, NULL ) );
 
 
-  Grappa::impl::global_rdma_aggregator.activate();
+  global_rdma_aggregator.activate();
   Grappa_barrier();
 }
 
@@ -603,7 +603,7 @@ void Grappa_finish( int retval )
 
   StateTimer::finish();
 
-  Grappa::impl::locale_shared_memory.finish();
+  locale_shared_memory.finish();
   global_task_manager.finish();
   global_aggregator.finish();
   global_communicator.finish( retval );

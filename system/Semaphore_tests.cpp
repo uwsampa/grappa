@@ -15,11 +15,11 @@
 BOOST_AUTO_TEST_SUITE( Semaphore_tests );
 
 void yield() {
-  Worker * thr = global_scheduler.get_current_thread();
+  Worker * thr = Grappa::impl::global_scheduler.get_current_thread();
   Grappa::privateTask( [thr] {
-      global_scheduler.thread_wake( thr );
+      Grappa::impl::global_scheduler.thread_wake( thr );
     });
-  global_scheduler.thread_suspend();
+  Grappa::impl::global_scheduler.thread_suspend();
 }
 
 
@@ -54,7 +54,7 @@ void user_main( void * args )
 
   // other thread runs and blocks
   while( count < 6 ) {
-    DVLOG(5) << global_scheduler.get_current_thread() << ": Checking count=" << count;
+    DVLOG(5) << Grappa::impl::global_scheduler.get_current_thread() << ": Checking count=" << count;
     yield();
   }
 
