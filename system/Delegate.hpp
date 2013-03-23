@@ -39,22 +39,22 @@ namespace Grappa {
       } else {
         int64_t network_time = 0;
         int64_t start_time = Grappa_get_timestamp();
-        ConditionVariable cv;
-        send_message(dest, [&cv, origin, func, &network_time, start_time] {
+        FullEmpty<bool> result;
+        send_message(dest, [&result, origin, func, &network_time, start_time] {
           delegate_stats.count_op_am();
           
           func();
           
           // TODO: replace with handler-safe send_message
-          send_heap_message(origin, [&cv, &network_time, start_time] {
+          send_heap_message(origin, [&result, &network_time, start_time] {
             network_time = Grappa_get_timestamp();
             delegate_stats.record_network_latency(start_time);
-            signal(&cv);
+            result.writeXF(true);
           });
         }); // send message
         
         // ... and wait for the call to complete
-        wait(&cv);
+        result.readFF();
         delegate_stats.record_wakeup_latency(start_time, network_time);
         return;
       }
