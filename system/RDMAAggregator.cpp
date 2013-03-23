@@ -325,13 +325,14 @@ namespace Grappa {
           RDMABuffer * b = global_rdma_aggregator.free_buffer_list_.try_pop();
           CHECK_NOTNULL( b );
           
-          auto request = Grappa::message( dest, [mycore, b] {
+          // (make heap message since we're not on a shared stack)
+          auto request = Grappa::heap_message( dest, [mycore, b] {
               auto p = global_rdma_aggregator.localeCoreData(mycore);
               DVLOG(3) << __PRETTY_FUNCTION__ << " initializing by pushing buffer " << b << " into " << p << " for " << mycore;
               p->remote_buffers_.push( b );
               rdma_buffers_inuse += remote_buffer_pool_size - p->remote_buffers_.count();
             });
-          request.send_immediate();
+          request->send_immediate();
         }
       }
 
