@@ -23,16 +23,17 @@ db <- function(query) {
 
 p <- ggplot(db("select * from intsort
                where nnode <= 16 and problem == 'E'"),
-  aes(x=nnode, y=mops_total, group=problem, color=loop_threshold, shape=ppn))+
+  aes(x=nnode, y=mops_total, ymax=2048, group=problem, color=loop_threshold, shape=ppn, label=mops_total))+
   ggtitle("IntSort")+
   sosp_theme+
+  geom_text(size=4, hjust=-0.1)+
   geom_point()+ # show points
   # stat_summary(fun.y="max", geom="line")+ # show line with max of each line
   scale_y_continuous(trans=log2_trans())+
   facet_wrap(~problem) # make new plots for each scale
   
 p # plot it
-#ggsave("plots/intsort_mops.pdf", plot=p) # or save it
+ggsave("plots/intsort_mops.pdf", plot=p, scale=1.3) # or save it
 
 d <- db("select *,nnode*ppn as nproc from intsort")
 p.nproc <- ggplot(d, aes(x=nproc, y=mops_total, group=problem, color=problem, shape=ppn))+

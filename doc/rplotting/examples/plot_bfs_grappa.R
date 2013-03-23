@@ -68,24 +68,31 @@ and loop_threshold == 16
 # p.many
 
 p.thresh <- ggplot(db("
-select * from bfs where
-experiment is 'loop_threshold'
-"), aes(x=loop_threshold,y=max_teps,
-        color=periodic_poll_ticks,
-        shape=aggregator_autoflush_ticks)
-  )+facet_grid(~scale~nnode~ppn~aggregator_autoflush_ticks~flush_on_idle,labeller=label_both)+
+select *, max_teps/1e6 as MTEPS from bfs
+where scale > 16
+and periodic_poll_ticks == 20000
+and flush_on_idle == 0
+and nnode == 8
+and aggregator_autoflush_ticks <= 1e6
+and num_starting_workers == 128
+"), aes(x=loop_threshold,y=MTEPS,
+        color=ppn,
+        shape=aggregator_autoflush_ticks,
+        label=num_starting_workers)
+  )+facet_grid(~scale~nnode~num_starting_workers,labeller=label_both)+
   geom_point()+
+  # geom_text(size=3, hjust=-0.15)+
+  # geom_line()+
   sosp_theme
 p.thresh
-ggsave("plots/bfs_grappa_threshold.pdf", plot=p.thresh)
+ggsave("plots/bfs_grappa_threshold.pdf", plot=p.thresh, scale=1.3)
 
 p.poll <- ggplot(db("
 select * from bfs where
 bfs_version is 'localized'
 and nnode == 8 and (ppn == 2 or ppn == 4 or ppn == 6)
-and aggregator_autoflush_ticks == 1e6
 and loop_threshold == 16
-
+and scale == 23
 "),
   aes(x=periodic_poll_ticks,y=max_teps,
       color=num_starting_workers,
