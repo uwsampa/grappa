@@ -240,7 +240,6 @@ public:
 
       DVLOG(5) << "sending acquire request for " << args.request_bytes
                << " of total bytes = " << *count_ * sizeof(T)
-        *(msg_array[i]) = args;
                << " from " << args.request_address;
 
       pool.send_message(args.request_address.core(), [args]{

@@ -552,11 +552,11 @@ namespace Grappa {
         // don't yield too often.
         static int yield_wait = 2;
         if( !global_scheduler.in_no_switch_region() && !disable_everything_ && yield_wait-- == 0 ) {
-          bool should_yield = global_scheduler.thread_maybe_yield();
+          bool should_yield = Grappa::impl::global_scheduler.thread_maybe_yield();
           if( should_yield ) {
             DVLOG(3) << "Should yield";
             yield_wait = 2;
-            global_scheduler.thread_yield();
+            Grappa::impl::global_scheduler.thread_yield();
             rdma_poll_yields++;
           }
             //if( yielded ) rdma_poll_yields++;
@@ -568,7 +568,7 @@ namespace Grappa {
         //   freq = 10;
         // }
 
-        DVLOG(5) << __func__ << "/" << global_scheduler.get_current_thread() 
+        DVLOG(5) << __func__ << "/" << Grappa::impl::global_scheduler.get_current_thread() 
                  << ": Enqueued message " << m 
                  << " with is_delivered_=" << m->is_delivered_ 
                  << ": " << m->typestr();

@@ -392,9 +392,9 @@ namespace Grappa {
       gasnet_AMGetMsgSource(token,&src);
       DVLOG(5) << __func__ << ": Receiving buffer of size " << size << " through gasnet from " << src;
 #endif
-      global_scheduler.set_no_switch_region( true );
+      Grappa::impl::global_scheduler.set_no_switch_region( true );
       deaggregate_buffer( static_cast< char * >( buf ), size );
-      global_scheduler.set_no_switch_region( false );
+      Grappa::impl::global_scheduler.set_no_switch_region( false );
     }
 
     void RDMAAggregator::deserialize_first_am( gasnet_token_t token, void * buf, size_t size ) {
@@ -404,9 +404,9 @@ namespace Grappa {
       DVLOG(5) << __func__ << ": Receiving buffer of size " << size << " from " << src << " through gasnet; deserializing first entry";
 #endif
       app_messages_deserialized++;
-      global_scheduler.set_no_switch_region( true );
+      Grappa::impl::global_scheduler.set_no_switch_region( true );
       Grappa::impl::MessageBase::deserialize_and_call( static_cast< char * >( buf ) );
-      global_scheduler.set_no_switch_region( false );
+      Grappa::impl::global_scheduler.set_no_switch_region( false );
     }
 
     void RDMAAggregator::enqueue_buffer_am( gasnet_token_t token, void * buf, size_t size ) {
@@ -451,7 +451,7 @@ namespace Grappa {
       DVLOG(5) << __func__ << ": Receiving buffer of size " << size << " from " << src << " through gasnet; enqueuing for deserialization";
 #endif
 
-      global_scheduler.set_no_switch_region( true );
+      Grappa::impl::global_scheduler.set_no_switch_region( true );
 
       // grab a buffer
       RDMABuffer * b = global_rdma_aggregator.free_buffer_list_.try_pop();
@@ -481,7 +481,7 @@ namespace Grappa {
       // enqueue to be dequeued
       global_rdma_aggregator.received_buffer_list_.push( b );
 
-      global_scheduler.set_no_switch_region( false );
+      Grappa::impl::global_scheduler.set_no_switch_region( false );
     }
 
 
@@ -687,7 +687,7 @@ void RDMAAggregator::draw_routing_graph() {
       
       active_receive_workers_++;
 
-      DVLOG(3) << __PRETTY_FUNCTION__ << "/" << global_scheduler.get_current_thread() 
+      DVLOG(3) << __PRETTY_FUNCTION__ << "/" << Grappa::impl::global_scheduler.get_current_thread() 
                << " processing buffer " << buf 
                << " serial " << reinterpret_cast<int64_t>( buf->get_ack() );
 
@@ -702,7 +702,7 @@ void RDMAAggregator::draw_routing_graph() {
       if( c != Grappa::mycore() ) {
         Core mylocale_core = Grappa::mylocale() * Grappa::locale_cores();
         Core mycore = Grappa::mycore();
-        DVLOG(3) << __PRETTY_FUNCTION__ << "/" << global_scheduler.get_current_thread() << " finished with " << buf
+        DVLOG(3) << __PRETTY_FUNCTION__ << "/" << Grappa::impl::global_scheduler.get_current_thread() << " finished with " << buf
                  << "; acking with buffer " << buf << " for core " << mycore << " on core " << c;
         auto request = Grappa::message( c, [mycore, buf] {
             auto p = global_rdma_aggregator.localeCoreData(mycore);
@@ -732,7 +732,7 @@ void RDMAAggregator::draw_routing_graph() {
       
       active_receive_workers_++;
 
-      DVLOG(3) << __PRETTY_FUNCTION__ << "/" << global_scheduler.get_current_thread() 
+      DVLOG(3) << __PRETTY_FUNCTION__ << "/" << Grappa::impl::global_scheduler.get_current_thread() 
                << " processing buffer " << buf 
                << " serial " << reinterpret_cast<int64_t>( buf->get_ack() );
 
@@ -752,7 +752,7 @@ void RDMAAggregator::draw_routing_graph() {
         RDMABuffer * buf = NULL;
         Core mylocale_core = Grappa::mylocale() * Grappa::locale_cores();
         Core mycore = Grappa::mycore();
-        DVLOG(3) << __PRETTY_FUNCTION__ << "/" << global_scheduler.get_current_thread() << " finished with " << buf
+        DVLOG(3) << __PRETTY_FUNCTION__ << "/" << Grappa::impl::global_scheduler.get_current_thread() << " finished with " << buf
                  << "; acking with buffer " << buf << " for core " << mycore << " on core " << c;
         auto request = Grappa::message( c, [mycore, buf] {
             auto p = global_rdma_aggregator.localeCoreData(mycore);
@@ -786,7 +786,7 @@ void RDMAAggregator::draw_routing_graph() {
     //     // ack with a replacement buffer
     //     RDMABuffer * new_receiver_buffer_for_sender = global_rdma_aggregator.free_buffer_list_.try_pop();
     //     if( new_receiver_buffer_for_sender == NULL ) {
-    //       LOG(WARNING) << __func__ << "/" << global_scheduler.get_current_thread()
+    //       LOG(WARNING) << __func__ << "/" << Grappa::impl::global_scheduler.get_current_thread()
     //                    << " No buffer available for ack to sender " << sender << " whose buffer count is " 
     //                    << cores_[sender].remote_buffers_.count() << " on " << receiver << "; blocking";
     //       new_receiver_buffer_for_sender = global_rdma_aggregator.free_buffer_list_.block_until_pop();
@@ -804,9 +804,9 @@ void RDMAAggregator::draw_routing_graph() {
     //     // // get a buffer to return to the other side
     //     // RDMABuffer * sender_buffer = cores_[sender].remote_buffers_.try_pop();
 
-    //     // LOG(WARNING) << __func__ << "/" << global_scheduler.get_current_thread()
+    //     // LOG(WARNING) << __func__ << "/" << Grappa::impl::global_scheduler.get_current_thread()
     //     //              << "START receive: Sender " << sender << " buffer count is " << cores_[sender].remote_buffers_.count() << " on " << receiver;
-    //     // global_scheduler.set_no_switch_region( false ); //true );
+    //     // Grappa::impl::global_scheduler.set_no_switch_region( false ); //true );
     //     // interesting_ = true;
 
 
@@ -819,11 +819,11 @@ void RDMAAggregator::draw_routing_graph() {
     //     // we will stop deaggregating at terminator byte
     //     CHECK_EQ( disable_flush_, false );
     //     disable_flush_ = false;
-    //     global_scheduler.set_no_switch_region( false );
+    //     Grappa::impl::global_scheduler.set_no_switch_region( false );
 
     //     deaggregate_buffer( receiver_buffer->get_payload(), receiver_buffer->get_max_size() );
 
-    //     global_scheduler.set_no_switch_region( false );
+    //     Grappa::impl::global_scheduler.set_no_switch_region( false );
     //     disable_flush_ = false;
     //     DVLOG(5) << __func__ << ": " << "Deaggregated"
     //              << " from buffer " << receiver_buffer;
@@ -838,8 +838,8 @@ void RDMAAggregator::draw_routing_graph() {
     //     // }
 
     //     // interesting_ = false;
-    //     // global_scheduler.set_no_switch_region( false );
-    //     // LOG(WARNING) << __func__ << "/" << global_scheduler.get_current_thread()
+    //     // Grappa::impl::global_scheduler.set_no_switch_region( false );
+    //     // LOG(WARNING) << __func__ << "/" << Grappa::impl::global_scheduler.get_current_thread()
     //     //              << "END receive: Sender " << sender << " buffer count is " << cores_[sender].remote_buffers_.count() << " on " << receiver;
 
     //     // // // return buffer to free list
@@ -930,9 +930,9 @@ void RDMAAggregator::draw_routing_graph() {
         DVLOG(5) << __func__ << "/" << sequence_number 
                  << ": deaggregating my own " << counts[ Grappa::locale_mycore() ] << "-byte buffer slice at " << (void*) buf;
 
-        global_scheduler.set_no_switch_region( true );
+        Grappa::impl::global_scheduler.set_no_switch_region( true );
         deaggregate_buffer( my_buf, counts[ Grappa::locale_mycore() ] );
-        global_scheduler.set_no_switch_region( false );
+        Grappa::impl::global_scheduler.set_no_switch_region( false );
 
         DVLOG(5) << __func__ << "/" << sequence_number 
                  << ": done deaggregating my own " << counts[ Grappa::locale_mycore() ] << "-byte buffer slice at " << (void*) buf;
@@ -942,7 +942,7 @@ void RDMAAggregator::draw_routing_graph() {
       // receive_poll();
 
       // block here until messages are sent (i.e., delivered and deaggregated)
-      DVLOG(5) << __func__ << "/" << global_scheduler.get_current_thread() << "/" << sequence_number 
+      DVLOG(5) << __func__ << "/" << Grappa::impl::global_scheduler.get_current_thread() << "/" << sequence_number 
                << ": maybe blocking until my " << outstanding << " outstanding messages are delivered";
     }
 
@@ -973,7 +973,7 @@ void RDMAAggregator::draw_routing_graph() {
   //   void RDMAAggregator::cache_buffer_for_core( Core owner, RDMABuffer * b ) {
   //     // try to accept this buffer
   //     if( !cores_[owner].remote_buffers_.try_push( b ) ) {
-  //       LOG(WARNING) << __func__ << "/" << global_scheduler.get_current_thread()
+  //       LOG(WARNING) << __func__ << "/" << Grappa::impl::global_scheduler.get_current_thread()
   //                    << " Core " << owner << " buffer count is " << cores_[owner].remote_buffers_.count() << "; returning " << b;
   //       // too many already! return it
   //       auto m = message( owner, [b] {
@@ -1068,7 +1068,7 @@ void RDMAAggregator::draw_routing_graph() {
       }
 
       while( messages_to_send != NULL ) {
-        DVLOG(2) << __func__ << "/" << global_scheduler.get_current_thread() << ": Delivered message " << messages_to_send 
+        DVLOG(2) << __func__ << "/" << Grappa::impl::global_scheduler.get_current_thread() << ": Delivered message " << messages_to_send 
                  << " with is_delivered_=" << messages_to_send->is_delivered_ 
                  << ": " << messages_to_send->typestr();
         MessageBase * next = messages_to_send->next_;
@@ -1398,7 +1398,7 @@ void RDMAAggregator::draw_routing_graph() {
       // as well as allowing the remote node to limit the rate we send
       RDMABuffer * dest_buf = localeCoreData( dest_core )->remote_buffers_.block_until_pop();
       // TODO: use buffer for RDMA send. For now, just discard
-      DVLOG(3) << __PRETTY_FUNCTION__ << "/" << global_scheduler.get_current_thread() 
+      DVLOG(3) << __PRETTY_FUNCTION__ << "/" << Grappa::impl::global_scheduler.get_current_thread() 
                << " got buffer/token " << dest_buf << " to send";
 
       // now, grab a temporary buffer for local serialization
@@ -1677,7 +1677,7 @@ void RDMAAggregator::draw_routing_graph() {
     Core current_dest_core = -1;
 
     MessageListChooser mlc( first_core, max_core, 0, Grappa::locale_cores() );
-    DVLOG(3) << __PRETTY_FUNCTION__ << "/" << global_scheduler.get_current_thread() 
+    DVLOG(3) << __PRETTY_FUNCTION__ << "/" << Grappa::impl::global_scheduler.get_current_thread() 
              << " MessageListChooser constructed at " << &mlc;
 
 
