@@ -127,13 +127,9 @@ namespace Grappa {
     
     // how many locales should seach core handle?
     // (assume all locales have same core count)
-    int probable_locales_per_core = Grappa::locales() / Grappa::locale_cores();
     // (make we have at least one locale per core)
-    int locales_per_core = probable_locales_per_core > 0 ? probable_locales_per_core : 1;
-    LOG(INFO) << "probable_locales_per_core " << probable_locales_per_core
-              << " locales_per_core " << locales_per_core;
-
-
+    // (round up)
+    Locale locales_per_core = 1 + ((Grappa::locales() - 1) / Grappa::locale_cores());
 
 
     // initialize source cores
@@ -260,10 +256,13 @@ namespace Grappa {
       // what locales is my core responsible for?
       //
 
+      // draw route map if enabled
+      draw_routing_graph();
+
       // spread responsibility for locales between our cores, ensuring
       // that all locales get assigned
-      Locale locales_per_core = Grappa::locales() / Grappa::locale_cores();
-      if( locales_per_core * Grappa::locale_cores() < Grappa::locales() ) locales_per_core++;
+      // (round up)
+      Locale locales_per_core = 1 + ((Grappa::locales() - 1) / Grappa::locale_cores());
 
       // generate list of locales this core is responsible for
       core_partner_locales_ = new Locale[ locales_per_core ];
@@ -275,9 +274,6 @@ namespace Grappa {
         }
       }
       LOG(INFO) << "Partner locale count is " << core_partner_locale_count_ << ", locales per core is " << locales_per_core;
-
-      // draw route map if enabled
-      draw_routing_graph();
 
       // fill pool of buffers
       if( core_partner_locale_count_ > 0 ) {
