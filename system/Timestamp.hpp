@@ -26,6 +26,12 @@ static inline Grappa_Timestamp Grappa_tick() {
   return old_timestamp;
 }
   
+/// Grab a snapshot of the current value of the timestamp counter.
+static inline Grappa_Timestamp Grappa_force_tick() {
+  Grappa_current_timestamp = rdtsc();
+  return Grappa_current_timestamp;
+}
+
 /// Return the current snapshot of the timestamp counter.
 static inline Grappa_Timestamp Grappa_get_timestamp() { 
   //Grappa_tick();

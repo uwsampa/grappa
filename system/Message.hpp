@@ -91,6 +91,17 @@ namespace Grappa {
       return t + sizeof( T );
     }
 
+    virtual void deliver_locally() {
+      DVLOG(5) << __func__ << ": " << this << " Delivering locally with is_enqueued_=" << this->is_enqueued_ 
+             << " is_delivered_=" << this->is_delivered_ 
+             << " is_sent_=" << this->is_sent_;
+      if( !is_delivered_ ) {
+        storage_();
+        is_delivered_ = true;
+      }
+      this->mark_sent();
+    }
+
     /// Copy this message into a buffer.
     virtual char * serialize_to( char * p, size_t max_size ) {
       Grappa::impl::MessageBase::serialize_to( p, max_size );
@@ -100,16 +111,25 @@ namespace Grappa {
         return p;
       } else {
         // // turn into 2D pointer
-        // auto gfp = make_global( fp, destination_ );
+        //auto gfp = make_global( fp, destination_ );
         // // write to buffer
-        // *(reinterpret_cast< intptr_t* >(p)) = reinterpret_cast< intptr_t >( gfp );
-        *(reinterpret_cast< intptr_t* >(p)) = reinterpret_cast< intptr_t >( fp );
-        p += sizeof( fp );
+        //*(reinterpret_cast< intptr_t* >(p)) = reinterpret_cast< intptr_t >( gfp );
+        //*(reinterpret_cast< intptr_t* >(p)) = reinterpret_cast< intptr_t >( fp );
+        //intptr_t gfp = reinterpret_cast< intptr_t >( fp ) << 16;
+        //gfp |= destination_; // TODO: watch out for sign extension
+        //*(reinterpret_cast< intptr_t* >(p)) = gfp;
+        // p += sizeof( fp );
+
+        FPAddr gfp = { destination_, reinterpret_cast< intptr_t >( fp ) };
+        *(reinterpret_cast< FPAddr* >(p)) = gfp;
+        static_assert( sizeof(gfp) == 8, "gfp wrong size?" );
+        p += sizeof( gfp );
+
         
         // copy contents
         std::memcpy( p, &storage_, sizeof(storage_) );
         
-        //DVLOG(5) << "serialized message of size " << sizeof(fp) + sizeof(T);
+        DVLOG(5) << __PRETTY_FUNCTION__ << " serialized message of size " << sizeof(fp) + sizeof(storage_) << " to " << gfp.dest << " with deserializer " << fp;
         
         // return pointer following message
         return p + sizeof( T );
@@ -223,6 +243,14 @@ namespace Grappa {
       return t + payload_size;
     }
 
+    virtual void deliver_locally() {
+      if( !is_delivered_ ) {
+        storage_( payload_, payload_size_ );
+        is_delivered_ = true;
+      }
+      this->mark_sent();
+    }
+
     /// Copy this message into a buffer.
     virtual char * serialize_to( char * p, size_t max_size ) {
       Grappa::impl::MessageBase::serialize_to( p, max_size );
@@ -235,8 +263,18 @@ namespace Grappa {
         // auto gfp = make_global( fp, destination_ );
         // // write to buffer
         // *(reinterpret_cast< intptr_t* >(p)) = reinterpret_cast< intptr_t >( gfp );
-        *(reinterpret_cast< intptr_t* >(p)) = reinterpret_cast< intptr_t >( fp );
-        p += sizeof( fp );
+        //*(reinterpret_cast< intptr_t* >(p)) = reinterpret_cast< intptr_t >( fp );
+
+        // intptr_t gfp = reinterpret_cast< intptr_t >( fp ) << 16;
+        // gfp |= destination_;
+        // *(reinterpret_cast< intptr_t* >(p)) = gfp;
+        // p += sizeof( fp );
+
+        FPAddr gfp = { destination_, reinterpret_cast< intptr_t >( fp ) };
+        *(reinterpret_cast< FPAddr* >(p)) = gfp;
+        static_assert( sizeof(gfp) == 8, "gfp wrong size?" );
+        p += sizeof( gfp );
+
         
         // copy contents
         std::memcpy( p, &storage_, sizeof(storage_) );
@@ -246,6 +284,8 @@ namespace Grappa {
         p += sizeof( int16_t );
 
         std::memcpy( p, payload_, payload_size_);
+
+        DVLOG(5) << __PRETTY_FUNCTION__ << " serialized message of size " << sizeof(fp) + sizeof(storage_) + sizeof(int16_t) + payload_size_ << " to " << gfp.dest << " with deserializer " << fp;
 
         // return pointer following message
         return p + payload_size_;
@@ -342,6 +382,14 @@ namespace Grappa {
       return t + sizeof( T );
     }
 
+    virtual void deliver_locally() {
+      if( !is_delivered_ ) {
+        (*pointer_)();
+        is_delivered_ = true;
+      }
+      this->mark_sent();
+    }
+
     /// Copy this message into a buffer.
     virtual char * serialize_to( char * p, size_t max_size ) {
       Grappa::impl::MessageBase::serialize_to( p, max_size );
@@ -354,13 +402,24 @@ namespace Grappa {
         // auto gfp = make_global( fp, destination_ );
         // // write to buffer
         // *(reinterpret_cast< intptr_t* >(p)) = reinterpret_cast< intptr_t >( gfp );
-        *(reinterpret_cast< intptr_t* >(p)) = reinterpret_cast< intptr_t >( fp );
-        p += sizeof( fp );
+        //*(reinterpret_cast< intptr_t* >(p)) = reinterpret_cast< intptr_t >( fp );
+
+        // intptr_t gfp = reinterpret_cast< intptr_t >( fp ) << 16;
+        // gfp |= destination_;
+        // *(reinterpret_cast< intptr_t* >(p)) = gfp;
+
+        // p += sizeof( fp );
+
+        FPAddr gfp = { destination_, reinterpret_cast< intptr_t >( fp ) };
+        *(reinterpret_cast< FPAddr* >(p)) = gfp;
+        static_assert( sizeof(gfp) == 8, "gfp wrong size?" );
+        p += sizeof( gfp );
+
         
         // copy contents
         std::memcpy( p, pointer_, sizeof(T) );
         
-        //DVLOG(5) << "serialized message of size " << sizeof(fp) + sizeof(T);
+        DVLOG(5) << "serialized message of size " << sizeof(fp) + sizeof(T) << " to " << gfp.dest << " with deserializer " << fp;
         
         // return pointer following message
         return p + sizeof( T );
@@ -484,6 +543,14 @@ namespace Grappa {
       return t + payload_size;
     }
 
+    virtual void deliver_locally() {
+      if( !is_delivered_ ) {
+        (*pointer_)( payload_, payload_size_ );
+        is_delivered_ = true;
+      }
+      this->mark_sent();
+    }
+
     /// Copy this message into a buffer.
     virtual char * serialize_to( char * p, size_t max_size ) {
       Grappa::impl::MessageBase::serialize_to( p, max_size );
@@ -496,8 +563,18 @@ namespace Grappa {
         // auto gfp = make_global( fp, destination_ );
         // // write to buffer
         // *(reinterpret_cast< intptr_t* >(p)) = reinterpret_cast< intptr_t >( gfp );
-        *(reinterpret_cast< intptr_t* >(p)) = reinterpret_cast< intptr_t >( fp );
-        p += sizeof( fp );
+        //*(reinterpret_cast< intptr_t* >(p)) = reinterpret_cast< intptr_t >( fp );
+        // intptr_t gfp = reinterpret_cast< intptr_t >( fp ) << 16;
+        // gfp |= destination_ ;
+        // *(reinterpret_cast< intptr_t* >(p)) = gfp;
+
+        // p += sizeof( fp );
+
+        FPAddr gfp = { destination_, reinterpret_cast< intptr_t >( fp ) };
+        *(reinterpret_cast< FPAddr* >(p)) = gfp;
+        static_assert( sizeof(gfp) == 8, "gfp wrong size?" );
+        p += sizeof( gfp );
+
         
         // copy contents
         std::memcpy( p, pointer_, sizeof(T) );
@@ -507,6 +584,8 @@ namespace Grappa {
         p += sizeof( int16_t );
 
         std::memcpy( p, payload_, payload_size_);
+
+        DVLOG(5) << __PRETTY_FUNCTION__ << " serialized message of size " << sizeof(fp) + sizeof(T) + sizeof(int16_t) + payload_size_ << " to " << gfp.dest << " with deserializer " << fp;
 
         // return pointer following message
         return p + payload_size_;
@@ -567,25 +646,29 @@ namespace Grappa {
   // Same as message, but allocated on heap
   template< typename T >
   inline Message<T> * heap_message( Core dest, T t ) {
-    return new Message<T>( dest, t );
+    void * p = Grappa::impl::locale_shared_memory.segment.allocate_aligned( sizeof(Message<T>), 8 );
+    return new (p) Message<T>( dest, t );
   }
 
   /// Message with payload, allocated on heap
   template< typename T >
   inline PayloadMessage<T> * heap_message( Core dest, T t, void * payload, size_t payload_size ) {
-    return new PayloadMessage<T>( dest, t, payload, payload_size );
+    void * p = Grappa::impl::locale_shared_memory.segment.allocate_aligned( sizeof(PayloadMessage<T>), 8 );
+    return new (p) PayloadMessage<T>( dest, t, payload, payload_size );
   }
 
   /// Message with contents stored outside object, allocated on heap
   template< typename T >
   inline ExternalMessage<T> * heap_message( Core dest, T * t ) {
-    return new ExternalMessage<T>( dest, t );
+    void * p = Grappa::impl::locale_shared_memory.segment.allocate_aligned( sizeof(ExternalMessage<T>), 8 );
+    return new (p) ExternalMessage<T>( dest, t );
   }
 
   /// Message with contents stored outside object as well as payload
   template< typename T >
   inline ExternalPayloadMessage<T> * heap_message( Core dest, T * t, void * payload, size_t payload_size ) {
-    return new ExternalPayloadMessage<T>( dest, t, payload, payload_size );
+    void * p = Grappa::impl::locale_shared_memory.segment.allocate_aligned( sizeof(ExternalPayloadMessage<T>), 8 );
+    return new (p) ExternalPayloadMessage<T>( dest, t, payload, payload_size );
   }
 
 
@@ -630,7 +713,8 @@ namespace Grappa {
   /// Same as message, but allocated on heap and immediately enqueued to be sent.
   template< typename T >
   inline Message<T> * send_heap_message( Core dest, T t ) {
-    auto m = new Message<T>( dest, t );
+    void * p = Grappa::impl::locale_shared_memory.segment.allocate_aligned( sizeof(Message<T>), 8 );
+    auto m = new (p) Message<T>( dest, t );
     m->delete_after_send();
     m->enqueue();
     return m;
@@ -639,7 +723,8 @@ namespace Grappa {
   /// Message with payload, allocated on heap and immediately enqueued to be sent.
   template< typename T >
   inline PayloadMessage<T> * send_heap_message( Core dest, T t, void * payload, size_t payload_size ) {
-    auto m = new PayloadMessage<T>( dest, t, payload, payload_size );
+    void * p = Grappa::impl::locale_shared_memory.segment.allocate_aligned( sizeof(PayloadMessage<T>), 8 );
+    auto m = new (p) PayloadMessage<T>( dest, t, payload, payload_size );
     m->delete_after_send();
     m->enqueue();
     return m;
@@ -648,7 +733,8 @@ namespace Grappa {
   /// Message with contents stored outside object, allocated on heap and immediately enqueued to be sent.
   template< typename T >
   inline ExternalMessage<T> * send_heap_message( Core dest, T * t ) {
-    auto m = new ExternalMessage<T>( dest, t );
+    void * p = Grappa::impl::locale_shared_memory.segment.allocate_aligned( sizeof(ExternalMessage<T>), 8 );
+    auto m = new (p) ExternalMessage<T>( dest, t );
     m->delete_after_send();
     m->enqueue();
     return m;
@@ -657,7 +743,8 @@ namespace Grappa {
   /// Message with contents stored outside object as well as payload, allocated on heap and immediately enqueued to be sent.
   template< typename T >
   inline ExternalPayloadMessage<T> * send_heap_message( Core dest, T * t, void * payload, size_t payload_size ) {
-    auto m = new ExternalPayloadMessage<T>( dest, t, payload, payload_size );
+    void * p = Grappa::impl::locale_shared_memory.segment.allocate_aligned( sizeof(ExternalPayloadMessage<T>), 8 );
+    auto m = new (p) ExternalPayloadMessage<T>( dest, t, payload, payload_size );
     m->delete_after_send();
     m->enqueue();
     return m;

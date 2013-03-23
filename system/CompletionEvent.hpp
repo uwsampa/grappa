@@ -21,6 +21,8 @@ namespace Grappa {
     int64_t count;
   public:
     CompletionEvent(int64_t count = 0): count(count) {}
+
+    int64_t get_count() const { return count; }
     
     void enroll(int64_t inc = 1) {
       count += inc;
@@ -28,9 +30,7 @@ namespace Grappa {
     
     /// Decrement count once, if count == 0, wake all waiters.
     void complete(int64_t decr = 1) {
-      if (count-decr < 0) {
-        LOG(ERROR) << "too many calls to signal()";
-      }
+      CHECK_GE( count-decr, 0 ) << "too many calls to signal()";
       count -= decr;
       DVLOG(4) << "completed (" << count << ")";
       if (count == 0) {
@@ -42,6 +42,11 @@ namespace Grappa {
       if (count > 0) {
         Grappa::wait(&cv);
       }
+    }
+
+    void reset() {
+      CHECK_EQ( cv.waiters_, 0 ) << "Resetting with waiters!";
+      count = 0;
     }
   };
 
