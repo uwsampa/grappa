@@ -209,6 +209,10 @@ ENV_VARIABLES+= HEAP_CHECK_DUMP_DIRECTORY=.
 ENV_VARIABLES+= PPROF_PATH=../tools/built_deps/bin
 CFLAGS+= -DHEAPCHECK_ENABLE
 LIBRARIES+= -ltcmalloc
+else
+ifdef PAL
+	LIBRARIES+= -ltcmalloc_minimal
+endif
 endif
 
 ifdef VALGRIND

@@ -167,8 +167,14 @@ void Grappa_init( int * argc_p, char ** argv_p[], size_t global_memory_size_byte
 
   DVLOG(1) << "Initializing Grappa library....";
 #ifdef HEAPCHECK_ENABLE
+  VLOG(1) << "heap check enabled";
   Grappa_heapchecker = new HeapLeakChecker("Grappa");
 #endif
+  
+  char * mem_reg_disabled = getenv("MV2_USE_LAZY_MEM_UNREGISTER");
+  if (mem_reg_disabled && strncmp(mem_reg_disabled,"0",1) == 0) {
+    VLOG(2) << "memory registration disabled";
+  }
 
   // how fast do we tick?
   Grappa_tick();
