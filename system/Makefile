@@ -202,7 +202,8 @@ GASNET_SETTINGS+= GASNET_USE_SRQ=2
 endif
 ENV_VARIABLES+= $(GASNET_SETTINGS)
 
-# enable RDMA Aggregator
+# enable RDMA Aggregator by default
+ENABLE_RDMA_AGGREGATOR=1
 ifdef ENABLE_RDMA_AGGREGATOR
 CFLAGS+= -DENABLE_RDMA_AGGREGATOR
 # may want this eventually
