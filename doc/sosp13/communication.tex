@@ -1,4 +1,4 @@
-\section{Communication Layer}
+\section{Communication Support}
 \label{sec:communication}
 
 In order to mitigate the low message injection rate limits of commodity
@@ -12,12 +12,12 @@ message, the message is copied to a send queue associated with the message's
 destination and the task continues execution.
 
 Grappa’s lower networking layer aggregates the upper layer’s messages to
-improve performance. Commodity networks including infiniband achieves their
-peak bisection bandwidth only when the packet sizes are relatively large ---
-on the order of multiple kilobytes. The reason for this discrepancy is the
-combination of overheads associated with handling each packet (in terms of
-bytes that form the actual packet, processing time at the card and processing
-on the CPU within the driver stack).
+improve performance. As mentioned earlier, commodity networks including
+InfiniBand achieves their peak bisection bandwidth only when the packet sizes
+are relatively large --- on the order of multiple kilobytes. The reason for
+this discrepancy is the combination of overheads associated with handling each
+packet (in terms of bytes that form the actual packet, processing time at the
+card and processing on the CPU within the driver stack).
 
 In our experiments the vast majority of requests were smaller than 44 bytes.
 Our measurements confirm manufacturers' published data [15]; with 44-byte
@@ -65,3 +65,22 @@ messages. A byproduct of this design decision is that Grappa is not
 limited to RDMA-capable networks.
 
 \TODO{We should expand on the zero-copy aggregation stuff?}
+
+% there is a message pointer list in each core. this list has as many entries
+% as the number of cores in the system. each entry is another list of message
+% with that destination.
+
+
+% each core in a node is responsible for a set of nodes in the system
+
+% cores in a node share a region of memory
+
+% network buffers also reside in this shared region of memory
+
+% messages ptrs also contain prefetching information to speed up assembling message in the buffer.
+
+% there are as many sending workers in a core as the number of nodes it is responsible for.
+
+
+
+
