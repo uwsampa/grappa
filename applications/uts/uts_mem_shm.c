@@ -1571,7 +1571,8 @@ void showStats(double elapsedSecs) {
     
   uts_showStats(GET_NUM_THREADS, chunkSize, elapsedSecs, tnodes, tleaves, mheight);
 
-  if (verbose > 1) {
+  //if (verbose > 1) {
+  if (verbose >= 0) {
     if (doSteal) {
       printf("Total chunks released = %d, of which %d reacquired and %d stolen\n",
           trel, tacq, tsteal);
