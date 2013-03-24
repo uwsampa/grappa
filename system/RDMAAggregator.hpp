@@ -473,7 +473,7 @@ namespace Grappa {
 
       bool receive_poll() {
         rdma_poll_receive++;
-        //DVLOG(2) << "RDMA receive poll";
+        //DVLOG(4) << "RDMA receive poll";
         bool useful = false;
         Core c = Grappa::mycore();
         // see if we have anything to receive
@@ -482,7 +482,7 @@ namespace Grappa {
         if( localeCoreData(c)->messages_.raw_ != 0 ) {
           useful = true;
             
-          DVLOG(2) << "Polling found messages.raw " << (void*) localeCoreData(c)->messages_.raw_  
+          DVLOG(4) << "Polling found messages.raw " << (void*) localeCoreData(c)->messages_.raw_  
                    << " count " << localeCoreData(c)->messages_.count_ ;
             
           //Grappa_Timestamp start = Grappa_force_tick();
@@ -498,7 +498,7 @@ namespace Grappa {
           if( coreData(c, locale_source)->messages_.raw_ != 0 ) {
             useful = true;
             
-            DVLOG(2) << "Polling found messages.raw " << (void*) coreData(c,locale_source)->messages_.raw_  
+            DVLOG(4) << "Polling found messages.raw " << (void*) coreData(c,locale_source)->messages_.raw_  
                      << " count " << coreData(c,locale_source)->messages_.count_ ;
             
             //Grappa_Timestamp start = Grappa_force_tick();
@@ -536,7 +536,7 @@ namespace Grappa {
       bool poll( ) {
         rdma_poll++;
 
-        //DVLOG(2) << "RDMA poll";
+        //DVLOG(4) << "RDMA poll";
 
         bool receive_success = receive_poll();
         bool send_success = send_poll();
