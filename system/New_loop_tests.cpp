@@ -50,7 +50,7 @@ void test_loop_decomposition() {
 }
 
 void test_loop_decomposition_global() {
-  int N = 16;
+  int N = 160000;
   
   CompletionEvent ce(N);
   auto ce_addr = make_global(&ce);

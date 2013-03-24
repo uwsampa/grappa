@@ -26,6 +26,7 @@
 #include "../Addressing.hpp"
 #include "../LegacySignaler.hpp"
 #include "../FullEmpty.hpp"
+#include "../LocaleSharedMemory.hpp"
 
 #include "../Aggregator.hpp"
 
@@ -227,14 +228,14 @@ template <typename T>
     public:
       static StealQueue<T> steal_queue;
 
-      void init( uint64_t numEle ) {
+      void activate( uint64_t numEle ) {
         stackSize = numEle;
 
         uint64_t nbytes = numEle * sizeof(T);
 
         // allocate stack in shared addr space with affinity to calling thread
         // and record local addr for efficient access in sequel
-        stack_g = static_cast<T*>( malloc( nbytes ) );
+        stack_g = static_cast<T*>( Grappa::impl::locale_shared_memory.segment.allocate_aligned( nbytes, 8 ) );
         stack = stack_g;
 
         CHECK( stack!= NULL ) << "Request for " << nbytes << " bytes for stealStack failed";
