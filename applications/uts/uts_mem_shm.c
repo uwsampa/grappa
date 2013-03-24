@@ -1801,9 +1801,12 @@ printf("stats mask=%s\n", bupc_stats_getmask());
   INIT_SINGLE_LOCK( global_child_index_lock );
 
   /* initialize tree data structures */
-  printf("allocating %lu of space\n", vertices_size);
-  Vertex = (SHARED vertex_t *) ALL_ALLOC( GET_NUM_THREADS, sizeof(vertex_t) * vertices_size );
-  Child =  (SHARED uint64_t *) ALL_ALLOC( GET_NUM_THREADS, sizeof(uint64_t) * vertices_size );
+  printf("allocating space for %lu vertices, %lu vertices (%lu bytes) per THREAD\n", vertices_size, local_vertices_max, (sizeof(vertex_t)+sizeof(uint64_t))*local_vertices_size_max);
+
+  // calculate upper bound on space needed for block distribution over THREADS
+  size_t local_vertices_size_max = vertices_size/GET_NUM_THREADS + (vertices_size%GET_NUM_THREADS==0 ? 0 : 1);
+  Vertex = (SHARED vertex_t *) ALL_ALLOC( GET_NUM_THREADS, sizeof(vertex_t) * local_vertices_size_max );
+  Child =  (SHARED uint64_t *) ALL_ALLOC( GET_NUM_THREADS, sizeof(uint64_t) * local_vertices_size_max );
 
 
 /********** SPMD Parallel Region **********/
