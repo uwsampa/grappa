@@ -158,6 +158,7 @@ Scratch_tests.test: $(LIBRARY)
 ENV_VARIABLES+= GLOG_logtostderr=1
 #ENV_VARIABLES+= GLOG_vmodule=Cache*=5,Incoh*=5,Aggreg*=5
 #ENV_VARIABLES+= GLOG_vmodule=Cache*=5,Incoh*=5
+ENV_VARIABLES+= GLOG_vmodule=StealQueue*=5
 ENV_VARIABLES+= GLOG_v=1
 #ENV_VARIABLES+= OMPI_MCA_btl_sm_use_knem=0
 ifdef OSX
@@ -362,10 +363,12 @@ else
 TEST_LOG_LEVEL=nothing
 TEST_REPORT_LEVEL=no
 endif
+# set to 'n' to allow system errors to not be caught by boost test
+TEST_CATCH_SYSTEM_ERRORS?=y
 
 mpi_test: $(TARGET) $($(MPITYPE)_ENVVAR_TEMP) $($(MPITYPE)_EPILOG_TEMP) $($(MPITYPE)_BATCH_TEMP)
 	$(ENV_VARIABLES) \
-	$($(MPITYPE)_RUN) ./$< $($(MPITYPE)_UDPTASKS) --log_level=$(TEST_LOG_LEVEL) --report_level=$(TEST_REPORT_LEVEL) --run_test=$(TARGET:.test=) $(GARGS)
+	$($(MPITYPE)_RUN) ./$< $($(MPITYPE)_UDPTASKS) --log_level=$(TEST_LOG_LEVEL) --report_level=$(TEST_REPORT_LEVEL) --run_test=$(TARGET:.test=) --catch_system_errors=$(TEST_CATCH_SYSTEM_ERRORS) $(GARGS)
 
 valgrind_mpi_test: $(TARGET) $($(MPITYPE)_ENVVAR_TEMP) $($(MPITYPE)_EPILOG_TEMP) $($(MPITYPE)_BATCH_TEMP)
 	$(ENV_VARIABLES) \
