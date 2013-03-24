@@ -170,7 +170,7 @@ namespace Grappa {
     }
 
     for( int i = 0; i < Grappa::locales(); ++i ) {
-      LOG(INFO) << "From locale " << Grappa::mylocale() << " to locale " << i 
+      DVLOG(2) << "From locale " << Grappa::mylocale() << " to locale " << i 
                 << " source core " << source_core_for_locale_[i]
                 << " dest core " << dest_core_for_locale_[i];
     }
@@ -279,18 +279,18 @@ namespace Grappa {
         if( source_core_for_locale_[i] == Grappa::mycore() ) {
           CHECK_LT( core_partner_locale_count_, locales_per_core ) << "this core is responsible for more locales than expected";
           core_partner_locales_[ core_partner_locale_count_++ ] = i;
-          LOG(INFO) << "Core " << Grappa::mycore() << " responsible for locale " << i;
+          DVLOG(2) << "Core " << Grappa::mycore() << " responsible for locale " << i;
         }
       }
-      LOG(INFO) << "Partner locale count is " << core_partner_locale_count_ << ", locales per core is " << locales_per_core;
+      DVLOG(2) << "Partner locale count is " << core_partner_locale_count_ << ", locales per core is " << locales_per_core;
 
       // fill pool of buffers
       if( core_partner_locale_count_ > 0 ) {
         const int num_buffers = core_partner_locale_count_ * FLAGS_rdma_buffers_per_core;
-        LOG(INFO) << "Number of buffers: " << num_buffers;
+        DVLOG(2) << "Number of buffers: " << num_buffers;
         void * p = Grappa::impl::locale_shared_memory.allocate_aligned( sizeof(RDMABuffer) * num_buffers, 8 );
         CHECK_NOTNULL( p );
-        LOG(INFO) << "Allocated buffers: " << num_buffers;
+        DVLOG(2) << "Allocated buffers: " << num_buffers;
         rdma_buffers_ = reinterpret_cast< RDMABuffer * >( p );
         for( int i = 0; i < num_buffers; ++i ) {
           free_buffer_list_.push( &rdma_buffers_[i] );
@@ -350,7 +350,7 @@ namespace Grappa {
       // // send buffers to cores
       // for( int i = 0; i < core_partner_locale_count_; ++i ) {
       //   Core dest = dest_core_for_locale_[i];
-      //   LOG(INFO) << "Core " << Grappa::mycore() << " precaching to " << dest;
+      //   DVLOG(2) << "Core " << Grappa::mycore() << " precaching to " << dest;
       //   Core requestor = Grappa::mycore();
       //   auto request = Grappa::message( dest, [dest, requestor, &expected_buffers] {
       //       for( int j = 0; j < remote_buffer_pool_size; ++j ) {
@@ -370,9 +370,9 @@ namespace Grappa {
       //   request.send_immediate();
       // }
 
-      // LOG(INFO) << "Waiting for responses";
+      // DVLOG(2) << "Waiting for responses";
       // while( expected_buffers > 0 ) global_communicator.poll();
-      // LOG(INFO) << "Done precaching buffers";
+      // DVLOG(2) << "Done precaching buffers";
       // for( int i = 0; i < core_partner_locale_count_; ++i ) {
       //   Core partner = dest_core_for_locale_[ core_partner_locales_[i] ];
       //   CHECK_EQ( cores_[partner].remote_buffers_.count(), remote_buffer_pool_size );
@@ -1066,7 +1066,7 @@ void RDMAAggregator::draw_routing_graph() {
       size_t delivered_count = 0;
       size_t delivered_bytes = 0;
 
-      DVLOG(2) << "Delivering locally with " << ml.count_;
+      DVLOG(4) << "Delivering locally with " << ml.count_;
 
       //
       // serialize
@@ -1081,7 +1081,7 @@ void RDMAAggregator::draw_routing_graph() {
 
       Grappa::impl::global_scheduler.set_no_switch_region( true );
       while( messages_to_send != NULL ) {
-        DVLOG(2) << __func__ << "/" << Grappa::impl::global_scheduler.get_current_thread() << ": Delivered message " << messages_to_send 
+        DVLOG(4) << __func__ << "/" << Grappa::impl::global_scheduler.get_current_thread() << ": Delivered message " << messages_to_send 
                  << " with is_delivered_=" << messages_to_send->is_delivered_ 
                  << ": " << messages_to_send->typestr();
         MessageBase * next = messages_to_send->next_;
