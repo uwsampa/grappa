@@ -125,6 +125,11 @@ BOOST_AUTO_TEST_CASE( test1 ) {
     }
 
 
+    // hack the test
+    void* prev_base = Grappa::impl::global_memory_chunk_base;
+    Grappa::impl::global_memory_chunk_base = 0;
+
+
     GlobalAddress< array_element > l1 = GlobalAddress< array_element >::Linear( 0 );
     // BOOST_CHECK_EQUAL( l1.pool(), 0 );
     BOOST_CHECK_EQUAL( l1.pointer(), (array_element *) 0 );

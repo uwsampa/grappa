@@ -21,7 +21,7 @@ public:
   GlobalMemoryChunk( size_t size );
   ~GlobalMemoryChunk();
 
-  void * local_pointer() {
+  void * local_pointer() const {
     return memory_;
   }
 
@@ -29,5 +29,11 @@ public:
     return make_linear( memory_ );
   }
 };
+
+namespace Grappa {
+namespace impl {
+extern void * global_memory_chunk_base;
+}
+}
 
 #endif
