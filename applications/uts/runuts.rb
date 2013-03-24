@@ -5,7 +5,7 @@ require '../../experiment_utils'
 db = "uts-compare-test.db"
 table = :uts_mem_compare
 
-cmd = "srun --partition=pal --cpu_bind=verbose --task-prolog=srunrc.upc \
+cmd = "srun --time=20 --partition=pal --cpu_bind=verbose,rank --task-prolog=srunrc.upc \
 -N%{nnode} \
 -n%{nproc} \
 ./%{uts_upc_version} \
@@ -20,17 +20,17 @@ cmd = "srun --partition=pal --cpu_bind=verbose --task-prolog=srunrc.upc \
 
 params = {
     trial: [1,2,3],
-    nnode: [4,8,10],
-    chunk_size: [20,50,1],
-    chunk_release_interval: [1,10],
-    bupc_poll_interval: [1,10],
-    ppn: [1,2,6,8],
+    nnode: [2,4,8,16,32,64],
+    chunk_size: [20],
+    chunk_release_interval: [1],
+    bupc_poll_interval: [1],
+    ppn: [4,8],
     nproc: expr('nnode * ppn'),
     steal: [1],
-    tree: ['T1L'],#['T1L', 'T2L', 'T3L'],
+    tree: ['T1L', 'T2L', 'T3L'],
     tree_args: expr('ENV[tree]'),
     uts_upc_version: ['uts-mem-upc'],#['uts-mem-upc'],
-    vertices_size: expr("ENV['SIZEL']"),
+    vertices_size: expr("ENV['SIZE'+tree]"),
     problem: ['uts-mem']
 }
 
