@@ -7,6 +7,7 @@
 #include <machine/runtime.h>
 #include "globals.h"
 #include "defs.h"
+#include "mod_arith_xmt.h"
 
 int main(int argc, char **argv)
 { 
@@ -47,6 +48,7 @@ int main(int argc, char **argv)
    
 /* User Interface: Configurable parameters, and global program control. */
   printf("\nSSCA Graph Analysis Executable Specification:");
+
   printf("\nRunning...\n\n");
  
   getUserParameters(scale);
@@ -62,8 +64,41 @@ int main(int argc, char **argv)
   printf("\nScalable Data Generator - genScalData() beginning execution...\n");
   time = timer();
   SDGdata  = (graphSDG*) malloc(sizeof(graphSDG));
-  genScalData(SDGdata);
   /* gen1DTorus(SDGdata); */
+#ifdef SSCA2
+  genScalData(SDGdata);
+#else
+  uint_fast32_t seed[5];
+  make_mrg_seed(1, 2, seed);
+  alloc_edgelist(SDGdata, numEdges);
+
+  generate_kronecker_range(seed, SCALE, 0, numEdges, SDGdata);
+
+    //checksum:
+    int sum = 0;
+    for (int i = 0; i < SDGdata->numEdges; i++) {
+      graphint s = SDGdata->startVertex[i];
+      graphint e = SDGdata->endVertex[i];
+      sum ^= s*e;
+    }
+    printf("graph checksum: %d\n", sum);
+
+  int * tmp = SDGdata->intWeight;
+  i = numEdges;
+  for (int j = 0; j < i; j++) tmp[j] = j;
+  /*
+  int n = 2 * numVertices;
+  double *rn = (double *) malloc(n * sizeof(double));
+  for (int j = 0; j < numEdges; j += n) {
+      prand(n, rn);
+#pragma mta assert no dependence
+      int k = n < numEdges - j ? n : numEdges - j;
+      for (int i = 0; i < k ; i++)
+          SDGdata->intWeight[i + j] = (int) (rn[i] * NV);
+  }
+  free(rn);
+  */
+#endif
 
   time  = timer() - time;
   

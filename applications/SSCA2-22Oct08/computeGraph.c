@@ -8,18 +8,22 @@
 void SortStart(NV, NE, sv1, ev1, sv2, ev2, start)
   int NV, NE, *sv1, *ev1, *sv2, *ev2, *start;
 { int i;
+  fprintf(stderr, "histogramming... ");
   for (i = 0; i < NV + 2; i++) start[i] = 0;
-
   start += 2;
 
 /* Histogram key values */
 #pragma mta assert no alias *start *sv1
   for (i = 0; i < NE; i++) start[sv1[i]] ++;
 
+  fprintf(stderr, "prefix sum... ");
+
 /* Compute start index of each bucket */
   for (i = 1; i < NV; i++) start[i] += start[i-1];
 
   start --;
+
+  fprintf(stderr, "moving edges... ");
 
 /* Move edges into its bucket's segment */
 #pragma mta assert no dependence
@@ -27,8 +31,9 @@ void SortStart(NV, NE, sv1, ev1, sv2, ev2, start)
       int index = start[sv1[i]] ++;
       sv2[index] = sv1[i];
       ev2[index] = ev1[i];
-} }
-
+  }
+  fprintf(stderr, "done sorting.\n");
+ }
 
 void computeGraph(graph* G, graphSDG* SDGdata) {
   int i, NE, NV;
@@ -39,10 +44,10 @@ void computeGraph(graph* G, graphSDG* SDGdata) {
   ev1 = SDGdata->endVertex;
 
   NV = 0;
-  for (i = 0; i < NE; i++) NV = (NV > sv1[i]) ? NV : sv1[i];
-  for (i = 0; i < NE; i++) NV = (NV > ev1[i]) ? NV : ev1[i];
-
+  for (i = 0; i < NE; i++) NV = sv1[i] > NV ? sv1[i] : NV;
+  for (i = 0; i < NE; i++) NV = ev1[i] > NV? ev1[i] : NV;
   NV ++;
+
   sv2   = (int *) malloc(NE * sizeof(int));
   ev2   = (int *) malloc(NE * sizeof(int));
   start = (int *) malloc((NV + 2) * sizeof(int));
@@ -60,5 +65,9 @@ void computeGraph(graph* G, graphSDG* SDGdata) {
   G->edgeStart   = start;
   G->intWeight   = SDGdata->intWeight;
 
+#ifdef SSCA2
   free(sv1); free(ev1);
+#else
+  //  free_edgelist(SDGdata);
+#endif
 }

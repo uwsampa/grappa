@@ -13,7 +13,7 @@
 /* Edges whose weights are a multiple of 8 are filtered */
 /* according to the SSCA#2 specification */
 /* Set this to 0 to disable this edge filtering */
-#define FILTEREDGES 1
+#define FILTEREDGES 0
 
 double centrality(graph *G, double *BC, int Vs) {
   
@@ -93,7 +93,6 @@ PushOnStack:    /* Push nodes onto Q */
       d_phase = nQ;
       Qstart = QHead[nQ-1];
       Qend = QHead[nQ];
-
 #pragma mta assert no dependence
 #pragma mta block dynamic schedule
 MTA("mta use 100 streams")
@@ -160,7 +159,7 @@ MTA("mta use 100 streams")
       for ( ; nQ > 1; nQ --) {
           Qstart = QHead[nQ-1];
           Qend   = QHead[nQ];
-/* For each v in the sublist AND for each w on v's list */
+  /* For each v in the sublist AND for each w on v's list */
 #pragma mta assert parallel
 #pragma mta block dynamic schedule
 #pragma mta assert no alias *sigma *Q *BC *delta *child *start *QHead
@@ -178,7 +177,7 @@ MTA("mta use 100 streams")
               delta[v] = sum; 
               BC[v] += sum;
           }   
-      }
+  }
 
 #if TIMEBCPART 
       timep1 = timer() - timep1;

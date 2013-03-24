@@ -13,15 +13,16 @@ void getStartLists(graph* GPtr, int *numMarkedEdges, int *markedEdges)
 
 /* Find maximum integer weight */
   maxWeight = 0;
-  for (i = 0; i < NE; i++)
-      maxWeight = (weight[i] > maxWeight) ? weight[i] : maxWeight;
-  
+  for (i = 0; i < NE; i++){
+    maxWeight = (weight[i] > maxWeight) ? weight[i] : maxWeight;
+  }
+
 /* Store maximum weight edge labels */
   *numMarkedEdges = 0;
 
-#pragma mta assert no dependence
-#pragma mta block dynamic schedule
-#pragma mta use 100 streams
+  #pragma mta assert no dependence
+  #pragma mta block dynamic schedule
+  #pragma mta use 100 streams
   for (i = 0; i < NE; i++) {
       if (weight[i] == maxWeight) {
          int k = int_fetch_add(numMarkedEdges, 1);

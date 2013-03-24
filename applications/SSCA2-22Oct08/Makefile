@@ -1,43 +1,19 @@
 CC = cc
 LD = $(CC)
-CFLAGS  = -O3 -pl ssca2.pl -par
-LDFLAGS = -pl ssca2.pl 
+CFLAGS  = -par
 
-OBJS =	main.o globals.o getUserParameters.o genScalData.o \
-	computeGraph.o getStartLists.o findSubGraphs.o centrality.o \
-	timer.o
+SRCS =	main.c globals.c getUserParameters.c genScalData.c \
+	computeGraph.c getStartLists.c findSubGraphs.c centrality.c \
+	timer.c
+SRCS2 =	utils.c graph_generator.c splittable_mrg.c graph-manip.c xmalloc.c
 
 LIBS = -lm -lprand
 
-all: $(OBJS)
-	$(LD) $(LDFLAGS) -o ssca2 $(OBJS) $(LIBS)
+ssca2:	$(SRCS) Makefile
+	$(CC) -pl ssca2.pl $(CFLAGS) -DSSCA2 $(SRCS) $(LIBS) -o $@ 
 
-globals.o:		globals.c globals.h
-	$(CC) $(CFLAGS) -c globals.c
-
-getUserParameters.o:	getUserParameters.c globals.h
-	$(CC) $(CFLAGS) -c getUserParameters.c
-
-genScalData.o:	genScalData.c globals.h defs.h
-	$(CC) $(CFLAGS) -c genScalData.c
-
-computeGraph.o:	computeGraph.c globals.h defs.h
-	$(CC) $(CFLAGS) -c computeGraph.c
-
-getStartLists.o:	getStartLists.c globals.h defs.h
-	$(CC) $(CFLAGS) -c getStartLists.c
-
-findSubGraphs.o:	findSubGraphs.c globals.h defs.h
-	$(CC) $(CFLAGS) -c findSubGraphs.c
-
-centrality.o:	centrality.c globals.h defs.h
-	$(CC) $(CFLAGS) -c centrality.c
-
-timer.o:	timer.c
-	$(CC) $(CFLAGS) -c timer.c
-
-main.o:		main.c globals.h defs.h
-	$(CC) $(CFLAGS) -c main.c
+kron:	$(SRCS) $(SRCS2) Makefile
+	$(CC) -pl kron.pl $(CFLAGS) $(SRCS) $(SRCS2) $(LIBS) -o $@ 
 
 clean:
-	rm -f *.o ssca2.pl ssca2
+	rm -f *.o *.pl ssca2 kron
