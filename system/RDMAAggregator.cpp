@@ -18,6 +18,7 @@ namespace Grappa {
 namespace impl {
 
 void poll();
+void failure_function();
 
 }
 }
@@ -216,15 +217,20 @@ namespace Grappa {
 #ifdef ENABLE_RDMA_AGGREGATOR
       // one core on each locale initializes shared data
       if( global_communicator.locale_mycore() == 0 ) {
-
-        // allocate core message list structs
-        // one for each core on this locale + one for communication within the locale.
-        cores_ = Grappa::impl::locale_shared_memory.segment.construct<CoreData>("Cores")[global_communicator.cores() * 
-                                                                                         (global_communicator.locale_cores() + 1 )]();
-
-        // allocate routing info
-        source_core_for_locale_ = Grappa::impl::locale_shared_memory.segment.construct<Core>("SourceCores")[global_communicator.locales()]();
-        dest_core_for_locale_ = Grappa::impl::locale_shared_memory.segment.construct<Core>("DestCores")[global_communicator.locales()]();
+        try {
+          // allocate core message list structs
+          // one for each core on this locale + one for communication within the locale.
+          cores_ = Grappa::impl::locale_shared_memory.segment.construct<CoreData>("Cores")[global_communicator.cores() * 
+                                                                                           (global_communicator.locale_cores() + 1 )]();
+          
+          // allocate routing info
+          source_core_for_locale_ = Grappa::impl::locale_shared_memory.segment.construct<Core>("SourceCores")[global_communicator.locales()]();
+          dest_core_for_locale_ = Grappa::impl::locale_shared_memory.segment.construct<Core>("DestCores")[global_communicator.locales()]();
+        }
+        catch(...){
+          failure_function();
+          throw;
+        }
         compute_route_map();
       }
 
@@ -233,21 +239,26 @@ namespace Grappa {
 
       // other cores attach to shared data
       if( global_communicator.locale_mycore() != 0 ) {
-
-        // attach to core message list structs
-        std::pair< CoreData *, boost::interprocess::managed_shared_memory::size_type > p;
-        p = Grappa::impl::locale_shared_memory.segment.find<CoreData>("Cores");
-        CHECK_EQ( p.second, global_communicator.cores() * (global_communicator.locale_cores() + 1) );
-        cores_ = p.first;
-
-        // attach to routing info
-        std::pair< Core *, boost::interprocess::managed_shared_memory::size_type > q;
-        q = Grappa::impl::locale_shared_memory.segment.find<Core>("SourceCores");
-        CHECK_EQ( q.second, global_communicator.locales() );
-        source_core_for_locale_ = q.first;
-        q = Grappa::impl::locale_shared_memory.segment.find<Core>("DestCores");
-        CHECK_EQ( q.second, global_communicator.locales() );
-        dest_core_for_locale_ = q.first;
+        try{
+          // attach to core message list structs
+          std::pair< CoreData *, boost::interprocess::managed_shared_memory::size_type > p;
+          p = Grappa::impl::locale_shared_memory.segment.find<CoreData>("Cores");
+          CHECK_EQ( p.second, global_communicator.cores() * (global_communicator.locale_cores() + 1) );
+          cores_ = p.first;
+          
+          // attach to routing info
+          std::pair< Core *, boost::interprocess::managed_shared_memory::size_type > q;
+          q = Grappa::impl::locale_shared_memory.segment.find<Core>("SourceCores");
+          CHECK_EQ( q.second, global_communicator.locales() );
+          source_core_for_locale_ = q.first;
+          q = Grappa::impl::locale_shared_memory.segment.find<Core>("DestCores");
+          CHECK_EQ( q.second, global_communicator.locales() );
+          dest_core_for_locale_ = q.first;
+        }
+        catch(...){
+          failure_function();
+          throw;
+        }
       }
 
       //
@@ -277,7 +288,7 @@ namespace Grappa {
       if( core_partner_locale_count_ > 0 ) {
         const int num_buffers = core_partner_locale_count_ * FLAGS_rdma_buffers_per_core;
         LOG(INFO) << "Number of buffers: " << num_buffers;
-        void * p = Grappa::impl::locale_shared_memory.segment.allocate_aligned( sizeof(RDMABuffer) * num_buffers, 8 );
+        void * p = Grappa::impl::locale_shared_memory.allocate_aligned( sizeof(RDMABuffer) * num_buffers, 8 );
         CHECK_NOTNULL( p );
         LOG(INFO) << "Allocated buffers: " << num_buffers;
         rdma_buffers_ = reinterpret_cast< RDMABuffer * >( p );
@@ -383,7 +394,7 @@ namespace Grappa {
       dest_core_for_locale_ = NULL;
 
       if( core_partner_locales_ ) delete [] core_partner_locales_;
-      Grappa::impl::locale_shared_memory.segment.deallocate( rdma_buffers_ );
+      Grappa::impl::locale_shared_memory.deallocate( rdma_buffers_ );
 #endif
     }
 

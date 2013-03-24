@@ -150,11 +150,17 @@ static void stats_dump_sighandler( int signum ) {
 }
 
 // function to call when google logging library detect a failure
-static void failure_function() {
+namespace Grappa {
+namespace impl {
+
+void  failure_function() {
   google::FlushLogFiles(google::GLOG_INFO);
   google::DumpStackTrace();
   gasnett_freezeForDebuggerErr();
   gasnet_exit(1);
+}
+
+}
 }
 
 DECLARE_bool( global_memory_use_hugepages );
@@ -179,7 +185,7 @@ void Grappa_init( int * argc_p, char ** argv_p[], size_t global_memory_size_byte
 
   // activate logging
   google::InitGoogleLogging( *argv_p[0] );
-  google::InstallFailureFunction( &failure_function );
+  google::InstallFailureFunction( &Grappa::impl::failure_function );
   google::OverrideDefaultSignalHandler( &gasnet_pause_sighandler );
 
   DVLOG(1) << "Initializing Grappa library....";

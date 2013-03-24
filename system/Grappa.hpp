@@ -20,13 +20,18 @@
 //#include <cxxabi.h>
 
 namespace Grappa {
-  extern double tick_rate;
 
-  namespace impl {
+extern double tick_rate;
+
+namespace impl {
 
 /// global scheduler instance
 extern TaskingScheduler global_scheduler;
-  }
+
+/// called on failures to backtrace and pause for debugger
+extern void failure_function();
+
+}
 }
 
 /// pointer to parent pthread

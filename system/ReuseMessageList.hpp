@@ -40,7 +40,8 @@ public:
 
   // initialize list in locale shared memory
   void activate() {
-    messages_ = Grappa::impl::locale_shared_memory.segment.construct< ReuseMessage<T> >(boost::interprocess::anonymous_instance)[ outstanding_ ]();
+    void * p = Grappa::impl::locale_shared_memory.allocate( sizeof(ReuseMessage<T>) * outstanding_ );
+    messages_ = reinterpret_cast< ReuseMessage<T> * >(p);
     for( int i = 0; i < outstanding_; ++i ) {
       messages_[i].list_ = this;
       this->push( &messages_[i] );
@@ -51,7 +52,7 @@ public:
     while( !(this->empty()) ) {
       this->block_until_pop();
     }
-    Grappa::impl::locale_shared_memory.segment.destroy_ptr( messages_ );
+    Grappa::impl::locale_shared_memory.deallocate( messages_ );
   }
 
   template< typename F >

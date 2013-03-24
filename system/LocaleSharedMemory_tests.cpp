@@ -26,7 +26,7 @@ void user_main( void * args )
   // allocate array
   if( Grappa::node_mycore() == 0 ) {
     // we need to do this on each node (not core)
-    arr = static_cast< int64_t* >( Grappa::impl::locale_shared_memory.segment.allocate_aligned( sizeof(int64_t) * Grappa::node_cores(), 1<<3 ) );
+    arr = static_cast< int64_t* >( Grappa::impl::locale_shared_memory.allocate_aligned( sizeof(int64_t) * Grappa::node_cores(), 1<<3 ) );
     for( int i = 0; i < Grappa::node_cores(); ++i ) {
       arr[i] = 0;
     }
