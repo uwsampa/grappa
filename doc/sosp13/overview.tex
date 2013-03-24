@@ -1,27 +1,26 @@
-\section{Grappa Overview}
+\section{\Grappa Overview}
 
 \begin{figure}[t]
 \begin{center}
   \includegraphics[width=0.95\columnwidth]{figs/system-overview}
 \begin{minipage}{0.95\columnwidth}
-  \caption{\label{fig:grappa} Grappa system overview}
+  \caption{\label{fig:grappa} \Grappa system overview}
 \end{minipage}
 \vspace{-3ex}
 \end{center}
 \end{figure}
 
 
-Grappa (Figure~\ref{fig:grappa}) has three main software components:
+\Grappa (Figure~\ref{fig:grappa}) has three main software components:
 \begin{description}
 
 \item [Tasking system.] The tasking system supports lightweight multithreading
 to tolerate communication latency and global distributed work-stealing (i.e.,
 tasks can be stolen from any node in the system), which provides automated
-load balancing. The scheduler oversubscribes to have more worker
-threads than required for latency tolerance. By having at least
-several threads ready to run at all times, the scheduler can prefetch
-a few stack frames into cache to lower the likelihood of costly main
-memory accesses on every context switch.
+load balancing. The scheduler oversubscribes to have more worker threads than
+required for latency tolerance. By having at least several threads ready to
+run at all times, the scheduler can prefetch a context data into cache to
+lower the likelihood of costly main memory accesses during a context switch. 
 
 \item[Distributed shared memory.] The DSM system provides
 fine-grain access to data anywhere in the system. It supports synchronization
@@ -46,5 +45,5 @@ programmer.
 
 % \TODO{check to see we actually explain these three somewhere.  Ie, that aggregating increases throughput and latency, that delegating synchronization increases the rate and the latency at which we can eg atomically increment, and that stealing work increases the latency of some tasks (eg when their data is largely at the originating node) but provides greater throughput overall.}
 
-In the next three sections we describe both Grappa's main capabilities and how they are implemented.
+In the next three sections we describe both \Grappa's main components and how they are implemented.
 
