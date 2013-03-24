@@ -1772,6 +1772,11 @@ StealStack * initialize_steal_stacks( ) {
 #include "rng/brg_endian.h"
 int main(int argc, char *argv[]) {
 
+#ifdef __BERKELEY_UPC__
+printf("stats mask=%s\n", bupc_stats_getmask());
+#endif
+
+
 #ifdef __PTHREADS__
   return pthread_main(argc, argv);
 #endif
