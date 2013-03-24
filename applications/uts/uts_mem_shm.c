@@ -21,6 +21,7 @@
 
 #include "uts.h"
 
+
 // FIXME into makefile
 #define PROTECT_STACK 0
 
@@ -367,6 +368,14 @@ uint64_t vertices_size = 4500000;  // only used to size the in-memory tree array
 uint64_t my_generated_count = 0;
 uint64_t my_searched_count = 0;
 
+#include <ProgressOutput.h>
+ProgressOutput my_generated_count_PO;
+ProgressOutput my_searched_count_PO;
+ProgressOutput steal_stack_size_PO;
+ProgressOutput failed_steals_PO;
+const uint64_t PROGRESS_FLUSH_INTERVAL = 1<<16;
+const int64_t PROGRESS_OUTPUT_INTERVAL = 7;
+
 
 /***********************************************************
  *  UTS Implementation Hooks                               *
@@ -404,7 +413,7 @@ int impl_parseParam(char *param, char *value) {
 
   switch (param[1]) {
     case 'V':
-      vertices_size = atoi(value); break;
+      vertices_size = strtoull(value, NULL, 10); break;
 #if (PARALLEL == 1)
     case 'c':
       chunkSize = atoi(value); break;
@@ -1363,6 +1372,11 @@ void parTreeGeneration(StealStack *ss) {
 #endif
         ss_pop(ss);
         my_generated_count++;
+        if (my_generated_count%PROGRESS_FLUSH_INTERVAL==0) {
+          ProgressOutput_updateShared( &my_generated_count_PO, my_generated_count );
+          ProgressOutput_updateShared( &steal_stack_size_PO, ss_localDepth(ss) );
+          ProgressOutput_updateShared( &failed_steals_PO, ss->nFail );
+        }
       }
       
       // release some nodes for stealing, if enough are available
@@ -1435,6 +1449,12 @@ void parTreeSearch(StealStack *ss) {
       Node * parentOnlyId = ss_top(ss);
       ss_pop(ss);
       my_searched_count++;
+      if (my_searched_count%PROGRESS_FLUSH_INTERVAL==0) {
+        ProgressOutput_updateShared( &my_searched_count_PO, my_searched_count );
+        ProgressOutput_updateShared( &steal_stack_size_PO, ss_localDepth(ss) );
+        ProgressOutput_updateShared( &failed_steals_PO, ss->nFail );
+      }
+
       /* Random access: get the vertex */
       vertex_t parentStored = Vertex[parentOnlyId->id];
 
@@ -1771,6 +1791,9 @@ StealStack * initialize_steal_stacks( ) {
  */
 #include "rng/brg_endian.h"
 int main(int argc, char *argv[]) {
+  char threadstr[256];
+  sprintf(threadstr, "%lu progress:", GET_THREAD_NUM);
+  ProgressOutput_init( threadstr, PROGRESS_OUTPUT_INTERVAL, 4, PO_ARG(my_generated_count_PO), PO_ARG(my_searched_count_PO), PO_ARG(steal_stack_size_PO), PO_ARG(failed_steals_PO) );
 
 #ifdef __BERKELEY_UPC__
 printf("stats mask=%s\n", bupc_stats_getmask());
@@ -1801,10 +1824,10 @@ printf("stats mask=%s\n", bupc_stats_getmask());
   INIT_SINGLE_LOCK( global_child_index_lock );
 
   /* initialize tree data structures */
-  printf("allocating space for %lu vertices, %lu vertices (%lu bytes) per THREAD\n", vertices_size, local_vertices_max, (sizeof(vertex_t)+sizeof(uint64_t))*local_vertices_size_max);
 
   // calculate upper bound on space needed for block distribution over THREADS
   size_t local_vertices_size_max = vertices_size/GET_NUM_THREADS + (vertices_size%GET_NUM_THREADS==0 ? 0 : 1);
+  printf("allocating space for %lu vertices, %lu vertices (%lu bytes) per THREAD\n", vertices_size, local_vertices_size_max, (sizeof(vertex_t)+sizeof(uint64_t))*local_vertices_size_max);
   Vertex = (SHARED vertex_t *) ALL_ALLOC( GET_NUM_THREADS, sizeof(vertex_t) * local_vertices_size_max );
   Child =  (SHARED uint64_t *) ALL_ALLOC( GET_NUM_THREADS, sizeof(uint64_t) * local_vertices_size_max );
 
@@ -1840,6 +1863,7 @@ printf("stats mask=%s\n", bupc_stats_getmask());
     ss_initState(ss);
     if (GET_THREAD_NUM == 0) {
       printf("%d Starting tree generation\n", GET_THREAD_NUM);
+      //fprintf(stderr, "%d Starting tree generation\n", GET_THREAD_NUM);
     }
     t1 = uts_wctime();
     parTreeGeneration(ss);

@@ -160,9 +160,12 @@ OMPCC_OPTS+= -DTRACE
 UPCC_OPTS+= -DTRACE
 endif
 
+#TODO cleanup this dependence and make optional
+PROGRESS_OUTPUT=$(HOME)/ProgressOutput
+
 # TODO could add targets for non UPC as well (except maybe pthreads until we modify pthreads_main)
-uts-mem-upc: $(MEM_SHM_SRCS) $(RNG_SRC) $(COMMON_SRCS)
-	$(UPCC) $(UPCC_OPTS) $(UPCLD_OPTS) $(RNG_DEF) $(FLAGS) -o $@ $+
+uts-mem-upc: $(MEM_SHM_SRCS) $(RNG_SRC) $(COMMON_SRCS) $(PROGRESS_OUTPUT)/ProgressOutput.o
+	$(UPCC) $(UPCC_OPTS) -I$(PROGRESS_OUTPUT) $(UPCLD_OPTS) $(RNG_DEF) $(FLAGS) -o $@ $+
 
 CFLAGS_MEM=-std=gnu99
 uts-mem-shm: $(MEM_SHM_SRCS) $(RNG_SRC) $(COMMON_SRCS)
