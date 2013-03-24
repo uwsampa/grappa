@@ -15,7 +15,7 @@ TARGETS     = uts-seq uts-dfs uts-stat          \
               uts-omp uts-pthread               \
               uts-upc uts-upc-dcq               \
 	      uts-upc-enhanced                  \
-		  uts-mem-upc uts-mem-shm            \
+		  uts-mem-upc uts-mem-shm uts-mem-omp           \
               uts-shmem uts-gpshmem             \
               uts-mpi-wm uts-mpi-wm-nb          \
 	      uts-mpi-ws uts-mpi-hws            \
@@ -147,6 +147,18 @@ uts-gpshmem: uts_gpshmem.c $(RNG_SRC) $(COMMON_SRCS)
 # See ./Makefile for Grappa implementation
 
 MEM_SHM_SRCS    = uts_mem_shm.c
+
+# allow DEBUG flag to enable upc tracing/stats collection
+# this incurs some overhead
+ifdef DEBUG
+UPCC_OPTS+= -g
+endif
+
+ifdef TRACE
+CFLAGS+= -DTRACE
+OMPCC_OPTS+= -DTRACE
+UPCC_OPTS+= -DTRACE
+endif
 
 # TODO could add targets for non UPC as well (except maybe pthreads until we modify pthreads_main)
 uts-mem-upc: $(MEM_SHM_SRCS) $(RNG_SRC) $(COMMON_SRCS)
