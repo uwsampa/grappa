@@ -329,7 +329,7 @@ ifdef PAL_MVAPICH2
 	@echo '# Run!' >> $@
 	@echo 'srun --tasks-per-node 1 bash -c "ipcs -m | grep $(USER) | cut -d\  -f1 | xargs -n1 -r ipcrm -M"' >> $@
 	@echo 'srun --tasks-per-node 1 bash -c "rm -f /dev/shm/GrappaLocaleSharedMemory"' >> $@
-	@echo 'srun $(SBATCH_MPIRUN_EXPORT_ENV_VARIABLES) --cpu_bind=rank --label -- $(MY_TAU_RUN) $$*' >> $@
+	@echo 'srun $(SBATCH_MPIRUN_EXPORT_ENV_VARIABLES) --cpu_bind=verbose,rank --label -- $(MY_TAU_RUN) $$*' >> $@
 	@echo 'srun --tasks-per-node 1 bash -c "ipcs -m | grep $(USER) | cut -d\  -f1 | xargs -n1 -r ipcrm -M"' >> $@
 	@echo 'srun --tasks-per-node 1 bash -c "rm -f /dev/shm/GrappaLocaleSharedMemory"' >> $@
 else
