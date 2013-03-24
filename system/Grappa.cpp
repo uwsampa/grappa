@@ -331,6 +331,7 @@ void Grappa_activate()
   DVLOG(1) << "Activating Grappa library....";
   global_communicator.activate();
   locale_shared_memory.activate();
+  global_task_manager.activate();
   Grappa_barrier();
 
   // fire up polling thread
