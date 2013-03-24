@@ -38,6 +38,7 @@ public:
 public:
 
   LocaleSharedMemory();
+  ~LocaleSharedMemory();
 
   // called before gasnet is ready to operate
   void init();
@@ -58,6 +59,10 @@ public:
     }
     //#endif
   }
+
+  void * allocate( size_t size );
+  void * allocate_aligned( size_t size, size_t alignment );
+  void deallocate( void * ptr );
 };
 
 /// global LocaleSharedMemory instance

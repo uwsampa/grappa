@@ -49,6 +49,8 @@ DEFINE_string( stats_blob_filename, "stats.json", "Stats blob filename" );
 DEFINE_uint64( io_blocks_per_node, 4, "Maximum number of asynchronous IO operations to issue concurrently per node.");
 DEFINE_uint64( io_blocksize_mb, 4, "Size of each asynchronous IO operation's buffer." );
 
+DECLARE_int64( locale_shared_size );
+
 using namespace Grappa::impl;
 using namespace Grappa::Statistics;
 
@@ -71,6 +73,17 @@ Node * node_neighbors;
 #ifdef HEAPCHECK_ENABLE
 HeapLeakChecker * Grappa_heapchecker = 0;
 #endif
+
+namespace Grappa {
+namespace impl {
+
+int64_t global_memory_size_bytes = 0;
+int64_t global_bytes_per_core = 0;
+int64_t global_bytes_per_locale = 0;
+
+}
+}
+
 
 /// Sample all stats for VampirTrace
 void legacy_profiling_sample() {
@@ -150,11 +163,17 @@ static void stats_dump_sighandler( int signum ) {
 }
 
 // function to call when google logging library detect a failure
-static void failure_function() {
+namespace Grappa {
+namespace impl {
+
+void  failure_function() {
   google::FlushLogFiles(google::GLOG_INFO);
   google::DumpStackTrace();
   gasnett_freezeForDebuggerErr();
   gasnet_exit(1);
+}
+
+}
 }
 
 DECLARE_bool( global_memory_use_hugepages );
@@ -179,7 +198,7 @@ void Grappa_init( int * argc_p, char ** argv_p[], size_t global_memory_size_byte
 
   // activate logging
   google::InitGoogleLogging( *argv_p[0] );
-  google::InstallFailureFunction( &failure_function );
+  google::InstallFailureFunction( &Grappa::impl::failure_function );
   google::OverrideDefaultSignalHandler( &gasnet_pause_sighandler );
 
   DVLOG(1) << "Initializing Grappa library....";
@@ -280,12 +299,13 @@ void Grappa_init( int * argc_p, char ** argv_p[], size_t global_memory_size_byte
     DVLOG(2) << "bpp = " << bytes_per_proc << ", bytes = " << bytes << ", bytes_per_node = " << bytes_per_node << ", SHMMAX = " << SHMMAX;
     VLOG(1) << "nnode: " << nnode << ", ppn: " << ppn << ", iBs/node: " << log2((double)bytes_per_node) << ", total_iBs: " << log2((double)bytes);
     global_memory_size_bytes = bytes;
+
+    Grappa::impl::global_memory_size_bytes = global_memory_size_bytes;
+    Grappa::impl::global_bytes_per_core = bytes_per_proc;
+    Grappa::impl::global_bytes_per_locale = bytes_per_node;
   }
 
   VLOG(1) << "global_memory_size_bytes = " << global_memory_size_bytes;
-
-  // initializes system_wide global_memory pointer
-  global_memory = new GlobalMemory( global_memory_size_bytes );
 
   Grappa_done_flag = false;
 
@@ -333,6 +353,9 @@ void Grappa_activate()
   locale_shared_memory.activate();
   global_task_manager.activate();
   Grappa_barrier();
+
+  // initializes system_wide global_memory pointer
+  global_memory = new GlobalMemory( Grappa::impl::global_memory_size_bytes );
 
   // fire up polling thread
   global_scheduler.periodic( thread_spawn( master_thread, &global_scheduler, &poller, NULL ) );
@@ -614,9 +637,12 @@ void Grappa_finish( int retval )
 
   StateTimer::finish();
 
-  locale_shared_memory.finish();
   global_task_manager.finish();
   global_aggregator.finish();
+
+  if (global_memory) delete global_memory;
+  locale_shared_memory.finish();
+
   global_communicator.finish( retval );
  
 //  Grappa_dump_stats();
@@ -624,8 +650,6 @@ void Grappa_finish( int retval )
   // probably never get here (depending on communication layer)
 
   destroy_thread( master_thread );
-
-  if (global_memory) delete global_memory;
 
 #ifdef HEAPCHECK_ENABLE
   assert( Grappa_heapchecker->NoLeaks() );

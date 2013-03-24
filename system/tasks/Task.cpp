@@ -16,7 +16,7 @@ DEFINE_int32( chunk_size, 10, "Max amount of work transfered per load balance" )
 DEFINE_string( load_balance, "steal", "Type of dynamic load balancing {none, steal (default), share, gq}" );
 DEFINE_uint64( global_queue_threshold, 1024, "Threshold to trigger release of tasks to global queue" );
 
-#define MAXQUEUEDEPTH (1L<<26)   // previous values: 500000
+#define MAXQUEUEDEPTH (1L<<19)   // previous values: 500000
 
 /// local queue for being part of global task pool
 #define publicQ StealQueue<Task>::steal_queue

@@ -24,24 +24,24 @@ void user_main( void * args )
   LOG(INFO) << "Allocating";
   
   // allocate array
-  if( Grappa::node_mycore() == 0 ) {
+  if( Grappa::locale_mycore() == 0 ) {
     // we need to do this on each node (not core)
-    arr = static_cast< int64_t* >( Grappa::impl::locale_shared_memory.segment.allocate_aligned( sizeof(int64_t) * Grappa::node_cores(), 1<<3 ) );
-    for( int i = 0; i < Grappa::node_cores(); ++i ) {
+    arr = static_cast< int64_t* >( Grappa::impl::locale_shared_memory.allocate_aligned( sizeof(int64_t) * Grappa::locale_cores(), 1<<3 ) );
+    for( int i = 0; i < Grappa::locale_cores(); ++i ) {
       arr[i] = 0;
     }
   }
 
   LOG(INFO) << "Setting address";
   Grappa::on_all_cores( [arr] {
-      int other_index = Grappa::node_cores() - Grappa::node_mycore() - 1;
-      arr[ other_index ] = Grappa::node_mycore();
+      int other_index = Grappa::locale_cores() - Grappa::locale_mycore() - 1;
+      arr[ other_index ] = Grappa::locale_mycore();
     });
 
   LOG(INFO) << "Checking";
   Grappa::on_all_cores( [arr] {
-      int other_index = Grappa::node_cores() - Grappa::node_mycore() - 1;
-      BOOST_CHECK_EQUAL( arr[ Grappa::node_mycore() ], other_index );
+      int other_index = Grappa::locale_cores() - Grappa::locale_mycore() - 1;
+      BOOST_CHECK_EQUAL( arr[ Grappa::locale_mycore() ], other_index );
     });
 
   LOG(INFO) << "Done";

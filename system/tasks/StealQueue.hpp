@@ -235,7 +235,7 @@ template <typename T>
 
         // allocate stack in shared addr space with affinity to calling thread
         // and record local addr for efficient access in sequel
-        stack_g = static_cast<T*>( Grappa::impl::locale_shared_memory.segment.allocate_aligned( nbytes, 8 ) );
+        stack_g = static_cast<T*>( Grappa::impl::locale_shared_memory.allocate_aligned( nbytes, 8 ) );
         stack = stack_g;
 
         CHECK( stack!= NULL ) << "Request for " << nbytes << " bytes for stealStack failed";
