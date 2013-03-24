@@ -14,10 +14,7 @@
 class GlobalMemoryChunk
 {
 private:
-  key_t shm_key_;
-  int shm_id_;
   size_t size_;
-  void * base_;
   void * memory_;
 
 public:
