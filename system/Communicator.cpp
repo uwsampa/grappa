@@ -89,12 +89,13 @@ void Communicator::init( int * argc_p, char ** argv_p[] ) {
     locale_of_core_[i] = gasneti_nodeinfo[i].supernode;
   }
 
-  LOG(INFO) << " mycore_ " << mycore_ 
-            << " cores_ " << cores_
-            << " mylocale_ " << mylocale_ 
-            << " locales_ " << locales_ 
-            << " locale_mycore_ " << locale_mycore_ 
-            << " locale_cores_ " << locale_cores_;
+  DVLOG(2) << " mycore_ " << mycore_ 
+           << " cores_ " << cores_
+           << " mylocale_ " << mylocale_ 
+           << " locales_ " << locales_ 
+           << " locale_mycore_ " << locale_mycore_ 
+           << " locale_cores_ " << locale_cores_
+           << " pid " << getpid();
 
   registration_is_allowed_ = true;
 }
@@ -115,9 +116,9 @@ void Communicator::activate() {
   stats.reset_clock();
   registration_is_allowed_ = false;
   communication_is_allowed_ = true;
-  LOG(INFO) << "Entering activation barrier";
+  DVLOG(3) << "Entering activation barrier";
   barrier();
-  LOG(INFO) << "Leaving activation barrier";
+  DVLOG(3) << "Leaving activation barrier";
 }
 
 /// tear down communication layer.

@@ -49,9 +49,9 @@ GlobalMemoryChunk::GlobalMemoryChunk( size_t size )
   : size_( size )
   , memory_( 0 )
 {
-  LOG(INFO) << "Core " << Grappa::cores << " allocating " << size_ << " bytes ";
+  DVLOG(2) << "Core " << Grappa::cores << " allocating " << size_ << " bytes ";
   memory_ = Grappa::impl::locale_shared_memory.allocate_aligned( size_, 64 );
   CHECK_NOTNULL( memory_ );
   Grappa::impl::global_memory_chunk_base = memory_;
-  LOG(INFO) << "Core " << Grappa::cores << " allocated " << size_ << " bytes ";
+  DVLOG(2) << "Core " << Grappa::cores << " allocated " << size_ << " bytes ";
 }
