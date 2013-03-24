@@ -1079,6 +1079,7 @@ void RDMAAggregator::draw_routing_graph() {
         __builtin_prefetch( pre, 1, prefetch_type ); // prefetch for read
       }
 
+      Grappa::impl::global_scheduler.set_no_switch_region( true );
       while( messages_to_send != NULL ) {
         DVLOG(2) << __func__ << "/" << Grappa::impl::global_scheduler.get_current_thread() << ": Delivered message " << messages_to_send 
                  << " with is_delivered_=" << messages_to_send->is_delivered_ 
@@ -1095,6 +1096,7 @@ void RDMAAggregator::draw_routing_graph() {
 
         messages_to_send = next;
       }
+      Grappa::impl::global_scheduler.set_no_switch_region( false );
 
       app_messages_delivered_locally += delivered_count;
       app_bytes_delivered_locally += delivered_bytes;
