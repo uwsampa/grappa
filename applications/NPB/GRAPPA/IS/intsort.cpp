@@ -30,15 +30,17 @@ struct bucket_t {
   size_t maxelems;
   int * key_ranks;
   char pad[block_size-sizeof(uint64_t*)-sizeof(size_t)*2-sizeof(int*)];
-  bucket_t(): v(NULL), nelems(0) { memset(pad, 0x55, sizeof(pad)); }
-  ~bucket_t() { delete [] v; }
+  bucket_t(): v(nullptr), nelems(0) { memset(pad, 0x55, sizeof(pad)); }
+  ~bucket_t() { if (v) { Grappa::impl::locale_shared_memory.deallocate(v); } }
   void reserve(size_t nelems) {
     maxelems = nelems;
-    if (v != NULL) delete [] v;
-    v = new uint64_t[nelems];
-    if (!v) {
-      LOG(ERROR) << "Unable to allocate bucket of " << nelems << " elements."; exit(1);
-    }
+    // if (v != NULL) delete [] v;
+    if (v) { Grappa::impl::locale_shared_memory.deallocate(v); }
+    
+    // v = new uint64_t[nelems];
+    v = static_cast<uint64_t*>(Grappa::impl::locale_shared_memory.allocate(nelems * sizeof(uint64_t)));
+    
+    CHECK(v) << "Unable to allocate bucket of " << nelems << " elements.";
   }
   const uint64_t& operator[](size_t i) const { return v[i]; }
   uint64_t& operator[](size_t i) {
@@ -85,9 +87,40 @@ GlobalAddress<key_t> key_array;
 
 GlobalAddress<bucket_t> bucketlist;
 
+namespace Grappa {
+  template<typename T>
+  class LocalVector {
+    T * _storage;
+    size_t _size;
+    size_t max_elem;
+  public:
+    LocalVector(): _storage(nullptr), _size(0), max_elem(0) {}
+    ~LocalVector() {
+      if (_storage) { Grappa::impl::locale_shared_memory.deallocate(_storage); }
+    }
+    void reserve(size_t m) {
+      if (max_elem < m) {
+        if (_storage) { Grappa::impl::locale_shared_memory.deallocate(_storage); }
+        max_elem = m;
+        _storage = static_cast<T*>(Grappa::impl::locale_shared_memory.allocate(max_elem * sizeof(T)));
+      }
+    }
+    void resize(size_t m) {
+      reserve(m);
+      _size = m;
+    }
+    size_t size() { return _size; }
+    T& operator[](const int64_t i) {
+      return _storage[i];
+    }
+  };
+};
+
 // local version on each node, which then gets local copy of global state
-std::vector<size_t> counts;
-std::vector<size_t> bucket_ranks;
+// std::vector<size_t> counts;
+Grappa::LocalVector<size_t> counts;
+// std::vector<size_t> bucket_ranks;
+Grappa::LocalVector<size_t> bucket_ranks;
 // std::vector<Core> bucket_cores;
 
 // only used on Core 0.
@@ -159,7 +192,7 @@ inline void print_array(const char * name, GlobalAddress<T> base, size_t nelem) 
 
 void rank(int iteration) {
   double _time;
-  
+  VLOG(1) << "iteration " << iteration;
   // key_array, nkeys already available on all cores
     
   // allocate space for counts, etc.
@@ -243,7 +276,7 @@ void rank(int iteration) {
     bucket.reserve(counts[id]);
   });
 
-  VLOG(1) << "scattering into buckets";
+  VLOG(2) << "scattering into buckets";
   _time = Grappa_walltime();
   
   // scatter into buckets
@@ -265,7 +298,7 @@ void rank(int iteration) {
   });
   
   scatter_time += Grappa_walltime() - _time;
-  VLOG(1) << "ranking locally";
+  VLOG(2) << "ranking locally";
   _time = Grappa_walltime();
   
   // Ranking of all keys occurs in this section
