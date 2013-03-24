@@ -1,17 +1,99 @@
 \section{Communication Support}
 \label{sec:communication}
 
-In order to mitigate the low message injection rate limits of commodity networks, Grappa's communication stack has two layers: one for user-level messages and one for network-level messages.
+\Grappa's communication support has two layers: user-level messaging interface
+based on active messages; and network-level transport that supports request
+aggregation for better communication bandwidth.
 
-At the upper (user-level) layer, Grappa implements asynchronous active messages~\cite{vonEicken92}. Each message consists of a function pointer, an optional argument payload, and an optional data payload. When a task sends a message, the message is copied to a send queue associated with the message's destination and the task continues execution.  In our experiments the vast majority of upper layer message requests are smaller than 44 bytes. Our measurements confirm manufacturers' published data [15]; with 44-byte packets, the available bisection bandwidth is only a small fraction (3\%) of the peak bisection bandwidth.
+% In order to mitigate the low message injection rate limits of commodity
+% networks, Grappa's communication stack has two layers:
 
-To make the best use of the network, we must convert our small messages into large ones, and this is the responsibility of Grappa’s lower networking layer. As mentioned earlier, commodity networks including InfiniBand achieves their peak bisection bandwidth only when the packet sizes are relatively large --- on the order of multiple kilobytes. The reason for this discrepancy is the combination of overheads associated with handling each packet (in terms of bytes that form the actual packet, processing time at the card and processing on the CPU within the driver stack).
+\paragraph{Active messages interface} At the upper (user-level) layer, \Grappa
+implements asynchronous active messages~\cite{vonEicken92}. Each message
+consists of a function pointer, an optional argument payload, and an optional
+data payload. 
 
-Grappa's lower network layer makes careful use of processor cache and coherent access behaviors.  Threads that dispatch a message allocate a message buffer (typically on their stack) and dispatch a send request.  Grappa examines the destination system node for this field, and adds the message to a linked list of messages destined for that node.  Periodically, or when this linked list grows large, the list is transfered using a coherent compare-and-swap operation to the processor on the originating system node that is responsible for managing all outbound communication requests to the specified destination node.  This two-step process is used because it was determined empirically that we could only infrequently use processor coherent access requests because they remain a bottleneck on modern multicore hardware.
+% When a task sends a message, the message is linked to a send queue
+% associated with the message's destination node and the task continues
+% execution. Note that the message contents stay in the worker's stack until
+% it is sent to the network interface buffer, to avoid multiple copies of the
+% payload. 
 
-Once the processor core responsible for outbound messages to a given system node has received a sufficient number of message send requests, or a timeout is reached, the linked list of messages is walked to form a send buffer.  This involves making a copy of the messages in memory.  Careful prefetching is used because most of the outbound messages are \emph{not} in the processor cache at this time.  Once the send buffer has been formed it is handed off to GASnet for transfer to the remote system node.  RDMA is used if the underlying network supports it.  There are two useful consequences of forming the message buffer at the time of message dispatch instead of along the way, as individual upper layer message send requests are received.  First, as previously mentioned most of the messages are not in the cache and prefetching is used to run-ahead in the linked list of messages in order to avoid cache misses.  But once the message buffer is formed it is in the cache (for the most part).  Hence, when it is handed off to GASnet for transfer across the physical wire, the network card can pull the message buffer from the processor cache instead of main memory, which we have found speeds performance.  The second consequence of this decision we do not need to pre-allocate buffers for all destination nodes in the system, as the buffer can be allocated on the fly.  Nevertheless we have found it efficient to build a flow-control like protocol of outstanding message buffers between pairs of system nodes.
+\paragraph{Message aggregation} In our experiments the vast majority of upper
+layer message requests are smaller than 44 bytes. Our measurements confirm
+manufacturers' published data [15]; with 44-byte packets, the available
+bisection bandwidth is only a small fraction (3\%) of the peak bisection
+bandwidth. As mentioned earlier, commodity networks including InfiniBand
+achieves their peak bisection bandwidth only when the packet sizes are
+relatively large --- on the order of multiple kilobytes. The reason for this
+discrepancy is the combination of overheads associated with handling each
+packet (in terms of bytes that form the actual packet, processing time at the
+card and processing on the CPU within the driver stack). Consequently, to make
+the best use of the network, we must convert small messages into large ones.
 
-Once the remote system node has received the message buffer it is unpacked.  Upper level Grappa messages are delivered to each processor at the system node by examining the message buffer at each processor core and then handing the message buffer to the next processor for delivery of messages destined to that processor.
+\paragraph{Message processing mechanics} Since communication is very frequent
+in \Grappa, aggregating and sending messages efficiently is very important. To
+achieve that, \Grappa makes careful use of caches, prefetching and lock-free
+synchronization operations. \TODO{Does the explanation below need a figure?}
+
+Outgoing messages are organized as an array of linked lists, with one linked
+list per destination node in the system. Each core in a given node is
+responsible for aggregating and sending the resulting message to a set of
+destination nodes. The outgoing message lists are located in a region of
+memory shared across all cores in a \Grappa node (thus enabling cores to peak
+at each other's message lists). When a task sends a message, it allocates a buffer (typically on its stack),  determines the destination system
+node, and links the buffer into the corresponding linked list.
+
+Each core has a system worker per destination node it is responsible for; this
+system worker periodically checks whether messages to the corresponding
+destination node is either large enough or has waited past a time-out period,
+at which point the message is sent out. Aggregating and sending a message
+involves manipulating a shared data-structure (the message list). This is done
+using CAS (compare-and-swap) operations to avoid high synchronization costs. 
+
+% Threads that dispatch a message allocate a message buffer (typically on their
+% stack) and dispatch a send request. \Grappa examines the destination system
+% node for this field, and adds the message to a linked list of messages
+% destined for that node. Periodically, or when this linked list grows large,
+% the list is transferred using a CAS (compare-and-swap} operation to the
+% processor on the originating system node that is responsible for managing all
+% outbound communication requests to the specified destination node. This
+% two-step process is used because it was determined empirically that we could
+% only infrequently use processor coherent access requests because they remain a
+% bottleneck on modern multicore hardware.
+
+Each node has a region of memory with send buffers where the final aggregated
+messages are built. These buffers are visible to the network card, and
+messages can be sent with user-mode operations only. When the worker
+responsible for outbound messages to a given system node has received a
+sufficient number of message send requests, or a timeout is reached, the
+linked list of messages is walked and messages are copied to a send buffer.
+This process requires careful prefetching because most of the outbound
+messages are \emph{not} in the processor cache at this time (recall that a
+core can be aggregating messages originating from other cores in the same
+node). Once the send buffer has been formed it is handed off to GASnet for
+transfer to the remote system node. RDMA is used if the underlying network
+supports it. 
+
+There are two useful consequences of forming the send buffer at the time of
+message transmission instead of along the way, as individual upper layer
+message send requests are received. First, as previously mentioned most of the
+messages are not in the cache and prefetching is used to run-ahead in the
+linked list of messages in order to avoid cache misses. But once the send
+buffer is formed it is in the cache (for the most part). Hence, when it is
+handed off to GASnet for transfer across the physical wire, the network card
+can pull the message buffer from the processor cache instead of main memory,
+which we have found speeds performance. The second consequence of this
+decision is that we do not need to pre-allocate buffers for all destination
+nodes in the system, as the buffer can be allocated on the fly. Nevertheless
+we have found it efficient to build a flow-control like protocol of
+outstanding message buffers between pairs of system nodes.
+
+Once the remote system node has received the message buffer it is unpacked.
+Upper level \Grappa messages are delivered to each core at the destination
+system node by examining the message buffer at each processor core and then
+handing the message buffer to the next core for delivery of messages destined
+to that core.
 
 
 
