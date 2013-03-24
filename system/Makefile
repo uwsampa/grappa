@@ -383,12 +383,18 @@ test: $(TARGET)
 
 # TODO: fixme so I'm not so dumb
 cleanup_shm:
-	echo "State before cleanup:"
+	@echo "State before SYSV cleanup:"
 	for i in `sinfo -h -p grappa -o '%n'`; do ssh $$i bash -c "echo;hostname; ipcs -m; grep Huge /proc/meminfo"; done
-	echo "Cleaning up...."
+	@echo "Cleaning up...."
 	for i in `sinfo -h -p grappa -o '%n'`; do ssh $$i bash -c "ipcs -m | grep $(USER) | cut -d' ' -f2 | xargs -n1 -r ipcrm -m"; done
-	echo "State after cleanup:"
+	@echo "State after cleanup:"
 	for i in `sinfo -h -p grappa -o '%n'`; do ssh $$i bash -c "echo; hostname; ipcs -m; grep Huge /proc/meminfo"; done
+	@echo "SYSV cleanup done. State before /dev/shm cleanup:"
+	for i in `sinfo -h -p grappa -o '%n'`; do ssh $$i bash -c "'ls -l /dev/shm'"; done
+	@echo "Cleaning up...."
+	for i in `sinfo -h -p grappa -o '%n'`; do ssh $$i bash -c "'rm -f /dev/shm/GrappaLocaleSharedMemory'"; done
+	@echo "State after cleanup:"
+	for i in `sinfo -h -p grappa -o '%n'`; do ssh $$i bash -c "'ls -l /dev/shm'"; done
 
 
 # build a specific test
