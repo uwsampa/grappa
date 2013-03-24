@@ -22,7 +22,7 @@ namespace Grappa {
         Grappa_call_on( destination_, legacy_send_message_am, buf, message_size );
         mark_sent();
 #else
-        LOG(ERROR) << "Shouldn't be calling this without DISABLE_RDMA_AGGREGATOR set.";
+        LOG(ERROR) << "Shouldn't be calling this with ENABLE_RDMA_AGGREGATOR set.";
 #endif
       }
 
