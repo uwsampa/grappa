@@ -88,6 +88,7 @@ GlobalMemoryChunk_tests.o GlobalMemoryChunk_tests.test: $(LIBRARY)
 GlobalMemory_tests.o GlobalMemory_tests.test: $(LIBRARY)
 GlobalAllocator_tests.o GlobalAllocator_tests.test: $(LIBRARY)
 Allocator_tests.o Allocator_tests.test: Allocator.o
+LocaleSharedMemory_tests.o LocaleSharedMemory_tests.test: $(LIBRARY)
 
 QueueDebug_tests.o QueueDebug_tests.exe: ../tools/stl-debug-allocator/archive/Source/allocator.o
 
@@ -193,11 +194,26 @@ GASNET_SETTINGS+= GASNET_FREEZE=0
 GASNET_SETTINGS+= GASNET_NETWORKDEPTH_PP=96
 GASNET_SETTINGS+= GASNET_NETWORKDEPTH_TOTAL=2048
 GASNET_SETTINGS+= GASNET_AMCREDITS_PP=48
+#GASNET_SETTINGS+= GASNET_AMRDMA_MAX_PEERS=0
 GASNET_SETTINGS+= GASNET_PHYSMEM_MAX=1024M
 GASNET_SETTINGS+= GASNET_USE_SRQ=2
+#GASNET_SETTINGS+= GASNET_NONBULKPUT_BOUNCE_LIMIT=0
+#GASNET_SETTINGS+= OMPI_MCA_mpi_warn_on_fork=0
 endif
 ENV_VARIABLES+= $(GASNET_SETTINGS)
 
+# enable RDMA Aggregator by default
+ENABLE_RDMA_AGGREGATOR=1
+ifdef ENABLE_RDMA_AGGREGATOR
+CFLAGS+= -DENABLE_RDMA_AGGREGATOR
+# may want this eventually
+#CFLAGS+= -DOLD_MESSAGES_NEW_AGGREGATOR
+endif
+
+# make it easier to debug by stopping compilation after first error
+ifdef STOP_AFTER_FIRST_ERROR
+CFLAGS+=  -Wfatal-errors
+endif
 
 #
 # Heap Leak Checker
@@ -305,10 +321,12 @@ LIBRARY_CONTENTS+= Grappa.o \
 				   SimpleStatistic.o \
 				   SummarizingStatistic.o \
 				   MessageBase.o \
+				   LocaleSharedMemory.o \
 				   RDMAAggregator.o \
 				   ParallelLoop.o \
 				   Barrier.o \
-				   MessagePool.o
+				   MessagePool.o \
+					 AsyncDelegate.o
 
 libGrappa.a: $(LIBRARY_CONTENTS)
 	$($(MPITYPE)_AR) rv $@ $^
@@ -344,10 +362,12 @@ else
 TEST_LOG_LEVEL=nothing
 TEST_REPORT_LEVEL=no
 endif
+# set to 'n' to allow system errors to not be caught by boost test
+TEST_CATCH_SYSTEM_ERRORS?=y
 
 mpi_test: $(TARGET) $($(MPITYPE)_ENVVAR_TEMP) $($(MPITYPE)_EPILOG_TEMP) $($(MPITYPE)_BATCH_TEMP)
 	$(ENV_VARIABLES) \
-	$($(MPITYPE)_RUN) ./$< $($(MPITYPE)_UDPTASKS) --log_level=$(TEST_LOG_LEVEL) --report_level=$(TEST_REPORT_LEVEL) --run_test=$(TARGET:.test=) $(GARGS)
+	$($(MPITYPE)_RUN) ./$< $($(MPITYPE)_UDPTASKS) --log_level=$(TEST_LOG_LEVEL) --report_level=$(TEST_REPORT_LEVEL) --run_test=$(TARGET:.test=) --catch_system_errors=$(TEST_CATCH_SYSTEM_ERRORS) $(GARGS)
 
 valgrind_mpi_test: $(TARGET) $($(MPITYPE)_ENVVAR_TEMP) $($(MPITYPE)_EPILOG_TEMP) $($(MPITYPE)_BATCH_TEMP)
 	$(ENV_VARIABLES) \
@@ -363,12 +383,18 @@ test: $(TARGET)
 
 # TODO: fixme so I'm not so dumb
 cleanup_shm:
-	echo "State before cleanup:"
+	@echo "State before SYSV cleanup:"
 	for i in `sinfo -h -p grappa -o '%n'`; do ssh $$i bash -c "echo;hostname; ipcs -m; grep Huge /proc/meminfo"; done
-	echo "Cleaning up...."
-	for i in `sinfo -h -p grappa -o '%n'`; do ssh $$i bash -c "ipcs -m | grep $(USER) | cut -d' ' -f1 | xargs -n1 -r ipcrm -M"; done
-	echo "State after cleanup:"
+	@echo "Cleaning up...."
+	for i in `sinfo -h -p grappa -o '%n'`; do ssh $$i bash -c "ipcs -m | grep $(USER) | cut -d' ' -f2 | xargs -n1 -r ipcrm -m"; done
+	@echo "State after cleanup:"
 	for i in `sinfo -h -p grappa -o '%n'`; do ssh $$i bash -c "echo; hostname; ipcs -m; grep Huge /proc/meminfo"; done
+	@echo "SYSV cleanup done. State before /dev/shm cleanup:"
+	for i in `sinfo -h -p grappa -o '%n'`; do ssh $$i bash -c "'ls -l /dev/shm'"; done
+	@echo "Cleaning up...."
+	for i in `sinfo -h -p grappa -o '%n'`; do ssh $$i bash -c "'rm -f /dev/shm/GrappaLocaleSharedMemory'"; done
+	@echo "State after cleanup:"
+	for i in `sinfo -h -p grappa -o '%n'`; do ssh $$i bash -c "'ls -l /dev/shm'"; done
 
 
 # build a specific test

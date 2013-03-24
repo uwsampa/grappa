@@ -10,7 +10,6 @@
 #include "Thread.hpp"
 #include "Scheduler.hpp"
 #include "Communicator.hpp"
-#include "Aggregator.hpp"
 #include <Timestamp.hpp>
 #include <glog/logging.h>
 #include <sstream>
@@ -25,6 +24,17 @@
 
 #include "StateTimer.hpp"
 
+// forward declarations
+namespace Grappa {
+namespace impl { void idle_flush_rdma_aggregator(); }
+namespace Statistics { void sample_all(); }
+}
+
+// forward-declare old aggregator flush
+bool idle_flush_aggregator();
+
+extern bool take_profiling_sample;
+void Grappa_dump_stats_blob();
 
 DECLARE_int64( periodic_poll_ticks );
 DECLARE_bool(poll_on_idle);
@@ -34,12 +44,7 @@ DECLARE_int64( stats_blob_ticks );
 //#include "Statistics.hpp"
 void Grappa_dump_stats_blob();
 
-// forward-declare aggregator flush
 namespace Grappa {
-
-  namespace impl {
-    void idle_flush_rdma_aggregator();
-  }
 
   namespace impl {
 
@@ -89,12 +94,16 @@ class TaskingScheduler : public Scheduler {
 
     // STUB: replace with real periodic threads
     Grappa_Timestamp previous_periodic_ts;
+  inline bool should_run_periodic( Grappa_Timestamp current_ts ) {
+    return current_ts - previous_periodic_ts > FLAGS_periodic_poll_ticks;
+  }
+
     Thread * periodicDequeue(Grappa_Timestamp current_ts) {
       // // tick the timestap counter
       // Grappa_tick();
       // Grappa_Timestamp current_ts = Grappa_get_timestamp();
 
-      if( current_ts - previous_periodic_ts > FLAGS_periodic_poll_ticks ) {
+      if( should_run_periodic( current_ts ) ) {
         return periodicQ.dequeue();
       } else {
         return NULL;
@@ -103,6 +112,9 @@ class TaskingScheduler : public Scheduler {
     //////
 
     bool queuesFinished();
+
+    /// make sure we don't context switch when we don't want to
+    bool in_no_switch_region_;
 
     Grappa_Timestamp prev_ts;
     Grappa_Timestamp prev_stats_blob_ts;
@@ -113,6 +125,8 @@ class TaskingScheduler : public Scheduler {
 #ifdef VTRACE_FULL
       VT_TRACER("nextCoroutine");
 #endif
+      CHECK_EQ( in_no_switch_region_, false ) << "Trying to context switch in no-switch region";
+
       do {
         Thread * result;
         ++stats.scheduler_count;
@@ -143,6 +157,17 @@ class TaskingScheduler : public Scheduler {
           return result;
         }
 
+        // check ready tasks
+        result = readyQ.dequeue();
+        if (result != NULL) {
+          readyQ.prefetch();
+          //    DVLOG(5) << current_thread->id << " scheduler: pick ready";
+          stats.state_timers[ stats.prev_state ] += (current_ts - prev_ts) / tick_scale;
+          stats.prev_state = TaskingSchedulerStatistics::StateReady;
+          prev_ts = current_ts;
+          return result;
+        }
+
         // check if scheduler is allowed to have more active workers
         if (num_active_tasks < max_allowed_active_workers) {
           // check for new workers
@@ -156,21 +181,10 @@ class TaskingScheduler : public Scheduler {
           }
         }
 
-        // check ready tasks
-        result = readyQ.dequeue();
-        if (result != NULL) {
-          readyQ.prefetch();
-          //    DVLOG(5) << current_thread->id << " scheduler: pick ready";
-          stats.state_timers[ stats.prev_state ] += (current_ts - prev_ts) / tick_scale;
-          stats.prev_state = TaskingSchedulerStatistics::StateReady;
-          prev_ts = current_ts;
-          return result;
-        }
-
         if (FLAGS_poll_on_idle) {
           stats.state_timers[ stats.prev_state ] += (current_ts - prev_ts) / tick_scale;
           Grappa::impl::idle_flush_rdma_aggregator();
-          if ( global_aggregator.idle_flush_poll() ) {
+          if ( idle_flush_aggregator() ) {
             stats.prev_state = TaskingSchedulerStatistics::StateIdleUseful;
           } else {
             stats.prev_state = TaskingSchedulerStatistics::StateIdle;
@@ -330,6 +344,9 @@ class TaskingScheduler : public Scheduler {
     TaskingScheduler ( );
     void init ( Thread * master, TaskManager * taskman );
 
+    void set_no_switch_region( bool val ) { in_no_switch_region_ = val; }
+    bool in_no_switch_region() { return in_no_switch_region_; }
+
     /// Get the currently running Thread.
     Thread * get_current_thread() {
       return current_thread;
@@ -398,6 +415,7 @@ class TaskingScheduler : public Scheduler {
     /// run threads until all exit 
     void run ( );
 
+    bool thread_maybe_yield( );
     bool thread_yield( );
     bool thread_yield_periodic( );
     void thread_suspend( );
@@ -426,6 +444,22 @@ struct task_worker_args {
     : tasks( task_manager )
       , scheduler( sched ) { }
 };
+
+/// Check the timestamp counter to see if it's time to run the periodic queue
+inline bool TaskingScheduler::thread_maybe_yield( ) {
+  bool yielded = false;
+
+  // tick the timestap counter
+  Grappa_Timestamp current_ts = Grappa_force_tick();
+  
+  if( should_run_periodic( current_ts ) ) {
+    yielded = true;
+    thread_yield();
+  }
+
+  return yielded;
+}
+
 
 
 /// Yield the CPU to the next Thread on this scheduler. 

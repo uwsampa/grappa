@@ -38,6 +38,7 @@ void test_on_all_cores() {
 }
 
 void test_loop_decomposition() {
+  BOOST_MESSAGE("Testing loop_decomposition_private...");
   int N = 16;
   
   CompletionEvent ce(N);
@@ -50,13 +51,16 @@ void test_loop_decomposition() {
 }
 
 void test_loop_decomposition_global() {
-  int N = 16;
+  BOOST_MESSAGE("Testing loop_decomposition_public...");
+  int N = 160000;
   
   CompletionEvent ce(N);
   auto ce_addr = make_global(&ce);
   
   impl::loop_decomposition_public(0, N, [ce_addr](int64_t start, int64_t iters) {
-    BOOST_MESSAGE("loop(" << start << ", " << iters << ")");
+    if ( start%10000==0 ) {
+      BOOST_MESSAGE("loop(" << start << ", " << iters << ")");
+    }
     complete(ce_addr,iters);
   });
   ce.wait();
@@ -188,9 +192,11 @@ void test_forall_localized() {
   my_gce.wait();
   
   int npb = block_size / sizeof(int64_t);
-  for (int i=0; i<N; i+=npb*cores()) {
-    BOOST_CHECK_EQUAL((array+i).node(), mycore());
-    BOOST_CHECK_EQUAL(delegate::read(array+i), 2);
+  
+  auto * base = array.localize();
+  auto * end = (array+N).localize();
+  for (auto* x = base; x < end; x++) {
+    BOOST_CHECK_EQUAL(*x, 2);
   }
   
   VLOG(1) << "checking indexing...";

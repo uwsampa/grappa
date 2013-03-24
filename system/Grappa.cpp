@@ -27,6 +27,9 @@
 
 #include "RDMAAggregator.hpp"
 #include "Barrier.hpp"
+#include "LocaleSharedMemory.hpp"
+
+#include "Statistics.hpp"
 
 #include <fstream>
 
@@ -45,6 +48,8 @@ DEFINE_string( stats_blob_filename, "stats.json", "Stats blob filename" );
 
 DEFINE_uint64( io_blocks_per_node, 4, "Maximum number of asynchronous IO operations to issue concurrently per node.");
 DEFINE_uint64( io_blocksize_mb, 4, "Size of each asynchronous IO operation's buffer." );
+
+DECLARE_int64( locale_shared_size );
 
 using namespace Grappa::impl;
 using namespace Grappa::Statistics;
@@ -68,6 +73,17 @@ Node * node_neighbors;
 #ifdef HEAPCHECK_ENABLE
 HeapLeakChecker * Grappa_heapchecker = 0;
 #endif
+
+namespace Grappa {
+namespace impl {
+
+int64_t global_memory_size_bytes = 0;
+int64_t global_bytes_per_core = 0;
+int64_t global_bytes_per_locale = 0;
+
+}
+}
+
 
 /// Sample all stats for VampirTrace
 void legacy_profiling_sample() {
@@ -117,28 +133,47 @@ static void poller( Thread * me, void * args ) {
   VLOG(5) << "polling Thread exiting";
 }
 
+/// handler to redirect SIGABRT override to activate a GASNet backtrace
+static void gasnet_pause_sighandler( int signum ) {
+  raise( SIGUSR1 );
+}
+
+// from google
+namespace google {
+typedef void (*override_handler_t)(int);
+extern void OverrideDefaultSignalHandler( override_handler_t handler );
+extern void DumpStackTrace();
+}
+
 /// handler for dumping stats on a signal
 static int stats_dump_signal = SIGUSR2;
 static void stats_dump_sighandler( int signum ) {
+  google::DumpStackTrace();
+
   // TODO: make this set a flag and have scheduler check and dump.
-  Grappa_dump_stats();
+  std::ostringstream legacy_stats;
+  legacy_dump_stats(legacy_stats);
+  Grappa::Statistics::print( LOG(INFO), registered_stats(), legacy_stats.str() );
+
+  global_rdma_aggregator.dump_counts();
 
   // instantaneous state
   LOG(INFO) << global_scheduler;
   LOG(INFO) << global_task_manager;
 }
 
-/// handler to redirect SIGABRT override to activate a GASNet backtrace
-static void sigabrt_sighandler( int signum ) {
-  raise( SIGUSR1 );
-}
-
 // function to call when google logging library detect a failure
-static void failure_function() {
+namespace Grappa {
+namespace impl {
+
+void  failure_function() {
   google::FlushLogFiles(google::GLOG_INFO);
-  gasnett_print_backtrace_ifenabled(STDERR_FILENO);
+  google::DumpStackTrace();
   gasnett_freezeForDebuggerErr();
   gasnet_exit(1);
+}
+
+}
 }
 
 DECLARE_bool( global_memory_use_hugepages );
@@ -163,7 +198,8 @@ void Grappa_init( int * argc_p, char ** argv_p[], size_t global_memory_size_byte
 
   // activate logging
   google::InitGoogleLogging( *argv_p[0] );
-  google::InstallFailureFunction( &failure_function );
+  google::InstallFailureFunction( &Grappa::impl::failure_function );
+  google::OverrideDefaultSignalHandler( &gasnet_pause_sighandler );
 
   DVLOG(1) << "Initializing Grappa library....";
 #ifdef HEAPCHECK_ENABLE
@@ -192,7 +228,7 @@ void Grappa_init( int * argc_p, char ** argv_p[], size_t global_memory_size_byte
   struct sigaction sigabrt_sa;
   sigemptyset( &sigabrt_sa.sa_mask );
   sigabrt_sa.sa_flags = 0;
-  sigabrt_sa.sa_handler = &sigabrt_sighandler;
+  sigabrt_sa.sa_handler = &gasnet_pause_sighandler;
   CHECK_EQ( 0, sigaction( SIGABRT, &sigabrt_sa, 0 ) ) << "SIGABRT signal handler installation failed.";
 
   // Asynchronous IO
@@ -217,8 +253,6 @@ void Grappa_init( int * argc_p, char ** argv_p[], size_t global_memory_size_byte
   //  initializes system_wide global_aggregator
   global_aggregator.init();
 
-  Grappa::impl::global_rdma_aggregator.init();
-
   // set CPU affinity if requested
   if( FLAGS_set_affinity ) {
     char * localid_str = getenv("SLURM_LOCALID");
@@ -231,6 +265,8 @@ void Grappa_init( int * argc_p, char ** argv_p[], size_t global_memory_size_byte
     }
   }
 
+  // initialize node shared memory
+  locale_shared_memory.init();
 
   // by default, will allocate as much shared memory as it is
   // possible to evenly split among the processors on a node
@@ -263,12 +299,13 @@ void Grappa_init( int * argc_p, char ** argv_p[], size_t global_memory_size_byte
     DVLOG(2) << "bpp = " << bytes_per_proc << ", bytes = " << bytes << ", bytes_per_node = " << bytes_per_node << ", SHMMAX = " << SHMMAX;
     VLOG(1) << "nnode: " << nnode << ", ppn: " << ppn << ", iBs/node: " << log2((double)bytes_per_node) << ", total_iBs: " << log2((double)bytes);
     global_memory_size_bytes = bytes;
+
+    Grappa::impl::global_memory_size_bytes = global_memory_size_bytes;
+    Grappa::impl::global_bytes_per_core = bytes_per_proc;
+    Grappa::impl::global_bytes_per_locale = bytes_per_node;
   }
 
   VLOG(1) << "global_memory_size_bytes = " << global_memory_size_bytes;
-
-  // initializes system_wide global_memory pointer
-  global_memory = new GlobalMemory( global_memory_size_bytes );
 
   Grappa_done_flag = false;
 
@@ -290,7 +327,9 @@ void Grappa_init( int * argc_p, char ** argv_p[], size_t global_memory_size_byte
            << " num_starting_workers=" << FLAGS_num_starting_workers;
   global_task_manager.init( Grappa_mynode(), node_neighbors, Grappa_nodes() ); //TODO: options for local stealing
   global_scheduler.init( master_thread, &global_task_manager );
-  global_scheduler.periodic( thread_spawn( master_thread, &global_scheduler, &poller, NULL ) );
+
+  // start RDMA Aggregator *after* threading layer
+  global_rdma_aggregator.init();
 
   // collect some stats on this job
   Grappa_tick();
@@ -311,6 +350,18 @@ void Grappa_activate()
 {
   DVLOG(1) << "Activating Grappa library....";
   global_communicator.activate();
+  locale_shared_memory.activate();
+  global_task_manager.activate();
+  Grappa_barrier();
+
+  // initializes system_wide global_memory pointer
+  global_memory = new GlobalMemory( Grappa::impl::global_memory_size_bytes );
+
+  // fire up polling thread
+  global_scheduler.periodic( thread_spawn( master_thread, &global_scheduler, &poller, NULL ) );
+
+
+  global_rdma_aggregator.activate();
   Grappa_barrier();
 }
 
@@ -326,7 +377,7 @@ void Grappa_barrier_suspending() {
 
 /// Spawn a user function. TODO: get return values working
 /// TODO: remove Thread * arg
-inline Thread * Grappa_spawn( void (* fn_p)(Thread *, void *), void * args )
+Thread * Grappa_spawn( void (* fn_p)(Thread *, void *), void * args )
 {
   Thread * th = thread_spawn( global_scheduler.get_current_thread(), &global_scheduler, fn_p, args );
   global_scheduler.ready( th );
@@ -588,6 +639,10 @@ void Grappa_finish( int retval )
 
   global_task_manager.finish();
   global_aggregator.finish();
+
+  if (global_memory) delete global_memory;
+  locale_shared_memory.finish();
+
   global_communicator.finish( retval );
  
 //  Grappa_dump_stats();
@@ -596,10 +651,19 @@ void Grappa_finish( int retval )
 
   destroy_thread( master_thread );
 
-  if (global_memory) delete global_memory;
-
 #ifdef HEAPCHECK_ENABLE
   assert( Grappa_heapchecker->NoLeaks() );
 #endif
   
+}
+
+namespace Grappa {
+namespace impl {
+
+void poll() {
+  global_communicator.poll();
+  global_aggregator.poll();
+}
+
+}
 }

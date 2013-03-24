@@ -9,8 +9,6 @@
 #include "Cache.hpp"
 #include "Delegate.hpp"
 
-#define fetch_add Grappa_delegate_fetch_and_add_word
-
 /// A simple class for staging appends to a global array. Created for use in adding things 
 /// to the frontier in BFS. The idea is to have a PushBuffer local to each node (in a 
 /// global variable) that can be appended to. Once the buffer reaches capacity, a single 
@@ -23,15 +21,16 @@ template<typename T, size_t BUFSIZE=(1L<<14), size_t NBUFS=4 >
 struct PushBuffer {
   GlobalAddress<T> target_array;
   GlobalAddress<int64_t> shared_index;
-  T buf[NBUFS][BUFSIZE];
+  T* buf[NBUFS];
   int curr_buf;
   int64_t curr_size[NBUFS];
   
   PushBuffer(): curr_buf(0) {
-    for (int64_t i=0; i<NBUFS; i++) curr_size[i] = 0;
+    for (int i=0; i<NBUFS; i++) buf[i] = nullptr;
   }
   ~PushBuffer() {
     flush();
+    for (int i=0; i<NBUFS; i++) Grappa::impl::locale_shared_memory.deallocate(buf[i]);
   }
   void push(const T& o) {
     CHECK(target_array.pointer() != NULL) << "buffer not initialized!";
@@ -43,6 +42,13 @@ struct PushBuffer {
     }
   }
   void setup(GlobalAddress<T> _target_array, GlobalAddress<int64_t> _shared_index) {
+    if (buf[0] == nullptr) {
+      for (int64_t i=0; i<NBUFS; i++) {
+        buf[i] = static_cast<T*>(Grappa::impl::locale_shared_memory.allocate(BUFSIZE * sizeof(T)));
+        curr_size[i] = 0;
+      }
+    }
+    
     target_array = _target_array;
     shared_index = _shared_index;
     for (int64_t i=0; i<NBUFS; i++) curr_size[i] = 0;
@@ -58,8 +64,8 @@ struct PushBuffer {
     }
     
     if (save_size > 0) {
-      int64_t offset = fetch_add(shared_index, save_size);
-      typename Incoherent<T>::WO c(target_array+offset, save_size, (int64_t*)&buf[save_buf]);
+      int64_t offset = Grappa::delegate::fetch_and_add(shared_index, save_size);
+      typename Incoherent<T>::WO c(target_array+offset, save_size, buf[save_buf]);
       c.block_until_released();
     }
     curr_size[save_buf] = 0;
