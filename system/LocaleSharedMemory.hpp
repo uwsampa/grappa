@@ -38,6 +38,7 @@ public:
 public:
 
   LocaleSharedMemory();
+  ~LocaleSharedMemory();
 
   // called before gasnet is ready to operate
   void init();
