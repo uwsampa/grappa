@@ -1,7 +1,14 @@
 
 #include "LocaleSharedMemory.hpp"
 
-DEFINE_int64( locale_shared_size, 1L << 32, "Shared memory between cores on node" );
+#ifndef SHMMAX
+#error "no SHMMAX defined for this system -- look it up with the command: `sysctl -A | grep shm`"
+#endif
+
+const int64_t default_locale_reserved_size = (1L << 32);
+DEFINE_int64( locale_reserved_size, default_locale_reserved_size, "Shared memory between cores on node, reserved for runtime" );
+DEFINE_int64( locale_shared_size, SHMMAX + FLAGS_locale_reserved_size, "Total shared memory between cores on node" );
+
 DECLARE_bool( global_memory_use_hugepages );
 
 // forward declarations
@@ -10,6 +17,11 @@ namespace impl {
 
 /// called on failures to backtrace and pause for debugger
 extern void failure_function();
+
+/// how much memory do we expect to allocate?
+extern int64_t global_memory_size_bytes;
+extern int64_t global_bytes_per_core;
+extern int64_t global_bytes_per_locale;
 
 }
 }
@@ -62,6 +74,12 @@ void LocaleSharedMemory::create() {
 }
 
 void LocaleSharedMemory::attach() {
+  // first, check that we can create something large enough 
+  CHECK_GE( FLAGS_locale_shared_size, global_bytes_per_locale ) 
+    << "Can't accomodate " << global_bytes_per_locale << " bytes of shared heap per locale with " 
+    << FLAGS_locale_shared_size << " total shared bytes.";
+
+
   VLOG(2) << "Attaching to LocaleSharedMemory region " << region_name 
           << " on " << global_communicator.mycore() 
           << " of " << global_communicator.cores();
@@ -98,7 +116,7 @@ LocaleSharedMemory::LocaleSharedMemory()
   , segment() // default constructor; initialize later
 { 
   boost::interprocess::shared_memory_object::remove( region_name.c_str() );
-  
+
   // TODO: figure out reasonable region size
   // maybe reuse SHMMAX stuff?
   
@@ -108,7 +126,11 @@ LocaleSharedMemory::~LocaleSharedMemory() {
   boost::interprocess::shared_memory_object::remove( region_name.c_str() );
 }
 
-void LocaleSharedMemory::init() { }
+void LocaleSharedMemory::init() {
+  if( FLAGS_locale_reserved_size != default_locale_reserved_size ) {
+    FLAGS_locale_shared_size = SHMMAX + FLAGS_locale_reserved_size;
+  }
+}
 
 void LocaleSharedMemory::activate() {
   if( Grappa::locale_mycore() == 0 ) { create(); }
