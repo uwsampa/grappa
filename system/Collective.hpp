@@ -329,13 +329,15 @@ namespace Grappa {
         this->seminary = &s;
         barrier();
         
+        size_t n_per_msg = MAX_MESSAGE_SIZE / sizeof(T);
+        size_t nmsg = nelem / n_per_msg + (nelem % n_per_msg ? 1 : 0);
+        
         if (mycore() != HOME_CORE) {
-          size_t n_per_msg = MAX_MESSAGE_SIZE / sizeof(T);
           for (size_t k=0; k<nelem; k+=n_per_msg) {
             size_t this_nelem = MIN(n_per_msg, nelem-k);
             
             // everyone sends their contribution to HOME_CORE, last one wakes HOME_CORE
-            send_message(HOME_CORE, [this,k](void * payload, size_t payload_size) {
+            send_heap_message(HOME_CORE, [this,k](void * payload, size_t payload_size) {
               DCHECK(mycore() == HOME_CORE);
       
               auto in_array = static_cast<T*>(payload);
@@ -345,16 +347,21 @@ namespace Grappa {
               for (size_t i=0; i<in_n; i++) {
                 total[i] = ReduceOp(total[i], in_array[i]);
               }
-      
-              this->seminary->increment(in_n);
+              DVLOG(3) << "incrementing HOME sem, now at " << this->seminary->get_value();      
+              this->seminary->increment(1);
             }, (void*)(in_array+k), sizeof(T)*this_nelem);
           }
           
-          seminary->decrement(nelem);
+          DVLOG(3) << "about to block for " << nelem << " with sem == " << seminary->get_value();
+          seminary->decrement(nmsg);
           
         } else {
+          auto nmsg_total = nmsg*(cores()-1);
+          // check here even when not on debug
+          CHECK_LT(nmsg_total, 1<<15) << "max semaphore count too big";
           // home core waits until woken by last received message from other cores
-          seminary->decrement(nelem*(cores()-1));
+          seminary->decrement(nmsg_total);
+          DVLOG(3) << "woke with sem == " << seminary->get_value();
           
           // send total to everyone else and wake them
           char msg_buf[(cores()-1)*sizeof(PayloadMessage<std::function<void(decltype(this),size_t)>>)];
@@ -371,7 +378,8 @@ namespace Grappa {
                   for (size_t i=0; i<in_n; i++) {
                     this->array[k+i] = total_k[i];
                   }
-                  this->seminary->increment(in_n);
+                  this->seminary->increment(1);
+                  DVLOG(3) << "incrementing sem, now at " << this->seminary->get_value();
                 }, this->array+k, sizeof(T)*this_nelem);              
               }
             }
