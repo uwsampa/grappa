@@ -188,9 +188,11 @@ void test_forall_localized() {
   my_gce.wait();
   
   int npb = block_size / sizeof(int64_t);
-  for (int i=0; i<N; i+=npb*cores()) {
-    BOOST_CHECK_EQUAL((array+i).node(), mycore());
-    BOOST_CHECK_EQUAL(delegate::read(array+i), 2);
+  
+  auto * base = array.localize();
+  auto * end = (array+N).localize();
+  for (auto* x = base; x < end; x++) {
+    BOOST_CHECK_EQUAL(*x, 2);
   }
   
   VLOG(1) << "checking indexing...";
