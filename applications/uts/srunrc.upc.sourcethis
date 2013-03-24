@@ -21,6 +21,7 @@ export UPC_SHARED_HEAP_SIZE='4096MB'
 # see http://upc.lbl.gov/docs/user/#stats
 
 # file to write to TODO: job based then add to table by jobid
-GASNET_STATSFILE=/people/bdmyers/grappa-2/applications/uts/uts-mem.stats
+#GASNET_STATSFILE=/people/bdmyers/grappa-2/applications/uts/uts-mem.stats
+GASNET_STATSFILE=
 # network gets (G) and puts (P)
 GASNET_STATSMASK=GP
