@@ -18,8 +18,8 @@ include $(GRAPPA_HOME)/include.mk
 
 SOURCES = intsort.o randlc.o
 HEADERS = randlc.hpp npb_intsort.hpp
-TARGET:= intsort.exe
 
+TARGET = intsort.exe
 
 # default rule: just build
 $(TARGET):
