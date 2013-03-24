@@ -82,7 +82,7 @@ Section~\ref{sec:communication}; rescheduling workers that have been waiting
 on long-latency operations; and assigning ready tasks to worker resources that
 have become idle.
 
-Each scheduler has three queues:
+Each scheduler has four queues:
 
 \noindent {\it ready worker queue}, a FIFO queue of tasks that are
   matched with workers and are ready to execute;
@@ -93,16 +93,9 @@ Each scheduler has three queues:
   waiting to be matched with workers. It is a local partition of a shared
   task pool.
 
-\TODO{don;t we have an actual queue for higher priority system workers?}
+\noindent {\it deadline task queue}, a priority queue of tasks that are executed according to task-specific deadline constraints.
 
-Whenever a task yields or suspends, the scheduler makes a decision about what
-to do next. Servicing communication requests (system worker) is given priority
-to ensure responsiveness, but to minimize overhead should context switches be
-frequent, servicing is performed only if sufficient time has elapsed. Second,
-the scheduler determines if any workers with running tasks are ready to
-execute; if so, one is scheduled. Finally, if there are no workers ready to
-run, but there are tasks waiting to be matched with workers, an idle worker is
-woken (or a new worker is spawned), matched with a task, and scheduled.
+Whenever a task yields or suspends, the scheduler makes a decision about what to do next. First, any task in the deadline task queue who's deadline constraint is met is chosen for execution.  This queue manages high priority system tasks, such as periodically servicing communication requests.  Second, the scheduler determines if any workers with running tasks are ready to execute; if so, one is scheduled. Finally, if there are no workers ready to run, but there are tasks waiting to be matched with workers, an idle worker is woken (or a new worker is spawned), matched with a task, and scheduled.
 
 \paragraph{Context switching} \Grappa context switches between workers
 non-preemptively. As with other cooperative multithreading systems, we
