@@ -205,7 +205,7 @@ void rank(int iteration) {
     // bucket_cores.resize(nbuckets);
   });
   
-  VLOG(2) << "histogramming (not to be confused with 'programming')";
+  VLOG(2) << "histogramming";
   _time = Grappa_walltime();
 
   // histogram to find out how many fall into each bucket  
@@ -215,7 +215,7 @@ void rank(int iteration) {
   });
   
   histogram_time += Grappa_walltime() - _time;
-  VLOG(2) << "allreduceing";
+  VLOG(2) << "allreducing";
   _time = Grappa_walltime();
   
   // allreduce everyone's counts & compute global bucket_ranks (prefix sum)
@@ -461,7 +461,7 @@ void user_main(void * ignore) {
 
   // Do one interation for free (i.e., untimed) to guarantee initialization of  
   // all data and code pages and respective tables
-  rank( 1 );
+  rank(0);
   
   if( npbclass != NPBClass::S ) printf( "\n   iteration\n" );
 
