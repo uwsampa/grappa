@@ -462,9 +462,9 @@ void uts_helpMessage() {
 void uts_showStats(int nPes, int chunkSize, double walltime, counter_t nNodes, counter_t nLeaves, counter_t maxDepth) {
   // summarize execution info for machine consumption
   if (verbose == 0) {
-    printf("%4d %7.3f %9llu %7.0llu %7.0llu %d %d %.2f %d %d %1d %f %3d\n",
+    printf("%4d %7.3f %9llu %7.0llu %7.0llu %d %d %.2f %d %d %1d %f %3d %llu %llu\n",
         nPes, walltime, nNodes, (long long)(nNodes/walltime), (long long)((nNodes/walltime)/nPes), chunkSize, 
-        type, b_0, rootId, gen_mx, shape_fn, nonLeafProb, nonLeafBF);
+        type, b_0, rootId, gen_mx, shape_fn, nonLeafProb, nonLeafBF, maxDepth, nLeaves);
   }
 
   // summarize execution info for human consumption
