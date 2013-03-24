@@ -13,11 +13,11 @@
 GRAPPA_DEFINE_EVENT_GROUP(scheduler);
 
 /// TODO: this should be based on some actual time-related metric so behavior is predictable across machines
-//DEFINE_int64( periodic_poll_ticks, 500, "number of ticks to wait before polling periodic queue");
+DEFINE_int64( periodic_poll_ticks, 20000, "number of ticks to wait before polling periodic queue");
 
 DEFINE_bool(poll_on_idle, true, "have tasking layer poll aggregator if it has nothing better to do");
 
-DEFINE_int64( stats_blob_ticks, 3000000000L, "number of ticks to wait before dumping stats blob");
+DEFINE_int64( stats_blob_ticks, 300000000000L, "number of ticks to wait before dumping stats blob");
 
 
 namespace Grappa {
@@ -42,6 +42,7 @@ TaskingScheduler global_scheduler;
   , num_workers ( 0 )
   , work_args( NULL )
   , previous_periodic_ts( 0 ) 
+  , in_no_switch_region_( false )
   , prev_ts( 0 )
   , prev_stats_blob_ts( 0 )
     , stats( this )

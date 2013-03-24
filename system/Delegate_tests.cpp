@@ -113,6 +113,10 @@ void user_main( int * args )
   BOOST_MESSAGE( *foop );
     
 
+  // hack the test
+  void* prev_base = Grappa::impl::global_memory_chunk_base;
+  Grappa::impl::global_memory_chunk_base = 0;
+
   // make address
   BOOST_MESSAGE( "pointer is " << &other_data );
   GlobalAddress< int64_t > la = make_linear( &other_data );

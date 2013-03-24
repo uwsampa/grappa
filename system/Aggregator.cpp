@@ -14,10 +14,10 @@
 #include "PerformanceTools.hpp"
 
 // command line options for Aggregator
-DEFINE_int64( aggregator_autoflush_ticks, 1000, "number of ticks to wait before autoflushing aggregated active messages");
+DEFINE_int64( aggregator_autoflush_ticks, 50000, "number of ticks to wait before autoflushing aggregated active messages");
 DEFINE_int64( aggregator_max_flush, 0, "flush no more than this many buffers per poll (0 for unlimited)");
 DEFINE_bool( aggregator_enable, true, "should we aggregate packets or just send them?");
-DEFINE_bool( flush_on_idle, false, "flush all aggregated messages there's nothing better to do");
+DEFINE_bool( flush_on_idle, true, "flush all aggregated messages there's nothing better to do");
 
 /// global Aggregator instance
 Aggregator global_aggregator;
@@ -165,7 +165,7 @@ void Aggregator::deaggregate( ) {
                 << " with args " << args
                 << " and payload " << payload;
 	stats.record_forward( sizeof( AggregatorGenericCallHeader ) + header->args_size + header->payload_size );
-        Grappa_call_on( header->destination, fp, args, header->args_size, payload, header->payload_size );
+        aggregate( header->destination, fp, args, header->args_size, payload, header->payload_size );
       }
       i += sizeof( AggregatorGenericCallHeader ) + header->args_size + header->payload_size;
       msg_base += sizeof( AggregatorGenericCallHeader ) + header->args_size + header->payload_size;
@@ -203,3 +203,12 @@ void Aggregator_deaggregate_am( gasnet_token_t token, void * buf, size_t size ) 
 
 }
 
+/// proxy call to make it easier to integrate with scheduler
+bool idle_flush_aggregator() {
+  return global_aggregator.idle_flush_poll();
+}
+
+/// proxy call to make it easier to integrate with scheduler
+size_t Grappa_sizeof_header() {
+  return sizeof( AggregatorGenericCallHeader );
+}
