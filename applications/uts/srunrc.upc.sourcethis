@@ -1,0 +1,26 @@
+#!/bin/bash
+
+# this file is .hack because it is a workaround to setting env vars in srun prolog. Just source this file to set the shell environment, which will be copied for srun processes
+
+
+export GASNET_BACKTRACE=1
+export GASNET_FREEZE_ON_ERROR=1
+#export GASNET_FREEZE=0
+export GASNET_PHYSMEM_MAX='64GB'
+
+# from upcrun
+GASNET_FCA_ENABLE_REDUCE='1'
+export GASNET_FCA_ENABLE_BCAST='1'
+export GASNET_FCA_ENABLE_BARRIER='1'
+export GASNET_MAX_SEGSIZE='4096GB'
+export UPC_SHARED_HEAP_SIZE='4096MB'
+#echo export UPC_SHARED_HEAP_SIZE_MAX='1GB'
+
+
+## UPC stats collection ##
+# see http://upc.lbl.gov/docs/user/#stats
+
+# file to write to TODO: job based then add to table by jobid
+GASNET_STATSFILE=/people/bdmyers/grappa-2/applications/uts/uts-mem.stats
+# network gets (G) and puts (P)
+GASNET_STATSMASK=GP
