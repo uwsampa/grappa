@@ -56,7 +56,9 @@ void test_loop_decomposition_global() {
   auto ce_addr = make_global(&ce);
   
   impl::loop_decomposition_public(0, N, [ce_addr](int64_t start, int64_t iters) {
-    BOOST_MESSAGE("loop(" << start << ", " << iters << ")");
+    if ( start%10000==0 ) {
+      BOOST_MESSAGE("loop(" << start << ", " << iters << ")");
+    }
     complete(ce_addr,iters);
   });
   ce.wait();
