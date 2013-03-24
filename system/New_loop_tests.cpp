@@ -38,6 +38,7 @@ void test_on_all_cores() {
 }
 
 void test_loop_decomposition() {
+  BOOST_MESSAGE("Testing loop_decomposition_private...");
   int N = 16;
   
   CompletionEvent ce(N);
@@ -50,6 +51,7 @@ void test_loop_decomposition() {
 }
 
 void test_loop_decomposition_global() {
+  BOOST_MESSAGE("Testing loop_decomposition_public...");
   int N = 160000;
   
   CompletionEvent ce(N);
