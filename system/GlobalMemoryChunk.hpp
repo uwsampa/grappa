@@ -14,17 +14,14 @@
 class GlobalMemoryChunk
 {
 private:
-  key_t shm_key_;
-  int shm_id_;
   size_t size_;
-  void * base_;
   void * memory_;
 
 public:
   GlobalMemoryChunk( size_t size );
   ~GlobalMemoryChunk();
 
-  void * local_pointer() {
+  void * local_pointer() const {
     return memory_;
   }
 
@@ -32,5 +29,11 @@ public:
     return make_linear( memory_ );
   }
 };
+
+namespace Grappa {
+namespace impl {
+extern void * global_memory_chunk_base;
+}
+}
 
 #endif

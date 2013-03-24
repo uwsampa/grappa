@@ -82,7 +82,7 @@ namespace Grappa {
           }
           if( delete_after_send_ ) {
             this->~MessageBase();
-            Grappa::impl::locale_shared_memory.segment.deallocate( this );
+            Grappa::impl::locale_shared_memory.deallocate( this );
           }
         }
       }
