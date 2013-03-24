@@ -18,4 +18,6 @@ export MV2_USE_LAZY_MEM_UNREGISTER=0
 export OMPI_MCA_mpi_leave_pinned=0
 
 # Clean up any leftover shared memory regions
-for i in `ipcs -m | grep bholt | cut -d" " -f1`; do ipcrm -M $i; done
+# for i in `ipcs -m | grep bholt | cut -d" " -f1`; do ipcrm -M $i; done
+ipcs -m | grep $(USER) | cut -d\  -f1 | xargs -n1 -r ipcrm -M
+rm -f /dev/shm/GrappaLocaleSharedMemory
