@@ -34,7 +34,7 @@ namespace Grappa {
       // call destructors of everything in PoolAllocator
       iterate([](Base* bp){ bp->~Base(); });
       if (owns_buffer) {
-        Grappa::impl::locale_shared_memory.segment.deallocate(buffer);
+        Grappa::impl::locale_shared_memory.deallocate(buffer);
       }
     }
     
