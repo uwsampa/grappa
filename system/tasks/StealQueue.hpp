@@ -441,9 +441,10 @@ int64_t StealQueue<T>::steal_locally( Core victim, int64_t max_steal ) {
     }, victimStealStart, stealAmt*sizeof(T)); // success reply
 
 #if DEBUG
+    // FIXME: do not block; use mark_sent
     // wait for send then 0 out the stolen stuff (to detect errors)
-    reply->block_until_sent();
-    std::memset( victimStealStart, 0, stealAmt*sizeof( T ) );
+    //reply->block_until_sent();
+    //std::memset( victimStealStart, 0, stealAmt*sizeof( T ) );
 #endif
     } else {
       /* Send failed steal reply */
