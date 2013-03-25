@@ -29,7 +29,7 @@ DEFINE_int64( iterations, 1 << 30, "Iterations" );
 DEFINE_int64( sizeA, 1024, "Size of array that gups increments" );
 DEFINE_int64( outstanding, 1 << 10, "Number of outstanding requests" );
 DEFINE_bool( validate, true, "Validate result" );
-DEFINE_bool( rdma, false, "Use RDMA aggregator" );
+DEFINE_bool( rdma, true, "Use RDMA aggregator" );
 
 DECLARE_string( load_balance );
 
