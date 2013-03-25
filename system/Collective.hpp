@@ -238,17 +238,18 @@ namespace Grappa {
   template<typename F>
   void call_on_all_cores(F work) {
     Core origin = mycore();
-    CompletionEvent ce(cores());
+    CompletionEvent ce(cores()-1);
     
     auto lsz = [&ce,origin,work]{};
     MessagePool pool(cores()*(sizeof(Message<decltype(lsz)>)));
     
-    for (Core c = 0; c < cores(); c++) {
+    for (Core c = 0; c < cores(); c++) if (c != mycore()) {
       pool.send_message(c, [&ce, origin, work] {
         work();
         send_heap_message(origin, [&ce]{ ce.complete(); });
       });
     }
+    work(); // do my core's work
     ce.wait();
   }
   
