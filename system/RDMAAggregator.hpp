@@ -210,6 +210,7 @@ namespace Grappa {
 
       void compute_route_map();
       void draw_routing_graph();
+      void fill_free_pool( size_t num_buffers );
 
 
       bool flushing_;
