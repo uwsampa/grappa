@@ -279,7 +279,7 @@ void check_info(int type, int nprocs, char class)
     exit(1);
   }
 
-  if (class == 'E' && (type == IS || type == DT)) {
+  if (class == 'E' && (type == DT)) {
     printf("setparams: Benchmark class %c not defined for IS or DT\n", class);
     exit(1);
   }
@@ -707,7 +707,8 @@ void write_is_info(FILE *fp, int nprocs, char class)
       class != 'A' &&
       class != 'B' &&
       class != 'C' &&
-      class != 'D' )
+      class != 'D' &&
+      class != 'E' )
   {
     printf("setparams: Internal error: invalid class type %c\n", class);
     exit(1);
