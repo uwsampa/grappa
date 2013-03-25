@@ -302,7 +302,7 @@ void rank(int iteration) {
   // scatter into buckets
   forall_localized<&gce>(key_array, nkeys, [](int64_t s, int64_t n, key_t * first){
     size_t nbuckets = counts.size();
-    char msg_buf[sizeof(PoolMessage<std::function<void(GlobalAddress<bucket_t>,key_t)>>)*n];
+    char msg_buf[sizeof(Message<std::function<void(GlobalAddress<bucket_t>,key_t)>>)*n];
     MessagePool pool(msg_buf, sizeof(msg_buf));
     
     for (int64_t i=0; i<n; i++) {
