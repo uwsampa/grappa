@@ -95,6 +95,8 @@ void bfs_level(int64_t start, int64_t end) {
 }
 
 double make_bfs_tree(csr_graph * g, GlobalAddress<int64_t> local_bfs_tree, int64_t root) {
+  LOG_FIRST_N(INFO,1) << "bfs_version: 'basic'";
+  
   int64_t NV = g->nv;
   GlobalAddress<int64_t> local_vlist = Grappa_typed_malloc<int64_t>(NV);
  

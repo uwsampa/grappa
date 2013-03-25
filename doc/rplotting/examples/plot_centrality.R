@@ -17,9 +17,9 @@ db <- function(query) {
   return(d)
 }
 
-p <- ggplot(db("select * from centrality where scale >= 24"), 
-  aes(x=nnode, y=centrality_teps, group=machine, shape=ppn))+
-  ggtitle("Centrality")+xlab("Nodes")+ylab("TEPS")+
+p <- ggplot(db("select *, centrality_teps/1e6 as MTEPS from centrality where scale >= 24"), 
+  aes(x=nnode, y=MTEPS, group=machine, shape=ppn))+
+  ggtitle("Centrality")+xlab("Nodes")+
   sosp_theme+
   coord_cartesian(xlim=c(0,140))+ # viewing area
   # scale_x_continuous(breaks=seq(32, 128, 32))+ # axis ticks seq(from,to,by)

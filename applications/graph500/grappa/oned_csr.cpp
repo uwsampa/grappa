@@ -53,7 +53,7 @@ static void find_nv(const tuple_graph* const tg) {
     else if (e.v1 > maxvtx) { maxvtx = e.v1; }
   });
   on_all_cores([]{
-    maxvtx = Grappa::allreduce<int64_t,collective_add>(maxvtx);
+    maxvtx = Grappa::allreduce<int64_t,collective_max>(maxvtx);
     nv = maxvtx+1;
   });
 }
