@@ -56,8 +56,8 @@
 /* Example:  SGI O2000:   400% slowdown with buckets (Wow!)      */
 /*****************************************************************/
 /* To disable the use of buckets, comment out the following line */
-#define USE_BUCKETS
-
+#define MTA(x)
+// _Pragma(x)
 
 /******************/
 /* default values */
@@ -240,13 +240,13 @@ void c_print_results( char   *name,
                       char   *c_inc,
                       char   *cflags,
                       char   *clinkflags );
-
-
-void    timer_clear( int n );
-void    timer_start( int n );
-void    timer_stop( int n );
-double  timer_read( int n );
-
+#include <sys/mta_task.h>
+#include <machine/runtime.h>
+int accumulated[4], last_started[4];
+void    timer_clear( int n ) {accumulated[n]=0;}
+void    timer_start( int n ) {last_started[n]=mta_get_clock(0);}
+void    timer_stop( int n ) {accumulated[n] += mta_get_clock(last_started[n]);}
+double  timer_read( int n ) {return accumulated[n]/mta_clock_freq();}
 
 /*
  *    FUNCTION RANDLC (X, A)
@@ -355,11 +355,18 @@ double	randlc( double *X, double *A )
 
 void	create_seq( double seed, double a )
 {
+
+	prand_int(NUM_KEYS, key_array);
+	MTA("mta use 100 streams")
+	for (int i = 0; i <NUM_KEYS; i++) {
+	  key_array[i] = (key_array[i]&0x7fffffffffffffff) % MAX_KEY;
+	}
+	/*
+	
 	double x;
 	int    i, k;
 
         k = MAX_KEY/4;
-
 	for (i=0; i<NUM_KEYS; i++)
 	{
 	    x = randlc(&seed, &a);
@@ -369,6 +376,7 @@ void	create_seq( double seed, double a )
 
             key_array[i] = k*x;
 	}
+	*/
 }
 
 
@@ -398,14 +406,16 @@ void full_verify( void )
         key_buff2[i] = key_array[i];
 
 #endif
-
+    MTA("mta use 100 streams")
+#pragma mta assert nodep
     for( i=0; i<NUM_KEYS; i++ )
-        key_array[--key_buff_ptr_global[key_buff2[i]]] = key_buff2[i];
+        key_array[int_fetch_add(&key_buff_ptr_global[key_buff2[i]],-1)-1] = key_buff2[i];
 
 
 /*  Confirm keys correctly sorted: count incorrectly sorted keys, if any */
 
     j = 0;
+    MTA("mta use 100 streams")
     for( i=1; i<NUM_KEYS; i++ )
         if( key_array[i-1] > key_array[i] )
             j++;
@@ -459,21 +469,25 @@ void rank( int iteration )
         bucket_size[i] = 0;
 
 /*  Determine the number of keys in each bucket */
+    MTA("mta use 100 streams")
     for( i=0; i<NUM_KEYS; i++ )
         bucket_size[key_array[i] >> shift]++;
 
 
 /*  Accumulative bucket sizes are the bucket pointers */
     bucket_ptrs[0] = 0;
+    MTA("mta use 100 streams")
     for( i=1; i< NUM_BUCKETS; i++ )  
         bucket_ptrs[i] = bucket_ptrs[i-1] + bucket_size[i-1];
 
 
 /*  Sort into appropriate bucket */
+#pragma mta assert nodep
+    MTA("mta use 100 streams")
     for( i=0; i<NUM_KEYS; i++ )  
     {
         key = key_array[i];
-        key_buff2[bucket_ptrs[key >> shift]++] = key;
+        key_buff2[int_fetch_add(&bucket_ptrs[key >> shift],1)] = key;
     }
 
     key_buff_ptr2 = key_buff2;
@@ -496,7 +510,7 @@ void rank( int iteration )
 /*  In this section, the keys themselves are used as their 
     own indexes to determine how many of each there are: their
     individual population                                       */
-
+    MTA("mta use 100 streams")
     for( i=0; i<NUM_KEYS; i++ )
         key_buff_ptr[key_buff_ptr2[i]]++;  /* Now they have individual key   */
                                        /* population                     */
@@ -505,6 +519,7 @@ void rank( int iteration )
     population                                                  */
 
 
+    MTA("mta use 100 streams")
     for( i=0; i<MAX_KEY-1; i++ )   
         key_buff_ptr[i+1] += key_buff_ptr[i];  
 
@@ -514,6 +529,7 @@ void rank( int iteration )
 /* shifted differently for different cases */
     for( i=0; i<TEST_ARRAY_SIZE; i++ )
     {                                             
+#if defined(REALLY_PARTIAL_VERIFY)
         k = partial_verify_vals[i];          /* test vals were put here */
         if( 0 < k  &&  k <= NUM_KEYS-1 )
         {
@@ -624,10 +640,10 @@ void rank( int iteration )
                         "iteration %d, test key %d\n", 
                          iteration, (int)i );
         }
+#else
+    passed_verification ++;
+#endif
     }
-
-
-
 
 /*  Make copies of rank info for use by full_verify: these variables
     in rank are local; making them global slows down the code, probably
@@ -652,13 +668,9 @@ int main( int argc, char **argv )
 
     FILE            *fp;
 
-
 /*  Initialize timers  */
-    timer_on = 0;            
-    if ((fp = fopen("timer.flag", "r")) != NULL) {
-        fclose(fp);
-        timer_on = 1;
-    }
+    timer_on = 1;            
+
     timer_clear( 0 );
     if (timer_on) {
         timer_clear( 1 );
