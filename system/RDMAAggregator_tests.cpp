@@ -448,6 +448,11 @@ void user_main( void * args ) {
       FLAGS_sender_override :
       std::min( Grappa::locale_cores(), static_cast<Locale>( Grappa::locales() - 1 ) );
 
+    if( num_sender_cores == 0 ) {
+      LOG(WARNING) << "Since there are no senders, I'm bumping num_sender_cores to 1. Use the flag to override.";
+      num_sender_cores = 1;
+    }
+
     const int64_t sent_messages_per_core = FLAGS_iterations_per_core / Grappa::locale_cores() / num_sender_cores;
     const int64_t expected_messages_per_core = sent_messages_per_core * num_sender_cores;
     const int64_t expected_messages_per_locale = expected_messages_per_core * Grappa::locale_cores();
