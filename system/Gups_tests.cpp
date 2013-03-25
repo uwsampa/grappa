@@ -50,14 +50,14 @@ bool done_sending = false;
 //const int outstanding = 1 << 13;
 
 template< typename T >
-class ReuseMessage : public Grappa::Message<T> {
+class GupsReuseMessage : public Grappa::Message<T> {
 public:
-  Grappa::impl::ReuseList< ReuseMessage > * list_;
-  virtual ReuseMessage * get_next() { 
+  Grappa::impl::ReuseList< GupsReuseMessage > * list_;
+  virtual GupsReuseMessage * get_next() { 
     // we know this is safe since the list only holds this message type.
-    return static_cast<ReuseMessage*>(this->next_); 
+    return static_cast<GupsReuseMessage*>(this->next_); 
   }
-  virtual void set_next( ReuseMessage * next ) { this->next_ = next; }
+  virtual void set_next( GupsReuseMessage * next ) { this->next_ = next; }
 protected:
   virtual void mark_sent() {
     DVLOG(5) << __func__ << ": " << this << " Marking sent with is_enqueued_=" << this->is_enqueued_ 
@@ -88,8 +88,8 @@ struct C {
 };
 
 // list of free completion messages
-Grappa::impl::ReuseList< ReuseMessage<C> > completion_list;
-void completion_list_push( ReuseMessage<C> * c ) {
+Grappa::impl::ReuseList< GupsReuseMessage<C> > completion_list;
+void completion_list_push( GupsReuseMessage<C> * c ) {
   completion_list.push(c);
 }
 
@@ -105,7 +105,7 @@ struct M {
   int64_t completions_for_here;
 
   // once we have a message to use, do this
-  static void complete( ReuseMessage<C> * message, GlobalAddress< Grappa::CompletionEvent > event ) {
+  static void complete( GupsReuseMessage<C> * message, GlobalAddress< Grappa::CompletionEvent > event ) {
     gups_completions_sent++;
     message->reset();
     (*message)->rce = event;
@@ -142,7 +142,7 @@ struct M {
       } else {
         // we need to send a message
         // try to grab a message
-        ReuseMessage<C> * c = NULL;
+        GupsReuseMessage<C> * c = NULL;
         if( (c = completion_list.try_pop()) != NULL ) {
           // got one; send completion
           M::complete( c, rce );
@@ -151,7 +151,7 @@ struct M {
           // we need to block, so spawn a task
           auto my_ce = rce;
           Grappa::privateTask( [this, my_ce] { // this actually unused
-              ReuseMessage<C> * c = completion_list.block_until_pop();
+              GupsReuseMessage<C> * c = completion_list.block_until_pop();
               M::complete( c, my_ce );
             });
         }
@@ -161,8 +161,8 @@ struct M {
 };
 
 // list of free request messages
-Grappa::impl::ReuseList< ReuseMessage<M> > message_list;
-void message_list_push( ReuseMessage<M> * m ) {
+Grappa::impl::ReuseList< GupsReuseMessage<M> > message_list;
+void message_list_push( GupsReuseMessage<M> * m ) {
   message_list.push(m);
 }
 
@@ -254,7 +254,7 @@ LOOP_FUNCTION( func_gups_rdma, index ) {
     auto a = Array + b;
 
     // get a message to use to send
-    ReuseMessage<M> * m = message_list.block_until_pop();
+    GupsReuseMessage<M> * m = message_list.block_until_pop();
 
     // send
     m->reset();
@@ -283,7 +283,7 @@ LOOP_FUNCTION( func_gups_rdma, index ) {
   // (any new messages that arrive now will generate their own messages)
   for( Core core = 0; core < Grappa::cores(); ++core ) {
     if( completions_to_send[ core ] > 0 ) {
-      ReuseMessage<C> * c = completion_list.block_until_pop();
+      GupsReuseMessage<C> * c = completion_list.block_until_pop();
       
       if( completions_to_send[ core ] == 0 ) {
         completion_list.push( c );
@@ -398,8 +398,9 @@ BOOST_AUTO_TEST_CASE( test1 ) {
     }
 
     // prepare pools of messages
-    auto msgs = Grappa::impl::locale_shared_memory.segment.construct< ReuseMessage<M> >(boost::interprocess::anonymous_instance)[ FLAGS_outstanding ]();
-    auto completions = Grappa::impl::locale_shared_memory.segment.construct< ReuseMessage<C> >(boost::interprocess::anonymous_instance)[ FLAGS_outstanding ]();
+    auto msgs = Grappa::impl::locale_shared_memory.segment.construct< GupsReuseMessage<M> >(boost::interprocess::anonymous_instance)[ FLAGS_outstanding ]();
+    auto completions = Grappa::impl::locale_shared_memory.segment.construct< GupsReuseMessage<C> >(boost::interprocess::anonymous_instance)[ FLAGS_outstanding ]();
+
     for( int i = 0; i < FLAGS_outstanding; ++i ) {
       msgs[i].list_ = &message_list;
       message_list.push( &msgs[i] );
