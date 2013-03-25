@@ -658,36 +658,6 @@ namespace Grappa {
 
 
 
-  // Same as message, but allocated on heap
-  template< typename T >
-  inline Message<T> * heap_message( Core dest, T t ) {
-    void * p = Grappa::impl::locale_shared_memory.allocate_aligned( sizeof(Message<T>), 8 );
-    return new (p) Message<T>( dest, t );
-  }
-
-  /// Message with payload, allocated on heap
-  template< typename T >
-  inline PayloadMessage<T> * heap_message( Core dest, T t, void * payload, size_t payload_size ) {
-    void * p = Grappa::impl::locale_shared_memory.allocate_aligned( sizeof(PayloadMessage<T>), 8 );
-    return new (p) PayloadMessage<T>( dest, t, payload, payload_size );
-  }
-
-  /// Message with contents stored outside object, allocated on heap
-  template< typename T >
-  inline ExternalMessage<T> * heap_message( Core dest, T * t ) {
-    void * p = Grappa::impl::locale_shared_memory.allocate_aligned( sizeof(ExternalMessage<T>), 8 );
-    return new (p) ExternalMessage<T>( dest, t );
-  }
-
-  /// Message with contents stored outside object as well as payload
-  template< typename T >
-  inline ExternalPayloadMessage<T> * heap_message( Core dest, T * t, void * payload, size_t payload_size ) {
-    void * p = Grappa::impl::locale_shared_memory.allocate_aligned( sizeof(ExternalPayloadMessage<T>), 8 );
-    return new (p) ExternalPayloadMessage<T>( dest, t, payload, payload_size );
-  }
-
-
-
 
   /// Same as message, but immediately enqueued to be sent.
   template< typename T >
@@ -720,53 +690,11 @@ namespace Grappa {
     m.enqueue();
     return m;
   }
-
-
-
-
-
-  /// Same as message, but allocated on heap and immediately enqueued to be sent.
-  template< typename T >
-  inline Message<T> * send_heap_message( Core dest, T t ) {
-    void * p = Grappa::impl::locale_shared_memory.allocate_aligned( sizeof(Message<T>), 8 );
-    auto m = new (p) Message<T>( dest, t );
-    m->delete_after_send();
-    m->enqueue();
-    return m;
-  }
-
-  /// Message with payload, allocated on heap and immediately enqueued to be sent.
-  template< typename T >
-  inline PayloadMessage<T> * send_heap_message( Core dest, T t, void * payload, size_t payload_size ) {
-    void * p = Grappa::impl::locale_shared_memory.allocate_aligned( sizeof(PayloadMessage<T>), 8 );
-    auto m = new (p) PayloadMessage<T>( dest, t, payload, payload_size );
-    m->delete_after_send();
-    m->enqueue();
-    return m;
-  }
-
-  /// Message with contents stored outside object, allocated on heap and immediately enqueued to be sent.
-  template< typename T >
-  inline ExternalMessage<T> * send_heap_message( Core dest, T * t ) {
-    void * p = Grappa::impl::locale_shared_memory.allocate_aligned( sizeof(ExternalMessage<T>), 8 );
-    auto m = new (p) ExternalMessage<T>( dest, t );
-    m->delete_after_send();
-    m->enqueue();
-    return m;
-  }
-
-  /// Message with contents stored outside object as well as payload, allocated on heap and immediately enqueued to be sent.
-  template< typename T >
-  inline ExternalPayloadMessage<T> * send_heap_message( Core dest, T * t, void * payload, size_t payload_size ) {
-    void * p = Grappa::impl::locale_shared_memory.allocate_aligned( sizeof(ExternalPayloadMessage<T>), 8 );
-    auto m = new (p) ExternalPayloadMessage<T>( dest, t, payload, payload_size );
-    m->delete_after_send();
-    m->enqueue();
-    return m;
-  }
-
+  
   /// @}
 
 }
+
+#include "SharedMessagePool.hpp" // get heap_message stuff...
 
 #endif

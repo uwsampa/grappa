@@ -7,7 +7,7 @@ namespace Grappa {
 
   template<typename Base>
   class PoolAllocator {
-  protected:
+  public:
     char * buffer;
     size_t buffer_size;
     size_t allocated;

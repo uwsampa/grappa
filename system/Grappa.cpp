@@ -362,6 +362,9 @@ void Grappa_activate()
 
 
   global_rdma_aggregator.activate();
+  
+  Grappa::init_shared_pool(); // (must be after locale-heap is initialized in RDMAAggregator)q
+  
   Grappa_barrier();
 }
 
