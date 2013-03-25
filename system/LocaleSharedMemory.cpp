@@ -150,7 +150,8 @@ void * LocaleSharedMemory::allocate( size_t size ) {
     p = Grappa::impl::locale_shared_memory.segment.allocate( size );
   }
   catch(...){
-    LOG(ERROR) << "Allocation failed with size " << size;
+    LOG(ERROR) << "Allocation of " << size << " bytes failed with " 
+               << get_free_memory() << " free.";
     failure_function();
     throw;
   }
@@ -163,7 +164,8 @@ void * LocaleSharedMemory::allocate_aligned( size_t size, size_t alignment ) {
     p = Grappa::impl::locale_shared_memory.segment.allocate_aligned( size, alignment );
   }
   catch(...){
-    LOG(ERROR) << "Aligned allocation failed with size " << size << " alignment " << alignment;
+    LOG(ERROR) << "Allocation of " << size << " bytes with alignment " << alignment 
+               << " failed with " << get_free_memory() << " free.";
     failure_function();
     throw;
   }
@@ -175,6 +177,8 @@ void LocaleSharedMemory::deallocate( void * ptr ) {
     Grappa::impl::locale_shared_memory.segment.deallocate( ptr );
   }
   catch(...){
+    LOG(ERROR) << "Deallocation of " << ptr
+               << " failed with " << get_free_memory() << " free.";
     failure_function();
     throw;
   }
