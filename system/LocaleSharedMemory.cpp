@@ -5,9 +5,9 @@
 #error "no SHMMAX defined for this system -- look it up with the command: `sysctl -A | grep shm`"
 #endif
 
-const int64_t default_locale_reserved_size = (1L << 32);
-DEFINE_int64( locale_reserved_size, default_locale_reserved_size, "Shared memory between cores on node, reserved for runtime" );
-DEFINE_int64( locale_shared_size, SHMMAX + FLAGS_locale_reserved_size, "Total shared memory between cores on node" );
+DEFINE_int64( locale_shared_size, SHMMAX, "Total shared memory between cores on node" );
+
+DEFINE_double( global_heap_fraction, 0.5, "Fraction of locale shared memory to use for global shared heap" );
 
 DECLARE_bool( global_memory_use_hugepages );
 
@@ -63,6 +63,7 @@ void LocaleSharedMemory::create() {
                                                                 base_address);
   }
   catch(...){
+    LOG(ERROR) << "Failed to create locale shared memory of size " << region_size;
     boost::interprocess::shared_memory_object::remove( region_name.c_str() );
     failure_function();
     throw;
@@ -89,6 +90,7 @@ void LocaleSharedMemory::attach() {
                                                                 base_address );
   }
   catch(...){
+    LOG(ERROR) << "Failed to attach to locale shared memory of size " << region_size;
     boost::interprocess::shared_memory_object::remove( region_name.c_str() );
     failure_function();
     throw;
@@ -127,9 +129,6 @@ LocaleSharedMemory::~LocaleSharedMemory() {
 }
 
 void LocaleSharedMemory::init() {
-  if( FLAGS_locale_reserved_size != default_locale_reserved_size ) {
-    FLAGS_locale_shared_size = SHMMAX + FLAGS_locale_reserved_size;
-  }
 }
 
 void LocaleSharedMemory::activate() {
@@ -147,7 +146,7 @@ void LocaleSharedMemory::finish() {
 void * LocaleSharedMemory::allocate( size_t size ) {
   void * p = NULL;
   try {
-    p = Grappa::impl::locale_shared_memory.segment.allocate( size );
+    p = segment.allocate( size );
   }
   catch(...){
     LOG(ERROR) << "Allocation of " << size << " bytes failed with " 
@@ -161,7 +160,7 @@ void * LocaleSharedMemory::allocate( size_t size ) {
 void * LocaleSharedMemory::allocate_aligned( size_t size, size_t alignment ) {
   void * p = NULL;
   try {
-    p = Grappa::impl::locale_shared_memory.segment.allocate_aligned( size, alignment );
+    p = segment.allocate_aligned( size, alignment );
   }
   catch(...){
     LOG(ERROR) << "Allocation of " << size << " bytes with alignment " << alignment 
@@ -174,7 +173,7 @@ void * LocaleSharedMemory::allocate_aligned( size_t size, size_t alignment ) {
 
 void LocaleSharedMemory::deallocate( void * ptr ) {
   try {
-    Grappa::impl::locale_shared_memory.segment.deallocate( ptr );
+    segment.deallocate( ptr );
   }
   catch(...){
     LOG(ERROR) << "Deallocation of " << ptr

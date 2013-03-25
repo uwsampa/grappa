@@ -31,9 +31,11 @@ private:
   void attach();
   void destroy();
 
-public:
-  boost::interprocess::fixed_managed_shared_memory segment;
+  friend class RDMAAggregator;
+  friend class coro;
 
+public: // TODO: fix Gups
+  boost::interprocess::fixed_managed_shared_memory segment;
 
 public:
 
@@ -54,19 +56,19 @@ public:
     //#ifndef NDEBUG
     char * char_base = reinterpret_cast< char* >( base_address );
     char * char_addr = reinterpret_cast< char* >( addr );
-    if( !( (char_base <= addr) && (addr < (char_base + region_size)) ) ) {
-      CHECK_EQ( false, true ) << "Address " << addr << "  out of locale shared range!";
-    }
-    //#endif
+    CHECK( (char_base <= addr) && (addr < (char_base + region_size) ) )
+      << "Address " << addr << "  out of locale shared range!";
   }
+    //#endif
 
   void * allocate( size_t size );
   void * allocate_aligned( size_t size, size_t alignment );
   void deallocate( void * ptr );
 
-  size_t get_free_memory() { return segment.get_free_memory(); }
-  size_t get_size() { return segment.get_size(); }
+  size_t get_free_memory() const { return segment.get_free_memory(); }
+  size_t get_size() const { return segment.get_size(); }
 };
+
 
 /// global LocaleSharedMemory instance
 extern LocaleSharedMemory locale_shared_memory;
