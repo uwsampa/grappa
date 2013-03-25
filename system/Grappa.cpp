@@ -130,7 +130,13 @@ static void poller( Thread * me, void * args ) {
 
     Grappa_yield_periodic();
   }
+  // cleanup stragglers on readyQ since I should be last to run;
+  // no one else matters.
+  // Tasks on task queues would be a programmer error
+  global_scheduler.shutdown_readyQ();
   VLOG(5) << "polling Thread exiting";
+
+  // master will be scheduled upon exit of poller thread
 }
 
 /// handler to redirect SIGABRT override to activate a GASNet backtrace
