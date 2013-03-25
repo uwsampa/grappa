@@ -184,6 +184,16 @@ namespace Grappa {
     }
   }
 
+    void RDMAAggregator::fill_free_pool( size_t num_buffers ) {
+        void * p = Grappa::impl::locale_shared_memory.allocate_aligned( sizeof(RDMABuffer) * num_buffers, 8 );
+        CHECK_NOTNULL( p );
+        DVLOG(2) << "Allocated buffers: " << num_buffers;
+        rdma_buffers_ = reinterpret_cast< RDMABuffer * >( p );
+        for( int i = 0; i < num_buffers; ++i ) {
+          free_buffer_list_.push( &rdma_buffers_[i] );
+        }
+    }
+
   
     void RDMAAggregator::init() {
 #ifdef LEGACY_SEND
@@ -288,13 +298,7 @@ namespace Grappa {
       if( core_partner_locale_count_ > 0 ) {
         const int num_buffers = core_partner_locale_count_ * FLAGS_rdma_buffers_per_core;
         DVLOG(2) << "Number of buffers: " << num_buffers;
-        void * p = Grappa::impl::locale_shared_memory.allocate_aligned( sizeof(RDMABuffer) * num_buffers, 8 );
-        CHECK_NOTNULL( p );
-        DVLOG(2) << "Allocated buffers: " << num_buffers;
-        rdma_buffers_ = reinterpret_cast< RDMABuffer * >( p );
-        for( int i = 0; i < num_buffers; ++i ) {
-          free_buffer_list_.push( &rdma_buffers_[i] );
-        }
+        fill_free_pool( num_buffers );
       }
 
       // spawn send workers
@@ -723,6 +727,10 @@ void RDMAAggregator::draw_routing_graph() {
             rdma_buffers_inuse += remote_buffer_pool_size - p->remote_buffers_.count();
           });
         request.send_immediate();
+      } else {
+        DVLOG(3) << __PRETTY_FUNCTION__ << "/" << Grappa::impl::global_scheduler.get_current_thread() << " finished with " << buf
+                 << "; pushing on free list";
+        free_buffer_list_.push( buf );
       }
             
       active_receive_workers_--;
