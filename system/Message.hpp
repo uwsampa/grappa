@@ -107,7 +107,7 @@ namespace Grappa {
       Grappa::impl::MessageBase::serialize_to( p, max_size );
       // copy deserialization function pointer
       auto fp = &deserialize_and_call;
-      if( sizeof( fp ) + sizeof( T ) > max_size ) {
+      if( serialized_size() > max_size ) {
         return p;
       } else {
         // // turn into 2D pointer
@@ -262,7 +262,7 @@ namespace Grappa {
       Grappa::impl::MessageBase::serialize_to( p, max_size );
       // copy deserialization function pointer
       auto fp = &deserialize_and_call;
-      if( sizeof( fp ) + sizeof( T ) > max_size ) {
+      if( serialized_size() > max_size ) {
         return p;
       } else {
         // // turn into 2D pointer
@@ -403,7 +403,7 @@ namespace Grappa {
       Grappa::impl::MessageBase::serialize_to( p, max_size );
       // copy deserialization function pointer
       auto fp = &deserialize_and_call;
-      if( sizeof( fp ) + sizeof( T ) > max_size ) {
+      if( serialized_size() > max_size ) {
         return p;
       } else {
         // // turn into 2D pointer
@@ -571,7 +571,7 @@ namespace Grappa {
       Grappa::impl::MessageBase::serialize_to( p, max_size );
       // copy deserialization function pointer
       auto fp = &deserialize_and_call;
-      if( sizeof( fp ) + sizeof( T ) > max_size ) {
+      if( serialized_size() > max_size ) {
         return p;
       } else {
         // // turn into 2D pointer
