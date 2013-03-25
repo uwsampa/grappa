@@ -11,7 +11,7 @@ end
 Igor do
   include Isolatable
   
-  database 'test-bugs.db', :uts
+  database 'sosp.db', :uts
 
   # isolate everything needed for the executable so we can sbcast them for local execution
   isolate(['uts_grappa.exe'],
@@ -32,20 +32,20 @@ Igor do
   
   command %Q[ %{tdir}/grappa_srun.rb
     -- %{tdir}/uts_grappa.exe
-    #{expand_flags(*GFLAGS.keys)}
-    -- %{tree_args} -V %{vertices_size}
+    #{expand_flags(*GFLAGS.keys)} --vertices_size=%{vertices_size}
+    -- %{tree_args} 
   ].gsub(/\s+/,' ')
   
   sbatch_flags << "--time=60"
   
   params {
-    nnode       2,8,12
+    nnode       8, 16, 32 
     ppn         1,2,4,8,12
     tag         'none'
-    tree        'T1'
+    tree        'T1','T1L','T2L','T3L'
     tree_args   expr('ENV[tree]')
-    vertices_size expr("ENV['SIZE'+tree]")
     problem     'uts-mem'
+    vertices_size expr("ENV['SIZE'+tree]")
   }
   
   expect :generate_runtime, :search_runtime
