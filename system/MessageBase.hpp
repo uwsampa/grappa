@@ -34,7 +34,7 @@ namespace Grappa {
     ///  - storage for blocking worker until message is sent
     /// This is a virtual class.
     class MessageBase {
-    protected:
+    public:
       MessageBase * next_;     ///< what's the next message in the list of messages to be sent? 
       MessageBase * prefetch_; ///< what's the next message to prefetch?
 
@@ -52,7 +52,12 @@ namespace Grappa {
         };
         uint8_t raw_;
       };
-
+      
+      union {
+        void* pool;
+        intptr_t extra;
+      };
+      
       //uint64_t reset_count_;    ///< How many times have we been reset? (for debugging only)
 
       friend class RDMAAggregator;
