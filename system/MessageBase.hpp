@@ -160,7 +160,6 @@ namespace Grappa {
         , delete_after_send_( false ) 
       { 
         DVLOG(9) << "construct " << this;
-        Grappa::impl::locale_shared_memory.validate_address( this );
       }
 
       MessageBase( Core dest )
@@ -177,7 +176,6 @@ namespace Grappa {
         , delete_after_send_( false ) 
       {
         DVLOG(9) << "construct " << this;
-        Grappa::impl::locale_shared_memory.validate_address( this );
       }
 
       // Ensure we are sent before leaving scope
