@@ -28,10 +28,14 @@ struct bucket_t {
   uint64_t * v;
   size_t nelems;
   size_t maxelems;
-  int * key_ranks;
+  int64_t * key_ranks;
   char pad[block_size-sizeof(uint64_t*)-sizeof(size_t)*2-sizeof(int*)];
   bucket_t(): v(nullptr), nelems(0) { memset(pad, 0x55, sizeof(pad)); }
   ~bucket_t() { if (v) { Grappa::impl::locale_shared_memory.deallocate(v); } }
+  void free() {
+    Grappa::impl::locale_shared_memory.deallocate(v);
+    v = nullptr;
+  }
   void reserve(size_t nelems) {
     maxelems = nelems;
     // if (v != NULL) delete [] v;
@@ -62,7 +66,7 @@ struct bucket_t {
 static const int MIN_PROCS = 1;
 static const int MAX_PROCS = 1024;
 
-static const int MAX_ITERATIONS = 10;
+static int niterations = 10;
 static const int TEST_ARRAY_SIZE = 5;
 
 bool skip_verify;
@@ -178,6 +182,12 @@ inline int next_seq_element() {
 }
 
 template< typename T >
+inline void print_array(const char * name, T* v, size_t sz) {
+  std::stringstream ss; ss << name << ": [";
+  for (size_t i=0; i<sz; i++) ss << " " << v[i];
+  ss << " ]"; VLOG(1) << ss.str();
+}
+template< typename T >
 inline void print_array(const char * name, std::vector<T> v) {
   std::stringstream ss; ss << name << ": [";
   for (size_t i=0; i<v.size(); i++) ss << " " << v[i];
@@ -189,6 +199,8 @@ inline void print_array(const char * name, GlobalAddress<T> base, size_t nelem) 
   for (size_t i=0; i<nelem; i++) ss << " " << delegate::read(base+i);
   ss << " ]"; VLOG(1) << ss.str();
 }
+
+size_t total_bucket_allocation;
 
 void rank(int iteration) {
   double _time;
@@ -262,11 +274,19 @@ void rank(int iteration) {
     // }
     // CHECK_LT(c, cores());
     // CHECK_EQ(bucket_sum_accumulator, nkeys);
+    total_bucket_allocation = 0;
   });
   
   allreduce_time += Grappa_walltime() - _time;
+
+  forall_localized<&gce,1>(bucketlist, nbuckets, [](int64_t id, bucket_t& bucket){
+    total_bucket_allocation += bucket.maxelems;
+    bucket.free();
+  });
   
-  // print_array("bucket_ranks", bucket_ranks);
+  VLOG(1) << "total_bucket_allocation = " << reduce<size_t,collective_add>(&total_bucket_allocation);
+  
+  // print_array("counts", &counts[0], counts.size());
   // print_array("bucket_cores", bucket_cores);
   
   // allocate space in buckets
@@ -282,10 +302,10 @@ void rank(int iteration) {
   // scatter into buckets
   forall_localized<&gce>(key_array, nkeys, [](int64_t s, int64_t n, key_t * first){
     size_t nbuckets = counts.size();
-    char msg_buf[sizeof(Message<std::function<void(GlobalAddress<bucket_t>,key_t)>>)*n];
+    char msg_buf[sizeof(PoolMessage<std::function<void(GlobalAddress<bucket_t>,key_t)>>)*n];
     MessagePool pool(msg_buf, sizeof(msg_buf));
     
-    for (int i=0; i<n; i++) {
+    for (int64_t i=0; i<n; i++) {
       auto v = first[i];
       size_t b = v >> BSHIFT;
       CHECK( b < nbuckets ) << "bucket id = " << b << ", nbuckets = " << nbuckets;
@@ -315,13 +335,13 @@ void rank(int iteration) {
     // int nverified = 0;
     
     // for each bucket...
-    for (int i=0; i<bucket_end-bucket_base; i++) {
+    for (int64_t i=0; i<bucket_end-bucket_base; i++) {
       auto& b = bucket_base[i];
       
       if (b.size() == 0) continue;
 
-      b.key_ranks = new int[bucket_range];
-      for (int j=0; j<bucket_range; j++) b.key_ranks[j] = 0;
+      b.key_ranks = new int64_t[bucket_range];
+      for (int64_t j=0; j<bucket_range; j++) b.key_ranks[j] = 0;
       
       auto b_id = make_linear(&b)-bucketlist;
       CHECK_LT(b_id, nbuckets) << "bucketlist: " << bucketlist;
@@ -332,7 +352,7 @@ void rank(int iteration) {
       auto key_counts = b.key_ranks - min_key;
       
       auto b_buf = &b[0];
-      for (int j=0; j<b.size(); j++) {
+      for (int64_t j=0; j<b.size(); j++) {
         // VLOG(1) << "b_id = " << b_id << ", b_buf[" << j << "] = " << b_buf[j];
         DCHECK_EQ(b_buf[j] >> BSHIFT, b_id);
         DCHECK_GE(b_buf[j], min_key);
@@ -342,9 +362,9 @@ void rank(int iteration) {
       
       // prefix_sum the counts to get ranks
       // apparently it's okay for us to not add in the global offsets
-      int accum = bucket_ranks[b_id];
-      for (int j=0; j<bucket_range; j++) {
-        int tmp = b.key_ranks[j];
+      int64_t accum = bucket_ranks[b_id];
+      for (int64_t j=0; j<bucket_range; j++) {
+        int64_t tmp = b.key_ranks[j];
         b.key_ranks[j] = accum;
         accum += tmp;
       }
@@ -392,10 +412,10 @@ void full_verify() {
   forall_localized<&gce,1>(bucketlist, nbuckets, [sorted_keys](int64_t b_id, bucket_t& b){
     auto key_ranks = b.key_ranks - (b_id<<BSHIFT);
     
-    char msgbuf[Grappa::current_worker().stack_remaining()-8096];
-    MessagePool pool(msgbuf, sizeof(msgbuf));
+    // char msgbuf[Grappa::current_worker().stack_remaining()-8096];
+    MessagePool pool((1<<23)/(nbuckets/cores()));
     
-    for (int i=0; i<b.size(); i++) {
+    for (int64_t i=0; i<b.size(); i++) {
       key_t k = b[i];
       CHECK_LT(key_ranks[k], nkeys);
       delegate::write_async<&gce>(pool, sorted_keys+key_ranks[k], k);
@@ -419,7 +439,7 @@ void user_main(void * ignore) {
   printf( "NAS Parallel Benchmarks 3.3 -- IS Benchmark in Grappa\n");
   printf( "nkeys:       %ld  (class %c, 2^%d)\n", (long)nkeys, npb_class_char(npbclass), scale);
   printf( "maxkey:      %ld (2^%d)\n", maxkey, log2maxkey);
-  printf( "niterations: %d\n", MAX_ITERATIONS);
+  printf( "niterations: %d\n", niterations);
   printf( "cores:       %d\n", cores());
 
   // Check to see whether total number of processes is within bounds.
@@ -475,7 +495,7 @@ void user_main(void * ignore) {
   total_time = Grappa_walltime();
 
   // This is the main iteration
-  for( iteration=1; iteration<=MAX_ITERATIONS; iteration++ ) {
+  for( iteration=1; iteration<=niterations; iteration++ ) {
       if (npbclass != NPBClass::S ) printf( "        %d\n", iteration );
       rank( iteration );
   }
@@ -502,7 +522,7 @@ void user_main(void * ignore) {
   
   std::cerr << "problem_size: " << nkeys << "\n";
   
-  double mops = static_cast<double>(MAX_ITERATIONS)*nkeys/total_time/1e6;
+  double mops = static_cast<double>(niterations)*nkeys/total_time/1e6;
   std::cerr << "mops_total: " << mops << "\n";
   std::cerr << "mops_per_process: " << mops/cores() << "\n";
 }
@@ -528,10 +548,7 @@ static void printHelp(const char * exe) {
   printf("  --log2buckets,b  Number of buckets will be 2^log2buckets.\n");
   printf("  --log2maxkey,k   Maximum value of random numbers, range will be [0,2^log2maxkey)");
   printf("  --class,c   NAS Parallel Benchmark Class (problem size) (W, S, A, B, C, or D)");
-  printf("  --gen,g   Generate random numbers and save to file only (no sort).\n");
-  printf("  --write,w   Save array to file.\n");
-  printf("  --read,r  Read from file rather than generating.\n");
-  printf("  --nosort  Skip sort.\n");
+  printf("  --niterations  Number of iterations to do.\n");
   printf("  --skip-verify Skip verification step.\n");
   exit(0);
 }
@@ -543,7 +560,7 @@ static void parseOptions(int argc, char ** argv) {
     {"log2buckets", required_argument, 0, 'b'},
     {"log2maxkey", required_argument, 0, 'k'},
     {"class", required_argument, 0, 'c'},
-    {"nosort", no_argument, 0, 'n'},
+    {"niterations", required_argument, 0, 'n'},
     {"skip-verify", no_argument, 0, 'f'}
   };
 
@@ -562,6 +579,7 @@ static void parseOptions(int argc, char ** argv) {
 
   log2maxkey = 64;
   skip_verify = false;
+  niterations = 10;
   ///////////////////
 
   int c = 0;
@@ -590,6 +608,9 @@ static void parseOptions(int argc, char ** argv) {
       case 'f':
         skip_verify = true;
         break;
+      case 'n':
+        niterations = atoi(optarg);
+        break;      
     }
   }
   nkeys = 1L << scale;
