@@ -45,8 +45,8 @@ uint64_t local_searched;
 uint64_t local_generated;
 
 // Performance output
-GRAPPA_DEFINE_STAT(SimpleStatistic<uint64_t>, generate_runtime, 0);
-GRAPPA_DEFINE_STAT(SimpleStatistic<uint64_t>, search_runtime, 0);
+GRAPPA_DEFINE_STAT(SimpleStatistic<double>, generate_runtime, 0);
+GRAPPA_DEFINE_STAT(SimpleStatistic<double>, search_runtime, 0);
 
 
 // Parallel granularities for important parallel for-loops
