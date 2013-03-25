@@ -206,7 +206,14 @@ void rank(int iteration) {
   double _time;
   VLOG(1) << "iteration " << iteration;
   // key_array, nkeys already available on all cores
-    
+  
+  if (iteration == 0) {
+    forall_localized<&gce,1>(bucketlist, nbuckets, [](int64_t id, bucket_t& bucket){
+      // (global malloc doesn't call constructors)
+      new (&bucket) bucket_t();
+    });
+  }
+  
   // allocate space for counts, etc.
   call_on_all_cores([]{
     counts.resize(nbuckets);
@@ -278,22 +285,15 @@ void rank(int iteration) {
   });
   
   allreduce_time += Grappa_walltime() - _time;
-
-  forall_localized<&gce,1>(bucketlist, nbuckets, [](int64_t id, bucket_t& bucket){
-    total_bucket_allocation += bucket.maxelems;
-    bucket.free();
-  });
-  
-  VLOG(1) << "total_bucket_allocation = " << reduce<size_t,collective_add>(&total_bucket_allocation);
-  
+    
   // print_array("counts", &counts[0], counts.size());
   // print_array("bucket_cores", bucket_cores);
   
   // allocate space in buckets
   forall_localized<&gce,1>(bucketlist, nbuckets, [](int64_t id, bucket_t& bucket){
     // (global malloc doesn't call constructors)
-    new (&bucket) bucket_t();
     bucket.reserve(counts[id]);
+    bucket.nelems = 0;
   });
 
   VLOG(2) << "scattering into buckets";
