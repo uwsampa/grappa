@@ -27,6 +27,7 @@
 #include "GlobalTaskJoiner.hpp"
 #include <Array.hpp>
 #include "GlobalCompletionEvent.hpp"
+#include "LocaleSharedMemory.hpp"
 
 using namespace Grappa;
 
@@ -233,7 +234,8 @@ static void gather_edges(const tuple_graph * const tg, csr_graph * g) {
     
     if (xoi+1 >= xei) return;
 
-    int64_t * buf = new int64_t[xei-xoi];// (int64_t*)alloca((xei-xoi)*sizeof(int64_t));
+    //int64_t * buf = new int64_t[xei-xoi];// (int64_t*)alloca((xei-xoi)*sizeof(int64_t));
+    int64_t * buf = reinterpret_cast< int64_t* >( Grappa::locale_shared_memory.allocate_aligned( sizeof(int64_t) * (xei-xoi), 8 ) );
     Incoherent<int64_t>::RW cadj(graph.xadj+xoi, xei-xoi, buf);
     cadj.block_until_acquired();
 
@@ -257,7 +259,7 @@ static void gather_edges(const tuple_graph * const tg, csr_graph * g) {
     *cend = xoi+kcur;
 
     cadj.block_until_released();
-    delete buf;
+    Grappa::locale_shared_memory.deallocate( buf );
 
     // on scope: cend.block_until_released();
   });
