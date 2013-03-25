@@ -113,6 +113,8 @@ static uint64_t bfs_vertex_visited = 0;
 static unsigned marker = -1;
 
 double make_bfs_tree(csr_graph * g, GlobalAddress<int64_t> _bfs_tree, int64_t root) {
+  LOG_FIRST_N(INFO,1) << "bfs_version: 'localized'";
+  
   int64_t NV = g->nv;
   GlobalAddress<int64_t> _vlist = Grappa_typed_malloc<int64_t>(NV);
   DVLOG(1) << "make_bfs_tree(" << root << ")";
@@ -223,8 +225,8 @@ double make_bfs_tree(csr_graph * g, GlobalAddress<int64_t> _bfs_tree, int64_t ro
 //  cmp_swaps_shorted     = Grappa::reduce<uint64_t,collective_add>(&cmp_swaps_shorted);
 //  cmp_swaps_total       = Grappa::reduce<uint64_t,collective_add>(&cmp_swaps_total);
 
-  VLOG(1) << "bfs_vertex_visited = " << bfs_vertex_visited;
-  VLOG(1) << "bfs_neighbors_visited = " << bfs_neighbors_visited;
+  VLOG(1) << "bfs_vertex_visited: " << bfs_vertex_visited;
+  VLOG(1) << "bfs_neighbors_visited: " << bfs_neighbors_visited;
 //  VLOG(1) << "cmp_swaps_shorted: " << cmp_swaps_shorted;
 //  VLOG(1) << "cmp_swaps_total: " << cmp_swaps_total;
 

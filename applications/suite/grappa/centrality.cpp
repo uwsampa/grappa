@@ -320,7 +320,7 @@ double centrality(graph *g_in, GlobalAddress<double> bc_in, graphint Vs,
   double bc_total = 0;
   Core origin = mycore();
   // TODO: use array reduction op, or mutable "forall_localized"-held state
-  on_all_cores([bc, &bc_total, origin]{
+  on_all_cores([&bc_total, origin]{
     auto b = bc.localize();
     auto local_end  = (bc+g.numVertices).localize();
     double sum = 0.0;
