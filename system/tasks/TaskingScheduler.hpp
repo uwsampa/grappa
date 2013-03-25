@@ -356,6 +356,20 @@ class TaskingScheduler : public Scheduler {
       return this->num_active_tasks;
     }
 
+    void shutdown_readyQ() {
+      uint64_t count = 0;
+      while ( readyQ.length() > 0 ) {
+        Worker * w = readyQ.dequeue();
+        //DVLOG(3) << "Worker found on readyQ at termination: " << *w;
+        count++;
+      }
+      if ( count > 0 ) {
+        DVLOG(2) <<    "Workers were found on readyQ at termination: " << count;
+      } else {
+        DVLOG(3) << "No Workers were found on readyQ at termination";
+      }
+    }
+
     /// Set allowed active workers to allow `n` more workers than are active now, or if '-1'
     /// is specified, allow all workers to be active.
     /// (this is mostly to make Node 0 with user_main not get forced to have fewer active)
