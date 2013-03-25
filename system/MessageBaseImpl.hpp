@@ -25,6 +25,8 @@ namespace Grappa {
       CHECK( !is_moved_ ) << "Shouldn't be sending a message that has been moved!"
                           << " Your compiler's return value optimization failed you here.";
       DCHECK_NULL( next_ );
+      
+      Grappa::impl::locale_shared_memory.validate_address( this );
 
       if( !is_enqueued_ ) source_ = global_communicator.mycore();
       //bool mine = source_ == Grappa::mycore();
@@ -53,6 +55,8 @@ namespace Grappa {
                           << " Your compiler's return value optimization failed you here.";
       DCHECK_NULL( next_ );
 
+      Grappa::impl::locale_shared_memory.validate_address( this );
+
       if( !is_enqueued_ ) source_ = global_communicator.mycore();
       //bool mine = source_ == Grappa::mycore();
       bool mine = !is_delivered_;
@@ -72,7 +76,7 @@ namespace Grappa {
 
     inline void Grappa::impl::MessageBase::locale_enqueue( Core c ) {
       destination_ = c;
-      enqueue();
+      locale_enqueue();
     }
     
     inline void Grappa::impl::MessageBase::send_immediate() {
