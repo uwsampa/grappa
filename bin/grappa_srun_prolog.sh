@@ -15,6 +15,7 @@ export VT_MAX_FLUSHES=0
 export VT_PFORM_GDIR=.
 export VT_PFORM_LDIR=/scratch
 export MV2_USE_LAZY_MEM_UNREGISTER=0
+export MV2_ON_DEMAND_THRESHOLD=8192
 export OMPI_MCA_mpi_leave_pinned=0
 
 # Clean up any leftover shared memory regions
