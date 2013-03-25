@@ -7,12 +7,14 @@ work and complex communication patterns.
 
 \Grappa serves both as a C++ user library and as a foundation upon which
 higher level languages can be developed or adapted. \Grappa tolerates delays
-to remote memory by multiplexing thousands of lightweight execution contexts
+to remote memory by multiplexing thousands of lightweight workers
 to each processor core; balances load via fine-grained distributed
 work-stealing; takes full advantage of network characteristics by aggregating
 smaller data requests into large ones; and provides efficient synchronization
 and remote operations. We present a detailed description of the \Grappa
-system, programming examples using the library interface, and compare
+system,
+%programming examples using the library interface,
+and compare
 performance for several irregular benchmarks to hand-optimized MPI code and
 the Cray XMT, a custom system used to target the real time graph analytics
 market.

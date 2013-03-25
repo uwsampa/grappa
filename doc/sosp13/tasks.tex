@@ -82,7 +82,7 @@ Section~\ref{sec:communication}; rescheduling workers that have been waiting
 on long-latency operations; and assigning ready tasks to worker resources that
 have become idle.
 
-Each scheduler has three queues:
+Each scheduler has four queues:
 
 \noindent {\it ready worker queue}, a FIFO queue of tasks that are
   matched with workers and are ready to execute;
@@ -93,16 +93,9 @@ Each scheduler has three queues:
   waiting to be matched with workers. It is a local partition of a shared
   task pool.
 
-\TODO{don;t we have an actual queue for higher priority system workers?}
+\noindent {\it deadline task queue}, a priority queue of tasks that are executed according to task-specific deadline constraints.
 
-Whenever a task yields or suspends, the scheduler makes a decision about what
-to do next. Servicing communication requests (system worker) is given priority
-to ensure responsiveness, but to minimize overhead should context switches be
-frequent, servicing is performed only if sufficient time has elapsed. Second,
-the scheduler determines if any workers with running tasks are ready to
-execute; if so, one is scheduled. Finally, if there are no workers ready to
-run, but there are tasks waiting to be matched with workers, an idle worker is
-woken (or a new worker is spawned), matched with a task, and scheduled.
+Whenever a task yields or suspends, the scheduler makes a decision about what to do next. First, any task in the deadline task queue who's deadline constraint is met is chosen for execution.  This queue manages high priority system tasks, such as periodically servicing communication requests.  Second, the scheduler determines if any workers with running tasks are ready to execute; if so, one is scheduled. Finally, if there are no workers ready to run, but there are tasks waiting to be matched with workers, an idle worker is woken (or a new worker is spawned), matched with a task, and scheduled.
 
 \paragraph{Context switching} \Grappa context switches between workers
 non-preemptively. As with other cooperative multithreading systems, we
@@ -112,17 +105,22 @@ involves saving six general-purpose 64-bit registers and the stack
 pointer, as well as the 16-bit x87 floating point control word and the
 SSE context/status register. Thus, the minimum amount of state a
 cooperative context switch routine must save, according to the ABI, is
-62~bytes --- importantly, a context is saved in a single 64 cache line. 
+62~bytes.
 
-Since the compiler sees all calls to the context switch routine, we
-can save even less state. Our context switch routine appears to the
-compiler as inline assembly; we declare all the registers we need
-to save as ``clobbered'' by the inline assembly routine, and the
-compiler will issue its own save and restore code as needed. This allows the
-compiler to avoid saving any registers that are not used, or are used
-for temporary values that are not needed after the context switch.
+%% No attempt is made to fit them within a single cache line unfortunately :-( Mark
+%%% --- importantly, a context is saved in a single 64 byte cache line. 
 
-Since \Grappa keeps a very large number of active workers, their context data will not fit in cache. Therefore, the scheduler has to perform very careful prefetching in order to reduce context switch cost to a minimum. We determined empirically that prefetching the fourth worker in the scheduling order is sufficient. This makes context switching effectively free of cache misses. 
+% Pretty sure this is not true anymore.  Even if it is, it's not important -Mark
+%
+%Since the compiler sees all calls to the context switch routine, we
+%can save even less state. Our context switch routine appears to the
+%compiler as inline assembly; we declare all the registers we need
+%to save as ``clobbered'' by the inline assembly routine, and the
+%compiler will issue its own save and restore code as needed. This allows the
+%compiler to avoid saving any registers that are not used, or are used
+%for temporary values that are not needed after the context switch.
+
+Since \Grappa keeps a very large number of active workers, their context data will not fit in cache. Therefore, the scheduler has to perform very careful prefetching in order to reduce context switch cost to a minimum. We determined empirically that prefetching the fourth worker in the scheduling order is sufficient. Also determined empirically, we prefetch three cache lines from the stack for each worker.  This makes context switching effectively free of cache misses even to hundreds of thousands of threads.
 
 % When the scheduler chooses a thread to schedule it first looks to see if it must run a periodic task.  If so it choose that.  If not it looks for a ready task.  If none exists it chooses the idle thread.
 % 
