@@ -112,7 +112,8 @@ void test_forall_global_private() {
   });
   
   on_all_cores([]{
-    BOOST_CHECK_EQUAL(test_global, N/cores());
+    range_t r = blockDist(0,N,mycore(),cores());
+    BOOST_CHECK_EQUAL(test_global, r.end-r.start);
     test_global = 0;
   });
   
@@ -123,7 +124,8 @@ void test_forall_global_private() {
   });
   
   on_all_cores([]{
-    BOOST_CHECK_EQUAL(test_global, N/cores());
+    range_t r = blockDist(0,N,mycore(),cores());
+    BOOST_CHECK_EQUAL(test_global, r.end-r.start);
     test_global = 0;
   });
   
