@@ -50,6 +50,7 @@ DEFINE_uint64( io_blocks_per_node, 4, "Maximum number of asynchronous IO operati
 DEFINE_uint64( io_blocksize_mb, 4, "Size of each asynchronous IO operation's buffer." );
 
 DECLARE_int64( locale_shared_size );
+DECLARE_double( global_heap_fraction );
 
 using namespace Grappa::impl;
 using namespace Grappa::Statistics;
@@ -130,7 +131,13 @@ static void poller( Thread * me, void * args ) {
 
     Grappa_yield_periodic();
   }
+  // cleanup stragglers on readyQ since I should be last to run;
+  // no one else matters.
+  // Tasks on task queues would be a programmer error
+  global_scheduler.shutdown_readyQ();
   VLOG(5) << "polling Thread exiting";
+
+  // master will be scheduled upon exit of poller thread
 }
 
 /// handler to redirect SIGABRT override to activate a GASNet backtrace
@@ -271,15 +278,19 @@ void Grappa_init( int * argc_p, char ** argv_p[], size_t global_memory_size_byte
   // by default, will allocate as much shared memory as it is
   // possible to evenly split among the processors on a node
   if (global_memory_size_bytes == -1) {
+
+    // Decide how much memory we should allocate for global shared heap.
     // TODO: this should be a long literal
-    int64_t shmmax_gb = SHMMAX; // make sure it's a long literal
+    double shmmax_fraction = static_cast< double >( SHMMAX ) * FLAGS_global_heap_fraction;
+    int64_t shmmax_adjusted_floor = static_cast< int64_t >( shmmax_fraction );
+
     // seems to work better with salloc
     char * nnodes_str = getenv("SLURM_JOB_NUM_NODES");
     // if not, try the one that srun sets
     if( NULL == nnodes_str ) nnodes_str = getenv("SLURM_NNODES");
     int64_t nnode = atoi(nnodes_str);
     int64_t ppn = atoi(getenv("SLURM_NTASKS_PER_NODE"));
-    int64_t bytes_per_proc = SHMMAX / ppn;
+    int64_t bytes_per_proc = shmmax_adjusted_floor / ppn;
     // round down to page size so we don't ask for too much?
     bytes_per_proc &= ~( (1L << 12) - 1 );
 
@@ -296,7 +307,8 @@ void Grappa_init( int * argc_p, char ** argv_p[], size_t global_memory_size_byte
 
     int64_t bytes = nnode * ppn * bytes_per_proc;
     int64_t bytes_per_node = ppn * bytes_per_proc;
-    DVLOG(2) << "bpp = " << bytes_per_proc << ", bytes = " << bytes << ", bytes_per_node = " << bytes_per_node << ", SHMMAX = " << SHMMAX;
+    DVLOG(2) << "bpp = " << bytes_per_proc << ", bytes = " << bytes << ", bytes_per_node = " << bytes_per_node
+             << ", SHMMAX = " << SHMMAX << ", shmmax_adjusted_floor = " << shmmax_adjusted_floor;
     VLOG(1) << "nnode: " << nnode << ", ppn: " << ppn << ", iBs/node: " << log2((double)bytes_per_node) << ", total_iBs: " << log2((double)bytes);
     global_memory_size_bytes = bytes;
 
@@ -461,7 +473,7 @@ void dump_flags( std::ostream& o, const char * delimiter ) {
   google::GetAllFlags( &flags );
   o << "  \"Flags\": { ";
   for( FlagVec::iterator i = flags.begin(); i != flags.end(); ++i ) {
-    o << "\"FLAGS_" << i->name << "\": \"" << i->current_value << "\"";
+    o << "\"FLAG_" << i->name << "\": \"" << i->current_value << "\"";
     if( i+1 != flags.end() ) o << ", ";
   }
   o << " }" << delimiter << std::endl;
