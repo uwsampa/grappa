@@ -1,0 +1,180 @@
+machine: xmt
+problem: 'kronecker'
+nnode: 8 
+ppn: 1
+iterations: 1
+problem_size: 22
+run_time: 55.875757
+TEPS: 134516137.239707
+
+machine: xmt
+problem: 'kronecker'
+nnode: 16 
+ppn: 1
+iterations: 1
+problem_size: 22
+run_time: 51.037605
+TEPS: 147267703.986335
+
+machine: xmt
+problem: 'kronecker'
+nnode: 24 
+ppn: 1
+iterations: 1
+problem_size: 22
+run_time: 49.031104
+TEPS: 153294344.793940
+
+machine: xmt
+problem: 'kronecker'
+nnode: 32 
+ppn: 1
+iterations: 1
+problem_size: 22
+run_time: 48.597798
+TEPS: 154661142.966842
+
+machine: xmt
+problem: 'kronecker'
+nnode: 40 
+ppn: 1
+iterations: 1
+problem_size: 22
+run_time: 48.411933
+TEPS: 155254924.023094
+
+machine: xmt
+problem: 'kronecker'
+nnode: 8 
+ppn: 1
+iterations: 1
+problem_size: 24
+run_time: 157.341042
+TEPS: 191080285.039566
+
+machine: xmt
+problem: 'kronecker'
+nnode: 16 
+ppn: 1
+iterations: 1
+problem_size: 24
+run_time: 125.767318
+TEPS: 239050745.393751
+
+machine: xmt
+problem: 'kronecker'
+nnode: 24 
+ppn: 1
+iterations: 1
+problem_size: 24
+run_time: 118.537326
+TEPS: 253631258.181921
+
+machine: xmt
+problem: 'kronecker'
+nnode: 32 
+ppn: 1
+iterations: 1
+problem_size: 24
+run_time: 111.471575
+TEPS: 269707959.580636
+
+machine: xmt
+problem: 'kronecker'
+nnode: 40 
+ppn: 1
+iterations: 1
+problem_size: 24
+run_time: 111.323480
+TEPS: 270066754.492116
+
+machine: xmt
+problem: 'kronecker'
+nnode: 40 
+ppn: 1
+iterations: 1
+problem_size: 26
+run_time: 280.432006
+TEPS: 428835076.900533
+
+machine: xmt
+problem: 'kronecker'
+nnode: 32 
+ppn: 1
+iterations: 1
+problem_size: 26
+run_time: 290.314379
+TEPS: 414237424.840824
+
+machine: xmt
+problem: 'kronecker'
+nnode: 24 
+ppn: 1
+iterations: 1
+problem_size: 26
+run_time: 312.694163
+TEPS: 384590104.586259
+
+machine: xmt
+problem: 'kronecker'
+nnode: 16 
+ppn: 1
+iterations: 1
+problem_size: 26
+run_time: 358.053614
+TEPS: 335868920.007163
+
+machine: xmt
+problem: 'kronecker'
+nnode: 8 
+ppn: 1
+iterations: 1
+problem_size: 26
+run_time: 509.321020
+TEPS: 236116468.547016
+
+machine: xmt
+problem: 'kronecker'
+nnode: 128 
+ppn: 1
+iterations: 1
+problem_size: 28
+run_time: 758.987493
+TEPS: 633786904.501986
+
+machine: xmt
+problem: 'kronecker'
+nnode: 64 
+ppn: 1
+iterations: 1
+problem_size: 28
+run_time: 674.172806
+TEPS: 713520820.337793
+
+machine: xmt
+problem: 'kronecker'
+nnode: 32 
+ppn: 1
+iterations: 1
+problem_size: 28
+run_time: 803.393531
+TEPS: 598755547.909724
+
+machine: xmt
+problem: 'kronecker'
+nnode: 24 
+ppn: 1
+iterations: 1
+problem_size: 28
+run_time: 915.413168
+TEPS: 525485486.141582
+
+machine: xmt
+problem: 'kronecker'
+nnode: 16 
+ppn: 1
+iterations: 1
+problem_size: 28
+run_time: 1108.853559
+TEPS: 433814122.388532
+
