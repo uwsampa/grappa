@@ -1,0 +1,901 @@
+mtarun -t 128 -m 128 ../bin/is.D.x
+
+
+ NAS Parallel Benchmarks (NPB3.3-SER) - IS Benchmark
+
+ Size:  2147483648  (class D)
+ Iterations:   10
+
+   iteration
+        1
+        2
+        3
+        4
+        5
+        6
+        7
+        8
+        9
+        10
+
+
+ IS Benchmark Completed
+ Class           =                        D
+ Size            =               2147483648
+ Iterations      =                       10
+ Time in seconds =                    12.40
+ Mop/s total     =                  1731.88
+ Operation type  =              keys ranked
+ Verification    =               SUCCESSFUL
+ Version         =                    3.3.1
+ Compile date    =              24 Mar 2013
+
+ Compile options:
+    CC           = cc
+    CLINK        = $(CC)
+    C_LIB        = (none)
+    C_INC        = (none)
+    CFLAGS       = -O
+    CLINKFLAGS   = -O
+
+
+ Please send all errors/feedbacks to:
+
+ NPB Development Team
+ npb@nas.nasa.gov
+
+
+
+Additional timers -
+ Total execution:   42.019
+ Initialization :   11.706 (27.86%)
+ Benchmarking   :   12.400 (29.51%)
+ Sorting        :   16.474 (39.21%)
+mtarun -t 112 -m 112 ../bin/is.D.x
+
+
+ NAS Parallel Benchmarks (NPB3.3-SER) - IS Benchmark
+
+ Size:  2147483648  (class D)
+ Iterations:   10
+
+   iteration
+        1
+        2
+        3
+        4
+        5
+        6
+        7
+        8
+        9
+        10
+
+
+ IS Benchmark Completed
+ Class           =                        D
+ Size            =               2147483648
+ Iterations      =                       10
+ Time in seconds =                    13.37
+ Mop/s total     =                  1606.61
+ Operation type  =              keys ranked
+ Verification    =               SUCCESSFUL
+ Version         =                    3.3.1
+ Compile date    =              24 Mar 2013
+
+ Compile options:
+    CC           = cc
+    CLINK        = $(CC)
+    C_LIB        = (none)
+    C_INC        = (none)
+    CFLAGS       = -O
+    CLINKFLAGS   = -O
+
+
+ Please send all errors/feedbacks to:
+
+ NPB Development Team
+ npb@nas.nasa.gov
+
+
+
+Additional timers -
+ Total execution:   44.299
+ Initialization :   12.520 (28.26%)
+ Benchmarking   :   13.367 (30.17%)
+ Sorting        :   16.890 (38.13%)
+mtarun -t 96 -m 96 ../bin/is.D.x
+
+
+ NAS Parallel Benchmarks (NPB3.3-SER) - IS Benchmark
+
+ Size:  2147483648  (class D)
+ Iterations:   10
+
+   iteration
+        1
+        2
+        3
+        4
+        5
+        6
+        7
+        8
+        9
+        10
+
+
+ IS Benchmark Completed
+ Class           =                        D
+ Size            =               2147483648
+ Iterations      =                       10
+ Time in seconds =                    13.15
+ Mop/s total     =                  1633.53
+ Operation type  =              keys ranked
+ Verification    =               SUCCESSFUL
+ Version         =                    3.3.1
+ Compile date    =              24 Mar 2013
+
+ Compile options:
+    CC           = cc
+    CLINK        = $(CC)
+    C_LIB        = (none)
+    C_INC        = (none)
+    CFLAGS       = -O
+    CLINKFLAGS   = -O
+
+
+ Please send all errors/feedbacks to:
+
+ NPB Development Team
+ npb@nas.nasa.gov
+
+
+
+Additional timers -
+ Total execution:   44.280
+ Initialization :   16.044 (36.23%)
+ Benchmarking   :   13.146 (29.69%)
+ Sorting        :   13.645 (30.82%)
+mtarun -t 80 -m 80 ../bin/is.D.x
+
+
+ NAS Parallel Benchmarks (NPB3.3-SER) - IS Benchmark
+
+ Size:  2147483648  (class D)
+ Iterations:   10
+
+   iteration
+        1
+        2
+        3
+        4
+        5
+        6
+        7
+        8
+        9
+        10
+
+
+ IS Benchmark Completed
+ Class           =                        D
+ Size            =               2147483648
+ Iterations      =                       10
+ Time in seconds =                    12.90
+ Mop/s total     =                  1664.23
+ Operation type  =              keys ranked
+ Verification    =               SUCCESSFUL
+ Version         =                    3.3.1
+ Compile date    =              24 Mar 2013
+
+ Compile options:
+    CC           = cc
+    CLINK        = $(CC)
+    C_LIB        = (none)
+    C_INC        = (none)
+    CFLAGS       = -O
+    CLINKFLAGS   = -O
+
+
+ Please send all errors/feedbacks to:
+
+ NPB Development Team
+ npb@nas.nasa.gov
+
+
+
+Additional timers -
+ Total execution:   47.029
+ Initialization :   15.784 (33.56%)
+ Benchmarking   :   12.904 (27.44%)
+ Sorting        :   16.911 (35.96%)
+mtarun -t 64 -m 64 ../bin/is.D.x
+
+
+ NAS Parallel Benchmarks (NPB3.3-SER) - IS Benchmark
+
+ Size:  2147483648  (class D)
+ Iterations:   10
+
+   iteration
+        1
+        2
+        3
+        4
+        5
+        6
+        7
+        8
+        9
+        10
+
+
+ IS Benchmark Completed
+ Class           =                        D
+ Size            =               2147483648
+ Iterations      =                       10
+ Time in seconds =                     9.51
+ Mop/s total     =                  2257.62
+ Operation type  =              keys ranked
+ Verification    =               SUCCESSFUL
+ Version         =                    3.3.1
+ Compile date    =              24 Mar 2013
+
+ Compile options:
+    CC           = cc
+    CLINK        = $(CC)
+    C_LIB        = (none)
+    C_INC        = (none)
+    CFLAGS       = -O
+    CLINKFLAGS   = -O
+
+
+ Please send all errors/feedbacks to:
+
+ NPB Development Team
+ npb@nas.nasa.gov
+
+
+
+Additional timers -
+ Total execution:   37.870
+ Initialization :   13.630 (35.99%)
+ Benchmarking   :    9.512 (25.12%)
+ Sorting        :   13.672 (36.10%)
+mtarun -t 48 -m 48 ../bin/is.D.x
+
+
+ NAS Parallel Benchmarks (NPB3.3-SER) - IS Benchmark
+
+ Size:  2147483648  (class D)
+ Iterations:   10
+
+   iteration
+        1
+        2
+        3
+        4
+        5
+        6
+        7
+        8
+        9
+        10
+
+
+ IS Benchmark Completed
+ Class           =                        D
+ Size            =               2147483648
+ Iterations      =                       10
+ Time in seconds =                    10.90
+ Mop/s total     =                  1969.96
+ Operation type  =              keys ranked
+ Verification    =               SUCCESSFUL
+ Version         =                    3.3.1
+ Compile date    =              24 Mar 2013
+
+ Compile options:
+    CC           = cc
+    CLINK        = $(CC)
+    C_LIB        = (none)
+    C_INC        = (none)
+    CFLAGS       = -O
+    CLINKFLAGS   = -O
+
+
+ Please send all errors/feedbacks to:
+
+ NPB Development Team
+ npb@nas.nasa.gov
+
+
+
+Additional timers -
+ Total execution:   41.413
+ Initialization :   14.863 (35.89%)
+ Benchmarking   :   10.901 (26.32%)
+ Sorting        :   14.448 (34.89%)
+mtarun -t 32 -m 32 ../bin/is.D.x
+
+
+ NAS Parallel Benchmarks (NPB3.3-SER) - IS Benchmark
+
+ Size:  2147483648  (class D)
+ Iterations:   10
+
+   iteration
+        1
+        2
+        3
+        4
+        5
+        6
+        7
+        8
+        9
+        10
+
+
+ IS Benchmark Completed
+ Class           =                        D
+ Size            =               2147483648
+ Iterations      =                       10
+ Time in seconds =                    15.58
+ Mop/s total     =                  1378.80
+ Operation type  =              keys ranked
+ Verification    =               SUCCESSFUL
+ Version         =                    3.3.1
+ Compile date    =              24 Mar 2013
+
+ Compile options:
+    CC           = cc
+    CLINK        = $(CC)
+    C_LIB        = (none)
+    C_INC        = (none)
+    CFLAGS       = -O
+    CLINKFLAGS   = -O
+
+
+ Please send all errors/feedbacks to:
+
+ NPB Development Team
+ npb@nas.nasa.gov
+
+
+
+Additional timers -
+ Total execution:   49.628
+ Initialization :   17.485 (35.23%)
+ Benchmarking   :   15.575 (31.38%)
+ Sorting        :   14.929 (30.08%)
+mtarun -t 16 -m 16 ../bin/is.D.x
+
+
+ NAS Parallel Benchmarks (NPB3.3-SER) - IS Benchmark
+
+ Size:  2147483648  (class D)
+ Iterations:   10
+
+   iteration
+        1
+        2
+        3
+        4
+        5
+        6
+        7
+        8
+        9
+        10
+
+
+ IS Benchmark Completed
+ Class           =                        D
+ Size            =               2147483648
+ Iterations      =                       10
+ Time in seconds =                    29.99
+ Mop/s total     =                   716.10
+ Operation type  =              keys ranked
+ Verification    =               SUCCESSFUL
+ Version         =                    3.3.1
+ Compile date    =              24 Mar 2013
+
+ Compile options:
+    CC           = cc
+    CLINK        = $(CC)
+    C_LIB        = (none)
+    C_INC        = (none)
+    CFLAGS       = -O
+    CLINKFLAGS   = -O
+
+
+ Please send all errors/feedbacks to:
+
+ NPB Development Team
+ npb@nas.nasa.gov
+
+
+
+Additional timers -
+ Total execution:   77.489
+ Initialization :   25.425 (32.81%)
+ Benchmarking   :   29.989 (38.70%)
+ Sorting        :   19.005 (24.53%)
+mtarun -t 1 -m 1 ../bin/is.D.x
+
+
+ NAS Parallel Benchmarks (NPB3.3-SER) - IS Benchmark
+
+ Size:  2147483648  (class D)
+ Iterations:   10
+
+   iteration
+        1
+        2
+        3
+        4
+        5
+        6
+        7
+        8
+        9
+        10
+
+
+ IS Benchmark Completed
+ Class           =                        D
+ Size            =               2147483648
+ Iterations      =                       10
+ Time in seconds =                   466.65
+ Mop/s total     =                    46.02
+ Operation type  =              keys ranked
+ Verification    =               SUCCESSFUL
+ Version         =                    3.3.1
+ Compile date    =              24 Mar 2013
+
+ Compile options:
+    CC           = cc
+    CLINK        = $(CC)
+    C_LIB        = (none)
+    C_INC        = (none)
+    CFLAGS       = -O
+    CLINKFLAGS   = -O
+
+
+ Please send all errors/feedbacks to:
+
+ NPB Development Team
+ npb@nas.nasa.gov
+
+
+
+Additional timers -
+ Total execution:  975.900
+ Initialization :  265.231 (27.18%)
+ Benchmarking   :  466.647 (47.82%)
+ Sorting        :  197.326 (20.22%)
+mtarun -t 40 -m 40 ../bin/is.D.x
+
+
+ NAS Parallel Benchmarks (NPB3.3-SER) - IS Benchmark
+
+ Size:  2147483648  (class D)
+ Iterations:   10
+
+   iteration
+        1
+        2
+        3
+        4
+        5
+        6
+        7
+        8
+        9
+        10
+
+
+ IS Benchmark Completed
+ Class           =                        D
+ Size            =               2147483648
+ Iterations      =                       10
+ Time in seconds =                    12.69
+ Mop/s total     =                  1691.87
+ Operation type  =              keys ranked
+ Verification    =               SUCCESSFUL
+ Version         =                    3.3.1
+ Compile date    =              24 Mar 2013
+
+ Compile options:
+    CC           = cc
+    CLINK        = $(CC)
+    C_LIB        = (none)
+    C_INC        = (none)
+    CFLAGS       = -O
+    CLINKFLAGS   = -O
+
+
+ Please send all errors/feedbacks to:
+
+ NPB Development Team
+ npb@nas.nasa.gov
+
+
+
+Additional timers -
+ Total execution:   44.582
+ Initialization :   15.900 (35.66%)
+ Benchmarking   :   12.693 (28.47%)
+ Sorting        :   14.610 (32.77%)
+mtarun -t 28 -m 28 ../bin/is.D.x
+
+
+ NAS Parallel Benchmarks (NPB3.3-SER) - IS Benchmark
+
+ Size:  2147483648  (class D)
+ Iterations:   10
+
+   iteration
+        1
+        2
+        3
+        4
+        5
+        6
+        7
+        8
+        9
+        10
+
+
+ IS Benchmark Completed
+ Class           =                        D
+ Size            =               2147483648
+ Iterations      =                       10
+ Time in seconds =                    17.65
+ Mop/s total     =                  1216.95
+ Operation type  =              keys ranked
+ Verification    =               SUCCESSFUL
+ Version         =                    3.3.1
+ Compile date    =              24 Mar 2013
+
+ Compile options:
+    CC           = cc
+    CLINK        = $(CC)
+    C_LIB        = (none)
+    C_INC        = (none)
+    CFLAGS       = -O
+    CLINKFLAGS   = -O
+
+
+ Please send all errors/feedbacks to:
+
+ NPB Development Team
+ npb@nas.nasa.gov
+
+
+
+Additional timers -
+ Total execution:   53.853
+ Initialization :   18.604 (34.55%)
+ Benchmarking   :   17.646 (32.77%)
+ Sorting        :   15.776 (29.29%)
+mtarun -t 24 -m 24 ../bin/is.D.x
+
+
+ NAS Parallel Benchmarks (NPB3.3-SER) - IS Benchmark
+
+ Size:  2147483648  (class D)
+ Iterations:   10
+
+   iteration
+        1
+        2
+        3
+        4
+        5
+        6
+        7
+        8
+        9
+        10
+
+
+ IS Benchmark Completed
+ Class           =                        D
+ Size            =               2147483648
+ Iterations      =                       10
+ Time in seconds =                    20.44
+ Mop/s total     =                  1050.86
+ Operation type  =              keys ranked
+ Verification    =               SUCCESSFUL
+ Version         =                    3.3.1
+ Compile date    =              24 Mar 2013
+
+ Compile options:
+    CC           = cc
+    CLINK        = $(CC)
+    C_LIB        = (none)
+    C_INC        = (none)
+    CFLAGS       = -O
+    CLINKFLAGS   = -O
+
+
+ Please send all errors/feedbacks to:
+
+ NPB Development Team
+ npb@nas.nasa.gov
+
+
+
+Additional timers -
+ Total execution:   58.531
+ Initialization :   20.103 (34.35%)
+ Benchmarking   :   20.435 (34.91%)
+ Sorting        :   15.855 (27.09%)
+mtarun -t 20 -m 20 ../bin/is.D.x
+
+
+ NAS Parallel Benchmarks (NPB3.3-SER) - IS Benchmark
+
+ Size:  2147483648  (class D)
+ Iterations:   10
+
+   iteration
+        1
+        2
+        3
+        4
+        5
+        6
+        7
+        8
+        9
+        10
+
+
+ IS Benchmark Completed
+ Class           =                        D
+ Size            =               2147483648
+ Iterations      =                       10
+ Time in seconds =                    24.36
+ Mop/s total     =                   881.64
+ Operation type  =              keys ranked
+ Verification    =               SUCCESSFUL
+ Version         =                    3.3.1
+ Compile date    =              24 Mar 2013
+
+ Compile options:
+    CC           = cc
+    CLINK        = $(CC)
+    C_LIB        = (none)
+    C_INC        = (none)
+    CFLAGS       = -O
+    CLINKFLAGS   = -O
+
+
+ Please send all errors/feedbacks to:
+
+ NPB Development Team
+ npb@nas.nasa.gov
+
+
+
+Additional timers -
+ Total execution:   65.901
+ Initialization :   22.302 (33.84%)
+ Benchmarking   :   24.358 (36.96%)
+ Sorting        :   16.743 (25.41%)
+mtarun -t 12 -m 12 ../bin/is.D.x
+
+
+ NAS Parallel Benchmarks (NPB3.3-SER) - IS Benchmark
+
+ Size:  2147483648  (class D)
+ Iterations:   10
+
+   iteration
+        1
+        2
+        3
+        4
+        5
+        6
+        7
+        8
+        9
+        10
+
+
+ IS Benchmark Completed
+ Class           =                        D
+ Size            =               2147483648
+ Iterations      =                       10
+ Time in seconds =                    39.50
+ Mop/s total     =                   543.67
+ Operation type  =              keys ranked
+ Verification    =               SUCCESSFUL
+ Version         =                    3.3.1
+ Compile date    =              24 Mar 2013
+
+ Compile options:
+    CC           = cc
+    CLINK        = $(CC)
+    C_LIB        = (none)
+    C_INC        = (none)
+    CFLAGS       = -O
+    CLINKFLAGS   = -O
+
+
+ Please send all errors/feedbacks to:
+
+ NPB Development Team
+ npb@nas.nasa.gov
+
+
+
+Additional timers -
+ Total execution:   91.815
+ Initialization :   26.819 (29.21%)
+ Benchmarking   :   39.500 (43.02%)
+ Sorting        :   21.490 (23.41%)
+mtarun -t 8 -m 8 ../bin/is.D.x
+
+
+ NAS Parallel Benchmarks (NPB3.3-SER) - IS Benchmark
+
+ Size:  2147483648  (class D)
+ Iterations:   10
+
+   iteration
+        1
+        2
+        3
+        4
+        5
+        6
+        7
+        8
+        9
+        10
+
+
+ IS Benchmark Completed
+ Class           =                        D
+ Size            =               2147483648
+ Iterations      =                       10
+ Time in seconds =                    58.60
+ Mop/s total     =                   366.47
+ Operation type  =              keys ranked
+ Verification    =               SUCCESSFUL
+ Version         =                    3.3.1
+ Compile date    =              24 Mar 2013
+
+ Compile options:
+    CC           = cc
+    CLINK        = $(CC)
+    C_LIB        = (none)
+    C_INC        = (none)
+    CFLAGS       = -O
+    CLINKFLAGS   = -O
+
+
+ Please send all errors/feedbacks to:
+
+ NPB Development Team
+ npb@nas.nasa.gov
+
+
+
+Additional timers -
+ Total execution:  130.153
+ Initialization :   41.168 (31.63%)
+ Benchmarking   :   58.599 (45.02%)
+ Sorting        :   24.489 (18.82%)
+mtarun -t 4 -m 4 ../bin/is.D.x
+
+
+ NAS Parallel Benchmarks (NPB3.3-SER) - IS Benchmark
+
+ Size:  2147483648  (class D)
+ Iterations:   10
+
+   iteration
+        1
+        2
+        3
+        4
+        5
+        6
+        7
+        8
+        9
+        10
+
+
+ IS Benchmark Completed
+ Class           =                        D
+ Size            =               2147483648
+ Iterations      =                       10
+ Time in seconds =                   115.96
+ Mop/s total     =                   185.20
+ Operation type  =              keys ranked
+ Verification    =               SUCCESSFUL
+ Version         =                    3.3.1
+ Compile date    =              24 Mar 2013
+
+ Compile options:
+    CC           = cc
+    CLINK        = $(CC)
+    C_LIB        = (none)
+    C_INC        = (none)
+    CFLAGS       = -O
+    CLINKFLAGS   = -O
+
+
+ Please send all errors/feedbacks to:
+
+ NPB Development Team
+ npb@nas.nasa.gov
+
+
+
+Additional timers -
+ Total execution:  249.323
+ Initialization :   72.859 (29.22%)
+ Benchmarking   :  115.956 (46.51%)
+ Sorting        :   48.839 (19.59%)
+mtarun -t 2 -m 2 ../bin/is.D.x
+
+
+ NAS Parallel Benchmarks (NPB3.3-SER) - IS Benchmark
+
+ Size:  2147483648  (class D)
+ Iterations:   10
+
+   iteration
+        1
+        2
+        3
+        4
+        5
+        6
+        7
+        8
+        9
+        10
+
+
+ IS Benchmark Completed
+ Class           =                        D
+ Size            =               2147483648
+ Iterations      =                       10
+ Time in seconds =                   231.55
+ Mop/s total     =                    92.74
+ Operation type  =              keys ranked
+ Verification    =               SUCCESSFUL
+ Version         =                    3.3.1
+ Compile date    =              24 Mar 2013
+
+ Compile options:
+    CC           = cc
+    CLINK        = $(CC)
+    C_LIB        = (none)
+    C_INC        = (none)
+    CFLAGS       = -O
+    CLINKFLAGS   = -O
+
+
+ Please send all errors/feedbacks to:
+
+ NPB Development Team
+ npb@nas.nasa.gov
+
+
+
+Additional timers -
+ Total execution:  483.807
+ Initialization :  133.410 (27.57%)
+ Benchmarking   :  231.553 (47.86%)
+ Sorting        :   95.572 (19.75%)
