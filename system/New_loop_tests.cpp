@@ -216,7 +216,16 @@ void test_forall_localized() {
   for (int i=0; i<N; i++) {
     BOOST_CHECK_EQUAL(delegate::read(array+i), i);
   }
+
+  Grappa::memset(array, 0, N);    
+  struct Pair { int64_t x, y; };
+  auto pairs = static_cast<GlobalAddress<Pair>>(array);
+  forall_localized<&my_gce>(pairs, N/2, [](int64_t i, Pair& e){ e.x = i; e.y = i; });
   
+  for (int i=0; i<N; i++) {
+    BOOST_CHECK_EQUAL(delegate::read(array+i), i/2);
+  }  
+    
 }
 
 void user_main(void * args) {
