@@ -28,8 +28,9 @@ achieves their peak bisection bandwidth only when the packet sizes are
 relatively large --- on the order of multiple kilobytes. The reason for this
 discrepancy is the combination of overheads associated with handling each
 packet (in terms of bytes that form the actual packet, processing time at the
-card and processing on the CPU within the driver stack). Consequently, to make
-the best use of the network, we must convert small messages into large ones.
+card, multiple roundtrips on the PCI express bus and processing on the CPU
+within the driver stack). Consequently, to make the best use of the network,
+we must convert small messages into large ones.
 
 \paragraph{Message processing mechanics} Since communication is very frequent
 in \Grappa, aggregating and sending messages efficiently is very important. To
@@ -89,11 +90,13 @@ nodes in the system, as the buffer can be allocated on the fly. Nevertheless
 we have found it efficient to build a flow-control like protocol of
 outstanding message buffers between pairs of system nodes.
 
-Once the remote system node has received the message buffer it is unpacked.
-Upper level \Grappa messages are delivered to each core at the destination
-system node by examining the message buffer at each processor core and then
-handing the message buffer to the next core for delivery of messages destined
-to that core.
+Once the remote system node has received the message buffer, it is unpacked
+and put int the corresponding incoming message lists. This process is done in
+parallel by all system worker responsible for communication. Upper level
+\Grappa messages are delivered to each core at the destination system node by
+examining the message buffer at each processor core and then handing the
+message buffer to the next core for delivery of messages destined to that
+core.
 
 
 
