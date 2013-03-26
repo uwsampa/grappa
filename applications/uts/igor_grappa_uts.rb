@@ -27,6 +27,10 @@ Igor do
                    load_balance 'steal'
                   flush_on_idle 0
                    poll_on_idle 1
+                    vmodule "uts_grappa*=2"
+                     v       1
+                     flat_combine true
+                     flat_combine_threshold expr('num_starting_workers/2')
   }
   params.merge!(GFLAGS)
   
@@ -46,6 +50,7 @@ Igor do
     tree_args   expr('ENV[tree]')
     problem     'uts-mem'
     vertices_size expr("ENV['SIZE'+tree]")
+
   }
   
   expect :generate_runtime, :search_runtime
