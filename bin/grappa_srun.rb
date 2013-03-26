@@ -25,6 +25,7 @@ OptionParser.new do |p|
   p.on('-p', '--ppn CORES', Integer, "Number of cores/processes per node"){|c| opt.ppn = c }
   p.on('-t', '--time TIME', 'Job time to pass to srun'){|t| opt.time = t }
   p.on('-e', '--test TEST', 'Run boost unit test program with given name (e.g. Aggregator_tests)'){|t| opt.test = t }
+
   
 end.parse!(myargs)
 
