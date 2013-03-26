@@ -39,7 +39,7 @@ module Isolatable
     
     exes = [exes] unless exes.is_a? Array
     exes << 'mpirun' << "#{File.dirname(__FILE__)}/bin/grappa_srun.rb" \
-                     << "#{File.dirname(__FILE__)}/bin/grappa_srun_prolog.sh" \
+                     << "#{File.dirname(__FILE__)}/bin/grappa_srun_prolog.rb" \
                      << "#{File.dirname(__FILE__)}/bin/grappa_srun_epilog.sh"
     
     exes.each do |exe|
