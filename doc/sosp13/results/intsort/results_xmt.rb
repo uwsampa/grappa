@@ -173,7 +173,7 @@ results = [
 ]
 
 require 'experiments'
-db = Sequel.sqlite("sosp-test.db")
+db = Sequel.sqlite(File.expand_path "~/exp/sosp.db")
 results.each do |r|
   g = prepare_table(:intsort, r, db)
   g.insert(r)

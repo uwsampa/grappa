@@ -13,7 +13,7 @@ source("../common.R")
 db <- function(query) {
   d <- sqldf(query, dbname="sosp.db")
   
-  d$nnode <- factor(d$nnode) # make field categorical
+  #d$nnode <- factor(d$nnode) # make field categorical
   d$ppn   <- factor(d$ppn)
   d$periodic_poll_ticks <- factor(d$periodic_poll_ticks)
   d$num_starting_workers <- factor(d$num_starting_workers)
@@ -22,18 +22,21 @@ db <- function(query) {
 }
 
 p <- ggplot(db("select * from intsort
-               where nnode <= 16
-               and problem == 'D' or problem == 'E'"),
-  aes(x=nnode, y=mops_total, ymax=2048, group=problem, color=tag, shape=ppn, label=mops_total))+
+               where nnode <= 128
+               and problem == 'E'"),
+  aes(x=nnode, y=mops_total, ymax=2048, group=problem, color=version, shape=ppn, label=mops_total))+
   ggtitle("IntSort")+
   sosp_theme+
-  geom_text(size=4, hjust=-0.1)+
   geom_point()+ # show points
   # stat_summary(fun.y="max", geom="line")+ # show line with max of each line
-  scale_y_continuous(trans=log2_trans())+
+  # scale_y_continuous(trans=log2_trans())+
+  scale_x_continuous(breaks=seq(0,128,16))
   facet_wrap(~problem) # make new plots for each scale
   
 p # plot it
+
+p.labeled = p+geom_text(size=4, hjust=-0.1)
+
 #ggsave("plots/intsort_mops.pdf", plot=p, scale=1.3) # or save it
 
 d <- db("select *,nnode*ppn as nproc from intsort")
