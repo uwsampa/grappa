@@ -17,17 +17,6 @@ Igor do
   isolate(['graph.exe'],
     File.dirname(__FILE__))
   
-  GFLAGS = Params.new {
-    global_memory_use_hugepages 0
-           num_starting_workers 64
-                 loop_threshold 16
-     aggregator_autoflush_ticks 3e6.to_i
-            periodic_poll_ticks 20000
-                     chunk_size 100
-                   load_balance 'steal'
-                  flush_on_idle 0
-                   poll_on_idle 1
-  }
   params.merge!(GFLAGS)
   
   command %Q[ %{tdir}/grappa_srun.rb
