@@ -83,6 +83,7 @@ NELSON=/pic/people/nels707
 CC=gcc
 CXX=g++
 LD=mpicxx
+MPI=$(MPI_ROOT)
 
 #GASNET=$(NELSON)/gasnet
 HUGETLBFS=/usr
