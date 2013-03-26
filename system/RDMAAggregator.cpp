@@ -611,7 +611,7 @@ void RDMAAggregator::draw_routing_graph() {
     char * RDMAAggregator::deaggregate_buffer( char * buffer, size_t size ) {
       DVLOG(5) << __func__ << ": Deaggregating buffer at " << (void*) buffer << " of max size " << size;
       char * end = buffer + size;
-      while( buffer < end && *buffer != -1 ) {
+      while( buffer < end ) {
         app_messages_deserialized++;
         DVLOG(5) << __func__ << ": Deserializing and calling at " << (void*) buffer << " with " << end - buffer << " remaining";
         char * next = Grappa::impl::MessageBase::deserialize_and_call( buffer );
