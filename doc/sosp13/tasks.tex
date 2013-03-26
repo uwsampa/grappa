@@ -107,6 +107,15 @@ SSE context/status register. Thus, the minimum amount of state a
 cooperative context switch routine must save, according to the ABI, is
 62~bytes.
 
+\begin{figure}[ht]
+    \begin{center}
+      \includegraphics[width=0.5\textwidth]{figs/context_switch_time.pdf}
+    \end{center}
+    \caption{Average context switch time with 1 and 6 active cores,
+        with and without prefetching.}
+    \label{fig:context-switch-time}
+\end{figure}
+
 %% No attempt is made to fit them within a single cache line unfortunately :-( Mark
 %%% --- importantly, a context is saved in a single 64 byte cache line. 
 
