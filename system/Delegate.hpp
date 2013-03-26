@@ -135,9 +135,9 @@ namespace Grappa {
     template< typename T, typename U >
     T fetch_and_add(GlobalAddress<T> target, U inc) {
       delegate_stats.count_word_fetch_add();
-      T * p = target.pointer();
-      return call(target.node(), [p, inc]() -> T {
+      return call(target.node(), [target, inc]() -> T {
         delegate_stats.count_word_fetch_add_am();
+        T* p = target.pointer();
         T r = *p;
         *p += inc;
         return r;
@@ -230,10 +230,11 @@ namespace Grappa {
           // is reached or there are no more committed participants then start the flush 
           if ( ready_waiters == 0 && (participant_count >= flush_threshold || committed == 0 )) {
             set_not_ready();
-            T * p = target.pointer();
             uint64_t increment_total = increment;
             flat_combiner_fetch_and_add_amount += increment_total;
-            result = call(target.node(), [p, increment_total]() -> U {
+            auto t = target;
+            result = call(target.node(), [t, increment_total]() -> U {
+              T * p = t.pointer();
               uint64_t r = *p;
               *p += increment_total;
               return r;
@@ -266,8 +267,8 @@ namespace Grappa {
     template< typename T, typename U, typename V >
     bool compare_and_swap(GlobalAddress<T> target, U cmp_val, V new_val) {
       delegate_stats.count_word_compare_swap();
-      T * p = target.pointer();
-      return call(target.node(), [p, cmp_val, new_val]() -> bool {
+      return call(target.node(), [target, cmp_val, new_val]() -> bool {
+        T * p = target.pointer();
         delegate_stats.count_word_compare_swap_am();
         if (cmp_val == *p) {
           *p = new_val;
