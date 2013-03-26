@@ -95,14 +95,37 @@ Igor do
     params { machine "pal" }
     sbatch_flags << "--time=30:00" << "--account=pal" << "--partition=pal" << "--exclusive"
     $srun = "srun --cpu_bind=verbose,rank --label --kill-on-bad-exit"
+    SHMMAX=34359738368
   when /n\d+/ # (sampa)
     params { machine "sampa" }
     sbatch_flags << "--partition=grappa" << "--exclusive"
     $srun = "srun --resv-ports --cpu_bind=verbose,rank --label --kill-on-bad-exit"
+    SHMMAX=67108864
   else
     params { machine `hostname` }
     $srun = "srun"
   end
+  
+  GFLAGS = Params.new {
+    global_memory_use_hugepages 0
+           num_starting_workers 64
+                 loop_threshold 64
+     aggregator_autoflush_ticks 1e5.to_i
+           aggregator_max_flush 0
+            periodic_poll_ticks 20000
+                     chunk_size 100
+                   load_balance 'steal'
+                  flush_on_idle 0
+                   poll_on_idle 1
+          rdma_workers_per_core 2**4
+                    target_size 2**12
+          rdma_buffers_per_core 16
+                 rdma_threshold 64
+               shared_pool_size 2**20
+                     stack_size 2**19
+             locale_shared_size SHMMAX
+           global_heap_fraction 0.5   
+  }
   
   # parses JSON stats and colon-delimited fields
   parser {|cmdout|
