@@ -29,11 +29,12 @@ any naive communication strategy severely under-utilizes the network.
 \noindent{\bf High Latency} To tolerate latency, data parallel applications make explicit
 their regular, predictable communications so as to minimize interference with computation.
 In contrast, irregular application tasks encounter remote references dynamically during
-execution and must resolve them before making further progress.  The latency of
-commodity networks is anywhere from one to hundreds of microseconds,
+execution and must resolve them before making further progress.  Latency of
+commodity networks runs anywhere from one to hundreds of microseconds,
 far more than can be tolerated via the hyperthrading available in x86 processors.
-Consequently, even with RDMA, processor prefetching and caching hardware alone is inadequate
-to ensure pipeline utilization in the presence of high latency networks.
+Consequently, even with RDMA, processors' prefetching and caching hardware alone is inadequate
+to prevent diminishing pipeline utilization as irregular applications are scaled up using
+commodity networks.
 
 While some irregular applications can be restructured to better exploit
 locality, aggregate requests to increase message size, and manage the
