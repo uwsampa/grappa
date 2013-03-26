@@ -116,6 +116,17 @@ cooperative context switch routine must save, according to the ABI, is
     \label{fig:context-switch-time}
 \end{figure}
 
+\begin{figure}[ht]
+    \begin{center}
+      \includegraphics[width=0.5\textwidth]{figs/context_switch_bw.pdf}
+    \end{center}
+    \caption{Context switch rate with prefetching. Once the total
+        size of contexts sufficiently exceeds last-level cache, most
+    prefetches go to main memory and the rate becomes limited to the
+    off-chip bandwidth.}
+    \label{fig:context-switch-time}
+\end{figure}
+
 %% No attempt is made to fit them within a single cache line unfortunately :-( Mark
 %%% --- importantly, a context is saved in a single 64 byte cache line. 
 
@@ -130,6 +141,15 @@ cooperative context switch routine must save, according to the ABI, is
 %for temporary values that are not needed after the context switch.
 
 Since \Grappa keeps a very large number of active workers, their context data will not fit in cache. Therefore, the scheduler has to perform very careful prefetching in order to reduce context switch cost to a minimum. We determined empirically that prefetching the fourth worker in the scheduling order is sufficient. Also determined empirically, we prefetch three cache lines from the stack for each worker.  This makes context switching effectively free of cache misses even to hundreds of thousands of threads.
+
+\TODO{Summary of what to write please expand: Reference above plots. Bandwidth of single socket is
+    270Mcacheline/s. Each context is 4 cachelines: 1 for worker struct
+    and 3 stack cachelines. We must read and write every context, so 8
+    cacheline transfers per context switch. This asymptotically
+    approaches 33.75Mcontexts/s as you increase the number of contexts
+    (fewer and fewer in L3). Note that only 4+ cores reaches full rate
+    because these westmere chips are balanced to not achieve full off-chip bandwidth until 4
+    cores--bdmyers}
 
 % When the scheduler chooses a thread to schedule it first looks to see if it must run a periodic task.  If so it choose that.  If not it looks for a ready task.  If none exists it chooses the idle thread.
 % 
