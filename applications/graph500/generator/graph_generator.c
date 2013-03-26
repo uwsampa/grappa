@@ -158,6 +158,9 @@ void make_one_edge(int64_t nverts, int level, int lgN, mrg_state* st, packed_edg
 
 #ifdef _GRAPPA
 #include <ParallelLoop.hpp>
+#include <Delegate.hpp>
+#include <sstream>
+
 #endif
 
 /* Generate a range of edges (from start_edge to end_edge of the total graph),
@@ -214,6 +217,14 @@ void generate_kronecker_range(
       make_one_edge(nverts, 0, logN, &new_state, &edge, val0, val1);
     }
   );
+  
+  // std::stringstream ss; ss << "edges: [\n";
+  // for (int64_t i=start_edge; i<end_edge; i++) {
+  //   auto e = Grappa::delegate::read(edges+i);
+  //   ss << e.v0 << " " << e.v1 << "\n";
+  // }
+  // ss << "]\n";
+  // VLOG(1) << ss.str();
   
 #endif // _GRAPPA
 }

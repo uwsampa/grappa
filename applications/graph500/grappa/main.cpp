@@ -182,7 +182,8 @@ static void checkpoint_in(tuple_graph * tg, csr_graph * g, int64_t * bfs_roots) 
   double t = timer();
   
   char fname[256];
-  sprintf(fname, "ckpts/graph500.%lld.%lld.xmt.w.ckpt", SCALE, edgefactor);
+  // sprintf(fname, "ckpts/graph500.%lld.%lld.xmt.w.ckpt", SCALE, edgefactor);
+  sprintf(fname, "ckpts/graph500.%lld.%lld.grappa.ckpt", SCALE, edgefactor);
   FILE * fin = fopen(fname, "r");
   if (!fin) {
     LOG(ERROR) << "Unable to open file: " << fname << ", will generate graph and write checkpoint.";
