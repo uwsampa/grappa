@@ -7,6 +7,8 @@
 
 #include <cassert>
 
+#include <gflags/gflags.h>
+
 #ifdef HEAPCHECK_ENABLE
 #include <gperftools/heap-checker.h>
 extern HeapLeakChecker * Grappa_heapchecker;
@@ -41,6 +43,13 @@ Communicator::Communicator( )
   : handlers_()
   , registration_is_allowed_( false )
   , communication_is_allowed_( false )
+  , mycore_( -1 )
+  , mylocale_( -1 )
+  , locale_mycore_( -1 )
+  , cores_( -1 )
+  , locales_( -1 )
+  , locale_cores_( -1 )
+  , locale_of_core_(NULL)
 #ifdef VTRACE_FULL
   , communicator_grp_vt( VT_COUNT_GROUP_DEF( "Communicator" ) )
   , send_ev_vt( VT_COUNT_DEF( "Sends", "bytes", VT_COUNT_TYPE_UNSIGNED, communicator_grp_vt ) )
@@ -64,8 +73,34 @@ void Communicator::init( int * argc_p, char ** argv_p[] ) {
   // make sure the Node type is big enough for our system
   assert( static_cast< int64_t >( gasnet_nodes() ) <= (1L << sizeof(Node) * 8) && 
           "Node type is too small for number of nodes in job" );
+
+  // initialize job geometry
+  mycore_ = gasnet_mynode();
+  cores_ = gasnet_nodes();
+
+  mylocale_ = gasneti_nodeinfo[mycore_].supernode;
+  locales_ = gasnet_nodes() / gasneti_nodemap_local_count;
+  locale_mycore_ = gasneti_nodemap_local_rank;
+  locale_cores_ = gasneti_nodemap_local_count;
+
+  // allocate and initialize core-to-locale translation
+  locale_of_core_ = new Locale[ cores_ ];
+  for( int i = 0; i < cores_; ++i ) {
+    locale_of_core_[i] = gasneti_nodeinfo[i].supernode;
+  }
+
+  DVLOG(2) << " mycore_ " << mycore_ 
+           << " cores_ " << cores_
+           << " mylocale_ " << mylocale_ 
+           << " locales_ " << locales_ 
+           << " locale_mycore_ " << locale_mycore_ 
+           << " locale_cores_ " << locale_cores_
+           << " pid " << getpid();
+
   registration_is_allowed_ = true;
 }
+
+
 
 #define ONE_MEGA (1024 * 1024)
 #define SHARED_PROCESS_MEMORY_SIZE  (0 * ONE_MEGA)
@@ -81,6 +116,9 @@ void Communicator::activate() {
   stats.reset_clock();
   registration_is_allowed_ = false;
   communication_is_allowed_ = true;
+  DVLOG(3) << "Entering activation barrier";
+  barrier();
+  DVLOG(3) << "Leaving activation barrier";
 }
 
 /// tear down communication layer.

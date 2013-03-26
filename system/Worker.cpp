@@ -12,6 +12,7 @@
 #include "Scheduler.hpp"
 #include "PerformanceTools.hpp"
 #include <stdlib.h> // valloc
+#include "LocaleSharedMemory.hpp"
 
 DEFINE_int64( stack_size, 1<<19, "Default stack size" );
 
@@ -94,6 +95,12 @@ Worker * convert_to_master( Worker * me ) {
   master->tau_taskid=0;
 #endif
 
+#ifdef CORO_PROTECT_UNUSED_STACK
+  // disable writes to stack until we're swtiched in again.
+  //assert( 0 == mprotect( (void*)((intptr_t)me->base + 4096), ssize, PROT_READ ) );
+  assert( 0 == mprotect( (void*)(me), 4096, PROT_READ ) );
+#endif
+
   return me;
 }
 #include <errno.h>
@@ -104,9 +111,9 @@ void coro_spawn(Worker * me, Worker * c, coro_func f, size_t ssize) {
   c->idle = 0;
 
   // allocate stack and guard page
-  c->base = valloc(ssize+4096*2); // TODO replace with supported function
+  c->base = Grappa::impl::locale_shared_memory.allocate_aligned( ssize+4096*2, 4096 );
+  CHECK_NOTNULL( c->base );
   c->ssize = ssize;
-  CHECK(c->base != NULL) << "Stack allocation failed";
 
   // set stack pointer
   c->stack = (char*) c->base + ssize + 4096 - current_stack_offset;
@@ -135,14 +142,16 @@ void coro_spawn(Worker * me, Worker * c, coro_func f, size_t ssize) {
 
   // set up coroutine to be able to run next time we're switched in
   makestack(&me->stack, &c->stack, f, c);
+  
+  insert_coro( c ); // insert into debugging list of coros
 
 #ifdef CORO_PROTECT_UNUSED_STACK
   // disable writes to stack until we're swtiched in again.
   checked_mprotect( (void*)((intptr_t)c->base + 4096), ssize, PROT_READ );
+  checked_mprotect( (void*)(c), 4096, PROT_READ );
 #endif
 
   total_coros++;
-  insert_coro( c ); // insert into debugging list of coros
 }
 
 // TODO: refactor not to take <me> argument
@@ -172,7 +181,6 @@ Worker * worker_spawn(Worker * me, Scheduler * sched,
 
 void destroy_coro(Worker * c) {
   total_coros--;
-  remove_coro(c); // remove from debugging list of coros
 #ifdef ENABLE_VALGRIND
   if( c->valgrind_stack_id != -1 ) {
     VALGRIND_STACK_DEREGISTER( c->valgrind_stack_id );
@@ -185,8 +193,10 @@ void destroy_coro(Worker * c) {
 #ifdef CORO_PROTECT_UNUSED_STACK
     // enable writes to stack so we can deallocate
     checked_mprotect( (void*)((intptr_t)c->base + 4096), c->ssize, PROT_READ | PROT_WRITE );
+    checked_mprotect( (void*)(c), 4096, PROT_READ | PROT_WRITE );
 #endif
-    free(c->base);
+    remove_coro(c); // remove from debugging list of coros
+    Grappa::impl::locale_shared_memory.deallocate(c->base);
   }
 }
 

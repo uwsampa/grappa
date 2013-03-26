@@ -39,9 +39,14 @@ using namespace Grappa;
 // UTS-mem application statistics
 GRAPPA_DEFINE_STAT(SimpleStatistic<uint64_t>, uts_num_gen_nodes, 0);
 GRAPPA_DEFINE_STAT(SimpleStatistic<uint64_t>, uts_num_searched_nodes, 0);
+
 // for holding their final values
 uint64_t local_searched;
 uint64_t local_generated;
+
+// Performance output
+GRAPPA_DEFINE_STAT(SimpleStatistic<double>, generate_runtime, 0);
+GRAPPA_DEFINE_STAT(SimpleStatistic<double>, search_runtime, 0);
 
 
 // Parallel granularities for important parallel for-loops
@@ -471,7 +476,7 @@ void user_main ( user_main_args * args ) {
   // run times
   double t1=0.0, t2=0.0;
 
-  Grappa_reset_stats_all_nodes();
+  //Grappa_reset_stats_all_nodes();
 
   //
   // 1. start tree generation (traditional UTS with storing the tree)
@@ -489,7 +494,7 @@ void user_main ( user_main_args * args ) {
   r_gen.size = -1; // will calculate with a reduce
 
   t2 = uts_wctime();
-  Grappa::Statistics::merge_and_print();
+  //Grappa::Statistics::merge_and_print();
   //    stop_profiling();
 
 
@@ -509,9 +514,10 @@ void user_main ( user_main_args * args ) {
   counter_t nNodes  = r_gen.size;
   counter_t nLeaves = r_gen.leaves;
 
-  double gen_runtime = t2-t1;
+  double local_gen_runtime = t2-t1;
+  generate_runtime = local_gen_runtime; // write performance output
 
-  uts_showStats(Grappa::cores(), FLAGS_chunk_size, gen_runtime, nNodes, nLeaves, maxTreeDepth);
+  uts_showStats(Grappa::cores(), FLAGS_chunk_size, local_gen_runtime, nNodes, nLeaves, maxTreeDepth);
 
 
   //
@@ -556,6 +562,9 @@ void user_main ( user_main_args * args ) {
   
   t2 = uts_wctime();
   //stop_profiling();
+  
+  double local_search_runtime = t2-t1;
+  search_runtime = local_search_runtime; // write performance output
 
   Grappa::Statistics::merge_and_print();
 
@@ -565,8 +574,6 @@ void user_main ( user_main_args * args ) {
     LOG(INFO) << "Node " << Grappa::mycore() << " searched " << local_searched;
   });
   r_search.size = Grappa::reduce< uint64_t, collective_add<uint64_t> >( &local_searched );
-
-  double search_runtime = t2-t1;
 
 
   Grappa_free( Vertex );
@@ -578,16 +585,16 @@ void user_main ( user_main_args * args ) {
   CHECK(r_gen.size == r_search.size);
 
   LOG(INFO) << "uts: {"
-    << "gen_runtime: " << gen_runtime << ","
+    << "gen_runtime: " << local_gen_runtime << ","
     << "nNodes: " << nNodes
     << "}";
 
   std::cout << "uts: {"
-    << "search_runtime: " << search_runtime << ","
+    << "search_runtime: " << local_search_runtime << ","
     << "nNodes: " << nNodes
     << "}" << std::endl;
 
-  LOG(INFO) << ((double)nNodes / search_runtime) / 1000000 << " Mvert/s";
+  LOG(INFO) << ((double)nNodes / local_search_runtime) / 1000000 << " Mvert/s";
 }
 
 

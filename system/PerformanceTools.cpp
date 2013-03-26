@@ -57,14 +57,15 @@ void Grappa_set_profiler_argv0( char * argv0 ) {
 /// Get next filename for profiler files
 char * Grappa_get_next_profiler_filename( ) {
   // use Slurm environment variables if we can
-  char * jobname = getenv("SLURM_JOB_NAME");
+  // char * jobname = getenv("SLURM_JOB_NAME");
   char * jobid = getenv("SLURM_JOB_ID");
   char * procid = getenv("SLURM_PROCID");
-  if( jobname != NULL && jobid != NULL && procid != NULL ) {
-    sprintf( profiler_filename, "%s.%s.rank%s.phase%d.prof", jobname, jobid, procid, profiler_phase );
+  if( /*jobname != NULL &&*/ jobid != NULL && procid != NULL ) {
+    sprintf( profiler_filename, "%s.%s.rank%s.phase%d.prof", "exe", jobid, procid, profiler_phase );
   } else {
     sprintf( profiler_filename, "%s.%d.pid%d.phase%d.prof", argv0_for_profiler, time_for_profiler, getpid(), profiler_phase );
   }
+  VLOG(3) << "profiler_filename = " << profiler_filename;
   ++profiler_phase;
   return profiler_filename;
 }

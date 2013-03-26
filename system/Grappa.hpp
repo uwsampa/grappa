@@ -20,13 +20,18 @@
 //#include <cxxabi.h>
 
 namespace Grappa {
-  extern double tick_rate;
 
-  namespace impl {
+extern double tick_rate;
+
+namespace impl {
 
 /// global scheduler instance
 extern TaskingScheduler global_scheduler;
-  }
+
+/// called on failures to backtrace and pause for debugger
+extern void failure_function();
+
+}
 }
 
 /// pointer to parent pthread
@@ -216,6 +221,9 @@ void legacy_profiling_sample();
 static inline void Grappa_poll()
 {
   global_aggregator.poll();
+#ifdef ENABLE_RDMA_AGGREGATOR
+  Grappa::impl::global_rdma_aggregator.poll();
+#endif
 }
 
 /// Send waiting aggregated messages to a particular destination.

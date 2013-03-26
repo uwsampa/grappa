@@ -29,7 +29,11 @@ export T3="-t 0 -b 2000 -q 0.124875 -m 8 -r 42"
 # (T4) Hybrid ------------------ Tree size = 4132453, tree depth = 134, num leaves = 3108986 (75.23%)
 export T4="-t 2 -a 0 -d 16 -b 6 -r 1 -q 0.234375 -m 4 -r 1"
 
-export SIZE0=4500000
+export SIZET1=4500000
+export SIZET2=4500000
+export SIZET3=4500000
+export SIZET4=4500000
+export SIZET5=4500000
 
 # ====================================
 # Large Workloads (~100 million nodes):
@@ -44,7 +48,9 @@ export T2L="-t 1 -a 2 -d 23 -b 7 -r 220"
 # (T3L) Binomial --------------- Tree size = 111345631, tree depth = 17844, num leaves = 89076904 (80.00%)
 export T3L="-t 0 -b 2000 -q 0.200014 -m 5 -r 7"
 
-export SIZEL=103000000
+export SIZET1L=103000000
+export SIZET2L=100000000
+export SIZET3L=112000000
 # ====================================
 # Extra Large (XL) Workloads (~1.6 billion nodes):
 # ====================================
@@ -52,7 +58,7 @@ export SIZEL=103000000
 # (T1XL) Geometric [fixed] ----- Tree size = 1635119272, tree depth = 15, num leaves = 1308100063 (80.00%)
 export T1XL="-t 1 -a 3 -d 15 -b 4 -r 29"
 
-export SIZEXL=1635119272
+export SIZET1XL=1635119272
 
 # ====================================
 # Extra Extra Large (XXL) Workloads (~3-10 billion nodes):
@@ -66,6 +72,10 @@ export T3XXL="-t 0 -b 2000 -q 0.499995 -m 2 -r 316"
 
 # (T2XXL) Binomial ------------- Tree size = 10612052303, tree depth = 216370, num leaves = 5306027151 (50.00%) 
 export T2XXL="-t 0 -b 2000 -q 0.499999995 -m 2 -r 0"
+
+export SIZET1XXL=4240000000
+export SIZET3XXL=2800000000
+export SIZET2XXL=10620000000
 
 # ====================================
 # Wicked Large Workloads (~150-300 billion nodes):

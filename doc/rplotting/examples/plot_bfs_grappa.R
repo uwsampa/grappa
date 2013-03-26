@@ -15,6 +15,9 @@ db <- function(query) {
   d$ppn   <- factor(d$ppn)
   d$scale <- factor(d$scale)
   d$num_starting_workers <- factor(d$num_starting_workers)
+  d$loop_threshold <- factor(d$loop_threshold)
+  d$aggregator_autoflush_ticks <- factor(d$aggregator_autoflush_ticks)
+  d$periodic_poll_ticks <- factor(d$periodic_poll_ticks)
   return(d)
 }
 
@@ -41,13 +44,73 @@ p.nw <- p+geom_point(mapping=aes(x=num_starting_workers,y=harmonic_mean_teps),
   "))
 p.nw
 
-p.poll <- p+
-  geom_point(mapping=aes(x=periodic_poll_ticks,y=harmonic_mean_teps),
-    data=db("select * from bfs where
-        bfs_version is 'localized'
-  "))
-p.poll
+# p.poll <- p+
+#   geom_point(mapping=aes(x=periodic_poll_ticks,y=max_teps),
+#     data=db("select * from bfs where
+#         bfs_version is 'localized' "))
+# p.poll
 
+p.many <- ggplot(db("
+select * from bfs where
+bfs_version is 'localized'
+and nnode == 8 and (ppn == 2 or ppn == 4)
+and aggregator_autoflush_ticks < 2e6
+and loop_threshold == 16
+"),
+    aes(x=num_starting_workers,y=max_teps,
+        color=periodic_poll_ticks,
+        shape=aggregator_autoflush_ticks)
+  )+facet_grid(~nnode~ppn~aggregator_autoflush_ticks~flush_on_idle,labeller=label_both)+
+  geom_point()+
+  #geom_line()+
+  #scale_color_gradientn(colours=topo.colors(4))
+  sosp_theme
+# p.many
+
+p.thresh <- ggplot(db("
+select *, max_teps/1e6 as MTEPS from bfs
+where scale > 16
+and periodic_poll_ticks == 20000
+and flush_on_idle == 0
+and nnode == 8
+and aggregator_autoflush_ticks <= 1e6
+and num_starting_workers == 128
+"), aes(x=loop_threshold,y=MTEPS,
+        color=ppn,
+        shape=aggregator_autoflush_ticks,
+        label=num_starting_workers)
+  )+facet_grid(~scale~nnode~num_starting_workers,labeller=label_both)+
+  geom_point()+
+  # geom_text(size=3, hjust=-0.15)+
+  # geom_line()+
+  sosp_theme
+p.thresh
+ggsave("plots/bfs_grappa_threshold.pdf", plot=p.thresh, scale=1.3)
+
+p.poll <- ggplot(db("
+select * from bfs where
+bfs_version is 'localized'
+and nnode == 8 and (ppn == 2 or ppn == 4 or ppn == 6)
+and loop_threshold == 16
+and scale == 23
+"),
+  aes(x=periodic_poll_ticks,y=max_teps,
+      color=num_starting_workers,
+      shape=aggregator_autoflush_ticks,
+      group=num_starting_workers)
+)+facet_grid(~scale~nnode~ppn~aggregator_autoflush_ticks~flush_on_idle,labeller=label_both)+
+  geom_point()+
+  geom_line()+
+  sosp_theme
+p.poll
+ggsave("plots/bfs_grappa_pollticks.pdf", plot=p.poll, scale=2)
+
+d.mpi <- sqldf(dbname="sosp.db", 
+  "select nnode,ppn,scale,max_teps from bfs
+  where mpibfs is 'simple'
+  and nnode == 8
+  and scale == 23"
+)
 
 # d <- db("select *,nnode*ppn as nproc from bfs where scale==30 or scale==26")
 # p.nproc <- ggplot(d, aes(x=nproc, y=max_teps, group=ppn, color=ppn, shape=ppn))+

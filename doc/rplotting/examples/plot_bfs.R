@@ -17,17 +17,17 @@ db <- function(query) {
   return(d)
 }
 
-p <- ggplot(db("select * from bfs where scale==30 or scale==26"), 
-  aes(x=nnode, y=max_teps, group=mpibfs, color=mpibfs, shape=ppn))+
-  ggtitle("BFS")+xlab("Nodes")+ylab("TEPS")+
+p <- ggplot(db("select *, max_teps/1e6 as MTEPS from bfs where scale==30 or scale==26"), 
+  aes(x=nnode, y=MTEPS, group=mpibfs, color=mpibfs, shape=ppn))+
+  ggtitle("BFS")+xlab("Nodes")+
   sosp_theme+
   geom_point()+ # show points
   # geom_line(mapping=aes(x=nnode,y=max_teps,group=ppn))+
   # stat_summary(fun.y="max", geom="line")+ # show line with max of each line
-  facet_wrap(~scale) # make new plots for each scale
+  facet_grid(.~scale,labeller=label_both) # make new plots for each scale
   
 p # plot it
-ggsave("plots/bfs_teps.pdf", plot=p) # or save it
+ggsave("plots/bfs_teps.pdf", plot=p, scale=1.3) # or save it
 
 # d <- db("select *,nnode*ppn as nproc from bfs where scale==30 or scale==26")
 # p.nproc <- ggplot(d, aes(x=nproc, y=max_teps, group=mpibfs, color=mpibfs, shape=ppn))+

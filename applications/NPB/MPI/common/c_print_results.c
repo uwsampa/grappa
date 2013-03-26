@@ -6,9 +6,9 @@
 
 void c_print_results( char   *name,
                       char   class,
-                      int    n1, 
-                      int    n2,
-                      int    n3,
+                      long    n1, 
+                      long    n2,
+                      long    n3,
                       int    niter,
                       int    nprocs_compiled,
                       int    nprocs_total,
@@ -25,56 +25,44 @@ void c_print_results( char   *name,
                       char   *cflags,
                       char   *clinkflags )
 {
-    char *evalue="1000";
+  char *evalue="1000";
 
-    printf( "\n\n %s Benchmark Completed\n", name ); 
+  printf( "\n\n %s Benchmark Completed\n", name ); 
 
-    printf( " Class           =                        %c\n", class );
+  printf( " Class           =                        %c\n", class );
 
-    if( n3 == 0 ) {
-        long nn = n1;
-        if ( n2 != 0 ) nn *= n2;
-        printf( " Size            =             %12ld\n", nn );   /* as in IS */
-    }
-    else
-        printf( " Size            =              %3dx %3dx %3d\n", n1,n2,n3 );
+  if( n3 == 0 ) {
+      long nn = n1;
+      if ( n2 != 0 ) nn *= n2;
+      printf( " problem_size:             %12ld\n", nn );   /* as in IS */
+  } else {
+    printf( " problem_size:             %3ldx %3ldx %3ld\n", n1,n2,n3 );
+  }
+  printf( " iterations:                   %12d\n", niter );
+  printf( " run_time:                     %12.2f\n", t );
+  printf( " nproc:                        %12d\n", nprocs_total );
 
-    printf( " Iterations      =             %12d\n", niter );
- 
-    printf( " Time in seconds =             %12.2f\n", t );
-
-    printf( " Total processes =             %12d\n", nprocs_total );
-
-    if ( nprocs_compiled != 0 )
-        printf( " Compiled procs  =             %12d\n", nprocs_compiled );
-
-    printf( " Mop/s total     =             %12.2f\n", mops );
-
-    printf( " Mop/s/process   =             %12.2f\n", mops/((float) nprocs_total) );
-
+  if ( nprocs_compiled != 0 )
+    printf( " Compiled procs  =             %12d\n", nprocs_compiled );
+    printf( " mops_total:                   %12.2f\n", mops );
+    printf( " mops_per_process:             %12.2f\n", mops/((float) nprocs_total) );
     printf( " Operation type  = %24s\n", optype);
 
-    if( passed_verification )
-        printf( " Verification    =               SUCCESSFUL\n" );
-    else
-        printf( " Verification    =             UNSUCCESSFUL\n" );
+    if( passed_verification ) {
+      printf( " verification    =               SUCCESSFUL\n" );
+      printf("verified: 1\n");
+    } else {
+      printf( " Verification    =             UNSUCCESSFUL\n" );
+    }
 
     printf( " Version         =             %12s\n", npbversion );
-
     printf( " Compile date    =             %12s\n", compiletime );
-
     printf( "\n Compile options:\n" );
-
     printf( "    MPICC        = %s\n", mpicc );
-
     printf( "    CLINK        = %s\n", clink );
-
     printf( "    CMPI_LIB     = %s\n", cmpi_lib );
-
     printf( "    CMPI_INC     = %s\n", cmpi_inc );
-
     printf( "    CFLAGS       = %s\n", cflags );
-
     printf( "    CLINKFLAGS   = %s\n", clinkflags );
 #ifdef SMP
     evalue = getenv("MP_SET_NUMTHREADS");

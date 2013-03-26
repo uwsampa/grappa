@@ -43,12 +43,15 @@ LD_LIBRARY_PATH:=$(LD_LIBRARY_PATH):$(BOOST)/stage/lib
 # CXX=g++
 # LD=mpiCC
 
+MPI=/sampa/share/openmpi-1.6.1-debug
+
 GCC472=/sampa/share/gcc-4.7.2/rtf
 CC=$(GCC472)/bin/gcc
 CXX=$(GCC472)/bin/g++
-LD=$(GCC472)/bin/g++ -I/usr/include/openmpi-x86_64 -pthread -m64 -L/usr/lib64/openmpi/lib -lmpi_cxx -lmpi -ldl
-GCC472_LD=$(GCC472)/bin/g++ -I/usr/include/openmpi-x86_64 -pthread -m64 -L/usr/lib64/openmpi/lib -lmpi_cxx -lmpi -ldl
-LD_LIBRARY_PATH:=$(GCC472)/lib64:$(LD_LIBRARY_PATH)
+LD=$(GCC472)/bin/g++ -I$(MPI)/include -pthread -m64 -L$(MPI)/lib -lmpi_cxx -lmpi -ldl
+GCC472_LD=$(GCC472)/bin/g++ -I$(MPI)/include -pthread -m64 -L$(MPI)/lib -lmpi_cxx -lmpi -ldl
+
+LD_LIBRARY_PATH:=$(MPI)/lib:$(GCC472)/lib64:$(LD_LIBRARY_PATH)
 
 NONE_CC=$(CC)
 NONE_CXX=$(CXX)
@@ -300,12 +303,14 @@ SRUN_EXPORT_ENV_VARIABLES?=--task-prolog=$(SRUN_ENVVAR_TEMP) --task-epilog=$(SRU
 	@echo \#!/bin/bash > $@
 	@for i in $(ENV_VARIABLES); do echo echo export $$i >> $@; done
 	@echo '# Clean up any leftover shared memory regions' >> $@
-	@echo 'for i in `ipcs -m | grep $(USER) | cut -d" " -f1 | grep -v 0x00000000`; do ipcrm -M $$i; done' >> $@
+	@echo 'for i in `ipcs -m | grep $(USER) | cut -d" " -f2`; do ipcrm -m $$i; done' >> $@
+	@echo 'rm -f /dev/shm/GrappaLocaleSharedMemory' >> $@
 	@chmod +x $@
 
 .srunrc_epilog.%:
 	@echo \#!/bin/bash > $@
-	@echo 'for i in `ipcs -m | grep $(USER) | cut -d" " -f1 | grep -v 0x00000000`; do ipcrm -M $$i; done' >> $@
+	@echo 'for i in `ipcs -m | grep $(USER) | cut -d" " -f2`; do ipcrm -m $$i; done' >> $@
+	@echo 'rm -f /dev/shm/GrappaLocaleSharedMemory' >> $@
 	@chmod +x $@
 
 # set to force libs to be recopied to scratch disks
@@ -323,8 +328,10 @@ SBATCH_MPIRUN_EXPORT_ENV_VARIABLES=$(patsubst %,-x %,$(patsubst DELETEME:%,,$(su
 ifdef PAL_MVAPICH2
 	@echo '# Run!' >> $@
 	@echo 'srun --tasks-per-node 1 bash -c "ipcs -m | grep $(USER) | cut -d\  -f1 | xargs -n1 -r ipcrm -M"' >> $@
-	@echo 'srun $(SBATCH_MPIRUN_EXPORT_ENV_VARIABLES) --cpu_bind=rank --label -- $(MY_TAU_RUN) $$*' >> $@
+	@echo 'srun --tasks-per-node 1 bash -c "rm -f /dev/shm/GrappaLocaleSharedMemory"' >> $@
+	@echo 'srun $(SBATCH_MPIRUN_EXPORT_ENV_VARIABLES) --cpu_bind=verbose,rank --label -- $(MY_TAU_RUN) $$*' >> $@
 	@echo 'srun --tasks-per-node 1 bash -c "ipcs -m | grep $(USER) | cut -d\  -f1 | xargs -n1 -r ipcrm -M"' >> $@
+	@echo 'srun --tasks-per-node 1 bash -c "rm -f /dev/shm/GrappaLocaleSharedMemory"' >> $@
 else
 ifdef PAL	
 	@echo '# Make scratch directory'  >> $@
@@ -355,12 +362,15 @@ ifdef PAL
 else
 	@echo '# Run!' >> $@
 	@echo 'mpirun -npernode 1 bash -c "ipcs -m | grep $(USER) | cut -d\  -f1 | xargs -n1 -r ipcrm -M"' >> $@
+	@echo 'mpirun -npernode 1 bash -c "rm -f /dev/shm/GrappaLocaleSharedMemory"' >> $@
 	@echo 'mpirun $(SBATCH_MPIRUN_EXPORT_ENV_VARIABLES) -bind-to-core -tag-output -- $(MY_TAU_RUN) $$*' >> $@
-	@echo 'mpirun -npernode 1 bash -c "ipcs -m | grep $(USER) | cut -d\  -f1 | xargs -n1 -r ipcrm -M"' >> $@
+	@echo 'mpirun -npernode 1 bash -c "ipcs -m | grep $(USER) | cut -d\  -f2 | xargs -n1 -r ipcrm -m"' >> $@
+	@echo 'mpirun -npernode 1 bash -c "rm -f /dev/shm/GrappaLocaleSharedMemory"' >> $@
 endif
 endif
 	@echo '# Clean up any leftover shared memory regions' >> $@
-	@echo 'for i in `ipcs -m | grep $(USER) | cut -d" " -f1`; do ipcrm -M $$i; done' >> $@
+	@echo 'for i in `ipcs -m | grep $(USER) | cut -d" " -f2`; do ipcrm -m $$i; done' >> $@
+	@echo 'rm -f /dev/shm/GrappaLocaleSharedMemory' >> $@
 	@chmod +x $@
 
 # delete when done

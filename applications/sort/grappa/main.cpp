@@ -180,9 +180,12 @@ void bucket_sort(GlobalAddress<uint64_t> array, size_t nelems, size_t nbuckets) 
 
   // allreduce everyone's counts & compute global offsets (prefix sum)
   // { aggregate_counts f; fork_join_custom(&f); }
-  on_all_cores([]{
+  on_all_cores([nbuckets]{
+    CHECK_EQ(nbuckets, counts.size());
     // all nodes get total counts put into their counts array
     allreduce_inplace<size_t,collective_add>(&counts[0], counts.size());
+
+    VLOG(1) << "after allreduce_inplace (just in case)";
 
     // everyone computes prefix sum over buckets locally
     offsets[0] = 0;

@@ -93,7 +93,7 @@ public:
       }
       // block until cancelled
       CHECK_GT(count, 0);
-      VLOG(2) << "cores_out: " << co << ", count: " << count;
+      DVLOG(2) << "cores_out: " << co << ", count: " << count;
     }
   }
   
@@ -143,9 +143,9 @@ public:
       if (delegate::call(master_core, [this]{ return cores_out; }) > 0) {
 //      if (delegate::call(master_core, [this]{ return event_in_progress; })) {
         Grappa::wait(&cv);
-        VLOG(3) << "woke from conservative check";
+        DVLOG(3) << "woke from conservative check";
       }
-      VLOG(3) << "fell thru conservative check";
+      DVLOG(3) << "fell thru conservative check";
     }
     CHECK(!event_in_progress);
     CHECK_EQ(count, 0);
