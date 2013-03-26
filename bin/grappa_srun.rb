@@ -17,6 +17,7 @@ opt = OpenStruct.new
 # opt.nnode = 2
 # opt.ppn   = 1
 opt.time  = '15:00'
+opt.freeze_on_error = false
 
 OptionParser.new do |p|
   p.banner = "Usage: #{__FILE__} [options]"
@@ -25,6 +26,7 @@ OptionParser.new do |p|
   p.on('-p', '--ppn CORES', Integer, "Number of cores/processes per node"){|c| opt.ppn = c }
   p.on('-t', '--time TIME', 'Job time to pass to srun'){|t| opt.time = t }
   p.on('-e', '--test TEST', 'Run boost unit test program with given name (e.g. Aggregator_tests)'){|t| opt.test = t }
+  p.on('-f', '--freeze-on-error', "Freeze all the jobs when there's an error"){ opt.freeze_on_error = true }
 
 end.parse!(myargs)
 
@@ -49,6 +51,7 @@ end
 srun_flags << "--nodes=#{opt.nnode}" if opt.nnode
 srun_flags << "--ntasks-per-node=#{opt.ppn}" if opt.ppn
 srun_flags << "--time=#{opt.time}" if opt.time
+ENV["GASNET_FREEZE_ON_ERROR"] = opt.freeze_on_error ? "1" : "0"
 
 test = "#{opt.test}.test --log_level=test_suite --report_level=confirm --run_test=#{opt.test}" if opt.test
 # jacob's preferred test options
