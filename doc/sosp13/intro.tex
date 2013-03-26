@@ -19,23 +19,21 @@ will refer to memory located remotely.  This behavior constrasts
 sharply with that of data-parallel applications for which efficient
 frameworks such as MapReduce~\cite{mapreduce:osdi04} may exploit the
 structure of computation and data affinity to limit internode
-communication to comparably infrequent and larger messages.  Mass
+communication to less infrequent, larger messages.  Mass
 market network technology is designed to transfer these larger blocks
 of data, not the word-sized references emitted by irregular
 application tasks. Injection rate into the network is insufficient to
 utilize wire bandwidth when blocks are below about two-kilobytes, so
 any naive communication strategy severely under-utilizes the network.
 
-\noindent{\bf High Latency} Unlike data parallel applications, whose
-communications are regular and expected, and can therefore easily be
-overlapped with computation at the application level, irregular
-application tasks encounter remote references throughout their execution
-and must resolve them before making further progress.  The latency of
-commodity networks is anywhere from a one to hundreds of microseconds,
-far more than can be tolerated via the simultaneous multithreading
-available in x86 processors.  Consequently, even with RDMA, processor
-prefetching and caching hardware alone is inadequate to ensure pipeline
-utilization in the presence of high latency networks.
+\noindent{\bf High Latency} To tolerate latency, data parallel applications make explicit
+their regular, predictable communications so as to minimize interference with computation.
+In contrast, irregular application tasks encounter remote references dynamically during
+execution and must resolve them before making further progress.  The latency of
+commodity networks is anywhere from one to hundreds of microseconds,
+far more than can be tolerated via the hyperthrading available in x86 processors.
+Consequently, even with RDMA, processor prefetching and caching hardware alone is inadequate
+to ensure pipeline utilization in the presence of high latency networks.
 
 While some irregular applications can be restructured to better exploit
 locality, aggregate requests to increase message size, and manage the
