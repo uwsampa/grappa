@@ -29,7 +29,7 @@ OptionParser.new do |p|
 end.parse!(myargs)
 
 srun_flags = %w[ --cpu_bind=verbose,rank --label --kill-on-bad-exit ] \
-          << "--task-prolog=#{DIR}/grappa_srun_prolog.sh" \
+          << "--task-prolog=#{DIR}/grappa_srun_prolog.rb" \
           << "--task-epilog=#{DIR}/grappa_srun_epilog.sh"
 
 # "source" prolog
