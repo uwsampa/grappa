@@ -695,6 +695,7 @@ void RDMAAggregator::draw_routing_graph() {
         CHECK_NOTNULL( buf );
       }
       
+      rdma_receive_start++;
       active_receive_workers_++;
 
       DVLOG(3) << __PRETTY_FUNCTION__ << "/" << Grappa::impl::global_scheduler.get_current_thread() 
@@ -728,6 +729,7 @@ void RDMAAggregator::draw_routing_graph() {
       }
             
       active_receive_workers_--;
+      rdma_receive_end++;
     }
   }
 
