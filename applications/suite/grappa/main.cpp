@@ -129,7 +129,7 @@ bool checkpoint_in(graphedges * ge, graph * g) {
   double t = timer();
   
   char fname[256];
-  sprintf(fname, "../ckpts/graph500.%lld.%lld.xmt.w.ckpt", SCALE, 16);
+  sprintf(fname, "../ckpts/graph500.%lld.%lld.grappa.ckpt", SCALE, 16);
   FILE * fin = fopen(fname, "r");
   if (!fin) {
     fprintf(stderr, "Unable to open file - %s.\n", fname);

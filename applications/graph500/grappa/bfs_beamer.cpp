@@ -135,6 +135,9 @@ void convert_tree_entry(bfs_tree_entry * e) {
 #endif
 
 double make_bfs_tree(csr_graph * g, GlobalAddress<int64_t> in_bfs_tree, int64_t root) {
+  LOG_FIRST_N(INFO,1) << "bfs_version: 'beamer'";
+  
+  
   int64_t NV = g->nv;
   GlobalAddress<int64_t> _vlist = Grappa_typed_malloc<int64_t>(NV);
   GlobalAddress<bfs_tree_entry> _bfs_tree = (GlobalAddress<bfs_tree_entry>)in_bfs_tree;

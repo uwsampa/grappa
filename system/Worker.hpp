@@ -132,7 +132,10 @@ void coro_spawn(Worker * me, Worker * c, coro_func f, size_t ssize);
 /// new coro or the return value of its last invoke.)
 static inline void * coro_invoke(Worker * me, Worker * to, void * val) {
 #ifdef CORO_PROTECT_UNUSED_STACK
-  if( to->base != NULL ) checked_mprotect( (void*)((intptr_t)to->base + 4096), to->ssize, PROT_READ | PROT_WRITE );
+  if( to->base != NULL ) {
+    checked_mprotect( (void*)((intptr_t)to->base + 4096), to->ssize, PROT_READ | PROT_WRITE );
+    checked_mprotect((void*)(to), 4096, PROT_READ | PROT_WRITE );
+  }
 
   // compute expected stack pointer
 
@@ -152,6 +155,7 @@ static inline void * coro_invoke(Worker * me, Worker * to, void * val) {
       me->base != NULL &&   // don't protect if it's the native host thread
       size > 0 ) {
     checked_mprotect( (void*)((intptr_t)me->base + 4096), size, PROT_READ );
+    checked_mprotect( (void*)(me), 4096, PROT_READ );
   }
 #endif
 

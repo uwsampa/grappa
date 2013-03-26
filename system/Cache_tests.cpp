@@ -13,21 +13,43 @@
 #include "Delegate.hpp"
 #include "Tasking.hpp"
 
+#include "LocaleSharedMemory.hpp"
+#include "GlobalMemoryChunk.hpp"
+
 #include <boost/test/unit_test.hpp>
 
 BOOST_AUTO_TEST_SUITE( Cache_tests );
 
-int64_t foo = 1234;
-int64_t bar[4] = { 2345, 3456, 4567, 6789 };
+namespace Grappa {
+namespace impl {
+extern void * global_memory_chunk_base;
+}
+}
 
 struct BrandonM {
   int8_t foo[36];
 };
 
-BrandonM brandonm_arr[ 8 ] __attribute__ ((aligned (1 << 12)));
-
 void user_main( int * args ) 
 {
+  // totally cheat; use the local 
+  char * local = reinterpret_cast< char* >( ::Grappa::impl::global_memory_chunk_base ) + 4096;
+
+  // make sure this is aligned
+  BrandonM * brandonm_arr = reinterpret_cast< BrandonM* >( local );
+  local += 8 * sizeof( BrandonM );
+
+  int64_t & foo = *(reinterpret_cast< int64_t* >( local ));
+  foo = 1234;
+  local += sizeof(int64_t);
+  
+  int64_t * bar = reinterpret_cast< int64_t* >( local );
+  bar[0] = 2345;
+  bar[1] = 3456;
+  bar[2] = 4567;
+  bar[3] = 6789;
+  local += 4 * sizeof(int64_t);
+
   {
     Incoherent< int64_t >::RO buf( GlobalAddress< int64_t >::TwoDimensional( &foo ), 1 );
     BOOST_CHECK_EQUAL( *buf, foo );

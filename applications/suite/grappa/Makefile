@@ -21,16 +21,23 @@ CFLAGS += -g -Wall -Drestrict=__restrict__ -ffast-math
 
 LDFLAGS = -g
 
+GENERATOR_SOURCES = graph_generator.o make_graph.o splittable_mrg.o utils.o
+GEN = ../generator
+
 SOURCES = main.o centrality.o computeGraph.o connectedComponents.o genScalData.o graphManip.o pathIsomorphism.o timer.o triangles.o ../compat/mersenne.o
 HEADERS = defs.hpp
 
 include $(GRAPPA_HOME)/system/Makefile
 
-suite.exe: $(SOURCES) $(HEADERS) $(GRAPPA_HOME)/system/libGrappa.a
-	$(ENV_VARIABLES) $($(MPITYPE)_LD) $(LDFLAGS) $(CFLAGS) $(SOURCES) $(GRAPPA_HOME)/system/libGrappa.a $(LIBRARIES) -o $@ $(LIBS)
+suite.exe: $(SOURCES) $(HEADERS) $(GRAPPA_HOME)/system/libGrappa.a generator.a
+	$(ENV_VARIABLES) $($(MPITYPE)_LD) $(LDFLAGS) $(CFLAGS) $(SOURCES) $(GRAPPA_HOME)/system/libGrappa.a generator.a $(LIBRARIES) -o $@ $(LIBS)
 
 $(GRAPPA_HOME)/system/libGrappa.a: force
 	cd ../../../system; $(MAKE) lib
+
+generator.a: $(GEN)/graph_generator.c $(GEN)/make_graph.c $(GEN)/splittable_mrg.c $(GEN)/utils.c
+	pushd $(GEN); $(MAKE) -f Makefile.grappa genlib
+	popd; cp $(GEN)/generator.a generator.a
 
 force: ;
 

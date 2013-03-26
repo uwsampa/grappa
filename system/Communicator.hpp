@@ -45,8 +45,10 @@
 /// library. Actual handlers may have arguments.
 typedef void (*HandlerPointer)();    
 
-/// Type for Node ID. 
+/// Type for Core and Locale IDs. 
 typedef int16_t Core;
+typedef int16_t Locale;
+
 /// @legacy
 typedef Core Node;
 
@@ -64,6 +66,28 @@ typedef Core Node;
 /// Infiniband this will be nearly 4KB, Infiniband's maximum MTU. This
 /// is true even if the network is configured with a smaller MTU.
 //#define GASNET_NOARG_MAX_MEDIUM (GASNETC_MAX_MEDIUM + sizeof( int32_t ) * 16)
+
+
+/// some variables from gasnet
+extern size_t gasnetc_inline_limit;
+
+/* from gasnet_internal.c:
+ *   gasneti_nodemap_local_count = number of GASNet nodes collocated w/ gasneti_mynode
+ *   gasneti_nodemap_local_rank  = rank of gasneti_mynode among gasneti_nodemap_local_count
+ *   gasneti_nodemap_local[]     = array (length gasneti_nodemap_local_count) of local nodes
+ *   gasneti_nodemap_global_count = number of unique values in the nodemap
+ *   gasneti_nodemap_global_rank  = rank of gasneti_mynode among gasneti_nodemap_global_count
+ * and constructs:
+ *   gasneti_nodeinfo[] = array of length gasneti_nodes of supernode ids and mmap offsets
+ */
+extern gasnet_node_t *gasneti_nodemap;
+extern gasnet_node_t *gasneti_nodemap_local;
+extern gasnet_node_t gasneti_nodemap_local_count;
+extern gasnet_node_t gasneti_nodemap_local_rank;
+extern gasnet_node_t gasneti_nodemap_global_count;
+extern gasnet_node_t gasneti_nodemap_global_rank;
+extern gasnet_nodeinfo_t *gasneti_nodeinfo;
+
 
 class Communicator;
 
@@ -186,6 +210,7 @@ public:
     messages_++;
     bytes_ += bytes;
 #ifdef GASNET_CONDUIT_IBV
+    if( bytes > 4095 ) bytes = 4095;
     histogram_[ (bytes >> 8) & 0xf ]++;
 #endif
   }
@@ -247,11 +272,26 @@ private:
   /// used as intermediate storage for active message handlers during the registration process.
   std::vector< gasnet_handlerentry_t > handlers_;
 
+  /// store data about gasnet segments on all nodes
+  std::vector< gasnet_seginfo_t > segments_;
+
   /// Are we in the phase that allows handler registration?
   bool registration_is_allowed_;
 
   /// Are we in the phase that allows communication?
   bool communication_is_allowed_;
+
+
+  Core mycore_;
+  Core cores_;
+  Core mylocale_;
+  Core locales_;
+  Core locale_mycore_;
+  Core locale_cores_;
+  
+  /// array of core-to-locale translations
+  Core * locale_of_core_;
+
 
 #ifdef VTRACE_FULL
   unsigned communicator_grp_vt;
@@ -332,6 +372,45 @@ public:
     return gasnet_nodes(); 
   }
 
+
+
+
+
+  inline Core mycore() const { 
+    return mycore_;
+  }
+  inline Core cores() const { 
+    return cores_;
+  }
+
+  inline Locale mylocale() const { 
+    return mylocale_;
+  }
+
+  inline Locale locales() const { 
+    return locales_;
+  }
+
+  inline Core locale_cores() const { 
+    return locale_cores_;
+  }
+
+  inline Core locale_mycore() const { 
+    return locale_mycore_;
+  }
+
+
+  inline Locale locale_of( Core c ) const { 
+    return locale_of_core_[c];
+  }
+
+
+
+
+  inline size_t inline_limit() const {
+    return gasnetc_inline_limit;
+  }
+
   /// Global (anonymous) barrier (ALLNODES)
   inline void barrier() {
     assert( communication_is_allowed_ );
@@ -361,6 +440,39 @@ public:
     GASNET_CHECK( gasnet_AMRequestMedium0( node, handler, buf, size ) );
   }
 
+  /// Send no-argment active message with payload. This only allows
+  /// messages will be immediately copied to the HCA.
+  /// TODO: can we avoid the copy onto gasnet's buffer? This is so small it probably doesn't matter.
+  inline void send_immediate( Node node, int handler, void * buf, size_t size ) { 
+    DCHECK_EQ( communication_is_allowed_, true );
+    CHECK_LT( size, gasnetc_inline_limit ); // make sure payload isn't too big
+    stats.record_message( size );
+#ifdef VTRACE_FULL
+    VT_COUNT_UNSIGNED_VAL( send_ev_vt, size );
+#endif
+    GASNET_CHECK( gasnet_AMRequestMedium0( node, handler, buf, size ) );
+  }
+
+  /// Send no-argment active message with payload via RDMA, blocking until sent.
+  inline void send( Node node, int handler, void * buf, size_t size, void * dest_buf ) { 
+    DCHECK_EQ( communication_is_allowed_, true );
+    stats.record_message( size );
+#ifdef VTRACE_FULL
+    VT_COUNT_UNSIGNED_VAL( send_ev_vt, size );
+#endif
+    GASNET_CHECK( gasnet_AMRequestLong0( node, handler, buf, size, dest_buf ) );
+  }
+
+  /// Send no-argment active message with payload via RDMA asynchronously.
+  inline void send_async( Node node, int handler, void * buf, size_t size, void * dest_buf ) { 
+    DCHECK_EQ( communication_is_allowed_, true );
+    stats.record_message( size );
+#ifdef VTRACE_FULL
+    VT_COUNT_UNSIGNED_VAL( send_ev_vt, size );
+#endif
+    GASNET_CHECK( gasnet_AMRequestLongAsync0( node, handler, buf, size, dest_buf ) );
+  }
+
   /// poll messaging layer
   inline void poll() { 
     GRAPPA_FUNCTION_PROFILE( GRAPPA_COMM_GROUP );
@@ -378,13 +490,41 @@ extern Communicator global_communicator;
 
 namespace Grappa {
 
-  /// @addtogroup Communication
-  /// @{
+/// @addtogroup Communication
+/// @{
 
-  inline Core cores() { return global_communicator.nodes(); }
-  inline Core mycore() { return global_communicator.mynode(); }
+/// How many cores are there in this job?
+inline Core cores() { return global_communicator.nodes(); }
 
-  /// @}
+/// What's my core ID in this job?
+inline Core mycore() { return global_communicator.mynode(); }
+
+/// How many cores are in my shared memory domain?
+inline Core locale_cores() { return global_communicator.locale_cores(); }
+
+/// What's my core ID within my shared memory domain?
+inline Core locale_mycore() { return global_communicator.locale_mycore(); }
+
+/// How many shared memory domains are in this job?
+inline Locale locales() { return global_communicator.locales(); }
+
+/// What's my shared memory domain ID within this job?
+inline Locale mylocale() { return global_communicator.mylocale(); }
+
+/// What shared memory domain does core c belong to?
+inline Locale locale_of(Core c) { return global_communicator.locale_of(c); }
+
+/// how big can inline messages be?
+inline size_t inline_limit() { return global_communicator.inline_limit(); }
+
+// /// @deprecated How many cores are in this job?
+// inline Core nodes() { return global_communicator.supernodes(); }
+
+// /// @deprecated What's my core ID within this job?
+// inline Core mynode() { return global_communicator.mysupernode(); }
+
+
+/// @}
 
 }
 
