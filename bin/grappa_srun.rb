@@ -34,7 +34,7 @@ srun_flags = %w[ --cpu_bind=verbose,rank --label --kill-on-bad-exit ] \
 
 # "source" prolog
 open("#{DIR}/grappa_srun_prolog.sh","r").each_line do |l|
-  ENV[$~[1]] = $~[2] if l.match(/export\s+([\w_]+)=(.*)/)
+  ENV[$~[1]] = $~[2] if l.match(/^export\s+([\w_]+)=(.*)/)
 end
 
 setarch = ""
