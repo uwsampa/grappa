@@ -25,7 +25,7 @@
 DEFINE_bool(record_grappa_events, true, "Sampling rate of Grappa tracing events.");
 
 
-#include "Thread.hpp"
+#include "Worker.hpp"
 void dump_all_task_profiles() {
 #ifdef GRAPPA_TRACE
     TAU_DB_DUMP_PREFIX( "dump" );// dump <node>.0.0

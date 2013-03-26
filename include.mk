@@ -385,7 +385,18 @@ NPROC=$(shell echo $$(( $(NNODE)*$(PPN) )) )
 SRUN_HOST?=--partition $(SRUN_PARTITION)
 SRUN_NPROC=--nodes=$(NNODE) --ntasks-per-node=$(PPN)
 
-SRUN_MPIRUN?=srun --resv-ports --cpu_bind=verbose,rank --exclusive --label --kill-on-bad-exit $(SRUN_FLAGS)
+#convenience to set NUMA pinning for sampa
+#pin by numa is meant to fill up each NUMA 
+#domain before pinning threads to another
+GRAPPA_PIN_BY_NUMA?=0
+ifeq ($(GRAPPA_PIN_BY_NUMA),1)
+SRUN_CORE_PINNING=--cpu_bind=verbose,map_cpu:1,3,5,7,9,11,2,4,6,8,10,12
+else
+SRUN_CORE_PINNING=--cpu_bind=verbose,rank
+endif
+
+SRUN_MPIRUN?=srun --resv-ports $(SRUN_CORE_PINNING) --exclusive --label --kill-on-bad-exit $(SRUN_FLAGS)
+
 
 SRUN_CLEAN_FILES= -f .srunrc*  .sbatch*
 
