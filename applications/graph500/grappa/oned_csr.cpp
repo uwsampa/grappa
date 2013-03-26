@@ -47,6 +47,47 @@ static int64_t maxvtx = 0, nv = 0;
 
 static GlobalCompletionEvent my_gce;
 
+
+
+
+template< typename T >
+inline void print_array(const char * name, GlobalAddress<T> base, size_t nelem, int width = 10) {
+  std::stringstream ss; ss << name << ": [";
+  for (size_t i=0; i<nelem; i++) {
+    if (i % width == 0) ss << "\n";
+    ss << " " << delegate::read(base+i);
+  }
+  ss << " ]"; VLOG(1) << ss.str();
+}
+template<>
+inline void print_array(const char * name, GlobalAddress<packed_edge> base, size_t nelem, int width) {
+  std::stringstream ss; ss << name << ": [";
+  for (size_t i=0; i<nelem; i++) {
+    if (i % width == 0) ss << "\n";
+    auto e = delegate::read(base+i);
+    ss << e.v0 << ":" << e.v1 << " ";
+  }
+  ss << " ]"; VLOG(1) << ss.str();
+}
+
+inline void print_graph(csr_graph* g) {
+  auto offsets = static_cast<GlobalAddress<range_t>>(g->xoff);
+  std::stringstream ss;
+  for (int64_t i=0; i<g->nv; i++) {
+    range_t r = delegate::read(offsets+i);
+    ss << "[" << i << "]: ";
+    for (int64_t j=r.start; j<r.end; j++) {
+      int64_t v = delegate::read(g->xadj+j);
+      ss << v << " ";
+    }
+    ss << "\n";
+  }
+  VLOG(1) << ss.str();
+}
+
+
+
+
 static void find_nv(const tuple_graph* const tg) {
   forall_localized(tg->edges, tg->nedge, [](int64_t i, packed_edge& e){
     if (e.v0 > maxvtx) { maxvtx = e.v0; }
@@ -68,16 +109,6 @@ static int64_t prefix_sum(GlobalAddress<int64_t> xoff, int64_t nv) {
   call_on_all_cores([prefix_temp,nv]{ prefix_temp_base = prefix_temp.localize(); });
   
   auto offsets = static_cast<GlobalAddress<range_t>>(xoff);
-  // {
-  //   std::stringstream ss; ss << "offsets: [\n";
-  //   for (int64_t i=0; i<nv; i++) {
-  //     auto e = Grappa::delegate::read(offsets+i);
-  //     ss << e.start << " " << e.end << "\n";
-  //   }
-  //   ss << "]\n";
-  //   VLOG(1) << ss.str();
-  // }
-
   
   forall_localized<&my_gce>(offsets, nv, [offsets,nv](int64_t s, int64_t n, range_t * x){
     char buf[n * sizeof(delegate::write_msg_proxy<int64_t>)];
@@ -86,7 +117,7 @@ static int64_t prefix_sum(GlobalAddress<int64_t> xoff, int64_t nv) {
     for (int i=0; i<n; i++) {
       int64_t index = make_linear(x+i)-offsets;
       block_offset_t b = indexToBlock(index, nv, cores());
-      VLOG(1) << "[" << index << "] -> " << b.block << ":" << b.offset << " (@ " << prefix_temp_base << ")  (" << x << ")[" << i << "] == " << x[i].start << "\nmake_global: " << make_global(prefix_temp_base+b.offset, b.block);
+      DVLOG(5) << "[" << index << "] -> " << b.block << ":" << b.offset << " (@ " << prefix_temp_base << ")  (" << x << ")[" << i << "] == " << x[i].start << "\nmake_global: " << make_global(prefix_temp_base+b.offset, b.block);
       
       CHECK_LT(b.block, cores());
       
@@ -97,17 +128,6 @@ static int64_t prefix_sum(GlobalAddress<int64_t> xoff, int64_t nv) {
       });      
     }
   });
-  
-  // VLOG(1) << "after moving to block-distribution";
-  // {
-  //   std::stringstream ss; ss << "temp: [\n";
-  //   for (int64_t i=0; i<nv; i++) {
-  //     auto e = Grappa::delegate::read(prefix_temp+i);
-  //     ss << e << "\n";
-  //   }
-  //   ss << "]\n";
-  //   VLOG(1) << ss.str();
-  // }  
   
   int64_t total_sum = 0;
   auto total_addr = make_global(&total_sum);
@@ -162,42 +182,6 @@ static int64_t prefix_sum(GlobalAddress<int64_t> xoff, int64_t nv) {
   return total_sum;
 }
 
-template< typename T >
-inline void print_array(const char * name, GlobalAddress<T> base, size_t nelem, int width = 10) {
-  std::stringstream ss; ss << name << ": [";
-  for (size_t i=0; i<nelem; i++) {
-    if (i % width == 0) ss << "\n";
-    ss << " " << delegate::read(base+i);
-  }
-  ss << " ]"; VLOG(1) << ss.str();
-}
-template<>
-inline void print_array(const char * name, GlobalAddress<packed_edge> base, size_t nelem, int width) {
-  std::stringstream ss; ss << name << ": [";
-  for (size_t i=0; i<nelem; i++) {
-    if (i % width == 0) ss << "\n";
-    auto e = delegate::read(base+i);
-    ss << e.v0 << ":" << e.v1 << " ";
-  }
-  ss << " ]"; VLOG(1) << ss.str();
-}
-
-inline void print_graph(csr_graph* g) {
-  auto offsets = static_cast<GlobalAddress<range_t>>(g->xoff);
-  std::stringstream ss;
-  for (int64_t i=0; i<g->nv; i++) {
-    range_t r = delegate::read(offsets+i);
-    ss << "[" << i << "]: ";
-    for (int64_t j=r.start; j<r.end; j++) {
-      int64_t v = delegate::read(g->xadj+j);
-      ss << v << " ";
-    }
-    ss << "\n";
-  }
-  VLOG(1) << ss.str();
-}
-
-
 static void setup_deg_off(const tuple_graph * const tg, csr_graph * g) {
   // note: this corresponds to how Graph500 counts 'degree' (both in- and outgoing edges to each vertex)
   auto _xoff = g->xoff;
@@ -233,9 +217,6 @@ static void setup_deg_off(const tuple_graph * const tg, csr_graph * g) {
   int64_t accum = prefix_sum(g->xoff, g->nv);
     
   VLOG(2) << "accum = " << accum;
-//  for (int64_t i=0; i<g->nv; i++) {
-//    VLOG(1) << "offset[" << i << "] = " << Grappa_delegate_read_word(XOFF(i));
-//  }
   
   //initialize XENDOFF to be the same as XOFF
   auto xoffr = static_cast<GlobalAddress<range_t>>(xoff);
@@ -244,9 +225,7 @@ static void setup_deg_off(const tuple_graph * const tg, csr_graph * g) {
   });
   
   delegate::write(xoff+2*g->nv, accum);
-  
-  print_array("xoff", xoff, 2*g->nv, 2);
-  
+    
   g->nadj = accum+MINVECT_SIZE;
   
   g->xadjstore = Grappa_typed_malloc<int64_t>(accum + MINVECT_SIZE);
@@ -268,43 +247,29 @@ i64cmp (const void *a, const void *b)
 
 
 inline void scatter_edge(MessagePool& pool, GlobalAddress<int64_t> xoff, GlobalAddress<int64_t> xadj, const int64_t i, const int64_t j) {
-  
   int64_t where = delegate::fetch_and_add(XENDOFF(i), 1);
+  delegate::write_async<&my_gce>(pool, xadj+where, j);
   
-  VLOG(1) << "scattering [" << i << "] xendoff[i] " << XENDOFF(i) << " = " << j << " (where: " << where << ")";
-  
-  // delegate::write_async<&my_gce>(pool, xadj+where, j);
-  delegate::write(xadj+where, j);
+  DVLOG(5) << "scattering [" << i << "] xendoff[i] " << XENDOFF(i) << " = " << j << " (where: " << where << ")";
 }
 
 static void gather_edges(const tuple_graph * const tg, csr_graph * g) {
   auto& graph = *g;
   VLOG(2) << "scatter edges";
   
-  print_array("edge tuples", tg->edges, tg->nedge, 10);
-
-  int64_t total_scattered = 0;
-  auto tsa = make_global(&total_scattered);
-  
-  forall_localized<&my_gce>(tg->edges, tg->nedge, [graph,tsa](int64_t s, int64_t n, packed_edge * e) {
+  forall_localized<&my_gce>(tg->edges, tg->nedge, [graph](int64_t s, int64_t n, packed_edge * e) {
     char bp[2 * n * sizeof(delegate::write_msg_proxy<int64_t>)];
     MessagePool pool(bp, sizeof(bp));
     
     for (int k = 0; k < n; k++) {
       int64_t i = e[k].v0, j = e[k].v1;
-      // VLOG(1) << "edge<" << i << ":" << j << ">";
       
       if (i >= 0 && j >= 0 && i != j) {
-        delegate::fetch_and_add(tsa, 1);
         scatter_edge(pool, graph.xoff, graph.xadj, i, j);
         scatter_edge(pool, graph.xoff, graph.xadj, j, i);
       }
     }
   });
-  VLOG(1) << "total_scattered: " << total_scattered;
-
-  print_graph(g);
-  // print_array("xadj", g->xadj, g->nadj);
   
   VLOG(2) << "pack_vtx_edges";
   auto xoffr = static_cast<GlobalAddress<range_t>>(g->xoff);
@@ -344,8 +309,6 @@ static void gather_edges(const tuple_graph * const tg, csr_graph * g) {
     // on scope: cend.block_until_released();
   });
 
-  print_graph(g);  
-  // print_array("xadj", g->xadj, g->nadj);
 }
 
 void create_graph_from_edgelist(const tuple_graph* const tg, csr_graph* const g) {    
