@@ -89,7 +89,12 @@ static int64_t prefix_sum(GlobalAddress<int64_t> xoff, int64_t nv) {
       VLOG(1) << "[" << index << "] -> " << b.block << ":" << b.offset << " (@ " << prefix_temp_base << ")  (" << x << ")[" << i << "] == " << x[i].start << "\nmake_global: " << make_global(prefix_temp_base+b.offset, b.block);
       
       CHECK_LT(b.block, cores());
-      delegate::write_async<&my_gce>(pool, make_global(prefix_temp_base+b.offset, b.block), x[i].start);
+      
+      auto val = x[i].start;
+      auto offset = b.offset;
+      delegate::call_async<&my_gce>(pool, b.block, [offset,val] {
+        prefix_temp_base[offset] = val;
+      });      
     }
   });
   
