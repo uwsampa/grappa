@@ -9,11 +9,17 @@
 #include "Collective.hpp"
 #include "Timestamp.hpp"
 #include <type_traits>
+#include "Statistics.hpp"
 
 #define PRINT_MSG(m) "msg(" << &(m) << ", src:" << (m).source_ << ", dst:" << (m).destination_ << ", enq:" << (m).is_enqueued_ << ", sent:" << (m).is_sent_ << ", deliv:" << (m).is_delivered_ << ")"
 
 DECLARE_bool( flatten_completions );
 
+/// total number of times "complete" has to be called on another core
+GRAPPA_DECLARE_STAT(SimpleStatistic<uint64_t>, gce_total_remote_completions);
+
+/// actual number of completion messages we send (less with flattening)
+GRAPPA_DECLARE_STAT(SimpleStatistic<uint64_t>, gce_completions_sent);
 
 namespace Grappa {
 
@@ -120,6 +126,7 @@ public:
       VLOG(5) << "complete locally ";
       this->complete(dec);
     } else {
+      gce_total_remote_completions++;
       auto& cm = get_completion_msg(owner);
       if (cm.waiting_to_send()) {
         cm.completes_to_send++;
@@ -128,6 +135,7 @@ public:
         CHECK_EQ(cm.completes_to_send, 0) << "why haven't we sent these already? cm(" << &cm << ", is_sent: " << cm.is_sent_ << ", is_enqueued: " << cm.is_enqueued_ << ", dest: " << cm.destination_ << ")";
         DVLOG(5) << "sending " << dec << " to Core[" << owner << "]";
         cm->dec = dec;
+        gce_completions_sent++;
         cm.enqueue(owner);
       }
     }
