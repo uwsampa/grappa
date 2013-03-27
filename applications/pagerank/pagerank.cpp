@@ -29,6 +29,10 @@ DEFINE_double( epsilon, 0.001f, "Acceptable error magnitude" );
 
 // runtime statistics
 GRAPPA_DEFINE_STAT(SummarizingStatistic<double>, iterations_time, 0); // provides total time, avg iteration time, number of iterations
+GRAPPA_DEFINE_STAT(SimpleStatistic<double>, init_pagerank_time, 0);
+GRAPPA_DEFINE_STAT(SimpleStatistic<double>, multiply_time, 0);
+GRAPPA_DEFINE_STAT(SimpleStatistic<double>, vector_add_time, 0);
+GRAPPA_DEFINE_STAT(SimpleStatistic<double>, norm_and_diff_time, 0);
 
 // output statistics (ensure that only core 0 sets this exactly once AFTER `reset` and before `merge_and_print`)
 GRAPPA_DEFINE_STAT(SimpleStatistic<double>, pagerank_time, 0);
@@ -137,43 +141,54 @@ struct pagerank_result {
 // Iterative method
 // R(t+1) = dMR(t) + (1-d)/N vec(1)
 pagerank_result pagerank( weighted_csr_graph m, double d, double epsilon ) {
-  LOG(INFO) << "Calculate dM";
-  calculate_dM( m, d );
-  
-  if ( m.nv <= 16 ) matrix_out( &m, LOG(INFO), true );
+  double time;
 
-  LOG(INFO) << "Allocate rank vectors";
-  // current pagerank vector: initialize to random values on [0,1]
-  vector v;
-  v.length = m.nv;
-  v.a = Grappa_typed_malloc<double>(v.length);
-  on_all_cores( [] { srand(0); } );
-  forall_localized( v.a, v.length, []( int64_t i, double& ele ) {
-    ele = ((double)rand()/RAND_MAX); //[0,1]
-  });
-  
-  if ( v.length <= 16 ) vector_out( &v, LOG(INFO) );
-  normalize( v );
-
-  // last pagerank vector: initialize to -inf
-  vector last_v;
-  last_v.length = m.nv;
-  last_v.a = Grappa_typed_malloc<double>(last_v.length);
-  Grappa_memset_local(last_v.a, -1000.0f, last_v.length);
-
-  LOG(INFO) << "Begin pagerank";
-  if ( v.length <= 16 ) vector_out( &v, LOG(INFO) );
- 
-  // set the damping vector 
-  auto dv = (1-d)/m.nv;
-  on_all_cores( [dv] {
-    damp_vector_val = dv;
-  });
+  // setup
+  double init_start = Grappa_walltime();
     
-  double err;
+    LOG(INFO) << "Calculate dM";
+    calculate_dM( m, d );
+
+    if ( m.nv <= 16 ) matrix_out( &m, LOG(INFO), true );
+
+    LOG(INFO) << "Allocate rank vectors";
+    // current pagerank vector: initialize to random values on [0,1]
+    vector v;
+    v.length = m.nv;
+    v.a = Grappa_typed_malloc<double>(v.length);
+    on_all_cores( [] { srand(0); } );
+    forall_localized( v.a, v.length, []( int64_t i, double& ele ) {
+      ele = ((double)rand()/RAND_MAX); //[0,1]
+      });
+
+    if ( v.length <= 16 ) vector_out( &v, LOG(INFO) );
+    normalize( v );
+
+    // last pagerank vector: initialize to -inf
+    vector last_v;
+    last_v.length = m.nv;
+    last_v.a = Grappa_typed_malloc<double>(last_v.length);
+    Grappa_memset_local(last_v.a, -1000.0f, last_v.length);
+
+    LOG(INFO) << "Begin pagerank";
+    if ( v.length <= 16 ) vector_out( &v, LOG(INFO) );
+
+    // set the damping vector 
+    auto dv = (1-d)/m.nv;
+    on_all_cores( [dv] {
+        damp_vector_val = dv;
+        });
+
+  double init_end = Grappa_walltime();
+  init_pagerank_time += (init_end-init_start);
+    
+  double delta = 1.0f; // initialize to +inf delta
   uint64_t iter = 0;
-  while( (err = two_norm_diff( v, last_v )) > epsilon ) {
-    LOG(INFO) << "starting iter " << iter << ", err = " << err;
+  while( delta > epsilon ) {
+    double istart, iend;
+    istart = Grappa_walltime();
+
+    LOG(INFO) << "starting iter " << iter << ", delta = " << delta;
 
     // update last_v
     vector temp = last_v;
@@ -183,21 +198,34 @@ pagerank_result pagerank( weighted_csr_graph m, double d, double epsilon ) {
     // initialize target to zero
     Grappa_memset_local(v.a, 0.0f, v.length);
 
-    // multiply: v = dM*last_v
-    spmv_mult( m, last_v, v );
+    TIME(time,
+      // multiply: v = dM*last_v
+      spmv_mult( m, last_v, v );
+    );
+    multiply_time += time;
 
-    // v += (1-d)/N * vec(1)
-    add_constant_vector( v );
+    TIME(time,
+      // v += (1-d)/N * vec(1)
+      add_constant_vector( v );
+    );
+    vector_add_time += time;
 
     if ( v.length <= 16 ) vector_out( &v, LOG(INFO) );
    
-    // normalize: v = v/2norm(v)
-    normalize( v ); 
+    TIME(time,
+      // normalize: v = v/2norm(v)
+      normalize( v ); 
 
-    iter++;
+      iter++;
+      delta = two_norm_diff( v, last_v );
+    );
+    norm_and_diff_time += time;
+
+    iend = Grappa_walltime();
+    iterations_time += (iend-istart);
   }
 
-  LOG(INFO) << "ended with err = " << err;
+  LOG(INFO) << "ended with delta = " << delta;
   
   // free the extra vector
   Grappa_free( last_v.a );
