@@ -241,6 +241,30 @@ public:
   
 };
 
+/// Allow calling send_completion using the old way (with global address)
+/// TODO: replace all instances with gce.send_completion and remove this?
+inline void complete(GlobalAddress<GlobalCompletionEvent> ce, int64_t decr = 1) {
+  VLOG(1) << "called remote complete";
+  if (FLAGS_flatten_completions) {
+    ce.pointer()->send_completion(ce.core(), decr);
+  } else {
+    if (ce.node() == mycore()) {
+      ce.pointer()->complete(decr);
+    } else {
+      if (decr == 1) {
+        // (common case) don't send full 8 bytes just to decrement by 1
+        send_heap_message(ce.node(), [ce] {
+          ce.pointer()->complete();
+        });
+      } else {
+        send_heap_message(ce.node(), [ce,decr] {
+          ce.pointer()->complete(decr);
+        });
+      }
+    }
+  }
+}
+
 } // namespace Grappa
 
 /// Synchronizing spawns
@@ -276,6 +300,7 @@ namespace Grappa {
     if (GCE) GCE->enroll();
     Core origin = mycore();
     publicTask([origin,tf] {
+      DVLOG(5) << "in public task";
       tf();
       if (GCE) complete(make_global(GCE,origin));
     });
