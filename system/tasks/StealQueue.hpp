@@ -409,6 +409,7 @@ int64_t StealQueue<T>::steal_locally( Core victim, int64_t max_steal ) {
 //  int64_t network_time = 0;
 //  int64_t start_time = Grappa_get_timestamp();
 
+  Grappa::Statistics::steal_queue_stats.record_steal_request(8+24);//FIXME: size
   /* Send steal request */
   Grappa::send_message( victim, [ &result, origin, max_steal ] {
     /* ON VICTIM */
@@ -440,6 +441,8 @@ int64_t StealQueue<T>::steal_locally( Core victim, int64_t max_steal ) {
       steal_queue.stack[i].on_stolen();
     }
 #endif
+    
+    Grappa::Statistics::steal_queue_stats.record_steal_reply(8+16);//FIXME: size
 
     /* Send successful steal reply */
     Grappa::send_heap_message( origin, [&result, stealAmt] ( void * payload, size_t payload_size ) {
@@ -465,6 +468,8 @@ int64_t StealQueue<T>::steal_locally( Core victim, int64_t max_steal ) {
 
       CHECK( steal_queue.top + stealAmt < steal_queue.stackSize ) << "steal reply: overflow (top:" << steal_queue.top << " stackSize:" << steal_queue.stackSize << " amt:" << stealAmt << ")";
       std::memcpy(&steal_queue.stack[steal_queue.top], stolen_work, payload_size);
+      
+      VLOG(5) << "Steal packet returns with amt=" << stealAmt;
 
       steal_queue.top += stealAmt;
       VLOG(5) << "Steal packet returns with amt=" << stealAmt 
@@ -484,6 +489,7 @@ int64_t StealQueue<T>::steal_locally( Core victim, int64_t max_steal ) {
     //std::memset( victimStealStart, 0, stealAmt*sizeof( T ) );
 #endif
     } else {
+       Grappa::Statistics::steal_queue_stats.record_steal_reply(8+8);//FIXME: size
       /* Send failed steal reply */
       send_heap_message( origin, [&result] { 
         /* ON ORIGIN */
