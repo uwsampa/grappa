@@ -86,8 +86,8 @@ class GlobalCompletionEvent : public CompletionEvent {
       Message<DoComplete>::mark_sent();
       
       if (Grappa::mycore() == this->source_) {
+        this->reset();
         if (completes_to_send > 0) {
-          this->reset();
           DVLOG(5) << "re-sending -- " << completes_to_send << " to Core[" << dest << "] " << PRINT_MSG(*this);
           (*this)->dec = completes_to_send;
           completes_to_send = 0;
