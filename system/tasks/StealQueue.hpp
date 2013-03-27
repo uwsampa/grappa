@@ -538,7 +538,7 @@ void StealQueue<T>::reclaimSpace() {
   // reclaim space if the queue is empty
   // and there is no pending transfer below 'bottom' (workshare or pending global q pull)
   if ( depth() == 0 && !pendingWorkShare && numPendingElements == 0 ) {
-    //mkEmpty();
+    mkEmpty();
   }
 }
 
