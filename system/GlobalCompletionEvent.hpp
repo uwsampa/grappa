@@ -12,6 +12,9 @@
 
 #define PRINT_MSG(m) "msg(" << &(m) << ", src:" << (m).source_ << ", dst:" << (m).destination_ << ", enq:" << (m).is_enqueued_ << ", sent:" << (m).is_sent_ << ", deliv:" << (m).is_delivered_ << ")"
 
+DECLARE_bool( flatten_completions );
+
+
 namespace Grappa {
 
 /// GlobalCompletionEvent (GCE):
@@ -65,7 +68,7 @@ class GlobalCompletionEvent : public CompletionEvent {
   public:
     Core target;
     int64_t completes_to_send;
-    CompletionMessage(Core target = -1): Message<DoComplete>(), completes_to_send(0), target(target) {}
+    CompletionMessage(Core target = -1): Message(), completes_to_send(0), target(target) {}
     
     bool waiting_to_send() {
       return this->is_enqueued_ && !this->is_sent_;
@@ -77,8 +80,8 @@ class GlobalCompletionEvent : public CompletionEvent {
       Message<DoComplete>::mark_sent();
       
       if (Grappa::mycore() == this->source_) {
-        this->reset();
         if (completes_to_send > 0) {
+          this->reset();
           DVLOG(5) << "re-sending -- " << completes_to_send << " to Core[" << dest << "] " << PRINT_MSG(*this);
           (*this)->dec = completes_to_send;
           completes_to_send = 0;
@@ -160,6 +163,7 @@ public:
     
     CHECK_GE(inc, 1);
     count += inc;
+    DVLOG(5) << "enroll " << inc << " -> " << count << " gce("<<this<<")";
     
     // first one to have work here
     if (count == inc) { // count[0 -> inc]
@@ -223,7 +227,7 @@ public:
   /// If no tasks have been enrolled, or all have been completed by the time `wait` is called,
   /// this will fall through and not suspend the calling task.
   void wait() {
-    VLOG(3) << "wait(): event_in_progress: " << event_in_progress << ", count: " << count;
+    DVLOG(3) << "wait(): gce(" << this << " event_in_progress: " << event_in_progress << ", count: " << count << ")";
     if (event_in_progress) {
       Grappa::wait(&cv);
     } else {
@@ -235,7 +239,7 @@ public:
       }
       DVLOG(3) << "fell thru conservative check";
     }
-    CHECK(!event_in_progress);
+    CHECK(!event_in_progress) << " gce(" << this << ", count:" << count << ")";
     CHECK_EQ(count, 0);
   }
   
@@ -308,8 +312,26 @@ namespace Grappa {
 
   /// Allow calling send_completion using the old way (with global address)
   /// TODO: replace all instances with gce.send_completion and remove this?
-  inline void complete(GlobalAddress<GlobalCompletionEvent> gce, int64_t decr = 1) {
-    gce.pointer()->send_completion(gce.core(), decr);
+  inline void complete(GlobalAddress<GlobalCompletionEvent> ce, int64_t decr = 1) {
+    VLOG(1) << "called remote complete";
+    if (FLAGS_flatten_completions) {
+      ce.pointer()->send_completion(ce.core(), decr);
+    } else {
+      if (ce.node() == mycore()) {
+        ce.pointer()->complete(decr);
+      } else {
+        if (decr == 1) {
+          // (common case) don't send full 8 bytes just to decrement by 1
+          send_heap_message(ce.node(), [ce] {
+            ce.pointer()->complete();
+          });
+        } else {
+          send_heap_message(ce.node(), [ce,decr] {
+            ce.pointer()->complete(decr);
+          });
+        }
+      }
+    }
   }
   
 } // namespace Grappa
