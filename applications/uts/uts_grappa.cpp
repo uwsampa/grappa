@@ -34,6 +34,8 @@
 DEFINE_int64( vertices_size, 1<<20, "Upper bound count of vertices" );
 DEFINE_bool( verify_tree, true, "Verify the generated tree" );
 
+DEFINE_bool( human_output, false, "Human readable output" );
+
 // optimization flags
 DEFINE_bool( flat_combine, true, "Turn on flat combining in generate");
 DEFINE_uint64( flat_combine_threshold, 512, "How many participatants to wait for in flat combining");
@@ -539,7 +541,7 @@ void user_main ( user_main_args * args ) {
   // count nodes generated
   on_all_cores( [] {
     local_generated = uts_num_gen_nodes.value();
-    LOG(INFO) << "Core " << Grappa::mycore() << " generated " << local_generated;
+    VLOG(3) << "Core " << Grappa::mycore() << " generated " << local_generated;
   });
   r_gen.size = Grappa::reduce< uint64_t, collective_add<uint64_t> >( &local_generated );
   LOG(INFO) << "Total generated: " << r_gen.size;
@@ -609,7 +611,7 @@ void user_main ( user_main_args * args ) {
   // count nodes searched
   on_all_cores( [] {
     local_searched = uts_num_searched_nodes.value();
-    LOG(INFO) << "Node " << Grappa::mycore() << " searched " << local_searched;
+    VLOG(3) << "Node " << Grappa::mycore() << " searched " << local_searched;
   });
   r_search.size = Grappa::reduce< uint64_t, collective_add<uint64_t> >( &local_searched );
 
@@ -618,21 +620,22 @@ void user_main ( user_main_args * args ) {
   Grappa_free( Child );
   //TODO Grappa_free( Payload );
 
+  if ( !FLAGS_human_output )  {
+    LOG(INFO) << "generated size=" << r_gen.size << ", searched size=" << r_search.size;
+    CHECK(r_gen.size == r_search.size);
 
-  LOG(INFO) << "generated size=" << r_gen.size << ", searched size=" << r_search.size;
-  CHECK(r_gen.size == r_search.size);
+    LOG(INFO) << "uts: {"
+      << "gen_runtime: " << local_gen_runtime << ","
+      << "nNodes: " << nNodes
+      << "}";
 
-  LOG(INFO) << "uts: {"
-    << "gen_runtime: " << local_gen_runtime << ","
-    << "nNodes: " << nNodes
-    << "}";
+    std::cout << "uts: {"
+      << "search_runtime: " << local_search_runtime << ","
+      << "nNodes: " << nNodes
+      << "}" << std::endl;
 
-  std::cout << "uts: {"
-    << "search_runtime: " << local_search_runtime << ","
-    << "nNodes: " << nNodes
-    << "}" << std::endl;
-
-  LOG(INFO) << ((double)nNodes / local_search_runtime) / 1000000 << " Mvert/s";
+    LOG(INFO) << ((double)nNodes / local_search_runtime) / 1000000 << " Mvert/s";
+  }
 }
 
 
