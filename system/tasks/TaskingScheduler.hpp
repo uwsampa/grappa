@@ -39,6 +39,7 @@ void Grappa_dump_stats_blob();
 
 DECLARE_int64( periodic_poll_ticks );
 DECLARE_bool(poll_on_idle);
+DECLARE_bool(flush_on_idle);
 DECLARE_int64( stats_blob_ticks );
 
 
@@ -185,7 +186,9 @@ class TaskingScheduler : public Scheduler {
         
         if (FLAGS_poll_on_idle) {
           stats.state_timers[ stats.prev_state ] += (current_ts - prev_ts) / tick_scale;
-          Grappa::impl::idle_flush_rdma_aggregator();
+          if( FLAGS_flush_on_idle ) {
+            Grappa::impl::idle_flush_rdma_aggregator();
+          }
           if ( idle_flush_aggregator() ) {
             stats.prev_state = TaskingSchedulerStatistics::StateIdleUseful;
           } else {
