@@ -24,7 +24,7 @@ LDFLAGS += -g
 # * bfs (public tasks, barriers rather than full join)
 # * bfs_steal_phases (public tasks, but full joins for each BFS level)
 # * bfs_nosteal (private tasks, no stealing, full joins)
-BFS = bfs
+BFS = bfs_local
 
 GENERATOR_SOURCES = graph_generator.o make_graph.o splittable_mrg.o utils.o
 SOURCES = main.o oned_csr.o verify.o options.o $(BFS).o ../prng.o
