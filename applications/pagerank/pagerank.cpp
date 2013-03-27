@@ -222,7 +222,7 @@ void user_main( int * ignore ) {
 
   tuple_graph tg;
   csr_graph unweighted_g;
-  uint64_t N = (1L<<FLAGS_logN);
+  uint64_t N = (1L<<FLAGS_scale);
 
   uint64_t desired_nnz = FLAGS_nnz_factor * N;
 
@@ -235,7 +235,7 @@ void user_main( int * ignore ) {
 
   double time;
   TIME(time, 
-    make_graph( FLAGS_logN, desired_nnz, userseed, userseed, &tg.nedge, &tg.edges );
+    make_graph( FLAGS_scale, desired_nnz, userseed, userseed, &tg.nedge, &tg.edges );
     //print_array("tuples", tg.edges, tg.nedge, 10);
   );
   LOG(INFO) << "make_graph: " << time;
@@ -248,7 +248,7 @@ void user_main( int * ignore ) {
   LOG(INFO) << "tuple->csr: " << time;
   tuples_to_csr_time_SO = time;
   actual_nnz_SO = unweighted_g.nadj;
-  print_graph( &unweighted_g ); 
+  //print_graph( &unweighted_g ); 
   LOG(INFO) << "final matrix has " << static_cast<double>(actual_nnz_SO)/N << " avg nonzeroes/row";
 
   // add weights to the csr graph
