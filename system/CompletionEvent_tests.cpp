@@ -212,7 +212,7 @@ void try_synchronizing_spawns() {
     BOOST_CHECK_EQUAL(x, N);
   });
   
-  BOOST_MESSAGE("  public,global");
+  BOOST_MESSAGE("  public,global"); VLOG(1) << "actually in public_global";
   on_all_cores([]{ global_x = 0; });
   
 //  gce.reset_all();
