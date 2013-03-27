@@ -64,7 +64,7 @@ namespace Grappa {
     // static_assert(std::is_base_of<CompletionEvent,CompletionType>::value,
     //               "complete() can only be called on subclasses of CompletionEvent");
   inline void complete(GlobalAddress<CompletionEvent> ce, int64_t decr = 1) {
-    
+    DVLOG(5) << "complete CompletionEvent";
     if (ce.node() == mycore()) {
       ce.pointer()->complete(decr);
     } else {
