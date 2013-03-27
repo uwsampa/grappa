@@ -203,12 +203,14 @@ void test_forall_localized() {
   
   VLOG(1) << "checking indexing...";
   
+  VLOG(1) << ">> forall_localized";
   Grappa::memset(array, 0, N);
   forall_localized(array, N, [](int64_t i, int64_t& e){ e = i; });
   for (int i=0; i<N; i++) {
     BOOST_CHECK_EQUAL(delegate::read(array+i), i);
   }
   
+  VLOG(1) << ">> forall_localized_async";
   Grappa::memset(array, 0, N);  
   forall_localized_async<&my_gce>(array, N, [](int64_t i, int64_t& e){ e = i; });
   my_gce.wait();
@@ -241,6 +243,7 @@ void user_main(void * args) {
   test_forall_global_public();
   
   test_forall_localized();
+  Grappa::Statistics::merge_and_print();
 }
 
 BOOST_AUTO_TEST_CASE( test1 ) {
