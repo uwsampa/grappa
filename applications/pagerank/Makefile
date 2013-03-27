@@ -36,12 +36,13 @@ SOURCES = spmv_mult.o $(APP_BFS)/oned_csr.o $(APP_GRAPH500)/prng.o
 mult.exe: mult_main.o $(SOURCES) $(HEADERS) $(GEN)/generator.a $(GRAPPA_SYS)/libGrappa.a
 	$(ENV_VARIABLES) $($(MPITYPE)_LD) $(LDFLAGS) mult_main.o $(SOURCES) $(GEN)/generator.a $(GRAPPA_SYS)/libGrappa.a $(LIBRARIES) -o $@ $(LIBS)
 
-pagerank.exe: pagerank.o $(SOURCES) $(HEADERS) $(GEN)/generator.a $(GRAPPA_SYS)/libGrappa.a
+pagerank.exe: pagerank.o $(SOURCES) $(HEADERS) $(GEN)/generator.a $(GRAPPA_SYS)/libGrappa.a 
 	$(ENV_VARIABLES) $($(MPITYPE)_LD) $(LDFLAGS) pagerank.o $(SOURCES) $(GEN)/generator.a $(GRAPPA_SYS)/libGrappa.a $(LIBRARIES) -o $@ $(LIBS)
+
 
 # use graph500 makefile
 $(APP_GRAPH500)/prng.o:
-	cd $(APP_GRAPH500); $(MAKE) prng.o
+	cd $(APP_GRAPH500); $(MAKE) CC=$(CC) prng.o  # pass on compiler
 
 # use Grappa graph generation makefile
 # pass on the DEBUG flag
