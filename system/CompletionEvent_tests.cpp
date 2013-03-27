@@ -241,6 +241,8 @@ void user_main(void * args) {
   try_global_ce();
   try_global_ce_recursive();
   try_synchronizing_spawns();
+  
+  Statistics::merge_and_print();
 }
 
 BOOST_AUTO_TEST_CASE( test1 ) {
