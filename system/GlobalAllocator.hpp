@@ -124,7 +124,7 @@ void Grappa_free( GlobalAddress< void > address );
 /// Allocate count T's worth of bytes from global heap.
 template< typename T >
 GlobalAddress< T > Grappa_typed_malloc( size_t count ) {
-  return Grappa_malloc( sizeof( T ) * count );
+  return static_cast<GlobalAddress<T>>(Grappa_malloc( sizeof( T ) * count ));
 }
 
 

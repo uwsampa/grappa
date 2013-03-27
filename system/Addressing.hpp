@@ -335,9 +335,8 @@ public:
   //T& operator[]( ptrdiff_t index ) { return 
 
   /// generic cast operator
-  /// TODO: do we really need this? leads to unneccessary type errors...
   template< typename U >
-  operator GlobalAddress< U >( ) {
+  explicit operator GlobalAddress< U >( ) {
     GlobalAddress< U > u = GlobalAddress< U >::Raw( storage_ );
     return u;
   }
