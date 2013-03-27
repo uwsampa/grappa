@@ -143,7 +143,7 @@ static void run_bfs(tuple_graph * tg, csr_graph * g, int64_t * bfs_roots) {
     GlobalAddress<int64_t> max_bfsvtx;
     
     VLOG(1) << "Running bfs on root " << i << "(" << bfs_roots[i] << ")...";
-    call_on_all_cores([]{ Statistics::reset(); });
+    // call_on_all_cores([]{ Statistics::reset(); });
     
     enable_tau();
 
