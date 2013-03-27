@@ -65,6 +65,6 @@ ENV["OMPI_MCA_mpi_leave_pinned"] = "0"
 # Clean up any leftover shared memory regions
 # for i in `ipcs -m | grep bholt | cut -d" " -f1`; do ipcrm -M $i; done
 
-puts `ipcs -m | grep $(USER) | cut -d' '  -f1 | xargs -n1 -r ipcrm -M`
+puts `ipcs -m | grep $USER | cut -d' '  -f1 | xargs -n1 -r ipcrm -M`
 puts `rm -f /dev/shm/GrappaLocaleSharedMemory`
 
