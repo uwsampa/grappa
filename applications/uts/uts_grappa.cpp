@@ -34,6 +34,12 @@
 DEFINE_int64( vertices_size, 1<<20, "Upper bound count of vertices" );
 DEFINE_bool( verify_tree, true, "Verify the generated tree" );
 
+DEFINE_bool( human_output, false, "Human readable output" );
+
+// optimization flags
+DEFINE_bool( flat_combine, true, "Turn on flat combining in generate");
+DEFINE_uint64( flat_combine_threshold, 512, "How many participatants to wait for in flat combining");
+
 using namespace Grappa;
 
 // UTS-mem application statistics
@@ -122,6 +128,9 @@ uint64_t global_child_index = 0; // only Node 0 matters
 GlobalAddress<uint64_t> global_id_ga;
 GlobalAddress<uint64_t> global_child_index_ga;
 
+Grappa::delegate::FlatCombiner<uint64_t,uint64_t> * global_id_ga_FC;
+Grappa::delegate::FlatCombiner<uint64_t,uint64_t> * global_child_index_ga_FC;
+
 /// verification counts
 uint64_t local_verify_children_count = 0;
 
@@ -186,6 +195,8 @@ void tj_create_vertex( int64_t start, int64_t num, int64_t parent_id ) {
 
   // TODO: this is a lot of extra reads just to obtain childid0; easier to have args but feed forward..
   int64_t p_childIndex = Grappa::delegate::read( global_pointer_to_member( Vertex+parent_id, &vertex_t::childIndex) );
+  global_id_ga_FC->promise();
+  global_child_index_ga_FC->promise();
   int64_t p_childid0 = Grappa::delegate::read( Child + p_childIndex );
 
   parentc.block_until_acquired();
@@ -232,16 +243,39 @@ void tj_create_children( uts::Node * parent ) {
   v.start_release(); // done writing to v locally
 #endif
 
+  if ( numChildren > 0 ) {
+    global_id_ga_FC->promise();
+    global_child_index_ga_FC->promise(); 
+    v.block_until_released(); // just do this here to provide suspend for promise
+  }
+
   /* Assign fresh unique ids for the children: */
   /* TODO: make global_id_ga not a hotspot */
-  int64_t childid0 = Grappa::delegate::fetch_and_add( global_id_ga, numChildren );
-  VLOG_EVERY_N(2, 250000) << "new childids: [" << childid0 
-    << ", " << (childid0 + numChildren - 1) 
-    << "]";
+  int64_t childid0 = 0;
+  if (numChildren > 0 ) {
+    if ( FLAGS_flat_combine ) {
+      childid0 = global_id_ga_FC->fetch_and_add( numChildren );
+    } else {
+      childid0 = Grappa::delegate::fetch_and_add( global_id_ga, numChildren );
+    }
+    
+    VLOG_EVERY_N(2, 250000) 
+   // VLOG(2)
+      << "new childids: [" << childid0 
+      << ", " << (childid0 + numChildren - 1) 
+      << "]";
+  }
 
   /* Record ids and indices of the children: */ 
   /* TODO: make global_child_index_ga not a hotspot */
-  int64_t index = Grappa::delegate::fetch_and_add( global_child_index_ga, numChildren );
+  int64_t index=0;
+  if (numChildren > 0) {
+    if ( FLAGS_flat_combine ) {
+      index = global_child_index_ga_FC->fetch_and_add( numChildren );
+    } else {
+      index = Grappa::delegate::fetch_and_add( global_child_index_ga, numChildren );
+    }
+  }
 
   /* store parts of parent that will be read in tree search */
   vertex_t vvert_storage;
@@ -276,7 +310,10 @@ void tj_create_children( uts::Node * parent ) {
   }
 
   // make sure v and vvert.childIndex has been written out before recursing
-  v.block_until_released();
+  if (numChildren==0) {
+    // didn't release it earlier
+    v.block_until_released();
+  }
   vvert.block_until_released();
   DVLOG(5) << "[done] released vertex " << vvert_storage << " id=" << parent->id;
 
@@ -425,12 +462,12 @@ void user_main ( user_main_args * args ) {
 
   // allocate tree structures 
   LOG(INFO) << "Allocating global structures...\n"
-    << "\tVertex= " << ((double)sizeof(vertex_t)*FLAGS_vertices_size)/BILLION << "\n"
-    << "\tChild= " << ((double)sizeof(int64_t)*FLAGS_vertices_size)/BILLION << "\n"
-    << "\tTree_Nodes= "<< ((double)sizeof(uts::Node)*FLAGS_vertices_size)/BILLION << "\n"
+    << "\tVertex= " << ((double)sizeof(vertex_t)*FLAGS_vertices_size)/BILLION << " GB\n"
+    << "\tChild= " << ((double)sizeof(int64_t)*FLAGS_vertices_size)/BILLION << " GB\n"
+    << "\tTree_Nodes= "<< ((double)sizeof(uts::Node)*FLAGS_vertices_size)/BILLION << " GB\n"
     << "\tTotal= " << ((double)((sizeof(vertex_t)*FLAGS_vertices_size)
           +(sizeof(int64_t)*FLAGS_vertices_size)
-          +(sizeof(uts::Node)*FLAGS_vertices_size)))/BILLION;
+          +(sizeof(uts::Node)*FLAGS_vertices_size)))/BILLION << " GB";
 
   GlobalAddress<vertex_t> Vertex_l = Grappa_typed_malloc<vertex_t>( FLAGS_vertices_size); 
   GlobalAddress<int64_t> Child_l =  Grappa_typed_malloc<int64_t>( FLAGS_vertices_size);
@@ -446,6 +483,9 @@ void user_main ( user_main_args * args ) {
   on_all_cores( [Child_l, Vertex_l, Tree_Nodes_l] {
     global_id_ga = make_global( &global_id, 0 );
     global_child_index_ga = make_global( &global_child_index, 0 );
+
+    global_id_ga_FC = new Grappa::delegate::FlatCombiner<uint64_t,uint64_t>(global_id_ga, FLAGS_flat_combine_threshold, 0);
+    global_child_index_ga_FC = new Grappa::delegate::FlatCombiner<uint64_t,uint64_t>(global_child_index_ga, FLAGS_flat_combine_threshold, 0);
 
     Child = Child_l;
     Vertex = Vertex_l;
@@ -501,7 +541,7 @@ void user_main ( user_main_args * args ) {
   // count nodes generated
   on_all_cores( [] {
     local_generated = uts_num_gen_nodes.value();
-    LOG(INFO) << "Core " << Grappa::mycore() << " generated " << local_generated;
+    VLOG(3) << "Core " << Grappa::mycore() << " generated " << local_generated;
   });
   r_gen.size = Grappa::reduce< uint64_t, collective_add<uint64_t> >( &local_generated );
   LOG(INFO) << "Total generated: " << r_gen.size;
@@ -515,7 +555,6 @@ void user_main ( user_main_args * args ) {
   counter_t nLeaves = r_gen.leaves;
 
   double local_gen_runtime = t2-t1;
-  generate_runtime = local_gen_runtime; // write performance output
 
   uts_showStats(Grappa::cores(), FLAGS_chunk_size, local_gen_runtime, nNodes, nLeaves, maxTreeDepth);
 
@@ -564,6 +603,7 @@ void user_main ( user_main_args * args ) {
   //stop_profiling();
   
   double local_search_runtime = t2-t1;
+  generate_runtime = local_gen_runtime; // write performance output
   search_runtime = local_search_runtime; // write performance output
 
   Grappa::Statistics::merge_and_print();
@@ -571,7 +611,7 @@ void user_main ( user_main_args * args ) {
   // count nodes searched
   on_all_cores( [] {
     local_searched = uts_num_searched_nodes.value();
-    LOG(INFO) << "Node " << Grappa::mycore() << " searched " << local_searched;
+    VLOG(3) << "Node " << Grappa::mycore() << " searched " << local_searched;
   });
   r_search.size = Grappa::reduce< uint64_t, collective_add<uint64_t> >( &local_searched );
 
@@ -580,21 +620,22 @@ void user_main ( user_main_args * args ) {
   Grappa_free( Child );
   //TODO Grappa_free( Payload );
 
+  if ( !FLAGS_human_output )  {
+    LOG(INFO) << "generated size=" << r_gen.size << ", searched size=" << r_search.size;
+    CHECK(r_gen.size == r_search.size);
 
-  LOG(INFO) << "generated size=" << r_gen.size << ", searched size=" << r_search.size;
-  CHECK(r_gen.size == r_search.size);
+    LOG(INFO) << "uts: {"
+      << "gen_runtime: " << local_gen_runtime << ","
+      << "nNodes: " << nNodes
+      << "}";
 
-  LOG(INFO) << "uts: {"
-    << "gen_runtime: " << local_gen_runtime << ","
-    << "nNodes: " << nNodes
-    << "}";
+    std::cout << "uts: {"
+      << "search_runtime: " << local_search_runtime << ","
+      << "nNodes: " << nNodes
+      << "}" << std::endl;
 
-  std::cout << "uts: {"
-    << "search_runtime: " << local_search_runtime << ","
-    << "nNodes: " << nNodes
-    << "}" << std::endl;
-
-  LOG(INFO) << ((double)nNodes / local_search_runtime) / 1000000 << " Mvert/s";
+    LOG(INFO) << ((double)nNodes / local_search_runtime) / 1000000 << " Mvert/s";
+  }
 }
 
 
