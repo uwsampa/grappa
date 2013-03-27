@@ -334,7 +334,8 @@ LIBRARY_CONTENTS+= Grappa.o \
 				   Barrier.o \
 				   MessagePool.o \
 					 AsyncDelegate.o \
-					 SharedMessagePool.o
+					 SharedMessagePool.o \
+					 GlobalCompletionEvent.o
 
 libGrappa.a: $(LIBRARY_CONTENTS)
 	$($(MPITYPE)_AR) rv $@ $^
