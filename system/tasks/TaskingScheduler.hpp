@@ -15,6 +15,7 @@
 #include <glog/logging.h>
 #include <sstream>
 #include "Statistics.hpp"
+#include "HistogramStatistic.hpp"
 
 #include "Timestamp.hpp"
 #include "PerformanceTools.hpp"
@@ -152,7 +153,12 @@ class TaskingScheduler : public Scheduler {
         // maybe sample
         if( take_profiling_sample ) {
           take_profiling_sample = false;
-          Grappa::Statistics::sample();
+#ifdef HISTOGRAM_SAMPLED
+          VLOG(1) << "sampling histogram";
+          Grappa::Statistics::histogram_sample();
+#else
+          Grappa::Statistics::sample();          
+#endif
         }
 
         if( ( global_communicator.mynode() == 0 ) &&

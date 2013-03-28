@@ -85,7 +85,7 @@ namespace Grappa {
       return o;
     }
     
-    virtual void sample() const {
+    virtual void sample() {
 #ifdef VTRACE_SAMPLED
       // vt_sample() specialized for supported tracing types in Statistics.cpp
       vt_sample();
