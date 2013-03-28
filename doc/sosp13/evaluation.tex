@@ -81,12 +81,20 @@ for other high-end HPC systems.
     \label{fig:grappa-gups}
 \end{figure}
 
-\paragraph{Putting it all together with Unbalanced Tree Search (UTS).} We now
-show the overall performance of \Grappa running UTS.
-Figure~\ref{fig:grappa-uts}. The point of this experiment is to show that
-\Grappa's context switching and communication layers can in fact be used
-together to run an irregular application efficiently. Looking at the
-performance as the number of nodes grows shows \TODO{...}.
+\paragraph{Putting it all together with Unbalanced Tree Search in
+    memory (UTS).}
+We now show the overall performance of \Grappa running UTS.
+Figure~\ref{fig:grappa-uts}. The point of this experiment is to
+demonstrate whether \Grappa's context switching and communication layers can in fact
+be used together, while balancing workload, to run an irregular application efficiently. 
+We look at two classes of trees, T1x and T3x, from the
+original benchmark. T1x trees are very shallow and wide, while T3x
+trees are very deep. When the access to each vertex is a random
+access, the critical path to search T3x trees is very long. On such
+trees, we do not expect there to be sufficient concurrency for any
+system, including \Grappa, to achieve high throughput. \TODO{plot it
+    if time}. To verify this, at the 16-node data point, the average active tasks per
+core over the search is 775 and 13 for T1XL and T3L, respectively.
 
 \begin{figure}[ht]
     \begin{center}
@@ -96,11 +104,6 @@ performance as the number of nodes grows shows \TODO{...}.
     \label{fig:grappa-uts}
 \end{figure}
 
-\TODO{UTS: story here is T1 class is bushy trees similar to properties
-    of real world networks. Larger T1XXL (4.5 B vertices) provides
-    more parallelism for continued scaling up. T3 class is deep skinny
-    trees. Grappa can do no better than the straightforward UPC impl: there very little
-    parallelism and the critical path is long}
 
 \subsection{Comparing \Grappa to Other Systems}
 
@@ -150,6 +153,14 @@ can do a lot better. \TODO{update this once we have more results. }
 %bar chart, one set of bars per benchmark, one bar per system. runtime normalized to grappa.
     \label{fig:grappa-profile}
 \end{figure}
+
+\TODO{PAGERANK:
+    Without parallelizing the dot product, \Grappa cannot achieve
+high utilization of workers proportional to the size of the data set.
+Also mention that the cost of this is contention at the target
+elements of vector.  The other parts of pagerank are super fast
+(table?)
+}
 
 \paragraph{Message size and latency.}
 Distribution if possible. With and without aggregation. 
