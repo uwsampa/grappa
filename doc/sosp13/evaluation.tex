@@ -173,7 +173,7 @@ that \Grappa performance can do a lot better.
     \begin{center}
       \begin{tabular}{c|c c c c}
         Benchmark     & Comm & User & Idle & Sched \\ \hline
-        GUPS          & 6.60  & 42.94   & 47.74 & 2.80 \\
+        GUPS          & 62.9  & 18.9    & 15.4 & 2.80 \\ 
         BFS           & 54.84 & 30.90   & 10.94 & 3.43 \\ 
         Intsort       & 34.28 & 42.00   & 21.31 & 2.47 \\ 
         UTS           & 40.57 & 56.52   &  1.21 & 1.73 \\
@@ -185,13 +185,15 @@ that \Grappa performance can do a lot better.
     \label{fig:grappa-profile}
 \end{figure}
 
-\TODO{PAGERANK:
-    Without parallelizing the dot product, \Grappa cannot achieve
-high utilization of workers proportional to the size of the data set.
-Also mention that the cost of this is contention at the target
-elements of vector.  The other parts of pagerank are super fast
-(table?)
-}
+Figure \ref{fig:grappa-profile} shows the breakdown of execution
+time. Since \Grappa is focused on frequent communication, it is not
+surprising that many of our benchmarks spend more than half of their
+time doing communication. User time is primarily focused on generating
+more requests; idle time occurs when we run out of parallel work or
+out of workers to execute that work. Scheduler time includes both
+context switch time and deciding what task to run next. Our efficient
+context switching allows us to keep this to a few percent of execution
+time even with thousands of threads per core.
 
 \paragraph{Message size and latency.}
 
