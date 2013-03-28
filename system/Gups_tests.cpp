@@ -357,7 +357,8 @@ void user_main( int * args ) {
     //printf ("Yeahoow!\n");
 
     LOG(INFO) << "Start profiling";
-    fork_join_custom( &start_profiling );
+    //fork_join_custom( &start_profiling );
+    Grappa::Statistics::reset_all_cores();
 
     double start = wall_clock_time();
     int64_t initial_bytes = rdma_message_bytes.value();
