@@ -53,13 +53,10 @@ problem to solve, it exercises the random-access and fine-grained
 synchronization capabilities of a system as well as being a primitive in many
 other graph algorithms. Performance is measured in \emph{traversed edges per
 second\/} (TEPS), where the number of edges is the edges making up the
-generated BFS tree. One of the reference implementations of Graph500 BFS is
-for the XMT; this code fails to scale past 16 XMT processors because it does
-not expose enough parallelism, so we modified the code to use a recursive loop
-decomposition similar to \Grappa's. We compare this modified version against a
-straightforward \Grappa implementation. We do not employ algorithmic
-improvements, though there are
-many~\cite{Beamer:Graph500,Yoo:FixedPointGraph500}.
+generated BFS tree. With some modifications to the XMT reference version of Graph500 BFS,
+the XMT compiler can be made to recognize and apply a Manhattan loop collapse, exposing enough parallelism to allow it to scale out to 64 nodes for the problem scales we show.
+We do not employ algorithmic improvements for any of these versions, though there are
+many~\cite{Beamer:Graph500,Yoo:FixedPointGraph500}. \Grappa can be expected to benefit the same as MPI due to decreased communication.
 
 \vspace{0.5ex}
 \noindent{\bf IntSort:} This sorting benchmark is taken from the NAS
@@ -70,6 +67,8 @@ uniformly distributed random integers using either a bucket or a counting sort
 algorithm, depending on the strengths of the system. Bucket sort executes a greater number of loops, but is able to leverage locality and avoid communication completely in the final phase, ranking within buckets.
 For these reasons, the MPI reference version and our \Grappa implementation use bucket sort.
 On the other hand, the Cray XMT cannot take advantage of locality, but has an efficient compiler-supported parallel prefix sum, so it performs best using the counting sort algorithm.
+
+The performance metrics for NAS Parallel Benchmarks, including IntSort, are ``millions of operations per second'' (MOPS). For IntSort, this ``operation'' is ranking a single key, so it is roughly comparable to ``GUPS'' or ``TEPS''.
  
 \vspace{0.5ex}
 \noindent{\bf PageRank:} This is a common centrality metric for
