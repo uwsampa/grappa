@@ -33,6 +33,7 @@ DEFINE_int64( rdma_threshold, 64, "Threshold in bytes below which we send immedi
 
 DEFINE_string( route_graph_filename, "routing.dot", "Name of file for routing graph" );
 
+DEFINE_bool( rdma_flush_on_idle, false, "Flush RDMA buffers when idle" );
 
 /// stats for application messages
 GRAPPA_DEFINE_STAT( SimpleStatistic<int64_t>, app_messages_enqueue, 0 );
@@ -44,8 +45,13 @@ GRAPPA_DEFINE_STAT( SimpleStatistic<int64_t>, app_messages_immediate, 0 );
 GRAPPA_DEFINE_STAT( SummarizingStatistic<int64_t>, app_messages_delivered_locally, 0 );
 GRAPPA_DEFINE_STAT( SummarizingStatistic<int64_t>, app_bytes_delivered_locally, 0 );
 
+//GRAPPA_DEFINE_STAT( SummarizingStatistic<int64_t>, app_message_bytes, 0 );
+
 /// stats for aggregated messages
 GRAPPA_DEFINE_STAT( SummarizingStatistic<int64_t>, rdma_message_bytes, 0 );
+
+GRAPPA_DEFINE_STAT( SummarizingStatistic<int64_t>, rdma_first_buffer_bytes, 0 );
+GRAPPA_DEFINE_STAT( SummarizingStatistic<int64_t>, rdma_buffers_used_for_send, 0 );
 
 /// stats for RDMA Aggregator events
 GRAPPA_DEFINE_STAT( SimpleStatistic<int64_t>, rdma_receive_start, 0 );
@@ -59,6 +65,7 @@ GRAPPA_DEFINE_STAT( SimpleStatistic<int64_t>, rdma_requested_flushes, 0 );
 
 GRAPPA_DEFINE_STAT( SummarizingStatistic<int64_t>, rdma_buffers_inuse, 0 );
 GRAPPA_DEFINE_STAT( SimpleStatistic<int64_t>, rdma_buffers_blocked, 0 );
+
 
 GRAPPA_DEFINE_STAT( SimpleStatistic<int64_t>, rdma_poll, 0 );
 GRAPPA_DEFINE_STAT( SimpleStatistic<int64_t>, rdma_poll_send, 0 );
@@ -1037,6 +1044,8 @@ void RDMAAggregator::draw_routing_graph() {
     active_send_workers_++;
     static uint64_t sequence_number = Grappa::mycore();
 
+    int buffers_used_for_send = 0;
+
     // this is the core we are sending to
     Core dest_core = dest_core_for_locale_[ locale ];
 
@@ -1200,7 +1209,9 @@ void RDMAAggregator::draw_routing_graph() {
       if( aggregated_size > 0 ) {
         // we have a buffer. send.
         global_communicator.send( dest_core, enqueue_buffer_handle_, b->get_base(), aggregated_size + b->get_base_size(), dest_buf );
-        rdma_message_bytes += aggregated_size;
+        rdma_message_bytes += aggregated_size + b->get_base_size();
+        if( buffers_used_for_send == 0 ) rdma_first_buffer_bytes += aggregated_size + b->get_base_size();
+        buffers_used_for_send++;
         DVLOG(4) << __func__ << "/" << sequence_number 
                  << ": Sent buffer of size " << aggregated_size 
                  << " through RDMA to " << dest_core
@@ -1219,6 +1230,8 @@ void RDMAAggregator::draw_routing_graph() {
       // return buffer (only safe for non-async rdma sends)
       free_buffer_list_.push(b);
     }
+
+    if( buffers_used_for_send > 0 ) rdma_buffers_used_for_send += buffers_used_for_send;
 
     CHECK_NULL( messages_to_send );
 
