@@ -45,17 +45,22 @@ the number of workers grow. There are two important takeaway points from these
 data. Context switch time for the number of workers we use ($\approx$1K workers) is
 on the order of 50 ns; and prefetching has significant impact on context
 switch time. And context switch time does not grow significantly with the
-number of workers --- even with one-half million workers, context switch
-is around 75ns.
+number of workers --- even with one-half million workers, context
+switch time is around 75ns. In comparison, for the same yield test using kernel-level
+Pthreads on a single core, the switch time is 450ns for a few threads and 800ns for
+1000-32000 threads.
 
-We also measured (not in the plot) the \emph{rate} of context switch for all
-cores in a node, which showed that our rate is limited by off-chip memory
-bandwidth. Each context is 4 cache lines (1 for the worker struct and 3 for
-stack data), leading to 8 cache line transfers per context switch
-(write the previous context, read the next in). The off-chip bandwidth of a
-single socket in our system is 270M cache lines per second, which implies that
-we can sustain at most 34M context switches per second per socket, which is
-almost exactly what we sustain.
+If we calculate aggregate context switch\emph{rate} of all
+cores in a node, we find that with prefetching, \Grappa context
+switching is
+limited \emph{not} by memory latency, as normally assumed, but rather memory bandwidth.
+Specifically, we emprically found that 4 cachelines (1 for worker
+struct and 3 for stack data) was sufficient to avoid cache misses in
+the microbenchmark. Every context switch then requires 8 cacheline transfers. The off-chip
+bandwidth of a single socket in our system is 270M cachelines per
+second \cite{porterfield:bw,Nelson:hotpar11-real}. This implies that
+we can sustain at most 34M context switches per second per socket once
+the space of all contexts is enough to mostly reside outside of L3.
 
 In summary, our context switch engine is able to efficiently sustain very high
 concurrency and as we will show later, the amount of concurrency sustained is
@@ -124,15 +129,31 @@ different hardware platform, we also compare \Grappa with hand-tuned MPI
 versions of BFS and GUPS running on the same hardware. Finally, we also
 compare it with UTS written for UPC. We run all experiments with 64 nodes.
 
-\begin{figure}[ht]
-    \begin{center}
-      \includegraphics[width=0.5\textwidth]{results/benchmarks.pdf}
-    \end{center}
-    \caption{Comparing \Grappa with XMT, hand-tuned MPI and UPC.}
-    \label{fig:grappa-comparisons}
-\end{figure}
+% \begin{figure}[ht]
+%     \begin{center}
+%       \includegraphics[width=0.5\textwidth]{results/benchmarks.pdf}
+%     \end{center}
+%     \caption{Comparing \Grappa with XMT, hand-tuned MPI and UPC.}
+%     \label{fig:grappa-comparisons}
+% \end{figure}
 
-Figure~\ref{fig:grappa-comparisons} shows the results. Overall, \Grappa is
+\begin{table}[htb]
+\begin{center}
+\begin{tabular}{l|c|c|c|c}
+&	Cora &      XMT	&        MPI	&   UPC \\ \hline
+GUPS	& 1	& 2.23	& 0.11& 	-- \\ 
+BFS	& 1 &	4.33	& 14.37 & 	-- \\ 
+Intsort	& 1	& 3.77 &	5.88	& -- \\
+UTS (T1)	& 1	& 0.38	& -- &	0.09 \\ 
+Pagerank	& 1	& 4.35	& 4.87 &	-- \\ 
+\end{tabular}
+\end{center}
+\caption{Comparing \Grappa with XMT, hand-tuned MPI and UPC. Numbers are presented as throughput on 64 nodes normalized to \Grappa.}
+\label{tab:grappa-comparisons}
+\end{table}
+
+
+Table~\ref{tab:grappa-comparisons} shows the results. Overall, \Grappa is
 within striking distance of XMT and well beyond UPC performance (UTS only).
 However, it underperforms compared to hand-tuned MPI. Nevertheless, this
 comparison needs to be taken with a grain of salt for several reasons. First,
@@ -142,7 +163,6 @@ shows that it employs a lot of algorithmic-specific optimizations. In fact,
 some of these optimizations resemble some of what \Grappa does automatically,
 like message aggregation. Second, the GUPS results presented earlier suggests
 that \Grappa performance can do a lot better. 
-% \TODO{update this once we have more results. }
 
 \subsection{Characterization}
 
