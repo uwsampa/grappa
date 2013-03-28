@@ -108,13 +108,15 @@ static void choose_bfs_roots(GlobalAddress<int64_t> xoff, int64_t nvtx, int * NB
 }
 
 static void enable_tau() {
+  Grappa::Statistics::reset_all_cores();
   call_on_all_cores([]{
 #ifdef GRAPPA_TRACE
     VLOG(1) << "Enabling TAU recording.";
     FLAGS_record_grappa_events = true;
 #endif
 #ifdef GOOGLE_PROFILER
-    Grappa_start_profiling();
+    // unnecessary with reset_all_cores() above
+    //Grappa_start_profiling();
 #endif
   });
 }
@@ -378,11 +380,13 @@ static void user_main(int * args) {
     
     if (write_checkpoint) checkpoint_out(&tg, &g, bfs_roots);
   }
-  
+
+  // watch out for profiling! check the tau 
   Grappa::Statistics::reset();
   
   run_bfs(&tg, &g, bfs_roots);
   
+
   Grappa::Statistics::merge_and_print(std::cout);
   fflush(stdout);
   
