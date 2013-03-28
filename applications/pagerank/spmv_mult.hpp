@@ -22,13 +22,17 @@ struct weighted_csr_graph {
     , nadj( copied.nadj ) {}
 };
 
+typedef int vindex;
+struct element_pair {
+  double vp[2];
+};
 struct vector {
-  GlobalAddress<double> a;
+  GlobalAddress<element_pair> a;
   uint64_t length;
 };
 
 
-void spmv_mult( weighted_csr_graph A, vector x, vector y );
+void spmv_mult( weighted_csr_graph A, vector v, vindex x, vindex y );
 
 
 void matrix_out( weighted_csr_graph * g, std::ostream& o, bool dense );
