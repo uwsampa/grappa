@@ -73,7 +73,8 @@ function over the in-edges is associative and commutative, so they can
 be processed in any order in parallel. Rather than the programmer writing the
 parallel dot product as local accumulations with a final all-reduce
 step, we simply send streaming increments to each element of the final
-vector. We compare PageRank to the Tilinos linear algebra library implemented in MPI, and multithreaded PageRank for the XMT \cite{MTGL:pagerank}.
+vector. We compare PageRank to published results for the Tilinos linear algebra library implemented in MPI, and multithreaded PageRank for the XMT \cite{MTGL:pagerank}.
+For Grappa, we run on a scale 29 graph using the Graph500 generator.
 
 The metric we use is algorithmic time, which means startup and loading of the
 data structure (from disk) is not included in the measurement. \Grappa
