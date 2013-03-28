@@ -63,22 +63,25 @@ sufficient for the latencies \Grappa needs to hide.
 
 \paragraph{Global memory and communication.} We measure the performance of
 \Grappa's global memory and communication layers using a faithful
-implementation of the giga updates per second (GUPS) benchmark.
+implementation of the giga updates per second (GUPs) benchmark.
 Read-modify-write updates are dispatched at random to a large array. This
 benchmark stresses the communication layer of \Grappa separately from the
 scheduler, because only a single worker is used per system node.
 Figure~\ref{fig:grappa-gups} shows that \Grappa is able to sustain well over a
-billion updates per second with 64 nodes.
+billion updates per second with 64 nodes. Note also that when aggregation is turned off, the update rate is flat at the bottom, demonstrating that aggregation is instrumental for good communication performance.
 
-This compares very favorably to
-published results~\cite{gups} for other high-end HPC systems.
-Though the actual computation done by GUPS is completely non-sensical, irregular, data-intensive applications typically must be able to sustain a high rate of random accesses in order to, for example, visit and mark vertices during a graph traversal. High random access rate in a distributed setting has been a long-standing challenge in HPC.
+This compares very favorably to published results~\cite{gups} for other
+high-end HPC systems. Though the actual computation done by GUPS is completely
+non-sensical, irregular, data-intensive applications typically must be able to
+sustain a high rate of random accesses in order to, for example, visit and
+mark vertices during a graph traversal. High random access rate in a
+distributed setting has been a long-standing challenge in HPC.
 
 \begin{figure}[ht]
     \begin{center}
       \includegraphics[width=0.5\textwidth]{figs/gups.pdf}
     \end{center}
-    \caption{GUPS (giga updates per second) for \Grappa as the number of nodes grows.}
+    \caption{GUPS (giga updates per second) for \Grappa as the number of nodes grows with and without message aggregation.}
     \label{fig:grappa-gups}
 \end{figure}
 
