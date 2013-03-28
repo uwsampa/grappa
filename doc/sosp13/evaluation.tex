@@ -85,20 +85,18 @@ distributed setting has been a long-standing challenge in HPC.
     \label{fig:grappa-gups}
 \end{figure}
 
-\paragraph{Putting it all together with Unbalanced Tree Search in
-    memory (UTS).}
-We now show the overall performance of \Grappa running UTS.
-Figure~\ref{fig:grappa-uts}. The point of this experiment is to
-demonstrate whether \Grappa's context switching and communication layers can in fact
-be used together, while balancing workload, to run an irregular application efficiently. 
-We look at two classes of trees, T1x and T3x, from the
-original benchmark. T1x trees are very shallow and wide, while T3x
-trees are very deep. When the access to each vertex is a random
-access, the critical path to search T3x trees is very long. On such
-trees, we do not expect there to be sufficient concurrency for any
-system, including \Grappa, to achieve high throughput. \TODO{plot it
-    if time}. To verify this, at the 16-node data point, the average active tasks per
-core over the search is 775 and 13 for T1XL and T3L, respectively.
+\paragraph{Putting it all together with Unbalanced Tree Search in memory
+(UTS).} Figure~\ref{fig:grappa-uts} shows the overall performance of \Grappa
+running UTS. The point of this experiment is to demonstrate whether \Grappa's
+context switching and communication layers can in fact be used together, while
+balancing workload, to run an irregular application efficiently. We look at two classes of trees, T1 and T3, from the original benchmark. T1
+trees are very shallow and wide (i.e., significant parallel slack), while T3
+trees are very deep (i.e., little parallel slack). When the access to each
+vertex is a random access, the critical path to search T3 trees is very long,
+hence the low performance and scalability. On such trees, we do not expect there to be
+sufficient concurrency for any system, including \Grappa, to achieve high
+throughput --- at the 16-node data point, the average active
+tasks per core over the search is 775 and 13 for T1 and T3, respectively. On the other hand \Grappa performs and scales very well for T1 trees. 
 
 \begin{figure}[ht]
     \begin{center}
@@ -122,7 +120,6 @@ compare it with UTS written for UPC. We run all experiments with 64 nodes.
       \includegraphics[width=0.5\textwidth]{results/benchmarks.pdf}
     \end{center}
     \caption{Comparing \Grappa with XMT, hand-tuned MPI and UPC.}
-%bar chart, one set of bars per benchmark, one bar per system. runtime normalized to grappa.
     \label{fig:grappa-comparisons}
 \end{figure}
 
