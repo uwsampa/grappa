@@ -110,9 +110,6 @@ operations for the same address from multiple requesters are always serialized
 through a single core in the system, providing atomic semantics without using
 actual atomic operations (and thus avoiding their typical high cost).
 
-% We restrict the use of delegate operations in order to make them also
-% useful for synchronization operations.
-
 Delegate operations can be either {\em synchronous} or {\em asynchronous}.
 With synchronous operations, the task issuing the delegate call blocks until
 the delegate operation completes, which is necessary, for example, to ensure
@@ -129,28 +126,6 @@ outstanding asynchronous operations of the local core. The code and can probe
 the state of this object to determine when all outstanding requests are
 complete. This is necessary to, say, make sure all outstanding operations are
 complete before executing a synchronization operation.
-
-
-% \TODO{Talk about synchronous and asynchronous delegate operations. Talk about global completion object. Should we have a whole section on synchronization?}
-% \TODO{If we do want a section on GlobalCompletionEvent:
-%   \begin{itemize}
-%     \item many tasks and operations in the applications we've implemented do not need immediate consistency
-%     \item guaranteeing ordering requires blocking a task. this is unavoidable if the task relies on the returned value, or if one task is dependent on others
-%     \item however, much of the applications we've implemented (and other big-data things) are data-parallel, so tasks within a data-parallel loop can run in any order
-%     \item in addition, often these data-parallel tasks will update values that aren't used until the next data-parallel loop
-%     \item this allows us to free up workers/stacks (running out of stacks causes  latency-sensitivity because we can't continue until tasks complete)
-%     \item must guarantee all operations that were supposed to happen in the loop complete before continuing, including tasks and delegate operations
-%     \item \emph{motivating example:} write to array in one loop, use updated values in next loop (could also mention the ``PushBuffer'' example where we buffer queue appends because the order in the queue doesn't matter)
-%     \item GlobalCompletionEvent is complicated by task-stealing and the fact that delegate operations complete on a different core than they started, forcing us to use a ``cancelable barrier''-like approach (possible citation: Ravichandran, et al. ``Work stealing for multi-core HPC Clusters'')
-%     \item interface to GlobalCompletionEvent:
-%       \begin{itemize}
-%         \item \texttt{gce.enroll(n)}: enroll n tasks/operations to be done, when goes from 0 to 1, leave cancelable barrier
-%         \item \texttt{gce.complete(n)}: complete tasks, when it goes to zero, enter global cancelable barrier
-%         \item \texttt{gce.wait()}: block until all cores have no work
-%       \end{itemize}
-%     \item to prevent early wakeups, stolen tasks must send a completion message back to the core they were started on
-%   \end{itemize}
-% }
 
 \vspace{1ex}
 \textit{Explicit caching.} \Grappa provides an API to fetch a global pointer of
@@ -218,9 +193,10 @@ C/C++~\cite{N2480,N2800}.
 Note, however, that if the application code uses explicit caching or
 asynchronous delegates to access shared data, all updates must be sent back to
 the home node before the synchronization operation that protects the data is
-performed. This is done using release operations on cached regions and using the \texttt{GlobalCompletionEvent} object to determine that asynchronous delegates have been fully executed. 
+performed. This is done using release operations on cached regions and using
+the \texttt{GlobalCompletionEvent} object to determine that asynchronous
+delegates have been fully executed.
 
-% \TODO{Not sure this warrants its own paragraph, seems like the explicit caches are just the same as reading and then writing using delegates.}
 
 
 
