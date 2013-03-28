@@ -38,9 +38,11 @@ DEFINE_bool( rdma_flush_on_idle, true, "Flush RDMA buffers when idle" );
 /// stats for application messages
 GRAPPA_DEFINE_STAT( SimpleStatistic<int64_t>, app_messages_enqueue, 0 );
 GRAPPA_DEFINE_STAT( SimpleStatistic<int64_t>, app_messages_enqueue_cas, 0 );
-GRAPPA_DEFINE_STAT( SimpleStatistic<int64_t>, app_messages_serialized, 0 );
-GRAPPA_DEFINE_STAT( SimpleStatistic<int64_t>, app_messages_deserialized, 0 );
 GRAPPA_DEFINE_STAT( SimpleStatistic<int64_t>, app_messages_immediate, 0 );
+
+GRAPPA_DEFINE_STAT( SimpleStatistic<int64_t>, app_messages_serialized, 0 );
+GRAPPA_DEFINE_STAT( SummarizingStatistic<int64_t>, app_bytes_serialized, 0 );
+GRAPPA_DEFINE_STAT( SimpleStatistic<int64_t>, app_messages_deserialized, 0 );
 
 GRAPPA_DEFINE_STAT( SummarizingStatistic<int64_t>, app_messages_delivered_locally, 0 );
 GRAPPA_DEFINE_STAT( SummarizingStatistic<int64_t>, app_bytes_delivered_locally, 0 );
@@ -54,6 +56,7 @@ GRAPPA_DEFINE_STAT( SummarizingStatistic<int64_t>, rdma_first_buffer_bytes, 0 );
 GRAPPA_DEFINE_STAT( SummarizingStatistic<int64_t>, rdma_buffers_used_for_send, 0 );
 
 /// stats for RDMA Aggregator events
+
 GRAPPA_DEFINE_STAT( SimpleStatistic<int64_t>, rdma_receive_start, 0 );
 GRAPPA_DEFINE_STAT( SimpleStatistic<int64_t>, rdma_receive_end, 0 );
 GRAPPA_DEFINE_STAT( SimpleStatistic<int64_t>, rdma_send_start, 0 );
@@ -567,6 +570,7 @@ void RDMAAggregator::draw_routing_graph() {
 
           // track total size
           size += new_buffer - buffer;
+          app_bytes_serialized += new_buffer - buffer;
 
           // go to next messsage 
           Grappa::impl::MessageBase * next = message->next_;
