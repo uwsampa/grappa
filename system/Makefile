@@ -334,7 +334,8 @@ LIBRARY_CONTENTS+= Grappa.o \
 				   Barrier.o \
 				   MessagePool.o \
 					 AsyncDelegate.o \
-					 SharedMessagePool.o
+					 SharedMessagePool.o \
+					 GlobalCompletionEvent.o
 
 libGrappa.a: $(LIBRARY_CONTENTS)
 	$($(MPITYPE)_AR) rv $@ $^
@@ -439,7 +440,10 @@ CFLAGS+= -I$(GRAPPA_HOME)/system -I$(GRAPPA_HOME)/system/tasks
 #
 ifdef DEBUG
 CFLAGS+= -O1 -g -DDEBUG
+GUARD_PAGES_ON_STACK=1
+ifeq ($(GUARD_PAGES_ON_STACK), 1)
 CFLAGS+= -DGUARD_PAGES_ON_STACK
+endif
 else
 ifdef PROFILE
 CFLAGS+= -O3 -DNDEBUG -g -pg

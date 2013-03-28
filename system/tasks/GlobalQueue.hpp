@@ -93,7 +93,7 @@ struct ChunkInfo {
 template <typename T>
 struct QueueEntry {
   ChunkInfo<T> chunk;
-  GlobalAddress<Signaler> sleeper;
+  GlobalAddress<Descriptor<ChunkInfo<T>>> sleeper;
   bool valid;
 };
 
@@ -118,7 +118,7 @@ class GlobalQueue {
     A_Entry queueBase;
     uint64_t capacity;
 
-    std::queue< A_Entry > pullReserveWaiters;
+    std::queue< A_D_A_Entry > pullReserveWaiters;
 
     bool initialized;
 
@@ -298,6 +298,7 @@ void GlobalQueue<T>::pull_reserve ( A_D_A_Entry requestor ) {
   DVLOG(5) << "pull_reserve";
 
   if ( tail == head ) {
+    // TODO: fixme, added cast that is wrong
     pullReserveWaiters.push( requestor );
     DVLOG(5) << "empty, must sleep. waiters queue now has " << pullReserveWaiters.size() << " elements";
   } else {
@@ -349,7 +350,7 @@ void GlobalQueue<T>::pull_entry_request( pull_entry_args<T> * args ) {
   if ( !e->valid ) {
     // leave a note to wake the client.
     // send no reply yet; the client will block
-    e->sleeper = args->descriptor; 
+    e->sleeper = args->descriptor;
   } else {
     pull_entry_sendreply( args->descriptor, e );
   }

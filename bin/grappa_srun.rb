@@ -41,7 +41,7 @@ setarch = ""
 
 case `hostname`
 when /pal|node\d+/
-  srun_flags << "--partition=pal,slurm" << "--account=pal"
+  srun_flags << "--partition=pal" << "--account=pal"
   # disable address randomization (doesn't seem to actually fix pprof multi-node problems)
   # setarch = "setarch x86_64 -RL "
 else

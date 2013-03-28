@@ -21,6 +21,7 @@ DEFINE_int64( stats_blob_ticks, 300000000000L, "number of ticks to wait before d
 
 DEFINE_uint64( readyq_prefetch_distance, 4, "How far ahead in the ready queue to prefetch contexts" );
 
+GRAPPA_DEFINE_STAT( SimpleStatistic<int64_t>, scheduler_context_switches, 0 );
 
 namespace Grappa {
 
