@@ -2,13 +2,10 @@
 require 'sequel'
 
 dbpath = ARGV[0]
-histdir = ARGV[1]
-
-jobid = histdir.match(/.*\.(?<job>\d+)/)[:job].to_i
+user_glob = ARGV[1]
 
 puts "database: #{dbpath}"
-puts "reading histograms from #{histdir}"
-puts "jobid: #{jobid}"
+puts "user_glob: #{user_glob}"
 
 db = Sequel.sqlite(dbpath)
 table = :histograms
@@ -24,22 +21,16 @@ db.create_table?(table){
   index :stat
 }
 
-Dir.glob("#{histdir}/*.0.out").each do |stat0|
-  statname = stat0.match(/.*\/(?<stat>.*?)\./)[:stat]
-  puts "## stat: #{statname}"
-  
+Dir.glob(user_glob).each do |f|
+  m = f.match(/histogram\.(?<jobid>\d+)\/(?<stat>[\w_]+)\.(?<core>\d+)\.out/)
+  r = {jobid:m[:jobid].to_i,core:m[:core].to_i,stat:m[:stat],value:0}
+  puts "#{f} -- #{r}"
   data = []
-  
-  Dir.glob("#{histdir}/#{statname}.*.out").each do |statcore|
-    core = statcore.match(/.*\.(?<core>\d+)\.out/)[:core]
-    puts "#### #{statname}<#{core}>"
-    File.open("#{histdir}/#{statname}.#{core}.out","r") do |f|
-      while b = f.read(8) do
-        v = b.unpack("q")[0]
-        data << {jobid:jobid,core:core,stat:statname,value:v}
-      end
+  File.open(f,"r") do |f|
+    while b = f.read(8) do
+      v = b.unpack("q")[0]
+      data << r.merge({value:v})
     end
   end
-  
   histable.multi_insert(data)
 end
