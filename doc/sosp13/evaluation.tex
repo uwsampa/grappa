@@ -6,11 +6,42 @@ as comparing against the Cray XMT.  Finally, we present the impact of increased 
 on Grappa results, thus exploring robustness to network scale.
 
 \subsection{Microbenchmark Results}
+
 \subsubsection{Random Access}
 \TODO{Random access feed forward results on Grappa.  optional: Results we measured for XMT.  Cite MPI results}
 \subsubsection{Latency Tolerance}
 \TODO{Simple ping test results -- eg, MPI ping, not the full blown aggregation ping test.  Random access blocking results on Grappa.}
 \subsubsection{Scheduling and Robustness}
+
+\begin{figure}[ht]
+    \begin{center}
+      \includegraphics[width=0.5\textwidth]{figs/context_switch_time.pdf}
+    \end{center}
+    \caption{Average context switch time with 1 and 6 active cores,
+        with and without prefetching.}
+    \label{fig:context-switch-time}
+\end{figure}
+
+\begin{figure}[ht]
+    \begin{center}
+      \includegraphics[width=0.5\textwidth]{figs/context_switch_bw.pdf}
+    \end{center}
+    \caption{Context switch rate with prefetching. Once the total
+        size of contexts sufficiently exceeds last-level cache, most
+    prefetches go to main memory and the rate becomes limited to the
+    off-chip bandwidth.}
+    \label{fig:context-switch-time}
+\end{figure}
+
+\TODO{Summary of what to write please expand: Reference above plots. Bandwidth of single socket is
+    270Mcacheline/s. Each context is 4 cachelines: 1 for worker struct
+    and 3 stack cachelines. We must read and write every context, so 8
+    cacheline transfers per context switch. This asymptotically
+    approaches 33.75Mcontexts/s as you increase the number of contexts
+    (fewer and fewer in L3). Note that only 4+ cores reaches full rate
+    because these westmere chips are balanced to not achieve full off-chip bandwidth until 4
+    cores--bdmyers}
+
 \TODO{Yield test results:  latency \& bandwidth.  Discussion of implications of zillions of contexts on robustness of latency tolerance preshadowing ~\ref{sec:scaling}}
 
 \subsection{Application Results}
