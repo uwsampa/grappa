@@ -1,25 +1,10 @@
 \section{Tasking System}
 
-The basic unit of execution in \Grappa is a {\em task}. Each hardware core has
-a single operating system thread pinned to it. When tasks are ready to
-execute, they are mapped to a {\em worker}, which is akin to a user-level
-thread. \Grappa keeps a large number of workers per hardware core, this is the
-core reason why \Grappa is able to tolerate latencies well. Below we discuss
-the implementation of our task management support and then describe how
-applications expose parallelism to the \Grappa runtime.
+The basic unit of execution in \Grappa is a {\em task}. Each hardware core has a single operating system thread pinned to it. When tasks are ready to execute, they are mapped to a {\em worker}, which is akin to a user-level thread. \Grappa keeps a large pool of workers per hardware core. Below we discuss the implementation of our task management support and then describe how applications expose parallelism to the \Grappa runtime.
 
 \subsection{Task Support Implementation}
 
-\paragraph{Tasks}
-Each task is represented by a function pointer and its arguments, represented
-as 32-byte entities: a 64-bit function pointer plus three 64-bit arguments. We
-use three arguments because tasks are often generated via a parallel loop
-decomposition, in which each task needs three kinds of data. Thus, tasks
-include:
-
-\noindent {\it function pointer}, or the addresses of the routine to run ---
-we configure the system nodes to disable address randomization, so that
-function pointers are valid across process images;
+\paragraph{Tasks} Each task is represented by a 64-bit function pointer and three 64-bit arguments.  We use three arguments because tasks are often generated via a parallel loop decomposition, in which each task needs three kinds of data:
 
 \noindent {\it private argument}, often a loop index; 
 
@@ -27,7 +12,7 @@ function pointers are valid across process images;
 tasks, or the number of loop iterations to be performed by this task;
 
 \noindent {\it synchronization argument}, often used to determine when all
-tasks that are part of a loop have finished, in the form of q global pointer
+tasks that are part of a loop have finished, in the form of a global pointer
 to a synchronization object allocated at the core that spawned a group of
 tasks.
 
@@ -35,18 +20,11 @@ While these are the most common uses of the three task arguments, they are
 treated as arbitrary 64-bit values in the runtime, and can be used for any
 purpose.
 
-\paragraph{Workers}
-When a new task is spawned, it is enqueued until it is ready for execution.
-Tasks are not allocated any execution resources (a worker) until the scheduler
-decides to run them. A worker is simply a collection of status bits and a
-stack, allocated at a particular core. There are two types of workers: (1) user worker; and (2) system worker. 
+\paragraph{Workers} Workers execute application tasks.  A worker is simply a collection of status bits and a stack, allocated at a particular core.  When a task is ready to be executed it is assigned to a worker.  Once a task is mapped to a worker it stays with that worker until it completes.
 
-User workers execute application tasks. Once a task is mapped to a worker it
-stays with that worker until it completes. System workers execute runtime
-management activities such as communication and statistics collection. User
-workers and system workers might have different scheduling priorities. System
-workers execute periodically and in idle times, to guarantee timely
-communication services.
+%% Note sure this is even true.  And it's confusing and not relevant regardless. -M
+% There are two types of workers: (1) user worker; and (2) system worker. 
+%System workers execute runtime management activities such as communication and statistics collection. User workers and system workers might have different scheduling priorities. System workers execute periodically and in idle times, to guarantee timely communication services.
 
 \paragraph{Scheduling} 
 During execution, a worker yields control of its core whenever it performs a
@@ -54,7 +32,7 @@ long-latency operation, allowing the processor to remain busy while waiting
 for the operation to complete. In addition, a programmer can direct scheduling
 explicitly via the \Grappa API calls shown in Figure~\ref{fig:scheduling}. To
 minimize yield overhead, the \Grappa scheduler operates entirely in user-space
-and does little more than store register state of one task and load that of
+and does little more than store register state of one worker and load that of
 another.
 
 \begin{figure}[htbp]
@@ -73,24 +51,21 @@ another.
   \end{center}
 \end{figure}
 
-Each core in a \Grappa system has its own independent scheduler. Schedulers
-have three main responsibilities: servicing system workers that process
-communication requests as described in Section~\ref{sec:communication};
-rescheduling workers that have been waiting on long-latency operations; and
-assigning ready tasks to worker resources that have become idle.
+Each core in a \Grappa system has its own independent scheduler.  The scheduler has a single queue of active workers:
 
-Each scheduler has four queues:
-
-\noindent {\it ready worker queue}, a FIFO queue of tasks that are
+\noindent {\it ready worker queue}, a FIFO queue of workers that are
   matched with workers and are ready to execute;
+
+Each scheduler also has three queues of tasks waiting to be assigned a worker:
+
+\noindent {\it deadline task queue}, a priority queue of tasks that are executed according to task-specific deadline constraints.
+
 
 \noindent {\it private task queue}, a FIFO queue of tasks that must run on this core;
 
 \noindent {\it public task queue},  a LIFO queue of tasks that are
   waiting to be matched with workers. It is a local partition of a shared
   task pool.
-
-\noindent {\it deadline task queue}, a priority queue of tasks that are executed according to task-specific deadline constraints.
 
 Whenever a task yields or suspends, the scheduler makes a decision about what
 to do next. First, any task in the deadline task queue who's deadline
@@ -111,17 +86,6 @@ point control word and the SSE context/status register. Thus, the minimum
 amount of state a cooperative context switch routine must save, according to
 the ABI, is 62~bytes.
 
-
-% Pretty sure this is not true anymore.  Even if it is, it's not important -Mark
-%
-%Since the compiler sees all calls to the context switch routine, we
-%can save even less state. Our context switch routine appears to the
-%compiler as inline assembly; we declare all the registers we need
-%to save as ``clobbered'' by the inline assembly routine, and the
-%compiler will issue its own save and restore code as needed. This allows the
-%compiler to avoid saving any registers that are not used, or are used
-%for temporary values that are not needed after the context switch.
-
 Since \Grappa keeps a very large number of active workers, their context data
 will not fit in cache. Therefore, the scheduler has to perform very careful
 prefetching in order to reduce context switch cost to a minimum. We determined
@@ -139,9 +103,7 @@ amount of work in its public task queue. The scheduler steals half of the
 tasks it finds at the victim. Work stealing is particularly interesting in
 \Grappa since performance depends on having many active worker threads on each
 core. Even if there are many active threads, if they are all suspended on
-long-latency operations, then the core is underutilized. We choose to initiate
-one outstanding steal whenever the ready queue is empty there are idle worker
-threads.
+long-latency operations, then the core is underutilized.
 
 \subsection{Expressing Parallelism}
 
@@ -165,8 +127,7 @@ parallel\_for}~\cite{intel_tbb}. It generates a logarithmically-deep tree of
 tasks, stopping to execute the loop body when the number of iterations is
 below the required threshold. Fourth, a programmer may want to execute an active message; that is, to run a
 small piece of code on a particular core in the system without waiting for
-execution resources to be available. For example, custom synchronization
-primitives execute this way, as a function executed on the core where the data
+execution resources to be available. Custom synchronization primitives, for example, execute this way as a function executed on the core where the data
 lives. \Grappa provides the \texttt{call\_on} call for this purpose.
 
 \begin{figure}[htbp]
