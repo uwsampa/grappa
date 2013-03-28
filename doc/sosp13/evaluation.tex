@@ -124,15 +124,31 @@ different hardware platform, we also compare \Grappa with hand-tuned MPI
 versions of BFS and GUPS running on the same hardware. Finally, we also
 compare it with UTS written for UPC. We run all experiments with 64 nodes.
 
-\begin{figure}[ht]
-    \begin{center}
-      \includegraphics[width=0.5\textwidth]{results/benchmarks.pdf}
-    \end{center}
-    \caption{Comparing \Grappa with XMT, hand-tuned MPI and UPC.}
-    \label{fig:grappa-comparisons}
-\end{figure}
+% \begin{figure}[ht]
+%     \begin{center}
+%       \includegraphics[width=0.5\textwidth]{results/benchmarks.pdf}
+%     \end{center}
+%     \caption{Comparing \Grappa with XMT, hand-tuned MPI and UPC.}
+%     \label{fig:grappa-comparisons}
+% \end{figure}
 
-Figure~\ref{fig:grappa-comparisons} shows the results. Overall, \Grappa is
+\begin{table}[htb]
+\begin{center}
+\begin{tabular}{l|c|c|c|c}
+&	Cora &      XMT	&        MPI	&   UPC \\ \hline
+GUPS	& 1	& 2.23	& 0.11& 	-- \\ 
+BFS	& 1 &	4.33	& 14.37 & 	-- \\ 
+Intsort	& 1	& 3.77 &	5.88	& -- \\
+UTS (T1)	& 1	& 0.38	& -- &	0.09 \\ 
+Pagerank	& 1	& 4.35	& 4.87 &	-- \\ 
+\end{tabular}
+\end{center}
+\caption{Comparing \Grappa with XMT, hand-tuned MPI and UPC. Numbers are presented as throughput normalized to \Grappa.}
+\label{tab:grappa-comparisons}
+\end{table}
+
+
+Table~\ref{tab:grappa-comparisons} shows the results. Overall, \Grappa is
 within striking distance of XMT and well beyond UPC performance (UTS only).
 However, it underperforms compared to hand-tuned MPI. Nevertheless, this
 comparison needs to be taken with a grain of salt for several reasons. First,
@@ -142,7 +158,6 @@ shows that it employs a lot of algorithmic-specific optimizations. In fact,
 some of these optimizations resemble some of what \Grappa does automatically,
 like message aggregation. Second, the GUPS results presented earlier suggests
 that \Grappa performance can do a lot better. 
-% \TODO{update this once we have more results. }
 
 \subsection{Characterization}
 
