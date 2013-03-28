@@ -2,6 +2,10 @@
 
 #include "Grappa.hpp"
 
+#include "Statistics.hpp"
+
+GRAPPA_DECLARE_STAT(SummarizingStatistic<double>, delegate_op_roundtrip_latency);
+
 /// Stats for delegate operations
 class DelegateStatistics {
 private:
@@ -86,6 +90,7 @@ public:
     int64_t current_time = Grappa_get_timestamp();
     int64_t blocked_latency = current_time - start_time;
     int64_t wakeup_latency = current_time - network_time;
+    delegate_op_roundtrip_latency += blocked_latency;
     ops_blocked_ticks_total += blocked_latency;
     ops_wakeup_ticks_total += wakeup_latency;
     if( blocked_latency > ops_blocked_ticks_max )
