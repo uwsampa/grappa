@@ -164,6 +164,25 @@ elements of vector.  The other parts of pagerank are super fast
 \paragraph{Message size and latency.}
 Distribution if possible. With and without aggregation. 
 
+\begin{figure}[ht]
+    \begin{center}
+      \includegraphics[width=0.5\textwidth]{results/histograms/latency_cmb.pdf}
+    \end{center}
+    \caption{Round-trip latency of delegate operations.}
+%bar chart, one set of bars per benchmark, one bar per system. runtime normalized to grappa.
+    \label{fig:grappa-latency}
+\end{figure}
+
+\begin{figure}[ht]
+    \begin{center}
+      \includegraphics[width=0.5\textwidth]{results/histograms/rdma_bytes_sent_histogram_cmb.pdf}
+    \end{center}
+    \caption{Distribution of aggregated message sizes.}
+%bar chart, one set of bars per benchmark, one bar per system. runtime normalized to grappa.
+    \label{fig:grappa-message-size}
+\end{figure}
+
+
 \paragraph{Frequency of remote requests.}
 
 \paragraph{Work stealing behavior.}
