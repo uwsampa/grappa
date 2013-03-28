@@ -489,7 +489,8 @@ void user_main(void * ignore) {
   
   Statistics::reset_all_cores();
 #ifdef GOOGLE_PROFILER
-  call_on_all_cores([]{ Grappa_start_profiling(); });
+  // // not necessary with histogram stuff
+  //  call_on_all_cores([]{ Grappa_start_profiling(); });
 #endif
   
   total_time = Grappa_walltime();
