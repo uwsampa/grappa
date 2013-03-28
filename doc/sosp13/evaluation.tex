@@ -1,4 +1,5 @@
-\section{Evaluation} \label{sec:evaluation}
+\section{Evaluation}
+\label{sec:evaluation}
 
 The goal of our evaluation is to show that the core pieces of the \Grappa
 runtime system, namely our tasking system and the global memory/communication
@@ -18,8 +19,11 @@ stresses communication and concurrency together.
 \end{itemize}
 
 \subsection{Basic \Grappa Mechanisms}
+\label{eval:basic}
 
 \paragraph{User-level context switching.}
+
+
 As discussed earlier, fast context switching is at the heart of \Grappa's
 latency tolerance abilities. We assess context switch overheads using a simple
 microbenchmark that has a configurable number of workers, where each worker 
