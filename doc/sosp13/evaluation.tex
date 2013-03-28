@@ -177,13 +177,12 @@ elements of vector.  The other parts of pagerank are super fast
 
 To characterize the effectiveness of aggregation, we collected
 histograms of aggregated message sizes and application memory request
-latency on BFS and UTS. 
+latency for BFS and UTS (Figure \ref{fig:grappa-message-size}).
 
-Figure \ref{fig:grappa-message-size} shows the distribution of message
-sizes we are able to aggregate before aggregation times out and
-sends. We see different behavior between UTS and BFS. 
 
-Recall that global memory can be accessed in two ways. For requests of
+%%% I couldn't make this paragraph useful in the limited time we have.
+%%% I think it's ok without. -Mark
+\comment{Recall that global memory can be accessed in two ways. For requests of
 locations that are expected to shared, delegate operations are
 used. For requests of non-shared locations where locality can be
 exploited, explicit cache operations are used. We see this reflected
@@ -192,30 +191,14 @@ percent of delegate operations in both BFS and UTS access local
 data. Since explicit cache operations are intended to exploit
 locality; they more often access data on the local node. Only 20
 percent of UTS explicit cache operations are remote, whereas 44
-percent of BFS explict cache operations are remote.
+percent of BFS explict cache operations are remote.}
 
 In UTS, we obtained the best throughput by flushing frequently: on the
-order 100 microseconds. This, combined with the fewer number of remote
+order of 100 microseconds. This, combined with the fewer number of remote
 accesses, means that there are a limited nubmer of requests generated
 per flush interval, leading to packets primarily smaller than 10KB.
 
-In BFS, we see a trimodal distribution. There are two reasons for
-this. First, in BFS, we obtained the best throughput by flushing at
-least 500 microseconds apart, and also flushing whenever the core went
-idle. Since this process ignores whether another flush has occured
-recently, it leads to a large number of small messages. This leads to
-the first and smallest mode of the distribution.
-
-The other two modes are due to a locality optimization in the \Grappa
-version of BFS. To minimize unnecessary remote communication, each
-core visits vertices whoes edge lists are stored locally. Since we are
-traversing power-law graphs, a small fraction of vertices have a very
-high number of edges. This means that occasionally a core visits a
-high-degree vertex which allows it to very quickly generate a large
-batch of requests. This interacts well with aggregation; when we find
-high degree vertices, we are able to aggregate packets on the order of
-40KB. In flush intervals without high-degree vertices, we see packets
-on the order of 8KB.
+In BFS, we see a trimodal distribution. There are two reasons for this. First, in BFS, we obtained the best throughput by flushing at least 500 microseconds apart, and also flushing whenever a core is idle. Since this process ignores whether another flush has occurred recently, it leads to a large number of small messages. This leads to the first and smallest mode of the distribution.  The other two modes are due to a locality optimization in the \Grappa version of BFS. To minimize unnecessary remote communication, each core visits vertices whoes edge lists are stored locally. Since we are traversing power-law graphs, a small fraction of vertices have a very high number of edges. This means that occasionally a core visits a high-degree vertex which allows it to very quickly generate a large batch of requests. This interacts well with aggregation; when we find high degree vertices, we are able to aggregate packets on the order of 40KB. In flush intervals without high-degree vertices, we see packets on the order of 8KB.
 
 Figure \ref{fig:grappa-latency} shows the latency distribution of
 remote delegate operations. This distribution follows the aggregated
