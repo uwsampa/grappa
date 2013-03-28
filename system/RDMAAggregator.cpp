@@ -33,7 +33,7 @@ DEFINE_int64( rdma_threshold, 64, "Threshold in bytes below which we send immedi
 
 DEFINE_string( route_graph_filename, "routing.dot", "Name of file for routing graph" );
 
-DEFINE_bool( rdma_flush_on_idle, false, "Flush RDMA buffers when idle" );
+DEFINE_bool( rdma_flush_on_idle, true, "Flush RDMA buffers when idle" );
 
 /// stats for application messages
 GRAPPA_DEFINE_STAT( SimpleStatistic<int64_t>, app_messages_enqueue, 0 );
