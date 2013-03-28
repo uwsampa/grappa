@@ -19,11 +19,20 @@
 #include "Timestamp.hpp"
 #include "PerformanceTools.hpp"
 #include "StatisticsTools.hpp"
+#include "Statistics.hpp"
+
+
 #ifdef VTRACE
 #include <vt_user.h>
 #endif
 
 #include "StateTimer.hpp"
+
+
+
+GRAPPA_DECLARE_STAT( SimpleStatistic<int64_t>, scheduler_context_switches );
+
+
 
 // forward declarations
 namespace Grappa {
@@ -124,6 +133,8 @@ class TaskingScheduler : public Scheduler {
     static const int64_t tick_scale = 1L; //(1L << 30);
 
     Thread * nextCoroutine ( bool isBlocking=true ) {
+      scheduler_context_switches++;
+
       Grappa_Timestamp current_ts = 0;
 #ifdef VTRACE_FULL
       VT_TRACER("nextCoroutine");
