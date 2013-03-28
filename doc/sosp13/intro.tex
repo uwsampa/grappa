@@ -94,16 +94,16 @@ aggregating messages; increase synchronization rate by delegating atomic
 operations to gatekeeper cores, even when referencing node-local global data;
 and improve load balance by tolerating the delays incurred when work-stealing.
 
-Our evaluation of Grappa shows that it runs several irregular application
+Our evaluation of \Grappa shows that it runs several irregular application
 kernels (e.g., graph traversal and sort) very efficiently on a commodity
 cluster. Our yardstick for comparison is the XMT hardware itself. Using the
 same number of network interfaces, \Grappa is in the same ballpark as the XMT:
-For unbalanced tree search, Grappa is over \TODO{3X} faster and shows greatly
+For unbalanced tree search, \Grappa is over \TODO{3X} faster and shows greatly
 improved scalability; conversely, for breadth first search and betweenness
-centrality Grappa is 2.5X slower. In Section~\ref{sec:evaluation} we explore
+centrality \Grappa is 2.5X slower. In Section~\ref{sec:evaluation} we explore
 the factors that underpin this performance. Most importantly, however, for
 significantly less real world cost, users can \emph{add\/} significantly more
-processors to a commodity cluster than an XMT machine and use Grappa to
+processors to a commodity cluster than an XMT machine and use \Grappa to
 achieve scalable performance. \TODO{revise paragraph after eval, including MPI
 and possibly programming model}
 
