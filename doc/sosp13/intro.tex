@@ -29,53 +29,9 @@ reference from every processor on every clock cycle. Unfortunately, the MTA
 was not general enough nor cost-effective. The Cray XMT approximates the Tera
 MTA-2, reducing its cost but not overcoming its narrow range of applicability.
 
-We believe we can support irregular applications with good performance and cost-effectiveness with commodity hardware for two main reasons. First, commodity multicore processors have become extremely fast with high clock rates, large caches and robust DRAM bandwidth. So with careful software engineering we can multiplex hundred of thousands of workers into a single core. Second, commodity networks offer high bandwidth as long as messages are large enough. So with enough data requests in flight simultaneously, the system can aggregate small messages into large enough ones. 
+We believe we can support irregular applications with good performance and cost-effectiveness with commodity hardware for two main reasons. First, commodity multicore processors have become extremely fast with high clock rates, large caches and robust DRAM bandwidth. Second, commodity networks offer high bandwidth as long as messages are large enough. We build on these two observations and develop \Grappa, a software runtime system that allows a commodity cluster of x86-based nodes connected via an InfiniBand network to be programmed as if it were a single, large, shared-memory NUMA (non-uniform memory access) machine with scalable performance for irregular applications. \Grappa exploits fast processors and the memory hierarchy to provide a lightweight user-level tasking layer that supports a context switch in as little as 38ns and can sustain a large number of active workers. It bridges the commodity network bandwidth gap with a communication layer that combines short messages originating from a large number of active workers into larger ones.
 
-The two points above form the cornerstone of \Grappa, a software runtime
-system that allows a commodity cluster of x86-based nodes connected via an
-InfiniBand network to be programmed as if it were a single, large,
-shared-memory NUMA (non-uniform memory access) machine with scalable
-performance for irregular applications. \Grappa tolerates communication
-latencies with lightweight user-level tasking layer that supports a context
-switch in as little as 38ns and can sustain a large number of active contexts.
-It bridges the commodity network bandwidth gap with a communication layer that
-combines short messages into larger ones.
-
-% In this paper we introduce \Grappa, a software runtime system that allows a
-% commodity cluster of x86-based nodes connected via an InfiniBand network to be
-% programmed as if it were a single, large, shared-memory NUMA (non-uniform
-% memory access) machine with scalable performance for irregular applications.
-% \Grappa tolerates communication latencies with lightweight user-level tasking layer that supports a context switch in as little as 38ns and can sustain a large number of active contexts. It bridges the commodity network bandwidth gap with a communication layer that combines short messages into larger ones. 
-% 
-% , and it addresses the a \emph{communication\/}
-% layer that combines short messages to achieve peak bandwidth on commodity
-% networks
-% 
-% 
-% distributed global load balancing
-% 
-% 
-% \Grappa leverages as much freely available and commodity infrastructure as
-% possible. We use unmodified Linux for the operating system and an
-% off-the-shelf user-mode InfiniBand device driver stack~\cite{OFED}. MPI is
-% used for process setup and tear down. GASNet~\cite{gasnet} is used as the
-% underlying mechanism for remote memory reads and writes using active message
-% invocations.
-% 
-% \Grappa adds three main software components: (1) a \emph{lightweight
-% tasking\/} layer that supports a context switch in as little as 38ns and
-% distributed global load balancing; (2) a \emph{distributed shared memory\/}
-% layer that supports normal access operations such as \emph{read\/} and
-% \emph{write\/} as well as synchronizing operations such as
-% \emph{fetch-and-add\/}~\cite{fetchandadd}; and (3) a \emph{communication\/}
-% layer that combines short messages to achieve peak bandwidth on commodity
-% networks. As we will show later, \Grappa can tolerate latencies way beyond
-% that of the network. Therefore, \Grappa can afford to \emph{trade latency for
-% throughput}. By {\em increasing\/} latency in key components of the system we
-% are able to: increase effective random access memory bandwidth by delaying and
-% aggregating messages; increase synchronization rate by delegating atomic
-% operations to gatekeeper cores, even when referencing node-local global data;
-% and improve load balance by tolerating the delays incurred when work-stealing.
+As a general design philosophy, \Grappa trades latency for throughput.  By \emph{increasing} latency in key components of the system we are able to: increase effective random access memory bandwidth by delaying and aggregating messages; increase synchronization rate by delegating atomic operations to gatekeeper cores, even when referencing node-local global data; and improve load balance by tolerating the delays incurred when work-stealing.  \Grappa then exploits parallelism to overcome latency.
 
 Our evaluation of \Grappa shows that its core components provide scalable performance.  It can multiplex thousands of workers on a multicore CPU and is limited only by DRAM bandwidth, not latency, to fetch worker state.  The communication layer provides over 10X the small-message performance compared to the raw underlying message injection rate.  Combining these two components, \Grappa achieves 1.2 GUPS with 64 system nodes, far above any reported cluster performance~\cite{gups} for comprable systems.  When we compare \Grappa to native MPI implementations of more complex application kernels, the story is more muddled.  When the MPI implementation is carefully tuned to aggregate messages inside the application -- essentially duplicating the work \Grappa is doing for the programmer, without the generality and context switch overhead -- then the MPI implementation is between 4-10X faster.  We see this in our comparisons for breadth first search and integer sorting.  On the other hand, if the MPI version is implemented in a straightforward manner, as we see with PageRank, GUPS, and unbalanced tree search, \Grappa is 2-5X faster.  When we compare \Grappa to the custom Cray XMT, we find Grappa to be between 2X faster and 4X slower depending on the benchmark.  Overall we find this encouraging because \Grappa is scalable and achieves this performance from a mass-market cluster, hence adding more system nodes an inexpensive and attractive option.
  
