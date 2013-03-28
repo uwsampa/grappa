@@ -5,16 +5,20 @@ The goal of our evaluation is to show that the core pieces of the \Grappa
 runtime system, namely our tasking system and the global memory/communication
 layer work as expected and together are able to efficiently run irregular
 applications. We evaluate \Grappa in three basic steps:
+
 \begin{itemize}
-\item We present results
-that show that the \Grappa runtime is able to sustain very high concurrency
-rates and the communication layer is able to sustain a very high rate of
-global memory operations. We also show the performance of a graph kernel that
-stresses communication and concurrency together. 
 
-\item We show how some popular irregular applications running on \Grappa compare to the Cray XMT and hand-tuned MPI code. 
+\item We present results that show that the \Grappa runtime is able to sustain
+very high concurrency rates and the communication layer is able to sustain a
+very high rate of global memory operations. We also show the performance of a
+graph kernel that stresses communication and concurrency together.
 
-\item We finish with a characterization of system behavior, including profiling where execution time goes, how aggregation affects message size and rates, how global memory and work stealing behaves. 
+\item We show how some popular irregular applications running on \Grappa
+compare to the Cray XMT and hand-tuned MPI code.
+
+\item We finish with a characterization of system behavior, including
+profiling where execution time goes, how aggregation affects message size and
+rates, how global memory and work stealing behaves.
 
 \end{itemize}
 
