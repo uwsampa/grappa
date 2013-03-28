@@ -11,6 +11,7 @@ multinode systems are those built from x86 compute nodes interconnected via
 ethernet or InfiniBand. However, scalable performance of irregular
 applications on these systems is elusive for two reasons:
 
+\vspace{0.5ex}
 \noindent{\bf Poor data locality and frequent communication.} Data reference
 patterns of irregular applications are unpredictable and tend to be spread
 across the entire system. This results in frequent requests for remote data.
@@ -24,6 +25,7 @@ typically small pieces of data. In contrast, commodity networks are designed
 for large packets and have just a fraction of their peak bandwidth when moving
 small packets.
 
+\vspace{0.5ex}
 \noindent{\bf High network communication latency.} The performance challenges
 of frequent communication is exacerbated by the network latency relative to
 processor performance. Latency of commodity networks runs anywhere from one to
@@ -35,14 +37,13 @@ severely underutilized compute resources.
 
 While some irregular applications can be restructured to better exploit
 locality, aggregate requests to increase network message size, and manage the
-additional challenges of load balance and synchronization across multinode
-systems, the effort required to do so is formidable and involves knowledge and
-skills pertaining to distributed systems far beyond those of most application
-programmers. Luckily, many of the important irregular applications (e.g.,
-graph processing, our focus in this paper) naturally offer large amounts of
-concurrency. This immediately suggests taking advantage of concurrency to
-tolerate the latency of data movement by overlapping computation with
-communication.
+additional challenges of load balance and synchronization, the effort required
+to do so is formidable and involves knowledge and skills pertaining to
+distributed systems far beyond those of most application programmers. Luckily,
+many of the important irregular applications (e.g., graph processing, our
+focus in this paper) naturally offer large amounts of concurrency. This
+immediately suggests taking advantage of concurrency to tolerate the latency
+of data movement by overlapping computation with communication.
 
 The fully custom Tera MTA-2~\cite{tera:mta1} system is a classic example of
 supporting irregular applications by using concurrency to hide latencies. It

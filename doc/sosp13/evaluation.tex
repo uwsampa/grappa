@@ -1,6 +1,74 @@
 \section{Evaluation} \label{sec:evaluation}
+
+The goal of our evaluation is to show that the core pieces of the \Grappa
+runtime system, namely our tasking system and the global memory/communication
+layer work as expected and together are able to efficiently run irregular
+applications. We evaluate \Grappa in three basic steps:
+\begin{itemize}
+\item We present results
+that show that the \Grappa runtime is able to sustain very high concurrency
+rates and the communication layer is able to sustain a very high rate of
+global memory operations. We also show the performance of a graph kernel that
+stresses communication and concurrency together. 
+
+\item We show how some popular irregular applications running on \Grappa compare to the Cray XMT and hand-tuned MPI code. 
+
+\item We finish with a characterization of system behavior, including profiling where execution time goes, how aggregation affects message size and rates, how global memory and work stealing behaves. 
+
+\end{itemize}
+
+\subsection{Basic Grappa mechanisms}
+
+
+
+
+\subsection{Fast User-Level Context Switching }
+
+\begin{figure}[ht]
+    \begin{center}
+      \includegraphics[width=0.5\textwidth]{figs/context_switch_time.pdf}
+    \end{center}
+    \caption{Average context switch time with 1 and 6 active cores,
+        with and without prefetching.}
+    \label{fig:context-switch-time}
+\end{figure}
+
+\begin{figure}[ht]
+    \begin{center}
+      \includegraphics[width=0.5\textwidth]{figs/context_switch_bw.pdf}
+    \end{center}
+    \caption{Context switch rate with prefetching. Once the total
+        size of contexts sufficiently exceeds last-level cache, most
+    prefetches go to main memory and the rate becomes limited to the
+    off-chip bandwidth.}
+    \label{fig:context-switch-time}
+\end{figure}
+
+
+% More specifically, each context is cache lines: 1 for the worker struct and 3
+% for stack data. So the are so 8 cacheline transfers per context switch (write
+% the old context, read the next in). The bandwidth of single socket is 270M cache lines/s.
+% 
+% This asymptotically approaches
+% 33.75Mcontexts/s as you increase the number of contexts (fewer and fewer in
+% L3). Note that only 4+ cores reaches full rate because these westmere chips
+% are balanced to not achieve full off-chip bandwidth until 4 cores.
+
+
+
+
+
+
+
+
+
+
+
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%% OLD %%%%%%%%%%%%%%%%%%
+
+
 Our evaluation begins with presentation of microbenchmark results, establishing
-the intrinsic potential of Grappa to provide random access bandwidth and latency tolerance.
+the intrinsic potential of Grappa to provide random access bandwidth and latency tolerance. 
 Next, we present application results, both for Grappa and for other paradigms, as well
 as comparing against the Cray XMT.  Finally, we present the impact of increased aggregation delay
 on Grappa results, thus exploring robustness to network scale.
