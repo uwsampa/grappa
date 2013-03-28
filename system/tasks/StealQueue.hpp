@@ -460,6 +460,7 @@ int64_t StealQueue<T>::steal_locally( Core victim, int64_t max_steal ) {
   GRAPPA_PROFILE_THREAD_START( stealprof, global_scheduler.get_current_thread() );
   int64_t steal_amount = result.readFE();
   GRAPPA_PROFILE_THREAD_STOP( stealprof, global_scheduler.get_current_thread() );
+  return steal_amount;
 }
 
 
