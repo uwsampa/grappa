@@ -40,10 +40,9 @@ order to offer high aggregate random access bandwidth for accessing remote
 data.
 
 \item[Communication layer.] The main goal of our communication layer is to
-aggregate small messages into large ones, invisible to the application
+aggregate small messages into large ones.  This process is invisible to the application
 programmer. Its interface is based on active messages~\cite{vonEicken92}.
-Since aggregation and deaggregation of messages needs to be very efficient, we
-made it highly concurrent with careful use of lock-free synchronization
+Since aggregation and deaggregation of messages needs to be very efficient, we perform the process in parallel and carefully use lock-free synchronization
 operations.
 
 \end{description}
