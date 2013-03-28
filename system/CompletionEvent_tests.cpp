@@ -212,7 +212,7 @@ void try_synchronizing_spawns() {
     BOOST_CHECK_EQUAL(x, N);
   });
   
-  BOOST_MESSAGE("  public,global");
+  BOOST_MESSAGE("  public,global"); VLOG(1) << "actually in public_global";
   on_all_cores([]{ global_x = 0; });
   
 //  gce.reset_all();
@@ -241,6 +241,8 @@ void user_main(void * args) {
   try_global_ce();
   try_global_ce_recursive();
   try_synchronizing_spawns();
+  
+  Statistics::merge_and_print();
 }
 
 BOOST_AUTO_TEST_CASE( test1 ) {
