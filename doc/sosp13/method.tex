@@ -65,15 +65,11 @@ many~\cite{Beamer:Graph500,Yoo:FixedPointGraph500}.
 \noindent{\bf IntSort:} This sorting benchmark is taken from the NAS
 Parallel Benchmark Suite~\cite{Bailey91thenas,nas3.3} and is one on
 which the CrayXMT's early predecessor once held the world speed
-record~\cite{TeraRecord}. The class D benchmark ranks a billion
+record~\cite{TeraRecord}. The largest problem size, class ``D'', ranks two billion
 uniformly distributed random integers using either a bucket or a counting sort
-algorithm: both versions are built into their reference code with the
-choice left to the benchmarker, the difference being the number and iteration
-counts of a series of tight loop computations.  Bucket sort uses less space
-than counting sort but executes a greater number of loops.  We chose
-Bucket sort for Grappa; the Cray XMT benchmark runs faster when using
-counting sort,so our comparison is based on those performance numbers.
-
+algorithm, depending on the strengths of the system. Bucket sort executes a greater number of loops, but is able to leverage locality and avoid communication completely in the final phase, ranking within buckets.
+For these reasons, the MPI reference version and our \Grappa implementation use bucket sort.
+On the other hand, the Cray XMT cannot take advantage of locality, but has an efficient compiler-supported parallel prefix sum, so it performs best using the counting sort algorithm.
  
 \vspace{0.5ex}
 \noindent{\bf PageRank:} This is a common centrality metric for
