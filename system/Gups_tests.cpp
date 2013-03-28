@@ -39,6 +39,9 @@ GRAPPA_DEFINE_STAT( SimpleStatistic<int64_t>, gups_requests_received, 0 );
 GRAPPA_DEFINE_STAT( SimpleStatistic<int64_t>, gups_completions_received, 0 );
 GRAPPA_DEFINE_STAT( SimpleStatistic<int64_t>, gups_completions_blocked, 0 );
 
+GRAPPA_DECLARE_STAT( SummarizingStatistic<int64_t>, rdma_message_bytes );
+
+GRAPPA_DEFINE_STAT( SimpleStatistic<int64_t>, gups_total_bytes, 0 );
 
 uint64_t * requests_sent = NULL;
 uint64_t * completions_sent = NULL;
@@ -335,12 +338,14 @@ void user_main( int * args ) {
     double throughput = 0.0;
     int nnodes = atoi(getenv("SLURM_NNODES"));
     double throughput_per_node = 0.0;
+    double bandwidth_per_node = 0.0;
 
     Grappa_add_profiling_value( &runtime, "runtime", "s", false, 0.0 );
     Grappa_add_profiling_integer( &FLAGS_iterations, "iterations", "it", false, 0 );
     Grappa_add_profiling_integer( &FLAGS_sizeA, "sizeA", "entries", false, 0 );
     Grappa_add_profiling_value( &throughput, "updates_per_s", "up/s", false, 0.0 );
     Grappa_add_profiling_value( &throughput_per_node, "updates_per_s_per_node", "up/s", false, 0.0 );
+    Grappa_add_profiling_value( &bandwidth_per_node, "bytes_per_s_per_node", "B/s", false, 0.0 );
 
   do {
 
@@ -351,6 +356,8 @@ void user_main( int * args ) {
 
     LOG(INFO) << "Do something";
     double start = wall_clock_time();
+    int64_t initial_bytes = rdma_message_bytes.value();
+
     fork_join_custom( &gups );
     //printf ("Yeahoow!\n");
     if( FLAGS_rdma ) {
@@ -359,6 +366,7 @@ void user_main( int * args ) {
     } else {
       forall_local <int64_t, func_gups_x> (A, FLAGS_iterations);
     }
+    int64_t final_bytes = rdma_message_bytes.value();
     double end = wall_clock_time();
 
     fork_join_custom( &stop_profiling );
@@ -367,6 +375,7 @@ void user_main( int * args ) {
     throughput = FLAGS_iterations / runtime;
 
     throughput_per_node = throughput/nnodes;
+    bandwidth_per_node = ((double)final_bytes - initial_bytes) / runtime;
     Grappa::Statistics::merge_and_print();
 
     if( FLAGS_validate ) {
