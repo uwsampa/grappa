@@ -1,116 +1,24 @@
 \section{Methodology} \label{sec:method}
-Towards evaluating how well Grappa enables scalable
-performance of irregular applications on mass market systems, our
-methodology is as follows.  For consistency in measurement, all
-results reported for mass market systems are measured on the same
-platform.  To establish the potential for Grappa performance, we
-identify small microkernel benchmarks that provide insight into the
-limitations of our system's component performance behaviors.  To
-compare meaningfully with the state-of-the-art, we compare Grappa
-performance on well known irregular application benchmarks both
-against the popular high performance programming methodologies MPI and
-UPC for distributed memory clusters, and against a custom shared memory
-architecture used exclusively for irregular computation, the Cray XMT.
-We then examine how sensitive Grappa results are to reduced
-injection rate and increased latency, as often occur when a system is
-scaled up so that nodes are further apart and the effective per
-destination packet injection rate drops.
-The three sections that follow describe this methodology in greater detail.
 
-\subsection{Systems}
-For commodity system measurements, we run Grappa on a 144-node cluster
-of AMD Interlagos processors. Nodes have 32-core (every pair share a
-floating-point unit) 2.1-GHz processors, 64GB of memory, and 40Gb
-Mellanox ConnectX-2 infiniband network card.  The cluster uses a
-QLogic infiniband switch.  We configure the nodes to have 32 1-GB
-hugepages to minimize TLB misses for the random access patterns we
-expect from irregular applications.
-\TODO{say ideally hugepages, but not able to on PAL}
+To study the Grappa system we implemented it in C++ for the Linux operating system.  We ported a number of benchmarks to Grappa as well as collected and optimized a set of comparison benchmarks for alternative approaches.  We run Grappa on a cluster of AMD Interlagos processors. Nodes have 32-core 2.1-GHz processors, 64GB of memory, and 40Gb Mellanox ConnectX-2 infiniband network cards.  Nodes are connected via a QLogic infiniband switch.  We use this cluster to evaluate Grappa and native MPI-only performance.  In addition to a mass-market cluster of machines we compare to the MTA using a 128-node Cray XMT (3rd generation MTA). Each node consists of a 500-MHz MTA Threadstorm multithreaded processor that supports 128~streams. The machine uses Cray's proprietary SeaStar2 interconnection network.  To evaluate performance we use a variety of benchmarks:
 
-We compare to the MTA using a 128-node Cray XMT (3rd generation MTA).
-Each node consists of a 500-MHz MTA Threadstorm multithreaded processor
-that supports 128~streams. The machine uses Cray's proprietary SeaStar2
-interconnection network.
+\paragraph{Context-switch:} This simple microbenchmark is used to explore context switch overhead.  A configurable number of workers are used to increment the values in a large array.  This benchmark stresses the scheduler inside of Grappa.
 
-One question that must be answered when making a comparison between the
-Cray XMT and a typical HPC cluster is what is a fair comparison -- these
-systems are quite different.  Three options immediately come to mind:
-equal number of processing cores, equal number of network interfaces,
-and equal dollars.  We discounted the last option fairly quickly,
-because it isn't a lasting data-point -- the cost of hardware shifts
-over time, skewing the interpretation of results.  The first option,
-cores, has some merit, but Grappa is designed for applications that have
-no locality in their computation.  This means almost all of their memory
-accesses are remote.  The factor that limits their performance is not
-processing, but communicating.  Hence, we have chosen the middle option,
-network interfaces as the way to normalize across the XMT and our
-cluster.  Each processor in the XMT system has its own network interface
-to access shared memory.  In the HPC cluster we use, each processor
-(which contains up to 32~cores, although we only use 6 in our
-experiments), has a single infiniband interface.
-\TODO{Given we're using number of network interfaces as parity measure,
-say something about the relative bandwidth of these network interfaces.}
-Hence, for our results
-we scale up XMT processors one for one with full system nodes.
+\paragraph{GUPS:} This is a faithful implementation of the giga-updates-per-second benchmark.  Read-modify-write updates are dispatched at random to a large array.  This benchmark stresses the networking layer of Grappa separately from the scheduler, because only a single worker is used per system node.
 
-\subsection{Microbenchmarks}
-With microbenchmarks we aim to evaluate the intrinisc potential of
-Grappa, measured by random access bandwidth, latency tolerance,
-scheduling efficiency, and robustness.  \TODO{do we need to justify
-these are the key determinants of Grappa potential?} Random access
-bandwidth can be measured with GUPS \TODO{describe HPC Random Access}.
-Latency tolerance must be at least sufficient to tolerate the ping
-latency and is limited above by the rate at which we can switch
-context as a function of the number of contexts: were adding contexts
-to slow the context switch rate below the throughput sustainable by
-the network and memory, the processing required to tolerate latency
-would introduce more latency than is tolerated, thereby degrading
-rather than improving performance.  We wish to tolerate latency of
-aggregation and synchronization as well, increasing the number of
-contexts needed.  We measure latency tolerance via a modified GUPS in
-which each update is dependent upon the results of an earlier update,
-not unlike linked-list chasing \TODO{find references?}.  We then
-establish the efficiency of scheduling via direct tests of yield
-performance sans global memory references.  This provides us with
-reassuring insights into how far we could stretch latency tolerance
-with our current system, one aspect of robustness.  Results for these
-microbenchmarks are presented in Section~\ref{sec:evaluation}.
-After presenting application results, we show how this robustness
-in latency tolerance reduces sensitivity of Grappa performance to changes
-in parameters, particularly in the network.  We measure
-this by artificially varying the effective network injection rate by
-sweeping the timeout value in the aggregator.  Results are in Section~\ref{sec:scaling}.
+\paragraph{Unbalanced tree search in-memory (UTS-Mem):} Unbalanced Tree Search (UTS) is a benchmark for evaluating the programmability and performance of systems for parallel applications that require dynamic load balancing~\cite{UTS}. It involves traversing an unbalanced implicit tree: at each vertex, its number of children is sampled from some probability distribution, and this number of new nodes are added to a work queue to be visited. While this benchmark captures irregular, dynamic \emph{computation,} we actually want to evaluate performance of algorithms with irregular \emph{memory\/} access patterns. Thus we augment UTS by using the existing traversal code to create a large tree in memory, and then we traverse the in-memory tree. We call this benchmark UTS-Mem, and the timed portion is this traversal of the in-memory tree. This in-memory traversal has no knowledge of the tree structure beforehand.
 
-\subsection{Application Kernel Benchmarks}
+\paragraph{Breadth-first-search (BFS):} This is the primary kernel for the Graph500 benchmark and is what currently determines the ranking of machines on the Graph500 list~\cite{graph500list}. As a whole, the Graph500 benchmark suite is designed to bring the focus of system design on data-intensive workloads, particularly large-scale graph analysis problems, that are important among cybersecurity, informatics, and network understanding workloads. The BFS benchmark builds a search tree containing parent nodes for each traversed vertex during the search.  While this is a relatively simple problem to solve, it exercises the random-access and fine-grained synchronization capabilities of a system as well as being a primitive in many other graph algorithms. Performance is measured in \emph{traversed edges per second\/} (TEPS), where the number of edges is the edges making up the generated BFS tree. One of the reference implementations of Graph500 BFS is for the XMT; this code fails to scale past 16 XMT processors because it does not expose enough parallelism, so we modified the code to use a recursive loop decomposition similar to Grappa's. We compare this modified version against a straightforward Grappa implementation. We do not employ algorithmic improvements, though there are many~\cite{Beamer:Graph500,Yoo:FixedPointGraph500}.
 
-To explore the performance of the Grappa runtime we have implemented
-three algorithms: breadth first search, betweenness centrality, and
-unbalanced tree search.  These algorithms were implemented for the
-Cray XMT (our baseline) and for Grappa.  The metric we use is
-algorithmic time, which means startup and loading of the data
-structure (from disk) is not included in the measurement.  Data is
-collected on real systems, which means minor variations in runtime
-exist from run to run.  The average of multiple runs are used, and
-where appropriate, confidence in the result is reported.
+\paragraph{IntSort:}  Write me Brandon Holt!
 
-We have used three benchmarks to explore the performance of Grappa:
+The metric we use is algorithmic time, which means startup and loading of the data structure (from disk) is not included in the measurement.  Grappa collects statistics about application behavior (packets sent, context switches, etc) and these are discussed where appropriate.  In addition we use a profiled version of Grappa to report component runtimes, but this profiled version is only used to collect this data and a fully optimized version is used for the bulk of the presented results.
 
-\paragraph{Unbalanced tree search in-memory (UTS-Mem)} Unbalanced Tree
-Search (UTS) is a benchmark for evaluating the programmability and
-performance of systems for parallel applications that require dynamic
-load balancing~\cite{UTS}. It involves traversing an
-unbalanced implicit tree: at each vertex, its number of children is
-sampled from some probability distribution, and this number of new nodes
-are added to a work queue to be visited. While this benchmark captures
-irregular, dynamic \emph{computation,} we actually want to evaluate
-performance of algorithms with irregular \emph{memory\/} access patterns.
-Thus we augment UTS by using the existing traversal code to create a
-large tree in memory, and then we traverse the in-memory tree. We call
-this benchmark UTS-Mem, and the timed portion is this traversal of the
-in-memory tree. This in-memory traversal has no knowledge of the
-tree structure beforehand.  The Grappa version of the in-memory tree
-search uses the asynchronous parallel for loop over a visited vertex's
-children list.
+%%%% Bit bucket
+
+%\paragraph{Betweenness Centrality} An important measure of the importance of particular vertices in a network is betweenness centrality (BC)~\cite{freeman1979centrality}. By this measure, the ``importance'' of each vertex is computed by finding the fraction of shortest paths that pass through it, which can optionally be approximated by only computing shortest paths using a subset of the vertices as starting points. BC can be useful for understanding which vertices may have the greatest impact, so in social networks this could be the primary person linking two communities. Because it requires multiple breadth-first traversals across the entire graph and in reverse, on power-law degree graphs, this algorithm exercises random accesses rate, and load balancing. It also requires fine-grained synchronization on updates to vertex centrality values because multiple paths will update the same vertex. BC is a kernel in the DARPA High Performance Computing Systems (HPCS) Scalable Synthetic Compact Applications graph analysis (SSCA\#2) benchmark~\cite{ssca2}. Performance for BC is also measured in TEPS, where the number of traversed edges is the total number of edges in the graph multiplied by the number of random starting vertices used in the approximate computation. We use the XMT implementation of BC implemented as part of the GraphCT~\cite{GraphCT} library and a comparable Grappa implementation, both of which use the parallel BC algorithm developed by Bader et al.~\cite{bader:bc}.
+
+%To explore the performance of the Grappa runtime we have implemented three algorithms: breadth first search, betweenness centrality, and unbalanced tree search.  These algorithms were implemented for the Cray XMT (our baseline) and for Grappa.  The metric we use is algorithmic time, which means startup and loading of the data structure (from disk) is not included in the measurement.  Data is collected on real systems, which means minor variations in runtime exist from run to run.  The average of multiple runs are used, and where appropriate, confidence in the result is reported.
 
 \comment{The Grappa version of tree search UTS-mem
 
@@ -151,50 +59,12 @@ void search_children( start, iters ) {
 \end{lstlisting}
 }
 
-\paragraph{Breadth-first-search (BFS)}
-This is the primary kernel for the Graph500 benchmark and is what
-currently determines the ranking of machines on the Graph500
-list~\cite{graph500list}. As a whole, the Graph500 benchmark suite is
-designed to bring the focus of system design on data-intensive
-workloads, particularly large-scale graph analysis problems, that are
-important among cybersecurity, informatics, and network understanding
-workloads. The BFS benchmark builds a search tree containing parent
-nodes for each traversed vertex during the search.  While this is a
-relatively simple problem to solve, it exercises the random-access and
-fine-grained synchronization capabilities of a system as well as being
-a primitive in many other graph algorithms. Performance is measured in
-\emph{traversed edges per second\/} (TEPS), where the number of edges is
-the edges making up the generated BFS tree. One of the reference
-implementations of Graph500 BFS is for the XMT; this code fails to
-scale past 16 XMT processors because it does not expose enough
-parallelism, so we modified the code to use a recursive loop
-decomposition similar to Grappa's. We compare this modified version
-against a straightforward Grappa implementation. We do not employ
-algorithmic improvements, though there are
-many~\cite{Beamer:Graph500,Yoo:FixedPointGraph500}.
 
-\paragraph{Betweenness Centrality}
-An important measure of the importance of particular vertices in a
-network is betweenness centrality
-(BC)~\cite{freeman1979centrality}. By this measure, the ``importance''
-of each vertex is computed by finding the fraction of shortest paths
-that pass through it, which can optionally be approximated by only
-computing shortest paths using a subset of the vertices as starting
-points. BC can be useful for understanding which vertices may have the
-greatest impact, so in social networks this could be the primary
-person linking two communities. Because it requires multiple
-breadth-first traversals across the entire graph and in reverse, on
-power-law degree graphs, this algorithm exercises random accesses
-rate, and load balancing. It also requires fine-grained
-synchronization on updates to vertex centrality values because
-multiple paths will update the same vertex. BC is a kernel in the
-DARPA High Performance Computing Systems (HPCS) Scalable Synthetic
-Compact Applications graph analysis (SSCA\#2)
-benchmark~\cite{ssca2}. Performance for BC is also measured in TEPS,
-where the number of traversed edges is the total number of edges in
-the graph multiplied by the number of random starting vertices used in
-the approximate computation. We use the XMT implementation of BC
-implemented as part of the GraphCT~\cite{GraphCT} library and a
-comparable Grappa implementation, both of which use the parallel BC
-algorithm developed by Bader et al.~\cite{bader:bc}.
+%% Given that we have MPI performance on the cluster this is not
+%% that important to have here anymore.
+%%
+%%
+%One question that must be answered when making a comparison between the Cray XMT and a typical HPC cluster is what is a fair comparison -- these systems are quite different.  Three options immediately come to mind: equal number of processing cores, equal number of network interfaces, and equal dollars.  We discounted the last option fairly quickly, because it isn't a lasting data-point -- the cost of hardware shifts over time, skewing the interpretation of results.  The first option, cores, has some merit, but Grappa is designed for applications that have no locality in their computation.  This means almost all of their memory accesses are remote.  The factor that limits their performance is not processing, but communicating.  Hence, we have chosen the middle option, network interfaces as the way to normalize across the XMT and our cluster.  Each processor in the XMT system has its own network interface to access shared memory.  In the HPC cluster we use, each processor (which contains up to 32~cores, although we only use 6 in our experiments), has a single infiniband interface.  Hence, for our results we scale up XMT processors one for one with full system nodes.
+
+%Towards evaluating how well Grappa enables scalable performance of irregular applications on mass market systems, our methodology is as follows.  For consistency in measurement, all results reported for mass market systems are measured on the same platform.  To establish the potential for Grappa performance, we identify small microkernel benchmarks that provide insight into the limitations of our system's component performance behaviors.  To compare meaningfully with the state-of-the-art, we compare Grappa performance on well known irregular application benchmarks both against the popular high performance programming methodologies MPI and UPC for distributed memory clusters, and against a custom shared memory architecture used exclusively for irregular computation, the Cray XMT. We then examine how sensitive Grappa results are to reduced injection rate and increased latency, as often occur when a system is scaled up so that nodes are further apart and the effective per destination packet injection rate drops. The three sections that follow describe this methodology in greater detail.
 
