@@ -46,16 +46,21 @@ data. Context switch time for the number of workers we use ($\approx$1K workers)
 on the order of 50 ns; and prefetching has significant impact on context
 switch time. And context switch time does not grow significantly with the
 number of workers --- even with one-half million workers, context switch
-is around 75ns.
+is around 75ns. In comparison, for the same yield test using kernel-level
+Pthreads on a single core, the switch time is 450ns for a few threads and 800ns for
+1000-32000 threads.
 
-We also measured (not in the plot) the \emph{rate} of context switch for all
-cores in a node, which showed that our rate is limited by off-chip memory
-bandwidth. Each context is 4 cache lines (1 for the worker struct and 3 for
-stack data), leading to 8 cache line transfers per context switch
-(write the previous context, read the next in). The off-chip bandwidth of a
-single socket in our system is 270M cache lines per second, which implies that
-we can sustain at most 34M context switches per second per socket, which is
-almost exactly what we sustain.
+If we calculate aggregate context switch\emph{rate} of all
+cores in a node, we find that with prefetching, \Grappa context
+switching is
+limited \emph{not} by memory latency, as normally assumed, but rather memory bandwidth.
+Specifically, we emprically found that 4 cachelines (1 for worker
+struct and 3 for stack data) was sufficient to avoid cache misses in
+the microbenchmark. Every context switch then requires 8 cacheline transfers. The off-chip
+bandwidth of a single socket in our system is 270M cachelines per
+second \cite{porterfield:bw,Nelson:hotpar11-real}. This implies that
+we can sustain at most 34M context switches per second per socket once
+the space of all contexts is enough to mostly reside outside of L3.
 
 In summary, our context switch engine is able to efficiently sustain very high
 concurrency and as we will show later, the amount of concurrency sustained is
