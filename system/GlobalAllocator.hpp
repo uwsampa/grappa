@@ -119,12 +119,16 @@ std::ostream& operator<<( std::ostream& o, const GlobalAllocator& a );
 
 GlobalAddress< void > Grappa_malloc( size_t size_bytes );
 
-void Grappa_free( GlobalAddress< void > address );
+template< typename T >
+void Grappa_free(GlobalAddress<T> address) {
+  GlobalAllocator::remote_free(static_cast<GlobalAddress<void>>(address));
+}
+
 
 /// Allocate count T's worth of bytes from global heap.
 template< typename T >
 GlobalAddress< T > Grappa_typed_malloc( size_t count ) {
-  return Grappa_malloc( sizeof( T ) * count );
+  return static_cast<GlobalAddress<T>>(Grappa_malloc( sizeof( T ) * count ));
 }
 
 

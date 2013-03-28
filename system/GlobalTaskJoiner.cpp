@@ -172,7 +172,7 @@ void GlobalTaskJoiner::send_cancel() {
     enter_called = false;
 
     GlobalAddress<GlobalTaskJoiner> global_joiner_addr = make_global(&global_joiner, target);
-    GlobalAddress<int64_t> global_nodes_in_addr = global_pointer_to_member(global_joiner_addr, &GlobalTaskJoiner::nodes_in);
+    GlobalAddress<int64_t> global_nodes_in_addr = static_cast<GlobalAddress<int64_t>>(global_pointer_to_member(global_joiner_addr, &GlobalTaskJoiner::nodes_in));
     int64_t result = Grappa_delegate_fetch_and_add_word(global_nodes_in_addr, -1);
     VLOG(2) << "(cancelled) nodes_in: " << result-1;
 

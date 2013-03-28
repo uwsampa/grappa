@@ -127,14 +127,16 @@ public:
   virtual void mark_sent() {
     Message<T>::mark_sent();
     
+#ifdef DEBUG
     if (get_pool().emptying) {
       VLOG(5) << "pool == " << &get_pool() << " to_send:" << get_pool().to_send << "  message(" << this << ", src:" << this->source_ << ", dst:" << this->destination_ << ", sent:" << this->is_sent_  << ", enq:" << this->is_enqueued_ << ", deli:" << this->is_delivered_ << ")";
     }
-    CHECK_NE(this->destination_, 0x5555);
+#endif
+    DCHECK_NE(this->destination_, 0x5555);
     if (Grappa::mycore() == this->source_) {
       if (get_pool().emptying) VLOG(5) << "emptying @ " << &get_pool() << "(buf:" << (void*)get_pool().buffer << ")" << " to_send:" << get_pool().to_send << ", completions_received:" << get_pool().completions_received << ", allocated_count:" << get_pool().allocated_count << ", sent message(" << this << ")";
       
-      CHECK_NE(this->source_, 0x5555) << " sent:" << this->is_sent_ << ", pool(" << &get_pool() << ")";
+      DCHECK_NE(this->source_, 0x5555) << " sent:" << this->is_sent_ << ", pool(" << &get_pool() << ")";
       this->source_ = 0x5555;
       
       get_pool().message_sent(this); // may trash things

@@ -39,6 +39,9 @@ GRAPPA_DEFINE_STAT( SimpleStatistic<int64_t>, gups_requests_received, 0 );
 GRAPPA_DEFINE_STAT( SimpleStatistic<int64_t>, gups_completions_received, 0 );
 GRAPPA_DEFINE_STAT( SimpleStatistic<int64_t>, gups_completions_blocked, 0 );
 
+GRAPPA_DECLARE_STAT( SummarizingStatistic<int64_t>, rdma_message_bytes );
+
+GRAPPA_DEFINE_STAT( SimpleStatistic<int64_t>, gups_total_bytes, 0 );
 
 uint64_t * requests_sent = NULL;
 uint64_t * completions_sent = NULL;
@@ -186,6 +189,7 @@ double wall_clock_time() {
 BOOST_AUTO_TEST_SUITE( Gups_tests );
 
 LOOP_FUNCTION( func_start_profiling, index ) {
+  Grappa::Statistics::reset();
   Grappa_start_profiling();
 }
 
@@ -216,7 +220,7 @@ void func_gups_x(int64_t * p) {
   //fprintf(stderr, "%d ", b);
   ff_delegate_add( Array + b, (const int64_t &) 1 );
 }
-void validate(GlobalAddress<uint64_t> A, size_t n) {
+void validate(GlobalAddress<int64_t> A, size_t n) {
   int total = 0, max = 0, min = INT_MAX;
   double sum_sqr = 0.0;
   for (int i = 0; i < n; i++) {
@@ -335,30 +339,36 @@ void user_main( int * args ) {
     double throughput = 0.0;
     int nnodes = atoi(getenv("SLURM_NNODES"));
     double throughput_per_node = 0.0;
+    double bandwidth_per_node = 0.0;
 
     Grappa_add_profiling_value( &runtime, "runtime", "s", false, 0.0 );
     Grappa_add_profiling_integer( &FLAGS_iterations, "iterations", "it", false, 0 );
     Grappa_add_profiling_integer( &FLAGS_sizeA, "sizeA", "entries", false, 0 );
     Grappa_add_profiling_value( &throughput, "updates_per_s", "up/s", false, 0.0 );
     Grappa_add_profiling_value( &throughput_per_node, "updates_per_s_per_node", "up/s", false, 0.0 );
+    Grappa_add_profiling_value( &bandwidth_per_node, "bytes_per_s_per_node", "B/s", false, 0.0 );
 
   do {
 
     LOG(INFO) << "Starting";
     Grappa_memset_local(A, 0, FLAGS_sizeA);
+    LOG(INFO) << "Do something";
+    fork_join_custom( &gups );
+    //printf ("Yeahoow!\n");
+
     LOG(INFO) << "Start profiling";
     fork_join_custom( &start_profiling );
 
-    LOG(INFO) << "Do something";
     double start = wall_clock_time();
-    fork_join_custom( &gups );
-    //printf ("Yeahoow!\n");
+    int64_t initial_bytes = rdma_message_bytes.value();
+
     if( FLAGS_rdma ) {
       LOG(INFO) << "Starting RDMA";
       fork_join_custom( &gups_rdma );
     } else {
       forall_local <int64_t, func_gups_x> (A, FLAGS_iterations);
     }
+    int64_t final_bytes = rdma_message_bytes.value();
     double end = wall_clock_time();
 
     fork_join_custom( &stop_profiling );
@@ -367,6 +377,7 @@ void user_main( int * args ) {
     throughput = FLAGS_iterations / runtime;
 
     throughput_per_node = throughput/nnodes;
+    bandwidth_per_node = ((double)final_bytes - initial_bytes) / runtime;
     Grappa::Statistics::merge_and_print();
 
     if( FLAGS_validate ) {

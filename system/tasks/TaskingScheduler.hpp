@@ -19,11 +19,20 @@
 #include "Timestamp.hpp"
 #include "PerformanceTools.hpp"
 #include "StatisticsTools.hpp"
+#include "Statistics.hpp"
+
+
 #ifdef VTRACE
 #include <vt_user.h>
 #endif
 
 #include "StateTimer.hpp"
+
+
+
+GRAPPA_DECLARE_STAT( SimpleStatistic<int64_t>, scheduler_context_switches );
+
+
 
 // forward declarations
 namespace Grappa {
@@ -40,6 +49,7 @@ void Grappa_dump_stats_blob();
 DECLARE_int64( periodic_poll_ticks );
 DECLARE_bool(poll_on_idle);
 DECLARE_bool(flush_on_idle);
+DECLARE_bool(rdma_flush_on_idle);
 DECLARE_int64( stats_blob_ticks );
 
 
@@ -123,6 +133,8 @@ class TaskingScheduler : public Scheduler {
     static const int64_t tick_scale = 1L; //(1L << 30);
 
     Thread * nextCoroutine ( bool isBlocking=true ) {
+      scheduler_context_switches++;
+
       Grappa_Timestamp current_ts = 0;
 #ifdef VTRACE_FULL
       VT_TRACER("nextCoroutine");
@@ -186,14 +198,17 @@ class TaskingScheduler : public Scheduler {
         
         if (FLAGS_poll_on_idle) {
           stats.state_timers[ stats.prev_state ] += (current_ts - prev_ts) / tick_scale;
-          if( FLAGS_flush_on_idle ) {
+
+          if( FLAGS_rdma_flush_on_idle ) {
             Grappa::impl::idle_flush_rdma_aggregator();
           }
+
           if ( idle_flush_aggregator() ) {
             stats.prev_state = TaskingSchedulerStatistics::StateIdleUseful;
           } else {
             stats.prev_state = TaskingSchedulerStatistics::StateIdle;
           }
+
 
           StateTimer::enterState_scheduler();
         } else {
@@ -345,6 +360,10 @@ class TaskingScheduler : public Scheduler {
     };
 
     TaskingSchedulerStatistics stats;
+
+  void assign_time_to_networking() {
+    stats.prev_state = TaskingSchedulerStatistics::StatePoll;
+  }
 
     TaskingScheduler ( );
     void init ( Thread * master, TaskManager * taskman );
