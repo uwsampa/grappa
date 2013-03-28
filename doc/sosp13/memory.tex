@@ -51,19 +51,19 @@ to other cores' memory.
     \begin{minipage}{\columnwidth}
 	\small
 	\begin{tabular}{l}
-      	\texttt{\scriptsize global\_address global\_malloc( size )} \\
-      	\texttt{\scriptsize global\_free( global\_address )} \\ 
+      	\texttt{\scriptsize GlobalAddress<T> global\_malloc<T>( size )} \\
+      	\texttt{\scriptsize global\_free( GlobalAddress<T> )} \\ 
       	Allocation in the global heap \\ \\
-      	\texttt{\scriptsize delegate\_read( global\_address, local\_var )}  \\
-      	\texttt{\scriptsize delegate\_read\_async( global\_address, local\_var )}  \\
-      	\texttt{\scriptsize delegate\_write( global\_address, local\_var )} \\
-      	\texttt{\scriptsize delegate\_write\_async( global\_address, local\_var )} \\
-      	\texttt{\scriptsize delegate\_cas( global\_address, local\_var )} \\
-      	\texttt{\scriptsize delegate\_fetch\_inc( global\_address, local\_var )} \\
-      	\texttt{\scriptsize delegate\_fetch\_inc\_async( global\_address, local\_var )} \\ 
+      	\texttt{\scriptsize delegate\_read( GlobalAddress<T>, T )}  \\
+      	\texttt{\scriptsize delegate\_read\_async( GlobalAddress<T>, T )}  \\
+      	\texttt{\scriptsize delegate\_write( GlobalAddress<T>, T value)} \\
+      	\texttt{\scriptsize delegate\_write\_async( GlobalAddress<T>, T )} \\
+      	\texttt{\scriptsize delegate\_cas( GlobalAddress<T>, T, T )} \\
+      	\texttt{\scriptsize delegate\_fetch\_inc( GlobalAddress<T>, T )} \\
+      	\texttt{\scriptsize delegate\_fetch\_inc\_async( GlobalAddress<T>, T )} \\ 
       	Memory operations at the home core of a global address \\ \\
-      	\texttt{\scriptsize cache\_acquire( global\_address, local\_buf, \{RO,RW,WO\})} \\
-      	\texttt{\scriptsize cache\_release( global\_address, local\_buf )} \\ 
+      	\texttt{\scriptsize cache\_acquire( GlobalAddress<T>, local\_buf, \{RO,RW,WO\})} \\
+      	\texttt{\scriptsize cache\_release( GlobalAddress<T>, local\_buf )} \\ 
 		Perform cache operations to acquire/release global data.  \\
 		Acquire copies all data to local node and returns a pointer. \\ 	
 		Release optionally copies data back to global memory. \\
