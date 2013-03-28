@@ -189,6 +189,7 @@ double wall_clock_time() {
 BOOST_AUTO_TEST_SUITE( Gups_tests );
 
 LOOP_FUNCTION( func_start_profiling, index ) {
+  Grappa::Statistics::reset();
   Grappa_start_profiling();
 }
 
@@ -219,7 +220,7 @@ void func_gups_x(int64_t * p) {
   //fprintf(stderr, "%d ", b);
   ff_delegate_add( Array + b, (const int64_t &) 1 );
 }
-void validate(GlobalAddress<uint64_t> A, size_t n) {
+void validate(GlobalAddress<int64_t> A, size_t n) {
   int total = 0, max = 0, min = INT_MAX;
   double sum_sqr = 0.0;
   for (int i = 0; i < n; i++) {
@@ -351,15 +352,16 @@ void user_main( int * args ) {
 
     LOG(INFO) << "Starting";
     Grappa_memset_local(A, 0, FLAGS_sizeA);
+    LOG(INFO) << "Do something";
+    fork_join_custom( &gups );
+    //printf ("Yeahoow!\n");
+
     LOG(INFO) << "Start profiling";
     fork_join_custom( &start_profiling );
 
-    LOG(INFO) << "Do something";
     double start = wall_clock_time();
     int64_t initial_bytes = rdma_message_bytes.value();
 
-    fork_join_custom( &gups );
-    //printf ("Yeahoow!\n");
     if( FLAGS_rdma ) {
       LOG(INFO) << "Starting RDMA";
       fork_join_custom( &gups_rdma );
