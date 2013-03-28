@@ -116,6 +116,23 @@ can do a lot better. \TODO{update this once we have more results. }
 
 \paragraph{Where execution time goes.}
 
+
+\begin{figure}[ht]
+    \begin{center}
+      \begin{tabular}{c|c c c c}
+        Benchmark     & Communication & User & Idle & Context Switch \\ \hline
+        GUPS          & 6.60  & 42.94   & 47.74 & 2.80 \\
+        BFS           & 54.84 & 30.90   & 10.94 & 3.43 \\ 
+        Intsort       & 34.28 & 42.00   & 21.31 & 2.47 \\ 
+        UTS           & 40.57 & 56.52   &  1.21 & 1.73 \\
+        Pagerank      & 76.79 & 20.71   &  0.06 & 2.50 \\
+      \end{tabular}
+    \end{center}
+    \caption{\Grappa\ execution time profile, in percent.}
+%bar chart, one set of bars per benchmark, one bar per system. runtime normalized to grappa.
+    \label{fig:grappa-profile}
+\end{figure}
+
 \paragraph{Message size and latency.}
 Distribution if possible. With and without aggregation. 
 
