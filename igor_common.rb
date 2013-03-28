@@ -124,7 +124,8 @@ Igor do
                shared_pool_size 2**20
                      stack_size 2**19
              locale_shared_size SHMMAX
-           global_heap_fraction 0.5   
+           global_heap_fraction 0.5
+            flatten_completions 1
   }
   
   # parses JSON stats and colon-delimited fields
