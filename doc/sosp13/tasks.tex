@@ -11,7 +11,7 @@ execute, they are mapped to a {\em worker}, which is akin to a user-level
 thread. % \Grappa keeps a large pool of workers per hardware core.
 
 \paragraph{Tasks} 
-Tasks are specified with a ``functor'' object that holds both code to execute and initial state. The functor can be specified with a function pointer and explicit arguments, a C++ struct that overloads the parentheses operator, or a C++11 lambda. These objects, typically very small (on the order of 64 bytes), hold read-only values such as an iteration index and pointers to common data or synchronization objects. These task functors can be serialized and transported around the system, and eventually executed by a Worker, as described next.
+Tasks are specified with a ``functor'' object that holds both code to execute and initial state. The functor can be specified with a function pointer and explicit arguments, a C++ struct that overloads the parentheses operator, or a C++11 lambda. These objects, typically very small (on the order of 64 bytes), hold read-only values such as an iteration index and pointers to common data or synchronization objects. These task functors can be serialized and transported around the system, and eventually executed by a worker, as described next.
 
 \paragraph{Workers} Workers execute application and system (e.g.,
 communication) tasks. A worker is simply a collection of status bits and a
