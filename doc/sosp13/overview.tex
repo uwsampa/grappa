@@ -1,8 +1,11 @@
 \section{\Grappa Overview}
 
-% \TODO{Whats missing before diving into the system
-%     is why we think we can build a system with these
-%     techniques and it will work well--myers}
+\Grappa leverages as much freely available and commodity infrastructure as
+possible. We use unmodified Linux for the operating system and an
+off-the-shelf user-mode InfiniBand device driver stack~\cite{OFED}. MPI is
+used for process setup and tear down. GASNet~\cite{gasnet} is used as the
+underlying mechanism for remote memory reads and writes using active message
+invocations. To this infrastructure, \Grappa adds  three main software components, shown in Figure~\ref{fig:grappa}:
 
 \begin{figure}[t]
 \begin{center}
@@ -14,34 +17,43 @@
 \end{center}
 \end{figure}
 
-
-\Grappa (Figure~\ref{fig:grappa}) has three main software components:
 \begin{description}
 
-\item [Tasking system.] The tasking system supports lightweight multithreading to tolerate communication latency and global distributed work-stealing (i.e., tasks can be stolen from any node in the system), which provides automated load balancing. The scheduler oversubscribes to have more worker threads than required for latency tolerance. By having at least four threads per processor core ready to run at all times, the scheduler can prefetch a worker's state into cache to lower the likelihood of costly main memory accesses during a context switch.
+\item [Tasking system.] The tasking system supports lightweight multithreading
+to tolerate communication latency and global distributed work-stealing (i.e.,
+tasks can be stolen from any node in the system), which provides automated
+load balancing. The scheduler oversubscribes to have more worker threads than
+required for latency tolerance. By having at least four workers per processor
+core ready to run at all times, the scheduler can prefetch a worker's state
+into cache to lower the likelihood of costly main memory accesses during a
+context switch.
 
-\item[Distributed shared memory.] The DSM system provides
-fine-grain access to data anywhere in the system. It supports synchronization
-operations on global data, explicit local caching of any memory in the system,
-and support for operations on remote data.
-The DSM system design relies on the lightweight tasking system and
-communication layer in order to offer high aggregate random
-access bandwidth for accessing remote data.
+\item[Distributed shared memory.] The DSM system provides fine-grain access to
+data anywhere in the system. It supports normal access operations such as
+\emph{read\/} and \emph{write\/} as well as synchronizing operations such as
+\emph{fetch-and-add\/}~\cite{fetchandadd}. It also offers explicit local
+caching of any memory in the system, and delegates that directly operate on
+remote data. The memory model offered is similar to what underpins
+C/C++~\cite{N2480,N2800}, so it is familiar to programmers. The DSM system
+design relies on the lightweight tasking system and communication layer in
+order to offer high aggregate random access bandwidth for accessing remote
+data.
 
-\item[Communication layer.] Modern commodity networks
-support high bandwidth only for large messages. Since irregular applications
-tend to need frequent communication of small requests, the main goal of our
-communication layer is to aggregate small messages into large ones to better
-exploit what the network can offer. It is largely invisible to the application
-programmer.
+\item[Communication layer.] The main goal of our communication layer is to
+aggregate small messages into large ones, which invisible to the application
+programmer. Its interface is based on active messages~\cite{vonEicken92}.
+Since aggregation and deaggregation of messages needs to be very efficient, we
+made it highly concurrent with careful use of lock-free synchronization
+operations.
 
-% software developer but helps to improve network performance when applications read and write only small pieces of data.
 
 \end{description}
 
-% \paragraph{Exploiting Latency Tolerance} As we will show later, \Grappa can tolerate latencies way beyond that of the network. Therefore, \Grappa can afford to \emph{trade latency for throughput\/}: by {\em increasing\/} latency in key components of the system we are able to increase our aggregate random access bandwidth (by delaying and aggregating messages), our synchronization bandwidth (by delegating operations to remote nodes), and our ability to improve load imbalance (work stealing increases latency).
-
-% \TODO{check to see we actually explain these three somewhere.  Ie, that aggregating increases throughput and latency, that delegating synchronization increases the rate and the latency at which we can eg atomically increment, and that stealing work increases the latency of some tasks (eg when their data is largely at the originating node) but provides greater throughput overall.}
-
-In the next three sections we describe both \Grappa's main components and how they are implemented.
+As we will show throughout the paper, \Grappa can tolerate latencies way beyond
+that of the network. Therefore, \Grappa can afford to \emph{trade latency for
+throughput}. By {\em increasing\/} latency in key components of the system we
+are able to: increase effective random access memory bandwidth by delaying and
+aggregating messages; increase synchronization rate by delegating atomic
+operations to gatekeeper cores, even when referencing node-local global data;
+and improve load balance by tolerating the delays incurred when work-stealing.
 
