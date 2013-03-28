@@ -7,6 +7,7 @@ library(reshape)
 source("../common.R")
 
 dd <- read.csv(file='input.csv',header=TRUE,sep=",")
+x=dd
 
 # argh
 x[2] = dd[2]/dd[2]
