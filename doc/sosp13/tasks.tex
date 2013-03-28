@@ -176,14 +176,14 @@ class node_t {
   GlobalAddress<struct node_t *> *children;
 };
 
-void search(GlobalAddress<node_t> node, key_t key) {
-  if (node.key == key) {
+void search(GlobalAddress<node_t *> node, key_t key) {
+  if (node->key == key) {
     result = node;
     return;
   }
 
-  parallel_for(0, node.numChildren, &index) {
-    search(node.children[index], key);
+  parallel_for(0, node->numChildren, &index) {
+    search(node->children[index], key);
   }
 
 }
