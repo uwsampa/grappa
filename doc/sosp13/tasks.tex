@@ -5,22 +5,21 @@ describe how applications expose parallelism to the \Grappa runtime.
 
 \subsection{Task Support Implementation}
 
-The basic unit of execution in \Grappa is a {\em task}. Each hardware core has
-a single operating system thread pinned to it. When tasks are ready to
+The basic unit of execution in \Grappa is a {\em task}. When tasks are ready to
 execute, they are mapped to a {\em worker}, which is akin to a user-level
-thread. % \Grappa keeps a large pool of workers per hardware core.
+thread. Each hardware core has a single operating system thread pinned to it.
 
 \paragraph{Tasks} 
-Tasks are specified with a ``functor'' object that holds both code to execute and initial state. The functor can be specified with a function pointer and explicit arguments, a C++ struct that overloads the parentheses operator, or a C++11 lambda. These objects, typically very small (on the order of 64 bytes), hold read-only values such as an iteration index and pointers to common data or synchronization objects. These task functors can be serialized and transported around the system, and eventually executed by a worker, as described next.
+Tasks are specified by a ``functor'' object that holds both code to execute and initial state. The functor can be specified with a function pointer and explicit arguments, a C++ struct that overloads the parentheses operator, or a C++11 lambda. These objects, typically very small (on the order of 64 bytes), hold read-only values such as an iteration index and pointers to common data or synchronization objects. Task functors can be serialized and transported around the system, and eventually executed by a worker, as described next.
 
 \paragraph{Workers} Workers execute application and system (e.g.,
 communication) tasks. A worker is simply a collection of status bits and a
-stack, allocated at a particular core. When a task is ready to be executed it
-is assigned to a worker, which executes the task functor on its own stack. 
+stack, allocated at a particular core. When a task is ready to execute it
+is assigned to a worker, that executes the task functor on its own stack. 
 Once a task is mapped to a worker it stays with that worker until it finishes.
 
 \paragraph{Scheduling} During execution, a worker yields control of its core
-whenever it performs a long-latency operation, allowing the processor to
+whenever performing a long-latency operation, allowing the processor to
 remain busy while waiting for the operation to complete. In addition, a
 programmer can direct scheduling explicitly via the \Grappa API calls shown in
 Figure~\ref{fig:scheduling}. To minimize yield overhead, the \Grappa scheduler
@@ -32,10 +31,10 @@ worker and load that of another.
 	\begin{tabular}{l}
     \texttt{\scriptsize yield() } \\
       Yields core to scheduler, enqueuing caller to be \\ scheduled again soon \\
-    \texttt{\scriptsize suspend() }  \\
-      Yields core to scheduler, enqueuing caller only once \\ another task calls wake \\
     \texttt{\scriptsize wake( task * $t$ ) } \\
       Enqueues some other task $t$ to be scheduled again soon \\
+    \texttt{\scriptsize suspend() }  \\
+      Yields core to scheduler, enqueuing caller only once \\ another task calls wake \\
 	\end{tabular}
     \begin{minipage}{0.95\columnwidth}
       \caption{\label{fig:scheduling} \Grappa scheduling API } 
@@ -44,8 +43,8 @@ worker and load that of another.
 \end{figure}
 
 Each core in a \Grappa system has its own independent scheduler. The scheduler
-has a single FIFO queue of active \emph{workers} ready to execute, the {\it
-ready worker queue}. Each scheduler also has three queues of \emph{tasks}
+has a single FIFO queue of active workers ready to execute, the {\it
+ready worker queue}. Each scheduler also has three queues of tasks
 waiting to be assigned a worker:
 
 \begin{itemize}
