@@ -11,6 +11,10 @@
 #include "Statistics.hpp"
 #include "Delegate.hpp"
 #include "Collective.hpp"
+#include "HistogramStatistic.hpp"
+#include "GlobalAllocator.hpp"
+#include "ParallelLoop.hpp"
+#include "PerformanceTools.hpp"
 
 BOOST_AUTO_TEST_SUITE( Statistics_tests );
 
@@ -24,6 +28,7 @@ GRAPPA_DEFINE_STAT(SimpleStatistic<double>, bar, 0);
 
 GRAPPA_DEFINE_STAT(SummarizingStatistic<int>, baz, 0);
 
+GRAPPA_DEFINE_STAT(HistogramStatistic, rand_msg, 0);
 
 void user_main(void * args) {
   CHECK(Grappa::cores() >= 2); // at least 2 nodes for these tests...
@@ -53,9 +58,26 @@ void user_main(void * args) {
   Statistics::print();
 
   delegate::call(1, []() -> bool {
-      Statistics::print();
-      return true;
-    });
+    Statistics::print();
+    return true;
+  });
+
+  Statistics::reset_all_cores();
+
+#ifdef HISTOGRAM_SAMPLED
+  VLOG(1) << "testing histogram sampling";
+  int64_t N = 1<<20;  
+  auto xs = Grappa_typed_malloc<int64_t>(N);
+  forall_localized(xs, N, [N](int64_t i, int64_t& x) { x = rand() % N; });
+  
+  on_all_cores([xs,N]{
+    for (int64_t i=0; i<N; i++) {
+      rand_msg = delegate::read(xs+i);
+    }
+  });
+#endif
+
+  call_on_all_cores([]{ Grappa_stop_profiling(); });
   Statistics::merge_and_print();
   //Statistics::dump_stats_blob();
   
@@ -70,6 +92,8 @@ BOOST_AUTO_TEST_CASE( test1 ) {
               );
   
   Grappa_activate();
+  
+  srand(12345);
   
   Grappa_run_user_main( &user_main, (void*)NULL );
   

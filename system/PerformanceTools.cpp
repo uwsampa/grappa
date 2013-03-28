@@ -93,12 +93,14 @@ void Grappa_start_profiling() {
   po.filter_in_thread_arg = NULL;
   ProfilerStartWithOptions( Grappa_get_next_profiler_filename(), &po );
   //ProfilerStart( Grappa_get_profiler_filename() );
+#if defined(VTRACE_SAMPLED) || defined(HISTOGRAM_SAMPLED)
+  Grappa_reset_stats();
+#endif
 #ifdef VTRACE_SAMPLED
   VT_USER_START("sampling");
-  Grappa_reset_stats();
   Grappa::Statistics::sample();
 #endif
-#endif
+#endif // GOOGLE_PROFILER
 }
 
 void Grappa_stop_profiling() {

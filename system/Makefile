@@ -274,6 +274,9 @@ LD=$(VAMPIRTRACE)/bin/vtcxx -vt:cxx "$(GCC472_LD)" $(VAMPIRTRACE_COMMON_ARGS)
 CFLAGS+= -DVTRACE -DVTRACE_SAMPLED
 endif
 
+ifdef HISTOGRAM_SAMPLED
+CFLAGS+= -DHISTOGRAM_SAMPLED
+endif
 
 ifdef STL_DEBUG_ALLOCATOR
 CFLAGS+= -DSTL_DEBUG_ALLOCATOR
@@ -335,7 +338,8 @@ LIBRARY_CONTENTS+= Grappa.o \
 				   MessagePool.o \
 					 AsyncDelegate.o \
 					 SharedMessagePool.o \
-					 GlobalCompletionEvent.o
+					 GlobalCompletionEvent.o \
+					 HistogramStatistic.o
 
 libGrappa.a: $(LIBRARY_CONTENTS)
 	$($(MPITYPE)_AR) rv $@ $^
