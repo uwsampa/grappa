@@ -42,7 +42,7 @@ just increments values in a large array.
 
 Figure~\ref{fig:context-switch-exp} shows the average context switch time as
 the number of workers grow. There are two important takeaway points from these
-data. Context switch time for the number of workers we use ($~$1K workers) is
+data. Context switch time for the number of workers we use ($\approx$1K workers) is
 on the order of 50 ns; and prefetching has significant impact on context
 switch time. And context switch time does not grow significantly with the
 number of workers --- even with one-half million workers, context switch
