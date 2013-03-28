@@ -13,7 +13,7 @@ namespace Grappa {
   
     void histogram_sample() {
       for (HistogramStatistic * h : Grappa::Statistics::impl::histogram_stats()) {
-        VLOG(1) << "sampling...";
+        DVLOG(5) << "sampling...";
         h->sample();
       }
     }

@@ -154,7 +154,7 @@ class TaskingScheduler : public Scheduler {
         if( take_profiling_sample ) {
           take_profiling_sample = false;
 #ifdef HISTOGRAM_SAMPLED
-          VLOG(1) << "sampling histogram";
+          DVLOG(3) << "sampling histogram";
           Grappa::Statistics::histogram_sample();
 #else
           Grappa::Statistics::sample();          
