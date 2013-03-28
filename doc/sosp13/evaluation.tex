@@ -45,8 +45,8 @@ the number of workers grow. There are two important takeaway points from these
 data. Context switch time for the number of workers we use ($\approx$1K workers) is
 on the order of 50 ns; and prefetching has significant impact on context
 switch time. And context switch time does not grow significantly with the
-number of workers --- even with one-half million workers, context switch
-is around 75ns. In comparison, for the same yield test using kernel-level
+number of workers --- even with one-half million workers, context
+switch time is around 75ns. In comparison, for the same yield test using kernel-level
 Pthreads on a single core, the switch time is 450ns for a few threads and 800ns for
 1000-32000 threads.
 
