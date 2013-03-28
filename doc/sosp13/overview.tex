@@ -46,14 +46,4 @@ Since aggregation and deaggregation of messages needs to be very efficient, we
 made it highly concurrent with careful use of lock-free synchronization
 operations.
 
-
 \end{description}
-
-As we will show throughout the paper, \Grappa can tolerate latencies way beyond
-that of the network. Therefore, \Grappa can afford to \emph{trade latency for
-throughput}. By {\em increasing\/} latency in key components of the system we
-are able to: increase effective random access memory bandwidth by delaying and
-aggregating messages; increase synchronization rate by delegating atomic
-operations to gatekeeper cores, even when referencing node-local global data;
-and improve load balance by tolerating the delays incurred when work-stealing.
-
