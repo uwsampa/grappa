@@ -86,17 +86,26 @@ distributed setting has been a long-standing challenge in HPC.
 \end{figure}
 
 \paragraph{Putting it all together with Unbalanced Tree Search in memory
-(UTS).} Figure~\ref{fig:grappa-uts} shows the overall performance of \Grappa
-running UTS. The point of this experiment is to demonstrate whether \Grappa's
-context switching and communication layers can in fact be used together, while
-balancing workload, to run an irregular application efficiently. We look at two classes of trees, T1 and T3, from the original benchmark. T1
-trees are very shallow and wide (i.e., significant parallel slack), while T3
-trees are very deep (i.e., little parallel slack). When the access to each
-vertex is a random access, the critical path to search T3 trees is very long,
-hence the low performance and scalability. On such trees, we do not expect there to be
-sufficient concurrency for any system, including \Grappa, to achieve high
-throughput --- at the 16-node data point, the average active
-tasks per core over the search is 775 and 13 for T1 and T3, respectively. On the other hand \Grappa performs and scales very well for T1 trees. 
+(UTS).} 
+Figure~\ref{fig:grappa-uts} shows the overall performance of \Grappa running
+UTS. The point of this experiment is to demonstrate whether \Grappa's context
+switching and communication layers can in fact be used together, while
+balancing workload, to run an irregular application efficiently. Visiting
+vertices in the distributed tree requires mostly remote accesses, and because
+each vertex in the tree must be visited before it can be expanded, blocking
+remote reads are required. 
+In this case, we are forced to context switch to tolerate the remote access and continue aggregating. 
+We look at two classes of trees, T1 and T3, from
+the original benchmark. T1 trees are very shallow and wide (i.e., significant
+parallel slack), while T3 trees are very deep (i.e., little parallel slack).
+When the access to each vertex is a random access, the critical path to search
+T3 trees is very long, hence the low performance and scalability. On such
+trees, we do not expect there to be sufficient concurrency for any system,
+including \Grappa, to achieve high throughput --- at the 16-node data point,
+the average active tasks per core over the search is 775 and 13 for T1 and T3,
+respectively. On the other hand \Grappa performs and scales very well for T1
+trees.
+
 
 \begin{figure}[ht]
     \begin{center}
