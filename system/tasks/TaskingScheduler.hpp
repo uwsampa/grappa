@@ -361,6 +361,10 @@ class TaskingScheduler : public Scheduler {
 
     TaskingSchedulerStatistics stats;
 
+  void assign_time_to_networking() {
+    stats.prev_state = TaskingSchedulerStatistics::StatePoll;
+  }
+
     TaskingScheduler ( );
     void init ( Thread * master, TaskManager * taskman );
 
