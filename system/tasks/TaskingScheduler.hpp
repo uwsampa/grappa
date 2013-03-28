@@ -84,7 +84,6 @@ class TaskingScheduler : public Scheduler {
 
     /// Reference to Task manager that is used by the scheduler
     /// for finding Tasks to assign to workers
-    TaskManager * task_manager;
 
     /// total number of worker Threads
     uint64_t num_workers;
@@ -229,6 +228,8 @@ class TaskingScheduler : public Scheduler {
     }
 
   public:
+    TaskManager * task_manager;
+    
     /// Stats for the scheduler
     class TaskingSchedulerStatistics {
       private:

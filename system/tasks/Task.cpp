@@ -93,6 +93,9 @@ template bool global_queue_push<Task>( GlobalAddress<Task> chunk_base, uint64_t 
 template StealQueue<Task> StealQueue<Task>::steal_queue;
 template GlobalQueue<Task> GlobalQueue<Task>::global_queue;
 
+size_t TaskManager::publicQSize() const {
+  publicQ.depth();
+}
 
     
 /// @return true if local shared queue has elements

@@ -366,6 +366,9 @@ class TaskManager {
     bool isWorkDone() {
       return workDone;
     }
+    
+    size_t privateQSize() const { return privateQ.size(); }
+    size_t publicQSize() const;
 
     bool global_queue_on() {
       return doGQ;

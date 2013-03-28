@@ -14,6 +14,7 @@
 #define PRINT_MSG(m) "msg(" << &(m) << ", src:" << (m).source_ << ", dst:" << (m).destination_ << ", enq:" << (m).is_enqueued_ << ", sent:" << (m).is_sent_ << ", deliv:" << (m).is_delivered_ << ")"
 
 DECLARE_bool( flatten_completions );
+DECLARE_bool( flatten_completions_extreme );
 
 /// total number of times "complete" has to be called on another core
 GRAPPA_DECLARE_STAT(SimpleStatistic<uint64_t>, gce_total_remote_completions);
@@ -70,14 +71,24 @@ class GlobalCompletionEvent : public CompletionEvent {
   };
   
   
-  class CompletionMessage: public Message<DoComplete> {    
+  class CompletionMessage: public Message<DoComplete> {
+    size_t local_work_count() {
+      return impl::global_scheduler.active_worker_count();
+        + impl::global_scheduler.task_manager->privateQSize()
+        + impl::global_scheduler.task_manager->publicQSize();
+    }
+    
   public:
     Core target;
     int64_t completes_to_send;
     CompletionMessage(Core target = -1): Message(), completes_to_send(0), target(target) {}
     
     bool waiting_to_send() {
-      return this->is_enqueued_ && !this->is_sent_;
+      if (FLAGS_flatten_completions_extreme) {
+        return (this->is_enqueued_ && !this->is_sent_) || (local_work_count() > 3);
+      } else {
+        return this->is_enqueued_ && !this->is_sent_;        
+      }
     }
     
     virtual void mark_sent() {
@@ -257,7 +268,7 @@ public:
 /// TODO: replace all instances with gce.send_completion and remove this?
 inline void complete(GlobalAddress<GlobalCompletionEvent> ce, int64_t decr = 1) {
   DVLOG(5) << "called remote complete";
-  if (FLAGS_flatten_completions) {
+  if (FLAGS_flatten_completions || FLAGS_flatten_completions_extreme) {
     ce.pointer()->send_completion(ce.core(), decr);
   } else {
     if (ce.node() == mycore()) {
