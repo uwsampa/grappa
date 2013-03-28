@@ -6,8 +6,7 @@
 
 GRAPPA_DECLARE_STAT(SummarizingStatistic<double>, delegate_op_roundtrip_latency);
 
-// REPLACE ME FOR HISTOGRAMS
-extern int64_t delegate_op_latency_histogram;
+GRAPPA_DECLARE_STAT(HistogramStatistic, delegate_op_latency_histogram);
 
 /// Stats for delegate operations
 class DelegateStatistics {
