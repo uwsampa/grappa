@@ -14,14 +14,18 @@ network.
 
 We use a variety of benchmarks:
 
-\noindent{\bf Context-switch:} This simple microbenchmark is used to explore context switch overhead.  A configurable number of workers are used to increment the values in a large array.  This benchmark stresses the scheduler inside of Grappa.
+%%% Moved the below to the evaluation sec
+% \vspace{0.5ex}
+% \noindent{\bf Context-switch:} This simple microbenchmark is used to explore context switch overhead.  A configurable number of workers are used to increment the values in a large array.  This benchmark stresses the scheduler inside of Grappa.
+% 
+% \vspace{0.5ex}
+% \noindent{\bf GUPS:} This is a faithful implementation of the
+% giga-updates-per-second benchmark. Read-modify-write updates are dispatched at
+% random to a large array. This benchmark stresses the networking layer of
+% Grappa separately from the scheduler, because only a single worker is used per
+% system node.
 
-\noindent{\bf GUPS:} This is a faithful implementation of the
-giga-updates-per-second benchmark. Read-modify-write updates are dispatched at
-random to a large array. This benchmark stresses the networking layer of
-Grappa separately from the scheduler, because only a single worker is used per
-system node.
-
+\vspace{0.5ex}
 \noindent{\bf Unbalanced tree search in-memory (UTS-Mem):} Unbalanced Tree Search
 (UTS) is a benchmark for evaluating the programmability and performance of
 systems for parallel applications that require dynamic load
@@ -36,6 +40,7 @@ in-memory tree. We call this benchmark UTS-Mem, and the timed portion is this
 traversal of the in-memory tree. This in-memory traversal has no knowledge of
 the tree structure beforehand.
 
+\vspace{0.5ex}
 \noindent{\bf Breadth-first-search (BFS):} This is the primary kernel for the
 Graph500 benchmark and is what currently determines the ranking of machines on
 the Graph500 list~\cite{graph500list}. As a whole, the Graph500 benchmark
@@ -56,8 +61,10 @@ straightforward Grappa implementation. We do not employ algorithmic
 improvements, though there are
 many~\cite{Beamer:Graph500,Yoo:FixedPointGraph500}.
 
+\vspace{0.5ex}
 \noindent{\bf IntSort:} \TODO{Write me Brandon Holt!}
 
+\vspace{0.5ex}
 \noindent{\bf PageRank:} \TODO{Write me Brandon Myers!}
 
 

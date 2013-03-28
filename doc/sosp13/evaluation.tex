@@ -17,42 +17,112 @@ stresses communication and concurrency together.
 
 \end{itemize}
 
-\subsection{Basic Grappa mechanisms}
+\subsection{Basic \Grappa Mechanisms}
 
-
-
-
-\subsection{Fast User-Level Context Switching }
+\paragraph{User-level context switching.}
+As discussed earlier, fast context switching is at the heart of \Grappa's
+latency tolerance abilities. We assess context switch overheads using a simple
+microbenchmark that has a configurable number of workers, where each worker 
+just increments values in a large array. 
 
 \begin{figure}[ht]
     \begin{center}
       \includegraphics[width=0.5\textwidth]{figs/context_switch_time.pdf}
+%      \includegraphics[width=0.5\textwidth]{figs/context_switch_bw.pdf}
     \end{center}
-    \caption{Average context switch time with 1 and 6 active cores,
-        with and without prefetching.}
-    \label{fig:context-switch-time}
+    \caption{Average context switch time with 1 active, with and without prefetching.}
+    \label{fig:context-switch-exp}
 \end{figure}
+
+Figure~\ref{fig:context-switch-exp} shows the average context switch time as
+the number of workers grow. There are several important takeaway points form
+these data. Context switch time for the number of workers we use currently
+($~$1K) is on the order of 50 ns; and prefetching has significant impact on
+context switch time. And ontext switch time does not grow significantly with
+the number of workers --- even at close to one half million workers context
+switch is around 75ns. 
+
+We also measured (not in the plot) the \emph{rate} of context switch for all
+cores in a node, which showed that our rate is limited by off-chip memory
+bandwidth. Each context is 4 cache lines (1 for the worker struct and 3 for
+stack data), leading to 8 cache line transfers per context switch
+(write the previous context, read the next in). The off-chip bandwidth of a
+single socket in our system is 270M cache lines per second, which implies that
+we can sustain at most 34M context switches per second per socket, which is
+almost exactly what we sustain.
+
+In summary, our context switch engine is able to efficiently sustain very high concurrency and we will show later, the amount of concurrency sustained is sufficient the latencies \Grappa needs to hide.  
+
+\paragraph{Global memory and communication.} We measure the performance of
+\Grappa's global memory and communication layers using a faithful
+implementation of the giga updates per second (GUPS) benchmark.
+Read-modify-write updates are dispatched at random to a large array. This
+benchmark stresses the communication layer of \Grappa separately from the
+scheduler, because only a single worker is used per system node. Figure~\ref{fig:grappa-gups} shows that Grappa is able to sustain on the order of billions of updates per second, which is enough to \TODO{...}.
 
 \begin{figure}[ht]
     \begin{center}
-      \includegraphics[width=0.5\textwidth]{figs/context_switch_bw.pdf}
+%      \includegraphics[width=0.5\textwidth]{figs/grappa-gups.pdf}
     \end{center}
-    \caption{Context switch rate with prefetching. Once the total
-        size of contexts sufficiently exceeds last-level cache, most
-    prefetches go to main memory and the rate becomes limited to the
-    off-chip bandwidth.}
-    \label{fig:context-switch-time}
+    \caption{GUPS (giga updates per second) for \Grappa as the number of nodes grows.}
+    \label{fig:grappa-gups}
 \end{figure}
 
+\paragraph{Putting it all together with Unbalanced Tree Search (UTS).}
+We now show the overall performance of \Grappa running UTS. Figure~\ref{fig:grappa-uts}. The point of this experiment is to show that \Grappa's context switching and communication layers can in fact be used together to run an irregular application efficiently. Looking at the performance as the number of nodes grows shows \TODO{...}.
 
-% More specifically, each context is cache lines: 1 for the worker struct and 3
-% for stack data. So the are so 8 cacheline transfers per context switch (write
-% the old context, read the next in). The bandwidth of single socket is 270M cache lines/s.
-% 
-% This asymptotically approaches
-% 33.75Mcontexts/s as you increase the number of contexts (fewer and fewer in
-% L3). Note that only 4+ cores reaches full rate because these westmere chips
-% are balanced to not achieve full off-chip bandwidth until 4 cores.
+\begin{figure}[ht]
+    \begin{center}
+%      \includegraphics[width=0.5\textwidth]{figs/grappa-uts.pdf}
+    \end{center}
+    \caption{Vertices per second in UTS on \Grappa as the number of nodes grows.}
+    \label{fig:grappa-uts}
+\end{figure}
+
+\subsection{Comparing \Grappa to Other Systems}
+
+In order to ground \Grappa's performance, we compare it with XMT running BFS,
+PageRank, IntSort, GUPS and UTS. Since XMT is a different hardware platform,
+we also compare \Grappa with hand-tuned MPI versions of BFS and GUPS running
+on the same hardware. Finally, we also compare it with UTS written for UPC. We
+run all experiments with 64 nodes. 
+
+\begin{figure}[ht]
+    \begin{center}
+%      \includegraphics[width=0.5\textwidth]{figs/grappa-uts.pdf}
+    \end{center}
+    \caption{Comparing \Grappa with XMT, hand-tuned MPI and UPC.}
+%bar chart, one set of bars per benchmark, one bar per system. runtime normalized to grappa.
+    \label{fig:grappa-comparisons}
+\end{figure}
+
+Figure~\ref{fig:grappa-comparisons} shows the results. Overall, \Grappa is
+within striking distance of XMT and UPC performance. However, it underperforms
+compared to hand-tuned MPI. Nevertheless, this comparison needs to be taken
+with a grain of salt for several reasons. First, we have not spent as much
+time tuning \Grappa's implementations. This is supported by inspecting the BFS
+MPI implementation we used, which clearly shows that it employs a lot of
+algorithmic-specific optimizations. In fact, some of these optimizations
+resemble some of what \Grappa does automatically, like message aggregation.
+Second, the GUPS results presented earlier suggests that \Grappa performance
+can do a lot better. \TODO{update this once we have more results. }
+
+\subsection{Characterization}
+
+\paragraph{Where execution time goes.}
+
+\paragraph{Message size and latency.}
+Distribution if possible. With and without aggregation. 
+
+\paragraph{Frequency of remote requests.}
+
+\paragraph{Work stealing behavior.}
+Performance loss of not having stealing. Ratio of \# of steals over total \# of task spawns. UTS needs stealing to work. 
+
+
+
+
+
 
 
 
@@ -65,6 +135,8 @@ stresses communication and concurrency together.
 
 
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%% OLD %%%%%%%%%%%%%%%%%%
+
+\comment{
 
 
 Our evaluation begins with presentation of microbenchmark results, establishing
@@ -484,3 +556,5 @@ more than 60\%.
 %        \label{fig:thresh-uts}
 %    \end{minipage}
 %\end{figure*}
+
+}
