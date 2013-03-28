@@ -146,13 +146,11 @@ lives. \Grappa provides the \texttt{call\_on} call for this purpose.
 \begin{figure}[htbp]
   \begin{center}
 	\begin{tabular}{l}
-    \texttt{\scriptsize spawn( void (*fp)(args) )} \\
+    \texttt{\scriptsize spawn( Functor f )} \\
       Creates a new stealable task \\
-    \texttt{\scriptsize spawn\_on( core, (*fp)(args) )} \\
-      Creates a new task that will run on a specific core \\
-    \texttt{\scriptsize parallel\_for( (*fp)(args), start, end )} \\
-      Executes iterations of a loop as stealable tasks  \\
-    \texttt{\scriptsize call\_on( core, (*fp)(args) )} \\ 
+    \texttt{\scriptsize parallel\_for( start, end, Functor iteration )} \\
+      Executes iterations of a loop as stealable tasks that take the iteration index as an argument  \\
+    \texttt{\scriptsize call\_on( core, Functor f )} \\ 
       Runs a limited function on a specific core without \\
       consuming \Grappa execution resources 
 	\end{tabular}
@@ -169,11 +167,10 @@ lives. \Grappa provides the \texttt{call\_on} call for this purpose.
 \begin{figure}[htbp]
 \begin{scriptsize}
 \begin{verbatim}
-
 class node_t {
   key_t   key
   int64_t numChildren;
-  GlobalAddress<struct node_t *> *children;
+  GlobalAddress<node_t *> children;
 };
 
 void search(GlobalAddress<node_t *> node, key_t key) {
@@ -182,10 +179,11 @@ void search(GlobalAddress<node_t *> node, key_t key) {
     return;
   }
 
-  parallel_for(0, node->numChildren, &index) {
-    search(node->children[index], key);
-  }
-
+  parallel_for(0, node->numChildren, [=](int index) {
+    spawnTask([=]{
+      search(node->children[index], key);
+    });
+  });
 }
 \end{verbatim}
 \end{scriptsize}
