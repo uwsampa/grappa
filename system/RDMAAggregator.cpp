@@ -83,6 +83,12 @@ GRAPPA_DEFINE_STAT( SimpleStatistic<int64_t>, rdma_flush_receive, 0 );
 GRAPPA_DEFINE_STAT( SummarizingStatistic<double>, rdma_local_delivery_time, 0 );
 
 
+
+// REPLACE ME FOR HISTOGRAMS
+int64_t app_bytes_sent_histogram = 0;
+int64_t rdma_bytes_sent_histogram = 0;
+
+
 // defined in Grappa.cpp
 extern bool Grappa_done_flag;
 
@@ -312,24 +318,30 @@ namespace Grappa {
       }
 
       // spawn send workers
-      for( int i = 0; i < core_partner_locale_count_; ++i ) {
-        Grappa::spawn_worker( [this, i] { 
-            DVLOG(5) << "Spawning send worker " << i << " for locale " << core_partner_locales_[i];
-            send_worker( core_partner_locales_[i] );
-          });
-      }
+#ifndef LEGACY_SEND
+        for( int i = 0; i < core_partner_locale_count_; ++i ) {
+          Grappa::spawn_worker( [this, i] { 
+                                  DVLOG(5) << "Spawning send worker " << i << " for locale " << core_partner_locales_[i];
+                                  send_worker( core_partner_locales_[i] );
+                                });
+        }
+#endif
 
       // spawn receive workers
-      for( int i = 0; i < FLAGS_rdma_workers_per_core; ++i ) {
-        Grappa::spawn_worker( [this] { 
-            receive_worker();
-          });
-      }
+#ifndef LEGACY_SEND
+        for( int i = 0; i < FLAGS_rdma_workers_per_core; ++i ) {
+          Grappa::spawn_worker( [this] { 
+                                  receive_worker();
+                                });
+        }
+#endif
 
       // spawn flusher
-      Grappa::spawn_worker( [this] {
-          idle_flusher();
-        });
+#ifndef LEGACY_SEND
+        Grappa::spawn_worker( [this] {
+                                idle_flusher();
+                              });
+#endif
 
       //
       // precache buffers
@@ -571,6 +583,7 @@ void RDMAAggregator::draw_routing_graph() {
           // track total size
           size += new_buffer - buffer;
           app_bytes_serialized += new_buffer - buffer;
+          app_bytes_sent_histogram = new_buffer - buffer;
 
           // go to next messsage 
           Grappa::impl::MessageBase * next = message->next_;
@@ -1051,6 +1064,7 @@ void RDMAAggregator::draw_routing_graph() {
     static uint64_t sequence_number = Grappa::mycore();
 
     int buffers_used_for_send = 0;
+    int64_t bytes_sent = 0;
 
     // this is the core we are sending to
     Core dest_core = dest_core_for_locale_[ locale ];
@@ -1217,9 +1231,13 @@ void RDMAAggregator::draw_routing_graph() {
       if( aggregated_size > 0 ) {
         // we have a buffer. send.
         global_communicator.send( dest_core, enqueue_buffer_handle_, b->get_base(), aggregated_size + b->get_base_size(), dest_buf );
+
         rdma_message_bytes += aggregated_size + b->get_base_size();
+        bytes_sent += aggregated_size + b->get_base_size();
+
         if( buffers_used_for_send == 0 ) rdma_first_buffer_bytes += aggregated_size + b->get_base_size();
         buffers_used_for_send++;
+
         DVLOG(4) << __func__ << "/" << sequence_number 
                  << ": Sent buffer of size " << aggregated_size 
                  << " through RDMA to " << dest_core
@@ -1242,6 +1260,8 @@ void RDMAAggregator::draw_routing_graph() {
     if( buffers_used_for_send > 0 ) rdma_buffers_used_for_send += buffers_used_for_send;
 
     CHECK_NULL( messages_to_send );
+
+    rdma_bytes_sent_histogram = bytes_sent;
 
     active_send_workers_--;
     rdma_send_end++;
