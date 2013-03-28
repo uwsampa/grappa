@@ -18,13 +18,7 @@
 \Grappa (Figure~\ref{fig:grappa}) has three main software components:
 \begin{description}
 
-\item [Tasking system.] The tasking system supports lightweight multithreading
-to tolerate communication latency and global distributed work-stealing (i.e.,
-tasks can be stolen from any node in the system), which provides automated
-load balancing. The scheduler oversubscribes to have more worker threads than
-required for latency tolerance. By having at least several threads ready to
-run at all times, the scheduler can prefetch a context data into cache to
-lower the likelihood of costly main memory accesses during a context switch. 
+\item [Tasking system.] The tasking system supports lightweight multithreading to tolerate communication latency and global distributed work-stealing (i.e., tasks can be stolen from any node in the system), which provides automated load balancing. The scheduler oversubscribes to have more worker threads than required for latency tolerance. By having at least four threads per processor core ready to run at all times, the scheduler can prefetch a worker's state into cache to lower the likelihood of costly main memory accesses during a context switch.
 
 \item[Distributed shared memory.] The DSM system provides
 fine-grain access to data anywhere in the system. It supports synchronization
