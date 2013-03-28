@@ -16,13 +16,13 @@ We use a variety of benchmarks:
 
 \noindent{\bf Context-switch:} This simple microbenchmark is used to explore context switch overhead.  A configurable number of workers are used to increment the values in a large array.  This benchmark stresses the scheduler inside of Grappa.
 
-\nonindent{\bf GUPS:} This is a faithful implementation of the
+\noindent{\bf GUPS:} This is a faithful implementation of the
 giga-updates-per-second benchmark. Read-modify-write updates are dispatched at
 random to a large array. This benchmark stresses the networking layer of
 Grappa separately from the scheduler, because only a single worker is used per
 system node.
 
-\nonindent{\bf Unbalanced tree search in-memory (UTS-Mem):} Unbalanced Tree Search
+\noindent{\bf Unbalanced tree search in-memory (UTS-Mem):} Unbalanced Tree Search
 (UTS) is a benchmark for evaluating the programmability and performance of
 systems for parallel applications that require dynamic load
 balancing~\cite{UTS}. It involves traversing an unbalanced implicit tree: at
@@ -36,7 +36,7 @@ in-memory tree. We call this benchmark UTS-Mem, and the timed portion is this
 traversal of the in-memory tree. This in-memory traversal has no knowledge of
 the tree structure beforehand.
 
-\nonindent{\bf Breadth-first-search (BFS):} This is the primary kernel for the
+\noindent{\bf Breadth-first-search (BFS):} This is the primary kernel for the
 Graph500 benchmark and is what currently determines the ranking of machines on
 the Graph500 list~\cite{graph500list}. As a whole, the Graph500 benchmark
 suite is designed to bring the focus of system design on data-intensive
@@ -56,9 +56,9 @@ straightforward Grappa implementation. We do not employ algorithmic
 improvements, though there are
 many~\cite{Beamer:Graph500,Yoo:FixedPointGraph500}.
 
-\nonindent{\bf IntSort:} \TODO{Write me Brandon Holt!}
+\noindent{\bf IntSort:} \TODO{Write me Brandon Holt!}
 
-\nonindent{\bf PageRank:} \TODO{Write me Brandon Myers!}
+\noindent{\bf PageRank:} \TODO{Write me Brandon Myers!}
 
 
 The metric we use is algorithmic time, which means startup and loading of the
