@@ -81,11 +81,14 @@ amount of state a cooperative context switch routine must save, according to
 the ABI, is 62~bytes.
 
 Since \Grappa keeps a very large number of active workers, their context data
-will not fit in cache. Therefore, the scheduler has to perform very careful
-prefetching in order to reduce context switch cost to a minimum. We determined
-empirically that prefetching the fourth worker in the scheduling order is
-sufficient. We also prefetch three cache lines from the stack for each worker.
-This makes context switching effectively free of cache misses even to hundreds
+will not fit in cache. By oversubscribing on the number of workers
+beyond what is required for latency tolerance, the scheduler can
+ensure there is always some number of context pointers in the ready
+queue. This allows the scheduler to prefetch contexts into
+cache. The reason this works is because the size of the L1 cache is
+sufficient to hold enough contexts to tolerate the latency to main
+memory. Empirically we find that prefetching the fourth worker in the scheduling order is
+sufficient. This prefetching makes context switching effectively free of cache misses even to hundreds
 of thousands of threads. We provide an analysis of our context switch
 performance in Section~\ref{eval:basic}.
 
