@@ -183,17 +183,6 @@ Figure \ref{fig:grappa-message-size} shows the distribution of message
 sizes we are able to aggregate before aggregation times out and
 sends. We see different behavior between UTS and BFS. 
 
-In UTS, we obtained the best throughput by flushing frequently: on the order 100 microseconds , but
-this mean
-
-In BFS, we see a trimodal distribution. There are two reasons for
-this. First, in BFS, we obtained the best throughput by flushing at
-least 500 microseconds apart, but also flushing whenever the core went
-idle. This leads to a large number of messages that are not 
-
-
-
-
 Recall that global memory can be accessed in two ways. For requests of
 locations that are expected to shared, delegate operations are
 used. For requests of non-shared locations where locality can be
@@ -205,34 +194,34 @@ locality; they more often access data on the local node. Only 20
 percent of UTS explicit cache operations are remote, whereas 44
 percent of BFS explict cache operations are remote.
 
+In UTS, we obtained the best throughput by flushing frequently: on the
+order 100 microseconds. This, combined with the fewer number of remote
+accesses, means that there are a limited nubmer of requests generated
+per flush interval, leading to packets primarily smaller than 10KB.
 
-The bimodal nature of the BFS distribution is due to a locality optimization that o
+In BFS, we see a trimodal distribution. There are two reasons for
+this. First, in BFS, we obtained the best throughput by flushing at
+least 500 microseconds apart, and also flushing whenever the core went
+idle. Since this process ignores whether another flush has occured
+recently, it leads to a large number of small messages. This leads to
+the first and smallest mode of the distribution.
 
-Both 
+The other two modes are due to a locality optimization in the \Grappa
+version of BFS. To minimize unnecessary remote communication, each
+core visits vertices whoes edge lists are stored locally. Since we are
+traversing power-law graphs, a small fraction of vertices have a very
+high number of edges. This means that occasionally a core visits a
+high-degree vertex which allows it to very quickly generate a large
+batch of requests. This interacts well with aggregation; when we find
+high degree vertices, we are able to aggregate packets on the order of
+40KB. In flush intervals without high-degree vertices, we see packets
+on the order of 8KB.
 
+Figure \ref{fig:grappa-latency} shows the latency distribution of
+remote delegate operations. This distribution follows the aggregated
+message size distribution: when we form larger packets, the system
+takes longer to process them.
 
-In BFS we exploit a large
- Since we are traversing power-law graphs,
-some vertices have a very high number of edges. We exploit locality in
-BFS by having tasks visit vertices whose edge lists are stored on the
-local node. When this local traversal hits a high-degree vertex, BFS
-is able to generate a large number of 
-
-Figure \ref{fig:grappa-latency} shows
-
-We see different aggregation behavior between BFS and UTS: 
-
-
-
-In BFS, the bulk of remote accesses are done to take owner
-
-Conversely, UTS attempts to 
-
-
-
-
-
-Distribution if possible. With and without aggregation. 
 
 \begin{figure}[ht]
     \begin{center}
@@ -254,11 +243,6 @@ Distribution if possible. With and without aggregation.
 
 
 
-
-
-
-\paragraph{Work stealing behavior.}
-Performance loss of not having stealing. Ratio of \# of steals over total \# of task spawns. UTS needs stealing to work. 
 
 
 
