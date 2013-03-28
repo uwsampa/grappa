@@ -1,19 +1,19 @@
 \section{Distributed Shared Memory}
 
-Applications written for Grappa utilize two forms of memory: local and global.
+Applications written for \Grappa utilize two forms of memory: local and global.
 Local memory is local to a single core within a node in the system. Accesses
 occur through conventional pointers. The compiler emits an access and the
 memory is manipulated directly. Applications use local accesses for a number
-of things in Grappa: the stack associated with a task, accesses to localized
+of things in \Grappa: the stack associated with a task, accesses to localized
 global memory in caches (see below), and accesses to debugging infrastructure
 that is local to each system node. Local pointers cannot access memory on
 other cores, and are valid only on their home core.
 
 Large data that is expected to be shared and accessed with low locality is
-stored in Grappa's global memory. All global data must be accessed through
-calls into Grappa's API, shown in Figure~\ref{fig:accessing-memory}.
+stored in \Grappa's global memory. All global data must be accessed through
+calls into \Grappa's API, shown in Figure~\ref{fig:accessing-memory}.
 
-\paragraph{Global memory addressing} Grappa provides two methods for storing
+\paragraph{Global memory addressing} \Grappa provides two methods for storing
 data in the global memory. The first is a distributed heap striped across all
 the machines in the system in a block cyclic fashion. The
 \texttt{global\_malloc} and \texttt{global\_free} calls are used to allocate
@@ -30,10 +30,10 @@ order to exploit spatial locality when available.
 \comment{The heap metadata is stored on a single node. Currently all heap
 allocation and free operations are serialized through this node; while this
 has been sufficient for our benchmarks, it is easy to relax in the future
-Grappa will provide parallel performance through
+\Grappa will provide parallel performance through
 combining~\cite{MAMA,flatcombining}.}
 
-Grappa also allows any local data on a core's stacks or heap to be
+\Grappa also allows any local data on a core's stacks or heap to be
 exported to the global address space to be made accessible to other
 cores across the system. Addresses to global memory allocated in this
 way use \textbf{2D global addresses}.  This uses a traditional PGAS
@@ -74,7 +74,7 @@ linear addresses can refer to other cores' memory.
 		Acquire copies all data to local node and returns a pointer. \\ 	
 		Release optionally copies data back to global memory. \\
 	\end{tabular}
-      \caption{\label{fig:accessing-memory} Grappa API for memory accesses. \TODO{Update table with new calls. And async calls for delegates.}}     \end{minipage}
+      \caption{\label{fig:accessing-memory} \Grappa API for memory accesses. \TODO{Update table with new calls. And async calls for delegates.}}     \end{minipage}
   \end{center}
 \end{figure}
 
@@ -82,13 +82,13 @@ linear addresses can refer to other cores' memory.
 \begin{center}
   \includegraphics[width=0.95\columnwidth]{figs/memory-structure}
 \begin{minipage}{0.95\columnwidth}
-  \caption{\label{fig:memory-structure} Global memory referencing in Grappa}
+  \caption{\label{fig:memory-structure} Global memory referencing in \Grappa}
 \end{minipage}
 \vspace{-3ex}
 \end{center}
 \end{figure}
 
-\paragraph{Global memory access} There are two general methods Grappa
+\paragraph{Global memory access} There are two general methods \Grappa
 applications use to {\em access} global memory. One method is to use {\em
 delegate} operations, which are short memory accesses performed at the memory
 location's home node. This method is used when there is no locality in the
@@ -122,7 +122,7 @@ actual atomic operations (and thus avoiding their typical high cost).
 Delegate operations can be either {\em synchronous} or {\em asynchronous}.
 With synchronous operations, the task issuing the delegate call blocks until
 the delegate operation completes, which is necessary, for example, to ensure
-that synchronization has finished before continuing. Synchronization in Grappa
+that synchronization has finished before continuing. Synchronization in \Grappa
 is implemented using synchronous delegate operations. Often remote data
 accesses do not need to be performed synchronously. In order to avoid
 unnecessary waiting, we support asynchronous delegate operations. For reads,
@@ -130,7 +130,7 @@ we support a ``futures''-like mechanism. Tasks may issue delegate reads in
 parallel and block on the ``promises'' returned by asynchronous delegate
 invocations. Delegate write operations may also be performed asynchronously,
 and since they do not return data, they need a mechanism to detect completion.
-Grappa provides a \texttt{GlobalCompletionEvent} object, which keeps track of
+\Grappa provides a \texttt{GlobalCompletionEvent} object, which keeps track of
 outstanding asynchronous operations of the local core. The code and can probe
 the state of this object to determine when all outstanding requests are
 complete. This is necessary to, say, make sure all outstanding operations are
@@ -159,22 +159,22 @@ complete before executing a synchronization operation.
 % }
 
 \vspace{1ex}
-\textit{Explicit caching.} Grappa provides an API to fetch a global pointer of
+\textit{Explicit caching.} \Grappa provides an API to fetch a global pointer of
 any length and return a local pointer to a cached copy of the global memory.
-Grappa cache operations have the usual read-only and read-write variants,
+\Grappa cache operations have the usual read-only and read-write variants,
 along with a write-only variant used to initialize data structures. Languages
 for distributed shared memory systems have done optimizations to achieve a
 similar goal. For example, the UPC compiler coalesces struct and array
 accesses into remote get/put \cite{Chen:2005}, and Fortran D compiler's
 message vectorization hoists small messages out of a loop
-\cite{FortranD:1992}. Caching in Grappa additionally provides a mechanism for
+\cite{FortranD:1992}. Caching in \Grappa additionally provides a mechanism for
 exploiting temporal locality when available by operating on the data locally.
 
-Under the hood, Grappa performs the mechanics of gathering chunks of data from
+Under the hood, \Grappa performs the mechanics of gathering chunks of data from
 multiple system nodes and presenting a conventional appearing linear block of
 memory as a local pointer into a cache. The strategy employed is to issue all
 the constituent requests of the desired block (as Active Messages) and then
-yield until all responses have occurred. Currently, Grappa caches are
+yield until all responses have occurred. Currently, \Grappa caches are
 \emph{not\/} kept coherent automatically. If that is desired, the programmer is
 responsible for ensuring sufficient synchronization (via delegate operations)
 occurs before acquiring or releasing cache objects.
