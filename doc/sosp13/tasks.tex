@@ -1,39 +1,49 @@
 \section{Tasking System}
 
-The basic unit of execution in \Grappa is a {\em task}. Each hardware core has a single operating system thread pinned to it. When tasks are ready to execute, they are mapped to a {\em worker}, which is akin to a user-level thread. \Grappa keeps a large pool of workers per hardware core. Below we discuss the implementation of our task management support and then describe how applications expose parallelism to the \Grappa runtime.
+Below we discuss the implementation of our task management support and then
+describe how applications expose parallelism to the \Grappa runtime.
 
 \subsection{Task Support Implementation}
 
-\paragraph{Tasks} Each task is represented by a 64-bit function pointer and three 64-bit arguments.  We use three arguments because tasks are often generated via a parallel loop decomposition, in which each task needs three kinds of data:
+The basic unit of execution in \Grappa is a {\em task}. Each hardware core has
+a single operating system thread pinned to it. When tasks are ready to
+execute, they are mapped to a {\em worker}, which is akin to a user-level
+thread. % \Grappa keeps a large pool of workers per hardware core.
 
-\noindent {\it private argument}, often a loop index; 
+\paragraph{Tasks} Each task is represented by a 64-bit function pointer and
+three 64-bit arguments. We use three arguments because tasks are often
+generated via a parallel loop decomposition, in which each task needs three
+kinds of data:
 
-\noindent {\it shared argument}, typically data shared amongst a group of
+\begin{itemize}
+\item {\it private argument}, often a loop index; 
+
+\item {\it shared argument}, typically data shared amongst a group of
 tasks, or the number of loop iterations to be performed by this task;
 
-\noindent {\it synchronization argument}, often used to determine when all
+\item {\it synchronization argument}, often used to determine when all
 tasks that are part of a loop have finished, in the form of a global pointer
 to a synchronization object allocated at the core that spawned a group of
 tasks.
+\end{itemize}
 
 While these are the most common uses of the three task arguments, they are
 treated as arbitrary 64-bit values in the runtime, and can be used for any
 purpose.
 
-\paragraph{Workers} Workers execute application tasks.  A worker is simply a collection of status bits and a stack, allocated at a particular core.  When a task is ready to be executed it is assigned to a worker.  Once a task is mapped to a worker it stays with that worker until it completes.
+\paragraph{Workers} Workers execute application and system (e.g.,
+communication) tasks. A worker is simply a collection of status bits and a
+stack, allocated at a particular core. When a task is ready to be executed it
+is assigned to a worker. Once a task is mapped to a worker it stays with that
+worker until it completes.
 
-%% Note sure this is even true.  And it's confusing and not relevant regardless. -M
-% There are two types of workers: (1) user worker; and (2) system worker. 
-%System workers execute runtime management activities such as communication and statistics collection. User workers and system workers might have different scheduling priorities. System workers execute periodically and in idle times, to guarantee timely communication services.
-
-\paragraph{Scheduling} 
-During execution, a worker yields control of its core whenever it performs a
-long-latency operation, allowing the processor to remain busy while waiting
-for the operation to complete. In addition, a programmer can direct scheduling
-explicitly via the \Grappa API calls shown in Figure~\ref{fig:scheduling}. To
-minimize yield overhead, the \Grappa scheduler operates entirely in user-space
-and does little more than store register state of one worker and load that of
-another.
+\paragraph{Scheduling} During execution, a worker yields control of its core
+whenever it performs a long-latency operation, allowing the processor to
+remain busy while waiting for the operation to complete. In addition, a
+programmer can direct scheduling explicitly via the \Grappa API calls shown in
+Figure~\ref{fig:scheduling}. To minimize yield overhead, the \Grappa scheduler
+operates entirely in user-space and does little more than store state of one
+worker and load that of another.
 
 \begin{figure}[htbp]
   \begin{center}
@@ -51,21 +61,24 @@ another.
   \end{center}
 \end{figure}
 
-Each core in a \Grappa system has its own independent scheduler.  The scheduler has a single queue of active workers:
+Each core in a \Grappa system has its own independent scheduler. The scheduler
+has a single FIFO queue of active \emph{workers} ready to execute, the {\it
+ready worker queue}. Each scheduler also has three queues of \emph{tasks}
+waiting to be assigned a worker:
 
-\noindent {\it ready worker queue}, a FIFO queue of workers that are
-  matched with workers and are ready to execute;
+\begin{itemize}
 
-Each scheduler also has three queues of tasks waiting to be assigned a worker:
+\item {\it deadline task queue}, a priority queue of tasks that are executed according to task-specific deadline constraints;
 
-\noindent {\it deadline task queue}, a priority queue of tasks that are executed according to task-specific deadline constraints.
+\item {\it private task queue}, a FIFO queue of tasks that must run on
+this core and therefore is not subject to stealing;
 
-
-\noindent {\it private task queue}, a FIFO queue of tasks that must run on this core;
-
-\noindent {\it public task queue},  a LIFO queue of tasks that are
+\item {\it public task queue},  a LIFO queue of tasks that are
   waiting to be matched with workers. It is a local partition of a shared
   task pool.
+
+\end{itemize}
+
 
 Whenever a task yields or suspends, the scheduler makes a decision about what
 to do next. First, any task in the deadline task queue who's deadline
@@ -80,7 +93,7 @@ woken (or a new worker is spawned), matched with a task, and scheduled.
 \Grappa context switches between workers non-preemptively. As with other
 cooperative multithreading systems, we treat context switches as function
 calls, saving and restoring only the callee-saved state as specified in the
-x86-64 ABI\~cite{amd64:abi:2012}. This involves saving six general-purpose
+x86-64 ABI~\cite{amd64:abi:2012}. This involves saving six general-purpose
 64-bit registers and the stack pointer, as well as the 16-bit x87 floating
 point control word and the SSE context/status register. Thus, the minimum
 amount of state a cooperative context switch routine must save, according to
@@ -92,8 +105,8 @@ prefetching in order to reduce context switch cost to a minimum. We determined
 empirically that prefetching the fourth worker in the scheduling order is
 sufficient. We also prefetch three cache lines from the stack for each worker.
 This makes context switching effectively free of cache misses even to hundreds
-of thousands of threads. We provide a detailed analysis of our context switch
-performance in Section~\ref{eval:ctx}.
+of thousands of threads. We provide an analysis of our context switch
+performance in Section~\ref{eval:basic}.
 
 \paragraph{Work stealing} 
 When the scheduler finds no work to assign to its workers, it commences to
