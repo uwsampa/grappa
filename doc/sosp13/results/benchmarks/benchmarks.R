@@ -22,8 +22,13 @@ ddd = melt(x, id.vars=1)
 p <- ggplot( ddd,
             aes(x=Platform,y=value,stat="identity")) +
   geom_bar(aes(fill=variable),position="dodge") +
-  ggtitle("Benchmarks (normalized to Grappa)")+
+  #ggtitle("Benchmarks")+
+  xlab("Benchmark / Platform")+
+  ylab("Throughput (normalized to Cora)")+
+  opts(aspect.ratio=.65,legend.position=c(0.9,0.8))+
+  labs(fill="")+
   sosp_theme
+  
 
-ggsave("benchmarks.pdf", plot=p      ) # plot it
+ggsave("benchmarks.pdf", plot=p,) # plot it
 p
