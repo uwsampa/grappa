@@ -59,16 +59,7 @@ We do not employ algorithmic improvements for any of these versions, though ther
 many~\cite{Beamer:Graph500,Yoo:FixedPointGraph500}. \Grappa can be expected to benefit the same as MPI due to decreased communication.
 
 \vspace{0.5ex}
-\noindent{\bf IntSort:} This sorting benchmark is taken from the NAS
-Parallel Benchmark Suite~\cite{Bailey91thenas,nas3.3} and is one on
-which the CrayXMT's early predecessor once held the world speed
-record~\cite{TeraRecord}. The largest problem size, class ``D'', ranks two billion
-uniformly distributed random integers using either a bucket or a counting sort
-algorithm, depending on the strengths of the system. Bucket sort executes a greater number of loops, but is able to leverage locality and avoid communication completely in the final phase, ranking within buckets.
-For these reasons, the MPI reference version and our \Grappa implementation use bucket sort.
-On the other hand, the Cray XMT cannot take advantage of locality, but has an efficient compiler-supported parallel prefix sum, so it performs best using the counting sort algorithm.
-
-The performance metrics for NAS Parallel Benchmarks, including IntSort, are ``millions of operations per second'' (MOPS). For IntSort, this ``operation'' is ranking a single key, so it is roughly comparable to ``GUPS'' or ``TEPS''.
+\noindent{\bf IntSort:} This sorting benchmark is taken from the NAS Parallel Benchmark Suite~\cite{Bailey91thenas,nas3.3} and is one on which the CrayXMT's early predecessor once held the world speed record~\cite{TeraRecord}. The largest problem size, class ``D'', ranks two billion uniformly distributed random integers using either a bucket or a counting sort algorithm, depending on the strengths of the system. Bucket sort executes a greater number of loops, but is able to leverage locality and avoid communication completely in the final phase, ranking within buckets. For these reasons, the MPI reference version and our \Grappa implementation use bucket sort. On the other hand, the Cray XMT cannot take advantage of locality, but has an efficient compiler-supported parallel prefix sum, so it performs best using the counting sort algorithm.  The performance metrics for NAS Parallel Benchmarks, including IntSort, are ``millions of operations per second'' (MOPS). For IntSort, this ``operation'' is ranking a single key, so it is roughly comparable to ``GUPS'' or ``TEPS''.
  
 \vspace{0.5ex}
 \noindent{\bf PageRank:} This is a common centrality metric for
@@ -91,58 +82,4 @@ switches, etc) and these are discussed where appropriate. In addition we use a
 profiled version of \Grappa to report component runtimes, but this profiled
 version is only used to collect this data and a fully optimized version is
 used for the bulk of the presented results.
-
-%%%% Bit bucket
-
-%\paragraph{Betweenness Centrality} An important measure of the importance of particular vertices in a network is betweenness centrality (BC)~\cite{freeman1979centrality}. By this measure, the ``importance'' of each vertex is computed by finding the fraction of shortest paths that pass through it, which can optionally be approximated by only computing shortest paths using a subset of the vertices as starting points. BC can be useful for understanding which vertices may have the greatest impact, so in social networks this could be the primary person linking two communities. Because it requires multiple breadth-first traversals across the entire graph and in reverse, on power-law degree graphs, this algorithm exercises random accesses rate, and load balancing. It also requires fine-grained synchronization on updates to vertex centrality values because multiple paths will update the same vertex. BC is a kernel in the DARPA High Performance Computing Systems (HPCS) Scalable Synthetic Compact Applications graph analysis (SSCA\#2) benchmark~\cite{ssca2}. Performance for BC is also measured in TEPS, where the number of traversed edges is the total number of edges in the graph multiplied by the number of random starting vertices used in the approximate computation. We use the XMT implementation of BC implemented as part of the GraphCT~\cite{GraphCT} library and a comparable \Grappa implementation, both of which use the parallel BC algorithm developed by Bader et al.~\cite{bader:bc}.
-
-%To explore the performance of the \Grappa runtime we have implemented three algorithms: breadth first search, betweenness centrality, and unbalanced tree search.  These algorithms were implemented for the Cray XMT (our baseline) and for \Grappa.  The metric we use is algorithmic time, which means startup and loading of the data structure (from disk) is not included in the measurement.  Data is collected on real systems, which means minor variations in runtime exist from run to run.  The average of multiple runs are used, and where appropriate, confidence in the result is reported.
-
-\comment{The \Grappa version of tree search UTS-mem
-
-\lstset{language=C++,
-       basicstyle=\footnotesize,
-       tabsize=2}
-\begin{lstlisting}
-// base of shared vertex_t[]
-GlobalAddress<vertex_t> Vertices;        
-
-// base of shared int64_t[]
-GlobalAddress<int64_t> ChildrenPointers;  
-
-void search_vertex( id ) {
-  GlobalAddress<vertex_t> v_addr = Vertices + id;
-  Incoherent<vertex_t>::RO v( v_add, 1 );
-
-  // start index of my children pointers
-  childIndex = v->childIndex;    
-
-  // how many children I have
-  numChildren = v->numChildren;  
-
-  // parallel loop over the child list for this vertex
-  parallel_for(fn=&search_children, start=childIndex, iters=numChildren);
-}
-
-void search_children( start, iters ) {
-  // take advantage of spatial locality in the array of children
-  GlobalAddress<int64_t> child_base_addr = ChildrenPointers + start;
-  Incoherent<int64_t>::RO childIds( child_base_addr, iters );
-
-  // spawn a task to visit each child
-  for (i = 0..iters) {
-    SoftXMT_publicTask( fn=&search_vertex, id=childIds[i] );
-  }
-}
-\end{lstlisting}
-}
-
-
-%% Given that we have MPI performance on the cluster this is not
-%% that important to have here anymore.
-%%
-%%
-%One question that must be answered when making a comparison between the Cray XMT and a typical HPC cluster is what is a fair comparison -- these systems are quite different.  Three options immediately come to mind: equal number of processing cores, equal number of network interfaces, and equal dollars.  We discounted the last option fairly quickly, because it isn't a lasting data-point -- the cost of hardware shifts over time, skewing the interpretation of results.  The first option, cores, has some merit, but \Grappa is designed for applications that have no locality in their computation.  This means almost all of their memory accesses are remote.  The factor that limits their performance is not processing, but communicating.  Hence, we have chosen the middle option, network interfaces as the way to normalize across the XMT and our cluster.  Each processor in the XMT system has its own network interface to access shared memory.  In the HPC cluster we use, each processor (which contains up to 32~cores, although we only use 6 in our experiments), has a single infiniband interface.  Hence, for our results we scale up XMT processors one for one with full system nodes.
-
-%Towards evaluating how well \Grappa enables scalable performance of irregular applications on mass market systems, our methodology is as follows.  For consistency in measurement, all results reported for mass market systems are measured on the same platform.  To establish the potential for \Grappa performance, we identify small microkernel benchmarks that provide insight into the limitations of our system's component performance behaviors.  To compare meaningfully with the state-of-the-art, we compare \Grappa performance on well known irregular application benchmarks both against the popular high performance programming methodologies MPI and UPC for distributed memory clusters, and against a custom shared memory architecture used exclusively for irregular computation, the Cray XMT. We then examine how sensitive \Grappa results are to reduced injection rate and increased latency, as often occur when a system is scaled up so that nodes are further apart and the effective per destination packet injection rate drops. The three sections that follow describe this methodology in greater detail.
 
