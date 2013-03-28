@@ -84,10 +84,8 @@ GRAPPA_DEFINE_STAT( SummarizingStatistic<double>, rdma_local_delivery_time, 0 );
 
 
 
-// REPLACE ME FOR HISTOGRAMS
-int64_t app_bytes_sent_histogram = 0;
-int64_t rdma_bytes_sent_histogram = 0;
-
+GRAPPA_DEFINE_STAT(HistogramStatistic, app_bytes_sent_histogram, 0);
+GRAPPA_DEFINE_STAT(HistogramStatistic, rdma_bytes_sent_histogram, 0);
 
 // defined in Grappa.cpp
 extern bool Grappa_done_flag;
