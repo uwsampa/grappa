@@ -27,6 +27,7 @@
 #include "GlobalTaskJoiner.hpp"
 #include <Array.hpp>
 #include "GlobalCompletionEvent.hpp"
+#include "LocaleSharedMemory.hpp"
 
 using namespace Grappa;
 
@@ -46,13 +47,54 @@ static int64_t maxvtx = 0, nv = 0;
 
 static GlobalCompletionEvent my_gce;
 
+
+
+
+template< typename T >
+inline void print_array(const char * name, GlobalAddress<T> base, size_t nelem, int width = 10) {
+  std::stringstream ss; ss << name << ": [";
+  for (size_t i=0; i<nelem; i++) {
+    if (i % width == 0) ss << "\n";
+    ss << " " << delegate::read(base+i);
+  }
+  ss << " ]"; VLOG(1) << ss.str();
+}
+template<>
+inline void print_array(const char * name, GlobalAddress<packed_edge> base, size_t nelem, int width) {
+  std::stringstream ss; ss << name << ": [";
+  for (size_t i=0; i<nelem; i++) {
+    if (i % width == 0) ss << "\n";
+    auto e = delegate::read(base+i);
+    ss << e.v0 << ":" << e.v1 << " ";
+  }
+  ss << " ]"; VLOG(1) << ss.str();
+}
+
+inline void print_graph(csr_graph* g) {
+  auto offsets = static_cast<GlobalAddress<range_t>>(g->xoff);
+  std::stringstream ss;
+  for (int64_t i=0; i<g->nv; i++) {
+    range_t r = delegate::read(offsets+i);
+    ss << "[" << i << "]: ";
+    for (int64_t j=r.start; j<r.end; j++) {
+      int64_t v = delegate::read(g->xadj+j);
+      ss << v << " ";
+    }
+    ss << "\n";
+  }
+  VLOG(1) << ss.str();
+}
+
+
+
+
 static void find_nv(const tuple_graph* const tg) {
   forall_localized(tg->edges, tg->nedge, [](int64_t i, packed_edge& e){
     if (e.v0 > maxvtx) { maxvtx = e.v0; }
     else if (e.v1 > maxvtx) { maxvtx = e.v1; }
   });
   on_all_cores([]{
-    maxvtx = Grappa::allreduce<int64_t,collective_add>(maxvtx);
+    maxvtx = Grappa::allreduce<int64_t,collective_max>(maxvtx);
     nv = maxvtx+1;
   });
 }
@@ -75,12 +117,17 @@ static int64_t prefix_sum(GlobalAddress<int64_t> xoff, int64_t nv) {
     for (int i=0; i<n; i++) {
       int64_t index = make_linear(x+i)-offsets;
       block_offset_t b = indexToBlock(index, nv, cores());
+      DVLOG(5) << "[" << index << "] -> " << b.block << ":" << b.offset << " (@ " << prefix_temp_base << ")  (" << x << ")[" << i << "] == " << x[i].start << "\nmake_global: " << make_global(prefix_temp_base+b.offset, b.block);
+      
       CHECK_LT(b.block, cores());
-      delegate::write_async<&my_gce>(pool, make_global(prefix_temp_base+b.offset, b.block), x[i].start);
+      
+      auto val = x[i].start;
+      auto offset = b.offset;
+      delegate::call_async<&my_gce>(pool, b.block, [offset,val] {
+        prefix_temp_base[offset] = val;
+      });      
     }
   });
-  
-  VLOG(1) << "after moving to block-distribution";
   
   int64_t total_sum = 0;
   auto total_addr = make_global(&total_sum);
@@ -170,9 +217,6 @@ static void setup_deg_off(const tuple_graph * const tg, csr_graph * g) {
   int64_t accum = prefix_sum(g->xoff, g->nv);
     
   VLOG(2) << "accum = " << accum;
-//  for (int64_t i=0; i<g->nv; i++) {
-//    VLOG(1) << "offset[" << i << "] = " << Grappa_delegate_read_word(XOFF(i));
-//  }
   
   //initialize XENDOFF to be the same as XOFF
   auto xoffr = static_cast<GlobalAddress<range_t>>(xoff);
@@ -181,6 +225,7 @@ static void setup_deg_off(const tuple_graph * const tg, csr_graph * g) {
   });
   
   delegate::write(xoff+2*g->nv, accum);
+    
   g->nadj = accum+MINVECT_SIZE;
   
   g->xadjstore = Grappa_typed_malloc<int64_t>(accum + MINVECT_SIZE);
@@ -201,23 +246,24 @@ i64cmp (const void *a, const void *b)
 }
 
 
-
 inline void scatter_edge(MessagePool& pool, GlobalAddress<int64_t> xoff, GlobalAddress<int64_t> xadj, const int64_t i, const int64_t j) {
   int64_t where = delegate::fetch_and_add(XENDOFF(i), 1);
   delegate::write_async<&my_gce>(pool, xadj+where, j);
-  // delegate::write(xadj+where, j);
+  
+  DVLOG(5) << "scattering [" << i << "] xendoff[i] " << XENDOFF(i) << " = " << j << " (where: " << where << ")";
 }
 
 static void gather_edges(const tuple_graph * const tg, csr_graph * g) {
+  auto& graph = *g;
   VLOG(2) << "scatter edges";
   
-  csr_graph& graph = *g;
   forall_localized<&my_gce>(tg->edges, tg->nedge, [graph](int64_t s, int64_t n, packed_edge * e) {
     char bp[2 * n * sizeof(delegate::write_msg_proxy<int64_t>)];
     MessagePool pool(bp, sizeof(bp));
     
     for (int k = 0; k < n; k++) {
-      int64_t i = e[k].v0, j = e[k].v1;    
+      int64_t i = e[k].v0, j = e[k].v1;
+      
       if (i >= 0 && j >= 0 && i != j) {
         scatter_edge(pool, graph.xoff, graph.xadj, i, j);
         scatter_edge(pool, graph.xoff, graph.xadj, j, i);
@@ -226,14 +272,15 @@ static void gather_edges(const tuple_graph * const tg, csr_graph * g) {
   });
   
   VLOG(2) << "pack_vtx_edges";
-  auto xoffr = static_cast<GlobalAddress<range_t>>(xoff);
+  auto xoffr = static_cast<GlobalAddress<range_t>>(g->xoff);
   forall_localized<&my_gce>(xoffr, g->nv, [graph](int64_t i, range_t& xi) {
     auto xoi = xi.start;
     auto xei = xi.end;
     
     if (xoi+1 >= xei) return;
 
-    int64_t * buf = new int64_t[xei-xoi];// (int64_t*)alloca((xei-xoi)*sizeof(int64_t));
+    //int64_t * buf = new int64_t[xei-xoi];// (int64_t*)alloca((xei-xoi)*sizeof(int64_t));
+    int64_t * buf = reinterpret_cast< int64_t* >( Grappa::locale_shared_memory.allocate_aligned( sizeof(int64_t) * (xei-xoi), 8 ) );
     Incoherent<int64_t>::RW cadj(graph.xadj+xoi, xei-xoi, buf);
     cadj.block_until_acquired();
 
@@ -257,10 +304,11 @@ static void gather_edges(const tuple_graph * const tg, csr_graph * g) {
     *cend = xoi+kcur;
 
     cadj.block_until_released();
-    delete buf;
+    Grappa::locale_shared_memory.deallocate( buf );
 
     // on scope: cend.block_until_released();
   });
+
 }
 
 void create_graph_from_edgelist(const tuple_graph* const tg, csr_graph* const g) {    

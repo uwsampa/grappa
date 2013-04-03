@@ -24,7 +24,7 @@ LDFLAGS += -g
 # * bfs (public tasks, barriers rather than full join)
 # * bfs_steal_phases (public tasks, but full joins for each BFS level)
 # * bfs_nosteal (private tasks, no stealing, full joins)
-BFS = bfs
+BFS = bfs_local
 
 GENERATOR_SOURCES = graph_generator.o make_graph.o splittable_mrg.o utils.o
 SOURCES = main.o oned_csr.o verify.o options.o $(BFS).o ../prng.o
@@ -33,7 +33,7 @@ HEADERS = common.h oned_csr.h verify.hpp
 include $(GRAPPA_HOME)/system/Makefile
 
 graph.exe: $(SOURCES) $(HEADERS) generator.a $(GRAPPA_HOME)/system/libGrappa.a
-	$(ENV_VARIABLES) $($(MPITYPE)_LD) $(LDFLAGS) $(SOURCES) generator.a $(GRAPPA_HOME)/system/libGrappa.a $(LIBRARIES) -o $@ $(LIBS)
+	$(ENV_VARIABLES) $($(MPITYPE)_LD) $(LDFLAGS) $(CFLAGS) $(SOURCES) generator.a $(GRAPPA_HOME)/system/libGrappa.a $(LIBRARIES) -o $@ $(LIBS)
 
 $(GRAPPA_HOME)/system/libGrappa.a: force
 	cd $(GRAPPA_HOME)/system; $(MAKE) lib
@@ -48,7 +48,7 @@ allclean: clean
 	pushd $(GRAPPA_HOME)/system; $(MAKE) clean; popd
 
 clean:
-	rm -f main.o oned_csr.o verify.o options.o $(BFS).o graph.exe
+	rm -f main.o oned_csr.o verify.o options.o $(BFS).o graph.exe generator.a
 	cd ../generator; $(MAKE) -f Makefile.grappa clean
 
 otf: force

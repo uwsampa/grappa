@@ -9,7 +9,7 @@
 
 #include <iostream>
 #include <deque>
-#include "Thread.hpp"
+#include "Worker.hpp"
 #include "StatisticsTools.hpp"
 
 #ifdef VTRACE
@@ -359,6 +359,7 @@ class TaskManager {
     //TaskManager (bool doSteal, Node localId, Node* neighbors, Node numLocalNodes, int chunkSize, int cbint);
     TaskManager();
     void init (Node localId, Node* neighbors, Node numLocalNodes);
+    void activate();
 
     /// @return true if work is considered finished and
     ///         the task system is terminating

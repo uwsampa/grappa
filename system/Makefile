@@ -72,7 +72,8 @@ lib: $(LIBRARY)
 #
 Demo.o Demo.exe: $(LIBRARY)
 
-Thread_tests.test: coro.o stack.o tasks/Thread.o tasks/BasicScheduler.o
+#FIXME: UPDATE not to ref coro
+#Thread_tests.test: coro.o stack.o tasks/Thread.o tasks/BasicScheduler.o
 
 Communicator_tests.o Communicator_tests.test: Communicator.o
 
@@ -88,6 +89,7 @@ GlobalMemoryChunk_tests.o GlobalMemoryChunk_tests.test: $(LIBRARY)
 GlobalMemory_tests.o GlobalMemory_tests.test: $(LIBRARY)
 GlobalAllocator_tests.o GlobalAllocator_tests.test: $(LIBRARY)
 Allocator_tests.o Allocator_tests.test: Allocator.o
+LocaleSharedMemory_tests.o LocaleSharedMemory_tests.test: $(LIBRARY)
 
 QueueDebug_tests.o QueueDebug_tests.exe: ../tools/stl-debug-allocator/archive/Source/allocator.o
 
@@ -102,7 +104,7 @@ Semaphore_tests.o Semaphore_tests.test: $(LIBRARY)
 #thread_tests.test: thread.o stack.o coro.o
 thread2_tests.o thread2_tests.test: $(LIBRARY)
 thread3_tests.o thread3_tests.test: $(LIBRARY)
-tasks/Thread_tests.o tasks/Thread_tests.test: tasks/Thread.o coro.o stack.o tasks/BasicScheduler.o Timestamp.o
+tasks/Thread_tests.o tasks/Thread_tests.test: Worker.o stack.o tasks/BasicScheduler.o Timestamp.o
 
 Scheduler_benchmarking_tests.o Scheduler_benchmarking_tests.test: $(LIBRARY)
 
@@ -146,9 +148,15 @@ New_delegate_tests.test: $(LIBRARY)
 PoolAllocator_tests.test: $(LIBRARY)
 Statistics_tests.test: $(LIBRARY)
 New_loop_tests.test: $(LIBRARY)
+Public_tasks_tests.test: $(LIBRARY)
 CompletionEvent_tests.test: $(LIBRARY)
 Reducer_tests.test: $(LIBRARY)
 Scratch_tests.test: $(LIBRARY)
+
+ContextSwitchRate_bench.exe: $(LIBRARY)
+ContextSwitchLatency_tests.test: $(LIBRARY)
+
+ThreadQueue_tests.o ThreadQueue_tests.test: Worker.o stack.o
 
 #
 # environment variables for run
@@ -193,11 +201,26 @@ GASNET_SETTINGS+= GASNET_FREEZE=0
 GASNET_SETTINGS+= GASNET_NETWORKDEPTH_PP=96
 GASNET_SETTINGS+= GASNET_NETWORKDEPTH_TOTAL=2048
 GASNET_SETTINGS+= GASNET_AMCREDITS_PP=48
+#GASNET_SETTINGS+= GASNET_AMRDMA_MAX_PEERS=0
 GASNET_SETTINGS+= GASNET_PHYSMEM_MAX=1024M
 GASNET_SETTINGS+= GASNET_USE_SRQ=2
+#GASNET_SETTINGS+= GASNET_NONBULKPUT_BOUNCE_LIMIT=0
+#GASNET_SETTINGS+= OMPI_MCA_mpi_warn_on_fork=0
 endif
 ENV_VARIABLES+= $(GASNET_SETTINGS)
 
+# enable RDMA Aggregator by default
+ENABLE_RDMA_AGGREGATOR=1
+ifeq ($(ENABLE_RDMA_AGGREGATOR), 1)
+CFLAGS+= -DENABLE_RDMA_AGGREGATOR
+# may want this eventually
+#CFLAGS+= -DOLD_MESSAGES_NEW_AGGREGATOR
+endif
+
+# make it easier to debug by stopping compilation after first error
+ifdef STOP_AFTER_FIRST_ERROR
+CFLAGS+=  -Wfatal-errors
+endif
 
 #
 # Heap Leak Checker
@@ -209,6 +232,10 @@ ENV_VARIABLES+= HEAP_CHECK_DUMP_DIRECTORY=.
 ENV_VARIABLES+= PPROF_PATH=../tools/built_deps/bin
 CFLAGS+= -DHEAPCHECK_ENABLE
 LIBRARIES+= -ltcmalloc
+else
+ifdef PAL
+	LIBRARIES+= -ltcmalloc_minimal
+endif
 endif
 
 ifdef VALGRIND
@@ -247,6 +274,9 @@ LD=$(VAMPIRTRACE)/bin/vtcxx -vt:cxx "$(GCC472_LD)" $(VAMPIRTRACE_COMMON_ARGS)
 CFLAGS+= -DVTRACE -DVTRACE_SAMPLED
 endif
 
+ifdef HISTOGRAM_SAMPLED
+CFLAGS+= -DHISTOGRAM_SAMPLED
+endif
 
 ifdef STL_DEBUG_ALLOCATOR
 CFLAGS+= -DSTL_DEBUG_ALLOCATOR
@@ -281,9 +311,9 @@ LIBRARY_CONTENTS+= Grappa.o \
 				   tasks/BasicScheduler.o \
 				   tasks/TaskingScheduler.o \
 				   tasks/Task.o \
-				   tasks/Thread.o \
 				   stack.o \
-				   coro.o \
+				   Worker.o \
+				   ThreadQueue.o \
 				   StateTimer.o \
 				   PerformanceTools.o \
 				   Future.o \
@@ -301,10 +331,15 @@ LIBRARY_CONTENTS+= Grappa.o \
 				   SimpleStatistic.o \
 				   SummarizingStatistic.o \
 				   MessageBase.o \
+				   LocaleSharedMemory.o \
 				   RDMAAggregator.o \
 				   ParallelLoop.o \
 				   Barrier.o \
-				   MessagePool.o
+				   MessagePool.o \
+					 AsyncDelegate.o \
+					 SharedMessagePool.o \
+					 GlobalCompletionEvent.o \
+					 HistogramStatistic.o
 
 libGrappa.a: $(LIBRARY_CONTENTS)
 	$($(MPITYPE)_AR) rv $@ $^
@@ -340,10 +375,12 @@ else
 TEST_LOG_LEVEL=nothing
 TEST_REPORT_LEVEL=no
 endif
+# set to 'n' to allow system errors to not be caught by boost test
+TEST_CATCH_SYSTEM_ERRORS?=y
 
 mpi_test: $(TARGET) $($(MPITYPE)_ENVVAR_TEMP) $($(MPITYPE)_EPILOG_TEMP) $($(MPITYPE)_BATCH_TEMP)
 	$(ENV_VARIABLES) \
-	$($(MPITYPE)_RUN) ./$< $($(MPITYPE)_UDPTASKS) --log_level=$(TEST_LOG_LEVEL) --report_level=$(TEST_REPORT_LEVEL) --run_test=$(TARGET:.test=) $(GARGS)
+	$($(MPITYPE)_RUN) ./$< $($(MPITYPE)_UDPTASKS) --log_level=$(TEST_LOG_LEVEL) --report_level=$(TEST_REPORT_LEVEL) --run_test=$(TARGET:.test=) --catch_system_errors=$(TEST_CATCH_SYSTEM_ERRORS) $(GARGS)
 
 valgrind_mpi_test: $(TARGET) $($(MPITYPE)_ENVVAR_TEMP) $($(MPITYPE)_EPILOG_TEMP) $($(MPITYPE)_BATCH_TEMP)
 	$(ENV_VARIABLES) \
@@ -359,12 +396,18 @@ test: $(TARGET)
 
 # TODO: fixme so I'm not so dumb
 cleanup_shm:
-	echo "State before cleanup:"
+	@echo "State before SYSV cleanup:"
 	for i in `sinfo -h -p grappa -o '%n'`; do ssh $$i bash -c "echo;hostname; ipcs -m; grep Huge /proc/meminfo"; done
-	echo "Cleaning up...."
-	for i in `sinfo -h -p grappa -o '%n'`; do ssh $$i bash -c "ipcs -m | grep $(USER) | cut -d' ' -f1 | xargs -n1 -r ipcrm -M"; done
-	echo "State after cleanup:"
+	@echo "Cleaning up...."
+	for i in `sinfo -h -p grappa -o '%n'`; do ssh $$i bash -c "ipcs -m | grep $(USER) | cut -d' ' -f2 | xargs -n1 -r ipcrm -m"; done
+	@echo "State after cleanup:"
 	for i in `sinfo -h -p grappa -o '%n'`; do ssh $$i bash -c "echo; hostname; ipcs -m; grep Huge /proc/meminfo"; done
+	@echo "SYSV cleanup done. State before /dev/shm cleanup:"
+	for i in `sinfo -h -p grappa -o '%n'`; do ssh $$i bash -c "'ls -l /dev/shm'"; done
+	@echo "Cleaning up...."
+	for i in `sinfo -h -p grappa -o '%n'`; do ssh $$i bash -c "'rm -f /dev/shm/GrappaLocaleSharedMemory'"; done
+	@echo "State after cleanup:"
+	for i in `sinfo -h -p grappa -o '%n'`; do ssh $$i bash -c "'ls -l /dev/shm'"; done
 
 
 # build a specific test
@@ -401,6 +444,10 @@ CFLAGS+= -I$(GRAPPA_HOME)/system -I$(GRAPPA_HOME)/system/tasks
 #
 ifdef DEBUG
 CFLAGS+= -O1 -g -DDEBUG
+GUARD_PAGES_ON_STACK=1
+ifeq ($(GUARD_PAGES_ON_STACK), 1)
+CFLAGS+= -DGUARD_PAGES_ON_STACK
+endif
 else
 ifdef PROFILE
 CFLAGS+= -O3 -DNDEBUG -g -pg
@@ -408,6 +455,16 @@ else
 CFLAGS+= -O3 -DNDEBUG -g
 endif #PROFILE
 endif #DEBUG
+
+
+# 
+# Prefetching
+#
+# on by default
+READYQ_PREFETCH?=1
+ifeq ($(READYQ_PREFETCH), 1)
+CFLAGS+= -DWORKER_PREFETCH -DSTACK_PREFETCH
+endif
 
 
 #
@@ -511,18 +568,6 @@ TESTS:=$(foreach dir,$(DIRECTORIES),$(wildcard $(dir)/*.test))
 	$(ENV_VARIABLES) \
 	$($(MPITYPE)_CXX) -MMD -MF $*.d.tmp -c $(CFLAGS) $(CXXFLAGS) $< -o $*.pch
 	@sed -e 's|.*:|$*.pch:|' < $*.d.tmp > $*.d
-	@sed -e 's/.*://' -e 's/\\$$//' < $*.d.tmp | fmt -1 | \
-	  sed -e 's/^ *//' -e 's/$$/:/' >> $*.d
-	@rm -f $*.d.tmp
-
-#
-# Temporary special handling for thread library
-#
-
-coro.o: coro.c
-	$(ENV_VARIABLES) \
-	$($(MPITYPE)_CXX) -MMD -MF $*.d.tmp -c $(CFLAGS) $< -o $*.o
-	@sed -e 's|.*:|$*.o:|' < $*.d.tmp > $*.d
 	@sed -e 's/.*://' -e 's/\\$$//' < $*.d.tmp | fmt -1 | \
 	  sed -e 's/^ *//' -e 's/$$/:/' >> $*.d
 	@rm -f $*.d.tmp

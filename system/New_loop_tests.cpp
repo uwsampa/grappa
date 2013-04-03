@@ -38,6 +38,7 @@ void test_on_all_cores() {
 }
 
 void test_loop_decomposition() {
+  BOOST_MESSAGE("Testing loop_decomposition_private...");
   int N = 16;
   
   CompletionEvent ce(N);
@@ -50,13 +51,16 @@ void test_loop_decomposition() {
 }
 
 void test_loop_decomposition_global() {
-  int N = 16;
+  BOOST_MESSAGE("Testing loop_decomposition_public...");
+  int N = 160000;
   
   CompletionEvent ce(N);
   auto ce_addr = make_global(&ce);
   
   impl::loop_decomposition_public(0, N, [ce_addr](int64_t start, int64_t iters) {
-    BOOST_MESSAGE("loop(" << start << ", " << iters << ")");
+    if ( start%10000==0 ) {
+      BOOST_MESSAGE("loop(" << start << ", " << iters << ")");
+    }
     complete(ce_addr,iters);
   });
   ce.wait();
@@ -108,7 +112,8 @@ void test_forall_global_private() {
   });
   
   on_all_cores([]{
-    BOOST_CHECK_EQUAL(test_global, N/cores());
+    range_t r = blockDist(0,N,mycore(),cores());
+    BOOST_CHECK_EQUAL(test_global, r.end-r.start);
     test_global = 0;
   });
   
@@ -119,7 +124,8 @@ void test_forall_global_private() {
   });
   
   on_all_cores([]{
-    BOOST_CHECK_EQUAL(test_global, N/cores());
+    range_t r = blockDist(0,N,mycore(),cores());
+    BOOST_CHECK_EQUAL(test_global, r.end-r.start);
     test_global = 0;
   });
   
@@ -175,8 +181,6 @@ void test_forall_localized() {
   
   BOOST_MESSAGE("Testing forall_localized_async..."); VLOG(1) << "testing forall_localized_async";
   
-  my_gce.reset_all();
-  
   VLOG(1) << "start spawning";
   forall_localized_async<&my_gce>(array+ 0, 25, [](int64_t i, int64_t& e) { e = 2; });
   VLOG(1) << "after async";
@@ -190,9 +194,11 @@ void test_forall_localized() {
   my_gce.wait();
   
   int npb = block_size / sizeof(int64_t);
-  for (int i=0; i<N; i+=npb*cores()) {
-    BOOST_CHECK_EQUAL((array+i).node(), mycore());
-    BOOST_CHECK_EQUAL(delegate::read(array+i), 2);
+  
+  auto * base = array.localize();
+  auto * end = (array+N).localize();
+  for (auto* x = base; x < end; x++) {
+    BOOST_CHECK_EQUAL(*x, 2);
   }
   
   VLOG(1) << "checking indexing...";
@@ -210,7 +216,16 @@ void test_forall_localized() {
   for (int i=0; i<N; i++) {
     BOOST_CHECK_EQUAL(delegate::read(array+i), i);
   }
+
+  Grappa::memset(array, 0, N);    
+  struct Pair { int64_t x, y; };
+  auto pairs = static_cast<GlobalAddress<Pair>>(array);
+  forall_localized<&my_gce>(pairs, N/2, [](int64_t i, Pair& e){ e.x = i; e.y = i; });
   
+  for (int i=0; i<N; i++) {
+    BOOST_CHECK_EQUAL(delegate::read(array+i), i/2);
+  }  
+    
 }
 
 void user_main(void * args) {

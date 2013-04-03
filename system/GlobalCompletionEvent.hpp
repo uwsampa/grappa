@@ -9,6 +9,17 @@
 #include "Collective.hpp"
 #include "Timestamp.hpp"
 #include <type_traits>
+#include "Statistics.hpp"
+
+#define PRINT_MSG(m) "msg(" << &(m) << ", src:" << (m).source_ << ", dst:" << (m).destination_ << ", enq:" << (m).is_enqueued_ << ", sent:" << (m).is_sent_ << ", deliv:" << (m).is_delivered_ << ")"
+
+DECLARE_bool( flatten_completions );
+
+/// total number of times "complete" has to be called on another core
+GRAPPA_DECLARE_STAT(SimpleStatistic<uint64_t>, gce_total_remote_completions);
+
+/// actual number of completion messages we send (less with flattening)
+GRAPPA_DECLARE_STAT(SimpleStatistic<uint64_t>, gce_completions_sent);
 
 namespace Grappa {
 
@@ -47,15 +58,101 @@ class GlobalCompletionEvent : public CompletionEvent {
   /// pointer to shared arg for loops that use a GCE
   const void * shared_ptr;
   
+  struct DoComplete {
+    GlobalCompletionEvent * gce;
+    int64_t dec;
+    
+    DoComplete(): gce(nullptr), dec(0) {}
+    
+    void operator()() {
+      gce->complete(dec);
+    }
+  };
+  
+  
+  class CompletionMessage: public Message<DoComplete> {    
+  public:
+    Core target;
+    int64_t completes_to_send;
+    CompletionMessage(Core target = -1): Message(), completes_to_send(0), target(target) {}
+    
+    bool waiting_to_send() {
+      return this->is_enqueued_ && !this->is_sent_;
+    }
+    
+    virtual void mark_sent() {
+      Core dest = this->destination_;
+      DVLOG(5) << "marking sent " << PRINT_MSG(*this);
+      Message<DoComplete>::mark_sent();
+      
+      if (Grappa::mycore() == this->source_) {
+        this->reset();
+        if (completes_to_send > 0) {
+          DVLOG(5) << "re-sending -- " << completes_to_send << " to Core[" << dest << "] " << PRINT_MSG(*this);
+          (*this)->dec = completes_to_send;
+          completes_to_send = 0;
+          this->enqueue(target);
+        }
+      }
+    }
+    
+    virtual const size_t size() const { return sizeof(*this); }
+  };
+  
+  
+  CompletionMessage * completion_msgs;
+  
+  CompletionMessage& get_completion_msg(Core c) {
+    if (completion_msgs == nullptr) { init_completion_msgs(); }
+    return completion_msgs[c];
+  }
+  
+  inline void init_completion_msgs() {
+    // completion_msgs = new CompletionMessage[cores()];
+    completion_msgs = reinterpret_cast<CompletionMessage*>(
+      impl::locale_shared_memory.allocate_aligned(sizeof(CompletionMessage)*cores(), 8)
+    );
+  
+    for (Core c=0; c<cores(); c++) {
+      new (completion_msgs+c) CompletionMessage(c); // call constructor!
+      completion_msgs[c]->gce = this; // (pointer must be the same on all cores)
+    }
+  }
+  
 public:
   
-  GlobalCompletionEvent(): master_core(0) { reset(); }
+  void send_completion(Core owner, int64_t dec = 1) {
+    if (owner == mycore()) {
+      VLOG(5) << "complete locally ";
+      this->complete(dec);
+    } else {
+      gce_total_remote_completions++;
+      auto& cm = get_completion_msg(owner);
+      if (cm.waiting_to_send()) {
+        cm.completes_to_send++;
+        DVLOG(5) << "flattening completion to Core[" << owner << "] (currently at " << cm.completes_to_send << ")";
+      } else {
+        CHECK_EQ(cm.completes_to_send, 0) << "why haven't we sent these already? cm(" << &cm << ", is_sent: " << cm.is_sent_ << ", is_enqueued: " << cm.is_enqueued_ << ", dest: " << cm.destination_ << ")";
+        DVLOG(5) << "sending " << dec << " to Core[" << owner << "]";
+        cm->dec = dec;
+        gce_completions_sent++;
+        cm.enqueue(owner);
+      }
+    }
+  }
+  
+  GlobalCompletionEvent(): master_core(0), completion_msgs(nullptr) {
+    reset();
+  }
+  ~GlobalCompletionEvent() {
+    if (completion_msgs != nullptr) impl::locale_shared_memory.deallocate(completion_msgs);
+  }
   
   inline void set_shared_ptr(const void* p) { shared_ptr = p; }
   template<typename T> inline const T* get_shared_ptr() { return reinterpret_cast<const T*>(shared_ptr); }
   
   /// This is the state the GCE's on each core should be in at the beginning, and the 
-  /// state they should end up in after a Completion phase. I should no longer be necessary
+  /// state they should end up in after a Completion phase. It should no longer be necessary
   /// to call `reset` between calls to `wait` as long as nothing fishy is going on.
   void reset() {
     count = 0;
@@ -74,6 +171,7 @@ public:
     
     CHECK_GE(inc, 1);
     count += inc;
+    DVLOG(5) << "enroll " << inc << " -> " << count << " gce("<<this<<")";
     
     // first one to have work here
     if (count == inc) { // count[0 -> inc]
@@ -93,7 +191,7 @@ public:
       }
       // block until cancelled
       CHECK_GT(count, 0);
-      VLOG(2) << "cores_out: " << co << ", count: " << count;
+      DVLOG(2) << "cores_out: " << co << ", count: " << count;
     }
   }
   
@@ -110,6 +208,7 @@ public:
       // enter cancellable barrier
       send_heap_message(master_core, [this] {
         cores_out--;
+        DVLOG(4) << "core entered barrier (cores_out:"<< cores_out <<")";
         
         // if all are in
         if (cores_out == 0) { // cores_out[1 -> 0]
@@ -118,6 +217,7 @@ public:
           for (Core c = 0; c < cores(); c++) {
             send_heap_message(c, [this] {
               CHECK_EQ(count, 0);
+              DVLOG(3) << "broadcast";
               broadcast(&cv); // wake anyone who was waiting here
               reset(); // reset, now anyone else calling `wait` should fall through
             });
@@ -135,7 +235,7 @@ public:
   /// If no tasks have been enrolled, or all have been completed by the time `wait` is called,
   /// this will fall through and not suspend the calling task.
   void wait() {
-    VLOG(3) << "wait(): event_in_progress: " << event_in_progress << ", count: " << count;
+    DVLOG(3) << "wait(): gce(" << this << " event_in_progress: " << event_in_progress << ", count: " << count << ")";
     if (event_in_progress) {
       Grappa::wait(&cv);
     } else {
@@ -143,19 +243,43 @@ public:
       if (delegate::call(master_core, [this]{ return cores_out; }) > 0) {
 //      if (delegate::call(master_core, [this]{ return event_in_progress; })) {
         Grappa::wait(&cv);
-        VLOG(3) << "woke from conservative check";
+        DVLOG(3) << "woke from conservative check";
       }
-      VLOG(3) << "fell thru conservative check";
+      DVLOG(3) << "fell thru conservative check";
     }
-    CHECK(!event_in_progress);
+    CHECK(!event_in_progress) << " gce(" << this << ", count:" << count << ")";
     CHECK_EQ(count, 0);
   }
   
 };
 
+/// Allow calling send_completion using the old way (with global address)
+/// TODO: replace all instances with gce.send_completion and remove this?
+inline void complete(GlobalAddress<GlobalCompletionEvent> ce, int64_t decr = 1) {
+  DVLOG(5) << "called remote complete";
+  if (FLAGS_flatten_completions) {
+    ce.pointer()->send_completion(ce.core(), decr);
+  } else {
+    if (ce.node() == mycore()) {
+      ce.pointer()->complete(decr);
+    } else {
+      if (decr == 1) {
+        // (common case) don't send full 8 bytes just to decrement by 1
+        send_heap_message(ce.node(), [ce] {
+          ce.pointer()->complete();
+        });
+      } else {
+        send_heap_message(ce.node(), [ce,decr] {
+          ce.pointer()->complete(decr);
+        });
+      }
+    }
+  }
+}
+
 } // namespace Grappa
 
-/// Synchronizing delegates
+/// Synchronizing spawns
 namespace Grappa {
   /// Synchronizing private task spawn. Automatically enrolls task with GlobalCompletionEvent and
   /// does local `complete` when done (if GCE is non-null).
@@ -188,6 +312,7 @@ namespace Grappa {
     if (GCE) GCE->enroll();
     Core origin = mycore();
     publicTask([origin,tf] {
+      DVLOG(5) << "in public task";
       tf();
       if (GCE) complete(make_global(GCE,origin));
     });

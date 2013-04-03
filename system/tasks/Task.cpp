@@ -16,7 +16,7 @@ DEFINE_int32( chunk_size, 10, "Max amount of work transfered per load balance" )
 DEFINE_string( load_balance, "steal", "Type of dynamic load balancing {none, steal (default), share, gq}" );
 DEFINE_uint64( global_queue_threshold, 1024, "Threshold to trigger release of tasks to global queue" );
 
-#define MAXQUEUEDEPTH (1L<<26)   // previous values: 500000
+#define MAXQUEUEDEPTH (1L<<19)   // previous values: 500000
 
 /// local queue for being part of global task pool
 #define publicQ StealQueue<Task>::steal_queue
@@ -64,9 +64,6 @@ void TaskManager::init ( Node localId_arg, Node * neighbors_arg, Node numLocalNo
 
   fast_srand(0);
 
-  // initialize public task queue
-  publicQ.init( MAXQUEUEDEPTH );
-
   localId = localId_arg;
   neighbors = neighbors_arg;
   numLocalNodes = numLocalNodes_arg;
@@ -81,6 +78,12 @@ void TaskManager::init ( Node localId_arg, Node * neighbors_arg, Node numLocalNo
     neighbors[i-1] = temp;
   }
 }
+
+void TaskManager::activate () {
+  // initialization of public task queue during system activate()
+  publicQ.activate( MAXQUEUEDEPTH );
+}
+
 
 // GlobalQueue instantiations
 template void global_queue_pull<Task>( ChunkInfo<Task> * result );

@@ -38,6 +38,8 @@ static bool bfs_counters_added = false;
 
 static unsigned marker = -1;
 
+GlobalCompletionEvent bfs_gce;
+
 void bfs_level(int64_t start, int64_t end) {
 #ifdef VTRACE
   VT_TRACER("bfs_level");
@@ -50,7 +52,10 @@ void bfs_level(int64_t start, int64_t end) {
 
   vlist_buf.setup(vlist, k2);
   
-  forall_global_public(start, end-start, [](int64_t kstart, int64_t kiters) {
+  range_t r = blockDist(start, end, mycore(), cores());
+  
+  // TODO/FIXME: can't call `forall_global_public` from inside `on_all_cores` because it uses shared GCE pointer and calls `on_all_cores` itself.
+  forall_here_async_public<&bfs_gce>(r.start, r.end-r.start, [](int64_t kstart, int64_t kiters) {
     int64_t buf[kiters];
     Incoherent<int64_t>::RO cvlist(vlist+kstart, kiters, buf);
 
@@ -63,7 +68,7 @@ void bfs_level(int64_t start, int64_t end) {
       Incoherent<int64_t>::RO cxoff(xoff+2*v, 2, buf);
       const int64_t vstart = cxoff[0], vend = cxoff[1]; // (xoff[2v], xoff[2v+1])
       
-      forall_here_async_public(vstart, vend-vstart, [v](int64_t estart, int64_t eiters) {
+      forall_here_async_public<&bfs_gce>(vstart, vend-vstart, [v](int64_t estart, int64_t eiters) {
         //const int64_t j = read(xadj+vo);
         //VLOG(1) << "estart: " << estart << ", eiters: " << eiters;
 
@@ -84,11 +89,14 @@ void bfs_level(int64_t start, int64_t end) {
     }
   });
   
+  bfs_gce.wait();
   vlist_buf.flush();
     
 }
 
 double make_bfs_tree(csr_graph * g, GlobalAddress<int64_t> local_bfs_tree, int64_t root) {
+  LOG_FIRST_N(INFO,1) << "bfs_version: 'basic'";
+  
   int64_t NV = g->nv;
   GlobalAddress<int64_t> local_vlist = Grappa_typed_malloc<int64_t>(NV);
  

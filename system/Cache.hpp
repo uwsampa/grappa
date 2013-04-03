@@ -77,14 +77,15 @@ public:
   T * storage_;
   bool heap_;
   CacheAllocator( T * buffer, size_t size ) 
-    : storage_( buffer != NULL ? buffer : new T[size] )
+    : storage_( buffer != NULL ? buffer : reinterpret_cast< T* >
+                ( Grappa::impl::locale_shared_memory.allocate( size * sizeof(T) ) ) )
     , heap_( buffer != NULL ? false : true ) 
   {
     VLOG(6) << "buffer = " << buffer << ", storage_ = " << storage_;
   }
   ~CacheAllocator() {
     if( heap_ && storage_ != NULL ) {
-      delete [] storage_;
+      Grappa::impl::locale_shared_memory.deallocate( storage_ );
     }
   }
   operator T*() { 
