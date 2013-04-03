@@ -44,7 +44,9 @@ DHT_type joinTable;
 
 // local RO copies
 GlobalAddress<Tuple> local_tuples;
-Column local_joinIndex1, local_joinIndex2, local_joinIndex3;
+Column local_join1Left, local_join1Right, local_join2Right;
+Column local_select;
+GlobalAddress<Tuple> IndexBase;
 
 
 // TODO: incorporate the edge tuples generation (although only does triples)
@@ -60,7 +62,7 @@ void generate_data( GlobalAddress<Tuple> base, size_t num ) {
 
 void scanAndHash( GlobalAddress<Tuple> tuples, size_t num ) {
   forall_localized( tuples, num, [](GlobalAddress<Tuple> t_g, Tuple * t) {
-    int64_t key = t->columns[local_joinIndex1];
+    int64_t key = t->columns[local_join1Left];
     Tuple val = *t;
 
     VLOG(2) << "insert " << key << " | " << val;
@@ -68,71 +70,15 @@ void scanAndHash( GlobalAddress<Tuple> tuples, size_t num ) {
   });
 }
 
-void secondJoin( GlobalAddress<Tuple> start, int64_t iters);
 
-void firstJoin( Tuple * t ) {
-}
-
-
-void printAll( GlobalAddress<Tuple> ts, size_t num ) {
-  Tuple storage[num];
-  Incoherent<Tuple>::RO c_ts( ts, num, storage );
-  for (uint64_t i=0; i<num; i++) {
-    VLOG(1) << c_ts[i];
-  }
-}
-
-
-void secondJoin( GlobalAddress<Tuple> start, int64_t iters ) {
-  Tuple tuples_s[iters];
-  Incoherent<Tuple>::RO tuples(start, iters, tuples_s);
-  for (int64_t i = 0; i < iters; i++) {
-
-    int64_t key = tuples[i].columns[local_joinIndex3];
-
-    GlobalAddress<Tuple> results;
-    size_t num_results = joinTable.lookup( key, &results );
-
-      VLOG(1) << "results key " << key << " (n=" << num_results;
-      //printAll( results, num_results );
-      forall r in results {
-        cache r
-        if (r.columns[1] == x1.columns[0]) {
-          if (FLAGS_print) {
-            VLOG(1) << x1 << " " << r;
-          }
-        }
-      }
-       
-    }
-  }
-}
-  
-
-LOOP_FUNCTOR(join_f_init2, nid, ((GlobalAddress<Tuple>,tuples)) ((Column,ji1)) ((Column,ji2)) ((Column,ji3)) ) {
-  local_tuples = tuples;
-  local_joinIndex1 = ji1;
-  local_joinIndex2 = ji2;
-  local_joinIndex3 = ji3;
-}
-
-LOOP_FUNCTION(global_joiner_reset, nid) {
-  global_joiner.reset();
-}
-
-LOOP_FUNCTION(global_joiner_wait, nid) {
-  global_joiner.wait();
-}
-
-
-
-void join2( GlobalAddress<Tuple> tuples, Column ji1, Column ji2, Column ji3 ) {
+void triangles( GlobalAddress<Tuple> tuples, Column ji1, Column ji2, Column ji3, Column s ) {
   // initialization
-  on_all_cores( [tuples, ji1, ji2, ji3] {
+  on_all_cores( [tuples, ji1, ji2, ji3, s] {
     local_tuples = tuples;
-    local_joinIndex1 = ji1;
-    local_joinIndex2 = ji2;
-    local_joinIndex3 = ji3;
+    local_join1Left = ji1;
+    local_join1Right = ji2;
+    local_join2Right = ji3;
+    local_select = s;
   });
     
   // scan tuples and hash join col 1
@@ -153,15 +99,18 @@ void join2( GlobalAddress<Tuple> tuples, Column ji1, Column ji2, Column ji3 ) {
 
   // tell the DHT we are done with inserts
   VLOG(1) << "DHT setting to RO";
-  DHT_type::set_RO_global( &joinTable );
+  GlobalAddress<Tuple> index_base = DHT_type::set_RO_global( &joinTable );
+  on_all_cores([index_base] {
+      IndexBase = index_base;
+  });
 
   start = Grappa_walltime();
   VLOG(1) << "Starting 1st join";
   forall_localized( tuples, FLAGS_numTuples, [](GlobalAddress<Tuple> t_g, Tuple * t) {
-    int64_t key = t->columns[local_joinIndex2];
+    int64_t key = t->columns[local_join1Right];
    
     // will pass on this first one to compare in the select 
-    int64_t x1 = t->columns[0];
+    int64_t x1 = t->columns[local_join1Left];
 
     uint64_t results_idx;
 
@@ -176,7 +125,7 @@ void join2( GlobalAddress<Tuple> tuples, Column ji1, Column ji2, Column ji3 ) {
       Incoherent<Tuple>::RO subset( IndexBase+start, iters, &subset_stor );
       for ( int64_t i=0; i<iters; i++ ) {
 
-        int64_t key = subset[i].columns[local_joinIndex3];
+        int64_t key = subset[i].columns[local_join2Right];
 
         uint64_t results_idx;
 
@@ -191,7 +140,7 @@ void join2( GlobalAddress<Tuple> tuples, Column ji1, Column ji2, Column ji3 ) {
           Tuple subset_stor[iters];
           Incoherent<Tuple>::RO subset( IndexBase+start, iters, &subset_stor );
           for ( int64_t i=0; i<iters; i++ ) {
-            if ( subset[i].columns[1] == x1.columns[0] ) {
+            if ( subset[i].columns[local_select] == x1 ) {
               if (FLAGS_print) {
                 VLOG(1) << x1 << " " << r;
               }
@@ -224,9 +173,10 @@ void user_main( int * ignore ) {
 
   Column joinIndex1 = 0; // subject
   Column joinIndex2 = 1; // object
+  Column select = 1; // object
 
   // triangle (assume one index to build)
-  triangles( tuples, joinIndex1, joinIndex2, joinIndex2 ); 
+  triangles( tuples, joinIndex1, joinIndex2, joinIndex2, select ); 
 }
 
 
