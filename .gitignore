@@ -129,5 +129,14 @@ config.cache
 # stats output
 *stats.json
 
+# scratch files
+/system/scratch/*
 /system/Scratch_tests.cpp
 
+# RDMA communication routing output
+/system/routing.dot
+/system/routing.pdf
+routing.dot
+
+#igor
+*.igor

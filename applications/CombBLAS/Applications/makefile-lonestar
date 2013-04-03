@@ -1,0 +1,37 @@
+INCDIR = $(TACC_BOOST_INC)/boost-1_34_1/ 
+INCADD = -I$(INCDIR) 
+
+OPT = -DNDEBUG -O3 -w -DMPICH_IGNORE_CXX_SEEK -DNOTR1
+DEB = -g -O0 -fno-inline -DMPICH_IGNORE_CXX_SEEK -DNOTR1
+COMPILER = mpicxx
+FLAGS = $(OPT)
+
+CommGrid.o:	../CommGrid.cpp ../CommGrid.h
+	$(COMPILER) $(INCADD) $(FLAGS) -c -o CommGrid.o ../CommGrid.cpp
+
+MPIType.o:	../MPIType.cpp ../MPIType.h
+	$(COMPILER) $(INCADD) $(FLAGS) -c -o MPIType.o ../MPIType.cpp
+
+MemoryPool.o:	../MemoryPool.cpp ../SpDefs.h
+	$(COMPILER) $(INCADD) $(FLAGS) -c -o MemoryPool.o ../MemoryPool.cpp
+
+Driver.o: Driver.cpp ../SpDCCols.cpp ../dcsc.cpp ../SpHelper.h ../SpParMat.h ../ParFriends.h ../SpParMat.cpp ../SpDefs.h ../SpTuples.cpp
+	$(COMPILER) $(INCADD) $(FLAGS) -c -o Driver.o Driver.cpp
+
+BetwCent.o: BetwCent.cpp ../SpDCCols.cpp ../dcsc.cpp ../SpHelper.h ../SpParMat.h ../ParFriends.h ../SpParMat.cpp ../SpDefs.h ../SpTuples.cpp
+	$(COMPILER) $(INCADD) $(FLAGS) -c -o BetwCent.o BetwCent.cpp
+
+driver: MemoryPool.o CommGrid.o MPIType.o Driver.o
+	$(COMPILER) $(INCADD) $(FLAGS) -o driver Driver.o MemoryPool.o CommGrid.o MPIType.o
+
+betwcent: MemoryPool.o CommGrid.o MPIType.o BetwCent.o
+	$(COMPILER) $(INCADD) $(FLAGS) -o betwcent BetwCent.o MemoryPool.o CommGrid.o MPIType.o
+
+clean:
+	rm -f betwcent
+	rm -f driver
+	rm -f *.o
+
+cleanout:
+	rm out.*
+	rm err.*

@@ -7,6 +7,11 @@
 #include <fstream>
 #include <sstream>
 #include <cstdint>
+#include "Collective.hpp"
+#include <boost/filesystem.hpp>
+namespace fs = boost::filesystem;
+
+
 
 DECLARE_string(stats_blob_filename);
 
@@ -39,7 +44,7 @@ namespace Grappa {
           // skip printing "," before first one
           if (&s-&stats[0] != 0) { o << ",\n"; }
           
-          o << "  " << *s;
+          s->json(o << "  ");
         }
         out << o.str();
       }
@@ -70,7 +75,7 @@ namespace Grappa {
 
     void merge_and_print(std::ostream& out) {
       StatisticList all;
-      merge(all);
+      merge(all); // also flushes histogram logs
 
       std::ostringstream legacy_stats;
       legacy_reduce_stats_and_dump(legacy_stats);
@@ -91,6 +96,24 @@ namespace Grappa {
         stat->reset();
       }
       Grappa_reset_stats();
+    }
+    
+    void reset_all_cores() {
+#ifdef HISTOGRAM_SAMPLED
+      try {
+        char * jobid = getenv("SLURM_JOB_ID");
+        char dir[256]; sprintf(dir, "histogram.%s", jobid);
+        fs::create_directories(dir);
+        fs::permissions(dir, fs::perms::all_all);
+      } catch (fs::filesystem_error& e) {
+        LOG(ERROR) << "filesystem error: " << e.what();
+      }
+#endif
+      
+      call_on_all_cores([]{
+        Grappa_start_profiling();
+        reset();
+      });
     }
     
     void sample() {

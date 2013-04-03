@@ -26,10 +26,13 @@
 #include "../Addressing.hpp"
 #include "../LegacySignaler.hpp"
 #include "../FullEmpty.hpp"
+#include "../LocaleSharedMemory.hpp"
+
+#include "../Aggregator.hpp"
 
 #include <Communicator.hpp>
 #include <tasks/TaskingScheduler.hpp>
-#include "Thread.hpp"
+#include "Worker.hpp"
 #include <Message.hpp>
 
 
@@ -48,7 +51,7 @@ DECLARE_int32( chunk_size );
 typedef int16_t Node;
 
 /// Forward declare for steal_locally
-class Thread;
+class Worker;
 
 /// Forward declare for global queue
 class Signaler;
@@ -225,14 +228,14 @@ template <typename T>
     public:
       static StealQueue<T> steal_queue;
 
-      void init( uint64_t numEle ) {
+      void activate( uint64_t numEle ) {
         stackSize = numEle;
 
         uint64_t nbytes = numEle * sizeof(T);
 
         // allocate stack in shared addr space with affinity to calling thread
         // and record local addr for efficient access in sequel
-        stack_g = static_cast<T*>( malloc( nbytes ) );
+        stack_g = static_cast<T*>( Grappa::impl::locale_shared_memory.allocate_aligned( nbytes, 8 ) );
         stack = stack_g;
 
         CHECK( stack!= NULL ) << "Request for " << nbytes << " bytes for stealStack failed";
@@ -362,7 +365,7 @@ static int64_t local_push_retVal = -1;
 static int64_t local_push_amount = 0;
 static bool local_push_replyfewer;
 static uint64_t local_push_old_bottom;
-static Thread * push_waiter = NULL;
+static Worker * push_waiter = NULL;
 static bool pendingWorkShare = false;
 
 static bool pendingGlobalPush = false;
@@ -438,9 +441,10 @@ int64_t StealQueue<T>::steal_locally( Core victim, int64_t max_steal ) {
     }, victimStealStart, stealAmt*sizeof(T)); // success reply
 
 #if DEBUG
+    // FIXME: do not block; use mark_sent
     // wait for send then 0 out the stolen stuff (to detect errors)
-    reply->block_until_sent();
-    std::memset( victimStealStart, 0, stealAmt*sizeof( T ) );
+    //reply->block_until_sent();
+    //std::memset( victimStealStart, 0, stealAmt*sizeof( T ) );
 #endif
     } else {
       /* Send failed steal reply */
@@ -456,6 +460,7 @@ int64_t StealQueue<T>::steal_locally( Core victim, int64_t max_steal ) {
   GRAPPA_PROFILE_THREAD_START( stealprof, global_scheduler.get_current_thread() );
   int64_t steal_amount = result.readFE();
   GRAPPA_PROFILE_THREAD_STOP( stealprof, global_scheduler.get_current_thread() );
+  return steal_amount;
 }
 
 

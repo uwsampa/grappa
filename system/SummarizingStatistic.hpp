@@ -78,14 +78,14 @@ namespace Grappa {
     }
     
     virtual std::ostream& json(std::ostream& o) const {
-      o << '"' << name << "\": \"" << value_ << "\", ";
-      o << '"' << name << "_count\": \"" << n << "\", ";
-      o << '"' << name << "_mean\": \"" << mean << "\", ";
-      o << '"' << name << "_stddev\": \"" << stddev() << "\"";
+      o << '"' << name << "\": " << value_ << ", ";
+      o << '"' << name << "_count\": " << n << ", ";
+      o << '"' << name << "_mean\": " << mean << ", ";
+      o << '"' << name << "_stddev\": " << stddev();
       return o;
     }
     
-    virtual void sample() const {
+    virtual void sample() {
 #ifdef VTRACE_SAMPLED
       // vt_sample() specialized for supported tracing types in Statistics.cpp
       vt_sample();

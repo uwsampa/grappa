@@ -1,12 +1,13 @@
 #pragma once
 
 #include <glog/logging.h>
+#include "LocaleSharedMemory.hpp"
 
 namespace Grappa {
 
   template<typename Base>
   class PoolAllocator {
-  protected:
+  public:
     char * buffer;
     size_t buffer_size;
     size_t allocated;
@@ -33,7 +34,7 @@ namespace Grappa {
       // call destructors of everything in PoolAllocator
       iterate([](Base* bp){ bp->~Base(); });
       if (owns_buffer) {
-        delete [] buffer;
+        Grappa::impl::locale_shared_memory.deallocate(buffer);
       }
     }
     

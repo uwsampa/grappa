@@ -21,6 +21,8 @@ namespace Grappa {
     int64_t count;
   public:
     CompletionEvent(int64_t count = 0): count(count) {}
+
+    int64_t get_count() const { return count; }
     
     void enroll(int64_t inc = 1) {
       count += inc;
@@ -28,9 +30,7 @@ namespace Grappa {
     
     /// Decrement count once, if count == 0, wake all waiters.
     void complete(int64_t decr = 1) {
-      if (count-decr < 0) {
-        LOG(ERROR) << "too many calls to signal()";
-      }
+      CHECK_GE( count-decr, 0 ) << "too many calls to signal()";
       count -= decr;
       DVLOG(4) << "completed (" << count << ")";
       if (count == 0) {
@@ -43,6 +43,11 @@ namespace Grappa {
         Grappa::wait(&cv);
       }
     }
+
+    void reset() {
+      CHECK_EQ( cv.waiters_, 0 ) << "Resetting with waiters!";
+      count = 0;
+    }
   };
 
   /// Match ConditionVariable-style function call.
@@ -54,11 +59,12 @@ namespace Grappa {
   }
   
   /// Overload to work on GlobalAddresses.
-  template<typename CompletionType>
-  inline void complete(GlobalAddress<CompletionType> ce, int64_t decr = 1) {
-    static_assert(std::is_base_of<CompletionEvent,CompletionType>::value,
-                  "complete() can only be called on subclasses of CompletionEvent");
-    
+  // template<typename CompletionType>
+  // inline void complete(GlobalAddress<CompletionType> ce, int64_t decr = 1) {
+    // static_assert(std::is_base_of<CompletionEvent,CompletionType>::value,
+    //               "complete() can only be called on subclasses of CompletionEvent");
+  inline void complete(GlobalAddress<CompletionEvent> ce, int64_t decr = 1) {
+    DVLOG(5) << "complete CompletionEvent";
     if (ce.node() == mycore()) {
       ce.pointer()->complete(decr);
     } else {

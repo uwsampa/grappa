@@ -38,6 +38,9 @@ namespace Grappa {
     
     /// Reset all local registered stats
     void reset();
+    
+    /// Do `reset()` on all cores (uses `Grappa::call_on_all_cores`)
+    void reset_all_cores();
   }
   
 } // namespace Grappa
