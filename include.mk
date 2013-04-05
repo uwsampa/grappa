@@ -86,3 +86,6 @@ endif
 GASNET_FLAGS+= -DGASNET_$(shell echo $(GASNET_THREAD_NS) | tr a-z A-Z) -DGASNET_CONDUIT_$(shell echo $(GASNET_CONDUIT_NS) | tr a-z A-Z)
 CFLAGS+= -I$(GASNET)/include -I$(GASNET)/include/$(GASNET_CONDUIT_NS)-conduit
 LDFLAGS+= -L$(GASNET)/lib
+
+# fake slurm
+ENV_VARIABLES+= SLURM_JOB_NUM_NODES=$(NNODE) SLURM_NNODE=$(NNODE) SLURM_NTASKS_PER_NODE=$(PPN)
