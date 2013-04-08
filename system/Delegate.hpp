@@ -83,6 +83,7 @@ namespace Grappa {
       
       if (dest == origin) {
         // short-circuit if local
+        delegate_ops_short_circuited++;
         return func();
       } else {
         FullEmpty<R> result;
