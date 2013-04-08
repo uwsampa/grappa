@@ -11,10 +11,13 @@
 
 #include <Grappa.hpp>
 #include "BufferVector.hpp"
+#include "Delegate.hpp"
 
 #define DOTEST(str) VLOG(1) << "TEST: " << (str);
 
 BOOST_AUTO_TEST_SUITE( BufferVector_tests );
+
+using namespace Grappa;
 
 void user_main( int * ignore ) {
 
@@ -27,9 +30,8 @@ void user_main( int * ignore ) {
     BOOST_CHECK_EQUAL( b.getLength(), 1 );
 
     b.setReadMode();
-    GlobalAddress<int64_t> vs = b.getReadBuffer();
-    int64_t r;
-    Grappa_delegate_read( vs, &r );
+    GlobalAddress<const int64_t> vs = b.getReadBuffer();
+    int64_t r = delegate::read( vs );
     BOOST_CHECK_EQUAL( r, v1 );
   }
 
@@ -54,26 +56,22 @@ void user_main( int * ignore ) {
     BOOST_CHECK_EQUAL( b.getLength(), 4 );
 
     b.setReadMode();
-    GlobalAddress<int64_t> vs = b.getReadBuffer();
+    GlobalAddress<const int64_t> vs = b.getReadBuffer();
     {
-      int64_t r;
-      Grappa_delegate_read( vs+0, &r );
+      int64_t r = delegate::read( vs+0 );
       BOOST_CHECK_EQUAL( *(vs.pointer()), v1);
       BOOST_CHECK_EQUAL( r, v1 );
     }
     {
-      int64_t r;
-      Grappa_delegate_read( vs+1, &r );
+      int64_t r = delegate::read( vs+1 );
       BOOST_CHECK_EQUAL( r, v2 );
     }
     {
-      int64_t r;
-      Grappa_delegate_read( vs+2, &r );
+      int64_t r = delegate::read( vs+2 );
       BOOST_CHECK_EQUAL( r, v3 );
     }
     {
-      int64_t r;
-      Grappa_delegate_read( vs+3, &r );
+      int64_t r = delegate::read( vs+3 );
       BOOST_CHECK_EQUAL( r, v4 );
     }
   }
@@ -92,10 +90,9 @@ void user_main( int * ignore ) {
     }
     
     b.setReadMode();
-    GlobalAddress<int64_t> vs = b.getReadBuffer();
+    GlobalAddress<const int64_t> vs = b.getReadBuffer();
     for (uint64_t i=0; i<num; i++) {
-      int64_t r;
-      Grappa_delegate_read( vs+i, &r );
+      int64_t r = delegate::read( vs+i );
       BOOST_CHECK_EQUAL( r, vals[i] );
       BOOST_CHECK_EQUAL( b.getLength(), num );
     }

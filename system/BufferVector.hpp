@@ -2,7 +2,7 @@
 #define BUFFER_VECTOR
 
 #include "Grappa.hpp"
-#include "LegacyDelegate.hpp"
+#include "LocaleSharedMemory.hpp"
 
 #include <stdlib.h>
 
@@ -27,10 +27,14 @@ class BufferVector {
 
   public:
     BufferVector( size_t capacity = 2 ) 
-      : buf ( new T[capacity] )
+      : buf ( static_cast<T*>(Grappa::impl::locale_shared_memory.allocate( capacity*sizeof(T) )) )   // new T[capacity]
       , mode( WO )
       , nextIndex( 0 )
       , size( capacity ) { }
+
+    ~BufferVector() {
+      Grappa::impl::locale_shared_memory.deallocate( buf );
+    }
 
     void setWriteMode() {
       CHECK( mode != WO ) << "already in WO mode";
@@ -48,9 +52,9 @@ class BufferVector {
       if ( nextIndex == size ) {
         // expand the size of the buffer
         size_t newsize = size * 2;
-        T * newbuf = new T[newsize];
+        T * newbuf = static_cast<T*>(Grappa::impl::locale_shared_memory.allocate( newsize*sizeof(T) ));      // new T[newsize]
         memcpy( newbuf, buf, size*sizeof(T) );
-        delete buf;
+        Grappa::impl::locale_shared_memory.deallocate( buf );   // delete buf
         size = newsize;
         buf = newbuf;
       }
