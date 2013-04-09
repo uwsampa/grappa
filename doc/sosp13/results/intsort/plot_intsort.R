@@ -21,26 +21,32 @@ db <- function(query) {
   return(d)
 }
 
+stat_sum_single <- function(fun, geom="text", ...) {
+  stat_summary(fun.y=fun, geom=geom, size = 3, ...)
+}
+
 p <- ggplot(db("select * from intsort
                where nnode <= 128
-               and problem == 'E'"),
-  aes(x=nnode, y=mops_total, ymax=2048, group=problem, color=version, shape=ppn, label=mops_total))+
-  ggtitle("IntSort")+
+               and problem == 'E'
+               "),
+  aes(x=nnode, y=mops_total, ymax=2048, group=version, color=version, label=mops_total))+
+  ggtitle("IntSort")+ylab("MOps/second")+xlab("Nodes")+
   sosp_theme+
   geom_point()+ # show points
   # stat_summary(fun.y="max", geom="line")+ # show line with max of each line
   # scale_y_continuous(trans=log2_trans())+
-  scale_x_continuous(breaks=seq(0,128,16))
+  scale_x_continuous(breaks=seq(0,128,16))+
   facet_wrap(~problem) # make new plots for each scale
   
 p # plot it
 
-p.labeled = p+geom_text(size=4, hjust=-0.1)
+#p.labeled = p+stat_summary(fun.y=max, geom="text", mapping=aes(y=mops_total,group=version))
+p.labeled = p+stat_summary(fun.y=max, geom="text", size=4)
 
-#ggsave("plots/intsort_mops.pdf", plot=p, scale=1.3) # or save it
+ggsave("plots/intsort_mops.pdf", plot=p.labeled, scale=1.3) # or save it
 
 d <- db("select *,nnode*ppn as nproc from intsort")
-p.nproc <- ggplot(d, aes(x=nproc, y=mops_total, group=problem, color=problem, shape=ppn))+
+p.nproc <- ggplot(d, aes(x=nproc, y=mops_total, group=problem, color=problem))+
   ggtitle("IntSort")+xlab("Cores")+ylab("MOPS")+
   scale_x_continuous(breaks=seq(0, 2048, 512))+ # axis ticks seq(from,to,by)
   sosp_theme+

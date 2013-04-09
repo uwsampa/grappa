@@ -1,7 +1,7 @@
 #!/usr/bin/env ruby
 require "experiments"
 
-db = Sequel.sqlite("sosp-test.db")
+db = Sequel.sqlite("sosp.db")
 table = :bfs
 
 data = [
