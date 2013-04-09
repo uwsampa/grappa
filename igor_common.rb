@@ -127,6 +127,11 @@ Igor do
            global_heap_fraction 0.5
             flatten_completions 1
   }
+  class << GFLAGS
+    def expand
+      self.keys.map{|n| "--#{n}=%{#{n}}"}.join(' ')
+    end
+  end
   
   # parses JSON stats and colon-delimited fields
   parser {|cmdout|
