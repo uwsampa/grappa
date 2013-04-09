@@ -72,6 +72,10 @@ class Task {
       fn_p( arg0, arg1, arg2 );  // NOTE: this executes 1-parameter function's with 3 args
     }
 
+    void on_stolen( ) {
+      DVLOG(4) << "Stolen " << *this;
+    }
+
     friend std::ostream& operator<<( std::ostream& o, const Task& t );
 };
 
