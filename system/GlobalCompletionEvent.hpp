@@ -201,7 +201,7 @@ public:
   /// Note: this can be called in a message handler (e.g. remote completes from stolen tasks).
   void complete(int64_t dec = 1) {
     count -= dec;
-    DVLOG(4) << "complete (" << count << ") -- " << this;
+    DVLOG(4) << "complete (" << count << ") -- gce(" << this << ")";
     
     // out of work here
     if (count == 0) { // count[dec -> 0]

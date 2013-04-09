@@ -23,6 +23,12 @@ BOOST_AUTO_TEST_SUITE( New_loop_tests );
 using namespace Grappa;
 using Grappa::wait;
 
+
+static int test_global = 0;
+CompletionEvent test_global_ce;
+GlobalCompletionEvent my_gce;
+CompletionEvent my_ce;
+
 static bool touched = false;
 
 void test_on_all_cores() {
@@ -51,25 +57,21 @@ void test_loop_decomposition() {
 }
 
 void test_loop_decomposition_global() {
-  BOOST_MESSAGE("Testing loop_decomposition_public...");
+  BOOST_MESSAGE("Testing loop_decomposition_public..."); VLOG(1) << "loop_decomposition_public";
   int N = 160000;
   
-  CompletionEvent ce(N);
-  auto ce_addr = make_global(&ce);
-  
-  impl::loop_decomposition_public(0, N, [ce_addr](int64_t start, int64_t iters) {
+  my_gce.enroll();
+  impl::loop_decomposition_public<&my_gce>(0, N, [](int64_t start, int64_t iters) {
     if ( start%10000==0 ) {
-      BOOST_MESSAGE("loop(" << start << ", " << iters << ")");
+      VLOG(1) << "loop(" << start << ", " << iters << ")";
     }
-    complete(ce_addr,iters);
   });
-  ce.wait();
+	my_gce.complete();
+	my_gce.wait();
 }
 
-CompletionEvent my_ce;
-
 void test_forall_here() {
-  BOOST_MESSAGE("Testing forall_here...");
+  BOOST_MESSAGE("Testing forall_here..."); VLOG(1) << "forall_here";
   const int N = 15;
   
   {
@@ -95,10 +97,6 @@ void test_forall_here() {
   }
   
 }
-
-static int test_global = 0;
-CompletionEvent test_global_ce;
-GlobalCompletionEvent my_gce;
 
 void test_forall_global_private() {
   BOOST_MESSAGE("Testing forall_global...");
