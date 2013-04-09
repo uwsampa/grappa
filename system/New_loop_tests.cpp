@@ -243,7 +243,6 @@ void user_main(void * args) {
   test_forall_global_public();
   
   test_forall_localized();
-  Grappa::Statistics::merge_and_print();
 }
 
 BOOST_AUTO_TEST_CASE( test1 ) {
