@@ -189,8 +189,6 @@ struct read_array_args {
 
     GrappaFileDesc fdesc = Grappa_fopen(a.fname, "r");
 
-    // T* buf = new T[nelem];
-		// T* buf = reinterpret_cast<T*>(Grappa::impl::locale_shared_memory.allocate(sizeof(T)*nelem, 8));
 		T* buf = Grappa::locale_alloc<T>(nelem);
     
     int64_t offset = index - a.start;
@@ -317,16 +315,13 @@ void _save_array_dir(const char * dirname, GlobalAddress<T> array, size_t nelems
 	
   double t = Grappa_walltime();
 
-  // { save_array_func<T> f(dirname, array, nelems); fork_join_custom(&f); }
   on_all_cores([dirname,array,nelems]{
     range_t r = blockDist(0, nelems, Grappa_mynode(), Grappa_nodes());
     char fname[FNAME_LENGTH]; array_dir_fname(fname, dirname, r.start, r.end);
     std::fstream fo(fname, std::ios::out | std::ios::binary);
     
-    //const size_t NBUF = BUFSIZE/sizeof(T); 
     const size_t NBUF = FLAGS_io_blocksize_mb*(1L<<20)/sizeof(T);
-    // T * buf = new T[NBUF];
-		T * buf = Grappa::locale_alloc<T>(NBUF);
+    T * buf = Grappa::locale_alloc<T>(NBUF);
 		
     for_buffered (i, n, r.start, r.end, NBUF) {
       typename Incoherent<T>::RO c(array+i, n, buf);
@@ -334,7 +329,6 @@ void _save_array_dir(const char * dirname, GlobalAddress<T> array, size_t nelems
       fo.write((char*)buf, sizeof(T)*n);
       //VLOG(1) << "wrote " << n << " bytes";
     }
-    // delete [] buf;
 		Grappa::locale_free(buf);
 
     fo.close();
@@ -352,7 +346,6 @@ void _save_array_file(const char * fname, GlobalAddress<T> array, size_t nelems)
 
   std::fstream fo(fname, std::ios::out | std::ios::binary);
 
-  //const size_t NBUF = BUFSIZE/sizeof(T); 
   const size_t NBUF = FLAGS_io_blocksize_mb*(1L<<20)/sizeof(T);
 	T * buf = Grappa::locale_alloc<T>(NBUF);
   for_buffered (i, n, 0, nelems, NBUF) {
