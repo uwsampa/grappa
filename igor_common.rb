@@ -71,7 +71,7 @@ module Isolatable
     if c
       tdir = "/scratch/#{ENV['USER']}/igor/#{Process.pid}"
       @params[:tdir] = tdir
-      ignore :tdir
+      ignore :tdir, :command
       c = %Q[
         if [[ ! -d "#{tdir}" ]]; then 
           srun mkdir -p #{tdir};
@@ -100,7 +100,7 @@ Igor do
     params { machine "sampa" }
     sbatch_flags << "--partition=grappa" << "--exclusive"
     $srun = "srun --resv-ports --cpu_bind=verbose,rank --label --kill-on-bad-exit"
-    SHMMAX=67108864
+    SHMMAX=12884901888
   else
     params { machine `hostname` }
     $srun = "srun"
@@ -127,6 +127,11 @@ Igor do
            global_heap_fraction 0.5
             flatten_completions 1
   }
+  class << GFLAGS
+    def expand
+      self.keys.map{|n| "--#{n}=%{#{n}}"}.join(' ')
+    end
+  end
   
   # parses JSON stats and colon-delimited fields
   parser {|cmdout|

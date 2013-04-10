@@ -34,6 +34,9 @@
 #include <tasks/TaskingScheduler.hpp>
 #include "Worker.hpp"
 #include <Message.hpp>
+#include <ExternalCountPayloadMessage.hpp>
+
+#define RECLAIM_SPACE 1
 
 
 #define MIN_INT(a, b) ( (a) < (b) ) ? (a) : (b)
@@ -158,6 +161,7 @@ template <typename T>
       uint64_t workAvail;     /* elements available for stealing */
       uint64_t bottom;   /* index of start of shared portion of stack */
       uint64_t top;           /* index of stack top */
+      uint64_t numVictimSegments; /* number of steals reserved from the bottom of the stack */
       uint64_t maxStackDepth;                      /* stack stats */ 
       uint64_t nNodes, maxTreeDepth, nVisited, nLeaves;        /* tree stats: (num pushed, max depth, num popped, leaves)  */
       uint64_t nAcquire, nRelease, nStealPackets, nFail;  /* steal stats */
@@ -212,7 +216,7 @@ template <typename T>
       static void pull_global_data_reply_g_am( GlobalAddress< Signaler > * signal, size_t arg_size, T * payload, size_t payload_size );
 
       /// Output stream of queue state
-      std::ostream& dump ( std::ostream& o ) const {
+      std::ostream& dump ( std::ostream& o) const {
         std::stringstream ss;
         for ( uint64_t i = top; i>bottom; i-- ) {
           ss << stack[i-1];
@@ -223,6 +227,15 @@ template <typename T>
           << " bottom=" << bottom << ")"
           << "; stackSize=" << stackSize 
           << "; contents=\n" << ss.str() << "]";
+      }
+        
+      void dump_range( uint64_t stop, uint64_t start ) {
+        std::stringstream ss;
+        for ( uint64_t i = start; i>stop; i-- ) {
+          ss << stack[i-1];
+          ss << ",\n";
+        }
+        VLOG(5) << "Steal range: " << ss.str();
       }
 
     public:
@@ -247,6 +260,7 @@ template <typename T>
       /// Constructor allocates uninitialized queue
       StealQueue( ) 
         : stackSize( -1 )
+          , numVictimSegments( 0 )
           , maxStackDepth( 0 )
           , nNodes( 0 ), maxTreeDepth( 0 ), nVisited( 0 ), nLeaves( 0 )
           , nAcquire( 0 ), nRelease( 0 ), nStealPackets( 0 ), nFail( 0 )
@@ -361,14 +375,16 @@ extern TaskingScheduler global_scheduler;
 // void Grappa_wake( Thread * );
 // Node Grappa_mynode();
 
+// bunch of static state for workshare and global queue
+// Porting should remove this
 static int64_t local_push_retVal = -1;
 static int64_t local_push_amount = 0;
 static bool local_push_replyfewer;
 static uint64_t local_push_old_bottom;
 static Worker * push_waiter = NULL;
 static bool pendingWorkShare = false;
-
 static bool pendingGlobalPush = false;
+          
 
 /// Steal elements from the StealQueue<T> located at the victim Node.
 /// @tparam T type of the queue elements
@@ -380,14 +396,20 @@ template <typename T>
 int64_t StealQueue<T>::steal_locally( Core victim, int64_t max_steal ) {
   Core origin = global_communicator.mynode();
   CHECK( victim != origin ) << "Cannot steal from self";
-    
-  // try to reclaim space in the steal queue
-  reclaimSpace(); 
+  
+  // if the bottom of the stack is not currently claimed
+  // (pending copy to the network), then can try reclaiming space  
+  if ( numVictimSegments == 0 ) {
+#ifdef RECLAIM_SPACE
+    reclaimSpace(); 
+#endif
+  }
   
   FullEmpty<int64_t> result;
 //  int64_t network_time = 0;
 //  int64_t start_time = Grappa_get_timestamp();
 
+  Grappa::Statistics::steal_queue_stats.record_steal_request(8+24);//FIXME: size
   /* Send steal request */
   Grappa::send_message( victim, [ &result, origin, max_steal ] {
     /* ON VICTIM */
@@ -413,9 +435,17 @@ int64_t StealQueue<T>::steal_locally( Core victim, int64_t max_steal ) {
     T* victimStackBase = steal_queue.stack;
     T* victimStealStart = victimStackBase + victimBottom;
 
+    steal_queue.dump_range( victimBottom, victimBottom+stealAmt );
+#if DEBUG
+    for (uint64_t i=victimBottom; i<victimBottom+stealAmt; i++) {
+      steal_queue.stack[i].on_stolen();
+    }
+#endif
+    
+    Grappa::Statistics::steal_queue_stats.record_steal_reply(8+16);//FIXME: size
 
     /* Send successful steal reply */
-    auto reply = Grappa::send_heap_message( origin, [&result, stealAmt] ( void * payload, size_t payload_size) {
+    Grappa::send_heap_message( origin, [&result, stealAmt] ( void * payload, size_t payload_size ) {
       /* ON ORIGIN */
 
       // PERFORMANCE TODO: could omit stealAmt to save on bandwidth
@@ -428,25 +458,38 @@ int64_t StealQueue<T>::steal_locally( Core victim, int64_t max_steal ) {
       //VT_COUNT_UNSIGNED_VAL( thiefStack->steal_success_ev_vt, k );
 #endif
 
-      // reclaim again before we copy
-      steal_queue.reclaimSpace();
+      // if the bottom of the stack is not currently claimed
+      // then can try reclaiming space again
+      if ( steal_queue.numVictimSegments == 0 ) {
+#ifdef RECLAIM_SPACE
+        steal_queue.reclaimSpace();
+#endif
+      }
 
       CHECK( steal_queue.top + stealAmt < steal_queue.stackSize ) << "steal reply: overflow (top:" << steal_queue.top << " stackSize:" << steal_queue.stackSize << " amt:" << stealAmt << ")";
       std::memcpy(&steal_queue.stack[steal_queue.top], stolen_work, payload_size);
-
+      
       VLOG(5) << "Steal packet returns with amt=" << stealAmt;
+
       steal_queue.top += stealAmt;
+      VLOG(5) << "Steal packet returns with amt=" << stealAmt 
+        << "\n after put on stack: " << steal_queue;
 
       result.writeEF( stealAmt );
-    }, victimStealStart, stealAmt*sizeof(T)); // success reply
+#ifdef RECLAIM_SPACE
+    }, victimStealStart, stealAmt*sizeof(T), &steal_queue.numVictimSegments ); // success reply
+#else
+    }, victimStealStart, stealAmt*sizeof(T) );// success reply
+#endif
 
 #if DEBUG
-    // FIXME: do not block; use mark_sent
+    // FIXME: do not block; use mark_sent to memset payload
     // wait for send then 0 out the stolen stuff (to detect errors)
     //reply->block_until_sent();
     //std::memset( victimStealStart, 0, stealAmt*sizeof( T ) );
 #endif
     } else {
+       Grappa::Statistics::steal_queue_stats.record_steal_reply(8+8);//FIXME: size
       /* Send failed steal reply */
       send_heap_message( origin, [&result] { 
         /* ON ORIGIN */
@@ -539,6 +582,7 @@ void StealQueue<T>::reclaimSpace() {
   // reclaim space if the queue is empty
   // and there is no pending transfer below 'bottom' (workshare or pending global q pull)
   if ( depth() == 0 && !pendingWorkShare && numPendingElements == 0 ) {
+    DVLOG(5) << "reclaiming space top=" << top << ", bottom=" << bottom;
     mkEmpty();
   }
 }
