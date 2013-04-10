@@ -19,18 +19,11 @@
 
 using namespace Grappa;
 
-static inline double read_double(GlobalAddress<double> addr) {
-  int64_t temp = Grappa_delegate_read_word(addr);
-  return *reinterpret_cast<double*>(&temp);
-}
-
 struct CentralityScratch {
   GlobalAddress<double> delta;
   GlobalAddress<graphint> dist, Q, sigma, marks, child, child_count, explored,
                           Qnext;
 };
-
-static LocalTaskJoiner joiner;
 
 static graph g;
 static CentralityScratch c;
