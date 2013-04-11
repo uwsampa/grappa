@@ -41,7 +41,7 @@ public:
   // initialize list in locale shared memory
   void activate() {
     void * p = Grappa::impl::locale_shared_memory.allocate( sizeof(ReuseMessage<T>) * outstanding_ );
-    messages_ = reinterpret_cast< ReuseMessage<T> * >(p);
+    messages_ = new (p) ReuseMessage<T>[ outstanding_ ];
     for( int i = 0; i < outstanding_; ++i ) {
       messages_[i].list_ = this;
       this->push( &messages_[i] );
