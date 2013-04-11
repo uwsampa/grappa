@@ -202,11 +202,7 @@ static void disable_tau() {
 double centrality_multi(graph *g_in, GlobalAddress<double> bc, graphint total_num_roots,
     /* outputs: */ double * avg_centrality = NULL, int64_t * total_nedge = NULL) {
 
-  bool computeAllVertices = (total_num_roots == g_in->numVertices);
-  
-  graphint num_roots_todo = total_num_roots;
-    
-  if (!computeAllVertices) c.explored = Grappa_typed_malloc<graphint>(g_in->numVertices);  
+  c.explored = Grappa_typed_malloc<graphint>(g_in->numVertices);  
   
   double t; t = timer();
   double rngtime, tt;
@@ -231,10 +227,38 @@ double centrality_multi(graph *g_in, GlobalAddress<double> bc, graphint total_nu
   
   Grappa::memset(bc, 0.0, g.numVertices);
   Grappa::memset(c.explored, (graphint)0L, g.numVertices);
+
+  // pick roots
   
-  auto roots_todo_addr = make_global(&num_roots_todo);
-  on_all_cores([roots_todo_addr]{
-    mersenne_seed(12345*(mycore()+1));
+  mersenne_seed(12345);
+  
+  std::deque<graphint> root_vertices(total_num_roots);
+  // graphint root_vertices[total_num_roots];
+  for (graphint i=0; i<total_num_roots; i++) {
+    graphint root_vertex;
+    do {
+      root_vertex = mersenne_rand() % g.numVertices;
+      VLOG(1) << "root_vertex (" << root_vertex << ")";
+    } while (!delegate::compare_and_swap(c.explored+root_vertex, 0L, 1L));
+    // rngtime += timer() - tt;
+
+    graphint pair_[2];
+    Incoherent<graphint>::RO pair(g.edgeStart+root_vertex, 2, pair_);
+    graphint root_degree = pair[1]-pair[0];
+    VLOG(1) << "degree (" << root_degree << ")";
+    
+    if (root_degree == 0) {
+      i--; // try again...
+    } else {
+      root_vertices.push_back(root_vertex);
+    }
+  }
+  // graphint num_roots_todo = total_num_roots;
+  // auto roots_todo_addr = make_global(&num_roots_todo);
+  // graphint root_index = 0;
+  auto root_vertices_addr = make_global(&root_vertices);
+  
+  on_all_cores([root_vertices_addr]{
     
     local::memset(c.delta, (double)0, g.numVertices);
     
@@ -248,23 +272,18 @@ double centrality_multi(graph *g_in, GlobalAddress<double> bc, graphint total_nu
     while (true) { // (breaks out when roots_todo -> 0)
       
       /// Choose vertex at random
-      graphint root_vertex;
-      // double tt = timer();
-      do {
-        root_vertex = mersenne_rand() % g.numVertices;
-        VLOG(1) << "root_vertex (" << root_vertex << ")";
-      } while (!delegate::compare_and_swap(c.explored+root_vertex, 0L, 1L));
-      // rngtime += timer() - tt;
-
-      graphint pair_[2];
-      Incoherent<graphint>::RO pair(g.edgeStart+root_vertex, 2, pair_);
-      graphint root_degree = pair[1]-pair[0];
-      VLOG(1) << "degree (" << root_degree << ")";
-      if (root_degree == 0) continue;
+      graphint root_vertex = delegate::call(root_vertices_addr.core(), [root_vertices_addr]() -> graphint {
+        auto& rv = *root_vertices_addr.pointer();
+        if (rv.empty()) {
+          return -1;
+        } else {
+          graphint v = rv.front();
+          root_vertices_addr.pointer()->pop_front();
+          return v;
+        }
+      });
+      if (root_vertex == -1) break;
       
-      graphint remaining = delegate::fetch_and_add(roots_todo_addr, -1);
-      if (remaining <= 0) break;
-
       VLOG(3) << "root_vertex = " << root_vertex;
     
       local::memset(c.dist,  (graphint)-1, g.numVertices);
