@@ -18,6 +18,12 @@ DECLARE_int64( global_memory_per_node_base_address );
 BOOST_AUTO_TEST_SUITE( GlobalMemoryChunk_tests );
 
 
+namespace Grappa {
+namespace impl {
+extern void * global_memory_chunk_base;
+}
+}
+
 GlobalAddress< int64_t > base;
 size_t size;
 
@@ -79,7 +85,7 @@ BOOST_AUTO_TEST_CASE( test1 ) {
 
   size_t local_size_bytes = 1 << 8;
   // cheat. we know this 
-  base = make_linear( (void*) FLAGS_global_memory_per_node_base_address );
+  base = make_linear( ::Grappa::impl::global_memory_chunk_base );
   BOOST_MESSAGE( "Base pointer is " << base );
 
   size = local_size_bytes * Grappa_nodes() / sizeof(int64_t);

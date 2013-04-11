@@ -27,8 +27,7 @@
 #include <vt_user.h>
 #endif
 
-#define STATIC_ASSERT_SIZE_8( type ) BOOST_STATIC_ASSERT( sizeof(type) == 8 )
-
+#define STATIC_ASSERT_SIZE_8(type) static_assert(sizeof(type) == 8, "Size of "#type" must be 8 bytes.")
 
 DECLARE_uint64( num_starting_workers );
 
@@ -60,6 +59,16 @@ namespace Grappa {
     /// after it has run.
     template< typename T >
     static void task_heapfunctor_proxy( T * tp, T * unused1, T * unused2 ) {
+      (*tp)();
+      delete tp;
+    }
+
+    /// Helper function to spawn workers with lambdas and
+    /// functors. This function takes ownership of the heap-allocated
+    /// functor and deallocates it after it has run.
+    template< typename T >
+    static void worker_heapfunctor_proxy( Thread * me, void * vp ) {
+      T * tp = reinterpret_cast< T * >( vp );
       (*tp)();
       delete tp;
     }
@@ -114,6 +123,16 @@ namespace Grappa {
     
     uint64_t * args = reinterpret_cast< uint64_t * >( &tf );
     Grappa::impl::global_task_manager.spawnPublic(Grappa::impl::task_functor_proxy<TF>, args[0], args[1], args[2]);
+  }
+
+  template < typename TF >
+  void spawn_worker( TF && tf ) {
+    TF * tp = new TF(tf);
+    void * vp = reinterpret_cast< void * >( tp );
+    Thread * th = worker_spawn( Grappa::impl::global_scheduler.get_current_thread(), &Grappa::impl::global_scheduler,
+                                Grappa::impl::worker_heapfunctor_proxy<TF>, vp );
+    Grappa::impl::global_scheduler.ready( th );
+    DVLOG(5) << __PRETTY_FUNCTION__ << " spawned Worker " << th;
   }
 
   /// @}

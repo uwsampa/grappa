@@ -9,7 +9,7 @@
 
 #include <iostream>
 #include <deque>
-#include "Thread.hpp"
+#include "Worker.hpp"
 #include "StatisticsTools.hpp"
 
 #ifdef VTRACE
@@ -70,6 +70,10 @@ class Task {
     void execute( ) {
       CHECK( fn_p!=NULL ) << "fn_p=" << (void*)fn_p << "\narg0=" << (void*)arg0 << "\narg1=" << (void*)arg1 << "\narg2=" << (void*)arg2;
       fn_p( arg0, arg1, arg2 );  // NOTE: this executes 1-parameter function's with 3 args
+    }
+
+    void on_stolen( ) {
+      DVLOG(4) << "Stolen " << *this;
     }
 
     friend std::ostream& operator<<( std::ostream& o, const Task& t );
@@ -359,6 +363,7 @@ class TaskManager {
     //TaskManager (bool doSteal, Node localId, Node* neighbors, Node numLocalNodes, int chunkSize, int cbint);
     TaskManager();
     void init (Node localId, Node* neighbors, Node numLocalNodes);
+    void activate();
 
     /// @return true if work is considered finished and
     ///         the task system is terminating

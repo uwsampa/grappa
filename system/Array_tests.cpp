@@ -14,6 +14,7 @@ using std::complex;
 #include "ParallelLoop.hpp"
 #include "GlobalAllocator.hpp"
 #include "Delegate.hpp"
+#include "PushBuffer.hpp"
 
 BOOST_AUTO_TEST_SUITE( Array_tests );
 
@@ -73,13 +74,42 @@ void test_prefix_sum() {
   Grappa::forall_localized(xs, N, [](int64_t i, int64_t& v){
     BOOST_CHECK_EQUAL(v, i);
   });
+  Grappa_free(xs);
+}
+
+PushBuffer<int64_t> pusher;
+
+void test_push_buffer() {
+  BOOST_MESSAGE("Testing PushBuffer");
+  // (not really in Array, but could be...)
+  auto xs = Grappa_typed_malloc<int64_t>(N*Grappa::cores());
+  Grappa::memset(xs, 0, N*Grappa::cores());
+  
+  int64_t index = 0;
+  auto ia = make_global(&index);
+  
+  Grappa::on_all_cores([xs,ia]{
+    pusher.setup(xs, ia);
+    
+    for (int i=0; i<N; i++) {
+      pusher.push(1);
+    }
+    
+    pusher.flush();
+  });
+  Grappa::forall_localized(xs, N*Grappa::cores(), [](int64_t i, int64_t& v) {
+    BOOST_CHECK_EQUAL(v, 1);
+  });
+  
+  Grappa_free(xs);
 }
 
 void user_main( void * ignore ) {
   test_memset_memcpy<int64_t,7>();
-  //test_memset_memcpy<double,7.0>();
+  // test_memset_memcpy<double,7.0>();
   test_complex();
-  test_prefix_sum();
+  // test_prefix_sum(); // (not implemented yet)
+  test_push_buffer();
 }
 
 BOOST_AUTO_TEST_CASE( test1 ) {

@@ -26,7 +26,7 @@ namespace Grappa {
       Grappa::signal(m.pointer());
     } else {
       // if remote, signal via active message
-      auto _ = Grappa::send_message(m.node(), [=]{
+      send_heap_message(m.node(), [m]{
         Grappa::signal(m.pointer());
       });
     }

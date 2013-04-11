@@ -21,7 +21,7 @@ namespace Grappa {
       virtual void reset() = 0;
       
       /// periodic sample (VTrace sampling triggered by GPerf stuff)
-      virtual void sample() const = 0;
+      virtual void sample() = 0;
       
       /// communicate with each cores' stat at the given pointer and aggregate them into
       /// this stat object

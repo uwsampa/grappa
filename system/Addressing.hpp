@@ -30,6 +30,18 @@
 
 typedef int Pool;
 
+
+/// this core's base pointer
+namespace Grappa {
+namespace impl {
+extern void * global_memory_chunk_base;
+}
+}
+
+
+
+
+
 /// assumes user data will have the top 16 bits all 0.
 
 /// Number of bytes in each block 
@@ -120,7 +132,9 @@ public:
   /// TODO: the pool argument is currenly unused
   static GlobalAddress Linear( T * t, Pool p = 0 )
   {
-    intptr_t tt = reinterpret_cast< intptr_t >( t );
+    // adjust for chunk offset
+    intptr_t tt = reinterpret_cast< intptr_t >( t ) - 
+      reinterpret_cast< intptr_t >( Grappa::impl::global_memory_chunk_base );
 
     intptr_t offset = tt % block_size;
     intptr_t block = tt / block_size;
@@ -184,7 +198,9 @@ public:
       intptr_t block = (storage_ / block_size);
       intptr_t node = (storage_ / block_size) % global_communicator.nodes();
       intptr_t node_block = (storage_ / block_size) / global_communicator.nodes();
-      return reinterpret_cast< T * >( node_block * block_size + offset );
+      intptr_t address = node_block * block_size + offset + 
+        reinterpret_cast< intptr_t >( Grappa::impl::global_memory_chunk_base );
+      return reinterpret_cast< T * >( address );
     }
   }
 
@@ -319,9 +335,8 @@ public:
   //T& operator[]( ptrdiff_t index ) { return 
 
   /// generic cast operator
-  /// TODO: do we really need this? leads to unneccessary type errors...
   template< typename U >
-  operator GlobalAddress< U >( ) {
+  explicit operator GlobalAddress< U >( ) {
     GlobalAddress< U > u = GlobalAddress< U >::Raw( storage_ );
     return u;
   }

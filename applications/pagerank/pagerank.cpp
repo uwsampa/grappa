@@ -12,6 +12,7 @@
 #include <ParallelLoop.hpp>
 #include <tasks/DictOut.hpp>
 #include <Reducer.hpp>
+#include <Statistics.hpp>
 
 #include <iostream>
 
@@ -19,13 +20,25 @@ using namespace Grappa;
 
 
 // input size
-DEFINE_uint64( nnz_factor, 10, "Approximate number of non-zeros per matrix row" );
-DEFINE_uint64( logN, 16, "logN dimension of square matrix" );
+DEFINE_uint64( nnz_factor, 16, "Approximate number of non-zeros per matrix row" );
+DEFINE_uint64( scale, 16, "logN dimension of square matrix" );
 
 // pagerank options
 DEFINE_double( damping, 0.8f, "Pagerank damping factor" );
 DEFINE_double( epsilon, 0.001f, "Acceptable error magnitude" );
 
+// runtime statistics
+GRAPPA_DEFINE_STAT(SummarizingStatistic<double>, iterations_time, 0); // provides total time, avg iteration time, number of iterations
+GRAPPA_DEFINE_STAT(SimpleStatistic<double>, init_pagerank_time, 0);
+GRAPPA_DEFINE_STAT(SimpleStatistic<double>, multiply_time, 0);
+GRAPPA_DEFINE_STAT(SimpleStatistic<double>, vector_add_time, 0);
+GRAPPA_DEFINE_STAT(SimpleStatistic<double>, norm_and_diff_time, 0);
+
+// output statistics (ensure that only core 0 sets this exactly once AFTER `reset` and before `merge_and_print`)
+GRAPPA_DEFINE_STAT(SimpleStatistic<double>, pagerank_time, 0);
+GRAPPA_DEFINE_STAT(SimpleStatistic<double>, make_graph_time, 0);
+GRAPPA_DEFINE_STAT(SimpleStatistic<double>, tuples_to_csr_time, 0);
+GRAPPA_DEFINE_STAT(SimpleStatistic<uint64_t>, actual_nnz, 0);
 
 
 weighted_csr_graph mhat;
@@ -57,7 +70,6 @@ void calculate_dM( weighted_csr_graph m, double d ) {
 
 AllReducer<double,collective_add> diff_sum_sq(0.0f);
 double two_norm_diff_result;
-
 double two_norm_diff(vector v2, vector v1) {
   on_all_cores( [] {
     diff_sum_sq.reset();
@@ -129,43 +141,54 @@ struct pagerank_result {
 // Iterative method
 // R(t+1) = dMR(t) + (1-d)/N vec(1)
 pagerank_result pagerank( weighted_csr_graph m, double d, double epsilon ) {
-  LOG(INFO) << "Calculate dM";
-  calculate_dM( m, d );
-  
-  if ( m.nv <= 16 ) matrix_out( &m, LOG(INFO), true );
+  double time;
 
-  LOG(INFO) << "Allocate rank vectors";
-  // current pagerank vector: initialize to random values on [0,1]
-  vector v;
-  v.length = m.nv;
-  v.a = Grappa_typed_malloc<double>(v.length);
-  on_all_cores( [] { srand(0); } );
-  forall_localized( v.a, v.length, []( int64_t i, double& ele ) {
-    ele = ((double)rand()/RAND_MAX); //[0,1]
-  });
-  
-  if ( v.length <= 16 ) vector_out( &v, LOG(INFO) );
-  normalize( v );
-
-  // last pagerank vector: initialize to -inf
-  vector last_v;
-  last_v.length = m.nv;
-  last_v.a = Grappa_typed_malloc<double>(last_v.length);
-  Grappa_memset_local(last_v.a, -1000.0f, last_v.length);
-
-  LOG(INFO) << "Begin pagerank";
-  if ( v.length <= 16 ) vector_out( &v, LOG(INFO) );
- 
-  // set the damping vector 
-  auto dv = (1-d)/m.nv;
-  on_all_cores( [dv] {
-    damp_vector_val = dv;
-  });
+  // setup
+  double init_start = Grappa_walltime();
     
-  double err;
+    LOG(INFO) << "Calculate dM";
+    calculate_dM( m, d );
+
+    if ( m.nv <= 16 ) matrix_out( &m, LOG(INFO), true );
+
+    LOG(INFO) << "Allocate rank vectors";
+    // current pagerank vector: initialize to random values on [0,1]
+    vector v;
+    v.length = m.nv;
+    v.a = Grappa_typed_malloc<double>(v.length);
+    on_all_cores( [] { srand(0); } );
+    forall_localized( v.a, v.length, []( int64_t i, double& ele ) {
+      ele = ((double)rand()/RAND_MAX); //[0,1]
+      });
+
+    if ( v.length <= 16 ) vector_out( &v, LOG(INFO) );
+    normalize( v );
+
+    // last pagerank vector: initialize to -inf
+    vector last_v;
+    last_v.length = m.nv;
+    last_v.a = Grappa_typed_malloc<double>(last_v.length);
+    Grappa_memset_local(last_v.a, -1000.0f, last_v.length);
+
+    LOG(INFO) << "Begin pagerank";
+    if ( v.length <= 16 ) vector_out( &v, LOG(INFO) );
+
+    // set the damping vector 
+    auto dv = (1-d)/m.nv;
+    on_all_cores( [dv] {
+        damp_vector_val = dv;
+        });
+
+  double init_end = Grappa_walltime();
+  init_pagerank_time += (init_end-init_start);
+    
+  double delta = 1.0f; // initialize to +inf delta
   uint64_t iter = 0;
-  while( (err = two_norm_diff( v, last_v )) > epsilon ) {
-    LOG(INFO) << "starting iter " << iter << ", err = " << err;
+  while( delta > epsilon ) {
+    double istart, iend;
+    istart = Grappa_walltime();
+
+    LOG(INFO) << "starting iter " << iter << ", delta = " << delta;
 
     // update last_v
     vector temp = last_v;
@@ -175,21 +198,34 @@ pagerank_result pagerank( weighted_csr_graph m, double d, double epsilon ) {
     // initialize target to zero
     Grappa_memset_local(v.a, 0.0f, v.length);
 
-    // multiply: v = dM*last_v
-    spmv_mult( m, last_v, v );
+    TIME(time,
+      // multiply: v = dM*last_v
+      spmv_mult( m, last_v, v );
+    );
+    multiply_time += time;
 
-    // v += (1-d)/N * vec(1)
-    add_constant_vector( v );
+    TIME(time,
+      // v += (1-d)/N * vec(1)
+      add_constant_vector( v );
+    );
+    vector_add_time += time;
 
     if ( v.length <= 16 ) vector_out( &v, LOG(INFO) );
    
-    // normalize: v = v/2norm(v)
-    normalize( v ); 
+    TIME(time,
+      // normalize: v = v/2norm(v)
+      normalize( v ); 
 
-    iter++;
+      iter++;
+      delta = two_norm_diff( v, last_v );
+    );
+    norm_and_diff_time += time;
+
+    iend = Grappa_walltime();
+    iterations_time += (iend-istart);
   }
 
-  LOG(INFO) << "ended with err = " << err;
+  LOG(INFO) << "ended with delta = " << delta;
   
   // free the extra vector
   Grappa_free( last_v.a );
@@ -201,34 +237,47 @@ pagerank_result pagerank( weighted_csr_graph m, double d, double epsilon ) {
   return res;
 }
 
+//void print_graph(csr_graph* g);
+//void print_array(const char * name, GlobalAddress<packed_edge> base, size_t nelem, int width);
 void user_main( int * ignore ) {
   LOG(INFO) << "starting...";
  
+  // to be assigned to stats output
+  double make_graph_time_SO, 
+         tuples_to_csr_time_SO, 
+         pagerank_time_SO;
+  uint64_t actual_nnz_SO;
+
   tuple_graph tg;
   csr_graph unweighted_g;
-  uint64_t N = (1L<<FLAGS_logN);
+  uint64_t N = (1L<<FLAGS_scale);
 
   uint64_t desired_nnz = FLAGS_nnz_factor * N;
 
   // results output
   DictOut resultd;
+ 
+  // initialize rng 
+  //init_random(); 
+  //userseed = 10;
 
   double time;
-  /*TODO SEED*/userseed = 10;
   TIME(time, 
-    make_graph( FLAGS_logN, desired_nnz, userseed, userseed, &tg.nedge, &tg.edges );
+    make_graph( FLAGS_scale, desired_nnz, userseed, userseed, &tg.nedge, &tg.edges );
+    //print_array("tuples", tg.edges, tg.nedge, 10);
   );
   LOG(INFO) << "make_graph: " << time;
-  resultd.add( "make_graph_time", time );
+  make_graph_time_SO = time;
+  
 
   TIME(time,
     create_graph_from_edgelist(&tg, &unweighted_g);
   );
   LOG(INFO) << "tuple->csr: " << time;
-  resultd.add( "tuple_to_csr_time", time );
-  int64_t actual_nnz = unweighted_g.nadj;
-  resultd.add( "actual_nnz", actual_nnz );
-  LOG(INFO) << "final matrix has " << static_cast<double>(actual_nnz)/N << " avg nonzeroes/row";
+  tuples_to_csr_time_SO = time;
+  actual_nnz_SO = unweighted_g.nadj;
+  //print_graph( &unweighted_g ); 
+  LOG(INFO) << "final matrix has " << static_cast<double>(actual_nnz_SO)/N << " avg nonzeroes/row";
 
   // add weights to the csr graph
   weighted_csr_graph g( unweighted_g );
@@ -239,25 +288,31 @@ void user_main( int * ignore ) {
   });
 
   // print the matrix if it is small 
-  if ( g.nv <= 16 ) matrix_out( &g, std::cout, true );
+  if ( g.nv <= 16 ) { 
+    //matrix_out( &g, std::cerr, false); 
+    //matrix_out( &g, std::cout, true );
+  }
 
-  Grappa_reset_stats_all_nodes();
+  Grappa::Statistics::reset();
+
   pagerank_result result;
   TIME(time,
     result = pagerank( g, FLAGS_damping, FLAGS_epsilon );
   );
-  Grappa_merge_and_dump_stats();
-  resultd.add( "pagerank_time", time );
-  resultd.add( "pagerank_num_iters", result.num_iters );
+  pagerank_time_SO = time;
+
+  // output stats
+  make_graph_time   = make_graph_time_SO;
+  tuples_to_csr_time = tuples_to_csr_time_SO;
+  actual_nnz        = actual_nnz_SO;
+  pagerank_time     = pagerank_time_SO;
+  Grappa::Statistics::merge_and_print();
+
   vector rank = result.ranks;
 
-  std::cout<<"rank=";
   // TODO: print out pagerank stats, like mean, median, min, max
   // could also print out random sample of them for verify
   if ( rank.length <= 16 ) vector_out( &rank, std::cout );
-  std::cout<<std::endl;
-
- std::cout << "MULT" << resultd.toString() << std::endl;    
 }
 
 /// Main() entry
