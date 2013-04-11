@@ -159,9 +159,9 @@ namespace Grappa {
   /// should be alright to make the functor as large as desired.
   ///
   /// Subject to "may-parallelism", @see `loop_threshold`.
-  template<GlobalCompletionEvent * GCE = &impl::local_gce, int64_t Threshold = impl::USE_LOOP_THRESHOLD_FLAG, typename F = decltype(nullptr) >
+  template<GlobalCompletionEvent * GCE = nullptr, int64_t Threshold = impl::USE_LOOP_THRESHOLD_FLAG, typename F = decltype(nullptr) >
   void forall_here_async(int64_t start, int64_t iters, F loop_body) {
-    GCE->enroll(iters);
+    if (GCE) GCE->enroll(iters);
     
     struct HeapF {
       const F loop_body;
@@ -179,7 +179,7 @@ namespace Grappa {
       // also keeps task args < 24 bytes, preventing it from needing to be heap-allocated
       [hf](int64_t s, int64_t n) {
         hf->loop_body(s, n);
-        GCE->complete(n);
+        if(GCE) GCE->complete(n);
         hf->ref(-n);
       });
   }
