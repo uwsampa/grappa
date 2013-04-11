@@ -576,7 +576,10 @@ void RDMAAggregator::draw_routing_graph() {
           app_messages_serialized++;
           if( count != NULL ) (*count)++;
 
-          DVLOG(5) << __func__ << ": Serialized message " << message << " with size " << new_buffer - buffer;
+          DVLOG(3) << __func__ << ": Serialized message " << message
+                   << " next " << message->next_
+                   << " prefetch " << message->prefetch_ 
+                   << " size " << new_buffer - buffer;
 
           // track total size
           size += new_buffer - buffer;
@@ -908,18 +911,20 @@ void RDMAAggregator::draw_routing_graph() {
       // (these may have been overwritten by another sender, so hope for the best.)
       for( int i = 0; i < prefetch_dist; ++i ) {
         Grappa::impl::MessageBase * pre = get_pointer( &dest->prefetch_queue_[i] );
+        DVLOG(5) << __PRETTY_FUNCTION__ << ": Prefetching " << pre;
         __builtin_prefetch( pre, 1, prefetch_type ); // prefetch for read
       }
 
       Grappa::impl::global_scheduler.set_no_switch_region( true );
       while( messages_to_send != NULL ) {
-        DVLOG(4) << __func__ << "/" << Grappa::impl::global_scheduler.get_current_thread() << ": Delivered message " << messages_to_send 
-                 << " with is_delivered_=" << messages_to_send->is_delivered_ 
-                 << ": " << messages_to_send->typestr();
+        // DVLOG(4) << __func__ << "/" << Grappa::impl::global_scheduler.get_current_thread() << ": Delivered message " << messages_to_send 
+        //          << " with is_delivered_=" << messages_to_send->is_delivered_ 
+        //          << ": " << messages_to_send->typestr();
         MessageBase * next = messages_to_send->next_;
+        DVLOG(5) << __PRETTY_FUNCTION__ << ": Processing " << messages_to_send << ", prefetching " << messages_to_send->prefetch_;
         __builtin_prefetch( messages_to_send->prefetch_, 1, prefetch_type );
 
-        DCHECK_EQ( messages_to_send->destination_, Grappa::mycore() );
+        // DCHECK_EQ( messages_to_send->destination_, Grappa::mycore() );
 
 
         delivered_bytes += messages_to_send->size();
@@ -929,6 +934,8 @@ void RDMAAggregator::draw_routing_graph() {
         messages_to_send = next;
       }
       Grappa::impl::global_scheduler.set_no_switch_region( false );
+
+      DVLOG(5) << __PRETTY_FUNCTION__ << ": Done.";
 
       app_messages_delivered_locally += delivered_count;
       app_bytes_delivered_locally += delivered_bytes;
