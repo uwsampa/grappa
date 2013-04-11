@@ -36,7 +36,8 @@ static graphint kcent;
 static bool do_components = false,
             do_pathiso = false,
             do_triangles = false,
-            do_centrality = false;
+            do_centrality = false,
+            do_multi_centrality = false;
 
 double A, B, C, D;
 int SCALE;
@@ -378,7 +379,12 @@ static void user_main(void* ignore) {
     
     double avgbc;
     int64_t total_nedge;
-    t = centrality(g, bc, kcent, &avgbc, &total_nedge);
+    
+    if (do_multi_centrality) {
+      t = centrality_multi(g, bc, kcent, &avgbc, &total_nedge);      
+    } else {
+      t = centrality(g, bc, kcent, &avgbc, &total_nedge);
+    }
     
     // double ref_bc = -1;
     // switch (SCALE) {
@@ -452,6 +458,7 @@ static void printHelp(const char * exe) {
 }
 
 static void parseOptions(int argc, char ** argv) {
+  
   struct option long_opts[] = {
     {"help", no_argument, 0, 'h'},
     {"scale", required_argument, 0, 's'},
@@ -461,7 +468,7 @@ static void parseOptions(int argc, char ** argv) {
     {"components", no_argument, (int*)&do_components, true},
     {"pathiso", no_argument, (int*)&do_pathiso, true},
     {"triangles", no_argument, (int*)&do_triangles, true},
-    {"centrality", no_argument, (int*)&do_centrality, true}
+    {"centrality", optional_argument, 0, 'l'}
   };
   
   SCALE = 8; //default value
@@ -489,6 +496,12 @@ static void parseOptions(int argc, char ** argv) {
         break;
       case 'p':
         checkpointing = true;
+        break;
+      case 'l':
+        do_centrality = true;
+        if (optarg != NULL) {
+          if (strcmp(optarg, "multi") == 0) do_multi_centrality = true;
+        }
         break;
     }
   }
