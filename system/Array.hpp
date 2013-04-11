@@ -12,7 +12,7 @@
 #include "ParallelLoop.hpp"
 
 namespace Grappa {
-  
+
 /// Initialize an array of elements of generic type with a given value.
 /// 
 /// This version sends a large number of active messages, the same way as the Incoherent
@@ -117,7 +117,7 @@ void prefix_sum(GlobalAddress<T> array, size_t nelem) {
 }
 
 namespace util {
-  
+
   template< int VERBOSITY = 1, typename T = decltype(nullptr)>
   inline void print_array(const char * name, T * base, size_t nelem, int width = 10) {
     std::stringstream ss; ss << "\n" << name << ": [";
@@ -137,6 +137,7 @@ namespace util {
     }
     ss << "\n]"; VLOG(VERBOSITY) << ss.str();
   }
+  
 }
 
 } // namespace Grappa
