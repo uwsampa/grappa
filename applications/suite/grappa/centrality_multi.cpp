@@ -40,6 +40,11 @@ namespace local {
       return false;
     }
   }
+  
+  template< typename T, typename U >
+  inline void memset(T* array, const U& value, size_t nelem) {
+    for (size_t i=0; i<nelem; i++) array[i] = value;
+  }
 }
 
 struct CentralityScratch {
@@ -226,10 +231,12 @@ double centrality_multi(graph *g_in, GlobalAddress<double> bc, graphint total_nu
   
   Grappa::memset(bc, 0.0, g.numVertices);
   Grappa::memset(c.explored, (graphint)0L, g.numVertices);
-    
+  
   auto roots_todo_addr = make_global(&num_roots_todo);
   on_all_cores([roots_todo_addr]{
-    mersenne_seed(12345*mycore());
+    mersenne_seed(12345*(mycore()+1));
+    
+    local::memset(c.delta, (double)0, g.numVertices);
     
     graphint Qnext;
     c.Qnext = &Qnext;
@@ -260,10 +267,9 @@ double centrality_multi(graph *g_in, GlobalAddress<double> bc, graphint total_nu
 
       VLOG(3) << "root_vertex = " << root_vertex;
     
-      memset(c.dist,  (graphint)-1, g.numVertices);
-      memset(c.sigma, (graphint) 0, g.numVertices);
-      memset(c.marks, (graphint) 0, g.numVertices);
-      memset(c.delta,   (double) 0, g.numVertices);      
+      local::memset(c.dist,  (graphint)-1, g.numVertices);
+      local::memset(c.sigma, (graphint) 0, g.numVertices);
+      local::memset(c.marks, (graphint) 0, g.numVertices);
         
       // Push node i onto Q and set bounds for first Q sublist
       local::write(c.Q+0, root_vertex);
@@ -296,7 +302,7 @@ double centrality_multi(graph *g_in, GlobalAddress<double> bc, graphint total_nu
       nQ--;
       VLOG(3) << "nQ = " << nQ;
 
-      memset(c.delta, 0.0, g.numVertices);
+      // local::memset(c.delta, 0.0, g.numVertices);
   
       // Pop nodes off of Q in the reverse order they were pushed on
       for ( ; nQ > 1; nQ--) {
@@ -330,7 +336,7 @@ double centrality_multi(graph *g_in, GlobalAddress<double> bc, graphint total_nu
     locale_free(c.dist);
     locale_free(c.Q);
     locale_free(c.sigma);
-    locale_free(c.marks);    
+    locale_free(c.marks);
   });
   
   Grappa_free(c.explored);
