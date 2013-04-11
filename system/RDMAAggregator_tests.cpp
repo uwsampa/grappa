@@ -7,6 +7,7 @@
 
 
 #include <boost/test/unit_test.hpp>
+#include <cstdlib>
 
 #include "Grappa.hpp"
 #include "RDMAAggregator.hpp"
@@ -32,6 +33,13 @@ DEFINE_bool( aggregate_dest_multiple, false, "Aggregate to multiple destination 
 
 DEFINE_int64( sender_override, 0, "Override core_partner_locale_count_-based decision about number of senders in remote distribution test; if set, use this many" );
 
+DEFINE_string( mode, "serialization", "Which test to run: local, serialization, aggregation, distribution");
+
+DEFINE_int64( seed, -1, "RNG seed for serialization test" );
+DEFINE_bool( permute, true, "Permute messages in serialization test" );
+DEFINE_int64( prefetch_distance, 4, "Prefetch distance for serialization test" );
+DEFINE_bool( prefetch_enable, false, "Prefetch for serialization test" );
+
 DECLARE_int64( rdma_buffers_per_core );
 
 BOOST_AUTO_TEST_SUITE( RDMAAggregator_tests );
@@ -51,6 +59,14 @@ GRAPPA_DEFINE_STAT( SimpleStatistic<int64_t>, remote_distributed_messages_per_lo
 GRAPPA_DEFINE_STAT( SimpleStatistic<int64_t>, remote_distributed_buffers_per_locale, 0 );
 GRAPPA_DEFINE_STAT( SimpleStatistic<double>, remote_distributed_messages_time, 0.0 );
 GRAPPA_DEFINE_STAT( SimpleStatistic<double>, remote_distributed_messages_rate_per_locale, 0.0 );
+
+GRAPPA_DEFINE_STAT( SimpleStatistic<int64_t>, serialized_messages_per_locale, 0 );
+GRAPPA_DEFINE_STAT( SimpleStatistic<double>, serialized_messages_time, 0.0 );
+GRAPPA_DEFINE_STAT( SimpleStatistic<double>, serialized_messages_rate_per_locale, 0.0 );
+
+GRAPPA_DEFINE_STAT( SimpleStatistic<int64_t>, deserialized_messages_per_locale, 0 );
+GRAPPA_DEFINE_STAT( SimpleStatistic<double>, deserialized_messages_time, 0.0 );
+GRAPPA_DEFINE_STAT( SimpleStatistic<double>, deserialized_messages_rate_per_locale, 0.0 );
 
 GRAPPA_DEFINE_STAT( SimpleStatistic<int64_t>, aggregated_messages_per_locale, 0 );
 GRAPPA_DEFINE_STAT( SimpleStatistic<double>, aggregated_messages_time, 0.0 );
@@ -175,7 +191,7 @@ void user_main( void * args ) {
 
   
   // test local message delivery
-  if( false ) {
+  if( FLAGS_mode.compare("local") == 0 ) {
     LOG(INFO) << "Testing local message delivery";
     // const int64_t expected_messages_per_core = Grappa::locale_cores() * FLAGS_iterations_per_core;
     // const int64_t expected_messages_per_locale = expected_messages_per_core * Grappa::locale_cores();
@@ -202,7 +218,21 @@ void user_main( void * args ) {
     double start = Grappa_walltime();
 
     Grappa::on_all_cores( [expected_messages_per_core, sent_messages_per_core] {
+        Grappa_start_profiling();
+        LOG(INFO) << __PRETTY_FUNCTION__ << ": Starting.";
+        google::FlushLogFiles(google::GLOG_INFO);
+
+        // Grappa::ReuseMessage< LocalDelivery > m1;
+        // m1->source_core = 1234;
+        // m1->dest_core = Grappa::mycore();
+        // local_ce.enroll( 1 );
+        // m1.deliver_locally();
+        
+        LOG(INFO) << __PRETTY_FUNCTION__ << ": Constructing.";
+        google::FlushLogFiles(google::GLOG_INFO);
         Grappa::ReuseMessageList< LocalDelivery > msgs( FLAGS_outstanding );
+        LOG(INFO) << __PRETTY_FUNCTION__ << ": Activating.";
+        google::FlushLogFiles(google::GLOG_INFO);
         msgs.activate(); // allocate messages
 
         { 
@@ -272,6 +302,7 @@ void user_main( void * args ) {
         }
         
         msgs.finish(); // clean up messages
+        Grappa_stop_profiling();
       } );
 
     double time = Grappa_walltime() - start;
@@ -286,8 +317,134 @@ void user_main( void * args ) {
 
 
 
+
+
+  // test serialization
+  if( FLAGS_mode.compare("serialization") == 0 ) {
+    LOG(INFO) << "Testing message serialization";
+
+    unsigned int seed = FLAGS_seed == -1 ? time( NULL ) : FLAGS_seed;
+    LOG(INFO) << "Seed is " << seed;
+    srandom( seed );
+
+    // no cross-core communication in this test
+    const int64_t sent_messages_per_core = FLAGS_iterations_per_core; // / Grappa::locale_cores() / Grappa::locale_cores();
+    const int64_t expected_messages_per_core = sent_messages_per_core; // * Grappa::locale_cores();
+    const int64_t expected_messages_per_locale = expected_messages_per_core; // * Grappa::locale_cores();
+
+    struct SerializedFunctor {
+      void operator()() { 
+        local_count++; 
+        local_ce.complete(); 
+      }
+    };
+    
+    // message to increment count
+    typedef Grappa::Message< SerializedFunctor > SerializedMessage;
+    
+    // number of messages
+    const size_t num_messages = expected_messages_per_core;
+    
+    {
+      std::unique_ptr< SerializedMessage[] > msgs( new SerializedMessage[ num_messages ] );
+      std::unique_ptr< int[] > msg_indexes( new int[ num_messages ] );
+      
+      // initialize
+      local_ce.reset();
+      local_ce.enroll( num_messages );
+      for( size_t i = 0; i < num_messages; ++i ) {
+        msg_indexes[i] = i;
+        msgs[i].reset();
+        msgs[i].source_ = Grappa::mycore();
+        msgs[i].destination_ = Grappa::mycore();
+      }
+    
+      // permute indices
+      if( FLAGS_permute ) {
+        for( size_t i = num_messages - 1; i > 0; --i ) {
+          uint64_t x = random() % i;
+          int temp = msg_indexes[i];
+          msg_indexes[i] = msg_indexes[x];
+          msg_indexes[x] = temp;
+        }
+      }
+
+      // stitch together
+      for( size_t i = 0; i < num_messages; ++i ) {
+        CHECK_NE( i, msg_indexes[i] ) << "Can't point a message at itself";
+        DVLOG(3) << "Message " << i << " links with " << msg_indexes[i];
+
+        // set next pointer
+        if( msg_indexes[i] > 0 ) {
+          msgs[i].next_ = &msgs[ msg_indexes[i] ];
+        }
+
+        msgs[i].is_enqueued_ = true;
+      }
+      
+      // stitch prefetch chain
+      Grappa::impl::MessageBase * current = &msgs[0];
+      Grappa::impl::MessageBase * prefetch = &msgs[0];
+      for( size_t i = 0; i < num_messages; ++i ) {
+        // set previous prefetch pointer
+        if( FLAGS_prefetch_enable ) {
+          if( i > FLAGS_prefetch_distance ) {
+            prefetch->prefetch_ = current;
+            prefetch = prefetch->next_;
+          }
+        }
+        current = current->next_;
+      }
+
+      // serialize
+      LOG(INFO) << "Now serializing.";
+      Grappa::impl::MessageBase * first = &msgs[0];
+      const size_t sizeof_messages = first->serialized_size() * num_messages;
+      
+      std::unique_ptr< char[] > buf( new char[ sizeof_messages ] );
+      
+
+      {
+        Grappa_start_profiling();
+        double start = Grappa_walltime();
+
+        {
+          // serialize
+          size_t count = 0;
+          Grappa::impl::global_rdma_aggregator.aggregate_to_buffer( &buf[0], &first, sizeof_messages, &count);
+        }
+      
+        double time = Grappa_walltime() - start;
+        Grappa_stop_profiling();
+        serialized_messages_per_locale = expected_messages_per_locale;
+        serialized_messages_time = time;
+        serialized_messages_rate_per_locale = expected_messages_per_locale / time;
+      }      
+
+      {
+        Grappa_start_profiling();
+        double start = Grappa_walltime();
+
+        {
+          // deserialize
+          Grappa::impl::global_rdma_aggregator.deaggregate_buffer( &buf[0], sizeof_messages );
+        }
+      
+        double time = Grappa_walltime() - start;
+        Grappa_stop_profiling();
+        deserialized_messages_per_locale = expected_messages_per_locale;
+        deserialized_messages_time = time;
+        deserialized_messages_rate_per_locale = expected_messages_per_locale / time;
+      }
+    
+    }
+
+  }
+
+
+
   // test aggregation
-  if( false ) {
+  if( FLAGS_mode.compare("aggregation") == 0 ) {
     CHECK_EQ( Grappa::locales(), 2 ) << "Must have exactly two locales for this test";
 
     LOG(INFO) << "Testing aggregation and transmission";
@@ -437,7 +594,7 @@ void user_main( void * args ) {
 
 
   // test message distribution
-  if( true ) {
+  if( FLAGS_mode.compare("distribution") == 0 ) {
     //CHECK_GE( Grappa::locales(), 2 ) << "Must have at least two locales for this test";
     CHECK_LE( Grappa::locales(), Grappa::locale_cores() ) 
       << "Haven't tested this test with locales>locale_cores. You'll need to adjust the expected message counts / send count";
