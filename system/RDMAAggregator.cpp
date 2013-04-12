@@ -546,45 +546,38 @@ void RDMAAggregator::draw_routing_graph() {
 
 
 
-    char * RDMAAggregator::aggregate_to_buffer( char * buffer, Grappa::impl::MessageBase ** message_ptr, size_t max, size_t * count ) {
+    char * RDMAAggregator::aggregate_to_buffer( char * buffer, Grappa::impl::MessageBase ** message_ptr, size_t max, size_t * count_p ) {
       size_t size = 0;
+      size_t count = 0;
+
       Grappa::impl::MessageBase * message = *message_ptr;
       DVLOG(5) << "Serializing messages from " << message;
 
-      int expected_dest = -1;
-
       while( message ) {
-        DVLOG(5) << __func__ << ": Serializing message " << message << " to " << message->destination_ << ": " << message->typestr();
+        //DVLOG(5) << __func__ << ": Serializing message " << message << " to " << message->destination_ << ": " << message->typestr();
 
         // issue prefetch for next message
         __builtin_prefetch( message->prefetch_, 1, prefetch_type );
 
-        if( expected_dest == -1 ) {
-          expected_dest = message->destination_;
-        } else {
-          CHECK_EQ( message->destination_, expected_dest );
-        }
-
         // add message to buffer
         char * new_buffer = message->serialize_to( buffer, max - size);
-        CHECK_GE( new_buffer, buffer );
 
         if( new_buffer == buffer ) { // if it was too big
           DVLOG(5) << __func__ << ": Message too big: aborting serialization";
           break;                     // quit
         } else {
-          app_messages_serialized++;
-          if( count != NULL ) (*count)++;
-
-          DVLOG(3) << __func__ << ": Serialized message " << message
-                   << " next " << message->next_
-                   << " prefetch " << message->prefetch_ 
-                   << " size " << new_buffer - buffer;
+          // DVLOG(3) << __func__ << ": Serialized message " << message
+          //          << " next " << message->next_
+          //          << " prefetch " << message->prefetch_ 
+          //          << " size " << new_buffer - buffer;
 
           // track total size
+          count++;
           size += new_buffer - buffer;
-          app_bytes_serialized += new_buffer - buffer;
+
+#ifdef DEBUG
           app_bytes_sent_histogram = new_buffer - buffer;
+#endif
 
           // go to next messsage 
           Grappa::impl::MessageBase * next = message->next_;
@@ -599,6 +592,10 @@ void RDMAAggregator::draw_routing_graph() {
 
       // return rest of message list
       *message_ptr = message;
+
+      app_messages_serialized += count;
+      app_bytes_serialized += size;
+      if( count_p != NULL ) (*count_p) += count;
 
       return buffer;
     }
