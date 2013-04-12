@@ -15,14 +15,15 @@
 #include <Grappa.hpp>
 #include "MatchesDHT.hpp"
 #include <Cache.hpp>
-#include <AsyncParallelFor.hpp>
+#include <ParallelLoop.hpp>
+#include <GlobalCompletionEvent.hpp>
 
 // command line parameters
 DEFINE_uint64( numTuples, 32, "Number of tuples to generate" );
 DEFINE_string( in, "", "Input file relation" );
 DEFINE_bool( print, false, "Print results" );
 
-
+using namespace Grappa;
 
 std::ostream& operator<<( std::ostream& o, const Tuple& t ) {
   o << "T( ";
@@ -51,22 +52,21 @@ GlobalAddress<Tuple> IndexBase;
 
 // TODO: incorporate the edge tuples generation (although only does triples)
 void generate_data( GlobalAddress<Tuple> base, size_t num ) {
-  forall_localized(base, num, [](GlobalAddress<Tuple> t_g, Tuple * t) {
+  forall_localized(base, num, [](int64_t j, Tuple& t) {
     Tuple r;
     for ( uint64_t i=0; i<TUPLE_LEN; i++ ) {
       r.columns[i] = rand()%FLAGS_numTuples; 
     }
-    *t = r;
+    t = r;
   });
 }
 
 void scanAndHash( GlobalAddress<Tuple> tuples, size_t num ) {
-  forall_localized( tuples, num, [](GlobalAddress<Tuple> t_g, Tuple * t) {
-    int64_t key = t->columns[local_join1Left];
-    Tuple val = *t;
+  forall_localized( tuples, num, [](int64_t i, Tuple& t) {
+    int64_t key = t.columns[local_join1Left];
 
-    VLOG(2) << "insert " << key << " | " << val;
-    joinTable.insert( key, val );
+    VLOG(2) << "insert " << key << " | " << t;
+    joinTable.insert( key, t );
   });
 }
 
@@ -106,17 +106,17 @@ void triangles( GlobalAddress<Tuple> tuples, Column ji1, Column ji2, Column ji3,
 
   start = Grappa_walltime();
   VLOG(1) << "Starting 1st join";
-  forall_localized( tuples, FLAGS_numTuples, [](GlobalAddress<Tuple> t_g, Tuple * t) {
-    int64_t key = t->columns[local_join1Right];
+  forall_localized( tuples, FLAGS_numTuples, [](int64_t i, Tuple& t) {
+    int64_t key = t.columns[local_join1Right];
    
     // will pass on this first one to compare in the select 
-    int64_t x1 = t->columns[local_join1Left];
+    int64_t x1 = t.columns[local_join1Left];
 
     uint64_t results_idx;
 
     // first join
     size_t num_results = joinTable.lookup( key, &results_idx );
-    DVLOG(4) << "key " << *t << " finds (" << results_idx << ", " << num_results << ")";
+    DVLOG(4) << "key " << t << " finds (" << results_idx << ", " << num_results << ")";
    
     // iterate over the first join results in parallel
     // (iterations must spawn with synch object `local_gce`)
