@@ -136,7 +136,7 @@ namespace Grappa {
       }
     }
 
-  };
+  } __attribute__((aligned(64)));
 
   /// A message with dynamic payload. Storage for message contents is
   /// internal, but payload is stored externally. Destructor blocks
@@ -298,7 +298,7 @@ namespace Grappa {
       }
     }
 
-  };
+  } __attribute__((aligned(64)));
 
   /// A message with the contents stored outside the object. Destructor blocks until message is sent.
   /// Best used through @ref message function.
@@ -434,7 +434,7 @@ namespace Grappa {
       }
     }
 
-  };
+  } __attribute__((aligned(64)));
 
 
   /// A message with dynamic payload. Storage for message contents and
@@ -607,7 +607,7 @@ namespace Grappa {
       }
     }
 
-  };
+  } __attribute__((aligned(64)));
 
 
 

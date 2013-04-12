@@ -38,10 +38,10 @@ namespace Grappa {
       MessageBase * next_;     ///< what's the next message in the list of messages to be sent? 
       MessageBase * prefetch_; ///< what's the next message to prefetch?
 
-      ConditionVariable cv_;   ///< condition variable for sleep/wake
+      //ConditionVariable cv_;   ///< condition variable for sleep/wake
+          Core source_ : 16;            ///< What core is this message coming from? (TODO: probably unneccesary)
+          Core destination_ : 16;       ///< What core is this message aimed at?
 
-      Core source_;            ///< What core is this message coming from? (TODO: probably unneccesary)
-      Core destination_;       ///< What core is this message aimed at?
 
       union {
         struct {
@@ -49,8 +49,10 @@ namespace Grappa {
           bool is_sent_ : 1;           ///< Is our payload no longer needed?
           bool is_delivered_ : 1;      ///< Are we waiting to mark the message sent?
           bool is_moved_ : 1;           ///< HACK: make sure we don't try to send ourselves if we're just a temporary
+          intptr_t waiters_ : 48;   ///< condition variable for sleep/wake
+
         };
-        uint8_t raw_;
+        uint64_t raw_;
       };
       
       union {
@@ -81,10 +83,9 @@ namespace Grappa {
           DVLOG(5) << __func__ << ": " << this << " Final mark_sent";
           DCHECK_EQ( Grappa::mycore(), this->source_ );
           is_sent_ = true;
-          ConditionVariable old = cv_;
-          if( 0 != cv_.waiters_ ) {
-            Grappa::broadcast( &cv_ );
-          }
+
+          Grappa::broadcast( this );
+
           if( delete_after_send_ ) {
             this->~MessageBase();
             Grappa::impl::locale_shared_memory.deallocate( this );
@@ -154,7 +155,7 @@ namespace Grappa {
       MessageBase( )
         : next_( NULL )
         , prefetch_( NULL )
-        , cv_()
+        , waiters_(0)
         , source_( -1 )
         , destination_( -1 )
         , is_enqueued_( false )
@@ -170,7 +171,7 @@ namespace Grappa {
       MessageBase( Core dest )
         : next_( NULL )
         , prefetch_( NULL )
-        , cv_()
+        , waiters_(0)
         , is_enqueued_( false )
         , is_sent_( false )
         , is_delivered_( false )
@@ -197,7 +198,7 @@ namespace Grappa {
       MessageBase( MessageBase&& m ) 
         : next_( m.next_ )
         , prefetch_( m.prefetch_ )
-        , cv_( m.cv_ )
+        , waiters_( m.waiters_ )
         , is_enqueued_( m.is_enqueued_ )
         , is_sent_( m.is_sent_ )
         , is_delivered_( m.is_delivered_ )
@@ -266,7 +267,7 @@ namespace Grappa {
       /// Block until message can be deallocated.
       void block_until_sent();
 
-    };
+    } __attribute__((aligned(64)));
     
     /// @}
   }
