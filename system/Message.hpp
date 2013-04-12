@@ -28,7 +28,7 @@ namespace Grappa {
   public:
     /// Construct a message.
     inline Message( )
-      : MessageBase()
+      : MessageBase( sizeof( &deserialize_and_call ) + sizeof( T ) )
       , storage_()
     { }
     
@@ -36,7 +36,7 @@ namespace Grappa {
     /// @param dest ID of destination core.
     /// @param t Contents of message to send.
     inline Message( Core dest, T t )
-      : MessageBase( dest )
+      : MessageBase( dest, sizeof( &deserialize_and_call ) + sizeof( T ) )
       , storage_( t )
     { }
 
@@ -69,8 +69,9 @@ namespace Grappa {
     }
     
     /// How much storage do we need to send this message?
-    virtual const size_t serialized_size( ) const {
-      return sizeof( &deserialize_and_call ) + sizeof( T );
+    const size_t serialized_size( ) const {
+      return serialized_size_;
+      // return sizeof( &deserialize_and_call ) + sizeof( T );
     }
     
     virtual const size_t size() const { return sizeof(*this); }
@@ -104,7 +105,8 @@ namespace Grappa {
 
     /// Copy this message into a buffer.
     virtual char * serialize_to( char * p, size_t max_size ) {
-      Grappa::impl::MessageBase::serialize_to( p, max_size );
+      is_delivered_ = true;
+
       // copy deserialization function pointer
       auto fp = &deserialize_and_call;
       if( serialized_size() > max_size ) {
@@ -154,7 +156,7 @@ namespace Grappa {
   public:
     /// Construct a message.
     inline PayloadMessage( )
-      : MessageBase()
+      : MessageBase( sizeof( &deserialize_and_call ) + sizeof( T ) + sizeof( int16_t ) )
       , storage_()
       , payload_( nullptr )
       , payload_size_( 0 )
@@ -165,7 +167,7 @@ namespace Grappa {
     /// @param dest ID of destination core.
     /// @param t Contents of message to send.
     inline PayloadMessage( Core dest, T t, void * payload, size_t payload_size )
-      : MessageBase( dest )
+      : MessageBase( dest, sizeof( &deserialize_and_call ) + sizeof( T ) + sizeof( int16_t ) + payload_size )
       , storage_( t )
       , payload_( payload )
       , payload_size_( payload_size )
@@ -188,6 +190,7 @@ namespace Grappa {
     inline void set_payload( void * payload, size_t size ) {
       payload_ = payload;
       payload_size_ = size;
+      serialized_size_ = sizeof( &deserialize_and_call ) + sizeof( T ) + sizeof( int16_t ) + size;
       Grappa::impl::locale_shared_memory.validate_address( payload );
     }
 
@@ -221,8 +224,9 @@ namespace Grappa {
 
 
     /// How much storage do we need to send this message?
-    virtual const size_t serialized_size( ) const {
-      return sizeof( &deserialize_and_call ) + sizeof( T ) + sizeof( int16_t ) + payload_size_;
+    const size_t serialized_size( ) const {
+      return serialized_size_;
+      //return sizeof( &deserialize_and_call ) + sizeof( T ) + sizeof( int16_t ) + payload_size_;
     }
 
     virtual const size_t size() const { return sizeof(*this); }
@@ -259,7 +263,8 @@ namespace Grappa {
 
     /// Copy this message into a buffer.
     virtual char * serialize_to( char * p, size_t max_size ) {
-      Grappa::impl::MessageBase::serialize_to( p, max_size );
+      is_delivered_ = true;
+
       // copy deserialization function pointer
       auto fp = &deserialize_and_call;
       if( serialized_size() > max_size ) {
@@ -312,7 +317,7 @@ namespace Grappa {
   public:
     /// Construct a message.
     inline ExternalMessage( )
-      : MessageBase()
+      : MessageBase( sizeof( &deserialize_and_call ) + sizeof( T ) )
       , pointer_( nullptr )
       , delete_external_after_send_( false )
     { }
@@ -321,7 +326,7 @@ namespace Grappa {
     /// @param dest ID of destination core.
     /// @param t Pointer to contents of message to send.
     inline ExternalMessage( Core dest, T * t )
-      : MessageBase( dest )
+      : MessageBase( dest, sizeof( &deserialize_and_call ) + sizeof( T ) )
       , pointer_( t )
       , delete_external_after_send_( false )
     {
@@ -368,8 +373,9 @@ namespace Grappa {
 
 
     /// How much storage do we need to send this message?
-    virtual const size_t serialized_size( ) const {
-      return sizeof( &deserialize_and_call ) + sizeof( T );
+    const size_t serialized_size( ) const {
+      return serialized_size_;
+      //return sizeof( &deserialize_and_call ) + sizeof( T );
     }
 
     virtual const size_t size() const { return sizeof(*this); }
@@ -400,7 +406,8 @@ namespace Grappa {
 
     /// Copy this message into a buffer.
     virtual char * serialize_to( char * p, size_t max_size ) {
-      Grappa::impl::MessageBase::serialize_to( p, max_size );
+      is_delivered_ = true;
+
       // copy deserialization function pointer
       auto fp = &deserialize_and_call;
       if( serialized_size() > max_size ) {
@@ -454,7 +461,7 @@ namespace Grappa {
   public:
     /// Construct a message.
     inline ExternalPayloadMessage( )
-      : MessageBase()
+      : MessageBase( sizeof( &deserialize_and_call ) + sizeof( T ) + sizeof( int16_t ) )
       , pointer_( nullptr )
       , payload_( nullptr )
       , payload_size_( 0 )
@@ -466,7 +473,7 @@ namespace Grappa {
     /// @param dest ID of destination core.
     /// @param t Contents of message to send.
     inline ExternalPayloadMessage( Core dest, T * t, void * payload, size_t payload_size )
-      : MessageBase( dest )
+      : MessageBase( dest, sizeof( &deserialize_and_call ) + sizeof( T ) + sizeof( int16_t ) + payload_size )
       , pointer_( t )
       , payload_( payload )
       , payload_size_( payload_size )
@@ -492,6 +499,7 @@ namespace Grappa {
     inline void set_payload( void * payload, size_t size ) {
       payload_ = payload;
       payload_size_ = size;
+      serialized_size_ = sizeof( &deserialize_and_call ) + sizeof( T ) + sizeof( int16_t ) + size;
       Grappa::impl::locale_shared_memory.validate_address( payload );
     }
 
@@ -528,8 +536,9 @@ namespace Grappa {
 
 
     /// How much storage do we need to send this message?
-    virtual const size_t serialized_size( ) const {
-      return sizeof( &deserialize_and_call ) + sizeof( T ) + sizeof( int16_t ) + payload_size_;
+    const size_t serialized_size( ) const {
+      return serialized_size_;
+      //return sizeof( &deserialize_and_call ) + sizeof( T ) + sizeof( int16_t ) + payload_size_;
     }
 
     virtual const size_t size() const { return sizeof(*this); }
@@ -568,7 +577,8 @@ namespace Grappa {
 
     /// Copy this message into a buffer.
     virtual char * serialize_to( char * p, size_t max_size ) {
-      Grappa::impl::MessageBase::serialize_to( p, max_size );
+      is_delivered_ = true;
+
       // copy deserialization function pointer
       auto fp = &deserialize_and_call;
       if( serialized_size() > max_size ) {

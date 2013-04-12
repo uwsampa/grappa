@@ -350,6 +350,9 @@ void user_main( void * args ) {
       CHECK_NOTNULL( ptr );
       SerializedMessage * msgs = new (ptr) SerializedMessage[ num_messages ];
       std::unique_ptr< int[] > msg_indexes( new int[ num_messages ] );
+
+      LOG(INFO) << "sizeof(MessageBase) = " << sizeof( Grappa::impl::MessageBase );
+      LOG(INFO) << "sizeof(SerializedMessage) = " << sizeof( SerializedMessage );
       
       // initialize
       local_ce.reset();
@@ -400,7 +403,7 @@ void user_main( void * args ) {
       // serialize
       LOG(INFO) << "Now serializing.";
       Grappa::impl::MessageBase * first = &msgs[0];
-      const size_t sizeof_messages = first->serialized_size() * num_messages;
+      const size_t sizeof_messages = first->serialized_size_ * num_messages;
       
       std::unique_ptr< char[] > buf( new char[ sizeof_messages ] );
       

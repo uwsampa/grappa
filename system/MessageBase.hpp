@@ -39,9 +39,10 @@ namespace Grappa {
       MessageBase * prefetch_; ///< what's the next message to prefetch?
 
       //ConditionVariable cv_;   ///< condition variable for sleep/wake
-          Core source_ : 16;            ///< What core is this message coming from? (TODO: probably unneccesary)
-          Core destination_ : 16;       ///< What core is this message aimed at?
+      Core source_;            ///< What core is this message coming from? (TODO: probably unneccesary)
+      Core destination_;       ///< What core is this message aimed at?
 
+      int32_t serialized_size_;
 
       union {
         struct {
@@ -75,13 +76,18 @@ namespace Grappa {
 
         //if( Grappa::mycore() != source_ ) {
         if( (is_delivered_ == true) && (Grappa::mycore() != source_) ) {
+#ifdef DEBUG
           DVLOG(5) << __func__ << ": " << this << " Re-enqueuing to " << source_;
           DCHECK_EQ( this->is_sent_, false );
+#endif
           enqueue( source_ );
 
         } else {
+#ifdef DEBUG
           DVLOG(5) << __func__ << ": " << this << " Final mark_sent";
           DCHECK_EQ( Grappa::mycore(), this->source_ );
+#endif
+
           is_sent_ = true;
 
           Grappa::broadcast( this );
@@ -117,11 +123,7 @@ namespace Grappa {
       ///       deserialize and execute the message functor/payload
       ///    -# the message functor/payload
       /// @return address of the byte following the serialized message in the buffer
-      inline virtual char * serialize_to( char * p, size_t max_size = -1 ) {
-        DCHECK_EQ( is_sent_, false ) << "Sending same message " << this << " multiple times?";
-        is_delivered_ = true;
-      }
-
+      virtual char * serialize_to( char * p, size_t max_size = -1 ) = 0;
 
       /// Walk a buffer of received deserializers/functors and call them.
       static inline char * deserialize_and_call( char * buffer ) {
@@ -152,12 +154,13 @@ namespace Grappa {
       bool delete_after_send_;  ///< Is this a heap message? Should it be deleted after it's sent?
 
     public:
-      MessageBase( )
+      MessageBase( size_t serialized_size )
         : next_( NULL )
         , prefetch_( NULL )
         , waiters_(0)
         , source_( -1 )
         , destination_( -1 )
+        , serialized_size_( serialized_size )
         , is_enqueued_( false )
         , is_sent_( false )
         , is_delivered_( false )
@@ -168,16 +171,17 @@ namespace Grappa {
         DVLOG(9) << "construct " << this;
       }
 
-      MessageBase( Core dest )
+      MessageBase( Core dest, size_t serialized_size )
         : next_( NULL )
         , prefetch_( NULL )
         , waiters_(0)
+        , source_( -1 )
+        , destination_( dest )
+        , serialized_size_( serialized_size )
         , is_enqueued_( false )
         , is_sent_( false )
         , is_delivered_( false )
         , is_moved_( false )
-        , source_( -1 )
-        , destination_( dest )
         // , reset_count_(0)
         , delete_after_send_( false ) 
       {
@@ -199,12 +203,13 @@ namespace Grappa {
         : next_( m.next_ )
         , prefetch_( m.prefetch_ )
         , waiters_( m.waiters_ )
+        , source_( m.source_ )
+        , destination_( m.destination_ )
+        , serialized_size_( m.serialized_size_ )
         , is_enqueued_( m.is_enqueued_ )
         , is_sent_( m.is_sent_ )
         , is_delivered_( m.is_delivered_ )
         , is_moved_( false ) // this only tells us if the current message has been moved
-        , source_( m.source_ )
-        , destination_( m.destination_ )
         // , reset_count_(0)
         , delete_after_send_( m.delete_after_send_ ) 
       {
@@ -218,8 +223,8 @@ namespace Grappa {
         return is_enqueued_ && !is_sent_;
       }
       
-      /// Make sure we know how big this message is
-      virtual const size_t serialized_size() const = 0;
+      // /// Make sure we know how big this message is
+      // virtual const size_t serialized_size() const = 0;
       
       /// Unserialized message size
       virtual const size_t size() const = 0;

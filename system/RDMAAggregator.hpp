@@ -713,7 +713,7 @@ namespace Grappa {
         app_messages_immediate++;
 
         // create temporary buffer
-        const size_t size = m->serialized_size();
+        const size_t size = m->serialized_size_;
         char buf[ size ] __attribute__ ((aligned (16)));
 
         // serialize to buffer
