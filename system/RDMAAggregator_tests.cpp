@@ -335,7 +335,6 @@ void user_main( void * args ) {
     struct SerializedFunctor {
       void operator()() { 
         local_count++; 
-        local_ce.complete(); 
       }
     };
     
@@ -346,12 +345,14 @@ void user_main( void * args ) {
     const size_t num_messages = expected_messages_per_core;
     
     {
-      std::unique_ptr< SerializedMessage[] > msgs( new SerializedMessage[ num_messages ] );
+      void * ptr = NULL;
+      posix_memalign( &ptr, 64, sizeof(SerializedMessage) * num_messages );
+      CHECK_NOTNULL( ptr );
+      SerializedMessage * msgs = new (ptr) SerializedMessage[ num_messages ];
       std::unique_ptr< int[] > msg_indexes( new int[ num_messages ] );
       
       // initialize
       local_ce.reset();
-      local_ce.enroll( num_messages );
       for( size_t i = 0; i < num_messages; ++i ) {
         msg_indexes[i] = i;
         msgs[i].reset();
