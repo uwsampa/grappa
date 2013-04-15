@@ -108,6 +108,11 @@ namespace Grappa {
       }
     }
     
+    template< typename T, typename F >
+    inline auto call(GlobalAddress<T> target, F func) -> decltype(func()) {
+      return call(target.core(), [target,func]{ return func(target.pointer()); });
+    }
+    
     /// Read the value (potentially remote) at the given GlobalAddress, blocks the calling task until
     /// round-trip communication is complete.
     /// @warning { Target object must lie on a single node (not span blocks in global address space). }
