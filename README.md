@@ -1,6 +1,15 @@
 # Grappa
 Enabling high-throughput graph processing on commodity clusters.
 
+**Don't read me, even though it says to in the name.**
+TODO: update me.
+For now, look in:
+- New_loop_tests.cpp
+- New_delegate_tests.cpp
+- CompletionEvent_tests.cpp
+- Collective_tests.cpp
+- Cache_tests.cpp
+
 # Building
 We currently use Make to build the components of Grappa into a static (or dynamic) library.
 
