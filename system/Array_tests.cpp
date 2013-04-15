@@ -16,13 +16,19 @@ using std::complex;
 #include "Delegate.hpp"
 #include "PushBuffer.hpp"
 
+using namespace Grappa;
+
 BOOST_AUTO_TEST_SUITE( Array_tests );
 
 static const size_t N = (1L<<10);
-static const size_t NN = (1L<<10);
+static size_t NN = (1L<<20);
+
+DEFINE_int64(nelems, NN, "number of elements in (large) test arrays");
+
+GlobalCompletionEvent gce;
 
 template<typename T, T Val>
-void test_memset_memcpy() {
+void test_memset_memcpy(bool test_async = false) {
   GlobalAddress<T> xs = Grappa_typed_malloc<T>(NN);
   GlobalAddress<T> ys = Grappa_typed_malloc<T>(NN);
 
@@ -31,7 +37,12 @@ void test_memset_memcpy() {
     BOOST_CHECK_EQUAL(v, Val);
   });
 
-  Grappa::memcpy(ys, xs, NN);
+  if (test_async) {
+    Grappa::memcpy_async<&gce>(ys, xs, NN);
+    gce.wait();
+  } else {
+    Grappa::memcpy(ys, xs, NN);    
+  }
 
   Grappa::forall_localized(ys, NN, [](int64_t i, T& v) {
     BOOST_CHECK_EQUAL(v, Val);
@@ -105,7 +116,10 @@ void test_push_buffer() {
 }
 
 void user_main( void * ignore ) {
+  NN = FLAGS_nelems;
+  
   test_memset_memcpy<int64_t,7>();
+  test_memset_memcpy<int64_t,7>(true); // test async
   // test_memset_memcpy<double,7.0>();
   test_complex();
   // test_prefix_sum(); // (not implemented yet)
