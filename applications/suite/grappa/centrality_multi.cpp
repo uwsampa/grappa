@@ -47,8 +47,25 @@ namespace local {
   }
 }
 
+inline void print_graph(graph* g) {
+  std::stringstream ss;
+  for (graphint i=0; i<g->numVertices; i++) {
+    graphint rstart = delegate::read(g->edgeStart+i);
+    graphint rend = delegate::read(g->edgeStart+i+1);
+    ss << "<" << i << ">(deg:" << rend-rstart << "): ";
+    for (graphint j=rstart; j<rend; j++) {
+      graphint v = delegate::read(g->endVertex+j);
+      ss << v << " ";
+    }
+    ss << "\n";
+  }
+  VLOG(1) << ss.str();
+}
+
+
 struct CentralityScratch {
   double * delta;
+  double * bctemp;
   GlobalAddress<graphint> explored;
   graphint * dist;
   graphint * Q;
@@ -120,8 +137,8 @@ void do_bfs_push_multi(graphint d_phase_, int64_t start, int64_t end) {
 void do_bfs_pop_multi(graphint start, graphint end) {
   CompletionEvent ce;
   forall_here(start, end-start, [&ce](int64_t s, int64_t n){
-    for (int64_t i=s; i<s+n; i++) {    
-      graphint& v = c.Q[i];
+    for (int64_t j=s; j<s+n; j++) {    
+      graphint& v = c.Q[j];
       
       int64_t bufEdgeStart[2];
       Incoherent<int64_t>::RO cr(g.edgeStart+v, 2, bufEdgeStart);
@@ -129,10 +146,11 @@ void do_bfs_pop_multi(graphint start, graphint end) {
       const graphint myEnd = cr[1];    
       
       nedge_traversed += myEnd-myStart;
-      DVLOG(4) << "pop " << v << " (" << i << ")";
+      DVLOG(4) << "pop " << v << " (" << j << ")";
       
       // pop children, TODO: try with very coarse decomp, cache large blocks at a time
       ce.enroll(myEnd-myStart);
+      // TODO: make sure lambda's not being heap-allocated?
       forall_here_async(myStart, myEnd-myStart, [v,&ce](int64_t kstart, int64_t kiters){
       
         int64_t sigma_v = local::read(c.sigma+v);
@@ -140,7 +158,7 @@ void do_bfs_pop_multi(graphint start, graphint end) {
         double sum = 0;
         
         graphint buf_eV[kiters];
-        Incoherent<graphint>::RO ceV(g.endVertex+v, kiters, buf_eV);
+        Incoherent<graphint>::RO ceV(g.endVertex+kstart, kiters, buf_eV);
         for (graphint k=0; k<kiters; k++) {
           graphint w = ceV[k];
           if (c.dist[w] != c.dist[v]+1) continue;
@@ -204,6 +222,8 @@ double centrality_multi(graph *g_in, GlobalAddress<double> bc, graphint total_nu
 
   c.explored = Grappa_typed_malloc<graphint>(g_in->numVertices);  
   
+  print_graph(g_in);
+  
   double t; t = timer();
   double rngtime, tt;
 
@@ -217,6 +237,7 @@ double centrality_multi(graph *g_in, GlobalAddress<double> bc, graphint total_nu
       g = _g;
       
       c.delta    = locale_alloc<double>(g.numVertices);
+      c.bctemp    = locale_alloc<double>(g.numVertices);
       c.dist     = locale_alloc<graphint>(g.numVertices);
       c.Q        = locale_alloc<graphint>(g.numVertices);
       c.sigma    = locale_alloc<graphint>(g.numVertices);
@@ -232,20 +253,20 @@ double centrality_multi(graph *g_in, GlobalAddress<double> bc, graphint total_nu
   
   mersenne_seed(12345);
   
-  std::deque<graphint> root_vertices(total_num_roots);
+  std::deque<graphint> root_vertices;
   // graphint root_vertices[total_num_roots];
   for (graphint i=0; i<total_num_roots; i++) {
     graphint root_vertex;
     do {
       root_vertex = mersenne_rand() % g.numVertices;
-      VLOG(1) << "root_vertex (" << root_vertex << ")";
+      VLOG(2) << "root_vertex (" << root_vertex << ")";
     } while (!delegate::compare_and_swap(c.explored+root_vertex, 0L, 1L));
     // rngtime += timer() - tt;
 
     graphint pair_[2];
     Incoherent<graphint>::RO pair(g.edgeStart+root_vertex, 2, pair_);
     graphint root_degree = pair[1]-pair[0];
-    VLOG(1) << "degree (" << root_degree << ")";
+    VLOG(2) << "degree (" << root_degree << ")";
     
     if (root_degree == 0) {
       i--; // try again...
@@ -260,7 +281,7 @@ double centrality_multi(graph *g_in, GlobalAddress<double> bc, graphint total_nu
   
   on_all_cores([root_vertices_addr]{
     
-    local::memset(c.delta, (double)0, g.numVertices);
+    local::memset(c.bctemp, (double)0, g.numVertices);
     
     graphint Qnext;
     c.Qnext = &Qnext;
@@ -284,12 +305,13 @@ double centrality_multi(graph *g_in, GlobalAddress<double> bc, graphint total_nu
       });
       if (root_vertex == -1) break;
       
-      VLOG(3) << "root_vertex = " << root_vertex;
+      VLOG(1) << "root_vertex = " << root_vertex;
     
       local::memset(c.dist,  (graphint)-1, g.numVertices);
       local::memset(c.sigma, (graphint) 0, g.numVertices);
       local::memset(c.marks, (graphint) 0, g.numVertices);
-        
+      local::memset(c.delta,   (double) 0, g.numVertices);
+      
       // Push node i onto Q and set bounds for first Q sublist
       local::write(c.Q+0, root_vertex);
       Qnext = 1;
@@ -308,6 +330,9 @@ double centrality_multi(graph *g_in, GlobalAddress<double> bc, graphint total_nu
       Qstart = QHead[nQ-1];
       Qend = QHead[nQ];
       DVLOG(1) << "pushing d_phase(" << d_phase << ") " << Qstart << " -> " << Qend;
+      
+      util::print_array("Q", c.Q+Qstart, Qend-Qstart);
+      
       do_bfs_push_multi(d_phase, Qstart, Qend);
   
       // If new nodes pushed onto Q
@@ -334,16 +359,27 @@ double centrality_multi(graph *g_in, GlobalAddress<double> bc, graphint total_nu
     
       }
       
+      for (int i=0; i<g.numVertices; i++) {
+        c.bctemp[i] += c.delta[i];
+      }
+        
+      // util::print_array("delta", c.delta, g.numVertices);
     } // (for each starting vertex)
     
   });
   
+  // on_all_cores([]{
+  //   util::print_array("delta", c.delta, g.numVertices);
+  // });
+  
   // all-reduce everyone's deltas
-  on_all_cores([]{ allreduce_inplace<double,collective_add>(c.delta, g.numVertices); });
+  on_all_cores([]{ allreduce_inplace<double,collective_add>(c.bctemp, g.numVertices); });
   // put them into the global "centrality" array
   forall_localized(bc, g.numVertices, [](int64_t i, double& e){
-    e = c.delta[i];
+    e = c.bctemp[i];
   });
+  
+  util::print_array("bc", bc, g.numVertices, 20);
   
   t = timer() - t;
   disable_tau();
@@ -352,6 +388,7 @@ double centrality_multi(graph *g_in, GlobalAddress<double> bc, graphint total_nu
 
   on_all_cores([]{
     locale_free(c.delta);
+    locale_free(c.bctemp);
     locale_free(c.dist);
     locale_free(c.Q);
     locale_free(c.sigma);

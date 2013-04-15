@@ -180,23 +180,24 @@ bool checkpoint_in(graphedges * ge, graph * g) {
   int64_t deg = 0;
   for (int64_t i=0; i<nv; i+=NBUF) {
     int64_t n = MIN(nv-i, NBUF);
-    Incoherent<int64_t>::RO cxoff(xoff+2*i, 2*n, rbuf);
+    Incoherent<range_t>::RO cxoff(xoffr+i, n, reinterpret_cast<range_t*>(rbuf));
     Incoherent<int64_t>::WO cstarts(g->edgeStart+i, n, wbuf);
     for (int64_t j=0; j<n; j++) {
       cstarts[j] = deg;
-      int64_t d = cxoff[2*j+1]-cxoff[2*j];
+      int64_t d = cxoff[j].end-cxoff[j].start;
       //if (i+j == target ) printf("deg[%ld] = %ld\n", i+j, d);
       deg += d;
     }
   }
   delegate::write(g->edgeStart+nv, deg);
   tt = timer() - tt; VLOG(1) << "edgeStart time: " << tt;
-  //printf("edgeStart: [ ");
-  //for (int64_t i=0; i<(1<<10); i++) {
-  //for (int64_t i=-10; i<10; i++) {
-    //printf((i==0)?"(%ld) " : "%ld ", read(g->edgeStart+(target+i)));
-  //}
-  //printf("]\n");
+  // printf("edgeStart: [ ");
+  // for (int64_t i=0; i<(1<<10); i++) {
+  // for (int64_t i=-10; i<10; i++) {
+  //   printf((i==0)?"(%ld) " : "%ld ", delegate::read(g->edgeStart+(target+i)));
+  // }
+  // printf("]\n");
+  util::print_array("edgeStart", g->edgeStart, nv+1);
 
   // xadj/endVertex
   // eat first 2 because we actually stored 'xadjstore' which has an extra 2 elements

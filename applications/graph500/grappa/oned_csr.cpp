@@ -75,7 +75,7 @@ inline void print_graph(csr_graph* g) {
   std::stringstream ss;
   for (int64_t i=0; i<g->nv; i++) {
     range_t r = delegate::read(offsets+i);
-    ss << "[" << i << "]: ";
+    ss << "<" << i << ">(deg:" << r.end-r.start << "): ";
     for (int64_t j=r.start; j<r.end; j++) {
       int64_t v = delegate::read(g->xadj+j);
       ss << v << " ";

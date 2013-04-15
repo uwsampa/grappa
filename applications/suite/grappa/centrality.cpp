@@ -75,18 +75,30 @@ void do_bfs_push(graphint d_phase_, int64_t start, int64_t end) {
       for (int64_t k=0; k<kiters; k++) {
         graphint w = kfirst[k];
         graphint d = delegate::read(c.dist+w);
-    
+            
         // If node has not been visited, set distance and push on Q (but only once)
         if (d < 0) {
           if (delegate::compare_and_swap(c.marks+w, 0, 1)) {
             delegate::write_async(pool, c.dist+w, d_phase);
             Qbuf.push(w);
           }
+          d = d_phase;
         }
-        if (d < 0 || d == d_phase) {
+        if (d == d_phase) {
           delegate::increment_async(pool, c.sigma+w, sigmav);
           bufChild[ccount++] = w;
         }
+        // graphint dw = delegate::call(c.dist+w, [w,d_phase](graphint* dw) -> graphint {
+        //   if (*dw < 0) {
+        //     *dw = d_phase;
+        //     Qbuf.push(w);
+        //   }
+        //   return *dw;
+        // });
+        // if (dw == d_phase) {
+        //   delegate::increment_async(pool, c.sigma+w, sigmav);
+        //   bufChild[ccount++] = w;
+        // }
       }
       // TODO: find out if it makes sense to buffer these
       graphint l = vStart + delegate::fetch_and_add(c.child_count+v, ccount);
@@ -294,13 +306,17 @@ double centrality(graph *g_in, GlobalAddress<double> bc_in, graphint Vs,
       do_bfs_pop(Qstart, Qend);      
       
     }
-  } // end for(x=0; x<NV && Vs>0)
     
+    // util::print_array("delta", c.delta, g.numVertices);
+  } // end for(x=0; x<NV && Vs>0)
+
+  util::print_array("bc", bc, g.numVertices, 20);
+  
   t = timer() - t;
   disable_tau();
-
+  
   VLOG(1) << "centrality rngtime = " << rngtime;
-
+  
   Grappa_free(c.delta);
   Grappa_free(c.dist);
   Grappa_free(c.Q);
@@ -309,7 +325,7 @@ double centrality(graph *g_in, GlobalAddress<double> bc_in, graphint Vs,
   Grappa_free(c.child);
   Grappa_free(c.child_count);
   Grappa_free(c.explored);
-
+  
   double bc_total = 0;
   Core origin = mycore();
   // TODO: use array reduction op, or mutable "forall_localized"-held state
