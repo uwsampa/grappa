@@ -21,6 +21,14 @@ SOURCES =
 join.exe: join.o DHT.hpp relation_IO.hpp Tuple.hpp $(GRAPPA_SYS)/libGrappa.a
 	$(ENV_VARIABLES) $($(MPITYPE)_LD) $(LDFLAGS) join.o $(SOURCES) $(GRAPPA_SYS)/libGrappa.a $(LIBRARIES) -o $@ $(LIBS)
 
+triangles.exe: triangles.o DHT.hpp relation_IO.hpp Tuple.hpp $(GRAPPA_SYS)/libGrappa.a
+	$(ENV_VARIABLES) $($(MPITYPE)_LD) $(LDFLAGS) triangles.o $(SOURCES) $(GRAPPA_SYS)/libGrappa.a $(LIBRARIES) -o $@ $(LIBS)
+
 clean:
 	rm -f join.o join.exe
 	
+
+# XXX remove
+Ref_test.exe: Ref_test.o $(GRAPPA_SYS)/libGrappa.a
+	$(ENV_VARIABLES) $($(MPITYPE)_LD) $(LDFLAGS) Ref_test.o $(SOURCES) $(GRAPPA_SYS)/libGrappa.a $(LIBRARIES) -o $@ $(LIBS)
+
