@@ -34,6 +34,7 @@ void memset(GlobalAddress<T> base, S value, size_t count) {
 }
 
 namespace impl {
+  /// Copy elements of array (src..src+nelem) that are local to corresponding locations in dst
   template< typename T >
   void do_memcpy_locally(GlobalAddress<T> dst, GlobalAddress<T> src, size_t nelem) {
     typedef typename Incoherent<T>::WO Writeback;
@@ -76,20 +77,6 @@ namespace impl {
     }
     for (size_t i=0; i<nlocalblocks; i++) { ws[i].block_until_released(); }
     locale_free(ws);
-    
-    // const size_t nlocal = local_end - local_base;
-    // const size_t nlocalblocks = nlocal/nblock + ((nlocal%nblock == 0) ? 0 : 1);
-    // Writeback ** putters = new Writeback*[nlocalblocks];
-    // for (size_t i=0; i < nlocalblocks; i++) {
-    //   size_t j = make_linear(local_base+(i*nblock))-src;
-    //   size_t n = (i < nlocalblocks-1) ? nblock : (local_end-local_base)-(i*nblock);
-    // 
-    //   // initialize WO cache to read from this block locally and write to corresponding block in dest
-    //   putters[i] = new Writeback(dst+j, n, local_base+(i*nblock));
-    //   putters[i]->start_release();
-    // }
-    // for (size_t i=0; i < nlocalblocks; i++) { delete putters[i]; }
-    // delete [] putters;
   }
 }
 
@@ -117,6 +104,7 @@ void memcpy_async(GlobalAddress<T> dst, GlobalAddress<T> src, size_t nelem) {
 template< typename T >
 void prefix_sum(GlobalAddress<T> array, size_t nelem) {
   // not implemented
+  CHECK(false) << "prefix_sum is currently unimplemented!";
 }
 
 namespace util {
