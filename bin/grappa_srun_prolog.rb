@@ -15,7 +15,10 @@ ENV["GASNET_FREEZE"] = "0"
 
 # ENV["GASNET_VERBOSEENV"] = "1"
 
-#ENV["GASNET_PHYSMEM_MAX"] = "128M"
+case `hostname`
+when /n\d+/ #(sampa)
+  ENV["GASNET_PHYSMEM_MAX"] = "1024M"
+end
 #ENV["GASNET_PHYSMEM_NOPROBE"] = "1"
 
 
