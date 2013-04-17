@@ -63,9 +63,9 @@ class BufferVector {
       buf[nextIndex++] = v;
     }
 
-    GlobalAddress<const T> getReadBuffer() const {
+    GlobalAddress<T> getReadBuffer() const {
       CHECK( mode == RO ) << "Must be in RO mode to see buffer";
-      return make_global( static_cast<const T*>(buf) );
+      return make_global( /*static_cast<const T*>*/(buf) );
     }
 
     size_t getLength() const {
