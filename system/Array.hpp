@@ -50,12 +50,15 @@ namespace impl {
     auto src_start = src;
     if (src.core() == mycore()) {
       int64_t nfirstcore = src.block_max() - src;
+      DVLOG(3) << "nfirstcore = " << nfirstcore;
+      
       Writeback w(dst, nfirstcore, src.pointer());
       src_start += nfirstcore;
     }
-    if (src_end.core() == mycore()) {
+    if ((src_end-1).core() == mycore()) {
       int64_t nlastcore = src_end - src_end.block_min();
       int64_t index = nelem - nlastcore;
+      DVLOG(3) << "nlastcore = " << nlastcore << ", index = " << index;
       CHECK((src+index).core() == mycore());
       Writeback w(dst+index, nlastcore, (src+index).pointer());
       src_end -= nlastcore;
@@ -63,7 +66,7 @@ namespace impl {
     
     auto * local_base = src_start.localize();
     size_t nlocal_trimmed = src_end.localize() - local_base;
-    CHECK_EQ((src_end-src_start) % nblock, 0);
+    CHECK_EQ((nlocal_trimmed) % nblock, 0);
     size_t nlocalblocks = nlocal_trimmed/nblock;
     Writeback * ws = locale_alloc<Writeback>(nlocalblocks);
     for (size_t i=0; i<nlocal_trimmed/nblock; i++) {
