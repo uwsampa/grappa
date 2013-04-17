@@ -51,18 +51,21 @@ namespace impl {
     auto src_start = src;
     if (src.core() == mycore()) {
       int64_t nfirstcore = src.block_max() - src;
-      DVLOG(3) << "nfirstcore = " << nfirstcore;
-      
-      Writeback w(dst, nfirstcore, src.pointer());
-      src_start += nfirstcore;
+      if (nfirstcore > 0 && nlastcore != nblock) {
+        DVLOG(3) << "nfirstcore = " << nfirstcore;
+        Writeback w(dst, nfirstcore, src.pointer());
+        src_start += nfirstcore;
+      }
     }
     if ((src_end-1).core() == mycore()) {
       int64_t nlastcore = src_end - src_end.block_min();
       int64_t index = nelem - nlastcore;
-      DVLOG(3) << "nlastcore = " << nlastcore << ", index = " << index;
-      CHECK((src+index).core() == mycore());
-      Writeback w(dst+index, nlastcore, (src+index).pointer());
-      src_end -= nlastcore;
+      if (nlastcore > 0 && nlastcore != nblock) {
+        DVLOG(3) << "nlastcore = " << nlastcore << ", index = " << index;
+        CHECK((src+index).core() == mycore());
+        Writeback w(dst+index, nlastcore, (src+index).pointer());
+        src_end -= nlastcore;
+      }
     }
     
     auto * local_base = src_start.localize();
@@ -70,7 +73,7 @@ namespace impl {
     CHECK_EQ((nlocal_trimmed) % nblock, 0);
     size_t nlocalblocks = nlocal_trimmed/nblock;
     Writeback * ws = locale_alloc<Writeback>(nlocalblocks);
-    for (size_t i=0; i<nlocal_trimmed/nblock; i++) {
+    for (size_t i=0; i<nlocalblocks; i++) {
       size_t j = make_linear(local_base+(i*nblock))-src;
       new (ws+i) Writeback(dst+j, nblock, local_base+(i*nblock));
       ws[i].start_release();
