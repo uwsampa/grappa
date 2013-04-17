@@ -21,7 +21,7 @@ using namespace Grappa;
 BOOST_AUTO_TEST_SUITE( Array_tests );
 
 static const size_t N = (1L<<10);
-static size_t NN = (1L<<20);
+static size_t NN = (1L<<20) - 21;
 
 DEFINE_int64(nelems, NN, "number of elements in (large) test arrays");
 
@@ -41,10 +41,22 @@ void test_memset_memcpy(bool test_async = false) {
     Grappa::memcpy_async<&gce>(ys, xs, NN);
     gce.wait();
   } else {
-    Grappa::memcpy(ys, xs, NN);    
+    Grappa::memcpy(ys, xs, NN);
   }
 
   Grappa::forall_localized(ys, NN, [](int64_t i, T& v) {
+    BOOST_CHECK_EQUAL(v, Val);
+  });
+
+  // try the other way (ys -> xs)
+  Grappa::memset(xs, 0, NN);
+  if (test_async) {
+    Grappa::memcpy_async<&gce>(xs, ys, NN);
+    gce.wait();
+  } else {
+    Grappa::memcpy(xs, ys, NN);
+  }
+  Grappa::forall_localized(xs, NN, [](int64_t i, T& v) {
     BOOST_CHECK_EQUAL(v, Val);
   });
 
