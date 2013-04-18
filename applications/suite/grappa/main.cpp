@@ -197,7 +197,7 @@ bool checkpoint_in(graphedges * ge, graph * g) {
   //   printf((i==0)?"(%ld) " : "%ld ", delegate::read(g->edgeStart+(target+i)));
   // }
   // printf("]\n");
-  util::print_array("edgeStart", g->edgeStart, nv+1);
+  DVLOG(2) << util::array_str("edgeStart", g->edgeStart, nv+1);
 
   // xadj/endVertex
   // eat first 2 because we actually stored 'xadjstore' which has an extra 2 elements
