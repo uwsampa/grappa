@@ -280,7 +280,7 @@ double centrality(graph *g_in, GlobalAddress<double> bc_in, graphint Vs,
     d_phase = nQ;
     Qstart = QHead[nQ-1];
     Qend = QHead[nQ];
-    DVLOG(1) << "pushing d_phase(" << d_phase << ") " << Qstart << " -> " << Qend;
+    DVLOG(2) << "pushing d_phase(" << d_phase << ") " << Qstart << " -> " << Qend;
     do_bfs_push(d_phase, Qstart, Qend);
     
     // If new nodes pushed onto Q
@@ -292,7 +292,7 @@ double centrality(graph *g_in, GlobalAddress<double> bc_in, graphint Vs,
     
     // Dependence accumulation phase
     nQ--;
-    VLOG(3) << "nQ = " << nQ;
+    DVLOG(3) << "nQ = " << nQ;
 
     Grappa::memset(c.delta, 0.0, g.numVertices);
     
@@ -301,16 +301,16 @@ double centrality(graph *g_in, GlobalAddress<double> bc_in, graphint Vs,
       Qstart = QHead[nQ-1];
       Qend = QHead[nQ];
       d_phase--;
-      DVLOG(1) << "popping d_phase(" << d_phase << ") " << Qstart << " -> " << Qend;
+      DVLOG(2) << "popping d_phase(" << d_phase << ") " << Qstart << " -> " << Qend;
       
       do_bfs_pop(Qstart, Qend);      
       
     }
     
-    // util::print_array("delta", c.delta, g.numVertices);
+    // DVLOG(2) << util::array_str("delta", c.delta, g.numVertices);
   } // end for(x=0; x<NV && Vs>0)
 
-  util::print_array("bc", bc, g.numVertices, 20);
+  DVLOG(3) << util::array_str("bc", bc, g.numVertices, 20);
   
   t = timer() - t;
   disable_tau();

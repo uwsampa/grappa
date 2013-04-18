@@ -47,7 +47,7 @@ namespace local {
   }
 }
 
-inline void print_graph(graph* g) {
+inline std::string graph_str(graph* g) {
   std::stringstream ss;
   for (graphint i=0; i<g->numVertices; i++) {
     graphint rstart = delegate::read(g->edgeStart+i);
@@ -59,7 +59,7 @@ inline void print_graph(graph* g) {
     }
     ss << "\n";
   }
-  VLOG(1) << ss.str();
+  return ss.str();
 }
 
 
@@ -222,7 +222,7 @@ double centrality_multi(graph *g_in, GlobalAddress<double> bc, graphint total_nu
 
   c.explored = Grappa_typed_malloc<graphint>(g_in->numVertices);  
   
-  print_graph(g_in);
+  DVLOG(2) << graph_str(g_in);
   
   double t; t = timer();
   double rngtime, tt;
@@ -329,9 +329,9 @@ double centrality_multi(graph *g_in, GlobalAddress<double> bc, graphint total_nu
       d_phase = nQ;
       Qstart = QHead[nQ-1];
       Qend = QHead[nQ];
-      DVLOG(1) << "pushing d_phase(" << d_phase << ") " << Qstart << " -> " << Qend;
+      DVLOG(2) << "pushing d_phase(" << d_phase << ") " << Qstart << " -> " << Qend;
       
-      util::print_array("Q", c.Q+Qstart, Qend-Qstart);
+      DVLOG(3) << util::array_str("Q", c.Q+Qstart, Qend-Qstart);
       
       do_bfs_push_multi(d_phase, Qstart, Qend);
   
@@ -363,13 +363,13 @@ double centrality_multi(graph *g_in, GlobalAddress<double> bc, graphint total_nu
         c.bctemp[i] += c.delta[i];
       }
         
-      // util::print_array("delta", c.delta, g.numVertices);
+      // DVLOG(2) << util::array_str("delta", c.delta, g.numVertices);
     } // (for each starting vertex)
     
   });
   
   // on_all_cores([]{
-  //   util::print_array("delta", c.delta, g.numVertices);
+  //   DVLOG(2) << util::array_str("delta", c.delta, g.numVertices);
   // });
   
   // all-reduce everyone's deltas
@@ -379,7 +379,7 @@ double centrality_multi(graph *g_in, GlobalAddress<double> bc, graphint total_nu
     e = c.bctemp[i];
   });
   
-  util::print_array("bc", bc, g.numVertices, 20);
+  DVLOG(3) << util::array_str("bc", bc, g.numVertices, 20);
   
   t = timer() - t;
   disable_tau();
