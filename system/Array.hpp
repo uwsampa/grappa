@@ -112,24 +112,26 @@ void prefix_sum(GlobalAddress<T> array, size_t nelem) {
 
 namespace util {
 
-  template< int VERBOSITY = 1, typename T = decltype(nullptr)>
-  inline void print_array(const char * name, T * base, size_t nelem, int width = 10) {
+  template<typename T>
+  inline std::string array_str(const char * name, T * base, size_t nelem, int width = 10) {
     std::stringstream ss; ss << "\n" << name << ": [";
     for (size_t i=0; i<nelem; i++) {
       if (i % width == 0) ss << "\n  ";
       ss << " " << base[i];
     }
-    ss << "\n]"; VLOG(VERBOSITY) << ss.str();
+    ss << "\n]";
+    return ss.str();
   }
   
-  template< int VERBOSITY = 1, typename T = decltype(nullptr) >
-  inline void print_array(const char * name, GlobalAddress<T> base, size_t nelem, int width = 10) {
+  template<typename T>
+  inline std::string array_str(const char * name, GlobalAddress<T> base, size_t nelem, int width = 10) {
     std::stringstream ss; ss << "\n" << name << ": [";
     for (size_t i=0; i<nelem; i++) {
       if (i % width == 0) ss << "\n  ";
       ss << " " << delegate::read(base+i);
     }
-    ss << "\n]"; VLOG(VERBOSITY) << ss.str();
+    ss << "\n]";
+    return ss.str();
   }
   
 }
