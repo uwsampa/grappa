@@ -462,7 +462,7 @@ template< typename S, void (*F)(int64_t,int64_t,S*), int64_t Threshold, bool Use
 void spawn_local_task(int64_t a, int64_t b, S* c) {
   if (UseGlobalJoin) global_joiner.registerTask(); else ljoin.registerTask();
   c->incrRefs();
-  Grappa_privateTask( &apfor_local<S, F, Threshold, UseGlobalJoin>, a, b, c );
+  Grappa_publicTask( &apfor_local<S, F, Threshold, UseGlobalJoin>, a, b, c );
 }
 
 
@@ -476,6 +476,7 @@ template< typename T, typename P >
 struct LocalForArgs {
   int64_t refs;
   T * base;
+  Node owner;
   P extra;
   GlobalAddress<T> base_addr;
   LocalForArgs(T* base, P extra): base(base), extra(extra), refs(0) {}
@@ -506,20 +507,20 @@ template< typename T, typename P, void F(int64_t,T*,const P&) >
 void for_async_iterations_task(int64_t start, int64_t niters, LocalForArgs<T,P> * args) {
   //SharedArgsPtr<T,P> args(v_args);
   //VLOG(1) << "for_local @ " << base << " ^ " << start << " # " << niters;
-  CHECK( args->base_addr.localize() == args->base );
-
-  T * base = args->base;
-
-  //if (args->extra == 13701) {
-    //std::stringstream ss; ss << "neighbors[" << start << "::" << niters << "] =";
-    //for (int64_t i=start; i<start+niters; i++) { ss << " " << args->base[i]; }
-    //VLOG(1) << ss.str();
-    //VLOG(1) << "args->base = " << args->base << ", base = " << base;
-  //}
-
-  for (int64_t i=start; i<start+niters; i++) {
-    F(i, base, args->extra);
+  if ( args->base_addr.localize() == args->base ) {
+    // not stolen
+    T * base = args->base;
+    for (int64_t i=start; i<start+niters; i++) {
+      F(i, base, args->extra);
+    }
+  } else {
+    T buf[niters];
+    Incoherent<T>::RO cbase(make_global(args->base, args->owner), niters, buf);
+    for (int64_t i=start; i<start+niters; i++) {
+      F(i, &cbase[0], args->extra);
+    }
   }
+
   args->decrRefs();
 }
 
@@ -533,18 +534,10 @@ void forall_local_async_task(GlobalAddress<T> base, size_t nelems, GlobalAddress
   T * local_end = (base+nelems).localize();
   
   if (local_end > local_base) {
-    //CHECK( local_end - local_base < nelems ) << "local_base: " << local_base << ", local_end: " << local_end << ", base+nelems: " << base+nelems;
-    //packed_pair p = std::make_pair((intptr_t)local_base, extra);
-    //uint64_t code = packing_hash(p);
-    //CHECK( unpacking_map.count(code) == 0 );
-    //unpacking_map[code] = p;
-
     LocalForArgs<T,P> * args = new LocalForArgs<T,P>(local_base, *extra_c);
-    //SharedArgsPtr<T,P> args( new LocalForArgs<T,P>(local_base, *extra_c) );
     args->base_addr = base;
+    args->owner = Grappa_mynode();
     args->incrRefs();
-
-    //if (*extra_c == 33707) { VLOG(1) << "local_base: " << local_base << " .. " << local_end-local_base; }
 
     async_parallel_for_local<LocalForArgs<T,P>, for_async_iterations_task<T,P,F>, Threshold, true>
                               (0, local_end-local_base, args);
