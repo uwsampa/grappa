@@ -17,6 +17,8 @@ GRAPPA_DECLARE_STAT(SimpleStatistic<uint64_t>, delegate_ops_short_circuited);
 namespace Grappa {
   
   namespace delegate {
+    /// @addtogroup Delegates
+    /// @{
     
     /// Do asynchronous generic delegate with `void` return type. Uses message pool to allocate
     /// the message. Enrolls with GCE so you can guarantee all have completed after a global
@@ -44,6 +46,18 @@ namespace Grappa {
     }
     
     /// Uses `call_async()` to write a value asynchronously.
+    ///
+    /// @note The helper struct Grappa::delegate::write_msg_proxy can be used to compute the
+    ///       size of a pool of this kind of delegate.
+    ///
+    /// @b Example:
+    /// @code
+    ///   GlobalAddress<int> array;
+    ///   MessagePool pool(10*sizeof(delegate::write_msg_proxy<int>));
+    ///   for (int i=0; i<10; i++) {
+    ///     write_async(pool, array+i, i);
+    ///   }
+    /// @endcode
     template<GlobalCompletionEvent * GCE = &Grappa::impl::local_gce, typename T = decltype(nullptr), typename U = decltype(nullptr), typename PoolType = impl::MessagePoolBase >
     inline void write_async(PoolType& pool, GlobalAddress<T> target, U value) {
       delegate_async_writes++;
@@ -66,6 +80,7 @@ namespace Grappa {
     };
     
     /// Uses `call_async()` to atomically increment a value asynchronously.
+    /// @see Grappa::delegate::write_async for example use.
     template< GlobalCompletionEvent * GCE = &Grappa::impl::local_gce, typename T = void, typename U = void, typename PoolType = impl::MessagePoolBase >
     inline void increment_async(PoolType& pool, GlobalAddress<T> target, U increment) {
       delegate_async_increments++;
@@ -78,16 +93,17 @@ namespace Grappa {
     /// The idea is to allocate storage for the result, issue the delegate request, and then
     /// block on waiting for the value when it's needed.
     ///
-    /// Usage example: @code {
+    /// @b Example:
+    /// @code
     ///   delegate::Promise<int> x;
     ///   x.call_async(1, []()->int { return value; });
     ///   // other work
     ///   myvalue += x.get();
-    /// }
+    /// @endcode
     ///
-    /// TODO: make this so you you can issue a call_async() directly and get a
-    /// delegate::Promise back. This should be able to be done using the same mechanism for
-    /// creating Messages (compiler-optimized-away move).
+    // TODO: make this so you you can issue a call_async() directly and get a
+    // delegate::Promise back. This should be able to be done using the same mechanism for
+    // creating Messages (compiler-optimized-away move).
     template<typename R>
     class Promise {
       
@@ -111,6 +127,7 @@ namespace Grappa {
         return r;
       }
       
+      /// Call `func` on remote node, returning immediately.
       template <typename F>
       void call_async(impl::MessagePoolBase& pool, Core dest, F func) {
         static_assert(std::is_same<R, decltype(func())>::value, "return type of callable must match the type of this Promise");
@@ -139,6 +156,8 @@ namespace Grappa {
         }
       }
     };
+    
+    /// @}
   } // namespace delegate
   
 } // namespace Grappa

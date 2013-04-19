@@ -66,6 +66,9 @@ static const intptr_t node_mask = (1L << node_bits) - 1;
 static const intptr_t pool_mask = (1L << pool_bits) - 1;
 static const intptr_t pointer_mask = (1L << pointer_bits) - 1;
 
+/// @addtogroup Memory
+/// @{
+
 /// Global address class
 ///
 /// We support two types of global addresses:
@@ -388,15 +391,9 @@ inline ptrdiff_t operator-<char>( const GlobalAddress< char >& t, const GlobalAd
   return t.raw_bits() - u.raw_bits();
 }
 
-/// return a 2d global pointer to a local pointer
-template< typename T >
-GlobalAddress< T > localToGlobal( T * t ) {
-  return GlobalAddress< T >::TwoDimensional( t, global_communicator.mynode() );
-}
-
 /// return a 2d global pointer to a local pointer on a particular node
 template< typename T >
-GlobalAddress< T > make_global( T * t, Node n = global_communicator.mynode() ) {
+GlobalAddress< T > make_global( T * t, Core n = Grappa::mycore() ) {
   return GlobalAddress< T >::TwoDimensional( t, n );
 }
 
@@ -429,6 +426,6 @@ inline GlobalAddress< M > global_pointer_to_member( const GlobalAddress< T > t, 
   return GlobalAddress< M >::Raw( reinterpret_cast< intptr_t >( mp ) );
 }
 
-
+/// @}
 //template< typename T >
 #endif

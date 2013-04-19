@@ -115,7 +115,7 @@ static void poller( Thread * me, void * args ) {
     Grappa_poll();
     
     // poll global barrier
-    Grappa::barrier_poll();
+    Grappa::impl::barrier_poll();
 
     // check async. io completions
     if (aio_completed_stack) {

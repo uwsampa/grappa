@@ -14,7 +14,11 @@
 
 
 namespace Grappa {
+  /// @addtogroup Utility
+  /// @{
 
+  /// Statistic that simply keeps track of a single value over time.
+  /// Typically used as a counter, but can also be used for sampling an instantaneous value.
   template<typename T>
   class SimpleStatistic : public impl::StatisticBase {
   protected:
@@ -95,4 +99,5 @@ namespace Grappa {
     // </sugar>
   };
   
+  /// @}
 } // namespace Grappa

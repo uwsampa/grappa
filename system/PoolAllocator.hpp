@@ -4,6 +4,8 @@
 #include "LocaleSharedMemory.hpp"
 
 namespace Grappa {
+  /// @addtogroup Utility
+  /// @{
 
   template<typename Base>
   class PoolAllocator {
@@ -63,6 +65,7 @@ namespace Grappa {
     PoolAllocatorInternal(): PoolAllocator<Base>(_buffer, Bytes) {}
   };
   
+  /// @}
 } // namespace Grappa
 
 
