@@ -28,6 +28,7 @@ namespace Grappa {
     /// @addtogroup Delegates
     /// @{
     
+    /// Overloaded version for func with void return type.
     template <typename F>
     inline auto call(Core dest, F func)
         -> typename std::enable_if<std::is_void<decltype(func())>::value, void>::type {
@@ -115,7 +116,7 @@ namespace Grappa {
     
     /// Read the value (potentially remote) at the given GlobalAddress, blocks the calling task until
     /// round-trip communication is complete.
-    /// @warning { Target object must lie on a single node (not span blocks in global address space). }
+    /// @warning Target object must lie on a single node (not span blocks in global address space).
     template< typename T >
     T read(GlobalAddress<T> target) {
       delegate_stats.count_word_read();
@@ -126,7 +127,7 @@ namespace Grappa {
     }
     
     /// Blocking remote write.
-    /// @warning { Target object must lie on a single node (not span blocks in global address space). }
+    /// @warning Target object must lie on a single node (not span blocks in global address space).
     template< typename T, typename U >
     void write(GlobalAddress<T> target, U value) {
       delegate_stats.count_word_write();
@@ -139,7 +140,7 @@ namespace Grappa {
     
     /// Fetch the value at `target`, increment the value stored there with `inc` and return the
     /// original value to blocking thread.
-    /// @warning { Target object must lie on a single node (not span blocks in global address space). }
+    /// @warning Target object must lie on a single node (not span blocks in global address space).
     template< typename T, typename U >
     T fetch_and_add(GlobalAddress<T> target, U inc) {
       delegate_stats.count_word_fetch_add();
@@ -154,7 +155,7 @@ namespace Grappa {
 
 
     /// Flat combines fetch_and_add to a single global address
-    /// @warning { Target object must lie on a single node (not span blocks in global address space). }
+    /// @warning Target object must lie on a single node (not span blocks in global address space).
     template < typename T, typename U >
     class FlatCombiner {
       // TODO: generalize to define other types of combiners
@@ -271,7 +272,7 @@ namespace Grappa {
     
     /// If value at `target` equals `cmp_val`, set the value to `new_val` and return `true`,
     /// otherwise do nothing and return `false`.
-    /// @warning { Target object must lie on a single node (not span blocks in global address space). }
+    /// @warning Target object must lie on a single node (not span blocks in global address space).
     template< typename T, typename U, typename V >
     bool compare_and_swap(GlobalAddress<T> target, U cmp_val, V new_val) {
       delegate_stats.count_word_compare_swap();

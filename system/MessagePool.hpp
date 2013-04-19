@@ -7,6 +7,8 @@ namespace Grappa { namespace impl { class MessagePoolBase; } }
 void* operator new(size_t size, Grappa::impl::MessagePoolBase& a);
 
 namespace Grappa {
+  /// @addtogroup Communication
+  /// @{
 
 namespace impl {
   class MessagePoolBase: public PoolAllocator<impl::MessageBase> {
@@ -101,5 +103,6 @@ namespace impl {
       MessagePoolBase(static_cast<char*>(ext_buf), bytes, false) {}
   };
   
+  /// @}
 } // namespace Grappa
 

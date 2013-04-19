@@ -153,6 +153,8 @@ public:
   }
 };
 
+/// @addtogroup Caches
+/// @{
 
 /// Read-only cache object. This is parameterize so it can implement
 /// coherent or incoherent read-only caches.
@@ -406,6 +408,7 @@ struct Incoherent {
   typedef CacheWO< T, CacheAllocator, NullAcquirer, IncoherentReleaser > WO;
 };
 
+/// @}
 
 ///
 /// Wrapper functions for making it simpler to use the bare-bones tasking

@@ -233,8 +233,12 @@ T Grappa_allreduce_noinit(T myval) {
 }
 
 namespace Grappa {
+  /// @addtogroup Collectives
+  /// @{
   
-  // Call message (work that cannot block) on all cores, block until ack received from all.
+  /// Call message (work that cannot block) on all cores, block until ack received from all.
+  /// Like Grappa::on_all_cores() but does @a not spawn tasks on each core.
+  /// Can safely be called concurrently with others.
   template<typename F>
   void call_on_all_cores(F work) {
     Core origin = mycore();
@@ -256,6 +260,15 @@ namespace Grappa {
   /// Spawn a private task on each core, block until all complete.
   /// To be used for any SPMD-style work (e.g. initializing globals).
   /// Also used as a primitive in Grappa system code where anything is done on all cores.
+  ///
+  /// @b Example:
+  /// @code
+  ///   int x[Grappa::cores()];
+  ///   GlobalAddress<int> x_base = make_global(x);
+  ///   Grappa::on_all_cores([x_base]{
+  ///     Grappa::delegate::write(x_base+Grappa::mycore(), 1);
+  ///   });
+  /// @endcode
   template<typename F>
   void on_all_cores(F work) {
     
@@ -275,7 +288,6 @@ namespace Grappa {
     }
     ce.wait();
   }
-  
   
   namespace impl {
     
@@ -391,10 +403,21 @@ namespace Grappa {
       }
     };
     
-  }
+  } // namespace impl
   
   /// Called from SPMD context, reduces values from all cores calling `allreduce` and returns reduced
   /// values to everyone. Blocks until reduction is complete, so suffices as a global barrier.
+  ///
+  /// @warning May only one with a given type/op combination may be used at a time,
+  ///          uses a function-private static variable.
+  ///
+  /// @b Example:
+  /// @code
+  ///   Grappa::on_all_cores([]{
+  ///     int value = foo();
+  ///     int total = Grappa::allreduce<int,collective_add>(value);
+  ///   });
+  /// @endcode
   template< typename T, T (*ReduceOp)(const T&, const T&) >
   T allreduce(T myval) {
     impl::Reduction<T>::result.reset();
@@ -406,6 +429,12 @@ namespace Grappa {
     return impl::Reduction<T>::result.readFF();
   }
   
+  /// Called from SPMD context.
+  /// Do an in-place allreduce (works on arrays). All elements of the array will be 
+  /// overwritten by the operation with the total from all cores.
+  ///
+  /// @warning May only one with a given type/op combination may be used at a time,
+  ///          uses a function-private static variable.
   template< typename T, T (*ReduceOp)(const T&, const T&) >
   void allreduce_inplace(T * array, size_t nelem = 1) {
     static impl::InplaceReduction<T,ReduceOp> reducer;
@@ -414,6 +443,16 @@ namespace Grappa {
   
   /// Called from a single task (usually user_main), reduces values from all cores onto the calling node.
   /// Blocks until reduction is complete.
+  /// Safe to use any number of these concurrently.
+  ///
+  /// @b Example:
+  /// @code
+  ///   static int x;
+  ///   void user_main() {
+  ///     on_all_cores([]{ x = foo(); });
+  ///     int total = reduce<int,collective_add>(&x);
+  ///   }
+  /// @endcode
   template< typename T, T (*ReduceOp)(const T&, const T&) >
   T reduce(T * global_ptr) {
     CompletionEvent ce(cores()-1);
@@ -438,7 +477,8 @@ namespace Grappa {
     return total;
   }
   
-}
+  /// @}
+} // namespace Grappa
 
 #endif // COLLECTIVE_HPP
 

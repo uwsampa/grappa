@@ -41,6 +41,9 @@ inline void array_dir_scan(const fs::path& p, int64_t * start, int64_t * end) {
 #define for_buffered(i, n, start, end, nbuf) \
   for (size_t i=start, n=nbuf; i<end && (n = MIN(nbuf, end-i)); i+=nbuf)
 
+/// @addtogroup Utility
+/// @{
+
 /// Grappa file descriptor.
 /// 
 /// @param fname       Path/name of either a single file or a directory of files
@@ -207,6 +210,7 @@ struct read_array_args {
   }
 };
 
+namespace impl {
 template < typename T >
 void _read_array_file(GrappaFile& f, GlobalAddress<T> array, size_t nelem) {
   double t = Grappa_walltime();
@@ -289,17 +293,19 @@ void _read_array_dir(GrappaFile& f, GlobalAddress<T> array, size_t nelem) {
   VLOG(1) << "read_array_time: " << t;
   VLOG(1) << "read_rate_mbps: " << ((double)nelem * sizeof(T) / (1L<<20)) / t;
 }
+} // namespace impl
 
 /// Read a file or directory of files into a global array.
 template < typename T >
 void Grappa_read_array(GrappaFile& f, GlobalAddress<T> array, size_t nelem) {
   if (f.isDirectory) {
-    _read_array_dir(f, array, nelem);
+    impl::_read_array_dir(f, array, nelem);
   } else {
-    _read_array_file(f, array, nelem);
+    impl::_read_array_file(f, array, nelem);
   }
 }
 
+namespace impl {
 /// Assuming HDFS, so write array to different files in a directory because otherwise we can't write in parallel
 template < typename T >
 void _save_array_dir(const char * dirname, GlobalAddress<T> array, size_t nelems) {
@@ -360,13 +366,15 @@ void _save_array_file(const char * fname, GlobalAddress<T> array, size_t nelems)
   LOG(INFO) << "save_array_time: " << t;
   LOG(INFO) << "save_rate_mbps: " << ((double)nelems * sizeof(T) / (1L<<20)) / t;
 }
+} // namespace impl
 
 template< typename T >
 void Grappa_save_array(GrappaFile& f, bool asDirectory, GlobalAddress<T> array, size_t nelem) {
   if (asDirectory) {
-    _save_array_dir(f.fname, array, nelem);
+    impl::_save_array_dir(f.fname, array, nelem);
   } else {
-    _save_array_file(f.fname, array, nelem);
+    impl::_save_array_file(f.fname, array, nelem);
   }
 }
 
+/// @}
