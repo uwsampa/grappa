@@ -4,6 +4,9 @@
 #include "Communicator.hpp"
 
 namespace Grappa {
+  /// @addtogroup Synchronization
+  /// @{
+  
   extern ConditionVariable barrier_cv;
   
   /// Mostly equivalent to Grappa_barrier_suspending but uses ConditionVariable.
@@ -13,6 +16,7 @@ namespace Grappa {
     wait(&barrier_cv);
   }
   
+namespace impl {
   /// Called by polling thread (Grappa.cpp::poller). On barrier completion, calls `broadcast` on all cores' `barrier_cv`s.
   inline void barrier_poll() {
     // skip if no one is waiting on the barrier
@@ -23,4 +27,7 @@ namespace Grappa {
       }
     }
   }
+}
+  
+  /// @}
 }
