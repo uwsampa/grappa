@@ -121,6 +121,7 @@ Some suggestions for places to find examples of how to use these features:
 * `system/Cache_tests.cpp`
 * `applications/sort/grappa/main.cpp` (`forall_local` in particular)
 * `applications/suite/grappa/{centrality.cpp,main.cpp}`
+* `applications/pagerank/pagerank.cpp
 * `system/Gups_tests.cpp`
 
 # Debugging
