@@ -8,6 +8,8 @@
 #include <glog/logging.h>
 
 namespace Grappa {
+/// @addtogroup Communication
+/// @{
 
 template<typename T> class PoolMessage;
 template<typename T> class PoolPayloadMessage;
@@ -59,34 +61,35 @@ public:
   /// Templated message creating functions, all taken straight from Message.hpp
   ///
   
+  /// Send message, allocating from the pool. @see Grappa::message
   template<typename T>
   inline PoolMessage<T>* message(Core dest, T t) {
     void* p = this->allocate(sizeof(PoolMessage<T>));
     return new (p) PoolMessage<T>(shared_pool, dest, t);
   }
   
-  /// Message with payload
+  /// Message with payload. @see Grappa::message
   template< typename T >
   inline PoolPayloadMessage<T>* message(Core dest, T t, void * payload, size_t payload_size) {
     void* p = this->allocate(sizeof(PoolPayloadMessage<T>));
     return new (p) PoolPayloadMessage<T>(shared_pool, dest, t, payload, payload_size);
   }
   
-  /// Message with contents stored outside object
+  /// Message with contents stored outside object. @see Grappa::message
   template< typename T >
   inline PoolExternalMessage<T>* message(Core dest, T * t) {
     void* p = this->allocate(sizeof(PoolExternalMessage<T>));
     return new (p) PoolExternalMessage<T>(shared_pool, dest, t);
   }
   
-  /// Message with contents stored outside object as well as payload
+  /// Message with contents stored outside object as well as payload. @see Grappa::message
   template< typename T >
   inline PoolExternalPayloadMessage<T>* message(Core dest, T * t, void * payload, size_t payload_size) {
     void* p = this->allocate(sizeof(PoolExternalPayloadMessage<T>));
     return new (p) PoolExternalPayloadMessage<T>(shared_pool, dest, t, payload, payload_size);
   }
   
-  /// Same as message, but immediately enqueued to be sent.
+  /// Same as message, but immediately enqueued to be sent. @see Grappa::send_message
   template< typename T >
   inline PoolMessage<T> * send_message(Core dest, T t) {
     auto* m = this->message(dest, t);
@@ -94,7 +97,7 @@ public:
     return m;
   }
   
-  /// Message with payload, immediately enqueued to be sent.
+  /// Message with payload, immediately enqueued to be sent. @see Grappa::send_message
   template< typename T >
   inline PoolPayloadMessage<T> * send_message(Core dest, T t, void * payload, size_t payload_size) {
     auto* m = this->message(dest, t, payload, payload_size);
@@ -102,7 +105,7 @@ public:
     return m;
   }
   
-  /// Message with contents stored outside object, immediately enqueued to be sent.
+  /// Message with contents stored outside object, immediately enqueued to be sent. @see Grappa::send_message
   template< typename T >
   inline PoolExternalMessage<T> * send_message(Core dest, T * t) {
     auto* m = this->message(dest, t);
@@ -110,7 +113,7 @@ public:
     return m;
   }
   
-  /// Message with contents stored outside object as well as payload, immediately enqueued to be sent.
+  /// Message with contents stored outside object as well as payload, immediately enqueued to be sent. @see Grappa::send_message
   template< typename T >
   inline PoolExternalPayloadMessage<T> * send_message(Core dest, T * t, void * payload, size_t payload_size) {
     auto* m = this->message(dest, t, payload, payload_size);
@@ -256,5 +259,5 @@ inline PoolExternalPayloadMessage<T> * send_heap_message(Core dest, T * t, void 
   return shared_pool->send_message(dest, t, payload, payload_size);
 }
 
-
+/// @}
 } // namespace Grappa

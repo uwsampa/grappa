@@ -64,7 +64,7 @@ BOOST_AUTO_TEST_CASE( test1 ) {
     BOOST_CHECK_EQUAL( &bar, barp.pointer() );
     BOOST_CHECK_EQUAL( 8, sizeof( barp ) );
     
-    GlobalAddress< int > gp2 = localToGlobal( &foo );
+    GlobalAddress< int > gp2 = make_global( &foo );
     BOOST_CHECK_EQUAL( gp2.pointer(), &foo );
     
 

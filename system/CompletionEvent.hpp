@@ -9,6 +9,8 @@
 #include "Delegate.hpp"
 
 namespace Grappa {
+  /// @addtogroup Synchronization
+  /// @{
 
   /// Synchronization primitive useful for waking a worker after a number of other things complete.
   /// All waiting tasks will be woken as soon as the count goes to 0.
@@ -81,6 +83,9 @@ namespace Grappa {
     }
   }
   
+  /// Spawn Grappa::privateTask and implicitly synchronize with the given CompletionEvent 
+  /// (or GlobalCompletionEvent, though if using GlobalCompletionEvent, it may be better 
+  /// to use the verison that takes the GCE pointer as a template parameter only).
   template<typename CompletionType, typename TF>
   void privateTask(CompletionType * ce, TF tf) {
     static_assert(std::is_base_of<CompletionEvent,CompletionType>::value,
@@ -92,6 +97,6 @@ namespace Grappa {
     });
   }
   
-  
+  /// @}
   
 } // namespace Grappa
