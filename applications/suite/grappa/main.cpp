@@ -36,7 +36,8 @@ static graphint kcent;
 static bool do_components = false,
             do_pathiso = false,
             do_triangles = false,
-            do_centrality = false;
+            do_centrality = false,
+            do_multi_centrality = false;
 
 double A, B, C, D;
 int SCALE;
@@ -61,7 +62,7 @@ static void read_array(GlobalAddress<T> base_addr, size_t nelem, FILE* fin, T * 
   bool should_free = false;
   if (buf == NULL) {
     bufsize = MAX_ACQUIRE_SIZE / sizeof(T);
-    buf = new T[bufsize];
+    buf = locale_alloc<T>(bufsize);
     should_free = true;
   }
   for (size_t i=0; i<nelem; i+=bufsize) {
@@ -71,7 +72,8 @@ static void read_array(GlobalAddress<T> base_addr, size_t nelem, FILE* fin, T * 
     size_t nread = fread(buf, sizeof(T), n, fin);
     CHECK(nread == n) << nread << " : " << n;
   }
-  if (should_free) delete[] buf;
+  // if (should_free) delete[] buf;
+  if (should_free) locale_free(buf);
 }
 
 GlobalCompletionEvent ckpt_gce;
@@ -121,8 +123,8 @@ static void read_endVertex(GlobalAddress<int64_t> endVertex, int64_t nadj, Grapp
 
 bool checkpoint_in(graphedges * ge, graph * g) {
   int64_t buf[NBUF_STACK];
-  int64_t * rbuf = (int64_t*)malloc(2*(NBUF+1)*sizeof(int64_t));
-  int64_t * wbuf = (int64_t*)malloc(NBUF*sizeof(int64_t));
+  auto rbuf = locale_alloc<int64_t>(2*(NBUF+1));
+  auto wbuf = locale_alloc<int64_t>(NBUF);
   VLOG(1) << "wbuf = " << wbuf << ", wbuf[0] = " << wbuf[0];
 
   fprintf(stderr, "starting to read ckpt...\n");
@@ -178,23 +180,24 @@ bool checkpoint_in(graphedges * ge, graph * g) {
   int64_t deg = 0;
   for (int64_t i=0; i<nv; i+=NBUF) {
     int64_t n = MIN(nv-i, NBUF);
-    Incoherent<int64_t>::RO cxoff(xoff+2*i, 2*n, rbuf);
+    Incoherent<range_t>::RO cxoff(xoffr+i, n, reinterpret_cast<range_t*>(rbuf));
     Incoherent<int64_t>::WO cstarts(g->edgeStart+i, n, wbuf);
     for (int64_t j=0; j<n; j++) {
       cstarts[j] = deg;
-      int64_t d = cxoff[2*j+1]-cxoff[2*j];
+      int64_t d = cxoff[j].end-cxoff[j].start;
       //if (i+j == target ) printf("deg[%ld] = %ld\n", i+j, d);
       deg += d;
     }
   }
   delegate::write(g->edgeStart+nv, deg);
   tt = timer() - tt; VLOG(1) << "edgeStart time: " << tt;
-  //printf("edgeStart: [ ");
-  //for (int64_t i=0; i<(1<<10); i++) {
-  //for (int64_t i=-10; i<10; i++) {
-    //printf((i==0)?"(%ld) " : "%ld ", read(g->edgeStart+(target+i)));
-  //}
-  //printf("]\n");
+  // printf("edgeStart: [ ");
+  // for (int64_t i=0; i<(1<<10); i++) {
+  // for (int64_t i=-10; i<10; i++) {
+  //   printf((i==0)?"(%ld) " : "%ld ", delegate::read(g->edgeStart+(target+i)));
+  // }
+  // printf("]\n");
+  DVLOG(2) << util::array_str("edgeStart", g->edgeStart, nv+1);
 
   // xadj/endVertex
   // eat first 2 because we actually stored 'xadjstore' which has an extra 2 elements
@@ -247,6 +250,8 @@ bool checkpoint_in(graphedges * ge, graph * g) {
   //tt = timer() - tt; VLOG(1) << "intWeight time: " << tt;
 
   fprintf(stderr, "checkpoint_read_time: %g\n", timer()-t);
+  locale_free(rbuf);
+  locale_free(wbuf);
   return true;
 }
 
@@ -267,7 +272,7 @@ static void user_main(void* ignore) {
   graph _dirg;
   graph _g;
   
-  printf("[[ Graph Application Suite ]]\n"); fflush(stdout);	
+  printf("[[ Graph Application Suite ]]\n"); fflush(stdout);  
   
   graphedges* ge = &_ge;
   graph* dirg = &_dirg;
@@ -288,21 +293,21 @@ static void user_main(void* ignore) {
     
     t = timer() - t;
     printf("edge_generation_time: %g\n", t);
-    //	if (graphfile) print_edgelist_dot(ge, graphfile);
+    //  if (graphfile) print_edgelist_dot(ge, graphfile);
     
     //###############################################
     // Kernel: Compute Graph
     
     /* From the input edges, construct the graph 'G'.  */
     printf("Kernel - Compute Graph beginning execution...\n"); fflush(stdout);
-    //	MTA("mta trace \"begin computeGraph\"")
+    //  MTA("mta trace \"begin computeGraph\"")
     
     t = timer();
     
     // directed graph
     computeGraph(ge, dirg);
     
-    //	free_edgelist(&ge);
+    //  free_edgelist(&ge);
     
     // undirected graph
     makeUndirected(dirg, g);
@@ -330,7 +335,7 @@ static void user_main(void* ignore) {
   // Kernel: Path Isomorphism
   if (do_pathiso) {
     // assign random colors to vertices in the range: [0,10)
-    //	MTA("mta trace \"begin markColors\"")
+    //  MTA("mta trace \"begin markColors\"")
     markColors(dirg, 0, 10);
     
     // path to find (sequence of specifically colored vertices)
@@ -375,25 +380,30 @@ static void user_main(void* ignore) {
     
     double avgbc;
     int64_t total_nedge;
-    t = centrality(g, bc, kcent, &avgbc, &total_nedge);
     
-    double ref_bc = -1;
-    switch (SCALE) {
-      case 10: ref_bc = 11.736328; break;
-      case 16: ref_bc = 10.87493896; break;
-      case 20: ref_bc = 10.52443173; break;
-      case 23: 
-        switch (kcent) {
-          case 4: ref_bc = 4.894700766; break;
-        } break;
-    }
-    if (ref_bc != -1) {
-      if ( fabs(avgbc - ref_bc) > 0.000001 ) {
-        fprintf(stderr, "error: check failed: avgbc = %10.8g, ref = %10.8g\n", avgbc, ref_bc);
-      }
+    if (do_multi_centrality) {
+      t = centrality_multi(g, bc, kcent, &avgbc, &total_nedge);      
     } else {
-      printf("warning: no reference available\n");
+      t = centrality(g, bc, kcent, &avgbc, &total_nedge);
     }
+    
+    // double ref_bc = -1;
+    // switch (SCALE) {
+    //   case 10: ref_bc = 11.736328; break;
+    //   case 16: ref_bc = 10.87493896; break;
+    //   case 20: ref_bc = 10.52443173; break;
+    //   case 23: 
+    //     switch (kcent) {
+    //       case 4: ref_bc = 4.894700766; break;
+    //     } break;
+    // }
+    // if (ref_bc != -1) {
+    //   if ( fabs(avgbc - ref_bc) > 0.000001 ) {
+    //     fprintf(stderr, "error: check failed: avgbc = %10.8g, ref = %10.8g\n", avgbc, ref_bc);
+    //   }
+    // } else {
+      printf("warning: no reference available\n");
+    // }
 
     fprintf(stderr, "avg_centrality: %10.8g\n", avgbc);
     fprintf(stderr, "centrality_time: %g\n", t); fflush(stdout);
@@ -449,6 +459,7 @@ static void printHelp(const char * exe) {
 }
 
 static void parseOptions(int argc, char ** argv) {
+  
   struct option long_opts[] = {
     {"help", no_argument, 0, 'h'},
     {"scale", required_argument, 0, 's'},
@@ -458,7 +469,7 @@ static void parseOptions(int argc, char ** argv) {
     {"components", no_argument, (int*)&do_components, true},
     {"pathiso", no_argument, (int*)&do_pathiso, true},
     {"triangles", no_argument, (int*)&do_triangles, true},
-    {"centrality", no_argument, (int*)&do_centrality, true}
+    {"centrality", optional_argument, 0, 'l'}
   };
   
   SCALE = 8; //default value
@@ -486,6 +497,12 @@ static void parseOptions(int argc, char ** argv) {
         break;
       case 'p':
         checkpointing = true;
+        break;
+      case 'l':
+        do_centrality = true;
+        if (optarg != NULL) {
+          if (strcmp(optarg, "multi") == 0) do_multi_centrality = true;
+        }
         break;
     }
   }

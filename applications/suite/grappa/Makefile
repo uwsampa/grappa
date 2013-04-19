@@ -24,7 +24,7 @@ LDFLAGS = -g
 GENERATOR_SOURCES = graph_generator.o make_graph.o splittable_mrg.o utils.o
 GEN = ../generator
 
-SOURCES = main.o centrality.o computeGraph.o connectedComponents.o genScalData.o graphManip.o pathIsomorphism.o timer.o triangles.o ../compat/mersenne.o
+SOURCES = main.o centrality.o computeGraph.o connectedComponents.o genScalData.o graphManip.o pathIsomorphism.o timer.o triangles.o ../compat/mersenne.o centrality_multi.o
 HEADERS = defs.hpp
 
 include $(GRAPPA_HOME)/system/Makefile
