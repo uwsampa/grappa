@@ -8,6 +8,9 @@
 #include "SimpleStatistic.hpp"
 #include "SummarizingStatistic.hpp"
 
+/// @addtogroup Utility
+/// @{
+
 namespace Grappa {
   
   using StatisticList = std::vector<impl::StatisticBase*>;
@@ -58,3 +61,5 @@ inline std::ostream& operator<<(std::ostream& o, const Grappa::impl::StatisticBa
 /// Declare a stat (defined in a separate .cpp file) so it can be used
 #define GRAPPA_DECLARE_STAT(type, name) \
   extern Grappa::type name;
+
+/// @}

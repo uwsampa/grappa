@@ -12,7 +12,9 @@
 #include "ParallelLoop.hpp"
 
 namespace Grappa {
-
+/// @addtogroup Containers
+/// @{
+  
 /// Initialize an array of elements of generic type with a given value.
 /// 
 /// This version sends a large number of active messages, the same way as the Incoherent
@@ -111,7 +113,7 @@ void prefix_sum(GlobalAddress<T> array, size_t nelem) {
 }
 
 namespace util {
-
+  /// String representation of a local array, matches form of Grappa::array_str that takes a global array.
   template<typename T>
   inline std::string array_str(const char * name, T * base, size_t nelem, int width = 10) {
     std::stringstream ss; ss << "\n" << name << ": [";
@@ -123,6 +125,16 @@ namespace util {
     return ss.str();
   }
   
+  /// String representation of a global array.
+  /// @example
+  /// @code
+  ///   GlobalAddress<int> xs;
+  ///   DVLOG(2) << array_str("x", xs, 4);
+  /// // (if DEBUG=1 and --v=2)
+  /// //> x: [
+  /// //>  7 4 2 3
+  /// //> ]
+  /// @endcode
   template<typename T>
   inline std::string array_str(const char * name, GlobalAddress<T> base, size_t nelem, int width = 10) {
     std::stringstream ss; ss << "\n" << name << ": [";
@@ -136,20 +148,22 @@ namespace util {
   
 }
 
+/// @}
 } // namespace Grappa
 
-/// Legacy: @see { Grappa::memset() }
+/// @b Legacy: @see { Grappa::memset() }
 template< typename T , typename S >
 void Grappa_memset(GlobalAddress<T> request_address, S value, size_t count) {
   Grappa::memset(request_address, value, count);
 }
 
-/// Legacy: @see { Grappa::memset() }
+/// @b Legacy: @see { Grappa::memset() }
 template< typename T, typename S >
 void Grappa_memset_local(GlobalAddress<T> base, S value, size_t count) {
   Grappa::memset(base, value, count);
 }
 
+/// @b Legacy: @see { Grappa::memcpy() }
 template< typename T >
 void Grappa_memcpy(GlobalAddress<T> dst, GlobalAddress<T> src, size_t nelem) {
   Grappa::memcpy(dst,src,nelem);
