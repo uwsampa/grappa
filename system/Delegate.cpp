@@ -16,6 +16,13 @@
 #include <gflags/gflags.h>
 #include <glog/logging.h>
 
+GRAPPA_DEFINE_STAT(SummarizingStatistic<uint64_t>, flat_combiner_fetch_and_add_amount, 0);
+GRAPPA_DEFINE_STAT(SimpleStatistic<uint64_t>, delegate_ops_short_circuited, 0);
+
+GRAPPA_DEFINE_STAT(SummarizingStatistic<double>, delegate_op_roundtrip_latency, 0.0);
+
+GRAPPA_DEFINE_STAT(HistogramStatistic, delegate_op_latency_histogram, 0);
+
 /// Descriptor for delegate operation.
 /// Used to hold state while waiting for reply.
 struct memory_descriptor {
@@ -481,7 +488,7 @@ void DelegateStatistics::profiling_sample() {
 #endif
 }
 
-void DelegateStatistics::merge(DelegateStatistics * other) {
+void DelegateStatistics::merge(const DelegateStatistics * other) {
   ops += other->ops;
   word_writes += other->word_writes;
   word_reads += other->word_reads;
@@ -512,10 +519,4 @@ void DelegateStatistics::merge(DelegateStatistics * other) {
     ops_wakeup_ticks_max = other->ops_wakeup_ticks_max;
   if( other->ops_wakeup_ticks_min < ops_wakeup_ticks_min )
     ops_wakeup_ticks_min = other->ops_wakeup_ticks_min;
-}
-
-extern uint64_t merge_reply_count;
-void DelegateStatistics::merge_am(DelegateStatistics * other, size_t sz, void* payload, size_t psz) {
-  delegate_stats.merge( other );
-  merge_reply_count++;
 }

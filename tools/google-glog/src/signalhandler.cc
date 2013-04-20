@@ -235,12 +235,20 @@ void DumpStackFrameInfo(const char* prefix, void* pc) {
   g_failure_writer(buf, formatter.num_bytes_written());
 }
 
+// signal to use to override default signal handler
+typedef void (*override_handler_t)(int);
+override_handler_t signal_handler_override = NULL;
+
 // Invoke the default signal handler.
 void InvokeDefaultSignalHandler(int signal_number) {
   struct sigaction sig_action;
   memset(&sig_action, 0, sizeof(sig_action));
   sigemptyset(&sig_action.sa_mask);
-  sig_action.sa_handler = SIG_DFL;
+  if( signal_handler_override ) {
+    sig_action.sa_handler = signal_handler_override;
+  } else {
+    sig_action.sa_handler = SIG_DFL;
+  }
   sigaction(signal_number, &sig_action, NULL);
   kill(getpid(), signal_number);
 }
@@ -329,6 +337,42 @@ void FailureSignalHandler(int signal_number,
 }
 
 }  // namespace
+
+//
+// stuff added for grappa
+//
+
+// replace default signal handler with raising another signal
+void OverrideDefaultSignalHandler( override_handler_t handler ) {
+  signal_handler_override = handler;
+}
+
+// dump the stack trace
+void DumpStackTrace() {
+  // First dump time info.
+  DumpTimeInfo();
+
+  // Get the program counter from ucontext.
+#if (defined(HAVE_UCONTEXT_H) || defined(HAVE_SYS_UCONTEXT_H)) && defined(PC_FROM_UCONTEXT)
+  ucontext_t ucontext;
+  getcontext( &ucontext );
+  void *pc = GetPC( &ucontext );
+  DumpStackFrameInfo("PC: ", pc);
+#endif
+
+#ifdef HAVE_STACKTRACE
+  // Get the stack traces.
+  void *stack[32];
+  // +1 to exclude this function.
+  const int depth = GetStackTrace(stack, ARRAYSIZE(stack), 1);
+  //DumpSignalInfo(signal_number, signal_info);
+  // Dump the stack traces.
+  for (int i = 0; i < depth; ++i) {
+    DumpStackFrameInfo("    ", stack[i]);
+  }
+#endif
+}
+
 
 void InstallFailureSignalHandler() {
   // Build the sigaction struct.

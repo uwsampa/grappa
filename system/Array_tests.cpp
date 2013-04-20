@@ -10,59 +10,132 @@ using std::complex;
 
 #include <boost/test/unit_test.hpp>
 #include "Grappa.hpp"
-#include "Tasking.hpp"
-#include "FileIO.hpp"
 #include "Array.hpp"
+#include "ParallelLoop.hpp"
+#include "GlobalAllocator.hpp"
+#include "Delegate.hpp"
+#include "PushBuffer.hpp"
+
+using namespace Grappa;
 
 BOOST_AUTO_TEST_SUITE( Array_tests );
 
 static const size_t N = (1L<<10);
-static const size_t NN = (1L<<10);
+static size_t NN = (1L<<20) - 21;
+
+DEFINE_int64(nelems, NN, "number of elements in (large) test arrays");
+
+GlobalCompletionEvent gce;
 
 template<typename T, T Val>
-void check_value(T * v) {
-  BOOST_CHECK_EQUAL(*v, Val);
-}
-
-template<typename T, T Val>
-void test_memset_memcpy() {
+void test_memset_memcpy(bool test_async = false) {
   GlobalAddress<T> xs = Grappa_typed_malloc<T>(NN);
   GlobalAddress<T> ys = Grappa_typed_malloc<T>(NN);
 
-  Grappa_memset_local(xs, Val, NN);
-  forall_local< T, check_value<T,Val> >(xs, NN);
+  Grappa::memset(xs, Val, NN);
+  Grappa::forall_localized(xs, NN, [](int64_t i, T& v) {
+    BOOST_CHECK_EQUAL(v, Val);
+  });
 
-  Grappa_memcpy(ys, xs, NN);
+  if (test_async) {
+    Grappa::memcpy_async<&gce>(ys, xs, NN);
+    gce.wait();
+  } else {
+    Grappa::memcpy(ys, xs, NN);
+  }
 
-  forall_local< T, check_value<T,Val> >(ys, NN);
+  Grappa::forall_localized(ys, NN, [](int64_t i, T& v) {
+    BOOST_CHECK_EQUAL(v, Val);
+  });
+
+  // try the other way (ys -> xs)
+  Grappa::memset(xs, 0, NN);
+  if (test_async) {
+    Grappa::memcpy_async<&gce>(xs, ys, NN);
+    gce.wait();
+  } else {
+    Grappa::memcpy(xs, ys, NN);
+  }
+  Grappa::forall_localized(xs, NN, [](int64_t i, T& v) {
+    BOOST_CHECK_EQUAL(v, Val);
+  });
 
   Grappa_free(xs);
   Grappa_free(ys);
-}
-
-void check_complex(complex<double> * v) {
-  BOOST_CHECK_EQUAL(*v, complex<double>(7.0,1.0));
 }
 
 void test_complex() {
   GlobalAddress< complex<double> > xs = Grappa_typed_malloc< complex<double> >(NN);
   GlobalAddress< complex<double> > ys = Grappa_typed_malloc< complex<double> >(NN);
 
-  Grappa_memset_local(xs, complex<double>(7.0,1.0), NN);
-  forall_local<complex<double>,check_complex>(xs, NN);
+  Grappa::memset(xs, complex<double>(7.0,1.0), NN);
+  Grappa::forall_localized(xs, NN, [](int64_t i, complex<double>& v) {
+    BOOST_CHECK_EQUAL(v, complex<double>(7.0,1.0));
+  });
 
-  Grappa_memcpy(ys, xs, NN);
+  Grappa::memcpy(ys, xs, NN);
 
-  forall_local< complex<double>, check_complex >(ys, NN);
+  Grappa::forall_localized(ys, NN, [](int64_t i, complex<double>& v) {
+    BOOST_CHECK_EQUAL(v, complex<double>(7.0,1.0));
+  });
 
   Grappa_free(xs);
   Grappa_free(ys);
 }
 
+void test_prefix_sum() {
+  BOOST_MESSAGE("prefix_sum");
+  auto xs = Grappa_typed_malloc<int64_t>(N);
+  Grappa::memset(xs, 1, N);
+  
+  // prefix-sum
+//  for (int64_t i=0; i<N; i++) {
+//    Grappa::delegate::write(xs+i, i);
+//  }
+  Grappa::prefix_sum(xs, N);
+  
+  Grappa::forall_localized(xs, N, [](int64_t i, int64_t& v){
+    BOOST_CHECK_EQUAL(v, i);
+  });
+  Grappa_free(xs);
+}
+
+PushBuffer<int64_t> pusher;
+
+void test_push_buffer() {
+  BOOST_MESSAGE("Testing PushBuffer");
+  // (not really in Array, but could be...)
+  auto xs = Grappa_typed_malloc<int64_t>(N*Grappa::cores());
+  Grappa::memset(xs, 0, N*Grappa::cores());
+  
+  int64_t index = 0;
+  auto ia = make_global(&index);
+  
+  Grappa::on_all_cores([xs,ia]{
+    pusher.setup(xs, ia);
+    
+    for (int i=0; i<N; i++) {
+      pusher.push(1);
+    }
+    
+    pusher.flush();
+  });
+  Grappa::forall_localized(xs, N*Grappa::cores(), [](int64_t i, int64_t& v) {
+    BOOST_CHECK_EQUAL(v, 1);
+  });
+  
+  Grappa_free(xs);
+}
+
 void user_main( void * ignore ) {
+  NN = FLAGS_nelems;
+  
   test_memset_memcpy<int64_t,7>();
-  //test_memset_memcpy<double,7.0>();
+  test_memset_memcpy<int64_t,7>(true); // test async
+  // test_memset_memcpy<double,7.0>();
   test_complex();
+  // test_prefix_sum(); // (not implemented yet)
+  test_push_buffer();
 }
 
 BOOST_AUTO_TEST_CASE( test1 ) {

@@ -102,6 +102,7 @@ class DictOut {
                 outputs.pop();
                 ss << entryString( e );
                 if( i != size-1 ) ss << ", ";
+                delete e;
             }
             
             ss << "}";

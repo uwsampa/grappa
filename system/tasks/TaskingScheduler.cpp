@@ -13,32 +13,41 @@
 GRAPPA_DEFINE_EVENT_GROUP(scheduler);
 
 /// TODO: this should be based on some actual time-related metric so behavior is predictable across machines
-DEFINE_int64( periodic_poll_ticks, 500, "number of ticks to wait before polling periodic queue");
+DEFINE_int64( periodic_poll_ticks, 20000, "number of ticks to wait before polling periodic queue");
 
 DEFINE_bool(poll_on_idle, true, "have tasking layer poll aggregator if it has nothing better to do");
 
-DEFINE_int64( stats_blob_ticks, 3000000000L, "number of ticks to wait before dumping stats blob");
+DEFINE_int64( stats_blob_ticks, 300000000000L, "number of ticks to wait before dumping stats blob");
+
+DEFINE_uint64( readyq_prefetch_distance, 4, "How far ahead in the ready queue to prefetch contexts" );
+
+GRAPPA_DEFINE_STAT( SimpleStatistic<int64_t>, scheduler_context_switches, 0 );
+
+namespace Grappa {
+
+  namespace impl {
 
 /// global TaskingScheduler for this Node
 TaskingScheduler global_scheduler;
 
 /// Create uninitialized TaskingScheduler.
 /// init() must subsequently be called before fully initialized.
-TaskingScheduler::TaskingScheduler ( )
-    : readyQ ( )
-    , periodicQ ( )
-    , unassignedQ ( )
-    , master ( NULL )
-    , current_thread ( NULL )
-    , nextId ( 1 )
-    , num_idle ( 0 )
-    , num_active_tasks( 0 )
-    , task_manager ( NULL )
-    , num_workers ( 0 )
-    , work_args( NULL )
-    , previous_periodic_ts( 0 ) 
-    , prev_ts( 0 )
-    , prev_stats_blob_ts( 0 )
+  TaskingScheduler::TaskingScheduler ( )
+  : readyQ ( )
+  , periodicQ ( )
+  , unassignedQ ( )
+  , master ( NULL )
+  , current_thread ( NULL )
+  , nextId ( 1 )
+  , num_idle ( 0 )
+  , num_active_tasks( 0 )
+  , task_manager ( NULL )
+  , num_workers ( 0 )
+  , work_args( NULL )
+  , previous_periodic_ts( 0 ) 
+  , in_no_switch_region_( false )
+  , prev_ts( 0 )
+  , prev_stats_blob_ts( 0 )
     , stats( this )
 { 
   Grappa_tick();
@@ -48,6 +57,7 @@ TaskingScheduler::TaskingScheduler ( )
 /// Initialize with references to master Thread and a TaskManager.
 void TaskingScheduler::init ( Thread * master_arg, TaskManager * taskman ) {
   master = master_arg;
+  readyQ.init( FLAGS_readyq_prefetch_distance );
   current_thread = master;
   task_manager = taskman;
   work_args = new task_worker_args( taskman, this );
@@ -61,19 +71,10 @@ void TaskingScheduler::run ( ) {
   while (thread_wait( NULL ) != NULL) { } // nothing
 }
 
-/// Join on a Thread. 
-/// This is a low level synchronization mechanism specifically for Threads
-void TaskingScheduler::thread_join( Thread * wait_on ) {
-  while ( !wait_on->done ) {
-    wait_on->joinqueue.enqueue( current_thread );
-    thread_suspend( );
-  }
-}
-
 /// Schedule Threads from the scheduler until one e
 /// If <result> non-NULL, store the Thread's exit value there.
 /// This routine is only to be called if the current Thread
-/// is the master Thread (the one returned by thread_init()).
+/// is the master Thread (the one returned by convert_to_master()).
 /// @return the exited Thread, or NULL if scheduler is done
 Thread * TaskingScheduler::thread_wait( void **result ) {
   CHECK( current_thread == master ) << "only meant to be called by system Thread";
@@ -160,9 +161,9 @@ void TaskingScheduler::createWorkers( uint64_t num ) {
   VLOG(5) << "spawning " << num << " workers; now there are " << num_workers;
   for (uint64_t i=0; i<num; i++) {
     // spawn a new worker Thread
-    Thread * t = thread_spawn( current_thread, this, workerLoop, work_args);
+    Thread * t = worker_spawn( current_thread, this, workerLoop, work_args);
 
-    // place the Thread in the pool of idle workers
+    // place the Worker in the pool of idle workers
     unassigned( t );
   }
   num_idle += num;
@@ -176,7 +177,7 @@ Thread * TaskingScheduler::maybeSpawnCoroutines( ) {
   if ( num_workers < BASIC_MAX_WORKERS ) {
     num_workers += 1;
     VLOG(5) << "spawning another worker; now there are " << num_workers;
-    return thread_spawn( current_thread, this, workerLoop, work_args ); // current Thread will be coro parent; is this okay?
+    return worker_spawn( current_thread, this, workerLoop, work_args ); // current Thread will be coro parent; is this okay?
   } else {
     // might have another way to spawn
     return NULL;
@@ -246,22 +247,26 @@ void TaskingScheduler::TaskingSchedulerStatistics::profiling_sample() {
 }
 
 /// Merge other statistics into this one.
-void TaskingScheduler::TaskingSchedulerStatistics::merge(TaskingSchedulerStatistics * other) {
+void TaskingScheduler::TaskingSchedulerStatistics::merge(const TaskingSchedulerStatistics * other) {
   task_calls += other->task_calls;
-  for (int i=StatePoll; i<StateLast; i++) state_timers[i] += other->state_timers[i];
+  // if *this has not been merged with others, then copy int timers to double timers
+  if (merged==1) {
+    for (int i=StatePoll; i<StateLast; i++) state_timers_d[i] = state_timers[i];
+  }
+  // if *other has not been merged with others, then use its int timers (double are invalid);
+  // otherwise use its double timers (int are unmerged)
+  if ( other->merged == 1 ) {
+    for (int i=StatePoll; i<StateLast; i++) state_timers_d[i] += other->state_timers[i];
+  } else {
+    for (int i=StatePoll; i<StateLast; i++) state_timers_d[i] += other->state_timers_d[i];
+  }
   scheduler_count += other->scheduler_count;
 
-  merged++;
+  merged+=other->merged;
   max_active = (int64_t)inc_avg((double)max_active, merged, (double)other->max_active);
   avg_active = inc_avg(avg_active, merged, other->avg_active);
   avg_ready = inc_avg(avg_ready, merged, other->avg_ready);
 }
 
-extern uint64_t merge_reply_count;
-void TaskingScheduler::TaskingSchedulerStatistics::merge_am(TaskingScheduler::TaskingSchedulerStatistics * other, size_t sz, void* payload, size_t psz) {
-  global_scheduler.stats.merge(other);
-  merge_reply_count++;
-}
-
-
-
+} // impl
+} // Grappa

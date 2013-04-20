@@ -72,11 +72,14 @@ lib: $(LIBRARY)
 #
 Demo.o Demo.exe: $(LIBRARY)
 
-Thread_tests.test: coro.o stack.o tasks/Thread.o tasks/BasicScheduler.o
+#FIXME: UPDATE not to ref coro
+#Thread_tests.test: coro.o stack.o tasks/Thread.o tasks/BasicScheduler.o
 
 Communicator_tests.o Communicator_tests.test: Communicator.o
 
 Aggregator_tests.o Aggregator_tests.test: $(LIBRARY)
+RDMAAggregator_tests.o RDMAAggregator_tests.test: $(LIBRARY) 
+Message_tests.o Message_tests.test: $(LIBRARY) 
 MutableHeap_tests.o MutableHeap_tests.test:  $(LIBRARY)
 
 
@@ -86,15 +89,22 @@ GlobalMemoryChunk_tests.o GlobalMemoryChunk_tests.test: $(LIBRARY)
 GlobalMemory_tests.o GlobalMemory_tests.test: $(LIBRARY)
 GlobalAllocator_tests.o GlobalAllocator_tests.test: $(LIBRARY)
 Allocator_tests.o Allocator_tests.test: Allocator.o
+LocaleSharedMemory_tests.o LocaleSharedMemory_tests.test: $(LIBRARY)
 
 QueueDebug_tests.o QueueDebug_tests.exe: ../tools/stl-debug-allocator/archive/Source/allocator.o
 
 Collective_tests.o Collective_tests.test: $(LIBRARY)
 
+Mutex_tests.o Mutex_tests.test: $(LIBRARY)
+ConditionVariable_tests.o ConditionVariable_tests.test: $(LIBRARY)
+FullEmpty_tests.o FullEmpty_tests.test: $(LIBRARY)
+Semaphore_tests.o Semaphore_tests.test: $(LIBRARY)
+
+
 #thread_tests.test: thread.o stack.o coro.o
 thread2_tests.o thread2_tests.test: $(LIBRARY)
 thread3_tests.o thread3_tests.test: $(LIBRARY)
-tasks/Thread_tests.o tasks/Thread_tests.test: tasks/Thread.o coro.o stack.o tasks/BasicScheduler.o Timestamp.o
+tasks/Thread_tests.o tasks/Thread_tests.test: Worker.o stack.o tasks/BasicScheduler.o Timestamp.o
 
 Scheduler_benchmarking_tests.o Scheduler_benchmarking_tests.test: $(LIBRARY)
 
@@ -118,6 +128,9 @@ AsyncParallelFor_Local_tests.o AsyncParallelFor_Local_tests.test: $(LIBRARY)
 AsyncParallelFor_Global_tests.o AsyncParallelFor_Global_tests.test: $(LIBRARY)
 AsyncParallelFor_Rate.o AsyncParallelFor_Rate.exe: $(LIBRARY)
 
+Uid_tests.o Uid_tests.test: $(LIBRARY)
+Uid_rate_tests.o Uid_rate_tests.test: $(LIBRARY)
+
 LocalIterator_tests.o LocalIterator_tests.test: $(LIBRARY)
 
 Uid_tests.o Uid_tests.test: $(LIBRARY)
@@ -130,6 +143,20 @@ FileIO_tests.o FileIO_tests.test: $(LIBRARY)
 FileIO_tests.test: LIBRARIES+='-lboost_filesystem'
 
 Array_tests.o Array_tests.test: $(LIBRARY)
+
+New_delegate_tests.test: $(LIBRARY)
+PoolAllocator_tests.test: $(LIBRARY)
+Statistics_tests.test: $(LIBRARY)
+New_loop_tests.test: $(LIBRARY)
+Public_tasks_tests.test: $(LIBRARY)
+CompletionEvent_tests.test: $(LIBRARY)
+Reducer_tests.test: $(LIBRARY)
+Scratch_tests.test: $(LIBRARY)
+
+ContextSwitchRate_bench.exe: $(LIBRARY)
+ContextSwitchLatency_tests.test: $(LIBRARY)
+
+ThreadQueue_tests.o ThreadQueue_tests.test: Worker.o stack.o
 
 #
 # environment variables for run
@@ -172,12 +199,28 @@ GASNET_SETTINGS+= GASNET_FREEZE_SIGNAL=SIGUSR1
 GASNET_SETTINGS+= GASNET_FREEZE_ON_ERROR=1
 GASNET_SETTINGS+= GASNET_FREEZE=0
 GASNET_SETTINGS+= GASNET_NETWORKDEPTH_PP=96
-GASNET_SETTINGS+= GASNET_NETWORKDEPTH_TOTAL=1024
+GASNET_SETTINGS+= GASNET_NETWORKDEPTH_TOTAL=2048
 GASNET_SETTINGS+= GASNET_AMCREDITS_PP=48
+#GASNET_SETTINGS+= GASNET_AMRDMA_MAX_PEERS=0
 GASNET_SETTINGS+= GASNET_PHYSMEM_MAX=1024M
+GASNET_SETTINGS+= GASNET_USE_SRQ=2
+#GASNET_SETTINGS+= GASNET_NONBULKPUT_BOUNCE_LIMIT=0
+#GASNET_SETTINGS+= OMPI_MCA_mpi_warn_on_fork=0
 endif
 ENV_VARIABLES+= $(GASNET_SETTINGS)
 
+# enable RDMA Aggregator by default
+ENABLE_RDMA_AGGREGATOR=1
+ifeq ($(ENABLE_RDMA_AGGREGATOR), 1)
+CFLAGS+= -DENABLE_RDMA_AGGREGATOR
+# may want this eventually
+#CFLAGS+= -DOLD_MESSAGES_NEW_AGGREGATOR
+endif
+
+# make it easier to debug by stopping compilation after first error
+ifdef STOP_AFTER_FIRST_ERROR
+CFLAGS+=  -Wfatal-errors
+endif
 
 #
 # Heap Leak Checker
@@ -186,8 +229,18 @@ ENV_VARIABLES+= $(GASNET_SETTINGS)
 ifdef HEAPCHECK
 ENV_VARIABLES+= HEAPCHECK=local
 ENV_VARIABLES+= HEAP_CHECK_DUMP_DIRECTORY=.
-CFLAGS+= -DHEAPCHECK
+ENV_VARIABLES+= PPROF_PATH=../tools/built_deps/bin
+CFLAGS+= -DHEAPCHECK_ENABLE
 LIBRARIES+= -ltcmalloc
+else
+ifdef PAL
+	LIBRARIES+= -ltcmalloc_minimal
+endif
+endif
+
+ifdef VALGRIND
+CFLAGS+= -DENABLE_VALGRIND
+LIBRARIES+= $(VALGRIND_PATH)/lib/valgrind/libmpiwrap-amd64-linux.so
 endif
 
 # activate this to enable profiling
@@ -215,12 +268,15 @@ ENV_VARIABLES+= VT_MAX_FLUSHES=0
 ENV_VARIABLES+= VT_PFORM_GDIR=.
 ENV_VARIABLES+= VT_PFORM_LDIR=/scratch
 VAMPIRTRACE_COMMON_ARGS= -vt:inst manual
-CXX=$(VAMPIRTRACE)/bin/vtcxx -vt:cxx g++ $(VAMPIRTRACE_COMMON_ARGS)
-CC=$(VAMPIRTRACE)/bin/vtcc -vt:cc gcc $(VAMPIRTRACE_COMMON_ARGS)
-LD=$(VAMPIRTRACE)/bin/vtcxx -vt:cxx mpicxx $(VAMPIRTRACE_COMMON_ARGS)
+CXX=$(VAMPIRTRACE)/bin/vtcxx -vt:cxx $(GCC472)/bin/g++ $(VAMPIRTRACE_COMMON_ARGS)
+CC=$(VAMPIRTRACE)/bin/vtcc -vt:cc $(GCC472)/bin/gcc $(VAMPIRTRACE_COMMON_ARGS)
+LD=$(VAMPIRTRACE)/bin/vtcxx -vt:cxx "$(GCC472_LD)" $(VAMPIRTRACE_COMMON_ARGS)
 CFLAGS+= -DVTRACE -DVTRACE_SAMPLED
 endif
 
+ifdef HISTOGRAM_SAMPLED
+CFLAGS+= -DHISTOGRAM_SAMPLED
+endif
 
 ifdef STL_DEBUG_ALLOCATOR
 CFLAGS+= -DSTL_DEBUG_ALLOCATOR
@@ -240,7 +296,50 @@ endif
 #
 # Build Grappa static library
 #
-LIBRARY_CONTENTS+= Grappa.o GlobalAllocator.o GlobalMemory.o GlobalMemoryChunk.o Communicator.o Aggregator.o Timestamp.o Allocator.o Cache.o Delegate.o Collective.o ForkJoin.o tasks/TaskingScheduler.o tasks/Task.o tasks/Thread.o stack.o coro.o StateTimer.o PerformanceTools.o Future.o CurrentThread.o ProfilerGroups.o AsyncParallelFor.o GlobalTaskJoiner.o IncoherentAcquirer.o IncoherentReleaser.o Uid.o
+LIBRARY_CONTENTS+= Grappa.o \
+				   GlobalAllocator.o \
+				   GlobalMemory.o \
+				   GlobalMemoryChunk.o \
+				   Communicator.o \
+				   Aggregator.o \
+				   Timestamp.o \
+				   Allocator.o \
+				   Cache.o \
+				   Delegate.o \
+				   Collective.o \
+				   ForkJoin.o \
+				   tasks/BasicScheduler.o \
+				   tasks/TaskingScheduler.o \
+				   tasks/Task.o \
+				   stack.o \
+				   Worker.o \
+				   ThreadQueue.o \
+				   StateTimer.o \
+				   PerformanceTools.o \
+				   Future.o \
+				   CurrentThread.o \
+				   ProfilerGroups.o \
+				   AsyncParallelFor.o \
+				   GlobalTaskJoiner.o \
+				   IncoherentAcquirer.o \
+				   IncoherentReleaser.o \
+				   Uid.o \
+				   tasks/StealQueue.o \
+				   tasks/GlobalQueue.o \
+				   LegacySignaler.o \
+				   Statistics.o \
+				   SimpleStatistic.o \
+				   SummarizingStatistic.o \
+				   MessageBase.o \
+				   LocaleSharedMemory.o \
+				   RDMAAggregator.o \
+				   ParallelLoop.o \
+				   Barrier.o \
+				   MessagePool.o \
+					 AsyncDelegate.o \
+					 SharedMessagePool.o \
+					 GlobalCompletionEvent.o \
+					 HistogramStatistic.o
 
 libGrappa.a: $(LIBRARY_CONTENTS)
 	$($(MPITYPE)_AR) rv $@ $^
@@ -276,10 +375,18 @@ else
 TEST_LOG_LEVEL=nothing
 TEST_REPORT_LEVEL=no
 endif
+# set to 'n' to allow system errors to not be caught by boost test
+TEST_CATCH_SYSTEM_ERRORS?=y
 
 mpi_test: $(TARGET) $($(MPITYPE)_ENVVAR_TEMP) $($(MPITYPE)_EPILOG_TEMP) $($(MPITYPE)_BATCH_TEMP)
 	$(ENV_VARIABLES) \
-	$($(MPITYPE)_RUN) ./$< $($(MPITYPE)_UDPTASKS) --log_level=$(TEST_LOG_LEVEL) --report_level=$(TEST_REPORT_LEVEL) --run_test=$(TARGET:.test=) $(GARGS)
+	$($(MPITYPE)_RUN) ./$< $($(MPITYPE)_UDPTASKS) --log_level=$(TEST_LOG_LEVEL) --report_level=$(TEST_REPORT_LEVEL) --run_test=$(TARGET:.test=) --catch_system_errors=$(TEST_CATCH_SYSTEM_ERRORS) $(GARGS)
+
+valgrind_mpi_test: $(TARGET) $($(MPITYPE)_ENVVAR_TEMP) $($(MPITYPE)_EPILOG_TEMP) $($(MPITYPE)_BATCH_TEMP)
+	$(ENV_VARIABLES) \
+	MPIWRAP_DEBUG=warn \
+#	$($(MPITYPE)_RUN) $(VALGRIND_PATH)/bin/valgrind --leak-check=yes --suppressions=./grappa-valgrind.supp --dsymutil=yes ./$< $($(MPITYPE)_UDPTASKS) --log_level=$(TEST_LOG_LEVEL) --report_level=$(TEST_REPORT_LEVEL) --run_test=$(TARGET:.test=) $(GARGS)
+	$($(MPITYPE)_RUN) $(VALGRIND_PATH)/bin/valgrind --leak-check=yes --suppressions=./grappa-valgrind.supp --leak-check=full --show-reachable=yes --dsymutil=yes ./$< $($(MPITYPE)_UDPTASKS) --log_level=$(TEST_LOG_LEVEL) --report_level=$(TEST_REPORT_LEVEL) --run_test=$(TARGET:.test=) $(GARGS)
 
 test: $(TARGET)
 	-killall $<
@@ -289,12 +396,18 @@ test: $(TARGET)
 
 # TODO: fixme so I'm not so dumb
 cleanup_shm:
-	echo "State before cleanup:"
+	@echo "State before SYSV cleanup:"
 	for i in `sinfo -h -p grappa -o '%n'`; do ssh $$i bash -c "echo;hostname; ipcs -m; grep Huge /proc/meminfo"; done
-	echo "Cleaning up...."
-	for i in `sinfo -h -p grappa -o '%n'`; do ssh $$i bash -c "ipcs -m | grep $(USER) | cut -d' ' -f1 | xargs -n1 -r ipcrm -M"; done
-	echo "State after cleanup:"
+	@echo "Cleaning up...."
+	for i in `sinfo -h -p grappa -o '%n'`; do ssh $$i bash -c "ipcs -m | grep $(USER) | cut -d' ' -f2 | xargs -n1 -r ipcrm -m"; done
+	@echo "State after cleanup:"
 	for i in `sinfo -h -p grappa -o '%n'`; do ssh $$i bash -c "echo; hostname; ipcs -m; grep Huge /proc/meminfo"; done
+	@echo "SYSV cleanup done. State before /dev/shm cleanup:"
+	for i in `sinfo -h -p grappa -o '%n'`; do ssh $$i bash -c "'ls -l /dev/shm'"; done
+	@echo "Cleaning up...."
+	for i in `sinfo -h -p grappa -o '%n'`; do ssh $$i bash -c "'rm -f /dev/shm/GrappaLocaleSharedMemory'"; done
+	@echo "State after cleanup:"
+	for i in `sinfo -h -p grappa -o '%n'`; do ssh $$i bash -c "'ls -l /dev/shm'"; done
 
 
 # build a specific test
@@ -312,7 +425,7 @@ cleanup_shm:
 #
 # What libraries do we need?
 #
-LIBRARIES+= -lgflags -lglog $(PLATFORM_SPECIFIC_LIBS) $(GASNET_LIBS) -lboost_filesystem
+LIBRARIES+= -lgflags -lglog $(PLATFORM_SPECIFIC_LIBS) $(GASNET_LIBS) -lboost_system -lboost_filesystem
 
 #
 # set compiler flags
@@ -324,13 +437,17 @@ CFLAGS+= -D_GNU_SOURCE
 # not sure if this is a good idea
 CFLAGS+= -Wno-inline
 #CFLAGS+= -Wall -Wextra
-CFLAGS+= -I. -I./tasks
+CFLAGS+= -I$(GRAPPA_HOME)/system -I$(GRAPPA_HOME)/system/tasks
 
 #
 # set debug flags
 #
 ifdef DEBUG
 CFLAGS+= -O1 -g -DDEBUG
+GUARD_PAGES_ON_STACK=1
+ifeq ($(GUARD_PAGES_ON_STACK), 1)
+CFLAGS+= -DGUARD_PAGES_ON_STACK
+endif
 else
 ifdef PROFILE
 CFLAGS+= -O3 -DNDEBUG -g -pg
@@ -338,6 +455,16 @@ else
 CFLAGS+= -O3 -DNDEBUG -g
 endif #PROFILE
 endif #DEBUG
+
+
+# 
+# Prefetching
+#
+# on by default
+READYQ_PREFETCH?=1
+ifeq ($(READYQ_PREFETCH), 1)
+CFLAGS+= -DWORKER_PREFETCH -DSTACK_PREFETCH
+endif
 
 
 #
@@ -441,18 +568,6 @@ TESTS:=$(foreach dir,$(DIRECTORIES),$(wildcard $(dir)/*.test))
 	$(ENV_VARIABLES) \
 	$($(MPITYPE)_CXX) -MMD -MF $*.d.tmp -c $(CFLAGS) $(CXXFLAGS) $< -o $*.pch
 	@sed -e 's|.*:|$*.pch:|' < $*.d.tmp > $*.d
-	@sed -e 's/.*://' -e 's/\\$$//' < $*.d.tmp | fmt -1 | \
-	  sed -e 's/^ *//' -e 's/$$/:/' >> $*.d
-	@rm -f $*.d.tmp
-
-#
-# Temporary special handling for thread library
-#
-
-coro.o: coro.c
-	$(ENV_VARIABLES) \
-	$($(MPITYPE)_CXX) -MMD -MF $*.d.tmp -c $(CFLAGS) $< -o $*.o
-	@sed -e 's|.*:|$*.o:|' < $*.d.tmp > $*.d
 	@sed -e 's/.*://' -e 's/\\$$//' < $*.d.tmp | fmt -1 | \
 	  sed -e 's/^ *//' -e 's/$$/:/' >> $*.d
 	@rm -f $*.d.tmp
