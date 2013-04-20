@@ -8,383 +8,288 @@
 #ifndef __DELEGATE_HPP__
 #define __DELEGATE_HPP__
 
+
 #include "Grappa.hpp"
+#include "Message.hpp"
+#include "FullEmpty.hpp"
+#include "Message.hpp"
+#include "ConditionVariable.hpp"
+#include "LegacyDelegate.hpp"
+#include "MessagePool.hpp"
+#include <type_traits>
 
-/// Stats for delegate operations
-class DelegateStatistics {
-private:
-  uint64_t ops;
-  uint64_t word_writes;
-  uint64_t word_reads;
-  uint64_t T_reads;
-  uint64_t word_fetch_adds;
-  uint64_t word_compare_swaps;
-  uint64_t generic_ops;
-  uint64_t op_ams;
-  uint64_t word_write_ams;
-  uint64_t word_read_ams;
-  uint64_t T_read_ams;
-  uint64_t word_fetch_add_ams;
-  uint64_t word_compare_swap_ams;
-  uint64_t generic_op_ams;
-  uint64_t ops_blocked;
-  uint64_t ops_blocked_ticks_total;
-  uint64_t ops_network_ticks_total;
-  uint64_t ops_wakeup_ticks_total;
-  uint64_t ops_blocked_ticks_max;
-  uint64_t ops_blocked_ticks_min;
-  uint64_t ops_network_ticks_max;
-  uint64_t ops_network_ticks_min;
-  uint64_t ops_wakeup_ticks_max;
-  uint64_t ops_wakeup_ticks_min;
-#ifdef VTRACE_SAMPLED
-  unsigned delegate_grp_vt;
-  unsigned ops_ev_vt;
-  unsigned word_writes_ev_vt;
-  unsigned word_reads_ev_vt;
-  unsigned T_reads_ev_vt;
-  unsigned word_fetch_adds_ev_vt;
-  unsigned word_compare_swaps_ev_vt;
-  unsigned generic_ops_ev_vt;
-  unsigned op_ams_ev_vt;
-  unsigned word_write_ams_ev_vt;
-  unsigned word_read_ams_ev_vt;
-  unsigned T_read_ams_ev_vt;
-  unsigned word_fetch_add_ams_ev_vt;
-  unsigned word_compare_swap_ams_ev_vt;
-  unsigned generic_op_ams_ev_vt;
-  unsigned ops_blocked_ev_vt;
-  unsigned ops_blocked_ticks_total_ev_vt;
-  unsigned ops_network_ticks_total_ev_vt;
-  unsigned ops_wakeup_ticks_total_ev_vt;
-  unsigned ops_blocked_ticks_max_ev_vt;
-  unsigned ops_blocked_ticks_min_ev_vt;
-  unsigned ops_wakeup_ticks_max_ev_vt;
-  unsigned ops_wakeup_ticks_min_ev_vt;
-  unsigned ops_network_ticks_max_ev_vt;
-  unsigned ops_network_ticks_min_ev_vt;
-  unsigned average_latency_ev_vt;
-  unsigned average_network_latency_ev_vt;
-  unsigned average_wakeup_latency_ev_vt;
+GRAPPA_DECLARE_STAT(SummarizingStatistic<uint64_t>, flat_combiner_fetch_and_add_amount);
+GRAPPA_DECLARE_STAT(SimpleStatistic<uint64_t>, delegate_ops_short_circuited);
 
-#endif
+GRAPPA_DECLARE_STAT(SummarizingStatistic<double>, delegate_op_roundtrip_latency);
 
-public:
-  DelegateStatistics();
-  void reset();
-
-  inline void count_op() { ops++; }
-  inline void count_word_write() { word_writes++; }
-  inline void count_word_read() { word_reads++; }
-  inline void count_T_read() { T_reads++; }
-  inline void count_word_fetch_add() { word_fetch_adds++; }
-  inline void count_word_compare_swap() { word_compare_swaps++; }
-  inline void count_generic_op() { generic_ops++; }
-
-  inline void count_op_am() { op_ams++; }
-  inline void count_word_write_am() { word_write_ams++; }
-  inline void count_word_read_am() { word_read_ams++; }
-  inline void count_T_read_am() { T_read_ams++; }
-  inline void count_word_fetch_add_am() { word_fetch_add_ams++; }
-  inline void count_word_compare_swap_am() { word_compare_swap_ams++; }
-  inline void count_generic_op_am() { generic_op_ams++; }
-
-  inline void record_wakeup_latency( int64_t start_time, int64_t network_time ) { 
-    ops_blocked++; 
-    int64_t current_time = Grappa_get_timestamp();
-    int64_t blocked_latency = current_time - start_time;
-    int64_t wakeup_latency = current_time - network_time;
-    ops_blocked_ticks_total += blocked_latency;
-    ops_wakeup_ticks_total += wakeup_latency;
-    if( blocked_latency > ops_blocked_ticks_max ) 
-      ops_blocked_ticks_max = blocked_latency;
-    if( blocked_latency < ops_blocked_ticks_min ) 
-      ops_blocked_ticks_min = blocked_latency;
-    if( wakeup_latency > ops_wakeup_ticks_max )
-      ops_wakeup_ticks_max = wakeup_latency;
-    if( wakeup_latency < ops_wakeup_ticks_min )
-      ops_wakeup_ticks_min = wakeup_latency;
-  }
-
-  inline void record_network_latency( int64_t start_time ) { 
-    int64_t current_time = Grappa_get_timestamp();
-    int64_t latency = current_time - start_time;
-    ops_network_ticks_total += latency;
-    if( latency > ops_network_ticks_max )
-      ops_network_ticks_max = latency;
-    if( latency < ops_network_ticks_min )
-      ops_network_ticks_min = latency;
-  }
-
-  void dump( std::ostream& o, const char * terminator );
-  void sample();
-  void profiling_sample();
-  void merge(DelegateStatistics * other);
-  static void merge_am(DelegateStatistics * other, size_t sz, void* payload, size_t psz);
-};
-
-extern DelegateStatistics delegate_stats;
-
-
-/// Delegate word write
-void Grappa_delegate_write_word( GlobalAddress<int64_t> address, int64_t data );
-
-/// Delegate word read
-int64_t Grappa_delegate_read_word( GlobalAddress<int64_t> address );
-
-/// Delegate word fetch and add
-int64_t Grappa_delegate_fetch_and_add_word( GlobalAddress<int64_t> address, int64_t data );
-
-/// Delegate word compare and swap
-bool Grappa_delegate_compare_and_swap_word(GlobalAddress<int64_t> address, int64_t cmpval, int64_t newval);
-
-template< typename T >
-struct memory_desc;
-
-/// Args for delegate generic read reply
-template< typename T >
-struct read_reply_args {
-  GlobalAddress< memory_desc<T> > descriptor;
-};
-
-/// Handler for delegate generic read reply
-template< typename T >
-static void read_reply_am( read_reply_args<T> * args, size_t size, void * payload, size_t payload_size ) {
-  DCHECK( payload_size == sizeof(T) );
-  *(args->descriptor.pointer()->data) = *(static_cast<T*>(payload));
-  args->descriptor.pointer()->done = true;
-  if( args->descriptor.pointer()->t != NULL ) {
-    Grappa_wake( args->descriptor.pointer()->t );
-  }
-  if( args->descriptor.pointer()->start_time != 0 ) {
-    args->descriptor.pointer()->network_time = Grappa_get_timestamp();
-    delegate_stats.record_network_latency( args->descriptor.pointer()->start_time );
-  }
-}
-
-/// Descriptor for delegate generic read
-template< typename T >
-struct memory_desc {
-  Thread * t;
-  GlobalAddress<T> address;
-  T* data;
-  bool done;
-  int64_t start_time;
-  int64_t network_time;
-};
-
-/// Args for delegate generic read request
-template< typename T >
-struct read_request_args {
-  GlobalAddress< memory_desc<T> > descriptor;
-  GlobalAddress<T> address;
-};
-
-/// Handler for delegate generic read request
-template< typename T >
-static void read_request_am( read_request_args<T> * args, size_t size, void * payload, size_t payload_size ) {
-  delegate_stats.count_op_am();
-  delegate_stats.count_T_read_am();
-  T data = *(args->address.pointer());
-  read_reply_args<T> reply_args;
-  reply_args.descriptor = args->descriptor;
-  if( args->descriptor.node() == Grappa_mynode() ) {
-    read_reply_am( &reply_args, sizeof( reply_args ), &data, sizeof(data) );
-  } else {
-    Grappa_call_on( args->descriptor.node(), &read_reply_am<T>, 
-		     &reply_args, sizeof(reply_args), 
-		     &data, sizeof(data) );
-  }
-}
-
-/// Delegate generic read
-template< typename T >
-void Grappa_delegate_read( GlobalAddress<T> address, T * buf) {
-  delegate_stats.count_op();
-  delegate_stats.count_T_read();
-  memory_desc<T> md;
-  md.address = address;
-  md.done = false;
-  md.data = buf;
-  md.t = NULL;
-  md.start_time = 0;
-  md.network_time = 0;
-  read_request_args<T> args;
-  args.descriptor = make_global(&md);
-  args.address = address;
-  if( address.node() == Grappa_mynode() ) {
-    read_request_am( &args, sizeof( args ), NULL, 0 );
-  } else {
-    Grappa_call_on( address.node(), &read_request_am<T>, &args );
-  }
-  if( !md.done ) {
-    md.start_time = Grappa_get_timestamp();
-    while (!md.done) {
-      md.t = CURRENT_THREAD;
-      Grappa_suspend();
-      md.t = NULL;
-    }
-    delegate_stats.record_wakeup_latency( md.start_time, md.network_time );
-  } else {
-    md.start_time = 0;
-  }
-}
-
-/// Generic delegate functor descriptor
-struct DelegateCallbackArgs {
-  Thread * sleeper;
-  void* forig; // pointer to original functor
-  bool done;
-};
-
-/// Handler for generic delegate functor reply
-static void am_delegate_wake(GlobalAddress<DelegateCallbackArgs> * callback, size_t csz, void * p, size_t psz) {
-  // copy possibly-modified functor back 
-  // (allows user to modify func to effectively pass a return value back)
-  DelegateCallbackArgs * args = callback->pointer();
-
-  memcpy(args->forig, p, psz);
- 
-  if ( args->sleeper != NULL ) { 
-    Grappa_wake(args->sleeper);
-    args->sleeper = NULL;
-  }
-  
-  args->done = true;
-}
-
-/// Handler for generic delegate functor request
-template<typename Func>
-static void am_delegate(GlobalAddress<DelegateCallbackArgs> * callback, size_t csz, void* p, size_t fsz) {
-  delegate_stats.count_op_am();
-  delegate_stats.count_generic_op_am();
-  Func * f = static_cast<Func*>(p);
-  (*f)();
-  Grappa_call_on(callback->node(), &am_delegate_wake, callback, sizeof(*callback), p, fsz);
-}
-
-/// Supports more generic delegate operations in the form of functors. The given 
-/// functor is copied over to remote node, executed atomically, and copied back. 
-/// This allows a value to be 'returned' by the delegate in the form of a modified 
-/// Functor field. Note: this functor will be run in an active message, so 
-/// operations disallowed in active messages are disallowed here (i.e. no yielding 
-/// or suspending)
-/// TODO: it would be better to not do the extra copying associated with sending the "return" value back and forth
-template<typename Func>
-void Grappa_delegate_func(Func * f, Node target) {
-  delegate_stats.count_op();
-  delegate_stats.count_generic_op();
-  if (target == Grappa_mynode()) {
-    (*f)();
-  } else {
-    DelegateCallbackArgs callbackArgs = { NULL, (void*)f, false };
-    GlobalAddress<DelegateCallbackArgs> args_address = make_global( &callbackArgs );
-    Grappa_call_on(target, &am_delegate<Func>, &args_address, sizeof(args_address), (void*)f, sizeof(*f));
+namespace Grappa {
+  namespace delegate {
+    /// @addtogroup Delegates
+    /// @{
     
-    if ( !callbackArgs.done ) {
-        callbackArgs.sleeper = CURRENT_THREAD;
-        Grappa_suspend();
+    /// Overloaded version for func with void return type.
+    template <typename F>
+    inline auto call(Core dest, F func)
+        -> typename std::enable_if<std::is_void<decltype(func())>::value, void>::type {
+      delegate_stats.count_op();
+      Core origin = Grappa::mycore();
+      
+      if (dest == origin) {
+        // short-circuit if local
+        delegate_ops_short_circuited++;
+        return func();
+      } else {
+        int64_t network_time = 0;
+        int64_t start_time = Grappa_get_timestamp();
+        FullEmpty<bool> result;
+        send_message(dest, [&result, origin, func, &network_time, start_time] {
+          delegate_stats.count_op_am();
+          
+          func();
+          
+          // TODO: replace with handler-safe send_message
+          send_heap_message(origin, [&result, &network_time, start_time] {
+            network_time = Grappa_get_timestamp();
+            delegate_stats.record_network_latency(start_time);
+            result.writeXF(true);
+          });
+        }); // send message
+        
+        // ... and wait for the call to complete
+        result.readFF();
+        delegate_stats.record_wakeup_latency(start_time, network_time);
+        return;
+      }
     }
-  }
-}
-
-
-
-/// 
-/// Generic delegate operations, with templated argument, return type, function pointer
-///
-
-/// TODO: alternative is to take a GlobalAddress, which we can get the
-/// target from, but then F will take the pointer part as an argument
-
-/// wrapper for the user's delegated function arguments
-/// to include a pointer to the memory descriptor
-template < typename ArgType, typename T > 
-struct generic_delegate_request_args {
-  ArgType argument;
-  GlobalAddress< memory_desc<T> > descriptor;
-};
-
-/// Args for generic delegate reply
-template < typename T > 
-struct generic_delegate_reply_args {
-  T retVal;
-  GlobalAddress< memory_desc<T> > descriptor;
-};
-
-/// Generic delegate reply active message
-/// Fill the return value, wake the sleeping thread, mark operation as done
-template < typename ArgType, typename ReturnType, ReturnType (*F)(ArgType) >
-void generic_delegate_reply_am( generic_delegate_reply_args<ReturnType> * args, size_t arg_size, void * payload, size_t payload_size ) {
-  memory_desc<ReturnType> * md = args->descriptor.pointer();
-  
-  *(md->data) = args->retVal;
-
-  if ( md->t != NULL ) {
-    Grappa_wake( md->t );
-    md->t = NULL;
-  }
-
-  md->done = true;
-  
-  if( md->start_time != 0 ) {
-    md->network_time = Grappa_get_timestamp();
-    delegate_stats.record_network_latency( md->start_time );
-  }
-}
-
-/// Generic delegate request active message
-/// Call the delegated function, reply with the return value
-template < typename ArgType, typename ReturnType, ReturnType (*F)(ArgType) >
-void generic_delegate_request_am( generic_delegate_request_args<ArgType,ReturnType> * args, size_t arg_size, void * payload, size_t payload_size ) {
-  delegate_stats.count_op_am();
- 
-  ReturnType r = F( args->argument );
-
-  generic_delegate_reply_args< ReturnType > reply_args;
-  reply_args.retVal = r;
-  reply_args.descriptor = args->descriptor;
-  
-  Grappa_call_on( args->descriptor.node(), &generic_delegate_reply_am<ArgType, ReturnType, F>, &reply_args );
-}
-
-///
-/// Call F(arg) as a delegated function on the target node, and return the return value.
-/// Blocking operation.
-///
-template < typename ArgType, typename ReturnType, ReturnType (*F)(ArgType) >
-ReturnType Grappa_delegate_func( ArgType arg, Node target ) {
-  delegate_stats.count_op();
-  delegate_stats.count_generic_op();
-  
-  if (target == Grappa_mynode() ) {
-    return F(arg);
-  } else {
-    memory_desc<ReturnType> md;
-    md.done = false;
-
-    ReturnType result;
-    md.data = &result; 
-    md.t = NULL;
-    md.start_time = 0;
-    md.network_time = 0;
-
-    generic_delegate_request_args< ArgType, ReturnType > del_args; 
-    del_args.argument = arg;
-    del_args.descriptor = make_global(&md);
-
-    Grappa_call_on( target, &generic_delegate_request_am<ArgType,ReturnType,F>, &del_args );
-
-    if ( !md.done ) {
-      md.start_time = Grappa_get_timestamp();
-      md.t = CURRENT_THREAD;
-      Grappa_suspend();
-      CHECK( md.done );
-      delegate_stats.record_wakeup_latency( md.start_time, md.network_time );
+    
+    /// Implements essentially a blocking remote procedure call. Callable object (lambda,
+    /// function pointer, or functor object) is called from the `dest` core and the return
+    /// value is sent back to the calling task.
+    template <typename F>
+    inline auto call(Core dest, F func)
+      -> typename std::enable_if<!std::is_void<decltype(func())>::value, decltype(func())>::type {
+      // Note: code below (calling call_async) could be used to avoid duplication of code,
+      // but call_async adds some overhead (object creation overhead, especially for short
+      // -circuit case and extra work in MessagePool)
+      //   AsyncHandle<decltype(func())> a;
+      //   MessagePool<sizeof(Message<F>)> pool;
+      //   a.call_async(pool, dest, func);
+      //   return a.get_result();
+      // TODO: find a way to implement using async version that doesn't introduce overhead
+      
+      delegate_stats.count_op();
+      using R = decltype(func());
+      Core origin = Grappa::mycore();
+      
+      if (dest == origin) {
+        // short-circuit if local
+        delegate_ops_short_circuited++;
+        return func();
+      } else {
+        FullEmpty<R> result;
+        int64_t network_time = 0;
+        int64_t start_time = Grappa_get_timestamp();
+        
+        send_message(dest, [&result, origin, func, &network_time, start_time] {
+          delegate_stats.count_op_am();
+          R val = func();
+          
+          // TODO: replace with handler-safe send_message
+          send_heap_message(origin, [&result, val, &network_time, start_time] {
+            network_time = Grappa_get_timestamp();
+            delegate_stats.record_network_latency(start_time);
+            result.writeXF(val); // can't block in message, assumption is that result is already empty
+          });
+        }); // send message
+        // ... and wait for the result
+        R r = result.readFE();
+        delegate_stats.record_wakeup_latency(start_time, network_time);
+        return r;
+      }
+    }
+    
+    template< typename T, typename F >
+    inline auto call(GlobalAddress<T> target, F func) -> decltype(func()) {
+      return call(target.core(), [target,func]{ return func(target.pointer()); });
+    }
+    
+    /// Read the value (potentially remote) at the given GlobalAddress, blocks the calling task until
+    /// round-trip communication is complete.
+    /// @warning Target object must lie on a single node (not span blocks in global address space).
+    template< typename T >
+    T read(GlobalAddress<T> target) {
+      delegate_stats.count_word_read();
+      return call(target.node(), [target]() -> T {
+        delegate_stats.count_word_read_am();
+        return *target.pointer();
+      });
+    }
+    
+    /// Blocking remote write.
+    /// @warning Target object must lie on a single node (not span blocks in global address space).
+    template< typename T, typename U >
+    void write(GlobalAddress<T> target, U value) {
+      delegate_stats.count_word_write();
+      // TODO: don't return any val, requires changes to `delegate::call()`.
+      return call(target.node(), [target, value] {
+        delegate_stats.count_word_write_am();
+        *target.pointer() = value;
+      });
+    }
+    
+    /// Fetch the value at `target`, increment the value stored there with `inc` and return the
+    /// original value to blocking thread.
+    /// @warning Target object must lie on a single node (not span blocks in global address space).
+    template< typename T, typename U >
+    T fetch_and_add(GlobalAddress<T> target, U inc) {
+      delegate_stats.count_word_fetch_add();
+      return call(target.node(), [target, inc]() -> T {
+        delegate_stats.count_word_fetch_add_am();
+        T* p = target.pointer();
+        T r = *p;
+        *p += inc;
+        return r;
+      });
     }
 
-    return result;
-  }
-}
+
+    /// Flat combines fetch_and_add to a single global address
+    /// @warning Target object must lie on a single node (not span blocks in global address space).
+    template < typename T, typename U >
+    class FlatCombiner {
+      // TODO: generalize to define other types of combiners
+      private:
+        // configuration
+        const GlobalAddress<T> target;
+        const U initVal;
+        const uint64_t flush_threshold;
+       
+        // state 
+        T result;
+        U increment;
+        uint64_t committed;
+        uint64_t participant_count;
+        uint64_t ready_waiters;
+        bool outstanding;
+        ConditionVariable untilNotOutstanding;
+        ConditionVariable untilReceived;
+
+        // wait until fetch add unit is in aggregate mode 
+        // TODO: add concurrency (multiple fetch add units)
+        void block_until_ready() {
+          while ( outstanding ) {
+            ready_waiters++;
+            Grappa::wait(&untilNotOutstanding);
+            ready_waiters--;
+          }
+        }
+
+        void set_ready() {
+          outstanding = false;
+          Grappa::broadcast(&untilNotOutstanding);
+        }
+         
+        void set_not_ready() {
+          outstanding = true;
+        }
+
+      public:
+        FlatCombiner( GlobalAddress<T> target, uint64_t flush_threshold, U initVal ) 
+         : target( target )
+         , initVal( initVal )
+         , flush_threshold( flush_threshold )
+         , result()
+         , increment( initVal )
+         , committed( 0 )
+         , participant_count( 0 )
+         , ready_waiters( 0 )
+         , outstanding( false )
+         , untilNotOutstanding()
+         , untilReceived()
+         {}
+
+        /// Promise that in the future
+        /// you will call `fetch_and_add`.
+        /// 
+        /// Must be called before a call to `fetch_and_add`
+        ///
+        /// After calling promise, this task must NOT have a dependence on any
+        /// `fetch_and_add` occurring before it calls `fetch_and_add` itself
+        /// or deadlock may occur.
+        ///
+        /// For good performance, should allow other
+        /// tasks to run before calling `fetch_and_add`
+        void promise() {
+          committed += 1;
+        }
+        // because tasks run serially, promise() replaces the flat combining tree
+
+        T fetch_and_add( U inc ) {
+
+          block_until_ready();
+
+          // fetch add unit is now aggregating so add my inc
+
+          participant_count++;
+          committed--;
+          increment += inc;
+        
+          // if I'm the last entered client and either the flush threshold
+          // is reached or there are no more committed participants then start the flush 
+          if ( ready_waiters == 0 && (participant_count >= flush_threshold || committed == 0 )) {
+            set_not_ready();
+            uint64_t increment_total = increment;
+            flat_combiner_fetch_and_add_amount += increment_total;
+            auto t = target;
+            result = call(target.node(), [t, increment_total]() -> U {
+              T * p = t.pointer();
+              uint64_t r = *p;
+              *p += increment_total;
+              return r;
+            });
+            // tell the others that the result has arrived
+            Grappa::broadcast(&untilReceived);
+          } else {
+            // someone else will start the flush
+            Grappa::wait(&untilReceived);
+          }
+
+          uint64_t my_start = result;
+          result += inc;
+          participant_count--;
+          increment -= inc;   // for validation purposes (could just set to 0)
+          CHECK( increment >= 0 );
+          if ( participant_count == 0 ) {
+            CHECK( increment == 0 ) << "increment = " << increment << " even though all participants are done";
+            set_ready();
+          }
+
+          return my_start;
+        }
+    };
+
+    
+    /// If value at `target` equals `cmp_val`, set the value to `new_val` and return `true`,
+    /// otherwise do nothing and return `false`.
+    /// @warning Target object must lie on a single node (not span blocks in global address space).
+    template< typename T, typename U, typename V >
+    bool compare_and_swap(GlobalAddress<T> target, U cmp_val, V new_val) {
+      delegate_stats.count_word_compare_swap();
+      return call(target.node(), [target, cmp_val, new_val]() -> bool {
+        T * p = target.pointer();
+        delegate_stats.count_word_compare_swap_am();
+        if (cmp_val == *p) {
+          *p = new_val;
+          return true;
+        } else {
+          return false;
+        }
+      });
+    }
+    
+    /// @}
+  } // namespace delegate
+} // namespace Grappa
 
 #endif

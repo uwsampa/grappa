@@ -43,6 +43,7 @@
 #include "npbparams.h"
 #include <stdlib.h>
 #include <stdio.h>
+#include <string.h>
 
 /******************/
 /* default values */
@@ -114,10 +115,18 @@
 #define  MIN_PROCS           4
 #endif
 
+#if CLASS == 'E'
+#define  TOTAL_KEYS_LOG_2    31
+#define  MAX_KEY_LOG_2       27
+#define  NUM_BUCKETS_LOG_2   10
+#undef   MIN_PROCS
+#define  MIN_PROCS           4
+#endif
 
-#define  TOTAL_KEYS          (1 << TOTAL_KEYS_LOG_2)
-#define  MAX_KEY             (1 << MAX_KEY_LOG_2)
-#define  NUM_BUCKETS         (1 << NUM_BUCKETS_LOG_2)
+
+#define  TOTAL_KEYS          (1L << TOTAL_KEYS_LOG_2)
+#define  MAX_KEY             (1L << MAX_KEY_LOG_2)
+#define  NUM_BUCKETS         (1L << NUM_BUCKETS_LOG_2)
 #define  NUM_KEYS            (TOTAL_KEYS/NUM_PROCS*MIN_PROCS)
 
 /*****************************************************************/
@@ -129,13 +138,13 @@
 /* The following values are validated for the 1024-bucket setup. */
 /*****************************************************************/
 #if   NUM_PROCS < 256
-#define  SIZE_OF_BUFFERS     3*NUM_KEYS/2
+#define  SIZE_OF_BUFFERS     3L*NUM_KEYS/2
 #elif NUM_PROCS < 512
-#define  SIZE_OF_BUFFERS     5*NUM_KEYS/2
+#define  SIZE_OF_BUFFERS     5L*NUM_KEYS/2
 #elif NUM_PROCS < 1024
-#define  SIZE_OF_BUFFERS     4*NUM_KEYS
+#define  SIZE_OF_BUFFERS     4L*NUM_KEYS
 #else
-#define  SIZE_OF_BUFFERS     13*NUM_KEYS/2
+#define  SIZE_OF_BUFFERS     13L*NUM_KEYS/2
 #endif
 
 /*****************************************************************/
@@ -179,9 +188,9 @@ int timeron;
 /* size of int here by changing the  */
 /* int type to, say, long            */
 /*************************************/
-typedef  int  INT_TYPE;
+typedef  long  INT_TYPE;
 typedef  long INT_TYPE2;
-#define MP_KEY_TYPE MPI_INT
+#define MP_KEY_TYPE MPI_LONG
 
 
 
@@ -591,10 +600,12 @@ void rank( int iteration )
 
 /*  Determine where the partial verify test keys are, load into  */
 /*  top of array bucket_size                                     */
-    for( i=0; i<TEST_ARRAY_SIZE; i++ )
-        if( (test_index_array[i]/NUM_KEYS) == my_rank )
-            bucket_size[NUM_BUCKETS+i] = 
-                          key_array[test_index_array[i] % NUM_KEYS];
+    if (CLASS != 'E') {
+      for( i=0; i<TEST_ARRAY_SIZE; i++ )
+          if( (test_index_array[i]/NUM_KEYS) == my_rank )
+              bucket_size[NUM_BUCKETS+i] = 
+                            key_array[test_index_array[i] % NUM_KEYS];
+    }
 
 
 /*  Determine the number of keys in each bucket */
@@ -869,6 +880,9 @@ void rank( int iteration )
                         else
                             passed_verification++;
                     }
+                    break;
+                default:
+                    passed_verification++;
                     break;
             }
             if( failed == 1 )

@@ -30,6 +30,18 @@
 
 typedef int Pool;
 
+
+/// this core's base pointer
+namespace Grappa {
+namespace impl {
+extern void * global_memory_chunk_base;
+}
+}
+
+
+
+
+
 /// assumes user data will have the top 16 bits all 0.
 
 /// Number of bytes in each block 
@@ -53,6 +65,9 @@ static const intptr_t tag_mask = (1L << tag_shift_val);
 static const intptr_t node_mask = (1L << node_bits) - 1;
 static const intptr_t pool_mask = (1L << pool_bits) - 1;
 static const intptr_t pointer_mask = (1L << pointer_bits) - 1;
+
+/// @addtogroup Memory
+/// @{
 
 /// Global address class
 ///
@@ -83,8 +98,8 @@ private:
                << ">";
     } else {
         return o << "<GA Linear " << (void*)storage_ 
-                 << ": pool " << pool() 
-                 << " node " << node() 
+//                 << ": pool " << pool() 
+                 << " node " << node()
                  << " pointer " << static_cast<void *>( pointer()  )
                  << ">";
     }
@@ -120,7 +135,9 @@ public:
   /// TODO: the pool argument is currenly unused
   static GlobalAddress Linear( T * t, Pool p = 0 )
   {
-    intptr_t tt = reinterpret_cast< intptr_t >( t );
+    // adjust for chunk offset
+    intptr_t tt = reinterpret_cast< intptr_t >( t ) - 
+      reinterpret_cast< intptr_t >( Grappa::impl::global_memory_chunk_base );
 
     intptr_t offset = tt % block_size;
     intptr_t block = tt / block_size;
@@ -165,6 +182,7 @@ public:
       return node;
     }
   }
+  inline Core core() const { return node(); }
 
   /// Return the home node of a global address
   /// TODO: implement this.
@@ -183,7 +201,9 @@ public:
       intptr_t block = (storage_ / block_size);
       intptr_t node = (storage_ / block_size) % global_communicator.nodes();
       intptr_t node_block = (storage_ / block_size) / global_communicator.nodes();
-      return reinterpret_cast< T * >( node_block * block_size + offset );
+      intptr_t address = node_block * block_size + offset + 
+        reinterpret_cast< intptr_t >( Grappa::impl::global_memory_chunk_base );
+      return reinterpret_cast< T * >( address );
     }
   }
 
@@ -318,9 +338,8 @@ public:
   //T& operator[]( ptrdiff_t index ) { return 
 
   /// generic cast operator
-  /// TODO: do we really need this? leads to unneccessary type errors...
   template< typename U >
-  operator GlobalAddress< U >( ) {
+  explicit operator GlobalAddress< U >( ) {
     GlobalAddress< U > u = GlobalAddress< U >::Raw( storage_ );
     return u;
   }
@@ -372,15 +391,9 @@ inline ptrdiff_t operator-<char>( const GlobalAddress< char >& t, const GlobalAd
   return t.raw_bits() - u.raw_bits();
 }
 
-/// return a 2d global pointer to a local pointer
-template< typename T >
-GlobalAddress< T > localToGlobal( T * t ) {
-  return GlobalAddress< T >::TwoDimensional( t, global_communicator.mynode() );
-}
-
 /// return a 2d global pointer to a local pointer on a particular node
 template< typename T >
-GlobalAddress< T > make_global( T * t, Node n = global_communicator.mynode() ) {
+GlobalAddress< T > make_global( T * t, Core n = Grappa::mycore() ) {
   return GlobalAddress< T >::TwoDimensional( t, n );
 }
 
@@ -413,6 +426,6 @@ inline GlobalAddress< M > global_pointer_to_member( const GlobalAddress< T > t, 
   return GlobalAddress< M >::Raw( reinterpret_cast< intptr_t >( mp ) );
 }
 
-
+/// @}
 //template< typename T >
 #endif

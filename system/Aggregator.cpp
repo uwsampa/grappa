@@ -14,13 +14,33 @@
 #include "PerformanceTools.hpp"
 
 // command line options for Aggregator
-DEFINE_int64( aggregator_autoflush_ticks, 1000, "number of ticks to wait before autoflushing aggregated active messages");
+DEFINE_int64( aggregator_autoflush_ticks, 50000, "number of ticks to wait before autoflushing aggregated active messages");
 DEFINE_int64( aggregator_max_flush, 0, "flush no more than this many buffers per poll (0 for unlimited)");
 DEFINE_bool( aggregator_enable, true, "should we aggregate packets or just send them?");
-DEFINE_bool( flush_on_idle, false, "flush all aggregated messages there's nothing better to do");
+DEFINE_bool( flush_on_idle, true, "flush all aggregated messages there's nothing better to do");
 
 /// global Aggregator instance
 Aggregator global_aggregator;
+
+// declare storage for class-static histogram labels    
+std::string AggregatorStatistics::hist_labels[16] = {
+    "\"aggregator_0_to_255_bytes\""    ,   
+    "\"aggregator_256_to_511_bytes\""  ,
+    "\"aggregator_512_to_767_bytes\""  ,
+    "\"aggregator_768_to_1023_bytes\"" ,
+    "\"aggregator_1024_to_1279_bytes\"",
+    "\"aggregator_1280_to_1535_bytes\"",
+    "\"aggregator_1536_to_1791_bytes\"",
+    "\"aggregator_1792_to_2047_bytes\"",
+    "\"aggregator_2048_to_2303_bytes\"",
+    "\"aggregator_2304_to_2559_bytes\"",
+    "\"aggregator_2560_to_2815_bytes\"",
+    "\"aggregator_2816_to_3071_bytes\"",
+    "\"aggregator_3072_to_3327_bytes\"",
+    "\"aggregator_3328_to_3583_bytes\"",
+    "\"aggregator_3584_to_3839_bytes\"",
+    "\"aggregator_3840_to_4095_bytes\"" };
+
 
 #ifdef STL_DEBUG_ALLOCATOR
 DEFINE_int64( aggregator_access_control_signal, SIGUSR2, "signal used to toggle aggregator queue access control");
@@ -145,7 +165,7 @@ void Aggregator::deaggregate( ) {
                 << " with args " << args
                 << " and payload " << payload;
 	stats.record_forward( sizeof( AggregatorGenericCallHeader ) + header->args_size + header->payload_size );
-        Grappa_call_on( header->destination, fp, args, header->args_size, payload, header->payload_size );
+        aggregate( header->destination, fp, args, header->args_size, payload, header->payload_size );
       }
       i += sizeof( AggregatorGenericCallHeader ) + header->args_size + header->payload_size;
       msg_base += sizeof( AggregatorGenericCallHeader ) + header->args_size + header->payload_size;
@@ -172,6 +192,7 @@ void Aggregator_deaggregate_am( gasnet_token_t token, void * buf, size_t size ) 
   DVLOG(5) << "received message with size " << size;
   // TODO: too much copying
   Aggregator::ReceivedAM am( size, buf );
+  global_aggregator.stats.record_receive_bundle( size );
 #ifdef STL_DEBUG_ALLOCATOR
   if( aggregator_access_control_active ) STLMemDebug::BaseAllocator::getMemMgr().setAccessMode(STLMemDebug::memReadWrite);
 #endif
@@ -182,10 +203,12 @@ void Aggregator_deaggregate_am( gasnet_token_t token, void * buf, size_t size ) 
 
 }
 
-extern uint64_t merge_reply_count;
+/// proxy call to make it easier to integrate with scheduler
+bool idle_flush_aggregator() {
+  return global_aggregator.idle_flush_poll();
+}
 
-/// Merge stats from a remote aggregator with the local one.
-void AggregatorStatistics::merge_am(AggregatorStatistics * other, size_t sz, void* payload, size_t psz) {
-  global_aggregator.stats.merge(other);
-  merge_reply_count++;
+/// proxy call to make it easier to integrate with scheduler
+size_t Grappa_sizeof_header() {
+  return sizeof( AggregatorGenericCallHeader );
 }

@@ -19,6 +19,10 @@
 
 #include <stdio.h>
 
+#include <gflags/gflags.h>
+#include <glog/logging.h>
+#include "LocaleSharedMemory.hpp"
+
 /// list of all coroutines (used only for debugging)
 coro * all_coros = NULL;
 /// total number of coroutines (used only for debugging)
@@ -59,21 +63,29 @@ void remove_coro( coro * c ) {
 /// spawn a new coroutine, creating a stack and everything, but
 /// doesn't run until scheduled
 coro *coro_spawn(coro *me, coro_func f, size_t ssize) {
-  coro *c = (coro*)malloc(sizeof(coro));
+  //coro *c = (coro*)malloc(sizeof(coro));
+  coro *c = (coro*)valloc(sizeof(coro));
   assert(c != NULL);
   c->running = 0;
   c->suspended = 0;
+  c->idle = false;
   c->prev = NULL;
   c->next = NULL;
 
   // allocate stack and guard page
-  c->base = valloc(ssize+4096*2);
+  c->base = Grappa::impl::locale_shared_memory.allocate_aligned( ssize+4096*2, 4096 );
+  CHECK_NOTNULL( c->base );
   c->ssize = ssize;
   assert(c->base != NULL);
 
   // set stack pointer
   c->stack = (char*) c->base + ssize + 4096 - current_stack_offset;
   current_stack_offset += FLAGS_stack_offset;
+  current_stack_offset &= ((1<<12)-1); // align to page
+
+#ifdef ENABLE_VALGRIND
+  c->valgrind_stack_id = VALGRIND_STACK_REGISTER( (char *) c->base + 4096, c->stack );
+#endif
 
   // clear stack
   memset(c->base, 0, ssize);
@@ -85,22 +97,26 @@ coro *coro_spawn(coro *me, coro_func f, size_t ssize) {
   // set up coroutine to be able to run next time we're switched in
   makestack(&me->stack, &c->stack, f, c);
 
+  insert_coro( c ); // insert into debugging list of coros
+
 #ifdef CORO_PROTECT_UNUSED_STACK
   // disable writes to stack until we're swtiched in again.
   assert( 0 == mprotect( (void*)((intptr_t)c->base + 4096), ssize, PROT_READ ) );
+  assert( 0 == mprotect( (void*)(c), 4096, PROT_READ ) );
 #endif
 
   total_coros++;
-  insert_coro( c ); // insert into debugging list of coros
   return c;
 }
 
 /// Turn the currently-running pthread into a "special" coroutine.
 /// This coroutine is used only to execute spawned coroutines.
 coro *coro_init() {
-  coro *me = (coro*)malloc(sizeof(coro));
+  //coro *me = (coro*)malloc(sizeof(coro));
+  coro *me = (coro*)valloc(sizeof(coro));
   me->running = 1;
   me->suspended = 0;
+  me->idle = false;
   me->prev = NULL;
   me->next = NULL;
 
@@ -110,15 +126,30 @@ coro *coro_init() {
   // This'll get overridden when we swapstacks out of here.
   me->stack = NULL;
 
+#ifdef ENABLE_VALGRIND
+  me->valgrind_stack_id = -1;
+#endif
+
   total_coros++;
   insert_coro( me ); // insert into debugging list of coros
+
+#ifdef CORO_PROTECT_UNUSED_STACK
+  // disable writes to stack until we're swtiched in again.
+  //assert( 0 == mprotect( (void*)((intptr_t)me->base + 4096), ssize, PROT_READ ) );
+  assert( 0 == mprotect( (void*)(me), 4096, PROT_READ ) );
+#endif
+
   return me;
 }
 
 /// Tear down a coroutine
 void destroy_coro(coro *c) {
-  total_coros++;
-  remove_coro(c); // remove from debugging list of coros
+  total_coros--;
+#ifdef ENABLE_VALGRIND
+  if( c->valgrind_stack_id != -1 ) {
+    VALGRIND_STACK_DEREGISTER( c->valgrind_stack_id );
+  }
+#endif
   if( c->base != NULL ) {
     // disarm guard page
     assert( 0 == mprotect( c->base, 4096, PROT_READ | PROT_WRITE ) );
@@ -126,8 +157,10 @@ void destroy_coro(coro *c) {
 #ifdef CORO_PROTECT_UNUSED_STACK
     // enable writes to stack so we can deallocate
     assert( 0 == mprotect( (void*)((intptr_t)c->base + 4096), c->ssize, PROT_READ | PROT_WRITE ) );
+    assert( 0 == mprotect( (void*)(c), 4096, PROT_READ | PROT_WRITE ) );
 #endif
-    free(c->base);
+    remove_coro(c); // remove from debugging list of coros
+    Grappa::impl::locale_shared_memory.deallocate(c->base);
   }
   free(c);
 }

@@ -12,6 +12,8 @@
 
 #include <stdint.h>
 
+#include <glog/logging.h>
+
 #if defined(__MTA__)
 #include <sys/mta_task.h>
 #include <machine/runtime.h>
@@ -117,12 +119,28 @@ struct range_t { int64_t start, end; };
 
 inline range_t blockDist(int64_t start, int64_t end, int64_t rank, int64_t numBlocks) {
 	int64_t numElems = end-start;
-	int64_t each   = numElems / numBlocks,
-  remain = numElems % numBlocks;
-	int64_t mynum = (rank < remain) ? each+1 : each;
-	int64_t mystart = start + ((rank < remain) ? (each+1)*rank : (each+1)*remain + (rank-remain)*each);
+	int64_t each     = numElems / numBlocks;
+  int64_t remain   = numElems % numBlocks;
+	int64_t mynum    = (rank < remain) ? each+1 : each;
+	int64_t mystart  = start + ((rank < remain) ? (each+1)*rank : (each+1)*remain + (rank-remain)*each);
 	range_t r = { mystart, mystart+mynum };
   return r;
+}
+
+struct block_offset_t { int64_t block, offset; };
+
+inline block_offset_t indexToBlock(int64_t index, int64_t numElements, int64_t numBlocks) {
+  block_offset_t result;
+	int64_t each   = numElements / numBlocks,
+          remain = numElements % numBlocks;
+	if (index < (each+1)*remain) {
+		result = { index / (each+1), index % (each+1) };
+	} else {
+		index -= (each+1)*remain;
+		result = { remain + index/each, index % each };
+	}
+  // VLOG(1) << "result.block = " << result.block << ", remain = " << remain << ", index = " << index << ", each = " << each;
+  return result;
 }
 
 #define GET_TYPE(member) BOOST_PP_TUPLE_ELEM(2,0,member)
@@ -165,5 +183,79 @@ name() {} /* default constructor */\
 inline void operator()() const; \
 }; \
 inline void name::operator()() const
+
+
+// fast pseudo-random number generator 0 to 32768
+// http://software.intel.com/en-us/articles/fast-random-number-generator-on-the-intel-pentiumr-4-processor/
+static unsigned int g_seed;
+inline void fast_srand( int seed ) {
+  g_seed = seed;
+}
+inline int fast_rand() {
+  g_seed = (214013*g_seed+2531011);
+  return (g_seed>>16)&0x7FFF;
+}
+
+
+
+namespace Grappa {
+  
+  /// @addtogroup Utility
+  /// @{
+  
+  /// Get string containing name of type.
+  template< typename T >
+  const char * typename_of( ) { 
+    // how big is the name of the type of this function?
+    static const int size = sizeof(__PRETTY_FUNCTION__);
+    
+    // make a modifiable copy that's that big
+    static char fn_name[ size ] = { '\0' };
+    
+    // copy the name into the modifiable copy
+    static const char * strcpy_retval = strncpy( fn_name, __PRETTY_FUNCTION__, size );
+    
+    // find the start of the type name
+    static const char with[] = "[with T = ";
+    static const char * name = strstr( fn_name, with ) + sizeof( with ) - 1;
+    
+    // erase the bracket at the end of the string
+    static const char erase_bracket = fn_name[size-2] = '\0';
+    
+    // whew. return the string we built.
+    return name;
+  }
+  
+  /// Get string containing name of type
+  template< typename T >
+  const char * typename_of( const T& unused ) { 
+    return typename_of<T>();
+  }
+
+  namespace impl {
+    // A small helper for Google logging CHECK_NULL().
+    template <typename T>
+    T* CheckNull(const char *file, int line, const char *names, T* t) {
+      if (t != NULL) {
+        google::LogMessageFatal(file, line, new std::string(names));
+      }
+      return t;
+    }
+  }
+
+#define CHECK_NULL(val)                                              \
+  Grappa::impl::CheckNull(__FILE__, __LINE__, "'" #val "' Must be non NULL", (val))
+
+#ifdef NDEBUG
+#define DCHECK_NULL(val)                                              \
+  Grappa::impl::CheckNull(__FILE__, __LINE__, "'" #val "' Must be non NULL", (val))
+#else
+#define DCHECK_NULL(val)                        \
+  ;
+#endif
+  
+  /// @}
+
+}
 
 #endif

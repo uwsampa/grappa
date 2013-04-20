@@ -62,8 +62,7 @@ class CacheStatistics {
     void dump( std::ostream& o, const char * terminator );
     void sample();
     void profiling_sample();
-    void merge(CacheStatistics * other);
-    static void merge_am(CacheStatistics * other, size_t sz, void* payload, size_t psz);
+    void merge(const CacheStatistics * other);
 };
 
 extern CacheStatistics cache_stats;
@@ -78,14 +77,15 @@ public:
   T * storage_;
   bool heap_;
   CacheAllocator( T * buffer, size_t size ) 
-    : storage_( buffer != NULL ? buffer : new T[size] )
+    : storage_( buffer != NULL ? buffer : reinterpret_cast< T* >
+                ( Grappa::impl::locale_shared_memory.allocate( size * sizeof(T) ) ) )
     , heap_( buffer != NULL ? false : true ) 
   {
     VLOG(6) << "buffer = " << buffer << ", storage_ = " << storage_;
   }
   ~CacheAllocator() {
     if( heap_ && storage_ != NULL ) {
-      delete [] storage_;
+      Grappa::impl::locale_shared_memory.deallocate( storage_ );
     }
   }
   operator T*() { 
@@ -153,6 +153,8 @@ public:
   }
 };
 
+/// @addtogroup Caches
+/// @{
 
 /// Read-only cache object. This is parameterize so it can implement
 /// coherent or incoherent read-only caches.
@@ -371,6 +373,7 @@ public:
   }
 
   /// reassign cache to point at a different block
+  /// May only take a valid address.
   void reset( GlobalAddress< T > address, size_t count ) {
     block_until_acquired();
     block_until_released();
@@ -401,57 +404,36 @@ public:
 template< typename T >
 struct Incoherent {
   typedef CacheRO< T, CacheAllocator, IncoherentAcquirer, NullReleaser > RO;
-   typedef CacheRW< T, CacheAllocator, IncoherentAcquirer, IncoherentReleaser > RW;
+  typedef CacheRW< T, CacheAllocator, IncoherentAcquirer, IncoherentReleaser > RW;
   typedef CacheWO< T, CacheAllocator, NullAcquirer, IncoherentReleaser > WO;
 };
 
+/// @}
 
 ///
 /// Wrapper functions for making it simpler to use the bare-bones tasking
 ///
 
-/// Cache GlobalAddress argument and pass pointer to cached copy to the wrapped function
-//template< typename T, void (*F)(T*) >
-//void call_with_caching(GlobalAddress<T> ptr) {
-//    VLOG(5) << "caching args";
-//    T buf;
-//    typename Incoherent<T>::RW cache(ptr, 1, &buf);
-//    cache.block_until_acquired();
-//    F(&cache[0]);
-//    cache.block_until_released();
-//}
-//
-///// Cache GlobalAddress argument and pass cached copy as a ref to the wrapped function
-//template< typename T, void (*F)(T&) >
-//void call_with_caching(GlobalAddress<T> ptr) {
-//    VLOG(5) << "caching args";
-//    T buf;
-//    typename Incoherent<T>::RW cache(ptr, 1, &buf);
-//    cache.block_until_acquired();
-//    F(*cache);
-//    cache.block_until_released();
-//}
-
 /// Cache GlobalAddress argument and pass pointer to const cached copy to the wrapped function
 template< typename T, void (*F)(const T*) >
 void call_with_caching(GlobalAddress<T> ptr) {
-    VLOG(5) << "caching args";
-    T buf;
-    typename Incoherent<T>::RO cache(ptr, 1, &buf);
-    cache.block_until_acquired();
-    F(&cache[0]);
-    cache.block_until_released();
+  VLOG(5) << "caching args";
+  T buf;
+  typename Incoherent<T>::RO cache(ptr, 1, &buf);
+  cache.block_until_acquired();
+  F(&cache[0]);
+  cache.block_until_released();
 }
 
 /// Cache GlobalAddress argument and pass const cached copy as a ref to the wrapped function
 template< typename T, void (*F)(const T&) >
 void call_with_caching(GlobalAddress<T> ptr) {
-    VLOG(5) << "caching args";
-    T buf;
-    typename Incoherent<T>::RO cache(ptr, 1, &buf);
-    cache.block_until_acquired();
-    F(*cache);
-    cache.block_until_released();
+  VLOG(5) << "caching args";
+  T buf;
+  typename Incoherent<T>::RO cache(ptr, 1, &buf);
+  cache.block_until_acquired();
+  F(*cache);
+  cache.block_until_released();
 }
 
 

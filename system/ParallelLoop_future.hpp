@@ -25,6 +25,10 @@ struct parloop_args {
     UserArg args;
 };
 
+// forward declaration
+template < typename UserArg >
+static void parallel_loop_helper(int64_t start_index, int64_t iterations, void (*loop_body)(int64_t, UserArg *), UserArg args);
+
 template < typename UserArg >
 void parallel_loop_task_wrap( const parloop_args< UserArg > * args ) {
     parallel_loop_helper( args->start_index,

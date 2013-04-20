@@ -1,0 +1,50 @@
+INCDIR = $(TACC_BOOST_INC)/boost-1_39/
+INCADD = -I$(INCDIR)
+
+OPT = -DNDEBUG -O3 -w -DMPICH_IGNORE_CXX_SEEK -DNOTR1
+DEB = -g -O0 -w -fno-inline -DMPICH_IGNORE_CXX_SEEK -DNOTR1
+COMPILER = mpicxx	
+FLAGS = $(OPT)
+
+CommGrid.o:	../CommGrid.cpp ../CommGrid.h
+	$(COMPILER) $(FLAGS) $(INCADD) -c -o CommGrid.o ../CommGrid.cpp
+
+MPIType.o:	../MPIType.cpp ../MPIType.h
+	$(COMPILER) $(FLAGS) $(INCADD) -c -o MPIType.o ../MPIType.cpp
+
+MemoryPool.o:	../MemoryPool.cpp ../SpDefs.h
+	$(COMPILER) $(FLAGS) $(INCADD) -c -o MemoryPool.o ../MemoryPool.cpp
+
+TransposeTest.o: TransposeTest.cpp ../SpDCCols.cpp ../dcsc.cpp ../SpHelper.h ../SpParHelper.h ../SpParMat.cpp ../Friends.h ../ParFriends.h 
+	$(COMPILER) $(INCADD) $(FLAGS) -c -o TransposeTest.o TransposeTest.cpp
+
+MultTest.o: MultTest.cpp ../SpDCCols.cpp ../dcsc.cpp ../SpHelper.h ../SpParHelper.h ../SpParMat.cpp ../Friends.h ../ParFriends.h 
+	$(COMPILER) $(INCADD) $(FLAGS) -c -o MultTest.o MultTest.cpp
+
+MultTiming.o: MultTiming.cpp ../SpDCCols.cpp ../dcsc.cpp ../SpHelper.h ../SpParHelper.h ../SpParMat.cpp ../Friends.h ../ParFriends.h 
+	$(COMPILER) $(INCADD) $(FLAGS) -c -o MultTiming.o MultTiming.cpp
+
+ReduceTest.o: ReduceTest.cpp ../SpDCCols.cpp ../dcsc.cpp ../SpHelper.h ../SpParHelper.h ../SpParMat.cpp ../Friends.h ../ParFriends.h 
+	$(COMPILER) $(INCADD) $(FLAGS) -c -o ReduceTest.o ReduceTest.cpp
+
+TransposeTest: MemoryPool.o CommGrid.o MPIType.o TransposeTest.o
+	$(COMPILER) $(INCADD) $(FLAGS) -o TransposeTest TransposeTest.o MemoryPool.o CommGrid.o MPIType.o
+
+MultTest: MemoryPool.o CommGrid.o MPIType.o MultTest.o
+	$(COMPILER) $(INCADD) $(FLAGS) -o MultTest MultTest.o MemoryPool.o CommGrid.o MPIType.o
+
+MultTime: MemoryPool.o CommGrid.o MPIType.o MultTiming.o
+	$(COMPILER) $(INCADD) $(FLAGS) -o MultTime MultTiming.o MemoryPool.o CommGrid.o MPIType.o
+
+ReduceTest: MemoryPool.o CommGrid.o MPIType.o ReduceTest.o
+	$(COMPILER) $(INCADD) $(FLAGS) -o ReduceTest ReduceTest.o MemoryPool.o CommGrid.o MPIType.o
+
+clean:
+	rm -f TransposeTest
+	rm -f MultTest
+	rm -f ReduceTest
+	rm -f *.o
+
+cleanout:
+	rm out.*
+	rm err.*

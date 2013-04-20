@@ -39,6 +39,8 @@
 #include <Delegate.hpp>
 #include <PerformanceTools.hpp>
 #include <FileIO.hpp>
+#include <Statistics.hpp>
+#include <Collective.hpp>
 
 #include "timer.h"
 //#include "rmat.h"
@@ -46,6 +48,8 @@
 #include "verify.hpp"
 #include "options.h"
 
+
+using namespace Grappa;
 
 // test change
 
@@ -103,45 +107,33 @@ static void choose_bfs_roots(GlobalAddress<int64_t> xoff, int64_t nvtx, int * NB
   }
 }
 
-
-LOOP_FUNCTION(func_enable_tau, nid) {
-  FLAGS_record_grappa_events = true;
-}
-LOOP_FUNCTION(func_enable_google_profiler, nid) {
-  Grappa_start_profiling();
-}
 static void enable_tau() {
+  Grappa::Statistics::reset_all_cores();
+  call_on_all_cores([]{
 #ifdef GRAPPA_TRACE
-  VLOG(1) << "Enabling TAU recording.";
-  func_enable_tau f;
-  fork_join_custom(&f);
+    VLOG(1) << "Enabling TAU recording.";
+    FLAGS_record_grappa_events = true;
 #endif
 #ifdef GOOGLE_PROFILER
-  func_enable_google_profiler g;
-  fork_join_custom(&g);
+    // unnecessary with reset_all_cores() above
+    //Grappa_start_profiling();
 #endif
+  });
 }
-LOOP_FUNCTION(func_disable_tau, nid) {
-  FLAGS_record_grappa_events = false;
-}
-LOOP_FUNCTION(func_disable_google_profiler, nid) {
-  Grappa_stop_profiling();
-}
+
 static void disable_tau() {
+  // Statistics::merge_and_print(LOG(INFO));
+  call_on_all_cores([]{
 #ifdef GRAPPA_TRACE
-  VLOG(1) << "Disabling TAU recording.";
-  func_disable_tau f;
-  fork_join_custom(&f);
+    VLOG(1) << "Disabling TAU recording.";
+    FLAGS_record_grappa_events = false;
 #endif
 #ifdef GOOGLE_PROFILER
-  Grappa_merge_and_dump_stats(std::cerr);
-  func_disable_google_profiler g;
-  fork_join_custom(&g);
+    Grappa_stop_profiling();
 #else
-  Grappa_merge_and_dump_stats(std::cerr);
-  std::cerr << std::flush;
-  Grappa_reset_stats_all_nodes();
+    // Statistics::reset();
 #endif
+  });
 }
 
 static void run_bfs(tuple_graph * tg, csr_graph * g, int64_t * bfs_roots) {
@@ -153,7 +145,7 @@ static void run_bfs(tuple_graph * tg, csr_graph * g, int64_t * bfs_roots) {
     GlobalAddress<int64_t> max_bfsvtx;
     
     VLOG(1) << "Running bfs on root " << i << "(" << bfs_roots[i] << ")...";
-    Grappa_reset_stats_all_nodes();
+    // call_on_all_cores([]{ Statistics::reset(); });
     
     enable_tau();
 
@@ -183,35 +175,6 @@ static void run_bfs(tuple_graph * tg, csr_graph * g, int64_t * bfs_roots) {
   }
 }
 
-//template <typename T>
-//inline void read_my_chunk(GlobalAddress<T> base_addr, int64_t n, GrappaFile& fin) {
-  //range_t r = blockDist(0, n, Grappa_mynode(), Grappa_nodes());
-  //fin.offset += r.start*sizeof(T);
-  //Grappa_read_array(base_addr+r.start, r.end-r.start, fin);
-  //fin.offset += (n-r.end)*sizeof(T);
-//}
-
-//LOOP_FUNCTOR( checkpoint_in_func, nid, ((tuple_graph,tg)) ((csr_graph,g)) ((int64_t*,bfs_roots)) ((int64_t, ckpt_nbfs)) ) {
-  //char fname[256];
-  //sprintf(fname, "ckpts/graph500.%lld.%lld.xmt.w.ckpt", SCALE, edgefactor);
-  ////FILE * fin = fopen(fname, "r");
-  //GrappaFile fin(fname, false);
-  
-  //fin.offset = 4*sizeof(int64_t);
-
-  //read_my_chunk(tg.edges, tg.nedge, fin);
-  
-  //read_my_chunk(g.xoff, 2*g.nv+2, fin);
-
-  //read_my_chunk(g.xadjstore, g.nadj, fin);
-  
-  //if (nid == 0) {
-    //FILE * fin = fopen(fname, "r");
-    //fread(bfs_roots, sizeof(int64_t), ckpt_nbfs, fin);
-		//fclose(fin);
-  //}
-//}
-
 static void checkpoint_in(tuple_graph * tg, csr_graph * g, int64_t * bfs_roots) {
   //TAU_PHASE("checkpoint_in","void (tuple_graph*,csr_graph*,int64_t*)", TAU_USER);
   bool agg_enable = FLAGS_aggregator_enable;
@@ -221,7 +184,8 @@ static void checkpoint_in(tuple_graph * tg, csr_graph * g, int64_t * bfs_roots) 
   double t = timer();
   
   char fname[256];
-  sprintf(fname, "ckpts/graph500.%lld.%lld.xmt.w.ckpt", SCALE, edgefactor);
+  // sprintf(fname, "ckpts/graph500.%lld.%lld.xmt.w.ckpt", SCALE, edgefactor);
+  sprintf(fname, "ckpts/graph500.%lld.%lld.grappa.ckpt", SCALE, edgefactor);
   FILE * fin = fopen(fname, "r");
   if (!fin) {
     LOG(ERROR) << "Unable to open file: " << fname << ", will generate graph and write checkpoint.";
@@ -243,12 +207,6 @@ static void checkpoint_in(tuple_graph * tg, csr_graph * g, int64_t * bfs_roots) 
   g->xadjstore = Grappa_typed_malloc<int64_t>(g->nadj);
   g->xadj = g->xadjstore+2;
   
-  //read_array(tg->edges, tg->nedge, fin);
-  //read_array(g->xoff, 2*g->nv+2, fin);
-  //read_array(g->xadjstore, g->nadj, fin);
-  //fread(bfs_roots, sizeof(int64_t), ckpt_nbfs, fin);
-  //fclose(fin);
-  //{ checkpoint_in_func f(*tg, *g, bfs_roots, ckpt_nbfs); fork_join_custom(&f); }
   GrappaFile gfin(fname, false);
   gfin.offset = 4*sizeof(int64_t);
 
@@ -286,10 +244,12 @@ static void checkpoint_out(tuple_graph * tg, csr_graph * g, int64_t * bfs_roots)
     exit(1);
   }
   
+  VLOG(2) << "nedge: " << tg->nedge << ", nv: " << g->nv << ", nadj: " << g->nadj << ", nbfs: " << NBFS;
   fwrite(&tg->nedge, sizeof(tg->nedge), 1, fout);
   fwrite(&g->nv, sizeof(g->nv), 1, fout);
   fwrite(&g->nadj, sizeof(g->nadj), 1, fout);
-  fwrite(&NBFS, sizeof(NBFS), 1, fout);
+  int64_t nbfs_i64 = static_cast<int64_t>(NBFS);
+  fwrite(&nbfs_i64, sizeof(nbfs_i64), 1, fout);
   
   // write out edge tuples
   write_array(tg->edges, tg->nedge, fout);
@@ -314,7 +274,7 @@ static void setup_bfs(tuple_graph * tg, csr_graph * g, int64_t * bfs_roots) {
   TIME(construction_time,
        create_graph_from_edgelist(tg, g)
   );
-  VLOG(1) << "construction_time = " << construction_time;
+  LOG(INFO) << "construction_time: " << construction_time;
   
   GlobalAddress<int64_t> xoff = g->xoff;
 //  for (int64_t i=0; i < g.nv; i++) {
@@ -338,7 +298,7 @@ static void setup_bfs(tuple_graph * tg, csr_graph * g, int64_t * bfs_roots) {
   
   // no rootname input method, so randomly choose
   TIME(t, choose_bfs_roots(g->xoff, g->nv, &NBFS, bfs_roots));
-  VLOG(1) << "choose_bfs_roots time: " << t;
+  LOG(INFO) << "choose_bfs_roots_time: " << t;
   
 //  for (int64_t i=0; i < nbfs; i++) {
 //    VLOG(1) << "bfs_roots[" << i << "] = " << bfs_roots[i];
@@ -357,6 +317,8 @@ static void user_main(int * args) {
 	/* Catch a few possible overflows. */
 	assert (desired_nedge >= nvtx_scale);
 	assert (desired_nedge >= edgefactor);
+  
+  LOG(INFO) << "scale = " << SCALE << ", nv = " << nvtx_scale << ", edgefactor = " << edgefactor << ", nedge = " << desired_nedge;
 
   if (load_checkpoint) {
     checkpoint_in(&tg, &g, bfs_roots);
@@ -364,7 +326,7 @@ static void user_main(int * args) {
   
   if (!load_checkpoint) {
    
-    tg.edges = Grappa_typed_malloc<packed_edge>(tg.nedge);
+    tg.edges = Grappa_typed_malloc<packed_edge>(desired_nedge);
     
     /* Make the raw graph edges. */
     /* Get roots for BFS runs, plus maximum vertex with non-zero degree (used by
@@ -409,7 +371,6 @@ static void user_main(int * args) {
       } else {
         make_graph( SCALE, desired_nedge, userseed, userseed, &tg.nedge, &tg.edges );
       }
-
     }
     stop = timer();
     generation_time = stop - start;
@@ -419,10 +380,15 @@ static void user_main(int * args) {
     
     if (write_checkpoint) checkpoint_out(&tg, &g, bfs_roots);
   }
-  
-  Grappa_reset_stats();
+
+  // watch out for profiling! check the tau 
+  Grappa::Statistics::reset();
   
   run_bfs(&tg, &g, bfs_roots);
+  
+
+  Grappa::Statistics::merge_and_print(std::cout);
+  fflush(stdout);
   
 //  free_graph_data_structure();
   

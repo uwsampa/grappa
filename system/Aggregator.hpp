@@ -21,6 +21,8 @@
 #include <iostream>
 #include <cassert>
 
+#include <type_traits>
+
 #include <gflags/gflags.h>
 #include <glog/logging.h>
 
@@ -35,7 +37,7 @@
 
 #include "StateTimer.hpp"
 #include "PerformanceTools.hpp"
-
+#include "StatisticsTools.hpp"
 
 #ifdef VTRACE
 #include <vt_user.h>
@@ -166,7 +168,6 @@ class AggregatorStatistics {
 private:
   uint64_t messages_aggregated_;
   uint64_t bytes_aggregated_;
-  uint64_t messages_deaggregated_;
   uint64_t bytes_deaggregated_;
   uint64_t messages_forwarded_;
   uint64_t bytes_forwarded_;
@@ -180,7 +181,9 @@ private:
   uint64_t capacity_flushes_;
   uint64_t histogram_[16];
   double start_;
-
+  uint64_t idle_poll_;
+  uint64_t idle_poll_useful_;
+    
 #ifdef VTRACE_SAMPLED
   unsigned aggregator_vt_grp;
   unsigned messages_aggregated_vt_ev;
@@ -197,6 +200,8 @@ private:
   unsigned multiflushes_vt_ev;
   unsigned timeouts_vt_ev;
   unsigned idle_flushes_vt_ev;
+  unsigned idle_poll_vt_ev;
+  unsigned idle_poll_useful_vt_ev;
   unsigned capacity_flushes_vt_ev;
   unsigned aggregator_0_to_255_bytes_vt_ev;
   unsigned aggregator_256_to_511_bytes_vt_ev;
@@ -217,7 +222,7 @@ private:
 #endif
 
 
-  std::string hist_labels[16];
+  static std::string hist_labels[16];
   
   /// dump csv stats header 
   /// TODO: remove. unused
@@ -263,6 +268,8 @@ private:
       << "\"multiflushes\": " << multiflushes_ << ", "
       << "\"timeouts\": " << timeouts_ << ", "
       << "\"idle_flushes\": " << idle_flushes_ << ", "
+      << "\"idle_poll\": " << idle_poll_ << ", "
+      << "\"idle_poll_useful\": " << idle_poll_useful_ << ", "
       << "\"capacity_flushes\": " << capacity_flushes_;
     for (int i=0; i<16; i++) {
       o << ", " << hist_labels[i] << ": " << histogram_[i];
@@ -278,6 +285,12 @@ private:
   }
 
 public:
+  // TODO these two are not yet implementing full interface
+  // and are public
+  uint64_t bundles_received_;
+  TotalStatistic bundle_bytes_received_;
+  uint64_t messages_deaggregated_;
+
   AggregatorStatistics()
     : histogram_()
     , start_()
@@ -297,6 +310,8 @@ public:
     , multiflushes_vt_ev( VT_COUNT_DEF( "Nonzero timeout loops", "multiflushes", VT_COUNT_TYPE_UNSIGNED, aggregator_vt_grp ) )
     , timeouts_vt_ev( VT_COUNT_DEF( "Timeouts", "timeouts", VT_COUNT_TYPE_UNSIGNED, aggregator_vt_grp ) )
     , idle_flushes_vt_ev( VT_COUNT_DEF( "Idle flushes", "flushes", VT_COUNT_TYPE_UNSIGNED, aggregator_vt_grp ) )
+    , idle_poll_vt_ev( VT_COUNT_DEF( "Idle poll", "poll", VT_COUNT_TYPE_UNSIGNED, aggregator_vt_grp ) )
+    , idle_poll_useful_vt_ev( VT_COUNT_DEF( "Idle poll_useful", "poll_useful", VT_COUNT_TYPE_UNSIGNED, aggregator_vt_grp ) )
     , capacity_flushes_vt_ev( VT_COUNT_DEF( "Capacity flushes", "flushes", VT_COUNT_TYPE_UNSIGNED, aggregator_vt_grp ) )
     , aggregator_0_to_255_bytes_vt_ev(     VT_COUNT_DEF(     "Aggregated 0 to 255 bytes", "messages", VT_COUNT_TYPE_DOUBLE, aggregator_vt_grp ) )
     , aggregator_256_to_511_bytes_vt_ev(   VT_COUNT_DEF(   "Aggregated 256 to 511 bytes", "messages", VT_COUNT_TYPE_DOUBLE, aggregator_vt_grp ) )
@@ -317,22 +332,6 @@ public:
 #endif
   {
     reset();
-    hist_labels[ 0] = "\"aggregator_0_to_255_bytes\"";
-    hist_labels[ 1] = "\"aggregator_256_to_511_bytes\"";
-    hist_labels[ 2] = "\"aggregator_512_to_767_bytes\"";
-    hist_labels[ 3] = "\"aggregator_768_to_1023_bytes\"";
-    hist_labels[ 4] = "\"aggregator_1024_to_1279_bytes\"";
-    hist_labels[ 5] = "\"aggregator_1280_to_1535_bytes\"";
-    hist_labels[ 6] = "\"aggregator_1536_to_1791_bytes\"";
-    hist_labels[ 7] = "\"aggregator_1792_to_2047_bytes\"";
-    hist_labels[ 8] = "\"aggregator_2048_to_2303_bytes\"";
-    hist_labels[ 9] = "\"aggregator_2304_to_2559_bytes\"";
-    hist_labels[10] = "\"aggregator_2560_to_2815_bytes\"";
-    hist_labels[11] = "\"aggregator_2816_to_3071_bytes\"";
-    hist_labels[12] = "\"aggregator_3072_to_3327_bytes\"";
-    hist_labels[13] = "\"aggregator_3328_to_3583_bytes\"";
-    hist_labels[14] = "\"aggregator_3584_to_3839_bytes\"";
-    hist_labels[15] = "\"aggregator_3840_to_4095_bytes\"";
   }
   
   void reset() {
@@ -341,6 +340,8 @@ public:
     messages_deaggregated_ = 0;
     bytes_deaggregated_ = 0;
     messages_forwarded_ = 0;
+    bundles_received_ = 0;
+    bundle_bytes_received_.reset();
     bytes_forwarded_ = 0;
     newest_wait_ticks_ = 0;
     oldest_wait_ticks_ = 0;
@@ -349,6 +350,8 @@ public:
     multiflushes_ = 0;
     timeouts_ = 0;
     idle_flushes_ = 0;
+    idle_poll_ = 0;
+    idle_poll_useful_ = 0;
     capacity_flushes_ = 0;
     start_ = Grappa_walltime();
     for( int i = 0; i < 16; ++i ) {
@@ -367,6 +370,10 @@ public:
     flushes_++;
   }
 
+  void record_idle_flush() {
+    idle_flushes_++;
+  }
+
   void record_multiflush() {
     multiflushes_++;
   }
@@ -375,8 +382,9 @@ public:
     timeouts_++;
   }
 
-  void record_idle_flush() {
-    idle_flushes_++;
+  void record_idle_poll( bool useful ) {
+    if ( useful ) idle_poll_useful_++;
+    else idle_poll_++;
   }
   
   void record_capacity_flush() {
@@ -401,6 +409,12 @@ public:
     bytes_forwarded_ += bytes;
   }
 
+  void record_receive_bundle( size_t bytes ) {
+    ++bundles_received_;
+    bundle_bytes_received_.update( bytes );
+  } 
+
+
   void profiling_sample() {
 #ifdef VTRACE_SAMPLED
     VT_COUNT_UNSIGNED_VAL( messages_aggregated_vt_ev, messages_aggregated_ );
@@ -417,6 +431,8 @@ public:
     VT_COUNT_UNSIGNED_VAL( multiflushes_vt_ev, multiflushes_ );
     VT_COUNT_UNSIGNED_VAL( timeouts_vt_ev, timeouts_ );
     VT_COUNT_UNSIGNED_VAL( idle_flushes_vt_ev, idle_flushes_ );
+    VT_COUNT_UNSIGNED_VAL( idle_poll_vt_ev, idle_poll_ );
+    VT_COUNT_UNSIGNED_VAL( idle_poll_useful_vt_ev, idle_poll_useful_ );
     VT_COUNT_UNSIGNED_VAL( capacity_flushes_vt_ev, capacity_flushes_ );
     
 #define calc_hist(bin,total) (total == 0) ? 0.0 : (double)bin/total
@@ -441,16 +457,17 @@ public:
 #endif
   }
 
-  void dump() {
-    header( LOG(INFO) );
-    data( LOG(INFO), time() );
+  void dump( std::ostream& o = std::cout, const char * terminator = "" ) {
+    dump_as_map( o, terminator );
+//    header( LOG(INFO) );
+//    data( LOG(INFO), time() );
   }
   void dump_as_map( std::ostream& o = std::cout, const char * terminator = "" ) {
     as_map( o, time() );
     o << terminator << std::endl;
   }
   
-  void merge(AggregatorStatistics * other) {
+  void merge(const AggregatorStatistics * other) {
     messages_aggregated_ += other->messages_aggregated_;
     bytes_aggregated_ += other->bytes_aggregated_;
     messages_deaggregated_ += other->messages_deaggregated_;
@@ -464,13 +481,13 @@ public:
     multiflushes_ += other->multiflushes_;
     timeouts_ += other->timeouts_;
     idle_flushes_ += other->idle_flushes_;
+    idle_poll_ += other->idle_poll_;
+    idle_poll_useful_ += other->idle_poll_useful_;
     capacity_flushes_ += other->capacity_flushes_;
     for( int i = 0; i < 16; ++i ) {
       histogram_[i] += other->histogram_[i];
     }
   }
-
-  static void merge_am(AggregatorStatistics * other, size_t sz, void* payload, size_t psz);
 };
 
 /// Header for aggregated active messages.
@@ -533,6 +550,13 @@ public:
     current_position_ = 0;
   }
 };
+
+template <typename ArgStruct>
+size_t Grappa_sizeof_message( const ArgStruct * args, const size_t args_size = sizeof( ArgStruct ),
+                             const void * payload = NULL, const size_t payload_size = 0) {
+  return payload_size + args_size + sizeof( AggregatorGenericCallHeader );
+}
+
 
 /// Active message aggregation class.
 class Aggregator {
@@ -659,7 +683,7 @@ public:
   }
   
   /// poll and optionally flush on idle
-  inline void idle_flush_poll() {
+  inline bool idle_flush_poll() {
     GRAPPA_FUNCTION_PROFILE( GRAPPA_COMM_GROUP );
 #ifdef VTRACE_FULL
     VT_TRACER("idle_flush_poll");
@@ -672,7 +696,9 @@ public:
         flush(least_recently_sent_.top_key());
       }
     }
-    poll();
+    bool useful = poll(); 
+    stats.record_idle_poll(useful);
+    return useful;
   }
   
 
@@ -689,16 +715,27 @@ public:
     return previous_timestamp_;
   }
 
-  /// poll communicator. send any aggregated messages that have been sitting for too long.
-  inline void poll() {
+  /// poll communicator. send any aggregated messages that have been sitting for too long
+  inline bool poll() {
     GRAPPA_FUNCTION_PROFILE( GRAPPA_COMM_GROUP );
 #ifdef VTRACE_FULL
     VT_TRACER("poll");
 #endif
     stats.record_poll();
+
+    uint64_t beforePoll = stats.bundles_received_; 
     global_communicator.poll();
+    uint64_t afterPoll = stats.bundles_received_;
+    bool pollUseful = afterPoll > beforePoll;
+
+
     uint64_t ts = get_timestamp();
+
+    uint64_t beforeDeaggregate = stats.messages_deaggregated_;
     deaggregate();
+    uint64_t afterDeaggregate = stats.messages_deaggregated_;
+    bool deagUseful = afterDeaggregate > beforeDeaggregate;
+    
     // timestamp overflows are silently ignored. 
     // since it would take many many years to see one, I think that's okay for now.
     int num_flushes = 0;
@@ -714,7 +751,10 @@ public:
       ++num_flushes;
     }
     if( num_flushes > 0 ) stats.record_multiflush();
+    bool flushUseful = num_flushes > 0;
     previous_timestamp_ = ts;
+
+    return flushUseful || deagUseful || pollUseful;
   }
 
   /// what's the largest message we can aggregate?
@@ -749,7 +789,7 @@ public:
     // make sure arg struct and payload aren't too big.
     // in the future, this would lead us down a separate code path for large messages.
     // for now, fail.
-    size_t total_call_size = payload_size + args_size + sizeof( AggregatorGenericCallHeader );
+    size_t total_call_size = Grappa_sizeof_message( args, args_size, payload, payload_size );
     DVLOG(5) << "aggregating " << total_call_size << " bytes to " 
              << destination << "(target " << target << ")";
     CHECK( total_call_size < buffer_size_ ) << "payload_size( " << payload_size << " )"
@@ -757,10 +797,10 @@ public:
                                            << "+header_size( " << sizeof( AggregatorGenericCallHeader ) << " )"
                                            << "= " << total_call_size << " of max( " << buffer_size_ << " )";
 
-    AggregatorGenericCallHeader header = { reinterpret_cast< intptr_t >( fn_p ),
+    AggregatorGenericCallHeader header = { reinterpret_cast< uintptr_t >( fn_p ),
 					   destination,
-					   args_size,
-					   payload_size
+					   static_cast<uint16_t>(args_size),
+					   static_cast<uint16_t>(payload_size)
 #ifdef GRAPPA_TRACE
 					   , global_communicator.mynode()
 #endif
@@ -831,6 +871,26 @@ public:
 
 extern Aggregator global_aggregator;
 
+// TODO: fix this so it works
+// log deprecated call sites 
+#define Grappa_call_onx( ... )                                           \
+  do {                                                                  \
+    LOG(WARNING) << "Using old aggregator bypass, which adds additional blocking"; \
+    Grappa_call_on_m( __VA_ARGS__ );                                    \
+  } while(0)
+
+#define Grappa_call_on_xx( ... )                                         \
+  do {                                                                  \
+    LOG(WARNING) << "Using old aggregator bypass, which adds additional blocking"; \
+    Grappa_call_on_x_m( __VA_ARGS__ );                                  \
+  } while(0)
+
+
+#ifdef ENABLE_RDMA_AGGREGATOR
+#include "Message.hpp"
+#endif
+
+
 
 /// Aggregate a message.
 ///
@@ -842,16 +902,33 @@ extern Aggregator global_aggregator;
 ///  @param payload_size size in bytes of payload buffer
 template< typename ArgsStruct >
 inline void Grappa_call_on( Node destination, void (* fn_p)(ArgsStruct *, size_t, void *, size_t), 
-                             const ArgsStruct * args, const size_t args_size = sizeof( ArgsStruct ),
-                             const void * payload = NULL, const size_t payload_size = 0)
+                              const ArgsStruct * args, const size_t args_size = sizeof( ArgsStruct ),
+                              const void * payload = NULL, const size_t payload_size = 0)
 {
   StateTimer::start_communication();
+#if defined(OLD_MESSAGES_NEW_AGGREGATOR) && defined(ENABLE_RDMA_AGGREGATOR)
+  struct __attribute__((deprecated("Using old aggregator bypass"))) Warning {};
+  CHECK_EQ( sizeof(ArgsStruct), args_size ) << "must add special-case for nonstandard ArgsStruct usage";
+  typedef typename std::remove_const<ArgsStruct>::type NonConstArgsStruct;
+  ArgsStruct& a = *(const_cast<NonConstArgsStruct*>(args)); // HACK to work around some const disagreements at call sites
+  if( NULL == payload ) {
+    auto m = Grappa::send_message( destination, [a,fn_p] () mutable {
+        fn_p( &a, sizeof(a), NULL, 0 );
+      });
+  } else {
+    auto m = Grappa::send_message( destination, [a,fn_p] (void * payload, size_t size) mutable {
+        fn_p( &a, sizeof(a), payload, size );
+      }, const_cast<void*>(payload), payload_size );
+  }
+#else
   global_aggregator.aggregate( destination,
                                reinterpret_cast< AggregatorAMHandler >( fn_p ),
                                static_cast< const void * >( args ), args_size,
                                static_cast< const void * >( payload ), payload_size );
+#endif
   StateTimer::stop_communication();
 }
+
 
 /// Aggregate a message. Same as Grappa_call_on(), but with a
 /// different payload type.
@@ -862,10 +939,28 @@ inline void Grappa_call_on_x( Node destination, void (* fn_p)(ArgsStruct *, size
                                const PayloadType * payload = NULL, const size_t payload_size = 0)
 {
   StateTimer::start_communication();
+#if defined(OLD_MESSAGES_NEW_AGGREGATOR) && defined(ENABLE_RDMA_AGGREGATOR)
+  struct __attribute__((deprecated("Using old aggregator bypass, which adds additional blocking"))) Warning {};
+  //LOG(WARNING) << "Using old aggregator bypass, which adds additional blocking";
+  CHECK_EQ( sizeof(ArgsStruct), args_size ) << "must add special-case for nonstandard ArgsStruct usage";
+  ArgsStruct& a = *(std::remove_const<ArgsStruct>(args));
+  if( NULL == payload ) {
+    auto m = Grappa::send_message( destination, [a,fn_p] {
+        fn_p( &a, sizeof(a), NULL, 0 );
+      });
+  } else {
+    auto m = Grappa::send_message( destination, [a,fn_p] (void * void_payload, size_t size) {
+        PayloadType * p = reinterpret_cast< PayloadType * >( void_payload );
+        size_t psize = size / sizeof(PayloadType);
+        fn_p( &a, sizeof(a), p, psize );
+      }, static_cast< void * >( payload ), payload_size );
+  }
+#else
   global_aggregator.aggregate( destination,
                                reinterpret_cast< AggregatorAMHandler >( fn_p ),
                                static_cast< const void * >( args ), args_size,
                                static_cast< const void * >( payload ), payload_size );
+#endif
   StateTimer::stop_communication();
 }
 

@@ -12,22 +12,34 @@
 #include <glog/logging.h>
 
 #include "Communicator.hpp"
-#include "tasks/Thread.hpp"
+#include "Worker.hpp"
 #include "tasks/TaskingScheduler.hpp"
 #include "PerformanceTools.hpp"
 
 //#include <typeinfo>
 //#include <cxxabi.h>
 
+namespace Grappa {
+
+extern double tick_rate;
+
+namespace impl {
+
 /// global scheduler instance
 extern TaskingScheduler global_scheduler;
+
+/// called on failures to backtrace and pause for debugger
+extern void failure_function();
+
+}
+}
 
 /// pointer to parent pthread
 extern Thread * master_thread;
 
 /// for convenience/brevity, define macro to get current thread/worker
 /// pointer
-#define CURRENT_THREAD global_scheduler.get_current_thread()
+#define CURRENT_THREAD Grappa::impl::global_scheduler.get_current_thread()
 
 extern Node * node_neighbors;
 
@@ -46,50 +58,50 @@ void Grappa_finish( int retval );
 /// Yield to scheduler, placing current Thread on run queue.
 static inline void Grappa_yield( )
 {
-  /*bool immed =*/ global_scheduler.thread_yield( );
+  /*bool immed =*/ Grappa::impl::global_scheduler.thread_yield( );
 }
 
 /// Yield to scheduler, placing current Thread on periodic queue.
 static inline void Grappa_yield_periodic( )
 {
-  /*bool immed =*/ global_scheduler.thread_yield_periodic( );
+  /*bool immed =*/ Grappa::impl::global_scheduler.thread_yield_periodic( );
 }
 
 /// Yield to scheduler, suspending current Thread.
 static inline void Grappa_suspend( )
 {
-  DVLOG(5) << "suspending Thread " << global_scheduler.get_current_thread() << "(# " << global_scheduler.get_current_thread()->id << ")";
-  global_scheduler.thread_suspend( );
+  DVLOG(5) << "suspending Thread " << Grappa::impl::global_scheduler.get_current_thread() << "(# " << Grappa::impl::global_scheduler.get_current_thread()->id << ")";
+  Grappa::impl::global_scheduler.thread_suspend( );
   //CHECK_EQ(retval, 0) << "Thread " << th1 << " suspension failed. Have the server threads exited?";
 }
 
 /// Wake a Thread by putting it on the run queue, leaving the current thread running.
 static inline void Grappa_wake( Thread * t )
 {
-  DVLOG(5) << global_scheduler.get_current_thread()->id << " waking Thread " << t;
-  global_scheduler.thread_wake( t );
+  DVLOG(5) << Grappa::impl::global_scheduler.get_current_thread()->id << " waking Thread " << t;
+  Grappa::impl::global_scheduler.thread_wake( t );
 }
 
 /// Wake a Thread t by placing current thread on run queue and running t next.
 static inline void Grappa_yield_wake( Thread * t )
 {
-  DVLOG(5) << "yielding Thread " << global_scheduler.get_current_thread() << " and waking thread " << t;
-  global_scheduler.thread_yield_wake( t );
+  DVLOG(5) << "yielding Thread " << Grappa::impl::global_scheduler.get_current_thread() << " and waking thread " << t;
+  Grappa::impl::global_scheduler.thread_yield_wake( t );
 }
 
 /// Wake a Thread t by suspending current thread and running t next.
 static inline void Grappa_suspend_wake( Thread * t )
 {
-  DVLOG(5) << "suspending Thread " << global_scheduler.get_current_thread() << " and waking thread " << t;
-  global_scheduler.thread_suspend_wake( t );
+  DVLOG(5) << "suspending Thread " << Grappa::impl::global_scheduler.get_current_thread() << " and waking thread " << t;
+  Grappa::impl::global_scheduler.thread_suspend_wake( t );
 }
 
 /// Place current thread on queue to be reused by tasking layer as a worker.
 /// @deprecated should not be in the public API because it is a Thread-level not Task-level routine
 static inline bool Grappa_thread_idle( )
 {
-  DVLOG(5) << "Thread " << global_scheduler.get_current_thread()->id << " going idle";
-  return global_scheduler.thread_idle( );
+  DVLOG(5) << "Thread " << Grappa::impl::global_scheduler.get_current_thread()->id << " going idle";
+  return Grappa::impl::global_scheduler.thread_idle( );
 }
 
 
@@ -179,6 +191,9 @@ void Grappa_signal_done( );
 /// User main signal tasks done
 void Grappa_end_tasks( );
 
+/// Check initialized global queue
+bool Grappa_global_queue_isInit( );
+
 /// dump stats for this node
 void Grappa_dump_stats( std::ostream& oo = std::cout );
 /// dump stats for all nodes
@@ -196,7 +211,9 @@ void Grappa_dump_task_series();
 
 void Grappa_dump_stats_blob();
 
-
+void legacy_dump_stats( std::ostream& oo );
+void legacy_reduce_stats_and_dump( std::ostream& oo );
+void legacy_profiling_sample();
 
 #include "Aggregator.hpp"
 
@@ -204,6 +221,9 @@ void Grappa_dump_stats_blob();
 static inline void Grappa_poll()
 {
   global_aggregator.poll();
+#ifdef ENABLE_RDMA_AGGREGATOR
+  Grappa::impl::global_rdma_aggregator.poll();
+#endif
 }
 
 /// Send waiting aggregated messages to a particular destination.
@@ -217,8 +237,6 @@ static inline void Grappa_flush( Node n )
 static inline void Grappa_idle_flush_poll() {
   global_aggregator.idle_flush_poll();
 }
-
-void Grappa_take_profiling_sample();
 
 #include "Addressing.hpp"
 #include "Tasking.hpp"
