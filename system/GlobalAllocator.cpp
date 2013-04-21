@@ -10,10 +10,6 @@
 
 /// global GlobalAllocator pointer
 GlobalAllocator * global_allocator = NULL;
-  
-GlobalAddress<void> Grappa_malloc(size_t size_bytes) {
-  return GlobalAllocator::remote_malloc(size_bytes);
-}
 
 /// dump
 std::ostream& operator<<( std::ostream& o, const GlobalAllocator& a ) {

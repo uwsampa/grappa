@@ -22,6 +22,8 @@ GRAPPA_DECLARE_STAT(SimpleStatistic<uint64_t>, gce_total_remote_completions);
 GRAPPA_DECLARE_STAT(SimpleStatistic<uint64_t>, gce_completions_sent);
 
 namespace Grappa {
+/// @addtogroup Synchronization
+/// @{
 
 /// GlobalCompletionEvent (GCE):
 /// Synchronization construct for determining when a global phase of asynchronous tasks have 
@@ -121,6 +123,8 @@ class GlobalCompletionEvent : public CompletionEvent {
   
 public:
   
+  /// Send a completion message to the originating core. Uses the local instance of the gce to
+  /// keep track of information in order to flatten completions automatically.
   void send_completion(Core owner, int64_t dec = 1) {
     if (owner == mycore()) {
       VLOG(5) << "complete locally ";
@@ -201,7 +205,7 @@ public:
   /// Note: this can be called in a message handler (e.g. remote completes from stolen tasks).
   void complete(int64_t dec = 1) {
     count -= dec;
-    DVLOG(4) << "complete (" << count << ") -- " << this;
+    DVLOG(4) << "complete (" << count << ") -- gce(" << this << ")";
     
     // out of work here
     if (count == 0) { // count[dec -> 0]
@@ -276,11 +280,14 @@ inline void complete(GlobalAddress<GlobalCompletionEvent> ce, int64_t decr = 1) 
     }
   }
 }
-
+/// @}
 } // namespace Grappa
 
 /// Synchronizing spawns
 namespace Grappa {
+  /// @addtogroup Tasking
+  /// @{
+  
   /// Synchronizing private task spawn. Automatically enrolls task with GlobalCompletionEvent and
   /// does local `complete` when done (if GCE is non-null).
   template<typename TF>
@@ -317,5 +324,6 @@ namespace Grappa {
       if (GCE) complete(make_global(GCE,origin));
     });
   }
-  
+
+  ///@}
 } // namespace Grappa

@@ -12,6 +12,8 @@
 #include "ParallelLoop.hpp"
 
 namespace Grappa {
+/// @addtogroup Containers
+/// @{
   
 /// Initialize an array of elements of generic type with a given value.
 /// 
@@ -34,24 +36,52 @@ void memset(GlobalAddress<T> base, S value, size_t count) {
 }
 
 namespace impl {
+  /// Copy elements of array (src..src+nelem) that are local to corresponding locations in dst
   template< typename T >
   void do_memcpy_locally(GlobalAddress<T> dst, GlobalAddress<T> src, size_t nelem) {
     typedef typename Incoherent<T>::WO Writeback;
-
-    T * local_base = src.localize(), * local_end = (src+nelem).localize();
+    auto src_end = src+nelem;
+    // T * local_base = src.localize(), * local_end = (src+nelem).localize();
+    int64_t nfirstcore = src.block_max() - src;
+    int64_t nlastcore = src_end - src_end.block_min();
+    int64_t nmiddle = nelem - nfirstcore - nlastcore;
+    
     const size_t nblock = block_size / sizeof(T);
-    const size_t nlocalblocks = (local_end-local_base)/nblock;
-    Writeback ** putters = new Writeback*[nlocalblocks];
-    for (size_t i=0; i < nlocalblocks; i++) {
-      size_t j = make_linear(local_base+(i*nblock))-src;
-      size_t n = (i < nlocalblocks-1) ? nblock : (local_end-local_base)-(i*nblock);
+    
+    CHECK_EQ(nmiddle % nblock, 0);
 
-      // initialize WO cache to read from this block locally and write to corresponding block in dest
-      putters[i] = new Writeback(dst+j, n, local_base+(i*nblock));
-      putters[i]->start_release();
+    auto src_start = src;
+    if (src.core() == mycore()) {
+      int64_t nfirstcore = src.block_max() - src;
+      if (nfirstcore > 0 && nlastcore != nblock) {
+        DVLOG(3) << "nfirstcore = " << nfirstcore;
+        Writeback w(dst, nfirstcore, src.pointer());
+        src_start += nfirstcore;
+      }
     }
-    for (size_t i=0; i < nlocalblocks; i++) { delete putters[i]; }
-    delete [] putters;
+    if ((src_end-1).core() == mycore()) {
+      int64_t nlastcore = src_end - src_end.block_min();
+      int64_t index = nelem - nlastcore;
+      if (nlastcore > 0 && nlastcore != nblock) {
+        DVLOG(3) << "nlastcore = " << nlastcore << ", index = " << index;
+        CHECK((src+index).core() == mycore());
+        Writeback w(dst+index, nlastcore, (src+index).pointer());
+        src_end -= nlastcore;
+      }
+    }
+    
+    auto * local_base = src_start.localize();
+    size_t nlocal_trimmed = src_end.localize() - local_base;
+    CHECK_EQ((nlocal_trimmed) % nblock, 0);
+    size_t nlocalblocks = nlocal_trimmed/nblock;
+    Writeback * ws = locale_alloc<Writeback>(nlocalblocks);
+    for (size_t i=0; i<nlocalblocks; i++) {
+      size_t j = make_linear(local_base+(i*nblock))-src;
+      new (ws+i) Writeback(dst+j, nblock, local_base+(i*nblock));
+      ws[i].start_release();
+    }
+    for (size_t i=0; i<nlocalblocks; i++) { ws[i].block_until_released(); }
+    locale_free(ws);
   }
 }
 
@@ -79,22 +109,61 @@ void memcpy_async(GlobalAddress<T> dst, GlobalAddress<T> src, size_t nelem) {
 template< typename T >
 void prefix_sum(GlobalAddress<T> array, size_t nelem) {
   // not implemented
+  CHECK(false) << "prefix_sum is currently unimplemented!";
 }
 
+namespace util {
+  /// String representation of a local array, matches form of Grappa::array_str that takes a global array.
+  template<typename T>
+  inline std::string array_str(const char * name, T * base, size_t nelem, int width = 10) {
+    std::stringstream ss; ss << "\n" << name << ": [";
+    for (size_t i=0; i<nelem; i++) {
+      if (i % width == 0) ss << "\n  ";
+      ss << " " << base[i];
+    }
+    ss << "\n]";
+    return ss.str();
+  }
+  
+  /// String representation of a global array.
+  /// @example
+  /// @code
+  ///   GlobalAddress<int> xs;
+  ///   DVLOG(2) << array_str("x", xs, 4);
+  /// // (if DEBUG=1 and --v=2)
+  /// //> x: [
+  /// //>  7 4 2 3
+  /// //> ]
+  /// @endcode
+  template<typename T>
+  inline std::string array_str(const char * name, GlobalAddress<T> base, size_t nelem, int width = 10) {
+    std::stringstream ss; ss << "\n" << name << ": [";
+    for (size_t i=0; i<nelem; i++) {
+      if (i % width == 0) ss << "\n  ";
+      ss << " " << delegate::read(base+i);
+    }
+    ss << "\n]";
+    return ss.str();
+  }
+  
+}
+
+/// @}
 } // namespace Grappa
 
-/// Legacy: @see { Grappa::memset() }
+/// @b Legacy: @see { Grappa::memset() }
 template< typename T , typename S >
 void Grappa_memset(GlobalAddress<T> request_address, S value, size_t count) {
   Grappa::memset(request_address, value, count);
 }
 
-/// Legacy: @see { Grappa::memset() }
+/// @b Legacy: @see { Grappa::memset() }
 template< typename T, typename S >
 void Grappa_memset_local(GlobalAddress<T> base, S value, size_t count) {
   Grappa::memset(base, value, count);
 }
 
+/// @b Legacy: @see { Grappa::memcpy() }
 template< typename T >
 void Grappa_memcpy(GlobalAddress<T> dst, GlobalAddress<T> src, size_t nelem) {
   Grappa::memcpy(dst,src,nelem);

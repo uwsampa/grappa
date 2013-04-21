@@ -115,21 +115,43 @@ public:
 
 std::ostream& operator<<( std::ostream& o, const GlobalAllocator& a );
 
+/// @addtogroup Memory
+/// @{
 
+namespace Grappa {
 
-GlobalAddress< void > Grappa_malloc( size_t size_bytes );
+/// Allocate bytes from the global shared heap.
+template< typename T = void >
+GlobalAddress<T> global_alloc(size_t count) {
+  return static_cast<GlobalAddress<T>>(GlobalAllocator::remote_malloc(sizeof(T)*count));
+}
 
+/// Free memory allocated from global shared heap.
 template< typename T >
-void Grappa_free(GlobalAddress<T> address) {
+void global_free(GlobalAddress<T> address) {
   GlobalAllocator::remote_free(static_cast<GlobalAddress<void>>(address));
 }
 
-
-/// Allocate count T's worth of bytes from global heap.
-template< typename T >
-GlobalAddress< T > Grappa_typed_malloc( size_t count ) {
-  return static_cast<GlobalAddress<T>>(Grappa_malloc( sizeof( T ) * count ));
 }
 
+/// Allocate bytes from the global shared heap.
+GlobalAddress<void> Grappa_malloc(size_t size_bytes) {
+  return static_cast<GlobalAddress<void>>(Grappa::global_alloc<char>(size_bytes));
+}
+
+/// Free memory allocated from global shared heap.
+template< typename T >
+void Grappa_free(GlobalAddress<T> address) {
+  Grappa::global_free<T>(address);
+}
+
+
+/// Allocate count T's worth of bytes from global shared heap.
+template< typename T >
+GlobalAddress< T > Grappa_typed_malloc( size_t count ) {
+  return Grappa::global_alloc<T>(count);
+}
+
+/// @}
 
 #endif

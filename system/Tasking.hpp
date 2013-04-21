@@ -75,7 +75,7 @@ namespace Grappa {
 
   }
 
-  /// Spawn a task visible to this Node only. The task is specified as
+  /// Spawn a task visible to this Core only. The task is specified as
   /// a functor or lambda. If it is 24 bytes or less, it is copied
   /// directly into the task queue. If it is larger, a copy is
   /// allocated on the heap. This copy will be deallocated after the
@@ -113,6 +113,10 @@ namespace Grappa {
     }
   }
   
+  /// Spawn a task that may be stolen between cores. The task is specified as a functor or lambda,
+  /// and must be 24 bytes or less (currently).
+  ///
+  /// @see Grappa::privateTask for usage.
   template < typename TF >
   void publicTask( TF tf ) {
     // TODO: implement automatic heap allocation and caching to handle larger functors
@@ -125,6 +129,7 @@ namespace Grappa {
     Grappa::impl::global_task_manager.spawnPublic(Grappa::impl::task_functor_proxy<TF>, args[0], args[1], args[2]);
   }
 
+  /// @b internal
   template < typename TF >
   void spawn_worker( TF && tf ) {
     TF * tp = new TF(tf);
@@ -140,6 +145,7 @@ namespace Grappa {
 }
 
 
+/// @deprecated
 /// Spawn a task visible to this Node only
 ///
 /// @tparam A0 type of first task argument
@@ -159,6 +165,7 @@ void Grappa_privateTask( void (*fn_p)(A0,A1,A2), A0 arg0, A1 arg1, A2 arg2 ) {
   Grappa::impl::global_task_manager.spawnLocalPrivate( fn_p, arg0, arg1, arg2 );
 }
 
+/// @deprecated
 /// Spawn a task visible to this Node only
 ///
 /// @tparam A0 type of first task argument
@@ -173,6 +180,7 @@ void Grappa_privateTask( void (*fn_p)(A0, A1), A0 arg, A1 shared_arg)
   Grappa_privateTask(reinterpret_cast<void (*)(A0,A1,void*)>(fn_p), arg, shared_arg, (void*)NULL);
 }
 
+/// @deprecated
 /// Spawn a task visible to this Node only
 ///
 /// @tparam A0 type of first task argument
@@ -184,6 +192,7 @@ inline void Grappa_privateTask( void (*fn_p)(T), T arg) {
   Grappa_privateTask(reinterpret_cast<void (*)(T,void*)>(fn_p), arg, (void*)NULL);
 }
 
+/// @deprecated
 /// Spawn a task to the global task pool.
 /// That is, it can potentially be executed on any Node.
 ///

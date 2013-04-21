@@ -306,7 +306,12 @@ int main(int argc, char* argv[]) {
     printf("\nScalable Data Generator - genScalData() randomly generating edgelist...\n"); fflush(stdout);
     t = timer();
     
-    genScalData(ge, A, B, C, D);
+    //    genScalData(ge, A, B, C, D);
+    uint_fast32_t seed[5];
+    make_mrg_seed(1, 2, seed);
+    alloc_edgelist(ge, numEdges);
+
+    generate_kronecker_range(seed, SCALE, 0, numEdges, ge);
     
     t = timer() - t;
     printf("edge_generation_time: %g\n", t);
@@ -322,11 +327,23 @@ int main(int argc, char* argv[]) {
     
     // directed graph
     computeGraph(ge, dirg);
+    printf("computed graph\n");
+
+    //checksum:
+    int sum = 0;
+    for (int i = 0; i < dirg->numEdges; i++) {
+      graphint s = dirg->startVertex[i];
+      graphint e = dirg->endVertex[i];
+      sum ^= s*e;
+    }
+    printf("graph checksum: %d\n", sum);
+
     free_edgelist(ge);
-    
+
+    printf("freed edgelist\n");
     // undirected graph
     makeUndirected(dirg, g);
-    
+
     t = timer() - t;
     printf("compute_graph_time: %g\n", t);
     if (graphfile) print_graph_dot(g, graphfile);

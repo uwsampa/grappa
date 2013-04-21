@@ -19,18 +19,11 @@
 
 using namespace Grappa;
 
-static inline double read_double(GlobalAddress<double> addr) {
-  int64_t temp = Grappa_delegate_read_word(addr);
-  return *reinterpret_cast<double*>(&temp);
-}
-
 struct CentralityScratch {
   GlobalAddress<double> delta;
   GlobalAddress<graphint> dist, Q, sigma, marks, child, child_count, explored,
                           Qnext;
 };
-
-static LocalTaskJoiner joiner;
 
 static graph g;
 static CentralityScratch c;
@@ -82,18 +75,30 @@ void do_bfs_push(graphint d_phase_, int64_t start, int64_t end) {
       for (int64_t k=0; k<kiters; k++) {
         graphint w = kfirst[k];
         graphint d = delegate::read(c.dist+w);
-    
+            
         // If node has not been visited, set distance and push on Q (but only once)
         if (d < 0) {
           if (delegate::compare_and_swap(c.marks+w, 0, 1)) {
             delegate::write_async(pool, c.dist+w, d_phase);
             Qbuf.push(w);
           }
+          d = d_phase;
         }
-        if (d < 0 || d == d_phase) {
+        if (d == d_phase) {
           delegate::increment_async(pool, c.sigma+w, sigmav);
           bufChild[ccount++] = w;
         }
+        // graphint dw = delegate::call(c.dist+w, [w,d_phase](graphint* dw) -> graphint {
+        //   if (*dw < 0) {
+        //     *dw = d_phase;
+        //     Qbuf.push(w);
+        //   }
+        //   return *dw;
+        // });
+        // if (dw == d_phase) {
+        //   delegate::increment_async(pool, c.sigma+w, sigmav);
+        //   bufChild[ccount++] = w;
+        // }
       }
       // TODO: find out if it makes sense to buffer these
       graphint l = vStart + delegate::fetch_and_add(c.child_count+v, ccount);
@@ -275,7 +280,7 @@ double centrality(graph *g_in, GlobalAddress<double> bc_in, graphint Vs,
     d_phase = nQ;
     Qstart = QHead[nQ-1];
     Qend = QHead[nQ];
-    DVLOG(1) << "pushing d_phase(" << d_phase << ") " << Qstart << " -> " << Qend;
+    DVLOG(2) << "pushing d_phase(" << d_phase << ") " << Qstart << " -> " << Qend;
     do_bfs_push(d_phase, Qstart, Qend);
     
     // If new nodes pushed onto Q
@@ -287,7 +292,7 @@ double centrality(graph *g_in, GlobalAddress<double> bc_in, graphint Vs,
     
     // Dependence accumulation phase
     nQ--;
-    VLOG(3) << "nQ = " << nQ;
+    DVLOG(3) << "nQ = " << nQ;
 
     Grappa::memset(c.delta, 0.0, g.numVertices);
     
@@ -296,18 +301,22 @@ double centrality(graph *g_in, GlobalAddress<double> bc_in, graphint Vs,
       Qstart = QHead[nQ-1];
       Qend = QHead[nQ];
       d_phase--;
-      DVLOG(1) << "popping d_phase(" << d_phase << ") " << Qstart << " -> " << Qend;
+      DVLOG(2) << "popping d_phase(" << d_phase << ") " << Qstart << " -> " << Qend;
       
       do_bfs_pop(Qstart, Qend);      
       
     }
-  } // end for(x=0; x<NV && Vs>0)
     
+    // DVLOG(2) << util::array_str("delta", c.delta, g.numVertices);
+  } // end for(x=0; x<NV && Vs>0)
+
+  DVLOG(3) << util::array_str("bc", bc, g.numVertices, 20);
+  
   t = timer() - t;
   disable_tau();
-
+  
   VLOG(1) << "centrality rngtime = " << rngtime;
-
+  
   Grappa_free(c.delta);
   Grappa_free(c.dist);
   Grappa_free(c.Q);
@@ -316,7 +325,7 @@ double centrality(graph *g_in, GlobalAddress<double> bc_in, graphint Vs,
   Grappa_free(c.child);
   Grappa_free(c.child_count);
   Grappa_free(c.explored);
-
+  
   double bc_total = 0;
   Core origin = mycore();
   // TODO: use array reduction op, or mutable "forall_localized"-held state

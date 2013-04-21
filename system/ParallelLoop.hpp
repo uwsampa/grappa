@@ -29,8 +29,9 @@
 /// parallel loop functions.
 DECLARE_int64(loop_threshold);
 
-
 namespace Grappa {
+  /// @addtogroup Loops
+  /// @{
   
   namespace impl {
     /// Declares that the loop threshold should be determined by the `loop_threshold` command-line flag.
@@ -129,8 +130,8 @@ namespace Grappa {
   ///
   /// Subject to "may-parallelism", @see `loop_threshold`.
   ///
-  /// @warning { All calls to forall_here will share the same CompletionEvent by default,
-  ///            so only one should be called at once per core. }
+  /// @warning All calls to forall_here will share the same CompletionEvent by default,
+  ///          so only one should be called at once per core.
   ///
   /// Also note: a single copy of `loop_body` is passed by reference to all of the child
   /// tasks, so be sure not to modify anything in the functor
@@ -159,9 +160,9 @@ namespace Grappa {
   /// should be alright to make the functor as large as desired.
   ///
   /// Subject to "may-parallelism", @see `loop_threshold`.
-  template<GlobalCompletionEvent * GCE = &impl::local_gce, int64_t Threshold = impl::USE_LOOP_THRESHOLD_FLAG, typename F = decltype(nullptr) >
+  template<GlobalCompletionEvent * GCE = nullptr, int64_t Threshold = impl::USE_LOOP_THRESHOLD_FLAG, typename F = decltype(nullptr) >
   void forall_here_async(int64_t start, int64_t iters, F loop_body) {
-    GCE->enroll(iters);
+    if (GCE) GCE->enroll(iters);
     
     struct HeapF {
       const F loop_body;
@@ -179,7 +180,7 @@ namespace Grappa {
       // also keeps task args < 24 bytes, preventing it from needing to be heap-allocated
       [hf](int64_t s, int64_t n) {
         hf->loop_body(s, n);
-        GCE->complete(n);
+        if(GCE) GCE->complete(n);
         hf->ref(-n);
       });
   }
@@ -264,8 +265,19 @@ namespace Grappa {
   /// takes a lambda/functor that operates on a range of iterations:
   ///   void(int64_t first_index, int64_t niters, T * first_element)
   ///
-  /// Warning: you cannot simply increment `first_index` `niters` times and get the
+  /// @warning You cannot simply increment `first_index` `niters` times and get the
   /// correct global index because a single task may span more than one block.
+  ///
+  /// Example:
+  /// @code
+  ///   // GlobalCompletionEvent gce declared in global scope
+  ///   GlobalAddress<double> array, dest;
+  ///   forall_localized<&gce>(array, N, [dest](int64_t start, int64_t niters, double * first){
+  ///     for (int64_t i=0; i<niters; i++) {
+  ///       delegate::write_async<&gce>(shared_pool, dest+start+i, 2.0*first+i);
+  ///     }
+  ///   });
+  /// @endcode
   template< GlobalCompletionEvent * GCE = &impl::local_gce,
             int64_t Threshold = impl::USE_LOOP_THRESHOLD_FLAG,
             typename T = decltype(nullptr),
@@ -308,6 +320,15 @@ namespace Grappa {
   /// anything for a single task. If you would like to do something that will be used by
   /// multiple iterations, use the other version of Grappa::forall_localized that takes a
   /// lambda that operates on a range.
+  ///
+  /// Example:
+  /// @code
+  ///   // GlobalCompletionEvent gce declared in global scope
+  ///   GlobalAddress<double> array, dest;
+  ///   forall_localized<&gce>(array, N, [dest](int64_t i, double& v){
+  ///     delegate::write_async<&gce>(shared_pool, dest+i, 2.0*v);
+  ///   });
+  /// @endcode
   template< GlobalCompletionEvent * GCE = &impl::local_gce,
             int64_t Threshold = impl::USE_LOOP_THRESHOLD_FLAG,
             typename T = decltype(nullptr),
@@ -389,7 +410,9 @@ namespace Grappa {
   /// from base[0]-base[nelems].
   ///
   /// loop_body functor should be of the form:
+  /// @code
   ///   void(int64_t index, T& element)
+  /// @endcode
   template< GlobalCompletionEvent * GCE = &impl::local_gce,
             int64_t Threshold = impl::USE_LOOP_THRESHOLD_FLAG,
             typename T = decltype(nullptr),
@@ -470,6 +493,8 @@ namespace Grappa {
       }
     });
   }
+  
+  /// @}
   
 } // namespace Grappa
 

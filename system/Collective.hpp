@@ -233,8 +233,12 @@ T Grappa_allreduce_noinit(T myval) {
 }
 
 namespace Grappa {
+  /// @addtogroup Collectives
+  /// @{
   
-  // Call message (work that cannot block) on all cores, block until ack received from all.
+  /// Call message (work that cannot block) on all cores, block until ack received from all.
+  /// Like Grappa::on_all_cores() but does @a not spawn tasks on each core.
+  /// Can safely be called concurrently with others.
   template<typename F>
   void call_on_all_cores(F work) {
     Core origin = mycore();
@@ -256,6 +260,15 @@ namespace Grappa {
   /// Spawn a private task on each core, block until all complete.
   /// To be used for any SPMD-style work (e.g. initializing globals).
   /// Also used as a primitive in Grappa system code where anything is done on all cores.
+  ///
+  /// @b Example:
+  /// @code
+  ///   int x[Grappa::cores()];
+  ///   GlobalAddress<int> x_base = make_global(x);
+  ///   Grappa::on_all_cores([x_base]{
+  ///     Grappa::delegate::write(x_base+Grappa::mycore(), 1);
+  ///   });
+  /// @endcode
   template<typename F>
   void on_all_cores(F work) {
     
@@ -275,7 +288,6 @@ namespace Grappa {
     }
     ce.wait();
   }
-  
   
   namespace impl {
     
@@ -315,7 +327,7 @@ namespace Grappa {
     template<typename T, T (*ReduceOp)(const T&, const T&) >
     class InplaceReduction {
     protected:
-      CountingSemaphore * seminary;
+      CompletionEvent * ce;
       T * array;
       Core elems_in = 0;
       size_t nelem;
@@ -326,12 +338,15 @@ namespace Grappa {
         // setup everything (block to make sure HOME_CORE is done)
         this->array = in_array;
         this->nelem = nelem;
-        CountingSemaphore s(0);
-        this->seminary = &s;
-        barrier();
         
         size_t n_per_msg = MAX_MESSAGE_SIZE / sizeof(T);
         size_t nmsg = nelem / n_per_msg + (nelem % n_per_msg ? 1 : 0);
+        auto nmsg_total = nmsg*(cores()-1);
+
+        CompletionEvent local_ce;
+        this->ce = &local_ce;
+        this->ce->enroll( (mycore() == HOME_CORE) ? nmsg_total : nmsg );
+        barrier();
         
         if (mycore() != HOME_CORE) {
           for (size_t k=0; k<nelem; k+=n_per_msg) {
@@ -348,21 +363,19 @@ namespace Grappa {
               for (size_t i=0; i<in_n; i++) {
                 total[i] = ReduceOp(total[i], in_array[i]);
               }
-              DVLOG(3) << "incrementing HOME sem, now at " << this->seminary->get_value();      
-              this->seminary->increment(1);
+              DVLOG(3) << "incrementing HOME sem, now at " << ce->get_count();      
+              this->ce->complete();
             }, (void*)(in_array+k), sizeof(T)*this_nelem);
           }
           
-          DVLOG(3) << "about to block for " << nelem << " with sem == " << seminary->get_value();
-          seminary->decrement(nmsg);
+          DVLOG(3) << "about to block for " << nelem << " with sem == " << ce->get_count();           this->ce->wait();
           
         } else {
           auto nmsg_total = nmsg*(cores()-1);
-          // check here even when not on debug
-          CHECK_LT(nmsg_total, 1<<15) << "max semaphore count too big";
+          
           // home core waits until woken by last received message from other cores
-          seminary->decrement(nmsg_total);
-          DVLOG(3) << "woke with sem == " << seminary->get_value();
+          this->ce->wait();
+          DVLOG(3) << "woke with sem == " << ce->get_count();
           
           // send total to everyone else and wake them
           char msg_buf[(cores()-1)*sizeof(PayloadMessage<std::function<void(decltype(this),size_t)>>)];
@@ -379,8 +392,8 @@ namespace Grappa {
                   for (size_t i=0; i<in_n; i++) {
                     this->array[k+i] = total_k[i];
                   }
-                  this->seminary->increment(1);
-                  DVLOG(3) << "incrementing sem, now at " << this->seminary->get_value();
+                  this->ce->complete();
+                  DVLOG(3) << "incrementing sem, now at " << ce->get_count();
                 }, this->array+k, sizeof(T)*this_nelem);              
               }
             }
@@ -390,10 +403,21 @@ namespace Grappa {
       }
     };
     
-  }
+  } // namespace impl
   
   /// Called from SPMD context, reduces values from all cores calling `allreduce` and returns reduced
   /// values to everyone. Blocks until reduction is complete, so suffices as a global barrier.
+  ///
+  /// @warning May only one with a given type/op combination may be used at a time,
+  ///          uses a function-private static variable.
+  ///
+  /// @b Example:
+  /// @code
+  ///   Grappa::on_all_cores([]{
+  ///     int value = foo();
+  ///     int total = Grappa::allreduce<int,collective_add>(value);
+  ///   });
+  /// @endcode
   template< typename T, T (*ReduceOp)(const T&, const T&) >
   T allreduce(T myval) {
     impl::Reduction<T>::result.reset();
@@ -405,6 +429,12 @@ namespace Grappa {
     return impl::Reduction<T>::result.readFF();
   }
   
+  /// Called from SPMD context.
+  /// Do an in-place allreduce (works on arrays). All elements of the array will be 
+  /// overwritten by the operation with the total from all cores.
+  ///
+  /// @warning May only one with a given type/op combination may be used at a time,
+  ///          uses a function-private static variable.
   template< typename T, T (*ReduceOp)(const T&, const T&) >
   void allreduce_inplace(T * array, size_t nelem = 1) {
     static impl::InplaceReduction<T,ReduceOp> reducer;
@@ -413,6 +443,16 @@ namespace Grappa {
   
   /// Called from a single task (usually user_main), reduces values from all cores onto the calling node.
   /// Blocks until reduction is complete.
+  /// Safe to use any number of these concurrently.
+  ///
+  /// @b Example:
+  /// @code
+  ///   static int x;
+  ///   void user_main() {
+  ///     on_all_cores([]{ x = foo(); });
+  ///     int total = reduce<int,collective_add>(&x);
+  ///   }
+  /// @endcode
   template< typename T, T (*ReduceOp)(const T&, const T&) >
   T reduce(T * global_ptr) {
     CompletionEvent ce(cores()-1);
@@ -437,7 +477,8 @@ namespace Grappa {
     return total;
   }
   
-}
+  /// @}
+} // namespace Grappa
 
 #endif // COLLECTIVE_HPP
 

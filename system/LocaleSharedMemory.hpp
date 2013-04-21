@@ -74,6 +74,22 @@ public:
 extern LocaleSharedMemory locale_shared_memory;
 
 } // namespace impl
+
+/// @addtogroup Memory
+/// @{
+
+/// Allocate memory in locale shared heap.
+template<typename T>
+inline T* locale_alloc(size_t n) {
+  return reinterpret_cast<T*>(impl::locale_shared_memory.allocate(sizeof(T)*n));
+}
+
+/// Free memory that was allocated from locale shared heap.
+inline void locale_free(void * ptr) {
+  impl::locale_shared_memory.deallocate(ptr);
+}
+
+/// @}
 } // namespace Grappa
 
 #endif

@@ -32,11 +32,10 @@
 
 #include "uts.h"
 
-// xmt version requires gcc
-#ifdef __MTA__
-#else
+// C++ UTS implementations will use namespaced Node
+#ifdef __cplusplus
 using namespace uts;
-#endif /* __MTA__ */
+#endif /* __cplusplus */
 
 /***********************************************************
  *  tree generation and search parameters                  *
@@ -301,6 +300,7 @@ int uts_childType(Node *parent) {
       uts_error("uts_get_childtype(): Unknown tree type");
       return -1;
   }
+  return -1; // shut gcc up
 }
 
 int64_t uts_nodeId(Node *parent) {

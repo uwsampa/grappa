@@ -11,12 +11,16 @@ OBJS += 	computeGraph.o \
 		timer.o \
 		triangles.o \
 		util.o \
+		utils.o \
 		xmalloc.o \
 		centrality.o \
-		compat/mersenne.o
+		compat/mersenne.o \
+		graph_generator.o \
+		splittable_mrg.o
+
 
 all: $(EXE) make_snaps.exe
-	
+
 $(EXE): main.o $(OBJS) $(COMPATLIB) $(IOLIB)
 	$(LD) $(LDFLAGS) -o $@ $^ $(LIBS)
 
