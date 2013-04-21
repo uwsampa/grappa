@@ -37,6 +37,9 @@ include $(GRAPPA_HOME)/system/Makefile
 sort.exe: $(SOURCES) $(HEADERS) $(GRAPPA_HOME)/system/libGrappa.a
 	$($(MPITYPE)_LD) $(LDFLAGS) $(CFLAGS) $(SOURCES) $(GRAPPA_HOME)/system/libGrappa.a $(LIBRARIES) -o $@ $(LIBS)
 
+sort_test.exe: sort_test.o $(GRAPPA_HOME)/system/libGrappa.a
+	$($(MPITYPE)_LD) $(LDFLAGS) $(CFLAGS) sort_test.o $(GRAPPA_HOME)/system/libGrappa.a $(LIBRARIES) -o $@ $(LIBS)
+
 $(GRAPPA_HOME)/system/libGrappa.a: force
 	cd $(GRAPPA_HOME)/system; $(MAKE) lib
 
