@@ -35,9 +35,9 @@ std::ifstream testfile(fn);
       while (testfile.good() && fin<numTuples) {
         std::getline( testfile, line );
         Incoherent<Tuple>::WO lr(tuples+fin, 1);
-        std::vector<std::string> tokens = split( line, ' ' );
+        std::vector<std::string> tokens = split( line, '\t' );
         (*lr).columns[0] = std::stoi(tokens[0]);
-        (*lr).columns[1] = stoi(tokens[1]);
+        (*lr).columns[1] = std::stoi(tokens[1]);
         fin++;
       }
       testfile.close();
