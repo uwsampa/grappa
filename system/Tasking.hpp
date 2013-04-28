@@ -145,7 +145,8 @@ namespace Grappa {
 }
 
 
-/// @deprecated
+/// @deprecated see Grappa::privateTask()
+///
 /// Spawn a task visible to this Node only
 ///
 /// @tparam A0 type of first task argument
@@ -165,7 +166,8 @@ void Grappa_privateTask( void (*fn_p)(A0,A1,A2), A0 arg0, A1 arg1, A2 arg2 ) {
   Grappa::impl::global_task_manager.spawnLocalPrivate( fn_p, arg0, arg1, arg2 );
 }
 
-/// @deprecated
+/// @deprecated see Grappa::privateTask()
+/// 
 /// Spawn a task visible to this Node only
 ///
 /// @tparam A0 type of first task argument
@@ -180,7 +182,8 @@ void Grappa_privateTask( void (*fn_p)(A0, A1), A0 arg, A1 shared_arg)
   Grappa_privateTask(reinterpret_cast<void (*)(A0,A1,void*)>(fn_p), arg, shared_arg, (void*)NULL);
 }
 
-/// @deprecated
+/// @deprecated see Grappa::privateTask()
+///
 /// Spawn a task visible to this Node only
 ///
 /// @tparam A0 type of first task argument
@@ -192,7 +195,8 @@ inline void Grappa_privateTask( void (*fn_p)(T), T arg) {
   Grappa_privateTask(reinterpret_cast<void (*)(T,void*)>(fn_p), arg, (void*)NULL);
 }
 
-/// @deprecated
+/// @deprecated see Grappa::publicTask()
+///
 /// Spawn a task to the global task pool.
 /// That is, it can potentially be executed on any Node.
 ///
@@ -214,6 +218,8 @@ void Grappa_publicTask( void (*fn_p)(A0, A1, A2), A0 arg0, A1 arg1, A2 arg2)
   Grappa::impl::global_task_manager.spawnPublic( fn_p, arg0, arg1, arg2 );
 }
 
+/// @deprecated see Grappa::publicTask
+///
 /// Spawn a task to the global task pool.
 /// That is, it can potentially be executed by any Node.
 ///
@@ -229,6 +235,8 @@ void Grappa_publicTask( void (*fn_p)(A0, A1), A0 arg, A1 shared_arg)
   Grappa_publicTask(reinterpret_cast<void (*)(A0,A1,void*)>(fn_p), arg, shared_arg, (void*)NULL);
 }
 
+/// @deprecated see Grappa::publicTask
+///
 /// Spawn a task to the global task pool.
 /// That is, it can potentially be executed by any Node.
 ///
