@@ -281,14 +281,14 @@ private:
   /// Are we in the phase that allows communication?
   bool communication_is_allowed_;
 
-
+public:
   Core mycore_;
   Core cores_;
   Core mylocale_;
   Core locales_;
   Core locale_mycore_;
   Core locale_cores_;
-  
+private:
   /// array of core-to-locale translations
   Core * locale_of_core_;
 
