@@ -151,19 +151,19 @@ namespace util {
 /// @}
 } // namespace Grappa
 
-/// @b Legacy: @see { Grappa::memset() }
+/// @deprecated: see Grappa::memset()
 template< typename T , typename S >
 void Grappa_memset(GlobalAddress<T> request_address, S value, size_t count) {
   Grappa::memset(request_address, value, count);
 }
 
-/// @b Legacy: @see { Grappa::memset() }
+/// @deprecated: see Grappa::memset()
 template< typename T, typename S >
 void Grappa_memset_local(GlobalAddress<T> base, S value, size_t count) {
   Grappa::memset(base, value, count);
 }
 
-/// @b Legacy: @see { Grappa::memcpy() }
+/// @deprecated: see Grappa::memcpy()
 template< typename T >
 void Grappa_memcpy(GlobalAddress<T> dst, GlobalAddress<T> src, size_t nelem) {
   Grappa::memcpy(dst,src,nelem);
