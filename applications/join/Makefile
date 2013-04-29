@@ -35,10 +35,10 @@ CFLAGS += -g -Drestrict=__restrict__ #-Wall
 SOURCES = $(APP_GRAPH500)/prng.o Tuple.o
 
 join.exe: join.o DHT.hpp relation_IO.hpp Tuple.hpp $(GRAPPA_SYS)/libGrappa.a
-	$(ENV_VARIABLES) $($(MPITYPE)_LD) $(LDFLAGS) join.o $(SOURCES) $(GRAPPA_SYS)/libGrappa.a $(LIBRARIES) -o $@ $(LIBS)
+	$(ENV_VARIABLES) $($(MPITYPE)_LD) $(CFLAGS) $(LDFLAGS) join.o $(SOURCES) $(GRAPPA_SYS)/libGrappa.a $(LIBRARIES) -o $@ $(LIBS)
 
 triangles.exe: triangles.o DHT.hpp relation_IO.hpp Tuple.hpp $(GEN)/generator.a $(GRAPPA_SYS)/libGrappa.a $(SOURCES)
-	$(ENV_VARIABLES) $($(MPITYPE)_LD) $(LDFLAGS) triangles.o $(SOURCES) $(GEN)/generator.a $(GRAPPA_SYS)/libGrappa.a $(LIBRARIES) -o $@ $(LIBS)
+	$(ENV_VARIABLES) $($(MPITYPE)_LD) $(CFLAGS) $(LDFLAGS) triangles.o $(SOURCES) $(GEN)/generator.a $(GRAPPA_SYS)/libGrappa.a $(LIBRARIES) -o $@ $(LIBS)
 
 # use graph500 makefile
 $(APP_GRAPH500)/prng.o:
@@ -50,7 +50,7 @@ $(GEN)/generator.a:
 	cd $(GEN); $(MAKE) DEBUG=$(DEBUG) -f Makefile.grappa genlib
 
 clean:
-	rm -f join.o join.exe
+	rm -f join.o join.exe triangles.exe triangles.o
 	
 
 # XXX remove
