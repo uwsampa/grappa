@@ -127,15 +127,34 @@ void test_push_buffer() {
   Grappa_free(xs);
 }
 
+GlobalQueue<int64_t> gq;
+
+void test_global_queue() {
+  BOOST_MESSAGE("Testing GlobalQueue"); VLOG(1) << "testing global queue";
+  gq.alloc(NN);
+  
+  for (int i=0; i<NN; i++) {
+    gq.push(i);
+  }
+  
+  for (int i=0; i<NN; i++) {
+    BOOST_CHECK_EQUAL(delegate::read(gq.storage()+i), i);
+  }
+  
+  gq.free();
+}
+
 void user_main( void * ignore ) {
   NN = FLAGS_nelems;
   
-  test_memset_memcpy<int64_t,7>();
-  test_memset_memcpy<int64_t,7>(true); // test async
+  // test_memset_memcpy<int64_t,7>();
+  // test_memset_memcpy<int64_t,7>(true); // test async
   // test_memset_memcpy<double,7.0>();
-  test_complex();
+  // test_complex();
   // test_prefix_sum(); // (not implemented yet)
-  test_push_buffer();
+  // test_push_buffer();
+  
+  test_global_queue();
 }
 
 BOOST_AUTO_TEST_CASE( test1 ) {

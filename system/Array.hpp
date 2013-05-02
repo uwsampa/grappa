@@ -10,6 +10,7 @@
 #include "Cache.hpp"
 #include "GlobalCompletionEvent.hpp"
 #include "ParallelLoop.hpp"
+#include "GlobalAllocator.hpp"
 
 namespace Grappa {
 /// @addtogroup Containers
@@ -147,6 +148,61 @@ namespace util {
   }
   
 }
+
+template< typename T, Core MASTER_CORE = 0 >
+class GlobalQueue {
+public:
+  struct Master {
+    size_t offset;
+  } master;
+  
+  struct Shared {
+    size_t max_elems;
+    GlobalAddress<GlobalQueue> self;
+    GlobalAddress<T> base;    
+  } shared;
+  
+  void _init(Shared s) {
+    shared = s;
+    master.offset = 0;
+  }
+  
+public:
+  GlobalQueue() {
+    // self = make_global(this, MASTER_CORE); // TODO: support global-heap allocated (so linear address)
+  }
+  
+  void alloc(size_t max_elems) {
+    shared.self = make_global(this, MASTER_CORE); // TODO: support global-heap allocated (so linear address)
+    shared.max_elems = max_elems;
+    shared.base = global_alloc<T>(max_elems);
+    
+    Shared s = shared;
+    call_on_all_cores([s]{ s.self.localize()->_init(s); });
+  }
+  
+  void free() {
+    global_free(shared.base);
+    auto self = shared.self;
+    // call_on_all_cores([self]{ self.localize()->shared.base = GlobalAddress(); });
+  }
+  
+  void push(T e) {
+    if (mycore() == MASTER_CORE) {
+      auto offset = master.offset;
+      master.offset++;
+      delegate::write(shared.base+offset, e);
+    } else {
+      auto self = shared.self;
+      auto offset = delegate::call(MASTER_CORE, [self]{
+        return self.localize()->master.offset++;
+      });
+      delegate::write(shared.base+offset, e);
+    }
+  }
+  
+  GlobalAddress<T> storage() { return shared.base; }
+};
 
 /// @}
 } // namespace Grappa
