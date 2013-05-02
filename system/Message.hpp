@@ -18,17 +18,47 @@ namespace Grappa {
   /// @addtogroup Communication
   /// @{
 
+namespace impl {
+
+template< typename T >
+struct MessageContents {
+  struct {
+    Core dest_ : 16;
+    const intptr_t deserializer_ : 48;
+  }  __attribute__((packed));
+  T storage_;
+  MessageContents( Core dest, char* (*d)(char*) ) : dest_(dest), deserializer_(reinterpret_cast<intptr_t>(d)), storage_() { }
+  MessageContents( Core dest, char* (*d)(char*), T t ) : dest_(dest), deserializer_(reinterpret_cast<intptr_t>(d)), storage_(t) { }
+};
+
+}
+
   /// A standard message. Storage is internal. Destructor blocks until message is sent.
   /// Best used through @ref message function.
   template< typename T >
   class Message : public Grappa::impl::MessageBase {
   private:
-    T storage_;                  ///< Storage for message contents.
+    static const size_t storage_size = sizeof( &deserialize_and_call ) + sizeof( T );
+
+    //Grappa::impl::MessageContents< T > contents_;
+    union {
+      struct {
+        struct {
+          Core dest_ : 16;
+          intptr_t deserializer_ : 48;
+        } __attribute__((packed));
+        T storage_;
+      };
+      char raw_[ sizeof(&deserialize_and_call) + sizeof(T) ];
+    };
     
   public:
     /// Construct a message.
     inline Message( )
       : MessageBase( sizeof( &deserialize_and_call ) + sizeof( T ) )
+        //, contents_( -1, &deserialize_and_call )
+      , dest_(-1)
+      , deserializer_( reinterpret_cast<intptr_t>( &deserialize_and_call ) )
       , storage_()
     { }
     
@@ -37,7 +67,10 @@ namespace Grappa {
     /// @param t Contents of message to send.
     inline Message( Core dest, T t )
       : MessageBase( dest, sizeof( &deserialize_and_call ) + sizeof( T ) )
-      , storage_( t )
+        //, contents_( dest, &deserialize_and_call, t )
+      , dest_(dest)
+      , deserializer_( reinterpret_cast<intptr_t>( &deserialize_and_call ) )
+      , storage_(t)
     { }
 
     Message( const Message& m ) = delete; ///< Not allowed.
@@ -60,11 +93,13 @@ namespace Grappa {
 
     /// Access message contents.
     inline T& operator*() {
+      //return contents_.storage_;
       return storage_;
     }
     
     /// Access message contents.
     inline T* operator->() {
+      //return &contents_.storage_;
       return &storage_;
     }
     
@@ -97,6 +132,7 @@ namespace Grappa {
              << " is_delivered_=" << this->is_delivered_ 
              << " is_sent_=" << this->is_sent_;
       if( !is_delivered_ ) {
+        //contents_.storage_();
         storage_();
         is_delivered_ = true;
       }
@@ -122,19 +158,25 @@ namespace Grappa {
         //*(reinterpret_cast< intptr_t* >(p)) = gfp;
         // p += sizeof( fp );
 
-        FPAddr gfp = { destination_, reinterpret_cast< intptr_t >( fp ) };
-        *(reinterpret_cast< FPAddr* >(p)) = gfp;
-        static_assert( sizeof(gfp) == 8, "gfp wrong size?" );
-        p += sizeof( gfp );
+        // FPAddr gfp = { destination_, reinterpret_cast< intptr_t >( fp ) };
+        // *(reinterpret_cast< FPAddr* >(p)) = gfp;
+        // static_assert( sizeof(gfp) == 8, "gfp wrong size?" );
+        // p += sizeof( gfp );
 
         
-        // copy contents
-        std::memcpy( p, &storage_, sizeof(storage_) );
+        // // copy contents
+        // std::memcpy( p, &storage_, sizeof(storage_) );
+        // contents_.dest_ = destination_;
+        dest_ = destination_;
+        // std::memcpy( p, &contents_, sizeof( contents_ ) );
+        std::memcpy( p, &raw_, sizeof( raw_ ) );
         
-        DVLOG(5) << __PRETTY_FUNCTION__ << " serialized message of size " << sizeof(fp) + sizeof(storage_) << " to " << gfp.dest << " with deserializer " << fp;
+        //DVLOG(5) << __PRETTY_FUNCTION__ << " serialized message of size " << sizeof(fp) + sizeof(storage_) << " to " << gfp.dest << " with deserializer " << fp;
         
         // return pointer following message
-        return p + sizeof( T );
+        //return p + sizeof( T );
+        //return p + sizeof( contents_ );
+        return p + sizeof( raw_ );
       }
     }
 
@@ -611,6 +653,8 @@ namespace Grappa {
         std::memcpy( p, payload_, payload_size_);
 
         DVLOG(5) << __PRETTY_FUNCTION__ << " serialized message of size " << sizeof(fp) + sizeof(T) + sizeof(int16_t) + payload_size_ << " to " << gfp.dest << " with deserializer " << fp;
+
+        this->mark_sent();
 
         // return pointer following message
         return p + payload_size_;

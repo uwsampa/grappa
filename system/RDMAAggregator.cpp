@@ -554,10 +554,13 @@ void RDMAAggregator::draw_routing_graph() {
       DVLOG(5) << "Serializing messages from " << message;
 
       while( message ) {
-        //DVLOG(5) << __func__ << ": Serializing message " << message << " to " << message->destination_ << ": " << message->typestr();
+        DVLOG(5) << __func__ << ": Serializing message " << message << " to " << message->destination_ << ": " << message->typestr();
 
-        // issue prefetch for next message
+        // issue prefetch for future message
         __builtin_prefetch( message->prefetch_, 1, prefetch_type );
+
+        // get pointer for next messsage 
+        Grappa::impl::MessageBase * next = message->next_;
 
         // add message to buffer
         char * new_buffer = message->serialize_to( buffer, max - size);
@@ -566,10 +569,10 @@ void RDMAAggregator::draw_routing_graph() {
           DVLOG(5) << __func__ << ": Message too big: aborting serialization";
           break;                     // quit
         } else {
-          // DVLOG(3) << __func__ << ": Serialized message " << message
-          //          << " next " << message->next_
-          //          << " prefetch " << message->prefetch_ 
-          //          << " size " << new_buffer - buffer;
+          DVLOG(3) << __func__ << ": Serialized message " << message
+                   << " next " << message->next_
+                   << " prefetch " << message->prefetch_ 
+                   << " size " << new_buffer - buffer;
 
           // track total size
           count++;
@@ -579,11 +582,9 @@ void RDMAAggregator::draw_routing_graph() {
           app_bytes_sent_histogram = new_buffer - buffer;
 #endif
 
-          // go to next messsage 
-          Grappa::impl::MessageBase * next = message->next_;
 
-          // mark as sent
-          message->mark_sent();
+          // // mark as sent
+          // message->mark_sent();
 
           message = next;
         }

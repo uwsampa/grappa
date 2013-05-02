@@ -75,18 +75,15 @@ namespace Grappa {
         prefetch_ = NULL;
 
         //if( Grappa::mycore() != source_ ) {
-        if( (is_delivered_ == true) && (Grappa::mycore() != source_) ) {
-#ifdef DEBUG
+        //        if( (is_delivered_ == true) && (Grappa::mycore() != source_) ) {
+        if( (is_delivered_ == true) && (global_communicator.mycore_ != source_) ) {
           DVLOG(5) << __func__ << ": " << this << " Re-enqueuing to " << source_;
           DCHECK_EQ( this->is_sent_, false );
-#endif
           enqueue( source_ );
 
         } else {
-#ifdef DEBUG
           DVLOG(5) << __func__ << ": " << this << " Final mark_sent";
           DCHECK_EQ( Grappa::mycore(), this->source_ );
-#endif
 
           is_sent_ = true;
 
