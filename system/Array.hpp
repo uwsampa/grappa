@@ -190,7 +190,7 @@ public:
     shared.base = global_alloc<T>(max_elems);
     
     Shared s = shared;
-    call_on_all_cores([s]{ s.self.localize()->_init(s); });
+    call_on_all_cores([s]{ s.self->_init(s); });
   }
   
   void free() {
@@ -207,7 +207,7 @@ public:
     } else {
       auto self = shared.self;
       auto offset = delegate::call(MASTER_CORE, [self]{
-        return self.localize()->master.offset++;
+        return self->master.offset++;
       });
       delegate::write(shared.base+offset, e);
     }
