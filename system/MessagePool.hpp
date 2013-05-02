@@ -39,18 +39,6 @@ namespace impl {
       return new (*this) PayloadMessage<T>( dest, t, payload, payload_size );
     }
     
-    /// Message with contents stored outside object
-    template< typename T >
-    inline ExternalMessage<T>* message( Core dest, T * t ) {
-      return new (*this) ExternalMessage<T>( dest, t );
-    }
-    
-    /// Message with contents stored outside object as well as payload
-    template< typename T >
-    inline ExternalPayloadMessage<T>* message( Core dest, T * t, void * payload, size_t payload_size ) {
-      return new (*this) ExternalPayloadMessage<T>( dest, t, payload, payload_size );
-    }
-    
     /// Same as message, but immediately enqueued to be sent.
     template< typename T >
     inline Message<T> * send_message( Core dest, T t ) {
@@ -67,22 +55,6 @@ namespace impl {
       return m;
     }
     
-    /// Message with contents stored outside object, immediately enqueued to be sent.
-    template< typename T >
-    inline ExternalMessage<T> * send_message( Core dest, T * t ) {
-      ExternalMessage<T> * m = new (*this) ExternalMessage<T>( dest, t );
-      m->enqueue();
-      return m;
-    }
-    
-    /// Message with contents stored outside object as well as payload, immediately enqueued to be sent.
-    template< typename T >
-    inline ExternalPayloadMessage<T> * send_message( Core dest, T * t, void * payload, size_t payload_size ) {
-      ExternalPayloadMessage<T> * m = new (*this) ExternalPayloadMessage<T>( dest, t, payload, payload_size );
-      m->enqueue();
-      return m;
-    }
- 
     friend void* ::operator new(size_t, MessagePoolBase&);
   };
 }
