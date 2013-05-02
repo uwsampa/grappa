@@ -225,6 +225,16 @@ public:
     }
     return local_base;
   }
+  
+  /// Does @b not remotely dereference the global address, this is syntactic sugar for `localize()->`
+  ///
+  /// @code
+  ///   struct { int y; } x = {1};
+  ///   GlobalAddress<decltype(x)> xa = make_global(&x);
+  ///   cout << xa->y;
+  ///   //> 1
+  /// @endcode
+  T* operator->() const { return localize(); }
 
   /// Find base address of block containing this byte.
   inline GlobalAddress< T > block_min() const { 
