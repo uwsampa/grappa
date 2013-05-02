@@ -210,7 +210,9 @@ public:
   /// Find lowest local address of the object at this address.  Used
   /// for PGAS-style local iteration.
   inline T * localize(Node nid = -1) const {
-	if (nid == -1) nid = global_communicator.mynode();
+    if (is_2D()) return pointer();
+    
+  	if (nid == -1) nid = global_communicator.mynode();
     T * local_base;
     size_t block_elems = block_size / sizeof(T);
     T * block_base = block_min().pointer();
@@ -413,11 +415,13 @@ std::ostream& operator<<( std::ostream& o, const GlobalAddress< T >& ga ) {
 
 /// computes offsets of members in structs and claases
 /// call like this:
+/// @code
 ///   struct Foo {
 ///     int i;
 ///   } foo;
 ///   GlobalAddress< Foo > foo_gp = make_global( foo );
 ///   GlobalAddress< int > foo_i_gp = global_pointer_to_member( foo_gp, &Foo::i );
+/// @endcode
 template< typename T, typename M >
 inline GlobalAddress< M > global_pointer_to_member( const GlobalAddress< T > t, const M T::*m ) {
   const intptr_t t_raw = t.raw_bits();
