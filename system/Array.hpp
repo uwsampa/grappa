@@ -162,18 +162,30 @@ public:
     GlobalAddress<T> base;    
   } shared;
   
+  char pad[block_size-sizeof(Shared)-sizeof(Master)];
+  
   void _init(Shared s) {
     shared = s;
     master.offset = 0;
   }
   
 public:
-  GlobalQueue() {
-    // self = make_global(this, MASTER_CORE); // TODO: support global-heap allocated (so linear address)
+  GlobalQueue() {}
+  
+  static GlobalAddress<GlobalQueue> create(size_t max_elems) {
+    static_assert(sizeof(GlobalQueue) % block_size == 0, "must pad global proxy to multiple of block_size");
+    auto qac = global_alloc<char>(cores()*(sizeof(GlobalQueue)+block_size));
+    while (qac.core() != MASTER_CORE) qac++;
+    auto qa = static_cast<GlobalAddress<GlobalQueue>>(qac);
+    // auto qa = global_alloc<GlobalQueue>(cores());
+    CHECK_EQ(qa, qa.block_min());
+    CHECK_EQ(qa.core(), MASTER_CORE);
+    qa.pointer()->_create(max_elems, qa);
+    return qa;
   }
   
-  void alloc(size_t max_elems) {
-    shared.self = make_global(this, MASTER_CORE); // TODO: support global-heap allocated (so linear address)
+  void _create(size_t max_elems, GlobalAddress<GlobalQueue> self) {
+    shared.self = self;
     shared.max_elems = max_elems;
     shared.base = global_alloc<T>(max_elems);
     

@@ -127,25 +127,36 @@ void test_push_buffer() {
   Grappa_free(xs);
 }
 
-GlobalQueue<int64_t> gq;
 
 void test_global_queue() {
   BOOST_MESSAGE("Testing GlobalQueue"); VLOG(1) << "testing global queue";
-  gq.alloc(NN);
+  
+  auto qa = GlobalQueue<int64_t>::create(NN);
+  
+  on_all_cores([qa] {
+    switch (mycore()) {
+    case 0:
+      for (int i=0; i<NN/2; i++) {
+        qa.localize()->push(7);
+      }
+      break;
+    case 1:
+      for (int i=NN/2; i<NN; i++) {
+        qa.localize()->push(7);
+      }
+      break;
+    }
+  });
   
   for (int i=0; i<NN; i++) {
-    gq.push(i);
+    // BOOST_CHECK_EQUAL(delegate::read(gq.storage()+i), i);
+    BOOST_CHECK_EQUAL(delegate::read(qa.localize()->storage()+i), 7);
   }
   
-  for (int i=0; i<NN; i++) {
-    BOOST_CHECK_EQUAL(delegate::read(gq.storage()+i), i);
-  }
-  
-  gq.free();
+  // gq.free();
 }
 
 void user_main( void * ignore ) {
-  NN = FLAGS_nelems;
   
   // test_memset_memcpy<int64_t,7>();
   // test_memset_memcpy<int64_t,7>(true); // test async
@@ -163,6 +174,7 @@ BOOST_AUTO_TEST_CASE( test1 ) {
                 &(boost::unit_test::framework::master_test_suite().argv) );
 
   Grappa_activate();
+  NN = FLAGS_nelems;
 
   Grappa_run_user_main( &user_main, (void*)NULL );
 
