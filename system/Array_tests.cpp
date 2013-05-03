@@ -15,6 +15,7 @@ using std::complex;
 #include "GlobalAllocator.hpp"
 #include "Delegate.hpp"
 #include "PushBuffer.hpp"
+#include "GlobalVector.hpp"
 
 using namespace Grappa;
 
@@ -128,10 +129,10 @@ void test_push_buffer() {
 }
 
 
-void test_global_queue() {
-  BOOST_MESSAGE("Testing GlobalQueue"); VLOG(1) << "testing global queue";
+void test_global_vector() {
+  BOOST_MESSAGE("Testing GlobalVector"); VLOG(1) << "testing global queue";
   
-  auto qa = GlobalQueue<int64_t>::create(NN);
+  auto qa = GlobalVector<int64_t>::create(NN);
   
   on_all_cores([qa] {
     switch (mycore()) {
@@ -152,7 +153,7 @@ void test_global_queue() {
     BOOST_CHECK_EQUAL(delegate::read(qa->storage()+i), 7);
   }
   
-  // gq.free();
+  GlobalVector<int64_t>::destroy(qa);
 }
 
 void user_main( void * ignore ) {
@@ -164,7 +165,7 @@ void user_main( void * ignore ) {
   // test_prefix_sum(); // (not implemented yet)
   // test_push_buffer();
   
-  test_global_queue();
+  test_global_vector();
 }
 
 BOOST_AUTO_TEST_CASE( test1 ) {
