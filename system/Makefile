@@ -143,6 +143,7 @@ FileIO_tests.o FileIO_tests.test: $(LIBRARY)
 FileIO_tests.test: LIBRARIES+='-lboost_filesystem'
 
 Array_tests.o Array_tests.test: $(LIBRARY)
+GlobalVector_tests.o GlobalVector_tests.test: $(LIBRARY)
 
 New_delegate_tests.test: $(LIBRARY)
 PoolAllocator_tests.test: $(LIBRARY)

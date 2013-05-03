@@ -15,7 +15,6 @@ using std::complex;
 #include "GlobalAllocator.hpp"
 #include "Delegate.hpp"
 #include "PushBuffer.hpp"
-#include "GlobalVector.hpp"
 
 using namespace Grappa;
 
@@ -128,44 +127,15 @@ void test_push_buffer() {
   Grappa_free(xs);
 }
 
-
-void test_global_vector() {
-  BOOST_MESSAGE("Testing GlobalVector"); VLOG(1) << "testing global queue";
-  
-  auto qa = GlobalVector<int64_t>::create(NN);
-  
-  on_all_cores([qa] {
-    switch (mycore()) {
-    case 0:
-      for (int i=0; i<NN/2; i++) {
-        qa->push(7);
-      }
-      break;
-    case 1:
-      for (int i=NN/2; i<NN; i++) {
-        qa->push(7);
-      }
-      break;
-    }
-  });
-  
-  for (int i=0; i<NN; i++) {
-    BOOST_CHECK_EQUAL(delegate::read(qa->storage()+i), 7);
-  }
-  
-  GlobalVector<int64_t>::destroy(qa);
-}
-
 void user_main( void * ignore ) {
   
-  // test_memset_memcpy<int64_t,7>();
-  // test_memset_memcpy<int64_t,7>(true); // test async
+  test_memset_memcpy<int64_t,7>();
+  test_memset_memcpy<int64_t,7>(true); // test async
   // test_memset_memcpy<double,7.0>();
-  // test_complex();
+  test_complex();
   // test_prefix_sum(); // (not implemented yet)
-  // test_push_buffer();
-  
-  test_global_vector();
+  test_push_buffer();
+
 }
 
 BOOST_AUTO_TEST_CASE( test1 ) {
