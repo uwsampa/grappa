@@ -173,32 +173,30 @@ public:
   GlobalQueue() {}
   
   static GlobalAddress<GlobalQueue> create(size_t max_elems) {
-    static_assert(sizeof(GlobalQueue) % block_size == 0, "must pad global proxy to multiple of block_size");
+    static_assert(sizeof(GlobalQueue) % block_size == 0,
+                  "must pad global proxy to multiple of block_size");
+    // allocate enough space that we are guaranteed to get one on each core at same location
     auto qac = global_alloc<char>(cores()*(sizeof(GlobalQueue)+block_size));
     while (qac.core() != MASTER_CORE) qac++;
     auto qa = static_cast<GlobalAddress<GlobalQueue>>(qac);
-    // auto qa = global_alloc<GlobalQueue>(cores());
     CHECK_EQ(qa, qa.block_min());
     CHECK_EQ(qa.core(), MASTER_CORE);
-    qa.pointer()->_create(max_elems, qa);
+    
+    // intialize all cores' local versions
+    Shared s;
+    s.self = self;
+    s.max_elems = max_elems;
+    s.base = global_alloc<T>(max_elems);    
+    call_on_all_cores([s]{ s.self->_init(s); });
+
     return qa;
   }
   
-  void _create(size_t max_elems, GlobalAddress<GlobalQueue> self) {
-    shared.self = self;
-    shared.max_elems = max_elems;
-    shared.base = global_alloc<T>(max_elems);
+  static void destroy(GlobalQueue<GlobalQueue> q) {
+    global_free(q->shared.base);
+    global_free(q);
+  }
     
-    Shared s = shared;
-    call_on_all_cores([s]{ s.self->_init(s); });
-  }
-  
-  void free() {
-    global_free(shared.base);
-    auto self = shared.self;
-    // call_on_all_cores([self]{ self.localize()->shared.base = GlobalAddress(); });
-  }
-  
   void push(T e) {
     if (mycore() == MASTER_CORE) {
       auto offset = master.offset;

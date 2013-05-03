@@ -137,20 +137,19 @@ void test_global_queue() {
     switch (mycore()) {
     case 0:
       for (int i=0; i<NN/2; i++) {
-        qa.localize()->push(7);
+        qa->push(7);
       }
       break;
     case 1:
       for (int i=NN/2; i<NN; i++) {
-        qa.localize()->push(7);
+        qa->push(7);
       }
       break;
     }
   });
   
   for (int i=0; i<NN; i++) {
-    // BOOST_CHECK_EQUAL(delegate::read(gq.storage()+i), i);
-    BOOST_CHECK_EQUAL(delegate::read(qa.localize()->storage()+i), 7);
+    BOOST_CHECK_EQUAL(delegate::read(qa->storage()+i), 7);
   }
   
   // gq.free();
