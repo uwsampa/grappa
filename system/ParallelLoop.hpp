@@ -278,14 +278,13 @@ namespace Grappa {
   ///     }
   ///   });
   /// @endcode
-  template< GlobalCompletionEvent * GCE = &impl::local_gce,
-            int64_t Threshold = impl::USE_LOOP_THRESHOLD_FLAG,
-            typename T = decltype(nullptr),
-            typename F = decltype(nullptr) >
-  // type_traits magic to make this verison work for 3-arg functors
-  typename std::enable_if< function_traits<F>::arity == 3,
-    void >::type
-  forall_localized(GlobalAddress<T> base, int64_t nelems, F loop_body) {
+  template< GlobalCompletionEvent * GCE,
+            int64_t Threshold,
+            typename T,
+            typename F >
+  void _forall_localized(GlobalAddress<T> base, int64_t nelems, F loop_body,
+            void (F::*mf)(int64_t,int64_t,T*) const) {
+    
     static_assert(block_size % sizeof(T) == 0,
                   "forall_localized requires size of objects to evenly divide into block_size");
     
@@ -329,29 +328,34 @@ namespace Grappa {
   ///     delegate::write_async<&gce>(shared_pool, dest+i, 2.0*v);
   ///   });
   /// @endcode
+  template< GlobalCompletionEvent * GCE,
+            int64_t Threshold,
+            typename T,
+            typename F >
+  void _forall_localized(GlobalAddress<T> base, int64_t nelems, F loop_body,
+          void (F::*mf)(int64_t,T&) const) {
+    // _forall_localized<GCE,Threshold,T,F,mf>(base, nelems, [loop_body](int64_t start, int64_t niters, T * first) {
+      // auto block_elems = block_size / sizeof(T);
+      // auto a = make_linear(first);
+      // auto n_to_boundary = a.block_max() - a;
+      // auto index = start;
+      // 
+      // for (int64_t i=0; i<niters; i++,index++,n_to_boundary--) {
+      //   if (n_to_boundary == 0) {
+      //     index += block_elems * (cores()-1);
+      //     n_to_boundary = block_elems;
+      //   }
+      //   (loop_body.*mf)(index, first[i]);
+      // }
+    // });
+  }
+  
   template< GlobalCompletionEvent * GCE = &impl::local_gce,
             int64_t Threshold = impl::USE_LOOP_THRESHOLD_FLAG,
             typename T = decltype(nullptr),
             typename F = decltype(nullptr) >
-  // type_traits magic to make this verison work for 2-arg functors
-  typename std::enable_if< function_traits<F>::arity == 2,
-    void >::type
-  forall_localized(GlobalAddress<T> base, int64_t nelems, F loop_body) {
-    
-    forall_localized<GCE,Threshold>(base, nelems, [loop_body](int64_t start, int64_t niters, T * first) {
-      auto block_elems = block_size / sizeof(T);
-      auto a = make_linear(first);
-      auto n_to_boundary = a.block_max() - a;
-      auto index = start;
-      
-      for (int64_t i=0; i<niters; i++,index++,n_to_boundary--) {
-        if (n_to_boundary == 0) {
-          index += block_elems * (cores()-1);
-          n_to_boundary = block_elems;
-        }
-        loop_body(index, first[i]);
-      }
-    });
+  void forall_localized(GlobalAddress<T> base, int64_t nelems, F loop_body) {
+    _forall_localized<GCE,Threshold,T,F>(base, nelems, loop_body, &F::operator());
   }
   
   /// Run privateTasks on each core that contains elements of the given region of global memory.
