@@ -1,9 +1,9 @@
 include Make.inc
 
 EXE = suite.exe
-
+EXE2 = cctest
 OBJS += 	computeGraph.o \
-		connectedComponents.o \
+		connectedComponentsKahan.o \
 		genScalData.o \
 		globals.o \
 		graph-manip.o \
@@ -14,10 +14,14 @@ OBJS += 	computeGraph.o \
 		xmalloc.o \
 		centrality.o \
 		compat/mersenne.o
+OBJS2 = connectedComponentsKahan.o
 
 all: $(EXE) make_snaps.exe
 	
 $(EXE): main.o $(OBJS) $(COMPATLIB) $(IOLIB)
+	$(LD) $(LDFLAGS) -o $@ $^ $(LIBS)
+
+$(EXE2): main2.o $(OBJS2) $(COMPATLIB) $(IOLIB)
 	$(LD) $(LDFLAGS) -o $@ $^ $(LIBS)
 
 make_snaps.exe: make_snaps.c
@@ -25,7 +29,7 @@ make_snaps.exe: make_snaps.c
 
 main.o: defs.h ../graph500/compatio.h
 computeGraph.o: computeGraph.c defs.h
-connectedComponents.o: connectedComponents.c defs.h
+connectedComponentsKahan.o: connectedComponentsKahan.cc defs.h
 genScalData.o: genScalData.c defs.h
 globals.o:		globals.c defs.h
 graph-manip.o: graph-manip.c defs.h
@@ -40,9 +44,12 @@ compat/mersenne.o: compat/mersenne.c compat/mersenne.h
 $(IOLIB) $(COMPATLIB):
 	$(MAKE) -C $(IOLIB_DIR)
 
+main2.o: main2.c
+	$(CXX) $(CFLAGS) -c $< 
+.cc.o:
+	$(CXX) $(CFLAGS) -c $<
 .c.o:
 	$(CC) $(CFLAGS) -c $<
-
 clean:
 	rm -f *.o $(EXE){,.pl,.ap2} profile.out trace.out
 	-if test -n "$(IOLIB_DIR)" ; then make -C $(IOLIB_DIR) clean; fi

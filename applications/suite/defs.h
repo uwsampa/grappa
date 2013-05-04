@@ -18,7 +18,7 @@
 #include <time.h>
 #endif
 
-#include "stinger-atomics.h"
+//#include "stinger-atomics.h"
 
 /*### Macros ###*/
 
@@ -108,6 +108,9 @@ void computeGraph(graphedges* ge, graph * g);
 void makeUndirected(graph *g, graph * undirG);
 
 /* connectedComponents.c */
+#ifdef __cplusplus
+extern "C"
+#endif
 graphint connectedComponents(graph *g);
 
 /* pathIsomorphism.c */

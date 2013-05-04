@@ -8,6 +8,7 @@
 #include <stdio.h>
 #ifndef __MTA__
 #include <sys/param.h>
+#include "compat/xmt-ops.h"
 #else
 #define MIN(a,b) ((a)<(b))?(a):(b)
 #endif
@@ -160,7 +161,7 @@ bool checkpoint_in(graphedges * ge, graph * g) {
   char fname[256];
   
 
-  sprintf(fname, "ckpts/graph500.%lld.%lld.xmt.w.ckpt", SCALE, 16);
+  sprintf(fname, "ckpts/graph500.%lld.%lld.xmt.w.ckpt", (long long int) SCALE, (long long int) 16);
   FILE * fin = fopen(fname, "r");
   if (!fin) {
     fprintf(stderr, "Unable to open file - %s.\n", fname);
@@ -172,7 +173,7 @@ bool checkpoint_in(graphedges * ge, graph * g) {
   fread(&nv,    sizeof(nv),    1, fin);
   fread(&nadj,  sizeof(nadj),  1, fin);
   fread(&nbfs,  sizeof(nbfs),  1, fin);
-  fprintf(stderr, "nedge=%ld, nv=%ld, nadj=%ld, nbfs=%ld\n", nedge, nv, nadj, nbfs);
+  fprintf(stderr, "nedge=%lld, nv=%lld, nadj=%lld, nbfs=%lld\n",  nedge, nv, nadj, nbfs);
 
   double tt = timer();
   //alloc_edgelist(ge, nedge);
@@ -249,7 +250,7 @@ bool checkpoint_in(graphedges * ge, graph * g) {
   tt = timer();
   int64_t nw;
   fread(&nw, sizeof(int64_t), 1, fin);
-  CHECK(nw == actual_nadj) { fprintf(stderr, "nw = %ld, actual_nadj = %ld\n", nw, actual_nadj); }
+  CHECK(nw == actual_nadj) { fprintf(stderr, "nw = %lld, actual_nadj = %lld\n", nw, actual_nadj); }
   fprintf(stderr, "warning: skipping intWeight\n");
   /*fread(g->intWeight, sizeof(int64_t), nw, fin);*/
   /*printf("intWeight read time: %g\n", timer()-tt);*/
@@ -339,7 +340,7 @@ int main(int argc, char* argv[]) {
   if (do_components) {
     printf("Kernel - Connected Components beginning execution...\n"); fflush(stdout);
     t = timer();
-    
+
     graphint connected = connectedComponents(g);
     
     t = timer() - t;
@@ -384,7 +385,7 @@ int main(int argc, char* argv[]) {
   //###############################################
   // Kernel: Betweenness Centrality
   if (do_centrality) {
-    printf("Kernel - Betweenness Centrality (kcent = %ld) beginning execution...\n", kcent); fflush(stdout);
+    printf("Kernel - Betweenness Centrality (kcent = %lld) beginning execution...\n", kcent); fflush(stdout);
     t = timer();
     
     double *bc = xmalloc(numVertices*sizeof(double));
