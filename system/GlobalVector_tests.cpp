@@ -5,9 +5,6 @@
 // AC05-76RL01830 awarded by the United States Department of
 // Energy. The Government has certain rights in the software.
 
-#include <complex>
-using std::complex;
-
 #include <boost/test/unit_test.hpp>
 #include "Grappa.hpp"
 #include "ParallelLoop.hpp"
@@ -22,11 +19,12 @@ BOOST_AUTO_TEST_SUITE( GlobalVector_tests );
 static size_t N = (1L<<10) - 21;
 
 DEFINE_int64(nelems, N, "number of elements in (large) test arrays");
+DEFINE_int64(buffer_size, 1<<10, "number of elements in (large) test arrays");
 
 void test_global_vector() {
   BOOST_MESSAGE("Testing GlobalVector"); VLOG(1) << "testing global queue";
   
-  auto qa = GlobalVector<int64_t>::create(N);
+  auto qa = GlobalVector<int64_t>::create(N, FLAGS_buffer_size);
   
   on_all_cores([qa] {
     switch (mycore()) {
