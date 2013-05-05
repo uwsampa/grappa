@@ -44,8 +44,6 @@ compat/mersenne.o: compat/mersenne.c compat/mersenne.h
 $(IOLIB) $(COMPATLIB):
 	$(MAKE) -C $(IOLIB_DIR)
 
-main2.o: main2.c
-	$(CXX) $(CFLAGS) -c $< 
 .cc.o:
 	$(CXX) $(CFLAGS) -c $<
 .c.o:
