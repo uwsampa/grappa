@@ -40,36 +40,51 @@ protected:
       locale_free(buffer);
     }
     
+    bool has_waiters() { return cv.waiters_ != 0; }
+    
     void push(const T& e) {
       buffer[n] = e;
       n++;
-      if (n == capacity) {
-        owner->push_combiner = new PushCombiner(owner, capacity);
+      if (n == capacity || owner->inflight == nullptr) {
         flush();
-        broadcast(&cv);
-        delete this;
       } else {
         Grappa::wait(&cv);
+        if (this->has_waiters()) {
+          // if there are still waiters, I must be supposed to send...
+          flush();
+        }
       }
     }
     
     void flush() {
+      owner->inflight = this;
+      owner->push_combiner = new PushCombiner(owner, capacity);
+      
       auto self = owner->shared.self;
       auto offset = delegate::call(MASTER_CORE, [self]{ return self->master.offset++; });
       typename Incoherent<T>::WO c(owner->shared.base+offset, n, buffer);
       c.block_until_released();
+      
+      broadcast(&cv); // wake our people
+      if (owner->push_combiner->has_waiters()) {
+        // wake someone and tell them to send
+        signal(&owner->push_combiner->cv);
+      }
+      owner->inflight = nullptr;
+      delete this;
     }
     
-  } *push_combiner;
+  } *push_combiner, *inflight;
   
-  char pad[block_size-sizeof(shared)-sizeof(master)-sizeof(push_combiner)];
+  char pad[block_size-sizeof(shared)-sizeof(master)-sizeof(push_combiner)*2];
 
   GlobalVector(Shared s, size_t buffer_capacity) {
     shared = s;
     master.offset = 0;
     push_combiner = new PushCombiner(this, buffer_capacity);
+    inflight = nullptr;
   }
-  ~GlobalVector() { delete push_combiner; }
+  ~GlobalVector() { delete push_combiner; if (inflight) delete inflight; }
   
 public:
   
