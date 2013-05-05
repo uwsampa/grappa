@@ -109,6 +109,7 @@ template <class T, int64_t EMPTY=0x7fffffffffffffff> class ApproxStack : public 
   using Set<T>::width;
   using Set<T>::table$;
   typedef typename Set<T>::T_e T_e;
+  // T_e* T_e::new() max waterline will be 2*NV, so should do own mgmt someday
  public:
   static const int64_t empty=EMPTY;
  void push(T v) {
@@ -210,6 +211,9 @@ public:
     // PHASE II
     Pair<graphint> * ig;
     int HNE = InducedGraph.dump(ig);//directed edge pairs
+    // If it's worth it, we could unload verts into a Set<graphint>
+    // then dump into an HV array and save some work in the
+    // Compress loop iterating over HV instead of HNE.
     
     bool nchanged;
     do {
