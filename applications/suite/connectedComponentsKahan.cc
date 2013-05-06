@@ -52,7 +52,7 @@
 /// The number of components is the number of x st x == C$[x].
 ///
 static unsigned int hash(int x) {return x*1299227;}
-template <class T, int LOG_CONCURRENCY=2> class Set {
+template <class T, int LOG_CONCURRENCY=0> class Set {
 public:
  class T_e {
   public:
@@ -67,14 +67,14 @@ protected:
   int64_t count[width];
  public:
   Set() {
-    memset(table$,0,sizeof(T_e*)  *width);
+    memset(table$,0,sizeof(table$[0])*width);
     memset(count,0,sizeof(*count)*width);
   }
  ~Set() {
-   MTA("mta assert parallel");
+   MTA("mta assert parallel")
    for (int i = 0; i < width; i++) {
      T_e * t, * h = table$[i];
-     while (h != NULL) t = h, h = h->next, delete t;
+     while (h) t = h, h = h->next, delete t;
    }
  }
  void insert(T v) {
@@ -82,26 +82,34 @@ protected:
    T_e * p, * h;
    h = readfe(&table$[x]); // lock table list
    p = h;
-   while (p != NULL && p->val != v ) p = p->next;
-   if (!p) h = new T_e(v,table$[x]);
+   while (p && p->val != v) p = p->next;
+   if (!p) {
+     h = new T_e(v,table$[x]);
+     int_fetch_add(&count[x],1);
+   }
    table$[x] = h; // unlock table list
-   int_fetch_add(&count[x],1);
  }
- int cardinality() {
-   int card =0;
-   for (int i = 0; i < width; i++) card+=count[i];
-   return card;
- }
-  int dump(T* &dumpee) {
-    for (int i = 1; i < width; i++) count[i]+=count[i-1];
-    int size = count[width-1];
-    dumpee = new T[size];
-    MTA("mta assert parallel");
-    for (int i = 0; i < width; i++) {
-      T_e * t, * h = table$[i];
-      while (h != NULL) t = h, h = h->next, dumpee[--count[i]] =t->val, delete t;
-    }
-    return size;
+ int dump(T* &dumpee) {
+   for (int i = 0; i < width; i++) {
+     T_e * p = table$[i];
+     fprintf(stderr, "%d: ", i);
+     while (p) {
+       fprintf(stderr, "(%d %d) ", p->val.x, p->val.y);
+       p = p->next;
+     }
+     fprintf(stderr, "\n");
+   }
+   for (int i = 1; i < width; i++) count[i]+=count[i-1];
+   int size = count[width-1];
+   dumpee = new T[size];
+   MTA("mta assert parallel")
+   for (int i = 0; i < width; i++) {
+     T_e * t, * h = table$[i];
+     while (h != NULL) t = h, h = h->next, dumpee[--count[i]] =t->val, delete t;
+     table$[i] = NULL;
+   }
+   fprintf(stderr, "dump size: %d\n", size);
+   return size;
   }
 };
 
@@ -135,7 +143,7 @@ template <class T, int64_t EMPTY=0x7fffffffffffffff> class ApproxStack : public 
      x = (x+1) % width;
    }
    return empty;
- }
+}
  void insert(T v) {push(v);}
 };
 
@@ -181,7 +189,7 @@ class ConnectedComponents {
       }
       else if ((nv_color = readff(&C$[nv])) != color) { //wait for color to be set, probably is
 	if (nv_color > color) InducedGraph.insert(Pair<graphint>(color,nv_color));
-	InducedGraph.insert(Pair<graphint>(nv_color,color));
+	else InducedGraph.insert(Pair<graphint>(nv_color,color));
       }
     }
   }
@@ -202,7 +210,8 @@ public:
       Q.push(-i-1);
     }
     
-    MTA("mta loop future");
+    MTA("mta assert parallel")
+    MTA("mta loop future")
     for (int i = 0; i < 100*num_procs; i++) {
       graphint t;
       while((t = Q.pop())!=Q.empty) explore(t);
@@ -211,6 +220,10 @@ public:
     // PHASE II
     Pair<graphint> * ig;
     int HNE = InducedGraph.dump(ig);//directed edge pairs
+    for (int i = 0; i < HNE; i++) {
+      fprintf(stderr, "(%d %d) ", ig[i].x, ig[i].y);
+    }
+    fprintf(stderr, "\n");
     // If it's worth it, we could unload verts into a Set<graphint>
     // then dump into an HV array and save some work in the
     // Compress loop iterating over HV instead of HNE.
@@ -219,7 +232,7 @@ public:
     do {
       nchanged = false;
       // Hook -- remember if there's an edge (i,j), (j,i) is implicit
-      MTA("mta assert parallel");
+      MTA("mta assert parallel")
       for (graphint k = 0; k < HNE; ++k) {
 	Pair<graphint> e = ig[k];
 	int i = e.x, j = e.y;
@@ -234,7 +247,7 @@ public:
 	}
       }
       // Compress -- we do redundant work here; asymptotics are unchanged
-      MTA("mta assert parallel");
+      MTA("mta assert parallel")
       for (graphint k = 0; k < HNE; ++k) {
         Pair<graphint> e = ig[k];
 	int i = e.x, j = e.y;
@@ -251,20 +264,21 @@ public:
     
     // PHASE III
 
-    MTA("mta assert parallel");
+    MTA("mta assert parallel")
     for (int i = 0; i < HNE; i++) {
       Pair<graphint> e = ig[i];
       Q.push(e.x); Q.push(e.y);
     }
     for (int i = 0; i < NV; i++) V[i] = 0;
 
-    MTA("mta loop future");
+    MTA("mta assert parallel")
+    MTA("mta loop future")
     for (int i = 0; i < 100*num_procs; i++) {
       graphint t;
       while((t = Q.pop())!=Q.empty) explore(t);
     }
 
-    delete ig;   
+    //    delete ig;   
   }
 
   graphint num_components() {
