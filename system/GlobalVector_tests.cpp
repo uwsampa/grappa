@@ -11,6 +11,7 @@
 #include "GlobalAllocator.hpp"
 #include "Delegate.hpp"
 #include "GlobalVector.hpp"
+#include "Statistics.hpp"
 
 using namespace Grappa;
 
@@ -50,6 +51,8 @@ void test_global_vector() {
 
 void user_main( void * ignore ) {
   test_global_vector();
+  
+  Statistics::merge_and_print();
 }
 
 BOOST_AUTO_TEST_CASE( test1 ) {

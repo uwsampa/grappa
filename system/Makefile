@@ -340,7 +340,8 @@ LIBRARY_CONTENTS+= Grappa.o \
 					 AsyncDelegate.o \
 					 SharedMessagePool.o \
 					 GlobalCompletionEvent.o \
-					 HistogramStatistic.o
+					 HistogramStatistic.o \
+					 GlobalVector.o
 
 libGrappa.a: $(LIBRARY_CONTENTS)
 	$($(MPITYPE)_AR) rv $@ $^
