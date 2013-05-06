@@ -54,8 +54,10 @@ protected:
         flush();
       } else {
         Grappa::wait(&cv);
-        if (this->to_be_sent) flush();
-        else Grappa::wait(&cv); // someone else got there first (capacity)
+        if (this->has_waiters()) {
+          if (this->to_be_sent) flush();
+          else Grappa::wait(&cv);
+        }
       }
     }
     
@@ -67,10 +69,11 @@ protected:
       owner->push_combiner = new PushCombiner(owner, capacity);      
       
       auto self = owner->shared.self;
-      auto offset = delegate::call(MASTER_CORE, [self]{ return self->master.offset++; });
+      auto offset = delegate::call(MASTER_CORE, [self,this]{ VLOG(1) << "incr offset " << this; return self->master.offset++; });
+      VLOG(1) << "offset = " << offset << ", " << this;
       typename Incoherent<T>::WO c(owner->shared.base+offset, n, buffer);
       c.block_until_released();
-      
+      VLOG(1) << "released " << this;
       broadcast(&cv); // wake our people
       if (owner->push_combiner->has_waiters()) {
         // atomically claim it so no one else tries to send in the meantime
@@ -81,7 +84,9 @@ protected:
       } else {
         owner->inflight = nullptr;        
       }
-      delete this;
+      VLOG(1) << "deleting " << this;
+      CHECK(not this->has_waiters());
+      // delete this;
     }
     
   } *push_combiner, *inflight;
