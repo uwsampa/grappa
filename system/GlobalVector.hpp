@@ -4,6 +4,9 @@
 #include "GlobalAllocator.hpp"
 #include "Cache.hpp"
 
+GRAPPA_DECLARE_STAT(SimpleStatistic<uint64_t>, global_vector_push_ops);
+GRAPPA_DECLARE_STAT(SimpleStatistic<uint64_t>, global_vector_push_msgs);
+
 namespace Grappa {
 /// @addtogroup Containers
 /// @{
@@ -36,13 +39,13 @@ protected:
     { }
     
     ~PushCombiner() {
-      VLOG(1) << "freeing PushCombiner";
       locale_free(buffer);
     }
     
     bool has_waiters() { return cv.waiters_ != 0; }
     
     void push(const T& e) {
+      global_vector_push_ops++;
       buffer[n] = e;
       n++;
       if (n == capacity || owner->inflight == nullptr) {
@@ -57,6 +60,7 @@ protected:
     }
     
     void flush() {
+      global_vector_push_msgs++;
       owner->inflight = this;
       owner->push_combiner = new PushCombiner(owner, capacity);
       
