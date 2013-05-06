@@ -30,8 +30,10 @@ void test_global_vector() {
   on_all_cores([qa] {
     switch (mycore()) {
     case 0:
+      VLOG(1) << "starting forall_here";
       forall_here(0, N/2, [qa](int64_t s, int64_t n) {
         for (int64_t i=s; i<s+n; i++) {
+          VLOG(1) << "pushing " << i << " : " << qa->inflight;
           qa->push(7);
         }
       });
@@ -47,7 +49,7 @@ void test_global_vector() {
   });
   
   for (int i=0; i<N; i++) {
-    VLOG(1) << delegate::read(qa->storage()+i);
+    VLOG(1) << "q[" << i << "] = " << delegate::read(qa->storage()+i);
     BOOST_CHECK_EQUAL(delegate::read(qa->storage()+i), 7);
   }
   
