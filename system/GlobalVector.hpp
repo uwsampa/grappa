@@ -30,12 +30,14 @@ protected:
     size_t capacity;
     size_t n;
     ConditionVariable cv;
+    bool to_be_sent;
     
     PushCombiner(GlobalVector* owner, size_t capacity)
       : owner(owner)
       , buffer(locale_alloc<T>(capacity))
       , capacity(capacity)
-      , n(0) 
+      , n(0)
+      , to_be_sent(false)
     { }
     
     ~PushCombiner() {
@@ -48,21 +50,21 @@ protected:
       global_vector_push_ops++;
       buffer[n] = e;
       n++;
-      if (n == capacity || owner->inflight == nullptr) {
+      if ((n == capacity) || (owner->inflight == nullptr)) {
         flush();
       } else {
         Grappa::wait(&cv);
-        if (this->has_waiters()) {
-          // if there are still waiters, I must be supposed to send...
-          flush();
-        }
+        if (this->to_be_sent) flush();
+        else Grappa::wait(&cv); // someone else got there first (capacity)
       }
     }
     
     void flush() {
+      VLOG(1) << "flushing " << this;
       global_vector_push_msgs++;
+      this->to_be_sent = false;
       owner->inflight = this;
-      owner->push_combiner = new PushCombiner(owner, capacity);
+      owner->push_combiner = new PushCombiner(owner, capacity);      
       
       auto self = owner->shared.self;
       auto offset = delegate::call(MASTER_CORE, [self]{ return self->master.offset++; });
@@ -71,10 +73,14 @@ protected:
       
       broadcast(&cv); // wake our people
       if (owner->push_combiner->has_waiters()) {
+        // atomically claim it so no one else tries to send in the meantime
+        owner->inflight = owner->push_combiner;
+        owner->inflight->to_be_sent = true;
         // wake someone and tell them to send
-        signal(&owner->push_combiner->cv);
+        signal(&owner->inflight->cv);
+      } else {
+        owner->inflight = nullptr;        
       }
-      owner->inflight = nullptr;
       delete this;
     }
     
