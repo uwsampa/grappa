@@ -70,40 +70,29 @@ public:
     void flush() {
       auto ta = make_global(this);
       this->sender = &current_worker(); // (if not set already)
-      VLOG(1) << "flushing " << ta;
       global_vector_push_msgs++;
-      // this->to_be_sent = false;
-      // owner->inflight = this;
-      // owner->push_combiner = new PushCombiner(owner, capacity);      
       
       auto self = owner->shared.self;
       auto nelem = this->n;
       auto offset = delegate::call(MASTER_CORE, [self,ta,nelem]{
-        VLOG(1) << "incr offset " << ta;
         auto o = self->master.offset;
         self->master.offset += nelem;
         return o;
       });
-      VLOG(1) << "offset = " << offset << ", " << "n = " << n << " : " << ta;
       typename Incoherent<T>::WO c(owner->shared.base+offset, n, buffer);
       c.block_until_released();
-      VLOG(1) << "released " << ta;
       broadcast(&cv); // wake our people
       if (owner->push_combiner->has_waiters()) {
         // atomically claim it so no one else tries to send in the meantime
         owner->inflight = owner->push_combiner;
-        // owner->inflight->to_be_sent = true;
-
         // wake someone and tell them to send
         owner->inflight->sender = impl::get_waiters(&owner->inflight->cv);
         signal(&owner->inflight->cv);
       } else {
         owner->inflight = nullptr;
       }
-      VLOG(1) << "deleting " << ta;
-      CHECK(not this->has_waiters());
       this->sender = nullptr;
-      // delete this;
+      delete this;
     }
     
   } *push_combiner, *inflight;
