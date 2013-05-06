@@ -30,14 +30,18 @@ void test_global_vector() {
   on_all_cores([qa] {
     switch (mycore()) {
     case 0:
-      for (int i=0; i<N/2; i++) {
-        qa->push(7);
-      }
+      forall_here(0, N/2, [qa](int64_t s, int64_t n) {
+        for (int64_t i=s; i<s+n; i++) {
+          qa->push(7);
+        }
+      });
       break;
     case 1:
-      for (int i=N/2; i<N; i++) {
-        qa->push(7);
-      }
+      forall_here(N/2, N, [qa](int64_t s, int64_t n) {
+        for (int64_t i=s; i<s+n; i++) {
+          qa->push(7);
+        }
+      });
       break;
     }
   });
