@@ -26,7 +26,7 @@ void test_global_vector() {
   BOOST_MESSAGE("Testing GlobalVector"); VLOG(1) << "testing global queue";
   
   auto qa = GlobalVector<int64_t>::create(N, FLAGS_buffer_size);
-  
+  VLOG(1) << "queue addr: " << qa;
   on_all_cores([qa] {
     switch (mycore()) {
     case 0:
@@ -47,6 +47,7 @@ void test_global_vector() {
   });
   
   for (int i=0; i<N; i++) {
+    VLOG(1) << delegate::read(qa->storage()+i);
     BOOST_CHECK_EQUAL(delegate::read(qa->storage()+i), 7);
   }
   
