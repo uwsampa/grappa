@@ -28,11 +28,14 @@ void test_global_vector() {
   auto qa = GlobalVector<int64_t>::create(N, FLAGS_buffer_size);
   VLOG(1) << "queue addr: " << qa;
   
+  BOOST_CHECK_EQUAL(qa->empty(), true);
+  
   on_all_cores([qa] {
     auto f = [qa](int64_t s, int64_t n) {
       for (int64_t i=s; i<s+n; i++) {
         qa->push(7);
       }
+      BOOST_CHECK_EQUAL(qa->empty(), false);
     };
     switch (mycore()) {
     case 0:
@@ -45,8 +48,13 @@ void test_global_vector() {
   });
   
   for (int i=0; i<N; i++) {
-    //VLOG(1) << "q[" << i << "] = " << delegate::read(qa->storage()+i);
     BOOST_CHECK_EQUAL(delegate::read(qa->storage()+i), 7);
+  }
+  
+  forall_localized(qa->begin(), qa->size(), [](int64_t i, int64_t& e) { e = 9; });
+  
+  for (int i=0; i<N; i++) {
+    BOOST_CHECK_EQUAL(delegate::read(qa->storage()+i), 9);
   }
   
   GlobalVector<int64_t>::destroy(qa);

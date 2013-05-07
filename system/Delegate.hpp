@@ -153,7 +153,6 @@ namespace Grappa {
       });
     }
 
-
     /// Flat combines fetch_and_add to a single global address
     /// @warning Target object must lie on a single node (not span blocks in global address space).
     template < typename T, typename U >
