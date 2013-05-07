@@ -152,7 +152,12 @@ public:
   
   /// Return a Linear GlobalAddress to the end of the vector, that is, one past the last element.
   GlobalAddress<T> end() { return shared.base + size(); }
-    
+  
+  void clear() {
+    auto self = shared.self;
+    return delegate::call(MASTER_CORE, [self]{ self->master.offset = 0; });
+  }
+  
   /// Push element on the back (queue or stack)
   void push(T e) {
     push_combiner->push(e);
