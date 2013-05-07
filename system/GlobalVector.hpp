@@ -136,20 +136,26 @@ public:
     global_free(q->shared.base);
     global_free(q);
   }
+  
+  /// Return number of elements currently in vector
+  size_t size() {
+    auto self = shared.self;
+    return delegate::call(MASTER_CORE, [self]{ return self->master.offset; });
+  }
+  
+  size_t capacity() { return shared.capacity; }
+
+  bool empty() { return size() == 0; }
+
+  /// Return a Linear GlobalAddress to the first element of the vector.
+  GlobalAddress<T> begin() { return shared.base; }
+  
+  /// Return a Linear GlobalAddress to the end of the vector, that is, one past the last element.
+  GlobalAddress<T> end() { return shared.base + size(); }
     
+  /// Push element on the back (queue or stack)
   void push(T e) {
     push_combiner->push(e);
-    // if (mycore() == MASTER_CORE) {
-    //   auto offset = master.offset;
-    //   master.offset++;
-    //   delegate::write(shared.base+offset, e);
-    // } else {
-    //   auto self = shared.self;
-    //   auto offset = delegate::call(MASTER_CORE, [self]{
-    //     return self->master.offset++;
-    //   });
-    //   delegate::write(shared.base+offset, e);
-    // }
   }
   
   GlobalAddress<T> storage() { return shared.base; }
