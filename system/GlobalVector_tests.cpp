@@ -57,7 +57,7 @@ void test_global_vector() {
     BOOST_CHECK_EQUAL(delegate::read(qa->storage()+i), 9);
   }
   
-  GlobalVector<int64_t>::destroy(qa);
+  qa->destroy();
 }
 
 void user_main( void * ignore ) {

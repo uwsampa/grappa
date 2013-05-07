@@ -131,9 +131,10 @@ public:
     return qa;
   }
   
-  static void destroy(GlobalAddress<GlobalVector> q) {
-    call_on_all_cores([q]{ q->~GlobalVector(); });
+  void destroy() {
+    auto q = shared.self;
     global_free(q->shared.base);
+    call_on_all_cores([q]{ q->~GlobalVector(); });
     global_free(q);
   }
   
