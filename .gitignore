@@ -140,3 +140,8 @@ routing.dot
 
 #igor
 *.igor
+
+# Databases, R plotting
+*.sqlite
+.RData
+
