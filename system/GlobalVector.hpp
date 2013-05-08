@@ -7,9 +7,8 @@
 GRAPPA_DECLARE_STAT(SimpleStatistic<uint64_t>, global_vector_push_ops);
 GRAPPA_DECLARE_STAT(SimpleStatistic<uint64_t>, global_vector_push_msgs);
 
-DECLARE_string(flat_combining);
+DECLARE_bool(flat_combining);
 DECLARE_uint64(global_vector_buffer);
-
 
 namespace Grappa {
 /// @addtogroup Containers
@@ -147,7 +146,7 @@ public:
     auto self = shared.self;
     return delegate::call(MASTER_CORE, [self]{ return self->master.offset; });
   }
-  
+
   size_t capacity() { return shared.capacity; }
 
   bool empty() { return size() == 0; }
@@ -165,7 +164,13 @@ public:
   
   /// Push element on the back (queue or stack)
   void push(T e) {
-    push_combiner->push(e);
+    if (FLAGS_flat_combining) {
+      push_combiner->push(e);
+    } else {
+      auto self = shared.self;
+      auto offset = delegate::call(MASTER_CORE, [self]{ return self->master.offset++; });
+      delegate::write(shared.base+offset, e);
+    }
   }
   
   GlobalAddress<T> storage() { return shared.base; }
