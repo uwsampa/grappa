@@ -7,6 +7,10 @@
 GRAPPA_DECLARE_STAT(SimpleStatistic<uint64_t>, global_vector_push_ops);
 GRAPPA_DECLARE_STAT(SimpleStatistic<uint64_t>, global_vector_push_msgs);
 
+DECLARE_string(flat_combining);
+DECLARE_uint64(global_vector_buffer);
+
+
 namespace Grappa {
 /// @addtogroup Containers
 /// @{
