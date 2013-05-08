@@ -1,4 +1,4 @@
-sosp_theme <- theme(
+my_theme <- theme(
   panel.background = element_rect(fill="white"),
   panel.border = element_rect(fill=NA, color="grey50"),
   panel.grid.major = element_line(color="grey80", size=0.3),
@@ -9,5 +9,7 @@ sosp_theme <- theme(
   panel.grid = element_line(colour="black"),
   axis.text.y = element_text(colour="black"),
   axis.text.x = element_text(colour="black"),
-  text = element_text(size=16, family="Helvetica")
+  text = element_text(size=14, family="Humor Sans")
 )
+
+prettify <- function(str) gsub('_',' ',gsub('([a-z])([a-z]+)',"\\U\\1\\E\\2",str,perl=TRUE))

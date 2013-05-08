@@ -2,6 +2,8 @@
 library(sqldf)
 library(ggplot2)
 library(reshape)
+library(extrafont)
+loadfonts()
 source("common.R")
 
 db <- function(query) {
@@ -23,7 +25,7 @@ g <- ggplot(d, aes(
     # label=nnode~ppn,
   ))+
   geom_point()+
-  facet_grid(~variable~ppn, scales="free", labeller=label_both)+
-  sosp_theme
+  facet_grid(~variable~ppn, scales="free", labeller=label_bquote(.(prettify(x))))+
+  my_theme
 
 g
