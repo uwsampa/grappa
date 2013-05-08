@@ -4,15 +4,11 @@ require 'igor'
 # inherit parser, sbatch_flags
 load '../../../igor_common.rb'
 
-def expand_flags(*names)
-  names.map{|n| "--#{n}=%{#{n}}"}.join(' ')
-end
-
 Igor do
   include Isolatable
   
-  database '~/exp/sosp.db', :bfs
-
+  database '~/exp/pgas.sqlite', :bfs
+  
   # isolate everything needed for the executable so we can sbcast them for local execution
   isolate(['graph.exe'],
     File.dirname(__FILE__))
@@ -21,7 +17,7 @@ Igor do
   
   command %Q[ %{tdir}/grappa_srun.rb
     -- %{tdir}/graph.exe
-    #{expand_flags(*GFLAGS.keys)}
+    #{GFLAGS.expand}
     -- -s %{scale} -e %{edgefactor} -f %{nbfs}
   ].gsub(/\s+/,' ')
   
