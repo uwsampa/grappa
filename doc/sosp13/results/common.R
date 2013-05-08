@@ -13,3 +13,10 @@ my_theme <- theme(
 )
 
 prettify <- function(str) gsub('_',' ',gsub('([a-z])([a-z]+)',"\\U\\1\\E\\2",str,perl=TRUE))
+
+regex_match <- function(reg,str) length(grep(reg,str)) > 0
+
+label_pretty <- function(variable, value) {
+  vname <- if (regex_match('variable|value',variable)) '' else paste(variable,': ')
+  lapply(paste(vname, prettify(as.character(value))), paste, collapse="\n")
+}

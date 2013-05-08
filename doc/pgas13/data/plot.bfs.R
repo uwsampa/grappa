@@ -25,7 +25,9 @@ g <- ggplot(d, aes(
     # label=nnode~ppn,
   ))+
   geom_point()+
-  facet_grid(~variable~ppn, scales="free", labeller=label_bquote(.(prettify(x))))+
+  # facet_grid(~variable~ppn, scales="free", labeller=label_bquote(.(prettify(x))))+
+  facet_grid(~variable~ppn, scales="free", labeller=label_pretty)+
+  ylab("")+
   my_theme
 
 g
