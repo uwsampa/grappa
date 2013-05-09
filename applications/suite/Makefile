@@ -1,7 +1,6 @@
 include Make.inc
 
 EXE = suite.exe
-EXE2 = cctest
 OBJS += 	computeGraph.o \
 		connectedComponentsKahan.o \
 		genScalData.o \
@@ -21,7 +20,7 @@ all: $(EXE) make_snaps.exe
 $(EXE): main.o $(OBJS) $(COMPATLIB) $(IOLIB)
 	$(LD) $(LDFLAGS) -o $@ $^ $(LIBS)
 
-$(EXE2): main2.o $(OBJS2) $(COMPATLIB) $(IOLIB)
+cctest: cctest.o $(OBJS2) $(COMPATLIB) $(IOLIB)
 	$(LD) $(LDFLAGS) -o $@ $^ $(LIBS)
 
 make_snaps.exe: make_snaps.c
@@ -49,10 +48,10 @@ $(IOLIB) $(COMPATLIB):
 .c.o:
 	$(CC) $(CFLAGS) -c $<
 clean:
-	rm -f *.o $(EXE){,.pl,.ap2} profile.out trace.out
+	rm -f *.o $(EXE){,.pl,.ap2} profile.out trace.out cctest cctest.pl
 	-if test -n "$(IOLIB_DIR)" ; then make -C $(IOLIB_DIR) clean; fi
 
 distclean:
-	rm -f *.o $(EXE)
+	rm -f *.o $(EXE) cctest
 	-if test -n "$(IOLIB_DIR)" ; then make -C $(IOLIB_DIR) clean; fi
 
