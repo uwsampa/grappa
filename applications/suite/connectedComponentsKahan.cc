@@ -90,6 +90,7 @@ protected:
    table$[x] = h; // unlock table list
  }
  int dump(T* &dumpee) {
+   //
    for (int i = 0; i < width; i++) {
      T_e * p = table$[i];
      fprintf(stderr, "%d: ", i);
@@ -99,6 +100,7 @@ protected:
      }
      fprintf(stderr, "\n");
    }
+   //
    for (int i = 1; i < width; i++) count[i]+=count[i-1];
    int size = count[width-1];
    dumpee = new T[size];
@@ -108,7 +110,9 @@ protected:
      while (h != NULL) t = h, h = h->next, dumpee[--count[i]] =t->val, delete t;
      table$[i] = NULL;
    }
+   //
    fprintf(stderr, "dump size: %d\n", size);
+   //
    return size;
   }
 };
@@ -220,10 +224,14 @@ public:
     // PHASE II
     Pair<graphint> * ig;
     int HNE = InducedGraph.dump(ig);//directed edge pairs
+
+    //
     for (int i = 0; i < HNE; i++) {
       fprintf(stderr, "(%d %d) ", ig[i].x, ig[i].y);
     }
     fprintf(stderr, "\n");
+    //
+
     // If it's worth it, we could unload verts into a Set<graphint>
     // then dump into an HV array and save some work in the
     // Compress loop iterating over HV instead of HNE.
@@ -284,6 +292,7 @@ public:
   graphint num_components() {
     graphint num = 0;
     graphint NV = g->numVertices;
+    //    for (int i =0; i < NV; i++) fprintf(stderr, "%d ", C$[i]); fprintf(stderr, "\n");
     for (int i = 0; i < NV; i++) if (C$[i] == i) num++;
     return num;
   }
