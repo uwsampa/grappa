@@ -167,6 +167,7 @@ public:
     if (FLAGS_flat_combining) {
       push_combiner->push(e);
     } else {
+      global_vector_push_ops++; global_vector_push_msgs++;
       auto self = shared.self;
       auto offset = delegate::call(MASTER_CORE, [self]{ return self->master.offset++; });
       delegate::write(shared.base+offset, e);
