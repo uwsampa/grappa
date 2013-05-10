@@ -5,8 +5,12 @@
 #include <GlobalAllocator.hpp>
 #include <ParallelLoop.hpp>
 #include <BufferVector.hpp>
+#include <Statistics.hpp>
 
 #include <list>
+
+// for all hash tables
+GRAPPA_DEFINE_STAT(MaxStatistic<uint64_t>, max_cell_length, 0);
 
 
 // for naming the types scoped in MatchesDHT
@@ -50,6 +54,7 @@ class MatchesDHT {
       this->base = base;
       this->capacity = capacity;
     }
+    
   public:
     // for static construction
     MatchesDHT( ) {}
@@ -77,12 +82,16 @@ class MatchesDHT {
           return;
         }
 
+
+        uint64_t sum_size = 0;
         // for all keys, set match vector to RO
         typename std::list<MDHT_TYPE(Entry)>::iterator it;
         for (it = entries->begin(); it!=entries->end(); ++it) {
           Entry e = *it;
           e.vs->setReadMode();
+          sum_size+=e.vs->getLength();
         }
+        max_cell_length.add(sum_size);
       });
     }
 
@@ -117,6 +126,47 @@ class MatchesDHT {
       return result.num;
     } 
 
+    // Inserts the key if not already in the set
+    // Shouldn't be used with `insert`.
+    //
+    // returns true if the set already contains the key
+    bool insert_unique( K key ) {
+      uint64_t index = computeIndex( key );
+      GlobalAddress< Cell > target = base + index; 
+//FIXME: remove index capture
+      bool result = Grappa::delegate::call( target.node(), [index,key, target]() {   // TODO: have an additional version that returns void
+                                                                 // to upgrade to call_async
+        // list of entries in this cell
+        std::list<MDHT_TYPE(Entry)> * entries = target.pointer()->entries;
+
+        // if first time the cell is hit then initialize
+        if ( entries == NULL ) {
+          entries = new std::list<Entry>();
+          target.pointer()->entries = entries;
+        }
+
+        // find matching key in the list
+        typename std::list<MDHT_TYPE(Entry)>::iterator i;
+        for (i = entries->begin(); i!=entries->end(); ++i) {
+          Entry e = *i;
+          if ( e.key == key ) {
+            // key found so no insert
+            return true;
+          }
+        }
+
+        // this is the first time the key has been seen
+        // so add it to the list
+        Entry newe( key );        // TODO: cleanup since sharing insert* code here, we are just going to store an empty vector
+                                  // perhaps a different module
+        entries->push_back( newe );
+
+        return false; 
+     });
+
+      return result;
+    }
+
 
     void insert( K key, V val ) {
       uint64_t index = computeIndex( key );
@@ -149,7 +199,7 @@ class MatchesDHT {
         newe.vs->insert( val );
         entries->push_back( newe );
 
-        return 0; // TODO: see "delegate that..."
+        return 0; 
       });
     }
 
