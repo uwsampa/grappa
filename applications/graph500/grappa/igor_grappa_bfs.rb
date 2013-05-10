@@ -15,11 +15,12 @@ Igor do
   
   params.merge!(GFLAGS)
   
-  command %Q[ %{tdir}/grappa_srun.rb
+  @c = ->{ %Q[ %{tdir}/grappa_srun.rb
     -- %{tdir}/graph.exe
     #{GFLAGS.expand}
     -- -s %{scale} -e %{edgefactor} -f %{nbfs}
-  ].gsub(/\s+/,' ')
+  ].gsub(/\s+/,' ') }
+  command @c[]
   
   sbatch_flags << "--time=4:00:00"
   
