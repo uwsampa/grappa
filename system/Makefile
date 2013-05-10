@@ -331,6 +331,7 @@ LIBRARY_CONTENTS+= Grappa.o \
 				   Statistics.o \
 				   SimpleStatistic.o \
 				   SummarizingStatistic.o \
+				   MaxStatistic.o \
 				   MessageBase.o \
 				   LocaleSharedMemory.o \
 				   RDMAAggregator.o \
