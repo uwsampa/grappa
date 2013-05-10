@@ -4,6 +4,15 @@
 #include <cmath>
 
 #include "StatisticBase.hpp"
+#include <glog/logging.h>
+
+#ifdef VTRACE
+#include <vt_user.h>
+#endif
+
+#ifdef GOOGLE_PROFILER
+#include <gperftools/profiler.h>
+#endif
 
 namespace Grappa {
 
@@ -38,7 +47,7 @@ namespace Grappa {
     unsigned vt_counter_stddev;
     static const int vt_type;
     
-    inline void vt_sample() const;
+    void vt_sample() const;
 #endif
     
   public:
