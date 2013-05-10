@@ -47,7 +47,7 @@ namespace Grappa {
     unsigned vt_counter_stddev;
     static const int vt_type;
     
-    inline void vt_sample() const;
+    void vt_sample() const;
 #endif
     
   public:
