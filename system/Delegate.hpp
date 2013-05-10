@@ -63,12 +63,8 @@ namespace Grappa {
       }
     }
   
-    /// Implements essentially a blocking remote procedure call. Callable object (lambda,
-    /// function pointer, or functor object) is called from the `dest` core and the return
-    /// value is sent back to the calling task.
     template <typename F>
     inline auto call(Core dest, F func, decltype(func()) (F::*mf)() const) -> decltype(func()) {
-      // -> typename std::enable_if<!std::is_void<decltype(func())>::value, decltype(func())>::type {
       // Note: code below (calling call_async) could be used to avoid duplication of code,
       // but call_async adds some overhead (object creation overhead, especially for short
       // -circuit case and extra work in MessagePool)
@@ -113,11 +109,22 @@ namespace Grappa {
   
   namespace delegate {
     
+    /// Implements essentially a blocking remote procedure call. Callable object (lambda,
+    /// function pointer, or functor object) is called from the `dest` core and the return
+    /// value is sent back to the calling task.
     template <typename F>
     inline auto call(Core dest, F func) -> decltype(func()) {
       return impl::call(dest, func, &F::operator());
     }
     
+    /// Helper that makes it easier to implement custom delegate operations on global
+    /// addresses specifically.
+    ///
+    /// Example:
+    /// @code
+    ///   GlobalAddress<int> xa;
+    ///   bool is_zero = delegate::call(xa, [](int* x){ return *x == 0; });
+    /// @endcode
     template< typename T, typename F >
     inline auto call(GlobalAddress<T> target, F func) -> decltype(func()) {
       return call(target.core(), [target,func]{ return func(target.pointer()); });
