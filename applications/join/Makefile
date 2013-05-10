@@ -40,6 +40,9 @@ join.exe: join.o DHT.hpp relation_IO.hpp Tuple.hpp $(GRAPPA_SYS)/libGrappa.a
 triangles.exe: triangles.o DHT.hpp relation_IO.hpp Tuple.hpp $(GEN)/generator.a $(GRAPPA_SYS)/libGrappa.a $(SOURCES)
 	$(ENV_VARIABLES) $($(MPITYPE)_LD) $(CFLAGS) $(LDFLAGS) triangles.o $(SOURCES) $(GEN)/generator.a $(GRAPPA_SYS)/libGrappa.a $(LIBRARIES) -o $@ $(LIBS)
 
+twohop.exe: twohop.o DHT.hpp relation_IO.hpp Tuple.hpp $(GEN)/generator.a $(GRAPPA_SYS)/libGrappa.a $(SOURCES)
+	$(ENV_VARIABLES) $($(MPITYPE)_LD) $(CFLAGS) $(LDFLAGS) twohop.o $(SOURCES) $(GEN)/generator.a $(GRAPPA_SYS)/libGrappa.a $(LIBRARIES) -o $@ $(LIBS)
+
 # use graph500 makefile
 $(APP_GRAPH500)/prng.o:
 	cd $(APP_GRAPH500); $(MAKE) CC=$(CC) prng.o  # pass on compiler
@@ -50,7 +53,7 @@ $(GEN)/generator.a:
 	cd $(GEN); $(MAKE) DEBUG=$(DEBUG) -f Makefile.grappa genlib
 
 clean:
-	rm -f join.o join.exe triangles.exe triangles.o
+	rm -f join.o join.exe triangles.exe triangles.o twohop.o twohop.exe
 	
 
 # XXX remove
