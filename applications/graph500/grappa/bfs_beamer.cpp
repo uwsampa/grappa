@@ -76,8 +76,8 @@ static bool bfs_counters_added = false;
 static uint64_t bfs_vertex_visited = 0;
 
 //DEFINE_int64(cas_flattener_size, 20, "log2 of the number of unique elements in the hash set used to short-circuit compare and swaps");
-DEFINE_double(beamer_alpha, 1.0, "Beamer BFS parameter for switching to bottom-up.");
-DEFINE_double(beamer_beta, 1.0, "Beamer BFS parameter for switching back to top-down.");
+DEFINE_double(beamer_alpha, 20.0, "Beamer BFS parameter for switching to bottom-up.");
+DEFINE_double(beamer_beta, 20.0, "Beamer BFS parameter for switching back to top-down.");
 
 //int64_t cmp_swaps_total;
 //int64_t cmp_swaps_shorted;
@@ -233,7 +233,7 @@ double make_bfs_tree(csr_graph * g, GlobalAddress<int64_t> in_bfs_tree, int64_t 
         const int64_t vstart = cxoff[0], vend = cxoff[1];
         
         // forall_local_async<int64_t,int64_t,visit_neighbor>(xadj+vstart, vend-vstart, make_linear(va));
-        forall_localized_async(xadj+vstart, vend-vstart, [v](int64_t ji, int64_t j) {
+        forall_localized_async(xadj+vstart, vend-vstart, [v](int64_t ji, int64_t& j) {
           ++bfs_neighbors_visited;
           
           // TODO: feed-forward-ize
