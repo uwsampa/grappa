@@ -5,22 +5,22 @@ namespace Grappa {
 
 #ifdef VTRACE_SAMPLED
   template <> void SimpleStatistic<int>::vt_sample() const {
-    VT_COUNT_SIGNED_VAL(vt_counter, value);
+    VT_COUNT_SIGNED_VAL(vt_counter, value_);
   }
   template <> void SimpleStatistic<int64_t>::vt_sample() const {
-    VT_COUNT_SIGNED_VAL(vt_counter, value);
+    VT_COUNT_SIGNED_VAL(vt_counter, value_);
   }
   template <> void SimpleStatistic<unsigned>::vt_sample() const {
-    VT_COUNT_UNSIGNED_VAL(vt_counter, value);
+    VT_COUNT_UNSIGNED_VAL(vt_counter, value_);
   }
   template <> void SimpleStatistic<uint64_t>::vt_sample() const {
-    VT_COUNT_UNSIGNED_VAL(vt_counter, value);
+    VT_COUNT_UNSIGNED_VAL(vt_counter, value_);
   }
   template <> void SimpleStatistic<double>::vt_sample() const {
-    VT_COUNT_DOUBLE_VAL(vt_counter, value);
+    VT_COUNT_DOUBLE_VAL(vt_counter, value_);
   }
   template <> void SimpleStatistic<float>::vt_sample() const {
-    VT_COUNT_DOUBLE_VAL(vt_counter, value);
+    VT_COUNT_DOUBLE_VAL(vt_counter, value_);
   }
   
   template <> const int SimpleStatistic<int>::vt_type = VT_COUNT_TYPE_SIGNED;
