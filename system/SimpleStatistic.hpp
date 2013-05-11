@@ -71,7 +71,7 @@ namespace Grappa {
     inline const SimpleStatistic<T>& count() { return (*this)++; }
 
     /// Get the current value
-    inline T value() const { return value_; }
+    inline T& value() { return value_; }
     
     // <sugar>
     template<typename U>
