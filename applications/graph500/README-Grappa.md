@@ -13,6 +13,20 @@ The most commonly used internal graph representation and the one used throughout
 
 The graph generators, on the other hand, typically create an unsorted edge list, which is just an array of start/end vertex ids.
 
+## Checkpoint format
+There are a bunch of Graph500 "checkpoint" files floating around that use a really simple binary format. The best thing to do is probably to read the code that reads the ckpt files in Grappa or XMT, but the overall format is (encoded in binary, little-endian):
+```
+[num_edge_tuples:int64][num_vertices:int64][num_adjacencies:int64][num_bfs_roots:int64]
+[edge_start:int64][edge_end:int64]*num_edge_tuples
+[offset_start:int64][offset_end:int64]*num_vertices
+[adjacent_vertex:int64]*num_adjacencies
+[bfs_root_vertex:int64]*num_bfs_roots
+```
+
+Note that `num_adjacencies` is different than `num_edge_tuples`, it represents the number of spaces used for adjacencies in the graph representation, which has been made undirected (duplicated edges), and may have some extra space between adjacencies.
+
+Also note: some checkpoints have additional "vertex weights", that come after the bfs roots.
+
 ## Compiling
 Compiling for Serial/OpenMP/MTA is the same, copy the correct make.inc version out of `make-incs` and rename it to `make.inc`. Then you can call `make` from within `applications/graph500` and it will build it.
 
