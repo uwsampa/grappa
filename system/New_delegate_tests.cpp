@@ -194,6 +194,18 @@ void check_flat_combining() {
   });
 }
 
+void check_call_suspending() {
+  BOOST_MESSAGE("Check delegate::call_suspendable...");
+  
+  int x = 42;
+  auto xa = make_global(&x);
+  
+  int y = delegate::call_suspendable(1, [xa]{
+    return delegate::read(xa);
+  });
+  
+  BOOST_CHECK_EQUAL(x, y);
+}
 
 void user_main(void * args) {
   CHECK(Grappa_nodes() >= 2); // at least 2 nodes for these tests...
@@ -205,6 +217,8 @@ void user_main(void * args) {
   check_async_delegates();
 
   check_flat_combining();
+ 
+  check_call_suspending();
  
   int64_t seed = 111;
   GlobalAddress<int64_t> seed_addr = make_global(&seed);

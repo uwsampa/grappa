@@ -130,6 +130,40 @@ namespace Grappa {
       return call(target.core(), [target,func]{ return func(target.pointer()); });
     }
     
+    template <typename F>
+    inline auto call_suspendable(Core dest, F func) -> decltype(func()) {
+      delegate_stats.count_op();
+      using R = decltype(func());
+      Core origin = Grappa::mycore();
+    
+      if (dest == origin) {
+        delegate_ops_short_circuited++;
+        return func();
+      } else {
+        FullEmpty<R> result;
+        int64_t network_time = 0;
+        int64_t start_time = Grappa_get_timestamp();
+      
+        send_message(dest, [&result, origin, func, &network_time, start_time] {
+          delegate_stats.count_op_am();
+          
+          privateTask([&result, origin, func, &network_time, start_time] {
+            R val = func();
+            // TODO: replace with handler-safe send_message
+            send_heap_message(origin, [&result, val, &network_time, start_time] {
+              network_time = Grappa_get_timestamp();
+              delegate_stats.record_network_latency(start_time);
+              result.writeXF(val); // can't block in message, assumption is that result is already empty
+            });
+          });
+        }); // send message
+        // ... and wait for the result
+        R r = result.readFE();
+        delegate_stats.record_wakeup_latency(start_time, network_time);
+        return r;
+      }
+    }
+    
     /// Read the value (potentially remote) at the given GlobalAddress, blocks the calling task until
     /// round-trip communication is complete.
     /// @warning Target object must lie on a single node (not span blocks in global address space).
