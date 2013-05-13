@@ -10,7 +10,7 @@
 #include <list>
 
 // for all hash tables
-GRAPPA_DEFINE_STAT(MaxStatistic<uint64_t>, max_cell_length, 0);
+//GRAPPA_DEFINE_STAT(MaxStatistic<uint64_t>, max_cell_length, 0);
 
 
 // for naming the types scoped in MatchesDHT
@@ -27,7 +27,7 @@ class MatchesDHT {
     struct Entry {
       K key;
       BufferVector<V> * vs;
-      Entry( K key ) : key(key), vs(new BufferVector<V>()) {}
+      Entry( K key ) : key(key), vs(new BufferVector<V>( 16 )) {}
     };
 
     struct Cell {
@@ -91,7 +91,7 @@ class MatchesDHT {
           e.vs->setReadMode();
           sum_size+=e.vs->getLength();
         }
-        max_cell_length.add(sum_size);
+        //max_cell_length.add(sum_size);
       });
     }
 
