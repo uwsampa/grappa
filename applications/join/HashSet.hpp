@@ -32,9 +32,9 @@ class HashSet {
     };
 
     struct Cell {
-      std::list<Entry> * entries;
+      std::list<Entry> entries;
 
-      Cell() : entries(NULL) {}
+      Cell() : entries() {}
     };
 
     // private members
@@ -63,8 +63,7 @@ class HashSet {
       });
 
       Grappa::forall_localized( base, capacity, []( int64_t i, Cell& c ) {
-        Cell empty;
-        c = empty;
+        new(&c) Cell();
       });
     }
 
@@ -103,18 +102,12 @@ class HashSet {
 
       return Grappa::delegate::call( target.node(), [key, target]() {   // TODO: have an additional version that returns void
                                                                  // to upgrade to call_async
-        // list of entries in this cell
-        std::list<HS_TYPE(Entry)> * entries = target.pointer()->entries;
+        Cell * c = target.pointer();
 
-        // if first time the cell is hit then initialize
-        if ( entries == NULL ) {
-          entries = new std::list<Entry>();
-          target.pointer()->entries = entries;
-        }
 
         // find matching key in the list
         typename std::list<HS_TYPE(Entry)>::iterator i;
-        for (i = entries->begin(); i!=entries->end(); ++i) {
+        for (i = c->entries.begin(); i!=c->entries.end(); ++i) {
           Entry e = *i;
           if ( e.key == key ) {
             // key found so no insert
@@ -126,7 +119,7 @@ class HashSet {
         // so add it to the list
         Entry newe( key );        // TODO: cleanup since sharing insert* code here, we are just going to store an empty vector
                                   // perhaps a different module
-        entries->push_back( newe );
+        c->entries.push_back( newe );
 
         return false; 
      });
@@ -142,20 +135,13 @@ class HashSet {
 
       Grappa::delegate::call_async<GCE>(pool, target.node(), [key,target]() {
 
-        // list of entries in this cell
-        std::list<HS_TYPE(Entry)> * entries = target.pointer()->entries;
-
-        // if first time the cell is hit then initialize
-        if ( entries == NULL ) {
-          entries = new std::list<Entry>();
-          target.pointer()->entries = entries;
-        }
+        Cell * c = target.pointer();
 
         uint64_t steps=0;
         
         // find matching key in the list
         typename std::list<HS_TYPE(Entry)>::iterator i;
-        for (i = entries->begin(); i!=entries->end(); ++i) {
+        for (i = c->entries.begin(); i!=c->entries.end(); ++i) {
           steps+=1;
           Entry e = *i;
           if ( e.key == key ) {
@@ -168,8 +154,8 @@ class HashSet {
         // this is the first time the key has been seen
         // so add it to the list
         Entry newe( key );        
-        entries->push_back( newe );
-        max_cell_length.add( entries->size() );
+        c->entries.push_back( newe );
+        max_cell_length.add( c->entries.size() );
      });
     }
 
@@ -180,9 +166,7 @@ class HashSet {
       Grappa::on_all_cores([] { size_reducer.reset(); });
 
       Grappa::forall_localized( base, capacity, []( int64_t i, Cell& c ) {
-        if (c.entries!=NULL) {
-          size_reducer.accumulate(c.entries->size());
-        }
+        size_reducer.accumulate(c.entries.size());
       });
 
 
