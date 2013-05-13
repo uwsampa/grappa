@@ -91,9 +91,12 @@ void scanAndHash( GlobalAddress<Tuple> tuples, size_t num ) {
 }
 
 
+double read_start, read_end;
+
 void twohop( GlobalAddress<Tuple> tuples, size_t num_tuples ) {
 
   on_all_cores( [] { Grappa::Statistics::reset(); } );
+  read_runtime = read_end-read_start;
   
   
   // scan tuples and hash join col
@@ -127,7 +130,7 @@ void twohop( GlobalAddress<Tuple> tuples, size_t num_tuples ) {
 #endif
 
 
-  /*on_all_cores([]{Grappa_start_profiling();});*/
+  //on_all_cores([]{Grappa_start_profiling();});
   start = Grappa_walltime();
   VLOG(1) << "Starting 1st join";
   forall_localized( tuples, num_tuples, [](int64_t i, Tuple& t) {
@@ -161,7 +164,7 @@ void twohop( GlobalAddress<Tuple> tuples, size_t num_tuples ) {
       Incoherent<Tuple>::RO subset( results_addr+start, iters, subset_stor );
 #endif
  
-  /* //phased profiling    
+  /*//phased profiling    
      if (Grappa::mycore()==0) {
      if (join_result_count > 1000000 && !first_phase) {
       first_phase = true;
@@ -169,12 +172,14 @@ void twohop( GlobalAddress<Tuple> tuples, size_t num_tuples ) {
       call_on_all_cores([]{Grappa_start_profiling();}); 
       }
   
-     if (join_result_count > 16000000 && !second_phase) { 
+     if (join_result_count > 22000000 && !second_phase) { 
       second_phase = true;
       call_on_all_cores([]{Grappa_stop_profiling();}); 
       }
       }
       */
+      
+      
 
       join_result_count += iters; 
 
@@ -218,6 +223,7 @@ void user_main( int * ignore ) {
 
   GlobalAddress<Tuple> tuples;
   size_t num_tuples;
+ 
 
   if ( FLAGS_fin == "" ) {
     VLOG(1) << "Generating some data";
@@ -229,17 +235,18 @@ void user_main( int * ignore ) {
     VLOG(1) << "Reading data from " << FLAGS_fin;
     
     tuples = Grappa_typed_malloc<Tuple>( FLAGS_file_num_tuples );
-    double read_start = Grappa_walltime();
+    read_start = Grappa_walltime();
     readTuples( FLAGS_fin, tuples, FLAGS_file_num_tuples );
-    double read_end = Grappa_walltime();
-    read_runtime = read_end - read_start;
+    read_end = Grappa_walltime();
     num_tuples = FLAGS_file_num_tuples;
     
     //print_array( "file tuples", tuples, FLAGS_file_num_tuples, 1, 200 );
   }
 
+  VLOG(1) << "initializing join table";
   DHT_type::init_global_DHT( &joinTable, num_tuples );
-  Results_type::init_global_DHT( &results, num_tuples*100 );
+  VLOG(1) << "initializing results table";
+  Results_type::init_global_DHT( &results, num_tuples*25 );
 
   twohop( tuples, num_tuples ); 
 }
