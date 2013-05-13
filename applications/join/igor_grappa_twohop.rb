@@ -45,7 +45,7 @@ Igor do
     ppn         6
     tag         'none'
     with_hash   true
-    with_distinct true
+    with_distinct 1
   }
   
   """
