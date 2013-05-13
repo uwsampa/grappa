@@ -32,7 +32,7 @@
 
 // file input
 DEFINE_string( fin, "", "Input file relation" );
-DEFINE_uint64( fileNumTuples, 0, "Number of lines in file" );
+DEFINE_uint64( file_num_tuples, 0, "Number of lines in file" );
 
 // generating input data
 DEFINE_uint64( scale, 7, "Log of number of vertices" );
@@ -49,6 +49,8 @@ GRAPPA_DEFINE_STAT(SimpleStatistic<uint64_t>, first_join_select_count, 0);
 GRAPPA_DEFINE_STAT(SimpleStatistic<uint64_t>, second_join_count, 0);
 GRAPPA_DEFINE_STAT(SimpleStatistic<uint64_t>, second_join_select_count, 0);
 GRAPPA_DEFINE_STAT(SimpleStatistic<uint64_t>, triangle_count, 0);
+
+GRAPPA_DEFINE_STAT(SimpleStatistic<double>, hash_runtime, 0);
 
 
 using namespace Grappa;
@@ -191,6 +193,7 @@ void triangles( GlobalAddress<Tuple> tuples, size_t num_tuples, Column ji1, Colu
   end = Grappa_walltime();
   
   VLOG(1) << "insertions: " << num_tuples/(end-start) << " per sec";
+  hash_runtime = end - start;
 
 #if DEBUG
   printAll(tuples, num_tuples);
@@ -325,11 +328,11 @@ void user_main( int * ignore ) {
   } else {
     VLOG(1) << "Reading data from " << FLAGS_fin;
     
-    tuples = Grappa_typed_malloc<Tuple>( FLAGS_fileNumTuples );
-    readTuples( FLAGS_fin, tuples, FLAGS_fileNumTuples );
-    num_tuples = FLAGS_fileNumTuples;
+    tuples = Grappa_typed_malloc<Tuple>( FLAGS_file_num_tuples );
+    readTuples( FLAGS_fin, tuples, FLAGS_file_num_tuples );
+    num_tuples = FLAGS_file_num_tuples;
     
-    print_array( "file tuples", tuples, FLAGS_fileNumTuples, 1, 200 );
+    print_array( "file tuples", tuples, FLAGS_file_num_tuples, 1, 200 );
   }
 
   DHT_type::init_global_DHT( &joinTable, 64 );
