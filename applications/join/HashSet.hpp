@@ -7,7 +7,7 @@
 #include <Reducer.hpp>
 #include <MessagePool.hpp>
 
-#include <list>
+#include <vector>
 
 // for all hash tables
 GRAPPA_DEFINE_STAT(MaxStatistic<uint64_t>, max_cell_length, 0);
@@ -28,13 +28,15 @@ class HashSet {
   private:
     struct Entry {
       K key;
+      Entry(){}//default for list
       Entry(K key) : key(key) {}
     };
 
     struct Cell {
-      std::list<Entry> entries;
+      std::vector<Entry> entries;
+      char padding[64-sizeof(std::vector<Entry>)];
 
-      Cell() : entries() {}
+      Cell() : entries(2) {}
     };
 
     // private members
@@ -73,16 +75,12 @@ class HashSet {
 
       return Grappa::delegate::call( target.node(), [key,target]() {
 
-        std::list<HS_TYPE(Entry)> * entries = target.pointer()->entries;
+        Cell * c = target.pointer();
 
-        // first check if the cell has any entries;
-        // if not then the lookup returns nothing
-        if ( entries == NULL ) return false;
-
-        typename std::list<HS_TYPE(Entry)>::iterator i;
-        for (i = entries->begin(); i!=entries->end(); ++i) {
-          const Entry e = *i;
-          if ( e.key == key ) {  // typename K must implement operator==
+        int64_t i;
+        int64_t sz = c->entries.size();
+        for (i = 0; i<sz; ++i) {
+          if ( c->entries[i].key == key ) {  // typename K must implement operator==
             return true;
           }
         }
@@ -104,11 +102,11 @@ class HashSet {
                                                                  // to upgrade to call_async
         Cell * c = target.pointer();
 
-
         // find matching key in the list
-        typename std::list<HS_TYPE(Entry)>::iterator i;
-        for (i = c->entries.begin(); i!=c->entries.end(); ++i) {
-          Entry e = *i;
+        int64_t i;
+        int64_t sz = c->entries.size();
+        for (i = 0; i<sz; ++i) {
+          Entry e = c->entries[i];
           if ( e.key == key ) {
             // key found so no insert
             return true;
@@ -136,26 +134,30 @@ class HashSet {
       Grappa::delegate::call_async<GCE>(pool, target.node(), [key,target]() {
 
         Cell * c = target.pointer();
-
+        
         uint64_t steps=0;
         
         // find matching key in the list
-        typename std::list<HS_TYPE(Entry)>::iterator i;
-        for (i = c->entries.begin(); i!=c->entries.end(); ++i) {
+        int64_t i;
+        int64_t sz = c->entries.size();
+        for (i = 0; i<sz; i++) {
           steps+=1;
-          Entry e = *i;
+          Entry e = c->entries[i];
           if ( e.key == key ) {
             cell_traversal_length+=steps;
             return;
           }
+
+      //     return;
         }
         cell_traversal_length+=steps;
-
+        
+     
         // this is the first time the key has been seen
         // so add it to the list
         Entry newe( key );        
         c->entries.push_back( newe );
-        max_cell_length.add( c->entries.size() );
+        max_cell_length.add( sz+1 );
      });
     }
 
