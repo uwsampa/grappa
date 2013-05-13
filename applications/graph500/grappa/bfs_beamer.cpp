@@ -71,7 +71,8 @@ void incr_frontier_edges(int64_t v) {
 #define for_buffered(i, n, start, end, nbuf) \
   for (size_t i=start, n=nbuf; i<end && (n = MIN(nbuf, end-i)); i+=nbuf)
 
-static const size_t NBUF = (STACK_SIZE / 2) / sizeof(int64_t);
+// static const size_t NBUF = (STACK_SIZE / 2) / sizeof(int64_t);
+static const size_t NBUF = 64;
 
 static bool bfs_counters_added = false;
 
@@ -247,16 +248,14 @@ double make_bfs_tree(csr_graph * g, GlobalAddress<int64_t> in_bfs_tree, int64_t 
           Incoherent<int64_t>::RO cadj(xadj+j, nc, adj_buf);
           for (size_t k=0; k<nc; k++) {
             
-            ++bfs_neighbors_visited;
+            ++bfs_edge_visited;
             const int64_t n = cadj[k];
             
             if (in_frontier(n)) {
               p.set(current_depth, n);
               vlist_buf.push(v);
-              //incr_frontier_edges(v); // not strictly necessary to keep count anymore
               return;
             }
-            
           }
         }
       });
