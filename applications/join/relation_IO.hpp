@@ -7,6 +7,7 @@
 
 #include <Grappa.hpp>
 #include <Cache.hpp>
+#include <ParallelLoop.hpp>
 #include "Tuple.hpp"
 
 
@@ -28,22 +29,31 @@ std::vector<std::string> split(const std::string &s, char delim) {
 
 
 void readTuples( std::string fn, GlobalAddress<Tuple> tuples, uint64_t numTuples ) {
-std::ifstream testfile(fn);
-    std::string line;
-    int fin = 0;
-    CHECK( testfile.is_open() );
+  std::ifstream testfile(fn);
+  CHECK( testfile.is_open() );
 
-    while (testfile.good() && fin<numTuples) {
+  // shared by the local tasks reading the file
+  int fin = 0;
+
+  // synchronous IO with asynchronous write
+  Grappa::forall_here<&Grappa::impl::local_ce, 1>(0, numTuples, [tuples,numTuples,&fin,&testfile](int64_t s, int64_t n) {
+    std::string line;
+    for (int ignore=s; ignore<s+n; ignore++) {
+      CHECK( testfile.good() );
       std::getline( testfile, line );
-      Incoherent<Tuple>::WO lr(tuples+fin, 1);
+
+      int myindex = fin++;
+      Incoherent<Tuple>::WO lr(tuples+myindex, 1);
+
       std::vector<std::string> tokens = split( line, '\t' );
       VLOG(5) << tokens[0] << "->" << tokens[1];
       (*lr).columns[0] = std::stoi(tokens[0]);
       (*lr).columns[1] = std::stoi(tokens[1]);
-      fin++;
     }
-    CHECK( fin == numTuples );
-    testfile.close();
+  });
+
+  CHECK( fin == numTuples );
+  testfile.close();
 }
 
 #endif // RELATIONIO_HPP
