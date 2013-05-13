@@ -126,7 +126,7 @@ namespace Grappa {
     ///   bool is_zero = delegate::call(xa, [](int* x){ return *x == 0; });
     /// @endcode
     template< typename T, typename F >
-    inline auto call(GlobalAddress<T> target, F func) -> decltype(func()) {
+    inline auto call(GlobalAddress<T> target, F func) -> decltype(func(target.pointer())) {
       return call(target.core(), [target,func]{ return func(target.pointer()); });
     }
     
