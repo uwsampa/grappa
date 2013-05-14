@@ -61,6 +61,9 @@ struct AllocatorChunk {
 // overload output operator for debugging
 std::ostream& operator<<( std::ostream& o, const AllocatorChunk& chunk );
 
+class Allocator;
+std::ostream& operator<<( std::ostream& o, const Allocator& a );
+
 /// Generic buddy allocator. Used by GlobalAllocator to implement
 /// global heap.
 class Allocator {
@@ -277,7 +280,5 @@ public:
     return o << "}";
   }
 };
-
-std::ostream& operator<<( std::ostream& o, const Allocator& a );
 
 #endif
