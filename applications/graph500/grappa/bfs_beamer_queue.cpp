@@ -7,6 +7,7 @@
 #include <utility>
 
 using namespace Grappa;
+namespace d = Grappa::delegate;
 
 DECLARE_double(beamer_alpha);
 DECLARE_double(beamer_beta);
@@ -62,7 +63,7 @@ double make_bfs_tree(csr_graph * g_in, GlobalAddress<int64_t> _bfs_tree, int64_t
   // initialize bfs_tree to -1
   Grappa::memset(bfs_tree, BFSParent(),  g.nv);
   // parent of root is self
-  delegate::write(bfs_tree+root, BFSParent(0, root));
+  d::write(bfs_tree+root, BFSParent(0, root));
   
   bool top_down = true;
   size_t prev_nf = -1;
@@ -85,13 +86,12 @@ double make_bfs_tree(csr_graph * g_in, GlobalAddress<int64_t> _bfs_tree, int64_t
       // top-down level
       forall_localized(frontier->begin(), frontier->size(), [next](long si, long& sv) {
         ++bfs_vertex_visited;
-        auto r = delegate::read(eoff+sv);
+        auto r = d::read(eoff+sv);
         forall_localized_async(g.xadj+r.start, r.end-r.start, [sv,next](long ei, long& ev) {
           ++bfs_edge_visited;
-          // if (delegate::compare_and_swap(bfs_tree+ev, -1, sv)) {
-          if (delegate::compare_and_swap(bfs_tree+ev, BFSParent(), BFSParent(current_depth, sv))) {
+          if (d::compare_and_swap(bfs_tree+ev, BFSParent(), BFSParent(current_depth, sv))) {
             next->push(ev);
-            delta_frontier_edges += delegate::call(eoff+ev,[](range_t* r){ return r->end-r->start; });
+            delta_frontier_edges += d::call(eoff+ev,[](range_t* r){ return r->end-r->start; });
           }
         });
       });
@@ -101,7 +101,7 @@ double make_bfs_tree(csr_graph * g_in, GlobalAddress<int64_t> _bfs_tree, int64_t
       forall_localized(bfs_tree, g.nv, [next](int64_t sv, BFSParent& p){
         if (p.depth != -1) return;
         ++bfs_vertex_visited;
-        auto r = delegate::read(eoff+sv);
+        auto r = d::read(eoff+sv);
         for_buffered(j, nc, r.start, r.end, NBUF) {
           int64_t adj_buf[NBUF];
           Incoherent<int64_t>::RO cadj(g.xadj+j, nc, adj_buf);
@@ -109,7 +109,7 @@ double make_bfs_tree(csr_graph * g_in, GlobalAddress<int64_t> _bfs_tree, int64_t
             ++bfs_edge_visited;
             const int64_t ev = cadj[k];
             
-            if (delegate::call(bfs_tree+ev,
+            if (d::call(bfs_tree+ev,
               [](BFSParent* t){ return t->depth != -1 && t->depth < current_depth; }
             )) {
               p = {current_depth, ev};
