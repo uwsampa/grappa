@@ -24,7 +24,7 @@ public:
   struct Shared {
     size_t capacity;
     GlobalAddress<GlobalVector> self;
-    GlobalAddress<T> base;    
+    GlobalAddress<T> base;
   } shared;
   
   struct PushCombiner {

@@ -13,6 +13,10 @@
 #include "GlobalVector.hpp"
 #include "Statistics.hpp"
 
+#include <boost/random/mersenne_twister.hpp>
+#include <boost/random/uniform_int.hpp>
+#include <boost/random/variate_generator.hpp>
+
 using namespace Grappa;
 
 BOOST_AUTO_TEST_SUITE( GlobalVector_tests );
@@ -21,6 +25,46 @@ static size_t N = (1L<<10) - 21;
 
 DEFINE_int64(nelems, N, "number of elements in (large) test arrays");
 DEFINE_int64(buffer_size, 1<<10, "number of elements in buffer");
+
+DEFINE_bool(perf, false, "do performance test");
+
+template< typename T >
+inline T next_random() {
+  using engine_t = boost::mt19937_64;
+  using dist_t = boost::uniform_int<T>;
+  using gen_t = boost::variate_generator<engine_t&,dist_t>;
+  
+  // continue using same generator with multiple calls (to not repeat numbers)
+  // but start at different seed on each node so we don't get overlap
+  static engine_t engine(12345L*mycore());
+  static gen_t gen(engine, dist_t(0, std::numeric_limits<T>::max()));
+  return gen();
+}
+
+template< bool             RANDOM = true,
+          CompletionEvent* CE     = &impl::local_ce,
+          int64_t          TH     = impl::USE_LOOP_THRESHOLD_FLAG >
+double push_perf_test() {
+  auto qa = GlobalVector<int64_t>::create(N, FLAGS_buffer_size);
+  
+  double t = Grappa_walltime();
+  
+  forall_global_private<CE,TH>(0, N, [qa](int64_t s, int64_t n){
+    for (int64_t i=s; i<s+n; i++) {
+      if (RANDOM) {
+        qa->push(next_random<int64_t>());
+      } else {
+        qa->push(42);
+      }
+    }
+  });
+  
+  t = Grappa_walltime() - t;
+  
+  BOOST_CHECK_EQUAL(qa->size(), N);
+  qa->destroy();
+  return t;
+}
 
 void test_global_vector() {
   BOOST_MESSAGE("Testing GlobalVector"); VLOG(1) << "testing global queue";
@@ -61,7 +105,17 @@ void test_global_vector() {
 }
 
 void user_main( void * ignore ) {
-  test_global_vector();
+  if (FLAGS_perf) {
+    double t;
+    t = push_perf_test<true>();
+    LOG(INFO) << "push_time: " << t;
+
+    t = push_perf_test<false>();
+    LOG(INFO) << "push_uniform_time: " << t;
+    
+  } else {
+    test_global_vector();
+  }
   
   Statistics::merge_and_print();
 }
