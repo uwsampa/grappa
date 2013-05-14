@@ -225,7 +225,9 @@ static void checkpoint_in(tuple_graph * tg, csr_graph * g, int64_t * bfs_roots) 
   fread(bfs_roots, sizeof(int64_t), ckpt_nbfs, fin);
   fclose(fin);
  
-  if (ckpt_nbfs < NBFS) {
+  if (ckpt_nbfs == 0) {
+    fprintf(stderr, "no bfs roots found in checkpoint, generating on the fly\n");
+  } else if (ckpt_nbfs < NBFS) {
     fprintf(stderr, "only %ld bfs roots found\n", ckpt_nbfs);
     NBFS = ckpt_nbfs;
   }
