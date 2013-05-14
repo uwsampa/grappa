@@ -33,7 +33,7 @@ namespace Grappa {
     }
     
     double variance() const {
-      return M2 / (n - 1);
+      return (n<2) ? 0.0 : M2 / (n - 1);
     }
 
     double stddev() const {
