@@ -32,6 +32,7 @@ static csr_graph g;
 static GlobalAddress<range_t> eoff;
 static GlobalAddress<BFSParent> bfs_tree;
 static int64_t current_depth;
+static int64_t delta_frontier_edges;
 
 static const size_t NBUF = 64;
 
@@ -65,15 +66,16 @@ double make_bfs_tree(csr_graph * g_in, GlobalAddress<int64_t> _bfs_tree, int64_t
   
   bool top_down = true;
   size_t prev_nf = -1;
+  int64_t frontier_edges = 0;
   int64_t remaining_edges = g.nadj;
   
   while (!frontier->empty()) {
-    call_on_all_cores([]{ current_depth++; });
     auto nf = frontier->size();
-    if (top_down && nf > remaining_edges/FLAGS_beamer_alpha && nf > prev_nf) {
+    VLOG(3) << "remaining_edges = " << remaining_edges << ", nf = " << nf << ", prev_nf = " << prev_nf;
+    if (top_down && frontier_edges > remaining_edges/FLAGS_beamer_alpha && nf > prev_nf) {
       VLOG(2) << "switching to bottom-up";
       top_down = false;
-    } else if (!top_down && nf < g.nv/FLAGS_beamer_beta && nf < prev_nf) {
+    } else if (!top_down && frontier_edges < g.nv/FLAGS_beamer_beta && nf < prev_nf) {
       VLOG(2) << "switching to top-down";
       top_down = true;
     }
@@ -81,7 +83,7 @@ double make_bfs_tree(csr_graph * g_in, GlobalAddress<int64_t> _bfs_tree, int64_t
     if (top_down) {
       VLOG(2) << "top_down";
       // top-down level
-      forall_localized(frontier->begin(), frontier->size(), [frontier,next](long si, long& sv) {
+      forall_localized(frontier->begin(), frontier->size(), [next](long si, long& sv) {
         ++bfs_vertex_visited;
         auto r = delegate::read(eoff+sv);
         forall_localized_async(g.xadj+r.start, r.end-r.start, [sv,next](long ei, long& ev) {
@@ -89,10 +91,12 @@ double make_bfs_tree(csr_graph * g_in, GlobalAddress<int64_t> _bfs_tree, int64_t
           // if (delegate::compare_and_swap(bfs_tree+ev, -1, sv)) {
           if (delegate::compare_and_swap(bfs_tree+ev, BFSParent(), BFSParent(current_depth, sv))) {
             next->push(ev);
+            delta_frontier_edges += delegate::call(eoff+ev,[](range_t* r){ return r->end-r->start; });
           }
         });
       });
     } else {
+      VLOG(2) << "bottom_up";
       // bottom-up level
       forall_localized(bfs_tree, g.nv, [next](int64_t sv, BFSParent& p){
         if (p.depth != -1) return;
@@ -118,6 +122,13 @@ double make_bfs_tree(csr_graph * g_in, GlobalAddress<int64_t> _bfs_tree, int64_t
     }
     std::swap(frontier, next);
     next->clear();
+    frontier_edges = reduce<int64_t,collective_add>(&delta_frontier_edges);
+    remaining_edges -= frontier_edges;
+    prev_nf = nf;
+    call_on_all_cores([]{
+      current_depth++;
+      delta_frontier_edges = 0;
+    });
   }
   
   t = timer() - t;
