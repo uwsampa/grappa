@@ -18,6 +18,7 @@ opt = OpenStruct.new
 # opt.ppn   = 1
 opt.time  = '15:00'
 opt.freeze_on_error = false
+opt.verbose = true
 
 OptionParser.new do |p|
   p.banner = "Usage: #{__FILE__} [options]"
@@ -26,7 +27,8 @@ OptionParser.new do |p|
   p.on('-p', '--ppn CORES', Integer, "Number of cores/processes per node"){|c| opt.ppn = c }
   p.on('-t', '--time TIME', 'Job time to pass to srun'){|t| opt.time = t }
   p.on('-e', '--test TEST', 'Run boost unit test program with given name (e.g. Aggregator_tests)'){|t| opt.test = t }
-  p.on('-f', '--freeze-on-error', "Freeze all the jobs when there's an error"){ opt.freeze_on_error = true }
+  p.on('-f', '--[no-]freeze-on-error', "Freeze all the jobs when there's an error"){|f| opt.freeze_on_error = f }
+  p.on('-v', '--[no-]verbose', "Verbose tests"){|v| opt.verbose = v }
 
 end.parse!(myargs)
 
@@ -53,7 +55,12 @@ srun_flags << "--ntasks-per-node=#{opt.ppn}" if opt.ppn
 srun_flags << "--time=#{opt.time}" if opt.time
 ENV["GASNET_FREEZE_ON_ERROR"] = opt.freeze_on_error ? "1" : "0"
 
-test = "#{opt.test}.test --log_level=test_suite --report_level=confirm --run_test=#{opt.test}" if opt.test
+if opt.verbose
+  verbose_test = '--log_level=test_suite --report_level=confirm'
+else
+  verbose_test = '--log_level=nothing --report_level=no'
+end
+test = "#{opt.test}.test #{verbose_test} --run_test=#{opt.test}" if opt.test
 # jacob's preferred test options
 #test = "#{opt.test}.test --log_level=nothing --report_level=no --run_test=#{opt.test}" if opt.test
 
