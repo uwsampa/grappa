@@ -25,8 +25,12 @@ static size_t N = (1L<<10) - 21;
 
 DEFINE_int64(nelems, N, "number of elements in (large) test arrays");
 DEFINE_int64(buffer_size, 1<<10, "number of elements in buffer");
+DEFINE_int64(ntrials, 1, "number of independent trials to average over");
 
 DEFINE_bool(perf, false, "do performance test");
+
+GRAPPA_DEFINE_STAT(SummarizingStatistic<double>, push_time, 0);
+GRAPPA_DEFINE_STAT(SummarizingStatistic<double>, push_const_time, 0);
 
 template< typename T >
 inline T next_random() {
@@ -44,9 +48,8 @@ inline T next_random() {
 template< bool             RANDOM = true,
           CompletionEvent* CE     = &impl::local_ce,
           int64_t          TH     = impl::USE_LOOP_THRESHOLD_FLAG >
-double push_perf_test() {
-  auto qa = GlobalVector<int64_t>::create(N, FLAGS_buffer_size);
-  
+double push_perf_test(GlobalAddress<GlobalVector<int64_t>> qa) {
+  qa->clear();
   double t = Grappa_walltime();
   
   forall_global_private<CE,TH>(0, N, [qa](int64_t s, int64_t n){
@@ -62,7 +65,6 @@ double push_perf_test() {
   t = Grappa_walltime() - t;
   
   BOOST_CHECK_EQUAL(qa->size(), N);
-  qa->destroy();
   return t;
 }
 
@@ -107,11 +109,19 @@ void test_global_vector() {
 void user_main( void * ignore ) {
   if (FLAGS_perf) {
     double t;
-    t = push_perf_test<true>();
-    LOG(INFO) << "push_time: " << t;
-
-    t = push_perf_test<false>();
-    LOG(INFO) << "push_uniform_time: " << t;
+    auto qa = GlobalVector<int64_t>::create(N, FLAGS_buffer_size);
+    
+    for (int i=0; i<FLAGS_ntrials; i++) {
+      t = push_perf_test<true>(qa);
+      LOG_FIRST_N(INFO,1) << "push_time: " << t;
+      push_time += t;
+    
+      t = push_perf_test<false>(qa);
+      LOG_FIRST_N(INFO,1) << "push_const_time: " << t;
+      push_const_time += t;
+    }
+    
+    qa->destroy();
     
   } else {
     test_global_vector();
