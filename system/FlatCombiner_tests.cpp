@@ -20,13 +20,6 @@ BOOST_AUTO_TEST_SUITE( FlatCombiner_tests );
 
 const Core MASTER = 0;
 
-class MasterHelper {
-  template<typename F>
-  auto call(F func) -> decltype(func()) {
-    
-  }
-};
-
 class Counter {
 protected:
   
@@ -53,11 +46,10 @@ protected:
   };
   FlatCombiner<Proxy> comb;
   
-  char pad[block_size - sizeof(comb)-sizeof(self)-sizeof(master)];
+  // char pad[block_size - sizeof(comb)-sizeof(self)-sizeof(master)];
   
 public:
   Counter(long initial_count = 0): comb(new Proxy(this)) {
-    VLOG(1) << "constructed Counter<" << this << ">";
     master.count = initial_count;
   }
   
@@ -72,21 +64,21 @@ public:
     return delegate::call(MASTER, [s]{ return s->master.count; });
   }
   
-  static GlobalAddress<Counter> create(long initial_count = 0) {
-    auto a = mirrored_global_alloc<Counter>();
-    call_on_all_cores([a]{ new (a.localize()) Counter(0); });
-    return a;
-  }
-  
-  void destroy() {
-    auto a = self;
-    call_on_all_cores([a]{ a->~Counter(); });
-  }
+  // static GlobalAddress<Counter> create(long initial_count = 0) {
+  //   auto a = mirrored_global_alloc<Counter>();
+  //   call_on_all_cores([a]{ new (a.localize()) Counter(0); });
+  //   return a;
+  // }
+  // 
+  // void destroy() {
+  //   auto a = self;
+  //   call_on_all_cores([a]{ a->~Counter(); });
+  // }
 };
 
 void user_main( void * ignore ) {
   
-  auto c = Counter::create();
+  auto c = MirroredGlobal<Counter>::create([](Counter* c){ new (c) Counter(0); });
   
   on_all_cores([c]{
     for (int i=0; i<10; i++) {
