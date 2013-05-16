@@ -4,7 +4,7 @@ namespace Grappa {
 
 /// Mixin for adding common global data structure functionality, such as mirrored 
 /// allocation on all cores.
-template< typename Base >
+template< typename Base, Core MASTER = 0 >
 class MirroredGlobal : public Base {
   char pad[block_size - sizeof(Base)];
 public:
@@ -37,10 +37,11 @@ public:
   }
 
   void destroy() {
-    auto a = Base::self;
+    auto a = this->self;
     call_on_all_cores([a]{ a->~MirroredGlobal<Base>(); });
     global_free(a);
   }
+
 };
 
 
@@ -52,13 +53,14 @@ class FlatCombiner {
     Worker * sender;
     ConditionVariable cv;
     Flusher(T * id): id(id), sender(nullptr) {}
-    ~Flusher() { delete id; }
+    ~Flusher() { locale_free(id); }
   };
   
   Flusher * current;
   Flusher * inflight;
   
 public:
+  
   FlatCombiner(T * initial): current(new Flusher(initial)), inflight(nullptr) {}
   ~FlatCombiner() { delete current; delete inflight; }
   
@@ -83,7 +85,7 @@ public:
     
     if (s->id->is_full() || inflight == nullptr) {
       inflight = current;
-      current = new Flusher(s->id->T::clone_fresh());
+      current = new Flusher(s->id->clone_fresh());
       if (s->sender == nullptr) {
         flush(s);
       } // otherwise someone else is already assigned and will send when ready
