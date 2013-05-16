@@ -24,7 +24,7 @@ BOOST_AUTO_TEST_SUITE( GlobalVector_tests );
 static size_t N = (1L<<10) - 21;
 
 DEFINE_int64(nelems, N, "number of elements in (large) test arrays");
-DEFINE_int64(buffer_size, 1<<10, "number of elements in buffer");
+// DEFINE_int64(buffer_size, 1<<10, "number of elements in buffer");
 DEFINE_int64(ntrials, 1, "number of independent trials to average over");
 
 DEFINE_bool(perf, false, "do performance test");
@@ -71,7 +71,7 @@ double push_perf_test(GlobalAddress<GlobalVector<int64_t>> qa) {
 void test_global_vector() {
   BOOST_MESSAGE("Testing GlobalVector"); VLOG(1) << "testing global queue";
   
-  auto qa = GlobalVector<int64_t>::create(N, FLAGS_buffer_size);
+  auto qa = GlobalVector<int64_t>::create(N);
   VLOG(1) << "queue addr: " << qa;
   
   BOOST_CHECK_EQUAL(qa->empty(), true);
@@ -109,7 +109,7 @@ void test_global_vector() {
 void user_main( void * ignore ) {
   if (FLAGS_perf) {
     double t;
-    auto qa = GlobalVector<int64_t>::create(N, FLAGS_buffer_size);
+    auto qa = GlobalVector<int64_t>::create(N);
     
     for (int i=0; i<FLAGS_ntrials; i++) {
       t = push_perf_test<true>(qa);
