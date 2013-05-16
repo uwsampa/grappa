@@ -10,7 +10,7 @@
 #include "ParallelLoop.hpp"
 #include "GlobalAllocator.hpp"
 #include "Delegate.hpp"
-#include "GlobalVector.hpp"
+// #include "GlobalVector.hpp"
 #include "Statistics.hpp"
 #include "FlatCombiner.hpp"
 
@@ -21,7 +21,7 @@ BOOST_AUTO_TEST_SUITE( FlatCombiner_tests );
 const Core MASTER = 0;
 
 class Counter {
-protected:
+public:
   
   struct Master {
     long count;
@@ -34,7 +34,7 @@ protected:
     long delta;
     
     Proxy(Counter* outer): outer(outer), delta(0) {}
-    Proxy* clone_fresh() { return new Proxy(outer); }
+    Proxy* clone_fresh() { return locale_new<Proxy>(outer); }
     
     void sync() {
       auto s = outer->self;
@@ -49,7 +49,7 @@ protected:
   // char pad[block_size - sizeof(comb)-sizeof(self)-sizeof(master)];
   
 public:
-  Counter(long initial_count = 0): comb(new Proxy(this)) {
+  Counter(long initial_count = 0): comb(locale_new<Proxy>(this)) {
     master.count = initial_count;
   }
   
@@ -78,13 +78,17 @@ public:
 
 void user_main( void * ignore ) {
   
-  auto c = MirroredGlobal<Counter>::create([](Counter* c){ new (c) Counter(0); });
+  auto c = MirroredGlobal<Counter,MASTER>::create([](Counter* c){ new (c) Counter(0); });
   
   on_all_cores([c]{
     for (int i=0; i<10; i++) {
       c->incr();
     }
   });
+  
+  // auto count = c->([](Counter * self){ return self->master.count; });
+  // BOOST_CHECK_EQUAL(count, c->count());
+  // c->on_master([](Counter * self){ VLOG(0) << self; });
   
   BOOST_CHECK_EQUAL(c->count(), 10*cores());
   LOG(INFO) << "count = " << c->count();
