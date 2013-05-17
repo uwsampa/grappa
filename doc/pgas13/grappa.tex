@@ -1,3 +1,5 @@
+\section{Grappa}
+
 One of the persistent challenges with PGAS languages is that existing shared memory applications typically do  fine-grained operations, so naively translating them results in poor performance because many operations must be done via remote communication. Many techniques exist, therefore, to help come up with better ways to partition data, schedule computation, and where necessary, do communication in bulk to best utilize network resources.
 
 Irregular applications, however, are characterized by being highly dependent on the shape of the data, making it difficult to statically partition, causing load imbalance, and requiring a majority of fine-grained random accesses.
