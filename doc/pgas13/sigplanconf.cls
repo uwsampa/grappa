@@ -1,1 +1,1 @@
-doc/sosp13/sigplanconf.cls
+../sosp13/sigplanconf.cls
