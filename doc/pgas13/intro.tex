@@ -1,2 +1,10 @@
 \section{Introduction}
-The Grappa~\cite{Nelson:hotpar11-real} runtime system is optimized for fine-grained accesses.
+% - PGAS languages successfully bring shared memory problems into distributed memory systems
+% - Cost functions are different, but many of the other considerations, such as reducing locking, still apply
+% - With abundant parallelism, we can tolerate some serialization to reduce number of synchronizations and reduce overall communication
+
+% The Grappa~\cite{Nelson:hotpar11-real} runtime system is optimized for fine-grained accesses.
+
+The goal of partitioned global address space (PGAS) languages and runtimes is to provide the illusion of a single shared memory to a program that actually executes on a number of machines each with their own memory. This allows programmers to write their algorithms without needing to explicitly manage communication. Once the algorithm is correct, many techniques exist to help improve performance improving locality (spatial and temporal) and coarsening communication where possible. However, with the shared memory abstraction come all of the difficult concurrency issues that arise in physically-shared memory. Luckily, PGAS can leverage the large body of work solving these issues in a shared memory domain, there are just a host of different costs and performance trade-offs to be made in a distributed setting.
+
+When multiple threads of control concurrently access the same object, they have a choice about how to conduct themselves: contend or cooperate. Either they all fight to obtain the single global lock, or they attempt a series of potentially-contended atomic operations in the case of a more advanced synchronization strategy such as a lock-free queue. In both cases, as the number of concurrent accessors increases, the more contention and therefore failed synchronization operations there are. If, however, the threads cooperate, they can delegate one thread to do all the operations and avoid excessive synchronization overhead on highly contended locations. In addition, the particular insight of flat-combining is that some operations have semantics such that they can be \emph{combined} and applied more efficiently together than individually. With a sufficiently efficient mechanism for delegating and combining, the benefits of reduced synchronization can outweigh the cost of serialization.
