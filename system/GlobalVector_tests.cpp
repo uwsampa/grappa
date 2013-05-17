@@ -97,13 +97,33 @@ void test_global_vector() {
     BOOST_CHECK_EQUAL(delegate::read(qa->storage()+i), 7);
   }
   
-  forall_localized(qa->begin(), qa->size(), [](int64_t i, int64_t& e) { e = 9; });
+  // forall_localized(qa->begin(), qa->size(), [](int64_t i, int64_t& e) { e = 9; });
+  forall_localized(qa, [](int64_t i, int64_t& e){ e = 9; });
   
   for (int i=0; i<N; i++) {
     BOOST_CHECK_EQUAL(delegate::read(qa->storage()+i), 9);
   }
   
   qa->destroy();
+}
+
+void test_dequeue() {
+  auto qa = GlobalVector<long>::create(N);
+  
+  on_all_cores([qa]{
+    for (int i=0; i<10; i++) {
+      qa->enqueue(42);
+    }
+    auto size = qa->size();
+    VLOG(0) << "size = " << size;
+    BOOST_CHECK(size >= 10);
+    
+    for (int i=0; i<10; i++) {
+      auto e = qa->dequeue();
+      BOOST_CHECK(e == 42);
+    }
+  });
+  BOOST_CHECK_EQUAL(qa->size(), 0);
 }
 
 void user_main( void * ignore ) {
@@ -125,6 +145,7 @@ void user_main( void * ignore ) {
     
   } else {
     test_global_vector();
+    test_dequeue();
   }
   
   Statistics::merge_and_print();
