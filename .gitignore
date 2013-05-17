@@ -53,6 +53,8 @@ core.*
 
 doc/*/paper.pdf
 
+doc/*/revision.tex
+
 .svn
 
 # autoconf
