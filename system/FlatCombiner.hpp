@@ -1,3 +1,8 @@
+#include "Communicator.hpp"
+#include "Addressing.hpp"
+#include "GlobalAllocator.hpp"
+#include "LocaleSharedMemory.hpp"
+#include "ParallelLoop.hpp"
 #include <utility>
 
 DECLARE_bool(flat_combining);
@@ -33,7 +38,7 @@ public:
   /// 
   /// @note Requires Base class to have a default constructor.
   static GlobalAddress<MirroredGlobal<Base>> create() {
-    auto a = mirrored_global_alloc<MirroredGlobal<Base>>();
+    auto a = mirrored_global_alloc<MirroredGlobal>();
     call_on_all_cores([a]{ new (a.localize()) MirroredGlobal<Base>(); });
     return a;
   }
