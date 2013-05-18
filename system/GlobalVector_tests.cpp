@@ -31,6 +31,7 @@ DEFINE_bool(perf, false, "do performance test");
 
 GRAPPA_DEFINE_STAT(SummarizingStatistic<double>, push_time, 0);
 GRAPPA_DEFINE_STAT(SummarizingStatistic<double>, push_const_time, 0);
+GRAPPA_DEFINE_STAT(SummarizingStatistic<double>, deq_const_time, 0);
 
 template< typename T >
 inline T next_random() {
@@ -45,26 +46,32 @@ inline T next_random() {
   return gen();
 }
 
-template< bool             RANDOM = true,
-          CompletionEvent* CE     = &impl::local_ce,
-          int64_t          TH     = impl::USE_LOOP_THRESHOLD_FLAG >
+enum class Exp { CONST_PUSH, RANDOM_PUSH, CONST_DEQUEUE };
+
+template< Exp             EXP,
+          CompletionEvent* CE = &impl::local_ce,
+          int64_t          TH = impl::USE_LOOP_THRESHOLD_FLAG >
 double push_perf_test(GlobalAddress<GlobalVector<int64_t>> qa) {
-  qa->clear();
   double t = Grappa_walltime();
   
   forall_global_private<CE,TH>(0, N, [qa](int64_t s, int64_t n){
     for (int64_t i=s; i<s+n; i++) {
-      if (RANDOM) {
+      if (EXP == Exp::RANDOM_PUSH) {
         qa->push(next_random<int64_t>());
-      } else {
+      } else if (EXP == Exp::CONST_PUSH) {
         qa->push(42);
+      } else if (EXP == Exp::CONST_DEQUEUE) {
+        CHECK_EQ(qa->dequeue(), 42);
       }
     }
   });
   
   t = Grappa_walltime() - t;
-  
-  BOOST_CHECK_EQUAL(qa->size(), N);
+  if (EXP == Exp::RANDOM_PUSH || EXP == Exp::CONST_PUSH) {
+    BOOST_CHECK_EQUAL(qa->size(), N);
+  } else if (EXP == Exp::CONST_DEQUEUE) {
+    BOOST_CHECK_EQUAL(qa->size(), 0);
+  }
   return t;
 }
 
@@ -139,17 +146,14 @@ void test_dequeue() {
 
 void user_main( void * ignore ) {
   if (FLAGS_perf) {
-    double t;
     auto qa = GlobalVector<int64_t>::create(N);
     
     for (int i=0; i<FLAGS_ntrials; i++) {
-      t = push_perf_test<true>(qa);
-      LOG_FIRST_N(INFO,1) << "push_time: " << t;
-      push_time += t;
-      
-      t = push_perf_test<false>(qa);
-      LOG_FIRST_N(INFO,1) << "push_const_time: " << t;
-      push_const_time += t;
+      qa->clear();
+      push_time += push_perf_test<Exp::RANDOM_PUSH>(qa);
+      qa->clear();
+      push_const_time += push_perf_test<Exp::CONST_PUSH>(qa);
+      deq_const_time += push_perf_test<Exp::CONST_DEQUEUE>(qa);
     }
     
     qa->destroy();
