@@ -1,5 +1,7 @@
 #include <utility>
 
+DECLARE_bool(flat_combining);
+
 namespace Grappa {
 
 /// Mixin for adding common global data structure functionality, such as mirrored 
