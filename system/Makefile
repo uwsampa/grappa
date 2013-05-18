@@ -342,6 +342,7 @@ LIBRARY_CONTENTS+= Grappa.o \
 					 SharedMessagePool.o \
 					 GlobalCompletionEvent.o \
 					 HistogramStatistic.o \
+					 FlatCombiner.o \
 					 GlobalVector.o
 
 libGrappa.a: $(LIBRARY_CONTENTS)

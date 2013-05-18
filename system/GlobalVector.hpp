@@ -12,9 +12,6 @@ GRAPPA_DECLARE_STAT(SimpleStatistic<uint64_t>, global_vector_push_msgs);
 GRAPPA_DECLARE_STAT(SummarizingStatistic<double>, global_vector_push_latency);
 GRAPPA_DECLARE_STAT(SummarizingStatistic<double>, global_vector_deq_latency);
 
-DECLARE_bool(flat_combining);
-DECLARE_uint64(global_vector_buffer);
-
 namespace Grappa {
 /// @addtogroup Containers
 /// @{
