@@ -111,17 +111,28 @@ void test_dequeue() {
   auto qa = GlobalVector<long>::create(N);
   
   on_all_cores([qa]{
-    for (int i=0; i<10; i++) {
+    auto NC = N/cores();
+    for (int i=0; i<NC; i++) {
       qa->enqueue(42);
     }
     auto size = qa->size();
     VLOG(0) << "size = " << size;
-    BOOST_CHECK(size >= 10);
+    BOOST_CHECK(size >= NC);
+    if (mycore() == 1) barrier();    
     
-    for (int i=0; i<10; i++) {
-      auto e = qa->dequeue();
-      BOOST_CHECK(e == 42);
-    }
+    forall_here(0, NC/2, [qa](long s, long n) {
+      for (int i=s; i<s+n; i++) {
+        auto e = qa->dequeue();
+        BOOST_CHECK(e == 42);
+      }
+    });
+    if (mycore() != 1) barrier();
+    forall_here(0, NC-NC/2, [qa](long s, long n) {
+      for (int i=s; i<s+n; i++) {
+        auto e = qa->dequeue();
+        BOOST_CHECK(e == 42);
+      }
+    });
   });
   BOOST_CHECK_EQUAL(qa->size(), 0);
 }
@@ -135,7 +146,7 @@ void user_main( void * ignore ) {
       t = push_perf_test<true>(qa);
       LOG_FIRST_N(INFO,1) << "push_time: " << t;
       push_time += t;
-    
+      
       t = push_perf_test<false>(qa);
       LOG_FIRST_N(INFO,1) << "push_const_time: " << t;
       push_const_time += t;
