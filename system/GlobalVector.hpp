@@ -9,6 +9,8 @@
 
 GRAPPA_DECLARE_STAT(SimpleStatistic<uint64_t>, global_vector_push_ops);
 GRAPPA_DECLARE_STAT(SimpleStatistic<uint64_t>, global_vector_push_msgs);
+GRAPPA_DECLARE_STAT(SummarizingStatistic<double>, global_vector_push_latency);
+GRAPPA_DECLARE_STAT(SummarizingStatistic<double>, global_vector_deq_latency);
 
 DECLARE_bool(flat_combining);
 DECLARE_uint64(global_vector_buffer);
@@ -121,6 +123,7 @@ public:
   
   /// Push element on the back (queue or stack)
   void push(const T& e) {
+    double t = Grappa_walltime();
     if (FLAGS_flat_combining) {
       this->proxy.combine([&e](Proxy& p) {
         global_vector_push_ops++;
@@ -133,15 +136,20 @@ public:
       auto offset = delegate::call(MASTER, [self]{ return self->master.head++; });
       delegate::write(this->base+offset, e);
     }
+    global_vector_push_latency += (Grappa_walltime() - t);
   }
   
   inline void enqueue(const T& e) { push(e); }
   
   T dequeue() {
+    double t = Grappa_walltime();
+    
     T result;
     proxy.combine([&result](Proxy& p){
       p.deqs.push(&result);
     });
+    
+    global_vector_deq_latency += (Grappa_walltime() - t);
     return result;
   }
   
