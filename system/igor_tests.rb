@@ -5,7 +5,7 @@ require 'igor'
 require_relative '../igor_common.rb'
 
 Igor do
-  database '~/exp/test.db', :test
+  database '~/exp/pgas.sqlite', :queue
 
   # isolate everything needed for the executable so we can sbcast them for local execution
   params.merge!(GFLAGS)
