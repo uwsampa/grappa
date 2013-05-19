@@ -24,12 +24,15 @@ BOOST_AUTO_TEST_SUITE( GlobalHashTable_tests );
 
 DEFINE_int64(nelems, 100, "number of elements in (large) test arrays");
 DEFINE_int64(ght_size, 1024, "number of elements in (large) test arrays");
+DEFINE_int64(max_key, 1<<10, "maximum random key");
 
 DEFINE_int64(ntrials, 1, "number of independent trials to average over");
 
-DEFINE_bool(perf, false, "do performance test");
+DEFINE_bool(table_perf, false, "do performance test of GlobalHashTable");
+DEFINE_bool(set_perf, false, "do performance test of GlobalHashSet");
 
 GRAPPA_DEFINE_STAT(SummarizingStatistic<double>, ght_insert_time, 0);
+GRAPPA_DEFINE_STAT(SummarizingStatistic<double>, hashset_insert_time, 0);
 
 template< typename T >
 inline T next_random() {
@@ -108,27 +111,37 @@ void test_set_correctness() {
     // BOOST_CHECK_EQUAL(sa->insert(i), true);
     BOOST_CHECK_EQUAL(sa->lookup(42+i), true);
   }
-  VLOG(1) << "after lookup";
+
   on_all_cores([sa]{
     for (int i=10; i<20; i++) {
       sa->insert(42+i);
     }
   });
-  VLOG(1) << "after on_all_cores inserts";
+
   sa->forall_keys([](long& k) { BOOST_CHECK(k < 42+20 && k >= 42); });
-  VLOG(1) << "after forall_keys check";
+
   BOOST_CHECK_EQUAL(sa->size(), 20);
-  VLOG(1) << "after size";
+  sa->destroy();
 }
 
-void test_set_insert_throughput() {
-  double t = Grappa_walltime();
+double test_set_insert_throughput() {
+  auto sa = GlobalHashSet<long,&identity_hash>::create(FLAGS_ght_size);
   
+  double t = walltime();
   
+  forall_global_private(0, FLAGS_nelems, [sa](int64_t i){
+    sa->insert(next_random<long>() % FLAGS_max_key);
+  });
+
+  t = walltime() - t;
+  
+  VLOG(1) << "set_size: " << sa->size();
+  sa->destroy();
+  return t;
 }
 
 void user_main( void * ignore ) {
-  if (FLAGS_perf) {
+  if (FLAGS_table_perf) {
     auto ha = GlobalHashTable<long,long,&kahan_hash>::create(FLAGS_ght_size);
     
     for (int i=0; i<FLAGS_ntrials; i++) {
@@ -137,6 +150,10 @@ void user_main( void * ignore ) {
     
     ha->destroy();
     
+  } else if (FLAGS_set_perf) { 
+    for (int i=0; i<FLAGS_ntrials; i++) {
+      hashset_insert_time += test_set_insert_throughput();
+    }    
   } else {
     test_correctness();
     test_set_correctness();
