@@ -325,6 +325,18 @@ namespace Grappa {
       impl::forall_localized<GCE,Threshold,T>(base, nelems, f, &decltype(f)::operator());
     }
 
+    template< GlobalCompletionEvent * GCE, int64_t Threshold, typename T, typename F >
+    void forall_localized(GlobalAddress<T> base, int64_t nelems, F loop_body,
+                          void (F::*mf)(T&) const)
+    {
+      auto f = [loop_body](int64_t start, int64_t niters, T * first) {
+        for (int64_t i=0; i<niters; i++) {
+          loop_body(first[i]);
+        }
+      };
+      impl::forall_localized<GCE,Threshold,T>(base, nelems, f, &decltype(f)::operator());
+    }
+
   } // namespace impl
   
   /// Parallel loop over a global array. Spawned from a single core, fans out and runs
