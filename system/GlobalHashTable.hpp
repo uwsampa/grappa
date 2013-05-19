@@ -81,13 +81,13 @@ public:
       if (c.entries == nullptr) return;
       DVLOG(3) << "c<" << &c << "> entries:" << c.entries << " size: " << c.entries->size();
       for (Entry& e : *c.entries) {
-        visit(&e);
+        visit(e.key, *e.vs);
       }
     });
   }
 
-  void global_set_RO() { forall_entries([](Entry* e){ e->vs->setReadMode(); }); }
-  void global_set_WO() { forall_entries([](Entry* e){ e->vs->setWriteMode(); }); }
+  void global_set_RO() { forall_entries([](K k, BufferVector<V>& vs){ VLOG(1) << "vs = " << &vs; vs.setReadMode(); }); }
+  void global_set_WO() { forall_entries([](K k, BufferVector<V>& vs){ vs.setWriteMode(); }); }
   
   uint64_t lookup ( K key, GlobalAddress<V> * vals ) {          
     uint64_t index = computeIndex( key );

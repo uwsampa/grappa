@@ -55,11 +55,9 @@ template< Exp EXP,
 double test_insert_throughput(GlobalAddress<GlobalHashTable<K,V,H>> ha) {
   double t = Grappa_walltime();
   
-  forall_global_private<CE,TH>(0, FLAGS_nelems, [ha](int64_t s, int64_t n){
-    for (int64_t i=s; i<s+n; i++) {
-      if (EXP == Exp::INSERT_UNIQUE) {
-        ha->insert_unique(next_random<long>());
-      }
+  forall_global_private<CE,TH>(0, FLAGS_nelems, [ha](int64_t i){
+    if (EXP == Exp::INSERT_UNIQUE) {
+      ha->insert_unique(next_random<long>());
     }
   });
   
@@ -79,6 +77,21 @@ void test_correctness() {
     BOOST_CHECK_EQUAL(ha->lookup(i, &res), 1);
     BOOST_CHECK_EQUAL(delegate::read(res), 42);
   }
+  
+  ha->forall_entries([](long key, BufferVector<long>& vs){ vs.setReadWriteMode(); });
+  
+  forall_global_private(10, FLAGS_nelems-10, [ha](int64_t i){
+    ha->insert(i, 42);
+  });
+  ha->forall_entries([](long key, BufferVector<long>& vs){ vs.setReadWriteMode(); });
+
+  ha->forall_entries([](long key, BufferVector<long>& vals){
+    BOOST_CHECK_EQUAL(vals.size(), 1);
+    auto a = vals.getReadBuffer();
+    BOOST_CHECK_EQUAL(a.core(), mycore());
+    BOOST_CHECK_EQUAL(delegate::read(a), 42);
+  });
+  
   ha->destroy();
 }
 
