@@ -101,12 +101,29 @@ void test_set_correctness() {
   auto sa = GlobalHashSet<long,&identity_hash>::create(FLAGS_ght_size);
   
   for (int i=0; i<10; i++) {
-    BOOST_CHECK_EQUAL(sa->insert(i), false);
+    // BOOST_CHECK_EQUAL(sa->insert(i), false);
+    sa->insert(42+i);
   }
   for (int i=0; i<10; i++) {
-    BOOST_CHECK_EQUAL(sa->insert(i), true);
-    BOOST_CHECK_EQUAL(sa->lookup(i), true);
+    // BOOST_CHECK_EQUAL(sa->insert(i), true);
+    BOOST_CHECK_EQUAL(sa->lookup(42+i), true);
   }
+  VLOG(1) << "after lookup";
+  on_all_cores([sa]{
+    for (int i=10; i<20; i++) {
+      sa->insert(42+i);
+    }
+  });
+  VLOG(1) << "after on_all_cores inserts";
+  sa->forall_keys([](long& k) { BOOST_CHECK(k < 42+20 && k >= 42); });
+  VLOG(1) << "after forall_keys check";
+  BOOST_CHECK_EQUAL(sa->size(), 20);
+  VLOG(1) << "after size";
+}
+
+void test_set_insert_throughput() {
+  double t = Grappa_walltime();
+  
   
 }
 

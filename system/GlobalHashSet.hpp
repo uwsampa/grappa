@@ -7,19 +7,24 @@
 #include "BufferVector.hpp"
 #include "Statistics.hpp"
 #include "Array.hpp"
+#include "FlatCombiner.hpp"
 
-#include <list>
+#include <vector>
+#include <unordered_set>
 
 // for all hash tables
 // GRAPPA_DECLARE_STAT(MaxStatistic<uint64_t>, max_cell_length);
 GRAPPA_DECLARE_STAT(SummarizingStatistic<uint64_t>, cell_traversal_length);
+
+GRAPPA_DECLARE_STAT(SimpleStatistic<size_t>, hash_set_inserts_flattened);
 
 namespace Grappa {
 
 // Hash table for joins
 // * allows multiple copies of a Key
 // * lookups return all Key matches
-template <typename K, uint64_t (*HF)(K)> 
+template <typename K, uint64_t (*HF)(K) >
+          // size_t NREQUESTS = 128, size_t HASH_SIZE = NREQUESTS<<3 >
 class GlobalHashSet {
 protected:
   struct Entry {
@@ -28,33 +33,73 @@ protected:
     Entry(K key) : key(key) {}
   };
   
-  struct Cell {
+  struct Cell { // TODO: keep first few in the 64-byte block, then go to secondary storage
     std::vector<Entry> entries;
     char padding[64-sizeof(std::vector<Entry>)];
     Cell() { entries.reserve(16); }
+  };
+
+  struct Proxy {
+    GlobalHashSet * owner;
+    // size_t reqs[NREQUESTS];
+    // size_t nreq;
+    std::unordered_set<K> keys_to_insert; // K keys_to_insert[HASH_SIZE];
+    
+    Proxy(GlobalHashSet * owner): owner(owner) {}
+    
+    Proxy * clone_fresh() { return locale_new<Proxy>(owner); }
+    
+    bool is_full() { return false; }
+    
+    void insert(const K& newk) {
+      if (keys_to_insert.count(newk) == 0) {
+        keys_to_insert.insert(newk);
+        // reqs[nreq++] = owner->computeIndex(newk);
+      } else {
+        ++hash_set_inserts_flattened;
+      }
+    }
+    
+    void sync() {
+      CompletionEvent ce(keys_to_insert.size());
+      auto cea = make_global(&ce);
+      
+      for (auto& k : keys_to_insert) {
+        auto cell = owner->base+owner->computeIndex(k);
+        send_heap_message(cell.core(), [cell,k,cea]{
+          Cell * c = cell.localize();
+          bool found = false;
+          for (auto& e : c->entries) if (e.key == k) { found = true; break; }
+          if (!found) c->entries.emplace_back(k);
+          complete(cea);
+        });
+      }
+      ce.wait();
+    }
   };
 
   // private members
   GlobalAddress<GlobalHashSet> self;
   GlobalAddress< Cell > base;
   size_t capacity;
-
-  char _pad[block_size - sizeof(self)-sizeof(base)-sizeof(capacity)];
+  
+  size_t count; // not maintained, just need storage for size()
+  
+  FlatCombiner<Proxy> proxy;
+  
+  char _pad[block_size - sizeof(self)-sizeof(base)-sizeof(capacity)-sizeof(proxy)-sizeof(count)];
 
   uint64_t computeIndex( K key ) {
     return HF(key) % capacity;
   }
 
   // for creating local GlobalHashSet
-  GlobalHashSet( GlobalAddress<GlobalHashSet> self, GlobalAddress<Cell> base, size_t capacity ) {
-    this->self = self;
-    this->base = base;
-    this->capacity = capacity;
-  }
+  GlobalHashSet( GlobalAddress<GlobalHashSet> self, GlobalAddress<Cell> base, size_t capacity )
+    : self(self), base(base), capacity(capacity)
+    , proxy(locale_new<Proxy>(this))
+  { }
   
 public:
-  // for static construction
-  GlobalHashSet( ) {}
   
   static GlobalAddress<GlobalHashSet> create(size_t total_capacity) {
     auto base = global_alloc<Cell>(total_capacity);
@@ -98,28 +143,19 @@ public:
   // returns true if the set already contains the key
   //
   // synchronous operation
-  bool insert( K key ) {
-    uint64_t index = computeIndex( key );
-    GlobalAddress< Cell > target = base + index; 
-
-    return Grappa::delegate::call( target, [key](Cell * c) {
-      // find matching key in the list
-      int64_t i;
-      int64_t sz = c->entries.size();
-      for (i = 0; i<sz; ++i) {
-        Entry e = c->entries[i];
-        if ( e.key == key ) {
-          // key found so no insert
-          return true;
-        }
-      }
-
-      // this is the first time the key has been seen
-      // so add it to the list
-      c->entries.emplace_back( key );
-      VLOG(1) << "[" << key << "] size:" << c->entries.size() << ", last:" << c->entries.back().key;
-      return false; 
-    });
+  void insert( K key ) {
+    if (FLAGS_flat_combining) {
+      proxy.combine([key](Proxy& p){ p.insert(key); });
+    } else {
+      delegate::call(base+computeIndex(key), [key](Cell * c) {
+        // find matching key in the list, if found, no insert necessary
+        for (auto& e : c->entries) if (e.key == key) return;
+        
+        // this is the first time the key has been seen so add it to the list
+        c->entries.emplace_back( key );
+        return; 
+      });
+    }
   }
 
   // Inserts the key if not already in the set
@@ -155,6 +191,22 @@ public:
    });
   }
 
+  template< typename F >
+  void forall_keys(F visit) {
+    forall_localized(base, capacity, [visit](int64_t i, Cell& c){
+      for (auto& e : c.entries) {
+        visit(e.key);
+      }
+    });
+  }
+  
+  size_t size() {
+    auto self = this->self;
+    call_on_all_cores([self]{ self->count = 0; });
+    forall_keys([self](K& k){ self->count++; });
+    on_all_cores([self]{ self->count = allreduce<size_t,collective_add>(self->count); });
+    return count;
+  }
 };
 
 } // namespace Grappa
