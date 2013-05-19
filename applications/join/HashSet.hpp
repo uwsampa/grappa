@@ -36,7 +36,9 @@ class HashSet {
       std::vector<Entry> entries;
       char padding[64-sizeof(std::vector<Entry>)];
 
-      Cell() : entries(2) {}
+      Cell() : entries() {
+        entries.reserve(2);
+      }
     };
 
     // private members
