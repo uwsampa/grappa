@@ -86,7 +86,7 @@ public:
     });
   }
 
-  void global_set_RO() { forall_entries([](K k, BufferVector<V>& vs){ VLOG(1) << "vs = " << &vs; vs.setReadMode(); }); }
+  void global_set_RO() { forall_entries([](K k, BufferVector<V>& vs){ vs.setReadMode(); }); }
   void global_set_WO() { forall_entries([](K k, BufferVector<V>& vs){ vs.setWriteMode(); }); }
   
   uint64_t lookup ( K key, GlobalAddress<V> * vals ) {          
