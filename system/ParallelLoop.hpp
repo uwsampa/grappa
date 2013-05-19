@@ -87,7 +87,7 @@ namespace Grappa {
     /// user-defined storage.
     ///
     /// warning: truncates int64_t's to 48 bits--should be enough for most problem sizes.
-    template< GlobalCompletionEvent * GCE = nullptr, int64_t Threshold = USE_LOOP_THRESHOLD_FLAG, typename F = decltype(nullptr) >
+    template< GlobalCompletionEvent * GCE, int64_t Threshold = USE_LOOP_THRESHOLD_FLAG, typename F = decltype(nullptr) >
     void loop_decomposition_public(int64_t start, int64_t iterations, F loop_body) {
       DVLOG(4) << "< " << start << " : " << iterations << ">";
       
@@ -116,11 +116,33 @@ namespace Grappa {
         loop_decomposition_public<GCE,Threshold,F>(start, (iterations+1)/2, loop_body);
       }
     }
+    
+    template<CompletionEvent * CE, int64_t Threshold, typename F >
+    void forall_here(int64_t start, int64_t iters, F loop_body, void (F::*mf)(int64_t,int64_t) const) {
+      CE->enroll(iters);
+      impl::loop_decomposition_private<Threshold>(start, iters,
+        // passing loop_body by ref to avoid copying potentially large functors many times in decomposition
+        // also keeps task args < 24 bytes, preventing it from needing to be heap-allocated
+        [&loop_body](int64_t s, int64_t n) {
+          loop_body(s, n);
+          CE->complete(n);
+        });
+      CE->wait();
+    }
 
+    template<CompletionEvent * CE, int64_t Threshold, typename F >
+    void forall_here(int64_t start, int64_t iters, F loop_body, void (F::*mf)(int64_t) const) {
+      auto f = [loop_body](int64_t s, int64_t n) {
+        for (int64_t i=s; i<s+n; i++) {
+          loop_body(i);
+        }
+      };
+      forall_here<CE,Threshold>(start, iters, f, &decltype(f)::operator());
+    }
     
     extern CompletionEvent local_ce;
     extern GlobalCompletionEvent local_gce;
-  }
+  } // namespace impl
   
   /// Blocking parallel for loop, spawns only private tasks. Synchronizes itself with
   /// either a given static CompletionEvent (template param) or the local builtin one.
@@ -146,16 +168,8 @@ namespace Grappa {
   ///   });
   /// @endcode
   template<CompletionEvent * CE = &impl::local_ce, int64_t Threshold = impl::USE_LOOP_THRESHOLD_FLAG, typename F = decltype(nullptr) >
-  void forall_here(int64_t start, int64_t iters, F loop_body) {
-    CE->enroll(iters);
-    impl::loop_decomposition_private<Threshold>(start, iters,
-      // passing loop_body by ref to avoid copying potentially large functors many times in decomposition
-      // also keeps task args < 24 bytes, preventing it from needing to be heap-allocated
-      [&loop_body](int64_t s, int64_t n) {
-        loop_body(s, n);
-        CE->complete(n);
-      });
-    CE->wait();
+  inline void forall_here(int64_t start, int64_t iters, F loop_body) {
+    impl::forall_here<CE,Threshold,F>(start, iters, loop_body, &decltype(loop_body)::operator());
   }
   
   /// Non-blocking parallel loop with privateTasks. Takes pointer to a functor which
