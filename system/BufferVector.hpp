@@ -42,7 +42,8 @@ class BufferVector {
     }
 
     void setReadMode() {
-      CHECK( mode != OpMode::RO ) << "already in OpMode::RO mode";
+      CHECK( mode != OpMode::RO ) << "already in OpMode::RO mode (" << this << ")";
+      DVLOG(3) << "(" << this << ").setReadMode()";
       mode = OpMode::RO;
     }
 
