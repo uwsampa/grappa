@@ -23,7 +23,7 @@ using namespace Grappa;
 BOOST_AUTO_TEST_SUITE( GlobalHashTable_tests );
 
 DEFINE_int64(nelems, 100, "number of elements in (large) test arrays");
-DEFINE_int64(ght_size, 1024, "number of elements in (large) test arrays");
+DEFINE_int64(global_hash_size, 1024, "number of elements in (large) test arrays");
 DEFINE_int64(max_key, 1<<10, "maximum random key");
 
 DEFINE_int64(ntrials, 1, "number of independent trials to average over");
@@ -71,7 +71,7 @@ double test_insert_throughput(GlobalAddress<GlobalHashTable<K,V,H>> ha) {
 
 void test_correctness() {
   LOG(INFO) << "Testing correctness...";
-  auto ha = GlobalHashTable<long,long,&identity_hash>::create(FLAGS_ght_size);
+  auto ha = GlobalHashTable<long,long,&identity_hash>::create(FLAGS_global_hash_size);
   for (int i=0; i<10; i++) {
     ha->insert(i, 42);
   }
@@ -101,7 +101,7 @@ void test_correctness() {
 
 void test_set_correctness() {
   LOG(INFO) << "Testing correctness of GlobalHashSet...";
-  auto sa = GlobalHashSet<long,&identity_hash>::create(FLAGS_ght_size);
+  auto sa = GlobalHashSet<long,&identity_hash>::create(FLAGS_global_hash_size);
   
   for (int i=0; i<10; i++) {
     // BOOST_CHECK_EQUAL(sa->insert(i), false);
@@ -125,7 +125,7 @@ void test_set_correctness() {
 }
 
 double test_set_insert_throughput() {
-  auto sa = GlobalHashSet<long,&identity_hash>::create(FLAGS_ght_size);
+  auto sa = GlobalHashSet<long,&identity_hash>::create(FLAGS_global_hash_size);
   
   double t = walltime();
   
@@ -142,7 +142,7 @@ double test_set_insert_throughput() {
 
 void user_main( void * ignore ) {
   if (FLAGS_table_perf) {
-    auto ha = GlobalHashTable<long,long,&kahan_hash>::create(FLAGS_ght_size);
+    auto ha = GlobalHashTable<long,long,&kahan_hash>::create(FLAGS_global_hash_size);
     
     for (int i=0; i<FLAGS_ntrials; i++) {
       ght_insert_time += test_insert_throughput<Exp::INSERT_UNIQUE>(ha);
