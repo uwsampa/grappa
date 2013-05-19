@@ -109,7 +109,7 @@ public:
       for (Entry& e : *c->entries) {
         if ( e.key == key ) {  // typename K must implement operator==
           lr.matches = e.vs->getReadBuffer();
-          lr.num = e.vs->getLength();
+          lr.num = e.vs->size();
           break;
         }
       }

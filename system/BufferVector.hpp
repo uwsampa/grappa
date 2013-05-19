@@ -8,7 +8,7 @@
 namespace Grappa {
 
 /// Vector that exposes its storage array as read-only.
-/// increases in size as elements are added.
+/// increases in capacity as elements are added.
 /// 
 /// Only supports insertions. Insertions allowed only
 /// while vector is in write only (OpMode::WO) mode and 
@@ -19,7 +19,7 @@ class BufferVector {
 
   private:
     T * buf;
-    size_t size;
+    size_t capacity;
     uint64_t nextIndex;
 
     enum class OpMode { RO, WO };
@@ -30,7 +30,7 @@ class BufferVector {
       : buf ( locale_alloc<T>(capacity) )
       , mode( OpMode::WO )
       , nextIndex( 0 )
-      , size( capacity ) { }
+      , capacity( capacity ) { }
 
     ~BufferVector() {
       locale_free(buf);
@@ -50,13 +50,13 @@ class BufferVector {
     void insert( const T& v ) {
       CHECK( mode == OpMode::WO ) << "Must be in OpMode::WO mode to insert";
 
-      if ( nextIndex == size ) {
-        // expand the size of the buffer
-        size_t newsize = size * 2;
-        T * newbuf = locale_alloc<T>(newsize);
-        memcpy( newbuf, buf, size*sizeof(T) );
+      if ( nextIndex == capacity ) {
+        // expand the capacity of the buffer
+        size_t newcapacity = capacity * 2;
+        T * newbuf = locale_alloc<T>(newcapacity);
+        memcpy( newbuf, buf, capacity*sizeof(T) );
         locale_free( buf );
-        size = newsize;
+        capacity = newcapacity;
         buf = newbuf;
       }
 
@@ -69,8 +69,8 @@ class BufferVector {
       return make_global( /*static_cast<const T*>*/(buf) );
     }
 
-    size_t getLength() const {
-      return nextIndex; 
+    size_t size() const {
+      return nextIndex;
     }
 
     /* to close the safety loop, OpMode::RO clients should release buffers,
@@ -88,7 +88,7 @@ class BufferVector {
 template< typename T >
 std::ostream& operator<<( std::ostream& o, const BufferVector<T>& v ) {
   o << "BV(" 
-             << "size=" << v.size << ", "
+             << "capacity=" << v.capacity << ", "
              << "nextIndex=" << v.nextIndex << /*", "
              << "mode=" << v.mode==BufferVector<T>::OpMode::RO?"RO":"WO" <<*/ ")[";
 
