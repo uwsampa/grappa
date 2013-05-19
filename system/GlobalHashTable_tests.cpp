@@ -11,6 +11,7 @@
 #include "GlobalAllocator.hpp"
 #include "Delegate.hpp"
 #include "GlobalHashTable.hpp"
+#include "GlobalHashSet.hpp"
 #include "Statistics.hpp"
 
 #include <boost/random/mersenne_twister.hpp>
@@ -95,6 +96,20 @@ void test_correctness() {
   ha->destroy();
 }
 
+void test_set_correctness() {
+  LOG(INFO) << "Testing correctness of GlobalHashSet...";
+  auto sa = GlobalHashSet<long,&identity_hash>::create(FLAGS_ght_size);
+  
+  for (int i=0; i<10; i++) {
+    BOOST_CHECK_EQUAL(sa->insert(i), false);
+  }
+  for (int i=0; i<10; i++) {
+    BOOST_CHECK_EQUAL(sa->insert(i), true);
+    BOOST_CHECK_EQUAL(sa->lookup(i), true);
+  }
+  
+}
+
 void user_main( void * ignore ) {
   if (FLAGS_perf) {
     auto ha = GlobalHashTable<long,long,&kahan_hash>::create(FLAGS_ght_size);
@@ -107,6 +122,7 @@ void user_main( void * ignore ) {
     
   } else {
     test_correctness();
+    test_set_correctness();
   }
   
   Statistics::merge_and_print();
