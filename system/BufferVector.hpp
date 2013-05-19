@@ -22,8 +22,10 @@ class BufferVector {
     size_t capacity;
     uint64_t nextIndex;
 
-    enum class OpMode { RO, WO };
+    enum class OpMode { RO, WO, RW };
     OpMode mode;
+    bool writeable() const { return mode == OpMode::WO || mode == OpMode::RW; }
+    bool readable() const { return mode == OpMode::RO || mode == OpMode::RW; }
 
   public:
     BufferVector( size_t capacity = 2 ) 
@@ -46,9 +48,11 @@ class BufferVector {
       DVLOG(3) << "(" << this << ").setReadMode()";
       mode = OpMode::RO;
     }
+    
+    void setReadWriteMode() { mode = OpMode::RW; }
 
     void insert( const T& v ) {
-      CHECK( mode == OpMode::WO ) << "Must be in OpMode::WO mode to insert";
+      CHECK( writeable() ) << "Must be in writable mode to insert";
 
       if ( nextIndex == capacity ) {
         // expand the capacity of the buffer
@@ -65,7 +69,7 @@ class BufferVector {
     }
 
     GlobalAddress<T> getReadBuffer() const {
-      CHECK( mode == OpMode::RO ) << "Must be in OpMode::RO mode to see buffer";
+      CHECK( readable() ) << "Must be in readable mode to see buffer: " << (int)mode;
       return make_global( /*static_cast<const T*>*/(buf) );
     }
 
