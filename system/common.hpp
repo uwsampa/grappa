@@ -26,8 +26,10 @@
 #define BILLION 1000000000
 #define MILLION 1000000
 
+namespace Grappa {
+
 /// "Universal" wallclock time (works at least for Mac, MTA, and most Linux)
-inline double Grappa_walltime(void) {
+inline double walltime(void) {
 #if defined(__MTA__)
 	return((double)mta_get_clock(0) / mta_clock_freq());
 #elif defined(__MACH__)
@@ -48,6 +50,11 @@ inline double Grappa_walltime(void) {
 	return (double)tp.tv_sec + (double)tp.tv_nsec / BILLION;
 #endif
 }
+
+} // namespace Grappa
+
+// Legacy
+inline double Grappa_walltime(void) { return Grappa::walltime(); }
 
 #define GRAPPA_TIME(var, block) \
    	do { \
