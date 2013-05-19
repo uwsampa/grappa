@@ -43,7 +43,8 @@ inline T next_random() {
   return gen();
 }
 
-uint64_t hashLong(long k) { return k * 1299227; } // "Kahan's Hash"
+uint64_t kahan_hash(long k) { return k * 1299227; } // "Kahan's Hash"
+uint64_t identity_hash(long k) { return k; }
 
 enum class Exp { INSERT_UNIQUE };
 
@@ -66,9 +67,24 @@ double test_insert_throughput(GlobalAddress<GlobalHashTable<K,V,H>> ha) {
   return t;
 }
 
+void test_correctness() {
+  LOG(INFO) << "Testing correctness...";
+  auto ha = GlobalHashTable<long,long,&identity_hash>::create(FLAGS_ght_size);
+  for (int i=0; i<10; i++) {
+    ha->insert(i, 42);
+  }
+  ha->global_set_RO();
+  for (int i=0; i<10; i++) {
+    GlobalAddress<long> res;
+    BOOST_CHECK_EQUAL(ha->lookup(i, &res), 1);
+    BOOST_CHECK_EQUAL(delegate::read(res), 42);
+  }
+  ha->destroy();
+}
+
 void user_main( void * ignore ) {
   if (FLAGS_perf) {
-    auto ha = GlobalHashTable<long,long,&hashLong>::create(FLAGS_ght_size);
+    auto ha = GlobalHashTable<long,long,&kahan_hash>::create(FLAGS_ght_size);
     
     for (int i=0; i<FLAGS_ntrials; i++) {
       ght_insert_time += test_insert_throughput<Exp::INSERT_UNIQUE>(ha);
@@ -77,6 +93,7 @@ void user_main( void * ignore ) {
     ha->destroy();
     
   } else {
+    test_correctness();
   }
   
   Statistics::merge_and_print();

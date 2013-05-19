@@ -24,7 +24,6 @@ protected:
     BufferVector<V> * vs;
     Entry( K key ) : key(key), vs(new BufferVector<V>( 16 )) {}
     Entry( K key, BufferVector<V> * vs ): key(key), vs(vs) {}
-    Entry(Entry&& e): key(e.key), vs(e.vs) { DVLOG(1) << "Entry moved."; }
     ~Entry() { if (vs != nullptr) delete vs; }
   };
   
@@ -74,18 +73,22 @@ public:
     call_on_all_cores([self]{ self->~GlobalHashTable(); });
     global_free(self);
   }
-    
-  void global_set_RO() {
-    forall_localized(base, capacity, [](int64_t i, Cell& c){
+  
+  template< typename F >
+  void forall_entries(F visit) {
+    forall_localized(base, capacity, [visit](int64_t i, Cell& c){
       // if cell is not hit then no action
       if (c.entries == nullptr) return;
-      
+      DVLOG(3) << "c<" << &c << "> entries:" << c.entries << " size: " << c.entries->size();
       for (Entry& e : *c.entries) {
-        e.vs->setReadMode();
+        visit(&e);
       }
     });
   }
 
+  void global_set_RO() { forall_entries([](Entry* e){ e->vs->setReadMode(); }); }
+  void global_set_WO() { forall_entries([](Entry* e){ e->vs->setWriteMode(); }); }
+  
   uint64_t lookup ( K key, GlobalAddress<V> * vals ) {          
     uint64_t index = computeIndex( key );
     GlobalAddress< Cell > target = base + index; 
@@ -116,7 +119,7 @@ public:
 
     *vals = result.matches;
     return result.num;
-  } 
+  }
 
   // Inserts the key if not already in the set
   // Shouldn't be used with `insert`.
@@ -143,7 +146,7 @@ public:
 
       // this is the first time the key has been seen so add it to the list
       // TODO: cleanup since sharing insert* code here, we are just going to store an empty vector perhaps a different module
-      c->entries->push_back(Entry(key,nullptr));
+      c->entries->emplace_back(key,nullptr);
 
       return false;
     });
@@ -173,9 +176,8 @@ public:
 
       // this is the first time the key has been seen
       // so add it to the list
-      Entry newe( key );
-      newe.vs->insert( val );
-      c->entries->push_back( newe );
+      c->entries->emplace_back(key);
+      c->entries->back().vs->insert(val);
     });
   }
 
