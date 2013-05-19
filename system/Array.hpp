@@ -146,6 +146,19 @@ namespace util {
     ss << "\n]";
     return ss.str();
   }
+
+  template< typename ArrayT >
+  inline std::string array_str(const char * name, ArrayT array, int width = 10) {
+    std::stringstream ss; ss << "\n" << name << ": [";
+    long i=0;
+    for (auto e : array) {
+      if (i % width == 0) ss << "\n  ";
+      ss << " " << e;
+      i++;
+    }
+    ss << "\n]";
+    return ss.str();
+  }
   
 }
 
