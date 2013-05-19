@@ -113,9 +113,7 @@ public:
   
   void destroy() {
     auto self = this->self;
-    forall_localized(this->base, this->capacity, [](int64_t i, Cell& c){
-      if (c.entries != nullptr) { delete c.entries; }
-    });
+    forall_localized(this->base, this->capacity, [](Cell& c){ c.~Cell(); });
     global_free(this->base);
     call_on_all_cores([self]{ self->~GlobalHashSet(); });
     global_free(self);
