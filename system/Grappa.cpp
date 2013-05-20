@@ -42,7 +42,7 @@
 #endif
 
 // command line arguments
-DEFINE_uint64( num_starting_workers, 4, "Number of starting workers in task-executer pool" );
+DEFINE_uint64( num_starting_workers, 512, "Number of starting workers in task-executer pool" );
 DEFINE_bool( set_affinity, false, "Set processor affinity based on local rank" );
 DEFINE_string( stats_blob_filename, "stats.json", "Stats blob filename" );
 DEFINE_bool( stats_blob_enable, true, "Enable stats dumping" );
