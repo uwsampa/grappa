@@ -142,7 +142,6 @@ public:
   //
   // synchronous operation
   void insert( K key ) {
-    ++hashset_insert_ops;
     if (FLAGS_flat_combining) {
       proxy.combine([key](Proxy& p){ p.insert(key); });
     } else {
