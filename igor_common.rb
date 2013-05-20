@@ -32,7 +32,7 @@ module Isolatable
     
     # set aside copy of executable and its libraries
     # ldir = "/scratch/#{ENV['USER']}/igor/#{Process.pid}"
-    shared_dir = File.dirname(__FILE__) unless shared_dir
+    shared_dir = File.dirname(caller[0][/(^.*?):/,1]) unless shared_dir
     @ldir = "#{File.expand_path shared_dir}/.igor/#{Process.pid}"
     puts "making #{@ldir}"
     FileUtils.mkdir_p(@ldir)
