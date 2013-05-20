@@ -54,15 +54,13 @@ template< Exp             EXP,
 double push_perf_test(GlobalAddress<GlobalVector<int64_t>> qa) {
   double t = Grappa_walltime();
   
-  forall_global_private<CE,TH>(0, N, [qa](int64_t s, int64_t n){
-    for (int64_t i=s; i<s+n; i++) {
-      if (EXP == Exp::RANDOM_PUSH) {
-        qa->push(next_random<int64_t>());
-      } else if (EXP == Exp::CONST_PUSH) {
-        qa->push(42);
-      } else if (EXP == Exp::CONST_DEQUEUE) {
-        CHECK_EQ(qa->dequeue(), 42);
-      }
+  forall_global_private<CE,TH>(0, N, [qa](int64_t i){
+    if (EXP == Exp::RANDOM_PUSH) {
+      qa->push(next_random<int64_t>());
+    } else if (EXP == Exp::CONST_PUSH) {
+      qa->push(42);
+    } else if (EXP == Exp::CONST_DEQUEUE) {
+      CHECK_EQ(qa->dequeue(), 42);
     }
   });
   
