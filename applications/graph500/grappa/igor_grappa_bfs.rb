@@ -13,12 +13,12 @@ Igor do
   isolate(['graph.exe'],
     File.dirname(__FILE__))
   
-  GFLAGS.merge!{
-    flat_combining: 1
-    global_vector_buffer: 2**10
-    beamer_alpha: 20
-    beamer_beta: 20
-  }
+  GFLAGS.merge!({
+    flat_combining: 1,
+    global_vector_buffer: 2**10,
+    beamer_alpha: 20,
+    beamer_beta: 20,
+  })
   
   params.merge!(GFLAGS)
   
