@@ -16,7 +16,8 @@
 // GRAPPA_DECLARE_STAT(MaxStatistic<uint64_t>, max_cell_length);
 GRAPPA_DECLARE_STAT(SummarizingStatistic<uint64_t>, cell_traversal_length);
 
-GRAPPA_DECLARE_STAT(SimpleStatistic<size_t>, hash_set_inserts_flattened);
+GRAPPA_DECLARE_STAT(SimpleStatistic<size_t>, hashset_insert_ops);
+GRAPPA_DECLARE_STAT(SimpleStatistic<size_t>, hashset_insert_msgs);
 
 namespace Grappa {
 
@@ -52,11 +53,9 @@ protected:
     bool is_full() { return false; }
     
     void insert(const K& newk) {
+      ++hashset_insert_ops;
       if (keys_to_insert.count(newk) == 0) {
         keys_to_insert.insert(newk);
-        // reqs[nreq++] = owner->computeIndex(newk);
-      } else {
-        ++hash_set_inserts_flattened;
       }
     }
     
@@ -65,6 +64,7 @@ protected:
       auto cea = make_global(&ce);
       
       for (auto& k : keys_to_insert) {
+        ++hashset_insert_msgs;
         auto cell = owner->base+owner->computeIndex(k);
         send_heap_message(cell.core(), [cell,k,cea]{
           Cell * c = cell.localize();
@@ -142,9 +142,12 @@ public:
   //
   // synchronous operation
   void insert( K key ) {
+    ++hashset_insert_ops;
     if (FLAGS_flat_combining) {
       proxy.combine([key](Proxy& p){ p.insert(key); });
     } else {
+      ++hashset_insert_ops;
+      ++hashset_insert_msgs;
       delegate::call(base+computeIndex(key), [key](Cell * c) {
         // find matching key in the list, if found, no insert necessary
         for (auto& e : c->entries) if (e.key == key) return;
