@@ -10,7 +10,7 @@ Igor do
     max_key: [1024],
     global_hash_size: [1024]
   })
-  command @test_cmd['GlobalHashTable_tests.test', '--set_perf']
+  command @test_cmd['GlobalHashTable_tests', '--set_perf']
   
   params {
     log_nelems 10; nelems expr('2**log_nelems')

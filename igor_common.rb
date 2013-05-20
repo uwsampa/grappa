@@ -127,7 +127,6 @@ Igor do
            global_heap_fraction 0.5
             flatten_completions 1
                  flat_combining 1
-           global_vector_buffer 2**10
   }
   class << GFLAGS
     def expand
