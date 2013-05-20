@@ -31,6 +31,9 @@ static void parseOptions(int argc, char ** argv);
 /////////////////
 // Globals
 /////////////////
+
+DEFINE_int64(cc_hash_size, 1<<10, "size of GlobalHashSet");
+
 static char* graphfile;
 static graphint kcent;
 static bool do_components = false,
