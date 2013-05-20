@@ -11,6 +11,7 @@
 #include "GlobalCompletionEvent.hpp"
 #include "ParallelLoop.hpp"
 #include "GlobalAllocator.hpp"
+#include <type_traits>
 
 namespace Grappa {
 /// @addtogroup Containers
@@ -147,7 +148,7 @@ namespace util {
     return ss.str();
   }
 
-  template< typename ArrayT >
+  template< typename ArrayT, class = typename std::enable_if<std::is_array<ArrayT>::value>::type >
   inline std::string array_str(const char * name, ArrayT array, int width = 10) {
     std::stringstream ss; ss << "\n" << name << ": [";
     long i=0;
