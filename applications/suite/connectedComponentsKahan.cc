@@ -52,7 +52,7 @@
 /// The number of components is the number of x st x == C$[x].
 ///
 static unsigned int hash(int x) {return x*1299227;}
-template <class T, int LOG_CONCURRENCY=0> class Set {
+template <class T, int LOG_CONCURRENCY=4> class Set {
 public:
  class T_e {
   public:
@@ -91,15 +91,15 @@ protected:
  }
  int dump(T* &dumpee) {
    //
-   for (int i = 0; i < width; i++) {
-     T_e * p = table$[i];
-     fprintf(stderr, "%d: ", i);
-     while (p) {
-       fprintf(stderr, "(%d %d) ", p->val.x, p->val.y);
-       p = p->next;
-     }
-     fprintf(stderr, "\n");
-   }
+   //   for (int i = 0; i < width; i++) {
+   //     T_e * p = table$[i];
+   //     fprintf(stderr, "%d: ", i);
+   //     while (p) {
+   //       fprintf(stderr, "(%d %d) ", p->val.x, p->val.y);
+   //       p = p->next;
+   //     }
+   //     fprintf(stderr, "\n");
+   //   }
    //
    for (int i = 1; i < width; i++) count[i]+=count[i-1];
    int size = count[width-1];
@@ -226,10 +226,10 @@ public:
     int HNE = InducedGraph.dump(ig);//directed edge pairs
 
     //
-    for (int i = 0; i < HNE; i++) {
-      fprintf(stderr, "(%d %d) ", ig[i].x, ig[i].y);
-    }
-    fprintf(stderr, "\n");
+    //    for (int i = 0; i < HNE; i++) {
+    //      fprintf(stderr, "(%d %d) ", ig[i].x, ig[i].y);
+    //    }
+    //    fprintf(stderr, "\n");
     //
 
     // If it's worth it, we could unload verts into a Set<graphint>
@@ -292,7 +292,7 @@ public:
   graphint num_components() {
     graphint num = 0;
     graphint NV = g->numVertices;
-    //    for (int i =0; i < NV; i++) fprintf(stderr, "%d ", C$[i]); fprintf(stderr, "\n");
+    //for (int i =0; i < NV; i++) fprintf(stderr, "%d ", C$[i]); fprintf(stderr, "\n");
     for (int i = 0; i < NV; i++) if (C$[i] == i) num++;
     return num;
   }

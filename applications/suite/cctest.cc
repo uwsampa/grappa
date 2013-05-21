@@ -1,3 +1,4 @@
+#include <math.h>
 #include "defs.h"
 #ifdef __MTA__
 #include "mta_rng.h"
@@ -86,8 +87,6 @@ int main(int argc, char **argv) {
 
 #if 0
   for (int i = 0; i <= NV; i++) fprintf(stderr, "%3d ", G.edgeStart[i]); fprintf(stderr, "\n");
-
-
   for (int i = 0; i < 2*NE; i++) fprintf(stderr, "%3d ", G.startVertex[i]); fprintf(stderr, "\n");
   for (int i = 0; i < 2*NE; i++) fprintf(stderr, "%3d ", G.endVertex[i]); fprintf(stderr, "\n");
   int j = 1;
