@@ -192,7 +192,7 @@ public:
    });
   }
 
-  template< GlobalCompletionEvent * GCE = &impl::local_gce, typename F >
+  template< GlobalCompletionEvent * GCE = &impl::local_gce, typename F = decltype(nullptr) >
   void forall_keys(F visit) {
     forall_localized<GCE>(base, capacity, [visit](int64_t i, Cell& c){
       for (auto& e : c.entries) {
@@ -208,6 +208,8 @@ public:
     on_all_cores([self]{ self->count = allreduce<size_t,collective_add>(self->count); });
     return count;
   }
+  
 };
 
 } // namespace Grappa
+
