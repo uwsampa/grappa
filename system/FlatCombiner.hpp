@@ -4,6 +4,7 @@
 #include "LocaleSharedMemory.hpp"
 #include "ParallelLoop.hpp"
 #include <utility>
+#include <queue>
 
 DECLARE_bool(flat_combining);
 
@@ -64,12 +65,18 @@ class FlatCombiner {
   };
   
   Flusher * current;
-  Flusher * inflight;
+  std::queue<Flusher*> inflight;
   
 public:
   
-  FlatCombiner(T * initial): current(new Flusher(initial)), inflight(nullptr) {}
-  ~FlatCombiner() { delete current; delete inflight; }
+  FlatCombiner(T * initial): current(new Flusher(initial)) {}
+  ~FlatCombiner() {
+    while (!inflight.empty()) {
+      if (inflight.front() != current) delete inflight.front();
+      inflight.pop();
+    }
+    delete current;
+  }
   
   // template <typename... Args>
   // explicit FlatCombiner(Args&&... args)
@@ -90,8 +97,8 @@ public:
     
     func(*s->id);
     
-    if (s->id->is_full() || inflight == nullptr) {
-      inflight = current;
+    if (s->id->is_full() || inflight.empty()) {
+      inflight.push(current);
       current = new Flusher(s->id->clone_fresh());
       if (s->sender == nullptr) {
         flush(s);
@@ -114,13 +121,12 @@ public:
     broadcast(&s->cv); // wake our people
     if (current->cv.waiters_ != 0) {
       // atomically claim it so no one else tries to send in the meantime
-      inflight = current;
+      inflight.push(current);
       // wake someone and tell them to send
-      inflight->sender = impl::get_waiters(&inflight->cv);
-      signal(&inflight->cv);
-    } else {
-      inflight = nullptr;
+      current->sender = impl::get_waiters(&current->cv);
+      signal(&current->cv);
     }
+    inflight.pop();
     s->sender = nullptr;
     delete s;
   }
