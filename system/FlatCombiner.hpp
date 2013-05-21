@@ -1,3 +1,5 @@
+#pragma once
+
 #include "Communicator.hpp"
 #include "Addressing.hpp"
 #include "GlobalAllocator.hpp"
@@ -12,46 +14,45 @@ namespace Grappa {
 
 /// Mixin for adding common global data structure functionality, such as mirrored 
 /// allocation on all cores.
-template< typename Base, Core MASTER = 0 >
-class MirroredGlobal : public Base {
-  char pad[block_size - sizeof(Base)];
-public:
-  template <typename... Args>
-  explicit MirroredGlobal(Args&&... args): Base(std::forward<Args...>(args...)) {}
-  explicit MirroredGlobal(): Base() {}
-
-  /// Allocate and call init() on all instances of Base
-  ///
-  /// @param init Lambda of the form: void init(Base*)
-  ///
-  /// @b Example:
-  /// @code
-  ///     auto c = MirroredGlobal<Counter>::create([](Counter* c){ new (c) Counter(0); });
-  /// @endcode
-  template< typename F >
-  static GlobalAddress<MirroredGlobal<Base>> create(F init) {
-    auto a = mirrored_global_alloc<MirroredGlobal<Base>>();
-    call_on_all_cores([a,init]{ init(static_cast<Base*>(a.localize())); });
-    return a;
-  }
-
-  /// Allocate an instance on all cores and initialize with default constructor.
-  /// 
-  /// @note Requires Base class to have a default constructor.
-  static GlobalAddress<MirroredGlobal<Base>> create() {
-    auto a = mirrored_global_alloc<MirroredGlobal>();
-    call_on_all_cores([a]{ new (a.localize()) MirroredGlobal<Base>(); });
-    return a;
-  }
-
-  void destroy() {
-    auto a = this->self;
-    call_on_all_cores([a]{ a->~MirroredGlobal<Base>(); });
-    global_free(a);
-  }
-
-};
-
+// template< typename Base, Core MASTER = 0 >
+// class MirroredGlobal : public Base {
+//   char pad[block_size - sizeof(Base)];
+// public:
+//   template <typename... Args>
+//   explicit MirroredGlobal(Args&&... args): Base(std::forward<Args...>(args...)) {}
+//   explicit MirroredGlobal(): Base() {}
+// 
+//   /// Allocate and call init() on all instances of Base
+//   ///
+//   /// @param init Lambda of the form: void init(Base*)
+//   ///
+//   /// @b Example:
+//   /// @code
+//   ///     auto c = MirroredGlobal<Counter>::create([](Counter* c){ new (c) Counter(0); });
+//   /// @endcode
+//   template< typename F >
+//   static GlobalAddress<MirroredGlobal<Base>> create(F init) {
+//     auto a = mirrored_global_alloc<MirroredGlobal<Base>>();
+//     call_on_all_cores([a,init]{ init(static_cast<Base*>(a.localize())); });
+//     return a;
+//   }
+// 
+//   /// Allocate an instance on all cores and initialize with default constructor.
+//   /// 
+//   /// @note Requires Base class to have a default constructor.
+//   static GlobalAddress<MirroredGlobal<Base>> create() {
+//     auto a = mirrored_global_alloc<MirroredGlobal>();
+//     call_on_all_cores([a]{ new (a.localize()) MirroredGlobal<Base>(); });
+//     return a;
+//   }
+// 
+//   void destroy() {
+//     auto a = this->self;
+//     call_on_all_cores([a]{ a->~MirroredGlobal<Base>(); });
+//     global_free(a);
+//   }
+// 
+// };
 
 template <typename T>
 class FlatCombiner {
