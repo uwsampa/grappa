@@ -10,6 +10,7 @@
 #include "Cache.hpp"
 #include "GlobalCompletionEvent.hpp"
 #include "ParallelLoop.hpp"
+#include "GlobalAllocator.hpp"
 
 namespace Grappa {
 /// @addtogroup Containers

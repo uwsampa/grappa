@@ -136,6 +136,15 @@ namespace Grappa {
   /// Also note: a single copy of `loop_body` is passed by reference to all of the child
   /// tasks, so be sure not to modify anything in the functor
   /// (TODO: figure out how to enforce this for all kinds of functors)
+  ///
+  /// Example usage:
+  /// @code
+  ///   for (int i=0; i<N; i++) { x++; }
+  ///   // equivalent parallel loop:
+  ///   forall_here(0, N, [&x](int64_t start, int64_t iters) {
+  ///     for (int i=start; i<start+iters; i++) { x++; }
+  ///   });
+  /// @endcode
   template<CompletionEvent * CE = &impl::local_ce, int64_t Threshold = impl::USE_LOOP_THRESHOLD_FLAG, typename F = decltype(nullptr) >
   void forall_here(int64_t start, int64_t iters, F loop_body) {
     CE->enroll(iters);

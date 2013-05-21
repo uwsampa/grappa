@@ -70,19 +70,19 @@ inline void print_array(const char * name, GlobalAddress<packed_edge> base, size
   ss << " ]"; VLOG(1) << ss.str();
 }
 
-inline void print_graph(csr_graph* g) {
+inline std::string graph_str(csr_graph* g) {
   auto offsets = static_cast<GlobalAddress<range_t>>(g->xoff);
   std::stringstream ss;
   for (int64_t i=0; i<g->nv; i++) {
     range_t r = delegate::read(offsets+i);
-    ss << "<" << i << ">(deg:" << r.end-r.start << "): ";
+    ss << "<" << i << ">[" << r.start << "-" << r.end << "](deg:" << r.end-r.start << "): ";
     for (int64_t j=r.start; j<r.end; j++) {
       int64_t v = delegate::read(g->xadj+j);
       ss << v << " ";
     }
     ss << "\n";
   }
-  VLOG(1) << ss.str();
+  return ss.str();
 }
 
 
@@ -105,8 +105,10 @@ int64_t * prefix_temp_base;
 int64_t prefix_count;
 
 static int64_t prefix_sum(GlobalAddress<int64_t> xoff, int64_t nv) {
-  auto prefix_temp = Grappa_typed_malloc<int64_t>(nv);
-  call_on_all_cores([prefix_temp,nv]{ prefix_temp_base = prefix_temp.localize(); });
+  call_on_all_cores([nv]{
+    auto r = blockDist(0,nv,mycore(),cores());
+    prefix_temp_base = locale_alloc<int64_t>(r.end-r.start);
+  });
   
   auto offsets = static_cast<GlobalAddress<range_t>>(xoff);
   
@@ -125,7 +127,7 @@ static int64_t prefix_sum(GlobalAddress<int64_t> xoff, int64_t nv) {
       auto offset = b.offset;
       delegate::call_async<&my_gce>(pool, b.block, [offset,val] {
         prefix_temp_base[offset] = val;
-      });      
+      });
     }
   });
   
@@ -149,7 +151,8 @@ static int64_t prefix_sum(GlobalAddress<int64_t> xoff, int64_t nv) {
 
     my_gce.enroll(); // make sure it doesn't dip down to 0 early
 
-    barrier();    
+    barrier();
+    // VLOG(1) << "global_scan = " << prefix_count;
     
     if (mycore() == cores()-1) {
       auto accum = prefix_count + local_sum;
@@ -225,7 +228,7 @@ static void setup_deg_off(const tuple_graph * const tg, csr_graph * g) {
   });
   
   delegate::write(xoff+2*g->nv, accum);
-    
+  
   g->nadj = accum+MINVECT_SIZE;
   
   g->xadjstore = Grappa_typed_malloc<int64_t>(accum + MINVECT_SIZE);
@@ -326,6 +329,8 @@ void create_graph_from_edgelist(const tuple_graph* const tg, csr_graph* const g)
   VLOG(2) << "gather_edges...";
   TIME(time, gather_edges(tg, g));
   LOG(INFO) << "gather_edges time: " << time;
+  
+  DVLOG(3) << graph_str(g);
 }
 
 void free_oned_csr_graph(csr_graph* const g) {

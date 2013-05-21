@@ -128,7 +128,6 @@ void test_push_buffer() {
 }
 
 void user_main( void * ignore ) {
-  NN = FLAGS_nelems;
   
   test_memset_memcpy<int64_t,7>();
   test_memset_memcpy<int64_t,7>(true); // test async
@@ -136,6 +135,7 @@ void user_main( void * ignore ) {
   test_complex();
   // test_prefix_sum(); // (not implemented yet)
   test_push_buffer();
+
 }
 
 BOOST_AUTO_TEST_CASE( test1 ) {
@@ -144,6 +144,7 @@ BOOST_AUTO_TEST_CASE( test1 ) {
                 &(boost::unit_test::framework::master_test_suite().argv) );
 
   Grappa_activate();
+  NN = FLAGS_nelems;
 
   Grappa_run_user_main( &user_main, (void*)NULL );
 
