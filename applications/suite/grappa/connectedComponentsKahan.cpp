@@ -5,12 +5,13 @@
 #include <ParallelLoop.hpp>
 #include <GlobalCompletionEvent.hpp>
 #include <GlobalHashSet.hpp>
+#include <GlobalCounter.hpp>
+#include <Array.hpp>
 
 using namespace Grappa;
 namespace d = Grappa::delegate;
 
 DECLARE_int64(cc_hash_size);
-GRAPPA_DEFINE_STAT(SimpleStatistic<graphint>, cc_intermediate_set_size, 0);
 
 static graph g;
 
@@ -89,6 +90,34 @@ void explore(graphint v, graphint mycolor) {
   });
 }
 
+graphint dfs(graphint root) {
+  graphint mycolor = root;
+  // VLOG(0) << "dfs(" << root << ")";
+  std::function<bool(graphint)> rec = [&mycolor,&rec](graphint v) {
+    bool found = false;
+    graphint _c[2]; Incoherent<graphint>::RO c(g.edgeStart+v, 2, _c);
+    // VLOG(0) << "rec(" << v << ")[" << c[0] << " - " << c[1] << "]";
+    for (graphint i=c[0]; i<c[1]; i++) {
+      graphint ev = d::read(g.endVertex+i);
+      // VLOG(0) << "[" << i-c[0] << "]: " << ev;
+      if (d::read(visited+ev)) {
+        mycolor = d::read(colors+ev);
+        // VLOG(0) << "  found -> " << mycolor;
+        found = true;
+        break;
+      } else if (rec(ev)) {
+        // VLOG(0) << "  found (" << mycolor << ")";
+        found = true;
+        break;
+      }
+    }
+    return found;
+  };
+  
+  // CHECK(rec(root));
+  return mycolor;
+}
+
 /// Takes a graph as input and an array with length NV.  The array D will store
 /// the coloring of each component.  The coloring will be using vertex IDs and
 /// therefore will be an integer between 0 and NV-1.  The function returns the
@@ -116,32 +145,38 @@ graphint connectedComponents(graph * in_g) {
     explore<&gce>(v,c);
   });
   
-  cc_intermediate_set_size = component_edges->size();
+  LOG(INFO) << "cc_intermediate_set_size: " << component_edges->size();
+  component_edges->forall_keys([](Edge& e){ VLOG(0) << e; });
+  VLOG(0) << util::array_str("colors: ", colors, NV);
   
   ///////////////////////////////////////////////////////////////
   // 
-  int pass = 0;
+  int npass = 0;
   do {
-    VLOG(0) << "pass " << pass;
+    DVLOG(2) << "npass " << npass;
     call_on_all_cores([]{ changed = false; });
   
     // Hook
-    VLOG(0) << "hook";
-    component_edges->forall_keys([](Edge& e){
+    DVLOG(2) << "hook";
+    component_edges->forall_keys([NV](Edge& e){
+      graphint i = e.start, j = e.end;
+      CHECK_LT(i, NV);
+      CHECK_LT(j, NV);
       graphint ci = d::read(colors+e.start),
                cj = d::read(colors+e.end);
-      
+      CHECK_LT(ci, NV);
+      CHECK_LT(cj, NV);
       bool lchanged = false;
     
       if ( ci < cj ) {
-        lchanged = d::call(colors+cj, [cj](graphint* ccj){
-          if (*ccj == cj) { *ccj = cj; return true; }
+        lchanged = lchanged || d::call(colors+cj, [ci,cj](graphint* ccj){
+          if (*ccj == cj) { *ccj = ci; return true; }
           else { return false; }
         });
       }
       if (!lchanged && cj < ci) {
-        lchanged = d::call(colors+ci, [ci](graphint* cci){
-          if (*cci == ci) { *cci = ci; return true; }
+        lchanged = lchanged || d::call(colors+ci, [ci,cj](graphint* cci){
+          if (*cci == ci) { *cci = cj; return true; }
           else { return false; }
         });
       }
@@ -150,12 +185,14 @@ graphint connectedComponents(graph * in_g) {
     });
     
     // Compress
-    VLOG(0) << "compress";
-    component_edges->forall_keys([](Edge& e){
-      auto compress = [](graphint i) {
+    DVLOG(2) << "compress";
+    component_edges->forall_keys([NV](Edge& e){
+      auto compress = [NV](graphint i) {
         graphint ci, cci, nc;
         ci = nc = d::read(colors+i);
-        while ( nc != (cci=d::read(colors+nc)) ) { nc = d::read(colors+cci); }
+        CHECK_LT(ci, NV);
+        CHECK_LT(nc, NV);
+        while ( nc != (cci=d::read(colors+nc)) ) { nc = d::read(colors+cci); CHECK_LT(nc, NV); }
         if (nc != ci) {
           changed = true;
           d::write(colors+i, nc);
@@ -165,17 +202,41 @@ graphint connectedComponents(graph * in_g) {
       compress(e.start);
       compress(e.end);
     });
-    pass++;
-    call_on_all_cores([]{ VLOG(0) << "changed = " << changed; });
+    npass++;
   } while (reduce<bool,collective_or>(&changed) == true);
   
-  auto propagate = [](graphint v) {
-    
-  };
+  LOG(INFO) << "cc_pram_passes: " << npass;
   
-  graphint ncomponents = component_edges->size();
-  VLOG(0) << "component_edges.size = " << component_edges->size();
-  component_edges->forall_keys([](Edge& e){ VLOG(0) << e; });
   
+  // auto search = [](graphint v) {
+  //   graphint _c[2]; Incoherent<graphint>::RO c(g.edgeStart+v, 2, _c);
+  //   forall_localized_async<GCE>(g.endVertex+c[0], c[1]-c[0], [mycolor](graphint& ev){
+  //     if (d::fetch_and_add(visited+ev, 1) == 0) {
+  //       d::write(colors+ev, mycolor);
+  //       publicTask<&gce>([ev,mycolor]{ search(ev,mycolor); });
+  //     }
+  //   });
+  // };
+
+  Grappa::memset(visited, 0, NV);
+  component_edges->forall_keys([](Edge& e){
+    d::write_async(*shared_pool, visited+e.start, 1);
+    d::write_async(*shared_pool, visited+e.end, 1);
+  });
+  forall_localized(visited, NV, [](int64_t v, graphint& valid){
+    if (!valid) {
+      graphint newcolor = dfs(v);
+      d::write(colors+v, newcolor);
+      d::write(visited+v, 1);
+    }
+  });
+  
+  VLOG(0) << util::array_str("colors: ", colors, NV);
+  
+  auto nca = GlobalCounter::create();
+  forall_localized(colors, NV, [nca](int64_t v, graphint& c){ if (c == v) nca->incr(); });
+  graphint ncomponents = nca->count();
+  nca->destroy();
+  VLOG(0) << "ncomponents: " << ncomponents;
   return ncomponents;
 }
