@@ -25,7 +25,7 @@ public:
     size_t head;
     size_t tail;
     size_t size;
-    Master(): head(0), tail(0) {}
+    Master(): head(0), tail(0), size(0) {}
   };
   
   struct Proxy {
@@ -66,7 +66,7 @@ public:
         m.size -= ndeq;
         if (m.head >= self->capacity) m.head %= self->capacity;
         
-        CHECK_LT(m.size, self->capacity) << "GlobalVector exceeded capacity!";
+        CHECK_LE(m.size, self->capacity) << "GlobalVector exceeded capacity!";
         
         return SyncResult{self->base+push_at,self->base+deq_at};
       });
