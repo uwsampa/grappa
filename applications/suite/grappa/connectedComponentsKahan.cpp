@@ -21,8 +21,6 @@ static GlobalAddress<color_t> marks;
 static bool changed;
 static graphint ncomponents;
 
-GlobalCompletionEvent gce;
-
 struct Edge {
   graphint start, end;
   bool operator==(const Edge& e) const { return e.start == start && e.end == end; }
@@ -45,7 +43,7 @@ namespace std {
 using EdgeHashSet = GlobalHashSet<Edge>;
 static GlobalAddress<EdgeHashSet> component_edges;
 
-template< GlobalCompletionEvent * GCE >
+template< GlobalCompletionEvent * GCE = &impl::local_gce >
 void explore(graphint v, graphint mycolor) {
   if (mycolor < 0) {
     auto claimed = d::call(colors+v, [v](graphint * c){
@@ -118,6 +116,17 @@ graphint dfs(graphint root) {
   return mycolor;
 }
 
+template< GlobalCompletionEvent * GCE = &impl::local_gce >
+void search(graphint v, graphint mycolor) {
+  graphint _c[2]; Incoherent<graphint>::RO c(g.edgeStart+v, 2, _c);
+  forall_localized_async<GCE>(g.endVertex+c[0], c[1]-c[0], [mycolor](graphint& ev){
+    if (d::fetch_and_add(visited+ev, 1) == 0) {
+      d::write(colors+ev, mycolor);
+      publicTask<GCE>([ev,mycolor]{ search(ev, mycolor); });
+    }
+  });
+}
+
 /// Takes a graph as input and an array with length NV.  The array D will store
 /// the coloring of each component.  The coloring will be using vertex IDs and
 /// therefore will be an integer between 0 and NV-1.  The function returns the
@@ -141,13 +150,13 @@ graphint connectedComponents(graph * in_g) {
   
   ///////////////////////////////////////////////////////////////
   // Find component edges
-  forall_localized<&gce,256>(colors, NV, [](int64_t v, graphint& c){
-    explore<&gce>(v,c);
+  forall_localized<&impl::local_gce,256>(colors, NV, [](int64_t v, graphint& c){
+    explore(v,c);
   });
   
   LOG(INFO) << "cc_intermediate_set_size: " << component_edges->size();
   component_edges->forall_keys([](Edge& e){ VLOG(0) << e; });
-  VLOG(0) << util::array_str("colors: ", colors, NV);
+  DVLOG(3) << util::array_str("colors: ", colors, NV, 32);
   
   ///////////////////////////////////////////////////////////////
   // 
@@ -206,32 +215,20 @@ graphint connectedComponents(graph * in_g) {
   } while (reduce<bool,collective_or>(&changed) == true);
   
   LOG(INFO) << "cc_pram_passes: " << npass;
-  
-  
-  // auto search = [](graphint v) {
-  //   graphint _c[2]; Incoherent<graphint>::RO c(g.edgeStart+v, 2, _c);
-  //   forall_localized_async<GCE>(g.endVertex+c[0], c[1]-c[0], [mycolor](graphint& ev){
-  //     if (d::fetch_and_add(visited+ev, 1) == 0) {
-  //       d::write(colors+ev, mycolor);
-  //       publicTask<&gce>([ev,mycolor]{ search(ev,mycolor); });
-  //     }
-  //   });
-  // };
 
   Grappa::memset(visited, 0, NV);
   component_edges->forall_keys([](Edge& e){
-    d::write_async(*shared_pool, visited+e.start, 1);
-    d::write_async(*shared_pool, visited+e.end, 1);
-  });
-  forall_localized(visited, NV, [](int64_t v, graphint& valid){
-    if (!valid) {
-      graphint newcolor = dfs(v);
-      d::write(colors+v, newcolor);
-      d::write(visited+v, 1);
+    auto mycolor = d::read(colors+e.start);
+    for (auto ev : {e.start, e.end}) {
+      publicTask([ev,mycolor]{
+        if (d::fetch_and_add(visited+ev, 1) == 0) {
+          search(ev,mycolor);
+        }        
+      });
     }
   });
   
-  VLOG(0) << util::array_str("colors: ", colors, NV);
+  DVLOG(3) << util::array_str("colors: ", colors, NV, 32);
   
   auto nca = GlobalCounter::create();
   forall_localized(colors, NV, [nca](int64_t v, graphint& c){ if (c == v) nca->incr(); });
