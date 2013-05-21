@@ -33,13 +33,17 @@ public:
     
     size_t npush;
     
-    std::queue<T*> deqs;
+    // std::queue<T*> deqs;
+    T* deqs[BUFFER_CAPACITY];
+    size_t ndeq;
     
-    Proxy(GlobalVector* const outer): outer(outer), npush(0) {}
+    
+    Proxy(GlobalVector* const outer): outer(outer), npush(0), ndeq(0) {}
     
     Proxy* clone_fresh() { return locale_new<Proxy>(outer); }
     
-    bool is_full() { return npush == BUFFER_CAPACITY || deqs.size() == BUFFER_CAPACITY; }
+    // bool is_full() { return npush == BUFFER_CAPACITY || deqs.size() == BUFFER_CAPACITY; }
+    bool is_full() { return npush == BUFFER_CAPACITY || ndeq == BUFFER_CAPACITY; }
     
     void sync() {
       struct SyncResult { GlobalAddress<T> push_at, deq_at; };
@@ -47,7 +51,8 @@ public:
       
       auto self = outer->self;
       auto npush = this->npush;
-      auto ndeq = this->deqs.size();
+      // auto ndeq = this->deqs.size();
+      auto ndeq = this->ndeq;
       
       DVLOG(2) << "self = " << self;
       auto r = delegate::call(MASTER, [self,npush,ndeq]{
@@ -71,8 +76,10 @@ public:
         { typename Incoherent<T>::RO c(r.deq_at, ndeq, buffer); c.block_until_acquired(); }
         for (size_t i = 0; i < ndeq; i++) {
           DVLOG(3) << "buffer[" << i << "] = " << buffer[i];
-          *deqs.front() = buffer[i];
-          deqs.pop();
+          CHECK_EQ(buffer[i], 42);
+          // *deqs.front() = buffer[i];
+          // deqs.pop();
+          *deqs[i] = buffer[i];
         }
       }
     }
@@ -104,7 +111,7 @@ public:
   static GlobalAddress<GlobalVector> create(size_t total_capacity) {
     auto base = global_alloc<T>(total_capacity);
     auto self = mirrored_global_alloc<GlobalVector>();
-    VLOG(1) << "create:\npush  self = " << self << "\npush  base = " << base;
+    DVLOG(3) << "create:\npush  self = " << self << "\npush  base = " << base;
     call_on_all_cores([self,base,total_capacity]{
       new (self.localize()) GlobalVector(self, base, total_capacity);
     });
@@ -124,8 +131,7 @@ public:
     if (FLAGS_flat_combining) {
       this->proxy.combine([&e](Proxy& p) {
         global_vector_push_ops++;
-        p.buffer[p.npush] = e;
-        p.npush++;
+        p.buffer[p.npush++] = e;
       });
     } else {
       global_vector_push_ops++; global_vector_push_msgs++;
@@ -143,7 +149,7 @@ public:
     
     T result;
     proxy.combine([&result](Proxy& p){
-      p.deqs.push(&result);
+      p.deqs[p.ndeq++] = &result;
     });
     
     global_vector_deq_latency += (Grappa_walltime() - t);
