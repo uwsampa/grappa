@@ -101,7 +101,7 @@ void test_correctness() {
 
 void test_set_correctness() {
   LOG(INFO) << "Testing correctness of GlobalHashSet...";
-  auto sa = GlobalHashSet<long,&identity_hash>::create(FLAGS_global_hash_size);
+  auto sa = GlobalHashSet<long>::create(FLAGS_global_hash_size);
   
   for (int i=0; i<10; i++) {
     // BOOST_CHECK_EQUAL(sa->insert(i), false);
@@ -125,7 +125,7 @@ void test_set_correctness() {
 }
 
 double test_set_insert_throughput() {
-  auto sa = GlobalHashSet<long,&identity_hash>::create(FLAGS_global_hash_size);
+  auto sa = GlobalHashSet<long>::create(FLAGS_global_hash_size);
   
   double t = walltime();
   
