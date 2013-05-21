@@ -192,9 +192,9 @@ public:
    });
   }
 
-  template< typename F >
+  template< GlobalCompletionEvent * GCE = &impl::local_gce, typename F >
   void forall_keys(F visit) {
-    forall_localized(base, capacity, [visit](int64_t i, Cell& c){
+    forall_localized<GCE>(base, capacity, [visit](int64_t i, Cell& c){
       for (auto& e : c.entries) {
         visit(e.key);
       }
