@@ -24,6 +24,7 @@ public:
   struct Master {
     size_t head;
     size_t tail;
+    size_t size;
     Master(): head(0), tail(0) {}
   };
   
@@ -33,16 +34,13 @@ public:
     
     size_t npush;
     
-    // std::queue<T*> deqs;
     T* deqs[BUFFER_CAPACITY];
     size_t ndeq;
-    
     
     Proxy(GlobalVector* const outer): outer(outer), npush(0), ndeq(0) {}
     
     Proxy* clone_fresh() { return locale_new<Proxy>(outer); }
     
-    // bool is_full() { return npush == BUFFER_CAPACITY || deqs.size() == BUFFER_CAPACITY; }
     bool is_full() { return npush == BUFFER_CAPACITY || ndeq == BUFFER_CAPACITY; }
     
     void sync() {
@@ -51,7 +49,6 @@ public:
       
       auto self = outer->self;
       auto npush = this->npush;
-      // auto ndeq = this->deqs.size();
       auto ndeq = this->ndeq;
       
       DVLOG(2) << "self = " << self;
@@ -61,13 +58,16 @@ public:
         
         auto push_at = m.tail;
         m.tail += npush;
+        m.size += npush;
         if (m.tail >= self->capacity) m.tail %= self->capacity;
         
         auto deq_at = m.head;
         m.head += ndeq;
+        m.size -= ndeq;
         if (m.head >= self->capacity) m.head %= self->capacity;
         
-        // CHECK_NE(m.head, m.tail);
+        CHECK_LT(m.size, self->capacity) << "GlobalVector exceeded capacity!";
+        
         return SyncResult{self->base+push_at,self->base+deq_at};
       });
       DVLOG(2) << "push{\n  push_at:" << r.push_at << ", deq_at:" << r.deq_at << ", npush:" << npush << "\n  base = " << outer->base << "\n}";
@@ -77,8 +77,6 @@ public:
         for (size_t i = 0; i < ndeq; i++) {
           DVLOG(3) << "buffer[" << i << "] = " << buffer[i];
           CHECK_EQ(buffer[i], 42);
-          // *deqs.front() = buffer[i];
-          // deqs.pop();
           *deqs[i] = buffer[i];
         }
       }
@@ -158,14 +156,7 @@ public:
   
   /// Return number of elements currently in vector
   size_t size() const { auto self = this->self;
-    return delegate::call(MASTER, [self]{
-      auto& m = self->master;
-      if (m.tail >= m.head) {
-        return m.tail - m.head;
-      } else {
-        return self->capacity + m.tail-m.head;
-      }
-    });
+    return delegate::call(MASTER, [self]{ return self->master.size; });
   }
   
   bool empty() const { return size() == 0; }
@@ -189,12 +180,14 @@ template< GlobalCompletionEvent * GCE = &impl::local_gce,
           typename T = decltype(nullptr),
           typename F = decltype(nullptr) >
 void forall_localized(GlobalAddress<GlobalVector<T>> self, F func) {
-  struct Range {size_t start, end; };
-  auto a = delegate::call(MASTER, [self]{ return Range{self->master.head, self->master.tail}; });
-  if (a.start < a.end) {
+  struct Range {size_t start, end, size; };
+  auto a = delegate::call(MASTER, [self]{ auto m = self->master; return Range{m.head, m.tail, m.size}; });
+  if (a.size == self->capacity) {
+    forall_localized_async<GCE,Threshold>(self->base, self->capacity, func);
+  } else if (a.start < a.end) {
     Range r = {a.start, a.end};
     forall_localized_async<GCE,Threshold>(self->base+r.start, r.end-r.start, func);
-  } else {
+  } else if (a.start > a.end) {
     for (auto r : {Range{0, a.end}, Range{a.start, self->capacity}}) {
       forall_localized_async<GCE,Threshold>(self->base+r.start, r.end-r.start, func);
     }
