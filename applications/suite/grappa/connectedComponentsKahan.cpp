@@ -7,6 +7,7 @@
 #include <GlobalHashSet.hpp>
 
 using namespace Grappa;
+namespace d = Grappa::delegate;
 
 DECLARE_int64(cc_hash_size);
 GRAPPA_DEFINE_STAT(SimpleStatistic<graphint>, cc_intermediate_set_size, 0);
@@ -16,7 +17,7 @@ static graph g;
 static GlobalAddress<graphint> colors;
 static GlobalAddress<graphint> visited;
 static GlobalAddress<color_t> marks;
-static graphint nchanged;
+static bool changed;
 static graphint ncomponents;
 
 GlobalCompletionEvent gce;
@@ -46,7 +47,7 @@ static GlobalAddress<EdgeHashSet> component_edges;
 template< GlobalCompletionEvent * GCE >
 void explore(graphint v, graphint mycolor) {
   if (mycolor < 0) {
-    auto claimed = delegate::call(colors+v, [v](graphint * c){
+    auto claimed = d::call(colors+v, [v](graphint * c){
       if (*c < 0) {
         *c = v;
         return true;
@@ -119,10 +120,58 @@ graphint connectedComponents(graph * in_g) {
   
   ///////////////////////////////////////////////////////////////
   // 
+  int pass = 0;
+  do {
+    VLOG(0) << "pass " << pass;
+    call_on_all_cores([]{ changed = false; });
   
-  component_edges->forall_keys([](Edge& e){
-    // do nothing...
-  });
+    // Hook
+    VLOG(0) << "hook";
+    component_edges->forall_keys([](Edge& e){
+      graphint ci = d::read(colors+e.start),
+               cj = d::read(colors+e.end);
+      
+      bool lchanged = false;
+    
+      if ( ci < cj ) {
+        lchanged = d::call(colors+cj, [cj](graphint* ccj){
+          if (*ccj == cj) { *ccj = cj; return true; }
+          else { return false; }
+        });
+      }
+      if (!lchanged && cj < ci) {
+        lchanged = d::call(colors+ci, [ci](graphint* cci){
+          if (*cci == ci) { *cci = ci; return true; }
+          else { return false; }
+        });
+      }
+    
+      if (lchanged) { changed = true; }
+    });
+    
+    // Compress
+    VLOG(0) << "compress";
+    component_edges->forall_keys([](Edge& e){
+      auto compress = [](graphint i) {
+        graphint ci, cci, nc;
+        ci = nc = d::read(colors+i);
+        while ( nc != (cci=d::read(colors+nc)) ) { nc = d::read(colors+cci); }
+        if (nc != ci) {
+          changed = true;
+          d::write(colors+i, nc);
+        }
+      };
+      
+      compress(e.start);
+      compress(e.end);
+    });
+    pass++;
+    call_on_all_cores([]{ VLOG(0) << "changed = " << changed; });
+  } while (reduce<bool,collective_or>(&changed) == true);
+  
+  auto propagate = [](graphint v) {
+    
+  };
   
   graphint ncomponents = component_edges->size();
   VLOG(0) << "component_edges.size = " << component_edges->size();
