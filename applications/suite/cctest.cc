@@ -51,17 +51,19 @@ int main(int argc, char **argv) {
     while (v < G.startVertex[i]) G.edgeStart[++v] = i;
   }
 
-  //  for (int i = 0; i <= NV; i++) fprintf(stderr, "%3d ", G.edgeStart[i]); fprintf(stderr, "\n");
+#if 0
+  for (int i = 0; i <= NV; i++) fprintf(stderr, "%3d ", G.edgeStart[i]); fprintf(stderr, "\n");
 
 
-  //  for (int i = 0; i < 2*NE; i++) fprintf(stderr, "%3d ", G.startVertex[i]); fprintf(stderr, "\n");
-  //  for (int i = 0; i < 2*NE; i++) fprintf(stderr, "%3d ", G.endVertex[i]); fprintf(stderr, "\n");
-  //  int j = 1;
-  //  for (int i = 0; i < 2*NE; i++) {
-  //    if (G.edgeStart[j] != i) fprintf(stderr, "    ");
-  //    else {fprintf(stderr, "%3d ", j), j++;}
-  //  } fprintf(stderr, "\n");
-  //  fprintf(stderr, "G.edgeStart[%d]=%d\n", j, G.edgeStart[j]);
+  for (int i = 0; i < 2*NE; i++) fprintf(stderr, "%3d ", G.startVertex[i]); fprintf(stderr, "\n");
+  for (int i = 0; i < 2*NE; i++) fprintf(stderr, "%3d ", G.endVertex[i]); fprintf(stderr, "\n");
+  int j = 1;
+  for (int i = 0; i < 2*NE; i++) {
+    if (G.edgeStart[j] != i) fprintf(stderr, "    ");
+    else {fprintf(stderr, "%3d ", j), j++;}
+  } fprintf(stderr, "\n");
+  fprintf(stderr, "G.edgeStart[%d]=%d\n", j, G.edgeStart[j]);
+#endif
 
   count = connectedComponents(&G);
   fprintf(stderr, "%d components\n", count);

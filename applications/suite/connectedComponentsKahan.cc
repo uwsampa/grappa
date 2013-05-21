@@ -52,7 +52,7 @@
 /// The number of components is the number of x st x == C$[x].
 ///
 static unsigned int hash(int x) {return x*1299227;}
-template <class T, int LOG_CONCURRENCY=0> class Set {
+template <class T, int LOG_CONCURRENCY=8> class Set {
 public:
  class T_e {
   public:

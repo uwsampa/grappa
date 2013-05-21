@@ -7,7 +7,7 @@
 #include <stdlib.h>
 #include <stdint.h>
 #include <stdio.h>
-#include <stdbool.h>
+//#include <stdbool.h>
 
 #if defined(__MTA__)
 #include <sys/mta_task.h>
@@ -18,7 +18,7 @@
 #include <time.h>
 #endif
 
-//#include "stinger-atomics.h"
+#include "stinger-atomics.h"
 
 /*### Macros ###*/
 
