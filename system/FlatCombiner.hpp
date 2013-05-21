@@ -57,28 +57,20 @@ template <typename T>
 class FlatCombiner {
   
   struct Flusher {
-    Flusher * inflight;
     T * id;
     Worker * sender;
     ConditionVariable cv;
-    Flusher(T * id): id(id), sender(nullptr), inflight(nullptr) { VLOG(3) << "created (" << this << ")"; }
+    Flusher(T * id): id(id), sender(nullptr) {}
     ~Flusher() { locale_free(id); }
   };
   
   Flusher * current;
-  // std::queue<Flusher*> inflight;
+  size_t inflight;
   
 public:
   
-  FlatCombiner(T * initial): current(new Flusher(initial)) {}
-  ~FlatCombiner() {
-    auto h = current;
-    while (h != nullptr) {
-      auto t = h->inflight;
-      delete h;
-      h = t;
-    }
-  }
+  FlatCombiner(T * initial): current(new Flusher(initial)), inflight(0) {}
+  ~FlatCombiner() { delete current; }
   
   // template <typename... Args>
   // explicit FlatCombiner(Args&&... args)
@@ -101,15 +93,18 @@ public:
     
     if (s->id->is_full()) {
       current = new Flusher(s->id->clone_fresh());
-      current->inflight = s;
-      if (s->sender == nullptr) { VLOG(3) << "flushing on full"; flush(s); return; } // otherwise someone else assigned to send...
-    } else if (current->inflight == nullptr) {
+      if (s->sender == nullptr) {
+        inflight++;
+        DVLOG(3) << "flushing on full";
+        flush(s);
+        return;
+      } // otherwise someone else assigned to send...
+    } else if (inflight == 0) {
+      inflight++;
       // always need at least one in flight
-      current->inflight = s;
       if (s->sender == nullptr) {
         current = new Flusher(s->id->clone_fresh());
-        current->inflight = s;
-        VLOG(3) << "flush because none inflight";
+        DVLOG(3) << "flush because none in flight";
         flush(s);
         return;
       }
@@ -121,9 +116,8 @@ public:
     if (&current_worker() == s->sender) { // I was assigned to send
       if (s == current) {
         current = new Flusher(s->id->clone_fresh());
-        current->inflight = s;
       }
-      VLOG(3) << "flush by waken worker";
+      DVLOG(3) << "flush by waken worker";
       flush(s);
       return;
     }
@@ -132,25 +126,20 @@ public:
 
   void flush(Flusher * s) {
     s->sender = &current_worker(); // (if not set already)
-    VLOG(3) << "flushing (" << s->sender << "), s(" << s << ")";
+    DVLOG(3) << "flushing (" << s->sender << "), s(" << s << ")";
     
     s->id->sync();
     
     broadcast(&s->cv); // wake our people
     if (current->cv.waiters_ != 0 && current->sender == nullptr) {
       // atomically claim it so no one else tries to send in the meantime
-      current->inflight = current;
       // wake someone and tell them to send
       current->sender = impl::get_waiters(&current->cv);
       signal(&current->cv);
-      VLOG(3) << "signaled " << current->sender;
+      DVLOG(3) << "signaled " << current->sender;
     } else {
-      current->inflight = nullptr;
+      inflight--;
     }
-    // auto t = current;
-    // while (t->inflight != s) t = t->inflight;
-    // t->inflight = s->inflight;
-    // s->inflight = nullptr;
     s->sender = nullptr;
     delete s;
   }
