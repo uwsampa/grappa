@@ -10,8 +10,8 @@
 #include <math.h>
 
 
-#pragma tera parallel off
-#pragma tera expect parallel
+#pragma mta parallel off
+#pragma mta expect parallel
 void serial_quick_sort(unsigned *left, unsigned *right) {
   while (left + 9 < right) {
     unsigned splitter;
@@ -61,7 +61,7 @@ void serial_quick_sort(unsigned *left, unsigned *right) {
   
 }
 
-
+#pragma mta parallel default
 
 void simple_sort(unsigned *src, unsigned *dst, unsigned n) {
 #pragma noalias *src, *dst
@@ -76,7 +76,7 @@ void simple_sort(unsigned *src, unsigned *dst, unsigned n) {
       else
         count[i]++;
   
-  #pragma tera assert nodep
+  #pragma mta assert nodep
   for (unsigned i = 0; i < n; i++)
     dst[count[i]] = src[i];
   
@@ -92,7 +92,7 @@ void sample_sort(unsigned *src, unsigned *dst, unsigned n) {
   unsigned *split    = new unsigned[sn];
   unsigned *count    = new unsigned[sn + 1];
   unsigned *start    = new unsigned[sn + 1];
-  #pragma tera assert parallel
+  #pragma mta assert parallel
   for (unsigned i = 0; i < sn; i++)
     splitter[i] = src[(random() & MASK) % n];
   
@@ -106,7 +106,7 @@ void sample_sort(unsigned *src, unsigned *dst, unsigned n) {
       else
         count[i]++;
   
-  #pragma tera assert nodep
+  #pragma mta assert nodep
   for (unsigned i = 0; i < sn; i++)
     split[count[i]] = splitter[i];
   
@@ -139,7 +139,7 @@ void sample_sort(unsigned *src, unsigned *dst, unsigned n) {
     start[i] = start[i - 1] + count[i - 1];
     
   
-  #pragma tera assert nodep dst
+  #pragma mta assert parallel
   for (unsigned i = 0; i < n; i++) {
     unsigned value = src[i];
     unsigned left = 0;
@@ -155,11 +155,11 @@ void sample_sort(unsigned *src, unsigned *dst, unsigned n) {
 	left = right = midpoint;
     }
     bucket = right;
-    value = start[bucket]++;
+    value = int_fetch_add(&start[bucket],1);
     dst[value] = src[i];
   }
 
-  #pragma tera assert parallel
+  #pragma mta assert parallel
   for (unsigned i = 0; i < buckets; i++) {
     unsigned first = start[i] - count[i];
     unsigned last = start[i] - 1;
