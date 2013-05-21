@@ -66,9 +66,7 @@ double push_perf_test(GlobalAddress<GlobalVector<int64_t>> qa) {
   
   t = Grappa_walltime() - t;
   if (EXP == Exp::RANDOM_PUSH || EXP == Exp::CONST_PUSH) {
-    BOOST_CHECK_EQUAL(qa->size(), N);
   } else if (EXP == Exp::CONST_DEQUEUE) {
-    BOOST_CHECK_EQUAL(qa->size(), 0);
   }
   return t;
 }
@@ -148,10 +146,20 @@ void user_main( void * ignore ) {
     
     for (int i=0; i<FLAGS_ntrials; i++) {
       qa->clear();
+      VLOG(1) << "random push...";
       push_time += push_perf_test<Exp::RANDOM_PUSH>(qa);
       qa->clear();
+      
+      VLOG(1) << "const enqueue...";
       push_const_time += push_perf_test<Exp::CONST_PUSH>(qa);
+      BOOST_CHECK_EQUAL(qa->size(), N);
+      
+      forall_localized(qa, [](int64_t& e){ BOOST_CHECK_EQUAL(e, 42); });
+      
+      VLOG(1) << "const dequeue...";
       deq_const_time += push_perf_test<Exp::CONST_DEQUEUE>(qa);
+      BOOST_CHECK_EQUAL(qa->size(), 0);
+      
     }
     
     qa->destroy();
