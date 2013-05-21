@@ -57,25 +57,27 @@ template <typename T>
 class FlatCombiner {
   
   struct Flusher {
+    Flusher * inflight;
     T * id;
     Worker * sender;
     ConditionVariable cv;
-    Flusher(T * id): id(id), sender(nullptr) {}
+    Flusher(T * id): id(id), sender(nullptr), inflight(nullptr) {}
     ~Flusher() { locale_free(id); }
   };
   
   Flusher * current;
-  std::queue<Flusher*> inflight;
+  // std::queue<Flusher*> inflight;
   
 public:
   
   FlatCombiner(T * initial): current(new Flusher(initial)) {}
   ~FlatCombiner() {
-    while (!inflight.empty()) {
-      if (inflight.front() != current) delete inflight.front();
-      inflight.pop();
+    auto h = current;
+    while (h != nullptr) {
+      auto t = h->inflight;
+      delete h;
+      h = t;
     }
-    delete current;
   }
   
   // template <typename... Args>
@@ -97,18 +99,26 @@ public:
     
     func(*s->id);
     
-    if (s->id->is_full() || inflight.empty()) {
-      inflight.push(current);
+    if (s->id->is_full()) {
       current = new Flusher(s->id->clone_fresh());
-      if (s->sender == nullptr) {
-        flush(s);
-      } // otherwise someone else is already assigned and will send when ready
-    } else {
-      Grappa::wait(&s->cv);
-      if (&current_worker() == s->sender) {
-        if (s == current) current = new Flusher(s->id->clone_fresh());
-        flush(s);
+      current->inflight = s;
+      if (s->sender == nullptr) { flush(s); return; } // otherwise someone else assigned to send...
+    } else if (current->inflight == nullptr) {
+      // always need at least one in flight
+      current->inflight = s;
+      if (s->sender == nullptr) { flush(s); return; } // give 'em a sender...
+    }
+    
+    // not my turn yet
+    Grappa::wait(&s->cv);
+    // on wake...
+    if (&current_worker() == s->sender) { // I was assigned to send
+      if (s == current) {
+        current = new Flusher(s->id->clone_fresh());
+        current->inflight = s;
       }
+      flush(s);
+      return;
     }
     
   }
@@ -119,14 +129,17 @@ public:
     s->id->sync();
     
     broadcast(&s->cv); // wake our people
-    if (current->cv.waiters_ != 0) {
+    if (current->cv.waiters_ != 0 && current->sender == nullptr) {
       // atomically claim it so no one else tries to send in the meantime
-      inflight.push(current);
+      current->inflight = current;
       // wake someone and tell them to send
       current->sender = impl::get_waiters(&current->cv);
       signal(&current->cv);
     }
-    inflight.pop();
+    auto t = current;
+    while (t->inflight != s) t = t->inflight;
+    t->inflight = s->inflight;
+    s->inflight = nullptr;
     s->sender = nullptr;
     delete s;
   }
