@@ -9,22 +9,11 @@
 using namespace Grappa;
 
 DECLARE_int64(cc_hash_size);
-
-struct ColoredVertex {
-  union {
-    struct {
-      bool visited: 1;
-      long color: 63;
-    };
-    intptr_t raw_; // unnecessary; just to ensure alignment
-  };
-  
-  ColoredVertex(): visited(false), color(-1) {}
-};
+GRAPPA_DEFINE_STAT(SimpleStatistic<graphint>, cc_intermediate_set_size, 0);
 
 static graph g;
 
-static GlobalAddress<ColoredVertex> colors;
+static GlobalAddress<graphint> colors;
 static GlobalAddress<graphint> visited;
 static GlobalAddress<color_t> marks;
 static graphint nchanged;
@@ -55,18 +44,20 @@ using EdgeHashSet = GlobalHashSet<Edge>;
 static GlobalAddress<EdgeHashSet> component_edges;
 
 template< GlobalCompletionEvent * GCE >
-void explore(graphint v) {
-  // delegate probably short-circuited because we try to spawn task at ColoredVertex
-  auto mycolor = delegate::call(colors+v, [v](ColoredVertex * c) {
-    graphint mycolor;
-    if (!c->visited) {
-      c->visited = true;
-      c->color = mycolor = v;
-    } else {
-      mycolor = c->color;
-    }
-    return mycolor;
-  });
+void explore(graphint v, graphint mycolor) {
+  if (mycolor < 0) {
+    auto claimed = delegate::call(colors+v, [v](graphint * c){
+      if (*c < 0) {
+        *c = v;
+        return true;
+      } else {
+        return false;
+      }
+    });
+    if (!claimed) return;
+    mycolor = v;
+  }
+  
   // visit neighbors of v
   graphint _c[2]; Incoherent<graphint>::RO c(g.edgeStart+v, 2, _c);
   
@@ -78,18 +69,17 @@ void explore(graphint v) {
     send_message(colors_ev.core(), [origin,mycolor,colors_ev]{
       auto ec = colors_ev.pointer();
       size_t ev = colors_ev - colors;
-      if (!ec->visited) {
-        ec->visited = true;
-        ec->color = mycolor;
-        publicTask([ev,origin]{
-          explore<GCE>(ev);
+      if (*ec < 0) {
+        *ec = mycolor;
+        publicTask([ev,origin,mycolor]{
+          explore<GCE>(ev,mycolor);
           complete(make_global(GCE,origin));
         });
       } else {
         // already had color
         // TODO: avoid spawning task? (i.e. make insert() async)
         privateTask([ec,mycolor,origin]{
-          Edge edge = (ec->color > mycolor) ? Edge{mycolor,ec->color} : Edge{ec->color,mycolor};
+          Edge edge = (*ec > mycolor) ? Edge{mycolor,*ec} : Edge{*ec,mycolor};
           component_edges->insert(edge);
           complete(make_global(GCE,origin));
         });
@@ -107,7 +97,7 @@ graphint connectedComponents(graph * in_g) {
   
   auto _component_edges = EdgeHashSet::create(FLAGS_cc_hash_size);
   
-  auto _colors = global_alloc<ColoredVertex>(NV);
+  auto _colors = global_alloc<graphint>(NV);
   auto _visited = global_alloc<graphint>(NV);
   auto _in_g = *in_g;
   call_on_all_cores([_colors,_visited,_in_g,_component_edges]{
@@ -117,14 +107,22 @@ graphint connectedComponents(graph * in_g) {
     g = _in_g;
   });
   
+  forall_localized(colors, NV, [](int64_t v, graphint& c){ c = -v-1; });
+  
   ///////////////////////////////////////////////////////////////
   // Find component edges
-  forall_localized<&gce,256>(colors, NV, [](int64_t v, ColoredVertex& c){
-    explore<&gce>(v);
+  forall_localized<&gce,256>(colors, NV, [](int64_t v, graphint& c){
+    explore<&gce>(v,c);
   });
+  
+  cc_intermediate_set_size = component_edges->size();
   
   ///////////////////////////////////////////////////////////////
   // 
+  
+  component_edges->forall_keys([](Edge& e){
+    // do nothing...
+  });
   
   graphint ncomponents = component_edges->size();
   VLOG(0) << "component_edges.size = " << component_edges->size();
