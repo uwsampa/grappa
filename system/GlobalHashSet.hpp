@@ -24,7 +24,7 @@ namespace Grappa {
 // Hash table for joins
 // * allows multiple copies of a Key
 // * lookups return all Key matches
-template <typename K, uint64_t (*HF)(K) >
+template <typename K>
           // size_t NREQUESTS = 128, size_t HASH_SIZE = NREQUESTS<<3 >
 class GlobalHashSet {
 protected:
@@ -90,7 +90,8 @@ protected:
   char _pad[block_size - sizeof(self)-sizeof(base)-sizeof(capacity)-sizeof(proxy)-sizeof(count)];
 
   uint64_t computeIndex( K key ) {
-    return HF(key) % capacity;
+    static std::hash<K> hasher;
+    return hasher(key) % capacity;
   }
 
   // for creating local GlobalHashSet
