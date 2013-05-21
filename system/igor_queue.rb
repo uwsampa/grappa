@@ -12,6 +12,7 @@ Igor do
     ntrials: [1],
     nelems: [1024],
   })
+  @params.merge! GFLAGS
   command @test_cmd['GlobalVector_tests', '--perf']
   
   params {

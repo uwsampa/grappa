@@ -7,6 +7,8 @@ require_relative '../igor_common.rb'
 Igor do
   database '~/exp/pgas.sqlite', :queue
   
+  @params.merge! GFLAGS
+  
   @test_cmd = -> test, extras { %Q[ ../bin/grappa_srun.rb --no-verbose --test=#{test} -- #{GFLAGS.expand} #{extras}] }
   command @test_cmd['GlobalVector_tests','']
   
