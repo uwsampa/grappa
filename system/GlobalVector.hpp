@@ -56,11 +56,11 @@ public:
         
         auto push_at = m.tail;
         m.tail += npush;
-        if (m.tail > self->capacity) m.tail %= self->capacity;
+        if (m.tail >= self->capacity) m.tail %= self->capacity;
         
         auto deq_at = m.head;
         m.head += ndeq;
-        if (m.head > self->capacity) m.head %= self->capacity;
+        if (m.head >= self->capacity) m.head %= self->capacity;
         
         // CHECK_NE(m.head, m.tail);
         return SyncResult{self->base+push_at,self->base+deq_at};
