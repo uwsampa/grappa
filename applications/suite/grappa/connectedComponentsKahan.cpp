@@ -127,44 +127,13 @@ void search(graphint v, graphint mycolor) {
   });
 }
 
-/// Takes a graph as input and an array with length NV.  The array D will store
-/// the coloring of each component.  The coloring will be using vertex IDs and
-/// therefore will be an integer between 0 and NV-1.  The function returns the
-/// total number of components.
-graphint connectedComponents(graph * in_g) {
-  const auto NV = in_g->numVertices;
-  
-  auto _component_edges = EdgeHashSet::create(FLAGS_cc_hash_size);
-  
-  auto _colors = global_alloc<graphint>(NV);
-  auto _visited = global_alloc<graphint>(NV);
-  auto _in_g = *in_g;
-  call_on_all_cores([_colors,_visited,_in_g,_component_edges]{
-    component_edges = _component_edges;
-    colors = _colors;
-    visited = _visited;
-    g = _in_g;
-  });
-  
-  forall_localized(colors, NV, [](int64_t v, graphint& c){ c = -v-1; });
-  
-  ///////////////////////////////////////////////////////////////
-  // Find component edges
-  forall_localized<&impl::local_gce,256>(colors, NV, [](int64_t v, graphint& c){
-    explore(v,c);
-  });
-  
-  LOG(INFO) << "cc_intermediate_set_size: " << component_edges->size();
-  component_edges->forall_keys([](Edge& e){ VLOG(0) << e; });
-  DVLOG(3) << util::array_str("colors: ", colors, NV, 32);
-  
-  ///////////////////////////////////////////////////////////////
-  // 
+void pram_cc() {
+  const auto NV = g.numVertices;
   int npass = 0;
   do {
     DVLOG(2) << "npass " << npass;
     call_on_all_cores([]{ changed = false; });
-  
+    
     // Hook
     DVLOG(2) << "hook";
     component_edges->forall_keys([NV](Edge& e){
@@ -215,7 +184,58 @@ graphint connectedComponents(graph * in_g) {
   } while (reduce<bool,collective_or>(&changed) == true);
   
   LOG(INFO) << "cc_pram_passes: " << npass;
+}
 
+/// Takes a graph as input and an array with length NV.  The array D will store
+/// the coloring of each component.  The coloring will be using vertex IDs and
+/// therefore will be an integer between 0 and NV-1.  The function returns the
+/// total number of components.
+graphint connectedComponents(graph * in_g) {
+  double t;
+  const auto NV = in_g->numVertices;
+  
+  auto _component_edges = EdgeHashSet::create(FLAGS_cc_hash_size);
+  
+  auto _colors = global_alloc<graphint>(NV);
+  auto _visited = global_alloc<graphint>(NV);
+  auto _in_g = *in_g;
+  call_on_all_cores([_colors,_visited,_in_g,_component_edges]{
+    component_edges = _component_edges;
+    colors = _colors;
+    visited = _visited;
+    g = _in_g;
+  });
+  
+  
+  ///////////////////////////////////////////////////////////////
+  // Find component edges
+  
+  t = walltime();
+  forall_localized(colors, NV, [](int64_t v, graphint& c){ c = -v-1; });
+  
+  forall_localized<&impl::local_gce,256>(colors, NV, [](int64_t v, graphint& c){
+    explore(v,c);
+  });
+  t = walltime() - t;
+  
+  LOG(INFO) << "cc_set_size: " << component_edges->size();
+  LOG(INFO) << "cc_set_insert_time: " << t;
+  if (VLOG_IS_ON(3)) {
+    component_edges->forall_keys([](Edge& e){ VLOG(0) << e; });
+    VLOG(3) << util::array_str("colors: ", colors, NV, 32);
+  }
+  
+  ///////////////////////////////////////////////////////////////
+  // Run classic Connected Components algorithm on reduced graph
+  t = walltime();
+  pram_cc();
+  t = walltime() - t;
+  LOG(INFO) << "cc_reduced_graph_time: " << t;
+  
+  ///////////////////////////////////////////////////////////////
+  // Propagate colors out to the rest of the vertices
+
+  t = walltime();
   Grappa::memset(visited, 0, NV);
   component_edges->forall_keys([](Edge& e){
     auto mycolor = d::read(colors+e.start);
@@ -227,13 +247,13 @@ graphint connectedComponents(graph * in_g) {
       });
     }
   });
-  
+  t = walltime() - t;
+  LOG(INFO) << "cc_propagate_time: " << t;
   DVLOG(3) << util::array_str("colors: ", colors, NV, 32);
   
   auto nca = GlobalCounter::create();
   forall_localized(colors, NV, [nca](int64_t v, graphint& c){ if (c == v) nca->incr(); });
   graphint ncomponents = nca->count();
   nca->destroy();
-  VLOG(0) << "ncomponents: " << ncomponents;
   return ncomponents;
 }
