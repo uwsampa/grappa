@@ -61,7 +61,7 @@ class FlatCombiner {
     T * id;
     Worker * sender;
     ConditionVariable cv;
-    Flusher(T * id): id(id), sender(nullptr), inflight(nullptr) {}
+    Flusher(T * id): id(id), sender(nullptr), inflight(nullptr) { VLOG(3) << "created (" << this << ")"; }
     ~Flusher() { locale_free(id); }
   };
   
@@ -102,11 +102,17 @@ public:
     if (s->id->is_full()) {
       current = new Flusher(s->id->clone_fresh());
       current->inflight = s;
-      if (s->sender == nullptr) { flush(s); return; } // otherwise someone else assigned to send...
+      if (s->sender == nullptr) { VLOG(3) << "flushing on full"; flush(s); return; } // otherwise someone else assigned to send...
     } else if (current->inflight == nullptr) {
       // always need at least one in flight
       current->inflight = s;
-      if (s->sender == nullptr) { flush(s); return; } // give 'em a sender...
+      if (s->sender == nullptr) {
+        current = new Flusher(s->id->clone_fresh());
+        current->inflight = s;
+        VLOG(3) << "flush because none inflight";
+        flush(s);
+        return;
+      }
     }
     
     // not my turn yet
@@ -117,6 +123,7 @@ public:
         current = new Flusher(s->id->clone_fresh());
         current->inflight = s;
       }
+      VLOG(3) << "flush by waken worker";
       flush(s);
       return;
     }
@@ -125,6 +132,7 @@ public:
 
   void flush(Flusher * s) {
     s->sender = &current_worker(); // (if not set already)
+    VLOG(3) << "flushing (" << s->sender << "), s(" << s << ")";
     
     s->id->sync();
     
@@ -135,11 +143,14 @@ public:
       // wake someone and tell them to send
       current->sender = impl::get_waiters(&current->cv);
       signal(&current->cv);
+      VLOG(3) << "signaled " << current->sender;
+    } else {
+      current->inflight = nullptr;
     }
-    auto t = current;
-    while (t->inflight != s) t = t->inflight;
-    t->inflight = s->inflight;
-    s->inflight = nullptr;
+    // auto t = current;
+    // while (t->inflight != s) t = t->inflight;
+    // t->inflight = s->inflight;
+    // s->inflight = nullptr;
     s->sender = nullptr;
     delete s;
   }
