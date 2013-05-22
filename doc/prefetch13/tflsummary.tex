@@ -1,0 +1,28 @@
+\section{TFL Argument}
+
+\begin{enumerate}
+
+\item Previous work assumed that in saturation, ie when $v$, the
+    number of threads is enough to cover the latency of a remote
+    access, the processor utilization is $U=R/(R+S)$, where $R$ is the
+    time between remote accesses and $S$ is synchronization time.
+    
+\item \cite{culler:93} argued that because there is increasing cost to
+    switch between more threads, $S$ must be an increasing function of
+    $v$, and the execution of the processor may slow down due to larger
+    $v$, leading to $U= \frac{1}{C_v} * \frac{R}{R+S_v}$, where $S_v$ is increasing
+    with $v$ and $C_v$, the increased program execution time, is increasing with
+    $v$.
+
+\item While this analysis is sound, $S_v$ and $C_v$ are not fundamentally
+    increasing due to latency to top level but rather bandwidth to
+    thread data. (Not entirely clear to me that they ruled out
+    bandwidth or not, hard to tell what they were thinking, see
+    ``physics and dollars")
+
+\item This changes how we think about this limit, if we can increase
+    bandwidth (cost-based, although I’m not sure I fully believe this)
+    then the number of threads can be much higher than if we are
+    limited by latency (also cost-based but primarily physics). 
+
+\end{enumerate}
