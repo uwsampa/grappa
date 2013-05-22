@@ -1,0 +1,11 @@
+\section{Introduction}
+
+\TODO{expand}
+Importance of irregular applications today motivates systems that support multithreaded dataflow
+
+ \cite{culler:93} Argues that a fundamental limit of dataflow multiprocessing is that synchronization cost (context switch time) increases with number of threads because access time to the top level store increases with capacity
+
+The observation that only a fixed number of contexts can fit in a fast top level store is correct. However, the assumption that this corresponds to being limited to scheduling with only these contexts to avoid the latency to main memory need not apply. If the scheduling of threads is treated as a pipeline, then synchronization cost is determined by the bandwidth to the memory that holds all ready threads, rather than the latency.
+
+In this paper: prior work, analytical model, an implementation of our ideas in a multithreaded runtime system, Grappa, for commodity processors
+
