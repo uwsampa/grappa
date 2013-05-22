@@ -83,6 +83,10 @@ namespace Grappa {
     }
   }
   
+  inline void enroll(GlobalAddress<CompletionEvent> ce, int64_t incr = 1) {
+    delegate::call(ce, [incr](CompletionEvent * c){ c->enroll(incr); });
+  }
+  
   /// Spawn Grappa::privateTask and implicitly synchronize with the given CompletionEvent 
   /// (or GlobalCompletionEvent, though if using GlobalCompletionEvent, it may be better 
   /// to use the verison that takes the GCE pointer as a template parameter only).
