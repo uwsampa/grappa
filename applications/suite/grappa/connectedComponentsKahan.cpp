@@ -12,14 +12,7 @@ using namespace Grappa;
 namespace d = Grappa::delegate;
 
 DECLARE_int64(cc_hash_size);
-
-static graph g;
-
-static GlobalAddress<graphint> colors;
-static GlobalAddress<graphint> visited;
-static GlobalAddress<color_t> marks;
-static bool changed;
-static graphint ncomponents;
+DEFINE_int64(cc_concurrent_roots, 1, "number of concurrent `explores` to have at a given time");
 
 struct Edge {
   graphint start, end;
@@ -40,11 +33,24 @@ namespace std {
   };
 }
 
-using EdgeHashSet = GlobalHashSet<Edge>;
-static GlobalAddress<EdgeHashSet> component_edges;
+///////////////////////////////////////////////////////////////
+// Globals
+static graph g;
+
+static GlobalAddress<graphint> colors;
+static GlobalAddress<graphint> visited;
+static GlobalAddress<color_t> marks;
+static bool changed;
+static graphint ncomponents;
+
+static GlobalAddress<GlobalHashSet<Edge>> component_edges;
+
+static GlobalCompletionEvent gce;
+
+///////////////////////////////////////////////////////////////
 
 template< GlobalCompletionEvent * GCE = &impl::local_gce >
-void explore(graphint v, graphint mycolor) {
+void explore(graphint v, graphint mycolor, GlobalAddress<CompletionEvent> owner) {
   if (mycolor < 0) {
     auto claimed = d::call(colors+v, [v](graphint * c){
       if (*c < 0) {
@@ -61,59 +67,31 @@ void explore(graphint v, graphint mycolor) {
   // visit neighbors of v
   graphint _c[2]; Incoherent<graphint>::RO c(g.edgeStart+v, 2, _c);
   
-  forall_localized_async<GCE>(g.endVertex+c[0], c[1]-c[0], [mycolor](graphint& ev){
+  enroll(owner, c[1]-c[0]);
+  forall_localized_async<nullptr>(g.endVertex+c[0], c[1]-c[0], [mycolor,owner](graphint& ev){
     // TODO: make async
-    GCE->enroll();
     Core origin = mycore();
     auto colors_ev = colors+ev;
-    send_message(colors_ev.core(), [origin,mycolor,colors_ev]{
+    send_message(colors_ev.core(), [owner,mycolor,colors_ev]{
       auto ec = colors_ev.pointer();
       size_t ev = colors_ev - colors;
       if (*ec < 0) {
         *ec = mycolor;
-        publicTask([ev,origin,mycolor]{
-          explore<GCE>(ev,mycolor);
-          complete(make_global(GCE,origin));
+        publicTask([ev,mycolor,owner]{
+          explore(ev,mycolor,owner);
+          complete(owner);
         });
       } else {
         // already had color
         // TODO: avoid spawning task? (i.e. make insert() async)
-        privateTask([ec,mycolor,origin]{
+        privateTask([ec,mycolor,owner]{
           Edge edge = (*ec > mycolor) ? Edge{mycolor,*ec} : Edge{*ec,mycolor};
           component_edges->insert(edge);
-          complete(make_global(GCE,origin));
+          complete(owner);
         });
       }
     });
   });
-}
-
-graphint dfs(graphint root) {
-  graphint mycolor = root;
-  // VLOG(0) << "dfs(" << root << ")";
-  std::function<bool(graphint)> rec = [&mycolor,&rec](graphint v) {
-    bool found = false;
-    graphint _c[2]; Incoherent<graphint>::RO c(g.edgeStart+v, 2, _c);
-    // VLOG(0) << "rec(" << v << ")[" << c[0] << " - " << c[1] << "]";
-    for (graphint i=c[0]; i<c[1]; i++) {
-      graphint ev = d::read(g.endVertex+i);
-      // VLOG(0) << "[" << i-c[0] << "]: " << ev;
-      if (d::read(visited+ev)) {
-        mycolor = d::read(colors+ev);
-        // VLOG(0) << "  found -> " << mycolor;
-        found = true;
-        break;
-      } else if (rec(ev)) {
-        // VLOG(0) << "  found (" << mycolor << ")";
-        found = true;
-        break;
-      }
-    }
-    return found;
-  };
-  
-  // CHECK(rec(root));
-  return mycolor;
 }
 
 template< GlobalCompletionEvent * GCE = &impl::local_gce >
@@ -194,7 +172,7 @@ graphint connectedComponents(graph * in_g) {
   double t;
   const auto NV = in_g->numVertices;
   
-  auto _component_edges = EdgeHashSet::create(FLAGS_cc_hash_size);
+  auto _component_edges = GlobalHashSet<Edge>::create(FLAGS_cc_hash_size);
   
   auto _colors = global_alloc<graphint>(NV);
   auto _visited = global_alloc<graphint>(NV);
@@ -206,16 +184,34 @@ graphint connectedComponents(graph * in_g) {
     g = _in_g;
   });
   
-  
   ///////////////////////////////////////////////////////////////
   // Find component edges
   
   t = walltime();
   forall_localized(colors, NV, [](int64_t v, graphint& c){ c = -v-1; });
   
-  forall_localized<&impl::local_gce,256>(colors, NV, [](int64_t v, graphint& c){
-    explore(v,c);
+  size_t current_root = 0;
+  auto root_addr = make_global(&current_root);
+  
+  // forall_localized<&impl::local_gce,256>(colors, NV, [](int64_t v, graphint& c){
+  on_all_cores([root_addr]{
+    range_t r = blockDist(0, FLAGS_cc_concurrent_roots, mycore(), cores());
+    auto nlocalroots = r.end - r.start;
+    
+    for (size_t i = 0; i < nlocalroots; i++) {  
+      privateTask<&gce>([root_addr]{
+        CompletionEvent ce;
+        auto cea = make_global(&ce);
+        graphint v;
+        while ((v=d::fetch_and_add(root_addr,1)) < g.numVertices) {
+          explore<nullptr>(v, d::read(colors+v), cea);
+          ce.wait();
+        }
+      });
+    }
   });
+  gce.wait();
+  
   t = walltime() - t;
   
   LOG(INFO) << "cc_set_size: " << component_edges->size();
@@ -243,7 +239,7 @@ graphint connectedComponents(graph * in_g) {
       publicTask([ev,mycolor]{
         if (d::fetch_and_add(visited+ev, 1) == 0) {
           search(ev,mycolor);
-        }        
+        }
       });
     }
   });
