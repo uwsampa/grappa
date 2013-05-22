@@ -473,7 +473,7 @@ namespace Grappa {
     
       struct { int64_t nelems:48, origin:16; } pack = { nelems, mycore() };
     
-      GCE->enroll(fc);
+      if (GCE) GCE->enroll(fc);
       for (Core i=0; i<fc; i++) {
         pool.send_message((start_core+i)%nc, [base,pack,loop_body] {
           // (should now have room for loop_body to be 8 bytes)
@@ -490,7 +490,7 @@ namespace Grappa {
             };
             forall_here_async<GCE,Threshold>(0, n, f);
           
-            complete(make_global(GCE,pack.origin));
+            if (GCE) complete(make_global(GCE,pack.origin));
           });
         });
       }
