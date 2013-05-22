@@ -6,49 +6,56 @@
 #define REPLICATE 32
 #include <stdlib.h>
 #include <stdio.h>
-#define TERA_CLOCK(x) random()
 #include <math.h>
-
+#ifdef __MTA__
+#include <machine/mtaops.h>
+#include <mta_rng.h>
+#else
+#define MTA_CLOCK(0) random()
+#endif
 
 #pragma mta parallel off
 #pragma mta expect parallel
-void serial_quick_sort(unsigned *left, unsigned *right) {
-  while (left + 9 < right) {
-    unsigned splitter;
-    unsigned *l = left;
-    unsigned *r = right;
+void serial_quick_sort(double *left, double *right, unsigned parity) {
+  while (left < right) {
+    double splitter;
+    double *l = left;
+    double *r = right;
     {
-      unsigned ran = TERA_CLOCK(0) & MASK;
-      ran %= right - left + 1;
-      splitter = left[ran];
+      unsigned ran = MTA_CLOCK(0) & MASK;
+      ran %= (right - left)/2 + 1;
+      splitter = left[2*ran+parity];
     }
     do {
-      while (*l < splitter) l++;
-      while (*r > splitter) r--;
+      while (l[parity] < splitter) l+=2;
+      while (r[parity] > splitter) r-=2;
       if (l <= r) {
-        unsigned temp = *l;
-        *l++ = *r;
-        *r-- = temp;
+        double temp0 = l[0], temp1 = l[1];
+        l[0] = r[0], l[1] = r[1];
+        l+=2;
+        r[0] = temp0, r[1] = temp1; 
+	r-=2;
       }
     } while (l <= r);
     
     if (r - left > right - l) {
-      serial_quick_sort(l, right);
+      serial_quick_sort(l, right, parity);
       right = r;
     }
     else {
-      serial_quick_sort(left, r);
+      serial_quick_sort(left, r, parity);
       left = l;
     }
     
   }
+  /* not executed: */
   while (left < right) {
-    unsigned *minp = left;
-    unsigned min = *minp;
-    unsigned old_left = min;
-    unsigned *p = left + 1;
+    double *minp = left;
+    double min = *minp;
+    double old_left = min;
+    double *p = left + 1;
     while (p <= right) {
-      unsigned x = *p;
+      double x = *p;
       if (x < min) {
         min = x;
         minp = p;
@@ -63,7 +70,7 @@ void serial_quick_sort(unsigned *left, unsigned *right) {
 
 #pragma mta parallel default
 
-void simple_sort(unsigned *src, unsigned *dst, unsigned n) {
+void simple_sort(double *src, double *dst, unsigned n) {
 #pragma noalias *src, *dst
   unsigned *count = new unsigned[n];
   for (unsigned i = 0; i < n; i++)
@@ -84,18 +91,24 @@ void simple_sort(unsigned *src, unsigned *dst, unsigned n) {
 }
 
 
-
-void sample_sort(unsigned *src, unsigned *dst, unsigned n) {
+/* Records are two double words long.  Keys are src[2*i+parity] */
+void sample_sort_pairs(double *src, double *dst, unsigned n, unsigned parity) {
 #pragma noalias *src, *dst
   unsigned sn = sqrt(n);
-  unsigned *splitter = new unsigned[sn];
-  unsigned *split    = new unsigned[sn];
+  double *splitter = new double[sn];
+  double *split    = new double[sn];
   unsigned *count    = new unsigned[sn + 1];
   unsigned *start    = new unsigned[sn + 1];
+#ifdef __MTA__
+  prand_int(sn, (int *) count);//temp use of count
+#endif
   #pragma mta assert parallel
   for (unsigned i = 0; i < sn; i++)
-    splitter[i] = src[(random() & MASK) % n];
-  
+#ifdef __MTA__
+    splitter[i] = src[2*((count[i] & MASK) % n)+parity];
+#else
+    splitter[i] = src[2*(random() % n)+parity];
+#endif
   for (unsigned i = 0; i < sn; i++)
     count[i] = 0;
   
@@ -117,12 +130,12 @@ void sample_sort(unsigned *src, unsigned *dst, unsigned n) {
     
   
   for (unsigned i = 0; i < n; i++) {
-    unsigned value = src[i];
+    double value = src[2*i+parity];
     unsigned left = 0;
     unsigned right = sn;
     while (left < right) {
       unsigned midpoint = (left + right)/2;
-      unsigned midval = split[midpoint];
+      double midval = split[midpoint];
       if (value < midval)
 	right = midpoint;
       else if (value > midval)
@@ -141,12 +154,12 @@ void sample_sort(unsigned *src, unsigned *dst, unsigned n) {
   
   #pragma mta assert parallel
   for (unsigned i = 0; i < n; i++) {
-    unsigned value = src[i];
+    double value = src[2*i+parity];
     unsigned left = 0;
     unsigned right = sn;
     while (left < right) {
       unsigned midpoint = (left + right)/2;
-      unsigned midval = split[midpoint];
+      double midval = split[midpoint];
       if (value < midval)
 	right = midpoint;
       else if (value > midval)
@@ -155,15 +168,23 @@ void sample_sort(unsigned *src, unsigned *dst, unsigned n) {
 	left = right = midpoint;
     }
     bucket = right;
-    value = int_fetch_add(&start[bucket],1);
-    dst[value] = src[i];
+    int j = int_fetch_add(&start[bucket],1);
+    dst[2*j] = src[2*i];
+    dst[2*j+1] = src[2*i+1];
   }
+
+  int min = 999999999, max = -1;
+  for (int i = 0; i < buckets; i++) {
+    min = count[i] < min ? count[i] : min;
+    max = count[i] > max ? count[i] : max;
+  }
+  fprintf(stderr, "min bucket size %d, max %d\n", min, max);
 
   #pragma mta assert parallel
   for (unsigned i = 0; i < buckets; i++) {
     unsigned first = start[i] - count[i];
     unsigned last = start[i] - 1;
-    serial_quick_sort(dst + first, dst + last);
+    serial_quick_sort(dst + 2*first, dst + 2*last, parity);
   }
   
   
@@ -172,11 +193,18 @@ void sample_sort(unsigned *src, unsigned *dst, unsigned n) {
   delete [] count;
   delete [] start;
 }
-main() {
-  int NR = 1000;
-  unsigned * src = new unsigned[NR];
-  unsigned * dst = new unsigned[NR];
-  for (int i = 0; i < NR; i++) src[i] = ((i+1)*13134134131)%NR;
-  sample_sort(src, dst, NR);
-  for (int i = 0; i < NR; i++) fprintf(stderr, "%d ", dst[i]); fprintf(stderr, "\n");
+int test() {
+  int NR = 100;
+  double * src = new double[2*NR];
+  double * dst = new double[2*NR];
+  for (int i = 0; i < NR; i++) src[2*i] = ((2*i+1)*13134134131)%12;
+  for (int i = 0; i < NR; i++) src[2*i+1] = ((2*i+2)*13134134131)%(2*NR);
+  sample_sort_pairs(src, dst, NR, 1);
+  for (int i = 0; i < NR; i++) fprintf(stderr, "(%d %d) ", int(dst[2*i]),int(dst[2*i+1])); fprintf(stderr, "\n");
+  for (int i = 0; i < NR; i++) dst[2*i] += (1.0*i)/NR;
+  for (int i = 0; i < NR; i++) fprintf(stderr, "(%g %g) ", dst[2*i],dst[2*i+1]); fprintf(stderr, "\n");
+  sample_sort_pairs(dst, src, NR, 0);
+  for (int i = 0; i < NR; i++) fprintf(stderr, "(%d %d) ", int(src[2*i]),int(src[2*i+1])); fprintf(stderr, "\n");
+  return 0;
 }
+

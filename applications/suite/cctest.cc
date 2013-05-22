@@ -3,6 +3,10 @@
 #ifdef __MTA__
 #include "mta_rng.h"
 #endif
+#include <sys/time.h>
+
+void sample_sort_pairs(double *src, double *dst, unsigned n, unsigned parity);
+
 int cmp_u(const void * x, const void * y) {
   double u1 = ((double *) x)[0];
   double u2 = ((double *) y)[0];
@@ -30,9 +34,11 @@ int main(int argc, char **argv) {
 
   int count = connectedComponents(&G);
   fprintf(stderr, "%d components\n", count);
-
-  int NV = atoi(argv[1]);
-  int NE = atoi(argv[2]);
+  int lgNV = atoi(argv[1]);
+  int NV = 1<<lgNV;
+  int lgNE = atoi(argv[2]);
+  int NE = 1<<lgNE;
+  fprintf(stderr, "Building graph w/ %d vertices, %d undirected edges\n", NV,NE);
   G.numEdges = NE;
   G.numVertices = NV;
   G.startVertex = new graphint[NE*2+1];
@@ -43,17 +49,23 @@ int main(int argc, char **argv) {
   double * temp = new double[4*NE];
 #ifdef __MTA__
   prand_int(2*NE, (int*) temp);
-  for (int i = 0; i < 2*NE; i++) temp[i] = ((unsigned int*)temp)[i]%NV;
+  fprintf(stderr, "returned from prand\n");
+  for (int i = 0; i < 2*NE; i++)
+    temp[i] = 1.0*((((int*)temp)[i])&((1<<lgNV)-1));
 #else
   for (int i = 0; i < 2*NE; i++) temp[i] = random()%NV;
 #endif
+  fprintf(stderr, "assigned raw edge numbers\n");
   MTA("mta assert nodep") 
   for (int i = 2*NE; i < 4*NE; i+=2) temp[i] = temp[i+1-2*NE], temp[i+1] = temp[i-2*NE];
   fprintf(stderr, "sort pass 1...\n");
-  qsort(temp, 2*NE, 2*sizeof(temp[0]), cmp_v);
-  for (int i = 0; i < 4*NE; i+=2)  temp[i] += double(i)/4/NE;
+  //qsort(temp, 2*NE, 2*sizeof(temp[0]), cmp_v);
+  double * dest = new double[4*NE];
+  sample_sort_pairs(temp,dest,2*NE,1);
+  for (int i = 0; i < 4*NE; i+=2)  dest[i] += double(i)/4/NE;
   fprintf(stderr, "sort pass 2...\n");
-  qsort(temp, 2*NE, 2*sizeof(temp[0]), cmp_u);
+  //  qsort(temp, 2*NE, 2*sizeof(temp[0]), cmp_u);
+  sample_sort_pairs(dest,temp,2*NE,0);
   fprintf(stderr, "sort pass 2 complete\n");
   MTA("mta assert nodep")
   for (int i = 0; i < 2*NE; i++) G.startVertex[i] = temp[2*i], G.endVertex[i] = temp[2*i+1];
@@ -96,8 +108,11 @@ int main(int argc, char **argv) {
   } fprintf(stderr, "\n");
   fprintf(stderr, "G.edgeStart[%d]=%d\n", j, G.edgeStart[j]);
 #endif
-
+  fprintf(stderr, "Graph is good to go...  calling CC\n");
+  struct timeval tp1; gettimeofday(&tp1, 0);
   count = connectedComponents(&G);
-  fprintf(stderr, "%d components\n", count);
+  struct timeval tp2; gettimeofday(&tp2, 0);
+  int usec = (tp2.tv_sec-tp1.tv_sec)*1000000+(tp2.tv_usec-tp1.tv_usec);
+  fprintf(stderr, "%d components computed in %g secs (%d UTEPS)\n", count,usec/1000000.0,NE*1000000/usec);
 }
 

@@ -3,6 +3,7 @@ include Make.inc
 EXE = suite.exe
 OBJS += 	computeGraph.o \
 		connectedComponentsKahan.o \
+		samplesort.o \
 		genScalData.o \
 		globals.o \
 		graph-manip.o \
@@ -13,10 +14,10 @@ OBJS += 	computeGraph.o \
 		xmalloc.o \
 		centrality.o \
 		compat/mersenne.o
-OBJS2 = connectedComponentsKahan.o
+OBJS2 = connectedComponentsKahan.o samplesort.o
 
 all: $(EXE) make_snaps.exe
-	
+
 $(EXE): main.o $(OBJS) $(COMPATLIB) $(IOLIB)
 	$(LD) $(LDFLAGS) -o $@ $^ $(LIBS)
 
@@ -48,7 +49,7 @@ $(IOLIB) $(COMPATLIB):
 .c.o:
 	$(CC) $(CFLAGS) -c $<
 clean:
-	rm -f *.o $(EXE){,.pl,.ap2} profile.out trace.out cctest cctest.pl
+	rm -f *.o $(EXE){,.pl,.ap2} profile.out trace.out cctest cctest.pl suite.pl
 	-if test -n "$(IOLIB_DIR)" ; then make -C $(IOLIB_DIR) clean; fi
 
 distclean:
