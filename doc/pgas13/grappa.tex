@@ -1,5 +1,7 @@
 \section{Grappa}
+Existing shared memory applications typically do fine-grained operations on data, assuming it is all cheap to access.
+Naively translating these applications to PGAS languages often results in poor performance because many operations must then be done via fine-grained remote communication.
+Much research has been done to improve performance of PGAS implementations by coming up with better ways to partition data and schedule computation, and do communication in bulk to best utilize network resources.
+For regular workloads, most pointedly dense linear algebra, much of this can now be automatically optimized generically.
 
-One of the persistent challenges with PGAS languages is that existing shared memory applications typically do  fine-grained operations, so naively translating them results in poor performance because many operations must be done via remote communication. Many techniques exist, therefore, to help come up with better ways to partition data, schedule computation, and where necessary, do communication in bulk to best utilize network resources.
-
-Irregular applications, however, are characterized by being highly dependent on the shape of the data, making it difficult to statically partition, causing load imbalance, and requiring a majority of fine-grained random accesses.
+Irregular applications, however, are characterized by being highly dependent on the shape of the data, making it difficult to statically partition, causing load imbalance, and requiring a majority of fine-grained random accesses. The goal of the Grappa runtime is to provide a PGAS implementation that has been designed from the ground up to handle such applications.
