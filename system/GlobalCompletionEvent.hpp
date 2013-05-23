@@ -192,7 +192,7 @@ public:
       }
       // block until cancelled
       CHECK_GT(count, 0);
-      DVLOG(2) << "cores_out: " << co << ", count: " << count;
+      DVLOG(2) << "gce(" << this << " cores_out: " << co << ", count: " << count << ")";
     }
   }
   
@@ -253,6 +253,11 @@ public:
   }
   
 };
+
+inline void enroll(GlobalAddress<GlobalCompletionEvent> ce, int64_t decr = 1) {
+  ce.pointer()->enroll(decr);
+}
+
 
 /// Allow calling send_completion using the old way (with global address)
 /// TODO: replace all instances with gce.send_completion and remove this?
