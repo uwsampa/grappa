@@ -24,12 +24,20 @@ namespace Grappa {
     size_t n;
     double mean;
     double M2;
+    T min;
+    T max;
 
     void process( T t ) {
       n++;
       double delta = t - mean;
       mean += delta / n;
       M2 += delta * (t - mean);
+      if (n == 1) {
+        min = t;
+        max = t;
+      }
+      if (t > max) max = t;
+      if (t < min) min = t;
     }
     
     double variance() const {
@@ -90,7 +98,9 @@ namespace Grappa {
       o << '"' << name << "\": " << value_ << ", ";
       o << '"' << name << "_count\": " << n << ", ";
       o << '"' << name << "_mean\": " << mean << ", ";
-      o << '"' << name << "_stddev\": " << stddev();
+      o << '"' << name << "_stddev\": " << stddev() << ", ";
+      o << '"' << name << "_min\": " << min << ", ";
+      o << '"' << name << "_max\": " << max;
       return o;
     }
     
