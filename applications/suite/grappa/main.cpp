@@ -319,19 +319,23 @@ static void user_main(void* ignore) {
     printf("compute_graph_time: %g\n", t);
   }
   
-  call_on_all_cores([]{ Statistics::reset(); });
+  // call_on_all_cores([]{ Statistics::reset(); });
   
   //###############################################
   // Kernel: Connected Components
   if (do_components) {
     printf("Kernel - Connected Components beginning execution...\n"); fflush(stdout);
-    t = timer();
+    t = walltime();
     
+    Statistics::reset_all_cores();
     graphint connected = connectedComponents(g);
     
-    t = timer() - t;
-    std::cout << "ncomponents: " << connected << std::endl;
-    std::cout << "components_time: " << t << std::endl;
+    t = walltime() - t;
+    LOG(INFO) << "ncomponents: " << connected << std::endl;
+    LOG(INFO) << "components_time: " << t << std::endl;
+    
+    // call_on_all_cores([]{ Grappa_stop_profiling(); });
+    Statistics::merge_and_print();
   }  
   
   //###############################################
@@ -372,7 +376,7 @@ static void user_main(void* ignore) {
 
   int64_t nnz = calc_nnz(*g);
   
-  call_on_all_cores([]{ Statistics::reset(); });
+  // call_on_all_cores([]{ Statistics::reset(); });
 
   //###############################################
   // Kernel: Betweenness Centrality
