@@ -86,6 +86,8 @@ public:
   // for arbitrary return type defined by base class
   // auto operator()(Args&&... args) -> decltype(this->T::operator()(std::forward<Args...>(args...))) {
   
+  inline T* operator->() const { return current->id; }
+  
   template< typename F >
   void combine(F func) {
     auto s = current;

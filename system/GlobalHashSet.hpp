@@ -46,7 +46,7 @@ protected:
     // size_t nreq;
     std::unordered_set<K> keys_to_insert; // K keys_to_insert[HASH_SIZE];
     
-    Proxy(GlobalHashSet * owner): owner(owner) {}
+    Proxy(GlobalHashSet * owner): owner(owner), keys_to_insert(1<<14) {}
     
     Proxy * clone_fresh() { return locale_new<Proxy>(owner); }
     
@@ -154,7 +154,7 @@ public:
         
         // this is the first time the key has been seen so add it to the list
         c->entries.emplace_back( key );
-        return; 
+        return;
       });
     }
   }
@@ -162,36 +162,25 @@ public:
   // Inserts the key if not already in the set
   //
   // asynchronous operation
-  template< GlobalCompletionEvent * GCE = impl::local_gce >
-  void insert_async( K key ) {
-    uint64_t index = computeIndex( key );
-    GlobalAddress< Cell > target = base + index; 
-
-    delegate::call_async<GCE>(shared_pool, target.node(), [key,target] {
-      Cell * c = target.pointer();
-      
-      uint64_t steps=0;
-      
-      // find matching key in the list
-      int64_t i;
-      int64_t sz = c->entries.size();
-      for (i = 0; i<sz; i++) {
-        steps+=1;
-        Entry e = c->entries[i];
-        if ( e.key == key ) {
-          cell_traversal_length+=steps;
-          return;
-        }
-      }
-      cell_traversal_length+=steps;
-      
-      // this is the first time the key has been seen
-      // so add it to the list
-      c->entries.emplace_back( key );
-      // max_cell_length.add( sz+1 );
-   });
+  template< typename F >
+  void insert_async( K key, F sync) {
+    proxy->insert(key);
+    if (proxy->is_full()) {
+      privateTask([this,sync]{
+        this->proxy.combine([](Proxy& p){});
+        sync();
+      });
+    }
+    sync();
   }
-
+  
+  void sync_all_cores() {
+    auto self = this->self;
+    on_all_cores([self]{
+      self->proxy.combine([](Proxy& p){});
+    });
+  }
+  
   template< GlobalCompletionEvent * GCE = &impl::local_gce, typename F = decltype(nullptr) >
   void forall_keys(F visit) {
     forall_localized<GCE>(base, capacity, [visit](int64_t i, Cell& c){
