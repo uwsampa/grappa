@@ -13,6 +13,7 @@ namespace d = Grappa::delegate;
 
 DECLARE_int64(cc_hash_size);
 DEFINE_int64(cc_concurrent_roots, 1, "number of concurrent `explores` to have at a given time");
+DEFINE_bool(cc_insert_async, false, "do inserts asynchronously (keeps them local until end)");
 
 struct Edge {
   graphint start, end;
@@ -84,11 +85,15 @@ void explore(graphint v, graphint mycolor, GlobalAddress<CompletionEvent> owner)
       } else {
         // already had color
         // TODO: avoid spawning task? (i.e. make insert() async)
-        privateTask([ec,mycolor,owner]{
-          Edge edge = (*ec > mycolor) ? Edge{mycolor,*ec} : Edge{*ec,mycolor};
-          component_edges->insert(edge);
-          complete(owner);
-        });
+        Edge edge = (*ec > mycolor) ? Edge{mycolor,*ec} : Edge{*ec,mycolor};
+        if (FLAGS_cc_insert_async) {
+          component_edges->insert_async(edge, [owner]{ complete(owner); });
+        } else {
+          privateTask([edge,owner]{
+            component_edges->insert(edge);
+            complete(owner);
+          });
+        }
       }
     });
   });
@@ -211,6 +216,7 @@ graphint connectedComponents(graph * in_g) {
     }
   });
   gce.wait();
+  if (FLAGS_cc_insert_async) { component_edges->sync_all_cores(); }
   
   t = walltime() - t;
   
