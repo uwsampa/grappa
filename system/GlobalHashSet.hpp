@@ -121,19 +121,25 @@ public:
   }
   
   bool lookup ( K key ) {
-    uint64_t index = computeIndex( key );
-    GlobalAddress< Cell > target = base + index; 
-    
-    return delegate::call(target, [key](Cell* c) {
-      int64_t i;
-      int64_t sz = c->entries.size();
-      for (i = 0; i<sz; ++i) {
-        if ( c->entries[i].key == key ) {  // typename K must implement operator==
-          return true;
+    if (FLAGS_flat_combining) {
+      bool result;
+      proxy.combine([&result,key,this](Proxy& p){
+        if (p.keys_to_insert.count(key) > 0) {
+          result = true;
+        } else {
+          result = delegate::call(this->base+this->computeIndex(key), [key](Cell* c){
+            for (auto& e : c->entries) if (e.key == key) return true;
+            return false;
+          });
         }
-      }
-      return false;
-    });
+      });
+      return result;
+    } else {
+      return delegate::call(base+computeIndex(key), [key](Cell* c){
+        for (auto& e : c->entries) if (e.key == key) return true;
+        return false;
+      });
+    }
   }
 
 
