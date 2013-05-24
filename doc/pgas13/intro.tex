@@ -18,7 +18,7 @@ The observation of previous work was that the cost of many of these failed synch
 If multiple threads delegate a single thread to do all of their operations, they can avoid excessive synchronization overhead on ``hot'' locations.
 
 The trick is coming up with a mechanism for delegating that has lower synchronization overhead than the original contention case.
-Prior work showed that a cleverly-implemented ``publication lists'' can allow multiple accessors to cooperate with minimal synchronization.
+Prior work showed that a cleverly-implemented ``publication list'' can allow multiple accessors to cooperate with minimal synchronization.
 This same work makes the additional observation that, given the semantics of some particular data structures, the set of accesses being serialized can be composed and performed more efficiently \emph{combined} than individually, which they dub \emph{flat combining}.
 Together, the reduced synchronization cost and combined operations allow even a data structure with a single global lock to scale better than complicated concurrent data structure implementations with fine-grained locking.
 Further, the same publication list mechanism can be applied to other data structures, and all that must be customized is the particular way in which operations for a given data structure can be combined.

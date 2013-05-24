@@ -1,3 +1,24 @@
 \section{Flat Combining}
 
-Flat combining allows threads to cooperate when accessing a synchronized shared data structure to get greater overall throughput than even each of them operating serially. The trick, however, is designing a way for the threads to communicate their intentions to each other without incurring the same problem they had before.
+Flat combining allows threads to cooperate when accessing a synchronized shared data structure to get greater overall throughput than even each of them operating serially. Careful engineering must be employed to implement a mechanism for cooperation that does not introduce the same synchronization issues as the original contended data structure. However, the same delegation mechanism can be reused in any data structure protected by a single global lock. 
+
+\subsection{Physically-shared memory}
+
+The benefits of flat-combining can be broken down into three components: improved locality, reduced synchronization, and data structure-specific optimization. Having a single thread bound to a particular core do a string of accesses trivially results in a lower cache miss rate than having multiple threads on multiple cores bring the data structure into cache each in turn.
+
+The story for reducing synchronization is more complicated. Locks fail to scale primarily because as contention increases, there will be more failed synchronization attempts (failed \emph{compare and swap}, or \emph{CAS} operations), which have to be retried until they succeed.
+Instead of accessing a data structure directly, threads can delegate their work to another core by adding their requests to the structure's publication list. However, in a naive implementation, they still need to perform a synchronization operation every time they add a request to ensure they do not collide with other threads.
+The solution proposed and implemented did not eliminate this problem directly. Each thread must pay the synchronization cost to insert a publication record into the list once, but after that, it may reuse the record for subsequent accesses without synchronizing. The insight is that threads typically perform many operations on the same data structure, so the synchronization cost is amortized. 
+
+Scanning and combining...
+
+\subsection{Grappa Flat Combining Framework}
+
+In a physically-distributed setting, and in Grappa in particular, a number of different choices are made when implementing flat combining. 
+
+Because memory is physically distributed, locality must be made explicit in the Grappa version of flat combining.
+
+In Grappa there are orders of magnitude more concurrent threads (``workers'') accessing shared data structures. Typically around a thousand are needed per core to tolerate the latency of remote operations, so in a cluster of machines, there are easily millions of workers.
+
+By design, each core in Grappa operates independently of the other cores. Workers are scheduled cooperatively, so each worker can automatically assume atomicity between remote calls. Therefore workers within a core can cooperate without any explicit synchronization operations. This allows them to publish requests to the local data structure proxy cheaply, so the publication list need not amortize the cost of synchronization. Instead, it can contain just the workers that are actually blocking on accesses to the data structure, eliminating the cost of detecting and removing unused publication records.
+
