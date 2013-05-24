@@ -62,7 +62,7 @@ class FlatCombiner {
     Worker * sender;
     ConditionVariable cv;
     Flusher(T * id): id(id), sender(nullptr) {}
-    ~Flusher() { locale_free(id); }
+    ~Flusher() { id->~T(); locale_free(id); }
   };
   
   Flusher * current;
