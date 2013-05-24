@@ -66,7 +66,9 @@ namespace Grappa {
       , value_(initial_value)
       , n(0) // TODO: this assumes initial_value is not actually a value
       , mean(initial_value)
-      , M2(0) {
+      , M2(0)
+      , min(0)
+      , max(0) {
 #ifdef VTRACE_SAMPLED
       if (SummarizingStatistic::vt_type == -1) {
         LOG(ERROR) << "warning: VTrace sampling unsupported for this type of SummarizingStatistic.";
