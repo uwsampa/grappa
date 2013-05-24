@@ -28,6 +28,14 @@
 #include <AsyncDelegate.hpp>
 #include <Statistics.hpp>
 
+bool first_phase = false;
+bool second_phase = false;
+
+#define LOOP_1_THRESHOLD 1
+#define LOOP_2_THRESHOLD 16
+#define LOOP_3_THRESHOLD 128
+
+
 // command line parameters
 
 // file input
@@ -43,17 +51,21 @@ DEFINE_bool( print, false, "Print results" );
 
 
 // outputs
-GRAPPA_DEFINE_STAT(SimpleStatistic<double>, triangles_runtime, 0);
 GRAPPA_DEFINE_STAT(SimpleStatistic<uint64_t>, first_join_count, 0);
 GRAPPA_DEFINE_STAT(SimpleStatistic<uint64_t>, first_join_select_count, 0);
 GRAPPA_DEFINE_STAT(SimpleStatistic<uint64_t>, second_join_count, 0);
 GRAPPA_DEFINE_STAT(SimpleStatistic<uint64_t>, second_join_select_count, 0);
 GRAPPA_DEFINE_STAT(SimpleStatistic<uint64_t>, triangle_count, 0);
 
+GRAPPA_DEFINE_STAT(SimpleStatistic<double>, triangles_runtime, 0);
 GRAPPA_DEFINE_STAT(SimpleStatistic<double>, hash_runtime, 0);
+GRAPPA_DEFINE_STAT(SimpleStatistic<double>, read_runtime, 0);
 
 
 using namespace Grappa;
+
+GlobalCompletionEvent joiner;
+
 
 std::ostream& operator<<( std::ostream& o, const Tuple& t ) {
   o << "T( ";
@@ -75,14 +87,12 @@ DHT_type joinTable;
 
 // local RO copies
 GlobalAddress<Tuple> local_tuples;
-Column local_join1Left, local_join1Right, local_join2Right;
-Column local_select;
 GlobalAddress<Tuple> IndexBase;
 
 // local counters
-uint64_t local_triangle_count;
-uint64_t local_first_join_results;
-uint64_t local_second_join_results;
+//uint64_t local_triangle_count;
+//uint64_t local_first_join_results;
+//uint64_t local_second_join_results;
 
 
 template< typename T >
@@ -94,6 +104,7 @@ inline void print_array(const char * name, GlobalAddress<T> base, size_t nelem, 
   } else {
     ss << "(trunc)";
   }
+  limit = (limit > nelem) ? nelem : limit;
 
   ss << " [";
   for (size_t i=0; i<limit; i++) {
@@ -158,29 +169,36 @@ GlobalAddress<Tuple> generate_data( size_t scale, size_t edgefactor, size_t * nu
 }
 
 void scanAndHash( GlobalAddress<Tuple> tuples, size_t num ) {
-  forall_localized( tuples, num, [](int64_t i, Tuple& t) {
-    int64_t key = t.columns[local_join1Left];
+  forall_localized( tuples, num, [](int64_t start, int64_t iters, Tuple * mytuples) {
 
-    VLOG(2) << "insert " << key << " | " << t;
-    joinTable.insert( key, t );
+    // allocate space for asynchronous insertions
+    char pool_storage[joinTable.insertion_pool_size( iters )];
+    MessagePool pool( pool_storage, sizeof(pool_storage) );
+
+    for (int64_t i = 0; i<iters; i++) {
+
+      Tuple t = mytuples[i];
+      int64_t key = t.columns[0];
+
+      DVLOG(4) << "insert " << key << " | " << t;
+      joinTable.insert_async( key, t, pool );
+    }
   });
 }
 
+double read_start, read_end;
 
-void triangles( GlobalAddress<Tuple> tuples, size_t num_tuples, Column ji1, Column ji2, Column ji3, Column s ) {
+void triangles( GlobalAddress<Tuple> tuples, size_t num_tuples ) {
   // initialization
-  on_all_cores( [tuples, ji1, ji2, ji3, s] {
+  on_all_cores( [tuples] {
     local_tuples = tuples;
-    local_join1Left = ji1;
-    local_join1Right = ji2;
-    local_join2Right = ji3;
-    local_select = s;
-    local_triangle_count = 0;
-    local_first_join_results = 0;
-    local_second_join_results = 0;
+    //local_triangle_count = 0;
+    //local_first_join_results = 0;
+    //local_second_join_results = 0;
   });
   
   on_all_cores( [] { Grappa::Statistics::reset(); } );
+  read_runtime = read_end-read_start;
     
   // scan tuples and hash join col 1
   VLOG(1) << "Scan tuples, creating index on subject";
@@ -208,15 +226,18 @@ void triangles( GlobalAddress<Tuple> tuples, size_t num_tuples, Column ji1, Colu
   });
 #else
   DHT_type::set_RO_global( &joinTable );
+  CHECK( joinTable.size() == num_tuples);
+  //CHECK( joinTable.numUniqueKeys() == num_vertices ) << joinTable.numUniqueKeys();
 #endif
 
+  //on_all_cores([]{Grappa_start_profiling();});
   start = Grappa_walltime();
   VLOG(1) << "Starting 1st join";
-  forall_localized( tuples, num_tuples, [](int64_t i, Tuple& t) {
-    int64_t key = t.columns[local_join1Right];
+  forall_localized<&joiner,LOOP_1_THRESHOLD>( tuples, num_tuples, [](int64_t i, Tuple& t) {
+    int64_t key = t.columns[1];
    
     // will pass on this first vertex to compare in the select 
-    int64_t x1 = t.columns[local_join1Left];
+    int64_t x1 = t.columns[0];
 
 #if SORTED_KEYS
     // first join
@@ -234,11 +255,12 @@ void triangles( GlobalAddress<Tuple> tuples, size_t num_tuples, Column ji1, Colu
     // first join
     GlobalAddress<Tuple> results_addr;
     size_t num_results = joinTable.lookup( key, &results_addr );
+   
     
     // iterate over the first join results in parallel
     // (iterations must spawn with synch object `local_gce`)
     /* not yet supported: forall_here_async_public< GCE=&local_gce >( 0, num_results, [x1,results_addr](int64_t start, int64_t iters) { */
-    forall_here_async( 0, num_results, [x1,results_addr](int64_t start, int64_t iters) { 
+    forall_here_async<&joiner,LOOP_2_THRESHOLD>( 0, num_results, [x1,results_addr](int64_t start, int64_t iters) { 
       Tuple subset_stor[iters];
       Incoherent<Tuple>::RO subset( results_addr+start, iters, subset_stor );
 #endif
@@ -246,7 +268,7 @@ void triangles( GlobalAddress<Tuple> tuples, size_t num_tuples, Column ji1, Colu
       //local_first_join_results+=iters;
       first_join_count+=iters;
       for ( int64_t i=0; i<iters; i++ ) {
-        int64_t key = subset[i].columns[local_join2Right];
+        int64_t key = subset[i].columns[1];
 
         int64_t x2 = subset[i].columns[0];
         VLOG(5) << "COMPARING x1=" << x1 << " < x2=" << x2; 
@@ -276,17 +298,34 @@ void triangles( GlobalAddress<Tuple> tuples, size_t num_tuples, Column ji1, Colu
           // iterate over the second join results in parallel
           // (iterations must spawn with synch object `local_gce`)
           /* not yet supported: forall_here_async_public< GCE=&local_gce >( 0, num_results, [x1,results_addr](int64_t start, int64_t iters) { */
-          forall_here_async( 0, num_results, [x1,x2,results_addr](int64_t start, int64_t iters) {
+          forall_here_async<&joiner,LOOP_3_THRESHOLD>( 0, num_results, [x1,x2,results_addr](int64_t start, int64_t iters) {
             Tuple subset_stor[iters];
             Incoherent<Tuple>::RO subset( results_addr+start, iters, subset_stor );
 #endif
             second_join_count += iters;
+  
+            //phased profiling    
+            /*
+     if (Grappa::mycore()==0) {
+     if (second_join_count > 1000000 && !first_phase) {
+      first_phase = true;
+      call_on_all_cores([]{Grappa_stop_profiling();}); 
+      call_on_all_cores([]{Grappa_start_profiling();}); 
+      }
+  
+     if (second_join_count > 22000000 && !second_phase) { 
+      second_phase = true;
+      call_on_all_cores([]{Grappa_stop_profiling();}); 
+      }
+      }
+      */
+      
 
             for ( int64_t i=0; i<iters; i++ ) {
               int64_t r = subset[i].columns[0];
               if ( x2 < r ) {  // select on ordering 
                 second_join_select_count+=1;
-                if ( subset[i].columns[local_select] == x1 ) { // select on triangle
+                if ( subset[i].columns[1] == x1 ) { // select on triangle
                   if (FLAGS_print) {
                     VLOG(1) << x1 << " " << x2 << " " << r;
                   }
@@ -329,20 +368,18 @@ void user_main( int * ignore ) {
     VLOG(1) << "Reading data from " << FLAGS_fin;
     
     tuples = Grappa_typed_malloc<Tuple>( FLAGS_file_num_tuples );
+    read_start = Grappa_walltime();
     readTuples( FLAGS_fin, tuples, FLAGS_file_num_tuples );
+    read_end = Grappa_walltime();
     num_tuples = FLAGS_file_num_tuples;
     
     print_array( "file tuples", tuples, FLAGS_file_num_tuples, 1, 200 );
   }
 
-  DHT_type::init_global_DHT( &joinTable, 64 );
-
-  Column joinIndex1 = 0; // subject
-  Column joinIndex2 = 1; // object
-  Column select = 1; // object
+  DHT_type::init_global_DHT( &joinTable, num_tuples/8 );
 
   // triangle (assume one index to build)
-  triangles( tuples, num_tuples, joinIndex1, joinIndex2, joinIndex2, select ); 
+  triangles( tuples, num_tuples ); 
 }
 
 
