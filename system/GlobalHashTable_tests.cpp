@@ -31,6 +31,8 @@ DEFINE_int64(ntrials, 1, "number of independent trials to average over");
 DEFINE_bool(table_perf, false, "do performance test of GlobalHashTable");
 DEFINE_bool(set_perf, false, "do performance test of GlobalHashSet");
 
+DEFINE_bool(insert_async, false, "do async inserts");
+
 GRAPPA_DEFINE_STAT(SummarizingStatistic<double>, ght_insert_time, 0);
 GRAPPA_DEFINE_STAT(SummarizingStatistic<double>, hashset_insert_time, 0);
 
@@ -124,14 +126,26 @@ void test_set_correctness() {
   sa->destroy();
 }
 
+CompletionEvent lce;
+
 double test_set_insert_throughput() {
   auto sa = GlobalHashSet<long>::create(FLAGS_global_hash_size);
   
   double t = walltime();
   
-  forall_global_private(0, FLAGS_nelems, [sa](int64_t i){
-    sa->insert(next_random<long>() % FLAGS_max_key);
-  });
+  if (FLAGS_insert_async) {
+    forall_global_private<&lce>(0, FLAGS_nelems, [sa](int64_t i){
+      auto k = next_random<long>() % FLAGS_max_key;
+      lce.enroll();
+      sa->insert_async(k, []{ lce.complete(); });
+    });
+    sa->sync_all_cores();
+  } else {  
+    forall_global_private(0, FLAGS_nelems, [sa](int64_t i){
+      auto k = next_random<long>() % FLAGS_max_key;
+      sa->insert(k);
+    });
+  }
 
   t = walltime() - t;
   
