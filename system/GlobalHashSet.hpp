@@ -18,6 +18,8 @@ GRAPPA_DECLARE_STAT(SummarizingStatistic<uint64_t>, cell_traversal_length);
 
 GRAPPA_DECLARE_STAT(SimpleStatistic<size_t>, hashset_insert_ops);
 GRAPPA_DECLARE_STAT(SimpleStatistic<size_t>, hashset_insert_msgs);
+GRAPPA_DECLARE_STAT(SimpleStatistic<size_t>, hashset_lookup_ops);
+GRAPPA_DECLARE_STAT(SimpleStatistic<size_t>, hashset_lookup_msgs);
 
 namespace Grappa {
 
@@ -121,12 +123,14 @@ public:
   }
   
   bool lookup ( K key ) {
+    ++hashset_lookup_ops;
     if (FLAGS_flat_combining) {
       bool result;
       proxy.combine([&result,key,this](Proxy& p){
         if (p.keys_to_insert.count(key) > 0) {
           result = true;
         } else {
+          ++hashset_lookup_msgs;
           result = delegate::call(this->base+this->computeIndex(key), [key](Cell* c){
             for (auto& e : c->entries) if (e.key == key) return true;
             return false;
@@ -135,6 +139,7 @@ public:
       });
       return result;
     } else {
+      ++hashset_lookup_msgs;
       return delegate::call(base+computeIndex(key), [key](Cell* c){
         for (auto& e : c->entries) if (e.key == key) return true;
         return false;
