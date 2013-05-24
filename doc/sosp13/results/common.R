@@ -20,3 +20,11 @@ label_pretty <- function(variable, value) {
   vname <- if (regex_match('variable|value',variable)) '' else paste(variable,': ')
   lapply(paste(vname, prettify(as.character(value))), paste, collapse="\n")
 }
+
+x <- function(...) { return(paste(..., sep='•')) }
+
+db <- function(query, factors, db="pgas.sqlite") {
+  d <- sqldf(query, dbname=db)
+  d[factors] <- lapply(d[factors], factor)
+  return(d)
+}

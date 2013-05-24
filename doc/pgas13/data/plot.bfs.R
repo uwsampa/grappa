@@ -6,12 +6,6 @@ library(extrafont)
 loadfonts()
 source("common.R")
 
-db <- function(query, factors, db="pgas.sqlite") {
-  d <- sqldf(query, dbname=db)
-  d[factors] <- lapply(d[factors], factor)
-  return(d)
-}
-
 q1 <- "select * from bfs where scale == 23 or scale == 26"
 q2 <- "select * from bfs where scale == 26 and bfs_version like 'beamer_queue'"
 
@@ -27,15 +21,17 @@ g <- ggplot(d, aes(
     x=num_starting_workers,
     y=value,
     color=version_combining,
-    shape=aggregator_autoflush_ticks
+    shape=aggregator_autoflush_ticks,
+    group=flat_combining
     # label=nnode~ppn,
   ))+
   geom_point()+
+  geom_smooth(aes(linetype=flat_combining))+
   # facet_grid(~variable~ppn, scales="free", labeller=label_bquote(.(prettify(x))))+
   facet_grid(~variable~nnode~ppn~scale, scales="free", labeller=label_pretty)+
   ylab("")+
   expand_limits(y=0)+
   my_theme
 
-g
+ggsave(plot=g, filename="plots/bfs_perf.pdf", scale=1.2)
 

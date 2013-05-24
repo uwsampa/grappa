@@ -32,5 +32,5 @@ g <- ggplot(d, aes(
   expand_limits(y=0)+
   my_theme
 
-g
+ggsave(plot=g, filename="plots/queue_thru.pdf", scale=1.4)
 
