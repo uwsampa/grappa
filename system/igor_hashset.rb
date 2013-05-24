@@ -8,8 +8,11 @@ Igor do
     nelems: [1024],
     ntrials: [1],
     max_key: [1024],
-    global_hash_size: [1024]
+    global_hash_size: [1024],
+    fraction_lookups: [0.5],
+    insert_async: [0],
   })
+  @params.merge!(GFLAGS)
   command @test_cmd['GlobalHashTable_tests', '--set_perf']
   
   params {
