@@ -17,6 +17,7 @@
 #include <boost/random/mersenne_twister.hpp>
 #include <boost/random/uniform_int.hpp>
 #include <boost/random/variate_generator.hpp>
+#include <random>
 
 using namespace Grappa;
 
@@ -33,6 +34,8 @@ DEFINE_bool(set_perf, false, "do performance test of GlobalHashSet");
 
 DEFINE_bool(insert_async, false, "do async inserts");
 
+DEFINE_double(fraction_lookups, 0.0, "fraction of accesses that should be lookups");
+
 GRAPPA_DEFINE_STAT(SummarizingStatistic<double>, ght_insert_time, 0);
 GRAPPA_DEFINE_STAT(SummarizingStatistic<double>, hashset_insert_time, 0);
 
@@ -47,6 +50,12 @@ inline T next_random() {
   static engine_t engine(12345L*mycore());
   static gen_t gen(engine, dist_t(0, std::numeric_limits<T>::max()));
   return gen();
+}
+
+bool choose_random(double probability) {
+  std::default_random_engine e(12345L);
+  std::uniform_real_distribution<double> dist(0.0, 1.0);
+  return dist(e) < probability;
 }
 
 uint64_t kahan_hash(long k) { return k * 1299227; } // "Kahan's Hash"
@@ -106,11 +115,9 @@ void test_set_correctness() {
   auto sa = GlobalHashSet<long>::create(FLAGS_global_hash_size);
   
   for (int i=0; i<10; i++) {
-    // BOOST_CHECK_EQUAL(sa->insert(i), false);
     sa->insert(42+i);
   }
   for (int i=0; i<10; i++) {
-    // BOOST_CHECK_EQUAL(sa->insert(i), true);
     BOOST_CHECK_EQUAL(sa->lookup(42+i), true);
   }
 
@@ -133,19 +140,20 @@ double test_set_insert_throughput() {
   
   double t = walltime();
   
-  if (FLAGS_insert_async) {
-    forall_global_private<&lce>(0, FLAGS_nelems, [sa](int64_t i){
-      auto k = next_random<long>() % FLAGS_max_key;
-      lce.enroll();
-      sa->insert_async(k, []{ lce.complete(); });
-    });
-    sa->sync_all_cores();
-  } else {  
-    forall_global_private(0, FLAGS_nelems, [sa](int64_t i){
-      auto k = next_random<long>() % FLAGS_max_key;
-      sa->insert(k);
-    });
-  }
+  forall_global_private<&lce>(0, FLAGS_nelems, [sa](int64_t i){
+    auto k = next_random<long>() % FLAGS_max_key;
+    if (choose_random(FLAGS_fraction_lookups)) {
+      sa->lookup(k);
+    } else {
+      if (FLAGS_insert_async) {
+        lce.enroll();
+        sa->insert_async(k, []{ lce.complete(); });
+      } else {
+        sa->insert(k);
+      }
+    }
+  });
+  if (FLAGS_insert_async) sa->sync_all_cores();
 
   t = walltime() - t;
   
