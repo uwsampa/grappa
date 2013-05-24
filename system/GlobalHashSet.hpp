@@ -41,12 +41,10 @@ protected:
   };
 
   struct Proxy {
-    const size_t LOCAL_HASH_SIZE = 1<<13;
+    static const size_t LOCAL_HASH_SIZE = 1<<10;
     
     GlobalHashSet * owner;
-    // size_t reqs[NREQUESTS];
-    // size_t nreq;
-    std::unordered_set<K> keys_to_insert; // K keys_to_insert[HASH_SIZE];
+    std::unordered_set<K> keys_to_insert;
     
     Proxy(GlobalHashSet * owner): owner(owner), keys_to_insert(LOCAL_HASH_SIZE) {}
     
@@ -172,8 +170,9 @@ public:
         this->proxy.combine([](Proxy& p){});
         sync();
       });
+    } else {
+      sync();        
     }
-    sync();
   }
   
   void sync_all_cores() {
