@@ -41,16 +41,18 @@ protected:
   };
 
   struct Proxy {
+    const size_t LOCAL_HASH_SIZE = 1<<13;
+    
     GlobalHashSet * owner;
     // size_t reqs[NREQUESTS];
     // size_t nreq;
     std::unordered_set<K> keys_to_insert; // K keys_to_insert[HASH_SIZE];
     
-    Proxy(GlobalHashSet * owner): owner(owner), keys_to_insert(1<<14) {}
+    Proxy(GlobalHashSet * owner): owner(owner), keys_to_insert(LOCAL_HASH_SIZE) {}
     
     Proxy * clone_fresh() { return locale_new<Proxy>(owner); }
     
-    bool is_full() { return false; }
+    bool is_full() { return keys_to_insert.size() >= LOCAL_HASH_SIZE; }
     
     void insert(const K& newk) {
       ++hashset_insert_ops;
