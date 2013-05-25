@@ -11,6 +11,7 @@
 #include "compat/xmt-ops.h"
 #endif
 #include "defs.h"
+#include <math.h>
 
 /// Input: an undirected graph g with unintialized array C$ = g->marks.
 /// Output: return number of unique C$ values when C$[i] == C$[j] iff
@@ -52,105 +53,6 @@
 /// The number of components is the number of x st x == C$[x].
 ///
 static unsigned int hash(int x) {return x*1299227;}
-template <class T, int LOG_CONCURRENCY=8> class Set {
-public:
- class T_e {
-  public:
-   T val;
-   T_e * next;
-   T_e(T v, T_e* n):val(v),next(n){}
-   T_e():val(0),next(0){}
- };
-protected:
-  const static int width = (1<<LOG_CONCURRENCY);
-  T_e * table$[width];
-  int64_t count[width];
- public:
-  Set() {
-    memset(table$,0,sizeof(table$[0])*width);
-    memset(count,0,sizeof(*count)*width);
-  }
- ~Set() {
-   MTA("mta assert parallel")
-   for (int i = 0; i < width; i++) {
-     T_e * t, * h = table$[i];
-     while (h) t = h, h = h->next, delete t;
-   }
- }
- void insert(T v) {
-   int x = hash(v.key()) % width;
-   T_e * p, * h;
-   h = readfe(&table$[x]); // lock table list
-   p = h;
-   while (p && p->val != v) p = p->next;
-   if (!p) {
-     h = new T_e(v,table$[x]);
-     int_fetch_add(&count[x],1);
-   }
-   table$[x] = h; // unlock table list
- }
- int dump(T* &dumpee) {
-   //
-   //   for (int i = 0; i < width; i++) {
-   //     T_e * p = table$[i];
-   //     fprintf(stderr, "%d: ", i);
-   //     while (p) {
-   //       fprintf(stderr, "(%d %d) ", p->val.x, p->val.y);
-   //       p = p->next;
-   //     }
-   //     fprintf(stderr, "\n");
-   //   }
-   //
-   for (int i = 1; i < width; i++) count[i]+=count[i-1];
-   int size = count[width-1];
-   dumpee = new T[size];
-   MTA("mta assert parallel")
-   for (int i = 0; i < width; i++) {
-     T_e * t, * h = table$[i];
-     while (h != NULL) t = h, h = h->next, dumpee[--count[i]] =t->val, delete t;
-     table$[i] = NULL;
-   }
-   //
-   fprintf(stderr, "dump size: %d\n", size);
-   //
-   return size;
-  }
-};
-
-template <class T, int64_t EMPTY=0x7fffffffffffffff> class ApproxStack : public Set <T> {
-  using Set<T>::width;
-  using Set<T>::table$;
-  typedef typename Set<T>::T_e T_e;
-  // T_e* T_e::new() max waterline will be 2*NV, so should do own mgmt someday
- public:
-  static const int64_t empty=EMPTY;
- void push(T v) {
-   unsigned int x = hash(MTA_CLOCK(0)) % width;
-   T_e * t;
-   t = new T_e(v,0);
-   t->next = readfe(&table$[x]); // lock table list
-   table$[x] = t; // unlock table list
- }
- T pop() {
-   T t;
-   T_e * tp;
-   unsigned int x = hash(MTA_CLOCK(0)) % width;
-   for (int i = 0; i < width; i++) {
-     tp = readfe(&table$[x]);
-     if (tp) {
-       table$[x] = tp->next;
-       t = tp->val;
-       delete tp;
-       return t;
-     }
-     else table$[x] = tp;
-     x = (x+1) % width;
-   }
-   return empty;
-}
- void insert(T v) {push(v);}
-};
-
 template <typename T> class Pair {
 public:
   T x,y;
@@ -161,17 +63,143 @@ public:
     return ((x!=b.x)||(y!=b.y));
   }
 };
-		       
+template <typename T, int LOG_CONCURRENCY=7> class Set {
+public:
+ class T_e {
+  public:
+   T val;
+   T_e * next;
+   T_e(T v, T_e* n):val(v),next(n){}
+   T_e():val(),next(0){}
+ };
+protected:
+  const static int width = (1<<LOG_CONCURRENCY);
+  T_e * table$[width];
+  int64_t count[width];
+  struct {
+    T_e *elt;
+    int num;
+  } heap[width];
+  int num_per_heap;
+ public:
+
+  Set(){
+    memset(table$,0,sizeof(table$[0])*width);
+    memset(count,0,sizeof(*count)*width);
+  }
+  ~Set() {
+   MTA("mta assert parallel")
+   for (int i = 0; i < width; i++) {
+     T_e * t, * h = table$[i];
+     while (h) t = h, h = h->next, delete t;
+   }
+  }
+  void insert(T v) {
+   int x = hash(v.key()) % width;
+   T_e * p, * h;
+   for (int i = 0; i < 2; i++) {
+     if (i == 0)
+       h = table$[x];
+     else 
+       h = readfe(&table$[x]); // lock table list
+     p = h;
+     while (p && p->val != v) p = p->next;
+     if (!p) {
+       if(i==0) continue;
+       h = new T_e(v,table$[x]);
+       int_fetch_add(&count[x],1);
+     } else {
+       if (i==0) break;
+     }
+     table$[x] = h; // unlock table list
+   }
+  }
+  int dump(T* &dumpee) {
+   for (int i = 1; i < width; i++) count[i]+=count[i-1];
+   int size = count[width-1];
+   dumpee = new T[size];
+   MTA("mta assert parallel")
+   for (int i = 0; i < width; i++) {
+     T_e * t, * h = table$[i];
+     while (h != NULL) t = h, h = h->next, dumpee[--count[i]] =t->val;
+     table$[i] = NULL;
+   }
+   delete &heap[0].elt[0];
+   //
+   fprintf(stderr, "dump size: %d\n", size);
+   //
+   return size;
+ }
+};
+
+template <class T, int64_t EMPTY=0x7fffffffffffffff> class ApproxStack : public Set <T> {
+  using Set<T>::width;
+  using Set<T>::table$;
+  typedef typename Set<T>::T_e T_e;
+  // T_e* T_e::new() max waterline will be 2*NV
+ public:
+  ApproxStack(graphint expected=0) {
+    num_per_heap = expected/width;
+    fprintf(stderr, "%d in each of %d approx stack heaps\n", num_per_heap, width);
+    T_e * space = (T_e *) malloc(sizeof(T_e)*expected);
+   for (int i = 0; i < width; i++) {
+      heap[i].elt = space+i*num_per_heap;
+      heap[i].num = num_per_heap;
+    }
+  }
+  ~ApproxStack() {
+    delete heap[0].elt;
+  }
+  void Reset() {
+   for (int i = 0; i < width; i++) {
+      heap[i].num = num_per_heap;
+   }
+  }
+  static const int64_t empty=EMPTY;
+  void push(T v) {
+   unsigned int x = hash(MTA_CLOCK(0)) % width;
+   T_e * t;
+   int p = int_fetch_add(&heap[x].num,-1)-1;
+   if (p > 0) {
+     t = &heap[x].elt[p];
+     t->val = v;
+   } else {
+     t = new T_e(v,0);
+   }
+   t->next = readfe(&table$[x]); // lock table list
+   table$[x] = t; // unlock table list
+  }
+  T pop() {
+    T t;
+    T_e * tp;
+    unsigned int x = hash(MTA_CLOCK(0)) % width;
+    for (int i = 0; i < width; i++) {
+      tp = readfe(&table$[x]);
+      if (tp) {
+	table$[x] = tp->next;
+	t = tp->val;
+	//delete tp;
+	return t;
+      }
+      else table$[x] = tp;
+      x = (x+1) % width;
+    }
+    return empty;
+  }
+  void insert(T v) {push(v);}
+};
+
 class ConnectedComponents {
+  int starttime;
   graph * g;
-  Set < Pair < graphint > > InducedGraph;
-  ApproxStack <graphint> Q;
+  Set < Pair < graphint >, 14 > *InducedGraph;
+  ApproxStack <graphint> *Q;
   int64_t * V; //visited array
   graphint * C$; //colors of vertices
   int64_t count; //ends up with number of connected components
 
 // visit vertex i's neighbors, propagating its color, pushing newly visited neighbors onto queue
-  void explore(graphint v) {
+  void explore(graphint v, bool skip_induced=false) {
     graphint color;
     if (v < 0) {
       v = -v-1;
@@ -189,41 +217,64 @@ class ConnectedComponents {
       graphint nv_color;
       if (!int_fetch_add(&V[nv], 1)) {//nv not visited
 	C$[nv] = color; //mta sets full, avoids race of visited but invalid color
-	Q.push(nv);
+	Q->push(nv);
       }
-      else if ((nv_color = readff(&C$[nv])) != color) { //wait for color to be set, probably is
-	if (nv_color > color) InducedGraph.insert(Pair<graphint>(color,nv_color));
-	else InducedGraph.insert(Pair<graphint>(nv_color,color));
+      //wait for color to be set, probably is
+      else if ((!skip_induced)&&(nv_color = readff(&C$[nv])) != color) {
+	if (nv_color > color) InducedGraph->insert(Pair<graphint>(color,nv_color));
+	else InducedGraph->insert(Pair<graphint>(nv_color,color));
       }
     }
   }
 public:
   ConnectedComponents(graph *G) {
+    starttime = MTA_CLOCK(0);
     g = G;
     count = 0;
+    int num_procs = mta_get_num_teams();
   
     const graphint NV = g->numVertices;
+    Q = new ApproxStack<graphint>(4*NV);
+    InducedGraph = new Set < Pair < graphint >, 14 >();
     C$ = g->marks;
     V = new int64_t[NV];
-    int num_procs = mta_get_num_teams();
 
     // PHASE I    
+    fprintf(stderr, "%d Initializing Phase I\n", MTA_CLOCK(starttime));
+    MTA("mta assert parallel")
     for (color_t i = 0; i < NV; ++i) {
       purge(&C$[i]);
       V[i] = 0;
-      Q.push(-i-1);
     }
+    fprintf(stderr, "%d Pushing vertices...\n", MTA_CLOCK(starttime));
+    MTA("mta assert parallel")
+    for (color_t i = 0; i < NV; ++i) Q->push(-i-1);
     
+    fprintf(stderr, "%d Executing Phase I\n", MTA_CLOCK(starttime));
     MTA("mta assert parallel")
     MTA("mta loop future")
     for (int i = 0; i < 100*num_procs; i++) {
       graphint t;
-      while((t = Q.pop())!=Q.empty) explore(t);
+      while((t = Q->pop())!=Q->empty) explore(t);
     }
 
+    //    int nonzeros =0 ;
+    //    int min=0x7fffffffffffffff, max = 0, sum=0,sumsq=0;
+    //    for (int i =0; i < g->numEdges; i++) {
+    //      if (time[i]) {
+    //	max = max > time[i] ? max : time[i];
+    //	min = min < time[i] ? min : time[i];
+    //	sum += time[i];
+    //	sumsq += time[i]*time[i];
+    //	nonzeros++;
+    //      } 
+    //    }
+    //    if (nonzeros) fprintf(stderr, "%d [%d %d] avg: %d stddev: %g\n", nonzeros, min,max,sum/(nonzeros),sqrt(sumsq/(nonzeros)-sum*sum/(nonzeros)/(nonzeros)));
+
+    fprintf(stderr, "%d Executing Phase II\n", MTA_CLOCK(starttime));
     // PHASE II
     Pair<graphint> * ig;
-    int HNE = InducedGraph.dump(ig);//directed edge pairs
+    int HNE = InducedGraph->dump(ig);//directed edge pairs
 
     //
     //    for (int i = 0; i < HNE; i++) {
@@ -271,21 +322,25 @@ public:
     } while (nchanged);
     
     // PHASE III
+    fprintf(stderr, "%d Executing Phase III\n", MTA_CLOCK(starttime));
 
+    Q->Reset();
     MTA("mta assert parallel")
     for (int i = 0; i < HNE; i++) {
       Pair<graphint> e = ig[i];
-      Q.push(e.x); Q.push(e.y);
+      Q->push(e.x); Q->push(e.y);
     }
+    fprintf(stderr, "%d Initialize V\n", MTA_CLOCK(starttime));
     for (int i = 0; i < NV; i++) V[i] = 0;
+    fprintf(stderr, "%d Propgate root colors\n", MTA_CLOCK(starttime));
 
     MTA("mta assert parallel")
     MTA("mta loop future")
     for (int i = 0; i < 100*num_procs; i++) {
       graphint t;
-      while((t = Q.pop())!=Q.empty) explore(t);
+      while((t = Q->pop())!=Q->empty) explore(t,true);
     }
-
+    fprintf(stderr, "%d Exiting \n", MTA_CLOCK(starttime));
     //    delete ig;   
   }
 
@@ -297,8 +352,8 @@ public:
     return num;
   }
 };
-
 extern "C" graphint connectedComponents(graph * g) {
   ConnectedComponents * cc = new ConnectedComponents(g);
   return cc->num_components();
 }
+
