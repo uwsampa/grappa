@@ -8,7 +8,6 @@ source("common.R")
 
 d <- db(
   "select * from cc
-   where scale == 26
    ",
   c("nnode", "ppn",
     "num_starting_workers",
@@ -20,17 +19,18 @@ d <- db(
 )
 
 d$ops_per_msg <- with(d, hashset_insert_ops/hashset_insert_msgs)
-d$throughput <- with(d, (2**scale*16)/components_time)
-d$roots <- d$cc_concurrent_roots
+d$mteps <- with(d, (2**scale*16)/components_time/1e6)
+d$nroots <- d$cc_concurrent_roots
+d$gce_flats <- with(d, gce_total_remote_completions/gce_completions_sent)
 
 d$fc_version <- sapply(paste('v',d$flat_combining,d$cc_insert_async,sep=''),switch,
   v0NA='none', v1NA='fc', v11='async', v10='fc', v00='none'
 )
 
-g <- ggplot(subset(d, cc_hash_size == 16384), aes(
+g <- ggplot(subset(d, cc_hash_size <= 16384), aes(
     x=num_starting_workers,
-    y=throughput,
-    color=roots,
+    y=mteps,
+    color=nroots,
     shape=fc_version,
     # label=trial,
     group=x(cc_concurrent_roots,fc_version)
@@ -40,8 +40,8 @@ g <- ggplot(subset(d, cc_hash_size == 16384), aes(
   # geom_smooth(aes(linetype=fc_version),fill=NA)+
   geom_line(aes(linetype=fc_version))+
   # geom_text(size=2,hjust=-0.2,vjust=1)+
-  facet_grid(~nnode~ppn~scale~cc_hash_size, scales="free", labeller=label_pretty)+
-  ylab("")+
+  facet_grid(~cc_hash_size~ppn~scale~nnode, scales="free", labeller=label_pretty)+
+  # ylab("")+
   expand_limits(y=0)+
   my_theme
 ggsave(plot=g, filename="plots/cc_perf.pdf", scale=1.4)
@@ -64,18 +64,38 @@ ggsave(plot=g, filename="plots/cc_perf.pdf", scale=1.4)
 #   my_theme
 # ggsave(plot=g, filename="cc_perf_clean.pdf", scale=1.4)
 
-
 d.t <- melt(d, measure=c("cc_propagate_time","cc_reduced_graph_time","cc_set_insert_time"))
 d.t$cc_time_names <- d.t$variable
 d.t$cc_time_values <- d.t$value
 
-g.t <- ggplot(d.t,
+g.t <- ggplot(subset(d.t, cc_hash_size == 16384),
   aes(
     x=cc_concurrent_roots,
     y=cc_time_values,
     color=cc_time_names, fill=cc_time_names
   ))+
-  facet_grid(~scale~ppn~nnode~cc_hash_size~fc_version, labeller=label_pretty)+
+  facet_grid(~nnode~scale~ppn~cc_hash_size~fc_version, labeller=label_pretty)+
   geom_bar(stat="identity")+
   my_theme
 ggsave(plot=g.t, filename="plots/cc_times.pdf", scale=1.4)
+
+d.stat <- melt(d, measure=c('mteps', 'rdma_message_bytes', 'app_messages_enqueue', 'rdma_idle_flushes', 'gce_flats'))
+g.stat <- ggplot(subset(d.stat, scale == 26 & fc_version != 'async'), aes(
+    x=num_starting_workers,
+    y=value,
+    color=nroots, fill=nroots,
+    shape=fc_version,
+    linetype=fc_version,
+    group=x(fc_version,nroots)
+  ))+
+  geom_point()+
+  geom_line()+
+  # geom_smooth(fill=NA)+
+  facet_grid(~scale~variable~nnode, labeller=label_pretty, scales="free")+
+  ylab("")+expand_limits(y=0)+my_theme
+ggsave(plot=g.stat, filename="plots/cc_stats.pdf", scale=1.5)
+
+
+
+
+

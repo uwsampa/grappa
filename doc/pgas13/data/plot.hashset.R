@@ -39,7 +39,7 @@ g <- ggplot(d, aes(
   ))+
   geom_point()+
   geom_smooth(aes(linetype=fc_version), fill=NA)+
-  facet_grid(~variable~log_nelems, scales="free", labeller=label_pretty)+
+  facet_grid(variable~log_nelems~nnode, scales="free", labeller=label_pretty)+
   ylab("")+
   expand_limits(y=0)+
   my_theme
