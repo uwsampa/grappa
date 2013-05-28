@@ -116,28 +116,55 @@ void test_dequeue() {
   on_all_cores([qa]{
     auto NC = N/cores();
     for (int i=0; i<NC; i++) {
-      qa->enqueue(42);
+      qa->enqueue(37);
     }
     auto size = qa->size();
-    VLOG(0) << "size = " << size;
     BOOST_CHECK(size >= NC);
     if (mycore() == 1) barrier();    
     
     forall_here(0, NC/2, [qa](long s, long n) {
       for (int i=s; i<s+n; i++) {
         auto e = qa->dequeue();
-        BOOST_CHECK(e == 42);
+        BOOST_CHECK_EQUAL(e, 37);
       }
     });
     if (mycore() != 1) barrier();
     forall_here(0, NC-NC/2, [qa](long s, long n) {
       for (int i=s; i<s+n; i++) {
         auto e = qa->dequeue();
-        BOOST_CHECK(e == 42);
+        BOOST_CHECK_EQUAL(e, 37);
       }
     });
   });
   BOOST_CHECK_EQUAL(qa->size(), 0);
+  
+  qa->destroy();
+}
+
+void test_stack() {
+  LOG(INFO) << "testing stack...";
+  auto sa = GlobalVector<long>::create(N);
+  forall_localized(sa->storage(), N, [](int64_t& e){ e = -1; });
+  
+  on_all_cores([sa]{
+    sa->push(17);
+  });
+  forall_localized(sa, [](int64_t& e){ BOOST_CHECK_EQUAL(e, 17); });
+  
+  on_all_cores([sa]{
+    BOOST_CHECK_EQUAL(sa->pop(), 17);
+  });
+  LOG(INFO) << "second phase...";
+  on_all_cores([sa]{
+    for (int i=0; i<10; i++) sa->push(43);
+    for (int i=0; i<5; i++) BOOST_CHECK_EQUAL(sa->pop(), 43);
+  });
+  BOOST_CHECK_EQUAL(sa->size(), cores()*5);
+  for (int i=0; i<sa->size(); i++) BOOST_CHECK_EQUAL(sa->pop(), 43);
+  BOOST_CHECK_EQUAL(sa->size(), 0);
+  BOOST_CHECK(sa->empty());
+  
+  sa->destroy();
 }
 
 void user_main( void * ignore ) {
@@ -162,14 +189,15 @@ void user_main( void * ignore ) {
       
     }
     
+    Statistics::merge_and_print();
     qa->destroy();
     
   } else {
     test_global_vector();
     test_dequeue();
+    test_stack();
   }
   
-  Statistics::merge_and_print();
 }
 
 BOOST_AUTO_TEST_CASE( test1 ) {
