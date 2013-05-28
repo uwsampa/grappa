@@ -27,11 +27,34 @@ At this point we have traded off one remote synchronization per operation for an
 By design, each core in Grappa operates independently of the other cores. Workers are scheduled cooperatively, so each worker can assume atomicity until it performs an operation that yields to the scheduler, such as a remote call. Therefore workers within a core can cooperate without any explicit synchronization operations requiring memory fences. This allows them to publish requests to the local  proxy very inexpensively, eliminating the need for a complex synchronization-amortizing queue. This has the added benefit that there will be no unused publication records, which could have become a problem with thousands of workers. Further, remote operations are processed through the same cooperative-multithreading scheduler on the remote side, so combined operations are trivially serialized and atomic.
 
 \paragraph{Correctness}
+\TODO{(are these arguments correct??)}
 
 It may not be immediately obvious why this two-level version of flat combining preserves sequential consistency. The combining operations that are performed locally among requests on a single core must preserve the illusion of sequential order; this is unchanged from shared-memory flat-combining. When combined operations are applied globally, they are serialized at the ``master'' core for a given synchronization context. The global order is essentially the concatenation of each core's serialized updates. In the case where operations are satisfied locally (by matching up with other local operations), by definition these must be independent of other operations, so they can conceptually be placed anywhere in the global ordering (or even ignored completely in the global ordering).
 
 In the spirit of the Data-Race-Free-0 Model (guaranteeing sequential consistency for data-race free programs), operations on the global data structure are considered to be made atomic by a conceptual global ``lock'' on the data structure. Atomicity and freedom from data races in the case of multiple data structures and other synchronization must be guaranteed externally, just as in any multithreaded shared-memory program.
 
 \section{FC Framework}
-\TODO{Describe how to implement FC data structure}.
+In order to leverage the flat-combining paradigm in Grappa, we implemented a generic flat-combining framework which can be used to improve performance for a number of global data structures. The FC framework handles the common problems of managing the combiners, handling worker wake-ups, and maintaining progress. When hooking into the framework, each data structure implementation need only define how to combine operations and globally commit them.
+
+The Grappa FC framework takes a different approach than the original flat-combining work for expressing how operations combine. In the original work, an explicit publication list is built up, and when the combiner scans over the list, it has a structure that it uses to accumulate requests in a logical way. In the case of the stack, for instance, it is a thread-local stack, which it can use to immediately match up pushes and pops. In the Grappa implementation, each worker's actions are atomic anyway, so rather than creating an explicit request list, the combiner object (or \emph{proxy}) is instantiated ahead of time for the data structure, and each worker does its own local combining into that structure before blocking. This reduces the space blowout of a large dynamically-sized publication list (with associated caching issues), and does not overly affect the expression of combining.
+
+Using this style, each global data structure must define the following:
+\begin{enumerate}
+  \item A local \emph{proxy} data structure for doing combining.
+  \item \emph{Combining methods} that operate on the local proxy.
+  \item A \emph{sync} method that globally commits the proxy's state.
+\end{enumerate}
+
+Being conservative about SC, workers typically block when issuing these requests, so the framework must also take care of delivering results and waking the correct workers. The flat-combining framework is responsible for ensuring that all of the combined operations eventually get committed. There are a number of ways progress could be guaranteed, but one of the simplest is to take an approach in the spirit of the original flat-combining, which is to ensure that as long as there are any outstanding requests, there is at least one worker committing a combined operation. When that combined operation finishes, if there are still outstanding requests that have built up in the meantime, another blocked worker is chosen to do another combined synchronization.
+
+One could imagine other synchronization policies that would ensure progress but allow more combining to occur before synchronizing. For instance, local combining could continue until all workers are blocked. However, this would require the flat-combining framework to track the activity of the workers on a core, and additionally would add latency unless the system saved enough active workers to tolerate the latency of the global commit action. As it is, the one-in-flight policy implemented performs well, and does not require any coupling with the Grappa scheduler. Exploration of other policies is left for future work.
+
+The flat combining framework transparently wraps the \emph{proxy} object. Behind this layer of indirection, the flat-combining framework manages multiple copies of the proxy so that, as discussed above, there is always at least one being committed and one to receive additional combining operations.
+
+% explain simple non-combined global data structures in Grappa section...
+
+\subsection{Global Stack}
+To demonstrate the flat-combining framework, we revisit the Global Stack example from earlier. Recall that the ``master'' core owns the \texttt{top} index, which indicates where the top of the stack currently is in the stack's allocated global storage. In the non-combining case, each call to \texttt{push} must do an atomic increment of \texttt{top} to claim storage, then write to that location, then finally return. 
+
+
 
