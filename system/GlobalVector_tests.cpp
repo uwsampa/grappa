@@ -79,6 +79,8 @@ void test_global_vector() {
   
   BOOST_CHECK_EQUAL(qa->empty(), true);
   
+  VLOG(0) << qa->storage();
+  
   on_all_cores([qa] {
     auto f = [qa](int64_t s, int64_t n) {
       for (int64_t i=s; i<s+n; i++) {
@@ -101,8 +103,8 @@ void test_global_vector() {
   }
   
   // forall_localized(qa->begin(), qa->size(), [](int64_t i, int64_t& e) { e = 9; });
-  forall_localized(qa, [](int64_t i, int64_t& e){ e = 9; });
-  
+  forall_localized(qa, [](int64_t& e){ e = 9; });
+    
   for (int i=0; i<N; i++) {
     BOOST_CHECK_EQUAL(delegate::read(qa->storage()+i), 9);
   }
@@ -147,12 +149,10 @@ void test_stack() {
   forall_localized(sa->storage(), N, [](int64_t& e){ e = -1; });
   
   on_all_cores([sa]{
-    sa->push(17);
-  });
-  forall_localized(sa, [](int64_t& e){ BOOST_CHECK_EQUAL(e, 17); });
-  
-  on_all_cores([sa]{
-    BOOST_CHECK_EQUAL(sa->pop(), 17);
+    forall_here(0, 100, [sa](int64_t i) {
+      sa->push(17);
+      BOOST_CHECK_EQUAL(sa->pop(), 17);
+    });
   });
   LOG(INFO) << "second phase...";
   on_all_cores([sa]{
@@ -160,7 +160,8 @@ void test_stack() {
     for (int i=0; i<5; i++) BOOST_CHECK_EQUAL(sa->pop(), 43);
   });
   BOOST_CHECK_EQUAL(sa->size(), cores()*5);
-  for (int i=0; i<sa->size(); i++) BOOST_CHECK_EQUAL(sa->pop(), 43);
+  
+  while (!sa->empty()) BOOST_CHECK_EQUAL(sa->pop(), 43);
   BOOST_CHECK_EQUAL(sa->size(), 0);
   BOOST_CHECK(sa->empty());
   
