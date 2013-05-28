@@ -30,7 +30,12 @@ public:
     std::queue<GlobalAddress<FullEmpty<bool>>> * read_waiters;
     bool writing;
     
-    Master(): head(0), tail(0), size(0), writing(false), read_waiters(nullptr) {
+    void clear() {
+      head = 0; tail = 0; size = 0; writing = false;
+    }
+    
+    Master(): read_waiters(nullptr) {
+      clear();
       if (mycore() == MASTER) {
         read_waiters = new std::queue<GlobalAddress<FullEmpty<bool>>>();
       }
@@ -253,7 +258,10 @@ public:
   /// Return a Linear GlobalAddress to the end of the vector, that is, one past the last element.
   GlobalAddress<T> end() const { return this->base + master.tail; }
   
-  void clear() { auto self = this->self; delegate::call(MASTER, [self]{ self->master = Master(); }); }
+  void clear() {
+    auto self = this->self;
+    delegate::call(MASTER, [self]{ self->master.clear(); });
+  }
   
   GlobalAddress<T> storage() const { return this->base; }
 
