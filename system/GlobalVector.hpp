@@ -37,29 +37,39 @@ public:
     T* deqs[BUFFER_CAPACITY];
     size_t ndeq;
     
-    Proxy(GlobalVector* const outer): outer(outer), npush(0), ndeq(0) {}
+    T* pops[BUFFER_CAPACITY];
+    size_t npop;
+    
+    Proxy(GlobalVector* const outer): outer(outer), npush(0), ndeq(0), npop(0) {}
     
     Proxy* clone_fresh() { return locale_new<Proxy>(outer); }
     
     bool is_full() { return npush == BUFFER_CAPACITY || ndeq == BUFFER_CAPACITY; }
     
     void sync() {
-      struct SyncResult { GlobalAddress<T> push_at, deq_at; };
+      struct SyncResult { GlobalAddress<T> pushpop_at, deq_at; };
       global_vector_push_msgs++;
       
       auto self = outer->self;
-      auto npush = this->npush;
+      
+      int64_t npushpop = this->npush;
+      if (npush == 0) npushpop = 0-this->npop;
+      
       auto ndeq = this->ndeq;
       
       DVLOG(2) << "self = " << self;
-      auto r = delegate::call(MASTER, [self,npush,ndeq]{
+      auto r = delegate::call(MASTER, [self,npushpop,ndeq]{
         auto& m = self->master;
         DVLOG(2) << "master(head=" << m.head << ", tail=" << m.tail << ")";
         
-        auto push_at = m.tail;
-        m.tail += npush;
-        m.size += npush;
+        if (npushpop < 0) CHECK_GE(m.size, 0-npushpop);
+        DVLOG(3) << "npushpop: " << npushpop;
+        
+        auto pushpop_at = m.tail;
+        m.tail += npushpop;
+        m.size += npushpop;
         if (m.tail >= self->capacity) m.tail %= self->capacity;
+        if (npushpop < 0) pushpop_at = m.tail;
         
         auto deq_at = m.head;
         m.head += ndeq;
@@ -68,15 +78,22 @@ public:
         
         CHECK_LE(m.size, self->capacity) << "GlobalVector exceeded capacity!";
         
-        return SyncResult{self->base+push_at,self->base+deq_at};
+        return SyncResult{self->base+pushpop_at,self->base+deq_at};
       });
-      DVLOG(2) << "push{\n  push_at:" << r.push_at << ", deq_at:" << r.deq_at << ", npush:" << npush << "\n  base = " << outer->base << "\n}";
-      if (npush) { typename Incoherent<T>::WO c(r.push_at, npush, buffer); }
+      DVLOG(2) << "push{\n  pushpop_at:" << r.pushpop_at << ", deq_at:" << r.deq_at << ", npush:" << npush << "\n  base = " << outer->base << "\n}";
+      if (npush > 0) {
+        typename Incoherent<T>::WO c(r.pushpop_at, npush, buffer);
+      } else if (npop > 0) {
+        { typename Incoherent<T>::RO c(r.pushpop_at, npop, buffer); c.block_until_acquired(); }
+        for (size_t i = 0; i < npop; i++) {
+          DVLOG(3) << "buffer[" << i << "] = " << buffer[i];
+          *pops[i] = buffer[i];
+        }
+      }
       if (ndeq) {
         { typename Incoherent<T>::RO c(r.deq_at, ndeq, buffer); c.block_until_acquired(); }
         for (size_t i = 0; i < ndeq; i++) {
           DVLOG(3) << "buffer[" << i << "] = " << buffer[i];
-          CHECK_EQ(buffer[i], 42);
           *deqs[i] = buffer[i];
         }
       }
@@ -125,19 +142,35 @@ public:
   
   /// Push element on the back (queue or stack)
   void push(const T& e) {
+    global_vector_push_ops++;
     double t = Grappa_walltime();
     if (FLAGS_flat_combining) {
       this->proxy.combine([&e](Proxy& p) {
-        global_vector_push_ops++;
-        p.buffer[p.npush++] = e;
+        if (p.npop > 0) {
+          *p.pops[--p.npop] = e;
+        } else {
+          p.buffer[p.npush++] = e;
+        }
       });
     } else {
-      global_vector_push_ops++; global_vector_push_msgs++;
+      global_vector_push_msgs++;
       auto self = this->self;
       auto offset = delegate::call(MASTER, [self]{ return self->master.head++; });
       delegate::write(this->base+offset, e);
     }
     global_vector_push_latency += (Grappa_walltime() - t);
+  }
+  
+  T pop() {
+    T result;
+    proxy.combine([&result](Proxy& p){
+      if (p.npush > 0) {
+        result = p.buffer[--p.npush];
+      } else {
+        p.pops[p.npop++] = &result;
+      }
+    });
+    return result;
   }
   
   inline void enqueue(const T& e) { push(e); }
