@@ -9,12 +9,47 @@
 
 #include "Grappa.hpp"
 #include "FullEmpty.hpp"
+#include "CompletionEvent.hpp"
+#include "Collective.hpp"
 
 BOOST_AUTO_TEST_SUITE( FullEmpty_tests );
 
+using namespace Grappa;
+
+void test_remote_fe() {
+  FullEmpty<long> _fe;
+  auto fe = make_global(&_fe);
+  
+  CompletionEvent _ce(2);
+  auto ce = make_global(&_ce);
+  
+  privateTask([fe,ce]{
+    auto val = readFF(fe);
+    BOOST_CHECK_EQUAL(val, 42);
+    complete(ce);
+  });
+  
+  on_all_cores([fe,ce]{
+    if (mycore() != 1) return;
+    
+    CompletionEvent lce(1);
+    privateTask([fe,&lce,ce]{
+      lce.complete();
+      long val = readFF(fe);
+      BOOST_CHECK_EQUAL(val, 42);
+      complete(ce);
+    });
+    lce.wait();
+  });
+  // wait for other task to begin and start doing readFF
+  fe->writeEF(42);
+  ce->wait();
+}
 
 void user_main( void * args ) 
 {
+  test_remote_fe();
+  
   Grappa::FullEmpty< int64_t > fe_int;
 
   BOOST_CHECK_EQUAL( fe_int.readXX(), 0 );

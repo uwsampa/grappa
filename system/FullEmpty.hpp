@@ -105,6 +105,37 @@ namespace Grappa {
   };
   /// @}
 
+  template< typename T >
+  void fill_remote(GlobalAddress<FullEmpty<T>> result_addr, const T& val) {
+    send_heap_message(result_addr.core(), [result_addr,val]{
+      result_addr->writeXF(val);
+    });
+  }
+  
+  template< typename T >
+  T readFF(GlobalAddress<FullEmpty<T>> fe_addr) {
+    if (fe_addr.core() == mycore()) return fe_addr.pointer()->readFE();
+    
+    auto worker_addr = make_global(impl::global_scheduler.get_current_thread());
+    
+    FullEmpty<T> result;
+    auto result_addr = make_global(&result);
+    
+    send_message(fe_addr.core(), [fe_addr,result_addr]{
+      auto& fe = *fe_addr.pointer();
+      
+      if (fe.full()) { fill_remote(result_addr, fe.readFE()); return; }
+      
+      auto* c = heap_continuation([fe_addr,result_addr]{
+        VLOG(0) << "continuation!";
+        fill_remote(result_addr, fe_addr->readFF());
+      });
+      add_waiter(&fe, c);
+    });
+    
+    return result.readFF();
+  }
+  
 }
 
 #endif
