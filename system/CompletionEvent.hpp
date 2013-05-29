@@ -8,6 +8,9 @@
 #include "MessagePool.hpp"
 #include "Delegate.hpp"
 
+GRAPPA_DECLARE_STAT(SimpleStatistic<uint64_t>, ce_remote_completions);
+GRAPPA_DECLARE_STAT(SimpleStatistic<uint64_t>, ce_completions);
+
 namespace Grappa {
   /// @addtogroup Synchronization
   /// @{
@@ -32,6 +35,7 @@ namespace Grappa {
     
     /// Decrement count once, if count == 0, wake all waiters.
     void complete(int64_t decr = 1) {
+      ce_completions += decr;
       CHECK_GE( count-decr, 0 ) << "too many calls to signal()";
       count -= decr;
       DVLOG(4) << "completed (" << count << ")";
@@ -70,6 +74,7 @@ namespace Grappa {
     if (ce.node() == mycore()) {
       ce.pointer()->complete(decr);
     } else {
+      ce_remote_completions += decr;
       if (decr == 1) {
         // (common case) don't send full 8 bytes just to decrement by 1
         send_heap_message(ce.node(), [ce] {
