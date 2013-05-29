@@ -73,7 +73,7 @@ void explore(graphint v, graphint mycolor, GlobalAddress<CompletionEvent> owner)
     // TODO: make async
     Core origin = mycore();
     auto colors_ev = colors+ev;
-    send_message(colors_ev.core(), [owner,mycolor,colors_ev]{
+    auto visit_edge = [owner,mycolor,colors_ev]{
       auto ec = colors_ev.pointer();
       size_t ev = colors_ev - colors;
       if (*ec < 0) {
@@ -95,7 +95,9 @@ void explore(graphint v, graphint mycolor, GlobalAddress<CompletionEvent> owner)
           });
         }
       }
-    });
+    };
+    if (colors_ev.core() == mycore()) visit_edge();
+    else send_message(colors_ev.core(), visit_edge);
   });
 }
 
