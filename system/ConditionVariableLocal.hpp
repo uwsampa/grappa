@@ -3,6 +3,7 @@
 #define __CONDITION_VARIABLE_LOCAL_HPP__
 
 #include "TaskingScheduler.hpp"
+#include "Continuation.hpp"
 #include "Synchronization.hpp"
 #include "Mutex.hpp"
 
@@ -62,10 +63,15 @@ namespace Grappa {
     
   /// Wait on a condition variable (no mutex).
   template< typename ConditionVariable >
+  inline void add_waiter( ConditionVariable * cv, Worker * w ) {
+    w->next = Grappa::impl::get_waiters( cv );
+    Grappa::impl::set_waiters( cv, w );
+  }
+  
+  template< typename ConditionVariable >
   inline void wait( ConditionVariable * cv ) {
     Worker * current = impl::global_scheduler.get_current_thread();
-    current->next = Grappa::impl::get_waiters( cv );
-    Grappa::impl::set_waiters( cv, current );
+    add_waiter(cv, current);
     impl::global_scheduler.thread_suspend();
   }
 
@@ -76,7 +82,11 @@ namespace Grappa {
     if( to_wake != NULL ) {
       Grappa::impl::set_waiters( cv, to_wake->next );
       to_wake->next = NULL;
-      impl::global_scheduler.thread_wake( to_wake );
+      if (is_continuation(to_wake)) {
+        reinterpret_cast<Continuation*>(to_wake)->invoke();
+      } else {
+        impl::global_scheduler.thread_wake( to_wake );
+      }
     }
   }
     
@@ -87,7 +97,11 @@ namespace Grappa {
     while( ( to_wake = Grappa::impl::get_waiters( cv ) ) != NULL ) {
       Grappa::impl::set_waiters( cv, to_wake->next );
       to_wake->next = NULL;
-      impl::global_scheduler.thread_wake( to_wake );
+      if (is_continuation(to_wake)) {
+        reinterpret_cast<Continuation*>(to_wake)->invoke();
+      } else {
+        impl::global_scheduler.thread_wake( to_wake );
+      }
     }
   }
   
