@@ -13,7 +13,7 @@ namespace Grappa {
 
   /// @addtogroup Synchronization
   /// @{
-
+  
   namespace impl {
 
     /// compiler memory fence
