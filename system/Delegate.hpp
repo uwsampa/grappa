@@ -11,7 +11,7 @@
 
 #include "Grappa.hpp"
 #include "Message.hpp"
-#include "FullEmpty.hpp"
+#include "FullEmptyLocal.hpp"
 #include "Message.hpp"
 #include "ConditionVariable.hpp"
 #include "LegacyDelegate.hpp"
