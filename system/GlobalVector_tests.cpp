@@ -57,13 +57,11 @@ bool choose_random(double probability) {
 
 enum class Exp { PUSH, POP, DEQUEUE, QUEUE, STACK };
 
-template< Exp             EXP,
-          CompletionEvent* CE = &impl::local_ce,
-          int64_t          TH = impl::USE_LOOP_THRESHOLD_FLAG >
+template< Exp EXP >
 double perf_test(GlobalAddress<GlobalVector<int64_t>> qa) {
   double t = Grappa_walltime();
   
-  forall_global_public<CE,TH>(0, FLAGS_nelems, [qa](int64_t i){
+  forall_global_private(0, FLAGS_nelems, [qa](int64_t i){
     if (EXP == Exp::QUEUE) {
       
       if (choose_random(FLAGS_fraction_push)) {
