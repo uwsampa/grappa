@@ -24,64 +24,82 @@ class GlobalVector {
 public:
   struct Master {
     size_t head;
+    Mutex head_lock;
+    
     size_t tail;
+    Mutex tail_lock;
+    
     size_t size;
     
-    std::queue<GlobalAddress<FullEmpty<bool>>> * read_waiters;
-    bool writing;
-    
     void clear() {
-      head = 0; tail = 0; size = 0; writing = false;
+      head = 0; tail = 0; size = 0;
     }
     
-    Master(): read_waiters(nullptr) {
-      clear();
-      if (mycore() == MASTER) {
-        read_waiters = new std::queue<GlobalAddress<FullEmpty<bool>>>();
+    Master() { clear(); }
+    ~Master() {}
+    
+    static void pushpop(GlobalAddress<GlobalVector> self, T * buffer, int64_t delta) {
+      DVLOG(2) << "starting pushpop(delta:" << delta << ")";
+      auto tail_lock = [self]{ return &self->master.tail_lock; };
+      
+      auto tail = delegate::call(MASTER, tail_lock, [self,delta](Mutex * l){
+        CHECK(is_unlocked(l));
+        lock(l);
+        CHECK(!is_unlocked(l));
+        DVLOG(2) << "locked (delta:" << delta << ")";
+        
+        if (delta < 0) self->master.tail += delta;
+        CHECK_GE(self->master.tail, 0); // TODO: implement wrap-around
+        return self->master.tail;
+      });
+      
+      if (delta > 0) { // push
+        typename Incoherent<T>::WO c(self->base+tail, delta, buffer); c.block_until_released();
+      } else { // pop
+        typename Incoherent<T>::RO c(self->base+tail, 0-delta, buffer); c.block_until_acquired();
       }
+      
+      delegate::call(MASTER, [self,delta]() {
+        if (delta > 0) self->master.tail += delta;
+        CHECK_LT(self->master.tail, self->capacity); // TODO: implement wrap-around
+        DVLOG(2) << "unlocking (delta:" << delta << ")";
+        unlock(&self->master.tail_lock);
+      });
+      DVLOG(2) << "finished pushpop(delta:" << delta << ")";
     }
     
-    ~Master() { if (read_waiters) { delete read_waiters; } }
+    static void dequeue(GlobalAddress<GlobalVector> self, T * buffer, int64_t delta) {
+      auto head_lock = [self]{ return &self->master.head_lock; };
+      
+      auto head = delegate::call(MASTER, head_lock, [self,delta](Mutex * l){
+        lock(l);
+        // if something was popped, tail will have been decremented, but may still be locked
+        CHECK_LE(self->master.head+delta, self->master.tail); // TODO: implement wrap-around
+        return self->master.head;
+      });
+
+      typename Incoherent<T>::RO c(self->base+head, 0-delta, buffer); c.block_until_acquired();
+      
+      delegate::call(MASTER, [self,delta] {
+        if (delta > 0) self->master.head += delta;
+        CHECK_LT(self->master.head, self->capacity); // TODO: implement wrap-around
+        unlock(&self->master.head_lock);
+      });
+    }
+
   };
-  
-  void wake_reader(GlobalAddress<FullEmpty<bool>> fe_addr) {
-    send_heap_message(fe_addr.core(), [fe_addr]{ fe_addr.pointer()->writeXF(true); });
-  }
-  
-  void wake_all_readers() {
-    master.writing = false;
-    while (!master.read_waiters->empty()) {
-      wake_reader(master.read_waiters->front());
-      master.read_waiters->pop();
-    }
-  }
-  
-  void reader_wait() {
-    auto self = this->self;
-    FullEmpty<bool> fe;
-    auto fe_addr = make_global(&fe);
-    send_message(MASTER, [self,fe_addr]{
-      auto& m = self->master;
-      if (m.writing) {
-        m.read_waiters->push(fe_addr);
-      } else { // done already!
-        self->wake_reader(fe_addr);
-      }
-    });
-    fe.readFE();
-  }
-  
+    
   struct Proxy {
     GlobalVector * outer;
     T buffer[BUFFER_CAPACITY];
     
-    size_t npush;
+    long npush;
     
     T* deqs[BUFFER_CAPACITY];
-    size_t ndeq;
+    long ndeq;
     
     T* pops[BUFFER_CAPACITY];
-    size_t npop;
+    long npop;
     
     Proxy(GlobalVector* const outer): outer(outer), npush(0), ndeq(0), npop(0) {}
     
@@ -90,72 +108,82 @@ public:
     bool is_full() { return npush == BUFFER_CAPACITY || ndeq == BUFFER_CAPACITY; }
     
     void sync() {
-      struct SyncResult {
-        GlobalAddress<T> pushpop_at, deq_at;
-        // bool write_locked;
-      };
-      global_vector_push_msgs++;
-      
-      auto self = outer->self;
-      
-      int64_t npushpop = this->npush;
-      if (npush == 0) npushpop = 0-this->npop;
-      
-      auto ndeq = this->ndeq;
-      
-      DVLOG(2) << "self = " << self;
-      auto r = delegate::call(MASTER, [self,npushpop,ndeq]{
-        auto& m = self->master;
-        DVLOG(2) << "master(head=" << m.head << ", tail=" << m.tail << ")";
-        
-        if (npushpop < 0) CHECK_GE(m.size, 0-npushpop);
-        DVLOG(3) << "npushpop: " << npushpop;
-        
-        auto pushpop_at = m.tail;
-        m.tail += npushpop;
-        m.size += npushpop;
-        if (m.tail >= self->capacity) m.tail %= self->capacity;
-        if (npushpop < 0) {
-          pushpop_at = m.tail;
-        } else if (npushpop > 0) {
-          DVLOG(2) << "writing...";
-          m.writing = true;
-        }
-        
-        auto deq_at = m.head;
-        m.head += ndeq;
-        m.size -= ndeq;
-        if (m.head >= self->capacity) m.head %= self->capacity;
-        
-        CHECK_LE(m.size, self->capacity) << "GlobalVector exceeded capacity!";
-        
-        return SyncResult{self->base+pushpop_at, self->base+deq_at}; //, m.writing};
-      });
-      DVLOG(2) << "push{\n  pushpop_at:" << r.pushpop_at << ", deq_at:" << r.deq_at << ", npush:" << npush << "\n  base = " << outer->base << "\n}";
       if (npush > 0) {
-        typename Incoherent<T>::WO c(r.pushpop_at, npush, buffer);
-        delegate::call(MASTER, [self]{ self->wake_all_readers(); });
+        Master::pushpop(outer->self, buffer, npush);
       } else if (npop > 0) {
-        // if (r.write_locked) { outer->reader_wait(); r.write_locked = false; }
-        outer->reader_wait();
-        
-        { typename Incoherent<T>::RO c(r.pushpop_at, npop, buffer); c.block_until_acquired(); }
-        for (size_t i = 0; i < npop; i++) {
-          DVLOG(3) << "buffer[" << i << "] = " << buffer[i];
+        Master::pushpop(outer->self, buffer, 0-npop);
+        for (auto i = 0; i < npop; i++) {
           *pops[i] = buffer[i];
         }
       }
-      if (ndeq) {
-        // if (r.write_locked) { outer->reader_wait(); r.write_locked = false; }
-        outer->reader_wait();
-        
-        { typename Incoherent<T>::RO c(r.deq_at, ndeq, buffer); c.block_until_acquired(); }
-        for (size_t i = 0; i < ndeq; i++) {
-          DVLOG(3) << "buffer[" << i << "] = " << buffer[i];
+      if (ndeq > 0) {
+        Master::dequeue(outer->self, buffer, ndeq);
+        for (auto i = 0; i < ndeq; i++) {
           *deqs[i] = buffer[i];
         }
       }
     }
+    
+    // void sync() {
+    //   struct SyncResult {
+    //     GlobalAddress<T> pushpop_at, deq_at;
+    //     // bool write_locked;
+    //   };
+    //   global_vector_push_msgs++;
+    //   
+    //   auto self = outer->self;
+    //   
+    //   int64_t npushpop = this->npush;
+    //   if (npush == 0) npushpop = 0-this->npop;
+    //   
+    //   auto ndeq = this->ndeq;
+    //   
+    //   DVLOG(2) << "self = " << self;
+    //   auto r = delegate::call(MASTER, [self,npushpop,ndeq]{
+    //     auto& m = self->master;
+    //     DVLOG(2) << "master(head=" << m.head << ", tail=" << m.tail << ")";
+    //     
+    //     if (npushpop < 0) CHECK_GE(m.size, 0-npushpop);
+    //     DVLOG(3) << "npushpop: " << npushpop;
+    //     
+    //     auto pushpop_at = m.tail;
+    //     m.tail += npushpop;
+    //     m.size += npushpop;
+    //     if (m.tail >= self->capacity) m.tail %= self->capacity;
+    //     if (npushpop < 0) {
+    //       pushpop_at = m.tail;
+    //     } else if (npushpop > 0) {
+    //       DVLOG(2) << "writing...";
+    //       m.writing = true;
+    //     }
+    //     
+    //     auto deq_at = m.head;
+    //     m.head += ndeq;
+    //     m.size -= ndeq;
+    //     if (m.head >= self->capacity) m.head %= self->capacity;
+    //     
+    //     CHECK_LE(m.size, self->capacity) << "GlobalVector exceeded capacity!";
+    //     
+    //     return SyncResult{self->base+pushpop_at, self->base+deq_at}; //, m.writing};
+    //   });
+    //   DVLOG(2) << "push{\n  pushpop_at:" << r.pushpop_at << ", deq_at:" << r.deq_at << ", npush:" << npush << "\n  base = " << outer->base << "\n}";
+    //   if (npush > 0) {
+    //     typename Incoherent<T>::WO c(r.pushpop_at, npush, buffer);
+    //   } else if (npop > 0) {
+    //     { typename Incoherent<T>::RO c(r.pushpop_at, npop, buffer); c.block_until_acquired(); }
+    //     for (size_t i = 0; i < npop; i++) {
+    //       DVLOG(3) << "buffer[" << i << "] = " << buffer[i];
+    //       *pops[i] = buffer[i];
+    //     }
+    //   }
+    //   if (ndeq) {
+    //     { typename Incoherent<T>::RO c(r.deq_at, ndeq, buffer); c.block_until_acquired(); }
+    //     for (size_t i = 0; i < ndeq; i++) {
+    //       DVLOG(3) << "buffer[" << i << "] = " << buffer[i];
+    //       *deqs[i] = buffer[i];
+    //     }
+    //   }
+    // }
   };
 
 public:  
