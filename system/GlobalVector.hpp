@@ -23,6 +23,7 @@ template< typename T, int BUFFER_CAPACITY = (1<<10) >
 class GlobalVector {
 public:
   struct Master {
+    
     size_t head;
     Mutex head_lock;
     
@@ -39,33 +40,36 @@ public:
     ~Master() {}
     
     static void pushpop(GlobalAddress<GlobalVector> self, T * buffer, int64_t delta) {
-      DVLOG(2) << "starting pushpop(delta:" << delta << ")";
+      static long _ct = mycore() * 1000; auto ct = _ct++;
+      DVLOG(2) << "starting pushpop(delta:" << delta << ")" << " <" << ct << ">";
       auto tail_lock = [self]{ return &self->master.tail_lock; };
       
-      auto tail = delegate::call(MASTER, tail_lock, [self,delta](Mutex * l){
-        CHECK(is_unlocked(l));
+      auto tail = delegate::call(MASTER, tail_lock, [self,delta,ct](Mutex * l){
         lock(l);
         CHECK(!is_unlocked(l));
-        DVLOG(2) << "locked (delta:" << delta << ")";
+        DVLOG(2) << "locked (delta:" << delta << ")" << " <" << ct << ">";
         
         if (delta < 0) self->master.tail += delta;
         CHECK_GE(self->master.tail, 0); // TODO: implement wrap-around
         return self->master.tail;
       });
+      DVLOG(2) << "here?? (delta:" << delta << ")" << " <" << ct << ">";
       
       if (delta > 0) { // push
+        DVLOG(2) << "writing (delta:" << delta << ")" << " <" << ct << ">";
         typename Incoherent<T>::WO c(self->base+tail, delta, buffer); c.block_until_released();
+        DVLOG(2) << "done writing (delta:" << delta << ")" << " <" << ct << ">";
       } else { // pop
         typename Incoherent<T>::RO c(self->base+tail, 0-delta, buffer); c.block_until_acquired();
       }
       
-      delegate::call(MASTER, [self,delta]() {
+      delegate::call(MASTER, [self,delta,ct]() {
         if (delta > 0) self->master.tail += delta;
         CHECK_LE(self->master.tail, self->capacity); // TODO: implement wrap-around
-        DVLOG(2) << "unlocking (delta:" << delta << ")";
+        DVLOG(2) << "unlocking (delta:" << delta << ")" << " <" << ct << ">";
         unlock(&self->master.tail_lock);
       });
-      DVLOG(2) << "finished pushpop(delta:" << delta << ")";
+      DVLOG(2) << "finished pushpop(delta:" << delta << ")" << " <" << ct << ">";
     }
     
     static void dequeue(GlobalAddress<GlobalVector> self, T * buffer, int64_t delta) {
