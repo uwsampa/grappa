@@ -9,8 +9,13 @@
 
 GRAPPA_DECLARE_STAT(SimpleStatistic<uint64_t>, global_vector_push_ops);
 GRAPPA_DECLARE_STAT(SimpleStatistic<uint64_t>, global_vector_push_msgs);
+GRAPPA_DECLARE_STAT(SimpleStatistic<uint64_t>, global_vector_pop_ops);
+GRAPPA_DECLARE_STAT(SimpleStatistic<uint64_t>, global_vector_pop_msgs);
+GRAPPA_DECLARE_STAT(SimpleStatistic<uint64_t>, global_vector_deq_ops);
+GRAPPA_DECLARE_STAT(SimpleStatistic<uint64_t>, global_vector_deq_msgs);
 GRAPPA_DECLARE_STAT(SummarizingStatistic<double>, global_vector_push_latency);
 GRAPPA_DECLARE_STAT(SummarizingStatistic<double>, global_vector_deq_latency);
+GRAPPA_DECLARE_STAT(SummarizingStatistic<double>, global_vector_pop_latency);
 
 namespace Grappa {
 /// @addtogroup Containers
@@ -40,40 +45,29 @@ public:
     ~Master() {}
     
     static void pushpop(GlobalAddress<GlobalVector> self, T * buffer, int64_t delta) {
-      static long _ct = mycore() * 1000; auto ct = _ct++;
-      DVLOG(2) << "starting pushpop(delta:" << delta << ")" << " <" << ct << ">";
       auto tail_lock = [self]{ return &self->master.tail_lock; };
       
-      auto tail = delegate::call(MASTER, tail_lock, [self,delta,ct](Mutex * l){
+      auto tail = delegate::call(MASTER, tail_lock, [self,delta](Mutex * l){
         lock(l);
-        CHECK(!is_unlocked(l));
-        DVLOG(2) << "locked (delta:" << delta << ")" << " <" << ct << ">";
         
         if (delta < 0) self->incr_with_wrap(&self->master.tail, delta);  // pop
-        CHECK_GE(self->master.tail, 0); // TODO: implement wrap-around
+        CHECK_GE(self->master.tail, 0);
         return self->master.tail;
       });
-      DVLOG(2) << "here?? (delta:" << delta << ")" << " <" << ct << ">";
       
       if (delta > 0) { // push
-        DVLOG(2) << "writing (delta:" << delta << ")" << " <" << ct << ">";
         self->cache_with_wraparound<typename Incoherent<T>::WO>(tail, delta, buffer);
-        // typename Incoherent<T>::WO c(self->base+tail, delta, buffer); c.block_until_released();
-        DVLOG(2) << "done writing (delta:" << delta << ")" << " <" << ct << ">";
       } else { // pop
         self->cache_with_wraparound<typename Incoherent<T>::RO>(tail, 0-delta, buffer);
-        // typename Incoherent<T>::RO c(self->base+tail, 0-delta, buffer); c.block_until_acquired();
       }
       
-      delegate::call(MASTER, [self,delta,ct]() {
+      delegate::call(MASTER, [self,delta]() {
         if (delta > 0) self->incr_with_wrap(&self->master.tail, delta);  // push
         self->master.size += delta;
         
-        CHECK_LE(self->master.tail, self->capacity); // TODO: implement wrap-around
-        DVLOG(2) << "unlocking (delta:" << delta << ")" << " <" << ct << ">";
         unlock(&self->master.tail_lock);
       });
-      DVLOG(2) << "finished pushpop(delta:" << delta << ")" << " <" << ct << ">";
+      CHECK_LE(self->master.size, self->capacity);
     }
     
     static void dequeue(GlobalAddress<GlobalVector> self, T * buffer, int64_t delta) {
@@ -82,18 +76,17 @@ public:
       auto head = delegate::call(MASTER, head_lock, [self,delta](Mutex * l){
         lock(l);
         // if something was popped, tail will have been decremented, but may still be locked
-        CHECK_LE(self->master.head+delta, self->master.tail); // TODO: implement wrap-around
+        CHECK_LE(self->master.head+delta, self->master.tail);
         return self->master.head;
       });
 
       self->cache_with_wraparound<typename Incoherent<T>::RO>(head, delta, buffer);
-      // typename Incoherent<T>::RO c(self->base+head, delta, buffer); c.block_until_acquired();
       
       delegate::call(MASTER, [self,delta] {
         if (delta > 0) self->incr_with_wrap(&self->master.head, delta);
         self->master.size -= delta;
         
-        CHECK_LT(self->master.head, self->capacity); // TODO: implement wrap-around
+        CHECK_LE(self->master.size, self->capacity);
         unlock(&self->master.head_lock);
       });
     }
@@ -144,81 +137,23 @@ public:
     
     void sync() {
       if (npush > 0) {
+        ++global_vector_push_msgs;
         Master::pushpop(outer->self, buffer, npush);
       } else if (npop > 0) {
+        ++global_vector_pop_msgs;
         Master::pushpop(outer->self, buffer, 0-npop);
         for (auto i = 0; i < npop; i++) {
           *pops[i] = buffer[i];
         }
       }
       if (ndeq > 0) {
+        ++global_vector_deq_msgs;
         Master::dequeue(outer->self, buffer, ndeq);
         for (auto i = 0; i < ndeq; i++) {
           *deqs[i] = buffer[i];
         }
       }
     }
-    
-    // void sync() {
-    //   struct SyncResult {
-    //     GlobalAddress<T> pushpop_at, deq_at;
-    //     // bool write_locked;
-    //   };
-    //   global_vector_push_msgs++;
-    //   
-    //   auto self = outer->self;
-    //   
-    //   int64_t npushpop = this->npush;
-    //   if (npush == 0) npushpop = 0-this->npop;
-    //   
-    //   auto ndeq = this->ndeq;
-    //   
-    //   DVLOG(2) << "self = " << self;
-    //   auto r = delegate::call(MASTER, [self,npushpop,ndeq]{
-    //     auto& m = self->master;
-    //     DVLOG(2) << "master(head=" << m.head << ", tail=" << m.tail << ")";
-    //     
-    //     if (npushpop < 0) CHECK_GE(m.size, 0-npushpop);
-    //     DVLOG(3) << "npushpop: " << npushpop;
-    //     
-    //     auto pushpop_at = m.tail;
-    //     m.tail += npushpop;
-    //     m.size += npushpop;
-    //     if (m.tail >= self->capacity) m.tail %= self->capacity;
-    //     if (npushpop < 0) {
-    //       pushpop_at = m.tail;
-    //     } else if (npushpop > 0) {
-    //       DVLOG(2) << "writing...";
-    //       m.writing = true;
-    //     }
-    //     
-    //     auto deq_at = m.head;
-    //     m.head += ndeq;
-    //     m.size -= ndeq;
-    //     if (m.head >= self->capacity) m.head %= self->capacity;
-    //     
-    //     CHECK_LE(m.size, self->capacity) << "GlobalVector exceeded capacity!";
-    //     
-    //     return SyncResult{self->base+pushpop_at, self->base+deq_at}; //, m.writing};
-    //   });
-    //   DVLOG(2) << "push{\n  pushpop_at:" << r.pushpop_at << ", deq_at:" << r.deq_at << ", npush:" << npush << "\n  base = " << outer->base << "\n}";
-    //   if (npush > 0) {
-    //     typename Incoherent<T>::WO c(r.pushpop_at, npush, buffer);
-    //   } else if (npop > 0) {
-    //     { typename Incoherent<T>::RO c(r.pushpop_at, npop, buffer); c.block_until_acquired(); }
-    //     for (size_t i = 0; i < npop; i++) {
-    //       DVLOG(3) << "buffer[" << i << "] = " << buffer[i];
-    //       *pops[i] = buffer[i];
-    //     }
-    //   }
-    //   if (ndeq) {
-    //     { typename Incoherent<T>::RO c(r.deq_at, ndeq, buffer); c.block_until_acquired(); }
-    //     for (size_t i = 0; i < ndeq; i++) {
-    //       DVLOG(3) << "buffer[" << i << "] = " << buffer[i];
-    //       *deqs[i] = buffer[i];
-    //     }
-    //   }
-    // }
   };
 
 public:  
@@ -263,7 +198,7 @@ public:
   
   /// Push element on the back (queue or stack)
   void push(const T& e) {
-    global_vector_push_ops++;
+    ++global_vector_push_ops;
     double t = Grappa_walltime();
     if (FLAGS_flat_combining) {
       proxy.combine([&e](Proxy& p) {
@@ -274,38 +209,47 @@ public:
         }
       });
     } else {
-      global_vector_push_msgs++;
-      auto self = this->self;
-      auto offset = delegate::call(MASTER, [self]{ return self->master.head++; });
-      delegate::write(this->base+offset, e);
+      T val = e;
+      Master::pushpop(self, &val, 1);
     }
     global_vector_push_latency += (Grappa_walltime() - t);
   }
   
   T pop() {
-    T result;
-    proxy.combine([&result](Proxy& p){
-      if (p.npush > 0) {
-        result = p.buffer[--p.npush];
-      } else {
-        p.pops[p.npop++] = &result;
-      }
-    });
-    return result;
+    ++global_vector_pop_ops;
+    double t = Grappa_walltime();
+    T val;
+    if (FLAGS_flat_combining) {
+      proxy.combine([&val](Proxy& p){
+        if (p.npush > 0) {
+          val = p.buffer[--p.npush];
+        } else {
+          p.pops[p.npop++] = &val;
+        }
+      });
+    } else {
+      Master::pushpop(self, &val, -1);
+    }
+    global_vector_pop_latency += (Grappa_walltime() - t);
+    return val;
   }
   
   inline void enqueue(const T& e) { push(e); }
   
   T dequeue() {
+    ++global_vector_deq_ops;
     double t = Grappa_walltime();
     
-    T result;
-    proxy.combine([&result](Proxy& p){
-      p.deqs[p.ndeq++] = &result;
-    });
-    
+    T val;
+    if (FLAGS_flat_combining) {
+      proxy.combine([&val](Proxy& p){
+        p.deqs[p.ndeq++] = &val;
+      });
+    } else {
+      Master::dequeue(self, &val, 1);
+    }
     global_vector_deq_latency += (Grappa_walltime() - t);
-    return result;
+    return val;
   }
   
   /// Return number of elements currently in vector
