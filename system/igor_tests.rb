@@ -10,12 +10,13 @@ Igor do
   # isolate everything needed for the executable so we can sbcast them for local execution
   params.merge!(GFLAGS)
   
-  @test_cmd = -> test { %Q[ ../bin/grappa_srun.rb --no-verbose --test=#{test} -- #{GFLAGS.expand}] }
-  command @test_cmd['GlobalVector_tests']
+  $cmd = -> { %Q[ ../bin/grappa_srun.rb --no-verbose --test=%{name} -- #{GFLAGS.expand}] }
+  command $cmd[]
   
-  sbatch_flags << "--time=15:00"
+  sbatch_flags.delete_if{|e| e =~ /--time/} << "--time=15:00"
   
   params {
+    name 'GlobalVector_tests'
     nnode 2
     ppn   1
     scale 10
