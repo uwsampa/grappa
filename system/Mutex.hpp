@@ -6,6 +6,7 @@
 #include "TaskingScheduler.hpp"
 #include "Synchronization.hpp"
 #include "Addressing.hpp"
+#include "ConditionVariableLocal.hpp"
 
 namespace Grappa {
   
@@ -31,12 +32,7 @@ namespace Grappa {
   template< typename Mutex >
   inline void lock( Mutex * t ) {
     while( true == t->lock_ ) { // while lock is held,
-      // add us to queue
-      Worker * current = impl::global_scheduler.get_current_thread();
-      current->next = Grappa::impl::get_waiters( t );
-      Grappa::impl::set_waiters( t, current );
-      /// and sleep
-      impl::global_scheduler.thread_suspend();
+      wait( t );
     }
     // lock is no longer held, so acquire
     t->lock_ = true;
@@ -55,28 +51,26 @@ namespace Grappa {
     return true;
   }
 
+  template< typename Mutex >
+  inline bool is_unlocked( Mutex * t ) { return !t->lock_; }
+
   /// Unlock a mutex. Note: wait scheme is unfairly LIFO
   template< typename Mutex >
   inline void unlock( Mutex * t ) {
     Grappa::impl::compiler_memory_fence();
     // release lock unconditionally
     t->lock_ = false;
-    if( t->waiters_ ) { // if anyone was waiting
-      // wake one up
-      Grappa::Worker * to_wake = Grappa::impl::get_waiters( t );
-      Grappa::impl::set_waiters( t, to_wake->next );
-      to_wake->next = NULL;
-      Grappa::impl::global_scheduler.thread_wake( to_wake );
-    }
+    signal(t, true);k
   }
 
   /// TODO: implement
   template< typename Mutex >
   inline void lock( GlobalAddress<Mutex> m ) {
     // if local, just acquire
-    if( m.node() == global_communicator.mynode() ) {
+    if( m.core() == mycore() ) {
       lock( m.pointer() );
     } else { // if remote, spawn a task on the home node to acquire 
+      CHECK(false);
     }
   }
 
