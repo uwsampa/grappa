@@ -37,7 +37,7 @@ Igor do
     scale       16
     edgefactor  16
     nbfs        8
-    tag         'none'
+    tag         'vector_locks'
   }
   
   expect :max_teps
