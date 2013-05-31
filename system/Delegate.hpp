@@ -130,6 +130,47 @@ namespace Grappa {
       return call(target.core(), [target,func]{ return func(target.pointer()); });
     }
     
+    /// Try lock on remote mutex. Does *not* lock or unlock, suspends if lock has already
+    /// been taken.
+    template< typename M, typename F >
+    inline auto call(Core dest, M mutex, F func) -> decltype(func(mutex())) {
+      using R = decltype(func(mutex()));      
+      delegate_stats.count_op();
+      
+      if (dest == mycore()) {
+        delegate_ops_short_circuited++;
+        // auto l = mutex();
+        // lock(l);
+        auto r = func(mutex());
+        // unlock(l);
+        return r;
+      } else {
+        FullEmpty<R> result;
+        auto result_addr = make_global(&result);
+        auto set_result = [result_addr](const R& val){
+          send_heap_message(result_addr.core(), [result_addr,val]{
+            result_addr->writeXF(val);
+          });
+        };
+      
+        send_message(dest, [set_result,mutex,func] {
+          auto l = mutex();
+          if (is_unlocked(l)) { // if lock is not held
+            // lock(l);
+            set_result(func(l));
+          } else {
+            add_waiter(l, heap_continuation([set_result,func,l]{
+              // lock(l);
+              CHECK(is_unlocked(l));
+              set_result(func(l));
+            }));
+          }
+        });
+        auto r = result.readFE();
+        return r;
+      }
+    }
+    
     template <typename F>
     inline auto call_suspendable(Core dest, F func) -> decltype(func()) {
       delegate_stats.count_op();
