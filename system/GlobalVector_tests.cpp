@@ -16,6 +16,7 @@
 #include <boost/random/mersenne_twister.hpp>
 #include <boost/random/uniform_int.hpp>
 #include <boost/random/variate_generator.hpp>
+#include <random>
 
 using namespace Grappa;
 
@@ -24,14 +25,16 @@ BOOST_AUTO_TEST_SUITE( GlobalVector_tests );
 static size_t N = (1L<<10) - 21;
 
 DEFINE_int64(nelems, N, "number of elements in (large) test arrays");
+DEFINE_int64(vector_size, N, "number of elements in (large) test arrays");
+DEFINE_double(fraction_push, 0.5, "fraction of accesses that should be pushes");
+
 // DEFINE_int64(buffer_size, 1<<10, "number of elements in buffer");
 DEFINE_int64(ntrials, 1, "number of independent trials to average over");
 
-DEFINE_bool(perf, false, "do performance test");
+DEFINE_bool(queue_perf, false, "do queue performance test");
+DEFINE_bool(stack_perf, false, "do stack performance test");
 
-GRAPPA_DEFINE_STAT(SummarizingStatistic<double>, push_time, 0);
-GRAPPA_DEFINE_STAT(SummarizingStatistic<double>, push_const_time, 0);
-GRAPPA_DEFINE_STAT(SummarizingStatistic<double>, deq_const_time, 0);
+GRAPPA_DEFINE_STAT(SummarizingStatistic<double>, trial_time, 0);
 
 template< typename T >
 inline T next_random() {
@@ -46,28 +49,47 @@ inline T next_random() {
   return gen();
 }
 
-enum class Exp { CONST_PUSH, RANDOM_PUSH, CONST_DEQUEUE };
+bool choose_random(double probability) {
+  std::default_random_engine e(12345L);
+  std::uniform_real_distribution<double> dist(0.0, 1.0);
+  return dist(e) < probability;
+}
+
+enum class Exp { PUSH, POP, DEQUEUE, QUEUE, STACK };
 
 template< Exp             EXP,
           CompletionEvent* CE = &impl::local_ce,
           int64_t          TH = impl::USE_LOOP_THRESHOLD_FLAG >
-double push_perf_test(GlobalAddress<GlobalVector<int64_t>> qa) {
+double perf_test(GlobalAddress<GlobalVector<int64_t>> qa) {
   double t = Grappa_walltime();
   
-  forall_global_private<CE,TH>(0, N, [qa](int64_t i){
-    if (EXP == Exp::RANDOM_PUSH) {
+  forall_global_public<CE,TH>(0, FLAGS_nelems, [qa](int64_t i){
+    if (EXP == Exp::QUEUE) {
+      
+      if (choose_random(FLAGS_fraction_push)) {
+        qa->push(next_random<int64_t>());
+      } else {
+        qa->dequeue();
+      }
+      
+    } else if (EXP == Exp::STACK) {
+      
+      if (choose_random(FLAGS_fraction_push)) {
+        qa->push(next_random<int64_t>());
+      } else {
+        qa->pop();
+      }
+      
+    } else if (EXP == Exp::PUSH) {
       qa->push(next_random<int64_t>());
-    } else if (EXP == Exp::CONST_PUSH) {
-      qa->push(42);
-    } else if (EXP == Exp::CONST_DEQUEUE) {
-      CHECK_EQ(qa->dequeue(), 42);
+    } else if (EXP == Exp::POP) {
+      qa->pop();
+    } else if (EXP == Exp::DEQUEUE) {
+      qa->dequeue();
     }
   });
   
   t = Grappa_walltime() - t;
-  if (EXP == Exp::RANDOM_PUSH || EXP == Exp::CONST_PUSH) {
-  } else if (EXP == Exp::CONST_DEQUEUE) {
-  }
   return t;
 }
 
@@ -169,25 +191,22 @@ void test_stack() {
 }
 
 void user_main( void * ignore ) {
-  if (FLAGS_perf) {
-    auto qa = GlobalVector<int64_t>::create(N);
+  if (FLAGS_queue_perf || FLAGS_stack_perf) {
+    auto qa = GlobalVector<int64_t>::create(FLAGS_vector_size);
     
     for (int i=0; i<FLAGS_ntrials; i++) {
       qa->clear();
-      VLOG(1) << "random push...";
-      push_time += push_perf_test<Exp::RANDOM_PUSH>(qa);
-      qa->clear();
+      if (FLAGS_fraction_push < 1.0) { // fill halfway so we don't hit either rail
+        forall_global_public(0, FLAGS_vector_size/2, [qa](int64_t i){
+          qa->push(next_random<int64_t>());
+        });
+      }
       
-      VLOG(1) << "const enqueue...";
-      push_const_time += push_perf_test<Exp::CONST_PUSH>(qa);
-      BOOST_CHECK_EQUAL(qa->size(), N);
-      
-      forall_localized(qa, [](int64_t& e){ BOOST_CHECK_EQUAL(e, 42); });
-      
-      VLOG(1) << "const dequeue...";
-      deq_const_time += push_perf_test<Exp::CONST_DEQUEUE>(qa);
-      BOOST_CHECK_EQUAL(qa->size(), 0);
-      
+      if (FLAGS_queue_perf) {
+        trial_time += perf_test<Exp::QUEUE>(qa);
+      } else if (FLAGS_stack_perf) {
+        trial_time += perf_test<Exp::STACK>(qa);
+      }
     }
     
     Statistics::merge_and_print();
@@ -205,7 +224,7 @@ BOOST_AUTO_TEST_CASE( test1 ) {
 
   Grappa_init( &(boost::unit_test::framework::master_test_suite().argc),
                 &(boost::unit_test::framework::master_test_suite().argv) );
-
+  
   Grappa_activate();
   N = FLAGS_nelems;
 
