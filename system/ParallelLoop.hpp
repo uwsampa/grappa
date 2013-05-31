@@ -240,40 +240,60 @@ namespace Grappa {
     });
   }
   
+  namespace impl {
+  
+    template<GlobalCompletionEvent * GCE, int64_t Threshold, typename F>
+    void forall_global_public(int64_t start, int64_t iters, F loop_body,
+                                void (F::*mf)(int64_t,int64_t) const)
+    {
+      // note: loop_decomp uses 2*8-byte values to specify range. We additionally track originating
+      // core. So to avoid exceeding 3*8-byte task size, we save the loop body once on each core
+      // (on `on_all_cores` task's stack) and embed the pointer to it in GCE, so each public task
+      // can look it up when run, wherever it is.
+    
+      on_all_cores([start,iters,loop_body]{
+        GCE->set_shared_ptr(&loop_body); // need to initialize this on all nodes before any tasks start
+        // may as well do this before the barrier too, but it shouldn't matter
+        range_t r = blockDist(start, start+iters, mycore(), cores());
+      
+        barrier();
+      
+        forall_here_async_public<GCE,Threshold>(r.start, r.end-r.start,
+          [](int64_t s, int64_t n) {
+            auto& loop_body = *GCE->get_shared_ptr<F>();
+            loop_body(s,n);
+          }
+        );
+      
+        GCE->wait(); // keeps captured `loop_body` around for child tasks from any core to use
+        GCE->set_shared_ptr(nullptr);
+      });
+    }
+  
+    template<GlobalCompletionEvent * GCE, int64_t Threshold, typename F>
+    void forall_global_public(int64_t start, int64_t iters, F loop_body,
+                              void (F::*mf)(int64_t) const)
+    {
+      auto f = [loop_body](int64_t start, int64_t iters){
+        for (int64_t i=start; i<start+iters; i++) {
+          loop_body(i);
+        }
+      };
+      impl::forall_global_public<GCE,Threshold>(start, iters, f, &decltype(f)::operator());
+    }
+  }
+  
   /// Spread iterations evenly (block-distributed) across all the cores, using recursive
   /// decomposition with public tasks (that may moved to a different core for load-balancing).
   /// Blocks until all iterations on all cores complete.
   ///
-  /// Note: `loop_body` will be copied to each core and that single copied is shared by all
+  /// Note: `loop_body` will be copied to each core and that single copy is shared by all
   /// public tasks under this GlobalCompletionEvent.
   ///
   /// Subject to "may-parallelism", @see `loop_threshold`.
   template<GlobalCompletionEvent * GCE = &impl::local_gce, int64_t Threshold = impl::USE_LOOP_THRESHOLD_FLAG, typename F = decltype(nullptr)>
   void forall_global_public(int64_t start, int64_t iters, F loop_body) {
-    // note: loop_decomp uses 2*8-byte values to specify range. We additionally track originating
-    // core. So to avoid exceeding 3*8-byte task size, we save the loop body once on each core
-    // (on `on_all_cores` task's stack) and embed the pointer to it in GCE, so each public task
-    // can look it up when run, wherever it is.
-    
-    on_all_cores([start,iters,loop_body]{
-//      GCE->reset();
-      GCE->set_shared_ptr(&loop_body); // need to initialize this on all nodes before any tasks start
-      
-      // may as well do this before the barrier too, but it shouldn't matter
-      range_t r = blockDist(start, start+iters, mycore(), cores());
-      
-      barrier();
-      
-      forall_here_async_public<GCE,Threshold>(r.start, r.end-r.start,
-        [](int64_t s, int64_t n) {
-          auto& loop_body = *GCE->get_shared_ptr<F>();
-          loop_body(s,n);
-        }
-      );
-      
-      GCE->wait(); // keeps captured `loop_body` around for child tasks from any core to use
-      GCE->set_shared_ptr(nullptr);
-    });
+    impl::forall_global_public<GCE,Threshold>(start, iters, loop_body, &F::operator());
   }
   
   namespace impl {
