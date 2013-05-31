@@ -76,7 +76,8 @@ public:
       auto head = delegate::call(MASTER, head_lock, [self,delta](Mutex * l){
         lock(l);
         // if something was popped, tail will have been decremented, but may still be locked
-        CHECK_LE(self->master.head+delta, self->master.tail);
+        CHECK_LE(self->master.size, self->capacity);
+        CHECK_GE(self->master.size, delta);
         return self->master.head;
       });
 
