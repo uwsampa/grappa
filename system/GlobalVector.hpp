@@ -49,7 +49,7 @@ public:
         CHECK(!is_unlocked(l));
         DVLOG(2) << "locked (delta:" << delta << ")" << " <" << ct << ">";
         
-        if (delta < 0) self->master.tail += delta;
+        if (delta < 0) self->incr_with_wrap(&self->master.tail, delta);  // pop
         CHECK_GE(self->master.tail, 0); // TODO: implement wrap-around
         return self->master.tail;
       });
@@ -57,14 +57,18 @@ public:
       
       if (delta > 0) { // push
         DVLOG(2) << "writing (delta:" << delta << ")" << " <" << ct << ">";
-        typename Incoherent<T>::WO c(self->base+tail, delta, buffer); c.block_until_released();
+        self->cache_with_wraparound<typename Incoherent<T>::WO>(tail, delta, buffer);
+        // typename Incoherent<T>::WO c(self->base+tail, delta, buffer); c.block_until_released();
         DVLOG(2) << "done writing (delta:" << delta << ")" << " <" << ct << ">";
       } else { // pop
-        typename Incoherent<T>::RO c(self->base+tail, 0-delta, buffer); c.block_until_acquired();
+        self->cache_with_wraparound<typename Incoherent<T>::RO>(tail, 0-delta, buffer);
+        // typename Incoherent<T>::RO c(self->base+tail, 0-delta, buffer); c.block_until_acquired();
       }
       
       delegate::call(MASTER, [self,delta,ct]() {
-        if (delta > 0) self->master.tail += delta;
+        if (delta > 0) self->incr_with_wrap(&self->master.tail, delta);  // push
+        self->master.size += delta;
+        
         CHECK_LE(self->master.tail, self->capacity); // TODO: implement wrap-around
         DVLOG(2) << "unlocking (delta:" << delta << ")" << " <" << ct << ">";
         unlock(&self->master.tail_lock);
@@ -82,17 +86,44 @@ public:
         return self->master.head;
       });
 
-      typename Incoherent<T>::RO c(self->base+head, delta, buffer); c.block_until_acquired();
+      self->cache_with_wraparound<typename Incoherent<T>::RO>(head, delta, buffer);
+      // typename Incoherent<T>::RO c(self->base+head, delta, buffer); c.block_until_acquired();
       
       delegate::call(MASTER, [self,delta] {
-        if (delta > 0) self->master.head += delta;
+        if (delta > 0) self->incr_with_wrap(&self->master.head, delta);
+        self->master.size -= delta;
+        
         CHECK_LT(self->master.head, self->capacity); // TODO: implement wrap-around
         unlock(&self->master.head_lock);
       });
     }
-
-  };
     
+  };
+
+  inline void incr_with_wrap(size_t * i, long incr) {
+    *i += incr;
+    if (*i >= capacity) {
+      *i %= capacity;
+    } else if (i < 0){
+      *i += capacity;
+    }
+  }
+  
+  template< typename Cache >
+  void cache_with_wraparound(size_t start, size_t nelem, T * buffer) {
+    struct Range {size_t start, end; };
+    if (start+nelem <= capacity) {
+      Cache c(base+start, nelem, buffer); c.block_until_acquired();
+    } else {
+      auto end = (start+nelem)%capacity;
+      Cache c1(base, end, buffer);
+      Cache c2(base+start, capacity-start, buffer+end);
+      c1.start_acquire();
+      c2.block_until_acquired();
+      c1.block_until_acquired();
+    }
+  }
+  
   struct Proxy {
     GlobalVector * outer;
     T buffer[BUFFER_CAPACITY];
