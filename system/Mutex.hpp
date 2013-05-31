@@ -32,7 +32,7 @@ namespace Grappa {
   template< typename Mutex >
   inline void lock( Mutex * t ) {
     while( true == t->lock_ ) { // while lock is held,
-      wait( t );
+      Grappa::wait( t );
     }
     // lock is no longer held, so acquire
     t->lock_ = true;
@@ -52,7 +52,7 @@ namespace Grappa {
   }
 
   template< typename Mutex >
-  inline bool is_unlocked( Mutex * t ) { return !t->lock_; }
+  inline bool is_unlocked( Mutex * t ) { return t->lock_ == false; }
 
   /// Unlock a mutex. Note: wait scheme is unfairly LIFO
   template< typename Mutex >
@@ -60,7 +60,7 @@ namespace Grappa {
     Grappa::impl::compiler_memory_fence();
     // release lock unconditionally
     t->lock_ = false;
-    signal(t, true);k
+    Grappa::signal(t);
   }
 
   /// TODO: implement
@@ -77,7 +77,6 @@ namespace Grappa {
   /// TODO: implement
   template< typename Mutex >
   inline void trylock( GlobalAddress<Mutex> m ) {
-
     // if local, just acquire
     // if remote, spawn a task on the home node to acquire 
   }
