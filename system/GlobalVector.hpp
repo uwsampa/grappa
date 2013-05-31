@@ -61,7 +61,7 @@ public:
       
       delegate::call(MASTER, [self,delta]() {
         if (delta > 0) self->master.tail += delta;
-        CHECK_LT(self->master.tail, self->capacity); // TODO: implement wrap-around
+        CHECK_LE(self->master.tail, self->capacity); // TODO: implement wrap-around
         DVLOG(2) << "unlocking (delta:" << delta << ")";
         unlock(&self->master.tail_lock);
       });
@@ -78,7 +78,7 @@ public:
         return self->master.head;
       });
 
-      typename Incoherent<T>::RO c(self->base+head, 0-delta, buffer); c.block_until_acquired();
+      typename Incoherent<T>::RO c(self->base+head, delta, buffer); c.block_until_acquired();
       
       delegate::call(MASTER, [self,delta] {
         if (delta > 0) self->master.head += delta;
