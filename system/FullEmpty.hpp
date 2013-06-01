@@ -43,7 +43,7 @@ namespace Grappa {
       }
       
       DVLOG(2) << "setting up to block (" << fe_addr << ")";
-      auto* c = heap_continuation([&fe,result_addr]{
+      auto* c = new_continuation([&fe,result_addr]{
         VLOG(0) << "continuation!";
         fill_remote(result_addr, fe.readFF());
       });

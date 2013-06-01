@@ -83,7 +83,7 @@ namespace Grappa {
       Grappa::impl::set_waiters( cv, to_wake->next );
       to_wake->next = NULL;
       if (is_continuation(to_wake)) {
-        reinterpret_cast<Continuation*>(to_wake)->invoke();
+        invoke(reinterpret_cast<Continuation*>(to_wake));
       } else {
         impl::global_scheduler.thread_wake( to_wake );
       }
@@ -98,7 +98,7 @@ namespace Grappa {
       Grappa::impl::set_waiters( cv, to_wake->next );
       to_wake->next = NULL;
       if (is_continuation(to_wake)) {
-        reinterpret_cast<Continuation*>(to_wake)->invoke();
+        invoke(reinterpret_cast<Continuation*>(to_wake));
       } else {
         impl::global_scheduler.thread_wake( to_wake );
       }
