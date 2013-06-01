@@ -190,6 +190,7 @@ void test_stack() {
 
 void user_main( void * ignore ) {
   if (FLAGS_queue_perf || FLAGS_stack_perf) {
+    LOG(INFO) << "beginning performance test";
     auto qa = GlobalVector<int64_t>::create(FLAGS_vector_size);
     
     for (int i=0; i<FLAGS_ntrials; i++) {
