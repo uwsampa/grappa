@@ -159,7 +159,7 @@ namespace Grappa {
             // lock(l);
             set_result(func(l));
           } else {
-            add_waiter(l, heap_continuation([set_result,func,l]{
+            add_waiter(l, new_continuation([set_result,func,l]{
               // lock(l);
               CHECK(is_unlocked(l));
               set_result(func(l));
