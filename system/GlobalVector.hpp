@@ -105,6 +105,7 @@ public:
   
   template< typename Cache >
   void cache_with_wraparound(size_t start, size_t nelem, T * buffer) {
+    CHECK(start >= 0 && start < capacity && (start+nelem) >= 0 && (start+nelem) <= capacity);
     struct Range {size_t start, end; };
     if (start+nelem <= capacity) {
       Cache c(base+start, nelem, buffer); c.block_until_acquired();
