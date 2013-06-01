@@ -89,6 +89,11 @@ inline T* locale_new(Args&&... args) {
   return new (locale_alloc<T>()) T(std::forward<Args...>(args...));
 }
 
+template< typename T >
+inline T* locale_new() {
+  return new (locale_alloc<T>()) T();
+}
+
 /// Free memory that was allocated from locale shared heap.
 inline void locale_free(void * ptr) {
   impl::locale_shared_memory.deallocate(ptr);
