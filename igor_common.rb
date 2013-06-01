@@ -144,9 +144,12 @@ Igor do
     cmdout.gsub!(/^\[[\d,]+\]\<\w+\>:/m){ '' } # remove pal header
     cmdout.gsub!(/^\d+:\s+/m){ '' }                 # remove sampa header
     cmdout.gsub!(/^I\d+ .*?\d+\] /m){ '' }          # remove glog header
-
+    
     # get rid of double underscores, since sequel/sqlite3 don't like them
     cmdout.gsub!(/__/m){ "_" }
+
+    # get rid of pesky 'nan's if they show up
+    cmdout.gsub!(/: -?nan/, ': 0')
 
     stats = []
 
