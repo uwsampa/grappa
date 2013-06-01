@@ -14,6 +14,8 @@
 #include <gperftools/profiler.h>
 #endif
 
+#include <math.h>
+
 namespace Grappa {
 
   template<typename T>
@@ -150,6 +152,8 @@ namespace Grappa {
       this->n = t.n;
       this->mean = t.mean;
       this->M2 = t.M2;
+      this->max = t.max;
+      this->min = t.min;
       return *this;
     }
 

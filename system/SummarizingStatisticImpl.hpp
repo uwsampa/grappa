@@ -13,6 +13,8 @@ namespace Grappa {
     this->n = 0;
     this->mean = 0.0;
     this->M2 = 0.0;
+    this->max = 0;
+    this->min = 0;
     
     // TODO: use more generalized `reduce` operation to merge all
     SummarizingStatistic<T>* this_static = reinterpret_cast<SummarizingStatistic<T>*>(static_stat_ptr);
