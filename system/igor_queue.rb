@@ -19,8 +19,9 @@ Igor do
   
   params {
     tag 'vector_locks'
-    scale 10
-    nelems expr('2**scale')
+    log_nelems 10
+    nelems expr('2**log_nelems')
+    vector_size expr('(2**log_nelems)*2')
     ntrials 1
   }
   
