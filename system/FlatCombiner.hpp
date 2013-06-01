@@ -58,6 +58,7 @@ template <typename T>
 class FlatCombiner {
   
   struct Flusher {
+    Flusher * next;
     T * id;
     Worker * sender;
     ConditionVariable cv;
@@ -65,12 +66,33 @@ class FlatCombiner {
     ~Flusher() { id->~T(); locale_free(id); }
   };
   
+  void free_flusher(Flusher * s) {
+    if (freelist == nullptr) {
+      freelist = s;
+    } else {
+      s->next = freelist;
+      freelist = s;
+    }
+  }
+  Flusher * get_flusher(Flusher * s) {
+    Flusher * r;
+    if (freelist != nullptr) {
+      r = freelist;
+      freelist = r->next;
+      r->id->clear();
+    } else {
+      r = new Flusher(s->id->clone_fresh());
+    }
+    return r;
+  }
+  
   Flusher * current;
   size_t inflight;
+  Flusher * freelist;
   
 public:
   
-  FlatCombiner(T * initial): current(new Flusher(initial)), inflight(0) {}
+  FlatCombiner(T * initial): current(new Flusher(initial)), inflight(0), freelist(nullptr) {}
   ~FlatCombiner() { delete current; }
   
   // template <typename... Args>
@@ -95,18 +117,20 @@ public:
     func(*s->id);
     
     if (s->id->is_full()) {
-      current = new Flusher(s->id->clone_fresh());
+      current = get_flusher(s);
       if (s->sender == nullptr) {
         inflight++;
+        DVLOG(3) << "inflight++ -> " << inflight;
         DVLOG(3) << "flushing on full";
         flush(s);
         return;
       } // otherwise someone else assigned to send...
     } else if (inflight == 0) {
       inflight++;
+      DVLOG(3) << "inflight++ -> " << inflight;
       // always need at least one in flight
       if (s->sender == nullptr) {
-        current = new Flusher(s->id->clone_fresh());
+        current = get_flusher(s);
         DVLOG(3) << "flush because none in flight";
         flush(s);
         return;
@@ -118,7 +142,7 @@ public:
     // on wake...
     if (&current_worker() == s->sender) { // I was assigned to send
       if (s == current) {
-        current = new Flusher(s->id->clone_fresh());
+        current = get_flusher(s);
       }
       DVLOG(3) << "flush by waken worker";
       flush(s);
@@ -144,7 +168,7 @@ public:
       inflight--;
     }
     s->sender = nullptr;
-    delete s;
+    free_flusher(s);
   }
 };
 

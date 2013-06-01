@@ -50,6 +50,8 @@ protected:
     
     Proxy(GlobalHashSet * owner): owner(owner), keys_to_insert(LOCAL_HASH_SIZE) {}
     
+    void clear() { keys_to_insert.clear(); }
+    
     Proxy * clone_fresh() { return locale_new<Proxy>(owner); }
     
     bool is_full() { return keys_to_insert.size() >= LOCAL_HASH_SIZE; }
