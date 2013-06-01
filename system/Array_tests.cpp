@@ -45,7 +45,7 @@ void test_memset_memcpy(bool test_async = false) {
   }
 
   Grappa::forall_localized(ys, NN, [](int64_t i, T& v) {
-    BOOST_CHECK_EQUAL(v, Val);
+    CHECK_EQ(v, Val);
   });
 
   // try the other way (ys -> xs)
