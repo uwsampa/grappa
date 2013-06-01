@@ -130,7 +130,9 @@ public:
     T* pops[BUFFER_CAPACITY];
     long npop;
     
-    Proxy(GlobalVector* const outer): outer(outer), npush(0), ndeq(0), npop(0) {}
+    Proxy(GlobalVector* const outer): outer(outer) { clear(); }
+    
+    void clear() { npush = 0; ndeq = 0; npop = 0; }
     
     Proxy* clone_fresh() { return locale_new<Proxy>(outer); }
     
