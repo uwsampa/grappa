@@ -21,6 +21,7 @@ public:
     auto c = reinterpret_cast<std::function<void()>*>(this->base);
     (*c)();
     delete c;
+    delete this;
   }
 };
 
