@@ -62,8 +62,14 @@ class FlatCombiner {
     T * id;
     Worker * sender;
     ConditionVariable cv;
-    Flusher(T * id): id(id), sender(nullptr) {}
+    Flusher(T * id): id(id) { clear(); }
     ~Flusher() { id->~T(); locale_free(id); }
+    void clear() {
+      next = nullptr;
+      id->clear();
+      sender = nullptr;
+      cv.waiters_ = 0;
+    }
   };
   
   void free_flusher(Flusher * s) {
@@ -79,7 +85,7 @@ class FlatCombiner {
     if (freelist != nullptr) {
       r = freelist;
       freelist = r->next;
-      r->id->clear();
+      r->clear();
     } else {
       r = new Flusher(s->id->clone_fresh());
     }
