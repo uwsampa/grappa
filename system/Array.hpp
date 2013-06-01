@@ -185,3 +185,26 @@ template< typename T >
 void Grappa_memcpy(GlobalAddress<T> dst, GlobalAddress<T> src, size_t nelem) {
   Grappa::memcpy(dst,src,nelem);
 }
+
+
+
+
+namespace Grappa {
+namespace cache {
+    
+template< typename T >
+void copy(GlobalAddress<T> dst, GlobalAddress<T> src, size_t nelem, GlobalAddress<CompletionEvent> ce) {
+  
+  auto start_messages = [dst,src,nelem,ce]{
+    auto r = cores_with_elements(src, nelem);
+    for (Core i=0, c=r.first; i<r.second; i++, c = (r.first+i)%cores()) {
+      
+    }
+  };
+
+}
+
+} // namespace cache
+} // namespace Grappa
+
+

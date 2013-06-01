@@ -410,23 +410,18 @@ namespace Grappa {
     impl::forall_localized<GCE,Threshold,T,F>(base, nelems, loop_body, &F::operator());
   }
   
-  /// Run privateTasks on each core that contains elements of the given region of global memory.
-  /// do_on_core: void(T* local_base, size_t nlocal)
-  /// Internally creates privateTask with 2*8-byte words, so do_on_core can be 8 bytes and not cause heap allocation.
-  template< GlobalCompletionEvent * GCE = &impl::local_gce,
-            int64_t Threshold = impl::USE_LOOP_THRESHOLD_FLAG,
-            typename T = decltype(nullptr),
-            typename F = decltype(nullptr) >
-  void on_cores_localized_async(GlobalAddress<T> base, int64_t nelems, F do_on_core) {
+  template< typename T >
+  std::pair<Core,Core> cores_with_elements(GlobalAddress<T> base, size_t nelem) {
+    Core start_core = base.node();
     Core nc = cores();
     Core fc;
-    int64_t nbytes = nelems*sizeof(T);
-    GlobalAddress<int64_t> end = base+nelems;
-    if (nelems > 0) { fc = 1; }
+    int64_t nbytes = nelem*sizeof(T);
+    GlobalAddress<int64_t> end = base+nelem;
+    if (nelem > 0) { fc = 1; }
   
     size_t block_elems = block_size / sizeof(T);
     int64_t nfirstcore = base.block_max() - base;
-    int64_t n = nelems - nfirstcore;
+    int64_t n = nelem - nfirstcore;
     
     if (n > 0) {
       int64_t nrest = n / block_elems;
@@ -440,15 +435,30 @@ namespace Grappa {
       }
     }
     
+    return std::make_pair( start_core, fc );
+  }
+  
+  /// Run privateTasks on each core that contains elements of the given region of global memory.
+  /// do_on_core: void(T* local_base, size_t nlocal)
+  /// Internally creates privateTask with 2*8-byte words, so do_on_core can be 8 bytes and not cause heap allocation.
+  template< GlobalCompletionEvent * GCE = &impl::local_gce,
+            int64_t Threshold = impl::USE_LOOP_THRESHOLD_FLAG,
+            typename T = decltype(nullptr),
+            typename F = decltype(nullptr) >
+  void on_cores_localized_async(GlobalAddress<T> base, int64_t nelems, F do_on_core) {
+    
+    auto r = cores_with_elements(base, nelems);
+    auto fc = r.second;
+    auto nc = cores();
+    
     Core origin = mycore();
-    Core start_core = base.node();
     MessagePool pool(cores() * sizeof(Message<std::function<void(GlobalAddress<T>,int64_t,F)>>));
     
     GCE->enroll(fc);
     struct { int64_t nelems : 48, origin : 16; } packed = { nelems, mycore() };
     
     for (Core i=0; i<fc; i++) {
-      pool.send_message((start_core+i)%nc, [base,packed,do_on_core] {
+      pool.send_message((r.first+i)%nc, [base,packed,do_on_core] {
         privateTask([base,packed,do_on_core] {
           T* local_base = base.localize();
           T* local_end = (base+packed.nelems).localize();
