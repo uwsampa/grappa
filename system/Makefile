@@ -345,7 +345,8 @@ LIBRARY_CONTENTS+= Grappa.o \
 					 HistogramStatistic.o \
 					 FlatCombiner.o \
 					 GlobalVector.o \
-					 GlobalHashSet.o
+					 GlobalHashSet.o \
+					 GlobalHashTable.o
 
 libGrappa.a: $(LIBRARY_CONTENTS)
 	$($(MPITYPE)_AR) rv $@ $^

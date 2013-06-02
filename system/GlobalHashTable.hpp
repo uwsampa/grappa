@@ -5,50 +5,117 @@
 #include "ParallelLoop.hpp"
 #include "BufferVector.hpp"
 #include "Statistics.hpp"
-
-#include <list>
+#include "FlatCombiner.hpp"
+#include <utility>
+#include <unordered_map>
+#include <vector>
 
 // for all hash tables
 //GRAPPA_DEFINE_STAT(MaxStatistic<uint64_t>, max_cell_length, 0);
+
+GRAPPA_DECLARE_STAT(SimpleStatistic<size_t>, hashmap_insert_ops);
+GRAPPA_DECLARE_STAT(SimpleStatistic<size_t>, hashmap_insert_msgs);
+GRAPPA_DECLARE_STAT(SimpleStatistic<size_t>, hashmap_lookup_ops);
+GRAPPA_DECLARE_STAT(SimpleStatistic<size_t>, hashmap_lookup_msgs);
+
 
 namespace Grappa {
 
 // Hash table for joins
 // * allows multiple copies of a Key
 // * lookups return all Key matches
-template <typename K, typename V, uint64_t (*HF)(K)> 
+template< typename K, typename V > 
 class GlobalHashTable {
 protected:
   struct Entry {
     K key;
-    BufferVector<V> * vs;
-    Entry( K key ) : key(key), vs(new BufferVector<V>( 16 )) {}
-    Entry( K key, BufferVector<V> * vs ): key(key), vs(vs) {}
-    ~Entry() { if (vs != nullptr) delete vs; }
+    V val;
+    Entry( K key ) : key(key), val() {}
+    Entry( K key, V val): key(key), val(val) {}
   };
   
-  struct Cell {
-    std::list<Entry> * entries;
-    Cell() : entries( nullptr ) {}
+  struct Cell { // TODO: keep first few in the 64-byte block, then go to secondary storage
+    std::vector<Entry> entries;
+    char padding[64-sizeof(std::vector<Entry>)];
+    
+    Cell() : entries() { entries.reserve(10); }
+    
+    std::pair<bool,V> lookup(K key) {
+      
+      for (auto& e : this->entries) if (e.key == key) return std::pair<bool,K>{true, e.val};
+      return std::pair<bool,K>(false,V());
+    }
+    void insert(const K& key, const V& val) {
+      bool found = false;
+      for (auto& e : entries) {
+        if (e.key == key) {
+          e.val = val;
+          found = true;
+          break;
+        }
+      }
+      if (!found) {
+        entries.emplace_back(key, val);
+      }
+    }
+  };
+
+  struct Proxy {
+    static const size_t LOCAL_HASH_SIZE = 1<<10;
+    
+    GlobalHashTable * owner;
+    std::unordered_map<K,V> map;
+    
+    Proxy(GlobalHashTable * owner): owner(owner), map(LOCAL_HASH_SIZE) { clear(); }
+    
+    void clear() { map.clear(); }
+    
+    Proxy * clone_fresh() { return locale_new<Proxy>(owner); }
+    
+    bool is_full() { return map.size() >= LOCAL_HASH_SIZE; }
+    
+    void insert(const K& newk, const V& newv) {
+      ++hashmap_insert_ops;
+      if (map.count(newk) == 0) {
+        map[newk] = newv;
+      }
+    }
+    
+    void sync() {
+      CompletionEvent ce(map.size());
+      auto cea = make_global(&ce);
+      
+      for (auto& e : map) { auto& k = e.first; auto& v = e.second;
+        ++hashmap_insert_msgs;
+        auto cell = owner->base+owner->computeIndex(k);
+        send_heap_message(cell.core(), [cell,cea,k,v]{
+          cell->insert(k, v);
+          complete(cea);
+        });
+      }
+      ce.wait();
+    }
   };
 
   // private members
   GlobalAddress<GlobalHashTable> self;
   GlobalAddress< Cell > base;
   size_t capacity;
+  
+  FlatCombiner<Proxy> proxy;
 
-  char _pad[block_size - sizeof(self)-sizeof(base)-sizeof(capacity)];
+  char _pad[2*block_size - sizeof(self)-sizeof(base)-sizeof(capacity)-sizeof(proxy)];
 
-  uint64_t computeIndex( K key ) {
-    return HF(key) % capacity;
+  uint64_t computeIndex(K key) {
+    static std::hash<K> hasher;
+    return hasher(key) % capacity;
   }
 
   // for creating local GlobalHashTable
-  GlobalHashTable( GlobalAddress<GlobalHashTable> self, GlobalAddress<Cell> base, size_t capacity ) {
-    this->self = self;
-    this->base = base;
-    this->capacity = capacity;
-  }
+  GlobalHashTable( GlobalAddress<GlobalHashTable> self, GlobalAddress<Cell> base, size_t capacity )
+    : self(self), base(base), capacity(capacity)
+    , proxy(locale_new<Proxy>(this))
+  { }
   
 public:
   // for static construction
@@ -66,9 +133,7 @@ public:
   
   void destroy() {
     auto self = this->self;
-    forall_localized(this->base, this->capacity, [](int64_t i, Cell& c){
-      if (c.entries != nullptr) { delete c.entries; }
-    });
+    forall_localized(this->base, this->capacity, [](Cell& c){ c.~Cell(); });
     global_free(this->base);
     call_on_all_cores([self]{ self->~GlobalHashTable(); });
     global_free(self);
@@ -81,106 +146,62 @@ public:
       if (c.entries == nullptr) return;
       DVLOG(3) << "c<" << &c << "> entries:" << c.entries << " size: " << c.entries->size();
       for (Entry& e : *c.entries) {
-        visit(e.key, *e.vs);
+        visit(e.key, *e.val);
       }
     });
   }
-
-  void global_set_RO() { forall_entries([](K k, BufferVector<V>& vs){ vs.setReadMode(); }); }
-  void global_set_WO() { forall_entries([](K k, BufferVector<V>& vs){ vs.setWriteMode(); }); }
   
-  uint64_t lookup ( K key, GlobalAddress<V> * vals ) {          
-    uint64_t index = computeIndex( key );
-    GlobalAddress< Cell > target = base + index; 
-    
-    struct lookup_result {
-      GlobalAddress<V> matches;
-      size_t num;
-    };
-
-    auto result = delegate::call(target, [key](Cell* c) {
-      lookup_result lr;
-      lr.num = 0;
-
-      // first check if the cell has any entries;
-      // if not then the lookup returns nothing
-      if (c->entries == nullptr) return lr;
-      
-      for (Entry& e : *c->entries) {
-        if ( e.key == key ) {  // typename K must implement operator==
-          lr.matches = e.vs->getReadBuffer();
-          lr.num = e.vs->size();
-          break;
+  bool lookup(K key, V * val) {
+    ++hashmap_lookup_ops;
+    std::pair<bool,V> result;
+    if (FLAGS_flat_combining) {
+      proxy.combine([&result,key,this](Proxy& p){
+        if (p.map.count(key) > 0) {
+          result = std::make_pair(true, p.map[key]);
+        } else {
+          ++hashmap_lookup_msgs;
+          auto cell = this->base+this->computeIndex(key);
+          result = delegate::call(cell, [key](Cell* c){ return c->lookup(key); });
         }
-      }
-
-      return lr;
-    });
-
-    *vals = result.matches;
-    return result.num;
+      });
+    } else {
+      ++hashmap_lookup_msgs;
+      auto result = delegate::call(base+computeIndex(key), [key](Cell* c){
+        return c->lookup(key);
+      });
+    }
+    *val = result.second;
+    return result.first;
+  }
+  
+  void insert(K key, V val) {
+    ++hashmap_insert_ops;
+    if (FLAGS_flat_combining) {
+      proxy.combine([key,val](Proxy& p){ p.map[key] = val; });
+    } else {
+      ++hashmap_insert_msgs;
+      delegate::call(base+computeIndex(key), [key,val](Cell * c) { c->insert(key,val); });
+    }
   }
 
-  // Inserts the key if not already in the set
-  // Shouldn't be used with `insert`.
-  //
-  // returns true if the set already contains the key
-  bool insert_unique( K key ) {
-    uint64_t index = computeIndex( key );
-    GlobalAddress< Cell > target = base + index; 
-    return delegate::call( target, [key](Cell* c) {
-      // TODO: have an additional version that returns void to upgrade to call_async
-
-      // if first time the cell is hit then initialize
-      if ( c->entries == nullptr ) {
-        c->entries = new std::list<Entry>();
-      }
-
-      // find matching key in the list
-      for (Entry& e : *c->entries) {
-        if ( e.key == key ) {
-          // key found so no insert
-          return true;
-        }
-      }
-
-      // this is the first time the key has been seen so add it to the list
-      // TODO: cleanup since sharing insert* code here, we are just going to store an empty vector perhaps a different module
-      c->entries->emplace_back(key,nullptr);
-
-      return false;
-    });
-  }
-
-
-  void insert( K key, V val ) {
-    uint64_t index = computeIndex( key );
-    GlobalAddress< Cell > target = base + index; 
-
-    delegate::call(target, [key, val](Cell* c) { // TODO: upgrade to call_async
-      // list of entries in this cell
-
-      // if first time the cell is hit then initialize
-      if ( c->entries == nullptr ) {
-        c->entries = new std::list<Entry>();
-      }
-
-      // find matching key in the list
-      for (Entry& e : *c->entries) {
-        if ( e.key == key ) {
-          // key found so add to matches
-          e.vs->insert( val );
-          return;
-        }
-      }
-
-      // this is the first time the key has been seen
-      // so add it to the list
-      c->entries->emplace_back(key);
-      c->entries->back().vs->insert(val);
-    });
-  }
-
+  template< GlobalCompletionEvent * GCE, int64_t Threshold,
+            typename TT, typename VV, typename F >
+  friend void forall_localized(GlobalAddress<GlobalHashTable<TT,VV>> self, F func);  
+  
 };
+
+template< GlobalCompletionEvent * GCE = &impl::local_gce,
+          int64_t Threshold = impl::USE_LOOP_THRESHOLD_FLAG,
+          typename T = decltype(nullptr),
+          typename V = decltype(nullptr),
+          typename F = decltype(nullptr) >
+void forall_localized(GlobalAddress<GlobalHashTable<T,V>> self, F visit) {
+  forall_localized<GCE,Threshold>(self->base, self->capacity,
+  [visit](typename GlobalHashTable<T,V>::Cell& c){
+    for (auto& e : c.entries) {
+      visit(e.key, e.val);
+    }
+  });
+}
 
 } // namespace Grappa
