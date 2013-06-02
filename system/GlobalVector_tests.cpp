@@ -136,26 +136,23 @@ void test_dequeue() {
   auto qa = GlobalVector<long>::create(N);
   
   on_all_cores([qa]{
-    auto NC = N/cores();
-    for (int i=0; i<NC; i++) {
+    auto r = blockDist(0, N, mycore(), cores());
+    auto NC = r.end-r.start;
+    for (int i=r.start; i<r.end; i++) {
       qa->enqueue(37);
     }
     auto size = qa->size();
     BOOST_CHECK(size >= NC);
     if (mycore() == 1) barrier();    
     
-    forall_here(0, NC/2, [qa](long s, long n) {
-      for (int i=s; i<s+n; i++) {
-        auto e = qa->dequeue();
-        BOOST_CHECK_EQUAL(e, 37);
-      }
+    forall_here(0, NC/2, [qa](long i) {
+      auto e = qa->dequeue();
+      BOOST_CHECK_EQUAL(e, 37);
     });
     if (mycore() != 1) barrier();
-    forall_here(0, NC-NC/2, [qa](long s, long n) {
-      for (int i=s; i<s+n; i++) {
-        auto e = qa->dequeue();
-        BOOST_CHECK_EQUAL(e, 37);
-      }
+    forall_here(0, NC-NC/2, [qa](long i) {
+      auto e = qa->dequeue();
+      BOOST_CHECK_EQUAL(e, 37);
     });
   });
   BOOST_CHECK_EQUAL(qa->size(), 0);
