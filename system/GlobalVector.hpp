@@ -23,6 +23,37 @@ namespace Grappa {
 
 const Core MASTER = 0;
 
+class ContinuationQueue {
+protected:
+  Continuation * head;
+  Continuation * tail;
+public:
+  bool blocked;
+  
+  ContinuationQueue() { clear(); }
+  
+  void clear() { head = tail = nullptr; blocked = false; }
+  
+  void push(Continuation * c) {
+    c->next = nullptr;
+    if (head == nullptr) {
+      head = c;
+      tail = c;
+    } else {
+      tail->next = reinterpret_cast<Worker*>(c);
+      tail = c;
+    }
+  }
+  Continuation * pop() {
+    Continuation * c = head;
+    head = reinterpret_cast<Continuation*>(c->next);
+    c->next = nullptr;
+    return c;
+  }
+  
+  bool empty() const { return head == nullptr; }
+  
+};
 
 template< typename T, int BUFFER_CAPACITY = (1<<10) >
 class GlobalVector {
@@ -31,44 +62,138 @@ public:
     
     size_t head;
     Mutex head_lock;
+    // size_t head_allocator;
+
+    bool combining;
+    ContinuationQueue push_q;
+    ContinuationQueue pop_q;
+    bool has_requests() { return !push_q.empty() || !pop_q.empty(); }
     
     size_t tail;
-    Mutex tail_lock;
+    // Mutex tail_lock;
+    size_t tail_allocator;
     
+    CompletionEvent ce;
+        
     size_t size;
     
     void clear() {
-      head = 0; tail = 0; size = 0;
+      head = tail = size = 0;
+      push_q.clear();
+      pop_q.clear();
+      combining = false;
     }
     
     Master() { clear(); }
     ~Master() {}
     
-    static void pushpop(GlobalAddress<GlobalVector> self, T * buffer, int64_t delta) {
-      auto tail_lock = [self]{ return &self->master.tail_lock; };
+    static void combine(GlobalAddress<GlobalVector> self) {
+      auto* m = &self->master;
+      DVLOG(2) << "combining: tail(" << m->tail << "), tail_allocator(" << m->tail_allocator << ")";
       
-      auto tail = delegate::call(MASTER, tail_lock, [self,delta](Mutex * l){
-        lock(l);
+      m->combining = true;
+      while ( !(m->push_q.blocked || m->push_q.empty()) ) {
+        m->ce.enroll();
+        invoke(m->push_q.pop());
+      }
+      m->ce.wait(new_continuation([self,m] {
+        DVLOG(2) << "after pushes: tail(" << m->tail << "), tail_allocator(" << m->tail_allocator << ")";
+        m->tail = m->tail_allocator;
         
-        if (delta < 0) self->incr_with_wrap(&self->master.tail, delta);  // pop
-        CHECK_GE(self->master.tail, 0);
+        while (!m->pop_q.empty()) {
+          m->ce.enroll();
+          invoke(m->pop_q.pop());
+        }
+        m->ce.wait(new_continuation([self,m] {
+          DVLOG(2) << "after pops: tail(" << m->tail << "), tail_allocator(" << m->tail_allocator << ")";
+          m->tail_allocator = m->tail;
+          // find new combiner...
+          if (m->has_requests()) {
+            combine(self);
+          } else {
+            m->combining = false;
+          }
+        }));
+      }));
+    }
+    
+    template< typename Q, typename F >
+    static auto request(GlobalAddress<GlobalVector> self, Q yield_q, F func) -> decltype(func()) {
+      using R = decltype(func());
+
+      FullEmpty<R> result;
+      auto result_addr = make_global(&result);
+      auto do_call = [self,result_addr,yield_q,func]{
+        auto m = &self->master;
+        auto q = yield_q(m);
+        q->push(new_continuation([result_addr,func]{
+          auto val = func();
+          auto set_result = [result_addr,val]{ result_addr->writeXF(val); };
+          
+          if (result_addr.core() == mycore()) set_result();
+          else send_heap_message(result_addr.core(), set_result);
+        }));
+        if (!m->combining) combine(self); // try becoming combiner
+      };
+      if (MASTER == mycore()) do_call(); else send_message(MASTER, do_call);
+  
+      auto r = result.readFF();
+      return r;
+    }
+    
+    static void push(GlobalAddress<GlobalVector> self, T * buffer, int64_t npush) {
+      auto yield_q = [](Master * m){ return &m->push_q; };
+      auto origin = mycore();
+      auto push_at = request(self, yield_q, [self,npush,origin]{
+        auto push_at = self->master.tail_allocator;
+        self->master.tail_allocator += npush;
+        DVLOG(2) << "in request(from:" << origin << ", npush:" << npush << ", push_at:" << push_at << ")";
+        return push_at;
+      });
+      DVLOG(2) << "response from request: push_at(" << push_at << ") (npush:" << npush << ")";
+      self->cache_with_wraparound<typename Incoherent<T>::WO>(push_at, npush, buffer);
+      
+      send_message(MASTER, [self]{ self->master.ce.complete(); });
+    }
+
+    static void pop(GlobalAddress<GlobalVector> self, T * buffer, int64_t npop) {
+      auto origin = mycore();
+      auto yield_q = [](Master * m){ return &m->pop_q; };
+      auto pop_at = request(self, yield_q, [self,npop,origin]{
+        self->master.tail -= npop;
+        DVLOG(2) << "in request(from:" << origin << ", npush:" << npop << ", push_at:" << self->master.tail << ")";
         return self->master.tail;
       });
+      DVLOG(2) << "response from request: pop_at(" << pop_at << ") (npop:" << npop << ")";
+      self->cache_with_wraparound<typename Incoherent<T>::RO>(pop_at, npop, buffer);
       
-      if (delta > 0) { // push
-        self->cache_with_wraparound<typename Incoherent<T>::WO>(tail, delta, buffer);
-      } else { // pop
-        self->cache_with_wraparound<typename Incoherent<T>::RO>(tail, 0-delta, buffer);
-      }
-      
-      delegate::call(MASTER, [self,delta]() {
-        if (delta > 0) self->incr_with_wrap(&self->master.tail, delta);  // push
-        self->master.size += delta;
-        
-        unlock(&self->master.tail_lock);
-      });
-      CHECK_LE(self->master.size, self->capacity);
+      send_message(MASTER, [self]{ self->master.ce.complete(); });
     }
+    
+    // static void pushpop(GlobalAddress<GlobalVector> self, T * buffer, int64_t delta) {
+    //   // auto tail_lock = [self]{ return &self->master.tail_lock; };      
+    //   auto tail = delegate::call(MASTER, tail_lock, [self,delta](Mutex * l){
+    //     lock(l);
+    //     
+    //     if (delta < 0) self->incr_with_wrap(&self->master.tail, delta);  // pop
+    //     CHECK_GE(self->master.tail, 0);
+    //     return self->master.tail;
+    //   });
+    //   
+    //   if (delta > 0) { // push
+    //     self->cache_with_wraparound<typename Incoherent<T>::WO>(tail, delta, buffer);
+    //   } else { // pop
+    //     self->cache_with_wraparound<typename Incoherent<T>::RO>(tail, 0-delta, buffer);
+    //   }
+    //   
+    //   delegate::call(MASTER, [self,delta]() {
+    //     if (delta > 0) self->incr_with_wrap(&self->master.tail, delta);  // push
+    //     self->master.size += delta;
+    //     
+    //     unlock(&self->master.tail_lock);
+    //   });
+    //   CHECK_LE(self->master.size, self->capacity);
+    // }
     
     static void dequeue(GlobalAddress<GlobalVector> self, T * buffer, int64_t delta) {
       auto head_lock = [self]{ return &self->master.head_lock; };
@@ -93,6 +218,16 @@ public:
     }
     
   };
+
+  inline size_t incr_with_wrap(size_t i, long incr) {
+    i += incr;
+    if (i >= capacity) {
+      i %= capacity;
+    } else if (i < 0){
+      i += capacity;
+    }
+    return i;
+  }
 
   inline void incr_with_wrap(size_t * i, long incr) {
     *i += incr;
@@ -142,10 +277,12 @@ public:
     void sync() {
       if (npush > 0) {
         ++global_vector_push_msgs;
-        Master::pushpop(outer->self, buffer, npush);
+        // Master::pushpop(outer->self, buffer, npush);
+        Master::push(outer->self, buffer, npush);
       } else if (npop > 0) {
         ++global_vector_pop_msgs;
-        Master::pushpop(outer->self, buffer, 0-npop);
+        // Master::pushpop(outer->self, buffer, 0-npop);
+        Master::pop(outer->self, buffer, npop);
         for (auto i = 0; i < npop; i++) {
           *pops[i] = buffer[i];
         }
@@ -214,7 +351,8 @@ public:
       });
     } else {
       T val = e;
-      Master::pushpop(self, &val, 1);
+      // Master::pushpop(self, &val, 1);
+      Master::push(self, &val, 1);
     }
     global_vector_push_latency += (Grappa_walltime() - t);
   }
@@ -232,7 +370,8 @@ public:
         }
       });
     } else {
-      Master::pushpop(self, &val, -1);
+      // Master::pushpop(self, &val, -1);
+      Master::pop(self, &val, 1);
     }
     global_vector_pop_latency += (Grappa_walltime() - t);
     return val;
