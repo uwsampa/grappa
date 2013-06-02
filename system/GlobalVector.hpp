@@ -146,7 +146,8 @@ public:
       auto origin = mycore();
       auto push_at = request(self, yield_q, [self,npush,origin]{
         auto push_at = self->master.tail_allocator;
-        self->master.tail_allocator += npush;
+        self->incr_with_wrap(&self->master.tail_allocator, npush);
+        self->master.size += npush;
         DVLOG(2) << "in request(from:" << origin << ", npush:" << npush << ", push_at:" << push_at << ")";
         return push_at;
       });
@@ -159,9 +160,11 @@ public:
     static void pop(GlobalAddress<GlobalVector> self, T * buffer, int64_t npop) {
       auto origin = mycore();
       auto yield_q = [](Master * m){ return &m->pop_q; };
-      auto pop_at = request(self, yield_q, [self,npop,origin]{
-        self->master.tail -= npop;
-        DVLOG(2) << "in request(from:" << origin << ", npush:" << npop << ", push_at:" << self->master.tail << ")";
+      size_t pop_at = request(self, yield_q, [self,npop,origin]{
+        CHECK_LE(0-(int64_t)npop, 0);
+        self->incr_with_wrap(&self->master.tail, 0-(int64_t)npop);
+        self->master.size -= npop;
+        DVLOG(2) << "in request(from:" << origin << ", npop:" << npop << ", pop_at:" << self->master.tail << ")";
         return self->master.tail;
       });
       DVLOG(2) << "response from request: pop_at(" << pop_at << ") (npop:" << npop << ")";
@@ -219,7 +222,7 @@ public:
     
   };
 
-  inline size_t incr_with_wrap(size_t i, long incr) {
+  inline size_t incr_with_wrap(long i, long incr) {
     i += incr;
     if (i >= capacity) {
       i %= capacity;
@@ -230,17 +233,20 @@ public:
   }
 
   inline void incr_with_wrap(size_t * i, long incr) {
-    *i += incr;
-    if (*i >= capacity) {
-      *i %= capacity;
-    } else if (i < 0){
-      *i += capacity;
+    long val = *i;
+    val += incr;
+    if (val >= capacity) {
+      val %= capacity;
+    } else if (val < 0){
+      val += capacity;
     }
+    DCHECK_GE(val,0);
+    *i = val;
   }
   
   template< typename Cache >
   void cache_with_wraparound(size_t start, size_t nelem, T * buffer) {
-    CHECK(start >= 0 && start < capacity && (start+nelem) >= 0 && (start+nelem) <= capacity);
+    CHECK_GE(start, 0); CHECK_LT(start, capacity); CHECK_GE(start+nelem, 0); CHECK_LE(start+nelem, capacity);
     struct Range {size_t start, end; };
     if (start+nelem <= capacity) {
       DVLOG(3) << "put(base[" << start << "]<" << (base+start).core() << ":" << (base+start).pointer() << ">, buffer:" << buffer << ", nelem:" << nelem << ")\n" << base;
@@ -307,7 +313,7 @@ protected:
   Master master;
   FlatCombiner<Proxy> proxy;
   
-  static const size_t padded_size = 3*block_size;
+  static const size_t padded_size = 4*block_size;
   char _pad[padded_size-sizeof(base)-sizeof(capacity)-sizeof(self)-sizeof(master)-sizeof(proxy)];
   
 public:
@@ -327,7 +333,7 @@ public:
   static GlobalAddress<GlobalVector> create(size_t total_capacity) {
     auto self = mirrored_global_alloc<GlobalVector>();
     auto base = global_alloc<T>(total_capacity);
-    DVLOG(2) << "create:\n  self = " << self << "\n  base = " << base;
+    VLOG(0) << "create:\n  self = " << self << "\n  base = " << base;
     call_on_all_cores([self,base,total_capacity]{
       new (self.localize()) GlobalVector(self, base, total_capacity);
     });
