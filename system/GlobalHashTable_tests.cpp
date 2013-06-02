@@ -61,18 +61,19 @@ bool choose_random(double probability) {
 uint64_t kahan_hash(long k) { return k * 1299227; } // "Kahan's Hash"
 uint64_t identity_hash(long k) { return k; }
 
-enum class Exp { INSERT_UNIQUE };
+enum class Exp { INSERT };
 
 template< Exp EXP,
-          typename K, typename V, uint64_t (*H)(K),
+          typename K, typename V,
           CompletionEvent* CE = &impl::local_ce,
           int64_t          TH = impl::USE_LOOP_THRESHOLD_FLAG >
-double test_insert_throughput(GlobalAddress<GlobalHashTable<K,V,H>> ha) {
+double test_insert_throughput(GlobalAddress<GlobalHashTable<K,V>> ha) {
   double t = Grappa_walltime();
   
   forall_global_private<CE,TH>(0, FLAGS_nelems, [ha](int64_t i){
-    if (EXP == Exp::INSERT_UNIQUE) {
-      ha->insert_unique(next_random<long>());
+    if (EXP == Exp::INSERT) {
+      long n = next_random<long>();
+      ha->insert(n, 0-n);
     }
   });
   
@@ -82,29 +83,22 @@ double test_insert_throughput(GlobalAddress<GlobalHashTable<K,V,H>> ha) {
 
 void test_correctness() {
   LOG(INFO) << "Testing correctness...";
-  auto ha = GlobalHashTable<long,long,&identity_hash>::create(FLAGS_global_hash_size);
+  auto ha = GlobalHashTable<long,long>::create(FLAGS_global_hash_size);
   for (int i=0; i<10; i++) {
     ha->insert(i, 42);
   }
-  ha->global_set_RO();
   for (int i=0; i<10; i++) {
-    GlobalAddress<long> res;
-    BOOST_CHECK_EQUAL(ha->lookup(i, &res), 1);
-    BOOST_CHECK_EQUAL(delegate::read(res), 42);
+    long val;
+    BOOST_CHECK_EQUAL(ha->lookup(i, &val), true);
+    BOOST_CHECK_EQUAL(val, 42);
   }
-  
-  ha->forall_entries([](long key, BufferVector<long>& vs){ vs.setReadWriteMode(); });
   
   forall_global_private(10, FLAGS_nelems-10, [ha](int64_t i){
     ha->insert(i, 42);
   });
-  ha->forall_entries([](long key, BufferVector<long>& vs){ vs.setReadWriteMode(); });
 
-  ha->forall_entries([](long key, BufferVector<long>& vals){
-    BOOST_CHECK_EQUAL(vals.size(), 1);
-    auto a = vals.getReadBuffer();
-    BOOST_CHECK_EQUAL(a.core(), mycore());
-    BOOST_CHECK_EQUAL(delegate::read(a), 42);
+  forall_localized(ha, [](long key, long& val){
+    BOOST_CHECK_EQUAL(val, 42);
   });
   
   ha->destroy();
@@ -164,10 +158,10 @@ double test_set_insert_throughput() {
 
 void user_main( void * ignore ) {
   if (FLAGS_table_perf) {
-    auto ha = GlobalHashTable<long,long,&kahan_hash>::create(FLAGS_global_hash_size);
+    auto ha = GlobalHashTable<long,long>::create(FLAGS_global_hash_size);
     
     for (int i=0; i<FLAGS_ntrials; i++) {
-      ght_insert_time += test_insert_throughput<Exp::INSERT_UNIQUE>(ha);
+      ght_insert_time += test_insert_throughput<Exp::INSERT>(ha);
     }
     
     ha->destroy();
