@@ -49,13 +49,21 @@ namespace Grappa {
         Grappa::wait(&cv);
       }
     }
+    
+    void wait(Continuation * c) {
+      if (count > 0) {
+        Grappa::add_waiter(&cv, c);
+      } else {
+        invoke(c);
+      }
+    }
 
     void reset() {
       CHECK_EQ( cv.waiters_, 0 ) << "Resetting with waiters!";
       count = 0;
     }
   };
-
+  
   /// Match ConditionVariable-style function call.
   template<typename CompletionType>
   inline void complete( CompletionType * ce ) {
