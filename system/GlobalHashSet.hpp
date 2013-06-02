@@ -57,7 +57,6 @@ protected:
     bool is_full() { return keys_to_insert.size() >= LOCAL_HASH_SIZE; }
     
     void insert(const K& newk) {
-      ++hashset_insert_ops;
       if (keys_to_insert.count(newk) == 0) {
         keys_to_insert.insert(newk);
       }
@@ -156,10 +155,10 @@ public:
   //
   // synchronous operation
   void insert( K key ) {
+    ++hashset_insert_ops;
     if (FLAGS_flat_combining) {
       proxy.combine([key](Proxy& p){ p.insert(key); });
     } else {
-      ++hashset_insert_ops;
       ++hashset_insert_msgs;
       delegate::call(base+computeIndex(key), [key](Cell * c) {
         // find matching key in the list, if found, no insert necessary
@@ -177,14 +176,16 @@ public:
   // asynchronous operation
   template< typename F >
   void insert_async( K key, F sync) {
+    ++hashset_insert_ops;
     proxy->insert(key);
     if (proxy->is_full()) {
+      ++hashset_insert_msgs;
       privateTask([this,sync]{
         this->proxy.combine([](Proxy& p){});
         sync();
       });
     } else {
-      sync();        
+      sync();
     }
   }
   
