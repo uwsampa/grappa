@@ -89,9 +89,28 @@ public:
     
     static void master_combine(GlobalAddress<GlobalVector> self) {
       auto* m = &self->master;
+      m->combining = true;
+      
+      if (!FLAGS_flat_combining) {
+        if (m->has_requests()) {
+          m->ce.enroll();
+          if (!m->push_q.empty()) invoke(m->push_q.pop());
+          else if (!m->pop_q.empty()) invoke(m->pop_q.pop());
+          
+          m->ce.wait(new_continuation([self,m] {
+            if (m->has_requests()) {
+              master_combine(self);
+            } else {
+              m->combining = false;
+            }
+          }));
+        }
+        
+        return;
+      } // else: do second level of combining
+      
       DVLOG(2) << "combining: tail(" << m->tail << "), tail_allocator(" << m->tail_allocator << ")";
       
-      m->combining = true;
       while ( !(m->push_q.blocked || m->push_q.empty()) ) {
         m->ce.enroll();
         invoke(m->push_q.pop());
@@ -331,8 +350,8 @@ public:
   ~GlobalVector() {}
   
   static GlobalAddress<GlobalVector> create(size_t total_capacity) {
-    auto self = mirrored_global_alloc<GlobalVector>();
     auto base = global_alloc<T>(total_capacity);
+    auto self = mirrored_global_alloc<GlobalVector>();
     VLOG(0) << "create:\n  self = " << self << "\n  base = " << base;
     call_on_all_cores([self,base,total_capacity]{
       new (self.localize()) GlobalVector(self, base, total_capacity);
