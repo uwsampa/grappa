@@ -298,7 +298,7 @@ public:
     
     Proxy* clone_fresh() { return locale_new<Proxy>(outer); }
     
-    bool is_full() { return npush == BUFFER_CAPACITY || ndeq == BUFFER_CAPACITY; }
+    bool is_full() { return npush == BUFFER_CAPACITY || ndeq == BUFFER_CAPACITY || npop == BUFFER_CAPACITY; }
     
     void sync() {
       if (npush > 0) {
