@@ -60,28 +60,20 @@ class GlobalVector {
 public:
   struct Master {
     
-    size_t head;
-    Mutex head_lock;
-    // size_t head_allocator;
-    
-    bool combining;
-    ContinuationQueue push_q;
-    ContinuationQueue pop_q;
-    ContinuationQueue deq_q;
-    bool has_requests() { return !push_q.empty() || !pop_q.empty() || !deq_q.empty(); }
-    
-    size_t tail;
-    // Mutex tail_lock;
-    size_t tail_allocator;
-    
-    CompletionEvent ce;
-        
+    size_t head, head_allocator;
+    size_t tail, tail_allocator;
     size_t size;
     
+    bool combining;
+    CompletionEvent ce;
+    ContinuationQueue push_q, pop_q, deq_q;
+    bool has_requests() { return !push_q.empty() || !pop_q.empty() || !deq_q.empty(); }
+    
     void clear() {
-      head = tail = size = 0;
+      head = tail = head_allocator = tail_allocator = size = 0;
       push_q.clear();
       pop_q.clear();
+      deq_q.clear();
       combining = false;
     }
     
@@ -92,7 +84,7 @@ public:
       auto* m = &self->master;
       m->combining = true;
       
-      if (!FLAGS_flat_combining) {
+      if (!FLAGS_flat_combining || FLAGS_flat_combining_local_only) {
         if (m->has_requests()) {
           m->ce.enroll();
           if (!m->push_q.empty()) invoke(m->push_q.pop());
@@ -106,7 +98,6 @@ public:
             }
           }));
         }
-        
         return;
       } // else: do second level of combining
       
@@ -290,7 +281,7 @@ public:
   
   template< typename Cache >
   void cache_with_wraparound(size_t start, size_t nelem, T * buffer) {
-    CHECK_GE(start, 0); CHECK_LT(start, capacity); CHECK_GE(start+nelem, 0); CHECK_LE(start+nelem, capacity);
+    CHECK_GE(start, 0); CHECK_LT(start, capacity); CHECK_GE(start+nelem, 0);
     struct Range {size_t start, end; };
     if (start+nelem <= capacity) {
       DVLOG(3) << "put(base[" << start << "]<" << (base+start).core() << ":" << (base+start).pointer() << ">, buffer:" << buffer << ", nelem:" << nelem << ")\n" << base;
@@ -405,7 +396,7 @@ public:
       });
     } else {
       T val = e;
-      // Master::pushpop(self, &val, 1);
+      ++global_vector_push_msgs;
       Master::push(self, &val, 1);
     }
     global_vector_push_latency += (Grappa_walltime() - t);
@@ -424,7 +415,7 @@ public:
         }
       });
     } else {
-      // Master::pushpop(self, &val, -1);
+      ++global_vector_pop_msgs;
       Master::pop(self, &val, 1);
     }
     global_vector_pop_latency += (Grappa_walltime() - t);
@@ -443,6 +434,7 @@ public:
         p.deqs[p.ndeq++] = &val;
       });
     } else {
+      ++global_vector_deq_msgs;
       Master::dequeue(self, &val, 1);
     }
     global_vector_deq_latency += (Grappa_walltime() - t);

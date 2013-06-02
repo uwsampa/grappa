@@ -185,6 +185,23 @@ void test_stack() {
   sa->destroy();
 }
 
+std::tuple<long,long,long,long,long,long> save_global_vector_stats() {
+  return std::make_tuple(global_vector_push_msgs,
+                    global_vector_push_ops,
+                    global_vector_pop_msgs,
+                    global_vector_pop_ops,
+                    global_vector_deq_msgs,
+                    global_vector_deq_ops);
+}
+void restore_global_vector_stats(std::tuple<long,long,long,long,long,long> t) {
+  global_vector_push_msgs = std::get<0>(t);
+  global_vector_push_ops  = std::get<1>(t);
+  global_vector_pop_msgs  = std::get<2>(t);
+  global_vector_pop_ops   = std::get<3>(t);
+  global_vector_deq_msgs  = std::get<4>(t);
+  global_vector_deq_ops   = std::get<5>(t);
+}
+
 void user_main( void * ignore ) {
   if (FLAGS_queue_perf || FLAGS_stack_perf) {
     LOG(INFO) << "beginning performance test";
@@ -193,6 +210,7 @@ void user_main( void * ignore ) {
     for (int i=0; i<FLAGS_ntrials; i++) {
       // qa->clear();
       if (FLAGS_fraction_push < 1.0) { // fill halfway so we don't hit either rail
+        auto saved = save_global_vector_stats();
         long diff = (FLAGS_vector_size/2) - qa->size();
         if (diff > 0) { // too small
           forall_global_public(0, diff, [qa](int64_t i){
@@ -203,6 +221,7 @@ void user_main( void * ignore ) {
             qa->pop();
           });
         }
+        restore_global_vector_stats(saved);
       }
       
       if (FLAGS_queue_perf) {

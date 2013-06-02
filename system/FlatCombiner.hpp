@@ -9,6 +9,7 @@
 #include <queue>
 
 DECLARE_bool(flat_combining);
+DECLARE_bool(flat_combining_local_only);
 
 namespace Grappa {
 
