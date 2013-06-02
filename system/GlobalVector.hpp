@@ -67,7 +67,8 @@ public:
     bool combining;
     ContinuationQueue push_q;
     ContinuationQueue pop_q;
-    bool has_requests() { return !push_q.empty() || !pop_q.empty(); }
+    ContinuationQueue deq_q;
+    bool has_requests() { return !push_q.empty() || !pop_q.empty() || !deq_q.empty(); }
     
     size_t tail;
     // Mutex tail_lock;
@@ -114,6 +115,10 @@ public:
       while ( !(m->push_q.blocked || m->push_q.empty()) ) {
         m->ce.enroll();
         invoke(m->push_q.pop());
+      }
+      while ( !(m->deq_q.blocked || m->deq_q.empty()) ) {
+        m->ce.enroll();
+        invoke(m->deq_q.pop());
       }
       m->ce.wait(new_continuation([self,m] {
         DVLOG(2) << "after pushes: tail(" << m->tail << "), tail_allocator(" << m->tail_allocator << ")";
@@ -217,27 +222,47 @@ public:
     //   CHECK_LE(self->master.size, self->capacity);
     // }
     
-    static void dequeue(GlobalAddress<GlobalVector> self, T * buffer, int64_t delta) {
-      auto head_lock = [self]{ return &self->master.head_lock; };
-      
-      auto head = delegate::call(MASTER, head_lock, [self,delta](Mutex * l){
-        lock(l);
-        // if something was popped, tail will have been decremented, but may still be locked
-        CHECK_LE(self->master.size, self->capacity);
-        CHECK_GE(self->master.size, delta);
+    static void dequeue(GlobalAddress<GlobalVector> self, T * buffer, int64_t ndeq) {
+      auto origin = mycore();
+      auto yield_q = [](Master * m){ return &m->deq_q; };
+      auto deq_at = request(self, yield_q, [self,ndeq,origin]{
+        self->incr_with_wrap(&self->master.head, ndeq);
+        // if (self->master.head > self->master.tail) {
+        //   // oops, too far, rollback and wait for pushes to finish
+        //   self->incr_with_wrap(&self->master.head, 0-ndeq);
+        //   self->master.deq_q.blocked = true;
+        //   // add self back onto q...
+        // } // TODO: how do I not send a wakekup on return?
+        self->master.size -= ndeq;
         return self->master.head;
       });
-
-      self->cache_with_wraparound<typename Incoherent<T>::RO>(head, delta, buffer);
+      DVLOG(2) << "response from request: deq_at(" << deq_at << ") (ndeq:" << ndeq << ")";
+      self->cache_with_wraparound<typename Incoherent<T>::RO>(deq_at, ndeq, buffer);
       
-      delegate::call(MASTER, [self,delta] {
-        if (delta > 0) self->incr_with_wrap(&self->master.head, delta);
-        self->master.size -= delta;
-        
-        CHECK_LE(self->master.size, self->capacity);
-        unlock(&self->master.head_lock);
-      });
+      send_message(MASTER, [self]{ self->master.ce.complete(); });
     }
+    
+    // static void dequeue(GlobalAddress<GlobalVector> self, T * buffer, int64_t delta) {
+    //   auto head_lock = [self]{ return &self->master.head_lock; };
+    //   
+    //   auto head = delegate::call(MASTER, head_lock, [self,delta](Mutex * l){
+    //     lock(l);
+    //     // if something was popped, tail will have been decremented, but may still be locked
+    //     CHECK_LE(self->master.size, self->capacity);
+    //     CHECK_GE(self->master.size, delta);
+    //     return self->master.head;
+    //   });
+    // 
+    //   self->cache_with_wraparound<typename Incoherent<T>::RO>(head, delta, buffer);
+    //   
+    //   delegate::call(MASTER, [self,delta] {
+    //     if (delta > 0) self->incr_with_wrap(&self->master.head, delta);
+    //     self->master.size -= delta;
+    //     
+    //     CHECK_LE(self->master.size, self->capacity);
+    //     unlock(&self->master.head_lock);
+    //   });
+    // }
     
   };
 
