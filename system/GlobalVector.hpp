@@ -63,7 +63,7 @@ public:
     size_t head;
     Mutex head_lock;
     // size_t head_allocator;
-
+    
     bool combining;
     ContinuationQueue push_q;
     ContinuationQueue pop_q;
@@ -87,7 +87,7 @@ public:
     Master() { clear(); }
     ~Master() {}
     
-    static void combine(GlobalAddress<GlobalVector> self) {
+    static void master_combine(GlobalAddress<GlobalVector> self) {
       auto* m = &self->master;
       DVLOG(2) << "combining: tail(" << m->tail << "), tail_allocator(" << m->tail_allocator << ")";
       
@@ -109,7 +109,7 @@ public:
           m->tail_allocator = m->tail;
           // find new combiner...
           if (m->has_requests()) {
-            combine(self);
+            master_combine(self);
           } else {
             m->combining = false;
           }
@@ -133,7 +133,7 @@ public:
           if (result_addr.core() == mycore()) set_result();
           else send_heap_message(result_addr.core(), set_result);
         }));
-        if (!m->combining) combine(self); // try becoming combiner
+        if (!m->combining) master_combine(self); // try becoming combiner
       };
       if (MASTER == mycore()) do_call(); else send_message(MASTER, do_call);
   
@@ -243,6 +243,7 @@ public:
     CHECK(start >= 0 && start < capacity && (start+nelem) >= 0 && (start+nelem) <= capacity);
     struct Range {size_t start, end; };
     if (start+nelem <= capacity) {
+      DVLOG(3) << "put(base[" << start << "]<" << (base+start).core() << ":" << (base+start).pointer() << ">, buffer:" << buffer << ", nelem:" << nelem << ")\n" << base;
       Cache c(base+start, nelem, buffer); c.block_until_acquired();
     } else {
       auto end = (start+nelem)%capacity;
@@ -306,7 +307,8 @@ protected:
   Master master;
   FlatCombiner<Proxy> proxy;
   
-  char _pad[block_size-sizeof(base)-sizeof(capacity)-sizeof(self)-sizeof(master)-sizeof(proxy)];
+  static const size_t padded_size = 3*block_size;
+  char _pad[padded_size-sizeof(base)-sizeof(capacity)-sizeof(self)-sizeof(master)-sizeof(proxy)];
   
 public:
   GlobalVector(): proxy(locale_new<Proxy>(this)) {}
@@ -314,6 +316,8 @@ public:
   GlobalVector(GlobalAddress<GlobalVector> self, GlobalAddress<T> storage_base, size_t total_capacity)
     : proxy(locale_new<Proxy>(this))
   {
+    size_t sz = sizeof(base)+sizeof(capacity)+sizeof(self)+sizeof(master)+sizeof(proxy);
+    CHECK_LT(sz, padded_size);
     this->self = self;
     base = storage_base;
     capacity = total_capacity;
@@ -321,8 +325,8 @@ public:
   ~GlobalVector() {}
   
   static GlobalAddress<GlobalVector> create(size_t total_capacity) {
-    auto base = global_alloc<T>(total_capacity);
     auto self = mirrored_global_alloc<GlobalVector>();
+    auto base = global_alloc<T>(total_capacity);
     DVLOG(2) << "create:\n  self = " << self << "\n  base = " << base;
     call_on_all_cores([self,base,total_capacity]{
       new (self.localize()) GlobalVector(self, base, total_capacity);

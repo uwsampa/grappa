@@ -71,7 +71,7 @@ class FlatCombiner {
       cv.waiters_ = 0;
     }
   };
-  
+
   void free_flusher(Flusher * s) {
     if (freelist == nullptr) {
       freelist = s;
@@ -159,11 +159,13 @@ public:
 
   void flush(Flusher * s) {
     s->sender = &current_worker(); // (if not set already)
-    DVLOG(3) << "flushing (" << s->sender << "), s(" << s << ")";
+    DVLOG(4) << "flushing (" << s->sender << "), s(" << s << ") (this:" << this << ")";
     
     s->id->sync();
+    DVLOG(4) << "flushing (" << s->sender << "), s(" << s << ") (this:" << this << ")";
     
     broadcast(&s->cv); // wake our people
+    DVLOG(4) << "flushing (" << s->sender << "), s(" << s << ") (this:" << this << ")";
     if (current->cv.waiters_ != 0 && current->sender == nullptr) {
       // atomically claim it so no one else tries to send in the meantime
       // wake someone and tell them to send
