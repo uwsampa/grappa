@@ -194,11 +194,18 @@ void user_main( void * ignore ) {
     auto qa = GlobalVector<int64_t>::create(FLAGS_vector_size);
     
     for (int i=0; i<FLAGS_ntrials; i++) {
-      qa->clear();
+      // qa->clear();
       if (FLAGS_fraction_push < 1.0) { // fill halfway so we don't hit either rail
-        forall_global_public(0, FLAGS_vector_size/2, [qa](int64_t i){
-          qa->push(next_random<int64_t>());
-        });
+        long diff = (FLAGS_vector_size/2) - qa->size();
+        if (diff > 0) { // too small
+          forall_global_public(0, diff, [qa](int64_t i){
+            qa->push(next_random<int64_t>());
+          });
+        } else {  // too large
+          forall_global_public(0, 0-diff, [qa](int64_t i){
+            qa->pop();
+          });
+        }
       }
       
       if (FLAGS_queue_perf) {
