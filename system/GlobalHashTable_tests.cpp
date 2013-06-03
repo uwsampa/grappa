@@ -36,8 +36,7 @@ DEFINE_bool(insert_async, false, "do async inserts");
 
 DEFINE_double(fraction_lookups, 0.0, "fraction of accesses that should be lookups");
 
-GRAPPA_DEFINE_STAT(SummarizingStatistic<double>, ght_insert_time, 0);
-GRAPPA_DEFINE_STAT(SummarizingStatistic<double>, hashset_insert_time, 0);
+GRAPPA_DEFINE_STAT(SummarizingStatistic<double>, trial_time, 0);
 
 template< typename T >
 inline T next_random() {
@@ -70,11 +69,14 @@ template< Exp EXP,
           int64_t          TH = impl::USE_LOOP_THRESHOLD_FLAG >
 double test_insert_throughput(GlobalAddress<GlobalHashTable<K,V>> ha) {
   double t = Grappa_walltime();
-  
+
   forall_global_private<CE,TH>(0, FLAGS_nelems, [ha](int64_t i){
-    if (EXP == Exp::INSERT) {
-      long n = next_random<long>();
-      ha->insert(n, 0-n);
+    auto k = next_random<long>() % FLAGS_max_key;
+    if (choose_random(FLAGS_fraction_lookups)) {
+      K v;
+      bool found = ha->lookup(k, &v);
+    } else {
+      ha->insert(k, 2*k);
     }
   });
   
@@ -162,15 +164,16 @@ void user_main( void * ignore ) {
     auto ha = GlobalHashTable<long,long>::create(FLAGS_global_hash_size);
     
     for (int i=0; i<FLAGS_ntrials; i++) {
-      ght_insert_time += test_insert_throughput<Exp::INSERT>(ha);
+      trial_time += test_insert_throughput<Exp::INSERT>(ha);
+      ha->clear();
     }
     
     ha->destroy();
     
   } else if (FLAGS_set_perf) { 
     for (int i=0; i<FLAGS_ntrials; i++) {
-      hashset_insert_time += test_set_insert_throughput();
-    }    
+      trial_time += test_set_insert_throughput();
+    }
   } else {
     test_correctness();
     test_set_correctness();
