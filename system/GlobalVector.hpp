@@ -55,7 +55,7 @@ public:
   
 };
 
-template< typename T, int BUFFER_CAPACITY = (1<<13) >
+template< typename T, int BUFFER_CAPACITY = (1<<12) >
 class GlobalVector {
 public:
   struct Master {
