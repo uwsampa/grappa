@@ -11,6 +11,7 @@
 
 #include <vector>
 #include <unordered_set>
+#include <unordered_map>
 
 GRAPPA_DECLARE_STAT(SummarizingStatistic<uint64_t>, cell_traversal_length);
 
@@ -36,28 +37,40 @@ protected:
     Cell() { entries.reserve(16); }
   };
 
+  struct ResultEntry {
+    bool result;
+    ResultEntry * next;
+  };
+
   struct Proxy {
     static const size_t LOCAL_HASH_SIZE = 1<<10;
     
     GlobalHashSet * owner;
     std::unordered_set<K> keys_to_insert;
+    std::unordered_map<K,ResultEntry*> lookups;
     
-    Proxy(GlobalHashSet * owner): owner(owner), keys_to_insert(LOCAL_HASH_SIZE) {}
+    Proxy(GlobalHashSet * owner): owner(owner)
+      , keys_to_insert(LOCAL_HASH_SIZE)
+      , lookups(LOCAL_HASH_SIZE)
+    { }
     
-    void clear() { keys_to_insert.clear(); }
+    void clear() { keys_to_insert.clear(); lookups.clear(); }
     
     Proxy * clone_fresh() { return locale_new<Proxy>(owner); }
     
-    bool is_full() { return keys_to_insert.size() >= LOCAL_HASH_SIZE; }
+    bool is_full() {
+      return keys_to_insert.size() >= LOCAL_HASH_SIZE
+          || lookups.size() >= LOCAL_HASH_SIZE;
+    }
     
     void insert(const K& newk) {
       if (keys_to_insert.count(newk) == 0) {
         keys_to_insert.insert(newk);
       }
     }
-    
+
     void sync() {
-      CompletionEvent ce(keys_to_insert.size());
+      CompletionEvent ce(keys_to_insert.size()+lookups.size());
       auto cea = make_global(&ce);
       
       for (auto& k : keys_to_insert) {
@@ -69,6 +82,27 @@ protected:
           for (auto& e : c->entries) if (e.key == k) { found = true; break; }
           if (!found) c->entries.emplace_back(k);
           complete(cea);
+        });
+      }
+      for (auto& e : lookups) { auto k = e.first;
+        ++hashset_lookup_msgs;
+        auto re = e.second;
+        DVLOG(3) << "lookup " << k << " with re = " << re;
+        auto cell = owner->base+owner->computeIndex(k);
+        
+        send_heap_message(cell.core(), [cell,k,cea,re]{
+          Cell * c = cell.localize();
+          bool found = false;
+          for (auto& e : c->entries) if (e.key == k) { found = true; break; }
+          
+          send_heap_message(cea.core(), [cea,re,found]{
+            ResultEntry * r = re;
+            while (r != nullptr) {
+              r->result = found;
+              r = r->next;
+            }
+            complete(cea);
+          });
         });
       }
       ce.wait();
@@ -120,19 +154,24 @@ public:
   bool lookup ( K key ) {
     ++hashset_lookup_ops;
     if (FLAGS_flat_combining) {
-      bool result;
-      proxy.combine([&result,key,this](Proxy& p){
+      ResultEntry re{false,nullptr};
+      DVLOG(3) << "lookup[" << key << "] = " << &re;
+      
+      proxy.combine([&re,key,this](Proxy& p){
         if (p.keys_to_insert.count(key) > 0) {
-          result = true;
+          re.result = true;
         } else {
-          ++hashset_lookup_msgs;
-          result = delegate::call(this->base+this->computeIndex(key), [key](Cell* c){
-            for (auto& e : c->entries) if (e.key == key) return true;
-            return false;
-          });
+          if (p.keys_to_insert.count(key) != 0) re.result = true;
+          else {
+            // p.lookups[key].push_back(&result);
+            if (p.lookups.count(key) == 0) p.lookups[key] = nullptr;
+            re.next = p.lookups[key];
+            p.lookups[key] = &re;
+            DVLOG(3) << "p.lookups[" << key << "] = " << &re;
+          }
         }
       });
-      return result;
+      return re.result;
     } else {
       ++hashset_lookup_msgs;
       return delegate::call(base+computeIndex(key), [key](Cell* c){
