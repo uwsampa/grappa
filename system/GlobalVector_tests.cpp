@@ -50,8 +50,8 @@ inline T next_random() {
 }
 
 bool choose_random(double probability) {
-  std::default_random_engine e(12345L);
-  std::uniform_real_distribution<double> dist(0.0, 1.0);
+  static std::default_random_engine e(12345L*mycore());
+  static std::uniform_real_distribution<double> dist(0.0, 1.0);
   return dist(e) < probability;
 }
 

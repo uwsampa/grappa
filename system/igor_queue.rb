@@ -19,7 +19,7 @@ Igor do
   command @test_cmd['GlobalVector_tests', '--queue_perf']
   
   params {
-    version 'twolevel<4096>'
+    version 'fixed_random'
     log_nelems 10
     nelems expr('2**log_nelems')
     vector_size expr('(2**log_nelems)*2')
