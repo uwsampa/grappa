@@ -10,7 +10,7 @@
 #include "ParallelLoop.hpp"
 #include "GlobalAllocator.hpp"
 #include "Delegate.hpp"
-#include "GlobalHashTable.hpp"
+#include "GlobalHashMap.hpp"
 #include "GlobalHashSet.hpp"
 #include "Statistics.hpp"
 
@@ -21,7 +21,7 @@
 
 using namespace Grappa;
 
-BOOST_AUTO_TEST_SUITE( GlobalHashTable_tests );
+BOOST_AUTO_TEST_SUITE( GlobalHash_tests );
 
 DEFINE_int64(nelems, 100, "number of elements in (large) test arrays");
 DEFINE_int64(global_hash_size, 1024, "number of elements in (large) test arrays");
@@ -29,7 +29,7 @@ DEFINE_int64(max_key, 1<<10, "maximum random key");
 
 DEFINE_int64(ntrials, 1, "number of independent trials to average over");
 
-DEFINE_bool(table_perf, false, "do performance test of GlobalHashTable");
+DEFINE_bool(map_perf, false, "do performance test of GlobalHashMap");
 DEFINE_bool(set_perf, false, "do performance test of GlobalHashSet");
 
 DEFINE_bool(insert_async, false, "do async inserts");
@@ -67,7 +67,7 @@ template< Exp EXP,
           typename K, typename V,
           CompletionEvent* CE = &impl::local_ce,
           int64_t          TH = impl::USE_LOOP_THRESHOLD_FLAG >
-double test_insert_throughput(GlobalAddress<GlobalHashTable<K,V>> ha) {
+double test_insert_throughput(GlobalAddress<GlobalHashMap<K,V>> ha) {
   double t = Grappa_walltime();
 
   forall_global_private<CE,TH>(0, FLAGS_nelems, [ha](int64_t i){
@@ -86,7 +86,7 @@ double test_insert_throughput(GlobalAddress<GlobalHashTable<K,V>> ha) {
 
 void test_correctness() {
   LOG(INFO) << "Testing correctness...";
-  auto ha = GlobalHashTable<long,long>::create(FLAGS_global_hash_size);
+  auto ha = GlobalHashMap<long,long>::create(FLAGS_global_hash_size);
   for (int i=0; i<10; i++) {
     ha->insert(i, 42);
   }
@@ -160,8 +160,8 @@ double test_set_insert_throughput() {
 }
 
 void user_main( void * ignore ) {
-  if (FLAGS_table_perf) {
-    auto ha = GlobalHashTable<long,long>::create(FLAGS_global_hash_size);
+  if (FLAGS_map_perf) {
+    auto ha = GlobalHashMap<long,long>::create(FLAGS_global_hash_size);
     
     for (int i=0; i<FLAGS_ntrials; i++) {
       trial_time += test_insert_throughput<Exp::INSERT>(ha);

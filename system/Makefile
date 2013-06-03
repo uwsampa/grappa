@@ -144,7 +144,7 @@ FileIO_tests.test: LIBRARIES+='-lboost_filesystem'
 
 Array_tests.o Array_tests.test: $(LIBRARY)
 GlobalVector_tests.o GlobalVector_tests.test: $(LIBRARY)
-GlobalHashTable_tests.o GlobalHashTable_tests.test: $(LIBRARY)
+GlobalHash_tests.o GlobalHash_tests.test: $(LIBRARY)
 FlatCombiner_tests.o FlatCombiner_tests.test: $(LIBRARY)
 
 New_delegate_tests.test: $(LIBRARY)
@@ -346,7 +346,7 @@ LIBRARY_CONTENTS+= Grappa.o \
 					 FlatCombiner.o \
 					 GlobalVector.o \
 					 GlobalHashSet.o \
-					 GlobalHashTable.o
+					 GlobalHashMap.o
 
 libGrappa.a: $(LIBRARY_CONTENTS)
 	$($(MPITYPE)_AR) rv $@ $^

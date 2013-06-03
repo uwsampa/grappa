@@ -12,8 +12,6 @@
 #include <vector>
 #include <unordered_set>
 
-// for all hash tables
-// GRAPPA_DECLARE_STAT(MaxStatistic<uint64_t>, max_cell_length);
 GRAPPA_DECLARE_STAT(SummarizingStatistic<uint64_t>, cell_traversal_length);
 
 GRAPPA_DECLARE_STAT(SimpleStatistic<size_t>, hashset_insert_ops);
@@ -23,11 +21,7 @@ GRAPPA_DECLARE_STAT(SimpleStatistic<size_t>, hashset_lookup_msgs);
 
 namespace Grappa {
 
-// Hash table for joins
-// * allows multiple copies of a Key
-// * lookups return all Key matches
 template <typename K>
-          // size_t NREQUESTS = 128, size_t HASH_SIZE = NREQUESTS<<3 >
 class GlobalHashSet {
 protected:
   struct Entry {

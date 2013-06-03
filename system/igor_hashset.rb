@@ -4,6 +4,9 @@ require_relative 'igor_datastructs'
 Igor do
   @dbtable = :hashset
   
+  include Isolatable
+  isolate 'GlobalHash_tests'
+  
   GFLAGS.merge!({
     nelems: [1024],
     ntrials: [1],
@@ -13,7 +16,7 @@ Igor do
     insert_async: [0],
   })
   @params.merge!(GFLAGS)
-  command @test_cmd['GlobalHashTable_tests', '--set_perf']
+  command @test_cmd['GlobalHash_tests', '--set_perf']
   
   params {
     log_nelems 10; nelems expr('2**log_nelems')
