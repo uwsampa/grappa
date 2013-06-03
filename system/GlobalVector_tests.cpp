@@ -185,21 +185,26 @@ void test_stack() {
   sa->destroy();
 }
 
-std::tuple<long,long,long,long,long,long> save_global_vector_stats() {
+using StatTuple = std::tuple<long,long,long,long,long,long,long,long>;
+StatTuple save_global_vector_stats() {
   return std::make_tuple(global_vector_push_msgs,
                     global_vector_push_ops,
                     global_vector_pop_msgs,
                     global_vector_pop_ops,
                     global_vector_deq_msgs,
-                    global_vector_deq_ops);
+                    global_vector_deq_ops,
+                    global_vector_matched_pushes,
+                    global_vector_matched_pops);
 }
-void restore_global_vector_stats(std::tuple<long,long,long,long,long,long> t) {
+void restore_global_vector_stats(StatTuple t) {
   global_vector_push_msgs = std::get<0>(t);
   global_vector_push_ops  = std::get<1>(t);
   global_vector_pop_msgs  = std::get<2>(t);
   global_vector_pop_ops   = std::get<3>(t);
   global_vector_deq_msgs  = std::get<4>(t);
   global_vector_deq_ops   = std::get<5>(t);
+  global_vector_matched_pushes = std::get<6>(t);
+  global_vector_matched_pops   = std::get<7>(t);
 }
 
 void user_main( void * ignore ) {
@@ -208,16 +213,15 @@ void user_main( void * ignore ) {
     auto qa = GlobalVector<int64_t>::create(FLAGS_vector_size);
     
     for (int i=0; i<FLAGS_ntrials; i++) {
-      // qa->clear();
       if (FLAGS_fraction_push < 1.0) { // fill halfway so we don't hit either rail
         auto saved = save_global_vector_stats();
         long diff = (FLAGS_vector_size/2) - qa->size();
         if (diff > 0) { // too small
-          forall_global_public(0, diff, [qa](int64_t i){
+          forall_here(0, diff, [qa](int64_t i){
             qa->push(next_random<int64_t>());
           });
         } else {  // too large
-          forall_global_public(0, 0-diff, [qa](int64_t i){
+          forall_here(0, 0-diff, [qa](int64_t i){
             qa->pop();
           });
         }
@@ -229,6 +233,8 @@ void user_main( void * ignore ) {
       } else if (FLAGS_stack_perf) {
         trial_time += perf_test<Exp::STACK>(qa);
       }
+      VLOG(0) << "global_vector_push_ops = " << global_vector_push_ops;
+      
     }
     
     Statistics::merge_and_print();
