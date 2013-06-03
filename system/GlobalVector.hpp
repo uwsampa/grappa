@@ -84,19 +84,35 @@ public:
       auto* m = &self->master;
       m->combining = true;
       
+      // TODO: make me less ugly...
       if (!FLAGS_flat_combining || FLAGS_flat_combining_local_only) {
         if (m->has_requests()) {
           m->ce.enroll();
-          if (!m->push_q.empty()) invoke(m->push_q.pop());
-          else if (!m->pop_q.empty()) invoke(m->pop_q.pop());
-          else if (!m->deq_q.empty()) invoke(m->deq_q.pop());
-          
-          m->ce.wait(new_continuation([self,m] {
+          enum class Choice { POP, DEQ, PUSH };
+          Choice c;
+          if (!m->push_q.empty()) {
+            c = Choice::PUSH;
+            invoke(m->push_q.pop());
+          } else if (!m->pop_q.empty()) {
+            c = Choice::POP;
+            invoke(m->pop_q.pop());
+          } else if (!m->deq_q.empty()) {
+            c = Choice::DEQ;
+            invoke(m->deq_q.pop());
+          }
+          DVLOG(2) << "combining: tail(" << m->tail << "), tail_allocator(" << m->tail_allocator << ")";
+          m->ce.wait(new_continuation([self,m,c] {
+            switch (c) {
+              case Choice::PUSH: m->tail = m->tail_allocator; break;
+              case Choice::POP:  m->tail_allocator = m->tail; break;
+              case Choice::DEQ:  m->head = m->head_allocator; break;
+            }
             if (m->has_requests()) {
               master_combine(self);
             } else {
               m->combining = false;
             }
+            DVLOG(2) << "woken: tail(" << m->tail << "), tail_allocator(" << m->tail_allocator << ")";
           }));
         }
         return;
@@ -115,6 +131,7 @@ public:
       m->ce.wait(new_continuation([self,m] {
         DVLOG(2) << "after pushes: tail(" << m->tail << "), tail_allocator(" << m->tail_allocator << ")";
         m->tail = m->tail_allocator;
+        m->head = m->head_allocator;
         
         while (!m->pop_q.empty()) {
           m->ce.enroll();
@@ -136,7 +153,7 @@ public:
     template< typename Q, typename F >
     static auto request(GlobalAddress<GlobalVector> self, Q yield_q, F func) -> decltype(func()) {
       using R = decltype(func());
-
+      
       FullEmpty<R> result;
       auto result_addr = make_global(&result);
       auto do_call = [self,result_addr,yield_q,func]{
@@ -188,31 +205,6 @@ public:
       
       send_message(MASTER, [self]{ self->master.ce.complete(); });
     }
-    
-    // static void pushpop(GlobalAddress<GlobalVector> self, T * buffer, int64_t delta) {
-    //   // auto tail_lock = [self]{ return &self->master.tail_lock; };      
-    //   auto tail = delegate::call(MASTER, tail_lock, [self,delta](Mutex * l){
-    //     lock(l);
-    //     
-    //     if (delta < 0) self->incr_with_wrap(&self->master.tail, delta);  // pop
-    //     CHECK_GE(self->master.tail, 0);
-    //     return self->master.tail;
-    //   });
-    //   
-    //   if (delta > 0) { // push
-    //     self->cache_with_wraparound<typename Incoherent<T>::WO>(tail, delta, buffer);
-    //   } else { // pop
-    //     self->cache_with_wraparound<typename Incoherent<T>::RO>(tail, 0-delta, buffer);
-    //   }
-    //   
-    //   delegate::call(MASTER, [self,delta]() {
-    //     if (delta > 0) self->incr_with_wrap(&self->master.tail, delta);  // push
-    //     self->master.size += delta;
-    //     
-    //     unlock(&self->master.tail_lock);
-    //   });
-    //   CHECK_LE(self->master.size, self->capacity);
-    // }
     
     static void dequeue(GlobalAddress<GlobalVector> self, T * buffer, int64_t ndeq) {
       auto origin = mycore();
