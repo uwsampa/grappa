@@ -121,7 +121,8 @@ public:
   void combine(F func) {
     auto s = current;
     
-    func(*s->id);
+    bool satisfied = func(*s->id);
+    if (satisfied) return;
     
     if (s->id->is_full()) {
       current = get_flusher(s);

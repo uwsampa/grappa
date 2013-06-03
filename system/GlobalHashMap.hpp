@@ -204,11 +204,13 @@ public:
         if (p.map.count(key) > 0) {
           re.found = true;
           re.val = p.map[key];
+          return true;
         } else {
           if (p.lookups.count(key) == 0) p.lookups[key] = nullptr;
           re.next = p.lookups[key];
           p.lookups[key] = &re;
           DVLOG(3) << "p.lookups[" << key << "] = " << &re;
+          return false;
         }
       });
       *val = re.val;
@@ -226,7 +228,7 @@ public:
   void insert(K key, V val) {
     ++hashmap_insert_ops;
     if (FLAGS_flat_combining) {
-      proxy.combine([key,val](Proxy& p){ p.map[key] = val; });
+      proxy.combine([key,val](Proxy& p){ p.map[key] = val; return false; });
     } else {
       ++hashmap_insert_msgs;
       delegate::call(base+computeIndex(key), [key,val](Cell * c) { c->insert(key,val); });
