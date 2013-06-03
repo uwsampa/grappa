@@ -55,20 +55,35 @@ protected:
       }
     }
   };
+  
+  struct ResultEntry {
+    bool found;
+    ResultEntry * next;
+    V val;
+  };
 
   struct Proxy {
     static const size_t LOCAL_HASH_SIZE = 1<<10;
     
     GlobalHashMap * owner;
     std::unordered_map<K,V> map;
+    std::unordered_map<K,ResultEntry*> lookups;
     
-    Proxy(GlobalHashMap * owner): owner(owner), map(LOCAL_HASH_SIZE) { clear(); }
+    Proxy(GlobalHashMap * owner): owner(owner)
+      , map(LOCAL_HASH_SIZE)
+      , lookups(LOCAL_HASH_SIZE)
+    {
+      clear();
+    }
     
-    void clear() { map.clear(); }
+    void clear() { map.clear(); lookups.clear(); }
     
     Proxy * clone_fresh() { return locale_new<Proxy>(owner); }
     
-    bool is_full() { return map.size() >= LOCAL_HASH_SIZE; }
+    bool is_full() {
+      return map.size() >= LOCAL_HASH_SIZE
+          || lookups.size() >= LOCAL_HASH_SIZE;
+    }
     
     void insert(const K& newk, const V& newv) {
       if (map.count(newk) == 0) {
@@ -77,7 +92,7 @@ protected:
     }
     
     void sync() {
-      CompletionEvent ce(map.size());
+      CompletionEvent ce(map.size()+lookups.size());
       auto cea = make_global(&ce);
       
       for (auto& e : map) { auto& k = e.first; auto& v = e.second;
@@ -86,6 +101,33 @@ protected:
         send_heap_message(cell.core(), [cell,cea,k,v]{
           cell->insert(k, v);
           complete(cea);
+        });
+      }
+      
+      for (auto& e : lookups) { auto k = e.first;
+        ++hashmap_lookup_msgs;
+        auto re = e.second;
+        DVLOG(3) << "lookup " << k << " with re = " << re;
+        auto cell = owner->base+owner->computeIndex(k);
+        
+        send_heap_message(cell.core(), [cell,k,cea,re]{
+          Cell * c = cell.localize();
+          bool found = false;
+          V val;
+          for (auto& e : c->entries) if (e.key == k) {
+            found = true;
+            val = e.val;
+            break;
+          }
+          send_heap_message(cea.core(), [cea,re,found,val]{
+            ResultEntry * r = re;
+            while (r != nullptr) {
+              r->found = found;
+              r->val = val;
+              r = r->next;
+            }
+            complete(cea);
+          });
         });
       }
       ce.wait();
@@ -154,25 +196,31 @@ public:
   
   bool lookup(K key, V * val) {
     ++hashmap_lookup_ops;
-    std::pair<bool,V> result;
     if (FLAGS_flat_combining) {
-      proxy.combine([&result,key,this](Proxy& p){
+      ResultEntry re{false,nullptr};
+      DVLOG(3) << "lookup[" << key << "] = " << &re;
+      
+      proxy.combine([&re,key](Proxy& p){
         if (p.map.count(key) > 0) {
-          result = std::make_pair(true, p.map[key]);
+          re.found = true;
+          re.val = p.map[key];
         } else {
-          ++hashmap_lookup_msgs;
-          auto cell = this->base+this->computeIndex(key);
-          result = delegate::call(cell, [key](Cell* c){ return c->lookup(key); });
+          if (p.lookups.count(key) == 0) p.lookups[key] = nullptr;
+          re.next = p.lookups[key];
+          p.lookups[key] = &re;
+          DVLOG(3) << "p.lookups[" << key << "] = " << &re;
         }
       });
+      *val = re.val;
+      return re.found;
     } else {
       ++hashmap_lookup_msgs;
       auto result = delegate::call(base+computeIndex(key), [key](Cell* c){
         return c->lookup(key);
       });
+      *val = result.second;
+      return result.first;
     }
-    *val = result.second;
-    return result.first;
   }
   
   void insert(K key, V val) {
