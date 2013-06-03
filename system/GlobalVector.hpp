@@ -13,6 +13,8 @@ GRAPPA_DECLARE_STAT(SimpleStatistic<uint64_t>, global_vector_pop_ops);
 GRAPPA_DECLARE_STAT(SimpleStatistic<uint64_t>, global_vector_pop_msgs);
 GRAPPA_DECLARE_STAT(SimpleStatistic<uint64_t>, global_vector_deq_ops);
 GRAPPA_DECLARE_STAT(SimpleStatistic<uint64_t>, global_vector_deq_msgs);
+GRAPPA_DECLARE_STAT(SimpleStatistic<uint64_t>, global_vector_matched_pops);
+GRAPPA_DECLARE_STAT(SimpleStatistic<uint64_t>, global_vector_matched_pushes);
 GRAPPA_DECLARE_STAT(SummarizingStatistic<double>, global_vector_push_latency);
 GRAPPA_DECLARE_STAT(SummarizingStatistic<double>, global_vector_deq_latency);
 GRAPPA_DECLARE_STAT(SummarizingStatistic<double>, global_vector_pop_latency);
@@ -341,7 +343,7 @@ public:
     global_free(this->base);
     call_on_all_cores([self]{ self->~GlobalVector(); });
     global_free(self);
-  }  
+  }
   
   /// Push element on the back (queue or stack)
   void push(const T& e) {
@@ -350,9 +352,12 @@ public:
     if (FLAGS_flat_combining) {
       proxy.combine([&e](Proxy& p) {
         if (p.npop > 0) {
+          ++global_vector_matched_pushes;
           *p.pops[--p.npop] = e;
+          return true;
         } else {
           p.buffer[p.npush++] = e;
+          return false;
         }
       });
     } else {
@@ -370,9 +375,12 @@ public:
     if (FLAGS_flat_combining) {
       proxy.combine([&val](Proxy& p){
         if (p.npush > 0) {
+          ++global_vector_matched_pops;
           val = p.buffer[--p.npush];
+          return true;
         } else {
           p.pops[p.npop++] = &val;
+          return false;
         }
       });
     } else {
@@ -393,6 +401,7 @@ public:
     if (FLAGS_flat_combining) {
       proxy.combine([&val](Proxy& p){
         p.deqs[p.ndeq++] = &val;
+        return false;
       });
     } else {
       ++global_vector_deq_msgs;
