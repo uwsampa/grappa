@@ -10,9 +10,6 @@
 #include <unordered_map>
 #include <vector>
 
-// for all hash tables
-//GRAPPA_DEFINE_STAT(MaxStatistic<uint64_t>, max_cell_length, 0);
-
 GRAPPA_DECLARE_STAT(SimpleStatistic<size_t>, hashmap_insert_ops);
 GRAPPA_DECLARE_STAT(SimpleStatistic<size_t>, hashmap_insert_msgs);
 GRAPPA_DECLARE_STAT(SimpleStatistic<size_t>, hashmap_lookup_ops);
@@ -21,11 +18,8 @@ GRAPPA_DECLARE_STAT(SimpleStatistic<size_t>, hashmap_lookup_msgs);
 
 namespace Grappa {
 
-// Hash table for joins
-// * allows multiple copies of a Key
-// * lookups return all Key matches
 template< typename K, typename V > 
-class GlobalHashTable {
+class GlobalHashMap {
 protected:
   struct Entry {
     K key;
@@ -65,10 +59,10 @@ protected:
   struct Proxy {
     static const size_t LOCAL_HASH_SIZE = 1<<10;
     
-    GlobalHashTable * owner;
+    GlobalHashMap * owner;
     std::unordered_map<K,V> map;
     
-    Proxy(GlobalHashTable * owner): owner(owner), map(LOCAL_HASH_SIZE) { clear(); }
+    Proxy(GlobalHashMap * owner): owner(owner), map(LOCAL_HASH_SIZE) { clear(); }
     
     void clear() { map.clear(); }
     
@@ -99,7 +93,7 @@ protected:
   };
 
   // private members
-  GlobalAddress<GlobalHashTable> self;
+  GlobalAddress<GlobalHashMap> self;
   GlobalAddress< Cell > base;
   size_t capacity;
   
@@ -112,8 +106,8 @@ protected:
     return hasher(key) % capacity;
   }
 
-  // for creating local GlobalHashTable
-  GlobalHashTable( GlobalAddress<GlobalHashTable> self, GlobalAddress<Cell> base, size_t capacity )
+  // for creating local GlobalHashMap
+  GlobalHashMap( GlobalAddress<GlobalHashMap> self, GlobalAddress<Cell> base, size_t capacity )
     : self(self), base(base), capacity(capacity)
     , proxy(locale_new<Proxy>(this))
   {
@@ -122,13 +116,13 @@ protected:
   
 public:
   // for static construction
-  GlobalHashTable( ) {}
+  GlobalHashMap( ) {}
   
-  static GlobalAddress<GlobalHashTable> create(size_t total_capacity) {
+  static GlobalAddress<GlobalHashMap> create(size_t total_capacity) {
     auto base = global_alloc<Cell>(total_capacity);
-    auto self = mirrored_global_alloc<GlobalHashTable>();
+    auto self = mirrored_global_alloc<GlobalHashMap>();
     call_on_all_cores([self,base,total_capacity]{
-      new (self.localize()) GlobalHashTable(self, base, total_capacity);
+      new (self.localize()) GlobalHashMap(self, base, total_capacity);
     });
     forall_localized(base, total_capacity, [](int64_t i, Cell& c) { new (&c) Cell(); });
     return self;
@@ -142,7 +136,7 @@ public:
     auto self = this->self;
     forall_localized(this->base, this->capacity, [](Cell& c){ c.~Cell(); });
     global_free(this->base);
-    call_on_all_cores([self]{ self->~GlobalHashTable(); });
+    call_on_all_cores([self]{ self->~GlobalHashMap(); });
     global_free(self);
   }
   
@@ -193,7 +187,7 @@ public:
 
   template< GlobalCompletionEvent * GCE, int64_t Threshold,
             typename TT, typename VV, typename F >
-  friend void forall_localized(GlobalAddress<GlobalHashTable<TT,VV>> self, F func);  
+  friend void forall_localized(GlobalAddress<GlobalHashMap<TT,VV>> self, F func);  
   
 };
 
@@ -202,9 +196,9 @@ template< GlobalCompletionEvent * GCE = &impl::local_gce,
           typename T = decltype(nullptr),
           typename V = decltype(nullptr),
           typename F = decltype(nullptr) >
-void forall_localized(GlobalAddress<GlobalHashTable<T,V>> self, F visit) {
+void forall_localized(GlobalAddress<GlobalHashMap<T,V>> self, F visit) {
   forall_localized<GCE,Threshold>(self->base, self->capacity,
-  [visit](typename GlobalHashTable<T,V>::Cell& c){
+  [visit](typename GlobalHashMap<T,V>::Cell& c){
     for (auto& e : c.entries) {
       visit(e.key, e.val);
     }
