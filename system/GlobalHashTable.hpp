@@ -40,6 +40,8 @@ protected:
     
     Cell() : entries() { entries.reserve(10); }
     
+    void clear() { entries.clear(); }
+    
     std::pair<bool,V> lookup(K key) {
       
       for (auto& e : this->entries) if (e.key == key) return std::pair<bool,K>{true, e.val};
@@ -75,7 +77,6 @@ protected:
     bool is_full() { return map.size() >= LOCAL_HASH_SIZE; }
     
     void insert(const K& newk, const V& newv) {
-      ++hashmap_insert_ops;
       if (map.count(newk) == 0) {
         map[newk] = newv;
       }
@@ -115,7 +116,9 @@ protected:
   GlobalHashTable( GlobalAddress<GlobalHashTable> self, GlobalAddress<Cell> base, size_t capacity )
     : self(self), base(base), capacity(capacity)
     , proxy(locale_new<Proxy>(this))
-  { }
+  {
+    CHECK_LT(sizeof(self)+sizeof(base)+sizeof(capacity)+sizeof(proxy), 2*block_size);
+  }
   
 public:
   // for static construction
@@ -129,6 +132,10 @@ public:
     });
     forall_localized(base, total_capacity, [](int64_t i, Cell& c) { new (&c) Cell(); });
     return self;
+  }
+  
+  void clear() {
+    forall_localized(base, capacity, [](Cell& c){ c.clear(); });
   }
   
   void destroy() {
