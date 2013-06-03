@@ -11,6 +11,7 @@ Igor do
   command @test_cmd['GlobalVector_tests', '--stack_perf']
   
   params {
+    version 'matching'
   }
   
   interact
