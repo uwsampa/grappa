@@ -234,39 +234,7 @@ public:
       send_message(MASTER, [self]{ self->master.ce.complete(); });
     }
     
-    // static void dequeue(GlobalAddress<GlobalVector> self, T * buffer, int64_t delta) {
-    //   auto head_lock = [self]{ return &self->master.head_lock; };
-    //   
-    //   auto head = delegate::call(MASTER, head_lock, [self,delta](Mutex * l){
-    //     lock(l);
-    //     // if something was popped, tail will have been decremented, but may still be locked
-    //     CHECK_LE(self->master.size, self->capacity);
-    //     CHECK_GE(self->master.size, delta);
-    //     return self->master.head;
-    //   });
-    // 
-    //   self->cache_with_wraparound<typename Incoherent<T>::RO>(head, delta, buffer);
-    //   
-    //   delegate::call(MASTER, [self,delta] {
-    //     if (delta > 0) self->incr_with_wrap(&self->master.head, delta);
-    //     self->master.size -= delta;
-    //     
-    //     CHECK_LE(self->master.size, self->capacity);
-    //     unlock(&self->master.head_lock);
-    //   });
-    // }
-    
   };
-
-  inline size_t incr_with_wrap(long i, long incr) {
-    i += incr;
-    if (i >= capacity) {
-      i %= capacity;
-    } else if (i < 0){
-      i += capacity;
-    }
-    return i;
-  }
 
   inline void incr_with_wrap(size_t * i, long incr) {
     long val = *i;
