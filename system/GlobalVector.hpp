@@ -89,6 +89,7 @@ public:
           m->ce.enroll();
           if (!m->push_q.empty()) invoke(m->push_q.pop());
           else if (!m->pop_q.empty()) invoke(m->pop_q.pop());
+          else if (!m->deq_q.empty()) invoke(m->deq_q.pop());
           
           m->ce.wait(new_continuation([self,m] {
             if (m->has_requests()) {
