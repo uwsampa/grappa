@@ -161,14 +161,10 @@ public:
         if (p.keys_to_insert.count(key) > 0) {
           re.result = true;
         } else {
-          if (p.keys_to_insert.count(key) != 0) re.result = true;
-          else {
-            // p.lookups[key].push_back(&result);
-            if (p.lookups.count(key) == 0) p.lookups[key] = nullptr;
-            re.next = p.lookups[key];
-            p.lookups[key] = &re;
-            DVLOG(3) << "p.lookups[" << key << "] = " << &re;
-          }
+          if (p.lookups.count(key) == 0) p.lookups[key] = nullptr;
+          re.next = p.lookups[key];
+          p.lookups[key] = &re;
+          DVLOG(3) << "p.lookups[" << key << "] = " << &re;
         }
       });
       return re.result;
