@@ -1,9 +1,5 @@
 #!/usr/bin/env Rscript
-library(sqldf)
-library(ggplot2)
-library(reshape)
-library(extrafont)
-loadfonts()
+setwd("~/dev/hub/grappa/doc/pgas13/data")
 source("common.R")
 
 d <- db(
@@ -27,7 +23,7 @@ d$fc_version <- sapply(paste('v',d$flat_combining,d$cc_insert_async,sep=''),swit
   v0NA='none', v1NA='fc', v11='async', v10='fc', v00='none'
 )
 
-g <- ggplot(subset(d, cc_hash_size <= 16384), aes(
+g <- ggplot(subset(d, cc_hash_size <= 16384 & scale == 26 & ppn == 16), aes(
     x=num_starting_workers,
     y=mteps,
     color=nroots,
@@ -68,25 +64,25 @@ d.t <- melt(d, measure=c("cc_propagate_time","cc_reduced_graph_time","cc_set_ins
 d.t$cc_time_names <- d.t$variable
 d.t$cc_time_values <- d.t$value
 
-g.t <- ggplot(subset(d.t, cc_hash_size == 16384),
+g.t <- ggplot(subset(d.t, cc_hash_size == 16384 & ppn == 16),
   aes(
     x=cc_concurrent_roots,
     y=cc_time_values,
     color=cc_time_names, fill=cc_time_names
   ))+
-  facet_grid(~nnode~scale~ppn~cc_hash_size~fc_version, labeller=label_pretty)+
+  facet_grid(scale+cc_hash_size+fc_version~nnode+ppn, labeller=label_pretty)+
   geom_bar(stat="identity")+
   my_theme
-ggsave(plot=g.t, filename="plots/cc_times.pdf", scale=1.4)
+ggsave(plot=g.t, filename="plots/cc_times.pdf", width=16, height=10)
 
-d.stat <- melt(d, measure=c('mteps', 'rdma_message_bytes', 'app_messages_enqueue', 'rdma_idle_flushes', 'gce_flats'))
+d.stat <- melt(d, measure=c('mteps', 'ce_remote_completions', 'DelegateStats_ops', 'gce_flats'))
 g.stat <- ggplot(subset(d.stat, scale == 26 & fc_version != 'async'), aes(
     x=num_starting_workers,
     y=value,
     color=nroots, fill=nroots,
-    shape=fc_version,
+    shape=ppn,
     linetype=fc_version,
-    group=x(fc_version,nroots)
+    group=x(fc_version,nroots,ppn)
   ))+
   geom_point()+
   geom_line()+
