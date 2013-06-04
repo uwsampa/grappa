@@ -75,7 +75,8 @@ double perf_test(GlobalAddress<GlobalVector<int64_t>> qa) {
       if (choose_random(FLAGS_fraction_push)) {
         qa->push(next_random<int64_t>());
       } else {
-        qa->pop();
+        // qa->pop();
+        CHECK_GT(qa->pop(), -1);
       }
       
     } else if (EXP == Exp::PUSH) {
