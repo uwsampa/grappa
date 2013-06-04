@@ -160,13 +160,13 @@ public:
       proxy.combine([&re,key,this](Proxy& p){
         if (p.keys_to_insert.count(key) > 0) {
           re.result = true;
-          return true;
+          return FCStatus::SATISFIED;
         } else {
           if (p.lookups.count(key) == 0) p.lookups[key] = nullptr;
           re.next = p.lookups[key];
           p.lookups[key] = &re;
           DVLOG(3) << "p.lookups[" << key << "] = " << &re;
-          return false;
+          return FCStatus::BLOCKED;
         }
       });
       return re.result;
@@ -188,7 +188,7 @@ public:
   void insert( K key ) {
     ++hashset_insert_ops;
     if (FLAGS_flat_combining) {
-      proxy.combine([key](Proxy& p){ p.insert(key); return false; });
+      proxy.combine([key](Proxy& p){ p.insert(key); return FCStatus::BLOCKED; });
     } else {
       ++hashset_insert_msgs;
       delegate::call(base+computeIndex(key), [key](Cell * c) {
@@ -212,7 +212,7 @@ public:
     if (proxy->is_full()) {
       ++hashset_insert_msgs;
       privateTask([this,sync]{
-        this->proxy.combine([](Proxy& p){ return false; });
+        this->proxy.combine([](Proxy& p){ return FCStatus::BLOCKED; });
         sync();
       });
     } else {
@@ -223,7 +223,7 @@ public:
   void sync_all_cores() {
     auto self = this->self;
     on_all_cores([self]{
-      self->proxy.combine([](Proxy& p){ return false; });
+      self->proxy.combine([](Proxy& p){ return FCStatus::BLOCKED; });
     });
   }
   

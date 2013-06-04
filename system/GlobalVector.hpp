@@ -354,10 +354,10 @@ public:
         if (p.npop > 0) {
           ++global_vector_matched_pushes;
           *p.pops[--p.npop] = e;
-          return true;
+          return FCStatus::MATCHED;
         } else {
           p.buffer[p.npush++] = e;
-          return false;
+          return FCStatus::BLOCKED;
         }
       });
     } else {
@@ -377,10 +377,10 @@ public:
         if (p.npush > 0) {
           ++global_vector_matched_pops;
           val = p.buffer[--p.npush];
-          return true;
+          return FCStatus::MATCHED;
         } else {
           p.pops[p.npop++] = &val;
-          return false;
+          return FCStatus::BLOCKED;
         }
       });
     } else {
@@ -401,7 +401,7 @@ public:
     if (FLAGS_flat_combining) {
       proxy.combine([&val](Proxy& p){
         p.deqs[p.ndeq++] = &val;
-        return false;
+        return FCStatus::BLOCKED;
       });
     } else {
       ++global_vector_deq_msgs;

@@ -29,6 +29,7 @@ public:
       delegate::call(MASTER,[s,d]{ s->master.count += d; });
     }
     
+    void clear() { delta = 0; }
     bool is_full() { return false; }
   };
   FlatCombiner<Proxy> comb;
@@ -43,6 +44,7 @@ public:
   void incr(long d = 1) {
     comb.combine([d](Proxy& p){
       p.delta += d;
+      return FCStatus::BLOCKED;
     });
   }
   
