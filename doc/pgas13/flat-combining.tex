@@ -4,6 +4,13 @@ Flat combining allows threads to cooperate when accessing a synchronized shared 
 
 \subsection{Physically-shared memory}
 
+\begin{figure}[ht]
+  \centering
+  \includegraphics[width=0.5\textwidth]{figs/fc_shared_mem.pdf}
+  \caption{Flat combining in shared memory. \TODO{walkthrough...}}
+  \label{fig:fc_shared_mem}
+\end{figure}
+
 The benefits of flat-combining can be broken down into three components: improved locality, reduced synchronization, and data structure-specific optimization. Having a single thread bound to a particular core do a string of accesses trivially results in a lower cache miss rate than having multiple threads on multiple cores bring the data structure into cache each in turn.
 
 The story for reducing synchronization is more complicated. The problem with having many threads attempt to acquire a lock is that as contention increases, there will be more failed synchronization attempts (failed \emph{compare and swap}, or \emph{CAS} operations), which must be retried until they succeed.
@@ -15,6 +22,15 @@ The final piece of the flat combining story is how operations are semantically c
 \TODO{Add example of doing flat-combining on a global stack, discuss how pushes/pops are flattened.}
 
 \subsection{In Grappa}
+
+
+\begin{figure}[ht]
+  \centering
+  \includegraphics[width=0.5\textwidth]{figs/stack.pdf}
+  \caption{\emph{GlobalStack in Grappa.} Each access must synchronize with the head node (blocking if another worker is performing an operation), put or get its value in the stack's storage, release the lock on the master, and finally continue.}
+  \label{fig:stack}
+\end{figure}
+
 
 The cost of performing synchronization remotely on a distributed data structure motivates applying the flat-combining paradigm to Grappa data structures. Instead of all of the workers on a core sending messages to do remote synchronization independently, flat-combining can allow all of the workers to share a single remote synchronization operation. In a way, the Grappa runtime is already reducing synchronization traffic when it aggregates small messages that are all going to the same destination. However, it doesn't know what the operations are doing, so it must still serialize, pack, transmit, perform the operation on the remote side, and send a response for each message. Flat combining is about ``teaching'' it how to more efficiently perform many operations remotely in certain special cases.
 
@@ -49,7 +65,7 @@ Being conservative about SC, workers typically block when issuing these requests
 
 One could imagine other synchronization policies that would ensure progress but allow more combining to occur before synchronizing. For instance, local combining could continue until all workers are blocked. However, this would require the flat-combining framework to track the activity of the workers on a core, and additionally would add latency unless the system saved enough active workers to tolerate the latency of the global commit action. As it is, the one-in-flight policy implemented performs well, and does not require any coupling with the Grappa scheduler. Exploration of other policies is left for future work.
 
-The flat combining framework transparently wraps the \emph{proxy} object. Behind this layer of indirection, the flat-combining framework manages multiple copies of the proxy so that, as discussed above, there is always at least one being committed and one to receive additional combining operations.
+The flat combining framework transparently wraps the \emph{proxy} object. Behind this layer of indirection, it manages multiple copies of the proxy so that, as discussed above, there is always at least one being committed and one to receive additional combining operations.
 
 % explain simple non-combined global data structures in Grappa section...
 

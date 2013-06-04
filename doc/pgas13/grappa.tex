@@ -6,6 +6,13 @@ For regular workloads, most pointedly dense linear algebra, much of this can now
 
 Irregular applications, on the other hand, are characterized by being highly dependent on the shape of the data, making it difficult to statically partition, causing load imbalance, and requiring a majority of fine-grained random accesses. The goal of the Grappa runtime is to provide a PGAS implementation that has been designed from the ground up to handle such applications.
 
+\begin{figure}[ht]
+  \centering
+  \includegraphics[width=0.5\textwidth]{figs/grappa_system.pdf}
+  \caption{Grappa System Overview: Global address space is partitioned among all nodes, each core owns a portion, and with a portion devoted to the linearly-addressable global heap. Thousands of workers multiplexed onto each core, context switching to tolerate long-latency remote operations.}
+  \label{fig:system}
+\end{figure}
+
 \subsection{Tasks}
 \TODO{describe how tasks work}
 
