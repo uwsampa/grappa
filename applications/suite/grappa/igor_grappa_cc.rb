@@ -31,7 +31,6 @@ Igor do
     nnode    16
     ppn      16
     scale    16
-    tag      'vector_locks'
     
     loop_threshold 64
     num_starting_workers 512
