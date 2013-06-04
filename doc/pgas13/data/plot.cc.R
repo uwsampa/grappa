@@ -40,7 +40,7 @@ g <- ggplot(subset(d, cc_hash_size <= 16384 & scale == 26 & ppn == 16), aes(
   # ylab("")+
   expand_limits(y=0)+
   my_theme
-ggsave(plot=g, filename="plots/cc_mess.pdf", scale=1.4)
+# ggsave(plot=g, filename="plots/cc_mess.pdf", scale=1.4)
 
 g <- ggplot(subset(d, 
     cc_hash_size == 16384 & scale == 26 & ppn == 16
@@ -57,11 +57,12 @@ g <- ggplot(subset(d,
   # geom_smooth(aes(linetype=fc_version),stat=stat_smooth(se=FALSE))+
   # geom_smooth(aes(linetype=fc_version),fill=NA)+
   geom_line()+
+  xlab("Nodes")+
   # geom_text(size=2,hjust=-0.2,vjust=1)+
   # facet_grid(scales="free", labeller=label_pretty)+
   ylab("MTEPS")+expand_limits(y=0)+
   my_theme
-ggsave(plot=g, filename="plots/cc_perf.pdf", scale=1.4)
+ggsave(plot=g, filename="plots/cc_perf.pdf", width=8, height=6)
 
 # g <- ggplot(d.m, aes(
 #     x=cc_concurrent_roots,
@@ -94,7 +95,7 @@ g.t <- ggplot(subset(d.t, cc_hash_size == 16384 & ppn == 16),
   facet_grid(scale+cc_hash_size+fc_version~nnode+ppn, labeller=label_pretty)+
   geom_bar(stat="identity")+
   my_theme
-ggsave(plot=g.t, filename="plots/cc_times.pdf", width=16, height=10)
+# ggsave(plot=g.t, filename="plots/cc_times.pdf", width=16, height=10)
 
 d.stat <- melt(d, measure=c('mteps', 'ce_remote_completions', 'DelegateStats_ops', 'gce_flats'))
 g.stat <- ggplot(subset(d.stat, scale == 26 & fc_version != 'async'), aes(
@@ -110,7 +111,7 @@ g.stat <- ggplot(subset(d.stat, scale == 26 & fc_version != 'async'), aes(
   # geom_smooth(fill=NA)+
   facet_grid(~scale~variable~nnode, labeller=label_pretty, scales="free")+
   ylab("")+expand_limits(y=0)+my_theme
-ggsave(plot=g.stat, filename="plots/cc_stats.pdf", scale=1.5)
+# ggsave(plot=g.stat, filename="plots/cc_stats.pdf", scale=1.5)
 
 
 

@@ -44,16 +44,16 @@ gg <- ggplot(subset(d, log_nelems==28 & ppn==16 & num_starting_workers==2048
     y=throughput,
     color=fc_version,
     group=x(fc_version,version,fraction_push,trial),
-    shape=fraction_push,
+    shape=fc_version,
     linetype=fraction_push,
   ))+
-  geom_point()+
-  geom_line()+
+  geom_point(size=3)+
+  geom_line(size=1)+
   # facet_grid(log_nelems~., scales="free", labeller=label_pretty)+
   xlab("Nodes")+scale_x_continuous(breaks=c(0,8,16,32,48,64))+
   scale_color_discrete(name="Flat Combining")+
+  scale_shape_discrete(name="Flat Combining")+
   scale_linetype_discrete(name="Fraction pushes")+
-  scale_shape_discrete(name="Fraction pushes")+
   ylab("Throughput (ops/sec)")+expand_limits(y=0)+my_theme+
   theme(strip.text=element_text(size=rel(0.4)),
         axis.text.x=element_text(size=rel(0.75)))

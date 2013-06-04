@@ -34,7 +34,7 @@ d$ops_per_msg <- with(d, (hashset_insert_ops+hashset_lookup_ops)/(hashset_insert
 d$throughput <- with(d, (hashset_insert_ops+hashset_lookup_ops)/trial_time_mean)
 
 d$fc_version <- sapply(paste('v',d$flat_combining,d$insert_async,sep=''),switch,
-  v0NA='none', v1NA='fc', v11='async', v10='fc', v00='none', v01='?'
+  v0NA='none', v1NA='local', v11='async', v10='local', v00='none', v01='?'
 )
 
 d.melt <- melt(d, measure=c("ops_per_msg", "throughput"))
@@ -50,7 +50,7 @@ g <- ggplot(subset(d.melt,
     label=trial_time_mean,
     linetype=fc_version,
   ))+
-  geom_point()+
+  # geom_point()+
   # geom_text()+
   geom_line()+
   # geom_smooth(aes(linetype=fc_version), fill=NA)+
@@ -68,22 +68,23 @@ gg <- ggplot(subset(d, log_nelems==28 & ppn==16 & num_starting_workers==8192
     x=nnode,
     y=throughput,
     color=fc_version,
-    group=x(fc_version,version,fraction_lookups,trial),
+    group=x(fc_version,version,fraction_lookups),
     shape=fraction_lookups,
     linetype=fraction_lookups,
   ))+
-  geom_point()+
-  geom_line()+
+  # geom_point()+
+  # geom_line()+
+  geom_smooth(size=1)+
   # facet_grid(log_nelems~., scales="free", labeller=label_pretty)+
   xlab("Nodes")+
-  scale_color_discrete(name="Combining mode:")+
+  scale_color_discrete(name="Flat Combining")+
   scale_linetype_discrete(name="Fraction lookups:")+
   scale_shape_discrete(name="Fraction lookups:")+
-  ylab("Throughput")+expand_limits(y=0)+my_theme+
-  theme(strip.text=element_text(size=rel(0.4)),
-        axis.text.x=element_text(size=rel(0.65)))
+  ylab("Throughput (ops/sec)")+expand_limits(y=0)+my_theme+
+  theme(strip.text=element_text(size=rel(0.7)),
+        axis.text.x=element_text(size=rel(0.85)))
 
-ggsave(plot=gg, filename="plots/hashset_perf.pdf", width=8, height=6)
+ggsave(plot=gg, filename="plots/hashset_perf.pdf", width=7, height=5)
 
 ######################
 # GlobalHashMap
@@ -91,7 +92,7 @@ ggsave(plot=gg, filename="plots/hashset_perf.pdf", width=8, height=6)
 dmap$ops_per_msg <- with(dmap, (hashmap_insert_ops+hashmap_lookup_ops)/(hashmap_insert_msgs+hashmap_lookup_msgs))
 dmap$throughput <- with(dmap, (hashmap_insert_ops+hashmap_lookup_ops)/trial_time_mean)
 dmap$fc_version <- sapply(paste('v',dmap$flat_combining,dmap$insert_async,sep=''),switch,
-  v0NA='none', v1NA='fc', v11='async', v10='fc', v00='none', v01='?'
+  v0NA='none', v1NA='local', v11='async', v10='local', v00='none', v01='?'
 )
 
 gg <- ggplot(subset(dmap, log_nelems==28 & ppn==16 & num_starting_workers==8192
@@ -104,16 +105,18 @@ gg <- ggplot(subset(dmap, log_nelems==28 & ppn==16 & num_starting_workers==8192
     shape=fraction_lookups,
     linetype=fraction_lookups,
   ))+
-  geom_point()+
-  geom_line()+
+  # geom_point()+
+  # geom_line()+
+  geom_smooth(size=1)+
   # facet_grid(log_nelems~., scales="free", labeller=label_pretty)+
   xlab("Nodes")+
-  scale_color_discrete(name="Combining mode:")+
+  # scale_x_continuous(breaks=c(8,16,32,48,64))+
+  scale_color_discrete(name="Flat Combining")+
   scale_linetype_discrete(name="Fraction lookups:")+
   scale_shape_discrete(name="Fraction lookups:")+
-  ylab("Throughput")+expand_limits(y=0)+my_theme+
+  ylab("Throughput (ops/sec)")+expand_limits(y=0)+my_theme+
   theme(strip.text=element_text(size=rel(0.7)),
         axis.text.x=element_text(size=rel(0.85)))
 
-ggsave(plot=gg, filename="plots/hashmap_perf.pdf", width=8, height=6)
+ggsave(plot=gg, filename="plots/hashmap_perf.pdf", width=7, height=5)
 

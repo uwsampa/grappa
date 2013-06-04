@@ -8,20 +8,40 @@ First we measured the performance of the global data structures on extremely sim
   \centering
   \begin{subfigure}[b]{0.45\textwidth}
   \centering
-  \includegraphics[width=\textwidth]{data/plots/queue_perf.pdf}
-  \caption{Queue performance.}
-  \label{fig:queue}
+  \includegraphics[width=\textwidth]{data/plots/stack_perf.pdf}
+  \caption{Stack performance.}
+  \label{fig:stack}
   \end{subfigure}%
   \hspace{0.05\textwidth}
   % ~ %add desired spacing between images, e. g. ~, \quad, \qquad etc.
   %(or a blank line to force the subfigure onto a new line)
   \begin{subfigure}[b]{0.45\textwidth}
   \centering
-  \includegraphics[width=\textwidth]{data/plots/stack_perf.pdf}
-  \caption{Stack performance.}
-  \label{fig:stack}
+  \includegraphics[width=\textwidth]{data/plots/queue_perf.pdf}
+  \caption{Queue performance.}
+  \label{fig:queue}
   \end{subfigure}
-  \caption{Raw performance of global data structures.}\label{fig:datastructs}
+  
+  \begin{subfigure}[b]{0.45\textwidth}
+  \centering
+  \includegraphics[width=\textwidth]{data/plots/hashset_perf.pdf}
+  \caption{GlobalHashSet performance.}
+  \label{fig:hashset}
+  \end{subfigure}
+  %
+  \hspace{0.05\textwidth}
+  %
+  \begin{subfigure}[b]{0.45\textwidth}
+  \centering
+  \includegraphics[width=\textwidth]{data/plots/hashmap_perf.pdf}
+  \caption{GlobalHashMap performance.}
+  \label{fig:hashmap}
+  \end{subfigure}%
+  %
+  \caption{Raw performance of global data structures.
+    \TODO{describe results.}
+    \TODO{either all with error bars or none.}
+  }\label{fig:datastructs}
 \end{figure*}
 
 \paragraph{Queue and Stack}
