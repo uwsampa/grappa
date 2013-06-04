@@ -517,7 +517,6 @@ void Grappa_reset_stats_all_nodes() {
 void legacy_dump_stats( std::ostream& oo ) {
   std::ostringstream o;
   o << "   \"GrappaStats\": { \"tick_rate\": " << Grappa::tick_rate
-    << ", \"job_id\": " << jobid
     << ", \"nodelist\": \"" << nodelist_str << "\""
     << " },\n";
   global_aggregator.dump_stats( o, "," );
