@@ -55,14 +55,18 @@ namespace Grappa {
 // 
 // };
 
+enum class FCStatus { SATISFIED, BLOCKED, MATCHED };
+
 template <typename T>
 class FlatCombiner {
-  
+    
   struct Flusher {
     Flusher * next;
     T * id;
     Worker * sender;
+    
     ConditionVariable cv;
+    
     Flusher(T * id): id(id) { clear(); }
     ~Flusher() { id->~T(); locale_free(id); }
     void clear() {
@@ -72,7 +76,7 @@ class FlatCombiner {
       cv.waiters_ = 0;
     }
   };
-
+  
   void free_flusher(Flusher * s) {
     if (freelist == nullptr) {
       freelist = s;
@@ -121,8 +125,18 @@ public:
   void combine(F func) {
     auto s = current;
     
-    bool satisfied = func(*s->id);
-    if (satisfied) return;
+    FCStatus status = func(*s->id);
+    if (status == FCStatus::SATISFIED) return;
+    else if (status == FCStatus::MATCHED) {
+      // if (s->cv.waiters_ == 0) {
+      //   CHECK(s != current);
+      //   s->sender = nullptr;
+      // }
+      // CHECK(s->cv.waiters_ != 0);
+      // CHECK(impl::get_waiters(&s->cv) != s->sender);
+      Grappa::signal(&s->cv);
+      return;
+    }
     
     if (s->id->is_full()) {
       current = get_flusher(s);
@@ -147,6 +161,7 @@ public:
     
     // not my turn yet
     Grappa::wait(&s->cv);
+    
     // on wake...
     if (&current_worker() == s->sender) { // I was assigned to send
       if (s == current) {
@@ -167,12 +182,15 @@ public:
     DVLOG(4) << "flushing (" << s->sender << "), s(" << s << ") (this:" << this << ")";
     
     broadcast(&s->cv); // wake our people
+      
     DVLOG(4) << "flushing (" << s->sender << "), s(" << s << ") (this:" << this << ")";
     if (current->cv.waiters_ != 0 && current->sender == nullptr) {
       // atomically claim it so no one else tries to send in the meantime
       // wake someone and tell them to send
-      current->sender = impl::get_waiters(&current->cv);
-      signal(&current->cv);
+      auto n = current;
+      current = get_flusher(n);
+      n->sender = impl::get_waiters(&n->cv);
+      signal(&n->cv);
       DVLOG(3) << "signaled " << current->sender;
     } else {
       inflight--;
