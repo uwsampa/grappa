@@ -40,7 +40,7 @@ g <- ggplot(subset(d.melt, version == 'fixed_random'), aes(
 gg <- ggplot(subset(d, log_nelems==28 & ppn==16 & num_starting_workers==2048
                       & version == 'fixed_random'
   ),aes(
-    x=nnode,
+    x=as.numeric(as.character(nnode)),
     y=throughput,
     color=fc_version,
     group=x(fc_version,version,fraction_push,trial),
@@ -50,7 +50,7 @@ gg <- ggplot(subset(d, log_nelems==28 & ppn==16 & num_starting_workers==2048
   geom_point()+
   geom_line()+
   # facet_grid(log_nelems~., scales="free", labeller=label_pretty)+
-  xlab("Nodes")+
+  xlab("Nodes")+scale_x_continuous(breaks=c(0,8,16,32,48,64))+
   scale_color_discrete(name="Flat Combining")+
   scale_linetype_discrete(name="Fraction pushes")+
   scale_shape_discrete(name="Fraction pushes")+

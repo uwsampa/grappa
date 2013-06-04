@@ -30,5 +30,25 @@ g <- ggplot(subset(d,
   expand_limits(y=0)+
   my_theme
 
+ggsave(plot=g, filename="plots/bfs_mess.pdf", scale=1.2)
+
+g <- ggplot(subset(d,
+    ppn == 16 & scale == 26 & num_starting_workers == 1024
+  ), aes(
+    x=nnode,
+    y=value,
+    color=x(version_combining,ppn),
+    shape=aggregator_autoflush_ticks,
+    group=x(version_combining,ppn)
+    # label=nnode~ppn,
+  ))+
+  geom_point()+
+  geom_smooth(aes(linetype=flat_combining))+
+  # facet_grid(~variable~ppn, scales="free", labeller=label_bquote(.(prettify(x))))+
+  facet_grid(~variable~scale~nnode, scales="free", labeller=label_pretty)+
+  ylab("")+
+  expand_limits(y=0)+
+  my_theme
+
 ggsave(plot=g, filename="plots/bfs_perf.pdf", scale=1.2)
 
