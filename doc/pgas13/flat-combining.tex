@@ -23,14 +23,23 @@ The final piece of the flat combining story is how operations are semantically c
 
 \subsection{In Grappa}
 
-
-\begin{figure}[ht]
+\begin{figure*}[t]
   \centering
-  \includegraphics[width=0.5\textwidth]{figs/stack.pdf}
-  \caption{\emph{GlobalStack in Grappa.} Each access must synchronize with the head node (blocking if another worker is performing an operation), put or get its value in the stack's storage, release the lock on the master, and finally continue.}
+  \begin{subfigure}[b]{0.43\textwidth}
+    \includegraphics[width=\textwidth]{figs/stack_nofc.pdf}
+    \caption{\emph{GlobalStack in Grappa.} Each access must synchronize with the head node (blocking if another worker is performing an operation), put or get its value in the stack's storage, release the lock on the master, and finally continue.}
+    \label{fig:stacknofc}
+  \end{subfigure}%
+  \hspace{0.05\textwidth}
+  \begin{subfigure}[b]{0.43\textwidth}
+    \centering
+    \includegraphics[width=\textwidth]{figs/stack_fc.pdf}
+    \caption{\emph{GlobalStack in Grappa.} Each access must synchronize with the head node (blocking if another worker is performing an operation), put or get its value in the stack's storage, release the lock on the master, and finally continue.}
+    \label{fig:stackfc}
+  \end{subfigure}
+  \caption{\emph{GlobalStack in Grappa.}}
   \label{fig:stack}
-\end{figure}
-
+\end{figure*}
 
 The cost of performing synchronization remotely on a distributed data structure motivates applying the flat-combining paradigm to Grappa data structures. Instead of all of the workers on a core sending messages to do remote synchronization independently, flat-combining can allow all of the workers to share a single remote synchronization operation. In a way, the Grappa runtime is already reducing synchronization traffic when it aggregates small messages that are all going to the same destination. However, it doesn't know what the operations are doing, so it must still serialize, pack, transmit, perform the operation on the remote side, and send a response for each message. Flat combining is about ``teaching'' it how to more efficiently perform many operations remotely in certain special cases.
 
