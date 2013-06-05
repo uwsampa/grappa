@@ -49,3 +49,27 @@ The GlobalQueue and GlobalStack have very similar implementations in terms of ho
 
 However, due to the nature of concurrent stacks, the stack is able to match up pushes and pops locally. This leads to performance on an even mix of pushes and pops far outstripping the case where all pushes are performed due to requiring vastly less communication.
 
+\paragraph{HashSet and HashMap}
+The GlobalHashSet and GlobalHashMap have the same synchronization strategy (serialization happens at each hashed location).
+
+\subsection{Application Kernel Performance}
+The impetus for this work was that naive implementations of standard data structures are insufficient for use in high-performance kernels.
+
+\paragraph{Breadth-First Search}
+\begin{figure}[t]
+  \centering
+  \includegraphics[width=0.5\textwidth]{data/plots/bfs_perf.pdf}
+  \caption{BFS on a Graph500-spec graph of scale 26 (64 million vertices, 1 billion edges), with the direction-optimizing BFS algorithm. Performance is shown in millions of Traversed Edges Per Second (MTEPS).}
+  \label{fig:bfs_perf}
+\end{figure}
+
+
+\paragraph{Connected Components}
+
+\begin{figure}[t]
+  \centering
+  \includegraphics[width=0.5\textwidth]{data/plots/cc_perf.pdf}
+  \caption{Connected Components on the same scale 26 Graph500 graph. Performance is measured in TEPS, parameterized only by the total number of edges in the graph, regardless of the algorithm used.}
+  \label{fig:cc_perf}
+\end{figure}
+
