@@ -56,6 +56,7 @@ g <- ggplot(subset(d, log_nelems==28 & ppn==16 & num_starting_workers==2048
   geom_point(size=3)+
   geom_line(size=1)+
   xlab("Nodes")+scale_x_continuous(breaks=c(0,8,16,32,48,64))+
+  scale_y_log10()+
   scale_color_discrete(name="Flat Combining")+
   scale_shape_discrete(name="Flat Combining")+
   scale_linetype_discrete(name="Fraction pushes")+
