@@ -9,7 +9,7 @@ First we measured the performance of the global data structures on extremely sim
   \begin{subfigure}[b]{0.45\textwidth}
   \centering
   \includegraphics[width=\textwidth]{data/plots/stack_perf.pdf}
-  \caption{Stack performance.}
+  \caption{\emph{GlobalStack.} Even with Grappa's aggregation, the stack without combining completely fails to scale. With combining, both workloads scale out to 64 nodes. The workload with roughly even pushes and pops performs best because it can do matching locally.}
   \label{fig:stack}
   \end{subfigure}%
   \hspace{0.05\textwidth}
@@ -18,14 +18,16 @@ First we measured the performance of the global data structures on extremely sim
   \begin{subfigure}[b]{0.45\textwidth}
   \centering
   \includegraphics[width=\textwidth]{data/plots/queue_perf.pdf}
-  \caption{Queue performance.}
+  \caption{\emph{GlobalQueue.} Same parameters as stack performance results. The queue is unable to do matching locally, but benefits from reducing the amount of synchronization that must globally serialize. The mixed workload performs worse because the current implementation serializes combined enqueue and dequeue operations.}
   \label{fig:queue}
   \end{subfigure}
   
   \begin{subfigure}[b]{0.45\textwidth}
   \centering
   \includegraphics[width=\textwidth]{data/plots/hashset_perf.pdf}
-  \caption{GlobalHashSet performance.}
+  \caption{\emph{GlobalHashSet.} Throughput workload inserting and looking up random keys in the range 0-1024 into a global hash set with 1024 cells.
+   Performance without combining scales better than the global queue or stack because synchronization happens at each hash cell, but drops off as number of destinations increases. Combining version is able to match inserts and lookups of the same key.}
+    \TODO{if time: add 'delete' operation, too (show that it doesn't affect correctness or performance)}
   \label{fig:hashset}
   \end{subfigure}
   %
@@ -34,23 +36,26 @@ First we measured the performance of the global data structures on extremely sim
   \begin{subfigure}[b]{0.45\textwidth}
   \centering
   \includegraphics[width=\textwidth]{data/plots/hashmap_perf.pdf}
-  \caption{GlobalHashMap performance.}
+  \caption{\emph{GlobalHashMap.} Same workload as for the Set, but random integers as the values in the map. Performance matches that of the Set.} \TODO{try increasing size of value "payload", currently is just a tiny int64.}
   \label{fig:hashmap}
   \end{subfigure}%
   %
-  \caption{Raw performance of global data structures.
-    \TODO{describe results.}
-    \TODO{either all with error bars or none.}
+  \caption{
+    \emph{Raw performance of global data structures on simple throughput workloads.}
+    Results shown for workloads with all writes and a mix of writing and reading operations. All results are for 2048 workers per core and 16 cores per node.
+    \TODO{either all with error bars or none?}
+    \TODO{combine stack/queue \& set/map plots, no point in saying the same things twice.}
   }\label{fig:datastructs}
 \end{figure*}
 
 \paragraph{Queue and Stack}
-The GlobalQueue and GlobalStack have very similar implementations in terms of how they are synchronized. Both benefit greatly from flat combining. This is because only one round-trip message 
+The GlobalQueue and GlobalStack have very similar implementations in terms of how they are synchronized. Both benefit greatly from flat combining. This is because only one round-trip message \TODO{...}
 
-However, due to the nature of concurrent stacks, the stack is able to match up pushes and pops locally. This leads to performance on an even mix of pushes and pops far outstripping the case where all pushes are performed due to requiring vastly less communication.
+% However, the stack is able to match up pushes and pops locally. This leads to performance on an even mix of pushes and pops far outstripping the case where all pushes are performed due to requiring vastly less communication.
 
 \paragraph{HashSet and HashMap}
 The GlobalHashSet and GlobalHashMap have the same synchronization strategy (serialization happens at each hashed location).
+\TODO{...}
 
 \subsection{Application Kernel Performance}
 The impetus for this work was that naive implementations of standard data structures are insufficient for use in high-performance kernels.
@@ -59,7 +64,7 @@ The impetus for this work was that naive implementations of standard data struct
 \begin{figure}[t]
   \centering
   \includegraphics[width=0.5\textwidth]{data/plots/bfs_perf.pdf}
-  \caption{BFS on a Graph500-spec graph of scale 26 (64 million vertices, 1 billion edges), with the direction-optimizing BFS algorithm. Performance is shown in millions of Traversed Edges Per Second (MTEPS).}
+  \caption{\emph{BFS} on a Graph500-spec graph of scale 26 (64 million vertices, 1 billion edges), with the direction-optimizing BFS algorithm. Performance is measured in millions of Traversed Edges Per Second (MTEPS).}
   \label{fig:bfs_perf}
 \end{figure}
 
@@ -69,7 +74,7 @@ The impetus for this work was that naive implementations of standard data struct
 \begin{figure}[t]
   \centering
   \includegraphics[width=0.5\textwidth]{data/plots/cc_perf.pdf}
-  \caption{Connected Components on the same scale 26 Graph500 graph. Performance is measured in TEPS, parameterized only by the total number of edges in the graph, regardless of the algorithm used.}
+  \caption{\emph{Connected Components} on the same scale 26 Graph500 graph. Performance is measured in MTEPS (parameterized by the total number of edges in the graph, independent of the algorithm used).}
   \label{fig:cc_perf}
 \end{figure}
 
