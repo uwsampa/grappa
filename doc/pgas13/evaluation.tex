@@ -9,8 +9,8 @@ First we measured the performance of the global data structures on extremely sim
   \begin{subfigure}[b]{0.9\textwidth}
   \centering
   \includegraphics[width=\textwidth]{data/plots/vector_perf.pdf}
-  \caption{\emph{GlobalStack and GlobalQueue} Even with Grappa's aggregation, without combining, both the stack and queue completely fail to scale. With combining, both scale out to 64 nodes. On the mixed workload, the stack is able to do matching locally, drastically improving global performance.
-  On the other hand, though still benefiting from reduced synchronization, the queue is unable to do matching locally, and in fact the mixed workload performs worse because the current implementation serializes combined enqueue and dequeue operations.
+  \caption{\emph{GlobalStack and GlobalQueue.}
+    Results are shown on a log scale for a throughput workload performing 256 million operations with 2048 workers per core and 16 cores per node. Flat combining improves throughput by at least an order of magnitude and allows performance to scale. Matching pushes and pops enables the stack to perform even better on a mixed workload.
   }
   \label{fig:vector}
   \end{subfigure}%
@@ -29,7 +29,9 @@ First we measured the performance of the global data structures on extremely sim
   \begin{subfigure}[b]{0.9\textwidth}
   \centering
   \includegraphics[width=\textwidth]{data/plots/hash_perf.pdf}
-  \caption{\emph{GlobalHashSet and GlobalHashMap.} Results are shown for a throughput workload inserting and looking up random keys in the range 0-1024 into a global hash with 1024 cells.   Performance without combining scales better than the global queue or stack because synchronization happens at each hash cell, but drops off as number of destinations increases. Combining version is able to match inserts and lookups of the same key, enabling it to have a steeper scaling curve.}
+  \caption{\emph{GlobalHashSet and GlobalHashMap.}
+    Results are shown for a throughput workload inserting and looking up 256 million random keys in the range 0-1024 into a global hash with 1024 cells. 
+    Performance without combining scales out to 32 nodes because synchronization happens at each hash cell, but drops off as the number of destinations increases. Due to eliminating duplicate inserts and lookups, the combining version is able to continue to scale.}
     \TODO{if time: add 'delete' operation, too (show that it doesn't affect correctness or performance)}
   \label{fig:hash_perf}
   \end{subfigure}
@@ -52,13 +54,16 @@ First we measured the performance of the global data structures on extremely sim
 \end{figure*}
 
 \paragraph{Queue and Stack}
-The GlobalQueue and GlobalStack have very similar implementations in terms of how they are synchronized. Both benefit greatly from flat combining. This is because only one round-trip message \TODO{...}
+The GlobalQueue and GlobalStack have very similar implementations in terms of how they are synchronized. Even with Grappa's aggregation, without combining, both the stack and queue completely fail to scale because of serialization of all workers' updates on the master core.
+With combining, both scale well out to 64 nodes.
+On the mixed workload, the stack is able to do matching locally, allowing it to reduce the amount of communication drastically, greatly improving its performance.
 
-% However, the stack is able to match up pushes and pops locally. This leads to performance on an even mix of pushes and pops far outstripping the case where all pushes are performed due to requiring vastly less communication.
+The queue also benefits from reduced synchronization and batching operations, and its all-push workload performs identically to the stack's.
+However, the queue is unable to do matching locally, and in fact, the mixed workload performs worse because the current implementation serializes combined enqueue and dequeue operations. This restriction could be lifted with more careful synchronization at the master core allowing enqueues and dequeues to proceed in parallel as long as they do not conflict.
 
 \paragraph{HashSet and HashMap}
 The GlobalHashSet and GlobalHashMap have the same synchronization strategy (serialization happens at each hashed location).
-\TODO{...}
+Performance without combining scales better than the global queue or stack because synchronization happens at each hash cell, but drops off as number of destinations increases. Combining version is able to match inserts and lookups of the same key, enabling it to have a steeper scaling curve.
 
 \subsection{Application Kernel Performance}
 The impetus for this work was that naive implementations of standard data structures are insufficient for use in high-performance kernels.
