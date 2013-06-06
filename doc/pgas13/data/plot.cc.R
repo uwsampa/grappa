@@ -22,13 +22,16 @@ d$fc_version <- sapply(paste('v',d$flat_combining,d$cc_insert_async,sep=''),swit
   v0NA='none', v1NA='fc', v11='async', v10='fc', v00='none', '??'
 )
 
-g <- ggplot(subset(d, cc_hash_size <= 16384 & scale == 26 & ppn == 16), aes(
-    x=num_starting_workers,
+g <- ggplot(subset(d, cc_hash_size <= 16384 & scale == 26 & ppn == 16
+    & num_starting_workers == 2048
+    & aggregator_autoflush_ticks == 5e5
+  ), aes(
+    x=nnode,
     y=mteps,
-    color=nroots,
+    color=x(nroots,version,fc_version),
     shape=fc_version,
     label=x(aggregator_autoflush_ticks/1e6,num_starting_workers),
-    group=x(cc_concurrent_roots,fc_version,aggregator_autoflush_ticks),
+    group=x(nroots,version,fc_version,aggregator_autoflush_ticks),
     linetype=fc_version,
   ))+
   geom_point()+
@@ -42,7 +45,7 @@ g <- ggplot(subset(d, cc_hash_size <= 16384 & scale == 26 & ppn == 16), aes(
   theme(strip.text=element_text(size=rel(0.4)),
         axis.text.x=element_text(size=rel(0.75)))+
   my_theme
-# ggsave(plot=g, filename="plots/cc_mess.pdf", scale=1.4)
+ggsave(plot=g, filename="plots/cc_mess.pdf", scale=1.4)
 
 g <- ggplot(subset(d, 
     cc_hash_size == 16384 & scale == 26 & ppn == 16
@@ -51,6 +54,7 @@ g <- ggplot(subset(d,
       | fc_version == 'none' & num_starting_workers == 2048 & aggregator_autoflush_ticks == 1e5
     )
     & cc_concurrent_roots == 2048
+    # & version == 'NA'
     # & aggregator_autoflush_ticks >= 500000
   ), aes(
     x=nnode,
