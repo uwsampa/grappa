@@ -1,12 +1,16 @@
 \section{Grappa}
-Existing shared memory applications typically do fine-grained operations on data, assuming it is all cheap to access.
-Naively translating these applications to PGAS languages often results in poor performance because many operations must then be done via fine-grained remote communication.
-Much research has been done to improve performance of PGAS implementations by coming up with better ways to partition data and schedule computation, and do communication in bulk to best utilize network resources.
-For workloads with regular access patterns, for instance dense linear algebra or structured grids, there are proven techniques that can automatically optimize communication effectively. \TODO{cite or remove prev. statement}
 
-Irregular applications, on the other hand, are characterized by being highly dependent on the shape of the data, making it difficult to statically partition, causing load imbalance, and requiring a majority of fine-grained random accesses. The goal of the Grappa runtime is to provide a PGAS implementation that has been designed from the ground up to handle such applications.
+Irregular applications are characterized by having unpredictable data-dependent access patterns and poor spatial and temporal locality. Applications in this class, including data mining, graph analytics, and various learning algorithms, are becoming increasingly prevalent in high-performance computing. These programs typically perform many fine-grained accesses to disparate sources of data, which is a problem even at multicore scales, but is further exacerbated on distributed memory machines.
+It is often the case that naively porting an application to a PGAS system results in excessive communication and poor access patterns, but this class of applications defies typical optimization techniques such as data partitioning, shadow objects, and bulk-synchronous communication transformations.
+Luckily, applications in this class have another thing in common: abundant amounts of data parallelism. This parallelism can be exploited in a number of different ways to improve overall throughput of these applications.
 
-\begin{figure}[ht]
+% The goal of the Grappa runtime is to provide a PGAS implementation that has been designed from the ground up to leverage massive amounts of parallelism to achieve high performance on irregular applications.
+
+Grappa is a PGAS-style runtime for commodity clusters which has been designed from the ground up to achieve high performance on irregular applications. The key is latency tolerance---long-latency operations such as remote communication can be tolerated by switching to another concurrent thread of execution. Given abundant  concurrency, there are opportunities to increase throughput by sacrificing latency. In particular, throughput of random accesses to remote memory can be improved by delaying communication requests and aggregating them into larger packets. Highly-tuned implementations of irregular applications in shared-memory, PGAS and message-passing paradigms, typically end up implementing constructs to allow for aggregation and leverage data parallelism. The goal of Grappa is to provide a simple-to-use PGAS abstraction with mechanisms for expressing the concurrency needed to achieve high performance.
+
+The programming interface, implemented as a C++11 library, provides high-level operations to access and synchronize through global shared memory, task spawning capabilities and parallel loop constructs for expressing concurrency. In addition, the Grappa ``standard library'' includes functions to manipulate a global heap as well as provides several synchronized global data structures. The following sections will explain the execution model of Grappa and the current C++ programming interface.
+
+\begin{figure}[t]
   \centering
   \includegraphics[width=0.5\textwidth]{figs/grappa_system.pdf}
   \caption{\emph{Grappa System Overview:}
@@ -15,11 +19,19 @@ Irregular applications, on the other hand, are characterized by being highly dep
   \label{fig:system}
 \end{figure}
 
-\subsection{Tasks}
-\TODO{describe how tasks work}
+\subsection{Tasks and Workers}
+Core to Grappa is the expression of concurrency. The Grappa runtime has a user-level threading system that uses an efficient context-switching mechanism with prefetching to allow it to scale up to thousands of threads on a single core with minimal increase in context-switch time. This is exposed at the programming level as a simple task-parallel model. A \emph{task} is simply a function object with some state and a function to execute. In the runtime, ``Worker'' threads pull these programmer-specified tasks off of a queue and execute them to completion. Tasks may block on remote accesses or synchronization operations. When tasks block, the worker thread executing them is simply suspended and consumes no computational resources until woken again by the completion of communication or synchronization.
+
+\subsection{Aggregated Communication}
+Communication in Grappa is achieved via \emph{active messages} in conjunction with bulk remote direct memory access (RDMA) operations. Various components of Grappa's runtime contribute different kinds of messages to move and modify remote data, perform synchronization, or spawn tasks. To make efficient use of the networks in high-performance systems, which perform better with larger messages (typically 64 KB), all communication in Grappa is sent through an aggregation layer that automatically accumulates messages to the same destination. When enough messages are ready to go to a particular destination node, they are serialized into a buffer and sent using RDMA.
 
 \subsection{Global Memory}
-\TODO{explain how memory is partitioned}
+In the PGAS style, Grappa has a notion of a global address space which is partitioned across the physical memories of the nodes in a cluster. Each core owns a portion of memory, which is further divided for three different uses:
+\begin{itemize}
+  \item Execution stacks for the core's Workers.
+  \item A core-local heap.
+  \item A slice of the global shared heap.
+\end{itemize}
+All of these can be addressed by any core in the system using a Grappa \texttt{GlobalAddress}, which encodes both the owning core and the address on that core. Additionally, addresses into the global heap are partitioned in a block-cyclic fashion, so that a large allocation is automatically distributed among many nodes. For irregular applications, this helps avoid hot spots and is typically sufficient for random access.
 
-\subsection{Communication}
-\TODO{remote delegate operations, aggregation}
+All accesses to memory owned by another core must be done by that core via a message. In this way, the runtime maintains strict isolation even between processes running on the same physical memory. At the programming level, however, this is hidden behind higher-level remote operations, which in Grappa are called ``delegates''. Figure~\ref{fig:system} shows an example of a delegate \texttt{read()} which blocks the calling task and sends a message to the owner, who sends a reply with the data and wakes the caller.
