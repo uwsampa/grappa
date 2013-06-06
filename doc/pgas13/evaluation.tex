@@ -6,43 +6,46 @@ First we measured the performance of the global data structures on extremely sim
 
 \begin{figure*}[t]
   \centering
-  \begin{subfigure}[b]{0.45\textwidth}
+  \begin{subfigure}[b]{0.9\textwidth}
   \centering
-  \includegraphics[width=\textwidth]{data/plots/stack_perf.pdf}
-  \caption{\emph{GlobalStack.} Even with Grappa's aggregation, the stack without combining completely fails to scale. With combining, both workloads scale out to 64 nodes. The workload with roughly even pushes and pops performs best because it can do matching locally.}
-  \label{fig:stack}
+  \includegraphics[width=\textwidth]{data/plots/vector_perf.pdf}
+  \caption{\emph{GlobalStack and GlobalQueue} Even with Grappa's aggregation, without combining, both the stack and queue completely fail to scale. With combining, both scale out to 64 nodes. On the mixed workload, the stack is able to do matching locally, drastically improving global performance.
+  On the other hand, though still benefiting from reduced synchronization, the queue is unable to do matching locally, and in fact the mixed workload performs worse because the current implementation serializes combined enqueue and dequeue operations.
+  }
+  \label{fig:vector}
   \end{subfigure}%
-  \hspace{0.05\textwidth}
-  % ~ %add desired spacing between images, e. g. ~, \quad, \qquad etc.
-  %(or a blank line to force the subfigure onto a new line)
-  \begin{subfigure}[b]{0.45\textwidth}
-  \centering
-  \includegraphics[width=\textwidth]{data/plots/queue_perf.pdf}
-  \caption{\emph{GlobalQueue.} Same parameters as stack performance results. The queue is unable to do matching locally, but benefits from reducing the amount of synchronization that must globally serialize. The mixed workload performs worse because the current implementation serializes combined enqueue and dequeue operations.}
-  \label{fig:queue}
-  \end{subfigure}
+  % \hspace{0.05\textwidth}
+  % % ~ %add desired spacing between images, e. g. ~, \quad, \qquad etc.
+  % %(or a blank line to force the subfigure onto a new line)
+  % \begin{subfigure}[b]{0.45\textwidth}
+  % \centering
+  % \includegraphics[width=\textwidth]{data/plots/queue_perf.pdf}
+  % \caption{\emph{GlobalQueue.} Same parameters as stack performance results. The queue is unable to do matching locally, but benefits from reducing the amount of synchronization that must globally serialize. The mixed workload performs worse because the current implementation serializes combined enqueue and dequeue operations.}
+  % \label{fig:queue}
+  % \end{subfigure}
+  % \hspace{0.05\textwidth}
   
-  \begin{subfigure}[b]{0.45\textwidth}
+  %  
+  \begin{subfigure}[b]{0.9\textwidth}
   \centering
-  \includegraphics[width=\textwidth]{data/plots/hashset_perf.pdf}
-  \caption{\emph{GlobalHashSet.} Throughput workload inserting and looking up random keys in the range 0-1024 into a global hash set with 1024 cells.
-   Performance without combining scales better than the global queue or stack because synchronization happens at each hash cell, but drops off as number of destinations increases. Combining version is able to match inserts and lookups of the same key.}
+  \includegraphics[width=\textwidth]{data/plots/hash_perf.pdf}
+  \caption{\emph{GlobalHashSet and GlobalHashMap.} Results are shown for a throughput workload inserting and looking up random keys in the range 0-1024 into a global hash with 1024 cells.   Performance without combining scales better than the global queue or stack because synchronization happens at each hash cell, but drops off as number of destinations increases. Combining version is able to match inserts and lookups of the same key, enabling it to have a steeper scaling curve.}
     \TODO{if time: add 'delete' operation, too (show that it doesn't affect correctness or performance)}
-  \label{fig:hashset}
+  \label{fig:hash_perf}
   \end{subfigure}
-  %
-  \hspace{0.05\textwidth}
-  %
-  \begin{subfigure}[b]{0.45\textwidth}
-  \centering
-  \includegraphics[width=\textwidth]{data/plots/hashmap_perf.pdf}
-  \caption{\emph{GlobalHashMap.} Same workload as for the Set, but random integers as the values in the map. Performance matches that of the Set.} \TODO{try increasing size of value "payload", currently is just a tiny int64.}
-  \label{fig:hashmap}
-  \end{subfigure}%
+  % %
+  % \hspace{0.05\textwidth}
+  % %
+  % \begin{subfigure}[b]{0.45\textwidth}
+  % \centering
+  % \includegraphics[width=\textwidth]{data/plots/hashmap_perf.pdf}
+  % \caption{\emph{GlobalHashMap.} Same workload as for the Set, but random integers as the values in the map. Performance matches that of the Set.} \TODO{try increasing size of value "payload", currently is just a tiny int64.}
+  % \label{fig:hashmap}
+  % \end{subfigure}%
   %
   \caption{
     \emph{Raw performance of global data structures on simple throughput workloads.}
-    Results shown for workloads with all writes and a mix of writing and reading operations. All results are for 2048 workers per core and 16 cores per node.
+    Results shown for workloads with varying mixtures of writing and reading operations. All experiments were performed with 16 cores per node, and a suitable set of Grappa runtime parameters fixed for a given plot.
     \TODO{either all with error bars or none?}
     \TODO{combine stack/queue \& set/map plots, no point in saying the same things twice.}
   }\label{fig:datastructs}
