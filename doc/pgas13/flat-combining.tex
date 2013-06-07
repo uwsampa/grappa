@@ -10,7 +10,7 @@ At the most basic level, the concept of flat combining is about enabling coopera
   \centering
   \includegraphics[width=0.5\textwidth]{figs/fc_shared_mem.pdf}
   \caption{\emph{Flat combining in shared memory.}
-    To access the shared stack, each thread adds its request to the publication list. Thread 4 acquires the stack's lock and becomes the combiner, while the remaining threads spin waiting for their request to be satisfied. The combiner walks the publication list from the head, matching up Thread 3's push with Thread 2's pop on its own private stack. The 2 remaining pushes are added to the shared stack, the top is updated, and finally Thread 4 releases the lock and continues its normal execution.
+    To access the shared stack, each thread adds its request to the publication list (1). Thread 4 acquires the stack's lock and becomes the combiner (2), while the remaining threads spin waiting for their request to be satisfied. The combiner walks the publication list from the head, matching up Thread 3's push with Thread 2's pop on its own private stack (3). The 2 remaining pushes are added to the top of the shared stack (4). Finally, the top is updated, and Thread 4 releases the lock and continues its normal execution.
   }
   \label{fig:fc_shared_mem}
 \end{figure}
@@ -36,7 +36,7 @@ In the case of the stack, combining came in the form of matched pushes and pops,
   \begin{subfigure}[b]{0.43\textwidth}
     \includegraphics[width=\textwidth]{figs/stack_nofc.pdf}
     \caption{\emph{Without flat combining.}
-      To do its push, Worker 1 sends a message to synchronize with the master on Core 0, sends another message to write its value to the top of the stack, bumps the synchronized \texttt{top} pointer, and finally continues. Worker 2, and all other workers on all cores accessing the stack, must block at the master and wait for Worker 1 to complete its push before doing their operations.
+      To do its push, Worker 1 sends a message to synchronize with the master on Core 0 (1), which sends another message to write the value to the top of the stack (2), bumps the synchronized \texttt{top} pointer (3), and finally continues. Worker 2, and all other workers on all cores accessing the stack, must block at the master and wait for Worker 1 to complete its push before doing their operations (4).
     }
     \label{fig:stacknofc}
   \end{subfigure}%
@@ -45,7 +45,7 @@ In the case of the stack, combining came in the form of matched pushes and pops,
     \centering
     \includegraphics[width=\textwidth]{figs/stack_fc.pdf}
     \caption{\emph{Local flat combining.}
-      Workers within the core add their requests to a local proxy object. Worker 3's pop matches with Worker 2's push, requiring no global communication. After combining locally, worker 1 and 4's pushes remain, so Worker 4 becomes the core's combiner, synchronizes with the master, adds both new values to the global stack, bumps the top pointer and releases the lock on master, and finally wakes Worker 1 and continues.
+      Workers within the core add their requests to a local proxy object. Worker 3's pop matches with Worker 2's push, requiring no global communication (1). After combining locally, Worker 1 and 4's pushes remain, so Worker 4 becomes the core's combiner (2), sends a message to synchronize with the master (3), adds both new values to the global stack (4), bumps the top pointer and releases the lock on master (5), and finally wakes Worker 1 and continues (6).
     }
     \label{fig:stackfc}
   \end{subfigure}
