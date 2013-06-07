@@ -4,30 +4,38 @@ To evaluate the impact flat combining has on the global data structures, we ran 
 Experiments were run on a cluster of AMD Interlagos processors. Nodes have 32 2.1-GHz cores in two sockets, 64GB of memory, and 40Gb Mellanox ConnectX-2 InfiniBand network cards, connected via a QLogic InfiniBand switch.
 
 \subsection{Data Structure Throughput}
-First we measured the raw performance of the global data structures on extremely simple throughput workloads.
+First we measured the raw performance of the global data structures on extremely simple throughput workloads. In each experiment, a Grappa parallel loop spawns an equal number of tasks on all cores. Each task randomly chooses an operation based on the predetermined ``operation mix'', selecting either a push or pop for the Stack and Queue, or an insert or lookup for the Set and Map.
 
-% \begin{figure*}[t]
-%   \centering
-\begin{figure}[t] %{0.5\textwidth}
+\paragraph{Queue and Stack}
+\begin{figure}[t]
   \centering
   \includegraphics[width=0.5\textwidth]{data/plots/vector_perf.pdf}
-  \caption{\emph{GlobalStack and GlobalQueue.}
+  \caption{\emph{Queue and Stack performance.}
     Results are shown on a log scale for a throughput workload performing 256 million operations with 2048 workers per core and 16 cores per node. Flat combining improves throughput by at least an order of magnitude and allows performance to scale. Matching pushes and pops enables the stack to perform even better on a mixed workload.
   }
   \label{fig:vector}
 \end{figure}
-  % \hspace{0.05\textwidth}
-  % % ~ %add desired spacing between images, e. g. ~, \quad, \qquad etc.
-  % %(or a blank line to force the subfigure onto a new line)
-  % \begin{subfigure}[b]{0.45\textwidth}
-  % \centering
-  % \includegraphics[width=\textwidth]{data/plots/queue_perf.pdf}
-  % \caption{\emph{GlobalQueue.} Same parameters as stack performance results. The queue is unable to do matching locally, but benefits from reducing the amount of synchronization that must globally serialize. The mixed workload performs worse because the current implementation serializes combined enqueue and dequeue operations.}
-  % \label{fig:queue}
-  % \end{subfigure}
-  % \hspace{0.05\textwidth}
-  
-  %  
+
+\begin{figure}[t]
+  \centering
+  \includegraphics[width=0.5\textwidth]{data/plots/stack_stats.pdf}
+  \caption{\emph{GlobalStack Statistics.}
+    Measured number of combined messages sent by the Stack with a fixed combining buffer of 1024 elements. Being above the buffer size indicates the amount of matched pushes and pops that occurred.
+  }
+  \label{fig:stack_stats}
+\end{figure}
+
+Figure~\ref{fig:vector} shows the results of the throughput experiments for the global Stack and Queue. Results are shown with flat combining completely disabled, only combining at the master core, only combining locally, and full two-level combining.
+
+Despite Grappa's automatic aggregation, without combining, both the stack and queue completely fail to scale because all workers' updates must serialize on the master core.
+Though combining on the master core alleviates some of the serialization, it does not provide significant benefit because all of the synchronization must still be performed on one core. However, with local flat combining, synchronization is able to be done mostly in parallel, with much less-frequent bulk synchronization at the master. Doing the additional level of combining at the master seems to not affect performance significantly compared to the impact of local combining.\TODO{Add data showing how many are combined in one pass on the master.}
+
+On the mixed workload, the stack is able to do matching locally, allowing it to reduce the amount of communication drastically, greatly improving its performance. Figure~\ref{fig:stack_stats} corroborates this, showing that the amount of combining that occurs directly correlates with the observed throughput.
+
+The queue also benefits from reduced synchronization and batching operations, and its all-push workload performs identically to the stack's.
+However, the queue is unable to do matching locally, and in fact, the mixed workload performs worse because the current implementation serializes combined enqueue and dequeue operations. This restriction could be lifted with more careful synchronization at the master core allowing enqueues and dequeues to proceed in parallel as long as enough elements are in the queue to allow them to proceed without conflicting.
+
+\paragraph{HashSet and HashMap}
 \begin{figure}[t]
   \centering
   \includegraphics[width=0.5\textwidth]{data/plots/hash_perf.pdf}
@@ -37,34 +45,9 @@ First we measured the raw performance of the global data structures on extremely
     \TODO{if time: add 'delete' operation, too (show that it doesn't affect correctness or performance)}
   \label{fig:hash_perf}
 \end{figure}
-  % %
-  % \hspace{0.05\textwidth}
-  % %
-  % \begin{subfigure}[b]{0.45\textwidth}
-  % \centering
-  % \includegraphics[width=\textwidth]{data/plots/hashmap_perf.pdf}
-  % \caption{\emph{GlobalHashMap.} Same workload as for the Set, but random integers as the values in the map. Performance matches that of the Set.} \TODO{try increasing size of value "payload", currently is just a tiny int64.}
-  % \label{fig:hashmap}
-  % \end{subfigure}%
-  %
-%   \caption{
-%     \emph{Raw performance of global data structures on simple throughput workloads.}
-%     Results shown for workloads with varying mixtures of writing and reading operations. All experiments were performed with 16 cores per node, and a suitable set of Grappa runtime parameters fixed for a given plot.
-%     \TODO{either all with error bars or none?}
-%     \TODO{combine stack/queue \& set/map plots, no point in saying the same things twice.}
-%   }\label{fig:datastructs}
-% \end{figure*}
 
-\paragraph{Queue and Stack}
-The GlobalQueue and GlobalStack have very similar implementations in terms of how they are synchronized. Even with Grappa's aggregation, without combining, both the stack and queue completely fail to scale because of serialization of all workers' updates on the master core.
-With combining, both scale well out to 64 nodes.
-On the mixed workload, the stack is able to do matching locally, allowing it to reduce the amount of communication drastically, greatly improving its performance.
-
-The queue also benefits from reduced synchronization and batching operations, and its all-push workload performs identically to the stack's.
-However, the queue is unable to do matching locally, and in fact, the mixed workload performs worse because the current implementation serializes combined enqueue and dequeue operations. This restriction could be lifted with more careful synchronization at the master core allowing enqueues and dequeues to proceed in parallel as long as they do not conflict.
-
-\paragraph{HashSet and HashMap}
-The GlobalHashSet and GlobalHashMap have the same synchronization strategy (serialization happens at each hashed location) which allows them to scale fairly well even without combining because serialization only happens on conflicts. However, after 32 nodes, scaling drops off significantly due to increased number of concurrent accessors and more destinations.
+Figure~\ref{fig:hash_perf} shows the throughput results for the GlobalQueue and GlobalStack.
+Both data structures have the same synchronization strategy (serialization happens only at each hashed location) which allows them to scale fairly well even without combining because serialization only happens on conflicts. However, after 32 nodes, scaling drops off significantly due to increased number of concurrent accessors and more destinations.
 The combining version is able to perform repeated inserts and repeated lookups with a single remote operation, enabling it to continue scaling further.
 
 \subsection{Application Kernel Performance}
