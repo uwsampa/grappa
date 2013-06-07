@@ -28,6 +28,8 @@ Igor do
   sbatch_flags.delete_if{|e| e =~ /--time/} << "--time=4:00:00"
   
   params {
+    version 'private_task'
+    
     nnode    16
     ppn      16
     scale    16
