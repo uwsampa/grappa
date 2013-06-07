@@ -12,7 +12,7 @@ module Igor
   def sq
     case `hostname`
     when /pal/
-      puts `squeue -ppal`
+      puts `squeue -ppal -o '%.7i %.4P %.17j %.8u %.2t %.10M %.6D %R'`
     else
       puts `squeue`
     end

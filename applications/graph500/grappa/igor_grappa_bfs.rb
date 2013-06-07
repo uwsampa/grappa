@@ -15,7 +15,6 @@ Igor do
   
   GFLAGS.merge!({
     flat_combining: 1,
-    global_vector_buffer: 2**10,
     beamer_alpha: 20,
     beamer_beta: 20,
   })
@@ -37,7 +36,7 @@ Igor do
     scale       16
     edgefactor  16
     nbfs        8
-    tag         'vector_locks'
+    fc_version 'twolevel<1024>'
   }
   
   expect :max_teps

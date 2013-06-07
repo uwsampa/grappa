@@ -19,7 +19,7 @@ Igor do
   command @test_cmd['GlobalHash_tests', '--set_perf']
   
   params {
-    version 'fc_looks'
+    version 'fc_looks_fixed'
     log_nelems 10; nelems expr('2**log_nelems')
     log_max_key 10; max_key expr('2**log_max_key')
     global_hash_size expr('2**log_max_key')
