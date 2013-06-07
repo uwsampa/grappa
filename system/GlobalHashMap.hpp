@@ -201,17 +201,17 @@ public:
       DVLOG(3) << "lookup[" << key << "] = " << &re;
       
       proxy.combine([&re,key](Proxy& p){
-        if (p.map.count(key) > 0) {
-          re.found = true;
-          re.val = p.map[key];
-          return FCStatus::SATISFIED;
-        } else {
+        // if (p.map.count(key) > 0) {
+        //   re.found = true;
+        //   re.val = p.map[key];
+        //   return FCStatus::SATISFIED;
+        // } else {
           if (p.lookups.count(key) == 0) p.lookups[key] = nullptr;
           re.next = p.lookups[key];
           p.lookups[key] = &re;
           DVLOG(3) << "p.lookups[" << key << "] = " << &re;
           return FCStatus::BLOCKED;
-        }
+        // }
       });
       *val = re.val;
       return re.found;
