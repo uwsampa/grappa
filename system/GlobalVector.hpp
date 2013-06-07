@@ -19,6 +19,9 @@ GRAPPA_DECLARE_STAT(SummarizingStatistic<double>, global_vector_push_latency);
 GRAPPA_DECLARE_STAT(SummarizingStatistic<double>, global_vector_deq_latency);
 GRAPPA_DECLARE_STAT(SummarizingStatistic<double>, global_vector_pop_latency);
 
+// tracks number of operations combined at a time on the master
+GRAPPA_DECLARE_STAT(SummarizingStatistic<double>, global_vector_master_combined);
+
 namespace Grappa {
 /// @addtogroup Containers
 /// @{
@@ -87,7 +90,7 @@ public:
       m->combining = true;
       
       // TODO: make me less ugly...
-      if (!FLAGS_flat_combining || FLAGS_flat_combining_local_only) {
+      if (FLAGS_flat_combining_local_only) {
         if (m->has_requests()) {
           m->ce.enroll();
           enum class Choice { POP, DEQ, PUSH };
@@ -121,24 +124,29 @@ public:
       } // else: do second level of combining
       
       DVLOG(2) << "combining: tail(" << m->tail << "), tail_allocator(" << m->tail_allocator << ")";
+      long ncombined = 0;
       
       while ( !(m->push_q.blocked || m->push_q.empty()) ) {
+        ++ncombined;
         m->ce.enroll();
         invoke(m->push_q.pop());
       }
       while ( !(m->deq_q.blocked || m->deq_q.empty()) ) {
+        ++ncombined;
         m->ce.enroll();
         invoke(m->deq_q.pop());
       }
-      m->ce.wait(new_continuation([self,m] {
+      m->ce.wait(new_continuation([self,m,ncombined] {
         DVLOG(2) << "after pushes: tail(" << m->tail << "), tail_allocator(" << m->tail_allocator << ")";
         m->tail = m->tail_allocator;
         m->head = m->head_allocator;
-        
+        long ncombined2 = ncombined;
         while (!m->pop_q.empty()) {
+          ++ncombined2;
           m->ce.enroll();
           invoke(m->pop_q.pop());
         }
+        global_vector_master_combined += ncombined2;
         m->ce.wait(new_continuation([self,m] {
           DVLOG(2) << "after pops: tail(" << m->tail << "), tail_allocator(" << m->tail_allocator << ")";
           m->tail_allocator = m->tail;

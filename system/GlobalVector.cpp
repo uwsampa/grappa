@@ -11,3 +11,5 @@ GRAPPA_DEFINE_STAT(SimpleStatistic<uint64_t>, global_vector_matched_pops, 0);
 GRAPPA_DEFINE_STAT(SummarizingStatistic<double>, global_vector_push_latency, 0);
 GRAPPA_DEFINE_STAT(SummarizingStatistic<double>, global_vector_pop_latency, 0);
 GRAPPA_DEFINE_STAT(SummarizingStatistic<double>, global_vector_deq_latency, 0);
+
+GRAPPA_DEFINE_STAT(SummarizingStatistic<double>, global_vector_master_combined, 0);
