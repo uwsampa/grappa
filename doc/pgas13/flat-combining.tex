@@ -83,14 +83,43 @@ After all local combining has been done, one requesting worker is chosen to perf
 
 % By design, each core in Grappa operates independently of the other cores. Workers are scheduled cooperatively, so each worker can assume atomicity until it performs an operation that yields to the scheduler, such as a remote call. Therefore workers within a core can cooperate without any explicit synchronization operations requiring memory fences. This allows them to publish requests to the local proxy very inexpensively, eliminating the need for a complex synchronization-amortizing queue. This has the added benefit that there will be no unused publication records, which could have become a problem with thousands of workers. Further, remote operations are processed through the same cooperative-multithreading scheduler on the remote side, so combined operations are trivially serialized and atomic.
 
-\paragraph{Correctness}
-\TODO{(are these arguments correct??)}
+\paragraph{Sequential Consistency}
+The sequential consistency guarantee is that within a task, operations will be in task order, so to enforce ordering between operations in different tasks, one task must perform an operation that another one can observe. An example is shown in Figure~\ref{fig:sync}.\TODO{make sync example}
+The Grappa memory model follows the Data-Race-Free-0 Model (guaranteeing sequential consistency for data-race free programs). Being conservative, delegate operations block the calling worker until they have completed globally, ensuring they can be used for synchronization---delegate operations within a task are guaranteed to be globally visible in program order.
+Because it is not immediately obvious that this distributed version of flat combining preserves sequential consistency, here we will make arguments for why it does.
 
-It may not be immediately obvious why this two-level version of flat combining preserves sequential consistency. The combining operations that are performed locally among requests on a single core must preserve the illusion of sequential order; this is unchanged from shared-memory flat-combining. When combined operations are applied globally, they are serialized at the ``master'' core for a given synchronization context. The global order is essentially the concatenation of each core's serialized updates. In the case where operations are satisfied locally (by matching up with other local operations), by definition these must be independent of other operations, so they can conceptually be placed anywhere in the global ordering (or even ignored completely in the global ordering).
+% \begin{itemize}
+%   \item Block the calling worker until the operation is guaranteed to have a valid global order.
+%   \item Local combining must not allow workers to observe a different order than is committed globally.
+% \end{itemize}
+To preserve sequentially-consistent semantics for flat-combined operations, they must obey a consistent global order.
+To start with, local combined operations must have a serializable order among each other; this is unchanged from shared-memory flat-combining, and is trivially true due to the atomicity enabled by cooperative multithreading.
+When combined operations are applied globally, they are serialized at a particular core that owns the synchronization (the ``master'' core for the Queue and Stack, or the corresponding hash cell for the Set and Map). The global order, then, is essentially the concatenation of the cores' sequential orders.
+For this ``concatenation'' to be valid, the order observed by workers during local combining must be the same as what can be observed globally as operations are committed.
 
-In the spirit of the Data-Race-Free-0 Model (guaranteeing sequential consistency for data-race free programs), operations on the global data structure are considered to be made atomic by a conceptual global ``lock'' on the data structure. Atomicity and freedom from data races in the case of multiple data structures and other synchronization must be guaranteed externally, just as in any multithreaded shared-memory program.
+In the case of the Stack and Queue, this guarantee comes from applying a batch of push or pop operations atomically in a contiguous block on the global data structure. The second level of combining at the master preserves this as well by only allowing updates to proceed when they will not conflict and blocking all of them until they have completed.
+Matching pushes and pops locally is one exception to the rule that operations must block until globally committed. Because a pop ``destroys'' the corresponding push, these operations together are independent of all others and can conceptually be placed anywhere in a total global ordering, so they can be safely matched locally.
+
+The correctness of combining set and map operations is more nuanced.
+Insert and lookup operations performed by different tasks are inherently unordered unless synchronized externally.
+Therefore, a batch of these operations can be committed globally in parallel.
+If an insert finds that its key is already in the combiner, it does not need to send its own message. However, it must still block until that insert is done, otherwise it may assume that the key has been inserted and perform some other operation that requires the insert to have happened.
+In the same way, lookups can piggy-back on other lookups of the same key.
+It is tempting to allow a lookup to be satisfied locally by inspecting the keys to be inserted.
+However, this allows the local order in which keys were inserted to be observed.
+If this is allowed, then that same order must be respected globally, forcing each batch to ensure atomicity from all other cores' batches. This is prohibitively expensive, so a cheaper solution is chosen: lookups must get their values from the global data structure, but can be performed in parallel in the same way as inserts.
+
+% (wrong!) A lookup can be satisfied locally provided that the insert it relies on is guaranteed to eventually be committed globally. This allows the task to continue. If it does another lookup to a different key that is satisfied locally, then that task has observed one particular ordering of the two inserts. When those inserts commit globally, they will proceed in parallel to their respective hashed locations. Another task could 
+
+% The combining operations that are performed locally among requests on a single core must preserve the illusion of sequential order; this is unchanged from shared-memory flat-combining. When combined operations are applied globally, they are serialized at the ``master'' core for a given synchronization context. The global order is essentially the concatenation of each core's batch of serialized accesses.
+% In the case where operations are satisfied locally (by matching up with other local operations), by definition these must be independent of other operations, so they can conceptually be placed anywhere in the global ordering (or even ignored completely in the global ordering).
+
+% In the spirit of the Data-Race-Free-0 Model (guaranteeing sequential consistency for data-race free programs), operations on the global data structure are considered to be made atomic by a conceptual global ``lock'' on the data structure. 
+
+These requirements only guarantee sequential consistency for a data structure in isolation. Atomicity and data race freedom in the case of multiple data structures must be guaranteed externally, just as in any multithreaded shared-memory program.
 
 \section{FC Framework}
+\TODO{add code examples, and add discussion of "master" combining}
 Many different data structures can integrate flat combining into their operation using the same delegation mechanism, making it easier to implement concurrent data structures.
 
 In order to leverage the flat-combining paradigm in Grappa, we implemented a generic flat-combining framework which can be used to improve performance for a number of global data structures. The FC framework handles the common problems of managing the combiners, handling worker wake-ups, and maintaining progress. When hooking into the framework, each data structure implementation need only define how to combine operations and globally commit them.
