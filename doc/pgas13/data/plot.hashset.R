@@ -8,7 +8,6 @@ source("common.R")
 dset <- db("select * from hashset where log_nelems == 28",
       c("nnode",
         "num_starting_workers",
-        "aggregator_autoflush_ticks",
         "periodic_poll_ticks",
         "flat_combining",
         "log_max_key",
@@ -20,7 +19,6 @@ dset <- db("select * from hashset where log_nelems == 28",
 dmap <- db("select * from hashmap where log_nelems == 28",
       c("nnode",
         "num_starting_workers",
-        "aggregator_autoflush_ticks",
         "periodic_poll_ticks",
         "flat_combining",
         "log_max_key",
@@ -63,7 +61,7 @@ g <- ggplot(subset(d.melt,
   expand_limits(y=0)+
   my_theme+theme(strip.text=element_text(size=rel(0.4)),
                  axis.text.x=element_text(size=rel(0.65)))
-ggsave(plot=g, filename="plots/hashset_thru.pdf", width=16, height=10)
+# ggsave(plot=g, filename="plots/hashset_thru.pdf", width=16, height=10)
 
 
 gg <- ggplot(subset(dset, log_nelems==28 & ppn==16 & num_starting_workers==8192
@@ -88,7 +86,7 @@ gg <- ggplot(subset(dset, log_nelems==28 & ppn==16 & num_starting_workers==8192
   theme(strip.text=element_text(size=rel(0.7)),
         axis.text.x=element_text(size=rel(0.85)))
 
-ggsave(plot=gg, filename="plots/hashset_perf.pdf", width=7, height=5)
+# ggsave(plot=gg, filename="plots/hashset_perf.pdf", width=7, height=5)
 
 ######################
 # GlobalHashMap
@@ -122,7 +120,7 @@ gg <- ggplot(subset(dmap, log_nelems==28 & ppn==16 & num_starting_workers==8192
   theme(strip.text=element_text(size=rel(0.7)),
         axis.text.x=element_text(size=rel(0.85)))
 
-ggsave(plot=gg, filename="plots/hashmap_perf.pdf", width=7, height=5)
+# ggsave(plot=gg, filename="plots/hashmap_perf.pdf", width=7, height=5)
 
 
 #####################
@@ -150,13 +148,14 @@ dset$struct <- sapply(dset$nnode, function(i){ return('GlobalHashSet') })
 d.c <- merge(dmap, dset, all=T)
 
 gg <- ggplot(subset(d.c, log_nelems==28 & ppn==16 & num_starting_workers==8192
-                    & log_max_key == 14
-                     # & version == 'fc_looks'
+                    # & log_max_key == 14
+                    & version == 'fc_looks_fixed'
+                    & aggregator_autoflush_ticks == 500000
   ),aes(
     x=nnode,
-    y=throughput,
-    color=x(fc_version,version,aggregator_autoflush_ticks),
-    group=x(fc_version,fraction_lookups,version,aggregator_autoflush_ticks),
+    y=throughput/1e6,
+    color=x(fc_version),
+    group=x(fc_version,fraction_lookups),
     shape=mix,
     linetype=mix,
   ))+
@@ -164,17 +163,17 @@ gg <- ggplot(subset(d.c, log_nelems==28 & ppn==16 & num_starting_workers==8192
   # geom_line()+
   geom_smooth(size=1)+
   # facet_grid(log_nelems~., scales="free", labeller=label_pretty)+
-  facet_grid(.~struct, scales="free_x")+
-  xlab("Nodes")+
+  facet_grid(log_max_key~struct, scales="free_x")+
+  xlab("Nodes")+ylab("Throughput (millions of ops/sec)")+
   # scale_x_continuous(breaks=c(8,16,32,48,64))+
   scale_color_discrete(name="Flat Combining")+
   scale_linetype_discrete(name="Fraction lookups")+
   scale_shape_discrete(name="Fraction lookups")+
-  ylab("Throughput (ops/sec)")+expand_limits(y=0)+my_theme+
-  theme(strip.text=element_text(size=rel(0.7)),
+  expand_limits(y=0)+my_theme+
+  theme(strip.text=element_text(size=rel(1)),
         axis.text.x=element_text(size=rel(0.85)))
 
-ggsave(plot=gg, filename="plots/hash_perf.pdf", width=10, height=5)
+ggsave(plot=gg, filename="plots/hash_perf.pdf", width=7, height=4)
 
 # d.c <- merge(dmap, dset, all=T)
 # 
