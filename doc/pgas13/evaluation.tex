@@ -28,7 +28,7 @@ First we measured the raw performance of the global data structures on extremely
 Figure~\ref{fig:vector} shows the results of the throughput experiments for the global Stack and Queue. Results are shown with flat combining completely disabled, only combining at the master core, only combining locally, and full two-level combining.
 
 Despite Grappa's automatic aggregation, without combining, both the stack and queue completely fail to scale because all workers' updates must serialize on the master core.
-Though combining on the master core alleviates some of the serialization, it does not provide significant benefit because all of the synchronization must still be performed on one core. However, with local flat combining, synchronization is able to be done mostly in parallel, with much less-frequent bulk synchronization at the master. Doing the additional level of combining at the master seems to not affect performance significantly compared to the impact of local combining.\TODO{Add data showing how many are combined in one pass on the master.}
+Though combining on the master core alleviates some of the serialization, it does not provide significant benefit because all of the synchronization must still be performed on one core. However, with local flat combining, synchronization is able to be done mostly in parallel, with much less-frequent bulk synchronization at the master. Doing the additional level of combining at the master seems to not affect performance significantly. This is somewhat surprising as all combined updates must completely serialize on the master still. However, with full combining enabled, we see that relatively few requests are combined together---for an all-push workload, on the order of a thousand are combined each pass, and for the mixed push/pop workload, on average less than 20 are combined.
 
 On the mixed workload, the stack is able to do matching locally, allowing it to reduce the amount of communication drastically, greatly improving its performance. Figure~\ref{fig:stack_stats} corroborates this, showing that the amount of combining that occurs directly correlates with the observed throughput.
 
@@ -40,15 +40,16 @@ However, the queue is unable to do matching locally, and in fact, the mixed work
   \centering
   \includegraphics[width=0.5\textwidth]{data/plots/hash_perf.pdf}
   \caption{\emph{GlobalHashSet and GlobalHashMap.}
-    Results are shown for a throughput workload inserting and looking up 256 million random keys in the range 0-1024 into a global hash with 1024 cells, with 2048 workers per core and 16 cores per node.
-    Performance without combining scales out to 32 nodes because synchronization happens at each hash cell, but drops off as the number of destinations increases. Due to eliminating duplicate inserts and lookups, the combining version is able to continue to scale.}
-    \TODO{if time: add 'delete' operation, too (show that it doesn't affect correctness or performance)}
+    Results are shown for a throughput workload inserting and looking up 256 million random keys in a particular range into a global hash with the same number of cells, with 2048 workers per core and 16 cores per node.
+  }
   \label{fig:hash_perf}
 \end{figure}
 
-Figure~\ref{fig:hash_perf} shows the throughput results for the GlobalQueue and GlobalStack.
-Both data structures have the same synchronization strategy (serialization happens only at each hashed location) which allows them to scale fairly well even without combining because serialization only happens on conflicts. However, after 32 nodes, scaling drops off significantly due to increased number of concurrent accessors and more destinations.
-The combining version is able to perform repeated inserts and repeated lookups with a single remote operation, enabling it to continue scaling further.
+Without combining, performance scales out to 32 nodes because synchronization is distributed over hash cells, but drops off as the number of destinations increases.
+
+Figure~\ref{fig:hash_perf} shows the throughput results for the GlobalHashSet and GlobalHashMap.
+Both data structures synchronize at each hash cell, which allows them to scale fairly well even without combining. However, after 32 nodes, scaling drops off significantly due to increased number of concurrent accessors and destinations.
+Combining allows duplicate inserts and lookups to be eliminated, so performs better the smaller the key range. This reduction in message traffic allows scaling to continue out to 64 nodes.
 
 \subsection{Application Kernel Performance}
 The original goal was to have scalable global data structures in the Grappa library that could be used in applications. Naive implementations of the data structures are insufficient for scaling, so HPC applications often implement their own highly customized versions. However, this forces each application to carefully reason about the ways in which the structures will be accessed. Additionally, many optimizations rely on relaxing global consistency in a way that does not affect the program. 

@@ -22,11 +22,11 @@ dq$throughput <- with(dq, nelems/trial_time_mean)
 d$fc <- with(d, x(flat_combining,flat_combining_local_only))
 
 d$fc_version <- sapply(paste('v',d$flat_combining,d$flat_combining_local_only,sep=''),switch,
-  v0NA='none', v1NA='full', v10='full', v11='local', v00='master', v01='none'
+  v0NA='none', v1NA='full', v10='full', v11='local only', v00='master only', v01='none'
 )
 dq <- within(dq,
 fc_version <- sapply(paste('v',flat_combining,flat_combining_local_only,sep=''),switch,
-  v0NA='none', v1NA='full', v10='full', v11='local', v00='master', v01='none'
+  v0NA='none', v1NA='full', v10='full', v11='local only', v00='master only', v01='none'
 ))
 
 
@@ -94,8 +94,8 @@ ggsave(plot=g, filename="plots/stack_perf.pdf", width=7, height=5)
 # dq <- within(dq,
 #   mix <- sapply(fraction_push, switch, '1'='100% pop', '0.5'='50% push, 50% pop', '?')
 # )
-dq$mix <- sapply(dq$fraction_push, function(f){ return(ifelse(f == '1', '100% push', '50% push, 50% pop')) })
-d$mix <- sapply(d$fraction_push, function(f){ return(ifelse(f == '1', '100% push', '50% push, 50% pop')) })
+dq$mix <- sapply(dq$fraction_push, function(f){ return(ifelse(f == '1', '100% push', '50% push,\n50% pop')) })
+d$mix <- sapply(d$fraction_push, function(f){ return(ifelse(f == '1', '100% push', '50% push,\n50% pop')) })
 
 d$struct <- sapply( d$nnode, function(i){ return('GlobalStack') })
 dq$struct <- sapply(  dq$nnode, function(i){ return('GlobalQueue') })
@@ -128,7 +128,7 @@ gg <- ggplot(subset(d.c,
   # scale_x_continuous(breaks=c(8,16,32,48,64))+
   scale_color_discrete(name="Flat Combining")+
   scale_shape_discrete(name="Flat Combining")+
-  scale_linetype_discrete(name="Operation mix")+
+  scale_linetype_discrete(name="Operation Mix")+
   expand_limits(y=0)+my_theme+
   theme(strip.text=element_text(size=rel(1)),
         axis.text.x=element_text(size=rel(0.85)))
@@ -152,7 +152,7 @@ gg <- ggplot(subset(d.melt,
   log_nelems==28 & ppn==16 & num_starting_workers==2048
   & (( ( fraction_push != 0.5) & version == 'fixed_random')
     | version == 'matching_better')
-  # & fc_version == 'local'
+  # & fc_version == 'local only'
   ),aes(
     x=nnode,
     y=value,
@@ -173,7 +173,7 @@ gg <- ggplot(subset(d.melt,
   scale_x_discrete(breaks=c(8,16,32,48,64))+
   scale_color_discrete(name="Flat Combining")+
   # scale_shape_discrete(name="Flat Combining")+
-  scale_linetype_discrete(name="Operation mix")+
+  scale_linetype_discrete(name="Operation Mix")+
   expand_limits(y=0)+my_theme+
   theme(strip.text=element_text(size=rel(1)),
         axis.text.x=element_text(size=rel(0.85)))

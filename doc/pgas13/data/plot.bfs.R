@@ -55,7 +55,7 @@ g <- ggplot(subset(d,
   ))+
   geom_point()+
   # geom_text(size=2,position="jitter")+
-  geom_smooth(size=1)+
+  geom_smooth(size=1, fill=NA)+
   xlab("Nodes")+
   scale_color_discrete(name="Flat Combining")+
   scale_linetype_discrete(name="Flat Combining")+

@@ -36,7 +36,7 @@ dset$ops_per_msg <- with(dset, (hashset_insert_ops+hashset_lookup_ops)/(hashset_
 dset$throughput <- with(dset, (hashset_insert_ops+hashset_lookup_ops)/trial_time_mean)
 
 dset$fc_version <- sapply(paste('v',dset$flat_combining,dset$insert_async,sep=''),switch,
-  v0NA='none', v1NA='local', v11='async', v10='local', v00='none', v01='?'
+  v0NA='none', v1NA='local only', v11='async', v10='local only', v00='none', v01='?'
 )
 
 d.melt <- melt(dset, measure=c("ops_per_msg", "throughput"))
@@ -80,8 +80,8 @@ gg <- ggplot(subset(dset, log_nelems==28 & ppn==16 & num_starting_workers==8192
   # facet_grid(log_nelems~., scales="free", labeller=label_pretty)+
   xlab("Nodes")+
   scale_color_discrete(name="Flat Combining")+
-  scale_linetype_discrete(name="Fraction lookups:")+
-  scale_shape_discrete(name="Fraction lookups:")+
+  scale_linetype_discrete(name="Operation Mix")+
+  scale_shape_discrete(name="Operation Mix")+
   ylab("Throughput (ops/sec)")+expand_limits(y=0)+my_theme+
   theme(strip.text=element_text(size=rel(0.7)),
         axis.text.x=element_text(size=rel(0.85)))
@@ -94,7 +94,7 @@ gg <- ggplot(subset(dset, log_nelems==28 & ppn==16 & num_starting_workers==8192
 dmap$ops_per_msg <- with(dmap, (hashmap_insert_ops+hashmap_lookup_ops)/(hashmap_insert_msgs+hashmap_lookup_msgs))
 dmap$throughput <- with(dmap, (hashmap_insert_ops+hashmap_lookup_ops)/trial_time_mean)
 dmap$fc_version <- sapply(paste('v',dmap$flat_combining,dmap$insert_async,sep=''),switch,
-  v0NA='none', v1NA='local', v11='async', v10='local', v00='none', v01='?'
+  v0NA='none', v1NA='local only', v11='async', v10='local only', v00='none', v01='?'
 )
 
 gg <- ggplot(subset(dmap, log_nelems==28 & ppn==16 & num_starting_workers==8192
@@ -114,8 +114,8 @@ gg <- ggplot(subset(dmap, log_nelems==28 & ppn==16 & num_starting_workers==8192
   xlab("Nodes")+
   # scale_x_continuous(breaks=c(8,16,32,48,64))+
   scale_color_discrete(name="Flat Combining")+
-  scale_linetype_discrete(name="Fraction lookups:")+
-  scale_shape_discrete(name="Fraction lookups:")+
+  scale_linetype_discrete(name="Operation Mix")+
+  scale_shape_discrete(name="Operation Mix")+
   ylab("Throughput (ops/sec)")+expand_limits(y=0)+my_theme+
   theme(strip.text=element_text(size=rel(0.7)),
         axis.text.x=element_text(size=rel(0.85)))
@@ -126,10 +126,10 @@ gg <- ggplot(subset(dmap, log_nelems==28 & ppn==16 & num_starting_workers==8192
 #####################
 # Combined
 dset <- within(dset,
-  mix <- sapply(fraction_lookups, switch, '0'='100% insert', '0.5'='50% insert, 50% lookup')
+  mix <- sapply(fraction_lookups, switch, '0'='100% insert', '0.5'='50% insert,\n50% lookup')
   )
 dmap <- within(dmap,
-  mix <- sapply(fraction_lookups, switch, '0'='100% insert', '0.5'='50% insert, 50% lookup')
+  mix <- sapply(fraction_lookups, switch, '0'='100% insert', '0.5'='50% insert,\n50% lookup')
 )
 
 # dq <- within(dq,
@@ -147,6 +147,17 @@ dset$struct <- sapply(dset$nnode, function(i){ return('GlobalHashSet') })
 
 d.c <- merge(dmap, dset, all=T)
 
+make_label <- function(value) bquote(paste('keys: 0-', 2^.(value)))
+hash_labeller <- function(variable,value) {
+  if (variable == 'struct') {
+    return(levels(value)[value])
+  } else {
+    # return(text(value,expression(paste('keys 0-', 2^f))))
+    # return(bquote(2^.(value)))
+    return(do.call(expression, lapply(levels(value)[value], make_label)))
+  }
+}
+
 gg <- ggplot(subset(d.c, log_nelems==28 & ppn==16 & num_starting_workers==8192
                     # & log_max_key == 14
                     & version == 'fc_looks_fixed'
@@ -161,19 +172,19 @@ gg <- ggplot(subset(d.c, log_nelems==28 & ppn==16 & num_starting_workers==8192
   ))+
   # geom_point()+
   # geom_line()+
-  geom_smooth(size=1)+
+  geom_smooth(size=1, fill=NA)+
   # facet_grid(log_nelems~., scales="free", labeller=label_pretty)+
-  facet_grid(log_max_key~struct, scales="free_x")+
+  facet_grid(log_max_key~struct, scales="free_x", labeller=hash_labeller)+
   xlab("Nodes")+ylab("Throughput (millions of ops/sec)")+
   # scale_x_continuous(breaks=c(8,16,32,48,64))+
   scale_color_discrete(name="Flat Combining")+
-  scale_linetype_discrete(name="Fraction lookups")+
-  scale_shape_discrete(name="Fraction lookups")+
+  scale_linetype_discrete(name="Operation Mix")+
+  scale_shape_discrete(name="Operation Mix")+
   expand_limits(y=0)+my_theme+
   theme(strip.text=element_text(size=rel(1)),
         axis.text.x=element_text(size=rel(0.85)))
 
-ggsave(plot=gg, filename="plots/hash_perf.pdf", width=7, height=4)
+ggsave(plot=gg, filename="plots/hash_perf.pdf", width=8, height=5)
 
 # d.c <- merge(dmap, dset, all=T)
 # 
@@ -195,8 +206,8 @@ ggsave(plot=gg, filename="plots/hash_perf.pdf", width=7, height=4)
 #   xlab("Nodes")+
 #   # scale_x_continuous(breaks=c(8,16,32,48,64))+
 #   scale_color_discrete(name="Flat Combining")+
-#   scale_linetype_discrete(name="Fraction lookups")+
-#   scale_shape_discrete(name="Fraction lookups")+
+#   scale_linetype_discrete(name="Operation Mix")+
+#   scale_shape_discrete(name="Operation Mix")+
 #   ylab("Throughput (ops/sec)")+expand_limits(y=0)+my_theme+
 #   theme(strip.text=element_text(size=rel(0.7)),
 #         axis.text.x=element_text(size=rel(0.85)))

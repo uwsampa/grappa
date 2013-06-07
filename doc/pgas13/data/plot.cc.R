@@ -66,7 +66,7 @@ g <- ggplot(subset(d,
     label=x(aggregator_autoflush_ticks/1e6,num_starting_workers),
   ))+
   # geom_point()+
-  geom_smooth(size=1)+
+  geom_smooth(size=1, fill=NA)+
   # geom_text(size=2,hjust=-0.2,vjust=1)+
   # geom_line()+
   xlab("Nodes")+
