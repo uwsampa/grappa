@@ -158,16 +158,17 @@ public:
       DVLOG(3) << "lookup[" << key << "] = " << &re;
       
       proxy.combine([&re,key,this](Proxy& p){
-        if (p.keys_to_insert.count(key) > 0) {
-          re.result = true;
-          return FCStatus::SATISFIED;
-        } else {
+        // if (p.keys_to_insert.count(key) > 0) {
+        //   ++hashset_matched_lookups;
+        //   re.result = true;
+        //   return FCStatus::SATISFIED;
+        // } else {
           if (p.lookups.count(key) == 0) p.lookups[key] = nullptr;
           re.next = p.lookups[key];
           p.lookups[key] = &re;
           DVLOG(3) << "p.lookups[" << key << "] = " << &re;
           return FCStatus::BLOCKED;
-        }
+        // }
       });
       return re.result;
     } else {
