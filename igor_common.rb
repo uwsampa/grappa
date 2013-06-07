@@ -145,12 +145,6 @@ Igor do
     cmdout.gsub!(/^\d+:\s+/m){ '' }                 # remove sampa header
     cmdout.gsub!(/^I\d+ .*?\d+\] /m){ '' }          # remove glog header
     
-    # get rid of double underscores, since sequel/sqlite3 don't like them
-    cmdout.gsub!(/__/m){ "_" }
-
-    # get rid of pesky 'nan's if they show up
-    cmdout.gsub!(/: -?nan/, ': 0')
-
     stats = []
 
     # scan, parse and filter JSON blocks
@@ -159,6 +153,13 @@ Igor do
       m.gsub!(/STATS/m){''} # remove tag
       m.gsub!(/\n/){''} # remove newlines
       m.gsub!(/:(\s+),/m) {": null,"}
+      
+      # get rid of double underscores, since sequel/sqlite3 don't like them
+      m.gsub!(/__/m){ "_" }
+
+      # get rid of pesky 'nan's if they show up
+      m.gsub!(/: -?nan/, ': 0')
+
 
       blob = JSON.parse(m)
       flat = {}
