@@ -20,6 +20,8 @@ GRAPPA_DECLARE_STAT(SimpleStatistic<size_t>, hashset_insert_msgs);
 GRAPPA_DECLARE_STAT(SimpleStatistic<size_t>, hashset_lookup_ops);
 GRAPPA_DECLARE_STAT(SimpleStatistic<size_t>, hashset_lookup_msgs);
 
+GRAPPA_DECLARE_STAT(SimpleStatistic<size_t>, hashset_matched_lookups);
+
 namespace Grappa {
 
 template <typename K>
