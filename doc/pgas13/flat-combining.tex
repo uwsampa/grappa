@@ -91,7 +91,7 @@ After all local combining has been done, one requesting worker is chosen to perf
 
 \paragraph{Sequential Consistency}
 The sequential consistency guarantee is that within a task, operations will be in task order, so to enforce ordering between operations in different tasks, one task must perform an operation that another one can observe. An example is shown in Figure~\ref{fig:sync}.\TODO{make sync example}
-The Grappa memory model follows the Data-Race-Free-0 Model (guaranteeing sequential consistency for data-race free programs). Being conservative, delegate operations block the calling worker until they have completed globally, ensuring they can be used for synchronization---delegate operations within a task are guaranteed to be globally visible in program order.
+The Grappa memory model is in the style of the C++ memory model~\cite{boehm:drf0,N2480,N2800} memory model (guaranteeing sequential consistency for data-race free programs). Being conservative, delegate operations block the calling worker until they have completed globally, ensuring they can be used for synchronization. As such, delegate operations within a task are guaranteed to be globally visible in program order.
 Because it is not immediately obvious that this distributed version of flat combining preserves sequential consistency, here we will make arguments for why it does.
 
 % \begin{itemize}
