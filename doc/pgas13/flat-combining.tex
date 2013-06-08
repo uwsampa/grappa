@@ -89,10 +89,22 @@ After all local combining has been done, one requesting worker is chosen to perf
 
 % By design, each core in Grappa operates independently of the other cores. Workers are scheduled cooperatively, so each worker can assume atomicity until it performs an operation that yields to the scheduler, such as a remote call. Therefore workers within a core can cooperate without any explicit synchronization operations requiring memory fences. This allows them to publish requests to the local proxy very inexpensively, eliminating the need for a complex synchronization-amortizing queue. This has the added benefit that there will be no unused publication records, which could have become a problem with thousands of workers. Further, remote operations are processed through the same cooperative-multithreading scheduler on the remote side, so combined operations are trivially serialized and atomic.
 
-\paragraph{Sequential Consistency}
-The sequential consistency guarantee is that within a task, operations will be in task order, so to enforce ordering between operations in different tasks, one task must perform an operation that another one can observe. An example is shown in Figure~\ref{fig:sync}.\TODO{make sync example}
-The Grappa memory model is in the style of the C++ memory model~\cite{boehm:drf0,N2480,N2800} memory model (guaranteeing sequential consistency for data-race free programs). Being conservative, delegate operations block the calling worker until they have completed globally, ensuring they can be used for synchronization. As such, delegate operations within a task are guaranteed to be globally visible in program order.
-Because it is not immediately obvious that this distributed version of flat combining preserves sequential consistency, here we will make arguments for why it does.
+\paragraph{Memory Consistency Model}
+
+In the context of this work, sequential consistency guarantees that within a
+task, operations will be in task order and that all tasks will observe the
+same global order of operations. An example is shown in
+Figure~\ref{fig:sync}.\TODO{make sync example}
+
+The Grappa memory model is essentially the same as the C++ memory
+model~\cite{boehm:drf0,N2480,N2800} memory model (guaranteeing sequential
+consistency for data-race free programs). Being conservative, delegate
+operations block the calling worker until they have completed globally,
+ensuring they can be used for synchronization. As such, delegate operations
+within a task are guaranteed to be globally visible in program order and all
+tasks observe the same global order. Because it is not immediately obvious
+that this distributed version of flat combining preserves sequential
+consistency, we will now argue why it does so.
 
 % \begin{itemize}
 %   \item Block the calling worker until the operation is guaranteed to have a valid global order.
@@ -106,10 +118,10 @@ For this ``concatenation'' to be valid, the order observed by workers during loc
 In the case of the Stack and Queue, this guarantee comes from applying a batch of push or pop operations atomically in a contiguous block on the global data structure. The second level of combining at the master preserves this as well by only allowing updates to proceed when they will not conflict and blocking all of them until they have completed.
 Matching pushes and pops locally is one exception to the rule that operations must block until globally committed. Because a pop ``destroys'' the corresponding push, these operations together are independent of all others and can conceptually be placed anywhere in a total global ordering, so they can be safely matched locally.
 
-The correctness of combining set and map operations is more nuanced.
-Insert and lookup operations performed by different tasks are inherently unordered unless synchronized externally.
-Therefore, a batch of these operations can be committed globally in parallel.
-If an insert finds that its key is already in the combiner, it does not need to send its own message. However, it must still block until that insert is done, otherwise it may assume that the key has been inserted and perform some other operation that requires the insert to have happened.
+The guarantees of combining set and map operations is more nuanced.
+Insert and lookup operations performed by different tasks are inherently unordered unless synchronized externally (i.e., we assume data-race freedom).
+Therefore, a batch of these operations can be committed globally in parallel, since they are guaranteed not to conflict with each other.
+Note that, if an insert finds that its key is already in the combiner, it does not need to send its own message. However, it must still block until that insert is done, otherwise it may assume that the key has been inserted and perform some other operation that requires the insert to have happened, effectively reordering operations.
 In the same way, lookups can piggy-back on other lookups of the same key.
 It is tempting to allow a lookup to be satisfied locally by inspecting the keys to be inserted.
 However, this allows the local order in which keys were inserted to be observed.
@@ -122,7 +134,7 @@ If this is allowed, then that same order must be respected globally, forcing eac
 
 % In the spirit of the Data-Race-Free-0 Model (guaranteeing sequential consistency for data-race free programs), operations on the global data structure are considered to be made atomic by a conceptual global ``lock'' on the data structure. 
 
-These requirements only guarantee sequential consistency for a data structure in isolation. Atomicity and data race freedom in the case of multiple data structures must be guaranteed externally, just as in any multithreaded shared-memory program.
+These requirements only guarantee serializability for operations on a data structure in isolation. To guarantee sequential consistency with respect to accesses to all data structures, data race freedom  must be guaranteed externally, just as in any multithreaded shared-memory program.
 
 \section{Grappa FC Framework}
 % One of the strengths of flat combining is that the same combining mechanism can be applied in multiple data structures. Each structure must only specify how its operations compose.
