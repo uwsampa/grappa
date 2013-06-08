@@ -26,8 +26,8 @@
 \usepackage{subcaption}
 
 \lstset{
-  emph={GlobalAddress,Grappa,GlobalStack,ConditionVariable,Mutex,T,StackProxy}, emphstyle={\color{NavyBlue}\bfseries},
-  emph={[2]delegate, write, acquire, release, core, call, signal, push, pop, sync, block}, emphstyle={[2]\color{PineGreen}\bfseries}
+  emph={GlobalAddress,Grappa,GlobalStack,ConditionVariable,Mutex,T,GlobalStackProxy,FCProxy}, emphstyle={\color{NavyBlue}\bfseries},
+  emph={[2]delegate, write, acquire, release, core, call, signal, push, pop, sync, block, memcpy}, emphstyle={[2]\color{PineGreen}\bfseries}
 }
 
 \lstdefinestyle{grappa}{ 
@@ -43,7 +43,8 @@
   commentstyle=\itshape\color{Gray},
   identifierstyle=\color{Black},
   stringstyle=\color{RedOrange},
-  numbers=left,
+  morekeywords={override},
+  numbers=none,
 }
 
 %%% utilities %%%
