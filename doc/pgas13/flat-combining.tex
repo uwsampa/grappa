@@ -81,7 +81,7 @@ However, because workers are scheduled cooperatively, each worker has atomic acc
 Instead, each worker performs its own combining, pushing the 
 , and blocks if it was unable to satisfy its request immediately. Figure~\ref{fig:stackfc} shows how in the global stack example, pushes and pops can be matched locally, avoiding global synchronization for those operations.
 
-After all local combining has been done, one requesting worker is chosen to perform the combined operation globally. In the same figure, Worker 4 becomes the combiner and performs much the same synchronization as in the un-combined case, but is able to push multiple elements with one synchronization. As in the uncombined case, the global lock must still be acquired, and concurrent combined requests must still block and serialize on the master, though a technique later will describe how flat combining can be applied here, too. Combining in this way allows synchronization to be distributed and performed in parallel, coarsening the granularity of the actual global synchronization and reducing the amount of serialization that occurs.
+After all local combining has been done, one requesting worker is chosen to perform the combined operation globally. In Figure~\ref{fig:stackfc} again, Worker 4 becomes the combiner and performs much the same synchronization as in the un-combined case, but is able to push multiple elements with one synchronization. As in the uncombined case, the global lock must still be acquired, and concurrent combined requests must still block and serialize on the master, though a technique later will describe how flat combining can be applied here, too. Combining in this way allows synchronization to be distributed and performed in parallel, coarsening the granularity of the actual global synchronization and reducing the amount of serialization that occurs.
 
 % In most cases, this means communicating with whichever core holds the ``lock-protected'' field that maintains sequential consistency. In the case of a global stack, this is the ``master'' \emph{top} pointer which must be incremented on pushes and decremented on pops. On the core where global synchronization is occurring, there must be synchronization between the multiple synchronization requests arriving from other cores.
 
@@ -97,12 +97,14 @@ same global order of operations. An example is shown in
 Figure~\ref{fig:sync}.\TODO{make sync example}
 
 The Grappa memory model is essentially the same as the C++ memory
-model~\cite{boehm:drf0,N2480,N2800} memory model (guaranteeing sequential
-consistency for data-race free programs). Being conservative, delegate
+model~\cite{boehm:drf0,N2480,N2800} (guaranteeing sequential
+consistency for data-race free programs). To be conservative, delegate
 operations block the calling worker until they have completed globally,
 ensuring they can be used for synchronization. As such, delegate operations
 within a task are guaranteed to be globally visible in program order and all
-tasks observe the same global order. Because it is not immediately obvious
+tasks observe the same global order.
+Operations on synchronized data structures must provide the same guarantees.
+Because it is not immediately obvious
 that this distributed version of flat combining preserves sequential
 consistency, we will now argue why it does so.
 
@@ -122,8 +124,10 @@ The guarantees of combining set and map operations is more nuanced.
 Insert and lookup operations performed by different tasks are inherently unordered unless synchronized externally (i.e., we assume data-race freedom).
 Therefore, a batch of these operations can be committed globally in parallel, since they are guaranteed not to conflict with each other.
 Note that, if an insert finds that its key is already in the combiner, it does not need to send its own message. However, it must still block until that insert is done, otherwise it may assume that the key has been inserted and perform some other operation that requires the insert to have happened, effectively reordering operations.
-In the same way, lookups can piggy-back on other lookups of the same key.
-It is tempting to allow a lookup to be satisfied locally by inspecting the keys to be inserted.
+This ensures that if one wanted to use the insert to signal synchronization, it is guaranteed to have been committed globally before the task continues.
+
+In the same way as inserts, lookups can piggy-back on other lookups of the same key.
+It is tempting to allow a lookup to be satisfied locally by inspecting the keys being inserted.
 However, this allows the local order in which keys were inserted to be observed.
 If this is allowed, then that same order must be respected globally, forcing each batch to ensure atomicity from all other cores' batches. This is prohibitively expensive, so a cheaper solution is chosen: lookups must get their values from the global data structure, but can be performed in parallel in the same way as inserts.
 
