@@ -19,7 +19,7 @@
 ###           # do something...
 ###
 
-PDFLATEX	?= pdflatex
+PDFLATEX	?= pdflatex -shell-escape
 BIBTEX		?= bibtex
 
 ## Action for 'make view'
