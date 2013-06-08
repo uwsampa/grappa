@@ -1,5 +1,5 @@
 \section{Related Work}
-Attempts to improve the scalability of synchronized data structures are as old as the data structures themselves. Though much attention has gone to lock-free data structures such as the Trieber Stack~\cite{trieber} and Michael-Scott Queue~\cite{msqueue}, a good body of work has explored ways of scaling globally-locked data structures.
+Attempts to improve the scalability of synchronized data structures are as old as the data structures themselves. Though much attention has gone to lock-free data structures such as the Trieber Stack~\cite{treiber} and Michael-Scott Queue~\cite{msqueue}, a good body of work has explored ways of scaling globally-locked data structures.
 
 Flat combining~\cite{flatCombining} is one of long trail of techniques for allowing a single thread to perform the updates of others. Previous techniques performed combining hierarchically using fixed trees~\cite{yew:combining-trees}, dynamic trees (or ``funnels'')~\cite{funnels}, and randomized trees~\cite{edtrees}. However, the observation of the flat combining work was that in practice, a cleverly-implemented \emph{flat} publication list can outperform more complicated schemes.
 Follow-on work introduced parallel flat-combining~\cite{scalableFCQueues}, in which multiple publication lists are combined in parallel and their remainders serialized.
