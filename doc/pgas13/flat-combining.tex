@@ -27,7 +27,7 @@ To illustrate the issue, consider the shared synchronous queue, shown in Figure~
 
 The above example of delegation is compelling in itself. However, the crux of the prior work is that data structure-specific optimization can be done to perform the combined operations more efficiently than separately.
 As the combiner walks the publication list, it merges each non-empty publication record into a combined operation. In the case of the stack example shown in Figure~\ref{fig:fc_shared_mem}, as it walks the list, Thread 4 keeps track of the operations on its own temporary stack. When it encounters Thread 2's pop, it recognizes that it can satisfy that pop immediately with the push it just processed from Thread 3, so it fills each of their records and allows each of them to proceed. After traversing the rest of the publication list, the thread applies the combined operation to the actual data structure, in this case, the remaining two elements are pushed onto the top of the stack, and the requesting threads' records are marked as complete.
-In the case of the stack, combining came in the form of matched pushes and pops, but many data structures have other ways in which operations can be combined for greater performance.
+In the case of the stack, combining came in the form of matched pushes and pops, but many data structures have other ways in which operations can be matched locally.
 
 \subsection{In Grappa}
 
@@ -59,7 +59,34 @@ In a PGAS setting, and in Grappa in particular, the cost of global synchronizati
 
 To illustrate how flat combining can be applied to Grappa, we must first describe what a global data structure might look like. Figure~\ref{fig:stacknofc} shows a simple PGAS translation of the shared-memory stack from earlier. A storage array is allocated out of the global heap, so its elements are striped across all the cores in the system. One core is designated the ``master'' to enforce global synchronization, and holds the elements of the data structure that all concurrent accessors must agree on, in this case, the \texttt{top} pointer.
 
-All tasks that want to access the global stack hold a \texttt{GlobalAddress} to the Master object. To perform an operation, the task invokes a custom delegate operation that, like the \texttt{read()} delegate described earlier, blocks the task until complete. To do a \texttt{push}, the task must send a message to the master to acquire the lock. If it succeeds, it follows the \texttt{top} pointer, writes its new value to the end of the stack, returns to bump the \texttt{top} pointer and release the lock, and finally sends a message back to wake the calling worker. All other workers performing operations block at the first message until the lock is released. Because of Grappa's user-level blocking mechanisms, blocked requests do not have to retry or busy-wait. However, all thousand workers on each core all perform this synchronization and serialize on the master core.
+\begin{figure}[t]
+\centering
+\begin{lstlisting}[style=grappa]
+class GlobalStack {
+  GlobalAddress<T> top;
+  Grappa::Mutex lock;
+};
+void push(GlobalAddress<GlobalStack> stack, T val) {
+  // perform operation on the stack's master core
+  delegate::call(stack.core(), [stack,val]{
+    // force other operations to wait
+    stack->lock.acquire();
+    // do remote write to the top of the stack
+    // (so other workers may interleave)
+    delegate::write(stack->top, val);
+    // bump the top pointer
+    stack->top++;
+    stack->lock.release();
+  }); // blocks until response arrives
+}
+\end{lstlisting}
+
+\caption{Snippet of code for pushing to a global stack (without flat combining).}
+\label{fig:push}
+\end{figure}
+
+
+All tasks that want to access the global stack hold a \texttt{GlobalAddress} to the Master object. To perform an operation, the task invokes a custom delegate operation that, like the \texttt{read()} delegate described earlier, blocks the task until complete. Example code to do a \texttt{push} is shown in Figure~\ref{fig:push}, the task must send a message to the master to acquire the lock. If it succeeds, it follows the \texttt{top} pointer, writes its new value to the end of the stack, returns to bump the \texttt{top} pointer and release the lock, and finally sends a message back to wake the calling worker. All other workers performing operations block at the first message until the lock is released. Because of Grappa's user-level blocking mechanisms, blocked requests do not have to retry or busy-wait. However, all thousand workers on each core all perform this synchronization and serialize on the master core.
 
 With flat combining, instead of all workers on a core sending independent messages to do remote synchronization, they can do combining locally and share a single remote synchronization operation. 
 As with shared-memory combining, distributed combining improves locality, reduces the amount of global synchronization, and as bonus, allows for data structure-specific combining to magnify the benefits even further.
@@ -120,18 +147,58 @@ These requirements only guarantee sequential consistency for a data structure in
 
 \section{Grappa FC Framework}
 \TODO{add code examples, and add discussion of "master" combining}
-Many different data structures can integrate flat combining into their operation using the same delegation mechanism, making it easier to implement concurrent data structures.
-
+% Many different data structures can integrate flat combining into their operation using the same delegation mechanism, making it easier to implement concurrent data structures.
 In order to leverage the flat-combining paradigm in Grappa, we implemented a generic flat-combining framework which can be used to improve performance for a number of global data structures. The FC framework handles the common problems of managing the combiners, handling worker wake-ups, and maintaining progress. When hooking into the framework, each data structure implementation need only define how to combine operations and globally commit them.
 
-The Grappa FC framework takes a different approach than the original flat-combining work for expressing how operations combine. In the original work, an explicit publication list is built up, and when the combiner scans over the list, it has a structure that it uses to accumulate requests in a logical way. In the case of the stack, for instance, it is a thread-local stack, which it can use to immediately match up pushes and pops. In the Grappa implementation, each worker's actions are atomic anyway, so rather than creating an explicit request list, the combiner object (or \emph{proxy}) is instantiated ahead of time for the data structure, and each worker does its own local combining into that structure before blocking. This reduces the space blowout of a large dynamically-sized publication list (with associated caching issues), and does not overly affect the expression of combining.
-
-Using this style, each global data structure must define the following:
+% As discussed before, Grappa's distributed combining takes a different approach to expressing how operation locally  flat combining design takes a different approach to performing 
+The Grappa FC framework takes a different approach than the original flat-combining work for expressing how operations combine. As mentioned before, the local ``publication list'' is trivial to access atomically in Grappa due to workers being cooperatively scheduled.
+Instead, in the Grappa FC Framework, a \emph{proxy} object is instantiated ahead of time on each core and each worker merges its update into that structure before blocking or becoming the combiner.
+% In the original work, an explicit publication list is built up, and when the combiner scans over the list, it has a structure that it uses to accumulate requests in a logical way. In the case of the stack, for instance, it is a thread-local stack, which it can use to immediately match up pushes and pops. In the Grappa implementation, each worker's actions are atomic anyway, so rather than creating an explicit request list, the combiner object (or \emph{proxy}) is instantiated ahead of time for the data structure, and each worker does its own local combining into that structure before blocking. This reduces the space blowout of a large dynamically-sized publication list (with associated caching issues), and does not overly affect the expression of combining.
+In this style, each global data structure must define the following:
 \begin{enumerate}
-  \item A local \emph{proxy} data structure for doing combining.
+  \item A local \emph{proxy} data structure for tracking updates to the global structure.
   \item \emph{Combining methods} that operate on the local proxy.
   \item A \emph{sync} method that globally commits the proxy's state.
 \end{enumerate}
+
+\begin{figure}[t]
+\centering
+\begin{lstlisting}[style=grappa]
+struct StackProxy {
+  T values[CAPACITY];
+  T* results[CAPACITY];
+  ConditionVariable waitlist;
+  int npush, npop;
+  void push(T e) {
+    if (npop > 0) { // satisfy locally
+      *results[--npop] = e;
+      waitlist.signal();
+    } else {
+      values[npush++] = e;
+      block(waitlist);
+    }
+  }
+  T pop() {
+    T val;
+    if (npush > 0) { // satisfy locally
+      val = values[--npush];
+      waitlist.signal();
+    } else {
+      pops[npop++] = &val;
+      block(waitlist);
+    }
+  }
+  void sync() {
+    if (npush > 0) {
+      
+    } else if (npop > 0) {
+      
+      for (int i = 0; i < npop; i++) *results[i] = values[i];
+    }
+  }
+};
+\end{lstlisting}
+\end{figure}
 
 Being conservative about SC, workers typically block when issuing these requests, so the framework must also take care of delivering results and waking the correct workers. The flat-combining framework is responsible for ensuring that all of the combined operations eventually get committed. There are a number of ways progress could be guaranteed, but one of the simplest is to take an approach in the spirit of the original flat-combining, which is to ensure that as long as there are any outstanding requests, there is at least one worker committing a combined operation. When that combined operation finishes, if there are still outstanding requests that have built up in the meantime, another blocked worker is chosen to do another combined synchronization.
 

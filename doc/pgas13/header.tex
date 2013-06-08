@@ -11,16 +11,40 @@
 
 %%% packages %%%
 \usepackage{color}
+\usepackage[usenames,dvipsnames]{xcolor}
+
 \usepackage{graphicx}
 \usepackage{listings}
 \usepackage{float}
 \usepackage{url}
 \usepackage{times}
 \usepackage{xspace}
+% \usepackage{minted}
 
 \usepackage{microtype}
 
 \usepackage{subcaption}
+
+\lstset{
+  emph={GlobalAddress,Grappa,GlobalStack,ConditionVariable,Mutex,T,StackProxy}, emphstyle={\color{NavyBlue}\bfseries},
+  emph={[2]delegate, write, acquire, release, core, call, signal, push, pop, sync, block}, emphstyle={[2]\color{PineGreen}\bfseries}
+}
+
+\lstdefinestyle{grappa}{ 
+  belowcaptionskip=1\baselineskip,
+  breaklines=true,
+  %frame=L,  % frame around code
+  xleftmargin=\parindent,
+  language=C++,
+  showstringspaces=false,
+  %basicstyle=\tiny,
+  basicstyle=\footnotesize\ttfamily,
+  keywordstyle=\color{Plum},
+  commentstyle=\itshape\color{Gray},
+  identifierstyle=\color{Black},
+  stringstyle=\color{RedOrange},
+  numbers=left,
+}
 
 %%% utilities %%%
 \newcommand{\TODO}[1]{\textcolor{red}{{\bf TODO:} #1}}
