@@ -22,11 +22,11 @@ dq$throughput <- with(dq, nelems/trial_time_mean)
 d$fc <- with(d, x(flat_combining,flat_combining_local_only))
 
 d$fc_version <- sapply(paste('v',d$flat_combining,d$flat_combining_local_only,sep=''),switch,
-  v0NA='none', v1NA='full', v10='full', v11='local only', v00='master only', v01='none'
+  v0NA='none', v1NA='full', v10='full', v11='distributed', v00='centralized', v01='none'
 )
 dq <- within(dq,
 fc_version <- sapply(paste('v',flat_combining,flat_combining_local_only,sep=''),switch,
-  v0NA='none', v1NA='full', v10='full', v11='local only', v00='master only', v01='none'
+  v0NA='none', v1NA='full', v10='full', v11='distributed', v00='centralized', v01='none'
 ))
 
 
@@ -110,6 +110,7 @@ gg <- ggplot(subset(d.c,
   & ( ((struct == 'GlobalQueue' | fraction_push != 0.5) & version == 'fixed_random')
     | version == 'matching_better'
     )
+  & fc_version != 'full'
   ),aes(
     x=nnode,
     y=throughput/1e6,
@@ -152,7 +153,7 @@ gg <- ggplot(subset(d.melt,
   log_nelems==28 & ppn==16 & num_starting_workers==2048
   & (( ( fraction_push != 0.5) & version == 'fixed_random')
     | version == 'matching_better')
-  # & fc_version == 'local only'
+  & grepl('none|distributed', fc_version)
   ),aes(
     x=nnode,
     y=value,

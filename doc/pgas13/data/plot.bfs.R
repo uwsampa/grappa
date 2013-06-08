@@ -34,15 +34,15 @@ ggsave(plot=g, filename="plots/bfs_mess.pdf", width=10, height=8)
 d$nw <- d$num_starting_workers
 
 d$fc_version <- sapply(paste(d$bfs_version,d$flat_combining,sep='_'),switch,
-  beamer_0='async', beamer_1='async', beamer_queue_0='none', beamer_queue_1='full'
+  beamer_0='custom', beamer_1='custom', beamer_queue_0='none', beamer_queue_1='distributed'
 )
 # d$fc_version <- paste(d$bfs_version,d$flat_combining,sep='_')
 # d$fc_version
 
 g <- ggplot(subset(d,
     ppn == 16 & scale == 26
-    & (num_starting_workers == 1024 & grepl('full|none', fc_version) 
-      | num_starting_workers >= 256 & grepl('async', fc_version))
+    & (num_starting_workers == 1024 & grepl('distributed|none', fc_version) 
+      | num_starting_workers >= 256 & grepl('custom', fc_version))
     & aggregator_autoflush_ticks > 100000
   ), aes(
     x=nnode,
@@ -53,7 +53,7 @@ g <- ggplot(subset(d,
     group=x(fc_version,num_starting_workers),
     label=x(num_starting_workers,aggregator_autoflush_ticks),
   ))+
-  geom_point()+
+  # geom_point()+
   # geom_text(size=2,position="jitter")+
   geom_smooth(size=1, fill=NA)+
   xlab("Nodes")+

@@ -11,7 +11,7 @@ First we measured the raw performance of the global data structures on extremely
   \centering
   \includegraphics[width=0.5\textwidth]{data/plots/vector_perf.pdf}
   \caption{\emph{Queue and Stack performance.}
-    Results are shown on a log scale for a throughput workload performing 256 million operations with 2048 workers per core and 16 cores per node. Flat combining improves throughput by at least an order of magnitude and allows performance to scale. Matching pushes and pops enables the stack to perform even better on a mixed workload.
+    Results are shown on a log scale for a throughput workload performing 256 million operations with 2048 workers per core and 16 cores per node. Local flat combining improves throughput by at least an order of magnitude and allows performance to scale. Matching pushes and pops enables the stack to perform even better on a mixed workload.
   }
   \label{fig:vector}
 \end{figure}
@@ -28,12 +28,14 @@ First we measured the raw performance of the global data structures on extremely
 Figure~\ref{fig:vector} shows the results of the throughput experiments for the global Stack and Queue. Results are shown with flat combining completely disabled, only combining at the master core, only combining locally, and full two-level combining.
 
 Despite Grappa's automatic aggregation, without combining, both the stack and queue completely fail to scale because all workers' updates must serialize on the master core.
-Though combining on the master core alleviates some of the serialization, it does not provide significant benefit because all of the synchronization must still be performed on one core. However, with local flat combining, synchronization is able to be done mostly in parallel, with much less-frequent bulk synchronization at the master. Doing the additional level of combining at the master seems to not affect performance significantly. This is somewhat surprising as all combined updates must completely serialize on the master still. However, with full combining enabled, we see that relatively few requests are combined together---for an all-push workload, on the order of a thousand are combined each pass, and for the mixed push/pop workload, on average less than 20 are combined.
+Though combining on the master core alleviates some of the serialization, it does not provide significant benefit because all of the synchronization must still be performed on one core. However, with local flat combining, synchronization is able to be done mostly in parallel, with much less-frequent bulk synchronization at the master.
 
 On the mixed workload, the stack is able to do matching locally, allowing it to reduce the amount of communication drastically, greatly improving its performance. Figure~\ref{fig:stack_stats} corroborates this, showing that the amount of combining that occurs directly correlates with the observed throughput.
 
-The queue also benefits from reduced synchronization and batching operations, and its all-push workload performs identically to the stack's.
-However, the queue is unable to do matching locally, and in fact, the mixed workload performs worse because the current implementation serializes combined enqueue and dequeue operations. This restriction could be lifted with more careful synchronization at the master core allowing enqueues and dequeues to proceed in parallel as long as enough elements are in the queue to allow them to proceed without conflicting.
+We also experimented with performing both forms of combining together; however, combining at the master did not affect performance significantly. This was somewhat surprising as combined updates will still force others to wait. However, with both levels of combining enabled, relatively few requests are combined at the master---for the all-push workload, on the order of a thousand, and for the mixed workload on the stack, the average is less than 20.
+
+The queue benefits in the same way from reducing synchronization and batching, and its all-push workload performs identically to the stack's.
+However, the queue is unable to do matching locally, and in fact, the mixed workload performs worse because the current implementation serializes combined pushes and combined pops. This restriction could be lifted with more careful synchronization at the master core allowing pushes and pops to proceed in parallel as long as there are enough elements in the queue.
 
 \paragraph{HashSet and HashMap}
 \begin{figure}[t]

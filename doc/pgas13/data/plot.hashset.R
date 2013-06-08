@@ -36,7 +36,7 @@ dset$ops_per_msg <- with(dset, (hashset_insert_ops+hashset_lookup_ops)/(hashset_
 dset$throughput <- with(dset, (hashset_insert_ops+hashset_lookup_ops)/trial_time_mean)
 
 dset$fc_version <- sapply(paste('v',dset$flat_combining,dset$insert_async,sep=''),switch,
-  v0NA='none', v1NA='local only', v11='async', v10='local only', v00='none', v01='?'
+  v0NA='none', v1NA='distributed', v11='async', v10='distributed', v00='none', v01='?'
 )
 
 d.melt <- melt(dset, measure=c("ops_per_msg", "throughput"))
@@ -94,7 +94,7 @@ gg <- ggplot(subset(dset, log_nelems==28 & ppn==16 & num_starting_workers==8192
 dmap$ops_per_msg <- with(dmap, (hashmap_insert_ops+hashmap_lookup_ops)/(hashmap_insert_msgs+hashmap_lookup_msgs))
 dmap$throughput <- with(dmap, (hashmap_insert_ops+hashmap_lookup_ops)/trial_time_mean)
 dmap$fc_version <- sapply(paste('v',dmap$flat_combining,dmap$insert_async,sep=''),switch,
-  v0NA='none', v1NA='local only', v11='async', v10='local only', v00='none', v01='?'
+  v0NA='none', v1NA='distributed', v11='async', v10='distributed', v00='none', v01='?'
 )
 
 gg <- ggplot(subset(dmap, log_nelems==28 & ppn==16 & num_starting_workers==8192

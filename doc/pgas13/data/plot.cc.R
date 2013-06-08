@@ -19,7 +19,7 @@ d$nroots <- d$cc_concurrent_roots
 d$gce_flats <- with(d, gce_total_remote_completions/gce_completions_sent)
 
 d$fc_version <- sapply(paste('v',d$flat_combining,d$cc_insert_async,sep=''),switch,
-  v0NA='none', v1NA='fc', v11='async', v10='fc', v00='none', '??'
+  v0NA='none', v1NA='distributed', v11='custom', v10='distributed', v00='none', '??'
 )
 
 g <- ggplot(subset(d, cc_hash_size <= 16384 & scale == 26 & ppn == 16
@@ -49,8 +49,8 @@ ggsave(plot=g, filename="plots/cc_mess.pdf", scale=1.4)
 
 g <- ggplot(subset(d, 
     cc_hash_size == 16384 & scale == 26 & ppn == 16
-    & ( fc_version == 'async' & num_starting_workers == 2048 & aggregator_autoflush_ticks == 5e5
-      | fc_version == 'fc' & num_starting_workers == 2048 & aggregator_autoflush_ticks == 5e5
+    & ( fc_version == 'custom' & num_starting_workers == 2048 & aggregator_autoflush_ticks == 5e5
+      | fc_version == 'distributed' & num_starting_workers == 2048 & aggregator_autoflush_ticks == 5e5
       | fc_version == 'none' & num_starting_workers == 2048 & aggregator_autoflush_ticks == 1e5
     )
     & cc_concurrent_roots == 2048
@@ -62,7 +62,7 @@ g <- ggplot(subset(d,
     color=fc_version,
     shape=fc_version,
     linetype=fc_version,
-    group=x(cc_concurrent_roots,fc_version,aggregator_autoflush_ticks,num_starting_workers),
+    group=x(cc_concurrent_roots,fc_version),
     label=x(aggregator_autoflush_ticks/1e6,num_starting_workers),
   ))+
   # geom_point()+
@@ -70,6 +70,8 @@ g <- ggplot(subset(d,
   # geom_text(size=2,hjust=-0.2,vjust=1)+
   # geom_line()+
   xlab("Nodes")+
+  scale_color_discrete(name="Flat Combining")+
+  scale_linetype_discrete(name="Flat Combining")+
   # facet_grid(scales="free", labeller=label_pretty)+
   ylab("MTEPS")+expand_limits(y=0)+
   my_theme
@@ -109,7 +111,7 @@ g.t <- ggplot(subset(d.t, cc_hash_size == 16384 & ppn == 16),
 # ggsave(plot=g.t, filename="plots/cc_times.pdf", width=16, height=10)
 
 d.stat <- melt(d, measure=c('mteps', 'ce_remote_completions', 'cc_set_size', 'gce_flats'))
-g.stat <- ggplot(subset(d.stat, scale == 26 & fc_version != 'async'), aes(
+g.stat <- ggplot(subset(d.stat, scale == 26 & fc_version != 'custom'), aes(
     x=num_starting_workers,
     y=value,
     color=nroots, fill=nroots,

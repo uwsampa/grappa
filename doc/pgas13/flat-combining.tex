@@ -61,9 +61,13 @@ To illustrate how flat combining can be applied to Grappa, we must first describ
 
 All tasks that want to access the global stack hold a \texttt{GlobalAddress} to the Master object. To perform an operation, the task invokes a custom delegate operation that, like the \texttt{read()} delegate described earlier, blocks the task until complete. Example code to do a \texttt{push} is shown in Figure~\ref{fig:push}, the task must send a message to the master to acquire the lock. If it succeeds, it follows the \texttt{top} pointer, writes its new value to the end of the stack, returns to bump the \texttt{top} pointer and release the lock, and finally sends a message back to wake the calling worker. All other workers performing operations block at the first message until the lock is released. Because of Grappa's user-level blocking mechanisms, blocked requests do not have to retry or busy-wait. However, all thousand workers on each core all perform this synchronization and serialize on the master core.
 
-With flat combining, instead of all workers on a core sending independent messages to do remote synchronization, they can do combining locally and share a single remote synchronization operation. 
-As with shared-memory combining, distributed combining improves locality, reduces the amount of global synchronization, and as bonus, allows for data structure-specific combining to magnify the benefits even further.
+\paragraph{Centralized Combining.}
+A first thought might be to directly apply the idea of flat combining to the serialization at the master node. The worker that acquires the lock on the master can walk through the requests of all the other workers waiting to acquire the global lock and perform combining on them. In the case of the GlobalStack, this would mean taking all of the push requests, matching them with the pops, and sending messages back to the remote workers with the results. Any leftover pushes or pops would be applied to the data structure, and another round of combining would begin. This approach, combining on the master, reduces traffic to the data structure storage, but the single ``master'' core must still process every single request. This approach will not scale when every other core can generate requests just as fast as the master can combine them.
 
+\paragraph{Distributed Combining}
+Instead of all workers on a core sending independent synchronization messages and putting the burden all on the master, what if each core did its own combining first, and synchronized with the master in bulk?
+Distributing the combining to each core allows the majority of the work to be performed in parallel and without communication.
+As with shared-memory combining, distributed combining improves locality, reduces the amount of global synchronization, and allows operations to be composed in data structure-specific ways for even greater performance.
 % allows synchronization to happen in parallel on all the cores, 
 % Flat combining in Grappa is about allowing synchronization and  distributing synchronization 
 % In a way, Grappa's automatic message aggregation is already trying to reduce synchronization traffic; however, the generic mechanism for serializing and packing has a cost, and in the end, the operations must still serialize on the master.
@@ -71,9 +75,11 @@ As with shared-memory combining, distributed combining improves locality, reduce
 
 % In order for workers to cooperate locally, a local ``proxy'' object is allocated in the core-private heap. This proxy serves as the 
 
-When a flat-combined global data structure is created, each core allocates a local proxy object in it's core-local heap. This proxy serves the role of the publication list, allowing workers within a core to coordinate their efforts. 
-Conceptually, workers add their requests to the local publication list, and one is chosen to do the combining. However, because workers are scheduled cooperatively, each worker has atomic access to the local proxy ``for free'', so an explicit publication list is unnecessary.
-Instead, each worker performs its own combining, and blocks if it was unable to satisfy its request immediately. Figure~\ref{fig:stackfc} shows how in the global stack example, pushes and pops can be matched locally, avoiding global synchronization for those operations.
+In distributed flat-combining, each core needs its own publication list to track all of its outstanding operations to be performed on the global data structure. In Grappa, this takes the form of a local \emph{proxy} object allocated from the core-local heap.
+Conceptually, workers add their requests to the local publication list, one is chosen to do the combining, and the rest block until their request is satisfied.
+However, because workers are scheduled cooperatively, each worker has atomic access to the local proxy ``for free'', so an explicit publication list is unnecessary.
+Instead, each worker performs its own combining, pushing the 
+, and blocks if it was unable to satisfy its request immediately. Figure~\ref{fig:stackfc} shows how in the global stack example, pushes and pops can be matched locally, avoiding global synchronization for those operations.
 
 After all local combining has been done, one requesting worker is chosen to perform the combined operation globally. In the same figure, Worker 4 becomes the combiner and performs much the same synchronization as in the un-combined case, but is able to push multiple elements with one synchronization. As in the uncombined case, the global lock must still be acquired, and concurrent combined requests must still block and serialize on the master, though a technique later will describe how flat combining can be applied here, too. Combining in this way allows synchronization to be distributed and performed in parallel, coarsening the granularity of the actual global synchronization and reducing the amount of serialization that occurs.
 
@@ -119,9 +125,9 @@ If this is allowed, then that same order must be respected globally, forcing eac
 These requirements only guarantee sequential consistency for a data structure in isolation. Atomicity and data race freedom in the case of multiple data structures must be guaranteed externally, just as in any multithreaded shared-memory program.
 
 \section{Grappa FC Framework}
-\TODO{add code examples, and add discussion of "master" combining}
+% One of the strengths of flat combining is that the same combining mechanism can be applied in multiple data structures. Each structure must only specify how its operations compose.
 % Many different data structures can integrate flat combining into their operation using the same delegation mechanism, making it easier to implement concurrent data structures.
-In order to leverage the flat-combining paradigm in Grappa, we implemented a generic flat-combining framework which can be used to improve performance for a number of global data structures. The FC framework handles the common problems of managing the combiners, handling worker wake-ups, and maintaining progress. When hooking into the framework, each data structure implementation need only define how to combine operations and globally commit them.
+In order to leverage the flat-combining paradigm in Grappa, we implemented a generic framework which can be used to improve performance for a number of global data structures. The FC framework handles the common problems of managing the combiners, handling worker wake-ups, and maintaining progress. When hooking into the framework, each data structure implementation need only define how to combine operations and globally commit them.
 
 % As discussed before, Grappa's distributed combining takes a different approach to expressing how operation locally  flat combining design takes a different approach to performing 
 The Grappa FC framework takes a different approach than the original flat-combining work for expressing how operations combine. As mentioned before, the local ``publication list'' is trivial to access atomically in Grappa due to workers being cooperatively scheduled.
@@ -133,7 +139,7 @@ In this style, each global data structure must define the following:
   \item \emph{Combining methods} that operate on the local proxy.
   \item A \emph{sync} method that globally commits the proxy's state.
 \end{enumerate}
-An example proxy declaration for the GlobalStack is shown in Figure~\ref{fig:stack_proxy}.
+An example proxy declaration for the GlobalStack is shown in Figure~\ref{fig:proxy}.
 
 \begin{figure}[t]
 \centering
@@ -143,21 +149,19 @@ class GlobalStack {
   Grappa::Mutex lock;
 };
 
-void push(GlobalAddress<GlobalStack> stack, T val) {
+void push(GlobalAddress<GlobalStack> stack, T e) {
   // perform operation on the stack's master core
-  delegate::call(stack.core(), [stack,val]{
+  delegate::call(stack.core(), [stack,e]{
     // force other operations to wait
     stack->lock.acquire();
     // do remote write to the top of the stack
     // (so other workers may interleave)
-    delegate::write(stack->top, val);
+    delegate::write(stack->top, e);
     // bump the top pointer
     stack->top++;
     stack->lock.release();
   }); // blocks until response arrives
-}
-\end{lstlisting}
-
+}\end{lstlisting}
 \caption{Snippet of code for pushing to a global stack (without flat combining).}
 \label{fig:push}
 \end{figure}
