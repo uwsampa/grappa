@@ -84,17 +84,14 @@ Instead, each worker performs its own combining, pushing the
 After all local combining has been done, one requesting worker is chosen to perform the combined operation globally. In Figure~\ref{fig:stackfc} again, Worker 4 becomes the combiner and performs much the same synchronization as in the un-combined case, but is able to push multiple elements with one synchronization. As in the uncombined case, the global lock must still be acquired, and concurrent combined requests must still block and serialize on the master, though a technique later will describe how flat combining can be applied here, too. Combining in this way allows synchronization to be distributed and performed in parallel, coarsening the granularity of the actual global synchronization and reducing the amount of serialization that occurs.
 
 % In most cases, this means communicating with whichever core holds the ``lock-protected'' field that maintains sequential consistency. In the case of a global stack, this is the ``master'' \emph{top} pointer which must be incremented on pushes and decremented on pops. On the core where global synchronization is occurring, there must be synchronization between the multiple synchronization requests arriving from other cores.
-
 % At this point we have traded off one remote synchronization per operation for an additional local synchronization per operation and some number fewer remote synchronizations (depending on the amount of combining that occurs). This would likely result in a net benefit due to local synchronization being inherently cheaper. However, because of the way the Grappa runtime schedules computation, it is actually possible to get the correct mutual exclusion/atomicity without any additional synchronization overhead.
-
 % By design, each core in Grappa operates independently of the other cores. Workers are scheduled cooperatively, so each worker can assume atomicity until it performs an operation that yields to the scheduler, such as a remote call. Therefore workers within a core can cooperate without any explicit synchronization operations requiring memory fences. This allows them to publish requests to the local proxy very inexpensively, eliminating the need for a complex synchronization-amortizing queue. This has the added benefit that there will be no unused publication records, which could have become a problem with thousands of workers. Further, remote operations are processed through the same cooperative-multithreading scheduler on the remote side, so combined operations are trivially serialized and atomic.
 
 \paragraph{Memory Consistency Model}
-
 In the context of this work, sequential consistency guarantees that within a
 task, operations will be in task order and that all tasks will observe the
-same global order of operations. An example is shown in
-Figure~\ref{fig:sync}.\TODO{make sync example}
+same global order of operations.
+% An example is shown in Figure~\ref{fig:sync}.\TODO{make sync example}
 
 The Grappa memory model is essentially the same as the C++ memory
 model~\cite{boehm:drf0,N2480,N2800} (guaranteeing sequential
