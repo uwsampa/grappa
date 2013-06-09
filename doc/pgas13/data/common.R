@@ -34,3 +34,8 @@ db <- function(query, factors, db="pgas.sqlite") {
   d[factors] <- lapply(d[factors], factor)
   return(d)
 }
+
+color.blue   <- '#4b78ff'
+color.red    <- '#ce3d52'
+color.yellow <- '#eaa517'
+color.green  <-'#6bad66'

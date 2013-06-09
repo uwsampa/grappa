@@ -57,7 +57,8 @@ g <- ggplot(subset(d,
   # geom_text(size=2,position="jitter")+
   geom_smooth(size=1, fill=NA)+
   xlab("Nodes")+
-  scale_color_discrete(name="Flat Combining")+
+  # scale_color_discrete(name="Flat Combining")+
+  scale_color_manual(name="Flat Combining", values=c(color.yellow,color.red,color.blue))+
   scale_linetype_discrete(name="Flat Combining")+
   # facet_grid(nw~., scales="free", labeller=label_pretty)+
   ylab("MTEPS")+expand_limits(y=0)+

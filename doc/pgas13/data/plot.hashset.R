@@ -177,7 +177,8 @@ gg <- ggplot(subset(d.c, log_nelems==28 & ppn==16 & num_starting_workers==8192
   facet_grid(log_max_key~struct, scales="free_x", labeller=hash_labeller)+
   xlab("Nodes")+ylab("Throughput (millions of ops/sec)")+
   # scale_x_continuous(breaks=c(8,16,32,48,64))+
-  scale_color_discrete(name="Flat Combining")+
+  # scale_color_discrete(name="Flat Combining")+
+  scale_color_manual(name="Flat Combining", values=c(color.red, color.blue))+
   scale_linetype_discrete(name="Operation Mix")+
   scale_shape_discrete(name="Operation Mix")+
   expand_limits(y=0)+my_theme+

@@ -127,7 +127,9 @@ gg <- ggplot(subset(d.c,
   scale_y_log10()+
   xlab("Nodes")+ylab("Throughput (millions of ops/sec)")+
   # scale_x_continuous(breaks=c(8,16,32,48,64))+
-  scale_color_discrete(name="Flat Combining")+
+  # scale_color_discrete(name="Flat Combining")+
+  # scale_color_brewer(name="Flat Combining", palette="Set1")+
+  scale_color_manual(name="Flat Combining", values=c(color.green,color.red,color.blue))+
   scale_shape_discrete(name="Flat Combining")+
   scale_linetype_discrete(name="Operation Mix")+
   expand_limits(y=0)+my_theme+
@@ -165,6 +167,11 @@ gg <- ggplot(subset(d.melt,
   # geom_point(size=2.5)+
   # geom_line()+
   geom_smooth(size=1, fill=NA)+
+  # scale_fill_hue(h=c(90,100))+
+  # scale_color_hue(h=c(90,100))+
+  # scale_color_brewer(name="Flat Combining", palette="Set1")+
+  # scale_color_manual(values=c("red", "blue", "green"))+
+  # scale_color_gradient()+
   # facet_grid(log_nelems~., scales="free", labeller=label_pretty)+
   # facet_grid(variable~struct, scales="free")+
   facet_wrap(~variable, scales="free")+
@@ -172,7 +179,8 @@ gg <- ggplot(subset(d.melt,
   xlab("Nodes")+ylab("")+
   # scale_x_continuous(breaks=c(8,16,32,48,64))+
   scale_x_discrete(breaks=c(8,16,32,48,64))+
-  scale_color_discrete(name="Flat Combining")+
+  # scale_color_discrete(name="Flat Combining", h=c(0,3))+
+  scale_color_manual(name="Flat Combining", values=c(color.red, color.blue))+
   # scale_shape_discrete(name="Flat Combining")+
   scale_linetype_discrete(name="Operation Mix")+
   expand_limits(y=0)+my_theme+
