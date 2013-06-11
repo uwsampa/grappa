@@ -82,7 +82,7 @@ The proxy structure is chosen to be able to compactly aggregate operations and e
 
 After all local combining has been done, one requesting worker is chosen to commit the combined operation globally. Back to the example in Figure~\ref{fig:stackfc}, Worker 4 becomes the combiner and performs much the same synchronization as in the uncombined case, but is able to push multiple elements with one synchronization. The global lock must still be acquired, so concurrent combined requests (from different cores) must block and serialize on the master. Combining in this way allows synchronization to be distributed and performed in parallel, coarsening the granularity of the actual global synchronization and reducing the amount of serialization that occurs.
 
-\paragraph{Memory Consistency Model}
+\paragraph{Memory Consistency Model.}
 \label{sec:memory-model}
 In the context of this work, sequential consistency guarantees that within a
 task, operations will be in task order and that all tasks will observe the
