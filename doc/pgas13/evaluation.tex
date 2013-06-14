@@ -29,7 +29,7 @@ First we measured the raw performance of the global data structures on extremely
 Figure~\ref{fig:vector} shows the results of the throughput experiments for the global Stack and Queue. Results are shown with flat combining completely disabled, only combining at the master core (``centralized''), and combining locally (``distributed'').
 
 Despite Grappa's automatic aggregation, without combining, both the stack and queue completely fail to scale because all workers' updates must serialize.
-Though centralized combining alleviates some of the serialization, its benefit is limited because all synchronization must still be performed on one core. However, with local flat combining, synchronization is able to be done mostly in parallel, with less-frequent bulk synchronization at the master.
+Though centralized combining alleviates some of the serialization, its benefit is limited because all synchronization must still be performed on one core. However, with local flat combining, synchronization is done mostly in parallel, with less-frequent bulk synchronization at the master.
 
 On the mixed workload, the stack is able to do matching locally, allowing it to reduce the amount of communication drastically, greatly improving its performance on the mixed workload. Figure~\ref{fig:stack_stats} corroborates this, showing that the amount of combining that occurs directly correlates with the observed throughput.
 

@@ -10,18 +10,19 @@ However, with this shared memory abstraction come all of the difficult concurren
 The same techniques can be applied in PGAS, but the costs are different, providing an opportunity for different trade-offs to be made.
 
 Globally shared data structures are one of the cornerstones of shared-memory and PGAS abstractions. 
-In order for multiple concurrent threads to interact with one another correctly, they must observe shared data consistently. It is commonly accepted that the easiest consistency model to reason about enforces that all accesses appear to happen in some serializable order that all threads agree on (known as \emph{sequential consistency or SC}).
-However, in both physically shared memory and PGAS, maintaining this sequentially consistent view of data among all concurrently accessing threads presents performance challenges.
-The simplest way to maintain SC for a given data structure is to have a single global lock that implements mutual exclusion and enforces a serializable order over read and write operations. The cost of literally serializing accesses in this way is typically considered prohibitive, even in physically shared memory.
-With the massive amount of parallelism in a cluster of multiprocessors and with the increased cost of remote synchronization, the problem magnifies.
+In order for multiple concurrent threads to interact with one another correctly, they must observe shared data consistently. It is commonly accepted that the easiest consistency model to reason about enforces that all accesses appear to happen in some global serializable order (known as \emph{sequential consistency or SC}).
+To preserve SC, operations on shared data structures should be \emph{linearizable}~\cite{herlihy1990linearizability}; that is, appear to happen atomically in some global total order.
+However, in both physically shared memory and PGAS, maintaining linearizability presents performance challenges.
+The simplest way is to have a single global lock that implements mutual exclusion and enforces a serializable order over read and write operations. The cost of literally serializing accesses in this way is typically considered prohibitive, even in physically shared memory.
+With the massive amount of parallelism in a cluster of multiprocessors and with the increased cost of remote synchronization, the problem is magnified.
 
 Much prior work has explored the scalability challenges of adding more concurrent accessors to shared data structures in shared memory systems.
 % One observation was that, when multiple threads of control concurrently access the same object, they can conduct themselves in one of two ways: contend or cooperate.
 In the classic multithreading case, increasing concurrency increases contention and damages performance.
-Either all threads fight to obtain a single global lock, or in more sophisticated lock-free schemes, they attempt a series of potentially contended atomic operations, and retry if they fail. In both cases, as the number of concurrent accessors increases, the more they contend and the more failed synchronization operations there are.
+Either all threads fight to obtain a single global lock, or in more sophisticated lock-free schemes, they attempt a series of contentious atomic operations, and retry if they fail. In both cases, as the number of concurrent accessors increases, the more they contend and the more synchronization operations fail.
 
 At the core of a new synchronization technique called \emph{flat combining}~\cite{flatCombining} is the idea of having threads \emph{cooperate} rather than \emph{contend}.
-Threads delegate their work to a single thread, which gives it the opportunity to combine multiple requests in data-structure specific ways and perform them free from contention.
+Threads delegate their work to a single thread, giving it the opportunity to combine multiple requests in data-structure specific ways and performing them free from contention.
 Together, the reduced synchronization cost and combining allow even a data structure with a single global lock to scale better than complicated concurrent data structures using fine-grained locking or lock-free mechanisms.
 
 % The observation of previous work was that the cost of many of these failed synchronization attempts can be mitigated by having the threads \emph{cooperate} via delegation rather than \emph{contend}.
