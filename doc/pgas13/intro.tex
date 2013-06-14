@@ -6,19 +6,19 @@
 
 The goal of partitioned global address space (PGAS)~\cite{upc:2005} languages and runtimes is to provide the illusion of a single shared memory to a program actually executing on a distributed memory machine such as a cluster. This allows programmers to write their algorithms without needing to explicitly manage communication. 
 % Once the algorithm is correct, many techniques exist to help improve performance improving locality (spatial and temporal) and coarsening communication where possible.
-However, with this shared memory abstraction come all of the difficult concurrency issues that arise in physically-shared memory. Luckily, the PGAS community can leverage a large body of work solving these issues in shared memory.
+However, with this shared memory abstraction come all of the difficult concurrency issues that arise in physically shared memory. Luckily, the PGAS community can leverage a large body of work solving these issues in shared memory.
 The same techniques can be applied in PGAS, but the costs are different, providing an opportunity for different trade-offs to be made.
 
-Globally-shared data structures are one of the cornerstones of shared-memory and PGAS abstractions. 
+Globally shared data structures are one of the cornerstones of shared-memory and PGAS abstractions. 
 In order for multiple concurrent threads to interact with one another correctly, they must observe shared data consistently. It is commonly accepted that the easiest consistency model to reason about enforces that all accesses appear to happen in some serializable order that all threads agree on (known as \emph{sequential consistency or SC}).
-However, in both physically-shared memory and PGAS, maintaining this sequentially consistent view of data among all concurrently accessing threads presents performance challenges.
+However, in both physically shared memory and PGAS, maintaining this sequentially consistent view of data among all concurrently accessing threads presents performance challenges.
 The simplest way to maintain SC for a given data structure is to have a single global lock that implements mutual exclusion and enforces a serializable order over read and write operations. The cost of literally serializing accesses in this way is typically considered prohibitive, even in physically shared memory.
 With the massive amount of parallelism in a cluster of multiprocessors and with the increased cost of remote synchronization, the problem magnifies.
 
 Much prior work has explored the scalability challenges of adding more concurrent accessors to shared data structures in shared memory systems.
 % One observation was that, when multiple threads of control concurrently access the same object, they can conduct themselves in one of two ways: contend or cooperate.
 In the classic multithreading case, increasing concurrency increases contention and damages performance.
-Either all threads fight to obtain a single global lock, or in more sophisticated lock-free schemes, they attempt a series of potentially-contended atomic operations, and retry if they fail. In both cases, as the number of concurrent accessors increases, the more they contend and the more failed synchronization operations there are.
+Either all threads fight to obtain a single global lock, or in more sophisticated lock-free schemes, they attempt a series of potentially contended atomic operations, and retry if they fail. In both cases, as the number of concurrent accessors increases, the more they contend and the more failed synchronization operations there are.
 
 At the core of a new synchronization technique called \emph{flat combining}~\cite{flatCombining} is the idea of having threads \emph{cooperate} rather than \emph{contend}.
 Threads delegate their work to a single thread, which gives it the opportunity to combine multiple requests in data-structure specific ways and perform them free from contention.
@@ -27,7 +27,7 @@ Together, the reduced synchronization cost and combining allow even a data struc
 % The observation of previous work was that the cost of many of these failed synchronization attempts can be mitigated by having the threads \emph{cooperate} via delegation rather than \emph{contend}.
 % If multiple threads delegate a single thread to do all of their operations, they can avoid excessive synchronization overhead on ``hot'' locations.
 % The trick is coming up with a mechanism for delegating that has lower synchronization overhead than the original contention case.
-% Hendler et al.\cite{flatCombining} showed that a cleverly-implemented ``publication list'' can allow multiple accessors to cooperate with minimal synchronization cost.
+% Hendler et al.~\cite{flatCombining} showed that a cleverly implemented ``publication list'' can allow multiple accessors to cooperate with minimal synchronization cost.
 % In addition, given the semantics of some particular data structures, the set of accesses being serialized can be composed and performed more efficiently \emph{combined} than individually.
 % Together, the reduced synchronization cost and combined operations allow even a data structure with a single global lock to scale better than complicated concurrent data structures using fine-grained locking or lock-free mechanisms.
 % The same publication list mechanism can be applied to multiple data structures; all that must be customized is the particular way in which the data structure's operations can be combined.
@@ -41,4 +41,4 @@ By leveraging lots of concurrency, we find that it is actually possible to scala
 In addition, we show how a generic flat-combining framework can be used to implement multiple global data structures.
 
 % lay out the upcoming sections of the paper...
-The next section will describe in more detail the Grappa runtime system that is used to implement flat combining for distributed memory machines. We then explain the flat combining paradigm in more depth and describe how it maps to a PGAS model. Next we explain how several data structures are implemented in our framework and show how they perform on simple throughput workloads. Finally, we evaluate how this affects application performance in two simple graph analysis kernels.
+The next section will describe in more detail the Grappa runtime system that is used to implement flat combining for distributed memory machines. We then explain the flat-combining paradigm in more depth and describe how it maps to a PGAS model. Next, we explain how several data structures are implemented in our framework and show how they perform on simple throughput workloads. Finally, we evaluate how this affects application performance in two simple graph analysis kernels.
