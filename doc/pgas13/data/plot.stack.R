@@ -117,7 +117,7 @@ gg <- ggplot(subset(d.c,
     color=fc_version,
     group=x(fc_version,version,fraction_push),
     linetype=mix,
-    shape=fc_version,
+    # shape=mix,
   ))+
   # geom_point(size=2.5)+
   # geom_line()+
@@ -130,9 +130,10 @@ gg <- ggplot(subset(d.c,
   # scale_color_discrete(name="Flat Combining")+
   # scale_color_brewer(name="Flat Combining", palette="Set1")+
   scale_color_manual(name="Flat Combining", values=c(color.green,color.red,color.blue))+
-  scale_shape_discrete(name="Flat Combining")+
   scale_linetype_discrete(name="Operation Mix")+
+  # scale_shape_discrete(name="Operation Mix")+
   expand_limits(y=0)+my_theme+
+  guides(colour=guide_legend(order=1), linetype=guide_legend(order=2))+
   theme(strip.text=element_text(size=rel(1)),
         axis.text.x=element_text(size=rel(0.85)))
 
