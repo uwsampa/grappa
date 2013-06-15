@@ -1,4 +1,9 @@
 \input{header}
+\usepackage{etoolbox}
+\makeatletter
+\patchcmd{\maketitle}{\@copyrightspace}{}{}{}
+\makeatother
+
 \begin{document}
 
 \title{\Large Flat Combining Synchronized Global Data Structures}
@@ -17,6 +22,8 @@
   Mark Oskin$^{\dagger}$
 }{\textdagger University of Washington, \textdaggerdbl Pacific Northwest National Laboratory}{
   \{bholt, nelson, bdmyers, preston, luisceze, skahan, oskin\}@cs.washington.edu}
+
+% \toappearbox{To appear in PGAS'13}
 
 \maketitle
 \begin{abstract}
