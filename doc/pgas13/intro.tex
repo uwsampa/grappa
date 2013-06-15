@@ -1,26 +1,25 @@
 \section{Introduction}
 The goal of partitioned global address space (PGAS)~\cite{upc:2005} languages and runtimes is to provide the illusion of a single shared memory to a program actually executing on a distributed memory machine such as a cluster. This allows programmers to write their algorithms without needing to explicitly manage communication. 
-However, with this shared memory abstraction come all of the difficult concurrency issues that arise in physically shared memory. Luckily, the PGAS community can leverage a large body of work solving these issues in shared memory.
-The same techniques can be applied in PGAS, but the costs are different, providing an opportunity for different trade-offs to be made.
+However, with this shared memory abstraction come all of the difficult concurrency issues that arise in physically shared memory. Luckily, the PGAS community can leverage a large body of work solving these issues in shared memory, where the costs are different, providing an opportunity for different trade-offs to be made.
 
 Globally shared data structures are one of the cornerstones of shared-memory and PGAS abstractions. 
-In order for multiple concurrent threads to interact with one another correctly, they must observe shared data consistently. It is commonly accepted that the easiest consistency model to reason about enforces that all accesses appear to happen in some global serializable order (known as \emph{sequential consistency or SC}).
+In order for multiple concurrent threads to interact with one another correctly, they must observe shared data consistently. It is commonly accepted that the easiest consistency model to reason about is \emph{sequential consistency} (SC), which enforces that all accesses appear to happen in some global serializable order.
 To preserve SC, operations on shared data structures should be \emph{linearizable}~\cite{herlihy1990linearizability}; that is, appear to happen atomically in some global total order.
-However, in both physically shared memory and PGAS, maintaining linearizability presents performance challenges.
-The simplest way is to have a single global lock that implements mutual exclusion and enforces a serializable order over read and write operations. The cost of literally serializing accesses in this way is typically considered prohibitive, even in physically shared memory.
+In both physically shared memory and PGAS, maintaining linearizability presents performance challenges.
+The simplest way is to have a single global lock for implementing mutual exclusion for all operations, enforcing atomicity and linearizability. The cost of literally serializing accesses in this way is typically considered prohibitive, even in physically shared memory.
 With the massive amount of parallelism in a cluster of multiprocessors and with the increased cost of remote synchronization, the problem is magnified.
 
 Much prior work has explored the scalability challenges of adding more concurrent accessors to shared data structures in shared memory systems.
 In the classic multithreading case, increasing concurrency increases contention and damages performance.
 Either all threads fight to obtain a single global lock, or in more sophisticated lock-free schemes, they attempt a series of contentious atomic operations, and retry if they fail. In both cases, as the number of concurrent accessors increases, the more they contend and the more synchronization operations fail.
 
-At the core of a new synchronization technique called \emph{flat combining}~\cite{flatCombining} is the idea of having threads \emph{cooperate} rather than \emph{contend}.
-Threads delegate their work to a single thread, giving it the opportunity to combine multiple requests in data-structure specific ways and performing them free from contention.
+A new synchronization technique called \emph{flat combining}~\cite{flatCombining} coerces threads to \emph{cooperate} rather than \emph{contend}.
+Threads delegate their work to a single thread, giving it the opportunity to combine multiple requests in data-structure specific ways and perform them free from contention.
 Together, the reduced synchronization cost and combining allow even a data structure with a single global lock to scale better than complicated concurrent data structures using fine-grained locking or lock-free mechanisms.
 
 The goal of this work is to apply the flat-combining paradigm to a PGAS runtime to reduce the cost of maintaining sequentially consistent data structures.
 We leverage the Grappa runtime~\cite{Nelson:hotpar11-real}, a PGAS-style runtime library optimized for fine-grained random access, which provides the ability to tolerate long latencies by efficiently switching between many lightweight threads.
-By leveraging lots of concurrency, we find that it is actually possible to scalably enforce strict sequential consistency. We leverage Grappa's latency tolerance mechanisms to allow many fine-grained synchronized operations to be combined to reduce communication and achieve higher overall throughput.
+By leveraging lots of concurrency, we find that it is actually possible to scalably provide sequential consistency. We leverage Grappa's latency tolerance mechanisms to allow many fine-grained synchronized operations to be combined to achieve higher overall throughput.
 In addition, we show how a generic flat-combining framework can be used to implement multiple global data structures.
 
 The next section will describe in more detail the Grappa runtime system that is used to implement flat combining for distributed memory machines. We then explain the flat-combining paradigm in more depth and describe how it maps to a PGAS model. Next, we explain how several data structures are implemented in our framework and show how they perform on simple throughput workloads. Finally, we evaluate how this affects application performance in two simple graph analysis kernels.
