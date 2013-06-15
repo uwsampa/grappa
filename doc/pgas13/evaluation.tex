@@ -1,10 +1,10 @@
 \section{Evaluation}
-To evaluate the impact flat combining has on the global data structures, we ran a series of experiments to test the raw performance of the data structures themselves under different workloads, and then measure their impact on performance of two simple graph benchmarks.
+To evaluate the impact flat combining has on the global data structures, we ran a series of experiments to test the raw performance of the data structures themselves under different workloads, and then measure their impact on performance of two graph benchmarks.
 
 Experiments were run on a cluster of AMD Interlagos processors. Nodes have 32 2.1-GHz cores in two sockets, 64GB of memory, and 40Gb Mellanox ConnectX-2 InfiniBand network cards, connected via a QLogic InfiniBand switch.
 
 \subsection{Data Structure Throughput}
-First we measured the raw performance of the global data structures on extremely simple throughput workloads. In each experiment, a Grappa parallel loop spawns an equal number of tasks on all cores. Each task randomly chooses an operation based on the predetermined ``operation mix,'' selecting either a push or pop for the Stack and Queue, or an insert or lookup for the Set and Map.
+First we measured the raw performance of the global data structures on synthetic throughput workloads. In each experiment, a Grappa parallel loop spawns an equal number of tasks on all cores. Each task randomly chooses an operation based on the predetermined ``operation mix,'' selecting either a push or pop for the Stack and Queue, or an insert or lookup for the Set and Map.
 
 \paragraph{Queue and Stack}
 \begin{figure}[t]
@@ -29,7 +29,9 @@ First we measured the raw performance of the global data structures on extremely
 Figure~\ref{fig:vector} shows the results of the throughput experiments for the global Stack and Queue. Results are shown with flat combining completely disabled, only combining at the master core (``centralized''), and combining locally (``distributed'').
 
 Despite Grappa's automatic aggregation, without combining, both the stack and queue completely fail to scale because all workers' updates must serialize.
-Though centralized combining alleviates some of the serialization, its benefit is limited because all synchronization must still be performed on one core. However, with local flat combining, synchronization is done mostly in parallel, with less-frequent bulk synchronization at the master.
+Though centralized combining alleviates some of the serialization, its benefit is limited 
+because all operations involve synchronization through a single core.
+However, with local flat combining, synchronization is done mostly in parallel, with less-frequent bulk synchronization at the master.
 
 On the mixed workload, the stack is able to do matching locally, allowing it to reduce the amount of communication drastically, greatly improving its performance on the mixed workload. Figure~\ref{fig:stack_stats} corroborates this, showing that the amount of combining that occurs directly correlates with the observed throughput.
 
