@@ -1,5 +1,5 @@
 \section{Evaluation}
-To evaluate the impact flat combining has on the global data structures, we ran a series of experiments to test the raw performance of the data structures themselves under different workloads, and then measure their impact on performance of two graph benchmarks.
+To evaluate the impact flat combining has, we ran a series of experiments to test the raw performance of the data structures themselves under different workloads, and then measure the impact on performance of two graph benchmarks.
 Experiments were run on a cluster of AMD Interlagos processors. Nodes have 32 2.1-GHz cores in two sockets, 64GB of memory, and 40Gb Mellanox ConnectX-2 InfiniBand network cards connected via a QLogic switch.
 
 \subsection{Data Structure Throughput}
@@ -36,7 +36,7 @@ On the mixed workload, the stack is able to do matching locally, allowing it to 
 
 % % left out for space
 % We also experimented with performing both forms of combining together. Combining at the master did not affect performance significantly, which is somewhat surprising as all combined requests must still serialize.
-% However, with both levels of combining enabled, relatively few requests are combined at the master--for the stack, a maximum of 6\% per pass for the all-push workload and 0.1\% for the mixed workload.
+% However, with both levels of combining enabled, relatively few requests are combined at the master---for the stack, a maximum of 6\% per pass for the all-push workload and 0.1\% for the mixed workload.
 
 The queue benefits in the same way from reducing synchronization and batching, and its all-push workload performs identically to the stack's.
 However, the queue is unable to do matching locally, and in fact, the mixed workload performs worse because the current implementation serializes combined pushes and combined pops. This restriction could be lifted with more careful synchronization at the master core.
@@ -89,8 +89,8 @@ Figure~\ref{fig:bfs_perf} shows the scaling results. Using the simple queue with
 Connected Components (CC) is another simple graph analysis kernel that illustrates a different use of global data structures in irregular applications. We implement the three-phase CC algorithm~\cite{mtgl} which was designed for the massively parallel MTA-2 machine. In the first phase, parallel traversals attempt to claim vertices and label them.
 Whenever two traversals encounter each other, an edge between the two roots is inserted in a set. 
 % After all edges have been traversed in this way, the set of edges forms a new, typically much smaller, graph.
-The second phase performs the classical Shiloach-Vishkin parallel algorithm~\cite{shiloach1982n} on the reduced graph formed by phase one's edge set, and the final phase propagates the component labels out to the full graph.
+The second phase performs the classical Shiloach-Vishkin parallel algorithm~\cite{shiloach1982n} on the reduced graph formed by the edge set from the first phase, and the final phase propagates the component labels out to the full graph.
 Creation of the reduced edge set dominates the runtime of this algorithm, but includes many repeated inserts at the boundary between traversals, so is a prime target for the flat-combining Set.
-As in BFS, further optimizations involving relaxation of consistency can be applied, in this case to the Set. Therefore, we compare our straightforward implementation using the generic Set with and without flat combining against a tuned asynchronous implementation.
+Similar to BFS, the Set is write-only first, then read-only later, so further optimizations involving relaxation of consistency can be applied. Therefore, we compare our straightforward implementation using the generic Set with and without flat combining against a tuned asynchronous implementation.
 
 The results in Figure~\ref{fig:cc_perf} show that none of these three scale well out to 64 nodes. However, performing combining does improve the performance over the uncombined case. The tuned version outperforms the synchronous version because it is able to build up most of the set locally on each core before merging them at the end of the first phase. An implementation that did not provide synchronized semantics could potentially relax consistency in a more general way.
