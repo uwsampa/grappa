@@ -1,6 +1,6 @@
 \section{Evaluation}
 To evaluate the impact flat combining has on the global data structures, we ran a series of experiments to test the raw performance of the data structures themselves under different workloads, and then measure their impact on performance of two graph benchmarks.
-Experiments were run on a cluster of AMD Interlagos processors. Nodes have 32 2.1-GHz cores in two sockets, 64GB of memory, and 40Gb Mellanox ConnectX-2 InfiniBand network cards, connected via a QLogic InfiniBand switch.
+Experiments were run on a cluster of AMD Interlagos processors. Nodes have 32 2.1-GHz cores in two sockets, 64GB of memory, and 40Gb Mellanox ConnectX-2 InfiniBand network cards connected via a QLogic switch.
 
 \subsection{Data Structure Throughput}
 First we measured the raw performance of the global data structures on synthetic throughput workloads. In each experiment, a Grappa parallel loop spawns an equal number of tasks on all cores. Each task randomly chooses an operation based on the predetermined ``operation mix,'' selecting either a push or pop for the Stack and Queue, or an insert or lookup for the Set and Map.
@@ -32,9 +32,11 @@ Though centralized combining alleviates some of the serialization, its benefit i
 because all operations involve synchronization through a single core.
 However, with local flat combining, synchronization is done mostly in parallel, with less-frequent bulk synchronization at the master.
 
-On the mixed workload, the stack is able to do matching locally, allowing it to reduce the amount of communication drastically, greatly improving its performance on the mixed workload. Figure~\ref{fig:stack_stats} corroborates this, showing that the amount of combining that occurs directly correlates with the observed throughput.
+On the mixed workload, the stack is able to do matching locally, allowing it to reduce the amount of communication drastically, greatly improving its performance. Figure~\ref{fig:stack_stats} corroborates this, showing that the amount of combining that occurs directly correlates with the observed throughput.
 
-We also experimented with performing both forms of combining together; however, combining at the master did not affect performance significantly. This was somewhat surprising as combined updates still force others to wait. However, with both levels of combining enabled, relatively few requests are combined at the master--for the stack, a maximum of 6\% per pass for the all-push workload and 0.1\% for the mixed workload.
+% % left out for space
+% We also experimented with performing both forms of combining together. Combining at the master did not affect performance significantly, which is somewhat surprising as all combined requests must still serialize.
+% However, with both levels of combining enabled, relatively few requests are combined at the master--for the stack, a maximum of 6\% per pass for the all-push workload and 0.1\% for the mixed workload.
 
 The queue benefits in the same way from reducing synchronization and batching, and its all-push workload performs identically to the stack's.
 However, the queue is unable to do matching locally, and in fact, the mixed workload performs worse because the current implementation serializes combined pushes and combined pops. This restriction could be lifted with more careful synchronization at the master core.
@@ -52,7 +54,7 @@ However, the queue is unable to do matching locally, and in fact, the mixed work
 % Without combining, performance scales out to 32 nodes because synchronization is distributed over hash cells, but drops off as the number of destinations increases.
 Figure~\ref{fig:hash_perf} shows the throughput results for the Set and Map.
 Both data structures synchronize at each hash cell, which allows them to scale fairly well even without combining. However, after 32 nodes, scaling drops off significantly due to the increased number of destinations.
-Combining allows duplicate inserts and lookups to be eliminated, so performs better the smaller the key range. This reduction in message traffic allows scaling to continue out to 64 nodes.
+Combining allows duplicate inserts and lookups to be eliminated, so performs better the smaller the key range. This reduction in message traffic allows scaling out to 64 nodes.
 
 \subsection{Application Kernel Performance}
 % The original goal was to have scalable global data structures in the Grappa library that could be used in applications. Generic implementations of data structures are often insufficient for scaling, so HPC applications often implement their own customized versions. However, this forces each application to carefully reason about the ways in which the structures will be accessed, and often relies on relaxing consistency.
@@ -74,7 +76,7 @@ Our implementation employs the direction-optimizing algorithm by Beamer et al.~\
 The frontier queue is write-only in one phase and read-only in the next, making it amenable to relaxed consistency.
 We compare performance of BFS using the Grappa FC queue described above with a highly tuned Grappa implementation that uses a custom asynchronous queue.
 
-Figure~\ref{fig:bfs_perf} shows the results of scaling up to 64 nodes. Using the simple queue without flat combining is completely unscalable, but with FC, it tracks the tuned version. This illustrates that providing a safe, synchronized data structure for initially developing algorithms for PGAS is possible without sacrificing scaling.
+Figure~\ref{fig:bfs_perf} shows the scaling results. Using the simple queue without flat combining is completely unscalable, but with FC, it tracks the tuned version. This illustrates that providing a safe, synchronized data structure for initially developing algorithms for PGAS is possible without sacrificing scaling.
 % , while further optimizations can be applied incrementally.
 
 \paragraph{Connected Components.}
@@ -91,4 +93,4 @@ The second phase performs the classical Shiloach-Vishkin parallel algorithm~\cit
 Creation of the reduced edge set dominates the runtime of this algorithm, but includes many repeated inserts at the boundary between traversals, so is a prime target for the flat-combining Set.
 As in BFS, further optimizations involving relaxation of consistency can be applied, in this case to the Set. Therefore, we compare our straightforward implementation using the generic Set with and without flat combining against a tuned asynchronous implementation.
 
-The results in Figure~\ref{fig:cc_perf} show that none of these three scale well out to 64 nodes. However, performing combining does improve the performance over the uncombined case. The tuned version outperforms the synchronous version because it is able to build up most of the set locally on each core before merging them at the end of the first phase. An implementation that did not provide synchronized semantics could potentially relax consistency in a more general way, but this is left for future work.
+The results in Figure~\ref{fig:cc_perf} show that none of these three scale well out to 64 nodes. However, performing combining does improve the performance over the uncombined case. The tuned version outperforms the synchronous version because it is able to build up most of the set locally on each core before merging them at the end of the first phase. An implementation that did not provide synchronized semantics could potentially relax consistency in a more general way.

@@ -23,8 +23,7 @@ At the most basic level, the concept of flat combining is about enabling coopera
 % Careful engineering must be employed to implement a mechanism for cooperation that does not introduce the same synchronization issues as the original contended data structure.
 
 Simply by delegating work to another core, locality is improved and synchronization is reduced.
-% Reduced synchronization comes from delegating work to another core.
-To illustrate the issue, consider the shared synchronous stack shown in Figure~\ref{fig:fc_shared_mem}, with pre-allocated storage and a \texttt{top} pointer protected by a lock. Without flat combining, whenever a thread attempts to push something on the stack, it must acquire the lock, put its value into the storage array, bump the top, and then release the lock. When many threads contend for the lock, all but one will fail and have to retry. Each attempt forces an expensive memory fence and consumes bandwidth, and as the number of threads increases, the fraction of successes plummets. Under flat combining, instead, threads add requests to a \emph{publication list}. They each try to acquire the lock, and the one that succeeds becomes the combiner. Instead of retrying, the rest spin on their request waiting for it to be filled. The combiner walks the publication list, performs all of the requests, and when done, releases the lock. This allows the one thread to keep the data structure in cache, reducing thrashing between threads. It also greatly reduces contention on the lock, but introduces a new point of synchronization--adding to the publication list. However, if a thread performs multiple operations, it can leave its publication record in the list and amortize the synchronization cost. This publication list mechanism can be re-used in other data structures, saving each from needing to implement its own clever synchronization.
+Consider the shared synchronous stack shown in Figure~\ref{fig:fc_shared_mem}, with pre-allocated storage and a \texttt{top} pointer protected by a lock. Without flat combining, whenever a thread attempts to push something on the stack, it must acquire the lock, put its value into the storage array, bump the top, and then release the lock. When many threads contend for the lock, all but one will fail and have to retry. Each attempt forces an expensive memory fence and consumes bandwidth, and as the number of threads increases, the fraction of successes plummets. Under flat combining, instead, threads add requests to a \emph{publication list}. They each try to acquire the lock, and the one that succeeds becomes the combiner. Instead of retrying, the rest spin on their request waiting for it to be filled. The combiner walks the publication list, performs all of the requests, and when done, releases the lock. This allows the one thread to keep the data structure in cache, reducing thrashing between threads. It also greatly reduces contention on the lock, but introduces a new point of synchronization--adding to the publication list. However, if a thread performs multiple operations, it can leave its publication record in the list and amortize the synchronization cost. This publication list mechanism can be re-used in other data structures, saving each from needing to implement its own clever synchronization.
 
 The above example of delegation is compelling in itself. However, the crux of prior work is that data structure-specific optimization can be done to perform the combined operations more efficiently.
 As the combiner walks the publication list, it merges each non-empty publication record into a combined operation. In the case of the stack example shown in Figure~\ref{fig:fc_shared_mem}, as it walks the list, Thread 4 keeps track of the operations on its own temporary stack. When it encounters Thread 2's pop, it recognizes that it can satisfy that pop immediately with the push it just processed from Thread 3, so it fills both of their records and allows them to proceed. After traversing the rest of the publication list, the thread applies the combined operation to the actual data structure, in this case, the two unmatched pushes are added to the top of the stack.
@@ -138,43 +137,34 @@ To leverage the flat-combining paradigm in Grappa, we implemented a generic fram
 As mentioned before, the Grappa FC framework takes a different approach than the original flat-combining work for expressing how operations combine.
 % As mentioned before, the local \emph{publication list} is trivial to access atomically in Grappa's cooperative scheduling.
 % Instead, in the Grappa FC Framework, 
-A \emph{proxy} object is instantiated ahead of time on each core and each worker merges its request into that structure before blocking or becoming the combiner.
-Each global data structure must define a \emph{proxy} with the following:
-\begin{enumerate}
-  \item A local \emph{proxy} data structure for tracking combined requests.
-  \item \emph{Combining methods} that operate on the local proxy.
-  \item A \emph{sync} method that globally commits the proxy's state.
-\end{enumerate}
-An example proxy declaration for the GlobalStack is shown in Figure~\ref{fig:proxy}.
+For each global structure instance, a \emph{proxy} object is created on each core and each worker merges its request into that structure before blocking or becoming the combiner.
+Each global data structure must define a \emph{proxy} that has \emph{state} to track combined requests, \emph{methods} to add new requests, and a way to \emph{sync} the state globally.
+% \begin{enumerate}
+%   \item A local \emph{proxy} data structure for tracking combined requests.
+%   \item \emph{Combining methods} that operate on the local proxy.
+%   \item A \emph{sync} method that globally commits the proxy's state.
+% \end{enumerate}
+An example proxy declaration for the GlobalStack is shown in Figure~\ref{fig:push}.
 
 \begin{figure}[t]
 \centering
 \begin{lstlisting}[style=grappa]
+// Global master state
 class GlobalStack {
   GlobalAddress<T> top;
   Grappa::Mutex lock;
 };
-
+// Push *without* combining
 void push(GlobalAddress<GlobalStack> master, T e){
-  // perform operation on the stack's master core
+  // from stack's master core, perform write to top and increment atomically
   delegate::call(master.core(), [master,e]{
-    // force other operations to wait
     master->lock.acquire();
-    // do remote write to the top of the stack
     delegate::write(master->top, e);
-    // bump top and release lock
     master->top++;
     master->lock.release();
   }); // blocks until response arrives
 }
-\end{lstlisting}
-\caption{Snippet of code for pushing to a global stack (without flat combining).}
-\label{fig:push}
-\end{figure}
-
-\begin{figure}[t]
-\centering
-\begin{lstlisting}[style=grappa]
+// Definition of proxy
 class GlobalStackProxy : Grappa::FCProxy {
   GlobalAddress<GlobalStack> master;
   // Local state for tracking requests
@@ -205,11 +195,13 @@ class GlobalStackProxy : Grappa::FCProxy {
   }
 };
 \end{lstlisting}
-\caption{Snippet of the Proxy object for the GlobalStack. The code to synchronize pushes should resemble that from Figure~\ref{fig:push} but for multiple elements.}
-\label{fig:proxy}
+\caption{Snippet of code from GlobalStack.
+% Note how the combined \texttt{push} resembles the uncombined version but for multiple elements.
+}
+\label{fig:push}
 \end{figure}
 
-With this data-structure-specific proxy object, the FC framework does the bookkeeping to block and wake workers, deliver results, manage when to synchronize, and choose the combiner.
+% The FC framework does the bookkeeping to block and wake workers, deliver results, manage when to synchronize, and choose the combiner.
 The FC framework is responsible for ensuring that all of the combined operations eventually get committed. There are a number of ways progress could be guaranteed, but one of the simplest is to ensure that as long as there are any outstanding requests, at least one worker is committing a combined operation.
 When that combined operation finishes, if there are still outstanding requests that have built up in the meantime, another blocked worker is chosen to do another combined synchronization.
 
@@ -222,12 +214,14 @@ This is done by hiding instances of proxy objects behind a C++ smart-pointer-lik
 % Updates cannot be added to combiners that are in the process of being committed and must start out fresh each time; it would be unsound for them to ``remember'' the previous updates and attempt to combine locally with them. 
 
 \subsection{Global Stack and Queue}
-Figure~\ref{fig:proxy} shows an excerpt from the definition of the proxy object for the Grappa GlobalStack. The proxy tracks pushes locally in the \texttt{pushed\_values} array. When \texttt{pop} is called, if there are pushes in the local array, it immediately takes the value and wakes the last worker to push. Otherwise, it adds a pointer to a location on its stack where the \texttt{sync} operation, will eventually write the result. Because of local matching, when a Stack proxy is synchronized, it will have either all pops or all pushes, which makes the implementation of sync straightforward. Note that the operation to synchronize a batch of pushes looks almost identical to the code to do a single push from Figure~\ref{fig:push}.
+Figure~\ref{fig:push} shows an excerpt from the definition of the proxy object for the Grappa GlobalStack. The proxy tracks pushes in the \texttt{pushed\_values} array. When \texttt{pop} is called, if there are pushes, it immediately takes the top value and wakes the last pusher. Otherwise, it adds a pointer to a location on its stack where the \texttt{sync} operation will write the result. Because of local matching, when a Stack proxy is synchronized, it will have either all pops or all pushes, which makes the implementation of sync straightforward. Note that the operation to synchronize a batch of pushes looks almost identical to the code to do a single push from Figure~\ref{fig:push}.
 
-The GlobalQueue has nearly the same implementation as the stack, but is unable to match locally, so \texttt{sync} first commits the pushes, then the pops.
+The GlobalQueue has nearly the same implementation as the stack, but is unable to match locally.
+%, so \texttt{sync} first commits the pushes, then the pops.
 
 \subsection{Global Set and Map}
 The Grappa GlobalSet uses a simple chaining design, implemented with a global array of cells (allocated from the global heap), which are partitioned evenly among all the cores, and indexed with a hash function. Our flat-combining version supports both \texttt{insert} and \texttt{lookup}. To track all of the keys waiting to be inserted, we use the hash set implementation from the C++11 standard library (\texttt{std::unordered\_set}). As with pops, lookups must provide pointers for results to be put, which is done with a hash map (again from the C++ standard library) from keys to lists of pointers. As discussed in Section~\ref{sec:memory-model}, matching lookups with inserts locally would force a particular sequential order. Instead, we only allow matching inserts with inserts and lookups with lookups, allowing \texttt{sync} to simply issue all inserts and lookups in parallel and block until all have completed.
 
-Our implementation of the GlobalMap matches that of the Set but of course stores values. This does not change the requirements of the proxy except that the return values of lookups must be a copy of the value rather than just a boolean.
+Our implementation of the GlobalMap matches that of the Set but of course stores values.
+ % This does not change the requirements of the proxy except that the return values of lookups must be a copy of the value rather than just a boolean.
 
