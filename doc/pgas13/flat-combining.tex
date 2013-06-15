@@ -151,16 +151,16 @@ class GlobalStack {
   Grappa::Mutex lock;
 };
 
-void push(GlobalAddress<GlobalStack> stack, T e) {
+void push(GlobalAddress<GlobalStack> master, T e){
   // perform operation on the stack's master core
-  delegate::call(stack.core(), [stack,e]{
+  delegate::call(master.core(), [master,e]{
     // force other operations to wait
-    stack->lock.acquire();
+    master->lock.acquire();
     // do remote write to the top of the stack
-    delegate::write(stack->top, e);
-    // bump the top pointer
-    stack->top++;
-    stack->lock.release();
+    delegate::write(master->top, e);
+    // bump top and release lock
+    master->top++;
+    master->lock.release();
   }); // blocks until response arrives
 }
 \end{lstlisting}
@@ -174,7 +174,6 @@ void push(GlobalAddress<GlobalStack> stack, T e) {
 class GlobalStackProxy : Grappa::FCProxy {
   // pointer to data structure master
   GlobalAddress<GlobalStack> master;
-  
   // local state for tracking pushes and pops
   T  pushed_values[1024];
   T* popped_results[1024];
@@ -194,7 +193,7 @@ class GlobalStackProxy : Grappa::FCProxy {
       });
       // copy values to top of stack
       Grappa::memcpy(top, pushed_values, npush);
-      // release lock at the master core
+      // bump top and release lock
       delegate::call(master.core(),[master,npush]{
         master->top += npush;
         master->lock.release();
