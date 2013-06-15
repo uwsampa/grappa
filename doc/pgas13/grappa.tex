@@ -14,7 +14,7 @@ Grappa's programming interface, implemented as a C++11 library, provides high-le
 
 \begin{figure}[t]
   \centering
-  \includegraphics[width=0.5\textwidth]{figs/grappa_system.pdf}
+  \includegraphics[width=0.38\textwidth]{figs/grappa_system.pdf}
   \caption{\emph{Grappa System Overview:}
     Thousands of workers are multiplexed onto each core, context switching to tolerate the additional latency of aggregating remote operations. Each core has exclusive access to a slice of the global heap which is partitioned across all nodes, as well as core-private data and worker stacks. Tasks can be spawned and executed anywhere, but are bound to a worker in order to be executed.
   }

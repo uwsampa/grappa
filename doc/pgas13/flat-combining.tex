@@ -8,7 +8,7 @@ At the most basic level, the concept of flat combining is about enabling coopera
 
 \begin{figure}[t]
   \centering
-  \includegraphics[width=0.5\textwidth]{figs/fc_shared_mem.pdf}
+  \includegraphics[width=0.38\textwidth]{figs/fc_shared_mem.pdf}
   \caption{\emph{Flat combining in shared memory.}
     To access the shared stack, each thread adds its request to the publication list (1). Thread 4 acquires the stack's lock and becomes the combiner (2), while the remaining threads spin waiting for their request to be satisfied. The combiner walks the publication list from the head, matching up Thread 3's push with Thread 2's pop on its own private stack (3). The two remaining pushes are added to the top of the shared stack (4). Finally, the top is updated, and Thread 4 releases the lock and continues its normal execution.
   }
@@ -31,27 +31,31 @@ In the case of the stack, combining came in the form of matched pushes and pops,
 
 \subsection{In Grappa}
 
-\begin{figure*}[t]
-  \centering
-  \begin{subfigure}[b]{0.43\textwidth}
-    \includegraphics[width=\textwidth]{figs/stack_nofc.pdf}
-    \caption{\emph{Without flat combining.}
-      To do its push, Worker 1 sends a message to synchronize with the master on Core 0 (1), which sends another message to write the value to the top of the stack (2), bumps the synchronized \texttt{top} pointer (3), and finally continues. Worker 2, and all other workers on all cores accessing the stack, must block at the master and wait for Worker 1 to complete its push before doing their operations (4).
+% \begin{figure*}[t]
+%   \begin{subfigure}[b]{0.38\textwidth}
+\begin{figure}[t]
+    \centering
+    \includegraphics[width=0.35\textwidth]{figs/stack_nofc.pdf}
+    \caption{\emph{Stack without combining.}
+      To do its push, Worker 1 sends a message to synchronize with the master on Core 0 (1), which sends another message to write the value to the top of the stack (2), bumps the synchronized \texttt{top} pointer (3), and finally continues. Worker 2, and workers on other cores, must block at the master and wait for Worker 1 to complete its push before doing their operations (4).
     }
     \label{fig:stacknofc}
-  \end{subfigure}%
-  \hspace{0.05\textwidth}
-  \begin{subfigure}[b]{0.43\textwidth}
+  % \end{subfigure}%
+  % \hspace{0.12\textwidth}
+\end{figure}
+\begin{figure}
+  % \begin{subfigure}[b]{0.38\textwidth}
     \centering
-    \includegraphics[width=\textwidth]{figs/stack_fc.pdf}
-    \caption{\emph{Local flat combining.}
-      Workers within the core add their requests to a local proxy object. Worker 3's pop matches with Worker 2's push, requiring no global communication (1). After combining locally, Worker 1 and 4's pushes remain, so Worker 4 becomes the core's combiner (2), sends a message to synchronize with the master (3), adds both new values to the global stack (4), bumps the top pointer and releases the lock on master (5), and finally wakes Worker 1 and continues (6).
+    \includegraphics[width=0.38\textwidth]{figs/stack_fc.pdf}
+    \caption{\emph{Stack with distributed combining.}
+      Worker 3's pop matches with Worker 2's push, requiring no global communication (1). After combining locally, Worker 1 and 4's pushes remain, so Worker 4 becomes the core's combiner (2), sends a message to synchronize with the master (3), adds both new values to global stack (4), bumps the top pointer and releases the lock on master (5), and finally wakes Worker 1 (6).
     }
     \label{fig:stackfc}
-  \end{subfigure}
-  \caption{\emph{Global stack in Grappa} with and without \emph{flat combining}.}
-  \label{fig:stack}
-\end{figure*}
+  % \end{subfigure}
+\end{figure}
+  % \caption{\emph{Global stack in Grappa} with and without \emph{flat combining}.}
+  % \label{fig:stack}
+% \end{figure*}
 
 In a PGAS setting, and in Grappa in particular, the cost of global synchronization and the amount of concurrency is even greater than in shared memory. With thousands of workers per core, in a reasonably sized cluster there are easily millions of workers. This presents an opportunity for flat combining to pay off greatly, but also poses new challenges.
 
@@ -153,7 +157,6 @@ void push(GlobalAddress<GlobalStack> stack, T e) {
     // force other operations to wait
     stack->lock.acquire();
     // do remote write to the top of the stack
-    // (so other workers may interleave)
     delegate::write(stack->top, e);
     // bump the top pointer
     stack->top++;
@@ -178,14 +181,13 @@ class GlobalStackProxy : Grappa::FCProxy {
   int npush, npop;
 
   // Combining Methods 
-  // (either match locally or block for results)
   void push(T val);
   T pop();
   
   // Global sync (called by FC framework)
   void sync() override {
     if (npush > 0) {
-      // on master, acquire lock and return GlobalAddress to the top of the stack
+      // on master: acquire lock, return top ptr
       auto top = delegate::call(master.core(),[=]{
         master->lock.acquire();
         return master->top;
@@ -197,7 +199,7 @@ class GlobalStackProxy : Grappa::FCProxy {
         master->top += npush;
         master->lock.release();
       });
-    } else if (npop > 0) {} //...elided for space
+    } else if (npop > 0) {} // elided for space...
   }
 };
 \end{lstlisting}

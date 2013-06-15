@@ -6,7 +6,7 @@ Experiments were run on a cluster of AMD Interlagos processors. Nodes have 32 2.
 \subsection{Data Structure Throughput}
 First we measured the raw performance of the global data structures on synthetic throughput workloads. In each experiment, a Grappa parallel loop spawns an equal number of tasks on all cores. Each task randomly chooses an operation based on the predetermined ``operation mix,'' selecting either a push or pop for the Stack and Queue, or an insert or lookup for the Set and Map.
 
-\paragraph{Queue and Stack}
+\paragraph{Queue and Stack.}
 \begin{figure}[t]
   \centering
   \includegraphics[width=0.5\textwidth]{data/plots/vector_perf.pdf}
@@ -40,7 +40,7 @@ We also experimented with performing both forms of combining together; however, 
 The queue benefits in the same way from reducing synchronization and batching, and its all-push workload performs identically to the stack's.
 However, the queue is unable to do matching locally, and in fact, the mixed workload performs worse because the current implementation serializes combined pushes and combined pops. This restriction could be lifted with more careful synchronization at the master core.
 
-\paragraph{HashSet and HashMap}
+\paragraph{HashSet and HashMap.}
 \begin{figure}[t]
   \centering
   \includegraphics[width=0.5\textwidth]{data/plots/hash_perf.pdf}
@@ -60,10 +60,10 @@ The original goal was to have scalable global data structures in the Grappa libr
 The Grappa data structures are synchronized to provide the most general use and match the expectations of programmers and algorithms.
 In these evaluations, we compare the flat-combining structures against tuned, relaxed-consistency versions.
 
-\paragraph{Breadth-First Search}
+\paragraph{Breadth-First Search.}
 \begin{figure}[t]
   \centering
-  \includegraphics[width=0.5\textwidth]{data/plots/bfs_perf.pdf}
+  \includegraphics[width=0.38\textwidth]{data/plots/bfs_perf.pdf}
   \caption{\emph{BFS} on a Graph500-spec graph of scale 26 (64 million vertices, 1 billion edges), with the direction-optimizing BFS algorithm. Performance is measured in millions of Traversed Edges Per Second (MTEPS).}
   \label{fig:bfs_perf}
 \end{figure}
@@ -75,10 +75,10 @@ We compare our implementation of BFS using the flat-combined global queue descri
 Figure~\ref{fig:bfs_perf} shows the results of scaling the BFS kernel up to 64 nodes. The simple queue implementation without flat combining is completely unscalable. However, the flat combining queue tracks the tuned version. This illustrates that providing a safe, synchronized data structure for initially developing algorithms for PGAS is possible without sacrificing scaling.
 % , while further optimizations can be applied incrementally.
 
-\paragraph{Connected Components}
+\paragraph{Connected Components.}
 \begin{figure}[t]
   \centering
-  \includegraphics[width=0.5\textwidth]{data/plots/cc_perf.pdf}
+  \includegraphics[width=0.38\textwidth]{data/plots/cc_perf.pdf}
   \caption{\emph{Connected Components} on the same scale 26 Graph500 graph. Performance is measured in MTEPS.}
   \label{fig:cc_perf}
 \end{figure}
