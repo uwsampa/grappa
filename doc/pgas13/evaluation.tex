@@ -86,7 +86,7 @@ Figure~\ref{fig:bfs_perf} shows the scaling results. Using the simple queue with
   \caption{\emph{Connected Components} on the same scale 26 Graph500 graph. Performance is measured in MTEPS.}
   \label{fig:cc_perf}
 \end{figure}
-Connected Components (CC) is another simple graph analysis kernel that illustrates a different use of global data structures in irregular applications. We implement the three-phase CC algorithm~\cite{mtgl} which was designed for the massively parallel MTA-2 machine. In the first phase, parallel traversals attempt to claim vertices and label them.
+Connected Components (CC) is another core graph analysis kernel that illustrates a different use of global data structures in irregular applications. We implement the three-phase CC algorithm~\cite{mtgl} which was designed for the massively parallel MTA-2 machine. In the first phase, parallel traversals attempt to claim vertices and label them.
 Whenever two traversals encounter each other, an edge between the two roots is inserted in a set. 
 % After all edges have been traversed in this way, the set of edges forms a new, typically much smaller, graph.
 The second phase performs the classical Shiloach-Vishkin parallel algorithm~\cite{shiloach1982n} on the reduced graph formed by the edge set from the first phase, and the final phase propagates the component labels out to the full graph.
