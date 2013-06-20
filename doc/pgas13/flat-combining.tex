@@ -81,7 +81,9 @@ In Grappa, for each global data structure, a local \emph{proxy} object is alloca
 Conceptually, workers add their requests to a local publication list in the proxy, one is chosen to do the combining, and the rest block until their request is satisfied.
 However, because Grappa's scheduler is non-preemptive, each worker has atomicity ``for free'' until it performs a blocking operation (such as communication).
 This means that an explicit publication list with clever synchronization is unnecessary.
-Instead, workers merge their operations directly into the local proxy, and block if unable to satisfy their requests immediately.
+Instead, workers merge their operations directly into the local proxy, and 
+% block if unable to satisfy their requests immediately.
+block, except in restricted cases where they are able to satisfy their requirements immediately without violating ordering rules for consistency (discussed in the next section).
 The proxy structure is chosen to be able to compactly aggregate operations and efficiently perform matching in cases where it is allowed. Figure~\ref{fig:stackfc} shows how pushes and pops are matched on the proxy's local stack.
 
 After all local combining has been done, one requesting worker on the core is chosen to commit the combined operation globally. In Figure~\ref{fig:stackfc}, Worker 4 becomes the combiner and performs much the same synchronization as in the uncombined case, but is able to push multiple elements with one synchronization. The global lock must still be acquired, so concurrent combined requests (from different cores) must block and serialize on the master, but the granularity of global synchronization is coarser, reducing actual serialization.
@@ -120,19 +122,19 @@ Matching pushes and pops locally for the Stack is one exception to the rule that
 Combining set and map operations expose more nuances in the consistency guarantees.
 Insert and lookup operations performed by different tasks are inherently unordered unless synchronized externally.
 Therefore, a batch of these operations can be committed globally in parallel, since they are guaranteed not to conflict with each other.
-Note that if an insert finds that its key is already in the combiner, it does not need to send its own message. However, it must still block until that insert is done to ensure that a subsequent operation it performs cannot be reordered with it, preserving program order.
+Note that if an insert finds that its key is already in the combiner object, it does not need to send its own message. However, it must still block until that insert is done to ensure that a subsequent operation it performs cannot be reordered with it, preserving program order.
 % providing the same guarantee as all other delegate operations. 
 % This ensures that if one wanted to use the insert to signal synchronization, it is guaranteed to have been committed globally before the task continues.
 
 Similarly, lookups can piggy-back on other lookups of the same key.
 Using intuition from store/write buffers in modern processors, it is tempting to allow a lookup to be satisfied locally by inspecting outstanding inserts.
 However, this allows the local order in which keys were inserted to be observed.
-If this is allowed, then to preserve SC, that same order must be respected globally, forcing each batch to commit atomically with respect to other cores' batches. Enforcing this is prohibitively expensive, so a cheaper solution is chosen: if lookups must get their values from the global data structure, then batches can be performed in parallel.
+If this is allowed, then to preserve SC, that same order must be respected globally, forcing each batch to commit atomically with respect to other cores' batches. Enforcing this is prohibitively expensive, so a cheaper solution is chosen: lookups must get their values from the global data structure, so batches can be performed in parallel.
 
 These requirements only guarantee linearizability of operations on a single data structure. To guarantee sequential consistency with respect to all accesses, data-race freedom must be guaranteed by the program, as in the C++ memory model for shared memory.
 
 \section{Grappa FC Framework}
-To leverage the flat-combining paradigm in Grappa, we implemented a generic framework to improve performance for a number of global data structures. The FC framework handles the common problems of managing the combiners, handling worker wake-ups, and maintaining progress. When hooking into the framework, each data structure implementation need only define how to combine operations and globally commit them.
+To leverage the flat-combining paradigm in Grappa, we implemented a generic framework to improve performance for a number of global data structures. The FC framework handles the common problems of managing the combiners, handling worker wake-ups, and maintaining progress. When hooking into the framework, each data structure need only define how to combine operations and globally commit them.
 
 As mentioned before, the Grappa FC framework takes a different approach than the original flat-combining work for expressing how operations combine.
 % As mentioned before, the local \emph{publication list} is trivial to access atomically in Grappa's cooperative scheduling.
