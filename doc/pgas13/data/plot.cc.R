@@ -22,7 +22,7 @@ d$fc_version <- sapply(paste('v',d$flat_combining,d$cc_insert_async,sep=''),swit
   v0NA='none', v1NA='distributed', v11='custom', v10='distributed', v00='none', '??'
 )
 
-g <- ggplot(subset(d, cc_hash_size <= 16384 & scale == 26 & ppn == 16
+g <- ggplot(subset(d, cc_hash_size <= 16384 & scale >= 26 & ppn == 16
     & num_starting_workers == 2048
     & aggregator_autoflush_ticks == 5e5
   ), aes(
