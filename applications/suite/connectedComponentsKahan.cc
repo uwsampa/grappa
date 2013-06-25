@@ -37,6 +37,12 @@
 /// Now two vertices share the same colour iff they are connected in g.
 /// Compute and return the number of components: the number of x st x == C$[x].
 ///
+/// Note: This particular implementation is limited to graphs w/ 8B vertices
+/// due to the way it encodes decomposition of high deg vertices as a single integer,
+/// but could easily be modified to handle much larger graphs were they encoded as a pair
+/// of integers in the work queue(see encoding in explore).
+///
+#define MIN(a,b) ((a < b)?a:b)
 static unsigned int hash(int x) {return x*5473939012511;}
 static double bad_random() {return ((MTA_CLOCK(0)*1299227)&0xffffffff)*1.0/(1<<32);}
 class Pair {
@@ -143,7 +149,7 @@ template <class T> class ApproxStack {
  public:
   static const int64_t empty=0x7fffffffffffffff;
   ApproxStack(unsigned num_stacks, graphint expected):num_stacks(num_stacks) {
-    num_per_stack = 1.2*(expected+num_stacks)/num_stacks;
+    num_per_stack = (expected+num_stacks)/num_stacks;
     log_num_per_stack = 0;
     while ((1<<log_num_per_stack)<num_per_stack) log_num_per_stack++;
     num_per_stack = 1<<log_num_per_stack;
@@ -177,28 +183,32 @@ template <class T> class ApproxStack {
       for (int j = end; j < start; j++) base[num_per_stack*i+j]=empty;
     }
   }
-  void append(T v) {
-    int x = hash(v)&(num_stacks-1);
+  void append(T v, int x=-1) {
+    if (x<0) x = hash(v);
+    x &= num_stacks-1;
     int p = x*num_per_stack+(int_fetch_add(&sp[x],1) & (num_per_stack-1));
     writeef(&base[p],v);
   }
 
-  void push(T v) {
-    int x = hash(v)&(num_stacks-1);
+  void push(T v, int x=-1) {
+    if (x<0) x = hash(v);
+    x &= num_stacks-1;
     int p = x*num_per_stack+((int_fetch_add(&ep[x],-1)-1) & (num_per_stack-1));
     writeef(&base[p],v);
   }
 
-  T pop(int y=0) {
-    int x = hash(y+MTA_CLOCK(0))&(num_stacks-1);
+  T pop(int x=-1) {
+    if (x<0) x = hash(MTA_CLOCK(0));
+    x &= num_stacks-1;
     int p = x*num_per_stack+((int_fetch_add(&sp[x],-1)-1)&(num_per_stack-1));
     T r = readfe(&base[p]);
     if (r == empty) writeef(&base[p],empty);
     return r;
   }
 
-  T remove(int y=0) {
-    int x = hash(y+MTA_CLOCK(0))&(num_stacks-1);
+  T remove(int x=-1) {
+    if (x<0) x = hash(MTA_CLOCK(0));
+    x &= num_stacks-1;
     int p = x*num_per_stack+(int_fetch_add(&ep[x],1)&(num_per_stack-1));
     T r = readfe(&base[p]);
     if (r == empty) base[p+1] = empty;
@@ -258,61 +268,97 @@ class ConnectedComponents {
   // has been passed to it exactly twice. (to avoid a hot-spot, we don't "just
   // count" the number of vertices -- count_vert runs in amortized constant
   // time & with no hot-spot)
+  //
+  // To ensure parallelism on high degree vertices, we introduce the concept of
+  // a phantom vertex:  when a high degree vertex is explored, it is colored
+  // but its neighbors are not enqueued directly.  Instead
+  // two phantom vertices, each with the same vertex id, are pushed back
+  // into the work queue with high order bits set that define a subrange of
+  // the original adjacency list.  When a phantom is explored, it either pushes
+  // back two phantoms, or, if its subrange is small enough, is processed as if
+  // it were a normal non-seed vertex.  In this way, we prevent premature processing
+  // of seed vertices that would result were the concurrency in processing a
+  // high degree vertex not exposed promptly.
   //xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx80
-  bool explore(graphint w) {
+#define BIT_MASK(a, b) (((unsigned) -1 >> (63 - (b))) & ~((1U << (a)) - 1))
+  bool explore(graphint x) {
+    static const int log_block_size = 5; //could be set dynamically
+    static const int block_size = 1<<log_block_size;
+    class Vertex {
+    public:
+      int x;
+      Vertex(int x): x(x){};
+      unsigned int seed() {return BIT_MASK(63,63)&x;} //x<0;}//[63]
+      unsigned int phantom() {return (!seed()) && (BIT_MASK(62,62))&x;}//[62]
+      void set_phantom(unsigned int y) {y<<=62; x &= ~BIT_MASK(62,62); x |= (y&BIT_MASK(62,62));}
+      unsigned int offset() {return (BIT_MASK(38,61)&x)>>38;}//[38..61]
+      void set_offset(unsigned int y) {y<<=38; x &= ~BIT_MASK(38,61); x |= (y&BIT_MASK(38,61));}
+      unsigned int log_blocks() {return (x&BIT_MASK(33,37))>>33;}//[33..37]
+      void set_log_blocks(unsigned int y) {y<<=33; x &= ~BIT_MASK(33,37); x |= (y&BIT_MASK(33,37));}
+      unsigned int v_id() {return x>=0?(x&BIT_MASK(0,32)):-x-1;}//[0..32]
+    };
+    Vertex w(x);
+    //    fprintf(stderr, "explore %s %d(%x)\n", w.seed()?"seed":"",w.v_id(),x);
     graphint color, v;
-    if (w < 0) {
-      v = -w-1;
+    int edgeStartModifier = 0, offset = 0;
+
+    int NV = g->numVertices;
+    if (w.seed()) {
+      v = w.v_id();
       if (int_fetch_add(&V[v],1)) {//v already visited
-	int NV = g->numVertices;
 	if (2*v + 1 < NV) Q->append(-(2*v+1)-1);
 	if (2*v + 2 < NV) Q->append(-(2*v+2)-1);
 	return count_vert(v);
       }
       C$[v] = color = v;
-    } else {
-      v = w;
+    } else { //vertex is already colored, explore and propagate color
+      v = w.v_id();
+      if (w.phantom()) {
+	if (w.log_blocks()) {// subdivide further
+	  w.set_log_blocks(w.log_blocks()-1);
+	  Q->push(w.x);
+	  w.set_offset(w.offset()+(1<<w.log_blocks()));
+	  Q->push(w.x);
+	  return false;
+	} //otherwise, process a particular subset of v's adj list below
+      }
       color = C$[v]; //no race possible because v's color is set before pushed
     }
+
     //visit neighbors of v
-    graphint first = g->edgeStart[v];
-    graphint lastP1 = g->edgeStart[v+1];
-#define PARALLEL_THRESHOLD 1000
-#define PARALLEL true
-    if (PARALLEL && lastP1 - first > PARALLEL_THRESHOLD) {
-      MTA("mta assert parallel")
-      MTA("mta loop future")
-      for (graphint j = first; j < lastP1; j++) {
-	int64_t nv = g->endVertex[j];
-	graphint nv_color;
-	if (!int_fetch_add(&V[nv], 1)) {//nv not visited
-	  C$[nv] = color; //mta sets full, avoids race of visited but invalid color
-	  Q->push(nv);
-	}
-	//wait for color to be set, probably is
-	else if ((nv_color = readff(&C$[nv])) != color) {
-	  if (nv_color > color) InducedGraph->insert(Pair(color,nv_color));
-	  else InducedGraph->insert(Pair(nv_color,color));
-	}
-      }
-    } else {//same thing, just not asserted parallel
-      for (graphint j = first; j < lastP1; j++) {
-	int64_t nv = g->endVertex[j];
-	graphint nv_color;
-	if (!int_fetch_add(&V[nv], 1)) {//nv not visited
-	  C$[nv] = color; //mta sets full, avoids race of visited but invalid color
-	  Q->push(nv);
-	}
-	//wait for color to be set, probably is
-	else if ((nv_color = readff(&C$[nv])) != color) {
-	  if (nv_color > color) InducedGraph->insert(Pair(color,nv_color));
-	  else InducedGraph->insert(Pair(nv_color,color));
-	}
+    graphint first, lastP1;
+    if (w.phantom()) {//know we're to process at most 1 block
+      first = g->edgeStart[v] + w.offset()*block_size;
+      lastP1 = MIN(first + block_size, g->edgeStart[v+1]);
+    } else {
+      first = g->edgeStart[v];
+      lastP1 = g->edgeStart[v+1];
+      if (lastP1 - first > block_size) { //parallelize by creating multiple explores
+	int neighbor_blocks = (lastP1-first+block_size)/block_size;
+	int log_neighbor_blocks = 0; while (neighbor_blocks/=2) log_neighbor_blocks++;
+	Vertex u = Vertex(v); u.set_phantom(1);	u.set_log_blocks(log_neighbor_blocks);
+	Q->push(u.x);
+	return false;
       }
     }
+
+    for (graphint j = first; j < lastP1; j++) {
+      int64_t nv = g->endVertex[j];
+      graphint nv_color;
+      if (!int_fetch_add(&V[nv], 1)) {//nv not visited
+	C$[nv] = color; //mta sets full, avoids race of visited but invalid color
+	Q->push(nv);
+      }
+      //wait for color to be set, probably is
+      else if ((nv_color = readff(&C$[nv])) != color) {
+	if (nv_color > color) InducedGraph->insert(Pair(color,nv_color));
+	else InducedGraph->insert(Pair(nv_color,color));
+      }
+    }    
+
     bool ret = false;
-    if (w < 0) {
-      graphint v = -w-1;
+    if (w.seed()) {// then w cannot be a phantom, so v = -w-1.
+      graphint v = -w.x-1;
       int NV = g->numVertices;
       if (2*v + 1 < NV) Q->append(-(2*v+1)-1);
       if (2*v + 2 < NV) Q->append(-(2*v+2)-1);
@@ -330,7 +376,7 @@ public:
   
     const graphint NV = g->numVertices;
 #define max(a,b) (a>b?a:b)
-    Q = new ApproxStack<graphint>(num_procs,max(2*NV,num_procs*1000));//as many stacks as processors 
+    Q = new ApproxStack<graphint>((num_procs*3+8)/8,max(NV,1000)*num_procs);
     InducedGraph = new Set < Pair, 17 >();
     C$ = g->marks;
     V = new int64_t[NV];
@@ -349,10 +395,10 @@ public:
 
     fprintf(stderr, "%d Executing Phase I\n", MTA_CLOCK(starttime));
     MTA("mta assert parallel")
-    MTA("mta parallel future")
-    for (int i = 0; i < 100*num_procs; i++) {
+    MTA("mta loop future")
+    for (int i = 0; i < 80*num_procs; i++) {
       graphint t = 0;
-      while ((t = Q->remove(t))!=Q->empty) {
+      while ((t = Q->remove(i))!=Q->empty) {
 	if (explore(t)) {
 	  fprintf(stderr, "%d terminating!\n", MTA_CLOCK(starttime));
 	  Q->terminate();
@@ -362,9 +408,9 @@ public:
       }
     }
 
-  struct timeval tp2; gettimeofday(&tp2, 0);
-  int usec = (tp2.tv_sec-tp1.tv_sec)*1000000+(tp2.tv_usec-tp1.tv_usec);
-  fprintf(stderr, "(%d TEPS)\n", g->numEdges*1000000/usec);
+    //  struct timeval tp2; gettimeofday(&tp2, 0);
+    //  int usec = (tp2.tv_sec-tp1.tv_sec)*1000000+(tp2.tv_usec-tp1.tv_usec);
+    //  fprintf(stderr, "(%d TEPS)\n", g->numEdges*1000000/usec);
     fprintf(stderr, "%d Executing Phase II\n", MTA_CLOCK(starttime));
     // PHASE II
     Pair * ig;
