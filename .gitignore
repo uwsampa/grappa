@@ -53,6 +53,8 @@ core.*
 
 doc/*/paper.pdf
 
+doc/*/revision.tex
+
 .svn
 
 # autoconf
@@ -140,3 +142,8 @@ routing.dot
 
 #igor
 *.igor
+
+# Databases, R plotting
+*.sqlite
+.RData
+
