@@ -119,6 +119,8 @@ public:
   // for arbitrary return type defined by base class
   // auto operator()(Args&&... args) -> decltype(this->T::operator()(std::forward<Args...>(args...))) {
   
+  // TODO: make this do the stuff that `combine` currently does
+  // should be able to do the checks for if it should send, and if it is full, swap in a new one before passing the pointer out
   inline T* operator->() const { return current->id; }
   
   template< typename F >
