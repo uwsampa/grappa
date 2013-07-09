@@ -254,7 +254,7 @@ namespace Grappa {
     /// Flat combines fetch_and_add to a single global address
     /// @warning Target object must lie on a single node (not span blocks in global address space).
     template < typename T, typename U >
-    class FlatCombiner {
+    class FetchAddCombiner {
       // TODO: generalize to define other types of combiners
       private:
         // configuration
@@ -292,7 +292,7 @@ namespace Grappa {
         }
 
       public:
-        FlatCombiner( GlobalAddress<T> target, uint64_t flush_threshold, U initVal ) 
+        FetchAddCombiner( GlobalAddress<T> target, uint64_t flush_threshold, U initVal ) 
          : target( target )
          , initVal( initVal )
          , flush_threshold( flush_threshold )
