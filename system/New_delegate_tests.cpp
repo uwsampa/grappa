@@ -166,9 +166,9 @@ void check_async_delegates() {
 
 uint64_t fc_targ = 0;
 uint64_t non_fc_targ = 0;
-void check_flat_combining() {
-  BOOST_MESSAGE("check_flat_combining");
-  delegate::FlatCombiner<uint64_t,uint64_t> fc( make_global(&fc_targ, 1), 4, 0 );
+void check_fetch_add_combining() {
+  BOOST_MESSAGE("check_fetch_add_combining");
+  delegate::FetchAddCombiner<uint64_t,uint64_t> fc( make_global(&fc_targ, 1), 4, 0 );
 
   int N = 9;
   CompletionEvent done( N );
@@ -216,7 +216,7 @@ void user_main(void * args) {
   
   check_async_delegates();
 
-  check_flat_combining();
+  check_fetch_add_combining();
  
   check_call_suspending();
  
