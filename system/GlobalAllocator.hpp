@@ -132,7 +132,9 @@ void global_free(GlobalAddress<T> address) {
   GlobalAllocator::remote_free(static_cast<GlobalAddress<void>>(address));
 }
 
-
+/// Allocate space for a T at the same localizable global address on all cores 
+/// (must currently round up to a multiple of block_size plus an additional block 
+/// to ensure there is a valid address range no matter which core allocation starts on).
 template< typename T, Core MASTER_CORE = 0 >
 GlobalAddress<T> mirrored_global_alloc() {
   static_assert(sizeof(T) % block_size == 0,
