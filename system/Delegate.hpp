@@ -130,8 +130,8 @@ namespace Grappa {
       return call(target.core(), [target,func]{ return func(target.pointer()); });
     }
     
-    /// Try lock on remote mutex. Does *not* lock or unlock, suspends if lock has already
-    /// been taken.
+    /// Try lock on remote mutex. Does \b not lock or unlock, creates a Continuation if lock has already
+    /// been taken, which is triggered on unlocking of the Mutex.
     template< typename M, typename F >
     inline auto call(Core dest, M mutex, F func) -> decltype(func(mutex())) {
       using R = decltype(func(mutex()));      
@@ -171,6 +171,13 @@ namespace Grappa {
       }
     }
     
+    /// Alternative version of delegate::call that spawns a privateTask to allow the delegate 
+    /// to perform suspending actions.
+    /// 
+    /// @note Use of this is not advised: suspending violates much of the assumptions about
+    /// delegates we usually make, and can easily cause deadlock if no workers are available 
+    /// to execute the spawned privateTask. A better option for possibly-blocking delegates 
+    /// is to use the Mutex version of delegate::call(Core,M,F).
     template <typename F>
     inline auto call_suspendable(Core dest, F func) -> decltype(func()) {
       delegate_stats.count_op();
