@@ -3,7 +3,6 @@
 #include "Grappa.hpp"
 #include "GlobalAllocator.hpp"
 #include "ParallelLoop.hpp"
-#include "BufferVector.hpp"
 #include "Statistics.hpp"
 #include "FlatCombiner.hpp"
 #include <utility>

@@ -4,7 +4,6 @@
 #include "GlobalAllocator.hpp"
 #include "ParallelLoop.hpp"
 #include "AsyncDelegate.hpp"
-#include "BufferVector.hpp"
 #include "Statistics.hpp"
 #include "Array.hpp"
 #include "FlatCombiner.hpp"
