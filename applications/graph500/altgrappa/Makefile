@@ -5,44 +5,61 @@ ifneq ($(GRAPPA_HOME), $(AUTO_HOME))
 $(warning warning: Environment variable GRAPPA_HOME was set but does not match the autodetected home: env=$(GRAPPA_HOME), auto=$(AUTO_HOME))
 endif
 
-##include common Grappa definitions
-#include $(GRAPPA_HOME)/include.mk
+#include common Grappa definitions
+include $(GRAPPA_HOME)/include.mk
 
-CFLAGS = -fopenmp -g -Wall -Drestrict=__restrict__ -O3 -DNDEBUG -ffast-math -DGRAPH_GENERATOR_MPI # -g -pg
-# CFLAGS = -g -Wall -Drestrict= -DGRAPH_GENERATOR_MPI
-LDFLAGS = -fopenmp -g # -g -pg
-MPICC = mpicxx
+#default target: graph500 executable
+TARGET:= graph.exe
+
+#default rule: just build TARGET
+$(TARGET):
 
 CFLAGS += -w
-CFLAGS += -I$(GRAPPA_HOME)/system -I.. -I$(GRAPPA_HOME)/tools/built_deps/include
-CFLAGS += -g -Wall -Drestrict=__restrict__ -ffast-math -DGRAPH_GENERATOR_GRAPPA
+CFLAGS += -I$(GRAPPA_HOME)/system -I.. 
+CFLAGS += -g -Wall -Drestrict=__restrict__ -ffast-math -DGRAPH_GENERATOR_MPI
 CFLAGS += -D__STDC_CONSTANT_MACROS
 
 LDFLAGS += -g 
-LDFLAGS += -L$(GRAPPA_HOME)/system -L$(GRAPPA_HOME)/tools/built_deps/lib
-LDFLAGS += -lgrappa
 
+# can be set to one of:
+# * bfs (public tasks, barriers rather than full join)
+# * bfs_steal_phases (public tasks, but full joins for each BFS level)
+# * bfs_nosteal (private tasks, no stealing, full joins)
+BFS = bfs_simple
 
-all: graph500_mpi_simple graph500_mpi_one_sided graph500_mpi_replicated graph500_mpi_replicated_csc graph500_mpi_custom
+#GENERATOR_SOURCES = graph_generator.o make_graph.o splittable_mrg.o utils.o
+#SOURCES = main.o oned_csr.o verify.o options.o $(BFS).o ../prng.o
+#SOURCES = main.o oned_csr.o validate.o $(BFS).o ../prng.o oned_csc.o utils.o onesided_emul.o
 
 GENERATOR_SOURCES = ../generator/graph_generator.c ../generator/make_graph.c ../generator/splittable_mrg.c ../generator/utils.c
-SOURCES = main.c oned_csr.c oned_csc.c utils.c validate.c onesided.c onesided_emul.c
-HEADERS = common.h oned_csr.h oned_csc.h redistribute.h mpi_workarounds.h onesided.h
+SOURCES = bfs_simple.c main.c  oned_csr.c oned_csc.c utils.c validate.c onesided.c onesided_emul.c
+HEADERS = common.h oned_csr.h
 
-graph500_mpi_simple: bfs_simple.c $(SOURCES) $(HEADERS) $(GENERATOR_SOURCES)
-	$(MPICC) $(CFLAGS) $(LDFLAGS) -o graph500_mpi_simple bfs_simple.c $(SOURCES) $(GENERATOR_SOURCES) -lm
+include $(GRAPPA_HOME)/system/Makefile
 
-graph500_mpi_one_sided: bfs_one_sided.c $(SOURCES) $(HEADERS) $(GENERATOR_SOURCES)
-	$(MPICC) $(CFLAGS) $(LDFLAGS) -o graph500_mpi_one_sided bfs_one_sided.c $(SOURCES) $(GENERATOR_SOURCES) -lm
+#graph.exe: $(SOURCES) $(HEADERS) generator.a $(GRAPPA_HOME)/system/libGrappa.a
+graph.exe: $(SOURCES) $(GENERATOR_SOURCES) $(HEADERS) $(GRAPPA_HOME)/system/libGrappa.a
+	$(ENV_VARIABLES) $($(MPITYPE)_LD) $(LDFLAGS) $(CFLAGS) $(SOURCES) $(GENERATOR_SOURCES) $(GRAPPA_HOME)/system/libGrappa.a $(LIBRARIES) -o $@ $(LIBS)
 
-graph500_mpi_replicated: bfs_replicated.c $(SOURCES) $(HEADERS) $(GENERATOR_SOURCES)
-	$(MPICC) $(CFLAGS) $(LDFLAGS) -o graph500_mpi_replicated bfs_replicated.c $(SOURCES) $(GENERATOR_SOURCES) -lm
+$(GRAPPA_HOME)/system/libGrappa.a: force
+	cd $(GRAPPA_HOME)/system; $(MAKE) lib
 
-graph500_mpi_replicated_csc: bfs_replicated_csc.c $(SOURCES) $(HEADERS) $(GENERATOR_SOURCES)
-	$(MPICC) $(CFLAGS) $(LDFLAGS) -o graph500_mpi_replicated_csc bfs_replicated_csc.c $(SOURCES) $(GENERATOR_SOURCES) -lm
+generator.a: ../generator/graph_generator.c ../generator/make_graph.c ../generator/splittable_mrg.c ../generator/utils.c
+	cd ../generator; $(MAKE) -f Makefile.grappa genlib
+	cd ../grappa; cp ../generator/generator.a generator.a
 
-graph500_mpi_custom: bfs_custom.c $(SOURCES) $(HEADERS) $(GENERATOR_SOURCES)
-	$(MPICC) $(CFLAGS) $(LDFLAGS) -o graph500_mpi_custom bfs_custom.c $(SOURCES) $(GENERATOR_SOURCES) -lm
+force: ;
+
+allclean: clean
+	pushd $(GRAPPA_HOME)/system; $(MAKE) clean; popd
 
 clean:
-	-rm -f graph500_mpi_* *.o *.a
+	rm -f main.o oned_csr.o verify.o options.o $(BFS).o graph.exe generator.a
+	cd ../generator; $(MAKE) -f Makefile.grappa clean
+
+otf: force
+	make -f ../../../system/Makefile.tau otf
+
+fm: force
+	make -f ../../../system/Makefile.tau fm TARGET=graph.exe
+
