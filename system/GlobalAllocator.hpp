@@ -132,7 +132,28 @@ void global_free(GlobalAddress<T> address) {
   GlobalAllocator::remote_free(static_cast<GlobalAddress<void>>(address));
 }
 
+/// Allocate space for a T at the same localizable global address on all cores 
+/// (must currently round up to a multiple of block_size plus an additional block 
+/// to ensure there is a valid address range no matter which core allocation starts on).
+template< typename T, Core MASTER_CORE = 0 >
+GlobalAddress<T> mirrored_global_alloc() {
+  static_assert(sizeof(T) % block_size == 0,
+                "must pad global proxy to multiple of block_size");
+  // allocate enough space that we are guaranteed to get one on each core at same location
+  auto qac = global_alloc<char>(cores()*(sizeof(T)+block_size));
+  while (qac.core() != MASTER_CORE) qac++;
+  auto qa = static_cast<GlobalAddress<T>>(qac);
+  CHECK_EQ(qa, qa.block_min());
+  CHECK_EQ(qa.core(), MASTER_CORE);
+  return qa;
 }
+
+
+} // namespace Grappa
+
+////////////////////////////////////////////
+// Legacy
+////////////////////////////////////////////
 
 /// Allocate bytes from the global shared heap.
 inline GlobalAddress<void> Grappa_malloc(size_t size_bytes) {

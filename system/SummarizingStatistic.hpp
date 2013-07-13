@@ -14,6 +14,8 @@
 #include <gperftools/profiler.h>
 #endif
 
+#include <math.h>
+
 namespace Grappa {
 
   template<typename T>
@@ -24,16 +26,24 @@ namespace Grappa {
     size_t n;
     double mean;
     double M2;
+    T min;
+    T max;
 
     void process( T t ) {
       n++;
       double delta = t - mean;
       mean += delta / n;
       M2 += delta * (t - mean);
+      if (n == 1) {
+        min = t;
+        max = t;
+      }
+      if (t > max) max = t;
+      if (t < min) min = t;
     }
     
     double variance() const {
-      return M2 / (n - 1);
+      return (n<2) ? 0.0 : M2 / (n - 1);
     }
 
     double stddev() const {
@@ -58,7 +68,9 @@ namespace Grappa {
       , value_(initial_value)
       , n(0) // TODO: this assumes initial_value is not actually a value
       , mean(initial_value)
-      , M2(0) {
+      , M2(0)
+      , min(0)
+      , max(0) {
 #ifdef VTRACE_SAMPLED
       if (SummarizingStatistic::vt_type == -1) {
         LOG(ERROR) << "warning: VTrace sampling unsupported for this type of SummarizingStatistic.";
@@ -90,7 +102,9 @@ namespace Grappa {
       o << '"' << name << "\": " << value_ << ", ";
       o << '"' << name << "_count\": " << n << ", ";
       o << '"' << name << "_mean\": " << mean << ", ";
-      o << '"' << name << "_stddev\": " << stddev();
+      o << '"' << name << "_stddev\": " << stddev() << ", ";
+      o << '"' << name << "_min\": " << min << ", ";
+      o << '"' << name << "_max\": " << max;
       return o;
     }
     
@@ -138,6 +152,8 @@ namespace Grappa {
       this->n = t.n;
       this->mean = t.mean;
       this->M2 = t.M2;
+      this->max = t.max;
+      this->min = t.min;
       return *this;
     }
 
