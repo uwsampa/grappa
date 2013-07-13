@@ -27,13 +27,17 @@ LDFLAGS += -g
 BFS = bfs_local
 
 GENERATOR_SOURCES = graph_generator.o make_graph.o splittable_mrg.o utils.o
-SOURCES = main.o oned_csr.o verify.o options.o $(BFS).o ../prng.o
+SOURCES = graph.o oned_csr.o verify.o options.o $(BFS).o ../prng.o
 HEADERS = common.h oned_csr.h verify.hpp
 
 include $(GRAPPA_HOME)/system/Makefile
 
-graph.exe: $(SOURCES) $(HEADERS) generator.a $(GRAPPA_HOME)/system/libGrappa.a
-	$(ENV_VARIABLES) $($(MPITYPE)_LD) $(LDFLAGS) $(CFLAGS) $(SOURCES) generator.a $(GRAPPA_HOME)/system/libGrappa.a $(LIBRARIES) -o $@ $(LIBS)
+graph.exe: $(SOURCES) main.o $(HEADERS) generator.a $(GRAPPA_HOME)/system/libGrappa.a
+	$(ENV_VARIABLES) $($(MPITYPE)_LD) $(LDFLAGS) $(CFLAGS) $(SOURCES) main.o generator.a $(GRAPPA_HOME)/system/libGrappa.a $(LIBRARIES) -o $@ $(LIBS)
+
+graph_new.exe: $(SOURCES) main_new.o $(HEADERS) generator.a $(GRAPPA_HOME)/system/libGrappa.a
+	$(ENV_VARIABLES) $($(MPITYPE)_LD) $(LDFLAGS) $(CFLAGS) $(SOURCES) main_new.o generator.a $(GRAPPA_HOME)/system/libGrappa.a $(LIBRARIES) -o $@ $(LIBS)
+
 
 $(GRAPPA_HOME)/system/libGrappa.a: force
 	cd $(GRAPPA_HOME)/system; $(MAKE) lib
@@ -48,7 +52,7 @@ allclean: clean
 	pushd $(GRAPPA_HOME)/system; $(MAKE) clean; popd
 
 clean:
-	rm -f main.o oned_csr.o verify.o options.o $(BFS).o graph.exe generator.a
+	rm -f $(SOURCES) main.o main_new.o bfs_*.o graph.exe generator.a
 	cd ../generator; $(MAKE) -f Makefile.grappa clean
 
 otf: force
