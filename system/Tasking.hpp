@@ -322,6 +322,15 @@ int Grappa_run_user_main( void (*fp)(A), A args )
   return 0;
 }
 
+template < typename T >
+int Grappa_run_user_main( T t ) {
+  return Grappa_run_user_main<int64_t>
+    ( [t] (int64_t dummy) -> void {
+      t();
+    }, 0 );
+}
+
+
 
 /// remote task spawn arguments
 template< typename A0, typename A1, typename A2 >
