@@ -123,6 +123,7 @@ namespace Grappa {
 /// Allocate bytes from the global shared heap.
 template< typename T = void >
 GlobalAddress<T> global_alloc(size_t count) {
+  CHECK_GT(count, 0) << "allocation must be greater than 0";
   return static_cast<GlobalAddress<T>>(GlobalAllocator::remote_malloc(sizeof(T)*count));
 }
 

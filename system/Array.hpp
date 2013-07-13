@@ -101,7 +101,7 @@ void memcpy(GlobalAddress<T> dst, GlobalAddress<T> src, size_t nelem) {
 
 template< typename T >
 void memcpy(T* dst, T* src, size_t nelem) {
-  memcpy(dst, src, nelem*sizeof(T));
+  ::memcpy(dst, src, nelem*sizeof(T));
 }
 
 
