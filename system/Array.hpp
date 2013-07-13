@@ -99,6 +99,12 @@ void memcpy(GlobalAddress<T> dst, GlobalAddress<T> src, size_t nelem) {
   });
 }
 
+template< typename T >
+void memcpy(T* dst, T* src, size_t nelem) {
+  memcpy(dst, src, nelem*sizeof(T));
+}
+
+
 /// Asynchronous version of memcpy, spawns only on cores with array elements. Synchronizes
 /// with given GlobalCompletionEvent, so memcpy's are known to be complete after GCE->wait().
 /// Note: same restrictions on `dst` and `src` as Grappa::memcpy).
@@ -163,7 +169,18 @@ namespace util {
     return ss.str();
   }
   
-}
+  template<typename T>
+  struct SimpleIterator {
+    T * base;
+    size_t nelem;
+    T * begin() { return base; }
+    T * end()   { return base+nelem; }
+  };
+
+  template<typename T>
+  SimpleIterator<T> iterator(T* base, size_t nelem) { return SimpleIterator<T>{base, nelem}; }
+  
+} // namespace util
 
 /// @}
 } // namespace Grappa
