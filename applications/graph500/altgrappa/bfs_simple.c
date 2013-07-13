@@ -111,7 +111,6 @@ void run_bfs(int64_t root, int64_t* pred) {
 
   while (1) {
     /* Step through the current level's queue. */
-    mygce.reset();
     mygce.enroll(oldq_count);
     Grappa_barrier_suspending();
 
@@ -158,6 +157,8 @@ void run_bfs(int64_t root, int64_t* pred) {
 
     /* Test globally if all queues are empty. */
     size_t global_newq_count = Grappa::allreduce< size_t, collective_add >(newq_count);
+    Grappa_barrier_suspending();
+
 
     /* Quit if they all are empty. */
     if (global_newq_count == 0) break;
