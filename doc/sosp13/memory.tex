@@ -171,6 +171,10 @@ is executed on the remote core (8). A response is returned (9) with the
 previous value of the array element. } \end{minipage} \vspace{-3ex}
 \end{center} \end{figure*}
 
+\TODO{eliminate the word cache from the paper since the main point is
+    contiguity and not unpredictable temporal reuse. We
+    must make it clear that this is not user-level caching.}
+
 \paragraph{Memory consistency model discussion} As mentioned earlier, all
 synchronization operations are done via delegate operations. Since they all
 execute in their home node, they are guaranteed to be serialized, with their
@@ -199,4 +203,9 @@ delegates have been fully executed.
 
 
 
+\TODO{admit the lack of a synchronization feature for lightweight
+    transactions across two or more domains. Talk about using the same
+    philosophy of moving data along with the sync (same as a real
+    cache) and utilizing latency tolerance. Then say further is out of
+    scope for this paper.}
 

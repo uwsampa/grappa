@@ -1,6 +1,7 @@
 \section{Evaluation}
 \label{sec:evaluation}
 
+Our questions to answer with experimentation are:
 The goal of our evaluation is to show that the core pieces of the \Grappa
 runtime system, namely our tasking system and the global memory/communication
 layer work as expected and together are able to efficiently run irregular
@@ -8,17 +9,36 @@ applications. We evaluate \Grappa in three basic steps:
 
 \begin{itemize}
 
-\item We present results that show that the \Grappa runtime is able to sustain
-very high concurrency rates and the communication layer is able to sustain a
-very high rate of global memory operations. We also show the performance of a
+\item We present results that show that \Grappa can
+    support large amounts of concurrency: sufficient for remote memory
+    access and aggregation. The communication layer is able to
+    achievesustain a very high rate of global memory operations. We also show the performance of a
 graph kernel that stresses communication and concurrency together.
+\TODO{compare to key-value stores?}
 
-\item We show how some popular irregular applications running on \Grappa
+\item We characterize system behavior, including
+profiling where execution time goes, how aggregation affects message size and
+rates, and \checkme{the relationship between aggregation and
+    concurrency.}
+
+\item Finally, we show how some more realistic irregular workloads on \Grappa
 compare to the Cray XMT and hand-tuned MPI code.
 
-\item We finish with a characterization of system behavior, including
-profiling where execution time goes, how aggregation affects message size and
-rates, how global memory and work stealing behaves.
+\TODO{Grappa is well-suited to applications where there is
+    abundant data parallelism but unpredictable or imbalanced data
+    access. BSP is efficient where there is sufficient parallel slack.
+    Although Grappa loses some asynchrony by relying heavily on
+    aggregation, it still provides more flexibility for sections of the
+    computation to proceed more quickly. 
+
+\TODO{how much concurrency is needed on apps. Our basic plot of
+    performance vs workers (with and without aggro?)}
+\TODO{relationship between user-thread-visible latency and aggregate throughput.}
+\TODO{characterization of aggregation message size vs nodes}
+\TODO{show our scalability plots; if they don't scale, show
+    specifically why. It is okay if its because aggregation stops
+    working after a point if we can discuss future scalability.
+    Perhaps reference ``MPI on millions of cores'' type work}
 
 \end{itemize}
 
@@ -90,6 +110,11 @@ distributed setting has been a long-standing challenge in HPC.
     \label{fig:grappa-gups}
 \end{figure}
 
+\TODO{go into more detail about what Grappa is doing when executing
+    GUPs. Specifically note what the rate per core is, what the
+    aggregation and deaggregation rates are. Show on the plot the
+    message size distribution (some box plot)}
+
 \paragraph{Putting it all together with Unbalanced Tree Search in memory
 (UTS).} 
 Figure~\ref{fig:grappa-uts} shows the overall performance of \Grappa running
@@ -102,7 +127,7 @@ remote reads are required.
 In this case, we are forced to context switch to tolerate the remote access and continue aggregating. 
 We look at two classes of trees, T1 and T3, from
 the original benchmark. T1 trees are very shallow and wide (i.e., significant
-parallel slack), while T3 trees are very deep (i.e., little parallel slack).
+parallel slack \TODO{cite Valiant and say more somewhere about BSP}), while T3 trees are very deep (i.e., little parallel slack).
 When the access to each vertex is a random access, the critical path to search
 T3 trees is very long, hence the low performance and scalability. On such
 trees, we do not expect there to be sufficient concurrency for any system,
@@ -152,6 +177,10 @@ Pagerank	& 1	& 4.35	& 4.87 &	-- \\
 \label{tab:grappa-comparisons}
 \end{table}
 
+\TODO{addressing reviwer2: sweep of irregularness in one aggregate or multiple dimensions
+    and how a specific aspect of performance changes in different
+    systems}
+
 
 Table~\ref{tab:grappa-comparisons} shows the results. Overall, \Grappa is
 within striking distance of XMT and well beyond UPC performance (UTS only).
@@ -184,6 +213,8 @@ that \Grappa performance can do a lot better.
 %bar chart, one set of bars per benchmark, one bar per system. runtime normalized to grappa.
     \label{fig:grappa-profile}
 \end{figure}
+\TODO{ shorten the execution profile section in favor of deeper
+    discussion about where the message rate comes from}
 
 Figure \ref{fig:grappa-profile} shows the breakdown of execution
 time. Since \Grappa is focused on frequent communication, it is not
@@ -220,7 +251,15 @@ order of 100 microseconds. This, combined with the fewer number of remote
 accesses, means that there are a limited nubmer of requests generated
 per flush interval, leading to packets primarily smaller than 10KB.
 
-In BFS, we see a trimodal distribution. There are two reasons for this. First, in BFS, we obtained the best throughput by flushing at least 500 microseconds apart, and also flushing whenever a core is idle. Since this process ignores whether another flush has occurred recently, it leads to a large number of small messages. This leads to the first and smallest mode of the distribution.  The other two modes are due to a locality optimization in the \Grappa version of BFS. To minimize unnecessary remote communication, each core visits vertices whoes edge lists are stored locally. Since we are traversing power-law graphs, a small fraction of vertices have a very high number of edges. This means that occasionally a core visits a high-degree vertex which allows it to very quickly generate a large batch of requests. This interacts well with aggregation; when we find high degree vertices, we are able to aggregate packets on the order of 40KB. In flush intervals without high-degree vertices, we see packets on the order of 8KB.
+In BFS, we see a trimodal distribution. There are two reasons for
+this. First, in BFS, we obtained the best throughput by flushing at
+least 500 microseconds apart, and also flushing whenever a core is
+idle. Since this process ignores whether another flush has occurred
+recently, it leads to a large number of small messages. This leads to
+the first and smallest mode of the distribution.  The other two modes
+are due to a locality optimization in the \Grappa version of BFS. To
+minimize unnecessary remote communication, each core visits vertices
+whose edge lists are stored locally. Since we are traversing power-law graphs, a small fraction of vertices have a very high number of edges. This means that occasionally a core visits a high-degree vertex which allows it to very quickly generate a large batch of requests. This interacts well with aggregation; when we find high degree vertices, we are able to aggregate packets on the order of 40KB. In flush intervals without high-degree vertices, we see packets on the order of 8KB.
 
 Figure \ref{fig:grappa-latency} shows the latency distribution of
 remote delegate operations. This distribution follows the aggregated
