@@ -26,6 +26,7 @@ double make_bfs_tree(GlobalAddress<Graph> g_in, GlobalAddress<int64_t> _bfs_tree
 
 DEFINE_int64(scale, 16, "Graph500 scale (graph will have ~2^scale vertices)");
 DEFINE_int64(edgefactor, 16, "Approximate number of edges in graph will be 2*2^(scale)*edgefactor");
+DEFINE_int64(nbfs, 8, "Number of BFS traversals to do");
 
 DEFINE_bool(verify, true, "Do verification. Note: `--noverify` is equivalent to `--verify=(false|no|0)`");
 
@@ -84,10 +85,11 @@ void user_main(void * ignore) {
   
   auto g = Graph::create(tg);
   
-#ifdef _DEBUG
+#ifdef DEBUG
   Graph::dump(g);
 #endif
   
+  VLOG(0) << "g->nv = " << g->nv;
   GlobalAddress<int64_t> bfs_tree = global_alloc<int64_t>(g->nv);
   
   int nroots;
