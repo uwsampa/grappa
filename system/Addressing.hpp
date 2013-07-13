@@ -440,6 +440,17 @@ inline GlobalAddress< M > global_pointer_to_member( const GlobalAddress< T > t, 
   return GlobalAddress< M >::Raw( reinterpret_cast< intptr_t >( mp ) );
 }
 
+template<typename T>
+struct LocalIterator {
+  GlobalAddress<T> base;
+  size_t nelem;
+  T * begin() { return base.localize(); }
+  T * end()   { return (base+nelem).localize(); }
+};
+
+template<typename T>
+LocalIterator<T> iterate_local(GlobalAddress<T> base, size_t nelem) { return LocalIterator<T>{base, nelem}; }
+
 /// @}
 //template< typename T >
 #endif
