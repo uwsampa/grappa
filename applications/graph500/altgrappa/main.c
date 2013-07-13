@@ -31,6 +31,7 @@
 #include <inttypes.h>
 
 #include <Grappa.hpp>
+#include <Collective.hpp>
 
 /* PRNG interface for implementations; takes seed in same format as given by
  * users, and creates a vector of doubles in a reproducible (and
@@ -90,11 +91,15 @@ static void get_statistics(const double x[], int n, double r[s_LAST]) {
   free(xx);
 }
 
+int64_t * g_pred = NULL;
+int64_t g_root = 0;
+
+int * argc_p = NULL;
+char *** argv_p = NULL;
 int main(int argc, char** argv) {
   //MPI_Init(&argc, &argv);
   Grappa_init(&argc, &argv);
   Grappa_activate();
-
 
   setup_globals();
   if (rank == 0) fprintf(stderr, "mpinodes: %d\n", size);
@@ -134,7 +139,8 @@ int main(int argc, char** argv) {
   /* Get roots for BFS runs, plus maximum vertex with non-zero degree (used by
    * validator). */
   /*int num_bfs_roots = 64;*/
-  int num_bfs_roots = 8;
+  //int num_bfs_roots = 8;
+  int num_bfs_roots = 1;
   int64_t* bfs_roots = (int64_t*)xmalloc(num_bfs_roots * sizeof(int64_t));
   int64_t max_used_vertex = 0;
 
@@ -331,10 +337,12 @@ int main(int argc, char** argv) {
   double* validate_times = (double*)xmalloc(num_bfs_roots * sizeof(double));
   uint64_t nlocalverts = get_nlocalverts_for_pred();
   int64_t* pred = (int64_t*)xMPI_Alloc_mem(nlocalverts * sizeof(int64_t));
+  g_pred = pred;
 
   int bfs_root_idx;
   for (bfs_root_idx = 0; bfs_root_idx < num_bfs_roots; ++bfs_root_idx) {
     int64_t root = bfs_roots[bfs_root_idx];
+    g_root = root;
 
     if (rank == 0) fprintf(stderr, "Running BFS %d\n", bfs_root_idx);
 
@@ -343,7 +351,19 @@ int main(int argc, char** argv) {
 
     /* Do the actual BFS. */
     double bfs_start = MPI_Wtime();
-    run_bfs(root, &pred[0]);
+
+/*   argc_p = &argc; */
+/*   argv_p = &argv; */
+/*   Grappa_run_user_main( [] { */
+/*                           Grappa::on_all_cores( [] { */
+/*                                                   int & argc = *argc_p; */
+/*                                                   char ** & argv = *argv_p; */
+
+    Grappa_run_user_main( [] {
+                            Grappa::on_all_cores( [] {
+                                                    run_bfs(g_root, &g_pred[0]);
+                                                  } );
+                          } );
     double bfs_stop = MPI_Wtime();
     bfs_times[bfs_root_idx] = bfs_stop - bfs_start;
     if (rank == 0) fprintf(stderr, "Time for BFS %d is %f\n", bfs_root_idx, bfs_times[bfs_root_idx]);
@@ -457,6 +477,9 @@ int main(int argc, char** argv) {
   free(validate_times);
 
   cleanup_globals();
+/* } ); */
+/* } ); */
+
   //MPI_Finalize();
   Grappa_finish(0);
   return 0;

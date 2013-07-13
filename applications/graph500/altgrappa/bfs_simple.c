@@ -18,6 +18,14 @@
 #include <limits.h>
 #include <assert.h>
 
+#include <Grappa.hpp>
+#include <GlobalCompletionEvent.hpp>
+#include <Collective.hpp>
+#include <Delegate.hpp>
+#include <AsyncDelegate.hpp>
+#include <SharedMessagePool.hpp>
+
+
 static oned_csr_graph g;
 static int64_t* g_oldq;
 static int64_t* g_newq;
@@ -28,6 +36,13 @@ static size_t* g_outgoing_counts /* 2x actual count */;
 static MPI_Request* g_outgoing_reqs;
 static int* g_outgoing_reqs_active;
 static int64_t* g_recvbuf;
+
+static size_t oldq_count = 0;
+static size_t newq_count = 0;
+
+static int64_t * g_pred = NULL;
+
+static Grappa::GlobalCompletionEvent mygce;
 
 void make_graph_data_structure(const tuple_graph* const tg) {
   convert_graph_to_oned_csr(tg, &g);
@@ -66,12 +81,15 @@ int bfs_writes_depth_map(void) {
  * communication with computation. */
 void run_bfs(int64_t root, int64_t* pred) {
   const size_t nlocalverts = g.nlocalverts;
+  g_pred = pred;
 
   /* Set up the queues. */
-  int64_t* restrict oldq = g_oldq;
-  int64_t* restrict newq = g_newq;
-  size_t oldq_count = 0;
-  size_t newq_count = 0;
+/*   int64_t* restrict oldq = g_oldq; */
+/*   int64_t* restrict newq = g_newq; */
+/*   size_t oldq_count = 0; */
+/*   size_t newq_count = 0; */
+  oldq_count = 0;
+  newq_count = 0;
 
   /* Set up the visited bitmap. */
   const int ulong_bits = sizeof(unsigned long) * CHAR_BIT;
@@ -81,164 +99,75 @@ void run_bfs(int64_t root, int64_t* pred) {
 #define SET_VISITED(v) do {visited[VERTEX_LOCAL((v)) / ulong_bits] |= (1UL << (VERTEX_LOCAL((v)) % ulong_bits));} while (0)
 #define TEST_VISITED(v) ((visited[VERTEX_LOCAL((v)) / ulong_bits] & (1UL << (VERTEX_LOCAL((v)) % ulong_bits))) != 0)
 
-  /* Set up buffers for message coalescing, MPI requests, etc. for
-   * communication. */
-  const int coalescing_size = 256;
-  int64_t* restrict outgoing = g_outgoing;
-  size_t* restrict outgoing_counts = g_outgoing_counts;
-  MPI_Request* restrict outgoing_reqs = g_outgoing_reqs;
-  int* restrict outgoing_reqs_active = g_outgoing_reqs_active;
-  memset(outgoing_reqs_active, 0, size * sizeof(int));
-  int64_t* restrict recvbuf = g_recvbuf;
-  MPI_Request recvreq;
-  int recvreq_active = 0;
-
-  /* Termination counter for each level: this variable counts the number of
-   * ranks that have said that they are done sending to me in the current
-   * level.  This rank can stop listening for new messages when it reaches
-   * size. */
-  int num_ranks_done;
-
   /* Set all vertices to "not visited." */
   {size_t i; for (i = 0; i < nlocalverts; ++i) pred[i] = -1;}
 
   /* Mark the root and put it into the queue. */
   if (VERTEX_OWNER(root) == rank) {
     SET_VISITED(root);
-    pred[VERTEX_LOCAL(root)] = root;
-    oldq[oldq_count++] = root;
+    g_pred[VERTEX_LOCAL(root)] = root;
+    g_oldq[oldq_count++] = root;
   }
 
-#define CHECK_MPI_REQS \
-  /* Check all MPI requests and handle any that have completed. */ \
-  do { \
-    /* Test for incoming vertices to put onto the queue. */ \
-    while (recvreq_active) { \
-      int flag; \
-      MPI_Status st; \
-      MPI_Test(&recvreq, &flag, &st); \
-      if (flag) { \
-        recvreq_active = 0; \
-        int count; \
-        MPI_Get_count(&st, MPI_INT64_T, &count); \
-        /* count == 0 is a signal from a rank that it is done sending to me
-         * (using MPI's non-overtaking rules to keep that signal after all
-         * "real" messages. */ \
-        if (count == 0) { \
-          ++num_ranks_done; \
-        } else { \
-          int j; \
-          for (j = 0; j < count; j += 2) { \
-            int64_t tgt = recvbuf[j]; \
-            int64_t src = recvbuf[j + 1]; \
-            /* Process one incoming edge. */ \
-            assert (VERTEX_OWNER(tgt) == rank); \
-            if (!TEST_VISITED(tgt)) { \
-              SET_VISITED(tgt); \
-              pred[VERTEX_LOCAL(tgt)] = src; \
-              newq[newq_count++] = tgt; \
-            } \
-          } \
-        } \
-        /* Restart the receive if more messages will be coming. */ \
-        if (num_ranks_done < size) { \
-          MPI_Irecv(recvbuf, coalescing_size * 2, MPI_INT64_T, MPI_ANY_SOURCE, 0, MPI_COMM_WORLD, &recvreq); \
-          recvreq_active = 1; \
-        } \
-      } else break; \
-    } \
-    /* Mark any sends that completed as inactive so their buffers can be
-     * reused. */ \
-    int c; \
-    for (c = 0; c < size; ++c) { \
-      if (outgoing_reqs_active[c]) { \
-        int flag; \
-        MPI_Test(&outgoing_reqs[c], &flag, MPI_STATUS_IGNORE); \
-        if (flag) outgoing_reqs_active[c] = 0; \
-      } \
-    } \
-  } while (0)
-
   while (1) {
-    memset(outgoing_counts, 0, size * sizeof(size_t));
-    num_ranks_done = 1; /* I never send to myself, so I'm always done */
-    
-    /* Start the initial receive. */
-    if (num_ranks_done < size) {
-      MPI_Irecv(recvbuf, coalescing_size * 2, MPI_INT64_T, MPI_ANY_SOURCE, 0, MPI_COMM_WORLD, &recvreq);
-      recvreq_active = 1;
-    }
-
     /* Step through the current level's queue. */
+    mygce.reset();
+    mygce.enroll(oldq_count);
+    Grappa_barrier_suspending();
+
     size_t i;
     for (i = 0; i < oldq_count; ++i) {
-      CHECK_MPI_REQS;
-      assert (VERTEX_OWNER(oldq[i]) == rank);
-      assert (pred[VERTEX_LOCAL(oldq[i])] >= 0 && pred[VERTEX_LOCAL(oldq[i])] < g.nglobalverts);
-      int64_t src = oldq[i];
+      assert (VERTEX_OWNER(g_oldq[i]) == rank);
+      assert (g_pred[VERTEX_LOCAL(g_oldq[i])] >= 0 && g_pred[VERTEX_LOCAL(g_oldq[i])] < g.nglobalverts);
+      int64_t src = g_oldq[i];
       /* Iterate through its incident edges. */
-      size_t j, j_end = g.rowstarts[VERTEX_LOCAL(oldq[i]) + 1];
-      for (j = g.rowstarts[VERTEX_LOCAL(oldq[i])]; j < j_end; ++j) {
+      size_t j, j_end = g.rowstarts[VERTEX_LOCAL(g_oldq[i]) + 1];
+      for (j = g.rowstarts[VERTEX_LOCAL(g_oldq[i])]; j < j_end; ++j) {
         int64_t tgt = g.column[j];
         int owner = VERTEX_OWNER(tgt);
         /* If the other endpoint is mine, update the visited map, predecessor
          * map, and next-level queue locally; otherwise, send the target and
          * the current vertex (its possible predecessor) to the target's owner.
          * */
-        if (owner == rank) {
-          if (!TEST_VISITED(tgt)) {
-            SET_VISITED(tgt);
-            pred[VERTEX_LOCAL(tgt)] = src;
-            newq[newq_count++] = tgt;
-          }
-        } else {
-          while (outgoing_reqs_active[owner]) CHECK_MPI_REQS; /* Wait for buffer to be available */
-          size_t c = outgoing_counts[owner];
-          outgoing[owner * coalescing_size * 2 + c] = tgt;
-          outgoing[owner * coalescing_size * 2 + c + 1] = src;
-          outgoing_counts[owner] += 2;
-          if (outgoing_counts[owner] == coalescing_size * 2) {
-            MPI_Isend(&outgoing[owner * coalescing_size * 2], coalescing_size * 2, MPI_INT64_T, owner, 0, MPI_COMM_WORLD, &outgoing_reqs[owner]);
-            outgoing_reqs_active[owner] = 1;
-            outgoing_counts[owner] = 0;
-          }
-        }
+/*         if (owner == rank) { */
+/*           if (!TEST_VISITED(tgt)) { */
+/*             SET_VISITED(tgt); */
+/*             pred[VERTEX_LOCAL(tgt)] = src; */
+/*             g_newq[newq_count++] = tgt; */
+/*           } */
+/*         } else { */
+          Grappa::delegate::call_async<&mygce>( *Grappa::shared_pool, owner, [src,tgt] {
+                                                  /* Set up the visited bitmap. */
+                                                  const int ulong_bits = sizeof(unsigned long) * CHAR_BIT;
+                                                  int64_t visited_size = (g.nlocalverts + ulong_bits - 1) / ulong_bits;
+                                                  unsigned long* restrict visited = g_visited;
+
+                                                  assert (VERTEX_OWNER(tgt) == rank);
+                                                  if (!TEST_VISITED(tgt)) {
+                                                    SET_VISITED(tgt);
+                                                    g_pred[VERTEX_LOCAL(tgt)] = src;
+                                                    g_newq[newq_count++] = tgt;
+                                                  }
+                                                } );
+/*         } */
       }
+      mygce.complete(1);
     }
-    /* Flush any coalescing buffers that still have messages. */
-    int offset;
-    for (offset = 1; offset < size; ++offset) {
-      int dest = MOD_SIZE(rank + offset);
-      if (outgoing_counts[dest] != 0) {
-        while (outgoing_reqs_active[dest]) CHECK_MPI_REQS;
-        MPI_Isend(&outgoing[dest * coalescing_size * 2], outgoing_counts[dest], MPI_INT64_T, dest, 0, MPI_COMM_WORLD, &outgoing_reqs[dest]);
-        outgoing_reqs_active[dest] = 1;
-        outgoing_counts[dest] = 0;
-      }
-      /* Wait until all sends to this destination are done. */
-      while (outgoing_reqs_active[dest]) CHECK_MPI_REQS;
-      /* Tell the destination that we are done sending to them. */
-      MPI_Isend(&outgoing[dest * coalescing_size * 2], 0, MPI_INT64_T, dest, 0, MPI_COMM_WORLD, &outgoing_reqs[dest]); /* Signal no more sends */
-      outgoing_reqs_active[dest] = 1;
-      while (outgoing_reqs_active[dest]) CHECK_MPI_REQS;
-    }
-    /* Wait until everyone else is done (and thus couldn't send us any more
-     * messages). */
-    while (num_ranks_done < size) CHECK_MPI_REQS;
+
+    mygce.wait();
 
     /* Test globally if all queues are empty. */
-    int64_t global_newq_count;
-    MPI_Allreduce(&newq_count, &global_newq_count, 1, MPI_INT64_T, MPI_SUM, MPI_COMM_WORLD);
+    size_t global_newq_count = Grappa::allreduce< size_t, collective_add >(newq_count);
 
     /* Quit if they all are empty. */
     if (global_newq_count == 0) break;
 
     /* Swap old and new queues; clear new queue for next level. */
-    {int64_t* temp = oldq; oldq = newq; newq = temp;}
+    {int64_t* temp = g_oldq; g_oldq = g_newq; g_newq = temp;}
     oldq_count = newq_count;
     newq_count = 0;
   }
-#undef CHECK_MPI_REQS
+
 }
 
 void get_vertex_distribution_for_pred(size_t count, const int64_t* vertex_p, int* owner_p, size_t* local_p) {
