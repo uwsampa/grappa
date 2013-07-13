@@ -29,7 +29,9 @@ extern int thread_last_tau_taskid;
 #endif
 
 /// Size in bytes of the stack allocated for every Thread
-const size_t STACK_SIZE = 1L<<19;
+// const size_t STACK_SIZE = 1L<<19;
+DECLARE_int64(stack_size);
+#define STACK_SIZE FLAGS_stack_size
 
 class Worker;
 
