@@ -18,11 +18,15 @@ GlobalAddress<Graph> Graph::create(tuple_graph& tg) {
   auto self = g;
   call_on_all_cores([g,vs]{
     new (g.localize()) Graph(g, vs, g->nv);
-    g->scratch = locale_new<int64_t>(g->nv);
+    VLOG(0) << "nv = " << g->nv;
+    g->scratch = locale_alloc<int64_t>(g->nv);
+    VLOG(0) << "scratch = " << g->scratch;
+    
     memset(g->scratch, 0, sizeof(int64_t)*g->nv);
   });
   
-  forall_localized<1024>(tg.edges, tg.nedge, [g](packed_edge& e){
+  forall_localized(tg.edges, tg.nedge, [g](packed_edge& e){
+    CHECK_LT(e.v0, g->nv); CHECK_LT(e.v1, g->nv);
     g->scratch[e.v0]++;
     g->scratch[e.v1]++;
     // TODO: oops, need to do actual "scatter"? how do I make undirected?
@@ -32,11 +36,14 @@ GlobalAddress<Graph> Graph::create(tuple_graph& tg) {
   on_all_cores([g]{ VLOG(0) << util::array_str("scratch", g->scratch, g->nv, 25); });
   
   // allocate space for each vertex's adjacencies (+ duplicates)
-  forall_localized<1024>(g->vs, g->nv, [g](int64_t i, Vertex& v) {
-    v.nadj = v.local_sz = g->scratch[i];
-    v.local_adj = new int64_t[v.local_sz];
-    g->nadj_local += v.nadj;
+  forall_localized(g->vs, g->nv, [g](int64_t i, Vertex& v) {
+    v.nadj = 0;
+    v.local_sz = g->scratch[i];
+    if (v.local_sz > 0) v.local_adj = new int64_t[v.local_sz];
+    // g->nadj_local += v.nadj;
   });
+  VLOG(0) << "after adj allocs";
+  VLOG(0) << "nv = " << g->nv;
   
   // scatter
   forall_localized(tg.edges, tg.nedge, [g](packed_edge& e){
@@ -50,9 +57,12 @@ GlobalAddress<Graph> Graph::create(tuple_graph& tg) {
     scatter(e.v0, e.v1);
     scatter(e.v1, e.v0);
   });
-  
+  VLOG(0) << "after scatter";
+  VLOG(0) << "nv = " << g->nv;
+    
   // sort & de-dup
-  forall_localized<1024>(g->vs, g->nv, [g](Vertex& v){
+  forall_localized(g->vs, g->nv, [g](int64_t vi, Vertex& v){
+    CHECK_EQ(v.nadj, v.local_sz);
     std::sort(v.local_adj, v.local_adj+v.nadj);
     
     int64_t tail = 0;
@@ -61,25 +71,34 @@ GlobalAddress<Graph> Graph::create(tuple_graph& tg) {
       while (v.local_adj[tail] == v.local_adj[i+1]) i++;
     }
     v.nadj = tail;
+    // VLOG(0) << "<" << vi << ">" << util::array_str("", v.local_adj, v.nadj);
     g->nadj_local += v.nadj;
   });
+  VLOG(0) << "after sort";
   
   // compact
   on_all_cores([g]{
-    free(g->scratch);
+    // VLOG(0) << "scratch = " << g->scratch;
+    locale_free(g->scratch);
+    
+    VLOG(0) << "nadj_local = " << g->nadj_local;
     
     // allocate storage for local vertices' adjacencies
-    g->adj_buf = new int64_t[g->nadj_local];
+    g->adj_buf = locale_alloc<int64_t>(g->nadj_local);
     // compute total nadj
     g->nadj = allreduce<int64_t,collective_add>(g->nadj_local);
     
-    auto * adj = g->adj_buf;
+    int64_t * adj = g->adj_buf;
     for (Vertex& v : iterate_local(g->vs, g->nv)) {
       Grappa::memcpy(adj, v.local_adj, v.nadj);
-      delete[] v.local_adj;
+      if (v.local_sz > 0) delete[] v.local_adj;
+      v.local_sz = v.nadj;
       v.local_adj = adj;
       adj += v.nadj;
     }
     CHECK_EQ(adj - g->adj_buf, g->nadj_local);
+    VLOG(0) << "nv = " << g->nv;
   });
+  
+  return g;
 }

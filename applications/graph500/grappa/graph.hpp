@@ -20,11 +20,8 @@ struct Graph {
     int64_t local_sz;    // size of local allocation (regardless of how full it is)
     char _pad[8];           // placeholder
     
-    Vertex(): local_adj(nullptr), nadj(0), local_sz(0) {}
-    
-    ~Vertex() {
-      if (local_sz > 0) { delete[] local_adj; }
-    }
+    Vertex(): local_adj(nullptr), nadj(0), local_sz(0) {}    
+    ~Vertex() {}
     
     template< typename F >
     void forall_adj(F body) {
@@ -63,7 +60,7 @@ struct Graph {
   
   ~Graph() {
     for (Vertex& v : iterate_local(vs, nv)) { v.~Vertex(); }
-    if (adj_buf) free(adj_buf);
+    if (adj_buf) locale_free(adj_buf);
   }
   
   // Constructor
@@ -81,7 +78,10 @@ struct Graph {
   static void dump(GlobalAddress<Graph> g) {
     for (int64_t i=0; i<g->nv; i++) {
       delegate::call(g->vs+i, [i](Vertex * v){
-        VLOG(LEVEL) << "<" << i << ">" << util::array_str("", v->local_adj, v->nadj);
+        std::stringstream ss;
+        ss << "<" << i << ">";
+        for (int64_t i=0; i<v->nadj; i++) ss << " " << v->local_adj[i];
+        VLOG(LEVEL) << ss.str();
       });
     }
   }
