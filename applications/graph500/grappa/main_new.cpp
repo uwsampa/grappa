@@ -89,10 +89,9 @@ void user_main(void * ignore) {
   Graph::dump(g);
 #endif
   
-  VLOG(0) << "g->nv = " << g->nv;
   GlobalAddress<int64_t> bfs_tree = global_alloc<int64_t>(g->nv);
   
-  int nroots;
+  int nroots = FLAGS_nbfs;
   int64_t bfs_roots[NBFS_max];
   choose_bfs_roots(g, &nroots, bfs_roots);
   
