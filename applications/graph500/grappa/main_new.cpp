@@ -83,11 +83,12 @@ void user_main(void * ignore) {
   generation_time = walltime() - t;
   LOG(INFO) << "graph_generation: " << generation_time;
   
+  t = walltime();
   auto g = Graph::create(tg);
+  construction_time = walltime() - t;
+  LOG(INFO) << "construction_time: " << construction_time;
   
-#ifdef DEBUG
-  Graph::dump(g);
-#endif
+  // Graph::dump(g);
   
   GlobalAddress<int64_t> bfs_tree = global_alloc<int64_t>(g->nv);
   
@@ -130,7 +131,7 @@ void user_main(void * ignore) {
   global_free(tg.edges);
   
   /* Print results. */
-  output_results(SCALE, 1<<SCALE, edgefactor, A, B, C, D, generation_time, construction_time, NBFS, bfs_time, bfs_nedge);
+  output_results(SCALE, 1<<SCALE, edgefactor, A, B, C, D, generation_time, construction_time, nroots, bfs_time, bfs_nedge);
   
   LOG(INFO) << "total_runtime: " << walltime() - start_time;
 }

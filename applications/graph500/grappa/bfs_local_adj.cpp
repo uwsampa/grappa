@@ -85,7 +85,7 @@ double make_bfs_tree(GlobalAddress<Graph> g_in, GlobalAddress<int64_t> _bfs_tree
     delegate::write_async(*shared_pool, bfs_tree+i, v.parent);
   });
   
-  VLOG(0) << "tree(" << root << ")" << util::array_str("", bfs_tree, g->nv, 40);
+  VLOG(2) << "tree(" << root << ")" << util::array_str("", bfs_tree, g->nv, 40);
   
   call_on_all_cores([]{
     locale_free(frontier);
