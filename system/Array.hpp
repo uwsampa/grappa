@@ -178,7 +178,7 @@ namespace util {
   };
 
   template<typename T>
-  SimpleIterator<T> iterator(T* base, size_t nelem) { return SimpleIterator<T>{base, nelem}; }
+  SimpleIterator<T> iterator(T* base = nullptr, size_t nelem = 0) { return SimpleIterator<T>{base, nelem}; }
   
 } // namespace util
 
