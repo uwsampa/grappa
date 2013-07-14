@@ -31,7 +31,7 @@ GlobalAddress<Graph> Graph::create(tuple_graph& tg) {
   });
   on_all_cores([g]{ allreduce_inplace<int64_t,collective_add>(g->scratch, g->nv); });
   
-  on_all_cores([g]{ VLOG(0) << util::array_str("scratch", g->scratch, g->nv, 25); });
+  on_all_cores([g]{ VLOG(5) << util::array_str("scratch", g->scratch, g->nv, 25); });
   
   // allocate space for each vertex's adjacencies (+ duplicates)
   forall_localized(g->vs, g->nv, [g](int64_t i, Vertex& v) {
