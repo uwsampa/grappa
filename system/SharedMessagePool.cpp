@@ -1,8 +1,10 @@
 #include "SharedMessagePool.hpp"
 #include "Statistics.hpp"
+#include "ConditionVariable.hpp"
 #include <stack>
 
 DEFINE_int64(shared_pool_size, 1L << 20, "Size (in bytes) of global SharedMessagePool (on each Core)");
+DEFINE_int64(shared_pool_max, -1, "Maximum number of shared pools allowed to be allocated (per core).");
 
 GRAPPA_DEFINE_STAT(SimpleStatistic<uint64_t>, shared_message_pools_allocated, 0);
 
@@ -10,6 +12,7 @@ namespace Grappa {
 
   SharedMessagePool * shared_pool = nullptr;
   std::stack<SharedMessagePool*> unused_pools;
+  ConditionVariable blocked_senders;
 
   void init_shared_pool() {
     void * p = impl::locale_shared_memory.allocate_aligned(sizeof(SharedMessagePool), 8);
@@ -27,10 +30,18 @@ namespace Grappa {
       VLOG(3) << "MessagePool full (" << this << ", to_send:"<< this->to_send << "), finding a new one;    completions_received:" << completions_received << ", allocated_count:" << allocated_count;
     
       // first try and find one from the unused_pools pool
-      if (unused_pools.size() > 0) {
+      if (unused_pools.size() > 0) { pop_pool:
         shared_pool = unused_pools.top();
         VLOG(4) << "found pool @ " << shared_pool << " allocated:" << shared_pool->allocated << "/" << shared_pool->buffer_size << ", count=" << allocated_count << " @ " << this;
         unused_pools.pop();
+      } else if (!global_scheduler.in_no_switch_region() && FLAGS_shared_pool_max > 0 &&
+          shared_message_pools_allocated >= FLAGS_shared_pool_max-1) {
+        Grappa::wait(&blocked_senders);
+        if (this == shared_pool) {
+          CHECK_GT(unused_pools.size(), 0);
+          goto pop_pool;
+        } // else should be able to just fall through and go on our merry way
+        // CHECK(unused_pools.size() > 0 || shared_pool->remaining() > size);
       } else {
         // allocate a new one, have the old one delete itself when all previous have been sent
         void * p = impl::locale_shared_memory.allocate_aligned(sizeof(SharedMessagePool), 8);
@@ -38,7 +49,7 @@ namespace Grappa {
         shared_message_pools_allocated++;
         VLOG(4) << "created new shared_pool @ " << shared_pool << ", buf:" << shared_pool->buffer;
       }
-    
+      
       this->start_emptying(); // start working on freeing up the previous one
     
       return shared_pool->allocate(size); // actually satisfy the allocation request
@@ -84,6 +95,7 @@ namespace Grappa {
     memset(buffer, (0x11*locale_mycore()) | 0xf0, buffer_size); // poison
   
     unused_pools.push(this);
+    broadcast(&blocked_senders);
   }
 
 } // namespace Grappa
