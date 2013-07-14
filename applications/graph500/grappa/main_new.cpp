@@ -74,6 +74,8 @@ void user_main(void * ignore) {
 	int64_t nvtx_scale = ((int64_t)1)<<FLAGS_scale;
 	int64_t desired_nedge = nvtx_scale * FLAGS_edgefactor;
   
+  LOG(INFO) << "scale = " << FLAGS_scale << ", NV = " << nvtx_scale << ", NE = " << desired_nedge;
+  
   // make raw graph edge tuples
   tuple_graph tg;
   tg.edges = global_alloc<packed_edge>(desired_nedge);
@@ -109,16 +111,16 @@ void user_main(void * ignore) {
       t = walltime();
       bfs_nedge[i] = verify_bfs_tree(bfs_tree, g->nv-1, bfs_roots[i], &tg);
       t = walltime() - t;
-      LOG(INFO) << "verify_time: " << t;
+      VLOG(1) << "verify_time: " << t;
       
       if (bfs_nedge[i] < 0) {
         LOG(ERROR) << "bfs " << i << " from root " << bfs_roots[i] << " failed verification: " << bfs_nedge[i];
         exit(1);
       } else {
-        VLOG(1) << "bfs_time[" << i << "] = " << bfs_time[i];
+        VLOG(0) << "bfs_time[" << i << "] = " << bfs_time[i];
       }
     } else {
-      VLOG(1) << "Warning... skipping verify. Approximating nedge with `nadj/2`.";
+      LOG(ERROR) << "warning: skipping verify. Approximating nedge with `nadj/2`.";
       bfs_nedge[i] = g->nadj/2;
     }
   }
@@ -131,7 +133,7 @@ void user_main(void * ignore) {
   global_free(tg.edges);
   
   /* Print results. */
-  output_results(SCALE, 1<<SCALE, edgefactor, A, B, C, D, generation_time, construction_time, nroots, bfs_time, bfs_nedge);
+  output_results(FLAGS_scale, 1<<FLAGS_scale, FLAGS_edgefactor, A, B, C, D, generation_time, construction_time, nroots, bfs_time, bfs_nedge);
   
   LOG(INFO) << "total_runtime: " << walltime() - start_time;
 }
