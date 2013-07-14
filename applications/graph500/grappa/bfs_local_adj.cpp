@@ -55,6 +55,7 @@ double make_bfs_tree(GlobalAddress<Graph> g_in, GlobalAddress<int64_t> _bfs_tree
   
   on_all_cores([root]{
     int64_t next_level_total;
+    int64_t yield_ct = 0;
     do {
       frontier_level_mark = frontier_tail;
       joiner.enroll();
@@ -73,6 +74,10 @@ double make_bfs_tree(GlobalAddress<Graph> g_in, GlobalAddress<int64_t> _bfs_tree
               frontier_push(ev); // visit child in next level 
             }
           });
+          if (yield_ct++ == 1L<<10) {
+            Grappa_yield();
+            yield_ct = 0;
+          }
         }
       }
       joiner.complete();
