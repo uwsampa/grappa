@@ -1,11 +1,15 @@
 #pragma once
-
+#include <mpi.h>
 #include "graph.hpp"
 
+#define USE_MPI3_COLLECTIVES
+
 GlobalAddress<Graph> Graph::create(tuple_graph& tg) {
+  double t;
   auto g = mirrored_global_alloc<Graph>();
   
   // find nv
+      t = walltime();
   forall_localized(tg.edges, tg.nedge, [g](packed_edge& e){
     if (e.v0 > g->nv) { g->nv = e.v0; }
     else if (e.v1 > g->nv) { g->nv = e.v1; }
@@ -13,6 +17,7 @@ GlobalAddress<Graph> Graph::create(tuple_graph& tg) {
   on_all_cores([g]{
     g->nv = Grappa::allreduce<int64_t,collective_max>(g->nv) + 1;
   });
+      VLOG(1) << "find_nv_time: " << walltime() - t;
   
   auto vs = global_alloc<Vertex>(g->nv);
   auto self = g;
@@ -22,16 +27,32 @@ GlobalAddress<Graph> Graph::create(tuple_graph& tg) {
     
     memset(g->scratch, 0, sizeof(int64_t)*g->nv);
   });
-  
+                                                            t = walltime();
   forall_localized(tg.edges, tg.nedge, [g](packed_edge& e){
     CHECK_LT(e.v0, g->nv); CHECK_LT(e.v1, g->nv);
     g->scratch[e.v0]++;
     g->scratch[e.v1]++;
     // TODO: oops, need to do actual "scatter"? how do I make undirected?
   });
-  on_all_cores([g]{ allreduce_inplace<int64_t,collective_add>(g->scratch, g->nv); });
+  VLOG(1) << "count_time: " << walltime() - t;
+  t = walltime();
   
-  on_all_cores([g]{ VLOG(5) << util::array_str("scratch", g->scratch, g->nv, 25); });
+#ifdef USE_MPI3_COLLECTIVES
+  on_all_cores([g]{
+    MPI_Request r; int done;
+    MPI_Iallreduce(MPI_IN_PLACE, g->scratch, g->nv, MPI_INT64_T, MPI_SUM, MPI_COMM_WORLD, &r);
+    do {
+      MPI_Test( &r, &done, MPI_STATUS_IGNORE );
+      if(!done) { Grappa_yield(); }
+    } while(!done);
+  });
+#else
+  on_all_cores([g]{ allreduce_inplace<int64_t,collective_add>(g->scratch, g->nv); });
+#endif
+  VLOG(1) << "allreduce_inplace_time: " << walltime() - t;
+  
+  
+  // on_all_cores([g]{ VLOG(5) << util::array_str("scratch", g->scratch, g->nv, 25); });
   
   // allocate space for each vertex's adjacencies (+ duplicates)
   forall_localized(g->vs, g->nv, [g](int64_t i, Vertex& v) {

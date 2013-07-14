@@ -49,6 +49,7 @@ GCC472=/sampa/share/gcc-4.7.2/rtf
 CC=$(GCC472)/bin/gcc
 CXX=$(GCC472)/bin/g++
 LD=$(GCC472)/bin/g++ -I$(MPI)/include -pthread -m64 -L$(MPI)/lib -lmpi_cxx -lmpi -ldl
+CFLAGS += -I$(MPI)/include
 GCC472_LD=$(GCC472)/bin/g++ -I$(MPI)/include -pthread -m64 -L$(MPI)/lib -lmpi_cxx -lmpi -ldl
 
 LD_LIBRARY_PATH:=$(MPI)/lib:$(GCC472)/lib64:$(LD_LIBRARY_PATH)
