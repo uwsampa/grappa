@@ -18,7 +18,7 @@ struct Graph {
     int64_t * local_adj; // adjacencies that are local
     int64_t nadj;        // number of adjacencies
     int64_t local_sz;    // size of local allocation (regardless of how full it is)
-    char _pad[8];           // placeholder
+    int64_t parent;
     
     Vertex(): local_adj(nullptr), nadj(0), local_sz(0) {}    
     ~Vertex() {}
@@ -29,6 +29,8 @@ struct Graph {
         body(local_adj[i]);
       }
     }
+    
+    auto adj_iter() -> decltype(util::iterator(local_adj)) { return util::iterator(local_adj, nadj); }
   };
   static_assert(block_size % sizeof(Vertex) == 0, "Vertex size not evenly divisible into blocks!");
   
