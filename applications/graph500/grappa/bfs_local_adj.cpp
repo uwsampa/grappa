@@ -58,6 +58,8 @@ double make_bfs_tree(GlobalAddress<Graph> g_in, GlobalAddress<int64_t> _bfs_tree
     do {
       frontier_level_mark = frontier_tail;
       joiner.enroll();
+      barrier();
+      
       while (frontier_head < frontier_level_mark) {
         int64_t sv = frontier_pop();
         CHECK( (g->vs+sv).core() == mycore() || sv == root ) << "sv = " << sv << ", core = " << (g->vs+sv).core();
