@@ -80,8 +80,8 @@ NELSON=/pic/people/nels707
 
 # should have modules: gcc/4.7.2 mvapich2/1.9b
 
-CC=gcc
-CXX=g++
+CC=mpicxx
+CXX=mpicxx
 LD=mpicxx
 MPI=$(MPI_ROOT)
 
