@@ -26,6 +26,8 @@ int64_t frontier_next_level_size() { return frontier_tail - frontier_level_mark;
 
 GlobalCompletionEvent joiner;
 
+// MessagePool * pool;
+
 double make_bfs_tree(GlobalAddress<Graph> g_in, GlobalAddress<int64_t> _bfs_tree, int64_t root) {
   static_assert(sizeof(long) == sizeof(int64_t), "Can't use long as substitute for int64_t");
   LOG_FIRST_N(INFO,1) << "bfs_version: 'local_adj'";
@@ -54,6 +56,8 @@ double make_bfs_tree(GlobalAddress<Graph> g_in, GlobalAddress<int64_t> _bfs_tree
   delegate::call(g->vs+root, [root](Graph::Vertex * v){ v->parent = root; });
   
   on_all_cores([root]{
+    // pool = new MessagePool(1L<<26);
+    
     int64_t next_level_total;
     int64_t yield_ct = 0;
     do {
@@ -74,10 +78,6 @@ double make_bfs_tree(GlobalAddress<Graph> g_in, GlobalAddress<int64_t> _bfs_tree
               frontier_push(ev); // visit child in next level 
             }
           });
-          if (yield_ct++ == 1L<<10) {
-            Grappa_yield();
-            yield_ct = 0;
-          }
         }
       }
       joiner.complete();
@@ -86,18 +86,24 @@ double make_bfs_tree(GlobalAddress<Graph> g_in, GlobalAddress<int64_t> _bfs_tree
     } while (next_level_total > 0);
   });
   
-  t = walltime() - t;
-
+  double bfs_time = walltime() - t;
+  
+  VLOG(0) << "after bfs";
+  
+  t = walltime();
   forall_localized(g->vs, g->nv, [](int64_t i, Graph::Vertex& v){
-    delegate::write_async(*shared_pool, bfs_tree+i, v.parent);
+    // delegate::write_async(*pool, bfs_tree+i, v.parent);
+    delegate::write(bfs_tree+i, v.parent);
   });
+  VLOG(0) << "bfs_tree_write_time: " << walltime() - t;
   
   VLOG(2) << "tree(" << root << ")" << util::array_str("", bfs_tree, g->nv, 40);
   
   call_on_all_cores([]{
+    // delete pool;
     locale_free(frontier);
   });
   
-  return t;
+  return bfs_time;
 }
 
