@@ -38,6 +38,8 @@ graph.exe: $(SOURCES) main.o $(HEADERS) generator.a $(GRAPPA_HOME)/system/libGra
 graph_new.exe: $(SOURCES) main_new.o $(HEADERS) generator.a $(GRAPPA_HOME)/system/libGrappa.a
 	$(ENV_VARIABLES) $($(MPITYPE)_LD) $(LDFLAGS) $(CFLAGS) $(SOURCES) main_new.o generator.a $(GRAPPA_HOME)/system/libGrappa.a $(LIBRARIES) -o $@ $(LIBS)
 
+new_bfs: graph_new.exe
+new_bfs: BFS=bfs_local_adj
 
 $(GRAPPA_HOME)/system/libGrappa.a: force
 	cd $(GRAPPA_HOME)/system; $(MAKE) lib
