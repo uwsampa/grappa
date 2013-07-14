@@ -18,9 +18,7 @@ GlobalAddress<Graph> Graph::create(tuple_graph& tg) {
   auto self = g;
   call_on_all_cores([g,vs]{
     new (g.localize()) Graph(g, vs, g->nv);
-    VLOG(0) << "nv = " << g->nv;
     g->scratch = locale_alloc<int64_t>(g->nv);
-    VLOG(0) << "scratch = " << g->scratch;
     
     memset(g->scratch, 0, sizeof(int64_t)*g->nv);
   });
@@ -42,8 +40,7 @@ GlobalAddress<Graph> Graph::create(tuple_graph& tg) {
     if (v.local_sz > 0) v.local_adj = new int64_t[v.local_sz];
     // g->nadj_local += v.nadj;
   });
-  VLOG(0) << "after adj allocs";
-  VLOG(0) << "nv = " << g->nv;
+  VLOG(3) << "after adj allocs";
   
   // scatter
   forall_localized(tg.edges, tg.nedge, [g](packed_edge& e){
@@ -57,8 +54,7 @@ GlobalAddress<Graph> Graph::create(tuple_graph& tg) {
     scatter(e.v0, e.v1);
     scatter(e.v1, e.v0);
   });
-  VLOG(0) << "after scatter";
-  VLOG(0) << "nv = " << g->nv;
+  VLOG(3) << "after scatter, nv = " << g->nv;
     
   // sort & de-dup
   forall_localized(g->vs, g->nv, [g](int64_t vi, Vertex& v){
@@ -74,14 +70,14 @@ GlobalAddress<Graph> Graph::create(tuple_graph& tg) {
     // VLOG(0) << "<" << vi << ">" << util::array_str("", v.local_adj, v.nadj);
     g->nadj_local += v.nadj;
   });
-  VLOG(0) << "after sort";
+  VLOG(3) << "after sort";
   
   // compact
   on_all_cores([g]{
     // VLOG(0) << "scratch = " << g->scratch;
     locale_free(g->scratch);
     
-    VLOG(0) << "nadj_local = " << g->nadj_local;
+    VLOG(2) << "nadj_local = " << g->nadj_local;
     
     // allocate storage for local vertices' adjacencies
     g->adj_buf = locale_alloc<int64_t>(g->nadj_local);
@@ -97,8 +93,8 @@ GlobalAddress<Graph> Graph::create(tuple_graph& tg) {
       adj += v.nadj;
     }
     CHECK_EQ(adj - g->adj_buf, g->nadj_local);
-    VLOG(0) << "nv = " << g->nv;
   });
   
   return g;
 }
+
