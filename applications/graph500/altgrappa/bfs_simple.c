@@ -25,6 +25,8 @@
 #include <AsyncDelegate.hpp>
 #include <SharedMessagePool.hpp>
 
+// set this to use MPI3 collectives instead of Grappa native ones
+//#define USE_MPI3_COLLECTIVES
 
 static oned_csr_graph g;
 static int64_t* g_oldq;
@@ -91,6 +93,8 @@ void run_bfs(int64_t root, int64_t* pred) {
   oldq_count = 0;
   newq_count = 0;
 
+  int level = 0;
+
   /* Set up the visited bitmap. */
   const int ulong_bits = sizeof(unsigned long) * CHAR_BIT;
   int64_t visited_size = (nlocalverts + ulong_bits - 1) / ulong_bits;
@@ -112,7 +116,19 @@ void run_bfs(int64_t root, int64_t* pred) {
   while (1) {
     /* Step through the current level's queue. */
     mygce.enroll(oldq_count);
+#ifndef USE_MPI3_COLLECTIVES
     Grappa_barrier_suspending();
+#else
+    MPI_Request r;
+    int done;
+    MPI_Ibarrier( MPI_COMM_WORLD, &r );
+    do {
+      MPI_Test( &r, &done, MPI_STATUS_IGNORE );
+      if( !done ) {
+        Grappa_yield();
+      }
+    } while( !done );
+#endif
 
     size_t i;
     for (i = 0; i < oldq_count; ++i) {
@@ -153,11 +169,27 @@ void run_bfs(int64_t root, int64_t* pred) {
       mygce.complete(1);
     }
 
+    Grappa::impl::idle_flush_rdma_aggregator();
+    Grappa_yield();
+
     mygce.wait();
 
     /* Test globally if all queues are empty. */
-    size_t global_newq_count = Grappa::allreduce< size_t, collective_add >(newq_count);
+    size_t global_newq_count;
+
+#ifndef USE_MPI3_COLLECTIVES
+    global_newq_count = Grappa::allreduce< size_t, collective_add >(newq_count);
     Grappa_barrier_suspending();
+#else
+    MPI_Iallreduce( &newq_count, &global_newq_count, 1, MPI_INT64_T, MPI_SUM, MPI_COMM_WORLD, &r );
+
+    do {
+      MPI_Test( &r, &done, MPI_STATUS_IGNORE );
+      if( !done ) {
+        Grappa_yield();
+      }
+    } while( !done );
+#endif
 
 
     /* Quit if they all are empty. */
@@ -168,7 +200,7 @@ void run_bfs(int64_t root, int64_t* pred) {
     oldq_count = newq_count;
     newq_count = 0;
   }
-
+  level++;
 }
 
 void get_vertex_distribution_for_pred(size_t count, const int64_t* vertex_p, int* owner_p, size_t* local_p) {

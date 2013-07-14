@@ -101,6 +101,10 @@ int main(int argc, char** argv) {
   Grappa_init(&argc, &argv);
   Grappa_activate();
 
+/*   double max_teps = 0.0; */
+/*   Grappa_add_profiling_value( &max_teps, "max_teps", "TEPS", false, 0.0 ); */
+
+
   setup_globals();
   if (rank == 0) fprintf(stderr, "mpinodes: %d\n", size);
 
@@ -339,6 +343,13 @@ int main(int argc, char** argv) {
   int64_t* pred = (int64_t*)xMPI_Alloc_mem(nlocalverts * sizeof(int64_t));
   g_pred = pred;
 
+/*   argc_p = &argc; */
+/*   argv_p = &argv; */
+/*   Grappa_run_user_main( [&] { */
+/*                           Grappa::on_all_cores( [&] { */
+/*                                                   int & argc = *argc_p; */
+/*                                                   char ** & argv = *argv_p; */
+
   int bfs_root_idx;
   for (bfs_root_idx = 0; bfs_root_idx < num_bfs_roots; ++bfs_root_idx) {
     int64_t root = bfs_roots[bfs_root_idx];
@@ -362,6 +373,8 @@ int main(int argc, char** argv) {
     Grappa_run_user_main( [] {
                             Grappa::on_all_cores( [] {
                                                     run_bfs(g_root, &g_pred[0]);
+                                                    if( rank == 0 ) Grappa::Statistics::merge_and_print();
+                                                    Grappa_barrier_suspending();
                                                   } );
                           } );
     double bfs_stop = MPI_Wtime();
@@ -477,6 +490,7 @@ int main(int argc, char** argv) {
   free(validate_times);
 
   cleanup_globals();
+
 /* } ); */
 /* } ); */
 
