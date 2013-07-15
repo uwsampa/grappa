@@ -74,7 +74,11 @@ GlobalCompletionEvent joiner;
 
 double make_bfs_tree(GlobalAddress<Graph> g_in, GlobalAddress<int64_t> _bfs_tree, int64_t root) {
   static_assert(sizeof(long) == sizeof(int64_t), "Can't use long as substitute for int64_t");
-  LOG_FIRST_N(INFO,1) << "bfs_version: 'local_adj'";
+  if (FLAGS_cas_flatten) {
+    LOG_FIRST_N(INFO,1) << "bfs_version: 'grappa_visited_cache'";    
+  } else {
+    LOG_FIRST_N(INFO,1) << "bfs_version: 'grappa_adj'";
+  }
   
   call_on_all_cores([g_in,_bfs_tree]{
     g = g_in;
