@@ -18,7 +18,8 @@ Igor do
     beamer_beta: 20,
     scale: 16,
     edgefactor: 16,
-    nbfs: 8
+    nbfs: 8,
+    shared_pool_max: 64
   })
   GFLAGS.delete :flat_combining
   
