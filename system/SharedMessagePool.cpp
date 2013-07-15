@@ -4,6 +4,9 @@
 #include <stack>
 
 DEFINE_int64(shared_pool_size, 1L << 20, "Size (in bytes) of global SharedMessagePool (on each Core)");
+
+/// Note: max is enforced only for blockable callers, and is enforced early to avoid callers
+/// that cannot block (callers from message handlers) to have a greater chance of proceeding.
 DEFINE_int64(shared_pool_max, -1, "Maximum number of shared pools allowed to be allocated (per core).");
 
 GRAPPA_DEFINE_STAT(SimpleStatistic<uint64_t>, shared_message_pools_allocated, 0);
