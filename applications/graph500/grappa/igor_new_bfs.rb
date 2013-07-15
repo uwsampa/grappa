@@ -19,7 +19,8 @@ Igor do
     scale: 16,
     edgefactor: 16,
     nbfs: 8,
-    shared_pool_max: 64
+    shared_pool_max: 64,
+    cas_flatten: 1
   })
   GFLAGS.delete :flat_combining
   

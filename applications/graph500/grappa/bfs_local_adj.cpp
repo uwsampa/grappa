@@ -15,6 +15,49 @@ GlobalAddress<long> bfs_tree;
 GRAPPA_DECLARE_STAT(SimpleStatistic<uint64_t>, bfs_vertex_visited);
 GRAPPA_DECLARE_STAT(SimpleStatistic<uint64_t>, bfs_edge_visited);
 
+DEFINE_bool(cas_flatten, false, "Flatten compare-and-swaps.");
+
+//DEFINE_int64(cas_flattener_size, 20, "log2 of the number of unique elements in the hash set used to short-circuit compare and swaps");
+
+GRAPPA_DEFINE_STAT(SimpleStatistic<uint64_t>, cmp_swaps_shorted, 0);
+GRAPPA_DEFINE_STAT(SimpleStatistic<uint64_t>, cmp_swaps_total, 0);
+
+class CmpSwapCombiner {
+  size_t log2n;
+  intptr_t * in_set;
+public:
+  CmpSwapCombiner() {
+    log2n = 20;
+    in_set = new intptr_t[1L << log2n];
+    clear();
+  }
+  ~CmpSwapCombiner() { delete in_set; }
+
+  void clear() {
+    cmp_swaps_total = cmp_swaps_shorted = 0;
+    memset(in_set, 0, sizeof(intptr_t)*(1L<<log2n));
+  }
+
+  template< typename T >
+  bool not_done_before(GlobalAddress<T> target) {
+    cmp_swaps_total++;
+    intptr_t t = target.raw_bits();
+    uint64_t h = ((uint64_t)t) % (1L << log2n);
+    if (in_set[h] == t) {
+      cmp_swaps_shorted++;
+      return false;
+    } else {
+      if (in_set[h] == 0) {
+        in_set[h] = t;
+      }
+      return true;
+    }
+  }
+};
+
+static CmpSwapCombiner * combiner = NULL;
+
+
 int64_t * frontier;
 int64_t frontier_sz;
 int64_t frontier_head;
@@ -46,19 +89,18 @@ double make_bfs_tree(GlobalAddress<Graph> g_in, GlobalAddress<int64_t> _bfs_tree
   
   double t = walltime();
   
-  // start with root as only thing in frontier
-  delegate::call((g->vs+root).core(), [root]{ frontier_push(root); });
-  
-  // initialize bfs_tree to -1
-  // Grappa::memset(bfs_tree, -1,  g->nv);
-  forall_localized(g->vs, g->nv, [](Graph::Vertex& v){ v.parent = -1; });
-  
-  // parent of root is self
-  // delegate::write(bfs_tree+root, root);
-  delegate::call(g->vs+root, [root](Graph::Vertex * v){ v->parent = root; });
+  // initialize bfs_tree to -1, parent of root is root, and init frontier with root
+  forall_localized(g->vs, g->nv, [root](int64_t i, Graph::Vertex& v){
+    if (i == root) {
+      v.parent = root;
+      frontier_push(root);
+    } else {
+      v.parent = -1;
+    }
+  });
   
   on_all_cores([root]{
-    // pool = new MessagePool(1L<<26);
+    if (FLAGS_cas_flatten) combiner = new CmpSwapCombiner();
     
     int64_t next_level_total;
     int64_t yield_ct = 0;
@@ -74,13 +116,15 @@ double make_bfs_tree(GlobalAddress<Graph> g_in, GlobalAddress<int64_t> _bfs_tree
         
         auto& src_v = *(g->vs+sv).pointer();
         for (auto& ev : src_v.adj_iter()) {
-          delegate::call_async<&joiner>(*shared_pool, (g->vs+ev).core(), [sv,ev]{
-            auto& end_v = *(g->vs+ev).pointer();
-            if (end_v.parent == -1) {
-              end_v.parent = sv;       // set as parent
-              frontier_push(ev); // visit child in next level 
-            }
-          });
+          if (FLAGS_cas_flatten == false || combiner->not_done_before(g->vs+ev)) {
+            delegate::call_async<&joiner>(*shared_pool, (g->vs+ev).core(), [sv,ev]{
+              auto& end_v = *(g->vs+ev).pointer();
+              if (end_v.parent == -1) {
+                end_v.parent = sv;       // set as parent
+                frontier_push(ev); // visit child in next level 
+              }
+            });
+          }
         }
       }
       joiner.complete();
@@ -105,6 +149,7 @@ double make_bfs_tree(GlobalAddress<Graph> g_in, GlobalAddress<int64_t> _bfs_tree
   call_on_all_cores([]{
     // delete pool;
     locale_free(frontier);
+    if (FLAGS_cas_flatten) delete combiner;
   });
   
   return bfs_time;
