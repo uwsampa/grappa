@@ -18,6 +18,14 @@ CFLAGS += -w
 CFLAGS += -I$(GRAPPA_HOME)/system -I.. 
 CFLAGS += -g -Wall -Drestrict=__restrict__ -ffast-math -DGRAPH_GENERATOR_GRAPPA
 
+ifdef PAL
+CFLAGS += -DUSE_MPI3_COLLECTIVES
+endif
+
+ifdef SMALL_GRAPH
+CFLAGS += -DSMALL_GRAPH
+endif
+
 LDFLAGS += -g 
 
 # can be set to one of:

@@ -102,7 +102,11 @@ void user_main(void * ignore) {
   for (int64_t i=0; i < nroots; i++) {
     Grappa::memset(bfs_tree, -1, g->nv);
     
+    if (i == 0) call_on_all_cores([]{ Grappa_start_profiling(); });
+    
     bfs_time[i] = make_bfs_tree(g, bfs_tree, bfs_roots[i]);
+
+    if (i == 0) call_on_all_cores([]{ Grappa_stop_profiling(); });
     
     VLOG(1) << "make_bfs_tree time: " << bfs_time[i];
     
