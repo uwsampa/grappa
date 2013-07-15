@@ -11,6 +11,7 @@
 #include "GlobalCompletionEvent.hpp"
 #include "MessagePool.hpp"
 #include "Collective.hpp"
+#include "PerformanceTools.hpp"
 
 BOOST_AUTO_TEST_SUITE( New_delegate_tests );
 
@@ -198,6 +199,10 @@ void check_flat_combining() {
 void user_main(void * args) {
   CHECK(Grappa_nodes() >= 2); // at least 2 nodes for these tests...
 
+  Grappa::on_all_cores( [] {
+      Grappa_start_profiling();
+    } );
+
   check_short_circuiting();
   
   check_remote();
@@ -225,6 +230,10 @@ void user_main(void * args) {
   Grappa::wait(&waiter);
   BOOST_CHECK_EQUAL(seed, 222);
   
+  Grappa::on_all_cores( [] {
+      Grappa_stop_profiling();
+    } );
+
   Grappa::Statistics::merge_and_print();
 }
 
