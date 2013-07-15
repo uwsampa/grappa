@@ -2762,9 +2762,9 @@ static void gasnetc_atexit(void) {
 static void gasnetc_exit_init(void) {
   /* Handler for non-collective returns from main() */
   #if HAVE_ON_EXIT
-    on_exit(gasnetc_on_exit, NULL);
+    //on_exit(gasnetc_on_exit, NULL);
   #else
-    atexit(gasnetc_atexit);
+    //atexit(gasnetc_atexit);
   #endif
 
 #if GASNET_PSHM
