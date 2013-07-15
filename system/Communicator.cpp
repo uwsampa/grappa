@@ -9,6 +9,8 @@
 
 #include <gflags/gflags.h>
 
+#include <mpi.h>
+
 #ifdef HEAPCHECK_ENABLE
 #include <gperftools/heap-checker.h>
 extern HeapLeakChecker * Grappa_heapchecker;
@@ -124,7 +126,9 @@ void Communicator::activate() {
 /// tear down communication layer.
 void Communicator::finish(int retval) {
   communication_is_allowed_ = false;
-  // TODO: for now, don't call gasnet exit. should we in future?
+  // Don't call gasnet_exit, since it screws up VampirTrace
   //gasnet_exit( retval );
+  // Instead, call MPI_finalize();
+  MPI_Finalize();
 }
 
