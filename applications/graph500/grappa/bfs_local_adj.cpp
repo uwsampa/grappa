@@ -16,11 +16,12 @@ GRAPPA_DECLARE_STAT(SimpleStatistic<uint64_t>, bfs_vertex_visited);
 GRAPPA_DECLARE_STAT(SimpleStatistic<uint64_t>, bfs_edge_visited);
 
 int64_t * frontier;
+int64_t frontier_sz;
 int64_t frontier_head;
 int64_t frontier_tail;
 int64_t frontier_level_mark;
 
-void frontier_push(int64_t v) { frontier[frontier_tail++] = v; }
+void frontier_push(int64_t v) { frontier[frontier_tail++] = v; CHECK_LT(frontier_tail, frontier_sz); }
 int64_t frontier_pop() { return frontier[frontier_head++]; }
 int64_t frontier_next_level_size() { return frontier_tail - frontier_level_mark; }
 
@@ -36,7 +37,8 @@ double make_bfs_tree(GlobalAddress<Graph> g_in, GlobalAddress<int64_t> _bfs_tree
     g = g_in;
     bfs_tree = _bfs_tree;
     
-    frontier = locale_alloc<int64_t>(g->nv);
+    frontier_sz = g->nv/cores()*2;
+    frontier = locale_alloc<int64_t>(frontier_sz);
     frontier_head = 0;
     frontier_tail = 0;
     frontier_level_mark = 0;
@@ -67,7 +69,8 @@ double make_bfs_tree(GlobalAddress<Graph> g_in, GlobalAddress<int64_t> _bfs_tree
       
       while (frontier_head < frontier_level_mark) {
         int64_t sv = frontier_pop();
-        CHECK( (g->vs+sv).core() == mycore() || sv == root ) << "sv = " << sv << ", core = " << (g->vs+sv).core();
+        CHECK( (g->vs+sv).core() == mycore() || sv == root )
+          << "sv = " << sv << ", core = " << (g->vs+sv).core();
         
         auto& src_v = *(g->vs+sv).pointer();
         for (auto& ev : src_v.adj_iter()) {
