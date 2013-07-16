@@ -37,7 +37,7 @@ ifndef VALGRIND
 #LIBRARIES+= -ltcmalloc
 endif
 
-LD_LIBRARY_PATH:=$(LD_LIBRARY_PATH):$(BOOST)/stage/lib
+LD_LIBRARY_PATH:=$(BOOST)/stage/lib:$(LD_LIBRARY_PATH)
 
 CC=mpicc
 CXX=mpicxx
@@ -238,18 +238,18 @@ LDFLAGS+= -L$(HUGETLBFS)/lib64
 GFLAGS?=$(GRAPPA_HOME)/tools/built_deps
 CFLAGS+= -I$(GFLAGS)/include
 LDFLAGS+= -L$(GFLAGS)/lib
-LD_LIBRARY_PATH:=$(LD_LIBRARY_PATH):$(GFLAGS)/lib
+LD_LIBRARY_PATH:=$(GFLAGS)/lib:$(LD_LIBRARY_PATH)
 
 GLOG?=$(GRAPPA_HOME)/tools/built_deps
 CFLAGS+= -I$(GLOG)/include
 LDFLAGS+= -L$(GLOG)/lib
-LD_LIBRARY_PATH:=$(LD_LIBRARY_PATH):$(GLOG)/lib
+LD_LIBRARY_PATH:=$(GLOG)/lib:$(LD_LIBRARY_PATH)
 
 GPERFTOOLS?=$(GRAPPA_HOME)/tools/built_deps
 #GPERFTOOLS?=/sampa/share/gperftools-2.0-nolibunwind
 CFLAGS+= -I$(GPERFTOOLS)/include
 LDFLAGS+= -L$(GPERFTOOLS)/lib
-LD_LIBRARY_PATH:=$(LD_LIBRARY_PATH):$(GPERFTOOLS)/lib
+LD_LIBRARY_PATH:=$(GPERFTOOLS)/lib:$(LD_LIBRARY_PATH)
 
 
 VAMPIRTRACE?=$(GRAPPA_HOME)/tools/built_deps
@@ -258,9 +258,9 @@ LDFLAGS+= -L$(VAMPIRTRACE)/lib
 LD_LIBRARY_PATH:=$(VAMPIRTRACE)/lib:$(LD_LIBRARY_PATH)
 
 VALGRIND_PATH?=/sampa/share/valgrind-3.8.1-cluster
-CFLAGS+= -I$(VAMPIRTRACE)/include
-LDFLAGS+= -L$(VAMPIRTRACE)/lib/valgrind
-LD_LIBRARY_PATH:=$(VAMPIRTRACE)/lib/valgrind:$(LD_LIBRARY_PATH)
+CFLAGS+= -I$(VALGRIND)/include
+LDFLAGS+= -L$(VALGRIND)/lib/valgrind
+LD_LIBRARY_PATH:=$(VALGRIND)/lib/valgrind:$(LD_LIBRARY_PATH)
 
 
 MPITYPE?=SRUN
