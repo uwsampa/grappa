@@ -51,9 +51,13 @@ ENV["GASNET_PUTINMOVE_LIMIT"] = "0"
 
 ENV["CPUPROFILE_FREQUENCY"] = "100"
 
+ENV["LD_LIBRARY_PATH"]="/people/nels707/grappa/tools/built_deps/lib/valgrind:/people/nels707/grappa/tools/built_deps/lib:/pic/people/nels707/boost153-install/lib:/share/apps/mvapich2/1.9b/gcc/4.7.2/lib:/share/apps/gcc/4.7.2/lib:/share/apps/gcc/4.7.2/lib64:/opt/AMDAPP/lib/x86_64:/opt/AMDAPP/lib/x86:$LD_LIBRARY_PATH"
+
+#ENV["VT_VERBOSE"] = "10"
 ENV["VT_MAX_FLUSHES"] = "0"
 ENV["VT_PFORM_GDIR"] = "."
 ENV["VT_PFORM_LDIR"] = "/scratch"
+ENV["VT_MPITRACE"] = "no"
 
 ENV["MV2_USE_LAZY_MEM_UNREGISTER"] = "0"
 ENV["MV2_ON_DEMAND_THRESHOLD"] = "3000"
