@@ -75,9 +75,15 @@ namespace Grappa {
       if (SummarizingStatistic::vt_type == -1) {
         LOG(ERROR) << "warning: VTrace sampling unsupported for this type of SummarizingStatistic.";
       } else {
-        vt_counter_value = VT_COUNT_DEF(name, name, SummarizingStatistic::vt_type, VT_COUNT_DEFGROUP);
-        // TODO: add traces for summary statistics
-        //vt_counter_count = VT_COUNT_DEF(name, name, , VT_COUNT_DEFGROUP);
+        std::string namestr( name );
+        std::string countstr = namestr + "_count";
+        std::string meanstr = namestr + "_mean";
+        std::string stddevstr = namestr + "_stddev";
+        
+        vt_counter_value  = VT_COUNT_DEF(name,              name,              SummarizingStatistic::vt_type, VT_COUNT_DEFGROUP);
+        vt_counter_count  = VT_COUNT_DEF(countstr.c_str(),  countstr.c_str(),  VT_COUNT_TYPE_UNSIGNED,        VT_COUNT_DEFGROUP);
+        vt_counter_mean   = VT_COUNT_DEF(meanstr.c_str(),   meanstr.c_str(),   VT_COUNT_TYPE_DOUBLE,          VT_COUNT_DEFGROUP);
+        vt_counter_stddev = VT_COUNT_DEF(stddevstr.c_str(), stddevstr.c_str(), VT_COUNT_TYPE_DOUBLE,          VT_COUNT_DEFGROUP);
       }
 #endif
     }

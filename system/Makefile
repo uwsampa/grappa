@@ -77,6 +77,8 @@ Demo.o Demo.exe: $(LIBRARY)
 
 Communicator_tests.o Communicator_tests.test: Communicator.o
 
+Vampir_tests.o Vampir_tests.test: $(LIBRARY)
+
 Aggregator_tests.o Aggregator_tests.test: $(LIBRARY)
 RDMAAggregator_tests.o RDMAAggregator_tests.test: $(LIBRARY) 
 Message_tests.o Message_tests.test: $(LIBRARY) 
@@ -171,9 +173,9 @@ ENV_VARIABLES+= GLOG_logtostderr=1
 ENV_VARIABLES+= GLOG_v=1
 #ENV_VARIABLES+= OMPI_MCA_btl_sm_use_knem=0
 ifdef OSX
-ENV_VARIABLES+= DYLD_LIBRARY_PATH="\$$DYLD_LIBRARY_PATH:$(LD_LIBRARY_PATH)"
+ENV_VARIABLES+= DYLD_LIBRARY_PATH="$(LD_LIBRARY_PATH):\$$DYLD_LIBRARY_PATH"
 else
-ENV_VARIABLES+= LD_LIBRARY_PATH="\$$LD_LIBRARY_PATH:$(LD_LIBRARY_PATH)"
+ENV_VARIABLES+= LD_LIBRARY_PATH="$(LD_LIBRARY_PATH):\$$LD_LIBRARY_PATH"
 endif
 
 # work around 1GB huge page bug in gasnet by limiting size of memory 
@@ -270,11 +272,13 @@ ifdef VTRACE_SAMPLED
 ENV_VARIABLES+= VT_MAX_FLUSHES=0
 ENV_VARIABLES+= VT_PFORM_GDIR=.
 ENV_VARIABLES+= VT_PFORM_LDIR=/scratch
+ENV_VARIABLES+= VT_MPITRACE=no
 VAMPIRTRACE_COMMON_ARGS= -vt:inst manual
-CXX=$(VAMPIRTRACE)/bin/vtcxx -vt:cxx $(GCC472)/bin/g++ $(VAMPIRTRACE_COMMON_ARGS)
-CC=$(VAMPIRTRACE)/bin/vtcc -vt:cc $(GCC472)/bin/gcc $(VAMPIRTRACE_COMMON_ARGS)
-LD=$(VAMPIRTRACE)/bin/vtcxx -vt:cxx "$(GCC472_LD)" $(VAMPIRTRACE_COMMON_ARGS)
+CXX=$(VAMPIRTRACE)/bin/vtcxx -vt:cxx mpicxx $(VAMPIRTRACE_COMMON_ARGS)
+CC=$(VAMPIRTRACE)/bin/vtcc -vt:cc mpicc $(VAMPIRTRACE_COMMON_ARGS)
+LD=$(VAMPIRTRACE)/bin/vtcxx -vt:cxx mpicxx $(VAMPIRTRACE_COMMON_ARGS)
 CFLAGS+= -DVTRACE -DVTRACE_SAMPLED
+LDFLAGS+= -DVTRACE -DVTRACE_SAMPLED
 endif
 
 ifdef HISTOGRAM_SAMPLED
@@ -514,10 +518,11 @@ ENV_VARIABLES+= VT_MAX_FLUSHES=100
 ENV_VARIABLES+= VT_PFORM_GDIR=.
 ENV_VARIABLES+= VT_PFORM_LDIR=/scratch
 VAMPIRTRACE_COMMON_ARGS= -vt:inst manual
-CXX=$(VAMPIRTRACE)/bin/vtcxx -vt:cxx g++ $(VAMPIRTRACE_COMMON_ARGS)
-CC=$(VAMPIRTRACE)/bin/vtcc -vt:cc gcc $(VAMPIRTRACE_COMMON_ARGS)
+CXX=$(VAMPIRTRACE)/bin/vtcxx -vt:cxx mpicxx $(VAMPIRTRACE_COMMON_ARGS)
+CC=$(VAMPIRTRACE)/bin/vtcc -vt:cc mpicc $(VAMPIRTRACE_COMMON_ARGS)
 LD=$(VAMPIRTRACE)/bin/vtcxx -vt:cxx mpicxx $(VAMPIRTRACE_COMMON_ARGS)
-CFLAGS+= -DVTRACE -DVTRACE_FULL
+CFLAGS+= -DVTRACE -DVTRACE_SAMPLED
+LDFLAGS+= -DVTRACE -DVTRACE_SAMPLED
 endif
 
 
