@@ -29,7 +29,7 @@ OptionParser.new do |p|
   p.on('-e', '--test TEST', 'Run boost unit test program with given name (e.g. Aggregator_tests)'){|t| opt.test = t }
   p.on('-f', '--[no-]freeze-on-error', "Freeze all the jobs when there's an error"){|f| opt.freeze_on_error = f }
   p.on('-v', '--[no-]verbose', "Verbose tests"){|v| opt.verbose = v }
-
+  
 end.parse!(myargs)
 
 srun_flags = %w[ --cpu_bind=verbose,rank --label --kill-on-bad-exit ] \
