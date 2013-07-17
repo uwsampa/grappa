@@ -37,7 +37,7 @@ ifndef VALGRIND
 #LIBRARIES+= -ltcmalloc
 endif
 
-LD_LIBRARY_PATH:=$(LD_LIBRARY_PATH):$(BOOST)/stage/lib
+LD_LIBRARY_PATH:=$(BOOST)/stage/lib:$(LD_LIBRARY_PATH)
 
 CC=mpicc
 CXX=mpicxx
@@ -73,10 +73,9 @@ NELSON=/pic/people/nels707
 
 # should have modules: gcc/4.7.2 mvapich2/1.9b
 
-CC=gcc
-CXX=g++
+CC=mpicc
+CXX=mpicxx
 LD=mpicxx
-MPI=$(MPI_ROOT)
 
 
 #GASNET=$(NELSON)/gasnet
@@ -84,17 +83,16 @@ HUGETLBFS=/usr
 BOOST=$(NELSON)/boost153-install
 BOOST_INCLUDE=$(BOOST)/include
 BOOST_LIB=$(BOOST)/lib
-GPERFTOOLS=$(NELSON)/gperftools
-VAMPIRTRACE=$(NELSON)/vampirtrace
 
 MPITYPE=SRUN
 
 CFLAGS+=-DUSE_HUGEPAGES_DEFAULT=false
+LDFLAGS+= -lpmi
 
 SRUN_PARTITION=pal
 SRUN_BUILD_PARTITION=pal
 #SRUN_HOST=--partition $(SRUN_PARTITION) --account pal  --reservation=pal_25
-SRUN_HOST=--partition $(SRUN_PARTITION) --account pal $(SRUN_RESERVE) --exclude=node0196
+SRUN_HOST=--partition $(SRUN_PARTITION) --account pal $(SRUN_RESERVE)
 SRUN_RUN=salloc --exclusive $(SRUN_FLAGS) $($(MPITYPE)_HOST) $($(MPITYPE)_NPROC) $($(MPITYPE)_BATCH_TEMP)
 SRUN_BUILD_CMD=
 SRUN_CC=$(CC)
@@ -206,7 +204,7 @@ BOOST_INCLUDE?=$(BOOST)
 BOOST_LIB?=$(BOOST)/stage/lib
 CFLAGS+= -I$(BOOST_INCLUDE)
 LDFLAGS+= -L$(BOOST_LIB)
-LD_LIBRARY_PATH:=$(LD_LIBRARY_PATH):$(BOOST_LIB)
+LD_LIBRARY_PATH:=$(BOOST_LIB):$(LD_LIBRARY_PATH)
 
 ifdef GASNET_TRACING
 GASNET:=/sampa/share/gasnet-1.18.2-tracing
@@ -241,21 +239,21 @@ HUGETLBFS?=/usr
 CFLAGS+= -I$(HUGETLBFS)/include
 LDFLAGS+= -L$(HUGETLBFS)/lib64
 
-GFLAGS=$(GRAPPA_HOME)/tools/built_deps
+GFLAGS?=$(GRAPPA_HOME)/tools/built_deps
 CFLAGS+= -I$(GFLAGS)/include
 LDFLAGS+= -L$(GFLAGS)/lib
-LD_LIBRARY_PATH:=$(LD_LIBRARY_PATH):$(GFLAGS)/lib
+LD_LIBRARY_PATH:=$(GFLAGS)/lib:$(LD_LIBRARY_PATH)
 
-GLOG=$(GRAPPA_HOME)/tools/built_deps
+GLOG?=$(GRAPPA_HOME)/tools/built_deps
 CFLAGS+= -I$(GLOG)/include
 LDFLAGS+= -L$(GLOG)/lib
-LD_LIBRARY_PATH:=$(LD_LIBRARY_PATH):$(GLOG)/lib
+LD_LIBRARY_PATH:=$(GLOG)/lib:$(LD_LIBRARY_PATH)
 
-GPERFTOOLS=$(GRAPPA_HOME)/tools/built_deps
+GPERFTOOLS?=$(GRAPPA_HOME)/tools/built_deps
 #GPERFTOOLS?=/sampa/share/gperftools-2.0-nolibunwind
 CFLAGS+= -I$(GPERFTOOLS)/include
 LDFLAGS+= -L$(GPERFTOOLS)/lib
-LD_LIBRARY_PATH:=$(LD_LIBRARY_PATH):$(GPERFTOOLS)/lib
+LD_LIBRARY_PATH:=$(GPERFTOOLS)/lib:$(LD_LIBRARY_PATH)
 
 
 VAMPIRTRACE?=$(GRAPPA_HOME)/tools/built_deps
@@ -264,9 +262,9 @@ LDFLAGS+= -L$(VAMPIRTRACE)/lib
 LD_LIBRARY_PATH:=$(VAMPIRTRACE)/lib:$(LD_LIBRARY_PATH)
 
 VALGRIND_PATH?=/sampa/share/valgrind-3.8.1-cluster
-CFLAGS+= -I$(VAMPIRTRACE)/include
-LDFLAGS+= -L$(VAMPIRTRACE)/lib/valgrind
-LD_LIBRARY_PATH:=$(VAMPIRTRACE)/lib/valgrind:$(LD_LIBRARY_PATH)
+CFLAGS+= -I$(VALGRIND)/include
+LDFLAGS+= -L$(VALGRIND)/lib/valgrind
+LD_LIBRARY_PATH:=$(VALGRIND)/lib/valgrind:$(LD_LIBRARY_PATH)
 
 
 MPITYPE?=SRUN
