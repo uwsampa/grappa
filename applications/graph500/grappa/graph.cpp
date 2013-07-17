@@ -1,8 +1,11 @@
 #pragma once
-#include <mpi.h>
 #include "graph.hpp"
 
 // #define USE_MPI3_COLLECTIVES
+#undef USE_MPI3_COLLECTIVES
+#ifdef USE_MPI3_COLLECTIVES
+#include <mpi.h>
+#endif
 
 GlobalAddress<Graph> Graph::create(tuple_graph& tg) {
   double t;
