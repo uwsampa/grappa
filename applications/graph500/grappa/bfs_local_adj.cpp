@@ -71,6 +71,7 @@ int64_t frontier_next_level_size() { return frontier_tail - frontier_level_mark;
 GlobalCompletionEvent joiner;
 
 // MessagePool * pool;
+static unsigned marker = -1;
 
 double make_bfs_tree(GlobalAddress<Graph> g_in, GlobalAddress<int64_t> _bfs_tree, int64_t root) {
   static_assert(sizeof(long) == sizeof(int64_t), "Can't use long as substitute for int64_t");
@@ -79,6 +80,7 @@ double make_bfs_tree(GlobalAddress<Graph> g_in, GlobalAddress<int64_t> _bfs_tree
   } else {
     LOG_FIRST_N(INFO,1) << "bfs_version: 'grappa_adj'";
   }
+  GRAPPA_TRACER("make_bfs_tree()");
   
   call_on_all_cores([g_in,_bfs_tree]{
     g = g_in;
@@ -121,6 +123,7 @@ double make_bfs_tree(GlobalAddress<Graph> g_in, GlobalAddress<int64_t> _bfs_tree
         auto& src_v = *(g->vs+sv).pointer();
         for (auto& ev : src_v.adj_iter()) {
           if (FLAGS_cas_flatten == false || combiner->not_done_before(g->vs+ev)) {
+            GRAPPA_TRACER("call_async<>(visit_parent)");
             delegate::call_async<&joiner>(*shared_pool, (g->vs+ev).core(), [sv,ev]{
               auto& end_v = *(g->vs+ev).pointer();
               if (end_v.parent == -1) {
