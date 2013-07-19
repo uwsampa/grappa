@@ -87,7 +87,7 @@ namespace Grappa {
     /// user-defined storage.
     ///
     /// warning: truncates int64_t's to 48 bits--should be enough for most problem sizes.
-    template< GlobalCompletionEvent * GCE = nullptr, int64_t Threshold = USE_LOOP_THRESHOLD_FLAG, typename F = decltype(nullptr) >
+    template< GlobalCompletionEvent * GCE, int64_t Threshold = USE_LOOP_THRESHOLD_FLAG, typename F = decltype(nullptr) >
     void loop_decomposition_public(int64_t start, int64_t iterations, F loop_body) {
       DVLOG(4) << "< " << start << " : " << iterations << ">";
       
@@ -116,11 +116,33 @@ namespace Grappa {
         loop_decomposition_public<GCE,Threshold,F>(start, (iterations+1)/2, loop_body);
       }
     }
+    
+    template<CompletionEvent * CE, int64_t Threshold, typename F >
+    void forall_here(int64_t start, int64_t iters, F loop_body, void (F::*mf)(int64_t,int64_t) const) {
+      CE->enroll(iters);
+      impl::loop_decomposition_private<Threshold>(start, iters,
+        // passing loop_body by ref to avoid copying potentially large functors many times in decomposition
+        // also keeps task args < 24 bytes, preventing it from needing to be heap-allocated
+        [&loop_body](int64_t s, int64_t n) {
+          loop_body(s, n);
+          CE->complete(n);
+        });
+      CE->wait();
+    }
 
+    template<CompletionEvent * CE, int64_t Threshold, typename F >
+    void forall_here(int64_t start, int64_t iters, F loop_body, void (F::*mf)(int64_t) const) {
+      auto f = [loop_body](int64_t s, int64_t n) {
+        for (int64_t i=s; i<s+n; i++) {
+          loop_body(i);
+        }
+      };
+      forall_here<CE,Threshold>(start, iters, f, &decltype(f)::operator());
+    }
     
     extern CompletionEvent local_ce;
     extern GlobalCompletionEvent local_gce;
-  }
+  } // namespace impl
   
   /// Blocking parallel for loop, spawns only private tasks. Synchronizes itself with
   /// either a given static CompletionEvent (template param) or the local builtin one.
@@ -136,17 +158,18 @@ namespace Grappa {
   /// Also note: a single copy of `loop_body` is passed by reference to all of the child
   /// tasks, so be sure not to modify anything in the functor
   /// (TODO: figure out how to enforce this for all kinds of functors)
+  ///
+  /// Example usage:
+  /// @code
+  ///   for (int i=0; i<N; i++) { x++; }
+  ///   // equivalent parallel loop:
+  ///   forall_here(0, N, [&x](int64_t start, int64_t iters) {
+  ///     for (int i=start; i<start+iters; i++) { x++; }
+  ///   });
+  /// @endcode
   template<CompletionEvent * CE = &impl::local_ce, int64_t Threshold = impl::USE_LOOP_THRESHOLD_FLAG, typename F = decltype(nullptr) >
-  void forall_here(int64_t start, int64_t iters, F loop_body) {
-    CE->enroll(iters);
-    impl::loop_decomposition_private<Threshold>(start, iters,
-      // passing loop_body by ref to avoid copying potentially large functors many times in decomposition
-      // also keeps task args < 24 bytes, preventing it from needing to be heap-allocated
-      [&loop_body](int64_t s, int64_t n) {
-        loop_body(s, n);
-        CE->complete(n);
-      });
-    CE->wait();
+  inline void forall_here(int64_t start, int64_t iters, F loop_body) {
+    impl::forall_here<CE,Threshold,F>(start, iters, loop_body, &decltype(loop_body)::operator());
   }
   
   /// Non-blocking parallel loop with privateTasks. Takes pointer to a functor which
@@ -217,40 +240,60 @@ namespace Grappa {
     });
   }
   
+  namespace impl {
+  
+    template<GlobalCompletionEvent * GCE, int64_t Threshold, typename F>
+    void forall_global_public(int64_t start, int64_t iters, F loop_body,
+                                void (F::*mf)(int64_t,int64_t) const)
+    {
+      // note: loop_decomp uses 2*8-byte values to specify range. We additionally track originating
+      // core. So to avoid exceeding 3*8-byte task size, we save the loop body once on each core
+      // (on `on_all_cores` task's stack) and embed the pointer to it in GCE, so each public task
+      // can look it up when run, wherever it is.
+    
+      on_all_cores([start,iters,loop_body]{
+        GCE->set_shared_ptr(&loop_body); // need to initialize this on all nodes before any tasks start
+        // may as well do this before the barrier too, but it shouldn't matter
+        range_t r = blockDist(start, start+iters, mycore(), cores());
+      
+        barrier();
+      
+        forall_here_async_public<GCE,Threshold>(r.start, r.end-r.start,
+          [](int64_t s, int64_t n) {
+            auto& loop_body = *GCE->get_shared_ptr<F>();
+            loop_body(s,n);
+          }
+        );
+      
+        GCE->wait(); // keeps captured `loop_body` around for child tasks from any core to use
+        GCE->set_shared_ptr(nullptr);
+      });
+    }
+  
+    template<GlobalCompletionEvent * GCE, int64_t Threshold, typename F>
+    void forall_global_public(int64_t start, int64_t iters, F loop_body,
+                              void (F::*mf)(int64_t) const)
+    {
+      auto f = [loop_body](int64_t start, int64_t iters){
+        for (int64_t i=start; i<start+iters; i++) {
+          loop_body(i);
+        }
+      };
+      impl::forall_global_public<GCE,Threshold>(start, iters, f, &decltype(f)::operator());
+    }
+  }
+  
   /// Spread iterations evenly (block-distributed) across all the cores, using recursive
   /// decomposition with public tasks (that may moved to a different core for load-balancing).
   /// Blocks until all iterations on all cores complete.
   ///
-  /// Note: `loop_body` will be copied to each core and that single copied is shared by all
+  /// Note: `loop_body` will be copied to each core and that single copy is shared by all
   /// public tasks under this GlobalCompletionEvent.
   ///
   /// Subject to "may-parallelism", @see `loop_threshold`.
   template<GlobalCompletionEvent * GCE = &impl::local_gce, int64_t Threshold = impl::USE_LOOP_THRESHOLD_FLAG, typename F = decltype(nullptr)>
   void forall_global_public(int64_t start, int64_t iters, F loop_body) {
-    // note: loop_decomp uses 2*8-byte values to specify range. We additionally track originating
-    // core. So to avoid exceeding 3*8-byte task size, we save the loop body once on each core
-    // (on `on_all_cores` task's stack) and embed the pointer to it in GCE, so each public task
-    // can look it up when run, wherever it is.
-    
-    on_all_cores([start,iters,loop_body]{
-//      GCE->reset();
-      GCE->set_shared_ptr(&loop_body); // need to initialize this on all nodes before any tasks start
-      
-      // may as well do this before the barrier too, but it shouldn't matter
-      range_t r = blockDist(start, start+iters, mycore(), cores());
-      
-      barrier();
-      
-      forall_here_async_public<GCE,Threshold>(r.start, r.end-r.start,
-        [](int64_t s, int64_t n) {
-          auto& loop_body = *GCE->get_shared_ptr<F>();
-          loop_body(s,n);
-        }
-      );
-      
-      GCE->wait(); // keeps captured `loop_body` around for child tasks from any core to use
-      GCE->set_shared_ptr(nullptr);
-    });
+    impl::forall_global_public<GCE,Threshold>(start, iters, loop_body, &F::operator());
   }
   
   namespace impl {
@@ -297,6 +340,18 @@ namespace Grappa {
             n_to_boundary = block_elems;
           }
           loop_body(index, first[i]);
+        }
+      };
+      impl::forall_localized<GCE,Threshold,T>(base, nelems, f, &decltype(f)::operator());
+    }
+
+    template< GlobalCompletionEvent * GCE, int64_t Threshold, typename T, typename F >
+    void forall_localized(GlobalAddress<T> base, int64_t nelems, F loop_body,
+                          void (F::*mf)(T&) const)
+    {
+      auto f = [loop_body](int64_t start, int64_t niters, T * first) {
+        for (int64_t i=0; i<niters; i++) {
+          loop_body(first[i]);
         }
       };
       impl::forall_localized<GCE,Threshold,T>(base, nelems, f, &decltype(f)::operator());
@@ -354,24 +409,24 @@ namespace Grappa {
   void forall_localized(GlobalAddress<T> base, int64_t nelems, F loop_body) {
     impl::forall_localized<GCE,Threshold,T,F>(base, nelems, loop_body, &F::operator());
   }
+
+  template< int64_t Threshold, typename T = decltype(nullptr), typename F = decltype(nullptr) >
+  void forall_localized(GlobalAddress<T> base, int64_t nelems, F loop_body) {
+    impl::forall_localized<&impl::local_gce,Threshold,T,F>(base, nelems, loop_body, &F::operator());
+  }
   
-  /// Run privateTasks on each core that contains elements of the given region of global memory.
-  /// do_on_core: void(T* local_base, size_t nlocal)
-  /// Internally creates privateTask with 2*8-byte words, so do_on_core can be 8 bytes and not cause heap allocation.
-  template< GlobalCompletionEvent * GCE = &impl::local_gce,
-            int64_t Threshold = impl::USE_LOOP_THRESHOLD_FLAG,
-            typename T = decltype(nullptr),
-            typename F = decltype(nullptr) >
-  void on_cores_localized_async(GlobalAddress<T> base, int64_t nelems, F do_on_core) {
+  template< typename T >
+  std::pair<Core,Core> cores_with_elements(GlobalAddress<T> base, size_t nelem) {
+    Core start_core = base.node();
     Core nc = cores();
     Core fc;
-    int64_t nbytes = nelems*sizeof(T);
-    GlobalAddress<int64_t> end = base+nelems;
-    if (nelems > 0) { fc = 1; }
+    int64_t nbytes = nelem*sizeof(T);
+    GlobalAddress<int64_t> end = base+nelem;
+    if (nelem > 0) { fc = 1; }
   
     size_t block_elems = block_size / sizeof(T);
     int64_t nfirstcore = base.block_max() - base;
-    int64_t n = nelems - nfirstcore;
+    int64_t n = nelem - nfirstcore;
     
     if (n > 0) {
       int64_t nrest = n / block_elems;
@@ -385,15 +440,30 @@ namespace Grappa {
       }
     }
     
+    return std::make_pair( start_core, fc );
+  }
+  
+  /// Run privateTasks on each core that contains elements of the given region of global memory.
+  /// do_on_core: void(T* local_base, size_t nlocal)
+  /// Internally creates privateTask with 2*8-byte words, so do_on_core can be 8 bytes and not cause heap allocation.
+  template< GlobalCompletionEvent * GCE = &impl::local_gce,
+            int64_t Threshold = impl::USE_LOOP_THRESHOLD_FLAG,
+            typename T = decltype(nullptr),
+            typename F = decltype(nullptr) >
+  void on_cores_localized_async(GlobalAddress<T> base, int64_t nelems, F do_on_core) {
+    
+    auto r = cores_with_elements(base, nelems);
+    auto fc = r.second;
+    auto nc = cores();
+    
     Core origin = mycore();
-    Core start_core = base.node();
     MessagePool pool(cores() * sizeof(Message<std::function<void(GlobalAddress<T>,int64_t,F)>>));
     
     GCE->enroll(fc);
     struct { int64_t nelems : 48, origin : 16; } packed = { nelems, mycore() };
     
     for (Core i=0; i<fc; i++) {
-      pool.send_message((start_core+i)%nc, [base,packed,do_on_core] {
+      pool.send_message((r.first+i)%nc, [base,packed,do_on_core] {
         privateTask([base,packed,do_on_core] {
           T* local_base = base.localize();
           T* local_end = (base+packed.nelems).localize();
@@ -438,7 +508,7 @@ namespace Grappa {
     
       struct { int64_t nelems:48, origin:16; } pack = { nelems, mycore() };
     
-      GCE->enroll(fc);
+      if (GCE) GCE->enroll(fc);
       for (Core i=0; i<fc; i++) {
         pool.send_message((start_core+i)%nc, [base,pack,loop_body] {
           // (should now have room for loop_body to be 8 bytes)
@@ -455,7 +525,7 @@ namespace Grappa {
             };
             forall_here_async<GCE,Threshold>(0, n, f);
           
-            complete(make_global(GCE,pack.origin));
+            if (GCE) complete(make_global(GCE,pack.origin));
           });
         });
       }
@@ -481,6 +551,19 @@ namespace Grappa {
       };
       impl::forall_localized_async<GCE,Threshold>(base, nelems, f, &decltype(f)::operator());
     }
+  
+    template< GlobalCompletionEvent * GCE, int64_t Threshold, typename T, typename F >  
+    void forall_localized_async(GlobalAddress<T> base, int64_t nelems, F loop_body,
+                                void (F::*mf)(T&) const)
+    {
+      auto f = [loop_body](int64_t start, int64_t niters, T * first) {
+        for (int64_t i=0; i<niters; i++) {
+          loop_body(first[i]);
+        }
+      };
+      impl::forall_localized_async<GCE,Threshold>(base, nelems, f, &decltype(f)::operator());
+    }
+  
   
   } // namespace impl
   
