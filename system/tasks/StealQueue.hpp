@@ -25,7 +25,7 @@
 // Grappa
 #include "../Addressing.hpp"
 #include "../LegacySignaler.hpp"
-#include "../FullEmpty.hpp"
+#include "../FullEmptyLocal.hpp"
 #include "../LocaleSharedMemory.hpp"
 
 #include "../Aggregator.hpp"

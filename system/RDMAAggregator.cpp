@@ -658,7 +658,7 @@ void RDMAAggregator::draw_routing_graph() {
     CoreData * locale_core = localeCoreData( locale * Grappa::locale_cores() );
 
     while( !Grappa_done_flag ) {
-
+      
       // block until it's time to send to this locale
       Grappa::impl::global_scheduler.assign_time_to_networking();
       Grappa::wait( &(locale_core->send_cv_) );
@@ -892,6 +892,7 @@ void RDMAAggregator::draw_routing_graph() {
       size_t RDMAAggregator::deliver_locally( Core core,
                                             Grappa::impl::MessageList ml,
                                             CoreData * dest ) {
+                                              
       MessageBase * messages_to_send = get_pointer( &ml );
       size_t delivered_count = 0;
       size_t delivered_bytes = 0;

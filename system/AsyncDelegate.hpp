@@ -2,7 +2,7 @@
 
 #include "Communicator.hpp"
 #include "PoolAllocator.hpp"
-#include "FullEmpty.hpp"
+#include "FullEmptyLocal.hpp"
 #include "LegacyDelegate.hpp"
 #include "GlobalCompletionEvent.hpp"
 #include "ParallelLoop.hpp"

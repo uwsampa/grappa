@@ -16,7 +16,7 @@ puts "DIR = #{DIR}"
 opt = OpenStruct.new
 # opt.nnode = 2
 # opt.ppn   = 1
-opt.time  = '15:00'
+# opt.time  = '2:00:00'
 opt.freeze_on_error = false
 opt.verbose = true
 
@@ -29,7 +29,7 @@ OptionParser.new do |p|
   p.on('-e', '--test TEST', 'Run boost unit test program with given name (e.g. Aggregator_tests)'){|t| opt.test = t }
   p.on('-f', '--[no-]freeze-on-error', "Freeze all the jobs when there's an error"){|f| opt.freeze_on_error = f }
   p.on('-v', '--[no-]verbose', "Verbose tests"){|v| opt.verbose = v }
-
+  
 end.parse!(myargs)
 
 srun_flags = %w[ --cpu_bind=verbose,rank --label --kill-on-bad-exit ] \

@@ -44,6 +44,10 @@ template< typename T >
 T collective_mult(const T& a, const T& b) {
   return a*b;
 }
+template< typename T >
+T collective_or(const T& a, const T& b) {
+  return a || b;
+}
 
 namespace Grappa {
   namespace impl {

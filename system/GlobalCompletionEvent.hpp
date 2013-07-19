@@ -110,10 +110,7 @@ class GlobalCompletionEvent : public CompletionEvent {
   }
   
   inline void init_completion_msgs() {
-    // completion_msgs = new CompletionMessage[cores()];
-    completion_msgs = reinterpret_cast<CompletionMessage*>(
-      impl::locale_shared_memory.allocate_aligned(sizeof(CompletionMessage)*cores(), 8)
-    );
+    completion_msgs = locale_alloc<CompletionMessage>(cores());
   
     for (Core c=0; c<cores(); c++) {
       new (completion_msgs+c) CompletionMessage(c); // call constructor!
@@ -149,7 +146,7 @@ public:
     reset();
   }
   ~GlobalCompletionEvent() {
-    if (completion_msgs != nullptr) impl::locale_shared_memory.deallocate(completion_msgs);
+    if (completion_msgs != nullptr) locale_free(completion_msgs);
   }
   
   inline void set_shared_ptr(const void* p) { shared_ptr = p; }
@@ -195,7 +192,7 @@ public:
       }
       // block until cancelled
       CHECK_GT(count, 0);
-      DVLOG(2) << "cores_out: " << co << ", count: " << count;
+      DVLOG(2) << "gce(" << this << " cores_out: " << co << ", count: " << count << ")";
     }
   }
   
@@ -256,6 +253,11 @@ public:
   }
   
 };
+
+inline void enroll(GlobalAddress<GlobalCompletionEvent> ce, int64_t decr = 1) {
+  ce.pointer()->enroll(decr);
+}
+
 
 /// Allow calling send_completion using the old way (with global address)
 /// TODO: replace all instances with gce.send_completion and remove this?

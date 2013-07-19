@@ -12,7 +12,7 @@ module Igor
   def sq
     case `hostname`
     when /pal/
-      puts `squeue -ppal`
+      puts `squeue -ppal -o '%.7i %.4P %.17j %.8u %.2t %.10M %.6D %R'`
     else
       puts `squeue`
     end
@@ -32,7 +32,7 @@ module Isolatable
     
     # set aside copy of executable and its libraries
     # ldir = "/scratch/#{ENV['USER']}/igor/#{Process.pid}"
-    shared_dir = File.dirname(__FILE__) unless shared_dir
+    shared_dir = File.dirname(caller[0][/(^.*?):/,1]) unless shared_dir
     @ldir = "#{File.expand_path shared_dir}/.igor/#{Process.pid}"
     puts "making #{@ldir}"
     FileUtils.mkdir_p(@ldir)
@@ -126,6 +126,7 @@ Igor do
              locale_shared_size SHMMAX
            global_heap_fraction 0.5
             flatten_completions 1
+                 flat_combining 1
   }
   class << GFLAGS
     def expand
@@ -143,10 +144,7 @@ Igor do
     cmdout.gsub!(/^\[[\d,]+\]\<\w+\>:/m){ '' } # remove pal header
     cmdout.gsub!(/^\d+:\s+/m){ '' }                 # remove sampa header
     cmdout.gsub!(/^I\d+ .*?\d+\] /m){ '' }          # remove glog header
-
-    # get rid of double underscores, since sequel/sqlite3 don't like them
-    cmdout.gsub!(/__/m){ "_" }
-
+    
     stats = []
 
     # scan, parse and filter JSON blocks
@@ -155,6 +153,13 @@ Igor do
       m.gsub!(/STATS/m){''} # remove tag
       m.gsub!(/\n/){''} # remove newlines
       m.gsub!(/:(\s+),/m) {": null,"}
+      
+      # get rid of double underscores, since sequel/sqlite3 don't like them
+      m.gsub!(/__/m){ "_" }
+
+      # get rid of pesky 'nan's if they show up
+      m.gsub!(/: -?nan/, ': 0')
+
 
       blob = JSON.parse(m)
       flat = {}
