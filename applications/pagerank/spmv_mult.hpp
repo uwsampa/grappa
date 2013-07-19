@@ -2,6 +2,7 @@
 // XXX shouldn't have to include this first: common.h and oned_csr.h have cyclic dependency
 #include "../graph500/grappa/common.h"
 #include "../graph500/grappa/oned_csr.h"
+#include "../graph500/grappa/graph.hpp"
 
 #include <Grappa.hpp>
 
@@ -31,9 +32,15 @@ struct vector {
   uint64_t length;
 };
 
+struct WeightedAdjVertex : public Vertex {
+  double * weights;
+  
+  WeightedAdjVertex(): Vertex(), weights(nullptr) {}
+};
 
 void spmv_mult( weighted_csr_graph A, vector v, vindex x, vindex y );
 
+void spmv_mult(GlobalAddress<Graph<WeightedAdjVertex>> g, vector v, vindex x, vindex y);
 
 void matrix_out( weighted_csr_graph * g, std::ostream& o, bool dense );
 void R_matrix_out( weighted_csr_graph * g, std::ostream& o);

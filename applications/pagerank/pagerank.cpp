@@ -137,6 +137,8 @@ struct pagerank_result {
 // Iterative method
 // R(t+1) = dMR(t) + (1-d)/N vec(1)
 pagerank_result pagerank( weighted_csr_graph m, double d, double epsilon ) {
+  LOG(INFO) << "version: 'iterative_new'";
+  
   // bookeeping for which vector is which
   vindex V = 0;
   vindex LAST_V = 1;
