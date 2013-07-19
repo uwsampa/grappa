@@ -42,6 +42,8 @@ DEFINE_bool( prefetch_enable, false, "Prefetch for serialization test" );
 
 DECLARE_int64( rdma_buffers_per_core );
 
+DECLARE_int64( loop_threshold );
+
 BOOST_AUTO_TEST_SUITE( RDMAAggregator_tests );
 
 
@@ -75,6 +77,8 @@ GRAPPA_DEFINE_STAT( SimpleStatistic<double>, aggregated_messages_rate_per_locale
 
 
 void user_main( void * args ) {
+  LOG(INFO) << "Useless: " << FLAGS_flatten_completions << ", " << FLAGS_loop_threshold;
+
   if(false) {
   LOG(INFO) << "Test 1";
   if (true) {
@@ -766,7 +770,6 @@ BOOST_AUTO_TEST_CASE( test1 ) {
                &(boost::unit_test::framework::master_test_suite().argv),
                (1L << 20) );
 
-  Grappa::impl::global_rdma_aggregator.init();
   Grappa_activate();
 
   Grappa_run_user_main( &user_main, (void*)NULL );
