@@ -74,7 +74,7 @@ protected:
       list_->push(this);
     }
   }
-};
+} __attribute__((aligned(64)));
 
 
 // completion message handler
