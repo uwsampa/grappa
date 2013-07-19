@@ -1,0 +1,38 @@
+\section{Introduction} \label{sec:intro}
+
+Irregular applications exhibit workloads, dependences, and memory accesses
+that are highly sensitive to input. Classic examples of such applications
+include branch and bound optimization, SPICE circuit simulation, and car crash
+analysis. Important contemporary examples include processing large graphs in
+the business, national security, and social network computing domains. For
+these emerging applications, reasonable response time -- given the sheer
+amount of data -- requires large multinode systems. The most broadly available
+multinode systems are those built from x86 compute nodes interconnected via
+ethernet or InfiniBand. However, scalable performance of irregular
+applications on these systems is elusive for two reasons:
+
+\vspace{0.5ex}
+\noindent{\bf Poor data locality and frequent communication.} Data reference patterns of irregular applications are unpredictable and tend to be spread across the entire system. This results in frequent requests for small pieces of remote data. Caches are of little assistance because of low data re-use and spatial locality. Prefetching is of limited value because request locations are not known early enough. Data-parallel frameworks such as MapReduce~\cite{mapreduce:osdi04} are ineffective because they rely on effective data partitioning and regular communication patterns. Consequently, commodity networks, which are designed for large packets, achieve just a fraction of their peak bandwidth on small messages, starving application performance.
+
+\vspace{0.5ex} \noindent{\bf High network communication latency.} The performance challenges of frequent communication are exacerbated by high network latency relative to processor performance. Latency of commodity networks runs anywhere from a few to hundreds of microseconds -- ten's of thousands of processor clock cycles.  Since irregular application tasks encounter remote references dynamically during execution and must resolve them before making further progress, stalls are frequent and lead to severely underutilized compute resources.
+
+While some irregular applications can be manually restructured to better exploit locality, aggregate requests to increase network message size, and manage the additional challenges of load balance and synchronization, the effort required to do so is formidable and involves knowledge and skills pertaining to distributed systems far beyond those of most application programmers. Luckily, many of the important irregular applications naturally offer large amounts of concurrency. This immediately suggests taking advantage of concurrency to tolerate the latency of data movement by overlapping computation with communication.
+
+The fully custom Tera MTA-2~\cite{tera:mta1} system is a classic example of
+supporting irregular applications by using concurrency to hide latencies. It
+had a large distributed shared memory with no caches. On every clock cycle,
+each processor would execute a ready instruction chosen from one of its 128
+hardware thread contexts, a sufficient number to fully tolerate memory access
+latency. The network was designed with a single-word injection rate that
+matched the processor clock frequency and sufficient bandwidth to sustain a
+reference from every processor on every clock cycle. Unfortunately, the MTA's relatively low single-threaded performance meant that it
+was not general enough nor cost-effective. The Cray XMT approximates the Tera
+MTA-2, reducing its cost but not overcoming its narrow range of applicability.
+
+We believe we can support irregular applications with good performance and cost effectively with commodity hardware for two main reasons. First, commodity multicore processors have become extremely fast with high clock rates, large caches and robust DRAM bandwidth. Second, commodity networks offer high bandwidth so long as messages are large enough. We build on these two observations and develop \Grappa, a software runtime system that allows a commodity cluster of x86-based nodes connected via an InfiniBand network to be programmed as if it were a single, large, shared-memory NUMA (non-uniform memory access) machine with scalable performance for irregular applications. \Grappa exploits fast processors and the memory hierarchy to provide a lightweight user-level tasking layer that supports a context switch in as little as 38ns and can sustain a large number of active workers. It bridges the commodity network bandwidth gap with a communication layer that combines short messages originating from a large number of active workers into larger ones.
+
+As a general design philosophy, \Grappa trades latency for throughput.  By \emph{increasing} latency in key components of the system we are able to: increase effective random access memory bandwidth by delaying and aggregating messages; increase synchronization rate by delegating atomic operations to gatekeeper cores, even when referencing node-local global data; and improve load balance by tolerating the delays incurred when work-stealing.  \Grappa then exploits parallelism to overcome latency.
+
+Our evaluation of \Grappa shows that its core components provide scalable performance for irregular applications.  It can multiplex thousands of workers on a multicore CPU and is limited only by DRAM bandwidth, not latency, to fetch worker state.  The communication layer helps \Grappa achieve over 1.0 Giga-Updates per second (GUPS) with 64 system nodes. Comparing \Grappa and native MPI implementations for more complex kernels is more complex.  When the MPI implementation is carefully tuned to aggregate messages in application code -- essentially duplicating the work \Grappa is doing for the programmer, without the generality and context switch overhead -- then the MPI implementation is between \checkme{6-10X} faster.  We see this in our comparisons for breadth first search and integer sorting.  On the other hand, if the MPI version is implemented in a straightforward manner, as we see with PageRank, GUPS, and unbalanced tree search, \Grappa is 2-5X faster.  When we compare \Grappa to the custom Cray XMT, we find \Grappa to be between 2.6X faster and 4.3X slower depending on the benchmark.
+ 
+ \TODO{appA and tuned compared to appB and untuned is not ideal}

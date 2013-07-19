@@ -1,0 +1,86 @@
+\section{Methodology} \label{sec:method}
+
+We implemented the \Grappa in C++ for the Linux operating system. The core
+runtime system system is about 15K lines of code. We ported a number of
+benchmarks to \Grappa as well as collected and optimized a set of comparison
+benchmarks for XMT, MPI and UPC~\cite{UPC}. We run the \Grappa, MPI and UPC
+experiments on a cluster of AMD Interlagos processors. Nodes have 32 2.1-GHz
+cores in two sockets, 64GB of memory, and 40Gb Mellanox ConnectX-2 InfiniBand
+network cards. Nodes are connected via a QLogic InfiniBand switch. We also
+compare \Grappa to a 128-node Cray XMT (3rd generation MTA). Each node
+consists of a 500-MHz MTA Threadstorm multithreaded processor that supports
+128~streams. The machine uses Cray's proprietary SeaStar2 interconnection
+network. 
+
+We use a variety of benchmarks:
+
+%%% Moved the below to the evaluation sec
+% \vspace{0.5ex}
+% \noindent{\bf Context-switch:} This simple microbenchmark is used to explore context switch overhead.  A configurable number of workers are used to increment the values in a large array.  This benchmark stresses the scheduler inside of \Grappa.
+% 
+% \vspace{0.5ex}
+% \noindent{\bf GUPS:} This is a faithful implementation of the
+% giga-updates-per-second benchmark. Read-modify-write updates are dispatched at
+% random to a large array. This benchmark stresses the networking layer of
+% \Grappa separately from the scheduler, because only a single worker is used per
+% system node.
+
+\vspace{0.5ex}
+\noindent{\bf Unbalanced tree search in-memory (UTS-Mem):} Unbalanced Tree Search
+(UTS) is a benchmark for evaluating the programmability and performance of
+systems for parallel applications that require dynamic load
+balancing~\cite{UTS}. It involves traversing an unbalanced implicit tree: at
+each vertex, its number of children is sampled from some probability
+distribution, and this number of new nodes are added to a work queue to be
+visited. While this benchmark captures irregular, dynamic \emph{computation,}
+we actually want to evaluate performance of algorithms with irregular
+\emph{memory\/} access patterns. Thus we augment UTS by using the existing
+traversal code to create a large tree in memory, and then we traverse the
+in-memory tree. We call this benchmark UTS-Mem, and the timed portion is this
+traversal of the in-memory tree. This in-memory traversal has no knowledge of
+the tree structure beforehand.
+
+\vspace{0.5ex}
+\noindent{\bf Breadth-first-search (BFS):} This is the primary kernel for the
+Graph500 benchmark and is what currently determines the ranking of machines on
+the Graph500 list~\cite{graph500list}. As a whole, the Graph500 benchmark
+suite is designed to bring the focus of system design on data-intensive
+workloads, particularly large-scale graph analysis problems, that are
+important among cybersecurity, informatics, and network understanding
+workloads. The BFS benchmark builds a search tree containing parent nodes for
+each traversed vertex during the search. While this is a relatively simple
+problem to solve, it exercises the random-access and fine-grained
+synchronization capabilities of a system as well as being a primitive in many
+other graph algorithms. Performance is measured in \emph{traversed edges per
+second\/} (TEPS), where the number of edges is the edges making up the
+generated BFS tree. With some modifications to the XMT reference version of Graph500 BFS,
+the XMT compiler can be made to recognize and apply a Manhattan loop collapse, exposing enough parallelism to allow it to scale out to 64 nodes for the problem scales we show.
+We do not employ algorithmic improvements for any of these versions, though there are
+many~\cite{Beamer:Graph500,Yoo:FixedPointGraph500}. \Grappa can be expected to benefit the same as MPI due to decreased communication.
+
+\vspace{0.5ex}
+\noindent{\bf IntSort:} This sorting benchmark is taken from the NAS Parallel Benchmark Suite~\cite{Bailey91thenas,nas3.3} and is one on which the CrayXMT's early predecessor once held the world speed record~\cite{TeraRecord}. The largest problem size, class ``D'', ranks two billion uniformly distributed random integers using either a bucket or a counting sort algorithm, depending on the strengths of the system. Bucket sort executes a greater number of loops, but is able to leverage locality and avoid communication completely in the final phase, ranking within buckets. For these reasons, the MPI reference version and our \Grappa implementation use bucket sort. On the other hand, the Cray XMT cannot take advantage of locality, but has an efficient compiler-supported parallel prefix sum, so it performs best using the counting sort algorithm.  The performance metrics for NAS Parallel Benchmarks, including IntSort, are ``millions of operations per second'' (MOPS). For IntSort, this ``operation'' is ranking a single key, so it is roughly comparable to ``GUPS'' or ``TEPS''.
+ 
+\vspace{0.5ex}
+\noindent{\bf PageRank:} This is a common centrality metric for
+graphs. Computing PageRank is an iterative algorithm with a common
+pattern of gather, apply, and scatter on the rank of vertex. The algorithm
+is often implemented by sparse linear algebra libraries, with the main
+kernel being the sparse matrix dense vector multiply. For the multiply
+step, \Grappa parallelizes over the rows and parallelizes each dot
+product. PageRank has the fortunate property that the accumulation
+function over the in-edges is associative and commutative, so they can
+be processed in any order in parallel. Rather than the programmer writing the
+parallel dot product as local accumulations with a final all-reduce
+step, we simply send streaming increments to each element of the final
+vector. We compare PageRank to published results for the Trilinos linear algebra library implemented in MPI, and multithreaded PageRank for the XMT \cite{MTGL:pagerank}.
+For \Grappa, we run on a scale 29 graph using the Graph500 generator.
+
+The metric we use is algorithmic time, which means startup and loading of the
+data structure (from disk) is not included in the measurement. \Grappa
+collects statistics about application behavior (packets sent, context
+switches, etc) and these are discussed where appropriate. In addition we use a
+profiled version of \Grappa to report component runtimes, but this profiled
+version is only used to collect this data and a fully optimized version is
+used for the bulk of the presented results.
+

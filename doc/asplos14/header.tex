@@ -1,0 +1,38 @@
+%\documentclass{acm_proc_article-sp}
+%\documentclass[10pt,twocolumn]{article}
+\documentclass[pageno]{asplos14-template/jpaper}
+
+% NOTE: SOSP submission guidelines say up to 13 pages of technical content, which is everything except references. References do NOT count towards page liites. And it is support 10 pt. SOSP is *very* picky about font size. 
+
+%replace XXX with the submission number you are given from the ASPLOS submission site.
+\newcommand{\asplossubmissionnumber}{217}
+
+%%% page size formatting %%% 
+%\usepackage[margin=1in]{geometry}
+
+\setlength{\columnsep}{0.25in}
+
+%%% packages %%%
+\usepackage[normalem]{ulem}
+\usepackage{color}
+\usepackage{graphicx}
+\usepackage{listings}
+\usepackage{float}
+\usepackage{url}
+\usepackage{times}
+\usepackage{xspace}
+
+
+%%% utilities %%%
+\newcommand{\TODO}[1]{\textcolor{red}{{\bf TODO:} #1}}
+\newcommand{\checkme}[1]{\textcolor{red}{\textbf{#1}}}
+\newcommand{\grappacomment}[1]{}
+
+%%% literal terms %%%
+\newcommand{\gasnet}{GASNet}
+\newcommand{\Grappa}{Manta\xspace}
+
+% runtime parameter names 
+\newcommand{\flushtimeout}{\emph{network\_flush\_timeout}}
+\newcommand{\asyncforthr}{\emph{async\_parallel\_for\_thresold}}
+
