@@ -574,6 +574,7 @@ void RDMAAggregator::draw_routing_graph() {
           // track total size
           count++;
           size += new_buffer - buffer;
+          //DCHECK_EQ( new_buffer - buffer, message->serialized_size() );
 
 #ifdef DEBUG
           app_bytes_sent_histogram = new_buffer - buffer;
@@ -814,7 +815,8 @@ void RDMAAggregator::draw_routing_graph() {
       struct ReceiveBuffer {
         char * buf;
         uint16_t size;
-        uint64_t sequence_number;
+        //uint64_t sequence_number;
+        //Grappa::impl::RDMABuffer * buf_base;
         void operator()() {
           DVLOG(5) << __PRETTY_FUNCTION__ << "/" << sequence_number
                    << ": received " << size << "-byte buffer slice at " << (void*) buf << " to deaggregate";
@@ -838,16 +840,19 @@ void RDMAAggregator::draw_routing_graph() {
 
       // fill and send deaggregate messages
       for( Core locale_core = 0; locale_core < Grappa::locale_cores(); ++locale_core ) {
-        DVLOG(5) << __func__ << "/" << sequence_number 
+        DVLOG(5) << __func__ << "/" << (void*) sequence_number << "/" << (void*) buf
                  << ": found " << counts[ locale_core ] << " bytes for core " << locale_core << " at " << (void*) current_buf;
 
         if( counts[locale_core] > 0 ) {
 
           msgs[locale_core]->buf = current_buf;
           msgs[locale_core]->size = counts[locale_core];
-          msgs[locale_core]->sequence_number = sequence_number;
+          //msgs[locale_core]->sequence_number = sequence_number;
+          //msgs[locale_core]->buf_base = buf;
 
           if( locale_core != Grappa::locale_mycore() ) {
+            DVLOG(5) << __func__ << "/" << (void*) sequence_number << "/" << (void*) buf 
+                     << " enqueuing " << counts[locale_core] << " bytes to locale_core " << locale_core << " core " << locale_core + Grappa::mylocale() * Grappa::locale_cores() << " my locale_core " << Grappa::locale_mycore() << " my core " << Grappa::mycore();
             msgs[locale_core].locale_enqueue( locale_core + Grappa::mylocale() * Grappa::locale_cores() );
             outstanding++;
           } else {
@@ -879,7 +884,7 @@ void RDMAAggregator::draw_routing_graph() {
                << ": maybe blocking until my " << outstanding << " outstanding messages are delivered";
     }
 
-    DVLOG(5) << __func__ << "/" << sequence_number 
+    DVLOG(5) << __func__ << "/" << (void*) sequence_number << "/" << (void*) buf
              << ": continuting; my outstanding messages are all delivered";
   }
 
