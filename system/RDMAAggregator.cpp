@@ -581,6 +581,7 @@ void RDMAAggregator::draw_routing_graph() {
           size += new_buffer - buffer;
           //DCHECK_EQ( new_buffer - buffer, message->serialized_size() );
 
+          app_bytes_serialized += new_buffer - buffer;
 #ifdef DEBUG
           app_bytes_sent_histogram = new_buffer - buffer;
 #endif
@@ -600,7 +601,7 @@ void RDMAAggregator::draw_routing_graph() {
       *message_ptr = message;
 
       app_messages_serialized += count;
-      app_bytes_serialized += size;
+      //app_bytes_serialized += size;
       if( count_p != NULL ) (*count_p) += count;
 
       return buffer;
