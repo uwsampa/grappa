@@ -129,6 +129,6 @@ void Communicator::finish(int retval) {
   // Don't call gasnet_exit, since it screws up VampirTrace
   //gasnet_exit( retval );
   // Instead, call MPI_finalize();
-  MPI_Finalize();
+  // MPI_Finalize();
 }
 
