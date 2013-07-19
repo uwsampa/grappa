@@ -19,7 +19,7 @@
 
 using namespace Grappa;
 
-double make_bfs_tree(GlobalAddress<Graph> g_in, GlobalAddress<int64_t> _bfs_tree, int64_t root);
+double make_bfs_tree(GlobalAddress<Graph<VertexP>> g_in, GlobalAddress<int64_t> _bfs_tree, int64_t root);
 
 /////////////////////////////////
 // Options/flags
@@ -41,10 +41,9 @@ static double construction_time;
 static double bfs_time[NBFS_max];
 static int64_t bfs_nedge[NBFS_max];
 
-
-static void choose_bfs_roots(GlobalAddress<Graph> g, int * nbfs, int64_t bfs_roots[]) {
+static void choose_bfs_roots(GlobalAddress<Graph<VertexP>> g, int * nbfs, int64_t bfs_roots[]) {
   auto has_adj = [g](int64_t i) {
-    return delegate::call(g->vs+i, [](Graph::Vertex * v){
+    return delegate::call(g->vs+i, [](VertexP * v){
       return v->nadj > 0;
     });
   };
@@ -86,7 +85,7 @@ void user_main(void * ignore) {
   LOG(INFO) << "graph_generation: " << generation_time;
   
   t = walltime();
-  auto g = Graph::create(tg);
+  auto g = Graph<VertexP>::create(tg);
   construction_time = walltime() - t;
   LOG(INFO) << "construction_time: " << construction_time;
   
