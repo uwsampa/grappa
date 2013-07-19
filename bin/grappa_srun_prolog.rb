@@ -50,7 +50,7 @@ ENV["GASNET_PUTINMOVE_LIMIT"] = "0"
 
 
 
-ENV["CPUPROFILE_FREQUENCY"] = "100"
+ENV["CPUPROFILE_FREQUENCY"] = "300"
 
 case `hostname`
 when /n\d+/ #(sampa)

@@ -123,7 +123,6 @@ double make_bfs_tree(GlobalAddress<Graph> g_in, GlobalAddress<int64_t> _bfs_tree
         auto& src_v = *(g->vs+sv).pointer();
         for (auto& ev : src_v.adj_iter()) {
           if (FLAGS_cas_flatten == false || combiner->not_done_before(g->vs+ev)) {
-            GRAPPA_TRACER("call_async<>(visit_parent)");
             delegate::call_async<&joiner>(*shared_pool, (g->vs+ev).core(), [sv,ev]{
               auto& end_v = *(g->vs+ev).pointer();
               if (end_v.parent == -1) {
