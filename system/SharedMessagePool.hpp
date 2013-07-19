@@ -120,7 +120,7 @@ public:
   { this->pool = pool;  get_pool().validate_in_pool(this); }
   
   virtual const size_t size() const { return sizeof(*this); }
-};
+} __attribute__((aligned(64)));
 
 template<typename T>
 class PoolPayloadMessage: public PayloadMessage<T> {
@@ -138,7 +138,7 @@ public:
     : PayloadMessage<T>(dest, t, payload, payload_size)
   { this->pool = pool;  get_pool().validate_in_pool(this); }
   virtual const size_t size() const { return sizeof(*this); }
-};
+} __attribute__((aligned(64)));
 
 
 void init_shared_pool();
