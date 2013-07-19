@@ -26,6 +26,9 @@ Figure~\ref{fig:scheduling}. To minimize yield overhead, the \Grappa scheduler
 operates entirely in user-space and does little more than store state of one
 worker and load that of another.
 
+\TODO{either explain the usage of yield vs suspend in talking about
+    short and longer latency tolerance or eliminate the
+    distinction}
 \begin{figure}[htbp]
   \begin{center}
 	\begin{tabular}{l}
@@ -43,7 +46,7 @@ worker and load that of another.
 \end{figure}
 
 Each core in a \Grappa system has its own independent scheduler. The scheduler
-has a single FIFO queue of active workers ready to execute, the {\it
+has a collection of active workers ready to execute, the {\it
 ready worker queue}. Each scheduler also has three queues of tasks
 waiting to be assigned a worker:
 
@@ -51,19 +54,19 @@ waiting to be assigned a worker:
 
 \item {\it deadline task queue}, a priority queue of tasks that are executed according to task-specific deadline constraints;
 
-\item {\it private task queue}, a FIFO queue of tasks that must run on
+\item {\it private task queue}, a queue of tasks that must run on
 this core and therefore is not subject to stealing;
 
-\item {\it public task queue},  a LIFO queue of tasks that are
+\item {\it public task queue}, a queue of tasks that are
   waiting to be matched with workers. It is a local partition of a shared
   task pool.
 
 \end{itemize}
 
 
-Whenever a task yields or suspends, the scheduler makes a decision about what
+Whenever a task yields, the scheduler makes a decision about what
 to do next. First, any task in the deadline task queue who's deadline
-constraint is met is chosen for execution. This queue manages high priority
+is imminent is chosen for execution. This queue manages high priority
 system tasks, such as periodically servicing communication requests. Second,
 the scheduler determines if any workers with running tasks are ready to
 execute; if so, one is scheduled. Finally, if there are no workers ready to
@@ -88,8 +91,10 @@ queue. This allows the scheduler to prefetch contexts into
 cache using software prefetch instructions. The reason this works is because the size of the L1 cache is
 sufficient to hold enough contexts to tolerate the latency to main
 memory. Empirically we find that prefetching the fourth worker in the scheduling order is
-sufficient. This prefetching makes context switching effectively free of cache misses even to hundreds
-of thousands of threads. We provide an analysis of our context switch
+sufficient. This prefetching constrains the types of task scheduling
+decisions that can be made but makes context switching effectively
+free of cache misses, even to hundreds
+of thousands of workers. We provide an analysis of our context switch
 performance in Section~\ref{eval:basic}.
 
 
@@ -101,14 +106,15 @@ amount of work in its public task queue. The scheduler steals half of the
 tasks it finds at the victim. Work stealing is particularly interesting in
 \Grappa since performance depends on having many active worker threads on each
 core. Even if there are many active threads, if they are all suspended on
-long-latency operations, then the core is underutilized.
+long-latency operations, then the core is underutilized. Similarly to
+\cite{the_hierarchical_workstealing} the
+stealing policy must predict whether local tasks will likely
+generate enough new work soon.
 
 \subsection{Expressing Parallelism}
 
-\TODO{addressing reviewer2: make it clear that yes Grappa is a low
-    level programming model, but it provides the mechanisms for
-    implementing a variety of execution models. Further, in some cases
-    like the parallel loops, we have allowed for may parallelism to
+\TODO{addressing reviewer2: Grappa provides mechanisms for many
+    programming idioms. Also, may parallelism to
     give flexibility to the implementation.}
 \Grappa programmers focus on expressing as much parallelism as possible
 without concern for where it will execute. \Grappa then chooses where and when
@@ -142,7 +148,7 @@ lives. \Grappa provides the \texttt{call\_on} call for this purpose.
       take the iteration index as an argument  \\
     \texttt{\scriptsize call\_on( core, Functor f )} \\ 
       Runs a limited function on a specific core without \\
-      consuming \Grappa execution resources 
+      consuming a stack or context switching
 	\end{tabular}
     \begin{minipage}{0.95\columnwidth}
       \caption{\label{fig:expressing-parallelism} \Grappa API: expressing parallelism
@@ -167,21 +173,25 @@ class node_t {
 };
 
 void search(GlobalAddress<node_t *> node, key_t key) {
-  if (node->key == key) {
+  // dereference is expected cache miss
+  if (node->key == key) { 
     result = node;
     return;
   }
   parallel_for(0, node->numChildren, [=](int index) {
-    spawnTask([=]{
-      search(node->children[index], key);
-    });
+    // first dereference of children is expected cache miss
+    search(node->children[index], key); 
   });
 }
 \end{verbatim}
 \end{scriptsize}
 
     \begin{minipage}{0.95\columnwidth}
-      \caption{\label{fig:sample} Sample \Grappa code illustrating a parallel tree search similar to the unbalanced tree search benchmark we describe later.}
+      \caption{\label{fig:sample} Sample \Grappa code illustrating a
+          parallel tree search similar to the unbalanced tree search
+          benchmark we describe later. The labeled cache misses occur
+          if we assume the tree is not layed out in a regular fashion, which
+      models more general graphs.}
     \end{minipage}
 
 \end{center}
