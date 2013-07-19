@@ -1,13 +1,28 @@
 \section{\Grappa Overview}
 
-\TODO{take a pass for justifying designs}
+Commodity hardware systems provide fast processors and high-bandwidth
+interconnects but suffer when they encounter unpredictable data access
+patterns. Maximizing throughput in such a situation depends upon proper
+management of concurrency and communication. The \Grappa runtime
+components handle thousands of concurrent accesses and batch them to
+efficiently use the network. The imbalance between network bandwidth
+and core-cycles for communication-intensive codes makes supporting
+these functions in software an attractive design point. 
+\Grappa specifically employs user-mode threading and networking for
+low overhead because context switches and messages are very frequent.
 
-\Grappa leverages as much freely available and commodity infrastructure as
-possible. We use unmodified Linux for the operating system and an
-off-the-shelf user-mode InfiniBand device driver stack~\cite{OFED}. MPI is
-used for process setup and tear down. GASNet~\cite{gasnet} is used as the
-underlying mechanism for remote memory reads and writes using active message
-invocations. To this infrastructure, \Grappa adds  three main software components, shown in Figure~\ref{fig:grappa}:
+As \Grappa depends on concurrency for performance, its programming
+model focuses on enabling programmers to express large amounts of
+concurrency. The overall goal is for the system to provide the
+critical components for a well-performing implementation of an
+irregular application, allowing the programmer to foremost focus on
+expressing concurrency. While the programmer can initially be
+productive in a shared memory environment and rely on the
+underlying runtime components for reasonable performance, \Grappa
+provides constructs for optimizing for locality and overlapping
+communication.
+ 
+\Grappa comprises three main software components, shown in Figure~\ref{fig:grappa}:
 
 \begin{figure}[t]
 \begin{center}
@@ -46,5 +61,7 @@ aggregate small messages into large ones.  This process is invisible to the appl
 programmer. Its interface is based on active messages~\cite{vonEicken92}.
 Since aggregation and deaggregation of messages needs to be very efficient, we perform the process in parallel and carefully use lock-free synchronization
 operations.
+\TODO{Re-include the mention of GASNET,MPI spawning,and inifiniband
+    somewhere but not in the overview intro}
 
 \end{description}
