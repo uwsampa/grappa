@@ -21,8 +21,7 @@ Igor do
     nbfs: 8,
     shared_pool_max: 64,
     cas_flatten: 1,
-    log_shared_pool_size: 20,
-    shared_pool_size: expr('log_shared_pool_size'),
+    shared_pool_size: 2**20,
   })
   GFLAGS.delete :flat_combining
   
