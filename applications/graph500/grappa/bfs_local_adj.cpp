@@ -9,7 +9,7 @@
 
 using namespace Grappa;
 
-GlobalAddress<Graph> g;
+GlobalAddress<Graph<VertexP>> g;
 GlobalAddress<long> bfs_tree;
 
 GRAPPA_DECLARE_STAT(SimpleStatistic<uint64_t>, bfs_vertex_visited);
@@ -73,7 +73,7 @@ GlobalCompletionEvent joiner;
 // MessagePool * pool;
 static unsigned marker = -1;
 
-double make_bfs_tree(GlobalAddress<Graph> g_in, GlobalAddress<int64_t> _bfs_tree, int64_t root) {
+double make_bfs_tree(GlobalAddress<Graph<VertexP>> g_in, GlobalAddress<int64_t> _bfs_tree, int64_t root) {
   static_assert(sizeof(long) == sizeof(int64_t), "Can't use long as substitute for int64_t");
   if (FLAGS_cas_flatten) {
     LOG_FIRST_N(INFO,1) << "bfs_version: 'grappa_visited_cache'";    
@@ -96,7 +96,7 @@ double make_bfs_tree(GlobalAddress<Graph> g_in, GlobalAddress<int64_t> _bfs_tree
   double t = walltime();
   
   // initialize bfs_tree to -1, parent of root is root, and init frontier with root
-  forall_localized(g->vs, g->nv, [root](int64_t i, Graph::Vertex& v){
+  forall_localized(g->vs, g->nv, [root](int64_t i, VertexP& v){
     if (i == root) {
       v.parent = root;
       frontier_push(root);
@@ -144,7 +144,7 @@ double make_bfs_tree(GlobalAddress<Graph> g_in, GlobalAddress<int64_t> _bfs_tree
   VLOG(0) << "after bfs";
   
   t = walltime();
-  forall_localized(g->vs, g->nv, [](int64_t i, Graph::Vertex& v){
+  forall_localized(g->vs, g->nv, [](int64_t i, VertexP& v){
     // delegate::write_async(*pool, bfs_tree+i, v.parent);
     delegate::write(bfs_tree+i, v.parent);
   });
