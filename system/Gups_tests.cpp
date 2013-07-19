@@ -19,6 +19,7 @@
 #include "Message.hpp"
 #include "CompletionEvent.hpp"
 #include "Statistics.hpp"
+#include "Collective.hpp"
 
 #include "LocaleSharedMemory.hpp"
 
@@ -48,6 +49,8 @@ uint64_t * completions_sent = NULL;
 
 int64_t * completions_to_send = NULL;
 bool done_sending = false;
+
+double bytes_sent = 0.0;
 
 //const int outstanding = 1 << 4;
 //const int outstanding = 1 << 13;
@@ -361,8 +364,10 @@ void user_main( int * args ) {
     Grappa::Statistics::reset_all_cores();
 
     double start = wall_clock_time();
-    int64_t initial_bytes = rdma_message_bytes.value();
-
+    Grappa::on_all_cores( [] {
+        bytes_sent = -rdma_message_bytes.value();
+      } );
+    
     if( FLAGS_rdma ) {
       LOG(INFO) << "Starting RDMA";
       fork_join_custom( &gups_rdma );
@@ -378,7 +383,14 @@ void user_main( int * args ) {
     throughput = FLAGS_iterations / runtime;
 
     throughput_per_node = throughput/nnodes;
-    bandwidth_per_node = ((double)final_bytes - initial_bytes) / runtime;
+    Grappa::on_all_cores( [] {
+        bytes_sent += rdma_message_bytes.value();
+        double total_bytes_sent = Grappa::allreduce< size_t, collective_add >(bytes_sent);
+        bytes_sent = total_bytes_sent;
+      } );
+    
+    bandwidth_per_node = bytes_sent / runtime / nnodes;
+
     Grappa::Statistics::merge_and_print();
 
     if( FLAGS_validate ) {
