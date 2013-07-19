@@ -1,0 +1,68 @@
+\input{header}
+\usepackage{microtype}
+\begin{document}
+
+
+
+\title{\Large \Grappa: A Latency-Tolerant Runtime for Large-Scale Irregular Applications}
+
+% from the submissions guidelines: On the front page, in place of the authors'
+% names, the paper should indicate: the paper ID number assigned during the
+% paper registration process and the total number of pages in the submission.a
+
+\author{Paper ID: {\bf 51}, {\bf 14} pages.}
+\date{}
+% \authorinfo{Jacob Nelson$^{\dagger}$,
+%   Brandon Holt$^{\dagger}$,
+%   Brandon Myers$^{\dagger}$,
+%   Preston Briggs$^{\dagger}$,
+%   Luis Ceze$^{\dagger}$,
+%   Simon Kahan$^{{\dagger \ddagger}}$,
+%   Mark Oskin$^{\dagger}$
+% }{\textdagger University of Washington, \textdaggerdbl Pacific Northwest National Laboratory}{
+%   \{nelson, bholt, bdmyers, preston, luisceze, skahan, oskin\}@cs.washington.edu}
+
+
+\maketitle
+\begin{abstract}
+\input{abstract}
+\end{abstract}
+
+\input{intro}
+
+\input{overview}
+
+\input{tasks}
+
+\input{memory}
+
+\input{communication}
+
+%\TODO{paper.tex: I know we removed the programming model from the paper and
+    % merged into the overview pieces, but I think we need at least a
+    % brief summary of the machine model the programmer should be
+    % thinking about. 1.large number of tasks, 2.PGAS model for thinking
+    % of memory accesses where remote memory is expensive and
+    % packets should be large when this is easily expressed, 3.
+    % streaming writes are cheaper than writes that require consistency
+    % in the task, 4.overlapping read/writes are better than
+    % nonoverlapping. Thats a lot to think about but a compiler can at
+    % least help with part of 2 and 4 and \Grappa lets you work less
+    % hard on 2 by providing aggregation. -BM}
+
+\input{method}
+
+\input{evaluation}
+
+\input{relatedwork}
+
+\input{conclude}
+
+%\input{acknowledgements}
+
+%\subsection{References}
+\bibliographystyle{abbrv}
+\bibliography{paper,generals}
+
+\end{document}
+

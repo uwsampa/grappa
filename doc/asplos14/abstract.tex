@@ -1,0 +1,16 @@
+\Grappa is a runtime system for commodity clusters of multicore computers that
+presents a massively parallel, single address space abstraction to
+applications. \Grappa's purpose is to enable scalable performance of irregular
+parallel applications, such as  branch and bound optimization and SPICE circuit simulation, and graph processing. Poor data locality,
+imbalanced parallel work and complex communication patterns make scaling these
+applications difficult.
+
+\Grappa serves both as a C++ user library and as a foundation for higher level
+languages. \Grappa tolerates delays to remote memory by multiplexing thousands
+of lightweight workers to each processor core; balances load via fine-grained
+distributed work-stealing; increases communication throughput by aggregating
+smaller data requests into large ones; and provides efficient synchronization
+and remote operations. We present a detailed description of the \Grappa system
+and performance comparisons on several irregular benchmarks to hand-optimized
+MPI code and to the Cray XMT, a custom system used to target the real time
+graph analytics market.
