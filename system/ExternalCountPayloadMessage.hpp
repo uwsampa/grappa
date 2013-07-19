@@ -51,7 +51,7 @@ namespace Grappa {
             *count_copy -= 1;
           }
         }
-    };
+  } __attribute__((aligned(64)));
 
   template< typename T >
     ExternalCountPayloadMessage<T> * send_heap_message( Core dest, T t, void * payload, size_t payload_size, uint64_t * count ) {

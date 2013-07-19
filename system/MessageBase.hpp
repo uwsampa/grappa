@@ -40,17 +40,16 @@ namespace Grappa {
 
       ConditionVariable cv_;   ///< condition variable for sleep/wake
 
-      Core source_;            ///< What core is this message coming from? (TODO: probably unneccesary)
-      Core destination_;       ///< What core is this message aimed at?
-
       union {
         struct {
           bool is_enqueued_ : 1;       ///< Have we been added to the send queue?
           bool is_sent_ : 1;           ///< Is our payload no longer needed?
           bool is_delivered_ : 1;      ///< Are we waiting to mark the message sent?
           bool is_moved_ : 1;           ///< HACK: make sure we don't try to send ourselves if we're just a temporary
+          Core source_ : 16;            ///< What core is this message coming from? (TODO: probably unneccesary)
+          Core destination_ : 16;       ///< What core is this message aimed at?
         };
-        uint8_t raw_;
+        uint64_t raw_;
       };
       
       union {
@@ -81,10 +80,12 @@ namespace Grappa {
           DVLOG(5) << __func__ << ": " << this << " Final mark_sent";
           DCHECK_EQ( Grappa::mycore(), this->source_ );
           is_sent_ = true;
-          ConditionVariable old = cv_;
+
+          //Grappa::broadcast( this );
           if( 0 != cv_.waiters_ ) {
             Grappa::broadcast( &cv_ );
           }
+
           if( delete_after_send_ ) {
             this->~MessageBase();
             Grappa::impl::locale_shared_memory.deallocate( this );
@@ -140,7 +141,7 @@ namespace Grappa {
 
         DVLOG(5) << "Receiving message from " << gfp.dest << " with deserializer " << (void*) fp;
 
-        CHECK_EQ( gfp.dest, Grappa::mycore() ) << "Delivered to wrong core!";
+        CHECK_EQ( gfp.dest, Grappa::mycore() ) << "Delivered to wrong core! buffer=" << (void*) buffer;
 
         buffer = fp( buffer + sizeof( FPAddr ) );
 
@@ -266,7 +267,7 @@ namespace Grappa {
       /// Block until message can be deallocated.
       void block_until_sent();
 
-    };
+    } __attribute__((aligned(64)));
     
     /// @}
   }
