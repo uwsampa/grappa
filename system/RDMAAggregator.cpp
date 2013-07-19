@@ -23,6 +23,8 @@ void failure_function();
 }
 }
 
+// prefetch two cache lines per message
+#define DOUBLE_LINE_PREFETCH
 
 DEFINE_int64( target_size, 1 << 12, "Target size for aggregated messages" );
 
@@ -546,42 +548,43 @@ void RDMAAggregator::draw_routing_graph() {
 
 
 
-    char * RDMAAggregator::aggregate_to_buffer( char * buffer, Grappa::impl::MessageBase ** message_ptr, size_t max, size_t * count ) {
+    char * RDMAAggregator::aggregate_to_buffer( char * buffer, Grappa::impl::MessageBase ** message_ptr, size_t max, size_t * count_p ) {
       size_t size = 0;
+      size_t count = 0;
+
       Grappa::impl::MessageBase * message = *message_ptr;
       DVLOG(5) << "Serializing messages from " << message;
 
-      int expected_dest = -1;
-
       while( message ) {
-        DVLOG(5) << __func__ << ": Serializing message " << message << " to " << message->destination_ << ": " << message->typestr();
+        //DVLOG(5) << __func__ << ": Serializing message " << message << " to " << message->destination_ << ": " << message->typestr();
 
         // issue prefetch for next message
-        __builtin_prefetch( message->prefetch_, 1, prefetch_type );
-
-        if( expected_dest == -1 ) {
-          expected_dest = message->destination_;
-        } else {
-          CHECK_EQ( message->destination_, expected_dest );
-        }
-
+        char * pf = reinterpret_cast< char* >( message->prefetch_ );
+        __builtin_prefetch( pf +  0, 1, prefetch_type );
+#ifdef DOUBLE_LINE_PREFETCH
+        __builtin_prefetch( pf + 64, 1, prefetch_type );
+#endif
         // add message to buffer
         char * new_buffer = message->serialize_to( buffer, max - size);
-        CHECK_GE( new_buffer, buffer );
 
         if( new_buffer == buffer ) { // if it was too big
           DVLOG(5) << __func__ << ": Message too big: aborting serialization";
           break;                     // quit
         } else {
-          app_messages_serialized++;
-          if( count != NULL ) (*count)++;
-
-          DVLOG(5) << __func__ << ": Serialized message " << message << " with size " << new_buffer - buffer;
+          // DVLOG(3) << __func__ << ": Serialized message " << message
+          //          << " next " << message->next_
+          //          << " prefetch " << message->prefetch_ 
+          //          << " size " << new_buffer - buffer;
 
           // track total size
+          count++;
           size += new_buffer - buffer;
+          //DCHECK_EQ( new_buffer - buffer, message->serialized_size() );
+
           app_bytes_serialized += new_buffer - buffer;
+#ifdef DEBUG
           app_bytes_sent_histogram = new_buffer - buffer;
+#endif
 
           // go to next messsage 
           Grappa::impl::MessageBase * next = message->next_;
@@ -596,6 +599,10 @@ void RDMAAggregator::draw_routing_graph() {
 
       // return rest of message list
       *message_ptr = message;
+
+      app_messages_serialized += count;
+      //app_bytes_serialized += size;
+      if( count_p != NULL ) (*count_p) += count;
 
       return buffer;
     }
@@ -695,6 +702,7 @@ void RDMAAggregator::draw_routing_graph() {
         CHECK_NOTNULL( buf );
       }
       
+      rdma_receive_start++;
       active_receive_workers_++;
 
       DVLOG(3) << __PRETTY_FUNCTION__ << "/" << Grappa::impl::global_scheduler.get_current_thread() 
@@ -728,6 +736,7 @@ void RDMAAggregator::draw_routing_graph() {
       }
             
       active_receive_workers_--;
+      rdma_receive_end++;
     }
   }
 
@@ -812,14 +821,15 @@ void RDMAAggregator::draw_routing_graph() {
       struct ReceiveBuffer {
         char * buf;
         uint16_t size;
-        uint64_t sequence_number;
+        //uint64_t sequence_number;
+        //Grappa::impl::RDMABuffer * buf_base;
         void operator()() {
-          DVLOG(5) << __PRETTY_FUNCTION__ << "/" << sequence_number
+          DVLOG(5) << __PRETTY_FUNCTION__ // << "/" << sequence_number
                    << ": received " << size << "-byte buffer slice at " << (void*) buf << " to deaggregate";
 
           global_rdma_aggregator.deaggregate_buffer( buf, size );
 
-          DVLOG(5) << __PRETTY_FUNCTION__ << "/" << sequence_number 
+          DVLOG(5) << __PRETTY_FUNCTION__ // << "/" << sequence_number 
                    << ": done deaggregating " << size << "-byte buffer slice at " << (void*) buf;
         }
       };
@@ -836,16 +846,19 @@ void RDMAAggregator::draw_routing_graph() {
 
       // fill and send deaggregate messages
       for( Core locale_core = 0; locale_core < Grappa::locale_cores(); ++locale_core ) {
-        DVLOG(5) << __func__ << "/" << sequence_number 
+        DVLOG(5) << __func__ << "/" << (void*) sequence_number << "/" << (void*) buf
                  << ": found " << counts[ locale_core ] << " bytes for core " << locale_core << " at " << (void*) current_buf;
 
         if( counts[locale_core] > 0 ) {
 
           msgs[locale_core]->buf = current_buf;
           msgs[locale_core]->size = counts[locale_core];
-          msgs[locale_core]->sequence_number = sequence_number;
+          //msgs[locale_core]->sequence_number = sequence_number;
+          //msgs[locale_core]->buf_base = buf;
 
           if( locale_core != Grappa::locale_mycore() ) {
+            DVLOG(5) << __func__ << "/" << (void*) sequence_number << "/" << (void*) buf 
+                     << " enqueuing " << counts[locale_core] << " bytes to locale_core " << locale_core << " core " << locale_core + Grappa::mylocale() * Grappa::locale_cores() << " my locale_core " << Grappa::locale_mycore() << " my core " << Grappa::mycore();
             msgs[locale_core].locale_enqueue( locale_core + Grappa::mylocale() * Grappa::locale_cores() );
             outstanding++;
           } else {
@@ -877,7 +890,7 @@ void RDMAAggregator::draw_routing_graph() {
                << ": maybe blocking until my " << outstanding << " outstanding messages are delivered";
     }
 
-    DVLOG(5) << __func__ << "/" << sequence_number 
+    DVLOG(5) << __func__ << "/" << (void*) sequence_number << "/" << (void*) buf
              << ": continuting; my outstanding messages are all delivered";
   }
 
@@ -905,19 +918,28 @@ void RDMAAggregator::draw_routing_graph() {
       // issue initial prefetches
       // (these may have been overwritten by another sender, so hope for the best.)
       for( int i = 0; i < prefetch_dist; ++i ) {
-        Grappa::impl::MessageBase * pre = get_pointer( &dest->prefetch_queue_[i] );
-        __builtin_prefetch( pre, 1, prefetch_type ); // prefetch for read
+        Grappa::impl::MessageBase * pre_mb = get_pointer( &dest->prefetch_queue_[i] );
+        char * pf = reinterpret_cast< char* >( pre_mb );
+        DVLOG(5) << __PRETTY_FUNCTION__ << ": Prefetching " << pre_mb;
+        __builtin_prefetch( pf +  0, 1, prefetch_type ); // prefetch for read
+#ifdef DOUBLE_LINE_PREFETCH
+        __builtin_prefetch( pf + 64, 1, prefetch_type ); // prefetch for read
+#endif
       }
 
       Grappa::impl::global_scheduler.set_no_switch_region( true );
       while( messages_to_send != NULL ) {
-        DVLOG(4) << __func__ << "/" << Grappa::impl::global_scheduler.get_current_thread() << ": Delivered message " << messages_to_send 
-                 << " with is_delivered_=" << messages_to_send->is_delivered_ 
-                 << ": " << messages_to_send->typestr();
+        // DVLOG(4) << __func__ << "/" << Grappa::impl::global_scheduler.get_current_thread() << ": Delivered message " << messages_to_send 
+        //          << " with is_delivered_=" << messages_to_send->is_delivered_ 
+        //          << ": " << messages_to_send->typestr();
         MessageBase * next = messages_to_send->next_;
-        __builtin_prefetch( messages_to_send->prefetch_, 1, prefetch_type );
-
-        DCHECK_EQ( messages_to_send->destination_, Grappa::mycore() );
+        DVLOG(5) << __PRETTY_FUNCTION__ << ": Processing " << messages_to_send << ", prefetching " << messages_to_send->prefetch_;
+        char * pf = reinterpret_cast< char* >( messages_to_send->prefetch_ );
+        __builtin_prefetch( pf +  0, 1, prefetch_type );
+#ifdef DOUBLE_LINE_PREFETCH
+        __builtin_prefetch( pf + 64, 1, prefetch_type );
+#endif
+        // DCHECK_EQ( messages_to_send->destination_, Grappa::mycore() );
 
 
         delivered_bytes += messages_to_send->size();
@@ -927,6 +949,8 @@ void RDMAAggregator::draw_routing_graph() {
         messages_to_send = next;
       }
       Grappa::impl::global_scheduler.set_no_switch_region( false );
+
+      DVLOG(5) << __PRETTY_FUNCTION__ << ": Done.";
 
       app_messages_delivered_locally += delivered_count;
       app_bytes_delivered_locally += delivered_bytes;
@@ -956,7 +980,11 @@ void RDMAAggregator::draw_routing_graph() {
   inline void RDMAAggregator::issue_initial_prefetches( Core core, Core locale_source ) {
     for( int i = 0; i < prefetch_dist; ++i ) {
       Grappa::impl::MessageBase * pre = get_pointer( &(coreData(core, locale_source)->prefetch_queue_[i])  );
-      __builtin_prefetch( pre, 0, prefetch_type ); // prefetch for read
+      char * pf = reinterpret_cast< char* >( pre );
+      __builtin_prefetch( pf +  0, 1, prefetch_type );
+#ifdef DOUBLE_LINE_PREFETCH
+      __builtin_prefetch( pf + 64, 1, prefetch_type );
+#endif
       coreData( core, locale_source )->prefetch_queue_[i].raw_ = 0;    // clear out for next time around
     }
   }
@@ -964,7 +992,11 @@ void RDMAAggregator::draw_routing_graph() {
   inline void RDMAAggregator::issue_initial_prefetches( CoreData * cd ) {
     for( int i = 0; i < prefetch_dist; ++i ) {
       Grappa::impl::MessageBase * pre = get_pointer( &(cd->prefetch_queue_[i])  );
-      __builtin_prefetch( pre, 0, prefetch_type ); // prefetch for read
+      char * pf = reinterpret_cast< char* >( pre );
+      __builtin_prefetch( pf +  0, 1, prefetch_type );
+#ifdef DOUBLE_LINE_PREFETCH
+      __builtin_prefetch( pf + 64, 1, prefetch_type );
+#endif
       cd->prefetch_queue_[i].raw_ = 0;    // clear out for next time around
     }
   }
@@ -1046,7 +1078,11 @@ void RDMAAggregator::draw_routing_graph() {
           // to keep searching....)
           if( !done ) {
             CoreData * next = global_rdma_aggregator.coreData( current_dest_core_, current_source_core_ );
-            __builtin_prefetch( next, 1, prefetch_type );
+            char * pf = reinterpret_cast< char* >( next );
+            __builtin_prefetch( pf +  0, 1, prefetch_type );
+#ifdef DOUBLE_LINE_PREFETCH
+            __builtin_prefetch( pf + 64, 1, prefetch_type );
+#endif
           }
         } while( 0 == cd->messages_.raw_ && !done );
       }

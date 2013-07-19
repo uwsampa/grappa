@@ -96,18 +96,6 @@ void user_main( void * args )
     Grappa_poll();
   }
 
-  LOG(INFO) << "Test 3";
-  {
-    Check x3;
-    //auto m3 = Grappa::message( 0, &x3 );
-    // must run on this node
-    Grappa::ExternalMessage< Check > m3( 0, &x3 );
-    m3->x = true;
-    m3.enqueue();
-    Grappa_flush( 0 );
-    Grappa_poll();
-  }
-
   LOG(INFO) << "Test 4";
   {
     bool x4 = false;
