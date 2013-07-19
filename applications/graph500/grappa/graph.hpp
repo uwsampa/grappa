@@ -1,3 +1,5 @@
+#pragma once
+
 #include <Communicator.hpp>
 #include <Addressing.hpp>
 #include <Collective.hpp>
@@ -81,7 +83,6 @@ struct Graph {
     
   void destroy() {
     auto self = this->self;
-    forall_localized(this->vs, this->nv, [](Vertex& v){ v.~Vertex(); });
     global_free(this->vs);
     call_on_all_cores([self]{ self->~Graph(); });
     global_free(self);
@@ -119,6 +120,9 @@ struct Graph {
     auto self = g;
     on_all_cores([g,vs]{
       new (g.localize()) Graph(g, vs, g->nv);
+      for (Vertex& v : iterate_local(g->vs, g->nv)) {
+        new (&v) Vertex();
+      }
     
   #ifdef SMALL_GRAPH
       // g->scratch = locale_alloc<int64_t>(g->nv);
