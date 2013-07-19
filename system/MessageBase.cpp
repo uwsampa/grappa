@@ -38,7 +38,7 @@ namespace Grappa {
       while( is_enqueued_ && !is_sent_ ) {
         DVLOG(5) << this << " on " << Grappa::impl::global_scheduler.get_current_thread()
                  << " actually blocking until sent";
-        Grappa::wait( this );
+        Grappa::wait( &cv_ );
         DVLOG(5) << this << " on " << Grappa::impl::global_scheduler.get_current_thread()
                  << " woken after blocking until sent";
       }
