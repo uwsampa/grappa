@@ -1,0 +1,337 @@
+\documentclass[pageno]{jpaper}
+
+%replace XXX with the submission number you are given from the ASPLOS submission site.
+\newcommand{\asplossubmissionnumber}{XXX}
+
+\usepackage[normalem]{ulem}
+
+\begin{document}
+
+\title{
+Instructions for Submissions to ASPLOS 2014}
+
+\date{}
+\maketitle
+
+\thispagestyle{empty}
+
+\begin{abstract}
+
+This document provides instructions for submitting papers to the 19th
+International Conference on Architectural Support for Programming Languages
+and Operating Systems (ASPLOS), 2014.  It also provides a sample for how
+papers must be formatted.
+\end{abstract}
+
+\section{Introduction}
+
+This document provides instructions for submitting papers to the 19th
+International Conference on Architectural Support for Programming Languages
+and Operating Systems (ASPLOS), 2014.  Submissions that violate these
+instructions may not be reviewed, at the discretion of the program chair.
+
+An example submission (formatted using the ASPLOS'14 submission format)
+that contains the submission and formatting guidelines can be downloaded
+from here:
+\href{http://www.cs.utah.edu/asplos14/files/asplos14-template.pdf}{Sample
+PDF}. The contents of this document are the same as the contents of the
+submission instructions that appear on
+\href{http://www.cs.utah.edu/asplos14/submission.html}{this website}.  The
+paper submission site is \href{http://asplos14.cs.illinois.edu}{here.}
+
+All questions regarding paper formatting and submission should be directed
+to the program chair.
+
+\section{What's New?}
+
+We specifically call attention to the following instructions/features new
+to ASPLOS this year. 
+
+\begin{itemize} 
+\item Text must be in 10pt ({\bf not} 9pt) font.
+\item Papers must be at most 12 pages, not including references and an
+optional appendix. 
+\item Each reference must specify {\em all} authors (no {\em et al.}).
+\item Authors may optionally suggest reviewers. 
+\item Authors may optionally provide information on previous rejections.
+\item Authors of {\em all} accepted papers will be required to give a
+lightning presentation (about 90s) and a poster in addition to the regular
+conference talk.
+\item Proceedings will appear in the ACM digital library up to two weeks
+before the conference.
+\end{itemize} 
+
+\section{Acceptance Philosophy and Authors' Commitments}
+
+Every effort will be made to judge a paper on its own merits. There will be
+no target acceptance rate. We expect to accept a wide range of papers with
+appropriate expectations for evaluation -- while papers that build on
+significant past work with strong evaluations are valuable, papers that
+open new areas with less rigorous evaluation are even more so.  The mantra
+for this ASPLOS is: {\bf A}lways {\bf S}upport {\bf P}otentially {\bf
+L}ong-term and {\bf O}ut-of-the-box {\bf S}ystems.
+
+Accepting all worthy papers sometimes results in multitrack sessions,
+reduced talk lengths, and reduced interaction. To mitigate these downsides
+and in keeping with the spirit of ASPLOS as a melting pot for multiple
+disciplines, we will have the following (borrowed from Micro'12).  We will
+kick off the conference with a {\bf lightning presentation} session with a
+(roughly) 90s presentation of each accepted paper. There will also be a {\bf
+poster/demo session} where {\em all} accepted papers will be required to
+participate with a poster and/or demo to facilitate closer interactions. Of
+course, there will also be the regular conference talks for each paper.
+Authors should be prepared to participate in all three sessions (lightning
+presentation, poster/demo, and regular talk).
+
+\section{The Paper}
+
+\subsection{Formatting}
+
+Submitted manuscripts should contain a maximum of 12 pages of single-spaced
+two-column text, {\bf not including references and an optional
+appendix}. You may include any number of pages for references and the
+appendix, but see below for more instructions.  If you are using
+\LaTeX~\cite{lamport94} to typeset your paper, then we suggest that you use
+the template here:
+\href{http://www.cs.utah.edu/asplos14/files/asplos14-latex-template.tar.gz}{\LaTeX~Template}.
+(\href{http://www.cs.utah.edu/asplos14/files/asplos14-template.pdf}{This
+document} was prepared with that template.)  If you are using a different
+software package to typeset your paper, then please adhere to the
+guidelines given in Table~\ref{table:formatting}.\footnote{One exception is
+that authors may use the SIGPLAN style/class file
+\href{http://classic.sigplan.org/sigplanconf.cls}{here}, but {\bf only with
+the 10pt body font option (9pt will be rejected)} and modified as needed
+for the requirements of the references section below.  This is marginally
+different from the specified template, but will be accepted due to its
+widespread use.}
+
+\begin{table}[h!]
+  \centering
+  \begin{tabular}{|l|l|}
+    \hline
+    \textbf{Field} & \textbf{Value}\\
+    \hline
+    \hline
+    Page limit & 12 pages, {\bf not including}\\
+               & {\bf references \& appendix}\\
+    \hline
+    Paper size & US Letter 8.5in $\times$ 11in\\
+    \hline
+    Top margin & 1in\\
+    \hline
+    Bottom margin & 1in\\
+    \hline
+    Left margin & 0.75in\\
+    \hline
+    Right margin & 0.75in\\
+    \hline
+    Separation between columns & 0.25in\\
+    \hline
+    Body font & 10pt\\
+    \hline
+    Abstract font & 10pt, italicized\\
+    \hline
+    Section heading font & 12pt, bold\\
+    \hline
+    Subsection heading font & 10pt, bold\\
+    \hline
+    Caption font & 9pt, bold\\
+    \hline
+    References & 8pt\\
+    \hline
+  \end{tabular}
+  \caption{Formatting guidelines for submission. }
+  \label{table:formatting}
+\end{table}
+
+\textbf{Please ensure that you include page numbers with your
+submission}. This makes it easier for the reviewers to refer to different
+parts of your paper when they provide comments.
+
+Please ensure that your submission has a banner at the top of the title
+page, similar to
+\href{http://www.cs.utah.edu/asplos14/files/asplos14-template.pdf}{this
+one}, which contains the submission number and the notice of
+confidentiality.  If using the template, just replace XXX with your
+submission number.
+
+\subsection{Content}
+
+\noindent\textbf{\sout{Author List.}} Reviewing will be double blind;
+therefore, please do not include any author names on any submitted
+documents except in the space provided on the submission form.  You must
+also ensure that the metadata included in the PDF does not give away the
+authors. If you are improving upon your prior work, refer to your prior
+work in the third person and include a full citation for the work in the
+bibliography.  For example, if you are building on {\em your own} prior
+work in the papers \cite{nicepaper1,nicepaper2,nicepaper3}, you would say
+something like: "While the authors of
+\cite{nicepaper1,nicepaper2,nicepaper3} did X, Y, and Z, this paper
+additionally does W, and is therefore much better."  Do NOT omit or
+anonymize references for blind review.  There is one exception to this for
+your own prior work that appeared in IEEE CAL, workshops without archived
+proceedings, etc.\, as discussed later in this document.
+
+\noindent\textbf{Figures and Tables.} Ensure that the figures and tables
+are legible.  Please also ensure that you refer to your figures in the main
+text.  Many reviewers print the papers in gray-scale. Therefore, if you use
+colors for your figures, ensure that the different colors are highly
+distinguishable in gray-scale.
+
+\noindent\textbf{References.}  There is no length limit for references.
+{\bf Each reference must explicitly list all authors of the paper.  Papers
+not meeting this requirement will be rejected.} Authors of NSF proposals
+should be familiar with this requirement. Knowing all authors of related
+work will help find the best reviewers.
+
+\noindent\textbf{Optional Appendix.}  Authors may optionally include an
+appendix (no length limit) as the last section of the manuscript; however,
+{\em reviewers are not obliged to read the appendix.}  An appendix may
+include proofs of theorems, more details on methodology, more results, and
+anything else that can potentially answer reviewer questions.  The rest of
+the manuscript may cite the appendix, but the paper should stand on its own
+without the appendix.  Authors need not feel compelled to include an
+appendix -- we understand the authors' time is best spent on the main
+manuscript.
+
+\section{Other Information for the Submission Site}
+
+\subsection{Declaring Authors}
+
+Declare all the authors of the paper upfront. Addition/removal of authors
+once the paper is accepted will have to be approved by the program chair,
+since it potentially undermines the goal of eliminating conflicts for
+reviewer assignment.
+
+\subsection{Areas and Topics}
+
+ASPLOS emphasizes multidisciplinary research. Submissions should ideally
+emphasize synergy of two or more ASPLOS areas: architecture, programming
+languages, operating systems, and related areas (broadly
+interpreted). Authors should indicate these areas on the submission form as
+well as specific topics covered by the paper for optimal reviewer match. If
+you are unsure whether your paper falls within the scope of ASPLOS, please
+check with the program chair -- ASPLOS is a broad, multidisciplinary
+conference and encourages new topics.
+
+\subsection{Declaring Conflicts of Interest}
+
+Authors must register all their conflicts on the paper submission site.
+Conflicts are needed to ensure appropriate assignment of reviewers.  
+If a paper is found to have an undeclared conflict that causes
+a problem OR if a paper is found to declare false conflicts in order to
+abuse or ``game'' the review system, the paper may be rejected.
+
+Please declare a conflict of interest (COI) with the following 
+for any author of your paper:
+
+\begin{enumerate}
+\item Your Ph.D. advisor, post-doctoral advisor, and Ph.D. students.
+\item Family relations by blood or marriage (if they might be potential reviewers).
+\item People with whom you co-authored accepted/rejected/pending papers in the last five years.
+\item People with whom you co-authored accepted/pending grant proposals
+  in the last five years.
+\item People who shared your primary institution in the last five years. 
+\end{enumerate}
+
+``Service'' collaborations like co-authoring a CSTB report or co-presenting
+tutorials do not constitute conflicts.  Co-authoring a paper that is a
+compendium of various projects with no true collaboration among the
+projects does not constitute a conflict among the authors of the different
+projects.  On the other hand, there may be others not covered by the above
+with whom you know a COI exists.  Please report such COIs; however, you
+will need to justify them. Please be reasonable.  For example, just because
+a reviewer works on similar topics as your paper, you cannot declare a COI
+with that reviewer. We will carefully check the justification of conflicts.
+
+We hope to draw most reviewers from the PC and the ERC, but others from the
+community may also write reviews.  Please declare all your conflicts (not
+just restricted to the PC and ERC).  When in doubt, contact the program
+chair.
+
+
+\subsection{Optional Information on Previous Submissions}
+
+In addition to your paper, you may optionally upload your past similar
+(rejected) submissions, their reviews, the author responses, and/or a
+statement of how your ASPLOS'14 submission improved over the previous
+submissions or addressed the previous reviews. Please use only one PDF file
+for all this information and include the venue(s) where the previous work
+was submitted.  Please do not include any material that will compromise
+author anonymity.
+
+Each paper will undergo a full new review process independent of whether
+such a PDF file is submitted. The ASPLOS'14 reviewers will see this
+document (and learn about its existence) only after they have finalized
+their review.  It is, however, possible that reading this document will
+influence the ASPLOS reviewers to request a change of their review or
+request the PC chair to get another opinion from one of the previous
+reviewers. Please consider all such implications carefully before
+submitting the PDF file.
+
+Authors are under no obligation to submit such a document. Reviewers
+will be given explicit instructions not to hold the lack of such a document
+against the paper in any way. Similarly, reviewers are under no obligation
+to read such a document (unless a review brings up a past
+submission explicitly).
+
+\subsection{Optional Reviewer Suggestions}
+
+Authors may optionally mark (non-conflicted) PC and ERC members that they
+believe could provide expert reviews for their submission.  If authors
+believe there is insufficient expertise on the PC and ERC for the topic of
+their paper, they may suggest alternate reviewers.  The program chair will
+use the authors' input at her discretion.  We provide this opportunity
+for input mostly for papers on non-traditional and emerging topics.
+
+
+\subsection{Concurrent Submissions and Workshops}
+
+By submitting a manuscript to ASPLOS'14, the authors guarantee that the
+manuscript has not been previously published or accepted for publication in
+a substantially similar form in any conference, journal, or the archived
+proceedings of a workshop (e.g., in the ACM digital library) -- see
+exceptions below. The authors also guarantee that no paper that contains
+significant overlap with the contributions of the submitted paper will be
+under review for any other conference or journal or an archived proceedings
+of a workshop during the ASPLOS'14 review period. Violation of any of these
+conditions will lead to rejection.
+
+The only exceptions to the above rules are for the authors' own papers in
+(1) workshops without archived proceedings such as in the ACM digital
+library (or where the authors chose not to have their paper appear in the
+archived proceedings), or (2) venues such as IEEE CAL where there is an
+explicit policy that such publication does not preclude longer conference
+submissions.  In all such cases, the submitted manuscript may ignore the
+above work to preserve author anonymity. This information must, however, be
+provided on the submission form -- the PC chair will make this information
+available to reviewers if it becomes necessary to ensure a fair review.
+(This policy will be explicitly conveyed to the reviewers.)
+
+As always, if you are in doubt, it is best to contact the program chair.
+
+Finally, we also note that the ACM Plagiarism Policy ({\em
+http://www.acm.org/publications/policies/plagiarism\_policy}) covers a
+range of ethical issues concerning the misrepresentation of other works or
+one's own work.
+
+\section{Early Access in the Digital Library}
+
+The ASPLOS'14 proceedings will be freely available via the ACM Digital
+Library for up to two weeks before and up to a month after the
+conference. {\bf Authors must consider any implications of this early
+disclosure of their work {\em before} submitting their papers.}
+
+
+\section{Acknowledgements}
+Several ideas in this document and parts of the document text have been
+taken from previous conferences and we thank their program chairs;
+especially, Christos Kozyrakis (Micro'13), Margaret Martonosi (ISCA'13),
+and Onur Mutlu (Micro'12).
+
+\bibliographystyle{plain}
+\bibliography{references}
+
+
+\end{document}
+
