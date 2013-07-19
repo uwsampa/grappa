@@ -31,13 +31,16 @@ CFLAGS += -g -Drestrict=__restrict__ -ffast-math -DGRAPH_GENERATOR_GRAPPA #-Wall
 # for make_graph.h
 CFLAGS += -D_GRAPPA
 
-SOURCES = spmv_mult.o $(APP_BFS)/oned_csr.o $(APP_GRAPH500)/prng.o
+SOURCES = spmv_mult.o $(APP_BFS)/oned_csr.o $(APP_GRAPH500)/prng.o $(APP_BFS)/graph.o
 
 mult.exe: mult_main.o $(SOURCES) $(HEADERS) $(GEN)/generator.a $(GRAPPA_SYS)/libGrappa.a
 	$(ENV_VARIABLES) $($(MPITYPE)_LD) $(LDFLAGS) mult_main.o $(SOURCES) $(GEN)/generator.a $(GRAPPA_SYS)/libGrappa.a $(LIBRARIES) -o $@ $(LIBS)
 
 pagerank.exe: pagerank.o $(SOURCES) $(HEADERS) $(GEN)/generator.a $(GRAPPA_SYS)/libGrappa.a 
 	$(ENV_VARIABLES) $($(MPITYPE)_LD) $(LDFLAGS) pagerank.o $(SOURCES) $(GEN)/generator.a $(GRAPPA_SYS)/libGrappa.a $(LIBRARIES) -o $@ $(LIBS)
+
+pagerank_new.exe: pagerank_new.o $(SOURCES) $(HEADERS) $(GEN)/generator.a $(GRAPPA_SYS)/libGrappa.a 
+	$(ENV_VARIABLES) $($(MPITYPE)_LD) $(LDFLAGS) pagerank_new.o $(SOURCES) $(GEN)/generator.a $(GRAPPA_SYS)/libGrappa.a $(LIBRARIES) -o $@ $(LIBS)
 
 
 # use graph500 makefile
@@ -53,4 +56,5 @@ clean:
 	rm -f spmv_mult.o mult_main.o mult.exe pagerank.exe
 	
 allclean: clean
-	cd $(GEN); make -f Makefile.grappa clean
+	pushd $(GEN); make -f Makefile.grappa clean; popd
+	pushd $(APP_BFS); make clean; popd
