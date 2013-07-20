@@ -80,6 +80,17 @@ namespace Grappa {
     }
   }
     
+  /// Wake one waiter on a condition variable.
+  template< typename ConditionVariable >
+  inline void signal_hip( ConditionVariable * cv ) {
+    Worker * to_wake = Grappa::impl::get_waiters( cv );
+    if( to_wake != NULL ) {
+      Grappa::impl::set_waiters( cv, to_wake->next );
+      to_wake->next = NULL;
+      impl::global_scheduler.thread_hip_wake( to_wake );
+    }
+  }
+    
   /// Wake all waiters on a condition variable.
   template< typename ConditionVariable >
   inline void broadcast( ConditionVariable * cv ) {

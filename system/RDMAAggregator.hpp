@@ -525,6 +525,7 @@ namespace Grappa {
             Core core = locale * Grappa::locale_cores();
             if( check_for_work_on( locale, FLAGS_target_size ) ) {
               useful = true;
+              //Grappa::signal_hip( &(localeCoreData(core)->send_cv_)  );
               Grappa::signal( &(localeCoreData(core)->send_cv_)  );
               //send_locale_medium( locale );
             }
@@ -737,6 +738,7 @@ namespace Grappa {
         rdma_requested_flushes++;
         Locale locale = Grappa::locale_of(c);
         if( source_core_for_locale_[ locale ] == Grappa::mycore() ) {
+          //Grappa::signal_hip( &(localeCoreData( locale * Grappa::locale_cores() )->send_cv_) );
           Grappa::signal( &(localeCoreData( locale * Grappa::locale_cores() )->send_cv_) );
         } else {
           // not on our core, so we can't signal it. instead, cause

@@ -70,6 +70,7 @@ class TaskingScheduler : public Scheduler {
   private:  
     /// Queue for Threads that are ready to run
     PrefetchingThreadQueue readyQ;
+    PrefetchingThreadQueue hipQ;
 
     /// Queue for Threads that are to run periodically
     ThreadQueue periodicQ;
@@ -178,6 +179,16 @@ class TaskingScheduler : public Scheduler {
         }
 
         
+        // check ready tasks
+        result = hipQ.dequeue();
+        if (result != NULL) {
+          //    DVLOG(5) << current_thread->id << " scheduler: pick ready";
+          stats.state_timers[ stats.prev_state ] += (current_ts - prev_ts) / tick_scale;
+          stats.prev_state = TaskingSchedulerStatistics::StateReady;
+          prev_ts = current_ts;
+          return result;
+        }
+
         // check ready tasks
         result = readyQ.dequeue();
         if (result != NULL) {
@@ -464,6 +475,7 @@ class TaskingScheduler : public Scheduler {
     bool thread_yield_periodic( );
     void thread_suspend( );
     void thread_wake( Thread * next );
+    void thread_hip_wake( Thread * next );
     void thread_yield_wake( Thread * next );
     void thread_suspend_wake( Thread * next );
     bool thread_idle( uint64_t total_idle ); 
@@ -575,6 +587,22 @@ inline void TaskingScheduler::thread_wake( Thread * next ) {
   DVLOG(5) << "Thread " << current_thread->id << " wakes thread " << next->id;
 
   ready( next );
+}
+
+/// Wake a suspended Thread by putting it on the run queue.
+/// For now, waking a running Thread is a fatal error.
+/// For now, waking a queued Thread is also a fatal error. 
+/// For now, can only wake a Thread on your scheduler
+inline void TaskingScheduler::thread_hip_wake( Thread * next ) {
+  CHECK( next->sched == this ) << "can only wake a Thread on your scheduler (next="<<(void*) next << " next->sched="<<(void*)next->sched <<" this="<<(void*)this;
+  CHECK( next->next == NULL ) << "woken Thread should not be on any queue";
+  CHECK( !next->running ) << "woken Thread should not be running";
+
+  next->suspended = 0;
+
+  DVLOG(5) << "Thread " << current_thread->id << " wakes thread " << next->id;
+
+  hipQ.enqueue( next );
 }
 
 /// Yield the current Thread and wake a suspended thread.

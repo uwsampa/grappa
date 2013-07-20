@@ -34,6 +34,7 @@ TaskingScheduler global_scheduler;
 /// init() must subsequently be called before fully initialized.
   TaskingScheduler::TaskingScheduler ( )
   : readyQ ( )
+  , hipQ ( )
   , periodicQ ( )
   , unassignedQ ( )
   , master ( NULL )
@@ -58,6 +59,7 @@ TaskingScheduler global_scheduler;
 void TaskingScheduler::init ( Thread * master_arg, TaskManager * taskman ) {
   master = master_arg;
   readyQ.init( FLAGS_readyq_prefetch_distance );
+  hipQ.init( FLAGS_readyq_prefetch_distance );
   current_thread = master;
   task_manager = taskman;
   work_args = new task_worker_args( taskman, this );
