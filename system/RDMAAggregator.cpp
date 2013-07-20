@@ -236,6 +236,18 @@ namespace Grappa {
       enqueue_buffer_handle_ = global_communicator.register_active_message_handler( &enqueue_buffer_am );
       enqueue_buffer_async_handle_ = global_communicator.register_active_message_handler( &enqueue_buffer_async_am );
       copy_enqueue_buffer_handle_ = global_communicator.register_active_message_handler( &copy_enqueue_buffer_am );
+
+      // make sure buffer count and workers per core are sufficient
+      if( FLAGS_rdma_workers_per_core < remote_buffer_pool_size ) {
+        LOG(WARNING) << "Updating workers_per_core to match remote_buffer_pool_size" 
+                     << " (was " << FLAGS_rdma_workers_per_core << ", now " << remote_buffer_pool_size << ")";
+        FLAGS_rdma_workers_per_core = remote_buffer_pool_size;
+      }
+      if( FLAGS_rdma_buffers_per_core < remote_buffer_pool_size * 2 ) {
+        LOG(WARNING) << "Updating buffers_per_core to match remote_buffer_pool_size" 
+                     << " (was " << FLAGS_rdma_buffers_per_core << ", now " << remote_buffer_pool_size*2 << ")";
+        FLAGS_rdma_buffers_per_core = remote_buffer_pool_size * 2;
+      }
 #endif
     }
 
