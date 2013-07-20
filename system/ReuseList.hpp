@@ -83,7 +83,7 @@ public:
 
     b->set_next( list_ );
     list_ = b;
-    Grappa::signal( &cv );
+    Grappa::signal_hip( &cv );
 
     // record the put
     count_++;
