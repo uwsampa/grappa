@@ -20,6 +20,8 @@
 
 typedef int16_t Core;
 
+GRAPPA_DECLARE_STAT( SimpleStatistic<int64_t>, mark_sent_enqueues );
+
 namespace Grappa {
   
   /// Internal messaging functions
@@ -74,6 +76,7 @@ namespace Grappa {
         if( (is_delivered_ == true) && (Grappa::mycore() != source_) ) {
           DVLOG(5) << __func__ << ": " << this << " Re-enqueuing to " << source_;
           DCHECK_EQ( this->is_sent_, false );
+          mark_sent_enqueues++;
           enqueue( source_ );
 
         } else {

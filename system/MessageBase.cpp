@@ -6,6 +6,8 @@
 
 #include "ConditionVariable.hpp"
 
+GRAPPA_DEFINE_STAT( SimpleStatistic<int64_t>, mark_sent_enqueues, 0 );
+
 namespace Grappa {
 
   /// Internal messaging functions
