@@ -21,7 +21,7 @@ productive in a shared memory environment and rely on the
 underlying runtime components for reasonable performance, \Grappa
 provides constructs for optimizing for locality and overlapping
 communication.
- 
+
 \Grappa comprises three main software components, shown in Figure~\ref{fig:grappa}:
 
 \begin{figure}[t]
@@ -40,21 +40,10 @@ communication.
 to tolerate communication latency and global distributed work-stealing (i.e.,
 tasks can be stolen from any node in the system), which provides automated
 load balancing. The scheduler oversubscribes to have more worker threads than
-required for latency tolerance. By having at least four workers per processor
+required for latency tolerance. By keeping at least four workers per 
 core ready to run at all times, the scheduler can prefetch a worker's state
-into cache to lower the likelihood of costly main memory accesses during a
+into cache to reduce the chance of stalling on memory accesses during a
 context switch.
-
-\item[Distributed shared memory.] The DSM system provides fine-grain access to
-data anywhere in the system. It supports normal access operations such as
-\emph{read\/} and \emph{write\/} as well as synchronizing operations such as
-\emph{fetch-and-add\/}~\cite{fetchandadd}. It also offers explicit local
-caching of any memory in the system, and delegates that directly operate on
-remote data. The memory model offered is similar to what underpins
-C/C++~\cite{N2480,N2800}, so it is familiar to programmers. The DSM system
-design relies on the lightweight tasking system and communication layer in
-order to offer high aggregate random access bandwidth for accessing remote
-data.
 
 \item[Communication layer.] The main goal of our communication layer is to
 aggregate small messages into large ones.  This process is invisible to the application
@@ -63,5 +52,16 @@ Since aggregation and deaggregation of messages needs to be very efficient, we p
 operations.
 \TODO{Re-include the mention of GASNET,MPI spawning,and inifiniband
     somewhere but not in the overview intro}
+
+\item[Distributed shared memory.] The DSM system provides fine-grain access to
+data anywhere in the system, with delegated operation at the core of its design.
+Every piece of global memory is owned by a particular core in the system, and all others may only access that memory by delegating their requests to the owning core.
+It supports normal access operations such as
+\emph{read\/} and \emph{write\/} as well as synchronizing operations such as
+\emph{fetch-and-add\/}~\cite{fetchandadd}. Due to delegation, the memory model offered is similar to what underpins
+C/C++~\cite{N2480,N2800}, so it is familiar to programmers. The DSM system
+design relies on the lightweight tasking system and communication layer in
+order to offer high aggregate random access bandwidth for accessing remote
+data.
 
 \end{description}
