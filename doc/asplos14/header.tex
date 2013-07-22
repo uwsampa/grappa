@@ -15,13 +15,40 @@
 %%% packages %%%
 \usepackage[normalem]{ulem}
 \usepackage{color}
+\usepackage[usenames,dvipsnames]{xcolor}
+
 \usepackage{graphicx}
-\usepackage{listings}
 \usepackage{float}
 \usepackage{url}
 \usepackage{times}
 \usepackage{xspace}
 
+%%% code listings %%%
+\usepackage{listings}
+
+\usepackage{inconsolata}
+
+\lstset{
+  emph={GlobalAddress,Grappa,ConditionVariable,Mutex,T,key_t,node_t,int64_t}, emphstyle={\color{NavyBlue}},
+  emph={[2]delegate, write, acquire, release, core, call, signal, push, pop, sync, block, memcpy}, emphstyle={[2]\color{PineGreen}}
+}
+\lstdefinestyle{grappa}{ 
+  belowcaptionskip=1\baselineskip,
+  breaklines=true,
+  %frame=L,  % frame around code
+  xleftmargin=\parindent,
+  language=C++,
+  showstringspaces=false,
+  %basicstyle=\tiny,
+  basicstyle=\footnotesize\ttfamily,
+  keywordstyle=\color{Purple},
+  commentstyle=\itshape\color{Gray},
+  identifierstyle=\color{Black},
+  stringstyle=\color{RedOrange},
+  morekeywords={override},
+  numbers=none,
+}
+\lstset{escapechar=@,style=grappa}
 
 %%% utilities %%%
 \newcommand{\TODO}[1]{\textcolor{red}{{\bf TODO:} #1}}

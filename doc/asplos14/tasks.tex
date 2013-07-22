@@ -165,25 +165,26 @@ what would be written for single shared-memory system, without any concern about
 \begin{figure}[htbp]
 \begin{center}
 \begin{scriptsize}
-\begin{verbatim}
+\begin{lstlisting}[style=grappa]
 class node_t {
   key_t   key
   int64_t numChildren;
-  GlobalAddress<node_t *> children;
+  GlobalAddress<node_t> children;
 };
 
-void search(GlobalAddress<node_t *> node, key_t key) {
-  // dereference is expected cache miss
-  if (node->key == key) { 
-    result = node;
-    return;
+void search(GlobalAddress<node_t> node, key_t key, GlobalAddress<node_t> result) {
+  // deref of key is expected cache miss
+  if (node->key == key) {
+    delegate::write(result, node);
+  } else {
+    parallel_for(0, node->numChildren,
+    [=](int index) {
+      // first deref of children is likely miss
+      search(node->children[index], key); 
+    });
   }
-  parallel_for(0, node->numChildren, [=](int index) {
-    // first dereference of children is expected cache miss
-    search(node->children[index], key); 
-  });
 }
-\end{verbatim}
+\end{lstlisting}
 \end{scriptsize}
 
     \begin{minipage}{0.95\columnwidth}
