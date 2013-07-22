@@ -59,13 +59,14 @@ to other cores' memory.
       	\lstinline[style=grappa]{global_free( GlobalAddress<T> )}  \hfill
     \item[Delegate operations:] \emph{(at the owning core of a global address)} \hfill \\
       	\lstinline|T    delegate_read( GlobalAddress<T>)|  \hfill \\
+      	\lstinline|Promise<T> delegate_read_async( GlobalAddress<T> )|  \hfill \\
       	\lstinline|void delegate_write( GlobalAddress<T>, T value)| \hfill \\
       	\lstinline|void delegate_write_async( GlobalAddress<T>, T value)| \hfill \\
       	\lstinline|bool delegate_cas( GlobalAddress<T>, T cmp, T set)| \hfill \\
       	\lstinline|T    delegate_fetch_inc( GlobalAddress<T>, T inc)| \hfill \\
       	\lstinline|void delegate_inc_async( GlobalAddress<T>, T inc)|  \hfill\\ 
-        \lstinline|void buffer_acquire( GlobalAddress<T>, T * local_buf, {RO,RW,WO})| \hfill \\
-        \lstinline|void buffer_release( GlobalAddress<T>, T * local_buf )| \hfill
+        \lstinline|void buffer_acquire( GlobalAddress<T>, local_buf, {RO,RW,WO})| \hfill \\
+        \lstinline|void buffer_release( GlobalAddress<T>, local_buf )| \hfill
     % Perform buffer operations to acquire/release global data.
     % Acquire copies all data to local node and returns a pointer.
     % For write acquire, release copies data back to global memory.
