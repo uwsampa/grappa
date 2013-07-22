@@ -51,26 +51,25 @@ to other cores' memory.
 
 \begin{figure}[htbp]
   \begin{center}
-    \begin{minipage}{\columnwidth}
+    \begin{minipage}{0.95\columnwidth}
 	\small
-	\begin{tabular}{l}
-      	\texttt{\scriptsize GlobalAddress<T> global\_malloc<T>( size )} \\
-      	\texttt{\scriptsize global\_free( GlobalAddress<T> )} \\ 
-      	Allocation in the global heap \\ \\
-      	\texttt{\scriptsize delegate\_read( GlobalAddress<T>, T )}  \\
-      	\texttt{\scriptsize delegate\_read\_async( GlobalAddress<T>, T )}  \\
-      	\texttt{\scriptsize delegate\_write( GlobalAddress<T>, T value)} \\
-      	\texttt{\scriptsize delegate\_write\_async( GlobalAddress<T>, T )} \\
-      	\texttt{\scriptsize delegate\_cas( GlobalAddress<T>, T, T )} \\
-      	\texttt{\scriptsize delegate\_fetch\_inc( GlobalAddress<T>, T )} \\
-      	\texttt{\scriptsize delegate\_fetch\_inc\_async( GlobalAddress<T>, T )} \\ 
-      	Memory operations at the home core of a global address \\ \\
-      	\texttt{\scriptsize buffer\_acquire( GlobalAddress<T>, local\_buf, \{RO,RW,WO\})} \\
-      	\texttt{\scriptsize buffer\_release( GlobalAddress<T>, local\_buf )} \\ 
-		Perform buffer operations to acquire/release global data.  \\
-		Acquire copies all data to local node and returns a pointer. \\ 	
-		For write acquire, release copies data back to global memory. \\
-	\end{tabular}
+  \begin{description}
+    \item[Allocation in the global heap:] \hfill \\
+      	\lstinline[style=grappa]{GlobalAddress<T> global_malloc<T>( size )} \hfill \\
+      	\lstinline[style=grappa]{global_free( GlobalAddress<T> )}  \hfill
+    \item[Delegate operations:] \emph{(at the owning core of a global address)} \hfill \\
+      	\lstinline|T    delegate_read( GlobalAddress<T>)|  \hfill \\
+      	\lstinline|void delegate_write( GlobalAddress<T>, T value)| \hfill \\
+      	\lstinline|void delegate_write_async( GlobalAddress<T>, T value)| \hfill \\
+      	\lstinline|bool delegate_cas( GlobalAddress<T>, T cmp, T set)| \hfill \\
+      	\lstinline|T    delegate_fetch_inc( GlobalAddress<T>, T inc)| \hfill \\
+      	\lstinline|void delegate_inc_async( GlobalAddress<T>, T inc)|  \hfill\\ 
+        \lstinline|void buffer_acquire( GlobalAddress<T>, T * local_buf, {RO,RW,WO})| \hfill \\
+        \lstinline|void buffer_release( GlobalAddress<T>, T * local_buf )| \hfill
+    % Perform buffer operations to acquire/release global data.
+    % Acquire copies all data to local node and returns a pointer.
+    % For write acquire, release copies data back to global memory.
+	\end{description}
       \caption{\label{fig:accessing-memory} \Grappa API for memory accesses.}     \end{minipage}
   \end{center}
 \end{figure}
