@@ -13,6 +13,9 @@ Large data that is expected to be shared and accessed with low locality is
 stored in \Grappa's global memory. All global data must be accessed through
 calls into \Grappa's API, shown in Figure~\ref{fig:accessing-memory}.
 
+\TODO{worth mentioning localized access for data-parallel stuff, along
+    with reasoning about local vs remote accesses as in the PGAS world}
+
 \paragraph{Global memory addressing} \Grappa provides two methods for storing
 data in the global memory. The first is a distributed heap striped across all
 the machines in the system in a block cyclic fashion. The
@@ -62,11 +65,11 @@ to other cores' memory.
       	\texttt{\scriptsize delegate\_fetch\_inc( GlobalAddress<T>, T )} \\
       	\texttt{\scriptsize delegate\_fetch\_inc\_async( GlobalAddress<T>, T )} \\ 
       	Memory operations at the home core of a global address \\ \\
-      	\texttt{\scriptsize cache\_acquire( GlobalAddress<T>, local\_buf, \{RO,RW,WO\})} \\
-      	\texttt{\scriptsize cache\_release( GlobalAddress<T>, local\_buf )} \\ 
-		Perform cache operations to acquire/release global data.  \\
+      	\texttt{\scriptsize buffer\_acquire( GlobalAddress<T>, local\_buf, \{RO,RW,WO\})} \\
+      	\texttt{\scriptsize buffer\_release( GlobalAddress<T>, local\_buf )} \\ 
+		Perform buffer operations to acquire/release global data.  \\
 		Acquire copies all data to local node and returns a pointer. \\ 	
-		Release optionally copies data back to global memory. \\
+		For write acquire, release copies data back to global memory. \\
 	\end{tabular}
       \caption{\label{fig:accessing-memory} \Grappa API for memory accesses.}     \end{minipage}
   \end{center}
@@ -86,7 +89,7 @@ to other cores' memory.
 applications use to {\em access} global memory. One method is to use {\em
 delegate} operations, which are short memory accesses performed at the memory
 location's home node. This method is used when there is no locality in the
-access. The other method is to do {\em explicit caching} of memory regions,
+access. The other method is to do {\em explicit buffering} of memory regions,
 used when the programmer expects that the associated computation has data
 locality. Below we explain each in detail.
 
@@ -110,44 +113,47 @@ operations for the same address from multiple requesters are always serialized
 through a single core in the system, providing atomic semantics without using
 actual atomic operations (and thus avoiding their typical high cost).
 
-Delegate operations can be either {\em synchronous} or {\em asynchronous}.
-With synchronous operations, the task issuing the delegate call blocks until
+Delegate operations can be either {\em blocking} or {\em non-blocking}.
+With blocking operations, the task issuing the delegate call blocks until
 the delegate operation completes, which is necessary, for example, to ensure
 that synchronization has finished before continuing. Synchronization in \Grappa
-is implemented using synchronous delegate operations. On the other hand, remote data
-accesses often do not need to be performed synchronously. In order to avoid
-unnecessary waiting, we support asynchronous delegate operations. For reads,
+is implemented using blocking delegate operations. On the other hand, remote data
+accesses often can overlap. In order to avoid
+unnecessary waiting, we support non-blocking delegate operations. For reads,
 we support a ``futures''-like mechanism. Tasks may issue delegate reads in
-parallel and block on the ``promises'' returned by asynchronous delegate
-invocations. Delegate write operations may also be performed asynchronously,
+parallel and block on the ``promises'' returned by non-blocking delegate
+invocations. Delegate write operations may also be performed as
+non-blocking,
 and since they do not return data, a mechanism to detect completion is needed.
 \Grappa provides a \texttt{GlobalCompletionEvent} object, which keeps track of
-outstanding asynchronous operations of the local core. Threads that depend on completion may block on this object
+outstanding non-blocking operations of the local core. Threads that depend on completion may block on this object
 the state of this object, and they will be woken when all outstanding requests are
 complete. 
+\TODO{augment this with our bulk futures ie global completions}
 
 \vspace{1ex}
-\textit{Explicit caching.} \Grappa provides an API to fetch a global pointer of
+\textit{Explicit buffering.} \Grappa provides an API to fetch a global pointer of
 any length and return a local pointer to a cached copy of the global memory.
-\Grappa cache operations have the usual read-only and read-write variants,
+\Grappa buffer operations have the usual read-only and read-write variants,
 along with a write-only variant used to initialize data structures. Languages
 for distributed shared memory systems have done optimizations to achieve a
 similar goal. For example, the UPC compiler coalesces struct and array
 accesses into remote get/put \cite{Chen:2005}, and Fortran D compiler's
 message vectorization hoists small messages out of a loop
-\cite{FortranD:1992}. Caching in \Grappa additionally provides a mechanism for
+\cite{FortranD:1992}. Buffering in \Grappa additionally provides a mechanism for
 exploiting temporal locality when available by operating on the data locally.
 
 Under the hood, \Grappa performs the mechanics of gathering chunks of data from
 multiple system nodes and presenting a conventional appearing linear block of
-memory as a local pointer into a cache. The strategy employed is to issue all
+memory as a local pointer into a buffer. The strategy employed is to issue all
 the constituent requests of the desired block (as Active Messages) and then
-yield until all responses have occurred. Currently, \Grappa caches are
+yield until all responses have occurred. In \Grappa, cached regions are
 \emph{not\/} kept coherent automatically. If that is desired, the programmer is
 responsible for ensuring sufficient synchronization (via delegate operations)
-occurs before acquiring or releasing cache objects.
+occurs before acquiring or releasing buffer objects.
 
-Figure~\ref{fig:delegate-cache} depicts an example how explicit caching and
+Figure~\ref{fig:delegate-cache} depicts an example how explicit
+buffering and
 delegate operations work and how they interact.
 
 \begin{figure*}[htb] \begin{center}
