@@ -10,7 +10,7 @@ execute, they are mapped to a {\em worker}, which is akin to a user-level
 thread. Each hardware core has a single operating system thread pinned to it.
 
 \paragraph{Tasks} 
-Tasks are specified by a ``functor'' object that holds both code to execute and initial state. The functor can be specified with a function pointer and explicit arguments, a C++ struct that overloads the parentheses operator, or a C++11 lambda. These objects, typically very small (on the order of 64 bytes), hold read-only values such as an iteration index and pointers to common data or synchronization objects. Task functors can be serialized and transported around the system, and eventually executed by a worker, as described next.
+Tasks are specified by a closure (or ``function object'' in C++ parlance) that holds both code to execute and initial state. The functor can be specified with a function pointer and explicit arguments, a C++ struct that overloads the parentheses operator, or a C++11 lambda construct. These objects, typically very small (on the order of 64 bytes), hold read-only values such as an iteration index and pointers to common data or synchronization objects. Task functors can be serialized and transported around the system, and eventually executed by a worker, as described next.
 
 \paragraph{Workers} Workers execute application and system (e.g.,
 communication) tasks. A worker is simply a collection of status bits and a
@@ -21,8 +21,10 @@ Once a task is mapped to a worker it stays with that worker until it finishes.
 \paragraph{Scheduling} During execution, a worker yields control of its core
 whenever performing a long-latency operation, allowing the processor to
 remain busy while waiting for the operation to complete. In addition, a
-programmer can direct scheduling explicitly via the \Grappa API calls shown in
-Figure~\ref{fig:scheduling}. To minimize yield overhead, the \Grappa scheduler
+programmer can direct scheduling explicitly.
+% via the \Grappa API calls shown in
+%Figure~\ref{fig:scheduling}. 
+To minimize context-switch overhead, the \Grappa scheduler
 operates entirely in user-space and does little more than store state of one
 worker and load that of another.
 \TODO{mention how we block on response (``scheduler activations'' or whatever) not busy wait}
@@ -30,27 +32,27 @@ worker and load that of another.
 \TODO{either explain the usage of yield vs suspend in talking about
     short and longer latency tolerance or eliminate the
     distinction}
-\begin{figure}[htbp]
-  \begin{center}
-  \begin{minipage}{0.95\columnwidth}  
-  \begin{description}
-    \item[\texttt{yield() }] \hfill \\
-      Yields core to scheduler, enqueuing caller to be scheduled again soon
-    \item[\texttt{wake( Worker * $w$ ) }] \hfill \\
-      Enqueues some other worker $w$ to be scheduled again soon
-    \item[\texttt{suspend() } ] \hfill \\
-      Yields core to scheduler, enqueuing caller only once another task calls wake
-	\end{description}
-  \end{minipage}
-    \begin{minipage}{0.95\columnwidth}
-      \caption{\label{fig:scheduling} \Grappa scheduling API
-      \TODO{Drop this? Doesn't seem non-obvious or important.}}
-    \end{minipage}
-  \end{center}
-\end{figure}
+%% \begin{figure}[htbp]
+%%   \begin{center}
+%%   \begin{minipage}{0.95\columnwidth}  
+%%   \begin{description}
+%%     \item[\texttt{yield() }] \hfill \\
+%%       Yields core to scheduler, enqueuing caller to be scheduled again soon
+%%     \item[\texttt{wake( Worker * $w$ ) }] \hfill \\
+%%       Enqueues some other worker $w$ to be scheduled again soon
+%%     \item[\texttt{suspend() } ] \hfill \\
+%%       Yields core to scheduler, enqueuing caller only once another task calls wake
+%% 	\end{description}
+%%   \end{minipage}
+%%     \begin{minipage}{0.95\columnwidth}
+%%       \caption{\label{fig:scheduling} \Grappa scheduling API
+%%       \TODO{Drop this? Doesn't seem non-obvious or important.}}
+%%     \end{minipage}
+%%   \end{center}
+%% \end{figure}
 
 Each core in a \Grappa system has its own independent scheduler. The scheduler
-has a collection of active workers ready to execute, the {\it
+has a collection of active workers ready to execute called the {\it
 ready worker queue}. Each scheduler also has three queues of tasks
 waiting to be assigned a worker:
 
@@ -69,12 +71,12 @@ this core and therefore is not subject to stealing;
 
 
 Whenever a task yields, the scheduler makes a decision about what
-to do next. First, any task in the deadline task queue who's deadline
+to do next. First, any task in the deadline task queue whose deadline
 is imminent is chosen for execution. This queue manages high priority
 system tasks, such as periodically servicing communication requests. Second,
 the scheduler determines if any workers with running tasks are ready to
-execute; if so, one is scheduled. Finally, if there are no workers ready to
-run, but there are tasks waiting to be matched with workers, an idle worker is
+execute; if so, one is scheduled. Finally, if no workers are ready to
+run, but tasks are waiting to be matched with workers, an idle worker is
 woken (or a new worker is spawned), matched with a task, and scheduled.
 
 \paragraph{Context switching} 
@@ -89,10 +91,10 @@ the ABI, is 62~bytes.
 
 Since \Grappa keeps a very large number of active workers, their context data
 will not fit in cache. By oversubscribing on the number of workers
-beyond what is required for latency tolerance, the scheduler can
+beyond what is required for local DRAM latency tolerance, the scheduler can
 ensure there is always some number of context pointers in the ready
 queue. This allows the scheduler to prefetch contexts into
-cache using software prefetch instructions. The reason this works is because the size of the L1 cache is
+cache using software prefetch instructions; the size of the L1 cache is
 sufficient to hold enough contexts to tolerate the latency to main
 memory. Empirically we find that prefetching the fourth worker in the scheduling order is
 sufficient. This prefetching constrains the types of task scheduling
@@ -137,9 +139,9 @@ start and end indices and an optional threshold to control parallel overhead.
 cilk\_for construct~\cite {cilkforimplementation}, and TBB's {\tt
 parallel\_for}~\cite{intel_tbb}. It generates a logarithmically-deep tree of
 tasks, stopping to execute the loop body when the number of iterations is
-below the required threshold. Third, a programmer may want to execute an active message; that is, to run a
-small piece of code on a particular core in the system without waiting for
-execution resources to be available. Custom synchronization primitives, for example, execute this way as a function executed on the core where the data
+below the required threshold. Third, a programmer may want to execute an active message~\cite{vonEicken:1992:AMM:139669.140382}; that is, to run a
+small non-blocking piece of code on a particular core in the system without waiting for
+ a free worker to become available. For example, custom synchronization primitives are implemented as an active message executed on the core where the data
 lives. \Grappa provides the \texttt{call\_on} call for this purpose.
 
 \begin{figure}[htbp]

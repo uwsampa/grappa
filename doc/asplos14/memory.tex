@@ -56,7 +56,7 @@ to other cores' memory.
     \item[Allocation in the global heap:] \hfill \\
       	\lstinline[style=grappa]{GlobalAddress<T> global_malloc<T>( size )} \hfill \\
       	\lstinline[style=grappa]{global_free( GlobalAddress<T> )}  \hfill
-    \item[Delegate operations:] \emph{(at the owning core of a global address)} \hfill \\
+    \item[Delegate operations:] \hfill \\
       	\lstinline|T    delegate_read( GlobalAddress<T>)|  \hfill \\
       	\lstinline|Promise<T> delegate_read_async( GlobalAddress<T> )|  \hfill \\
       	\lstinline|void delegate_write( GlobalAddress<T>, T value)| \hfill \\
@@ -64,8 +64,8 @@ to other cores' memory.
       	\lstinline|bool delegate_cas( GlobalAddress<T>, T cmp, T set)| \hfill \\
       	\lstinline|T    delegate_fetch_inc( GlobalAddress<T>, T inc)| \hfill \\
       	\lstinline|void delegate_inc_async( GlobalAddress<T>, T inc)|  \hfill\\ 
-        \lstinline|void buffer_acquire( GlobalAddress<T>, local_buf, {RO,RW,WO})| \hfill \\
-        \lstinline|void buffer_release( GlobalAddress<T>, local_buf )| \hfill
+%        \lstinline|void buffer_acquire( GlobalAddress<T>, local_buf, {RO,RW,WO})| \hfill \\
+%        \lstinline|void buffer_release( GlobalAddress<T>, local_buf )| \hfill
     % Perform buffer operations to acquire/release global data.
     % Acquire copies all data to local node and returns a pointer.
     % For write acquire, release copies data back to global memory.
@@ -84,21 +84,16 @@ to other cores' memory.
 \end{center}
 \end{figure}
 
-\paragraph{Global memory access} There are two general methods \Grappa
-applications use to {\em access} global memory. One method is to use {\em
+\paragraph{Global memory access} 
+Access to \Grappa's distributed shared memory is provided through  {\em
 delegate} operations, which are short memory accesses performed at the memory
-location's home node. This method is used when there is no locality in the
-access. The other method is to do {\em explicit buffering} of memory regions,
-used when the programmer expects that the associated computation has data
-locality. Below we explain each in detail.
-
-\vspace{1ex} \textit{Delegate operations.} When the data access pattern has
+location's home node. When the data access pattern has
 low-locality, it is more efficient to modify the data on its home core rather
 than bringing a copy to the requesting core and returning it after
 modification. Delegate operations~\cite{Nelson:hotpar11, delegated:oopsla11}
 provide this capability. Applications can dispatch computation to be performed
 on individual machine-word sized chunks of global memory to the memory system
-itself. Delegates are general, so we use them to perform simple
+itself. Delegates can execute arbitrary non-blocking code, so we use them to perform simple
 \emph{read\/}/\emph{write\/} operations to global memory, as well as more complex \emph{read-modify-write\/} operations (e.g., \emph{fetch-and-add\/}). 
 
 Delegate operations are \emph{always\/} executed at the home core of their
@@ -126,62 +121,17 @@ and since they do not return data, a mechanism to detect completion is needed.
 \Grappa provides a \texttt{GlobalCompletionEvent} synchronization object, which non-blocking operations (including tasks) can be enrolled with and which other tasks can block on to be notified and woken when all enrolled operations in the collection are complete.
 \TODO{augment this with our bulk futures ie global completions}
 
-\vspace{1ex}
-\textit{Explicit buffering.}
-\TODO{de-emphasize buffering? requires rewording above sections to talk about Delegate ops as the primary form of use, and then we can mention this functionality offhand}
-\Grappa provides an API to fetch a global pointer of
-any length and return a local pointer to a cached copy of the global memory.
-\Grappa buffer operations have the usual read-only and read-write variants,
-along with a write-only variant used to initialize data structures. Languages
-for distributed shared memory systems have done optimizations to achieve a
-similar goal. For example, the UPC compiler coalesces struct and array
-accesses into remote get/put \cite{Chen:2005}, and Fortran D compiler's
-message vectorization hoists small messages out of a loop
-\cite{FortranD:1992}. Buffering in \Grappa additionally provides a mechanism for
-exploiting temporal locality when available by operating on the data locally.
-
-Under the hood, \Grappa performs the mechanics of gathering chunks of data from
-multiple system nodes and presenting a conventional appearing linear block of
-memory as a local pointer into a buffer. The strategy employed is to issue all
-the constituent requests of the desired block (as Active Messages) and then
-block until all responses have occurred. In \Grappa, buffered regions are
-\emph{not\/} kept coherent automatically. If that is desired, the programmer is
-responsible for ensuring sufficient synchronization (via delegate operations)
-occurs before acquiring or releasing buffers.
-
-Figure~\ref{fig:delegate-cache} depicts an example of how explicit
-buffering and
-delegate operations work and how they interact.
-
-\begin{figure*}[htb] \begin{center}
-\includegraphics[width=1.5\columnwidth]{figs/delegate-cache}
-\begin{minipage}{1.9\columnwidth} \caption{\label{fig:delegate-cache}
-\TODO{Redo this figure to simplify it and focus on delegates and latency tolerance.}
-\textbf{Delegation and cache example:} A core allocates an array in the global
-heap (1). It then spawns two tasks on remote cores to increment elements of
-the array. The first task increments two elements of the array using cache
-operations. The first task is then invoked (2). A cache request is issued for two
-adjacent integers starting at the second element of the array. Since these
-element are stored in the memories of two different cores, this requires two messages to be sent (3). The task is suspended until both responses arrive
-(4). The data carried in these responses is stored in the local buffer. The
-elements are then incremented in the buffer. The modified data is then sent back
-to the home node (5). Acknowledgements are returned (6) so the task
-knows when the writes are complete. The second task increments an element of
-the array with a delegate operation. The task is invoked (7). A delegate
-request is sent to the home core of the array element with the increment
-value. The task suspends until the response is received. The increment
-is executed on the remote core (8). A response is returned (9) with the
-previous value of the array element. } \end{minipage} \vspace{-3ex}
-\end{center} \end{figure*}
-
-\TODO{eliminate the word cache from the paper since the main point is
-    contiguity and not unpredictable temporal reuse. We
-    must make it clear that this is not user-level caching.}
+When programmers want to operate on data structures spread across
+multiple nodes, accesses must be expressed as multiple delegate
+operations along with with appropriate synchronization
+operations. \Grappa's API also includes calls for gathering and scattering
+contiguous blocks in the global heap, but the user is responsible for
+ensuring correct synchronization.
 
 \paragraph{Memory consistency model discussion} As mentioned earlier, all
 synchronization operations are done via delegate operations. Since they all
 execute on their home core in some serial order, they are guaranteed to be globally linearizable~\cite{herlihy1990linearizability}, with their
-updates visible to all cores across the system in the same order. In addition, only one synchronous delegate will be in flight at a time from a particular task. Therefore, synchronization operations are not subject to potential reordering. 
+updates visible to all cores across the system in the same order. In addition, only one synchronous delegate will be in flight at a time from a particular task. Therefore, synchronization operations from a particular task are not subject to reordering. 
 % \TODO{I think we can support multiple delegates in parallel from a task as
 % long as we block on them before counting on them being complete. see my
 % description above about the \emph{future/promise} delegates we have now. Not

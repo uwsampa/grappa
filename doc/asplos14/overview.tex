@@ -1,26 +1,34 @@
 \section{\Grappa Overview}
 
-Commodity hardware systems provide fast processors and high-bandwidth
+Commodity clusters provide fast processors and high-bandwidth
 interconnects but suffer when they encounter unpredictable data access
-patterns. Maximizing throughput in such a situation depends upon proper
-management of concurrency and communication. The \Grappa runtime
-components handle thousands of concurrent accesses and batch them to
-efficiently use the network. The imbalance between network bandwidth
-and core-cycles for communication-intensive codes makes supporting
-these functions in software an attractive design point. 
-\Grappa specifically employs user-mode threading and networking for
-low overhead because context switches and messages are very frequent.
+patterns. Maximizing throughput in such a situation depends upon
+proper management of concurrency and communication. \Grappa's design is
+motivated by four relationsips we observe within commodity clusters.
+
+First, cores in our cluster can execte hundreds of thousands of
+instructions in the few microseconds that it takes for one RDMA read
+to complete. Given the high degree of fine-grained random access in
+irregular applications, this pushes us to overlap communication with
+other computation.
+
+Second, cores can perfom random access to local DRAM over two orders
+of magnitude faster than they can issue RDMA requests through the
+network. In addition, cores can execute instructions three orders of
+magnitude faster than they can issue RDMA requests. On the other hand,
+per-node network bandwidth (measured in bytes rather than messages) is
+within an order of magnitude of local DRAM bandwidth. The combination
+of these facts motivates us to delay and aggregate remote operations
+to run on remote cores.
 
 As \Grappa depends on concurrency for performance, its programming
 model focuses on enabling programmers to express large amounts of
-concurrency. The overall goal is for the system to provide the
-critical components for a well-performing implementation of an
-irregular application, allowing the programmer to foremost focus on
-expressing concurrency. While the programmer can initially be
-productive in a shared memory environment and rely on the
-underlying runtime components for reasonable performance, \Grappa
-provides constructs for optimizing for locality and overlapping
-communication.
+concurrency. \Grappa is intended to support what we think is a
+desriable workflow: programmers start by expressing a computation
+using a multithreaded, shared-memory model on a single node. \Grappa
+then provides the primitves to do a straightforward translation of
+this code to run on a distributed-memory cluster, through constructs
+for optimizing locality and overlapping communication.
 
 \Grappa comprises three main software components, shown in Figure~\ref{fig:grappa}:
 
