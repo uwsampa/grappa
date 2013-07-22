@@ -42,10 +42,7 @@ number of tasks.
 \noindent{\bf Software distributed shared memory.} 
 %\section{Software distributed shared memory} 
 The goal of providing a shared memory abstraction for a distributed
-memory system goes back nearly 30 years. Here I present a few of the
-ideas explored in this area.
-
-Much of the innovation in SDSM has occurred around reducing the
+memory system goes back nearly 30 years. Much of the innovation in SDSM has occurred around reducing the
 synchronization cost of doing updates. The first DSM systems,
 including IVY~\cite{Li:1989:MCS:75104.75105}, used invalidations to
 provide sequential consistency, which imposed significant
@@ -100,9 +97,8 @@ overhead impose by the runtime system.
 The high-performance computing community has largely discarded the
 coherent distributed shared memory approach in favor of the
 Partitioned Global Address Space (PGAS)
-model. Split-C~\cite{Krishnamurthy:1993:PPS:169627.169724} is the
-earliest example I know of this style of language; contemporary
-examples include Chapel~\cite{Chamberlain:2007}, X10~\cite{X10:2005},
+model. Example include Split-C~\cite{Krishnamurthy:1993:PPS:169627.169724},
+Chapel~\cite{Chamberlain:2007}, X10~\cite{X10:2005},
 Co-array Fortran~\cite{Numrich:1998:CFP:289918.289920} and
 UPC~\cite{upc:2005}. Grappa shares many parts of its design philosophy
 with these languages.
@@ -174,11 +170,5 @@ communications must happen through the provided parallel data
 structures. Grappa is general enough to run these jobs, but the
 MapReduce-derived systems have much more complete IO support and the
 ability to tolerate from node failures.
-
-Grappa's latency-tolerant approach to irregular and graph applications is
-catching on. Colleagues at PNNL have developed GMT~\cite{GMT}, a system that
-follows the same basic approach as Grappa but with more of a focus on
-node-shared resources. After discussions with the Grappa team, the next version of GraphLab will also include
-lightweight context switching for latency tolerance \cite{graphlab-next}.
 
 
