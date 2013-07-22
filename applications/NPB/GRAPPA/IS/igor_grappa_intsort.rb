@@ -4,10 +4,6 @@ require 'igor'
 # inherit parser, sbatch_flags
 load '../../../../igor_common.rb'
 
-def expand_flags(*names)
-  names.map{|n| "--#{n}=%{#{n}}"}.join(' ')
-end
-
 Igor do
   include Isolatable
   
@@ -16,11 +12,11 @@ Igor do
   # isolate everything needed for the executable so we can sbcast them for local execution
   isolate(['intsort.exe'], File.dirname(__FILE__))
   
-  GFLAGS = Params.new {
+  GFLAGS.merge! Params.new {
     global_memory_use_hugepages 0
            num_starting_workers 64
-                 loop_threshold 16
-     aggregator_autoflush_ticks 3e6.to_i
+                 loop_threshold 64
+     aggregator_autoflush_ticks 1e6.to_i
             periodic_poll_ticks 20000
                      chunk_size 100
                    load_balance 'steal'
@@ -33,7 +29,7 @@ Igor do
   
   command %Q[ %{tdir}/grappa_srun.rb --nnode=%{nnode} --ppn=%{ppn} --time=4:00:00
     -- %{tdir}/intsort.exe
-    #{expand_flags(*GFLAGS.keys)}
+    #{GFLAGS.expand}
     -- --class=%{problem} %{verify}
   ].gsub(/\s+/,' ')
   
@@ -42,9 +38,9 @@ Igor do
   params {
     nnode   2
     ppn     1
-    problem 'A'
+    problem 'E'
     verify  ''
-    tag     'grappa'
+    version 'grappa'
   }
   
   expect :mops_total

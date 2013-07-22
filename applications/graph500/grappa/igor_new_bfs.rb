@@ -38,7 +38,7 @@ Igor do
   params {
     nnode       2
     ppn         1
-    scale       16
+    scale       27
     edgefactor  16
     nbfs        8
   }
