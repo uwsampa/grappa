@@ -725,7 +725,6 @@ void RDMAAggregator::draw_routing_graph() {
       if( true ) {
         Core mylocale_core = Grappa::mylocale() * Grappa::locale_cores();
         Core mycore = Grappa::mycore();
-        buf->override_dest(mycore);
         DVLOG(3) << __PRETTY_FUNCTION__ << "/" << Grappa::impl::global_scheduler.get_current_thread() << " finished with " << buf
                  << "; acking with buffer " << buf << " for core " << mycore << " on core " << c;
         auto request = Grappa::message( c, [mycore, buf] {
@@ -820,83 +819,99 @@ void RDMAAggregator::draw_routing_graph() {
              << " core1 count " << (buf->get_counts())[1]
              << " from core " << buf->get_source();
 
-    {
-      // now send messages to deaggregate everybody's chunks
+    // now send messages to deaggregate everybody's chunks
 
-      // message to send
-      struct ReceiveBuffer {
-        char * buf;
-        uint16_t size;
-        //uint64_t sequence_number;
-        //Grappa::impl::RDMABuffer * buf_base;
-        void operator()() {
-          DVLOG(5) << __PRETTY_FUNCTION__ // << "/" << sequence_number
-                   << ": received " << size << "-byte buffer slice at " << (void*) buf << " to deaggregate";
-
-          Grappa::impl::global_scheduler.set_no_switch_region( true );
-          global_rdma_aggregator.deaggregate_buffer( buf, size );
-          Grappa::impl::global_scheduler.set_no_switch_region( false );
-
-          DVLOG(5) << __PRETTY_FUNCTION__ // << "/" << sequence_number 
-                   << ": done deaggregating " << size << "-byte buffer slice at " << (void*) buf;
-        }
-      };
-
-      // deaggregate messages to send
-      Grappa::Message< ReceiveBuffer > msgs[ Grappa::locale_cores() ];
-
-      // index array from buffer
-      uint16_t * counts = buf->get_counts();
-      char * current_buf = buf->get_payload();
-      char * my_buf = NULL;
-      int outstanding = 0;
-
-
-      // fill and send deaggregate messages
-      for( Core locale_core = 0; locale_core < Grappa::locale_cores(); ++locale_core ) {
-        DVLOG(5) << __func__ << "/" << (void*) sequence_number << "/" << (void*) buf
-                 << ": found " << counts[ locale_core ] << " bytes for core " << locale_core << " at " << (void*) current_buf;
-
-        if( counts[locale_core] > 0 ) {
-
-          msgs[locale_core]->buf = current_buf;
-          msgs[locale_core]->size = counts[locale_core];
-          //msgs[locale_core]->sequence_number = sequence_number;
-          //msgs[locale_core]->buf_base = buf;
-
-          if( locale_core != Grappa::locale_mycore() ) {
-            DVLOG(5) << __func__ << "/" << (void*) sequence_number << "/" << (void*) buf << " message " << (void*) &(msgs[locale_core])
-                     << " enqueuing " << counts[locale_core] << " bytes to locale_core " << locale_core << " core " << locale_core + Grappa::mylocale() * Grappa::locale_cores() << " my locale_core " << Grappa::locale_mycore() << " my core " << Grappa::mycore();
-            msgs[locale_core].locale_enqueue( locale_core + Grappa::mylocale() * Grappa::locale_cores() );
-            outstanding++;
-          } else {
-            my_buf = current_buf;
-          }
-
-          current_buf += counts[locale_core];
-        }
+    Grappa::CompletionEvent ce( Grappa::locale_cores() );
+      
+    struct ReceiveBufferReply {
+      Grappa::CompletionEvent * ce_p;
+      void operator()() {
+        VLOG(1) << __PRETTY_FUNCTION__ // << "/" << sequence_number
+                << ": signaling completion";
+        ce_p->complete();
       }
+    };
 
-      // deaggregate my messages
-      if( counts[ Grappa::locale_mycore() ] > 0 ) {
-        DVLOG(5) << __func__ << "/" << sequence_number 
-                 << ": deaggregating my own " << counts[ Grappa::locale_mycore() ] << "-byte buffer slice at " << (void*) buf;
+    struct ReceiveBuffer {
+      char * buf;
+      uint16_t size;
+      Grappa::Message< ReceiveBufferReply > * reply;
+      void operator()() {
+        VLOG(1) << __PRETTY_FUNCTION__ // << "/" << sequence_number
+                 << ": received " << size << "-byte buffer slice at " << (void*) buf << " to deaggregate";
 
         Grappa::impl::global_scheduler.set_no_switch_region( true );
-        deaggregate_buffer( my_buf, counts[ Grappa::locale_mycore() ] );
+        global_rdma_aggregator.deaggregate_buffer( buf, size );
         Grappa::impl::global_scheduler.set_no_switch_region( false );
 
-        DVLOG(5) << __func__ << "/" << sequence_number 
-                 << ": done deaggregating my own " << counts[ Grappa::locale_mycore() ] << "-byte buffer slice at " << (void*) buf;
+        VLOG(1) << __PRETTY_FUNCTION__ // << "/" << sequence_number 
+                 << ": done deaggregating " << size << "-byte buffer slice at " << (void*) buf;
+        reply->locale_enqueue();
       }
+    };
+      
+    // deaggregate messages to send
+    Grappa::Message< ReceiveBuffer > msgs[ Grappa::locale_cores() ];
+    Grappa::Message< ReceiveBufferReply > replies[ Grappa::locale_cores() ];
 
-      // // if we're lucky, responses are now waiting
-      // receive_poll();
+    // index array from buffer
+    uint16_t * counts = buf->get_counts();
+    char * current_buf = buf->get_payload();
+    char * my_buf = NULL;
 
-      // block here until messages are sent (i.e., delivered and deaggregated)
-      DVLOG(5) << __func__ << "/" << Grappa::impl::global_scheduler.get_current_thread() << "/" << sequence_number 
-               << ": maybe blocking until my " << outstanding << " outstanding messages are delivered";
+    // fill and send deaggregate messages
+    for( Core locale_core = 0; locale_core < Grappa::locale_cores(); ++locale_core ) {
+      DVLOG(5) << __func__ << "/" << (void*) sequence_number << "/" << (void*) buf
+               << ": found " << counts[ locale_core ] << " bytes for core " << locale_core << " at " << (void*) current_buf;
+
+      if( counts[locale_core] > 0 ) {
+
+        msgs[locale_core]->buf = current_buf;
+        msgs[locale_core]->size = counts[locale_core];
+        msgs[locale_core]->reply = &replies[locale_core];
+
+        replies[locale_core]->ce_p = &ce;
+        replies[locale_core].destination_ = Grappa::mycore();
+
+        if( locale_core != Grappa::locale_mycore() ) {
+
+          DVLOG(5) << __func__ << "/" << (void*) sequence_number << "/" << (void*) buf << " message " << (void*) &(msgs[locale_core])
+                   << " enqueuing " << counts[locale_core] << " bytes to locale_core " << locale_core 
+                   << " core " << locale_core + Grappa::mylocale() * Grappa::locale_cores() 
+                   << " my locale_core " << Grappa::locale_mycore() << " my core " << Grappa::mycore();
+          msgs[locale_core].locale_enqueue( locale_core + Grappa::mylocale() * Grappa::locale_cores() );
+
+        } else {
+          my_buf = current_buf;
+        }
+
+        current_buf += counts[locale_core];
+      } else {
+        ce.complete();
+      }
     }
+
+    // deaggregate my messages
+    if( counts[ Grappa::locale_mycore() ] > 0 ) {
+      DVLOG(5) << __func__ << "/" << sequence_number 
+               << ": deaggregating my own " << counts[ Grappa::locale_mycore() ] << "-byte buffer slice at " << (void*) buf;
+
+      Grappa::impl::global_scheduler.set_no_switch_region( true );
+      deaggregate_buffer( my_buf, counts[ Grappa::locale_mycore() ] );
+      Grappa::impl::global_scheduler.set_no_switch_region( false );
+
+      DVLOG(5) << __func__ << "/" << sequence_number 
+               << ": done deaggregating my own " << counts[ Grappa::locale_mycore() ] << "-byte buffer slice at " << (void*) buf;
+    }
+    ce.complete();
+
+    // // if we're lucky, responses are now waiting
+    // receive_poll();
+
+    // block here until messages are sent (i.e., delivered and deaggregated)
+    VLOG(1) << __func__ << "/" << Grappa::impl::global_scheduler.get_current_thread() << "/" << sequence_number 
+             << ": maybe blocking";
+    ce.wait();
 
     DVLOG(5) << __func__ << "/" << (void*) sequence_number << "/" << (void*) buf
              << ": continuting; my outstanding messages are all delivered";
