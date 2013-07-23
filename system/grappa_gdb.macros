@@ -29,31 +29,31 @@ end
 document grappa
 These are the Grappa gdb macros.
 
-  queues                               print both task and coroutine queues
+  queues                               print both task and worker queues
 
   tasks                                print public and private task queues
   public_tasks
   private_tasks
 
-  coroutines                           print all coroutines
-  current_coroutine
+  workers                           print all workers
+  current_worker
   periodic_queue
   ready_queue
   unassigned_queue
-  suspended_coroutines
+  suspended_workers
 
-  backtrace_coroutine <coroutine pointer>   backtrace for specific coroutine
-  btc <coroutine pointer>                   backtrace for specific coroutine
+  backtrace_worker <worker pointer>   backtrace for specific worker
+  btc <worker pointer>                   backtrace for specific worker
 
-  backtrace_coroutine_full <coroutine pointer> backtrace for specific coroutine with locals
-  btcf <coroutine pointer>                  backtrace for specific coroutine with locals
+  backtrace_worker_full <worker pointer> backtrace for specific worker with locals
+  btcf <worker pointer>                  backtrace for specific worker with locals
 
-  switch_to_coroutine <coroutine pointer>   change $rip and $rsp to coroutine's. 
+  switch_to_worker <worker pointer>   change $rip and $rsp to worker's. 
                                             DO NOT CONTINUE UNTIL RESTORE
   grappa_save_state                         save real $rip and $rsp
   grappa_restore_state                      restore real $rip and $rsp
 
-  dumpstack <coroutine pointer>             dump the stack (as raw int64_t's)
+  dumpstack <worker pointer>             dump the stack (as raw int64_t's)
 
 Type "help <macro>" for more specific help on a particular macro.
 Type "show user <macro>" to see what the macro is really doing.
@@ -74,7 +74,7 @@ define grappa_save_state
   set $grappa_saved_rsp = $rsp
 end
 document grappa_save_state
-Save current coroutine $rip and $rsp for later.
+Save current worker $rip and $rsp for later.
 Syntax:
    (gdb) grappa_save_state
 end
@@ -88,7 +88,7 @@ define grappa_restore_state
   end
 end
 document grappa_restore_state
-Restore saved coroutine $rip and $rsp.
+Restore saved worker $rip and $rsp.
 p $Syntax:
    (gdb) grappa_restore_state
 end
@@ -98,53 +98,42 @@ end
 
 
 
-define grappa_coroutine_print
-  set $grappa_coroutine_print_elem = (coro*) $arg0
-  printf "  Coroutine %p running=%d suspended=%d IP ", $grappa_coroutine_print_elem, $grappa_coroutine_print_elem->running, $grappa_coroutine_print_elem->suspended
-  output/a *(int*)($grappa_coroutine_print_elem->stack + $grappa_stack_offset) 
+define grappa_worker_print
+  set $grappa_worker_print_elem = (Worker*) $arg0
+  printf "  Worker %p running=%d suspended=%d IP ", $grappa_worker_print_elem, $grappa_worker_print_elem->running, $grappa_worker_print_elem->suspended
+  output/a *(int*)($grappa_worker_print_elem->stack + $grappa_stack_offset) 
   printf "\n"
 end
-document grappa_coroutine_print
-Prints coroutine data
+document grappa_worker_print
+Prints worker data
 Syntax:
-   (gdb) grappa_coroutine_print <coroutine pointer>
+   (gdb) grappa_worker_print <worker pointer>
 end
 
-define grappa_coroutines
-  set $grappa_coroutines_elem = all_coros
-  while $grappa_coroutines_elem != 0
-    grappa_coroutine_print $grappa_coroutines_elem
-    set $grappa_coroutines_elem = $grappa_coroutines_elem->next
+define grappa_workers
+  set $grappa_workers_elem = all_coros
+  while $grappa_workers_elem != 0
+    grappa_worker_print $grappa_workers_elem
+    set $grappa_workers_elem = $grappa_workers_elem->next
   end
 end
-document grappa_coroutines
-Prints simple state of all coroutines
+document grappa_workers
+Prints simple state of all workers
 Syntax:
-   (gdb) grappa_coroutines
-end
-
-
-define grappa_thread_print
-  set $grappa_thread_print_elem = (Thread*)($arg0)
-  grappa_coroutine_print $grappa_thread_print_elem->co
-end
-document grappa_thread_print
-Prints coroutine data from thread.
-Syntax:
-   (gdb) grappa_thread_print <thread pointer>
+   (gdb) grappa_workers
 end
 
 define grappa_queue_print
   set $grappa_queue = $arg1
-  if $grappa_queue->head
+  if $grappa_queue->queues->head
     set $grappa_queue_length = 0
   else
-    set $grappa_queue_length = $grappa_queue->len
+    set $grappa_queue_length = $grappa_queue->queues->len
   end
-  printf "%s queue has length %d:\n", $arg0, $grappa_queue->len
-  set $grappa_queue_print_elem = $grappa_queue->head
+  printf "%s queue has length %d:\n", $arg0, $grappa_queue->queues->len
+  set $grappa_queue_print_elem = $grappa_queue->queues->head
   while $grappa_queue_print_elem != 0
-    grappa_coroutine_print $grappa_queue_print_elem->co
+    grappa_worker_print $grappa_queue_print_elem
     set $grappa_queue_print_elem = $grappa_queue_print_elem->next
   end
 end
@@ -156,10 +145,10 @@ end
 
 define grappa_queue_length
   set $grappa_queue = $arg1
-  if $grappa_queue->head
+  if $grappa_queue->queues->head
     set $grappa_queue_length = 0
   else
-    set $grappa_queue_length = $grappa_queue->len
+    set $grappa_queue_length = $grappa_queue->queues->len
   end
   printf "%s queue has length %d. (Contents not shown.)\n", $arg0, $grappa_queue->len
 end
@@ -208,45 +197,45 @@ Syntax:
    (gdb) unassigned_queue_length
 end
 
-define suspended_coroutines
-  printf "Suspended non-idle coroutines:\n"
+define suspended_workers
+  printf "Suspended non-idle workers:\n"
   set $grappa_suspended_coros_elem = all_coros
   while $grappa_suspended_coros_elem != 0
     if $grappa_suspended_coros_elem->suspended
       if !($grappa_suspended_coros_elem->idle)
-        grappa_coroutine_print $grappa_suspended_coros_elem
+        grappa_worker_print $grappa_suspended_coros_elem
       end
     end
     set $grappa_suspended_coros_elem = $grappa_suspended_coros_elem->next
   end
 end
-document suspended_coroutines
-Prints all suspended coroutines
+document suspended_workers
+Prints all suspended workers
 Syntax:
-   (gdb) suspended_coroutines
+   (gdb) suspended_workers
 end
 
-define current_coroutine
-  printf "Current coroutine:\n"
-  grappa_coroutine_print Grappa::impl::global_scheduler.current_thread->co
+define current_worker
+  printf "Current worker:\n"
+  grappa_worker_print Grappa::impl::global_scheduler.current_thread
 end
-document current_coroutine
-Prints currently scheduled Grappa coroutine.
+document current_worker
+Prints currently scheduled Grappa worker.
 Syntax:
-   (gdb) current_coroutine
+   (gdb) current_worker
 end
 
-define coroutines
-  current_coroutine
+define workers
+  current_worker
   periodic_queue
   ready_queue
   unassigned_queue_length
-  suspended_coroutines
+  suspended_workers
 end
-document coroutines
-Prints contents of Grappa coroutine queues.
+document workers
+Prints contents of Grappa worker queues.
 Syntax:
-   (gdb) coroutines
+   (gdb) workers
 end
 
 
@@ -298,11 +287,11 @@ Syntax:
 end
 
 define queues
-  coroutines
+  workers
   tasks
 end
 document queues
-Prints contents of Grappa coroutine/task queues.
+Prints contents of Grappa worker/task queues.
 Syntax:
    (gdb) queues
 end
@@ -313,71 +302,71 @@ end
 
 
 
-define switch_to_coroutine
+define switch_to_worker
   grappa_save_state
-  set $grappa_coro = (coro*) $arg0
+  set $grappa_coro = (Worker*) $arg0
   set $rsp = $grappa_coro->stack + $grappa_stack_offset
 #  select-frame ($grappa_coro->stack + $grappa_stack_offset)
   set $rip = *(int*)$rsp
 #  set $rip = *(int*)($grappa_coro->stack + $grappa_stack_offset)
 end
-document switch_to_coroutine
-Switch to a Grappa coroutine for backtracing. Do not continue or bad things will happen.
+document switch_to_worker
+Switch to a Grappa worker for backtracing. Do not continue or bad things will happen.
 Use grappa_restore_state to switch back to the original context.
 Syntax:
-   (gdb) switch_to_coroutine <coroutine pointer>
+   (gdb) switch_to_worker <worker pointer>
 end
 
-define backtrace_coroutine
-  switch_to_coroutine $arg0
+define backtrace_worker
+  switch_to_worker $arg0
   backtrace
   grappa_restore_state
 end
-document backtrace_coroutine
-Print backtrace of Grappa coroutine.
+document backtrace_worker
+Print backtrace of Grappa worker.
 Syntax:
-   (gdb) backtrace_coroutine <coroutine pointer>
+   (gdb) backtrace_worker <worker pointer>
 end
 
-define backtrace_coroutine_full
-  switch_to_coroutine $arg0
+define backtrace_worker_full
+  switch_to_worker $arg0
   backtrace full
   grappa_restore_state
 end
-document backtrace_coroutine_full
-Print backtrace of Grappa coroutine with locals.
+document backtrace_worker_full
+Print backtrace of Grappa worker with locals.
 Syntax:
-   (gdb) backtrace_coroutine_full <coroutine pointer>
+   (gdb) backtrace_worker_full <worker pointer>
 end
 
 define btc
-  switch_to_coroutine $arg0
+  switch_to_worker $arg0
   backtrace
   grappa_restore_state
 end
 document btc
-Print backtrace of Grappa coroutine.
+Print backtrace of Grappa worker.
 Syntax:
-   (gdb) btc <coroutine pointer>
+   (gdb) btc <worker pointer>
 end
 
 define btcf
-  switch_to_coroutine $arg0
+  switch_to_worker $arg0
   backtrace full
   grappa_restore_state
 end
 document btcf
-Print backtrace of Grappa coroutine with locals.
+Print backtrace of Grappa worker with locals.
 Syntax:
-   (gdb) btcf <coroutine pointer>
+   (gdb) btcf <worker pointer>
 end
 
 define dumpstack
-  p ((int64_t*)((coro*)$arg0)->stack) @ (((coro*)$arg0)->base+((coro*)$arg0)->ssize+4096-((coro*)$arg0)->stack)/sizeof(int64_t)
+  p ((int64_t*)((Worker*)$arg0)->stack) @ (((Worker*)$arg0)->base+((Worker*)$arg0)->ssize+4096-((Worker*)$arg0)->stack)/sizeof(int64_t)
 end
 document dumpstack
 Dump stack (as int64_t's).
 Syntax:
-   (gdb) dumpstack <coroutine pointer>
+   (gdb) dumpstack <worker pointer>
 end
 
