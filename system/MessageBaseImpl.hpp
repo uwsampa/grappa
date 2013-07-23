@@ -65,7 +65,7 @@ namespace Grappa {
 
       is_enqueued_ = true;
       DVLOG(5) << this << " on " << Grappa::impl::global_scheduler.get_current_thread() << ": " << this->typestr()
-               << " enqueuing to " << destination_ << " with is_enqueued_=" << is_enqueued_ << " and is_sent_= " << is_sent_;
+               << " enqueuing to " << destination_ << " from " << source_ << " with is_enqueued_=" << is_enqueued_ << " and is_sent_= " << is_sent_;
 #ifndef LEGACY_SEND
       Grappa::impl::global_rdma_aggregator.enqueue( this, true );
 #endif

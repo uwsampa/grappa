@@ -11,7 +11,7 @@
 
 #include "RDMAAggregator.hpp"
 #include "Message.hpp"
-
+#include "CompletionEvent.hpp"
 
 
 namespace Grappa {
@@ -25,6 +25,8 @@ void failure_function();
 
 // prefetch two cache lines per message
 #define DOUBLE_LINE_PREFETCH
+
+DECLARE_bool( flush_on_idle );
 
 DEFINE_int64( target_size, 1 << 12, "Target size for aggregated messages" );
 
@@ -84,6 +86,8 @@ GRAPPA_DEFINE_STAT( SimpleStatistic<int64_t>, rdma_flush_receive, 0 );
 
 GRAPPA_DEFINE_STAT( SummarizingStatistic<double>, rdma_local_delivery_time, 0 );
 
+GRAPPA_DEFINE_STAT( SimpleStatistic<int64_t>, send_blocked_on_remote_buffer, 0 );
+GRAPPA_DEFINE_STAT( SimpleStatistic<int64_t>, send_blocked_on_local_buffer, 0 );
 
 
 GRAPPA_DEFINE_STAT(HistogramStatistic, app_bytes_sent_histogram, 0);
@@ -115,6 +119,7 @@ namespace Grappa {
       while( !Grappa_done_flag ) {
         Grappa::wait( &flush_cv_ );
         rdma_idle_flushes++;
+        DVLOG(5) << "Idle flusher running....";
 
         Core c = Grappa::mycore();
 
@@ -123,16 +128,14 @@ namespace Grappa {
         // receive_poll();
         
         if( !disable_everything_ ) {
-
-          // see if we have anything at all to send
+          // see if we have anything to send
           for( int i = 0; i < core_partner_locale_count_; ++i ) {
             Locale locale = core_partner_locales_[i];
-            // if( check_for_any_work_on( locale ) ) {
-              Grappa::signal( &cores_[ locale * Grappa::locale_cores() ].send_cv_ );
-            // }
+            Core core = locale * Grappa::locale_cores();
+            Grappa::signal( &(coreData(core)->send_cv_)  );
           }
-
         }
+        DVLOG(5) << "Idle flusher done.";
       }
     }
   
@@ -146,49 +149,14 @@ namespace Grappa {
     // (assume all locales have same core count)
     // (make we have at least one locale per core)
     // (round up)
-    Locale locales_per_core = 1 + ((Grappa::locales() - 1) / Grappa::locale_cores());
+    Locale locales_per_core = Grappa::locale_cores();
 
-
-    // initialize source cores
-    //source_core_for_locale_ = new Core[ Grappa::locales() ];
-    for( int i = 0; i < Grappa::locales(); ++i ) {
-      if( i == Grappa::mylocale() ) {
-        // locally, cores are responsible for their own messages
-        source_core_for_locale_[i] = -1;
-      } else {
-        // guess at correct source core on the node
-        Core offset = i / locales_per_core;
-        if( offset >= Grappa::locale_cores() ) { // if we guess too high
-          // give it to the core that would have been responsible for the local locale.
-          offset = Grappa::mylocale() / locales_per_core;
-        }
-        source_core_for_locale_[i] = Grappa::mylocale() * Grappa::locale_cores() + offset;
-      }
-    }
-
-    // initialize destination cores.
-    // this should match up with source assignments.
-    //dest_core_for_locale_ = new Core[ Grappa::locales() ];
-    for( int i = 0; i < Grappa::locales(); ++i ) {
-      if( i == Grappa::mylocale() ) {
-        dest_core_for_locale_[i] = -1;
-      } else {
-        // guess at correct destination core on the node
-        Core offset = Grappa::mylocale() / locales_per_core;
-        if( offset >= Grappa::locale_cores() ) { // if we guess too high
-          // give it to the core that would have been responsible for
-          // the destination's locale.
-          offset = i / locales_per_core;
-        }
-        dest_core_for_locale_[i] = i * Grappa::locale_cores() + offset;
-     
-      }
-    }
+    // lots of code deleted; this is mostly useless now.
 
     for( int i = 0; i < Grappa::locales(); ++i ) {
-      DVLOG(2) << "From locale " << Grappa::mylocale() << " to locale " << i 
-                << " source core " << source_core_for_locale_[i]
-                << " dest core " << dest_core_for_locale_[i];
+      DVLOG(2) << "From locale " << Grappa::mylocale() << " to locale " << i ;
+                // << " source core " << source_core_for_locale_[i]
+                // << " dest core " << dest_core_for_locale_[i];
     }
 
 
@@ -196,7 +164,7 @@ namespace Grappa {
     for( int i = 0; i < Grappa::cores(); ++i ) {
       Locale l = Grappa::locale_of(i);
       cores_[ l ].mylocale_ = l;
-      cores_[ l ].representative_core_ = source_core_for_locale_[ l ];
+      cores_[ l ].representative_core_ = Grappa::mycore();
     }
   }
 
@@ -242,7 +210,7 @@ namespace Grappa {
       if( FLAGS_rdma_workers_per_core < remote_buffer_pool_size ) {
         LOG(WARNING) << "Updating workers_per_core to match remote_buffer_pool_size" 
                      << " (was " << FLAGS_rdma_workers_per_core << ", now " << remote_buffer_pool_size << ")";
-        FLAGS_rdma_workers_per_core = remote_buffer_pool_size;
+        FLAGS_rdma_workers_per_core = Grappa::locales() * remote_buffer_pool_size;
       }
       if( FLAGS_rdma_buffers_per_core < remote_buffer_pool_size * 2 ) {
         LOG(WARNING) << "Updating buffers_per_core to match remote_buffer_pool_size" 
@@ -261,16 +229,19 @@ namespace Grappa {
           // one for each core on this locale + one for communication within the locale.
           cores_ = Grappa::impl::locale_shared_memory.segment.construct<CoreData>("Cores")[global_communicator.cores() * 
                                                                                            (global_communicator.locale_cores() + 1 )]();
-          
-          // allocate routing info
-          source_core_for_locale_ = Grappa::impl::locale_shared_memory.segment.construct<Core>("SourceCores")[global_communicator.locales()]();
-          dest_core_for_locale_ = Grappa::impl::locale_shared_memory.segment.construct<Core>("DestCores")[global_communicator.locales()]();
         }
         catch(...){
           failure_function();
           throw;
         }
         compute_route_map();
+      }
+
+      source_core_for_locale_ = new Core[global_communicator.locales()];
+      dest_core_for_locale_ = new Core[global_communicator.locales()];
+      for( int i = 0; i < global_communicator.locales(); ++i ) {
+        source_core_for_locale_[i] = Grappa::mycore();
+        dest_core_for_locale_[i] = i * Grappa::locale_cores() + Grappa::locale_mycore();
       }
 
       // make sure everything is allocated before other cores try to attach
@@ -284,15 +255,6 @@ namespace Grappa {
           p = Grappa::impl::locale_shared_memory.segment.find<CoreData>("Cores");
           CHECK_EQ( p.second, global_communicator.cores() * (global_communicator.locale_cores() + 1) );
           cores_ = p.first;
-          
-          // attach to routing info
-          std::pair< Core *, boost::interprocess::managed_shared_memory::size_type > q;
-          q = Grappa::impl::locale_shared_memory.segment.find<Core>("SourceCores");
-          CHECK_EQ( q.second, global_communicator.locales() );
-          source_core_for_locale_ = q.first;
-          q = Grappa::impl::locale_shared_memory.segment.find<Core>("DestCores");
-          CHECK_EQ( q.second, global_communicator.locales() );
-          dest_core_for_locale_ = q.first;
         }
         catch(...){
           failure_function();
@@ -305,18 +267,17 @@ namespace Grappa {
       //
 
       // draw route map if enabled
-      draw_routing_graph();
+      //draw_routing_graph();
 
       // spread responsibility for locales between our cores, ensuring
       // that all locales get assigned
       // (round up)
-      Locale locales_per_core = 1 + ((Grappa::locales() - 1) / Grappa::locale_cores());
+      Locale locales_per_core = Grappa::locale_cores();
 
       // generate list of locales this core is responsible for
       core_partner_locales_ = new Locale[ locales_per_core ];
       for( int i = 0; i < Grappa::locales(); ++i ) {
         if( source_core_for_locale_[i] == Grappa::mycore() ) {
-          CHECK_LT( core_partner_locale_count_, locales_per_core ) << "this core is responsible for more locales than expected";
           core_partner_locales_[ core_partner_locale_count_++ ] = i;
           DVLOG(2) << "Core " << Grappa::mycore() << " responsible for locale " << i;
         }
@@ -351,17 +312,16 @@ namespace Grappa {
 
       // spawn flusher
 #ifndef LEGACY_SEND
-        Grappa::spawn_worker( [this] {
-                                idle_flusher();
-                              });
+        if( FLAGS_flush_on_idle ) {
+          Grappa::spawn_worker( [this] {
+              idle_flusher();
+            });
+        }
 #endif
 
       //
       // precache buffers
       //
-
-      // for now, give each core 1 buffer/token
-      size_t expected_buffers = core_partner_locale_count_; // * remote_buffer_pool_size;
 
       for( int i = 0; i < core_partner_locale_count_; ++i ) {
         Locale locale = core_partner_locales_[i];
@@ -369,7 +329,7 @@ namespace Grappa {
         Core mylocale_core = Grappa::mylocale() * Grappa::locale_cores();
         Core mycore = Grappa::mycore();
 
-        DVLOG(3) << __PRETTY_FUNCTION__ << ": sending " << expected_buffers << " buffers to core " << dest << " on locale " << locale;
+        DVLOG(3) << __PRETTY_FUNCTION__ << ": sending " << remote_buffer_pool_size << " buffers to core " << dest << " on locale " << locale;
 
         for( int j = 0; j < remote_buffer_pool_size; ++j ) {
           RDMABuffer * b = global_rdma_aggregator.free_buffer_list_.try_pop();
@@ -377,7 +337,7 @@ namespace Grappa {
           
           // (make heap message since we're not on a shared stack)
           auto request = Grappa::message( dest, [mycore, b] {
-              auto p = global_rdma_aggregator.localeCoreData(mycore);
+              auto p = global_rdma_aggregator.coreData(mycore);
               DVLOG(3) << __PRETTY_FUNCTION__ << " initializing by pushing buffer " << b << " into " << p << " for " << mycore;
               p->remote_buffers_.push( b );
               rdma_buffers_inuse += remote_buffer_pool_size - p->remote_buffers_.count();
@@ -395,9 +355,9 @@ namespace Grappa {
       global_communicator.barrier();
       if( global_communicator.locale_mycore() == 0 ) {
         Grappa::impl::locale_shared_memory.segment.destroy<CoreData>("Cores");
-        Grappa::impl::locale_shared_memory.segment.destroy<Core>("SourceCores");
-        Grappa::impl::locale_shared_memory.segment.destroy<Core>("DestCores");
       }
+      delete [] source_core_for_locale_;
+      delete [] dest_core_for_locale_;
       cores_ = NULL;
       source_core_for_locale_ = NULL;
       dest_core_for_locale_ = NULL;
@@ -703,26 +663,30 @@ void RDMAAggregator::draw_routing_graph() {
   // block until we're ready to send to a locale and do so
   void RDMAAggregator::send_worker( Locale locale ) {
     CoreData * locale_core = localeCoreData( locale * Grappa::locale_cores() );
+    CoreData * core = coreData( locale * Grappa::locale_cores() );
 
     while( !Grappa_done_flag ) {
 
       // block until it's time to send to this locale
       Grappa::impl::global_scheduler.assign_time_to_networking();
-      Grappa::wait( &(locale_core->send_cv_) );
+      DVLOG(5) << "Sender for locale " << locale << " blocking on CV.";
+      Grappa::wait( &(core->send_cv_) );
+      DVLOG(5) << "Sender for locale " << locale << " woke.";
 
       active_send_workers_++;
       
       //CHECK_EQ( disable_everything_, false ) << "Whoops! Why are we sending when disabled?";
       if( disable_everything_ ) LOG(WARNING) << "Sending while disabled...";
 
-      // send to locale
-      send_locale( locale );
-
       // record when we last sent
       // TODO: should this go earlier? probably not.
       // TODO: should we tick here?
       Grappa_tick();
-      locale_core->last_sent_ = Grappa_get_timestamp();
+      core->last_sent_ = Grappa_get_timestamp();
+      core->locale_byte_count_ = 0;
+
+      // send to locale
+      send_locale( locale );
 
       // send done! loop!
       active_send_workers_--;
@@ -757,13 +721,15 @@ void RDMAAggregator::draw_routing_graph() {
 
       // once we're done, send ack to give permission to send again,
       // unless buffer is from the local core (for debugging)
-      if( c != Grappa::mycore() ) {
+      //if( c != Grappa::mycore() ) {
+      if( true ) {
         Core mylocale_core = Grappa::mylocale() * Grappa::locale_cores();
         Core mycore = Grappa::mycore();
+        buf->override_dest(mycore);
         DVLOG(3) << __PRETTY_FUNCTION__ << "/" << Grappa::impl::global_scheduler.get_current_thread() << " finished with " << buf
                  << "; acking with buffer " << buf << " for core " << mycore << " on core " << c;
         auto request = Grappa::message( c, [mycore, buf] {
-            auto p = global_rdma_aggregator.localeCoreData(mycore);
+            auto p = global_rdma_aggregator.coreData(mycore);
             DVLOG(3) << __PRETTY_FUNCTION__ << " acking by pushing buffer " << buf << " into " << p << " for " << mycore;
             p->remote_buffers_.push( buf );
             rdma_buffers_inuse += remote_buffer_pool_size - p->remote_buffers_.count();
@@ -818,7 +784,7 @@ void RDMAAggregator::draw_routing_graph() {
         DVLOG(3) << __PRETTY_FUNCTION__ << "/" << Grappa::impl::global_scheduler.get_current_thread() << " finished with " << buf
                  << "; acking with buffer " << buf << " for core " << mycore << " on core " << c;
         auto request = Grappa::message( c, [mycore, buf] {
-            auto p = global_rdma_aggregator.localeCoreData(mycore);
+            auto p = global_rdma_aggregator.coreData(mycore);
             DVLOG(3) << __PRETTY_FUNCTION__ << " acking by pushing buffer " << buf << " into " << p << " for " << mycore;
             p->remote_buffers_.push( buf );
             rdma_buffers_inuse += remote_buffer_pool_size - p->remote_buffers_.count();
@@ -867,7 +833,9 @@ void RDMAAggregator::draw_routing_graph() {
           DVLOG(5) << __PRETTY_FUNCTION__ // << "/" << sequence_number
                    << ": received " << size << "-byte buffer slice at " << (void*) buf << " to deaggregate";
 
+          Grappa::impl::global_scheduler.set_no_switch_region( true );
           global_rdma_aggregator.deaggregate_buffer( buf, size );
+          Grappa::impl::global_scheduler.set_no_switch_region( false );
 
           DVLOG(5) << __PRETTY_FUNCTION__ // << "/" << sequence_number 
                    << ": done deaggregating " << size << "-byte buffer slice at " << (void*) buf;
@@ -897,7 +865,7 @@ void RDMAAggregator::draw_routing_graph() {
           //msgs[locale_core]->buf_base = buf;
 
           if( locale_core != Grappa::locale_mycore() ) {
-            DVLOG(5) << __func__ << "/" << (void*) sequence_number << "/" << (void*) buf 
+            DVLOG(5) << __func__ << "/" << (void*) sequence_number << "/" << (void*) buf << " message " << (void*) &(msgs[locale_core])
                      << " enqueuing " << counts[locale_core] << " bytes to locale_core " << locale_core << " core " << locale_core + Grappa::mylocale() * Grappa::locale_cores() << " my locale_core " << Grappa::locale_mycore() << " my core " << Grappa::mycore();
             msgs[locale_core].locale_enqueue( locale_core + Grappa::mylocale() * Grappa::locale_cores() );
             outstanding++;
@@ -1020,11 +988,10 @@ void RDMAAggregator::draw_routing_graph() {
 #endif
       }
 
-      Grappa::impl::global_scheduler.set_no_switch_region( true );
       while( messages_to_send != NULL ) {
-        // DVLOG(4) << __func__ << "/" << Grappa::impl::global_scheduler.get_current_thread() << ": Delivered message " << messages_to_send 
-        //          << " with is_delivered_=" << messages_to_send->is_delivered_ 
-        //          << ": " << messages_to_send->typestr();
+        DVLOG(4) << __func__ << "/" << Grappa::impl::global_scheduler.get_current_thread() << ": Delivered message " << messages_to_send 
+                 << " with is_delivered_=" << messages_to_send->is_delivered_ 
+                 << ": " << messages_to_send->typestr();
         MessageBase * next = messages_to_send->next_;
         DVLOG(5) << __PRETTY_FUNCTION__ << ": Processing " << messages_to_send << ", prefetching " << messages_to_send->prefetch_;
         char * pf = reinterpret_cast< char* >( messages_to_send->prefetch_ );
@@ -1041,7 +1008,6 @@ void RDMAAggregator::draw_routing_graph() {
 
         messages_to_send = next;
       }
-      Grappa::impl::global_scheduler.set_no_switch_region( false );
 
       DVLOG(5) << __PRETTY_FUNCTION__ << ": Done.";
 
@@ -1190,6 +1156,8 @@ void RDMAAggregator::draw_routing_graph() {
     active_send_workers_++;
     static uint64_t sequence_number = Grappa::mycore();
 
+    DVLOG(5) << "Sending to locale " << locale;
+
     int buffers_used_for_send = 0;
     int64_t bytes_sent = 0;
 
@@ -1202,7 +1170,9 @@ void RDMAAggregator::draw_routing_graph() {
     Core max_core = first_core + Grappa::locale_cores();
     Core current_dest_core = -1;
 
-    MessageListChooser mlc( first_core, max_core, 0, Grappa::locale_cores() );
+    // cross-dest-node only
+    MessageListChooser mlc( first_core, max_core, Grappa::locale_mycore(), Grappa::locale_mycore()+1 );
+
     DVLOG(3) << __PRETTY_FUNCTION__ << "/" << Grappa::impl::global_scheduler.get_current_thread() 
              << " MessageListChooser constructed at " << &mlc;
 
@@ -1217,16 +1187,20 @@ void RDMAAggregator::draw_routing_graph() {
       // by doing this first, we limit the rate at which we consume buffers from the local free list
       // as well as allowing the remote node to limit the rate we send
       Grappa::impl::global_scheduler.assign_time_to_networking();
-      RDMABuffer * dest_buf = localeCoreData( dest_core )->remote_buffers_.block_until_pop();
+
+      send_blocked_on_remote_buffer++;
+      RDMABuffer * dest_buf = coreData( dest_core )->remote_buffers_.block_until_pop();
+      send_blocked_on_remote_buffer--;
       CHECK_NOTNULL( dest_buf );
 
-      rdma_buffers_inuse += remote_buffer_pool_size - localeCoreData( dest_core )->remote_buffers_.count();
+      rdma_buffers_inuse += remote_buffer_pool_size - coreData( dest_core )->remote_buffers_.count();
 
       // now, grab a temporary buffer for local serialization
       Grappa::impl::global_scheduler.assign_time_to_networking();
+      send_blocked_on_local_buffer++;
       RDMABuffer * b = free_buffer_list_.block_until_pop();
+      send_blocked_on_local_buffer--;
 
-      // but only use enough bytes that we can fit in a medium AM.
       const size_t max_size = b->get_max_size();
       DVLOG(5) << "Max buffer size is " << max_size;
       
@@ -1237,6 +1211,7 @@ void RDMAAggregator::draw_routing_graph() {
 
       // mark as being from this core
       b->set_source( Grappa::mycore() );
+      b->set_dest( dest_core );
 
       char * current_buf = b->get_payload();
       int64_t remaining_size = std::min( max_size, b->get_max_size() );
@@ -1330,17 +1305,6 @@ void RDMAAggregator::draw_routing_graph() {
                  << " for locale " << locale << " core " << current_dest_core;
       }
 
-      if( aggregated_size >= 0 ) {
-        DVLOG(4) << __func__ << "/" << sequence_number << ": " 
-                 << "Ready to send buffer " << b << " size " << aggregated_size
-                 << " to locale " << locale << " core " << dest_core;
-      } else {
-        DVLOG(4) << __func__ << "/" << sequence_number << ": " 
-               << "Nothing to send in buffer " << b << " size " << aggregated_size
-               << " to locale " << locale << " core " << dest_core;
-        break;
-      }
-
       DVLOG(3) << __func__ << "/" << sequence_number << ": " << "Sending buffer " << b << " sequence " << sequence_number
                << " size " << aggregated_size
                << " core0 count " << (b->get_counts())[0]
@@ -1375,8 +1339,8 @@ void RDMAAggregator::draw_routing_graph() {
         DVLOG(4) << __func__ << "/" << sequence_number 
                  << ": No message to send; returning dest buffer " << dest_buf << " to pool";
         // return buffer to pool
-        localeCoreData( dest_core )->remote_buffers_.push( dest_buf );
-        rdma_buffers_inuse += remote_buffer_pool_size - localeCoreData( dest_core )->remote_buffers_.count();
+        coreData( dest_core )->remote_buffers_.push( dest_buf );
+        rdma_buffers_inuse += remote_buffer_pool_size - coreData( dest_core )->remote_buffers_.count();
       }
 
       sequence_number += Grappa::cores();
@@ -1390,6 +1354,8 @@ void RDMAAggregator::draw_routing_graph() {
     CHECK_NULL( messages_to_send );
 
     rdma_bytes_sent_histogram = bytes_sent;
+
+    DVLOG(5) << "Done sending to locale " << locale;
 
     active_send_workers_--;
     rdma_send_end++;
