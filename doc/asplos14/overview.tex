@@ -48,12 +48,17 @@ into cache to reduce the chance of stalling on memory accesses during a
 context switch.
 
 \item[Communication layer.] The main goal of our communication layer is to
-aggregate small messages into large ones.  This process is invisible to the application
-programmer. Its interface is based on active messages~\cite{vonEicken92}.
-Since aggregation and deaggregation of messages needs to be very efficient, we perform the process in parallel and carefully use lock-free synchronization
-operations.
-\TODO{Re-include the mention of GASNET,MPI spawning,and inifiniband
-    somewhere but not in the overview intro}
+aggregate small messages into large ones. This process is invisible to the
+application programmer. Its interface is based on active
+messages~\cite{vonEicken92}. Since aggregation and deaggregation of messages
+needs to be very efficient, we perform the process in parallel and carefully
+use lock-free synchronization operations. 
+
+GASNet~\cite{gasnet} is used as the
+underlying mechanism for remote memory reads and writes using active message
+invocations, with an off-the-shelf user-mode InfiniBand device driver
+stack~\cite{OFED}. MPI is used for process setup and tear down.
+
 
 \item[Distributed shared memory.] The DSM system provides fine-grain access to
 data anywhere in the system, with delegated operation at the core of its design.
@@ -67,3 +72,10 @@ order to offer high aggregate random access bandwidth for accessing remote
 data.
 
 \end{description}
+
+% \Grappa leverages as much freely available and commodity infrastructure as
+% possible. We use unmodified Linux for the operating system and an
+% off-the-shelf user-mode InfiniBand device driver stack~\cite{OFED}. MPI is
+% used for process setup and tear down. GASNet~\cite{gasnet} is used as the
+% underlying mechanism for remote memory reads and writes using active message
+% invocations.
