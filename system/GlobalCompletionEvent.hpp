@@ -99,7 +99,7 @@ class GlobalCompletionEvent : public CompletionEvent {
     }
     
     virtual const size_t size() const { return sizeof(*this); }
-  };
+  } __attribute__((aligned(64)));
   
   
   CompletionMessage * completion_msgs;
