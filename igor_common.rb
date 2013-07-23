@@ -128,6 +128,9 @@ Igor do
             flatten_completions 1
                  flat_combining 1
   }
+  
+  params { grappa_version 'asplos14' }
+  
   class << GFLAGS
     def expand
       self.keys.map{|n| "--#{n}=%{#{n}}"}.join(' ')
