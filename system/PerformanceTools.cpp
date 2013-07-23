@@ -61,7 +61,7 @@ char * Grappa_get_next_profiler_filename( ) {
   char * jobid = getenv("SLURM_JOB_ID");
   char * procid = getenv("SLURM_PROCID");
   if( /*jobname != NULL &&*/ jobid != NULL && procid != NULL ) {
-    sprintf( profiler_filename, "%s.%s.rank%s.phase%d.prof", "exe", jobid, procid, profiler_phase );
+    sprintf( profiler_filename, "%s.%s.rank%s.phase%d.prof", argv0_for_profiler, jobid, procid, profiler_phase );
   } else {
     sprintf( profiler_filename, "%s.%d.pid%d.phase%d.prof", argv0_for_profiler, time_for_profiler, getpid(), profiler_phase );
   }
