@@ -36,7 +36,6 @@ public:
   
   char pad[block_size - sizeof(comb)-sizeof(self)-sizeof(master)];
   
-public:
   GlobalCounter(long initial_count = 0): comb(locale_new<Proxy>(this)) {
     master.count = initial_count;
   }
