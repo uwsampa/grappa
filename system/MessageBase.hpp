@@ -77,8 +77,8 @@ namespace Grappa {
           DVLOG(5) << __func__ << ": " << this << " Re-enqueuing to " << source_;
           DCHECK_EQ( this->is_sent_, false );
           mark_sent_enqueues++;
-          enqueue( source_ );
-
+          // should only happen for deaggregation now, so enqueue to locale
+          locale_enqueue( source_ );
         } else {
           DVLOG(5) << __func__ << ": " << this << " Final mark_sent";
           DCHECK_EQ( Grappa::mycore(), this->source_ );
