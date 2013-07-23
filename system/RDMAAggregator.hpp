@@ -237,6 +237,10 @@ namespace Grappa {
       static void enqueue_buffer_am( gasnet_token_t token, void * buf, size_t size );
       int enqueue_buffer_handle_;
       
+      /// Null reply
+      static void null_reply_am( gasnet_token_t token );
+      int null_reply_handle_;
+
       /// Active message to enqueue a buffer to be received and send a reply to meet the spec
       static void enqueue_buffer_async_am( gasnet_token_t token, void * buf, size_t size );
       int enqueue_buffer_async_handle_;
@@ -447,6 +451,7 @@ namespace Grappa {
         , cores_(NULL)
         , deserialize_buffer_handle_( -1 )
         , deserialize_first_handle_( -1 )
+        , null_reply_handle_( -1 )
         , enqueue_buffer_async_handle_( -1 )
         , enqueue_buffer_handle_( -1 )
         , copy_enqueue_buffer_handle_( -1 )
@@ -730,6 +735,30 @@ namespace Grappa {
 
           // send
           global_communicator.send(  m->destination_, deserialize_first_handle_, buf, size );
+        }
+      }
+
+      /// send a message that will be run in active message context. This requires very limited messages.
+      void reply_immediate( Grappa::impl::MessageBase * m, gasnet_token_t token ) {
+        app_messages_immediate++;
+
+        // create temporary buffer
+        const size_t size = m->serialized_size();
+        char buf[ size ] __attribute__ ((aligned (16)));
+
+        // serialize to buffer
+        Grappa::impl::MessageBase * tmp = m;
+        while( tmp != nullptr ) {
+          DVLOG(5) << __func__ << ": Serializing message from " << tmp;
+          char * end = aggregate_to_buffer( &buf[0], &tmp, size );
+          DVLOG(5) << __func__ << ": After serializing, pointer was " << tmp;
+          DCHECK_EQ( end - buf, size ) << __func__ << ": Whoops! Aggregated message was too long to send as immediate";
+          
+          DVLOG(5) << __func__ << ": Sending " << end - buf
+                   << " bytes of aggregated messages to " << m->destination_;
+
+          // send
+          global_communicator.reply( token, deserialize_first_handle_, buf, size );
         }
       }
 

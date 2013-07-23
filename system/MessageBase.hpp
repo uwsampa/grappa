@@ -237,6 +237,9 @@ namespace Grappa {
       inline void send_immediate();
       inline void send_immediate( Core c );
 
+      inline void reply_immediate( gasnet_token_t token );
+      inline void reply_immediate( gasnet_token_t token, Core c );
+
       virtual void deliver_locally() = 0;
 
       inline void delete_after_send() { 

@@ -98,6 +98,21 @@ namespace Grappa {
       send_immediate();
     }
 
+    inline void Grappa::impl::MessageBase::reply_immediate( gasnet_token_t token ) {
+      CHECK( !is_moved_ ) << "Shouldn't be sending a message that has been moved!"
+                          << " Your compiler's return value optimization failed you here.";
+      if( !is_enqueued_ ) source_ = global_communicator.mycore();
+      is_enqueued_ = true;
+      is_delivered_ = true;
+#ifndef LEGACY_SEND
+      Grappa::impl::global_rdma_aggregator.reply_immediate( this, token );
+#endif
+#ifdef LEGACY_SEND
+      CHECK_EQ( true, false ) << "not supported";
+      legacy_send();
+#endif
+    }
+
     /// @}
   }
 }
