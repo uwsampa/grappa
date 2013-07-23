@@ -41,6 +41,13 @@ Igor do
     problem 'E'
     verify  ''
     version 'grappa'
+    
+    aggregator_autoflush_ticks 1e6.to_i
+    stack_size 2**15
+    loop_threshold 512
+    num_starting_workers 128
+    shared_pool_max 2048
+    shared_pool_size 2**16
   }
   
   expect :mops_total
