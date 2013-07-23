@@ -25,6 +25,7 @@ Igor do
                               v 1
                         vmodule ''
   }
+  GFLAGS.delete :flat_combining
   params.merge!(GFLAGS)
   
   command %Q[ %{tdir}/grappa_srun.rb --nnode=%{nnode} --ppn=%{ppn} --time=4:00:00
