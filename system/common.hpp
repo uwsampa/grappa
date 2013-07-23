@@ -26,6 +26,10 @@
 #define BILLION 1000000000
 #define MILLION 1000000
 
+// compiler memory barrier
+#define CMB asm volatile("" ::: "memory");
+
+
 /// "Universal" wallclock time (works at least for Mac, MTA, and most Linux)
 inline double Grappa_walltime(void) {
 #if defined(__MTA__)
