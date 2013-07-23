@@ -6,7 +6,7 @@ describe how applications expose parallelism to the \Grappa runtime.
 \subsection{Task Support Implementation}
 
 The basic unit of execution in \Grappa is a {\em task}. When tasks are ready to
-execute, they are mapped to a {\em worker}, which is akin to a user-level
+execute, they are mapped to a {\em worker,} which is akin to a user-level
 thread. Each hardware core has a single operating system thread pinned to it.
 
 \paragraph{Tasks} 
@@ -61,15 +61,13 @@ waiting to be assigned a worker:
 \item {\it deadline task queue}, a priority queue of tasks that are executed according to task-specific deadline constraints;
 
 \item {\it private task queue}, a queue of tasks that must run on
-this core and therefore is not subject to stealing;
+this core and is therefore not subject to stealing;
 
 \item {\it public task queue}, a queue of tasks that are
   waiting to be matched with workers. It is a local partition of a shared
   task pool.
 
 \end{itemize}
-
-
 Whenever a task yields, the scheduler makes a decision about what
 to do next. First, any task in the deadline task queue whose deadline
 is imminent is chosen for execution. This queue manages high priority
@@ -127,7 +125,7 @@ without concern for where it will execute. \Grappa then chooses where and when
 to exploit this parallelism, scheduling as much work as is necessary on each
 core to keep it busy in the presence of system latencies and task dependences.
 
-\Grappa provides four methods for expressing parallelism, shown in
+\Grappa provides three methods for expressing parallelism, shown in
 Figure~\ref{fig:expressing-parallelism}. First, when the programmer identifies
 work that can be done in parallel, the work may be wrapped up in a function
 and queued with its arguments for later execution using a \texttt{spawn}.
@@ -139,10 +137,10 @@ start and end indices and an optional threshold to control parallel overhead.
 cilk\_for construct~\cite {cilkforimplementation}, and TBB's {\tt
 parallel\_for}~\cite{intel_tbb}. It generates a logarithmically-deep tree of
 tasks, stopping to execute the loop body when the number of iterations is
-below the required threshold. Third, a programmer may want to execute an active message~\cite{vonEicken:1992:AMM:139669.140382}; that is, to run a
+below the required threshold. Third, a programmer may want to execute an active message~\cite{vonEicken92}; that is, to run a
 small non-blocking piece of code on a particular core in the system without waiting for
  a free worker to become available. For example, custom synchronization primitives are implemented as an active message executed on the core where the data
-lives. \Grappa provides the \texttt{call\_on} call for this purpose.
+lives. \Grappa provides the \texttt{call\_on} routine for this purpose.
 
 \begin{figure}[htbp]
   \begin{center}

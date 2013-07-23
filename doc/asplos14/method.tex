@@ -3,7 +3,7 @@
 We implemented the \Grappa in C++ for the Linux operating system. The core
 runtime system system is about 15K lines of code. We ported a number of
 benchmarks to \Grappa as well as collected and optimized a set of comparison
-benchmarks for XMT, MPI and UPC~\cite{UPC}. We run the \Grappa, MPI and UPC
+benchmarks for XMT, MPI, and UPC~\cite{UPC}. We run the \Grappa, MPI and UPC
 experiments on a cluster of AMD Interlagos processors. Nodes have 32 2.1-GHz
 cores in two sockets, 64GB of memory, and 40Gb Mellanox ConnectX-2 InfiniBand
 network cards. Nodes are connected via a QLogic InfiniBand switch. We also
@@ -46,7 +46,7 @@ Graph500 benchmark and is what currently determines the ranking of machines on
 the Graph500 list~\cite{graph500list}. As a whole, the Graph500 benchmark
 suite is designed to bring the focus of system design on data-intensive
 workloads, particularly large-scale graph analysis problems, that are
-important among cybersecurity, informatics, and network understanding
+important among cybersecurity, informatics, and network-understanding
 workloads. The BFS benchmark builds a search tree containing parent nodes for
 each traversed vertex during the search. While this is a relatively simple
 problem to solve, it exercises the random-access and fine-grained
@@ -59,7 +59,7 @@ We do not employ algorithmic improvements for any of these versions, though ther
 many~\cite{Beamer:Graph500,Yoo:FixedPointGraph500}. \Grappa can be expected to benefit the same as MPI due to decreased communication.
 
 \vspace{0.5ex}
-\noindent{\bf IntSort:} This sorting benchmark is taken from the NAS Parallel Benchmark Suite~\cite{Bailey91thenas,nas3.3} and is one on which the CrayXMT's early predecessor once held the world speed record~\cite{TeraRecord}. The largest problem size, class ``D'', ranks two billion uniformly distributed random integers using either a bucket or a counting sort algorithm, depending on the strengths of the system. Bucket sort executes a greater number of loops, but is able to leverage locality and avoid communication completely in the final phase, ranking within buckets. For these reasons, the MPI reference version and our \Grappa implementation use bucket sort. On the other hand, the Cray XMT cannot take advantage of locality, but has an efficient compiler-supported parallel prefix sum, so it performs best using the counting sort algorithm.  The performance metrics for NAS Parallel Benchmarks, including IntSort, are ``millions of operations per second'' (MOPS). For IntSort, this ``operation'' is ranking a single key, so it is roughly comparable to ``GUPS'' or ``TEPS''.
+\noindent{\bf IntSort:} This sorting benchmark is taken from the NAS Parallel Benchmark Suite~\cite{Bailey91thenas,nas3.3} and is one on which the CrayXMT's early predecessor once held the world speed record~\cite{TeraRecord}. The largest problem size, class ``D'', ranks two billion uniformly distributed random integers using either a bucket or a counting sort algorithm, depending on the strengths of the system. Bucket sort executes a greater number of loops, but is able to leverage locality and avoid communication completely in the final phase, ranking within buckets. For these reasons, the MPI reference version and our \Grappa implementation use bucket sort. On the other hand, the Cray XMT cannot take advantage of locality, but has an efficient compiler-supported parallel prefix sum, so it performs best using the counting sort algorithm.  The performance metrics for NAS Parallel Benchmarks, including IntSort, are ``millions of operations per second'' (MOPS). For IntSort, this ``operation'' is ranking a single key, so it is roughly comparable to ``GUPS'' or ``TEPS.''
  
 \vspace{0.5ex}
 \noindent{\bf PageRank:} This is a common centrality metric for
@@ -70,7 +70,7 @@ kernel being the sparse matrix dense vector multiply. For the multiply
 step, \Grappa parallelizes over the rows and parallelizes each dot
 product. PageRank has the fortunate property that the accumulation
 function over the in-edges is associative and commutative, so they can
-be processed in any order in parallel. Rather than the programmer writing the
+be processed in any order or in parallel. Rather than the programmer writing the
 parallel dot product as local accumulations with a final all-reduce
 step, we simply send streaming increments to each element of the final
 vector. We compare PageRank to published results for the Trilinos linear algebra library implemented in MPI, and multithreaded PageRank for the XMT \cite{MTGL:pagerank}.

@@ -1,7 +1,6 @@
 \section{Evaluation}
 \label{sec:evaluation}
 
-Our questions to answer with experimentation are:
 The goal of our evaluation is to show that the core pieces of the \Grappa
 runtime system, namely our tasking system and the global memory/communication
 layer work as expected and together are able to efficiently run irregular
@@ -10,9 +9,9 @@ applications. We evaluate \Grappa in three basic steps:
 \begin{itemize}
 
 \item We present results that show that \Grappa can
-    support large amounts of concurrency: sufficient for remote memory
+    support large amounts of concurrency, sufficient for remote memory
     access and aggregation. The communication layer is able to
-    achievesustain a very high rate of global memory operations. We also show the performance of a
+    sustain a very high rate of global memory operations. We also show the performance of a
 graph kernel that stresses communication and concurrency together.
 \TODO{compare to key-value stores?}
 
@@ -64,36 +63,39 @@ Figure~\ref{fig:context-switch-exp} shows the average context switch
 time as the number of workers grow. At our standard operating point
 ($\approx$1K workers), context switch time is on the order of 50
 ns. As we add workers, the time increases slowly, but levels off: we
-also ran with 500,000 workers (10 times what is shown in the figure)
-and found that context switch time was around 75 ns. In comparison,
+also ran with 500,000 workers (10~times what is shown in the figure)
+and found that context switch time was around 75ns. In comparison,
 for the same yield test using kernel-level Pthreads on a single core,
 the switch time is 450ns for a few threads and 800ns for 1000-32000
 threads.
 
-If we calculate aggregate context switch \emph{rate} of all
+If we calculate aggregate context switch \emph{rate\/} of all
 cores in a node, we find that with prefetching, \Grappa context
 switching is
-limited \emph{not} by memory latency, as normally assumed, but rather memory bandwidth.
-Specifically, we empirically found that 4 cache lines (1 for worker
+limited \emph{not\/} by memory latency, as normally assumed, but rather memory bandwidth.
+Specifically, we empirically found that 4~cache lines (1~for worker
 struct and 3 for stack data) was sufficient to avoid cache misses in
-the microbenchmark. Every context switch then requires 8 cache line transfers. The off-chip
+the microbenchmark. Every context switch then requires 8~cache-line transfers. The off-chip
 bandwidth of a single socket in our system is 270M cache lines per
-second \cite{porterfield:bw,Nelson:hotpar11}. This implies that
-we can sustain at most 34M context switches per second per socket once
-the space of all contexts is enough to mostly reside outside of L3.
+second~\cite{porterfield:bw,Nelson:hotpar11}. This implies that, in the limit,
+we can sustain at most 34M context switches per second per socket (a context-switch time of 29ns).
 
 In summary, our context switch engine is able to efficiently sustain very high
-concurrency and as we will show later, the amount of concurrency sustained is
+concurrency and, as we will show later, the amount of concurrency sustained is
 sufficient for the latencies \Grappa needs to hide.
 
 \paragraph{Global memory and communication.} We measure the performance of
 \Grappa's global memory and communication layers using a faithful
-implementation of the giga updates per second (GUPs) benchmark, which measures cluster-wide random access bandwidth.
-Read-modify-write updates are dispatched at random to a large array. This
-benchmark stresses the communication layer of \Grappa separately from the
+implementation of the giga updates per second (GUPs) benchmark, which
+measures cluster-wide random access bandwidth.  Read-modify-write
+updates are dispatched at random to a large array. This benchmark
+stresses the communication layer of \Grappa separately from the
 scheduler, because only a single worker is used per system node.
-Figure~\ref{fig:grappa-gups} shows that \Grappa is able to sustain well over a
-billion updates per second with 64 nodes. Note also that when aggregation is turned off, the update rate is nearly flat. Aggregation is instrumental for good communication performance.
+Figure~\ref{fig:grappa-gups} shows that \Grappa is able to sustain
+well over a billion updates per second with 64~nodes. Note also that
+when aggregation is turned off, the update rate is nearly
+flat. Clearly aggregation is instrumental for good communication
+performance.
 
 This compares very favorably to published results~\cite{gups} for other
 high-end HPC systems. Though the actual computation done by GUPS is not 
@@ -134,9 +136,9 @@ parallel slack \TODO{cite Valiant and say more somewhere about BSP}), while T3 t
 When the access to each vertex is a random access, the critical path to search
 T3 trees is very long, hence the low performance and scalability. On such
 trees, we do not expect there to be sufficient concurrency for any system,
-including \Grappa, to achieve high throughput --- at the 16-node data point,
-the average active tasks per core over the search is 775 and 13 for T1 and T3,
-respectively. On the other hand, \Grappa performs and scales very well for T1
+including \Grappa, to achieve high throughput -- at the 16-node data point,
+the average active tasks per core over the search is 775 for T1 and 13 for T3.
+On the other hand, \Grappa performs and scales very well for T1
 trees.
 
 
@@ -168,7 +170,7 @@ compare it with UTS written for UPC. We run all experiments with 64 nodes.
 \begin{table}[htb]
 \begin{center}
 \begin{tabular}{l|c|c|c|c}
-&	Cora &      XMT	&        MPI	&   UPC \\ \hline
+&	\Grappa & XMT	&        MPI	&   UPC \\ \hline
 GUPS	& 1	& 2.23	& 0.11& 	-- \\ 
 BFS	& 1 &	4.33	& 14.37 & 	-- \\ 
 Intsort	& 1	& 3.77 &	5.88	& -- \\
@@ -190,8 +192,8 @@ within striking distance of XMT and well beyond UPC performance (UTS only).
 However, it underperforms compared to hand-tuned MPI. We believe there are two reasons for this:
 First, Grappa is young; much optimization and tuning of the runtime
 and the application is yet to be done. Second, the MPI implementations
-we used employ algorithmic-specific optimizations---some of which
-resemble of what \Grappa does automatically, like message aggregation.
+we used employ algorithmic-specific optimizations -- some of which
+resemble what \Grappa does automatically, like message aggregation.
 Grappa's GUPS results presented earlier suggest there is significant
 room for improvement.
 
@@ -249,13 +251,13 @@ percent of UTS explicit cache operations are remote, whereas 44
 percent of BFS explict cache operations are remote.}
 
 In UTS, we obtained the best throughput by flushing frequently: on the
-order of 100 microseconds. This, combined with the fewer number of remote
-accesses, means that there are a limited nubmer of requests generated
+order of 100~microseconds. This, combined with the fewer number of remote
+accesses, means that there are a limited number of requests generated
 per flush interval, leading to packets primarily smaller than 10KB.
 
 In BFS, we see a trimodal distribution. There are two reasons for
 this. First, in BFS, we obtained the best throughput by flushing at
-least 500 microseconds apart, and also flushing whenever a core is
+least 500~microseconds apart, and also flushing whenever a core is
 idle. Since this process ignores whether another flush has occurred
 recently, it leads to a large number of small messages. This leads to
 the first and smallest mode of the distribution.  The other two modes
@@ -412,7 +414,7 @@ processors/cluster nodes, the XMT is 1.75 times faster than \Grappa.
 %\paragraph{UTS-Mem}
 %We ran UTS-Mem on \Grappa and the XMT with a geometric 1.6B-vertex tree
 %(T1XL) and a geometric 4.2B-vertex tree (T1XXL), using up to 128
-%nodes---the maximum we had available for each. \Grappa results are for 5 cores per node. \Grappa with 20 machines is faster than the entire XMT of 128 processors.
+%nodes -- the maximum we had available for each. \Grappa results are for 5 cores per node. \Grappa with 20 machines is faster than the entire XMT of 128 processors.
 
 %\Grappa achieves \checkme{188Mvert/s} with 128 nodes and the XMT
 %achieves only 50Mvert/s, plateauing at 60 nodes. Beyond 90 nodes, \Grappa adds 1.4 Mvert/s/node.
@@ -430,7 +432,7 @@ processors/cluster nodes, the XMT is 1.75 times faster than \Grappa.
 %retry operations for failed synchronization operations generated by
 %the runtime, which create network contention.
 %
-To determine how \Grappa's performance scales compared to the performance of the entire XMT, we ran a set of experiments up to all 128 XMT processors and 128 cluster nodes. For the XMT, the number of allowed processors was varied up to the entire machine, with some minor tuning of stream parameters needed to get optimal performance. For \Grappa, parameters such as cores per node, aggregator timeouts, and parallel threshold were tuned to get the best performance for each node count. All of the benchmarks continue to improve out to 128 nodes for \Grappa. UTS continues to fare better than the XMT with large node counts, with the XMT appearing to plateau at 60 processors due to contention from synchronization retries, while \Grappa handles this by suspending tasks until messages return. For BFS and Centrality, the XMT scales approximately a constant factor better than \Grappa. We attribute this to a limitation in the current aggregator design and network stack that \Grappa uses.  This limits the practical number of cores we can use to 6 per node (adding more cores per node \emph{decreases} performance).  Ironically, this limitation makes \Grappa applications compute-bound instead of network-bound.  Work is ongoing to rework the Infiniband driver stack and aggregation interface to remove this limitation and improve aggregation addressing using local routing.
+To determine how \Grappa's performance scales compared to the performance of the entire XMT, we ran a set of experiments up to all 128 XMT processors and 128 cluster nodes. For the XMT, the number of allowed processors was varied up to the entire machine, with some minor tuning of stream parameters needed to get optimal performance. For \Grappa, parameters such as cores per node, aggregator timeouts, and parallel threshold were tuned to get the best performance for each node count. All of the benchmarks continue to improve out to 128 nodes for \Grappa. UTS continues to fare better than the XMT with large node counts, with the XMT appearing to plateau at 60 processors due to contention from synchronization retries, while \Grappa handles this by suspending tasks until messages return. For BFS and Centrality, the XMT scales approximately a constant factor better than \Grappa. We attribute this to a limitation in the current aggregator design and network stack that \Grappa uses.  This limits the practical number of cores we can use to 6 per node (adding more cores per node \emph{decreases\/} performance).  Ironically, this limitation makes \Grappa applications compute-bound instead of network-bound.  Work is ongoing to rework the Infiniband driver stack and aggregation interface to remove this limitation and improve aggregation addressing using local routing.
 
 \begin{figure}[ht]
     \begin{center}
@@ -518,7 +520,7 @@ improves our application performance by 10x.
 %\paragraph{UTS-Mem}
 %We ran UTS-Mem on \Grappa and the XMT with a geometric 1.6B-vertex tree
 %(T1XL) and a geometric 4.2B-vertex tree (T1XXL), using up to 128
-%nodes---the maximum we had available for each. \Grappa results are for 5 cores per node. \Grappa with 20 machines is faster than the entire XMT of 128 processors.
+%nodes -- the maximum we had available for each. \Grappa results are for 5 cores per node. \Grappa with 20 machines is faster than the entire XMT of 128 processors.
 %\Grappa achieves \checkme{188Mvert/s} with 128 nodes and the XMT
 %achieves only 50Mvert/s, plateauing at 60 nodes. Beyond 90 nodes, \Grappa adds 1.4 Mvert/s/node.
 %The XMT scales at 850 Kvert/s/node, until it plateaus. \Grappa keeps
@@ -666,8 +668,8 @@ in each benchmark; UTS does the least, while Betweenness Centrality does the mos
 %\end{center}
 %\end{figure}
 
-Parallel overhead---in the form of context switches, task spawns, and
-synchronization---can reduce the performance benefit of parallelism.
+Parallel overhead -- in the form of context switches, task spawns, and
+synchronization -- can reduce the performance benefit of parallelism.
 \Grappa sees a benefit to limiting the amount of parallelism created by
 a recursive loop decomposition. The parallel loop threshold (``parallel
 granularity'') parameter tells the runtime when to stop creating new tasks and just execute iterations

@@ -11,12 +11,12 @@ consists of a function pointer, an optional argument payload, and an optional
 data payload. 
 
 \paragraph{Message aggregation} In our experiments the vast majority of upper
-layer message requests are smaller than 44 bytes. Our measurements confirm
+layer message requests are smaller than 44~bytes. Our measurements confirm
 manufacturers' published data [15]; with 44-byte packets, the available
 bisection bandwidth is only a small fraction (3\%) of the peak bisection
 bandwidth. As mentioned earlier, commodity networks including InfiniBand
 achieves their peak bisection bandwidth only when the packet sizes are
-relatively large --- on the order of multiple kilobytes. The reason for this
+relatively large -- on the order of multiple kilobytes. The reason for this
 discrepancy is the combination of overheads associated with handling each
 packet (in terms of bytes that form the actual packet, processing time at the
 card, multiple round-trips on the PCI Express bus and processing on the CPU
@@ -25,41 +25,69 @@ we must convert small messages into large ones.
 
 \paragraph{Message processing mechanics} Since communication is very frequent
 in \Grappa, aggregating and sending messages efficiently is very important. To
-achieve that, \Grappa makes careful use of caches, prefetching and lock-free
+achieve that, \Grappa makes careful use of caches, prefetching, and lock-free
 synchronization operations.
 
-Each processing core of a system node maintains an array of outgoing message lists.  The array size is the number of system cores in the \Grappa system.   The outgoing message lists and messages are located in a region of memory shared across all cores in a \Grappa node (thus enabling cores to peek at each other's message lists). When a task sends a message, it allocates a buffer (typically on its stack), determines the destination system node, and links the buffer into the corresponding linked list.
+Each processing core of a system node maintains an array of outgoing
+message lists.  The array size is the number of system cores in the
+\Grappa system.  The outgoing message lists and messages are located
+in a region of memory shared across all cores in a \Grappa node (thus
+enabling cores to peek at each other's message lists). When a task
+sends a message, it allocates a buffer (typically on its stack),
+determines the destination system node, and links the buffer into the
+corresponding linked list.
 
-Each processing core in a given system node is responsible for aggregating and sending the resulting messages from all processors on that node to a set of destination nodes.  Each core periodically executes a task responsible for sending messages.  This task examines the private (to each core) message lists for each destination node it is responsible for managing and if the list is long enough, or a message has waited past a time-out period, all messages to a given destination system node from that source system node are sent.  Aggregating and sending a message involves manipulating a set of shared data-structures (the message lists). This is done using CAS (compare-and-swap) operations to avoid high synchronization costs.  Note that the reason we use a per-processor array of message lists that is only periodically modified across processor cores is we empirically determined this approach was faster (sometimes significantly) than a global per-system node array of message lists.
+Each processing core in a given system node is responsible for
+aggregating and sending the resulting messages from all processors on
+that node to a set of destination nodes.  Each core periodically
+executes a task responsible for sending messages.  This task examines
+the private (to each core) message lists for each destination node it
+is responsible for managing and, if the list is long enough or a
+message has waited past a time-out period, all messages to a given
+destination system node from that source system node are sent.
+Aggregating and sending a message involves manipulating a set of
+shared data-structures (the message lists). This is done using CAS
+(compare-and-swap) operations to avoid high synchronization costs.
+Note that we use a per-processor array of message lists
+that is only periodically modified across processor cores because we
+empirically determined this approach was faster (sometimes
+significantly) than a global per-system node array of message lists.
 
 Each node has a region of memory with send buffers where the final aggregated
 messages are built. These buffers are visible to the network card, and
 messages can be sent with user-mode operations only. When the worker
 responsible for outbound messages to a given system node has received a
-sufficient number of message send requests, or a timeout is reached, the
+sufficient number of message send requests or a timeout is reached, the
 linked list of messages is walked and messages are copied to a send buffer.
 This process requires careful prefetching because most of the outbound
-messages are \emph{not} in the processor cache at this time (recall that a
+messages are \emph{not\/} in the processor cache at this time (recall that a
 core can be aggregating messages originating from other cores in the same
-node). Once the send buffer has been formed it is handed off to GASNet for
+node). Once the send buffer has been formed, it is handed off to GASNet for
 transfer to the remote system node. RDMA is used if the underlying network
 supports it. 
 
 There are two useful consequences of forming the send buffer at the time of
-message transmission instead of along the way, as individual upper layer
-message send requests are received. First, as previously mentioned most of the
-messages are not in the cache and prefetching is used to run-ahead in the
+message transmission instead of along the way as individual upper layer
+message send requests are received. First, as previously mentioned, most of the
+messages are not in the cache and prefetching is used to run ahead in the
 linked list of messages in order to avoid cache misses. But once the send
-buffer is formed it is in the cache (for the most part). Hence, when it is
+buffer is formed, it is in the cache (for the most part). Hence, when it is
 handed off to GASNet for transfer across the physical wire, the network card
 can pull the message buffer from the processor cache instead of main memory,
 which we have found speeds performance. The second consequence of this
 decision is that we do not need to pre-allocate buffers for all destination
 nodes in the system, as the buffer can be allocated on the fly. Nevertheless
-we have found it efficient to build a flow-control like protocol of
+we have found it efficient to build a flow-control-like protocol of
 outstanding message buffers between pairs of system nodes.
 
-Once the remote system node has received the message buffer, a management task is spawned to manage the unpacking process.  The management task spawns a task on each processor at the receiving system to simultaneously unpack messages destined for that processor.  Upon completion, these unpacking tasks synchronize with the management task.  Once all cores have processed the message buffer the management task sends a reply to the sending system node indicating the successful delivery of the messages.
+Once the remote system node has received the message buffer, a
+management task is spawned to manage the unpacking process.  The
+management task spawns a task on each processor at the receiving
+system to simultaneously unpack messages destined for that processor.
+Upon completion, these unpacking tasks synchronize with the management
+task.  Once all cores have processed the message buffer, the management
+task sends a reply to the sending system node indicating the
+successful delivery of the messages.
 
 
 %%%% Comments from Jacob. 

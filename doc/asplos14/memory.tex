@@ -5,7 +5,7 @@ global. Local memory is local to a single core within a node in the system.
 Accesses occur through conventional pointers. Applications use local accesses for a
 number of things in \Grappa: the stack associated with a task, accesses to
 localized global memory in caches (see below), and accesses to debugging
-infrastructure that is local to each system node. Local pointers cannot access
+infrastructure local to each system node. Local pointers cannot access
 memory on other cores, and are valid only on their home core.
 
 Large data that is expected to be shared and accessed with low locality is
@@ -17,7 +17,7 @@ calls into \Grappa's API, shown in Figure~\ref{fig:accessing-memory}.
 
 \paragraph{Global memory addressing} \Grappa provides two methods for storing
 data in the global memory. The first is a distributed heap striped across all
-the machines in the system in a block cyclic fashion. The
+the machines in the system in a block-cyclic fashion. The
 \texttt{global\_malloc} and \texttt{global\_free} calls are used to allocate
 and deallocate memory in the global heap. Addresses to memory in the global
 heap use \emph{linear addresses}. Choosing the block size involves trading off
@@ -36,8 +36,8 @@ space~\cite{upc:2005}) addressing model, where each address is a tuple of a
 rank in the job (or global process ID) and an address in that process. The
 lower 48 bits of the address hold a virtual address in the process. The top
 bit is set to indicate that the reference is a 2D address (as opposed to
-linear address). This leaves 15 bits for network endpoint ID, which limits our
-scalability to $2^{15}$ endpoints. Any node-local data can be made accessible
+linear address). This leaves 15~bits for network endpoint ID, which limits our
+scalability to $2^{15}$ cores. Any node-local data can be made accessible
 to other cores in the system by wrapping the address and node ID into a 2D
 global address. This address can then be accessed with a delegate operation
 and even be buffered by other cores. The address is converted at the destination
@@ -86,7 +86,7 @@ to other cores' memory.
 
 \paragraph{Global memory access} 
 Access to \Grappa's distributed shared memory is provided through  {\em
-delegate} operations, which are short memory accesses performed at the memory
+delegate\/} operations, which are short memory accesses performed at the memory
 location's home node. When the data access pattern has
 low-locality, it is more efficient to modify the data on its home core rather
 than bringing a copy to the requesting core and returning it after
@@ -106,7 +106,7 @@ operations for the same address from multiple requesters are always serialized
 through a single core in the system, providing atomic semantics without using
 actual atomic operations (and thus avoiding their typical high cost).
 
-Delegate operations can be either {\em blocking} or {\em non-blocking}.
+Delegate operations can be either {\em blocking\/} or {\em non-blocking}.
 With blocking operations, the task issuing the delegate call blocks until
 the delegate operation completes, which is necessary, for example, to ensure
 that synchronization has finished before continuing. Synchronization in \Grappa
