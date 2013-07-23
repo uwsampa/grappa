@@ -20,7 +20,7 @@ Igor do
     edgefactor: 16,
     nbfs: 8,
     shared_pool_max: 64,
-    cas_flatten: 1,
+    cas_flatten: 0,
     shared_pool_size: 2**20,
   })
   GFLAGS.delete :flat_combining
