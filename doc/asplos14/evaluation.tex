@@ -61,13 +61,13 @@ increments values in a large array.
 
 Figure~\ref{fig:context-switch-exp} shows the average context switch
 time as the number of workers grow. At our standard operating point
-($\approx$1K workers), context switch time is on the order of 50
-ns. As we add workers, the time increases slowly, but levels off: we
-also ran with 500,000 workers (10~times what is shown in the figure)
-and found that context switch time was around 75ns. In comparison,
-for the same yield test using kernel-level Pthreads on a single core,
-the switch time is 450ns for a few threads and 800ns for 1000-32000
-threads.
+($\approx$1K workers), context switch time is on the order of
+50~ns. As we add workers, the time increases slowly, but levels off:
+we also ran with 500,000 workers (10~times what is shown in the
+figure) and found that context switch time was around 75~ns. In
+comparison, for the same yield test using kernel-level Pthreads on a
+single core, the switch time is 450~ns for a few threads and 800~ns for
+1000--32000 threads.
 
 If we calculate aggregate context switch \emph{rate\/} of all
 cores in a node, we find that with prefetching, \Grappa context
@@ -78,7 +78,7 @@ struct and 3 for stack data) was sufficient to avoid cache misses in
 the microbenchmark. Every context switch then requires 8~cache-line transfers. The off-chip
 bandwidth of a single socket in our system is 270M cache lines per
 second~\cite{porterfield:bw,Nelson:hotpar11}. This implies that, in the limit,
-we can sustain at most 34M context switches per second per socket (a context-switch time of 29ns).
+we can sustain at most 34M context switches per second per socket (a context-switch time of 29~ns).
 
 In summary, our context switch engine is able to efficiently sustain very high
 concurrency and, as we will show later, the amount of concurrency sustained is
@@ -189,7 +189,7 @@ Pagerank	& 1	& 4.35	& 4.87 &	-- \\
 
 Table~\ref{tab:grappa-comparisons} shows the results. Overall, \Grappa is
 within striking distance of XMT and well beyond UPC performance (UTS only).
-However, it underperforms compared to hand-tuned MPI. We believe there are two reasons for this:
+However, it underperforms compared to hand-tuned MPI\@. We believe there are two reasons for this:
 First, Grappa is young; much optimization and tuning of the runtime
 and the application is yet to be done. Second, the MPI implementations
 we used employ algorithmic-specific optimizations -- some of which
@@ -246,18 +246,18 @@ exploited, explicit cache operations are used. We see this reflected
 in the fraction of requests that are handled remotely: less than one
 percent of delegate operations in both BFS and UTS access local
 data. Since explicit cache operations are intended to exploit
-locality; they more often access data on the local node. Only 20
-percent of UTS explicit cache operations are remote, whereas 44
-percent of BFS explict cache operations are remote.}
+locality; they more often access data on the local node. Only 20\%
+of UTS explicit cache operations are remote, whereas 44\%
+of BFS explict cache operations are remote.}
 
 In UTS, we obtained the best throughput by flushing frequently: on the
-order of 100~microseconds. This, combined with the fewer number of remote
+order of 100~$\mu$s. This, combined with the fewer number of remote
 accesses, means that there are a limited number of requests generated
-per flush interval, leading to packets primarily smaller than 10KB.
+per flush interval, leading to packets primarily smaller than~10KB.
 
 In BFS, we see a trimodal distribution. There are two reasons for
 this. First, in BFS, we obtained the best throughput by flushing at
-least 500~microseconds apart, and also flushing whenever a core is
+least 500~$\mu$s apart, and also flushing whenever a core is
 idle. Since this process ignores whether another flush has occurred
 recently, it leads to a large number of small messages. This leads to
 the first and smallest mode of the distribution.  The other two modes
@@ -500,7 +500,7 @@ peak.
 This comparison is the best possible case for the aggregator. In
 order to verify that the aggregator still has value on actual
 applications at scale, we ran a small (100M node tree) UTS-Mem
-with the aggregator disabled, on 16 nodes.
+with the aggregator disabled, on 16~nodes.
 Figure~\ref{fig:no-aggregation-uts}. At this configuration, the aggregator
 improves our application performance by 10x. 
 
