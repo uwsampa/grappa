@@ -119,9 +119,9 @@ core. Even if there are many active threads, if they are all suspended on
 long-latency operations, then the core is underutilized. 
 The
 stealing policy 
-%--- similarly to \cite{the_hierarchical_workstealing}) ---
 must predict whether local tasks will likely
-generate enough new work soon.
+generate enough new work soon; a similar problem is addressed in
+\cite{vanNieuwpoort:2001}.
 
 \subsection{Expressing Parallelism}
 
