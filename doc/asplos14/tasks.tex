@@ -172,40 +172,41 @@ lives. \Grappa provides the \texttt{call\_on} routine for this purpose.
 \end{figure}
 
 Figure~\ref{fig:sample} shows sample code using \Grappa for a parallel tree
-search. The important aspect to note is that the code looks very similar to
-what would be written for single shared-memory system, without any concern about data locality or communication.
+search. Note how the code looks very similar to a recursive search procedure for a shared-memory system, without regard for communication, and \Grappa's parallel loop construct allows easy parallelization of the search.
 
 \begin{figure}[htbp]
 \begin{center}
 \begin{scriptsize}
 \begin{lstlisting}[style=grappa]
-class node_t {
-  key_t   key
+class Vertex {
+  Key key
   int64_t numChildren;
-  GlobalAddress<node_t> children;
+  GlobalAddress<Vertex> children;
 };
 
-void search(GlobalAddress<node_t> node, key_t key, GlobalAddress<node_t> result) {
-  // deref of key is expected cache miss
-  if (node->key == key) {
-    delegate_write(result, node);
+void search(GlobalAddress<Vertex> vtx_addr,
+      Key key, GlobalAddress<Vertex> result) {
+  // blocking remote read to get vertex info
+  Vertex vtx = delegate_read(vtx_addr);
+  if (vtx.key == key) {
+    // key found
+    delegate_write(result, vtx);
   } else {
-    parallel_for(0, node->numChildren,
-    [=](int index) {
-      // first deref of children is likely miss
-      search(node->children[index], key); 
+    // spawn stealable tasks for iterations
+    parallel_for(0,vtx.numChildren,[=](int i) {
+      // recursive search
+      search(vtx.children+i, key, result);       
     });
   }
 }
 \end{lstlisting}
 \end{scriptsize}
 
-    \begin{minipage}{0.95\columnwidth}
+    \begin{minipage}{\columnwidth}
       \caption{\label{fig:sample} Sample \Grappa code illustrating a
-          parallel tree search similar to the unbalanced tree search
-          benchmark we describe later. The labeled cache misses occur
-          if we assume the tree is not layed out in a regular fashion, which
-      models more general graphs.}
+        parallel tree search similar to the unbalanced tree search
+        benchmark we describe later. Children are spread over the system, so each parallel recursive search performs a delegate read to get vertex data.
+      }
     \end{minipage}
 
 \end{center}

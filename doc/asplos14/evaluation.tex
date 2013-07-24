@@ -120,8 +120,7 @@ distributed setting has been a long-standing challenge in HPC.
 %    aggregation and deaggregation rates are. Show on the plot the
 %    message size distribution (some box plot)}
 
-\paragraph{Putting it all together with Unbalanced Tree Search in memory
-(UTS).} 
+\paragraph{Putting it all together with Unbalanced Tree Search (UTS).} 
 Figure~\ref{fig:grappa-uts} shows the overall performance of \Grappa running
 UTS. This experiment demonstrates that \Grappa's context
 switching and communication layers can be used together, while
@@ -131,7 +130,7 @@ Visiting vertices in the distributed tree requires mostly remote
 accesses, and because each vertex in the tree must be visited before
 it can be expanded, blocking remote reads are required. In this case,
 we are forced to context switch to tolerate the remote access and
-continue aggregating.
+continue aggregating. Figure~\ref{fig:sample} shows a closely analogous tree search in Grappa.
 
 We look at two classes of trees, T1 and T3, from
 the original benchmark. T1 trees are very shallow and wide (i.e., significant
@@ -154,8 +153,8 @@ perform similarly on the T3 tree, where there is little parallelism to
 overlap communication and computation, and no better than T3 on T1,
 given the inability to overlap vertices on each core without
 multithreading (a multithreaded variant of UPC has been evaluated in
-\cite{HotSLAW}). Our experiments confirm that BUPC achieves the lower throughput of
-\Grappa on T3 for \emph{both} the T1 and T3 trees. 
+\cite{HotSLAW}). Our experiments confirm that BUPC achieves lower throughput than
+\Grappa for both T1 and T3 trees.
 
 \begin{figure}[ht]
     \begin{center}
