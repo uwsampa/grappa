@@ -139,8 +139,8 @@ Given that access to each vertex is a random access, the critical path to search
 T3 trees is very long, hence the low performance and scalability. On such
 trees, we do not expect there to be sufficient concurrency for any system,
 including \Grappa, to achieve high throughput -- at the 16-node data point,
-the average active tasks per core over the search is 775 for T1 and
-only 13 for T3. Given the lack of parallelism, scaling up only serves
+the average active tasks per core over the search is an order of magnitude larger for T1 than for T3.
+ Given the lack of parallelism, scaling up only serves
 to reduce throughput by distributing the tree to more machines.
 On the other hand, \Grappa performs and scales very well for T1
 trees.
