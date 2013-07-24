@@ -124,7 +124,7 @@ namespace Grappa {
 
     static const int prefetch_dist = 6;
     static const int prefetch_type = 3; // 0 (non-temporal) or 3 (L1) are probably the best choice
-    static const int remote_buffer_pool_size = 6;
+    static const int remote_buffer_pool_size = 32;
 
     struct CoreData {
       // things that must be included per core:
