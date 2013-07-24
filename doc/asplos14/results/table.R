@@ -30,3 +30,10 @@ d.uts$mteps <- d.uts$uts_num_searched_nodes/d.uts$search_runtime / 1e6
 r.uts <- subset(d.uts, nnode == 64 & ppn == 16 & tree == 'T1XL')
 subset(r.uts, select=c('id','tree','mteps'))
 
+############
+# pagerank
+d.pr <- sqldf("select * from pagerank", dbname="myers_pagerank.db")
+d.pr$mteps <- d.pr$actual_nnz / d.pr$pagerank_time / 1e6
+d.pr.sub <- subset(d.pr, nnode == 64 & ppn == 16 & scale == 25 & tag == 'pairdev-stats')
+d.pr.best <- ddply(d.pr.sub, .(tag), function(d) d[d$mteps == max(d$mteps),])
+dd <- subset(d.pr.best, select=c('id','tag','mteps'))
