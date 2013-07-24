@@ -93,8 +93,9 @@ than bringing a copy to the requesting core and returning it after
 modification. Delegate operations~\cite{Nelson:hotpar11, delegated:oopsla11}
 provide this capability. Applications can dispatch computation to be performed
 on individual machine-word sized chunks of global memory to the memory system
-itself. Delegates can execute arbitrary non-blocking code, so we use them to perform simple
-\emph{read\/}/\emph{write\/} operations to global memory, as well as more complex \emph{read-modify-write\/} operations (e.g., \emph{fetch-and-add\/}). 
+itself.
+Delegates can execute arbitrary code, provided they do not block, to ensure communicator workers make progress. Provided they touch only memory owned by a single core, we can use them to perform simple
+\emph{read\/}/\emph{write\/} operations to global memory, as well as more complex \emph{read-modify-write\/} operations (e.g., \emph{fetch-and-add\/}). We use these primitive operations to implement higher-level synchronization mechanisms such as mutexes, condition variables, and full-empty bits.
 
 Delegate operations are \emph{always\/} executed at the home core of their
 address. The remote operation may not perform any operations that could cause
@@ -106,20 +107,15 @@ operations for the same address from multiple requesters are always serialized
 through a single core in the system, providing atomic semantics without using
 actual atomic operations (and thus avoiding their typical high cost).
 
-Delegate operations can be either {\em blocking\/} or {\em non-blocking}.
+Delegate operations can be either {\em blocking\/} or {\em asynchronous}.
 With blocking operations, the task issuing the delegate call blocks until
 the delegate operation completes, which is necessary, for example, to ensure
-that synchronization has finished before continuing. Synchronization in \Grappa
-is implemented using blocking delegate operations. On the other hand, remote data
-accesses often can overlap. In order to avoid
-unnecessary waiting, we support non-blocking delegate operations. For reads,
-we support a ``futures''-like mechanism. Tasks may issue delegate reads in
-parallel and block on the ``promises'' returned by non-blocking delegate
-invocations. Delegate write operations may also be performed as
-non-blocking,
-and since they do not return data, a mechanism to detect completion is needed.
-\Grappa provides a \texttt{GlobalCompletionEvent} synchronization object, which non-blocking operations (including tasks) can be enrolled with and which other tasks can block on to be notified and woken when all enrolled operations in the collection are complete.
-\TODO{augment this with our bulk futures ie global completions}
+that synchronization has finished before continuing. On the other hand, remote data
+accesses often can overlap, and delegates with no return value may not need to block the caller. 
+To avoid unnecessary waiting, we support asynchronous delegate operations. For reads,
+we support a ``futures''-like mechanism which allows tasks to issue reads in parallel and block on the ``promises'' returned. Delegate write operations may also be performed asynchronously, but synchronization is still needed to ensure that asynchronous operations have completed.
+\Grappa provides a \texttt{GlobalCompletionEvent} synchronization object, which asyncronous operations (including tasks) can be enrolled. Tasks can block on these objects to be woken when all enrolled operations are complete.
+% \TODO{augment this with our bulk futures ie global completions}
 
 When programmers want to operate on data structures spread across
 multiple nodes, accesses must be expressed as multiple delegate
