@@ -243,19 +243,20 @@ aggregation buffer while \Grappa executes additional code to serialize
 and deserialize the messages. \TODO{Include message counts, size, and
   rates; code size too?}.
 
-\paragraph{Other benchmarks.}
-
+\paragraph{GUPS.}
 The MPI GUPS implementation includes an implementation of aggregation,
 but it is not optimized to work when the aggregated data exceeds
 cache, and it has limited support for concurrent communication with
 multiple destinations. \Grappa benefits from being optimized for both
 of these cases.
 
+\paragraph{Pagerank.}
 The MPI Pagerank implementation it built on top of the
 highly-optimized sparse matrix support in the Trilinos~\cite{trilinos}
 library. In contrast, the \Grappa implementation is fairly
 straightforward. 
 
+\paragraph{Intsort.}
 \TODO{Describe Intsort}
 
 \paragraph{Summary.}
@@ -266,7 +267,7 @@ applications can specialize similar functionality for their problems
 and obtain better performance than \Grappa on the same hardware. This
 is, however, not the end of the story for \Grappa's performance;
 \Grappa is a young library and, as discussed in the next section, is
-limited by its implentation rather than the hardware on which it
+limited by its implementation rather than the hardware on which it
 runs. We believe there are opportunities for optimization that will
 improve its performance.
 
