@@ -49,4 +49,4 @@ g <- ggplot(grappa_only, aes(
   expand_limits(y=0)+
   sosp_theme
 g
-ggsave(plot=g, filename="plot.scaling.bfs.pdf", width=3.5, height=3.5)
+ggsave(plot=g, filename="plot_scaling_bfs.pdf", width=3.5, height=3.5)
