@@ -34,7 +34,8 @@ g <- ggplot(subset(d.melt,
   facet_grid(variable~., scales="free", labeller=label_value)+
   ylab("")+
   expand_limits(y=0)+
+  theme(axis.title.x=element_text(size=14),axis.text=element_text(size=12))+
   sosp_theme
 g
 
-ggsave(plot=g, filename="plot_concurrency.pdf", width=3, height=5)
+ggsave(plot=g, filename="plot_concurrency.pdf", width=4.5, height=4.5)
