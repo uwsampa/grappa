@@ -47,7 +47,7 @@ compare to the Cray XMT and hand-tuned MPI code.
 \subsection{Basic \Grappa Performance}
 \label{eval:basic}
 
-\paragraph{User-level context switching.}
+\paragraph{User-level context switching}
 
 Fast context switching is at the heart of \Grappa's
 latency tolerance abilities. We assess context switch overheads using a simple
@@ -87,7 +87,7 @@ In summary, our tasking layer is able to efficiently sustain very high
 concurrency and, as we will show later, the amount of concurrency sustained is
 sufficient for the latencies \Grappa needs to hide.
 
-\paragraph{Global memory and communication.} We measure the performance of
+\paragraph{Global memory and communication} We measure the performance of
 \Grappa's global memory and communication layers using a faithful
 implementation of the giga updates per second (GUPs) benchmark, which
 measures cluster-wide random access bandwidth.  Read-modify-write
@@ -120,7 +120,7 @@ distributed setting has been a long-standing challenge in HPC.
 %    aggregation and deaggregation rates are. Show on the plot the
 %    message size distribution (some box plot)}
 
-\paragraph{Putting it all together with Unbalanced Tree Search (UTS).} 
+\paragraph{Putting it all together with Unbalanced Tree Search (UTS)} 
 Figure~\ref{fig:grappa-uts} shows the overall performance of \Grappa running
 UTS. This experiment demonstrates that \Grappa's context
 switching and communication layers can be used together, while
@@ -205,7 +205,7 @@ implementations are faster than \Grappa include a implementation of a
 subset of \Grappa's functionality specialized for their particular
 problem. We now discuss each benchmark in more detail.
 
-\paragraph{UTS.}
+\paragraph{UTS}
 It is perhaps not surprising that the XMT is faster than
 \Grappa on many of the benchmarks; after all, the XMT is custom
 hardware optimized for irregular applications. The XMT can
