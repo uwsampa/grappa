@@ -62,18 +62,18 @@ has a collection of active workers ready to execute called the {\it ready
 worker queue}. Each scheduler also has three queues of tasks waiting to be
 assigned a worker:
 
-\begin{itemize}
+\begin{description}
 
-\item {\it deadline task queue}, a priority queue of tasks that are executed according to task-specific deadline constraints;
+\item[deadline task queue] a priority queue of tasks that are executed according to task-specific deadline constraints;
 
-\item {\it private task queue}, a queue of tasks that must run on
+\item[private task queue] a queue of tasks that must run on
 this core and is therefore not subject to stealing;
 
-\item {\it public task queue}, a queue of tasks that are
+\item[public task queue] a queue of tasks that are
   waiting to be matched with workers. It is a local partition of a shared
   task pool.
 
-\end{itemize}
+\end{description}
 Whenever a task yields, the scheduler makes a decision about what
 to do next. First, any task in the deadline task queue whose deadline
 is imminent is chosen for execution. This queue manages high priority

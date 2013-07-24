@@ -49,8 +49,8 @@ Aggregating and sending a message involves manipulating a set of
 shared data-structures (the message lists). This is done using CAS
 (compare-and-swap) operations to avoid high synchronization costs.
 Note that we use a per-processor array of message lists
-that is only periodically modified across processor cores because we
-empirically determined this approach was faster (sometimes
+that is only periodically modified across processor cores after
+experimentally determining that this approach was faster (sometimes
 significantly) than a global per-system node array of message lists.
 
 Each node has a region of memory with send buffers where the final aggregated

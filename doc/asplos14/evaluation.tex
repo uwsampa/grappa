@@ -62,11 +62,11 @@ increments values in a large array.
 Figure~\ref{fig:context-switch-exp} shows the average context switch
 time as the number of workers grow. At our standard operating point
 ($\approx$1K workers), context switch time is on the order of
-50~ns. As we add workers, the time increases slowly, but levels off:
+50ns. As we add workers, the time increases slowly, but levels off:
 we also ran with 500,000 workers (10~times what is shown in the
-figure) and found that context switch time was around 75~ns. In
+figure) and found that context switch time was around 75ns. In
 comparison, for the same yield test using kernel-level Pthreads on a
-single core, the switch time is 450~ns for a few threads and 800~ns for
+single core, the switch time is 450ns for a few threads and 800ns for
 1000--32000 threads.
 
 If we calculate aggregate context switch \emph{rate\/} of all
@@ -78,7 +78,7 @@ struct and 3 for stack data) was sufficient to avoid cache misses in
 the microbenchmark. Every context switch then requires 8~cache-line transfers. The off-chip
 bandwidth of a single socket in our system is 270M cache lines per
 second~\cite{porterfield:bw,Nelson:hotpar11}. This implies that, in the limit,
-we can sustain at most 34M context switches per second per socket (a context-switch time of 29~ns).
+we can sustain at most 34M context switches per second per socket (a context-switch time of 29ns).
 
 In summary, our context switch engine is able to efficiently sustain very high
 concurrency and, as we will show later, the amount of concurrency sustained is
@@ -137,7 +137,8 @@ When the access to each vertex is a random access, the critical path to search
 T3 trees is very long, hence the low performance and scalability. On such
 trees, we do not expect there to be sufficient concurrency for any system,
 including \Grappa, to achieve high throughput -- at the 16-node data point,
-the average active tasks per core over the search is 775 for T1 and 13 for T3.
+the average active tasks per core over the search is 775 for T1 and
+only 13 for T3.
 On the other hand, \Grappa performs and scales very well for T1
 trees.
 
@@ -251,13 +252,13 @@ of UTS explicit cache operations are remote, whereas 44\%
 of BFS explict cache operations are remote.}
 
 In UTS, we obtained the best throughput by flushing frequently: on the
-order of 100~$\mu$s. This, combined with the fewer number of remote
+order of 100$\mu$s. This, combined with the fewer number of remote
 accesses, means that there are a limited number of requests generated
 per flush interval, leading to packets primarily smaller than~10KB.
 
 In BFS, we see a trimodal distribution. There are two reasons for
 this. First, in BFS, we obtained the best throughput by flushing at
-least 500~$\mu$s apart, and also flushing whenever a core is
+least 500$\mu$s apart, and also flushing whenever a core is
 idle. Since this process ignores whether another flush has occurred
 recently, it leads to a large number of small messages. This leads to
 the first and smallest mode of the distribution.  The other two modes

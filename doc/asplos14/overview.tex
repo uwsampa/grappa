@@ -38,7 +38,7 @@ concurrency.
 
 \begin{description}
 
-\item [Tasking system.] The tasking system supports lightweight multithreading
+\item [Tasking system] The tasking system supports lightweight multithreading
 to tolerate communication latency and global distributed work-stealing (i.e.,
 tasks can be stolen from any node in the system), which provides automated
 load balancing. The scheduler oversubscribes to have more worker threads than
@@ -47,7 +47,7 @@ core ready to run at all times, the scheduler can prefetch a worker's state
 into cache to reduce the chance of stalling on memory accesses during a
 context switch.
 
-\item[Communication layer.] The main goal of our communication layer is to
+\item[Communication layer] The main goal of our communication layer is to
 aggregate small messages into large ones. This process is invisible to the
 application programmer. Its interface is based on active
 messages~\cite{vonEicken92}. Since aggregation and deaggregation of messages
@@ -60,7 +60,7 @@ invocations, with an off-the-shelf user-mode InfiniBand device driver
 stack~\cite{OFED}. MPI is used for process setup and tear down.
 
 
-\item[Distributed shared memory.] The DSM system provides fine-grain access to
+\item[Distributed shared memory] The DSM system provides fine-grain access to
 data anywhere in the system, with delegated operation at the core of its design.
 Every piece of global memory is owned by a particular core in the system, and all others may only access that memory by delegating their requests to the owning core.
 It supports normal access operations such as
