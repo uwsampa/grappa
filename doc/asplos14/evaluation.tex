@@ -3,7 +3,7 @@
 
 The goal of our evaluation is to understand whether the core pieces of the \Grappa
 runtime system, namely our tasking system and the global memory/communication
-layer work as expected and whether together they are able to efficiently run irregular
+layer, work as expected and whether together they are able to efficiently run irregular
 applications. We evaluate \Grappa in three basic steps:
 
 \begin{itemize}
@@ -56,7 +56,7 @@ increments values in a large array.
 
 \begin{figure}[ht]
     \begin{center}
-      \includegraphics[width=0.5\textwidth]{figs/context_switch_time.pdf}
+      \includegraphics[width=0.4\textwidth]{figs/context_switch_time.pdf}
     \end{center}
     \caption{Average context switch time with and without prefetching.}
     \label{fig:context-switch-exp}
@@ -109,7 +109,7 @@ distributed setting has been a long-standing challenge in HPC.
 
 \begin{figure}[ht]
     \begin{center}
-      \includegraphics[width=0.5\textwidth]{figs/gups.pdf}
+      \includegraphics[width=0.4\textwidth]{figs/gups.pdf}
     \end{center}
     \caption{GUPS (giga updates per second) for \Grappa as the number of nodes grows with and without message aggregation.}
     \label{fig:grappa-gups}
