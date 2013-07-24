@@ -7,7 +7,7 @@
 
 \Grappa's design is motivated by two key observations of today's systems.
 First, modern compute cores can execute hundreds of thousands of instructions
-in the few microseconds that it takes for one RDMA read to complete. Second,
+in the few microseconds that it takes for one remote memory read to complete. Second,
 the injection rate of modern commodity networks is low and the bandwidth is
 optimized for large messages. Given the frequent communication caused by high
 degree of fine-grained random access in irregular applications, it is
@@ -55,7 +55,7 @@ needs to be very efficient, we perform the process in parallel and carefully
 use lock-free synchronization operations. 
 
 GASNet~\cite{gasnet} is used as the
-underlying mechanism for remote memory reads and writes using active message
+underlying mechanism for bulk remote memory reads and writes using active message
 invocations, with an off-the-shelf user-mode InfiniBand device driver
 stack~\cite{OFED}. MPI is used for process setup and tear down.
 
