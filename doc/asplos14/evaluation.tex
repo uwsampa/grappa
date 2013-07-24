@@ -320,7 +320,7 @@ the 64-node, 16-core-per-node jobs.
 
 The first group of four metrics relate to the communication
 layer. Application messages refer to those issued by the user code;
-network message refer to the aggregated packes sent over the wire. The
+network message refer to the aggregated packets sent over the wire. The
 data show that most application messages are only a handful of bytes,
 but our aggregator is able to turn them into packets of many kilobytes.
 
@@ -331,7 +331,7 @@ rate.  The last line shows the number of time a core stole work from
 another core. Only UTS depends on work-stealing for performance; the
 other applications exploit locality by binding tasks to specific cores
 Nevertheless, even in UTS, which depends on work-stealing for
-performance, steals are an infrequent occurance and account for a
+performance, steals are an infrequent occurrence and account for a
 small fraction of the execution time.
 
 
@@ -367,16 +367,18 @@ per-request latency is $~$1.8ms.
 \paragraph{Does \Grappa scale?}
 
 
-\begin{figure}[ht]
+\begin{figure*}[ht]
     \begin{center}
-      \includegraphics[height=0.5\textwidth]{results/plot_scaling.pdf}
+      \subfloat[BFS]{ \includegraphics[height=0.25\textwidth]{results/plot_scaling_bfs.pdf} }\qquad
+      \subfloat[IntSort]{ \includegraphics[height=0.25\textwidth]{results/plot_scaling_intsort.pdf} }\qquad
+      \subfloat[Pagerank]{ \includegraphics[height=0.25\textwidth]{results/plot_scaling_pagerank.pdf} }\qquad
     \end{center}
-    \caption{Scaling for BFS, IntSort, and Pagerank. Refer to Figure~\cite{fig:grappa-gups} for GUPS scaling and Figure~\cite{fig:grappa-uts} for UTS scaling}
+    \caption{Scaling for BFS, IntSort, and Pagerank. Refer to Figure~\ref{fig:grappa-gups} for GUPS scaling and Figure~\ref{fig:grappa-uts} for UTS scaling}
     \label{fig:grappa-scaling}
-\end{figure}
+\end{figure*}
 
-Figures~\cite{fig:grappa-scaling}, \cite{fig:grappa-gups}, and
-\cite{fig:grappa-uts} show scaling out to 64 nodes. Grappa scales best
+Figures~\ref{fig:grappa-scaling}, \ref{fig:grappa-gups}, and
+\ref{fig:grappa-uts} show scaling out to 64 nodes. Grappa scales best
 on BFS and worst on IntSort, but is in general able to make use of
 more nodes. Unfortunately memory limitations in our current network
 library keep us from exploring scaling beyond 64 nodes; this will be
