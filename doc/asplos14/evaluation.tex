@@ -25,23 +25,23 @@ rates.
 \item Finally, we show how some more realistic irregular workloads on \Grappa
 compare to the Cray XMT and hand-tuned MPI code.
 
-\comment{
-\TODO{Grappa is well-suited to applications where there is
-    abundant data parallelism but unpredictable or imbalanced data
-    access. BSP is efficient where there is sufficient parallel slack.
-    Although Grappa loses some asynchrony by relying heavily on
-    aggregation, it still provides more flexibility for sections of the
-    computation to proceed more quickly. }
-
-\TODO{how much concurrency is needed on apps. Our basic plot of
-    performance vs workers (with and without aggro?)}
-\TODO{relationship between user-thread-visible latency and aggregate throughput.}
-\TODO{characterization of aggregation message size vs nodes}
-\TODO{show our scalability plots; if they don't scale, show
-    specifically why. It is okay if its because aggregation stops
-    working after a point if we can discuss future scalability.
-    Perhaps reference ``MPI on millions of cores'' type work}
-}
+%\comment{
+%\TODO{Grappa is well-suited to applications where there is
+%    abundant data parallelism but unpredictable or imbalanced data
+%    access. BSP is efficient where there is sufficient parallel slack.
+%    Although Grappa loses some asynchrony by relying heavily on
+%    aggregation, it still provides more flexibility for sections of the
+%    computation to proceed more quickly. }
+%
+%\TODO{how much concurrency is needed on apps. Our basic plot of
+%    performance vs workers (with and without aggro?)}
+%\TODO{relationship between user-thread-visible latency and aggregate throughput.}
+%\TODO{characterization of aggregation message size vs nodes}
+%\TODO{show our scalability plots; if they don't scale, show
+%    specifically why. It is okay if its because aggregation stops
+%    working after a point if we can discuss future scalability.
+%    Perhaps reference ``MPI on millions of cores'' type work}
+%}
 \end{itemize}
 
 \subsection{Basic \Grappa Performance}
@@ -82,9 +82,6 @@ the microbenchmark. Every context switch then requires 8~cache-line transfers. T
 bandwidth of a single socket in our system is 270M cache lines per
 second~\cite{porterfield:bw,Nelson:hotpar11}. This implies that, in the limit,
 we can sustain at most 34M context switches per second per socket (a context-switch time of 29ns).
-%\TODO{based on this and GUPS, our message rate will be limited by
-%    context switching for small+single messages. One experiment is
-%    GUPs with context switching, where we vary number of reads/suspend}
 
 In summary, our tasking layer is able to efficiently sustain very high
 concurrency and, as we will show later, the amount of concurrency sustained is
@@ -138,7 +135,7 @@ continue aggregating.
 
 We look at two classes of trees, T1 and T3, from
 the original benchmark. T1 trees are very shallow and wide (i.e., significant
-parallel slack \comment{\TODO{cite Valiant and say more somewhere about BSP}}), while T3 trees are very deep (i.e., little parallel slack).
+parallel slack), while T3 trees are very deep (i.e., little parallel slack).
 When the access to each vertex is a random access, the critical path to search
 T3 trees is very long, hence the low performance and scalability. On such
 trees, we do not expect there to be sufficient concurrency for any system,
@@ -153,7 +150,8 @@ trees.
     \begin{center}
       \includegraphics[width=0.36\textwidth]{results/plot_scaling_uts.pdf}
     \end{center}
-    \caption{Vertices per second in UTS on \Grappa as the number of nodes grows. \TODO{modify discussion inline to match new plot}}
+    \caption{Vertices per second in UTS on \Grappa as the number of nodes grows.}
+    %\TODO{modify discussion inline to match new plot}}
     \label{fig:grappa-uts}
 \end{figure}
 
@@ -310,7 +308,7 @@ Avg. Context switch rate/core & 34.2K/s           & 539K/s  &       \\
 Steal count                    & 0                 & 0       &       \\
 \end{tabular}
 \end{center}
-\caption{Internal runtime metrics, for 64-node, 16-core-per-node benchmark runs \TODO{Finish} }
+\caption{Internal runtime metrics, for 64-node, 16-core-per-node benchmark runs}
 \label{tab:grappa-metrics}
 \end{table*}
 
@@ -409,11 +407,7 @@ context switch costs (50ns, or 20M/s) bring this maximum down to
 7M/s. In practice, \Grappa does not achieve this maximum; the current
 aggregator design communicates inefficiently between cores within a
 node, limiting our message rate to to $~$1M/s per core with messages
-of common sizes. Future work will reduce this cost.  \comment{Ack! -Mark}
-
-
-
-
+of common sizes. Future work will reduce this cost.  
 
 
 
