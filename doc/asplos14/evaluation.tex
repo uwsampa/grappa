@@ -367,9 +367,28 @@ per-request latency is $~$1.8ms.
 \paragraph{Does \Grappa scale?}
 
 
-\TODO{FINISH}
-Our current 
+\begin{figure}[ht]
+    \begin{center}
+      \includegraphics[height=0.5\textwidth]{results/plot_scaling.pdf}
+    \end{center}
+    \caption{Scaling for BFS, IntSort, and Pagerank. Refer to Figure~\cite{fig:grappa-gups} for GUPS scaling and Figure~\cite{fig:grappa-uts} for UTS scaling}
+    \label{fig:grappa-scaling}
+\end{figure}
 
+Figures~\cite{fig:grappa-scaling}, \cite{fig:grappa-gups}, and
+\cite{fig:grappa-uts} show scaling out to 64 nodes. Grappa scales best
+on BFS and worst on IntSort, but is in general able to make use of
+more nodes. Unfortunately memory limitations in our current network
+library keep us from exploring scaling beyond 64 nodes; this will be
+addressed in future work.
+
+In the limit, aggregation does not scale: the time it takes to
+aggregate enough random requests to build a buffer of reasonable size
+scales with the size of the cluster. However, we believe our current
+approach will work for clusters with hundreds of nodes. In the future,
+we will explore hierarchical, collective techniques to aggregate
+requests from multiple nodes as well; we believe this can apply to
+clusters with thousands of nodes.
 
 \paragraph{What limits \Grappa's performance?}
 The most common operation in \Grappa is sending a message. Three key
