@@ -36,7 +36,7 @@ visited. While this benchmark captures irregular, dynamic \emph{computation,}
 we actually want to evaluate performance of algorithms with irregular
 \emph{memory\/} access patterns. Thus we augment UTS by using the existing
 traversal code to create a large tree in memory, and then we traverse the
-in-memory tree. We call this benchmark UTS-Mem, and the timed portion is this
+in-memory tree. In our modified UTS, the timed portion is this
 traversal of the in-memory tree. This in-memory traversal has no knowledge of
 the tree structure beforehand.
 
@@ -56,14 +56,14 @@ second\/} (TEPS), where the number of edges is the edges making up the
 generated BFS tree. With some modifications to the XMT reference version of Graph500 BFS,
 the XMT compiler can be made to recognize and apply a Manhattan loop collapse, exposing enough parallelism to allow it to scale out to 64 nodes for the problem scales we show.
 In order to make comparison easier, we do not employ algorithmic improvements for any of these versions, though there are
-many~\cite{Beamer:Graph500,Yoo:FixedPointGraph500}. \Grappa can be expected to benefit the same as MPI due to decreased communication.
+many~\cite{Beamer:Graph500,Yoo:FixedPointGraph500}; this makes our results difficult to compare with published Graph500 results. \Grappa can be expected to benefit the same as MPI due to decreased communication.
 
 \vspace{0.5ex}
 \noindent{\bf IntSort:} This sorting benchmark is taken from the NAS Parallel Benchmark Suite~\cite{Bailey91thenas,nas3.3} and is one on which the Cray XMT's early predecessor once held the world speed record~\cite{TeraRecord}. The largest problem size, class D, ranks two billion uniformly distributed random integers using either a bucket or a counting sort algorithm, depending on the strengths of the system. Bucket sort executes a greater number of loops, but is able to leverage locality and avoid communication completely in the final phase, ranking within buckets. For these reasons, the MPI reference version and our \Grappa implementation use bucket sort. On the other hand, the Cray XMT cannot take advantage of locality, but has an efficient compiler-supported parallel prefix sum, so it performs best using the counting sort algorithm.  The performance metrics for NAS Parallel Benchmarks, including IntSort, are ``millions of operations per second'' (MOPS). For IntSort, this ``operation'' is ranking a single key, so it is roughly comparable to ``GUPS'' or ``TEPS.''
  
 \vspace{0.5ex}
 \noindent{\bf PageRank:} This is a common centrality metric for
-graphs. Computing PageRank is an iterative algorithm with a common
+graphs. PageRank is an iterative algorithm with a common
 pattern of gather, apply, and scatter on the rank of vertex. The algorithm
 is often implemented by sparse linear algebra libraries, with the main
 kernel being the sparse matrix dense vector multiply. For the multiply
@@ -80,8 +80,5 @@ For \Grappa, we run on a scale 29 graph using the Graph500 generator.
 The metric we use is algorithmic time, which means startup and loading of the
 data structure (from disk) is not included in the measurement. \Grappa
 collects statistics about application behavior (packets sent, context
-switches, etc) and these are discussed where appropriate. In addition we use a
-profiled version of \Grappa to report component runtimes, but this profiled
-version is only used to collect this data and a fully optimized version is
-used for the bulk of the presented results.
+switches, etc) and these are discussed where appropriate. 
 
