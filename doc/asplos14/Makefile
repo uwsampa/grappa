@@ -8,17 +8,19 @@ TARGET    = $(MAIN).pdf
 LATEX     = pdflatex
 BIBTEX    = bibtex
 FIG2PDF   = fig2dev -L pdf
+INCLUDEPATH = ".//:asplos14-template//:$$TEXINPUTS"
 
 default: $(TARGET)
 
+
 $(TARGET): $(TEXFILES) $(FIGURES) $(BIBFILES) 
-	$(LATEX) $(MAIN)
+	(export TEXINPUTS=$(INCLUDEPATH); $(LATEX) $(MAIN))
 	if grep "bibdata" $(MAIN).aux; then $(BIBTEX) $(MAIN); fi
-	$(LATEX) $(MAIN)
-	$(LATEX) $(MAIN)
+	(export TEXINPUTS=$(INCLUDEPATH); $(LATEX) $(MAIN))
+	(export TEXINPUTS=$(INCLUDEPATH); $(LATEX) $(MAIN))
 
 	while grep "^[^P].*Rerun" $(MAIN).log; \
-	  do $(LATEX) $(MAIN); \
+	  do (export TEXINPUTS=$(INCLUDEPATH); $(LATEX) $(MAIN)) \
 	done
 
 view: $(TARGET)
