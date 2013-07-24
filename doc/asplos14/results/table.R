@@ -21,3 +21,12 @@ d.is.mpi <- subset(d.is, problem == 'D' & nnode == 64 & ppn == 16, select=c('max
 r.is.mpi <- subset(d.is, problem == 'D' & nnode == 64 & ppn == 16 & maxtime > 0)
 
 cmp.intsort <- r.is.mpi$mops_total / r.is$mops_total
+
+################
+# uts
+
+d.uts <- sqldf("select * from uts", dbname="sosp_uts.db")
+d.uts$mteps <- d.uts$uts_num_searched_nodes/d.uts$search_runtime / 1e6
+r.uts <- subset(d.uts, nnode == 64 & ppn == 16 & tree == 'T1XL')
+subset(r.uts, select=c('id','tree','mteps'))
+
