@@ -172,8 +172,7 @@ Grappa on T3 for \emph{both} the T1 and T3 trees.
 In order to put \Grappa's performance into a general context, we compare it
 with XMT running BFS, PageRank, IntSort, GUPS and UTS. Since XMT is a
 different hardware platform, we also compare \Grappa with optimized MPI
-versions of BFS and GUPS running on the same hardware. Finally, we also
-compare it with UTS written for UPC. We run all experiments with 64 nodes and 16 cores per node.
+versions of BFS and GUPS running on the same hardware. We run all experiments with 64 nodes and 16 cores per node.
 
 % \begin{figure}[ht]
 %     \begin{center}
@@ -236,12 +235,13 @@ task queue and recursive loop decomposition encourage locality in task
 execution, so that the system is optimized for the common case of a
 processor executing a task it spawned.
 
-We also compare with an UPC UTS implementation, which is nearly 10$\times$
-\emph{slower} than \Grappa. Our UPC version supports work-stealing but has
-limited ability to overlap communication with computation. Also, it
-employs heavyweight synchronization operations when stealing. \Grappa
-benefits from its lightweight context switching and support for fine-grained
-synchronization.
+%bdmyers: the below is already covered specially in the UTS section
+%We also compare with an UPC UTS implementation, which is nearly 10$\times$
+%\emph{slower} than \Grappa. Our UPC version supports work-stealing but has
+%limited ability to overlap communication with computation. Also, it
+%employs heavyweight synchronization operations when stealing. \Grappa
+%benefits from its lightweight context switching and support for fine-grained
+%synchronization.
 
 \paragraph{BFS.}
 The \Grappa and MPI BFS implementations are quite similar. They both
