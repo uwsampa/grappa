@@ -135,16 +135,27 @@ continue aggregating.
 
 We look at two classes of trees, T1 and T3, from
 the original benchmark. T1 trees are very shallow and wide (i.e., significant
-parallel slack), while T3 trees are very deep (i.e., little parallel slack).
-When the access to each vertex is a random access, the critical path to search
+parallel slack \cite{Valiant:1990}), while T3 trees are very deep (i.e., little parallel slack).
+Given that access to each vertex is a random access, the critical path to search
 T3 trees is very long, hence the low performance and scalability. On such
 trees, we do not expect there to be sufficient concurrency for any system,
 including \Grappa, to achieve high throughput -- at the 16-node data point,
 the average active tasks per core over the search is 775 for T1 and
-only 13 for T3.
+only 13 for T3. Given the lack of parallelism, scaling up only serves
+to reduce throughput by distributing the tree to more machines.
 On the other hand, \Grappa performs and scales very well for T1
 trees.
 
+We compared this to a in-memory modification of the UPC implementation
+of UTS \cite{UTS}, where each core hosts a UPC ``THREAD''. Berkeley
+UPC (BUPC) is built upon GASNet, like Grappa, but it uses RDMA transfers directly
+and the compiler overlaps remote communication when possible. We expect BUPC to
+perform similarly on the T3 tree, where there is little parallelism to
+overlap communication and computation, and no better than T3 on T1,
+given the inability to overlap vertices on each core without
+multithreading (a multithreaded variant of UPC has been evaluated in
+\cite{HotSLAW}). Our experiments confirm that BUPC achieves the lower throughput of
+Grappa on T3 for \emph{both} the T1 and T3 trees. 
 
 \begin{figure}[ht]
     \begin{center}
