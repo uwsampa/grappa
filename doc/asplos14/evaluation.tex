@@ -338,21 +338,36 @@ small fraction of the execution time.
 
 \begin{figure}[ht]
     \begin{center}
-      \includegraphics[width=0.5\textwidth]{results/plot_concurrency.pdf}
+      \includegraphics[height=0.5\textwidth]{results/plot_concurrency.pdf}
     \end{center}
     \caption{Throughput, request latency, and idleness as number of concurrent workers is varied}
     \label{fig:grappa-concurrency}
 \end{figure}
 
 \paragraph{How much concurrency does \Grappa require? How much latency does it add?}
-Figure~\ref{fig:grappa-concurrency} shows 
-UTS blocks at ea
-\todo{FINISH}
+\Grappa depends on concurrency to cover the latency of aggregation and
+remote communication. How much is required for good performance?
+
+Figure~\ref{fig:grappa-concurrency} shows a 48-node, 16-core-per-node
+run of UTS, varying the number of concurrently executing tasks on each
+core. The top pane shows the overall throughput of the tree search.
+The middle pane shows average blocking delegate operation latency in
+microseconds. The bottom pane shows idle time; that is, the fraction
+of the time the scheduler could not find a ready task to run.
+
+We can observe three things from this figure. First, above 512
+concurrently executing tasks per core, idle time is practically zero:
+these tasks generate requests fast enough to cover the latency of
+aggregation and communication. This matches the results seen in the
+throughput plot; throughput peaks at 512 workers and gradually
+decreases after that due to the overhead of unnecessary context
+switches. Finally, we see that with 512 workers, the average
+per-request latency is $~$1.8ms.
 
 \paragraph{Does \Grappa scale?}
 
 
-\todo{FINISH}
+\TODO{FINISH}
 Our current 
 
 
