@@ -185,16 +185,16 @@ compare it with UTS written for UPC. We run all experiments with 64 nodes and 16
 
 \begin{table}[htb]
 \begin{center}
-\begin{tabular}{l|c|c|c|c}
-         & \Grappa & XMT   & MPI  & UPC \\ \hline
-GUPS     & 1       & 2.23  & 0.11 & -- \\ 
-BFS      & 1       & 1.63  & 3.52 & -- \\ 
-IntSort  & 1       & 3.59  & 5.36 & -- \\
-UTS (T1) & 1       & 0.38  & --   & 0.09 \\ 
-Pagerank & 1       & 4.35  & 4.87 & -- \\ 
+\begin{tabular}{l|c|c|c}
+         & \Grappa & XMT   & MPI   \\ \hline
+GUPS     & 1       & 2.23  & 0.11 \\ 
+BFS      & 1       & 1.63  & 3.52 \\ 
+IntSort  & 1       & 3.59  & 5.36 \\
+UTS (T1) & 1       & 0.38  & --   \\  % 0.09 for UPC
+Pagerank & 1       & 4.35  & 4.87 \\ 
 \end{tabular}
 \end{center}
-\caption{Comparing \Grappa with XMT, optimized MPI and UPC. Numbers are presented as throughput on 64 nodes normalized to \Grappa.}
+\caption{Comparing \Grappa with XMT and optimized MPI. Numbers are presented as throughput on 64 nodes normalized to \Grappa.}
 \label{tab:grappa-comparisons}
 \end{table}
 
@@ -216,7 +216,7 @@ complete 100 million random-access remote reads per second per node in
 hardware, while \Grappa must spend many instructions managing and
 aggregating each of these reads in software.
 
-What is more surprising is that Grappa is able to exceed the XMT's
+What is more surprising is that \Grappa is able to exceed the XMT's
 performance on UTS. This is a demonstration of the inflexibility of
 custom hardware. Recall that the UTS benchmark searches an unbalanced
 tree and spawns a data-dependent number of child tasks at each
@@ -236,14 +236,15 @@ task queue and recursive loop decomposition encourage locality in task
 execution, so that the system is optimized for the common case of a
 processor executing a task it spawned.
 
-The UPC UTS implementation includes an implementation of work-stealing
-but has limited ability to overlap communication with
-computation. Furthermore, it must execute heavyweight synchronization
-operations when stealing. \Grappa benefits from its lightweight
-context switching and support for fine-grained synchronization.
+We also compare with an UPC UTS implementation, which is nearly 10$\times$
+\emph{slower} than \Grappa. Our UPC version supports work-stealing but has
+limited ability to overlap communication with computation. Also, it
+employs heavyweight synchronization operations when stealing. \Grappa
+benefits from its lightweight context switching and support for fine-grained
+synchronization.
 
 \paragraph{BFS.}
-The Grappa and MPI BFS implementations are quite similar. They both
+The \Grappa and MPI BFS implementations are quite similar. They both
 use the same graph representation, and they both depend on aggregation
 for performance. The difference is that the BFS' aggregation is
 integrated with the traversal code and specialized for the problem:
@@ -301,27 +302,29 @@ improve its performance.
 
 \subsection{Characterization}
 
-\begin{table*}[htb]
+\begin{table}[htb]
+\small
 \begin{center}
+\setlength{\tabcolsep}{1pt}
 \begin{tabular}{l|c|c|c|c|c}
 % remember: bfs time is mean_time * nbfs
                                &   GUPS            &   BFS   & IntSort & UTS & Pagerank \\ \hline
-Application message rate/core  & 984K/s            &  983K   &           \\
+App. message rate/core (K/s)  & 984            &  983   &      &     \\
 %Application message bytes     & 31.8 $\pm$ 1.2    & \\
-Avg. Application message bytes & 31.8              & 33.9    &       \\
-Network bandwidth per node     & 478MB/s           & 511MB/s &          \\
+Avg. App. message bytes & 31.8              & 33.9    &      & \\
+Network BW per node (MB/s)    & 478           & 511 &    &      \\
 %Network message bytes         & 23.2K $\pm$ 12.4K & \\ \hline
-Avg. Network message bytes     & 23.2K             & 4.3K    &     \\ \hline
-Avg. active tasks/core         & 0.9               & 58.2    &    \\
-Max. active tasks/core         & 1                 & 128     &     \\
-Avg. ready queue length/core   & 2.3               & 6.1     &      \\
-Avg. Context switch rate/core & 34.2K/s           & 539K/s  &       \\ 
-Steal count                    & 0                 & 0       &       \\
+Avg. Network message bytes     & 23.2K             & 4.3K    & &    \\ \hline
+Avg. active tasks/core         & 0.9               & 58.2    &  &  \\
+Max. active tasks/core         & 1                 & 128     &  &   \\
+Avg. ready queue length/core   & 2.3               & 6.1     &  &    \\
+Avg. Ctx switch rate/core (K/s) & 34.2           & 539  &     &  \\ 
+Steal count                    & 0                 & 0       &  &     \\
 \end{tabular}
 \end{center}
 \caption{Internal runtime metrics, for 64-node, 16-core-per-node benchmark runs}
 \label{tab:grappa-metrics}
-\end{table*}
+\end{table}
 
 \paragraph{Runtime metrics}
 Table~\ref{tab:grappa-metrics} show a number of internal runtime
@@ -390,7 +393,7 @@ per-request latency is $~$1.8ms.
 \end{figure*}
 
 Figures~\ref{fig:grappa-scaling}, \ref{fig:grappa-gups}, and
-\ref{fig:grappa-uts} show scaling out to 64 nodes. Grappa scales best
+\ref{fig:grappa-uts} show scaling out to 64 nodes. \Grappa scales best
 on BFS and worst on IntSort, but is in general able to make use of
 more nodes. Unfortunately memory limitations in our current network
 library keep us from exploring scaling beyond 64 nodes; this will be
