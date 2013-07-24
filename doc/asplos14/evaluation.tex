@@ -205,7 +205,7 @@ complete 100 million random-access remote reads per second per node in
 hardware, while \Grappa must spend many instructions managing and
 aggregating each of these reads in software.
 
-What is more surprising is that Grappa is able to exceed the XMT's
+What is more surprising is that \Grappa is able to exceed the XMT's
 performance on UTS. This is a demonstration of the inflexibility of
 custom hardware. Recall that the UTS benchmark searches an unbalanced
 tree and spawns a data-dependent number of child tasks at each
@@ -382,7 +382,7 @@ per-request latency is $~$1.8ms.
 \end{figure*}
 
 Figures~\ref{fig:grappa-scaling}, \ref{fig:grappa-gups}, and
-\ref{fig:grappa-uts} show scaling out to 64 nodes. Grappa scales best
+\ref{fig:grappa-uts} show scaling out to 64 nodes. \Grappa scales best
 on BFS and worst on IntSort, but is in general able to make use of
 more nodes. Unfortunately memory limitations in our current network
 library keep us from exploring scaling beyond 64 nodes; this will be
