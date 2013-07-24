@@ -79,6 +79,9 @@ the microbenchmark. Every context switch then requires 8~cache-line transfers. T
 bandwidth of a single socket in our system is 270M cache lines per
 second~\cite{porterfield:bw,Nelson:hotpar11}. This implies that, in the limit,
 we can sustain at most 34M context switches per second per socket (a context-switch time of 29ns).
+\TODO{based on this and GUPS, our message rate will be limited by
+    context switching for small+single messages. One experiment is
+    GUPs with context switching, where we vary number of reads/suspend}
 
 In summary, our context switch engine is able to efficiently sustain very high
 concurrency and, as we will show later, the amount of concurrency sustained is
