@@ -290,27 +290,29 @@ improve its performance.
 
 \subsection{Characterization}
 
-\begin{table*}[htb]
+\begin{table}[htb]
+\small
 \begin{center}
+\setlength{\tabcolsep}{1pt}
 \begin{tabular}{l|c|c|c|c|c}
 % remember: bfs time is mean_time * nbfs
                                &   GUPS            &   BFS   & IntSort & UTS & Pagerank \\ \hline
-Application message rate/core  & 984K/s            &  983K   &           \\
+App. message rate/core (K/s)  & 984            &  983   &      &     \\
 %Application message bytes     & 31.8 $\pm$ 1.2    & \\
-Avg. Application message bytes & 31.8              & 33.9    &       \\
-Network bandwidth per node     & 478MB/s           & 511MB/s &          \\
+Avg. App. message bytes & 31.8              & 33.9    &      & \\
+Network BW per node (MB/s)    & 478           & 511 &    &      \\
 %Network message bytes         & 23.2K $\pm$ 12.4K & \\ \hline
-Avg. Network message bytes     & 23.2K             & 4.3K    &     \\ \hline
-Avg. active tasks/core         & 0.9               & 58.2    &    \\
-Max. active tasks/core         & 1                 & 128     &     \\
-Avg. ready queue length/core   & 2.3               & 6.1     &      \\
-Avg. Context switch rate/core & 34.2K/s           & 539K/s  &       \\ 
-Steal count                    & 0                 & 0       &       \\
+Avg. Network message bytes     & 23.2K             & 4.3K    & &    \\ \hline
+Avg. active tasks/core         & 0.9               & 58.2    &  &  \\
+Max. active tasks/core         & 1                 & 128     &  &   \\
+Avg. ready queue length/core   & 2.3               & 6.1     &  &    \\
+Avg. Ctx switch rate/core (K/s) & 34.2           & 539  &     &  \\ 
+Steal count                    & 0                 & 0       &  &     \\
 \end{tabular}
 \end{center}
 \caption{Internal runtime metrics, for 64-node, 16-core-per-node benchmark runs}
 \label{tab:grappa-metrics}
-\end{table*}
+\end{table}
 
 \paragraph{Runtime metrics}
 Table~\ref{tab:grappa-metrics} show a number of internal runtime
