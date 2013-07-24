@@ -18,13 +18,14 @@ the DRAM bandwidth.  Aggregating messages enables \Grappa to achieve
 over 1.0~GUPS on 64~nodes.  We also explored four other algorithms:
 unbalanced tree search, breadth first search, PageRank, and integer
 sort, comparing performance of these algorithms on \Grappa, the Cray
-XMT, and hand-optimized MPI implementations.  As might be expected,
-when an MPI implementation exploits, in the application code, many of the
-same techniques \Grappa provides in the runtime, such as aggregating
-requests, yet without the overhead of tasking, the MPI implementation
-excels.  This comes with enormous implementation complexity, burdening
-the application developer. Moreover, significant tuning has yet to be
-done on the \Grappa runtime system.  Compared to the Cray XMT, \Grappa
-is between 2.6X faster and 4.3X slower.  Yet when cost-performance is
-considered, mass-market x86-based cluster hardware makes \Grappa a
-highly attractive option. \TODO{update with new data.}
+XMT, and optimized MPI implementations.
+
+Depending on the benchmark, \Grappa is between 11X faster and 5.4X
+slower than MPI and UPC, and between 2.6X faster and 4.3X slower than
+the XMT. When \Grappa is slower than MPI, we find that the MPI
+implementation includes a specialized implementation of a feature
+\Grappa provides generally to all applications. This generality comes
+at a performance cost but eases the application developer's
+task. Moreover, significant tuning has yet to be done on the \Grappa
+runtime system.  Yet when cost-performance is considered, mass-market
+x86-based cluster hardware makes \Grappa a highly attractive option.
