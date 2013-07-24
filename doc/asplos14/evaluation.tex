@@ -26,10 +26,10 @@ rates.
 compare to the Cray XMT and hand-tuned MPI code.
 
 %\comment{
-%\TODO{Grappa is well-suited to applications where there is
+%\TODO{\Grappa is well-suited to applications where there is
 %    abundant data parallelism but unpredictable or imbalanced data
 %    access. BSP is efficient where there is sufficient parallel slack.
-%    Although Grappa loses some asynchrony by relying heavily on
+%    Although \Grappa loses some asynchrony by relying heavily on
 %    aggregation, it still provides more flexibility for sections of the
 %    computation to proceed more quickly. }
 %
@@ -115,7 +115,7 @@ distributed setting has been a long-standing challenge in HPC.
     \label{fig:grappa-gups}
 \end{figure}
 
-%\TODO{go into more detail about what Grappa is doing when executing
+%\TODO{go into more detail about what \Grappa is doing when executing
 %    GUPs. Specifically note what the rate per core is, what the
 %    aggregation and deaggregation rates are. Show on the plot the
 %    message size distribution (some box plot)}
@@ -147,15 +147,15 @@ On the other hand, \Grappa performs and scales very well for T1
 trees.
 
 We compared this to a in-memory modification of the UPC implementation
-of UTS \cite{UTS}, where each core hosts a UPC ``THREAD''. Berkeley
-UPC (BUPC) is built upon GASNet, like Grappa, but it uses RDMA transfers directly
+of UTS \cite{UTS}, where each core hosts a UPC ``THREAD.'' Berkeley
+UPC (BUPC) is built upon GASNet, like \Grappa, but it uses RDMA transfers directly
 and the compiler overlaps remote communication when possible. We expect BUPC to
 perform similarly on the T3 tree, where there is little parallelism to
 overlap communication and computation, and no better than T3 on T1,
 given the inability to overlap vertices on each core without
 multithreading (a multithreaded variant of UPC has been evaluated in
 \cite{HotSLAW}). Our experiments confirm that BUPC achieves the lower throughput of
-Grappa on T3 for \emph{both} the T1 and T3 trees. 
+\Grappa on T3 for \emph{both} the T1 and T3 trees. 
 
 \begin{figure}[ht]
     \begin{center}
@@ -170,7 +170,7 @@ Grappa on T3 for \emph{both} the T1 and T3 trees.
 \label{eval:mainperf}
 
 In order to put \Grappa's performance into a general context, we compare it
-with XMT running BFS, PageRank, IntSort, GUPS and UTS. Since XMT is a
+with XMT running BFS, PageRank, IntSort, GUPS, and UTS\@. Since XMT is a
 different hardware platform, we also compare \Grappa with optimized MPI
 versions of BFS and GUPS running on the same hardware. We run all experiments with 64 nodes and 16 cores per node.
 
@@ -193,7 +193,7 @@ UTS (T1) & 1       & 0.38  & --   \\  % 0.09 for UPC
 Pagerank & 1       & 4.35  & 4.87 \\ 
 \end{tabular}
 \end{center}
-\caption{Comparing \Grappa with XMT and optimized MPI. Numbers are presented as throughput on 64 nodes normalized to \Grappa.}
+\caption{Comparing \Grappa with XMT and optimized MPI\@. Numbers are presented as throughput on 64 nodes normalized to \Grappa.}
 \label{tab:grappa-comparisons}
 \end{table}
 
@@ -210,7 +210,7 @@ problem. We now discuss each benchmark in more detail.
 It is perhaps not surprising that the XMT is faster than
 \Grappa on many of the benchmarks; after all, the XMT is custom
 hardware optimized for irregular applications. The XMT can
-context-switch every cycle, while \Grappa takes $~$50 ns. The XMT can
+context-switch every cycle, while \Grappa takes $~$50ns. The XMT can
 complete 100 million random-access remote reads per second per node in
 hardware, while \Grappa must spend many instructions managing and
 aggregating each of these reads in software.
@@ -230,7 +230,7 @@ likely that processor that spawned a task will end up executing it.
 Since \Grappa's tasks are implemented entirely in software, it is easy
 to support arbitrary synchronization semantics. \Grappa allows both
 XMT-like per-vertex task joins as well as whole-problem joins that are
-a better fit for UTS. Furthermore, \Grappa's work-stealing distributed
+a better fit for UTS\@. Furthermore, \Grappa's work-stealing distributed
 task queue and recursive loop decomposition encourage locality in task
 execution, so that the system is optimized for the common case of a
 processor executing a task it spawned.
@@ -243,10 +243,10 @@ processor executing a task it spawned.
 %benefits from its lightweight context switching and support for fine-grained
 %synchronization.
 
-\paragraph{BFS.}
+\paragraph{BFS}
 The \Grappa and MPI BFS implementations are quite similar. They both
 use the same graph representation, and they both depend on aggregation
-for performance. The difference is that the BFS' aggregation is
+for performance. The difference is that the BFS aggregation is
 integrated with the traversal code and specialized for the problem:
 since the only messages required are edge traversals, the aggregation
 buffers store only pairs of 8-byte vertex IDs.  In contrast, \Grappa
@@ -258,20 +258,20 @@ implementation writes the edge information directly into the
 aggregation buffer while \Grappa executes additional code to serialize
 and deserialize the messages.
 
-\paragraph{GUPS.}
+\paragraph{GUPS}
 The MPI GUPS implementation includes an implementation of aggregation,
 but it is not optimized to work when the aggregated data exceeds
 cache, and it has limited support for concurrent communication with
 multiple destinations. \Grappa benefits from being optimized for both
 of these cases.
 
-\paragraph{Pagerank.}
+\paragraph{Pagerank}
 The MPI Pagerank implementation is built on top of the
 highly-optimized sparse matrix support in the Trilinos~\cite{trilinos}
 library. In contrast, the \Grappa implementation is a straightforward nested
 loop.
 
-\paragraph{IntSort.}
+\paragraph{IntSort}
 Both MPI and \Grappa IntSort implement a bucket sort. For \Grappa,
 distributing keys into buckets accounts for the bulk of the execution
 time; \Grappa does this using asynchronous delegate operations to
@@ -288,7 +288,7 @@ interesting future direction would be to extend \Grappa to support
 aggregation via collective operations.
 
 
-\paragraph{Summary.}
+\paragraph{Summary}
 
 Overall, \Grappa provides a general programming model at a moderate
 performance cost. While \Grappa's core functionality performs well,
@@ -393,10 +393,10 @@ per-request latency is $~$1.8ms.
 \end{figure*}
 
 Figures~\ref{fig:grappa-scaling}, \ref{fig:grappa-gups}, and
-\ref{fig:grappa-uts} show scaling out to 64 nodes. \Grappa scales best
+\ref{fig:grappa-uts} show scaling out to 64~nodes. \Grappa scales best
 on BFS and worst on IntSort, but is in general able to make use of
 more nodes. Unfortunately memory limitations in our current network
-library keep us from exploring scaling beyond 64 nodes; this will be
+library keep us from exploring scaling beyond 64~nodes; this will be
 addressed in future work.
 
 In the limit, aggregation does not scale: the time it takes to
