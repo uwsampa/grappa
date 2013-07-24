@@ -225,15 +225,19 @@ to block until all its child tasks have completed, even though the
 benchmark does not require those tasks to have completed until the end
 of the tree search. Furthermore, each new task is immediately made
 available to all other processors in the system, even though it is
-likely that processor that spawned a task will end up executing it.
+likely the processor that spawned a task will end up executing it.
 
 Since \Grappa's tasks are implemented entirely in software, it is easy
 to support arbitrary synchronization semantics. \Grappa allows both
 XMT-like per-vertex task joins as well as whole-problem joins that are
-a better fit for UTS\@. Furthermore, \Grappa's work-stealing distributed
-task queue and recursive loop decomposition encourage locality in task
-execution, so that the system is optimized for the common case of a
-processor executing a task it spawned.
+a better fit for UTS\@. \Grappa's work-stealing distributed
+task queue encourages locality in task
+execution so that the system is optimized for the common case of a
+processor executing a task it spawned. Furthermore, Grappa's parallel
+loop granularity and buffering features provide a disciplined way for the programmer to easily take better
+advantage of spatial locality when it oviously exists,
+specifically when reading a vertex's edgelist.
+>>>>>>> better description of Grappa advantages in UTS over XMT
 
 %bdmyers: the below is already covered specially in the UTS section
 %We also compare with an UPC UTS implementation, which is nearly 10$\times$
