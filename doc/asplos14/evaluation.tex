@@ -1,9 +1,9 @@
 \section{Evaluation}
 \label{sec:evaluation}
 
-The goal of our evaluation is to show that the core pieces of the \Grappa
+The goal of our evaluation is to understand whether the core pieces of the \Grappa
 runtime system, namely our tasking system and the global memory/communication
-layer work as expected and together are able to efficiently run irregular
+layer work as expected and whether together they are able to efficiently run irregular
 applications. We evaluate \Grappa in three basic steps:
 
 \begin{itemize}
@@ -13,16 +13,19 @@ applications. We evaluate \Grappa in three basic steps:
     access and aggregation. The communication layer is able to
     sustain a very high rate of global memory operations. We also show the performance of a
 graph kernel that stresses communication and concurrency together.
-\TODO{compare to key-value stores?}
+%\TODO{compare to key-value stores?}
 
 \item We characterize system behavior, including
-profiling where execution time goes, how aggregation affects message size and
-rates, and \checkme{the relationship between aggregation and
-    concurrency.}
+profiling where execution time goes, and how aggregation affects message size and
+rates.
+
+%, and \checkme{the relationship between aggregation and
+%    concurrency.}
 
 \item Finally, we show how some more realistic irregular workloads on \Grappa
 compare to the Cray XMT and hand-tuned MPI code.
 
+\comment{
 \TODO{Grappa is well-suited to applications where there is
     abundant data parallelism but unpredictable or imbalanced data
     access. BSP is efficient where there is sufficient parallel slack.
@@ -38,7 +41,7 @@ compare to the Cray XMT and hand-tuned MPI code.
     specifically why. It is okay if its because aggregation stops
     working after a point if we can discuss future scalability.
     Perhaps reference ``MPI on millions of cores'' type work}
-
+}
 \end{itemize}
 
 \subsection{Basic \Grappa Performance}
@@ -79,11 +82,11 @@ the microbenchmark. Every context switch then requires 8~cache-line transfers. T
 bandwidth of a single socket in our system is 270M cache lines per
 second~\cite{porterfield:bw,Nelson:hotpar11}. This implies that, in the limit,
 we can sustain at most 34M context switches per second per socket (a context-switch time of 29ns).
-\TODO{based on this and GUPS, our message rate will be limited by
-    context switching for small+single messages. One experiment is
-    GUPs with context switching, where we vary number of reads/suspend}
+%\TODO{based on this and GUPS, our message rate will be limited by
+%    context switching for small+single messages. One experiment is
+%    GUPs with context switching, where we vary number of reads/suspend}
 
-In summary, our context switch engine is able to efficiently sustain very high
+In summary, our tasking layer is able to efficiently sustain very high
 concurrency and, as we will show later, the amount of concurrency sustained is
 sufficient for the latencies \Grappa needs to hide.
 
@@ -91,7 +94,7 @@ sufficient for the latencies \Grappa needs to hide.
 \Grappa's global memory and communication layers using a faithful
 implementation of the giga updates per second (GUPs) benchmark, which
 measures cluster-wide random access bandwidth.  Read-modify-write
-updates are dispatched at random to a large array. This benchmark
+updates are dispatched at random to a global large array. This benchmark
 stresses the communication layer of \Grappa separately from the
 scheduler, because only a single worker is used per system node.
 Figure~\ref{fig:grappa-gups} shows that \Grappa is able to sustain
@@ -115,10 +118,10 @@ distributed setting has been a long-standing challenge in HPC.
     \label{fig:grappa-gups}
 \end{figure}
 
-\TODO{go into more detail about what Grappa is doing when executing
-    GUPs. Specifically note what the rate per core is, what the
-    aggregation and deaggregation rates are. Show on the plot the
-    message size distribution (some box plot)}
+%\TODO{go into more detail about what Grappa is doing when executing
+%    GUPs. Specifically note what the rate per core is, what the
+%    aggregation and deaggregation rates are. Show on the plot the
+%    message size distribution (some box plot)}
 
 \paragraph{Putting it all together with Unbalanced Tree Search in memory
 (UTS).} 
@@ -135,7 +138,7 @@ continue aggregating.
 
 We look at two classes of trees, T1 and T3, from
 the original benchmark. T1 trees are very shallow and wide (i.e., significant
-parallel slack \TODO{cite Valiant and say more somewhere about BSP}), while T3 trees are very deep (i.e., little parallel slack).
+parallel slack \comment{\TODO{cite Valiant and say more somewhere about BSP}}), while T3 trees are very deep (i.e., little parallel slack).
 When the access to each vertex is a random access, the critical path to search
 T3 trees is very long, hence the low performance and scalability. On such
 trees, we do not expect there to be sufficient concurrency for any system,
@@ -238,13 +241,12 @@ integrated with the traversal code and specialized for the problem:
 since the only messages required are edge traversals, the aggregation
 buffers store only pairs of 8-byte vertex IDs.  In contrast, \Grappa
 pays execution and space overhead in order to support aggregation of
-arbitrary closures; the messages \Grappa aggregates include the two
+arbitrary messages; the messages \Grappa aggregates include the two
 8-byte vertex IDs along with 8 bytes of deserialization information as
 well as 8 bytes of synchronization information. Furthermore, the MPI
 implementation writes the edge information directly into the
 aggregation buffer while \Grappa executes additional code to serialize
-and deserialize the messages. \TODO{Include message counts, size, and
-  rates; code size too?}.
+and deserialize the messages.
 
 \paragraph{GUPS.}
 The MPI GUPS implementation includes an implementation of aggregation,
@@ -397,7 +399,7 @@ The most common operation in \Grappa is sending a message. Three key
 operations occur in a message's lifetime: creating and enqueuing a
 message, serializing a message in the aggregator, and deserializing a
 message at the destination. We benchmarked each of these steps
-individually to find the bottleneck.
+individually to shed light on the mechanism.
 
 Minimum-sized messages can be created and enqueued at a rate of 16M/s,
 serialized into an aggregation buffer at 32M/s, and deserialized from
@@ -407,7 +409,7 @@ context switch costs (50ns, or 20M/s) bring this maximum down to
 7M/s. In practice, \Grappa does not achieve this maximum; the current
 aggregator design communicates inefficiently between cores within a
 node, limiting our message rate to to $~$1M/s per core with messages
-of common sizes. Future work will reduce this cost.
+of common sizes. Future work will reduce this cost.  \comment{Ack! -Mark}
 
 
 
