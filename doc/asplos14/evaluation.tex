@@ -174,16 +174,16 @@ compare it with UTS written for UPC. We run all experiments with 64 nodes and 16
 
 \begin{table}[htb]
 \begin{center}
-\begin{tabular}{l|c|c|c|c}
-         & \Grappa & XMT   & MPI  & UPC \\ \hline
-GUPS     & 1       & 2.23  & 0.11 & -- \\ 
-BFS      & 1       & 1.63  & 3.52 & -- \\ 
-IntSort  & 1       & 3.59  & 5.36 & -- \\
-UTS (T1) & 1       & 0.38  & --   & 0.09 \\ 
-Pagerank & 1       & 4.35  & 4.87 & -- \\ 
+\begin{tabular}{l|c|c|c}
+         & \Grappa & XMT   & MPI   \\ \hline
+GUPS     & 1       & 2.23  & 0.11 \\ 
+BFS      & 1       & 1.63  & 3.52 \\ 
+IntSort  & 1       & 3.59  & 5.36 \\
+UTS (T1) & 1       & 0.38  & --   \\  % 0.09 for UPC
+Pagerank & 1       & 4.35  & 4.87 \\ 
 \end{tabular}
 \end{center}
-\caption{Comparing \Grappa with XMT, optimized MPI and UPC. Numbers are presented as throughput on 64 nodes normalized to \Grappa.}
+\caption{Comparing \Grappa with XMT and optimized MPI. Numbers are presented as throughput on 64 nodes normalized to \Grappa.}
 \label{tab:grappa-comparisons}
 \end{table}
 
@@ -225,14 +225,15 @@ task queue and recursive loop decomposition encourage locality in task
 execution, so that the system is optimized for the common case of a
 processor executing a task it spawned.
 
-The UPC UTS implementation includes an implementation of work-stealing
-but has limited ability to overlap communication with
-computation. Furthermore, it must execute heavyweight synchronization
-operations when stealing. \Grappa benefits from its lightweight
-context switching and support for fine-grained synchronization.
+We also compare with an UPC UTS implementation, which is nearly 10$\times$
+\emph{slower} than \Grappa. Our UPC version supports work-stealing but has
+limited ability to overlap communication with computation. Also, it
+employs heavyweight synchronization operations when stealing. \Grappa
+benefits from its lightweight context switching and support for fine-grained
+synchronization.
 
 \paragraph{BFS.}
-The Grappa and MPI BFS implementations are quite similar. They both
+The \Grappa and MPI BFS implementations are quite similar. They both
 use the same graph representation, and they both depend on aggregation
 for performance. The difference is that the BFS' aggregation is
 integrated with the traversal code and specialized for the problem:

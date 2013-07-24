@@ -2,25 +2,24 @@
 
 Irregular computations are both important and challenging to execute
 quickly.  Scaling these applications easily on commodity hardware has
-been a historical challenge. \Grappa is a runtime framework that
+been a historical challenge. \Grappa 
 simplifies this task for software developers and compiler
-writers. This paper describes the \Grappa framework and its three main
-components: a task library, a distributed shared memory system, and a
-network aggregator. \Grappa's key aspect is extreme latency tolerance,
+writers. 
+% This paper describes \Grappa's framework and its main
+% components: a task library, a distributed shared memory system, and a
+% network aggregator. 
+\Grappa's key aspect is extreme latency tolerance,
 which not only hides network latency but also enables the system to
 spend time on sophisticated work stealing and network optimizations,
 trading latency for even more throughput.
 
-Our evaluation of \Grappa reveals that the core components, scheduling
+Our evaluation of \Grappa shows that the core components, scheduling
 and communication, achieve their design goals.  Thousands of workers
-can be efficiently context switched on a multicore processor, up to
-the DRAM bandwidth.  Aggregating messages enables \Grappa to achieve
+can be efficiently context switched on a multicore processor, limited by DRAM bandwidth.  Aggregating messages enables \Grappa to achieve
 over 1.0~GUPS on 64~nodes.  We also explored four other algorithms:
 unbalanced tree search, breadth first search, PageRank, and integer
 sort, comparing performance of these algorithms on \Grappa, the Cray
-XMT, and optimized MPI implementations.
-
-Depending on the benchmark, \Grappa is between 11X faster and 5.4X
+XMT, and optimized MPI implementations. \Grappa is between 11X faster and 5.4X
 slower than MPI and UPC, and between 2.6X faster and 4.3X slower than
 the XMT. When \Grappa is slower than MPI, we find that the MPI
 implementation includes a specialized implementation of a feature
