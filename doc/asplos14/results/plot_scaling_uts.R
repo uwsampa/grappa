@@ -38,7 +38,7 @@ g <- ggplot(d.sub,
   scale_color_discrete(name="Tree:")+
   # geom_point()+
   # geom_smooth(fill=NA)+
-  geom_line(size=1.6)+
+  geom_line(size=1.4)+
   # geom_text(size=3, hjust=-0.4, vjust=0.3)+
   # facet_grid(variable~scale, scales="free", labeller=label_pretty)+
   expand_limits(y=0)+
@@ -47,4 +47,5 @@ g <- ggplot(d.sub,
   sosp_theme
 g
 
-ggsave(plot=g, filename="plot_scaling_uts.pdf", width=3.5, height=3.5)
+ggsave(plot=g, filename="plot_scaling_uts.pdf", width=4.25, height=4.25)
+I
