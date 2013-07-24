@@ -299,11 +299,15 @@ void user_main( int * ignore ) {
 
   Grappa::Statistics::reset();
 
+  call_on_all_cores([]{ Grappa_start_profiling(); });
+  
   pagerank_result result;
   TIME(time,
     result = pagerank( g, FLAGS_damping, FLAGS_epsilon );
   );
   pagerank_time_SO = time;
+  
+  call_on_all_cores([]{ Grappa_stop_profiling(); });
 
   // output stats
   make_graph_time   = make_graph_time_SO;

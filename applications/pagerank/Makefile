@@ -5,6 +5,9 @@ ifneq ($(GRAPPA_HOME), $(AUTO_HOME))
 $(warning warning: Environment variable GRAPPA_HOME was set but does not match the autodetected home: env=$(GRAPPA_HOME), auto=$(AUTO_HOME))
 endif
 
+include $(GRAPPA_HOME)/include.mk
+
+
 # Grappa system source directory
 GRAPPA_SYS=$(GRAPPA_HOME)/system
 
@@ -34,26 +37,30 @@ CFLAGS += -D_GRAPPA
 SOURCES = spmv_mult.o $(APP_BFS)/oned_csr.o $(APP_GRAPH500)/prng.o $(APP_BFS)/graph.o
 
 mult.exe: mult_main.o $(SOURCES) $(HEADERS) $(GEN)/generator.a $(GRAPPA_SYS)/libGrappa.a
-	$(ENV_VARIABLES) $($(MPITYPE)_LD) $(LDFLAGS) mult_main.o $(SOURCES) $(GEN)/generator.a $(GRAPPA_SYS)/libGrappa.a $(LIBRARIES) -o $@ $(LIBS)
+	$(ENV_VARIABLES) $($(MPITYPE)_LD) $(LDFLAGS) $(CFLAGS) mult_main.o $(SOURCES) $(GEN)/generator.a $(GRAPPA_SYS)/libGrappa.a $(LIBRARIES) -o $@ $(LIBS)
 
 pagerank.exe: pagerank.o $(SOURCES) $(HEADERS) $(GEN)/generator.a $(GRAPPA_SYS)/libGrappa.a 
-	$(ENV_VARIABLES) $($(MPITYPE)_LD) $(LDFLAGS) pagerank.o $(SOURCES) $(GEN)/generator.a $(GRAPPA_SYS)/libGrappa.a $(LIBRARIES) -o $@ $(LIBS)
+	$(ENV_VARIABLES) $($(MPITYPE)_LD) $(LDFLAGS) $(CFLAGS) pagerank.o $(SOURCES) $(GEN)/generator.a $(GRAPPA_SYS)/libGrappa.a $(LIBRARIES) -o $@ $(LIBS)
 
 pagerank_new.exe: pagerank_new.o $(SOURCES) $(HEADERS) $(GEN)/generator.a $(GRAPPA_SYS)/libGrappa.a 
-	$(ENV_VARIABLES) $($(MPITYPE)_LD) $(LDFLAGS) pagerank_new.o $(SOURCES) $(GEN)/generator.a $(GRAPPA_SYS)/libGrappa.a $(LIBRARIES) -o $@ $(LIBS)
+	$(ENV_VARIABLES) $($(MPITYPE)_LD) $(LDFLAGS) $(CFLAGS) pagerank_new.o $(SOURCES) $(GEN)/generator.a $(GRAPPA_SYS)/libGrappa.a $(LIBRARIES) -o $@ $(LIBS)
 
+$(GRAPPA_HOME)/system/libGrappa.a: force
+	cd $(GRAPPA_HOME)/system; $(MAKE) lib
+	
+force: ;
 
 # use graph500 makefile
-$(APP_GRAPH500)/prng.o:
-	cd $(APP_GRAPH500); $(MAKE) CC=$(CC) prng.o  # pass on compiler
+# $(APP_GRAPH500)/prng.o:
+# 	cd $(APP_GRAPH500); $(MAKE) CC=$(CC) prng.o  # pass on compiler
 
 # use Grappa graph generation makefile
 # pass on the DEBUG flag
 $(GEN)/generator.a:
-	cd $(GEN); $(MAKE) DEBUG=$(DEBUG) -f Makefile.grappa genlib
+	cd $(GEN); $(MAKE) DEBUG=$(DEBUG) VTRACE_SAMPLED=$(VTRACE_SAMPLED) GOOGLE_PROFILER=$(GOOGLE_PROFILER) -f Makefile.grappa genlib
 
 clean:
-	rm -f spmv_mult.o mult_main.o mult.exe pagerank.exe
+	rm -f spmv_mult.o mult_main.o mult.exe *.exe
 	
 allclean: clean
 	pushd $(GEN); make -f Makefile.grappa clean; popd
