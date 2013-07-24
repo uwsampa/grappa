@@ -116,9 +116,11 @@ amount of work in its public task queue. The scheduler steals half of the
 tasks it finds at the victim. Work stealing is particularly interesting in
 \Grappa since performance depends on having many active worker threads on each
 core. Even if there are many active threads, if they are all suspended on
-long-latency operations, then the core is underutilized. Similarly to
-\cite{the_hierarchical_workstealing} the
-stealing policy must predict whether local tasks will likely
+long-latency operations, then the core is underutilized. 
+The
+stealing policy 
+%--- similarly to \cite{the_hierarchical_workstealing}) ---
+must predict whether local tasks will likely
 generate enough new work soon.
 
 \subsection{Expressing Parallelism}
