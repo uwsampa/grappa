@@ -156,9 +156,9 @@ trees.
 
 In order to put \Grappa's performance into a general context, we compare it
 with XMT running BFS, PageRank, IntSort, GUPS and UTS. Since XMT is a
-different hardware platform, we also compare \Grappa with hand-tuned MPI
+different hardware platform, we also compare \Grappa with optimized MPI
 versions of BFS and GUPS running on the same hardware. Finally, we also
-compare it with UTS written for UPC. We run all experiments with 64 nodes.
+compare it with UTS written for UPC. We run all experiments with 64 nodes and 16 cores per node.
 
 % \begin{figure}[ht]
 %     \begin{center}
@@ -171,32 +171,104 @@ compare it with UTS written for UPC. We run all experiments with 64 nodes.
 \begin{table}[htb]
 \begin{center}
 \begin{tabular}{l|c|c|c|c}
-&	\Grappa & XMT	&        MPI	&   UPC \\ \hline
-GUPS	& 1	& 2.23	& 0.11& 	-- \\ 
-BFS	& 1 &	4.33	& 14.37 & 	-- \\ 
-Intsort	& 1	& 3.77 &	5.88	& -- \\
-UTS (T1)	& 1	& 0.38	& -- &	0.09 \\ 
-Pagerank	& 1	& 4.35	& 4.87 &	-- \\ 
+         & \Grappa & XMT   & MPI  & UPC \\ \hline
+GUPS     & 1       & 2.23  & 0.11 & -- \\ 
+BFS      & 1       & 1.63  & 3.52 & -- \\ 
+Intsort  & 1       & 3.77  & 5.88 & -- \\
+UTS (T1) & 1       & 0.38  & --   & 0.09 \\ 
+Pagerank & 1       & 4.35  & 4.87 & -- \\ 
 \end{tabular}
 \end{center}
-\caption{Comparing \Grappa with XMT, hand-tuned MPI and UPC. Numbers are presented as throughput on 64 nodes normalized to \Grappa.}
+\caption{Comparing \Grappa with XMT, optimized MPI and UPC. Numbers are presented as throughput on 64 nodes normalized to \Grappa.}
 \label{tab:grappa-comparisons}
 \end{table}
 
-\TODO{addressing reviwer2: sweep of irregularness in one aggregate or multiple dimensions
-    and how a specific aspect of performance changes in different
-    systems}
+Table~\ref{tab:grappa-comparisons} shows the results. \Grappa is able
+to provide performance approaching and sometimes exceeding that of the
+other systems. This data shows that, while \Grappa is good at the
+operations for which it was designed, there is a cost to providing
+\Grappa's generality. In general, the benchmarks whose MPI
+implementations are faster than \Grappa include a implementation of a
+subset of \Grappa's functionality specialized for their particular
+problem. We now discuss each benchmark in more detail.
 
+\paragraph{UTS.}
+It is perhaps not surprising that the XMT is faster than
+\Grappa on many of the benchmarks; after all, the XMT is custom
+hardware optimized for irregular applications. The XMT can
+context-switch every cycle, while \Grappa takes $~$50 ns. The XMT can
+complete 100 million random-access remote reads per second per node in
+hardware, while \Grappa must spend many instructions managing and
+aggregating each of these reads in software.
 
-Table~\ref{tab:grappa-comparisons} shows the results. Overall, \Grappa is
-within striking distance of XMT and well beyond UPC performance (UTS only).
-However, it underperforms compared to hand-tuned MPI\@. We believe there are two reasons for this:
-First, Grappa is young; much optimization and tuning of the runtime
-and the application is yet to be done. Second, the MPI implementations
-we used employ algorithmic-specific optimizations -- some of which
-resemble what \Grappa does automatically, like message aggregation.
-Grappa's GUPS results presented earlier suggest there is significant
-room for improvement.
+What is more surprising is that Grappa is able to exceed the XMT's
+performance on UTS. This is a demonstration of the inflexibility of
+custom hardware. Recall that the UTS benchmark searches an unbalanced
+tree and spawns a data-dependent number of child tasks at each
+vertex. The XMT's spawn/join semantics, whose implementation is spread
+across the hardware, OS, and runtime, require a task visiting a vertex
+to block until all its child tasks have completed, even though the
+benchmark does not require those tasks to have completed until the end
+of the tree search. Furthermore, each new task is immediately made
+available to all other processors in the system, even though it is
+likely that processor that spawned a task will end up executing it.
+
+Since \Grappa's tasks are implemented entirely in software, it is easy
+to support arbitrary synchronization semantics. \Grappa allows both
+XMT-like per-vertex task joins as well as whole-problem joins that are
+a better fit for UTS. Furthermore, \Grappa's work-stealing distributed
+task queue and recursive loop decomposition encourage locality in task
+execution, so that the system is optimized for the common case of a
+processor executing a task it spawned.
+
+The UPC UTS implementation includes an implementation of work-stealing
+but has limited ability to overlap communication with
+computation. Furthermore, it must execute heavyweight synchronization
+operations when stealing. \Grappa benefits from its lightweight
+context switching and support for fine-grained synchronization.
+
+\paragraph{BFS.}
+The Grappa and MPI BFS implementations are quite similar. They both
+use the same graph representation, and they both depend on aggregation
+for performance. The difference is that the BFS' aggregation is
+integrated with the traversal code and specialized for the problem:
+since the only messages required are edge traversals, the aggregation
+buffers store only pairs of 8-byte vertex IDs.  In contrast, \Grappa
+pays execution and space overhead in order to support aggregation of
+arbitrary closures; the messages \Grappa aggregates include the two
+8-byte vertex IDs along with 8 bytes of deserialization information as
+well as 8 bytes of synchronization information. Furthermore, the MPI
+implementation writes the edge information directly into the
+aggregation buffer while \Grappa executes additional code to serialize
+and deserialize the messages. \TODO{Include message counts, size, and
+  rates; code size too?}.
+
+\paragraph{Other benchmarks.}
+
+The MPI GUPS implementation includes an implementation of aggregation,
+but it is not optimized to work when the aggregated data exceeds
+cache, and it has limited support for concurrent communication with
+multiple destinations. \Grappa benefits from being optimized for both
+of these cases.
+
+The MPI Pagerank implementation it built on top of the
+highly-optimized sparse matrix support in the Trilinos~\cite{trilinos}
+library. In contrast, the \Grappa implementation is fairly
+straightforward. 
+
+\TODO{Describe Intsort}
+
+\paragraph{Summary.}
+
+Overall, \Grappa provides a general programming model at a moderate
+performance cost. While \Grappa's core functionality performs well,
+applications can specialize similar functionality for their problems
+and obtain better performance than \Grappa on the same hardware. This
+is, however, not the end of the story for \Grappa's performance;
+\Grappa is a young library and, as discussed in the next section, is
+limited by its implentation rather than the hardware on which it
+runs. We believe there are opportunities for optimization that will
+improve its performance.
 
 \subsection{Characterization}
 
