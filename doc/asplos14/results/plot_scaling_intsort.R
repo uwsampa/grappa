@@ -34,4 +34,4 @@ g <- ggplot(subset(d.melt,
   sosp_theme
 g
 
-ggsave(plot=g, filename="plot.scaling.intsort.pdf", width=3.5, height=3.5)
+ggsave(plot=g, filename="plot_scaling_intsort.pdf", width=3.5, height=3.5)

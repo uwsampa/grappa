@@ -56,5 +56,5 @@ g <- ggplot(d.sub,
   sosp_theme
 g
 
-ggsave(plot=g, filename="plot.scaling.pagerank.pdf", width=3.5, height=3.5)
+ggsave(plot=g, filename="plot_scaling_pagerank.pdf", width=3.5, height=3.5)
 
