@@ -188,7 +188,7 @@ class node_t {
 void search(GlobalAddress<node_t> node, key_t key, GlobalAddress<node_t> result) {
   // deref of key is expected cache miss
   if (node->key == key) {
-    delegate::write(result, node);
+    delegate_write(result, node);
   } else {
     parallel_for(0, node->numChildren,
     [=](int index) {
