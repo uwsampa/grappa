@@ -342,11 +342,10 @@ but our aggregator is able to turn them into packets of many kilobytes.
 The next group of five metrics relate to the scheduler. We show the
 average and maximum number of concurrently-executing tasks, along with
 the average length of the ready queue and the average context switch
-rate.  The last line shows the number of time a core stole work from
-another core. Only UTS depends on work-stealing for performance; the
+rate.  The last two lines shows the rate of work-stealing from
+other cores. Only UTS depends on work-stealing for performance; the
 other applications exploit locality by binding tasks to specific cores
-Nevertheless, even in UTS, which depends on work-stealing for
-performance, steals are an infrequent occurrence and account for a
+Nevertheless, even in UTS, steals are an infrequent occurrence and account for a
 small fraction of the execution time.
 
 
@@ -419,12 +418,10 @@ individually to shed light on the mechanism.
 Minimum-sized messages can be created and enqueued at a rate of 16M/s,
 serialized into an aggregation buffer at 32M/s, and deserialized from
 an aggregation buffer at 210M/s.  Together, these rates limit us to
-$~$10M/s per core in the best case. In a blocking application, the
-context switch costs (50ns, or 20M/s) bring this maximum down to
-7M/s. In practice, \Grappa does not achieve this maximum; the current
-aggregator design communicates inefficiently between cores within a
-node, limiting our message rate to to $~$1M/s per core with messages
-of common sizes. Future work will reduce this cost.  
+$~$10M/s per core in the best case. In practice, \Grappa does not
+achieve this maximum; the overhead of cross-core communication in the
+current aggregator design limits our message rate to to $~$1M/s per
+core with messages of common sizes. Future work will reduce this cost.
 
 
 
