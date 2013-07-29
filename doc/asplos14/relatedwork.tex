@@ -1,0 +1,174 @@
+\section{Related Work}
+
+\vspace{0.5ex}
+\noindent{\bf Multithreading} 
+%\section{Multithreading}
+\Grappa uses multithreading to tolerate memory
+latency. This is a well known technique. Hardware implementations include the
+Denelcor HEP~\cite{hep}, Tera MTA~\cite{tera:mta1}, Cray XMT~\cite{feo:xmt}, Simultaneous
+multithreading~\cite{tullsen:smt}, MIT Alewife~\cite{agarwal:alewife},
+Cyclops~\cite{almasi:cyclops}, and even GPUs~\cite{gpus}.
+
+\Grappa's closest ancestor is the Threaded Abstract
+Machine~\cite{CullerGSvE93}. This was a software runtime system
+designed as a prototyping platform for dataflow execution models on
+distributed memory supercomputers, and contained support for
+inter-node communication and management of the memory hierarchy as
+well as context switching and scheduling computation. The Active
+Messages~\cite{vonEicken92} work that grew out of
+this project inspired our communication layer. One of the conclusions
+of this work~\cite{Culler:1993:TFL:647025.714362} was that context
+switch costs can be low only when contexts are in cache, and that
+latency tolerance was not sufficient to guarantee performance on
+commodity processors. \Grappa demonstrates that times have changed:
+modern commodity processors have sufficient bandwidth and prefetch
+capacity to stream contexts from DRAM and sustain a very large number of active contexts. 
+
+
+\Grappa implements its own software-based multithreading with a
+lightweight user-mode task scheduler to multiplex \emph{thousands\/} of tasks
+on a single processing core. The large number of tasks is required to tolerate
+the very high inter-node communication latency of commodity networks.
+\Grappa's task library employs several optimizations: an extremely fast task
+switch, a small task size, and judicious use of software prefetch instructions
+to bring task state into the cache sufficiently long before that task is
+actually scheduled. The main difference between \Grappa's support for
+lightweight threads and prior work such as
+QThreads~\cite{Wheeler08qthreads:an} and
+Capriccio~\cite{Behren03capriccio:scalable} is context prefetching, which is needed for good performance when multiplexing such a large
+number of tasks.
+
+\vspace{0.5ex}
+\noindent{\bf Software distributed shared memory.} 
+%\section{Software distributed shared memory} 
+The goal of providing a shared memory abstraction for a distributed
+memory system goes back nearly 30 years. Much of the innovation in SDSM has occurred around reducing the
+synchronization cost of doing updates. The first DSM systems,
+including IVY~\cite{Li:1989:MCS:75104.75105}, used frequent invalidations to
+provide sequential consistency, which imposed significant
+communication cost for write-heavy workloads.  Later systems supported
+more relaxed consistency models, including release consistency, which
+reduced the cost by allowing updates to be buffered until
+synchronization occurred. Furthermore, multiple writer protocols that
+sent only modified data were developed to help combat false
+sharing. The
+Munin~\cite{Bennett:1990:MDS:99163.99182,Carter:1991:IPM:121132.121159}
+and TreadMarks~\cite{Keleher:1994:TDS:1267074.1267084} systems
+exploited both of these ideas, but some coherence overhead was still
+required. In contrast, \Grappa's delegate-based approach to updates
+avoids synchronization overhead entirely, providing sequential
+consistency for data-race-free programs without the cost of a
+full coherence protocol. 
+% This cost of this communication is mitigated through latency
+% tolerance.
+
+
+Another way in which SDSM systems differ is in the granularity of
+access control. Many SDSM systems, including IVY and TreadMarks,
+tracked ownership at a granularity of a kilobyte or more. There are
+two main justifications for this design choice: first, networks are
+more efficient with large packets, and second, multi-kilobyte
+granularity allowed systems to reuse the processor's paging mechanisms
+to accelerate access control checks and to provide shared memory
+transparently. Unfortunately, this meant that these systems depended
+on a fair ammount of locality to amortize the cost of moving these large
+blocks, and the systems were very susceptible to false sharing. Other
+systems, including Munin and
+Blizzard~\cite{Schoinas:1994:FAC:195473.195575}, allowed tracking
+ownership with variable granularity to address these problems.
+\Grappa's delegate-based approach is similar; since updates are always
+performed at data's home node, only modified data needs to be moved.
+
+
+SDSM systems often required extensive modifications to the system
+software stack, including the OS (IVY, Blizzard) and compilation
+infrastructure (Munin). This made these systems difficult to port to
+new platforms. \Grappa follows the lead of TreadMarks and provides
+SDSM entirely at user-level through a library and runtime.
+
+In summary, while \Grappa's DSM system is conceptually similar to prior work,
+we accept the random access aspect of irregular applications and optimize for
+throughput rather than low latency. Our DSM system must support enough 
+concurrency to tolerate the latency of the network and additional latency
+overhead impose by the runtime system.
+
+\vspace{0.5ex}
+\noindent{\bf Partitioned Global Address Space languages.} 
+%\section{Partitioned Global Address Space languages} 
+The high-performance computing community has largely discarded the
+coherent distributed shared memory approach in favor of the
+Partitioned Global Address Space (PGAS)
+model. Example include Split-C~\cite{Krishnamurthy:1993:PPS:169627.169724},
+Chapel~\cite{Chamberlain:2007}, X10~\cite{X10:2005},
+Co-array Fortran~\cite{Numrich:1998:CFP:289918.289920} and
+UPC~\cite{upc:2005}. \Grappa shares many parts of its design philosophy
+with these languages.
+
+There are two key ideas \Grappa draws from PGAS languages. First, PGAS
+languages implement DSM at the language, rather than the system
+level. This allows for a number of optimizations, including efficient
+split-phase access, variable data granularity, and support for
+user-customizable synchronization operations. \Grappa follows this
+approach for the same reason.
+
+Second, in PGAS languages, each piece of data has a single canonical location
+on a particular node. \Grappa takes the same approach. However, PGAS languages
+often expect programmers to modify algorithms to take advantage of locality by
+processing node-local data as much as possible; access to data stored on other
+nodes is possible but is seen as something to avoid if possible. \Grappa takes
+the opposite view, as it optimizes for random access to data anywhere in the
+cluster, and exploiting any available locality in the application is a
+secondary concern.
+
+Most PGAS languages adopt a SPMD programming model: the programmer
+must reason about what is happening on every node in the
+system. Chapel is the exception: it provides a global view of control,
+while allowing programmers to direct individual cores when
+necessary. \Grappa follows the same approach as Chapel, providing a
+single-machine abstraction to the programmer along with support for
+controlling the locality of computation when requested.
+
+
+\vspace{0.5ex}
+\noindent{\bf Distributed graph processing systems.} 
+%\section{Distributed graph processing systems} 
+While \Grappa is a general runtime system for any large-scale
+concurrent application, it performs especially
+well on graph analysis. Other distributed graph processing frameworks
+include Pregel~\cite{pregel:2010} and Distributed
+GraphLab~\cite{distgraphlab:vldb12}. Pregel adopts a bulk-synchronous
+parallel (BSP) execution model, which makes it inefficient on
+workloads that could prioritize vertices. GraphLab overcomes this
+limitation with an execution model that schedules vertex computations
+individually, allowing prioritization, which gives faster convergence
+in a variety of iterative algorithms. GraphLab, however, imposes a
+rigid model that requires programmers to express computation as
+transformations on a vertex and its edge list, with information only
+from adjacent vertexes. Pregel is only slightly less restrictive, as
+the input data can be any vertex in the graph. \Grappa also supports
+dynamic parallelism with asynchronous execution, but parallelism is
+expressed as tasks or loop iterations, which is a far more general
+programming model for irregular computation tasks.
+PowerGraph~\cite{powergraph:osdi12} improves the performance of
+GraphLab for real-world graphs with power-law degree distributions by
+using a vertex cut for graph partitioning. Algorithmic transformations
+like this would also improve the
+performance of graph applications on \Grappa.
+
+While the bulk-synchronous MapReduce~\cite{Dean:2008:MSD:1327452.1327492} model and
+related systems such as Hadoop~\cite{hadoop} are not a good fit for
+irregular or graph problems, the ideas have been extended to support a
+subset of related problems that require iteration, including some
+graph-based machine learning
+applications. HaLoop~\cite{Bu:2010:HEI:1920841.1920881} and
+Spark~\cite{Zaharia:2010:SCC:1863103.1863113} are two examples of this
+sort of system. This class of systems is generally characterized by
+having a restricted programming model and restricted interface to
+access data, focused on streaming data from disk. In particular,
+direct communication between nodes in the cluster is not supported;
+communications must happen through the  parallel data
+structures provided. \Grappa is general enough to run these jobs, but the
+MapReduce-derived systems have much more complete IO support and the
+ability to tolerate from node failures.
+
+

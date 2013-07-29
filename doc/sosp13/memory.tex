@@ -114,18 +114,17 @@ Delegate operations can be either {\em synchronous} or {\em asynchronous}.
 With synchronous operations, the task issuing the delegate call blocks until
 the delegate operation completes, which is necessary, for example, to ensure
 that synchronization has finished before continuing. Synchronization in \Grappa
-is implemented using synchronous delegate operations. Often remote data
-accesses do not need to be performed synchronously. In order to avoid
+is implemented using synchronous delegate operations. On the other hand, remote data
+accesses often do not need to be performed synchronously. In order to avoid
 unnecessary waiting, we support asynchronous delegate operations. For reads,
 we support a ``futures''-like mechanism. Tasks may issue delegate reads in
 parallel and block on the ``promises'' returned by asynchronous delegate
 invocations. Delegate write operations may also be performed asynchronously,
-and since they do not return data, they need a mechanism to detect completion.
+and since they do not return data, a mechanism to detect completion is needed.
 \Grappa provides a \texttt{GlobalCompletionEvent} object, which keeps track of
-outstanding asynchronous operations of the local core. The code and can probe
-the state of this object to determine when all outstanding requests are
-complete. This is necessary to, say, make sure all outstanding operations are
-complete before executing a synchronization operation.
+outstanding asynchronous operations of the local core. Threads that depend on completion may block on this object
+the state of this object, and they will be woken when all outstanding requests are
+complete. 
 
 \vspace{1ex}
 \textit{Explicit caching.} \Grappa provides an API to fetch a global pointer of
@@ -171,6 +170,10 @@ is executed on the remote core (8). A response is returned (9) with the
 previous value of the array element. } \end{minipage} \vspace{-3ex}
 \end{center} \end{figure*}
 
+\TODO{eliminate the word cache from the paper since the main point is
+    contiguity and not unpredictable temporal reuse. We
+    must make it clear that this is not user-level caching.}
+
 \paragraph{Memory consistency model discussion} As mentioned earlier, all
 synchronization operations are done via delegate operations. Since they all
 execute in their home node, they are guaranteed to be serialized, with their
@@ -199,4 +202,9 @@ delegates have been fully executed.
 
 
 
+\TODO{admit the lack of a synchronization feature for lightweight
+    transactions across two or more domains. Talk about using the same
+    philosophy of moving data along with the sync (same as a real
+    cache) and utilizing latency tolerance. Then say further is out of
+    scope for this paper.}
 
