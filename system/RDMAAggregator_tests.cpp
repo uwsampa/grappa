@@ -53,6 +53,8 @@ int count2 = 0;
 Grappa::CompletionEvent local_ce;
 size_t local_count = 0;
 
+GRAPPA_DEFINE_STAT( SimpleStatistic<double>, enqueued_messages_rate_per_core, 0.0 );
+
 GRAPPA_DEFINE_STAT( SimpleStatistic<int64_t>, local_messages_per_locale, 0 );
 GRAPPA_DEFINE_STAT( SimpleStatistic<double>, local_messages_time, 0.0 );
 GRAPPA_DEFINE_STAT( SimpleStatistic<double>, local_messages_rate_per_locale, 0.0 );
@@ -337,6 +339,8 @@ void user_main( void * args ) {
     const int64_t expected_messages_per_locale = expected_messages_per_core; // * Grappa::locale_cores();
 
     struct SerializedFunctor {
+      int64_t one;
+      int64_t three;
       void operator()() { 
         local_count++; 
       }
@@ -528,7 +532,8 @@ void user_main( void * args ) {
               }
 
               LOG(INFO) << "Now generating messages";              
-
+              double send_start = Grappa_walltime();
+              
               // send messages
               for( int i = 0; i < sent_messages_per_core; ++i ) {
                 if( FLAGS_aggregate_dest_multiple ) {
@@ -537,8 +542,8 @@ void user_main( void * args ) {
                                 (Grappa::locale_mycore() + i) % Grappa::locale_cores() );
                 }
                 
-                CHECK_EQ( Grappa::locale_of( dest_core ), dest_locale );
-                CHECK_NE( Grappa::locale_of( dest_core ), Grappa::mylocale() );
+                //CHECK_EQ( Grappa::locale_of( dest_core ), dest_locale );
+                //CHECK_NE( Grappa::locale_of( dest_core ), Grappa::mylocale() );
 
                 msgs.with_message( [mycore, dest_core] ( Grappa::ReuseMessage<AggregatedMessage> * m ) {
                     (*m)->source_core = mycore;
@@ -547,6 +552,10 @@ void user_main( void * args ) {
                   } );
               }
               
+
+              double send_end = Grappa_walltime() - send_start;
+              enqueued_messages_rate_per_core = sent_messages_per_core / send_end;
+
               if( FLAGS_disable_sending ) {
                 //sleep(10);
               }
