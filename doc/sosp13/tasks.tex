@@ -85,12 +85,13 @@ will not fit in cache. By oversubscribing on the number of workers
 beyond what is required for latency tolerance, the scheduler can
 ensure there is always some number of context pointers in the ready
 queue. This allows the scheduler to prefetch contexts into
-cache. The reason this works is because the size of the L1 cache is
+cache using software prefetch instructions. The reason this works is because the size of the L1 cache is
 sufficient to hold enough contexts to tolerate the latency to main
 memory. Empirically we find that prefetching the fourth worker in the scheduling order is
 sufficient. This prefetching makes context switching effectively free of cache misses even to hundreds
 of thousands of threads. We provide an analysis of our context switch
 performance in Section~\ref{eval:basic}.
+
 
 \paragraph{Work stealing} 
 When the scheduler finds no work to assign to its workers, it commences to
@@ -104,6 +105,11 @@ long-latency operations, then the core is underutilized.
 
 \subsection{Expressing Parallelism}
 
+\TODO{addressing reviewer2: make it clear that yes Grappa is a low
+    level programming model, but it provides the mechanisms for
+    implementing a variety of execution models. Further, in some cases
+    like the parallel loops, we have allowed for may parallelism to
+    give flexibility to the implementation.}
 \Grappa programmers focus on expressing as much parallelism as possible
 without concern for where it will execute. \Grappa then chooses where and when
 to exploit this parallelism, scheduling as much work as is necessary on each

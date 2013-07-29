@@ -1,0 +1,43 @@
+library(sqldf)
+library(ggplot2)
+library(reshape)
+library(extrafont)
+loadfonts()
+
+sosp_theme <- theme(
+  panel.background = element_rect(fill="white"),
+  panel.border = element_rect(fill=NA, color="grey50"),
+  panel.grid.major = element_line(color="grey80", size=0.3),
+  panel.grid.minor = element_line(color="grey90", size=0.3),
+  strip.background = element_rect(fill="grey90", color="grey50"),
+  strip.background = element_rect(fill="grey80", color="grey50"),
+  axis.ticks = element_line(colour="black"),
+  panel.grid = element_line(colour="black"),
+  axis.text.y = element_text(colour="black"),
+  axis.text.x = element_text(colour="black"),
+  text = element_text(size=16, family="Helvetica")
+)
+
+prettify <- function(str) gsub('_',' ',gsub('([a-z])([a-z]+)',"\\U\\1\\E\\2",str,perl=TRUE))
+
+regex_match <- function(reg,str) length(grep(reg,str)) > 0
+
+label_pretty <- function(variable, value) {
+  vname <- if (regex_match('variable|value',variable)) '' else paste(variable,': ')
+  lapply(paste(vname, prettify(as.character(value))), paste, collapse="\n")
+}
+
+x <- function(...) { return(paste(..., sep='#')) }
+
+db <- function(query, factors, db="sosp.db") {
+  d <- sqldf(query, dbname=db)
+  d[factors] <- lapply(d[factors], factor)
+  return(d)
+}
+
+color.blue   <- '#4b78ff'
+color.red    <- '#ce3d52'
+color.yellow <- '#eaa517'
+color.green  <-'#6bad66'
+
+

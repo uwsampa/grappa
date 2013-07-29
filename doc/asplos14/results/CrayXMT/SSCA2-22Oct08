@@ -1,0 +1,994 @@
+mtarun -t 8 -m 8 kron 22
+
+SSCA Graph Analysis Executable Specification:
+Running...
+
+Problem Scale: 22
+No. of vertices - 4194304
+
+Scalable Data Generator - genScalData() beginning execution...
+graph checksum: 16588427768769
+
+Time taken for Scalable Data Generation is 68.272049 sec.
+
+Kernel 1 - computeGraph() beginning execution...
+histogramming... prefix sum... moving edges... done sorting.
+
+	computeGraph() completed execution.
+
+Time taken for kernel 1 is  0.453053 sec.
+
+Kernel 2 - getStartLists() beginning execution...
+        1 edges with maximum weight 33554431
+
+	getStartLists() completed execution.
+
+Time taken for kernel 2 is  0.116654 sec.
+
+
+Kernel 3 - findSubGraphs() beginning execution...
+Subgraph  0 with     1730 nodes and    302804 edges
+
+	findSubGraphs() completed execution.
+
+Time taken for kernel 3 is  0.035742 sec.
+
+
+Kernel 4 - centrality() beginning execution...
+
+	centrality() completed execution.
+
+Time taken for kernel 4 is 55.875757 sec.
+
+Vertex 50043 has maximum BC value of 4558509.104653.
+
+TEPS = 134516137.239707
+
+mtarun -t 16 -m 16 kron 22
+
+SSCA Graph Analysis Executable Specification:
+Running...
+
+Problem Scale: 22
+No. of vertices - 4194304
+
+Scalable Data Generator - genScalData() beginning execution...
+graph checksum: 16588427768769
+
+Time taken for Scalable Data Generation is 36.701977 sec.
+
+Kernel 1 - computeGraph() beginning execution...
+histogramming... prefix sum... moving edges... done sorting.
+
+	computeGraph() completed execution.
+
+Time taken for kernel 1 is  0.280716 sec.
+
+Kernel 2 - getStartLists() beginning execution...
+        1 edges with maximum weight 33554431
+
+	getStartLists() completed execution.
+
+Time taken for kernel 2 is  0.062317 sec.
+
+
+Kernel 3 - findSubGraphs() beginning execution...
+Subgraph  0 with     1730 nodes and    302804 edges
+
+	findSubGraphs() completed execution.
+
+Time taken for kernel 3 is  0.023430 sec.
+
+
+Kernel 4 - centrality() beginning execution...
+
+	centrality() completed execution.
+
+Time taken for kernel 4 is 51.037605 sec.
+
+Vertex 50043 has maximum BC value of 4558509.104653.
+
+TEPS = 147267703.986335
+
+mtarun -t 24 -m 24 kron 22
+
+SSCA Graph Analysis Executable Specification:
+Running...
+
+Problem Scale: 22
+No. of vertices - 4194304
+
+Scalable Data Generator - genScalData() beginning execution...
+graph checksum: 16588427768769
+
+Time taken for Scalable Data Generation is 22.789043 sec.
+
+Kernel 1 - computeGraph() beginning execution...
+histogramming... prefix sum... moving edges... done sorting.
+
+	computeGraph() completed execution.
+
+Time taken for kernel 1 is  0.222498 sec.
+
+Kernel 2 - getStartLists() beginning execution...
+        1 edges with maximum weight 33554431
+
+	getStartLists() completed execution.
+
+Time taken for kernel 2 is  0.070612 sec.
+
+
+Kernel 3 - findSubGraphs() beginning execution...
+Subgraph  0 with     1730 nodes and    302804 edges
+
+	findSubGraphs() completed execution.
+
+Time taken for kernel 3 is  0.020059 sec.
+
+
+Kernel 4 - centrality() beginning execution...
+
+	centrality() completed execution.
+
+Time taken for kernel 4 is 49.031104 sec.
+
+Vertex 50043 has maximum BC value of 4558509.104653.
+
+TEPS = 153294344.793940
+
+mtarun -t 32 -m 32 kron 22
+
+SSCA Graph Analysis Executable Specification:
+Running...
+
+Problem Scale: 22
+No. of vertices - 4194304
+
+Scalable Data Generator - genScalData() beginning execution...
+graph checksum: 16588427768769
+
+Time taken for Scalable Data Generation is 21.135330 sec.
+
+Kernel 1 - computeGraph() beginning execution...
+histogramming... prefix sum... moving edges... done sorting.
+
+	computeGraph() completed execution.
+
+Time taken for kernel 1 is  0.207034 sec.
+
+Kernel 2 - getStartLists() beginning execution...
+        1 edges with maximum weight 33554431
+
+	getStartLists() completed execution.
+
+Time taken for kernel 2 is  0.037380 sec.
+
+
+Kernel 3 - findSubGraphs() beginning execution...
+Subgraph  0 with     1730 nodes and    302804 edges
+
+	findSubGraphs() completed execution.
+
+Time taken for kernel 3 is  0.017785 sec.
+
+
+Kernel 4 - centrality() beginning execution...
+
+	centrality() completed execution.
+
+Time taken for kernel 4 is 48.597798 sec.
+
+Vertex 50043 has maximum BC value of 4558509.104653.
+
+TEPS = 154661142.966842
+
+mtarun -t 40 -m 40 kron 22
+
+SSCA Graph Analysis Executable Specification:
+Running...
+
+Problem Scale: 22
+No. of vertices - 4194304
+
+Scalable Data Generator - genScalData() beginning execution...
+graph checksum: 16588427768769
+
+Time taken for Scalable Data Generation is 17.857111 sec.
+
+Kernel 1 - computeGraph() beginning execution...
+histogramming... prefix sum... moving edges... done sorting.
+
+	computeGraph() completed execution.
+
+Time taken for kernel 1 is  0.186245 sec.
+
+Kernel 2 - getStartLists() beginning execution...
+        1 edges with maximum weight 33554431
+
+	getStartLists() completed execution.
+
+Time taken for kernel 2 is  0.030249 sec.
+
+
+Kernel 3 - findSubGraphs() beginning execution...
+Subgraph  0 with     1730 nodes and    302804 edges
+
+	findSubGraphs() completed execution.
+
+Time taken for kernel 3 is  0.016929 sec.
+
+
+Kernel 4 - centrality() beginning execution...
+
+	centrality() completed execution.
+
+Time taken for kernel 4 is 48.411933 sec.
+
+Vertex 50043 has maximum BC value of 4558509.104653.
+
+TEPS = 155254924.023094
+
+mtarun -t 8 -m 8 kron 24
+
+SSCA Graph Analysis Executable Specification:
+Running...
+
+Problem Scale: 24
+No. of vertices - 16777216
+
+Scalable Data Generator - genScalData() beginning execution...
+graph checksum: 152600367298392
+
+Time taken for Scalable Data Generation is 277.408949 sec.
+
+Kernel 1 - computeGraph() beginning execution...
+histogramming... prefix sum... moving edges... done sorting.
+
+	computeGraph() completed execution.
+
+Time taken for kernel 1 is  1.606242 sec.
+
+Kernel 2 - getStartLists() beginning execution...
+        1 edges with maximum weight 134217727
+
+	getStartLists() completed execution.
+
+Time taken for kernel 2 is  0.448393 sec.
+
+
+Kernel 3 - findSubGraphs() beginning execution...
+Subgraph  0 with      102 nodes and     19569 edges
+
+	findSubGraphs() completed execution.
+
+Time taken for kernel 3 is  0.099048 sec.
+
+
+Kernel 4 - centrality() beginning execution...
+
+	centrality() completed execution.
+
+Time taken for kernel 4 is 157.341042 sec.
+
+Vertex 14488671 has maximum BC value of 10432283.025177.
+
+TEPS = 191080285.039566
+
+mtarun -t 16 -m 16 kron 24
+
+SSCA Graph Analysis Executable Specification:
+Running...
+
+Problem Scale: 24
+No. of vertices - 16777216
+
+Scalable Data Generator - genScalData() beginning execution...
+graph checksum: 152600367298392
+
+Time taken for Scalable Data Generation is 149.087028 sec.
+
+Kernel 1 - computeGraph() beginning execution...
+histogramming... prefix sum... moving edges... done sorting.
+
+	computeGraph() completed execution.
+
+Time taken for kernel 1 is  0.910894 sec.
+
+Kernel 2 - getStartLists() beginning execution...
+        1 edges with maximum weight 134217727
+
+	getStartLists() completed execution.
+
+Time taken for kernel 2 is  0.230929 sec.
+
+
+Kernel 3 - findSubGraphs() beginning execution...
+Subgraph  0 with      102 nodes and     19569 edges
+
+	findSubGraphs() completed execution.
+
+Time taken for kernel 3 is  0.055894 sec.
+
+
+Kernel 4 - centrality() beginning execution...
+
+	centrality() completed execution.
+
+Time taken for kernel 4 is 125.767318 sec.
+
+Vertex 14488671 has maximum BC value of 10432283.025177.
+
+TEPS = 239050745.393751
+
+mtarun -t 24 -m 24 kron 24
+
+SSCA Graph Analysis Executable Specification:
+Running...
+
+Problem Scale: 24
+No. of vertices - 16777216
+
+Scalable Data Generator - genScalData() beginning execution...
+graph checksum: 152600367298392
+
+Time taken for Scalable Data Generation is 101.288407 sec.
+
+Kernel 1 - computeGraph() beginning execution...
+histogramming... prefix sum... moving edges... done sorting.
+
+	computeGraph() completed execution.
+
+Time taken for kernel 1 is  0.666158 sec.
+
+Kernel 2 - getStartLists() beginning execution...
+        1 edges with maximum weight 134217727
+
+	getStartLists() completed execution.
+
+Time taken for kernel 2 is  0.159408 sec.
+
+
+Kernel 3 - findSubGraphs() beginning execution...
+Subgraph  0 with      102 nodes and     19569 edges
+
+	findSubGraphs() completed execution.
+
+Time taken for kernel 3 is  0.040875 sec.
+
+
+Kernel 4 - centrality() beginning execution...
+
+	centrality() completed execution.
+
+Time taken for kernel 4 is 118.537326 sec.
+
+Vertex 14488671 has maximum BC value of 10432283.025177.
+
+TEPS = 253631258.181921
+
+mtarun -t 32 -m 32 kron 24
+
+SSCA Graph Analysis Executable Specification:
+Running...
+
+Problem Scale: 24
+No. of vertices - 16777216
+
+Scalable Data Generator - genScalData() beginning execution...
+graph checksum: 152600367298392
+
+Time taken for Scalable Data Generation is 77.538914 sec.
+
+Kernel 1 - computeGraph() beginning execution...
+histogramming... prefix sum... moving edges... done sorting.
+
+	computeGraph() completed execution.
+
+Time taken for kernel 1 is  0.554318 sec.
+
+Kernel 2 - getStartLists() beginning execution...
+        1 edges with maximum weight 134217727
+
+	getStartLists() completed execution.
+
+Time taken for kernel 2 is  0.121636 sec.
+
+
+Kernel 3 - findSubGraphs() beginning execution...
+Subgraph  0 with      102 nodes and     19569 edges
+
+	findSubGraphs() completed execution.
+
+Time taken for kernel 3 is  0.033875 sec.
+
+
+Kernel 4 - centrality() beginning execution...
+
+	centrality() completed execution.
+
+Time taken for kernel 4 is 111.471575 sec.
+
+Vertex 14488671 has maximum BC value of 10432283.025177.
+
+TEPS = 269707959.580636
+
+mtarun -t 40 -m 40 kron 24
+
+SSCA Graph Analysis Executable Specification:
+Running...
+
+Problem Scale: 24
+No. of vertices - 16777216
+
+Scalable Data Generator - genScalData() beginning execution...
+graph checksum: 152600367298392
+
+Time taken for Scalable Data Generation is 63.303873 sec.
+
+Kernel 1 - computeGraph() beginning execution...
+histogramming... prefix sum... moving edges... done sorting.
+
+	computeGraph() completed execution.
+
+Time taken for kernel 1 is  0.477763 sec.
+
+Kernel 2 - getStartLists() beginning execution...
+        1 edges with maximum weight 134217727
+
+	getStartLists() completed execution.
+
+Time taken for kernel 2 is  0.102130 sec.
+
+
+Kernel 3 - findSubGraphs() beginning execution...
+Subgraph  0 with      102 nodes and     19569 edges
+
+	findSubGraphs() completed execution.
+
+Time taken for kernel 3 is  0.029566 sec.
+
+
+Kernel 4 - centrality() beginning execution...
+
+	centrality() completed execution.
+
+Time taken for kernel 4 is 111.323480 sec.
+
+Vertex 14488671 has maximum BC value of 10432283.025177.
+
+TEPS = 270066754.492116
+
+mtarun -t 8 -m 8 kron 26
+
+SSCA Graph Analysis Executable Specification:
+Running...
+
+Problem Scale: 26
+No. of vertices - 67108864
+
+Scalable Data Generator - genScalData() beginning execution...
+graph checksum: 59480302057346
+
+Time taken for Scalable Data Generation is 1181.290878 sec.
+
+Kernel 1 - computeGraph() beginning execution...
+histogramming... prefix sum... moving edges... done sorting.
+
+	computeGraph() completed execution.
+
+Time taken for kernel 1 is  6.251413 sec.
+
+Kernel 2 - getStartLists() beginning execution...
+        1 edges with maximum weight 536870911
+
+	getStartLists() completed execution.
+
+Time taken for kernel 2 is  1.776571 sec.
+
+
+Kernel 3 - findSubGraphs() beginning execution...
+Subgraph  0 with        5 nodes and         4 edges
+
+	findSubGraphs() completed execution.
+
+Time taken for kernel 3 is  0.397606 sec.
+
+
+Kernel 4 - centrality() beginning execution...
+mtarun -t 40 -m 40 kron 26
+
+SSCA Graph Analysis Executable Specification:
+Running...
+
+Problem Scale: 26
+No. of vertices - 67108864
+
+Scalable Data Generator - genScalData() beginning execution...
+graph checksum: 59480302057346
+
+Time taken for Scalable Data Generation is 262.391613 sec.
+
+Kernel 1 - computeGraph() beginning execution...
+histogramming... prefix sum... moving edges... done sorting.
+
+	computeGraph() completed execution.
+
+Time taken for kernel 1 is  1.527517 sec.
+
+Kernel 2 - getStartLists() beginning execution...
+        1 edges with maximum weight 536870911
+
+	getStartLists() completed execution.
+
+Time taken for kernel 2 is  0.379876 sec.
+
+
+Kernel 3 - findSubGraphs() beginning execution...
+Subgraph  0 with        5 nodes and         4 edges
+
+	findSubGraphs() completed execution.
+
+Time taken for kernel 3 is  0.122345 sec.
+
+
+Kernel 4 - centrality() beginning execution...
+
+	centrality() completed execution.
+
+Time taken for kernel 4 is 280.432006 sec.
+
+Vertex 2982970 has maximum BC value of 36790243.034226.
+
+TEPS = 428835076.900533
+
+mtarun -t 32 -m 32 kron 26
+
+SSCA Graph Analysis Executable Specification:
+Running...
+
+Problem Scale: 26
+No. of vertices - 67108864
+
+Scalable Data Generator - genScalData() beginning execution...
+graph checksum: 59480302057346
+
+Time taken for Scalable Data Generation is 325.870445 sec.
+
+Kernel 1 - computeGraph() beginning execution...
+histogramming... prefix sum... moving edges... done sorting.
+
+	computeGraph() completed execution.
+
+Time taken for kernel 1 is  1.823099 sec.
+
+Kernel 2 - getStartLists() beginning execution...
+        1 edges with maximum weight 536870911
+
+	getStartLists() completed execution.
+
+Time taken for kernel 2 is  0.465056 sec.
+
+
+Kernel 3 - findSubGraphs() beginning execution...
+Subgraph  0 with        5 nodes and         4 edges
+
+	findSubGraphs() completed execution.
+
+Time taken for kernel 3 is  0.104785 sec.
+
+
+Kernel 4 - centrality() beginning execution...
+mtarun -t 32 -m 32 kron 26
+
+SSCA Graph Analysis Executable Specification:
+Running...
+
+Problem Scale: 26
+No. of vertices - 67108864
+
+Scalable Data Generator - genScalData() beginning execution...
+graph checksum: 59480302057346
+
+Time taken for Scalable Data Generation is 321.443160 sec.
+
+Kernel 1 - computeGraph() beginning execution...
+histogramming... prefix sum... moving edges... done sorting.
+
+	computeGraph() completed execution.
+
+Time taken for kernel 1 is  1.822844 sec.
+
+Kernel 2 - getStartLists() beginning execution...
+        1 edges with maximum weight 536870911
+
+	getStartLists() completed execution.
+
+Time taken for kernel 2 is  0.466890 sec.
+
+
+Kernel 3 - findSubGraphs() beginning execution...
+Subgraph  0 with        5 nodes and         4 edges
+
+	findSubGraphs() completed execution.
+
+Time taken for kernel 3 is  0.104480 sec.
+
+
+Kernel 4 - centrality() beginning execution...
+
+	centrality() completed execution.
+
+Time taken for kernel 4 is 290.314379 sec.
+
+Vertex 2982970 has maximum BC value of 36790243.034226.
+
+TEPS = 414237424.840824
+
+mtarun -t 24 -m 24 kron 26
+
+SSCA Graph Analysis Executable Specification:
+Running...
+
+Problem Scale: 26
+No. of vertices - 67108864
+
+Scalable Data Generator - genScalData() beginning execution...
+graph checksum: 59480302057346
+
+Time taken for Scalable Data Generation is 424.739084 sec.
+
+Kernel 1 - computeGraph() beginning execution...
+histogramming... prefix sum... moving edges... done sorting.
+
+	computeGraph() completed execution.
+
+Time taken for kernel 1 is  2.339012 sec.
+
+Kernel 2 - getStartLists() beginning execution...
+        1 edges with maximum weight 536870911
+
+	getStartLists() completed execution.
+
+Time taken for kernel 2 is  0.613202 sec.
+
+
+Kernel 3 - findSubGraphs() beginning execution...
+Subgraph  0 with        5 nodes and         4 edges
+
+	findSubGraphs() completed execution.
+
+Time taken for kernel 3 is  0.168133 sec.
+
+
+Kernel 4 - centrality() beginning execution...
+
+	centrality() completed execution.
+
+Time taken for kernel 4 is 312.694163 sec.
+
+Vertex 2982970 has maximum BC value of 36790243.034226.
+
+TEPS = 384590104.586259
+
+mtarun -t 16 -m 16 kron 26
+
+SSCA Graph Analysis Executable Specification:
+Running...
+
+Problem Scale: 26
+No. of vertices - 67108864
+
+Scalable Data Generator - genScalData() beginning execution...
+graph checksum: 59480302057346
+
+Time taken for Scalable Data Generation is 616.344827 sec.
+
+Kernel 1 - computeGraph() beginning execution...
+histogramming... prefix sum... moving edges... done sorting.
+
+	computeGraph() completed execution.
+
+Time taken for kernel 1 is  3.330987 sec.
+
+Kernel 2 - getStartLists() beginning execution...
+        1 edges with maximum weight 536870911
+
+	getStartLists() completed execution.
+
+Time taken for kernel 2 is  0.903138 sec.
+
+
+Kernel 3 - findSubGraphs() beginning execution...
+Subgraph  0 with        5 nodes and         4 edges
+
+	findSubGraphs() completed execution.
+
+Time taken for kernel 3 is  0.191991 sec.
+
+
+Kernel 4 - centrality() beginning execution...
+
+	centrality() completed execution.
+
+Time taken for kernel 4 is 358.053614 sec.
+
+Vertex 2982970 has maximum BC value of 36790243.034226.
+
+TEPS = 335868920.007163
+
+mtarun -t 8 -m 8 kron 26
+
+SSCA Graph Analysis Executable Specification:
+Running...
+
+Problem Scale: 26
+No. of vertices - 67108864
+
+Scalable Data Generator - genScalData() beginning execution...
+graph checksum: 59480302057346
+
+Time taken for Scalable Data Generation is 1187.921127 sec.
+
+Kernel 1 - computeGraph() beginning execution...
+histogramming... prefix sum... moving edges... done sorting.
+
+	computeGraph() completed execution.
+
+Time taken for kernel 1 is  6.248808 sec.
+
+Kernel 2 - getStartLists() beginning execution...
+        1 edges with maximum weight 536870911
+
+	getStartLists() completed execution.
+
+Time taken for kernel 2 is  1.776451 sec.
+
+
+Kernel 3 - findSubGraphs() beginning execution...
+Subgraph  0 with        5 nodes and         4 edges
+
+	findSubGraphs() completed execution.
+
+Time taken for kernel 3 is  0.398120 sec.
+
+
+Kernel 4 - centrality() beginning execution...
+
+	centrality() completed execution.
+
+Time taken for kernel 4 is 509.321020 sec.
+
+Vertex 2982970 has maximum BC value of 36790243.034226.
+
+TEPS = 236116468.547016
+
+mtarun -t 128 -m 128 kron 28
+
+SSCA Graph Analysis Executable Specification:
+Running...
+
+Problem Scale: 28
+No. of vertices - 268435456
+
+Scalable Data Generator - genScalData() beginning execution...
+graph checksum: 63005964461769463
+
+Time taken for Scalable Data Generation is 917.413860 sec.
+
+Kernel 1 - computeGraph() beginning execution...
+histogramming... prefix sum... moving edges... done sorting.
+
+	computeGraph() completed execution.
+
+Time taken for kernel 1 is  5.570371 sec.
+
+Kernel 2 - getStartLists() beginning execution...
+        1 edges with maximum weight 2147483647
+
+	getStartLists() completed execution.
+
+Time taken for kernel 2 is  1.006699 sec.
+
+
+Kernel 3 - findSubGraphs() beginning execution...
+Subgraph  0 with     1968 nodes and   1280006 edges
+
+	findSubGraphs() completed execution.
+
+Time taken for kernel 3 is  0.314361 sec.
+
+
+Kernel 4 - centrality() beginning execution...
+
+	centrality() completed execution.
+
+Time taken for kernel 4 is 758.987493 sec.
+
+Vertex 97422361 has maximum BC value of 80516496.916016.
+
+TEPS = 633786904.501986
+
+mtarun -t 64 -m 64 kron 28
+
+SSCA Graph Analysis Executable Specification:
+Running...
+
+Problem Scale: 28
+No. of vertices - 268435456
+
+Scalable Data Generator - genScalData() beginning execution...
+graph checksum: 63005964461769463
+
+Time taken for Scalable Data Generation is 800.717612 sec.
+
+Kernel 1 - computeGraph() beginning execution...
+histogramming... prefix sum... moving edges... done sorting.
+
+	computeGraph() completed execution.
+
+Time taken for kernel 1 is  4.579215 sec.
+
+Kernel 2 - getStartLists() beginning execution...
+        1 edges with maximum weight 2147483647
+
+	getStartLists() completed execution.
+
+Time taken for kernel 2 is  0.973926 sec.
+
+
+Kernel 3 - findSubGraphs() beginning execution...
+Subgraph  0 with     1968 nodes and   1280006 edges
+
+	findSubGraphs() completed execution.
+
+Time taken for kernel 3 is  0.265180 sec.
+
+
+Kernel 4 - centrality() beginning execution...
+
+	centrality() completed execution.
+
+Time taken for kernel 4 is 674.172806 sec.
+
+Vertex 97422361 has maximum BC value of 80516496.916014.
+
+TEPS = 713520820.337793
+
+mtarun -t 32 -m 32 kron 28
+
+SSCA Graph Analysis Executable Specification:
+Running...
+
+Problem Scale: 28
+No. of vertices - 268435456
+
+Scalable Data Generator - genScalData() beginning execution...
+graph checksum: 63005964461769463
+
+Time taken for Scalable Data Generation is 1362.613078 sec.
+
+Kernel 1 - computeGraph() beginning execution...
+histogramming... prefix sum... moving edges... done sorting.
+
+	computeGraph() completed execution.
+
+Time taken for kernel 1 is  7.083243 sec.
+
+Kernel 2 - getStartLists() beginning execution...
+        1 edges with maximum weight 2147483647
+
+	getStartLists() completed execution.
+
+Time taken for kernel 2 is  1.842360 sec.
+
+
+Kernel 3 - findSubGraphs() beginning execution...
+Subgraph  0 with     1968 nodes and   1280006 edges
+
+	findSubGraphs() completed execution.
+
+Time taken for kernel 3 is  0.433817 sec.
+
+
+Kernel 4 - centrality() beginning execution...
+
+	centrality() completed execution.
+
+Time taken for kernel 4 is 803.393531 sec.
+
+Vertex 97422361 has maximum BC value of 80516496.916014.
+
+TEPS = 598755547.909724
+
+mtarun -t 24 -m 24 kron 28
+
+SSCA Graph Analysis Executable Specification:
+Running...
+
+Problem Scale: 28
+No. of vertices - 268435456
+
+Scalable Data Generator - genScalData() beginning execution...
+graph checksum: 63005964461769463
+
+Time taken for Scalable Data Generation is 1789.912939 sec.
+
+Kernel 1 - computeGraph() beginning execution...
+histogramming... prefix sum... moving edges... done sorting.
+
+	computeGraph() completed execution.
+
+Time taken for kernel 1 is  9.096699 sec.
+
+Kernel 2 - getStartLists() beginning execution...
+        1 edges with maximum weight 2147483647
+
+	getStartLists() completed execution.
+
+Time taken for kernel 2 is  2.433719 sec.
+
+
+Kernel 3 - findSubGraphs() beginning execution...
+Subgraph  0 with     1968 nodes and   1280006 edges
+
+	findSubGraphs() completed execution.
+
+Time taken for kernel 3 is  0.554780 sec.
+
+
+Kernel 4 - centrality() beginning execution...
+
+	centrality() completed execution.
+
+Time taken for kernel 4 is 915.413168 sec.
+
+Vertex 97422361 has maximum BC value of 80516496.916014.
+
+TEPS = 525485486.141582
+
+mtarun -t 16 -m 16 kron 28
+
+SSCA Graph Analysis Executable Specification:
+Running...
+
+Problem Scale: 28
+No. of vertices - 268435456
+
+Scalable Data Generator - genScalData() beginning execution...
+graph checksum: 63005964461769463
+
+Time taken for Scalable Data Generation is 2613.255096 sec.
+
+Kernel 1 - computeGraph() beginning execution...
+histogramming... prefix sum... moving edges... done sorting.
+
+	computeGraph() completed execution.
+
+Time taken for kernel 1 is 13.071035 sec.
+
+Kernel 2 - getStartLists() beginning execution...
+        1 edges with maximum weight 2147483647
+
+	getStartLists() completed execution.
+
+Time taken for kernel 2 is  3.592849 sec.
+
+
+Kernel 3 - findSubGraphs() beginning execution...
+Subgraph  0 with     1968 nodes and   1280006 edges
+
+	findSubGraphs() completed execution.
+
+Time taken for kernel 3 is  0.785338 sec.
+
+
+Kernel 4 - centrality() beginning execution...
+
+	centrality() completed execution.
+
+Time taken for kernel 4 is 1108.853559 sec.
+
+Vertex 97422361 has maximum BC value of 80516496.916014.
+
+TEPS = 433814122.388532
+
