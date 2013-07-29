@@ -38,7 +38,9 @@ int main(int argc, char **argv) {
   int NV = 1<<lgNV;
   int lgNE = atoi(argv[2]);
   int NE = 1<<lgNE;
-  fprintf(stderr, "Building graph w/ %d vertices, %d undirected edges\n", NV,NE);
+  int runs = 1; if (argc > 3) runs = atoi(argv[3]); runs = runs > 0? runs : 1;
+  fprintf(stderr, "Building graph w/ %d vertices, %d undirected edges, %d runs\n",
+	  NV,NE,runs);
   G.numEdges = NE;
   G.numVertices = NV;
   G.startVertex = new graphint[NE*2+1];
@@ -109,10 +111,12 @@ int main(int argc, char **argv) {
   fprintf(stderr, "G.edgeStart[%d]=%d\n", j, G.edgeStart[j]);
 #endif
   fprintf(stderr, "Graph is good to go...  calling CC\n");
-  struct timeval tp1; gettimeofday(&tp1, 0);
-  count = connectedComponents(&G);
-  struct timeval tp2; gettimeofday(&tp2, 0);
-  int usec = (tp2.tv_sec-tp1.tv_sec)*1000000+(tp2.tv_usec-tp1.tv_usec);
-  fprintf(stderr, "%d components computed in %g secs (%d UTEPS)\n", count,usec/1000000.0,NE*1000000/usec);
+  for (int i = 0 ; i < runs; i++) {
+    struct timeval tp1; gettimeofday(&tp1, 0);
+    count = connectedComponents(&G);
+    struct timeval tp2; gettimeofday(&tp2, 0);
+    int usec = (tp2.tv_sec-tp1.tv_sec)*1000000+(tp2.tv_usec-tp1.tv_usec);
+    fprintf(stderr, "%d components computed in %g secs (%d UTEPS)\n", count,usec/1000000.0,NE*1000000/usec);
+  }
 }
 

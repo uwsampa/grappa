@@ -173,12 +173,15 @@ void sample_sort_pairs(double *src, double *dst, unsigned n, unsigned parity) {
     dst[2*j+1] = src[2*i+1];
   }
 
-  int min = 999999999, max = -1;
+  //
+  int min = 999999999, max = -1, avg = 0;
   for (int i = 0; i < buckets; i++) {
+    avg += count[i];
     min = count[i] < min ? count[i] : min;
     max = count[i] > max ? count[i] : max;
   }
-  fprintf(stderr, "min bucket size %d, max %d\n", min, max);
+  fprintf(stderr, "bucket size min %d, max %d, avg %d\n", min, max, avg/buckets);
+  //
 
   #pragma mta assert parallel
   for (unsigned i = 0; i < buckets; i++) {

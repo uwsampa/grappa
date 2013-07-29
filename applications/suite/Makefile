@@ -14,14 +14,24 @@ OBJS += 	computeGraph.o \
 		xmalloc.o \
 		centrality.o \
 		compat/mersenne.o
-OBJS2 = connectedComponentsKahan.o samplesort.o
+OBJS2 = connectedComponentsKahan.o samplesort.o write_graph.o
+OBJS3 = connectedComponentsKahan.o samplesort.o write_graph.o
 
 all: $(EXE) make_snaps.exe
 
 $(EXE): main.o $(OBJS) $(COMPATLIB) $(IOLIB)
 	$(LD) $(LDFLAGS) -o $@ $^ $(LIBS)
 
+# connectedComponentsKahan.o:
+#	$(CXX) $(CFLAGS) -c $< -g
+
 cctest: cctest.o $(OBJS2) $(COMPATLIB) $(IOLIB)
+	$(LD) $(LDFLAGS) -o $@ $^ $(LIBS)
+
+# sandia_graph.o: sandia_graph.cc
+#	$(CXX) $(CFLAGS) -c $< -g
+
+sandia: sandia_graph.o $(OBJS3) $(COMPATLIB) $(IOLIB)
 	$(LD) $(LDFLAGS) -o $@ $^ $(LIBS)
 
 make_snaps.exe: make_snaps.c

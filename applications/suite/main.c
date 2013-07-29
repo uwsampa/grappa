@@ -342,6 +342,7 @@ int main(int argc, char* argv[]) {
     t = timer();
 
     graphint connected = connectedComponents(g);
+    graphint connected = connectedComponents(g);
     
     t = timer() - t;
     printf("ncomponents: %"DFMT"\n", connected);
