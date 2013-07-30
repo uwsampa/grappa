@@ -71,6 +71,9 @@ typedef Core Node;
 /// some variables from gasnet
 extern size_t gasnetc_inline_limit;
 
+//typedef void *gasnet_token_t;
+extern gasnet_token_t global_gasnet_token;
+
 /* from gasnet_internal.c:
  *   gasneti_nodemap_local_count = number of GASNet nodes collocated w/ gasneti_mynode
  *   gasneti_nodemap_local_rank  = rank of gasneti_mynode among gasneti_nodemap_local_count
@@ -438,6 +441,27 @@ public:
     VT_COUNT_UNSIGNED_VAL( send_ev_vt, size );
 #endif
     GASNET_CHECK( gasnet_AMRequestMedium0( node, handler, buf, size ) );
+  }
+
+  /// Reply with no-argment active message with payload
+  inline void reply( gasnet_token_t token, int handler, void * buf, size_t size ) { 
+    assert( communication_is_allowed_ );
+    assert( size < maximum_message_payload_size ); // make sure payload isn't too big
+    stats.record_message( size );
+#ifdef VTRACE_FULL
+    VT_COUNT_UNSIGNED_VAL( send_ev_vt, size );
+#endif
+    GASNET_CHECK( gasnet_AMReplyMedium0( token, handler, buf, size ) );
+  }
+
+  /// Reply with no-argment active message with payload
+  inline void reply( gasnet_token_t token, int handler ) { 
+    assert( communication_is_allowed_ );
+    stats.record_message( 0 );
+#ifdef VTRACE_FULL
+    VT_COUNT_UNSIGNED_VAL( send_ev_vt, size );
+#endif
+    GASNET_CHECK( gasnet_AMReplyShort0( token, handler ) );
   }
 
   /// Send no-argment active message with payload. This only allows

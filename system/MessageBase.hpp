@@ -20,6 +20,8 @@
 
 typedef int16_t Core;
 
+GRAPPA_DECLARE_STAT( SimpleStatistic<int64_t>, mark_sent_enqueues );
+
 namespace Grappa {
   
   /// Internal messaging functions
@@ -72,10 +74,11 @@ namespace Grappa {
 
         //if( Grappa::mycore() != source_ ) {
         if( (is_delivered_ == true) && (Grappa::mycore() != source_) ) {
-          DVLOG(5) << __func__ << ": " << this << " Re-enqueuing to " << source_;
-          DCHECK_EQ( this->is_sent_, false );
-          enqueue( source_ );
-
+          // DVLOG(5) << __func__ << ": " << this << " Re-enqueuing to " << source_;
+          // DCHECK_EQ( this->is_sent_, false );
+          // mark_sent_enqueues++;
+          // // should only happen for deaggregation now, so enqueue to locale
+          // locale_enqueue( source_ );
         } else {
           DVLOG(5) << __func__ << ": " << this << " Final mark_sent";
           DCHECK_EQ( Grappa::mycore(), this->source_ );
@@ -233,6 +236,9 @@ namespace Grappa {
 
       inline void send_immediate();
       inline void send_immediate( Core c );
+
+      inline void reply_immediate( gasnet_token_t token );
+      inline void reply_immediate( gasnet_token_t token, Core c );
 
       virtual void deliver_locally() = 0;
 

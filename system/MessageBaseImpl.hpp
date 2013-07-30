@@ -65,7 +65,7 @@ namespace Grappa {
 
       is_enqueued_ = true;
       DVLOG(5) << this << " on " << Grappa::impl::global_scheduler.get_current_thread() << ": " << this->typestr()
-               << " enqueuing to " << destination_ << " with is_enqueued_=" << is_enqueued_ << " and is_sent_= " << is_sent_;
+               << " enqueuing to " << destination_ << " from " << source_ << " with is_enqueued_=" << is_enqueued_ << " and is_sent_= " << is_sent_;
 #ifndef LEGACY_SEND
       Grappa::impl::global_rdma_aggregator.enqueue( this, true );
 #endif
@@ -96,6 +96,21 @@ namespace Grappa {
     inline void Grappa::impl::MessageBase::send_immediate( Core c ) {
       destination_ = c;
       send_immediate();
+    }
+
+    inline void Grappa::impl::MessageBase::reply_immediate( gasnet_token_t token ) {
+      CHECK( !is_moved_ ) << "Shouldn't be sending a message that has been moved!"
+                          << " Your compiler's return value optimization failed you here.";
+      if( !is_enqueued_ ) source_ = global_communicator.mycore();
+      is_enqueued_ = true;
+      is_delivered_ = true;
+#ifndef LEGACY_SEND
+      Grappa::impl::global_rdma_aggregator.reply_immediate( this, token );
+#endif
+#ifdef LEGACY_SEND
+      CHECK_EQ( true, false ) << "not supported";
+      legacy_send();
+#endif
     }
 
     /// @}

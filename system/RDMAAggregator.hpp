@@ -237,6 +237,10 @@ namespace Grappa {
       static void enqueue_buffer_am( gasnet_token_t token, void * buf, size_t size );
       int enqueue_buffer_handle_;
       
+      /// Null reply
+      static void null_reply_am( gasnet_token_t token );
+      int null_reply_handle_;
+
       /// Active message to enqueue a buffer to be received and send a reply to meet the spec
       static void enqueue_buffer_async_am( gasnet_token_t token, void * buf, size_t size );
       int enqueue_buffer_async_handle_;
@@ -282,7 +286,8 @@ namespace Grappa {
 
       /// Grab a list of messages to send
       inline Grappa::impl::MessageList grab_messages( Core c, Core sender ) {
-        Grappa::impl::MessageList * dest_ptr = &(coreData( c, sender )->messages_);
+        CoreData * cd = coreData( c, sender );
+        Grappa::impl::MessageList * dest_ptr = &(cd->messages_);
         Grappa::impl::MessageList old_ml, new_ml;
 
         do {
@@ -291,12 +296,15 @@ namespace Grappa {
           new_ml.raw_ = 0;
           // insert current message
         } while( !__sync_bool_compare_and_swap( &(dest_ptr->raw_), old_ml.raw_, new_ml.raw_ ) );
+
+        cd->locale_byte_count_ = 0;
 
         return old_ml;
       }
 
       inline Grappa::impl::MessageList grab_locale_messages( Core c ) {
-        Grappa::impl::MessageList * dest_ptr = &(localeCoreData( c )->messages_);
+        CoreData * lcd = localeCoreData( c );
+        Grappa::impl::MessageList * dest_ptr = &(lcd->messages_);
         Grappa::impl::MessageList old_ml, new_ml;
 
         do {
@@ -305,6 +313,8 @@ namespace Grappa {
           new_ml.raw_ = 0;
           // insert current message
         } while( !__sync_bool_compare_and_swap( &(dest_ptr->raw_), old_ml.raw_, new_ml.raw_ ) );
+
+        lcd->locale_byte_count_ = 0;
 
         return old_ml;
       }
@@ -319,6 +329,8 @@ namespace Grappa {
           new_ml.raw_ = 0;
           // insert current message
         } while( !__sync_bool_compare_and_swap( &(dest_ptr->raw_), old_ml.raw_, new_ml.raw_ ) );
+
+        cd->locale_byte_count_ = 0;
 
         return old_ml;
       }
@@ -368,19 +380,30 @@ namespace Grappa {
         // return ( byte_count > size );
         Core c = locale * Grappa::locale_cores();
 
-        // 
-        CHECK_NE( Grappa::mycore(), c );
+        bool retval = false;
+        CoreData * core_data = coreData( c );
 
-        // have we timed out?
-        Grappa_Timestamp current_ts = Grappa_get_timestamp();
-        if( current_ts - localeCoreData(c)->last_sent_ > FLAGS_aggregator_autoflush_ticks ) {
-          return true;
+        // ignore if empty
+        if( core_data->locale_byte_count_ > 0 ) {
+          DVLOG(5) << "Found " << core_data->locale_byte_count_ << " bytes for locale " << locale;
+
+          // have we timed out?
+          Grappa_Timestamp current_ts = Grappa_get_timestamp();
+          if( current_ts - core_data->last_sent_ > FLAGS_aggregator_autoflush_ticks ) {
+            DVLOG(5) << "Found timeout for locale " << locale;
+            retval = true;
+          }
+          
+          // have we reached sufficient size?
+          // TODO: make better
+          if( core_data->locale_byte_count_ > FLAGS_target_size ) {
+            DVLOG(5) << "Found target size for locale " << locale;
+            retval = true;
+          }
+        
         }
 
-        // // have we reached a size limit?
-        // size_t byte_count = localeCoreData(c)->locale_byte_count_;
-        // return ( byte_count > size );
-        return false;
+        return retval;
       }
 
       bool check_for_any_work_on( Locale locale ) {
@@ -447,6 +470,7 @@ namespace Grappa {
         , cores_(NULL)
         , deserialize_buffer_handle_( -1 )
         , deserialize_first_handle_( -1 )
+        , null_reply_handle_( -1 )
         , enqueue_buffer_async_handle_( -1 )
         , enqueue_buffer_handle_( -1 )
         , copy_enqueue_buffer_handle_( -1 )
@@ -483,34 +507,22 @@ namespace Grappa {
         if( localeCoreData(c)->messages_.raw_ != 0 ) {
           useful = true;
             
-          DVLOG(4) << "Polling found messages.raw " << (void*) localeCoreData(c)->messages_.raw_  
+          int64_t mp = localeCoreData(c)->messages_.pointer_ ;
+          DVLOG(5) << "Polling found messages at " << (void*) mp
                    << " count " << localeCoreData(c)->messages_.count_ ;
             
           //Grappa_Timestamp start = Grappa_force_tick();
             
           Grappa::impl::MessageList ml = grab_locale_messages( c );
+
+          Grappa::impl::global_scheduler.set_no_switch_region( true );
           size_t count = deliver_locally( c, ml, localeCoreData( c ) );
+          Grappa::impl::global_scheduler.set_no_switch_region( false );
 
           //Grappa_Timestamp elapsed = Grappa_force_tick() - start;
           //rdma_local_delivery_time += (double) elapsed / tick_rate;
         }
 
-        for( Core locale_source = 0; locale_source < Grappa::locale_cores(); ++locale_source ) {
-          if( coreData(c, locale_source)->messages_.raw_ != 0 ) {
-            useful = true;
-            
-            DVLOG(4) << "Polling found messages.raw " << (void*) coreData(c,locale_source)->messages_.raw_  
-                     << " count " << coreData(c,locale_source)->messages_.count_ ;
-            
-            //Grappa_Timestamp start = Grappa_force_tick();
-            
-            Grappa::impl::MessageList ml = grab_messages( c, locale_source );
-            size_t count = deliver_locally( c, ml, coreData( c, locale_source ) );
-
-            //Grappa_Timestamp elapsed = Grappa_force_tick() - start;
-            //rdma_local_delivery_time += (double) elapsed / tick_rate;
-          }
-        }
         if( useful ) rdma_poll_receive_success++;
         return useful;
       }
@@ -524,9 +536,10 @@ namespace Grappa {
             Locale locale = core_partner_locales_[i];
             Core core = locale * Grappa::locale_cores();
             if( check_for_work_on( locale, FLAGS_target_size ) ) {
+              DVLOG(5) << "Looks like there's work on locale " << locale << " (core " << core << ")";
               useful = true;
-              Grappa::signal( &(localeCoreData(core)->send_cv_)  );
-              //send_locale_medium( locale );
+              //Grappa::signal_hip( &(coreData(core)->send_cv_)  );
+              Grappa::signal( &(coreData(core)->send_cv_)  );
             }
           }
         }
@@ -569,9 +582,12 @@ namespace Grappa {
         //   freq = 10;
         // }
 
+        size_t size = m->serialized_size();
+
         DVLOG(5) << __func__ << "/" << Grappa::impl::global_scheduler.get_current_thread() 
                  << ": Enqueued message " << m 
-                 << " with is_delivered_=" << m->is_delivered_ 
+                 << " with locale_enqueue=" << locale_enqueue
+                 << " is_delivered_=" << m->is_delivered_ 
                  << ": " << m->typestr();
 
         // get destination pointer
@@ -586,6 +602,7 @@ namespace Grappa {
 
         //CoreData * sender = &cores_[ dest->representative_core_ ];
         CoreData * locale_core = localeCoreData( Grappa::locale_of( m->destination_ ) * Grappa::locale_cores() );
+        CoreData * core_data = coreData( Grappa::locale_of( m->destination_ ) * Grappa::locale_cores() );
 
         //Grappa::impl::MessageBase ** dest_ptr = &dest->messages_;
         Grappa::impl::MessageList * dest_ptr = &(dest->messages_);
@@ -593,7 +610,6 @@ namespace Grappa {
 
         // new values computed from previous totals
         int count = 0;
-        size_t size = 0;
         swap_ml.raw_ = 0;
 
         bool spawn_send = false;
@@ -686,6 +702,9 @@ namespace Grappa {
 
         // // warning: racy
         // locale_core->locale_byte_count_ += size;
+        if( !locale_enqueue ) {
+          core_data->locale_byte_count_ += size;
+        }
           
         dest->prefetch_queue_[ count % prefetch_dist ].size_ = size < max_size_ ? size : max_size_-1;
         set_pointer( &(dest->prefetch_queue_[ count % prefetch_dist ]), m );
@@ -732,17 +751,36 @@ namespace Grappa {
         }
       }
 
+      /// send a message that will be run in active message context. This requires very limited messages.
+      void reply_immediate( Grappa::impl::MessageBase * m, gasnet_token_t token ) {
+        app_messages_immediate++;
+
+        // create temporary buffer
+        const size_t size = m->serialized_size();
+        char buf[ size ] __attribute__ ((aligned (16)));
+
+        // serialize to buffer
+        Grappa::impl::MessageBase * tmp = m;
+        while( tmp != nullptr ) {
+          DVLOG(5) << __func__ << ": Serializing message from " << tmp;
+          char * end = aggregate_to_buffer( &buf[0], &tmp, size );
+          DVLOG(5) << __func__ << ": After serializing, pointer was " << tmp;
+          DCHECK_EQ( end - buf, size ) << __func__ << ": Whoops! Aggregated message was too long to send as immediate";
+          
+          DVLOG(5) << __func__ << ": Sending " << end - buf
+                   << " bytes of aggregated messages to " << m->destination_;
+
+          // send
+          global_communicator.reply( token, deserialize_first_handle_, buf, size );
+        }
+      }
+
       /// Flush one destination.
       void flush( Core c ) {
         rdma_requested_flushes++;
         Locale locale = Grappa::locale_of(c);
-        if( source_core_for_locale_[ locale ] == Grappa::mycore() ) {
-          Grappa::signal( &(localeCoreData( locale * Grappa::locale_cores() )->send_cv_) );
-        } else {
-          // not on our core, so we can't signal it. instead, cause
-          // polling thread to detect timeout.
-          localeCoreData( locale * Grappa::locale_cores() )->last_sent_ = 0;
-        }
+        //Grappa::signal_hip( &(coreData( locale * Grappa::locale_cores() )->send_cv_) );
+        Grappa::signal( &(coreData( locale * Grappa::locale_cores() )->send_cv_) );
       }
 
       /// Initiate an idle flush.

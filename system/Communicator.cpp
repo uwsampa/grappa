@@ -21,6 +21,9 @@ extern HeapLeakChecker * Grappa_heapchecker;
 /// Global communicator instance
 Communicator global_communicator;
   
+gasnet_token_t global_gasnet_token = 0;
+
+
 /// declare labels for histogram
 std::string CommunicatorStatistics::hist_labels[16] = {
     "\"comm_0_to_255_bytes\"",
