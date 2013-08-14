@@ -8,7 +8,7 @@
 
 void sample_sort_pairs(double *src, double *dst, unsigned n, unsigned parity);
 void write_graph(graph *G, char * fname = NULL);
-void read_graph(graph *G, char * fname = NULL);
+//void read_graph(graph *G, char * fname = NULL);
 
 int fast_poisson_random(double lambda, double* R, int off, int R_size) {
   static unsigned BIG_PRIME = 29637231989;
@@ -202,7 +202,7 @@ int main(int argc, char **argv) {
 #endif
   goto good_to_go;
 slurp_graph:
-  read_graph(&G);
+  //read_graph(&G);
 good_to_go:
   fprintf(stderr, "Graph is good to go...  calling CC\n");
 

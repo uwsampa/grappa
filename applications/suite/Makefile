@@ -14,8 +14,8 @@ OBJS += 	computeGraph.o \
 		xmalloc.o \
 		centrality.o \
 		compat/mersenne.o
-OBJS2 = connectedComponentsKahan.o samplesort.o write_graph.o
-OBJS3 = connectedComponentsKahan.o samplesort.o write_graph.o
+OBJS2 = connectedComponentsKahan.o samplesort.o # write_graph.o
+OBJS3 = connectedComponentsKahan.o samplesort.o # write_graph.o
 
 all: $(EXE) make_snaps.exe
 
