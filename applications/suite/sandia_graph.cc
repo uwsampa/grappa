@@ -6,9 +6,84 @@
 #endif
 #include <sys/time.h>
 
-void sample_sort_pairs(double *src, double *dst, unsigned n, unsigned parity);
 void write_graph(graph *G, char * fname = NULL);
 //void read_graph(graph *G, char * fname = NULL);
+
+
+
+unsigned min(unsigned i, unsigned j) {
+  return i < j ? i : j;
+}
+
+// Stably sorts the n values in src.
+// The values are pairs of unsigned values.
+// We sort by the 0th field (the subject).
+// Returns a pointer to a vector containing the sorted data
+// The original src vector may be returned or freed.
+// The values are all <= largest.
+// Spends O(n) space for buckets, in an effort to approximately balance
+// the time spent scanning the data and the time spent maintaining the bucket vector.
+
+#pragma mta no inline
+unsigned *radix_sort(unsigned *src, unsigned n,
+		     unsigned largest, unsigned keyfield) {
+  unsigned threads_per_processor = 100;
+  unsigned processors = mta_get_num_teams();
+  unsigned threads = processors*threads_per_processor;
+  unsigned space = n/threads;
+  if (space < 16) space = 16;
+  unsigned spacebits = 64 - MTA_BIT_LEFT_ZEROS(space - 1); // number of bits in space
+  unsigned keybits = 64 - MTA_BIT_LEFT_ZEROS(largest); // number of bits in the largest key
+  unsigned passes = (keybits + spacebits - 1)/spacebits;
+  unsigned bits = (keybits + passes - 1)/passes; // log(radix)
+  unsigned max = 1 << bits;
+  unsigned buckets = max*threads;
+  unsigned *dst = (unsigned *) malloc(2*n*sizeof(unsigned));
+  unsigned *bucket = (unsigned *) malloc((buckets + 1)*sizeof(unsigned));
+  unsigned chunk = (n + threads - 1)/threads;
+  unsigned mask = max - 1;
+  for (unsigned pass = 0; pass < passes; pass++) {
+    for (unsigned i = 0; i <= buckets; i++)
+      bucket[i] = 0;
+
+    // collect histogram
+    for (unsigned t = 0; t < threads; t++) {
+      unsigned limit = min((t + 1)*chunk, n);
+      for (unsigned i = t*chunk; i < limit; i++) {
+        unsigned r = MTA_BIT_PACK(~mask, src[2*i + keyfield]);
+        bucket[t + threads*r + 1]++;
+      }
+    }
+    
+  // compute starting location for each bucket
+    for (unsigned i = 1; i < buckets; i++)
+      bucket[i] += bucket[i - 1];
+
+    // place elements
+#pragma mta assert parallel
+    for (unsigned t = 0; t < threads; t++) {
+      unsigned limit = min((t + 1)*chunk, n);
+      for (unsigned i = t*chunk; i < limit; i++) {
+	unsigned subject = src[2*i + 0];
+	unsigned object  = src[2*i + 1];
+        unsigned r = MTA_BIT_PACK(~mask, src[2*i + keyfield]);
+        unsigned j = bucket[t + threads*r]++;
+        dst[2*j + 0] = subject;
+        dst[2*j + 1] = object;
+      }
+    }
+
+    unsigned *tmp = src;
+    src = dst;
+    dst = tmp;
+    mask <<= bits;
+  }
+  free(dst);
+  free(bucket);
+  return src;
+}
+
+
 
 int fast_poisson_random(double lambda, double* R, int off, int R_size) {
   static unsigned BIG_PRIME = 29637231989;
@@ -52,7 +127,7 @@ int main(int argc, char **argv) {
   fprintf(stderr, "computing out degrees...\n");
   int deg1, deg2, deg3; deg1=deg2=deg3=0;
   for (int i = 0; i < NV; i++) {
-    double edges_bound;
+    int edges_bound;
     int nt = OutDegree[i] & (DEGREE_5_NODES-1);
     if (nt <= DEGREE_20_NODES) {
       edges_bound = (1 << 20), deg1++;
@@ -73,7 +148,7 @@ int main(int argc, char **argv) {
   // Now create edges
   fprintf(stderr, "creating %d undirected edges...\n", NUE);
   // first set the sources (& corresponding dsts of the back edges...)
-  double * temp = new double[4*NUE];
+  int* temp = new int[4*NUE];
   for (int j = 0; j < OutDegree[0]; j++) {
     temp[2*j] = 0;//forward src
     temp[2*NUE + 2*j+1] = 0;//backward dst 
@@ -86,10 +161,10 @@ int main(int argc, char **argv) {
     }
   }
   // now create random dests (&corresponding srcs for the back edges)
-  double * temp2 = new double[NUE];
-  prand_int(NUE, (int*) temp2);
+  int* temp2 = new int[NUE];
+  prand_int(NUE, temp2);
   for (int i = 0; i < NUE; i++)
-    temp2[i] = 1.0*((((int*)temp2)[i])&((1<<lgNV)-1));
+    temp2[i] = temp2[i] & (NV - 1);
   //Create back edges:
   MTA("mta assert nodep")
   for (int i = 0; i < NUE; i++) temp[2*i+1] = temp[2*NUE+2*i] = temp2[i];
@@ -99,16 +174,10 @@ int main(int argc, char **argv) {
   fprintf(stderr, "sorting edges...\n");
   fprintf(stderr, "sort pass 1...\n");
   //qsort(temp, 2*NUE, 2*sizeof(temp[0]), cmp_v);
-  //prevent sample_sort from going serial due to repeated values:
-  for (int i = 1; i < 4*NUE; i+=2)  temp[i] += double(i)/4/NUE;
-  double * dest = new double[4*NUE];
-  sample_sort_pairs(temp,dest,2*NUE,1);
-  //force a stable sort
-  for (int i = 0; i < 4*NUE; i+=2)  dest[i] += double(i)/4/NUE;
+  int* dest = radix_sort(temp, 2*NUE, NV - 1, 1);
   fprintf(stderr, "sort pass 2...\n");
   //  qsort(temp, 2*NUE, 2*sizeof(temp[0]), cmp_u);
-  sample_sort_pairs(dest,temp,2*NUE,0);
-  delete dest;
+  temp = radix_sort(dest, 2*NUE, NV - 1, 0);
   fprintf(stderr, "sort pass 2 complete\n");
   fprintf(stderr, "Defining graph...\n");
 

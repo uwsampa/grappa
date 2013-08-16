@@ -15,7 +15,7 @@ OBJS += 	computeGraph.o \
 		centrality.o \
 		compat/mersenne.o
 OBJS2 = connectedComponentsKahan.o samplesort.o # write_graph.o
-OBJS3 = connectedComponentsKahan.o samplesort.o # write_graph.o
+OBJS3 = connectedComponentsKahan.o  # write_graph.o
 
 all: $(EXE) make_snaps.exe
 
