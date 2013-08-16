@@ -11,69 +11,69 @@ void write_graph(graph *G, char * fname = NULL);
 
 
 
-unsigned min(unsigned i, unsigned j) {
+int min(int i, int j) {
   return i < j ? i : j;
 }
 
 // Stably sorts the n values in src.
-// The values are pairs of unsigned values.
+// The values are pairs of int values.
 // We sort by the 0th field (the subject).
 // Returns a pointer to a vector containing the sorted data
 // The original src vector may be returned or freed.
-// The values are all <= largest.
+// All values must be <= largest.
 // Spends O(n) space for buckets, in an effort to approximately balance
 // the time spent scanning the data and the time spent maintaining the bucket vector.
 
 #pragma mta no inline
-unsigned *radix_sort(unsigned *src, unsigned n,
-		     unsigned largest, unsigned keyfield) {
-  unsigned threads_per_processor = 100;
-  unsigned processors = mta_get_num_teams();
-  unsigned threads = processors*threads_per_processor;
-  unsigned space = n/threads;
+int *radix_sort(int *src, int n,
+		int largest, int keyfield) {
+  int threads_per_processor = 100;
+  int processors = mta_get_num_teams();
+  int threads = processors*threads_per_processor;
+  int space = n/threads;
   if (space < 16) space = 16;
-  unsigned spacebits = 64 - MTA_BIT_LEFT_ZEROS(space - 1); // number of bits in space
-  unsigned keybits = 64 - MTA_BIT_LEFT_ZEROS(largest); // number of bits in the largest key
-  unsigned passes = (keybits + spacebits - 1)/spacebits;
-  unsigned bits = (keybits + passes - 1)/passes; // log(radix)
-  unsigned max = 1 << bits;
-  unsigned buckets = max*threads;
-  unsigned *dst = (unsigned *) malloc(2*n*sizeof(unsigned));
-  unsigned *bucket = (unsigned *) malloc((buckets + 1)*sizeof(unsigned));
-  unsigned chunk = (n + threads - 1)/threads;
-  unsigned mask = max - 1;
-  for (unsigned pass = 0; pass < passes; pass++) {
-    for (unsigned i = 0; i <= buckets; i++)
+  int spacebits = 64 - MTA_BIT_LEFT_ZEROS(space - 1); // number of bits in space
+  int keybits = 64 - MTA_BIT_LEFT_ZEROS(largest); // number of bits in the largest key
+  int passes = (keybits + spacebits - 1)/spacebits;
+  int bits = (keybits + passes - 1)/passes; // log(radix)
+  int max = 1 << bits;
+  int buckets = max*threads;
+  int *dst = (int *) malloc(2*n*sizeof(int));
+  int *bucket = (int *) malloc((buckets + 1)*sizeof(int));
+  int chunk = (n + threads - 1)/threads;
+  int mask = max - 1;
+  for (int pass = 0; pass < passes; pass++) {
+    for (int i = 0; i <= buckets; i++)
       bucket[i] = 0;
 
     // collect histogram
-    for (unsigned t = 0; t < threads; t++) {
-      unsigned limit = min((t + 1)*chunk, n);
-      for (unsigned i = t*chunk; i < limit; i++) {
-        unsigned r = MTA_BIT_PACK(~mask, src[2*i + keyfield]);
+    for (int t = 0; t < threads; t++) {
+      int limit = min((t + 1)*chunk, n);
+      for (int i = t*chunk; i < limit; i++) {
+        int r = MTA_BIT_PACK(~mask, src[2*i + keyfield]);
         bucket[t + threads*r + 1]++;
       }
     }
     
   // compute starting location for each bucket
-    for (unsigned i = 1; i < buckets; i++)
+    for (int i = 1; i < buckets; i++)
       bucket[i] += bucket[i - 1];
 
     // place elements
 #pragma mta assert parallel
-    for (unsigned t = 0; t < threads; t++) {
-      unsigned limit = min((t + 1)*chunk, n);
-      for (unsigned i = t*chunk; i < limit; i++) {
-	unsigned subject = src[2*i + 0];
-	unsigned object  = src[2*i + 1];
-        unsigned r = MTA_BIT_PACK(~mask, src[2*i + keyfield]);
-        unsigned j = bucket[t + threads*r]++;
+    for (int t = 0; t < threads; t++) {
+      int limit = min((t + 1)*chunk, n);
+      for (int i = t*chunk; i < limit; i++) {
+	int subject = src[2*i + 0];
+	int object  = src[2*i + 1];
+        int r = MTA_BIT_PACK(~mask, src[2*i + keyfield]);
+        int j = bucket[t + threads*r]++;
         dst[2*j + 0] = subject;
         dst[2*j + 1] = object;
       }
     }
 
-    unsigned *tmp = src;
+    int *tmp = src;
     src = dst;
     dst = tmp;
     mask <<= bits;
