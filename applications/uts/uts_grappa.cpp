@@ -336,14 +336,14 @@ void search_vertex( int64_t id ) {
 
   GlobalAddress<vertex_t> v_addr = Vertex + id;
   { 
-    vertex_t v_storage;
-    Incoherent<vertex_t>::RO v( v_addr, 1, &v_storage );
+    // vertex_t v_storage;
+    // Incoherent<vertex_t>::RO v( v_addr, 1, &v_storage );
     /* (v) = Vertex[id] */
+    vertex_t v = delegate::read(v_addr);
+    DVLOG(5) << "Search vertex " << v << "(local count = " << uts_num_searched_nodes << ")";
 
-    DVLOG(5) << "Search vertex " << *v << "(local count = " << uts_num_searched_nodes << ")";
-
-    numChildren = (*v).numChildren;
-    childIndex = (*v).childIndex;
+    numChildren = v.numChildren;
+    childIndex = v.childIndex;
   }
 
   // iterate over my children 
@@ -606,7 +606,7 @@ void user_main ( user_main_args * args ) {
   generate_runtime = local_gen_runtime; // write performance output
   search_runtime = local_search_runtime; // write performance output
 
-  Grappa::Statistics::merge_and_print();
+  Grappa::Statistics::merge_and_print(LOG(INFO));
 
   // count nodes searched
   on_all_cores( [] {
