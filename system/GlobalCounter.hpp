@@ -7,11 +7,11 @@
 namespace Grappa {
 
 class GlobalCounter {
-  static const Core MASTER = 0;
 public:
   
   struct Master {
     long count;
+    Core core;
   } master;
   
   GlobalAddress<GlobalCounter> self;
@@ -26,7 +26,7 @@ public:
     void sync() {
       auto s = outer->self;
       auto d = delta;
-      delegate::call(MASTER,[s,d]{ s->master.count += d; });
+      delegate::call(outer->master.core, [s,d]{ s->master.count += d; });
     }
     
     void clear() { delta = 0; }
@@ -36,8 +36,9 @@ public:
   
   char pad[block_size - sizeof(comb)-sizeof(self)-sizeof(master)];
   
-  GlobalCounter(long initial_count = 0): comb(locale_new<Proxy>(this)) {
+  GlobalCounter(long initial_count = 0, Core master_core = 0): comb(locale_new<Proxy>(this)) {
     master.count = initial_count;
+    master.core = master_core;
   }
   
   void incr(long d = 1) {
@@ -49,12 +50,13 @@ public:
   
   long count() {
     auto s = self;
-    return delegate::call(MASTER, [s]{ return s->master.count; });
+    return delegate::call(master.core, [s]{ return s->master.count; });
   }
   
   static GlobalAddress<GlobalCounter> create(long initial_count = 0) {
     auto a = mirrored_global_alloc<GlobalCounter>();
-    call_on_all_cores([a]{ new (a.localize()) GlobalCounter(0); });
+    auto master_core = mycore();
+    call_on_all_cores([a,master_core]{ new (a.localize()) GlobalCounter(0, master_core); });
     return a;
   }
   
