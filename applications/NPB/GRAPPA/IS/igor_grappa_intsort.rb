@@ -31,7 +31,7 @@ Igor do
   command %Q[ %{tdir}/grappa_srun.rb --nnode=%{nnode} --ppn=%{ppn} --time=4:00:00
     -- %{tdir}/intsort.exe
     #{GFLAGS.expand}
-    -- --class=%{problem} %{verify}
+    -- --class=%{problem} --niterations=%{niterations} %{verify}
   ].gsub(/\s+/,' ')
   
   sbatch_flags << "--time=1:00:00"
@@ -42,9 +42,10 @@ Igor do
     problem 'E'
     verify  ''
     version 'grappa'
+    niterations 8
     
     aggregator_autoflush_ticks 1e6.to_i
-    stack_size 2**15
+    stack_size 2**17
     loop_threshold 512
     num_starting_workers 128
     shared_pool_max 2048
