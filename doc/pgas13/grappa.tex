@@ -1,5 +1,14 @@
 \section{Grappa}
 
+\begin{figure}[t]
+  \centering
+  \includegraphics[width=0.6\textwidth]{figs/grappa_system.pdf}
+  \caption{\emph{Grappa System Overview:}
+    Thousands of workers are multiplexed onto each core, context switching to tolerate the additional latency of aggregating remote operations. Each core has exclusive access to a slice of the global heap which is partitioned across all nodes, as well as core-private data and worker stacks. Tasks can be spawned and executed anywhere, but are bound to a worker in order to be executed.
+  }
+  \label{fig:system}
+\end{figure}
+
 Irregular applications are characterized by having unpredictable data-dependent access patterns and poor spatial and temporal locality. Applications in this class, including data mining, graph analytics, and various learning algorithms, are becoming increasingly prevalent in high-performance computing. These programs typically perform many fine-grained accesses to disparate sources of data, which is a problem even at multicore scales, but is further exacerbated on distributed memory machines.
 It is often the case that naively porting an application to a PGAS system results in excessive communication and poor access patterns~\cite{pgas-analysis}, but this class of applications defies typical optimization techniques such as data partitioning, shadow objects, and bulk-synchronous communication transformations.
 Luckily, applications in this class have another thing in common: abundant amounts of data access parallelism. This parallelism can be exploited in a number of different ways to improve overall throughput.
@@ -11,15 +20,6 @@ Grappa is a global-view PGAS runtime for commodity clusters which has been desig
 Highly tuned implementations of irregular applications in shared-memory, PGAS, and message-passing paradigms, typically end up implementing similar constructs. Grappa includes these as part of its core infrastructure and simply asks the programmer to express concurrency which it can leverage to provide performance.
 
 Grappa's programming interface, implemented as a C++11 library, provides high-level operations to access and synchronize through global shared memory, and task and parallel loop constructs for expressing concurrency. In addition, the Grappa ``standard library'' includes functions to manipulate a global heap, stock remote synchronization operations such as \emph{compare-and-swap}, and several synchronized global data structures. These features make it suitable for implementing some next-generation PGAS languages like Chapel~\cite{chapel} and X10~\cite{x10}. The following sections will explain the execution model of Grappa and the current C++ programming interface.
-
-\begin{figure}[t]
-  \centering
-  \includegraphics[width=0.35\textwidth]{figs/grappa_system.pdf}
-  \caption{\emph{Grappa System Overview:}
-    Thousands of workers are multiplexed onto each core, context switching to tolerate the additional latency of aggregating remote operations. Each core has exclusive access to a slice of the global heap which is partitioned across all nodes, as well as core-private data and worker stacks. Tasks can be spawned and executed anywhere, but are bound to a worker in order to be executed.
-  }
-  \label{fig:system}
-\end{figure}
 
 \subsection{Tasks and Workers}
 Grappa uses a task-parallel programming model to make it easy to express concurrency.
