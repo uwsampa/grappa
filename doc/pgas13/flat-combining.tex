@@ -88,6 +88,8 @@ The proxy structure is chosen to be able to compactly aggregate operations and e
 
 After all local combining has been done, one requesting worker on the core is chosen to commit the combined operation globally. In Figure~\ref{fig:stackfc}, Worker 4 becomes the combiner and performs much the same synchronization as in the uncombined case, but is able to push multiple elements with one synchronization. The global lock must still be acquired, so concurrent combined requests (from different cores) must block and serialize on the master, but the granularity of global synchronization is coarser, reducing actual serialization.
 
+Centralized combining could be applied on top of distributed combining, combining the combined operations at the master node. However, in our experiments, performing the additional combining on the master did not significantly affect performance, so it is left out of our evaluation for space.
+
 \paragraph{Memory Consistency Model.}
 \label{sec:memory-model}
 In the context of Grappa, sequential consistency guarantees that within a
