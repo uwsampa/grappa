@@ -8,7 +8,7 @@ At the most basic level, the concept of flat combining is about enabling coopera
 
 \begin{figure}[t]
   \centering
-  \includegraphics[width=0.42\textwidth]{figs/fc_shared_mem.pdf}
+  \includegraphics[width=0.6\textwidth]{figs/fc_shared_mem.pdf}
   \caption{\emph{Flat combining in shared memory.}
     To access the shared stack, each thread adds its request to the publication list (1). Thread 4 acquires the stack's lock and becomes the combiner (2), while the remaining threads spin waiting for their request to be satisfied. The combiner walks the publication list from the head, matching up Thread 3's push with Thread 2's pop on its own private stack (3). The two remaining pushes are added to the top of the shared stack (4). Finally, the top is updated, and Thread 4 releases the lock and continues its normal execution.
   }
@@ -35,7 +35,7 @@ In the case of the stack, combining came in the form of matched pushes and pops,
 %   \begin{subfigure}[b]{0.38\textwidth}
 \begin{figure}[t]
     \centering
-    \includegraphics[width=0.40\textwidth]{figs/stack_nofc.pdf}
+    \includegraphics[width=0.6\textwidth]{figs/stack_nofc.pdf}
     \caption{\emph{Stack without combining.}
       To do its push, Worker 1 sends a message to synchronize with the master on Core 0 (1), which sends another message to write the value to the top of the stack (2), bumps the synchronized \texttt{top} pointer (3), and finally continues. Worker 2, and workers on other cores, must block at the master and wait for Worker 1 to complete its push before doing their operations (4).
     }
@@ -46,7 +46,7 @@ In the case of the stack, combining came in the form of matched pushes and pops,
 \begin{figure}
   % \begin{subfigure}[b]{0.38\textwidth}
     \centering
-    \includegraphics[width=0.42\textwidth]{figs/stack_fc.pdf}
+    \includegraphics[width=0.6\textwidth]{figs/stack_fc.pdf}
     \caption{\emph{Stack with distributed combining.}
       Worker 3's pop matches with Worker 2's push, requiring no global communication (1). After combining locally, Worker 1 and 4's pushes remain, so Worker 4 becomes the core's combiner (2), sends a message to synchronize with the master (3), adds both new values to global stack (4), bumps the top pointer and releases the lock on master (5), and finally wakes Worker 1 (6).
     }

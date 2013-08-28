@@ -8,7 +8,7 @@ First we measured the raw performance of the global data structures on synthetic
 \paragraph{Queue and Stack.}
 \begin{figure}[t]
   \centering
-  \includegraphics[width=0.5\textwidth]{data/plots/vector_perf.pdf}
+  \includegraphics[width=0.8\textwidth]{data/plots/vector_perf.pdf}
   \caption{\emph{Queue and Stack performance.}
     Results are shown on a log scale for a throughput workload performing 256 million operations with 2048 workers per core and 16 cores per node. Local flat combining improves throughput by at least an order of magnitude and allows performance to scale. Matching pushes and pops enables the stack to perform even better on a mixed workload.
   }
@@ -17,7 +17,7 @@ First we measured the raw performance of the global data structures on synthetic
 
 \begin{figure}[t]
   \centering
-  \includegraphics[width=0.5\textwidth]{data/plots/stack_stats.pdf}
+  \includegraphics[width=0.8\textwidth]{data/plots/stack_stats.pdf}
   \caption{\emph{GlobalStack Statistics.}
     Measured number of combined messages sent by the Stack with a fixed combining buffer of 1024 elements.
     Matched pushes and pops result in ops/message being greater than the buffer size.
@@ -44,7 +44,7 @@ However, the queue is unable to do matching locally, and in fact, the mixed work
 \paragraph{HashSet and HashMap.}
 \begin{figure}[t]
   \centering
-  \includegraphics[width=0.5\textwidth]{data/plots/hash_perf.pdf}
+  \includegraphics[width=0.8\textwidth]{data/plots/hash_perf.pdf}
   \caption{\emph{GlobalHashSet and GlobalHashMap.}
     Results are shown for a throughput workload inserting and looking up 256 million random keys in a particular range into a global hash with the same number of cells, with 2048 workers per core and 16 cores per node.
   }
@@ -61,13 +61,23 @@ Combining allows duplicate inserts and lookups to be eliminated, so performs bet
 The Grappa data structures are synchronized to provide the most general use and match the expectations of programmers and algorithms.
 In these evaluations, we compare the flat-combining structures against custom, tuned versions that leverage relaxed consistency needs of the applications.
 
-\paragraph{Breadth-First Search.}
 \begin{figure}[t]
   \centering
-  \includegraphics[width=0.38\textwidth]{data/plots/bfs_perf.pdf}
-  \caption{\emph{BFS} on a Graph500-spec graph of scale 26 (64 million vertices, 1 billion edges), with the direction-optimizing BFS algorithm. Performance is measured in millions of Traversed Edges Per Second (MTEPS).}
-  \label{fig:bfs_perf}
+  \begin{subfigure}{0.49\textwidth}
+    \includegraphics[width=\textwidth]{data/plots/bfs_perf.pdf}
+    \caption{\emph{BFS} with the direction-optimizing algorithm.}
+    \label{fig:bfs_perf}
+  \end{subfigure}
+  ~
+  \begin{subfigure}{0.49\textwidth}
+    \includegraphics[width=\textwidth]{data/plots/cc_perf.pdf}
+    \caption{\emph{Connected Components} using Kahan's algorithm.}
+    \label{fig:cc_perf}
+  \end{subfigure}
+  \caption{Performance of graph kernels on a Graph500-spec graph of scale 26 (64 million vertices, 1 billion edges). Performance for both is measured in Millions of Traversed Edges Per Second (MTEPS).}
 \end{figure}
+
+\paragraph{Breadth-First Search.}
 The first application kernel is the Graph500 Breadth-First-Search (BFS) benchmark~\cite{graph500list}. This benchmark does a search starting from a random vertex in a synthetic graph and builds a search tree of parent vertices for each vertex traversed during the search.
 % While this is a relatively simple problem, it exercises the random-access throughput of a system as well as being a primitive in many other graph algorithms.
 The BFS algorithm contains a global queue which represents the frontier of vertices to be visited in each level.
@@ -80,12 +90,6 @@ Figure~\ref{fig:bfs_perf} shows the scaling results. Using the simple queue with
 % , while further optimizations can be applied incrementally.
 
 \paragraph{Connected Components.}
-\begin{figure}[t]
-  \centering
-  \includegraphics[width=0.38\textwidth]{data/plots/cc_perf.pdf}
-  \caption{\emph{Connected Components} on the same scale 26 Graph500 graph. Performance is measured in MTEPS.}
-  \label{fig:cc_perf}
-\end{figure}
 Connected Components (CC) is another core graph analysis kernel that illustrates a different use of global data structures in irregular applications. We implement the three-phase CC algorithm~\cite{mtgl} which was designed for the massively parallel MTA-2 machine. In the first phase, parallel traversals attempt to claim vertices and label them.
 Whenever two traversals encounter each other, an edge between the two roots is inserted in a set. 
 % After all edges have been traversed in this way, the set of edges forms a new, typically much smaller, graph.
