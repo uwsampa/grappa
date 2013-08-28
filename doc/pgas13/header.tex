@@ -59,3 +59,8 @@
 \newcommand{\gasnet}{GASNet}
 \newcommand{\Grappa}{Grappa\xspace}
 
+% define an easy way to insert shell command output into tex by encapsulating in |""
+% example usage:
+%   \input{|"hostname -s"}
+\begingroup\makeatletter\endlinechar=\m@ne\everyeof{\noexpand}
+\edef\x{\endgroup\def\noexpand\TeXpath{\@@input|"which tex" }}\x

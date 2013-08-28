@@ -46,7 +46,7 @@ BIBFILES = $(patsubst %,%.bib,\
 
 ## Add \input'ed or \include'd files to $(PDFTARGETS) dependencies.
 INCLUDEDTEX = $(patsubst %,%.tex,\
-		$(shell grep '^[^%]*\\\(input\|include\){' $(TARGET).tex | \
+		$(shell grep '^[^%]*\\\(input\|include\){[^|]' $(TARGET).tex | \
 			sed 's/[^{]*{\([^}]*\)}.*/\1/'))
 
 AUXFILES = $(foreach T,$(PDFTARGETS:.pdf=), $(T).aux)
