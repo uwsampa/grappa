@@ -44,6 +44,13 @@ namespace Grappa {
     
     /// Do `reset()` on all cores (uses `Grappa::call_on_all_cores`)
     void reset_all_cores();
+    
+    /// Begin recording stats using VampirTrace (also enables Google gperf profiling) (also resets stats)
+    void start_tracing();
+    
+    /// Stop recording tracing and profiling information. Trace/profile is written out and aggregated 
+    /// at end of execution.
+    void stop_tracing();
   }
   
 } // namespace Grappa
