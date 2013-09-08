@@ -111,8 +111,20 @@ namespace Grappa {
 #endif
       
       call_on_all_cores([]{
+        reset();
+      });
+    }
+    
+    void start_tracing() {
+      call_on_all_cores([]{
         Grappa_start_profiling();
         reset();
+      });
+    }
+
+    void stop_tracing() {
+      call_on_all_cores([]{
+        Grappa_stop_profiling();
       });
     }
     
