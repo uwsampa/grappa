@@ -63,6 +63,16 @@ inline double Grappa_walltime(void) { return Grappa::walltime(); }
 		var = Grappa_walltime()-_tmptime; \
 	} while(0)
 
+#define GRAPPA_TIMER(var) \
+    for (double _tmpstart = Grappa::walltime(), _tmptime = -1; \
+         _tmptime < 0; \
+         var = _tmptime = Grappa::walltime() - _tmpstart)
+
+#define GRAPPA_TIME_LOG(name) \
+    for (double _tmpstart = Grappa::walltime(), _tmptime = -1; _tmptime < 0; \
+         LOG(INFO) << name << ": " << (Grappa::walltime()-_tmpstart), _tmptime = 1)
+
+
 /// Compute ratio of doubles, returning 0 when divisor is 0
 template< typename T, typename U >
 static inline double nanless_double_ratio( T x, U y ) {
