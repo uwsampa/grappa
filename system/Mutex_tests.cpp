@@ -12,6 +12,8 @@
 
 BOOST_AUTO_TEST_SUITE( Mutex_tests );
 
+using namespace Grappa;
+
 void user_main( void * args ) 
 {
   Grappa::Mutex m;
@@ -22,18 +24,18 @@ void user_main( void * args )
   data++;
   Grappa::unlock( &m );
 
-  Thread * t = Grappa::impl::global_scheduler.get_current_thread();
+  Thread * t = impl::global_scheduler.get_current_thread();
 
-  Grappa::privateTask( [&] { 
-      Grappa::lock( &m ); 
-      data++; 
-      Grappa::unlock( &m ); 
-      if( t ) {
-	global_scheduler.thread_wake(t);
-      }
-    } );
+  privateTask([&] { 
+    lock( &m ); 
+    data++; 
+    unlock( &m ); 
+    if( t ) {
+    	impl::global_scheduler.thread_wake(t);
+    }
+  });
 
-  Grappa::impl::global_scheduler.thread_suspend();
+  impl::global_scheduler.thread_suspend();
 
   Grappa::lock( &m );
   BOOST_CHECK_EQUAL( data, 2 );

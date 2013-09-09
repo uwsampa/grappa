@@ -1,15 +1,19 @@
-
 // Copyright 2010-2012 University of Washington. All Rights Reserved.
 // LICENSE_PLACEHOLDER
 // This software was created with Government support under DE
 // AC05-76RL01830 awarded by the United States Department of
 // Energy. The Government has certain rights in the software.
+
+#pragma once
+
 #include "Addressing.hpp"
 #include "Communicator.hpp"
 #include "Collective.hpp"
 #include "Cache.hpp"
 #include "GlobalCompletionEvent.hpp"
 #include "ParallelLoop.hpp"
+#include "GlobalAllocator.hpp"
+#include <type_traits>
 
 namespace Grappa {
 /// @addtogroup Containers
@@ -145,6 +149,19 @@ namespace util {
     ss << "\n]";
     return ss.str();
   }
+
+  template< typename ArrayT, class = typename std::enable_if<std::is_array<ArrayT>::value>::type >
+  inline std::string array_str(const char * name, ArrayT array, int width = 10) {
+    std::stringstream ss; ss << "\n" << name << ": [";
+    long i=0;
+    for (auto e : array) {
+      if (i % width == 0) ss << "\n  ";
+      ss << " " << e;
+      i++;
+    }
+    ss << "\n]";
+    return ss.str();
+  }
   
 }
 
@@ -168,3 +185,4 @@ template< typename T >
 void Grappa_memcpy(GlobalAddress<T> dst, GlobalAddress<T> src, size_t nelem) {
   Grappa::memcpy(dst,src,nelem);
 }
+

@@ -8,6 +8,9 @@
 #include "MessagePool.hpp"
 #include "Delegate.hpp"
 
+GRAPPA_DECLARE_STAT(SimpleStatistic<uint64_t>, ce_remote_completions);
+GRAPPA_DECLARE_STAT(SimpleStatistic<uint64_t>, ce_completions);
+
 namespace Grappa {
   /// @addtogroup Synchronization
   /// @{
@@ -32,6 +35,7 @@ namespace Grappa {
     
     /// Decrement count once, if count == 0, wake all waiters.
     void complete(int64_t decr = 1) {
+      ce_completions += decr;
       CHECK_GE( count-decr, 0 ) << "too many calls to signal()";
       count -= decr;
       DVLOG(4) << "completed (" << count << ")";
@@ -45,13 +49,21 @@ namespace Grappa {
         Grappa::wait(&cv);
       }
     }
+    
+    void wait(SuspendedDelegate * c) {
+      if (count > 0) {
+        Grappa::add_waiter(&cv, c);
+      } else {
+        invoke(c);
+      }
+    }
 
     void reset() {
       CHECK_EQ( cv.waiters_, 0 ) << "Resetting with waiters!";
       count = 0;
     }
   };
-
+  
   /// Match ConditionVariable-style function call.
   template<typename CompletionType>
   inline void complete( CompletionType * ce ) {
@@ -70,6 +82,7 @@ namespace Grappa {
     if (ce.node() == mycore()) {
       ce.pointer()->complete(decr);
     } else {
+      ce_remote_completions += decr;
       if (decr == 1) {
         // (common case) don't send full 8 bytes just to decrement by 1
         send_heap_message(ce.node(), [ce] {
@@ -81,6 +94,10 @@ namespace Grappa {
         });
       }
     }
+  }
+  
+  inline void enroll(GlobalAddress<CompletionEvent> ce, int64_t incr = 1) {
+    delegate::call(ce, [incr](CompletionEvent * c){ c->enroll(incr); });
   }
   
   /// Spawn Grappa::privateTask and implicitly synchronize with the given CompletionEvent 

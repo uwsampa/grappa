@@ -80,8 +80,18 @@ extern LocaleSharedMemory locale_shared_memory;
 
 /// Allocate memory in locale shared heap.
 template<typename T>
-inline T* locale_alloc(size_t n) {
+inline T* locale_alloc(size_t n = 1) {
   return reinterpret_cast<T*>(impl::locale_shared_memory.allocate(sizeof(T)*n));
+}
+
+template< typename T, typename... Args >
+inline T* locale_new(Args&&... args) {
+  return new (locale_alloc<T>()) T(std::forward<Args...>(args...));
+}
+
+template< typename T >
+inline T* locale_new() {
+  return new (locale_alloc<T>()) T();
 }
 
 /// Free memory that was allocated from locale shared heap.
