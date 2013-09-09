@@ -14,12 +14,23 @@
 #include "Statistics.hpp"
 #include "FlatCombiner.hpp"
 #include "GlobalCounter.hpp"
-
 using namespace Grappa;
 
 BOOST_AUTO_TEST_SUITE( FlatCombiner_tests );
 
+struct Foo {
+  long x, y;
+  double z;
+} __attribute__((aligned(BLOCK_SIZE)));
+
 void user_main( void * ignore ) {
+  CHECK_EQ(sizeof(Foo), block_size);
+  auto f = mirrored_global_alloc<Foo>();
+  on_all_cores([f]{
+    f->x = 1;
+    f->y = 2;
+    f->z = 3;
+  });
   
   auto c = GlobalCounter::create();
   
