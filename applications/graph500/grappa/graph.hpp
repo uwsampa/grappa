@@ -26,6 +26,7 @@ struct Vertex {
   int64_t nadj;        // number of adjacencies
   int64_t local_sz;    // size of local allocation (regardless of how full it is)
   // int64_t parent;
+  void * vertex_data;
   
   Vertex(): local_adj(nullptr), nadj(0), local_sz(0) {}    
   ~Vertex() {}
@@ -42,8 +43,9 @@ struct Vertex {
 
 // vertex with parent
 struct VertexP : public Vertex {
-  int64_t parent;
-  VertexP(): Vertex(), parent(-1) {}
+  VertexP(): Vertex() { parent(-1); }
+  int64_t parent() { return (int64_t)vertex_data; }
+  void parent(int64_t parent) { vertex_data = (void*)parent; }
 };
 
 template< class Vertex >
@@ -80,7 +82,7 @@ struct Graph {
     for (Vertex& v : iterate_local(vs, nv)) { v.~Vertex(); }
     if (adj_buf) locale_free(adj_buf);
   }
-    
+  
   void destroy() {
     auto self = this->self;
     global_free(this->vs);
@@ -98,6 +100,14 @@ struct Graph {
         VLOG(LEVEL) << ss.str();
       });
     }
+  }
+  
+  template< typename VertexOld, typename InitFunc >
+  static GlobalAddress<Graph<VertexNew>> convert(GlobalAddress<Graph<VertexOld>> o, InitFunc init) {
+    forall_localized([](VertexOld& o){
+      o.~VertexOld(); // clean up
+      init(static_cast<VertexNew*>(&o));
+    });
   }
   
   // Constructor

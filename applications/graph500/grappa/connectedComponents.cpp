@@ -25,6 +25,17 @@ namespace std {
   };
 }
 
+///////////////////////////////////////////////////////////////
+// Globals
+static GlobalAddress<Graph<VertexP>> g;
+static GlobalAddress<graphint> colors;
+static GlobalAddress<graphint> visited;
+static GlobalAddress<color_t> marks;
+static bool changed;
+static graphint ncomponents;
+
+static GlobalAddress<GlobalHashSet<Edge>> component_edges;
+
 
 void pram_cc(GlobalAddress<GlobalHashSet<Edge>> component_edges, long NV) {
   int npass = 0;
@@ -84,9 +95,9 @@ void pram_cc(GlobalAddress<GlobalHashSet<Edge>> component_edges, long NV) {
   LOG(INFO) << "cc_pram_passes: " << npass;
 }
 
-long cc_benchmark(GlobalAddress<Graph<VertexP>> g) {
-  
-  
-  
+long cc_benchmark(GlobalAddress<Graph<VertexP>> in) {
+  call_on_all_cores([in]{
+    
+  });
   return 0;
 }
