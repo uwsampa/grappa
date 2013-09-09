@@ -28,18 +28,18 @@ namespace Grappa {
 
 const Core MASTER = 0;
 
-class ContinuationQueue {
+class SuspendedDelegateQueue {
 protected:
-  Continuation * head;
-  Continuation * tail;
+  SuspendedDelegate * head;
+  SuspendedDelegate * tail;
 public:
   bool blocked;
   
-  ContinuationQueue() { clear(); }
+  SuspendedDelegateQueue() { clear(); }
   
   void clear() { head = tail = nullptr; blocked = false; }
   
-  void push(Continuation * c) {
+  void push(SuspendedDelegate * c) {
     c->next = nullptr;
     if (head == nullptr) {
       head = c;
@@ -49,9 +49,9 @@ public:
       tail = c;
     }
   }
-  Continuation * pop() {
-    Continuation * c = head;
-    head = reinterpret_cast<Continuation*>(c->next);
+  SuspendedDelegate * pop() {
+    SuspendedDelegate * c = head;
+    head = reinterpret_cast<SuspendedDelegate*>(c->next);
     c->next = nullptr;
     return c;
   }
@@ -71,7 +71,7 @@ public:
     
     bool combining;
     CompletionEvent ce;
-    ContinuationQueue push_q, pop_q, deq_q;
+    SuspendedDelegateQueue push_q, pop_q, deq_q;
     bool has_requests() { return !push_q.empty() || !pop_q.empty() || !deq_q.empty(); }
     
     void clear() {
@@ -106,7 +106,7 @@ public:
             invoke(m->deq_q.pop());
           }
           DVLOG(2) << "combining: tail(" << m->tail << "), tail_allocator(" << m->tail_allocator << ")";
-          m->ce.wait(new_continuation([self,m,c] {
+          m->ce.wait(new_suspended_delegate([self,m,c] {
             switch (c) {
               case Choice::PUSH: m->tail = m->tail_allocator; break;
               case Choice::POP:  m->tail_allocator = m->tail; break;
@@ -136,7 +136,7 @@ public:
         m->ce.enroll();
         invoke(m->deq_q.pop());
       }
-      m->ce.wait(new_continuation([self,m,ncombined] {
+      m->ce.wait(new_suspended_delegate([self,m,ncombined] {
         DVLOG(2) << "after pushes: tail(" << m->tail << "), tail_allocator(" << m->tail_allocator << ")";
         m->tail = m->tail_allocator;
         m->head = m->head_allocator;
@@ -147,7 +147,7 @@ public:
           invoke(m->pop_q.pop());
         }
         global_vector_master_combined += ncombined2;
-        m->ce.wait(new_continuation([self,m] {
+        m->ce.wait(new_suspended_delegate([self,m] {
           DVLOG(2) << "after pops: tail(" << m->tail << "), tail_allocator(" << m->tail_allocator << ")";
           m->tail_allocator = m->tail;
           // find new combiner...
@@ -169,7 +169,7 @@ public:
       auto do_call = [self,result_addr,yield_q,func]{
         auto m = &self->master;
         auto q = yield_q(m);
-        q->push(new_continuation([result_addr,func]{
+        q->push(new_suspended_delegate([result_addr,func]{
           auto val = func();
           auto set_result = [result_addr,val]{ result_addr->writeXF(val); };
           

@@ -3,7 +3,7 @@
 #define __CONDITION_VARIABLE_LOCAL_HPP__
 
 #include "TaskingScheduler.hpp"
-#include "Continuation.hpp"
+#include "SuspendedDelegate.hpp"
 #include "Synchronization.hpp"
 // #include "Mutex.hpp"
 
@@ -82,8 +82,8 @@ namespace Grappa {
     if( to_wake != NULL ) {
       Grappa::impl::set_waiters( cv, to_wake->next );
       to_wake->next = NULL;
-      if (is_continuation(to_wake)) {
-        invoke(reinterpret_cast<Continuation*>(to_wake));
+      if (is_suspended_delegate(to_wake)) {
+        invoke(reinterpret_cast<SuspendedDelegate*>(to_wake));
       } else {
         impl::global_scheduler.thread_wake( to_wake );
       }
@@ -97,8 +97,8 @@ namespace Grappa {
     while( ( to_wake = Grappa::impl::get_waiters( cv ) ) != NULL ) {
       Grappa::impl::set_waiters( cv, to_wake->next );
       to_wake->next = NULL;
-      if (is_continuation(to_wake)) {
-        invoke(reinterpret_cast<Continuation*>(to_wake));
+      if (is_suspended_delegate(to_wake)) {
+        invoke(reinterpret_cast<SuspendedDelegate*>(to_wake));
       } else {
         impl::global_scheduler.thread_wake( to_wake );
       }

@@ -130,7 +130,7 @@ namespace Grappa {
       return call(target.core(), [target,func]{ return func(target.pointer()); });
     }
     
-    /// Try lock on remote mutex. Does \b not lock or unlock, creates a Continuation if lock has already
+    /// Try lock on remote mutex. Does \b not lock or unlock, creates a SuspendedDelegate if lock has already
     /// been taken, which is triggered on unlocking of the Mutex.
     template< typename M, typename F >
     inline auto call(Core dest, M mutex, F func) -> decltype(func(mutex())) {
@@ -159,7 +159,7 @@ namespace Grappa {
             // lock(l);
             set_result(func(l));
           } else {
-            add_waiter(l, new_continuation([set_result,func,l]{
+            add_waiter(l, new_suspended_delegate([set_result,func,l]{
               // lock(l);
               CHECK(is_unlocked(l));
               set_result(func(l));
