@@ -327,10 +327,13 @@ static void user_main(void* ignore) {
     printf("Kernel - Connected Components beginning execution...\n"); fflush(stdout);
     t = walltime();
     
-    Statistics::reset_all_cores();
+    Statistics::start_tracing();
+    
     graphint connected = connectedComponents(g);
     
     t = walltime() - t;
+    Statistics::stop_tracing();
+    
     LOG(INFO) << "ncomponents: " << connected << std::endl;
     LOG(INFO) << "components_time: " << t << std::endl;
     
