@@ -46,9 +46,10 @@ static double construction_time;
 static double bfs_time[NBFS_max];
 static int64_t bfs_nedge[NBFS_max];
 
-static void choose_bfs_roots(GlobalAddress<Graph<VertexP>> g, int * nbfs, int64_t bfs_roots[]) {
+template< class V >
+static void choose_bfs_roots(GlobalAddress<Graph<V>> g, int * nbfs, int64_t bfs_roots[]) {
   auto has_adj = [g](int64_t i) {
-    return delegate::call(g->vs+i, [](VertexP * v){
+    return delegate::call(g->vs+i, [](V * v){
       return v->nadj > 0;
     });
   };
@@ -71,7 +72,8 @@ static void choose_bfs_roots(GlobalAddress<Graph<VertexP>> g, int * nbfs, int64_
   }
 }
 
-void bfs_benchmark(tuple_graph& tg, GlobalAddress<Graph<VertexP>> g, int nroots) {
+void bfs_benchmark(tuple_graph& tg, GlobalAddress<Graph<Vertex>> generic_graph, int nroots) {
+  auto g = static_cast<GlobalAddress<Graph<VertexP>>>(generic_graph);
   GlobalAddress<int64_t> bfs_tree = global_alloc<int64_t>(g->nv);
   
   int64_t bfs_roots[NBFS_max];
