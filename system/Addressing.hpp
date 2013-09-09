@@ -40,12 +40,11 @@ extern void * global_memory_chunk_base;
 
 
 
-
-
 /// assumes user data will have the top 16 bits all 0.
 
 /// Number of bytes in each block 
 static const int block_size = sizeof(int64_t) * 8;
+#define BLOCK_SIZE sizeof(int64_t)*8
 
 /// How many address type bits?
 static const int tag_bits = 1;
