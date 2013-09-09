@@ -50,7 +50,7 @@ namespace Grappa {
       }
     }
     
-    void wait(Continuation * c) {
+    void wait(SuspendedDelegate * c) {
       if (count > 0) {
         Grappa::add_waiter(&cv, c);
       } else {
