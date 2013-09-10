@@ -19,7 +19,7 @@ achieves their peak bisection bandwidth only when the packet sizes are
 relatively large --- on the order of multiple kilobytes. The reason for this
 discrepancy is the combination of overheads associated with handling each
 packet (in terms of bytes that form the actual packet, processing time at the
-card, multiple roundtrips on the PCI Express bus and processing on the CPU
+card, multiple round-trips on the PCI Express bus and processing on the CPU
 within the driver stack). Consequently, to make the best use of the network,
 we must convert small messages into large ones.
 

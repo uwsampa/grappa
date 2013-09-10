@@ -1,0 +1,497 @@
+% +--------------------------------------------------+
+% | Typeset enumitem.tex to get the documentation.   |
+% +--------------------------------------------------+
+%
+% Copyright (c) 2003-2005 by Javier Bezos.
+% All Rights Reserved.
+%
+% This file is part of the enumitem distribution release 1.1
+% -----------------------------------------------------------
+%
+% This program can be redistributed and/or modified under the terms
+% of the LaTeX Project Public License Distributed from CTAN
+% archives in directory macros/latex/base/lppl.txt; either
+% version 1 of the License, or any later version.
+%
+% Notes
+% ~~~~~
+%
+% The tag enit@ is used through the style
+%
+% Release
+% ~~~~~~~
+
+\NeedsTeXFormat{LaTeX2e}
+\ProvidesPackage{enumitem}[2005/05/12 v1.1 Customized lists]
+
+% Reponer \lableindent a 0 siempre
+
+\@ifundefined{define@key}{\RequirePackage{keyval}}{}%
+
+\newlength{\labelindent}
+
+% Vertical spacing
+
+\define@key{enumitem}{topsep}{%
+  \setlength{\topsep}{#1}}
+
+\define@key{enumitem}{itemsep}{%
+  \setlength{\itemsep}{#1}}
+
+\define@key{enumitem}{parsep}{%
+  \setlength{\parsep}{#1}}
+
+\define@key{enumitem}{partopsep}{%
+  \setlength{\partopsep}{#1}}
+
+% Horizontal spacing
+
+\define@key{enumitem}{itemindent}{%
+  \setlength{\itemindent}{#1}}
+
+\define@key{enumitem}{listparindent}{%
+  \setlength{\listparindent}{#1}}
+
+\define@key{enumitem}{labelwidth}{%
+  \setlength{\labelwidth}{#1}}
+
+\define@key{enumitem}{labelindent}{%
+  \setlength{\labelindent}{#1}}
+
+\define@key{enumitem}{rightmargin}{%
+  \setlength{\rightmargin}{#1}}
+
+\define@key{enumitem}{leftmargin}{%
+  \if*#1%
+    \def\enit@calcleft{%
+      \enit@calclabel
+      \leftmargin\labelwidth
+      \advance\leftmargin\labelsep
+      \advance\leftmargin\labelindent
+      \advance\labelindent-\itemindent}%
+  \else
+    \setlength{\leftmargin}{#1}%
+  \fi}
+
+\define@key{enumitem}{labelsep}{%
+  \if*#1%
+    \def\enit@calcleft{%
+      \advance\labelindent-\itemindent
+      \enit@calclabel
+      \labelsep\leftmargin
+      \advance\labelsep-\labelwidth
+      \advance\labelsep-\labelindent}%
+  \else
+    \setlength{\labelsep}{#1}%
+  \fi}
+
+\define@key{enumitem}{widest}{%
+  \expandafter\def
+  \csname enit@widest\@enumctr\endcsname{#1}}
+
+\def\enit@calclabel{%
+  \begingroup
+    \enit@calcdef\@arabic\enit@arabic{0}%
+    \enit@calcdef\@alph\enit@alph{m}%
+    \enit@calcdef\@Alph\enit@Alph{M}%
+    \enit@calcdef\@roman\enit@roman{viii}%
+    \enit@calcdef\@Roman\enit@Roman{VIII}%
+    \settowidth\labelwidth{\@itemlabel}%
+    \xdef\enit@a{\labelwidth\the\labelwidth\relax}%
+  \endgroup
+  \enit@a}
+
+% Used below to gobble \c@ from the internal representation
+% of counters.
+
+\def\@gobblethree#1#2#3{}
+
+\def\enit@calcdef#1#2#3{%
+  \let#2#1%
+  \def#1##1{%
+    \@ifundefined{enit@widest\expandafter\@gobblethree\string##1}% if no widest key
+      {#3}%
+      {\csname enit@widest\expandafter\@gobblethree\string##1\endcsname}}}
+
+% Resume and start
+
+\define@key{enumitem}{resume}[]{%
+  \enit@resume\relax}
+
+\define@key{enumitem}{start}[\@ne]{%
+  \csname c@\@listctr\endcsname#1\relax
+  \advance\csname c@\@listctr\endcsname\m@ne}
+  
+% How the label is aligned
+    
+\let\enit@alignright\@empty
+\def\enit@alignleft{%
+  \def\makelabel##1{\rlap{\enit@format##1}\hss}}
+
+\define@key{enumitem}{align}{%
+  \csname enit@align#1\endcsname}
+
+% Penalties
+  
+\define@key{enumitem}{beginpenalty}{%
+  \@beginparpenalty#1\relax}
+  
+\define@key{enumitem}{midpenalty}{%
+  \@itempenalty#1\relax}
+
+\define@key{enumitem}{endpenalty}{%
+  \@endparpenalty#1\relax}
+   
+% Font
+
+\define@key{enumitem}{font}[]{%
+  \def\enit@format{#1}% For enumerate/itemize  *******
+  \def\makelabel##1{\hskip\labelsep\normalfont#1##1}}
+
+% description specific keys
+
+\define@key{enumitem}{style}[normal]{%
+  \edef\enit@descstyle{%
+    \expandafter\noexpand\csname enit@#1style\endcsname}}
+
+\let\enit@normalstyle\@firstofone
+
+% Labels and refs
+
+\define@key{enumitem}{label}{%
+  \enit@normlabel{#1}% Returns \enit@a
+  \expandafter\let\@itemlabel\enit@a
+%ie, redefine \labelenumX or \labelitemX.
+  \ifx\enit@ref\relax\enit@reflabel{#1}\fi}
+%ie, only if there is not a previous ref=
+% Normalization is done twice. Not good.
+  
+\define@key{enumitem}{ref}{%
+  \enit@reflabel{#1}}
+
+%\expandafter\def\csname c@*\endcsname{\csname c@\@enumctr\endcsname}
+
+\def\enit@normlabel#1{%
+  \begingroup
+    \enit@refstar\arabic
+    \enit@refstar\alph
+    \enit@refstar\Alph
+    \enit@refstar\roman
+    \enit@refstar\Roman
+    \enit@refstar\value
+    \enit@refstar\@arabic
+    \enit@refstar\@alph
+    \enit@refstar\@Alph
+    \enit@refstar\@roman
+    \enit@refstar\@Roman
+    \protected@xdef\enit@a{#1}%
+  \endgroup}
+
+\def\enit@reflabel#1{%
+  \def\enit@ref{%
+    \ifnum\@enumdepth=\@ne\else % no level 0
+      \advance\@enumdepth\@ne
+      \@namedef{p@\@enumctr}{}% Don't accumulate labels
+      \advance\@enumdepth\m@ne
+    \fi
+    \enit@normlabel{#1}% Returns \enit@a
+    \expandafter
+    \let\csname the\@enumctr\endcsname\enit@a}}
+
+\def\enit@refstar#1{%
+  \def#1##1{%
+    \if*##1\@empty
+      \noexpand#1{enum\romannumeral\@enumdepth}%
+    \else
+      \noexpand#1{##1}%
+    \fi}}
+
+\def\enit@setkeys#1{%
+  \@ifundefined{#1}{}%
+    {\toks@\expandafter\expandafter\expandafter
+       {\csname#1\endcsname}%
+     \edef\enit@a{%
+        \noexpand\setkeys{enumitem}{\the\toks@}}%
+     \enit@a   
+     \ifx\enit@ref\relax\else  % Not a logical place, grrr
+       \let\enit@saveref\enit@ref
+       \let\enit@ref\relax
+     \fi}}
+
+% And now, the three environments are redefined.
+% First, code shared by enumerate and itemize.
+     
+\newdimen\enit@outerparindent
+     
+\def\enit@preset{%
+   \def\makelabel##1{\hss\llap{\enit@format##1}}%
+   \let\enit@format\@empty
+   \let\enit@calcleft\relax
+   \let\enit@widest\@empty
+   \labelindent\z@skip
+   \ifnum\@listdepth=\@ne
+     \enit@outerparindent\parindent
+   \else
+     \parindent\enit@outerparindent
+   \fi
+   \enit@setkeys
+     {enit@list}%
+   \enit@setkeys
+     {enit@list\romannumeral\@listdepth}}
+
+\def\enit@enumerate#1{%
+  \ifnum \@enumdepth >\thr@@
+    \@toodeep
+  \else
+    \advance\@enumdepth\@ne
+    \edef\@enumctr{enum\romannumeral\@enumdepth}%
+    \expandafter
+    \list
+      \csname label\@enumctr\endcsname
+      {\usecounter\@enumctr
+       \let\enit@ref\relax
+       \let\enit@saveref\relax
+       \enit@normlabel{\@itemlabel}% Returns \enit@a
+       \expandafter\let\@itemlabel\enit@a
+       \enit@preset
+       \enit@setkeys
+         {enit@enum}%
+       \enit@setkeys
+         {enit@\@enumctr}%
+       \setkeys{enumitem}{#1}%
+       \enit@calcleft
+       \ifx\enit@ref\relax
+         \enit@saveref
+       \else
+         \enit@ref
+       \fi}%
+  \fi}
+
+\def\enit@endenumerate{%
+  \endlist
+  \xdef\enit@resume{%
+    \csname c@\@listctr\endcsname
+    \the\csname c@\@listctr\endcsname}}
+    
+\renewenvironment{enumerate}[1][]
+  {\enit@enumerate{#1}}
+  {\enit@endenumerate}
+  
+\def\enit@itemize#1{%
+  \ifnum \@itemdepth >\thr@@
+    \@toodeep
+  \else
+    \advance\@itemdepth\@ne
+    \edef\@itemitem{labelitem\romannumeral\@itemdepth}%
+    \expandafter
+    \list
+      \csname\@itemitem\endcsname
+       {\enit@preset
+        \enit@setkeys
+         {enit@item}%
+        \enit@setkeys
+         {enit@item\romannumeral\@itemdepth}%
+        \setkeys{enumitem}{#1}%
+        \enit@calcleft}%
+  \fi}
+  
+\let\enit@enditemize\itemize
+
+\renewcommand{\itemize}[1][]{\enit@itemize{#1}}
+  
+\renewcommand{\description}[1][]{%
+  \list{}%
+    {\labelwidth\z@
+     \let\makelabel\descriptionlabel
+     \let\enit@descstyle\enit@normalstyle
+     \let\enit@format\@empty
+     \labelindent\z@skip
+     \enit@setkeys
+       {enit@list}%
+     \enit@setkeys
+       {enit@list\romannumeral\@listdepth}%
+     \enit@setkeys
+       {enit@desc}%
+     \setkeys{enumitem}{#1}%
+     \itemindent-\leftmargin
+     \advance\itemindent\labelindent
+     \let\enit@makelabel\makelabel
+     \def\makelabel##1{%
+       \enit@descstyle{\enit@makelabel{\enit@format##1}}}}}
+
+% Option ignoredisplayed (see below).
+
+\def\enit@trivlist{%
+  \parsep\parskip
+  \csname @list\romannumeral\the\@listdepth\endcsname
+  \@nmbrlistfalse
+  \enit@setkeys
+    {enit@triv}%
+  \enit@setkeys
+    {enit@triv\romannumeral\@listdepth}%
+  \@trivlist
+  \labelwidth\z@
+  \leftmargin\z@
+  \itemindent\z@
+  \let\@itemlabel\@empty
+  \def\makelabel##1{##1}}
+
+% description styles
+
+% the next definition is somewhat tricky because
+% labels are boxed. That's fine when the label is
+% just placed at the begining of a line of text,
+% but when the box is placed whithout horizontal
+% material, leading is killed. Therefore,
+% solutions based on the LaTeX Companion are wrong.
+% Here, the \everypar in \@item is overriden
+% and the label is printed directly, without
+% boxing it.
+
+\def\enit@nextlinestyle#1{%
+  \hskip-\itemindent % quick & dirty --what's happening?
+  \global\everypar{%
+    \@minipagefalse
+    \global\@newlistfalse
+    \if@inlabel
+      \global\@inlabelfalse
+      {\setbox\z@\lastbox
+       \ifvoid\z@
+         \kern-\itemindent
+       \fi
+       \sbox\z@{\hskip\labelindent#1\hskip\labelsep}%
+       \ifdim\wd\z@>\leftmargin
+         {\advance\leftskip-\leftmargin
+          \advance\leftskip\labelindent
+          \hskip-\labelsep
+          #1%
+          \par
+          \nobreak
+          \vskip-\parskip}%
+       \else
+         \hskip-\leftmargin\hskip-\labelsep\hskip\labelindent
+         \rlap{#1}%
+         \hskip\leftmargin\hskip\labelsep\hskip-\labelindent
+       \fi}%
+    \fi
+    \if@nobreak
+      \@nobreakfalse
+      \clubpenalty \@M
+    \else
+      \clubpenalty \@clubpenalty
+      \everypar{}%
+    \fi}}
+
+\def\enit@multilinestyle#1{%
+  \dimen@\leftmargin
+  \advance\dimen@-\labelsep
+  \advance\dimen@-\labelindent
+  \sbox\z@{%
+    \parbox[t]\dimen@{%
+      \raggedright\hskip-\labelsep#1}}%
+  \dp\z@\z@
+  \hskip\labelsep\box\z@
+  \hfil}
+
+\def\enit@unboxedstyle#1{%
+  \hskip-\itemindent 
+  \global\everypar{%
+    \@minipagefalse
+    \global\@newlistfalse
+    \if@inlabel
+      \global\@inlabelfalse
+      {\setbox\z@\lastbox
+       \ifvoid\z@
+         \kern-\itemindent
+       \fi%
+       \hskip-\leftmargin\hskip-\labelsep\hskip\labelindent
+       #1%
+       \hskip\labelsep}%
+    \fi
+    \if@nobreak
+      \@nobreakfalse
+      \clubpenalty \@M
+    \else
+      \clubpenalty \@clubpenalty
+      \global\everypar{}%
+    \fi}}
+
+\def\enit@samelinestyle#1{%
+  \hskip-\itemindent 
+  \global\everypar{%
+    \@minipagefalse
+    \global\@newlistfalse
+    \if@inlabel
+      \global\@inlabelfalse
+      {\setbox\z@\lastbox
+       \ifvoid\z@
+         \kern-\itemindent
+       \fi
+       \sbox\z@{\hskip\labelindent#1\hskip\labelsep}%
+       \ifdim\wd\z@>\leftmargin
+         \hskip-\leftmargin
+         \hskip-\labelsep
+         \hskip\labelindent
+         #1%
+         \hskip\labelsep
+       \else
+         \hskip-\leftmargin
+         \hskip-\labelsep
+         \hskip\labelindent
+         \rlap{#1}%
+         \hskip\leftmargin
+         \hskip\labelsep
+         \hskip-\labelindent
+       \fi}%
+    \fi
+    \if@nobreak
+      \@nobreakfalse
+      \clubpenalty \@M
+    \else
+      \clubpenalty \@clubpenalty
+      \everypar{}%
+    \fi}}
+
+% Formatting lists globally
+
+\newcommand\setenumerate[1][0]{%
+  \expandafter\def\csname enit@enum\romannumeral#1\endcsname}
+
+\newcommand\setitemize[1][0]{%
+  \expandafter\def\csname enit@item\romannumeral#1\endcsname}
+
+\def\setdescription{\def\enit@desc}
+
+\newcommand\setlist[1][0]{%
+  \expandafter\def\csname enit@list\romannumeral#1\endcsname}
+
+\newcommand\setdisplayed[1][0]{%
+  \expandafter\def\csname enit@triv\romannumeral#1\endcsname}
+
+% A few useful predefined keys
+  
+\define@key{enumitem}{nolistsep}[true]{%
+  \partopsep=\z@skip
+  \topsep=\z@ plus .1pt
+  \itemsep=\z@skip
+  \parsep=\z@skip}
+
+\define@key{enumitem}{noitemsep}[true]{%
+  \itemsep=\z@skip
+  \parsep=\z@skip}
+
+\define@key{enumitem}{fullwidth}[true]{%
+  \leftmargin\z@
+  \labelwidth\z@
+  \def\makelabel##1{%
+    \hskip\labelsep\enit@format##1}}
+    
+% And options
+
+\DeclareOption{ignoredisplayed}{\let\enit@trivlist\trivlist}
+
+\ProcessOptions
+
+\let\trivlist\enit@trivlist
+
+\endinput

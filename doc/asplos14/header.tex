@@ -1,0 +1,66 @@
+%\documentclass{acm_proc_article-sp}
+%\documentclass[10pt,twocolumn]{article}
+\documentclass[pageno, 10pt]{jpaper}
+
+% NOTE: SOSP submission guidelines say up to 13 pages of technical content, which is everything except references. References do NOT count towards page liites. And it is support 10 pt. SOSP is *very* picky about font size. 
+
+%replace XXX with the submission number you are given from the ASPLOS submission site.
+\newcommand{\asplossubmissionnumber}{217}
+
+%%% page size formatting %%% 
+%\usepackage[margin=1in]{geometry}
+
+\setlength{\columnsep}{0.25in}
+
+%%% packages %%%
+\usepackage[normalem]{ulem}
+\usepackage{color}
+\usepackage[usenames,dvipsnames]{xcolor}
+
+\usepackage{graphicx}
+\usepackage{float}
+\usepackage{url}
+\usepackage{times}
+\usepackage{xspace}
+
+%%% code listings %%%
+\usepackage{listings}
+
+\usepackage{inconsolata}
+
+\lstset{
+  emph={GlobalAddress,Grappa,ConditionVariable,Mutex,T,Key,Vertex,int64_t,Promise}, emphstyle={\color{NavyBlue}},
+  emph={[2]delegate, write, acquire, release, core, call, signal, push, pop, sync, block, memcpy, parallel_for, delegate_read, delegate_write, search, delegate_read_async,delegate_write_async,delegate_cas,delegate_fetch_inc,delegate_inc_async,global_malloc,global_free}, emphstyle={[2]\color{PineGreen}}
+}
+\lstdefinestyle{grappa}{ 
+  belowcaptionskip=1\baselineskip,
+  breaklines=true,
+  %frame=L,  % frame around code
+  xleftmargin=\parindent,
+  language=C++,
+  showstringspaces=false,
+  %basicstyle=\tiny,
+  basicstyle=\footnotesize\ttfamily,
+  keywordstyle=\color{Purple},
+  commentstyle=\itshape\color{Gray},
+  identifierstyle=\color{Black},
+  stringstyle=\color{RedOrange},
+  morekeywords={override},
+  numbers=none,
+}
+\lstset{escapechar=@,style=grappa}
+
+%%% utilities %%%
+%\newcommand{\TODO}[1]{\textcolor{red}{{\bf TODO:} #1}}
+\newcommand{\TODO}[1]{}
+\newcommand{\checkme}[1]{\textcolor{red}{\textbf{#1}}}
+\newcommand{\grappacomment}[1]{}
+
+%%% literal terms %%%
+\newcommand{\gasnet}{GASNet}
+\newcommand{\Grappa}{Manta\xspace}
+
+% runtime parameter names 
+\newcommand{\flushtimeout}{\emph{network\_flush\_timeout}}
+\newcommand{\asyncforthr}{\emph{async\_parallel\_for\_thresold}}
+

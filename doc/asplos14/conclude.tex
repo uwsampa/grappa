@@ -1,0 +1,29 @@
+\section{Conclusion}
+
+Irregular computations are both important and challenging to execute
+quickly.  Scaling these applications easily on commodity hardware has
+been a historical challenge. \Grappa 
+simplifies this task for software developers and compiler
+writers. 
+% This paper describes \Grappa's framework and its main
+% components: a task library, a distributed shared memory system, and a
+% network aggregator. 
+\Grappa's key aspect is extreme latency tolerance,
+which not only hides network latency but also enables the system to
+spend time on sophisticated work stealing and network optimizations,
+trading latency for even more throughput.
+
+Our evaluation of \Grappa shows that the core components, scheduling
+and communication, achieve their design goals.  Thousands of workers
+can be efficiently context switched on a multicore processor, limited by DRAM bandwidth.  Aggregating messages enables \Grappa to achieve
+over 1.0~GUPS on 64~nodes.  We also explored four other algorithms:
+unbalanced tree search, breadth first search, PageRank, and integer
+sort, comparing performance of these algorithms on \Grappa, the Cray
+XMT, and optimized MPI implementations. \Grappa is 9X faster than MPI on GUPS, 3.5X to 5.4X slower than MPI on applications, and between 2.6X faster and 4.3X slower than
+the XMT. When \Grappa is slower than MPI, we find that the MPI
+implementation includes a specialized implementation of a feature
+\Grappa provides generally to all applications. This generality comes
+at a performance cost but eases the application developer's
+task. Moreover, there are significant tuning opportunities the \Grappa
+runtime system.  When cost-performance is considered, \Grappa on mass-market
+x86-based clusters is a highly attractive option.
