@@ -11,7 +11,7 @@
 
 #include "Grappa.hpp"
 #include "Message.hpp"
-#include "FullEmpty.hpp"
+#include "FullEmptyLocal.hpp"
 #include "Message.hpp"
 #include "ConditionVariable.hpp"
 #include "LegacyDelegate.hpp"
@@ -24,17 +24,17 @@ GRAPPA_DECLARE_STAT(SimpleStatistic<uint64_t>, delegate_ops_short_circuited);
 GRAPPA_DECLARE_STAT(SummarizingStatistic<double>, delegate_op_roundtrip_latency);
 
 namespace Grappa {
-  namespace delegate {
     /// @addtogroup Delegates
     /// @{
     
+  namespace impl {
+    
     /// Overloaded version for func with void return type.
     template <typename F>
-    inline auto call(Core dest, F func)
-        -> typename std::enable_if<std::is_void<decltype(func())>::value, void>::type {
+    inline void call(Core dest, F func, void (F::*mf)() const) {
       delegate_stats.count_op();
       Core origin = Grappa::mycore();
-      
+    
       if (dest == origin) {
         // short-circuit if local
         delegate_ops_short_circuited++;
@@ -45,9 +45,9 @@ namespace Grappa {
         FullEmpty<bool> result;
         send_message(dest, [&result, origin, func, &network_time, start_time] {
           delegate_stats.count_op_am();
-          
+        
           func();
-          
+        
           // TODO: replace with handler-safe send_message
           send_heap_message(origin, [&result, &network_time, start_time] {
             network_time = Grappa_get_timestamp();
@@ -55,20 +55,16 @@ namespace Grappa {
             result.writeXF(true);
           });
         }); // send message
-        
+      
         // ... and wait for the call to complete
         result.readFF();
         delegate_stats.record_wakeup_latency(start_time, network_time);
         return;
       }
     }
-    
-    /// Implements essentially a blocking remote procedure call. Callable object (lambda,
-    /// function pointer, or functor object) is called from the `dest` core and the return
-    /// value is sent back to the calling task.
+  
     template <typename F>
-    inline auto call(Core dest, F func)
-      -> typename std::enable_if<!std::is_void<decltype(func())>::value, decltype(func())>::type {
+    inline auto call(Core dest, F func, decltype(func()) (F::*mf)() const) -> decltype(func()) {
       // Note: code below (calling call_async) could be used to avoid duplication of code,
       // but call_async adds some overhead (object creation overhead, especially for short
       // -circuit case and extra work in MessagePool)
@@ -77,11 +73,11 @@ namespace Grappa {
       //   a.call_async(pool, dest, func);
       //   return a.get_result();
       // TODO: find a way to implement using async version that doesn't introduce overhead
-      
+    
       delegate_stats.count_op();
       using R = decltype(func());
       Core origin = Grappa::mycore();
-      
+    
       if (dest == origin) {
         // short-circuit if local
         delegate_ops_short_circuited++;
@@ -90,11 +86,11 @@ namespace Grappa {
         FullEmpty<R> result;
         int64_t network_time = 0;
         int64_t start_time = Grappa_get_timestamp();
-        
+      
         send_message(dest, [&result, origin, func, &network_time, start_time] {
           delegate_stats.count_op_am();
           R val = func();
-          
+        
           // TODO: replace with handler-safe send_message
           send_heap_message(origin, [&result, val, &network_time, start_time] {
             network_time = Grappa_get_timestamp();
@@ -109,9 +105,111 @@ namespace Grappa {
       }
     }
     
+  } // namespace impl
+  
+  namespace delegate {
+    
+    /// Implements essentially a blocking remote procedure call. Callable object (lambda,
+    /// function pointer, or functor object) is called from the `dest` core and the return
+    /// value is sent back to the calling task.
+    template <typename F>
+    inline auto call(Core dest, F func) -> decltype(func()) {
+      return impl::call(dest, func, &F::operator());
+    }
+    
+    /// Helper that makes it easier to implement custom delegate operations on global
+    /// addresses specifically.
+    ///
+    /// Example:
+    /// @code
+    ///   GlobalAddress<int> xa;
+    ///   bool is_zero = delegate::call(xa, [](int* x){ return *x == 0; });
+    /// @endcode
     template< typename T, typename F >
-    inline auto call(GlobalAddress<T> target, F func) -> decltype(func()) {
+    inline auto call(GlobalAddress<T> target, F func) -> decltype(func(target.pointer())) {
       return call(target.core(), [target,func]{ return func(target.pointer()); });
+    }
+    
+    /// Try lock on remote mutex. Does \b not lock or unlock, creates a SuspendedDelegate if lock has already
+    /// been taken, which is triggered on unlocking of the Mutex.
+    template< typename M, typename F >
+    inline auto call(Core dest, M mutex, F func) -> decltype(func(mutex())) {
+      using R = decltype(func(mutex()));      
+      delegate_stats.count_op();
+      
+      if (dest == mycore()) {
+        delegate_ops_short_circuited++;
+        // auto l = mutex();
+        // lock(l);
+        auto r = func(mutex());
+        // unlock(l);
+        return r;
+      } else {
+        FullEmpty<R> result;
+        auto result_addr = make_global(&result);
+        auto set_result = [result_addr](const R& val){
+          send_heap_message(result_addr.core(), [result_addr,val]{
+            result_addr->writeXF(val);
+          });
+        };
+      
+        send_message(dest, [set_result,mutex,func] {
+          auto l = mutex();
+          if (is_unlocked(l)) { // if lock is not held
+            // lock(l);
+            set_result(func(l));
+          } else {
+            add_waiter(l, new_suspended_delegate([set_result,func,l]{
+              // lock(l);
+              CHECK(is_unlocked(l));
+              set_result(func(l));
+            }));
+          }
+        });
+        auto r = result.readFE();
+        return r;
+      }
+    }
+    
+    /// Alternative version of delegate::call that spawns a privateTask to allow the delegate 
+    /// to perform suspending actions.
+    /// 
+    /// @note Use of this is not advised: suspending violates much of the assumptions about
+    /// delegates we usually make, and can easily cause deadlock if no workers are available 
+    /// to execute the spawned privateTask. A better option for possibly-blocking delegates 
+    /// is to use the Mutex version of delegate::call(Core,M,F).
+    template <typename F>
+    inline auto call_suspendable(Core dest, F func) -> decltype(func()) {
+      delegate_stats.count_op();
+      using R = decltype(func());
+      Core origin = Grappa::mycore();
+    
+      if (dest == origin) {
+        delegate_ops_short_circuited++;
+        return func();
+      } else {
+        FullEmpty<R> result;
+        int64_t network_time = 0;
+        int64_t start_time = Grappa_get_timestamp();
+      
+        send_message(dest, [&result, origin, func, &network_time, start_time] {
+          delegate_stats.count_op_am();
+          
+          privateTask([&result, origin, func, &network_time, start_time] {
+            R val = func();
+            // TODO: replace with handler-safe send_message
+            send_heap_message(origin, [&result, val, &network_time, start_time] {
+              network_time = Grappa_get_timestamp();
+              delegate_stats.record_network_latency(start_time);
+              result.writeXF(val); // can't block in message, assumption is that result is already empty
+            });
+          });
+        }); // send message
+        // ... and wait for the result
+        R r = result.readFE();
+        delegate_stats.record_wakeup_latency(start_time, network_time);
+        return r;
+      }
     }
     
     /// Read the value (potentially remote) at the given GlobalAddress, blocks the calling task until
@@ -153,11 +251,10 @@ namespace Grappa {
       });
     }
 
-
     /// Flat combines fetch_and_add to a single global address
     /// @warning Target object must lie on a single node (not span blocks in global address space).
     template < typename T, typename U >
-    class FlatCombiner {
+    class FetchAddCombiner {
       // TODO: generalize to define other types of combiners
       private:
         // configuration
@@ -195,7 +292,7 @@ namespace Grappa {
         }
 
       public:
-        FlatCombiner( GlobalAddress<T> target, uint64_t flush_threshold, U initVal ) 
+        FetchAddCombiner( GlobalAddress<T> target, uint64_t flush_threshold, U initVal ) 
          : target( target )
          , initVal( initVal )
          , flush_threshold( flush_threshold )

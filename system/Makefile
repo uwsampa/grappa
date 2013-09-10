@@ -145,6 +145,9 @@ FileIO_tests.o FileIO_tests.test: $(LIBRARY)
 FileIO_tests.test: LIBRARIES+='-lboost_filesystem'
 
 Array_tests.o Array_tests.test: $(LIBRARY)
+GlobalVector_tests.o GlobalVector_tests.test: $(LIBRARY)
+GlobalHash_tests.o GlobalHash_tests.test: $(LIBRARY)
+FlatCombiner_tests.o FlatCombiner_tests.test: $(LIBRARY)
 
 New_delegate_tests.test: $(LIBRARY)
 PoolAllocator_tests.test: $(LIBRARY)
@@ -343,7 +346,11 @@ LIBRARY_CONTENTS+= Grappa.o \
 					 AsyncDelegate.o \
 					 SharedMessagePool.o \
 					 GlobalCompletionEvent.o \
-					 HistogramStatistic.o
+					 HistogramStatistic.o \
+					 FlatCombiner.o \
+					 GlobalVector.o \
+					 GlobalHashSet.o \
+					 GlobalHashMap.o
 
 libGrappa.a: $(LIBRARY_CONTENTS)
 	$($(MPITYPE)_AR) rv $@ $^

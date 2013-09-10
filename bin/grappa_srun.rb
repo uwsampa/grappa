@@ -16,7 +16,7 @@ puts "DIR = #{DIR}"
 opt = OpenStruct.new
 # opt.nnode = 2
 # opt.ppn   = 1
-opt.time  = '15:00'
+# opt.time  = '2:00:00'
 opt.freeze_on_error = false
 opt.verbose = true
 

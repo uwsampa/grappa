@@ -4,26 +4,29 @@ require 'igor'
 # inherit parser, sbatch_flags
 load '../../../igor_common.rb'
 
-def expand_flags(*names)
-  names.map{|n| "--#{n}=%{#{n}}"}.join(' ')
-end
-
 Igor do
   include Isolatable
   
-  database '~/exp/sosp.db', :bfs
-
+  database '~/exp/pgas.sqlite', :bfs
+  
   # isolate everything needed for the executable so we can sbcast them for local execution
   isolate(['graph.exe'],
     File.dirname(__FILE__))
   
+  GFLAGS.merge!({
+    flat_combining: 1,
+    beamer_alpha: 20,
+    beamer_beta: 20,
+  })
+  
   params.merge!(GFLAGS)
   
-  command %Q[ %{tdir}/grappa_srun.rb
+  @c = ->{ %Q[ %{tdir}/grappa_srun.rb
     -- %{tdir}/graph.exe
-    #{expand_flags(*GFLAGS.keys)}
+    #{GFLAGS.expand}
     -- -s %{scale} -e %{edgefactor} -f %{nbfs}
-  ].gsub(/\s+/,' ')
+  ].gsub(/\s+/,' ') }
+  command @c[]
   
   sbatch_flags << "--time=4:00:00"
   
@@ -33,7 +36,7 @@ Igor do
     scale       16
     edgefactor  16
     nbfs        8
-    tag         'none'
+    fc_version 'twolevel<1024>'
   }
   
   expect :max_teps
