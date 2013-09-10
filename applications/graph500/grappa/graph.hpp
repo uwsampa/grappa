@@ -103,11 +103,9 @@ struct Graph {
   }
   
   template< typename VertexOld, typename InitFunc >
-  static GlobalAddress<Graph<VertexNew>> convert(GlobalAddress<Graph<VertexOld>> o, InitFunc init) {
-    forall_localized([](VertexOld& o){
-      o.~VertexOld(); // clean up
-      init(static_cast<VertexNew*>(&o));
-    });
+  static GlobalAddress<Graph<VertexNew>> transform_vertices(InitFunc init) {
+    forall_localized(g->vs, g->nv, init);
+    return static_cast<GlobalAddress<Graph<VertexNew>>>(g);
   }
   
   // Constructor
