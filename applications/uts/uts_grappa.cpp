@@ -128,8 +128,8 @@ uint64_t global_child_index = 0; // only Node 0 matters
 GlobalAddress<uint64_t> global_id_ga;
 GlobalAddress<uint64_t> global_child_index_ga;
 
-Grappa::delegate::FlatCombiner<uint64_t,uint64_t> * global_id_ga_FC;
-Grappa::delegate::FlatCombiner<uint64_t,uint64_t> * global_child_index_ga_FC;
+Grappa::delegate::FetchAddCombiner<uint64_t,uint64_t> * global_id_ga_FC;
+Grappa::delegate::FetchAddCombiner<uint64_t,uint64_t> * global_child_index_ga_FC;
 
 /// verification counts
 uint64_t local_verify_children_count = 0;
@@ -484,8 +484,8 @@ void user_main ( user_main_args * args ) {
     global_id_ga = make_global( &global_id, 0 );
     global_child_index_ga = make_global( &global_child_index, 0 );
 
-    global_id_ga_FC = new Grappa::delegate::FlatCombiner<uint64_t,uint64_t>(global_id_ga, FLAGS_flat_combine_threshold, 0);
-    global_child_index_ga_FC = new Grappa::delegate::FlatCombiner<uint64_t,uint64_t>(global_child_index_ga, FLAGS_flat_combine_threshold, 0);
+    global_id_ga_FC = new Grappa::delegate::FetchAddCombiner<uint64_t,uint64_t>(global_id_ga, FLAGS_flat_combine_threshold, 0);
+    global_child_index_ga_FC = new Grappa::delegate::FetchAddCombiner<uint64_t,uint64_t>(global_child_index_ga, FLAGS_flat_combine_threshold, 0);
 
     Child = Child_l;
     Vertex = Vertex_l;

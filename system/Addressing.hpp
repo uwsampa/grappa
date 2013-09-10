@@ -40,12 +40,11 @@ extern void * global_memory_chunk_base;
 
 
 
-
-
 /// assumes user data will have the top 16 bits all 0.
 
 /// Number of bytes in each block 
 static const int block_size = sizeof(int64_t) * 8;
+#define BLOCK_SIZE sizeof(int64_t)*8
 
 /// How many address type bits?
 static const int tag_bits = 1;
@@ -210,7 +209,9 @@ public:
   /// Find lowest local address of the object at this address.  Used
   /// for PGAS-style local iteration.
   inline T * localize(Node nid = -1) const {
-	if (nid == -1) nid = global_communicator.mynode();
+    if (is_2D()) return pointer();
+    
+  	if (nid == -1) nid = global_communicator.mynode();
     T * local_base;
     size_t block_elems = block_size / sizeof(T);
     T * block_base = block_min().pointer();
@@ -223,6 +224,16 @@ public:
     }
     return local_base;
   }
+  
+  /// Does @b not remotely dereference the global address, this is syntactic sugar for `localize()->`
+  ///
+  /// @code
+  ///   struct { int y; } x = {1};
+  ///   GlobalAddress<decltype(x)> xa = make_global(&x);
+  ///   cout << xa->y;
+  ///   //> 1
+  /// @endcode
+  T* operator->() const { return localize(); }
 
   /// Find base address of block containing this byte.
   inline GlobalAddress< T > block_min() const { 
@@ -413,11 +424,13 @@ std::ostream& operator<<( std::ostream& o, const GlobalAddress< T >& ga ) {
 
 /// computes offsets of members in structs and claases
 /// call like this:
+/// @code
 ///   struct Foo {
 ///     int i;
 ///   } foo;
 ///   GlobalAddress< Foo > foo_gp = make_global( foo );
 ///   GlobalAddress< int > foo_i_gp = global_pointer_to_member( foo_gp, &Foo::i );
+/// @endcode
 template< typename T, typename M >
 inline GlobalAddress< M > global_pointer_to_member( const GlobalAddress< T > t, const M T::*m ) {
   const intptr_t t_raw = t.raw_bits();

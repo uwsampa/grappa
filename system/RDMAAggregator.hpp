@@ -26,7 +26,7 @@
 
 #include "ConditionVariableLocal.hpp"
 #include "CountingSemaphoreLocal.hpp"
-#include "FullEmpty.hpp"
+#include "FullEmptyLocal.hpp"
 
 #include "ReusePool.hpp"
 #include "ReuseList.hpp"
