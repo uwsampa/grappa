@@ -22,7 +22,7 @@ using namespace Grappa;
 /////////////////////////////////
 // Declarations
 double make_bfs_tree(GlobalAddress<Graph<VertexP>> g_in, GlobalAddress<int64_t> _bfs_tree, int64_t root);
-long cc_benchmark(GlobalAddress<Graph<VertexP>> g);
+long cc_benchmark(GlobalAddress<Graph<>> g);
 
 /////////////////////////////////
 // Options/flags
@@ -72,8 +72,8 @@ static void choose_bfs_roots(GlobalAddress<Graph<V>> g, int * nbfs, int64_t bfs_
   }
 }
 
-void bfs_benchmark(tuple_graph& tg, GlobalAddress<Graph<Vertex>> generic_graph, int nroots) {
-  auto g = static_cast<GlobalAddress<Graph<VertexP>>>(generic_graph);
+void bfs_benchmark(tuple_graph& tg, GlobalAddress<Graph<>> generic_graph, int nroots) {
+  auto g = Graph<>::transform_vertices<VertexP>(generic_graph, [](VertexP& v){ v.parent(-1); });
   GlobalAddress<int64_t> bfs_tree = global_alloc<int64_t>(g->nv);
   
   int64_t bfs_roots[NBFS_max];
@@ -134,7 +134,7 @@ void user_main(void * ignore) {
   LOG(INFO) << "graph_generation: " << generation_time;
   
   t = walltime();
-  auto g = Graph<VertexP>::create(tg);
+  auto g = Graph<>::create(tg);
   construction_time = walltime() - t;
   LOG(INFO) << "construction_time: " << construction_time;
   
@@ -145,7 +145,7 @@ void user_main(void * ignore) {
     bfs_benchmark(tg, g, FLAGS_nbfs);
   }
   if (FLAGS_bench.find("cc") != std::string::npos) {
-    cc_benchmark(g);
+    // cc_benchmark(g);
   }
   
   Grappa::Statistics::merge_and_print(std::cout);
