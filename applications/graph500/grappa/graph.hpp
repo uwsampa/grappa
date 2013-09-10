@@ -48,16 +48,16 @@ struct VertexP : public Vertex {
   void parent(int64_t parent) { vertex_data = (void*)parent; }
 };
 
-template< class Vertex >
+template< class V = Vertex >
 struct Graph {
-  static_assert(block_size % sizeof(Vertex) == 0, "Vertex size not evenly divisible into blocks!");
+  static_assert(block_size % sizeof(V) == 0, "V size not evenly divisible into blocks!");
   
   // // Helpers (for if we go with custom cyclic distribution)
   // inline Core    vertex_owner (int64_t v) { return v % cores(); }
   // inline int64_t vertex_offset(int64_t v) { return v / cores(); }
   
   // Fields
-  GlobalAddress<Vertex> vs;
+  GlobalAddress<V> vs;
   int64_t nv, nadj, nadj_local;
   
   // Internal fields
@@ -68,7 +68,7 @@ struct Graph {
   
   char _pad[block_size - sizeof(vs)-sizeof(nv)-sizeof(nadj)-sizeof(nadj_local)-sizeof(adj_buf)-sizeof(scratch)-sizeof(self)];
   
-  Graph(GlobalAddress<Graph> self, GlobalAddress<Vertex> vs, int64_t nv)
+  Graph(GlobalAddress<Graph> self, GlobalAddress<V> vs, int64_t nv)
     : self(self)
     , vs(vs)
     , nv(nv)
@@ -79,7 +79,7 @@ struct Graph {
   { }
   
   ~Graph() {
-    for (Vertex& v : iterate_local(vs, nv)) { v.~Vertex(); }
+    for (V& v : iterate_local(vs, nv)) { v.~V(); }
     if (adj_buf) locale_free(adj_buf);
   }
   
@@ -93,7 +93,7 @@ struct Graph {
   template< int LEVEL = 0 >
   static void dump(GlobalAddress<Graph> g) {
     for (int64_t i=0; i<g->nv; i++) {
-      delegate::call(g->vs+i, [i](Vertex * v){
+      delegate::call(g->vs+i, [i](V * v){
         std::stringstream ss;
         ss << "<" << i << ">";
         for (int64_t i=0; i<v->nadj; i++) ss << " " << v->local_adj[i];
@@ -102,16 +102,20 @@ struct Graph {
     }
   }
   
-  template< typename VertexOld, typename InitFunc >
-  static GlobalAddress<Graph<VertexNew>> transform_vertices(InitFunc init) {
+  /// Cast graph to new type, and allow user to re-initialize each V by providing a 
+  /// functor (the body of a forall_localized() over the vertices)
+  template< typename VNew, typename VOld, typename InitFunc = decltype(nullptr) >
+  static GlobalAddress<Graph<VNew>> transform_vertices(GlobalAddress<Graph<VOld>> o, InitFunc init) {
+    static_assert(sizeof(VNew) == sizeof(V), "transformed vertex size must be the unchanged.");
+    auto g = static_cast<GlobalAddress<Graph<VNew>>>(o);
     forall_localized(g->vs, g->nv, init);
-    return static_cast<GlobalAddress<Graph<VertexNew>>>(g);
+    return g;
   }
   
   // Constructor
   static GlobalAddress<Graph> create(tuple_graph& tg) {
     double t;
-    auto g = mirrored_global_alloc<Graph<Vertex>>();
+    auto g = mirrored_global_alloc<Graph<V>>();
   
     // find nv
         t = walltime();
@@ -124,12 +128,12 @@ struct Graph {
     });
         VLOG(1) << "find_nv_time: " << walltime() - t;
   
-    auto vs = global_alloc<Vertex>(g->nv);
+    auto vs = global_alloc<V>(g->nv);
     auto self = g;
     on_all_cores([g,vs]{
       new (g.localize()) Graph(g, vs, g->nv);
-      for (Vertex& v : iterate_local(g->vs, g->nv)) {
-        new (&v) Vertex();
+      for (V& v : iterate_local(g->vs, g->nv)) {
+        new (&v) V();
       }
     
   #ifdef SMALL_GRAPH
@@ -153,7 +157,7 @@ struct Graph {
       __sync_fetch_and_add(g->scratch+e.v0, 1);
       __sync_fetch_and_add(g->scratch+e.v1, 1);
   #else    
-      auto count = [](GlobalAddress<Vertex> v){
+      auto count = [](GlobalAddress<V> v){
         delegate::call_async(*shared_pool, v.core(), [v]{ v->local_sz++; });
       };
       count(g->vs+e.v0);
@@ -181,7 +185,7 @@ struct Graph {
   #endif // SMALL_GRAPH  
   
     // allocate space for each vertex's adjacencies (+ duplicates)
-    forall_localized(g->vs, g->nv, [g](int64_t i, Vertex& v) {
+    forall_localized(g->vs, g->nv, [g](int64_t i, V& v) {
   #ifdef SMALL_GRAPH
       // adjust b/c allreduce didn't account for having 1 instance per locale
       v.local_sz = g->scratch[i] / locale_cores();
@@ -207,7 +211,7 @@ struct Graph {
     VLOG(3) << "after scatter, nv = " << g->nv;
   
     // sort & de-dup
-    forall_localized(g->vs, g->nv, [g](int64_t vi, Vertex& v){
+    forall_localized(g->vs, g->nv, [g](int64_t vi, V& v){
       CHECK_EQ(v.nadj, v.local_sz);
       std::sort(v.local_adj, v.local_adj+v.nadj);
     
@@ -236,7 +240,7 @@ struct Graph {
       g->nadj = allreduce<int64_t,collective_add>(g->nadj_local);
     
       int64_t * adj = g->adj_buf;
-      for (Vertex& v : iterate_local(g->vs, g->nv)) {
+      for (V& v : iterate_local(g->vs, g->nv)) {
         Grappa::memcpy(adj, v.local_adj, v.nadj);
         if (v.local_sz > 0) delete[] v.local_adj;
         v.local_sz = v.nadj;

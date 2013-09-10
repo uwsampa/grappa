@@ -98,10 +98,10 @@ double make_bfs_tree(GlobalAddress<Graph<VertexP>> g_in, GlobalAddress<int64_t> 
   // initialize bfs_tree to -1, parent of root is root, and init frontier with root
   forall_localized(g->vs, g->nv, [root](int64_t i, VertexP& v){
     if (i == root) {
-      v.parent = root;
+      v.parent(root);
       frontier_push(root);
     } else {
-      v.parent = -1;
+      v.parent(-1);
     }
   });
   
@@ -125,8 +125,8 @@ double make_bfs_tree(GlobalAddress<Graph<VertexP>> g_in, GlobalAddress<int64_t> 
           if (FLAGS_cas_flatten == false || combiner->not_done_before(g->vs+ev)) {
             delegate::call_async<&joiner>(*shared_pool, (g->vs+ev).core(), [sv,ev]{
               auto& end_v = *(g->vs+ev).pointer();
-              if (end_v.parent == -1) {
-                end_v.parent = sv;       // set as parent
+              if (end_v.parent() == -1) {
+                end_v.parent(sv);       // set as parent
                 frontier_push(ev); // visit child in next level 
               }
             });
@@ -146,7 +146,7 @@ double make_bfs_tree(GlobalAddress<Graph<VertexP>> g_in, GlobalAddress<int64_t> 
   t = walltime();
   forall_localized(g->vs, g->nv, [](int64_t i, VertexP& v){
     // delegate::write_async(*pool, bfs_tree+i, v.parent);
-    delegate::write(bfs_tree+i, v.parent);
+    delegate::write(bfs_tree+i, v.parent());
   });
   VLOG(0) << "bfs_tree_write_time: " << walltime() - t;
   
@@ -160,4 +160,3 @@ double make_bfs_tree(GlobalAddress<Graph<VertexP>> g_in, GlobalAddress<int64_t> 
   
   return bfs_time;
 }
-
