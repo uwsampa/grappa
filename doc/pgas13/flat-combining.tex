@@ -8,7 +8,7 @@ At the most basic level, the concept of flat combining is about enabling coopera
 
 \begin{figure}[t]
   \centering
-  \includegraphics[width=0.42\textwidth]{figs/fc_shared_mem.pdf}
+  \includegraphics[width=0.6\textwidth]{figs/fc_shared_mem.pdf}
   \caption{\emph{Flat combining in shared memory.}
     To access the shared stack, each thread adds its request to the publication list (1). Thread 4 acquires the stack's lock and becomes the combiner (2), while the remaining threads spin waiting for their request to be satisfied. The combiner walks the publication list from the head, matching up Thread 3's push with Thread 2's pop on its own private stack (3). The two remaining pushes are added to the top of the shared stack (4). Finally, the top is updated, and Thread 4 releases the lock and continues its normal execution.
   }
@@ -35,7 +35,7 @@ In the case of the stack, combining came in the form of matched pushes and pops,
 %   \begin{subfigure}[b]{0.38\textwidth}
 \begin{figure}[t]
     \centering
-    \includegraphics[width=0.40\textwidth]{figs/stack_nofc.pdf}
+    \includegraphics[width=0.6\textwidth]{figs/stack_nofc.pdf}
     \caption{\emph{Stack without combining.}
       To do its push, Worker 1 sends a message to synchronize with the master on Core 0 (1), which sends another message to write the value to the top of the stack (2), bumps the synchronized \texttt{top} pointer (3), and finally continues. Worker 2, and workers on other cores, must block at the master and wait for Worker 1 to complete its push before doing their operations (4).
     }
@@ -46,7 +46,7 @@ In the case of the stack, combining came in the form of matched pushes and pops,
 \begin{figure}
   % \begin{subfigure}[b]{0.38\textwidth}
     \centering
-    \includegraphics[width=0.42\textwidth]{figs/stack_fc.pdf}
+    \includegraphics[width=0.6\textwidth]{figs/stack_fc.pdf}
     \caption{\emph{Stack with distributed combining.}
       Worker 3's pop matches with Worker 2's push, requiring no global communication (1). After combining locally, Worker 1 and 4's pushes remain, so Worker 4 becomes the core's combiner (2), sends a message to synchronize with the master (3), adds both new values to global stack (4), bumps the top pointer and releases the lock on master (5), and finally wakes Worker 1 (6).
     }
@@ -88,6 +88,8 @@ The proxy structure is chosen to be able to compactly aggregate operations and e
 
 After all local combining has been done, one requesting worker on the core is chosen to commit the combined operation globally. In Figure~\ref{fig:stackfc}, Worker 4 becomes the combiner and performs much the same synchronization as in the uncombined case, but is able to push multiple elements with one synchronization. The global lock must still be acquired, so concurrent combined requests (from different cores) must block and serialize on the master, but the granularity of global synchronization is coarser, reducing actual serialization.
 
+Centralized combining could be applied on top of distributed combining, combining the combined operations at the master node. However, in our experiments, performing the additional combining on the master did not significantly affect performance, so it is left out of our evaluation for space.
+
 \paragraph{Memory Consistency Model.}
 \label{sec:memory-model}
 In the context of Grappa, sequential consistency guarantees that within a
@@ -105,10 +107,13 @@ Because it is not immediately obvious
 that this distributed version of flat combining preserves sequential
 consistency, we now argue why it does.
 
-To preserve linearizability for flat-combined operations, they must obey a consistent global order.
-First of all, the execution of local combined operations must be serializable;
+To behave in accordance with sequential consistency, operations on a particular data structure must obey a consistent global order.
+One way to provide this is to guarantee \emph{linearizability}~\cite{herlihy1990linearizability} of operations, which requires that the operation appear to take effect globally at some instantaneous point during invocation of the API call. This ensures that a consistent total order can be imposed on operations on a single data structure.
+% To preserve linearizability for flat-combined operations, they must obey a consistent global order.
+For operations to be globally linearizable, first of all the execution of local combined operations must be serializable;
 this is unchanged from shared-memory flat-combining, and is trivially true due to the atomicity enabled by cooperative multithreading.
-When combined operations are applied globally, they are serialized at a particular core that owns the synchronization (the \emph{master} core for the Stack).
+Second, combined operations must be committed atomically in some globally serializable order.
+When committing, combined operations are serialized at the particular core that owns the synchronization (the \emph{master} core for the Stack).
 Whenever a global commit starts, a fresh combiner must be created for subsequent operations to use. If they were to use the old combiner's state to satisfy requests locally, it would violate global ordering because the local object would not reflect other cores' updates.
 % This guarantees, for example, that destructive operations only happen once (i.e., a worker cannot locally pop the same value that another core's combined operation does).
 % haven't discussed queue, set, or map yet...
@@ -119,17 +124,17 @@ In the case of a stack or queue, this guarantee comes from applying a batch of p
 % Centralized combining preserves this by only allowing updates to proceed when they will not conflict and blocking a batch of operations until all have completed.
 Matching pushes and pops locally for the Stack is one exception to the rule that operations must block until globally committed. Because a pop ``destroys'' the corresponding push, these operations together are independent of all others and can conceptually be placed anywhere in a global order. It is trivial to respect program order with this placement, so they can be safely matched locally.
 
-Combining set and map operations expose more nuances in the consistency guarantees.
+Combining set and map operations exposes more nuances in the requirements for consistency.
 Insert and lookup operations performed by different tasks are inherently unordered unless synchronized externally.
 Therefore, a batch of these operations can be committed globally in parallel, since they are guaranteed not to conflict with each other.
 Note that if an insert finds that its key is already in the combiner object, it does not need to send its own message. However, it must still block until that insert is done to ensure that a subsequent operation it performs cannot be reordered with it, preserving program order.
 % providing the same guarantee as all other delegate operations. 
 % This ensures that if one wanted to use the insert to signal synchronization, it is guaranteed to have been committed globally before the task continues.
-
 Similarly, lookups can piggy-back on other lookups of the same key.
+
 Using intuition from store/write buffers in modern processors, it is tempting to allow a lookup to be satisfied locally by inspecting outstanding inserts.
-However, this allows the local order in which keys were inserted to be observed.
-If this is allowed, then to preserve SC, that same order must be respected globally, forcing each batch to commit atomically with respect to other cores' batches. Enforcing this is prohibitively expensive, so a cheaper solution is chosen: lookups must get their values from the global data structure, so batches can be performed in parallel.
+However, this would allow the local order in which keys were inserted to be observed.
+Then to preserve SC, that same order would need to be respected globally, forcing each batch to commit atomically with respect to other cores' batches. Enforcing this would be prohibitively expensive, so a cheaper solution is chosen: lookups only get their values from the global data structure, therefore batches can be performed in parallel.
 
 These requirements only guarantee linearizability of operations on a single data structure. To guarantee sequential consistency with respect to all accesses, data-race freedom must be guaranteed by the program, as in the C++ memory model for shared memory.
 
@@ -138,7 +143,7 @@ To leverage the flat-combining paradigm in Grappa, we implemented a generic fram
 
 As mentioned before, the Grappa FC framework takes a different approach than the original flat-combining work for expressing how operations combine.
 % As mentioned before, the local \emph{publication list} is trivial to access atomically in Grappa's cooperative scheduling.
-% Instead, in the Grappa FC Framework, 
+% Instead, in the Grappa FC Framework, definition
 For each global structure instance, a \emph{proxy} object is created on each core and each worker merges its request into that structure before blocking or becoming the combiner.
 Each global data structure must define a \emph{proxy} that has \emph{state} to track combined requests, \emph{methods} to add new requests, and a way to \emph{sync} the state globally.
 % \begin{enumerate}

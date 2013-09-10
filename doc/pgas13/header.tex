@@ -1,6 +1,7 @@
 % \documentclass{acm_proc_article-sp}
-\documentclass[10pt]{sigplanconf}
+% \documentclass[10pt]{sigplanconf}
 % \documentclass[10pt,twocolumn]{article}
+\documentclass{easychair}
 
 % NOTE: SOSP submission guidelines say up to 13 pages of technical content, which is everything except references. References do NOT count towards page liites. And it is support 10 pt. SOSP is *very* picky about font size. 
 
@@ -58,3 +59,8 @@
 \newcommand{\gasnet}{GASNet}
 \newcommand{\Grappa}{Grappa\xspace}
 
+% define an easy way to insert shell command output into tex by encapsulating in |""
+% example usage:
+%   \input{|"hostname -s"}
+\begingroup\makeatletter\endlinechar=\m@ne\everyeof{\noexpand}
+\edef\x{\endgroup\def\noexpand\TeXpath{\@@input|"which tex" }}\x

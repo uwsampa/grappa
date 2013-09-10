@@ -5,12 +5,12 @@ Luckily, the PGAS community can leverage a large body of work solving these issu
 
 % Globally shared data structures are one of the cornerstones of shared-memory and PGAS abstractions. 
 % In order for multiple concurrent threads to interact with one another correctly, they must observe shared data consistently.
-It is commonly accepted that the easiest consistency model to reason about is \emph{sequential consistency} (SC), which enforces that all accesses are visible in program order and appear to happen in some global serializable order.
+It is commonly accepted that the easiest consistency model to reason about is \emph{sequential consistency} (SC), which enforces that all accesses are committed in program order and appear to happen in some global serializable order.
 To preserve SC, operations on shared data structures should be \emph{linearizable}~\cite{herlihy1990linearizability}; that is, appear to happen atomically in some global total order.
 In both physically shared memory and PGAS, maintaining linearizability presents performance challenges.
 The simplest way is to have a single global lock to enforce atomicity and linearizability through simple mutual exclusion. Literally serializing accesses in this way is typically considered prohibitively expensive, even in physically shared memory.
 % Much prior work has explored the scalability challenges of adding more concurrent accessors to shared data structures in shared memory systems.
-However, as the number of concurrent accessors increases, the more they contend and the more synchronization operations fail, even for fine-grained lock-free synchronization schemes.
+However, even in fine-grained lock-free synchronization schemes, as the number of concurrent accessors increases, there is more contention, resulting in more failed synchronization operations.
 With the massive amount of parallelism in a cluster of multiprocessors and with the increased cost of remote synchronization, the problem is magnified.
 
 A new synchronization technique called \emph{flat combining}~\cite{flatCombining} coerces threads to \emph{cooperate} rather than \emph{contend}.

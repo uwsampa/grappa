@@ -1,7 +1,8 @@
 \section{Conclusion}
-In PGAS implementations there is typically a large discrepancy between the first, simple, description of an algorithm and the final, optimized one.
 % At the core of this work is the desire to have a library of data structures which can be used without worrying about when they will be consistent or whether they will limit scalability.
-Bringing findings from shared memory into the PGAS domain brings with it new challenges and opportunities.
+% Bringing findings from shared memory into the PGAS domain brings with it new challenges and opportunities.
+Coming from the multi-core domain, the flat-combining paradigm provides a new perspective to global synchronization, bringing with it both challenges and new opportunities.
 We have shown that the additional concurrency that comes with a latency-tolerant runtime, rather than compounding the problem, provides a new opportunity for reducing communication by combining locally.
 % perform some of the locality optimizations that finely tuned implementations would.
-This allows easy implementation of a library of flat-combined linearizable global data structures that scale well out to a thousand cores and millions of concurrent threads.
+In PGAS implementations there is typically a large discrepancy between the first simple description of an algorithm and the final optimized one.
+Our distributed flat-combining framework allows easy implementation of a library of flat-combined linearizable global data structures, allowing even simple applications that use them to scale out to a thousand cores and millions of concurrent threads.
