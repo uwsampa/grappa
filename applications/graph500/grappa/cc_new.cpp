@@ -6,8 +6,10 @@ DECLARE_int64(cc_hash_size);
 DEFINE_int64(cc_concurrent_roots, 1, "number of concurrent `explores` to have at a given time");
 DEFINE_bool(cc_insert_async, false, "do inserts asynchronously (keeps them local until end)");
 
+#define GCE (&impl::local_gce)
+
 struct Edge {
-  graphint start, end;
+  long start, end;
   bool operator==(const Edge& e) const { return e.start == start && e.end == end; }
   friend std::ostream& operator<<(std::ostream& o, const Edge& e);
 };
@@ -25,17 +27,36 @@ namespace std {
   };
 }
 
+class VertexCC : public Vertex {
+  struct Data {
+    long color   : 63;
+    bool visited :  1;
+  };
+  Data& data() { return *reinterpret_cast<Data*>(&vertex_data); }
+public:
+  VertexCC(long c = -1, bool v = false) { color(c); visited(v); }
+
+  long color() { return data().color; }
+  void color(long c) { return data().color = c; }
+  long visited() { return data().visited; }
+  void visited(long c) { return data().visited = c; }
+};
+namespace delegate {
+  long color(GlobalAddress<VertexCC> v) {
+    return delegate::call(v, [](VertexCC* v){ return v->color(); });
+  }
+  void color(GlobalAddress<VertexCC> v, long c) {
+    return delegate::call(v, [c](VertexCC* v){ v->color(c); });
+  }
+}
+
 ///////////////////////////////////////////////////////////////
 // Globals
-static GlobalAddress<Graph<VertexP>> g;
-static GlobalAddress<graphint> colors;
-static GlobalAddress<graphint> visited;
-static GlobalAddress<color_t> marks;
-static bool changed;
-static graphint ncomponents;
-
+static GlobalAddress<Graph<VertexCC>> g;
 static GlobalAddress<GlobalHashSet<Edge>> component_edges;
 
+static bool changed;
+static long ncomponents;
 
 void pram_cc(GlobalAddress<GlobalHashSet<Edge>> component_edges, long NV) {
   int npass = 0;
@@ -46,43 +67,43 @@ void pram_cc(GlobalAddress<GlobalHashSet<Edge>> component_edges, long NV) {
     // Hook
     DVLOG(2) << "hook";
     component_edges->forall_keys([NV](Edge& e){
-      graphint i = e.start, j = e.end;
+      long i = e.start, j = e.end;
       CHECK_LT(i, NV);
       CHECK_LT(j, NV);
-      graphint ci = d::read(colors+e.start),
-               cj = d::read(colors+e.end);
+      long ci = color(g->vs+e.start),
+               cj = color(g->vs+e.end);
       CHECK_LT(ci, NV);
       CHECK_LT(cj, NV);
       bool lchanged = false;
-    
+      
       if ( ci < cj ) {
-        lchanged = lchanged || d::call(colors+cj, [ci,cj](graphint* ccj){
-          if (*ccj == cj) { *ccj = ci; return true; }
+        lchanged ||= d::call(g->vs+cj, [ci,cj](VertexCC* v){
+          if (v->color() == cj) { v->color(ci); return true; }
           else { return false; }
         });
       }
       if (!lchanged && cj < ci) {
-        lchanged = lchanged || d::call(colors+ci, [ci,cj](graphint* cci){
-          if (*cci == ci) { *cci = cj; return true; }
+        lchanged ||= d::call(g->vs+ci, [ci,cj](VertexCC* v){
+          if (v->color() == ci) { v->color(cj); return true; }
           else { return false; }
         });
       }
-    
+      
       if (lchanged) { changed = true; }
     });
     
     // Compress
     DVLOG(2) << "compress";
     component_edges->forall_keys([NV](Edge& e){
-      auto compress = [NV](graphint i) {
-        graphint ci, cci, nc;
-        ci = nc = d::read(colors+i);
+      auto compress = [NV](long i) {
+        long ci, cci, nc;
+        ci = nc = color(g->vs+i);
         CHECK_LT(ci, NV);
         CHECK_LT(nc, NV);
-        while ( nc != (cci=d::read(colors+nc)) ) { nc = d::read(colors+cci); CHECK_LT(nc, NV); }
+        while ( nc != (cci=color(g->vs+nc)) ) { nc = color(g->vs+cci); CHECK_LT(nc, NV); }
         if (nc != ci) {
           changed = true;
-          d::write(colors+i, nc);
+          color(g->vs+i, nc);
         }
       };
       
@@ -95,9 +116,148 @@ void pram_cc(GlobalAddress<GlobalHashSet<Edge>> component_edges, long NV) {
   LOG(INFO) << "cc_pram_passes: " << npass;
 }
 
+
+void explore(long root_index, long mycolor, GlobalAddress<CompletionEvent> ce) {
+  auto root_addr = g->vs+root;
+  CHECK_EQ(root_addr.core(), mycore());
+  auto& rv = *sv_addr.pointer();
+  
+  if (mycolor < 0) {
+    if (rv.color() < 0) {
+      rv.color(root_index);
+      mycolor = root_index;
+    } else {
+      goto explore_done;
+    }
+  }
+  
+  // now visit adjacencies
+  enroll(ce, rv.nadj);
+  for (auto& ev : rv.adj_iter()) {
+    send_heap_message((g->vs+ev).core(), [ev,mycolor,owner]{
+      auto& v = *(g->vs+ev).pointer();
+      
+      if (v.color() < 0) { // unclaimed
+        v.color(mycolor);
+        privateTask([ev,mycolor,ce]{
+          explore(ev, mycolor, ce);
+        });
+      } else { // already had color
+        Edge edge(min(v.color(),mycolor), max(v.color(),mycolor));
+        if (FLAGS_cc_insert_async) {
+          component_edges->insert_async(edge, [owner]{ complete(owner); });
+        } else {
+          privateTask([edge,owner]{
+            component_edges->insert(edge);
+            complete(owner);
+          });
+        }
+      }
+    });
+  }
+  
+explore_done:
+  complete(ce);
+}
+
+void search(long v, long mycolor) {
+  CHECK_EQ((g->vs+v).core(), mycore());
+  auto& src_v = *(g->vs+v).pointer();
+  
+  GCE->enroll(src_v.nadj);
+  for (auto& ev : src_v.adj_iter()) {
+    send_heap_message((g->vs+ev).core(), [ev]{
+      auto& v = (g->vs+ev).pointer();
+      if (!v.visited()) {
+        v.visited(true);
+        v.color(mycolor);
+        privateTask([ev,mycolor]{
+          search(ev, mycolor);
+          GCE->complete();
+        });
+      } else {
+        GCE->complete();
+      }
+    });
+  }
+}
+
 long cc_benchmark(GlobalAddress<Graph<>> in) {
-  call_on_all_cores([in]{
-    
+  auto _g = Graph<>::transform_vertices<VertexCC>(in, [](long i, VertexCC& v){
+    new (&v) VertexCC(-i-1);
   });
-  return 0;
+  auto _component_edges = GlobalHashSet<Edge>::create(FLAGS_cc_hash_size);
+  
+  call_on_all_cores([_g,_component_edges]{
+    g = _g;
+    component_edges = _component_edges;
+  });
+  
+  GRAPPA_TIME_LOG("cc_set_insert_time") {
+    
+    // size_t current_root = 0;
+    // auto root_addr = make_global(&current_root);
+    CountingSemaphore _sem(FLAGS_cc_conccurent_roots);
+    auto sem = make_global(&_sem);
+
+    for (size_t i = 0; i < NV; i++) {
+      sem->decrement(); // (after filling, blocks until an exploration finishes)
+      send_message((g->vs+i).core(), [i,sem]{
+        auto ce = make_global(new CompletionEvent(1));
+        
+        privateTask([i,ce]{
+          explore(i, (g->vs+i)->color(), ce);
+        });
+
+        ce.wait(new_suspended_delegate([ce,sem]{
+          delete ce.pointer();
+          send_message(sem.core(), [sem]{
+            sem.increment();
+          });
+        }));
+      });
+    }
+    
+  }
+  
+  if (VLOG_IS_ON(3)) {
+    component_edges->forall_keys([](Edge& e){ VLOG(0) << e; });
+    VLOG(3) << util::array_str("colors: ", colors, NV, 32);
+  }
+  
+  ///////////////////////////////////////////////////////////////
+  // Run classic Connected Components algorithm on reduced graph
+  GRAPPA_TIME_LOG("c_reduced_graph_time") {
+    pram_cc();
+  }
+  
+  ///////////////////////////////////////////////////////////////
+  // Propagate colors out to the rest of the vertices
+  GRAPPA_TIME_LOG("cc_propagate_time") {
+    // reset 'visited' flag
+    forall_localized(g->vs, g->nv, [](VertexCC& v){ v.visited(false); });
+    
+    component_edges->forall_keys<GCE>([](Edge& e){
+      auto mycolor = color(g->vs+e.start);
+      for (auto ev : {e.start, e.end}) {
+        GCE->enroll();
+        send_message((g->vs+ev).core(), [ev]{
+          auto& v = *(g->vs+ev).pointer();
+          if (!v.visited()) {
+            v.visited(true);
+            privateTask([ev]{
+              search(ev, mycolor);
+              GCE->complete();
+            });
+          } else {
+            GCE->complete();
+          }
+        });
+      }
+    });
+    
+  } // cc_propagate_time
+
+  forall_localized(g->vs, g->nv, [nca](int64_t i, VertexCC& v){ if (v.color() == i) ncomponents++ });
+  return reduce<long,collective_add>(&ncomponents);
 }
