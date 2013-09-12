@@ -43,8 +43,8 @@ include $(GRAPPA_HOME)/system/Makefile
 graph.exe: $(SOURCES) main.o $(HEADERS) generator.a $(GRAPPA_HOME)/system/libGrappa.a
 	$(ENV_VARIABLES) $($(MPITYPE)_LD) $(LDFLAGS) $(CFLAGS) $(SOURCES) main.o generator.a $(GRAPPA_HOME)/system/libGrappa.a $(LIBRARIES) -o $@ $(LIBS)
 
-graph_new.exe: $(SOURCES) main_new.o $(HEADERS) generator.a $(GRAPPA_HOME)/system/libGrappa.a bfs_local_adj.o
-	$(ENV_VARIABLES) $($(MPITYPE)_LD) $(LDFLAGS) $(CFLAGS) $(SOURCES) bfs_local_adj.o main_new.o generator.a $(GRAPPA_HOME)/system/libGrappa.a $(LIBRARIES) -o $@ $(LIBS)
+graph_new.exe: $(SOURCES) main_new.o cc_new.o $(HEADERS) generator.a $(GRAPPA_HOME)/system/libGrappa.a bfs_local_adj.o
+	$(ENV_VARIABLES) $($(MPITYPE)_LD) $(LDFLAGS) $(CFLAGS) $(SOURCES) bfs_local_adj.o main_new.o cc_new.o generator.a $(GRAPPA_HOME)/system/libGrappa.a $(LIBRARIES) -o $@ $(LIBS)
 
 $(GRAPPA_HOME)/system/libGrappa.a: force
 	cd $(GRAPPA_HOME)/system; $(MAKE) lib
