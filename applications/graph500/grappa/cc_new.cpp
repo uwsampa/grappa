@@ -185,6 +185,8 @@ void search(long v, long mycolor) {
 
 long cc_benchmark(GlobalAddress<Graph<>> in) {
   VLOG(0) << "cc_version: new";
+  double t = walltime();
+  
   auto _g = Graph<>::transform_vertices<VertexCC>(in, [](long i, VertexCC& v){
     new (&v) VertexCC(-i-1);
   });
@@ -255,5 +257,11 @@ long cc_benchmark(GlobalAddress<Graph<>> in) {
   } // cc_propagate_time
 
   forall_localized(g->vs, g->nv, [](int64_t i, VertexCC& v){ if (v.color() == i) ncomponents++; });
-  return reduce<long,collective_add>(&ncomponents);
+  long nc = reduce<long,collective_add>(&ncomponents);
+  
+  t = walltime() - t;
+  LOG(INFO) << "ncomponents: " << nc << std::endl;
+  LOG(INFO) << "components_time: " << t << std::endl;
+  
+  return nc;
 }
