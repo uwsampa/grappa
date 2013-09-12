@@ -145,7 +145,7 @@ void user_main(void * ignore) {
     bfs_benchmark(tg, g, FLAGS_nbfs);
   }
   if (FLAGS_bench.find("cc") != std::string::npos) {
-    // cc_benchmark(g);
+    cc_benchmark(g);
   }
   
   Grappa::Statistics::merge_and_print(std::cout);
