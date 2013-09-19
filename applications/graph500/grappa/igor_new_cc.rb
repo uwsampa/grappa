@@ -7,7 +7,7 @@ load '../../../igor_common.rb'
 Igor do
   include Isolatable
   
-  database '~/exp/sosp.db', :bfs
+  database '~/exp/sosp.db', :cc
   
   # isolate everything needed for the executable so we can sbcast them for local execution
   isolate ['graph_new.exe']
