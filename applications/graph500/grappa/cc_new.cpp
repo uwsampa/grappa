@@ -184,6 +184,8 @@ void search(long v, long mycolor) {
 }
 
 long cc_benchmark(GlobalAddress<Graph<>> in) {
+  Statistics::start_tracing();
+  
   VLOG(0) << "cc_version: new";
   double t = walltime();
   
@@ -260,6 +262,9 @@ long cc_benchmark(GlobalAddress<Graph<>> in) {
   long nc = reduce<long,collective_add>(&ncomponents);
   
   t = walltime() - t;
+  
+  Statistics::stop_tracing();
+  
   LOG(INFO) << "ncomponents: " << nc << std::endl;
   LOG(INFO) << "components_time: " << t << std::endl;
   
