@@ -32,6 +32,15 @@ extern TaskingScheduler global_scheduler;
 extern void failure_function();
 
 }
+
+/// Initialize Grappa. Call in SPMD context before running Grappa
+/// code. Running Grappa code before calling init() is illegal.
+void init( int * argc_p, char ** argv_p[], size_t size = -1 );
+
+/// Clean up Grappa. Call in SPMD context after all Grappa code
+/// finishes. Running Grappa code after calling finalize() is illegal.
+void finalize();
+
 }
 
 /// pointer to parent pthread
