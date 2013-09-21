@@ -65,9 +65,7 @@ struct Graph {
   int64_t * scratch;
   
   GlobalAddress<Graph> self;
-  
-  char _pad[block_size - sizeof(vs)-sizeof(nv)-sizeof(nadj)-sizeof(nadj_local)-sizeof(adj_buf)-sizeof(scratch)-sizeof(self)];
-  
+    
   Graph(GlobalAddress<Graph> self, GlobalAddress<V> vs, int64_t nv)
     : self(self)
     , vs(vs)
@@ -253,4 +251,4 @@ struct Graph {
     return g;
   }
   
-};
+} GRAPPA_BLOCK_ALIGNED;
