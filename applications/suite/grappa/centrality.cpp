@@ -167,20 +167,15 @@ static void enable_tau() {
   VLOG(1) << "Enabling TAU recording.";
   call_on_all_cores([]{ FLAGS_record_grappa_events = true; });
 #endif
-#ifdef GOOGLE_PROFILER
-  call_on_all_cores([]{ Grappa_start_profiling(); });
-#else
-  call_on_all_cores([]{ Statistics::reset(); });
-#endif
+  Grappa::Statistics::start_tracing();
 }
 static void disable_tau() {
 #ifdef GRAPPA_TRACE
   VLOG(1) << "Disabling TAU recording.";
   call_on_all_cores([]{ FLAGS_record_grappa_events = false; });
 #endif
-#ifdef GOOGLE_PROFILER
-  call_on_all_cores([]{ Grappa_stop_profiling(); });
-#else
+  Grappa::Statistics::stop_tracing();
+#ifndef GOOGLE_PROFILER
   Statistics::merge_and_print();
   call_on_all_cores([]{ Statistics::reset(); });
 #endif

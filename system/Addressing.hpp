@@ -43,8 +43,10 @@ extern void * global_memory_chunk_base;
 /// assumes user data will have the top 16 bits all 0.
 
 /// Number of bytes in each block 
-static const int block_size = sizeof(int64_t) * 8;
 #define BLOCK_SIZE sizeof(int64_t)*8
+static const int block_size = BLOCK_SIZE;
+
+#define GRAPPA_BLOCK_ALIGNED __attribute__((aligned(BLOCK_SIZE)))
 
 /// How many address type bits?
 static const int tag_bits = 1;
@@ -438,6 +440,27 @@ inline GlobalAddress< M > global_pointer_to_member( const GlobalAddress< T > t, 
   const M * mp = &(tp->*m);
   return GlobalAddress< M >::Raw( reinterpret_cast< intptr_t >( mp ) );
 }
+
+template<typename T>
+struct LocalIterator {
+  GlobalAddress<T> base;
+  size_t nelem;
+  T * begin() { return base.localize(); }
+  T * end()   { return (base+nelem).localize(); }
+};
+
+/// Helper for iterating over local elements of a Linear address range.
+///
+/// @code
+///   auto array = global_alloc<long>(N);
+///   on_all_cores([]{
+///     for (auto& v : iterate_local(array,N)) {
+///       v++;
+///     }
+///   });
+/// @endcode
+template<typename T>
+LocalIterator<T> iterate_local(GlobalAddress<T> base, size_t nelem) { return LocalIterator<T>{base, nelem}; }
 
 /// @}
 //template< typename T >
