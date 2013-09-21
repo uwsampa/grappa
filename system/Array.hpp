@@ -99,6 +99,7 @@ void memcpy(GlobalAddress<T> dst, GlobalAddress<T> src, size_t nelem) {
   });
 }
 
+/// Helper so we don't have to change the code if we change a Global pointer to a normal pointer (in theory).
 template< typename T >
 void memcpy(T* dst, T* src, size_t nelem) {
   ::memcpy(dst, src, nelem*sizeof(T));
@@ -176,9 +177,17 @@ namespace util {
     T * begin() { return base; }
     T * end()   { return base+nelem; }
   };
-
+  
+  /// Easier C++11 iteration over local array. Similar idea to Addressing::iterate_local().
+  ///
+  /// @code
+  ///   auto array = new long[N];
+  ///   for (auto& v : util::iterate(array,N)) {
+  ///     v++;
+  ///   }
+  /// @endcode
   template<typename T>
-  SimpleIterator<T> iterator(T* base = nullptr, size_t nelem = 0) { return SimpleIterator<T>{base, nelem}; }
+  SimpleIterator<T> iterate(T* base = nullptr, size_t nelem = 0) { return SimpleIterator<T>{base, nelem}; }
   
 } // namespace util
 

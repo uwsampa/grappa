@@ -55,7 +55,7 @@ void calculate_dM( GlobalAddress<Graph<WeightedAdjVertex>> g, double d ) {
   //  else set m[,j] to m[,j]/sum
   
   forall_localized( g->vs, g->nv, [g,d](WeightedAdjVertex& v) {
-    for (auto& w : util::iterator(v.weights, v.nadj)) w *= d;
+    for (auto& w : util::iterate(v.weights, v.nadj)) w *= d;
   });
 }
 

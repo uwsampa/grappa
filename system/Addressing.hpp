@@ -447,6 +447,16 @@ struct LocalIterator {
   T * end()   { return (base+nelem).localize(); }
 };
 
+/// Helper for iterating over local elements of a Linear address range.
+///
+/// @code
+///   auto array = global_alloc<long>(N);
+///   on_all_cores([]{
+///     for (auto& v : iterate_local(array,N)) {
+///       v++;
+///     }
+///   });
+/// @endcode
 template<typename T>
 LocalIterator<T> iterate_local(GlobalAddress<T> base, size_t nelem) { return LocalIterator<T>{base, nelem}; }
 
