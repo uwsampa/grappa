@@ -410,11 +410,13 @@ namespace Grappa {
     impl::forall_localized<GCE,Threshold,T,F>(base, nelems, loop_body, &F::operator());
   }
 
+  /// Overload to allow using default GCE but specifying threshold
   template< int64_t Threshold, typename T = decltype(nullptr), typename F = decltype(nullptr) >
   void forall_localized(GlobalAddress<T> base, int64_t nelems, F loop_body) {
     impl::forall_localized<&impl::local_gce,Threshold,T,F>(base, nelems, loop_body, &F::operator());
   }
   
+  /// Return range of cores that have elements for the given linear address range.
   template< typename T >
   std::pair<Core,Core> cores_with_elements(GlobalAddress<T> base, size_t nelem) {
     Core start_core = base.node();
