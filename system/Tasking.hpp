@@ -36,6 +36,14 @@ DECLARE_uint64( num_starting_workers );
 /// Task routines
 ///
 
+// initialize global queue if used
+void Grappa_global_queue_initialize();
+  
+// forward declaration needed for below wrapper
+void Grappa_end_tasks();
+
+// forward declare master thread from scheduler
+extern Thread * master_thread;
 
 
 namespace Grappa {
@@ -139,6 +147,51 @@ namespace Grappa {
     Grappa::impl::global_scheduler.ready( th );
     DVLOG(5) << __PRETTY_FUNCTION__ << " spawned Worker " << th;
   }
+
+template< typename FP >
+void run(FP fp) {
+#ifdef GRAPPA_TRACE  
+  TAU_PROFILE("run_user_main()", "(user code entry)", TAU_USER);
+#endif
+#ifdef VTRACE
+  VT_TRACER("run_user_main()");
+#endif
+#ifdef VTRACE_SAMPLED
+  // this doesn't really add anything to the profiled trace
+  //Grappa_take_profiling_sample();
+#endif
+
+  if( global_communicator.mynode() == 0 ) {
+    CHECK_EQ( Grappa::impl::global_scheduler.get_current_thread(), master_thread ); // this should only be run at the toplevel
+
+    // create user_main as a private task
+    //Grappa_privateTask( &user_main_wrapper<A>, fp, args );
+    Grappa::privateTask( [&fp] {
+        Grappa_global_queue_initialize();
+        fp();
+        Grappa_end_tasks();
+      } );
+
+    DVLOG(5) << "Spawned user_main";
+    
+    // spawn 1 extra worker that will take user_main
+    Grappa::impl::global_scheduler.createWorkers( 1 );
+  }
+
+  // spawn starting number of worker coroutines
+  Grappa::impl::global_scheduler.createWorkers( FLAGS_num_starting_workers );
+  Grappa::impl::global_scheduler.allow_active_workers(-1); // allow all workers to be active
+  
+  StateTimer::init();
+
+  // start the scheduler
+  Grappa::impl::global_scheduler.run( );
+
+#ifdef VTRACE_SAMPLED
+  // this doesn't really add anything to the profiled trace
+  //Grappa_take_profiling_sample();
+#endif
+}
 
   /// @}
 
@@ -249,12 +302,6 @@ void Grappa_publicTask( void (*fn_p)(A0), A0 arg) {
   Grappa_publicTask(reinterpret_cast<void (*)(A0,void*)>(fn_p), arg, (void*)NULL);
 }
 
-// initialize global queue if used
-void Grappa_global_queue_initialize();
-  
-// forward declaration needed for below wrapper
-void Grappa_end_tasks();
-
 /// Wrapper to make user_main terminate the tasking layer
 /// after it is done
 template < typename T >
@@ -277,48 +324,10 @@ static void user_main_wrapper( void (*fp)(T), T args ) {
 ///
 /// @return 0 if completed without errors
 /// TODO: error return values?
-extern Thread * master_thread;
 template < typename A >
 int Grappa_run_user_main( void (*fp)(A), A args )
 {
-  STATIC_ASSERT_SIZE_8( A );
-  
-#ifdef GRAPPA_TRACE  
-  TAU_PROFILE("run_user_main()", "(user code entry)", TAU_USER);
-#endif
-#ifdef VTRACE
-  VT_TRACER("run_user_main()");
-#endif
-#ifdef VTRACE_SAMPLED
-  // this doesn't really add anything to the profiled trace
-  //Grappa_take_profiling_sample();
-#endif
-
-  if( global_communicator.mynode() == 0 ) {
-    CHECK_EQ( Grappa::impl::global_scheduler.get_current_thread(), master_thread ); // this should only be run at the toplevel
-
-    // create user_main as a private task
-    Grappa_privateTask( &user_main_wrapper<A>, fp, args );
-    DVLOG(5) << "Spawned user_main";
-    
-    // spawn 1 extra worker that will take user_main
-    Grappa::impl::global_scheduler.createWorkers( 1 );
-  }
-
-  // spawn starting number of worker coroutines
-  Grappa::impl::global_scheduler.createWorkers( FLAGS_num_starting_workers );
-  Grappa::impl::global_scheduler.allow_active_workers(-1); // allow all workers to be active
-  
-  StateTimer::init();
-
-  // start the scheduler
-  Grappa::impl::global_scheduler.run( );
-
-#ifdef VTRACE_SAMPLED
-  // this doesn't really add anything to the profiled trace
-  //Grappa_take_profiling_sample();
-#endif
-
+  Grappa::run( [fp,args] { fp(args); } );
   return 0;
 }
 
