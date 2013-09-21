@@ -280,13 +280,4 @@ namespace Grappa {
 
 }
 
-/// Recursive template expansion to easily compute combined size of many items
-// base case
-inline size_t sizeof_many() { return 0; }
-// recursive case
-template< typename T, typename... Rest>
-size_t sizeof_many(T name, Rest... remain) {
-  return sizeof(name) + sizeof_many(remain...);
-}
-
 #endif
