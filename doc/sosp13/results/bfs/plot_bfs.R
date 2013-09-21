@@ -6,10 +6,10 @@ library(ggplot2)
 # library(extrafont)
 # loadfonts()
 
-source("common.R")
+source("../common.R")
 
 db <- function(query) {
-  d <- sqldf(query, dbname="sosp.db")
+  d <- sqldf(query, dbname="../sosp.db")
   
   #d$nnode <- factor(d$nnode) # make field categorical
   d$ppn   <- factor(d$ppn)
@@ -17,12 +17,12 @@ db <- function(query) {
   return(d)
 }
 
-p <- ggplot(db("select *, max_teps/1e6 as MTEPS from bfs
-               where (scale=27)
-               and (bfs_version =='localized' or bfs_version == 'localized_cps' or bfs_version like 'xmt_%' or bfs_version=='mpi_simple')
-            "), 
-  aes(x=nnode, y=MTEPS, group=bfs_version, color=bfs_version, shape=ppn))+
-  ggtitle("BFS")+xlab("Nodes")+
+p <- ggplot(db("select * from bfs
+               where (scale==27 or scale == 26)
+               and (bfs_version =='localized' or bfs_version == 'local_adj' or bfs_version == 'localized_cps' or bfs_version like 'xmt_%' or bfs_version=='mpi_simple')
+            "),
+  aes(x=nnode, y=max_teps/1e6, group=bfs_version, color=bfs_version, shape=ppn))+
+  ggtitle("BFS")+xlab("Nodes")+ylab("MTEPS")+
   sosp_theme+
   scale_x_continuous(breaks=seq(0, 64, 16), limits=c(0,64))+ # axis ticks seq(from,to,by)
   scale_y_continuous(limits=c(0,500))+
@@ -50,6 +50,7 @@ p.z <- ggplot(db("select *, max_teps/1e6 as MTEPS from bfs
   coord_cartesian(ylim=c(0,400))+
   stat_summary(fun.y="max", geom="line")+
   facet_grid(.~scale,labeller=label_both) # make new plots for each scale
+  
 # p.z # plot it
 #ggsave("plots/bfs_teps_zoom.pdf", plot=p.z, scale=1.3) # or save it
 

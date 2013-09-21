@@ -43,6 +43,9 @@ CC=mpicc
 CXX=mpicxx
 LD=mpicxx
 
+MPI_ROOT= $(shell M=`which mpicxx`; echo $${M%%/bin/mpicxx})
+CFLAGS += -I$(MPI_ROOT)/include
+
 NONE_CC=$(CC)
 NONE_CXX=$(CXX)
 NONE_LD=$(LD)
@@ -73,6 +76,7 @@ NELSON=/pic/people/nels707
 CC=mpicc
 CXX=mpicxx
 LD=mpicxx
+
 
 #GASNET=$(NELSON)/gasnet
 HUGETLBFS=/usr

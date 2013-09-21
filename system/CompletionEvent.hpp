@@ -51,6 +51,7 @@ namespace Grappa {
     }
     
     void wait(SuspendedDelegate * c) {
+      CHECK( is_suspended_delegate((Worker*)c) );
       if (count > 0) {
         Grappa::add_waiter(&cv, c);
       } else {

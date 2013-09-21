@@ -99,6 +99,13 @@ void memcpy(GlobalAddress<T> dst, GlobalAddress<T> src, size_t nelem) {
   });
 }
 
+/// Helper so we don't have to change the code if we change a Global pointer to a normal pointer (in theory).
+template< typename T >
+void memcpy(T* dst, T* src, size_t nelem) {
+  ::memcpy(dst, src, nelem*sizeof(T));
+}
+
+
 /// Asynchronous version of memcpy, spawns only on cores with array elements. Synchronizes
 /// with given GlobalCompletionEvent, so memcpy's are known to be complete after GCE->wait().
 /// Note: same restrictions on `dst` and `src` as Grappa::memcpy).
@@ -163,7 +170,26 @@ namespace util {
     return ss.str();
   }
   
-}
+  template<typename T>
+  struct SimpleIterator {
+    T * base;
+    size_t nelem;
+    T * begin() { return base; }
+    T * end()   { return base+nelem; }
+  };
+  
+  /// Easier C++11 iteration over local array. Similar idea to Addressing::iterate_local().
+  ///
+  /// @code
+  ///   auto array = new long[N];
+  ///   for (auto& v : util::iterate(array,N)) {
+  ///     v++;
+  ///   }
+  /// @endcode
+  template<typename T>
+  SimpleIterator<T> iterate(T* base = nullptr, size_t nelem = 0) { return SimpleIterator<T>{base, nelem}; }
+  
+} // namespace util
 
 /// @}
 } // namespace Grappa

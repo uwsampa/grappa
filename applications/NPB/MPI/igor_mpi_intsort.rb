@@ -17,9 +17,9 @@ Igor do
   
   params {
     tag     'mpi'
-    problem 'E'
-    nnode   8,16,32,64,128
-    ppn     2,4,8,16
+    problem 'D'
+    nnode   64ƒ
+    ppn     16
     nproc   expr('nnode*ppn')
   }
   
