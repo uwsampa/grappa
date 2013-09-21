@@ -21,7 +21,7 @@ BOOST_AUTO_TEST_SUITE( FlatCombiner_tests );
 struct Foo {
   long x, y;
   double z;
-} __attribute__((aligned(BLOCK_SIZE)));
+} GRAPPA_BLOCK_ALIGNED;
 
 void user_main( void * ignore ) {
   CHECK_EQ(sizeof(Foo), block_size);
