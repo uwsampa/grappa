@@ -488,10 +488,8 @@ void user_main(void * ignore) {
   histogram_time = allreduce_time = scatter_time = local_rank_time = 0;
   
   Statistics::reset_all_cores();
-#ifdef GOOGLE_PROFILER
-  // // not necessary with histogram stuff
-  //  call_on_all_cores([]{ Grappa_start_profiling(); });
-#endif
+
+  Statistics::start_tracing();
   
   total_time = Grappa_walltime();
 
@@ -503,9 +501,7 @@ void user_main(void * ignore) {
 
   total_time = Grappa_walltime() - total_time;
 
-#ifdef GOOGLE_PROFILER
-  call_on_all_cores([]{ Grappa_stop_profiling(); });
-#endif  
+  Statistics::stop_tracing();
   Statistics::merge_and_print();
   
   std::cerr << "total_time: " << total_time << "\n";

@@ -298,8 +298,7 @@ void user_main( int * ignore ) {
   // }
 
   Grappa::Statistics::reset();
-
-  call_on_all_cores([]{ Grappa_start_profiling(); });
+  Grappa::Statistics::start_tracing();
   
   pagerank_result result;
   TIME(time,
@@ -307,7 +306,7 @@ void user_main( int * ignore ) {
   );
   pagerank_time_SO = time;
   
-  call_on_all_cores([]{ Grappa_stop_profiling(); });
+  Grappa::Statistics::stop_tracing();
 
   // output stats
   make_graph_time   = make_graph_time_SO;
