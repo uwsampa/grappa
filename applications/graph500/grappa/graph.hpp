@@ -38,7 +38,7 @@ struct Vertex {
     }
   }
   
-  auto adj_iter() -> decltype(util::iterator(local_adj)) { return util::iterator(local_adj, nadj); }
+  auto adj_iter() -> decltype(util::iterate(local_adj)) { return util::iterate(local_adj, nadj); }
 };
 
 // vertex with parent
