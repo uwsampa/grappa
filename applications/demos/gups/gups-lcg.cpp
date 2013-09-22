@@ -1,3 +1,4 @@
+// make -j TARGET=gups-lcg.exe mpi_run GARGS=" --iterations=$(( 1 << 28 )) --verify=true --global_memory_use_hugepages=false --loop_threshold=1024 --shared_pool_size=$(( 1 << 16 )) --shared_pool_max=1024" PPN=9 NNODE=4
 
 #include <Grappa.hpp>
 
@@ -34,8 +35,8 @@ int main( int argc, char * argv[] ) {
 
       forall_global_public(0, FLAGS_iterations, [=](int64_t i){
           uint64_t offset = (lcgM * i + lcgB) % FLAGS_sizeA;
-          delegate::fetch_and_add( A + offset, 1);
-          //delegate::increment_async( A + offset, 1);
+          //delegate::fetch_and_add( A + offset, 1);
+          delegate::increment_async( *Grappa::shared_pool, A + offset, 1);
         });
 
       gups_runtime = walltime() - start;
