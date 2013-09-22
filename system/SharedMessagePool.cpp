@@ -32,6 +32,8 @@ namespace Grappa {
       CHECK(size <= this->buffer_size) << "Pool (" << this->buffer_size << ") is not large enough to allocate " << size << " bytes.";
       VLOG(3) << "MessagePool full (" << this << ", to_send:"<< this->to_send << "), finding a new one;    completions_received:" << completions_received << ", allocated_count:" << allocated_count;
     
+      this->start_emptying(); // start working on freeing up the previous one
+
       // first try and find one from the unused_pools pool
       if (unused_pools.size() > 0) { pop_pool:
         shared_pool = unused_pools.top();
@@ -39,11 +41,25 @@ namespace Grappa {
         unused_pools.pop();
       } else if (!global_scheduler.in_no_switch_region() && FLAGS_shared_pool_max > 0 &&
           shared_message_pools_allocated >= FLAGS_shared_pool_max-1) {
-        Grappa::wait(&blocked_senders);
-        if (this == shared_pool) {
-          CHECK_GT(unused_pools.size(), 0);
-          goto pop_pool;
-        } // else should be able to just fall through and go on our merry way
+        // Grappa::wait(&blocked_senders);
+        // if (this == shared_pool) {
+        //   CHECK_GT(unused_pools.size(), 0);
+        //   goto pop_pool;
+        // } // else should be able to just fall through and go on our merry way
+
+        do {
+          Grappa::wait(&blocked_senders);
+          if( shared_pool->remaining() < size && unused_pools.size() > 0 ) {
+            goto pop_pool;
+          }
+        } while( shared_pool->remaining() < size );
+        
+        // if( this == shared_pool ) {
+        //   while( unused_pools.size() == 0 ) {
+        //     Grappa::wait(&blocked_senders);
+        //   }
+        //   goto pop_pool;
+        // }
         // CHECK(unused_pools.size() > 0 || shared_pool->remaining() > size);
       } else {
         // allocate a new one, have the old one delete itself when all previous have been sent
@@ -53,8 +69,6 @@ namespace Grappa {
         VLOG(4) << "created new shared_pool @ " << shared_pool << ", buf:" << shared_pool->buffer;
       }
       
-      this->start_emptying(); // start working on freeing up the previous one
-    
       return shared_pool->allocate(size); // actually satisfy the allocation request
     } else {
       allocated_count++;
@@ -65,9 +79,11 @@ namespace Grappa {
   }
   
   void SharedMessagePool::start_emptying() {
-    emptying = true;
-    // CHECK_GT(to_send, 0);
-    if (to_send == 0 && emptying) { on_empty(); }
+    if( !emptying ) {
+      emptying = true;
+      // CHECK_GT(to_send, 0);
+      if (to_send == 0 && emptying) { on_empty(); }
+    }
   }
   
   void SharedMessagePool::message_sent(impl::MessageBase* m) {
