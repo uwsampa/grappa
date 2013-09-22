@@ -88,6 +88,13 @@ namespace Grappa {
         (*target.pointer()) += increment;
       });
     }
+
+    /// Overload Grappa::delegate::increment_async to use global message pool
+    template< GlobalCompletionEvent * GCE = &Grappa::impl::local_gce, typename T = void, typename U = void, typename PoolType = impl::MessagePoolBase >
+    inline void increment_async(GlobalAddress<T> target, U increment) {
+      increment_async( *shared_pool, target, increment );
+    }
+
     
     /// A 'Promise' is a wrapper around a FullEmpty for async delegates with return values.
     /// The idea is to allocate storage for the result, issue the delegate request, and then
