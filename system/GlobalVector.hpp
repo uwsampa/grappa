@@ -334,7 +334,7 @@ public:
   static GlobalAddress<GlobalVector> create(size_t total_capacity) {
     auto base = global_alloc<T>(total_capacity);
     auto self = mirrored_global_alloc<GlobalVector>();
-    VLOG(0) << "create:\n  self = " << self << "\n  base = " << base;
+    VLOG(3) << "create:\n  self = " << self << "\n  base = " << base;
     call_on_all_cores([self,base,total_capacity]{
       new (self.localize()) GlobalVector(self, base, total_capacity);
     });
