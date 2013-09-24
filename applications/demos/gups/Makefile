@@ -36,6 +36,14 @@ allclean: clean
 
 
 gups.exe gups.o: $(GRAPPA_HOME)/system/libGrappa.a
+
+gups1.exe gups1.o: $(GRAPPA_HOME)/system/libGrappa.a
+gups2.exe gups2.o: $(GRAPPA_HOME)/system/libGrappa.a
+gups3.exe gups3.o: $(GRAPPA_HOME)/system/libGrappa.a
+gups4.exe gups4.o: $(GRAPPA_HOME)/system/libGrappa.a
+gups5.exe gups5.o: $(GRAPPA_HOME)/system/libGrappa.a
+
+
 gups-lcg.exe gups-lcg.o: $(GRAPPA_HOME)/system/libGrappa.a
 
 
