@@ -104,7 +104,7 @@ int64_t verify_bfs_tree(GlobalAddress<int64_t> bfs_tree, int64_t max_bfsvtx, int
   
   static int nverified = 0;
   if (nverified > 0) {
-    LOG(INFO) << "warning: skipping verification!!";    
+    // LOG(INFO) << "warning: skipping verification!!";    
     return nedge_traversed;
   }
   nverified++;
