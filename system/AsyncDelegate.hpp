@@ -44,6 +44,12 @@ namespace Grappa {
         });
       }
     }
+
+    template<GlobalCompletionEvent * GCE = &Grappa::impl::local_gce, typename PoolType = impl::MessagePoolBase, typename F = decltype(nullptr)>
+    inline void call_async(Core dest, F remote_work) {
+      call_async( *Grappa::shared_pool, dest, remote_work );
+    }
+
     
     /// Uses `call_async()` to write a value asynchronously.
     ///
