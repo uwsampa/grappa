@@ -94,9 +94,9 @@ void bfs_benchmark(tuple_graph& tg, GlobalAddress<Graph<>> generic_graph, int nr
     if (FLAGS_verify) {
       VLOG(1) << "Verifying bfs " << i << "...";
       
-      GRAPPA_TIME_LOG("verify_time") {
+      // GRAPPA_TIME_LOG("verify_time") {
         bfs_nedge[i] = verify_bfs_tree(bfs_tree, g->nv-1, bfs_roots[i], &tg);
-      }
+      // }
       
       if (bfs_nedge[i] < 0) {
         LOG(ERROR) << "bfs " << i << " from root " << bfs_roots[i] << " failed verification: " << bfs_nedge[i];
@@ -105,7 +105,7 @@ void bfs_benchmark(tuple_graph& tg, GlobalAddress<Graph<>> generic_graph, int nr
         VLOG(0) << "bfs_time[" << i << "] = " << bfs_time[i];
       }
     } else {
-      LOG(ERROR) << "warning: skipping verify. Approximating nedge with `nadj/2`.";
+      // LOG(ERROR) << "warning: skipping verify. Approximating nedge with `nadj/2`.";
       bfs_nedge[i] = g->nadj/2;
     }
   }
@@ -148,7 +148,7 @@ void user_main(void * ignore) {
     long ncomponents = cc_benchmark(g);
   }
   
-  Grappa::Statistics::merge_and_print(std::cout);
+  // Grappa::Statistics::merge_and_print(std::cout);
   
   g->destroy();
   global_free(tg.edges);

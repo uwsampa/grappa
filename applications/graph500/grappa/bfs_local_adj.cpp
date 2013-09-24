@@ -141,14 +141,14 @@ double make_bfs_tree(GlobalAddress<Graph<VertexP>> g_in, GlobalAddress<int64_t> 
   
   double bfs_time = walltime() - t;
   
-  VLOG(0) << "after bfs";
+  // VLOG(2) << "after bfs";
   
   t = walltime();
   forall_localized(g->vs, g->nv, [](int64_t i, VertexP& v){
     // delegate::write_async(*pool, bfs_tree+i, v.parent);
     delegate::write(bfs_tree+i, v.parent());
   });
-  VLOG(0) << "bfs_tree_write_time: " << walltime() - t;
+  VLOG(3) << "bfs_tree_write_time: " << walltime() - t;
   
   VLOG(2) << "tree(" << root << ")" << util::array_str("", bfs_tree, g->nv, 40);
   

@@ -11,7 +11,7 @@ else
 end
 
 DIR = File.expand_path(File.dirname(__FILE__))
-puts "DIR = #{DIR}"
+# puts "DIR = #{DIR}"
 
 opt = OpenStruct.new
 # opt.nnode = 2
@@ -32,7 +32,7 @@ OptionParser.new do |p|
   
 end.parse!(myargs)
 
-srun_flags = %w[ --cpu_bind=verbose,rank --label --kill-on-bad-exit ] \
+srun_flags = %w[ --cpu_bind=rank --label --kill-on-bad-exit ] \
           << "--task-prolog=#{DIR}/grappa_srun_prolog.rb" \
           << "--task-epilog=#{DIR}/grappa_srun_epilog.sh"
 
@@ -65,6 +65,6 @@ test = "#{opt.test}.test #{verbose_test} --run_test=#{opt.test}" if opt.test
 #test = "#{opt.test}.test --log_level=nothing --report_level=no --run_test=#{opt.test}" if opt.test
 
 s = "srun #{srun_flags.join(' ')} -- #{test} #{setarch}#{remain.join(' ')}"
-puts s
-$stdout.flush
+# puts s
+# $stdout.flush
 exec s
