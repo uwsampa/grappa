@@ -31,9 +31,9 @@ class Vertex;
 
 ////////////////////////////
 // Globals
-GlobalAddress<Vertex> vertex_array;
-GlobalAddress<index_t> counter;
-GlobalAddress<GlobalVector<index_t>> results;
+GlobalAddress< Vertex > vertex_array;
+GlobalAddress< index_t > counter;
+GlobalAddress< GlobalVector<index_t> > results;
 
 struct Vertex {
   index_t id;
@@ -48,6 +48,7 @@ struct Vertex {
     num_children = random_num_children();
     
     first_child = delegate::fetch_and_add(counter, num_children);
+    
     if (first_child >= NUM_VERTICES) {
       num_children = 0;
     } else if (first_child + num_children > NUM_VERTICES) {
@@ -60,28 +61,14 @@ struct Vertex {
       delegate::write(vertex_array+i, child);
     });
   }
-  
-  void print(int depth = 0) {
-    std::stringstream s; for (int i=0; i<depth; i++) s << "  ";
-    if (num_children == 0) {
-      LOG(INFO) << s.str() << "node(id: " << id << ")";
-    } else {
-      LOG(INFO) << s.str() << "node(id: " << id << ", first_child: " << first_child << ", num_children: " << num_children << "";
-      for (int i=0; i<num_children; i++) {
-        Vertex v = delegate::read(vertex_array+first_child+i);
-        v.print(depth+1);
-      }
-      LOG(INFO) << s.str() << ")";
-    }
-  }
 };
 
 void create_tree() {
   auto _vertex_array = global_alloc<Vertex>(NUM_VERTICES);
-  auto child_count = make_global(new index_t[1]);
-  delegate::write(child_count, 1);
-  on_all_cores([child_count, _vertex_array]{
-    counter = child_count;
+  auto vertex_count = make_global(new index_t[1]);
+  delegate::write(vertex_count, 1);
+  on_all_cores([vertex_count, _vertex_array]{
+    counter = vertex_count;
     vertex_array = _vertex_array;
   });
   
@@ -91,16 +78,15 @@ void create_tree() {
   default_gce().wait();
 }
 
-void search(index_t vertex_index, long color, bool should_wait = true) {
+void search(index_t vertex_index, long color) {
   Vertex v = delegate::read(vertex_array + vertex_index);
   if (v.color == color) {
     results->push(v.id);
   }
   // search children
   forall_public_async(v.first_child, v.num_children, [color](index_t i){
-    search(i, color, false);
+    search(i, color);
   });
-  if (should_wait) default_gce().wait();
 }
 
 int main( int argc, char * argv[] ) {
@@ -109,17 +95,17 @@ int main( int argc, char * argv[] ) {
     
     create_tree();
     
-    index_t root = 0;
-    delegate::read(vertex_array+root).print();
-    
     auto results_vector = GlobalVector<index_t>::create(NUM_VERTICES);
     on_all_cores([results_vector]{ results = results_vector; });
     
-    search(root, FLAGS_search_color);
+    {
+      index_t root = 0;
+      search(root, FLAGS_search_color);
+      default_gce().wait();
+    }
     
-    // print results
-    size_t n = std::max(results->size(), (size_t)10);
-    LOG(INFO) << util::array_str("results", results->begin(), n);
+    // print first 10 results
+    LOG(INFO) << util::array_str("results", results->begin(), std::max(results->size(), (size_t)10));
     
   } );
   finalize();
