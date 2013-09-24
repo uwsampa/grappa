@@ -92,7 +92,15 @@ void search(index_t vertex_index, long color) {
 int main( int argc, char * argv[] ) {
   init( &argc, &argv );
   run( [] {
-    
+    //////////////////////////////////////////////////////////////////////////
+    // vertex_array -> [
+    //   (first_child:1,num_children:4,color:3),
+    //   (first_child:-1,num_children:0,color:1),
+    //   (first_child:5,num_children:1,color:1),
+    //   (first_child:6,num_children:1,color:1),
+    //   ...
+    // ]
+    //////////////////////////////////////////////////////////////////////////
     create_tree();
     
     auto results_vector = GlobalVector<index_t>::create(NUM_VERTICES);
@@ -105,7 +113,8 @@ int main( int argc, char * argv[] ) {
     }
     
     // print first 10 results
-    LOG(INFO) << util::array_str("results", results->begin(), std::max(results->size(), (size_t)10));
+    LOG(INFO) << util::array_str("results (first 10)", results->begin(), 
+                                  std::min(results->size(), (size_t)10));
     
   } );
   finalize();
