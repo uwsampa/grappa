@@ -144,6 +144,8 @@ namespace Grappa {
     extern GlobalCompletionEvent local_gce;
   } // namespace impl
   
+  inline GlobalCompletionEvent& default_gce() { return local_gce; }
+  
   /// Blocking parallel for loop, spawns only private tasks. Synchronizes itself with
   /// either a given static CompletionEvent (template param) or the local builtin one.
   ///
@@ -225,6 +227,16 @@ namespace Grappa {
         loop_body(start, iters);
       });
     if (GCE) GCE->complete();
+  }
+  
+  template< GlobalCompletionEvent * GCE = &impl::local_gce, int64_t Threshold = impl::USE_LOOP_THRESHOLD_FLAG, typename F = decltype(nullptr), typename Index = int64_t >
+  void forall_public_async(Index start, Index iters, F body) {
+    if (iters == 0) return;
+    forall_here_async_public(start, iters, [body](int64_t s, int64_t n){
+      for (Index i=s; i < s+n; i++) {
+        body(i);
+      }
+    });
   }
   
   /// Spread iterations evenly (block-distributed) across all the cores, using recursive
