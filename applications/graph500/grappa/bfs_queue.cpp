@@ -19,6 +19,7 @@ double make_bfs_tree(csr_graph * g_in, GlobalAddress<int64_t> _bfs_tree, int64_t
   static_assert(sizeof(long) == sizeof(int64_t), "Can't use long as substitute for int64_t");
   LOG_FIRST_N(INFO,1) << "bfs_version: 'queue'";
   
+  // setup graph data structure
   auto& _g = *g_in;
   call_on_all_cores([_g,_bfs_tree]{
     g = _g;
@@ -29,8 +30,6 @@ double make_bfs_tree(csr_graph * g_in, GlobalAddress<int64_t> _bfs_tree, int64_t
   auto frontier = GlobalVector<long>::create(g.nv);
   auto next     = GlobalVector<long>::create(g.nv);
 
-  DVLOG(1) << "makebfs_tree(" << root << ")";
-  
   double t = timer();
   
   // start with root as only thing in frontier
@@ -42,12 +41,14 @@ double make_bfs_tree(csr_graph * g_in, GlobalAddress<int64_t> _bfs_tree, int64_t
   delegate::write(bfs_tree+root, root);
   
   while (!frontier->empty()) {
+    // for each vertex in frontier
     forall_localized(frontier->begin(), frontier->size(), [frontier,next](long si, long& sv) {
-      ++bfs_vertex_visited;
+      // for each adjacency
       auto r = delegate::read(eoff+sv);
       forall_localized_async(g.xadj+r.start, r.end-r.start, [sv,next](long ei, long& ev) {
-        ++bfs_edge_visited;
+        // if doesn't have a parent yet... 
         if (delegate::compare_and_swap(bfs_tree+ev, -1, sv)) {
+          // add to next phase
           next->push(ev);
         }
       });
