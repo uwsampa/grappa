@@ -86,5 +86,6 @@ graphint triangles(graph *g);
 
 /* centrality.cpp */
 double centrality(graph *g, GlobalAddress<double> bc, graphint vs, double*, int64_t*);
+double centrality_multi(graph *g, GlobalAddress<double> bc, graphint vs, double*, int64_t*);
 
 #endif

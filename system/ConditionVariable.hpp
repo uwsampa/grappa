@@ -19,14 +19,14 @@ namespace Grappa {
     // if remote, spawn a task on the home node to wait
   }
 
-  /// TODO: implement
+  template<typename ConditionVariable>
   inline void signal( const GlobalAddress<ConditionVariable> m ) {
     if (m.node() == Grappa::mycore()) {
       // if local, just signal
       Grappa::signal(m.pointer());
     } else {
       // if remote, signal via active message
-      auto _ = Grappa::send_message(m.node(), [=]{
+      send_heap_message(m.node(), [m]{
         Grappa::signal(m.pointer());
       });
     }

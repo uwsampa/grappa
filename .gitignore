@@ -31,6 +31,7 @@ ckpts
 .srunrc*
 .sbatch.*
 *.d.tmp
+*.preproc
 
 # Tau/profiling
 tau*.trc
@@ -50,7 +51,9 @@ core.*
 *.prof
 *.z
 
-doc/asplos13/paper.pdf
+doc/*/paper.pdf
+
+doc/*/revision.tex
 
 .svn
 
@@ -132,4 +135,20 @@ config.cache
 /build
 
 /scratch/*.cpp
+
+# scratch files
+/system/scratch/*
+/system/Scratch_tests.cpp
+
+# RDMA communication routing output
+/system/routing.dot
+/system/routing.pdf
+routing.dot
+
+#igor
+*.igor
+
+# Databases, R plotting
+*.sqlite
+.RData
 

@@ -61,7 +61,7 @@ LIB=-lm
 
 LDFLAGS+= $(CFLAGS_COMMON) -L$(GRAPPA_SYS)
 
-LIBRARIES:= -lgflags -lglog -lgasnet-ibv-seq -libverbs -lrt -lboost_unit_test_framework -lGrappa
+LIBRARIES+= -lGrappa
 
 #
 # set LD_LIBRARY_PATH
@@ -71,7 +71,7 @@ ENV_VARIABLES+= LD_LIBRARY_PATH="\$$LD_LIBRARY_PATH:$(LD_LIBRARY_PATH)"
 
 ENV_VARIABLES+= GASNET_BACKTRACE=1
 ENV_VARIABLES+= GLOG_logtostderr=1
-#ENV_VARIABLES+= GLOG_vmodule=uts_grappa=5,Aggregator=5,Incoh*=5
+ENV_VARIABLES+= GLOG_vmodule=uts_grappa=2
 ENV_VARIABLES+= GLOG_v=1
 
 uts_grappa.exe: uts_grappa.o $(RNG_OBJ) uts.o $(GRAPPA_SYS)/libGrappa.a

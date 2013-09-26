@@ -1,17 +1,22 @@
 #pragma once
 
 #include <glog/logging.h>
+#include "LocaleSharedMemory.hpp"
 
 namespace Grappa {
+  /// @addtogroup Utility
+  /// @{
 
   template<typename Base>
   class PoolAllocator {
+  public:
     char * buffer;
     size_t buffer_size;
     size_t allocated;
-  protected:
+    bool owns_buffer;
+    
     Base* allocate(size_t sz) {
-      LOG(ERROR) << "allocating " << sz;
+      DVLOG(4) << "allocating " << sz;
       Base* p = reinterpret_cast<Base*>(buffer+allocated);
       allocated += sz;
       
@@ -21,11 +26,18 @@ namespace Grappa {
     }
     
   public:
-    PoolAllocator(char * buffer, size_t buffer_size): buffer(buffer), buffer_size(buffer_size), allocated(0) {}
+    PoolAllocator(char * buffer, size_t buffer_size, bool owns_buffer): buffer(buffer), buffer_size(buffer_size), allocated(0), owns_buffer(owns_buffer) {}
+    
+    void reset() {
+      allocated = 0;
+    }
     
     virtual ~PoolAllocator() {
       // call destructors of everything in PoolAllocator
       iterate([](Base* bp){ bp->~Base(); });
+      if (owns_buffer) {
+        Grappa::impl::locale_shared_memory.deallocate(buffer);
+      }
     }
     
     /// Takes a lambda (or really any callable) that is called repeated for
@@ -40,6 +52,8 @@ namespace Grappa {
       }
     }
     
+    size_t remaining() { return buffer_size - allocated; }
+    
     template<typename OtherBase>
     friend void* ::operator new(size_t, Grappa::PoolAllocator<OtherBase>&);
   };
@@ -51,6 +65,7 @@ namespace Grappa {
     PoolAllocatorInternal(): PoolAllocator<Base>(_buffer, Bytes) {}
   };
   
+  /// @}
 } // namespace Grappa
 
 

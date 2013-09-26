@@ -1,0 +1,274 @@
+
+// Copyright 2010-2012 University of Washington. All Rights Reserved.
+// LICENSE_PLACEHOLDER
+// This software was created with Government support under DE
+// AC05-76RL01830 awarded by the United States Department of
+// Energy. The Government has certain rights in the software.
+
+
+#include <boost/test/unit_test.hpp>
+#include "Grappa.hpp"
+#include "Message.hpp"
+#include "MessagePool.hpp"
+#include "CompletionEvent.hpp"
+#include "ConditionVariable.hpp"
+#include "Delegate.hpp"
+#include "Tasking.hpp"
+#include "GlobalAllocator.hpp"
+#include "ParallelLoop.hpp"
+#include "Array.hpp"
+#include "Collective.hpp"
+
+BOOST_AUTO_TEST_SUITE( New_loop_tests );
+
+using namespace Grappa;
+using Grappa::wait;
+
+
+static int test_global = 0;
+CompletionEvent test_global_ce;
+GlobalCompletionEvent my_gce;
+CompletionEvent my_ce;
+
+static bool touched = false;
+
+void test_on_all_cores() {
+  BOOST_MESSAGE("Testing on_all_cores...");
+  
+  on_all_cores([] {
+    BOOST_MESSAGE("hello world from " << mycore() << "!");
+    touched = true;
+  });
+  
+  BOOST_CHECK_EQUAL(delegate::read(make_global(&touched,1)), true);
+  BOOST_CHECK_EQUAL(touched, true);
+}
+
+void test_loop_decomposition() {
+  BOOST_MESSAGE("Testing loop_decomposition_private...");
+  int N = 16;
+  
+  CompletionEvent ce(N);
+  
+  impl::loop_decomposition_private<2>(0, N, [&ce](int64_t start, int64_t iters) {
+    VLOG(1) << "loop(" << start << ", " << iters << ")";
+    ce.complete(iters);
+  });
+  ce.wait();
+}
+
+void test_loop_decomposition_global() {
+  BOOST_MESSAGE("Testing loop_decomposition_public..."); VLOG(1) << "loop_decomposition_public";
+  int N = 160000;
+  
+  my_gce.enroll();
+  impl::loop_decomposition_public<&my_gce>(0, N, [](int64_t start, int64_t iters) {
+    if ( start%10000==0 ) {
+      VLOG(1) << "loop(" << start << ", " << iters << ")";
+    }
+  });
+	my_gce.complete();
+	my_gce.wait();
+}
+
+void test_forall_here() {
+  BOOST_MESSAGE("Testing forall_here..."); VLOG(1) << "forall_here";
+  const int N = 15;
+  
+  {
+    int x = 0;
+    forall_here(0, N, [&x](int64_t start, int64_t iters) {
+      CHECK(mycore() == 0);
+      for (int64_t i=0; i<iters; i++) {
+        x++;
+      }
+    });
+    BOOST_CHECK_EQUAL(x, N);
+  }
+  
+  {
+    int x = 0;
+    forall_here<&my_ce,2>(0, N, [&x](int64_t start, int64_t iters) {
+      CHECK(mycore() == 0);
+      for (int64_t i=0; i<iters; i++) {
+        x++;
+      }
+    });
+    BOOST_CHECK_EQUAL(x, N);
+  }
+
+  { LOG(INFO) << "Testing forall_here overload";
+    int x = 0;
+    forall_here<&my_ce,2>(0, N, [&x](int64_t i) {
+      CHECK(mycore() == 0);
+      x++;
+    });
+    BOOST_CHECK_EQUAL(x, N);
+  }
+  
+}
+
+void test_forall_global_private() {
+  BOOST_MESSAGE("Testing forall_global...");
+  const int64_t N = 1 << 8;
+  
+  BOOST_MESSAGE("  private");
+  forall_global_private(0, N, [](int64_t start, int64_t iters) {
+    for (int i=0; i<iters; i++) {
+      test_global++;
+    }
+  });
+  
+  on_all_cores([]{
+    range_t r = blockDist(0,N,mycore(),cores());
+    BOOST_CHECK_EQUAL(test_global, r.end-r.start);
+    test_global = 0;
+  });
+
+  forall_global_private<&test_global_ce>(0, N, [](int64_t i) {
+    test_global++;
+  });
+  auto total = reduce<decltype(test_global),collective_add>(&test_global);
+  BOOST_CHECK_EQUAL(total, N);  
+}
+
+void test_forall_global_public() {
+  BOOST_MESSAGE("Testing forall_global_public..."); VLOG(1) << "forall_global_public";
+  const int64_t N = 1 << 8;
+  
+  on_all_cores([]{ test_global = 0; });
+  
+  forall_global_public(0, N, [](int64_t s, int64_t n) {
+    test_global += n;
+  });
+  {
+    auto total = reduce<decltype(test_global),collective_add>(&test_global);
+    BOOST_CHECK_EQUAL(total, N);
+  }
+  
+  BOOST_MESSAGE("  with nested spawns"); VLOG(1) << "nested spawns";
+  on_all_cores([]{ test_global = 0; });
+  
+  forall_global_public<&my_gce>(0, N, [](int64_t s, int64_t n){
+    for (int i=s; i<s+n; i++) {
+      publicTask<&my_gce>([]{
+        test_global++;
+      });
+    }
+  });
+
+  {
+    auto total = reduce<decltype(test_global),collective_add>(&test_global);
+    BOOST_CHECK_EQUAL(total, N);
+  }
+}
+
+void test_forall_localized() {
+  BOOST_MESSAGE("Testing forall_localized..."); VLOG(1) << "testing forall_localized";
+  const int64_t N = 100;
+  
+  auto array = Grappa_typed_malloc<int64_t>(N);
+  
+  forall_localized(array, N, [](int64_t i, int64_t& e) {
+    e = 1;
+  });
+  for (int i=0; i<N; i++) {
+    BOOST_CHECK_EQUAL(delegate::read(array+i), 1);
+  }
+
+  forall_localized(array, N, [](int64_t& e) {
+    e = 2;
+  });
+  for (int i=0; i<N; i++) {
+    BOOST_CHECK_EQUAL(delegate::read(array+i), 2);
+  }
+
+  forall_localized(array, N, [](int64_t s, int64_t n, int64_t* e) {
+    for (auto i=0; i<n; i++) {
+      e[i] = 3;
+    }
+  });
+  for (int i=0; i<N; i++) {
+    BOOST_CHECK_EQUAL(delegate::read(array+i), 3);
+  }
+  
+  BOOST_MESSAGE("Testing forall_localized_async..."); VLOG(1) << "testing forall_localized_async";
+  
+  VLOG(1) << "start spawning";
+  forall_localized_async<&my_gce>(array+ 0, 25, [](int64_t i, int64_t& e) { e = 2; });
+  VLOG(1) << "after async";
+  forall_localized_async<&my_gce>(array+25, 25, [](int64_t i, int64_t& e) { e = 2; });
+  VLOG(1) << "after async";
+  forall_localized_async<&my_gce>(array+50, 25, [](int64_t i, int64_t& e) { e = 2; });
+  VLOG(1) << "after async";
+  forall_localized_async<&my_gce>(array+75, 25, [](int64_t i, int64_t& e) { e = 2; });
+  VLOG(1) << "done spawning";
+  
+  my_gce.wait();
+  
+  int npb = block_size / sizeof(int64_t);
+  
+  auto * base = array.localize();
+  auto * end = (array+N).localize();
+  for (auto* x = base; x < end; x++) {
+    BOOST_CHECK_EQUAL(*x, 2);
+  }
+  
+  VLOG(1) << "checking indexing...";
+  
+  VLOG(1) << ">> forall_localized";
+  Grappa::memset(array, 0, N);
+  forall_localized(array, N, [](int64_t i, int64_t& e){ e = i; });
+  for (int i=0; i<N; i++) {
+    BOOST_CHECK_EQUAL(delegate::read(array+i), i);
+  }
+  
+  VLOG(1) << ">> forall_localized_async";
+  Grappa::memset(array, 0, N);  
+  forall_localized_async<&my_gce>(array, N, [](int64_t i, int64_t& e){ e = i; });
+  my_gce.wait();
+  
+  for (int i=0; i<N; i++) {
+    BOOST_CHECK_EQUAL(delegate::read(array+i), i);
+  }
+
+  Grappa::memset(array, 0, N);    
+  struct Pair { int64_t x, y; };
+  auto pairs = static_cast<GlobalAddress<Pair>>(array);
+  forall_localized<&my_gce>(pairs, N/2, [](int64_t i, Pair& e){ e.x = i; e.y = i; });
+  
+  for (int i=0; i<N; i++) {
+    BOOST_CHECK_EQUAL(delegate::read(array+i), i/2);
+  }  
+    
+}
+
+void user_main(void * args) {
+  CHECK(Grappa::cores() >= 2); // at least 2 nodes for these tests...
+
+  test_on_all_cores();
+  
+  test_loop_decomposition();
+  test_loop_decomposition_global();
+  
+  test_forall_here();
+  test_forall_global_private();
+  test_forall_global_public();
+  
+  test_forall_localized();
+}
+
+BOOST_AUTO_TEST_CASE( test1 ) {
+
+  Grappa_init( &(boost::unit_test::framework::master_test_suite().argc),
+	       &(boost::unit_test::framework::master_test_suite().argv)
+	       );
+
+  Grappa_activate();
+
+  Grappa_run_user_main( &user_main, (void*)NULL );
+
+  Grappa_finish( 0 );
+}
+
+BOOST_AUTO_TEST_SUITE_END();

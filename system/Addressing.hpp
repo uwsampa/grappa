@@ -30,10 +30,21 @@
 
 typedef int Pool;
 
+
+/// this core's base pointer
+namespace Grappa {
+namespace impl {
+extern void * global_memory_chunk_base;
+}
+}
+
+
+
 /// assumes user data will have the top 16 bits all 0.
 
 /// Number of bytes in each block 
 static const int block_size = sizeof(int64_t) * 8;
+#define BLOCK_SIZE sizeof(int64_t)*8
 
 /// How many address type bits?
 static const int tag_bits = 1;
@@ -53,6 +64,9 @@ static const intptr_t tag_mask = (1L << tag_shift_val);
 static const intptr_t node_mask = (1L << node_bits) - 1;
 static const intptr_t pool_mask = (1L << pool_bits) - 1;
 static const intptr_t pointer_mask = (1L << pointer_bits) - 1;
+
+/// @addtogroup Memory
+/// @{
 
 /// Global address class
 ///
@@ -120,7 +134,9 @@ public:
   /// TODO: the pool argument is currenly unused
   static GlobalAddress Linear( T * t, Pool p = 0 )
   {
-    intptr_t tt = reinterpret_cast< intptr_t >( t );
+    // adjust for chunk offset
+    intptr_t tt = reinterpret_cast< intptr_t >( t ) - 
+      reinterpret_cast< intptr_t >( Grappa::impl::global_memory_chunk_base );
 
     intptr_t offset = tt % block_size;
     intptr_t block = tt / block_size;
@@ -165,6 +181,7 @@ public:
       return node;
     }
   }
+  inline Core core() const { return node(); }
 
   /// Return the home node of a global address
   /// TODO: implement this.
@@ -183,14 +200,18 @@ public:
       intptr_t block = (storage_ / block_size);
       intptr_t node = (storage_ / block_size) % global_communicator.nodes();
       intptr_t node_block = (storage_ / block_size) / global_communicator.nodes();
-      return reinterpret_cast< T * >( node_block * block_size + offset );
+      intptr_t address = node_block * block_size + offset + 
+        reinterpret_cast< intptr_t >( Grappa::impl::global_memory_chunk_base );
+      return reinterpret_cast< T * >( address );
     }
   }
 
   /// Find lowest local address of the object at this address.  Used
   /// for PGAS-style local iteration.
   inline T * localize(Node nid = -1) const {
-	if (nid == -1) nid = global_communicator.mynode();
+    if (is_2D()) return pointer();
+    
+  	if (nid == -1) nid = global_communicator.mynode();
     T * local_base;
     size_t block_elems = block_size / sizeof(T);
     T * block_base = block_min().pointer();
@@ -203,6 +224,16 @@ public:
     }
     return local_base;
   }
+  
+  /// Does @b not remotely dereference the global address, this is syntactic sugar for `localize()->`
+  ///
+  /// @code
+  ///   struct { int y; } x = {1};
+  ///   GlobalAddress<decltype(x)> xa = make_global(&x);
+  ///   cout << xa->y;
+  ///   //> 1
+  /// @endcode
+  T* operator->() const { return localize(); }
 
   /// Find base address of block containing this byte.
   inline GlobalAddress< T > block_min() const { 
@@ -318,9 +349,8 @@ public:
   //T& operator[]( ptrdiff_t index ) { return 
 
   /// generic cast operator
-  /// TODO: do we really need this? leads to unneccessary type errors...
   template< typename U >
-  operator GlobalAddress< U >( ) {
+  explicit operator GlobalAddress< U >( ) {
     GlobalAddress< U > u = GlobalAddress< U >::Raw( storage_ );
     return u;
   }
@@ -372,15 +402,9 @@ inline ptrdiff_t operator-<char>( const GlobalAddress< char >& t, const GlobalAd
   return t.raw_bits() - u.raw_bits();
 }
 
-/// return a 2d global pointer to a local pointer
-template< typename T >
-GlobalAddress< T > localToGlobal( T * t ) {
-  return GlobalAddress< T >::TwoDimensional( t, global_communicator.mynode() );
-}
-
 /// return a 2d global pointer to a local pointer on a particular node
 template< typename T >
-GlobalAddress< T > make_global( T * t, Node n = global_communicator.mynode() ) {
+GlobalAddress< T > make_global( T * t, Core n = Grappa::mycore() ) {
   return GlobalAddress< T >::TwoDimensional( t, n );
 }
 
@@ -400,11 +424,13 @@ std::ostream& operator<<( std::ostream& o, const GlobalAddress< T >& ga ) {
 
 /// computes offsets of members in structs and claases
 /// call like this:
+/// @code
 ///   struct Foo {
 ///     int i;
 ///   } foo;
 ///   GlobalAddress< Foo > foo_gp = make_global( foo );
 ///   GlobalAddress< int > foo_i_gp = global_pointer_to_member( foo_gp, &Foo::i );
+/// @endcode
 template< typename T, typename M >
 inline GlobalAddress< M > global_pointer_to_member( const GlobalAddress< T > t, const M T::*m ) {
   const intptr_t t_raw = t.raw_bits();
@@ -413,6 +439,6 @@ inline GlobalAddress< M > global_pointer_to_member( const GlobalAddress< T > t, 
   return GlobalAddress< M >::Raw( reinterpret_cast< intptr_t >( mp ) );
 }
 
-
+/// @}
 //template< typename T >
 #endif

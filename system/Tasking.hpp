@@ -27,9 +27,7 @@
 #include <vt_user.h>
 #endif
 
-#define STATIC_ASSERT_SIZE_8( type ) BOOST_STATIC_ASSERT( sizeof(type) == 8 )
-
-extern TaskManager global_task_manager;
+#define STATIC_ASSERT_SIZE_8(type) static_assert(sizeof(type) == 8, "Size of "#type" must be 8 bytes.")
 
 DECLARE_uint64( num_starting_workers );
 
@@ -65,9 +63,19 @@ namespace Grappa {
       delete tp;
     }
 
+    /// Helper function to spawn workers with lambdas and
+    /// functors. This function takes ownership of the heap-allocated
+    /// functor and deallocates it after it has run.
+    template< typename T >
+    static void worker_heapfunctor_proxy( Thread * me, void * vp ) {
+      T * tp = reinterpret_cast< T * >( vp );
+      (*tp)();
+      delete tp;
+    }
+
   }
 
-  /// Spawn a task visible to this Node only. The task is specified as
+  /// Spawn a task visible to this Core only. The task is specified as
   /// a functor or lambda. If it is 24 bytes or less, it is copied
   /// directly into the task queue. If it is larger, a copy is
   /// allocated on the heap. This copy will be deallocated after the
@@ -86,9 +94,12 @@ namespace Grappa {
   void privateTask( TF tf ) {
     if( sizeof( tf ) > 24 ) { // if it's too big to fit in a task queue entry
       DVLOG(4) << "Heap allocated task of size " << sizeof(tf);
+      
+      struct __attribute__((deprecated("heap allocating private task functor"))) Warning {};
+      
       // heap-allocate copy of functor, passing ownership to spawned task
       TF * tp = new TF(tf);
-      global_task_manager.spawnLocalPrivate( Grappa::impl::task_heapfunctor_proxy<TF>, tp, tp, tp );
+      Grappa::impl::global_task_manager.spawnLocalPrivate( Grappa::impl::task_heapfunctor_proxy<TF>, tp, tp, tp );
     } else {
       /// Shove copy of functor into space used for task arguments.
       /// @TODO: misusing argument list. Is this okay?
@@ -97,9 +108,36 @@ namespace Grappa {
       // uint64_t args[3] = { 0 };
       // TF * tfargs = reinterpret_cast< TF * >( &args[0] );
       // *tfargs = tf;
-      DVLOG(5) << "Thread " << global_scheduler.get_current_thread() << " spawns private";
-      global_task_manager.spawnLocalPrivate( Grappa::impl::task_functor_proxy<TF>, args[0], args[1], args[2] );
+      DVLOG(5) << "Thread " << Grappa::impl::global_scheduler.get_current_thread() << " spawns private";
+      Grappa::impl::global_task_manager.spawnLocalPrivate( Grappa::impl::task_functor_proxy<TF>, args[0], args[1], args[2] );
     }
+  }
+  
+  /// Spawn a task that may be stolen between cores. The task is specified as a functor or lambda,
+  /// and must be 24 bytes or less (currently).
+  ///
+  /// @see Grappa::privateTask for usage.
+  template < typename TF >
+  void publicTask( TF tf ) {
+    // TODO: implement automatic heap allocation and caching to handle larger functors
+    static_assert(sizeof(tf) <= 24,
+        "Functor argument to publicTask too large to be automatically coerced.");
+    
+    DVLOG(5) << "Thread " << Grappa::impl::global_scheduler.get_current_thread() << " spawns public";
+    
+    uint64_t * args = reinterpret_cast< uint64_t * >( &tf );
+    Grappa::impl::global_task_manager.spawnPublic(Grappa::impl::task_functor_proxy<TF>, args[0], args[1], args[2]);
+  }
+
+  /// @b internal
+  template < typename TF >
+  void spawn_worker( TF && tf ) {
+    TF * tp = new TF(tf);
+    void * vp = reinterpret_cast< void * >( tp );
+    Thread * th = worker_spawn( Grappa::impl::global_scheduler.get_current_thread(), &Grappa::impl::global_scheduler,
+                                Grappa::impl::worker_heapfunctor_proxy<TF>, vp );
+    Grappa::impl::global_scheduler.ready( th );
+    DVLOG(5) << __PRETTY_FUNCTION__ << " spawned Worker " << th;
   }
 
   /// @}
@@ -107,6 +145,8 @@ namespace Grappa {
 }
 
 
+/// @deprecated see Grappa::privateTask()
+///
 /// Spawn a task visible to this Node only
 ///
 /// @tparam A0 type of first task argument
@@ -122,10 +162,12 @@ void Grappa_privateTask( void (*fn_p)(A0,A1,A2), A0 arg0, A1 arg1, A2 arg2 ) {
   STATIC_ASSERT_SIZE_8( A0 );
   STATIC_ASSERT_SIZE_8( A1 );
   STATIC_ASSERT_SIZE_8( A2 );
-  DVLOG(5) << "Thread " << global_scheduler.get_current_thread() << " spawns private";
-  global_task_manager.spawnLocalPrivate( fn_p, arg0, arg1, arg2 );
+  DVLOG(5) << "Thread " << Grappa::impl::global_scheduler.get_current_thread() << " spawns private";
+  Grappa::impl::global_task_manager.spawnLocalPrivate( fn_p, arg0, arg1, arg2 );
 }
 
+/// @deprecated see Grappa::privateTask()
+/// 
 /// Spawn a task visible to this Node only
 ///
 /// @tparam A0 type of first task argument
@@ -140,6 +182,8 @@ void Grappa_privateTask( void (*fn_p)(A0, A1), A0 arg, A1 shared_arg)
   Grappa_privateTask(reinterpret_cast<void (*)(A0,A1,void*)>(fn_p), arg, shared_arg, (void*)NULL);
 }
 
+/// @deprecated see Grappa::privateTask()
+///
 /// Spawn a task visible to this Node only
 ///
 /// @tparam A0 type of first task argument
@@ -151,6 +195,8 @@ inline void Grappa_privateTask( void (*fn_p)(T), T arg) {
   Grappa_privateTask(reinterpret_cast<void (*)(T,void*)>(fn_p), arg, (void*)NULL);
 }
 
+/// @deprecated see Grappa::publicTask()
+///
 /// Spawn a task to the global task pool.
 /// That is, it can potentially be executed on any Node.
 ///
@@ -168,10 +214,12 @@ void Grappa_publicTask( void (*fn_p)(A0, A1, A2), A0 arg0, A1 arg1, A2 arg2)
   STATIC_ASSERT_SIZE_8( A0 );
   STATIC_ASSERT_SIZE_8( A1 );
   STATIC_ASSERT_SIZE_8( A2 );
-  DVLOG(5) << "Thread " << global_scheduler.get_current_thread() << " spawns public";
-  global_task_manager.spawnPublic( fn_p, arg0, arg1, arg2 );
+  DVLOG(5) << "Thread " << Grappa::impl::global_scheduler.get_current_thread() << " spawns public";
+  Grappa::impl::global_task_manager.spawnPublic( fn_p, arg0, arg1, arg2 );
 }
 
+/// @deprecated see Grappa::publicTask
+///
 /// Spawn a task to the global task pool.
 /// That is, it can potentially be executed by any Node.
 ///
@@ -187,6 +235,8 @@ void Grappa_publicTask( void (*fn_p)(A0, A1), A0 arg, A1 shared_arg)
   Grappa_publicTask(reinterpret_cast<void (*)(A0,A1,void*)>(fn_p), arg, shared_arg, (void*)NULL);
 }
 
+/// @deprecated see Grappa::publicTask
+///
 /// Spawn a task to the global task pool.
 /// That is, it can potentially be executed by any Node.
 ///
@@ -245,24 +295,24 @@ int Grappa_run_user_main( void (*fp)(A), A args )
 #endif
 
   if( global_communicator.mynode() == 0 ) {
-    CHECK_EQ( global_scheduler.get_current_thread(), master_thread ); // this should only be run at the toplevel
+    CHECK_EQ( Grappa::impl::global_scheduler.get_current_thread(), master_thread ); // this should only be run at the toplevel
 
     // create user_main as a private task
     Grappa_privateTask( &user_main_wrapper<A>, fp, args );
     DVLOG(5) << "Spawned user_main";
     
     // spawn 1 extra worker that will take user_main
-    global_scheduler.createWorkers( 1 );
+    Grappa::impl::global_scheduler.createWorkers( 1 );
   }
 
   // spawn starting number of worker coroutines
-  global_scheduler.createWorkers( FLAGS_num_starting_workers );
-  global_scheduler.allow_active_workers(-1); // allow all workers to be active
+  Grappa::impl::global_scheduler.createWorkers( FLAGS_num_starting_workers );
+  Grappa::impl::global_scheduler.allow_active_workers(-1); // allow all workers to be active
   
   StateTimer::init();
 
   // start the scheduler
-  global_scheduler.run( );
+  Grappa::impl::global_scheduler.run( );
 
 #ifdef VTRACE_SAMPLED
   // this doesn't really add anything to the profiled trace
@@ -290,7 +340,7 @@ struct remote_task_spawn_args {
 /// @tparam A2 type of third task argument
 template< typename A0, typename A1, typename A2 >
 static void remote_task_spawn_am( remote_task_spawn_args<A0,A1,A2> * args, size_t args_size, void* payload, size_t payload_size) {
-   global_task_manager.spawnRemotePrivate(args->fn_p, args->arg0, args->arg1, args->arg2 );
+  Grappa::impl::global_task_manager.spawnRemotePrivate(args->fn_p, args->arg0, args->arg1, args->arg2 );
 }
 
 /// Spawn a private task on another Node

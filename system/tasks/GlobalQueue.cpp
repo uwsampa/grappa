@@ -1,6 +1,8 @@
 #include "GlobalQueue.hpp"
 
-GlobalQueueStatistics global_queue_stats;
+using namespace Grappa::Statistics;
+
+GlobalQueueStatistics Grappa::Statistics::global_queue_stats;
 
 GlobalQueueStatistics::GlobalQueueStatistics() 
 #ifdef VTRACE_SAMPLED

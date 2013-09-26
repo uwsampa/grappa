@@ -1,11 +1,17 @@
 #include "StatisticBase.hpp"
 #include "Statistics.hpp"
+#include "SimpleStatisticImpl.hpp"
 #include "Grappa.hpp"
 #include <vector>
 #include <iostream>
 #include <fstream>
 #include <sstream>
 #include <cstdint>
+#include "Collective.hpp"
+#include <boost/filesystem.hpp>
+namespace fs = boost::filesystem;
+
+
 
 DECLARE_string(stats_blob_filename);
 
@@ -15,38 +21,11 @@ DECLARE_string(stats_blob_filename);
 
 namespace Grappa {
 
-#ifdef VTRACE_SAMPLED
-  template <> inline void SimpleStatistic<int>::vt_sample() const {
-    VT_COUNT_SIGNED_VAL(vt_counter, value);
-  }
-  template <> inline void SimpleStatistic<int64_t>::vt_sample() const {
-    VT_COUNT_SIGNED_VAL(vt_counter, value);
-  }
-  template <> inline void SimpleStatistic<unsigned>::vt_sample() const {
-    VT_COUNT_UNSIGNED_VAL(vt_counter, value);
-  }
-  template <> inline void SimpleStatistic<uint64_t>::vt_sample() const {
-    VT_COUNT_UNSIGNED_VAL(vt_counter, value);
-  }
-  template <> inline void SimpleStatistic<double>::vt_sample() const {
-    VT_COUNT_DOUBLE_VAL(vt_counter, value);
-  }
-  template <> inline void SimpleStatistic<float>::vt_sample() const {
-    VT_COUNT_DOUBLE_VAL(vt_counter, value);
-  }
-  
-  template <> const int SimpleStatistic<int>::vt_type = VT_COUNT_TYPE_SIGNED;
-  template <> const int SimpleStatistic<int64_t>::vt_type = VT_COUNT_TYPE_SIGNED;
-  template <> const int SimpleStatistic<unsigned>::vt_type = VT_COUNT_TYPE_UNSIGNED;
-  template <> const int SimpleStatistic<uint64_t>::vt_type = VT_COUNT_TYPE_UNSIGNED;
-  template <> const int SimpleStatistic<double>::vt_type = VT_COUNT_TYPE_DOUBLE;
-  template <> const int SimpleStatistic<float>::vt_type = VT_COUNT_TYPE_FLOAT;
-#endif
-  
   impl::StatisticBase::StatisticBase(const char * name, bool reg_new): name(name) {
     if (reg_new) {
       Grappa::impl::registered_stats().push_back(this);
-      VLOG(1) << "registered <" << this->name << ">";
+      // commented out because this gets called before GLOG is intialized
+      //VLOG(1) << "registered <" << this->name << ">";
     }
   }
   
@@ -65,7 +44,7 @@ namespace Grappa {
           // skip printing "," before first one
           if (&s-&stats[0] != 0) { o << ",\n"; }
           
-          o << "  " << *s;
+          s->json(o << "  ");
         }
         out << o.str();
       }
@@ -96,7 +75,7 @@ namespace Grappa {
 
     void merge_and_print(std::ostream& out) {
       StatisticList all;
-      merge(all);
+      merge(all); // also flushes histogram logs
 
       std::ostringstream legacy_stats;
       legacy_reduce_stats_and_dump(legacy_stats);
@@ -112,7 +91,32 @@ namespace Grappa {
       print( o, Grappa::impl::registered_stats(), legacy_stats.str());
     }
 
-    void sample_all() {
+    void reset() {
+      for (auto* stat : Grappa::impl::registered_stats()) {
+        stat->reset();
+      }
+      Grappa_reset_stats();
+    }
+    
+    void reset_all_cores() {
+#ifdef HISTOGRAM_SAMPLED
+      try {
+        char * jobid = getenv("SLURM_JOB_ID");
+        char dir[256]; sprintf(dir, "histogram.%s", jobid);
+        fs::create_directories(dir);
+        fs::permissions(dir, fs::perms::all_all);
+      } catch (fs::filesystem_error& e) {
+        LOG(ERROR) << "filesystem error: " << e.what();
+      }
+#endif
+      
+      call_on_all_cores([]{
+        Grappa_start_profiling();
+        reset();
+      });
+    }
+    
+    void sample() {
       for (auto* stat : Grappa::impl::registered_stats()) {
         stat->sample();
       }

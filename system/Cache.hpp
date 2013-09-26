@@ -77,14 +77,15 @@ public:
   T * storage_;
   bool heap_;
   CacheAllocator( T * buffer, size_t size ) 
-    : storage_( buffer != NULL ? buffer : new T[size] )
+    : storage_( buffer != NULL ? buffer : reinterpret_cast< T* >
+                ( Grappa::impl::locale_shared_memory.allocate( size * sizeof(T) ) ) )
     , heap_( buffer != NULL ? false : true ) 
   {
     VLOG(6) << "buffer = " << buffer << ", storage_ = " << storage_;
   }
   ~CacheAllocator() {
     if( heap_ && storage_ != NULL ) {
-      delete [] storage_;
+      Grappa::impl::locale_shared_memory.deallocate( storage_ );
     }
   }
   operator T*() { 
@@ -152,6 +153,8 @@ public:
   }
 };
 
+/// @addtogroup Caches
+/// @{
 
 /// Read-only cache object. This is parameterize so it can implement
 /// coherent or incoherent read-only caches.
@@ -370,6 +373,7 @@ public:
   }
 
   /// reassign cache to point at a different block
+  /// May only take a valid address.
   void reset( GlobalAddress< T > address, size_t count ) {
     block_until_acquired();
     block_until_released();
@@ -404,6 +408,7 @@ struct Incoherent {
   typedef CacheWO< T, CacheAllocator, NullAcquirer, IncoherentReleaser > WO;
 };
 
+/// @}
 
 ///
 /// Wrapper functions for making it simpler to use the bare-bones tasking

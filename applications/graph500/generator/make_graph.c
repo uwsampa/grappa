@@ -22,6 +22,9 @@
 #ifdef GRAPH_GENERATOR_OMP
 #include <omp.h>
 #endif
+#ifdef GRAPH_GENERATOR_GRAPPA
+#define _GRAPPA
+#endif
 
 /* Simplified interface to build graphs with scrambled vertices. */
 

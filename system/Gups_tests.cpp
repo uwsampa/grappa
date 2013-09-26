@@ -8,80 +8,103 @@
 /// One implementation of GUPS. This does no load-balancing, and may
 /// suffer from some load imbalance.
 
+#include <memory>
+#include <algorithm>
+
 #include <Grappa.hpp>
 #include "ForkJoin.hpp"
 #include "GlobalAllocator.hpp"
+#include "GlobalTaskJoiner.hpp"
+#include "Array.hpp"
+#include "Message.hpp"
+#include "CompletionEvent.hpp"
+#include "Statistics.hpp"
+#include "Collective.hpp"
+
+#include "LocaleSharedMemory.hpp"
+
+#include "ParallelLoop.hpp"
+#include "AsyncDelegate.hpp"
+
 
 #include <boost/test/unit_test.hpp>
 
+DEFINE_int64( repeats, 1, "Repeats" );
 DEFINE_int64( iterations, 1 << 30, "Iterations" );
-DEFINE_int64( sizeA, 1000, "Size of array that gups increments" );
+DEFINE_int64( sizeA, 1024, "Size of array that gups increments" );
+DEFINE_bool( validate, true, "Validate result" );
 
+DECLARE_string( load_balance );
 
-double wall_clock_time() {
-  const double nano = 1.0e-9;
-  timespec t;
-  clock_gettime( CLOCK_MONOTONIC, &t );
-  return nano * t.tv_nsec + t.tv_sec;
-}
+GRAPPA_DEFINE_STAT( SimpleStatistic<double>, gups_runtime, 0.0 );
+GRAPPA_DEFINE_STAT( SimpleStatistic<double>, gups_throughput, 0 );
+GRAPPA_DEFINE_STAT( SimpleStatistic<double>, gups_throughput_per_locale, 0 );
+
+const uint64_t LARGE_PRIME = 18446744073709551557UL;
+
 
 BOOST_AUTO_TEST_SUITE( Gups_tests );
 
-LOOP_FUNCTION( func_start_profiling, index ) {
-  Grappa_start_profiling();
+void validate(GlobalAddress<int64_t> A, size_t n) {
+  int total = 0, max = 0, min = INT_MAX;
+  double sum_sqr = 0.0;
+  for (int i = 0; i < n; i++) {
+    int tmp = Grappa::delegate::read(A+i);
+    total += tmp;
+    sum_sqr += tmp*tmp;
+    max = tmp > max ? tmp : max;
+    min = tmp < min ? tmp : min;
+  }
+  LOG(INFO) << "Validation:  total updates " << total 
+            << "; min " << min
+            << "; max " << max
+            << "; avg value " << total/((double)n)
+            << "; std dev " << sqrt(sum_sqr/n - ((total/n)*total/n));
 }
 
-LOOP_FUNCTION( func_stop_profiling, index ) {
-  Grappa_stop_profiling();
-}
 
-/// Functor to execute one GUP.
-LOOP_FUNCTOR( func_gups, index, ((GlobalAddress<int64_t>, Array)) ) {
-  const uint64_t LARGE_PRIME = 18446744073709551557UL;
-  uint64_t b = (index*LARGE_PRIME) % FLAGS_sizeA;
-  Grappa_delegate_fetch_and_add_word( Array + b, 1 );
-}
 
 void user_main( int * args ) {
 
-  func_start_profiling start_profiling;
-  func_stop_profiling stop_profiling;
-
+  // allocate array
   GlobalAddress<int64_t> A = Grappa_typed_malloc<int64_t>(FLAGS_sizeA);
 
-  func_gups gups( A );
+  do {
 
-  double runtime = 0.0;
-  double throughput = 0.0;
-  int nnodes = atoi(getenv("SLURM_NNODES"));
-  double throughput_per_node = 0.0;
+    LOG(INFO) << "Starting";
+    Grappa::memset(A, 0, FLAGS_sizeA);
 
-  Grappa_add_profiling_value( &runtime, "runtime", "s", false, 0.0 );
-  Grappa_add_profiling_integer( &FLAGS_iterations, "iterations", "it", false, 0 );
-  Grappa_add_profiling_integer( &FLAGS_sizeA, "sizeA", "entries", false, 0 );
-  Grappa_add_profiling_value( &throughput, "updates_per_s", "up/s", false, 0.0 );
-  Grappa_add_profiling_value( &throughput_per_node, "updates_per_s_per_node", "up/s", false, 0.0 );
+    Grappa::Statistics::reset_all_cores();
 
-  fork_join_custom( &start_profiling );
+    double start = Grappa::walltime();
 
-  double start = wall_clock_time();
-  fork_join( &gups, 1, FLAGS_iterations );
-  double end = wall_clock_time();
+    // best with loop threshold 1024
+    // shared pool size 2^16
+    Grappa::forall_global_public( 0, FLAGS_iterations-1, [A] ( int64_t i ) {
+        uint64_t b = (i * LARGE_PRIME) % FLAGS_sizeA;
+        Grappa::delegate::increment_async( *Grappa::shared_pool, A + b, 1 );
+      } );
 
-  fork_join_custom( &stop_profiling );
+    double end = Grappa::walltime();
 
-  runtime = end - start;
-  throughput = FLAGS_iterations / runtime;
+    Grappa::on_all_cores( [] {
+        Grappa_stop_profiling();
+      } );
+    
+    gups_runtime = end - start;
+    gups_throughput = FLAGS_iterations / (end - start);
+    gups_throughput_per_locale = gups_throughput / Grappa::locales();
 
-  throughput_per_node = throughput/nnodes;
+    Grappa::Statistics::merge_and_print();
 
+    if( FLAGS_validate ) {
+      LOG(INFO) << "Validating....";
+      validate(A, FLAGS_sizeA);
+    }
 
-  Grappa_merge_and_dump_stats();
+   } while (FLAGS_repeats-- > 1);
 
-  LOG(INFO) << "GUPS: "
-            << FLAGS_iterations << " updates at "
-            << throughput << "updates/s ("
-            << throughput/nnodes << " updates/s/node).";
+  LOG(INFO) << "Done. ";
 }
 
 

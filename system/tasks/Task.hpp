@@ -9,8 +9,7 @@
 
 #include <iostream>
 #include <deque>
-#include "StealQueue.hpp"
-#include "Thread.hpp"
+#include "Worker.hpp"
 #include "StatisticsTools.hpp"
 
 #ifdef VTRACE
@@ -21,8 +20,8 @@
 #endif
 
 
-/// local queue for being part of global task pool
-#define publicQ StealQueue<Task>::steal_queue
+namespace Grappa {
+  namespace impl {
 
 // forward declaration of Grappa Node
 typedef int16_t Node;
@@ -71,6 +70,10 @@ class Task {
     void execute( ) {
       CHECK( fn_p!=NULL ) << "fn_p=" << (void*)fn_p << "\narg0=" << (void*)arg0 << "\narg1=" << (void*)arg1 << "\narg2=" << (void*)arg2;
       fn_p( arg0, arg1, arg2 );  // NOTE: this executes 1-parameter function's with 3 args
+    }
+
+    void on_stolen( ) {
+      DVLOG(4) << "Stolen " << *this;
     }
 
     friend std::ostream& operator<<( std::ostream& o, const Task& t );
@@ -144,10 +147,11 @@ class TaskManager {
     /// also try.
     bool sharedMayHaveWork;
 
+    /// Push public task
+    void push_public_task( Task t );
+
     /// @return true if local shared queue has elements
-    bool publicHasEle() const {
-      return publicQ.depth() > 0;
-    }
+    bool publicHasEle() const;
 
     /// @return true if Node-private queue has elements
     bool privateHasEle() const {
@@ -171,17 +175,7 @@ class TaskManager {
     /// @param o existing output stream to append to
     /// 
     /// @return new output stream 
-    std::ostream& dump( std::ostream& o = std::cout, const char * terminator = "" ) const {
-      return o << "\"TaskManager\": {" << std::endl
-        << "  \"publicQ\": " << publicQ.depth( ) << std::endl
-        << "  \"privateQ\": " << privateQ.size() << std::endl
-        << "  \"work-may-be-available?\" " << available() << std::endl
-        << "  \"sharedMayHaveWork\": " << sharedMayHaveWork << std::endl
-        << "  \"workDone\": " << workDone << std::endl
-        << "  \"stealLock\": " << stealLock << std::endl
-        << "  \"wshareLock\": " << wshareLock << std::endl
-        << "}" << terminator << std::endl;
-    }
+    std::ostream& dump( std::ostream& o = std::cout, const char * terminator = "" ) const;
 
   public:
     class TaskStatistics {
@@ -369,6 +363,7 @@ class TaskManager {
     //TaskManager (bool doSteal, Node localId, Node* neighbors, Node numLocalNodes, int chunkSize, int cbint);
     TaskManager();
     void init (Node localId, Node* neighbors, Node numLocalNodes);
+    void activate();
 
     /// @return true if work is considered finished and
     ///         the task system is terminating
@@ -441,9 +436,9 @@ inline bool TaskManager::local_available( ) const {
 template < typename A0, typename A1, typename A2 > 
 inline void TaskManager::spawnPublic( void (*f)(A0, A1, A2), A0 arg0, A1 arg1, A2 arg2 ) {
   Task newtask = createTask(f, arg0, arg1, arg2 );
-  publicQ.push( newtask );
-
+  push_public_task( newtask );
 }
+
 
 /// Create a task in the local private task pool.
 /// Should NOT be called from the context of an AM handler.
@@ -491,5 +486,8 @@ inline void TaskManager::spawnRemotePrivate( void (*f)(A0, A1, A2), A0 arg0, A1 
 
 /// system task manager
 extern TaskManager global_task_manager;
+
+} // namespace impl
+} // namespace Grappa
 
 #endif // TASK_HPP

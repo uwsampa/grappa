@@ -287,8 +287,8 @@ struct stealStack_t
   double time[SS_NSTATES], timeLast;         /* perf measurements */
   int entries[SS_NSTATES], curState; 
   LOCK_T * stackLock; /* lock for manipulation of shared portion */
-  uts::Node * stack;       /* addr of actual stack of nodes in local addr space */
-  SHARED_INDEF uts::Node * stack_g; /* addr of same stack in global addr space */
+  Node * stack;       /* addr of actual stack of nodes in local addr space */
+  SHARED_INDEF Node * stack_g; /* addr of same stack in global addr space */
 #ifdef TRACE
   MetaData * md;        /* meta data used for debugging and tracing */
 #endif
@@ -477,16 +477,16 @@ void ss_error(char *str) {
 
 /* initialize the stack */
 void ss_init(StealStack *s, int nelts) {
-  int nbytes = nelts * sizeof(uts::Node);
+  int nbytes = nelts * sizeof(Node);
 
   if (debug & 1)
-    printf("Thread %d intializing stealStack %p, sizeof(uts::Node) = %X\n", 
-           GET_THREAD_NUM, s, (int)(sizeof(uts::Node)));
+    printf("Thread %d intializing stealStack %p, sizeof(Node) = %X\n", 
+           GET_THREAD_NUM, s, (int)(sizeof(Node)));
 
   // allocate stack in shared addr space with affinity to calling thread
   // and record local addr for efficient access in sequel
-  s->stack_g = (SHARED_INDEF uts::Node *) ALLOC (nbytes);
-  s->stack = (uts::Node *) s->stack_g;
+  s->stack_g = (SHARED_INDEF Node *) ALLOC (nbytes);
+  s->stack = (Node *) s->stack_g;
 #ifdef TRACE
   s->md = (MetaData *) ALLOC (sizeof(MetaData));
   if (s->md == NULL)
@@ -517,13 +517,13 @@ void ss_init(StealStack *s, int nelts) {
 
 
 /* local push */
-void ss_push(StealStack *s, uts::Node *c) {
+void ss_push(StealStack *s, Node *c) {
   if (s->top >= s->stackSize)
     ss_error("ss_push: overflow");
   if (debug & 1)
     printf("ss_push: Thread %d, posn %d: node %s [%d]\n",
            GET_THREAD_NUM, s->top, rng_showstate(c->state.state, debug_str), c->height);
-  memcpy(&(s->stack[s->top]), c, sizeof(uts::Node));
+  memcpy(&(s->stack[s->top]), c, sizeof(Node));
   s->top++;
   s->nNodes++;
   s->maxStackDepth = max(s->top, s->maxStackDepth);
@@ -531,8 +531,8 @@ void ss_push(StealStack *s, uts::Node *c) {
 }
 
 /* local top:  get local addr of node at top */ 
-uts::Node * ss_top(StealStack *s) {
-  uts::Node *r;
+Node * ss_top(StealStack *s) {
+  Node *r;
   if (s->top <= s->local)
     ss_error("ss_top: empty local stack");
   r = &(s->stack[(s->top) - 1]);
@@ -545,7 +545,7 @@ uts::Node * ss_top(StealStack *s) {
 
 /* local pop */
 void ss_pop(StealStack *s) {
-  uts::Node *r;
+  Node *r;
   if (s->top <= s->local)
     ss_error("ss_pop: empty local stack");
   s->top--;
@@ -654,20 +654,20 @@ int ss_steal(StealStack *s, int victim, int k) {
 	
   /* if k elts reserved, move them to local portion of our stack */
   if (ok) {
-    SHARED_INDEF uts::Node * victimStackBase = stealStack[victim]->stack_g;
-    SHARED_INDEF uts::Node * victimSharedStart = victimStackBase + victimShared;
+    SHARED_INDEF Node * victimStackBase = stealStack[victim]->stack_g;
+    SHARED_INDEF Node * victimSharedStart = victimStackBase + victimShared;
 
 #ifdef _SHMEM
-    SMEMCPY(&(s->stack[s->top]), victimSharedStart, k * sizeof(uts::Node), victim);
+    SMEMCPY(&(s->stack[s->top]), victimSharedStart, k * sizeof(Node), victim);
 #else
-    SMEMCPY(&(s->stack[s->top]), victimSharedStart, k * sizeof(uts::Node));
+    SMEMCPY(&(s->stack[s->top]), victimSharedStart, k * sizeof(Node));
 #endif
 
     s->nSteal++;
     if (debug & 4) {
       int i;
       for (i = 0; i < k; i ++) {
-        uts::Node * r = &(s->stack[s->top + i]);
+        Node * r = &(s->stack[s->top + i]);
         printf("ss_steal:  Thread %2d posn %d (steal #%d) receives %s [%d] from thread %d posn %d (%p)\n",
                GET_THREAD_NUM, s->top + i, s->nSteal,
                rng_showstate(r->state.state, debug_str),
@@ -777,7 +777,7 @@ void initHist()
   }
 }
 
-void updateHist(uts::Node* c, double unb)
+void updateHist(Node* c, double unb)
 {
   if (c->height<MAXHISTSIZE){
     hist[c->height][1]++;
@@ -807,7 +807,7 @@ void showHist(FILE *fp)
   }
 }
 
-double getImb(uts::Node *c)
+double getImb(Node *c)
 {
   int i=0;
   double avg=.0, tmp=.0;
@@ -856,7 +856,7 @@ double getImb(uts::Node *c)
   return unb;
 }
 
-void getImb_Tseng(uts::Node *c)
+void getImb_Tseng(Node *c)
 {
   double t_max, t_avg, t_devmaxavg, t_normdevmaxavg;
 
@@ -888,7 +888,7 @@ void getImb_Tseng(uts::Node *c)
   imb_normdevmaxavg +=t_normdevmaxavg;
 }
 
-void updateParStat(uts::Node *c)
+void updateParStat(Node *c)
 {
   double unb;
 
@@ -927,7 +927,7 @@ void updateParStat(uts::Node *c)
  *	Tree Implementation      
  *
  */
-void initNode(uts::Node * child)
+void initNode(Node * child)
 {
   child->type = -1;
   child->height = -1;
@@ -949,7 +949,7 @@ void initNode(uts::Node * child)
 }
 
 
-void initRootNode(uts::Node * root, int type)
+void initRootNode(Node * root, int type)
 {
   uts_initRoot(root, type);
 
@@ -994,7 +994,7 @@ void releaseNodes(StealStack *ss);
  * details depend on tree type, node type and shape function
  *
  */
-void genChildren(uts::Node * parent, Node * child, StealStack * ss) {
+void genChildren(Node * parent, Node * child, StealStack * ss) {
   int parentHeight = parent->height;
   int numChildren, childType;
 
@@ -1166,8 +1166,8 @@ void releaseNodes(StealStack *ss){
  */
 void parTreeSearch(StealStack *ss) {
   int done = 0;
-  uts::Node * parent;
-  uts::Node child;
+  Node * parent;
+  Node child;
 
   /* template for children */
   initNode(&child);
@@ -1411,7 +1411,7 @@ void showStats(double elapsedSecs) {
  */
 #ifdef __PTHREADS__
 int pthread_main(int argc, char *argv[]) {
-  uts::Node   root;
+  Node   root;
   double t1, t2;
   int    i, err;
   void  *rval;
@@ -1472,8 +1472,10 @@ int pthread_main(int argc, char *argv[]) {
  *     - UPC is SPMD starting with main, OpenMP goes SPMD after
  *       parsing parameters
  */
+#include "rng/brg_endian.h"
 int main(int argc, char *argv[]) {
-  uts::Node root;
+
+  Node root;
 
 #ifdef __PTHREADS__
   return pthread_main(argc, argv);

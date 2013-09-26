@@ -11,6 +11,8 @@
 #define __COMMON_HPP__
 
 #include <stdint.h>
+#include <iostream>
+#include <glog/logging.h>
 
 #if defined(__MTA__)
 #include <sys/mta_task.h>
@@ -24,8 +26,10 @@
 #define BILLION 1000000000
 #define MILLION 1000000
 
+namespace Grappa {
+
 /// "Universal" wallclock time (works at least for Mac, MTA, and most Linux)
-inline double Grappa_walltime(void) {
+inline double walltime(void) {
 #if defined(__MTA__)
 	return((double)mta_get_clock(0) / mta_clock_freq());
 #elif defined(__MACH__)
@@ -46,6 +50,11 @@ inline double Grappa_walltime(void) {
 	return (double)tp.tv_sec + (double)tp.tv_nsec / BILLION;
 #endif
 }
+
+} // namespace Grappa
+
+// Legacy
+inline double Grappa_walltime(void) { return Grappa::walltime(); }
 
 #define GRAPPA_TIME(var, block) \
    	do { \
@@ -115,14 +124,35 @@ T * Grappa_magic_identity_function(T * t) {
 /// range for block distribution
 struct range_t { int64_t start, end; };
 
+inline std::ostream& operator<<(std::ostream& o, const range_t& r) {
+  o << "<" << r.start << "," << r.end << ">";
+  return o;
+}
+
 inline range_t blockDist(int64_t start, int64_t end, int64_t rank, int64_t numBlocks) {
 	int64_t numElems = end-start;
-	int64_t each   = numElems / numBlocks,
-  remain = numElems % numBlocks;
-	int64_t mynum = (rank < remain) ? each+1 : each;
-	int64_t mystart = start + ((rank < remain) ? (each+1)*rank : (each+1)*remain + (rank-remain)*each);
+	int64_t each     = numElems / numBlocks;
+  int64_t remain   = numElems % numBlocks;
+	int64_t mynum    = (rank < remain) ? each+1 : each;
+	int64_t mystart  = start + ((rank < remain) ? (each+1)*rank : (each+1)*remain + (rank-remain)*each);
 	range_t r = { mystart, mystart+mynum };
   return r;
+}
+
+struct block_offset_t { int64_t block, offset; };
+
+inline block_offset_t indexToBlock(int64_t index, int64_t numElements, int64_t numBlocks) {
+  block_offset_t result;
+	int64_t each   = numElements / numBlocks,
+          remain = numElements % numBlocks;
+	if (index < (each+1)*remain) {
+		result = { index / (each+1), index % (each+1) };
+	} else {
+		index -= (each+1)*remain;
+		result = { remain + index/each, index % each };
+	}
+  // VLOG(1) << "result.block = " << result.block << ", remain = " << remain << ", index = " << index << ", each = " << each;
+  return result;
 }
 
 #define GET_TYPE(member) BOOST_PP_TUPLE_ELEM(2,0,member)
@@ -213,6 +243,28 @@ namespace Grappa {
   const char * typename_of( const T& unused ) { 
     return typename_of<T>();
   }
+
+  namespace impl {
+    // A small helper for Google logging CHECK_NULL().
+    template <typename T>
+    T* CheckNull(const char *file, int line, const char *names, T* t) {
+      if (t != NULL) {
+        google::LogMessageFatal(file, line, new std::string(names));
+      }
+      return t;
+    }
+  }
+
+#define CHECK_NULL(val)                                              \
+  Grappa::impl::CheckNull(__FILE__, __LINE__, "'" #val "' Must be non NULL", (val))
+
+#ifdef NDEBUG
+#define DCHECK_NULL(val)                                              \
+  Grappa::impl::CheckNull(__FILE__, __LINE__, "'" #val "' Must be non NULL", (val))
+#else
+#define DCHECK_NULL(val)                        \
+  ;
+#endif
   
   /// @}
 

@@ -15,6 +15,7 @@
 #include "GlobalAllocator.hpp"
 #include "Tasking.hpp"
 #include "ForkJoin.hpp"
+#include "ParallelLoop.hpp"
 
 #include <sys/stat.h>
 #include <iterator>
@@ -39,6 +40,9 @@ inline void array_dir_scan(const fs::path& p, int64_t * start, int64_t * end) {
 // little helper for iterating over things numerous enough to need to be buffered
 #define for_buffered(i, n, start, end, nbuf) \
   for (size_t i=start, n=nbuf; i<end && (n = MIN(nbuf, end-i)); i+=nbuf)
+
+/// @addtogroup Utility
+/// @{
 
 /// Grappa file descriptor.
 /// 
@@ -172,15 +176,15 @@ struct read_array_args {
   char fname[FNAME_LENGTH];
   GlobalAddress<T> base;
   int64_t start, end;
-  GlobalAddress<LocalTaskJoiner> joiner;
+  GlobalAddress<Grappa::CompletionEvent> joiner;
   int64_t file_offset;
 
   read_array_args(): base(), start(0), end(0), joiner() {}
-  read_array_args(const char * fname, GlobalAddress<T> base, int64_t start, int64_t end, GlobalAddress<LocalTaskJoiner> joiner): base(base), start(start), end(end), joiner(joiner), file_offset(0) {
+  read_array_args(const char * fname, GlobalAddress<T> base, int64_t start, int64_t end, GlobalAddress<Grappa::CompletionEvent> joiner): base(base), start(start), end(end), joiner(joiner), file_offset(0) {
     strncpy(this->fname, fname, FNAME_LENGTH);
   }
   static void task(GlobalAddress< read_array_args<T> > args_addr, size_t index, size_t nelem) {
-    VLOG(3) << "num_active = " << global_scheduler.active_worker_count();
+    VLOG(3) << "num_active = " << Grappa::impl::global_scheduler.active_worker_count();
 
     read_array_args<T> b_args;
     typename Incoherent< read_array_args<T> >::RO args(args_addr, 1, &b_args);
@@ -188,7 +192,7 @@ struct read_array_args {
 
     GrappaFileDesc fdesc = Grappa_fopen(a.fname, "r");
 
-    T* buf = new T[nelem];
+		T* buf = Grappa::locale_alloc<T>(nelem);
     
     int64_t offset = index - a.start;
     Grappa_fread_suspending(buf, sizeof(T)*nelem, sizeof(T)*offset+a.file_offset, fdesc);
@@ -197,45 +201,45 @@ struct read_array_args {
     //}
 
     { typename Incoherent<T>::WO c(a.base+index, nelem, buf); }
-    delete [] buf;
+    Grappa::locale_free(buf);
 
     Grappa_fclose(fdesc);
 
     VLOG(2) << "completed read(" << a.start + index << ":" << a.start+index+nelem << ")";
-    LocalTaskJoiner::remoteSignal(a.joiner);
+		Grappa::complete(a.joiner);
   }
 };
 
-LOOP_FUNCTOR( set_allow_active, nid, ((int64_t,n)) ) {
-  // limit number of workers allowed to be active
-  global_scheduler.allow_active_workers(n);
-}
-
+namespace impl {
 template < typename T >
 void _read_array_file(GrappaFile& f, GlobalAddress<T> array, size_t nelem) {
   double t = Grappa_walltime();
 
-  { set_allow_active f(FLAGS_io_blocks_per_node); fork_join_custom(&f); }
+	Grappa::call_on_all_cores([]{
+	  Grappa::impl::global_scheduler.allow_active_workers(FLAGS_io_blocks_per_node);
+	});
 
   const size_t NBUF = FLAGS_io_blocksize_mb*(1L<<20)/sizeof(T);
 
-  LocalTaskJoiner io_joiner;
-  GlobalAddress<LocalTaskJoiner> joiner_addr = make_global(&io_joiner);
+  Grappa::CompletionEvent io_joiner;
+  auto joiner_addr = make_global(&io_joiner);
   
   read_array_args<T> args(f.fname, array, 0, nelem, joiner_addr);
   args.file_offset = f.offset;
-  GlobalAddress< read_array_args<T> > arg_addr = make_global(&args);
+  auto arg_addr = make_global(&args);
 
   // read array
   for_buffered (i, n, 0, nelem, NBUF) {
     CHECK( i+n <= nelem) << "nelem = " << nelem << ", i+n = " << i+n;
     
-    io_joiner.registerTask();
+    io_joiner.enroll();
     Grappa_publicTask(&read_array_args<T>::task, arg_addr, i, n);
   }
   io_joiner.wait();
   
-  { set_allow_active f(-1); fork_join_custom(&f); }
+	Grappa::call_on_all_cores([]{
+	  Grappa::impl::global_scheduler.allow_active_workers(-1);
+	});
 
   f.offset += nelem * sizeof(T);
   t = Grappa_walltime() - t;
@@ -248,7 +252,9 @@ void _read_array_dir(GrappaFile& f, GlobalAddress<T> array, size_t nelem) {
   const char * dirname = f.fname;
   double t = Grappa_walltime();
 
-  { set_allow_active f(FLAGS_io_blocks_per_node); fork_join_custom(&f); }
+	Grappa::call_on_all_cores([]{
+	  Grappa::impl::global_scheduler.allow_active_workers(FLAGS_io_blocks_per_node);
+	});
 
   size_t nfiles = std::distance(fs::directory_iterator(dirname), fs::directory_iterator());
   
@@ -256,8 +262,8 @@ void _read_array_dir(GrappaFile& f, GlobalAddress<T> array, size_t nelem) {
   
   const size_t NBUF = FLAGS_io_blocksize_mb*(1L<<20)/sizeof(T);
 
-  LocalTaskJoiner io_joiner;
-  GlobalAddress<LocalTaskJoiner> joiner_addr = make_global(&io_joiner);
+  Grappa::CompletionEvent io_joiner;
+	auto joiner_addr = make_global(&io_joiner);
 
   size_t i = 0;
   fs::directory_iterator d(dirname);
@@ -273,72 +279,68 @@ void _read_array_dir(GrappaFile& f, GlobalAddress<T> array, size_t nelem) {
     for_buffered (i, n, start, end, NBUF) {
       CHECK( i+n <= nelem) << "nelem = " << nelem << ", i+n = " << i+n;
       
-      io_joiner.registerTask();
+      io_joiner.enroll();
       Grappa_publicTask(&read_array_args<T>::task, arg_addr, i, n);
     }
   }
   io_joiner.wait();
   
-  { set_allow_active f(-1); fork_join_custom(&f); }
+	Grappa::call_on_all_cores([]{
+	  Grappa::impl::global_scheduler.allow_active_workers(-1);
+	});
 
   t = Grappa_walltime() - t;
   VLOG(1) << "read_array_time: " << t;
   VLOG(1) << "read_rate_mbps: " << ((double)nelem * sizeof(T) / (1L<<20)) / t;
 }
+} // namespace impl
 
 /// Read a file or directory of files into a global array.
 template < typename T >
 void Grappa_read_array(GrappaFile& f, GlobalAddress<T> array, size_t nelem) {
   if (f.isDirectory) {
-    _read_array_dir(f, array, nelem);
+    impl::_read_array_dir(f, array, nelem);
   } else {
-    _read_array_file(f, array, nelem);
+    impl::_read_array_file(f, array, nelem);
   }
 }
 
+namespace impl {
+/// Assuming HDFS, so write array to different files in a directory because otherwise we can't write in parallel
 template < typename T >
-struct save_array_func : ForkJoinIteration {
-    GlobalAddress<T> array; size_t nelems; char dirname[FNAME_LENGTH];
-  save_array_func() {}
-  save_array_func( const char dirname[FNAME_LENGTH], GlobalAddress<T> array, size_t nelems):
-    array(array), nelems(nelems) { memcpy(this->dirname, dirname, FNAME_LENGTH); }
-  void operator()(int64_t nid) const {
+void _save_array_dir(const char * dirname, GlobalAddress<T> array, size_t nelems) {
+  // make directory with mode 777
+  fs::path pdir(dirname);
+  
+  try {
+    fs::create_directories(pdir);
+    fs::permissions(pdir, fs::perms::all_all);
+  } catch (fs::filesystem_error& e) {
+    LOG(ERROR) << "filesystem error: " << e.what();
+  }
+	
+  double t = Grappa_walltime();
+
+  on_all_cores([dirname,array,nelems]{
     range_t r = blockDist(0, nelems, Grappa_mynode(), Grappa_nodes());
     char fname[FNAME_LENGTH]; array_dir_fname(fname, dirname, r.start, r.end);
     std::fstream fo(fname, std::ios::out | std::ios::binary);
     
-    //const size_t NBUF = BUFSIZE/sizeof(T); 
     const size_t NBUF = FLAGS_io_blocksize_mb*(1L<<20)/sizeof(T);
-    T * buf = new T[NBUF];
+    T * buf = Grappa::locale_alloc<T>(NBUF);
+		
     for_buffered (i, n, r.start, r.end, NBUF) {
       typename Incoherent<T>::RO c(array+i, n, buf);
       c.block_until_acquired();
       fo.write((char*)buf, sizeof(T)*n);
       //VLOG(1) << "wrote " << n << " bytes";
     }
-    delete [] buf;
+		Grappa::locale_free(buf);
 
     fo.close();
     VLOG(1) << "finished saving array[" << r.start << ":" << r.end << "]";
-  }
-};
-
-/// Assuming HDFS, so write array to different files in a directory because otherwise we can't write in parallel
-template < typename T >
-void _save_array_dir(const char * dirname, GlobalAddress<T> array, size_t nelems) {
-  // make directory with mode 777
-  //fs::create_directory((const char *)dirname);
-  if ( mkdir((const char *)dirname, 0777) != 0 ) {
-    switch (errno) { // error occurred
-      case EEXIST: LOG(INFO) << "files already exist, skipping write..."; return;
-      default: fprintf(stderr, "Error with `mkdir`!\n"); break;
-    }
-  }
-
-  double t = Grappa_walltime();
-
-  { save_array_func<T> f(dirname, array, nelems); fork_join_custom(&f); }
-  
+  });
+	
   t = Grappa_walltime() - t;
   LOG(INFO) << "save_array_time: " << t;
   LOG(INFO) << "save_rate_mbps: " << ((double)nelems * sizeof(T) / (1L<<20)) / t;
@@ -350,28 +352,29 @@ void _save_array_file(const char * fname, GlobalAddress<T> array, size_t nelems)
 
   std::fstream fo(fname, std::ios::out | std::ios::binary);
 
-  //const size_t NBUF = BUFSIZE/sizeof(T); 
   const size_t NBUF = FLAGS_io_blocksize_mb*(1L<<20)/sizeof(T);
-  T * buf = new T[NBUF];
+	T * buf = Grappa::locale_alloc<T>(NBUF);
   for_buffered (i, n, 0, nelems, NBUF) {
     typename Incoherent<T>::RO c(array+i, n, buf);
     c.block_until_acquired();
-  fo.write((char*)buf, sizeof(T)*n);
+	  fo.write((char*)buf, sizeof(T)*n);
   }
-  delete [] buf;
+	Grappa::locale_free(buf);
 
   t = Grappa_walltime() - t;
   fo.close();
   LOG(INFO) << "save_array_time: " << t;
   LOG(INFO) << "save_rate_mbps: " << ((double)nelems * sizeof(T) / (1L<<20)) / t;
 }
+} // namespace impl
 
 template< typename T >
 void Grappa_save_array(GrappaFile& f, bool asDirectory, GlobalAddress<T> array, size_t nelem) {
   if (asDirectory) {
-    _save_array_dir(f.fname, array, nelem);
+    impl::_save_array_dir(f.fname, array, nelem);
   } else {
-    _save_array_file(f.fname, array, nelem);
+    impl::_save_array_file(f.fname, array, nelem);
   }
 }
 
+/// @}

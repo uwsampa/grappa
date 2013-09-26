@@ -51,14 +51,14 @@ struct node_t {
   struct state_t state;
 };
 
-// xmt version requires gcc
-#ifdef __MTA__
-typedef struct node_t Node;
-#else
+// C++ implementations will use namespaced Node
+#ifdef __cplusplus
 namespace uts {
-typedef struct node_t Node;
+  typedef struct node_t Node;
 }
-#endif /* __MTA__ */
+#else
+typedef struct node_t Node;
+#endif // __cplusplus
 
 
 /* Tree type
@@ -118,8 +118,17 @@ double uts_wctime();
 double rng_toProb(int n);
 
 /* Common tree routines */
-// xmt version requires gcc
-#ifdef __MTA__
+
+// C++ UTS implementations will use namespaced Node
+#ifdef __cplusplus 
+void   uts_initRoot(uts::Node * root, int type);
+int    uts_numChildren(uts::Node *parent);
+int    uts_numChildren_bin(uts::Node * parent);
+int    uts_numChildren_geo(uts::Node * parent);
+int    uts_childType(uts::Node *parent);
+
+int64_t    uts_nodeId(uts::Node *parent);
+#else
 void   uts_initRoot(Node * root, int type);
 int    uts_numChildren(Node *parent);
 int    uts_numChildren_bin(Node * parent);
@@ -128,16 +137,7 @@ int    uts_childType(Node *parent);
 
 int64_t    uts_nodeId(Node *parent);
 
-#else
-
-void   uts_initRoot(uts::Node * root, int type);
-int    uts_numChildren(uts::Node *parent);
-int    uts_numChildren_bin(uts::Node * parent);
-int    uts_numChildren_geo(uts::Node * parent);
-int    uts_childType(uts::Node *parent);
-
-int64_t    uts_nodeId(uts::Node *parent);
-#endif /* __MTA__ */
+#endif /* __cplusplus */
 
 /* Implementation Specific Functions */
 char * impl_getName();

@@ -29,8 +29,6 @@ CFLAGS+= -mno-red-zone
 # TODO: see if we can make this apply to just our files, not user files or libraries
 #CFLAGS+= -Wconversion
 
-# TODO: clean up LD_LIBRARY_PATH to make this work better
-CFLAGS+= -Wl,-rpath,$(LD_LIBRARY_PATH),--enable-new-dtags
 
 # tcmalloc is disabled because it seems to slow message throughput down by 10% or so.
 #### Enable tcmalloc by default, since we've already built its package for profiling
@@ -39,19 +37,18 @@ ifndef VALGRIND
 #LIBRARIES+= -ltcmalloc
 endif
 
-LD_LIBRARY_PATH:=$(LD_LIBRARY_PATH):$(BOOST)/stage/lib
-
-# CC=gcc
-# CXX=g++
-# LD=mpiCC
+LD_LIBRARY_PATH:=$(BOOST)/stage/lib:$(LD_LIBRARY_PATH)
 
 ifdef CLANG
+
 CLANG_HOME=/sampa/home/bholt/grappac/deps
 CC=$(CLANG_HOME)/bin/clang
 CXX=$(CLANG_HOME)/bin/clang++
 LD=$(CLANG_HOME)/bin/clang++ -I/usr/include/openmpi-x86_64 -pthread -m64 -L/usr/lib64/openmpi/lib -lmpi_cxx -lmpi -ldl
 LD_LIBRARY_PATH:=$(CLANG_HOME)/lib64:$(LD_LIBRARY_PATH)
+	
 else
+
 GCC472=/sampa/share/gcc-4.7.2/rtf
 CC=$(GCC472)/bin/gcc
 CXX=$(GCC472)/bin/g++
@@ -65,31 +62,47 @@ NONE_LD=$(LD)
 endif
 
 
-# define to build on PAL cluster
-# should load modules:
+# to build on PAL cluster
+# should load modules as follows:
 #   module unload pathscale openmpi
-#   module load git gcc/4.6.2 openmpi
+#   module load git gcc/4.7.2 openmpi/1.6.3
+
+# to run with Mvapich on Pal (required for Igor):
+# module load gcc/4.7.2 mvapich2/1.9b
 
 MACHINENAME:=$(shell hostname)
 ifeq ($(MACHINENAME), pal.local)
 PAL=true
+
+ifeq ($(shell module list 2>&1 | grep mvapich2 | wc -l), 1)
+PAL_MVAPICH2=true
+endif
 endif
 
 ifdef PAL
 NELSON=/pic/people/nels707
 
+# should have modules: gcc/4.7.2 mvapich2/1.9b
+
+CC=mpicc
+CXX=mpicxx
+LD=mpicxx
+
 #GASNET=$(NELSON)/gasnet
 HUGETLBFS=/usr
-BOOST=$(NELSON)/boost
-GPERFTOOLS=$(NELSON)/gperftools
-VAMPIRTRACE=$(NELSON)/vampirtrace
+BOOST=$(NELSON)/boost153-install
+BOOST_INCLUDE=$(BOOST)/include
+BOOST_LIB=$(BOOST)/lib
 
 MPITYPE=SRUN
+
+CFLAGS+=-DUSE_HUGEPAGES_DEFAULT=false
+LDFLAGS+= -lpmi
 
 SRUN_PARTITION=pal
 SRUN_BUILD_PARTITION=pal
 #SRUN_HOST=--partition $(SRUN_PARTITION) --account pal  --reservation=pal_25
-SRUN_HOST=--partition $(SRUN_PARTITION) --account pal $(SRUN_RESERVE) --exclude=node0196
+SRUN_HOST=--partition $(SRUN_PARTITION) --account pal $(SRUN_RESERVE)
 SRUN_RUN=salloc --exclusive $(SRUN_FLAGS) $($(MPITYPE)_HOST) $($(MPITYPE)_NPROC) $($(MPITYPE)_BATCH_TEMP)
 SRUN_BUILD_CMD=
 SRUN_CC=$(CC)
@@ -197,9 +210,11 @@ SHMMAX?=12884901888
 
 # include this first to override system default if necessary
 BOOST?=/sampa/share/gcc-4.7.2/src/boost_1_51_0
-CFLAGS+= -I$(BOOST)
-LDFLAGS+= -L$(BOOST)/stage/lib
-LD_LIBRARY_PATH:=$(LD_LIBRARY_PATH):$(BOOST)/stage/lib
+BOOST_INCLUDE?=$(BOOST)
+BOOST_LIB?=$(BOOST)/stage/lib
+CFLAGS+= -I$(BOOST_INCLUDE)
+LDFLAGS+= -L$(BOOST_LIB)
+LD_LIBRARY_PATH:=$(BOOST_LIB):$(LD_LIBRARY_PATH)
 
 ifdef GASNET_TRACING
 GASNET:=/sampa/share/gasnet-1.18.2-tracing
@@ -234,21 +249,21 @@ HUGETLBFS?=/usr
 CFLAGS+= -I$(HUGETLBFS)/include
 LDFLAGS+= -L$(HUGETLBFS)/lib64
 
-GFLAGS=$(GRAPPA_HOME)/tools/built_deps
+GFLAGS?=$(GRAPPA_HOME)/tools/built_deps
 CFLAGS+= -I$(GFLAGS)/include
 LDFLAGS+= -L$(GFLAGS)/lib
-LD_LIBRARY_PATH:=$(LD_LIBRARY_PATH):$(GFLAGS)/lib
+LD_LIBRARY_PATH:=$(GFLAGS)/lib:$(LD_LIBRARY_PATH)
 
-GLOG=$(GRAPPA_HOME)/tools/built_deps
+GLOG?=$(GRAPPA_HOME)/tools/built_deps
 CFLAGS+= -I$(GLOG)/include
 LDFLAGS+= -L$(GLOG)/lib
-LD_LIBRARY_PATH:=$(LD_LIBRARY_PATH):$(GLOG)/lib
+LD_LIBRARY_PATH:=$(GLOG)/lib:$(LD_LIBRARY_PATH)
 
-GPERFTOOLS=$(GRAPPA_HOME)/tools/built_deps
+GPERFTOOLS?=$(GRAPPA_HOME)/tools/built_deps
 #GPERFTOOLS?=/sampa/share/gperftools-2.0-nolibunwind
 CFLAGS+= -I$(GPERFTOOLS)/include
 LDFLAGS+= -L$(GPERFTOOLS)/lib
-LD_LIBRARY_PATH:=$(LD_LIBRARY_PATH):$(GPERFTOOLS)/lib
+LD_LIBRARY_PATH:=$(GPERFTOOLS)/lib:$(LD_LIBRARY_PATH)
 
 
 VAMPIRTRACE?=$(GRAPPA_HOME)/tools/built_deps
@@ -257,12 +272,15 @@ LDFLAGS+= -L$(VAMPIRTRACE)/lib
 LD_LIBRARY_PATH:=$(VAMPIRTRACE)/lib:$(LD_LIBRARY_PATH)
 
 VALGRIND_PATH?=/sampa/share/valgrind-3.8.1-cluster
-CFLAGS+= -I$(VAMPIRTRACE)/include
-LDFLAGS+= -L$(VAMPIRTRACE)/lib/valgrind
-LD_LIBRARY_PATH:=$(VAMPIRTRACE)/lib/valgrind:$(LD_LIBRARY_PATH)
+CFLAGS+= -I$(VALGRIND)/include
+LDFLAGS+= -L$(VALGRIND)/lib/valgrind
+LD_LIBRARY_PATH:=$(VALGRIND)/lib/valgrind:$(LD_LIBRARY_PATH)
 
 
 MPITYPE?=SRUN
+
+# TODO: clean up LD_LIBRARY_PATH to make this work better
+CFLAGS+= -Wl,-rpath,$(LD_LIBRARY_PATH),--enable-new-dtags
 
 CFLAGS+= -DSHMMAX=$(SHMMAX)
 
@@ -288,12 +306,14 @@ SRUN_EXPORT_ENV_VARIABLES?=--task-prolog=$(SRUN_ENVVAR_TEMP) --task-epilog=$(SRU
 	@echo \#!/bin/bash > $@
 	@for i in $(ENV_VARIABLES); do echo echo export $$i >> $@; done
 	@echo '# Clean up any leftover shared memory regions' >> $@
-	@echo 'for i in `ipcs -m | grep $(USER) | cut -d" " -f1 | grep -v 0x00000000`; do ipcrm -M $$i; done' >> $@
+	@echo 'for i in `ipcs -m | grep $(USER) | cut -d" " -f2`; do ipcrm -m $$i; done' >> $@
+	@echo 'rm -f /dev/shm/GrappaLocaleSharedMemory' >> $@
 	@chmod +x $@
 
 .srunrc_epilog.%:
 	@echo \#!/bin/bash > $@
-	@echo 'for i in `ipcs -m | grep $(USER) | cut -d" " -f1 | grep -v 0x00000000`; do ipcrm -M $$i; done' >> $@
+	@echo 'for i in `ipcs -m | grep $(USER) | cut -d" " -f2`; do ipcrm -m $$i; done' >> $@
+	@echo 'rm -f /dev/shm/GrappaLocaleSharedMemory' >> $@
 	@chmod +x $@
 
 # set to force libs to be recopied to scratch disks
@@ -308,6 +328,14 @@ SBATCH_MPIRUN_EXPORT_ENV_VARIABLES=$(patsubst %,-x %,$(patsubst DELETEME:%,,$(su
 .sbatch.%:
 	@echo '#!/bin/bash' > $@
 	@for i in $(ENV_VARIABLES); do echo "export $$i" >> $@; done
+ifdef PAL_MVAPICH2
+	@echo '# Run!' >> $@
+	@echo 'srun --tasks-per-node 1 bash -c "ipcs -m | grep $(USER) | cut -d\  -f1 | xargs -n1 -r ipcrm -M"' >> $@
+	@echo 'srun --tasks-per-node 1 bash -c "rm -f /dev/shm/GrappaLocaleSharedMemory"' >> $@
+	@echo 'srun $(SBATCH_MPIRUN_EXPORT_ENV_VARIABLES) --cpu_bind=verbose,rank --label -- $(MY_TAU_RUN) $$*' >> $@
+	@echo 'srun --tasks-per-node 1 bash -c "ipcs -m | grep $(USER) | cut -d\  -f1 | xargs -n1 -r ipcrm -M"' >> $@
+	@echo 'srun --tasks-per-node 1 bash -c "rm -f /dev/shm/GrappaLocaleSharedMemory"' >> $@
+else
 ifdef PAL	
 	@echo '# Make scratch directory'  >> $@
 	@echo 'mkdir -p $(SBATCH_SCRATCH_DIR)' >> $@
@@ -337,11 +365,15 @@ ifdef PAL
 else
 	@echo '# Run!' >> $@
 	@echo 'mpirun -npernode 1 bash -c "ipcs -m | grep $(USER) | cut -d\  -f1 | xargs -n1 -r ipcrm -M"' >> $@
+	@echo 'mpirun -npernode 1 bash -c "rm -f /dev/shm/GrappaLocaleSharedMemory"' >> $@
 	@echo 'mpirun $(SBATCH_MPIRUN_EXPORT_ENV_VARIABLES) -bind-to-core -tag-output -- $(MY_TAU_RUN) $$*' >> $@
-	@echo 'mpirun -npernode 1 bash -c "ipcs -m | grep $(USER) | cut -d\  -f1 | xargs -n1 -r ipcrm -M"' >> $@
+	@echo 'mpirun -npernode 1 bash -c "ipcs -m | grep $(USER) | cut -d\  -f2 | xargs -n1 -r ipcrm -m"' >> $@
+	@echo 'mpirun -npernode 1 bash -c "rm -f /dev/shm/GrappaLocaleSharedMemory"' >> $@
+endif
 endif
 	@echo '# Clean up any leftover shared memory regions' >> $@
-	@echo 'for i in `ipcs -m | grep $(USER) | cut -d" " -f1`; do ipcrm -M $$i; done' >> $@
+	@echo 'for i in `ipcs -m | grep $(USER) | cut -d" " -f2`; do ipcrm -m $$i; done' >> $@
+	@echo 'rm -f /dev/shm/GrappaLocaleSharedMemory' >> $@
 	@chmod +x $@
 
 # delete when done
@@ -355,7 +387,18 @@ NPROC=$(shell echo $$(( $(NNODE)*$(PPN) )) )
 SRUN_HOST?=--partition $(SRUN_PARTITION)
 SRUN_NPROC=--nodes=$(NNODE) --ntasks-per-node=$(PPN)
 
-SRUN_MPIRUN?=srun --resv-ports --cpu_bind=verbose,rank --exclusive --label --kill-on-bad-exit $(SRUN_FLAGS)
+#convenience to set NUMA pinning for sampa
+#pin by numa is meant to fill up each NUMA 
+#domain before pinning threads to another
+GRAPPA_PIN_BY_NUMA?=0
+ifeq ($(GRAPPA_PIN_BY_NUMA),1)
+SRUN_CORE_PINNING=--cpu_bind=verbose,map_cpu:1,3,5,7,9,11,2,4,6,8,10,12
+else
+SRUN_CORE_PINNING=--cpu_bind=verbose,rank
+endif
+
+SRUN_MPIRUN?=srun --resv-ports $(SRUN_CORE_PINNING) --exclusive --label --kill-on-bad-exit $(SRUN_FLAGS)
+
 
 SRUN_CLEAN_FILES= -f .srunrc*  .sbatch*
 

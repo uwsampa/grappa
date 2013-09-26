@@ -7,19 +7,11 @@
 #include "BasicScheduler.hpp"
 
 /// TODO: this should be based on some actual time-related metric so behavior is predictable across machines
-DEFINE_int64( periodic_poll_ticks, 500, "number of ticks to wait before polling periodic queue");
+// DEFINE_int64( periodic_poll_ticks, 500, "number of ticks to wait before polling periodic queue");
 
 void BasicScheduler::run ( ) {
     while (thread_wait( NULL ) != NULL) { } // nothing
 }
-
-void BasicScheduler::thread_join( Thread* wait_on ) {
-    while ( !wait_on->done ) {
-        wait_on->joinqueue.enqueue( current_thread );
-        thread_suspend( );
-    }
-}
-
 
 Thread * BasicScheduler::thread_wait( void **result ) {
     CHECK( current_thread == master ) << "only meant to be called by system Thread";
