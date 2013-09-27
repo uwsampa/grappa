@@ -1,5 +1,4 @@
 set(SOURCES
-  Reduction.hpp
   spmv_mult.cpp
   spmv_mult.hpp
   ../graph500/grappa/oned_csr.cpp

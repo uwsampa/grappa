@@ -13,102 +13,144 @@ file(GLOB TEST_SOURCES
 # )
 
 set(SYSTEM_SOURCES
-  Addressing.hpp
   Aggregator.cpp
-  Aggregator.hpp
   Allocator.cpp
+  AsyncDelegate.cpp
+  AsyncParallelFor.cpp
+  Barrier.cpp
+  Cache.cpp
+  Collective.cpp
+  Communicator.cpp
+  ContextSwitchRate_bench.cpp
+  CurrentThread.cpp
+  Delegate.cpp
+  FlatCombiner.cpp
+  ForkJoin.cpp
+  Future.cpp
+  GlobalAllocator.cpp
+  GlobalCompletionEvent.cpp
+  GlobalHashMap.cpp
+  GlobalHashSet.cpp
+  GlobalMemory.cpp
+  GlobalMemoryChunk.cpp
+  GlobalTaskJoiner.cpp
+  GlobalVector.cpp
+  Grappa.cpp
+  HistogramStatistic.cpp
+  IncoherentAcquirer.cpp
+  IncoherentReleaser.cpp
+  LegacySignaler.cpp
+  LocaleSharedMemory.cpp
+  MessageBase.cpp
+  MessagePool.cpp
+  ParallelLoop.cpp
+  PerformanceTools.cpp
+  ProfilerGroups.cpp
+  RDMAAggregator.cpp
+  SharedMessagePool.cpp
+  SimpleStatistic.cpp
+  StateTimer.cpp
+  Statistics.cpp
+  SummarizingStatistic.cpp
+  ThreadQueue.cpp
+  Timestamp.cpp
+  Uid.cpp
+  Worker.cpp
+  Addressing.hpp
+  Aggregator.hpp
   Allocator.hpp
   Array.hpp
-  AsyncParallelFor.cpp
+  AsyncDelegate.hpp
   AsyncParallelFor.hpp
-  Barrier.hpp Barrier.cpp
-  Cache.cpp
+  Barrier.hpp
+  boost_helpers.hpp
   Cache.hpp
-  Collective.cpp
   Collective.hpp
-  Communicator.cpp
+  common.hpp
   Communicator.hpp
+  CompletionEvent.hpp
   ConditionVariable.hpp
   ConditionVariableLocal.hpp
-  CurrentThread.cpp
+  CountingSemaphoreLocal.hpp
   CurrentThread.hpp
-  Delegate.cpp
   Delegate.hpp
-  AsyncDelegate.hpp
-  Doxyfile
+  Descriptor.hpp
+  ExternalCountPayloadMessage.hpp
   FileIO.hpp
-  ForkJoin.cpp
+  FlatCombiner.hpp
   ForkJoin.hpp
   FullEmpty.hpp
-  Future.cpp
+  FullEmptyLocal.hpp
+  function_traits.hpp
   Future.hpp
-  GlobalAllocator.cpp
   GlobalAllocator.hpp
-  GlobalMemory.cpp
+  GlobalCompletionEvent.hpp
+  GlobalCounter.hpp
+  GlobalHashMap.hpp
+  GlobalHashSet.hpp
   GlobalMemory.hpp
-  GlobalMemoryChunk.cpp
   GlobalMemoryChunk.hpp
-  GlobalTaskJoiner.cpp
   GlobalTaskJoiner.hpp
-  Grappa.cpp
+  GlobalVector.hpp
   Grappa.hpp
-  IncoherentAcquirer.cpp
+  HistogramStatistic.hpp
   IncoherentAcquirer.hpp
-  IncoherentReleaser.cpp
   IncoherentReleaser.hpp
+  LegacyDelegate.hpp
+  LegacySignaler.hpp
+  LocaleSharedMemory.hpp
   Message.hpp
   MessageBase.hpp
-  MessageBase.cpp
+  MessageBaseImpl.hpp
+  MessagePool.hpp
   MutableHeap.hpp
   Mutex.hpp
   ParallelLoop.hpp
-  ParallelLoop.cpp
   ParallelLoop_future.hpp
-  PerformanceTools.cpp
   PerformanceTools.hpp
+  PoolAllocator.hpp
   ProfilerConfig.hpp
-  ProfilerGroups.cpp
   ProfilerGroups.hpp
   PushBuffer.hpp
   RDMAAggregator.hpp
-  RDMAAggregator.cpp
-  StateTimer.cpp
-  StateTimer.hpp
-  Statistics.hpp
-  Statistics.cpp
+  RDMABuffer.hpp
+  Reducer.hpp
+  ReuseList.hpp
+  ReuseMessage.hpp
+  ReuseMessageList.hpp
+  ReusePool.hpp
+  Semaphore.hpp
+  SharedMessagePool.hpp
   SimpleStatistic.hpp
+  SimpleStatisticImpl.hpp
+  StateTimer.hpp
+  StatisticBase.hpp
+  Statistics.hpp
   StatisticsTools.hpp
+  SummarizingStatistic.hpp
+  SummarizingStatisticImpl.hpp
+  SuspendedDelegate.hpp
   Synchronization.hpp
   Tasking.hpp
-  Timestamp.cpp
+  ThreadQueue.hpp
   Timestamp.hpp
-  Uid.cpp
   Uid.hpp
-  boost_helpers.hpp
-  common.hpp
-  coro.cpp
-  coro.h
-  stack.S
+  Worker.hpp
+  gasnet_helpers.h
   stack.h
-  tasks/BasicScheduler.cpp
+  thread.h
   tasks/BasicScheduler.hpp
   tasks/DictOut.hpp
+  tasks/GlobalQueue.hpp
   tasks/Scheduler.hpp
   tasks/StealQueue.hpp
-  tasks/Task.cpp
   tasks/Task.hpp
-  tasks/TaskingScheduler.cpp
   tasks/TaskingScheduler.hpp
-  tasks/Thread.cpp
-  tasks/Thread.hpp
-  tasks/StealQueue.hpp
-  tasks/StealQueue.cpp
-  tasks/GlobalQueue.hpp
+  tasks/BasicScheduler.cpp
   tasks/GlobalQueue.cpp
-  LegacySignaler.hpp
-  LegacySignaler.cpp
-  CompletionEvent.hpp
-  GlobalCompletionEvent.hpp
+  tasks/StealQueue.cpp
+  tasks/Task.cpp
+  tasks/TaskingScheduler.cpp
 )
 
 
