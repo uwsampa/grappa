@@ -275,7 +275,7 @@ namespace Grappa {
       /// Chase a list of messages and serialize them into a buffer.
       /// Modifies pointer to list to support size-limited-ish aggregation
       /// TODO: make this a hard limit?
-      char * aggregate_to_buffer( char * buffer, Grappa::impl::MessageBase ** message_ptr, size_t max = -1, size_t * count = NULL );
+      char * aggregate_to_buffer( char * buffer, Grappa::impl::MessageBase ** message_ptr, size_t max = -1, uint64_t * count = NULL );
       
       // Deserialize and call a buffer of messages
       static char * deaggregate_buffer( char * buffer, size_t size );

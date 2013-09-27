@@ -548,7 +548,7 @@ void RDMAAggregator::draw_routing_graph() {
 
 
 
-    char * RDMAAggregator::aggregate_to_buffer( char * buffer, Grappa::impl::MessageBase ** message_ptr, size_t max, size_t * count_p ) {
+    char * RDMAAggregator::aggregate_to_buffer( char * buffer, Grappa::impl::MessageBase ** message_ptr, size_t max, uint64_t * count_p ) {
       size_t size = 0;
       size_t count = 0;
 
@@ -1194,7 +1194,7 @@ void RDMAAggregator::draw_routing_graph() {
 
           Grappa::impl::MessageBase * prev_messages_to_send = messages_to_send;
           CHECK_EQ( messages_to_send->destination_, current_dest_core ) << "hmm. this doesn't seem right";
-
+          static_assert(sizeof(size_t) == sizeof(uint64_t), "must be 64-bit");
           char * end = aggregate_to_buffer( current_buf, &messages_to_send, remaining_size, &aggregate_counts_[current_dest_core] );
           size_t current_aggregated_size = end - current_buf;
           CHECK_LE( aggregated_size + current_aggregated_size, max_size );

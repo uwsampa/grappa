@@ -23,6 +23,7 @@
 #include <stdint.h>
 #define PRId64 "d"
 #define SCNd64 "d"
+#elif defined(__MACH__)
 #else
 #warning "Defining long as int64_t."
 typedef long int64_t;
