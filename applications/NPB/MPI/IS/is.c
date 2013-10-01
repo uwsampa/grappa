@@ -211,8 +211,8 @@ INT_TYPE *key_buff_ptr_global,         /* used by full_verify to get */
 
 int      passed_verification;
                                  
-
-
+double alltoall_time;
+double local_bucket_time;
 /************************************/
 /* These are the three main arrays. */
 /* See SIZE_OF_BUFFERS def above    */
@@ -620,11 +620,15 @@ void rank( int iteration )
 
 
 /*  Sort into appropriate bucket */
+    double _t = MPI_Wtime();
+    
     for( i=0; i<NUM_KEYS; i++ )  
     {
         key = key_array[i];
         key_buff1[bucket_ptrs[key >> shift]++] = key;
     }
+    
+    local_bucket_time += MPI_Wtime() - _t;
 
     TIMER_STOP( T_RANK );
     TIMER_START( T_RCOMM );
@@ -691,6 +695,8 @@ void rank( int iteration )
     TIMER_STOP( T_RANK );
     TIMER_START( T_RCOMM ); 
 
+    _t = MPI_Wtime();
+
 /*  This is the redistribution section:  first find out how many keys
     each processor will send to every other processor:                 */
     MPI_Alltoall( send_count,
@@ -700,6 +706,7 @@ void rank( int iteration )
                   1,
                   MPI_INT,
                   MPI_COMM_WORLD );
+
 
 /*  Determine the receive array displacements for the buckets */    
     recv_displ[0] = 0;
@@ -719,6 +726,7 @@ void rank( int iteration )
                    MPI_COMM_WORLD );
 
     TIMER_STOP( T_RCOMM ); 
+    alltoall_time += MPI_Wtime() - _t;
     TIMER_START( T_RANK );
 
 /*  The starting and ending bucket numbers on each processor are
@@ -920,7 +928,9 @@ int main( int argc, char **argv )
     int             i, iteration, itemp;
 
     double          timecounter, maxtime;
-
+    
+    alltoall_time = 0;
+    local_bucket_time = 0;
 
 /*  Initialize MPI */
     MPI_Init( &argc, &argv );
@@ -969,12 +979,12 @@ int main( int argc, char **argv )
         printf( " Iterations:   %d\n", MAX_ITERATIONS );
         printf( " Number of processes:     %d\n", comm_size );
 
-        fp = fopen("timer.flag", "r");
-        timeron = 0;
-        if (fp) {
-            timeron = 1;
-            fclose(fp);
-        }
+        // fp = fopen("timer.flag", "r");
+        timeron = 1;
+        // if (fp) {
+        //     timeron = 1;
+        //     fclose(fp);
+        // }
     }
 
 /*  Check that actual and compiled number of processors agree */
@@ -1021,6 +1031,8 @@ int main( int argc, char **argv )
 
 /*  Start verification counter */
     passed_verification = 0;
+    alltoall_time = 0;
+    local_bucket_time = 0;
 
     if( my_rank == 0 && CLASS != 'S' ) printf( "\n   iteration\n" );
 
@@ -1058,6 +1070,15 @@ int main( int argc, char **argv )
                 0,
                 MPI_COMM_WORLD );
 
+    double alltoall_time_max, local_bucket_time_max;
+    MPI_Reduce( &local_bucket_time, &local_bucket_time_max, 1, MPI_DOUBLE, MPI_MAX, 0, MPI_COMM_WORLD );
+    MPI_Reduce( &alltoall_time, &alltoall_time_max, 1, MPI_DOUBLE, MPI_MAX, 0, MPI_COMM_WORLD );
+
+    if (my_rank == 0) {
+      printf("alltoall_time_mean: %g\nlocal_bucket_time_mean: %g\n", alltoall_time/MAX_ITERATIONS, local_bucket_time/MAX_ITERATIONS);
+      printf("alltoall_time_mean_max: %g\nlocal_bucket_time_mean_max: %g\n", alltoall_time_max/MAX_ITERATIONS, local_bucket_time_max/MAX_ITERATIONS);
+      printf("maxtime: %g\n", maxtime);
+    }
 
 /*  This tests that keys are in sequence: sorting of last ranked key seq
     occurs here, but is an untimed operation                             */

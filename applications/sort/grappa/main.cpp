@@ -64,7 +64,6 @@ struct bucket_t {
   uint64_t * v;
   size_t nelems;
   size_t maxelems;
-  char pad[block_size-sizeof(uint64_t*)-sizeof(size_t)*2];
   bucket_t(): v(NULL), nelems(0) { memset(pad, 0x55, sizeof(pad)); }
   ~bucket_t() { delete [] v; }
   void reserve(size_t nelems) {
@@ -86,7 +85,7 @@ struct bucket_t {
     CHECK(nelems <= maxelems);
   }
   size_t size() { return nelems; }
-};
+} GRAPPA_BLOCK_ALIGNED;
 
 ////////////
 // Globals

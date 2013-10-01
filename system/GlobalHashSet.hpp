@@ -34,9 +34,8 @@ protected:
   
   struct Cell { // TODO: keep first few in the 64-byte block, then go to secondary storage
     std::vector<Entry> entries;
-    char padding[64-sizeof(std::vector<Entry>)];
     Cell() { entries.reserve(16); }
-  };
+  } GRAPPA_BLOCK_ALIGNED;
 
   struct ResultEntry {
     bool result;
@@ -119,8 +118,6 @@ protected:
   
   FlatCombiner<Proxy> proxy;
   
-  char _pad[block_size - sizeof(self)-sizeof(base)-sizeof(capacity)-sizeof(proxy)-sizeof(count)];
-
   uint64_t computeIndex( K key ) {
     static std::hash<K> hasher;
     return hasher(key) % capacity;
@@ -246,7 +243,7 @@ public:
     return count;
   }
   
-};
+} GRAPPA_BLOCK_ALIGNED;
 
 } // namespace Grappa
 

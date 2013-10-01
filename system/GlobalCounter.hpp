@@ -33,9 +33,7 @@ public:
     bool is_full() { return false; }
   };
   FlatCombiner<Proxy> comb;
-  
-  char pad[block_size - sizeof(comb)-sizeof(self)-sizeof(master)];
-  
+    
   GlobalCounter(long initial_count = 0, Core master_core = 0): comb(locale_new<Proxy>(this)) {
     master.count = initial_count;
     master.core = master_core;
@@ -64,6 +62,6 @@ public:
     auto a = self;
     call_on_all_cores([a]{ a->~GlobalCounter(); });
   }
-};
+} GRAPPA_BLOCK_ALIGNED;
 
 } // namespace Grappa

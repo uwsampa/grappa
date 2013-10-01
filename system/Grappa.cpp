@@ -688,5 +688,15 @@ void poll() {
   global_aggregator.poll();
 }
 
+} // namespace impl
+
+void init( int * argc_p, char ** argv_p[], size_t size ) {
+  Grappa_init( argc_p, argv_p, size );
+  Grappa_activate();
 }
+
+void finalize() {
+  Grappa_finish(0);
 }
+
+} // namespace Grappa

@@ -17,8 +17,9 @@
 namespace spmv {
   // global: local per Node
   weighted_csr_graph m;
-  vector x;
-  vector y;
+  vector v;
+  vindex x;
+  vindex y;
 }
 
 using namespace Grappa;
@@ -26,11 +27,19 @@ using namespace Grappa;
     
 // With current low level programming model, the choice to parallelize a loop involves different code
 
+double readv( GlobalAddress<element_pair> target, vindex j ) {
+  return delegate::call( target.node(), [target,j]() {
+    element_pair * e = target.pointer();
+    return e->vp[j];
+  });
+}
+
 GlobalCompletionEvent mmjoiner;
-void spmv_mult( weighted_csr_graph A, vector x, vector y ) {
+void spmv_mult( weighted_csr_graph A, vector v, vindex x, vindex y ) {
   // cannot capture in all for loops, so just set on all cores
-  on_all_cores( [A,x,y] {
+  on_all_cores( [A,v,x,y] {
     spmv::m = A;
+    spmv::v = v;
     spmv::x = x;
     spmv::y = y;
   });
@@ -56,7 +65,9 @@ void spmv_mult( weighted_csr_graph A, vector x, vector y ) {
         Incoherent<int64_t>::RO cj( spmv::m.xadj + start, iters, j ); cj.start_acquire();
         Incoherent<double>::RO cw( spmv::m.adjweight + start, iters, weights ); cw.start_acquire();
         for( int64_t k = 0; k<iters; k++ ) {
-          double vj = Grappa::delegate::read(spmv::x.a + cj[k]);
+          // read x(j)
+          double vj = readv(spmv::v.a + cj[k], spmv::x);
+
           yaccum += cw[k] * vj; 
           DVLOG(5) << "yaccum += w["<<start+k<<"]("<<cw[k] <<") * val["<<cj[k]<<"("<<vj<<")"; 
         }
@@ -65,7 +76,11 @@ void spmv_mult( weighted_csr_graph A, vector x, vector y ) {
 
         char pool_storage[sizeof(delegate::write_msg_proxy<double>)];  // TODO: trait on call_async not to use pool
         MessagePool pool( pool_storage, sizeof(pool_storage) );
-        delegate::increment_async<&mmjoiner>(pool, spmv::y.a+i, yaccum);
+       
+        auto ytarget = spmv::v.a+i; 
+        delegate::call_async<&mmjoiner>(pool, ytarget.core(), [ytarget,yaccum] {
+          ytarget.pointer()->vp[spmv::y] += yaccum;   // y[i]+= partial dotproduct
+        });
         // could force local updates and bulk communication 
         // here instead of relying on aggregation
         // since we have to pay the cost of many increments and replies
@@ -149,6 +164,7 @@ void R_matrix_out( weighted_csr_graph * g, std::ostream& o) {
   o << ")";
 }
 
+/*
 void vector_out( vector * v, std::ostream& o ) {
   Incoherent<double>::RO cv( v->a, v->length );
   for ( uint64_t i=0; i<v->length; i++ ) {
@@ -165,3 +181,34 @@ void R_vector_out( vector * v, std::ostream& o ) {
   o << cv[v->length-1];
   o << ")";
 }
+*/
+
+void spmv_mult( GlobalAddress<Graph<WeightedAdjVertex>> g, vector v, vindex x, vindex y ) {
+  // cannot capture in all for loops, so just set on all cores
+  on_all_cores([v,x,y]{
+    spmv::v = v;
+    spmv::x = x;
+    spmv::y = y;
+  });
+
+  // forall rows
+  forall_localized<&mmjoiner>(g->vs, g->nv, [](int64_t i, WeightedAdjVertex& v){
+    double yaccum = 0;
+    
+    forall_here(0, v.nadj, [&v,&yaccum](int64_t j){
+      double vj = readv(spmv::v.a + v.local_adj[j], spmv::x);
+      yaccum += v.weights[j] * vj;
+    });
+    
+    auto ytarget = spmv::v.a+i; 
+    delegate::call_async<&mmjoiner>(*shared_pool, ytarget.core(), [ytarget,yaccum]{
+      ytarget->vp[spmv::y] = yaccum;
+    });
+    // could force local updates and bulk communication 
+    // here instead of relying on aggregation
+    // since we have to pay the cost of many increments and replies
+  });
+}
+
+
+
