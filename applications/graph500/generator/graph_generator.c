@@ -11,12 +11,17 @@
 #include <stdint.h>
 #include <assert.h>
 
-#include <cstdint>
-
 #ifndef __STDC_FORMAT_MACROS
 #define __STDC_FORMAT_MACROS
 #endif
 #include <inttypes.h>
+
+#ifndef UINT32_C
+#define UINT32_C(val) ((uint32_t)val)
+#endif
+#ifndef UINT64_C
+#define UINT64_C(val) ((uint64_t)val)
+#endif
 
 #include "user_settings.h"
 #include "splittable_mrg.h"
