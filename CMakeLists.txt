@@ -39,7 +39,7 @@ endif()
 
 # global C++ flags
 set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -std=c++11 -Winline -Wno-inline -mno-red-zone")
-set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -DENABLE_RDMA_AGGREGATOR")
+add_definitions("-DENABLE_RDMA_AGGREGATOR")
 
 
 # TODO: use -stdlib=libc++ too?
