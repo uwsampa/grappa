@@ -1,0 +1,38 @@
+
+
+Grappa is a runtime system for commodity clusters of multicore
+computers that presents a massively parallel, single address
+space abstraction to applications. Grappa's purpose is to enable
+scalable performance of irregular parallel applications, such as
+graph processing, on commodity and even cloud-based clusters.
+
+Grappa serves both as a C++ user library and as a foundation for
+higher level languages. It tolerates delays to remote memory by
+multiplexing thousands of lightweight workers to each processor
+core, balances load via fine-grained distributed work-stealing,
+increases communication throughput by aggregating smaller data
+requests into large ones, and provides efficient synchronization
+and remote memory operations. Together, these features allow
+Grappa to provide performance on commodity hardware that
+approaches that of the Cray XMT, a custom system used to target
+the real time graph analytics market.
+
+In this talk, we will present an overview of Grappa's design and
+walk through some examples of Grappa code. We will also discuss
+two applications of Grappa: Latency-tolerant Flat Combining, a
+technique that helps programmers build efficient distributed data
+structures with strong consistency guarantees, and a Datalog
+complier that uses techniques from relational databases to
+efficiently execute graph queries using Grappa.
+
+
+
+
+
+
+Grappa is a runtime system for commodity clusters of multicore computers that presents a massively parallel, single address space abstraction to applications. Grappa's purpose is to enable scalable performance of irregular parallel applications, such as graph processing, on commodity and even cloud-based clusters.
+
+Grappa serves both as a C++ user library and as a foundation for higher level languages. It tolerates delays to remote memory by multiplexing thousands of lightweight workers to each processor core, balances load via fine-grained distributed work-stealing, increases communication throughput by aggregating smaller data requests into large ones, and provides efficient synchronization and remote memory operations. Together, these features allow Grappa to provide performance on commodity hardware that approaches that of the Cray XMT, a custom system used to target the real time graph analytics market.
+
+In this talk, we will present an overview of Grappa's design and walk through some examples of Grappa code. We will also discuss two applications of Grappa: Latency-tolerant Flat Combining, a technique that helps programmers build efficient distributed data structures with strong consistency guarantees, and a Datalog complier that uses techniques from relational databases to efficiently execute graph queries using Grappa.
+
