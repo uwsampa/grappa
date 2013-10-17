@@ -114,9 +114,9 @@ ExternalProject_Add( extern_glog
     CC=${CMAKE_C_COMPILER} CXX=${CMAKE_CXX_COMPILER} CFLAGS=-g <SOURCE_DIR>/configure --prefix=<INSTALL_DIR> CFLAGS=-I${GRAPPA_DEPENDENCY_DIR}/include LDFLAGS=-L${GRAPPA_DEPENDENCY_DIR}/lib
   BUILD_COMMAND      make -j
   INSTALL_COMMAND    make install
+  DEPENDS extern_gflags
 )
-add_dependencies(extern_glog extern_gflags)
-
+# add_dependencies(extern_glog extern_gflags)
 
 ExternalProject_Add( extern_gperftools
   URL                https://gperftools.googlecode.com/files/gperftools-2.1.tar.gz
@@ -132,8 +132,8 @@ ExternalProject_Add( extern_gperftools
   INSTALL_COMMAND    make install
 )
 
-set(extern_targets  extern_gasnet extern_gflags extern_glog extern_gperftools )
-
+# set(extern_targets  extern_gasnet extern_gflags extern_glog extern_gperftools )
+add_custom_target(externs_done DEPENDS extern_gasnet extern_gflags extern_glog extern_gperftools )
 
 # pre-compiled external dependencies
 # TODO: make CMake build these (see GraphLab's CMake)

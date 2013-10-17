@@ -13,6 +13,7 @@ set(SOURCES
   ../prng.c
 )
 set_source_files_properties( make_graph.c graph_generator.c utils.c PROPERTIES LANGUAGE CXX )
+set_source_files_properties( make_graph.c graph_generator.c utils.c PROPERTIES OBJECT_DEPENDS externs_done )
 
 add_definitions(
   -Drestrict=__restrict__

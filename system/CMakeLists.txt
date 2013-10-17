@@ -163,12 +163,14 @@ endif()
 # ... could also add custom command, but this seems easier
 set_source_files_properties( stack.S PROPERTIES LANGUAGE C )
 
+set_source_files_properties( ${SYSTEM_SOURCES} PROPERTIES OBJECT_DEPENDS externs_done )
+
 add_library(Grappa
   ${SYSTEM_SOURCES}
   ${SYSTEM_HEADERS}
 )
 target_link_libraries(Grappa ${GRAPPA_LIBS})
-add_dependencies(Grappa ${extern_targets})
+add_dependencies(Grappa externs_done)
 
 set(GRAPPA_TESTS "")
 
