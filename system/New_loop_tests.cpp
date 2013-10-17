@@ -17,6 +17,7 @@
 #include "GlobalAllocator.hpp"
 #include "ParallelLoop.hpp"
 #include "Array.hpp"
+#include "Collective.hpp"
 
 BOOST_AUTO_TEST_SUITE( New_loop_tests );
 
@@ -95,6 +96,15 @@ void test_forall_here() {
     });
     BOOST_CHECK_EQUAL(x, N);
   }
+
+  { LOG(INFO) << "Testing forall_here overload";
+    int x = 0;
+    forall_here<&my_ce,2>(0, N, [&x](int64_t i) {
+      CHECK(mycore() == 0);
+      x++;
+    });
+    BOOST_CHECK_EQUAL(x, N);
+  }
   
 }
 
@@ -114,19 +124,12 @@ void test_forall_global_private() {
     BOOST_CHECK_EQUAL(test_global, r.end-r.start);
     test_global = 0;
   });
-  
-  forall_global_private<&test_global_ce>(0, N, [](int64_t start, int64_t iters) {
-    for (int i=0; i<iters; i++) {
-      test_global++;
-    }
+
+  forall_global_private<&test_global_ce>(0, N, [](int64_t i) {
+    test_global++;
   });
-  
-  on_all_cores([]{
-    range_t r = blockDist(0,N,mycore(),cores());
-    BOOST_CHECK_EQUAL(test_global, r.end-r.start);
-    test_global = 0;
-  });
-  
+  auto total = reduce<decltype(test_global),collective_add>(&test_global);
+  BOOST_CHECK_EQUAL(total, N);  
 }
 
 void test_forall_global_public() {
@@ -138,12 +141,10 @@ void test_forall_global_public() {
   forall_global_public(0, N, [](int64_t s, int64_t n) {
     test_global += n;
   });
-  
-  int total = 0;
-  for (Core c = 0; c < cores(); c++) {
-    total += delegate::read(make_global(&test_global, c));
+  {
+    auto total = reduce<decltype(test_global),collective_add>(&test_global);
+    BOOST_CHECK_EQUAL(total, N);
   }
-  BOOST_CHECK_EQUAL(total, N);
   
   BOOST_MESSAGE("  with nested spawns"); VLOG(1) << "nested spawns";
   on_all_cores([]{ test_global = 0; });
@@ -155,13 +156,11 @@ void test_forall_global_public() {
       });
     }
   });
-  
-  // TODO: use reduction
-  total = 0;
-  for (Core c = 0; c < cores(); c++) {
-    total += delegate::read(make_global(&test_global, c));
+
+  {
+    auto total = reduce<decltype(test_global),collective_add>(&test_global);
+    BOOST_CHECK_EQUAL(total, N);
   }
-  BOOST_CHECK_EQUAL(total, N);
 }
 
 void test_forall_localized() {
@@ -175,6 +174,22 @@ void test_forall_localized() {
   });
   for (int i=0; i<N; i++) {
     BOOST_CHECK_EQUAL(delegate::read(array+i), 1);
+  }
+
+  forall_localized(array, N, [](int64_t& e) {
+    e = 2;
+  });
+  for (int i=0; i<N; i++) {
+    BOOST_CHECK_EQUAL(delegate::read(array+i), 2);
+  }
+
+  forall_localized(array, N, [](int64_t s, int64_t n, int64_t* e) {
+    for (auto i=0; i<n; i++) {
+      e[i] = 3;
+    }
+  });
+  for (int i=0; i<N; i++) {
+    BOOST_CHECK_EQUAL(delegate::read(array+i), 3);
   }
   
   BOOST_MESSAGE("Testing forall_localized_async..."); VLOG(1) << "testing forall_localized_async";

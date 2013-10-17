@@ -26,7 +26,7 @@
 
 #include "ConditionVariableLocal.hpp"
 #include "CountingSemaphoreLocal.hpp"
-#include "FullEmpty.hpp"
+#include "FullEmptyLocal.hpp"
 
 #include "ReusePool.hpp"
 #include "ReuseList.hpp"
@@ -123,7 +123,7 @@ namespace Grappa {
     }
 
     static const int prefetch_dist = 6;
-    static const int prefetch_type = 0; // 0 (non-temporal) or 3 (L1) are probably the best choice
+    static const int prefetch_type = 3; // 0 (non-temporal) or 3 (L1) are probably the best choice
     static const int remote_buffer_pool_size = 6;
 
     struct CoreData {

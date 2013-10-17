@@ -2,7 +2,7 @@
 
 #include "Communicator.hpp"
 #include "PoolAllocator.hpp"
-#include "FullEmpty.hpp"
+#include "FullEmptyLocal.hpp"
 #include "LegacyDelegate.hpp"
 #include "GlobalCompletionEvent.hpp"
 #include "ParallelLoop.hpp"
@@ -44,6 +44,12 @@ namespace Grappa {
         });
       }
     }
+
+    template<GlobalCompletionEvent * GCE = &Grappa::impl::local_gce, typename PoolType = impl::MessagePoolBase, typename F = decltype(nullptr)>
+    inline void call_async(Core dest, F remote_work) {
+      call_async( *Grappa::shared_pool, dest, remote_work );
+    }
+
     
     /// Uses `call_async()` to write a value asynchronously.
     ///
@@ -88,6 +94,13 @@ namespace Grappa {
         (*target.pointer()) += increment;
       });
     }
+
+    /// Overload Grappa::delegate::increment_async to use global message pool
+    template< GlobalCompletionEvent * GCE = &Grappa::impl::local_gce, typename T = void, typename U = void, typename PoolType = impl::MessagePoolBase >
+    inline void increment_async(GlobalAddress<T> target, U increment) {
+      increment_async( *shared_pool, target, increment );
+    }
+
     
     /// A 'Promise' is a wrapper around a FullEmpty for async delegates with return values.
     /// The idea is to allocate storage for the result, issue the delegate request, and then
