@@ -18,6 +18,7 @@ ENV["GASNET_FREEZE"] = "0"
 case `hostname`
 when /n\d+/ #(sampa)
   ENV["GASNET_PHYSMEM_MAX"] = "1024M"
+  ENV["LD_LIBRARY_PATH"] = "/home/nelson/grappa/tools/built_deps/lib:/sampa/home/nelson/grappa/tools/built_deps/lib/valgrind:/sampa/share/gcc-4.7.2/rtf/lib64:/sampa/share/gcc-4.7.2/src/boost_1_51_0/stage/lib:$LD_LIBRARY_PATH"
 end
 #ENV["GASNET_PHYSMEM_NOPROBE"] = "1"
 
@@ -49,7 +50,7 @@ ENV["GASNET_PUTINMOVE_LIMIT"] = "0"
 
 
 
-ENV["CPUPROFILE_FREQUENCY"] = "100"
+ENV["CPUPROFILE_FREQUENCY"] = "300"
 
 case `hostname`
 when /n\d+/ #(sampa)
@@ -62,6 +63,9 @@ end
 ENV["VT_MAX_FLUSHES"] = "0"
 ENV["VT_PFORM_GDIR"] = "."
 ENV["VT_PFORM_LDIR"] = "/scratch"
+ENV["VT_FILE_UNIQUE"] = "yes"
+
+# ENV["VT_VERBOSE"] = "10"
 ENV["VT_MPITRACE"] = "no"
 
 ENV["MV2_USE_LAZY_MEM_UNREGISTER"] = "0"

@@ -121,13 +121,17 @@ Igor do
                     target_size 2**12
           rdma_buffers_per_core 16
                  rdma_threshold 64
-               shared_pool_size 2**20
+               shared_pool_size 2**16
+                shared_pool_max 2**14
                      stack_size 2**19
              locale_shared_size SHMMAX
            global_heap_fraction 0.5
             flatten_completions 1
                  flat_combining 1
   }
+  
+  params { grappa_version 'asplos14' }
+  
   class << GFLAGS
     def expand
       self.keys.map{|n| "--#{n}=%{#{n}}"}.join(' ')
