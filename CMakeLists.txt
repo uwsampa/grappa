@@ -177,15 +177,39 @@ endif()
 
 # MPI (for booting only)
 # TODO: discover with find_library()
-include_directories("/usr/include/openmpi-x86_64")
-link_directories("/usr/lib64/openmpi/lib")
-list(APPEND GRAPPA_LIBS mpi_cxx mpi dl)
+# include_directories("/usr/include/openmpi-x86_64")
+# link_directories("/usr/lib64/openmpi/lib")
+find_package(MPI REQUIRED)
+include_directories(${MPI_INCLUDE_PATH})
+message("mpi:")
+message("c_compile_flags: '${MPI_C_COMPILE_FLAGS}'")
+message("c_link_flags: '${MPI_C_LINK_FLAGS}'")
+message("cxx_compile_flags: '${MPI_CXX_COMPILE_FLAGS}'")
+message("cxx_link_flags: '${MPI_CXX_LINK_FLAGS}'")
+message("mpi_c_libraries: '${MPI_C_LIBRARIES}'")
+message("mpi_cxx_libraries: '${MPI_CXX_LIBRARIES}'")
 
-macro(add_grappa_application name)
+# list(APPEND GRAPPA_LIBS mpi_cxx mpi dl)
+
+macro(add_grappa_exe name)
     add_executable(${name} EXCLUDE_FROM_ALL ${ARGN})
     target_link_libraries(${name} Grappa)
-    set_property(TARGET ${name} PROPERTY FOLDER "Applications") # For organization in Xcode project
+    target_link_libraries(${name} ${MPI_CXX_LIBRARIES})
+endmacro(add_grappa_exe)
+
+macro(add_grappa_application name)
+  add_grappa_exe(${name} ${ARGN})
+  set_property(TARGET ${name} PROPERTY FOLDER "Applications") # For organization in Xcode project
 endmacro(add_grappa_application)
+
+macro(add_grappa_test name)
+  add_grappa_exe(${name} ${ARGN})
+  set_property(TARGET ${name} PROPERTY FOLDER "Tests") # For organization in Xcode project
+  set_target_properties(${test} PROPERTIES
+    COMPILE_FLAGS "-DBOOST_TEST_DYN_LINK -DBOOST_TEST_MODULE=${test_name}"
+  )
+endmacro(add_grappa_test)
+
 
 # put Grappa system directory on include path for everything following this
 # include_directories("${CMAKE_CURRENT_SOURCE_DIR}/system")
