@@ -10,7 +10,7 @@
 #include <vector>
 
 // for all hash tables
-GRAPPA_DEFINE_STAT(MaxStatistic<uint64_t>, max_cell_length, 0);
+//GRAPPA_DEFINE_STAT(MaxStatistic<uint64_t>, max_cell_length, 0);
 GRAPPA_DEFINE_STAT(SummarizingStatistic<uint64_t>, cell_traversal_length, 0);
 
 // for naming the types scoped in HashSet
@@ -157,7 +157,7 @@ class HashSet {
         // so add it to the list
         Entry newe( key );        
         c->entries.push_back( newe );
-        max_cell_length.add( sz+1 );
+        //max_cell_length.add( sz+1 );
      });
     }
 
