@@ -10,6 +10,7 @@ set(SOURCES
   utils.c
   user_settings.h
   mod_arith_32bit.h mod_arith_64bit.h mod_arith.h mod_arith_xmt.h
+  ../prng.c
 )
 set_source_files_properties( make_graph.c graph_generator.c utils.c PROPERTIES LANGUAGE CXX )
 
