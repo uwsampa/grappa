@@ -1,4 +1,11 @@
 #!/bin/bash
+if [[ -z "$CC" || -z "$CXX" ]]; then
+  echo 'Must set CC & CXX environment variables!'
+  exit 1
+else
+  echo "using CC: $CC, CXX: $CXX"
+fi
+
 DIR="$( cd "$( dirname "${BASH_SOURCE[0]}" )" && pwd )"
 
 echo Configuring CMake build...
@@ -14,15 +21,15 @@ cd build
 # run cmake (uses CC and CXX variables to select which compiler to use)
 # note: this will use 'Make' as the build system on Linux; if you would like to use
 #       something different like 'Ninja' or 'Xcode', simply specify 'cmake -G Ninja'
-cmake ..
+cmake .. -DCMAKE_C_COMPILER=$CC -DCMAKE_CXX_COMPILER=$CXX
 
 # make vampirtrace build directory
-echo Configuring Vampir build...
-mkdir -p vampir
-cd vampir
-export CC=$DIR/tools/built_deps/bin/vtcc
-export CXX=$DIR/tools/built_deps/bin/vtcxx
-cmake -DTRACING=ON ../..
+# echo Configuring Vampir build...
+# mkdir -p vampir
+# cd vampir
+# export CC=$DIR/tools/built_deps/bin/vtcc
+# export CXX=$DIR/tools/built_deps/bin/vtcxx
+# cmake -DTRACING=ON ../..
 
 
 echo "Configure complete. To build:"
