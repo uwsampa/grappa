@@ -1,7 +1,7 @@
 
 # (2.8 has ExternalProject support)
 cmake_minimum_required(VERSION 2.8)
-
+include(ExternalProject)
 
 option(TRACING "Sample statistics with VTrace at regular intervals." OFF)
 
@@ -24,7 +24,8 @@ enable_testing()
 set(CMAKE_BUILD_TYPE RelWithDebInfo)
 site_name(MACHINENAME)
 
-set(GRAPPA_DEPENDENCY_DIR "${CMAKE_SOURCE_DIR}/tools/built_deps")
+# set(GRAPPA_DEPENDENCY_DIR "${CMAKE_SOURCE_DIR}/tools/built_deps")
+set(GRAPPA_DEPENDENCY_DIR "${CMAKE_SOURCE_DIR}/extern")
 
 if(TRACING)
   set(GOOGLE_PROFILER ON)
@@ -68,8 +69,71 @@ if(NOT APPLE)
 endif()
 ##### </RUNPATH> ########
 
+###########################################
+# External projects
+###########################################
+set(EXTERN_BUILD_DIR "${CMAKE_BINARY_DIR}/extern")
 
-set(GRAPPA_DEPENDENCY_DIR "${CMAKE_SOURCE_DIR}/tools/built_deps")
+ExternalProject_Add( extern_gasnet
+  PREFIX             ${EXTERN_BUILD_DIR}/gasnet
+  STAMP_DIR          ${EXTERN_BUILD_DIR}/gasnet
+  BINARY_DIR         ${EXTERN_BUILD_DIR}/gasnet
+  SOURCE_DIR         ${CMAKE_SOURCE_DIR}/tools/GASNet-1.18.2
+  INSTALL_DIR        ${GRAPPA_DEPENDENCY_DIR}
+  CONFIGURE_COMMAND  
+    CC=${CMAKE_C_COMPILER} CXX=${CMAKE_CXX_COMPILER} CFLAGS=-g <SOURCE_DIR>/configure --prefix=<INSTALL_DIR> --enable-segment-everything
+  BUILD_COMMAND      make -j
+  INSTALL_COMMAND    make install
+)
+
+# SOURCE_DIR         ${CMAKE_SOURCE_DIR}/tools/gflags
+ExternalProject_Add( extern_gflags
+  URL                "https://gflags.googlecode.com/files/gflags-2.0-no-svn-files.tar.gz"
+  URL_HASH           SHA1=bfa0b399e03147b20cafcae62b59ee9163309821
+  SOURCE_DIR         ${EXTERN_BUILD_DIR}/src/gflags-2.0
+  PREFIX             ${EXTERN_BUILD_DIR}/gflags
+  STAMP_DIR          ${EXTERN_BUILD_DIR}/gflags
+  BINARY_DIR         ${EXTERN_BUILD_DIR}/gflags
+  INSTALL_DIR        ${GRAPPA_DEPENDENCY_DIR}
+  CONFIGURE_COMMAND  
+    CC=${CMAKE_C_COMPILER} CXX=${CMAKE_CXX_COMPILER} CFLAGS=-g <SOURCE_DIR>/configure --prefix=<INSTALL_DIR>
+  BUILD_COMMAND      make -j
+  INSTALL_COMMAND    make install
+)
+
+# SOURCE_DIR         ${CMAKE_SOURCE_DIR}/tools/google-glog
+# URL                https://google-glog.googlecode.com/files/glog-0.3.3.tar.gz
+# URL_HASH           SHA1=ed40c26ecffc5ad47c618684415799ebaaa30d65
+ExternalProject_Add( extern_glog
+  SOURCE_DIR         ${CMAKE_SOURCE_DIR}/tools/google-glog
+  PREFIX             ${EXTERN_BUILD_DIR}/glog
+  STAMP_DIR          ${EXTERN_BUILD_DIR}/glog
+  BINARY_DIR         ${EXTERN_BUILD_DIR}/glog
+  INSTALL_DIR        ${GRAPPA_DEPENDENCY_DIR}
+  CONFIGURE_COMMAND  
+    CC=${CMAKE_C_COMPILER} CXX=${CMAKE_CXX_COMPILER} CFLAGS=-g <SOURCE_DIR>/configure --prefix=<INSTALL_DIR> CFLAGS=-I${GRAPPA_DEPENDENCY_DIR}/include LDFLAGS=-L${GRAPPA_DEPENDENCY_DIR}/lib
+  BUILD_COMMAND      make -j
+  INSTALL_COMMAND    make install
+)
+add_dependencies(extern_glog extern_gflags)
+
+
+ExternalProject_Add( extern_gperftools
+  URL                https://gperftools.googlecode.com/files/gperftools-2.1.tar.gz
+  URL_HASH           SHA1=b799b99d9f021988bbc931db1c21b2f94826d4f0
+  SOURCE_DIR         ${EXTERN_BUILD_DIR}/src/gperftools-2.1
+  PREFIX             ${EXTERN_BUILD_DIR}/gperftools
+  STAMP_DIR          ${EXTERN_BUILD_DIR}/gperftools
+  BINARY_DIR         ${EXTERN_BUILD_DIR}/gperftools
+  INSTALL_DIR        ${GRAPPA_DEPENDENCY_DIR}
+  CONFIGURE_COMMAND  
+    CC=${CMAKE_C_COMPILER} CXX=${CMAKE_CXX_COMPILER} CFLAGS=-g <SOURCE_DIR>/configure --prefix=<INSTALL_DIR> --enable-frame-pointers
+  BUILD_COMMAND      make -j
+  INSTALL_COMMAND    make install
+)
+
+set(extern_targets  extern_gasnet extern_gflags extern_glog extern_gperftools )
+
 
 # pre-compiled external dependencies
 # TODO: make CMake build these (see GraphLab's CMake)
@@ -142,7 +206,7 @@ get_filename_component(CC_PATH ${CMAKE_C_COMPILER} PATH)
 #link_directories("${CC_PATH}/../lib64")
 
 # make sure we use the correct libstdc++
-link_directories("${GCC_BASE}/bin/../lib64")
+# link_directories("${GCC_BASE}/bin/../lib64")
 
 if(NOT APPLE)
   list(APPEND GRAPPA_LIBS pthread rt)
