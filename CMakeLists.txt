@@ -8,9 +8,10 @@ option(TRACING "Sample statistics with VTrace at regular intervals." OFF)
 set(GCC_BASE /sampa/share/gcc-4.7.2/rtf)
 
 if( NOT DEFINED ENV{CXX} )
-  message("defaulting to GCC 4.7.2")
-  set(CMAKE_C_COMPILER ${GCC_BASE}/bin/gcc)
-  set(CMAKE_CXX_COMPILER ${GCC_BASE}/bin/g++)
+  message(FATAL_ERROR "you must set CC & CXX environment variables!")
+  # message("defaulting to GCC 4.7.2")
+  # set(CMAKE_C_COMPILER ${GCC_BASE}/bin/gcc)
+  # set(CMAKE_CXX_COMPILER ${GCC_BASE}/bin/g++)
 endif()
 
 project(Grappa)
@@ -38,6 +39,8 @@ endif()
 
 # global C++ flags
 set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -std=c++11 -Winline -Wno-inline -mno-red-zone")
+set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -DENABLE_RDMA_AGGREGATOR") 
+
 # TODO: use -stdlib=libc++ too?
 
 ###########################
