@@ -124,6 +124,7 @@ config.cache
 /tools*
 ^tools*
 ^/tools*
+/extern*
 
 # documentation
 /system/doxygen/*
