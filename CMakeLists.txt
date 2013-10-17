@@ -133,7 +133,7 @@ ExternalProject_Add( extern_gperftools
 )
 
 # set(extern_targets  extern_gasnet extern_gflags extern_glog extern_gperftools )
-add_custom_target(externs_done DEPENDS extern_gasnet extern_gflags extern_glog extern_gperftools )
+add_custom_target(all_externs DEPENDS extern_gasnet extern_gflags extern_glog extern_gperftools )
 
 # pre-compiled external dependencies
 # TODO: make CMake build these (see GraphLab's CMake)

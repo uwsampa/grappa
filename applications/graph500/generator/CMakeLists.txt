@@ -13,7 +13,6 @@ set(SOURCES
   ../prng.c
 )
 set_source_files_properties( make_graph.c graph_generator.c utils.c PROPERTIES LANGUAGE CXX )
-set_source_files_properties( make_graph.c graph_generator.c utils.c PROPERTIES OBJECT_DEPENDS externs_done )
 
 add_definitions(
   -Drestrict=__restrict__
@@ -26,3 +25,4 @@ add_definitions(
 set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -ffast-math")
 
 add_library(generator EXCLUDE_FROM_ALL ${SOURCES})
+add_dependencies(generator all_externs)
