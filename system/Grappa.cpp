@@ -649,7 +649,7 @@ void Grappa_dump_task_series() {
 /// If we've already been notified that we can exit, enter global
 /// barrier and then clean up. If we have not been notified, then
 /// notify everyone else, enter the barrier, and then clean up.
-void Grappa_finish( int retval )
+int Grappa_finish( int retval )
 {
   Grappa_signal_done(); // this may be overkill (just set done bit?)
 
@@ -677,7 +677,8 @@ void Grappa_finish( int retval )
 #ifdef HEAPCHECK_ENABLE
   assert( Grappa_heapchecker->NoLeaks() );
 #endif
-  
+
+  return retval;
 }
 
 namespace Grappa {
@@ -695,8 +696,8 @@ void init( int * argc_p, char ** argv_p[], size_t size ) {
   Grappa_activate();
 }
 
-void finalize() {
-  Grappa_finish(0);
+int finalize() {
+  return Grappa_finish(0);
 }
 
 } // namespace Grappa

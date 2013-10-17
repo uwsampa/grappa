@@ -39,7 +39,7 @@ void init( int * argc_p, char ** argv_p[], size_t size = -1 );
 
 /// Clean up Grappa. Call in SPMD context after all Grappa code
 /// finishes. Running Grappa code after calling finalize() is illegal.
-void finalize();
+int finalize();
 
 }
 
@@ -57,7 +57,7 @@ void Grappa_init( int * argc_p, char ** argv_p[], size_t size = -1 );
 void Grappa_activate();
 
 bool Grappa_done();
-void Grappa_finish( int retval );
+int Grappa_finish( int retval );
 
 
 ///
