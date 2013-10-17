@@ -151,6 +151,7 @@ set(SYSTEM_SOURCES
   tasks/StealQueue.cpp
   tasks/Task.cpp
   tasks/TaskingScheduler.cpp
+  stack.S
 )
 
 

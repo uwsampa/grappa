@@ -39,7 +39,8 @@ endif()
 
 # global C++ flags
 set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -std=c++11 -Winline -Wno-inline -mno-red-zone")
-set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -DENABLE_RDMA_AGGREGATOR") 
+set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -DENABLE_RDMA_AGGREGATOR")
+
 
 # TODO: use -stdlib=libc++ too?
 
@@ -60,8 +61,11 @@ if("${isSystemDir}" STREQUAL "-1")
    set(CMAKE_INSTALL_RPATH "${CMAKE_INSTALL_PREFIX}/lib")
 endif("${isSystemDir}" STREQUAL "-1")
 
+# TODO: check if not OSX, or find out how to do "try" in CMake
 # set runpath, too
-set(CMAKE_EXE_LINKER_FLAGS "-Wl,--enable-new-dtags")
+if(NOT APPLE)
+  set(CMAKE_EXE_LINKER_FLAGS "-Wl,--enable-new-dtags")
+endif()
 ##### </RUNPATH> ########
 
 
@@ -140,18 +144,36 @@ get_filename_component(CC_PATH ${CMAKE_C_COMPILER} PATH)
 # make sure we use the correct libstdc++
 link_directories("${GCC_BASE}/bin/../lib64")
 
-list(APPEND GRAPPA_LIBS pthread rt)
+if(NOT APPLE)
+  list(APPEND GRAPPA_LIBS pthread rt)
+endif()
 
 # boost is separate
-set(BOOST_BASE "/sampa/share/gcc-4.7.2/src/boost_1_51_0")
-include_directories("${BOOST_BASE}")
-link_directories("${BOOST_BASE}/stage/lib")
-list(APPEND GRAPPA_LIBS
-  boost_unit_test_framework
-  boost_filesystem
-  boost_system
-)
-# TODO: find_library(BOOST boost PATHS ${BOOST_BASE} )
+if(APPLE)
+  set(BOOST_BASE "/usr/local")
+  include_directories("${BOOST_BASE}/include")
+  link_directories("${BOOST_BASE}/lib")
+else()
+  set(BOOST_BASE "/sampa/share/gcc-4.7.2/src/boost_1_51_0")
+  include_directories("${BOOST_BASE}")
+  link_directories("${BOOST_BASE}/stage/lib")
+endif()
+# find_library(BOOST boost PATHS ${BOOST_BASE} REQUIRED)
+
+# TODO: look for {,-mt} and pick what's available
+if(APPLE)
+  list(APPEND GRAPPA_LIBS
+    boost_unit_test_framework-mt
+    boost_filesystem-mt
+    boost_system-mt
+  )
+else()
+  list(APPEND GRAPPA_LIBS
+    boost_unit_test_framework
+    boost_filesystem
+    boost_system
+  )
+endif()
 
 # MPI (for booting only)
 # TODO: discover with find_library()
