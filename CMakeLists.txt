@@ -87,9 +87,9 @@ ExternalProject_Add( extern_gasnet
 )
 
 # SOURCE_DIR         ${CMAKE_SOURCE_DIR}/tools/gflags
+# URL_HASH           SHA1=bfa0b399e03147b20cafcae62b59ee9163309821 # not supported by Sampa's CMake
 ExternalProject_Add( extern_gflags
-  URL                "https://gflags.googlecode.com/files/gflags-2.0-no-svn-files.tar.gz"
-  URL_HASH           SHA1=bfa0b399e03147b20cafcae62b59ee9163309821
+  URL                "http://gflags.googlecode.com/files/gflags-2.0-no-svn-files.tar.gz"
   SOURCE_DIR         ${EXTERN_BUILD_DIR}/src/gflags-2.0
   PREFIX             ${EXTERN_BUILD_DIR}/gflags
   STAMP_DIR          ${EXTERN_BUILD_DIR}/gflags
@@ -102,7 +102,7 @@ ExternalProject_Add( extern_gflags
 )
 
 # SOURCE_DIR         ${CMAKE_SOURCE_DIR}/tools/google-glog
-# URL                https://google-glog.googlecode.com/files/glog-0.3.3.tar.gz
+# URL                http://google-glog.googlecode.com/files/glog-0.3.3.tar.gz
 # URL_HASH           SHA1=ed40c26ecffc5ad47c618684415799ebaaa30d65
 ExternalProject_Add( extern_glog
   SOURCE_DIR         ${CMAKE_SOURCE_DIR}/tools/google-glog
@@ -118,9 +118,9 @@ ExternalProject_Add( extern_glog
 )
 # add_dependencies(extern_glog extern_gflags)
 
+# URL_HASH           SHA1=b799b99d9f021988bbc931db1c21b2f94826d4f0
 ExternalProject_Add( extern_gperftools
-  URL                https://gperftools.googlecode.com/files/gperftools-2.1.tar.gz
-  URL_HASH           SHA1=b799b99d9f021988bbc931db1c21b2f94826d4f0
+  URL                http://gperftools.googlecode.com/files/gperftools-2.1.tar.gz
   SOURCE_DIR         ${EXTERN_BUILD_DIR}/src/gperftools-2.1
   PREFIX             ${EXTERN_BUILD_DIR}/gperftools
   STAMP_DIR          ${EXTERN_BUILD_DIR}/gperftools
