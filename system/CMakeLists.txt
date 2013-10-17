@@ -172,20 +172,14 @@ target_link_libraries(Grappa ${GRAPPA_LIBS})
 set(GRAPPA_TESTS "")
 
 # create targets for each test
-foreach(test_cpp ${TEST_SOURCES})
+foreach(test_cpp ${TEST_SOURCES})  
   get_filename_component(test_name ${test_cpp} NAME_WE) # name without extension
   set(test "${test_name}.test")
-
+  add_grappa_test(${test} ${test_cpp})
+  
   # include Boost test automagic main() generation
   # add an additional rule if you need to include multiple components
-
-  add_executable(${test} EXCLUDE_FROM_ALL ${test_cpp})
-  target_link_libraries(${test} Grappa)
-  set_property(TARGET ${test} PROPERTY FOLDER "Tests") # For organization in Xcode project
-  set_target_properties(${test} PROPERTIES
-    COMPILE_FLAGS "-DBOOST_TEST_DYN_LINK -DBOOST_TEST_MODULE=${test_name}"
-  )
-
+  
   # TODO: use "ctest" to make whole regression test suite
   add_custom_target("check-${test_name}"
     COMMAND ${CMAKE_SOURCE_DIR}/bin/grappa_srun.sh -- "${test_name}.test" --log_level=test_suite --report_level=confirm --run_test="${test_name}"
