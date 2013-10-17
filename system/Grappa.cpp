@@ -42,7 +42,7 @@
 #endif
 
 // command line arguments
-DEFINE_uint64( num_starting_workers, 4, "Number of starting workers in task-executer pool" );
+DEFINE_uint64( num_starting_workers, 512, "Number of starting workers in task-executer pool" );
 DEFINE_bool( set_affinity, false, "Set processor affinity based on local rank" );
 DEFINE_string( stats_blob_filename, "stats.json", "Stats blob filename" );
 DEFINE_bool( stats_blob_enable, true, "Enable stats dumping" );
@@ -294,13 +294,17 @@ void Grappa_init( int * argc_p, char ** argv_p[], size_t global_memory_size_byte
     int64_t bytes_per_proc = shmmax_adjusted_floor / ppn;
     // round down to page size so we don't ask for too much?
     bytes_per_proc &= ~( (1L << 12) - 1 );
-
+    
     // be aware of hugepages
     // Each core should ask for a multiple of 1GB hugepages
     // and the whole node should ask for no more than the total pages available
     if ( FLAGS_global_memory_use_hugepages ) {
       int64_t pages_per_proc = bytes_per_proc / (1L << 30);
       int64_t new_bpp = pages_per_proc * (1L << 30);
+      if (new_bpp == 0) {
+        VLOG(1) << "Allocating 1GB per core anyway.";
+        new_bpp = 1L << 30;
+      }
       VLOG_IF(1, bytes_per_proc != new_bpp) << "With ppn=" << ppn << ", can only allocate " 
                                             << pages_per_proc*ppn << " / " << SHMMAX / (1L << 30) << " 1GB huge pages per node";
       bytes_per_proc = new_bpp;

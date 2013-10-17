@@ -9,6 +9,8 @@
 
 #include <gflags/gflags.h>
 
+#include <mpi.h>
+
 #ifdef HEAPCHECK_ENABLE
 #include <gperftools/heap-checker.h>
 extern HeapLeakChecker * Grappa_heapchecker;
@@ -121,10 +123,25 @@ void Communicator::activate() {
   DVLOG(3) << "Leaving activation barrier";
 }
 
+
+void finalise_mpi(void)
+{
+   int already_finalised;
+
+   MPI_Finalized(&already_finalised);
+   if (!already_finalised)
+      MPI_Finalize();
+}
+
 /// tear down communication layer.
 void Communicator::finish(int retval) {
   communication_is_allowed_ = false;
-  // TODO: for now, don't call gasnet exit. should we in future?
+  // Don't call gasnet_exit, since it screws up VampirTrace
   //gasnet_exit( retval );
+  // Instead, call MPI_finalize();
+  // TODO: when we call this here, boost test crashes for some reason. why?
+  //MPI_Finalize();
+  // Instead, call it in an atexit handler.
+  atexit(finalise_mpi);
 }
 
