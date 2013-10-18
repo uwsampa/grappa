@@ -81,13 +81,13 @@ ExternalProject_Add( extern_gasnet
   SOURCE_DIR         ${CMAKE_SOURCE_DIR}/tools/GASNet-1.18.2
   INSTALL_DIR        ${GRAPPA_DEPENDENCY_DIR}
   CONFIGURE_COMMAND  
-    CC=${CMAKE_C_COMPILER} CXX=${CMAKE_CXX_COMPILER} CFLAGS=-g <SOURCE_DIR>/configure --prefix=<INSTALL_DIR> --enable-segment-everything
+    CC=${CMAKE_C_COMPILER} CXX=${CMAKE_CXX_COMPILER} CFLAGS=-g <SOURCE_DIR>/configure --prefix=<INSTALL_DIR> --enable-segment-everything --disable-par --disable-parsync
   BUILD_COMMAND      make -j
   INSTALL_COMMAND    make install
 )
 
 # SOURCE_DIR         ${CMAKE_SOURCE_DIR}/tools/gflags
-# URL_HASH           SHA1=bfa0b399e03147b20cafcae62b59ee9163309821 # not supported by Sampa's CMake
+# URL_HASH           SHA1=bfa0b399e03147b20cafcae62b59ee9163309821 # not supported by older versions of CMake
 ExternalProject_Add( extern_gflags
   URL                "http://gflags.googlecode.com/files/gflags-2.0-no-svn-files.tar.gz"
   SOURCE_DIR         ${EXTERN_BUILD_DIR}/src/gflags-2.0
@@ -95,13 +95,14 @@ ExternalProject_Add( extern_gflags
   STAMP_DIR          ${EXTERN_BUILD_DIR}/gflags
   BINARY_DIR         ${EXTERN_BUILD_DIR}/gflags
   INSTALL_DIR        ${GRAPPA_DEPENDENCY_DIR}
-  CONFIGURE_COMMAND  
+  CONFIGURE_COMMAND
     CC=${CMAKE_C_COMPILER} CXX=${CMAKE_CXX_COMPILER} CFLAGS=-g <SOURCE_DIR>/configure --prefix=<INSTALL_DIR>
   BUILD_COMMAND      make -j
   INSTALL_COMMAND    make install
 )
 
-# SOURCE_DIR         ${CMAKE_SOURCE_DIR}/tools/google-glog
+# (can't use release version because we customized it)
+# TODO: find out if latest version supports what we customized it for so we don't have to distribute it
 # URL                http://google-glog.googlecode.com/files/glog-0.3.3.tar.gz
 # URL_HASH           SHA1=ed40c26ecffc5ad47c618684415799ebaaa30d65
 ExternalProject_Add( extern_glog
@@ -132,8 +133,16 @@ ExternalProject_Add( extern_gperftools
   INSTALL_COMMAND    make install
 )
 
+# required
+set(externs extern_gasnet extern_gflags extern_glog)
+# optional
+if(TRACING)
+  # TODO: add VampirTrace here, too
+  set(externs ${externs} extern_gperftools)
+endif()
+
 # set(extern_targets  extern_gasnet extern_gflags extern_glog extern_gperftools )
-add_custom_target(all_externs DEPENDS extern_gasnet extern_gflags extern_glog extern_gperftools )
+add_custom_target(all_externs DEPENDS ${externs} )
 
 # pre-compiled external dependencies
 # TODO: make CMake build these (see GraphLab's CMake)
