@@ -5,13 +5,10 @@ include(ExternalProject)
 
 option(TRACING "Sample statistics with VTrace at regular intervals." OFF)
 
-set(GCC_BASE /sampa/share/gcc-4.7.2/rtf)
+set(CMAKE_MODULE_PATH ${CMAKE_MODULE_PATH} ${CMAKE_SOURCE_DIR}/cmake)
 
 if( NOT DEFINED ENV{CXX} )
   message(FATAL_ERROR "you must set CC & CXX environment variables!")
-  # message("defaulting to GCC 4.7.2")
-  # set(CMAKE_C_COMPILER ${GCC_BASE}/bin/gcc)
-  # set(CMAKE_CXX_COMPILER ${GCC_BASE}/bin/g++)
 endif()
 
 project(Grappa)
@@ -28,12 +25,16 @@ site_name(MACHINENAME)
 set(GRAPPA_DEPENDENCY_DIR "${CMAKE_SOURCE_DIR}/extern")
 
 if(TRACING)
+  # TODO:Fix VampirTrace support
+  
   set(GOOGLE_PROFILER ON)
 
   add_definitions(-DVTRACE_SAMPLED -DVTRACE -DGOOGLE_PROFILER)
 
   include_directories("${GRAPPA_DEPENDENCY_DIR}/include/vampirtrace")
-  set(CMAKE_C_FLAGS "-vt:cc ${GCC_BASE}/bin/gcc ${CMAKE_C_FLAGS} -pthread")
+  
+  set(GCC_BASE /sampa/share/gcc-4.7.2/rtf)
+  set(CMAKE_C_FLAGS "-vt:cc  ${CMAKE_C_FLAGS} -pthread")
   set(CMAKE_CXX_FLAGS "-vt:cxx ${GCC_BASE}/bin/g++ ${CMAKE_CXX_FLAGS}")
   set(CMAKE_EXE_LINKER_FLAGS "${CMAKE_EXE_LINKER_FLAGS} -lvt -lotf -lz -lpapi -ldl -lm")
 endif()
@@ -69,90 +70,6 @@ if(NOT APPLE)
 endif()
 ##### </RUNPATH> ########
 
-###########################################
-# External projects
-###########################################
-set(EXTERN_BUILD_DIR "${CMAKE_BINARY_DIR}/extern")
-
-ExternalProject_Add( extern_gasnet
-  PREFIX             ${EXTERN_BUILD_DIR}/gasnet
-  STAMP_DIR          ${EXTERN_BUILD_DIR}/gasnet
-  BINARY_DIR         ${EXTERN_BUILD_DIR}/gasnet
-  SOURCE_DIR         ${CMAKE_SOURCE_DIR}/tools/GASNet-1.18.2
-  INSTALL_DIR        ${GRAPPA_DEPENDENCY_DIR}
-  CONFIGURE_COMMAND  
-    CC=${CMAKE_C_COMPILER} CXX=${CMAKE_CXX_COMPILER} CFLAGS=-g <SOURCE_DIR>/configure --prefix=<INSTALL_DIR> --enable-segment-everything --disable-par --disable-parsync
-  BUILD_COMMAND      make -j
-  INSTALL_COMMAND    make install
-)
-
-# SOURCE_DIR         ${CMAKE_SOURCE_DIR}/tools/gflags
-# URL_HASH           SHA1=bfa0b399e03147b20cafcae62b59ee9163309821 # not supported by older versions of CMake
-ExternalProject_Add( extern_gflags
-  URL                "http://gflags.googlecode.com/files/gflags-2.0-no-svn-files.tar.gz"
-  SOURCE_DIR         ${EXTERN_BUILD_DIR}/src/gflags-2.0
-  PREFIX             ${EXTERN_BUILD_DIR}/gflags
-  STAMP_DIR          ${EXTERN_BUILD_DIR}/gflags
-  BINARY_DIR         ${EXTERN_BUILD_DIR}/gflags
-  INSTALL_DIR        ${GRAPPA_DEPENDENCY_DIR}
-  CONFIGURE_COMMAND
-    CC=${CMAKE_C_COMPILER} CXX=${CMAKE_CXX_COMPILER} CFLAGS=-g <SOURCE_DIR>/configure --prefix=<INSTALL_DIR>
-  BUILD_COMMAND      make -j
-  INSTALL_COMMAND    make install
-)
-
-# (can't use release version because we customized it)
-# TODO: find out if latest version supports what we customized it for so we don't have to distribute it
-# URL                http://google-glog.googlecode.com/files/glog-0.3.3.tar.gz
-# URL_HASH           SHA1=ed40c26ecffc5ad47c618684415799ebaaa30d65
-ExternalProject_Add( extern_glog
-  SOURCE_DIR         ${CMAKE_SOURCE_DIR}/tools/google-glog
-  PREFIX             ${EXTERN_BUILD_DIR}/glog
-  STAMP_DIR          ${EXTERN_BUILD_DIR}/glog
-  BINARY_DIR         ${EXTERN_BUILD_DIR}/glog
-  INSTALL_DIR        ${GRAPPA_DEPENDENCY_DIR}
-  CONFIGURE_COMMAND  
-    CC=${CMAKE_C_COMPILER} CXX=${CMAKE_CXX_COMPILER} CFLAGS=-g <SOURCE_DIR>/configure --prefix=<INSTALL_DIR> CFLAGS=-I${GRAPPA_DEPENDENCY_DIR}/include LDFLAGS=-L${GRAPPA_DEPENDENCY_DIR}/lib
-  BUILD_COMMAND      make -j
-  INSTALL_COMMAND    make install
-  DEPENDS extern_gflags
-)
-# add_dependencies(extern_glog extern_gflags)
-
-# URL_HASH           SHA1=b799b99d9f021988bbc931db1c21b2f94826d4f0
-ExternalProject_Add( extern_gperftools
-  URL                http://gperftools.googlecode.com/files/gperftools-2.1.tar.gz
-  SOURCE_DIR         ${EXTERN_BUILD_DIR}/src/gperftools-2.1
-  PREFIX             ${EXTERN_BUILD_DIR}/gperftools
-  STAMP_DIR          ${EXTERN_BUILD_DIR}/gperftools
-  BINARY_DIR         ${EXTERN_BUILD_DIR}/gperftools
-  INSTALL_DIR        ${GRAPPA_DEPENDENCY_DIR}
-  CONFIGURE_COMMAND  
-    CC=${CMAKE_C_COMPILER} CXX=${CMAKE_CXX_COMPILER} CFLAGS=-g <SOURCE_DIR>/configure --prefix=<INSTALL_DIR> --enable-frame-pointers
-  BUILD_COMMAND      make -j
-  INSTALL_COMMAND    make install
-)
-
-# required
-set(externs extern_gasnet extern_gflags extern_glog)
-# optional
-if(TRACING)
-  # TODO: add VampirTrace here, too
-  set(externs ${externs} extern_gperftools)
-endif()
-
-# set(extern_targets  extern_gasnet extern_gflags extern_glog extern_gperftools )
-add_custom_target(all_externs DEPENDS ${externs} )
-
-# pre-compiled external dependencies
-# TODO: make CMake build these (see GraphLab's CMake)
-include_directories("${GRAPPA_DEPENDENCY_DIR}/include")
-link_directories("${GRAPPA_DEPENDENCY_DIR}/lib")
-list(APPEND GRAPPA_LIBS
-  gflags
-  glog
-)
-
 if(TRACING)
   set(GOOGLE_PROFILER ON)
 
@@ -170,6 +87,15 @@ if( GOOGLE_PROFILER )
   set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -fno-omit-frame-pointer")
   add_definitions( -DGOOGLE_PROFILER )
 endif()
+
+# pre-compiled external dependencies
+# TODO: make CMake build these (see GraphLab's CMake)
+include_directories("${GRAPPA_DEPENDENCY_DIR}/include")
+link_directories("${GRAPPA_DEPENDENCY_DIR}/lib")
+list(APPEND GRAPPA_LIBS
+  gflags
+  glog
+)
 
 ######################################
 # Gasnet
@@ -283,3 +209,4 @@ add_subdirectory(bin)
 
 add_subdirectory(scratch)
 
+add_subdirectory(tools)
