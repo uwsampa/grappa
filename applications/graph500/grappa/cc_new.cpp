@@ -190,7 +190,7 @@ long cc_benchmark(GlobalAddress<Graph<>> in) {
   double t = walltime();
   
   auto _g = Graph<>::transform_vertices<VertexCC>(in, [](long i, VertexCC& v){
-    new (&v) VertexCC(-i-1);
+    v.color(-i-1);
   });
   auto _component_edges = GlobalHashSet<Edge>::create(FLAGS_cc_hash_size);
   
@@ -201,14 +201,12 @@ long cc_benchmark(GlobalAddress<Graph<>> in) {
   
   GRAPPA_TIME_LOG("cc_set_insert_time") {
     
-    // size_t current_root = 0;
-    // auto root_addr = make_global(&current_root);
     CountingSemaphore _sem(FLAGS_cc_concurrent_roots);
     auto sem = make_global(&_sem);
-
+    
     for (size_t i = 0; i < g->nv; i++) {
       sem->decrement(); // (after filling, blocks until an exploration finishes)
-      send_message((g->vs+i).core(), [i,sem]{
+      send_heap_message((g->vs+i).core(), [i,sem]{
         privateTask([i,sem]{
           CompletionEvent ce(1);
           explore(i, (g->vs+i)->color(), make_global(&ce));
@@ -221,7 +219,9 @@ long cc_benchmark(GlobalAddress<Graph<>> in) {
   }
   
   if (VLOG_IS_ON(3)) {
-    component_edges->forall_keys([](Edge& e){ VLOG(0) << e; });
+    VLOG(0) << "components set: {";
+    component_edges->forall_keys([](Edge& e){ VLOG(0) << "  " << e; });
+    VLOG(0) << "}";
   }
   
   ///////////////////////////////////////////////////////////////
@@ -267,6 +267,9 @@ long cc_benchmark(GlobalAddress<Graph<>> in) {
   
   LOG(INFO) << "ncomponents: " << nc << std::endl;
   LOG(INFO) << "components_time: " << t << std::endl;
+  LOG(INFO) << "set_size: " << component_edges->size();
+  
+  Statistics::merge_and_print();
   
   return nc;
 }
