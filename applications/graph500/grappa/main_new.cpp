@@ -113,6 +113,7 @@ void bfs_benchmark(tuple_graph& tg, GlobalAddress<Graph<>> generic_graph, int nr
   global_free(bfs_tree);
   /* Print results. */
   output_results(FLAGS_scale, 1<<FLAGS_scale, FLAGS_edgefactor, A, B, C, D, generation_time, construction_time, nroots, bfs_time, bfs_nedge);
+  Statistics::merge_and_print();
 }
 
 void user_main(void * ignore) {
