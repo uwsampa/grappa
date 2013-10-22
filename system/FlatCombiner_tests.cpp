@@ -25,7 +25,7 @@ struct Foo {
 
 void user_main( void * ignore ) {
   CHECK_EQ(sizeof(Foo), block_size);
-  auto f = mirrored_global_alloc<Foo>();
+  auto f = symmetric_global_alloc<Foo>();
   on_all_cores([f]{
     f->x = 1;
     f->y = 2;

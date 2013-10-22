@@ -133,7 +133,7 @@ public:
   
   static GlobalAddress<GlobalHashSet> create(size_t total_capacity) {
     auto base = global_alloc<Cell>(total_capacity);
-    auto self = mirrored_global_alloc<GlobalHashSet>();
+    auto self = symmetric_global_alloc<GlobalHashSet>();
     call_on_all_cores([self,base,total_capacity]{
       new (self.localize()) GlobalHashSet(self, base, total_capacity);
     });

@@ -113,7 +113,7 @@ struct Graph {
   // Constructor
   static GlobalAddress<Graph> create(tuple_graph& tg) {
     double t;
-    auto g = mirrored_global_alloc<Graph<V>>();
+    auto g = symmetric_global_alloc<Graph<V>>();
   
     // find nv
         t = walltime();
