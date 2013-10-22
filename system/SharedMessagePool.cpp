@@ -13,91 +13,138 @@ GRAPPA_DEFINE_STAT(SimpleStatistic<uint64_t>, shared_message_pools_allocated, 0)
 
 namespace Grappa {
 
+  /// type T must have a member: 'T * next'
+  template< typename T, void *(*Allocator)(size_t) = malloc >
+  class PiggybackStack {
+  protected:
+    T* pop() {
+      T* r = freelist;
+      if (r != nullptr) {
+        freelist = r->next;
+        r->next = nullptr;
+      }
+      return r;
+    }
+  public:
+    long allocated;
+    const long max_alloc;
+    T * freelist;
+  
+    PiggybackStack(long max_alloc = -1): allocated(0), max_alloc(max_alloc), freelist(nullptr) {}
+  
+    ~PiggybackStack() {
+      while (!empty()) {
+        free( pop() );
+      }
+    }
+  
+    void release(T * s) {
+      // s->~T(); // call destructor to clean up stuff if needed
+      if (freelist == nullptr) {
+        freelist = s;
+        s->next = nullptr;
+      } else {
+        s->next = freelist;
+        freelist = s;
+      }
+    }
+  
+    T* take() {
+      T* r = nullptr;
+      if (!empty()) {
+        r = pop();
+      } else if ((max_alloc == -1) || (allocated < max_alloc)) {
+        allocated++;
+        r = new (Allocator(sizeof(T))) T();
+      }
+      // DCHECK(r != nullptr);
+      // new (r) T();
+      return r;
+    }
+  
+    bool empty() { return freelist == nullptr; }
+  };
+
   SharedMessagePool * shared_pool = nullptr;
-  std::stack<SharedMessagePool*> unused_pools;
+  
+  PiggybackStack<SharedMessagePool,locale_alloc<void>> *pool_stack;
+  
   ConditionVariable blocked_senders;
 
+  void* _shared_pool_alloc_message(size_t sz) {
+    DCHECK_GE(shared_pool->remaining(), sz);
+    DCHECK( !shared_pool->emptying );
+    shared_pool->to_send++;
+    return shared_pool->PoolAllocator<impl::MessageBase>::allocate(sz);
+  }
+  
   void init_shared_pool() {
-    void * p = impl::locale_shared_memory.allocate_aligned(sizeof(SharedMessagePool), 8);
-    shared_pool = new (p) SharedMessagePool(FLAGS_shared_pool_size);
-    shared_message_pools_allocated++;
-    VLOG(3) << "initialized shared_pool @ " << shared_pool << ", buf:" << (void*)shared_pool->buffer;
+    pool_stack = new PiggybackStack<SharedMessagePool,locale_alloc<void>>(FLAGS_shared_pool_max);
+    shared_pool = pool_stack->take();
   }
 
-  void* SharedMessagePool::allocate(size_t size) {
-    VLOG(5) << "allocating on shared pool " << this;
-    CHECK_EQ(this, shared_pool) << "not allocating from global shared_pool!";
-  
-    if (this->remaining() < size) {
-      CHECK(size <= this->buffer_size) << "Pool (" << this->buffer_size << ") is not large enough to allocate " << size << " bytes.";
-      VLOG(3) << "MessagePool full (" << this << ", to_send:"<< this->to_send << "), finding a new one;    completions_received:" << completions_received << ", allocated_count:" << allocated_count;
-    
-      // first try and find one from the unused_pools pool
-      if (unused_pools.size() > 0) { pop_pool:
-        shared_pool = unused_pools.top();
-        VLOG(4) << "found pool @ " << shared_pool << " allocated:" << shared_pool->allocated << "/" << shared_pool->buffer_size << ", count=" << allocated_count << " @ " << this;
-        unused_pools.pop();
-      } else if (!global_scheduler.in_no_switch_region() && FLAGS_shared_pool_max > 0 &&
-          shared_message_pools_allocated >= FLAGS_shared_pool_max-1) {
-        Grappa::wait(&blocked_senders);
-        if (this == shared_pool) {
-          CHECK_GT(unused_pools.size(), 0);
-          goto pop_pool;
-        } // else should be able to just fall through and go on our merry way
-        // CHECK(unused_pools.size() > 0 || shared_pool->remaining() > size);
-      } else {
-        // allocate a new one, have the old one delete itself when all previous have been sent
-        void * p = impl::locale_shared_memory.allocate_aligned(sizeof(SharedMessagePool), 8);
-        shared_pool = new (p) SharedMessagePool(this->buffer_size);
-        shared_message_pools_allocated++;
-        VLOG(4) << "created new shared_pool @ " << shared_pool << ", buf:" << shared_pool->buffer;
+  void* SharedMessagePool::allocate(size_t sz) {
+    CHECK_EQ(this, shared_pool) << "not allocating from current shared_pool!";
+    if (!emptying && remaining() >= sz) {
+      return _shared_pool_alloc_message(sz);
+    } else {
+      // if not emptying already, do it
+      if (!emptying) {
+        emptying = true;
+        if (to_send == 0) {
+          on_empty();
+        }
       }
       
-      this->start_emptying(); // start working on freeing up the previous one
-    
-      return shared_pool->allocate(size); // actually satisfy the allocation request
-    } else {
-      allocated_count++;
-      this->to_send++;
-      return PoolAllocator<impl::MessageBase>::allocate(size);
-      // return impl::MessagePoolBase::allocate(size);
+      // find new shared_pool
+      SharedMessagePool *p = pool_stack->take();
+      if (p) {
+        shared_pool = p;
+        return _shared_pool_alloc_message(sz);
+      } else {
+        // can't allocate any more
+        // try to block until a pool frees up
+        do {
+          Grappa::wait(&blocked_senders);
+          if (!shared_pool->emptying && shared_pool->remaining() >= sz) {
+            p = shared_pool;
+          } else {
+            p = pool_stack->take();
+          }
+        } while (!p);
+        
+        // p must be able to allocate
+        shared_pool = p;
+        return _shared_pool_alloc_message(sz);
+      }
     }
-  }
-  
-  void SharedMessagePool::start_emptying() {
-    emptying = true;
-    // CHECK_GT(to_send, 0);
-    if (to_send == 0 && emptying) { on_empty(); }
   }
   
   void SharedMessagePool::message_sent(impl::MessageBase* m) {
-    CHECK( reinterpret_cast<char*>(m) >= this->buffer && reinterpret_cast<char*>(m)+m->size() <= this->buffer+this->buffer_size )
-        << "message is outside this pool!! message(" << m << ", extra:" << m->pool << "), "
-        << "pool(" << this << ", buf:" << (void*)this->buffer << ", size:" << this->buffer_size << ")";
+    validate_in_pool(m);
     to_send--;
-    completions_received++;
-    if (to_send == 0 && emptying) {
-      VLOG(3) << "empty! so put back on unused stack message(" << m << ", is_sent_:" << m->is_sent_ << ")";
+    if (emptying && to_send == 0) {
       on_empty();
     }
   }
-
-  void SharedMessagePool::on_empty() {
-    
-    VLOG(3) << "empty and emptying, to_send:"<< to_send << ", allocated:" << allocated << "/" << buffer_size << " @ " << this << ", buf:" << (void*)buffer << "  completions_received:" << completions_received << ", allocated_count:" << allocated_count;
   
+  void SharedMessagePool::on_empty() {
+    DCHECK_EQ(to_send, 0);
+    VLOG(3) << "empty and emptying, to_send:"<< to_send << ", allocated:" << allocated << "/" << buffer_size << " @ " << this << ", buf:" << (void*)buffer << "  completions_received:" << completions_received << ", allocated_count:" << allocated_count;
+// #ifdef DEBUG
     // verify everything sent
     this->iterate([](impl::MessageBase* m) {
       if (!m->is_sent_ || !m->is_delivered_ || !m->is_enqueued_) {
-        VLOG(1) << "!! message(" << m << ", is_sent_:" << m->is_sent_ << ", is_delivered_:" << m->is_delivered_ << ", m->is_enqueued_:" << m->is_enqueued_ << ", extra:" << m->pool << ")";
+        CHECK(false) << "!! message(" << m << ", is_sent_:" << m->is_sent_ << ", is_delivered_:" << m->is_delivered_ << ", m->is_enqueued_:" << m->is_enqueued_ << ", extra:" << m->pool << ")";
       }
     });
   
-    this->reset();
-  
     memset(buffer, (0x11*locale_mycore()) | 0xf0, buffer_size); // poison
-  
-    unused_pools.push(this);
+    
+// #endif
+    
+    this->reset();
+    pool_stack->release(this);
     broadcast(&blocked_senders);
   }
 
