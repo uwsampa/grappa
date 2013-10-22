@@ -7,6 +7,8 @@
 #include <stack>
 #include <glog/logging.h>
 
+DECLARE_int64(shared_pool_size);
+
 namespace Grappa {
 /// @addtogroup Communication
 /// @{
@@ -17,9 +19,10 @@ template<typename T> class PoolPayloadMessage;
 class SharedMessagePool;
 extern SharedMessagePool * shared_pool;
 
-
 class SharedMessagePool: public PoolAllocator<impl::MessageBase> {
 public:
+  SharedMessagePool *next; // for PiggybackStack
+  
   bool emptying;
   int64_t to_send;
   
@@ -27,14 +30,9 @@ public:
   int64_t completions_received;
   int64_t allocated_count;
   
-  SharedMessagePool(size_t bytes)
-    : PoolAllocator<impl::MessageBase>(
-        reinterpret_cast<char*>(Grappa::impl::locale_shared_memory.allocate_aligned(bytes, 8)), bytes, true)
-    , emptying(false)
-    , to_send(0)
-    , completions_received(0)
-    , allocated_count(0)
-  { }
+  SharedMessagePool(size_t bytes = FLAGS_shared_pool_size)
+    : PoolAllocator<impl::MessageBase>(locale_alloc<char>(bytes), bytes, true)
+  { reset(); }
   
   void reset() {
     PoolAllocator<impl::MessageBase>::reset();
@@ -44,7 +42,6 @@ public:
     allocated_count = 0;
   }
   
-  void start_emptying();
   virtual void * allocate(size_t size);
   void message_sent(impl::MessageBase* m);
   void on_empty();
@@ -94,15 +91,17 @@ public:
 template<typename T>
 class PoolMessage: public Message<T> {
 public:  
-  inline SharedMessagePool& get_pool() { return *reinterpret_cast<SharedMessagePool*>(this->pool); }
+  inline SharedMessagePool& get_pool() {
+    return *reinterpret_cast<SharedMessagePool*>(this->pool);
+  }
   virtual void mark_sent() {
     Message<T>::mark_sent();
     
-#ifdef DEBUG
-    if (get_pool().emptying) {
-      VLOG(5) << "pool == " << &get_pool() << " to_send:" << get_pool().to_send << "  message(" << this << ", src:" << this->source_ << ", dst:" << this->destination_ << ", sent:" << this->is_sent_  << ", enq:" << this->is_enqueued_ << ", deli:" << this->is_delivered_ << ")";
-    }
-#endif
+// #ifdef DEBUG
+//     if (get_pool().emptying) {
+//       VLOG(5) << "pool == " << &get_pool() << " to_send:" << get_pool().to_send << "  message(" << this << ", src:" << this->source_ << ", dst:" << this->destination_ << ", sent:" << this->is_sent_  << ", enq:" << this->is_enqueued_ << ", deli:" << this->is_delivered_ << ")";
+//     }
+// #endif
     DCHECK_NE(this->destination_, 0x5555);
     if (Grappa::mycore() == this->source_) {
       if (get_pool().emptying) VLOG(5) << "emptying @ " << &get_pool() << "(buf:" << (void*)get_pool().buffer << ")" << " to_send:" << get_pool().to_send << ", completions_received:" << get_pool().completions_received << ", allocated_count:" << get_pool().allocated_count << ", sent message(" << this << ")";
@@ -120,7 +119,7 @@ public:
   { this->pool = pool;  get_pool().validate_in_pool(this); }
   
   virtual const size_t size() const { return sizeof(*this); }
-} __attribute__((aligned(64)));
+} GRAPPA_BLOCK_ALIGNED;
 
 template<typename T>
 class PoolPayloadMessage: public PayloadMessage<T> {
@@ -138,8 +137,7 @@ public:
     : PayloadMessage<T>(dest, t, payload, payload_size)
   { this->pool = pool;  get_pool().validate_in_pool(this); }
   virtual const size_t size() const { return sizeof(*this); }
-} __attribute__((aligned(64)));
-
+} GRAPPA_BLOCK_ALIGNED;
 
 void init_shared_pool();
 
