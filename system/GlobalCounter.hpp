@@ -52,7 +52,7 @@ public:
   }
   
   static GlobalAddress<GlobalCounter> create(long initial_count = 0) {
-    auto a = mirrored_global_alloc<GlobalCounter>();
+    auto a = symmetric_global_alloc<GlobalCounter>();
     auto master_core = mycore();
     call_on_all_cores([a,master_core]{ new (a.localize()) GlobalCounter(0, master_core); });
     return a;

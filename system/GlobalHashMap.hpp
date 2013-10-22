@@ -158,7 +158,7 @@ public:
   
   static GlobalAddress<GlobalHashMap> create(size_t total_capacity) {
     auto base = global_alloc<Cell>(total_capacity);
-    auto self = mirrored_global_alloc<GlobalHashMap>();
+    auto self = symmetric_global_alloc<GlobalHashMap>();
     call_on_all_cores([self,base,total_capacity]{
       new (self.localize()) GlobalHashMap(self, base, total_capacity);
     });

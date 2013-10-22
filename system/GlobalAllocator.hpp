@@ -137,7 +137,7 @@ void global_free(GlobalAddress<T> address) {
 /// (must currently round up to a multiple of block_size plus an additional block 
 /// to ensure there is a valid address range no matter which core allocation starts on).
 template< typename T, Core MASTER_CORE = 0 >
-GlobalAddress<T> mirrored_global_alloc() {
+GlobalAddress<T> symmetric_global_alloc() {
   static_assert(sizeof(T) % block_size == 0,
                 "must pad global proxy to multiple of block_size, or use GRAPPA_BLOCK_ALIGNED");
   // allocate enough space that we are guaranteed to get one on each core at same location
