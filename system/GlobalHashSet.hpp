@@ -201,9 +201,13 @@ public:
     }
   }
 
-  // Inserts the key if not already in the set
-  //
-  // asynchronous operation
+  /// Inserts the key if not already in the set.
+  ///
+  /// \note To guarantee completion, user must call 'sync_all_cores()' if any async operations have been done.
+  ///
+  /// asynchronous operation
+  ///
+  /// TODO: detect if async's were used without calling 'sync'.
   template< typename F >
   void insert_async( K key, F sync) {
     ++hashset_insert_ops;

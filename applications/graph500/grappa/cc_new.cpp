@@ -35,7 +35,10 @@ class VertexCC : public Vertex {
   };
   Data& data() { return *reinterpret_cast<Data*>(&vertex_data); }
 public:
-  VertexCC(long c = -1, bool v = false) { color(c); visited(v); }
+  void init(long c = -1, bool v = false) {
+    color(c);
+    visited(v);
+  }
 
   long color() { return data().color; }
   void color(long c) { data().color = c; }
@@ -190,7 +193,7 @@ long cc_benchmark(GlobalAddress<Graph<>> in) {
   double t = walltime();
   
   auto _g = Graph<>::transform_vertices<VertexCC>(in, [](long i, VertexCC& v){
-    v.color(-i-1);
+    v.init(-i-1);
   });
   auto _component_edges = GlobalHashSet<Edge>::create(FLAGS_cc_hash_size);
   
@@ -215,7 +218,7 @@ long cc_benchmark(GlobalAddress<Graph<>> in) {
         });
       });
     }
-    
+    if (FLAGS_cc_insert_async) component_edges->sync_all_cores();
   }
   
   if (VLOG_IS_ON(3)) {
