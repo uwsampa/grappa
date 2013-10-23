@@ -32,7 +32,7 @@ namespace Grappa {
     long allocated;
     const long max_alloc;
     const long emergency_alloc;
-    volatile T * top;
+    T * top;
   
     PiggybackStack(long max_alloc = -1, long emergency_alloc = 0): allocated(0), max_alloc(max_alloc), emergency_alloc(emergency_alloc), top(nullptr) {}
     
@@ -62,7 +62,7 @@ namespace Grappa {
       // new (r) T();
       return r;
     }
-  
+    
     bool empty() { return top == nullptr; }
     
     long find(T *o) {
@@ -81,9 +81,9 @@ namespace Grappa {
     
   };
 
-  volatile SharedMessagePool * shared_pool = nullptr;
+  SharedMessagePool * shared_pool = nullptr;
   
-  volatile PiggybackStack<SharedMessagePool,locale_alloc<void>> *pool_stack;
+  PiggybackStack<SharedMessagePool,locale_alloc<void>> *pool_stack;
   
   ConditionVariable blocked_senders;
 
@@ -104,7 +104,7 @@ namespace Grappa {
     auto i = pool_stack->find(shared_pool);
     if (i >= 0) VLOG(0) << "found: " << shared_pool << ": " << i << " / " << pool_stack->size();
 #endif
-    // CHECK(shared_pool->next == nullptr);
+    CHECK(shared_pool->next == nullptr);
     if (shared_pool && !shared_pool->emptying && shared_pool->remaining() >= sz) {
       return _shared_pool_alloc_message(sz);
     } else {
@@ -149,13 +149,13 @@ namespace Grappa {
   }
   
   void SharedMessagePool::message_sent(impl::MessageBase* m) {
-    CHECK(next == nullptr);
+    CHECK(this->next == nullptr);
     validate_in_pool(m);
-    to_send--;
-    if (emptying && to_send == 0) {
+    this->to_send--;
+    if (this->emptying && this->to_send == 0) {
       // CHECK(this != shared_pool);
-      CHECK_GT(shared_pool->allocated, 0);
-      on_empty();
+      CHECK_GT(this->allocated, 0);
+      this->on_empty();
     }
   }
   
