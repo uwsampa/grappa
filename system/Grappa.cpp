@@ -322,7 +322,9 @@ void Grappa_init( int * argc_p, char ** argv_p[], size_t global_memory_size_byte
     Grappa::impl::global_bytes_per_locale = bytes_per_node;
   }
 
-  VLOG(1) << "global_memory_size_bytes = " << global_memory_size_bytes;
+  VLOG(1) << "global_memory_size_bytes = " << Grappa::impl::global_memory_size_bytes;
+  VLOG(1) << "global_bytes_per_core = " << Grappa::impl::global_bytes_per_core;
+  VLOG(1) << "global_bytes_per_locale = " << Grappa::impl::global_bytes_per_locale;
 
   Grappa_done_flag = false;
 
