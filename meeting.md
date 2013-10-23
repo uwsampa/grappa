@@ -5,6 +5,7 @@
 - Technical TODOs we came up with, priority levels
 - Timeline: in time for Sandia (?)
 - Discuss goals, plan for publicizing, web presence
+
 ### Individual updates
 - Holt
   - global pointer code-gen pass prototype working, just need to link against actual Grappa delegates
@@ -19,3 +20,11 @@
   - Connected Components & Grappa training wheels
 - Jake
   - Graph Generators
+
+## Oct 23
+### Updates
+- Holt
+  - Fixing SharedMessagePool issues so we can merge new graph stuff
+  - CMake build working (with dependent projects, too). Waiting on other fixes before polishing and showing to everyone
+  - Planning to do new prototype Set implementation based on "Transactional Boosting" work
+  
