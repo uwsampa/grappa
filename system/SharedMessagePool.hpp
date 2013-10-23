@@ -35,11 +35,12 @@ public:
   { reset(); }
   
   void reset() {
-    PoolAllocator<impl::MessageBase>::reset();
+    PoolAllocator::reset();
     emptying = false;
     to_send = 0;
     completions_received = 0;
     allocated_count = 0;
+    next = nullptr;
   }
   
   virtual void * allocate(size_t size);
