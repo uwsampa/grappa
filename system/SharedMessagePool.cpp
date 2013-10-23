@@ -18,42 +18,43 @@ namespace Grappa {
   class PiggybackStack {
   protected:
     T* pop() {
-      T* r = freelist;
+      T* r = top;
       if (r != nullptr) {
-        freelist = r->next;
+        top = r->next;
+        if (top) CHECK(top->allocated == 0);
         r->next = nullptr;
       }
       return r;
     }
+    
+    bool is_emergency() { return global_scheduler.in_no_switch_region(); }
   public:
     long allocated;
     const long max_alloc;
-    T * freelist;
+    const long emergency_alloc;
+    volatile T * top;
   
-    PiggybackStack(long max_alloc = -1): allocated(0), max_alloc(max_alloc), freelist(nullptr) {}
-  
+    PiggybackStack(long max_alloc = -1, long emergency_alloc = 0): allocated(0), max_alloc(max_alloc), emergency_alloc(emergency_alloc), top(nullptr) {}
+    
     ~PiggybackStack() {
+      CHECK(false) << "didn't think this was being cleaned up.";
       while (!empty()) {
-        free( pop() );
+        delete pop();
       }
     }
-  
+    
     void release(T * s) {
-      // s->~T(); // call destructor to clean up stuff if needed
-      if (freelist == nullptr) {
-        freelist = s;
-        s->next = nullptr;
-      } else {
-        s->next = freelist;
-        freelist = s;
-      }
+      CHECK(s->allocated == 0);
+      s->next = top;
+      top = s;
     }
   
     T* take() {
       T* r = nullptr;
       if (!empty()) {
         r = pop();
-      } else if ((max_alloc == -1) || (allocated < max_alloc)) {
+      } else if ((max_alloc == -1) || (allocated < (max_alloc-emergency_alloc))
+                || (is_emergency() && allocated < max_alloc)) {
         allocated++;
         r = new (Allocator(sizeof(T))) T();
       }
@@ -62,12 +63,27 @@ namespace Grappa {
       return r;
     }
   
-    bool empty() { return freelist == nullptr; }
+    bool empty() { return top == nullptr; }
+    
+    long find(T *o) {
+      long id = 0;
+      for (auto *i = top; i; i = i->next, id++) {
+        if (i == o) return id;
+      }
+      return -1;
+    }
+    
+    long size() {
+      long id = 0;
+      for (auto *i = top; i; i = i->next, id++);
+      return id;
+    }
+    
   };
 
-  SharedMessagePool * shared_pool = nullptr;
+  volatile SharedMessagePool * shared_pool = nullptr;
   
-  PiggybackStack<SharedMessagePool,locale_alloc<void>> *pool_stack;
+  volatile PiggybackStack<SharedMessagePool,locale_alloc<void>> *pool_stack;
   
   ConditionVariable blocked_senders;
 
@@ -75,27 +91,33 @@ namespace Grappa {
     DCHECK_GE(shared_pool->remaining(), sz);
     DCHECK( !shared_pool->emptying );
     shared_pool->to_send++;
-    return shared_pool->PoolAllocator<impl::MessageBase>::allocate(sz);
+    return shared_pool->PoolAllocator::allocate(sz);
   }
   
   void init_shared_pool() {
-    pool_stack = new PiggybackStack<SharedMessagePool,locale_alloc<void>>(FLAGS_shared_pool_max);
+    pool_stack = new PiggybackStack<SharedMessagePool,locale_alloc<void>>(FLAGS_shared_pool_max, FLAGS_shared_pool_max/4);
     shared_pool = pool_stack->take();
   }
-
-  void* SharedMessagePool::allocate(size_t sz) {
-    CHECK_EQ(this, shared_pool) << "not allocating from current shared_pool!";
-    if (!emptying && remaining() >= sz) {
+  
+  void* _shared_message_pool_alloc(size_t sz) {
+#ifdef DEBUG
+    auto i = pool_stack->find(shared_pool);
+    if (i >= 0) VLOG(0) << "found: " << shared_pool << ": " << i << " / " << pool_stack->size();
+#endif
+    // CHECK(shared_pool->next == nullptr);
+    if (shared_pool && !shared_pool->emptying && shared_pool->remaining() >= sz) {
       return _shared_pool_alloc_message(sz);
     } else {
       // if not emptying already, do it
-      if (!emptying) {
-        emptying = true;
-        if (to_send == 0) {
-          on_empty();
+      auto *o = shared_pool;
+      if (shared_pool && !shared_pool->emptying) {
+        CHECK_GT(shared_pool->allocated, 0);
+        shared_pool->emptying = true;
+        if (shared_pool->to_send == 0) {
+          shared_pool->on_empty();
         }
       }
-      
+      if (!pool_stack->empty()) CHECK(pool_stack->top->allocated == 0);
       // find new shared_pool
       SharedMessagePool *p = pool_stack->take();
       if (p) {
@@ -120,10 +142,19 @@ namespace Grappa {
     }
   }
   
+  void* SharedMessagePool::allocate(size_t sz) {
+    CHECK_EQ(this, shared_pool) << "not allocating from current shared_pool!";
+    // CHECK(this->next == nullptr);
+    return _shared_message_pool_alloc(sz);
+  }
+  
   void SharedMessagePool::message_sent(impl::MessageBase* m) {
+    CHECK(next == nullptr);
     validate_in_pool(m);
     to_send--;
     if (emptying && to_send == 0) {
+      // CHECK(this != shared_pool);
+      CHECK_GT(shared_pool->allocated, 0);
       on_empty();
     }
   }
@@ -142,6 +173,8 @@ namespace Grappa {
     memset(buffer, (0x11*locale_mycore()) | 0xf0, buffer_size); // poison
     
 // #endif
+    CHECK( pool_stack->find(this) == -1 );
+    CHECK( this->next == nullptr );
     
     this->reset();
     pool_stack->release(this);
