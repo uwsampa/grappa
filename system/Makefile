@@ -591,7 +591,7 @@ stack.o: stack.S
 
 
 CLEAN_FILES+= *.exe *.o *.pch *.d *.test *.preproc *.dis libGrappa.a libGrappa.so* ./tasks/*.o ./tasks/*.preproc $(LIBRARY_CONTENTS) $($(MPITYPE)_CLEAN_FILES)
-clean:
+clean::
 	rm -f $(CLEAN_FILES)
 
 .PHONY: run test clean
