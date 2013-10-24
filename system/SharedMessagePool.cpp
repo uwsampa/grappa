@@ -44,11 +44,11 @@ namespace Grappa {
     }
     
     void release(T * s) {
-      CHECK(s->allocated == 0);
+      DCHECK(s->allocated == 0);
       s->next = top;
       top = s;
     }
-  
+    
     T* take() {
       T* r = nullptr;
       if (!empty()) {
@@ -56,6 +56,7 @@ namespace Grappa {
       } else if ((max_alloc == -1) || (allocated < (max_alloc-emergency_alloc))
                 || (is_emergency() && allocated < max_alloc)) {
         allocated++;
+        shared_message_pools_allocated++;
         r = new (Allocator(sizeof(T))) T();
       }
       // DCHECK(r != nullptr);
@@ -100,11 +101,11 @@ namespace Grappa {
   }
   
   void* _shared_pool_alloc(size_t sz) {
-#ifdef DEBUG
+// #ifdef DEBUG
     // auto i = pool_stack->find(shared_pool);
     // if (i >= 0) VLOG(0) << "found: " << shared_pool << ": " << i << " / " << pool_stack->size();
-#endif
-    CHECK(!shared_pool || shared_pool->next == nullptr);
+// #endif
+    DCHECK(!shared_pool || shared_pool->next == nullptr);
     if (shared_pool && !shared_pool->emptying && shared_pool->remaining() >= sz) {
       return _shared_pool_alloc_message(sz);
     } else {
@@ -118,10 +119,11 @@ namespace Grappa {
           o->on_empty();
         }
       }
-      if (!pool_stack->empty()) CHECK(pool_stack->top->allocated == 0);
+      DCHECK(pool_stack->empty() || pool_stack->top->allocated == 0);
       // find new shared_pool
       SharedMessagePool *p = pool_stack->take();
       if (p) {
+        CHECK_EQ(p->allocated, 0) << "not a fresh pool!";
         shared_pool = p;
         return _shared_pool_alloc_message(sz);
       } else {
@@ -144,20 +146,24 @@ namespace Grappa {
   }
   
   void SharedMessagePool::message_sent(impl::MessageBase* m) {
-    CHECK(this->next == nullptr);
+    DCHECK(this->next == nullptr);
+#ifdef DEBUG
     validate_in_pool(m);
+#endif
     this->to_send--;
     if (this->emptying && this->to_send == 0) {
       // CHECK(this != shared_pool);
-      CHECK_GT(this->allocated, 0);
+      DCHECK_GT(this->allocated, 0);
       this->on_empty();
     }
   }
   
   void SharedMessagePool::on_empty() {
-    DCHECK_EQ(to_send, 0);
+    CHECK(this->next == nullptr);
     CHECK(this != shared_pool);
-    VLOG(3) << "empty and emptying, to_send:"<< to_send << ", allocated:" << allocated << "/" << buffer_size << " @ " << this << ", buf:" << (void*)buffer << "  completions_received:" << completions_received << ", allocated_count:" << allocated_count;
+    
+    DCHECK_EQ(this->to_send, 0);
+    DVLOG(3) << "empty and emptying, to_send:"<< to_send << ", allocated:" << allocated << "/" << buffer_size << " @ " << this << ", buf:" << (void*)buffer << "  completions_received:" << completions_received << ", allocated_count:" << allocated_count;
 // #ifdef DEBUG
     // verify everything sent
     // this->iterate([](impl::MessageBase* m) {
@@ -169,8 +175,8 @@ namespace Grappa {
     memset(buffer, (0x11*locale_mycore()) | 0xf0, buffer_size); // poison
     
 // #endif
-    CHECK( pool_stack->find(this) == -1 );
-    CHECK( this->next == nullptr );
+    DCHECK( pool_stack->find(this) == -1 );
+    DCHECK( this->next == nullptr );
     
     this->reset();
     pool_stack->release(this);
