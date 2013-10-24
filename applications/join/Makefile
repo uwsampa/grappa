@@ -23,6 +23,9 @@ GEN=$(APP_GRAPH500)/generator
 CFLAGS += -I$(GRAPPA_SYS) -I$(APP_GRAPH500) -I$(GEN) -I$(APP_BFS)
 CFLAGS += -g -Drestrict=__restrict__ -ffast-math -DGRAPH_GENERATOR_GRAPPA #-Wall
 
+# progress outputter
+CFLAGS += -I$(HOME)/ProgressOutput
+
 # for make_graph.h
 CFLAGS += -D_GRAPPA
 
@@ -40,6 +43,9 @@ join.exe: join.o DHT.hpp relation_IO.hpp Tuple.hpp $(GRAPPA_SYS)/libGrappa.a
 triangles.exe: triangles.o DHT.hpp relation_IO.hpp Tuple.hpp $(GEN)/generator.a $(GRAPPA_SYS)/libGrappa.a $(SOURCES)
 	$(ENV_VARIABLES) $($(MPITYPE)_LD) $(CFLAGS) $(LDFLAGS) triangles.o $(SOURCES) $(GEN)/generator.a $(GRAPPA_SYS)/libGrappa.a $(LIBRARIES) -o $@ $(LIBS)
 
+triangles_partition.exe: triangles_partition.o $(GEN)/generator.a $(GRAPPA_SYS)/libGrappa.a $(SOURCES)
+	$(ENV_VARIABLES) $($(MPITYPE)_LD) $(CFLAGS) $(LDFLAGS) $(HOME)/ProgressOutput/ProgressOutput.o triangles_partition.o $(SOURCES) $(GEN)/generator.a $(GRAPPA_SYS)/libGrappa.a $(LIBRARIES) -o $@ $(LIBS)
+
 twohop.exe: twohop.o DHT.hpp relation_IO.hpp Tuple.hpp $(GEN)/generator.a $(GRAPPA_SYS)/libGrappa.a $(SOURCES)
 	$(ENV_VARIABLES) $($(MPITYPE)_LD) $(CFLAGS) $(LDFLAGS) twohop.o $(SOURCES) $(GEN)/generator.a $(GRAPPA_SYS)/libGrappa.a $(LIBRARIES) -o $@ $(LIBS)
 
@@ -52,8 +58,8 @@ $(APP_GRAPH500)/prng.o:
 $(GEN)/generator.a:
 	cd $(GEN); $(MAKE) DEBUG=$(DEBUG) -f Makefile.grappa genlib
 
-clean:
-	rm -f join.o join.exe triangles.exe triangles.o twohop.o twohop.exe
+clean::
+	rm -f join.o join.exe triangles.exe triangles.o twohop.o twohop.exe triangles_partition.exe triangles_partition.o
 	
 
 # XXX remove
