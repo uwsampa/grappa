@@ -83,6 +83,17 @@ namespace Grappa {
       print(out, all, legacy_stats.str());
     }
 
+    void merge_and_dump_to_file() {
+      StatisticList all;
+      merge(all); // also flushes histogram logs
+
+      std::ostringstream legacy_stats;
+      legacy_reduce_stats_and_dump(legacy_stats);
+      
+      std::ofstream of( FLAGS_stats_blob_filename.c_str(), std::ios::out );
+      print(of, all, legacy_stats.str());
+    }
+    
     void dump_stats_blob() {
       std::ostringstream legacy_stats;
       legacy_dump_stats(legacy_stats);
