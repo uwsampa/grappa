@@ -89,7 +89,7 @@ namespace Grappa {
 
   SharedMessagePool * shared_pool = nullptr;
   
-  PiggybackStack<SharedMessagePool,locale_alloc<void>> *pool_stack;
+  PiggybackStack<SharedMessagePool,locale_alloc> *pool_stack;
   
   ConditionVariable blocked_senders;
 
@@ -101,7 +101,7 @@ namespace Grappa {
   }
   
   void init_shared_pool() {
-    pool_stack = new PiggybackStack<SharedMessagePool,locale_alloc<void>>(FLAGS_shared_pool_max, FLAGS_shared_pool_max/4);
+    pool_stack = new PiggybackStack<SharedMessagePool,locale_alloc>(FLAGS_shared_pool_max, FLAGS_shared_pool_max/4);
     shared_pool = pool_stack->take();
   }
   
