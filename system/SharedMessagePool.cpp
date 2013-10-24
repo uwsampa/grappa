@@ -48,12 +48,69 @@ namespace Grappa {
       return PoolAllocator<impl::MessageBase>::allocate(size);
       // return impl::MessagePoolBase::allocate(size);
     }
+  };
+
+  SharedMessagePool * shared_pool = nullptr;
+  
+  PiggybackStack<SharedMessagePool,locale_alloc> *pool_stack;
+  
+  ConditionVariable blocked_senders;
+
+  void* _shared_pool_alloc_message(size_t sz) {
+    DCHECK_GE(shared_pool->remaining(), sz);
+    DCHECK( !shared_pool->emptying );
+    shared_pool->to_send++;
+    return shared_pool->PoolAllocator::allocate(sz);
   }
   
-  void SharedMessagePool::start_emptying() {
-    emptying = true;
-    // CHECK_GT(to_send, 0);
-    if (to_send == 0 && emptying) { on_empty(); }
+  void init_shared_pool() {
+    pool_stack = new PiggybackStack<SharedMessagePool,locale_alloc>(FLAGS_shared_pool_max, FLAGS_shared_pool_max/4);
+    shared_pool = pool_stack->take();
+  }
+  
+  void* _shared_pool_alloc(size_t sz) {
+// #ifdef DEBUG
+    // auto i = pool_stack->find(shared_pool);
+    // if (i >= 0) VLOG(0) << "found: " << shared_pool << ": " << i << " / " << pool_stack->size();
+// #endif
+    DCHECK(!shared_pool || shared_pool->next == nullptr);
+    if (shared_pool && !shared_pool->emptying && shared_pool->remaining() >= sz) {
+      return _shared_pool_alloc_message(sz);
+    } else {
+      // if not emptying already, do it
+      auto *o = shared_pool;
+      shared_pool = nullptr;
+      if (o && !o->emptying) {
+        CHECK_GT(o->allocated, 0);
+        o->emptying = true;
+        if (o->to_send == 0) {
+          o->on_empty();
+        }
+      }
+      DCHECK(pool_stack->empty() || pool_stack->top->allocated == 0);
+      // find new shared_pool
+      SharedMessagePool *p = pool_stack->take();
+      if (p) {
+        CHECK_EQ(p->allocated, 0) << "not a fresh pool!";
+        shared_pool = p;
+        return _shared_pool_alloc_message(sz);
+      } else {
+        // can't allocate any more
+        // try to block until a pool frees up
+        do {
+          Grappa::wait(&blocked_senders);
+          if (shared_pool && !shared_pool->emptying && shared_pool->remaining() >= sz) {
+            p = shared_pool;
+          } else {
+            p = pool_stack->take();
+          }
+        } while (!p);
+        
+        // p must be able to allocate
+        shared_pool = p;
+        return _shared_pool_alloc_message(sz);
+      }
+    }
   }
   
   void SharedMessagePool::message_sent(impl::MessageBase* m) {
