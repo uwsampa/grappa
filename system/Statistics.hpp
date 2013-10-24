@@ -33,6 +33,9 @@ namespace Grappa {
     /// Create clone of stats list, merge all stats into it, and print them.
     void merge_and_print(std::ostream& out = std::cerr);
     
+    /// Merge stats from all cores and dump them to file specified by '--stats_blob_filename'
+    void merge_and_dump_to_file();
+    
     /// Dump local registered stats to file.
     void dump_stats_blob();
     
