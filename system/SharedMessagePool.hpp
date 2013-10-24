@@ -13,8 +13,7 @@ namespace Grappa {
 /// @addtogroup Communication
 /// @{
 
-template<typename T> class PoolMessage;
-template<typename T> class PoolPayloadMessage;
+void* _shared_pool_alloc(size_t sz);
 
 class SharedMessagePool;
 extern SharedMessagePool * shared_pool;
@@ -43,7 +42,6 @@ public:
     next = nullptr;
   }
   
-  virtual void * allocate(size_t size);
   void message_sent(impl::MessageBase* m);
   void on_empty();
   
@@ -53,47 +51,13 @@ public:
         << "pool(" << this << ", buf:" << (void*)this->buffer << ", size:" << this->buffer_size << ")";
   }
   
-  ///
-  /// Templated message creating functions, all taken straight from Message.hpp
-  ///
-  
-  /// Send message, allocating from the pool. @see Grappa::message
-  template<typename T>
-  inline PoolMessage<T>* message(Core dest, T t) {
-    void* p = this->allocate(sizeof(PoolMessage<T>));
-    return new (p) PoolMessage<T>(shared_pool, dest, t);
-  }
-  
-  /// Message with payload. @see Grappa::message
-  template< typename T >
-  inline PoolPayloadMessage<T>* message(Core dest, T t, void * payload, size_t payload_size) {
-    void* p = this->allocate(sizeof(PoolPayloadMessage<T>));
-    return new (p) PoolPayloadMessage<T>(shared_pool, dest, t, payload, payload_size);
-  }
-  
-  /// Same as message, but immediately enqueued to be sent. @see Grappa::send_message
-  template< typename T >
-  inline PoolMessage<T> * send_message(Core dest, T t) {
-    auto* m = this->message(dest, t);
-    m->enqueue();
-    return m;
-  }
-  
-  /// Message with payload, immediately enqueued to be sent. @see Grappa::send_message
-  template< typename T >
-  inline PoolPayloadMessage<T> * send_message(Core dest, T t, void * payload, size_t payload_size) {
-    auto* m = this->message(dest, t, payload, payload_size);
-    m->enqueue();
-    return m;
-  }
-  
 };
 
 template<typename T>
 class PoolMessage: public Message<T> {
 public:  
-  inline SharedMessagePool& get_pool() {
-    return *reinterpret_cast<SharedMessagePool*>(this->pool);
+  inline SharedMessagePool * shpool() {
+    return reinterpret_cast<SharedMessagePool*>(this->pool);
   }
   virtual void mark_sent() {
     Message<T>::mark_sent();
@@ -105,19 +69,19 @@ public:
 // #endif
     DCHECK_NE(this->destination_, 0x5555);
     if (Grappa::mycore() == this->source_) {
-      if (get_pool().emptying) VLOG(5) << "emptying @ " << &get_pool() << "(buf:" << (void*)get_pool().buffer << ")" << " to_send:" << get_pool().to_send << ", completions_received:" << get_pool().completions_received << ", allocated_count:" << get_pool().allocated_count << ", sent message(" << this << ")";
+      // if (get_pool().emptying) VLOG(5) << "emptying @ " << &get_pool() << "(buf:" << (void*)get_pool().buffer << ")" << " to_send:" << get_pool().to_send << ", completions_received:" << get_pool().completions_received << ", allocated_count:" << get_pool().allocated_count << ", sent message(" << this << ")";
       
-      DCHECK_NE(this->source_, 0x5555) << " sent:" << this->is_sent_ << ", pool(" << &get_pool() << ")";
+      DCHECK_NE(this->source_, 0x5555) << " sent:" << this->is_sent_ << ", pool(" << shpool() << ")";
       this->source_ = 0x5555;
       
-      get_pool().message_sent(this); // may trash things
+      shpool()->message_sent(this); // may trash things
     }
   }
   
   inline PoolMessage(): Message<T>() {}
   inline PoolMessage(SharedMessagePool * pool, Core dest, T t)
     : Message<T>(dest, t)
-  { this->pool = pool;  get_pool().validate_in_pool(this); }
+  { this->pool = pool; shpool()->validate_in_pool(this); }
   
   virtual const size_t size() const { return sizeof(*this); }
 } GRAPPA_BLOCK_ALIGNED;
@@ -125,18 +89,18 @@ public:
 template<typename T>
 class PoolPayloadMessage: public PayloadMessage<T> {
 public:
-  inline SharedMessagePool& get_pool() { return *reinterpret_cast<SharedMessagePool*>(this->pool); }
+  inline SharedMessagePool * shpool() { return reinterpret_cast<SharedMessagePool*>(this->pool); }
   
   virtual void mark_sent() {
     PayloadMessage<T>::mark_sent();
     if (Grappa::mycore() == this->source_) {
-      get_pool().message_sent(this); // may delete the pool
+      shpool()->message_sent(this); // may delete the pool
     }
   }
   inline PoolPayloadMessage(): PayloadMessage<T>() {}
   inline PoolPayloadMessage(SharedMessagePool * pool, Core dest, T t, void * payload, size_t payload_size)
     : PayloadMessage<T>(dest, t, payload, payload_size)
-  { this->pool = pool;  get_pool().validate_in_pool(this); }
+  { this->pool = pool;  shpool()->validate_in_pool(this); }
   virtual const size_t size() const { return sizeof(*this); }
 } GRAPPA_BLOCK_ALIGNED;
 
@@ -145,25 +109,31 @@ void init_shared_pool();
 // Same as message, but allocated on heap
 template< typename T >
 inline PoolMessage<T> * heap_message(Core dest, T t) {
-  return shared_pool->message(dest, t);
+  return new (_shared_pool_alloc(sizeof(PoolMessage<T>))) PoolMessage<T>(shared_pool, dest, t);
 }
 
 /// Message with payload, allocated on heap
 template< typename T >
 inline PoolPayloadMessage<T> * heap_message(Core dest, T t, void * payload, size_t payload_size) {
-  return shared_pool->message(dest, t, payload, payload_size);
+  return new (_shared_pool_alloc(sizeof(PoolPayloadMessage<T>)))
+    PoolPayloadMessage<T>(shared_pool, dest, t, payload, payload_size);
 }
 
 /// Same as message, but allocated on heap and immediately enqueued to be sent.
 template< typename T >
 inline PoolMessage<T> * send_heap_message(Core dest, T t) {
-  return shared_pool->send_message(dest, t);
+  auto *m = new (_shared_pool_alloc(sizeof(PoolMessage<T>))) PoolMessage<T>(shared_pool, dest, t);
+  m->enqueue();
+  return m;
 }
 
 /// Message with payload, allocated on heap and immediately enqueued to be sent.
 template< typename T >
 inline PoolPayloadMessage<T> * send_heap_message(Core dest, T t, void * payload, size_t payload_size) {
-  return shared_pool->send_message(dest, t, payload, payload_size);
+  auto *m = new (_shared_pool_alloc(sizeof(PoolPayloadMessage<T>)))
+    PoolPayloadMessage<T>(shared_pool, dest, t, payload, payload_size);
+  m->enqueue();
+  return m;
 }
 
 } // namespace Grappa
