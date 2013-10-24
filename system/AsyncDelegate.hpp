@@ -37,7 +37,7 @@ namespace Grappa {
       } else {
         if (GCE) GCE->enroll();
         
-        pool.send_message(dest, [origin, remote_work] {
+        send_heap_message(dest, [origin, remote_work] {
           delegate_stats.count_op_am();
           remote_work();
           if (GCE) complete(make_global(GCE,origin));
@@ -155,7 +155,7 @@ namespace Grappa {
         } else {
           start_time = Grappa_get_timestamp();
           
-          pool.send_message(dest, [origin, func, this] {
+          send_heap_message(dest, [origin, func, this] {
             delegate_stats.count_op_am();
             R val = func();
             
