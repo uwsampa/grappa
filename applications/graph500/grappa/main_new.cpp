@@ -114,6 +114,7 @@ void bfs_benchmark(tuple_graph& tg, GlobalAddress<Graph<>> generic_graph, int nr
   /* Print results. */
   output_results(FLAGS_scale, 1<<FLAGS_scale, FLAGS_edgefactor, A, B, C, D, generation_time, construction_time, nroots, bfs_time, bfs_nedge);
   Statistics::merge_and_print();
+  Statistics::merge_and_dump_to_file();
 }
 
 void user_main(void * ignore) {
