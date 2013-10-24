@@ -3,11 +3,16 @@
 #include "ConditionVariable.hpp"
 #include <stack>
 
-DEFINE_int64(shared_pool_size, 1L << 20, "Size (in bytes) of global SharedMessagePool (on each Core)");
+DEFINE_int64(shared_pool_size, 1L << 18, "Size (in bytes) of global SharedMessagePool (on each Core)");
 
 /// Note: max is enforced only for blockable callers, and is enforced early to avoid callers
 /// that cannot block (callers from message handlers) to have a greater chance of proceeding.
-DEFINE_int64(shared_pool_max, -1, "Maximum number of shared pools allowed to be allocated (per core).");
+/// In 'init_shared_pool()', 'emergency_alloc' margin is set, currently, to 1/4 of the max.
+///
+/// Currently setting this max to cap shared_pool usage at ~1GB, though this may be too much
+/// for some apps & machines, as it is allocated out of the locale-shared heap. It's also
+/// worth noting that under current settings, most apps don't reach this point at steady state.
+DEFINE_int64(shared_pool_max, 1L << 12, "Maximum number of shared pools allowed to be allocated (per core).");
 
 GRAPPA_DEFINE_STAT(SimpleStatistic<uint64_t>, shared_message_pools_allocated, 0);
 
