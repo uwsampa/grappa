@@ -28,7 +28,7 @@
 #include "RDMAAggregator.hpp"
 #include "Barrier.hpp"
 #include "LocaleSharedMemory.hpp"
-
+#include "SharedMessagePool.hpp"
 #include "Statistics.hpp"
 
 #include <fstream>
@@ -321,8 +321,10 @@ void Grappa_init( int * argc_p, char ** argv_p[], size_t global_memory_size_byte
     Grappa::impl::global_bytes_per_core = bytes_per_proc;
     Grappa::impl::global_bytes_per_locale = bytes_per_node;
   }
-
-  VLOG(1) << "global_memory_size_bytes = " << global_memory_size_bytes;
+  
+  VLOG(1) << "global_memory_size_bytes = " << Grappa::impl::global_memory_size_bytes;
+  VLOG(1) << "global_bytes_per_core = " << Grappa::impl::global_bytes_per_core;
+  VLOG(1) << "global_bytes_per_locale = " << Grappa::impl::global_bytes_per_locale;
 
   Grappa_done_flag = false;
 
@@ -337,17 +339,17 @@ void Grappa_init( int * argc_p, char ** argv_p[], size_t global_memory_size_byte
   for ( Node nod=0; nod < Grappa_nodes(); nod++ ) {
     node_neighbors[nod] = nod;
   }
-
+  
   // start threading layer
   master_thread = convert_to_master();
   VLOG(1) << "Initializing tasking layer."
            << " num_starting_workers=" << FLAGS_num_starting_workers;
   global_task_manager.init( Grappa_mynode(), node_neighbors, Grappa_nodes() ); //TODO: options for local stealing
   global_scheduler.init( master_thread, &global_task_manager );
-
+  
   // start RDMA Aggregator *after* threading layer
   global_rdma_aggregator.init();
-
+  
   // collect some stats on this job
   Grappa_force_tick();
   Grappa_force_tick();
@@ -381,7 +383,18 @@ void Grappa_activate()
 
   global_rdma_aggregator.activate();
   
-  Grappa::init_shared_pool(); // (must be after locale-heap is initialized in RDMAAggregator)q
+  Grappa::init_shared_pool(); // (must be after locale-heap is initialized in RDMAAggregator)
+  
+  if (Grappa::mycore() == 0) {
+    size_t stack_sz = FLAGS_stack_size * FLAGS_num_starting_workers;
+    double stack_sz_gb = static_cast<double>(stack_sz) / (1L<<30);
+    double gheap_sz_gb = static_cast<double>(global_bytes_per_core) / (1L<<30);
+    size_t shpool_sz = FLAGS_shared_pool_max * FLAGS_shared_pool_size;
+    double shpool_sz_gb = static_cast<double>(shpool_sz) / (1L<<30);
+    size_t free_sz = Grappa::impl::locale_shared_memory.get_free_memory() / Grappa::locale_cores();
+    double free_sz_gb = free_sz / (1L<<30);
+    VLOG(1) << "\n-------------------------\nShared memory breakdown:\n  global heap: " << global_bytes_per_core << " (" << gheap_sz_gb << " GB)\n  stacks: " << stack_sz << " (" << stack_sz_gb << " GB)\n  rdma_aggregator: ??\n  shared_message_pool: " << shpool_sz << " (" << shpool_sz_gb << " GB)\n  free:  " << free_sz << " (" << free_sz_gb << " GB)\n-------------------------";
+  }
   
   Grappa_barrier();
 }

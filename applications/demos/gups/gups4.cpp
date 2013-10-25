@@ -47,7 +47,8 @@ int main( int argc, char * argv[] ) {
 
       global_free(B);
       global_free(A);
-
+      
+      Statistics::merge_and_dump_to_file();
     } );
 
   finalize();

@@ -84,6 +84,11 @@ inline T* locale_alloc(size_t n = 1) {
   return reinterpret_cast<T*>(impl::locale_shared_memory.allocate(sizeof(T)*n));
 }
 
+inline void* locale_alloc(size_t n = 1) {
+  return impl::locale_shared_memory.allocate(n);
+}
+
+
 template< typename T, typename... Args >
 inline T* locale_new(Args&&... args) {
   return new (locale_alloc<T>()) T(std::forward<Args...>(args...));

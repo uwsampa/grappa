@@ -33,7 +33,7 @@ namespace Grappa {
 //   /// @endcode
 //   template< typename F >
 //   static GlobalAddress<MirroredGlobal<Base>> create(F init) {
-//     auto a = mirrored_global_alloc<MirroredGlobal<Base>>();
+//     auto a = symmetric_global_alloc<MirroredGlobal<Base>>();
 //     call_on_all_cores([a,init]{ init(static_cast<Base*>(a.localize())); });
 //     return a;
 //   }
@@ -42,7 +42,7 @@ namespace Grappa {
 //   /// 
 //   /// @note Requires Base class to have a default constructor.
 //   static GlobalAddress<MirroredGlobal<Base>> create() {
-//     auto a = mirrored_global_alloc<MirroredGlobal>();
+//     auto a = symmetric_global_alloc<MirroredGlobal>();
 //     call_on_all_cores([a]{ new (a.localize()) MirroredGlobal<Base>(); });
 //     return a;
 //   }

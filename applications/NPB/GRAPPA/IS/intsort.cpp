@@ -302,8 +302,8 @@ void rank(int iteration) {
   // scatter into buckets
   forall_localized<&gce>(key_array, nkeys, [](int64_t s, int64_t n, key_t * first){
     size_t nbuckets = counts.size();
-    char msg_buf[sizeof(Message<std::function<void(GlobalAddress<bucket_t>,key_t)>>)*n];
-    MessagePool pool(msg_buf, sizeof(msg_buf));
+    // char msg_buf[sizeof(Message<std::function<void(GlobalAddress<bucket_t>,key_t)>>)*n];
+    // MessagePool pool(msg_buf, sizeof(msg_buf));
     
     for (int64_t i=0; i<n; i++) {
       auto v = first[i];
@@ -311,7 +311,7 @@ void rank(int iteration) {
       CHECK( b < nbuckets ) << "bucket id = " << b << ", nbuckets = " << nbuckets;
       // ff_delegate<bucket_t,uint64_t,ff_append>(bucketlist+b, v);
       auto destb = bucketlist+b;
-      delegate::call_async<&gce>(pool, destb.core(), [destb,v]{
+      delegate::call_async<&gce>(*shared_pool, destb.core(), [destb,v]{
         destb.pointer()->append(v);
       });
     }
@@ -339,7 +339,7 @@ void rank(int iteration) {
       auto& b = bucket_base[i];
       
       if (b.size() == 0) continue;
-
+      
       b.key_ranks = new int64_t[bucket_range];
       for (int64_t j=0; j<bucket_range; j++) b.key_ranks[j] = 0;
       
@@ -488,10 +488,8 @@ void user_main(void * ignore) {
   histogram_time = allreduce_time = scatter_time = local_rank_time = 0;
   
   Statistics::reset_all_cores();
-#ifdef GOOGLE_PROFILER
-  // // not necessary with histogram stuff
-  //  call_on_all_cores([]{ Grappa_start_profiling(); });
-#endif
+
+  Statistics::start_tracing();
   
   total_time = Grappa_walltime();
 
@@ -503,9 +501,7 @@ void user_main(void * ignore) {
 
   total_time = Grappa_walltime() - total_time;
 
-#ifdef GOOGLE_PROFILER
-  call_on_all_cores([]{ Grappa_stop_profiling(); });
-#endif  
+  Statistics::stop_tracing();
   Statistics::merge_and_print();
   
   std::cerr << "total_time: " << total_time << "\n";
