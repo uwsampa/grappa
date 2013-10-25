@@ -152,20 +152,21 @@ if(NOT APPLE)
 endif()
 
 # boost is separate
+set(Boost_LIBRARIES boost_filesystem boost_system boost_unit_test_framework )
 
-if(APPLE)
-  set(Boost_USE_MULTITHREADED ON)
-endif()
-# set(BOOST_ROOT ...)
-find_package(Boost REQUIRED
-  COMPONENTS filesystem system unit_test_framework
-)
-message(status "** Boost Include: ${Boost_INCLUDE_DIR}")
-message(status "** Boost Libraries: ${Boost_LIBRARY_DIRS}")
-message(status "** Boost Libraries: ${Boost_LIBRARIES}")
-
-include_directories(${Boost_INCLUDE_DIR})
-link_directories(${Boost_LIBRARY_DIRS})
+# if(APPLE)
+#   set(Boost_USE_MULTITHREADED ON)
+# endif()
+# # set(BOOST_ROOT ...)
+# find_package(Boost REQUIRED
+#   COMPONENTS filesystem system unit_test_framework
+# )
+# message(status "** Boost Include: ${Boost_INCLUDE_DIR}")
+# message(status "** Boost Libraries: ${Boost_LIBRARY_DIRS}")
+# message(status "** Boost Libraries: ${Boost_LIBRARIES}")
+# 
+# include_directories(${Boost_INCLUDE_DIR})
+# link_directories(${Boost_LIBRARY_DIRS})
 
 # if(APPLE)
 #   set(BOOST_BASE "/usr/local")

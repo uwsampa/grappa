@@ -44,16 +44,49 @@ ExternalProject_Add( tool-glog
   STAMP_DIR          ${EXTERN_STAMP_DIR}/glog
   BINARY_DIR         ${EXTERN_BUILD_DIR}/glog
   INSTALL_DIR        ${TOOLS_INSTALL_DIR}
-  CONFIGURE_COMMAND  
+  CONFIGURE_COMMAND
     CC=${CMAKE_C_COMPILER} CXX=${CMAKE_CXX_COMPILER} CFLAGS=-g <SOURCE_DIR>/configure --prefix=<INSTALL_DIR> CFLAGS=-I${TOOLS_INSTALL_DIR}/include LDFLAGS=-L${TOOLS_INSTALL_DIR}/lib
   BUILD_COMMAND      make -j
   INSTALL_COMMAND    make install
   DEPENDS tool-gflags
 )
 
+# Build Boost =================================================================
+# GraphLab relies heavily on the boost library for parsing program
+# options, filesystem support, random number generation, and 
+# unordered containers. 
+if(APPLE)
+  set(Boost_USE_MULTITHREADED ON)
+endif()
+
+ExternalProject_Add(tool-boost
+  SOURCE_DIR         ${EXTERN_BUILD_DIR}/src/boost
+  PREFIX             ${EXTERN_BUILD_DIR}/boost
+  STAMP_DIR          ${EXTERN_STAMP_DIR}/boost
+  INSTALL_DIR        ${TOOLS_INSTALL_DIR}
+  URL "http://sourceforge.net/projects/boost/files/boost/1.54.0/boost_1_54_0.tar.bz2"
+  # URL_MD5 dbc07ab0254df3dda6300fd737b3f264 
+  BUILD_IN_SOURCE 1
+  CONFIGURE_COMMAND
+    ./bootstrap.sh 
+      --with-libraries=filesystem
+      --with-libraries=system
+      --with-libraries=test
+      --with-libraries=random
+      --prefix=<INSTALL_DIR>
+  BUILD_COMMAND
+    ./b2 install --link=static --variant=release --threading=single --runtime-link=static
+  INSTALL_COMMAND ""
+)
+# set(BOOST_ROOT ${TOOLS_INSTALL_DIR})
+# find_package(Boost REQUIRED
+#   COMPONENTS filesystem system unit_test_framework
+# )
+# include_directories(${Boost_INCLUDE_DIR})
+# link_directories(${Boost_LIBRARY_DIRS})
 
 # required
-set(tool_list tool-gasnet tool-gflags tool-glog)
+set(tool_list tool-gasnet tool-gflags tool-glog tool-boost)
 # optional
 if(TRACING)
   # TODO: add VampirTrace here, too
