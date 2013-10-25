@@ -152,40 +152,57 @@ if(NOT APPLE)
 endif()
 
 # boost is separate
+
 if(APPLE)
-  set(BOOST_BASE "/usr/local")
-  include_directories("${BOOST_BASE}/include")
-  link_directories("${BOOST_BASE}/lib")
-else()
-  set(BOOST_BASE "/sampa/share/gcc-4.7.2/src/boost_1_51_0")
-  include_directories("${BOOST_BASE}")
-  link_directories("${BOOST_BASE}/stage/lib")
+  set(Boost_USE_MULTITHREADED ON)
 endif()
+# set(BOOST_ROOT ...)
+find_package(Boost REQUIRED
+  COMPONENTS filesystem system unit_test_framework
+)
+message(status "** Boost Include: ${Boost_INCLUDE_DIR}")
+message(status "** Boost Libraries: ${Boost_LIBRARY_DIRS}")
+message(status "** Boost Libraries: ${Boost_LIBRARIES}")
+
+include_directories(${Boost_INCLUDE_DIR})
+link_directories(${Boost_LIBRARY_DIRS})
+
+# if(APPLE)
+#   set(BOOST_BASE "/usr/local")
+#   include_directories("${BOOST_BASE}/include")
+#   link_directories("${BOOST_BASE}/lib")
+# else()
+#   set(BOOST_BASE "/sampa/share/gcc-4.7.2/src/boost_1_51_0")
+#   include_directories("${BOOST_BASE}")
+#   link_directories("${BOOST_BASE}/stage/lib")
+# endif()
+#####################
 # find_library(BOOST boost PATHS ${BOOST_BASE} REQUIRED)
 
 # TODO: look for {,-mt} and pick what's available
-if(APPLE)
-  list(APPEND GRAPPA_LIBS
-    boost_unit_test_framework-mt
-    boost_filesystem-mt
-    boost_system-mt
-  )
-else()
-  list(APPEND GRAPPA_LIBS
-    boost_unit_test_framework
-    boost_filesystem
-    boost_system
-  )
-endif()
+# if(APPLE)
+#   list(APPEND GRAPPA_LIBS
+#     boost_unit_test_framework-mt
+#     boost_filesystem-mt
+#     boost_system-mt
+#   )
+# else()
+#   list(APPEND GRAPPA_LIBS
+#     boost_unit_test_framework
+#     boost_filesystem
+#     boost_system
+#   )
+# endif()
 
 # MPI (mostly for booting, but we also use MPI communication in some places now)
 find_package(MPI REQUIRED)
 include_directories(${MPI_INCLUDE_PATH})
 
 macro(add_grappa_exe name)
-    add_executable(${name} EXCLUDE_FROM_ALL ${ARGN})
-    target_link_libraries(${name} Grappa)
-    target_link_libraries(${name} ${MPI_CXX_LIBRARIES})
+  add_executable(${name} EXCLUDE_FROM_ALL ${ARGN})
+  target_link_libraries(${name} Grappa)
+  target_link_libraries(${name} ${MPI_CXX_LIBRARIES})
+  target_link_libraries(${name} ${Boost_LIBRARIES})
 endmacro(add_grappa_exe)
 
 macro(add_grappa_application name)

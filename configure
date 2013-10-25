@@ -52,10 +52,10 @@ def configure(generator, mode, opt)
   
   mkdir_p build_dir
   cd build_dir do
-  
+    
     puts "cmake #{args.join(' ')} #{ARGV.join(' ')}"
     system "cmake #{args.join(' ')} #{ARGV.join(' ')}"
-  
+    
     if $?.success?
       puts "-------------------------------------"
       puts "created #{build_dir}; to build:\n> cd #{build_dir}; " + 
