@@ -2,7 +2,17 @@
 #include "Statistics.hpp"
 #include <stack>
 
-DEFINE_int64(shared_pool_size, 1L << 20, "Size (in bytes) of global SharedMessagePool (on each Core)");
+DEFINE_int64(shared_pool_size, 1L << 18, "Size (in bytes) of global SharedMessagePool (on each Core)");
+
+/// Note: max is enforced only for blockable callers, and is enforced early to avoid callers
+/// that cannot block (callers from message handlers) to have a greater chance of proceeding.
+/// In 'init_shared_pool()', 'emergency_alloc' margin is set, currently, to 1/4 of the max.
+///
+/// Currently setting this max to cap shared_pool usage at ~1GB, though this may be too much
+/// for some apps & machines, as it is allocated out of the locale-shared heap. It's also
+/// worth noting that under current settings, most apps don't reach this point at steady state.
+DEFINE_int64(shared_pool_max, -1, "Maximum number of shared pools allowed to be allocated (per core).");
+DEFINE_double(shared_pool_memory_fraction, 0.5, "Fraction of remaining memory to use for shared pool (after taking out global_heap and stacks)");
 
 GRAPPA_DEFINE_STAT(SimpleStatistic<uint64_t>, shared_message_pools_allocated, 0);
 
@@ -64,6 +74,13 @@ namespace Grappa {
   }
   
   void init_shared_pool() {
+    if (FLAGS_shared_pool_max == -1) {
+      size_t mem_remaining = impl::locale_shared_memory.get_free_memory() / locale_cores();
+      long num_pools = static_cast<long>(FLAGS_shared_pool_memory_fraction * static_cast<double>(mem_remaining)) / FLAGS_shared_pool_size;
+      FLAGS_shared_pool_max = num_pools;
+    }
+    double total_gb = static_cast<double>(FLAGS_shared_pool_max*FLAGS_shared_pool_size) / (1L<<30);
+    if (mycore() == 0) VLOG(1) << "shared_pool -> size = " << FLAGS_shared_pool_size << ", max = " << FLAGS_shared_pool_max << ", total = " << total_gb << " GB";
     pool_stack = new PiggybackStack<SharedMessagePool,locale_alloc>(FLAGS_shared_pool_max, FLAGS_shared_pool_max/4);
     shared_pool = pool_stack->take();
   }

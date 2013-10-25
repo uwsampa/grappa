@@ -7,6 +7,9 @@
 #include <stack>
 #include <glog/logging.h>
 
+DECLARE_int64(shared_pool_size);
+DECLARE_int64(shared_pool_max);
+
 namespace Grappa {
 /// @addtogroup Communication
 /// @{
