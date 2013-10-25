@@ -21,8 +21,9 @@ enable_testing()
 set(CMAKE_BUILD_TYPE RelWithDebInfo)
 site_name(MACHINENAME)
 
-# set(GRAPPA_DEPENDENCY_DIR "${CMAKE_SOURCE_DIR}/tools/built_deps")
-set(GRAPPA_DEPENDENCY_DIR "${CMAKE_SOURCE_DIR}/extern")
+# set(TOOLS_INSTALL_DIR "${CMAKE_SOURCE_DIR}/tools/built_deps")
+# set(TOOLS_INSTALL_DIR "${CMAKE_SOURCE_DIR}/extern")
+set(TOOLS_INSTALL_DIR "${CMAKE_BINARY_DIR}/tools")
 
 if(TRACING)
   # TODO:Fix VampirTrace support
@@ -31,7 +32,7 @@ if(TRACING)
 
   add_definitions(-DVTRACE_SAMPLED -DVTRACE -DGOOGLE_PROFILER)
 
-  include_directories("${GRAPPA_DEPENDENCY_DIR}/include/vampirtrace")
+  include_directories("${TOOLS_INSTALL_DIR}/include/vampirtrace")
   
   set(GCC_BASE /sampa/share/gcc-4.7.2/rtf)
   set(CMAKE_C_FLAGS "-vt:cc  ${CMAKE_C_FLAGS} -pthread")
@@ -77,8 +78,8 @@ if(TRACING)
 
   add_definitions(-DVTRACE_SAMPLED -DVTRACE)
 
-  # set(CMAKE_C_COMPILER "${GRAPPA_DEPENDENCY_DIR}/bin/vtcc")
-  include_directories("${GRAPPA_DEPENDENCY_DIR}/include/vampirtrace")
+  # set(CMAKE_C_COMPILER "${TOOLS_INSTALL_DIR}/bin/vtcc")
+  include_directories("${TOOLS_INSTALL_DIR}/include/vampirtrace")
   set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -pthread")
   set(CMAKE_EXE_LINKER_FLAGS "${CMAKE_EXE_LINKER_FLAGS} -lvt -lotf -lz -lpapi -ldl -lm")
 endif()
@@ -90,8 +91,8 @@ endif()
 
 # pre-compiled external dependencies
 # TODO: make CMake build these (see GraphLab's CMake)
-include_directories("${GRAPPA_DEPENDENCY_DIR}/include")
-link_directories("${GRAPPA_DEPENDENCY_DIR}/lib")
+include_directories("${TOOLS_INSTALL_DIR}/include")
+link_directories("${TOOLS_INSTALL_DIR}/lib")
 list(APPEND GRAPPA_LIBS
   gflags
   glog
@@ -127,7 +128,7 @@ add_definitions(
   "-DGASNET_${GASNET_CONDUIT_UP}"
   "-DGASNET_CONDUIT_${GASNET_CONDUIT_UP}"
 )
-include_directories("${GRAPPA_DEPENDENCY_DIR}/include/${GASNET_CONDUIT}-conduit")
+include_directories("${TOOLS_INSTALL_DIR}/include/${GASNET_CONDUIT}-conduit")
 
 list(APPEND GRAPPA_ENV
   GLOG_logtostderr=1

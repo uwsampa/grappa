@@ -25,4 +25,4 @@ add_definitions(
 set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -ffast-math")
 
 add_library(generator EXCLUDE_FROM_ALL ${SOURCES})
-add_dependencies(generator all_externs)
+add_dependencies(generator all-tools)

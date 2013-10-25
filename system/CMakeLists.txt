@@ -168,7 +168,7 @@ add_library(Grappa
   ${SYSTEM_HEADERS}
 )
 target_link_libraries(Grappa ${GRAPPA_LIBS})
-add_dependencies(Grappa all_externs)
+add_dependencies(Grappa all-tools)
 
 set(GRAPPA_TESTS "")
 
