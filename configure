@@ -1,0 +1,72 @@
+#!/usr/bin/env ruby
+require 'fileutils'
+include FileUtils
+require 'optparse'
+require 'ostruct'
+opt = OpenStruct.new
+opt.generator = 'Make'
+opt.mode      = 'Release'
+opt.cc        = ENV['CC']
+opt.cxx       = ENV['CXX']
+
+OptionParser.new{|p|
+  p.on('-g','--generator=[Make]|Ninja|Xcode[,*]'){|a| opt.generator = a }
+  p.on('-m','--mode=[Release]|Debug[,*]')        {|a| opt.mode = a }
+  p.on('--cc=path/to/c/compiler')                {|p| opt.cc = p }
+  p.on('--cxx=path/to/c++/compiler')             {|p| opt.cxx = p }
+}.parse!(ARGV)
+
+unless opt.generator =~ /Xcode/ # (Xcode generator currently chokes on other compilers...)
+  if not(opt.cc) || not(opt.cxx)
+    abort("Must specify CC & CXX, either by setting the environment variables or using '--cc=' & '--cxx=' flags")
+  end
+end
+
+def configure(generator, mode, opt)
+  root_dir = File.expand_path(File.dirname(__FILE__))
+  args = [ root_dir ]
+    
+  case generator
+  when /Make/
+    args << %Q[-G"Unix Makefiles"]
+  when /Xcode/
+    puts "Note: '--mode' not supported for Xcode, ignoring..."
+    mode = nil
+    args << "-GXcode"
+    # workaround, since it looks like the Xcode generator currently needs to use clang:
+    opt.cc = nil
+    opt.cxx = nil
+  else
+    args << %Q[-G"#{generator}"]
+  end
+  
+  args << "-DCMAKE_C_COMPILER=#{opt.cc}"    if opt.cc
+  args << "-DCMAKE_CXX_COMPILER=#{opt.cxx}" if opt.cxx
+  if mode
+    # note: use 'RelWithDebInfo' because it adds '-g'...
+    args << "-DCMAKE_BUILD_TYPE=" + {'Debug'=>'Debug', 'Release'=>'RelWithDebInfo'}[mode]
+  end
+  
+  build_dir = "build/#{generator}"
+  build_dir << "+#{mode}" if mode
+  
+  mkdir_p build_dir
+  cd build_dir do
+  
+    puts "cmake #{args.join(' ')} #{ARGV.join(' ')}"
+    system "cmake #{args.join(' ')} #{ARGV.join(' ')}"
+  
+    if $?.success?
+      puts "-------------------------------------"
+      puts "created #{build_dir}; to build:\n> cd #{build_dir}; " + 
+        {'Make'=>'make -j','Ninja'=>'ninja','Xcode'=>'xcodebuild'}[generator]
+    end
+  end
+end
+
+
+opt.generator.split(',').each do |generator|
+  opt.mode.split(',').each do |mode|
+    configure(generator, mode, opt)
+  end
+end

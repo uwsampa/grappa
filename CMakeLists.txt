@@ -7,18 +7,21 @@ option(TRACING "Sample statistics with VTrace at regular intervals." OFF)
 
 set(CMAKE_MODULE_PATH ${CMAKE_MODULE_PATH} ${CMAKE_SOURCE_DIR}/cmake)
 
-if( NOT DEFINED ENV{CXX} )
-  message(FATAL_ERROR "you must set CC & CXX environment variables!")
-endif()
+# if( NOT DEFINED ENV{CXX} )
+#   message(FATAL_ERROR "you must set CC & CXX environment variables!")
+# endif()
 
 project(Grappa)
 
 set(CMAKE_C_FLAGS_RELWITHDEBINFO "-O3 -g")
 set(CMAKE_CXX_FLAGS_RELWITHDEBINFO "-O3 -g")
 
+set(CMAKE_C_FLAGS_DEBUG "-O1 -DDEBUG")
+set(CMAKE_CXX_FLAGS_DEBUG "-O1 -DDEBUG")
+
 set_property(GLOBAL PROPERTY USE_FOLDERS ON)
 enable_testing()
-set(CMAKE_BUILD_TYPE RelWithDebInfo)
+# set(CMAKE_BUILD_TYPE RelWithDebInfo)
 site_name(MACHINENAME)
 
 # set(TOOLS_INSTALL_DIR "${CMAKE_SOURCE_DIR}/tools/built_deps")
