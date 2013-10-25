@@ -1,3 +1,4 @@
+// make -j TARGET=gups1.exe mpi_run GARGS=" --sizeB=$(( 1 << 28 )) --loop_threshold=1024" PPN=8 NNODE=12
 
 #include <Grappa.hpp>
 
@@ -10,16 +11,15 @@
 
 using namespace Grappa;
 
-DEFINE_int64( iterations, 1 << 30, "Number of iterations" );
-DEFINE_int64( sizeA, 1 << 10, "Size of array that GUPS increments" );
-
-DEFINE_bool( verify, false, "Verify count of increments" );
+DEFINE_int64( sizeA, 1 << 30, "Size of array that GUPS increments" );
+DEFINE_int64( sizeB, 1 << 20, "Number of iterations" );
 
 GRAPPA_DEFINE_STAT( SimpleStatistic<double>, gups_runtime, 0.0 );
 GRAPPA_DEFINE_STAT( SimpleStatistic<double>, gups_throughput, 0.0 );
 
 const uint64_t lcgM = 6364136223846793005UL;
 const uint64_t lcgB = 1442695040888963407UL;
+const uint64_t LARGE_PRIME = 18446744073709551557UL;
 
 int main( int argc, char * argv[] ) {
 
@@ -32,25 +32,14 @@ int main( int argc, char * argv[] ) {
 
       double start = walltime();
 
-      forall_global_public(0, FLAGS_iterations, [=](int64_t i){
-          uint64_t offset = (lcgM * i + lcgB) % FLAGS_sizeA;
-          delegate::fetch_and_add( A + offset, 1);
-          //delegate::increment_async( A + offset, 1);
+      forall_global_public(0, FLAGS_sizeB, [=](int64_t i){
+          uint64_t b = (lcgM * i + lcgB) % FLAGS_sizeA;
+          delegate::increment_async( A + b, 1);
         });
 
       gups_runtime = walltime() - start;
-      gups_throughput = FLAGS_iterations / gups_runtime;
+      gups_throughput = FLAGS_sizeB / gups_runtime;
 
-      if( FLAGS_verify ) {
-        static int64_t local_increment_count = 0;
-        forall_localized( A, FLAGS_sizeA, [](int64_t& x) {
-            local_increment_count += x;
-          } );
-
-        int64_t total_increment_count = reduce<int64_t,collective_add>(&local_increment_count);
-        CHECK_EQ( total_increment_count, FLAGS_iterations ) << "Verify failed.";
-      }
-      
       LOG(INFO) << gups_throughput.value() << " UPS in " << gups_runtime.value() << " seconds";
 
       global_free(A);
