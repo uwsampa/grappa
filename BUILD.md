@@ -25,6 +25,9 @@ This will build the Grappa static library (in `build/Make+Release/system/libGrap
 - GCC version >= 4.7.
   - on the Sampa cluster: `/sampa/share/gcc-4.7.2/rtf/bin/{gcc,g++}`
   - on Pal: `module load gcc-4.7.2`
+- MPI (tested with OpenMPI & Mvapich2)
+  - on Sampa: should be autodetected
+  - on Pal: `module load mvapich2/1.9b`
 
 ## Configure
 
