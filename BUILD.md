@@ -18,6 +18,14 @@ This will build the Grappa static library (in `build/Make+Release/system/libGrap
     # to run, use the 'srun' script which has been copied to build/Make+Release/bin:
     bin/grappa_srun.rb --nnode=4 --ppn=4 -- applications/graph500/grappa/graph_new.exe --scale=20 --bench=bfs
 
+## Requirements
+- CMake version >= 2.8.6
+  - on the Sampa cluster: `/sampa/share/cmake/bin/cmake`
+  - on Pal: `module load cmake`
+- GCC version >= 4.7.
+  - on the Sampa cluster: `/sampa/share/gcc-4.7.2/rtf/bin/{gcc,g++}`
+  - on Pal: `module load gcc-4.7.2`
+
 ## Configure
 
 The `configure` script is used to create "build/*" subdirectories and run CMake to generate build files.

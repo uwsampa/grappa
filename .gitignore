@@ -70,8 +70,6 @@ config.status
 stamp-h1
 config.h
 
-/extern*
-
 # documentation
 /system/doxygen/*
 
