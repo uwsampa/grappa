@@ -18,7 +18,7 @@ OptionParser.new{|p|
 
 unless opt.generator =~ /Xcode/ # (Xcode generator currently chokes on other compilers...)
   if not(opt.cc) || not(opt.cxx)
-    abort("Must specify CC & CXX, either by setting the environment variables or using '--cc=' & '--cxx=' flags")
+    abort("Must specify CC & CXX, either by setting the environment variables or using '--cc=' & '--cxx=' flags\nhint: if the compiler you want is on your PATH, you can do: --cc=$(which gcc) --cxx=$(which g++)...")
   end
 end
 
@@ -60,6 +60,7 @@ def configure(generator, mode, opt)
       puts "-------------------------------------"
       puts "created #{build_dir}; to build:\n> cd #{build_dir}; " + 
         {'Make'=>'make -j','Ninja'=>'ninja','Xcode'=>'xcodebuild'}[generator]
+      puts "-------------------------------------"
     end
   end
 end
