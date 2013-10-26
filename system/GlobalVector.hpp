@@ -319,17 +319,12 @@ protected:
   Master master;
   FlatCombiner<Proxy> proxy;
   
-  static const size_t padded_size = 4*block_size;
-  char _pad[padded_size-sizeof(base)-sizeof(capacity)-sizeof(self)-sizeof(master)-sizeof(proxy)];
-  
 public:
   GlobalVector(): proxy(locale_new<Proxy>(this)) {}
   
   GlobalVector(GlobalAddress<GlobalVector> self, GlobalAddress<T> storage_base, size_t total_capacity)
     : proxy(locale_new<Proxy>(this))
   {
-    size_t sz = sizeof(base)+sizeof(capacity)+sizeof(self)+sizeof(master)+sizeof(proxy);
-    CHECK_LT(sz, padded_size);
     this->self = self;
     base = storage_base;
     capacity = total_capacity;
@@ -338,8 +333,8 @@ public:
   
   static GlobalAddress<GlobalVector> create(size_t total_capacity) {
     auto base = global_alloc<T>(total_capacity);
-    auto self = mirrored_global_alloc<GlobalVector>();
-    VLOG(0) << "create:\n  self = " << self << "\n  base = " << base;
+    auto self = symmetric_global_alloc<GlobalVector>();
+    VLOG(3) << "create:\n  self = " << self << "\n  base = " << base;
     call_on_all_cores([self,base,total_capacity]{
       new (self.localize()) GlobalVector(self, base, total_capacity);
     });
@@ -441,7 +436,9 @@ public:
 
   template< GlobalCompletionEvent * GCE, int64_t Threshold, typename TT, typename F >
   friend void forall_localized(GlobalAddress<GlobalVector<TT>> self, F func);  
-};
+
+// make sure it's aligned to linear address block_size so we can mirror-allocate it
+} GRAPPA_BLOCK_ALIGNED;
 
 template< GlobalCompletionEvent * GCE = &impl::local_gce,
           int64_t Threshold = impl::USE_LOOP_THRESHOLD_FLAG,

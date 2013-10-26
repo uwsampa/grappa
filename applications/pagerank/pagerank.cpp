@@ -70,22 +70,16 @@ void calculate_dM( weighted_csr_graph m, double d ) {
 
 AllReducer<double,collective_add> diff_sum_sq(0.0f);
 double two_norm_diff_result;
-double two_norm_diff(vector v2, vector v1) {
+double two_norm_diff(vector vs, vindex j2, vindex j1) {
   on_all_cores( [] {
     diff_sum_sq.reset();
   });
 
-  forall_global_public( 0, v1.length, [v2,v1]( int64_t start, int64_t iters ) {
-    for ( int64_t i=start; i<start+iters; i++ ) {
-      Incoherent<double>::RO cv1(v1.a+i, 1);
-      Incoherent<double>::RO cv2(v2.a+i, 1);
-      cv1.start_acquire();
-      cv2.start_acquire();
-
-      double diff = *cv2 - *cv1;
-      VLOG(5) << "diff[" << i << "] = " << *cv2 << " - " << *cv1 << " = " << diff;
+  /* This line is the only one that really required the element_pair hack */
+  forall_localized( vs.a, vs.length, [j2,j1]( int64_t i, element_pair& ele ) {
+    double diff = ele.vp[j2] - ele.vp[j1];
+      /* NOTFORPAIR *///VLOG(5) << "diff[" << i << "] = " << *cv2 << " - " << *cv1 << " = " << diff;
       diff_sum_sq.accumulate(diff*diff);
-    }
   });
 
   on_all_cores( [] {
@@ -102,12 +96,13 @@ double two_norm_diff(vector v2, vector v1) {
 AllReducer<double,collective_add> sum_sq(0.0f);
 double sqrt_total_sum_sq; // instead of a file-global could also pass to on_all_cores but its extra bandwidth
 
-void normalize( vector v ) {
+void normalize( vector v, vindex j ) {
   // calculate sum of squares
   on_all_cores( [] { sum_sq.reset(); } );
-  forall_localized( v.a, v.length, []( int64_t i, double& ele ) {
-    VLOG(5) << "normalize sum += " << ele;
-    sum_sq.accumulate(ele * ele);
+  forall_localized( v.a, v.length, [j]( int64_t i, element_pair& ele ) {
+    //VLOG(5) << "normalize sum += " << ele;
+    double ej = ele.vp[j];
+    sum_sq.accumulate(ej * ej);
   });
   on_all_cores( [] { 
     double total_sum_sq = sum_sq.finish();
@@ -117,8 +112,8 @@ void normalize( vector v ) {
   VLOG(4) << "normalize sum total = " << sqrt_total_sum_sq;
 
   // normalize
-  forall_localized( v.a, v.length, []( int64_t i, double& ele) {
-    ele /= sqrt_total_sum_sq;
+  forall_localized( v.a, v.length, [j]( int64_t i, element_pair& ele) {
+    ele.vp[j] /= sqrt_total_sum_sq;
   });
 }
 
@@ -126,21 +121,28 @@ void normalize( vector v ) {
 // adding (1-d)/N vec(1) ////
 double damp_vector_val;
 
-void add_constant_vector( vector v ) {
-  forall_localized( v.a, v.length, []( int64_t i, double& e ) {
-    e += damp_vector_val;
+void add_constant_vector( vector v, vindex j ) {
+  forall_localized( v.a, v.length, [j]( int64_t i, element_pair& e ) {
+    e.vp[j] += damp_vector_val;
   });
 }
 /////////////////////////
 
 struct pagerank_result {
   vector ranks;
+  vindex which;  // which of the two vectors is V
   uint64_t num_iters;
 };
 
 // Iterative method
 // R(t+1) = dMR(t) + (1-d)/N vec(1)
 pagerank_result pagerank( weighted_csr_graph m, double d, double epsilon ) {
+  LOG(INFO) << "version: 'iterative_new'";
+  
+  // bookeeping for which vector is which
+  vindex V = 0;
+  vindex LAST_V = 1;
+
   double time;
 
   // setup
@@ -155,23 +157,22 @@ pagerank_result pagerank( weighted_csr_graph m, double d, double epsilon ) {
     // current pagerank vector: initialize to random values on [0,1]
     vector v;
     v.length = m.nv;
-    v.a = Grappa_typed_malloc<double>(v.length);
+    v.a = Grappa_typed_malloc<element_pair>(v.length);
     on_all_cores( [] { srand(0); } );
-    forall_localized( v.a, v.length, []( int64_t i, double& ele ) {
-      ele = ((double)rand()/RAND_MAX); //[0,1]
+    forall_localized( v.a, v.length, [V]( int64_t i, element_pair& ele ) {
+      ele.vp[V] = ((double)rand()/RAND_MAX); //[0,1]
       });
 
-    if ( v.length <= 16 ) vector_out( &v, LOG(INFO) );
-    normalize( v );
+    //if ( v.length <= 16 ) vector_out( &v, LOG(INFO) );
+    normalize( v, V );
 
     // last pagerank vector: initialize to -inf
-    vector last_v;
-    last_v.length = m.nv;
-    last_v.a = Grappa_typed_malloc<double>(last_v.length);
-    Grappa_memset_local(last_v.a, -1000.0f, last_v.length);
+    forall_localized( v.a, v.length, [LAST_V]( int64_t i, element_pair& ele ) {
+      ele.vp[LAST_V] = -1000.0f;
+    });
 
     LOG(INFO) << "Begin pagerank";
-    if ( v.length <= 16 ) vector_out( &v, LOG(INFO) );
+    //if ( v.length <= 16 ) vector_out( &v, LOG(INFO) );
 
     // set the damping vector 
     auto dv = (1-d)/m.nv;
@@ -191,48 +192,53 @@ pagerank_result pagerank( weighted_csr_graph m, double d, double epsilon ) {
     LOG(INFO) << "starting iter " << iter << ", delta = " << delta;
 
     // update last_v
-    vector temp = last_v;
-    last_v = v;
-    v = temp;
+    int temp = LAST_V;
+    LAST_V = V;
+    V = temp;
     
     // initialize target to zero
-    Grappa_memset_local(v.a, 0.0f, v.length);
+    forall_localized( v.a, v.length, [V]( int64_t i, element_pair& ele ) {
+      ele.vp[V] = 0.0f;
+    });
+
 
     TIME(time,
       // multiply: v = dM*last_v
-      spmv_mult( m, last_v, v );
+      spmv_mult( m, v, LAST_V, V);
     );
     multiply_time += time;
 
     TIME(time,
       // v += (1-d)/N * vec(1)
-      add_constant_vector( v );
+      add_constant_vector( v, V );
     );
     vector_add_time += time;
 
-    if ( v.length <= 16 ) vector_out( &v, LOG(INFO) );
+    //if ( v.length <= 16 ) vector_out( &v, LOG(INFO) );
    
     TIME(time,
       // normalize: v = v/2norm(v)
-      normalize( v ); 
+      normalize( v, V ); 
 
       iter++;
-      delta = two_norm_diff( v, last_v );
+      delta = two_norm_diff( v, V, LAST_V );
     );
     norm_and_diff_time += time;
 
     iend = Grappa_walltime();
     iterations_time += (iend-istart);
+    LOG(INFO) << "-->done (time " << iend-istart <<")";
   }
 
   LOG(INFO) << "ended with delta = " << delta;
   
   // free the extra vector
-  Grappa_free( last_v.a );
+  Grappa_free( v.a );
 
   // return pagerank
   pagerank_result res;
   res.ranks = v;
+  res.which = V;
   res.num_iters = iter;
   return res;
 }
@@ -294,12 +300,14 @@ void user_main( int * ignore ) {
   }
 
   Grappa::Statistics::reset();
+  Grappa::Statistics::start_tracing();
 
   pagerank_result result;
   TIME(time,
     result = pagerank( g, FLAGS_damping, FLAGS_epsilon );
   );
   pagerank_time_SO = time;
+  Grappa::Statistics::stop_tracing();
 
   // output stats
   make_graph_time   = make_graph_time_SO;
@@ -309,10 +317,11 @@ void user_main( int * ignore ) {
   Grappa::Statistics::merge_and_print();
 
   vector rank = result.ranks;
+  vindex which = result.which;
 
   // TODO: print out pagerank stats, like mean, median, min, max
   // could also print out random sample of them for verify
-  if ( rank.length <= 16 ) vector_out( &rank, std::cout );
+  //if ( rank.length <= 16 ) vector_out( &rank, std::cout );
 }
 
 /// Main() entry

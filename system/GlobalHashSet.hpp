@@ -34,9 +34,8 @@ protected:
   
   struct Cell { // TODO: keep first few in the 64-byte block, then go to secondary storage
     std::vector<Entry> entries;
-    char padding[64-sizeof(std::vector<Entry>)];
     Cell() { entries.reserve(16); }
-  };
+  } GRAPPA_BLOCK_ALIGNED;
 
   struct ResultEntry {
     bool result;
@@ -119,8 +118,6 @@ protected:
   
   FlatCombiner<Proxy> proxy;
   
-  char _pad[block_size - sizeof(self)-sizeof(base)-sizeof(capacity)-sizeof(proxy)-sizeof(count)];
-
   uint64_t computeIndex( K key ) {
     static std::hash<K> hasher;
     return hasher(key) % capacity;
@@ -136,7 +133,7 @@ public:
   
   static GlobalAddress<GlobalHashSet> create(size_t total_capacity) {
     auto base = global_alloc<Cell>(total_capacity);
-    auto self = mirrored_global_alloc<GlobalHashSet>();
+    auto self = symmetric_global_alloc<GlobalHashSet>();
     call_on_all_cores([self,base,total_capacity]{
       new (self.localize()) GlobalHashSet(self, base, total_capacity);
     });
@@ -204,9 +201,13 @@ public:
     }
   }
 
-  // Inserts the key if not already in the set
-  //
-  // asynchronous operation
+  /// Inserts the key if not already in the set.
+  ///
+  /// \note To guarantee completion, user must call 'sync_all_cores()' if any async operations have been done.
+  ///
+  /// asynchronous operation
+  ///
+  /// TODO: detect if async's were used without calling 'sync'.
   template< typename F >
   void insert_async( K key, F sync) {
     ++hashset_insert_ops;
@@ -246,7 +247,7 @@ public:
     return count;
   }
   
-};
+} GRAPPA_BLOCK_ALIGNED;
 
 } // namespace Grappa
 

@@ -336,14 +336,14 @@ void search_vertex( int64_t id ) {
 
   GlobalAddress<vertex_t> v_addr = Vertex + id;
   { 
-    vertex_t v_storage;
-    Incoherent<vertex_t>::RO v( v_addr, 1, &v_storage );
+    // vertex_t v_storage;
+    // Incoherent<vertex_t>::RO v( v_addr, 1, &v_storage );
     /* (v) = Vertex[id] */
+    vertex_t v = delegate::read(v_addr);
+    DVLOG(5) << "Search vertex " << v << "(local count = " << uts_num_searched_nodes << ")";
 
-    DVLOG(5) << "Search vertex " << *v << "(local count = " << uts_num_searched_nodes << ")";
-
-    numChildren = (*v).numChildren;
-    childIndex = (*v).childIndex;
+    numChildren = v.numChildren;
+    childIndex = v.childIndex;
   }
 
   // iterate over my children 
@@ -419,19 +419,6 @@ void safe_initialize_data() {
 /* *****************************
  * User main program
 * *****************************/
-
-// utilities for ALLNODES operations
-void start_profiling() {
-  on_all_cores( [] {
-    Grappa_start_profiling();
-  });
-}
-
-void stop_profiling() {
-  on_all_cores( [] {
-    Grappa_stop_profiling();
-  });
-}
 
 void par_create_tree() {
   global_id = 0;
@@ -523,8 +510,7 @@ void user_main ( user_main_args * args ) {
   //
   LOG(INFO) << "starting tree generation";
   Result r_gen;
-  //    start_profiling();
-  on_all_cores( [] { Grappa::Statistics::reset(); } );
+  Grappa::Statistics::start_tracing();
   t1 = uts_wctime();
 
   par_create_tree();
@@ -535,7 +521,7 @@ void user_main ( user_main_args * args ) {
 
   t2 = uts_wctime();
   //Grappa::Statistics::merge_and_print();
-  //    stop_profiling();
+  // Grappa::Statitics::stop_tracing();
 
 
   // count nodes generated
@@ -589,8 +575,8 @@ void user_main ( user_main_args * args ) {
   //
   LOG(INFO) << "starting tree search";
   Result r_search;
-  //start_profiling();
-  on_all_cores( [] { Grappa::Statistics::reset(); } );
+  //Grappa::Statistics::start_tracing();
+  Grappa::Statistics::reset_all_cores();
   t1 = uts_wctime();
  
   par_search_tree( 0 );
@@ -600,13 +586,13 @@ void user_main ( user_main_args * args ) {
   r_search.size = -1; // will calculate with reduce
   
   t2 = uts_wctime();
-  //stop_profiling();
+  // Grappa::Statistics::stop_tracing();
   
   double local_search_runtime = t2-t1;
   generate_runtime = local_gen_runtime; // write performance output
   search_runtime = local_search_runtime; // write performance output
 
-  Grappa::Statistics::merge_and_print();
+  Grappa::Statistics::merge_and_print(LOG(INFO));
 
   // count nodes searched
   on_all_cores( [] {

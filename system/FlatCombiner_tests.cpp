@@ -21,11 +21,11 @@ BOOST_AUTO_TEST_SUITE( FlatCombiner_tests );
 struct Foo {
   long x, y;
   double z;
-} __attribute__((aligned(BLOCK_SIZE)));
+} GRAPPA_BLOCK_ALIGNED;
 
 void user_main( void * ignore ) {
   CHECK_EQ(sizeof(Foo), block_size);
-  auto f = mirrored_global_alloc<Foo>();
+  auto f = symmetric_global_alloc<Foo>();
   on_all_cores([f]{
     f->x = 1;
     f->y = 2;

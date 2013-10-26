@@ -84,6 +84,14 @@ GRAPPA_DEFINE_STAT( SimpleStatistic<int64_t>, rdma_flush_receive, 0 );
 
 GRAPPA_DEFINE_STAT( SummarizingStatistic<double>, rdma_local_delivery_time, 0 );
 
+GRAPPA_DEFINE_STAT( SimpleStatistic<int64_t>, workers_send_blocked, 0 );
+GRAPPA_DEFINE_STAT( SimpleStatistic<int64_t>, workers_idle_blocked, 0 );
+GRAPPA_DEFINE_STAT( SimpleStatistic<int64_t>, workers_receive_blocked, 0 );
+GRAPPA_DEFINE_STAT( SimpleStatistic<int64_t>, workers_block_remote_buffer, 0 );
+GRAPPA_DEFINE_STAT( SimpleStatistic<int64_t>, workers_block_local_buffer, 0 );
+GRAPPA_DEFINE_STAT( SimpleStatistic<int64_t>, workers_active_send, 0 );
+
+GRAPPA_DEFINE_STAT( SimpleStatistic<int64_t>, rdma_enqueue_buffer_am, 0 );
 
 
 GRAPPA_DEFINE_STAT(HistogramStatistic, app_bytes_sent_histogram, 0);
@@ -113,7 +121,9 @@ namespace Grappa {
     /// ensures we always have some sending resource available.
     void RDMAAggregator::idle_flusher() {
       while( !Grappa_done_flag ) {
+        ++workers_idle_blocked;
         Grappa::wait( &flush_cv_ );
+        --workers_idle_blocked;
         rdma_idle_flushes++;
 
         Core c = Grappa::mycore();
@@ -418,6 +428,7 @@ namespace Grappa {
     }
 
     void RDMAAggregator::enqueue_buffer_am( gasnet_token_t token, void * buf, size_t size ) {
+      ++rdma_enqueue_buffer_am;
 #ifdef DEBUG
       gasnet_node_t src = -1;
       gasnet_AMGetMsgSource(token,&src);
@@ -665,10 +676,12 @@ void RDMAAggregator::draw_routing_graph() {
     CoreData * locale_core = localeCoreData( locale * Grappa::locale_cores() );
 
     while( !Grappa_done_flag ) {
-
+      
       // block until it's time to send to this locale
       Grappa::impl::global_scheduler.assign_time_to_networking();
+      ++workers_send_blocked;
       Grappa::wait( &(locale_core->send_cv_) );
+      --workers_send_blocked;
 
       active_send_workers_++;
       
@@ -698,7 +711,9 @@ void RDMAAggregator::draw_routing_graph() {
       buf = NULL;
       while( buf == NULL ) {
         Grappa::impl::global_scheduler.assign_time_to_networking();
+        ++workers_receive_blocked;
         buf = received_buffer_list_.block_until_pop();
+        --workers_receive_blocked;
         CHECK_NOTNULL( buf );
       }
       
@@ -749,7 +764,9 @@ void RDMAAggregator::draw_routing_graph() {
       // block until we have a buffer to deaggregate
       buf = NULL;
       while( buf == NULL ) {
+        ++workers_receive_blocked;
         buf = received_buffer_list_.block_until_pop();
+        --workers_receive_blocked;
         CHECK_NOTNULL( buf );
       }
       
@@ -905,6 +922,7 @@ void RDMAAggregator::draw_routing_graph() {
       size_t RDMAAggregator::deliver_locally( Core core,
                                             Grappa::impl::MessageList ml,
                                             CoreData * dest ) {
+                                              
       MessageBase * messages_to_send = get_pointer( &ml );
       size_t delivered_count = 0;
       size_t delivered_bytes = 0;
@@ -1095,6 +1113,7 @@ void RDMAAggregator::draw_routing_graph() {
   void RDMAAggregator::send_locale( Locale locale ) {
     rdma_send_start++;
     active_send_workers_++;
+    ++workers_active_send;
     static uint64_t sequence_number = Grappa::mycore();
 
     int buffers_used_for_send = 0;
@@ -1124,14 +1143,18 @@ void RDMAAggregator::draw_routing_graph() {
       // by doing this first, we limit the rate at which we consume buffers from the local free list
       // as well as allowing the remote node to limit the rate we send
       Grappa::impl::global_scheduler.assign_time_to_networking();
+      ++workers_block_remote_buffer;
       RDMABuffer * dest_buf = localeCoreData( dest_core )->remote_buffers_.block_until_pop();
+      --workers_block_remote_buffer;
       CHECK_NOTNULL( dest_buf );
 
       rdma_buffers_inuse += remote_buffer_pool_size - localeCoreData( dest_core )->remote_buffers_.count();
 
       // now, grab a temporary buffer for local serialization
       Grappa::impl::global_scheduler.assign_time_to_networking();
+      ++workers_block_local_buffer;
       RDMABuffer * b = free_buffer_list_.block_until_pop();
+      --workers_block_local_buffer;
 
       // but only use enough bytes that we can fit in a medium AM.
       const size_t max_size = b->get_max_size();
@@ -1299,6 +1322,7 @@ void RDMAAggregator::draw_routing_graph() {
 
     active_send_workers_--;
     rdma_send_end++;
+    --workers_active_send;
   }
 
 

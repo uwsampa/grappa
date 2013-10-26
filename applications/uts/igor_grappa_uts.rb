@@ -29,7 +29,7 @@ Igor do
                    poll_on_idle 1
                     vmodule "uts_grappa*=2"
                      v       1
-                     flat_combine true
+                     flat_combine false
                      flat_combine_threshold expr('num_starting_workers/2')
   }
   params.merge!(GFLAGS)

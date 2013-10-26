@@ -123,6 +123,7 @@ namespace Grappa {
 /// Allocate bytes from the global shared heap.
 template< typename T = void >
 GlobalAddress<T> global_alloc(size_t count) {
+  CHECK_GT(count, 0) << "allocation must be greater than 0";
   return static_cast<GlobalAddress<T>>(GlobalAllocator::remote_malloc(sizeof(T)*count));
 }
 
@@ -136,9 +137,9 @@ void global_free(GlobalAddress<T> address) {
 /// (must currently round up to a multiple of block_size plus an additional block 
 /// to ensure there is a valid address range no matter which core allocation starts on).
 template< typename T, Core MASTER_CORE = 0 >
-GlobalAddress<T> mirrored_global_alloc() {
+GlobalAddress<T> symmetric_global_alloc() {
   static_assert(sizeof(T) % block_size == 0,
-                "must pad global proxy to multiple of block_size");
+                "must pad global proxy to multiple of block_size, or use GRAPPA_BLOCK_ALIGNED");
   // allocate enough space that we are guaranteed to get one on each core at same location
   auto qac = global_alloc<char>(cores()*(sizeof(T)+block_size));
   while (qac.core() != MASTER_CORE) qac++;

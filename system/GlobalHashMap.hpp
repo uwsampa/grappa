@@ -29,7 +29,6 @@ protected:
   
   struct Cell { // TODO: keep first few in the 64-byte block, then go to secondary storage
     std::vector<Entry> entries;
-    char padding[64-sizeof(std::vector<Entry>)];
     
     Cell() : entries() { entries.reserve(10); }
     
@@ -53,7 +52,7 @@ protected:
         entries.emplace_back(key, val);
       }
     }
-  };
+  } GRAPPA_BLOCK_ALIGNED;
   
   struct ResultEntry {
     bool found;
@@ -140,8 +139,6 @@ protected:
   
   FlatCombiner<Proxy> proxy;
 
-  char _pad[2*block_size - sizeof(self)-sizeof(base)-sizeof(capacity)-sizeof(proxy)];
-
   uint64_t computeIndex(K key) {
     static std::hash<K> hasher;
     return hasher(key) % capacity;
@@ -161,7 +158,7 @@ public:
   
   static GlobalAddress<GlobalHashMap> create(size_t total_capacity) {
     auto base = global_alloc<Cell>(total_capacity);
-    auto self = mirrored_global_alloc<GlobalHashMap>();
+    auto self = symmetric_global_alloc<GlobalHashMap>();
     call_on_all_cores([self,base,total_capacity]{
       new (self.localize()) GlobalHashMap(self, base, total_capacity);
     });
@@ -238,7 +235,7 @@ public:
             typename TT, typename VV, typename F >
   friend void forall_localized(GlobalAddress<GlobalHashMap<TT,VV>> self, F func);  
   
-};
+} GRAPPA_BLOCK_ALIGNED;
 
 template< GlobalCompletionEvent * GCE = &impl::local_gce,
           int64_t Threshold = impl::USE_LOOP_THRESHOLD_FLAG,

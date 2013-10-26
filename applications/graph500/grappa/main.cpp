@@ -58,19 +58,6 @@ DEFINE_double(beamer_beta, 20.0, "Beamer BFS parameter for switching back to top
 
 // test change
 
-static int compare_doubles(const void* a, const void* b) {
-  double aa = *(const double*)a;
-  double bb = *(const double*)b;
-  return (aa < bb) ? -1 : (aa == bb) ? 0 : 1;
-}
-enum {s_minimum, s_firstquartile, s_median, s_thirdquartile, s_maximum, s_mean, s_std, s_LAST};
-static void get_statistics(const double x[], int n, double r[s_LAST]);
-void output_results (const int64_t SCALE, int64_t nvtx_scale, int64_t edgefactor,
-                const double A, const double B, const double C, const double D,
-                const double generation_time,
-                const double construction_time,
-                const int NBFS, const double *bfs_time, const int64_t *bfs_nedge);
-
 //### Globals ###
 static int64_t nvtx_scale;
 
@@ -332,8 +319,7 @@ static void user_main(int * args) {
   } // checkpoint_in may change 'load_checkpoint' to false if unable to read in file correctly
   
   if (!load_checkpoint) {
-
-    tg.edges = Grappa_typed_malloc<packed_edge>(desired_nedge);
+    tg.edges = global_alloc<packed_edge>(desired_nedge);
     
     /* Make the raw graph edges. */
     /* Get roots for BFS runs, plus maximum vertex with non-zero degree (used by
@@ -342,47 +328,13 @@ static void user_main(int * args) {
     double start, stop;
     start = timer();
     {
-      /* As the graph is being generated, also keep a bitmap of vertices with
-       * incident edges.  We keep a grid of processes, each row of which has a
-       * separate copy of the bitmap (distributed among the processes in the
-       * row), and then do an allreduce at the end.  This scheme is used to avoid
-       * non-local communication and reading the file separately just to find BFS
-       * roots. */
-     
-      if (use_RMAT) { 
-        tg.nedge = (int64_t)(edgefactor) << SCALE;
-        CHECK( false ) << "RMAT not currently supported";
-       // rmat_edgelist(&tg, SCALE);
-        //debug: verify that rmat edgelist is valid
-        //    for (int64_t i=0; i<tg.nedge; i++) {
-        //      Incoherent<packed_edge>::RO e(tg.edges+i, 1);
-        //      VLOG(1) << "edge[" << i << "] = " << (*e).v0 << " -> " << (*e).v1;
-        //    }
-        //    
-        //    int64_t NV = 1<<SCALE;
-        //    int64_t degree[NV];
-        //    for (int64_t i=0; i<NV; i++) degree[i] = 0;
-        //    
-        //    for (int64_t i=0; i<tg.nedge; i++) {
-        //      Incoherent<packed_edge>::RO e(tg.edges+i, 1);
-        //      assert(e[0].v0 < NV);
-        //      assert(e[0].v1 < NV);
-        //      if (e[0].v0 != e[0].v1) {
-        //        degree[e[0].v0]++;
-        //        degree[e[0].v1]++;
-        //      }
-        //    }
-        //    for (int64_t i=0; i<NV; i++) {
-        //      VLOG(1) << "degree[" << i << "] = " << degree[i];
-        //    }
-      } else {
-        make_graph( SCALE, desired_nedge, userseed, userseed, &tg.nedge, &tg.edges );
-      }
+      make_graph( SCALE, desired_nedge, userseed, userseed, &tg.nedge, &tg.edges );
     }
     stop = timer();
     generation_time = stop - start;
     LOG(INFO) << "graph_generation: " << generation_time;
     
+    // construct graph
     setup_bfs(&tg, &g, bfs_roots);
     
     if (write_checkpoint) checkpoint_out(&tg, &g, bfs_roots);
@@ -424,160 +376,3 @@ int main(int argc, char** argv) {
   return 0;
 }
 
-#define NSTAT 9
-#define PRINT_STATS(lbl, israte)					\
-  do {									\
-    printf ("min_%s: %20.17e\n", lbl, stats[0]);			\
-    printf ("firstquartile_%s: %20.17e\n", lbl, stats[1]);		\
-    printf ("median_%s: %20.17e\n", lbl, stats[2]);			\
-    printf ("thirdquartile_%s: %20.17e\n", lbl, stats[3]);		\
-    printf ("max_%s: %20.17e\n", lbl, stats[4]);			\
-    if (!israte) {							\
-      printf ("mean_%s: %20.17e\n", lbl, stats[5]);			\
-      printf ("stddev_%s: %20.17e\n", lbl, stats[6]);			\
-    } else {								\
-      printf ("harmonic_mean_%s: %20.17e\n", lbl, stats[7]);		\
-      printf ("harmonic_stddev_%s: %20.17e\n", lbl, stats[8]);	\
-    }									\
-  } while (0)
-
-static int
-dcmp (const void *a, const void *b)
-{
-	const double da = *(const double*)a;
-	const double db = *(const double*)b;
-	if (da > db) return 1;
-	if (db > da) return -1;
-	if (da == db) return 0;
-	fprintf (stderr, "No NaNs permitted in output.\n");
-	abort ();
-	return 0;
-}
-
-static void get_statistics(const double x[], int n, double r[s_LAST]) {
-  double temp;
-  int i;
-  /* Compute mean. */
-  temp = 0;
-  for (i = 0; i < n; ++i) temp += x[i];
-  temp /= n;
-  r[s_mean] = temp;
-  /* Compute std. dev. */
-  temp = 0;
-  for (i = 0; i < n; ++i) temp += (x[i] - r[s_mean]) * (x[i] - r[s_mean]);
-  temp /= n - 1;
-  r[s_std] = sqrt(temp);
-  /* Sort x. */
-  double* xx = (double*)xmalloc(n * sizeof(double));
-  memcpy(xx, x, n * sizeof(double));
-  qsort(xx, n, sizeof(double), compare_doubles);
-  /* Get order statistics. */
-  r[s_minimum] = xx[0];
-  r[s_firstquartile] = (xx[(n - 1) / 4] + xx[n / 4]) * .5;
-  r[s_median] = (xx[(n - 1) / 2] + xx[n / 2]) * .5;
-  r[s_thirdquartile] = (xx[n - 1 - (n - 1) / 4] + xx[n - 1 - n / 4]) * .5;
-  r[s_maximum] = xx[n - 1];
-  /* Clean up. */
-  free(xx);
-}
-
-static void statistics(double *out, double *data, int64_t n) {
-	long double s, mean;
-	double t;
-	int64_t k;
-	
-	/* Quartiles */
-	qsort (data, n, sizeof (*data), dcmp);
-	out[0] = data[0];
-	t = (n+1) / 4.0;
-	k = (int) t;
-	if (t == k)
-		out[1] = data[k];
-	else
-		out[1] = 3*(data[k]/4.0) + data[k+1]/4.0;
-	t = (n+1) / 2.0;
-	k = (int) t;
-	if (t == k)
-		out[2] = data[k];
-	else
-		out[2] = data[k]/2.0 + data[k+1]/2.0;
-	t = 3*((n+1) / 4.0);
-	k = (int) t;
-	if (t == k)
-		out[3] = data[k];
-	else
-		out[3] = data[k]/4.0 + 3*(data[k+1]/4.0);
-	out[4] = data[n-1];
-	
-	s = data[n-1];
-	for (k = n-1; k > 0; --k)
-		s += data[k-1];
-	mean = s/n;
-	out[5] = mean;
-	s = data[n-1] - mean;
-	s *= s;
-	for (k = n-1; k > 0; --k) {
-		long double tmp = data[k-1] - mean;
-		s += tmp * tmp;
-	}
-	out[6] = sqrt (s/(n-1));
-	
-	s = (data[0]? 1.0L/data[0] : 0);
-	for (k = 1; k < n; ++k)
-		s += (data[k]? 1.0L/data[k] : 0);
-	out[7] = n/s;
-	mean = s/n;
-	
-	/*
-	 Nilan Norris, The Standard Errors of the Geometric and Harmonic
-	 Means and Their Application to Index Numbers, 1940.
-	 http://www.jstor.org/stable/2235723
-	 */
-	s = (data[0]? 1.0L/data[0] : 0) - mean;
-	s *= s;
-	for (k = 1; k < n; ++k) {
-		long double tmp = (data[k]? 1.0L/data[k] : 0) - mean;
-		s += tmp * tmp;
-	}
-	s = (sqrt (s)/(n-1)) * out[7] * out[7];
-	out[8] = s;
-}
-
-void output_results(const int64_t SCALE, int64_t nvtx_scale, int64_t edgefactor,
-                    const double A, const double B, const double C, const double D,
-                    const double generation_time,
-                    const double construction_time,
-                    const int NBFS, const double *bfs_time, const int64_t *bfs_nedge) {
-	int k;
-	int64_t sz;
-	double tm[NBFS];
-	double stats[NSTAT];
-	
-	if (!tm || !stats) {
-		perror ("Error allocating within final statistics calculation.");
-		abort ();
-	}
-	
-	sz = (1L << SCALE) * edgefactor * 2 * sizeof (int64_t);
-	printf ("SCALE: %" PRId64 "\nnvtx: %" PRId64 "\nedgefactor: %" PRId64 "\n"
-          "terasize: %20.17e\n",
-          SCALE, nvtx_scale, edgefactor, sz/1.0e12);
-	printf ("A: %20.17e\nB: %20.17e\nC: %20.17e\nD: %20.17e\n", A, B, C, D);
-	printf ("generation_time: %20.17e\n", generation_time);
-	printf ("construction_time: %20.17e\n", construction_time);
-	printf ("nbfs: %d\n", NBFS);
-	
-	memcpy(tm, bfs_time, NBFS*sizeof(tm[0]));
-	statistics(stats, tm, NBFS);
-	PRINT_STATS("time", 0);
-	
-	for (k = 0; k < NBFS; ++k)
-		tm[k] = bfs_nedge[k];
-	statistics(stats, tm, NBFS);
-	PRINT_STATS("nedge", 0);
-	
-	for (k = 0; k < NBFS; ++k)
-		tm[k] = bfs_nedge[k] / bfs_time[k];
-	statistics(stats, tm, NBFS);
-	PRINT_STATS("TEPS", 1);
-}

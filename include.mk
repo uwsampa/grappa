@@ -56,6 +56,9 @@ LD=$(GCC472)/bin/g++ -I/usr/include/openmpi-x86_64 -pthread -m64 -L/usr/lib64/op
 GCC472_LD=$(GCC472)/bin/g++ -I/usr/include/openmpi-x86_64 -pthread -m64 -L/usr/lib64/openmpi/lib -lmpi_cxx -lmpi -ldl
 LD_LIBRARY_PATH:=$(GCC472)/lib64:$(LD_LIBRARY_PATH)
 
+MPI_ROOT= $(shell M=`which mpicxx`; echo $${M%%/bin/mpicxx})
+CFLAGS += -I$(MPI_ROOT)/include
+
 NONE_CC=$(CC)
 NONE_CXX=$(CXX)
 NONE_LD=$(LD)
@@ -87,6 +90,7 @@ NELSON=/pic/people/nels707
 CC=mpicc
 CXX=mpicxx
 LD=mpicxx
+
 
 #GASNET=$(NELSON)/gasnet
 HUGETLBFS=/usr
