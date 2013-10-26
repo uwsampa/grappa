@@ -1,7 +1,6 @@
 
 set(SOURCES
   common.h
-  main.cpp
   oned_csr.h
   oned_csr.cpp
   options.h
@@ -27,6 +26,9 @@ set(BFS_VARIANTS
 
 # make separate build targets for each BFS variant
 foreach(bfs ${BFS_VARIANTS})
-  add_grappa_application(${bfs}.exe ${SOURCES} ${bfs}.cpp)
+  add_grappa_application(${bfs}.exe ${SOURCES} main.cpp ${bfs}.cpp)
   target_link_libraries(${bfs}.exe generator)
 endforeach()
+
+add_grappa_application(graph_new.exe ${SOURCES} main_new.cpp bfs_local_adj.cpp)
+target_link_libraries(graph_new.exe generator)

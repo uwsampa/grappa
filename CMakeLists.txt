@@ -138,68 +138,27 @@ list(APPEND GRAPPA_ENV
   GLOG_v=1
 )
 
-# add_definitions(-DSHMMAX=12884901888) # 12 GB
-add_definitions(-DSHMMAX=6442450944) # 6 GB
 
-get_filename_component(CC_PATH ${CMAKE_C_COMPILER} PATH)
-#link_directories("${CC_PATH}/../lib64")
-
-# make sure we use the correct libstdc++
-# link_directories("${GCC_BASE}/bin/../lib64")
+add_definitions(-DSHMMAX=12884901888) # 12 GB
+# add_definitions(-DSHMMAX=6442450944) # 6 GB
 
 if(NOT APPLE)
   list(APPEND GRAPPA_LIBS pthread rt)
 endif()
 
-# boost is separate
+# build these boost libraries... (see tools/CMakeLists.txt for the ExternalProject declaration)
 set(Boost_LIBRARIES boost_filesystem boost_system boost_unit_test_framework )
 
-# if(APPLE)
-#   set(Boost_USE_MULTITHREADED ON)
-# endif()
-# # set(BOOST_ROOT ...)
-# find_package(Boost REQUIRED
-#   COMPONENTS filesystem system unit_test_framework
-# )
-# message(status "** Boost Include: ${Boost_INCLUDE_DIR}")
-# message(status "** Boost Libraries: ${Boost_LIBRARY_DIRS}")
-# message(status "** Boost Libraries: ${Boost_LIBRARIES}")
-# 
+# set(BOOST_ROOT ...)
+# find_package(Boost REQUIRED COMPONENTS filesystem system unit_test_framework )
 # include_directories(${Boost_INCLUDE_DIR})
 # link_directories(${Boost_LIBRARY_DIRS})
-
-# if(APPLE)
-#   set(BOOST_BASE "/usr/local")
-#   include_directories("${BOOST_BASE}/include")
-#   link_directories("${BOOST_BASE}/lib")
-# else()
-#   set(BOOST_BASE "/sampa/share/gcc-4.7.2/src/boost_1_51_0")
-#   include_directories("${BOOST_BASE}")
-#   link_directories("${BOOST_BASE}/stage/lib")
-# endif()
-#####################
-# find_library(BOOST boost PATHS ${BOOST_BASE} REQUIRED)
-
-# TODO: look for {,-mt} and pick what's available
-# if(APPLE)
-#   list(APPEND GRAPPA_LIBS
-#     boost_unit_test_framework-mt
-#     boost_filesystem-mt
-#     boost_system-mt
-#   )
-# else()
-#   list(APPEND GRAPPA_LIBS
-#     boost_unit_test_framework
-#     boost_filesystem
-#     boost_system
-#   )
-# endif()
 
 # MPI (mostly for booting, but we also use MPI communication in some places now)
 find_package(MPI REQUIRED)
 include_directories(${MPI_INCLUDE_PATH})
 
-macro(add_grappa_exe name)
+macro(add_grappa_exe name )
   add_executable(${name} EXCLUDE_FROM_ALL ${ARGN})
   target_link_libraries(${name} Grappa)
   target_link_libraries(${name} ${MPI_CXX_LIBRARIES})
@@ -211,24 +170,35 @@ macro(add_grappa_application name)
   set_property(TARGET ${name} PROPERTY FOLDER "Applications") # For organization in Xcode project
 endmacro(add_grappa_application)
 
+set(GRAPPA_TESTS "")
+
 macro(add_grappa_test name)
+  get_filename_component(base ${name} NAME_WE) # name without extension
+  
   add_grappa_exe(${name} ${ARGN})
   set_property(TARGET ${name} PROPERTY FOLDER "Tests") # For organization in Xcode project
   set_target_properties(${test} PROPERTIES
-    COMPILE_FLAGS "-DBOOST_TEST_DYN_LINK -DBOOST_TEST_MODULE=${test_name}"
+    COMPILE_FLAGS "-DBOOST_TEST_DYN_LINK -DBOOST_TEST_MODULE=${base}"
   )
+  
+  # TODO: use "ctest" to make whole regression test suite
+  add_custom_target("check-${base}"
+    COMMAND ${CMAKE_BINARY_DIR}/bin/grappa_srun.rb --test=${base} --nnode=2 --ppn=2
+    DEPENDS Grappa ${name}
+  )
+  set_property(TARGET "check-${base}" PROPERTY FOLDER "Tests")
+  list(APPEND GRAPPA_TESTS "check-${base}")
 endmacro(add_grappa_test)
 
+
 # put Grappa system directory on include path for everything following this
-# include_directories("${CMAKE_CURRENT_SOURCE_DIR}/system")
 include_directories(system)
 include_directories(system/tasks)
 
-
-add_subdirectory(system)
+####################################
+# subdirectories
 add_subdirectory(applications)
 add_subdirectory(bin)
-
 add_subdirectory(scratch)
-
+add_subdirectory(system)
 add_subdirectory(tools)

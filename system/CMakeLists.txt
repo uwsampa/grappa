@@ -170,8 +170,6 @@ add_library(Grappa
 target_link_libraries(Grappa ${GRAPPA_LIBS})
 add_dependencies(Grappa all-tools)
 
-set(GRAPPA_TESTS "")
-
 # create targets for each test
 foreach(test_cpp ${TEST_SOURCES})  
   get_filename_component(test_name ${test_cpp} NAME_WE) # name without extension
@@ -181,13 +179,6 @@ foreach(test_cpp ${TEST_SOURCES})
   # include Boost test automagic main() generation
   # add an additional rule if you need to include multiple components
   
-  # TODO: use "ctest" to make whole regression test suite
-  add_custom_target("check-${test_name}"
-    COMMAND ${CMAKE_BINARY_DIR}/bin/grappa_srun.rb --test=${test_name} --nnode=2 --ppn=2
-    DEPENDS Grappa "${test_name}.test"
-  )
-  set_property(TARGET "check-${test_name}" PROPERTY FOLDER "Tests")
-  list(APPEND GRAPPA_TESTS "check-${test_name}")
 endforeach()
 
 add_custom_target("check-all" DEPENDS ${GRAPPA_TESTS})

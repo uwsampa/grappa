@@ -10,10 +10,13 @@ opt.cc        = ENV['CC']
 opt.cxx       = ENV['CXX']
 
 OptionParser.new{|p|
-  p.on('-g','--generator=[Make]|Ninja|Xcode[,*]'){|a| opt.generator = a }
-  p.on('-m','--mode=[Release]|Debug[,*]')        {|a| opt.mode = a }
-  p.on('--cc=path/to/c/compiler')                {|p| opt.cc = p }
-  p.on('--cxx=path/to/c++/compiler')             {|p| opt.cxx = p }
+  p.set_banner "Usage: #{__FILE__} [options]\nOptions summary: (see more details in INSTALL.md)"
+  p.set_summary_indent ""
+  line_break = "\n#{p.summary_indent}#{' '*p.summary_width}   "
+  p.on('--gen=[Make]|Ninja|Xcode[,*]',"Build tool to generate scripts for.#{line_break}Default: Make.#{line_break}Can specify multiple with commas."){|a| opt.generator = a }
+  p.on('--mode=[Release]|Debug[,*]','Build mode. Default: Release (with debug symbols)'){|a| opt.mode = a }
+  p.on('--cc=path/to/c/compiler','Use alternative C compiler.'){|p| opt.cc = p }
+  p.on('--cxx=path/to/c++/compiler','Alternative C++ compiler (must match --cc choice)'){|p| opt.cxx = p }
 }.parse!(ARGV)
 
 unless opt.generator =~ /Xcode/ # (Xcode generator currently chokes on other compilers...)

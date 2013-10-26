@@ -1,10 +1,10 @@
 
-file(GLOB SCRATCHES
-  "*.cpp"
+file(GLOB DEMOS
+  "*/*.cpp"
 )
 
 # make separate build targets for each BFS variant
-foreach(file ${SCRATCHES})
+foreach(file ${DEMOS})
   get_filename_component(base ${file} NAME_WE)
-  add_grappa_application(scratch-${base}.exe ${file})
+  add_grappa_application(demo-${base}.exe ${file})
 endforeach()
