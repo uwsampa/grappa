@@ -115,16 +115,32 @@ First, you must select the distcc proxy for gcc-4.7.2 that has been set up. If y
     cd <grappa root directory>
     rm -rf build/Make+Release
     ./configure --gen=Make --mode=Release --cc=/sampa/share/distcc/gcc-4.7.2/bin/gcc --cxx=/sampa/share/distcc/gcc-4.7.2/bin/g++
-    
+    cd build/Make+Release
 
-Before building, you must set up a Slurm allocation and launch distcc daemons. Workflow right now is to use a separate shell:
+Before building, you must set up a Slurm allocation and launch distcc daemons. Best workflow is to launch 'make' with the slurm allocation, using our helper script:
+
+    # in, for example, build/Make+Release:
+    bin/distcc_make -j <target>
+    
+    # or to control the allocation (such as number of nodes),
+    # invoke the salloc job with make manually:
+    salloc -N8 bin/distcc.sh make -j
+
+Another alternative is to launch a shell to hold onto an allocation. This may be preferable if you are doing frequent builds:
 
     salloc -N8 <grappa-dir>/bin/distcc.sh bash --login
-    # copy printed 'export DISTCC_HOSTS' command
-
-    # paste 'export DISTCC_HOSTS' command
     cd build/Make+Release
     make -j
+    ...
+    # whenever finished with builds, relinquish allocation:
+    exit
+
+Or use the helper script:
+
+    # equivalent to 'salloc -N8 bin/distcc.sh bash --login'
+    bin/distcc_bash
+
+This will relinquish the Slurm job immediately after the command returns.
 
 **TODO:** come up with way to get distcc allocation without using a second shell (use sbatch to get a persistent job...)
 

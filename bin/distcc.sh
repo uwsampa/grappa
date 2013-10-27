@@ -12,5 +12,6 @@ nodelist=`scontrol show hostname $SLURM_JOB_NODELIST | xargs`
 # done
 hosts="--randomize $nodelist" # non-pump mode
 export DISTCC_HOSTS="$hosts"
+export PS1="(distcc) $PS1"
 echo "export DISTCC_HOSTS='$hosts'"
 exec "$@"
