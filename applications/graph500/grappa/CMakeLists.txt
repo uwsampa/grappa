@@ -30,5 +30,5 @@ foreach(bfs ${BFS_VARIANTS})
   target_link_libraries(${bfs}.exe generator)
 endforeach()
 
-add_grappa_application(graph_new.exe ${SOURCES} main_new.cpp bfs_local_adj.cpp)
+add_grappa_application(graph_new.exe ${SOURCES} main_new.cpp bfs_local_adj.cpp cc_new.cpp)
 target_link_libraries(graph_new.exe generator)

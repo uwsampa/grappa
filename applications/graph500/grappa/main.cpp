@@ -16,8 +16,6 @@
 #define __STDC_FORMAT_MACROS
 #endif
 
-#define _GRAPPA 1
-
 #include "../generator/make_graph.h"
 #include "../generator/utils.h"
 #include "../prng.h"

@@ -5,7 +5,6 @@
 #include <Statistics.hpp>
 #include <Collective.hpp>
 
-#define _GRAPPA 1
 #include "../generator/make_graph.h"
 
 #include "../generator/utils.h"
