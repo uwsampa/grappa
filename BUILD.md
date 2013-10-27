@@ -88,10 +88,14 @@ Another option sometimes useful is to use the "curses"-based UI, invoked by:
 
     ccmake ../..
 
-
 ### Starting fresh / changing compiler
 If you want to re-configure some configuration from scratch, the best thing to do is delete the entire directory and re-run `./configure`. **You must do this if you want to change anything about the compiler.**
 
+### Verbose
+To get more output:
+- When running CMake directly: `cmake --debug`
+- When using `--gen=Make`: `make VERBOSE=1`
+- When using `--gen=Ninja`: `ninja -v`
 
 ## Miscellaneous features
 ### Scratch directory

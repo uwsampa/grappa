@@ -108,11 +108,12 @@ list(APPEND GRAPPA_LIBS
 # Boost
 #####################################
 if (DEFINED BOOST_ROOT)
-  find_package(Boost REQUIRED
+  set(Boost_USE_MULTITHREADED OFF)
+  find_package(Boost 1.51 REQUIRED
     COMPONENTS filesystem system unit_test_framework
   )
   include_directories(${Boost_INCLUDE_DIR})
-  link_directories(${Boost_LIBRARY_DIRS}) 
+  link_directories(${Boost_LIBRARY_DIRS})
   # sets Boost_LIBRARIES correctly
 else()
   # Download & build Boost
