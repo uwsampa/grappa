@@ -24,10 +24,6 @@ enable_testing()
 # set(CMAKE_BUILD_TYPE RelWithDebInfo)
 site_name(MACHINENAME)
 
-# set(TOOLS_INSTALL_DIR "${CMAKE_SOURCE_DIR}/tools/built_deps")
-# set(TOOLS_INSTALL_DIR "${CMAKE_SOURCE_DIR}/extern")
-set(TOOLS_INSTALL_DIR "${CMAKE_BINARY_DIR}/tools")
-
 if(TRACING)
   # TODO:Fix VampirTrace support
   
@@ -46,7 +42,6 @@ endif()
 # global C++ flags
 set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -std=c++11 -Winline -Wno-inline -mno-red-zone")
 add_definitions("-DENABLE_RDMA_AGGREGATOR")
-
 
 # TODO: use -stdlib=libc++ too?
 
@@ -74,6 +69,13 @@ if(NOT APPLE)
 endif()
 ##### </RUNPATH> ########
 
+#########################################
+# Determine tools to build
+set(TOOLS_INSTALL_DIR "${CMAKE_BINARY_DIR}/tools")
+
+# always need these
+set(tool_list tool-gasnet tool-gflags tool-glog)
+
 if(TRACING)
   set(GOOGLE_PROFILER ON)
 
@@ -90,6 +92,7 @@ endif()
 if( GOOGLE_PROFILER )
   set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -fno-omit-frame-pointer")
   add_definitions( -DGOOGLE_PROFILER )
+  list(APPEND tool_list tool-gperftools)
 endif()
 
 # pre-compiled external dependencies
@@ -100,6 +103,41 @@ list(APPEND GRAPPA_LIBS
   gflags
   glog
 )
+
+#####################################
+# Boost
+#####################################
+if (DEFINED BOOST_ROOT)
+  find_package(Boost REQUIRED
+    COMPONENTS filesystem system unit_test_framework
+  )
+  include_directories(${Boost_INCLUDE_DIR})
+  link_directories(${Boost_LIBRARY_DIRS}) 
+  # sets Boost_LIBRARIES correctly
+else()
+  # Download & build Boost
+  ExternalProject_Add(tool-boost
+    SOURCE_DIR         ${EXTERN_BUILD_DIR}/src/boost
+    PREFIX             ${EXTERN_BUILD_DIR}/boost
+    STAMP_DIR          ${EXTERN_STAMP_DIR}/boost
+    INSTALL_DIR        ${TOOLS_INSTALL_DIR}
+    URL "http://sourceforge.net/projects/boost/files/boost/1.54.0/boost_1_54_0.tar.bz2"
+    # URL_MD5 dbc07ab0254df3dda6300fd737b3f264 
+    BUILD_IN_SOURCE 1
+    CONFIGURE_COMMAND
+      ./bootstrap.sh 
+        --with-libraries=filesystem
+        --with-libraries=system
+        --with-libraries=test
+        --with-libraries=random
+        --prefix=<INSTALL_DIR>
+    BUILD_COMMAND
+      ./b2 install --link=static --variant=release --threading=single --runtime-link=static
+    INSTALL_COMMAND ""
+  )
+  set(Boost_LIBRARIES boost_filesystem boost_system boost_unit_test_framework )
+  list(APPEND tool_list tool-boost)
+endif()
 
 ######################################
 # Gasnet
@@ -145,9 +183,6 @@ add_definitions(-DSHMMAX=12884901888) # 12 GB
 if(NOT APPLE)
   list(APPEND GRAPPA_LIBS pthread rt)
 endif()
-
-# build these boost libraries... (see tools/CMakeLists.txt for the ExternalProject declaration)
-set(Boost_LIBRARIES boost_filesystem boost_system boost_unit_test_framework )
 
 # set(BOOST_ROOT ...)
 # find_package(Boost REQUIRED COMPONENTS filesystem system unit_test_framework )

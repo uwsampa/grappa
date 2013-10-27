@@ -9,14 +9,22 @@ opt.mode      = 'Release'
 opt.cc        = ENV['CC']
 opt.cxx       = ENV['CXX']
 
+case `hostname`
+when /n[\d+]/
+  opt.boost = "/sampa/share/gcc-4.7.2/src/boost_1_51_0"
+when /pal/
+  opt.boost = "~nels707/boost153-install"
+end
+
 OptionParser.new{|p|
-  p.set_banner "Usage: #{__FILE__} [options]\nOptions summary: (see more details in INSTALL.md)"
+  p.set_banner "Usage: #{__FILE__} [options] [-- cmake options]\nOptions summary: (see more details in BUILD.md)"
   p.set_summary_indent ""
   line_break = "\n#{p.summary_indent}#{' '*p.summary_width}   "
   p.on('--gen=[Make]|Ninja|Xcode[,*]',"Build tool to generate scripts for.#{line_break}Default: Make.#{line_break}Can specify multiple with commas."){|a| opt.generator = a }
   p.on('--mode=[Release]|Debug[,*]','Build mode. Default: Release (with debug symbols)'){|a| opt.mode = a }
   p.on('--cc=path/to/c/compiler','Use alternative C compiler.'){|p| opt.cc = p }
   p.on('--cxx=path/to/c++/compiler','Alternative C++ compiler (must match --cc choice)'){|p| opt.cxx = p }
+  p.on('--boost=path/to/boost/root',"Specify location of compatible boost (>= 1.53)#{line_break}(otherwise, cmake will download and build it)"){|p| opt.boost = p }
 }.parse!(ARGV)
 
 unless opt.generator =~ /Xcode/ # (Xcode generator currently chokes on other compilers...)
@@ -28,7 +36,7 @@ end
 def configure(generator, mode, opt)
   root_dir = File.expand_path(File.dirname(__FILE__))
   args = [ root_dir ]
-    
+   
   case generator
   when /Make/
     args << %Q[-G"Unix Makefiles"]
@@ -48,6 +56,11 @@ def configure(generator, mode, opt)
   if mode
     # note: use 'RelWithDebInfo' because it adds '-g'...
     args << "-DCMAKE_BUILD_TYPE=" + {'Debug'=>'Debug', 'Release'=>'RelWithDebInfo'}[mode]
+  end
+  
+  args << "-DBOOST_ROOT=#{opt.boost}" if opt.boost
+  unless opt.boost
+    puts "warning: --boost not specified, will download & build it, which may take a while"
   end
   
   build_dir = "build/#{generator}"
