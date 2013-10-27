@@ -107,15 +107,21 @@ list(APPEND GRAPPA_LIBS
 #####################################
 # Boost
 #####################################
-if (DEFINED BOOST_ROOT)
+set(BOOST_COMPONENTS filesystem system unit_test_framework)
+
+find_package(Boost 1.51 COMPONENTS ${BOOST_COMPONENTS})
+
+if(NOT Boost_FOUND)
   set(Boost_USE_MULTITHREADED OFF)
-  find_package(Boost 1.51 REQUIRED
-    COMPONENTS filesystem system unit_test_framework
-  )
+  find_package(Boost 1.51 COMPONENTS ${BOOST_COMPONENTS})
+endif()  
+if(Boost_FOUND)
   include_directories(${Boost_INCLUDE_DIR})
   link_directories(${Boost_LIBRARY_DIRS})
   # sets Boost_LIBRARIES correctly
-else()
+endif()
+
+if(NOT Boost_FOUND)
   # Download & build Boost
   ExternalProject_Add(tool-boost
     SOURCE_DIR         ${EXTERN_BUILD_DIR}/src/boost
