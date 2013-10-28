@@ -109,15 +109,17 @@ list(APPEND GRAPPA_LIBS
 #####################################
 set(BOOST_COMPONENTS filesystem system unit_test_framework)
 
+set(Boost_USE_MULTITHREADED OFF)
 find_package(Boost 1.51 COMPONENTS ${BOOST_COMPONENTS})
 
 if(NOT Boost_FOUND)
-  set(Boost_USE_MULTITHREADED OFF)
+  set(Boost_USE_MULTITHREADED ON)
   find_package(Boost 1.51 COMPONENTS ${BOOST_COMPONENTS})
 endif()  
 if(Boost_FOUND)
   include_directories(${Boost_INCLUDE_DIR})
   link_directories(${Boost_LIBRARY_DIRS})
+  message("-- Boost_LIBRARIES: ${Boost_LIBRARIES}")
   # sets Boost_LIBRARIES correctly
 endif()
 
